@@ -6,6 +6,9 @@
 | ID | 现象 | 复现 | 根因（待填） | 影响 | Stage A 处理 | Stage B 修复方案 | 状态 |
 |---|---|---|---|---|---|---|---|
 | BUG-000 | （模板）示例：某层踩到传送点偶发卡死 | 输入序列 … | 待分析 | 轻微 | 保留原行为 | 待定 | open |
+| BUG-001 | `script` 资源是**死数据**：运行时从未读取它，真源是编译进 class 的内嵌数组 `this.n[]`；且资源文件与内嵌数组有 2 处内容差异（GUTS 第 27、63 行） | `grep 'getResourceAsStream' reference/seed/a.java` 无 "script" 命中；逐行 diff 资源 vs `this.n[]`（见 `docs/findings/script-dsl-semantics.md`） | 随包发的疑似设计文档副本，编译期被拍平进常量池 | 无玩家可见影响（行为以内嵌数组为准） | 保留资源原样，行为以内嵌数组为准 | 决定删冗余资源或反向以资源为准 | open |
+| BUG-002 | `run()` 输入模式分支 `switch(var5_3.i)` 中 `int i` 字段全程无赋值（恒 0），case 0 恒定命中——疑似死代码 | 全文 grep 无该字段赋值点（见 `docs/findings/state-machine.md`） | 待字节码复核（反编译可能丢信息） | 无（死代码） | 保留原样 | 可安全删除 | open |
+| BUG-003 | （线索）GUTS 脚本存在负数参数指令（`DES_-66_0` 型） | 见 `docs/findings/script-dsl-semantics.md` 假设节 | 待定 | 未定 | 保留原行为 | 待定 | lead |
 
 ## 记录规范
 - **现象**：玩家可见的行为描述，含层号/坐标/道具条件
