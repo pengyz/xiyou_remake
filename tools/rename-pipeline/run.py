@@ -36,6 +36,7 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))   # 复用 tools/cfr_env.py（CFR 定位/校验单一真相源）
 
 import classfile as cfmod          # noqa: E402
+import deunicode                   # noqa: E402
 import renamer                     # noqa: E402
 import verifier                    # noqa: E402
 from cfr_env import CFR_SHA256, ensure_cfr  # noqa: E402
@@ -207,13 +208,30 @@ def build() -> dict:
     sources = sorted(DEOBF.glob("*.java"))
     log(f"CFR 再生 {len(sources)} 个 Java: {', '.join(p.name for p in sources)}")
 
-    # ⑤ 产物自检：无混淆名单字母/短名残留
+    # ⑤ 中文可读化后处理（t12）：字面量内非 ASCII \uXXXX → UTF-8 明文（seed 不动）。
+    #    回环硬校验 encode(decode(raw)) == raw：解码产物值不变的可复算证明；
+    #    失败即拒绝落盘（绝不写出与 CFR 原文不等价的源码）。
+    decode_stats = {}
+    for src in sources:
+        raw = src.read_text(encoding="utf-8")
+        dec, nlit, ndec, nkept = deunicode.decode_java_literals(raw)
+        if deunicode.encode_java_literals(dec) != raw:
+            raise RuntimeError(
+                f"回环校验失败：{src.name} 解码后再编码与 CFR 原文不逐字节一致"
+                f"（值不变证明不成立，拒绝落盘）")
+        src.write_text(dec, encoding="utf-8")
+        decode_stats[src.name] = {"literals": nlit, "decoded": ndec, "kept": nkept}
+    log("中文可读化后处理：" + ", ".join(
+        f"{k} 解码 {v['decoded']} 处（字面量 {v['literals']}，保留转义 {v['kept']}）"
+        for k, v in decode_stats.items()) + "；回环 encode(decode)==CFR 原文 ✓")
+
+    # ⑥ 产物自检：无混淆名单字母/短名残留
     problems = check_outputs(classes, sources)
     if problems:
         raise RuntimeError("产物自检失败:\n  " + "\n  ".join(problems))
     log("产物自检通过：字段/方法名全部唯一化，无混淆短名残留")
     return {"classes": classes, "records": records, "final_records": final_records,
-            "semantic": semantic, "sources": sources}
+            "semantic": semantic, "sources": sources, "decode_stats": decode_stats}
 
 
 def check_outputs(classes: dict, sources: list) -> list:
@@ -338,9 +356,32 @@ def verify(build_state: dict):
             "lnt_count": lnt,
         })
 
+    # (c) 中文字符串 × 常量池 UTF-8 对照（t12 验证 c）：抽 3 处解码后的中文字符串字面量，
+    #     必须逐字命中 class 常量池 Utf8（class 文件存明文 UTF-8 ⇒ 解码值不变的另一路证据）
+    utf8s = set()
+    for cname in sorted(classes):
+        cf = cfmod.parse((ORIG / f"{cname}.class").read_bytes())
+        for e in cf.cp[1:]:
+            if e is not None and e[0] == cfmod.UTF8:
+                utf8s.add(e[1].decode("utf-8", "replace"))
+    cp_samples = []
+    for src in build_state["sources"]:
+        for v in deunicode.string_literal_values(src.read_text(encoding="utf-8")):
+            if deunicode.CJK.search(v) and "\\" not in v:
+                cp_samples.append((src.name, v))
+                if len(cp_samples) >= 3:
+                    break
+        if len(cp_samples) >= 3:
+            break
+    cp_samples = [(f, v, v in utf8s) for f, v in cp_samples[:3]]
+    cp_ok = len(cp_samples) == 3 and all(hit for _, _, hit in cp_samples)
+    all_ok = all_ok and cp_ok
+
     write_report(records, report_rows, method_rows, all_ok,
                  locals_note=locals_note(build_state["sources"]),
-                 semantic=build_state["semantic"])
+                 semantic=build_state["semantic"],
+                 decode_stats=build_state.get("decode_stats", {}),
+                 cp_samples=cp_samples)
 
     # 幂等 manifest：全部产物 sha256（不含 manifest 自身）
     outputs = [REMAP.relative_to(ROOT)] + \
@@ -357,8 +398,11 @@ def verify(build_state: dict):
     log(f"报告 → {VERIFY_OUT.relative_to(ROOT)}/report.md")
 
 
-def write_report(records, report_rows, method_rows, all_ok, locals_note, semantic=None):
+def write_report(records, report_rows, method_rows, all_ok, locals_note, semantic=None,
+                 decode_stats=None, cp_samples=None):
     semantic = semantic or {}
+    decode_stats = decode_stats or {}
+    cp_samples = cp_samples or []
     n_renamed = sum(1 for r in records if r["renamed"])
     kept = [r for r in records if not r["renamed"]]
     lines = []
@@ -446,6 +490,28 @@ def write_report(records, report_rows, method_rows, all_ok, locals_note, semanti
       "局部变量名是 CFR 按类型启发式生成的**投影层命名**（方法作用域内唯一、无歧义），"
       "不属于符号重映射范围；本目录 Java 保持 CFR 原样输出以便与 "
       "`bash tools/decompile.sh` 的再生产流程同构。")
+    a("")
+    a("## deobf 中文可读化后处理（t12：字面量 \\uXXXX → UTF-8）")
+    a("")
+    a("对 CFR 产物 `reference/src/deobf/*.java` 做确定性后处理：**字符串/字符字面量内**"
+      "码点 ≥ 0x00A0 的 `\\uXXXX` 解码为 UTF-8 明文（含全部中文）；ASCII 范围转义"
+      "（< 0x00A0，如 `\\u0022`/`\\u005C`/`\\u0000`）一律保留以免词法歧义。只改源文本呈现 —— "
+      "**回环硬校验** `encode(decode(原文)) == 原文` 逐字节成立（构建时校验，失败拒绝落盘），"
+      "即运行期字符串值零变化；注释/标识符不动，解码产出字符永不为引号/反斜杠 ⇒ 词法结构零变化。"
+      "`reference/seed/` 保持 CFR 转义原样（D3 锚点，一字节不动，reference-seed-integrity 锁定）。")
+    a("")
+    a("| 文件 | 字面量数 | 解码字符 | 保留转义 | 回环 encode(decode)==CFR 原文 |")
+    a("|---|---|---|---|---|")
+    for name, s in sorted(decode_stats.items()):
+        a(f"| {name} | {s['literals']} | {s['decoded']} | {s['kept']} | ✓ |")
+    a("")
+    a("中文字符串 × 常量池 UTF-8 对照（抽样 3 处，解码值逐字命中 class 常量池 Utf8 —— "
+      "class 文件存明文 UTF-8，故此为「解码值不变」的另一路独立证据）：")
+    a("")
+    a("| 来源 | 解码后字面量 | 常量池 UTF-8 命中 |")
+    a("|---|---|---|")
+    for f, v, hit in cp_samples:
+        a(f"| {f} | `{v[:40]}` | {'✓' if hit else '✗'} |")
     a("")
     a("## 备注")
     a("")

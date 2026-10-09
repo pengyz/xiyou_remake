@@ -20,6 +20,7 @@ python3 tools/decompile.py        # 等价 bash tools/decompile.sh
 
 产物溯源：源 `original/囧囧西游-大闹天宫.jar`（sha256 `764cf01e…db20ec`）→ 解包 `a.class`（sha256 `128b7462…d4fa`）。
 P1 阶段建议用 Vineflower 交叉比对验证反编译正确性。
+产物去向差异（2026-10-09 t12 补记）：`reference/seed/` 保持 CFR 原样转义投影（字符串内非 ASCII 一律 `\uXXXX` 形式，D3 锚点一字节不动）；`reference/src/deobf/` 为重映射产物并经**中文可读化后处理**——字面量内非 ASCII `\uXXXX` 机械解码为 UTF-8 明文（ASCII 转义保留；回环 `encode(decode(x))==x` 证明运行期字符串值零变化），实现见 `tools/rename-pipeline/deunicode.py`。
 
 **完整性校验（2026-10-09 补记，t9-F2）：** `cfr.jar` 完整 sha256 =
 `f686e8f3ded377d7bc87d216a90e9e9512df4156e75b06c655a16648ae8765b2`

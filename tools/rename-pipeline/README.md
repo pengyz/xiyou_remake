@@ -77,6 +77,15 @@ CFR 0.152 完整 sha256 =
 离线/缓存用法见
 [`docs/knowledge/reference_cfr_decompiler.md`](../../docs/knowledge/reference_cfr_decompiler.md)。
 
+## 中文可读化后处理（t12）
+
+CFR 产物再做一次确定性后处理（[`deunicode.py`](deunicode.py)）：字符串/字符**字面量内**
+码点 ≥ 0x00A0 的 `\uXXXX` 解码为 UTF-8 明文（含全部中文）；ASCII 范围转义（< 0x00A0，
+如 `\u0022`/`\u005C`）保留以免词法歧义；注释/标识符不动。
+只改源文本呈现：回环 `encode(decode(x)) == x` 逐字节成立（构建时硬校验，失败拒绝落盘）
+⇒ 运行期字符串值零变化；`--verify` 另抽 3 处中文字符串与 class 常量池 UTF-8 逐字对照。
+`reference/seed/` 保持 CFR 转义原样（D3 锚点一字节不动）。
+
 ## 产物
 
 | 路径 | 内容 | 入库 |
