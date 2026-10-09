@@ -18,6 +18,8 @@
 
 ## Debug
 
+- [同名重载消歧用 renamed javap](debug_renamed-javap-disambiguates-overloads.md) — CFR 文本的重载同名无法 grep 消歧；对 renamed class 跑 javap，`getfield #NNN` 一条定案
+
 ## Decisions
 
 ## Reference
