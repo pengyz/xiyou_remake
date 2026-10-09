@@ -22,7 +22,7 @@ Nokia J2ME（MIDP-1.0）解谜 RPG《囧囧西游之大闹天宫》（SNOWFISH, 
 | `docs/bug-ledger.md` | 原版 bug 台账（Stage A 保真，Stage B 修） |
 | `prompts/` | 角色提示词（re-analyst/spec-writer/porter/verifier） |
 | `gates/` | 门禁工具 + git hooks |
-| `crates/` | Rust workspace（game-data/core/platform/oracle/desktop/wasm） |
+| `crates/` | Rust workspace 成员（game-data/core/platform/oracle/desktop/wasm；workspace 根在仓库根 `Cargo.toml`，`members = ["crates/*"]`） |
 | `data/` | 命名台账 + 门禁基线 |
 | `tools/` | 资源提取/改名管线/trace 比对 |
 

@@ -109,7 +109,10 @@ assert_eq!(instr.args, vec![72, 3, 7, 1, 8]);
 
 ## workspace 布局说明
 
-- [`crates/Cargo.toml`](../Cargo.toml)：crates/ 子树 workspace 根（成员 `game-data`）。
-- [`Cargo.toml`](../../Cargo.toml)（仓库根）：顶层 workspace 根——**必需**，
-  因为 [`gates/cli.py`](../../gates/cli.py) 的 `gate_rust_tests` 以仓库根为 cwd 运行
-  `cargo test --workspace`，而 cargo 只向上查找 manifest。新增 crate 时两处 members 同步登记。
+- [`Cargo.toml`](../../Cargo.toml)（仓库根）是**仓库唯一**的 `[workspace]` 定义（`members = ["crates/*"]`）：
+  [`gates/cli.py`](../../gates/cli.py) 的 `gate_rust_tests` 以仓库根为 cwd 运行 `cargo test --workspace`，
+  而 cargo 只向上查找 manifest，故 workspace 根必须落在仓库根（t7 已单根化，原 `crates/Cargo.toml`
+  双根结构删除）。
+- glob `crates/*` 的约束：**crates/ 下每个子目录必须是含 `Cargo.toml` 的 crate**（如 `game-core`、
+  `game-platform` 落地时各自带 manifest 即自动入workspace）；不要在 `crates/` 下放非 crate 目录
+  （构建产物统一在仓库根 `target/`）。
