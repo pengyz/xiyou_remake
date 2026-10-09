@@ -117,12 +117,22 @@ def gate_knowledge_format():
                   "; ".join(bad[:5]) if bad else f"{len(list(kdir.glob('*.md')))-2} 条目合规")
 
 
+def _tracked_md_files():
+    """全部 git 追踪的 .md 文件（覆盖面以仓库实际内容为准，不靠手写目录清单维护）。"""
+    r = subprocess.run(["git", "ls-files", "*.md"], cwd=ROOT, capture_output=True, text=True)
+    if r.returncode != 0:
+        # git 不可用时退化为静态目录清单，保证门禁仍可运行
+        files = [ROOT / "AGENTS.md", ROOT / "CLAUDE.md", ROOT / "README.md"]
+        for sub in ("docs", "prompts", "gates", "data", "original", "reference"):
+            files += [p for p in (ROOT / sub).rglob("*.md")]
+        return files
+    return [ROOT / line for line in r.stdout.splitlines() if line.strip()]
+
+
 def gate_docs_links():
-    """文档链接：AGENTS/prompts/docs 下 md 的相对链接必须指向存在的文件。"""
+    """文档链接：全部 git 追踪 .md 文件的相对链接必须指向存在的文件（覆盖整个仓库，不限 docs/prompts）。"""
     missing = []
-    md_files = [ROOT / "AGENTS.md", ROOT / "CLAUDE.md", ROOT / "README.md"]
-    for sub in ("docs", "prompts"):
-        md_files += [p for p in (ROOT / sub).rglob("*.md")]
+    md_files = _tracked_md_files()
     for p in md_files:
         if not p.exists():
             continue
