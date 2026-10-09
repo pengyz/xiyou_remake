@@ -10,6 +10,7 @@
   python3 gates/cli.py status      # 只读预检（动手前必跑）
   python3 gates/cli.py check       # 总闸（pre-commit 调用）
   python3 gates/cli.py original    # JAR 完整性
+  python3 gates/cli.py reference-seed  # D3 锚点 reference/seed/a.java 完整性
   python3 gates/cli.py reference   # 参考版回归（P1 后启用）
   python3 gates/cli.py trace       # 差分 L1-L3（P3 后启用）
   python3 gates/cli.py visual      # 视觉 L4（P3 后启用）
@@ -148,6 +149,31 @@ def gate_docs_links():
                   "; ".join(missing[:5]) if missing else "全部相对链接有效")
 
 
+def gate_reference_seed_integrity():
+    """D3 锚点完整性：reference/seed/a.java 行数+sha256 必须对照基线不变（AGENTS.md §2 reference/ 红线）。
+
+    seed/a.java 是全部差分验证的不可变投影基准（CFR 反编译产物），本身不受
+    original-integrity（校验 original/ 下 jar）覆盖，之前无任何门禁保护，
+    可被意外改动而不触发任何 FAIL。本门禁补上这个缺口。
+    """
+    seed = ROOT / "reference/seed/a.java"
+    base = load_baseline().get("decomp")
+    if not seed.exists():
+        return report("reference-seed-integrity", FAIL, "reference/seed/a.java 缺失（D3 锚点红线）")
+    if not base or not base.get("seed_a_java_sha256"):
+        return report("reference-seed-integrity", FAIL,
+                      "基线缺失 decomp.seed_a_java_sha256：data/status/baselines/baseline.json")
+    cur_sha = sha256(seed)
+    cur_lines = len(seed.read_text(encoding="utf-8").splitlines())
+    bad = []
+    if cur_sha != base["seed_a_java_sha256"]:
+        bad.append(f"sha256 不匹配 期望={base['seed_a_java_sha256'][:12]}… 实际={cur_sha[:12]}…")
+    if base.get("seed_a_java_lines") and cur_lines != base["seed_a_java_lines"]:
+        bad.append(f"行数不匹配 期望={base['seed_a_java_lines']} 实际={cur_lines}")
+    return report("reference-seed-integrity", FAIL if bad else PASS,
+                  "; ".join(bad) if bad else f"{cur_lines} 行，sha256 对照基线通过")
+
+
 def gate_naming_ledger():
     """命名台账：每条 rename 必须有 evidence/confidence（AGENTS.md §3）。"""
     ledger = ROOT / "data/naming/ledger.jsonl"
@@ -217,8 +243,8 @@ def cmd_status():
         print(f"基线: {json.dumps(base.get('assets', base), ensure_ascii=False)}")
     else:
         print("基线: 缺失")
-    statuses = [gate_original(), gate_assets_manifest(), gate_knowledge_format(),
-                gate_docs_links(), gate_naming_ledger(), gate_rust_tests(),
+    statuses = [gate_original(), gate_assets_manifest(), gate_reference_seed_integrity(),
+                gate_knowledge_format(), gate_docs_links(), gate_naming_ledger(), gate_rust_tests(),
                 gate_reference(), gate_trace(), gate_visual()]
     print("== 汇总 ==")
     print(f"PASS={statuses.count(PASS)} FAIL={statuses.count(FAIL)} "
@@ -228,8 +254,8 @@ def cmd_status():
 
 def cmd_check():
     print("== 总闸 gates/cli.py check ==")
-    statuses = [gate_original(), gate_assets_manifest(), gate_knowledge_format(),
-                gate_docs_links(), gate_naming_ledger(), gate_rust_tests()]
+    statuses = [gate_original(), gate_assets_manifest(), gate_reference_seed_integrity(),
+                gate_knowledge_format(), gate_docs_links(), gate_naming_ledger(), gate_rust_tests()]
     # SKIP 项必须显式出现在输出（上面已打印），不得静默
     print("== 汇总 ==")
     print(f"PASS={statuses.count(PASS)} FAIL={statuses.count(FAIL)} SKIP={statuses.count(SKIP)}")
@@ -238,8 +264,8 @@ def cmd_check():
 
 def cmd_all():
     print("== 全量门禁 ==")
-    statuses = [gate_original(), gate_assets_manifest(), gate_knowledge_format(),
-                gate_docs_links(), gate_naming_ledger(), gate_rust_tests(),
+    statuses = [gate_original(), gate_assets_manifest(), gate_reference_seed_integrity(),
+                gate_knowledge_format(), gate_docs_links(), gate_naming_ledger(), gate_rust_tests(),
                 gate_reference(), gate_trace(), gate_visual()]
     print(f"PASS={statuses.count(PASS)} FAIL={statuses.count(FAIL)} SKIP={statuses.count(SKIP)}")
     return 1 if FAIL in statuses else 0
@@ -250,6 +276,7 @@ COMMANDS = {
     "check": cmd_check,
     "all": cmd_all,
     "original": lambda: 1 if gate_original() == FAIL else 0,
+    "reference-seed": lambda: 1 if gate_reference_seed_integrity() == FAIL else 0,
     "reference": lambda: 1 if gate_reference() == FAIL else 0,
     "trace": lambda: 1 if gate_trace() == FAIL else 0,
     "visual": lambda: 1 if gate_visual() == FAIL else 0,

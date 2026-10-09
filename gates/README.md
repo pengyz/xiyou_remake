@@ -10,6 +10,7 @@
 | `python3 gates/cli.py status` | 只读预检：门禁状态 + 基线对照（**动手前必跑**） | 每次会话开工 |
 | `python3 gates/cli.py check` | 总闸（pre-commit 自动调用） | 任何 commit |
 | `python3 gates/cli.py original` | JAR sha256 完整性 | 怀疑 original/ 被改 |
+| `python3 gates/cli.py reference-seed` | reference/seed/a.java 完整性 | 怀疑 D3 锚点被改 |
 | `python3 gates/cli.py reference` | 参考版回归（P1 oracle 就绪后启用） | 改 reference/ 后 |
 | `python3 gates/cli.py trace` | 差分 L1–L3（P4 启用） | 改 game-data/game-core 后 |
 | `python3 gates/cli.py visual` | 视觉 L4（P4 启用） | 改渲染后 |
@@ -21,6 +22,7 @@
 |---|---|---|
 | `original-integrity` | `original/` sha256 对照 SHA256SUMS | 启用 |
 | `assets-manifest` | JAR 资产清单 ratchet（对照 baseline.json） | 启用 |
+| `reference-seed-integrity` | `reference/seed/a.java`（D3 不可变锚点）行数+sha256 对照 baseline.json | 启用 |
 | `knowledge-format` | 知识库 frontmatter/type/文件名前缀 | 启用 |
 | `docs-links` | 文档相对链接有效性 | 启用 |
 | `naming-ledger` | 每条 rename 带 evidence 指针 | 台账创建后自动启用 |
