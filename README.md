@@ -39,7 +39,8 @@ CI：`.github/workflows/gates.yml` 在 push/PR 到 `master` 时自动跑 `gates/
 ## 当前进度
 
 - [x] P0 资产盘点与混淆等级评估（`docs/findings/jar-forensics.md`）
-- [ ] P1 反混淆（参考版 Java + 命名台账）
-- [ ] P2 理解逻辑（规格书）
-- [ ] P3 Rust 改写
-- [ ] P4 差分验证 → Stage A 完成
+- [x] P1 反混淆：机械重映射管线（javap 等价）+ 语义命名第一批（82 名）+ 中文明文化
+      + MIDP shim/oracle 差分地基（原始 vs 无歧义版 trace 逐字节一致）
+- [x] P2 玩法规格与数值表（`docs/spec/gameplay.md` 40 条合同 + `constants.md`）
+- [ ] P3 Rust 改写（game-data ✅；game-core/game-platform 待启动）
+- [ ] P4 差分验证全面铺开 → Stage A 完成

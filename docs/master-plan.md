@@ -106,9 +106,22 @@ reference/         参考版 Java + 自研 MIDP/Nokia shim + 追踪钩子（D3 �
 
 ## 6. 里程碑
 
-- M0 资产与格式考证（进行中，≈90%）
-- M1 参考版 Java 可运行 + trace 输出（P1）
-- M2 规格书齐备（P2）
-- M3 Rust core+data 移植完成（P3）
+- [x] M0 资产与格式考证（2026-10-09，见 docs/findings/ 三份考证）
+- [x] M1 参考版 Java 可运行 + trace 输出（2026-10-09，oracle 差分地基 + reference 门禁启用）
+- [x] M2 规格书齐备（2026-10-09，gameplay 40 条合同 + constants；DSL/格式 spec 见 findings）
+- M3 Rust core+data 移植完成（P3）——game-data ✅，game-core/game-platform 待启动
 - M4 差分验证通过 = **Stage A 完成（像素级一致）**
 - M5 现代化改造（Stage B，含 bug 台账清偿）
+
+## 7. 下一批次待办（P1 收官登记，2026-10-09）
+
+| 项 | 来源 | 说明 |
+|---|---|---|
+| game-core 移植（战斗/移动/道具/脚本解释器） | P3 主线 | 规格已备（gameplay.md 合同 40 条）；**必须复刻 oracle 策略**（虚拟时钟/FIFO 协作调度/网络离线/RMS 内存，`reference/oracle/_diff/report.md` §4 为权威）；战斗零随机、HP 下限 1 无死亡——禁止发明死亡/随机伤害 |
+| game-platform trait 层 | P3 | 扩展缝按 §2；RNG/时钟接管点见 state-machine.md §6 五项清单 |
+| 语义命名第二批 | P1 残余 | 局部变量（CFR 投影名 n/c/s）与类名（a/CMidlet）重命名批次；4 条台账 hypothesis（f_int_26 双用途/f_byte_26 语义/w[B]/x[Z]）考证后转正 |
+| DSL 解释器逐指令语义残项 | P2 残余 | script-dsl-semantics.md 遗留清单 7 项（含 per-tick 驱动循环定位） |
+| 深场景输入脚本 | P4 | oracle `--script` 扩展至全 55 层可跑（L5 流程级） |
+| 视觉保真 L4 | P4 | 字形现为确定性示意图案（R2 字体风险），字体方案定案后做截图 diff 白名单 |
+| oracle 报告 §3「Thread→6」计数口径 | t10-F2 | 注明"4 成员引用/6 调用点"，下次报告再生成时修（cosmetic） |
+| diff-trace / visual-diff 门禁启用 | P4 | game-oracle crate 与 gates/visual_diff.py 落地后自动转 PASS |
