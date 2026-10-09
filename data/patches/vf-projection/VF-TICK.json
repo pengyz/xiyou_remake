@@ -1,0 +1,30 @@
+{
+  "id": "VF-TICK",
+  "target": "a.java",
+  "kind": "scoped",
+  "method": "   private void tickBattle(boolean var1) {",
+  "replacements": [
+    {
+      "old": "var1 = this.entityType[this.f_int_44];",
+      "new": "int var1t = this.entityType[this.f_int_44];",
+      "count": 1
+    },
+    {
+      "old": "effectiveAttackVsType(var1)",
+      "new": "effectiveAttackVsType(var1t)",
+      "count": 1
+    },
+    {
+      "old": "var1 - 41",
+      "new": "var1t - 41",
+      "count": 4
+    },
+    {
+      "old": "predictHpLossVsType(var1,",
+      "new": "predictHpLossVsType(var1t,",
+      "count": 1
+    }
+  ],
+  "evidence": "javap tickBattle: 偏移29 istore_1（entityType int）位于 f_bool_23==0 分支；偏移467 iload_1 boolean 读位于互斥分支 ⇒ 同槽双路径双类型，拆名 var1t 合法且唯一忠实。",
+  "confidence": 90
+}

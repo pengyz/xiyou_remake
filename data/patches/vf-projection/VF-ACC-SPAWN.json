@@ -1,0 +1,15 @@
+{
+  "id": "VF-ACC-SPAWN",
+  "target": "a.java",
+  "kind": "scoped",
+  "method": "   private void spawnBossEvent(int var1) {",
+  "replacements": [
+    {
+      "old": "byte var4 = 0;",
+      "new": "int var4 = 0;",
+      "count": 1
+    }
+  ],
+  "evidence": "javap spawnBossEvent: iinc 4,4（int 累加，方法内 i2b=0）。",
+  "confidence": 92
+}

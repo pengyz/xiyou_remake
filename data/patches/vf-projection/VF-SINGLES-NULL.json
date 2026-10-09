@@ -1,0 +1,44 @@
+{
+  "id": "VF-SINGLES-NULL",
+  "target": "a.java",
+  "kind": "global",
+  "replacements": [
+    {
+      "old": "int var20 = 0;\n         var20 = (boolean)0;",
+      "new": "int var20 = 0;\n         var20 = 0;",
+      "count": 1
+    },
+    {
+      "old": "var4 = null;\n      var4 = false;",
+      "new": "var4 = null;\n      var4 = null;",
+      "count": 1
+    },
+    {
+      "old": "byte var12 = 0;\n      var4 = false;",
+      "new": "byte var12 = 0;\n      var4 = null;",
+      "count": 1
+    },
+    {
+      "old": "byte var47;",
+      "new": "int var47;",
+      "count": 1
+    },
+    {
+      "old": "String var3 = null;\n      var3 = false;\n      var3 = false;",
+      "new": "String var3 = null;\n      var3 = null;\n      var3 = null;",
+      "count": 1
+    },
+    {
+      "old": "int var20 = null;",
+      "new": "Object var20ref = null;",
+      "count": 1
+    },
+    {
+      "old": "new byte[var1];\n                        var20 = 0;",
+      "new": "new byte[var1];\n                        int var20 = 0;",
+      "count": 1
+    }
+  ],
+  "evidence": "m_053/executeScriptInstruction 的 =false 实为 aconst_null 死存（String/Image 槽）；m_053 var47 声明处无 i2b（byte 提升 int）；m_151 int var20=null 为 aconst_null 死存 + 后续 int 生命。",
+  "confidence": 88
+}

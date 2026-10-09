@@ -1,0 +1,20 @@
+{
+  "id": "VF-ESCRIPT",
+  "target": "a.java",
+  "kind": "scoped",
+  "method": "   private void executeScriptInstruction(String var1, int var2) {",
+  "replacements": [
+    {
+      "old": "byte var7 = 0;",
+      "new": "int var7 = 0;",
+      "count": 1
+    },
+    {
+      "old": "byte var11 = 0;",
+      "new": "int var11 = 0;",
+      "count": 1
+    }
+  ],
+  "evidence": "javap executeScriptInstruction: iinc 7,2 / iinc 2,3 等整型窄槽（脚本指针累加）；2 处 i2b 不在累加器。",
+  "confidence": 90
+}

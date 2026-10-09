@@ -1,17 +1,23 @@
 #!/usr/bin/env python3
-"""run.py — 机械反混淆管线 v1：签名唯一化重映射 + javap 等价验证（一键、幂等）。
+"""run.py — 机械反混淆管线 v2：签名唯一化重映射 + javap 等价验证 + 可编译实体产出（一键、幂等）。
 
 用法：
-  python3 tools/rename-pipeline/run.py            # 构建：重映射 + CFR 再生无歧义版 Java
+  python3 tools/rename-pipeline/run.py            # 构建：重映射 + Vineflower 再生 + 补丁 + javac 编译
   python3 tools/rename-pipeline/run.py --verify   # 构建 + javap 指令级等价验证与报告
 
 产物：
   analysis/rename-pipeline/orig/*.class       original/ JAR 提取的原始 class（只读输入）
   analysis/rename-pipeline/renamed/*.class    重映射后 class（可再生中间产物）
-  reference/src/deobf/*.java                  CFR 再生的无歧义版 Java（入库）
+  reference/src/deobf/*.java                  Vineflower 再生 + 修复补丁的可编译 Java（入库）
+  analysis/build/deobf/*.class                javac 编译产物（oracle 变体 C 常规路径，可再生）
   data/naming/remap-table.json                全量 old→new 符号映射表（入库）
   tools/rename-pipeline/_verify/              javap 等价验证报告（--verify，入库）
   analysis/rename-pipeline/verify/            javap 原始/归一化反汇编（可再生）
+
+引擎沿革：v1 用 CFR 0.152（2026-10-10 退役，见 docs/knowledge/decision_decompiler-cfr-to-vineflower.md）；
+v2 切换 Vineflower 1.12.0（tools/vf_env.py 定位/校验）：直出 UTF-8 中文、GOTO 控制流全部原生还原，
+残余 110 处槽位类型投影缺陷由 data/patches/vf-projection/ 声明式修复（补丁即数据，不手改生成物），
+javac 零错为硬门禁，oracle 三方对拍（A==B==C）为语义终审。
 
 确定性变换（见 renamer.py 命名方案）：字段 f_<type>_<NN>、方法 m_<NNN>。
 语义命名叠加在 data/naming/ledger.jsonl（台账驱动）：status=applied 的记录把对应
@@ -33,13 +39,13 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 sys.path.insert(0, str(HERE))
-sys.path.insert(0, str(HERE.parent))   # 复用 tools/cfr_env.py（CFR 定位/校验单一真相源）
+sys.path.insert(0, str(HERE.parent))   # 复用 tools/vf_env.py（Vineflower 定位/校验单一真相源）
 
 import classfile as cfmod          # noqa: E402
-import deunicode                   # noqa: E402
+import patches                     # noqa: E402
 import renamer                     # noqa: E402
 import verifier                    # noqa: E402
-from cfr_env import CFR_SHA256, ensure_cfr  # noqa: E402
+from vf_env import VF_SHA256, ensure_vf  # noqa: E402
 
 JAR = ROOT / "original/囧囧西游-大闹天宫.jar"
 WORK = ROOT / "analysis/rename-pipeline"
@@ -48,14 +54,17 @@ DEOBF = ROOT / "reference/src/deobf"
 NAMING = ROOT / "data/naming"
 REMAP = NAMING / "remap-table.json"
 VERIFY_OUT = HERE / "_verify"
+PATCHES_DIR = ROOT / "data/patches/vf-projection"
+SHIM_SRC = ROOT / "reference/shim/src"
+BUILD_OUT = ROOT / "analysis/build"          # shim / deobf 编译产物（oracle 变体 C 常规路径父目录）
 
 OBF_NAME = re.compile(r"^[a-zA-Z]{1,2}$")
 JAVA_KEYWORDS = {"if", "for", "do", "else", "try", "catch", "finally", "return", "switch",
                  "case", "default", "break", "continue", "throw", "new", "this", "super",
                  "null", "true", "false", "synchronized", "instanceof", "assert", "while"}
-# CFR 输出的类体第一层声明恰为 4 空格缩进且下一行首非空格（方法体 8+ 空格）
+# Vineflower 输出的类体第一层声明恰为 3 空格缩进（方法体 6+ 空格）
 SRC_DECL = re.compile(
-    r"^    (?=\S)(?:public|protected|private|static|final|abstract|native|synchronized|"
+    r"^   (?=\S)(?:public|protected|private|static|final|abstract|native|synchronized|"
     r"transient|volatile|strictfp| )*[\w.$/\[\]<>, ]+?\s+(\w+)\s*[;(=]")
 
 
@@ -74,8 +83,8 @@ def run(cmd, **kw):
     return r
 
 
-# CFR 的定位/校验/获取统一在 tools/cfr_env.py（vendor 入库 → analysis 缓存 → urllib 下载，
-# sha256 钉死；不依赖 curl）。此处仅复用：from cfr_env import CFR_SHA256, ensure_cfr
+# Vineflower 的定位/校验/获取统一在 tools/vf_env.py（vendor 入库 → urllib 下载，
+# sha256 钉死；不依赖 curl）。此处仅复用：from vf_env import VF_SHA256, ensure_vf
 
 
 # ---------- 语义命名叠加（台账驱动） ----------
@@ -128,7 +137,6 @@ def load_semantic_overlay(records: list) -> dict:
 def build() -> dict:
     if not JAR.exists():
         raise RuntimeError(f"original JAR 缺失: {JAR}")
-    cfr = ensure_cfr(ROOT, log=log)
 
     for d in (ORIG, RENAMED, JAVAPDIR):
         d.mkdir(parents=True, exist_ok=True)
@@ -200,38 +208,56 @@ def build() -> dict:
     REMAP.write_text(json.dumps(table, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     log(f"映射表 → {REMAP.relative_to(ROOT)}（{len(records)} 条）")
 
-    # ④ CFR 再生无歧义版 Java
+    # ④ Vineflower 再生无歧义版 Java（直出 UTF-8 中文，无需 deunicode 后处理；
+    #    控制流 GOTO 全部原生还原，残余缺陷走 ⑤ 补丁层）
     for old in DEOBF.glob("*.java"):
         old.unlink()
     class_files = [str(RENAMED / f"{c}.class") for c in sorted(classes)]
-    run(["java", "-jar", str(cfr), *class_files, "--outputdir", str(DEOBF)])
+    vf = ensure_vf(ROOT, log=log)
+    run(["java", "-jar", str(vf), "--silent", *class_files, str(DEOBF)])
     sources = sorted(DEOBF.glob("*.java"))
-    log(f"CFR 再生 {len(sources)} 个 Java: {', '.join(p.name for p in sources)}")
+    log(f"Vineflower {VF_SHA256[:12]}… 再生 {len(sources)} 个 Java: {', '.join(p.name for p in sources)}")
 
-    # ⑤ 中文可读化后处理（t12）：字面量内非 ASCII \uXXXX → UTF-8 明文（seed 不动）。
-    #    回环硬校验 encode(decode(raw)) == raw：解码产物值不变的可复算证明；
-    #    失败即拒绝落盘（绝不写出与 CFR 原文不等价的源码）。
-    decode_stats = {}
-    for src in sources:
-        raw = src.read_text(encoding="utf-8")
-        dec, nlit, ndec, nkept = deunicode.decode_java_literals(raw)
-        if deunicode.encode_java_literals(dec) != raw:
-            raise RuntimeError(
-                f"回环校验失败：{src.name} 解码后再编码与 CFR 原文不逐字节一致"
-                f"（值不变证明不成立，拒绝落盘）")
-        src.write_text(dec, encoding="utf-8")
-        decode_stats[src.name] = {"literals": nlit, "decoded": ndec, "kept": nkept}
-    log("中文可读化后处理：" + ", ".join(
-        f"{k} 解码 {v['decoded']} 处（字面量 {v['literals']}，保留转义 {v['kept']}）"
-        for k, v in decode_stats.items()) + "；回环 encode(decode)==CFR 原文 ✓")
+    # ⑤ 投影修复补丁：修复 VF 槽位类型推断缺陷（110 错 → 0）。
+    #    声明式补丁层 data/patches/vf-projection/VF-*.json + patches.py apply 引擎，
+    #    不手改生成物；硬校验见 patches.apply_all（方法锚点唯一命中/替换计数断言/
+    #    全记录必须消费），任一失败即拒绝落盘。语义终审 = ⑦ oracle 三方对拍。
+    patch_reports = []
+    if PATCHES_DIR.exists():
+        patch_reports = patches.apply_all(sources, PATCHES_DIR)
+        n_recs = sum(len(r["applied"]) for r in patch_reports)
+        if n_recs:
+            log(f"投影修复补丁：{n_recs} 条记录套用（{', '.join(r['target'] + ':' + str(len(r['applied'])) for r in patch_reports)}）")
+    else:
+        raise RuntimeError(f"补丁目录缺失: {PATCHES_DIR}")
 
-    # ⑥ 产物自检：无混淆名单字母/短名残留
+    # ⑥ javac 编译硬门禁：修复后的 deobf 源码必须零错编译（可编译实体），
+    #    产物落 analysis/build/deobf/（oracle 变体 C 的常规发现路径）。
+    shim_classes = BUILD_OUT / "shim"
+    deobf_classes = BUILD_OUT / "deobf"
+    shutil.rmtree(shim_classes, ignore_errors=True)
+    shutil.rmtree(deobf_classes, ignore_errors=True)
+    shim_classes.mkdir(parents=True, exist_ok=True)
+    deobf_classes.mkdir(parents=True, exist_ok=True)
+    shim_sources = sorted(str(p) for p in SHIM_SRC.rglob("*.java"))
+    r_shim = run(["javac", "-encoding", "UTF-8", "-nowarn", "-d", str(shim_classes), *shim_sources])
+    if r_shim.returncode != 0:
+        raise RuntimeError("shim 编译失败:\n" + r_shim.stderr[-2000:])
+    r_c = run(["javac", "-encoding", "UTF-8", "-nowarn", "-classpath", str(shim_classes),
+               "-d", str(deobf_classes), *[str(p) for p in sources]])
+    if r_c.returncode != 0:
+        raise RuntimeError("deobf javac 编译失败（补丁不完整？）:\n" + r_c.stderr[-3000:])
+    n_classes = len(list(deobf_classes.glob("*.class")))
+    log(f"javac 零错编译通过：{n_classes} 个 class → {deobf_classes.relative_to(ROOT)}（oracle 变体 C 常规路径）")
+
+    # ⑦ 产物自检：无混淆名单字母/短名残留
     problems = check_outputs(classes, sources)
     if problems:
         raise RuntimeError("产物自检失败:\n  " + "\n  ".join(problems))
     log("产物自检通过：字段/方法名全部唯一化，无混淆短名残留")
     return {"classes": classes, "records": records, "final_records": final_records,
-            "semantic": semantic, "sources": sources, "decode_stats": decode_stats}
+            "semantic": semantic, "sources": sources,
+            "patch_reports": patch_reports}
 
 
 def check_outputs(classes: dict, sources: list) -> list:
@@ -249,7 +275,7 @@ def check_outputs(classes: dict, sources: list) -> list:
                 continue
             if OBF_NAME.fullmatch(name):
                 problems.append(f"{cname} 成员残留混淆名: {name}")
-    # (b) CFR 源码扫描：类体第一层（4 空格缩进）声明
+    # (b) 源码扫描：类体第一层（Vineflower 3 空格缩进）声明
     for src in sources:
         cls = src.stem
         for line in src.read_text(encoding="utf-8").splitlines():
@@ -261,15 +287,12 @@ def check_outputs(classes: dict, sources: list) -> list:
                 continue  # 构造器 / 控制流残影
             if OBF_NAME.fullmatch(name):
                 problems.append(f"{src.relative_to(ROOT)} 成员残留混淆名: {name} @ {line.strip()[:60]}")
-        text = src.read_text(encoding="utf-8")
-        if "Duplicate member names" in text:
-            problems.append(f"{src.relative_to(ROOT)} 仍有 CFR 歧义告警注释")
     return problems
 
 
 def locals_note(sources: list) -> str:
-    """统计 CFR 生成的单字母局部变量名（透明披露用，不改源码）。"""
-    decl = re.compile(r"^ {8,}(?:final\s+)?[\w.$\[\]]+\s+([a-zA-Z])\s*(?:=|;)")
+    """统计 VF 生成的 varN 机械局部变量名（透明披露用，不改源码）。"""
+    decl = re.compile(r"^ {6,}(?:final\s+)?[\w.$\[\]]+\s+(var\d+\w*)\s*(?:=|;)")
     cnt = {}
     for src in sources:
         for line in src.read_text(encoding="utf-8").splitlines():
@@ -277,9 +300,8 @@ def locals_note(sources: list) -> str:
             if m:
                 cnt[m.group(1)] = cnt.get(m.group(1), 0) + 1
     if not cnt:
-        return "CFR 输出中无单字母局部变量名"
-    detail = "、".join(f"`{k}`×{v}" for k, v in sorted(cnt.items()))
-    return f"CFR 输出中存在单字母局部变量名 {detail}（共 {sum(cnt.values())} 处）"
+        return "VF 输出中无 varN 机械局部变量名"
+    return f"VF 输出中存在 varN 机械局部变量名（前缀计数 {len(cnt)} 个、声明 {sum(cnt.values())} 处）"
 
 
 # ---------- 验证 ----------
@@ -365,23 +387,27 @@ def verify(build_state: dict):
             if e is not None and e[0] == cfmod.UTF8:
                 utf8s.add(e[1].decode("utf-8", "replace"))
     cp_samples = []
+    cjk_str = re.compile(r'"([^"\\]*[\u4e00-\u9fff][^"\\]*)"')
     for src in build_state["sources"]:
-        for v in deunicode.string_literal_values(src.read_text(encoding="utf-8")):
-            if deunicode.CJK.search(v) and "\\" not in v:
-                cp_samples.append((src.name, v))
-                if len(cp_samples) >= 3:
-                    break
+        for v in cjk_str.findall(src.read_text(encoding="utf-8"))[:3]:
+            cp_samples.append((src.name, v))
         if len(cp_samples) >= 3:
             break
     cp_samples = [(f, v, v in utf8s) for f, v in cp_samples[:3]]
     cp_ok = len(cp_samples) == 3 and all(hit for _, _, hit in cp_samples)
     all_ok = all_ok and cp_ok
 
+    # 投影修复补丁总量披露：全部记录必须已消费（apply_all 内部已硬校验，此处计入报告）
+    patch_reports = build_state.get("patch_reports", [])
+    if not patch_reports:
+        all_ok = False
+        log("投影修复补丁报告缺失（apply_all 未运行？）")
+
     write_report(records, report_rows, method_rows, all_ok,
                  locals_note=locals_note(build_state["sources"]),
                  semantic=build_state["semantic"],
-                 decode_stats=build_state.get("decode_stats", {}),
-                 cp_samples=cp_samples)
+                 cp_samples=cp_samples,
+                 patch_reports=patch_reports)
 
     # 幂等 manifest：全部产物 sha256（不含 manifest 自身）
     outputs = [REMAP.relative_to(ROOT)] + \
@@ -399,10 +425,10 @@ def verify(build_state: dict):
 
 
 def write_report(records, report_rows, method_rows, all_ok, locals_note, semantic=None,
-                 decode_stats=None, cp_samples=None):
+                 cp_samples=None, patch_reports=None):
     semantic = semantic or {}
-    decode_stats = decode_stats or {}
     cp_samples = cp_samples or []
+    patch_reports = patch_reports or []
     n_renamed = sum(1 for r in records if r["renamed"])
     kept = [r for r in records if not r["renamed"]]
     lines = []
@@ -439,7 +465,7 @@ def write_report(records, report_rows, method_rows, all_ok, locals_note, semanti
     a("")
     a("同时跑四重自检（失败即退出码非 0）：① 重写后无任何 Fieldref/Methodref 仍指向旧 "
       "(owner,name,desc)；② 类内成员名（字段+方法合并）唯一；③ 产物无混淆短名残留"
-      "（javap 声明 + CFR 源码双路扫描）；④ 改名前后全部属性块（含 Code 子属性）"
+      "（javap 声明 + VF 源码双路扫描）；④ 改名前后全部属性块（含 Code 子属性）"
       "raw sha256 逐块相同。")
     a("")
     a("## 逐类结果")
@@ -484,26 +510,19 @@ def write_report(records, report_rows, method_rows, all_ok, locals_note, semanti
     a("")
     a("## 产物自检")
     a("")
-    a("- 字段/方法声明扫描（javap -p + CFR 源码双路）：混淆短名（`^[a-zA-Z]{1,2}$`）残留 "
+    a("- 字段/方法声明扫描（javap -p + VF 源码双路）：混淆短名（`^[a-zA-Z]{1,2}$`）残留 "
       "**0 个**；类内字段+方法名全局唯一。")
-    a(f"- CFR 局部变量名说明：{locals_note}。字节码无 LocalVariableTable，"
-      "局部变量名是 CFR 按类型启发式生成的**投影层命名**（方法作用域内唯一、无歧义），"
-      "不属于符号重映射范围；本目录 Java 保持 CFR 原样输出以便与 "
-      "`bash tools/decompile.sh` 的再生产流程同构。")
+    a(f"- VF 局部变量名说明：{locals_note}。字节码无 LocalVariableTable，"
+      "局部变量名是 Vineflower 按槽位启发式生成的**投影层命名**（方法作用域内唯一、无歧义），"
+      "不属于符号重映射范围；本目录 Java 保持 VF+补丁后原样输出（再生产 = "
+      "`python3 tools/rename-pipeline/run.py`，幂等）。")
     a("")
-    a("## deobf 中文可读化后处理（t12：字面量 \\uXXXX → UTF-8）")
+    a("## 引擎说明（v2：Vineflower 1.12.0 直出）")
     a("")
-    a("对 CFR 产物 `reference/src/deobf/*.java` 做确定性后处理：**字符串/字符字面量内**"
-      "码点 ≥ 0x00A0 的 `\\uXXXX` 解码为 UTF-8 明文（含全部中文）；ASCII 范围转义"
-      "（< 0x00A0，如 `\\u0022`/`\\u005C`/`\\u0000`）一律保留以免词法歧义。只改源文本呈现 —— "
-      "**回环硬校验** `encode(decode(原文)) == 原文` 逐字节成立（构建时校验，失败拒绝落盘），"
-      "即运行期字符串值零变化；注释/标识符不动，解码产出字符永不为引号/反斜杠 ⇒ 词法结构零变化。"
-      "`reference/seed/` 保持 CFR 转义原样（D3 锚点，一字节不动，reference-seed-integrity 锁定）。")
-    a("")
-    a("| 文件 | 字面量数 | 解码字符 | 保留转义 | 回环 encode(decode)==CFR 原文 |")
-    a("|---|---|---|---|---|")
-    for name, s in sorted(decode_stats.items()):
-        a(f"| {name} | {s['literals']} | {s['decoded']} | {s['kept']} | ✓ |")
+    a("`reference/src/deobf/*.java` 由 Vineflower 直出：**字符串字面量原生 UTF-8 中文明文**"
+      "（v1 时代 CFR 需 deunicode 后处理，已随引擎退役）；源内仅存的 5 处 `\\uXXXX` 转义"
+      "为控制字符/掩码常量（`\\u0000`、`\\uffff`），属**必须保留**的词法安全转义，非中文。"
+      "`reference/seed/` 是历史 CFR 投影冻结件（D3 锚点，一字节不动，reference-seed-integrity 锁定）。")
     a("")
     a("中文字符串 × 常量池 UTF-8 对照（抽样 3 处，解码值逐字命中 class 常量池 Utf8 —— "
       "class 文件存明文 UTF-8，故此为「解码值不变」的另一路独立证据）：")
@@ -513,6 +532,8 @@ def write_report(records, report_rows, method_rows, all_ok, locals_note, semanti
     for f, v, hit in cp_samples:
         a(f"| {f} | `{v[:40]}` | {'✓' if hit else '✗'} |")
     a("")
+    if patch_reports:
+        a(patches.format_report_section(patch_reports))
     a("## 备注")
     a("")
     a("- 未改名成员（构造器 / `<clinit>` / `paint` `run` `keyPressed` 等 MIDP API override）"
@@ -526,7 +547,7 @@ def write_report(records, report_rows, method_rows, all_ok, locals_note, semanti
 # ---------- 入口 ----------
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="机械反混淆管线 v1（签名唯一化重映射 + javap 等价验证）")
+    ap = argparse.ArgumentParser(description="机械反混淆管线 v2（重映射 + Vineflower + 补丁 + javac 可编译门禁）")
     ap.add_argument("--verify", action="store_true",
                     help="构建后执行 javap 指令级等价验证并归档报告到 tools/rename-pipeline/_verify/")
     args = ap.parse_args()

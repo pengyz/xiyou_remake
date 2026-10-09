@@ -1,0 +1,20 @@
+{
+  "id": "VF-ACC-PAINT",
+  "target": "a.java",
+  "kind": "scoped",
+  "method": "   protected final void paint(Graphics var1) {",
+  "replacements": [
+    {
+      "old": "for (short var159 = 319;",
+      "new": "for (int var159 = 319;",
+      "count": 1
+    },
+    {
+      "old": "byte var12 = 80;",
+      "new": "int var12 = 80;",
+      "count": 1
+    }
+  ],
+  "evidence": "javap paint: iinc 12,16/iinc 2,16 等整型窄槽算术（方法内 i2b 仅 1 处且不在累加器）。oracle 对拍 PASS 佐证。",
+  "confidence": 90
+}

@@ -1,0 +1,20 @@
+{
+  "id": "VF-IWC2",
+  "target": "a.java",
+  "kind": "scoped",
+  "method": "   private boolean interactWithCell(int var1, int var2) {",
+  "replacements": [
+    {
+      "old": "byte var9 = (byte)((var6 = var12.entityParam[var5]) >>> 8);",
+      "new": "int var6p = var12.entityParam[var5];\n                        byte var9 = (byte)(var6p >>> 8);",
+      "count": 1
+    },
+    {
+      "old": "byte var26 = (byte)var6;",
+      "new": "byte var26 = (byte)var6p;",
+      "count": 1
+    }
+  ],
+  "evidence": "javap 偏移267-280: saload→dup→istore 6→iushr 8→i2b→istore 9；277-280 iload 6→i2b→istore 6（var26 存储点真有 i2b）。case-16 块内 slot6 int 值无读点、块尾 istore 6=0 必然覆盖 ⇒ 拆 var6p 死存零行为差。",
+  "confidence": 92
+}

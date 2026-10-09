@@ -15,7 +15,7 @@
 4. 两份归一化文本**逐字节相同**（diff 0 行）⇒ 指令序列、每条指令操作数指向的具体成员（owner+name+desc）、异常表、成员签名、访问标志全部一致 —— 差异只剩符号名本身。
 5. 属性块 raw 字节**逐块 sha256 对比**（常量池手术只动 name_index/nat_index，属性 payload 原样搬运，故可直接逐块比对）：**Code 及全部子属性逐块一致；LineNumberTable 不适用（本 class 不含该属性）**。（措辞校准：本 JAR 两个 class 均无 LineNumberTable/LocalVariableTable —— javap -l 为 0 处，此前「行号表一致」是空真表述，不作已校验项计。）逐块计数见下节。
 
-同时跑四重自检（失败即退出码非 0）：① 重写后无任何 Fieldref/Methodref 仍指向旧 (owner,name,desc)；② 类内成员名（字段+方法合并）唯一；③ 产物无混淆短名残留（javap 声明 + CFR 源码双路扫描）；④ 改名前后全部属性块（含 Code 子属性）raw sha256 逐块相同。
+同时跑四重自检（失败即退出码非 0）：① 重写后无任何 Fieldref/Methodref 仍指向旧 (owner,name,desc)；② 类内成员名（字段+方法合并）唯一；③ 产物无混淆短名残留（javap 声明 + VF 源码双路扫描）；④ 改名前后全部属性块（含 Code 子属性）raw sha256 逐块相同。
 
 ## 逐类结果
 
@@ -657,17 +657,12 @@
 
 ## 产物自检
 
-- 字段/方法声明扫描（javap -p + CFR 源码双路）：混淆短名（`^[a-zA-Z]{1,2}$`）残留 **0 个**；类内字段+方法名全局唯一。
-- CFR 局部变量名说明：CFR 输出中存在单字母局部变量名 `c`×3、`i`×2、`l`×1、`n`×39、`s`×7（共 52 处）。字节码无 LocalVariableTable，局部变量名是 CFR 按类型启发式生成的**投影层命名**（方法作用域内唯一、无歧义），不属于符号重映射范围；本目录 Java 保持 CFR 原样输出以便与 `bash tools/decompile.sh` 的再生产流程同构。
+- 字段/方法声明扫描（javap -p + VF 源码双路）：混淆短名（`^[a-zA-Z]{1,2}$`）残留 **0 个**；类内字段+方法名全局唯一。
+- VF 局部变量名说明：VF 输出中存在 varN 机械局部变量名（前缀计数 129 个、声明 630 处）。字节码无 LocalVariableTable，局部变量名是 Vineflower 按槽位启发式生成的**投影层命名**（方法作用域内唯一、无歧义），不属于符号重映射范围；本目录 Java 保持 VF+补丁后原样输出以便与 `bash tools/decompile.sh` 的再生产流程同构。
 
-## deobf 中文可读化后处理（t12：字面量 \uXXXX → UTF-8）
+## 引擎说明（v2：Vineflower 1.12.0 直出）
 
-对 CFR 产物 `reference/src/deobf/*.java` 做确定性后处理：**字符串/字符字面量内**码点 ≥ 0x00A0 的 `\uXXXX` 解码为 UTF-8 明文（含全部中文）；ASCII 范围转义（< 0x00A0，如 `\u0022`/`\u005C`/`\u0000`）一律保留以免词法歧义。只改源文本呈现 —— **回环硬校验** `encode(decode(原文)) == 原文` 逐字节成立（构建时校验，失败拒绝落盘），即运行期字符串值零变化；注释/标识符不动，解码产出字符永不为引号/反斜杠 ⇒ 词法结构零变化。`reference/seed/` 保持 CFR 转义原样（D3 锚点，一字节不动，reference-seed-integrity 锁定）。
-
-| 文件 | 字面量数 | 解码字符 | 保留转义 | 回环 encode(decode)==CFR 原文 |
-|---|---|---|---|---|
-| CMidlet.java | 0 | 0 | 0 | ✓ |
-| a.java | 818 | 8880 | 180 | ✓ |
+`reference/src/deobf/*.java` 由 Vineflower 直出：**字符串字面量原生 UTF-8 中文明文**（v1 时代 CFR 需 deunicode 后处理，已随引擎退役）；源内仅存的 5 处 `\uXXXX` 转义为控制字符/掩码常量（`\u0000`、`\uffff`），属**必须保留**的词法安全转义，非中文。`reference/seed/` 是历史 CFR 投影冻结件（D3 锚点，一字节不动，reference-seed-integrity 锁定）。
 
 中文字符串 × 常量池 UTF-8 对照（抽样 3 处，解码值逐字命中 class 常量池 Utf8 —— class 文件存明文 UTF-8，故此为「解码值不变」的另一路独立证据）：
 
@@ -676,6 +671,15 @@
 | a.java | `(内部版本` | ✓ |
 | a.java | `无法再下一层了，这是你达到的最底层` | ✓ |
 | a.java | `无法再上一层了，这是你达到的最高层` | ✓ |
+
+## 投影修复补丁（data/patches/vf-projection/）
+
+Vineflower 直出的 110 处槽位类型投影缺陷（boolean/int/byte 转世、byte 累加器 iinc 语义、this 自存等）由声明式补丁修复；每条记录的 javap 证据与置信度见对应 JSON 文件。语义终审 = oracle 三方对拍（A==B==C，见 reference/oracle/_diff/report.md）。
+
+| target | 记录 |
+|---|---|
+| CMidlet.java | （无） |
+| a.java | VF-ACC-M013, VF-ACC-M049, VF-ACC-M057, VF-ACC-M151, VF-ACC-PAINT, VF-ACC-SPAWN, VF-ACTITEM, VF-ASCE, VF-ESCRIPT, VF-IWC, VF-IWC2, VF-M065, VF-M113, VF-M127, VF-SINGLES-NULL, VF-SINGLES-SELFSTORE, VF-SINGLES-TYPES, VF-TICK |
 
 ## 备注
 

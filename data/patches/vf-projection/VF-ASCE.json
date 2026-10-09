@@ -1,0 +1,85 @@
+{
+  "id": "VF-ASCE",
+  "target": "a.java",
+  "kind": "scoped",
+  "method": "   private void applyStepCellEffects() {",
+  "replacements": [
+    {
+      "old": "var1 = (boolean)0;",
+      "new": "var1 = 0;",
+      "count": 1
+    },
+    {
+      "old": "var2 = (boolean)0;",
+      "new": "var2 = 0;",
+      "count": 1
+    },
+    {
+      "old": "var6 = (boolean)0;",
+      "new": "var6 = 0;",
+      "count": 1
+    },
+    {
+      "old": "int var52 = var7;",
+      "new": "boolean var52b = var7;",
+      "count": 1
+    },
+    {
+      "old": "if (!var52) {",
+      "new": "if (!var52b) {",
+      "count": 1
+    },
+    {
+      "old": "var52 = var17.entityPixelY[var42] >> 5;",
+      "new": "int var52 = var17.entityPixelY[var42] >> 5;",
+      "count": 1
+    },
+    {
+      "old": "var7 = (boolean)0;",
+      "new": "int var7n = 0;",
+      "count": 1
+    },
+    {
+      "old": "var7 = var41.m_100(",
+      "new": "var7n = var41.m_100(",
+      "count": 5
+    },
+    {
+      "old": "var7 >= 0",
+      "new": "var7n >= 0",
+      "count": 5
+    },
+    {
+      "old": "var49 - 1, var7);",
+      "new": "var49 - 1, var7n);",
+      "count": 2
+    },
+    {
+      "old": "var7 = var21.f_int_70 >> 5;",
+      "new": "int var7f = var21.f_int_70 >> 5;",
+      "count": 1
+    },
+    {
+      "old": "var2 == var7 &&",
+      "new": "var2 == var7f &&",
+      "count": 2
+    },
+    {
+      "old": "var2 - 1 == var7 &&",
+      "new": "var2 - 1 == var7f &&",
+      "count": 1
+    },
+    {
+      "old": "var2 + 1 == var7 &&",
+      "new": "var2 + 1 == var7f &&",
+      "count": 1
+    },
+    {
+      "old": "boolean var4 = (boolean)var6;",
+      "new": "boolean var4 = var6 != 0;",
+      "count": 1
+    }
+  ],
+  "evidence": "javap applyStepCellEffects: slot7 int 消费（m_100 返回值/>=0/m_101 实参），5740 区域另一 int 生命；boolean 读点仅头部与 var52 拷贝；slot52 后期数组索引（int）；slot4 为 var6 的 int 拷贝（ifne 真值=var6!=0）。",
+  "confidence": 90
+}

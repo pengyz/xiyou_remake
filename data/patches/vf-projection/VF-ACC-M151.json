@@ -1,0 +1,15 @@
+{
+  "id": "VF-ACC-M151",
+  "target": "a.java",
+  "kind": "scoped",
+  "method": "   private int m_151() {",
+  "replacements": [
+    {
+      "old": "for (byte var24 = 0;",
+      "new": "for (int var24 = 0;",
+      "count": 1
+    }
+  ],
+  "evidence": "javap m_151: iinc 2,2（HTTP 长度循环 int 累加）。",
+  "confidence": 90
+}

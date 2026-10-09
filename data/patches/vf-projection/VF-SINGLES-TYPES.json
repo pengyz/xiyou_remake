@@ -1,0 +1,44 @@
+{
+  "id": "VF-SINGLES-TYPES",
+  "target": "a.java",
+  "kind": "global",
+  "replacements": [
+    {
+      "old": "var1 = this.m_100(var2 + 1, var3, var1);",
+      "new": "int var7 = this.m_100(var2 + 1, var3, var1);",
+      "count": 1
+    },
+    {
+      "old": "if (var1 >= 0) {\n         this.m_047(var1);",
+      "new": "if (var7 >= 0) {\n         this.m_047(var7);",
+      "count": 1
+    },
+    {
+      "old": "int var6 = 0;\n         var5 = (boolean)0;",
+      "new": "int var6 = 0;\n         var5 = 0;",
+      "count": 1
+    },
+    {
+      "old": "var141 = null;",
+      "new": "Object var141n = null;",
+      "count": 1
+    },
+    {
+      "old": "var9 = 160;",
+      "new": "int var9i = 160;",
+      "count": 1
+    },
+    {
+      "old": "var3 = var1 = var10004.getWidth() / 11;",
+      "new": "int w125 = var10004.getWidth() / 11;\n            var3 = w125;",
+      "count": 1
+    },
+    {
+      "old": "var3 += var1;",
+      "new": "var3 += w125;",
+      "count": 1
+    }
+  ],
+  "evidence": "各单点槽位转世逐一 javap 核对：m_019/killAdjacentAt (boolean)0 为 iconst_0 死存（int 槽）；m_089 slot1 第二世 m_100 返回 int；m_125 偏移174-176 dup/istore_1/istore_3；paint var141（aconst_null 死存）/var9（160 int 死存）。",
+  "confidence": 90
+}

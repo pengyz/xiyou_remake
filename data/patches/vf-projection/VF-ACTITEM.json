@@ -1,0 +1,60 @@
+{
+  "id": "VF-ACTITEM",
+  "target": "a.java",
+  "kind": "scoped",
+  "method": "   private boolean activateItem(byte var1) {",
+  "replacements": [
+    {
+      "old": "int var2 = 0;\n      var2 = (boolean)0;",
+      "new": "boolean var2 = false;\n      var2 = false;",
+      "count": 1
+    },
+    {
+      "old": "var2 = (boolean)1;",
+      "new": "var2 = true;",
+      "count": 7
+    },
+    {
+      "old": "var2 = (this.playerAtk + this.playerDef) * 74 / 10;",
+      "new": "int var2hp = (this.playerAtk + this.playerDef) * 74 / 10;",
+      "count": 1
+    },
+    {
+      "old": "applyHpDelta(var2)",
+      "new": "applyHpDelta(var2hp)",
+      "count": 1
+    },
+    {
+      "old": "+ var2 + \"血量\"",
+      "new": "+ var2hp + \"血量\"",
+      "count": 1
+    },
+    {
+      "old": "case 18:\n            var1 = this.f_int_45;",
+      "new": "case 18:\n            int var1c = this.f_int_45;",
+      "count": 1
+    },
+    {
+      "old": "case 85:\n            var1 = this.f_int_45;",
+      "new": "case 85:\n            var1c = this.f_int_45;",
+      "count": 1
+    },
+    {
+      "old": "--var1 >= 0",
+      "new": "--var1c >= 0",
+      "count": 2
+    },
+    {
+      "old": "entityType[var1]",
+      "new": "entityType[var1c]",
+      "count": 2
+    },
+    {
+      "old": "m_047(var1);",
+      "new": "m_047(var1c);",
+      "count": 2
+    }
+  ],
+  "evidence": "javap activateItem: case18/85 两处 istore_1←f_int_45（int 实体计数）；slot2 终态 ireturn（方法 Z）⇒ boolean；(playerAtk+playerDef)*74/10 为 int 局部（数值拼接显示）⇒ 拆 var2hp。",
+  "confidence": 92
+}

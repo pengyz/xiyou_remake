@@ -1,0 +1,20 @@
+{
+  "id": "VF-ACC-M013",
+  "target": "a.java",
+  "kind": "scoped",
+  "method": "   private void m_013(Image var1, int var2, int var3, int var4, int var5, int var6, int var7, int var8) {",
+  "replacements": [
+    {
+      "old": "byte var10 = 86;",
+      "new": "int var10 = 86;",
+      "count": 1
+    },
+    {
+      "old": "for (byte var9 = 0;",
+      "new": "for (int var9 = 0;",
+      "count": 1
+    }
+  ],
+  "evidence": "oracle 变体 C 首跑 FAIL 实证：m_013 偏移95 iinc 2,17 / 偏移92 iinc 9,17（整型窄槽、无 i2b）——var10 第4次迭代 137 被 javac 的 i2b 截为 -119（A trace clip x=138 vs C=-118）。提升 int 恢复。",
+  "confidence": 97
+}

@@ -1,0 +1,25 @@
+{
+  "id": "VF-IWC",
+  "target": "a.java",
+  "kind": "scoped",
+  "method": "   private boolean interactWithCell(int var1, int var2) {",
+  "replacements": [
+    {
+      "old": "var5 = (boolean)0;",
+      "new": "var5 = 0;",
+      "count": 1
+    },
+    {
+      "old": "short var6 = 1;",
+      "new": "boolean var6 = true;",
+      "count": 1
+    },
+    {
+      "old": "var6 = 0;",
+      "new": "var6 = false;",
+      "count": null
+    }
+  ],
+  "evidence": "javap interactWithCell: slot6 初始 iconst_1（=true），consumeKeyForDoor:(B)Z/loadLevelScript:(I)Z/isCellWalkable:(II)Z 三处返回 Z 存入 ⇒ boolean 全程；10 处 var6=0 即 iconst_0=false。",
+  "confidence": 93
+}

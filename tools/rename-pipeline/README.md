@@ -63,34 +63,33 @@ javap -l 为 0 处，不把「无此属性」计作「已比对一致」）。
 
 报告与逐类 diff 归档在 [`_verify/`](_verify/)（`report.md`、`diff-<class>.txt`）。
 
-## 工具链校验（CFR pin，t9-F2；跨平台改造见 tools/cfr_env.py）
+## 工具链校验（Vineflower pin；跨平台改造见 tools/vf_env.py）
 
-CFR 0.152 完整 sha256 =
-`f686e8f3ded377d7bc87d216a90e9e9512df4156e75b06c655a16648ae8765b2`
-（本地实算，并与 Maven Central `cfr-0.152.jar.sha256` 交叉核对一致）。
-定位/校验/获取的**单一真相源**是 [`tools/cfr_env.py`](../cfr_env.py)：
-查找顺序 = 入库 vendor 副本 [`tools/vendor/cfr-0.152.jar`](../vendor/) → `analysis/cfr.jar`
-缓存 → Python `urllib` 下载（**不依赖 curl**，Windows 亦可），每步都校验上述 sha256，
-不匹配即 FAIL 并提示手动放置（下载物校验失败即删除，不污染缓存）。
-逻辑全在 `.py`：[`tools/decompile.py`](../decompile.py) 承载反编译对比，
-[`tools/decompile.sh`](../decompile.sh) 只是 POSIX 薄包装。
-离线/缓存用法见
-[`docs/knowledge/reference_cfr_decompiler.md`](../../docs/knowledge/reference_cfr_decompiler.md)。
+> 【2026-10-10 更正】本章原文描述 CFR 0.152 的 vendor/校验机制（t9-F2 建立）。
+> 引擎已切换 Vineflower 1.12.0（决策与实测数据见
+> docs/knowledge/decision_decompiler-cfr-to-vineflower.md），CFR 工具链退役移除；
+> 机制原样继承：vendor 入库 → sha256 钉死 → urllib 下载兜底，单一真相源
+> [`tools/vf_env.py`](../vf_env.py)。历史论证保留于本仓 git 历史（commit a7b5cde）。
 
-## 中文可读化后处理（t12）
+| 项 | 值 |
+|---|---|
+| 引擎 | Vineflower 1.12.0（`tools/vendor/vineflower-1.12.0.jar`） |
+| sha256 | `1dfcfe97…`（tools/vf_env.py 钉死，校验失败拒绝使用） |
+| 产出 | `reference/src/deobf/*.java`（直出 UTF-8 中文）+ `analysis/build/deobf/*.class`（javac，oracle 变体 C） |
 
-CFR 产物再做一次确定性后处理（[`deunicode.py`](deunicode.py)）：字符串/字符**字面量内**
-码点 ≥ 0x00A0 的 `\uXXXX` 解码为 UTF-8 明文（含全部中文）；ASCII 范围转义（< 0x00A0，
-如 `\u0022`/`\u005C`）保留以免词法歧义；注释/标识符不动。
-只改源文本呈现：回环 `encode(decode(x)) == x` 逐字节成立（构建时硬校验，失败拒绝落盘）
-⇒ 运行期字符串值零变化；`--verify` 另抽 3 处中文字符串与 class 常量池 UTF-8 逐字对照。
-`reference/seed/` 保持 CFR 转义原样（D3 锚点一字节不动）。
+
+## 中文可读化（历史章节，已随引擎切换退役）
+
+> 【2026-10-10 更正】v1 时代 CFR 产物需 `deunicode.py` 后处理（字面量 `\uXXXX` → UTF-8
+> 明文，回环硬校验）。Vineflower 直出 UTF-8 中文（仅 5 处必要的控制字符转义），
+> `deunicode.py` 已移除；中文 × 常量池 UTF-8 对照仍保留在 `--verify` 报告中。
+> `reference/seed/` 保持历史 CFR 转义原样（D3 锚点一字节不动）。
 
 ## 产物
 
 | 路径 | 内容 | 入库 |
 |---|---|---|
-| `reference/src/deobf/*.java` | CFR 再生的无歧义版 Java（重映射 class 的投影） | ✓ |
+| `reference/src/deobf/*.java` | Vineflower 再生 + 投影修复补丁的可编译 Java | ✓ |
 | `data/naming/remap-table.json` | 全量 old→new 符号映射表（含 kind/signature/证据） | ✓ |
 | `tools/rename-pipeline/_verify/` | javap 等价验证报告 + diff | ✓ |
 | `analysis/rename-pipeline/` | 提取/重映射 class、javap 反汇编（可再生） | ✗ |
