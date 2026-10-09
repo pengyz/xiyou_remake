@@ -3,6 +3,23 @@
 **一条 rename 一条记录。** 由 `gates/cli.py check` 的 `naming-ledger` 门禁强制：
 缺 `evidence`/`confidence` 或证据无可复现指针 ⇒ 提交被拒。
 
+## 两层命名
+
+| 文件 | 层 | 来源 | 状态 |
+|---|---|---|---|
+| `remap-table.json` | **机械层**：签名唯一化重映射（`a/b/c` → `f_int_07`/`m_042`） | `tools/rename-pipeline/run.py` 生成 | v1 已落地 |
+| `ledger.jsonl` | **语义层**：语义命名（`f_int_07` → `playerX` 之类） | 人工逐条取证登记 | 留空待语义命名批次 |
+
+`remap-table.json` 是确定性机械变换（不做语义判断），字段：
+`id`/`class`/`kind`/`old`/`new`/`signature`/`signature_java`/`static`/`private`/
+`renamed`/`evidence`/`confidence`。等价性证据（javap 指令级 diff 仅符号名差异）见
+[`tools/rename-pipeline/_verify/report.md`](../../tools/rename-pipeline/_verify/report.md)。
+语义命名时在 ledger 里以 `(class, new)` 指向本表条目，证据要求与下同。
+
+> 注意与 AGENTS.md §3.2「禁止伪语义命名」的边界：`f_int_07`/`m_042` **不伪装语义**
+> （纯机械键，方案与产物契约明文规定），不与 `levelData_26` 这类“地址后缀冒充含义”
+> 同罪；但它们也**不是**语义名，不得据此推断含义、更不得写进 spec 结论。
+
 ## ledger.jsonl 记录格式
 
 ```json
