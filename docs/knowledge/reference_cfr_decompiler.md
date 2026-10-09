@@ -6,6 +6,12 @@ created: 2026-10-09
 sources: ["2026-10-09 P0 考证会话", "2026-10-09 t11 CFR sha256 核验（本地实算 + Maven Central 交叉核对）"]
 ---
 
+> 【2026-10-10 更正】CFR 0.152 已**退役移除**（vendor/cfr_env/decompile 工具链）：
+> 实测其投影修复面 1615 错不可行，引擎切换 Vineflower 1.12.0（决策与数据见
+> [decision_decompiler-cfr-to-vineflower.md](decision_decompiler-cfr-to-vineflower.md)，
+> 现行引擎参考 [reference_vineflower-decompiler.md](reference_vineflower-decompiler.md)）。
+> `reference/seed/a.java`（CFR 产物）作为历史冻结件保留，本条的溯源价值不变。
+
 CFR 0.152（Maven Central `org.benf:cfr:0.152`）用于反编译 JAR 内 class。
 
 **位置与命令：** 依赖以 **vendor 入库**：`tools/vendor/cfr-0.152.jar`（首选，全新 clone 即可用）；

@@ -152,7 +152,8 @@ def gate_docs_links():
 def gate_reference_seed_integrity():
     """D3 锚点完整性：reference/seed/a.java 行数+sha256 必须对照基线不变（AGENTS.md §2 reference/ 红线）。
 
-    seed/a.java 是全部差分验证的不可变投影基准（CFR 反编译产物），本身不受
+    seed/a.java 是全部差分验证的不可变投影基准（历史 CFR 反编译产物，2026-10-10
+    引擎已切换 Vineflower，seed 作为冻结件保留；工作参考版是 reference/src/deobf/），本身不受
     original-integrity（校验 original/ 下 jar）覆盖，之前无任何门禁保护，
     可被意外改动而不触发任何 FAIL。本门禁补上这个缺口。
     """

@@ -6,6 +6,7 @@
 
 ## Gotchas
 
+- [javac 解析期掩蔽](gotcha_javac-parse-phase-masking.md) — 语法错挡住全部类型错误（实测"2 错"实为 4797）；计数必须 -Xmaxerrs 全量
 - [docs-links 门禁扫描范围](gotcha_docs-links-gate-scan-scope.md) — 硬编码目录清单会漏检未列入的文档断链，应改用 git ls-files 全量扫描
 - [基线哈希字段命名歧义](gotcha_baseline-hash-field-naming-ambiguity.md) — 多阶段产物的哈希字段名必须标注具体文件角色，不能只写阶段名
 - [commit 声称必须与内容一致](gotcha_commit-claims-must-match-content.md) — 同批工具调用中 edit 失败但 bash commit 照跑 ⇒ message 声称了未落地变更（实测 413a697）；commit 前逐项核对 `git show --stat`
@@ -22,6 +23,10 @@
 
 ## Decisions
 
+- [反编译引擎 CFR→Vineflower](decision_decompiler-cfr-to-vineflower.md) — 实测数据驱动切换；含 iinc-vs-i2b 累加器判定规则（编译零错≠行为一致）
+
 ## Reference
+
+- [Vineflower 反编译器（现行）](reference_vineflower-decompiler.md) — 位置/命令/产物特征/勿喂 LVT
 
 - [CFR 0.152 反编译器](reference_cfr_decompiler.md) — 本项目反编译工具与再生命令

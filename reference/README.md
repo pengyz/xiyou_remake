@@ -4,7 +4,7 @@
 
 | 路径 | 内容 |
 |---|---|
-| `seed/a.java` | CFR 0.152 对 `a.class` 的反编译投影（8457 行，**不可变基准**，溯源见 docs/knowledge/reference_cfr_decompiler.md） |
+| `seed/a.java` | 历史 CFR 0.152 投影（8457 行，**冻结基准**；2026-10-10 引擎已切换 Vineflower，溯源与退役注记见 docs/knowledge/reference_cfr_decompiler.md） |
 | `src/`（P1 产出） | 反混淆后可编译的参考版 Java（命名以台账为准） |
 | `shim/`（P1 产出） | 自研 MIDP-1.0/CLDC + Nokia UI API 子集（headless、虚拟时钟、固定种子、trace 输出） |
 | `oracle/`（P1 产出） | 差分测试宿主：跑参考版并产出 trace/状态快照/截图 |
