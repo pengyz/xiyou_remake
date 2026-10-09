@@ -33,14 +33,14 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(HERE.parent))   # 复用 tools/cfr_env.py（CFR 定位/校验单一真相源）
 
 import classfile as cfmod          # noqa: E402
 import renamer                     # noqa: E402
 import verifier                    # noqa: E402
+from cfr_env import CFR_SHA256, ensure_cfr  # noqa: E402
 
 JAR = ROOT / "original/囧囧西游-大闹天宫.jar"
-CFR = ROOT / "analysis/cfr.jar"
-CFR_URL = "https://repo1.maven.org/maven2/org/benf/cfr/0.152/cfr-0.152.jar"
 WORK = ROOT / "analysis/rename-pipeline"
 ORIG, RENAMED, JAVAPDIR = WORK / "orig", WORK / "renamed", WORK / "verify"
 DEOBF = ROOT / "reference/src/deobf"
@@ -73,13 +73,8 @@ def run(cmd, **kw):
     return r
 
 
-def ensure_cfr():
-    if CFR.exists():
-        return
-    log(f"下载 CFR 0.152 … {CFR_URL}")
-    run(["curl", "-sL", "-o", str(CFR), CFR_URL])
-    if not CFR.exists() or CFR.stat().st_size == 0:
-        raise RuntimeError("CFR 下载失败（离线环境请预置 analysis/cfr.jar）")
+# CFR 的定位/校验/获取统一在 tools/cfr_env.py（vendor 入库 → analysis 缓存 → urllib 下载，
+# sha256 钉死；不依赖 curl）。此处仅复用：from cfr_env import CFR_SHA256, ensure_cfr
 
 
 # ---------- 语义命名叠加（台账驱动） ----------
@@ -132,7 +127,7 @@ def load_semantic_overlay(records: list) -> dict:
 def build() -> dict:
     if not JAR.exists():
         raise RuntimeError(f"original JAR 缺失: {JAR}")
-    ensure_cfr()
+    cfr = ensure_cfr(ROOT, log=log)
 
     for d in (ORIG, RENAMED, JAVAPDIR):
         d.mkdir(parents=True, exist_ok=True)
@@ -208,7 +203,7 @@ def build() -> dict:
     for old in DEOBF.glob("*.java"):
         old.unlink()
     class_files = [str(RENAMED / f"{c}.class") for c in sorted(classes)]
-    run(["java", "-jar", str(CFR), *class_files, "--outputdir", str(DEOBF)])
+    run(["java", "-jar", str(cfr), *class_files, "--outputdir", str(DEOBF)])
     sources = sorted(DEOBF.glob("*.java"))
     log(f"CFR 再生 {len(sources)} 个 Java: {', '.join(p.name for p in sources)}")
 
@@ -314,6 +309,22 @@ def verify(build_state: dict):
         method_rows.append((cname, per_method))
 
         n_instr = sum(x[2] for x in per_method)
+
+        # 属性块 raw 逐块对比（t9-F1：Code 及全部子属性逐块一致；LineNumberTable 不适用）
+        inv_b = cfmod.attribute_inventory(cfmod.parse((ORIG / f"{cname}.class").read_bytes()))
+        inv_a = cfmod.attribute_inventory(cfmod.parse((RENAMED / f"{cname}.class").read_bytes()))
+        attr_agg, attr_ok = {}, len(inv_b) == len(inv_a)
+        for (w1, n1, r1), (w2, n2, r2) in zip(inv_b, inv_a):
+            same = (w1 == w2 and n1 == n2 and r1 == r2)
+            attr_ok = attr_ok and same
+            kind = "Code 子属性" if w1.endswith("/Code") else "属性"
+            key = (kind, n1)
+            cnt, eq, _ = attr_agg.get(key, (0, True, len(r1)))
+            attr_agg[key] = (cnt + 1, eq and same, len(r1))
+        all_ok = all_ok and attr_ok
+        lnt = sum(c for (kind, name), (c, _, _) in attr_agg.items()
+                  if name in ("LineNumberTable", "LocalVariableTable"))
+
         report_rows.append({
             "class": cname,
             "members": len(mb),
@@ -322,6 +333,9 @@ def verify(build_state: dict):
             "sha_after": verifier.sha256_text(after),
             "diff_lines": diff.count("\n"),
             "equal": ok,
+            "attr_agg": attr_agg,
+            "attr_equal": attr_ok,
+            "lnt_count": lnt,
         })
 
     write_report(records, report_rows, method_rows, all_ok,
@@ -338,8 +352,8 @@ def verify(build_state: dict):
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     if not all_ok:
-        raise RuntimeError("javap 等价验证失败：归一化后仍有差异，见 _verify/diff-*.txt")
-    log("javap 等价验证通过：归一化后逐字节一致（仅符号名变化）")
+        raise RuntimeError("等价验证失败：归一化 javap 仍有差异或属性块 raw 逐块不一致，见 _verify/")
+    log("javap 等价验证通过：归一化后逐字节一致（仅符号名变化）；属性块 raw 逐块一致")
     log(f"报告 → {VERIFY_OUT.relative_to(ROOT)}/report.md")
 
 
@@ -371,12 +385,18 @@ def write_report(records, report_rows, method_rows, all_ok, locals_note, semanti
       "成员声明行与 `// Field|Method|InterfaceMethod` 注释中，字符串常量等不动；"
       "被限定引用（owner.name:desc）按 owner 查表，非限定引用按当前类查表；")
     a("4. 两份归一化文本**逐字节相同**（diff 0 行）⇒ 指令序列、每条指令操作数指向的"
-      "具体成员（owner+name+desc）、行号表、异常表、成员签名、访问标志全部一致 —— "
+      "具体成员（owner+name+desc）、异常表、成员签名、访问标志全部一致 —— "
       "差异只剩符号名本身。")
+    a("5. 属性块 raw 字节**逐块 sha256 对比**（常量池手术只动 name_index/nat_index，"
+      "属性 payload 原样搬运，故可直接逐块比对）：**Code 及全部子属性逐块一致；"
+      "LineNumberTable 不适用（本 class 不含该属性）**。"
+      "（措辞校准：本 JAR 两个 class 均无 LineNumberTable/LocalVariableTable —— "
+      "javap -l 为 0 处，此前「行号表一致」是空真表述，不作已校验项计。）逐块计数见下节。")
     a("")
-    a("同时跑三重自检（失败即退出码非 0）：① 重写后无任何 Fieldref/Methodref 仍指向旧 "
+    a("同时跑四重自检（失败即退出码非 0）：① 重写后无任何 Fieldref/Methodref 仍指向旧 "
       "(owner,name,desc)；② 类内成员名（字段+方法合并）唯一；③ 产物无混淆短名残留"
-      "（javap 声明 + CFR 源码双路扫描）。")
+      "（javap 声明 + CFR 源码双路扫描）；④ 改名前后全部属性块（含 Code 子属性）"
+      "raw sha256 逐块相同。")
     a("")
     a("## 逐类结果")
     a("")
@@ -388,6 +408,19 @@ def write_report(records, report_rows, method_rows, all_ok, locals_note, semanti
     a("")
     a("完整 diff（空 = 无差异）：`tools/rename-pipeline/_verify/diff-<class>.txt`。")
     a("")
+    a("## 属性块 raw 对比（逐块 sha256，含 Code 全部子属性）")
+    a("")
+    for r in report_rows:
+        a(f"### {r['class']} —— {'全部属性块逐块一致 ✓' if r['attr_equal'] else '存在不一致 ✗'}")
+        a("")
+        a("| 属性块 | 层级 | 数量 | raw 字节逐块一致 |")
+        a("|---|---|---|---|")
+        for (kind, name), (cnt, eq, size) in sorted(r["attr_agg"].items()):
+            a(f"| {name} | {kind} | {cnt} | {'✓' if eq else '✗'} |")
+        a("")
+        a(f"- `LineNumberTable` / `LocalVariableTable`：**{r['lnt_count']} 处**"
+          "（本 class 不含该属性 ⇒ **不适用**，不计作『已比对一致』）。")
+        a("")
     for cname, per_method in method_rows:
         a(f"## {cname} 逐成员对比（{len(per_method)} 个成员）")
         a("")

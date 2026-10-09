@@ -12,9 +12,10 @@
 1. `javap -c -p -l` 分别反汇编改名前/后 class，逐指令文本落盘（`analysis/rename-pipeline/verify/<class>.{before,after}.javap.txt`）；
 2. 归一化两份文本：常量池槽号 `#NNN → #<cp>`（重映射以常量池**末尾追加**新 Utf8/NameAndType 的方式实施，槽号位移是布局而非语义）；
 3. 对改名后文本做**符号还原**：按映射表把新名（机械名 f_*/m_* 或台账叠加的语义名）替换回旧名。替换只发生在成员声明行与 `// Field|Method|InterfaceMethod` 注释中，字符串常量等不动；被限定引用（owner.name:desc）按 owner 查表，非限定引用按当前类查表；
-4. 两份归一化文本**逐字节相同**（diff 0 行）⇒ 指令序列、每条指令操作数指向的具体成员（owner+name+desc）、行号表、异常表、成员签名、访问标志全部一致 —— 差异只剩符号名本身。
+4. 两份归一化文本**逐字节相同**（diff 0 行）⇒ 指令序列、每条指令操作数指向的具体成员（owner+name+desc）、异常表、成员签名、访问标志全部一致 —— 差异只剩符号名本身。
+5. 属性块 raw 字节**逐块 sha256 对比**（常量池手术只动 name_index/nat_index，属性 payload 原样搬运，故可直接逐块比对）：**Code 及全部子属性逐块一致；LineNumberTable 不适用（本 class 不含该属性）**。（措辞校准：本 JAR 两个 class 均无 LineNumberTable/LocalVariableTable —— javap -l 为 0 处，此前「行号表一致」是空真表述，不作已校验项计。）逐块计数见下节。
 
-同时跑三重自检（失败即退出码非 0）：① 重写后无任何 Fieldref/Methodref 仍指向旧 (owner,name,desc)；② 类内成员名（字段+方法合并）唯一；③ 产物无混淆短名残留（javap 声明 + CFR 源码双路扫描）。
+同时跑四重自检（失败即退出码非 0）：① 重写后无任何 Fieldref/Methodref 仍指向旧 (owner,name,desc)；② 类内成员名（字段+方法合并）唯一；③ 产物无混淆短名残留（javap 声明 + CFR 源码双路扫描）；④ 改名前后全部属性块（含 Code 子属性）raw sha256 逐块相同。
 
 ## 逐类结果
 
@@ -24,6 +25,27 @@
 | a | 574 | 39154 | `05602b6efcf86866…` | `05602b6efcf86866…` | 0 | 一致 ✓ |
 
 完整 diff（空 = 无差异）：`tools/rename-pipeline/_verify/diff-<class>.txt`。
+
+## 属性块 raw 对比（逐块 sha256，含 Code 全部子属性）
+
+### CMidlet —— 全部属性块逐块一致 ✓
+
+| 属性块 | 层级 | 数量 | raw 字节逐块一致 |
+|---|---|---|---|
+| StackMap | Code 子属性 | 1 | ✓ |
+| Code | 属性 | 5 | ✓ |
+
+- `LineNumberTable` / `LocalVariableTable`：**0 处**（本 class 不含该属性 ⇒ **不适用**，不计作『已比对一致』）。
+
+### a —— 全部属性块逐块一致 ✓
+
+| 属性块 | 层级 | 数量 | raw 字节逐块一致 |
+|---|---|---|---|
+| StackMap | Code 子属性 | 135 | ✓ |
+| Code | 属性 | 163 | ✓ |
+| Exceptions | 属性 | 1 | ✓ |
+
+- `LineNumberTable` / `LocalVariableTable`：**0 处**（本 class 不含该属性 ⇒ **不适用**，不计作『已比对一致』）。
 
 ## CMidlet 逐成员对比（7 个成员）
 

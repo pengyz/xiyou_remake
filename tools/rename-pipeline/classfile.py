@@ -10,7 +10,9 @@
 重写策略：常量池**末尾追加**新 Utf8/NameAndType 条目，只把
   ① 字段/方法声明的 name_index、
   ② Fieldref/Methodref/InterfaceMethodref 的 name_and_type_index
-改指向新条目。所有既有索引不变 ⇒ Code/LineNumberTable 等属性零改动。
+改指向新条目。所有既有索引不变 ⇒ Code 及全部子属性逐块一致（属性 raw 字节原样搬运，
+由 attribute_inventory 逐块 sha256 对比机器校验）；LineNumberTable 不适用——本 JAR 的
+两个 class 均不含该属性（编译期无调试信息，javap -l 为 0 处）。
 绝不在原地改 Utf8 —— Utf8 "a" 可能被类名/字符串常量/局部变量表共享。
 """
 from __future__ import annotations
@@ -245,3 +247,50 @@ def serialize(cf: ClassFile) -> bytes:
         out += struct.pack(">HI", name_idx, len(raw))
         out += raw
     return bytes(out)
+
+
+# ---------- 属性块清点（逐块 raw 对比用）----------
+
+
+def code_sub_attributes(cf: ClassFile, raw: bytes) -> list:
+    """Code 属性 payload → [(子属性名, 子属性 raw 字节)]。
+
+    Code 结构：u2 max_stack, u2 max_locals, u4 code_length, code,
+    u2 exc_len, 8·exc_len 异常表, u2 attr_count, 属性表…（JVM 规 §4.7.3）。
+    """
+    p = 4
+    code_len = struct.unpack(">I", raw[p:p + 4])[0]
+    p += 4 + code_len
+    exc = struct.unpack(">H", raw[p:p + 2])[0]
+    p += 2 + 8 * exc
+    n = struct.unpack(">H", raw[p:p + 2])[0]
+    p += 2
+    out = []
+    for _ in range(n):
+        name_idx, alen = struct.unpack(">HI", raw[p:p + 6])
+        out.append((cf.utf8(name_idx), raw[p + 6:p + 6 + alen]))
+        p += 6 + alen
+    return out
+
+
+def attribute_inventory(cf: ClassFile) -> list:
+    """全部属性块（含 Code 子属性）清点：[(位置, 属性名, raw 字节)]，顺序稳定。
+
+    位置用序号（`field#0`/`method#12`）而非成员名 —— 改名前后可直接对齐比较：
+    重写只动 name_index/nat_index，属性 payload 必须逐块字节相同。
+    """
+    items = []
+
+    def add(where: str, attrs: list):
+        for name_idx, raw in attrs:
+            name = cf.utf8(name_idx)
+            items.append((where, name, raw))
+            if name == "Code":
+                for sub_name, sub_raw in code_sub_attributes(cf, raw):
+                    items.append((where + "/Code", sub_name, sub_raw))
+
+    add("class", cf.attributes)
+    for kind, members in (("field", cf.fields), ("method", cf.methods)):
+        for i, m in enumerate(members):
+            add(f"{kind}#{i}", m.attributes)
+    return items

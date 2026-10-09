@@ -5,8 +5,12 @@
   1. javap -c -p -l 分别输出改名前 / 改名后 class 的逐指令反汇编；
   2. 归一化：把常量池槽号 #NNN → #<cp>（追加 Utf8/NameAndType 必然挤动槽号，
      槽号是布局而非语义）；对“改名后”输出按映射表把新符号名**还原**为旧名；
-  3. 若两份归一化文本逐字节相同 ⇒ 指令序列、操作数所指的具体成员、行号表、
-     异常表、签名、访问标志全部一致，唯一差异就是符号名。
+  3. 若两份归一化文本逐字节相同 ⇒ 指令序列、操作数所指的具体成员、异常表、
+     签名、访问标志全部一致，唯一差异就是符号名；
+  4. Code 属性块（含全部子属性）另由 classfile.attribute_inventory 逐块 sha256 对比：
+     **Code 及全部子属性逐块一致；LineNumberTable 不适用（本 class 不含该属性）** ——
+     本 JAR 两个 class 均无 LineNumberTable/LocalVariableTable（javap -l 为 0 处），
+     不把「无此属性」说成「已比对一致」（t9-F1 空真措辞更正）。
 
 还原替换是**上下文敏感**的：只在 成员声明行 与 `// Field|Method|InterfaceMethod`
 注释 里替换，字符串常量等其他文本不动。被限定的引用（owner.name:desc）按 owner
