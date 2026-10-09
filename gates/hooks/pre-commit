@@ -1,0 +1,4 @@
+#!/bin/bash
+# pre-commit hook — 只调 gates/cli.py check（单一真相源，禁止内嵌第二套扫描器）
+# 安装: bash gates/install-hooks.sh
+exec python3 gates/cli.py check

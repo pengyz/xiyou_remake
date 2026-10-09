@@ -1,0 +1,33 @@
+#!/bin/bash
+# commit-msg hook — 触及 data/naming/ 或 reference/ 的提交必须带 Evidence 与 Confidence（AGENTS.md §9）
+# 安装: bash gates/install-hooks.sh
+MSG_FILE="$1"
+FILES=$(git diff --cached --name-only)
+
+# 只在 staged 包含命名台账 / 参考版变更时检查
+if ! echo "$FILES" | grep -qE '^(data/naming/|reference/)'; then
+    exit 0
+fi
+
+MSG=$(cat "$MSG_FILE")
+# revert/merge 跳过
+if echo "$MSG" | head -1 | grep -qE '^(Revert|Merge|merge)'; then
+    exit 0
+fi
+
+HAS_EVIDENCE=$(echo "$MSG" | grep -ci 'Evidence\|证据')
+HAS_CONFIDENCE=$(echo "$MSG" | grep -ci 'Confidence\|置信度')
+
+if [ "$HAS_EVIDENCE" -eq 0 ] || [ "$HAS_CONFIDENCE" -eq 0 ]; then
+    echo ""
+    echo "[commit-msg] BLOCKED: data/naming/ 或 reference/ 变更的 commit message 必须包含 Evidence 与 Confidence"
+    echo ""
+    echo "必须包含:"
+    echo "  Evidence: <A/B 级证据描述，含可复现指针（文件:行 / 字节偏移 / 命令）>"
+    echo "  Confidence: <0-100>"
+    echo ""
+    echo "证据分级见 AGENTS.md §3。C 级证据不得触发改名/参考版变更。"
+    exit 1
+fi
+
+exit 0

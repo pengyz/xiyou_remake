@@ -1,0 +1,13 @@
+{
+  "assets": {
+    "entries": 138,
+    "classes": 2,
+    "maplv": 55,
+    "sprite": 55
+  },
+  "decomp": {
+    "seed_a_java_lines": 8457,
+    "seed_sha256": "128b7462031cb97dd7b9e873e2bc4f704da452928fa93382fad98d51d948d4fa"
+  },
+  "notes": "assets 为 gates/cli.py assets-manifest 的 ratchet 基线；更新必须确认无回退并写 commit 说明（AGENTS.md §2）"
+}

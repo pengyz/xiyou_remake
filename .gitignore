@@ -1,0 +1,25 @@
+# 可再生工作区与生成物 —— 不入库（original/ 是唯一资产真相源）
+
+# 工作区
+analysis/
+assets/*
+!assets/README.md
+target/
+gates/_logs/
+data/status/_scratch/
+
+# 语言/工具
+__pycache__/
+*.pyc
+*.class
+*.o
+*.obj
+Cargo.lock.bak
+.venv/
+node_modules/
+
+# IDE/会话
+.idea/
+.vscode/
+.claude/settings.local.json
+*.swp
