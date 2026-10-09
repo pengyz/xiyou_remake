@@ -2,7 +2,7 @@
   "id": "VF-ACC-M013",
   "target": "a.java",
   "kind": "scoped",
-  "method": "   private void m_013(Image var1, int var2, int var3, int var4, int var5, int var6, int var7, int var8) {",
+  "method": "   private void drawIconStrip(Image var1, int var2, int var3, int var4, int var5, int var6, int var7, int var8) {",
   "replacements": [
     {
       "old": "byte var10 = 86;",

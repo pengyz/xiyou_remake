@@ -30,13 +30,13 @@
       "count": 1
     },
     {
-      "old": "case 18:\n            var1 = this.f_int_45;",
-      "new": "case 18:\n            int var1c = this.f_int_45;",
+      "old": "case 18:\n            var1 = this.entityCount;",
+      "new": "case 18:\n            int var1c = this.entityCount;",
       "count": 1
     },
     {
-      "old": "case 85:\n            var1 = this.f_int_45;",
-      "new": "case 85:\n            var1c = this.f_int_45;",
+      "old": "case 85:\n            var1 = this.entityCount;",
+      "new": "case 85:\n            var1c = this.entityCount;",
       "count": 1
     },
     {

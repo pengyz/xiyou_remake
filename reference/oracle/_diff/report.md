@@ -18,8 +18,8 @@
 | 变体 | 来源 | a.class sha256 | CMidlet.class sha256 |
 |------|------|----------------|----------------------|
 | A 原始版 | `original/囧囧西游-大闹天宫.jar`（原样字节） | `128b7462031cb97dd7b9e873e2bc4f704da452928fa93382fad98d51d948d4fa` | `a3ce9ae3d24b0e091f915295ac4c8adfe5b94df25b05789e6e04ca113c0ae006` |
-| B 无歧义版 | `analysis/rename-pipeline/renamed/`（t1 重映射产物） | `9fe6904ae55c1071191eb443547c41846133783dc581d46a530f4caca2ea95f3` | `730128b564f1d6d3a3d6a5bee29ab34f45f2e80966d5277ffaf237ae3d4792df` |
-| C javac 源码投影 | `analysis/build/deobf`（deobf 源码 javac 编译产物） | `19a1b2973342216866098895c8b5eb63ee3991ddb6077b3f1816acc819047a23` | `023bf780e562d9fd841c228ae8da79a836f844d91f15d497676a33fef6f42772` |
+| B 无歧义版 | `analysis/rename-pipeline/renamed/`（t1 重映射产物） | `7acf623b4c720126076e6c1340d9fad0ed664592007d0ca04480640f6be33d1b` | `730128b564f1d6d3a3d6a5bee29ab34f45f2e80966d5277ffaf237ae3d4792df` |
+| C javac 源码投影 | `analysis/build/deobf`（deobf 源码 javac 编译产物） | `ea94c3618c4e44c1d38bbdeb57832d125f18a40e67f584387c2d6b048fc8fed2` | `023bf780e562d9fd841c228ae8da79a836f844d91f15d497676a33fef6f42772` |
 
 三个变体施加**同一 T-变换**（常量池 Class 项重定向，见 §3）后运行。seed 版 `reference/seed/a.java` 是历史 CFR 投影（冻结件；存在重复成员名与 `this = v3` 等不可编译结构），按 AGENTS.md §1「字节码是最终真相」，运行时 A 变体取 JAR 内原始字节码。
 C 变体是 deobf 源码（`reference/src/deobf/*.java`）经 javac 编译的 class：字节码由 javac 产出，版本/常量池布局/指令选择与原始字节码可能不同，T-变换只重定向 System/Thread 两个常量池 Class 项（§3），trace 等价性验证的是「状态向量/帧哈希/绘制操作流」语义层，不要求字节码本身相同。

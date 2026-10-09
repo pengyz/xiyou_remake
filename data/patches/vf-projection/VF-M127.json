@@ -2,8 +2,8 @@
   "id": "VF-M127",
   "target": "a.java",
   "kind": "method-replace",
-  "method": "   private int m_127(Image var1, int var2, int var3, int var4) {",
-  "body": "   private int m_127(Image var1, int var2, int var3, int var4) {\n      boolean var5;\n      if (var5 = var2 < 0) {\n         var2 = -var2;\n      }\n\n      int digitW = var1.getWidth() / 11;\n      int var6 = var1.getHeight();\n      var3 = var3;\n      int var7 = 0;\n      int var8 = 0;\n\n      do {\n         var3 -= digitW + 1;\n         var7 = var2 % 10;\n         this.f_Graphics_00.setClip(var3, var4, digitW, var6);\n         this.f_Graphics_00.drawImage(var1, var3 - var7 * digitW, var4, 0);\n         var2 /= 10;\n         var8++;\n      } while (var2 > 0);\n\n      var3 -= digitW + 1;\n      this.f_Graphics_00.setClip(var3, var4, digitW, var6);\n      this.f_Graphics_00.drawImage(var1, var3 - (var1.getWidth() - digitW), var4, 0);\n      this.f_Graphics_00.setClip(0, 0, 240, 320);\n      return var8 + 1;\n   }\n",
+  "method": "   private int drawDigitStrip(Image var1, int var2, int var3, int var4) {",
+  "body": "   private int drawDigitStrip(Image var1, int var2, int var3, int var4) {\n      boolean var5;\n      if (var5 = var2 < 0) {\n         var2 = -var2;\n      }\n\n      int digitW = var1.getWidth() / 11;\n      int var6 = var1.getHeight();\n      var3 = var3;\n      int var7 = 0;\n      int var8 = 0;\n\n      do {\n         var3 -= digitW + 1;\n         var7 = var2 % 10;\n         this.f_Graphics_00.setClip(var3, var4, digitW, var6);\n         this.f_Graphics_00.drawImage(var1, var3 - var7 * digitW, var4, 0);\n         var2 /= 10;\n         var8++;\n      } while (var2 > 0);\n\n      var3 -= digitW + 1;\n      this.f_Graphics_00.setClip(var3, var4, digitW, var6);\n      this.f_Graphics_00.drawImage(var1, var3 - (var1.getWidth() - digitW), var4, 0);\n      this.f_Graphics_00.setClip(0, 0, 240, 320);\n      return var8 + 1;\n   }\n",
   "evidence": "javap m_127: 偏移9-17 dup/istore 模式（负数标志入 slot5 又立即消费），偏移25 istore 5 复用 slot5 存 getWidth()/11（digitW 第二世）；返回 var8+1、末次 drawImage 123-132 逐一对齐。",
   "confidence": 95
 }

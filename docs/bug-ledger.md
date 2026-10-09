@@ -14,6 +14,8 @@
 
 | BUG-006 | 序章脚本死锁：`SEE_3_10_166_166_1` 的玩家寻路失败导致剧情永久卡住。`executeScriptInstruction` SEE 分支（deobf a.java:8261-8266）仅在 `m_133(playerCell, target)` 返回 true 时置 `f_bool_27=true` 启动行走；实测序章地图（currentFloor=51）玩家 (1,11) → 目标 (3,10) 路径被阻，m_133 返回 false 但步数队列 `f_int_148=3` 已被写入 ⇒ 队列永无人消费、`f_byte_16=4` 永不结束 | oracle 深场景实测（2026-10-10）：狂按/每 100 tick 节奏/纯静默+探测三种输入脚本 21k ticks 全部收敛同一冻结态（scriptCursor=43、对话停在"菩提老祖: 好了"）；scenarios/prologue-{dialog,patient}.txt + fields.py 时间线 | 待定（B+ 级：行为确定性复现，但"真机是否同样卡住/是否有解锁输入序列"未证实——不排除需要特定按键序列穿过 mode11 子状态 2 选项支） | 剧情无法推进到自由玩法（第 1 层不可达，影响深场景覆盖路线） | 保留 | 换路线：菜单扫荡/道具栏/战斗入口等不经序章的覆盖（已落地 menu-sweep 场景）；深玩法覆盖可研究存档预置（RMS 预灌）绕过序章 | open |
 
+| BUG-007 | 主菜单第 3/4/5 项文字-动作错位：「保存游戏」显示帮助页（"游戏描述：…"）、「设置」显示关于页（"版权所有：…"）、「帮助」70 帧粒子淡出后直接退出应用 | oracle menu-sweep 场景（scenarios/menu-sweep.txt）三方 PASS trace：FLD062 tick911/tick1361 文本实证 + END=all-threads-exited；分派表 run a.java:3374-3402（case3→15/case4→17/case5→22）对照注册表 m_010(0..5)（a.java:4278-4283） | 确定性错位（A 级行为；"原意 vs bug"不可考，C 级） | 主菜单无可用保存/设置入口（保存/设置仅游戏内可达）；帮助从主菜单不可达 | 保留 | 待定（若 Stage B 修菜单需先考证真机版菜单行为） | open |
+
 ## 记录规范
 - **现象**：玩家可见的行为描述，含层号/坐标/道具条件
 - **复现**：确定性复现输入序列（trace id 或按键脚本）

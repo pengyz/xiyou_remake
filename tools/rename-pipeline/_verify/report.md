@@ -5,7 +5,7 @@
 - 输入：`original/囧囧西游-大闹天宫.jar`（只读）→ `analysis/rename-pipeline/orig/*.class`
 - 对比对象：`analysis/rename-pipeline/orig/` vs `analysis/rename-pipeline/renamed/*.class`
 - 映射表：`data/naming/remap-table.json`（581 条符号，机械改名 569 条）
-- 语义叠加：`data/naming/ledger.jsonl`（applied 82 条，改写与验证均经两层符号还原：语义名→机械名→原始名）
+- 语义叠加：`data/naming/ledger.jsonl`（applied 121 条，改写与验证均经两层符号还原：语义名→机械名→原始名）
 
 ## 验证方法（为什么这能证明“仅符号名变化”）
 
@@ -88,8 +88,8 @@
 | 23 | a | f_InputStream_00 | 0 | 0 | ✓ |
 | 24 | a | f_OutputStream_00 | 0 | 0 | ✓ |
 | 25 | b | f_InputStream_01 | 0 | 0 | ✓ |
-| 26 | f | f_int_05 | 0 | 0 | ✓ |
-| 27 | g | f_int_06 | 0 | 0 | ✓ |
+| 26 | f | keyValue | 0 | 0 | ✓ |
+| 27 | g | keyHeldCode | 0 | 0 | ✓ |
 | 28 | c | f_String_arr_02 | 0 | 0 | ✓ |
 | 29 | h | f_int_07 | 0 | 0 | ✓ |
 | 30 | i | f_int_08 | 0 | 0 | ✓ |
@@ -104,7 +104,7 @@
 | 39 | q | f_int_16 | 0 | 0 | ✓ |
 | 40 | b | f_byte_arr_01 | 0 | 0 | ✓ |
 | 41 | c | f_byte_arr_02 | 0 | 0 | ✓ |
-| 42 | d | f_byte_03 | 0 | 0 | ✓ |
+| 42 | d | iconStripFrame | 0 | 0 | ✓ |
 | 43 | r | f_int_17 | 0 | 0 | ✓ |
 | 44 | s | f_int_18 | 0 | 0 | ✓ |
 | 45 | b | f_Image_01 | 0 | 0 | ✓ |
@@ -125,7 +125,7 @@
 | 60 | i | f_byte_08 | 0 | 0 | ✓ |
 | 61 | y | f_int_24 | 0 | 0 | ✓ |
 | 62 | z | f_int_25 | 0 | 0 | ✓ |
-| 63 | c | f_String_02 | 0 | 0 | ✓ |
+| 63 | c | overlayText | 0 | 0 | ✓ |
 | 64 | d | f_String_03 | 0 | 0 | ✓ |
 | 65 | d | f_String_arr_03 | 0 | 0 | ✓ |
 | 66 | A | f_int_26 | 0 | 0 | ✓ |
@@ -145,13 +145,13 @@
 | 80 | b | f_int_arr2_01 | 0 | 0 | ✓ |
 | 81 | d | f_int_arr_03 | 0 | 0 | ✓ |
 | 82 | M | f_int_38 | 0 | 0 | ✓ |
-| 83 | l | f_byte_11 | 0 | 0 | ✓ |
+| 83 | l | walkPhase | 0 | 0 | ✓ |
 | 84 | N | playerPixelX | 0 | 0 | ✓ |
 | 85 | O | playerPixelY | 0 | 0 | ✓ |
 | 86 | P | playerCellX | 0 | 0 | ✓ |
 | 87 | Q | playerCellY | 0 | 0 | ✓ |
-| 88 | m | f_byte_12 | 0 | 0 | ✓ |
-| 89 | R | f_int_43 | 0 | 0 | ✓ |
+| 88 | m | facingDirection | 0 | 0 | ✓ |
+| 89 | R | stepProgressPx | 0 | 0 | ✓ |
 | 90 | S | f_int_44 | 0 | 0 | ✓ |
 | 91 | c | f_Image_02 | 0 | 0 | ✓ |
 | 92 | e | f_int_arr_04 | 0 | 0 | ✓ |
@@ -170,7 +170,7 @@
 | 105 | a | f_Image_arr_00 | 0 | 0 | ✓ |
 | 106 | l | entityType | 0 | 0 | ✓ |
 | 107 | m | f_int_arr_12 | 0 | 0 | ✓ |
-| 108 | T | f_int_45 | 0 | 0 | ✓ |
+| 108 | T | entityCount | 0 | 0 | ✓ |
 | 109 | a | f_bool_arr_00 | 0 | 0 | ✓ |
 | 110 | b | f_bool_arr_01 | 0 | 0 | ✓ |
 | 111 | d | f_byte_arr_03 | 0 | 0 | ✓ |
@@ -189,7 +189,7 @@
 | 124 | W | f_int_48 | 0 | 0 | ✓ |
 | 125 | a | f_byte_arr2_00 | 0 | 0 | ✓ |
 | 126 | b | f_byte_arr2_01 | 0 | 0 | ✓ |
-| 127 | X | f_int_49 | 0 | 0 | ✓ |
+| 127 | X | backdropScroll | 0 | 0 | ✓ |
 | 128 | d | f_Image_03 | 0 | 0 | ✓ |
 | 129 | Y | mapCellsWide | 0 | 0 | ✓ |
 | 130 | Z | mapCellsHigh | 0 | 0 | ✓ |
@@ -302,11 +302,11 @@
 | 237 | w | f_byte_arr_22 | 0 | 0 | ✓ |
 | 238 | o | dialogueTexts | 0 | 0 | ✓ |
 | 239 | bi | f_int_112 | 0 | 0 | ✓ |
-| 240 | bj | f_int_113 | 0 | 0 | ✓ |
-| 241 | g | f_bool_arr_06 | 0 | 0 | ✓ |
+| 240 | bj | scriptLineCount | 0 | 0 | ✓ |
+| 241 | g | scriptLineFlags | 0 | 0 | ✓ |
 | 242 | bk | f_int_114 | 0 | 0 | ✓ |
 | 243 | bl | f_int_115 | 0 | 0 | ✓ |
-| 244 | q | f_byte_16 | 0 | 0 | ✓ |
+| 244 | q | dialogPhase | 0 | 0 | ✓ |
 | 245 | f | f_String_05 | 0 | 0 | ✓ |
 | 246 | bm | scriptCursor | 0 | 0 | ✓ |
 | 247 | bn | f_int_117 | 0 | 0 | ✓ |
@@ -316,10 +316,10 @@
 | 251 | bq | f_int_120 | 0 | 0 | ✓ |
 | 252 | br | f_int_121 | 0 | 0 | ✓ |
 | 253 | bs | f_int_122 | 0 | 0 | ✓ |
-| 254 | bt | f_int_123 | 0 | 0 | ✓ |
-| 255 | bu | f_int_124 | 0 | 0 | ✓ |
-| 256 | bv | f_int_125 | 0 | 0 | ✓ |
-| 257 | bw | f_int_126 | 0 | 0 | ✓ |
+| 254 | bt | cameraX | 0 | 0 | ✓ |
+| 255 | bu | cameraY | 0 | 0 | ✓ |
+| 256 | bv | cameraTargetX | 0 | 0 | ✓ |
+| 257 | bw | cameraTargetY | 0 | 0 | ✓ |
 | 258 | bx | f_int_127 | 0 | 0 | ✓ |
 | 259 | s | f_byte_18 | 0 | 0 | ✓ |
 | 260 | t | f_byte_19 | 0 | 0 | ✓ |
@@ -331,8 +331,8 @@
 | 266 | e | bossEventSpawns | 0 | 0 | ✓ |
 | 267 | x | bossTypeOrder | 0 | 0 | ✓ |
 | 268 | p | f_bool_15 | 0 | 0 | ✓ |
-| 269 | h | f_bool_arr_07 | 0 | 0 | ✓ |
-| 270 | y | f_byte_arr_24 | 0 | 0 | ✓ |
+| 269 | h | slotValidFlags | 0 | 0 | ✓ |
+| 270 | y | slotFloorNumbers | 0 | 0 | ✓ |
 | 271 | x | f_int_arr_23 | 0 | 0 | ✓ |
 | 272 | y | f_int_arr_24 | 0 | 0 | ✓ |
 | 273 | z | f_int_arr_25 | 0 | 0 | ✓ |
@@ -404,8 +404,8 @@
 | 339 | bR | f_int_147 | 0 | 0 | ✓ |
 | 340 | G | f_int_arr_32 | 0 | 0 | ✓ |
 | 341 | z | f_byte_25 | 0 | 0 | ✓ |
-| 342 | Q | f_byte_arr_42 | 0 | 0 | ✓ |
-| 343 | bS | f_int_148 | 0 | 0 | ✓ |
+| 342 | Q | walkPathBuffer | 0 | 0 | ✓ |
+| 343 | bS | walkStepCount | 0 | 0 | ✓ |
 | 344 | g | f_byte_arr2_06 | 0 | 0 | ✓ |
 | 345 | a | f_short_arr2_00 | 0 | 0 | ✓ |
 | 346 | a | f_short_00 | 0 | 0 | ✓ |
@@ -418,7 +418,7 @@
 | 353 | u | f_bool_20 | 0 | 0 | ✓ |
 | 354 | v | f_bool_21 | 0 | 0 | ✓ |
 | 355 | w | f_bool_22 | 0 | 0 | ✓ |
-| 356 | A | f_byte_26 | 0 | 0 | ✓ |
+| 356 | A | difficultyIndex | 0 | 0 | ✓ |
 | 357 | H | difficultyMultipliers | 0 | 0 | ✓ |
 | 358 | bU | f_int_150 | 0 | 0 | ✓ |
 | 359 | bV | f_int_151 | 0 | 0 | ✓ |
@@ -429,7 +429,7 @@
 | 364 | R | f_byte_arr_43 | 0 | 0 | ✓ |
 | 365 | S | f_byte_arr_44 | 0 | 0 | ✓ |
 | 366 | A | f_bool_26 | 0 | 0 | ✓ |
-| 367 | B | f_bool_27 | 0 | 0 | ✓ |
+| 367 | B | scriptWalkArmed | 0 | 0 | ✓ |
 | 368 | I | f_int_arr_34 | 0 | 0 | ✓ |
 | 369 | J | f_int_arr_35 | 0 | 0 | ✓ |
 | 370 | bW | f_int_152 | 0 | 0 | ✓ |
@@ -494,9 +494,9 @@
 | 429 | b | m_010 | 60 | 60 | ✓ |
 | 430 | d | m_011 | 64 | 64 | ✓ |
 | 431 | e | m_012 | 108 | 108 | ✓ |
-| 432 | b | m_013 | 74 | 74 | ✓ |
+| 432 | b | drawIconStrip | 74 | 74 | ✓ |
 | 433 | f | m_014 | 240 | 240 | ✓ |
-| 434 | a | m_015 | 79 | 79 | ✓ |
+| 434 | a | showOverlayMessage | 79 | 79 | ✓ |
 | 435 | g | m_016 | 25 | 25 | ✓ |
 | 436 | a | m_017 | 8 | 8 | ✓ |
 | 437 | a | m_018 | 221 | 221 | ✓ |
@@ -508,12 +508,12 @@
 | 443 | a | m_024 | 20 | 20 | ✓ |
 | 444 | h | m_025 | 19 | 19 | ✓ |
 | 445 | i | m_026 | 229 | 229 | ✓ |
-| 446 | j | m_027 | 177 | 177 | ✓ |
+| 446 | j | handleFieldInput | 177 | 177 | ✓ |
 | 447 | a | tryStep | 54 | 54 | ✓ |
 | 448 | a | interactWithCell | 496 | 496 | ✓ |
 | 449 | k | applyStepCellEffects | 811 | 811 | ✓ |
 | 450 | b | m_031 | 60 | 60 | ✓ |
-| 451 | l | m_032 | 43 | 43 | ✓ |
+| 451 | l | advanceScriptWalk | 43 | 43 | ✓ |
 | 452 | c | m_033 | 715 | 715 | ✓ |
 | 453 | m | m_034 | 68 | 68 | ✓ |
 | 454 | d | m_035 | 140 | 140 | ✓ |
@@ -537,7 +537,7 @@
 | 472 | a | m_053 | 1299 | 1299 | ✓ |
 | 473 | p | m_054 | 373 | 373 | ✓ |
 | 474 | q | m_055 | 92 | 92 | ✓ |
-| 475 | a | m_056 | 80 | 80 | ✓ |
+| 475 | a | drawParallaxBackdrop | 80 | 80 | ✓ |
 | 476 | r | m_057 | 290 | 290 | ✓ |
 | 477 | a | m_058 | 13 | 13 | ✓ |
 | 478 | s | m_059 | 20 | 20 | ✓ |
@@ -546,7 +546,7 @@
 | 481 | c | m_062 | 28 | 28 | ✓ |
 | 482 | h | m_063 | 210 | 210 | ✓ |
 | 483 | i | m_064 | 201 | 201 | ✓ |
-| 484 | a | m_065 | 55 | 55 | ✓ |
+| 484 | a | findFloorGateEntity | 55 | 55 | ✓ |
 | 485 | a | changeFloor | 114 | 114 | ✓ |
 | 486 | u | m_067 | 35 | 35 | ✓ |
 | 487 | v | m_068 | 88 | 88 | ✓ |
@@ -577,8 +577,8 @@
 | 512 | a | m_093 | 16 | 16 | ✓ |
 | 513 | d | loadLevelScript | 71 | 71 | ✓ |
 | 514 | b | tryRunScene | 441 | 441 | ✓ |
-| 515 | n | m_096 | 107 | 107 | ✓ |
-| 516 | a | m_097 | 14 | 14 | ✓ |
+| 515 | n | openDialogPage | 107 | 107 | ✓ |
+| 516 | a | cameraAtTarget | 14 | 14 | ✓ |
 | 517 | a | executeScriptInstruction | 1347 | 1347 | ✓ |
 | 518 | a | parseScriptInt | 20 | 20 | ✓ |
 | 519 | b | m_100 | 48 | 48 | ✓ |
@@ -586,18 +586,18 @@
 | 521 | d | m_102 | 47 | 47 | ✓ |
 | 522 | l | m_103 | 33 | 33 | ✓ |
 | 523 | e | m_104 | 82 | 82 | ✓ |
-| 524 | x | m_105 | 135 | 135 | ✓ |
+| 524 | x | stepCameraTowardTarget | 135 | 135 | ✓ |
 | 525 | y | m_106 | 457 | 457 | ✓ |
 | 526 | e | m_107 | 42 | 42 | ✓ |
 | 527 | f | m_108 | 122 | 122 | ✓ |
 | 528 | o | spawnBossEvent | 46 | 46 | ✓ |
-| 529 | z | m_110 | 106 | 106 | ✓ |
-| 530 | A | m_111 | 193 | 193 | ✓ |
-| 531 | p | m_112 | 212 | 212 | ✓ |
+| 529 | z | saveGlobalProgress | 106 | 106 | ✓ |
+| 530 | A | loadSlotTable | 193 | 193 | ✓ |
+| 531 | p | markSlotEntry | 212 | 212 | ✓ |
 | 532 | b | m_113 | 707 | 707 | ✓ |
-| 533 | q | m_114 | 256 | 256 | ✓ |
-| 534 | e | m_115 | 300 | 300 | ✓ |
-| 535 | a | m_116 | 5 | 5 | ✓ |
+| 533 | q | saveFloorState | 256 | 256 | ✓ |
+| 534 | e | loadFloorSave | 300 | 300 | ✓ |
+| 535 | a | deleteRecordStoreQuietly | 5 | 5 | ✓ |
 | 536 | B | m_117 | 47 | 47 | ✓ |
 | 537 | C | m_118 | 12 | 12 | ✓ |
 | 538 | r | m_119 | 125 | 125 | ✓ |
@@ -608,13 +608,13 @@
 | 543 | m | m_124 | 24 | 24 | ✓ |
 | 544 | a | m_125 | 139 | 139 | ✓ |
 | 545 | D | m_126 | 275 | 275 | ✓ |
-| 546 | b | m_127 | 96 | 96 | ✓ |
+| 546 | b | drawDigitStrip | 96 | 96 | ✓ |
 | 547 | E | m_128 | 36 | 36 | ✓ |
 | 548 | e | m_129 | 62 | 62 | ✓ |
 | 549 | F | m_130 | 125 | 125 | ✓ |
 | 550 | a | m_131 | 26 | 26 | ✓ |
 | 551 | u | m_132 | 12 | 12 | ✓ |
-| 552 | a | m_133 | 247 | 247 | ✓ |
+| 552 | a | findPath | 247 | 247 | ✓ |
 | 553 | g | m_134 | 125 | 125 | ✓ |
 | 554 | a | predictHpLossVsType | 23 | 23 | ✓ |
 | 555 | f | effectiveAttackVsType | 33 | 33 | ✓ |
