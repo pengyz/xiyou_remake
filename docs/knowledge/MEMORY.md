@@ -14,6 +14,8 @@
 
 ## Patterns
 
+- [引用锚定小节而非裸行号](pattern_cite-section-anchor-not-raw-line.md) — 文档互引写「#小节标题（行 N）」双锚；纯行号在追加后必漂移（实测 +19/+73）
+
 ## Debug
 
 ## Decisions
