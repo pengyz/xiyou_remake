@@ -3,5 +3,23 @@
 version = 4
 
 [[package]]
+name = "game-core"
+version = "0.1.0"
+dependencies = [
+ "game-platform",
+]
+
+[[package]]
 name = "game-data"
+version = "0.1.0"
+
+[[package]]
+name = "game-oracle"
+version = "0.1.0"
+dependencies = [
+ "game-core",
+]
+
+[[package]]
+name = "game-platform"
 version = "0.1.0"

@@ -1,0 +1,4 @@
+//! game-core —— 游戏逻辑（AGENTS §2 红线：无 I/O、确定性、禁平台 crate）。
+//!
+//! P3.1：脚本 DSL 解释器（docs/spec/p3-script-interpreter.md）。
+pub mod script;

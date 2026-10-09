@@ -1,0 +1,1163 @@
+TICK 0546 vt=42550
+TICK 0547 vt=42625
+TICK 0548 vt=42700
+TICK 0549 vt=42775
+TICK 0550 vt=42850
+TICK 0551 vt=42925
+TICK 0552 vt=43000
+  FLD 010 byte 2
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String null
+  FLD 245 int 0
+TICK 0553 vt=43075
+TICK 0554 vt=43150
+TICK 0555 vt=43225
+TICK 0556 vt=43300
+TICK 0557 vt=43375
+TICK 0558 vt=43450
+TICK 0559 vt=43525
+TICK 0560 vt=43600
+  FLD 010 byte 2
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String null
+  FLD 245 int 0
+TICK 0561 vt=43675
+TICK 0562 vt=43750
+TICK 0563 vt=43825
+TICK 0564 vt=43900
+TICK 0565 vt=43975
+TICK 0566 vt=44050
+TICK 0567 vt=44125
+TICK 0568 vt=44200
+  FLD 010 byte 2
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String null
+  FLD 245 int 0
+TICK 0569 vt=44275
+TICK 0570 vt=44350
+TICK 0571 vt=44425
+TICK 0572 vt=44500
+TICK 0573 vt=44575
+TICK 0574 vt=44650
+TICK 0575 vt=44725
+TICK 0576 vt=44800
+  FLD 010 byte 2
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String null
+  FLD 245 int 0
+TICK 0577 vt=44875
+TICK 0578 vt=44950
+TICK 0579 vt=45025
+TICK 0580 vt=45100
+TICK 0581 vt=45175
+TICK 0582 vt=45250
+TICK 0583 vt=45325
+TICK 0584 vt=45400
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u609f\u7a7a~\u609f\u7a7a~\uff01"
+  FLD 245 int 12
+TICK 0585 vt=45475
+TICK 0586 vt=45550
+TICK 0587 vt=45625
+TICK 0588 vt=45700
+TICK 0589 vt=45775
+TICK 0590 vt=45850
+TICK 0591 vt=45925
+TICK 0592 vt=46000
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u609f\u7a7a~\u609f\u7a7a~\uff01"
+  FLD 245 int 12
+TICK 0593 vt=46075
+TICK 0594 vt=46150
+TICK 0595 vt=46225
+TICK 0596 vt=46300
+TICK 0597 vt=46375
+TICK 0598 vt=46450
+TICK 0599 vt=46525
+TICK 0600 vt=46600
+INPUT press(-5)
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u609f\u7a7a~\u609f\u7a7a~\uff01"
+  FLD 245 int 12
+TICK 0601 vt=46675
+TICK 0602 vt=46750
+INPUT release(-5)
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u5b59\u609f\u7a7a: \\cF8F8F8\u4e3a\u4ec0\u4e48\u6709\u53ea\u9171\u6cb9\u86e4\u87c6\u8ddf\u6211\u5343\u91cc\u4f20\u97f3\uff1f"
+  FLD 245 int 12
+TICK 0603 vt=46825
+TICK 0604 vt=46900
+TICK 0605 vt=46975
+TICK 0606 vt=47050
+TICK 0607 vt=47125
+TICK 0608 vt=47200
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u5b59\u609f\u7a7a: \\cF8F8F8\u4e3a\u4ec0\u4e48\u6709\u53ea\u9171\u6cb9\u86e4\u87c6\u8ddf\u6211\u5343\u91cc\u4f20\u97f3\uff1f"
+  FLD 245 int 12
+TICK 0609 vt=47275
+TICK 0610 vt=47350
+TICK 0611 vt=47425
+TICK 0612 vt=47500
+TICK 0613 vt=47575
+TICK 0614 vt=47650
+TICK 0615 vt=47725
+TICK 0616 vt=47800
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u5b59\u609f\u7a7a: \\cF8F8F8\u4e3a\u4ec0\u4e48\u6709\u53ea\u9171\u6cb9\u86e4\u87c6\u8ddf\u6211\u5343\u91cc\u4f20\u97f3\uff1f"
+  FLD 245 int 12
+TICK 0617 vt=47875
+TICK 0618 vt=47950
+TICK 0619 vt=48025
+TICK 0620 vt=48100
+TICK 0621 vt=48175
+TICK 0622 vt=48250
+TICK 0623 vt=48325
+TICK 0624 vt=48400
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u5b59\u609f\u7a7a: \\cF8F8F8\u4e3a\u4ec0\u4e48\u6709\u53ea\u9171\u6cb9\u86e4\u87c6\u8ddf\u6211\u5343\u91cc\u4f20\u97f3\uff1f"
+  FLD 245 int 12
+TICK 0625 vt=48475
+TICK 0626 vt=48550
+TICK 0627 vt=48625
+TICK 0628 vt=48700
+TICK 0629 vt=48775
+TICK 0630 vt=48850
+INPUT press(-5)
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u5b59\u609f\u7a7a: \\cF8F8F8\u4e3a\u4ec0\u4e48\u6709\u53ea\u9171\u6cb9\u86e4\u87c6\u8ddf\u6211\u5343\u91cc\u4f20\u97f3\uff1f"
+  FLD 245 int 12
+TICK 0631 vt=48925
+TICK 0632 vt=49000
+INPUT release(-5)
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u5b59\u609f\u7a7a: \\cF8F8F8\u4e3a\u4ec0\u4e48\u6709\u53ea\u9171\u6cb9\u86e4\u87c6\u8ddf\u6211\u5343\u91cc\u4f20\u97f3\uff1f"
+  FLD 245 int 12
+TICK 0633 vt=49075
+TICK 0634 vt=49150
+TICK 0635 vt=49225
+TICK 0636 vt=49300
+TICK 0637 vt=49375
+TICK 0638 vt=49450
+TICK 0639 vt=49525
+TICK 0640 vt=49600
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u5b59\u609f\u7a7a: \\cF8F8F8\u4e3a\u4ec0\u4e48\u6709\u53ea\u9171\u6cb9\u86e4\u87c6\u8ddf\u6211\u5343\u91cc\u4f20\u97f3\uff1f"
+  FLD 245 int 12
+TICK 0641 vt=49675
+TICK 0642 vt=49750
+TICK 0643 vt=49825
+TICK 0644 vt=49900
+TICK 0645 vt=49975
+TICK 0646 vt=50050
+TICK 0647 vt=50125
+TICK 0648 vt=50200
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u5b59\u609f\u7a7a: \\cF8F8F8\u4e3a\u4ec0\u4e48\u6709\u53ea\u9171\u6cb9\u86e4\u87c6\u8ddf\u6211\u5343\u91cc\u4f20\u97f3\uff1f"
+  FLD 245 int 12
+TICK 0649 vt=50275
+TICK 0650 vt=50350
+TICK 0651 vt=50425
+TICK 0652 vt=50500
+TICK 0653 vt=50575
+TICK 0654 vt=50650
+TICK 0655 vt=50725
+TICK 0656 vt=50800
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u5b59\u609f\u7a7a: \\cF8F8F8\u4e3a\u4ec0\u4e48\u6709\u53ea\u9171\u6cb9\u86e4\u87c6\u8ddf\u6211\u5343\u91cc\u4f20\u97f3\uff1f"
+  FLD 245 int 12
+TICK 0657 vt=50875
+TICK 0658 vt=50950
+TICK 0659 vt=51025
+TICK 0660 vt=51100
+INPUT press(-5)
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u5b59\u609f\u7a7a: \\cF8F8F8\u4e3a\u4ec0\u4e48\u6709\u53ea\u9171\u6cb9\u86e4\u87c6\u8ddf\u6211\u5343\u91cc\u4f20\u97f3\uff1f"
+  FLD 245 int 12
+TICK 0661 vt=51175
+TICK 0662 vt=51250
+INPUT release(-5)
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u662f\u5e08\u7236\u6211\u554a\uff01"
+  FLD 245 int 12
+TICK 0663 vt=51325
+TICK 0664 vt=51400
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u662f\u5e08\u7236\u6211\u554a\uff01"
+  FLD 245 int 12
+TICK 0665 vt=51475
+TICK 0666 vt=51550
+TICK 0667 vt=51625
+TICK 0668 vt=51700
+TICK 0669 vt=51775
+TICK 0670 vt=51850
+TICK 0671 vt=51925
+TICK 0672 vt=52000
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u662f\u5e08\u7236\u6211\u554a\uff01"
+  FLD 245 int 12
+TICK 0673 vt=52075
+TICK 0674 vt=52150
+TICK 0675 vt=52225
+TICK 0676 vt=52300
+TICK 0677 vt=52375
+TICK 0678 vt=52450
+TICK 0679 vt=52525
+TICK 0680 vt=52600
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u662f\u5e08\u7236\u6211\u554a\uff01"
+  FLD 245 int 12
+TICK 0681 vt=52675
+TICK 0682 vt=52750
+TICK 0683 vt=52825
+TICK 0684 vt=52900
+TICK 0685 vt=52975
+TICK 0686 vt=53050
+TICK 0687 vt=53125
+TICK 0688 vt=53200
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u662f\u5e08\u7236\u6211\u554a\uff01"
+  FLD 245 int 12
+TICK 0689 vt=53275
+TICK 0690 vt=53350
+INPUT press(-5)
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u662f\u5e08\u7236\u6211\u554a\uff01"
+  FLD 245 int 12
+TICK 0691 vt=53425
+TICK 0692 vt=53500
+INPUT release(-5)
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u5b59\u609f\u7a7a: \\cF8F8F8\u5e08\u7236\uff1f\u4e3a\u4ec0\u4e48\u5316\u4e2a\u86e4\u87c6\u5986\uff1f"
+  FLD 245 int 12
+TICK 0693 vt=53575
+TICK 0694 vt=53650
+TICK 0695 vt=53725
+TICK 0696 vt=53800
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u5b59\u609f\u7a7a: \\cF8F8F8\u5e08\u7236\uff1f\u4e3a\u4ec0\u4e48\u5316\u4e2a\u86e4\u87c6\u5986\uff1f"
+  FLD 245 int 12
+TICK 0697 vt=53875
+TICK 0698 vt=53950
+TICK 0699 vt=54025
+TICK 0700 vt=54100
+TICK 0701 vt=54175
+TICK 0702 vt=54250
+TICK 0703 vt=54325
+TICK 0704 vt=54400
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u5b59\u609f\u7a7a: \\cF8F8F8\u5e08\u7236\uff1f\u4e3a\u4ec0\u4e48\u5316\u4e2a\u86e4\u87c6\u5986\uff1f"
+  FLD 245 int 12
+TICK 0705 vt=54475
+TICK 0706 vt=54550
+TICK 0707 vt=54625
+TICK 0708 vt=54700
+TICK 0709 vt=54775
+TICK 0710 vt=54850
+TICK 0711 vt=54925
+TICK 0712 vt=55000
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u5b59\u609f\u7a7a: \\cF8F8F8\u5e08\u7236\uff1f\u4e3a\u4ec0\u4e48\u5316\u4e2a\u86e4\u87c6\u5986\uff1f"
+  FLD 245 int 12
+TICK 0713 vt=55075
+TICK 0714 vt=55150
+TICK 0715 vt=55225
+TICK 0716 vt=55300
+TICK 0717 vt=55375
+TICK 0718 vt=55450
+TICK 0719 vt=55525
+TICK 0720 vt=55600
+INPUT press(-5)
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u5b59\u609f\u7a7a: \\cF8F8F8\u5e08\u7236\uff1f\u4e3a\u4ec0\u4e48\u5316\u4e2a\u86e4\u87c6\u5986\uff1f"
+  FLD 245 int 12
+TICK 0721 vt=55675
+TICK 0722 vt=55750
+INPUT release(-5)
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u5728\u5370\u5ea6\uff0c\u6cd5\u672f\u4ea4\u6d41\u517c\u6e21\u5047\uff0c\u65e5\u5149\u6d74\u52a0\u987f\u987f\u5496\u55b1\u996d\uff0c\u5634\u5df4\u4e0a\u706b\u3002"
+  FLD 245 int 12
+TICK 0723 vt=55825
+TICK 0724 vt=55900
+TICK 0725 vt=55975
+TICK 0726 vt=56050
+TICK 0727 vt=56125
+TICK 0728 vt=56200
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u5728\u5370\u5ea6\uff0c\u6cd5\u672f\u4ea4\u6d41\u517c\u6e21\u5047\uff0c\u65e5\u5149\u6d74\u52a0\u987f\u987f\u5496\u55b1\u996d\uff0c\u5634\u5df4\u4e0a\u706b\u3002"
+  FLD 245 int 12
+TICK 0729 vt=56275
+TICK 0730 vt=56350
+TICK 0731 vt=56425
+TICK 0732 vt=56500
+TICK 0733 vt=56575
+TICK 0734 vt=56650
+TICK 0735 vt=56725
+TICK 0736 vt=56800
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u5728\u5370\u5ea6\uff0c\u6cd5\u672f\u4ea4\u6d41\u517c\u6e21\u5047\uff0c\u65e5\u5149\u6d74\u52a0\u987f\u987f\u5496\u55b1\u996d\uff0c\u5634\u5df4\u4e0a\u706b\u3002"
+  FLD 245 int 12
+TICK 0737 vt=56875
+TICK 0738 vt=56950
+TICK 0739 vt=57025
+TICK 0740 vt=57100
+TICK 0741 vt=57175
+TICK 0742 vt=57250
+TICK 0743 vt=57325
+TICK 0744 vt=57400
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u5728\u5370\u5ea6\uff0c\u6cd5\u672f\u4ea4\u6d41\u517c\u6e21\u5047\uff0c\u65e5\u5149\u6d74\u52a0\u987f\u987f\u5496\u55b1\u996d\uff0c\u5634\u5df4\u4e0a\u706b\u3002"
+  FLD 245 int 12
+TICK 0745 vt=57475
+TICK 0746 vt=57550
+TICK 0747 vt=57625
+TICK 0748 vt=57700
+TICK 0749 vt=57775
+TICK 0750 vt=57850
+INPUT press(-5)
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u5728\u5370\u5ea6\uff0c\u6cd5\u672f\u4ea4\u6d41\u517c\u6e21\u5047\uff0c\u65e5\u5149\u6d74\u52a0\u987f\u987f\u5496\u55b1\u996d\uff0c\u5634\u5df4\u4e0a\u706b\u3002"
+  FLD 245 int 12
+TICK 0751 vt=57925
+TICK 0752 vt=58000
+INPUT release(-5)
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u5728\u5370\u5ea6\uff0c\u6cd5\u672f\u4ea4\u6d41\u517c\u6e21\u5047\uff0c\u65e5\u5149\u6d74\u52a0\u987f\u987f\u5496\u55b1\u996d\uff0c\u5634\u5df4\u4e0a\u706b\u3002"
+  FLD 245 int 12
+TICK 0753 vt=58075
+TICK 0754 vt=58150
+TICK 0755 vt=58225
+TICK 0756 vt=58300
+TICK 0757 vt=58375
+TICK 0758 vt=58450
+TICK 0759 vt=58525
+TICK 0760 vt=58600
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u5728\u5370\u5ea6\uff0c\u6cd5\u672f\u4ea4\u6d41\u517c\u6e21\u5047\uff0c\u65e5\u5149\u6d74\u52a0\u987f\u987f\u5496\u55b1\u996d\uff0c\u5634\u5df4\u4e0a\u706b\u3002"
+  FLD 245 int 12
+TICK 0761 vt=58675
+TICK 0762 vt=58750
+TICK 0763 vt=58825
+TICK 0764 vt=58900
+TICK 0765 vt=58975
+TICK 0766 vt=59050
+TICK 0767 vt=59125
+TICK 0768 vt=59200
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u5728\u5370\u5ea6\uff0c\u6cd5\u672f\u4ea4\u6d41\u517c\u6e21\u5047\uff0c\u65e5\u5149\u6d74\u52a0\u987f\u987f\u5496\u55b1\u996d\uff0c\u5634\u5df4\u4e0a\u706b\u3002"
+  FLD 245 int 12
+TICK 0769 vt=59275
+TICK 0770 vt=59350
+TICK 0771 vt=59425
+TICK 0772 vt=59500
+TICK 0773 vt=59575
+TICK 0774 vt=59650
+TICK 0775 vt=59725
+TICK 0776 vt=59800
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u5728\u5370\u5ea6\uff0c\u6cd5\u672f\u4ea4\u6d41\u517c\u6e21\u5047\uff0c\u65e5\u5149\u6d74\u52a0\u987f\u987f\u5496\u55b1\u996d\uff0c\u5634\u5df4\u4e0a\u706b\u3002"
+  FLD 245 int 12
+TICK 0777 vt=59875
+TICK 0778 vt=59950
+TICK 0779 vt=60025
+TICK 0780 vt=60100
+INPUT press(-5)
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u5728\u5370\u5ea6\uff0c\u6cd5\u672f\u4ea4\u6d41\u517c\u6e21\u5047\uff0c\u65e5\u5149\u6d74\u52a0\u987f\u987f\u5496\u55b1\u996d\uff0c\u5634\u5df4\u4e0a\u706b\u3002"
+  FLD 245 int 12
+TICK 0781 vt=60175
+TICK 0782 vt=60250
+INPUT release(-5)
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u77e5\u9053\u4f60\u8981\u5927\u95f9\u5929\u5bab\uff0c\u7279\u610f\u5343\u91cc\u4f20\u97f3\uff0c\u63d0\u4f9b\u8fdc\u7a0b\u89c6\u9891\u652f\u6301\uff0c\u5f53\u7136\uff0c\u5982\u679c\u4f60\u5acc\u4e3a\u5e08\u7f57\u55e6\uff0c\u4e5f\u53ef\u4ee5\u5728\u6e38\u620f\u83dc\u5355\u4e2d\u9009\u62e9\u8df3\u8fc7\u6559\u7a0b\u3002"
+  FLD 245 int 24
+TICK 0783 vt=60325
+TICK 0784 vt=60400
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u77e5\u9053\u4f60\u8981\u5927\u95f9\u5929\u5bab\uff0c\u7279\u610f\u5343\u91cc\u4f20\u97f3\uff0c\u63d0\u4f9b\u8fdc\u7a0b\u89c6\u9891\u652f\u6301\uff0c\u5f53\u7136\uff0c\u5982\u679c\u4f60\u5acc\u4e3a\u5e08\u7f57\u55e6\uff0c\u4e5f\u53ef\u4ee5\u5728\u6e38\u620f\u83dc\u5355\u4e2d\u9009\u62e9\u8df3\u8fc7\u6559\u7a0b\u3002"
+  FLD 245 int 24
+TICK 0785 vt=60475
+TICK 0786 vt=60550
+TICK 0787 vt=60625
+TICK 0788 vt=60700
+TICK 0789 vt=60775
+TICK 0790 vt=60850
+TICK 0791 vt=60925
+TICK 0792 vt=61000
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u77e5\u9053\u4f60\u8981\u5927\u95f9\u5929\u5bab\uff0c\u7279\u610f\u5343\u91cc\u4f20\u97f3\uff0c\u63d0\u4f9b\u8fdc\u7a0b\u89c6\u9891\u652f\u6301\uff0c\u5f53\u7136\uff0c\u5982\u679c\u4f60\u5acc\u4e3a\u5e08\u7f57\u55e6\uff0c\u4e5f\u53ef\u4ee5\u5728\u6e38\u620f\u83dc\u5355\u4e2d\u9009\u62e9\u8df3\u8fc7\u6559\u7a0b\u3002"
+  FLD 245 int 24
+TICK 0793 vt=61075
+TICK 0794 vt=61150
+TICK 0795 vt=61225
+TICK 0796 vt=61300
+TICK 0797 vt=61375
+TICK 0798 vt=61450
+TICK 0799 vt=61525
+TICK 0800 vt=61600
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u77e5\u9053\u4f60\u8981\u5927\u95f9\u5929\u5bab\uff0c\u7279\u610f\u5343\u91cc\u4f20\u97f3\uff0c\u63d0\u4f9b\u8fdc\u7a0b\u89c6\u9891\u652f\u6301\uff0c\u5f53\u7136\uff0c\u5982\u679c\u4f60\u5acc\u4e3a\u5e08\u7f57\u55e6\uff0c\u4e5f\u53ef\u4ee5\u5728\u6e38\u620f\u83dc\u5355\u4e2d\u9009\u62e9\u8df3\u8fc7\u6559\u7a0b\u3002"
+  FLD 245 int 24
+TICK 0801 vt=61675
+TICK 0802 vt=61750
+TICK 0803 vt=61825
+TICK 0804 vt=61900
+TICK 0805 vt=61975
+TICK 0806 vt=62050
+TICK 0807 vt=62125
+TICK 0808 vt=62200
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u77e5\u9053\u4f60\u8981\u5927\u95f9\u5929\u5bab\uff0c\u7279\u610f\u5343\u91cc\u4f20\u97f3\uff0c\u63d0\u4f9b\u8fdc\u7a0b\u89c6\u9891\u652f\u6301\uff0c\u5f53\u7136\uff0c\u5982\u679c\u4f60\u5acc\u4e3a\u5e08\u7f57\u55e6\uff0c\u4e5f\u53ef\u4ee5\u5728\u6e38\u620f\u83dc\u5355\u4e2d\u9009\u62e9\u8df3\u8fc7\u6559\u7a0b\u3002"
+  FLD 245 int 24
+TICK 0809 vt=62275
+TICK 0810 vt=62350
+INPUT press(-5)
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u77e5\u9053\u4f60\u8981\u5927\u95f9\u5929\u5bab\uff0c\u7279\u610f\u5343\u91cc\u4f20\u97f3\uff0c\u63d0\u4f9b\u8fdc\u7a0b\u89c6\u9891\u652f\u6301\uff0c\u5f53\u7136\uff0c\u5982\u679c\u4f60\u5acc\u4e3a\u5e08\u7f57\u55e6\uff0c\u4e5f\u53ef\u4ee5\u5728\u6e38\u620f\u83dc\u5355\u4e2d\u9009\u62e9\u8df3\u8fc7\u6559\u7a0b\u3002"
+  FLD 245 int 24
+TICK 0811 vt=62425
+TICK 0812 vt=62500
+INPUT release(-5)
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u77e5\u9053\u4f60\u8981\u5927\u95f9\u5929\u5bab\uff0c\u7279\u610f\u5343\u91cc\u4f20\u97f3\uff0c\u63d0\u4f9b\u8fdc\u7a0b\u89c6\u9891\u652f\u6301\uff0c\u5f53\u7136\uff0c\u5982\u679c\u4f60\u5acc\u4e3a\u5e08\u7f57\u55e6\uff0c\u4e5f\u53ef\u4ee5\u5728\u6e38\u620f\u83dc\u5355\u4e2d\u9009\u62e9\u8df3\u8fc7\u6559\u7a0b\u3002"
+  FLD 245 int 24
+TICK 0813 vt=62575
+TICK 0814 vt=62650
+TICK 0815 vt=62725
+TICK 0816 vt=62800
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u77e5\u9053\u4f60\u8981\u5927\u95f9\u5929\u5bab\uff0c\u7279\u610f\u5343\u91cc\u4f20\u97f3\uff0c\u63d0\u4f9b\u8fdc\u7a0b\u89c6\u9891\u652f\u6301\uff0c\u5f53\u7136\uff0c\u5982\u679c\u4f60\u5acc\u4e3a\u5e08\u7f57\u55e6\uff0c\u4e5f\u53ef\u4ee5\u5728\u6e38\u620f\u83dc\u5355\u4e2d\u9009\u62e9\u8df3\u8fc7\u6559\u7a0b\u3002"
+  FLD 245 int 24
+TICK 0817 vt=62875
+TICK 0818 vt=62950
+TICK 0819 vt=63025
+TICK 0820 vt=63100
+TICK 0821 vt=63175
+TICK 0822 vt=63250
+TICK 0823 vt=63325
+TICK 0824 vt=63400
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u77e5\u9053\u4f60\u8981\u5927\u95f9\u5929\u5bab\uff0c\u7279\u610f\u5343\u91cc\u4f20\u97f3\uff0c\u63d0\u4f9b\u8fdc\u7a0b\u89c6\u9891\u652f\u6301\uff0c\u5f53\u7136\uff0c\u5982\u679c\u4f60\u5acc\u4e3a\u5e08\u7f57\u55e6\uff0c\u4e5f\u53ef\u4ee5\u5728\u6e38\u620f\u83dc\u5355\u4e2d\u9009\u62e9\u8df3\u8fc7\u6559\u7a0b\u3002"
+  FLD 245 int 24
+TICK 0825 vt=63475
+TICK 0826 vt=63550
+TICK 0827 vt=63625
+TICK 0828 vt=63700
+TICK 0829 vt=63775
+TICK 0830 vt=63850
+TICK 0831 vt=63925
+TICK 0832 vt=64000
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u77e5\u9053\u4f60\u8981\u5927\u95f9\u5929\u5bab\uff0c\u7279\u610f\u5343\u91cc\u4f20\u97f3\uff0c\u63d0\u4f9b\u8fdc\u7a0b\u89c6\u9891\u652f\u6301\uff0c\u5f53\u7136\uff0c\u5982\u679c\u4f60\u5acc\u4e3a\u5e08\u7f57\u55e6\uff0c\u4e5f\u53ef\u4ee5\u5728\u6e38\u620f\u83dc\u5355\u4e2d\u9009\u62e9\u8df3\u8fc7\u6559\u7a0b\u3002"
+  FLD 245 int 24
+TICK 0833 vt=64075
+TICK 0834 vt=64150
+TICK 0835 vt=64225
+TICK 0836 vt=64300
+TICK 0837 vt=64375
+TICK 0838 vt=64450
+TICK 0839 vt=64525
+TICK 0840 vt=64600
+INPUT press(-5)
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u77e5\u9053\u4f60\u8981\u5927\u95f9\u5929\u5bab\uff0c\u7279\u610f\u5343\u91cc\u4f20\u97f3\uff0c\u63d0\u4f9b\u8fdc\u7a0b\u89c6\u9891\u652f\u6301\uff0c\u5f53\u7136\uff0c\u5982\u679c\u4f60\u5acc\u4e3a\u5e08\u7f57\u55e6\uff0c\u4e5f\u53ef\u4ee5\u5728\u6e38\u620f\u83dc\u5355\u4e2d\u9009\u62e9\u8df3\u8fc7\u6559\u7a0b\u3002"
+  FLD 245 int 24
+TICK 0841 vt=64675
+TICK 0842 vt=64750
+INPUT release(-5)
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u77e5\u9053\u4f60\u8981\u5927\u95f9\u5929\u5bab\uff0c\u7279\u610f\u5343\u91cc\u4f20\u97f3\uff0c\u63d0\u4f9b\u8fdc\u7a0b\u89c6\u9891\u652f\u6301\uff0c\u5f53\u7136\uff0c\u5982\u679c\u4f60\u5acc\u4e3a\u5e08\u7f57\u55e6\uff0c\u4e5f\u53ef\u4ee5\u5728\u6e38\u620f\u83dc\u5355\u4e2d\u9009\u62e9\u8df3\u8fc7\u6559\u7a0b\u3002"
+  FLD 245 int 24
+TICK 0843 vt=64825
+TICK 0844 vt=64900
+TICK 0845 vt=64975
+TICK 0846 vt=65050
+TICK 0847 vt=65125
+TICK 0848 vt=65200
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u77e5\u9053\u4f60\u8981\u5927\u95f9\u5929\u5bab\uff0c\u7279\u610f\u5343\u91cc\u4f20\u97f3\uff0c\u63d0\u4f9b\u8fdc\u7a0b\u89c6\u9891\u652f\u6301\uff0c\u5f53\u7136\uff0c\u5982\u679c\u4f60\u5acc\u4e3a\u5e08\u7f57\u55e6\uff0c\u4e5f\u53ef\u4ee5\u5728\u6e38\u620f\u83dc\u5355\u4e2d\u9009\u62e9\u8df3\u8fc7\u6559\u7a0b\u3002"
+  FLD 245 int 24
+TICK 0849 vt=65275
+TICK 0850 vt=65350
+TICK 0851 vt=65425
+TICK 0852 vt=65500
+TICK 0853 vt=65575
+TICK 0854 vt=65650
+TICK 0855 vt=65725
+TICK 0856 vt=65800
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u77e5\u9053\u4f60\u8981\u5927\u95f9\u5929\u5bab\uff0c\u7279\u610f\u5343\u91cc\u4f20\u97f3\uff0c\u63d0\u4f9b\u8fdc\u7a0b\u89c6\u9891\u652f\u6301\uff0c\u5f53\u7136\uff0c\u5982\u679c\u4f60\u5acc\u4e3a\u5e08\u7f57\u55e6\uff0c\u4e5f\u53ef\u4ee5\u5728\u6e38\u620f\u83dc\u5355\u4e2d\u9009\u62e9\u8df3\u8fc7\u6559\u7a0b\u3002"
+  FLD 245 int 24
+TICK 0857 vt=65875
+TICK 0858 vt=65950
+TICK 0859 vt=66025
+TICK 0860 vt=66100
+TICK 0861 vt=66175
+TICK 0862 vt=66250
+TICK 0863 vt=66325
+TICK 0864 vt=66400
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u77e5\u9053\u4f60\u8981\u5927\u95f9\u5929\u5bab\uff0c\u7279\u610f\u5343\u91cc\u4f20\u97f3\uff0c\u63d0\u4f9b\u8fdc\u7a0b\u89c6\u9891\u652f\u6301\uff0c\u5f53\u7136\uff0c\u5982\u679c\u4f60\u5acc\u4e3a\u5e08\u7f57\u55e6\uff0c\u4e5f\u53ef\u4ee5\u5728\u6e38\u620f\u83dc\u5355\u4e2d\u9009\u62e9\u8df3\u8fc7\u6559\u7a0b\u3002"
+  FLD 245 int 24
+TICK 0865 vt=66475
+TICK 0866 vt=66550
+TICK 0867 vt=66625
+TICK 0868 vt=66700
+TICK 0869 vt=66775
+TICK 0870 vt=66850
+INPUT press(-5)
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u77e5\u9053\u4f60\u8981\u5927\u95f9\u5929\u5bab\uff0c\u7279\u610f\u5343\u91cc\u4f20\u97f3\uff0c\u63d0\u4f9b\u8fdc\u7a0b\u89c6\u9891\u652f\u6301\uff0c\u5f53\u7136\uff0c\u5982\u679c\u4f60\u5acc\u4e3a\u5e08\u7f57\u55e6\uff0c\u4e5f\u53ef\u4ee5\u5728\u6e38\u620f\u83dc\u5355\u4e2d\u9009\u62e9\u8df3\u8fc7\u6559\u7a0b\u3002"
+  FLD 245 int 24
+TICK 0871 vt=66925
+TICK 0872 vt=67000
+INPUT release(-5)
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u77e5\u9053\u4f60\u8981\u5927\u95f9\u5929\u5bab\uff0c\u7279\u610f\u5343\u91cc\u4f20\u97f3\uff0c\u63d0\u4f9b\u8fdc\u7a0b\u89c6\u9891\u652f\u6301\uff0c\u5f53\u7136\uff0c\u5982\u679c\u4f60\u5acc\u4e3a\u5e08\u7f57\u55e6\uff0c\u4e5f\u53ef\u4ee5\u5728\u6e38\u620f\u83dc\u5355\u4e2d\u9009\u62e9\u8df3\u8fc7\u6559\u7a0b\u3002"
+  FLD 245 int 24
+TICK 0873 vt=67075
+TICK 0874 vt=67150
+TICK 0875 vt=67225
+TICK 0876 vt=67300
+TICK 0877 vt=67375
+TICK 0878 vt=67450
+TICK 0879 vt=67525
+TICK 0880 vt=67600
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u77e5\u9053\u4f60\u8981\u5927\u95f9\u5929\u5bab\uff0c\u7279\u610f\u5343\u91cc\u4f20\u97f3\uff0c\u63d0\u4f9b\u8fdc\u7a0b\u89c6\u9891\u652f\u6301\uff0c\u5f53\u7136\uff0c\u5982\u679c\u4f60\u5acc\u4e3a\u5e08\u7f57\u55e6\uff0c\u4e5f\u53ef\u4ee5\u5728\u6e38\u620f\u83dc\u5355\u4e2d\u9009\u62e9\u8df3\u8fc7\u6559\u7a0b\u3002"
+  FLD 245 int 24
+TICK 0881 vt=67675
+TICK 0882 vt=67750
+TICK 0883 vt=67825
+TICK 0884 vt=67900
+TICK 0885 vt=67975
+TICK 0886 vt=68050
+TICK 0887 vt=68125
+TICK 0888 vt=68200
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u77e5\u9053\u4f60\u8981\u5927\u95f9\u5929\u5bab\uff0c\u7279\u610f\u5343\u91cc\u4f20\u97f3\uff0c\u63d0\u4f9b\u8fdc\u7a0b\u89c6\u9891\u652f\u6301\uff0c\u5f53\u7136\uff0c\u5982\u679c\u4f60\u5acc\u4e3a\u5e08\u7f57\u55e6\uff0c\u4e5f\u53ef\u4ee5\u5728\u6e38\u620f\u83dc\u5355\u4e2d\u9009\u62e9\u8df3\u8fc7\u6559\u7a0b\u3002"
+  FLD 245 int 24
+TICK 0889 vt=68275
+TICK 0890 vt=68350
+TICK 0891 vt=68425
+TICK 0892 vt=68500
+TICK 0893 vt=68575
+TICK 0894 vt=68650
+TICK 0895 vt=68725
+TICK 0896 vt=68800
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u77e5\u9053\u4f60\u8981\u5927\u95f9\u5929\u5bab\uff0c\u7279\u610f\u5343\u91cc\u4f20\u97f3\uff0c\u63d0\u4f9b\u8fdc\u7a0b\u89c6\u9891\u652f\u6301\uff0c\u5f53\u7136\uff0c\u5982\u679c\u4f60\u5acc\u4e3a\u5e08\u7f57\u55e6\uff0c\u4e5f\u53ef\u4ee5\u5728\u6e38\u620f\u83dc\u5355\u4e2d\u9009\u62e9\u8df3\u8fc7\u6559\u7a0b\u3002"
+  FLD 245 int 24
+TICK 0897 vt=68875
+TICK 0898 vt=68950
+TICK 0899 vt=69025
+TICK 0900 vt=69100
+INPUT press(-5)
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u4e3a\u5e08\u77e5\u9053\u4f60\u8981\u5927\u95f9\u5929\u5bab\uff0c\u7279\u610f\u5343\u91cc\u4f20\u97f3\uff0c\u63d0\u4f9b\u8fdc\u7a0b\u89c6\u9891\u652f\u6301\uff0c\u5f53\u7136\uff0c\u5982\u679c\u4f60\u5acc\u4e3a\u5e08\u7f57\u55e6\uff0c\u4e5f\u53ef\u4ee5\u5728\u6e38\u620f\u83dc\u5355\u4e2d\u9009\u62e9\u8df3\u8fc7\u6559\u7a0b\u3002"
+  FLD 245 int 24
+TICK 0901 vt=69175
+TICK 0902 vt=69250
+INPUT release(-5)
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 0903 vt=69325
+TICK 0904 vt=69400
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 0905 vt=69475
+TICK 0906 vt=69550
+TICK 0907 vt=69625
+TICK 0908 vt=69700
+TICK 0909 vt=69775
+TICK 0910 vt=69850
+TICK 0911 vt=69925
+TICK 0912 vt=70000
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 0913 vt=70075
+TICK 0914 vt=70150
+TICK 0915 vt=70225
+TICK 0916 vt=70300
+TICK 0917 vt=70375
+TICK 0918 vt=70450
+TICK 0919 vt=70525
+TICK 0920 vt=70600
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 0921 vt=70675
+TICK 0922 vt=70750
+TICK 0923 vt=70825
+TICK 0924 vt=70900
+TICK 0925 vt=70975
+TICK 0926 vt=71050
+TICK 0927 vt=71125
+TICK 0928 vt=71200
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 0929 vt=71275
+TICK 0930 vt=71350
+INPUT press(-5)
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 0931 vt=71425
+TICK 0932 vt=71500
+INPUT release(-5)
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 0933 vt=71575
+TICK 0934 vt=71650
+TICK 0935 vt=71725
+TICK 0936 vt=71800
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 0937 vt=71875
+TICK 0938 vt=71950
+TICK 0939 vt=72025
+TICK 0940 vt=72100
+TICK 0941 vt=72175
+TICK 0942 vt=72250
+TICK 0943 vt=72325
+TICK 0944 vt=72400
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 0945 vt=72475
+TICK 0946 vt=72550
+TICK 0947 vt=72625
+TICK 0948 vt=72700
+TICK 0949 vt=72775
+TICK 0950 vt=72850
+TICK 0951 vt=72925
+TICK 0952 vt=73000
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 0953 vt=73075
+TICK 0954 vt=73150
+TICK 0955 vt=73225
+TICK 0956 vt=73300
+TICK 0957 vt=73375
+TICK 0958 vt=73450
+TICK 0959 vt=73525
+TICK 0960 vt=73600
+INPUT press(-5)
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 0961 vt=73675
+TICK 0962 vt=73750
+INPUT release(-5)
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 0963 vt=73825
+TICK 0964 vt=73900
+TICK 0965 vt=73975
+TICK 0966 vt=74050
+TICK 0967 vt=74125
+TICK 0968 vt=74200
+  FLD 010 byte 11
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 0969 vt=74275
+TICK 0970 vt=74350
+TICK 0971 vt=74425
+TICK 0972 vt=74500
+TICK 0973 vt=74575
+TICK 0974 vt=74650
+TICK 0975 vt=74725
+TICK 0976 vt=74800
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 0977 vt=74875
+TICK 0978 vt=74950
+TICK 0979 vt=75025
+TICK 0980 vt=75100
+TICK 0981 vt=75175
+TICK 0982 vt=75250
+TICK 0983 vt=75325
+TICK 0984 vt=75400
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 0985 vt=75475
+TICK 0986 vt=75550
+TICK 0987 vt=75625
+TICK 0988 vt=75700
+TICK 0989 vt=75775
+TICK 0990 vt=75850
+INPUT press(-5)
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 0991 vt=75925
+TICK 0992 vt=76000
+INPUT release(-5)
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 0993 vt=76075
+TICK 0994 vt=76150
+TICK 0995 vt=76225
+TICK 0996 vt=76300
+TICK 0997 vt=76375
+TICK 0998 vt=76450
+TICK 0999 vt=76525
+TICK 1000 vt=76600
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1001 vt=76675
+TICK 1002 vt=76750
+TICK 1003 vt=76825
+TICK 1004 vt=76900
+TICK 1005 vt=76975
+TICK 1006 vt=77050
+TICK 1007 vt=77125
+TICK 1008 vt=77200
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1009 vt=77275
+TICK 1010 vt=77350
+TICK 1011 vt=77425
+TICK 1012 vt=77500
+TICK 1013 vt=77575
+TICK 1014 vt=77650
+TICK 1015 vt=77725
+TICK 1016 vt=77800
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1017 vt=77875
+TICK 1018 vt=77950
+TICK 1019 vt=78025
+TICK 1020 vt=78100
+INPUT press(-5)
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1021 vt=78175
+TICK 1022 vt=78250
+INPUT release(-5)
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1023 vt=78325
+TICK 1024 vt=78400
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1025 vt=78475
+TICK 1026 vt=78550
+TICK 1027 vt=78625
+TICK 1028 vt=78700
+TICK 1029 vt=78775
+TICK 1030 vt=78850
+TICK 1031 vt=78925
+TICK 1032 vt=79000
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1033 vt=79075
+TICK 1034 vt=79150
+TICK 1035 vt=79225
+TICK 1036 vt=79300
+TICK 1037 vt=79375
+TICK 1038 vt=79450
+TICK 1039 vt=79525
+TICK 1040 vt=79600
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1041 vt=79675
+TICK 1042 vt=79750
+TICK 1043 vt=79825
+TICK 1044 vt=79900
+TICK 1045 vt=79975
+TICK 1046 vt=80050
+TICK 1047 vt=80125
+TICK 1048 vt=80200
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1049 vt=80275
+TICK 1050 vt=80350
+INPUT press(-5)
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1051 vt=80425
+TICK 1052 vt=80500
+INPUT release(-5)
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1053 vt=80575
+TICK 1054 vt=80650
+TICK 1055 vt=80725
+TICK 1056 vt=80800
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1057 vt=80875
+TICK 1058 vt=80950
+TICK 1059 vt=81025
+TICK 1060 vt=81100
+TICK 1061 vt=81175
+TICK 1062 vt=81250
+TICK 1063 vt=81325
+TICK 1064 vt=81400
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1065 vt=81475
+TICK 1066 vt=81550
+TICK 1067 vt=81625
+TICK 1068 vt=81700
+TICK 1069 vt=81775
+TICK 1070 vt=81850
+TICK 1071 vt=81925
+TICK 1072 vt=82000
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1073 vt=82075
+TICK 1074 vt=82150
+TICK 1075 vt=82225
+TICK 1076 vt=82300
+TICK 1077 vt=82375
+TICK 1078 vt=82450
+TICK 1079 vt=82525
+TICK 1080 vt=82600
+INPUT press(-5)
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1081 vt=82675
+TICK 1082 vt=82750
+INPUT release(-5)
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1083 vt=82825
+TICK 1084 vt=82900
+TICK 1085 vt=82975
+TICK 1086 vt=83050
+TICK 1087 vt=83125
+TICK 1088 vt=83200
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1089 vt=83275
+TICK 1090 vt=83350
+TICK 1091 vt=83425
+TICK 1092 vt=83500
+TICK 1093 vt=83575
+TICK 1094 vt=83650
+TICK 1095 vt=83725
+TICK 1096 vt=83800
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1097 vt=83875
+TICK 1098 vt=83950
+TICK 1099 vt=84025
+TICK 1100 vt=84100
+TICK 1101 vt=84175
+TICK 1102 vt=84250
+TICK 1103 vt=84325
+TICK 1104 vt=84400
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1105 vt=84475
+TICK 1106 vt=84550
+TICK 1107 vt=84625
+TICK 1108 vt=84700
+TICK 1109 vt=84775
+TICK 1110 vt=84850
+INPUT press(-5)
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1111 vt=84925
+TICK 1112 vt=85000
+INPUT release(-5)
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1113 vt=85075
+TICK 1114 vt=85150
+TICK 1115 vt=85225
+TICK 1116 vt=85300
+TICK 1117 vt=85375
+TICK 1118 vt=85450
+TICK 1119 vt=85525
+TICK 1120 vt=85600
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1121 vt=85675
+TICK 1122 vt=85750
+TICK 1123 vt=85825
+TICK 1124 vt=85900
+TICK 1125 vt=85975
+TICK 1126 vt=86050
+TICK 1127 vt=86125
+TICK 1128 vt=86200
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1129 vt=86275
+TICK 1130 vt=86350
+TICK 1131 vt=86425
+TICK 1132 vt=86500
+TICK 1133 vt=86575
+TICK 1134 vt=86650
+TICK 1135 vt=86725
+TICK 1136 vt=86800
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1137 vt=86875
+TICK 1138 vt=86950
+TICK 1139 vt=87025
+TICK 1140 vt=87100
+INPUT press(-5)
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1141 vt=87175
+TICK 1142 vt=87250
+INPUT release(-5)
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1143 vt=87325
+TICK 1144 vt=87400
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1145 vt=87475
+TICK 1146 vt=87550
+TICK 1147 vt=87625
+TICK 1148 vt=87700
+TICK 1149 vt=87775
+TICK 1150 vt=87850
+TICK 1151 vt=87925
+TICK 1152 vt=88000
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1153 vt=88075
+TICK 1154 vt=88150
+TICK 1155 vt=88225
+TICK 1156 vt=88300
+TICK 1157 vt=88375
+TICK 1158 vt=88450
+TICK 1159 vt=88525
+TICK 1160 vt=88600
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1161 vt=88675
+TICK 1162 vt=88750
+TICK 1163 vt=88825
+TICK 1164 vt=88900
+TICK 1165 vt=88975
+TICK 1166 vt=89050
+TICK 1167 vt=89125
+TICK 1168 vt=89200
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1169 vt=89275
+TICK 1170 vt=89350
+INPUT press(-5)
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1171 vt=89425
+TICK 1172 vt=89500
+INPUT release(-5)
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1173 vt=89575
+TICK 1174 vt=89650
+TICK 1175 vt=89725
+TICK 1176 vt=89800
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1177 vt=89875
+TICK 1178 vt=89950
+TICK 1179 vt=90025
+TICK 1180 vt=90100
+TICK 1181 vt=90175
+TICK 1182 vt=90250
+TICK 1183 vt=90325
+TICK 1184 vt=90400
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1185 vt=90475
+TICK 1186 vt=90550
+TICK 1187 vt=90625
+TICK 1188 vt=90700
+TICK 1189 vt=90775
+TICK 1190 vt=90850
+TICK 1191 vt=90925
+TICK 1192 vt=91000
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1193 vt=91075
+TICK 1194 vt=91150
+TICK 1195 vt=91225
+TICK 1196 vt=91300
+TICK 1197 vt=91375
+TICK 1198 vt=91450
+TICK 1199 vt=91525
+TICK 1200 vt=91600
+INPUT press(-5)
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1201 vt=91675
+TICK 1202 vt=91750
+INPUT release(-5)
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1203 vt=91825
+TICK 1204 vt=91900
+TICK 1205 vt=91975
+TICK 1206 vt=92050
+TICK 1207 vt=92125
+TICK 1208 vt=92200
+  FLD 010 byte 3
+  FLD 024 java/io/InputStream null
+  FLD 062 java/lang/String "\u83e9\u63d0\u8001\u7956: \\cF8F8F8\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002"
+  FLD 245 int 43
+TICK 1209 vt=92275
+TICK 1210 vt=92350
