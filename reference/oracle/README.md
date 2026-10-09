@@ -2,19 +2,24 @@
 
 以**固定输入脚本 + 固定虚拟时钟 + 协作调度**驱动参考版（`a.class`/`CMidlet.class`
 字节码）逐 tick 输出状态向量 trace 与截图 PNG，支撑差分验证。
-当前首个差分用例：**原始版 vs t1 无歧义版**（机械重命名语义等价的运行时证明），
-使 `gates/cli.py reference` 门禁从 SKIP 变为实际可跑。
+当前差分用例：**原始版(A) vs t1 无歧义版(B)**（机械重命名语义等价的运行时证明），
+使 `gates/cli.py reference` 门禁从 SKIP 变为实际可跑；
+另支持**三方对拍**接入第三个变体 **C = deobf 源码经 javac 编译的 class**
+（源码投影语义等价证明，见下文「变体 C」）。
 
 ## 用法
 
 ```bash
-python3 reference/oracle/run.py             # 完整差分（gates reference 门禁入口）
+python3 reference/oracle/run.py             # 完整差分（gates reference 门禁入口；A/B，C 存在时自动纳入）
 python3 reference/oracle/run.py --selftest  # 快速确定性自测（A 跑两次逐字节比对）
 python3 reference/oracle/run.py --ticks N   # 指定 tick 预算（默认 150）
 python3 reference/oracle/run.py --selftest --ticks N --script <file>  # 自定义输入脚本
+python3 reference/oracle/run.py --diff-abc                      # 三方对拍：A/B/C 各跑一次，sha256 对照
+python3 reference/oracle/run.py --diff-abc --variant-c <dir>     # 显式指定变体 C 的 class 目录
 ```
 
-退出码：0 全部判定通过；1 任一判定失败；2 基础设施错误（编译/运行失败）。
+退出码：0 全部判定通过；1 任一判定失败；2 基础设施错误（编译/运行失败，含
+`--diff-abc` 下变体 C 缺失——不会被误判为 FAIL，而是显式退出 2 并提示）。
 
 判定项（全部通过才退出 0）：
 
@@ -22,19 +27,47 @@ python3 reference/oracle/run.py --selftest --ticks N --script <file>  # 自定�
 2. **语义等价**：原始版(A) vs 无歧义版(B) 同输入 `trace.txt` 逐字节一致；
 3. **T-变换等价**：harness 适配变换前后 javap 归一化逐字节相同（只动引用 owner）；
 4. **stderr 规范化对照**：异常堆栈经 `data/naming/remap-table.json` 符号规范化后一致；
-5. **运行健康**：退出码 0、tick 数 > 0、API 覆盖缺失 0。
+5. **运行健康**：退出码 0、tick 数 > 0、API 覆盖缺失 0；
+6. （变体 C 存在时）**源码投影等价**：A vs C 同输入 `trace.txt` 逐字节一致。
+
+## 变体 C（javac 源码投影）
+
+第三个差分变体：**C = `reference/src/deobf/a.java` + `CMidlet.java`（deobf 源码）
+经 javac 编译的 class**。与 A（原始字节码）、B（rename-pipeline 机械重映射字节码）
+不同，C 的字节码由 javac 直接产出（版本号/常量池布局/指令选择可能与 A/B 不同），
+但施加与 A/B **同一 T-变换**（§ttransform.py 白名单机制不区分来源）后运行同一
+输入脚本，产出的状态向量 trace 格式与 A/B 完全同构，故可逐字节比对。
+
+C 的来源发现顺序：
+
+1. `--variant-c <dir>` 显式指定（`<dir>` 下必须有 `a.class` + `CMidlet.class`）；
+2. 未指定时探测约定路径 `analysis/build/deobf/`；
+3. 两者皆无可用 class ⇒ 普通模式（`run.py` 不带 `--diff-abc`）**静默跳过** C
+   （不影响 A/B 既有判定，不依赖产出 C 的并行任务完成时间）；
+   `--diff-abc` 模式下视为基础设施错误，退出 2 并打印提示。
+
+```bash
+# Lead 执行：javac 产出 analysis/build/deobf/ 后，验证 A==C
+python3 reference/oracle/run.py --diff-abc
+
+# 自测：任意已知良好的 class 目录可作 C 的 stand-in（如 B 的产物）
+python3 reference/oracle/run.py --diff-abc --variant-c analysis/rename-pipeline/renamed
+```
+
+`_diff/report.md` 的「变体 C（javac 源码投影）」章节仅在 C 参与本次运行时出现
+（无论是普通模式自动纳入，还是 `--diff-abc`），内容同样确定性（无时间戳）。
 
 ## 组成
 
 | 文件 | 职责 |
 |------|------|
-| [`run.py`](run.py) | 编排：构建 → 变体准备 → T-变换 → 运行 → 比对 → 报告 |
-| [`ttransform.py`](ttransform.py) | T-变换：常量池 Class 项重定向（System→VTime、Thread→VThread），带白名单安全校验 |
+| [`run.py`](run.py) | 编排：构建 → 变体准备（A/B，C 存在时纳入）→ T-变换 → 运行 → 比对 → 报告；`--diff-abc` 为独立三方对拍入口 |
+| [`ttransform.py`](ttransform.py) | T-变换：常量池 Class 项重定向（System→VTime、Thread→VThread），带白名单安全校验（来源无关，A/B/C 同一机制） |
 | [`api_surface.py`](api_surface.py) | 外部 API 面 vs shim 覆盖核对（缺失即失败） |
 | [`script-default.txt`](script-default.txt) | 默认输入脚本（tick 键码 press/release） |
 | `src/oracle/vt/` | 虚拟时钟 VTime、协作调度 VScheduler、虚拟线程 VThread、StopSignal |
 | `src/oracle/host/` | Runner（Java 入口）、TickHooks（tick 边界钩子）、StateDump（状态向量）、PngWriter、TraceSink |
-| `_out/` | 运行产物（trace.txt、frame-*.png、run-info.txt、编译输出；**gitignore 不入库**） |
+| `_out/` | 运行产物（trace.txt、frame-*.png、run-info.txt、编译输出、`variantC/`；**gitignore 不入库**） |
 | [`_diff/`](_diff/) | 差分报告 [`report.md`](_diff/report.md) + API 覆盖 [`api-surface.md`](_diff/api-surface.md)（入库） |
 
 ## 确定性设计（策略权威描述，Rust 移植需复刻）
@@ -50,11 +83,13 @@ python3 reference/oracle/run.py --selftest --ticks N --script <file>  # 自定�
   （keyPressed/keyReleased，同一虚拟线程）③ 记录状态向量（反射 dump，
   **只含值不含符号名**，字段按 class 文件声明序编号）。
 - **trace 格式**：一行一记录（TICK/FRAME/OPS/FLD/INPUT/OUT/EVT/END），
-  不含变体标识与符号名 ⇒ 两变体可直接逐字节比对。
-- **T-变换等价性论证**：A/B 施加**同一**变换（只重定向 `java/lang/System`、
+  不含变体标识与符号名 ⇒ 变体间可直接逐字节比对（A/B/C 同格式）。
+- **T-变换等价性论证**：全部变体施加**同一**变换（只重定向 `java/lang/System`、
   `java/lang/Thread` 两个常量池 Class 项 → `oracle/vt/VTime`/`VThread`；
   指令字节、LineNumberTable、异常表零改动，javap 归一化验证），故
-  「T(A) ≡ T(B)」的 trace 等价性对变换不变；与 t1 的 javap 指令级等价验证互补。
+  「T(A) ≡ T(B) ≡ T(C)」的 trace 等价性对变换不变；与 t1 的 javap 指令级等价验证互补。
+  C 的字节码来自 javac（而非原始工具链），归一化验证逐变体独立进行，不要求
+  A/B/C 彼此字节码相同，只要求各自「T-变换前后」归一化相同。
 - **网络**：`Connector.open` 一律抛 IOException（确定性离线）；
   **RMS**：内存实现；**音频**：状态机 stub。
 
