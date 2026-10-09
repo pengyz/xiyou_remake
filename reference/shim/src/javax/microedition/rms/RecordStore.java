@@ -25,6 +25,55 @@ public class RecordStore {
     private static final Map<String, TreeMap<Integer, byte[]>> STORES = new TreeMap<String, TreeMap<Integer, byte[]>>();
     private static final Map<String, Integer> OPEN_COUNT = new TreeMap<String, Integer>();
 
+    static {
+        applyPreset(System.getProperty("oracle.preset"));
+    }
+
+    /**
+     * oracle 深场景支持：启动前灌入 RMS 预置（-Doracle.preset=<file>）。
+     * 文件格式（preset_rms.py 产出，确定性）：每行 `<store>@<recordId>=<hexlower>`。
+     * 只在 JVM 启动时执行一次、早于任何游戏代码 ⇒ 对游戏而言与真机历史存档无差别。
+     * 无该属性 ⇒ 什么都不做（既有行为完全不变）。
+     */
+    static void applyPreset(String path) {
+        if (path == null || path.length() == 0) {
+            return;
+        }
+        try {
+            java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(path));
+            String line;
+            while ((line = r.readLine()) != null) {
+                line = line.trim();
+                if (line.length() == 0 || line.charAt(0) == '#') {
+                    continue;
+                }
+                int at = line.indexOf('@');
+                int eq = line.indexOf('=', at);
+                if (at <= 0 || eq <= at) {
+                    throw new RecordStoreException("bad preset line: " + line);
+                }
+                String name = line.substring(0, at);
+                int rid = Integer.parseInt(line.substring(at + 1, eq));
+                String hex = line.substring(eq + 1);
+                byte[] data = new byte[hex.length() / 2];
+                for (int i = 0; i < data.length; i++) {
+                    data[i] = (byte) Integer.parseInt(hex.substring(i * 2, i * 2 + 2), 16);
+                }
+                TreeMap<Integer, byte[]> recs = STORES.get(name);
+                if (recs == null) {
+                    recs = new TreeMap<Integer, byte[]>();
+                    STORES.put(name, recs);
+                }
+                recs.put(rid, data);
+            }
+            r.close();
+        } catch (RecordStoreException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RecordStoreException("preset load failed: " + e);
+        }
+    }
+
     private final String name;
     private final TreeMap<Integer, byte[]> records;
     private int nextId = 1;

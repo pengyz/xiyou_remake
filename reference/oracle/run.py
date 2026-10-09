@@ -163,7 +163,7 @@ def first_diff_line(a: str, b: str):
 # ---------------------------------------------------------------- 运行
 
 def variant_cmd(classes: Path, variant_dir: Path, label: str, ticks: int, script: Path,
-                 frames: str = "all") -> tuple:
+                 frames: str = "all", preset: str = None) -> tuple:
     out_dir = OUT / label
     if out_dir.exists():
         shutil.rmtree(out_dir)
@@ -181,25 +181,28 @@ def variant_cmd(classes: Path, variant_dir: Path, label: str, ticks: int, script
         f"-Doracle.frames={frames}",
         "oracle.host.Runner",
     ]
+    if preset:
+        cmd.insert(-1, f"-Doracle.preset={preset}")
     return cmd, out_dir
 
 
 def run_variant(classes: Path, variant_dir: Path, label: str, ticks: int, script: Path,
-                frames: str = "all"):
-    cmd, out_dir = variant_cmd(classes, variant_dir, label, ticks, script, frames)
+                frames: str = "all", preset: str = None):
+    cmd, out_dir = variant_cmd(classes, variant_dir, label, ticks, script, frames, preset)
     r = sh(cmd)
     (out_dir / "stdout.txt").write_text(r.stdout, encoding="utf-8")
     (out_dir / "stderr.txt").write_text(r.stderr, encoding="utf-8")
     return r.returncode, out_dir
 
 
-def run_variants_parallel(specs: list, frames: str = "all") -> dict:
-    """并行运行多个变体（A/B/C 同时跑，墙钟 ÷N）。specs = [(classes, variant_dir, label, ticks, script)]。
+def run_variants_parallel(specs: list, frames: str = "all", preset: str = None) -> dict:
+    """并行运行多个变体（A/B/C 同时跑，墙钟 ÷N）。
+    specs = [(classes, variant_dir, label, ticks, script)]，preset 可选 RMS 预置文件。
     返回 {label: (rc, out_dir)}；stdout/stderr 落盘语义与 run_variant 一致。"""
     import subprocess as sp
     procs, dirs = [], {}
     for classes, variant_dir, label, ticks, script in specs:
-        cmd, out_dir = variant_cmd(classes, variant_dir, label, ticks, script, frames)
+        cmd, out_dir = variant_cmd(classes, variant_dir, label, ticks, script, frames, preset)
         outf = open(out_dir / "stdout.txt", "w", encoding="utf-8")
         errf = open(out_dir / "stderr.txt", "w", encoding="utf-8")
         p = sp.Popen(cmd, stdout=outf, stderr=errf, cwd=str(ROOT))
@@ -439,6 +442,9 @@ def main():
     frames = "all"
     if "--frames" in args:
         frames = args[args.index("--frames") + 1]
+    preset_arg = None
+    if "--preset" in args:
+        preset_arg = args[args.index("--preset") + 1]
 
     if not JAR.exists():
         log(f"缺 {JAR}")
@@ -447,7 +453,7 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
 
     if diff_abc:
-        return run_diff_abc(ticks, script, variant_c_arg, frames)
+        return run_diff_abc(ticks, script, variant_c_arg, frames, preset_arg)
     if "--scenarios" in args:
         return run_scenarios()
 
@@ -582,7 +588,9 @@ def run_scenarios() -> int:
     报告 → _diff/scenarios.md（确定性内容）。场景脚本头部用 `# ticks: N`
     自带预算；`# cover: ...` 注释行进入报告作为覆盖面说明。
     """
-    files = sorted(SCENARIOS_DIR.glob("*.txt")) if SCENARIOS_DIR.exists() else []
+    files = sorted(p for p in SCENARIOS_DIR.glob("*.txt")) if SCENARIOS_DIR.exists() else []
+    # *.preset（RMS 预置数据）不是场景脚本
+    files = [f for f in files if f.suffix == ".txt" and not f.name.endswith(".preset.txt")]
     if not files:
         log(f"--scenarios 需要场景脚本目录: {SCENARIOS_DIR}")
         return 2
@@ -604,16 +612,23 @@ def run_scenarios() -> int:
     for f in files:
         ticks = parse_scenario_ticks(f)
         cover = ""
+        preset = None
         for line in f.read_text(encoding="utf-8").splitlines()[:30]:
             m = re.match(r"#\s*cover:\s*(.+)", line)
             if m:
                 cover = m.group(1).strip()
-        log(f"3/4 场景 {f.name}（{ticks} ticks）…")
+            m = re.match(r"#\s*preset:\s*(\S+)", line)
+            if m:
+                pf = f.parent / m.group(1)
+                preset = str(pf) if pf.exists() else None
+                if preset is None:
+                    log(f"  场景 {f.name} 声明的预置缺失: {pf}")
+        log(f"3/4 场景 {f.name}（{ticks} ticks{', preset=' + Path(preset).name if preset else ''}）…")
         # 三变体并行 + 免 PNG 落盘（trace 内 FRAME sha 不变，验证力不减，耗时大降）
         labels = {v: f"{v}-{f.stem}" for v in ("A", "B", "C")}
         res = run_variants_parallel(
             [(classes, OUT / f"variant{v}", labels[v], ticks, f) for v in ("A", "B", "C")],
-            frames="off")
+            frames="off", preset=preset)
         shas, rcs = {}, {}
         for v in ("A", "B", "C"):
             rc, d = res[labels[v]]
@@ -632,10 +647,10 @@ def run_scenarios() -> int:
                  "A（原始字节码）/B（重映射）/C（javac 源码）同输入运行，"
                  "trace sha256 三方一致才 PASS。变体准备/T-变换与本报告均确定性。")
     lines.append("")
-    lines.append("| 场景 | ticks | A==B==C | trace sha256（三方） |")
-    lines.append("|---|---|---|---|")
+    lines.append("| 场景 | ticks | 预置 | A==B==C | trace sha256（三方） |")
+    lines.append("|---|---|---|---|---|")
     for name, ticks, sha, verdict in rows:
-        lines.append(f"| {name} | {ticks} | **{verdict}** | `{sha[:16]}…` |")
+        lines.append(f"| {name} | {ticks} | {'✓' if verdict else ''} | **{verdict}** | `{sha[:16]}…` |")
     lines.append("")
     lines.append("## 覆盖面说明（脚本 `# cover:` 声明）")
     lines.append("")
@@ -650,7 +665,8 @@ def run_scenarios() -> int:
     return 0 if all_pass else 1
 
 
-def run_diff_abc(ticks: int, script: Path, variant_c_arg: Path, frames: str = "all"):
+def run_diff_abc(ticks: int, script: Path, variant_c_arg: Path, frames: str = "all",
+                 preset: str = None):
     """--diff-abc：三方对拍模式。A/B/C 各跑一次，sha256 对照，PASS/FAIL 判定，
     写入 _diff/report.md 的「变体 C」章节。变体 C 缺失（显式路径与约定路径均无
     class）视为基础设施错误（退出 2），不污染 PASS/FAIL 判定语义。"""
@@ -678,7 +694,7 @@ def run_diff_abc(ticks: int, script: Path, variant_c_arg: Path, frames: str = "a
     res = run_variants_parallel(
         [(classes, OUT / "variantA", "A1", ticks, script),
          (classes, OUT / "variantB", "B1", ticks, script),
-         (classes, OUT / "variantC", "C1", ticks, script)], frames=frames)
+         (classes, OUT / "variantC", "C1", ticks, script)], frames=frames, preset=preset)
     rc_a1, dir_a1 = res["A1"]
     rc_b1, dir_b1 = res["B1"]
     rc_c1, dir_c1 = res["C1"]

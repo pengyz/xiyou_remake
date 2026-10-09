@@ -1,0 +1,25 @@
+# ticks: 3000
+# preset: preset-floor1.preset
+# cover: 真实玩法（存档预置直达第 1 层）——继续游戏→存档槽0确认→m_115 读 MOT_L0 预置（HP500/ATK30/金100）→mode3 自由玩法：行走子状态机/金币拾取(+1)/格子移动
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+160 -5 press
+162 -5 release
+# mode8 存档槽：槽0已选，-5 确认（读档动画）
+500 -5 press
+502 -5 release
+600 -5 press
+602 -5 release
+700 -5 press
+702 -5 release
+# mode3 自由玩法：移动 + 交互
+1500 -2 press
+1502 -2 release
+1560 -2 press
+1562 -2 release
+1620 -4 press
+1622 -4 release
+1680 -2 press
+1682 -2 release

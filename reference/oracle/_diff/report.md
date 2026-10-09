@@ -6,12 +6,12 @@
 
 | 判定项 | 结果 | 证据 |
 |--------|------|------|
-| 确定性：A1 vs A2 同输入 trace 逐字节一致 | **PASS** | trace sha256 `4585dec767a668b9…` vs `4585dec767a668b9…` |
-| 语义等价：原始版(A) vs 无歧义版(B) 同输入 trace 逐字节一致 | **PASS** | trace sha256 `4585dec767a668b9…` vs `4585dec767a668b9…` |
-| 源码投影等价：原始版(A) vs javac 源码投影(C) 同输入 trace 逐字节一致 | **PASS** | trace sha256 `4585dec767a668b9…` vs `4585dec767a668b9…` |
+| 确定性：A1 vs A2 同输入 trace 逐字节一致 | **PASS** | trace sha256 `c71d1df83e84f53b…` vs `c71d1df83e84f53b…` |
+| 语义等价：原始版(A) vs 无歧义版(B) 同输入 trace 逐字节一致 | **PASS** | trace sha256 `c71d1df83e84f53b…` vs `c71d1df83e84f53b…` |
+| 源码投影等价：原始版(A) vs javac 源码投影(C) 同输入 trace 逐字节一致 | **PASS** | trace sha256 `c71d1df83e84f53b…` vs `c71d1df83e84f53b…` |
 | stderr 对照（符号规范化后，辅助证据） | PASS（规范化后一致） | 见 §4 |
 | T-变换 javap 归一化等价 | **PASS** | System/Thread→VTime/VThread 归一化后逐字节相同 |
-| 运行成功（退出码 0 / tick 数 > 0） | **PASS** | A1 ticks=1832, B1 ticks=1832, C1 ticks=1832 |
+| 运行成功（退出码 0 / tick 数 > 0） | **PASS** | A1 ticks=150, B1 ticks=150, C1 ticks=150 |
 
 ## 2. 对比对象
 
@@ -59,12 +59,12 @@ EVT <媒体/网络/线程事件>
 END reason=<停止原因> ticks=<n>
 ```
 
-- tick 数：A1=1832 A2=1832 B1=1832 C1=1832
-- trace 行数：A1=938019 B1=938019 C1=938019
-- 帧哈希链 sha256（全部 tick 的 FRAME 行摘要）：A1=`18794e17aaa0d325…`，B1=`18794e17aaa0d325…`，C1=`18794e17aaa0d325…`
-- 末 3 帧像素哈希（A1）：`a682fa570213181c0f6fd50f7da5ef6f`, `a682fa570213181c0f6fd50f7da5ef6f`, `a682fa570213181c0f6fd50f7da5ef6f`
-- 末 3 帧像素哈希（B1）：`a682fa570213181c0f6fd50f7da5ef6f`, `a682fa570213181c0f6fd50f7da5ef6f`, `a682fa570213181c0f6fd50f7da5ef6f`
-- 末 3 帧像素哈希（C1）：`a682fa570213181c0f6fd50f7da5ef6f`, `a682fa570213181c0f6fd50f7da5ef6f`, `a682fa570213181c0f6fd50f7da5ef6f`
+- tick 数：A1=150 A2=150 B1=150 C1=150
+- trace 行数：A1=72610 B1=72610 C1=72610
+- 帧哈希链 sha256（全部 tick 的 FRAME 行摘要）：A1=`20bc7811cf9cb909…`，B1=`20bc7811cf9cb909…`，C1=`20bc7811cf9cb909…`
+- 末 3 帧像素哈希（A1）：`b3b951c9fbedac6cb50851a7dbb7d2d1`, `8f26d6d792d3388397a8c769fb0ea754`, `a13e90baadd1e39a0d7b51cdc6d232dd`
+- 末 3 帧像素哈希（B1）：`b3b951c9fbedac6cb50851a7dbb7d2d1`, `8f26d6d792d3388397a8c769fb0ea754`, `a13e90baadd1e39a0d7b51cdc6d232dd`
+- 末 3 帧像素哈希（C1）：`b3b951c9fbedac6cb50851a7dbb7d2d1`, `8f26d6d792d3388397a8c769fb0ea754`, `a13e90baadd1e39a0d7b51cdc6d232dd`
 
 ## 6. stderr 对照（辅助）
 
@@ -97,9 +97,9 @@ END reason=<停止原因> ticks=<n>
 
 | 变体 | trace sha256（前 16 位） |
 |------|---------------------------|
-| A1 | `4585dec767a668b9…` |
-| B1 | `4585dec767a668b9…` |
-| C1 | `4585dec767a668b9…` |
+| A1 | `c71d1df83e84f53b…` |
+| B1 | `c71d1df83e84f53b…` |
+| C1 | `c71d1df83e84f53b…` |
 
 C 变体源 class 目录：`analysis/build/deobf`。三方对拍命令：`python3 reference/oracle/run.py --diff-abc`（若省略 `--variant-c`，按约定路径 `analysis/build/deobf/` 自动发现；缺失则该命令以基础设施错误退出 2，不会误判为 FAIL）。
 
