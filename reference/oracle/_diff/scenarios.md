@@ -4,13 +4,13 @@
 
 | 场景 | ticks | 预置 | A==B==C | trace sha256（三方） |
 |---|---|---|---|---|
-| boot-menu.txt | 150 | ✓ | **PASS** | `c71d1df83e84f53b…` |
-| enter-game.txt | 500 | ✓ | **PASS** | `03cf7de96048f2c1…` |
-| floor1-tour.txt | 8000 | ✓ | **PASS** | `3c24490c62116ae0…` |
-| gameplay-floor1.txt | 3000 | ✓ | **PASS** | `44ee2e177e5a91bc…` |
-| menu-sweep.txt | 2200 | ✓ | **PASS** | `4585dec767a668b9…` |
-| prologue-dialog.txt | 9800 | ✓ | **PASS** | `6e361b7066f0e615…` |
-| prologue-patient.txt | 21000 | ✓ | **PASS** | `c9e472964ba0bc03…` |
+| boot-menu.txt | 150 | ✓ | **PASS** | `8d10a18f51373016…` |
+| enter-game.txt | 500 | ✓ | **PASS** | `71376fbdcabe2c28…` |
+| floor1-tour.txt | 8000 | ✓ | **PASS** | `10a98bf49537da8d…` |
+| gameplay-floor1.txt | 3000 | ✓ | **PASS** | `3977b709354114c3…` |
+| menu-sweep.txt | 2200 | ✓ | **PASS** | `b50d3d1999c9a39b…` |
+| prologue-dialog.txt | 9800 | ✓ | **PASS** | `5e2625b6bc40496c…` |
+| prologue-patient.txt | 21000 | ✓ | **PASS** | `7e8dc80846ab484f…` |
 
 ## 覆盖面说明（脚本 `# cover:` 声明）
 

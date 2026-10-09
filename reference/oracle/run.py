@@ -179,6 +179,10 @@ def variant_cmd(classes: Path, variant_dir: Path, label: str, ticks: int, script
         # 固定 300s 会把长场景杀成 rc=2 且截断点非确定 ⇒ sha 不可比）。下限保持 300s。
         f"-Doracle.watchdog={max(300000, ticks * 75)}",
         f"-Doracle.frames={frames}",
+        # 转储采样：全量字段每 8 tick + 输入事件 tick + 末 tick（FRAME sha 每 tick 恒有）。
+        # 对拍对比只发生在 A/B/C 之间（同 stride ⇒ 语义不变）；默认模式（reference 门禁）
+        # 不传此属性保持每 tick 全量的 legacy 高保真格式。
+        "-Doracle.dumpStride=8",
         "oracle.host.Runner",
     ]
     if preset:

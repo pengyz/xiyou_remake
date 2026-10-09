@@ -101,16 +101,26 @@ public final class TickHooks implements Canvas.Hooks {
                 in.append(script[i + 2] == 1 ? "press" : "release").append('(').append(script[i + 1]).append(')');
             }
         }
+        // 转储采样（oracle.dumpStride，默认 1=每 tick 全量）：全量字段转储只在
+        // 采样 tick / 输入事件 tick / 末 tick 执行；FRAME sha 每 tick 恒有（帧级
+        // 对拍主证据不降级）。A/B/C 同 stride ⇒ 对拍语义不变，确定性与 tick 序一致。
+        int stride = Integer.getInteger("oracle.dumpStride", 1);
+        boolean hadEvents = in.length() > 0;
+        boolean full = stride <= 1 || hadEvents || tick % stride == 0 || tick >= maxTicks;
         TraceSink.line(String.format("TICK %04d vt=%d", tick, VTime.currentTimeMillis()));
         TraceSink.line(frameLine);
-        for (String l : opsBlock.split("\n")) {
-            TraceSink.line("  " + l);
+        if (full) {
+            for (String l : opsBlock.split("\n")) {
+                TraceSink.line("  " + l);
+            }
         }
         if (in.length() > 0) {
             TraceSink.line("INPUT " + in);
         }
-        for (String l : StateDump.dump(c)) {
-            TraceSink.line("  " + l);
+        if (full) {
+            for (String l : StateDump.dump(c)) {
+                TraceSink.line("  " + l);
+            }
         }
         if (tick >= maxTicks) {
             stopReason = "max-ticks";
