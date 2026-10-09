@@ -7,7 +7,8 @@
   },
   "decomp": {
     "seed_a_java_lines": 8457,
-    "seed_sha256": "128b7462031cb97dd7b9e873e2bc4f704da452928fa93382fad98d51d948d4fa"
+    "seed_a_java_sha256": "21107ff3705aba0cd2d6ac9564bf9848ae0ba2b7d0e782f05273f4af5d84c1bd",
+    "seed_source_class_sha256": "128b7462031cb97dd7b9e873e2bc4f704da452928fa93382fad98d51d948d4fa"
   },
-  "notes": "assets 为 gates/cli.py assets-manifest 的 ratchet 基线；更新必须确认无回退并写 commit 说明（AGENTS.md §2）"
+  "notes": "assets 为 gates/cli.py assets-manifest 的 ratchet 基线；更新必须确认无回退并写 commit 说明（AGENTS.md §2）。decomp.seed_a_java_sha256 = reference/seed/a.java（D3 不可变锚点）的哈希，供 gates/cli.py reference-seed-integrity 门禁核对；decomp.seed_source_class_sha256 = original/ 中 a.class（反编译输入字节码，CFR 投影来源）的哈希，仅供溯源，不是 a.java 的哈希。【2026-10-09 更正】原字段名 seed_sha256 存在歧义：字段名暗示“seed 文件(a.java)的哈希”，但实际存的是反编译前 a.class 的哈希；现拆分为两个明确字段，避免误用。"
 }
