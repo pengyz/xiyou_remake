@@ -1,0 +1,12 @@
+[package]
+name = "game-data"
+version = "0.1.0"
+edition = "2021"
+description = "《囧囧西游-大闹天宫》资源解析：packed PNG 多图集容器 / maplv 关卡 / sprite 对象表 / script DSL 词法（纯解析，无渲染无平台依赖）"
+publish = false
+
+# 红线（AGENTS.md §2）：纯解析无渲染；解析结果必须过 L1 golden test。
+# 故意零依赖（std only）：库内不做任何 I/O，测试夹具读取只发生在 tests/ 中。
+[dependencies]
+
+[dev-dependencies]

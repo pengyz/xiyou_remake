@@ -1,0 +1,9 @@
+# crates/ 子树 Cargo workspace 根（契约 in-scope 路径）。
+#
+# ⚠ 仓库根另有顶层 workspace manifest（../../Cargo.toml）：gates/cli.py gate_rust_tests
+# 以**仓库根**为 cwd 运行 `cargo test --workspace`（gates/cli.py gate_rust_tests），
+# 而 cargo 只从当前目录**向上**查找 manifest，故仓库根必须有一份 workspace manifest，
+# 否则门禁 rust-tests 恒红。两处成员列表必须保持同步（当前均只含 game-data）。
+[workspace]
+members = ["game-data"]
+resolver = "2"

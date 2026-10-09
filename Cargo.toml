@@ -1,0 +1,11 @@
+# 顶层 Cargo workspace 根 —— 让 `cargo test --workspace` 可在仓库根直接运行。
+#
+# 为什么需要这个文件：gates/cli.py gate_rust_tests 以 cwd=仓库根 调用
+# `cargo test --workspace`（门禁不得弱化，gates/ 不在可改范围），cargo 只向上查找 manifest，
+# 故仓库根必须存在 workspace manifest，否则 `python3 gates/cli.py check` 恒红。
+#
+# crates/Cargo.toml 是 crates/ 子树的 workspace 根（契约 in-scope 路径）；
+# 两处 members 必须保持一致：新增 crate（game-core/game-platform/…）时两处同步登记。
+[workspace]
+members = ["crates/game-data"]
+resolver = "2"
