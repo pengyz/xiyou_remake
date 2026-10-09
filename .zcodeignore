@@ -1,0 +1,56 @@
+# 可再生工作区与生成物 —— 不入库（original/ 是唯一资产真相源）
+
+# 工作区
+analysis/
+assets/*
+!assets/README.md
+target/
+gates/_logs/
+data/status/_scratch/
+
+# 语言/工具
+__pycache__/
+*.pyc
+*.class
+*.o
+*.obj
+Cargo.lock.bak
+.venv/
+node_modules/
+
+# IDE/会话
+.idea/
+.vscode/
+.claude/settings.local.json
+*.swp
+.agent-teams/
+
+# ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====
+.git/
+.hg/
+.svn/
+bower_components/
+jspm_packages/
+site-packages/
+venv/
+coverage/
+htmlcov/
+lcov-report/
+cmakefiles/
+cmake-build-*/
+bazel-*/
+pods/
+deriveddata/
+storybook-static/
+playwright-report/
+test-results/
+allure-results/
+allure-report/
+cdk.out/
+*.egg-info/
+*.dist-info/
+eggs/
+pip-wheel-metadata/
+wheels/
+# ----- ↑ 以上为 ZCode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----
+# 自定义规则写在下方（本行提示可删除）

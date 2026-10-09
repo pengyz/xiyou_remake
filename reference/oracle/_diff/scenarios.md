@@ -6,11 +6,15 @@
 |---|---|---|---|
 | boot-menu.txt | 150 | **PASS** | `c71d1df83e84f53b…` |
 | enter-game.txt | 500 | **PASS** | `03cf7de96048f2c1…` |
+| menu-sweep.txt | 2200 | **PASS** | `4585dec767a668b9…` |
 | prologue-dialog.txt | 9800 | **PASS** | `6e361b7066f0e615…` |
+| prologue-patient.txt | 21000 | **PASS** | `c9e472964ba0bc03…` |
 
 ## 覆盖面说明（脚本 `# cover:` 声明）
 
 - **boot-menu.txt**：boot→声音询问→主菜单（mode 0/21/1）+ 菜单导航
 - **enter-game.txt**：菜单确认→mode14 读条过场→mode2 资源载入→mode11 片头对话层→玩家落位序章地图（currentFloor=51, HP 498→300）
+- **menu-sweep.txt**：菜单扫荡——道具栏(8)进出+列表导航/设置(16)开关切换/帮助(15)翻页/关于(17)/退出确认(22)→70帧淡出→应用自毁(thread-exit 收尾路径)
 - **prologue-dialog.txt**：序章 6 句对话推进（菩提老祖/悟空）→SEE_3_10_166_166_1 电影镜头等待态→mode10 大地图 UI 开关（-6/-7 实测生效）
+- **prologue-patient.txt**：序章耐心版——对话后全程静默让 SEE_ 电影镜头自走（试验场景）
 

@@ -436,6 +436,9 @@ def main():
     variant_c_arg = None
     if "--variant-c" in args:
         variant_c_arg = Path(args[args.index("--variant-c") + 1]).resolve()
+    frames = "all"
+    if "--frames" in args:
+        frames = args[args.index("--frames") + 1]
 
     if not JAR.exists():
         log(f"缺 {JAR}")
@@ -444,7 +447,7 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
 
     if diff_abc:
-        return run_diff_abc(ticks, script, variant_c_arg)
+        return run_diff_abc(ticks, script, variant_c_arg, frames)
     if "--scenarios" in args:
         return run_scenarios()
 
@@ -647,7 +650,7 @@ def run_scenarios() -> int:
     return 0 if all_pass else 1
 
 
-def run_diff_abc(ticks: int, script: Path, variant_c_arg: Path):
+def run_diff_abc(ticks: int, script: Path, variant_c_arg: Path, frames: str = "all"):
     """--diff-abc：三方对拍模式。A/B/C 各跑一次，sha256 对照，PASS/FAIL 判定，
     写入 _diff/report.md 的「变体 C」章节。变体 C 缺失（显式路径与约定路径均无
     class）视为基础设施错误（退出 2），不污染 PASS/FAIL 判定语义。"""
@@ -671,10 +674,14 @@ def run_diff_abc(ticks: int, script: Path, variant_c_arg: Path):
         log("T-变换 javap 归一化比对失败: " + repr(t_diffs))
         return 2
 
-    log(f"4/5 运行 A1/B1/C1（tick 预算 {ticks}）…")
-    rc_a1, dir_a1 = run_variant(classes, OUT / "variantA", "A1", ticks, script)
-    rc_b1, dir_b1 = run_variant(classes, OUT / "variantB", "B1", ticks, script)
-    rc_c1, dir_c1 = run_variant(classes, OUT / "variantC", "C1", ticks, script)
+    log(f"4/5 运行 A1/B1/C1（tick 预算 {ticks}，并行）…")
+    res = run_variants_parallel(
+        [(classes, OUT / "variantA", "A1", ticks, script),
+         (classes, OUT / "variantB", "B1", ticks, script),
+         (classes, OUT / "variantC", "C1", ticks, script)], frames=frames)
+    rc_a1, dir_a1 = res["A1"]
+    rc_b1, dir_b1 = res["B1"]
+    rc_c1, dir_c1 = res["C1"]
 
     sha_a1 = sha256_file(dir_a1 / "trace.txt")
     sha_b1 = sha256_file(dir_b1 / "trace.txt")
