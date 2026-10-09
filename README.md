@@ -33,6 +33,9 @@ bash gates/install-hooks.sh        # 挂接 git hooks
 python3 gates/cli.py status        # 门禁预检（应全绿或显式 SKIP）
 ```
 
+CI：`.github/workflows/gates.yml` 在 push/PR 到 `master` 时自动跑 `gates/cli.py check`
+（本地等效命令同上，CI 不引入额外检查逻辑）。
+
 ## 当前进度
 
 - [x] P0 资产盘点与混淆等级评估（`docs/findings/jar-forensics.md`）

@@ -1,0 +1,24 @@
+name: gates
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: gates/cli.py check（总闸，等效 pre-commit）
+        run: python3 gates/cli.py check
+
+      - name: gates/cli.py status（展示 SKIP/恒红项，不作为失败判据）
+        if: always()
+        run: python3 gates/cli.py status
