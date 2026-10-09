@@ -16,6 +16,26 @@ python3 reference/oracle/run.py --ticks N   # 指定 tick 预算（默认 150）
 python3 reference/oracle/run.py --selftest --ticks N --script <file>  # 自定义输入脚本
 python3 reference/oracle/run.py --diff-abc                      # 三方对拍：A/B/C 各跑一次，sha256 对照
 python3 reference/oracle/run.py --diff-abc --variant-c <dir>     # 显式指定变体 C 的 class 目录
+python3 reference/oracle/run.py --scenarios                      # 深场景套件（scenarios/*.txt 逐场景三方对拍）
+```
+
+## 场景套件（--scenarios）
+
+`scenarios/` 下每个 `*.txt` 是一个独立场景：脚本头部 `# ticks: N` 自带
+tick 预算（缺省 150），`# cover: ...` 注释行进报告作为覆盖面说明；对每个
+场景分别运行 A/B/C（同一 T-变换后变体，仅输入不同），三方 trace sha256
+一致才 PASS。报告 → `_diff/scenarios.md`（确定性内容）。门禁入口：
+`python3 gates/cli.py scenarios`（已接入 `gates/cli.py all`；因重跑耗时长
+不进 pre-commit 的 check/status）。
+
+## trace 语义化阅读（fields.py）
+
+状态向量的 `FLD NNN` 是 class 字段声明序（0 基、不含符号名）。
+[`fields.py`](fields.py) 从 renamed class 生成映射并支持时间线提取：
+
+```bash
+python3 reference/oracle/fields.py gameMode playerHp                 # 按名查索引
+python3 reference/oracle/fields.py --timeline <trace.txt> [字段…]    # 变更时间线
 ```
 
 退出码：0 全部判定通过；1 任一判定失败；2 基础设施错误（编译/运行失败，含

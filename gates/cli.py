@@ -218,6 +218,19 @@ def gate_reference():
     return report("reference-regression", PASS if r.returncode == 0 else FAIL, r.stdout[-200:])
 
 
+
+
+def gate_scenarios():
+    """深场景套件：scenarios/ 每个输入脚本 A==B==C 三方对拍（重，milestone 级）。"""
+    scen = ROOT / "reference/oracle/scenarios"
+    if not scen.exists() or not list(scen.glob("*.txt")):
+        return report("scenario-suite", SKIP, "reference/oracle/scenarios/ 无场景脚本")
+    r = subprocess.run(["python3", "reference/oracle/run.py", "--scenarios"], cwd=ROOT,
+                       capture_output=True, text=True)
+    tail = r.stdout.strip().splitlines()
+    return report("scenario-suite", PASS if r.returncode == 0 else FAIL,
+                  tail[-1] if tail else r.stdout[-200:])
+
 def gate_trace():
     """差分 L1-L3：参考版 vs Rust 同输入逐 tick 比对（P4 启用）。"""
     if not (ROOT / "crates/game-oracle/Cargo.toml").exists():
@@ -244,6 +257,7 @@ def cmd_status():
         print(f"基线: {json.dumps(base.get('assets', base), ensure_ascii=False)}")
     else:
         print("基线: 缺失")
+    # 场景套件（gate_scenarios）不进 status：重跑动辄数十分钟，只在 all/子命令执行
     statuses = [gate_original(), gate_assets_manifest(), gate_reference_seed_integrity(),
                 gate_knowledge_format(), gate_docs_links(), gate_naming_ledger(), gate_rust_tests(),
                 gate_reference(), gate_trace(), gate_visual()]
@@ -267,7 +281,7 @@ def cmd_all():
     print("== 全量门禁 ==")
     statuses = [gate_original(), gate_assets_manifest(), gate_reference_seed_integrity(),
                 gate_knowledge_format(), gate_docs_links(), gate_naming_ledger(), gate_rust_tests(),
-                gate_reference(), gate_trace(), gate_visual()]
+                gate_reference(), gate_scenarios(), gate_trace(), gate_visual()]
     print(f"PASS={statuses.count(PASS)} FAIL={statuses.count(FAIL)} SKIP={statuses.count(SKIP)}")
     return 1 if FAIL in statuses else 0
 
@@ -278,6 +292,7 @@ COMMANDS = {
     "all": cmd_all,
     "original": lambda: 1 if gate_original() == FAIL else 0,
     "reference-seed": lambda: 1 if gate_reference_seed_integrity() == FAIL else 0,
+    "scenarios": gate_scenarios,
     "reference": lambda: 1 if gate_reference() == FAIL else 0,
     "trace": lambda: 1 if gate_trace() == FAIL else 0,
     "visual": lambda: 1 if gate_visual() == FAIL else 0,

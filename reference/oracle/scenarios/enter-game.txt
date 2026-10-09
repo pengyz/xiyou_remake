@@ -1,0 +1,16 @@
+# ticks: 500
+# cover: 菜单确认→mode14 读条过场→mode2 资源载入→mode11 片头对话层→玩家落位序章地图（currentFloor=51, HP 498→300）
+70 -6 press
+72 -6 release
+100 -5 press
+102 -5 release
+300 -2 press
+302 -2 release
+320 -4 press
+322 -4 release
+340 -2 press
+342 -2 release
+360 -6 press
+362 -6 release
+380 -7 press
+382 -7 release

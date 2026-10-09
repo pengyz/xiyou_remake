@@ -35,6 +35,7 @@ OUT = HERE / "_out"
 DIFF = HERE / "_diff"
 JAR = ROOT / "original/囧囧西游-大闹天宫.jar"
 SEED_CLASSES = ("a", "CMidlet")
+SCENARIOS_DIR = ROOT / "reference/oracle/scenarios"
 DEFAULT_SCRIPT = HERE / "script-default.txt"
 RENAME_OUT = ROOT / "analysis/rename-pipeline/renamed"
 REMAP_TABLE = ROOT / "data/naming/remap-table.json"
@@ -161,7 +162,8 @@ def first_diff_line(a: str, b: str):
 
 # ---------------------------------------------------------------- 运行
 
-def run_variant(classes: Path, variant_dir: Path, label: str, ticks: int, script: Path):
+def variant_cmd(classes: Path, variant_dir: Path, label: str, ticks: int, script: Path,
+                 frames: str = "all") -> tuple:
     out_dir = OUT / label
     if out_dir.exists():
         shutil.rmtree(out_dir)
@@ -173,13 +175,42 @@ def run_variant(classes: Path, variant_dir: Path, label: str, ticks: int, script
         f"-Doracle.max={ticks}",
         f"-Doracle.script={script}",
         f"-Doracle.label={label}",
-        "-Doracle.watchdog=300000",
+        # 看门狗随 tick 预算缩放：实测 ~25ms/tick，留 3 倍余量（深场景 21k ticks ≈ 9 分钟/变体，
+        # 固定 300s 会把长场景杀成 rc=2 且截断点非确定 ⇒ sha 不可比）。下限保持 300s。
+        f"-Doracle.watchdog={max(300000, ticks * 75)}",
+        f"-Doracle.frames={frames}",
         "oracle.host.Runner",
     ]
+    return cmd, out_dir
+
+
+def run_variant(classes: Path, variant_dir: Path, label: str, ticks: int, script: Path,
+                frames: str = "all"):
+    cmd, out_dir = variant_cmd(classes, variant_dir, label, ticks, script, frames)
     r = sh(cmd)
     (out_dir / "stdout.txt").write_text(r.stdout, encoding="utf-8")
     (out_dir / "stderr.txt").write_text(r.stderr, encoding="utf-8")
     return r.returncode, out_dir
+
+
+def run_variants_parallel(specs: list, frames: str = "all") -> dict:
+    """并行运行多个变体（A/B/C 同时跑，墙钟 ÷N）。specs = [(classes, variant_dir, label, ticks, script)]。
+    返回 {label: (rc, out_dir)}；stdout/stderr 落盘语义与 run_variant 一致。"""
+    import subprocess as sp
+    procs, dirs = [], {}
+    for classes, variant_dir, label, ticks, script in specs:
+        cmd, out_dir = variant_cmd(classes, variant_dir, label, ticks, script, frames)
+        outf = open(out_dir / "stdout.txt", "w", encoding="utf-8")
+        errf = open(out_dir / "stderr.txt", "w", encoding="utf-8")
+        p = sp.Popen(cmd, stdout=outf, stderr=errf, cwd=str(ROOT))
+        procs.append((label, p, outf, errf))
+        dirs[label] = out_dir
+    rcs = {}
+    for label, p, outf, errf in procs:
+        rc = p.wait()
+        outf.close(); errf.close()
+        rcs[label] = rc
+    return {label: (rcs[label], dirs[label]) for label in rcs}
 
 
 def trace_stats(trace: Path):
@@ -414,6 +445,8 @@ def main():
 
     if diff_abc:
         return run_diff_abc(ticks, script, variant_c_arg)
+    if "--scenarios" in args:
+        return run_scenarios()
 
     log("1/6 构建 shim + host …")
     classes = build_shim_host()
@@ -526,6 +559,92 @@ def main():
     log(f"== 结果：确定性={det} 等价={eq} 运行={run_ok} stderr={stderr_cmp}" +
         (f" C等价={eq_ac}" if variant_c is not None else "") + " ==")
     return 0 if ok else 1
+
+
+
+def parse_scenario_ticks(script: Path) -> int:
+    """场景脚本头部 `# ticks: N` 声明预算；缺省 150。"""
+    for line in script.read_text(encoding="utf-8").splitlines()[:30]:
+        m = re.match(r"#\s*ticks:\s*(\d+)", line)
+        if m:
+            return int(m.group(1))
+    return 150
+
+
+def run_scenarios() -> int:
+    """--scenarios：场景套件三方对拍。
+
+    对 reference/oracle/scenarios/*.txt 逐场景运行 A/B/C（T-变换后的同一变体
+    class，仅输入脚本与 tick 预算不同），全部场景 A==B==C 才算 PASS。
+    报告 → _diff/scenarios.md（确定性内容）。场景脚本头部用 `# ticks: N`
+    自带预算；`# cover: ...` 注释行进入报告作为覆盖面说明。
+    """
+    files = sorted(SCENARIOS_DIR.glob("*.txt")) if SCENARIOS_DIR.exists() else []
+    if not files:
+        log(f"--scenarios 需要场景脚本目录: {SCENARIOS_DIR}")
+        return 2
+    log("1/4 构建 shim + host …")
+    classes = build_shim_host()
+    log("2/4 变体准备 + T-变换 …")
+    orig = ensure_game_classes()
+    variant_c = find_variant_c(None)
+    if variant_c is None:
+        log(f"--scenarios 需要变体 C（{DEFAULT_VARIANT_C}），先跑 tools/rename-pipeline/run.py")
+        return 2
+    ttransform_variants(orig, variant_c)
+    t_ok, t_diffs = verify_t_equivalence(orig, variant_c)
+    if not t_ok:
+        log("T-变换 javap 归一化比对失败: " + repr(t_diffs))
+        return 2
+
+    rows, covers, all_pass = [], {}, True
+    for f in files:
+        ticks = parse_scenario_ticks(f)
+        cover = ""
+        for line in f.read_text(encoding="utf-8").splitlines()[:30]:
+            m = re.match(r"#\s*cover:\s*(.+)", line)
+            if m:
+                cover = m.group(1).strip()
+        log(f"3/4 场景 {f.name}（{ticks} ticks）…")
+        # 三变体并行 + 免 PNG 落盘（trace 内 FRAME sha 不变，验证力不减，耗时大降）
+        labels = {v: f"{v}-{f.stem}" for v in ("A", "B", "C")}
+        res = run_variants_parallel(
+            [(classes, OUT / f"variant{v}", labels[v], ticks, f) for v in ("A", "B", "C")],
+            frames="off")
+        shas, rcs = {}, {}
+        for v in ("A", "B", "C"):
+            rc, d = res[labels[v]]
+            rcs[v] = rc
+            shas[v] = sha256_file(d / "trace.txt")
+        verdict = ("PASS" if rcs["A"] == 0 and rcs["B"] == 0 and rcs["C"] == 0
+                   and shas["A"] == shas["B"] == shas["C"] else "FAIL")
+        if verdict == "FAIL":
+            all_pass = False
+        log(f"  A==B==C: {verdict}  sha={shas['A'][:12]}…")
+        rows.append((f.name, ticks, shas["A"], verdict))
+        covers[f.name] = cover
+
+    lines = ["# 场景套件三方对拍（--scenarios）", ""]
+    lines.append("每个场景 = 独立输入脚本 + tick 预算（脚本头部 `# ticks: N`），"
+                 "A（原始字节码）/B（重映射）/C（javac 源码）同输入运行，"
+                 "trace sha256 三方一致才 PASS。变体准备/T-变换与本报告均确定性。")
+    lines.append("")
+    lines.append("| 场景 | ticks | A==B==C | trace sha256（三方） |")
+    lines.append("|---|---|---|---|")
+    for name, ticks, sha, verdict in rows:
+        lines.append(f"| {name} | {ticks} | **{verdict}** | `{sha[:16]}…` |")
+    lines.append("")
+    lines.append("## 覆盖面说明（脚本 `# cover:` 声明）")
+    lines.append("")
+    for name, _, _, _ in rows:
+        if covers.get(name):
+            lines.append(f"- **{name}**：{covers[name]}")
+    lines.append("")
+    (DIFF / "scenarios.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    log(f"4/4 报告 → {DIFF / 'scenarios.md'}")
+    log(f"== --scenarios 结果：{'PASS' if all_pass else 'FAIL'}"
+        f"（{sum(1 for r in rows if r[3] == 'PASS')}/{len(rows)} 场景）==")
+    return 0 if all_pass else 1
 
 
 def run_diff_abc(ticks: int, script: Path, variant_c_arg: Path):

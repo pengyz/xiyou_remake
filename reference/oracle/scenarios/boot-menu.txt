@@ -1,0 +1,28 @@
+# ticks: 150
+# cover: boot→声音询问→主菜单（mode 0/21/1）+ 菜单导航
+# oracle 输入脚本（默认场景）
+# 格式：<tick> <keycode> <press|release>
+# MIDP Canvas 键码：-1=UP -2=DOWN -3=LEFT -4=RIGHT -5=FIRE
+#                   -6=GAME_A（左软键） -7=GAME_B（右软键）
+# 数字键 0-9 = 48-57，星号 42，井号 35
+# 事件在 tick 边界（serviceRepaints，a.java:2422）投递，顺序为文件内顺序。
+#
+# 场景线索（a.java）：boot→场景 21「是否开启声音？」（run 循环 case 21，
+# a.java:1536-1552：-6 开声 / -7 静音）→ 场景 1 菜单（a.java:1555+：
+# -1/-3 上、-2/-4 下、-5/53 确认）→ 后续场景。
+70 -6 press
+72 -6 release
+80 -2 press
+82 -2 release
+90 -5 press
+92 -5 release
+100 -2 press
+102 -2 release
+110 -5 press
+112 -5 release
+120 -4 press
+122 -4 release
+130 -5 press
+132 -5 release
+140 -1 press
+142 -1 release

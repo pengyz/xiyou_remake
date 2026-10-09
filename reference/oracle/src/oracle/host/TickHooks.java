@@ -59,7 +59,11 @@ public final class TickHooks implements Canvas.Hooks {
             }
             String sha = TraceSink.hex(md.digest(), 16);
             String name = String.format("frame-%04d.png", tick + 1);
-            PngWriter.write(new File(outDir, name), w, h, px);
+            // oracle.frames=all（默认）逐帧落盘；off 只保留 trace 内的 FRAME sha（对拍内容不变，
+            // 省去每 tick PNG 编码+写盘——深场景实测为主要耗时；FRAME sha 由同一像素流计算，验证力不变）
+            if (!"off".equals(System.getProperty("oracle.frames", "all"))) {
+                PngWriter.write(new File(outDir, name), w, h, px);
+            }
             frameLine = "FRAME sha=" + sha + " w=" + w + " h=" + h + " png=" + name;
             opsBlock = Graphics.flushOps();
         } catch (IOException e) {
