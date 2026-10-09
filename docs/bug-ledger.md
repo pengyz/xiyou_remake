@@ -9,6 +9,8 @@
 | BUG-001 | `script` 资源是**死数据**：运行时从未读取它，真源是编译进 class 的内嵌数组 `this.n[]`；且资源文件与内嵌数组有 2 处内容差异（GUTS 第 27、63 行） | `grep 'getResourceAsStream' reference/seed/a.java` 无 "script" 命中；逐行 diff 资源 vs `this.n[]`（见 `docs/findings/script-dsl-semantics.md`） | 随包发的疑似设计文档副本，编译期被拍平进常量池 | 无玩家可见影响（行为以内嵌数组为准） | 保留资源原样，行为以内嵌数组为准 | 决定删冗余资源或反向以资源为准 | open |
 | BUG-002 | `run()` 输入模式分支 `switch(var5_3.i)` 中 `int i` 字段全程无赋值（恒 0），case 0 恒定命中——疑似死代码 | 全文 grep 无该字段赋值点（见 `docs/findings/state-machine.md`） | 待字节码复核（反编译可能丢信息） | 无（死代码） | 保留原样 | 可安全删除 | open |
 | BUG-003 | （线索）GUTS 脚本存在负数参数指令（`DES_-66_0` 型） | 见 `docs/findings/script-dsl-semantics.md` 假设节 | 待定 | 未定 | 保留原行为 | 待定 | lead |
+| BUG-004 | 战斗 HP 初始化混用两表：玩家主动战敌 HP 用基础表 `p[]`（`a.java:3519`），而损血预测/敌人主动战用缩放表 `v[]`（`a.java:6595/7683`）——A=0 首周目不可观察，A>0（读档后）预测与实战脱节 | 读档后主动挑战任一敌，对比开战前预测损血与实际损血（见 `docs/spec/gameplay.md`） | 初始化路径分叉（3519 vs 6595/7683） | 中（预测误导玩家） | Stage A 保真保留 | 统一初始化来源 | open |
+| BUG-005 | 难度倍率表 `H[1..4]={30,60,80,100}` 正常流程不可达（`A` 恒 0） | 静态可达性：`H` 引用点分析（见 `docs/spec/constants.md`） | 待定 | 无（死内容） | 保留 | 可删或补入口 | open |
 
 ## 记录规范
 - **现象**：玩家可见的行为描述，含层号/坐标/道具条件
