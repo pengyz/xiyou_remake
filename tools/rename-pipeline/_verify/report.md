@@ -658,7 +658,7 @@
 ## 产物自检
 
 - 字段/方法声明扫描（javap -p + VF 源码双路）：混淆短名（`^[a-zA-Z]{1,2}$`）残留 **0 个**；类内字段+方法名全局唯一。
-- VF 局部变量名说明：VF 输出中存在 varN 机械局部变量名（前缀计数 129 个、声明 630 处）。字节码无 LocalVariableTable，局部变量名是 Vineflower 按槽位启发式生成的**投影层命名**（方法作用域内唯一、无歧义），不属于符号重映射范围；本目录 Java 保持 VF+补丁后原样输出以便与 `bash tools/decompile.sh` 的再生产流程同构。
+- VF 局部变量名说明：VF 输出中存在 varN 机械局部变量名（前缀计数 129 个、声明 630 处）。字节码无 LocalVariableTable，局部变量名是 Vineflower 按槽位启发式生成的**投影层命名**（方法作用域内唯一、无歧义），不属于符号重映射范围；本目录 Java 保持 VF+补丁后原样输出（再生产 = `python3 tools/rename-pipeline/run.py`，幂等）。
 
 ## 引擎说明（v2：Vineflower 1.12.0 直出）
 
