@@ -84,3 +84,7 @@
 > 2. **F6 采纳**：`master` 开启分支保护（Require PR + Require status checks（`check`）+
 >    0 审批 + enforce_admins）并启用 auto-merge；直接 push master 被禁止，
 >    变更一律经分支 + PR + CI 绿合入，工作流写入 AGENTS.md §9。
+>    > 【2026-10-09 同日修订（用户反馈"太麻烦"）】`enforce_admins` 改为 `false`：
+>    > owner 豁免保护规则，可直推 `master` / `dev` 分支本地合入，**无需 PR**；
+>    > PR + CI 绿仅约束外部贡献者（0 审批不变）。安全网 = 本地 hooks + CI push 体检。
+>    > 实测：owner 直推 master 成功（此前 enforce_admins=true 时被拒）。

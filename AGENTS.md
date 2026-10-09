@@ -129,14 +129,17 @@ Confidence: <0-100>
 
 小步提交：一个 commit 一个逻辑变更。门禁改动单独成 commit，不得与功能变更混提。
 
-**master 分支保护（2026-10-09 起，F6 决议）**：直接 push `master` 被禁止（enforce_admins）。
-变更一律经分支 + PR + CI 绿合入：
+**master 保护（2026-10-09 起，F6 决议 + 同日修订）**：owner（admin）**豁免**保护规则——
+可直推 `master`，也可在 `dev` 等分支开发后本地合入再直推，**无需 PR**。
+安全网三层：本地 `pre-commit`（`gates check`）+ `commit-msg`（证据门禁）实时拦截，
+CI 每次 push `master` 自动体检（红了就地修或 revert）。
+外部贡献者（非 admin）必须走 PR 且 CI `check` 绿才能合入（0 审批，auto-merge 可用）：
 
 ```bash
-git checkout -b <branch>          # 一个逻辑变更集一个分支
-# …commit（本节格式）…
-git push -u origin <branch>
-gh pr create --fill && gh pr merge --auto   # CI 的 check 检查绿后自动合入
+# owner 日常：直推即可
+git push origin master
+# 外部贡献 / 需要评审的大变更（可选）：
+git push -u origin <branch> && gh pr create --fill && gh pr merge --auto
 ```
 
-PR 0 审批即可合入（单人仓库），但 CI 检查 `check` 必过；CI 与本地 `gates/cli.py check` 完全等效。
+CI 与本地 `gates/cli.py check` 完全等效。CI 只在 push `master` 与 PR 时触发，`dev` 分支推送不跑。
