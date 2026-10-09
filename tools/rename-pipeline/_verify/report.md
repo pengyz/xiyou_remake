@@ -4,13 +4,14 @@
 - 复现：`python3 tools/rename-pipeline/run.py --verify`（确定性输出，无时间戳 ⇒ 幂等）
 - 输入：`original/囧囧西游-大闹天宫.jar`（只读）→ `analysis/rename-pipeline/orig/*.class`
 - 对比对象：`analysis/rename-pipeline/orig/` vs `analysis/rename-pipeline/renamed/*.class`
-- 映射表：`data/naming/remap-table.json`（581 条符号，改名 569 条）
+- 映射表：`data/naming/remap-table.json`（581 条符号，机械改名 569 条）
+- 语义叠加：`data/naming/ledger.jsonl`（applied 82 条，改写与验证均经两层符号还原：语义名→机械名→原始名）
 
 ## 验证方法（为什么这能证明“仅符号名变化”）
 
 1. `javap -c -p -l` 分别反汇编改名前/后 class，逐指令文本落盘（`analysis/rename-pipeline/verify/<class>.{before,after}.javap.txt`）；
 2. 归一化两份文本：常量池槽号 `#NNN → #<cp>`（重映射以常量池**末尾追加**新 Utf8/NameAndType 的方式实施，槽号位移是布局而非语义）；
-3. 对改名后文本做**符号还原**：按映射表把新名（f_*/m_*）替换回旧名。替换只发生在成员声明行与 `// Field|Method|InterfaceMethod` 注释中，字符串常量等不动；被限定引用（owner.name:desc）按 owner 查表，非限定引用按当前类查表；
+3. 对改名后文本做**符号还原**：按映射表把新名（机械名 f_*/m_* 或台账叠加的语义名）替换回旧名。替换只发生在成员声明行与 `// Field|Method|InterfaceMethod` 注释中，字符串常量等不动；被限定引用（owner.name:desc）按 owner 查表，非限定引用按当前类查表；
 4. 两份归一化文本**逐字节相同**（diff 0 行）⇒ 指令序列、每条指令操作数指向的具体成员（owner+name+desc）、行号表、异常表、成员签名、访问标志全部一致 —— 差异只剩符号名本身。
 
 同时跑三重自检（失败即退出码非 0）：① 重写后无任何 Fieldref/Methodref 仍指向旧 (owner,name,desc)；② 类内成员名（字段+方法合并）唯一；③ 产物无混淆短名残留（javap 声明 + CFR 源码双路扫描）。
@@ -50,7 +51,7 @@
 | 8 | a | f_Graphics_00 | 0 | 0 | ✓ |
 | 9 | b | f_bool_01 | 0 | 0 | ✓ |
 | 10 | d | f_int_03 | 0 | 0 | ✓ |
-| 11 | a | f_byte_00 | 0 | 0 | ✓ |
+| 11 | a | gameMode | 0 | 0 | ✓ |
 | 12 | b | f_byte_01 | 0 | 0 | ✓ |
 | 13 | c | f_byte_02 | 0 | 0 | ✓ |
 | 14 | a | f_DirectGraphics_00 | 0 | 0 | ✓ |
@@ -114,19 +115,19 @@
 | 72 | G | f_int_32 | 0 | 0 | ✓ |
 | 73 | H | f_int_33 | 0 | 0 | ✓ |
 | 74 | I | f_int_34 | 0 | 0 | ✓ |
-| 75 | J | f_int_35 | 0 | 0 | ✓ |
-| 76 | K | f_int_36 | 0 | 0 | ✓ |
-| 77 | L | f_int_37 | 0 | 0 | ✓ |
-| 78 | j | f_byte_09 | 0 | 0 | ✓ |
-| 79 | k | f_byte_10 | 0 | 0 | ✓ |
+| 75 | J | playerHp | 0 | 0 | ✓ |
+| 76 | K | playerAtk | 0 | 0 | ✓ |
+| 77 | L | playerDef | 0 | 0 | ✓ |
+| 78 | j | equippedWeaponType | 0 | 0 | ✓ |
+| 79 | k | equippedArmorType | 0 | 0 | ✓ |
 | 80 | b | f_int_arr2_01 | 0 | 0 | ✓ |
 | 81 | d | f_int_arr_03 | 0 | 0 | ✓ |
 | 82 | M | f_int_38 | 0 | 0 | ✓ |
 | 83 | l | f_byte_11 | 0 | 0 | ✓ |
-| 84 | N | f_int_39 | 0 | 0 | ✓ |
-| 85 | O | f_int_40 | 0 | 0 | ✓ |
-| 86 | P | f_int_41 | 0 | 0 | ✓ |
-| 87 | Q | f_int_42 | 0 | 0 | ✓ |
+| 84 | N | playerPixelX | 0 | 0 | ✓ |
+| 85 | O | playerPixelY | 0 | 0 | ✓ |
+| 86 | P | playerCellX | 0 | 0 | ✓ |
+| 87 | Q | playerCellY | 0 | 0 | ✓ |
 | 88 | m | f_byte_12 | 0 | 0 | ✓ |
 | 89 | R | f_int_43 | 0 | 0 | ✓ |
 | 90 | S | f_int_44 | 0 | 0 | ✓ |
@@ -139,19 +140,19 @@
 | 97 | n | f_byte_13 | 0 | 0 | ✓ |
 | 98 | o | f_byte_14 | 0 | 0 | ✓ |
 | 99 | e | f_String_arr_04 | 0 | 0 | ✓ |
-| 100 | g | f_int_arr_06 | 0 | 0 | ✓ |
-| 101 | h | f_int_arr_07 | 0 | 0 | ✓ |
+| 100 | g | entityPixelX | 0 | 0 | ✓ |
+| 101 | h | entityPixelY | 0 | 0 | ✓ |
 | 102 | i | f_int_arr_08 | 0 | 0 | ✓ |
 | 103 | j | f_int_arr_09 | 0 | 0 | ✓ |
 | 104 | k | f_int_arr_10 | 0 | 0 | ✓ |
 | 105 | a | f_Image_arr_00 | 0 | 0 | ✓ |
-| 106 | l | f_int_arr_11 | 0 | 0 | ✓ |
+| 106 | l | entityType | 0 | 0 | ✓ |
 | 107 | m | f_int_arr_12 | 0 | 0 | ✓ |
 | 108 | T | f_int_45 | 0 | 0 | ✓ |
 | 109 | a | f_bool_arr_00 | 0 | 0 | ✓ |
 | 110 | b | f_bool_arr_01 | 0 | 0 | ✓ |
 | 111 | d | f_byte_arr_03 | 0 | 0 | ✓ |
-| 112 | a | f_short_arr_00 | 0 | 0 | ✓ |
+| 112 | a | entityParam | 0 | 0 | ✓ |
 | 113 | c | f_bool_arr_02 | 0 | 0 | ✓ |
 | 114 | e | f_byte_arr_04 | 0 | 0 | ✓ |
 | 115 | f | f_byte_arr_05 | 0 | 0 | ✓ |
@@ -168,12 +169,12 @@
 | 126 | b | f_byte_arr2_01 | 0 | 0 | ✓ |
 | 127 | X | f_int_49 | 0 | 0 | ✓ |
 | 128 | d | f_Image_03 | 0 | 0 | ✓ |
-| 129 | Y | f_int_50 | 0 | 0 | ✓ |
-| 130 | Z | f_int_51 | 0 | 0 | ✓ |
+| 129 | Y | mapCellsWide | 0 | 0 | ✓ |
+| 130 | Z | mapCellsHigh | 0 | 0 | ✓ |
 | 131 | aa | f_int_52 | 0 | 0 | ✓ |
 | 132 | ab | f_int_53 | 0 | 0 | ✓ |
-| 133 | i | f_byte_arr_08 | 0 | 0 | ✓ |
-| 134 | j | f_byte_arr_09 | 0 | 0 | ✓ |
+| 133 | i | mapTerrainGrid | 0 | 0 | ✓ |
+| 134 | j | mapTransformGrid | 0 | 0 | ✓ |
 | 135 | a | f_bool_arr2_00 | 0 | 0 | ✓ |
 | 136 | c | f_byte_arr2_02 | 0 | 0 | ✓ |
 | 137 | k | f_byte_arr_10 | 0 | 0 | ✓ |
@@ -192,19 +193,19 @@
 | 150 | al | f_int_63 | 0 | 0 | ✓ |
 | 151 | k | f_bool_10 | 0 | 0 | ✓ |
 | 152 | l | f_bool_11 | 0 | 0 | ✓ |
-| 153 | am | f_int_64 | 0 | 0 | ✓ |
-| 154 | an | f_int_65 | 0 | 0 | ✓ |
-| 155 | ao | f_int_66 | 0 | 0 | ✓ |
+| 153 | am | currentFloor | 0 | 0 | ✓ |
+| 154 | an | minFloorReached | 0 | 0 | ✓ |
+| 155 | ao | maxFloorReached | 0 | 0 | ✓ |
 | 156 | ap | f_int_67 | 0 | 0 | ✓ |
 | 157 | aq | f_int_68 | 0 | 0 | ✓ |
-| 158 | ar | f_int_69 | 0 | 0 | ✓ |
+| 158 | ar | alchemyUpgradeCount | 0 | 0 | ✓ |
 | 159 | as | f_int_70 | 0 | 0 | ✓ |
 | 160 | at | f_int_71 | 0 | 0 | ✓ |
 | 161 | au | f_int_72 | 0 | 0 | ✓ |
 | 162 | av | f_int_73 | 0 | 0 | ✓ |
 | 163 | aw | f_int_74 | 0 | 0 | ✓ |
 | 164 | ax | f_int_75 | 0 | 0 | ✓ |
-| 165 | ay | f_int_76 | 0 | 0 | ✓ |
+| 165 | ay | alchemyPrice | 0 | 0 | ✓ |
 | 166 | az | f_int_77 | 0 | 0 | ✓ |
 | 167 | aA | f_int_78 | 0 | 0 | ✓ |
 | 168 | aB | f_int_79 | 0 | 0 | ✓ |
@@ -234,19 +235,19 @@
 | 192 | aL | f_int_89 | 0 | 0 | ✓ |
 | 193 | aM | f_int_90 | 0 | 0 | ✓ |
 | 194 | e | f_String_04 | 0 | 0 | ✓ |
-| 195 | k | f_String_arr_10 | 0 | 0 | ✓ |
-| 196 | l | f_String_arr_11 | 0 | 0 | ✓ |
-| 197 | q | f_byte_arr_16 | 0 | 0 | ✓ |
-| 198 | aN | f_int_91 | 0 | 0 | ✓ |
-| 199 | aO | f_int_92 | 0 | 0 | ✓ |
-| 200 | aP | f_int_93 | 0 | 0 | ✓ |
-| 201 | aQ | f_int_94 | 0 | 0 | ✓ |
-| 202 | aR | f_int_95 | 0 | 0 | ✓ |
-| 203 | r | f_byte_arr_17 | 0 | 0 | ✓ |
-| 204 | s | f_byte_arr_18 | 0 | 0 | ✓ |
+| 195 | k | itemDescriptions | 0 | 0 | ✓ |
+| 196 | l | equipDescriptions | 0 | 0 | ✓ |
+| 197 | q | itemUseCounts | 0 | 0 | ✓ |
+| 198 | aN | yellowKeyCount | 0 | 0 | ✓ |
+| 199 | aO | blueKeyCount | 0 | 0 | ✓ |
+| 200 | aP | redKeyCount | 0 | 0 | ✓ |
+| 201 | aQ | goldAmount | 0 | 0 | ✓ |
+| 202 | aR | itemStackSize | 0 | 0 | ✓ |
+| 203 | r | itemStackTypes | 0 | 0 | ✓ |
+| 204 | s | itemStackUses | 0 | 0 | ✓ |
 | 205 | aS | f_int_96 | 0 | 0 | ✓ |
-| 206 | o | f_int_arr_14 | 0 | 0 | ✓ |
-| 207 | t | f_byte_arr_19 | 0 | 0 | ✓ |
+| 206 | o | equipTierBonuses | 0 | 0 | ✓ |
+| 207 | t | equipTierTypes | 0 | 0 | ✓ |
 | 208 | aT | f_int_97 | 0 | 0 | ✓ |
 | 209 | aU | f_int_98 | 0 | 0 | ✓ |
 | 210 | aV | f_int_99 | 0 | 0 | ✓ |
@@ -257,14 +258,14 @@
 | 215 | ba | f_int_104 | 0 | 0 | ✓ |
 | 216 | m | f_bool_12 | 0 | 0 | ✓ |
 | 217 | n | f_bool_13 | 0 | 0 | ✓ |
-| 218 | m | f_String_arr_12 | 0 | 0 | ✓ |
-| 219 | p | f_int_arr_15 | 0 | 0 | ✓ |
-| 220 | q | f_int_arr_16 | 0 | 0 | ✓ |
-| 221 | r | f_int_arr_17 | 0 | 0 | ✓ |
-| 222 | s | f_int_arr_18 | 0 | 0 | ✓ |
-| 223 | t | f_int_arr_19 | 0 | 0 | ✓ |
-| 224 | u | f_int_arr_20 | 0 | 0 | ✓ |
-| 225 | v | f_int_arr_21 | 0 | 0 | ✓ |
+| 218 | m | objectTypeNames | 0 | 0 | ✓ |
+| 219 | p | enemyBaseHp | 0 | 0 | ✓ |
+| 220 | q | enemyBaseAtk | 0 | 0 | ✓ |
+| 221 | r | enemyBaseDef | 0 | 0 | ✓ |
+| 222 | s | enemyBaseGold | 0 | 0 | ✓ |
+| 223 | t | enemyAtkScaled | 0 | 0 | ✓ |
+| 224 | u | enemyDefScaled | 0 | 0 | ✓ |
+| 225 | v | enemyHpScaled | 0 | 0 | ✓ |
 | 226 | bb | f_int_105 | 0 | 0 | ✓ |
 | 227 | bc | f_int_106 | 0 | 0 | ✓ |
 | 228 | bd | f_int_107 | 0 | 0 | ✓ |
@@ -273,11 +274,11 @@
 | 231 | bg | f_int_110 | 0 | 0 | ✓ |
 | 232 | w | f_int_arr_22 | 0 | 0 | ✓ |
 | 233 | u | f_byte_arr_20 | 0 | 0 | ✓ |
-| 234 | bh | f_int_111 | 0 | 0 | ✓ |
-| 235 | n | f_String_arr_13 | 0 | 0 | ✓ |
-| 236 | v | f_byte_arr_21 | 0 | 0 | ✓ |
+| 234 | bh | currentScriptIndex | 0 | 0 | ✓ |
+| 235 | n | levelScriptLines | 0 | 0 | ✓ |
+| 236 | v | dialogueSpeakerType | 0 | 0 | ✓ |
 | 237 | w | f_byte_arr_22 | 0 | 0 | ✓ |
-| 238 | o | f_String_arr_14 | 0 | 0 | ✓ |
+| 238 | o | dialogueTexts | 0 | 0 | ✓ |
 | 239 | bi | f_int_112 | 0 | 0 | ✓ |
 | 240 | bj | f_int_113 | 0 | 0 | ✓ |
 | 241 | g | f_bool_arr_06 | 0 | 0 | ✓ |
@@ -285,7 +286,7 @@
 | 243 | bl | f_int_115 | 0 | 0 | ✓ |
 | 244 | q | f_byte_16 | 0 | 0 | ✓ |
 | 245 | f | f_String_05 | 0 | 0 | ✓ |
-| 246 | bm | f_int_116 | 0 | 0 | ✓ |
+| 246 | bm | scriptCursor | 0 | 0 | ✓ |
 | 247 | bn | f_int_117 | 0 | 0 | ✓ |
 | 248 | bo | f_int_118 | 0 | 0 | ✓ |
 | 249 | r | f_byte_17 | 0 | 0 | ✓ |
@@ -305,8 +306,8 @@
 | 263 | bA | f_int_130 | 0 | 0 | ✓ |
 | 264 | o | f_bool_14 | 0 | 0 | ✓ |
 | 265 | e | f_short_arr_04 | 0 | 0 | ✓ |
-| 266 | e | f_byte_arr2_04 | 0 | 0 | ✓ |
-| 267 | x | f_byte_arr_23 | 0 | 0 | ✓ |
+| 266 | e | bossEventSpawns | 0 | 0 | ✓ |
+| 267 | x | bossTypeOrder | 0 | 0 | ✓ |
 | 268 | p | f_bool_15 | 0 | 0 | ✓ |
 | 269 | h | f_bool_arr_07 | 0 | 0 | ✓ |
 | 270 | y | f_byte_arr_24 | 0 | 0 | ✓ |
@@ -396,7 +397,7 @@
 | 354 | v | f_bool_21 | 0 | 0 | ✓ |
 | 355 | w | f_bool_22 | 0 | 0 | ✓ |
 | 356 | A | f_byte_26 | 0 | 0 | ✓ |
-| 357 | H | f_int_arr_33 | 0 | 0 | ✓ |
+| 357 | H | difficultyMultipliers | 0 | 0 | ✓ |
 | 358 | bU | f_int_150 | 0 | 0 | ✓ |
 | 359 | bV | f_int_151 | 0 | 0 | ✓ |
 | 360 | x | f_bool_23 | 0 | 0 | ✓ |
@@ -418,7 +419,7 @@
 | 376 | D | f_bool_29 | 0 | 0 | ✓ |
 | 377 | C | f_byte_28 | 0 | 0 | ✓ |
 | 378 | a | f_Player_00 | 0 | 0 | ✓ |
-| 379 | a | f_Random_00 | 0 | 0 | ✓ |
+| 379 | a | gameRandom | 0 | 0 | ✓ |
 | 380 | K | f_int_arr_36 | 0 | 0 | ✓ |
 | 381 | ca | f_int_156 | 0 | 0 | ✓ |
 | 382 | T | f_byte_arr_45 | 0 | 0 | ✓ |
@@ -481,14 +482,14 @@
 | 439 | a | m_020 | 47 | 47 | ✓ |
 | 440 | a | m_021 | 44 | 44 | ✓ |
 | 441 | a | m_022 | 14 | 14 | ✓ |
-| 442 | c | m_023 | 49 | 49 | ✓ |
+| 442 | c | applyHpDelta | 49 | 49 | ✓ |
 | 443 | a | m_024 | 20 | 20 | ✓ |
 | 444 | h | m_025 | 19 | 19 | ✓ |
 | 445 | i | m_026 | 229 | 229 | ✓ |
 | 446 | j | m_027 | 177 | 177 | ✓ |
-| 447 | a | m_028 | 54 | 54 | ✓ |
-| 448 | a | m_029 | 496 | 496 | ✓ |
-| 449 | k | m_030 | 811 | 811 | ✓ |
+| 447 | a | tryStep | 54 | 54 | ✓ |
+| 448 | a | interactWithCell | 496 | 496 | ✓ |
+| 449 | k | applyStepCellEffects | 811 | 811 | ✓ |
 | 450 | b | m_031 | 60 | 60 | ✓ |
 | 451 | l | m_032 | 43 | 43 | ✓ |
 | 452 | c | m_033 | 715 | 715 | ✓ |
@@ -518,46 +519,46 @@
 | 476 | r | m_057 | 290 | 290 | ✓ |
 | 477 | a | m_058 | 13 | 13 | ✓ |
 | 478 | s | m_059 | 20 | 20 | ✓ |
-| 479 | b | m_060 | 21 | 21 | ✓ |
+| 479 | b | isCellWalkable | 21 | 21 | ✓ |
 | 480 | t | m_061 | 60 | 60 | ✓ |
 | 481 | c | m_062 | 28 | 28 | ✓ |
 | 482 | h | m_063 | 210 | 210 | ✓ |
 | 483 | i | m_064 | 201 | 201 | ✓ |
 | 484 | a | m_065 | 55 | 55 | ✓ |
-| 485 | a | m_066 | 114 | 114 | ✓ |
+| 485 | a | changeFloor | 114 | 114 | ✓ |
 | 486 | u | m_067 | 35 | 35 | ✓ |
 | 487 | v | m_068 | 88 | 88 | ✓ |
-| 488 | g | m_069 | 82 | 82 | ✓ |
-| 489 | a | m_070 | 10 | 10 | ✓ |
-| 490 | b | m_071 | 17 | 17 | ✓ |
+| 488 | g | scaleEnemyStats | 82 | 82 | ✓ |
+| 489 | a | scaledByFloorTier | 10 | 10 | ✓ |
+| 490 | b | alchemyPriceFor | 17 | 17 | ✓ |
 | 491 | h | m_072 | 62 | 62 | ✓ |
 | 492 | b | m_073 | 78 | 78 | ✓ |
-| 493 | a | m_074 | 441 | 441 | ✓ |
+| 493 | a | applyMerchantOffer | 441 | 441 | ✓ |
 | 494 | j | m_075 | 24 | 24 | ✓ |
 | 495 | i | m_076 | 89 | 89 | ✓ |
-| 496 | c | m_077 | 17 | 17 | ✓ |
-| 497 | c | m_078 | 15 | 15 | ✓ |
-| 498 | j | m_079 | 197 | 197 | ✓ |
-| 499 | a | m_080 | 23 | 23 | ✓ |
+| 496 | c | spendGold | 17 | 17 | ✓ |
+| 497 | c | gainGold | 15 | 15 | ✓ |
+| 498 | j | pickupItemType | 197 | 197 | ✓ |
+| 499 | a | floorTier | 23 | 23 | ✓ |
 | 500 | c | m_081 | 21 | 21 | ✓ |
 | 501 | a | m_082 | 88 | 88 | ✓ |
 | 502 | a | m_083 | 16 | 16 | ✓ |
-| 503 | d | m_084 | 18 | 18 | ✓ |
-| 504 | k | m_085 | 56 | 56 | ✓ |
-| 505 | b | m_086 | 68 | 68 | ✓ |
-| 506 | l | m_087 | 75 | 75 | ✓ |
-| 507 | c | m_088 | 300 | 300 | ✓ |
+| 503 | d | itemTypeToStackIndex | 18 | 18 | ✓ |
+| 504 | k | addItemToItemStack | 56 | 56 | ✓ |
+| 505 | b | consumeKeyForDoor | 68 | 68 | ✓ |
+| 506 | l | useItemStack | 75 | 75 | ✓ |
+| 507 | c | activateItem | 300 | 300 | ✓ |
 | 508 | d | m_089 | 74 | 74 | ✓ |
-| 509 | k | m_090 | 112 | 112 | ✓ |
+| 509 | k | killAdjacentAt | 112 | 112 | ✓ |
 | 510 | w | m_091 | 241 | 241 | ✓ |
 | 511 | m | m_092 | 35 | 35 | ✓ |
 | 512 | a | m_093 | 16 | 16 | ✓ |
-| 513 | d | m_094 | 71 | 71 | ✓ |
-| 514 | b | m_095 | 441 | 441 | ✓ |
+| 513 | d | loadLevelScript | 71 | 71 | ✓ |
+| 514 | b | tryRunScene | 441 | 441 | ✓ |
 | 515 | n | m_096 | 107 | 107 | ✓ |
 | 516 | a | m_097 | 14 | 14 | ✓ |
-| 517 | a | m_098 | 1347 | 1347 | ✓ |
-| 518 | a | m_099 | 20 | 20 | ✓ |
+| 517 | a | executeScriptInstruction | 1347 | 1347 | ✓ |
+| 518 | a | parseScriptInt | 20 | 20 | ✓ |
 | 519 | b | m_100 | 48 | 48 | ✓ |
 | 520 | d | m_101 | 37 | 37 | ✓ |
 | 521 | d | m_102 | 47 | 47 | ✓ |
@@ -567,7 +568,7 @@
 | 525 | y | m_106 | 457 | 457 | ✓ |
 | 526 | e | m_107 | 42 | 42 | ✓ |
 | 527 | f | m_108 | 122 | 122 | ✓ |
-| 528 | o | m_109 | 46 | 46 | ✓ |
+| 528 | o | spawnBossEvent | 46 | 46 | ✓ |
 | 529 | z | m_110 | 106 | 106 | ✓ |
 | 530 | A | m_111 | 193 | 193 | ✓ |
 | 531 | p | m_112 | 212 | 212 | ✓ |
@@ -593,13 +594,13 @@
 | 551 | u | m_132 | 12 | 12 | ✓ |
 | 552 | a | m_133 | 247 | 247 | ✓ |
 | 553 | g | m_134 | 125 | 125 | ✓ |
-| 554 | a | m_135 | 23 | 23 | ✓ |
-| 555 | f | m_136 | 33 | 33 | ✓ |
-| 556 | a | m_137 | 51 | 51 | ✓ |
-| 557 | c | m_138 | 382 | 382 | ✓ |
+| 554 | a | predictHpLossVsType | 23 | 23 | ✓ |
+| 555 | f | effectiveAttackVsType | 33 | 33 | ✓ |
+| 556 | a | predictBattleHpLoss | 51 | 51 | ✓ |
+| 557 | c | tickBattle | 382 | 382 | ✓ |
 | 558 | a | m_139 | 120 | 120 | ✓ |
 | 559 | G | m_140 | 10 | 10 | ✓ |
-| 560 | g | m_141 | 8 | 8 | ✓ |
+| 560 | g | randomBelow | 8 | 8 | ✓ |
 | 561 | a | m_142 | 101 | 101 | ✓ |
 | 562 | n | m_143 | 1059 | 1059 | ✓ |
 | 563 | H | m_144 | 168 | 168 | ✓ |
@@ -640,5 +641,5 @@
 ## 备注
 
 - 未改名成员（构造器 / `<clinit>` / `paint` `run` `keyPressed` 等 MIDP API override）在映射表中 `renamed=false`、old == new：override 不得改名，否则虚分派语义改变。
-- `data/naming/ledger.jsonl` 保持为空 —— 语义命名留给台账驱动的后续批次，叠加在本映射表之上。
+- `data/naming/ledger.jsonl` 为语义命名台账：`status=applied` 的记录叠加在机械映射之上（见上「语义叠加」行），`status=hypothesis` 一律不动代码；`remap-table.json` 保持纯机械层。
 - 本报告不含时间戳：同一 JAR 重跑输出逐字节一致（见 `_verify/manifest.json`）。

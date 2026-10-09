@@ -20,25 +20,42 @@
 > （纯机械键，方案与产物契约明文规定），不与 `levelData_26` 这类“地址后缀冒充含义”
 > 同罪；但它们也**不是**语义名，不得据此推断含义、更不得写进 spec 结论。
 
-## ledger.jsonl 记录格式
+## ledger.jsonl 记录格式（第一批语义命名，2026-10-09 起）
 
 ```json
 {
   "id": "N-0001",
-  "old": "a.a(int,int)",
-  "new": "Game.movePlayer(int,int)",
-  "kind": "method",
-  "evidence": "reference/seed/a.java:2834 触碰 this.a[][] 地图网格 + 调用方为 keyPressed 分支；analysis/ex/a.class javap 常量池无其他写点",
-  "confidence": 85,
+  "class": "a",
+  "kind": "field",
+  "old": "J",
+  "signature": "I",
+  "ref": "a.f_int_35",
+  "new": "playerHp",
+  "evidence": "reference/seed/a.java:483 初值 this.J=498；…（可复现指针）",
+  "confidence": 95,
   "date": "2026-10-09",
   "status": "applied"
 }
 ```
 
+字段约定（叠加机制由 `tools/rename-pipeline/run.py` 消费）：
+
+- `old`+`signature`：**原始混淆名 + JVM 描述符**（与 `reference/seed/a.java` 及
+  `remap-table.json` 的 old/signature 一一对应；描述符用于消歧同名不同类型字段，
+  如 `J` 的 `int` 是玩家 HP 而 `[B` 是另一字段）。
+- `ref`：指向机械层条目（`remap-table.json` 的 `(class, new)`，如 `a.f_int_35`），
+  管线校验 ref 与 (old,signature) 命中的条目一致后才允许叠加。
+- `new`：语义名。**仅 `status: applied` 会被管线叠加改写**（≥3 字符合法标识符；
+  1-2 字符与混淆名无法区分，拒绝）；`status: hypothesis` 一律不动代码，
+  新名用 `_todo_` 前缀保留待证（AGENTS.md §3.1/3.2）。
 - `evidence` 必须含可复现指针：`文件:行` / 字节偏移（`0x…`）/ 可重跑命令。按 AGENTS.md §3 分 A/B/C 级。
 - **A/B 级才能 `status: applied`**；C 级假设记 `status: hypothesis`，禁止据此改代码。
 - `confidence`: 0–100，与 commit message 中的 Confidence 一致。
 - 反悔/证伪：追加新记录 `status: reverted` 引用原 id，并在原条目加 `note`（不删历史，§3.6）。
+
+> 旧示例中的 `old: "a.a(int,int)"`/`new: "Game.movePlayer(int,int)"` 仅示意语义命名概念；
+> 实际以本节 schema 为准（类名不改是管线契约范围，见
+> [tools/rename-pipeline/README.md](../../tools/rename-pipeline/README.md)「范围与限制」）。
 
 ## 纪律（AGENTS.md §3）
 

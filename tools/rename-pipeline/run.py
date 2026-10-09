@@ -14,7 +14,9 @@
   analysis/rename-pipeline/verify/            javap 原始/归一化反汇编（可再生）
 
 确定性变换（见 renamer.py 命名方案）：字段 f_<type>_<NN>、方法 m_<NNN>。
-不做语义命名；语义命名之后叠加在 data/naming/ledger.jsonl（本管线留空）。
+语义命名叠加在 data/naming/ledger.jsonl（台账驱动）：status=applied 的记录把对应
+机械名（ref 字段）在**改写/验证阶段**替换为语义名；remap-table.json 保持纯机械层
+逐字节不变，javap 等价验证经两层符号还原仍证明"仅名字变化"。
 """
 from __future__ import annotations
 
@@ -80,7 +82,52 @@ def ensure_cfr():
         raise RuntimeError("CFR 下载失败（离线环境请预置 analysis/cfr.jar）")
 
 
-# ---------- 构建 ----------
+# ---------- 语义命名叠加（台账驱动） ----------
+
+SEM_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{2,}$")
+
+
+def load_semantic_overlay(records: list) -> dict:
+    """读 data/naming/ledger.jsonl 的 applied 语义命名，返回 (class,old,signature)→(名,台账id)。
+
+    - 仅 status=="applied" 生效；hypothesis/reverted 一律不动代码（AGENTS.md §3.1）；
+    - 每条必须唯一命中 remap-table 的机械层符号（ref 字段校验），且该符号已被机械改名
+      （构造器/MIDP override 等保留名不得语义改名）；
+    - 语义名必须是 ≥3 字符的合法 Java 标识符（1-2 字符与混淆名无法区分，拒绝）。
+    """
+    ledger = NAMING / "ledger.jsonl"
+    if not ledger.exists():
+        return {}
+    by_key = {(r["class"], r["old"], r["signature"]): r for r in records}
+    applied, errors = {}, []
+    for lineno, line in enumerate(ledger.read_text(encoding="utf-8").splitlines(), 1):
+        line = line.strip()
+        if not line:
+            continue
+        rec = json.loads(line)
+        if rec.get("status") != "applied":
+            continue
+        cls, old, desc = rec.get("class", "a"), rec.get("old"), rec.get("signature")
+        key = (cls, old, desc)
+        target = by_key.get(key)
+        if target is None:
+            errors.append(f"ledger 行{lineno}({rec.get('id')}) 无对应机械层符号: {key}")
+            continue
+        ref = rec.get("ref")
+        if ref and ref != f"{cls}.{target['new']}":
+            errors.append(f"ledger 行{lineno}({rec.get('id')}) ref 不符: {ref} ≠ {cls}.{target['new']}")
+        if not target["renamed"]:
+            errors.append(f"ledger 行{lineno}({rec.get('id')}) 指向保留名成员，禁止语义改名: {key}")
+        name = rec.get("new", "")
+        if not SEM_NAME.fullmatch(name) or name in JAVA_KEYWORDS:
+            errors.append(f"ledger 行{lineno}({rec.get('id')}) 非法语义名: {name!r}")
+        if key in applied:
+            errors.append(f"ledger 行{lineno}({rec.get('id')}) 重复改名同一符号: {key}")
+        applied[key] = (name, rec.get("id"))
+    if errors:
+        raise RuntimeError("语义台账校验失败:\n  " + "\n  ".join(errors))
+    return applied
+
 
 def build() -> dict:
     if not JAR.exists():
@@ -107,15 +154,27 @@ def build() -> dict:
     records = renamer.build_rename_map(classes)
     for i, rec in enumerate(records, 1):
         rec["id"] = f"R-{i:04d}"
-    renamer.apply_rename(classes, records)
-    problems = renamer.consistency_check(classes, records)
+    # 语义命名叠加：remap-table 保持纯机械层（records 原样落盘），
+    # 实际改写用 final_records（new := 语义名），等价验证按同样映射还原。
+    semantic = load_semantic_overlay(records)
+    final_records = []
+    for rec in records:
+        fr = dict(rec)
+        hit = semantic.get((rec["class"], rec["old"], rec["signature"]))
+        if hit:
+            fr["new"] = hit[0]
+        final_records.append(fr)
+    if semantic:
+        log(f"语义命名叠加 {len(semantic)} 条（data/naming/ledger.jsonl applied）")
+    renamer.apply_rename(classes, final_records)
+    problems = renamer.consistency_check(classes, final_records)
     if problems:
         raise RuntimeError("重写后一致性自检失败:\n  " + "\n  ".join(problems))
 
     for cname, cff in classes.items():
         (RENAMED / f"{cname}.class").write_bytes(cfmod.serialize(cff))
     n_renamed = sum(1 for r in records if r["renamed"])
-    log(f"重映射成员 {n_renamed}/{len(records)} 个，一致性自检通过")
+    log(f"重映射成员 {n_renamed}/{len(records)} 个（语义叠加 {len(semantic)}），一致性自检通过")
 
     # ③ 映射表落 data/naming/remap-table.json
     REMAP.parent.mkdir(parents=True, exist_ok=True)
@@ -158,7 +217,8 @@ def build() -> dict:
     if problems:
         raise RuntimeError("产物自检失败:\n  " + "\n  ".join(problems))
     log("产物自检通过：字段/方法名全部唯一化，无混淆短名残留")
-    return {"classes": classes, "records": records, "sources": sources}
+    return {"classes": classes, "records": records, "final_records": final_records,
+            "semantic": semantic, "sources": sources}
 
 
 def check_outputs(classes: dict, sources: list) -> list:
@@ -214,11 +274,13 @@ def locals_note(sources: list) -> str:
 def verify(build_state: dict):
     classes = build_state["classes"]
     records = build_state["records"]
+    final_records = build_state["final_records"]
     VERIFY_OUT.mkdir(parents=True, exist_ok=True)
 
-    # 反向映射（按类）：new → old
+    # 反向映射（按类）：最终名（机械名或语义名）→ 原始混淆名。
+    # 改名后 class 中出现的是 final 名（含台账叠加的语义名），还原回 old 才能与改名前比对。
     reverse = {}
-    for rec in records:
+    for rec in final_records:
         if rec["renamed"]:
             reverse.setdefault(rec["class"], {})[rec["new"]] = rec["old"]
 
@@ -263,7 +325,8 @@ def verify(build_state: dict):
         })
 
     write_report(records, report_rows, method_rows, all_ok,
-                 locals_note=locals_note(build_state["sources"]))
+                 locals_note=locals_note(build_state["sources"]),
+                 semantic=build_state["semantic"])
 
     # 幂等 manifest：全部产物 sha256（不含 manifest 自身）
     outputs = [REMAP.relative_to(ROOT)] + \
@@ -280,7 +343,8 @@ def verify(build_state: dict):
     log(f"报告 → {VERIFY_OUT.relative_to(ROOT)}/report.md")
 
 
-def write_report(records, report_rows, method_rows, all_ok, locals_note):
+def write_report(records, report_rows, method_rows, all_ok, locals_note, semantic=None):
+    semantic = semantic or {}
     n_renamed = sum(1 for r in records if r["renamed"])
     kept = [r for r in records if not r["renamed"]]
     lines = []
@@ -291,7 +355,10 @@ def write_report(records, report_rows, method_rows, all_ok, locals_note):
     a("- 复现：`python3 tools/rename-pipeline/run.py --verify`（确定性输出，无时间戳 ⇒ 幂等）")
     a("- 输入：`original/囧囧西游-大闹天宫.jar`（只读）→ `analysis/rename-pipeline/orig/*.class`")
     a("- 对比对象：`analysis/rename-pipeline/orig/` vs `analysis/rename-pipeline/renamed/*.class`")
-    a(f"- 映射表：`data/naming/remap-table.json`（{len(records)} 条符号，改名 {n_renamed} 条）")
+    a(f"- 映射表：`data/naming/remap-table.json`（{len(records)} 条符号，机械改名 {n_renamed} 条）")
+    if semantic:
+        a(f"- 语义叠加：`data/naming/ledger.jsonl`（applied {len(semantic)} 条，改写与验证均经"
+          f"两层符号还原：语义名→机械名→原始名）")
     a("")
     a("## 验证方法（为什么这能证明“仅符号名变化”）")
     a("")
@@ -299,7 +366,8 @@ def write_report(records, report_rows, method_rows, all_ok, locals_note):
       "（`analysis/rename-pipeline/verify/<class>.{before,after}.javap.txt`）；")
     a("2. 归一化两份文本：常量池槽号 `#NNN → #<cp>`（重映射以常量池**末尾追加**新 "
       "Utf8/NameAndType 的方式实施，槽号位移是布局而非语义）；")
-    a("3. 对改名后文本做**符号还原**：按映射表把新名（f_*/m_*）替换回旧名。替换只发生在"
+    a("3. 对改名后文本做**符号还原**：按映射表把新名（机械名 f_*/m_* 或台账叠加的语义名）"
+      "替换回旧名。替换只发生在"
       "成员声明行与 `// Field|Method|InterfaceMethod` 注释中，字符串常量等不动；"
       "被限定引用（owner.name:desc）按 owner 查表，非限定引用按当前类查表；")
     a("4. 两份归一化文本**逐字节相同**（diff 0 行）⇒ 指令序列、每条指令操作数指向的"
@@ -350,8 +418,8 @@ def write_report(records, report_rows, method_rows, all_ok, locals_note):
     a("")
     a("- 未改名成员（构造器 / `<clinit>` / `paint` `run` `keyPressed` 等 MIDP API override）"
       "在映射表中 `renamed=false`、old == new：override 不得改名，否则虚分派语义改变。")
-    a("- `data/naming/ledger.jsonl` 保持为空 —— 语义命名留给台账驱动的后续批次，"
-      "叠加在本映射表之上。")
+    a("- `data/naming/ledger.jsonl` 为语义命名台账：`status=applied` 的记录叠加在机械映射之上"
+      "（见上「语义叠加」行），`status=hypothesis` 一律不动代码；`remap-table.json` 保持纯机械层。")
     a("- 本报告不含时间戳：同一 JAR 重跑输出逐字节一致（见 `_verify/manifest.json`）。")
     (VERIFY_OUT / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 

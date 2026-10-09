@@ -73,4 +73,7 @@ Fieldref/Methodref/InterfaceMethodref 的 `name_and_type_index` 改指向新条�
 - **局部变量名不在范围**：字节码无 LocalVariableTable，`reference/src/deobf/` 里的
   `n`/`c`/`s`… 是 CFR 按类型启发式生成的投影层命名（方法作用域内唯一、无歧义）。
   产物保持 CFR 原样输出（契约：「重映射后经 CFR 再生」），报告中已透明披露计数。
-- 语义命名（`f_int_07` → `playerX` 之类）**不做**，留给台账批次。
+- 语义命名**叠加**于本管线映射之上（台账驱动）：`data/naming/ledger.jsonl` 中
+  `status: applied` 的记录会在构建时把对应机械名替换为语义名（改写与 javap 验证同用
+  「语义名→机械名→原始名」两层还原），`remap-table.json` 保持纯机械层逐字节不变；
+  `status: hypothesis` 不动代码。schema 见 [`data/naming/README.md`](../../data/naming/README.md)。

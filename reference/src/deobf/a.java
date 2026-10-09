@@ -51,7 +51,7 @@ implements Runnable {
     private Graphics f_Graphics_00;
     private boolean f_bool_01;
     private int f_int_03;
-    private byte f_byte_00;
+    private byte gameMode;
     private byte f_byte_01;
     private byte f_byte_02;
     private DirectGraphics f_DirectGraphics_00;
@@ -115,19 +115,19 @@ implements Runnable {
     private int f_int_32;
     private int f_int_33;
     private int f_int_34;
-    private int f_int_35;
-    private int f_int_36;
-    private int f_int_37;
-    private byte f_byte_09;
-    private byte f_byte_10;
+    private int playerHp;
+    private int playerAtk;
+    private int playerDef;
+    private byte equippedWeaponType;
+    private byte equippedArmorType;
     private int[][] f_int_arr2_01;
     private int[] f_int_arr_03;
     private int f_int_38;
     private byte f_byte_11;
-    private int f_int_39;
-    private int f_int_40;
-    private int f_int_41;
-    private int f_int_42;
+    private int playerPixelX;
+    private int playerPixelY;
+    private int playerCellX;
+    private int playerCellY;
     private byte f_byte_12;
     private int f_int_43;
     private int f_int_44;
@@ -140,19 +140,19 @@ implements Runnable {
     private byte f_byte_13;
     private byte f_byte_14;
     private String[] f_String_arr_04;
-    private int[] f_int_arr_06;
-    private int[] f_int_arr_07;
+    private int[] entityPixelX;
+    private int[] entityPixelY;
     private int[] f_int_arr_08;
     private int[] f_int_arr_09;
     private int[] f_int_arr_10;
     private Image[] f_Image_arr_00;
-    private int[] f_int_arr_11;
+    private int[] entityType;
     private int[] f_int_arr_12;
     private int f_int_45;
     private boolean[] f_bool_arr_00;
     private boolean[] f_bool_arr_01;
     private byte[] f_byte_arr_03;
-    private short[] f_short_arr_00;
+    private short[] entityParam;
     private boolean[] f_bool_arr_02;
     private byte[] f_byte_arr_04;
     private byte[] f_byte_arr_05;
@@ -169,12 +169,12 @@ implements Runnable {
     private byte[][] f_byte_arr2_01;
     private int f_int_49;
     private Image f_Image_03;
-    private int f_int_50;
-    private int f_int_51;
+    private int mapCellsWide;
+    private int mapCellsHigh;
     private int f_int_52;
     private int f_int_53;
-    private byte[] f_byte_arr_08;
-    private byte[] f_byte_arr_09;
+    private byte[] mapTerrainGrid;
+    private byte[] mapTransformGrid;
     private boolean[][] f_bool_arr2_00;
     private byte[][] f_byte_arr2_02;
     private byte[] f_byte_arr_10;
@@ -193,19 +193,19 @@ implements Runnable {
     private int f_int_63;
     private boolean f_bool_10;
     private boolean f_bool_11;
-    private int f_int_64;
-    private int f_int_65;
-    private int f_int_66;
+    private int currentFloor;
+    private int minFloorReached;
+    private int maxFloorReached;
     private int f_int_67;
     private int f_int_68;
-    private int f_int_69;
+    private int alchemyUpgradeCount;
     private int f_int_70;
     private int f_int_71;
     private int f_int_72;
     private int f_int_73;
     private int f_int_74;
     private int f_int_75;
-    private int f_int_76;
+    private int alchemyPrice;
     private int f_int_77;
     private int f_int_78;
     private int f_int_79;
@@ -235,19 +235,19 @@ implements Runnable {
     private int f_int_89;
     private int f_int_90;
     private String f_String_04;
-    private String[] f_String_arr_10;
-    private String[] f_String_arr_11;
-    private byte[] f_byte_arr_16;
-    private int f_int_91;
-    private int f_int_92;
-    private int f_int_93;
-    private int f_int_94;
-    private int f_int_95;
-    private byte[] f_byte_arr_17;
-    private byte[] f_byte_arr_18;
+    private String[] itemDescriptions;
+    private String[] equipDescriptions;
+    private byte[] itemUseCounts;
+    private int yellowKeyCount;
+    private int blueKeyCount;
+    private int redKeyCount;
+    private int goldAmount;
+    private int itemStackSize;
+    private byte[] itemStackTypes;
+    private byte[] itemStackUses;
     private int f_int_96;
-    private int[] f_int_arr_14;
-    private byte[] f_byte_arr_19;
+    private int[] equipTierBonuses;
+    private byte[] equipTierTypes;
     private int f_int_97;
     private int f_int_98;
     private int f_int_99;
@@ -258,14 +258,14 @@ implements Runnable {
     private int f_int_104;
     private boolean f_bool_12;
     private boolean f_bool_13;
-    private String[] f_String_arr_12;
-    private int[] f_int_arr_15;
-    private int[] f_int_arr_16;
-    private int[] f_int_arr_17;
-    private int[] f_int_arr_18;
-    private int[] f_int_arr_19;
-    private int[] f_int_arr_20;
-    private int[] f_int_arr_21;
+    private String[] objectTypeNames;
+    private int[] enemyBaseHp;
+    private int[] enemyBaseAtk;
+    private int[] enemyBaseDef;
+    private int[] enemyBaseGold;
+    private int[] enemyAtkScaled;
+    private int[] enemyDefScaled;
+    private int[] enemyHpScaled;
     private int f_int_105;
     private int f_int_106;
     private int f_int_107;
@@ -274,11 +274,11 @@ implements Runnable {
     private int f_int_110;
     private int[] f_int_arr_22;
     private byte[] f_byte_arr_20;
-    private int f_int_111;
-    private String[] f_String_arr_13;
-    private byte[] f_byte_arr_21;
+    private int currentScriptIndex;
+    private String[] levelScriptLines;
+    private byte[] dialogueSpeakerType;
     private byte[] f_byte_arr_22;
-    private String[] f_String_arr_14;
+    private String[] dialogueTexts;
     private int f_int_112;
     private int f_int_113;
     private boolean[] f_bool_arr_06;
@@ -286,7 +286,7 @@ implements Runnable {
     private int f_int_115;
     private byte f_byte_16;
     private String f_String_05;
-    private int f_int_116;
+    private int scriptCursor;
     private int f_int_117;
     private int f_int_118;
     private byte f_byte_17;
@@ -306,8 +306,8 @@ implements Runnable {
     private int f_int_130;
     private boolean f_bool_14;
     private short[] f_short_arr_04;
-    private byte[][] f_byte_arr2_04;
-    private byte[] f_byte_arr_23;
+    private byte[][] bossEventSpawns;
+    private byte[] bossTypeOrder;
     private boolean f_bool_15;
     private boolean[] f_bool_arr_07;
     private byte[] f_byte_arr_24;
@@ -397,7 +397,7 @@ implements Runnable {
     private boolean f_bool_21;
     private boolean f_bool_22;
     private byte f_byte_26;
-    private int[] f_int_arr_33;
+    private int[] difficultyMultipliers;
     private int f_int_150;
     private int f_int_151;
     private boolean f_bool_23;
@@ -419,7 +419,7 @@ implements Runnable {
     private boolean f_bool_29;
     private byte f_byte_28;
     private static Player f_Player_00;
-    private Random f_Random_00;
+    private Random gameRandom;
     private final int[] f_int_arr_36;
     private int f_int_156;
     private final byte[] f_byte_arr_45;
@@ -476,16 +476,16 @@ implements Runnable {
         this.f_byte_07 = 0;
         this.f_String_arr_03 = new String[50];
         this.f_int_34 = this.f_int_01 + 4;
-        this.f_int_35 = 498;
-        this.f_int_36 = 10;
-        this.f_int_37 = 10;
-        this.f_byte_09 = 0;
-        this.f_byte_10 = 0;
+        this.playerHp = 498;
+        this.playerAtk = 10;
+        this.playerDef = 10;
+        this.equippedWeaponType = 0;
+        this.equippedArmorType = 0;
         this.f_int_arr2_01 = new int[][]{{0, 1, 0, 2}, new int[0], new int[0], new int[0]};
-        this.f_int_39 = 192;
-        this.f_int_40 = 352;
-        this.f_int_41 = 6;
-        this.f_int_42 = 11;
+        this.playerPixelX = 192;
+        this.playerPixelY = 352;
+        this.playerCellX = 6;
+        this.playerCellY = 11;
         this.f_int_arr_04 = new int[4];
         this.f_int_arr_05 = new int[4];
         this.f_String_arr_04 = new String[]{"\u65e0", "\u6728", "\u94c1", "\u94f6", "\u91d1", "\u5e03", "\u76ae", "\u9501", "\u91d1"};
@@ -500,7 +500,7 @@ implements Runnable {
         int[] nArray2 = new int[]{0, 0, 11, 1, 1, 11, 11, 11, 0, 0};
         int[] nArray3 = new int[]{0, 0, 0, 0, 1, 1, 1, 11, 11, 11};
         this.f_bool_arr_04 = new boolean[]{false, true, false, true, true, true, true, false, true, false, false, true, true, true, true, false, true, true, true, true, true, true, false, false, true, true, true, true, true, true, false, false, false, false, false, false, false, false, false, false, true, true, true, true, false, false, false, false, true, true, true, true, false, false, false, false, true, true, true, true, false, false, false, false, true, true, true, true, false, false, false, false, true, true, true, true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true, false};
-        this.f_int_64 = 0;
+        this.currentFloor = 0;
         this.f_int_67 = 0;
         this.f_int_68 = 55;
         this.f_int_74 = this.f_int_01 + 90;
@@ -526,32 +526,32 @@ implements Runnable {
         this.f_int_88 = this.f_String_arr_06.length + this.f_String_arr_09.length;
         this.f_byte_arr_14 = new byte[this.f_int_88];
         this.f_byte_arr_15 = new byte[this.f_int_88];
-        this.f_String_arr_10 = new String[]{"\u80fd\u770b\u7834\u654c\u4eba\u5e95\u7ec6\uff0c\u663e\u793a\u654c\u4eba\u8be6\u7ec6\u4fe1\u606f\u3002\u5728\u6e38\u620f\u4e2d\u6309\u5feb\u6377\u952e5\u4e5f\u53ef\u4ee5\u67e5\u770b\u4f24\u5bb3\u91cf\u3002\n\\c00ff00[\u4f7f\u7528\u6b21\u6570\uff1a\u65e0\u9650]", "\u8bb0\u5f55\u524d\u5c18\u5f80\u4e8b\u3002\n\\c00ff00[\u4f7f\u7528\u6b21\u6570\uff1a\u65e0\u9650]", "\u5728\u697c\u68af\u8fb9\uff0c\u53ef\u4ee5\u77ac\u95f4\u4e0a\u4e0b\u5c42\uff0c\u7559\u795e\u6655\u673a\u3002\n\\c00ff00[\u4f7f\u7528\u6b21\u6570\uff1a\u65e0\u9650]", "\u7184\u706d\\cFFCC33\u4e09\u6627\u771f\u706b\\r\u7684\u795e\u5668\u3002\n\\c00ff00[\u4f7f\u7528\u6b21\u6570\uff1a\u65e0\u9650]", "\u6316\u6d1e\u5f00\u5899\u8d8a\u72f1\u7684\u5229\u5668,\u632b\u662f\u632b\u4e86\u70b9\uff0c\u4f46\u662f\u771f\u7684\u5f88\u597d\u7528\u3002\n\\c00ff00[\u4f7f\u7528\u6b21\u6570\uff1a1\u6b21]", "\u53ef\u4ee5\u9707\u5f00\u5f53\u524d\u5c42\u6240\u6709\u7684\u5899\n\\c00ff00[\u4f7f\u7528\u6b21\u6570\uff1a1\u6b21]", "\u559d\u4e0b\u540e\uff0c\u589e\u52a0\u76f8\u5f53\u4e8e\u5f53\u524d\\c00FFFF\u653b\u51fb\u529b\\cFFFFFF\u52a0\\c00FFFF\u9632\u5fa1\u529b\\cFFFFFF\u503c740%\u7684\\cFFCC00\u8840\u91cf\n[\u6708\u5bab\u51fa\u54c1\uff0c\u624b\u5de5\u917f\u5236\uff0c\u4e0d\u542b\u4e09\u805a\u6c30\u80fa\uff0c\u51b7\u85cf\u6548\u679c\u66f4\u4f73\uff0c\u4f7f\u7528\u6b21\u6570\uff1a1\u6b21]", "\u77ac\u79fb\u5230\u4ee5\u4e2d\u5fc3\u4e3a\u5bf9\u79f0\u70b9\u7684\u4f4d\u7f6e\u4e0a\u3002\n\\c00ff00[\u4f7f\u7528\u6b21\u6570\uff1a3\u6b21]", "\u77ac\u79fb\u4e0a\u884c\u4e00\u5c42\n\\c00ff00[\u4f7f\u7528\u6b21\u6570\uff1a1\u6b21]", "\u77ac\u79fb\u4e0b\u884c\u4e00\u5c42\n\\c00ff00[\u4f7f\u7528\u6b21\u6570\uff1a1\u6b21]", "\u5f53\u5e74\u59dc\u5b50\u7259\u53d7\u5929\u547d\u5c01\u795e\uff0c\u4ed6\u7684\u9493\u9c7c\u7af9\u7aff\u88ab\u539f\u59cb\u5929\u5c0a\u9644\u4e0a\u4e86\u795e\u529b\uff0c\u53ef\u4ee5\u5f79\u4f7f\u5929\u795e\u529b\u58eb\u4f9b\u4ed6\u5dee\u9063\uff0c\u6b64\u6756\u53c8\u540d\u201c\u6253\u795e\u97ad\u201d\uff0c\u5bf9\u5929\u795e\u529b\u58eb\uff08\u5305\u62ec\u5de8\u7075\u795e\uff09\u5a01\u529b\u52a0\u500d\u3002\n\\cFFCC00[\u653e\u5728\u9053\u5177\u680f\u4e2d\u6709\u6548]", "\u5bf9\u67d0\u4e9b\u81ea\u604b\u7684\u795e\u4ed9\u4f24\u5bb3\u52a0\u500d\u3002\n\\cFFCC00[\u653e\u5728\u9053\u5177\u680f\u4e2d\u6709\u6548]", "\u6253\u602a\u5f97\u5230\u7684\u91d1\u94b1\u52a0\u500d\u3002\n\\cFFCC00[\u653e\u5728\u9053\u5177\u680f\u4e2d\u6709\u6548]", "\u53ef\u4ee5\u5f00\u542f\u9ec4\u95e8\u3002", "\u53ef\u4ee5\u5f00\u542f\u7ea2\u95e8\u3002", "\u53ef\u4ee5\u5f00\u542f\u84dd\u95e8\u3002", "\u52a0\u653b\u51fb\u3002", "\u52a0\u9632\u5fa1\u3002", "\u52a0\u8840\u3002", "\u52a0\u8840\u3002", "\u5f00\u542f\u5f53\u524d\u5c42\u6240\u6709\u9ec4\u95e8", "\u5982\u6765\u5f00\u201c\u6148\u60b2\u4e3a\u6000\u201d\u5de1\u56de\u4f5b\u7ecf\u6f14\u5531\u4f1a\u7684\u65f6\u5019\uff0c\u4f34\u594f\u7f57\u6c49\u7528\u7684\u4e50\u5668\uff0c\u9053\u884c\u6d45\u7684\u654c\u4eba\uff0c\u4f1a\u88ab\u5176\u68b5\u5929\u4f5b\u97f3\u77ac\u95f4\u5316\u4e3a\u7070\u98de\n\\cFFCC00\u4f7f\u7528\uff1a\u6740\u6b7b\u4e0a\u4e0b\u5de6\u53f3\u7684\u654c\u4eba\uff0c\u5bf9BOSS\u4e0d\u8d77\u4f5c\u7528\u3002"};
-        this.f_String_arr_11 = new String[]{"", "\\cdddddd\u4e00\u6839\u76f8\u5f53\u957f\u7684\u6728\u5236\u957f\u68cd,\u65b0\u624b\u5fc5\u5907.\u6709\u4e86\u5b83\u6740\u4eba\u8d8a\u8d27\u4e0d\u614c\u4e0d\u6101.\n\\c00ff00\u88c5\u5907: \u653b\u51fb+10.\n\\cFFCC00\"\u770b\u4e0a\u53bb\u4f3c\u4e4e\u4f1a\u65ad\u6389\u3002\".", "\\cdddddd\u4e4c\u9ed1\u6cb9\u4eae\uff0c\u663e\u7136\u7ecf\u5386\u8fc7\u591a\u4eba\u4e4b\u624b\u3002\n\\c00ff00\u88c5\u5907: \u653b\u51fb+30.\n\\cFFCC00\"\u5f88\u7c97\u5f88\u7ed3\u5b9e\uff01\".", "\\cdddddd\u94f6\u68cd\uff0c\u6069\uff0c\u6709\u8fd9\u4e2a\u540d\u5b57\u5c31\u8db3\u591f\u4e86\u3002\n\\c00ff00\u88c5\u5907: \u653b\u51fb+70.\n\\cFFCC00\"\u53ea\u662f\u6839\u94f6\u68cd\".", "\\cdddddd\u56e0\u4e58\u5929\u5730\u4e4b\u7075\u6c14\uff0c\u96c6\u65e5\u6708\u4e4b\u7cbe\u534e\u4e43\u201c\u4e07\u6728\u4e4b\u7075\uff0c\u7075\u6728\u4e4b\u5c0a\u201d\u3002\n\\c00ff00\u88c5\u5907: \u653b\u51fb+120.\n\\cFFCC00\"\u6728\u4e4b\u7cbe\u534e\uff0c\u524a\u94c1\u65ad\u91d1\".", "\\cdddddd\u60a8\u7684\u9700\u8981\uff0c\u5b83\u77e5\u9053\uff1b\u60a8\u7684\u9700\u6c42\uff0c\u5b83\u6ee1\u8db3\u3002\u5b83\u597d\uff0c\u4f60\u4e5f\u597d\uff0c\u9f99\u738b\u540e\u5bab\uff0c\u9547\u5bab\u4e4b\u5b9d\uff01\n\\c00ff00\u88c5\u5907: \u653b\u51fb+220.\n\\cFFCC00\"\u4e0d\u8981\u8ff7\u604b\u5b83\uff0c\u5b83\u53ea\u662f\u4e00\u6839\u4f20\u8bf4\u3002\".", "", "\\cdddddd\u6ca1\u6709\u592a\u591a\u7684\u88c5\u9970\uff0c\u4e00\u4ef6\u975e\u5e38\u6734\u7d20\u3001\u8f7b\u4fbf\u7684\u5e03\u8863.\n\\c00ff00\u88c5\u5907: \u9632\u5fa1+10.\n\\cFFCC00\"\u770b\u4e0a\u53bb\u6709\u4e0d\u5c11\u4eba\u7528\u8fc7\u4e86\u3002\".", "\\cdddddd\u4fdd\u6696\u5fa1\u5bd2\uff0c\u8170\u4e0d\u9178\uff0c\u817f\u4e0d\u75bc\uff0c\u8d70\u8def\u4e5f\u6709\u52b2\u4e86\u3002\n\\c00ff00\u88c5\u5907: \u9632\u5fa1+30.\n\\cFFCC00\"\u8c79\u7eb9\uff0c\u6027\u611f\u53c8\u91ce\u6027\uff0c\u4eca\u5e74\u5929\u5bab\u6700\u6d41\u884c\u7684\u76ae\u8349\u6b3e\u5f0f\".", "\\cdddddd\u5982\u679c\u6ca1\u6709\u4e0a\u9762\u7684\u90a3\u884c\u5b57\uff0c\u5b83\u4e5f\u7b97\u662f\u4e2a\u6770\u4f5c\u3002\n\\c00ff00\u88c5\u5907: \u9632\u5fa1+70.\n\\cFFCC00\"\u4e0a\u9762\u5199\u7740'\u529e\u56db\u7ea7\u795e\u4ed9\u8bc1\u4e66\uff0c\u56de\u6536\u4e8c\u624b\u83b2\u82b1\u5b9d\u5ea7'\".", "\\cdddddd\u534e\u4e3d\u7684\u88c5\u9970\uff0c\u5c31\u662f\u6709\u70b9\u65e7\u3002\n\\c00ff00\u88c5\u5907: \u9632\u5fa1+120.\n\\cFFCC00\"\u522b\u4eba\u7a7f\u8fc7\u7684\u6781\u54c1\u3002\".", "\\cdddddd\u4e1c\u6d77\u9f99\u9cde\u7f16\u7ec7\u800c\u6210\uff0c\u9650\u91cf\u7248\uff0c\u5929\u4e0a\u5929\u4e0b\uff0c\u53ea\u6b64\u4e00\u6b3e\u3002\n\\c00ff00\u88c5\u5907: \u9632\u5fa1+220.\n\\cFFCC00\"\u66f4\u8f7b\u8584\uff0c\u66f4\u900f\u6c14\uff0c\u66f4\u591a\u9632\u62a4\uff0c\u66f4\u591a\u5b89\u5fc3\"."};
-        this.f_byte_arr_16 = new byte[]{-1, -1, -1, -1, 1, 1, 1, 3, 1, 1, -1, -1, -1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-        this.f_int_91 = 0;
-        this.f_int_92 = 0;
-        this.f_int_93 = 0;
-        this.f_int_94 = 0;
-        this.f_byte_arr_17 = new byte[32];
-        this.f_byte_arr_18 = new byte[32];
+        this.itemDescriptions = new String[]{"\u80fd\u770b\u7834\u654c\u4eba\u5e95\u7ec6\uff0c\u663e\u793a\u654c\u4eba\u8be6\u7ec6\u4fe1\u606f\u3002\u5728\u6e38\u620f\u4e2d\u6309\u5feb\u6377\u952e5\u4e5f\u53ef\u4ee5\u67e5\u770b\u4f24\u5bb3\u91cf\u3002\n\\c00ff00[\u4f7f\u7528\u6b21\u6570\uff1a\u65e0\u9650]", "\u8bb0\u5f55\u524d\u5c18\u5f80\u4e8b\u3002\n\\c00ff00[\u4f7f\u7528\u6b21\u6570\uff1a\u65e0\u9650]", "\u5728\u697c\u68af\u8fb9\uff0c\u53ef\u4ee5\u77ac\u95f4\u4e0a\u4e0b\u5c42\uff0c\u7559\u795e\u6655\u673a\u3002\n\\c00ff00[\u4f7f\u7528\u6b21\u6570\uff1a\u65e0\u9650]", "\u7184\u706d\\cFFCC33\u4e09\u6627\u771f\u706b\\r\u7684\u795e\u5668\u3002\n\\c00ff00[\u4f7f\u7528\u6b21\u6570\uff1a\u65e0\u9650]", "\u6316\u6d1e\u5f00\u5899\u8d8a\u72f1\u7684\u5229\u5668,\u632b\u662f\u632b\u4e86\u70b9\uff0c\u4f46\u662f\u771f\u7684\u5f88\u597d\u7528\u3002\n\\c00ff00[\u4f7f\u7528\u6b21\u6570\uff1a1\u6b21]", "\u53ef\u4ee5\u9707\u5f00\u5f53\u524d\u5c42\u6240\u6709\u7684\u5899\n\\c00ff00[\u4f7f\u7528\u6b21\u6570\uff1a1\u6b21]", "\u559d\u4e0b\u540e\uff0c\u589e\u52a0\u76f8\u5f53\u4e8e\u5f53\u524d\\c00FFFF\u653b\u51fb\u529b\\cFFFFFF\u52a0\\c00FFFF\u9632\u5fa1\u529b\\cFFFFFF\u503c740%\u7684\\cFFCC00\u8840\u91cf\n[\u6708\u5bab\u51fa\u54c1\uff0c\u624b\u5de5\u917f\u5236\uff0c\u4e0d\u542b\u4e09\u805a\u6c30\u80fa\uff0c\u51b7\u85cf\u6548\u679c\u66f4\u4f73\uff0c\u4f7f\u7528\u6b21\u6570\uff1a1\u6b21]", "\u77ac\u79fb\u5230\u4ee5\u4e2d\u5fc3\u4e3a\u5bf9\u79f0\u70b9\u7684\u4f4d\u7f6e\u4e0a\u3002\n\\c00ff00[\u4f7f\u7528\u6b21\u6570\uff1a3\u6b21]", "\u77ac\u79fb\u4e0a\u884c\u4e00\u5c42\n\\c00ff00[\u4f7f\u7528\u6b21\u6570\uff1a1\u6b21]", "\u77ac\u79fb\u4e0b\u884c\u4e00\u5c42\n\\c00ff00[\u4f7f\u7528\u6b21\u6570\uff1a1\u6b21]", "\u5f53\u5e74\u59dc\u5b50\u7259\u53d7\u5929\u547d\u5c01\u795e\uff0c\u4ed6\u7684\u9493\u9c7c\u7af9\u7aff\u88ab\u539f\u59cb\u5929\u5c0a\u9644\u4e0a\u4e86\u795e\u529b\uff0c\u53ef\u4ee5\u5f79\u4f7f\u5929\u795e\u529b\u58eb\u4f9b\u4ed6\u5dee\u9063\uff0c\u6b64\u6756\u53c8\u540d\u201c\u6253\u795e\u97ad\u201d\uff0c\u5bf9\u5929\u795e\u529b\u58eb\uff08\u5305\u62ec\u5de8\u7075\u795e\uff09\u5a01\u529b\u52a0\u500d\u3002\n\\cFFCC00[\u653e\u5728\u9053\u5177\u680f\u4e2d\u6709\u6548]", "\u5bf9\u67d0\u4e9b\u81ea\u604b\u7684\u795e\u4ed9\u4f24\u5bb3\u52a0\u500d\u3002\n\\cFFCC00[\u653e\u5728\u9053\u5177\u680f\u4e2d\u6709\u6548]", "\u6253\u602a\u5f97\u5230\u7684\u91d1\u94b1\u52a0\u500d\u3002\n\\cFFCC00[\u653e\u5728\u9053\u5177\u680f\u4e2d\u6709\u6548]", "\u53ef\u4ee5\u5f00\u542f\u9ec4\u95e8\u3002", "\u53ef\u4ee5\u5f00\u542f\u7ea2\u95e8\u3002", "\u53ef\u4ee5\u5f00\u542f\u84dd\u95e8\u3002", "\u52a0\u653b\u51fb\u3002", "\u52a0\u9632\u5fa1\u3002", "\u52a0\u8840\u3002", "\u52a0\u8840\u3002", "\u5f00\u542f\u5f53\u524d\u5c42\u6240\u6709\u9ec4\u95e8", "\u5982\u6765\u5f00\u201c\u6148\u60b2\u4e3a\u6000\u201d\u5de1\u56de\u4f5b\u7ecf\u6f14\u5531\u4f1a\u7684\u65f6\u5019\uff0c\u4f34\u594f\u7f57\u6c49\u7528\u7684\u4e50\u5668\uff0c\u9053\u884c\u6d45\u7684\u654c\u4eba\uff0c\u4f1a\u88ab\u5176\u68b5\u5929\u4f5b\u97f3\u77ac\u95f4\u5316\u4e3a\u7070\u98de\n\\cFFCC00\u4f7f\u7528\uff1a\u6740\u6b7b\u4e0a\u4e0b\u5de6\u53f3\u7684\u654c\u4eba\uff0c\u5bf9BOSS\u4e0d\u8d77\u4f5c\u7528\u3002"};
+        this.equipDescriptions = new String[]{"", "\\cdddddd\u4e00\u6839\u76f8\u5f53\u957f\u7684\u6728\u5236\u957f\u68cd,\u65b0\u624b\u5fc5\u5907.\u6709\u4e86\u5b83\u6740\u4eba\u8d8a\u8d27\u4e0d\u614c\u4e0d\u6101.\n\\c00ff00\u88c5\u5907: \u653b\u51fb+10.\n\\cFFCC00\"\u770b\u4e0a\u53bb\u4f3c\u4e4e\u4f1a\u65ad\u6389\u3002\".", "\\cdddddd\u4e4c\u9ed1\u6cb9\u4eae\uff0c\u663e\u7136\u7ecf\u5386\u8fc7\u591a\u4eba\u4e4b\u624b\u3002\n\\c00ff00\u88c5\u5907: \u653b\u51fb+30.\n\\cFFCC00\"\u5f88\u7c97\u5f88\u7ed3\u5b9e\uff01\".", "\\cdddddd\u94f6\u68cd\uff0c\u6069\uff0c\u6709\u8fd9\u4e2a\u540d\u5b57\u5c31\u8db3\u591f\u4e86\u3002\n\\c00ff00\u88c5\u5907: \u653b\u51fb+70.\n\\cFFCC00\"\u53ea\u662f\u6839\u94f6\u68cd\".", "\\cdddddd\u56e0\u4e58\u5929\u5730\u4e4b\u7075\u6c14\uff0c\u96c6\u65e5\u6708\u4e4b\u7cbe\u534e\u4e43\u201c\u4e07\u6728\u4e4b\u7075\uff0c\u7075\u6728\u4e4b\u5c0a\u201d\u3002\n\\c00ff00\u88c5\u5907: \u653b\u51fb+120.\n\\cFFCC00\"\u6728\u4e4b\u7cbe\u534e\uff0c\u524a\u94c1\u65ad\u91d1\".", "\\cdddddd\u60a8\u7684\u9700\u8981\uff0c\u5b83\u77e5\u9053\uff1b\u60a8\u7684\u9700\u6c42\uff0c\u5b83\u6ee1\u8db3\u3002\u5b83\u597d\uff0c\u4f60\u4e5f\u597d\uff0c\u9f99\u738b\u540e\u5bab\uff0c\u9547\u5bab\u4e4b\u5b9d\uff01\n\\c00ff00\u88c5\u5907: \u653b\u51fb+220.\n\\cFFCC00\"\u4e0d\u8981\u8ff7\u604b\u5b83\uff0c\u5b83\u53ea\u662f\u4e00\u6839\u4f20\u8bf4\u3002\".", "", "\\cdddddd\u6ca1\u6709\u592a\u591a\u7684\u88c5\u9970\uff0c\u4e00\u4ef6\u975e\u5e38\u6734\u7d20\u3001\u8f7b\u4fbf\u7684\u5e03\u8863.\n\\c00ff00\u88c5\u5907: \u9632\u5fa1+10.\n\\cFFCC00\"\u770b\u4e0a\u53bb\u6709\u4e0d\u5c11\u4eba\u7528\u8fc7\u4e86\u3002\".", "\\cdddddd\u4fdd\u6696\u5fa1\u5bd2\uff0c\u8170\u4e0d\u9178\uff0c\u817f\u4e0d\u75bc\uff0c\u8d70\u8def\u4e5f\u6709\u52b2\u4e86\u3002\n\\c00ff00\u88c5\u5907: \u9632\u5fa1+30.\n\\cFFCC00\"\u8c79\u7eb9\uff0c\u6027\u611f\u53c8\u91ce\u6027\uff0c\u4eca\u5e74\u5929\u5bab\u6700\u6d41\u884c\u7684\u76ae\u8349\u6b3e\u5f0f\".", "\\cdddddd\u5982\u679c\u6ca1\u6709\u4e0a\u9762\u7684\u90a3\u884c\u5b57\uff0c\u5b83\u4e5f\u7b97\u662f\u4e2a\u6770\u4f5c\u3002\n\\c00ff00\u88c5\u5907: \u9632\u5fa1+70.\n\\cFFCC00\"\u4e0a\u9762\u5199\u7740'\u529e\u56db\u7ea7\u795e\u4ed9\u8bc1\u4e66\uff0c\u56de\u6536\u4e8c\u624b\u83b2\u82b1\u5b9d\u5ea7'\".", "\\cdddddd\u534e\u4e3d\u7684\u88c5\u9970\uff0c\u5c31\u662f\u6709\u70b9\u65e7\u3002\n\\c00ff00\u88c5\u5907: \u9632\u5fa1+120.\n\\cFFCC00\"\u522b\u4eba\u7a7f\u8fc7\u7684\u6781\u54c1\u3002\".", "\\cdddddd\u4e1c\u6d77\u9f99\u9cde\u7f16\u7ec7\u800c\u6210\uff0c\u9650\u91cf\u7248\uff0c\u5929\u4e0a\u5929\u4e0b\uff0c\u53ea\u6b64\u4e00\u6b3e\u3002\n\\c00ff00\u88c5\u5907: \u9632\u5fa1+220.\n\\cFFCC00\"\u66f4\u8f7b\u8584\uff0c\u66f4\u900f\u6c14\uff0c\u66f4\u591a\u9632\u62a4\uff0c\u66f4\u591a\u5b89\u5fc3\"."};
+        this.itemUseCounts = new byte[]{-1, -1, -1, -1, 1, 1, 1, 3, 1, 1, -1, -1, -1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+        this.yellowKeyCount = 0;
+        this.blueKeyCount = 0;
+        this.redKeyCount = 0;
+        this.goldAmount = 0;
+        this.itemStackTypes = new byte[32];
+        this.itemStackUses = new byte[32];
         int[] nArray4 = new int[]{0, 1, 2, 4, 8, 16, 32};
-        this.f_int_arr_14 = new int[]{0, 10, 30, 70, 120, 220, 0, 10, 30, 70, 120, 220};
-        this.f_byte_arr_19 = new byte[]{0, 33, 34, 35, 79, 36, 0, 37, 38, 39, 80, 40};
-        this.f_String_arr_12 = new String[]{"\u5b59\u609f\u7a7a", "\u9ec4\u95e8", "\u7ea2\u95e8", "\u84dd\u95e8", "\u5c01\u5370\u95e8", "\u95e8\u536b", "\u9690\u5f62\u8def\u5f84", "\u4e0a\u697c\u68af", "\u4e0b\u697c\u68af", "\u70bc\u4e39\u7089", "\u4e91\u96fe", "\u80fd\u6316\u7684\u5899", "\u9690\u5f62\u5899", "\u706b\u773c\u91d1\u775b", "\u751f\u6b7b\u7c3f", "\u7b4b\u6597\u4e91", "\u82ad\u8549\u6247", "\u91d1\u52fa\u5b50", "\u7384\u660e\u77f3", "\u5343\u5e74\u6708\u6842\u9732", "\u76f8\u5f62\u53d8\u4f4d", "\u4e0a\u884c\u7b26", "\u4e0b\u884c\u7b26", "\u592a\u516c\u6756", "\u6346\u4ed9\u7ef3", "\u5e78\u8fd0\u5e01", "\u9ec4\u94a5\u5319", "\u7ea2\u94a5\u5319", "\u84dd\u94a5\u5319", "\u5a01\u529b\u4e39", "\u91d1\u521a\u4e39", "\u56de\u6625\u4e38", "\u957f\u5bff\u4e39", "\u6843\u6728\u68d2", "\u7384\u94c1\u68d2", "\u771f\u94f6\u68d2", "\u91d1\u7b8d\u68d2", "\u9053\u888d", "\u94c1\u7532", "\u9501\u5b50\u7532", "\u7d2b\u91d1\u9f99\u9cde\u7532", "\u5929\u5bab\u5c0f\u72ac", "\u5929\u5bab\u5927\u72ac", "\u4f34\u7089\u7ae5\u5b50", "\u62a4\u5ead\u5c0f\u795e", "\u5b88\u56ed\u4ed9\u5a62", "\u62a4\u5ead\u6821\u5c09", "\u5de1\u5929\u536b\u58eb", "\u5de1\u5929\u536b\u58eb", "\u5de8\u529b\u58eb", "\u6267\u706b\u9053\u4eba", "\u594e\u6728\u72fc", "\u6267\u74f6\u4ed9\u4f8d", "\u91d1\u521a\u529b\u58eb", "\u62a4\u6301\u8fe6\u84dd", "\u4f8d\u6848\u4ed9\u5973", "\u62a4\u5ead\u795e\u5c06", "\u8d64\u529b\u97e6\u9a6e", "\u62a4\u4e39\u8001\u9053", "\u4f0f\u9b54\u97e6\u9a6e", "\u515c\u7387\u5bab\u661f\u541b", "\u65e0\u91cf\u62a4\u6cd5", "\u515c\u7387\u5bab\u8001\u4ed9", "\u4e8c\u90ce\u6267\u65d7\u5c06", "\u6740\u7834\u72fc", "\u4e8c\u90ce\u9a81\u9a91\u5c06", "\u5c0a\u5929\u97e6\u9a6e", "\u5578\u5929\u72ac", "\u592a\u4e0a\u8001\u541b", "\u6768\u622c", "\u7389\u7687\u5927\u5e1d", "\u7389\u7687\u5927\u5e1d", "\u725b\u9b54\u738b", "\u5929\u84ec\u5143\u5e05", "\u5de8\u7075\u795e", "\u54ea\u5412", "\u8def\u70b9", "\u592a\u767d\u91d1\u661f", "\u5929\u5bab\u5546\u4eba", "\u4e4c\u91d1\u68cd", "\u94f6\u7f15\u9501\u7532", "\u5c01\u5370\u95e8", "\u4f20\u602a\u70b9", "\u5267\u60c5\u70b9", "\u5ae6\u5a25", "\u9ec4\u91d1\u94a5\u5319", "\u65e5\u6708\u65e0\u6781\u94b9", "\u83e9\u63d0\u8001\u7956"};
-        this.f_int_arr_15 = new int[]{35, 45, 35, 50, 60, 55, 100, 50, 260, 60, 130, 100, 320, 20, 320, 100, 210, 220, 160, 200, 230, 220, 200, 360, 180, 180, 1200, 4500, 1500, 8000, 800, 5000, 120, 444, 100};
-        this.f_int_arr_16 = new int[]{18, 20, 38, 42, 32, 52, 180, 48, 85, 100, 60, 95, 120, 100, 140, 680, 200, 180, 230, 380, 450, 370, 390, 310, 430, 460, 180, 560, 600, 5000, 500, 1580, 150, 199, 65};
-        this.f_int_arr_17 = new int[]{1, 2, 3, 6, 8, 12, 110, 22, 5, 8, 3, 30, 15, 68, 20, 50, 65, 30, 105, 130, 100, 110, 90, 20, 210, 360, 20, 310, 250, 1000, 100, 190, 50, 66, 15};
-        this.f_int_arr_18 = new int[]{1, 2, 3, 6, 5, 8, 100, 12, 18, 12, 8, 22, 30, 28, 30, 55, 45, 35, 65, 90, 100, 80, 50, 40, 120, 200, 100, 1000, 800, 500, 500, 500, 100, 144, 30};
-        this.f_String_arr_13 = new String[]{"CES_84_6_11 MOV_0_5_11 TAK_8_9 CES_70_5_8 TAK_10_10 ROS_4_1 TAK_11_17 ROS_4_2 TAK_18_19 MOV_0_5_10 TAK_20_21 DES_70_5_8 LAY_2 ROS_1_4_7 ROS_2_0 ROS_2_6 RES_0 GUT_1 ", "TAK_22_22 ROS_4_3 TAK_23_32 MOV_72_3_7_1_8 ", "TAK_33_36 MOV_72_1_8_1_10 DES_72_1_10 ", "TAK_37_37 MOV_0_6_5 TAK_38_39 TAK_41_41 DES_44_1_3 DES_44_2_3 DES_44_3_3 DES_46_2_4 DES_44_9_3 DES_44_10_3 DES_44_11_3 DES_46_10_4 CES_44_5_4 CES_46_6_4 CES_44_7_4 CES_44_5_5 CES_44_7_5 CES_44_5_6 CES_46_6_6 CES_44_7_6 SWD TAK_42_42 ", "CES_72_1_11 TAK_43_44 MOV_0_6_3 MOV_72_1_11_6_2 ROS_4_1 TAK_45_48 MOV_72_6_2_6_1 DES_72_6_1 ", "TAK_49_52 MOV_72_9_1_7_1 DES_72_7_1 ", "TAK_53_58 ", "TAK_60_60 MOV_72_3_2_8_4 TAK_61_61 CES_47_8_3 CES_47_8_5 TAK_62_63 DES_72_8_4 DES_47_8_3 DES_47_8_5 ADD_2_72_11_10 ", "ROS_4_1 CES_73_10_1 MOV_73_10_1_6_9 TAK_68_74 MOV_73_6_9_6_10 ", "SWD ", "CES_72_3_10 MOV_72_3_10_2_10 MOV_72_2_10_4_9 TAK_76_78 DES_72_4_9 ", "SWD ", "TAK_84_87 MOV_58_5_4_6_8 MOV_58_4_4_6_8 MOV_58_3_4_6_8 MOV_57_7_4_6_8 MOV_57_8_4_6_8 MOV_57_9_4_6_8 MOV_56_4_2_6_8 MOV_56_3_2_6_8 MOV_56_2_2_6_8 MOV_59_8_2_6_8 MOV_59_9_2_6_8 MOV_59_10_2_6_8 TAK_88_90 MOV_73_6_2_6_8 ", "CES_6_10_2 CES_60_10_2 ", "ROS_4_1 TAK_92_97 DES_73_6_8 TAK_98_100 DES_70_6_7 ", "ROS_4_1 CES_61_5_2 CES_61_6_2 CES_61_7_2 CES_61_5_3 CES_70_6_3 CES_61_7_3 CES_61_5_4 CES_61_6_4 CES_61_7_4 TAK_118_121 ", "TAK_123_126 GUT_37 ", "TAK_68_74 ", "DES_1_4_4 CES_20_4_4 ", "CES_84_7_7 MOV_84_7_7_6_8 TAK_0_1 MOV_84_6_8_1_8 TAK_2_2 MOV_0_2_8 TAK_3_3 MOV_84_1_8_1_1 TAK_4_4 MOV_0_1_2 TAK_5_5 MOV_84_1_1_10_1 MOV_0_6_1 DES_84_10_1 TAK_6_7 MOV_0_11_1 MOV_0_1_11 ", "TAK_40_40 ", "TAK_59_59 ", "TAK_75_75 ", "TAK_84_87 GUT_12 ", "TAK_101_105 ", "CES_22_6_6 ", "TAK_129_132 DES_84_11_4 GIN_1_1000 ", "TAK_113_117 TAK_133_135 DES_84_6_11 GIN_0_13 ", "TAK_136_143 DES_84_1_11 TAK_144_144 GIN_0_19 ", "TAK_145_146 DES_84_9_8 GIN_1_1000 ", "MOV_84_6_3_4_3 MOV_84_4_3_8_3 MOV_84_8_3_6_3 TAK_107_107 ", "TAK_108_108 DES_10_6_6 MOV_0_6_5 TAK_109_112 TAK_147_148 DES_84_6_3 TAK_149_149 ", "TAK_79_79 ", "TAK_155_160 DES_72_11_10 ", "TAK_150_154 ", "TAK_161_161 ", "TAK_162_162 ", "GLV_1 ", "CES_6_4_1 CES_61_4_1 ", "", "TAK_255_259 TAK_165_165 SEE_3_10_166_166_1 ", "TAK_167_167 SEE_4_10_168_168_0 ROS_4_1 SEE_2_8_169_169_0 SEE_2_8_170_170_1 ", "TAK_171_171 SEE_7_10_172_172_0 SEE_7_10_173_173_1 ", "TAK_174_174 SEE_7_9_175_175_0 TAK_176_176 SEE_8_8_177_178_0 ", "TAK_179_180 ROS_4_3 SEE_8_6_181_182_0 ROS_4_1 SEE_10_4_183_183_0 ", "ROS_4_1 SEE_8_3_184_184_0 ROS_4_0 SEE_6_7_185_185_0 ", "SEE_4_4_186_186_0 ROS_4_1 SEE_6_2_187_187_1 ", "ROS_4_0 SEE_6_2_188_188_0 SEE_4_4_189_189_1 ", "TAK_190_190 ROS_4_1 SEE_2_2_191_192_0 ROS_4_0 SEE_2_6_193_196_0 SEE_2_6_197_198_1 ", "ROS_4_3 SEE_1_11_199_200_0 ", "ROS_4_2 SEE_6_11_201_202_0 ROS_4_3 SEE_3_8_203_204_0 CES_6_3_10 SEE_3_8_205_205_1 ", "TAK_206_209 ", "TAK_210_211 SEE_11_11_212_212_0 SEE_11_7_213_214_0 TAK_215_216 ", "TAK_217_218 ROS_5_510 ROS_6_510 CES_36_11_8 SEE_11_8_219_221_0 CES_40_11_9 SEE_11_9_222_222_0 SEE_8_9_224_225_0 SEE_10_9_223_223_0 DES_11_10_9 ", "TAK_224_224 SEE_6_2_225_225_0 ", "TAK_226_227 ROS_5_510 ROS_6_510 CES_36_5_1 CES_40_7_1 TAK_228_228 ", "TAK_229_231 MOV_0_6_7 TAK_232_232 DES_51_2_8 DES_51_1_8 DES_51_2_9 DES_51_1_9 CES_51_6_6 CES_51_5_7 CES_51_6_8 CES_51_7_7 GUT_57 ", "MOV_51_6_6_6_7 ROS_4_3 MOV_51_5_7_6_7 ROS_4_0 MOV_51_6_8_6_7 ROS_4_2 MOV_51_7_7_6_7 ROS_4_1 TAK_233_235 MOV_74_7_4_6_7 GUT_61 ", "", "", "", "TAK_236_238 MOV_75_5_4_6_7 TAK_239_239 GUT_62 ", "CES_69_5_5 CES_47_5_6 CES_47_5_7 CES_47_5_8 CES_56_7_6 CES_56_7_7 CES_56_7_8 TAK_240_245 GUT_63 ", "CES_77_6_6 TAK_246_250 DES_71_6_3 DES_77_6_6 DES_69_5_5 DES_-66_0 DES_-56_0 DES_-49_0 DES_-47_0 DES_-69_0 ", "TAK_253_254 ", "TAK_127_128 END_0 ", "TAK_261_263 SMS_0 ", "TAK_264_268 "};
-        this.f_byte_arr_21 = new byte[]{0, 84, 0, 84, 0, 84, 0, 0, 84, 0, 70, 0, 70, 0, 70, 0, 70, 0, 84, 0, 0, 70, 72, 0, 72, 0, 72, 0, 72, 0, 72, 0, 72, 0, 72, 0, 72, 75, 0, 75, 75, 75, 0, 72, 0, 72, 0, 72, 0, 72, 0, 72, 0, 74, 0, 74, 0, 74, 0, 74, 72, 72, 47, 72, 0, 72, 72, 0, 73, 0, 73, 0, 73, 0, 73, 73, 72, 0, 72, 72, 0, 72, 72, 0, 73, 0, 73, 0, 73, 0, 73, 0, 70, 73, 70, 73, 70, 73, 73, 0, 70, 69, 0, 69, 0, 69, 84, 0, 0, 84, 0, 84, 0, 84, 0, 84, 0, 84, 70, 0, 70, 0, 70, 72, 0, 72, 0, 0, -1, 0, 84, 0, 84, 84, 0, 84, 0, 84, 0, 84, 0, 84, 0, 84, 0, 84, 0, 0, 0, 0, 69, 69, 0, 69, 0, 0, 72, 0, 72, 0, 72, 0, 0, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 0, 87, 87, 87, 87, 87, 87, 0, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 71, 71, 0, 71, 71, 74, 71, 75, 0, 71, 71, 69, 47, 69, 56, 69, 47, 77, 77, 77, 71, 0, 56, 71, 0, 0, 87, 0, 87, 0, 87, 0, 87, 0, 0, 87, 87, 87, 87, 87};
+        this.equipTierBonuses = new int[]{0, 10, 30, 70, 120, 220, 0, 10, 30, 70, 120, 220};
+        this.equipTierTypes = new byte[]{0, 33, 34, 35, 79, 36, 0, 37, 38, 39, 80, 40};
+        this.objectTypeNames = new String[]{"\u5b59\u609f\u7a7a", "\u9ec4\u95e8", "\u7ea2\u95e8", "\u84dd\u95e8", "\u5c01\u5370\u95e8", "\u95e8\u536b", "\u9690\u5f62\u8def\u5f84", "\u4e0a\u697c\u68af", "\u4e0b\u697c\u68af", "\u70bc\u4e39\u7089", "\u4e91\u96fe", "\u80fd\u6316\u7684\u5899", "\u9690\u5f62\u5899", "\u706b\u773c\u91d1\u775b", "\u751f\u6b7b\u7c3f", "\u7b4b\u6597\u4e91", "\u82ad\u8549\u6247", "\u91d1\u52fa\u5b50", "\u7384\u660e\u77f3", "\u5343\u5e74\u6708\u6842\u9732", "\u76f8\u5f62\u53d8\u4f4d", "\u4e0a\u884c\u7b26", "\u4e0b\u884c\u7b26", "\u592a\u516c\u6756", "\u6346\u4ed9\u7ef3", "\u5e78\u8fd0\u5e01", "\u9ec4\u94a5\u5319", "\u7ea2\u94a5\u5319", "\u84dd\u94a5\u5319", "\u5a01\u529b\u4e39", "\u91d1\u521a\u4e39", "\u56de\u6625\u4e38", "\u957f\u5bff\u4e39", "\u6843\u6728\u68d2", "\u7384\u94c1\u68d2", "\u771f\u94f6\u68d2", "\u91d1\u7b8d\u68d2", "\u9053\u888d", "\u94c1\u7532", "\u9501\u5b50\u7532", "\u7d2b\u91d1\u9f99\u9cde\u7532", "\u5929\u5bab\u5c0f\u72ac", "\u5929\u5bab\u5927\u72ac", "\u4f34\u7089\u7ae5\u5b50", "\u62a4\u5ead\u5c0f\u795e", "\u5b88\u56ed\u4ed9\u5a62", "\u62a4\u5ead\u6821\u5c09", "\u5de1\u5929\u536b\u58eb", "\u5de1\u5929\u536b\u58eb", "\u5de8\u529b\u58eb", "\u6267\u706b\u9053\u4eba", "\u594e\u6728\u72fc", "\u6267\u74f6\u4ed9\u4f8d", "\u91d1\u521a\u529b\u58eb", "\u62a4\u6301\u8fe6\u84dd", "\u4f8d\u6848\u4ed9\u5973", "\u62a4\u5ead\u795e\u5c06", "\u8d64\u529b\u97e6\u9a6e", "\u62a4\u4e39\u8001\u9053", "\u4f0f\u9b54\u97e6\u9a6e", "\u515c\u7387\u5bab\u661f\u541b", "\u65e0\u91cf\u62a4\u6cd5", "\u515c\u7387\u5bab\u8001\u4ed9", "\u4e8c\u90ce\u6267\u65d7\u5c06", "\u6740\u7834\u72fc", "\u4e8c\u90ce\u9a81\u9a91\u5c06", "\u5c0a\u5929\u97e6\u9a6e", "\u5578\u5929\u72ac", "\u592a\u4e0a\u8001\u541b", "\u6768\u622c", "\u7389\u7687\u5927\u5e1d", "\u7389\u7687\u5927\u5e1d", "\u725b\u9b54\u738b", "\u5929\u84ec\u5143\u5e05", "\u5de8\u7075\u795e", "\u54ea\u5412", "\u8def\u70b9", "\u592a\u767d\u91d1\u661f", "\u5929\u5bab\u5546\u4eba", "\u4e4c\u91d1\u68cd", "\u94f6\u7f15\u9501\u7532", "\u5c01\u5370\u95e8", "\u4f20\u602a\u70b9", "\u5267\u60c5\u70b9", "\u5ae6\u5a25", "\u9ec4\u91d1\u94a5\u5319", "\u65e5\u6708\u65e0\u6781\u94b9", "\u83e9\u63d0\u8001\u7956"};
+        this.enemyBaseHp = new int[]{35, 45, 35, 50, 60, 55, 100, 50, 260, 60, 130, 100, 320, 20, 320, 100, 210, 220, 160, 200, 230, 220, 200, 360, 180, 180, 1200, 4500, 1500, 8000, 800, 5000, 120, 444, 100};
+        this.enemyBaseAtk = new int[]{18, 20, 38, 42, 32, 52, 180, 48, 85, 100, 60, 95, 120, 100, 140, 680, 200, 180, 230, 380, 450, 370, 390, 310, 430, 460, 180, 560, 600, 5000, 500, 1580, 150, 199, 65};
+        this.enemyBaseDef = new int[]{1, 2, 3, 6, 8, 12, 110, 22, 5, 8, 3, 30, 15, 68, 20, 50, 65, 30, 105, 130, 100, 110, 90, 20, 210, 360, 20, 310, 250, 1000, 100, 190, 50, 66, 15};
+        this.enemyBaseGold = new int[]{1, 2, 3, 6, 5, 8, 100, 12, 18, 12, 8, 22, 30, 28, 30, 55, 45, 35, 65, 90, 100, 80, 50, 40, 120, 200, 100, 1000, 800, 500, 500, 500, 100, 144, 30};
+        this.levelScriptLines = new String[]{"CES_84_6_11 MOV_0_5_11 TAK_8_9 CES_70_5_8 TAK_10_10 ROS_4_1 TAK_11_17 ROS_4_2 TAK_18_19 MOV_0_5_10 TAK_20_21 DES_70_5_8 LAY_2 ROS_1_4_7 ROS_2_0 ROS_2_6 RES_0 GUT_1 ", "TAK_22_22 ROS_4_3 TAK_23_32 MOV_72_3_7_1_8 ", "TAK_33_36 MOV_72_1_8_1_10 DES_72_1_10 ", "TAK_37_37 MOV_0_6_5 TAK_38_39 TAK_41_41 DES_44_1_3 DES_44_2_3 DES_44_3_3 DES_46_2_4 DES_44_9_3 DES_44_10_3 DES_44_11_3 DES_46_10_4 CES_44_5_4 CES_46_6_4 CES_44_7_4 CES_44_5_5 CES_44_7_5 CES_44_5_6 CES_46_6_6 CES_44_7_6 SWD TAK_42_42 ", "CES_72_1_11 TAK_43_44 MOV_0_6_3 MOV_72_1_11_6_2 ROS_4_1 TAK_45_48 MOV_72_6_2_6_1 DES_72_6_1 ", "TAK_49_52 MOV_72_9_1_7_1 DES_72_7_1 ", "TAK_53_58 ", "TAK_60_60 MOV_72_3_2_8_4 TAK_61_61 CES_47_8_3 CES_47_8_5 TAK_62_63 DES_72_8_4 DES_47_8_3 DES_47_8_5 ADD_2_72_11_10 ", "ROS_4_1 CES_73_10_1 MOV_73_10_1_6_9 TAK_68_74 MOV_73_6_9_6_10 ", "SWD ", "CES_72_3_10 MOV_72_3_10_2_10 MOV_72_2_10_4_9 TAK_76_78 DES_72_4_9 ", "SWD ", "TAK_84_87 MOV_58_5_4_6_8 MOV_58_4_4_6_8 MOV_58_3_4_6_8 MOV_57_7_4_6_8 MOV_57_8_4_6_8 MOV_57_9_4_6_8 MOV_56_4_2_6_8 MOV_56_3_2_6_8 MOV_56_2_2_6_8 MOV_59_8_2_6_8 MOV_59_9_2_6_8 MOV_59_10_2_6_8 TAK_88_90 MOV_73_6_2_6_8 ", "CES_6_10_2 CES_60_10_2 ", "ROS_4_1 TAK_92_97 DES_73_6_8 TAK_98_100 DES_70_6_7 ", "ROS_4_1 CES_61_5_2 CES_61_6_2 CES_61_7_2 CES_61_5_3 CES_70_6_3 CES_61_7_3 CES_61_5_4 CES_61_6_4 CES_61_7_4 TAK_118_121 ", "TAK_123_126 GUT_37 ", "TAK_68_74 ", "DES_1_4_4 CES_20_4_4 ", "CES_84_7_7 MOV_84_7_7_6_8 TAK_0_1 MOV_84_6_8_1_8 TAK_2_2 MOV_0_2_8 TAK_3_3 MOV_84_1_8_1_1 TAK_4_4 MOV_0_1_2 TAK_5_5 MOV_84_1_1_10_1 MOV_0_6_1 DES_84_10_1 TAK_6_7 MOV_0_11_1 MOV_0_1_11 ", "TAK_40_40 ", "TAK_59_59 ", "TAK_75_75 ", "TAK_84_87 GUT_12 ", "TAK_101_105 ", "CES_22_6_6 ", "TAK_129_132 DES_84_11_4 GIN_1_1000 ", "TAK_113_117 TAK_133_135 DES_84_6_11 GIN_0_13 ", "TAK_136_143 DES_84_1_11 TAK_144_144 GIN_0_19 ", "TAK_145_146 DES_84_9_8 GIN_1_1000 ", "MOV_84_6_3_4_3 MOV_84_4_3_8_3 MOV_84_8_3_6_3 TAK_107_107 ", "TAK_108_108 DES_10_6_6 MOV_0_6_5 TAK_109_112 TAK_147_148 DES_84_6_3 TAK_149_149 ", "TAK_79_79 ", "TAK_155_160 DES_72_11_10 ", "TAK_150_154 ", "TAK_161_161 ", "TAK_162_162 ", "GLV_1 ", "CES_6_4_1 CES_61_4_1 ", "", "TAK_255_259 TAK_165_165 SEE_3_10_166_166_1 ", "TAK_167_167 SEE_4_10_168_168_0 ROS_4_1 SEE_2_8_169_169_0 SEE_2_8_170_170_1 ", "TAK_171_171 SEE_7_10_172_172_0 SEE_7_10_173_173_1 ", "TAK_174_174 SEE_7_9_175_175_0 TAK_176_176 SEE_8_8_177_178_0 ", "TAK_179_180 ROS_4_3 SEE_8_6_181_182_0 ROS_4_1 SEE_10_4_183_183_0 ", "ROS_4_1 SEE_8_3_184_184_0 ROS_4_0 SEE_6_7_185_185_0 ", "SEE_4_4_186_186_0 ROS_4_1 SEE_6_2_187_187_1 ", "ROS_4_0 SEE_6_2_188_188_0 SEE_4_4_189_189_1 ", "TAK_190_190 ROS_4_1 SEE_2_2_191_192_0 ROS_4_0 SEE_2_6_193_196_0 SEE_2_6_197_198_1 ", "ROS_4_3 SEE_1_11_199_200_0 ", "ROS_4_2 SEE_6_11_201_202_0 ROS_4_3 SEE_3_8_203_204_0 CES_6_3_10 SEE_3_8_205_205_1 ", "TAK_206_209 ", "TAK_210_211 SEE_11_11_212_212_0 SEE_11_7_213_214_0 TAK_215_216 ", "TAK_217_218 ROS_5_510 ROS_6_510 CES_36_11_8 SEE_11_8_219_221_0 CES_40_11_9 SEE_11_9_222_222_0 SEE_8_9_224_225_0 SEE_10_9_223_223_0 DES_11_10_9 ", "TAK_224_224 SEE_6_2_225_225_0 ", "TAK_226_227 ROS_5_510 ROS_6_510 CES_36_5_1 CES_40_7_1 TAK_228_228 ", "TAK_229_231 MOV_0_6_7 TAK_232_232 DES_51_2_8 DES_51_1_8 DES_51_2_9 DES_51_1_9 CES_51_6_6 CES_51_5_7 CES_51_6_8 CES_51_7_7 GUT_57 ", "MOV_51_6_6_6_7 ROS_4_3 MOV_51_5_7_6_7 ROS_4_0 MOV_51_6_8_6_7 ROS_4_2 MOV_51_7_7_6_7 ROS_4_1 TAK_233_235 MOV_74_7_4_6_7 GUT_61 ", "", "", "", "TAK_236_238 MOV_75_5_4_6_7 TAK_239_239 GUT_62 ", "CES_69_5_5 CES_47_5_6 CES_47_5_7 CES_47_5_8 CES_56_7_6 CES_56_7_7 CES_56_7_8 TAK_240_245 GUT_63 ", "CES_77_6_6 TAK_246_250 DES_71_6_3 DES_77_6_6 DES_69_5_5 DES_-66_0 DES_-56_0 DES_-49_0 DES_-47_0 DES_-69_0 ", "TAK_253_254 ", "TAK_127_128 END_0 ", "TAK_261_263 SMS_0 ", "TAK_264_268 "};
+        this.dialogueSpeakerType = new byte[]{0, 84, 0, 84, 0, 84, 0, 0, 84, 0, 70, 0, 70, 0, 70, 0, 70, 0, 84, 0, 0, 70, 72, 0, 72, 0, 72, 0, 72, 0, 72, 0, 72, 0, 72, 0, 72, 75, 0, 75, 75, 75, 0, 72, 0, 72, 0, 72, 0, 72, 0, 72, 0, 74, 0, 74, 0, 74, 0, 74, 72, 72, 47, 72, 0, 72, 72, 0, 73, 0, 73, 0, 73, 0, 73, 73, 72, 0, 72, 72, 0, 72, 72, 0, 73, 0, 73, 0, 73, 0, 73, 0, 70, 73, 70, 73, 70, 73, 73, 0, 70, 69, 0, 69, 0, 69, 84, 0, 0, 84, 0, 84, 0, 84, 0, 84, 0, 84, 70, 0, 70, 0, 70, 72, 0, 72, 0, 0, -1, 0, 84, 0, 84, 84, 0, 84, 0, 84, 0, 84, 0, 84, 0, 84, 0, 84, 0, 0, 0, 0, 69, 69, 0, 69, 0, 0, 72, 0, 72, 0, 72, 0, 0, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 0, 87, 87, 87, 87, 87, 87, 0, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 87, 71, 71, 0, 71, 71, 74, 71, 75, 0, 71, 71, 69, 47, 69, 56, 69, 47, 77, 77, 77, 71, 0, 56, 71, 0, 0, 87, 0, 87, 0, 87, 0, 87, 0, 0, 87, 87, 87, 87, 87};
         this.f_byte_arr_22 = new byte[]{7, 5, -1, 3, -1, 5, -1, 1, 10, 0, -1, -1, -1, -1, -1, -1, -1, 1, 9, 7, 8, -1, -1, 5, 11, 2, 6, -1, -1, -1, -1, 3, 11, 0, 8, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 2, -1, 11, -1, 5, 0, 5, 9, 2, 10, 3, -1, -1, 11, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, 10, -1, -1, 9, 0, 1, -1, -1, -1, -1, -1, -1, 3, 11, -1, 0, 3, -1, -1, -1, -1, -1, 5, -1, -1, -1, -1, -1, -1, -1, -1, -1, 5, -1, 5, -1, 1, 3, -1, 8, 9, 8, 9, -1, -1, -1, 8, 4, 5, 6, 10, 8, -1, -1, 5, 9, 1, -1, 0, 3, 7, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 3, -1, -1, 0, -1, -1, -1, -1, -1, -1, 7, -1, 7, -1, 7, 2, 2, -1, 2, -1, -1, -1, 7, -1, -1, -1, -1, -1, -1, -1, -1, 9, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
-        this.f_String_arr_14 = new String[]{"\u59d1\u5a18\uff0c\u60a8\u2026\u2026", "\u54ce\u5440\uff0c\u59d1\u5976\u5976\u6211\u597d\u4e0d\u5bb9\u6613\u6000\u63e32\u4e2a\u4ed9\u6843\u5939\u5e26\u51fa\u6765\uff0c\u5c45\u7136\u88ab\u53d1\u73b0\u4e86~\uff01\u5feb\u95ea\uff01\uff01", "\u2026\u2026\uff0c\u8dd1\u90fd\u8dd1\u7684\u8fd9\u4e48\u4f18\u96c5\u3002", "\u54ce\u5440\uff0c\u8dd1\u8fd9\u4e48\u5feb\u2026\u2026", "\u4fee\u9017\u5988\u5f85~\uff01\u2026\u2026", "\u6b7b\u7334\u5b50\uff0c\u7a77\u8ffd\u731b\u6253\uff0c\u8ffd\u7684\u4eba\u5bb6\u5c0f\u5fc3\u809d\u5657\u55f5\u5657\u55f5\u5730\u2026\u2026", "\u554a~~~\u59d1\u5a18\u54df~~\u59d1~~~\u5a18~~\uff01\uff01", "\u6b7b\u5f00\u6b7b\u5f00~\uff01\uff01\u597d\u72d7\u4e0d\u6321\u8def\u3002", "\u5c45\u7136\u8ffd\u5230\u8fd9\u91cc\u4e86\uff0c\u7b97\u4e86\u5427\uff0c\u8ba4\u4e86\u5427\u3002\n\\cFFCC00\u4e24\u4e2a\u6843\u5b50\u6eda\u843d\u5730\u4e0a", "\u54ce~~~~~~~", "\u6211\u54a4~~~~\uff01\u5929\u5ead\u5723\u5730\uff0c\u7981\u6b62\u55a7\u54d7\u3002", "\u6211~~~~", "\u6211\u4ec0\u4e48\u6211~\uff1f\uff1f\u6574\u5929\u8eab\u5c45\u4ed9\u4f4d\uff0c\u6e38\u624b\u597d\u95f2\u2026\u2026", "\u4f60~~~~~~~~~", "\u4f60\u4ec0\u4e48\u4f60~\uff1f\uff1f\u770b\u5ae6\u5a25\u8863\u6749\u4e0d\u6574\uff0c\u662f\u4e0d\u662f\u4f60\u975e\u793c~\uff1f\uff1f\u662f\u4e0d\u662f\u4f60\u662f\u4e0d\u662f\u4f60\u662f\u4e0d\u662f\u4f60\uff01\uff1f", "\u5979~~~~~~~~~~", "\u5979\u4ec0\u4e48\u5979~\uff1f\uff1f\u54e6~\uff01\u8fd8\u6eda\u51fa\u67652\u4e2a\u4ed9\u6843\uff01\uff01\u5047\u516c\u6d4e\u79c1\u662f\u5427~\uff01\uff01\u7334\u5b50\u5077\u6843\u662f\u5427\uff01\uff01", "\u4ffa\u6ca1~\uff01\u2026\u2026", "\u2026\u2026", "\u4f60\u2026\u2026\u53eb\u5ae6\u5a25\uff1f\u8fd9\u4e2a\u540d\u5b57\uff0c\u4ffa\uff0c\u8bb0\u3002\u4f4f\u3002\u4e86\u2026\u2026", "\u6ca1\u9519\uff0c\u6843\u5b50\u5c31\u662f\u4ffa\u5077\u7684\uff01\uff01\u4ffa\u8ba4\u7f5a\uff01", "\u5c06\u8fd9\u53ea\u5b7d\u755c\u5265\u4e0b\u94e0\u7532\u6253\u4e0b\u5929\u7262\uff01", "\u8d24\u5f1f\uff0c\u5feb\u9192\u9192\u2026\u2026", "\u54ce\u5466\u2026\u2026\u8001\u725b\uff0c\u9192\u6765\u89c1\u4f60\u90a3\u5f20\u8138\uff0c\u771f\u63d0\u795e\uff01\uff01", "\u6211\u5b81\u613f\u770b\u7740\u4f60\uff0c\u7761\u5f97\u5982\u6b64\u6c89\u9759\uff0c\u80dc\u8fc7\u4f60\u9192\u65f6\u51b3\u88c2\u822c\u65e0\u60c5~~", "\u9760\uff0c\u53d1\u6625\u5450\uff0c\u628a~\u624b~\u62ff~\u5f00~~\uff01", "\u54df~~\u633a\u6a2a\u5f97\u563f~\u725b\u54e5\u5b66\u5f97\u4e00\u624b\u597d\u6444\u5f71\u2026\u2026\u521a\u624d\u2026\u2026", "\u2026\u2026\u5927\u54e5\u4e45\u8fdd\u4e86\uff0c\u591a\u65e5\u4e0d\u89c1\uff0c\u53d7\u5c0f\u5f1f\u4e00\u62dc\uff01\uff01", "\u8bdd\u8bf4\u4f60\u4e00\u76f4\u5728\u68a6\u4e2d\u53eb\u7740\u4e00\u4e2a\u4eba\u7684\u540d\u5b57\uff0c\u5979\u4e00\u5b9a\u5077\u4e86\u4f60\u5f88\u591a\u6843\u5b50\u2026\u2026", "\u6ca1\u9519\uff0c\u5979\u662f\u5077\u4e86\u6211\u7684\u4e1c\u897f\uff0c\u4f46\u662f\u4e0d\u662f\u6843\u5b50\uff0c\u6211\u5f88\u60f3\u518d\u89c1\u5979\u2026\u2026", "\u6069\u6069\uff0c\u73b0\u5728\u5927\u54e5\u5e26\u4f60\u4ece\u5bc6\u9053\u51fa\u53bb\u2026\u2026", "\u2026\u2026\u8fd9\u4f60\u90fd\u80fd\u6316\u5f00~\uff01\uff01", "\u54e5\u5728\u9b54\u754c\u6709\u4e2a\u7ef0\u53f7\uff0c\u53eb\u201c\u6e9c\u5f97\u6ed1\u201d\uff0c\u6ca1\u6709\u4ec0\u4e48\u56da\u7262\u80fd\u56f0\u4f4f\u54e5\u2026\u2026", "\u5927\u54e5\uff01\uff01\u80fd\u4e0d\u80fd\u5206\u6211\u4ef6\u4e1c\u897f\u906e\u906e\u7f9e\u2026\u2026", "\u6709\uff0c\u6211\u8fd9\u6709\u628a\u521a\u6316\u5730\u9053\u7684\u7834\u52fa\uff0c\u4f60\u62ff\u53bb\u6321\u4f4f\u5148\uff01", "\u9760\u2026\u2026\u7b97\u4e86\uff0c\u603b\u6bd4\u6ca1\u6709\u597d\u3002\u2026\u2026", "\u6ca1\u529e\u6cd5\uff0c\u4f60\u5c31\u5c06\u5c31\u4e00\u4e0b\u5566\u3002\\cFFCC00\u6709\u4ef6\u9053\u7ae5\u7684\u65e7\u888d\u5b50\u57289\u697c\uff0c\u4f60\u4ed4\u7ec6\u627e\u627e\u5427\uff0c\\cF8F8F8\u6211\u5148\u64a4\u4e86\u2026\u2026", "\u5996\u7334\uff0c\u4f60\u53ef\u8ba4\u5f97\u672c\u5c11\u7237\uff01\uff01", "\u549d~~\u6211\u770b\u4f60\u9aa8\u9abc\u6e05\u5947\u4e09\u5934\u516d\u81c2\uff0c\u731c\u5f97\u4e0d\u9519\u7684\u8bdd\uff0c\u9601\u4e0b\u4e00\u5b9a\u662f\u7578\u5f62\u513f\uff01", "\u554a~\uff01\u5927\u54e5\u679c\u7136\u9ad8\u624b\uff01\u8fd9\u90fd\u88ab\u4f60\u770b\u7a7f\u4e86\uff01\u4e0d\u80fd\u7559\u4f60\u6d3b\u53e3\u4e86\uff01", "\u54ce\u5440\u5440~~\u6211\u56de\u53bb\u544a\u8bc9\u6211\u7239\u53bb\uff01", "\u6765\u4eba\uff01\u628a\u5996\u7334\u62ff\u4e0b\uff01", "\u54e6~~~\u55b3~\uff01\u674e\u5c0f\u7334\u8e22\u9986\uff01\uff01", "\u8d24\u5f1f\uff0c\u6162\u7740\uff01", "\u6e9c\u5f97\u6ed1\uff1f", "\u6211\u5077\u5077\u544a\u8bc9\u4f60\u54e6\uff0c\u6709\u4e2a\u94f6\u68cd\u572817\u5c42\uff0c\u4f60\u627e\u5230\u5b83\u4ee5\u540e\u5c31\u80fd\u5389\u5bb3\u5f88\u591a\uff1f", "\u4e86\u89e3\uff01", "\u7ea2\u4e86\u7ea2\u8138", "\u5c3d\u5feb\u53bb\u5427\uff0c\u6211\u95ea\u5148\u2026\u2026", "\u8d24\u5f1f\uff0c\u8fd9\u53ea\u5578\u5929\u72ac\u5728\u8fd9\u91cc\u6321\u9053\u592a\u5371\u9669\u4e86\uff0c\u8ddf\u54e5\u54e5\u7ed5\u5bc6\u9053\u5427\u3002", "\u4e00\u53ea\u770b\u95e8\u7684\u5ba0\u7269\uff0c\u80fd\u51f6\u5230\u54ea\u91cc\uff1f", "\u4e0d\u662f\uff0c\u81ea\u4ece\u8c03\u5230\u5929\u5ead\u5b88\u8def\uff0c\u5df2\u7ecf\u5f88\u591a\u5929\u6ca1\u6709\u5403\u8364\u8165\u4e86\u2026\u2026", "\u4e86\u89e3\uff0c\u7ed5\u9053\uff0c\u8d70~\uff01", "\u6211\u4e43\u6258\u5854\u5929\u738b\u9ebe\u4e0b\u5148\u950b\u5b98\uff0c\u5de8\u73b2\u795e\u662f\u4e5f\uff01\u4f60\u6b3a\u6211\u5b69\u513f\u2026\u2026", "\u6b3a\u4f60\u5b69\u513f~\uff1f", "\u5176\u5b9e\u2026\u2026\u54ea\u5412\u662f\u5974\u5bb6\u8ddf\u6258\u5854\u5929\u738b\u7684\u79c1\u751f\u5b50\u2026\u2026", "\u4f60\u662f\u5973\u5c06\uff01\uff1f", "\u5176\u5b9e\uff0c\u770b\u6211\u50cf\u8299\u84c9\u59d0\u59d0\u4e00\u6837\u7684\u597d\u8eab\u6bb5\uff0c\u4f60\u5c31\u5e94\u8be5\u4e86\u89e3\u2026\u2026", "\u2026\u2026\u549d~~\u6258\u5854\u5929\u738b\u53e3\u5473\u8fd9\u4e48\u504f\u2026\u2026", "\u554a~~~\u5929\u738b\uff0c\u5de8\u73b2\u513f\u4e0d\u80fd\u966a\u4f34\u4f60\u4e86\u2026\u2026", "\u770b\u6765\u4f60\u5df2\u7ecf\u6253\u901a\u6697\u5899\u4e86\uff0c\u770b\u54e5\u7684\u3002", "\u5662\uff0c\u901a\u5b8c\u6536\u5de5\uff0c\u8d70\uff01\uff01\u2026\u2026", "\u6211\u4eec\u662f\u5929\u5ead\u5e02\u5bb9\u7ba1\u7406\u961f\uff01\uff01\u554a\u54c8~\u4e71\u5806\u6e23\u571f\uff0c\u8fdd\u89c4\u65bd\u5de5\u7ec8\u4e8e\u88ab\u6293\u4e2a\u73b0\u884c\uff01", "\u54ce\u5440~\uff01\u5144\u5f1f\uff0c\u4e00\u5b9a\u8981\u67652\u5c42\u5929\u7262\u6551\u6211\u5440\uff01", "", "", "", "", "\u4f60\u5c31\u662f\u5b59\u609f\u7a7a\uff01\uff1f", "\u4ffa\u5c31\u662f\u3002", "\u6211\u5e38\u53bb\u5e7f\u5bd2\u5bab\u770b\u5979\uff0c\u5979\u8fd9\u51e0\u5929\u5e38\u5e38\u63d0\u5230\u4f60\u2026\u2026\u6211\u4ece\u6765\u4e0d\u77e5\u9053\u4ec0\u4e48\u53eb\u505a\u5ac9\u5992\uff0c\u4f46\u662f\u8fd9\u6b21\uff0c\u6211\u60f3\u8981\u4f60\u7684\u547d\u3002", "\u54fc\uff0c\u4f60\u54ea\u4f4d\uff1f", "\u6211\u4e43\u5929\u84ec\u5143\u5e05\uff0c\u6731\u521a\u9b23\uff01\uff01\u638c\u7ba1\u5929\u6cb3\u2026\u2026", "\u732a\u809b\u88c2\uff1f\uff1f\u597d\uff0c\u6ee1\u8db3\u4f60\u8fd9\u4e2a\u613f\u671b\u2026\u2026", "\u54ce\u2026\u2026\u6211\u8fd8\u6ca1\u62a5\u5b8c\u5462\u2026\u2026", "\u83ca\u82b1\u6b8b~~~\u6ee1\u5730\u4f24\u2026\u2026", "\u4f60\u8ddf\u6768\u622c\u4e00\u6218\uff0c\u5929\u5ead\u90fd\u5f00\u4e86\u76d8\u53e3\uff0c\u8d54\u7387\u662f1:5\uff0c\u54e5\u628a\u79c1\u623f\u94b1\u90fd\u62bc\u5230\u4f60\u5934\u4e0a\u4e86\uff0c\u8868\u8f9c\u8d1f\u54e5\u54e5\u54df~", "\u2026\u2026\u771f\u60f3\u80cc\u540e\u7ed9\u4f60\u4e00\u95f7\u68cd\u2026\u2026", "\u5929\u5ead\u7981\u6b62\u4e71\u5806\u6e23\u571f\uff0c\u54e5\u54e5\u628a\u6e23\u571f\u8fd0\u5230\u201c\u5929\u5ead\u57ce\u7ba1\u529e\u4e8b\u5904\u201d\u53bb\uff0c\u5c31\u4e0d\u7b97\u4e71\u5806\u4e86\uff0c\u634f\u563f\u563f~~", "\\cFFCC0023\u5c42\u4e43\u662f29\u5c42\u7684\u5730\u57fa\u6240\u5728\uff0c\u627e\u51fa\u6697\u85cf\u7684\u5899\uff0c\u5c31\u53ef\u4ee5\u8ba929\u5c42\u7684\u5899\u677e\u52a8\uff0c\u54e5\u54e5\u5c31\u53ef\u4ee5\u6316\u7a7f\u5b83\u3002", "\u2026\u2026\u4f60\u4e2a\u5047\u4ed7\u4e49\uff01", "\u5144\u5f1f\uff0c\u8d76\u5feb\u53bb\u51d1\u9f50\u88c5\u5907\uff0c\u6253\u8d25\u6768\u622c\uff0c", "\u54e5\u54e5\u5c31\u53d1\u8fbe\u4e86~\u563f\u563f~", "\u2026\u2026", "\u4e0a\u6b21\u8d81\u672c\u5143\u5e05\u81ea\u62a5\u5927\u540d\u7684\u65f6\u5019\uff0c\u7a81\u88ad\u672c\u5e05\uff0c\u672c\u5e05\u4e0d\u8ddf\u4f60\u8ba1\u8f83\uff0c\u5355\u6311\u8fd8\u662f\u7fa4\u6bb4\uff0c\u4f60\u81ea\u5df1\u9009\u3002", "\u6069\uff0c\u662f\u6761\u6c49\u5b50\uff0c\u4ffa\u5c31\u8ba4\u771f\u8ddf\u4f60\u6253\u4e00\u6b21\uff0c\u5355\u6311\uff01", "\u5355\u6311\u662f\u5427\uff0c\u4f60\u4e00\u4e2a\u5355\u6311\u6211\u4eec\u5168\u90e8\uff0c\u5f1f\u5144\u4eec\uff0c\u4e00\u8d77\u4e0a\uff01", "\u4f60\u4e2b\u4e0d\u5730\u9053\uff01", "\u4f60\u7684\u786e\u662f\u4e2a\u82f1\u96c4\uff0c\u96be\u602a\u5979\u4e00\u76f4\u5ff5\u5ff5\u4e0d\u5fd8\u2026\u2026", "\u8fc7\u5956\u8fc7\u5956\uff0c\u4f60\u7684\u90e8\u4e0b\u90fd\u8eba\u4e0b\u4e86\uff0c\u73b0\u5728\u8f6e\u5230\u4f60\u4e86\u2026\u2026", "\u6069~~\u8ba8\u538c\u6b7b\u4e86\uff0c\u6765\u4e86\u6765\u4e86\u2026\u2026", "\u4eba\u5bb6\u4eca\u5929\u8eab\u4f53\u4e0d\u65b9\u4fbf\uff0c\u6539\u5929\u518d\u6765\uff0c\u5148\u95ea\u4e86", "\u5929\u84ec\uff0c\u4f60\u6570\u6b21\u6218\u609f\u7a7a\u4e0d\u80dc\u5012\u7f62\u4e86\uff0c\u5e73\u65f6\u5e38\u5e38\u64c5\u81ea\u79bb\u5c97\uff0c\u53bb\u5e7f\u5bd2\u5bab\u628a\u599e\u2026\u2026\u6b7b\u7f6a\u53ef\u514d\uff0c\u6d3b\u7f6a\u96be\u9976\u3002", "\u542c\u8bf4\uff0c\u4e0b\u51e1\u6295\u80ce\uff0c\u5c31\u4f1a\u5815\u5165\u8f6e\u56de\uff0c\u5c31\u4f1a\u5fd8\u8bb0\u524d\u5c18\u5f80\u4e8b\u2026\u2026", "\u597d\uff0c\u6715\u5c31\u6210\u5168\u4f60\uff0c\u4e0b\u51e1\u4e4b\u524d\uff0c\u6709\u4ec0\u4e48\u8981\u6c42\u4e48\uff1f", "\u5929\u5929\u5927\u5403\u5927\u559d\uff0c\u5012\u5934\u7761\u89c9\uff0c\u751f\u6d3b\u5b89\u9038\u65e0\u8fb9\uff0c\u5fc3\u5bbd\u4f53\u80d6\u2026\u2026", "\u5f88\u597d\uff0c\u4f60\u7684\u5fc3\u610f\uff0c\u6715\u660e\u767d\u4e86\uff0c\u5b89\u5fc3\u53bb\u5427", "\u54c7\uff01\uff01\u6295\u80ce\u4e3a\u732a\uff1f\uff1f\uff01", "\u5929\u84ec\u5143\u5e05\u53d8\u6210\u4e86\u4e00\u53ea\u732a\uff0c\u88ab\u8d2c\u4e0b\u4e86\u51e1\u5c18", "\u2026\u2026\u771f\u9634\u9669\u2026\u2026", "\u54fc\uff0c\u54fc\uff0c\u5be1\u4eba\u5728\u56db\u5341\u4e5d\u5c42\u7b49\u4f60\uff0c\u54c7\u54c8\u54c8\u54c8\u54c8~\uff01\uff01", "\u672c\u6765\uff0c\u6218\u795e\u60c5\u5723\u7684\u540d\u53f7\u662f\u6211\u7684\uff1b\u5ae6\u5a25\u7684\u5fc3\uff0c\u8fdf\u65e9\u4e5f\u4f1a\u5f52\u5c5e\u4e8e\u6211\uff0c\u4f46\u662f\u4f60\u6765\u4e86\u4e4b\u540e\uff0c\u4e00\u5207\u90fd\u6539\u53d8\u4e86\u2026\u2026", "\u4f60\u559c\u6b22\u5979\uff0c\u8fd9\u4e48\u591a\u5e74\uff0c\u4f60\u4e3a\u4ec0\u4e48\u4e0d\u53bb\u627e\u5979\uff1f", "\u56e0\u4e3a\u6211\u662f\u6218\u795e\u60c5\u5723\uff0c\u662f\u4e0d\u80fd\u5931\u8d25\u7684\u2026\u2026", "\u4f60\u592a\u9a84\u50b2\u4e86\u2026\u2026", "\u65e0\u8bba\u5982\u4f55\uff0c\u6597\u795e\u548c\u6218\u795e\u8fd9\u4e00\u6218\uff0c\u662f\u6ce8\u5b9a\u7684\u2026\u2026", " ", "\u54c7\uff0c\u59d1\u5a18\u8eab\u9677\u4e09\u6627\u771f\u706b\u5f53\u4e2d\uff0c\u8981\u60f3\u529e\u6cd5\u5f00\u95e8\u706d\u706b\u2026\u2026", "\u59d1\u5a18\u9876\u4f4f\uff0c\u4ffa\u8001\u5b59\u6765\u6551\u4f60\uff01\uff01", "\u4e0d\u8981\u4e0d\u8981\u8fc7\u6765\uff01\uff01", "\u59d1\u5a18\u4f60\u6ca1\u4e8b\u5427\uff1f", "\u6b7b\u7334\u5b50\uff0c\u6708\u5bab\u9634\u51b7\uff0c\u59d1\u5976\u5976\u6211\u60f3\u84b8\u84b8\u6851\u62ff\uff0c\u6cbb\u591a\u5e74\u7684\u5173\u8282\u708e\u90fd\u4e0d\u884c\u2026\u2026", "\u2026\u2026", "\u6b7b\u7334\u5b50\uff0c\u4e0a\u6b21\u6843\u5b50\u7684\u4e8b\u60c5\u2026\u2026", "\u4ffa\u638c\u7ba1\u87e0\u6843\u56ed\uff0c\u5077\u5403\u4ed9\u6843\u4f55\u6b62\u5343\u767e\uff0c\u591a\u8ba42\u4e2a\uff0c\u7b97\u4ec0\u4e48\u2026\u2026", "\u5bb3\u4f60\u88ab\u9769\u9664\u4e86\u201c\u9f50\u5929\u5927\u5723\u201d\u7684\u4e0a\u4ed9\u4e4b\u4f4d\u2026\u2026", "\u4ffa\u8001\u5b59\u4e0d\u7a00\u7f55\u5929\u5bab\u7684\u4f4d\u5b50\uff0c~\u8d2c\u4e0b\u51e1\u5c18\u4ecd\u79f0\u738b\uff0c\u563f\u563f", "\u2026\u2026\u5728\u5929\u5bab\u51e0\u5343\u5e74\uff0c\u4ece\u6765\u6ca1\u6709\u4eba\u80af\u4e3a\u6211\u653e\u5f03\u4ed9\u4f4d\u2026\u2026\u5509\uff0c\u53ef\u60dc\u3002", "\u54fc\u54fc\uff0c\u5c45\u7136\u6253\u5230\u8fd9\u91cc\uff0c\u5b9e\u8bdd\u544a\u8bc9\u4f60\uff0c\u6240\u6709\u5929\u795e\u90fd\u5bf9\u4f60\u4e0d\u6ee1\uff0c\u8fd9\u6b21\u4f60\u88ab\u524a\u53bb\u4ed9\u7235\u6253\u5165\u5929\u7262\uff0c\u90fd\u662f\u8ba1\u5212\u4e4b\u4e2d\u3002", "\u90a3\u5ae6\u5a25\u5462\uff0c\u6843\u5b50\u5462\uff1f\u4e5f\u5728\u8ba1\u5212\u4e4b\u4e2d\uff1f\u4f60\u4eec\u6599\u5b9a\u4ffa\u4f1a\u7518\u5fc3\u9876\u7f6a\uff1f", "\u54c7\u54c8\u54c8\u54c8\u54c8~\uff01\u5929\u7f51\u6613\u9003\uff0c\u60c5\u4e1d\u96be\u65ad\uff0c\u4f60\u6709\u901a\u5929\u7684\u672c\u4e8b\uff0c\u4e5f\u96be\u8fc7\u8fd9\u4e00\u5173\u3002", "\u4e3a\u5979\u9876\u7f6a\uff0c\u4ffa\u4ece\u4e0d\u540e\u6094\uff0c\u73b0\u5728\uff0c\u662f\u4ffa\u4e86\u65ad\u6069\u6028\u7684\u65f6\u5019\u4e86\uff01\uff01", "\u5176\u5b9e\uff0c\u6715\u4e0d\u662f\u6253\u4e0d\u8fc7\u4f60\uff0c\u6715\u53ea\u4e0d\u8fc7\u79c1\u632a\u4e86\u56fd\u5e93\uff0c\u4e70\u4e86\u4f60\u7684\u76d8\u53e3\u2026\u2026", "\u4f60\u7ec8\u4e8e\u6253\u5230\u8fd9\u91cc\u4e86\u3002", "\u4f60\u5c45\u7136\u5728\u8fd9\u91cc\uff1f", "\u54c8\u54c8\u54c8\u54c8\uff0c\u8001\u592b\u4e00\u8def\u4fdd\u4f60\uff0c\u5c31\u662f\u4e3a\u4e86\u8ba9\u4f60\u5e2e\u6211\u626b\u6e05\u5929\u5ead\uff0c\u4f60\u7684\u6240\u505a\u6240\u4e3a\u2026", "\u4ffa\u6700\u6068\u7684\u5c31\u662f\u88ab\u4eba\u6b3a\u9a97\uff01\u6211\u2026\u2026\uff08\u609f\u7a7a\u4e45\u4e45\u5730\u9677\u5165\u4e86\u56de\u5fc6\uff09", "\u5929\u5ead\uff0c\u5929\u5ead\u53c8\u600e\u6837\uff1f\u5973\u4eba\u9a97\u6211\uff0c\u5144\u5f1f\u9a97\u6211\uff0c\u5982\u4eca\u4ffa\u8001\u5b59\u6ca1\u6709\u4ec0\u4e48\u53ef\u4ee5\u7559\u604b\u7684\uff0c\u56de\u82b1\u679c\u5c71\u7f62\u4e86\u3002", "\u5b7d\u755c\uff0c\u5929\u5ead\u5a01\u4eea\uff0c\u5c82\u80fd\u5bb9\u4f60\u5168\u8eab\u800c\u9000\uff01\uff01", "\u59d1\u5a18\uff0c\u4f60\u600e\u4e48\u4f1a\u88ab\u5173\u5728\u8fd9\u91cc\uff01", "\u5974\u5bb6\u6697\u4e2d\u52a9\u4f60\uff0c\u89e6\u72af\u5929\u6761\u2026\u2026", "\u7389\u5e1d\u8001\u513f\uff0c\u5f85\u6211\u6253\u70c2\u4f60\u7684\u91d1\u51a0\uff01\uff01\u59d1\u5a18\u4f60\u5148\u79bb\u5f00\uff0c\u7b49\u4ffa\u56de\u6765\uff01", "\u5509\u2026\u2026\u4f60\u53c8\u4f55\u82e6\u2026\u2026", "\u8fd9\u91cc\u6709\u74f6\u706b\u773c\u91d1\u775b\u724c\u773c\u5f71\u971c\uff0c\u53bb\u76b1\u6297\u8870\u8001\uff0c\u53ef\u4ee5\u770b\u6e05\u695a\u654c\u4eba\u7684\u672c\u8d28\uff0c\u91d1\u8272\u8d28\u611f\u8d34\u5408\u80a4\u8d28\uff0c\u6765\u81ea\u5df4\u9ece\uff0c\u4f60\u503c\u5f97\u62e5\u6709\u3002", "\u73b0\u5728\u6d82\u597d\u4e86\uff0c\u770b\u8d77\u6765\u55f2\u4e0d\u55f2~\uff1f", "\u6069\u2026\u2026\u672c\u6765\u662f\u53ea\u201c\u7334\u5996\u201d\uff0c\u73b0\u5728\u662f\u4e2a\u201c\u4eba\u5996\u201d\u3002", "\u5ae6\u5a25\u59d1\u5a18\uff0c\u60f3\u4e0d\u5230\u5728\u8fd9\u91cc\u9047\u5230\u4f60\u3002", "\u5927\u5723\uff0c\u8fd9\u662f\u6211\u4eb2\u624b\u917f\u5236\u7684\u5343\u5e74\u6708\u6842\u9732\uff0c\u559d\u4e0b\u5b83\uff0c\u72b9\u5982\u8131\u80ce\u6362\u9aa8\uff0c\u4f53\u529b\u5927\u589e\u3002", "\u54e6~\uff1f\u96be\u9053\u8fd9\u662f\u5b9a\u60c5\u4fe1\u7269\uff1f", "\u800c\u4e14\uff0c\u5b83\u8fd8\u53ef\u4ee5\u4f7f\u4eba\u5fd8\u8bb0\u7ea2\u5c18\u611f\u60c5\uff0c\u6211\u5e0c\u671b\u4f60\u80fd\u5fd8\u8bb0\u6211\u3002", "\u554a~\u54c8~\u7ed9\u6211\u4e00\u676f\u5fd8\u60c5\u6c34~\u6362\u6211\u4e00\u591c\u4e0d\u6d41\u6cea\u2026\u2026\u59d1\u5a18\uff0c\u4ffa\u51c6\u5907\u79bb\u5f00\u5929\u5ead\uff0c\u6211\u5e0c\u671b\u4f60\u8ddf\u6211\u4e00\u8d77\u8d70\u2026\u2026", "\u8fdd\u80cc\u5929\u6761\uff0c\u79c1\u5954\uff0c\u4f1a\u88ab\u6574\u4e2a\u5929\u754c\u4eba\u8089\u641c\u7d22\u7684\u2026\u2026", "\u79c1\u5954\uff1f\u4ffa\u8001\u5b59\u4e0d\u505a\u90a3\u7325\u7410\u4e4b\u4e8b\uff0c\u5f85\u4ffa\u6253\u4e0a\u7075\u9704\u5b9d\u6bbf\uff0c\u8ba9\u7389\u7687\u5927\u5e1d\u4eb2\u53e3\u7b54\u5e94\uff0c\u6574\u4e2a\u5929\u5ead\u8c01\u6562\u4e3a\u96be\u4f60\uff01\uff01", "\u5927\u5723\u4fdd\u91cd\uff0c\u6b64\u5730\u5974\u5bb6\u4e0d\u5b9c\u4e45\u7559\uff0c\u5974\u5bb6\u4e0d\u60f3\u8fde\u7d2f\u4f60\u2026\u2026", "\u59d1\u5a18\uff01\u59d1\u5a18\uff01", "\u5927\u5723\uff0c\u524d\u9762\u51f6\u9669\u96be\u6d4b\uff0c\u5974\u5bb6\u8fd9\u91cc\u6709\u70b9\u79c1\u623f\u94b1\uff0c\u9001\u7ed9\u4f60\u4e70\u70b9\u4ed9\u4e39\u6ecb\u8865\u8eab\u4f53\u5427\u2026\u2026", "\u2026\u2026\u59d1\u5a18\u5bf9\u6211\u4e00\u7247\u771f\u60c5\uff0c\u4ffa\u53d1\u8a93\u8981\u4e3a\u4f60\u6253\u4e0b\u4e00\u7247\u5929", "\u8ddf\u4ffa\u8d70\u5427\uff0c\u56de\u82b1\u679c\u5c71\u53bb\u2026\u2026", "\u8868\uff0c\u59d1\u5976\u5976\u6211\u4e3a\u4e86\u5929\u5bab\u62a4\u7167\uff0c\u629b\u5f03\u4e86\u524d\u592b\uff0c\u6211\u624d\u8868\u518d\u8ddf\u4f60\u4e0b\u51e1\uff0c\u4f60\u2026\u2026\u662f\u4e2a\u597d\u4eba\u2026\u2026(\u98d8\u8d70)", "......\u5973\u4eba\u5982\u8863\u670d\uff0c\u5144\u5f1f\u5982\u624b\u8db3\uff0c\u8001\u725b~\uff01\u4ffa\u6765\u5bfb\u4f60\uff01\uff01", "\u5b9d\u6247\u5b9d\u6247\u544a\u8bc9\u6211\uff0c\u8c01\u662f\u8fd9\u4e2a\u4e16\u754c\u4e0a\u6700\u578b\u6700\u731b\u7684\u7537\u4eba\uff1f", "\uff08\u6a21\u4eff\u6247\u5b50\u7684\u58f0\u97f3\uff09\u662f\u4f60~\u662f\u4f60~\u8fd8\u662f\u4f60", "\u771f\u81ea\u604b\u2026\u2026", "\u54c7~\uff01\u88ab\u4f60\u5077\u7aa5\u5230\u4e86\uff0c\u672c\u5c0a\u8be5\u6740\u4f60\u706d\u53e3\uff0c\u4f46\u662f\u73b0\u5728\u4f60\u8fd8\u4e0d\u914d\u672c\u5c0a\u51fa\u624b\u3002", "\u53ef\u6076\uff0c\u7b49\u4ffa\u8001\u5b59\u5148\u627e\u56de\u4ffa\u90a3\u6839\u5982\u610f\u68cd\u5b50\u518d\u6765\u6536\u62fe\u4f60\u2026\u2026\\cFFCC00\u5148\u53bb2\u5c42\u5929\u7262\u6551\u8001\u725b\uff0c\u8ba9\u4ed6\u66ff\u4ffa\u5f00\u6697\u5899\u7ed5\u8fc7\u53bb", "\u8001\u725b\uff0c\u4ffa\u6551\u4f60\u6765\u4e86~\uff01", "\u5e73\u65f6\u8ba9\u4f60\u5e2e\u5fd9\uff0c\u8001\u662f\u63a8\u4e09\u963b\u56db\uff0c\u8fd9\u6b21\u8fd9\u4e48\u723d\u5feb\uff0c\u4e00\u5b9a\u6709\u95ee\u9898~", "\u563f\u563f\uff0c35\u5c42\u6709\u4e2a\u4e09\u773c\u5c0f\u767d\u8138\u592a\u6076\u5fc3\uff0c\u66ff\u4ffa\u706d\u4e86\u4ed6~~", "\u4ffa\u5bf9\u5c0f\u767d\u8138\u6728\u6709\u5174\u8da3\u2026\u2026", "\u90a3\u5c31\u60f3\u529e\u6cd5\u5e2e\u4ffa\u7ed5\u8fc7\u53bb~~", "\u563f\u563f\uff0c\u5f00\u81ea\u5df1\u7684\u6d1e\uff0c\u8ba9\u522b\u4eba\u8bf4\u53bb\u5427~~~", "?\u6709\u6839\u6346\u4ed9\u7ef3\uff1f\u4f3c\u4e4e\u53ef\u4ee5\u514b\u5236\u4f4f\u90a3\u4e2a\u4e09\u773c\u5c0f\u767d\u8138\uff0c\u6069\uff0c\u641e\u5b9a\u4ed6\uff0c\u6346\u7ed1\u4ed6\uff0c\u62ff\u4ed6\u7684\u82ad\u8549\u6247\uff0c\u54e6\u4e5f~", "\u6709\u82ad\u8549\u6247\u53ef\u4ee5\u706d\u706b\u4e86\uff0c\u5ae6\u5a25\u59d1\u5a18\uff0c\u4ffa\u6765\u5566~~\uff01\uff01\u5bf9\u4e86\uff0c\u8fd8\u6709\u6211\u7684\u5982\u610f\u91d1\u7b8d\u68d2\u3002", "\u6b22\u8fce\u4f60\u6765\u5230\u5929\u5bab\u4e16\u754c\uff0c\u6211\u662f\u4f60\u7684\u5e08\u5085\u83e9\u63d0\u8001\u7956\u3002", "\u5728\u8fd9\u91cc\u6211\u4e0d\u4f1a\u6559\u4f60\u4e03\u5341\u4e8c\u53d8\uff0c\u4f46\u662f\u6211\u4f1a\u6559\u4f60\u600e\u4e48\u6e38\u5386\u5929\u5bab\u3002", "\u4e3a\u5e08\u77e5\u9053\u4f60\u8981\u5927\u95f9\u5929\u5bab\uff0c\u7279\u610f\u5343\u91cc\u4f20\u97f3\uff0c\u63d0\u4f9b\u8fdc\u7a0b\u89c6\u9891\u652f\u6301\uff0c\u5f53\u7136\uff0c\u5982\u679c\u4f60\u5acc\u4e3a\u5e08\u7f57\u55e6\uff0c\u4e5f\u53ef\u4ee5\u5728\u6e38\u620f\u83dc\u5355\u4e2d\u9009\u62e9\u8df3\u8fc7\u6559\u7a0b\u3002", "\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002", "\u5f88\u597d\uff0c\u4f60\u5df2\u7ecf\u5b66\u4f1a\u592a\u7a7a\u6b65\u4e86\u3002", "\u5728\u4f60\u9762\u524d\u6709\u4e00\u9053\u9ec4\u8272\u7684\u95e8\uff0c\u4f60\u65e0\u6cd5\u8fc7\u53bb\u3002", "\u4f60\u53ef\u4ee5\u770b\u5230\u8fd9\u91cc\u6709\u628a\u9ec4\u94a5\u5319\uff0c\u5b83\u53ef\u4ee5\u5f00\u542f\u8fd9\u9053\u95e8\u3002", "\u73b0\u5728\\cFFCC00\u79fb\u52a8\u5230\u8fd9\u91cc\uff0c\u518d\u56de\u6765\u5f00\u95e8\u3002", "\u7b49\u7b49\uff01", "\u524d\u9762\u6709\u53ea\u6321\u8def\u7684\u72d7\u3002\u4f60\u9700\u8981\u6253\u8d25\u5b83\u624d\u80fd\u8d70\u8fc7\u53bb\u3002", "\u73b0\u5728\uff0c\\cFFCC00\u8bf7\u8bd5\u7740\u79fb\u52a8\u5230\u5b83\u7684\u4f4d\u7f6e\u4e0a\uff0c\u4e0e\u5b83\u6218\u6597\u5427\u3002", "\u542c\u5230\u8f70\u9686\u58f0\u4e86\u5427\uff0c\u56e0\u4e3a\u4f60\u6253\u8d25\u4e86\\cFFCC00\u5b88\u536b\u5c01\u5370\u95e8\u7684\u654c\u4eba\u3002", "\u6240\u4ee5\u8fd9\u91cc\u7684\\cFFCC00\u5c01\u5370\u95e8\\cF8F8F8\u5c31\u88ab\u6253\u5f00\u4e86\u3002", "\u5728\u6218\u6597\u4e2d\u4f60\u53ef\u80fd\u4f1a\u635f\u5931\u8840\u91cf\u3002", "\u8fd9\u91cc\u6709\u4e2a\\cFFCC00\u5c0f\u4ed9\u6843\uff0c\u53ef\u4ee5\u56de\u590d\u4f60\u7684\u8840\u91cf\u3002", "\u5982\u679c\u8840\u91cf\u4e0d\u8db3\uff0c\u4f60\u5c06\u65e0\u6cd5\u6311\u6218\u654c\u4eba\u3002", "\u53c8\u5230\u4e86\u5b66\u4e60\u65f6\u95f4\u3002", "\u4f60\u7684\u80fd\u529b\u662f\u53ef\u4ee5\u63d0\u5347\u7684\uff0c\u5305\u62ec\u653b\u51fb\u3001\u9632\u5fa1\u3001\u8840\u91cf\u3002", "\u8fd9\u91cc\u6709\u4e2a\u84dd\u8272\u4ed9\u4e39\uff0c\u5b66\u540d\u662f\u201c\u9632\u5fa1\u4ed9\u4e39\u201d\uff0c\u670d\u4e0b\u5b83\uff0c\u53ef\u4ee5\u63d0\u5347\u4f60\u7684\u9632\u5fa1\u529b\uff0c\u8ba9\u4f60\u6218\u6597\u66f4\u6301\u4e45\u3002", "\u8bb0\u4f4f\uff0c\\cFFCC00\u5929\u5ead\u5c42\u6570\u8d8a\u9ad8\uff0c\u4ed9\u4e39\u836f\u6548\u8d8a\u5927\u3002", "\u73b0\u5728\uff0c\u5403\u4e86\u5b83\uff0c\u6251\u8fc7\u53bb\u505a\u6389\u524d\u9762\u90a3\u6761\u72d7\uff0c\u4f60\u4f1a\u53d1\u73b0\u635f\u8840\u5c11\u4e86\u3002", "\u770b\u5230\u4e0a\u9762\u7684\u84dd\u95e8\u4e86\u5417\uff0c\u5b83\u53ea\u80fd\u7528\u84dd\u8272\u7684\u94a5\u5319\u6253\u5f00\u3002", "\u5b83\u88ab\u85cf\u5728\u8fd9\u91cc\uff0c\\cFFCC00\u5148\u62ff\u5230\u5b83\u5427\u3002", "\u4f60\u53d1\u73b0\u4e86\u4e00\u9053\u7ea2\u95e8\u3002\u8fd9\u79cd\u95e8\u5f88\u5c11\u89c1\uff0c\u5fc5\u987b\u7528\u7ea2\u94a5\u5319\u624d\u80fd\u6253\u5f00\u3002", "\u5b83\u88ab\u85cf\u5728\u8fd9\u91cc\uff0c\\cFFCC00\u8bf7\u5148\u5f97\u5230\u5b83\uff0c\u518d\u56de\u6765\u5f00\u95e8\u3002", "\u4f60\u627e\u5230\u4e86\u4e00\u628a\u7ea2\u94a5\u5319\uff0c\u8fd9\u79cd\u94a5\u5319\u6bd4\u8f83\u7a00\u5c11\u3002", "\u8bd5\u7740\\cFFCC00\u7528\u5b83\u5f00\u542f\u8fd9\u91cc\u7684\u7ea2\u95e8\u3002", "\u5f88\u597d\uff0c\u8fd9\u5c42\u5df2\u7ecf\u63a5\u8fd1\u5c3d\u5934\u3002", "\u4f60\u4f1a\u53d1\u73b0\u8fd9\u6837\u7684\u7ea2\u8272\u4f20\u9001\u70b9\uff0c\u5b83\u53ef\u4ee5\u8ba9\u4f60\u5411\u4e0a\u4e00\u5c42\u697c\u3002", "\u4e0d\u8fc7\uff0c\u522b\u6025\u7740\u79bb\u5f00\u3002", "\u4f60\u662f\u4e0d\u662f\u5df2\u7ecf\u53d1\u73b0\u8fd9\u91cc\u6709\u4e2a\u9053\u5177\u4e86\u5417\uff1f", "\u8fd9\u91cc\u6709\u4e2a\u7ea2\u8272\u4ed9\u4e39\uff0c\u5b66\u540d\u662f\u201c\u653b\u51fb\u4ed9\u4e39\u201d\uff0c\u670d\u4e0b\u5b83\uff0c\u53ef\u4ee5\u63d0\u5347\u4f60\u7684\u653b\u51fb\u529b\uff0c\u8ba9\u4f60\u6218\u6597\u66f4\u72c2\u91ce\u3002", "\u4f46\u662f\u8fd9\u91cc\u597d\u8c61\u4e0d\u901a\u2026\u2026", "\u522b\u6025\uff01\u4fd7\u8bdd\u8bf4\u8f66\u5230\u5c71\u524d\u5fc5\u6709\u8def\uff0c\u5728\u5929\u5bab\u7684\u5f88\u591a\u5c42\u4e2d\u4f1a\u6709\u9690\u85cf\u7684\u8def\uff0c\u66f4\u591a\u60ca\u559c\u66f4\u591a\u6b22\u7b11\uff0c\u5c31\u5728\u9690\u85cf\u8def\u2026\u2026", "\u73b0\u5728\uff0c\u79fb\u52a8\u5230\u8fd9\u91cc\uff0c\u4f60\u5c31\u4f1a\u53d1\u73b0\u5b83\u3002", "\u8981\u8bb0\u4f4f\uff0c\\cFFCC00\u5f88\u591a\u5c42\u91cc\u90fd\u4f1a\u6709\u9690\u85cf\u7684\u4e1c\u897f\uff0c\u8bd5\u7740\u53bb\u63a2\u7d22\u5427\u3002", "\u770b\u5230\u4f60\u4e0a\u6765\u7684\u8def\u4e86\u5417\uff1f", "\u84dd\u8272\u7684\u4f20\u9001\u70b9\u53ef\u4ee5\u8ba9\u4f60\u5411\u4e0b\u4e00\u5c42\u697c\u3002", "\u4f60\u53ef\u80fd\u65e0\u6cd5\u51fb\u8d25\u8fd9\u4e2a\u654c\u4eba\uff0c\u7ed5\u9053\u4e5f\u662f\u524d\u8fdb\u7684\u529e\u6cd5\u3002", "\u90a3\u4e48\uff0c\u5982\u4f55\u5224\u65ad\u4e00\u4e2a\u654c\u4eba\u7684\u5f3a\u5f31\u5462\uff1f", "\u6e38\u620f\u4e2d\u4f60\u4f1a\u83b7\u5f97\u8fd9\u4ef6\u5b9d\u7269\uff0c\u5b83\u53eb\\cFFCC00\u706b\u773c\u91d1\u775b\u724c\u773c\u5f71\u818f\u3002", "\u6d82\u62b9\u4e00\u70b9\u5728\u773c\u76ae\u4e0a\uff0c\u4f60\u53ef\u4ee5\u770b\u7834\u654c\u60c5\uff0c\u8fd8\u53ef\u4ee5\u53bb\u9664\u773c\u89d2\u7eb9\u3002", "\u6211\u5e2e\u4f60\u5f00\u51fa\u4e86\u4e00\u6761\u8def\uff0c\u4f60\u53ef\u4ee5\u53bb\u53d6\u5b83\u4e86\u3002", "\u73b0\u5728\u4f60\u53ef\u4ee5\u53c2\u7167\u4f7f\u7528\u8bf4\u660e\u6765\u4f7f\u7528\u5b83\u4e86\u3002", "\u9664\u4e86\u63095/OK\u952e\u67e5\u770b\u654c\u4eba\u5bf9\u4f60\u9020\u6210\u7684\u4f24\u5bb3\u4ee5\u5916\u3002", "\u4f60\u8fd8\u53ef\u4ee5\u6309\u5de6\u8f6f\u952e\u6253\u5f00\u7269\u54c1\u680f\u3002", "\u9009\u62e9\u8be5\u7269\u54c1\uff0c\u6309\u786e\u8ba4\u952e\u67e5\u770b\u66f4\u8be6\u7ec6\u7684\u654c\u4eba\u4fe1\u606f\u3002", "\u4f60\u7ad9\u5728\u8fd9\u5341\u5b57\u8857\u5934\u4e0a\uff0c\u627e\u4e0d\u5230\u6765\u53bb\u7684\u65b9\u5411\u3002", "\u4e0d\u8981\u614c\u5f20\uff0c\u8bd5\u7740\u67e5\u770b\u4e0b\u8fd9\u91cc\u9053\u5177\u548c\u654c\u4eba\u7684\u5206\u5e03\u5f62\u52bf\u3002", "\u4e0a\u53bb\u7684\u4f20\u9001\u70b9\u5728\u8fd9\u91cc\u3002", "\u5982\u679c\u4f60\u65e0\u6cd5\u9a6c\u4e0a\u51fb\u8d25\u8fd9\u4e2a\u5b88\u536b\u3002", "\u5c31\u8bd5\u7740\u5c06\u5730\u56fe\u4e0a\u7684\u4ed9\u4e39\u548c\u4ed9\u6843\u5403\u6389\uff0c\u7136\u540e\u4f60\u5c31\u53ef\u4ee5\u6218\u80dc\u5b83\u4e86\u3002", "\u8bb0\u4f4f\uff0c\u5982\u679c\u524d\u65b9\u6709\u4e00\u7fa4\u654c\u4eba\u5728\u5411\u4f60\u6325\u624b\uff0c\u5343\u4e07\u522b\u51b2\u52a8\u3002", "\u7262\u8bb0\\cFFCC00\u201c\u5148\u5403\u4ed9\u4e39\u540e\u8089\u640f\u201d\\cF8F8F8\u662f\u51cf\u5c11\u635f\u8840\u7684\u7b2c\u4e00\u6cd5\u5219\u3002", "\u54e6\u563f\u563f~\u4e3a\u5e08\u8981\u7ee7\u7eed\u4eab\u53d7\u6e21\u5047\u5566~\u3002", "\u5728\u8fd9\u4e4b\u524d\u6211\u4f1a\u4f20\u6388\u4f60\u4e94\u767e\u5e74\u529f\u529b\uff0c\u518d\u9001\u4f60\u4e24\u4ef6\u4e1c\u897f\u9632\u8eab\u3002", "\u8fd9\u662f\u4e00\u628a\u6b66\u5668\uff0c\u80fd\u8ba9\u4f60\u63d0\u5347\u5f88\u9ad8\u7684\u653b\u51fb\u3002", "\u5728\u6e38\u620f\u7684\\cFFCC00\u6bcf10\u5c42\u90fd\u6709\u4e00\u628a\u65b0\u6b66\u5668\u3002", "\u5982\u679c\u4f60\u80fd\u65e9\u70b9\u83b7\u5f97\u5b83\uff0c\u5c31\u80fd\u8f7b\u677e\u5e94\u5bf9\u654c\u4eba\uff0c\u8d70\u5f97\u66f4\u8fdc\u3002", "\u540c\u6837\uff0c\u8fd9\u662f\u4e00\u4ef6\u9632\u5177\uff0c\u80fd\u63d0\u9ad8\u4f60\u7684\u9632\u5fa1\u3002", "\u6211\u73b0\u5728\u5e2e\u4f60\u6253\u5f00\u8fd9\u9053\u5899\uff0c\u5728\u4e00\u822c\u60c5\u51b5\u4e0b\uff0c\u5b83\u662f\u65e0\u6cd5\u51fb\u788e\u7684\u3002", "\u5bf9\u4e86\uff0c\u7ed9\u4f60\u4ecb\u7ecd\u4e00\u4e2a\u5929\u5bab\u4e0a\u7684\u670b\u53cb\u3002", "\u8fd9\u662f\u4e3a\u5e08\u7684\u8001\u670b\u53cb\uff0c\\cFFCC00\u592a\u767d\u91d1\u661f\\cF8F8F8\uff0c\u4ed6\u4f1a\u6697\u4e2d\u5e2e\u52a9\u4f60\u7684\u3002", "\u606d\u559c\uff0c\u4f60\u5df2\u7ecf\u6bd5\u4e1a\u4e86\uff0c\u6211\u518d\u4f20\u6388\u4f60\u4e94\u767e\u5e74\u7684\u529f\u529b\u3002", "\u8fd8\u7ed9\u4f60\u51c6\u5907\u4e86\u4e24\u4ef6\u795e\u5668\uff0c\u628a\u5b83\u4eec\u6536\u4e0b\u5427\u3002", "\u8981\u8bb0\u4f4f\uff0c\u5f80\u524d\u4f60\u5c06\u9762\u5bf9\u7684\u4e0d\u662f\u4e00\u4e2a\u654c\u4eba\uff0c\u800c\u662f\u6574\u4e2a\u5929\u5bab\u3002", "\u634f\u54c8\u54c8~\u4eca\u5929\u98ce\u548c\u65e5\u4e3d\uff0c\u6715\u5fc3\u60c5\u5f88\u597d~\uff01", "\u5440~\uff01\u54ea\u91cc\u94bb\u51fa\u4e00\u53ea\u679c\u5b50\u72f8\uff01\u9884\u9632\u975e\u5178\uff01\u5de6\u53f3\u4e0e\u6211\u62ff\u4e0b\uff01", "\u4ec0\u4e48\u7834\u7687\u5e1d\uff0c\u4e94\u8c37\u4e0d\u5206\uff0c\u516d\u755c\u4e0d\u8fa8\u2026\u2026\u7389\u5e1d\u8001\u513f\uff0c\u4ffa\u4e43\u82b1\u679c\u5c71\u7b2c\u4e00\u5c4a\u578b\u79c0\u51a0\u519b\uff0c\u7f8e\u7334\u738b\u5b59\u609f\u7a7a\uff01\uff01", "\u90fd\u7ed9\u6211\u4e0a~\uff01", "\u5de8\u73b2\u795e\uff0c\u6123\u5728\u90a3\u91cc\u505a\u4ec0\u4e48\uff1f", "\u965b\u4e0b\uff0c\u4eba\u5bb6\u662f\u5973\u5b69\u5b50\u561b\uff0c\u6700\u6015\u6bdb\u8338\u8338\u5730\u5c0f\u52a8\u7269\u4e86\u2026\u2026", "\u5c11\u5e9f\u8bdd\uff01\u60f3\u88ab\u780d\u5934\u554a\uff01", "\u965b\u4e0b\uff0c\u4e09\u592a\u5b50\u8bf7\u6218\uff01", "\u7389\u5e1d\u8001\u513f\uff0c\u4ffa\u8001\u5b59\u8981\u505a\u9f50\u5929\u5927\u5723\uff01\uff01", "\u55f7~~\u5b83\u8fc7\u6765\u4e86\u5b83\u8fc7\u6765\u4e86\uff0c\u8bf7\u4f60\u4e2a\u5934\u554a\uff0c\u8d76\u7d27\u9876\u4e0a\u5148~~", "\u62a4\u9a7e~\uff01\u62a4\u9a7e~\uff01", "\u8c01~\uff01\u662f\u5929\u5ead\u7b2c\u4e00\u578b\u7537~\uff01\uff01", "\u662f\u4f60~\uff01\u662f\u4f60~\uff01", "\u8c01~\uff01\u662f\u5929\u5ead\u7b2c\u4e00\u731b\u7537~\uff01\uff01", "\u662f\u4f60~\uff01\u662f\u4f60~\uff01", "\u8c01~\uff01\u662f\u5929\u5ead\u7b2c\u4e00\u660e\u661f\u6218\u795e~\uff01\uff01", "\u4f60\u662f\u7535\uff0c\u4f60\u662f\u5149\uff0c\u4f60\u662f\u552f\u4e00\u5730\u795e\u8bdd\uff0c\u4f60\u4e3b\u5bb0\uff0c\u6211\u5d07\u62dc~\u6ca1\u6709\u66f4\u597d\u7684\u529e\u6cd5~~\uff01", "\u965b\u4e0b\u2026\u2026\u5455\u2026\u2026", "\u81e3\u89c9\u5f97\u5427\u2026\u2026\u5455\u2026\u2026", "\u8fd8\u662f\u4e0d\u8981\u8ba9\u4e8c\u90ce\u795e\u7ee7\u7eed\u4e0b\u53bb\u4e86\uff0c\u5c3d\u5feb\u5e73\u606f\u8fd9\u6b21\u4e8b\u4ef6\uff0c\u7ed9\u5b59\u609f\u7a7a\u5c01\u4e2a\u5b98\u7b97\u4e86\uff01\uff01", "\u5455~~\u6715\u4e5f\u662f\u8fd9\u4e48\u60f3\u6ef4~~\u5594\u83b1\uff0c\u5c31\u5c01\u5b59\u609f\u7a7a\u4e3a\u9f50\u5929\u5927\u5723\uff0c\u638c\u7ba1\u87e0\u6843\u56ed\uff01", "\u563f\u563f\uff0c\u4ffa\u8001\u5b59\u5c31\u9886\u4e86~\uff01\u591a\u8c22~\uff01", "\u5996\u2026\u5996\u602a\uff0c\u4ed6\u7684\u773c\u775b\u95ea\u7740\u7ea2\u5149\u2026\u2026\u592a\u53ef\u6015\u4e86", "\u5c45\u7136\u9000\u7f29\uff0c\u4f60\u8fd9\u6ca1\u7528\u7684\u4e1c\u897f\u3002", "\u5662~~~~~~\u6ee1\u56ed\u4ed9\u6843\u6210\u719f\uff0c\u715e\u662f\u8bf1\u4eba\uff01\uff01", "\u8ba9\u4ffa\u8001\u5b59\u56db\u5904\u901b\u901b~~", "\u609f\u7a7a~\u609f\u7a7a~\uff01", "\u4e3a\u4ec0\u4e48\u6709\u53ea\u9171\u6cb9\u86e4\u87c6\u8ddf\u6211\u5343\u91cc\u4f20\u97f3\uff1f", "\u662f\u5e08\u7236\u6211\u554a\uff01", "\u5e08\u7236\uff1f\u4e3a\u4ec0\u4e48\u5316\u4e2a\u86e4\u87c6\u5986\uff1f", "\u4e3a\u5e08\u5728\u5370\u5ea6\uff0c\u6cd5\u672f\u4ea4\u6d41\u517c\u6e21\u5047\uff0c\u65e5\u5149\u6d74\u52a0\u987f\u987f\u5496\u55b1\u996d\uff0c\u5634\u5df4\u4e0a\u706b\u3002", "\u5982\u6765\u628a\u5b59\u609f\u7a7a\u5c01\u5370\u4e8e\u4e94\u6307\u5c71\u4e0b\uff0c\u4f34\u968f\u7740\u6240\u6709\u6069\u6028\u60c5\u4ec7\uff0c\u6b32\u77e5\u540e\u4e8b\u5982\u4f55\uff0c\u656c\u8bf7\u671f\u5f85\u300a\u897f\u6e38\u8bb0\u4e8c\u4e4b\u5927\u5723\u53d6\u7ecf\u300b", "\u7231\u5f92\u554a\uff0c\u4f60\u4e00\u4e2a\u4eba\u8981\u7ee7\u7eed\u6311\u6218\u5929\u5bab\uff0c\u4e3a\u5e08\u4e0d\u653e\u5fc3\uff0c\u7ed9\u4f60\u4e70\u4e86\u4efd\u4fdd\u9669\u3002", "\u5e08\u5085\u591f\u4e49\u6c14\u3002", "\uff08\u63a5\u8fc7\u4fdd\u5355\uff09\u53d7\u76ca\u4eba...\u201c\u83e9\u63d0\u8001\u7956\u201d", "\u6211\u7684\u5f92\u513f\u554a\uff0c\u4f60\u5df2\u7ecf\u9677\u5165\u6df7\u6c8c\u4e16\u754c\u3002\u4e5f\u5c31\u4eba\u4eec\u5e38\u8bf4\u7684\u7cbe\u795e\u5206\u88c2\u75c7\u3002", "\u8fd9\u662f\u7531\u4e8e\u79cd\u79cd\u611f\u60c5\u7ea0\u845b\u5f15\u53d1\u7684\uff0c\u5982\u679c\u4f60\u60f3\u51fa\u6765\uff0c\u5c31\u8981\u6218\u80dc\u4ed6\u4eec\u3002", "\u4e0d\uff0c\u662f\u6218\u80dc\u81ea\u5df1\u3002\u8981\u8ba9\u8fd9\u5929\u2026\u518d\u4e5f\u906e\u4e0d\u4f4f\u4f60\u7684\u773c\u3002", "\u6211\u8981\u63d0\u9192\u4f60\u7684\u662f\uff0c\u8fd9\u4e2a\u4e16\u754c\u91cc\uff0c\u6240\u6709\u7684\u654c\u4eba\u90fd\u4f1a\u6bd4\u539f\u6765\u66f4\u5f3a\uff0c\u5f53\u7136\u4f60\u7684\u80fd\u529b\u4e5f\u4f1a\u63d0\u5347\u66f4\u591a\u3002", "\u53bb\u5427\u2026\u2026\u52ab\u96be\u5728\u6240\u96be\u514d\u3002"};
-        this.f_int_113 = this.f_String_arr_13.length;
+        this.dialogueTexts = new String[]{"\u59d1\u5a18\uff0c\u60a8\u2026\u2026", "\u54ce\u5440\uff0c\u59d1\u5976\u5976\u6211\u597d\u4e0d\u5bb9\u6613\u6000\u63e32\u4e2a\u4ed9\u6843\u5939\u5e26\u51fa\u6765\uff0c\u5c45\u7136\u88ab\u53d1\u73b0\u4e86~\uff01\u5feb\u95ea\uff01\uff01", "\u2026\u2026\uff0c\u8dd1\u90fd\u8dd1\u7684\u8fd9\u4e48\u4f18\u96c5\u3002", "\u54ce\u5440\uff0c\u8dd1\u8fd9\u4e48\u5feb\u2026\u2026", "\u4fee\u9017\u5988\u5f85~\uff01\u2026\u2026", "\u6b7b\u7334\u5b50\uff0c\u7a77\u8ffd\u731b\u6253\uff0c\u8ffd\u7684\u4eba\u5bb6\u5c0f\u5fc3\u809d\u5657\u55f5\u5657\u55f5\u5730\u2026\u2026", "\u554a~~~\u59d1\u5a18\u54df~~\u59d1~~~\u5a18~~\uff01\uff01", "\u6b7b\u5f00\u6b7b\u5f00~\uff01\uff01\u597d\u72d7\u4e0d\u6321\u8def\u3002", "\u5c45\u7136\u8ffd\u5230\u8fd9\u91cc\u4e86\uff0c\u7b97\u4e86\u5427\uff0c\u8ba4\u4e86\u5427\u3002\n\\cFFCC00\u4e24\u4e2a\u6843\u5b50\u6eda\u843d\u5730\u4e0a", "\u54ce~~~~~~~", "\u6211\u54a4~~~~\uff01\u5929\u5ead\u5723\u5730\uff0c\u7981\u6b62\u55a7\u54d7\u3002", "\u6211~~~~", "\u6211\u4ec0\u4e48\u6211~\uff1f\uff1f\u6574\u5929\u8eab\u5c45\u4ed9\u4f4d\uff0c\u6e38\u624b\u597d\u95f2\u2026\u2026", "\u4f60~~~~~~~~~", "\u4f60\u4ec0\u4e48\u4f60~\uff1f\uff1f\u770b\u5ae6\u5a25\u8863\u6749\u4e0d\u6574\uff0c\u662f\u4e0d\u662f\u4f60\u975e\u793c~\uff1f\uff1f\u662f\u4e0d\u662f\u4f60\u662f\u4e0d\u662f\u4f60\u662f\u4e0d\u662f\u4f60\uff01\uff1f", "\u5979~~~~~~~~~~", "\u5979\u4ec0\u4e48\u5979~\uff1f\uff1f\u54e6~\uff01\u8fd8\u6eda\u51fa\u67652\u4e2a\u4ed9\u6843\uff01\uff01\u5047\u516c\u6d4e\u79c1\u662f\u5427~\uff01\uff01\u7334\u5b50\u5077\u6843\u662f\u5427\uff01\uff01", "\u4ffa\u6ca1~\uff01\u2026\u2026", "\u2026\u2026", "\u4f60\u2026\u2026\u53eb\u5ae6\u5a25\uff1f\u8fd9\u4e2a\u540d\u5b57\uff0c\u4ffa\uff0c\u8bb0\u3002\u4f4f\u3002\u4e86\u2026\u2026", "\u6ca1\u9519\uff0c\u6843\u5b50\u5c31\u662f\u4ffa\u5077\u7684\uff01\uff01\u4ffa\u8ba4\u7f5a\uff01", "\u5c06\u8fd9\u53ea\u5b7d\u755c\u5265\u4e0b\u94e0\u7532\u6253\u4e0b\u5929\u7262\uff01", "\u8d24\u5f1f\uff0c\u5feb\u9192\u9192\u2026\u2026", "\u54ce\u5466\u2026\u2026\u8001\u725b\uff0c\u9192\u6765\u89c1\u4f60\u90a3\u5f20\u8138\uff0c\u771f\u63d0\u795e\uff01\uff01", "\u6211\u5b81\u613f\u770b\u7740\u4f60\uff0c\u7761\u5f97\u5982\u6b64\u6c89\u9759\uff0c\u80dc\u8fc7\u4f60\u9192\u65f6\u51b3\u88c2\u822c\u65e0\u60c5~~", "\u9760\uff0c\u53d1\u6625\u5450\uff0c\u628a~\u624b~\u62ff~\u5f00~~\uff01", "\u54df~~\u633a\u6a2a\u5f97\u563f~\u725b\u54e5\u5b66\u5f97\u4e00\u624b\u597d\u6444\u5f71\u2026\u2026\u521a\u624d\u2026\u2026", "\u2026\u2026\u5927\u54e5\u4e45\u8fdd\u4e86\uff0c\u591a\u65e5\u4e0d\u89c1\uff0c\u53d7\u5c0f\u5f1f\u4e00\u62dc\uff01\uff01", "\u8bdd\u8bf4\u4f60\u4e00\u76f4\u5728\u68a6\u4e2d\u53eb\u7740\u4e00\u4e2a\u4eba\u7684\u540d\u5b57\uff0c\u5979\u4e00\u5b9a\u5077\u4e86\u4f60\u5f88\u591a\u6843\u5b50\u2026\u2026", "\u6ca1\u9519\uff0c\u5979\u662f\u5077\u4e86\u6211\u7684\u4e1c\u897f\uff0c\u4f46\u662f\u4e0d\u662f\u6843\u5b50\uff0c\u6211\u5f88\u60f3\u518d\u89c1\u5979\u2026\u2026", "\u6069\u6069\uff0c\u73b0\u5728\u5927\u54e5\u5e26\u4f60\u4ece\u5bc6\u9053\u51fa\u53bb\u2026\u2026", "\u2026\u2026\u8fd9\u4f60\u90fd\u80fd\u6316\u5f00~\uff01\uff01", "\u54e5\u5728\u9b54\u754c\u6709\u4e2a\u7ef0\u53f7\uff0c\u53eb\u201c\u6e9c\u5f97\u6ed1\u201d\uff0c\u6ca1\u6709\u4ec0\u4e48\u56da\u7262\u80fd\u56f0\u4f4f\u54e5\u2026\u2026", "\u5927\u54e5\uff01\uff01\u80fd\u4e0d\u80fd\u5206\u6211\u4ef6\u4e1c\u897f\u906e\u906e\u7f9e\u2026\u2026", "\u6709\uff0c\u6211\u8fd9\u6709\u628a\u521a\u6316\u5730\u9053\u7684\u7834\u52fa\uff0c\u4f60\u62ff\u53bb\u6321\u4f4f\u5148\uff01", "\u9760\u2026\u2026\u7b97\u4e86\uff0c\u603b\u6bd4\u6ca1\u6709\u597d\u3002\u2026\u2026", "\u6ca1\u529e\u6cd5\uff0c\u4f60\u5c31\u5c06\u5c31\u4e00\u4e0b\u5566\u3002\\cFFCC00\u6709\u4ef6\u9053\u7ae5\u7684\u65e7\u888d\u5b50\u57289\u697c\uff0c\u4f60\u4ed4\u7ec6\u627e\u627e\u5427\uff0c\\cF8F8F8\u6211\u5148\u64a4\u4e86\u2026\u2026", "\u5996\u7334\uff0c\u4f60\u53ef\u8ba4\u5f97\u672c\u5c11\u7237\uff01\uff01", "\u549d~~\u6211\u770b\u4f60\u9aa8\u9abc\u6e05\u5947\u4e09\u5934\u516d\u81c2\uff0c\u731c\u5f97\u4e0d\u9519\u7684\u8bdd\uff0c\u9601\u4e0b\u4e00\u5b9a\u662f\u7578\u5f62\u513f\uff01", "\u554a~\uff01\u5927\u54e5\u679c\u7136\u9ad8\u624b\uff01\u8fd9\u90fd\u88ab\u4f60\u770b\u7a7f\u4e86\uff01\u4e0d\u80fd\u7559\u4f60\u6d3b\u53e3\u4e86\uff01", "\u54ce\u5440\u5440~~\u6211\u56de\u53bb\u544a\u8bc9\u6211\u7239\u53bb\uff01", "\u6765\u4eba\uff01\u628a\u5996\u7334\u62ff\u4e0b\uff01", "\u54e6~~~\u55b3~\uff01\u674e\u5c0f\u7334\u8e22\u9986\uff01\uff01", "\u8d24\u5f1f\uff0c\u6162\u7740\uff01", "\u6e9c\u5f97\u6ed1\uff1f", "\u6211\u5077\u5077\u544a\u8bc9\u4f60\u54e6\uff0c\u6709\u4e2a\u94f6\u68cd\u572817\u5c42\uff0c\u4f60\u627e\u5230\u5b83\u4ee5\u540e\u5c31\u80fd\u5389\u5bb3\u5f88\u591a\uff1f", "\u4e86\u89e3\uff01", "\u7ea2\u4e86\u7ea2\u8138", "\u5c3d\u5feb\u53bb\u5427\uff0c\u6211\u95ea\u5148\u2026\u2026", "\u8d24\u5f1f\uff0c\u8fd9\u53ea\u5578\u5929\u72ac\u5728\u8fd9\u91cc\u6321\u9053\u592a\u5371\u9669\u4e86\uff0c\u8ddf\u54e5\u54e5\u7ed5\u5bc6\u9053\u5427\u3002", "\u4e00\u53ea\u770b\u95e8\u7684\u5ba0\u7269\uff0c\u80fd\u51f6\u5230\u54ea\u91cc\uff1f", "\u4e0d\u662f\uff0c\u81ea\u4ece\u8c03\u5230\u5929\u5ead\u5b88\u8def\uff0c\u5df2\u7ecf\u5f88\u591a\u5929\u6ca1\u6709\u5403\u8364\u8165\u4e86\u2026\u2026", "\u4e86\u89e3\uff0c\u7ed5\u9053\uff0c\u8d70~\uff01", "\u6211\u4e43\u6258\u5854\u5929\u738b\u9ebe\u4e0b\u5148\u950b\u5b98\uff0c\u5de8\u73b2\u795e\u662f\u4e5f\uff01\u4f60\u6b3a\u6211\u5b69\u513f\u2026\u2026", "\u6b3a\u4f60\u5b69\u513f~\uff1f", "\u5176\u5b9e\u2026\u2026\u54ea\u5412\u662f\u5974\u5bb6\u8ddf\u6258\u5854\u5929\u738b\u7684\u79c1\u751f\u5b50\u2026\u2026", "\u4f60\u662f\u5973\u5c06\uff01\uff1f", "\u5176\u5b9e\uff0c\u770b\u6211\u50cf\u8299\u84c9\u59d0\u59d0\u4e00\u6837\u7684\u597d\u8eab\u6bb5\uff0c\u4f60\u5c31\u5e94\u8be5\u4e86\u89e3\u2026\u2026", "\u2026\u2026\u549d~~\u6258\u5854\u5929\u738b\u53e3\u5473\u8fd9\u4e48\u504f\u2026\u2026", "\u554a~~~\u5929\u738b\uff0c\u5de8\u73b2\u513f\u4e0d\u80fd\u966a\u4f34\u4f60\u4e86\u2026\u2026", "\u770b\u6765\u4f60\u5df2\u7ecf\u6253\u901a\u6697\u5899\u4e86\uff0c\u770b\u54e5\u7684\u3002", "\u5662\uff0c\u901a\u5b8c\u6536\u5de5\uff0c\u8d70\uff01\uff01\u2026\u2026", "\u6211\u4eec\u662f\u5929\u5ead\u5e02\u5bb9\u7ba1\u7406\u961f\uff01\uff01\u554a\u54c8~\u4e71\u5806\u6e23\u571f\uff0c\u8fdd\u89c4\u65bd\u5de5\u7ec8\u4e8e\u88ab\u6293\u4e2a\u73b0\u884c\uff01", "\u54ce\u5440~\uff01\u5144\u5f1f\uff0c\u4e00\u5b9a\u8981\u67652\u5c42\u5929\u7262\u6551\u6211\u5440\uff01", "", "", "", "", "\u4f60\u5c31\u662f\u5b59\u609f\u7a7a\uff01\uff1f", "\u4ffa\u5c31\u662f\u3002", "\u6211\u5e38\u53bb\u5e7f\u5bd2\u5bab\u770b\u5979\uff0c\u5979\u8fd9\u51e0\u5929\u5e38\u5e38\u63d0\u5230\u4f60\u2026\u2026\u6211\u4ece\u6765\u4e0d\u77e5\u9053\u4ec0\u4e48\u53eb\u505a\u5ac9\u5992\uff0c\u4f46\u662f\u8fd9\u6b21\uff0c\u6211\u60f3\u8981\u4f60\u7684\u547d\u3002", "\u54fc\uff0c\u4f60\u54ea\u4f4d\uff1f", "\u6211\u4e43\u5929\u84ec\u5143\u5e05\uff0c\u6731\u521a\u9b23\uff01\uff01\u638c\u7ba1\u5929\u6cb3\u2026\u2026", "\u732a\u809b\u88c2\uff1f\uff1f\u597d\uff0c\u6ee1\u8db3\u4f60\u8fd9\u4e2a\u613f\u671b\u2026\u2026", "\u54ce\u2026\u2026\u6211\u8fd8\u6ca1\u62a5\u5b8c\u5462\u2026\u2026", "\u83ca\u82b1\u6b8b~~~\u6ee1\u5730\u4f24\u2026\u2026", "\u4f60\u8ddf\u6768\u622c\u4e00\u6218\uff0c\u5929\u5ead\u90fd\u5f00\u4e86\u76d8\u53e3\uff0c\u8d54\u7387\u662f1:5\uff0c\u54e5\u628a\u79c1\u623f\u94b1\u90fd\u62bc\u5230\u4f60\u5934\u4e0a\u4e86\uff0c\u8868\u8f9c\u8d1f\u54e5\u54e5\u54df~", "\u2026\u2026\u771f\u60f3\u80cc\u540e\u7ed9\u4f60\u4e00\u95f7\u68cd\u2026\u2026", "\u5929\u5ead\u7981\u6b62\u4e71\u5806\u6e23\u571f\uff0c\u54e5\u54e5\u628a\u6e23\u571f\u8fd0\u5230\u201c\u5929\u5ead\u57ce\u7ba1\u529e\u4e8b\u5904\u201d\u53bb\uff0c\u5c31\u4e0d\u7b97\u4e71\u5806\u4e86\uff0c\u634f\u563f\u563f~~", "\\cFFCC0023\u5c42\u4e43\u662f29\u5c42\u7684\u5730\u57fa\u6240\u5728\uff0c\u627e\u51fa\u6697\u85cf\u7684\u5899\uff0c\u5c31\u53ef\u4ee5\u8ba929\u5c42\u7684\u5899\u677e\u52a8\uff0c\u54e5\u54e5\u5c31\u53ef\u4ee5\u6316\u7a7f\u5b83\u3002", "\u2026\u2026\u4f60\u4e2a\u5047\u4ed7\u4e49\uff01", "\u5144\u5f1f\uff0c\u8d76\u5feb\u53bb\u51d1\u9f50\u88c5\u5907\uff0c\u6253\u8d25\u6768\u622c\uff0c", "\u54e5\u54e5\u5c31\u53d1\u8fbe\u4e86~\u563f\u563f~", "\u2026\u2026", "\u4e0a\u6b21\u8d81\u672c\u5143\u5e05\u81ea\u62a5\u5927\u540d\u7684\u65f6\u5019\uff0c\u7a81\u88ad\u672c\u5e05\uff0c\u672c\u5e05\u4e0d\u8ddf\u4f60\u8ba1\u8f83\uff0c\u5355\u6311\u8fd8\u662f\u7fa4\u6bb4\uff0c\u4f60\u81ea\u5df1\u9009\u3002", "\u6069\uff0c\u662f\u6761\u6c49\u5b50\uff0c\u4ffa\u5c31\u8ba4\u771f\u8ddf\u4f60\u6253\u4e00\u6b21\uff0c\u5355\u6311\uff01", "\u5355\u6311\u662f\u5427\uff0c\u4f60\u4e00\u4e2a\u5355\u6311\u6211\u4eec\u5168\u90e8\uff0c\u5f1f\u5144\u4eec\uff0c\u4e00\u8d77\u4e0a\uff01", "\u4f60\u4e2b\u4e0d\u5730\u9053\uff01", "\u4f60\u7684\u786e\u662f\u4e2a\u82f1\u96c4\uff0c\u96be\u602a\u5979\u4e00\u76f4\u5ff5\u5ff5\u4e0d\u5fd8\u2026\u2026", "\u8fc7\u5956\u8fc7\u5956\uff0c\u4f60\u7684\u90e8\u4e0b\u90fd\u8eba\u4e0b\u4e86\uff0c\u73b0\u5728\u8f6e\u5230\u4f60\u4e86\u2026\u2026", "\u6069~~\u8ba8\u538c\u6b7b\u4e86\uff0c\u6765\u4e86\u6765\u4e86\u2026\u2026", "\u4eba\u5bb6\u4eca\u5929\u8eab\u4f53\u4e0d\u65b9\u4fbf\uff0c\u6539\u5929\u518d\u6765\uff0c\u5148\u95ea\u4e86", "\u5929\u84ec\uff0c\u4f60\u6570\u6b21\u6218\u609f\u7a7a\u4e0d\u80dc\u5012\u7f62\u4e86\uff0c\u5e73\u65f6\u5e38\u5e38\u64c5\u81ea\u79bb\u5c97\uff0c\u53bb\u5e7f\u5bd2\u5bab\u628a\u599e\u2026\u2026\u6b7b\u7f6a\u53ef\u514d\uff0c\u6d3b\u7f6a\u96be\u9976\u3002", "\u542c\u8bf4\uff0c\u4e0b\u51e1\u6295\u80ce\uff0c\u5c31\u4f1a\u5815\u5165\u8f6e\u56de\uff0c\u5c31\u4f1a\u5fd8\u8bb0\u524d\u5c18\u5f80\u4e8b\u2026\u2026", "\u597d\uff0c\u6715\u5c31\u6210\u5168\u4f60\uff0c\u4e0b\u51e1\u4e4b\u524d\uff0c\u6709\u4ec0\u4e48\u8981\u6c42\u4e48\uff1f", "\u5929\u5929\u5927\u5403\u5927\u559d\uff0c\u5012\u5934\u7761\u89c9\uff0c\u751f\u6d3b\u5b89\u9038\u65e0\u8fb9\uff0c\u5fc3\u5bbd\u4f53\u80d6\u2026\u2026", "\u5f88\u597d\uff0c\u4f60\u7684\u5fc3\u610f\uff0c\u6715\u660e\u767d\u4e86\uff0c\u5b89\u5fc3\u53bb\u5427", "\u54c7\uff01\uff01\u6295\u80ce\u4e3a\u732a\uff1f\uff1f\uff01", "\u5929\u84ec\u5143\u5e05\u53d8\u6210\u4e86\u4e00\u53ea\u732a\uff0c\u88ab\u8d2c\u4e0b\u4e86\u51e1\u5c18", "\u2026\u2026\u771f\u9634\u9669\u2026\u2026", "\u54fc\uff0c\u54fc\uff0c\u5be1\u4eba\u5728\u56db\u5341\u4e5d\u5c42\u7b49\u4f60\uff0c\u54c7\u54c8\u54c8\u54c8\u54c8~\uff01\uff01", "\u672c\u6765\uff0c\u6218\u795e\u60c5\u5723\u7684\u540d\u53f7\u662f\u6211\u7684\uff1b\u5ae6\u5a25\u7684\u5fc3\uff0c\u8fdf\u65e9\u4e5f\u4f1a\u5f52\u5c5e\u4e8e\u6211\uff0c\u4f46\u662f\u4f60\u6765\u4e86\u4e4b\u540e\uff0c\u4e00\u5207\u90fd\u6539\u53d8\u4e86\u2026\u2026", "\u4f60\u559c\u6b22\u5979\uff0c\u8fd9\u4e48\u591a\u5e74\uff0c\u4f60\u4e3a\u4ec0\u4e48\u4e0d\u53bb\u627e\u5979\uff1f", "\u56e0\u4e3a\u6211\u662f\u6218\u795e\u60c5\u5723\uff0c\u662f\u4e0d\u80fd\u5931\u8d25\u7684\u2026\u2026", "\u4f60\u592a\u9a84\u50b2\u4e86\u2026\u2026", "\u65e0\u8bba\u5982\u4f55\uff0c\u6597\u795e\u548c\u6218\u795e\u8fd9\u4e00\u6218\uff0c\u662f\u6ce8\u5b9a\u7684\u2026\u2026", " ", "\u54c7\uff0c\u59d1\u5a18\u8eab\u9677\u4e09\u6627\u771f\u706b\u5f53\u4e2d\uff0c\u8981\u60f3\u529e\u6cd5\u5f00\u95e8\u706d\u706b\u2026\u2026", "\u59d1\u5a18\u9876\u4f4f\uff0c\u4ffa\u8001\u5b59\u6765\u6551\u4f60\uff01\uff01", "\u4e0d\u8981\u4e0d\u8981\u8fc7\u6765\uff01\uff01", "\u59d1\u5a18\u4f60\u6ca1\u4e8b\u5427\uff1f", "\u6b7b\u7334\u5b50\uff0c\u6708\u5bab\u9634\u51b7\uff0c\u59d1\u5976\u5976\u6211\u60f3\u84b8\u84b8\u6851\u62ff\uff0c\u6cbb\u591a\u5e74\u7684\u5173\u8282\u708e\u90fd\u4e0d\u884c\u2026\u2026", "\u2026\u2026", "\u6b7b\u7334\u5b50\uff0c\u4e0a\u6b21\u6843\u5b50\u7684\u4e8b\u60c5\u2026\u2026", "\u4ffa\u638c\u7ba1\u87e0\u6843\u56ed\uff0c\u5077\u5403\u4ed9\u6843\u4f55\u6b62\u5343\u767e\uff0c\u591a\u8ba42\u4e2a\uff0c\u7b97\u4ec0\u4e48\u2026\u2026", "\u5bb3\u4f60\u88ab\u9769\u9664\u4e86\u201c\u9f50\u5929\u5927\u5723\u201d\u7684\u4e0a\u4ed9\u4e4b\u4f4d\u2026\u2026", "\u4ffa\u8001\u5b59\u4e0d\u7a00\u7f55\u5929\u5bab\u7684\u4f4d\u5b50\uff0c~\u8d2c\u4e0b\u51e1\u5c18\u4ecd\u79f0\u738b\uff0c\u563f\u563f", "\u2026\u2026\u5728\u5929\u5bab\u51e0\u5343\u5e74\uff0c\u4ece\u6765\u6ca1\u6709\u4eba\u80af\u4e3a\u6211\u653e\u5f03\u4ed9\u4f4d\u2026\u2026\u5509\uff0c\u53ef\u60dc\u3002", "\u54fc\u54fc\uff0c\u5c45\u7136\u6253\u5230\u8fd9\u91cc\uff0c\u5b9e\u8bdd\u544a\u8bc9\u4f60\uff0c\u6240\u6709\u5929\u795e\u90fd\u5bf9\u4f60\u4e0d\u6ee1\uff0c\u8fd9\u6b21\u4f60\u88ab\u524a\u53bb\u4ed9\u7235\u6253\u5165\u5929\u7262\uff0c\u90fd\u662f\u8ba1\u5212\u4e4b\u4e2d\u3002", "\u90a3\u5ae6\u5a25\u5462\uff0c\u6843\u5b50\u5462\uff1f\u4e5f\u5728\u8ba1\u5212\u4e4b\u4e2d\uff1f\u4f60\u4eec\u6599\u5b9a\u4ffa\u4f1a\u7518\u5fc3\u9876\u7f6a\uff1f", "\u54c7\u54c8\u54c8\u54c8\u54c8~\uff01\u5929\u7f51\u6613\u9003\uff0c\u60c5\u4e1d\u96be\u65ad\uff0c\u4f60\u6709\u901a\u5929\u7684\u672c\u4e8b\uff0c\u4e5f\u96be\u8fc7\u8fd9\u4e00\u5173\u3002", "\u4e3a\u5979\u9876\u7f6a\uff0c\u4ffa\u4ece\u4e0d\u540e\u6094\uff0c\u73b0\u5728\uff0c\u662f\u4ffa\u4e86\u65ad\u6069\u6028\u7684\u65f6\u5019\u4e86\uff01\uff01", "\u5176\u5b9e\uff0c\u6715\u4e0d\u662f\u6253\u4e0d\u8fc7\u4f60\uff0c\u6715\u53ea\u4e0d\u8fc7\u79c1\u632a\u4e86\u56fd\u5e93\uff0c\u4e70\u4e86\u4f60\u7684\u76d8\u53e3\u2026\u2026", "\u4f60\u7ec8\u4e8e\u6253\u5230\u8fd9\u91cc\u4e86\u3002", "\u4f60\u5c45\u7136\u5728\u8fd9\u91cc\uff1f", "\u54c8\u54c8\u54c8\u54c8\uff0c\u8001\u592b\u4e00\u8def\u4fdd\u4f60\uff0c\u5c31\u662f\u4e3a\u4e86\u8ba9\u4f60\u5e2e\u6211\u626b\u6e05\u5929\u5ead\uff0c\u4f60\u7684\u6240\u505a\u6240\u4e3a\u2026", "\u4ffa\u6700\u6068\u7684\u5c31\u662f\u88ab\u4eba\u6b3a\u9a97\uff01\u6211\u2026\u2026\uff08\u609f\u7a7a\u4e45\u4e45\u5730\u9677\u5165\u4e86\u56de\u5fc6\uff09", "\u5929\u5ead\uff0c\u5929\u5ead\u53c8\u600e\u6837\uff1f\u5973\u4eba\u9a97\u6211\uff0c\u5144\u5f1f\u9a97\u6211\uff0c\u5982\u4eca\u4ffa\u8001\u5b59\u6ca1\u6709\u4ec0\u4e48\u53ef\u4ee5\u7559\u604b\u7684\uff0c\u56de\u82b1\u679c\u5c71\u7f62\u4e86\u3002", "\u5b7d\u755c\uff0c\u5929\u5ead\u5a01\u4eea\uff0c\u5c82\u80fd\u5bb9\u4f60\u5168\u8eab\u800c\u9000\uff01\uff01", "\u59d1\u5a18\uff0c\u4f60\u600e\u4e48\u4f1a\u88ab\u5173\u5728\u8fd9\u91cc\uff01", "\u5974\u5bb6\u6697\u4e2d\u52a9\u4f60\uff0c\u89e6\u72af\u5929\u6761\u2026\u2026", "\u7389\u5e1d\u8001\u513f\uff0c\u5f85\u6211\u6253\u70c2\u4f60\u7684\u91d1\u51a0\uff01\uff01\u59d1\u5a18\u4f60\u5148\u79bb\u5f00\uff0c\u7b49\u4ffa\u56de\u6765\uff01", "\u5509\u2026\u2026\u4f60\u53c8\u4f55\u82e6\u2026\u2026", "\u8fd9\u91cc\u6709\u74f6\u706b\u773c\u91d1\u775b\u724c\u773c\u5f71\u971c\uff0c\u53bb\u76b1\u6297\u8870\u8001\uff0c\u53ef\u4ee5\u770b\u6e05\u695a\u654c\u4eba\u7684\u672c\u8d28\uff0c\u91d1\u8272\u8d28\u611f\u8d34\u5408\u80a4\u8d28\uff0c\u6765\u81ea\u5df4\u9ece\uff0c\u4f60\u503c\u5f97\u62e5\u6709\u3002", "\u73b0\u5728\u6d82\u597d\u4e86\uff0c\u770b\u8d77\u6765\u55f2\u4e0d\u55f2~\uff1f", "\u6069\u2026\u2026\u672c\u6765\u662f\u53ea\u201c\u7334\u5996\u201d\uff0c\u73b0\u5728\u662f\u4e2a\u201c\u4eba\u5996\u201d\u3002", "\u5ae6\u5a25\u59d1\u5a18\uff0c\u60f3\u4e0d\u5230\u5728\u8fd9\u91cc\u9047\u5230\u4f60\u3002", "\u5927\u5723\uff0c\u8fd9\u662f\u6211\u4eb2\u624b\u917f\u5236\u7684\u5343\u5e74\u6708\u6842\u9732\uff0c\u559d\u4e0b\u5b83\uff0c\u72b9\u5982\u8131\u80ce\u6362\u9aa8\uff0c\u4f53\u529b\u5927\u589e\u3002", "\u54e6~\uff1f\u96be\u9053\u8fd9\u662f\u5b9a\u60c5\u4fe1\u7269\uff1f", "\u800c\u4e14\uff0c\u5b83\u8fd8\u53ef\u4ee5\u4f7f\u4eba\u5fd8\u8bb0\u7ea2\u5c18\u611f\u60c5\uff0c\u6211\u5e0c\u671b\u4f60\u80fd\u5fd8\u8bb0\u6211\u3002", "\u554a~\u54c8~\u7ed9\u6211\u4e00\u676f\u5fd8\u60c5\u6c34~\u6362\u6211\u4e00\u591c\u4e0d\u6d41\u6cea\u2026\u2026\u59d1\u5a18\uff0c\u4ffa\u51c6\u5907\u79bb\u5f00\u5929\u5ead\uff0c\u6211\u5e0c\u671b\u4f60\u8ddf\u6211\u4e00\u8d77\u8d70\u2026\u2026", "\u8fdd\u80cc\u5929\u6761\uff0c\u79c1\u5954\uff0c\u4f1a\u88ab\u6574\u4e2a\u5929\u754c\u4eba\u8089\u641c\u7d22\u7684\u2026\u2026", "\u79c1\u5954\uff1f\u4ffa\u8001\u5b59\u4e0d\u505a\u90a3\u7325\u7410\u4e4b\u4e8b\uff0c\u5f85\u4ffa\u6253\u4e0a\u7075\u9704\u5b9d\u6bbf\uff0c\u8ba9\u7389\u7687\u5927\u5e1d\u4eb2\u53e3\u7b54\u5e94\uff0c\u6574\u4e2a\u5929\u5ead\u8c01\u6562\u4e3a\u96be\u4f60\uff01\uff01", "\u5927\u5723\u4fdd\u91cd\uff0c\u6b64\u5730\u5974\u5bb6\u4e0d\u5b9c\u4e45\u7559\uff0c\u5974\u5bb6\u4e0d\u60f3\u8fde\u7d2f\u4f60\u2026\u2026", "\u59d1\u5a18\uff01\u59d1\u5a18\uff01", "\u5927\u5723\uff0c\u524d\u9762\u51f6\u9669\u96be\u6d4b\uff0c\u5974\u5bb6\u8fd9\u91cc\u6709\u70b9\u79c1\u623f\u94b1\uff0c\u9001\u7ed9\u4f60\u4e70\u70b9\u4ed9\u4e39\u6ecb\u8865\u8eab\u4f53\u5427\u2026\u2026", "\u2026\u2026\u59d1\u5a18\u5bf9\u6211\u4e00\u7247\u771f\u60c5\uff0c\u4ffa\u53d1\u8a93\u8981\u4e3a\u4f60\u6253\u4e0b\u4e00\u7247\u5929", "\u8ddf\u4ffa\u8d70\u5427\uff0c\u56de\u82b1\u679c\u5c71\u53bb\u2026\u2026", "\u8868\uff0c\u59d1\u5976\u5976\u6211\u4e3a\u4e86\u5929\u5bab\u62a4\u7167\uff0c\u629b\u5f03\u4e86\u524d\u592b\uff0c\u6211\u624d\u8868\u518d\u8ddf\u4f60\u4e0b\u51e1\uff0c\u4f60\u2026\u2026\u662f\u4e2a\u597d\u4eba\u2026\u2026(\u98d8\u8d70)", "......\u5973\u4eba\u5982\u8863\u670d\uff0c\u5144\u5f1f\u5982\u624b\u8db3\uff0c\u8001\u725b~\uff01\u4ffa\u6765\u5bfb\u4f60\uff01\uff01", "\u5b9d\u6247\u5b9d\u6247\u544a\u8bc9\u6211\uff0c\u8c01\u662f\u8fd9\u4e2a\u4e16\u754c\u4e0a\u6700\u578b\u6700\u731b\u7684\u7537\u4eba\uff1f", "\uff08\u6a21\u4eff\u6247\u5b50\u7684\u58f0\u97f3\uff09\u662f\u4f60~\u662f\u4f60~\u8fd8\u662f\u4f60", "\u771f\u81ea\u604b\u2026\u2026", "\u54c7~\uff01\u88ab\u4f60\u5077\u7aa5\u5230\u4e86\uff0c\u672c\u5c0a\u8be5\u6740\u4f60\u706d\u53e3\uff0c\u4f46\u662f\u73b0\u5728\u4f60\u8fd8\u4e0d\u914d\u672c\u5c0a\u51fa\u624b\u3002", "\u53ef\u6076\uff0c\u7b49\u4ffa\u8001\u5b59\u5148\u627e\u56de\u4ffa\u90a3\u6839\u5982\u610f\u68cd\u5b50\u518d\u6765\u6536\u62fe\u4f60\u2026\u2026\\cFFCC00\u5148\u53bb2\u5c42\u5929\u7262\u6551\u8001\u725b\uff0c\u8ba9\u4ed6\u66ff\u4ffa\u5f00\u6697\u5899\u7ed5\u8fc7\u53bb", "\u8001\u725b\uff0c\u4ffa\u6551\u4f60\u6765\u4e86~\uff01", "\u5e73\u65f6\u8ba9\u4f60\u5e2e\u5fd9\uff0c\u8001\u662f\u63a8\u4e09\u963b\u56db\uff0c\u8fd9\u6b21\u8fd9\u4e48\u723d\u5feb\uff0c\u4e00\u5b9a\u6709\u95ee\u9898~", "\u563f\u563f\uff0c35\u5c42\u6709\u4e2a\u4e09\u773c\u5c0f\u767d\u8138\u592a\u6076\u5fc3\uff0c\u66ff\u4ffa\u706d\u4e86\u4ed6~~", "\u4ffa\u5bf9\u5c0f\u767d\u8138\u6728\u6709\u5174\u8da3\u2026\u2026", "\u90a3\u5c31\u60f3\u529e\u6cd5\u5e2e\u4ffa\u7ed5\u8fc7\u53bb~~", "\u563f\u563f\uff0c\u5f00\u81ea\u5df1\u7684\u6d1e\uff0c\u8ba9\u522b\u4eba\u8bf4\u53bb\u5427~~~", "?\u6709\u6839\u6346\u4ed9\u7ef3\uff1f\u4f3c\u4e4e\u53ef\u4ee5\u514b\u5236\u4f4f\u90a3\u4e2a\u4e09\u773c\u5c0f\u767d\u8138\uff0c\u6069\uff0c\u641e\u5b9a\u4ed6\uff0c\u6346\u7ed1\u4ed6\uff0c\u62ff\u4ed6\u7684\u82ad\u8549\u6247\uff0c\u54e6\u4e5f~", "\u6709\u82ad\u8549\u6247\u53ef\u4ee5\u706d\u706b\u4e86\uff0c\u5ae6\u5a25\u59d1\u5a18\uff0c\u4ffa\u6765\u5566~~\uff01\uff01\u5bf9\u4e86\uff0c\u8fd8\u6709\u6211\u7684\u5982\u610f\u91d1\u7b8d\u68d2\u3002", "\u6b22\u8fce\u4f60\u6765\u5230\u5929\u5bab\u4e16\u754c\uff0c\u6211\u662f\u4f60\u7684\u5e08\u5085\u83e9\u63d0\u8001\u7956\u3002", "\u5728\u8fd9\u91cc\u6211\u4e0d\u4f1a\u6559\u4f60\u4e03\u5341\u4e8c\u53d8\uff0c\u4f46\u662f\u6211\u4f1a\u6559\u4f60\u600e\u4e48\u6e38\u5386\u5929\u5bab\u3002", "\u4e3a\u5e08\u77e5\u9053\u4f60\u8981\u5927\u95f9\u5929\u5bab\uff0c\u7279\u610f\u5343\u91cc\u4f20\u97f3\uff0c\u63d0\u4f9b\u8fdc\u7a0b\u89c6\u9891\u652f\u6301\uff0c\u5f53\u7136\uff0c\u5982\u679c\u4f60\u5acc\u4e3a\u5e08\u7f57\u55e6\uff0c\u4e5f\u53ef\u4ee5\u5728\u6e38\u620f\u83dc\u5355\u4e2d\u9009\u62e9\u8df3\u8fc7\u6559\u7a0b\u3002", "\u597d\u4e86\uff0c\u73b0\u5728\u8bf7\u8bd5\u7740\\cFFCC00\u6309\u65b9\u5411\u952e\u79fb\u52a8\u5230\u8fd9\u91cc\u3002", "\u5f88\u597d\uff0c\u4f60\u5df2\u7ecf\u5b66\u4f1a\u592a\u7a7a\u6b65\u4e86\u3002", "\u5728\u4f60\u9762\u524d\u6709\u4e00\u9053\u9ec4\u8272\u7684\u95e8\uff0c\u4f60\u65e0\u6cd5\u8fc7\u53bb\u3002", "\u4f60\u53ef\u4ee5\u770b\u5230\u8fd9\u91cc\u6709\u628a\u9ec4\u94a5\u5319\uff0c\u5b83\u53ef\u4ee5\u5f00\u542f\u8fd9\u9053\u95e8\u3002", "\u73b0\u5728\\cFFCC00\u79fb\u52a8\u5230\u8fd9\u91cc\uff0c\u518d\u56de\u6765\u5f00\u95e8\u3002", "\u7b49\u7b49\uff01", "\u524d\u9762\u6709\u53ea\u6321\u8def\u7684\u72d7\u3002\u4f60\u9700\u8981\u6253\u8d25\u5b83\u624d\u80fd\u8d70\u8fc7\u53bb\u3002", "\u73b0\u5728\uff0c\\cFFCC00\u8bf7\u8bd5\u7740\u79fb\u52a8\u5230\u5b83\u7684\u4f4d\u7f6e\u4e0a\uff0c\u4e0e\u5b83\u6218\u6597\u5427\u3002", "\u542c\u5230\u8f70\u9686\u58f0\u4e86\u5427\uff0c\u56e0\u4e3a\u4f60\u6253\u8d25\u4e86\\cFFCC00\u5b88\u536b\u5c01\u5370\u95e8\u7684\u654c\u4eba\u3002", "\u6240\u4ee5\u8fd9\u91cc\u7684\\cFFCC00\u5c01\u5370\u95e8\\cF8F8F8\u5c31\u88ab\u6253\u5f00\u4e86\u3002", "\u5728\u6218\u6597\u4e2d\u4f60\u53ef\u80fd\u4f1a\u635f\u5931\u8840\u91cf\u3002", "\u8fd9\u91cc\u6709\u4e2a\\cFFCC00\u5c0f\u4ed9\u6843\uff0c\u53ef\u4ee5\u56de\u590d\u4f60\u7684\u8840\u91cf\u3002", "\u5982\u679c\u8840\u91cf\u4e0d\u8db3\uff0c\u4f60\u5c06\u65e0\u6cd5\u6311\u6218\u654c\u4eba\u3002", "\u53c8\u5230\u4e86\u5b66\u4e60\u65f6\u95f4\u3002", "\u4f60\u7684\u80fd\u529b\u662f\u53ef\u4ee5\u63d0\u5347\u7684\uff0c\u5305\u62ec\u653b\u51fb\u3001\u9632\u5fa1\u3001\u8840\u91cf\u3002", "\u8fd9\u91cc\u6709\u4e2a\u84dd\u8272\u4ed9\u4e39\uff0c\u5b66\u540d\u662f\u201c\u9632\u5fa1\u4ed9\u4e39\u201d\uff0c\u670d\u4e0b\u5b83\uff0c\u53ef\u4ee5\u63d0\u5347\u4f60\u7684\u9632\u5fa1\u529b\uff0c\u8ba9\u4f60\u6218\u6597\u66f4\u6301\u4e45\u3002", "\u8bb0\u4f4f\uff0c\\cFFCC00\u5929\u5ead\u5c42\u6570\u8d8a\u9ad8\uff0c\u4ed9\u4e39\u836f\u6548\u8d8a\u5927\u3002", "\u73b0\u5728\uff0c\u5403\u4e86\u5b83\uff0c\u6251\u8fc7\u53bb\u505a\u6389\u524d\u9762\u90a3\u6761\u72d7\uff0c\u4f60\u4f1a\u53d1\u73b0\u635f\u8840\u5c11\u4e86\u3002", "\u770b\u5230\u4e0a\u9762\u7684\u84dd\u95e8\u4e86\u5417\uff0c\u5b83\u53ea\u80fd\u7528\u84dd\u8272\u7684\u94a5\u5319\u6253\u5f00\u3002", "\u5b83\u88ab\u85cf\u5728\u8fd9\u91cc\uff0c\\cFFCC00\u5148\u62ff\u5230\u5b83\u5427\u3002", "\u4f60\u53d1\u73b0\u4e86\u4e00\u9053\u7ea2\u95e8\u3002\u8fd9\u79cd\u95e8\u5f88\u5c11\u89c1\uff0c\u5fc5\u987b\u7528\u7ea2\u94a5\u5319\u624d\u80fd\u6253\u5f00\u3002", "\u5b83\u88ab\u85cf\u5728\u8fd9\u91cc\uff0c\\cFFCC00\u8bf7\u5148\u5f97\u5230\u5b83\uff0c\u518d\u56de\u6765\u5f00\u95e8\u3002", "\u4f60\u627e\u5230\u4e86\u4e00\u628a\u7ea2\u94a5\u5319\uff0c\u8fd9\u79cd\u94a5\u5319\u6bd4\u8f83\u7a00\u5c11\u3002", "\u8bd5\u7740\\cFFCC00\u7528\u5b83\u5f00\u542f\u8fd9\u91cc\u7684\u7ea2\u95e8\u3002", "\u5f88\u597d\uff0c\u8fd9\u5c42\u5df2\u7ecf\u63a5\u8fd1\u5c3d\u5934\u3002", "\u4f60\u4f1a\u53d1\u73b0\u8fd9\u6837\u7684\u7ea2\u8272\u4f20\u9001\u70b9\uff0c\u5b83\u53ef\u4ee5\u8ba9\u4f60\u5411\u4e0a\u4e00\u5c42\u697c\u3002", "\u4e0d\u8fc7\uff0c\u522b\u6025\u7740\u79bb\u5f00\u3002", "\u4f60\u662f\u4e0d\u662f\u5df2\u7ecf\u53d1\u73b0\u8fd9\u91cc\u6709\u4e2a\u9053\u5177\u4e86\u5417\uff1f", "\u8fd9\u91cc\u6709\u4e2a\u7ea2\u8272\u4ed9\u4e39\uff0c\u5b66\u540d\u662f\u201c\u653b\u51fb\u4ed9\u4e39\u201d\uff0c\u670d\u4e0b\u5b83\uff0c\u53ef\u4ee5\u63d0\u5347\u4f60\u7684\u653b\u51fb\u529b\uff0c\u8ba9\u4f60\u6218\u6597\u66f4\u72c2\u91ce\u3002", "\u4f46\u662f\u8fd9\u91cc\u597d\u8c61\u4e0d\u901a\u2026\u2026", "\u522b\u6025\uff01\u4fd7\u8bdd\u8bf4\u8f66\u5230\u5c71\u524d\u5fc5\u6709\u8def\uff0c\u5728\u5929\u5bab\u7684\u5f88\u591a\u5c42\u4e2d\u4f1a\u6709\u9690\u85cf\u7684\u8def\uff0c\u66f4\u591a\u60ca\u559c\u66f4\u591a\u6b22\u7b11\uff0c\u5c31\u5728\u9690\u85cf\u8def\u2026\u2026", "\u73b0\u5728\uff0c\u79fb\u52a8\u5230\u8fd9\u91cc\uff0c\u4f60\u5c31\u4f1a\u53d1\u73b0\u5b83\u3002", "\u8981\u8bb0\u4f4f\uff0c\\cFFCC00\u5f88\u591a\u5c42\u91cc\u90fd\u4f1a\u6709\u9690\u85cf\u7684\u4e1c\u897f\uff0c\u8bd5\u7740\u53bb\u63a2\u7d22\u5427\u3002", "\u770b\u5230\u4f60\u4e0a\u6765\u7684\u8def\u4e86\u5417\uff1f", "\u84dd\u8272\u7684\u4f20\u9001\u70b9\u53ef\u4ee5\u8ba9\u4f60\u5411\u4e0b\u4e00\u5c42\u697c\u3002", "\u4f60\u53ef\u80fd\u65e0\u6cd5\u51fb\u8d25\u8fd9\u4e2a\u654c\u4eba\uff0c\u7ed5\u9053\u4e5f\u662f\u524d\u8fdb\u7684\u529e\u6cd5\u3002", "\u90a3\u4e48\uff0c\u5982\u4f55\u5224\u65ad\u4e00\u4e2a\u654c\u4eba\u7684\u5f3a\u5f31\u5462\uff1f", "\u6e38\u620f\u4e2d\u4f60\u4f1a\u83b7\u5f97\u8fd9\u4ef6\u5b9d\u7269\uff0c\u5b83\u53eb\\cFFCC00\u706b\u773c\u91d1\u775b\u724c\u773c\u5f71\u818f\u3002", "\u6d82\u62b9\u4e00\u70b9\u5728\u773c\u76ae\u4e0a\uff0c\u4f60\u53ef\u4ee5\u770b\u7834\u654c\u60c5\uff0c\u8fd8\u53ef\u4ee5\u53bb\u9664\u773c\u89d2\u7eb9\u3002", "\u6211\u5e2e\u4f60\u5f00\u51fa\u4e86\u4e00\u6761\u8def\uff0c\u4f60\u53ef\u4ee5\u53bb\u53d6\u5b83\u4e86\u3002", "\u73b0\u5728\u4f60\u53ef\u4ee5\u53c2\u7167\u4f7f\u7528\u8bf4\u660e\u6765\u4f7f\u7528\u5b83\u4e86\u3002", "\u9664\u4e86\u63095/OK\u952e\u67e5\u770b\u654c\u4eba\u5bf9\u4f60\u9020\u6210\u7684\u4f24\u5bb3\u4ee5\u5916\u3002", "\u4f60\u8fd8\u53ef\u4ee5\u6309\u5de6\u8f6f\u952e\u6253\u5f00\u7269\u54c1\u680f\u3002", "\u9009\u62e9\u8be5\u7269\u54c1\uff0c\u6309\u786e\u8ba4\u952e\u67e5\u770b\u66f4\u8be6\u7ec6\u7684\u654c\u4eba\u4fe1\u606f\u3002", "\u4f60\u7ad9\u5728\u8fd9\u5341\u5b57\u8857\u5934\u4e0a\uff0c\u627e\u4e0d\u5230\u6765\u53bb\u7684\u65b9\u5411\u3002", "\u4e0d\u8981\u614c\u5f20\uff0c\u8bd5\u7740\u67e5\u770b\u4e0b\u8fd9\u91cc\u9053\u5177\u548c\u654c\u4eba\u7684\u5206\u5e03\u5f62\u52bf\u3002", "\u4e0a\u53bb\u7684\u4f20\u9001\u70b9\u5728\u8fd9\u91cc\u3002", "\u5982\u679c\u4f60\u65e0\u6cd5\u9a6c\u4e0a\u51fb\u8d25\u8fd9\u4e2a\u5b88\u536b\u3002", "\u5c31\u8bd5\u7740\u5c06\u5730\u56fe\u4e0a\u7684\u4ed9\u4e39\u548c\u4ed9\u6843\u5403\u6389\uff0c\u7136\u540e\u4f60\u5c31\u53ef\u4ee5\u6218\u80dc\u5b83\u4e86\u3002", "\u8bb0\u4f4f\uff0c\u5982\u679c\u524d\u65b9\u6709\u4e00\u7fa4\u654c\u4eba\u5728\u5411\u4f60\u6325\u624b\uff0c\u5343\u4e07\u522b\u51b2\u52a8\u3002", "\u7262\u8bb0\\cFFCC00\u201c\u5148\u5403\u4ed9\u4e39\u540e\u8089\u640f\u201d\\cF8F8F8\u662f\u51cf\u5c11\u635f\u8840\u7684\u7b2c\u4e00\u6cd5\u5219\u3002", "\u54e6\u563f\u563f~\u4e3a\u5e08\u8981\u7ee7\u7eed\u4eab\u53d7\u6e21\u5047\u5566~\u3002", "\u5728\u8fd9\u4e4b\u524d\u6211\u4f1a\u4f20\u6388\u4f60\u4e94\u767e\u5e74\u529f\u529b\uff0c\u518d\u9001\u4f60\u4e24\u4ef6\u4e1c\u897f\u9632\u8eab\u3002", "\u8fd9\u662f\u4e00\u628a\u6b66\u5668\uff0c\u80fd\u8ba9\u4f60\u63d0\u5347\u5f88\u9ad8\u7684\u653b\u51fb\u3002", "\u5728\u6e38\u620f\u7684\\cFFCC00\u6bcf10\u5c42\u90fd\u6709\u4e00\u628a\u65b0\u6b66\u5668\u3002", "\u5982\u679c\u4f60\u80fd\u65e9\u70b9\u83b7\u5f97\u5b83\uff0c\u5c31\u80fd\u8f7b\u677e\u5e94\u5bf9\u654c\u4eba\uff0c\u8d70\u5f97\u66f4\u8fdc\u3002", "\u540c\u6837\uff0c\u8fd9\u662f\u4e00\u4ef6\u9632\u5177\uff0c\u80fd\u63d0\u9ad8\u4f60\u7684\u9632\u5fa1\u3002", "\u6211\u73b0\u5728\u5e2e\u4f60\u6253\u5f00\u8fd9\u9053\u5899\uff0c\u5728\u4e00\u822c\u60c5\u51b5\u4e0b\uff0c\u5b83\u662f\u65e0\u6cd5\u51fb\u788e\u7684\u3002", "\u5bf9\u4e86\uff0c\u7ed9\u4f60\u4ecb\u7ecd\u4e00\u4e2a\u5929\u5bab\u4e0a\u7684\u670b\u53cb\u3002", "\u8fd9\u662f\u4e3a\u5e08\u7684\u8001\u670b\u53cb\uff0c\\cFFCC00\u592a\u767d\u91d1\u661f\\cF8F8F8\uff0c\u4ed6\u4f1a\u6697\u4e2d\u5e2e\u52a9\u4f60\u7684\u3002", "\u606d\u559c\uff0c\u4f60\u5df2\u7ecf\u6bd5\u4e1a\u4e86\uff0c\u6211\u518d\u4f20\u6388\u4f60\u4e94\u767e\u5e74\u7684\u529f\u529b\u3002", "\u8fd8\u7ed9\u4f60\u51c6\u5907\u4e86\u4e24\u4ef6\u795e\u5668\uff0c\u628a\u5b83\u4eec\u6536\u4e0b\u5427\u3002", "\u8981\u8bb0\u4f4f\uff0c\u5f80\u524d\u4f60\u5c06\u9762\u5bf9\u7684\u4e0d\u662f\u4e00\u4e2a\u654c\u4eba\uff0c\u800c\u662f\u6574\u4e2a\u5929\u5bab\u3002", "\u634f\u54c8\u54c8~\u4eca\u5929\u98ce\u548c\u65e5\u4e3d\uff0c\u6715\u5fc3\u60c5\u5f88\u597d~\uff01", "\u5440~\uff01\u54ea\u91cc\u94bb\u51fa\u4e00\u53ea\u679c\u5b50\u72f8\uff01\u9884\u9632\u975e\u5178\uff01\u5de6\u53f3\u4e0e\u6211\u62ff\u4e0b\uff01", "\u4ec0\u4e48\u7834\u7687\u5e1d\uff0c\u4e94\u8c37\u4e0d\u5206\uff0c\u516d\u755c\u4e0d\u8fa8\u2026\u2026\u7389\u5e1d\u8001\u513f\uff0c\u4ffa\u4e43\u82b1\u679c\u5c71\u7b2c\u4e00\u5c4a\u578b\u79c0\u51a0\u519b\uff0c\u7f8e\u7334\u738b\u5b59\u609f\u7a7a\uff01\uff01", "\u90fd\u7ed9\u6211\u4e0a~\uff01", "\u5de8\u73b2\u795e\uff0c\u6123\u5728\u90a3\u91cc\u505a\u4ec0\u4e48\uff1f", "\u965b\u4e0b\uff0c\u4eba\u5bb6\u662f\u5973\u5b69\u5b50\u561b\uff0c\u6700\u6015\u6bdb\u8338\u8338\u5730\u5c0f\u52a8\u7269\u4e86\u2026\u2026", "\u5c11\u5e9f\u8bdd\uff01\u60f3\u88ab\u780d\u5934\u554a\uff01", "\u965b\u4e0b\uff0c\u4e09\u592a\u5b50\u8bf7\u6218\uff01", "\u7389\u5e1d\u8001\u513f\uff0c\u4ffa\u8001\u5b59\u8981\u505a\u9f50\u5929\u5927\u5723\uff01\uff01", "\u55f7~~\u5b83\u8fc7\u6765\u4e86\u5b83\u8fc7\u6765\u4e86\uff0c\u8bf7\u4f60\u4e2a\u5934\u554a\uff0c\u8d76\u7d27\u9876\u4e0a\u5148~~", "\u62a4\u9a7e~\uff01\u62a4\u9a7e~\uff01", "\u8c01~\uff01\u662f\u5929\u5ead\u7b2c\u4e00\u578b\u7537~\uff01\uff01", "\u662f\u4f60~\uff01\u662f\u4f60~\uff01", "\u8c01~\uff01\u662f\u5929\u5ead\u7b2c\u4e00\u731b\u7537~\uff01\uff01", "\u662f\u4f60~\uff01\u662f\u4f60~\uff01", "\u8c01~\uff01\u662f\u5929\u5ead\u7b2c\u4e00\u660e\u661f\u6218\u795e~\uff01\uff01", "\u4f60\u662f\u7535\uff0c\u4f60\u662f\u5149\uff0c\u4f60\u662f\u552f\u4e00\u5730\u795e\u8bdd\uff0c\u4f60\u4e3b\u5bb0\uff0c\u6211\u5d07\u62dc~\u6ca1\u6709\u66f4\u597d\u7684\u529e\u6cd5~~\uff01", "\u965b\u4e0b\u2026\u2026\u5455\u2026\u2026", "\u81e3\u89c9\u5f97\u5427\u2026\u2026\u5455\u2026\u2026", "\u8fd8\u662f\u4e0d\u8981\u8ba9\u4e8c\u90ce\u795e\u7ee7\u7eed\u4e0b\u53bb\u4e86\uff0c\u5c3d\u5feb\u5e73\u606f\u8fd9\u6b21\u4e8b\u4ef6\uff0c\u7ed9\u5b59\u609f\u7a7a\u5c01\u4e2a\u5b98\u7b97\u4e86\uff01\uff01", "\u5455~~\u6715\u4e5f\u662f\u8fd9\u4e48\u60f3\u6ef4~~\u5594\u83b1\uff0c\u5c31\u5c01\u5b59\u609f\u7a7a\u4e3a\u9f50\u5929\u5927\u5723\uff0c\u638c\u7ba1\u87e0\u6843\u56ed\uff01", "\u563f\u563f\uff0c\u4ffa\u8001\u5b59\u5c31\u9886\u4e86~\uff01\u591a\u8c22~\uff01", "\u5996\u2026\u5996\u602a\uff0c\u4ed6\u7684\u773c\u775b\u95ea\u7740\u7ea2\u5149\u2026\u2026\u592a\u53ef\u6015\u4e86", "\u5c45\u7136\u9000\u7f29\uff0c\u4f60\u8fd9\u6ca1\u7528\u7684\u4e1c\u897f\u3002", "\u5662~~~~~~\u6ee1\u56ed\u4ed9\u6843\u6210\u719f\uff0c\u715e\u662f\u8bf1\u4eba\uff01\uff01", "\u8ba9\u4ffa\u8001\u5b59\u56db\u5904\u901b\u901b~~", "\u609f\u7a7a~\u609f\u7a7a~\uff01", "\u4e3a\u4ec0\u4e48\u6709\u53ea\u9171\u6cb9\u86e4\u87c6\u8ddf\u6211\u5343\u91cc\u4f20\u97f3\uff1f", "\u662f\u5e08\u7236\u6211\u554a\uff01", "\u5e08\u7236\uff1f\u4e3a\u4ec0\u4e48\u5316\u4e2a\u86e4\u87c6\u5986\uff1f", "\u4e3a\u5e08\u5728\u5370\u5ea6\uff0c\u6cd5\u672f\u4ea4\u6d41\u517c\u6e21\u5047\uff0c\u65e5\u5149\u6d74\u52a0\u987f\u987f\u5496\u55b1\u996d\uff0c\u5634\u5df4\u4e0a\u706b\u3002", "\u5982\u6765\u628a\u5b59\u609f\u7a7a\u5c01\u5370\u4e8e\u4e94\u6307\u5c71\u4e0b\uff0c\u4f34\u968f\u7740\u6240\u6709\u6069\u6028\u60c5\u4ec7\uff0c\u6b32\u77e5\u540e\u4e8b\u5982\u4f55\uff0c\u656c\u8bf7\u671f\u5f85\u300a\u897f\u6e38\u8bb0\u4e8c\u4e4b\u5927\u5723\u53d6\u7ecf\u300b", "\u7231\u5f92\u554a\uff0c\u4f60\u4e00\u4e2a\u4eba\u8981\u7ee7\u7eed\u6311\u6218\u5929\u5bab\uff0c\u4e3a\u5e08\u4e0d\u653e\u5fc3\uff0c\u7ed9\u4f60\u4e70\u4e86\u4efd\u4fdd\u9669\u3002", "\u5e08\u5085\u591f\u4e49\u6c14\u3002", "\uff08\u63a5\u8fc7\u4fdd\u5355\uff09\u53d7\u76ca\u4eba...\u201c\u83e9\u63d0\u8001\u7956\u201d", "\u6211\u7684\u5f92\u513f\u554a\uff0c\u4f60\u5df2\u7ecf\u9677\u5165\u6df7\u6c8c\u4e16\u754c\u3002\u4e5f\u5c31\u4eba\u4eec\u5e38\u8bf4\u7684\u7cbe\u795e\u5206\u88c2\u75c7\u3002", "\u8fd9\u662f\u7531\u4e8e\u79cd\u79cd\u611f\u60c5\u7ea0\u845b\u5f15\u53d1\u7684\uff0c\u5982\u679c\u4f60\u60f3\u51fa\u6765\uff0c\u5c31\u8981\u6218\u80dc\u4ed6\u4eec\u3002", "\u4e0d\uff0c\u662f\u6218\u80dc\u81ea\u5df1\u3002\u8981\u8ba9\u8fd9\u5929\u2026\u518d\u4e5f\u906e\u4e0d\u4f4f\u4f60\u7684\u773c\u3002", "\u6211\u8981\u63d0\u9192\u4f60\u7684\u662f\uff0c\u8fd9\u4e2a\u4e16\u754c\u91cc\uff0c\u6240\u6709\u7684\u654c\u4eba\u90fd\u4f1a\u6bd4\u539f\u6765\u66f4\u5f3a\uff0c\u5f53\u7136\u4f60\u7684\u80fd\u529b\u4e5f\u4f1a\u63d0\u5347\u66f4\u591a\u3002", "\u53bb\u5427\u2026\u2026\u52ab\u96be\u5728\u6240\u96be\u514d\u3002"};
+        this.f_int_113 = this.levelScriptLines.length;
         this.f_bool_arr_06 = new boolean[this.f_int_113];
         this.f_int_118 = 0;
-        this.f_byte_arr2_04 = new byte[][]{{29, 1, 3, 0, 29, 2, 3, 0, 29, 3, 3, 0, 26, 1, 4, 0, 26, 2, 4, 0, 26, 3, 4, 0, 30, 9, 3, 0, 30, 10, 3, 0, 30, 11, 3, 0, 32, 9, 4, 0, 32, 10, 4, 0, 32, 11, 4, 0}, {29, 4, 4, 0, 29, 4, 5, 0, 29, 5, 4, 0, 26, 7, 4, 0, 26, 8, 4, 0, 26, 8, 5, 0, 30, 4, 7, 0, 30, 4, 8, 0, 30, 5, 8, 0, 32, 8, 8, 0, 32, 7, 8, 0, 32, 8, 7, 0}, {27, 6, 5, 0, 27, 5, 6, 0, 27, 7, 6, 0, 27, 6, 7, 0}, {17, 6, 4, 0}, {16, 5, 5, 0}, {24, 6, 2, 0, 32, 5, 1, 0, 32, 6, 1, 0, 32, 7, 1, 0, 27, 6, 6, 0}, {32, 2, 3, 0, 32, 3, 3, 0, 32, 4, 3, 0, 26, 8, 3, 0, 26, 9, 3, 0, 26, 10, 3, 0, 29, 3, 5, 0, 29, 4, 5, 0, 29, 5, 5, 0, 30, 7, 5, 0, 30, 8, 5, 0, 30, 9, 5, 0}, {32, 4, 4, 0, 32, 5, 4, 0, 32, 6, 4, 0}};
-        this.f_byte_arr_23 = new byte[]{75, 74, 68, 67, 69, 71};
+        this.bossEventSpawns = new byte[][]{{29, 1, 3, 0, 29, 2, 3, 0, 29, 3, 3, 0, 26, 1, 4, 0, 26, 2, 4, 0, 26, 3, 4, 0, 30, 9, 3, 0, 30, 10, 3, 0, 30, 11, 3, 0, 32, 9, 4, 0, 32, 10, 4, 0, 32, 11, 4, 0}, {29, 4, 4, 0, 29, 4, 5, 0, 29, 5, 4, 0, 26, 7, 4, 0, 26, 8, 4, 0, 26, 8, 5, 0, 30, 4, 7, 0, 30, 4, 8, 0, 30, 5, 8, 0, 32, 8, 8, 0, 32, 7, 8, 0, 32, 8, 7, 0}, {27, 6, 5, 0, 27, 5, 6, 0, 27, 7, 6, 0, 27, 6, 7, 0}, {17, 6, 4, 0}, {16, 5, 5, 0}, {24, 6, 2, 0, 32, 5, 1, 0, 32, 6, 1, 0, 32, 7, 1, 0, 27, 6, 6, 0}, {32, 2, 3, 0, 32, 3, 3, 0, 32, 4, 3, 0, 26, 8, 3, 0, 26, 9, 3, 0, 26, 10, 3, 0, 29, 3, 5, 0, 29, 4, 5, 0, 29, 5, 5, 0, 30, 7, 5, 0, 30, 8, 5, 0, 30, 9, 5, 0}, {32, 4, 4, 0, 32, 5, 4, 0, 32, 6, 4, 0}};
+        this.bossTypeOrder = new byte[]{75, 74, 68, 67, 69, 71};
         this.f_bool_15 = false;
         this.f_RecordStore_00 = null;
         this.f_RecordEnumeration_00 = null;
@@ -587,7 +587,7 @@ implements Runnable {
         this.f_bool_21 = false;
         this.f_bool_22 = false;
         this.f_byte_26 = 0;
-        this.f_int_arr_33 = new int[]{1, 30, 60, 80, 100};
+        this.difficultyMultipliers = new int[]{1, 30, 60, 80, 100};
         this.f_byte_arr_43 = new byte[]{29, 31, 39, 15, 0, 31, 29, 10, 0, 0, 37, 31, 36, 0, 32, 29};
         this.f_byte_arr_44 = new byte[]{1, 2, 0, 3, 4, 1, 2, 0};
         this.f_int_arr_34 = new int[]{4, 2, 2, 2, 2, 2, 2};
@@ -614,12 +614,12 @@ implements Runnable {
         this.f_bool_33 = true;
         this.setFullScreenMode(true);
         a a2 = this;
-        if (a2.f_Random_00 == null) {
-            a2.f_Random_00 = new Random();
-            a2.f_Random_00.setSeed(System.currentTimeMillis());
+        if (a2.gameRandom == null) {
+            a2.gameRandom = new Random();
+            a2.gameRandom.setSeed(System.currentTimeMillis());
         }
         this.f_bool_00 = true;
-        this.f_byte_00 = 0;
+        this.gameMode = 0;
         this.m_000();
     }
 
@@ -632,7 +632,7 @@ implements Runnable {
         this.f_DirectGraphics_00 = DirectUtils.getDirectGraphics((Graphics)object);
         this.f_Graphics_00 = object;
         this.f_Graphics_00.setFont(this.f_Font_00);
-        switch (this.f_byte_00) {
+        switch (this.gameMode) {
             case 0: {
                 if (this.f_int_04 < 2) {
                     this.f_Graphics_00.setColor(-1);
@@ -734,14 +734,14 @@ implements Runnable {
                 }
                 if ((((a)object).f_byte_16 == 6 || ((a)object).f_byte_16 == 1) && (n4 = ((a)object).f_byte_arr_22[((a)object).f_int_112]) >= 0) {
                     if (((a)object).f_int_119 >= 0) {
-                        n7 = ((a)object).f_int_arr_06[((a)object).f_int_119] + 16;
-                        n8 = ((a)object).f_int_arr_07[((a)object).f_int_119] - 30;
+                        n7 = ((a)object).entityPixelX[((a)object).f_int_119] + 16;
+                        n8 = ((a)object).entityPixelY[((a)object).f_int_119] - 30;
                         if (((a)object).f_byte_17 == 84) {
                             n8 -= 20;
                         }
                     } else {
-                        n7 = ((a)object).f_int_39 + 16;
-                        n8 = ((a)object).f_int_40 - 30;
+                        n7 = ((a)object).playerPixelX + 16;
+                        n8 = ((a)object).playerPixelY - 30;
                     }
                     ((a)object).f_Graphics_00.drawImage(((a)object).f_Image_arr2_00[12][n4], n7 + ((a)object).f_int_56, n8 + ((a)object).f_int_57 + 20, 0);
                 }
@@ -763,14 +763,14 @@ implements Runnable {
                 this.m_063(0, 20);
                 this.m_053(this.f_int_56, this.f_int_57 + 20, true);
                 n4 = 20;
-                int n11 = 240 - (this.f_int_50 + 1 << 2);
+                int n11 = 240 - (this.mapCellsWide + 1 << 2);
                 object = this;
                 int n12 = 0;
                 int n13 = 0;
                 if (((a)object).f_bool_arr_05[1] && ((a)object).f_Image_03 != null) {
                     ((a)object).f_Graphics_00.drawImage(((a)object).f_Image_03, n11, 20, 0);
-                    n12 = n11 + (((a)object).f_int_41 << 2);
-                    n13 = 20 + (((a)object).f_int_42 << 2);
+                    n12 = n11 + (((a)object).playerCellX << 2);
+                    n13 = 20 + (((a)object).playerCellY << 2);
                     ((a)object).f_Graphics_00.setColor(1112072);
                     ((a)object).f_Graphics_00.fillRect(n12, n13, 4, 4);
                 }
@@ -886,7 +886,7 @@ implements Runnable {
                         image = ((a)object).f_Image_arr_00[((a)object).f_byte_arr_20[n23]];
                         n3 = ((a)object).f_int_arr_22[n23];
                         ((a)object).f_Graphics_00.setColor(13097429);
-                        ((a)object).f_Graphics_00.drawString(((a)object).f_String_arr_12[by], n22, n4 + 2, 0);
+                        ((a)object).f_Graphics_00.drawString(((a)object).objectTypeNames[by], n22, n4 + 2, 0);
                         n22 = (240 + ((a)object).f_int_108 >> 1) - 75;
                         n = ((a)object).f_int_01 - 19 >> 1;
                         n4 += n;
@@ -917,17 +917,17 @@ implements Runnable {
                         }
                         super.m_002(((a)object).f_Image_arr2_00[8][7], n22 += 36, n4 += 4, 10, 0, 10, 13);
                         super.m_041(n22 += 15, n4, 48, 12);
-                        super.m_042(((a)object).f_Image_arr2_00[8][2], ((a)object).f_int_arr_19[by - 41], n22 + 40, n4 + 2);
+                        super.m_042(((a)object).f_Image_arr2_00[8][2], ((a)object).enemyAtkScaled[by - 41], n22 + 40, n4 + 2);
                         super.m_002(((a)object).f_Image_arr2_00[8][7], n22 += 52, n4, 20, 2, 10, 10);
                         ((a)object).f_Graphics_00.setColor(512);
                         super.m_041(n22 += 15, n4, 48, 12);
-                        super.m_042(((a)object).f_Image_arr2_00[8][2], ((a)object).f_int_arr_20[by - 41], n22 + 40, n4 + 2);
+                        super.m_042(((a)object).f_Image_arr2_00[8][2], ((a)object).enemyDefScaled[by - 41], n22 + 40, n4 + 2);
                         super.m_002(((a)object).f_Image_arr2_00[8][7], n22 -= 82, (n4 += 12) + 5, 0, 2, 10, 10);
                         super.m_041(n22 += 15, n4 + 5, 48, 12);
-                        super.m_042(((a)object).f_Image_arr2_00[8][2], ((a)object).f_int_arr_21[by - 41], n22 + 40, n4 + 7);
+                        super.m_042(((a)object).f_Image_arr2_00[8][2], ((a)object).enemyHpScaled[by - 41], n22 + 40, n4 + 7);
                         ((a)object).f_Graphics_00.drawImage(((a)object).f_Image_arr2_00[8][1], n22 += 52, n4 + 5, 0);
                         super.m_041(n22 += 15, n4 + 5, 48, 12);
-                        super.m_042(((a)object).f_Image_arr2_00[8][2], ((a)object).f_int_arr_18[by - 41], n22 += 40, n4 + 7);
+                        super.m_042(((a)object).f_Image_arr2_00[8][2], ((a)object).enemyBaseGold[by - 41], n22 += 40, n4 + 7);
                         n4 += 18;
                         if (++n23 < ((a)object).f_int_110) {
                             n22 = n24 - 5;
@@ -975,7 +975,7 @@ implements Runnable {
                 ((a)object).f_Graphics_00.setColor(7575203);
                 ((a)object).f_Graphics_00.drawString("\u82b1\u8d39", n25, n4 += 21, 0);
                 ((a)object).f_Graphics_00.drawImage(((a)object).f_Image_arr2_00[8][1], n25 += (((a)object).f_int_00 << 1) + 4, n4 + (((a)object).f_int_01 - 10 >> 1), 0);
-                super.m_042(((a)object).f_Image_arr2_00[8][2], ((a)object).f_int_76, n25 += 60, n4 + 3 + (((a)object).f_int_01 - 10 >> 1));
+                super.m_042(((a)object).f_Image_arr2_00[8][2], ((a)object).alchemyPrice, n25 += 60, n4 + 3 + (((a)object).f_int_01 - 10 >> 1));
                 n25 = 240 - ((a)object).f_int_75 >> 1;
                 ((a)object).f_Graphics_00.setColor(549016);
                 ((a)object).f_Graphics_00.fillRect(n25, (n4 += ((a)object).f_int_01 + 5) + (((a)object).f_int_80 << 4), ((a)object).f_int_75, 16);
@@ -1008,8 +1008,8 @@ implements Runnable {
                 n29 += 20;
                 n4 += 16;
                 ((a)object).f_Graphics_00.setColor(13097429);
-                if (((a)object).f_int_104 < ((a)object).f_int_95) {
-                    ((a)object).f_Graphics_00.drawString(((a)object).f_String_arr_12[((a)object).f_byte_arr_17[((a)object).f_int_104]], n29, n4 + 2, 0);
+                if (((a)object).f_int_104 < ((a)object).itemStackSize) {
+                    ((a)object).f_Graphics_00.drawString(((a)object).objectTypeNames[((a)object).itemStackTypes[((a)object).f_int_104]], n29, n4 + 2, 0);
                 }
                 ((a)object).f_Graphics_00.setColor(6178);
                 ((a)object).f_Graphics_00.drawLine(n29 -= 9, n4 += ((a)object).f_int_01 + 4, n29 + ((a)object).f_int_103 - 23, n4);
@@ -1026,11 +1026,11 @@ implements Runnable {
                         if (n2 == ((a)object).f_int_104) {
                             super.m_002(((a)object).f_Image_arr2_00[2][10], n29 - 4, n4 - 3, 38 * (((a)object).f_int_03 & 1), 0, 38, 38);
                         }
-                        if (n2 < ((a)object).f_int_95) {
-                            image = ((a)object).f_Image_arr_00[((a)object).f_byte_arr_17[n2]];
+                        if (n2 < ((a)object).itemStackSize) {
+                            image = ((a)object).f_Image_arr_00[((a)object).itemStackTypes[n2]];
                             ((a)object).f_Graphics_00.drawImage(image, n29 + (32 - image.getWidth() >> 1), n4 + (32 - image.getHeight() >> 1), 0);
-                            if (((a)object).f_byte_arr_18[n2] > 0) {
-                                super.m_042(((a)object).f_Image_arr2_00[8][2], ((a)object).f_byte_arr_18[n2], n29 + 32, n4 + 26);
+                            if (((a)object).itemStackUses[n2] > 0) {
+                                super.m_042(((a)object).f_Image_arr2_00[8][2], ((a)object).itemStackUses[n2], n29 + 32, n4 + 26);
                             }
                         }
                         ++n;
@@ -1102,7 +1102,7 @@ implements Runnable {
                     n4 = ((a)object).f_short_arr_05[n32];
                     s = ((a)object).f_short_arr_06[n32];
                     ((a)object).f_Graphics_00.fillRect(n4, (int)s, 4, 4);
-                    n31 = super.m_141(15);
+                    n31 = super.randomBelow(15);
                     if ((n31 & 1) != 0) {
                         super.m_124(n4, s - 4);
                     }
@@ -1185,9 +1185,9 @@ implements Runnable {
                 if (!((a)object).f_bool_04 && (((a)object).f_int_03 & 1) != 0 && ++((a)object).f_int_22 > ((a)object).f_Image_arr2_00[14][0].getWidth() - 240) {
                     ((a)object).f_bool_04 = true;
                 }
-                if ((((a)object).f_int_03 & 3) >> 1 != 0 && ((a)object).f_int_33 < ((a)object).f_String_arr_14[260].length()) {
+                if ((((a)object).f_int_03 & 3) >> 1 != 0 && ((a)object).f_int_33 < ((a)object).dialogueTexts[260].length()) {
                     ++((a)object).f_int_33;
-                    super.m_018(((a)object).f_String_arr_14[260], 209, (((a)object).f_int_34 << 1) + 12, ((a)object).f_int_33);
+                    super.m_018(((a)object).dialogueTexts[260], 209, (((a)object).f_int_34 << 1) + 12, ((a)object).f_int_33);
                     ((a)object).f_int_26 = ((a)object).f_int_28 - 1;
                     if (((a)object).f_int_26 < 0) {
                         ((a)object).f_int_26 = 0;
@@ -1200,7 +1200,7 @@ implements Runnable {
                 ((a)object).f_Graphics_00.setClip(0, 0, 240, 320);
                 ((a)object).f_Graphics_00.drawImage(((a)object).f_Image_arr2_00[14][0], -((a)object).f_int_22, n36, 0);
                 ((a)object).f_Graphics_00.setColor(-1);
-                super.m_019(((a)object).f_String_arr_14[260], 15, 320 - ((a)object).f_int_01 - 10, 210, ((a)object).f_int_01 + 10, false);
+                super.m_019(((a)object).dialogueTexts[260], 15, 320 - ((a)object).f_int_01 - 10, 210, ((a)object).f_int_01 + 10, false);
                 break;
             }
             case 22: {
@@ -1265,25 +1265,25 @@ implements Runnable {
                 if (++((a)object).f_int_142 > 4) {
                     ((a)object).f_int_142 = 4;
                     ((a)object).f_bool_17 = false;
-                    ((a)object).f_int_64 = ((a)object).f_byte_23;
-                    super.m_121(((a)object).f_int_64);
-                    if (((a)object).f_int_64 == 0) {
+                    ((a)object).currentFloor = ((a)object).f_byte_23;
+                    super.m_121(((a)object).currentFloor);
+                    if (((a)object).currentFloor == 0) {
                         super.m_024(1, 2);
-                        super.m_064((((a)object).f_int_58 - 32 >> 1) - ((a)object).f_int_39, (((a)object).f_int_59 - 32 >> 1) - ((a)object).f_int_40);
-                    } else if (((a)object).f_int_64 == 50) {
+                        super.m_064((((a)object).f_int_58 - 32 >> 1) - ((a)object).playerPixelX, (((a)object).f_int_59 - 32 >> 1) - ((a)object).playerPixelY);
+                    } else if (((a)object).currentFloor == 50) {
                         super.m_024(6, 7);
-                        super.m_064((((a)object).f_int_58 - 32 >> 1) - ((a)object).f_int_39, (((a)object).f_int_59 - 32 >> 1) - ((a)object).f_int_40);
-                    } else if (((a)object).f_int_64 == 1 && !((a)object).f_bool_18) {
+                        super.m_064((((a)object).f_int_58 - 32 >> 1) - ((a)object).playerPixelX, (((a)object).f_int_59 - 32 >> 1) - ((a)object).playerPixelY);
+                    } else if (((a)object).currentFloor == 1 && !((a)object).f_bool_18) {
                         super.m_024(6, 11);
-                        super.m_064((((a)object).f_int_58 - 32 >> 1) - ((a)object).f_int_39, (((a)object).f_int_59 - 32 >> 1) - ((a)object).f_int_40);
+                        super.m_064((((a)object).f_int_58 - 32 >> 1) - ((a)object).playerPixelX, (((a)object).f_int_59 - 32 >> 1) - ((a)object).playerPixelY);
                     } else {
                         n2 = super.m_065(((a)object).f_bool_18);
                         if (n2 >= 0) {
-                            super.m_031(((a)object).f_int_arr_06[n2] >> 5, ((a)object).f_int_arr_07[n2] >> 5);
+                            super.m_031(((a)object).entityPixelX[n2] >> 5, ((a)object).entityPixelY[n2] >> 5);
                         }
                     }
                     super.m_057();
-                    super.m_030();
+                    super.applyStepCellEffects();
                 }
             } else if (--((a)object).f_int_142 <= 0) {
                 ((a)object).f_bool_17 = true;
@@ -1330,7 +1330,7 @@ implements Runnable {
                         ((a)object).f_Graphics_00.drawImage(image, n40 + (32 - image.getWidth() >> 1), n41 + (32 - image.getHeight() >> 1), 0);
                     }
                     ((a)object).f_Graphics_00.setColor(16770173);
-                    ((a)object).f_Graphics_00.drawString(((a)object).f_String_arr_12[((a)object).f_byte_07], n40 += 42, n41 + (32 - ((a)object).f_int_01 >> 1), 0);
+                    ((a)object).f_Graphics_00.drawString(((a)object).objectTypeNames[((a)object).f_byte_07], n40 += 42, n41 + (32 - ((a)object).f_int_01 >> 1), 0);
                     ((a)object).f_Graphics_00.setColor(-1);
                     n40 = n5 + 16;
                     super.m_019(((a)object).f_String_02, n40, n41 += 36, 180, ((a)object).f_int_25 - 32 - 36, true);
@@ -1379,7 +1379,7 @@ implements Runnable {
                         if (!var5_3.f_bool_05) break block273;
                         block4 : switch (var5_3.f_byte_08) {
                             case 0: {
-                                if (var5_3.f_byte_00 == 15 || var5_3.f_byte_00 == 17) {
+                                if (var5_3.gameMode == 15 || var5_3.gameMode == 17) {
                                     var6_5 = var5_3;
                                     switch (var6_5.f_int_05) {
                                         case -1: {
@@ -1392,7 +1392,7 @@ implements Runnable {
                                         }
                                         case -7: {
                                             var6_5.f_bool_05 = false;
-                                            var6_5.f_byte_00 = var6_5.f_byte_01;
+                                            var6_5.gameMode = var6_5.f_byte_01;
                                         }
                                     }
                                     break;
@@ -1404,11 +1404,11 @@ implements Runnable {
                                 switch (var5_3.f_int_05) {
                                     case -6: 
                                     case -5: {
-                                        var5_3.f_bool_05 = super.m_074(true);
+                                        var5_3.f_bool_05 = super.applyMerchantOffer(true);
                                         break block4;
                                     }
                                     case -7: {
-                                        var5_3.f_bool_05 = super.m_074(false);
+                                        var5_3.f_bool_05 = super.applyMerchantOffer(false);
                                         break block4;
                                     }
                                 }
@@ -1442,11 +1442,11 @@ implements Runnable {
                                 switch (var5_3.f_int_05) {
                                     case -6: {
                                         var5_3.f_bool_05 = false;
-                                        super.m_087(var5_3.f_int_104);
+                                        super.useItemStack(var5_3.f_int_104);
                                         break block4;
                                     }
                                     case -7: {
-                                        var5_3.f_byte_00 = (byte)10;
+                                        var5_3.gameMode = (byte)10;
                                         var5_3.f_bool_05 = false;
                                         break block4;
                                     }
@@ -1483,7 +1483,7 @@ implements Runnable {
                                     case -6: 
                                     case -5: {
                                         var6_5.f_bool_05 = false;
-                                        var6_5.f_byte_00 = (byte)10;
+                                        var6_5.gameMode = (byte)10;
                                     }
                                 }
                             }
@@ -1492,7 +1492,7 @@ implements Runnable {
                         var5_3.f_int_05 = 0;
                         break block274;
                     }
-                    switch (var5_3.f_byte_00) {
+                    switch (var5_3.gameMode) {
                         case 0: {
                             var5_3.f_int_02 = 100;
                             if (var5_3.f_int_04 < 2) {
@@ -1525,7 +1525,7 @@ implements Runnable {
                             var5_3.f_Image_arr2_00[0] = null;
                             super.m_140();
                             var5_3.f_int_02 = 75;
-                            var5_3.f_byte_00 = (byte)21;
+                            var5_3.gameMode = (byte)21;
                             super.m_000();
                             break;
                         }
@@ -1537,14 +1537,14 @@ implements Runnable {
                                     if (var6_5.f_int_155 == 0) {
                                         var6_5.f_int_155 = 60;
                                     }
-                                    var6_5.f_byte_00 = 1;
+                                    var6_5.gameMode = 1;
                                     super.m_000();
                                     break;
                                 }
                                 case -7: {
                                     var6_5.f_bool_29 = false;
                                     var6_5.f_int_155 = 0;
-                                    var6_5.f_byte_00 = 1;
+                                    var6_5.gameMode = 1;
                                     super.m_000();
                                 }
                             }
@@ -1552,7 +1552,7 @@ implements Runnable {
                         }
                         case 1: {
                             if ((var5_3.f_int_03 & 3) == 0) {
-                                super.m_129(super.m_141(240), 320 - var5_3.f_int_16 - super.m_141(150), 2, -1);
+                                super.m_129(super.randomBelow(240), 320 - var5_3.f_int_16 - super.randomBelow(150), 2, -1);
                             }
                             super.m_052();
                             var6_5 = var5_3;
@@ -1585,36 +1585,36 @@ implements Runnable {
                                     switch (var7_11.f_byte_arr_00[var7_11.f_int_10]) {
                                         case 0: {
                                             var7_11.f_Image_arr2_00[10][0] = null;
-                                            var7_11.f_byte_00 = (byte)14;
+                                            var7_11.gameMode = (byte)14;
                                             super.m_000();
                                             break block66;
                                         }
                                         case 1: {
-                                            var7_11.f_byte_00 = (byte)8;
+                                            var7_11.gameMode = (byte)8;
                                             var7_11.f_byte_01 = 1;
                                             super.m_000();
                                             break block66;
                                         }
                                         case 2: {
-                                            var7_11.f_byte_00 = (byte)16;
+                                            var7_11.gameMode = (byte)16;
                                             var7_11.f_byte_01 = 1;
                                             super.m_000();
                                             break block66;
                                         }
                                         case 3: {
-                                            var7_11.f_byte_00 = (byte)15;
+                                            var7_11.gameMode = (byte)15;
                                             var7_11.f_byte_01 = 1;
                                             super.m_000();
                                             break block66;
                                         }
                                         case 4: {
-                                            var7_11.f_byte_00 = (byte)17;
+                                            var7_11.gameMode = (byte)17;
                                             var7_11.f_byte_01 = 1;
                                             super.m_000();
                                             break block66;
                                         }
                                         case 5: {
-                                            var7_11.f_byte_00 = (byte)22;
+                                            var7_11.gameMode = (byte)22;
                                             super.m_000();
                                         }
                                     }
@@ -1673,15 +1673,15 @@ implements Runnable {
                                         break;
                                     }
                                     case 8: {
-                                        var7_12.f_int_65 = 51;
-                                        v1.f_int_64 = 51;
-                                        var7_12.f_int_66 = 51;
-                                        var7_12.f_int_35 = 300;
-                                        var7_12.f_int_36 = 10;
-                                        var7_12.f_int_37 = 10;
-                                        var7_12.f_int_93 = 0;
-                                        var7_12.f_int_92 = 0;
-                                        var7_12.f_int_91 = 0;
+                                        var7_12.minFloorReached = 51;
+                                        v1.currentFloor = 51;
+                                        var7_12.maxFloorReached = 51;
+                                        var7_12.playerHp = 300;
+                                        var7_12.playerAtk = 10;
+                                        var7_12.playerDef = 10;
+                                        var7_12.redKeyCount = 0;
+                                        var7_12.blueKeyCount = 0;
+                                        var7_12.yellowKeyCount = 0;
                                         var7_12.f_bool_21 = false;
                                         var7_12.f_bool_22 = false;
                                         var7_12.f_bool_20 = false;
@@ -1692,7 +1692,7 @@ implements Runnable {
                                         break;
                                     }
                                     case 10: {
-                                        super.m_121(var7_12.f_int_64);
+                                        super.m_121(var7_12.currentFloor);
                                         super.m_057();
                                         break;
                                     }
@@ -1706,7 +1706,7 @@ implements Runnable {
                                         var7_12.f_int_arr_03 = var7_12.f_int_arr2_01[0];
                                         var7_12.f_int_38 = 0;
                                         var7_12.f_byte_12 = 0;
-                                        super.m_064((var7_12.f_int_58 - 32 >> 1) - var7_12.f_int_39, (var7_12.f_int_59 - 32 >> 1) - var7_12.f_int_40);
+                                        super.m_064((var7_12.f_int_58 - 32 >> 1) - var7_12.playerPixelX, (var7_12.f_int_59 - 32 >> 1) - var7_12.playerPixelY);
                                         break;
                                     }
                                     case 14: {
@@ -1720,7 +1720,7 @@ implements Runnable {
                                     case 16: {
                                         if (super.m_115(var7_12.f_int_134)) break;
                                         var7_12.f_int_144 = 0;
-                                        var7_12.f_byte_00 = (byte)8;
+                                        var7_12.gameMode = (byte)8;
                                         super.m_000();
                                     }
                                 }
@@ -1733,7 +1733,7 @@ implements Runnable {
                             var6_5.f_int_143 = 0;
                             var6_5.f_int_146 = 0;
                             var6_5.f_Image_arr2_00[15] = null;
-                            var6_5.f_byte_00 = var6_5.f_byte_24;
+                            var6_5.gameMode = var6_5.f_byte_24;
                             if (!var6_5.f_bool_19) break;
                             super.m_000();
                             break;
@@ -1742,20 +1742,20 @@ implements Runnable {
                             var6_5 = var5_3;
                             switch (var6_5.f_int_05) {
                                 case -6: {
-                                    var6_5.f_byte_00 = (byte)10;
+                                    var6_5.gameMode = (byte)10;
                                     super.m_000();
                                     break;
                                 }
                                 case -7: {
-                                    var6_5.f_byte_02 = var6_5.f_byte_00;
-                                    var6_5.f_byte_00 = (byte)4;
+                                    var6_5.f_byte_02 = var6_5.gameMode;
+                                    var6_5.gameMode = (byte)4;
                                     super.m_000();
                                 }
                             }
                             var6_5 = var5_3;
                             block102 : switch (var6_5.f_byte_11) {
                                 case 5: {
-                                    super.m_138(true);
+                                    super.tickBattle(true);
                                     break;
                                 }
                                 case 0: {
@@ -1769,26 +1769,26 @@ implements Runnable {
                                 case 1: {
                                     switch (var6_5.f_byte_12) {
                                         case 1: {
-                                            var6_5.f_int_40 -= 8;
-                                            if (var6_5.f_int_40 + var6_5.f_int_57 + 16 >= 106) break;
+                                            var6_5.playerPixelY -= 8;
+                                            if (var6_5.playerPixelY + var6_5.f_int_57 + 16 >= 106) break;
                                             super.m_064(var6_5.f_int_56, var6_5.f_int_57 + 8);
                                             break;
                                         }
                                         case 0: {
-                                            var6_5.f_int_40 += 8;
-                                            if (var6_5.f_int_40 + var6_5.f_int_57 + 16 <= var6_5.f_int_59 - 106) break;
+                                            var6_5.playerPixelY += 8;
+                                            if (var6_5.playerPixelY + var6_5.f_int_57 + 16 <= var6_5.f_int_59 - 106) break;
                                             super.m_064(var6_5.f_int_56, var6_5.f_int_57 - 8);
                                             break;
                                         }
                                         case 3: {
-                                            var6_5.f_int_39 -= 8;
-                                            if (var6_5.f_int_39 + var6_5.f_int_56 + 16 >= 106) break;
+                                            var6_5.playerPixelX -= 8;
+                                            if (var6_5.playerPixelX + var6_5.f_int_56 + 16 >= 106) break;
                                             super.m_064(var6_5.f_int_56 + 8, var6_5.f_int_57);
                                             break;
                                         }
                                         case 2: {
-                                            var6_5.f_int_39 += 8;
-                                            if (var6_5.f_int_39 + var6_5.f_int_56 + 16 <= var6_5.f_int_58 - 106) break;
+                                            var6_5.playerPixelX += 8;
+                                            if (var6_5.playerPixelX + var6_5.f_int_56 + 16 <= var6_5.f_int_58 - 106) break;
                                             super.m_064(var6_5.f_int_56 - 8, var6_5.f_int_57);
                                         }
                                     }
@@ -1797,7 +1797,7 @@ implements Runnable {
                                     if (var6_5.f_int_43 < 32) break;
                                     var6_5.f_int_43 = 0;
                                     var6_5.f_int_38 = 0;
-                                    super.m_030();
+                                    super.applyStepCellEffects();
                                     break;
                                 }
                                 case 2: {
@@ -1848,19 +1848,19 @@ implements Runnable {
                                     var7_13 = var6_5;
                                     switch (var7_13.f_int_05) {
                                         case -3: {
-                                            if (var7_13.f_int_95 > 0) {
+                                            if (var7_13.itemStackSize > 0) {
                                                 if (var7_13.f_int_96 > 0) {
                                                     var7_13.f_int_96 = 0;
                                                     break block102;
                                                 }
-                                                var7_13.f_int_96 = var7_13.f_int_95 - 1;
+                                                var7_13.f_int_96 = var7_13.itemStackSize - 1;
                                                 break block102;
                                             }
                                             ** GOTO lbl408
                                         }
                                         case -4: {
-                                            if (var7_13.f_int_95 > 0) {
-                                                if (var7_13.f_int_96 < var7_13.f_int_95 - 1) {
+                                            if (var7_13.itemStackSize > 0) {
+                                                if (var7_13.f_int_96 < var7_13.itemStackSize - 1) {
                                                     ++var7_13.f_int_96;
                                                     break block102;
                                                 }
@@ -1871,7 +1871,7 @@ implements Runnable {
                                         }
                                         case -6: 
                                         case -5: {
-                                            super.m_087(var7_13.f_int_96);
+                                            super.useItemStack(var7_13.f_int_96);
                                         }
                                         case -7: {
                                             var7_13.f_byte_11 = 0;
@@ -1924,7 +1924,7 @@ lbl408:
                                     break;
                                 }
                                 case -7: {
-                                    var6_5.f_byte_00 = var6_5.f_byte_02;
+                                    var6_5.gameMode = var6_5.f_byte_02;
                                 }
                             }
                             break;
@@ -1948,7 +1948,7 @@ lbl408:
                                 }
                                 case -7: 
                                 case -6: {
-                                    var6_5.f_byte_00 = (byte)3;
+                                    var6_5.gameMode = (byte)3;
                                 }
                             }
                             break;
@@ -1983,13 +1983,13 @@ lbl408:
                                 }
                                 case -6: 
                                 case -5: {
-                                    if (var6_5.f_byte_00 == 7) {
-                                        super.m_119(var6_5.f_int_64);
+                                    if (var6_5.gameMode == 7) {
+                                        super.m_119(var6_5.currentFloor);
                                         super.m_114(var6_5.f_int_134);
                                         super.m_015((byte)0, "\u4fdd\u5b58\u6210\u529f\uff01", (byte)0, (byte)0);
                                         break;
                                     }
-                                    if (var6_5.f_byte_00 != 8 || !var6_5.f_bool_arr_07[var6_5.f_int_134]) break;
+                                    if (var6_5.gameMode != 8 || !var6_5.f_bool_arr_07[var6_5.f_int_134]) break;
                                     var6_5.f_int_06 = 0;
                                     var6_5.f_int_05 = 0;
                                     var6_5.f_Image_arr2_00[10][0] = null;
@@ -2007,7 +2007,7 @@ lbl408:
                                     break;
                                 }
                                 case -7: {
-                                    var6_5.f_byte_00 = var6_5.f_byte_01;
+                                    var6_5.gameMode = var6_5.f_byte_01;
                                 }
                             }
                             break;
@@ -2033,31 +2033,31 @@ lbl408:
                                 }
                                 case -6: 
                                 case -5: {
-                                    if (var6_5.f_int_94 >= var6_5.f_int_76) {
-                                        var6_5.f_int_94 -= var6_5.f_int_76;
+                                    if (var6_5.goldAmount >= var6_5.alchemyPrice) {
+                                        var6_5.goldAmount -= var6_5.alchemyPrice;
                                         var7_14 = var6_5;
                                         switch (var7_14.f_int_80) {
                                             case 0: {
-                                                var7_14.f_int_35 += var7_14.f_int_77;
+                                                var7_14.playerHp += var7_14.f_int_77;
                                                 break;
                                             }
                                             case 1: {
-                                                var7_14.f_int_36 += var7_14.f_int_78;
+                                                var7_14.playerAtk += var7_14.f_int_78;
                                                 break;
                                             }
                                             case 2: {
-                                                var7_14.f_int_37 += var7_14.f_int_79;
+                                                var7_14.playerDef += var7_14.f_int_79;
                                             }
                                         }
-                                        ++var7_14.f_int_69;
-                                        var7_14.f_int_76 = a.m_071(var7_14.f_int_69 + 1);
+                                        ++var7_14.alchemyUpgradeCount;
+                                        var7_14.alchemyPrice = a.alchemyPriceFor(var7_14.alchemyUpgradeCount + 1);
                                         break;
                                     }
                                     super.m_015((byte)0, "\u6ca1\u6709\u8db3\u591f\u7684\u91d1\u94b1", (byte)0, (byte)0);
                                     break;
                                 }
                                 case -7: {
-                                    var6_5.f_byte_00 = (byte)3;
+                                    var6_5.gameMode = (byte)3;
                                 }
                             }
                             break;
@@ -2109,28 +2109,28 @@ lbl408:
                                 }
                                 case -6: 
                                 case -5: {
-                                    if (var6_5.f_int_104 >= var6_5.f_int_95) break;
-                                    var6_5.f_byte_07 = var6_5.f_byte_arr_17[var6_5.f_int_104];
+                                    if (var6_5.f_int_104 >= var6_5.itemStackSize) break;
+                                    var6_5.f_byte_07 = var6_5.itemStackTypes[var6_5.f_int_104];
                                     switch (var6_5.f_byte_07) {
                                         case 13: 
                                         case 14: {
-                                            var6_5.f_byte_00 = (byte)3;
-                                            super.m_088(var6_5.f_byte_07);
+                                            var6_5.gameMode = (byte)3;
+                                            super.activateItem(var6_5.f_byte_07);
                                             break block160;
                                         }
                                         case 15: 
                                         case 23: 
                                         case 24: 
                                         case 25: {
-                                            super.m_015((byte)3, var6_5.f_String_arr_10[a.m_084(var6_5.f_byte_07)], (byte)0, (byte)3);
+                                            super.m_015((byte)3, var6_5.itemDescriptions[a.itemTypeToStackIndex(var6_5.f_byte_07)], (byte)0, (byte)3);
                                             break block160;
                                         }
                                     }
-                                    super.m_015((byte)3, var6_5.f_String_arr_10[a.m_084(var6_5.f_byte_07)], (byte)1, (byte)2);
+                                    super.m_015((byte)3, var6_5.itemDescriptions[a.itemTypeToStackIndex(var6_5.f_byte_07)], (byte)1, (byte)2);
                                     break;
                                 }
                                 case -7: {
-                                    var6_5.f_byte_00 = (byte)3;
+                                    var6_5.gameMode = (byte)3;
                                 }
                             }
                             break;
@@ -2146,7 +2146,7 @@ lbl408:
                                         --var6_5.f_int_118;
                                         break;
                                     }
-                                    super.m_098(var6_5.f_String_05, var6_5.f_int_116);
+                                    super.executeScriptInstruction(var6_5.f_String_05, var6_5.scriptCursor);
                                     break;
                                 }
                                 case 1: 
@@ -2212,14 +2212,14 @@ lbl638:
                                     var8_18 = var6_5;
                                     switch (var8_18.f_byte_11) {
                                         case 5: {
-                                            super.m_138(var8_18.f_bool_14);
+                                            super.tickBattle(var8_18.f_bool_14);
                                             break;
                                         }
                                         case 0: {
                                             if (var8_18.f_int_148 > 0) {
                                                 var8_18.f_byte_12 = var8_18.f_byte_arr_42[--var8_18.f_int_148];
                                                 var8_18.f_byte_11 = 1;
-                                                super.m_028(var8_18.f_byte_12);
+                                                super.tryStep(var8_18.f_byte_12);
                                                 break;
                                             }
                                             var8_18.f_bool_27 = false;
@@ -2229,39 +2229,39 @@ lbl638:
                                         case 1: {
                                             switch (var8_18.f_byte_12) {
                                                 case 1: {
-                                                    var8_18.f_int_40 -= 8;
+                                                    var8_18.playerPixelY -= 8;
                                                     break;
                                                 }
                                                 case 0: {
-                                                    var8_18.f_int_40 += 8;
+                                                    var8_18.playerPixelY += 8;
                                                     break;
                                                 }
                                                 case 3: {
-                                                    var8_18.f_int_39 -= 8;
+                                                    var8_18.playerPixelX -= 8;
                                                     break;
                                                 }
                                                 case 2: {
-                                                    var8_18.f_int_39 += 8;
+                                                    var8_18.playerPixelX += 8;
                                                 }
                                             }
                                             var8_18.f_int_43 += 8;
-                                            var8_18.f_int_125 = var8_18.f_int_39;
-                                            var8_18.f_int_126 = var8_18.f_int_40;
+                                            var8_18.f_int_125 = var8_18.playerPixelX;
+                                            var8_18.f_int_126 = var8_18.playerPixelY;
                                             super.m_025();
                                             if (var8_18.f_int_43 < 32) break;
                                             var8_18.f_int_43 = 0;
                                             var8_18.f_int_38 = 0;
                                             var8_18.f_byte_11 = 0;
-                                            var8_18.f_int_41 = var8_18.f_int_39 >> 5;
-                                            var8_18.f_int_42 = var8_18.f_int_40 >> 5;
-                                            super.m_030();
+                                            var8_18.playerCellX = var8_18.playerPixelX >> 5;
+                                            var8_18.playerCellY = var8_18.playerPixelY >> 5;
+                                            super.applyStepCellEffects();
                                         }
                                     }
                                     break;
                                 }
                                 case 4: {
                                     if (!super.m_097()) break;
-                                    var6_5.f_byte_00 = (byte)3;
+                                    var6_5.gameMode = (byte)3;
                                     break;
                                 }
                                 case 5: {
@@ -2277,7 +2277,7 @@ lbl638:
                         case 14: {
                             super.m_014();
                             if ((var5_3.f_int_03 & 3) != 0) break;
-                            super.m_129(super.m_141(240), 320 - var5_3.f_int_16 - super.m_141(150), 2, -1);
+                            super.m_129(super.randomBelow(240), 320 - var5_3.f_int_16 - super.randomBelow(150), 2, -1);
                             break;
                         }
                         case 12: {
@@ -2314,7 +2314,7 @@ lbl638:
                                     break;
                                 }
                                 case -7: {
-                                    var6_5.f_byte_00 = (byte)4;
+                                    var6_5.gameMode = (byte)4;
                                     super.m_000();
                                 }
                             }
@@ -2371,14 +2371,14 @@ lbl638:
                                 }
                                 case -7: 
                                 case -6: {
-                                    var6_5.f_byte_00 = var6_5.f_byte_01;
+                                    var6_5.gameMode = var6_5.f_byte_01;
                                 }
                             }
                             break;
                         }
                         case 20: {
                             if (!var5_3.f_bool_04 || var5_3.f_int_05 == 0) break;
-                            var5_3.f_byte_00 = 1;
+                            var5_3.gameMode = 1;
                             super.m_000();
                             break;
                         }
@@ -2397,7 +2397,7 @@ lbl638:
                                     case -7: {
                                         super.m_148();
                                         var5_3.f_bool_31 = false;
-                                        var5_3.f_byte_00 = 0;
+                                        var5_3.gameMode = 0;
                                     }
                                 }
                                 if (var5_3.f_int_165 < 8) {
@@ -2409,7 +2409,7 @@ lbl638:
                                 break;
                             }
                             if (super.m_152() != 0 && super.m_152() != 3 && var5_3.f_int_05 == 0) break;
-                            var5_3.f_byte_00 = 0;
+                            var5_3.gameMode = 0;
                         }
                     }
                     var5_3.f_int_05 = 0;
@@ -2431,7 +2431,7 @@ lbl638:
     }
 
     private void m_000() {
-        switch (this.f_byte_00) {
+        switch (this.gameMode) {
             case 21: {
                 a a2 = this;
                 String string = "SKY_WAR";
@@ -2468,8 +2468,8 @@ lbl638:
             case 1: {
                 this.f_bool_28 = false;
                 this.m_011();
-                if (this.f_int_66 < 51 && this.f_int_154 < this.f_int_66) {
-                    this.f_int_154 = this.f_int_66;
+                if (this.maxFloorReached < 51 && this.f_int_154 < this.maxFloorReached) {
+                    this.f_int_154 = this.maxFloorReached;
                     this.m_110();
                 }
                 this.m_001(8);
@@ -2509,7 +2509,7 @@ lbl638:
             case 4: {
                 this.m_009();
                 this.m_010(1);
-                if (this.f_int_64 > 50) {
+                if (this.currentFloor > 50) {
                     this.m_010(17);
                 }
                 this.m_010(3);
@@ -2525,7 +2525,7 @@ lbl638:
                 this.f_byte_13 = 1;
                 this.f_byte_14 = (byte)3;
                 this.f_bool_05 = false;
-                this.m_030();
+                this.applyStepCellEffects();
                 this.m_139((byte)3, -1);
                 return;
             }
@@ -2617,7 +2617,7 @@ lbl638:
             case 20: {
                 this.m_011();
                 this.m_001(14);
-                this.f_String_03 = this.f_String_arr_14[260];
+                this.f_String_03 = this.dialogueTexts[260];
                 this.f_int_33 = 1;
                 this.m_018(this.f_String_02, 209, (this.f_int_34 << 1) + 12, this.f_int_33);
                 return;
@@ -2640,8 +2640,8 @@ lbl638:
         if (!this.f_bool_01) {
             return;
         }
-        if (this.f_byte_00 == 3) {
-            this.f_byte_00 = (byte)4;
+        if (this.gameMode == 3) {
+            this.gameMode = (byte)4;
             this.m_000();
         }
         this.m_140();
@@ -2799,7 +2799,7 @@ lbl638:
     protected final void keyPressed(int n) {
         this.f_int_05 = this.f_int_06 = n;
         if (this.f_bool_02) {
-            if (this.f_byte_00 != 21 && this.f_byte_00 != 0) {
+            if (this.gameMode != 21 && this.gameMode != 0) {
                 if (!this.f_bool_28) {
                     this.m_139((byte)2, -1);
                 } else {
@@ -2865,29 +2865,29 @@ lbl638:
                 return;
             }
             case 1: {
-                this.f_byte_00 = (byte)3;
+                this.gameMode = (byte)3;
                 return;
             }
             case 2: {
-                this.f_byte_00 = (byte)8;
+                this.gameMode = (byte)8;
                 this.f_byte_01 = (byte)4;
                 this.m_000();
                 return;
             }
             case 3: {
-                this.f_byte_00 = (byte)7;
+                this.gameMode = (byte)7;
                 this.f_byte_01 = (byte)4;
                 this.m_000();
                 return;
             }
             case 4: {
-                this.f_byte_00 = (byte)16;
+                this.gameMode = (byte)16;
                 this.f_byte_01 = (byte)4;
                 this.m_000();
                 return;
             }
             case 5: {
-                this.f_byte_00 = (byte)15;
+                this.gameMode = (byte)15;
                 this.f_byte_01 = (byte)4;
                 this.m_000();
                 return;
@@ -2899,7 +2899,7 @@ lbl638:
                     Thread.sleep(100L);
                 }
                 catch (Exception exception) {}
-                this.f_byte_00 = 1;
+                this.gameMode = 1;
                 this.m_000();
                 this.f_int_10 = 0;
                 return;
@@ -2911,16 +2911,16 @@ lbl638:
                 return;
             }
             case 11: {
-                this.f_byte_00 = (byte)19;
+                this.gameMode = (byte)19;
                 this.m_000();
                 return;
             }
             case 17: {
-                this.m_066(1, false, false);
-                this.f_byte_00 = (byte)3;
-                this.f_int_35 = 1000;
-                this.f_int_36 = 710;
-                this.f_int_37 = 710;
+                this.changeFloor(1, false, false);
+                this.gameMode = (byte)3;
+                this.playerHp = 1000;
+                this.playerAtk = 710;
+                this.playerDef = 710;
             }
         }
     }
@@ -3279,30 +3279,30 @@ lbl638:
         return n;
     }
 
-    private void m_023(int n) {
-        if (this.f_int_35 <= -n) {
-            this.f_int_35 = 1;
-            n = this.f_int_35 - 1;
+    private void applyHpDelta(int n) {
+        if (this.playerHp <= -n) {
+            this.playerHp = 1;
+            n = this.playerHp - 1;
         } else {
-            this.f_int_35 += n;
+            this.playerHp += n;
         }
         if (n < 0) {
-            this.m_125((byte)2, n, this.f_int_39, this.f_int_40);
+            this.m_125((byte)2, n, this.playerPixelX, this.playerPixelY);
             return;
         }
         if (n > 0) {
             if (this.f_byte_26 > 0) {
                 n <<= 4;
             }
-            this.m_125((byte)3, n, this.f_int_39, this.f_int_40);
+            this.m_125((byte)3, n, this.playerPixelX, this.playerPixelY);
         }
     }
 
     private void m_024(int n, int n2) {
-        this.f_int_41 = n;
-        this.f_int_42 = n2;
-        this.f_int_39 = n << 5;
-        this.f_int_40 = n2 << 5;
+        this.playerCellX = n;
+        this.playerCellY = n2;
+        this.playerPixelX = n << 5;
+        this.playerPixelY = n2 << 5;
         this.f_int_43 = 0;
     }
 
@@ -3322,8 +3322,8 @@ lbl638:
             n = (this.f_int_58 - 41 >> 1) - this.f_int_56;
             n2 = (this.f_int_59 >> 1) - this.f_int_57 + this.f_int_46;
         } else {
-            n = this.f_int_39;
-            n2 = this.f_int_40;
+            n = this.playerPixelX;
+            n2 = this.playerPixelY;
         }
         if (this.f_int_arr_04[3] != n || this.f_int_arr_05[3] != n2) {
             this.f_int_arr_04[0] = n;
@@ -3371,7 +3371,7 @@ lbl638:
 
     private void m_027() {
         int n = 0;
-        if (this.f_byte_00 == 11) {
+        if (this.gameMode == 11) {
             this.m_032();
             return;
         }
@@ -3380,17 +3380,17 @@ lbl638:
             case 53: {
                 a a2 = this;
                 for (int i = 0; i < 4; ++i) {
-                    a2.f_int_arr_04[i] = a2.f_int_39;
-                    a2.f_int_arr_05[i] = a2.f_int_40;
+                    a2.f_int_arr_04[i] = a2.playerPixelX;
+                    a2.f_int_arr_05[i] = a2.playerPixelY;
                 }
                 a2.f_bool_06 = false;
                 a a3 = a2;
                 int n2 = 0;
                 int n3 = a3.f_int_45;
                 while (--n3 >= 0) {
-                    n2 = a3.f_int_arr_11[n3];
+                    n2 = a3.entityType[n3];
                     if (a3.f_bool_arr_01[n3] || a3.f_byte_arr_03[n2] != 8) continue;
-                    a3.f_int_arr_13[n2] = a3.m_135(n2, true);
+                    a3.f_int_arr_13[n2] = a3.predictHpLossVsType(n2, true);
                 }
                 a2.f_byte_11 = (byte)2;
                 a2.f_bool_08 = a2.m_081(13) >= 0;
@@ -3399,38 +3399,38 @@ lbl638:
             case 49: {
                 this.f_int_05 = 0;
                 if (!this.f_bool_13 || (n = this.m_065(true)) < 0) break;
-                this.m_066(this.f_short_arr_00[n] & 0xFF, false, true);
+                this.changeFloor(this.entityParam[n] & 0xFF, false, true);
                 break;
             }
             case 55: {
                 this.f_int_05 = 0;
                 if (!this.f_bool_13 || (n = this.m_065(false)) < 0) break;
-                this.m_066(this.f_short_arr_00[n] & 0xFF, true, true);
+                this.changeFloor(this.entityParam[n] & 0xFF, true, true);
             }
         }
         switch (this.f_int_06) {
             case -1: 
             case 50: {
                 this.f_byte_12 = 1;
-                this.m_028(this.f_byte_12);
+                this.tryStep(this.f_byte_12);
                 return;
             }
             case -2: 
             case 56: {
                 this.f_byte_12 = 0;
-                this.m_028(this.f_byte_12);
+                this.tryStep(this.f_byte_12);
                 return;
             }
             case -3: 
             case 52: {
                 this.f_byte_12 = (byte)3;
-                this.m_028(this.f_byte_12);
+                this.tryStep(this.f_byte_12);
                 return;
             }
             case -4: 
             case 54: {
                 this.f_byte_12 = (byte)2;
-                this.m_028(this.f_byte_12);
+                this.tryStep(this.f_byte_12);
             }
         }
     }
@@ -3438,11 +3438,11 @@ lbl638:
     /*
      * WARNING - void declaration
      */
-    private boolean m_028(byte by) {
+    private boolean tryStep(byte by) {
         void var2_6;
         boolean bl = false;
-        int n = this.f_int_39 >> 5;
-        int n2 = this.f_int_40 >> 5;
+        int n = this.playerPixelX >> 5;
+        int n2 = this.playerPixelY >> 5;
         switch (by) {
             case 1: {
                 --n2;
@@ -3462,7 +3462,7 @@ lbl638:
                 ++var2_5;
             }
         }
-        boolean bl2 = this.m_029((int)var2_6, n2);
+        boolean bl2 = this.interactWithCell((int)var2_6, n2);
         if (bl2) {
             this.f_byte_11 = 1;
         } else if (this.f_bool_05 && this.f_byte_11 == 1) {
@@ -3476,7 +3476,7 @@ lbl638:
     /*
      * Enabled aggressive block sorting
      */
-    private boolean m_029(int n, int n2) {
+    private boolean interactWithCell(int n, int n2) {
         byte by = 0;
         int n3 = 0;
         int n4 = 0;
@@ -3485,7 +3485,7 @@ lbl638:
         int n6 = 0;
         by = this.f_byte_arr2_02[n2][n];
         if (this.f_byte_arr_10[by] <= 0) {
-            if (this.m_060(n, n2)) return n5 != 0;
+            if (this.isCellWalkable(n, n2)) return n5 != 0;
             return 0 != 0;
         }
         int n7 = this.f_byte_arr_10[by];
@@ -3493,16 +3493,16 @@ lbl638:
             if (--n7 < 0) {
                 if (n5 == 0) return n5 != 0;
                 if (n6 > 0) return n5 != 0;
-                return this.m_060(n, n2) != 0;
+                return this.isCellWalkable(n, n2) != 0;
             }
             n3 = this.f_byte_arr2_03[by][n7] - 1;
-            n4 = this.f_int_arr_11[n3];
+            n4 = this.entityType[n3];
             if (this.f_byte_arr_04[n3] == 1) continue;
             block0 : switch (this.f_byte_arr_03[n4]) {
                 case 8: {
-                    n4 = this.m_135(n4, true);
+                    n4 = this.predictHpLossVsType(n4, true);
                     n5 = 0;
-                    if (n4 < 0 || n4 >= this.f_int_35) {
+                    if (n4 < 0 || n4 >= this.playerHp) {
                         this.f_int_148 = 0;
                         this.m_015((byte)0, "\u4f60\u65e0\u6cd5\u6218\u80dc\u5b83", (byte)0, (byte)0);
                         break;
@@ -3512,7 +3512,7 @@ lbl638:
                     this.f_byte_11 = (byte)5;
                     a2.f_byte_arr_04[n4] = 3;
                     a2.f_int_44 = n4;
-                    a2.f_int_150 = a2.f_int_arr_15[a2.f_int_arr_11[n4] - 41];
+                    a2.f_int_150 = a2.enemyBaseHp[a2.entityType[n4] - 41];
                     a2.f_bool_14 = true;
                     a2.f_bool_25 = true;
                     break;
@@ -3525,10 +3525,10 @@ lbl638:
                     n4 = n3;
                     a a3 = this;
                     this.f_int_87 = n4;
-                    n5 = a3.f_short_arr_00[n4];
+                    n5 = a3.entityParam[n4];
                     byte by2 = (byte)(n5 >>> 8);
                     n5 = (byte)n5;
-                    int n8 = n4 = a3.f_int_arr_11[n4] == 77 ? 0 : 1;
+                    int n8 = n4 = a3.entityType[n4] == 77 ? 0 : 1;
                     if (n5 > 0) {
                         n5 = (byte)(n5 - 1);
                         if ((by2 & 2) != 0) {
@@ -3568,15 +3568,15 @@ lbl638:
                             break block0;
                         }
                         case 83: {
-                            if (!this.m_095(this.f_short_arr_00[n3], false)) break;
+                            if (!this.tryRunScene(this.entityParam[n3], false)) break;
                             this.f_bool_05 = false;
                             this.f_String_02 = null;
-                            n5 = this.m_094(this.f_short_arr_00[n3]) ? 1 : 0;
+                            n5 = this.loadLevelScript(this.entityParam[n3]) ? 1 : 0;
                             n7 = 0;
                             break block0;
                         }
                         case 1: {
-                            n5 = this.m_086((byte)26);
+                            n5 = this.consumeKeyForDoor((byte)26);
                             if (n5 != 0) {
                                 this.m_047(n3);
                                 break block0;
@@ -3586,7 +3586,7 @@ lbl638:
                             break block0;
                         }
                         case 3: {
-                            n5 = this.m_086((byte)28);
+                            n5 = this.consumeKeyForDoor((byte)28);
                             if (n5 != 0) {
                                 this.m_047(n3);
                                 break block0;
@@ -3596,7 +3596,7 @@ lbl638:
                             break block0;
                         }
                         case 2: {
-                            n5 = this.m_086((byte)27);
+                            n5 = this.consumeKeyForDoor((byte)27);
                             if (n5 != 0) {
                                 this.m_047(n3);
                                 break block0;
@@ -3622,13 +3622,13 @@ lbl638:
                             n5 = 0;
                             if (this.f_byte_12 != 1) break;
                             n7 = 0;
-                            this.f_byte_00 = (byte)9;
+                            this.gameMode = (byte)9;
                             a a4 = this;
-                            n4 = a4.f_int_64;
-                            a4.f_int_76 = a.m_071(a4.f_int_69 + 1);
-                            a4.f_int_77 = a.m_070(100, n4);
-                            a4.f_int_78 = a.m_070(2, n4);
-                            a4.f_int_79 = a.m_070(4, n4);
+                            n4 = a4.currentFloor;
+                            a4.alchemyPrice = a.alchemyPriceFor(a4.alchemyUpgradeCount + 1);
+                            a4.f_int_77 = a.scaledByFloorTier(100, n4);
+                            a4.f_int_78 = a.scaledByFloorTier(2, n4);
+                            a4.f_int_79 = a.scaledByFloorTier(4, n4);
                             this.m_000();
                             break block0;
                         }
@@ -3639,7 +3639,7 @@ lbl638:
                             break block0;
                         }
                         case 11: {
-                            if (this.f_int_64 != 23) {
+                            if (this.currentFloor != 23) {
                                 this.m_015((byte)0, "\u969c\u788d\u7269\uff1a\u5899\n\u53ea\u6709\u91d1\u52fa\u5b50\u3001\u7384\u660e\u77f3\u53ef\u4ee5\u51ff\u5f00\u3002\u6216\u8005\u5267\u60c5\u6253\u5f00\uff01", (byte)0, (byte)0);
                             }
                             n5 = 0;
@@ -3647,7 +3647,7 @@ lbl638:
                             break block0;
                         }
                         case 12: {
-                            this.f_int_arr_11[n3] = 11;
+                            this.entityType[n3] = 11;
                             this.m_044(11, n3);
                             this.m_045(11, n3);
                             this.f_byte_arr_04[n3] = 2;
@@ -3673,52 +3673,52 @@ lbl638:
     /*
      * Unable to fully structure code
      */
-    private void m_030() {
+    private void applyStepCellEffects() {
         block62: {
             block61: {
                 block59: {
                     var1_1 = false;
-                    this.f_int_41 = this.f_int_39 >> 5;
-                    this.f_int_42 = this.f_int_40 >> 5;
+                    this.playerCellX = this.playerPixelX >> 5;
+                    this.playerCellY = this.playerPixelY >> 5;
                     var1_1 = false;
                     var2_6 = 0;
-                    var3_7 = this.f_byte_arr2_02[this.f_int_42][this.f_int_41];
+                    var3_7 = this.f_byte_arr2_02[this.playerCellY][this.playerCellX];
                     this.f_bool_07 = false;
                     var1_2 = this;
                     var2_6 = 0;
                     var6_8 = 0;
-                    var7_9 = var1_2.f_byte_10 == 40 ? 1 : 0;
+                    var7_9 = var1_2.equippedArmorType == 40 ? 1 : 0;
                     if (var7_9 == 0) {
-                        var10_10 = var1_2.f_int_42;
-                        var9_11 = var1_2.f_int_41;
+                        var10_10 = var1_2.playerCellY;
+                        var9_11 = var1_2.playerCellX;
                         var8_13 = var1_2;
-                        if (var9_11 > 0 && var8_13.m_100(var9_11 - 1, var10_10, 61) >= 0 && var9_11 < var8_13.f_int_50 - 1 && var8_13.m_100(var9_11 + 1, var10_10, 61) >= 0 ? true : var10_10 > 0 && var8_13.m_100(var9_11, var10_10 - 1, 61) >= 0 && var10_10 < var8_13.f_int_51 - 1 && var8_13.m_100(var9_11, var10_10 + 1, 61) >= 0) {
-                            var1_2.m_023(-(var1_2.f_int_35 >> 1));
+                        if (var9_11 > 0 && var8_13.m_100(var9_11 - 1, var10_10, 61) >= 0 && var9_11 < var8_13.mapCellsWide - 1 && var8_13.m_100(var9_11 + 1, var10_10, 61) >= 0 ? true : var10_10 > 0 && var8_13.m_100(var9_11, var10_10 - 1, 61) >= 0 && var10_10 < var8_13.mapCellsHigh - 1 && var8_13.m_100(var9_11, var10_10 + 1, 61) >= 0) {
+                            var1_2.applyHpDelta(-(var1_2.playerHp >> 1));
                         }
                         var11_16 = 62;
-                        var10_10 = var1_2.f_int_42;
-                        var9_11 = var1_2.f_int_41;
+                        var10_10 = var1_2.playerCellY;
+                        var9_11 = var1_2.playerCellX;
                         var8_13 = var1_2;
                         var12_17 = 0;
                         if (var9_11 > 0 && var8_13.m_100(var9_11 - 1, var10_10, 62) >= 0) {
                             ++var12_17;
                         }
-                        if (var9_11 < var8_13.f_int_51 - 1 && var8_13.m_100(var9_11 + 1, var10_10, 62) >= 0) {
+                        if (var9_11 < var8_13.mapCellsHigh - 1 && var8_13.m_100(var9_11 + 1, var10_10, 62) >= 0) {
                             ++var12_17;
                         }
                         if (var10_10 > 0 && var8_13.m_100(var9_11, var10_10 - 1, 62) >= 0) {
                             ++var12_17;
                         }
-                        if (var10_10 < var8_13.f_int_51 - 1 && var8_13.m_100(var9_11, var10_10 + 1, 62) >= 0) {
+                        if (var10_10 < var8_13.mapCellsHigh - 1 && var8_13.m_100(var9_11, var10_10 + 1, 62) >= 0) {
                             ++var12_17;
                         }
                         if ((var2_6 = var12_17) > 0) {
-                            var1_2.m_023(-100);
+                            var1_2.applyHpDelta(-100);
                         }
                     }
                     var11_16 = var7_9;
-                    var10_10 = var1_2.f_int_42;
-                    var9_11 = var1_2.f_int_41;
+                    var10_10 = var1_2.playerCellY;
+                    var9_11 = var1_2.playerCellX;
                     var8_13 = var1_2;
                     var12_17 = 0;
                     var7_9 = 0;
@@ -3728,7 +3728,7 @@ lbl638:
                             ++var12_17;
                         }
                         var7_9 = var8_13.m_100(var9_11 + 1, var10_10, 60);
-                        if (var9_11 < var8_13.f_int_51 - 1 && var7_9 >= 0) {
+                        if (var9_11 < var8_13.mapCellsHigh - 1 && var7_9 >= 0) {
                             ++var12_17;
                         }
                         var7_9 = var8_13.m_100(var9_11, var10_10 - 1, 60);
@@ -3737,7 +3737,7 @@ lbl638:
                             var8_13.m_101(var9_11, var10_10 - 1, var7_9);
                         }
                         var7_9 = var8_13.m_100(var9_11, var10_10 + 1, 60);
-                        if (var10_10 < var8_13.f_int_51 - 1 && var7_9 >= 0) {
+                        if (var10_10 < var8_13.mapCellsHigh - 1 && var7_9 >= 0) {
                             ++var12_17;
                         }
                     } else {
@@ -3747,7 +3747,7 @@ lbl638:
                         }
                     }
                     if ((var2_6 = var12_17) > 0) {
-                        var1_2.m_023(-200);
+                        var1_2.applyHpDelta(-200);
                         var6_8 = 1;
                     }
                     var4_18 = var6_8;
@@ -3756,50 +3756,50 @@ lbl638:
                     while (--var5_19 >= 0) {
                         block60: {
                             var1_3 = this.f_byte_arr2_03[var3_7][var5_19] - 1;
-                            var2_6 = this.f_int_arr_11[var1_3];
+                            var2_6 = this.entityType[var1_3];
                             switch (this.f_byte_arr_03[var2_6]) {
                                 case 2: 
                                 case 4: {
-                                    this.m_079(var2_6);
+                                    this.pickupItemType(var2_6);
                                     this.m_047(var1_3);
                                     break;
                                 }
                                 case 1: {
                                     switch (var2_6) {
                                         case 83: {
-                                            if (this.m_095(this.f_short_arr_00[var1_3], true)) {
+                                            if (this.tryRunScene(this.entityParam[var1_3], true)) {
                                                 this.f_bool_05 = false;
-                                                this.m_094(this.f_short_arr_00[var1_3]);
+                                                this.loadLevelScript(this.entityParam[var1_3]);
                                                 var4_18 = 1;
                                                 var5_19 = 0;
                                             }
                                             break block60;
                                         }
                                         case 7: {
-                                            var1_3 = this.f_short_arr_00[var1_3] & 255;
-                                            this.m_066(var1_3, false, false);
+                                            var1_3 = this.entityParam[var1_3] & 255;
+                                            this.changeFloor(var1_3, false, false);
                                             this.f_int_06 = 0;
                                             var5_19 = 0;
                                             break block60;
                                         }
                                         case 8: {
-                                            var1_3 = this.f_short_arr_00[var1_3] & 255;
-                                            this.m_066(var1_3, true, false);
+                                            var1_3 = this.entityParam[var1_3] & 255;
+                                            this.changeFloor(var1_3, true, false);
                                             this.f_int_06 = 0;
                                             var5_19 = 0;
                                             break block60;
                                         }
                                         case 5: {
-                                            var1_3 = this.f_short_arr_00[var1_3];
-                                            this.m_050(this.f_int_41, this.f_int_42, var5_19);
+                                            var1_3 = this.entityParam[var1_3];
+                                            this.m_050(this.playerCellX, this.playerCellY, var5_19);
                                             if (this.m_073(var1_3)) {
                                                 this.f_byte_11 = (byte)4;
                                             }
                                             break block60;
                                         }
                                         case 76: {
-                                            var1_3 = (this.f_short_arr_00[var1_3] & 255) + 1;
-                                            this.m_050(this.f_int_41, this.f_int_42, var5_19);
+                                            var1_3 = (this.entityParam[var1_3] & 255) + 1;
+                                            this.m_050(this.playerCellX, this.playerCellY, var5_19);
                                             var2_6 = var1_3;
                                             var1_4 = this;
                                             var6_8 = 0;
@@ -3807,12 +3807,12 @@ lbl638:
                                             var7_9 = 0;
                                             for (var8_14 = 0; var8_14 < var1_4.f_int_45; ++var8_14) {
                                                 if (var1_4.f_bool_arr_01[var8_14]) continue;
-                                                var7_9 = var1_4.f_short_arr_00[var8_14] & 255;
-                                                var6_8 = var1_4.f_int_arr_11[var8_14];
+                                                var7_9 = var1_4.entityParam[var8_14] & 255;
+                                                var6_8 = var1_4.entityType[var8_14];
                                                 if (var6_8 == 76) {
                                                     if (var7_9 + 1 != var2_6) continue;
-                                                    var11_16 = var1_4.f_int_arr_07[var8_14] >> 5;
-                                                    var10_10 = var1_4.f_int_arr_06[var8_14] >> 5;
+                                                    var11_16 = var1_4.entityPixelY[var8_14] >> 5;
+                                                    var10_10 = var1_4.entityPixelX[var8_14] >> 5;
                                                     var9_12 = var1_4;
                                                     var12_17 = var9_12.f_byte_arr2_02[var11_16][var10_10];
                                                     var7_9 = var9_12.f_byte_arr_10[var12_17];
@@ -3826,8 +3826,8 @@ lbl638:
                                                 }
                                                 if (var6_8 != 4 || var7_9 != var2_6) continue;
                                                 var1_4.f_short_arr_03[var1_4.f_int_86] = var8_14;
-                                                var1_4.f_short_arr_01[var1_4.f_int_86] = var1_4.f_int_arr_06[var8_14] >> 5;
-                                                var1_4.f_short_arr_02[var1_4.f_int_86] = var1_4.f_int_arr_07[var8_14] >> 5;
+                                                var1_4.f_short_arr_01[var1_4.f_int_86] = var1_4.entityPixelX[var8_14] >> 5;
+                                                var1_4.f_short_arr_02[var1_4.f_int_86] = var1_4.entityPixelY[var8_14] >> 5;
                                                 ++var1_4.f_int_86;
                                             }
                                             if (var1_4.f_int_86 > 0) {
@@ -3877,8 +3877,8 @@ lbl163:
             }
         }
         var1_5 = this;
-        var2_6 = var1_5.f_int_41;
-        var6_8 = var1_5.f_int_42;
+        var2_6 = var1_5.playerCellX;
+        var6_8 = var1_5.playerCellY;
         var7_9 = var1_5.f_int_70 >> 5;
         var8_15 = var1_5.f_int_72 >> 5;
         var9_11 = var1_5.f_int_71 >> 5;
@@ -3892,7 +3892,7 @@ lbl163:
                     var1_5.f_bool_13 = true;
                 }
             }
-            if (var6_8 < var1_5.f_int_51 - 1) {
+            if (var6_8 < var1_5.mapCellsHigh - 1) {
                 if (var2_6 == var7_9 && var6_8 + 1 == var8_15) {
                     var1_5.f_bool_13 = true;
                 } else if (var2_6 == var9_11 && var6_8 + 1 == var10_10) {
@@ -3906,7 +3906,7 @@ lbl163:
                     var1_5.f_bool_13 = true;
                 }
             }
-            if (var2_6 < var1_5.f_int_50 - 1) {
+            if (var2_6 < var1_5.mapCellsWide - 1) {
                 if (var2_6 + 1 == var7_9 && var6_8 == var8_15) {
                     var1_5.f_bool_13 = true;
                     return;
@@ -3919,23 +3919,23 @@ lbl163:
     }
 
     private void m_031(int n, int n2) {
-        if (this.m_060(n, n2 - 1)) {
+        if (this.isCellWalkable(n, n2 - 1)) {
             --n2;
-        } else if (this.m_060(n, n2 + 1)) {
+        } else if (this.isCellWalkable(n, n2 + 1)) {
             ++n2;
-        } else if (this.m_060(n - 1, n2)) {
+        } else if (this.isCellWalkable(n - 1, n2)) {
             --n;
-        } else if (this.m_060(n + 1, n2)) {
+        } else if (this.isCellWalkable(n + 1, n2)) {
             ++n;
         }
         this.m_024(n, n2);
-        this.m_064((this.f_int_58 - 32 >> 1) - this.f_int_39, (this.f_int_59 - 32 >> 1) - this.f_int_40);
+        this.m_064((this.f_int_58 - 32 >> 1) - this.playerPixelX, (this.f_int_59 - 32 >> 1) - this.playerPixelY);
     }
 
     private void m_032() {
         if (this.f_int_148 > 0) {
             this.f_byte_12 = this.f_byte_arr_42[--this.f_int_148];
-            boolean bl = this.m_028(this.f_byte_12);
+            boolean bl = this.tryStep(this.f_byte_12);
             if (this.f_int_148 == 0) {
                 this.f_bool_27 = false;
                 return;
@@ -3951,8 +3951,8 @@ lbl163:
     }
 
     private void m_033(int n, int n2) {
-        int n3 = n + this.f_int_39;
-        int n4 = n2 + this.f_int_40;
+        int n3 = n + this.playerPixelX;
+        int n4 = n2 + this.playerPixelY;
         int n5 = 0;
         if (this.f_bool_07) {
             n4 -= this.f_int_46;
@@ -4000,8 +4000,8 @@ lbl163:
         }
         this.f_Graphics_00.setClip(0, 0, 240, 320);
         if (this.f_bool_26) {
-            n3 = (this.f_int_41 << 5) + n;
-            n4 = (this.f_int_42 << 5) + n2;
+            n3 = (this.playerCellX << 5) + n;
+            n4 = (this.playerCellY << 5) + n2;
             n5 = this.f_int_148;
             while (--n5 >= 0) {
                 this.f_Graphics_00.setColor(136);
@@ -4024,8 +4024,8 @@ lbl163:
                 }
             }
         }
-        n3 = n + this.f_int_39;
-        n4 = n2 + this.f_int_40;
+        n3 = n + this.playerPixelX;
+        n4 = n2 + this.playerPixelY;
         switch (this.f_byte_11) {
             case 2: {
                 n5 = this.f_int_46;
@@ -4040,22 +4040,22 @@ lbl163:
                 n = n3 + 16;
                 n3 = 0;
                 n4 = 0;
-                if (this.f_int_96 < this.f_int_95) {
-                    n3 = this.f_byte_arr_17[this.f_int_96];
+                if (this.f_int_96 < this.itemStackSize) {
+                    n3 = this.itemStackTypes[this.f_int_96];
                     this.f_Graphics_00.drawImage(this.f_Image_arr_00[n3], n - 16, n2 + 4, 0);
                     if (this.f_int_96 > 0) {
                         this.f_Graphics_00.setColor(-1);
                         this.m_093(n - 18 - (this.f_int_03 & 1), n2 + 16, (byte)3);
                     }
-                    if (this.f_int_96 < this.f_int_95 - 1) {
+                    if (this.f_int_96 < this.itemStackSize - 1) {
                         this.f_Graphics_00.setColor(-1);
                         this.m_093(n + 18 + (this.f_int_03 & 1), n2 + 16, (byte)3);
                     }
                     this.f_Graphics_00.setColor(-1);
-                    n4 = this.f_Font_00.stringWidth(this.f_String_arr_12[n3]);
+                    n4 = this.f_Font_00.stringWidth(this.objectTypeNames[n3]);
                     this.f_Graphics_00.fillRect((n -= n4 >> 1) - 5, n2 -= this.f_int_01 + 4, n4 + 10, this.f_int_01 + 4);
                     this.f_Graphics_00.setColor(0);
-                    this.f_Graphics_00.drawString(this.f_String_arr_12[n3], n, n2 + 2, 0);
+                    this.f_Graphics_00.drawString(this.objectTypeNames[n3], n, n2 + 2, 0);
                     return;
                 }
                 this.f_Graphics_00.setColor(-1);
@@ -4081,21 +4081,21 @@ lbl163:
         n = n2;
         this.f_Graphics_00.setClip(0, 0, 240, 320);
         this.f_Graphics_00.drawImage(this.f_Image_arr2_00[8][3], 0, n, 0);
-        if (this.f_int_64 > 50) {
+        if (this.currentFloor > 50) {
             this.f_Graphics_00.setColor(-1);
             this.m_142("\u5f15\u5b50", 32, n + 9 + (19 - this.f_int_01 >> 1), 17, this.f_int_arr_36);
             n += 4;
         } else {
-            this.m_042(this.f_Image_arr2_00[8][18], this.f_int_64, 40, (n += 4) + 2);
+            this.m_042(this.f_Image_arr2_00[8][18], this.currentFloor, 40, (n += 4) + 2);
             this.f_Graphics_00.drawImage(this.f_Image_arr2_00[8][8], 41, n + 10, 0);
         }
         this.f_Graphics_00.setColor(2435368);
         this.f_Graphics_00.fillRect(65, n2, 175, 18);
-        this.m_036(0, this.f_int_91, 65, n -= 4);
-        this.m_036(1, this.f_int_92, 107, n);
-        this.m_036(2, this.f_int_93, 149, n);
+        this.m_036(0, this.yellowKeyCount, 65, n -= 4);
+        this.m_036(1, this.blueKeyCount, 107, n);
+        this.m_036(2, this.redKeyCount, 149, n);
         this.f_Graphics_00.drawImage(this.f_Image_arr2_00[8][1], 191, n += 3, 0);
-        this.m_042(this.f_Image_arr2_00[8][2], this.f_int_94, 237, n + 2);
+        this.m_042(this.f_Image_arr2_00[8][2], this.goldAmount, 237, n + 2);
     }
 
     private void m_036(int n, int n2, int n3, int n4) {
@@ -4114,32 +4114,32 @@ lbl163:
         this.f_Graphics_00.drawImage(this.f_Image_arr2_00[8][7], n3, n4 - 2, 0);
         this.f_Graphics_00.setClip(0, 0, 240, 320);
         this.m_041(n3 += 16, n4 + 1, 58, 11);
-        this.m_042(this.f_Image_arr2_00[8][2], this.f_int_35, n3 + 52, n4 + 2);
+        this.m_042(this.f_Image_arr2_00[8][2], this.playerHp, n3 + 52, n4 + 2);
         n3 = n;
         this.m_002(this.f_Image_arr2_00[8][7], n3, n4 += 12, 10, 0, 10, 13);
         this.f_Graphics_00.setColor(512);
         this.m_041(n3 += 16, n4 + 1, 58, 11);
-        this.m_042(this.f_Image_arr2_00[8][2], this.f_int_36, n3 + 52, n4 + 2);
+        this.m_042(this.f_Image_arr2_00[8][2], this.playerAtk, n3 + 52, n4 + 2);
         n3 = n;
         this.m_002(this.f_Image_arr2_00[8][7], n3, n4 += 12, 20, 0, 10, 13);
         this.f_Graphics_00.setColor(512);
         this.m_041(n3 += 16, n4 + 1, 58, 11);
-        this.m_042(this.f_Image_arr2_00[8][2], this.f_int_37, n3 + 52, n4 + 2);
+        this.m_042(this.f_Image_arr2_00[8][2], this.playerDef, n3 + 52, n4 + 2);
         n4 = n2 + 2;
         this.m_041(n3 += 60, n4, 32, 32);
-        if (this.f_byte_09 == 0) {
+        if (this.equippedWeaponType == 0) {
             this.f_Graphics_00.setColor(-1);
-            this.f_Graphics_00.drawString(this.f_String_arr_04[this.f_byte_09], n3 + (32 - this.f_int_00 >> 1), n4 + (32 - this.f_int_01 >> 1), 0);
+            this.f_Graphics_00.drawString(this.f_String_arr_04[this.equippedWeaponType], n3 + (32 - this.f_int_00 >> 1), n4 + (32 - this.f_int_01 >> 1), 0);
         } else {
-            this.f_Graphics_00.drawImage(this.f_Image_arr_00[this.f_byte_09], n3 + (32 - this.f_Image_arr_00[this.f_byte_09].getWidth() >> 1), n4 + (32 - this.f_Image_arr_00[this.f_byte_09].getHeight() >> 1), 0);
+            this.f_Graphics_00.drawImage(this.f_Image_arr_00[this.equippedWeaponType], n3 + (32 - this.f_Image_arr_00[this.equippedWeaponType].getWidth() >> 1), n4 + (32 - this.f_Image_arr_00[this.equippedWeaponType].getHeight() >> 1), 0);
         }
         this.m_041(n3 += 34, n4, 32, 32);
-        if (this.f_byte_10 == 0) {
+        if (this.equippedArmorType == 0) {
             this.f_Graphics_00.setColor(-1);
-            this.f_Graphics_00.drawString(this.f_String_arr_04[this.f_byte_10], n3 + (32 - this.f_int_00 >> 1), n4 + (32 - this.f_int_01 >> 1), 0);
+            this.f_Graphics_00.drawString(this.f_String_arr_04[this.equippedArmorType], n3 + (32 - this.f_int_00 >> 1), n4 + (32 - this.f_int_01 >> 1), 0);
             return;
         }
-        this.f_Graphics_00.drawImage(this.f_Image_arr_00[this.f_byte_10], n3 + (32 - this.f_Image_arr_00[this.f_byte_10].getWidth() >> 1), n4 + (32 - this.f_Image_arr_00[this.f_byte_10].getHeight() >> 1), 0);
+        this.f_Graphics_00.drawImage(this.f_Image_arr_00[this.equippedArmorType], n3 + (32 - this.f_Image_arr_00[this.equippedArmorType].getWidth() >> 1), n4 + (32 - this.f_Image_arr_00[this.equippedArmorType].getHeight() >> 1), 0);
     }
 
     private void m_038(int n, int n2, int n3, int n4, int n5) {
@@ -4252,25 +4252,25 @@ lbl163:
     }
 
     private void m_043() {
-        this.f_Image_arr_00 = new Image[this.f_String_arr_12.length];
-        this.f_byte_arr_03 = new byte[this.f_String_arr_12.length];
-        this.f_bool_arr_02 = new boolean[this.f_String_arr_12.length];
+        this.f_Image_arr_00 = new Image[this.objectTypeNames.length];
+        this.f_byte_arr_03 = new byte[this.objectTypeNames.length];
+        this.f_bool_arr_02 = new boolean[this.objectTypeNames.length];
         int n = this.f_bool_arr_03.length;
         while (--n >= 0) {
             this.f_bool_arr_02[n] = this.f_bool_arr_03[n];
         }
-        this.f_byte_arr_05 = new byte[this.f_String_arr_12.length];
-        this.f_int_arr_13 = new int[this.f_String_arr_12.length];
-        this.f_int_arr_06 = new int[100];
-        this.f_int_arr_07 = new int[100];
+        this.f_byte_arr_05 = new byte[this.objectTypeNames.length];
+        this.f_int_arr_13 = new int[this.objectTypeNames.length];
+        this.entityPixelX = new int[100];
+        this.entityPixelY = new int[100];
         this.f_int_arr_08 = new int[100];
         this.f_int_arr_09 = new int[100];
         this.f_int_arr_10 = new int[100];
-        this.f_int_arr_11 = new int[100];
+        this.entityType = new int[100];
         this.f_int_arr_12 = new int[100];
         this.f_bool_arr_00 = new boolean[100];
         this.f_bool_arr_01 = new boolean[100];
-        this.f_short_arr_00 = new short[100];
+        this.entityParam = new short[100];
         this.f_byte_arr_04 = new byte[100];
         this.f_byte_arr_05[74] = 1;
         this.f_byte_arr_05[53] = 1;
@@ -4339,7 +4339,7 @@ lbl163:
 
     private void m_046(int n) {
         this.f_byte_arr_04[n] = 2;
-        int n2 = this.f_int_arr_11[n];
+        int n2 = this.entityType[n];
         switch (this.f_byte_arr_03[n2]) {
             case 1: {
                 return;
@@ -4358,7 +4358,7 @@ lbl163:
 
     private void m_047(int n) {
         this.f_byte_arr_04[n] = 1;
-        int n2 = this.f_int_arr_11[n];
+        int n2 = this.entityType[n];
         switch (this.f_byte_arr_03[n2]) {
             case 1: {
                 switch (n2) {
@@ -4413,12 +4413,12 @@ lbl163:
         }
         n2 = n6 << 5;
         n3 = n7 << 5;
-        this.f_int_arr_11[this.f_int_45] = n;
-        this.f_int_arr_06[this.f_int_45] = n2;
-        this.f_int_arr_07[this.f_int_45] = n3;
+        this.entityType[this.f_int_45] = n;
+        this.entityPixelX[this.f_int_45] = n2;
+        this.entityPixelY[this.f_int_45] = n3;
         this.f_bool_arr_01[this.f_int_45] = false;
         this.f_bool_arr_00[this.f_int_45] = true;
-        this.f_short_arr_00[this.f_int_45] = n4;
+        this.entityParam[this.f_int_45] = n4;
         this.f_byte_arr_04[this.f_int_45] = 0;
         ++this.f_int_45;
         for (n4 = 0; n4 < n5; ++n4) {
@@ -4448,7 +4448,7 @@ lbl163:
         byte by = 0;
         if (n2 > 0) {
             for (int i = 0; i < n2; ++i) {
-                if (this.f_int_arr_11[this.f_byte_arr2_03[n][i] - 1] != n3) {
+                if (this.entityType[this.f_byte_arr2_03[n][i] - 1] != n3) {
                     byte by2 = by;
                     by = (byte)(by + 1);
                     this.f_byte_arr2_03[n][by2] = this.f_byte_arr2_03[n][i];
@@ -4475,7 +4475,7 @@ lbl163:
     }
 
     private void m_051(int n) {
-        byte by = this.f_byte_arr2_02[this.f_int_arr_07[n] >> 5][this.f_int_arr_06[n] >> 5];
+        byte by = this.f_byte_arr2_02[this.entityPixelY[n] >> 5][this.entityPixelX[n] >> 5];
         int n2 = this.f_byte_arr_10[by];
         this.f_bool_arr_01[n] = true;
         if (n2 > 0) {
@@ -4523,19 +4523,19 @@ lbl163:
         bl = false;
         block12: for (int i = 0; i < this.f_int_45; ++i) {
             if (this.f_bool_arr_01[i] || !this.f_bool_arr_00[i]) continue;
-            n8 = this.f_int_arr_06[i];
-            n7 = this.f_int_arr_07[i];
+            n8 = this.entityPixelX[i];
+            n7 = this.entityPixelY[i];
             n6 = this.f_int_arr_08[i];
             n5 = this.f_int_arr_09[i];
             n10 = this.f_byte_arr_04[i];
             n4 = n + n8;
             n3 = n2 + n7;
             if (n4 < -n6 || n4 > this.f_int_58 || n3 < -12 || n3 > 20 + this.f_int_59) continue;
-            n9 = this.f_int_arr_11[i];
+            n9 = this.entityType[i];
             Object object = this.f_Image_arr_00[n9];
             if (object != null) {
                 by = this.f_byte_arr_03[n9];
-                if (!bl && this.f_int_39 > n8 - 32 && this.f_int_39 < n8 + 32 && this.f_int_40 >= n7 - 32 && n7 > this.f_int_40 && !this.f_bool_arr_02[n9]) {
+                if (!bl && this.playerPixelX > n8 - 32 && this.playerPixelX < n8 + 32 && this.playerPixelY >= n7 - 32 && n7 > this.playerPixelY && !this.f_bool_arr_02[n9]) {
                     this.m_033(n, n2);
                     bl = true;
                 }
@@ -4593,8 +4593,8 @@ lbl163:
                     }
                     case 8: {
                         if (n10 == 3) {
-                            n4 += this.m_141(5) - 2;
-                            n3 += this.m_141(5) - 2;
+                            n4 += this.randomBelow(5) - 2;
+                            n3 += this.randomBelow(5) - 2;
                         }
                         if (n10 == 1 || n10 == 2) {
                             this.m_002(this.f_Image_arr2_00[2][9], n4 + 2, n3 + 2 - (this.f_int_arr_10[i] << 3), n8, 0, 27, 29);
@@ -4603,7 +4603,7 @@ lbl163:
                             n7 = n4;
                             n8 = i;
                             object = this;
-                            n5 = ((a)object).f_int_arr_11[n8];
+                            n5 = ((a)object).entityType[n8];
                             n8 = ((a)object).f_int_arr2_02[((a)object).f_int_arr_12[n8]][((a)object).f_int_arr_10[n8]];
                             switch (n5) {
                                 case 67: {
@@ -4666,14 +4666,14 @@ lbl163:
                 }
                 continue;
             }
-            object = this.f_String_arr_12[this.f_int_arr_11[i]];
+            object = this.objectTypeNames[this.entityType[i]];
             int n14 = this.f_Font_00.stringWidth((String)object) + 8 >> 1;
             this.f_Graphics_00.setColor(-1);
             this.f_Graphics_00.fillArc(n4, n3, 32, 32, 0, 360);
             this.f_Graphics_00.fillRect(n4 -= n14 - 16, n3 += 32 - this.f_int_01 >> 1, n14 << 1, this.f_int_01);
             this.f_Graphics_00.setColor(0);
             this.f_Graphics_00.drawRect(n4, n3, (n14 << 1) - 1, this.f_int_01 - 1);
-            this.f_Graphics_00.drawString(this.f_String_arr_12[this.f_int_arr_11[i]], n4 + 4, n3, 0);
+            this.f_Graphics_00.drawString(this.objectTypeNames[this.entityType[i]], n4 + 4, n3, 0);
         }
         this.f_Graphics_00.setClip(0, 0, 240, 320);
         if (!bl) {
@@ -4682,8 +4682,8 @@ lbl163:
         if (this.f_byte_11 == 5) {
             a a2 = this;
             if (a2.f_int_44 >= 0) {
-                n8 = a2.f_int_56 + a2.f_int_arr_06[a2.f_int_44] + 16;
-                n7 = a2.f_int_57 + a2.f_int_arr_07[a2.f_int_44] + 32;
+                n8 = a2.f_int_56 + a2.entityPixelX[a2.f_int_44] + 16;
+                n7 = a2.f_int_57 + a2.entityPixelY[a2.f_int_44] + 32;
                 n6 = a2.f_int_151 & 7;
                 n5 = a2.f_byte_arr_44[n6];
                 if (n5 > 0) {
@@ -4713,25 +4713,25 @@ lbl163:
         int n2 = 0;
         if (this.f_int_45 > 0) {
             for (int i = this.f_int_45; i >= 1; --i) {
-                n = this.f_int_arr_07[0];
+                n = this.entityPixelY[0];
                 for (int j = 1; j < i; ++j) {
                     if (this.f_bool_arr_01[j]) continue;
-                    n2 = this.f_int_arr_07[j];
+                    n2 = this.entityPixelY[j];
                     if (n2 < n) {
                         int n3;
                         int n4;
                         int n5 = j;
                         n2 = j - 1;
                         a a2 = this;
-                        int n6 = a2.f_int_arr_11[n2];
-                        int n7 = a2.f_int_arr_06[n2];
-                        int n8 = a2.f_int_arr_07[n2];
+                        int n6 = a2.entityType[n2];
+                        int n7 = a2.entityPixelX[n2];
+                        int n8 = a2.entityPixelY[n2];
                         int n9 = a2.f_int_arr_08[n2];
                         int n10 = a2.f_int_arr_09[n2];
                         byte by = a2.f_byte_arr_04[n2];
                         boolean bl = a2.f_bool_arr_01[n2];
                         boolean bl2 = a2.f_bool_arr_00[n2];
-                        short s = a2.f_short_arr_00[n2];
+                        short s = a2.entityParam[n2];
                         int n11 = n9 >> 5;
                         if (n11 <= 0) {
                             n11 = 1;
@@ -4749,28 +4749,28 @@ lbl163:
                                 continue block2;
                             }
                         }
-                        a2.f_int_arr_11[n2] = a2.f_int_arr_11[n5];
-                        a2.f_int_arr_06[n2] = a2.f_int_arr_06[n5];
-                        a2.f_int_arr_07[n2] = a2.f_int_arr_07[n5];
+                        a2.entityType[n2] = a2.entityType[n5];
+                        a2.entityPixelX[n2] = a2.entityPixelX[n5];
+                        a2.entityPixelY[n2] = a2.entityPixelY[n5];
                         a2.f_int_arr_08[n2] = a2.f_int_arr_08[n5];
                         a2.f_int_arr_09[n2] = a2.f_int_arr_09[n5];
                         a2.f_byte_arr_04[n2] = a2.f_byte_arr_04[n5];
                         a2.f_bool_arr_01[n2] = a2.f_bool_arr_01[n5];
                         a2.f_bool_arr_00[n2] = a2.f_bool_arr_00[n5];
-                        a2.f_short_arr_00[n2] = a2.f_short_arr_00[n5];
-                        a2.m_045(a2.f_int_arr_11[n2], n2);
-                        a2.f_int_arr_11[n5] = n6;
-                        a2.f_int_arr_06[n5] = n7;
-                        a2.f_int_arr_07[n5] = n8;
+                        a2.entityParam[n2] = a2.entityParam[n5];
+                        a2.m_045(a2.entityType[n2], n2);
+                        a2.entityType[n5] = n6;
+                        a2.entityPixelX[n5] = n7;
+                        a2.entityPixelY[n5] = n8;
                         a2.f_int_arr_08[n5] = n9;
                         a2.f_int_arr_09[n5] = n10;
                         a2.f_byte_arr_04[n5] = by;
                         a2.f_bool_arr_01[n5] = bl;
                         a2.f_bool_arr_00[n5] = bl2;
-                        a2.f_short_arr_00[n5] = s;
-                        a2.m_045(a2.f_int_arr_11[n5], n5);
-                        n12 = a2.f_int_arr_07[n2] >> 5;
-                        n13 = a2.f_int_arr_06[n2] >> 5;
+                        a2.entityParam[n5] = s;
+                        a2.m_045(a2.entityType[n5], n5);
+                        n12 = a2.entityPixelY[n2] >> 5;
+                        n13 = a2.entityPixelX[n2] >> 5;
                         n11 = a2.f_int_arr_08[n2] >> 5;
                         if (n11 <= 0) {
                             n11 = 1;
@@ -4784,7 +4784,7 @@ lbl163:
                                 continue block4;
                             }
                         }
-                        n2 = this.f_int_arr_07[j];
+                        n2 = this.entityPixelY[j];
                     }
                     n = n2;
                 }
@@ -4809,8 +4809,8 @@ lbl163:
                         continue block4;
                     }
                     case 2: {
-                        this.m_044(this.f_int_arr_11[n2], n2);
-                        this.m_045(this.f_int_arr_11[n2], n2);
+                        this.m_044(this.entityType[n2], n2);
+                        this.m_045(this.entityType[n2], n2);
                         this.f_byte_arr_04[n2] = 0;
                         continue block4;
                     }
@@ -4844,25 +4844,25 @@ lbl163:
     private void m_057() {
         this.f_Image_03 = null;
         if (this.f_bool_arr_05[1]) {
-            Image image = Image.createImage((int)(this.f_int_50 << 2), (int)(this.f_int_51 << 2));
+            Image image = Image.createImage((int)(this.mapCellsWide << 2), (int)(this.mapCellsHigh << 2));
             Graphics graphics = image.getGraphics();
             int n = 0;
             int n2 = 0;
             graphics.setColor(13097429);
-            graphics.fillRect(0, 0, this.f_int_50 << 2, this.f_int_51 << 2);
+            graphics.fillRect(0, 0, this.mapCellsWide << 2, this.mapCellsHigh << 2);
             graphics.setColor(7509153);
             byte by = 0;
             int n3 = 0;
-            while (n3 < this.f_int_51) {
+            while (n3 < this.mapCellsHigh) {
                 int n4 = 0;
-                while (n4 < this.f_int_50) {
+                while (n4 < this.mapCellsWide) {
                     by = this.f_byte_arr2_02[n3][n4];
                     if (this.f_bool_arr2_00[n3][n4]) {
                         graphics.setColor(7509153);
                         graphics.fillRect(n, n2, 4, 4);
                     }
                     if (by > 0 && this.f_byte_arr_10[by] > 0 && !this.f_bool_arr_01[(by = this.f_byte_arr2_03[by][0]) - 1] && this.f_byte_arr_04[by - 1] != 1) {
-                        switch (this.f_int_arr_11[by - 1]) {
+                        switch (this.entityType[by - 1]) {
                             case 1: {
                                 graphics.setColor(0xEBEB4E);
                                 graphics.fillRect(n, n2, 3, 3);
@@ -4912,14 +4912,14 @@ lbl163:
     }
 
     private void m_059() {
-        this.f_byte_arr2_02 = new byte[this.f_int_51][this.f_int_50];
+        this.f_byte_arr2_02 = new byte[this.mapCellsHigh][this.mapCellsWide];
         this.f_byte_arr_10 = new byte[128];
         this.f_byte_arr2_03 = new byte[128][16];
         this.f_byte_15 = 0;
     }
 
-    private boolean m_060(int n, int n2) {
-        if (n >= 0 && n < this.f_int_50 && n2 >= 0 && n2 < this.f_int_51) {
+    private boolean isCellWalkable(int n, int n2) {
+        if (n >= 0 && n < this.mapCellsWide && n2 >= 0 && n2 < this.mapCellsHigh) {
             return this.f_bool_arr2_00[n2][n];
         }
         return false;
@@ -4928,13 +4928,13 @@ lbl163:
     private void m_061() {
         int n = 0;
         byte by = 0;
-        int n2 = this.f_int_50;
-        int n3 = this.f_int_51;
+        int n2 = this.mapCellsWide;
+        int n3 = this.mapCellsHigh;
         int n4 = 0;
         while (n4 < n3) {
             int n5 = 0;
             while (n5 < n2) {
-                by = this.f_byte_arr_08[n];
+                by = this.mapTerrainGrid[n];
                 this.f_bool_arr2_00[n4][n5] = by < this.f_bool_arr_04.length ? this.f_bool_arr_04[by] : false;
                 ++n5;
                 n += 2;
@@ -4945,7 +4945,7 @@ lbl163:
     }
 
     private boolean m_062(int n, int n2) {
-        if (n >= 0 && n < this.f_int_50 && n2 >= 0 && n2 < this.f_int_51) {
+        if (n >= 0 && n < this.mapCellsWide && n2 >= 0 && n2 < this.mapCellsHigh) {
             return this.f_byte_arr_10[this.f_byte_arr2_02[n2][n]] > 0;
         }
         return false;
@@ -4984,16 +4984,16 @@ lbl163:
         n4 = 0;
         int n5 = n;
         int n6 = n2;
-        n2 = n3 = this.f_int_60 + (this.f_int_62 * this.f_int_50 << 1);
+        n2 = n3 = this.f_int_60 + (this.f_int_62 * this.mapCellsWide << 1);
         int n7 = this.f_int_62;
         while (n7 < this.f_int_63) {
             int n8 = this.f_int_60;
             while (n8 < this.f_int_61) {
-                n4 = this.f_byte_arr_08[n2];
+                n4 = this.mapTerrainGrid[n2];
                 if (n4 > 0) {
                     int n9 = (n4 & 7) << 4;
                     n4 = n4 >> 3 << 4;
-                    this.m_005(this.f_Image_arr2_00[2][0], n5, n6, n9, n4, 16, 16, this.f_byte_arr_09[n2]);
+                    this.m_005(this.f_Image_arr2_00[2][0], n5, n6, n9, n4, 16, 16, this.mapTransformGrid[n2]);
                 }
                 ++n8;
                 ++n2;
@@ -5002,7 +5002,7 @@ lbl163:
             ++n7;
             n6 += 16;
             n5 = n;
-            n2 = n3 += this.f_int_50 << 1;
+            n2 = n3 += this.mapCellsWide << 1;
         }
         this.f_Graphics_00.setClip(0, 0, 240, 320);
     }
@@ -5011,8 +5011,8 @@ lbl163:
         if (!this.f_bool_10) {
             if (n > 64) {
                 n = 64;
-            } else if (n < -((this.f_int_50 + 2 << 5) - this.f_int_58)) {
-                n = -((this.f_int_50 + 2 << 5) - this.f_int_58);
+            } else if (n < -((this.mapCellsWide + 2 << 5) - this.f_int_58)) {
+                n = -((this.mapCellsWide + 2 << 5) - this.f_int_58);
             }
             this.f_int_56 = n;
             if (n < 0) {
@@ -5022,18 +5022,18 @@ lbl163:
                 this.f_int_60 = 0;
                 this.f_int_61 = (this.f_int_58 - n >> 4) + 1;
             }
-            if (this.f_int_61 > this.f_int_50 << 1) {
-                this.f_int_61 = this.f_int_50 << 1;
+            if (this.f_int_61 > this.mapCellsWide << 1) {
+                this.f_int_61 = this.mapCellsWide << 1;
             }
             if (n2 > 64) {
                 n2 = 64;
-            } else if (n2 < -((this.f_int_51 + 2 << 5) - this.f_int_59)) {
-                n2 = -((this.f_int_51 + 2 << 5) - this.f_int_59);
+            } else if (n2 < -((this.mapCellsHigh + 2 << 5) - this.f_int_59)) {
+                n2 = -((this.mapCellsHigh + 2 << 5) - this.f_int_59);
             }
         } else {
             this.f_int_56 = this.f_int_58 - this.f_int_52 >> 1;
             this.f_int_60 = 0;
-            this.f_int_61 = this.f_int_50 << 1;
+            this.f_int_61 = this.mapCellsWide << 1;
         }
         if (!this.f_bool_11) {
             this.f_int_57 = n2;
@@ -5044,28 +5044,28 @@ lbl163:
                 this.f_int_62 = 0;
                 this.f_int_63 = (this.f_int_59 - n2 >> 4) + 1;
             }
-            if (this.f_int_63 > this.f_int_51 << 1) {
-                this.f_int_63 = this.f_int_51 << 1;
+            if (this.f_int_63 > this.mapCellsHigh << 1) {
+                this.f_int_63 = this.mapCellsHigh << 1;
                 return;
             }
         } else {
             this.f_int_57 = this.f_int_59 - this.f_int_53 >> 1;
             this.f_int_62 = 0;
-            this.f_int_63 = this.f_int_51 << 1;
+            this.f_int_63 = this.mapCellsHigh << 1;
         }
     }
 
     private int m_065(boolean bl) {
         if (bl) {
             for (int i = 0; i < this.f_int_45; ++i) {
-                int n = this.f_short_arr_00[i] >> 9;
-                if (this.f_int_arr_11[i] != 7 || n != 0) continue;
+                int n = this.entityParam[i] >> 9;
+                if (this.entityType[i] != 7 || n != 0) continue;
                 return i;
             }
         } else {
             for (int i = 0; i < this.f_int_45; ++i) {
-                int n = this.f_short_arr_00[i] >> 9;
-                if (this.f_int_arr_11[i] != 8 || n != 0) continue;
+                int n = this.entityParam[i] >> 9;
+                if (this.entityType[i] != 8 || n != 0) continue;
                 return i;
             }
         }
@@ -5075,13 +5075,13 @@ lbl163:
     /*
      * Unable to fully structure code
      */
-    private boolean m_066(int var1_1, boolean var2_2, boolean var3_3) {
+    private boolean changeFloor(int var1_1, boolean var2_2, boolean var3_3) {
         var4_4 = false;
         if (!var3_3) ** GOTO lbl-1000
-        if (var1_1 < this.f_int_65) {
+        if (var1_1 < this.minFloorReached) {
             this.m_015((byte)0, this.f_String_arr_00[0], (byte)0, (byte)0);
             var4_4 = false;
-        } else if (var1_1 > this.f_int_66) {
+        } else if (var1_1 > this.maxFloorReached) {
             var4_4 = false;
             this.m_015((byte)0, this.f_String_arr_00[1], (byte)0, (byte)0);
         } else lbl-1000:
@@ -5099,15 +5099,15 @@ lbl163:
             } else {
                 var4_4 = true;
                 this.f_bool_16 = true;
-                if (var1_1 < this.f_int_65) {
-                    this.f_int_65 = var1_1;
-                } else if (var1_1 > this.f_int_66) {
-                    this.f_int_66 = var1_1;
-                    if (this.f_int_66 < 51 && this.f_int_66 > this.f_int_154) {
-                        this.f_int_154 = this.f_int_66;
+                if (var1_1 < this.minFloorReached) {
+                    this.minFloorReached = var1_1;
+                } else if (var1_1 > this.maxFloorReached) {
+                    this.maxFloorReached = var1_1;
+                    if (this.maxFloorReached < 51 && this.maxFloorReached > this.f_int_154) {
+                        this.f_int_154 = this.maxFloorReached;
                     }
                 }
-                this.m_119(this.f_int_64);
+                this.m_119(this.currentFloor);
                 this.f_byte_23 = (byte)var1_1;
                 this.f_bool_18 = var2_2;
             }
@@ -5131,18 +5131,18 @@ lbl163:
 
     private void m_068() {
         int n;
-        this.f_byte_09 = 0;
-        this.f_byte_10 = 0;
-        if (this.f_int_64 == 1) {
+        this.equippedWeaponType = 0;
+        this.equippedArmorType = 0;
+        if (this.currentFloor == 1) {
             this.m_024(6, 11);
-        } else if (this.f_int_64 == 51) {
+        } else if (this.currentFloor == 51) {
             this.m_024(1, 11);
-        } else if (this.f_int_64 == 50) {
+        } else if (this.currentFloor == 50) {
             this.m_024(6, 6);
         } else {
             n = this.m_065(false);
             if (n >= 0) {
-                this.m_031(this.f_int_arr_06[n] >> 5, this.f_int_arr_07[n] >> 5);
+                this.m_031(this.entityPixelX[n] >> 5, this.entityPixelY[n] >> 5);
             }
         }
         n = this.f_int_113;
@@ -5150,44 +5150,44 @@ lbl163:
             this.f_bool_arr_06[n] = false;
         }
         this.f_int_89 = 0;
-        this.f_int_94 = 0;
-        this.f_int_69 = 0;
-        this.f_int_95 = 0;
+        this.goldAmount = 0;
+        this.alchemyUpgradeCount = 0;
+        this.itemStackSize = 0;
         this.f_byte_26 = 0;
-        this.m_069(this.f_int_arr_33[this.f_byte_26]);
+        this.scaleEnemyStats(this.difficultyMultipliers[this.f_byte_26]);
     }
 
-    private void m_069(int n) {
-        if (this.f_int_arr_19 == null) {
-            this.f_int_arr_19 = new int[this.f_int_arr_16.length];
+    private void scaleEnemyStats(int n) {
+        if (this.enemyAtkScaled == null) {
+            this.enemyAtkScaled = new int[this.enemyBaseAtk.length];
         }
-        int n2 = this.f_int_arr_19.length;
+        int n2 = this.enemyAtkScaled.length;
         while (--n2 >= 0) {
-            this.f_int_arr_19[n2] = this.f_int_arr_16[n2] * n;
+            this.enemyAtkScaled[n2] = this.enemyBaseAtk[n2] * n;
         }
-        if (this.f_int_arr_20 == null) {
-            this.f_int_arr_20 = new int[this.f_int_arr_17.length];
+        if (this.enemyDefScaled == null) {
+            this.enemyDefScaled = new int[this.enemyBaseDef.length];
         }
-        n2 = this.f_int_arr_20.length;
+        n2 = this.enemyDefScaled.length;
         while (--n2 >= 0) {
-            this.f_int_arr_20[n2] = this.f_int_arr_17[n2] * n;
+            this.enemyDefScaled[n2] = this.enemyBaseDef[n2] * n;
         }
-        if (this.f_int_arr_21 == null) {
-            this.f_int_arr_21 = new int[this.f_int_arr_15.length];
+        if (this.enemyHpScaled == null) {
+            this.enemyHpScaled = new int[this.enemyBaseHp.length];
         }
-        n2 = this.f_int_arr_21.length;
+        n2 = this.enemyHpScaled.length;
         while (--n2 >= 0) {
-            this.f_int_arr_21[n2] = this.f_int_arr_15[n2] * n;
+            this.enemyHpScaled[n2] = this.enemyBaseHp[n2] * n;
         }
     }
 
-    private static int m_070(int n, int n2) {
+    private static int scaledByFloorTier(int n, int n2) {
         --n2;
         n2 /= 10;
         return n * ++n2;
     }
 
-    private static int m_071(int n) {
+    private static int alchemyPriceFor(int n) {
         int n2 = 20;
         for (int i = 1; i < n; ++i) {
             n2 += 20 * i;
@@ -5218,25 +5218,25 @@ lbl163:
         int n2 = 0;
         this.f_int_86 = 0;
         for (int i = 0; i < this.f_int_45; ++i) {
-            if (this.f_bool_arr_01[i] || n != this.f_short_arr_00[i]) continue;
-            n2 = this.f_int_arr_11[i];
+            if (this.f_bool_arr_01[i] || n != this.entityParam[i]) continue;
+            n2 = this.entityType[i];
             if (n2 == 5) {
                 return false;
             }
             if (n2 != 4) continue;
             this.f_short_arr_03[this.f_int_86] = i;
-            this.f_short_arr_01[this.f_int_86] = this.f_int_arr_06[i] >> 5;
-            this.f_short_arr_02[this.f_int_86] = this.f_int_arr_07[i] >> 5;
+            this.f_short_arr_01[this.f_int_86] = this.entityPixelX[i] >> 5;
+            this.f_short_arr_02[this.f_int_86] = this.entityPixelY[i] >> 5;
             ++this.f_int_86;
         }
         return this.f_int_86 > 0;
     }
 
-    private boolean m_074(boolean bl) {
-        short s = this.f_short_arr_00[this.f_int_87];
+    private boolean applyMerchantOffer(boolean bl) {
+        short s = this.entityParam[this.f_int_87];
         byte by = (byte)(s >>> 8);
         s = (byte)s;
-        int n = this.f_int_arr_11[this.f_int_87] == 77 ? 0 : 1;
+        int n = this.entityType[this.f_int_87] == 77 ? 0 : 1;
         boolean bl2 = true;
         boolean bl3 = false;
         if (s <= 0) {
@@ -5248,17 +5248,17 @@ lbl163:
                     case 0: {
                         switch (s) {
                             case 2: {
-                                this.m_085(13);
+                                this.addItemToItemStack(13);
                                 break;
                             }
                             case 1: 
                             case 15: 
                             case 21: {
-                                this.m_078(1000, this.f_int_39, this.f_int_40);
+                                this.gainGold(1000, this.playerPixelX, this.playerPixelY);
                                 break;
                             }
                             case 6: {
-                                this.m_085(19);
+                                this.addItemToItemStack(19);
                             }
                         }
                         break;
@@ -5266,13 +5266,13 @@ lbl163:
                     case 1: {
                         switch (s) {
                             case 1: {
-                                this.f_int_36 += this.f_int_36 * 3 / 100;
-                                this.f_int_37 += this.f_int_37 * 3 / 100;
+                                this.playerAtk += this.playerAtk * 3 / 100;
+                                this.playerDef += this.playerDef * 3 / 100;
                                 break block0;
                             }
                             case 3: {
-                                if (this.m_077(50)) {
-                                    ++this.f_int_92;
+                                if (this.spendGold(50)) {
+                                    ++this.blueKeyCount;
                                     break block0;
                                 }
                                 this.m_015((byte)0, "\u6ca1\u6709\u8db3\u591f\u7684\u91d1\u94b1", (byte)0, (byte)0);
@@ -5280,8 +5280,8 @@ lbl163:
                                 break block0;
                             }
                             case 4: {
-                                if (this.m_077(50)) {
-                                    this.f_int_91 += 5;
+                                if (this.spendGold(50)) {
+                                    this.yellowKeyCount += 5;
                                     break block0;
                                 }
                                 this.m_015((byte)0, "\u6ca1\u6709\u8db3\u591f\u7684\u91d1\u94b1", (byte)0, (byte)0);
@@ -5289,8 +5289,8 @@ lbl163:
                                 break block0;
                             }
                             case 5: {
-                                if (this.m_077(1000)) {
-                                    ++this.f_int_91;
+                                if (this.spendGold(1000)) {
+                                    ++this.yellowKeyCount;
                                     break block0;
                                 }
                                 this.m_015((byte)0, "\u6ca1\u6709\u8db3\u591f\u7684\u91d1\u94b1", (byte)0, (byte)0);
@@ -5298,8 +5298,8 @@ lbl163:
                                 break block0;
                             }
                             case 6: {
-                                if (this.m_077(800)) {
-                                    ++this.f_int_93;
+                                if (this.spendGold(800)) {
+                                    ++this.redKeyCount;
                                     break block0;
                                 }
                                 this.m_015((byte)0, "\u6ca1\u6709\u8db3\u591f\u7684\u91d1\u94b1", (byte)0, (byte)0);
@@ -5307,8 +5307,8 @@ lbl163:
                                 break block0;
                             }
                             case 7: {
-                                if (this.m_077(200)) {
-                                    ++this.f_int_92;
+                                if (this.spendGold(200)) {
+                                    ++this.blueKeyCount;
                                     break block0;
                                 }
                                 this.m_015((byte)0, "\u6ca1\u6709\u8db3\u591f\u7684\u91d1\u94b1", (byte)0, (byte)0);
@@ -5316,9 +5316,9 @@ lbl163:
                                 break block0;
                             }
                             case 8: {
-                                if (this.f_int_91 > 0) {
-                                    --this.f_int_91;
-                                    this.f_int_94 += 100;
+                                if (this.yellowKeyCount > 0) {
+                                    --this.yellowKeyCount;
+                                    this.goldAmount += 100;
                                     break block0;
                                 }
                                 this.m_015((byte)0, "\u6ca1\u6709\u9ec4\u94a5\u5319", (byte)0, (byte)0);
@@ -5326,9 +5326,9 @@ lbl163:
                                 break block0;
                             }
                             case 9: {
-                                if (this.m_077(1000)) {
-                                    ++this.f_int_91;
-                                    ++this.f_int_92;
+                                if (this.spendGold(1000)) {
+                                    ++this.yellowKeyCount;
+                                    ++this.blueKeyCount;
                                     break block0;
                                 }
                                 this.m_015((byte)0, "\u6ca1\u6709\u8db3\u591f\u7684\u91d1\u94b1", (byte)0, (byte)0);
@@ -5336,8 +5336,8 @@ lbl163:
                                 break block0;
                             }
                             case 10: {
-                                if (this.m_077(200)) {
-                                    this.f_int_91 += 3;
+                                if (this.spendGold(200)) {
+                                    this.yellowKeyCount += 3;
                                     break block0;
                                 }
                                 this.m_015((byte)0, "\u6ca1\u6709\u8db3\u591f\u7684\u91d1\u94b1", (byte)0, (byte)0);
@@ -5345,8 +5345,8 @@ lbl163:
                                 break block0;
                             }
                             case 11: {
-                                if (this.m_077(2000)) {
-                                    this.f_int_92 += 3;
+                                if (this.spendGold(2000)) {
+                                    this.blueKeyCount += 3;
                                     break block0;
                                 }
                                 this.m_015((byte)0, "\u6ca1\u6709\u8db3\u591f\u7684\u91d1\u94b1", (byte)0, (byte)0);
@@ -5354,8 +5354,8 @@ lbl163:
                                 break block0;
                             }
                             case 12: {
-                                if (this.m_077(1000)) {
-                                    this.f_int_35 += 2000;
+                                if (this.spendGold(1000)) {
+                                    this.playerHp += 2000;
                                     break block0;
                                 }
                                 this.m_015((byte)0, "\u6ca1\u6709\u8db3\u591f\u7684\u91d1\u94b1", (byte)0, (byte)0);
@@ -5363,8 +5363,8 @@ lbl163:
                                 break block0;
                             }
                             case 13: {
-                                if (this.m_077(4000)) {
-                                    this.m_079(18);
+                                if (this.spendGold(4000)) {
+                                    this.pickupItemType(18);
                                     break block0;
                                 }
                                 this.m_015((byte)0, "\u6ca1\u6709\u8db3\u591f\u7684\u91d1\u94b1", (byte)0, (byte)0);
@@ -5376,7 +5376,7 @@ lbl163:
                 if (bl2) {
                     if ((by & 4) == 0) {
                         int n2 = this.f_int_87;
-                        this.f_short_arr_00[n2] = this.f_short_arr_00[n2] ^ 0x200;
+                        this.entityParam[n2] = this.entityParam[n2] ^ 0x200;
                         if ((by & 1) != 0) {
                             this.m_075(n, s - 1);
                             if (n == 0) {
@@ -5394,14 +5394,14 @@ lbl163:
                 }
             } else if ((by & 1) != 0) {
                 int n3 = this.f_int_87;
-                this.f_short_arr_00[n3] = this.f_short_arr_00[n3] ^ 0x100;
+                this.entityParam[n3] = this.entityParam[n3] ^ 0x100;
                 if ((by & 4) == 0) {
                     this.m_047(this.f_int_87);
                 }
             }
         } else if ((by & 2) == 0 && (by & 1) != 0) {
             int n4 = this.f_int_87;
-            this.f_short_arr_00[n4] = this.f_short_arr_00[n4] ^ 0x100;
+            this.entityParam[n4] = this.entityParam[n4] ^ 0x100;
             if ((by & 4) == 0) {
                 this.m_047(this.f_int_87);
             }
@@ -5433,27 +5433,27 @@ lbl163:
             return;
         }
         this.m_015((byte)0, "\u6ca1\u6709\u8bb0\u5f55", (byte)0, (byte)3);
-        this.f_byte_00 = (byte)10;
+        this.gameMode = (byte)10;
     }
 
-    private boolean m_077(int n) {
+    private boolean spendGold(int n) {
         boolean bl = true;
-        if (this.f_int_94 >= n) {
-            this.f_int_94 -= n;
+        if (this.goldAmount >= n) {
+            this.goldAmount -= n;
         } else {
             bl = false;
         }
         return bl;
     }
 
-    private void m_078(int n, int n2, int n3) {
-        this.f_int_94 += n;
+    private void gainGold(int n, int n2, int n3) {
+        this.goldAmount += n;
         if (n > 0) {
             this.m_125((byte)4, n, n2, n3);
         }
     }
 
-    private void m_079(int n) {
+    private void pickupItemType(int n) {
         int n2 = 0;
         n2 = this.m_083(n, 0, 12);
         switch (n) {
@@ -5469,7 +5469,7 @@ lbl163:
             case 80: {
                 if (this.m_082(n2, false)) {
                     this.f_byte_07 = (byte)n;
-                    this.m_015((byte)1, this.f_String_arr_11[n2], (byte)0, (byte)3);
+                    this.m_015((byte)1, this.equipDescriptions[n2], (byte)0, (byte)3);
                     return;
                 }
                 this.m_015((byte)0, this.f_String_arr_00[5], (byte)0, (byte)3);
@@ -5492,55 +5492,55 @@ lbl163:
             case 25: 
             case 85: 
             case 86: {
-                this.m_085(n);
+                this.addItemToItemStack(n);
                 return;
             }
             case 26: {
-                ++this.f_int_91;
+                ++this.yellowKeyCount;
                 return;
             }
             case 27: {
-                ++this.f_int_93;
+                ++this.redKeyCount;
                 return;
             }
             case 28: {
-                ++this.f_int_92;
+                ++this.blueKeyCount;
                 return;
             }
             case 29: {
-                if (this.f_int_64 <= 10) {
-                    ++this.f_int_36;
+                if (this.currentFloor <= 10) {
+                    ++this.playerAtk;
                     return;
                 }
-                this.f_int_36 += this.m_080();
+                this.playerAtk += this.floorTier();
                 return;
             }
             case 30: {
-                if (this.f_int_64 <= 10) {
-                    ++this.f_int_37;
+                if (this.currentFloor <= 10) {
+                    ++this.playerDef;
                     return;
                 }
-                this.f_int_37 += this.m_080();
+                this.playerDef += this.floorTier();
                 return;
             }
             case 31: {
-                n2 = this.m_080();
-                this.m_023(50 * n2);
+                n2 = this.floorTier();
+                this.applyHpDelta(50 * n2);
                 return;
             }
             case 32: {
-                n2 = this.m_080();
-                this.m_023(200 * n2);
+                n2 = this.floorTier();
+                this.applyHpDelta(200 * n2);
             }
         }
     }
 
-    private int m_080() {
-        int n = this.f_int_64 - 1;
+    private int floorTier() {
+        int n = this.currentFloor - 1;
         if ((n /= 10) < 0) {
             n = 0;
         }
-        if (this.f_int_64 > 50) {
+        if (this.currentFloor > 50) {
             n = 0;
         }
         return n + 1;
@@ -5548,8 +5548,8 @@ lbl163:
 
     private int m_081(int n) {
         int n2 = -1;
-        for (int i = 0; i < this.f_int_95; ++i) {
-            if (this.f_byte_arr_17[i] != n) continue;
+        for (int i = 0; i < this.itemStackSize; ++i) {
+            if (this.itemStackTypes[i] != n) continue;
             n2 = i;
             break;
         }
@@ -5560,20 +5560,20 @@ lbl163:
         boolean bl2 = true;
         int n2 = 0;
         if (n < 6) {
-            n2 = this.m_083(this.f_byte_09, 0, 6);
+            n2 = this.m_083(this.equippedWeaponType, 0, 6);
             if (n2 < n || bl) {
-                this.f_int_36 -= this.f_int_arr_14[n2];
-                this.f_int_36 += this.f_int_arr_14[n];
-                this.f_byte_09 = this.f_byte_arr_19[n];
+                this.playerAtk -= this.equipTierBonuses[n2];
+                this.playerAtk += this.equipTierBonuses[n];
+                this.equippedWeaponType = this.equipTierTypes[n];
             } else {
                 bl2 = false;
             }
         } else {
-            n2 = this.m_083(this.f_byte_10, 6, 12);
+            n2 = this.m_083(this.equippedArmorType, 6, 12);
             if (n2 < n || bl) {
-                this.f_int_37 -= this.f_int_arr_14[n2];
-                this.f_int_37 += this.f_int_arr_14[n];
-                this.f_byte_10 = this.f_byte_arr_19[n];
+                this.playerDef -= this.equipTierBonuses[n2];
+                this.playerDef += this.equipTierBonuses[n];
+                this.equippedArmorType = this.equipTierTypes[n];
             } else {
                 bl2 = false;
             }
@@ -5583,13 +5583,13 @@ lbl163:
 
     private int m_083(int n, int n2, int n3) {
         while (--n3 >= n2) {
-            if (this.f_byte_arr_19[n3] != n) continue;
+            if (this.equipTierTypes[n3] != n) continue;
             return n3;
         }
         return 0;
     }
 
-    private static int m_084(int n) {
+    private static int itemTypeToStackIndex(int n) {
         int n2 = 0;
         switch (n) {
             case 85: {
@@ -5607,81 +5607,81 @@ lbl163:
         return n2;
     }
 
-    private void m_085(int n) {
+    private void addItemToItemStack(int n) {
         int n2 = this.m_081(n);
-        int n3 = a.m_084(n);
+        int n3 = a.itemTypeToStackIndex(n);
         if (n2 < 0) {
-            this.f_byte_arr_17[this.f_int_95] = n;
-            this.f_byte_arr_18[this.f_int_95] = this.f_byte_arr_16[n3];
-            ++this.f_int_95;
+            this.itemStackTypes[this.itemStackSize] = n;
+            this.itemStackUses[this.itemStackSize] = this.itemUseCounts[n3];
+            ++this.itemStackSize;
         } else {
             int n4 = n2;
-            this.f_byte_arr_18[n4] = this.f_byte_arr_18[n4] + this.f_byte_arr_16[n3];
+            this.itemStackUses[n4] = this.itemStackUses[n4] + this.itemUseCounts[n3];
         }
         this.f_byte_07 = (byte)n;
-        this.m_015((byte)1, this.f_String_arr_10[n3], (byte)0, (byte)3);
+        this.m_015((byte)1, this.itemDescriptions[n3], (byte)0, (byte)3);
     }
 
-    private boolean m_086(byte by) {
+    private boolean consumeKeyForDoor(byte by) {
         boolean bl = false;
         switch (by) {
             case 26: {
-                if (this.f_int_91 <= 0) break;
-                this.m_125((byte)1, 2, this.f_int_39, this.f_int_40);
-                --this.f_int_91;
+                if (this.yellowKeyCount <= 0) break;
+                this.m_125((byte)1, 2, this.playerPixelX, this.playerPixelY);
+                --this.yellowKeyCount;
                 bl = true;
                 break;
             }
             case 28: {
-                if (this.f_int_92 <= 0) break;
-                this.m_125((byte)1, 0, this.f_int_39, this.f_int_40);
-                --this.f_int_92;
+                if (this.blueKeyCount <= 0) break;
+                this.m_125((byte)1, 0, this.playerPixelX, this.playerPixelY);
+                --this.blueKeyCount;
                 bl = true;
                 break;
             }
             case 27: {
-                if (this.f_int_93 <= 0) break;
-                this.m_125((byte)1, 1, this.f_int_39, this.f_int_40);
-                --this.f_int_93;
+                if (this.redKeyCount <= 0) break;
+                this.m_125((byte)1, 1, this.playerPixelX, this.playerPixelY);
+                --this.redKeyCount;
                 bl = true;
             }
         }
         return bl;
     }
 
-    private void m_087(int n) {
-        if (this.f_byte_arr_18[n] > 0) {
-            if (this.m_088(this.f_byte_arr_17[n])) {
+    private void useItemStack(int n) {
+        if (this.itemStackUses[n] > 0) {
+            if (this.activateItem(this.itemStackTypes[n])) {
                 int n2 = n;
-                this.f_byte_arr_18[n2] = (byte)(this.f_byte_arr_18[n2] - 1);
-                if (this.f_byte_arr_18[n2] == 0) {
-                    while (n < this.f_int_95 - 1) {
-                        this.f_byte_arr_17[n] = this.f_byte_arr_17[n + 1];
-                        this.f_byte_arr_18[n] = this.f_byte_arr_18[n + 1];
+                this.itemStackUses[n2] = (byte)(this.itemStackUses[n2] - 1);
+                if (this.itemStackUses[n2] == 0) {
+                    while (n < this.itemStackSize - 1) {
+                        this.itemStackTypes[n] = this.itemStackTypes[n + 1];
+                        this.itemStackUses[n] = this.itemStackUses[n + 1];
                         ++n;
                     }
-                    if (this.f_int_95 > 0) {
-                        --this.f_int_95;
+                    if (this.itemStackSize > 0) {
+                        --this.itemStackSize;
                     }
                     return;
                 }
             }
         } else {
-            this.m_088(this.f_byte_arr_17[n]);
+            this.activateItem(this.itemStackTypes[n]);
         }
     }
 
-    private boolean m_088(byte by) {
+    private boolean activateItem(byte by) {
         int n = 0;
         n = 0;
         switch (by) {
             case 13: {
-                this.f_byte_00 = (byte)5;
+                this.gameMode = (byte)5;
                 this.m_000();
                 break;
             }
             case 14: {
-                this.f_byte_00 = (byte)12;
+                this.gameMode = (byte)12;
                 this.m_000();
                 break;
             }
@@ -5693,7 +5693,7 @@ lbl163:
                     this.m_015((byte)0, "\u4f60\u5fc5\u987b\u9762\u5bf9\u4e09\u6627\u771f\u706b\u518d\u4f7f\u7528\u5b83\u3002", (byte)0, (byte)0);
                     break;
                 }
-                this.f_byte_00 = (byte)3;
+                this.gameMode = (byte)3;
                 n = 1;
                 break;
             }
@@ -5702,43 +5702,43 @@ lbl163:
                     this.m_015((byte)0, "\u4f60\u5fc5\u987b\u9762\u5bf9\u4e00\u5835\u5899\u4f7f\u7528", (byte)0, (byte)0);
                     break;
                 }
-                this.f_byte_00 = (byte)3;
+                this.gameMode = (byte)3;
                 n = 1;
                 break;
             }
             case 18: {
                 by = (byte)this.f_int_45;
                 while ((by = (byte)(by - 1)) >= 0) {
-                    if (this.f_int_arr_11[by] != 11) continue;
+                    if (this.entityType[by] != 11) continue;
                     this.m_047(by);
                 }
-                this.f_byte_00 = (byte)3;
+                this.gameMode = (byte)3;
                 n = 1;
                 break;
             }
             case 19: {
-                n = (this.f_int_36 + this.f_int_37) * 74 / 10;
-                this.m_023(n);
+                n = (this.playerAtk + this.playerDef) * 74 / 10;
+                this.applyHpDelta(n);
                 this.m_015((byte)0, "\u589e\u52a0\u4e86" + n + "\u8840\u91cf", (byte)0, (byte)0);
                 n = 1;
                 break;
             }
             case 20: {
-                if (this.f_int_64 == 40) {
+                if (this.currentFloor == 40) {
                     this.m_015((byte)0, "\u672c\u5c42\u4e0d\u80fd\u76f4\u63a5\u77ac\u79fb\u3002", (byte)0, (byte)0);
                     break;
                 }
                 a a2 = this;
-                int n2 = a2.f_int_50 - 1 - a2.f_int_41;
-                int n3 = a2.f_int_51 - 1 - a2.f_int_42;
-                boolean bl = a2.m_029(n2, n3);
+                int n2 = a2.mapCellsWide - 1 - a2.playerCellX;
+                int n3 = a2.mapCellsHigh - 1 - a2.playerCellY;
+                boolean bl = a2.interactWithCell(n2, n3);
                 if (bl) {
                     a2.m_024(n2, n3);
-                    a2.m_064((a2.f_int_58 - 32 >> 1) - a2.f_int_39, (a2.f_int_59 - 32 >> 1) - a2.f_int_40);
-                    a2.m_030();
+                    a2.m_064((a2.f_int_58 - 32 >> 1) - a2.playerPixelX, (a2.f_int_59 - 32 >> 1) - a2.playerPixelY);
+                    a2.applyStepCellEffects();
                 }
                 if (bl) {
-                    this.f_byte_00 = (byte)3;
+                    this.gameMode = (byte)3;
                     n = 1;
                     break;
                 }
@@ -5747,36 +5747,36 @@ lbl163:
                 break;
             }
             case 21: {
-                n = this.m_066(this.f_int_64 + 1, false, false);
+                n = this.changeFloor(this.currentFloor + 1, false, false);
                 this.f_int_06 = 0;
-                this.f_byte_00 = (byte)3;
+                this.gameMode = (byte)3;
                 break;
             }
             case 22: {
-                n = this.m_066(this.f_int_64 - 1, true, false);
+                n = this.changeFloor(this.currentFloor - 1, true, false);
                 this.f_int_06 = 0;
-                this.f_byte_00 = (byte)3;
+                this.gameMode = (byte)3;
                 break;
             }
             case 85: {
                 by = (byte)this.f_int_45;
                 while ((by = (byte)(by - 1)) >= 0) {
-                    if (this.f_int_arr_11[by] != 1) continue;
+                    if (this.entityType[by] != 1) continue;
                     this.m_047(by);
                 }
-                this.f_byte_00 = (byte)3;
+                this.gameMode = (byte)3;
                 n = 1;
                 break;
             }
             case 86: {
                 a a3 = this;
-                int n4 = a3.f_int_39 >> 5;
-                int n5 = a3.f_int_40 >> 5;
-                a3.m_090(n4, n5 - 1);
-                a3.m_090(n4, n5 + 1);
-                a3.m_090(n4 - 1, n5);
-                a3.m_090(n4 + 1, n5);
-                this.f_byte_00 = (byte)3;
+                int n4 = a3.playerPixelX >> 5;
+                int n5 = a3.playerPixelY >> 5;
+                a3.killAdjacentAt(n4, n5 - 1);
+                a3.killAdjacentAt(n4, n5 + 1);
+                a3.killAdjacentAt(n4 - 1, n5);
+                a3.killAdjacentAt(n4 + 1, n5);
+                this.gameMode = (byte)3;
                 n = 1;
             }
         }
@@ -5784,8 +5784,8 @@ lbl163:
     }
 
     private boolean m_089(byte by) {
-        int n = this.f_int_39 >> 5;
-        int n2 = this.f_int_40 >> 5;
+        int n = this.playerPixelX >> 5;
+        int n2 = this.playerPixelY >> 5;
         int n3 = this.m_100(n, n2 - 1, by);
         int n4 = this.m_100(n, n2 + 1, by);
         int n5 = this.m_100(n - 1, n2, by);
@@ -5810,7 +5810,7 @@ lbl163:
         return n > 0;
     }
 
-    private void m_090(int n, int n2) {
+    private void killAdjacentAt(int n, int n2) {
         try {
             byte by = this.f_byte_arr2_02[n2][n];
             int n3 = this.f_byte_arr_10[by];
@@ -5820,9 +5820,9 @@ lbl163:
             if (n3 > 0) {
                 for (int i = 0; i < n3; ++i) {
                     n4 = this.f_byte_arr2_03[by][i] - 1;
-                    n5 = this.f_int_arr_11[n4];
+                    n5 = this.entityType[n4];
                     if (n5 == 5) {
-                        n4 = this.f_short_arr_00[n4];
+                        n4 = this.entityParam[n4];
                         this.m_050(n, n2, i);
                         if (!this.m_073(n4)) continue;
                         this.f_byte_11 = (byte)4;
@@ -5831,10 +5831,10 @@ lbl163:
                     if (n5 >= 67 || this.f_byte_arr_03[n5] != 8 || this.f_byte_arr_04[n4] == 1) continue;
                     this.m_047(n4);
                     if (this.m_081(25) >= 0) {
-                        this.m_078(this.f_int_arr_18[n5 - 41] << 1, 0, 0);
+                        this.gainGold(this.enemyBaseGold[n5 - 41] << 1, 0, 0);
                         continue;
                     }
-                    this.m_078(this.f_int_arr_18[n5 - 41], 0, 0);
+                    this.gainGold(this.enemyBaseGold[n5 - 41], 0, 0);
                 }
             }
             return;
@@ -5859,18 +5859,18 @@ lbl163:
         this.f_int_108 = 208;
         this.f_int_105 = 0;
         block0: for (int i = 0; i < this.f_int_45; ++i) {
-            if (this.f_bool_arr_01[i] || this.f_byte_arr_03[this.f_int_arr_11[i]] != 8) continue;
-            n4 = this.f_int_arr_11[i];
+            if (this.f_bool_arr_01[i] || this.f_byte_arr_03[this.entityType[i]] != 8) continue;
+            n4 = this.entityType[i];
             a2 = this;
             n3 = a2.f_int_105;
             while (--n3 >= 0) {
                 if (n4 != a2.f_byte_arr_20[n3]) continue;
                 continue block0;
             }
-            n3 = a2.f_int_arr_21[n4 - 41];
-            n2 = a2.f_int_arr_19[n4 - 41];
-            n = a2.f_int_arr_20[n4 - 41];
-            a2.f_int_arr_22[a2.f_int_105] = a.m_137(a2.m_136(n4), a2.f_int_37, n3, n2, n, true);
+            n3 = a2.enemyHpScaled[n4 - 41];
+            n2 = a2.enemyAtkScaled[n4 - 41];
+            n = a2.enemyDefScaled[n4 - 41];
+            a2.f_int_arr_22[a2.f_int_105] = a.predictBattleHpLoss(a2.effectiveAttackVsType(n4), a2.playerDef, n3, n2, n, true);
             a2.f_byte_arr_20[a2.f_int_105] = n4;
             ++a2.f_int_105;
         }
@@ -5919,34 +5919,34 @@ lbl163:
         this.f_Graphics_00.fillTriangle(n, n2 - 6, n, n2 + 6, n - 6, n2);
     }
 
-    private boolean m_094(int n) {
+    private boolean loadLevelScript(int n) {
         this.f_bool_27 = false;
-        this.f_byte_00 = (byte)11;
-        this.f_int_111 = n;
+        this.gameMode = (byte)11;
+        this.currentScriptIndex = n;
         this.f_int_112 = 0;
         this.m_104(0);
         this.f_byte_16 = 0;
-        this.f_String_05 = this.f_String_arr_13[this.f_int_111];
+        this.f_String_05 = this.levelScriptLines[this.currentScriptIndex];
         this.f_String_02 = null;
-        this.f_int_116 = 0;
+        this.scriptCursor = 0;
         switch (n) {
             case 31: {
-                this.m_119(this.f_int_64);
+                this.m_119(this.currentFloor);
                 this.m_122(24);
                 n = this.f_int_45;
                 while (--n >= 0) {
-                    if (this.f_int_arr_11[n] != 4) continue;
+                    if (this.entityType[n] != 4) continue;
                     this.f_bool_arr_01[n] = true;
                 }
                 this.m_119(24);
                 this.m_059();
-                this.m_122(this.f_int_64);
+                this.m_122(this.currentFloor);
             }
         }
         return false;
     }
 
-    private boolean m_095(int n, boolean bl) {
+    private boolean tryRunScene(int n, boolean bl) {
         if (n >= this.f_int_113) {
             return false;
         }
@@ -6012,7 +6012,7 @@ lbl163:
                 break;
             }
             case 15: {
-                if (this.m_102(this.f_int_64, 5)) {
+                if (this.m_102(this.currentFloor, 5)) {
                     bl2 = false;
                     break;
                 }
@@ -6053,13 +6053,13 @@ lbl163:
             }
             case 34: {
                 if (!(bl2 &= bl & !this.f_bool_arr_06[10])) break;
-                n2 = this.m_135(69, true);
-                bl2 &= n2 < 0 || n2 >= this.f_int_35;
+                n2 = this.predictHpLossVsType(69, true);
+                bl2 &= n2 < 0 || n2 >= this.playerHp;
                 break;
             }
             case 24: {
                 if (!(bl2 &= !bl)) break;
-                bl2 = true & 0 < this.f_int_35;
+                bl2 = true & 0 < this.playerHp;
                 break;
             }
             case 16: {
@@ -6085,15 +6085,15 @@ lbl163:
         byte by = 0;
         if (n <= this.f_int_121) {
             this.f_int_112 = n;
-            this.f_byte_17 = this.f_int_112 < 0 ? (byte)-1 : this.f_byte_arr_21[this.f_int_112];
+            this.f_byte_17 = this.f_int_112 < 0 ? (byte)-1 : this.dialogueSpeakerType[this.f_int_112];
             this.f_int_119 = this.m_104(this.f_byte_17);
             by = this.f_byte_17;
             if (by < 0) {
-                this.f_String_03 = this.f_String_02 = "?: \\cF8F8F8" + this.f_String_arr_14[this.f_int_112];
+                this.f_String_03 = this.f_String_02 = "?: \\cF8F8F8" + this.dialogueTexts[this.f_int_112];
                 this.f_int_33 = 11;
             } else {
-                this.f_String_03 = this.f_String_02 = this.f_String_arr_12[by] + ": \\cF8F8F8" + this.f_String_arr_14[this.f_int_112];
-                this.f_int_33 = this.f_String_arr_12[by].length() + 10;
+                this.f_String_03 = this.f_String_02 = this.objectTypeNames[by] + ": \\cF8F8F8" + this.dialogueTexts[this.f_int_112];
+                this.f_int_33 = this.objectTypeNames[by].length() + 10;
             }
             this.m_018(this.f_String_02, 129, (this.f_int_34 << 1) + 12, this.f_int_33);
             return;
@@ -6106,7 +6106,7 @@ lbl163:
         return this.f_int_123 == this.f_int_125 && this.f_int_124 == this.f_int_126;
     }
 
-    private void m_098(String object, int n) {
+    private void executeScriptInstruction(String object, int n) {
         Object var3_3 = null;
         boolean bl = false;
         bl = false;
@@ -6117,82 +6117,82 @@ lbl163:
             String string = ((String)object).substring(n, n + 3);
             n += 3;
             if (string.equals("TAK")) {
-                this.f_int_120 = this.m_099((String)object, n + 1, "_");
+                this.f_int_120 = this.parseScriptInt((String)object, n + 1, "_");
                 n = this.f_int_122;
-                this.f_int_121 = this.m_099((String)object, n + 1, " ");
-                this.f_int_116 = this.f_int_122 + 1;
+                this.f_int_121 = this.parseScriptInt((String)object, n + 1, " ");
+                this.scriptCursor = this.f_int_122 + 1;
                 this.f_byte_16 = 1;
                 this.m_096(this.f_int_120);
             } else if (string.equals("MOV")) {
-                int n5 = this.m_099((String)object, n + 1, "_");
+                int n5 = this.parseScriptInt((String)object, n + 1, "_");
                 n = this.f_int_122;
                 if (n5 > 0) {
-                    n3 = this.m_099((String)object, n + 1, "_");
+                    n3 = this.parseScriptInt((String)object, n + 1, "_");
                     n = this.f_int_122;
-                    n4 = this.m_099((String)object, n + 1, "_");
+                    n4 = this.parseScriptInt((String)object, n + 1, "_");
                     n = this.f_int_122;
                 }
-                this.f_int_114 = this.m_099((String)object, n + 1, "_");
+                this.f_int_114 = this.parseScriptInt((String)object, n + 1, "_");
                 n = this.f_int_122;
-                this.f_int_115 = this.m_099((String)object, n + 1, " ");
-                this.f_int_116 = this.f_int_122 + 1;
+                this.f_int_115 = this.parseScriptInt((String)object, n + 1, " ");
+                this.scriptCursor = this.f_int_122 + 1;
                 if (n5 > 0) {
                     this.f_int_127 = this.m_100(n3, n4, n5);
                     if (this.f_int_127 >= 0) {
                         this.f_byte_18 = 0;
                         object = this;
-                        if (((a)object).f_int_arr_11[((a)object).f_int_127] == 72) {
+                        if (((a)object).entityType[((a)object).f_int_127] == 72) {
                             ((a)object).f_int_arr_12[((a)object).f_int_127] = 1;
                         }
-                        ((a)object).f_int_129 = ((a)object).f_int_arr_06[((a)object).f_int_127] >> 5;
-                        ((a)object).f_int_130 = ((a)object).f_int_arr_07[((a)object).f_int_127] >> 5;
+                        ((a)object).f_int_129 = ((a)object).entityPixelX[((a)object).f_int_127] >> 5;
+                        ((a)object).f_int_130 = ((a)object).entityPixelY[((a)object).f_int_127] >> 5;
                         super.m_133(((a)object).f_int_129, ((a)object).f_int_130, ((a)object).f_int_114, ((a)object).f_int_115);
                         this.f_byte_16 = (byte)2;
                     } else {
-                        this.m_098(this.f_String_05, this.f_int_116);
+                        this.executeScriptInstruction(this.f_String_05, this.scriptCursor);
                     }
-                } else if (this.m_133(this.f_int_41, this.f_int_42, this.f_int_114, this.f_int_115)) {
+                } else if (this.m_133(this.playerCellX, this.playerCellY, this.f_int_114, this.f_int_115)) {
                     this.f_bool_27 = true;
                     this.f_byte_16 = (byte)3;
                     this.f_byte_11 = 0;
                     this.m_104(0);
                 }
             } else if (string.equals("GUT")) {
-                n2 = this.m_099((String)object, n + 1, " ");
-                this.f_bool_arr_06[this.f_int_111] = true;
-                this.m_094(n2);
+                n2 = this.parseScriptInt((String)object, n + 1, " ");
+                this.f_bool_arr_06[this.currentScriptIndex] = true;
+                this.loadLevelScript(n2);
             } else if (string.equals("DES")) {
-                int n6 = this.m_099((String)object, n + 1, "_");
+                int n6 = this.parseScriptInt((String)object, n + 1, "_");
                 n = this.f_int_122;
                 if (n6 < 0) {
-                    this.m_099((String)object, n + 1, " ");
+                    this.parseScriptInt((String)object, n + 1, " ");
                     n2 = -n6;
                     object = this;
                     n6 = ((a)object).f_int_45;
                     while (--n6 >= 0) {
-                        if (((a)object).f_int_arr_11[n6] != n2) continue;
+                        if (((a)object).entityType[n6] != n2) continue;
                         super.m_047(n6);
                     }
                 } else {
-                    n3 = this.m_099((String)object, n + 1, "_");
-                    n6 = this.m_100(n3, n4 = this.m_099((String)object, (n = this.f_int_122) + 1, " "), n6);
+                    n3 = this.parseScriptInt((String)object, n + 1, "_");
+                    n6 = this.m_100(n3, n4 = this.parseScriptInt((String)object, (n = this.f_int_122) + 1, " "), n6);
                     if (n6 >= 0) {
                         this.m_047(n6);
                     }
                 }
-                this.f_int_116 = this.f_int_122 + 1;
+                this.scriptCursor = this.f_int_122 + 1;
             } else if (string.equals("SWD")) {
                 object = this;
                 int n7 = ((a)object).f_int_45;
                 while (--n7 >= 0) {
-                    if (((a)object).f_bool_arr_01[n7] || (n2 = ((a)object).f_int_arr_11[n7]) != 81) continue;
+                    if (((a)object).f_bool_arr_01[n7] || (n2 = ((a)object).entityType[n7]) != 81) continue;
                     ((a)object).f_bool_arr_00[n7] = true;
-                    ((a)object).f_int_arr_11[n7] = 4;
+                    ((a)object).entityType[n7] = 4;
                     super.m_044(4, n7);
                     ((a)object).f_byte_arr_04[n7] = 2;
                     ((a)object).f_int_arr_12[n7] = 8;
                 }
-                this.f_int_116 = n + 1;
+                this.scriptCursor = n + 1;
             } else if (string.equals("MVS")) {
                 int n8;
                 object = this;
@@ -6203,13 +6203,13 @@ lbl163:
                 n3 = 0;
                 n4 = ((a)object).f_int_45;
                 block22: while (--n4 >= 0) {
-                    n2 = ((a)object).f_int_arr_11[n4];
+                    n2 = ((a)object).entityType[n4];
                     if (n2 != 82) continue;
-                    n9 = ((a)object).f_short_arr_00[n4] & 0xFF;
+                    n9 = ((a)object).entityParam[n4] & 0xFF;
                     for (n8 = 0; n8 < 32; n8 += 2) {
                         n3 = ((a)object).f_short_arr_04[n8] - 1;
                         if (n3 > 0) {
-                            if (n9 != (((a)object).f_short_arr_00[n3] & 0xFF)) continue;
+                            if (n9 != (((a)object).entityParam[n3] & 0xFF)) continue;
                             ((a)object).f_short_arr_04[n8 + 1] = n4 + 1;
                             continue block22;
                         }
@@ -6225,89 +6225,89 @@ lbl163:
                     if (n3 <= 0) break;
                     if (n12 <= 0) continue;
                     --n12;
-                    n8 = ((a)object).f_int_arr_06[--n3] >> 5;
-                    n4 = ((a)object).f_int_arr_07[n3] >> 5;
+                    n8 = ((a)object).entityPixelX[--n3] >> 5;
+                    n4 = ((a)object).entityPixelY[n3] >> 5;
                     n9 = ((a)object).f_byte_arr2_02[n4][n8];
                     int n13 = ((a)object).f_byte_arr_10[n9];
                     for (n11 = 0; n11 < n13; ++n11) {
                         n10 = ((a)object).f_byte_arr2_03[n9][n11] - 1;
-                        n2 = ((a)object).f_int_arr_11[n10];
+                        n2 = ((a)object).entityType[n10];
                         if (((a)object).f_byte_arr_03[n2] != 8) continue;
-                        super.m_049(((a)object).f_int_arr_06[n12] >> 5, ((a)object).f_int_arr_07[n12] >> 5, 82);
+                        super.m_049(((a)object).entityPixelX[n12] >> 5, ((a)object).entityPixelY[n12] >> 5, 82);
                         super.m_049(n8, n4, 82);
-                        super.m_107(n10, ((a)object).f_int_arr_06[n12] >> 5, ((a)object).f_int_arr_07[n12] >> 5);
+                        super.m_107(n10, ((a)object).entityPixelX[n12] >> 5, ((a)object).entityPixelY[n12] >> 5);
                     }
                     n9 = n3;
                     n3 = n12;
                     n12 = n9;
-                    n8 = ((a)object).f_int_arr_06[n3] >> 5;
-                    n4 = ((a)object).f_int_arr_07[n3] >> 5;
+                    n8 = ((a)object).entityPixelX[n3] >> 5;
+                    n4 = ((a)object).entityPixelY[n3] >> 5;
                     n9 = ((a)object).f_byte_arr2_02[n4][n8];
                     n13 = ((a)object).f_byte_arr_10[n9];
                     for (n11 = 0; n11 < n13; ++n11) {
                         n10 = ((a)object).f_byte_arr2_03[n9][n11] - 1;
-                        n2 = ((a)object).f_int_arr_11[n10];
+                        n2 = ((a)object).entityType[n10];
                         if (((a)object).f_byte_arr_03[n2] != 8) continue;
-                        super.m_049(((a)object).f_int_arr_06[n12] >> 5, ((a)object).f_int_arr_07[n12] >> 5, 82);
+                        super.m_049(((a)object).entityPixelX[n12] >> 5, ((a)object).entityPixelY[n12] >> 5, 82);
                         super.m_049(n8, n4, 82);
-                        super.m_107(n10, ((a)object).f_int_arr_06[n12] >> 5, ((a)object).f_int_arr_07[n12] >> 5);
+                        super.m_107(n10, ((a)object).entityPixelX[n12] >> 5, ((a)object).entityPixelY[n12] >> 5);
                     }
                 }
-                this.f_int_116 = n + 1;
+                this.scriptCursor = n + 1;
             } else if (string.equals("LAY")) {
-                this.m_119(this.f_int_64);
-                this.f_byte_23 = (byte)this.m_099((String)object, n + 1, " ");
-                this.f_int_116 = this.f_int_122 + 1;
+                this.m_119(this.currentFloor);
+                this.f_byte_23 = (byte)this.parseScriptInt((String)object, n + 1, " ");
+                this.scriptCursor = this.f_int_122 + 1;
                 this.f_bool_16 = true;
                 this.f_String_02 = null;
                 this.f_byte_16 = (byte)5;
             } else if (string.equals("ROS")) {
-                n2 = this.m_099((String)object, n + 1, "_");
+                n2 = this.parseScriptInt((String)object, n + 1, "_");
                 n = this.f_int_122;
                 switch (n2) {
                     case 1: {
-                        this.f_int_39 = this.m_099((String)object, n + 1, "_") << 5;
+                        this.playerPixelX = this.parseScriptInt((String)object, n + 1, "_") << 5;
                         n = this.f_int_122;
-                        this.f_int_40 = this.m_099((String)object, n + 1, " ") << 5;
+                        this.playerPixelY = this.parseScriptInt((String)object, n + 1, " ") << 5;
                         this.m_104(0);
                         break;
                     }
                     case 2: {
-                        this.m_082(this.m_099((String)object, n + 1, " "), true);
+                        this.m_082(this.parseScriptInt((String)object, n + 1, " "), true);
                         break;
                     }
                     case 3: {
-                        this.f_int_35 = this.m_099((String)object, n + 1, " ");
+                        this.playerHp = this.parseScriptInt((String)object, n + 1, " ");
                         break;
                     }
                     case 4: {
-                        this.f_byte_12 = (byte)this.m_099((String)object, n + 1, " ");
+                        this.f_byte_12 = (byte)this.parseScriptInt((String)object, n + 1, " ");
                         break;
                     }
                     case 5: {
-                        this.f_int_36 = this.m_099((String)object, n + 1, " ");
+                        this.playerAtk = this.parseScriptInt((String)object, n + 1, " ");
                         break;
                     }
                     case 6: {
-                        this.f_int_37 = this.m_099((String)object, n + 1, " ");
+                        this.playerDef = this.parseScriptInt((String)object, n + 1, " ");
                     }
                 }
-                this.f_int_116 = this.f_int_122 + 1;
+                this.scriptCursor = this.f_int_122 + 1;
             } else if (string.equals("CES")) {
                 int n14;
-                int n15 = this.m_099((String)object, n + 1, "_");
+                int n15 = this.parseScriptInt((String)object, n + 1, "_");
                 n = this.f_int_122;
-                n3 = this.m_099((String)object, n + 1, "_");
+                n3 = this.parseScriptInt((String)object, n + 1, "_");
                 n = this.f_int_122;
-                n4 = this.m_099((String)object, n + 1, " ");
+                n4 = this.parseScriptInt((String)object, n + 1, " ");
                 n2 = this.m_048(n15, n3 << 5, n4 << 5, 0);
                 this.m_046(n2);
                 object = this;
                 this.f_int_123 = (((a)object).f_int_58 - 32 >> 1) - ((a)object).f_int_56;
                 ((a)object).f_int_124 = (((a)object).f_int_59 - 32 >> 1) - ((a)object).f_int_57;
                 if (n2 >= 0) {
-                    ((a)object).f_int_125 = ((a)object).f_int_arr_06[n2];
-                    ((a)object).f_int_126 = ((a)object).f_int_arr_07[n2];
+                    ((a)object).f_int_125 = ((a)object).entityPixelX[n2];
+                    ((a)object).f_int_126 = ((a)object).entityPixelY[n2];
                 }
                 n2 = n15;
                 object = this;
@@ -6328,84 +6328,84 @@ lbl163:
                     }
                 }
                 this.f_int_118 = n14;
-                this.f_int_116 = this.f_int_122 + 1;
+                this.scriptCursor = this.f_int_122 + 1;
             } else if (string.equals("GIN")) {
-                n2 = this.m_099((String)object, n + 1, "_");
+                n2 = this.parseScriptInt((String)object, n + 1, "_");
                 n = this.f_int_122;
-                int n16 = this.m_099((String)object, n + 1, " ");
+                int n16 = this.parseScriptInt((String)object, n + 1, " ");
                 switch (n2) {
                     case 0: {
-                        this.m_079(n16);
+                        this.pickupItemType(n16);
                         break;
                     }
                     case 1: {
-                        this.m_078(n16, this.f_int_39, this.f_int_40);
+                        this.gainGold(n16, this.playerPixelX, this.playerPixelY);
                     }
                 }
-                this.f_int_116 = this.f_int_122 + 1;
-                this.m_098(this.f_String_05, this.f_int_116);
+                this.scriptCursor = this.f_int_122 + 1;
+                this.executeScriptInstruction(this.f_String_05, this.scriptCursor);
             } else if (string.equals("ADD")) {
-                n2 = this.m_099((String)object, n + 1, "_");
+                n2 = this.parseScriptInt((String)object, n + 1, "_");
                 n = this.f_int_122;
-                int n17 = this.m_099((String)object, n + 1, "_");
+                int n17 = this.parseScriptInt((String)object, n + 1, "_");
                 n = this.f_int_122;
-                n3 = this.m_099((String)object, n + 1, "_");
+                n3 = this.parseScriptInt((String)object, n + 1, "_");
                 n = this.f_int_122;
-                n4 = this.m_099((String)object, n + 1, " ");
+                n4 = this.parseScriptInt((String)object, n + 1, " ");
                 boolean bl2 = false;
                 n4 <<= 5;
                 n3 <<= 5;
                 object = this;
-                if (((a)object).f_int_64 != n2) {
-                    super.m_119(((a)object).f_int_64);
+                if (((a)object).currentFloor != n2) {
+                    super.m_119(((a)object).currentFloor);
                     super.m_122(n2);
                 }
                 super.m_048(n17, n3, n4, 0);
                 super.m_119(n2);
-                if (((a)object).f_int_64 != n2) {
+                if (((a)object).currentFloor != n2) {
                     super.m_059();
-                    super.m_122(((a)object).f_int_64);
+                    super.m_122(((a)object).currentFloor);
                 }
-                this.f_int_116 = this.f_int_122 + 1;
+                this.scriptCursor = this.f_int_122 + 1;
             } else if (string.equals("GLV")) {
-                this.m_099((String)object, n + 1, " ");
-                this.f_int_116 = this.f_int_122 + 1;
+                this.parseScriptInt((String)object, n + 1, " ");
+                this.scriptCursor = this.f_int_122 + 1;
             } else if (string.equals("RES")) {
-                this.m_099((String)object, n + 1, " ");
+                this.parseScriptInt((String)object, n + 1, " ");
                 if (this.f_byte_26 == 0) {
                     object = this;
-                    ((a)object).f_int_92 = 0;
-                    ((a)object).f_int_93 = 0;
-                    this.f_int_91 = 0;
-                    ((a)object).f_int_95 = 0;
-                    ((a)object).f_int_94 = 4;
-                    ((a)object).f_int_69 = 0;
-                    ((a)object).f_int_65 = 1;
-                    ((a)object).f_int_66 = 3;
-                    ((a)object).f_int_36 = 10;
-                    ((a)object).f_int_37 = 10;
-                    ((a)object).f_int_35 = 400;
+                    ((a)object).blueKeyCount = 0;
+                    ((a)object).redKeyCount = 0;
+                    this.yellowKeyCount = 0;
+                    ((a)object).itemStackSize = 0;
+                    ((a)object).goldAmount = 4;
+                    ((a)object).alchemyUpgradeCount = 0;
+                    ((a)object).minFloorReached = 1;
+                    ((a)object).maxFloorReached = 3;
+                    ((a)object).playerAtk = 10;
+                    ((a)object).playerDef = 10;
+                    ((a)object).playerHp = 400;
                     ((a)object).f_int_89 = 0;
                 }
-                this.f_int_116 = this.f_int_122 + 1;
+                this.scriptCursor = this.f_int_122 + 1;
             } else if (string.equals("SEE")) {
-                this.f_int_114 = this.m_099((String)object, n + 1, "_");
+                this.f_int_114 = this.parseScriptInt((String)object, n + 1, "_");
                 n = this.f_int_122;
-                this.f_int_115 = this.m_099((String)object, n + 1, "_");
+                this.f_int_115 = this.parseScriptInt((String)object, n + 1, "_");
                 n = this.f_int_122;
-                this.f_int_120 = this.m_099((String)object, n + 1, "_");
+                this.f_int_120 = this.parseScriptInt((String)object, n + 1, "_");
                 n = this.f_int_122;
-                this.f_int_121 = this.m_099((String)object, n + 1, "_");
+                this.f_int_121 = this.parseScriptInt((String)object, n + 1, "_");
                 n = this.f_int_122;
-                this.f_int_117 = this.m_099((String)object, n + 1, " ");
-                this.f_int_116 = this.f_int_122 + 1;
+                this.f_int_117 = this.parseScriptInt((String)object, n + 1, " ");
+                this.scriptCursor = this.f_int_122 + 1;
                 this.m_096(this.f_int_120);
                 switch (this.f_int_117) {
                     case 0: {
                         break;
                     }
                     case 1: {
-                        if (!this.m_133(this.f_int_41, this.f_int_42, this.f_int_114, this.f_int_115)) break;
+                        if (!this.m_133(this.playerCellX, this.playerCellY, this.f_int_114, this.f_int_115)) break;
                         this.f_bool_26 = true;
                         this.f_byte_11 = 0;
                     }
@@ -6413,27 +6413,27 @@ lbl163:
                 this.f_byte_16 = (byte)6;
                 this.m_103(this.f_int_114, this.f_int_115);
             } else if (string.equals("END")) {
-                this.m_099((String)object, n + 1, " ");
-                this.f_byte_00 = (byte)20;
+                this.parseScriptInt((String)object, n + 1, " ");
+                this.gameMode = (byte)20;
                 this.m_000();
-                this.f_int_116 = this.f_int_122 + 1;
+                this.scriptCursor = this.f_int_122 + 1;
             } else if (string.equals("SMS")) {
-                this.m_099((String)object, n + 1, " ");
-                this.f_int_116 = this.f_int_122 + 1;
+                this.parseScriptInt((String)object, n + 1, " ");
+                this.scriptCursor = this.f_int_122 + 1;
             }
-            if (this.f_int_116 < this.f_String_05.length()) {
+            if (this.scriptCursor < this.f_String_05.length()) {
                 return;
             }
         } else {
             this.f_byte_16 = (byte)4;
-            if (this.f_int_111 != 32) {
-                this.f_bool_arr_06[this.f_int_111] = true;
+            if (this.currentScriptIndex != 32) {
+                this.f_bool_arr_06[this.currentScriptIndex] = true;
             }
             this.m_104(0);
         }
     }
 
-    private int m_099(String string, int n, String string2) {
+    private int parseScriptInt(String string, int n, String string2) {
         int n2 = 0;
         n2 = string.indexOf(string2, n);
         string = string.substring(n, n2);
@@ -6449,7 +6449,7 @@ lbl163:
         if (n2 > 0) {
             for (int i = 0; i < n2; ++i) {
                 n4 = this.f_byte_arr2_03[n][i] - 1;
-                if (this.f_int_arr_11[n4] != n3 || this.f_byte_arr_04[n4] == 1) continue;
+                if (this.entityType[n4] != n3 || this.f_byte_arr_04[n4] == 1) continue;
                 return n4;
             }
         }
@@ -6457,7 +6457,7 @@ lbl163:
     }
 
     private void m_101(int n, int n2, int n3) {
-        if (this.m_060(n, --n2) && !this.m_062(n, n2) && (n != this.f_int_41 || n2 != this.f_int_42)) {
+        if (this.isCellWalkable(n, --n2) && !this.m_062(n, n2) && (n != this.playerCellX || n2 != this.playerCellY)) {
             this.m_051(n3);
             n3 = this.m_048(60, n << 5, n2 << 5, 0);
             this.m_046(n3);
@@ -6466,18 +6466,18 @@ lbl163:
 
     private boolean m_102(int n, int n2) {
         boolean bl = false;
-        if (this.f_int_64 != n) {
-            this.m_119(this.f_int_64);
+        if (this.currentFloor != n) {
+            this.m_119(this.currentFloor);
             this.m_122(n);
         }
         for (int i = 0; i < this.f_int_45; ++i) {
-            if (this.f_bool_arr_01[i] || this.f_int_arr_11[i] != n2) continue;
+            if (this.f_bool_arr_01[i] || this.entityType[i] != n2) continue;
             bl = true;
             break;
         }
-        if (this.f_int_64 != n) {
+        if (this.currentFloor != n) {
             this.m_059();
-            this.m_122(this.f_int_64);
+            this.m_122(this.currentFloor);
         }
         return bl;
     }
@@ -6496,23 +6496,23 @@ lbl163:
             this.f_int_123 = (this.f_int_58 - 32 >> 1) - this.f_int_56;
             this.f_int_124 = (this.f_int_59 - 32 >> 1) - this.f_int_57;
             if (n == 0 || n == 87) {
-                this.f_int_125 = this.f_int_39;
-                this.f_int_126 = this.f_int_40;
+                this.f_int_125 = this.playerPixelX;
+                this.f_int_126 = this.playerPixelY;
                 return -1;
             }
             int n4 = n;
             a a2 = this;
             int n5 = a2.f_int_45;
             while (--n5 >= 0) {
-                if (a2.f_int_arr_11[n5] != n4) continue;
+                if (a2.entityType[n5] != n4) continue;
                 n3 = n5;
                 break block4;
             }
             n3 = n2 = -1;
         }
         if (n3 >= 0) {
-            this.f_int_125 = this.f_int_arr_06[n2];
-            this.f_int_126 = this.f_int_arr_07[n2];
+            this.f_int_125 = this.entityPixelX[n2];
+            this.f_int_126 = this.entityPixelY[n2];
         }
         if (n == 69) {
             this.f_int_125 += 32;
@@ -6549,7 +6549,7 @@ lbl163:
     private void m_106() {
         switch (this.f_byte_18) {
             case 5: {
-                this.m_138(this.f_bool_14);
+                this.tickBattle(this.f_bool_14);
                 if (this.f_bool_23 || !this.f_bool_arr_01[this.f_int_127] && this.f_byte_arr_04[this.f_int_127] != 1) break;
                 this.f_byte_16 = 0;
                 this.f_byte_18 = 0;
@@ -6564,8 +6564,8 @@ lbl163:
                     int n2 = 0;
                     int n3 = 0;
                     int n4 = 0;
-                    n = a2.f_int_arr_06[a2.f_int_127] >> 5;
-                    n2 = a2.f_int_arr_07[a2.f_int_127] >> 5;
+                    n = a2.entityPixelX[a2.f_int_127] >> 5;
+                    n2 = a2.entityPixelY[a2.f_int_127] >> 5;
                     switch (a2.f_byte_19) {
                         case 1: {
                             --n2;
@@ -6584,20 +6584,20 @@ lbl163:
                         }
                     }
                     a2.f_byte_18 = 1;
-                    if (a2.f_int_arr_11[a2.f_int_127] != 72 && n == a2.f_int_41 && n2 == a2.f_int_42) {
-                        n3 = a2.f_int_arr_11[a2.f_int_127];
-                        n4 = a2.m_135(n3, false);
-                        if (n4 >= 0 && n4 < a2.f_int_35) {
-                            a2.f_int_150 = a2.f_int_arr_21[n3 - 41];
+                    if (a2.entityType[a2.f_int_127] != 72 && n == a2.playerCellX && n2 == a2.playerCellY) {
+                        n3 = a2.entityType[a2.f_int_127];
+                        n4 = a2.predictHpLossVsType(n3, false);
+                        if (n4 >= 0 && n4 < a2.playerHp) {
+                            a2.f_int_150 = a2.enemyHpScaled[n3 - 41];
                             a2.f_byte_11 = (byte)5;
                             a2.f_bool_14 = false;
                             a2.f_int_44 = a2.f_int_127;
                             a2.f_byte_arr_04[a2.f_int_127] = 5;
                             a2.f_byte_18 = (byte)5;
                             a2.f_bool_25 = false;
-                            n4 = a2.f_int_arr_19[n3 - 41] - a2.f_int_37;
+                            n4 = a2.enemyAtkScaled[n3 - 41] - a2.playerDef;
                             if (n4 > 0) {
-                                a2.f_int_35 -= n4;
+                                a2.playerHp -= n4;
                             }
                         } else {
                             a2.f_byte_11 = 1;
@@ -6608,7 +6608,7 @@ lbl163:
                         n4 = a2.f_byte_arr_10[n];
                         while (--n4 >= 0) {
                             n2 = a2.f_byte_arr2_03[n][n4] - 1;
-                            n3 = a2.f_int_arr_11[n2];
+                            n3 = a2.entityType[n2];
                             switch (a2.f_byte_arr_03[n3]) {
                                 case 1: {
                                     switch (n3) {
@@ -6624,7 +6624,7 @@ lbl163:
                 }
                 this.m_108(this.f_int_127, this.f_int_129, this.f_int_130);
                 this.f_byte_16 = 0;
-                this.m_045(this.f_int_arr_11[this.f_int_127], this.f_int_127);
+                this.m_045(this.entityType[this.f_int_127], this.f_int_127);
                 this.f_int_127 = -1;
                 return;
             }
@@ -6632,26 +6632,26 @@ lbl163:
                 switch (this.f_byte_19) {
                     case 1: {
                         int n = this.f_int_127;
-                        this.f_int_arr_07[n] = this.f_int_arr_07[n] - 8;
+                        this.entityPixelY[n] = this.entityPixelY[n] - 8;
                         break;
                     }
                     case 0: {
                         int n = this.f_int_127;
-                        this.f_int_arr_07[n] = this.f_int_arr_07[n] + 8;
+                        this.entityPixelY[n] = this.entityPixelY[n] + 8;
                         break;
                     }
                     case 3: {
                         int n = this.f_int_127;
-                        this.f_int_arr_06[n] = this.f_int_arr_06[n] - 8;
+                        this.entityPixelX[n] = this.entityPixelX[n] - 8;
                         break;
                     }
                     case 2: {
                         int n = this.f_int_127;
-                        this.f_int_arr_06[n] = this.f_int_arr_06[n] + 8;
+                        this.entityPixelX[n] = this.entityPixelX[n] + 8;
                     }
                 }
-                this.f_int_125 = this.f_int_arr_06[this.f_int_127];
-                this.f_int_126 = this.f_int_arr_07[this.f_int_127];
+                this.f_int_125 = this.entityPixelX[this.f_int_127];
+                this.f_int_126 = this.entityPixelY[this.f_int_127];
                 this.f_int_128 += 8;
                 int n = this.f_int_arr_12[this.f_int_127];
                 if (n > 0) {
@@ -6666,20 +6666,20 @@ lbl163:
                 this.f_int_128 = 0;
                 this.f_byte_18 = 0;
                 a a3 = this;
-                int n6 = a3.f_int_arr_06[a3.f_int_127] >> 5;
-                int n7 = a3.f_int_arr_07[a3.f_int_127] >> 5;
+                int n6 = a3.entityPixelX[a3.f_int_127] >> 5;
+                int n7 = a3.entityPixelY[a3.f_int_127] >> 5;
                 int n8 = 0;
-                if (n6 == a3.f_int_41 && n7 == a3.f_int_42 && a3.f_int_arr_11[a3.f_int_127] != 72) {
-                    n8 = a3.m_135(a3.f_int_arr_11[a3.f_int_127], false);
-                    if (n8 < 0 || n8 >= a3.f_int_35) {
+                if (n6 == a3.playerCellX && n7 == a3.playerCellY && a3.entityType[a3.f_int_127] != 72) {
+                    n8 = a3.predictHpLossVsType(a3.entityType[a3.f_int_127], false);
+                    if (n8 < 0 || n8 >= a3.playerHp) {
                         a3.f_bool_27 = false;
-                        a3.f_byte_00 = (byte)3;
+                        a3.gameMode = (byte)3;
                         a3.f_byte_11 = 1;
                         a3.f_byte_12 = a3.f_byte_19;
                     } else {
-                        a3.f_int_35 -= n8;
+                        a3.playerHp -= n8;
                         a3.m_108(a3.f_int_127, a3.f_int_129, a3.f_int_130);
-                        a3.m_049(n6, n7, a3.f_int_arr_11[a3.f_int_127]);
+                        a3.m_049(n6, n7, a3.entityType[a3.f_int_127]);
                     }
                 }
                 this.m_106();
@@ -6688,11 +6688,11 @@ lbl163:
     }
 
     private void m_107(int n, int n2, int n3) {
-        int n4 = this.f_int_arr_06[n];
-        int n5 = this.f_int_arr_07[n];
-        short s = this.f_short_arr_00[n];
-        this.m_048(this.f_int_arr_11[n], n2 << 5, n3 << 5, s);
-        this.m_049(n4 >> 5, n5 >> 5, this.f_int_arr_11[n]);
+        int n4 = this.entityPixelX[n];
+        int n5 = this.entityPixelY[n];
+        short s = this.entityParam[n];
+        this.m_048(this.entityType[n], n2 << 5, n3 << 5, s);
+        this.m_049(n4 >> 5, n5 >> 5, this.entityType[n]);
     }
 
     private void m_108(int n, int n2, int n3) {
@@ -6709,7 +6709,7 @@ lbl163:
             this.f_byte_arr_10[n6] = this.f_byte_arr_10[n6] - 1;
             break;
         }
-        if ((n2 = this.f_byte_arr2_02[n4 = this.f_int_arr_07[n] >> 5][n5 = this.f_int_arr_06[n] >> 5]) == 0) {
+        if ((n2 = this.f_byte_arr2_02[n4 = this.entityPixelY[n] >> 5][n5 = this.entityPixelX[n] >> 5]) == 0) {
             this.f_byte_arr2_02[n4][n5] = this.f_byte_15 = (byte)(this.f_byte_15 + 1);
             n2 = this.f_byte_15;
         }
@@ -6718,8 +6718,8 @@ lbl163:
         this.f_byte_arr_10[n7] = this.f_byte_arr_10[n7] + 1;
     }
 
-    private void m_109(int n) {
-        byte[] byArray = this.f_byte_arr2_04[n];
+    private void spawnBossEvent(int n) {
+        byte[] byArray = this.bossEventSpawns[n];
         int n2 = byArray.length;
         int n3 = 0;
         for (int i = 0; i < n2; i += 4) {
@@ -6811,16 +6811,16 @@ lbl163:
         }
         if (n >= 0 && n < 6) {
             this.f_bool_arr_07[n] = true;
-            this.f_byte_arr_24[n] = this.f_int_64;
-            this.f_int_arr_23[n] = this.f_int_35;
-            this.f_int_arr_24[n] = this.f_int_36;
-            this.f_int_arr_25[n] = this.f_int_37;
-            this.f_int_arr_26[n] = this.f_int_91;
-            this.f_int_arr_27[n] = this.f_int_92;
-            this.f_int_arr_28[n] = this.f_int_93;
-            this.f_int_arr_29[n] = this.f_int_94;
-            this.f_byte_arr_25[n] = this.f_byte_09;
-            this.f_byte_arr_26[n] = this.f_byte_10;
+            this.f_byte_arr_24[n] = this.currentFloor;
+            this.f_int_arr_23[n] = this.playerHp;
+            this.f_int_arr_24[n] = this.playerAtk;
+            this.f_int_arr_25[n] = this.playerDef;
+            this.f_int_arr_26[n] = this.yellowKeyCount;
+            this.f_int_arr_27[n] = this.blueKeyCount;
+            this.f_int_arr_28[n] = this.redKeyCount;
+            this.f_int_arr_29[n] = this.goldAmount;
+            this.f_byte_arr_25[n] = this.equippedWeaponType;
+            this.f_byte_arr_26[n] = this.equippedArmorType;
         }
         Object object = "MOT_IF";
         a.m_116("MOT_IF");
@@ -6958,22 +6958,22 @@ lbl163:
             this.f_ByteArrayOutputStream_00 = new ByteArrayOutputStream();
             this.f_DataOutputStream_00 = new DataOutputStream(this.f_ByteArrayOutputStream_00);
             this.f_DataOutputStream_00.writeByte(this.f_byte_26);
-            this.f_DataOutputStream_00.writeByte(this.f_int_64);
-            this.f_DataOutputStream_00.writeByte(this.f_int_65);
-            this.f_DataOutputStream_00.writeByte(this.f_int_66);
+            this.f_DataOutputStream_00.writeByte(this.currentFloor);
+            this.f_DataOutputStream_00.writeByte(this.minFloorReached);
+            this.f_DataOutputStream_00.writeByte(this.maxFloorReached);
             this.f_DataOutputStream_00.writeByte(this.f_byte_12);
-            this.f_DataOutputStream_00.writeByte(this.f_byte_09);
-            this.f_DataOutputStream_00.writeByte(this.f_byte_10);
-            this.f_DataOutputStream_00.writeShort(this.f_int_41);
-            this.f_DataOutputStream_00.writeShort(this.f_int_42);
-            this.f_DataOutputStream_00.writeInt(this.f_int_35);
-            this.f_DataOutputStream_00.writeInt(this.f_int_36);
-            this.f_DataOutputStream_00.writeInt(this.f_int_37);
-            this.f_DataOutputStream_00.writeShort(this.f_int_91);
-            this.f_DataOutputStream_00.writeShort(this.f_int_92);
-            this.f_DataOutputStream_00.writeShort(this.f_int_93);
-            this.f_DataOutputStream_00.writeInt(this.f_int_94);
-            this.f_DataOutputStream_00.writeShort(this.f_int_69);
+            this.f_DataOutputStream_00.writeByte(this.equippedWeaponType);
+            this.f_DataOutputStream_00.writeByte(this.equippedArmorType);
+            this.f_DataOutputStream_00.writeShort(this.playerCellX);
+            this.f_DataOutputStream_00.writeShort(this.playerCellY);
+            this.f_DataOutputStream_00.writeInt(this.playerHp);
+            this.f_DataOutputStream_00.writeInt(this.playerAtk);
+            this.f_DataOutputStream_00.writeInt(this.playerDef);
+            this.f_DataOutputStream_00.writeShort(this.yellowKeyCount);
+            this.f_DataOutputStream_00.writeShort(this.blueKeyCount);
+            this.f_DataOutputStream_00.writeShort(this.redKeyCount);
+            this.f_DataOutputStream_00.writeInt(this.goldAmount);
+            this.f_DataOutputStream_00.writeShort(this.alchemyUpgradeCount);
             this.f_DataOutputStream_00.writeShort(this.f_int_89);
             for (n2 = 0; n2 < this.f_int_89; ++n2) {
                 this.f_DataOutputStream_00.writeByte(this.f_byte_arr_14[n2]);
@@ -6986,10 +6986,10 @@ lbl163:
                 }
                 this.f_DataOutputStream_00.writeBoolean(false);
             }
-            this.f_DataOutputStream_00.writeByte(this.f_int_95);
-            for (n2 = 0; n2 < this.f_int_95; ++n2) {
-                this.f_DataOutputStream_00.writeByte(this.f_byte_arr_17[n2]);
-                this.f_DataOutputStream_00.writeByte(this.f_byte_arr_18[n2]);
+            this.f_DataOutputStream_00.writeByte(this.itemStackSize);
+            for (n2 = 0; n2 < this.itemStackSize; ++n2) {
+                this.f_DataOutputStream_00.writeByte(this.itemStackTypes[n2]);
+                this.f_DataOutputStream_00.writeByte(this.itemStackUses[n2]);
             }
             for (n2 = 0; n2 < 56; ++n2) {
                 if (this.f_byte_arr2_05[n2] != null) {
@@ -7023,24 +7023,24 @@ lbl163:
             this.f_byte_arr_27 = this.f_RecordStore_00.getRecord(n2);
             this.f_DataInputStream_00 = new DataInputStream(new ByteArrayInputStream(this.f_byte_arr_27));
             this.f_byte_26 = this.f_DataInputStream_00.readByte();
-            this.f_int_64 = this.f_DataInputStream_00.readByte();
-            this.f_int_65 = this.f_DataInputStream_00.readByte();
-            this.f_int_66 = this.f_DataInputStream_00.readByte();
+            this.currentFloor = this.f_DataInputStream_00.readByte();
+            this.minFloorReached = this.f_DataInputStream_00.readByte();
+            this.maxFloorReached = this.f_DataInputStream_00.readByte();
             this.f_byte_12 = this.f_DataInputStream_00.readByte();
-            this.f_byte_09 = this.f_DataInputStream_00.readByte();
-            this.f_byte_10 = this.f_DataInputStream_00.readByte();
-            this.f_int_41 = this.f_DataInputStream_00.readShort();
-            this.f_int_42 = this.f_DataInputStream_00.readShort();
-            this.f_int_39 = this.f_int_41 << 5;
-            this.f_int_40 = this.f_int_42 << 5;
-            this.f_int_35 = this.f_DataInputStream_00.readInt();
-            this.f_int_36 = this.f_DataInputStream_00.readInt();
-            this.f_int_37 = this.f_DataInputStream_00.readInt();
-            this.f_int_91 = this.f_DataInputStream_00.readShort();
-            this.f_int_92 = this.f_DataInputStream_00.readShort();
-            this.f_int_93 = this.f_DataInputStream_00.readShort();
-            this.f_int_94 = this.f_DataInputStream_00.readInt();
-            this.f_int_69 = this.f_DataInputStream_00.readShort();
+            this.equippedWeaponType = this.f_DataInputStream_00.readByte();
+            this.equippedArmorType = this.f_DataInputStream_00.readByte();
+            this.playerCellX = this.f_DataInputStream_00.readShort();
+            this.playerCellY = this.f_DataInputStream_00.readShort();
+            this.playerPixelX = this.playerCellX << 5;
+            this.playerPixelY = this.playerCellY << 5;
+            this.playerHp = this.f_DataInputStream_00.readInt();
+            this.playerAtk = this.f_DataInputStream_00.readInt();
+            this.playerDef = this.f_DataInputStream_00.readInt();
+            this.yellowKeyCount = this.f_DataInputStream_00.readShort();
+            this.blueKeyCount = this.f_DataInputStream_00.readShort();
+            this.redKeyCount = this.f_DataInputStream_00.readShort();
+            this.goldAmount = this.f_DataInputStream_00.readInt();
+            this.alchemyUpgradeCount = this.f_DataInputStream_00.readShort();
             this.f_int_43 = 0;
             this.f_int_89 = this.f_DataInputStream_00.readShort();
             for (n2 = 0; n2 < this.f_int_89; ++n2) {
@@ -7054,11 +7054,11 @@ lbl163:
                 this.f_DataInputStream_00.skip(128 - this.f_int_113);
             }
             this.f_bool_12 = false;
-            this.f_int_95 = this.f_DataInputStream_00.readByte();
-            for (n2 = 0; n2 < this.f_int_95; ++n2) {
-                this.f_byte_arr_17[n2] = this.f_DataInputStream_00.readByte();
-                this.f_byte_arr_18[n2] = this.f_DataInputStream_00.readByte();
-                if (this.f_byte_arr_17[n2] != 15) continue;
+            this.itemStackSize = this.f_DataInputStream_00.readByte();
+            for (n2 = 0; n2 < this.itemStackSize; ++n2) {
+                this.itemStackTypes[n2] = this.f_DataInputStream_00.readByte();
+                this.itemStackUses[n2] = this.f_DataInputStream_00.readByte();
+                if (this.itemStackTypes[n2] != 15) continue;
                 this.f_bool_12 = true;
             }
             for (n2 = 0; n2 < 56; ++n2) {
@@ -7070,7 +7070,7 @@ lbl163:
                 }
                 this.f_byte_arr2_05[n2] = null;
             }
-            this.m_069(this.f_int_arr_33[this.f_byte_26]);
+            this.scaleEnemyStats(this.difficultyMultipliers[this.f_byte_26]);
         }
         catch (Exception exception) {
             object = exception;
@@ -7145,11 +7145,11 @@ lbl163:
             this.m_120((short)n2);
             for (n3 = 0; n3 < this.f_int_45; ++n3) {
                 if (this.f_bool_arr_01[n3] || this.f_byte_arr_04[n3] == 1) continue;
-                this.f_byte_arr_28[this.f_int_137++] = this.f_int_arr_11[n3];
-                this.m_120((short)this.f_int_arr_06[n3]);
-                this.m_120((short)this.f_int_arr_07[n3]);
+                this.f_byte_arr_28[this.f_int_137++] = this.entityType[n3];
+                this.m_120((short)this.entityPixelX[n3]);
+                this.m_120((short)this.entityPixelY[n3]);
                 this.f_byte_arr_28[this.f_int_137++] = this.f_bool_arr_00[n3] ? (byte)1 : 0;
-                this.m_120(this.f_short_arr_00[n3]);
+                this.m_120(this.entityParam[n3]);
             }
         }
     }
@@ -7168,16 +7168,16 @@ lbl163:
             int n2 = n;
             a2 = this;
             InputStream inputStream = a2.getClass().getResourceAsStream("maplv" + n2);
-            a2.f_int_50 = a.m_058(inputStream) >> 1;
-            a2.f_int_51 = a.m_058(inputStream) >> 1;
-            System.out.println("Width:" + a2.f_int_50 + ",Height:" + a2.f_int_51);
-            int n3 = a2.f_int_50 * a2.f_int_51 << 2;
-            a2.f_int_52 = a2.f_int_50 << 5;
-            a2.f_int_53 = a2.f_int_51 << 5;
-            a2.f_byte_arr_08 = new byte[n3];
-            a2.f_byte_arr_09 = new byte[n3];
-            inputStream.read(a2.f_byte_arr_08, 0, n3);
-            inputStream.read(a2.f_byte_arr_09, 0, n3);
+            a2.mapCellsWide = a.m_058(inputStream) >> 1;
+            a2.mapCellsHigh = a.m_058(inputStream) >> 1;
+            System.out.println("Width:" + a2.mapCellsWide + ",Height:" + a2.mapCellsHigh);
+            int n3 = a2.mapCellsWide * a2.mapCellsHigh << 2;
+            a2.f_int_52 = a2.mapCellsWide << 5;
+            a2.f_int_53 = a2.mapCellsHigh << 5;
+            a2.mapTerrainGrid = new byte[n3];
+            a2.mapTransformGrid = new byte[n3];
+            inputStream.read(a2.mapTerrainGrid, 0, n3);
+            inputStream.read(a2.mapTransformGrid, 0, n3);
             a.m_006(32, 32, 0x55FF00FF);
             a.m_006(32, 32, 0x5500FF00);
             try {
@@ -7208,7 +7208,7 @@ lbl163:
         a2.f_bool_10 = a2.f_int_58 >= a2.f_int_52;
         a2.f_bool_11 = a2.f_int_59 >= a2.f_int_53;
         a2.m_059();
-        v4.f_bool_arr2_00 = new boolean[a2.f_int_51][a2.f_int_50];
+        v4.f_bool_arr2_00 = new boolean[a2.mapCellsHigh][a2.mapCellsWide];
         a2.m_064(0, 0);
         a2.m_061();
         this.f_int_45 = 0;
@@ -7359,17 +7359,17 @@ lbl163:
                 this.f_bool_arr_00[i] = bl4;
                 this.f_bool_arr_01[i] = false;
             }
-            switch (this.f_int_64) {
+            switch (this.currentFloor) {
                 case 31: {
                     break;
                 }
                 case 12: {
                     n8 = this.m_100(1, 1, 78);
                     if (n8 >= 0) {
-                        this.f_short_arr_00[n8] = 6 | this.f_byte_arr_13[5] << 8;
+                        this.entityParam[n8] = 6 | this.f_byte_arr_13[5] << 8;
                     }
                     if ((n8 = this.m_100(11, 1, 78)) < 0) break;
-                    this.f_short_arr_00[n8] = 5 | this.f_byte_arr_13[4] << 8;
+                    this.entityParam[n8] = 5 | this.f_byte_arr_13[4] << 8;
                     break;
                 }
                 case 2: {
@@ -7589,7 +7589,7 @@ lbl163:
         }
         this.f_int_145 = 0;
         this.f_int_144 = 0;
-        this.f_byte_00 = (byte)2;
+        this.gameMode = (byte)2;
         this.m_001(15);
     }
 
@@ -7601,15 +7601,15 @@ lbl163:
         a a2 = this;
         this.f_byte_arr_42 = new byte[100];
         a2.f_int_148 = 0;
-        a2.f_byte_arr2_06 = new byte[a2.f_int_51][a2.f_int_50];
-        a2.f_short_arr2_00 = new short[a2.f_int_51][a2.f_int_50];
+        a2.f_byte_arr2_06 = new byte[a2.mapCellsHigh][a2.mapCellsWide];
+        a2.f_short_arr2_00 = new short[a2.mapCellsHigh][a2.mapCellsWide];
         a2.f_short_arr_13 = new short[100];
         a2.f_short_arr_14 = new short[100];
         a2.f_int_149 = 0;
         boolean bl = false;
         int n5 = n;
         int n6 = n2;
-        int n7 = this.f_int_50;
+        int n7 = this.mapCellsWide;
         int n8 = n5 + n6 * n7;
         this.f_short_00 = (short)n;
         this.f_short_01 = (short)n2;
@@ -7657,7 +7657,7 @@ lbl163:
 
     private void m_134(int n, int n2, int n3) {
         short s = 0;
-        if (this.f_byte_arr2_06[n2][n] == 0 && (this.m_060(n, n2) || this.m_062(n, n2))) {
+        if (this.f_byte_arr2_06[n2][n] == 0 && (this.isCellWalkable(n, n2) || this.m_062(n, n2))) {
             this.f_byte_arr2_06[n2][n] = 1;
             this.f_short_arr2_00[n2][n] = n3;
             s = (short)(Math.abs(n - this.f_short_02) + Math.abs(n2 - this.f_short_03) + Math.abs(n - this.f_short_00) + Math.abs(n2 - this.f_short_01));
@@ -7669,19 +7669,19 @@ lbl163:
                     this.f_short_arr_14[i] = this.f_short_arr_14[i - 1];
                 }
                 this.f_short_arr_13[++n3] = s;
-                this.f_short_arr_14[n3] = n + n2 * this.f_int_50;
+                this.f_short_arr_14[n3] = n + n2 * this.mapCellsWide;
                 break;
             }
             ++this.f_int_149;
         }
     }
 
-    private int m_135(int n, boolean bl) {
-        int n2 = this.m_136(n);
-        return a.m_137(n2, this.f_int_37, this.f_int_arr_21[n -= 41], this.f_int_arr_19[n], this.f_int_arr_20[n], bl);
+    private int predictHpLossVsType(int n, boolean bl) {
+        int n2 = this.effectiveAttackVsType(n);
+        return a.predictBattleHpLoss(n2, this.playerDef, this.enemyHpScaled[n -= 41], this.enemyAtkScaled[n], this.enemyDefScaled[n], bl);
     }
 
-    private int m_136(int n) {
+    private int effectiveAttackVsType(int n) {
         n = this.f_byte_arr_05[n];
         int n2 = 1;
         if ((n & 1) != 0 && this.m_081(23) >= 0) {
@@ -7689,10 +7689,10 @@ lbl163:
         } else if ((n & 2) != 0 && this.m_081(24) >= 0) {
             n2 = 2;
         }
-        return this.f_int_36 * n2;
+        return this.playerAtk * n2;
     }
 
-    private static int m_137(int n, int n2, int n3, int n4, int n5, boolean bl) {
+    private static int predictBattleHpLoss(int n, int n2, int n3, int n4, int n5, boolean bl) {
         int n6 = -1;
         int n7 = 0;
         if (n > n5) {
@@ -7708,61 +7708,61 @@ lbl163:
         return n6;
     }
 
-    private void m_138(boolean bl) {
+    private void tickBattle(boolean bl) {
         if (!this.f_bool_23) {
             if (this.f_int_44 < 0) {
                 this.f_byte_11 = 0;
                 return;
             }
-            int a2 = this.f_int_arr_11[this.f_int_44];
-            int n = this.m_136(a2) - this.f_int_arr_20[a2 - 41];
+            int a2 = this.entityType[this.f_int_44];
+            int n = this.effectiveAttackVsType(a2) - this.enemyDefScaled[a2 - 41];
             if (n > 0) {
                 if ((this.f_int_151 & 3) == 0) {
                     this.f_int_150 -= n;
-                    this.m_125((byte)(5 + this.f_int_151 % 3), n, this.f_int_arr_06[this.f_int_44], this.f_int_arr_07[this.f_int_44]);
+                    this.m_125((byte)(5 + this.f_int_151 % 3), n, this.entityPixelX[this.f_int_44], this.entityPixelY[this.f_int_44]);
                     if (this.f_int_150 > 0) {
-                        n = this.f_int_arr_19[a2 - 41] - this.f_int_37;
+                        n = this.enemyAtkScaled[a2 - 41] - this.playerDef;
                         if (n > 0) {
-                            this.f_int_35 -= n;
+                            this.playerHp -= n;
                         }
                     } else {
                         boolean bl2;
-                        n = this.m_135(a2, this.f_bool_25);
+                        n = this.predictHpLossVsType(a2, this.f_bool_25);
                         if (n > 0) {
-                            this.m_125((byte)2, n, this.f_int_39, this.f_int_40);
+                            this.m_125((byte)2, n, this.playerPixelX, this.playerPixelY);
                         }
                         if (this.m_081(25) >= 0) {
-                            this.m_078(this.f_int_arr_18[a2 - 41] << 1, this.f_int_arr_06[this.f_int_44], this.f_int_arr_07[this.f_int_44]);
+                            this.gainGold(this.enemyBaseGold[a2 - 41] << 1, this.entityPixelX[this.f_int_44], this.entityPixelY[this.f_int_44]);
                         } else {
-                            this.m_078(this.f_int_arr_18[a2 - 41], this.f_int_arr_06[this.f_int_44], this.f_int_arr_07[this.f_int_44]);
+                            this.gainGold(this.enemyBaseGold[a2 - 41], this.entityPixelX[this.f_int_44], this.entityPixelY[this.f_int_44]);
                         }
-                        n = this.f_int_arr_11[this.f_int_44];
+                        n = this.entityType[this.f_int_44];
                         a a3 = this;
                         boolean bl3 = false;
-                        if (a3.f_int_64 > 50) {
+                        if (a3.currentFloor > 50) {
                             bl2 = false;
                         } else {
-                            int n2 = a3.f_byte_arr_23.length;
+                            int n2 = a3.bossTypeOrder.length;
                             while (--n2 >= 0) {
-                                if (n != a3.f_byte_arr_23[n2]) continue;
-                                a3.m_109(n2);
+                                if (n != a3.bossTypeOrder[n2]) continue;
+                                a3.spawnBossEvent(n2);
                                 break;
                             }
                             switch (n) {
                                 case 73: {
-                                    a3.f_bool_arr_06[a3.f_int_111] = true;
-                                    a3.m_094(22);
-                                    if (a3.f_int_64 != 40) break;
-                                    a3.m_109(6);
+                                    a3.f_bool_arr_06[a3.currentScriptIndex] = true;
+                                    a3.loadLevelScript(22);
+                                    if (a3.currentFloor != 40) break;
+                                    a3.spawnBossEvent(6);
                                     break;
                                 }
                                 case 74: {
-                                    a3.m_094(21);
+                                    a3.loadLevelScript(21);
                                     break;
                                 }
                                 case 75: {
-                                    if (!a3.m_095(20, true)) break;
-                                    a3.m_094(20);
+                                    if (!a3.tryRunScene(20, true)) break;
+                                    a3.loadLevelScript(20);
                                     bl3 = true;
                                 }
                             }
@@ -7784,33 +7784,33 @@ lbl163:
         if ((this.f_byte_27 = (byte)(this.f_byte_27 + 1)) > 5) {
             this.f_byte_27 = 0;
             if (!this.f_bool_24 && bl) {
-                this.m_028(this.f_byte_12);
+                this.tryStep(this.f_byte_12);
             }
             this.f_bool_23 = false;
-            int n = this.f_int_arr_11[this.f_int_44];
+            int n = this.entityType[this.f_int_44];
             a a2 = this;
             switch (n) {
                 case 70: 
                 case 71: {
-                    if (a2.f_int_64 != 49) break;
-                    a2.m_094(35);
+                    if (a2.currentFloor != 49) break;
+                    a2.loadLevelScript(35);
                     break;
                 }
                 case 61: {
-                    if (a2.f_int_64 != 49 || a2.m_100(6, 2, 61) >= 0 || a2.m_100(5, 3, 61) >= 0 || a2.m_100(7, 3, 61) >= 0 || a2.m_100(6, 4, 61) >= 0 || a2.m_100(5, 2, 61) < 0 || a2.m_100(7, 2, 61) < 0 || a2.m_100(5, 4, 61) < 0 || a2.m_100(7, 4, 61) < 0) break;
+                    if (a2.currentFloor != 49 || a2.m_100(6, 2, 61) >= 0 || a2.m_100(5, 3, 61) >= 0 || a2.m_100(7, 3, 61) >= 0 || a2.m_100(6, 4, 61) >= 0 || a2.m_100(5, 2, 61) < 0 || a2.m_100(7, 2, 61) < 0 || a2.m_100(5, 4, 61) < 0 || a2.m_100(7, 4, 61) < 0) break;
                     a2.m_049(6, 3, 70);
                     a2.m_048(71, 192, 96, 0);
                     break;
                 }
                 case 72: {
-                    if (a2.f_int_64 != 50) break;
-                    a2.m_094(65);
+                    if (a2.currentFloor != 50) break;
+                    a2.loadLevelScript(65);
                     break;
                 }
                 case 69: {
-                    if (a2.f_int_64 != 35) break;
-                    a2.m_109(7);
-                    a2.m_094(36);
+                    if (a2.currentFloor != 35) break;
+                    a2.spawnBossEvent(7);
+                    a2.loadLevelScript(36);
                 }
             }
             this.f_int_44 = -1;
@@ -7881,8 +7881,8 @@ lbl163:
         this.f_byte_28 = (byte)-1;
     }
 
-    private int m_141(int n) {
-        return (this.f_Random_00.nextInt() >>> 1) % n;
+    private int randomBelow(int n) {
+        return (this.gameRandom.nextInt() >>> 1) % n;
     }
 
     private void m_142(String string, int n, int n2, int n3, int[] nArray) {
