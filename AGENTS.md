@@ -85,7 +85,7 @@
 |---|---|---|---|
 | 动手前 | 状态预检 | `python3 gates/cli.py status` | 看清 SKIP/恒红项再动 |
 | **任何 commit** | 总闸（pre-commit 自动） | `python3 gates/cli.py check` | 任一 FAIL ⇒ 不提交 |
-| 改 `data/naming/` | 台账门禁（commit-msg 自动） | commit message 含 `Evidence`/`证据` | 缺证据字段 ⇒ 拒绝 commit |
+| 改 `data/naming/` / `reference/` / `original/` | 证据门禁（commit-msg 自动） | commit message 含 `Evidence`/`证据` | 缺证据字段 ⇒ 拒绝 commit |
 | 改参考版后 | 参考版回归 | `python3 gates/cli.py reference` | trace 必须逐 tick 不变 |
 | 改 game-data/game-core 后 | 差分（L1–L3） | `python3 gates/cli.py trace` | 任何回退 ⇒ 停止，先定位层（§4） |
 | 改渲染后 | 视觉（L4） | `python3 gates/cli.py visual` | 白名单外像素必须一致 |
@@ -122,9 +122,21 @@
                                     # scope: data/core/platform/ref/gates/docs/tools
 <空行>
 <正文：改了什么、为什么、证据与影响>
-<触及 data/naming/ 或 reference/ 时必须含：>
+<触及 data/naming/ / reference/ / original/ 时必须含：>
 Evidence: <A/B 级证据描述>
 Confidence: <0-100>
 ```
 
 小步提交：一个 commit 一个逻辑变更。门禁改动单独成 commit，不得与功能变更混提。
+
+**master 分支保护（2026-10-09 起，F6 决议）**：直接 push `master` 被禁止（enforce_admins）。
+变更一律经分支 + PR + CI 绿合入：
+
+```bash
+git checkout -b <branch>          # 一个逻辑变更集一个分支
+# …commit（本节格式）…
+git push -u origin <branch>
+gh pr create --fill && gh pr merge --auto   # CI 的 check 检查绿后自动合入
+```
+
+PR 0 审批即可合入（单人仓库），但 CI 检查 `check` 必过；CI 与本地 `gates/cli.py check` 完全等效。

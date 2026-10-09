@@ -77,3 +77,10 @@
    （Require PR + Require status checks，关联本次新增的 `gates` CI workflow）。
 3. 以上两项均为**仓库治理/红线强度**的架构决策，本次复核按任务要求"不自行放宽/加强
    红线类设计选择"，仅记录供拍板。
+
+> 【2026-10-09 决议（用户拍板，Lead 实施）】
+> 1. **F4 采纳方案 (a)**：`commit-msg` hook 已扩展覆盖 `original/`——触及 `original/`、
+>    `reference/`、`data/naming/` 的提交一律强制 `Evidence`/`Confidence`。
+> 2. **F6 采纳**：`master` 开启分支保护（Require PR + Require status checks（`check`）+
+>    0 审批 + enforce_admins）并启用 auto-merge；直接 push master 被禁止，
+>    变更一律经分支 + PR + CI 绿合入，工作流写入 AGENTS.md §9。

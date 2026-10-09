@@ -46,4 +46,4 @@ bash gates/install-hooks.sh   # 挂接 pre-commit + commit-msg
 ```
 
 - `pre-commit` → `gates/cli.py check`
-- `commit-msg` → 触及 `data/naming/` 或 `reference/` 的提交必须含 `Evidence`/`Confidence`
+- `commit-msg` → 触及 `data/naming/`、`reference/`、`original/` 的提交必须含 `Evidence`/`Confidence`
