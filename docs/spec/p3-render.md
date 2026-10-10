@@ -265,13 +265,18 @@ PASS**——行走（4 场战斗）→ 踩型 7 楼梯（11,1）→ changeFloor 
    itemUseCounts、showOverlayMessage(kind1) 带**图标+名**（f_byte_07 +
    entityTypeImage/objectTypeNames）；装备成功 kind1 装备描述、降级
    "你拥有更强力装备"（kind0）。
-6. **未解差异（登记待查）**：floor1 落地 (10,1) 后 L 步进 (9,1)——java 无战斗
-   （wp=1 步进过），我方触发 type41 战斗。(9,1) 槽（ct2 cap=1）含怪、
-   entityState=0 复活——怀疑 m_054 槽修复的**原版残留**把怪槽挪出 (9,1)
-   （FLD 137 的"错位"即此语义），需 T1357+ 全量 ops 考证。窗口裁到 1356。
+6. **层状态持久化**（m_119/m_122 存档分支，a.java:9360-9384/9455+）：
+   **(9,1) "无战斗"差异的根源**——type41 在 floor1 巡回期已死（R×22 战斗），
+   changeFloor 的 **m_119 只序列化存活实体**（removed/state==1 跳过）到
+   f_byte_arr2_05[floor]（u16 计数 BE + 每实体 [type u8, x u16 BE, y u16 BE,
+   visible u8, param u16 BE]，m_120 写），m_122 **存档分支优先**——死怪不
+   复活、已开门/宝箱保持。floor2 重入特例：scriptLineFlags[26]==false 且
+   (11,4) 无型 84 → spawnEntity(84, 352, 128, 0)（9635-9640）。m_122 尾：
+   renderCategoryByType[72] floor50=8、其余 32。恢复实体 removed=false、
+   visible 按存档字节。全窗 T537-1500（964 帧）对拍 PASS（含二次换层 +
+   floor2 重入 + 死怪不复活的 L 步进 (9,1)）。
 
-剩余（下批）：(9,1) 怪交互差异考证 + mode 11 对话 + mode 4/19 暂停菜单 +
-cat 67/69 拼装臂。
+剩余（下批）：mode 11 对话 + mode 4/19 暂停菜单 + cat 67/69 拼装臂。
 
 剩余（下批）：changeFloor 楼梯换层（walkPhase 4 + 动画）、宝箱 m_073、
 装备拾取 33-40/79/80、cat 16/32/67/69 渲染臂、mode 11 对话、mode 4/19。

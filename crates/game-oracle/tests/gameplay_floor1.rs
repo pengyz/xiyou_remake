@@ -358,10 +358,9 @@ fn floor2_tour_frames_match() {
     let mut pending_press = 0i32;
     let mut pending_release = false;
     for rec in &records {
-        // 窗口到 1356（换层落地拍）：T1357 起 floor1 (9,1) 的 type41 交互
-        // java 步进无战斗（怀疑 m_054 槽修复残留把怪槽挪出 (9,1)——FLD 137
-        // 的"错位"语义），待考证后续批对拍
-        if !(537..=1356).contains(&rec.tick) {
+        // 全窗口 T537-1500：(9,1) 怪已在 floor1 巡回期打死——m_119 只存存活实体、
+        // m_122 存档分支优先（死怪不复活 a.java:9455+），回流步进无战斗 ✓
+        if !(537..=1500).contains(&rec.tick) {
             continue;
         }
         if pending_press != 0 {
@@ -401,7 +400,7 @@ fn floor2_tour_frames_match() {
             checked += 1;
         }
     }
-    assert_eq!(checked, 820, "T537-1356 应有 820 帧");
+    assert_eq!(checked, 964, "T537-1500 应有 964 帧");
 }
 
 /// T544 ops 前缀对拍（诊断锚：Java shim 仅记前 256 条 = parallax 5 + 瓦片 250

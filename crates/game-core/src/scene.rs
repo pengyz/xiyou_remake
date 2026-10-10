@@ -229,6 +229,8 @@ pub struct GameScene {
     pub current_floor: i32,
     /// 层资产表（按层号索引）
     pub floor_assets: Vec<Option<FloorAssets>>,
+    /// f_byte_arr2_05：层状态存档（m_119 写/m_122 读；索引=层号）
+    pub saved_floor_states: Vec<Option<Vec<u8>>>,
     /// equippedWeaponType/ArmorType（m_068 重置；tryEquip 更新；HUD 槽显示）
     pub equipped_weapon: i32,
     pub equipped_armor: i32,
@@ -366,6 +368,7 @@ impl GameScene {
             form_19: 0,
             current_floor: 1,
             floor_assets,
+            saved_floor_states: vec![None; 56],
             object_type_names: {
                 let raw = include_str!("../tests/fixtures/object_type_names.txt");
                 raw.lines().map(|l| l.trim().to_string()).collect()
@@ -436,23 +439,56 @@ impl GameScene {
         }
         let mut entities = EntityTable::new(100);
         let mut grid = CellGrid::new(view.wide, view.high);
-        for &(type_code, x, y, param, visible) in records {
-            let img_h = self.images.entity[type_code as usize].as_ref().map(|i| i.height);
-            let idx = entity::spawn(
-                &mut entities,
-                &mut grid,
-                type_code as i32,
-                x as i32,
-                y as i32,
-                param,
-                &self.width_table,
-                img_h,
-            );
-            if !visible {
-                entities.visible[idx] = false; // m_122 特例分支（5/81/6/12/76/82/83）
+        // m_122 双分支（a.java:9455+）：有层存档 → 从存档恢复（**死怪不复活**、
+        // 已开门保持开）；无存档 → sprite{n} 权威数据 + 5/81/6/12/76/82/83 隐藏
+        if let Some(data) = self.saved_floor_states[self.floor as usize].clone() {
+            let mut pos = 0usize;
+            let mut read_u16 = |d: &[u8], p: &mut usize| -> u16 {
+                let v = u16::from_be_bytes([d[*p], d[*p + 1]]);
+                *p += 2;
+                v
+            };
+            let count = read_u16(&data, &mut pos) as usize;
+            for _ in 0..count {
+                let t = data[pos] as i32;
+                pos += 1;
+                let x = read_u16(&data, &mut pos) as i32;
+                let y = read_u16(&data, &mut pos) as i32;
+                let visible = data[pos] != 0;
+                pos += 1;
+                let param = read_u16(&data, &mut pos) as i16;
+                let img_h = self.images.entity.get(t as usize).cloned().flatten().map(|im| im.height);
+                let idx = entity::spawn(&mut entities, &mut grid, t, x, y, param, &self.width_table, img_h);
+                entities.visible[idx] = visible;
+                entities.removed[idx] = false; // m_122 else：恢复的实体 removed=false
+            }
+            // floor2 重入特例（a.java:9635-9640）：scriptLineFlags[26] 未追踪
+            //（脚本批）——本窗口无脚本运行，按 false 处理
+            if self.floor == 2 && entity::cell_entity(&grid, &entities, 11, 4, 84) < 0 {
+                let img_h = self.images.entity[84].as_ref().map(|i| i.height);
+                entity::spawn(&mut entities, &mut grid, 84, 352, 128, 0, &self.width_table, img_h);
+            }
+        } else {
+            for &(type_code, x, y, param, visible) in records {
+                let img_h = self.images.entity[type_code as usize].as_ref().map(|i| i.height);
+                let idx = entity::spawn(
+                    &mut entities,
+                    &mut grid,
+                    type_code as i32,
+                    x as i32,
+                    y as i32,
+                    param,
+                    &self.width_table,
+                    img_h,
+                );
+                if !visible {
+                    entities.visible[idx] = false; // m_122 特例分支（5/81/6/12/76/82/83）
+                }
             }
         }
         entity::sort_by_y(&mut entities, &mut grid);
+        // m_122 尾（a.java:9659-9663）：type 72 类别 floor50=8、其余 32——
+        // render_category 静态表只覆盖非 50 层（本批范围 1/2）
         self.view = view;
         self.entities = entities;
         self.grid = grid;
@@ -474,6 +510,9 @@ impl GameScene {
             // f_int_68=55（a.java:808）；miscTexts[2/3]
             todo!("changeFloor 层界提示浮层（miscTexts[2/3]，交互批次）")
         }
+        // m_119(currentFloor)（a.java:9360-9384）：序列化**存活**实体
+        // （removed/state==1 跳过）——死怪/已开门跨层持久
+        self.save_floor_state();
         self.transitioning = true;
         if target < self.min_floor {
             self.min_floor = target;
@@ -481,10 +520,30 @@ impl GameScene {
             self.max_floor = target;
             // f_int_154 全局进度（RMS）不追踪
         }
-        // m_119(currentFloor)（楼层状态序列化 → RMS，Rust 不追踪）
         self.pending_floor = target;
         self.went_down = down;
         true
+    }
+
+    /// m_119（a.java:9360-9384）：层状态序列化。格式：u16 计数（BE，m_120）+
+    /// 每存活实体 [type u8, x u16 BE, y u16 BE, visible u8, param u16 BE]。
+    fn save_floor_state(&mut self) {
+        let mut body: Vec<u8> = Vec::new();
+        let mut live = 0u16;
+        for e in 0..self.entities.count {
+            if !self.entities.removed[e] && self.entities.solid[e] != 1 {
+                live += 1;
+                body.push(self.entities.entity_type[e] as u8);
+                body.extend_from_slice(&(self.entities.pixel_x[e] as u16).to_be_bytes());
+                body.extend_from_slice(&(self.entities.pixel_y[e] as u16).to_be_bytes());
+                body.push(self.entities.visible[e] as u8);
+                body.extend_from_slice(&(self.entities.param[e] as u16).to_be_bytes());
+            }
+        }
+        let mut data = Vec::with_capacity(body.len() + 2);
+        data.extend_from_slice(&live.to_be_bytes());
+        data.extend_from_slice(&body);
+        self.saved_floor_states[self.floor as usize] = Some(data);
     }
 
     /// 遮幅中段换层（a.java:3180-3206）：loadFloorData + 落点特例
