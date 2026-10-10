@@ -26,9 +26,9 @@ logic#(n+1) 消费（延迟一拍；trace T70 press(-6) → T71 帧切换实证�
 结论：**PASS-with-risks**——零对拍破坏缺陷。已修复：
 
 - D-1 `in_arc` 负弧递归缺 `% 360`（render.rs，对照 Graphics.java:322）——死代码
-  路径（游戏唯一弧调用 fillArc(…,0,360) a.java:6635 短路），已补齐对齐 shim。
+  路径（游戏唯一弧调用 fillArc(…,0,360) a.java:6644 短路），已补齐对齐 shim。
 - D-2 `drawSubstring` 负 len：shim 空循环静默，Rust 原 panic——已按 shim 语义钳制
-  （调用方 a.java:5035 的 len 是差值可能为负）。
+  （调用方 a.java:5044 的 len 是差值可能为负）。
 - R-5 mode 0→21 清理分支补全：f_bool_30 复位（reset_layout_flag）+ f_int_02=75
   帧间隔字段化。
 - R-8 layout.rs 头注收窄：仅覆盖 boot 渲染路径；camera 的 view_h=252、walk 的
@@ -40,7 +40,7 @@ logic#(n+1) 消费（延迟一拍；trace T70 press(-6) → T71 帧切换实证�
   非全覆盖分支端口时需改持久画布）。
 - R-2 同 tick 多键：回放取首个 press，Java keyPressed 覆盖式取末个
   （现 trace 每 tick 至多一键）。
-- R-3 `LogoAnim::tick` 只实现 m_143 的 var1==0 分支；mode 22 走 m_143(1,…)
+- R-3 `LogoAnim::tick` 只实现 runLogoAnimation 的 var1==0 分支；mode 22 走 runLogoAnimation(1,…)
   是静默缺口（端口 mode 22 时必须先补 var1 维度）。
 - R-6 OPS 流：Java 有 256 条截断 + opCount 头；Rust 全量无头。加 OPS 门禁前对齐。
 - R-7 `size_code` 由行高反推 setFont op 文本，仅对游戏唯一字体 getFont(0,0,8)
@@ -63,8 +63,8 @@ logic#(n+1) 消费（延迟一拍；trace T70 press(-6) → T71 帧切换实证�
 ## 4. 证据基线
 
 - 像素模型：`reference/shim/src/javax/microedition/lcdui/{Graphics,Font,Image,Canvas}.java`
-- 游戏侧：paint（a.java:2333-3208）、logo（10187-10553）、mode21
-  （3047-3054/4204-4223/4425-4460）、m_034（5970-5980）
+- 游戏侧：paint（a.java:2333-3217）、logo（10187-10553）、mode21
+  （3047-3054/4204-4223/4425-4460）、paintSoftkeyBar（5970-5980）
 - golden 裁判：`data/golden/render-golden.json`（Java 微驱动
   reference/oracle/src/oracle/host/RenderGolden.java 可再生）
 - 回放：`crates/game-oracle/tests/boot_replay.rs`（A-boot-menu TICK 1-70）

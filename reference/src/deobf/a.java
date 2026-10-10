@@ -30,12 +30,12 @@ public final class a extends Canvas implements Runnable {
    private boolean f_bool_00;
    private Graphics f_Graphics_00;
    private boolean f_bool_01;
-   private int f_int_03;
+   private int frameCounter;
    private byte gameMode;
    private byte f_byte_01;
    private byte f_byte_02;
    private DirectGraphics f_DirectGraphics_00;
-   private int f_int_04;
+   private int bootLoadPhase;
    private Image f_Image_00;
    private boolean f_bool_02;
    private String[] f_String_arr_01;
@@ -49,11 +49,11 @@ public final class a extends Canvas implements Runnable {
    private int keyValue;
    private int keyHeldCode;
    private String[] f_String_arr_02;
-   private int f_int_07;
+   private int menuItemCount;
    private int f_int_08;
    private int f_int_09;
-   private byte[] f_byte_arr_00;
-   private int f_int_10;
+   private byte[] menuItemKinds;
+   private int menuCursorIndex;
    private int f_int_11;
    private int f_int_12;
    private int f_int_13;
@@ -117,8 +117,8 @@ public final class a extends Canvas implements Runnable {
    private boolean f_bool_06;
    private boolean f_bool_07;
    private boolean f_bool_08;
-   private byte f_byte_13;
-   private byte f_byte_14;
+   private byte softkeyLeftKind;
+   private byte softkeyRightKind;
    private String[] f_String_arr_04;
    private int[] entityPixelX;
    private int[] entityPixelY;
@@ -141,8 +141,8 @@ public final class a extends Canvas implements Runnable {
    private byte[] f_byte_arr_06;
    private byte[] f_byte_arr_07;
    private boolean[] f_bool_arr_03;
-   private int f_int_46;
-   private boolean f_bool_09;
+   private int animBobOffset;
+   private boolean animBobRising;
    private int f_int_47;
    private int f_int_48;
    private byte[][] f_byte_arr2_00;
@@ -337,15 +337,15 @@ public final class a extends Canvas implements Runnable {
    private byte[] f_byte_arr_35;
    private byte[] f_byte_arr_36;
    private byte[] f_byte_arr_37;
-   private short[] f_short_arr_11;
-   private short[] f_short_arr_12;
-   private byte[] f_byte_arr_38;
-   private byte[] f_byte_arr_39;
-   private byte[] f_byte_arr_40;
-   private byte f_byte_22;
+   private short[] particleX;
+   private short[] particleY;
+   private byte[] particleVelX;
+   private byte[] particleVelY;
+   private byte[] particleSize;
+   private byte particleCursor;
    private int[] f_int_arr_31;
-   private boolean[] f_bool_arr_09;
-   private boolean[] f_bool_arr_10;
+   private boolean[] particleActive;
+   private boolean[] particleVelXWaxing;
    private int f_int_141;
    private boolean f_bool_16;
    private boolean f_bool_17;
@@ -395,22 +395,22 @@ public final class a extends Canvas implements Runnable {
    private int f_int_154;
    private boolean f_bool_28;
    private String[] f_String_arr_15;
-   private int f_int_155;
-   private boolean f_bool_29;
+   private int volumeLevel;
+   private boolean soundEnabled;
    private byte f_byte_28;
    private static Player f_Player_00;
    private Random gameRandom;
    private final int[] f_int_arr_36;
-   private int f_int_156;
-   private final byte[] f_byte_arr_45;
-   private int f_int_157;
-   private int f_int_158;
-   private int[] f_int_arr_37;
-   private boolean f_bool_30;
-   private final byte[] f_byte_arr_46;
-   private byte f_byte_29;
-   private int[][] f_int_arr2_03;
-   private Image[] f_Image_arr_01;
+   private int bootPhaseCounter;
+   private final byte[] logoSegmentHeights;
+   private int logoGap;
+   private int logoBarX;
+   private int[] logoAnchorY;
+   private boolean logoLayoutDone;
+   private final byte[] logoGlyphMetrics;
+   private byte logoItemCount;
+   private int[][] logoItemMeta;
+   private Image[] logoItemImages;
    private String[] f_String_arr_16;
    private String[] f_String_arr_17;
    private String f_String_06;
@@ -445,7 +445,7 @@ public final class a extends Canvas implements Runnable {
          "直到那一天，遇到了她，在筋斗云上的我，竟然第一次心潮起伏，有了晕机的感觉……",
          "神仙动了感情，往往会万劫不复，\n这一次，让我付出了五百年的时间去忘记她……\n五指山脚下的沙子，掠过我的脸庞。\n沙子，跟时间一样，同样随风流逝；同样掩埋过去；\n多少次伸手想抓住，却从指隙溜走……\n看夜空，半梦半醒间，往事历历上心头……"
       };
-      this.f_int_04 = 0;
+      this.bootLoadPhase = 0;
       this.f_Image_00 = null;
       this.f_String_arr_01 = new String[]{
          "sflogo", "mapbg", "map", "actor", "sptmap", "sptprop", "sptarm", "sptenemy1", "ui", "xtq", "menu", "intro", "face", "sptenemy2", "end", "load"
@@ -2237,20 +2237,20 @@ public final class a extends Canvas implements Runnable {
       this.f_int_arr_34 = new int[]{4, 2, 2, 2, 2, 2, 2};
       this.f_int_arr_35 = new int[this.f_int_arr_34.length];
       this.f_String_arr_15 = new String[]{"logostart.mid", "logoquit.mid", "menu.mid", "game.mid"};
-      this.f_int_155 = 60;
-      this.f_bool_29 = true;
+      this.volumeLevel = 60;
+      this.soundEnabled = true;
       this.f_byte_28 = -1;
       this.f_int_arr_36 = new int[]{4202520, -1};
       var10000 = new int[]{2555941, 6436695};
       var10000 = new int[]{2555941, 10126750};
       var10000 = new int[]{12342908, 15039118};
       var10000 = new int[]{2236962, 16768893};
-      this.f_byte_arr_45 = new byte[]{87, 18, 9};
-      this.f_int_arr_37 = new int[3];
-      this.f_byte_arr_46 = new byte[]{
+      this.logoSegmentHeights = new byte[]{87, 18, 9};
+      this.logoAnchorY = new int[3];
+      this.logoGlyphMetrics = new byte[]{
          0, 5, 5, 5, 10, 4, 14, 7, 21, 4, 25, 3, 28, 3, 31, 4, 35, 3, 38, 4, 42, 4, 46, 4, 50, 4, 54, 3, 57, 3, 60, 4, 64, 2, 66, 2, 68, 4, 72, 4, 76, 5
       };
-      this.f_int_arr2_03 = new int[26][7];
+      this.logoItemMeta = new int[26][7];
       this.f_String_arr_16 = new String[]{
          "手机号",
          "密码",
@@ -2336,14 +2336,14 @@ public final class a extends Canvas implements Runnable {
       this.f_Graphics_00.setFont(this.f_Font_00);
       switch (this.gameMode) {
          case 0:
-            if (this.f_int_04 < 2) {
+            if (this.bootLoadPhase < 2) {
                this.f_Graphics_00.setColor(-1);
                this.f_Graphics_00.fillRect(0, 0, 240, 320);
                if (this.f_Image_00 != null) {
                   this.f_Graphics_00.drawImage(this.f_Image_00, 240 - this.f_Image_00.getWidth() >> 1, 320 - this.f_Image_00.getHeight() >> 1, 0);
                }
             } else {
-               this.m_144();
+               this.paintLogoAnimation();
             }
             break;
          case 1:
@@ -2358,13 +2358,20 @@ public final class a extends Canvas implements Runnable {
             var34.f_Graphics_00.setColor(3156024);
             var34.f_Graphics_00.fillRect(0, 320 - var34.f_int_16, 240, var34.f_int_16);
             var34.drawIconStrip(
-               var34.f_Image_arr2_00[10][1], 86, 320 - var34.f_int_16 + (var34.f_int_16 - 17 >> 1), 0, 17 * var34.f_byte_arr_00[var34.f_int_10], 60, 17, 17
+               var34.f_Image_arr2_00[10][1],
+               86,
+               320 - var34.f_int_16 + (var34.f_int_16 - 17 >> 1),
+               0,
+               17 * var34.menuItemKinds[var34.menuCursorIndex],
+               60,
+               17,
+               17
             );
             var83 = 320 - var34.f_int_16 + (var34.f_int_16 - 13 >> 1);
-            var34.m_004(var34.f_Image_arr2_00[8][14], 60 - var34.f_int_46, var83, 1);
-            var34.f_Graphics_00.drawImage(var34.f_Image_arr2_00[8][14], 160 + var34.f_int_46, var83, 0);
+            var34.drawImageWithNokiaTransform(var34.f_Image_arr2_00[8][14], 60 - var34.animBobOffset, var83, 1);
+            var34.f_Graphics_00.drawImage(var34.f_Image_arr2_00[8][14], 160 + var34.animBobOffset, var83, 0);
             this.f_Graphics_00.setClip(0, this.f_int_16, 240, 320 - (this.f_int_16 >> 1));
-            this.m_130();
+            this.updateAndDrawParticles();
             this.f_Graphics_00.setClip(0, 0, 240, 320);
             break;
          case 2:
@@ -2372,8 +2379,8 @@ public final class a extends Canvas implements Runnable {
             this.f_Graphics_00.setColor(3156024);
             var33.f_Graphics_00.fillRect(0, 0, 240, 320);
             var33.f_int_147 = 148 * var33.f_int_143 / 100;
-            var33.m_002(var33.f_Image_arr2_00[15][0], 108, 86, 0, 0, 24, var33.f_int_147);
-            var33.m_002(var33.f_Image_arr2_00[15][1], 108, 86 + var33.f_int_147, 0, var33.f_int_147, 24, 148 - var33.f_int_147);
+            var33.drawImageClipped(var33.f_Image_arr2_00[15][0], 108, 86, 0, 0, 24, var33.f_int_147);
+            var33.drawImageClipped(var33.f_Image_arr2_00[15][1], 108, 86 + var33.f_int_147, 0, var33.f_int_147, 24, 148 - var33.f_int_147);
             break;
          case 3:
             this.drawParallaxBackdrop(true);
@@ -2398,20 +2405,20 @@ public final class a extends Canvas implements Runnable {
             a var32 = this;
             if (this.f_bool_13) {
                if (var32.f_int_70 >= 0) {
-                  var32.m_002(var32.f_Image_arr2_00[8][19], 104, 20, 0, 0, 16, 16);
-                  var32.m_002(var32.f_Image_arr2_00[8][19], 120, 20 + var32.f_int_46, 16, 0, 15, 17);
+                  var32.drawImageClipped(var32.f_Image_arr2_00[8][19], 104, 20, 0, 0, 16, 16);
+                  var32.drawImageClipped(var32.f_Image_arr2_00[8][19], 120, 20 + var32.animBobOffset, 16, 0, 15, 17);
                }
 
                if (var32.f_int_73 >= 0) {
-                  var32.m_002(var32.f_Image_arr2_00[8][19], 104, var32.f_int_48 - 17, 0, 17, 16, 16);
-                  var32.m_002(var32.f_Image_arr2_00[8][19], 120, var32.f_int_48 - 17 - var32.f_int_46, 16, 17, 15, 17);
+                  var32.drawImageClipped(var32.f_Image_arr2_00[8][19], 104, var32.f_int_48 - 17, 0, 17, 16, 16);
+                  var32.drawImageClipped(var32.f_Image_arr2_00[8][19], 120, var32.f_int_48 - 17 - var32.animBobOffset, 16, 17, 15, 17);
                }
             }
 
             this.drawPopupLayer();
-            this.f_byte_13 = 1;
-            this.f_byte_14 = 3;
-            this.m_034();
+            this.softkeyLeftKind = 1;
+            this.softkeyRightKind = 3;
+            this.paintSoftkeyBar();
             break;
          case 4:
          case 19:
@@ -2431,8 +2438,8 @@ public final class a extends Canvas implements Runnable {
             var172 += 16 + var180;
 
             for (int var189 = var30.f_int_11; var189 < var30.f_int_12; var172 += var30.f_int_15) {
-               var185 = var30.f_byte_arr_00[var189];
-               if (var30.f_int_10 == var189) {
+               var185 = var30.menuItemKinds[var189];
+               if (var30.menuCursorIndex == var189) {
                   var30.f_Graphics_00.setColor(0);
                   var30.f_Graphics_00.fillRect(120 - (var30.f_int_08 >> 1), var172 - var180, var30.f_int_08, var30.f_int_15);
                   var30.f_Graphics_00.setColor(16377897);
@@ -2466,7 +2473,7 @@ public final class a extends Canvas implements Runnable {
                      }
                   }
 
-                  if ((var81.f_int_03 & 3) == 0 && ++var81.f_byte_25 >= var14) {
+                  if ((var81.frameCounter & 3) == 0 && ++var81.f_byte_25 >= var14) {
                      var81.f_byte_25 = 0;
                   }
                } else {
@@ -2479,14 +2486,14 @@ public final class a extends Canvas implements Runnable {
             var163 = 120 + (var128 >> 1) - 23;
             var172 = 160 + (var146 >> 1) - 38;
             if (var30.f_int_11 > 0) {
-               var30.m_002(var30.f_Image_arr2_00[8][15], var163, var172, 0, 0, 7, 9);
+               var30.drawImageClipped(var30.f_Image_arr2_00[8][15], var163, var172, 0, 0, 7, 9);
             }
 
-            if (var30.f_int_12 < var30.f_int_07) {
-               var30.m_002(var30.f_Image_arr2_00[8][15], var163, var172 + 9, 7, 0, 7, 9);
+            if (var30.f_int_12 < var30.menuItemCount) {
+               var30.drawImageClipped(var30.f_Image_arr2_00[8][15], var163, var172 + 9, 7, 0, 7, 9);
             }
 
-            this.m_034();
+            this.paintSoftkeyBar();
             break;
          case 5:
             this.drawParallaxBackdrop(false);
@@ -2501,7 +2508,7 @@ public final class a extends Canvas implements Runnable {
             if (var29.f_int_110 - var29.f_int_109 > 0) {
                var29.m_040(var64, var105, var29.f_int_108, var29.f_int_107);
                if (var29.f_int_109 > 0) {
-                  var29.m_002(var29.f_Image_arr2_00[8][19], 112, var105 - 17 - (var29.f_int_03 & 1), 16, 0, 15, 17);
+                  var29.drawImageClipped(var29.f_Image_arr2_00[8][19], 112, var105 - 17 - (var29.frameCounter & 1), 16, 0, 15, 17);
                }
 
                var105 += 16;
@@ -2536,9 +2543,9 @@ public final class a extends Canvas implements Runnable {
                      }
 
                      if (var170 < 0) {
-                        var29.m_002(var126, var64, var105 + 31 - var177, -var170, 0, 32, var177);
+                        var29.drawImageClipped(var126, var64, var105 + 31 - var177, -var170, 0, 32, var177);
                      } else {
-                        var29.m_002(var126, var64 + var170, var105 + 31 - var177, 0, 0, var29.f_byte_arr_07[var144], var177);
+                        var29.drawImageClipped(var126, var64 + var170, var105 + 31 - var177, 0, 0, var29.f_byte_arr_07[var144], var177);
                      }
                   } else {
                      var29.f_Graphics_00.setClip(var64, var105, 32, 32);
@@ -2548,19 +2555,19 @@ public final class a extends Canvas implements Runnable {
 
                   var105 += 4;
                   var64 += 36;
-                  var29.m_002(var29.f_Image_arr2_00[8][7], var64, var105, 10, 0, 10, 13);
+                  var29.drawImageClipped(var29.f_Image_arr2_00[8][7], var64, var105, 10, 0, 10, 13);
                   var64 += 15;
                   var29.m_041(var64, var105, 48, 12);
                   var29.m_042(var29.f_Image_arr2_00[8][2], var29.enemyAtkScaled[var144 - 41], var64 + 40, var105 + 2);
                   var64 += 52;
-                  var29.m_002(var29.f_Image_arr2_00[8][7], var64, var105, 20, 2, 10, 10);
+                  var29.drawImageClipped(var29.f_Image_arr2_00[8][7], var64, var105, 20, 2, 10, 10);
                   var64 += 15;
                   var29.f_Graphics_00.setColor(512);
                   var29.m_041(var64, var105, 48, 12);
                   var29.m_042(var29.f_Image_arr2_00[8][2], var29.enemyDefScaled[var144 - 41], var64 + 40, var105 + 2);
                   var64 -= 82;
                   var105 += 12;
-                  var29.m_002(var29.f_Image_arr2_00[8][7], var64, var105 + 5, 0, 2, 10, 10);
+                  var29.drawImageClipped(var29.f_Image_arr2_00[8][7], var64, var105 + 5, 0, 2, 10, 10);
                   var64 += 15;
                   var29.m_041(var64, var105 + 5, 48, 12);
                   var29.m_042(var29.f_Image_arr2_00[8][2], var29.enemyHpScaled[var144 - 41], var64 + 40, var105 + 7);
@@ -2585,11 +2592,11 @@ public final class a extends Canvas implements Runnable {
 
                var105 += 16;
                if (var29.f_int_110 < var29.f_int_105) {
-                  var29.m_002(var29.f_Image_arr2_00[8][19], 112, var105 + (var29.f_int_03 & 1), 16, 17, 15, 17);
+                  var29.drawImageClipped(var29.f_Image_arr2_00[8][19], 112, var105 + (var29.frameCounter & 1), 16, 17, 15, 17);
                }
             }
 
-            this.m_034();
+            this.paintSoftkeyBar();
          case 6:
          case 23:
          case 24:
@@ -2672,12 +2679,12 @@ public final class a extends Canvas implements Runnable {
          case 7:
             this.drawParallaxBackdrop(false);
             this.m_113(true);
-            this.m_034();
+            this.paintSoftkeyBar();
             break;
          case 8:
             this.drawParallaxBackdrop(false);
             this.m_113(false);
-            this.m_034();
+            this.paintSoftkeyBar();
             break;
          case 9:
             this.drawParallaxBackdrop(true);
@@ -2685,7 +2692,7 @@ public final class a extends Canvas implements Runnable {
             this.m_053(this.f_int_56, this.f_int_57 + 20, true);
             this.m_037(0, this.f_int_48);
             this.m_035(0, 0);
-            this.m_034();
+            this.paintSoftkeyBar();
             a var28 = this;
             int var59 = 240 - var28.f_int_75 - 22 >> 1;
             int var100 = 320 - var28.f_int_74 >> 1;
@@ -2704,14 +2711,14 @@ public final class a extends Canvas implements Runnable {
             var28.f_Graphics_00.setColor(549016);
             var28.f_Graphics_00.fillRect(var59, var100 + (var28.f_int_80 << 4), var28.f_int_75, 16);
             var28.f_Graphics_00.drawImage(var28.f_Image_arr2_00[8][14], var59 + 10, var100 + 2 + (var28.f_int_80 << 4), 0);
-            var28.m_004(var28.f_Image_arr2_00[8][14], var59 + var28.f_int_75 - 30, var100 + 2 + (var28.f_int_80 << 4), 1);
-            var28.m_002(var28.f_Image_arr2_00[8][7], 97, var100 + 4, 0, 2, 10, 10);
+            var28.drawImageWithNokiaTransform(var28.f_Image_arr2_00[8][14], var59 + var28.f_int_75 - 30, var100 + 2 + (var28.f_int_80 << 4), 1);
+            var28.drawImageClipped(var28.f_Image_arr2_00[8][7], 97, var100 + 4, 0, 2, 10, 10);
             var28.m_042(var28.f_Image_arr2_00[8][2], var28.f_int_77, 142, var100 + 6);
             var100 += 16;
-            var28.m_002(var28.f_Image_arr2_00[8][7], 97, var100 + 4, 11, 0, 8, 13);
+            var28.drawImageClipped(var28.f_Image_arr2_00[8][7], 97, var100 + 4, 11, 0, 8, 13);
             var28.m_042(var28.f_Image_arr2_00[8][2], var28.f_int_78, 142, var100 + 6);
             var100 += 16;
-            var28.m_002(var28.f_Image_arr2_00[8][7], 97, var100 + 4, 20, 2, 10, 11);
+            var28.drawImageClipped(var28.f_Image_arr2_00[8][7], 97, var100 + 4, 20, 2, 10, 11);
             var28.m_042(var28.f_Image_arr2_00[8][2], var28.f_int_79, 142, var100 + 6);
             break;
          case 10:
@@ -2756,7 +2763,7 @@ public final class a extends Canvas implements Runnable {
                for (int var8 = 0; var8 < var27.f_int_97; var169++) {
                   var27.m_041(var53, var93, 32, 32);
                   if (var169 == var27.f_int_104) {
-                     var27.m_002(var27.f_Image_arr2_00[2][10], var53 - 4, var93 - 3, 38 * (var27.f_int_03 & 1), 0, 38, 38);
+                     var27.drawImageClipped(var27.f_Image_arr2_00[2][10], var53 - 4, var93 - 3, 38 * (var27.frameCounter & 1), 0, 38, 38);
                   }
 
                   if (var169 < var27.itemStackSize) {
@@ -2779,14 +2786,14 @@ public final class a extends Canvas implements Runnable {
             var53 = (240 + var27.f_int_103 >> 1) - 22;
             var93 -= var27.f_int_102 - 32 - var27.f_int_01 - 4 >> 1;
             if (var27.f_int_98 > 0) {
-               var27.m_002(var27.f_Image_arr2_00[8][15], var53, var93 - 15, 0, 0, 7, 9);
+               var27.drawImageClipped(var27.f_Image_arr2_00[8][15], var53, var93 - 15, 0, 0, 7, 9);
             }
 
             if (var27.f_int_99 < var27.f_int_101) {
-               var27.m_002(var27.f_Image_arr2_00[8][15], var53, var93 + 5, 7, 0, 7, 9);
+               var27.drawImageClipped(var27.f_Image_arr2_00[8][15], var53, var93 + 5, 7, 0, 7, 9);
             }
 
-            this.m_034();
+            this.paintSoftkeyBar();
             break;
          case 11:
             this.drawParallaxBackdrop(true);
@@ -2832,9 +2839,11 @@ public final class a extends Canvas implements Runnable {
                   var9 = var25.f_Image_arr_00[var25.f_byte_17];
                   if (var25.f_byte_17 != 72) {
                      var91 = var9.getHeight();
-                     var25.m_002(var9, 0 + (80 - var25.f_byte_arr_07[var25.f_byte_17] >> 1), 320 - var91, 0, 0, var25.f_byte_arr_07[var25.f_byte_17], var91);
+                     var25.drawImageClipped(
+                        var9, 0 + (80 - var25.f_byte_arr_07[var25.f_byte_17] >> 1), 320 - var91, 0, 0, var25.f_byte_arr_07[var25.f_byte_17], var91
+                     );
                   } else {
-                     var25.m_002(var9, 24, 275, 0, 0, 32, 45);
+                     var25.drawImageClipped(var9, 24, 275, 0, 0, 32, 45);
                   }
                } else if (var25.f_byte_17 == 0) {
                   var25.f_Graphics_00
@@ -2849,11 +2858,11 @@ public final class a extends Canvas implements Runnable {
                var25.f_Graphics_00.setColor(10473684);
                var25.m_019(var25.overlayText, 85, var120 + 12, 129, var91 - 12, false);
                if (var25.f_int_26 > 0) {
-                  var25.m_002(var25.f_Image_arr2_00[8][15], 220, 320 - var25.f_int_34 - 10, 0, 0, 7, 9);
+                  var25.drawImageClipped(var25.f_Image_arr2_00[8][15], 220, 320 - var25.f_int_34 - 10, 0, 0, 7, 9);
                }
 
                if (var25.f_int_27 < var25.f_int_28) {
-                  var25.m_002(var25.f_Image_arr2_00[8][15], 220, 320 - var25.f_int_34 + 1, 7, 0, 7, 9);
+                  var25.drawImageClipped(var25.f_Image_arr2_00[8][15], 220, 320 - var25.f_int_34 + 1, 7, 0, 7, 9);
                }
 
                byte var92;
@@ -2877,7 +2886,7 @@ public final class a extends Canvas implements Runnable {
                      .drawImage(
                         var25.f_Image_arr2_00[2][11],
                         var25.f_int_56 + 5 + (var25.f_int_114 << 5),
-                        var25.f_int_57 + (var25.f_int_115 << 5) - 12 + var25.f_int_46,
+                        var25.f_int_57 + (var25.f_int_115 << 5) - 12 + var25.animBobOffset,
                         0
                      );
                }
@@ -2892,14 +2901,14 @@ public final class a extends Canvas implements Runnable {
             var24.m_142(var24.f_String_04, 120, var46 + 2, 17, var24.f_int_arr_36);
             var46 += var24.f_int_01 + 4 - 13 >> 1;
             if (var24.f_int_90 > 0) {
-               var24.m_004(var24.f_Image_arr2_00[8][14], 60 - var24.f_int_46, var46, 1);
+               var24.drawImageWithNokiaTransform(var24.f_Image_arr2_00[8][14], 60 - var24.animBobOffset, var46, 1);
             }
 
             if (var24.f_int_90 < var24.f_int_89 - 1) {
-               var24.f_Graphics_00.drawImage(var24.f_Image_arr2_00[8][14], 160 + var24.f_int_46, var46, 0);
+               var24.f_Graphics_00.drawImage(var24.f_Image_arr2_00[8][14], 160 + var24.animBobOffset, var46, 0);
             }
 
-            this.m_034();
+            this.paintSoftkeyBar();
             break;
          case 13:
             this.drawParallaxBackdrop(false);
@@ -2935,13 +2944,13 @@ public final class a extends Canvas implements Runnable {
             }
 
             this.f_Graphics_00.setClip(0, 0, 240, 320);
-            this.m_130();
+            this.updateAndDrawParticles();
             this.f_Graphics_00.setClip(0, 0, 240, 320);
             break;
          case 15:
             this.drawParallaxBackdrop(false);
             this.drawIconStrip(this.f_Image_arr2_00[10][1], 86, 10, 0, 51, 68, 17, 17);
-            this.m_034();
+            this.paintSoftkeyBar();
             break;
          case 16:
             this.drawParallaxBackdrop(false);
@@ -2957,7 +2966,7 @@ public final class a extends Canvas implements Runnable {
             var22.f_Graphics_00.setColor(549016);
             var22.f_Graphics_00.fillRect(var40, var89 + var140, var22.f_int_84, var22.f_int_01 + 8);
             var22.f_Graphics_00.drawImage(var22.f_Image_arr2_00[8][14], var40 + 10, var89 + 2 + var140 + (var22.f_int_01 - 5 >> 1), 0);
-            var22.m_004(var22.f_Image_arr2_00[8][14], var40 + var22.f_int_84 - 30, var89 + 2 + var140 + (var22.f_int_01 - 5 >> 1), 1);
+            var22.drawImageWithNokiaTransform(var22.f_Image_arr2_00[8][14], var40 + var22.f_int_84 - 30, var89 + 2 + var140 + (var22.f_int_01 - 5 >> 1), 1);
 
             for (int var157 = 0; var157 < var22.f_int_83; var89 += var22.f_int_01 + 8) {
                var118 = var22.f_String_arr_05[var22.f_byte_arr_11[var157]];
@@ -2966,20 +2975,20 @@ public final class a extends Canvas implements Runnable {
                var22.f_Graphics_00.drawString(var118, var40, var89 + 4, 0);
                var40 += 2 + var22.f_Font_00.stringWidth(var118);
                if (!var22.f_bool_arr_05[var157]) {
-                  var22.m_002(var22.f_Image_arr2_00[8][11], var40, var89 + (var22.f_int_01 - 2 >> 1), 12, 0, 12, 10);
+                  var22.drawImageClipped(var22.f_Image_arr2_00[8][11], var40, var89 + (var22.f_int_01 - 2 >> 1), 12, 0, 12, 10);
                } else {
-                  var22.m_002(var22.f_Image_arr2_00[8][11], var40, var89 + (var22.f_int_01 - 2 >> 1), 0, 0, 12, 10);
+                  var22.drawImageClipped(var22.f_Image_arr2_00[8][11], var40, var89 + (var22.f_int_01 - 2 >> 1), 0, 0, 12, 10);
                }
 
                var157++;
             }
 
-            this.m_034();
+            this.paintSoftkeyBar();
             break;
          case 17:
             this.drawParallaxBackdrop(false);
             this.drawIconStrip(this.f_Image_arr2_00[10][1], 86, 10, 0, 68, 68, 17, 17);
-            this.m_034();
+            this.paintSoftkeyBar();
             break;
          case 18:
             a var21 = this;
@@ -3021,11 +3030,11 @@ public final class a extends Canvas implements Runnable {
             a var20 = this;
             int var37 = 320 - var20.f_Image_arr2_00[14][0].getHeight() >> 1;
             var20.f_int_23 += 2;
-            if (!var20.f_bool_04 && (var20.f_int_03 & 1) != 0 && ++var20.f_int_22 > var20.f_Image_arr2_00[14][0].getWidth() - 240) {
+            if (!var20.f_bool_04 && (var20.frameCounter & 1) != 0 && ++var20.f_int_22 > var20.f_Image_arr2_00[14][0].getWidth() - 240) {
                var20.f_bool_04 = true;
             }
 
-            if ((var20.f_int_03 & 3) >> 1 != 0 && var20.f_int_33 < var20.dialogueTexts[260].length()) {
+            if ((var20.frameCounter & 3) >> 1 != 0 && var20.f_int_33 < var20.dialogueTexts[260].length()) {
                var20.f_int_33++;
                var20.m_018(var20.dialogueTexts[260], 209, (var20.f_int_34 << 1) + 12, var20.f_int_33);
                var20.f_int_26 = var20.f_int_28 - 1;
@@ -3050,10 +3059,10 @@ public final class a extends Canvas implements Runnable {
             var19.f_Graphics_00.fillRect(0, 0, 240, 320);
             var19.f_Graphics_00.setColor(-1);
             var19.f_Graphics_00.drawString("是否开启声音？", 120, 160, 17);
-            var19.m_034();
+            var19.paintSoftkeyBar();
             break;
          case 22:
-            this.m_144();
+            this.paintLogoAnimation();
             break;
          case 99:
             a var18 = this;
@@ -3148,12 +3157,12 @@ public final class a extends Canvas implements Runnable {
             var151 = var116 + var36.f_int_25 - 12 - 18;
             if (var36.f_byte_05 != 0) {
                var133 = var86 + 13;
-               var36.m_002(var36.f_Image_arr2_00[8][11], var133, var151 + 6, (var36.f_byte_05 - 1) * 12, 0, 12, 10);
+               var36.drawImageClipped(var36.f_Image_arr2_00[8][11], var133, var151 + 6, (var36.f_byte_05 - 1) * 12, 0, 12, 10);
             }
 
             if (var36.f_byte_06 != 0) {
                var133 = var86 + var36.f_int_24 - 25;
-               var36.m_002(var36.f_Image_arr2_00[8][11], var133, var151 + 6, (var36.f_byte_06 - 1) * 12, 0, 12, 10);
+               var36.drawImageClipped(var36.f_Image_arr2_00[8][11], var133, var151 + 6, (var36.f_byte_06 - 1) * 12, 0, 12, 10);
             }
          }
       } else {
@@ -3227,7 +3236,7 @@ public final class a extends Canvas implements Runnable {
          long var5 = 0L;
 
          try {
-            for (; this.f_bool_00; this.f_int_03++) {
+            for (; this.f_bool_00; this.frameCounter++) {
                var3 = (var1 = System.currentTimeMillis()) + this.f_int_02;
                a var15 = this;
                if (this.f_bool_05) {
@@ -3329,40 +3338,40 @@ public final class a extends Canvas implements Runnable {
                   switch (var15.gameMode) {
                      case 0:
                         var15.f_int_02 = 100;
-                        if (var15.f_int_04 < 2) {
-                           if (var15.f_int_156 == 0) {
+                        if (var15.bootLoadPhase < 2) {
+                           if (var15.bootPhaseCounter == 0) {
                               try {
-                                 var15.f_Image_00 = Image.createImage("/l" + var15.f_int_04 + ".png");
+                                 var15.f_Image_00 = Image.createImage("/l" + var15.bootLoadPhase + ".png");
                               } catch (Exception var10) {
                               }
 
                               if (var15.f_Image_00 == null) {
-                                 var15.f_int_156 = 0;
-                                 var15.f_int_04++;
+                                 var15.bootPhaseCounter = 0;
+                                 var15.bootLoadPhase++;
                               } else {
-                                 var15.f_int_156 = 1;
+                                 var15.bootPhaseCounter = 1;
                               }
-                           } else if (++var15.f_int_156 > 15) {
-                              var15.f_int_04++;
-                              var15.f_int_156 = 0;
+                           } else if (++var15.bootPhaseCounter > 15) {
+                              var15.bootLoadPhase++;
+                              var15.bootPhaseCounter = 0;
                            }
-                        } else if (++var15.f_int_156 <= 35) {
-                           var15.m_143(0, var15.f_int_156);
+                        } else if (++var15.bootPhaseCounter <= 35) {
+                           var15.runLogoAnimation(0, var15.bootPhaseCounter);
                         } else {
-                           var15.m_147(-1);
-                           var15.f_bool_30 = false;
-                           var15.f_int_156 = 0;
+                           var15.removeLogoItem(-1);
+                           var15.logoLayoutDone = false;
+                           var15.bootPhaseCounter = 0;
                            var15.f_Image_00 = null;
                            var15.f_Image_arr2_00[0] = null;
-                           var15.m_140();
+                           var15.closeAudioPlayer();
                            var15.f_int_02 = 75;
                            var15.gameMode = 21;
                            var15.m_000();
                         }
                         break;
                      case 1:
-                        if ((var15.f_int_03 & 3) == 0) {
-                           var15.m_129(var15.randomBelow(240), 320 - var15.f_int_16 - var15.randomBelow(150), 2, -1);
+                        if ((var15.frameCounter & 3) == 0) {
+                           var15.spawnParticle(var15.randomBelow(240), 320 - var15.f_int_16 - var15.randomBelow(150), 2, -1);
                         }
 
                         var15.m_052();
@@ -3371,7 +3380,7 @@ public final class a extends Canvas implements Runnable {
                            case -5:
                            case 53:
                               a var40 = var29;
-                              switch (var29.f_byte_arr_00[var40.f_int_10]) {
+                              switch (var29.menuItemKinds[var40.menuCursorIndex]) {
                                  case 0:
                                     var40.f_Image_arr2_00[10][0] = null;
                                     var40.gameMode = 14;
@@ -3407,20 +3416,20 @@ public final class a extends Canvas implements Runnable {
                            case -2:
                            case 54:
                            case 56:
-                              if (var29.f_int_10 < var29.f_int_07 - 1) {
-                                 var29.f_int_10++;
+                              if (var29.menuCursorIndex < var29.menuItemCount - 1) {
+                                 var29.menuCursorIndex++;
                               } else {
-                                 var29.f_int_10 = 0;
+                                 var29.menuCursorIndex = 0;
                               }
                               break label534;
                            case -3:
                            case -1:
                            case 50:
                            case 52:
-                              if (var29.f_int_10 > 0) {
-                                 var29.f_int_10--;
+                              if (var29.menuCursorIndex > 0) {
+                                 var29.menuCursorIndex--;
                               } else {
-                                 var29.f_int_10 = var29.f_int_07 - 1;
+                                 var29.menuCursorIndex = var29.menuItemCount - 1;
                               }
                            default:
                               break label534;
@@ -3673,31 +3682,31 @@ public final class a extends Canvas implements Runnable {
                            default:
                               break label534;
                            case -2:
-                              if (var25.f_int_10 < var25.f_int_07 - 1) {
-                                 var25.f_int_10++;
-                                 if (var25.f_int_10 >= var25.f_int_12) {
+                              if (var25.menuCursorIndex < var25.menuItemCount - 1) {
+                                 var25.menuCursorIndex++;
+                                 if (var25.menuCursorIndex >= var25.f_int_12) {
                                     var25.f_int_12++;
                                     var25.f_int_11++;
                                  }
                               } else {
-                                 var25.f_int_10 = 0;
+                                 var25.menuCursorIndex = 0;
                                  var25.f_int_11 = 0;
-                                 var25.f_int_12 = var25.f_int_07;
-                                 if (var25.f_int_07 > var25.f_int_13) {
+                                 var25.f_int_12 = var25.menuItemCount;
+                                 if (var25.menuItemCount > var25.f_int_13) {
                                     var25.f_int_12 = var25.f_int_13;
                                  }
                               }
                               break label534;
                            case -1:
-                              if (var25.f_int_10 > 0) {
-                                 var25.f_int_10--;
-                                 if (var25.f_int_10 < var25.f_int_11) {
+                              if (var25.menuCursorIndex > 0) {
+                                 var25.menuCursorIndex--;
+                                 if (var25.menuCursorIndex < var25.f_int_11) {
                                     var25.f_int_11--;
                                     var25.f_int_12--;
                                  }
                               } else {
-                                 var25.f_int_10 = var25.f_int_07 - 1;
-                                 var25.f_int_12 = var25.f_int_07;
+                                 var25.menuCursorIndex = var25.menuItemCount - 1;
+                                 var25.f_int_12 = var25.menuItemCount;
                                  var25.f_int_11 = var25.f_int_12 - var25.f_int_13;
                                  if (var25.f_int_11 < 0) {
                                     var25.f_int_11 = 0;
@@ -4005,7 +4014,7 @@ public final class a extends Canvas implements Runnable {
                                           var20.m_017(var20.overlayText, 129, (var20.f_int_34 << 1) + 12);
                                           var20.f_int_33 = var20.m_021(var20.f_int_33);
                                        } else {
-                                          if ((var20.f_int_03 & 1) == 0) {
+                                          if ((var20.frameCounter & 1) == 0) {
                                              break label519;
                                           }
 
@@ -4111,8 +4120,8 @@ public final class a extends Canvas implements Runnable {
                         break;
                      case 14:
                         var15.m_014();
-                        if ((var15.f_int_03 & 3) == 0) {
-                           var15.m_129(var15.randomBelow(240), 320 - var15.f_int_16 - var15.randomBelow(150), 2, -1);
+                        if ((var15.frameCounter & 3) == 0) {
+                           var15.spawnParticle(var15.randomBelow(240), 320 - var15.f_int_16 - var15.randomBelow(150), 2, -1);
                         }
                         break;
                      case 16:
@@ -4129,16 +4138,16 @@ public final class a extends Canvas implements Runnable {
                               var19.f_bool_arr_05[var7.f_int_82] = !var7.f_bool_arr_05[var7.f_int_82];
                               switch (var7.f_byte_arr_11[var7.f_int_82]) {
                                  case 0:
-                                    var7.f_bool_29 = !var7.f_bool_29;
-                                    if (var7.f_bool_29) {
-                                       var7.f_int_155 = 60;
+                                    var7.soundEnabled = !var7.soundEnabled;
+                                    if (var7.soundEnabled) {
+                                       var7.volumeLevel = 60;
                                        if (!var7.f_bool_28) {
                                           var7.m_139((byte)2, -1);
                                        } else {
                                           var7.m_139((byte)3, -1);
                                        }
                                     } else {
-                                       var7.m_140();
+                                       var7.closeAudioPlayer();
                                     }
 
                                     var7.saveGlobalProgress();
@@ -4178,20 +4187,20 @@ public final class a extends Canvas implements Runnable {
                            case -2:
                            case 54:
                            case 56:
-                              if (var18.f_int_10 < var18.f_int_07 - 1) {
-                                 var18.f_int_10++;
+                              if (var18.menuCursorIndex < var18.menuItemCount - 1) {
+                                 var18.menuCursorIndex++;
                               } else {
-                                 var18.f_int_10 = 0;
+                                 var18.menuCursorIndex = 0;
                               }
                               break label534;
                            case -3:
                            case -1:
                            case 50:
                            case 52:
-                              if (var18.f_int_10 > 0) {
-                                 var18.f_int_10--;
+                              if (var18.menuCursorIndex > 0) {
+                                 var18.menuCursorIndex--;
                               } else {
-                                 var18.f_int_10 = var18.f_int_07 - 1;
+                                 var18.menuCursorIndex = var18.menuItemCount - 1;
                               }
                               break label534;
                         }
@@ -4205,15 +4214,15 @@ public final class a extends Canvas implements Runnable {
                         a var6 = var15;
                         switch (var15.keyValue) {
                            case -7:
-                              var6.f_bool_29 = false;
-                              var6.f_int_155 = 0;
+                              var6.soundEnabled = false;
+                              var6.volumeLevel = 0;
                               var6.gameMode = 1;
                               var6.m_000();
                               break label534;
                            case -6:
-                              var6.f_bool_29 = true;
-                              if (var6.f_int_155 == 0) {
-                                 var6.f_int_155 = 60;
+                              var6.soundEnabled = true;
+                              if (var6.volumeLevel == 0) {
+                                 var6.volumeLevel = 60;
                               }
 
                               var6.gameMode = 1;
@@ -4222,8 +4231,8 @@ public final class a extends Canvas implements Runnable {
                               break label534;
                         }
                      case 22:
-                        if (++var15.f_int_156 <= 70) {
-                           var15.m_143(1, var15.f_int_156);
+                        if (++var15.bootPhaseCounter <= 70) {
+                           var15.runLogoAnimation(1, var15.bootPhaseCounter);
                         } else {
                            var15.f_bool_00 = false;
                            CMidlet.m_000();
@@ -4289,8 +4298,8 @@ public final class a extends Canvas implements Runnable {
             return;
          case 3:
             this.f_bool_28 = true;
-            this.f_byte_13 = 1;
-            this.f_byte_14 = 3;
+            this.softkeyLeftKind = 1;
+            this.softkeyRightKind = 3;
             this.f_bool_05 = false;
             this.applyStepCellEffects();
             this.m_139((byte)3, -1);
@@ -4306,13 +4315,13 @@ public final class a extends Canvas implements Runnable {
             this.m_010(4);
             this.m_010(5);
             this.m_010(7);
-            this.f_byte_13 = 1;
-            this.f_byte_14 = 3;
+            this.softkeyLeftKind = 1;
+            this.softkeyRightKind = 3;
             return;
          case 5:
             this.m_091();
-            this.f_byte_13 = 0;
-            this.f_byte_14 = 3;
+            this.softkeyLeftKind = 0;
+            this.softkeyRightKind = 3;
             return;
          case 7:
          case 8:
@@ -4322,8 +4331,8 @@ public final class a extends Canvas implements Runnable {
                this.m_001(6);
             }
 
-            this.f_byte_13 = 1;
-            this.f_byte_14 = 3;
+            this.softkeyLeftKind = 1;
+            this.softkeyRightKind = 3;
             a var8 = this;
             this.loadSlotTable();
             var8.f_int_136 = 208 / (var8.f_int_01 + 4);
@@ -4355,12 +4364,12 @@ public final class a extends Canvas implements Runnable {
             var7.f_int_99 = var7.f_int_100;
             var7.f_int_103 = 42 + 40 * var7.f_int_97;
             var7.f_int_102 = 34 + var7.f_int_01 + 10 + 40 * var7.f_int_100;
-            this.f_byte_13 = 1;
-            this.f_byte_14 = 3;
+            this.softkeyLeftKind = 1;
+            this.softkeyRightKind = 3;
             return;
          case 12:
             this.m_076(0);
-            this.f_byte_14 = 3;
+            this.softkeyRightKind = 3;
             return;
          case 13:
             return;
@@ -4383,8 +4392,8 @@ public final class a extends Canvas implements Runnable {
                (byte)0,
                (byte)0
             );
-            this.f_byte_13 = 0;
-            this.f_byte_14 = 3;
+            this.softkeyLeftKind = 0;
+            this.softkeyRightKind = 3;
             return;
          case 16:
             this.m_001(8);
@@ -4392,8 +4401,8 @@ public final class a extends Canvas implements Runnable {
             this.f_int_83 = 0;
             this.m_072(0);
             this.m_072(1);
-            this.f_byte_13 = 0;
-            this.f_byte_14 = 3;
+            this.softkeyLeftKind = 0;
+            this.softkeyRightKind = 3;
             return;
          case 17:
             this.m_001(8);
@@ -4404,8 +4413,8 @@ public final class a extends Canvas implements Runnable {
                (byte)0,
                (byte)0
             );
-            this.f_byte_13 = 0;
-            this.f_byte_14 = 3;
+            this.softkeyLeftKind = 0;
+            this.softkeyRightKind = 3;
             return;
          case 19:
             this.m_009();
@@ -4454,12 +4463,12 @@ public final class a extends Canvas implements Runnable {
             }
 
             this.m_001(8);
-            this.f_byte_13 = 1;
-            this.f_byte_14 = 2;
-            this.f_bool_29 = false;
+            this.softkeyLeftKind = 1;
+            this.softkeyRightKind = 2;
+            this.soundEnabled = false;
             return;
          case 22:
-            this.m_140();
+            this.closeAudioPlayer();
          case 2:
          case 6:
          case 11:
@@ -4481,7 +4490,7 @@ public final class a extends Canvas implements Runnable {
             this.m_000();
          }
 
-         this.m_140();
+         this.closeAudioPlayer();
          this.f_bool_02 = true;
          this.f_bool_01 = false;
          super.hideNotify();
@@ -4523,7 +4532,7 @@ public final class a extends Canvas implements Runnable {
       }
    }
 
-   private void m_002(Image var1, int var2, int var3, int var4, int var5, int var6, int var7) {
+   private void drawImageClipped(Image var1, int var2, int var3, int var4, int var5, int var6, int var7) {
       this.f_Graphics_00.setClip(var2, var3, var6, var7);
       this.f_Graphics_00.drawImage(var1, var2 - var4, var3 - var5, 0);
       this.f_Graphics_00.setClip(0, 0, 240, 320);
@@ -4535,7 +4544,7 @@ public final class a extends Canvas implements Runnable {
       var1.setClip(0, 0, 240, 320);
    }
 
-   private void m_004(Image var1, int var2, int var3, int var4) {
+   private void drawImageWithNokiaTransform(Image var1, int var2, int var3, int var4) {
       this.f_DirectGraphics_00.drawImage(var1, var2, var3, 0, f_int_arr_01[var4]);
    }
 
@@ -4548,29 +4557,29 @@ public final class a extends Canvas implements Runnable {
          int var10 = var1.getHeight();
          switch (var8) {
             case 1:
-               this.m_004(var1, var2 - (var9 - var4 - var6), var3 - var5, var8);
+               this.drawImageWithNokiaTransform(var1, var2 - (var9 - var4 - var6), var3 - var5, var8);
                break;
             case 2:
-               this.m_004(var1, var2 - var4, var3 - (var10 - var5 - var7), var8);
+               this.drawImageWithNokiaTransform(var1, var2 - var4, var3 - (var10 - var5 - var7), var8);
                break;
             case 3:
-               this.m_004(var1, var2 - (var9 - var4 - var6), var3 - (var10 - var5 - var7), var8);
+               this.drawImageWithNokiaTransform(var1, var2 - (var9 - var4 - var6), var3 - (var10 - var5 - var7), var8);
                break;
             case 4:
                this.f_Graphics_00.setClip(var2, var3, var7, var6);
-               this.m_004(var1, var2 - var5, var3 - var4, var8);
+               this.drawImageWithNokiaTransform(var1, var2 - var5, var3 - var4, var8);
                break;
             case 5:
                this.f_Graphics_00.setClip(var2, var3, var7, var6);
-               this.m_004(var1, var2 - (var10 - var5 - var7), var3 - var4, var8);
+               this.drawImageWithNokiaTransform(var1, var2 - (var10 - var5 - var7), var3 - var4, var8);
                break;
             case 6:
                this.f_Graphics_00.setClip(var2, var3, var7, var6);
-               this.m_004(var1, var2 - var5, var3 - (var9 - var4 - var6), var8);
+               this.drawImageWithNokiaTransform(var1, var2 - var5, var3 - (var9 - var4 - var6), var8);
                break;
             case 7:
                this.f_Graphics_00.setClip(var2, var3, var7, var6);
-               this.m_004(var1, var2 - (var10 - var5 - var7), var3 - (var9 - var4 - var6), var8);
+               this.drawImageWithNokiaTransform(var1, var2 - (var10 - var5 - var7), var3 - (var9 - var4 - var6), var8);
          }
       }
 
@@ -4660,25 +4669,25 @@ public final class a extends Canvas implements Runnable {
       this.f_int_14 = this.f_int_15 * this.f_int_13;
       this.f_int_08 = this.f_int_00 << 1;
       this.f_int_09 = 0;
-      this.f_int_07 = 0;
-      if (this.f_byte_arr_00 == null) {
-         this.f_byte_arr_00 = new byte[16];
+      this.menuItemCount = 0;
+      if (this.menuItemKinds == null) {
+         this.menuItemKinds = new byte[16];
       }
 
       this.f_int_11 = 0;
    }
 
    private void m_010(int var1) {
-      if (this.f_int_07 < 16) {
+      if (this.menuItemCount < 16) {
          int var2 = this.f_Font_00.stringWidth(this.f_String_arr_02[var1]) + 60;
-         this.f_byte_arr_00[this.f_int_07] = (byte)var1;
+         this.menuItemKinds[this.menuItemCount] = (byte)var1;
          if (var2 > this.f_int_08) {
             this.f_int_08 = var2;
          }
 
-         this.f_int_07++;
-         if (this.f_int_07 <= this.f_int_13) {
-            this.f_int_12 = this.f_int_07;
+         this.menuItemCount++;
+         if (this.menuItemCount <= this.f_int_13) {
+            this.f_int_12 = this.menuItemCount;
          }
 
          this.f_int_09 = this.f_int_09 + this.f_int_15;
@@ -4703,7 +4712,7 @@ public final class a extends Canvas implements Runnable {
    }
 
    private void m_012() {
-      switch (this.f_byte_arr_00[this.f_int_10]) {
+      switch (this.menuItemKinds[this.menuCursorIndex]) {
          case 0:
             return;
          case 1:
@@ -4740,7 +4749,7 @@ public final class a extends Canvas implements Runnable {
 
             this.gameMode = 1;
             this.m_000();
-            this.f_int_10 = 0;
+            this.menuCursorIndex = 0;
             return;
          case 9:
             return;
@@ -5075,12 +5084,12 @@ public final class a extends Canvas implements Runnable {
          if (var6) {
             this.f_Graphics_00.setColor(-1);
             if (this.f_int_26 > 0) {
-               int var18 = var3 - 8 + (this.f_int_03 & 1);
+               int var18 = var3 - 8 + (this.frameCounter & 1);
                this.f_Graphics_00.fillTriangle(var8, var18, var8 - 7, var18 + 7, var8 + 7, var18 + 7);
             }
 
             if (this.f_int_27 < this.f_int_28) {
-               int var19 = var3 + this.f_int_31 + 3 - (this.f_int_03 & 1);
+               int var19 = var3 + this.f_int_31 + 3 - (this.frameCounter & 1);
                this.f_Graphics_00.fillTriangle(var8, var19, var8 - 6, var19 - 6, var8 + 6, var19 - 6);
             }
          }
@@ -5189,7 +5198,7 @@ public final class a extends Canvas implements Runnable {
       int var3 = 0;
       if (!this.f_bool_06) {
          var1 = (this.f_int_58 - 41 >> 1) - this.f_int_56;
-         var2 = (this.f_int_59 >> 1) - this.f_int_57 + this.f_int_46;
+         var2 = (this.f_int_59 >> 1) - this.f_int_57 + this.animBobOffset;
       } else {
          var1 = this.playerPixelX;
          var2 = this.playerPixelY;
@@ -5820,7 +5829,7 @@ public final class a extends Canvas implements Runnable {
       int var4 = var2 + this.playerPixelY;
       int var5 = 0;
       if (this.f_bool_07) {
-         var4 -= this.f_int_46;
+         var4 -= this.animBobOffset;
       }
 
       this.f_Graphics_00.drawImage(this.f_Image_arr2_00[5][0], var3 + 8, var4 + 22, 0);
@@ -5830,21 +5839,21 @@ public final class a extends Canvas implements Runnable {
                var5 = 4;
 
                while (--var5 >= 0) {
-                  this.m_002(
+                  this.drawImageClipped(
                      this.f_Image_02, var1 + this.f_int_arr_04[var5] - 4, var2 + this.f_int_arr_05[var5] - 14, this.f_int_arr_03[this.f_int_38] * 41, 0, 41, 46
                   );
                }
             }
 
-            this.m_002(this.f_Image_arr2_00[3][0], var3 - 3, var4 - 18, this.f_int_arr_03[this.f_int_38] * 41, 0, 41, 46);
+            this.drawImageClipped(this.f_Image_arr2_00[3][0], var3 - 3, var4 - 18, this.f_int_arr_03[this.f_int_38] * 41, 0, 41, 46);
             break;
          case 1:
-            this.m_002(this.f_Image_arr2_00[3][0], var3 - 8, var4 - 14, this.f_int_arr_03[this.f_int_38] * 41, 46, 41, 46);
+            this.drawImageClipped(this.f_Image_arr2_00[3][0], var3 - 8, var4 - 14, this.f_int_arr_03[this.f_int_38] * 41, 46, 41, 46);
             if (this.walkPhase == 2) {
                var5 = 4;
 
                while (--var5 >= 0) {
-                  this.m_002(
+                  this.drawImageClipped(
                      this.f_Image_02,
                      var1 + this.f_int_arr_04[var5] - 8,
                      var2 + this.f_int_arr_05[var5] - 14,
@@ -5861,7 +5870,7 @@ public final class a extends Canvas implements Runnable {
                var5 = 4;
 
                while (--var5 >= 0) {
-                  this.m_002(
+                  this.drawImageClipped(
                      this.f_Image_02,
                      var1 + this.f_int_arr_04[var5] - 6,
                      var2 + this.f_int_arr_05[var5] - 14,
@@ -5873,7 +5882,7 @@ public final class a extends Canvas implements Runnable {
                }
             }
 
-            this.m_002(this.f_Image_arr2_00[3][0], var3 - 8, var4 - 16, this.f_int_arr_03[this.f_int_38] * 41, 92, 41, 46);
+            this.drawImageClipped(this.f_Image_arr2_00[3][0], var3 - 8, var4 - 16, this.f_int_arr_03[this.f_int_38] * 41, 92, 41, 46);
             break;
          case 3:
             if (this.walkPhase == 2) {
@@ -5900,19 +5909,19 @@ public final class a extends Canvas implements Runnable {
             switch (this.walkPathBuffer[var5]) {
                case 0:
                   var4 += 32;
-                  this.m_002(this.f_Image_arr2_00[8][22], var3 + 5, var4 + 5 + this.f_int_46, 21, 0, 21, 22);
+                  this.drawImageClipped(this.f_Image_arr2_00[8][22], var3 + 5, var4 + 5 + this.animBobOffset, 21, 0, 21, 22);
                   break;
                case 1:
                   var4 -= 32;
-                  this.m_002(this.f_Image_arr2_00[8][22], var3 + 5, var4 + 5 + this.f_int_46, 0, 0, 21, 22);
+                  this.drawImageClipped(this.f_Image_arr2_00[8][22], var3 + 5, var4 + 5 + this.animBobOffset, 0, 0, 21, 22);
                   break;
                case 2:
                   var3 += 32;
-                  this.m_005(this.f_Image_arr2_00[8][22], var3 + 5 + this.f_int_46, var4 + 5, 42, 0, 21, 22, 1);
+                  this.m_005(this.f_Image_arr2_00[8][22], var3 + 5 + this.animBobOffset, var4 + 5, 42, 0, 21, 22, 1);
                   break;
                case 3:
                   var3 -= 32;
-                  this.m_002(this.f_Image_arr2_00[8][22], var3 + 5 + this.f_int_46, var4 + 5, 42, 0, 21, 22);
+                  this.drawImageClipped(this.f_Image_arr2_00[8][22], var3 + 5 + this.animBobOffset, var4 + 5, 42, 0, 21, 22);
             }
          }
       }
@@ -5921,10 +5930,10 @@ public final class a extends Canvas implements Runnable {
       var4 = var2 + this.playerPixelY;
       switch (this.walkPhase) {
          case 2:
-            var5 = this.f_int_46;
-            this.m_002(this.f_Image_arr2_00[8][23], 5 - var5, 148, 44, 0, 22, 24);
-            this.m_002(this.f_Image_arr2_00[8][23], 109, 25 - var5, 0, 0, 22, 24);
-            this.m_002(this.f_Image_arr2_00[8][23], 109, this.f_int_48 - 29 + var5, 22, 0, 22, 24);
+            var5 = this.animBobOffset;
+            this.drawImageClipped(this.f_Image_arr2_00[8][23], 5 - var5, 148, 44, 0, 22, 24);
+            this.drawImageClipped(this.f_Image_arr2_00[8][23], 109, 25 - var5, 0, 0, 22, 24);
+            this.drawImageClipped(this.f_Image_arr2_00[8][23], 109, this.f_int_48 - 29 + var5, 22, 0, 22, 24);
             this.m_005(this.f_Image_arr2_00[8][23], 215 + var5, 148, 44, 0, 22, 24, 1);
             return;
          case 3:
@@ -5938,12 +5947,12 @@ public final class a extends Canvas implements Runnable {
                this.f_Graphics_00.drawImage(this.f_Image_arr_00[var15], var1 - 16, var2 + 4, 0);
                if (this.f_int_96 > 0) {
                   this.f_Graphics_00.setColor(-1);
-                  this.m_093(var1 - 18 - (this.f_int_03 & 1), var2 + 16, (byte)3);
+                  this.m_093(var1 - 18 - (this.frameCounter & 1), var2 + 16, (byte)3);
                }
 
                if (this.f_int_96 < this.itemStackSize - 1) {
                   this.f_Graphics_00.setColor(-1);
-                  this.m_093(var1 + 18 + (this.f_int_03 & 1), var2 + 16, (byte)3);
+                  this.m_093(var1 + 18 + (this.frameCounter & 1), var2 + 16, (byte)3);
                }
 
                this.f_Graphics_00.setColor(-1);
@@ -5967,15 +5976,15 @@ public final class a extends Canvas implements Runnable {
       }
    }
 
-   private void m_034() {
-      if (this.f_byte_13 != 0) {
+   private void paintSoftkeyBar() {
+      if (this.softkeyLeftKind != 0) {
          this.f_Graphics_00.drawImage(this.f_Image_arr2_00[8][10], 0, 302, 0);
-         this.m_002(this.f_Image_arr2_00[8][11], 2, 307, (this.f_byte_13 - 1) * 12, 0, 12, 10);
+         this.drawImageClipped(this.f_Image_arr2_00[8][11], 2, 307, (this.softkeyLeftKind - 1) * 12, 0, 12, 10);
       }
 
-      if (this.f_byte_14 != 0) {
-         this.m_004(this.f_Image_arr2_00[8][10], 222, 302, 1);
-         this.m_002(this.f_Image_arr2_00[8][11], 226, 307, (this.f_byte_14 - 1) * 12, 0, 12, 10);
+      if (this.softkeyRightKind != 0) {
+         this.drawImageWithNokiaTransform(this.f_Image_arr2_00[8][10], 222, 302, 1);
+         this.drawImageClipped(this.f_Image_arr2_00[8][11], 226, 307, (this.softkeyRightKind - 1) * 12, 0, 12, 10);
       }
    }
 
@@ -6029,14 +6038,14 @@ public final class a extends Canvas implements Runnable {
       this.m_042(this.f_Image_arr2_00[8][2], this.playerHp, var3 + 52, var4 + 2);
       int var9 = var6;
       var4 += 12;
-      this.m_002(this.f_Image_arr2_00[8][7], var9, var4, 10, 0, 10, 13);
+      this.drawImageClipped(this.f_Image_arr2_00[8][7], var9, var4, 10, 0, 10, 13);
       var9 += 16;
       this.f_Graphics_00.setColor(512);
       this.m_041(var9, var4 + 1, 58, 11);
       this.m_042(this.f_Image_arr2_00[8][2], this.playerAtk, var9 + 52, var4 + 2);
       var4 += 12;
       int var11 = var6;
-      this.m_002(this.f_Image_arr2_00[8][7], var11, var4, 20, 0, 10, 13);
+      this.drawImageClipped(this.f_Image_arr2_00[8][7], var11, var4, 20, 0, 10, 13);
       var11 += 16;
       this.f_Graphics_00.setColor(512);
       this.m_041(var11, var4 + 1, 58, 11);
@@ -6440,13 +6449,13 @@ public final class a extends Canvas implements Runnable {
    }
 
    private void m_052() {
-      if (this.f_bool_09) {
-         if (++this.f_int_46 > 1) {
-            this.f_bool_09 = false;
+      if (this.animBobRising) {
+         if (++this.animBobOffset > 1) {
+            this.animBobRising = false;
             return;
          }
-      } else if (--this.f_int_46 < -1) {
-         this.f_bool_09 = true;
+      } else if (--this.animBobOffset < -1) {
+         this.animBobRising = true;
       }
    }
 
@@ -6489,32 +6498,32 @@ public final class a extends Canvas implements Runnable {
                   switch (var12) {
                      case 1:
                         if (var11 == 6) {
-                           var10 += 5 - this.f_int_46;
+                           var10 += 5 - this.animBobOffset;
                         } else if (var11 == 9) {
                            var9 += 32;
                         }
 
                         if (this.f_byte_arr_04[var14] != 1) {
-                           this.m_002(var4, var9 + (32 - var7 >> 1), var10 - (var8 - 32), var5, 0, var7, var8);
+                           this.drawImageClipped(var4, var9 + (32 - var7 >> 1), var10 - (var8 - 32), var5, 0, var7, var8);
                         } else {
-                           this.m_002(this.f_Image_arr2_00[4][12], var9 + (32 - var7 >> 1), var10 - (var8 - 32), var5, 0, var7, var8);
+                           this.drawImageClipped(this.f_Image_arr2_00[4][12], var9 + (32 - var7 >> 1), var10 - (var8 - 32), var5, 0, var7, var8);
                         }
                         break;
                      case 2:
                         if (var13 == 1) {
-                           this.m_002(this.f_Image_arr2_00[4][12], var9 + (32 - var7 >> 1), var10 - (var8 - 32), var5, 0, var7, var8);
+                           this.drawImageClipped(this.f_Image_arr2_00[4][12], var9 + (32 - var7 >> 1), var10 - (var8 - 32), var5, 0, var7, var8);
                         } else if (var13 == 2) {
-                           this.m_002(this.f_Image_arr2_00[2][9], var9 + 2, var10 + 2 - (this.f_int_arr_10[var14] << 3), var5, 0, 27, 29);
+                           this.drawImageClipped(this.f_Image_arr2_00[2][9], var9 + 2, var10 + 2 - (this.f_int_arr_10[var14] << 3), var5, 0, 27, 29);
                         } else if (var11 < 26) {
                            this.f_Graphics_00.drawImage(this.f_Image_arr2_00[5][0], var9 + 8, var10 + 22, 0);
-                           this.f_Graphics_00.drawImage(this.f_Image_arr_00[var11], var9 + (32 - var7 >> 1), var10 - (var8 - 24) + this.f_int_46, 0);
+                           this.f_Graphics_00.drawImage(this.f_Image_arr_00[var11], var9 + (32 - var7 >> 1), var10 - (var8 - 24) + this.animBobOffset, 0);
                         } else {
                            this.f_Graphics_00.drawImage(this.f_Image_arr_00[var11], var9 + (32 - var7 >> 1), var10 - (var8 - 30), 0);
                         }
                         break;
                      case 4:
                         this.f_Graphics_00.drawImage(this.f_Image_arr2_00[5][0], var9 + 8, var10 + 22, 0);
-                        this.m_002(var4, var9 + (32 - var7 >> 1), var10 - (var8 - 24) + this.f_int_46, var5, 0, var7, var8);
+                        this.drawImageClipped(var4, var9 + (32 - var7 >> 1), var10 - (var8 - 24) + this.animBobOffset, var5, 0, var7, var8);
                         break;
                      case 8:
                         if (var13 == 3) {
@@ -6523,11 +6532,11 @@ public final class a extends Canvas implements Runnable {
                         }
 
                         if (var13 == 1 || var13 == 2) {
-                           this.m_002(this.f_Image_arr2_00[2][9], var9 + 2, var10 + 2 - (this.f_int_arr_10[var14] << 3), var5, 0, 27, 29);
+                           this.drawImageClipped(this.f_Image_arr2_00[2][9], var9 + 2, var10 + 2 - (this.f_int_arr_10[var14] << 3), var5, 0, 27, 29);
                         } else if (var11 != 67 && var11 != 69) {
                            this.f_Graphics_00.drawImage(this.f_Image_arr2_00[5][0], var9 + 8, var10 + 22, 0);
                            var10 -= 4;
-                           this.m_002(var4, var9 + (32 - var7 >> 1), var10 - (var8 - 32), var5, 0, var7, var8);
+                           this.drawImageClipped(var4, var9 + (32 - var7 >> 1), var10 - (var8 - 32), var5, 0, var7, var8);
                         } else {
                            var7 = var10;
                            var31 = var9;
@@ -6549,7 +6558,7 @@ public final class a extends Canvas implements Runnable {
 
                                  for (byte var59 = 0; var59 < var42.length; var59 += 4) {
                                     var12 = (byte)((Object[])(var45 = var23.f_byte_arr2_00[var42[var59]]))[0];
-                                    var23.m_002(
+                                    var23.drawImageClipped(
                                        var23.f_Image_arr2_00[9][var12],
                                        var5 + var42[var59 + 1],
                                        var31 + var42[var59 + 2],
@@ -6564,10 +6573,10 @@ public final class a extends Canvas implements Runnable {
                                  var22.f_Graphics_00.drawImage(var22.f_Image_arr2_00[5][0], var31 + 40, var7 + 22, 0);
                                  var31 += 3;
                                  var7 -= 49;
-                                 var7 += var22.f_int_46;
+                                 var7 += var22.animBobOffset;
                                  var22.f_Graphics_00.drawImage(var22.f_Image_arr_00[var8], var31, var7, 0);
                                  if (var5 > 0) {
-                                    var22.m_002(var22.f_Image_arr2_00[9][5], var31 + 32, var7 + 27, 26 * (var5 - 1), 0, 26, 13);
+                                    var22.drawImageClipped(var22.f_Image_arr2_00[9][5], var31 + 32, var7 + 27, 26 * (var5 - 1), 0, 26, 13);
                                  }
                            }
                         }
@@ -6577,22 +6586,22 @@ public final class a extends Canvas implements Runnable {
                            this.f_Graphics_00
                               .drawImage(
                                  this.f_Image_arr2_00[2][8],
-                                 var9 - 3 + this.f_byte_arr_01[this.f_int_03 & 7],
-                                 var10 - 24 + this.f_byte_arr_02[this.f_int_03 & 7],
+                                 var9 - 3 + this.f_byte_arr_01[this.frameCounter & 7],
+                                 var10 - 24 + this.f_byte_arr_02[this.frameCounter & 7],
                                  0
                               );
                            if (var24 >= 0) {
                               this.drawDigitStrip(
                                  this.f_Image_arr2_00[2][7],
                                  this.f_int_arr_13[var11],
-                                 var9 + 30 + this.f_byte_arr_01[this.f_int_03 & 7],
-                                 var10 - 17 + this.f_byte_arr_02[this.f_int_03 & 7]
+                                 var9 + 30 + this.f_byte_arr_01[this.frameCounter & 7],
+                                 var10 - 17 + this.f_byte_arr_02[this.frameCounter & 7]
                               );
                            } else {
-                              this.m_002(
+                              this.drawImageClipped(
                                  this.f_Image_arr2_00[2][7],
-                                 var9 + 14 + this.f_byte_arr_01[this.f_int_03 & 7],
-                                 var10 - 17 + this.f_byte_arr_02[this.f_int_03 & 7],
+                                 var9 + 14 + this.f_byte_arr_01[this.frameCounter & 7],
+                                 var10 - 17 + this.f_byte_arr_02[this.frameCounter & 7],
                                  70,
                                  0,
                                  7,
@@ -6603,28 +6612,28 @@ public final class a extends Canvas implements Runnable {
                         break;
                      case 16:
                         if (var13 != 1 && var13 != 2) {
-                           this.f_Graphics_00.drawImage(this.f_Image_arr_00[15], var9 + 1, var10 + 8 + this.f_int_46, 0);
-                           this.m_002(var4, var9 + (32 - var7 >> 1), var10 - (var8 - 24) + this.f_int_46, var5, 0, var7, var8);
+                           this.f_Graphics_00.drawImage(this.f_Image_arr_00[15], var9 + 1, var10 + 8 + this.animBobOffset, 0);
+                           this.drawImageClipped(var4, var9 + (32 - var7 >> 1), var10 - (var8 - 24) + this.animBobOffset, var5, 0, var7, var8);
                            break;
                         }
 
-                        this.m_002(this.f_Image_arr2_00[2][9], var9 + 2, var10 + 2 - (this.f_int_arr_10[var14] << 3), var5, 0, 27, 29);
+                        this.drawImageClipped(this.f_Image_arr2_00[2][9], var9 + 2, var10 + 2 - (this.f_int_arr_10[var14] << 3), var5, 0, 27, 29);
                         break;
                      case 32:
                         this.f_Graphics_00.drawImage(this.f_Image_arr2_00[5][0], var9 + 8, var10 + 22, 0);
                         if (var13 == 1 || var13 == 2) {
-                           this.m_002(this.f_Image_arr2_00[2][9], var9 + 2, var10 + 2 - (this.f_int_arr_10[var14] << 3), var5, 0, 27, 29);
+                           this.drawImageClipped(this.f_Image_arr2_00[2][9], var9 + 2, var10 + 2 - (this.f_int_arr_10[var14] << 3), var5, 0, 27, 29);
                         } else if (var11 != 72) {
-                           this.m_002(var4, var9 + (32 - var7 >> 1), var10 - (var8 - 16) + this.f_int_46, var5, 0, var7, var8);
+                           this.drawImageClipped(var4, var9 + (32 - var7 >> 1), var10 - (var8 - 16) + this.animBobOffset, var5, 0, var7, var8);
                         } else if (var14 != this.f_int_127) {
-                           this.m_002(var4, var9 + (32 - var7 >> 1), var10 - (var8 - 32), var5, 0, var7, var8);
+                           this.drawImageClipped(var4, var9 + (32 - var7 >> 1), var10 - (var8 - 32), var5, 0, var7, var8);
                         } else {
                            var31 = var8 * this.f_byte_19;
                            if (this.f_byte_19 == 3) {
                               var31 -= var8;
                               this.m_005(var4, var9 + (32 - var7 >> 1), var10 - (var8 - 32), var5, var31, var7, var8, 1);
                            } else {
-                              this.m_002(var4, var9 + (32 - var7 >> 1), var10 - (var8 - 32), var5, var31, var7, var8);
+                              this.drawImageClipped(var4, var9 + (32 - var7 >> 1), var10 - (var8 - 32), var5, var31, var7, var8);
                            }
                         }
                   }
@@ -6658,7 +6667,7 @@ public final class a extends Canvas implements Runnable {
             int var47;
             if ((var47 = var25.f_byte_arr_44[var43]) > 0) {
                var47 = var47 - 1 << 2;
-               var25.m_002(
+               var25.drawImageClipped(
                   var25.f_Image_arr2_00[3][2],
                   var30 - (var25.f_byte_arr_43[var47 + 2] >> 1),
                   var37 - (var25.f_byte_arr_43[var47 + 3] >> 1),
@@ -6675,7 +6684,7 @@ public final class a extends Canvas implements Runnable {
          int var50 = var1 + this.f_int_70;
          int var53 = var2 + this.f_int_72;
          if (var50 >= -32 && var50 <= this.f_int_58 && var53 >= -12 && var53 <= 20 + this.f_int_59) {
-            this.f_Graphics_00.drawImage(this.f_Image_arr2_00[2][1], var50 + 5, var53 - 30 + this.f_int_46, 0);
+            this.f_Graphics_00.drawImage(this.f_Image_arr2_00[2][1], var50 + 5, var53 - 30 + this.animBobOffset, 0);
          }
       }
 
@@ -6683,7 +6692,7 @@ public final class a extends Canvas implements Runnable {
          int var51 = var1 + this.f_int_71;
          int var54 = var2 + this.f_int_73;
          if (var51 >= -32 && var51 <= this.f_int_58 && var54 >= -12 && var54 <= 20 + this.f_int_59) {
-            this.f_Graphics_00.drawImage(this.f_Image_arr2_00[2][2], var51, var54 - 30 + this.f_int_46, 0);
+            this.f_Graphics_00.drawImage(this.f_Image_arr2_00[2][2], var51, var54 - 30 + this.animBobOffset, 0);
          }
       }
    }
@@ -6783,7 +6792,7 @@ public final class a extends Canvas implements Runnable {
 
    private void m_055() {
       int var1 = 0;
-      if (this.entityCount > 0 && (this.f_int_03 & 1) != 0) {
+      if (this.entityCount > 0 && (this.frameCounter & 1) != 0) {
          int var2 = this.entityCount;
 
          while (--var2 >= 0) {
@@ -6826,7 +6835,7 @@ public final class a extends Canvas implements Runnable {
       for (int var6 = this.backdropScroll; var6 < 240; var4 = false) {
          for (int var5 = var3; var5 > -320; var5 -= 320) {
             if (var4) {
-               this.m_004(this.f_Image_arr2_00[1][0], var6, var5, 2);
+               this.drawImageWithNokiaTransform(this.f_Image_arr2_00[1][0], var6, var5, 2);
             } else {
                this.f_Graphics_00.drawImage(this.f_Image_arr2_00[1][0], var6, var5, 0);
             }
@@ -7240,7 +7249,7 @@ public final class a extends Canvas implements Runnable {
 
       switch (var1) {
          case 0:
-            this.f_bool_arr_05[this.f_int_83 - 1] = this.f_bool_29;
+            this.f_bool_arr_05[this.f_int_83 - 1] = this.soundEnabled;
       }
    }
 
@@ -9026,7 +9035,7 @@ public final class a extends Canvas implements Runnable {
             this.f_Graphics_00.setColor(3156024);
             this.f_Graphics_00.fillRect(120 - (this.f_int_135 >> 1), var3, this.f_int_135, this.f_int_01 + 4);
             this.f_Graphics_00.drawImage(this.f_Image_arr2_00[8][14], 120 - (this.f_int_135 >> 1) + 10, var3 + (this.f_int_01 - 8 >> 1), 0);
-            this.m_004(this.f_Image_arr2_00[8][14], 120 + (this.f_int_135 >> 1) - 30, var3 + (this.f_int_01 - 8 >> 1), 1);
+            this.drawImageWithNokiaTransform(this.f_Image_arr2_00[8][14], 120 + (this.f_int_135 >> 1) - 30, var3 + (this.f_int_01 - 8 >> 1), 1);
             this.f_Graphics_00.setColor(16377897);
          }
 
@@ -9041,11 +9050,11 @@ public final class a extends Canvas implements Runnable {
 
       var2 = 120 + ((this.f_int_135 >> 1) - 10);
       if (this.f_int_132 > 0) {
-         this.m_002(this.f_Image_arr2_00[8][15], var2, var3 - 20, 0, 0, 7, 9);
+         this.drawImageClipped(this.f_Image_arr2_00[8][15], var2, var3 - 20, 0, 0, 7, 9);
       }
 
       if (this.f_int_133 < 6) {
-         this.m_002(this.f_Image_arr2_00[8][15], var2, var3 - 10, 7, 0, 7, 9);
+         this.drawImageClipped(this.f_Image_arr2_00[8][15], var2, var3 - 10, 7, 0, 7, 9);
       }
 
       var3 += 2;
@@ -9101,18 +9110,18 @@ public final class a extends Canvas implements Runnable {
          this.m_042(this.f_Image_arr2_00[8][2], this.f_int_arr_29[this.f_int_134], var2, var3 + 2);
          var2 -= 64;
          var3 += 16;
-         this.m_002(this.f_Image_arr2_00[8][7], var2, var3, 0, 2, 10, 10);
+         this.drawImageClipped(this.f_Image_arr2_00[8][7], var2, var3, 0, 2, 10, 10);
          var2 += 15;
          this.m_041(var2 - 1, var3, 48, 12);
          this.m_042(this.f_Image_arr2_00[8][2], this.f_int_arr_23[this.f_int_134], var2 + 45, var3 + 2);
          var2 += 47;
-         this.m_002(this.f_Image_arr2_00[8][7], var2, var3, 10, 0, 10, 13);
+         this.drawImageClipped(this.f_Image_arr2_00[8][7], var2, var3, 10, 0, 10, 13);
          var2 += 11;
          this.f_Graphics_00.setColor(512);
          this.m_041(var2, var3, 30, 12);
          this.m_042(this.f_Image_arr2_00[8][2], this.f_int_arr_24[this.f_int_134], var2 + 28, var3 + 2);
          var2 += 32;
-         this.m_002(this.f_Image_arr2_00[8][7], var2, var3, 20, 2, 10, 10);
+         this.drawImageClipped(this.f_Image_arr2_00[8][7], var2, var3, 20, 2, 10, 10);
          var2 += 12;
          this.f_Graphics_00.setColor(512);
          this.m_041(var2, var3, 30, 12);
@@ -9704,7 +9713,7 @@ public final class a extends Canvas implements Runnable {
             switch (var5) {
                case 1:
                   var2 -= this.f_byte_arr_31[var4] << 2;
-                  this.m_002(this.f_Image_arr2_00[2][6], var1, var2, 0, 19 * var6, 37, 19);
+                  this.drawImageClipped(this.f_Image_arr2_00[2][6], var1, var2, 0, 19 * var6, 37, 19);
                   break;
                case 2:
                   var2 -= this.f_byte_arr_31[var4] << 2;
@@ -9768,56 +9777,56 @@ public final class a extends Canvas implements Runnable {
    }
 
    private void m_128() {
-      this.f_short_arr_11 = new short[32];
-      this.f_short_arr_12 = new short[32];
-      this.f_byte_arr_38 = new byte[32];
-      this.f_byte_arr_39 = new byte[32];
-      this.f_byte_arr_40 = new byte[32];
-      this.f_byte_22 = 0;
+      this.particleX = new short[32];
+      this.particleY = new short[32];
+      this.particleVelX = new byte[32];
+      this.particleVelY = new byte[32];
+      this.particleSize = new byte[32];
+      this.particleCursor = 0;
       this.f_int_arr_31 = new int[32];
-      this.f_bool_arr_09 = new boolean[32];
-      this.f_bool_arr_10 = new boolean[32];
+      this.particleActive = new boolean[32];
+      this.particleVelXWaxing = new boolean[32];
    }
 
-   private void m_129(int var1, int var2, int var3, int var4) {
-      this.f_short_arr_11[this.f_byte_22] = (short)var1;
-      this.f_short_arr_12[this.f_byte_22] = (short)var2;
-      this.f_byte_arr_38[this.f_byte_22] = -3;
-      this.f_byte_arr_39[this.f_byte_22] = -4;
-      this.f_byte_arr_40[this.f_byte_22] = 2;
-      this.f_bool_arr_09[this.f_byte_22] = true;
-      this.f_int_arr_31[this.f_byte_22] = -1;
-      this.f_bool_arr_10[this.f_byte_22] = false;
-      if (++this.f_byte_22 > 31) {
-         this.f_byte_22 = 0;
+   private void spawnParticle(int var1, int var2, int var3, int var4) {
+      this.particleX[this.particleCursor] = (short)var1;
+      this.particleY[this.particleCursor] = (short)var2;
+      this.particleVelX[this.particleCursor] = -3;
+      this.particleVelY[this.particleCursor] = -4;
+      this.particleSize[this.particleCursor] = 2;
+      this.particleActive[this.particleCursor] = true;
+      this.f_int_arr_31[this.particleCursor] = -1;
+      this.particleVelXWaxing[this.particleCursor] = false;
+      if (++this.particleCursor > 31) {
+         this.particleCursor = 0;
       }
    }
 
-   private void m_130() {
+   private void updateAndDrawParticles() {
       byte var1 = 0;
       int var2 = 0;
       this.f_Graphics_00.setColor(this.f_int_141);
       int var3 = 32;
 
       while (--var3 >= 0) {
-         if (this.f_bool_arr_09[var3]) {
-            var2 = this.f_byte_arr_40[var3];
-            this.f_Graphics_00.fillRect(this.f_short_arr_11[var3], this.f_short_arr_12[var3], var2, var2);
-            var1 = this.f_byte_arr_38[var3];
-            this.f_short_arr_11[var3] = (short)(this.f_short_arr_11[var3] + var1);
+         if (this.particleActive[var3]) {
+            var2 = this.particleSize[var3];
+            this.f_Graphics_00.fillRect(this.particleX[var3], this.particleY[var3], var2, var2);
+            var1 = this.particleVelX[var3];
+            this.particleX[var3] = (short)(this.particleX[var3] + var1);
             var2 <<= 1;
-            if (!this.f_bool_arr_10[var3]) {
-               if (++this.f_byte_arr_38[var3] == var2) {
-                  this.f_bool_arr_10[var3] = true;
+            if (!this.particleVelXWaxing[var3]) {
+               if (++this.particleVelX[var3] == var2) {
+                  this.particleVelXWaxing[var3] = true;
                }
-            } else if (--this.f_byte_arr_38[var3] == -var2) {
-               this.f_bool_arr_10[var3] = false;
-               if (++this.f_byte_arr_40[var3] > 5) {
-                  this.f_bool_arr_09[var3] = false;
+            } else if (--this.particleVelX[var3] == -var2) {
+               this.particleVelXWaxing[var3] = false;
+               if (++this.particleSize[var3] > 5) {
+                  this.particleActive[var3] = false;
                }
             }
 
-            this.f_short_arr_12[var3] = (short)(this.f_short_arr_12[var3] + this.f_byte_arr_39[var3]);
+            this.particleY[var3] = (short)(this.particleY[var3] + this.particleVelY[var3]);
          }
       }
    }
@@ -10106,7 +10115,7 @@ public final class a extends Canvas implements Runnable {
    }
 
    private void m_139(byte var1, int var2) {
-      if (this.f_bool_29) {
+      if (this.soundEnabled) {
          this.f_InputStream_00 = null;
 
          try {
@@ -10125,7 +10134,7 @@ public final class a extends Canvas implements Runnable {
                }
             }
 
-            this.m_140();
+            this.closeAudioPlayer();
             this.f_InputStream_00 = this.getClass().getResourceAsStream(this.f_String_arr_15[var1]);
             (f_Player_00 = Manager.createPlayer(this.f_InputStream_00, this.f_String_arr_15[var1].endsWith("wav") ? "audio/x-wav" : "audio/midi")).realize();
             f_Player_00.prefetch();
@@ -10136,7 +10145,7 @@ public final class a extends Canvas implements Runnable {
                var11.printStackTrace();
             }
 
-            int var3 = this.f_int_155;
+            int var3 = this.volumeLevel;
             Player var14 = f_Player_00;
             if (f_Player_00 != null && ((var14.getState() & 300) == 300 || (var14.getState() & 400) == 400)) {
                try {
@@ -10155,7 +10164,7 @@ public final class a extends Canvas implements Runnable {
       }
    }
 
-   private void m_140() {
+   private void closeAudioPlayer() {
       if (f_Player_00 != null) {
          f_Player_00.close();
       }
@@ -10184,25 +10193,25 @@ public final class a extends Canvas implements Runnable {
       this.f_Graphics_00.drawString(var1, var2, var3, 17);
    }
 
-   private void m_143(int var1, int var2) {
-      if (!this.f_bool_30) {
+   private void runLogoAnimation(int var1, int var2) {
+      if (!this.logoLayoutDone) {
          a var3 = this;
          this.m_001(0);
-         int var4 = var3.f_byte_arr_45[0] + var3.f_byte_arr_45[1] + var3.f_byte_arr_45[2];
-         var3.f_int_157 = Math.min(15, Math.abs(320 - var4 >> 2));
-         var4 = 320 - var4 - (var3.f_int_157 << 1) >> 1;
-         var3.f_int_arr_37[0] = var4 + (var3.f_byte_arr_45[0] >> 1);
-         var3.f_int_arr_37[1] = var4 + var3.f_byte_arr_45[0] + var3.f_int_157;
-         var3.f_int_arr_37[2] = var3.f_int_arr_37[1] + var3.f_byte_arr_45[1] + var3.f_int_157;
-         var3.f_int_158 = 240 - var3.f_Image_arr2_00[0][7].getWidth() >> 1;
-         this.f_bool_30 = true;
+         int var4 = var3.logoSegmentHeights[0] + var3.logoSegmentHeights[1] + var3.logoSegmentHeights[2];
+         var3.logoGap = Math.min(15, Math.abs(320 - var4 >> 2));
+         var4 = 320 - var4 - (var3.logoGap << 1) >> 1;
+         var3.logoAnchorY[0] = var4 + (var3.logoSegmentHeights[0] >> 1);
+         var3.logoAnchorY[1] = var4 + var3.logoSegmentHeights[0] + var3.logoGap;
+         var3.logoAnchorY[2] = var3.logoAnchorY[1] + var3.logoSegmentHeights[1] + var3.logoGap;
+         var3.logoBarX = 240 - var3.f_Image_arr2_00[0][7].getWidth() >> 1;
+         this.logoLayoutDone = true;
       }
 
       a var11 = this;
 
-      for (int var13 = this.f_byte_29 - 1; var13 >= 0; var13--) {
+      for (int var13 = this.logoItemCount - 1; var13 >= 0; var13--) {
          int[] var5;
-         switch ((var5 = var11.f_int_arr2_03[var13])[2]) {
+         switch ((var5 = var11.logoItemMeta[var13])[2]) {
             case 1:
                if (var5[3] > 0) {
                   var5[0] += (var5[4] - var5[0]) / var5[3];
@@ -10273,15 +10282,15 @@ public final class a extends Canvas implements Runnable {
 
       if (var1 != 0 && var2 >= 18) {
          if (var2 >= 18 && var2 < 31) {
-            this.m_145(
+            this.registerLogoItem(
                null,
-               this.f_int_158 + this.f_byte_arr_46[var2 - 10 << 1],
+               this.logoBarX + this.logoGlyphMetrics[var2 - 10 << 1],
                320,
                3,
                0,
                4,
-               this.f_int_158 + this.f_byte_arr_46[var2 - 10 << 1],
-               this.f_int_arr_37[2],
+               this.logoBarX + this.logoGlyphMetrics[var2 - 10 << 1],
+               this.logoAnchorY[2],
                var2 - 10,
                -1
             );
@@ -10289,13 +10298,13 @@ public final class a extends Canvas implements Runnable {
 
          switch (var2) {
             case 50:
-               this.m_146(2, 2, 4, 4, 4, 1);
+               this.modifyLogoItem(2, 2, 4, 4, 4, 1);
                break;
             case 51:
-               this.m_146(3, 2, 4, 4, 4, 1);
+               this.modifyLogoItem(3, 2, 4, 4, 4, 1);
                break;
             case 52:
-               this.m_146(4, 2, 4, 4, 4, 1);
+               this.modifyLogoItem(4, 2, 4, 4, 4, 1);
             case 53:
             case 54:
             case 55:
@@ -10308,22 +10317,22 @@ public final class a extends Canvas implements Runnable {
             default:
                break;
             case 58:
-               this.m_146(0, 1, 0, 1, 1000, 1000);
-               this.m_146(1, 2, 4, 4, 4, 1);
+               this.modifyLogoItem(0, 1, 0, 1, 1000, 1000);
+               this.modifyLogoItem(1, 2, 4, 4, 4, 1);
                break;
             case 63:
-               this.m_146(15, 3, 0, 4, -10, this.f_int_arr_37[2]);
+               this.modifyLogoItem(15, 3, 0, 4, -10, this.logoAnchorY[2]);
          }
 
          if (var2 > 52 && var2 < 63) {
             var1 = var2 - 52;
-            this.m_146(var1 + 4, 3, 0, 4, -10, this.f_int_arr_37[2]);
-            this.m_146(26 - var1, 3, 0, 4, 240, this.f_int_arr_37[2]);
+            this.modifyLogoItem(var1 + 4, 3, 0, 4, -10, this.logoAnchorY[2]);
+            this.modifyLogoItem(26 - var1, 3, 0, 4, 240, this.logoAnchorY[2]);
          }
       } else {
          switch (var2) {
             case 1:
-               this.m_145(this.f_Image_arr2_00[0][1], 120, 0, 1, 12, 4, 120, this.f_int_arr_37[0], 0, -1);
+               this.registerLogoItem(this.f_Image_arr2_00[0][1], 120, 0, 1, 12, 4, 120, this.logoAnchorY[0], 0, -1);
             case 2:
             case 3:
             case 4:
@@ -10337,49 +10346,51 @@ public final class a extends Canvas implements Runnable {
             default:
                break;
             case 5:
-               this.m_147(0);
-               this.m_145(this.f_Image_arr2_00[0][0], 120, this.f_int_arr_37[0], 2, 12, 4, 4, 0, 0, -1);
+               this.removeLogoItem(0);
+               this.registerLogoItem(this.f_Image_arr2_00[0][0], 120, this.logoAnchorY[0], 2, 12, 4, 4, 0, 0, -1);
                break;
             case 8:
-               this.m_145(this.f_Image_arr2_00[0][5], 120, this.f_int_arr_37[0] + 2, 0, 12, 0, 0, 0, 0, 0);
-               this.m_145(this.f_Image_arr2_00[0][2], 90, this.f_int_arr_37[1], 2, 4, 4, 4, 0, 0, -1);
-               this.m_145(this.f_Image_arr2_00[0][3], 120, this.f_int_arr_37[1], 2, 4, 4, 4, 0, 0, -1);
-               this.m_145(this.f_Image_arr2_00[0][4], 150, this.f_int_arr_37[1], 2, 4, 4, 4, 0, 0, -1);
-               this.m_145(this.f_Image_arr2_00[0][6], 15, this.f_int_arr_37[1], 1, 12, 3, this.f_int_158, this.f_int_arr_37[2], 0, -1);
+               this.registerLogoItem(this.f_Image_arr2_00[0][5], 120, this.logoAnchorY[0] + 2, 0, 12, 0, 0, 0, 0, 0);
+               this.registerLogoItem(this.f_Image_arr2_00[0][2], 90, this.logoAnchorY[1], 2, 4, 4, 4, 0, 0, -1);
+               this.registerLogoItem(this.f_Image_arr2_00[0][3], 120, this.logoAnchorY[1], 2, 4, 4, 4, 0, 0, -1);
+               this.registerLogoItem(this.f_Image_arr2_00[0][4], 150, this.logoAnchorY[1], 2, 4, 4, 4, 0, 0, -1);
+               this.registerLogoItem(this.f_Image_arr2_00[0][6], 15, this.logoAnchorY[1], 1, 12, 3, this.logoBarX, this.logoAnchorY[2], 0, -1);
                break;
             case 10:
-               this.m_147(5);
-               this.m_145(null, this.f_int_158, this.f_int_arr_37[2], 3, 0, 0, 0, 0, 0, -1);
-               this.m_146(5, 4, 0, 1, 2, 0);
+               this.removeLogoItem(5);
+               this.registerLogoItem(null, this.logoBarX, this.logoAnchorY[2], 3, 0, 0, 0, 0, 0, -1);
+               this.modifyLogoItem(5, 4, 0, 1, 2, 0);
                break;
             case 14:
-               this.m_146(5, 3, 0, 3, this.f_int_158 - 8, this.f_int_arr_37[2]);
-               this.m_146(6, 3, 0, 3, this.f_int_158 + this.f_byte_arr_46[2] - 4, this.f_int_arr_37[2]);
+               this.modifyLogoItem(5, 3, 0, 3, this.logoBarX - 8, this.logoAnchorY[2]);
+               this.modifyLogoItem(6, 3, 0, 3, this.logoBarX + this.logoGlyphMetrics[2] - 4, this.logoAnchorY[2]);
                break;
             case 15:
-               this.m_146(7, 3, 0, 2, this.f_int_158 + this.f_byte_arr_46[4] - 2, this.f_int_arr_37[2]);
+               this.modifyLogoItem(7, 3, 0, 2, this.logoBarX + this.logoGlyphMetrics[4] - 2, this.logoAnchorY[2]);
                break;
             case 17:
-               this.m_146(5, 3, 0, 3, this.f_int_158, this.f_int_arr_37[2]);
-               this.m_146(6, 3, 0, 3, this.f_int_158 + this.f_byte_arr_46[2], this.f_int_arr_37[2]);
-               this.m_146(7, 3, 0, 2, this.f_int_158 + this.f_byte_arr_46[4], this.f_int_arr_37[2]);
+               this.modifyLogoItem(5, 3, 0, 3, this.logoBarX, this.logoAnchorY[2]);
+               this.modifyLogoItem(6, 3, 0, 3, this.logoBarX + this.logoGlyphMetrics[2], this.logoAnchorY[2]);
+               this.modifyLogoItem(7, 3, 0, 2, this.logoBarX + this.logoGlyphMetrics[4], this.logoAnchorY[2]);
          }
 
          if (var2 >= 10 && var2 < 13) {
-            this.m_145(null, 240, this.f_int_arr_37[2], 3, 0, 4, this.f_int_158 + this.f_byte_arr_46[var2 - 9 << 1], this.f_int_arr_37[2], var2 - 9, -1);
+            this.registerLogoItem(
+               null, 240, this.logoAnchorY[2], 3, 0, 4, this.logoBarX + this.logoGlyphMetrics[var2 - 9 << 1], this.logoAnchorY[2], var2 - 9, -1
+            );
             return;
          }
 
          if (var2 >= 14 && var2 <= 17) {
-            this.m_145(
+            this.registerLogoItem(
                null,
-               this.f_int_158 + this.f_byte_arr_46[var2 - 10 << 1],
+               this.logoBarX + this.logoGlyphMetrics[var2 - 10 << 1],
                320,
                3,
                0,
                4,
-               this.f_int_158 + this.f_byte_arr_46[var2 - 10 << 1],
-               this.f_int_arr_37[2],
+               this.logoBarX + this.logoGlyphMetrics[var2 - 10 << 1],
+               this.logoAnchorY[2],
                var2 - 10,
                -1
             );
@@ -10388,28 +10399,28 @@ public final class a extends Canvas implements Runnable {
 
          if (var2 >= 25 && var2 <= 31) {
             var1 = (var2 - 25 << 1) + 8;
-            this.m_145(
+            this.registerLogoItem(
                null,
-               this.f_int_158 + this.f_byte_arr_46[var1 << 1],
-               this.f_int_arr_37[2],
+               this.logoBarX + this.logoGlyphMetrics[var1 << 1],
+               this.logoAnchorY[2],
                3,
                0,
                0,
-               this.f_int_158 + this.f_byte_arr_46[var1 << 1],
-               this.f_int_arr_37[2],
+               this.logoBarX + this.logoGlyphMetrics[var1 << 1],
+               this.logoAnchorY[2],
                var1,
                -1
             );
             if (var2 < 31) {
-               this.m_145(
+               this.registerLogoItem(
                   null,
-                  this.f_int_158 + this.f_byte_arr_46[++var1 << 1],
-                  this.f_int_arr_37[2],
+                  this.logoBarX + this.logoGlyphMetrics[++var1 << 1],
+                  this.logoAnchorY[2],
                   3,
                   0,
                   0,
-                  this.f_int_158 + this.f_byte_arr_46[var1 << 1],
-                  this.f_int_arr_37[2],
+                  this.logoBarX + this.logoGlyphMetrics[var1 << 1],
+                  this.logoAnchorY[2],
                   var1,
                   -1
                );
@@ -10420,17 +10431,17 @@ public final class a extends Canvas implements Runnable {
       }
    }
 
-   private void m_144() {
+   private void paintLogoAnimation() {
       this.f_Graphics_00.setColor(16777215);
       this.f_Graphics_00.fillRect(0, 0, 240, 320);
 
-      for (int var4 = 0; var4 < this.f_byte_29; var4++) {
+      for (int var4 = 0; var4 < this.logoItemCount; var4++) {
          int[] var5;
-         int var1 = (var5 = this.f_int_arr2_03[var4])[0];
+         int var1 = (var5 = this.logoItemMeta[var4])[0];
          int var2 = var5[1];
          if (var5[2] == 3 || var5[2] == 4) {
-            var1 -= this.f_byte_arr_46[var5[6] << 1];
-            this.f_Graphics_00.setClip(var1 + this.f_byte_arr_46[var5[6] << 1], var2, this.f_byte_arr_46[(var5[6] << 1) + 1], 320);
+            var1 -= this.logoGlyphMetrics[var5[6] << 1];
+            this.f_Graphics_00.setClip(var1 + this.logoGlyphMetrics[var5[6] << 1], var2, this.logoGlyphMetrics[(var5[6] << 1) + 1], 320);
             this.f_Graphics_00.drawImage(this.f_Image_arr2_00[0][7], var1, var2, 0);
          } else if (var5[2] == 2) {
             int var3 = var5[3] - var5[4];
@@ -10443,28 +10454,28 @@ public final class a extends Canvas implements Runnable {
          }
 
          if (var5[2] != 3 && var5[2] != 4) {
-            this.f_Graphics_00.drawImage(this.f_Image_arr_01[var4], var1, var2, 0);
+            this.f_Graphics_00.drawImage(this.logoItemImages[var4], var1, var2, 0);
          }
 
          this.f_Graphics_00.setClip(0, 0, 240, 320);
       }
    }
 
-   private void m_145(Image var1, int var2, int var3, int var4, int var5, int var6, int var7, int var8, int var9, int var10) {
-      if (this.f_Image_arr_01 == null) {
-         this.f_Image_arr_01 = new Image[26];
+   private void registerLogoItem(Image var1, int var2, int var3, int var4, int var5, int var6, int var7, int var8, int var9, int var10) {
+      if (this.logoItemImages == null) {
+         this.logoItemImages = new Image[26];
       }
 
-      if (this.f_byte_29 < 26) {
-         int[] var11 = this.f_int_arr2_03[this.f_byte_29];
-         if (var10 >= 0 && var10 < this.f_byte_29) {
-            this.f_int_arr2_03[this.f_byte_29] = this.f_int_arr2_03[var10];
-            this.f_Image_arr_01[this.f_byte_29] = this.f_Image_arr_01[var10];
-            this.f_Image_arr_01[var10] = var1;
-            this.f_int_arr2_03[var10] = var11;
-            var11 = this.f_int_arr2_03[var10];
+      if (this.logoItemCount < 26) {
+         int[] var11 = this.logoItemMeta[this.logoItemCount];
+         if (var10 >= 0 && var10 < this.logoItemCount) {
+            this.logoItemMeta[this.logoItemCount] = this.logoItemMeta[var10];
+            this.logoItemImages[this.logoItemCount] = this.logoItemImages[var10];
+            this.logoItemImages[var10] = var1;
+            this.logoItemMeta[var10] = var11;
+            var11 = this.logoItemMeta[var10];
          } else {
-            this.f_Image_arr_01[this.f_byte_29] = var1;
+            this.logoItemImages[this.logoItemCount] = var1;
          }
 
          if (var4 == 3) {
@@ -10505,16 +10516,16 @@ public final class a extends Canvas implements Runnable {
          var11[3] = var6;
          var11[4] = var7;
          var11[5] = var8;
-         this.f_byte_29++;
+         this.logoItemCount++;
       }
    }
 
-   private void m_146(int var1, int var2, int var3, int var4, int var5, int var6) {
-      if (var1 < this.f_byte_29) {
-         int[] var7 = this.f_int_arr2_03[var1];
+   private void modifyLogoItem(int var1, int var2, int var3, int var4, int var5, int var6) {
+      if (var1 < this.logoItemCount) {
+         int[] var7 = this.logoItemMeta[var1];
          if (var2 == 1) {
-            int var8 = this.f_Image_arr_01[var1].getWidth();
-            int var9 = this.f_Image_arr_01[var1].getHeight();
+            int var8 = this.logoItemImages[var1].getWidth();
+            int var9 = this.logoItemImages[var1].getHeight();
             if ((var3 & 1) != 0) {
                var5 -= var8;
             } else if ((var3 & 4) != 0) {
@@ -10535,20 +10546,20 @@ public final class a extends Canvas implements Runnable {
       }
    }
 
-   private void m_147(int var1) {
+   private void removeLogoItem(int var1) {
       if (var1 >= 0) {
-         if (var1 < this.f_byte_29) {
-            int[] var2 = this.f_int_arr2_03[var1];
-            this.f_int_arr2_03[var1] = this.f_int_arr2_03[--this.f_byte_29];
-            this.f_int_arr2_03[this.f_byte_29] = var2;
-            this.f_Image_arr_01[var1] = null;
-            this.f_Image_arr_01[var1] = this.f_Image_arr_01[this.f_byte_29];
-            this.f_Image_arr_01[this.f_byte_29] = null;
+         if (var1 < this.logoItemCount) {
+            int[] var2 = this.logoItemMeta[var1];
+            this.logoItemMeta[var1] = this.logoItemMeta[--this.logoItemCount];
+            this.logoItemMeta[this.logoItemCount] = var2;
+            this.logoItemImages[var1] = null;
+            this.logoItemImages[var1] = this.logoItemImages[this.logoItemCount];
+            this.logoItemImages[this.logoItemCount] = null;
             return;
          }
       } else {
-         this.f_byte_29 = 0;
-         this.f_Image_arr_01 = null;
+         this.logoItemCount = 0;
+         this.logoItemImages = null;
       }
    }
 

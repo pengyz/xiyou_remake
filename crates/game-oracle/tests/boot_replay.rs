@@ -59,7 +59,7 @@ fn boot_menu_frames_match_tick_by_tick() {
         if machine.finished {
             // gameMode 已切 1（title 菜单未端口）：T70 press(-6) 由 logic#71 消费
             assert_eq!(rec.tick, 71, "模式切换应在 T71（T70 的 -6 延迟一拍消费）");
-            assert_eq!(machine.mode, 1, "-6 ⇒ gameMode=1（a.java:4213-4220）");
+            assert_eq!(machine.mode, 1, "-6 ⇒ gameMode=1（a.java:4222-4229）");
             break;
         }
         let mut screen = ArgbImage::create(240, 320);
@@ -85,7 +85,7 @@ fn boot_menu_frames_match_tick_by_tick() {
 }
 
 /// INPUT 行 → 本 tick 边界投递的按键码（keyPressed；release 只清 keyHeldCode，
-/// 对 keyValue 语义无影响——a.java:4639/4654）。同 tick 多键取首个 press。
+/// 对 keyValue 语义无影响——a.java:4648/4654）。同 tick 多键取首个 press。
 fn input_key(input: &Option<String>) -> i32 {
     let Some(text) = input else { return 0 };
     for ev in text.split(' ') {
