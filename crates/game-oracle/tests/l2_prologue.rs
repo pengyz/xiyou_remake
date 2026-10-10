@@ -88,7 +88,11 @@ fn l2_prologue_cursor_and_text_transitions_match_java() {
         if let Some(inp) = &rec.input {
             if press_key(inp).is_some() {
                 presses += 1;
-                if matches!(eng.state.dialog_phase, 1 | 6) {
+                if matches!(
+                    eng.state.dialog_phase,
+                    game_core::enums::DialogPhase::Typewriter
+                        | game_core::enums::DialogPhase::TypewriterCamera
+                ) {
                     eng.advance_dialog_page(&mut host);
                 }
             }

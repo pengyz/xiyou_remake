@@ -4,6 +4,7 @@
 //! oracle trace 实测（prologue-dialog 场景）。数据来自编译期嵌入的 Java 提取夹具。
 //! 证据索引见 docs/spec/p3-script-interpreter.md §3-4。
 
+use game_core::enums::{DialogPhase, WalkPhase};
 use game_core::script::{DialogueTable, HostCtx, ScriptEngine};
 
 /// 从夹具构建对话表（\x1e 记录分隔，与提取脚本一致）。
@@ -106,7 +107,7 @@ fn tak_opens_page255_cursor0_to_12() {
     eng.step(&mut host);
 
     assert_eq!(eng.state.script_cursor, 12, "trace t578");
-    assert_eq!(eng.state.dialog_phase, 1);
+    assert_eq!(eng.state.dialog_phase, DialogPhase::Typewriter);
     assert_eq!(eng.state.dialog_page, 255);
     assert_eq!(eng.state.tak_page_start, 255);
     assert_eq!(eng.state.tak_page_end, 259);
@@ -133,14 +134,14 @@ fn tak_page_advance_and_exhaust_resumes_script() {
     for page in 256..=259 {
         eng.advance_dialog_page(&mut host);
         assert_eq!(eng.state.dialog_page, page);
-        assert_eq!(eng.state.dialog_phase, 1);
+        assert_eq!(eng.state.dialog_phase, DialogPhase::Typewriter);
     }
     eng.advance_dialog_page(&mut host); // 260 > 259 → 榨干
-    assert_eq!(eng.state.dialog_phase, 0);
+    assert_eq!(eng.state.dialog_phase, DialogPhase::ScriptStep);
     eng.step(&mut host); // 恢复执行：TAK_165_165
     assert_eq!(eng.state.script_cursor, 24, "trace t1002");
     assert_eq!(eng.state.dialog_page, 165);
-    assert_eq!(eng.state.dialog_phase, 1);
+    assert_eq!(eng.state.dialog_phase, DialogPhase::Typewriter);
 }
 
 
@@ -170,7 +171,7 @@ fn see_bug006_replay_cursor_advances_walk_not_armed() {
     assert_eq!(eng.state.script_cursor, 43, "trace t1202");
     assert_eq!(eng.state.script_walk_armed, false);
     // SEE 置 phase=6，随后行尾收尾门（a.java:8551）覆写为 4——BUG-006 冻结态实证
-    assert_eq!(eng.state.dialog_phase, 4);
+    assert_eq!(eng.state.dialog_phase, DialogPhase::AwaitCamera);
     assert_eq!(eng.state.dialog_page, 166);
     assert_eq!(host.find_path_calls, vec![(1, 11, 3, 10)]);
 }
@@ -186,8 +187,8 @@ fn see_path_found_arms_walk() {
     eng.step(&mut host);
     assert_eq!(eng.state.script_cursor, 43);
     assert!(eng.state.walk_request_flag);
-    assert_eq!(eng.state.walk_phase, 0);
-    assert_eq!(eng.state.dialog_phase, 4, "SEE 置 6 后行尾收尾门覆写为 4");
+    assert_eq!(eng.state.walk_phase, WalkPhase::Idle);
+    assert_eq!(eng.state.dialog_phase, DialogPhase::AwaitCamera, "SEE 置 6 后行尾收尾门覆写为 4");
 }
 
 #[test]
@@ -206,7 +207,7 @@ fn gut_flags_and_jumps() {
     assert_eq!(eng.state.current_script_index, 37);
     assert_eq!(eng.state.script_cursor, 0);
     assert_eq!(eng.state.game_mode, 11);
-    assert_eq!(eng.state.dialog_phase, 0);
+    assert_eq!(eng.state.dialog_phase, DialogPhase::ScriptStep);
     assert_eq!(eng.state.overlay_text, None);
 }
 
@@ -264,7 +265,7 @@ fn gin_tail_recurses_into_next_instruction() {
     eng.step(&mut host);
     assert_eq!(host.gold_calls, vec![1000]);
     // 尾递归：TAK 同步执行完毕
-    assert_eq!(eng.state.dialog_phase, 1);
+    assert_eq!(eng.state.dialog_phase, DialogPhase::Typewriter);
     assert_eq!(eng.state.dialog_page, 8);
     assert_eq!(eng.state.script_cursor, 19);
 }
@@ -290,16 +291,16 @@ fn mov_player_path_gates_walk_phase() {
     let mut eng = ScriptEngine::new(&t, 0);
     eng.set_script_line_for_test("MOV_0_5_11 GLV_0 ");
     eng.step(&mut host);
-    assert_eq!(eng.state.dialog_phase, 3);
+    assert_eq!(eng.state.dialog_phase, DialogPhase::Walk);
     assert_eq!(eng.state.script_walk_armed, true, "a.java:8265 三写点（复核 R2）");
-    assert_eq!(eng.state.walk_phase, 0);
+    assert_eq!(eng.state.walk_phase, WalkPhase::Idle);
     assert!(host.camera_snaps > 0);
     assert_eq!(host.find_path_calls, vec![(1, 11, 5, 11)]); // playerCell(1,11)（gameplay-floor1 实测起点）
     host.path_result = false;
     eng.set_script_line_for_test("MOV_0_5_11 GLV_0 ");
     eng.step(&mut host);
     // Java 失败分支无 else：phase 不复位（保持 3）
-    assert_eq!(eng.state.dialog_phase, 3, "失败分支不复位 phase");
+    assert_eq!(eng.state.dialog_phase, DialogPhase::Walk, "失败分支不复位 phase");
 }
 
 #[test]
@@ -324,7 +325,7 @@ fn lay_sets_phase5_and_clears_overlay() {
     eng.step(&mut host);
     assert_eq!(eng.state.layer_byte, 2);
     assert_eq!(eng.state.overlay_text, None);
-    assert_eq!(eng.state.dialog_phase, 5);
+    assert_eq!(eng.state.dialog_phase, DialogPhase::LayCutscene);
     assert!(eng.state.flag_bool_16, "a.java:8317");
     assert_eq!(host.reloaded_floors, vec![eng.state.current_floor]);
 }

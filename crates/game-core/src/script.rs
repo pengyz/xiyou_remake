@@ -19,11 +19,14 @@ pub struct DialogueTable {
 
 /// 脚本层可写字段的状态集（Java god class 中被 executeScriptInstruction /
 /// openDialogPage / loadLevelScript 触碰的字段子集；命名对齐台账）。
+use crate::enums::DialogPhase;
+use crate::enums::WalkPhase;
+
 pub struct ScriptState {
     pub current_script_index: usize,
     pub script_cursor: usize,
     pub script_line_flags: Vec<bool>,
-    pub dialog_phase: i32,
+    pub dialog_phase: DialogPhase,
     pub dialog_page: i32,
     pub dialog_char_pos: i32,
     pub speaker: i32,
@@ -37,7 +40,7 @@ pub struct ScriptState {
     pub game_mode: i32,
     pub script_walk_armed: bool,
     pub walk_request_flag: bool,
-    pub walk_phase: i32,
+    pub walk_phase: WalkPhase,
     pub layer_byte: i32,
     pub difficulty_index: i32,
     pub current_floor: i32,
@@ -72,7 +75,7 @@ impl Default for ScriptState {
             current_script_index: 0,
             script_cursor: 0,
             script_line_flags: Vec::new(),
-            dialog_phase: 0,
+            dialog_phase: DialogPhase::ScriptStep,
             dialog_page: 0,
             dialog_char_pos: 0,
             speaker: 0,
@@ -86,7 +89,7 @@ impl Default for ScriptState {
             game_mode: 0,
             script_walk_armed: false,
             walk_request_flag: false,
-            walk_phase: 0,
+            walk_phase: WalkPhase::Idle,
             layer_byte: 0,
             difficulty_index: 0,
             current_floor: 0,
@@ -191,7 +194,7 @@ impl<'d> ScriptEngine<'d> {
         self.state.current_script_index = idx;
         self.state.dialog_page = 0;
         host.snap_camera_to_player(); // m_104(0)
-        self.state.dialog_phase = 0;
+        self.state.dialog_phase = DialogPhase::ScriptStep;
         self.state.overlay_text = None;
         self.state.script_cursor = 0;
         // Java case 31 特例（地图/实体重排，a.java:8005-8011）：
@@ -233,7 +236,7 @@ impl<'d> ScriptEngine<'d> {
             host.set_typewriter(&composed, 129, self.state.dialog_char_pos);
             self.state.overlay_text = Some(composed);
         } else {
-            self.state.dialog_phase = 0;
+            self.state.dialog_phase = DialogPhase::ScriptStep;
             self.state.dialog_char_pos = 0;
         }
     }
@@ -241,7 +244,7 @@ impl<'d> ScriptEngine<'d> {
     /// 主循环步进：dialogPhase==0 时消费脚本（Java run dialogPhase 0 分支：
     /// f_int_118>0 递减否则 execute，a.java:3991-3999 的镜像）。
     pub fn step(&mut self, host: &mut impl HostCtx) {
-        if self.state.dialog_phase == 0 {
+        if self.state.dialog_phase == DialogPhase::ScriptStep {
             if self.state.scene_delay > 0 {
                 self.state.scene_delay -= 1;
             } else {
@@ -266,7 +269,7 @@ impl<'d> ScriptEngine<'d> {
         let has_opcode = var2 + 3 <= line.len();
         if !has_opcode {
             // 行尾收尾门（a.java:8551-8563）：序章 cursor=43 冻结 phase=4 实证
-            self.state.dialog_phase = 4;
+            self.state.dialog_phase = DialogPhase::AwaitCamera;
             if self.state.current_script_index != 32 {
                 let cur = self.state.current_script_index;
                 self.state.script_line_flags[cur] = true;
@@ -282,7 +285,7 @@ impl<'d> ScriptEngine<'d> {
             let p = self.state.last_delim_pos;
             self.state.tak_page_end = self.parse_script_int(&line, p + 1, ' ');
             self.state.script_cursor = self.state.last_delim_pos + 1;
-            self.state.dialog_phase = 1;
+            self.state.dialog_phase = DialogPhase::Typewriter;
             let page = self.state.tak_page_start;
             self.open_dialog_page(host, page);
         } else if var3 == "MOV" {
@@ -311,7 +314,7 @@ impl<'d> ScriptEngine<'d> {
                     let (px, py) = host.entity_pixel(idx);
                     host.find_path(px >> 5, py >> 5, self.state.camera_anchor_x, self.state.camera_anchor_y);
                     // Java 无条件置 2（a.java:8261，findPath 结果不影响 phase）
-                    self.state.dialog_phase = 2;
+                    self.state.dialog_phase = DialogPhase::Choice;
                 } else {
                     self.execute_script_instruction(host); // Java 尾递归（a.java:8264）
                 }
@@ -323,8 +326,8 @@ impl<'d> ScriptEngine<'d> {
             ) {
                 // a.java:8265-8267：三写点缺一不可（复核 R2）
                 self.state.script_walk_armed = true;
-                self.state.dialog_phase = 3;
-                self.state.walk_phase = 0;
+                self.state.dialog_phase = DialogPhase::Walk;
+                self.state.walk_phase = crate::enums::WalkPhase::Idle;
                 host.snap_camera_to_player(); // m_104(0)
             }
         } else if var3 == "GUT" {
@@ -359,7 +362,7 @@ impl<'d> ScriptEngine<'d> {
                 self.state.script_cursor = self.state.last_delim_pos + 1;
                 self.state.flag_bool_16 = true; // a.java:8317（复核 R7）
                 self.state.overlay_text = None;
-                self.state.dialog_phase = 5;
+                self.state.dialog_phase = DialogPhase::LayCutscene;
             } else if var3 == "ROS" {
                 let sub = self.parse_script_int(&line, var2p4, '_');
                 let p = self.state.last_delim_pos;
@@ -475,9 +478,9 @@ impl<'d> ScriptEngine<'d> {
                     )
                 {
                     self.state.walk_request_flag = true;
-                    self.state.walk_phase = 0;
+                    self.state.walk_phase = crate::enums::WalkPhase::Idle;
                 }
-                self.state.dialog_phase = 6;
+                self.state.dialog_phase = DialogPhase::TypewriterCamera;
                 host.set_camera_anchor_target(
                     self.state.camera_anchor_x,
                     self.state.camera_anchor_y,
@@ -498,7 +501,7 @@ impl<'d> ScriptEngine<'d> {
 
         // 尾部收尾门（a.java:8551-8563）：行被消费完 ⇒ phase=4 + 旗标 + 相机
         if self.state.script_cursor >= line.len() {
-            self.state.dialog_phase = 4;
+            self.state.dialog_phase = DialogPhase::AwaitCamera;
             if self.state.current_script_index != 32 {
                 let cur = self.state.current_script_index;
                 self.state.script_line_flags[cur] = true;
