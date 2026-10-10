@@ -6,6 +6,8 @@ pub mod camera;
 pub mod combat;
 pub mod entity;
 pub mod sprite_spawn;
+pub mod paint;
 pub mod pathfind;
+pub mod render;
 pub mod script;
 pub mod walk;

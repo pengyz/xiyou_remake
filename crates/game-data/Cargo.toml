@@ -10,3 +10,4 @@ publish = false
 [dependencies]
 
 [dev-dependencies]
+game-platform = { path = "../game-platform" }

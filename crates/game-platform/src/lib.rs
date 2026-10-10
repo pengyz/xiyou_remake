@@ -1,6 +1,8 @@
 //! game-platform —— 平台 trait 与确定性类型（AGENTS §2 红线：只放 trait 与类型；
 //! 真实实现（桌面/wasm 时钟、OS 熵源）在 game-desktop/game-wasm，此处仅确定性桩）。
 
+pub mod hash;
+
 /// 游戏时钟（对齐 oracle VTime 语义：虚拟毫秒随 tick 推进）。
 pub trait GameClock {
     fn now_ms(&self) -> u64;

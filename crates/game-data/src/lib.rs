@@ -23,14 +23,17 @@
 //!   路径可用环境变量 `XIYOU_ASSETS_RAW` 配置）。
 
 pub mod error;
+pub mod inflate;
 pub mod maplv;
 pub mod packed_png;
+pub mod png;
 pub mod script;
 pub mod sprite;
 
 pub use error::Error;
 pub use maplv::Maplv;
 pub use packed_png::{image_count, PackedPng, PngImage, RESOURCE_IMAGE_COUNTS, PNG_MAGIC};
+pub use png::{decode as decode_png, DecodedPng, PNG_SIGNATURE};
 pub use script::{is_known_opcode, lex_instr_stream, parse_guts_line, split_instr_token, GutsLine, Instr, OPCODES};
 pub use sprite::{extra_len, SpriteRecord, SpriteTable};
 
