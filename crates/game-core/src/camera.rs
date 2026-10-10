@@ -1,9 +1,9 @@
-//! 相机三件套 —— m_064（设置+夹取）/ m_105（趋近步进）/ m_104 锚点语义。
+//! 相机三件套 —— m_064（设置+夹取）/ m_105（趋近步进）/ lockCameraOn 锚点语义。
 //!
 //! 证据：reference/src/deobf/a.java
 //! - m_064 :7015-7066（钳制：x∈[min,64]；地图窄于屏幕时居中）
 //! - m_105 :8669-8700（每 tick (Δ>>2)+2 趋近 target，越界钳制）
-//! - m_104 头部（:8246 区域）：cameraX/Y = 屏幕中心像素 - 相机偏移 = 玩家世界位
+//! - lockCameraOn 头部（:8246 区域）：cameraX/Y = 屏幕中心像素 - 相机偏移 = 玩家世界位
 //! trace 实证：m_105 每步 6px（Δ=16 时 (16>>2)+2），tick20002-20010 十步收敛。
 
 fn self_view_w() -> i32 {
@@ -86,7 +86,7 @@ impl Camera {
         }
     }
 
-    /// m_104(0) 头部语义：锚点 = 屏幕中心像素 - 相机偏移（= 玩家世界位）。
+    /// lockCameraOn(0) 头部语义：锚点 = 屏幕中心像素 - 相机偏移（= 玩家世界位）。
     pub fn snap_anchor_to_player(&mut self, player_px: i32, player_py: i32) {
         self.anchor_x = ((self.view_w - 32) >> 1) - self.offset_x;
         self.anchor_y = ((self.view_h - 32) >> 1) - self.offset_y;

@@ -61,7 +61,7 @@ pub enum WalkPhase {
     Idle,
     /// 1：步进动画（8px 步进，32px 归格）
     Stepping,
-    /// 2：探索确认弹窗（f_bool_06）
+    /// 2：探索确认弹窗（cameraLockedOnPlayer）
     ExploreConfirm,
     /// 3：脚本寻路行走（消费 walkPathBuffer）
     ScriptWalk,
@@ -166,7 +166,7 @@ pub mod entity_kind {
     pub const STAIR_DOWN: i32 = 8;
     /// 路线触发型（MOV 5 参分支写 entityAnimRow=1）
     pub const ROUTE: i32 = 72;
-    /// 菩提老祖（序章 NPC；m_104 说话人特例 0/87 免查实体）
+    /// 菩提老祖（序章 NPC；lockCameraOn 说话人特例 0/87 免查实体）
     pub const NPC_BODHI: i32 = 87;
     /// SWD 改写源/目标（封印门 → 可通行物件）
     pub const SEAL_GATE: i32 = 81;

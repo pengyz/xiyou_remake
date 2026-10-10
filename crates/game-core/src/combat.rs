@@ -4,7 +4,7 @@
 //! - effectiveAttackVsType :9940-9950（双武器/防具道具 ×2）
 //! - predictBattleHpLoss :9952-9970（静态纯函数）
 //! - predictHpLossVsType :9937-9939（参数桥接）
-//! - tickBattle 伤害段 :9971-9998（f_int_151&3 节拍、敌先攻、反击预测）
+//! - tickBattle 伤害段 :9971-9998（battleTick&3 节拍、敌先攻、反击预测）
 //! - scaleEnemyStats :7180-7210（scaled = base × multiplier）
 //! - consumeKeyForDoor :8081-8106（26 黄/27 红/28 蓝，spawnPopup kind1）
 //! - gainGold :7480-7486（popup kind4）
@@ -34,7 +34,7 @@ pub struct PlayerCombat {
 }
 
 impl PlayerCombat {
-    /// m_081 忠实移植（a.java:8475 区域）：按类型找物品栈下标，无则 -1。
+    /// findItemStackIndex 忠实移植（a.java:8475 区域）：按类型找物品栈下标，无则 -1。
     pub fn find_item(&self, item_type: u8) -> i32 {
         for i in 0..self.item_stack_size as usize {
             if self.item_types[i] == item_type {
@@ -128,7 +128,7 @@ pub mod popup_kind {
     pub const PLAYER_DAMAGE: i32 = 2;
     /// 4：特殊（y/宽常量 240/30）
     pub const SPECIAL: i32 = 4;
-    /// 5..=7：彩色右移（tickBattle 按 f_int_151%3 选色）
+    /// 5..=7：彩色右移（tickBattle 按 battleTick%3 选色）
     pub const ENEMY_DAMAGE_BASE: i32 = 5;
 }
 

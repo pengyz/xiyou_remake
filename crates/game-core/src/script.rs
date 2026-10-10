@@ -133,9 +133,9 @@ pub trait HostCtx {
     fn entity_pixel(&self, idx: i32) -> (i32, i32);
     fn give_gold(&mut self, amount: i32);
     fn pickup_item(&mut self, item_id: i32);
-    /// m_104 相机部分（无条件）：相机锚 = 玩家像素位。
+    /// lockCameraOn 相机部分（无条件）：相机锚 = 玩家像素位。
     fn snap_camera_to_player(&mut self);
-    /// m_104 说话人实体定位 → f_int_119。
+    /// lockCameraOn 说话人实体定位 → f_int_119。
     fn locate_speaker_entity(&mut self, speaker: i32) -> i32;
     /// m_018：打字机装填。
     fn set_typewriter(&mut self, text: &str, y: i32, pos: i32);
@@ -155,7 +155,7 @@ pub trait HostCtx {
     fn m_082_set_dialog_target(&mut self, v: i32);
     /// MOV 5 参分支：实体 72 的路线标志写（entityAnimRow[idx]=1，a.java:8265-8267）。
     fn set_entity_route_flag(&mut self, idx: i32);
-    /// ROS_1 后 m_104(0)：相机锚 = 新玩家像素位。
+    /// ROS_1 后 lockCameraOn(0)：相机锚 = 新玩家像素位。
     fn snap_camera_after_ros1(&mut self, px: i32, py: i32);
 }
 
@@ -193,7 +193,7 @@ impl<'d> ScriptEngine<'d> {
         self.state.game_mode = 11;
         self.state.current_script_index = idx;
         self.state.dialog_page = 0;
-        host.snap_camera_to_player(); // m_104(0)
+        host.snap_camera_to_player(); // lockCameraOn(0)
         self.state.dialog_phase = DialogPhase::ScriptStep;
         self.state.overlay_text = None;
         self.state.script_cursor = 0;
@@ -220,7 +220,7 @@ impl<'d> ScriptEngine<'d> {
                 self.data.speakers[page as usize] as i32
             };
             self.state.speaker_entity = host.locate_speaker_entity(self.state.speaker);
-            host.snap_camera_to_player(); // m_104 头部相机部分（无条件）
+            host.snap_camera_to_player(); // lockCameraOn 头部相机部分（无条件）
             let composed = if self.state.speaker < 0 {
                 format!("?: \\cF8F8F8{}", self.data.texts[page as usize])
             } else {
@@ -328,7 +328,7 @@ impl<'d> ScriptEngine<'d> {
                 self.state.script_walk_armed = true;
                 self.state.dialog_phase = DialogPhase::Walk;
                 self.state.walk_phase = crate::enums::WalkPhase::Idle;
-                host.snap_camera_to_player(); // m_104(0)
+                host.snap_camera_to_player(); // lockCameraOn(0)
             }
         } else if var3 == "GUT" {
             let n = self.parse_script_int(&line, var2p4, ' ');
@@ -370,7 +370,7 @@ impl<'d> ScriptEngine<'d> {
                 let p = self.state.last_delim_pos;
                 match sub {
                     1 => {
-                        // ROS_1（a.java:8338-8343）：玩家像素坐标直写 + m_104(0)（复核 R9）
+                        // ROS_1（a.java:8338-8343）：玩家像素坐标直写 + lockCameraOn(0)（复核 R9）
                         let x = self.parse_script_int(&line, p + 1, '_');
                         let pm = self.state.last_delim_pos;
                         let y = self.parse_script_int(&line, pm + 1, ' ');

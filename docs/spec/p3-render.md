@@ -157,6 +157,50 @@ build_minimap + paint 全链 + 稳态 tick）、`entity.rs` 扩展（视觉字�
 sprite_w/h/anim_idx/frame、render_category、ANIM_TABLE_IDX/ANIM_OFFSET_TABLE、
 dispatchSpriteSize/dispatchAnimFields/markEntityDesRemoved/markEntityRemoved/sortEntitiesByY/advanceEntityFrames/advanceBobPhase、pullEntityFromCell detach）。
 
+## 3.7 移动段全帧对拍（2026-10-09，第九批）
+
+**结论：gameplay-floor1 T537-1700（1164 帧）逐 tick FRAME sha 全对拍 PASS**
+（含 mode 3 稳态 964 帧 + 一场完整战斗链 ~120 帧 + 战后收敛 ~80 帧）——
+walkPhase 0/1/2/5 状态机、场上战斗、胜利跳格、popup 环形队列全部逐帧一致。
+
+本批新 A 级发现（全帧对拍 + 全量 ops 诊断实证）：
+
+1. **keyValue 是边沿触发**：run 主循环尾部 `keyValue = 0`（a.java:4266，
+   else 分支；overlay 分支清双键 a.java:3339）——每拍清零，与 keyReleased
+   无关。boot replay 的"粘性"注释是误读（按键恰好单拍消费故未暴露）。
+2. **-5 双段语义**：第一次 -5 → 残影填充 + walkPhase=2 + battleDigitByType
+   预计算（f_bool_08 = 有 13 号道具才画数字条）；第二次 -5 → f_bool_06 +
+   m_104(0)（缓动相机锁回玩家）。T600/700 双 -5 实证 110 拍交互视点。
+3. **m_026 残影蛇缓动**：目标 = 未锁定时视口中心偏移（**bob 耦合**）/
+   锁定后玩家位；[0]=目标直赋，[1..3] 半距+var3 蛇形追尾；[3] 到位且
+   锁定 → walkPhase=0。
+4. **m_104/stepCameraTowardTarget 坐标是反演关系**：ease 坐标 = 视口中心
+   −cameraPixel；回写 setCameraClamped((中心)−ease)。
+5. **星光用裸 cameraPixelY**（a.java:6683 读字段而非 m_053 入参——入参带
+   +view_top 偏移，星光 y 少 20px）。
+6. **drawDigitStrip 尾格恒画**（a.java:9800-9803：负值标志 var5 死变量，
+   第 11 格装饰字形无条件绘制——T1506 全量 ops + popupValue=[29,29,1]
+   实证"1"后面跟装饰格）。
+7. **战斗节奏**：交换拍 = f_int_151&3==0（起手第 1 拍即交换）；胜利 →
+   f_bool_23 死亡动画 6 拍（markEntityRemoved 首拍置 state=1 → 27×29
+   row6 播放）→ tryStep(facing) 胜利跳格 → battleTargetEntity=-1。
+8. **RNG 消费链**（gameRandom 单例 seed=0）：mode 1 粒子 23×2 次
+   （T72-161 每 4 拍 randomBelow(240)+randomBelow(150)）→ 战斗抖动
+   每拍 2×randomBelow(5)（paintEntityLayer state==3 且过屏裁后）。
+   randomBelow = (nextInt()>>>1)%n（a.java:10177，非 JDK bound 算法）。
+9. **popup 环形队列**：30 槽 write 回绕；kind 5/6/7 用 ui[8][9]+六张
+   散射表（f_byte_arr_32-37，计数 0..=8）；kind 1/2/3/4 用 map[2][6]
+   图标条 / map[2][3/4/5] 数字带 + y 上升 4px/拍；>7 拍退役。
+10. **玩家插入阻断表 f_bool_arr_02**：构造字面量 {T,F,F,F,F,T,T,T,T,F,T,F,F}
+    （a.java:679）经 initEntityTables 拷贝——类型 0/5/6/7/8/10 占据插入
+    窗口时不插画玩家（a.java:6510）。
+
+诊断方法学：shim ops 上限 256 → 临时 2048 重编拿全量 ops 对拍（事后还原 +
+reference 门禁重验 A==B==C 等价 PASS）。
+
+剩余（下批）：changeFloor 楼梯换层（walkPhase 4 + 动画）、宝箱 m_073、
+装备拾取 33-40/79/80、cat 16/32/67/69 渲染臂、mode 11 对话、mode 4/19。
+
 ## 4. 证据基线
 
 - 像素模型：`reference/shim/src/javax/microedition/lcdui/{Graphics,Font,Image,Canvas}.java`

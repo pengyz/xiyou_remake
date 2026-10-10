@@ -14,7 +14,7 @@
 //! 只保留与实体/帧数据耦合的内联算式（Java 公式原样）。
 //!
 //! P3.5 对拍窗口：gameplay-floor1 T537-599 稳态（无输入）——popup 环形队列、
-//! walkPhase 1 步进、m_104 交互为后续批次（spec p3-render §3.6 待办）。
+//! walkPhase 1 步进、lockCameraOn 交互为后续批次（spec p3-render §3.6 待办）。
 
 use crate::entity::{self, CellGrid, EntityTable, ANIM_OFFSET_TABLE};
 use crate::game_view::GameView;
@@ -49,6 +49,16 @@ pub struct SceneImages {
     pub opened_door: ArgbImage,
     /// entityTypeImage[type]：实体类型→精灵条带（null → None；m_122 映射）
     pub entity: Vec<Option<ArgbImage>>,
+    /// popup 层图集（map[2][3/4/5] 数字带 + map[2][6] 图标条 + ui[8][9] 战斗数字）
+    pub popup: crate::popup::PopupImages,
+    /// f_Image_arr2_00[3][2]：战斗星光表（walkPhase==5 的 4 帧星芒）
+    pub spark_sheet: ArgbImage,
+    /// ui[8][23]：walkPhase 2 四角装饰（22×24 帧 ×3）
+    pub corner_sprites: ArgbImage,
+    /// map[2][8]：战后数字条目标图标
+    pub battle_icon: ArgbImage,
+    /// map[2][7]：战后数字条（drawDigitStrip 7px 数字带）
+    pub battle_strip: ArgbImage,
 }
 
 impl SceneImages {
@@ -98,9 +108,14 @@ impl SceneImages {
 /// 玩家帧表 playerAnimTables[0]（a.java:477：{0,1,0,2}）。
 const PLAYER_FRAME_TABLE: [i32; 4] = [0, 1, 0, 2];
 
-/// f_bool_arr_02（initEntityTables 从构造字面量 f_bool_arr_03 拷贝，a.java:679/
+/// 战斗星光帧号表（Java sparkFrames，a.java:766-773：8 拍循环，0 = 不画）。
+const SPARK_FRAME: [i32; 8] = [1, 2, 0, 3, 4, 1, 2, 0];
+/// 星光四联组 (sx,sy,w,h)×4（Java sparkQuads，a.java:748-764）。
+const SPARK_QUADS: [i32; 16] = [29, 31, 39, 15, 0, 31, 29, 10, 0, 0, 37, 31, 36, 0, 32, 29];
+
+/// blocksPlayerInsert（initEntityTables 从构造字面量 f_bool_arr_03 拷贝，a.java:679/
 /// 6237）：true 的类型（0/5/6/7/8/10）占据插入窗口时**不**在其前插画玩家
-/// （paintEntityLayer 插入条件的 `!f_bool_arr_02[type]` 项，a.java:6510）。
+/// （paintEntityLayer 插入条件的 `!blocksPlayerInsert[type]` 项，a.java:6510）。
 const BLOCKS_PLAYER_INSERT: [bool; 13] = {
     let mut t = [false; 13];
     let true_at = [0usize, 5, 6, 7, 8, 10];
@@ -138,15 +153,71 @@ pub struct GameScene {
     pub walk_phase: i32,
     pub player_frame: i32,
     pub player_bob_applied: bool, // f_bool_07
-    /// HUD 数值（paintHudPanel/paintStatusBar 输入）
+    /// HUD 数值源（paintHudPanel/paintStatusBar 读；战斗/拾取写）
     pub floor: i32,
-    pub hp: i32,
-    pub atk: i32,
-    pub def: i32,
-    pub keys: (i32, i32, i32), // 黄/蓝/红
-    pub gold: i32,
+    /// 玩家战斗面（HP/攻/防/三钥/金/物品栈——tickBattle 与拾取的读写集）
+    pub player: crate::combat::PlayerCombat,
+    /// 敌方缩放表（scaleEnemyStats：difficultyIndex=0 → ×1）
+    pub enemies: crate::combat::ScaledEnemies,
+    /// 敌方基础表（enemyBaseHp/enemyBaseGold，a.java:1044/1121；夹具）
+    pub enemy_base_hp: Vec<i32>,
+    pub enemy_base_gold: Vec<i32>,
     /// 软键（m_000 case 3：1/3）
     pub softkeys: (i8, i8),
+
+    // —— 输入（keyPressed/keyReleased a.java:4653-4671）——
+    /// keyValue：粘性"最近按键"（keyReleased 不清）
+    pub key_value: i32,
+    /// keyHeldCode：按住电平（release 清 0；移动由它驱动）
+    pub key_held: i32,
+
+    // —— 步进（run case 3 walkPhase 1）——
+    pub player_cell_x: i32,
+    pub player_cell_y: i32,
+    /// stepProgressPx：步内像素累计（32 = 一步）
+    pub step_progress: i32,
+    /// walkStepCount（f_bool_26 路径步数，行走扩展批次）
+    pub walk_step_count: i32,
+
+    // —— 场上战斗（walkPhase 5；tickBattle a.java:10013-10145）——
+    /// battleTargetEntity（-1 = 无）
+    pub battle_target: i32,
+    /// battleEnemyHp：当前敌人剩余 HP
+    pub battle_enemy_hp: i32,
+    /// battleTick：战斗节拍（&3==0 交换；%3 选伤害 popup 色）
+    pub battle_tick: i32,
+    /// battleAnimTick：胜利死亡动画计数
+    pub battle_anim_tick: i32,
+    /// battleFinishing：胜利动画阶段
+    pub battle_finishing: bool,
+    /// battleSceneRerun：胜利后重入场景（boss 剧情用；floor1 恒 false）
+    pub battle_rerun_scene: bool,
+    /// battlePredictGate：预测含反击标记（cat8 置 true）
+    pub battle_no_counter: bool,
+    /// battleActiveFlag：战斗中标记（语义未完全考证）
+    pub battle_active: bool,
+
+    // —— popup 环形队列 ——
+    pub popups: crate::popup::PopupRing,
+    /// gameRandom（java.util.Random，seed=0 起的全局单例——粒子/战斗抖动共用
+    /// 消费链；装载历史由测试侧预推进，paint 内 state==3 抖动消费）
+    pub rng: game_platform::JavaRandom,
+
+    // —— walkPhase 2 交互视点（-5 键；easeAfterimages/lockCameraOn 家族）——
+    /// afterimageX/Y[4]：残影蛇（-5 时填充玩家位，easeAfterimages 逐拍缓动）
+    pub afterimage_x: [i32; 4],
+    pub afterimage_y: [i32; 4],
+    /// cameraLockedOnPlayer：视点锁定（第二次 -5 置位 → stepCamera 回玩家）
+    pub view_locked: bool,
+    /// showBattleDigits：战后数字条开关（findItemStackIndex(13) 有 13 号道具）
+    pub show_battle_digits: bool,
+    /// battleDigitByType：-5 时对各怪的预测伤害数字
+    pub battle_digit_by_type: Vec<i32>,
+    /// lockCameraOn 的缓动相机坐标（注意与 cameraPixelX/Y 是**反演关系**）
+    pub ease_cam_x: i32,
+    pub ease_cam_y: i32,
+    pub ease_target_x: i32,
+    pub ease_target_y: i32,
 }
 
 impl GameScene {
@@ -215,12 +286,47 @@ impl GameScene {
             player_frame: 0,
             player_bob_applied: false,
             floor: 1,
-            hp: 0,
-            atk: 0,
-            def: 0,
-            keys: (0, 0, 0),
-            gold: 0,
+            player: crate::combat::PlayerCombat {
+                hp: 0,
+                atk: 0,
+                def: 0,
+                yellow_keys: 0,
+                blue_keys: 0,
+                red_keys: 0,
+                gold: 0,
+                item_types: vec![0; 16],
+                item_uses: vec![0; 16],
+                item_stack_size: 0,
+            },
+            enemies: crate::combat::ScaledEnemies::default(),
+            enemy_base_hp: Vec::new(),
+            enemy_base_gold: Vec::new(),
             softkeys: (1, 3),
+            key_value: 0,
+            key_held: 0,
+            player_cell_x: player_px >> 5,
+            player_cell_y: player_py >> 5,
+            step_progress: 0,
+            walk_step_count: 0,
+            battle_target: -1,
+            battle_enemy_hp: 0,
+            battle_tick: 0,
+            battle_anim_tick: 0,
+            battle_finishing: false,
+            battle_rerun_scene: false,
+            battle_no_counter: false,
+            battle_active: false,
+            popups: crate::popup::PopupRing::default(),
+            rng: game_platform::JavaRandom::new_seeded(0),
+            afterimage_x: [0; 4],
+            afterimage_y: [0; 4],
+            view_locked: false,
+            show_battle_digits: false,
+            battle_digit_by_type: vec![0; 89],
+            ease_cam_x: 0,
+            ease_cam_y: 0,
+            ease_target_x: 0,
+            ease_target_y: 0,
         })
     }
 
@@ -290,12 +396,561 @@ impl GameScene {
         self.minimap = Some(crate::intro::dim_image(&img, MINIMAP_DIM_ALPHA));
     }
 
-    /// run case 3 的稳态子集（a.java:3545-3679）：无输入时仅 advanceEntityFrames。
+    /// keyPressed（a.java:4653-4666）：keyValue = keyHeldCode = code。
+    pub fn press_key(&mut self, code: i32) {
+        self.key_value = code;
+        self.key_held = code;
+    }
+
+    /// keyReleased（a.java:4668-4670）：只清 keyHeldCode。
+    pub fn release_key(&mut self) {
+        self.key_held = 0;
+    }
+
+    /// run case 3（a.java:3545-3679）：keyValue 开关（-7/-6 暂停/道具——
+    /// 本窗口无）→ walkPhase 状态机 → advanceEntityFrames。
     /// `frame_counter` 为本拍值（TICK n → n-1）。
     pub fn tick(&mut self, frame_counter: i64, width_table: &[i32]) {
         self.frame_counter = frame_counter;
+        match self.walk_phase {
+            0 => self.handle_field_input(),
+            1 => {
+                // 步进（a.java:3570-3601）：±8px + 相机边缘跟随 + m_025 帧
+                match self.facing {
+                    0 => {
+                        self.view.player_py += 8;
+                        if self.view.player_py + self.view.cam_y + 16 > self.view.view_h - 106 {
+                            let cy = self.view.cam_y - 8;
+                            self.view.set_camera(self.view.cam_x, cy);
+                        }
+                    }
+                    1 => {
+                        self.view.player_py -= 8;
+                        if self.view.player_py + self.view.cam_y + 16 < 106 {
+                            let cy = self.view.cam_y + 8;
+                            self.view.set_camera(self.view.cam_x, cy);
+                        }
+                    }
+                    2 => {
+                        self.view.player_px += 8;
+                        if self.view.player_px + self.view.cam_x + 16 > self.view.view_w - 106 {
+                            let cx = self.view.cam_x - 8;
+                            self.view.set_camera(cx, self.view.cam_y);
+                        }
+                    }
+                    3 => {
+                        self.view.player_px -= 8;
+                        if self.view.player_px + self.view.cam_x + 16 < 106 {
+                            let cx = self.view.cam_x + 8;
+                            self.view.set_camera(cx, self.view.cam_y);
+                        }
+                    }
+                    _ => {}
+                }
+                self.step_progress += 8;
+                // m_025（a.java:5191-5197）：行走帧循环
+                if self.player_frame < PLAYER_FRAME_TABLE.len() as i32 - 1 {
+                    self.player_frame += 1;
+                } else {
+                    self.player_frame = 0;
+                }
+                if self.step_progress >= 32 {
+                    self.step_progress = 0;
+                    self.player_frame = 0;
+                    self.apply_step_cell_effects();
+                }
+            }
+            2 => {
+                // walkPhase 2（a.java:3604-3642）：easeAfterimages 残影蛇缓动 +
+                // 未锁定时 keyHeld 相机平移 / keyValue -5 → 锁定 + lockCameraOn；
+                // 已锁定时 stepCameraTowardTarget 回到玩家
+                self.easeAfterimages();
+                if !self.view_locked {
+                    match self.key_held {
+                        -4 | 54 => {
+                            self.facing = 2;
+                            let cx = self.view.cam_x - 16;
+                            self.view.set_camera(cx, self.view.cam_y);
+                        }
+                        -3 | 52 => {
+                            self.facing = 3;
+                            let cx = self.view.cam_x + 16;
+                            self.view.set_camera(cx, self.view.cam_y);
+                        }
+                        -2 | 56 => {
+                            self.facing = 0;
+                            let cy = self.view.cam_y - 16;
+                            self.view.set_camera(self.view.cam_x, cy);
+                        }
+                        -1 | 50 => {
+                            self.facing = 1;
+                            let cy = self.view.cam_y + 16;
+                            self.view.set_camera(self.view.cam_x, cy);
+                        }
+                        _ => {}
+                    }
+                    if self.key_value == -5 || self.key_value == 53 {
+                        self.view_locked = true;
+                        self.lockCameraOn(0);
+                    }
+                } else {
+                    self.step_camera_toward_target();
+                }
+            }
+            5 => self.tick_battle(true),
+            _ => {} // 3 道具菜单 / 4 楼层切换：本窗口无
+        }
         entity::advance_frames(&mut self.entities, &mut self.grid, frame_counter, width_table);
-        // walkPhase 状态机（步进/交互）与 popup 环队列属移动批次（spec 待办）
+        // run 主循环尾部（a.java:4266，else 分支）：**keyValue 每拍清零**
+        // （边沿触发；keyHeldCode 由 keyReleased 清——a.java:4668）
+        self.key_value = 0;
+    }
+
+    /// easeAfterimages（a.java:5199-5252）：残影蛇缓动。目标 = 未锁定时的
+    /// 视口中心偏移（bob 耦合）或锁定后的玩家位；[3] 到位且锁定 → walkPhase=0。
+    fn easeAfterimages(&mut self) {
+        let (mut tx, mut ty) = if !self.view_locked {
+            (
+                (self.view.view_w - 41 >> 1) - self.view.cam_x,
+                (self.view.view_h >> 1) - self.view.cam_y + self.bob_offset,
+            )
+        } else {
+            (self.view.player_px, self.view.player_py)
+        };
+        if self.afterimage_x[3] == tx && self.afterimage_y[3] == ty {
+            if self.view_locked {
+                self.walk_phase = 0;
+            }
+        } else {
+            self.afterimage_x[0] = tx;
+            self.afterimage_y[0] = ty;
+            for i in 1..4 {
+                let mut v3 = 4 - i as i32; // Java var4==0 的 +5 分支不可达（循环从 1 起）
+                if i == 0 {
+                    v3 += 5;
+                }
+                let ax = self.afterimage_x[i];
+                if ax < tx {
+                    self.afterimage_x[i] = ax + ((tx - ax) >> 1) + v3;
+                    if self.afterimage_x[i] > tx {
+                        self.afterimage_x[i] = tx;
+                    }
+                } else if ax > tx {
+                    self.afterimage_x[i] = ax + (((tx - ax) >> 1) - v3);
+                    if self.afterimage_x[i] < tx {
+                        self.afterimage_x[i] = tx;
+                    }
+                }
+                let ay = self.afterimage_y[i];
+                if ay < ty {
+                    self.afterimage_y[i] = ay + ((ty - ay) >> 1) + v3;
+                    if self.afterimage_y[i] > ty {
+                        self.afterimage_y[i] = ty;
+                    }
+                } else if ay > ty {
+                    self.afterimage_y[i] = ay + (((ty - ay) >> 1) - v3);
+                    if self.afterimage_y[i] < ty {
+                        self.afterimage_y[i] = ty;
+                    }
+                }
+                tx = self.afterimage_x[i];
+                ty = self.afterimage_y[i];
+            }
+        }
+    }
+
+    /// lockCameraOn（a.java:8656-8692）：缓动相机初始化。0 → 目标 = 玩家位。
+    fn lockCameraOn(&mut self, target: i32) {
+        self.ease_cam_x = (self.view.view_w - 32 >> 1) - self.view.cam_x;
+        self.ease_cam_y = (self.view.view_h - 32 >> 1) - self.view.cam_y;
+        if target != 0 && target != 87 {
+            // 目标类型查实体（倒序首个）——战后视点本窗口只用 0（玩家）
+            let mut found = -1;
+            for e in (0..self.entities.count).rev() {
+                if self.entities.entity_type[e] == target {
+                    found = e as i32;
+                    break;
+                }
+            }
+            if found >= 0 {
+                self.ease_target_x = self.entities.pixel_x[found as usize];
+                self.ease_target_y = self.entities.pixel_y[found as usize];
+            }
+        } else {
+            self.ease_target_x = self.view.player_px;
+            self.ease_target_y = self.view.player_py;
+        }
+    }
+
+    /// stepCameraTowardTarget（a.java:8694-8723）：1/4 距离 +2 缓动，
+    /// 反演回 cameraPixel（(中心) - ease 坐标）。
+    fn step_camera_toward_target(&mut self) {
+        if self.ease_cam_x < self.ease_target_x {
+            self.ease_cam_x += (self.ease_target_x - self.ease_cam_x >> 2) + 2;
+            if self.ease_cam_x > self.ease_target_x {
+                self.ease_cam_x = self.ease_target_x;
+            }
+        } else if self.ease_cam_x > self.ease_target_x {
+            self.ease_cam_x += ((self.ease_target_x - self.ease_cam_x >> 2) - 2);
+            if self.ease_cam_x < self.ease_target_x {
+                self.ease_cam_x = self.ease_target_x;
+            }
+        }
+        if self.ease_cam_y < self.ease_target_y {
+            self.ease_cam_y += (self.ease_target_y - self.ease_cam_y >> 2) + 2;
+            if self.ease_cam_y > self.ease_target_y {
+                self.ease_cam_y = self.ease_target_y;
+            }
+        } else if self.ease_cam_y > self.ease_target_y {
+            self.ease_cam_y += ((self.ease_target_y - self.ease_cam_y >> 2) - 2);
+            if self.ease_cam_y < self.ease_target_y {
+                self.ease_cam_y = self.ease_target_y;
+            }
+        }
+        self.view.set_camera(
+            (self.view.view_w - 32 >> 1) - self.ease_cam_x,
+            (self.view.view_h - 32 >> 1) - self.ease_cam_y,
+        );
+    }
+
+    /// handleFieldInput（a.java:5255-5323）：keyValue 特例（-5 战后视点/
+    /// 49/55 楼梯换乘——本窗口无）+ keyHeld 移动（Nokia 映射：
+    /// -1=上 -2=下 -3=左 -4=右）。
+    fn handle_field_input(&mut self) {
+        if self.key_value == -5 || self.key_value == 53 {
+            // -5（a.java:5265-5286）：残影位填充玩家位 + 各怪预测伤害数字 +
+            // walkPhase=2 + showBattleDigits（有 13 号道具才画数字条）
+            for i in 0..4 {
+                self.afterimage_x[i] = self.view.player_px;
+                self.afterimage_y[i] = self.view.player_py;
+            }
+            self.view_locked = false;
+            for e in 0..self.entities.count {
+                let t = self.entities.entity_type[e];
+                if !self.entities.removed[e] && entity::render_category(t) == 8 {
+                    self.battle_digit_by_type[t as usize] = self.predict_hp_loss(t, true);
+                }
+            }
+            self.walk_phase = 2;
+            self.show_battle_digits = self.player.find_item(13) >= 0;
+            return;
+        }
+        let facing = match self.key_held {
+            -4 | 54 => 2,
+            -3 | 52 => 3,
+            -2 | 56 => 0,
+            -1 | 50 => 1,
+            _ => return,
+        };
+        self.facing = facing;
+        self.try_step(facing);
+    }
+
+    /// tryStep（a.java:5325-5352）：目标格 + interactWithCell 放行判定。
+    fn try_step(&mut self, facing: i32) -> bool {
+        let mut tx = self.view.player_px >> 5;
+        let mut ty = self.view.player_py >> 5;
+        match facing {
+            0 => ty += 1,
+            1 => ty -= 1,
+            2 => tx += 1,
+            3 => tx -= 1,
+            _ => {}
+        }
+        let ok = self.interact_with_cell(tx, ty);
+        if ok {
+            self.walk_phase = 1;
+        } else if self.walk_phase == 1 {
+            self.walk_step_count = 0;
+            self.walk_phase = 0;
+        }
+        ok
+    }
+
+    /// interactWithCell（a.java:5353-5527）：格槽**倒序**遍历 + 类目交互 +
+    /// 地形终审（var7 楼梯/喷泉计数 >0 时豁免地形）。
+    fn interact_with_cell(&mut self, x: i32, y: i32) -> bool {
+        let mut allowed = true;
+        let mut stair_count = 0;
+        let ct = if x >= 0 && y >= 0 && x < self.view.wide && y < self.view.high {
+            self.grid.cell_type[y as usize][x as usize] as usize
+        } else {
+            return false;
+        };
+        let cap = self.grid.capacity[ct] as usize;
+        if cap > 0 {
+            let mut s = cap as i32 - 1;
+            while s >= 0 {
+                let e = self.grid.slots[ct][s as usize] as usize - 1;
+                let t = self.entities.entity_type[e];
+                if self.entities.solid[e] != 1 {
+                    match entity::render_category(t) {
+                        1 => match t {
+                            1 | 2 | 3 => {
+                                // 门（a.java:5381-5407）：耗钥 → markEntityRemoved
+                                // + 重建小地图；无钥 → 阻挡 + walkStepCount=0（提示浮层）
+                                let door = match t {
+                                    1 => crate::combat::door_code::YELLOW,
+                                    2 => crate::combat::door_code::RED,
+                                    _ => crate::combat::door_code::BLUE,
+                                };
+                                let (consumed, _) = crate::combat::consume_key_for_door(&mut self.player, door);
+                                if consumed {
+                                    entity::remove(&mut self.entities, e);
+                                    self.build_minimap();
+                                } else {
+                                    self.walk_step_count = 0;
+                                    allowed = false;
+                                }
+                            }
+                            5 | 81 | 4 => {
+                                if t != 4 {
+                                    // 封印门/障碍（a.java:5422-5428）：阻挡
+                                    allowed = false;
+                                }
+                            }
+                            6 | 7 | 8 => stair_count += 1,
+                            _ => {} // 9 炼丹 / 11 / 76/82 / 83 场景门：后续批次
+                        },
+                        8 => {
+                            // 怪物（a.java:5460-5486）：可胜 → 场上战斗；否则阻挡
+                            let loss = self.predict_hp_loss(t, true);
+                            allowed = false;
+                            if loss >= 0 && loss < self.player.hp {
+                                self.walk_phase = 5;
+                                self.entities.solid[e] = 3;
+                                self.battle_target = e as i32;
+                                // battleEnemyHp = enemyBaseHp[type-41]（**基础表**非缩放表）
+                                self.battle_enemy_hp = self.enemy_base_hp[(t - 41) as usize];
+                                self.battle_active = true;
+                                self.battle_no_counter = true;
+                            } else {
+                                self.walk_step_count = 0;
+                                // "你无法战胜它" 提示浮层：交互批次
+                            }
+                        }
+                        16 | 32 => allowed = false, // 联动门/多形态：阻挡（a.java:5490/5520）
+                        _ => {}                    // 2/4 拾取：放行（步末 applyStepCellEffects）
+                    }
+                }
+                s -= 1;
+            }
+            if allowed && stair_count <= 0 {
+                allowed = self.walkable[y as usize][x as usize];
+            }
+        } else if !self.walkable[y as usize][x as usize] {
+            allowed = false;
+        }
+        allowed
+    }
+
+    /// predictHpLossVsType（a.java:9973-9978）：effectiveAttackVsType 桥接。
+    fn predict_hp_loss(&self, t: i32, no_counter: bool) -> i32 {
+        let idx = (t - 41) as usize;
+        let atk = crate::combat::effective_attack_vs_type(&self.player, self.trait_flags(t));
+        crate::combat::predict_battle_hp_loss(
+            atk,
+            self.player.def,
+            self.enemies.hp[idx],
+            self.enemies.atk[idx],
+            self.enemies.def[idx],
+            no_counter,
+        )
+    }
+
+    /// f_byte_arr_05 特性位（initEntityTables a.java:6256-6258：49/53/74=1、69=2）。
+    fn trait_flags(&self, t: i32) -> u8 {
+        match t {
+            49 | 53 | 74 => 1,
+            69 => 2,
+            _ => 0,
+        }
+    }
+
+    /// tickBattle（a.java:10013-10145）：4 拍一击 → 胜利 → 死亡动画 6 拍 →
+    /// tryStep(facing) 重试（胜利跳格）→ battleTargetEntity=-1。
+    fn tick_battle(&mut self, allow_restep: bool) {
+        if !self.battle_finishing {
+            if self.battle_target < 0 {
+                self.walk_phase = 0;
+            } else {
+                let e = self.battle_target as usize;
+                let t = self.entities.entity_type[e];
+                let idx = (t - 41) as usize;
+                let dmg = crate::combat::effective_attack_vs_type(&self.player, self.trait_flags(t))
+                    - self.enemies.def[idx];
+                if dmg > 0 {
+                    if (self.battle_tick & 3) == 0 {
+                        self.battle_enemy_hp -= dmg;
+                        let (ex, ey) = (self.entities.pixel_x[e], self.entities.pixel_y[e]);
+                        self.popups.spawn(
+                            5 + self.battle_tick % 3,
+                            dmg,
+                            ex,
+                            ey,
+                            self.view.cam_x,
+                            self.view.cam_y,
+                            self.images.popup.digit_strips[0].width / 11,
+                        );
+                        if self.battle_enemy_hp > 0 {
+                            let counter = self.enemies.atk[idx] - self.player.def;
+                            if counter > 0 {
+                                self.player.hp -= counter;
+                            }
+                        } else {
+                            // 击杀（a.java:10026-10058）：终伤预测 popup + 赏金 +
+                            // boss 分支（floor1 无 73-75 型）→ 胜利动画阶段
+                            let loss = self.predict_hp_loss(t, self.battle_no_counter);
+                            if loss > 0 {
+                                self.popups.spawn(
+                                    2,
+                                    loss,
+                                    self.view.player_px,
+                                    self.view.player_py,
+                                    self.view.cam_x,
+                                    self.view.cam_y,
+                                    self.images.popup.digit_strips[0].width / 11,
+                                );
+                            }
+                            let gold = if self.player.find_item(25) >= 0 {
+                                self.enemy_base_gold[idx] << 1
+                            } else {
+                                self.enemy_base_gold[idx]
+                            };
+                            let (gx, gy) = (self.entities.pixel_x[e], self.entities.pixel_y[e]);
+                            self.player.gold += gold;
+                            if gold > 0 {
+                                self.popups.spawn(
+                                    4,
+                                    gold,
+                                    gx,
+                                    gy,
+                                    self.view.cam_x,
+                                    self.view.cam_y,
+                                    self.images.popup.digit_strips[0].width / 11,
+                                );
+                            }
+                            self.battle_rerun_scene = false;
+                            self.battle_finishing = true;
+                        }
+                    }
+                } else {
+                    self.walk_phase = 0;
+                }
+                self.battle_tick += 1;
+            }
+        } else {
+            if self.battle_anim_tick == 0 {
+                entity::remove(&mut self.entities, self.battle_target as usize);
+            }
+            self.battle_anim_tick += 1;
+            if self.battle_anim_tick > 5 {
+                self.battle_anim_tick = 0;
+                if !self.battle_rerun_scene && allow_restep {
+                    self.try_step(self.facing);
+                }
+                self.battle_finishing = false;
+                self.battle_target = -1;
+                // 胜利后类型特判（61-72 层绑定剧情，a.java:10108-10140）：floor1 无
+            }
+        }
+    }
+
+    /// applyStepCellEffects（a.java:5533-5725，floor1 可达子集）：
+    /// 玩家格坐标刷新 + 格内实体效果（拾取 cat2/4；楼梯 7/8 → 换层批次）+
+    /// walkPhase=0 + handleFieldInput（按住连走）。
+    fn apply_step_cell_effects(&mut self) {
+        self.player_cell_x = self.view.player_px >> 5;
+        self.player_cell_y = self.view.player_py >> 5;
+        let ct = self.grid.cell_type[self.player_cell_y as usize][self.player_cell_x as usize] as usize;
+        let cap = self.grid.capacity[ct] as usize;
+        let mut s = cap as i32 - 1;
+        while s >= 0 {
+            let e = self.grid.slots[ct][s as usize] as usize - 1;
+            let t = self.entities.entity_type[e];
+            match entity::render_category(t) {
+                1 => match t {
+                    6 => self.player_bob_applied = true, // f_bool_07（喷泉浮沉）
+                    7 | 8 => {
+                        todo!("楼梯换层（changeFloor，walkPhase 4 动画批次）")
+                    }
+                    _ => {} // 5 宝箱/76/83 场景门：后续批次
+                },
+                2 | 4 => {
+                    self.pickup_item_type(t);
+                    entity::remove(&mut self.entities, e);
+                }
+                _ => {}
+            }
+            s -= 1;
+        }
+        if self.walk_phase != 4 {
+            self.walk_phase = 0;
+            self.handle_field_input();
+        }
+    }
+
+    /// pickupItemType（a.java:7515-7617，floor1 可达子集）+ applyHpDelta
+    /// （a.java:5162-5180，difficultyIndex=0 → 无 ×16）。
+    fn pickup_item_type(&mut self, t: i32) {
+        match t {
+            13..=25 | 85 | 86 => {
+                // 物品入栈（addItemToItemStack）：type 15 另置 f_bool_12
+                if t == 15 {
+                    // f_bool_12（教程标记）：教程批次
+                }
+                let n = self.player.item_stack_size as usize;
+                if n < self.player.item_types.len() {
+                    self.player.item_types[n] = t as u8;
+                    self.player.item_stack_size += 1;
+                }
+            }
+            26 => self.player.yellow_keys += 1,
+            27 => self.player.red_keys += 1,
+            28 => self.player.blue_keys += 1,
+            29 => self.player.atk += 1, // floor ≤ 10 分支
+            30 => self.player.def += 1,
+            31 => {
+                let heal = 50;
+                self.apply_hp_delta(heal);
+            }
+            32 => {
+                let heal = 200;
+                self.apply_hp_delta(heal);
+            }
+            _ => {} // 33-40/79/80 装备：装备批次；41+ 怪物类型不可达
+        }
+    }
+
+    /// applyHpDelta（a.java:5162-5180）：负 → popup2；正 → popup3。
+    fn apply_hp_delta(&mut self, mut delta: i32) {
+        if self.player.hp <= -delta {
+            self.player.hp = 1;
+            delta = self.player.hp - 1;
+        } else {
+            self.player.hp += delta;
+        }
+        if delta < 0 {
+            self.popups.spawn(
+                2,
+                delta,
+                self.view.player_px,
+                self.view.player_py,
+                self.view.cam_x,
+                self.view.cam_y,
+                self.images.popup.digit_strips[0].width / 11,
+            );
+        } else if delta > 0 {
+            self.popups.spawn(
+                3,
+                delta,
+                self.view.player_px,
+                self.view.player_py,
+                self.view.cam_x,
+                self.view.cam_y,
+                self.images.popup.digit_strips[0].width / 11,
+            );
+        }
     }
 
     /// paint case 3（a.java:2385-2422）。
@@ -319,8 +974,8 @@ impl GameScene {
         }
         self.paint_hud(g);
         self.paint_status_bar(g);
-        // 楼梯指示（f_bool_13；稳态 false—— proximity 更新在 m_104/行走批次）
-        // drawPopupLayer：popup 空（retire == write）时不绘制
+        // 楼梯指示（f_bool_13；稳态 false—— proximity 更新在 lockCameraOn/行走批次）
+        self.popups.draw(g, &self.images.popup);
         m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
     }
 
@@ -371,7 +1026,7 @@ impl GameScene {
                 let mut sy = cam_y + ey;
                 if sx >= -w && sx <= self.view.view_w && sy >= ENTITY_CULL_TOP && sy <= cull_bottom {
                     if let Some(img) = &self.images.entity[t as usize] {
-                        // 玩家插入（单次；f_bool_arr_02 在 0/5/6/7/8/10 型为 true，
+                        // 玩家插入（单次；blocksPlayerInsert 在 0/5/6/7/8/10 型为 true，
                         // 这些类型占据插入窗口时不插画玩家——a.java:6510）
                         if !player_drawn
                             && self.view.player_px > ex - PLAYER_INSERT_WINDOW
@@ -387,8 +1042,9 @@ impl GameScene {
                         let frame = self.entities.frame[e];
                         // 帧偏移 = 帧宽 × animOffsetTable[行][帧]（Java var5 算式）
                         let frame_off = w * ANIM_OFFSET_TABLE[anim][frame as usize];
-                        // 横向居中：格内居左半格（Java (32-w)>>1 算式）
-                        let cx = sx + ((CELL_PX - w) >> 1);
+                        // 注：横向居中 (32-w)>>1 在**各臂内**取 sx 现值计算——
+                        // case 8 抖动 / case 1 的 6/9 特例先改 sx 再用（Java var9 语义）
+                        let cx_off = (CELL_PX - w) >> 1;
                         match entity::render_category(t) {
                             1 => {
                                 if t == 6 {
@@ -397,41 +1053,59 @@ impl GameScene {
                                     sx += CELL_PX;
                                 }
                                 let img = if state == 1 { &self.images.opened_door } else { img };
-                                draw_image_clipped(g, img, cx, sy - (h - CELL_PX), frame_off, 0, w, h);
+                                draw_image_clipped(g, img, (sx + cx_off), sy - (h - CELL_PX), frame_off, 0, w, h);
                             }
                             2 => {
                                 if state == 1 {
-                                    draw_image_clipped(g, &self.images.opened_door, cx, sy - (h - CELL_PX), frame_off, 0, w, h);
+                                    draw_image_clipped(g, &self.images.opened_door, (sx + cx_off), sy - (h - CELL_PX), frame_off, 0, w, h);
                                 } else if state == 2 {
                                     draw_image_clipped(g, &self.images.open_anim, sx + OPEN_ANIM_DX, sy + OPEN_ANIM_DX - (frame * OPEN_ANIM_STEP), frame_off, 0, OPEN_ANIM_W, OPEN_ANIM_H);
                                 } else if t < SMALL_ITEM_MAX_TYPE {
                                     g.draw_image(&self.images.shadow, sx + SHADOW_DX, sy + SHADOW_DY, 0);
-                                    g.draw_image(img, cx, sy - (h - ANCHOR_MARGIN_24) + bob, 0);
+                                    g.draw_image(img, (sx + cx_off), sy - (h - ANCHOR_MARGIN_24) + bob, 0);
                                 } else {
-                                    g.draw_image(img, cx, sy - (h - ANCHOR_MARGIN_30), 0);
+                                    g.draw_image(img, (sx + cx_off), sy - (h - ANCHOR_MARGIN_30), 0);
                                 }
                             }
                             4 => {
                                 g.draw_image(&self.images.shadow, sx + SHADOW_DX, sy + SHADOW_DY, 0);
-                                draw_image_clipped(g, img, cx, sy - (h - ANCHOR_MARGIN_24) + bob, frame_off, 0, w, h);
+                                draw_image_clipped(g, img, (sx + cx_off), sy - (h - ANCHOR_MARGIN_24) + bob, frame_off, 0, w, h);
                             }
                             8 => {
                                 if state == 3 {
-                                    // entityState==3 抖动（randomBelow(5)-2）——floor1 无此态
-                                    todo!("paintEntityLayer case 8 entityState==3 抖动（floor1 实体清单无此态）")
+                                    // 战斗目标抖动（a.java:6533-6537）：x/y 各随机 ±2
+                                    sx += self.rng.random_below(5) - 2;
+                                    sy += self.rng.random_below(5) - 2;
                                 }
                                 if state == 1 || state == 2 {
                                     draw_image_clipped(g, &self.images.open_anim, sx + OPEN_ANIM_DX, sy + OPEN_ANIM_DX - (frame * OPEN_ANIM_STEP), frame_off, 0, OPEN_ANIM_W, OPEN_ANIM_H);
                                 } else if t != 67 && t != 69 {
                                     g.draw_image(&self.images.shadow, sx + SHADOW_DX, sy + SHADOW_DY, 0);
                                     sy -= ENTITY_LIFT;
-                                    draw_image_clipped(g, img, cx, sy - (h - CELL_PX), frame_off, 0, w, h);
+                                    draw_image_clipped(g, img, (sx + cx_off), sy - (h - CELL_PX), frame_off, 0, w, h);
                                 } else {
                                     // 67/69 拼装表组合（f_byte_arr2_00/01 元数据）——floor1 无
                                     todo!("paintEntityLayer case 8 的 67/69 拼装组合（floor1 实体清单无）")
                                 }
-                                if self.walk_phase == 2 {
-                                    todo!("paintEntityLayer case 8 walkPhase==2 交互浮标（战斗后批次）")
+                                // walkPhase==2 战后数字条（a.java:6607-6634）：
+                                // showBattleDigits 开关 + iconStrip 波动 + 预测伤害 drawDigitStrip
+                                if self.walk_phase == 2 && self.show_battle_digits {
+                                    let f8 = (self.frame_counter & 7) as usize;
+                                    let d = crate::title::STRIP_DX[f8];
+                                    let e = crate::title::STRIP_DY[f8];
+                                    g.draw_image(&self.images.battle_icon, sx - 3 + d, sy - 24 + e, 0);
+                                    let digit = self.battle_digit_by_type[t as usize];
+                                    if digit >= 0 {
+                                        crate::popup::draw_digit_strip(
+                                            g,
+                                            &self.images.battle_strip,
+                                            digit,
+                                            sx + 30 + d,
+                                            sy - 17 + e,
+                                        );
+                                    } else {
+                                        draw_image_clipped(g, &self.images.battle_strip, sx + 14 + d, sy - 17 + e, 70, 0, 7, 9);
+                                    }
                                 }
                             }
                             16 => {
@@ -439,7 +1113,7 @@ impl GameScene {
                                     if let Some(img15) = &self.images.entity[15] {
                                         g.draw_image(img15, sx + 1, sy + 8 + bob, 0);
                                     }
-                                    draw_image_clipped(g, img, cx, sy - (h - ANCHOR_MARGIN_24) + bob, frame_off, 0, w, h);
+                                    draw_image_clipped(g, img, (sx + cx_off), sy - (h - ANCHOR_MARGIN_24) + bob, frame_off, 0, w, h);
                                 } else {
                                     draw_image_clipped(g, &self.images.open_anim, sx + OPEN_ANIM_DX, sy + OPEN_ANIM_DX - (frame * OPEN_ANIM_STEP), frame_off, 0, OPEN_ANIM_W, OPEN_ANIM_H);
                                 }
@@ -449,7 +1123,7 @@ impl GameScene {
                                 if state == 1 || state == 2 {
                                     draw_image_clipped(g, &self.images.open_anim, sx + OPEN_ANIM_DX, sy + OPEN_ANIM_DX - (frame * OPEN_ANIM_STEP), frame_off, 0, OPEN_ANIM_W, OPEN_ANIM_H);
                                 } else if t != 72 {
-                                    draw_image_clipped(g, img, cx, sy - (h - ANCHOR_MARGIN_16) + bob, frame_off, 0, w, h);
+                                    draw_image_clipped(g, img, (sx + cx_off), sy - (h - ANCHOR_MARGIN_16) + bob, frame_off, 0, w, h);
                                 } else {
                                     todo!("paintEntityLayer case 32 的 72 型多形态（f_byte_19 倍率 + f_int_127）")
                                 }
@@ -468,7 +1142,30 @@ impl GameScene {
         if !player_drawn {
             self.paint_player(g, cam_x, cam_y);
         }
-        // walkPhase==5 星光（battleTargetEntity >= 0）：战斗批次
+        // walkPhase==5 星光（a.java:6682-6700）：battleTick&7 选帧，sparkFrames
+        // 帧号×4 取 sparkQuads 四联组（sx,sy,w,h）
+        if self.walk_phase == 5 && self.battle_target >= 0 {
+            let e = self.battle_target as usize;
+            // a.java:6682-6683：星光坐标用**裸 cameraPixelX/Y**（非 m_053 入参
+            // 的 cameraPixelY+view_top——尾段直接读字段）
+            let x = self.view.cam_x + self.entities.pixel_x[e] + 16;
+            let y = self.view.cam_y + self.entities.pixel_y[e] + 32;
+            let phase = (self.battle_tick & 7) as usize;
+            let frame = SPARK_FRAME[phase];
+            if frame > 0 {
+                let q = ((frame - 1) << 2) as usize;
+                draw_image_clipped(
+                    g,
+                    &self.images.spark_sheet,
+                    x - (SPARK_QUADS[q + 2] >> 1),
+                    y - (SPARK_QUADS[q + 3] >> 1),
+                    SPARK_QUADS[q],
+                    SPARK_QUADS[q + 1],
+                    SPARK_QUADS[q + 2],
+                    SPARK_QUADS[q + 3],
+                );
+            }
+        }
         // 楼梯浮标（paintEntityLayer 尾段 a.java:6702-6716）
         if let Some((ux, uy)) = self.entities.stair_up {
             let x = cam_x + ux;
@@ -501,13 +1198,47 @@ impl GameScene {
         let idx = self.facing.clamp(0, 3) as usize;
         let (dx, dy, row) = PLAYER_ANCHORS[idx];
         let sy = fh * row;
+        // walkPhase==2 残影（a.java:5850-5900）：facing 1 在主精灵**后**画，
+        // 其余在前；i=3..0 逆序。残影源 = playerGhostSheet（actor 条带别名）
+        let ghost = self.walk_phase == 2 && self.facing != 1;
+        if ghost {
+            self.paint_afterimages(g, cam_x, cam_y, frame_x);
+        }
         if self.facing == 3 {
             crate::menu_family::draw_edge_patch(g, &self.images.actor, px + dx, py + dy, frame_x, sy, fw, fh, 1);
         } else {
             draw_image_clipped(g, &self.images.actor, px + dx, py + dy, frame_x, sy, fw, fh);
         }
+        if self.walk_phase == 2 && self.facing == 1 {
+            self.paint_afterimages(g, cam_x, cam_y, frame_x);
+        }
         g.set_clip(0, 0, SCREEN_W, SCREEN_H);
-        // f_bool_26 路径残影 + walkPhase 2/3 特效：行走批次（spec 待办）
+        // f_bool_26 路径走格精灵（[8][22]）：脚本行走批次（spec 待办）
+        // walkPhase==2 四角装饰（a.java:5949-5955，画后直接 return 语义）
+        if self.walk_phase == 2 {
+            let bob = self.bob_offset;
+            let vb = self.view_bottom;
+            draw_image_clipped(g, &self.images.corner_sprites, 5 - bob, 148, 44, 0, 22, 24);
+            draw_image_clipped(g, &self.images.corner_sprites, 109, 25 - bob, 0, 0, 22, 24);
+            draw_image_clipped(g, &self.images.corner_sprites, 109, vb - 29 + bob, 22, 0, 22, 24);
+            crate::menu_family::draw_edge_patch(g, &self.images.corner_sprites, 215 + bob, 148, 44, 0, 22, 24, 1);
+        }
+        // walkPhase==3 道具面板：道具批次（spec 待办）
+    }
+
+    /// walkPhase==2 的四向残影（a.java:5850-5900）。
+    fn paint_afterimages(&self, g: &mut SoftGraphics<'_>, cam_x: i32, cam_y: i32, frame_x: i32) {
+        let (fw, fh) = (PLAYER_FRAME_W, PLAYER_FRAME_H);
+        for i in (0..4).rev() {
+            let ax = cam_x + self.afterimage_x[i];
+            let ay = cam_y + self.afterimage_y[i];
+            match self.facing {
+                0 => draw_image_clipped(g, &self.images.actor, ax - 4, ay - 14, frame_x, 0, fw, fh),
+                1 => draw_image_clipped(g, &self.images.actor, ax - 8, ay - 14, frame_x, fh, fw, fh),
+                2 => draw_image_clipped(g, &self.images.actor, ax - 6, ay - 14, frame_x, fh * 2, fw, fh),
+                _ => crate::menu_family::draw_edge_patch(g, &self.images.actor, ax, ay - 14, frame_x, fh * 2, fw, fh, 1),
+            }
+        }
     }
 
     /// paintHudFrame（a.java:6124-6153）：HUD 大框（ui[8][0] 边框件 64×16）。
@@ -553,19 +1284,19 @@ impl GameScene {
         g.draw_image(&self.images.ui[7], HUD_ICON_X, y + HUD_ICON_LIFT, 0);
         g.set_clip(0, 0, SCREEN_W, SCREEN_H);
         paint_mini_frame(g, bar_x, y + 1, HUD_BAR_W, HUD_BAR_H);
-        paint_number(g, &self.images.ui[2], self.hp, bar_x + HUD_NUM_DX, y + 2);
+        paint_number(g, &self.images.ui[2], self.player.hp, bar_x + HUD_NUM_DX, y + 2);
         // 攻行：图标条带片 (10,0,10,13)
         y += HUD_ROW_STEP;
         draw_image_clipped(g, &self.images.ui[7], HUD_ICON_X, y, 10, 0, HUD_ICON_CLIP, HUD_ICON_STRIP_H);
         g.set_color(HUD_ROW_ACCENT);
         paint_mini_frame(g, bar_x, y + 1, HUD_BAR_W, HUD_BAR_H);
-        paint_number(g, &self.images.ui[2], self.atk, bar_x + HUD_NUM_DX, y + 2);
+        paint_number(g, &self.images.ui[2], self.player.atk, bar_x + HUD_NUM_DX, y + 2);
         // 防行：图标条带片 (20,0,10,13)
         y += HUD_ROW_STEP;
         draw_image_clipped(g, &self.images.ui[7], HUD_ICON_X, y, 20, 0, HUD_ICON_CLIP, HUD_ICON_STRIP_H);
         g.set_color(HUD_ROW_ACCENT);
         paint_mini_frame(g, bar_x, y + 1, HUD_BAR_W, HUD_BAR_H);
-        paint_number(g, &self.images.ui[2], self.def, bar_x + HUD_NUM_DX, y + 2);
+        paint_number(g, &self.images.ui[2], self.player.def, bar_x + HUD_NUM_DX, y + 2);
         // 装备槽（equipmentMaterialNames = 无/木/铁/银/金/布/皮/锁/金，a.java:484）
         // 槽 x：var11 = HUD_ICON_X+16 后 +60 → 159；甲槽 +34 → 193（a.java:6070/6087）
         let slot_y = base_y + HUD_SLOT_DY;
@@ -595,12 +1326,12 @@ impl GameScene {
         g.draw_image(&self.images.ui[8], STATUS_TIER_ICON_X, base_y + 4 + 10, 0);
         g.set_color(STATUS_FILL);
         g.fill_rect(STATUS_KEY_X[0], base_y, SCREEN_W - STATUS_KEY_X[0], STATUS_BAR_H);
-        self.paint_key_slot(g, 0, self.keys.0, STATUS_KEY_X[0], base_y);
-        self.paint_key_slot(g, 1, self.keys.1, STATUS_KEY_X[1], base_y);
-        self.paint_key_slot(g, 2, self.keys.2, STATUS_KEY_X[2], base_y);
+        self.paint_key_slot(g, 0, self.player.yellow_keys, STATUS_KEY_X[0], base_y);
+        self.paint_key_slot(g, 1, self.player.blue_keys, STATUS_KEY_X[1], base_y);
+        self.paint_key_slot(g, 2, self.player.red_keys, STATUS_KEY_X[2], base_y);
         let y = base_y + 3;
         g.draw_image(&self.images.ui[1], STATUS_GOLD_ICON_X, y, 0);
-        paint_number(g, &self.images.ui[2], self.gold, STATUS_GOLD_NUM_X, y + 2);
+        paint_number(g, &self.images.ui[2], self.player.gold, STATUS_GOLD_NUM_X, y + 2);
     }
 
     /// paintKeySlot（a.java:6033-6040）：钥匙格（ui[8][6] KEY_SLOT_W 三联图 + 数量）。

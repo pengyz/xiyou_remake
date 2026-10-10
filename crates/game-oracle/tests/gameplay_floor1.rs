@@ -58,6 +58,13 @@ fn tile_walkability() -> Vec<i32> {
         .collect()
 }
 
+fn fixture_ints(name: &str) -> Vec<i32> {
+    fixture_str(name)
+        .lines()
+        .filter_map(|l| l.trim().parse().ok())
+        .collect()
+}
+
 fn door_tables() -> DoorTables {
     DoorTables {
         door12: fixture_str("door12.txt").lines().filter_map(|l| l.trim().parse().ok()).collect(),
@@ -101,6 +108,15 @@ fn build_scene() -> GameScene {
         open_anim: map[9].clone(),
         opened_door: sptmap[12].clone(),
         entity: SceneImages::map_entity_images(&sptmap, &sptprop, &sptarm, &sptenemy1, &sptenemy2),
+        popup: game_core::popup::PopupImages {
+            digit_strips: [map[3].clone(), map[4].clone(), map[5].clone()],
+            icon_strip: map[6].clone(),
+            battle_digits: ui[9].clone(),
+        },
+        spark_sheet: actor_c[2].clone(),
+        corner_sprites: ui[23].clone(),
+        battle_icon: map[8].clone(),
+        battle_strip: map[7].clone(),
         ui,
     };
 
@@ -128,12 +144,26 @@ fn build_scene() -> GameScene {
         .map(|(_, v)| v.clone())
         .unwrap();
     let s = parse_floor_save(&mot_l0, 0).unwrap();
-    scene.hp = s.player_hp;
-    scene.atk = s.player_atk;
-    scene.def = s.player_def;
-    scene.keys = (s.yellow_keys as i32, s.blue_keys as i32, s.red_keys as i32);
-    scene.gold = s.gold;
+    scene.player.hp = s.player_hp;
+    scene.player.atk = s.player_atk;
+    scene.player.def = s.player_def;
+    scene.player.yellow_keys = s.yellow_keys as i32;
+    scene.player.blue_keys = s.blue_keys as i32;
+    scene.player.red_keys = s.red_keys as i32;
+    scene.player.gold = s.gold;
     scene.floor = s.current_floor as i32;
+    // 敌方表：基础三表（夹具）× 难度乘数 1（difficultyIndex=0 → ×1，
+    // scaleEnemyStats a.java:7229-7236）+ 赏金/基础 HP
+    let base = game_core::combat::CombatTables {
+        enemy_base_hp: fixture_ints("enemybasehp.txt"),
+        enemy_base_atk: fixture_ints("enemybaseatk.txt"),
+        enemy_base_def: fixture_ints("enemybasedef.txt"),
+        difficulty_multipliers: fixture_ints("difficulty_multipliers.txt"),
+    };
+    let mult = base.difficulty_multipliers[s.difficulty_index as usize];
+    scene.enemies = game_core::combat::scale_enemy_stats(&base, mult);
+    scene.enemy_base_hp = base.enemy_base_hp.clone();
+    scene.enemy_base_gold = fixture_ints("enemybasegold.txt");
     let sky_war = stores
         .iter()
         .find(|(k, _)| k.starts_with("SKY_WAR"))
@@ -145,6 +175,13 @@ fn build_scene() -> GameScene {
     // mode 3 首绘在 T537；T544 首列 x=-38 ⇒ T537 绘后 -31 ⇒ 初值 -30
     // （mode 8 末次 parallax=T500 绘后 -30，mode 2 无 parallax）
     scene.backdrop_scroll = -30;
+    // RNG 预推进：mode 1（T72-161）粒子消费——每 4 拍 spawnParticle
+    // randomBelow(240)+randomBelow(150)（a.java:3376-3379），共 23 组；
+    // 消费链已被 title/menu-sweep 全帧回放验证
+    for _ in 0..23 {
+        scene.rng.random_below(240);
+        scene.rng.random_below(150);
+    }
     scene.bob_offset = -2;
     scene.bob_rising = true;
     scene
@@ -152,7 +189,7 @@ fn build_scene() -> GameScene {
 
 /// T544-599 稳态全帧对拍（56 帧：实体动画推进 + bob + parallax 滚动）。
 #[test]
-fn gameplay_floor1_t544_599_frames_match() {
+fn gameplay_floor1_t537_1700_frames_match() {
     let trace_text = std::fs::read_to_string(
         repo().join("reference/oracle/_out/A-gameplay-floor1/trace.txt"),
     )
@@ -166,17 +203,36 @@ fn gameplay_floor1_t544_599_frames_match() {
     };
     let mut screen = ArgbImage::create(game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
     let mut checked = 0usize;
+    let mut pending_press = 0i32;
+    let mut pending_release = false;
     for rec in &records {
-        if !(537..=599).contains(&rec.tick) {
+        if !(537..=1700).contains(&rec.tick) {
             continue;
         }
-        // mode 3 从 T537 开始（dense dumpStride=1 实证：T536=mode2、T537=mode3；
-        // T537-543 的 ops 行只是 dumpStride=8 采样未打印，帧仍在演变）。
+        // mode 3 从 T537 开始（dense dumpStride=1 实证：T536=mode2、T537=mode3）。
         // T537 的 run 是 case 2（切换发生在其 else 分支内）⇒ 本拍无 advanceEntityFrames；
-        // T538 起 case 3 以 frameCounter=tick-1 跑 advanceEntityFrames（偶数拍推进——
-        // 运行时 entityAnimFrame 实证：T544 时 type44 帧=4、type45 帧=1）
+        // T538 起 case 3 以 frameCounter=tick-1 跑（偶数拍推进——运行时实证）。
+        // 输入投递：TICK n 的 INPUT 在 preTick(n)（paint#n 后）→ logic#(n+1) 消费；
+        // keyValue 为边沿触发（run 尾清零 a.java:4266），keyHeldCode 电平（release 清）
+        if pending_press != 0 {
+            scene.press_key(pending_press);
+            pending_press = 0;
+        }
+        if pending_release {
+            scene.release_key();
+            pending_release = false;
+        }
         if rec.tick > 537 {
             scene.tick(rec.tick as i64 - 1, &width_table());
+        }
+        if let Some(inp) = &rec.input {
+            if let Some(rest) = inp.strip_prefix("press(") {
+                if let Some(code) = rest.strip_suffix(')').and_then(|k| k.parse::<i32>().ok()) {
+                    pending_press = code;
+                }
+            } else if inp.starts_with("release(") {
+                pending_release = true;
+            }
         }
         let sha;
         {
@@ -195,7 +251,7 @@ fn gameplay_floor1_t544_599_frames_match() {
             checked += 1;
         }
     }
-    assert_eq!(checked, 63, "T537-599 应有 63 帧");
+    assert_eq!(checked, 1164, "T537-1700 应有 1164 帧");
 }
 
 /// T544 ops 前缀对拍（诊断锚：Java shim 仅记前 256 条 = parallax 5 + 瓦片 250
@@ -335,59 +391,55 @@ fn dump_t544_pixels() {
     eprintln!("rust T544 sha={sha}");
 }
 
-/// 诊断（ignored）：sptenemy1 各图 sha（对照 FLD 019 运行时哈希）。
+
+
+
+
+/// 诊断（ignored）：导出 Rust 指定帧像素（`DUMP_TICK` 改目标拍）。
 #[test]
 #[ignore]
-fn dump_sptenemy1_hashes() {
-    let data = std::fs::read(repo().join("assets/raw/sptenemy1")).unwrap();
-    let imgs = game_data::PackedPng::parse(&data, 20).unwrap();
-    for (i, sub) in imgs.images.iter().enumerate() {
-        let a = ArgbImage::from_decoded_png(game_data::decode_png(sub.bytes).unwrap());
-        let sha = game_platform::hash::sha256_hex(&a.hash_stream())[..16].to_string();
-        println!("sptenemy1[{i}] {}x{} #{sha}", a.width, a.height);
+fn dump_frame_pixels() {
+    let trace_text = std::fs::read_to_string(repo().join("reference/oracle/_out/A-gameplay-floor1/trace.txt")).unwrap();
+    let records = trace::parse(&trace_text);
+    let mut scene = build_scene();
+    let map = load_container("map", 12);
+    let tileset = map[0].clone();
+    let mut screen = ArgbImage::create(game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
+    let mut pending_press = 0i32;
+    let mut pending_release = false;
+    for rec in &records {
+        if !(537..=1506).contains(&rec.tick) { continue; }
+        if pending_press != 0 { scene.press_key(pending_press); pending_press = 0; }
+        if pending_release { scene.release_key(); pending_release = false; }
+        if rec.tick > 537 { scene.tick(rec.tick as i64 - 1, &width_table()); }
+        if let Some(inp) = &rec.input {
+            if let Some(rest) = inp.strip_prefix("press(") {
+                if let Some(c) = rest.strip_suffix(')').and_then(|k| k.parse::<i32>().ok()) { pending_press = c; }
+            } else if inp.starts_with("release(") { pending_release = true; }
+        }
+        {
+            let mut g = SoftGraphics::new(&mut screen);
+            g.set_clip(0, 0, game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
+            g.set_font(Some(paint_font()));
+            scene.paint(&mut g, &tileset);
+            if rec.tick == 1506 {
+                std::fs::write("/tmp/rust-1506.ops", g.ops.join("\n")).unwrap();
+            }
+        }
     }
-    let a2 = ArgbImage::from_decoded_png(game_data::decode_png(&imgs.images[2].bytes).unwrap());
-    std::fs::write("/tmp/sptenemy1_2.bin", a2.hash_stream()).unwrap();
+    std::fs::write("/tmp/rust-1506.bin", screen.hash_stream()).unwrap();
+    eprintln!("rust T601 done");
 }
 
-/// 诊断（ignored）：小地图原图 + 门格槽解析。
+/// 诊断（ignored）：actor_c[2]（星光表）尺寸与像素。
 #[test]
 #[ignore]
-fn dump_minimap() {
-    let scene = build_scene();
-    if let Some(mm) = &scene.minimap {
-        std::fs::write("/tmp/rust-minimap.bin", mm.hash_stream()).unwrap();
-        eprintln!("minimap {}x{}", mm.width, mm.height);
-    }
-    for (cy, cx) in [(5, 3), (5, 10), (6, 6), (9, 6), (8, 10), (3, 8), (9, 2), (1, 11)] {
-        let ct = scene.grid.cell_type[cy][cx] as usize;
-        let cap = scene.grid.capacity[ct] as usize;
-        let ids: Vec<i32> = (0..cap).map(|s| scene.grid.slots[ct][s] as i32 - 1).collect();
-        let types: Vec<i32> = ids.iter().map(|&i| scene.entities.entity_type[i as usize]).collect();
-        eprintln!("cell({cx},{cy}) ct={ct} cap={cap} ids={ids:?} types={types:?}");
-    }
+fn dump_actor2() {
+    let actor_c = load_container("actor", 4);
+    let a = &actor_c[2];
+    eprintln!("actor[2] {}x{}", a.width, a.height);
+    std::fs::write("/tmp/actor2.bin", a.hash_stream()).unwrap();
 }
 
-/// 诊断（ignored）：sptenemy1[4]（type 45 精灵）原始像素。
-#[test]
-#[ignore]
-fn dump_sptenemy1_4() {
-    let data = std::fs::read(repo().join("assets/raw/sptenemy1")).unwrap();
-    let imgs = game_data::PackedPng::parse(&data, 20).unwrap();
-    let a = ArgbImage::from_decoded_png(game_data::decode_png(&imgs.images[4].bytes).unwrap());
-    eprintln!("sptenemy1[4] {}x{}", a.width, a.height);
-    std::fs::write("/tmp/sptenemy1_4.bin", a.hash_stream()).unwrap();
-}
 
-/// 诊断（ignored）：sptprop[0]（case 8 阴影）+ sptenemy1[4] 关键行。
-#[test]
-#[ignore]
-fn dump_sptprop0() {
-    let data = std::fs::read(repo().join("assets/raw/sptprop")).unwrap();
-    let imgs = game_data::PackedPng::parse(&data, 23).unwrap();
-    let a = ArgbImage::from_decoded_png(game_data::decode_png(&imgs.images[0].bytes).unwrap());
-    eprintln!("sptprop[0] {}x{}", a.width, a.height);
-    std::fs::write("/tmp/sptprop0.bin", a.hash_stream()).unwrap();
-    let sha = game_platform::hash::sha256_hex(&a.hash_stream())[..16].to_string();
-    eprintln!("sptprop[0] #{sha}");
-}
+
