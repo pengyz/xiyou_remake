@@ -184,6 +184,16 @@ pub struct BootMachine {
     pub strip_frame: usize,
     /// soundEnabled（mode 16 勾选联动）。
     pub sound_enabled: bool,
+    /// intro 容器 2 张（m_001(11)，引子页 0/1 图）。
+    intro_imgs: Vec<ArgbImage>,
+    /// end 容器 1 张（m_001(14)，引子页 2 图）。
+    end_imgs: Vec<ArgbImage>,
+    /// load 容器 2 张（m_001(15)，进度条图）。
+    load_imgs: Vec<ArgbImage>,
+    /// mode 14 引子状态。
+    pub intro: Option<crate::intro::IntroSequence>,
+    /// mode 2 加载链。
+    pub loading: Option<crate::intro::LoadProgress>,
     /// f_int_02 帧间隔 ms（构造 75，a.java:27；mode 0 每 tick 设 100，
     /// a.java:3342；切 mode 21 时回 75，a.java:3369）。
     pub frame_interval_ms: i64,
@@ -202,6 +212,9 @@ impl BootMachine {
         ui: Vec<ArgbImage>,
         menu: Vec<ArgbImage>,
         mapbg: ArgbImage,
+        intro_imgs: Vec<ArgbImage>,
+        end_imgs: Vec<ArgbImage>,
+        load_imgs: Vec<ArgbImage>,
     ) -> BootMachine {
         assert_eq!(sflogo.len(), 8, "sflogo 容器 8 张（a.java:453 resourceImageCounts 计数表）");
         assert_eq!(ui.len(), 25, "ui 容器 25 张（a.java:453 resourceImageCounts 计数表）");
@@ -228,6 +241,11 @@ impl BootMachine {
             options: None,
             strip_frame: 0,
             sound_enabled: false,
+            intro_imgs: intro_imgs,
+            end_imgs: end_imgs,
+            load_imgs: load_imgs,
+            intro: None,
+            loading: None,
             rng: game_platform::JavaRandom::new_seeded(0),
             frame_interval_ms: 75,
             paints: 0,
@@ -279,6 +297,20 @@ impl BootMachine {
                 let logo = self.logo.as_ref().unwrap();
                 let sf7 = self.sflogo[7].clone();
                 logo.paint(g, &sf7);
+            }
+            14 => {
+                let intro = self.intro.as_mut().unwrap();
+                let mut particles = self.title.as_mut().map(|t| std::mem::replace(&mut t.particles, crate::title::Particles::new()));
+                if let Some(p) = particles.as_mut() {
+                    let font = paint_font();
+                    intro.paint(g, &mut self.overlay, p, &font);
+                }
+                if let Some(t) = self.title.as_mut() {
+                    if let Some(p) = particles { t.particles = p; }
+                }
+            }
+            2 => {
+                self.loading.as_ref().unwrap().paint(g, &self.load_imgs);
             }
             _ => {
                 let state = BootPaintState {
@@ -400,6 +432,39 @@ impl BootMachine {
                 }
                 self.key_value = 0;
             }
+            14 => {
+                // run case 14（a.java:4123-4128）：m_014 + 粒子雨 4 分频
+                let f = self.paints as i32;
+                if f & 3 == 0 {
+                    let x = self.rng.random_below(240);
+                    let y = 320 - 25 - self.rng.random_below(150);
+                    if let Some(t) = self.title.as_mut() {
+                        t.particles.spawn(x, y);
+                    }
+                }
+                let done = self
+                    .intro
+                    .as_mut()
+                    .unwrap()
+                    .tick(key, &self.intro_imgs, &self.end_imgs, &mut self.overlay, &paint_font());
+                if done {
+                    // m_067（a.java:7147-7160）：新游戏加载链
+                    self.loading = Some(crate::intro::LoadProgress::new_game());
+                    self.mode = 2;
+                }
+                self.key_value = 0;
+            }
+            2 => {
+                // run case 2（a.java:3441-3540）：进度追赶模型
+                if let Some((target, call_m000)) = self.loading.as_mut().unwrap().tick() {
+                    self.loading = None;
+                    self.mode = target;
+                    if call_m000 {
+                        self.finished = true; // m_000 case 3（游戏态初始化）未端口
+                    }
+                }
+                self.key_value = 0;
+            }
             22 => {
                 // run case 22（a.java:4235-4244）：++bootPhaseCounter ≤ 70 →
                 // runLogoAnimation(1, t)；否则退出进程
@@ -458,13 +523,18 @@ impl BootMachine {
                 ));
                 self.softkeys = (0, 3);
             }
+            14 => {
+                // case 14（a.java:4372-4380 区）：intro/end 容器 + 引子状态机
+                //（粒子表沿用 title 的 Particles——Java 全局唯一）
+                self.intro = Some(crate::intro::IntroSequence::new());
+            }
             22 => {
                 // case 22（a.java:4472）：closeAudio（shim 无副作用）；
                 // bootPhaseCounter 已为 0（mode 0→21 清理）
                 self.counter = 0;
             }
             _ => {
-                self.finished = true; // 14 等未端口模式
+                self.finished = true; // 其余未端口模式
             }
         }
     }

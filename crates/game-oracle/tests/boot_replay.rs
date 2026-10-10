@@ -54,11 +54,17 @@ fn boot_menu_frames_match_tick_by_tick() {
         load_container("ui", 25),
         load_container("menu", 2),
         mapbg,
+        load_container("intro", 2),
+        load_container("end", 1),
+        load_container("load", 2),
     );
     let mut checked = 0usize;
     // 按键投递时序：TICK n 的 INPUT 行在 preTick(n)（paint#n 之后）投递，
     // 由 logic#(n+1) 消费（run 循环体开头读 keyValue）⇒ 延迟一拍传入 tick()
     let mut pending_key = 0i32;
+    // **持久画布**（对抗 review R-1）：Java Canvas 的 screen 跨帧保留——
+    // 非全屏覆盖分支（如 mode 14 首拍无引子图）依赖上一帧残影
+    let mut screen = ArgbImage::create(240, 320);
     for rec in &records {
         let key = pending_key;
         pending_key = input_key(&rec.input);
@@ -70,7 +76,6 @@ fn boot_menu_frames_match_tick_by_tick() {
             assert_eq!(machine.mode, 22, "终点模式");
             break;
         }
-        let mut screen = ArgbImage::create(240, 320);
         let sha;
         {
             let mut g = SoftGraphics::new(&mut screen);
@@ -90,6 +95,63 @@ fn boot_menu_frames_match_tick_by_tick() {
     }
     // 覆盖锚：l0 T1-16 + l1 T17-31 + logo T32-67 + 声音询问 T68-70 + title T71-150
     assert_eq!(checked, 1831, "mode 0/21/1/8/16/15/17/22 全程 T1-T1831 帧必须全部比对");
+}
+
+/// enter-game 场景：0→21→1→14（引子）→2（加载）→ mode 3 边界。
+/// 覆盖引子滚动机/调色循环/快进、加载链 42 tick、mode 2→3 切换拍。
+#[test]
+fn enter_game_frames_match_tick_by_tick() {
+    let trace_text = std::fs::read_to_string(
+        repo().join("reference/oracle/_out/A-enter-game/trace.txt"),
+    )
+    .expect("缺 A-enter-game trace（先跑 python3 reference/oracle/run.py --scenarios）");
+    let records = trace::parse(&trace_text);
+    let mapbg = {
+        let v = load_container("mapbg", 1);
+        v.into_iter().next().unwrap()
+    };
+    let mut machine = BootMachine::new(
+        decode_png("l0.png"),
+        decode_png("l1.png"),
+        load_sflogo(),
+        load_container("ui", 25),
+        load_container("menu", 2),
+        mapbg,
+        load_container("intro", 2),
+        load_container("end", 1),
+        load_container("load", 2),
+    );
+    let mut checked = 0usize;
+    let mut pending_key = 0i32;
+    // **持久画布**（同 menu-sweep：Java Canvas 跨帧保留）
+    let mut screen = ArgbImage::create(240, 320);
+    for rec in &records {
+        let key = pending_key;
+        pending_key = input_key(&rec.input);
+        machine.tick(key);
+        if machine.finished {
+            // mode 2 完成 → m_000 case 3（游戏态初始化）——mode 3 游戏画面下批
+            assert!(rec.tick >= 380 && rec.tick <= 430, "mode 3 边界应在 T382-430 区（加载 42 tick），实际 T{}", rec.tick);
+            break;
+        }
+        let sha;
+        {
+            let mut g = SoftGraphics::new(&mut screen);
+            g.set_clip(0, 0, 240, 320);
+            g.set_font(Some(game_core::paint::paint_font()));
+            machine.paint(&mut g);
+            sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
+        }
+        if let Some(expect) = &rec.frame_sha {
+            assert_eq!(
+                &sha, expect,
+                "TICK {} 帧哈希不符（paints={} mode={}）",
+                rec.tick, machine.paints, machine.mode
+            );
+            checked += 1;
+        }
+    }
+    assert!(checked >= 380, "引子+加载链帧数不足: {checked}");
 }
 
 /// INPUT 行 → 本 tick 边界投递的按键码（keyPressed；release 只清 keyHeldCode，

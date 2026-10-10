@@ -6,6 +6,7 @@ pub mod layout;
 pub mod camera;
 pub mod combat;
 pub mod entity;
+pub mod intro;
 pub mod logo_anim;
 pub mod menu_family;
 pub mod sprite_spawn;

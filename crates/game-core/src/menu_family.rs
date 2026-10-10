@@ -367,6 +367,33 @@ impl OverlayEngine {
         self.cached_text = Some(text.to_vec());
     }
 
+    /// 引子字幕布局（m_014 依赖行宽/总行数；布局参数与 paint 调用一致 220/28）。
+    pub fn layout_for_intro(&mut self, text: &[u16], font: &crate::render::SoftFont) {
+        self.layout(text, 220, 28, font);
+        self.cached_text = Some(text.to_vec());
+    }
+
+    /// f_String_03 != null（上次 paint 布局锚存在——m_014 滚动机门槛）。
+    pub fn layout_done(&self) -> bool {
+        self.cached_text.is_some()
+    }
+
+    pub fn needs_layout(&self, text: &[u16]) -> bool {
+        self.cached_text.as_deref() != Some(text)
+    }
+
+    pub fn line_at_top(&self) -> usize {
+        self.page_top as usize
+    }
+
+    pub fn line(&self, idx: usize) -> Vec<u16> {
+        self.lines.get(idx).cloned().unwrap_or_default()
+    }
+
+    pub fn total_lines(&self) -> i32 {
+        self.total_lines
+    }
+
     pub fn lines_per_page(&self) -> i32 {
         self.lines_per_page
     }
@@ -404,14 +431,15 @@ impl OverlayEngine {
         x: i32,
         y: i32,
         w: i32,
-        _h: i32,
+        h: i32,
         arrows: bool,
         frame_counter: i32,
         font: &crate::render::SoftFont,
     ) {
         if self.cached_text.as_deref() != Some(text) {
-            // paintWrappedText 内缓存失效 ⇒ layoutFullText(text, w=180, h=240) 重排（a.java:5017-5020）
-            self.layout(text, 180, 240, font);
+            // paintWrappedText 缓存失效 ⇒ layoutFullText(text, w, h)（a.java:5017-5020）——
+            // 布局参数来自调用方（overlay=180/240 预排、引子字幕=220/28）
+            self.layout(text, w, h, font);
             self.cached_text = Some(text.to_vec());
         }
         let mut dy = y + 2;
