@@ -10,13 +10,13 @@
       "count": 1
     },
     {
-      "old": "m_038(var1,",
-      "new": "m_038(var1i,",
+      "old": "paintTitledBox(var1,",
+      "new": "paintTitledBox(var1i,",
       "count": 1
     },
     {
-      "old": "(var1 = this.f_byte_arr_25[this.f_int_134] - 33)",
-      "new": "(var1i = this.f_byte_arr_25[this.f_int_134] - 33)",
+      "old": "(var1 = this.f_byte_arr_25[this.slotCursor] - 33)",
+      "new": "(var1i = this.f_byte_arr_25[this.slotCursor] - 33)",
       "count": 1
     },
     {
@@ -30,8 +30,8 @@
       "count": 2
     },
     {
-      "old": "(var1 = this.f_byte_arr_26[this.f_int_134] - 33)",
-      "new": "(var1i = this.f_byte_arr_26[this.f_int_134] - 33)",
+      "old": "(var1 = this.f_byte_arr_26[this.slotCursor] - 33)",
+      "new": "(var1i = this.f_byte_arr_26[this.slotCursor] - 33)",
       "count": 1
     },
     {
@@ -40,6 +40,6 @@
       "count": 1
     }
   ],
-  "evidence": "javap m_113: 首指令 var1?2:1 后 slot1 全为 int 消费（m_038(IIIII) 首参、数组索引、f_Image_arr2_00[6][var1]）。",
+  "evidence": "javap m_113: 首指令 var1?2:1 后 slot1 全为 int 消费（paintTitledBox(IIIII) 首参、数组索引、f_Image_arr2_00[6][var1]）。",
   "confidence": 92
 }

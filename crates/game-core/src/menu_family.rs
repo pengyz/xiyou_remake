@@ -3,24 +3,24 @@
 //!
 //! # 结构（A 级证据）
 //!
-//! - **mode 8**（paint a.java:2684-2688 / run a.java:3817-3872 / m_000 case 8
-//!   a.java:4344-4369）：parallax 背景 + m_113 槽位列表 + 软键 (1,3)。
-//!   -2/-1 移动槽光标（f_int_134，窗口 f_int_132/133）；-7 → f_byte_01；
+//! - **mode 8**（paint a.java:2684-2688 / run a.java:3819-3874 / m_000 case 8
+//!   a.java:4346-4371）：parallax 背景 + paintSlotList 槽位列表 + 软键 (1,3)。
+//!   -2/-1 移动槽光标（slotCursor，窗口 slotScrollTop/slotScrollBottom）；-7 → menuReturnMode；
 //!   槽无效（oracle RMS 恒空）时 -5 无操作。
 //! - **mode 15/17**（BUG-007：标签「保存游戏/设置」实为帮助/关于）：
 //!   paint case 15/17 = parallax + iconStrip(y0=10, sy=51/68) + 软键 (0,3)；
-//!   m_000 经 showOverlayMessage(0, 大文本) 置 f_bool_05——**overlay 层**
-//!   （run a.java:3242-3262 case 0 的 15/17 分支）处理 -7（退出→f_byte_01）
+//!   m_000 经 showOverlayMessage(0, 大文本) 置 overlayActive——**overlay 层**
+//!   （run a.java:3244-3264 case 0 的 15/17 分支）处理 -7（退出→menuReturnMode）
 //!   与 -2/-1（翻页）。
-//! - **mode 16**（选项列表）：paint case 16（m_040 盒 + 高亮行 + 勾选框）；
-//!   run case 16（a.java:4127-4175）：-2/-1 移动 f_int_82、-5/-4/-3 翻转
-//!   f_bool_arr_05[高亮]；-7/-6 → f_byte_01。
-//! - **mode 22**（帮助→退出）：run case 22（a.java:4233-4242）++f_int_156≤70
+//! - **mode 16**（选项列表）：paint case 16（paintBoxFrame 盒 + 高亮行 + 勾选框）；
+//!   run case 16（a.java:4129-4177）：-2/-1 移动 optionCursor、-5/-4/-3 翻转
+//!   optionChecked[高亮]；-7/-6 → menuReturnMode。
+//! - **mode 22**（帮助→退出）：run case 22（a.java:4235-4244）++bootPhaseCounter≤70
 //!   ⇒ runLogoAnimation(1, t)（var1=1 分支 a.java:10289-10337：t=18..30 逐字
 //!   上滑注册、t=50/51/52/58/63 修改项）；paint case 22 = paintLogoAnimation。
 //!   70 拍后 f_bool_00=false（进程退出）。
-//! - **overlay 绘制**（paint 公共尾 a.java:3119-3167）：m_040 居中盒 +
-//!   m_019 排版文本（\cRRGGBB 着色、\r 复原、翻页箭头闪烁 frameCounter&1）。
+//! - **overlay 绘制**（paint 公共尾 a.java:3121-3169）：paintBoxFrame 居中盒 +
+//!   paintWrappedText 排版文本（\cRRGGBB 着色、\r 复原、翻页箭头闪烁 frameCounter&1）。
 //!
 //! # paint 内状态推进
 //!
@@ -29,13 +29,13 @@
 
 use crate::render::{ArgbImage, SoftGraphics};
 
-/// m_022（a.java:10459-10469）：hex 颜色解析，失败 → 2829099（永不 -1）。
+/// parseHexColor（a.java:10459-10469）：hex 颜色解析，失败 → 2829099（永不 -1）。
 fn parse_hex_color(s: &[u16]) -> i32 {
     let txt: String = s.iter().map(|&c| c as u8 as char).collect();
     i32::from_str_radix(&txt, 16).unwrap_or(2829099)
 }
 
-/// m_022 恒不为 -1 的判定（6 位 hex 解析结果域内不为 -1；NaN 路径返回默认色）。
+/// parseHexColor 恒不为 -1 的判定（6 位 hex 解析结果域内不为 -1；NaN 路径返回默认色）。
 fn hex_color_valid(s: &[u16]) -> bool {
     let txt: String = s.iter().map(|&c| c as u8 as char).collect();
     i32::from_str_radix(&txt, 16).map(|v| v != -1).unwrap_or(false)
@@ -89,7 +89,7 @@ impl ParallaxBackdrop {
 
 // ============================== 盒框绘制 ==============================
 
-/// `m_005`（a.java:4563-4612）：角/边片绘制（kind 1-7 = 变换码表索引，
+/// `drawEdgePatch`（a.java:4565-4614）：角/边片绘制（kind 1-7 = 变换码表索引，
 /// 全 >7 ⇒ shim 原样绘制，仅坐标公式生效）。
 #[allow(clippy::too_many_arguments)]
 pub fn draw_edge_patch(
@@ -136,7 +136,7 @@ pub fn draw_edge_patch(
     g.set_clip(0, 0, 240, 320);
 }
 
-/// `m_040`（a.java:6094-6134）：标准盒框（ui[8][0] 角片 26×16 / 边片 16×16）。
+/// `paintBoxFrame`（a.java:6094-6134）：标准盒框（ui[8][0] 角片 26×16 / 边片 16×16）。
 pub fn paint_box_frame(g: &mut SoftGraphics<'_>, ui0: &ArgbImage, x: i32, y: i32, w: i32, h: i32) {
     // 顶边（含左上角）
     g.set_clip(x, y, 26, 16);
@@ -168,7 +168,7 @@ pub fn paint_box_frame(g: &mut SoftGraphics<'_>, ui0: &ArgbImage, x: i32, y: i32
     g.set_clip(0, 0, 240, 320);
 }
 
-/// `m_038`（a.java:6087-6106）：盒框 + 顶部标题条（ui[8][13] 按 `segs`
+/// `paintTitledBox`（a.java:6087-6106）：盒框 + 顶部标题条（ui[8][13] 按 `segs`
 /// 段表切 14px 片）。
 pub fn paint_titled_box(
     g: &mut SoftGraphics<'_>,
@@ -191,7 +191,7 @@ pub fn paint_titled_box(
     g.set_clip(0, 0, 240, 320);
 }
 
-/// `m_041`（a.java:6171-6180）：小框（32×32 图标框底）。
+/// `paintMiniFrame`（a.java:6171-6180）：小框（32×32 图标框底）。
 pub fn paint_mini_frame(g: &mut SoftGraphics<'_>, x: i32, y: i32, w: i32, h: i32) {
     let bottom = y + h - 2;
     let right = x + w - 1;
@@ -203,7 +203,7 @@ pub fn paint_mini_frame(g: &mut SoftGraphics<'_>, x: i32, y: i32, w: i32, h: i32
     g.draw_line(x + 1, bottom + 1, right - 1, bottom + 1);
 }
 
-/// `m_042`（a.java:6182-6211）：数字条（右对齐逐位，负数画横线）。
+/// `paintNumber`（a.java:6182-6211）：数字条（右对齐逐位，负数画横线）。
 /// 返回绘制位数（调用方用于宽度推进）。
 pub fn paint_number(g: &mut SoftGraphics<'_>, digits: &ArgbImage, value: i32, x: i32, y: i32) -> i32 {
     let negative = value < 0;
@@ -234,31 +234,31 @@ pub fn paint_number(g: &mut SoftGraphics<'_>, digits: &ArgbImage, value: i32, x:
 
 // ============================== overlay 引擎 ==============================
 
-/// overlay 文本状态（showOverlayMessage + m_017/m_018 布局 + m_019 绘制 +
-/// m_020 翻页；行缓冲 f_String_arr_03）。
+/// overlay 文本状态（showOverlayMessage + layoutFullText/layoutWrappedText 布局 + paintWrappedText 绘制 +
+/// flipOverlayPage 翻页；行缓冲 wrappedLines）。
 pub struct OverlayEngine {
-    /// 行缓冲（f_String_arr_03，m_018 切行产物；UTF-16 码元）。
+    /// 行缓冲（wrappedLines，layoutWrappedText 切行产物；UTF-16 码元）。
     lines: Vec<Vec<u16>>,
-    /// 缓存锚（f_String_03 != text 才重排）。
+    /// 缓存锚（overlayLayoutCache != text 才重排）。
     cached_text: Option<Vec<u16>>,
-    /// f_int_26：页首行。
+    /// overlayPageTop：页首行。
     page_top: i32,
-    /// f_int_27：页尾行（独占）。
+    /// overlayPageBottom：页尾行（独占）。
     page_bottom: i32,
-    /// f_int_28：总行数。
+    /// overlayTotalLines：总行数。
     total_lines: i32,
-    /// f_int_30：每页行数。
+    /// overlayLinesPerPage：每页行数。
     lines_per_page: i32,
-    /// f_int_31：页高（行高×每页行数）。
+    /// overlayPageHeight：页高（行高×每页行数）。
     page_height: i32,
-    /// f_int_29：内容宽（单行 = 整串宽，多行 = 布局宽 var2）。
+    /// overlayContentWidth：内容宽（单行 = 整串宽，多行 = 布局宽 var2）。
     content_width: i32,
-    /// f_int_24/f_int_25：overlay 盒尺寸。
+    /// overlayBoxWidth/overlayBoxHeight：overlay 盒尺寸。
     pub box_w: i32,
     pub box_h: i32,
-    /// f_int_32：\r 恢复色。
+    /// overlaySavedColor：\r 恢复色。
     saved_color: u32,
-    /// 行高 f_int_34（fontHeight+4=14）。
+    /// 行高 textLineHeight（fontHeight+4=14）。
     line_height: i32,
 }
 
@@ -282,11 +282,11 @@ impl OverlayEngine {
             box_w: 0,
             box_h: 0,
             saved_color: 0,
-            line_height: 14, // f_int_34 = fontHeight+4（a.java:471）
+            line_height: 14, // textLineHeight = fontHeight+4（a.java:471）
         }
     }
 
-    /// `m_018`（a.java:4984-5005 区）：切行布局。`(max_w, max_h)` =
+    /// `layoutWrappedText`（a.java:4986-5007 区）：切行布局。`(max_w, max_h)` =
     /// showOverlayMessage case 0 的 (180, 240)。
     fn layout(&mut self, text: &[u16], max_w: i32, max_h: i32, font: &crate::render::SoftFont) {
         self.lines.clear();
@@ -356,7 +356,7 @@ impl OverlayEngine {
         };
     }
 
-    /// `showOverlayMessage` case 0/2/4/5（a.java:4991-4998）：布局 + 盒尺寸。
+    /// `showOverlayMessage` case 0/2/4/5（a.java:4993-5000）：布局 + 盒尺寸。
     pub fn show_kind0(&mut self, text: &[u16], font: &crate::render::SoftFont, footer_icons: (i8, i8)) {
         self.layout(text, 180, 240, font);
         self.box_w = self.content_width + 32;
@@ -375,7 +375,7 @@ impl OverlayEngine {
         self.page_top
     }
 
-    /// `m_020`（a.java:5041-5060）：翻页钳制。
+    /// `flipOverlayPage`（a.java:5041-5060）：翻页钳制。
     pub fn flip_page(&mut self, page: i32) {
         let mut p = page;
         if p >= 0 {
@@ -395,8 +395,8 @@ impl OverlayEngine {
         }
     }
 
-    /// `m_019`（a.java:5014-5070）：排版绘制（\c 着色 / \r 复原 / 翻页箭头）。
-    /// `(x, y, w, _h, arrows)`；`frame_counter` = paint 时 f_int_03 值。
+    /// `paintWrappedText`（a.java:5016-5070）：排版绘制（\c 着色 / \r 复原 / 翻页箭头）。
+    /// `(x, y, w, _h, arrows)`；`frame_counter` = paint 时 frameCounter 值。
     pub fn paint(
         &mut self,
         g: &mut SoftGraphics<'_>,
@@ -410,7 +410,7 @@ impl OverlayEngine {
         font: &crate::render::SoftFont,
     ) {
         if self.cached_text.as_deref() != Some(text) {
-            // m_019 内缓存失效 ⇒ m_017(text, w=180, h=240) 重排（a.java:5017-5020）
+            // paintWrappedText 内缓存失效 ⇒ layoutFullText(text, w=180, h=240) 重排（a.java:5017-5020）
             self.layout(text, 180, 240, font);
             self.cached_text = Some(text.to_vec());
         }
@@ -501,18 +501,18 @@ impl OverlayEngine {
 
 // ============================== 槽位列表 ==============================
 
-/// m_113（a.java:9025-9130）的槽位表（oracle RMS 恒空 ⇒ 全无效）。
+/// paintSlotList（a.java:9025-9130）的槽位表（oracle RMS 恒空 ⇒ 全无效）。
 pub struct SlotSelect {
-    /// f_int_134：槽光标（0..5 环绕）。
+    /// slotCursor：槽光标（0..5 环绕）。
     pub cursor: i32,
-    /// f_int_132/f_int_133：可见窗口。
+    /// slotScrollTop/slotScrollBottom：可见窗口。
     scroll_top: i32,
     scroll_bottom: i32,
-    /// f_int_136：每页行数（m_000 case 8 = min(6, 208/14) = 6）。
+    /// slotsPerPage：每页行数（m_000 case 8 = min(6, 208/14) = 6）。
     rows_per_page: i32,
-    /// f_int_135：内容宽（max(148, wideCharWidth*3+60) = 148）。
+    /// slotListWidth：内容宽（max(148, wideCharWidth*3+60) = 148）。
     content_w: i32,
-    /// f_int_131：内容高（112+14*6 = 196）。
+    /// slotListHeight：内容高（112+14*6 = 196）。
     content_h: i32,
     /// 槽有效性（RMS 读档；oracle 恒 [false;6]）。
     pub valid: [bool; 6],
@@ -535,7 +535,7 @@ impl SlotSelect {
         }
     }
 
-    /// run case 8 的 -2（a.java:3849-3858）。
+    /// run case 8 的 -2（a.java:3851-3860）。
     pub fn cursor_down(&mut self) {
         if self.cursor < 5 {
             self.cursor += 1;
@@ -550,7 +550,7 @@ impl SlotSelect {
         }
     }
 
-    /// run case 8 的 -1（a.java:3860-3869）。
+    /// run case 8 的 -1（a.java:3862-3871）。
     pub fn cursor_up(&mut self) {
         if self.cursor > 0 {
             self.cursor -= 1;
@@ -565,7 +565,7 @@ impl SlotSelect {
         }
     }
 
-    /// `m_113(false)`（a.java:9025-9068 无效槽路径：详情面板跳过）。
+    /// `paintSlotList(false)`（a.java:9025-9068 无效槽路径：详情面板跳过）。
     pub fn paint(
         &self,
         g: &mut SoftGraphics<'_>,
@@ -624,15 +624,15 @@ const SAVE_LABEL: &[u16] = &[0x5B58, 0x6863];
 
 // ============================== 菜单族状态机 ==============================
 
-/// mode 16 选项列表（m_072 登记产物）。
+/// mode 16 选项列表（addOption 登记产物）。
 pub struct OptionList {
-    /// f_byte_arr_11：标签索引表（f_String_arr_05 下标）。
+    /// optionLabelIdx：标签索引表（optionLabels 下标）。
     pub labels: Vec<usize>,
-    /// f_bool_arr_05：勾选状态。
+    /// optionChecked：勾选状态。
     pub checked: Vec<bool>,
-    /// f_int_82：高亮行。
+    /// optionCursor：高亮行。
     pub highlight: i32,
-    /// f_int_84/f_int_85：盒宽/高。
+    /// optionBoxWidth/optionBoxHeight：盒宽/高。
     box_w: i32,
     box_h: i32,
 }
@@ -654,17 +654,17 @@ mod option_tests {
     }
 }
 
-/// f_String_arr_05（a.java 构造）：{"声音","小地图",...} 取前两项的 UTF-16。
+/// optionLabels（a.java 构造）：{"声音","小地图",...} 取前两项的 UTF-16。
 pub const OPTION_LABELS: [&[u16]; 2] = [
     &[0x58F0, 0x97F3],       // 声音
     &[0x5C0F, 0x5730, 0x56FE], // 小地图
 ];
 
 impl OptionList {
-    /// m_000 case 16（a.java:4398-4406）：f_int_83=0 后 m_072(0)/m_072(1)。
+    /// m_000 case 16（a.java:4400-4408）：optionCount=0 后 addOption(0)/addOption(1)。
     ///
-    /// `minimap_checked`：f_bool_arr_05[1]——oracle RMS 恒空 ⇒ mode 21 的
-    /// m_000 case 21 catch 分支设 true（a.java:4451-4452）。
+    /// `minimap_checked`：optionChecked[1]——oracle RMS 恒空 ⇒ mode 21 的
+    /// m_000 case 21 catch 分支设 true（a.java:4453-4454）。
     pub fn new(sound_enabled: bool, minimap_checked: bool) -> OptionList {
         let mut list = OptionList {
             labels: Vec::new(),
@@ -673,19 +673,19 @@ impl OptionList {
             box_w: 0,
             box_h: 0,
         };
-        list.add(0, sound_enabled); // m_072(0)：checked=soundEnabled
+        list.add(0, sound_enabled); // addOption(0)：checked=soundEnabled
         list.add(1, minimap_checked);
         list
     }
 
-    /// `m_072`（a.java:9880-9901）：登记选项 + 盒尺寸累加。
+    /// `addOption`（a.java:9880-9901）：登记选项 + 盒尺寸累加。
     fn add(&mut self, label_idx: usize, checked: bool) {
         let font = crate::paint::paint_font();
         let w = font.string_width(OPTION_LABELS[label_idx]) + 80;
         self.labels.push(label_idx);
         self.checked.push(checked);
         if self.labels.len() == 1 {
-            self.box_h = 32 + 18; // 32 + f_int_81(fontHeight+8)
+            self.box_h = 32 + 18; // 32 + optionRowHeight(fontHeight+8)
             self.box_w = w;
         } else {
             self.box_h += 18;
@@ -695,7 +695,7 @@ impl OptionList {
         }
     }
 
-    /// paint case 16（a.java:2951-2986）。
+    /// paint case 16（a.java:2951-2988）。
     pub fn paint(&self, g: &mut SoftGraphics<'_>, ui: &[ArgbImage], font: &crate::render::SoftFont) {
         let x = 240 - self.box_w - 22 >> 1;
         let mut y = 320 - self.box_h >> 1;
@@ -720,7 +720,7 @@ impl OptionList {
             g.set_color((-1i32) as u32);
             g.draw_string(label, lx, y + 4, 0);
             lx += 2 + font.string_width(label);
-            // 勾选框：未选中 sy=12、选中 sy=0（a.java:2977-2983 分支方向）
+            // 勾选框：未选中 sy=12、选中 sy=0（a.java:2979-2985 分支方向）
             let sy = if !self.checked[i] { 12 } else { 0 };
             crate::paint::draw_image_clipped(g, &ui[11], lx, y + (font.height - 2 >> 1), sy, 0, 12, 10);
             y += font.height + 8;

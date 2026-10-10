@@ -5,18 +5,18 @@
 //!
 //! # 结构（A 级证据：a.java 行内锚点）
 //!
-//! - **注册表**：`f_int_arr2_03[26][7]` 每项 `{x, y, kind, p3, p4, p5, slot}` +
-//!   `f_Image_arr_01[26]` 平行图列表，`f_byte_29` 为活跃数（a.java:2253、411）
+//! - **注册表**：`logoItemMeta[26][7]` 每项 `{x, y, kind, p3, p4, p5, slot}` +
+//!   `logoItemImages[26]` 平行图列表，`logoItemCount` 为活跃数（a.java:2253、411）
 //! - **registerLogoItem 登记**（a.java:10470）：kind 0=静止；1=缓动移向目标（p3 步数）；
 //!   2=逐列展开（p3=总列数、p4=已展开数、p6=列宽）；3=字形槽（slot=p9 索引
-//!   f_byte_arr_46 度量表）；4=方形环绕步进
+//!   logoGlyphMetrics 度量表）；4=方形环绕步进
 //! - **runLogoAnimation 推进**（a.java:10202）：每 tick 倒序遍历注册表按 kind 推进，
 //!   然后按时间线 `var2` 登记/删除/改型（case 1..35）
 //! - **paintLogoAnimation 绘制**（a.java:10440）：白底 → 遍历注册表（kind 3/4 走字形槽
 //!   clip+sflogo#7；kind 2 走展开列 clip；其余直接画）
 //! - **度量布局**（runLogoAnimation 首次，a.java:10205-10212）：三段高度 {87,18,9}
-//!   （a.java:2248）→ y 锚表 f_int_arr_37、x 居中 f_int_158；字形槽宽表
-//!   f_byte_arr_46 21 对 {x,w}（a.java:2250-2252）
+//!   （a.java:2248）→ y 锚表 logoAnchorY、x 居中 logoBarX；字形槽宽表
+//!   logoGlyphMetrics 21 对 {x,w}（a.java:2250-2252）
 //!
 //! # 时序合同（差分实测）
 //!
@@ -30,16 +30,16 @@
 
 use crate::render::{ArgbImage, SoftGraphics};
 
-/// f_byte_arr_45（a.java:2248）：logo 三段高度 {主 logo, 间隔, 字条}。
+/// logoSegmentHeights（a.java:2248）：logo 三段高度 {主 logo, 间隔, 字条}。
 pub const SEGMENT_HEIGHTS: [i32; 3] = [87, 18, 9];
 
-/// f_byte_arr_46（a.java:2250-2252）：21 对 {x偏移, 宽} 字形槽度量表。
+/// logoGlyphMetrics（a.java:2250-2252）：21 对 {x偏移, 宽} 字形槽度量表。
 pub const GLYPH_METRICS: [i8; 42] = [
     0, 5, 5, 5, 10, 4, 14, 7, 21, 4, 25, 3, 28, 3, 31, 4, 35, 3, 38, 4, 42, 4, 46, 4, 50, 4, 54,
     3, 57, 3, 60, 4, 64, 2, 66, 2, 68, 4, 72, 4, 76, 5,
 ];
 
-/// 注册表容量（a.java:10475 `f_byte_29 < 26`）。
+/// 注册表容量（a.java:10475 `logoItemCount < 26`）。
 const CAPACITY: usize = 26;
 
 /// logo 动画层状态。
@@ -49,13 +49,13 @@ pub struct LogoAnim {
     registry: Vec<[i32; 7]>,
     /// 注册表平行图列表（a.java:10472，首次登记时分配；removeLogoItem(-1) 置回 None）。
     images: Vec<Option<ArgbImage>>,
-    /// f_byte_29 活跃项数。
+    /// logoItemCount 活跃项数。
     pub count: i32,
-    /// f_int_arr_37：三段 y 锚（主 logo / 字条 / 底槽）。
+    /// logoAnchorY：三段 y 锚（主 logo / 字条 / 底槽）。
     pub anchors_y: [i32; 3],
-    /// f_int_158：底条 x 居中偏移。
+    /// logoBarX：底条 x 居中偏移。
     pub bar_x: i32,
-    /// f_bool_30：布局已初始化（mode 0→21 清理时复位，a.java:3362）。
+    /// logoLayoutDone：布局已初始化（mode 0→21 清理时复位，a.java:3364）。
     initialized: bool,
 }
 
@@ -83,15 +83,15 @@ impl LogoAnim {
         self.images = vec![None; CAPACITY];
     }
 
-    /// mode 0→21 清理路径的复位（a.java:3362 `f_bool_30 = false`）：
+    /// mode 0→21 清理路径的复位（a.java:3364 `logoLayoutDone = false`）：
     /// 复用同一 LogoAnim 实例时布局常量会重算（对抗 review R-5）。
     pub fn reset_layout_flag(&mut self) {
         self.initialized = false;
     }
 
-    /// f_bool_30 布局初始化（a.java:10204-10213）。
+    /// logoLayoutDone 布局初始化（a.java:10204-10213）。
     ///
-    /// `f_int_157 = min(15, |320-Σh|>>2)`；`var4 = (320-Σh-2·f_int_157)>>1`；
+    /// `logoGap = min(15, |320-Σh|>>2)`；`var4 = (320-Σh-2·logoGap)>>1`；
     /// anchors = [var4+87/2, var4+87+15, 190+18+15]；bar_x = (240-w_sflogo7)>>1。
     fn ensure_layout(&mut self, sflogo7_width: i32) {
         if self.initialized {
@@ -239,12 +239,12 @@ impl LogoAnim {
     /// `runLogoAnimation(0, var2)`：推进 + 时间线（a.java:10202-10438）。
     ///
     /// `sflogo` 为容器 8 张子图（a.java:10341 等引用 `[0][k]`）；
-    /// `timeline` 为 f_int_156（1..35，a.java:3358-3359）。
+    /// `timeline` 为 bootPhaseCounter（1..35，a.java:3360-3361）。
     pub fn tick(&mut self, sflogo: &[ArgbImage], timeline: i32) {
         self.tick_variant(sflogo, timeline, false);
     }
 
-    /// `runLogoAnimation(1, var2)`：帮助退出动画（mode 22，a.java:4244-4245，
+    /// `runLogoAnimation(1, var2)`：帮助退出动画（mode 22，a.java:4246-4247，
     /// 时间线 1..70）。var1=1 分支（a.java:10295-10343）。
     pub fn tick_help(&mut self, sflogo: &[ArgbImage], timeline: i32) {
         self.tick_variant(sflogo, timeline, true);
@@ -377,7 +377,7 @@ impl LogoAnim {
                 self.register(Some(sflogo[2].clone()), 90, ay[1], 2, 4, 4, 4, 0, 0, -1);
                 self.register(Some(sflogo[3].clone()), 120, ay[1], 2, 4, 4, 4, 0, 0, -1);
                 self.register(Some(sflogo[4].clone()), 150, ay[1], 2, 4, 4, 4, 0, 0, -1);
-                self.register(Some(sflogo[6].clone()), 15, ay[1], 1, 12, 3, bx, ay[2], 0, -1); // f_int_158（a.java:10363）
+                self.register(Some(sflogo[6].clone()), 15, ay[1], 1, 12, 3, bx, ay[2], 0, -1); // logoBarX（a.java:10363）
             }
             10 => {
                 self.remove(5);
@@ -397,9 +397,9 @@ impl LogoAnim {
                 self.modify(7, 3, 0, 2, bx + GLYPH_METRICS[4] as i32, ay[2]);
             }
             // Java switch 的 default 分支（a.java:10342-10352）：无操作。
-            // timeline 全域 1..=35（a.java:3358）：25..=31 由下方公共段处理
+            // timeline 全域 1..=35（a.java:3360）：25..=31 由下方公共段处理
             2..=4 | 6 | 7 | 9 | 11 | 12 | 13 | 16 | 18..=24 | 25..=31 | 32..=35 => {}
-            _ => unreachable!("timeline 超出 1..=35（a.java:3358 计数域）: got {timeline}"),
+            _ => unreachable!("timeline 超出 1..=35（a.java:3360 计数域）: got {timeline}"),
         }
 
         // switch 后的公共注册段（a.java:10383-10436，命中即 return）

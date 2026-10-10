@@ -55,6 +55,6 @@
       "count": 2
     }
   ],
-  "evidence": "javap activateItem: case18/85 两处 istore_1←f_int_45（int 实体计数）；slot2 终态 ireturn（方法 Z）⇒ boolean；(playerAtk+playerDef)*74/10 为 int 局部（数值拼接显示）⇒ 拆 var2hp。",
+  "evidence": "javap activateItem: case18/85 两处 istore_1←entityCount（int 实体计数）；slot2 终态 ireturn（方法 Z）⇒ boolean；(playerAtk+playerDef)*74/10 为 int 局部（数值拼接显示）⇒ 拆 var2hp。",
   "confidence": 92
 }

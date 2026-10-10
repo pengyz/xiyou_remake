@@ -32,7 +32,7 @@ public final class a extends Canvas implements Runnable {
    private boolean f_bool_01;
    private int frameCounter;
    private byte gameMode;
-   private byte f_byte_01;
+   private byte menuReturnMode;
    private byte f_byte_02;
    private DirectGraphics f_DirectGraphics_00;
    private int bootLoadPhase;
@@ -42,7 +42,7 @@ public final class a extends Canvas implements Runnable {
    private int[] resourceImageCounts;
    private Image[][] f_Image_arr2_00;
    private static int[] f_int_arr_01 = new int[]{0, 8192, 16384, 24576, 8462, 270, 90, 8282};
-   private int[][] f_int_arr2_00;
+   private int[][] titleBarSegments;
    private InputStream f_InputStream_00;
    private OutputStream f_OutputStream_00;
    private InputStream f_InputStream_01;
@@ -76,25 +76,25 @@ public final class a extends Canvas implements Runnable {
    private int f_int_22;
    private int f_int_23;
    private boolean f_bool_04;
-   private boolean f_bool_05;
-   private byte f_byte_05;
-   private byte f_byte_06;
+   private boolean overlayActive;
+   private byte overlayLeftIcon;
+   private byte overlayRightIcon;
    private byte f_byte_07;
-   private byte f_byte_08;
-   private int f_int_24;
-   private int f_int_25;
+   private byte overlayKind;
+   private int overlayBoxWidth;
+   private int overlayBoxHeight;
    private String overlayText;
-   private String f_String_03;
-   private String[] f_String_arr_03;
-   private int f_int_26;
-   private int f_int_27;
-   private int f_int_28;
-   private int f_int_29;
-   private int f_int_30;
-   private int f_int_31;
-   private int f_int_32;
+   private String overlayLayoutCache;
+   private String[] wrappedLines;
+   private int overlayPageTop;
+   private int overlayPageBottom;
+   private int overlayTotalLines;
+   private int overlayContentWidth;
+   private int overlayLinesPerPage;
+   private int overlayPageHeight;
+   private int overlaySavedColor;
    private int f_int_33;
-   private int f_int_34;
+   private int textLineHeight;
    private int playerHp;
    private int playerAtk;
    private int playerDef;
@@ -190,14 +190,14 @@ public final class a extends Canvas implements Runnable {
    private int f_int_78;
    private int f_int_79;
    private int f_int_80;
-   private String[] f_String_arr_05;
-   private int f_int_81;
-   private byte[] f_byte_arr_11;
-   private boolean[] f_bool_arr_05;
-   private int f_int_82;
-   private int f_int_83;
-   private int f_int_84;
-   private int f_int_85;
+   private String[] optionLabels;
+   private int optionRowHeight;
+   private byte[] optionLabelIdx;
+   private boolean[] optionChecked;
+   private int optionCursor;
+   private int optionCount;
+   private int optionBoxWidth;
+   private int optionBoxHeight;
    private short[] f_short_arr_01;
    private short[] f_short_arr_02;
    private short[] f_short_arr_03;
@@ -300,12 +300,12 @@ public final class a extends Canvas implements Runnable {
    private int[] f_int_arr_29;
    private byte[] f_byte_arr_25;
    private byte[] f_byte_arr_26;
-   private int f_int_131;
-   private int f_int_132;
-   private int f_int_133;
-   private int f_int_134;
-   private int f_int_135;
-   private int f_int_136;
+   private int slotListHeight;
+   private int slotScrollTop;
+   private int slotScrollBottom;
+   private int slotCursor;
+   private int slotListWidth;
+   private int slotsPerPage;
    private RecordStore f_RecordStore_00;
    private RecordEnumeration f_RecordEnumeration_00;
    private ByteArrayOutputStream f_ByteArrayOutputStream_00;
@@ -452,7 +452,7 @@ public final class a extends Canvas implements Runnable {
       };
       this.resourceImageCounts = new int[]{8, 1, 12, 4, 13, 23, 10, 20, 25, 6, 2, 2, 12, 20, 1, 2};
       this.f_Image_arr2_00 = new Image[this.resourceImageCounts.length][];
-      this.f_int_arr2_00 = new int[][]{{0, 1, 2}, {3, 5}, {4, 5}};
+      this.titleBarSegments = new int[][]{{0, 1, 2}, {3, 5}, {4, 5}};
       this.f_OutputStream_00 = null;
       this.f_InputStream_01 = null;
       this.menuLabels = new String[]{
@@ -467,8 +467,8 @@ public final class a extends Canvas implements Runnable {
       this.f_int_arr_02 = new int[]{16316664, 11184810, 8947848, 4473924, 1118481};
       int[] var10000 = new int[]{0, 12, 24, 36, 47, 57, 67, 75, 83, 89, 94, 97, 100, 97, 94, 89, 83, 75, 67, 57, 47, 36, 24, 12, 0};
       this.f_byte_07 = 0;
-      this.f_String_arr_03 = new String[50];
-      this.f_int_34 = this.fontHeight + 4;
+      this.wrappedLines = new String[50];
+      this.textLineHeight = this.fontHeight + 4;
       this.playerHp = 498;
       this.playerAtk = 10;
       this.playerDef = 10;
@@ -808,14 +808,14 @@ public final class a extends Canvas implements Runnable {
       this.f_int_68 = 55;
       this.f_int_74 = this.fontHeight + 90;
       this.f_int_75 = 115;
-      this.f_String_arr_05 = new String[]{"声音", "小地图"};
-      this.f_int_81 = this.fontHeight + 8;
-      this.f_byte_arr_11 = new byte[4];
-      this.f_bool_arr_05 = new boolean[4];
-      this.f_int_82 = 0;
-      this.f_int_83 = 0;
-      this.f_int_84 = 80;
-      this.f_int_85 = 32 + this.f_int_81;
+      this.optionLabels = new String[]{"声音", "小地图"};
+      this.optionRowHeight = this.fontHeight + 8;
+      this.optionLabelIdx = new byte[4];
+      this.optionChecked = new boolean[4];
+      this.optionCursor = 0;
+      this.optionCount = 0;
+      this.optionBoxWidth = 80;
+      this.optionBoxHeight = 32 + this.optionRowHeight;
       this.f_short_arr_01 = new short[10];
       this.f_short_arr_02 = new short[10];
       this.f_short_arr_03 = new short[10];
@@ -2392,7 +2392,7 @@ public final class a extends Canvas implements Runnable {
             a var31 = this;
             int var129 = 0;
             int var147 = 0;
-            if (var31.f_bool_arr_05[1] && var31.f_Image_03 != null) {
+            if (var31.optionChecked[1] && var31.f_Image_03 != null) {
                var31.f_Graphics_00.drawImage(var31.f_Image_03, var82, 20, 0);
                var129 = var82 + (var31.playerCellX << 2);
                var147 = 20 + (var31.playerCellY << 2);
@@ -2434,7 +2434,7 @@ public final class a extends Canvas implements Runnable {
             int var172 = 160 - (var30.menuListHeight + 32 >> 1);
             int var180 = var30.menuLineHeight - var30.fontHeight >> 1;
             byte var185 = 0;
-            var30.m_040(var163, var172, var128, var146);
+            var30.paintBoxFrame(var163, var172, var128, var146);
             var172 += 16 + var180;
 
             for (int var189 = var30.menuScrollTop; var189 < var30.menuVisibleBottom; var172 += var30.menuLineHeight) {
@@ -2506,7 +2506,7 @@ public final class a extends Canvas implements Runnable {
             int var170 = 0;
             int var177 = 0;
             if (var29.f_int_110 - var29.f_int_109 > 0) {
-               var29.m_040(var64, var105, var29.f_int_108, var29.f_int_107);
+               var29.paintBoxFrame(var64, var105, var29.f_int_108, var29.f_int_107);
                if (var29.f_int_109 > 0) {
                   var29.drawImageClipped(var29.f_Image_arr2_00[8][19], 112, var105 - 17 - (var29.frameCounter & 1), 16, 0, 15, 17);
                }
@@ -2529,13 +2529,13 @@ public final class a extends Canvas implements Runnable {
                   } else {
                      var29.f_Graphics_00.drawImage(var29.f_Image_arr2_00[8][16], var64 - 12, var105 + 2, 0);
                      var64 += 15;
-                     var29.m_041(var64 - 1, var105 + 6, 48, 12);
-                     var29.m_042(var29.f_Image_arr2_00[8][2], var161, var64 + 45, var105 + 8);
+                     var29.paintMiniFrame(var64 - 1, var105 + 6, 48, 12);
+                     var29.paintNumber(var29.f_Image_arr2_00[8][2], var161, var64 + 45, var105 + 8);
                   }
 
                   var64 = var188;
                   var105 += var177 + 19 + 4;
-                  var29.m_041(var64, var105, 32, 32);
+                  var29.paintMiniFrame(var64, var105, 32, 32);
                   if (var144 > 40) {
                      var170 = 32 - var29.f_byte_arr_07[var144] >> 1;
                      if ((var177 = var126.getHeight()) > 31) {
@@ -2557,26 +2557,26 @@ public final class a extends Canvas implements Runnable {
                   var64 += 36;
                   var29.drawImageClipped(var29.f_Image_arr2_00[8][7], var64, var105, 10, 0, 10, 13);
                   var64 += 15;
-                  var29.m_041(var64, var105, 48, 12);
-                  var29.m_042(var29.f_Image_arr2_00[8][2], var29.enemyAtkScaled[var144 - 41], var64 + 40, var105 + 2);
+                  var29.paintMiniFrame(var64, var105, 48, 12);
+                  var29.paintNumber(var29.f_Image_arr2_00[8][2], var29.enemyAtkScaled[var144 - 41], var64 + 40, var105 + 2);
                   var64 += 52;
                   var29.drawImageClipped(var29.f_Image_arr2_00[8][7], var64, var105, 20, 2, 10, 10);
                   var64 += 15;
                   var29.f_Graphics_00.setColor(512);
-                  var29.m_041(var64, var105, 48, 12);
-                  var29.m_042(var29.f_Image_arr2_00[8][2], var29.enemyDefScaled[var144 - 41], var64 + 40, var105 + 2);
+                  var29.paintMiniFrame(var64, var105, 48, 12);
+                  var29.paintNumber(var29.f_Image_arr2_00[8][2], var29.enemyDefScaled[var144 - 41], var64 + 40, var105 + 2);
                   var64 -= 82;
                   var105 += 12;
                   var29.drawImageClipped(var29.f_Image_arr2_00[8][7], var64, var105 + 5, 0, 2, 10, 10);
                   var64 += 15;
-                  var29.m_041(var64, var105 + 5, 48, 12);
-                  var29.m_042(var29.f_Image_arr2_00[8][2], var29.enemyHpScaled[var144 - 41], var64 + 40, var105 + 7);
+                  var29.paintMiniFrame(var64, var105 + 5, 48, 12);
+                  var29.paintNumber(var29.f_Image_arr2_00[8][2], var29.enemyHpScaled[var144 - 41], var64 + 40, var105 + 7);
                   var64 += 52;
                   var29.f_Graphics_00.drawImage(var29.f_Image_arr2_00[8][1], var64, var105 + 5, 0);
                   var64 += 15;
-                  var29.m_041(var64, var105 + 5, 48, 12);
+                  var29.paintMiniFrame(var64, var105 + 5, 48, 12);
                   var64 += 40;
-                  var29.m_042(var29.f_Image_arr2_00[8][2], var29.enemyBaseGold[var144 - 41], var64, var105 + 7);
+                  var29.paintNumber(var29.f_Image_arr2_00[8][2], var29.enemyBaseGold[var144 - 41], var64, var105 + 7);
                   var105 += 18;
                   if (++var184 < var29.f_int_110) {
                      var64 = var188 - 5;
@@ -2697,7 +2697,7 @@ public final class a extends Canvas implements Runnable {
             int var59 = 240 - var28.f_int_75 - 22 >> 1;
             int var100 = 320 - var28.f_int_74 >> 1;
             int var125 = (var28.wideCharWidth << 1) + 16 + 48;
-            var28.m_038(0, var59, var100, var28.f_int_75 + 22, var28.f_int_74);
+            var28.paintTitledBox(0, var59, var100, var28.f_int_75 + 22, var28.f_int_74);
             var59 = 240 - var125 >> 1;
             var100 += 21;
             var28.f_Graphics_00.setColor(7575203);
@@ -2705,7 +2705,7 @@ public final class a extends Canvas implements Runnable {
             var59 += (var28.wideCharWidth << 1) + 4;
             var28.f_Graphics_00.drawImage(var28.f_Image_arr2_00[8][1], var59, var100 + (var28.fontHeight - 10 >> 1), 0);
             var59 += 60;
-            var28.m_042(var28.f_Image_arr2_00[8][2], var28.alchemyPrice, var59, var100 + 3 + (var28.fontHeight - 10 >> 1));
+            var28.paintNumber(var28.f_Image_arr2_00[8][2], var28.alchemyPrice, var59, var100 + 3 + (var28.fontHeight - 10 >> 1));
             var100 += var28.fontHeight + 5;
             var59 = 240 - var28.f_int_75 >> 1;
             var28.f_Graphics_00.setColor(549016);
@@ -2713,13 +2713,13 @@ public final class a extends Canvas implements Runnable {
             var28.f_Graphics_00.drawImage(var28.f_Image_arr2_00[8][14], var59 + 10, var100 + 2 + (var28.f_int_80 << 4), 0);
             var28.drawImageWithNokiaTransform(var28.f_Image_arr2_00[8][14], var59 + var28.f_int_75 - 30, var100 + 2 + (var28.f_int_80 << 4), 1);
             var28.drawImageClipped(var28.f_Image_arr2_00[8][7], 97, var100 + 4, 0, 2, 10, 10);
-            var28.m_042(var28.f_Image_arr2_00[8][2], var28.f_int_77, 142, var100 + 6);
+            var28.paintNumber(var28.f_Image_arr2_00[8][2], var28.f_int_77, 142, var100 + 6);
             var100 += 16;
             var28.drawImageClipped(var28.f_Image_arr2_00[8][7], 97, var100 + 4, 11, 0, 8, 13);
-            var28.m_042(var28.f_Image_arr2_00[8][2], var28.f_int_78, 142, var100 + 6);
+            var28.paintNumber(var28.f_Image_arr2_00[8][2], var28.f_int_78, 142, var100 + 6);
             var100 += 16;
             var28.drawImageClipped(var28.f_Image_arr2_00[8][7], 97, var100 + 4, 20, 2, 10, 11);
-            var28.m_042(var28.f_Image_arr2_00[8][2], var28.f_int_79, 142, var100 + 6);
+            var28.paintNumber(var28.f_Image_arr2_00[8][2], var28.f_int_79, 142, var100 + 6);
             break;
          case 10:
             short var141 = 320;
@@ -2738,7 +2738,7 @@ public final class a extends Canvas implements Runnable {
             var93 = 320 - var27.f_int_102 >> 1;
             int var123 = 0;
             Object var141n = null;
-            var27.m_040(var53, var93, var27.f_int_103, var27.f_int_102);
+            var27.paintBoxFrame(var53, var93, var27.f_int_103, var27.f_int_102);
             var53 += 20;
             var93 += 16;
             var27.f_Graphics_00.setColor(13097429);
@@ -2761,7 +2761,7 @@ public final class a extends Canvas implements Runnable {
 
             while (var160 < var27.f_int_99) {
                for (int var8 = 0; var8 < var27.f_int_97; var169++) {
-                  var27.m_041(var53, var93, 32, 32);
+                  var27.paintMiniFrame(var53, var93, 32, 32);
                   if (var169 == var27.f_int_104) {
                      var27.drawImageClipped(var27.f_Image_arr2_00[2][10], var53 - 4, var93 - 3, 38 * (var27.frameCounter & 1), 0, 38, 38);
                   }
@@ -2770,7 +2770,7 @@ public final class a extends Canvas implements Runnable {
                      Image var143 = var27.f_Image_arr_00[var27.itemStackTypes[var169]];
                      var27.f_Graphics_00.drawImage(var143, var53 + (32 - var143.getWidth() >> 1), var93 + (32 - var143.getHeight() >> 1), 0);
                      if (var27.itemStackUses[var169] > 0) {
-                        var27.m_042(var27.f_Image_arr2_00[8][2], var27.itemStackUses[var169], var53 + 32, var93 + 26);
+                        var27.paintNumber(var27.f_Image_arr2_00[8][2], var27.itemStackUses[var169], var53 + 32, var93 + 26);
                      }
                   }
 
@@ -2803,9 +2803,9 @@ public final class a extends Canvas implements Runnable {
             this.m_035(0, 0);
             a var25 = this;
             int var48 = 0;
-            int var91 = (var25.f_int_34 << 1) + 12;
+            int var91 = (var25.textLineHeight << 1) + 12;
             int var120 = 320 - var91;
-            if (var25.overlayText != null && !var25.f_bool_05 && var25.dialogPhase != 4) {
+            if (var25.overlayText != null && !var25.overlayActive && var25.dialogPhase != 4) {
                Image var9 = null;
                var25.m_039(0, var120, 80, var91);
                int var11 = var91;
@@ -2823,7 +2823,7 @@ public final class a extends Canvas implements Runnable {
                }
 
                var10.f_Graphics_00.setClip(0, 0, 240, 320);
-               var10.m_005(var10.f_Image_arr2_00[8][0], 214, var48, 0, 0, 26, 16, 1);
+               var10.drawEdgePatch(var10.f_Image_arr2_00[8][0], 214, var48, 0, 0, 26, 16, 1);
                var48 += 16;
                var10.f_Graphics_00.setColor(2699825);
                var10.f_Graphics_00.fillRect(80, var48, 149, var11 - 16);
@@ -2856,13 +2856,13 @@ public final class a extends Canvas implements Runnable {
                }
 
                var25.f_Graphics_00.setColor(10473684);
-               var25.m_019(var25.overlayText, 85, var120 + 12, 129, var91 - 12, false);
-               if (var25.f_int_26 > 0) {
-                  var25.drawImageClipped(var25.f_Image_arr2_00[8][15], 220, 320 - var25.f_int_34 - 10, 0, 0, 7, 9);
+               var25.paintWrappedText(var25.overlayText, 85, var120 + 12, 129, var91 - 12, false);
+               if (var25.overlayPageTop > 0) {
+                  var25.drawImageClipped(var25.f_Image_arr2_00[8][15], 220, 320 - var25.textLineHeight - 10, 0, 0, 7, 9);
                }
 
-               if (var25.f_int_27 < var25.f_int_28) {
-                  var25.drawImageClipped(var25.f_Image_arr2_00[8][15], 220, 320 - var25.f_int_34 + 1, 7, 0, 7, 9);
+               if (var25.overlayPageBottom < var25.overlayTotalLines) {
+                  var25.drawImageClipped(var25.f_Image_arr2_00[8][15], 220, 320 - var25.textLineHeight + 1, 7, 0, 7, 9);
                }
 
                byte var92;
@@ -2931,7 +2931,7 @@ public final class a extends Canvas implements Runnable {
                }
 
                if (var23.f_int_19 < 3 && var23.f_String_01 != null) {
-                  var23.m_019(var23.f_String_01, 10, var23.f_int_18 + var23.f_int_17 + var23.fontHeight, 220, var23.f_int_34 << 1, false);
+                  var23.paintWrappedText(var23.f_String_01, 10, var23.f_int_18 + var23.f_int_17 + var23.fontHeight, 220, var23.textLineHeight << 1, false);
                }
             }
 
@@ -2955,26 +2955,28 @@ public final class a extends Canvas implements Runnable {
          case 16:
             this.drawParallaxBackdrop(false);
             a var22 = this;
-            int var40 = 240 - var22.f_int_84 - 22 >> 1;
-            int var89 = 320 - var22.f_int_85 >> 1;
+            int var40 = 240 - var22.optionBoxWidth - 22 >> 1;
+            int var89 = 320 - var22.optionBoxHeight >> 1;
             String var118 = null;
             var22.drawIconStrip(var22.f_Image_arr2_00[10][1], 86, 10, 0, 34, 68, 17, 17);
-            var22.m_040(var40, var89, var22.f_int_84 + 22, var22.f_int_85);
+            var22.paintBoxFrame(var40, var89, var22.optionBoxWidth + 22, var22.optionBoxHeight);
             var40 += 11;
             var89 += 16;
-            int var140 = (var22.fontHeight + 8) * var22.f_int_82;
+            int var140 = (var22.fontHeight + 8) * var22.optionCursor;
             var22.f_Graphics_00.setColor(549016);
-            var22.f_Graphics_00.fillRect(var40, var89 + var140, var22.f_int_84, var22.fontHeight + 8);
+            var22.f_Graphics_00.fillRect(var40, var89 + var140, var22.optionBoxWidth, var22.fontHeight + 8);
             var22.f_Graphics_00.drawImage(var22.f_Image_arr2_00[8][14], var40 + 10, var89 + 2 + var140 + (var22.fontHeight - 5 >> 1), 0);
-            var22.drawImageWithNokiaTransform(var22.f_Image_arr2_00[8][14], var40 + var22.f_int_84 - 30, var89 + 2 + var140 + (var22.fontHeight - 5 >> 1), 1);
+            var22.drawImageWithNokiaTransform(
+               var22.f_Image_arr2_00[8][14], var40 + var22.optionBoxWidth - 30, var89 + 2 + var140 + (var22.fontHeight - 5 >> 1), 1
+            );
 
-            for (int var157 = 0; var157 < var22.f_int_83; var89 += var22.fontHeight + 8) {
-               var118 = var22.f_String_arr_05[var22.f_byte_arr_11[var157]];
+            for (int var157 = 0; var157 < var22.optionCount; var89 += var22.fontHeight + 8) {
+               var118 = var22.optionLabels[var22.optionLabelIdx[var157]];
                var40 = 240 - var22.f_Font_00.stringWidth(var118) - 16 >> 1;
                var22.f_Graphics_00.setColor(-1);
                var22.f_Graphics_00.drawString(var118, var40, var89 + 4, 0);
                var40 += 2 + var22.f_Font_00.stringWidth(var118);
-               if (!var22.f_bool_arr_05[var157]) {
+               if (!var22.optionChecked[var157]) {
                   var22.drawImageClipped(var22.f_Image_arr2_00[8][11], var40, var89 + (var22.fontHeight - 2 >> 1), 12, 0, 12, 10);
                } else {
                   var22.drawImageClipped(var22.f_Image_arr2_00[8][11], var40, var89 + (var22.fontHeight - 2 >> 1), 0, 0, 12, 10);
@@ -3036,13 +3038,13 @@ public final class a extends Canvas implements Runnable {
 
             if ((var20.frameCounter & 3) >> 1 != 0 && var20.f_int_33 < var20.dialogueTexts[260].length()) {
                var20.f_int_33++;
-               var20.m_018(var20.dialogueTexts[260], 209, (var20.f_int_34 << 1) + 12, var20.f_int_33);
-               var20.f_int_26 = var20.f_int_28 - 1;
-               if (var20.f_int_26 < 0) {
-                  var20.f_int_26 = 0;
+               var20.layoutWrappedText(var20.dialogueTexts[260], 209, (var20.textLineHeight << 1) + 12, var20.f_int_33);
+               var20.overlayPageTop = var20.overlayTotalLines - 1;
+               if (var20.overlayPageTop < 0) {
+                  var20.overlayPageTop = 0;
                }
 
-               var20.f_int_27 = var20.f_int_28;
+               var20.overlayPageBottom = var20.overlayTotalLines;
             }
 
             var20.f_Graphics_00.setColor(3156024);
@@ -3051,7 +3053,7 @@ public final class a extends Canvas implements Runnable {
             var20.f_Graphics_00.setClip(0, 0, 240, 320);
             var20.f_Graphics_00.drawImage(var20.f_Image_arr2_00[14][0], -var20.f_int_22, var37, 0);
             var20.f_Graphics_00.setColor(-1);
-            var20.m_019(var20.dialogueTexts[260], 15, 320 - var20.fontHeight - 10, 210, var20.fontHeight + 10, false);
+            var20.paintWrappedText(var20.dialogueTexts[260], 15, 320 - var20.fontHeight - 10, 210, var20.fontHeight + 10, false);
             break;
          case 21:
             a var19 = this;
@@ -3117,15 +3119,15 @@ public final class a extends Canvas implements Runnable {
       }
 
       if (!this.f_bool_16) {
-         if (this.f_bool_05) {
-            int var195 = 240 - this.f_int_24 >> 1;
-            int var116 = 320 - this.f_int_25 >> 1;
+         if (this.overlayActive) {
+            int var195 = 240 - this.overlayBoxWidth >> 1;
+            int var116 = 320 - this.overlayBoxHeight >> 1;
             int var86 = var195;
             a var36 = this;
             int var133 = var86;
             int var151 = var116;
-            var36.m_040(var86, var116, var36.f_int_24, var36.f_int_25);
-            switch (var36.f_byte_08) {
+            var36.paintBoxFrame(var86, var116, var36.overlayBoxWidth, var36.overlayBoxHeight);
+            switch (var36.overlayKind) {
                case 0:
                case 2:
                case 4:
@@ -3133,13 +3135,13 @@ public final class a extends Canvas implements Runnable {
                   var133 += 16;
                   var151 += 16;
                   var36.f_Graphics_00.setColor(-1);
-                  var36.m_019(var36.overlayText, var133, var151, 180, 240, true);
+                  var36.paintWrappedText(var36.overlayText, var133, var151, 180, 240, true);
                   break;
                case 1:
                case 3:
                   var133 += 16;
                   var151 += 16;
-                  var36.m_041(var133, var151, 32, 32);
+                  var36.paintMiniFrame(var133, var151, 32, 32);
                   Image var168;
                   if ((var168 = var36.f_Image_arr_00[var36.f_byte_07]) != null) {
                      var36.f_Graphics_00.drawImage(var168, var133 + (32 - var168.getWidth() >> 1), var151 + (32 - var168.getHeight() >> 1), 0);
@@ -3151,18 +3153,18 @@ public final class a extends Canvas implements Runnable {
                   var36.f_Graphics_00.setColor(-1);
                   var133 = var86 + 16;
                   var151 += 36;
-                  var36.m_019(var36.overlayText, var133, var151, 180, var36.f_int_25 - 32 - 36, true);
+                  var36.paintWrappedText(var36.overlayText, var133, var151, 180, var36.overlayBoxHeight - 32 - 36, true);
             }
 
-            var151 = var116 + var36.f_int_25 - 12 - 18;
-            if (var36.f_byte_05 != 0) {
+            var151 = var116 + var36.overlayBoxHeight - 12 - 18;
+            if (var36.overlayLeftIcon != 0) {
                var133 = var86 + 13;
-               var36.drawImageClipped(var36.f_Image_arr2_00[8][11], var133, var151 + 6, (var36.f_byte_05 - 1) * 12, 0, 12, 10);
+               var36.drawImageClipped(var36.f_Image_arr2_00[8][11], var133, var151 + 6, (var36.overlayLeftIcon - 1) * 12, 0, 12, 10);
             }
 
-            if (var36.f_byte_06 != 0) {
-               var133 = var86 + var36.f_int_24 - 25;
-               var36.drawImageClipped(var36.f_Image_arr2_00[8][11], var133, var151 + 6, (var36.f_byte_06 - 1) * 12, 0, 12, 10);
+            if (var36.overlayRightIcon != 0) {
+               var133 = var86 + var36.overlayBoxWidth - 25;
+               var36.drawImageClipped(var36.f_Image_arr2_00[8][11], var133, var151 + 6, (var36.overlayRightIcon - 1) * 12, 0, 12, 10);
             }
          }
       } else {
@@ -3239,42 +3241,42 @@ public final class a extends Canvas implements Runnable {
             for (; this.f_bool_00; this.frameCounter++) {
                var3 = (var1 = System.currentTimeMillis()) + this.f_int_02;
                a var15 = this;
-               if (this.f_bool_05) {
+               if (this.overlayActive) {
                   label510:
-                  switch (var15.f_byte_08) {
+                  switch (var15.overlayKind) {
                      case 0:
                         if (var15.gameMode != 15 && var15.gameMode != 17) {
-                           var15.m_016();
+                           var15.handleOverlayKey();
                         } else {
                            a var31 = var15;
                            switch (var15.keyValue) {
                               case -7:
-                                 var31.f_bool_05 = false;
-                                 var31.gameMode = var31.f_byte_01;
+                                 var31.overlayActive = false;
+                                 var31.gameMode = var31.menuReturnMode;
                                  break label510;
                               case -2:
-                                 var31.m_020(var31.f_int_26 + var31.f_int_30);
+                                 var31.flipOverlayPage(var31.overlayPageTop + var31.overlayLinesPerPage);
                                  break label510;
                               case -1:
-                                 var31.m_020(var31.f_int_26 - var31.f_int_30);
+                                 var31.flipOverlayPage(var31.overlayPageTop - var31.overlayLinesPerPage);
                            }
                         }
                         break;
                      case 1:
-                        if (var15.f_byte_06 == 0 && var15.f_byte_05 == 0) {
-                           var15.m_016();
+                        if (var15.overlayRightIcon == 0 && var15.overlayLeftIcon == 0) {
+                           var15.handleOverlayKey();
                         } else {
-                           switch (var15.f_byte_06) {
+                           switch (var15.overlayRightIcon) {
                               case 2:
                               case 3:
                                  switch (var15.keyValue) {
                                     case -2:
                                     case -1:
-                                       var15.m_016();
+                                       var15.handleOverlayKey();
                                     case 0:
                                        break;
                                     default:
-                                       var15.f_bool_05 = false;
+                                       var15.overlayActive = false;
                                  }
                            }
                         }
@@ -3285,27 +3287,27 @@ public final class a extends Canvas implements Runnable {
                         switch (var15.keyValue) {
                            case -7:
                               var15.gameMode = 10;
-                              var15.f_bool_05 = false;
+                              var15.overlayActive = false;
                               break label510;
                            case -6:
-                              var15.f_bool_05 = false;
+                              var15.overlayActive = false;
                               var15.useItemStack(var15.f_int_104);
                               break label510;
                            default:
-                              var15.m_016();
+                              var15.handleOverlayKey();
                               break label510;
                         }
                      case 4:
                         switch (var15.keyValue) {
                            case -7:
-                              var15.f_bool_05 = var15.applyMerchantOffer(false);
+                              var15.overlayActive = var15.applyMerchantOffer(false);
                               break label510;
                            case -6:
                            case -5:
-                              var15.f_bool_05 = var15.applyMerchantOffer(true);
+                              var15.overlayActive = var15.applyMerchantOffer(true);
                               break label510;
                            default:
-                              var15.m_016();
+                              var15.handleOverlayKey();
                               break label510;
                         }
                      case 5:
@@ -3314,7 +3316,7 @@ public final class a extends Canvas implements Runnable {
                            case -7:
                            case -6:
                            case -5:
-                              var30.f_bool_05 = false;
+                              var30.overlayActive = false;
                               var30.gameMode = 10;
                               break;
                            case -4:
@@ -3324,10 +3326,10 @@ public final class a extends Canvas implements Runnable {
                               var30.m_076(var30.f_int_90 - 1);
                               break;
                            case -2:
-                              var30.m_020(var30.f_int_26 + 1);
+                              var30.flipOverlayPage(var30.overlayPageTop + 1);
                               break;
                            case -1:
-                              var30.m_020(var30.f_int_26 - 1);
+                              var30.flipOverlayPage(var30.overlayPageTop - 1);
                            case 0:
                         }
                   }
@@ -3388,22 +3390,22 @@ public final class a extends Canvas implements Runnable {
                                     break label534;
                                  case 1:
                                     var40.gameMode = 8;
-                                    var40.f_byte_01 = 1;
+                                    var40.menuReturnMode = 1;
                                     var40.m_000();
                                     break label534;
                                  case 2:
                                     var40.gameMode = 16;
-                                    var40.f_byte_01 = 1;
+                                    var40.menuReturnMode = 1;
                                     var40.m_000();
                                     break label534;
                                  case 3:
                                     var40.gameMode = 15;
-                                    var40.f_byte_01 = 1;
+                                    var40.menuReturnMode = 1;
                                     var40.m_000();
                                     break label534;
                                  case 4:
                                     var40.gameMode = 17;
-                                    var40.f_byte_01 = 1;
+                                    var40.menuReturnMode = 1;
                                     var40.m_000();
                                     break label534;
                                  case 5:
@@ -3514,7 +3516,7 @@ public final class a extends Canvas implements Runnable {
                                     var37.m_001(14);
                                     break;
                                  case 16:
-                                    if (!var37.loadFloorSave(var37.f_int_134)) {
+                                    if (!var37.loadFloorSave(var37.slotCursor)) {
                                        var37.f_int_144 = 0;
                                        var37.gameMode = 8;
                                        var37.m_000();
@@ -3819,15 +3821,15 @@ public final class a extends Canvas implements Runnable {
                         a var23 = var15;
                         switch (var15.keyValue) {
                            case -7:
-                              var23.gameMode = var23.f_byte_01;
+                              var23.gameMode = var23.menuReturnMode;
                               break label534;
                            case -6:
                            case -5:
                               if (var23.gameMode == 7) {
                                  var23.m_119(var23.currentFloor);
-                                 var23.saveFloorState(var23.f_int_134);
+                                 var23.saveFloorState(var23.slotCursor);
                                  var23.showOverlayMessage((byte)0, "保存成功！", (byte)0, (byte)0);
-                              } else if (var23.gameMode == 8 && var23.slotValidFlags[var23.f_int_134]) {
+                              } else if (var23.gameMode == 8 && var23.slotValidFlags[var23.slotCursor]) {
                                  var23.keyValue = var23.keyHeldCode = 0;
                                  var23.f_Image_arr2_00[10][0] = null;
                                  var23.m_131((byte)3, true);
@@ -3847,26 +3849,26 @@ public final class a extends Canvas implements Runnable {
                            default:
                               break label534;
                            case -2:
-                              if (var23.f_int_134 < 5) {
-                                 if (++var23.f_int_134 >= var23.f_int_133) {
-                                    var23.f_int_133++;
-                                    var23.f_int_132++;
+                              if (var23.slotCursor < 5) {
+                                 if (++var23.slotCursor >= var23.slotScrollBottom) {
+                                    var23.slotScrollBottom++;
+                                    var23.slotScrollTop++;
                                  }
                               } else {
-                                 var23.f_int_132 = var23.f_int_134 = 0;
-                                 var23.f_int_133 = var23.f_int_136;
+                                 var23.slotScrollTop = var23.slotCursor = 0;
+                                 var23.slotScrollBottom = var23.slotsPerPage;
                               }
                               break label534;
                            case -1:
-                              if (var23.f_int_134 > 0) {
-                                 if (--var23.f_int_134 < var23.f_int_132) {
-                                    var23.f_int_132--;
-                                    var23.f_int_133--;
+                              if (var23.slotCursor > 0) {
+                                 if (--var23.slotCursor < var23.slotScrollTop) {
+                                    var23.slotScrollTop--;
+                                    var23.slotScrollBottom--;
                                  }
                               } else {
-                                 var23.f_int_134 = 5;
-                                 var23.f_int_133 = 6;
-                                 var23.f_int_132 = 6 - var23.f_int_136;
+                                 var23.slotCursor = 5;
+                                 var23.slotScrollBottom = 6;
+                                 var23.slotScrollTop = 6 - var23.slotsPerPage;
                               }
                               break label534;
                         }
@@ -4011,8 +4013,8 @@ public final class a extends Canvas implements Runnable {
                                  if (var20.f_int_33 < var20.overlayText.length()) {
                                     label519: {
                                        if (var20.keyValue != 0) {
-                                          var20.m_017(var20.overlayText, 129, (var20.f_int_34 << 1) + 12);
-                                          var20.f_int_33 = var20.m_021(var20.f_int_33);
+                                          var20.layoutFullText(var20.overlayText, 129, (var20.textLineHeight << 1) + 12);
+                                          var20.f_int_33 = var20.skipTextToLineEnd(var20.f_int_33);
                                        } else {
                                           if ((var20.frameCounter & 1) == 0) {
                                              break label519;
@@ -4028,19 +4030,19 @@ public final class a extends Canvas implements Runnable {
                                           }
                                        }
 
-                                       var20.m_018(var20.overlayText, 129, (var20.f_int_34 << 1) + 12, var20.f_int_33);
+                                       var20.layoutWrappedText(var20.overlayText, 129, (var20.textLineHeight << 1) + 12, var20.f_int_33);
                                     }
 
-                                    if (var20.f_int_28 > var20.f_int_27) {
-                                       var20.m_020(var20.f_int_28 - var20.f_int_30);
+                                    if (var20.overlayTotalLines > var20.overlayPageBottom) {
+                                       var20.flipOverlayPage(var20.overlayTotalLines - var20.overlayLinesPerPage);
                                     }
                                  } else {
                                     switch (var20.keyValue) {
                                        case -2:
-                                          var20.m_020(var20.f_int_26 + 1);
+                                          var20.flipOverlayPage(var20.overlayPageTop + 1);
                                           break label534;
                                        case -1:
-                                          var20.m_020(var20.f_int_26 - 1);
+                                          var20.flipOverlayPage(var20.overlayPageTop - 1);
                                        case 0:
                                           break label534;
                                        default:
@@ -4129,14 +4131,14 @@ public final class a extends Canvas implements Runnable {
                         switch (var15.keyValue) {
                            case -7:
                            case -6:
-                              var19.gameMode = var19.f_byte_01;
+                              var19.gameMode = var19.menuReturnMode;
                               break label534;
                            case -5:
                            case -4:
                            case -3:
                               a var7 = var19;
-                              var19.f_bool_arr_05[var7.f_int_82] = !var7.f_bool_arr_05[var7.f_int_82];
-                              switch (var7.f_byte_arr_11[var7.f_int_82]) {
+                              var19.optionChecked[var7.optionCursor] = !var7.optionChecked[var7.optionCursor];
+                              switch (var7.optionLabelIdx[var7.optionCursor]) {
                                  case 0:
                                     var7.soundEnabled = !var7.soundEnabled;
                                     if (var7.soundEnabled) {
@@ -4153,22 +4155,22 @@ public final class a extends Canvas implements Runnable {
                                     var7.saveGlobalProgress();
                                     break label534;
                                  case 1:
-                                    if (!var7.f_bool_arr_05[1]) {
+                                    if (!var7.optionChecked[1]) {
                                        var7.f_Image_03 = null;
-                                    } else if (var7.f_byte_01 == 4) {
+                                    } else if (var7.menuReturnMode == 4) {
                                        var7.m_057();
                                     }
                                  default:
                                     break label534;
                               }
                            case -2:
-                              if (++var19.f_int_82 > var19.f_int_83 - 1) {
-                                 var19.f_int_82 = 0;
+                              if (++var19.optionCursor > var19.optionCount - 1) {
+                                 var19.optionCursor = 0;
                               }
                               break label534;
                            case -1:
-                              if (--var19.f_int_82 < 0) {
-                                 var19.f_int_82 = var19.f_int_83 - 1;
+                              if (--var19.optionCursor < 0) {
+                                 var19.optionCursor = var19.optionCount - 1;
                               }
                            default:
                               break label534;
@@ -4300,7 +4302,7 @@ public final class a extends Canvas implements Runnable {
             this.f_bool_28 = true;
             this.softkeyLeftKind = 1;
             this.softkeyRightKind = 3;
-            this.f_bool_05 = false;
+            this.overlayActive = false;
             this.applyStepCellEffects();
             this.m_139((byte)3, -1);
             return;
@@ -4325,7 +4327,7 @@ public final class a extends Canvas implements Runnable {
             return;
          case 7:
          case 8:
-            if (this.f_byte_01 == 1) {
+            if (this.menuReturnMode == 1) {
                this.m_001(1);
                this.m_001(8);
                this.m_001(6);
@@ -4335,19 +4337,19 @@ public final class a extends Canvas implements Runnable {
             this.softkeyRightKind = 3;
             a var8 = this;
             this.loadSlotTable();
-            var8.f_int_136 = 208 / (var8.fontHeight + 4);
-            if (var8.f_int_136 > 6) {
-               var8.f_int_136 = 6;
+            var8.slotsPerPage = 208 / (var8.fontHeight + 4);
+            if (var8.slotsPerPage > 6) {
+               var8.slotsPerPage = 6;
             }
 
-            var8.f_int_135 = var8.wideCharWidth * 3 + 60;
-            if (var8.f_int_135 < 148) {
-               var8.f_int_135 = 148;
+            var8.slotListWidth = var8.wideCharWidth * 3 + 60;
+            if (var8.slotListWidth < 148) {
+               var8.slotListWidth = 148;
             }
 
-            var8.f_int_131 = 112 + (var8.fontHeight + 4) * var8.f_int_136;
-            var8.f_int_132 = var8.f_int_134 = 0;
-            var8.f_int_133 = var8.f_int_136;
+            var8.slotListHeight = 112 + (var8.fontHeight + 4) * var8.slotsPerPage;
+            var8.slotScrollTop = var8.slotCursor = 0;
+            var8.slotScrollBottom = var8.slotsPerPage;
             return;
          case 9:
             return;
@@ -4379,7 +4381,7 @@ public final class a extends Canvas implements Runnable {
             var6.f_int_20 = 0;
             var6.f_int_21 = 0;
             var6.f_String_01 = null;
-            var6.f_String_03 = null;
+            var6.overlayLayoutCache = null;
             var6.f_Image_01 = null;
             var6.f_bool_03 = false;
             return;
@@ -4398,7 +4400,7 @@ public final class a extends Canvas implements Runnable {
          case 16:
             this.m_001(8);
             this.m_001(1);
-            this.f_int_83 = 0;
+            this.optionCount = 0;
             this.m_072(0);
             this.m_072(1);
             this.softkeyLeftKind = 0;
@@ -4427,9 +4429,9 @@ public final class a extends Canvas implements Runnable {
          case 20:
             this.releaseSceneImages();
             this.m_001(14);
-            this.f_String_03 = this.dialogueTexts[260];
+            this.overlayLayoutCache = this.dialogueTexts[260];
             this.f_int_33 = 1;
-            this.m_018(this.overlayText, 209, (this.f_int_34 << 1) + 12, this.f_int_33);
+            this.layoutWrappedText(this.overlayText, 209, (this.textLineHeight << 1) + 12, this.f_int_33);
             return;
          case 21:
             a var1 = this;
@@ -4444,7 +4446,7 @@ public final class a extends Canvas implements Runnable {
                var1.f_DataInputStream_00 = new DataInputStream(new ByteArrayInputStream(var1.f_byte_arr_27));
 
                for (int var4 = 0; var4 < 4; var4++) {
-                  var1.f_bool_arr_05[var4] = var1.f_DataInputStream_00.readBoolean();
+                  var1.optionChecked[var4] = var1.f_DataInputStream_00.readBoolean();
                }
 
                byte var10 = var1.f_DataInputStream_00.readByte();
@@ -4458,7 +4460,7 @@ public final class a extends Canvas implements Runnable {
                var1.f_int_154 = var1.f_DataInputStream_00.readInt();
             } catch (Exception var5) {
                deleteRecordStoreQuietly(var2);
-               var1.f_bool_arr_05[1] = true;
+               var1.optionChecked[1] = true;
                var1.saveGlobalProgress();
             }
 
@@ -4548,7 +4550,7 @@ public final class a extends Canvas implements Runnable {
       this.f_DirectGraphics_00.drawImage(var1, var2, var3, 0, f_int_arr_01[var4]);
    }
 
-   private void m_005(Image var1, int var2, int var3, int var4, int var5, int var6, int var7, int var8) {
+   private void drawEdgePatch(Image var1, int var2, int var3, int var4, int var5, int var6, int var7, int var8) {
       this.f_Graphics_00.setClip(var2, var3, var6, var7);
       if (var8 == 0) {
          this.f_Graphics_00.drawImage(var1, var2 - var4, var3 - var5, 0);
@@ -4720,22 +4722,22 @@ public final class a extends Canvas implements Runnable {
             return;
          case 2:
             this.gameMode = 8;
-            this.f_byte_01 = 4;
+            this.menuReturnMode = 4;
             this.m_000();
             return;
          case 3:
             this.gameMode = 7;
-            this.f_byte_01 = 4;
+            this.menuReturnMode = 4;
             this.m_000();
             return;
          case 4:
             this.gameMode = 16;
-            this.f_byte_01 = 4;
+            this.menuReturnMode = 4;
             this.m_000();
             return;
          case 5:
             this.gameMode = 15;
-            this.f_byte_01 = 4;
+            this.menuReturnMode = 4;
             this.m_000();
             return;
          case 7:
@@ -4839,9 +4841,9 @@ public final class a extends Canvas implements Runnable {
 
          this.f_int_20++;
          if (this.f_int_19 < 3) {
-            if (this.f_String_03 != null) {
+            if (this.overlayLayoutCache != null) {
                if (!this.f_bool_03) {
-                  if (this.f_int_21 >= this.f_Font_00.stringWidth(this.f_String_arr_03[this.f_int_26]) + 10) {
+                  if (this.f_int_21 >= this.f_Font_00.stringWidth(this.wrappedLines[this.overlayPageTop]) + 10) {
                      this.f_bool_03 = true;
                      this.f_byte_04 = 0;
                      return;
@@ -4856,8 +4858,8 @@ public final class a extends Canvas implements Runnable {
                   this.f_int_21 = 0;
                   this.f_byte_04 = 0;
                   this.f_bool_03 = false;
-                  if (this.f_int_26 < this.f_int_28 - 2) {
-                     this.m_020(this.f_int_26 + 2);
+                  if (this.overlayPageTop < this.overlayTotalLines - 2) {
+                     this.flipOverlayPage(this.overlayPageTop + 2);
                      return;
                   }
 
@@ -4880,52 +4882,52 @@ public final class a extends Canvas implements Runnable {
    }
 
    private void showOverlayMessage(byte var1, String var2, byte var3, byte var4) {
-      this.f_bool_05 = true;
-      this.f_byte_08 = var1;
+      this.overlayActive = true;
+      this.overlayKind = var1;
       this.overlayText = var2;
-      switch (this.f_byte_08) {
+      switch (this.overlayKind) {
          case 0:
          case 2:
          case 4:
          case 5:
-            this.m_017(var2, 180, 240);
-            this.f_int_24 = this.f_int_29 + 32;
-            this.f_int_25 = 32 + (this.f_int_27 - this.f_int_26) * this.f_int_34;
+            this.layoutFullText(var2, 180, 240);
+            this.overlayBoxWidth = this.overlayContentWidth + 32;
+            this.overlayBoxHeight = 32 + (this.overlayPageBottom - this.overlayPageTop) * this.textLineHeight;
             break;
          case 1:
          case 3:
-            this.m_017(var2, 180, 234);
-            this.f_int_24 = 212;
-            this.f_int_25 = 68 + (this.f_int_27 - this.f_int_26) * this.f_int_34;
+            this.layoutFullText(var2, 180, 234);
+            this.overlayBoxWidth = 212;
+            this.overlayBoxHeight = 68 + (this.overlayPageBottom - this.overlayPageTop) * this.textLineHeight;
       }
 
-      this.f_byte_05 = var3;
-      this.f_byte_06 = var4;
+      this.overlayLeftIcon = var3;
+      this.overlayRightIcon = var4;
       if (var3 != 0 || var4 != 0) {
-         this.f_int_25 += 18;
+         this.overlayBoxHeight += 18;
       }
    }
 
-   private void m_016() {
+   private void handleOverlayKey() {
       switch (this.keyValue) {
          case -2:
-            this.m_020(this.f_int_26 + 1);
+            this.flipOverlayPage(this.overlayPageTop + 1);
             return;
          case -1:
-            this.m_020(this.f_int_26 - 1);
+            this.flipOverlayPage(this.overlayPageTop - 1);
             return;
          case 0:
             return;
          default:
-            this.f_bool_05 = false;
+            this.overlayActive = false;
       }
    }
 
-   private void m_017(String var1, int var2, int var3) {
-      this.m_018(var1, var2, var3, var1.length());
+   private void layoutFullText(String var1, int var2, int var3) {
+      this.layoutWrappedText(var1, var2, var3, var1.length());
    }
 
-   private void m_018(String var1, int var2, int var3, int var4) {
+   private void layoutWrappedText(String var1, int var2, int var3, int var4) {
       char[] var5 = null;
       int var6 = 0;
       char var7 = '\u0000';
@@ -4940,7 +4942,7 @@ public final class a extends Canvas implements Runnable {
             var7 = var5[var12];
             var6 = this.f_Font_00.charWidth(var7);
             if (var7 == '\n') {
-               this.f_String_arr_03[var9++] = new String(var5, var10, var11);
+               this.wrappedLines[var9++] = new String(var5, var10, var11);
                var10 = var12 + 1;
                var8 = 0;
                var11 = 0;
@@ -4949,7 +4951,7 @@ public final class a extends Canvas implements Runnable {
                   var6 = this.f_Font_00.charWidth(var7);
                } else if (++var12 < var4) {
                   if ((var7 = var1.charAt(var12)) == 'c') {
-                     if (var12 + 6 < var4 && m_022(var1.substring(var12 + 1, var12 + 7)) != -1) {
+                     if (var12 + 6 < var4 && parseHexColor(var1.substring(var12 + 1, var12 + 7)) != -1) {
                         var12 += 6;
                         var11 += 7;
                         var6 = 0;
@@ -4966,7 +4968,7 @@ public final class a extends Canvas implements Runnable {
                }
 
                if ((var8 += var6) > var2) {
-                  this.f_String_arr_03[var9++] = new String(var5, var10, var11);
+                  this.wrappedLines[var9++] = new String(var5, var10, var11);
                   var8 = var6;
                   var10 = var12;
                   var11 = 1;
@@ -4977,57 +4979,55 @@ public final class a extends Canvas implements Runnable {
          }
 
          if (var11 > 0) {
-            this.f_String_arr_03[var9++] = new String(var5, var10, var11);
+            this.wrappedLines[var9++] = new String(var5, var10, var11);
          }
 
-         this.f_int_26 = 0;
-         this.f_int_28 = var9;
-         this.f_int_30 = var3 / this.f_int_34;
-         if (this.f_int_28 < this.f_int_30) {
-            this.f_int_30 = this.f_int_28;
+         this.overlayPageTop = 0;
+         this.overlayTotalLines = var9;
+         this.overlayLinesPerPage = var3 / this.textLineHeight;
+         if (this.overlayTotalLines < this.overlayLinesPerPage) {
+            this.overlayLinesPerPage = this.overlayTotalLines;
          }
 
-         this.f_int_31 = this.f_int_34 * this.f_int_30;
-         if (var9 > this.f_int_30) {
-            this.f_int_27 = this.f_int_30;
+         this.overlayPageHeight = this.textLineHeight * this.overlayLinesPerPage;
+         if (var9 > this.overlayLinesPerPage) {
+            this.overlayPageBottom = this.overlayLinesPerPage;
          } else {
-            this.f_int_27 = var9;
+            this.overlayPageBottom = var9;
          }
 
-         if (this.f_int_28 == 1) {
-            this.f_int_29 = this.f_Font_00.stringWidth(var1);
+         if (this.overlayTotalLines == 1) {
+            this.overlayContentWidth = this.f_Font_00.stringWidth(var1);
          } else {
-            this.f_int_29 = var2;
+            this.overlayContentWidth = var2;
          }
       }
    }
 
-   private void m_019(String var1, int var2, int var3, int var4, int var5, boolean var6) {
+   private void paintWrappedText(String var1, int var2, int var3, int var4, int var5, boolean var6) {
       if (var1 != null) {
-         if (this.f_String_03 != var1) {
-            this.f_String_03 = var1;
-            this.m_017(var1, var4, var5);
+         if (this.overlayLayoutCache != var1) {
+            this.overlayLayoutCache = var1;
+            this.layoutFullText(var1, var4, var5);
          }
 
          int var17 = var3 + 2;
          int var20 = 0;
          var20 = 0;
          boolean var7 = false;
-         this.f_int_32 = this.f_Graphics_00.getColor();
-         int var8 = this.f_int_26;
+         this.overlaySavedColor = this.f_Graphics_00.getColor();
+         int var8 = this.overlayPageTop;
 
          while (--var8 >= 0) {
-            if (this.f_String_arr_03[var8] != null
-               && (var20 = this.f_String_arr_03[var8].lastIndexOf(92)) >= 0
-               && this.f_String_arr_03[var8].charAt(var20 + 1) == 'c') {
-               var20 = m_022(this.f_String_arr_03[var8].substring(var20 + 2, var20 + 8));
+            if (this.wrappedLines[var8] != null && (var20 = this.wrappedLines[var8].lastIndexOf(92)) >= 0 && this.wrappedLines[var8].charAt(var20 + 1) == 'c') {
+               var20 = parseHexColor(this.wrappedLines[var8].substring(var20 + 2, var20 + 8));
                this.f_Graphics_00.setColor(var20);
                break;
             }
          }
 
-         for (int var26 = this.f_int_26; var26 < this.f_int_27; var17 += this.f_int_34) {
-            String var10001 = this.f_String_arr_03[var26];
+         for (int var26 = this.overlayPageTop; var26 < this.overlayPageBottom; var17 += this.textLineHeight) {
+            String var10001 = this.wrappedLines[var26];
             int var10 = var17;
             int var9 = var2;
             String var25 = var10001;
@@ -5048,11 +5048,11 @@ public final class a extends Canvas implements Runnable {
                   if (++var16 < var11) {
                      if ((var14 = var25.charAt(var16)) == 'c') {
                         if (var16 + 6 < var11) {
-                           var15 = m_022(var25.substring(var16 + 1, var16 + 7));
+                           var15 = parseHexColor(var25.substring(var16 + 1, var16 + 7));
                         }
 
                         if (var15 != -1) {
-                           var24.f_int_32 = var24.f_Graphics_00.getColor();
+                           var24.overlaySavedColor = var24.f_Graphics_00.getColor();
                            var24.f_Graphics_00.setColor(var15);
                            var16 += 6;
                            var12 = var16 + 1;
@@ -5060,7 +5060,7 @@ public final class a extends Canvas implements Runnable {
                            var12 = var16 - 1;
                         }
                      } else if (var14 == 'r') {
-                        var24.f_Graphics_00.setColor(var24.f_int_32);
+                        var24.f_Graphics_00.setColor(var24.overlaySavedColor);
                         var12 = var16 + 1;
                      } else {
                         var12 = var16;
@@ -5083,50 +5083,50 @@ public final class a extends Canvas implements Runnable {
          var8 = var2 + (var4 >> 1);
          if (var6) {
             this.f_Graphics_00.setColor(-1);
-            if (this.f_int_26 > 0) {
+            if (this.overlayPageTop > 0) {
                int var18 = var3 - 8 + (this.frameCounter & 1);
                this.f_Graphics_00.fillTriangle(var8, var18, var8 - 7, var18 + 7, var8 + 7, var18 + 7);
             }
 
-            if (this.f_int_27 < this.f_int_28) {
-               int var19 = var3 + this.f_int_31 + 3 - (this.frameCounter & 1);
+            if (this.overlayPageBottom < this.overlayTotalLines) {
+               int var19 = var3 + this.overlayPageHeight + 3 - (this.frameCounter & 1);
                this.f_Graphics_00.fillTriangle(var8, var19, var8 - 6, var19 - 6, var8 + 6, var19 - 6);
             }
          }
       }
    }
 
-   private boolean m_020(int var1) {
+   private boolean flipOverlayPage(int var1) {
       if (var1 >= 0) {
-         if (var1 >= this.f_int_28 - this.f_int_30 + 1) {
-            var1 = this.f_int_28 - this.f_int_30;
+         if (var1 >= this.overlayTotalLines - this.overlayLinesPerPage + 1) {
+            var1 = this.overlayTotalLines - this.overlayLinesPerPage;
          }
       } else {
          var1 = 0;
       }
 
-      this.f_int_26 = var1;
-      this.f_int_27 = this.f_int_26 + this.f_int_30;
-      if (this.f_int_26 < 0) {
-         this.f_int_26 = 0;
+      this.overlayPageTop = var1;
+      this.overlayPageBottom = this.overlayPageTop + this.overlayLinesPerPage;
+      if (this.overlayPageTop < 0) {
+         this.overlayPageTop = 0;
       }
 
-      if (this.f_int_27 > this.f_int_28) {
-         this.f_int_27 = this.f_int_28;
+      if (this.overlayPageBottom > this.overlayTotalLines) {
+         this.overlayPageBottom = this.overlayTotalLines;
       }
 
       return true;
    }
 
-   private int m_021(int var1) {
+   private int skipTextToLineEnd(int var1) {
       int var2 = 0;
       int var3 = 0;
       int var4 = 0;
-      if (this.f_String_arr_03 != null) {
+      if (this.wrappedLines != null) {
          int var5 = 0;
 
-         while (var5 < this.f_int_28) {
-            var4 = this.f_String_arr_03[var5].length();
+         while (var5 < this.overlayTotalLines) {
+            var4 = this.wrappedLines[var5].length();
             var3 += var4;
             if (var1 >= var2 && var1 < var3) {
                return var3;
@@ -5142,7 +5142,7 @@ public final class a extends Canvas implements Runnable {
       return var3;
    }
 
-   private static int m_022(String var0) {
+   private static int parseHexColor(String var0) {
       int var1 = 0;
 
       try {
@@ -5337,7 +5337,7 @@ public final class a extends Canvas implements Runnable {
       boolean var5;
       if (var5 = this.interactWithCell(var2, var3)) {
          this.walkPhase = 1;
-      } else if (this.f_bool_05 && this.walkPhase == 1) {
+      } else if (this.overlayActive && this.walkPhase == 1) {
          this.f_bool_26 = false;
          this.walkStepCount = 0;
          this.walkPhase = 0;
@@ -5450,7 +5450,7 @@ public final class a extends Canvas implements Runnable {
                            continue;
                         case 83:
                            if (this.tryRunScene(this.entityParam[var4], false)) {
-                              this.f_bool_05 = false;
+                              this.overlayActive = false;
                               this.overlayText = null;
                               var6 = this.loadLevelScript(this.entityParam[var4]);
                               var8 = 0;
@@ -5691,7 +5691,7 @@ public final class a extends Canvas implements Runnable {
                         continue;
                      case 83:
                         if (this.tryRunScene(this.entityParam[var1], true)) {
-                           this.f_bool_05 = false;
+                           this.overlayActive = false;
                            this.loadLevelScript(this.entityParam[var1]);
                            var4 = true;
                            var5 = 0;
@@ -5889,13 +5889,13 @@ public final class a extends Canvas implements Runnable {
                var5 = 4;
 
                while (--var5 >= 0) {
-                  this.m_005(
+                  this.drawEdgePatch(
                      this.f_Image_02, var1 + this.f_int_arr_04[var5], var2 + this.f_int_arr_05[var5] - 14, this.f_int_arr_03[this.f_int_38] * 41, 92, 41, 46, 1
                   );
                }
             }
 
-            this.m_005(this.f_Image_arr2_00[3][0], var3, var4 - 16, this.f_int_arr_03[this.f_int_38] * 41, 92, 41, 46, 1);
+            this.drawEdgePatch(this.f_Image_arr2_00[3][0], var3, var4 - 16, this.f_int_arr_03[this.f_int_38] * 41, 92, 41, 46, 1);
       }
 
       this.f_Graphics_00.setClip(0, 0, 240, 320);
@@ -5917,7 +5917,7 @@ public final class a extends Canvas implements Runnable {
                   break;
                case 2:
                   var3 += 32;
-                  this.m_005(this.f_Image_arr2_00[8][22], var3 + 5 + this.animBobOffset, var4 + 5, 42, 0, 21, 22, 1);
+                  this.drawEdgePatch(this.f_Image_arr2_00[8][22], var3 + 5 + this.animBobOffset, var4 + 5, 42, 0, 21, 22, 1);
                   break;
                case 3:
                   var3 -= 32;
@@ -5934,7 +5934,7 @@ public final class a extends Canvas implements Runnable {
             this.drawImageClipped(this.f_Image_arr2_00[8][23], 5 - var5, 148, 44, 0, 22, 24);
             this.drawImageClipped(this.f_Image_arr2_00[8][23], 109, 25 - var5, 0, 0, 22, 24);
             this.drawImageClipped(this.f_Image_arr2_00[8][23], 109, this.f_int_48 - 29 + var5, 22, 0, 22, 24);
-            this.m_005(this.f_Image_arr2_00[8][23], 215 + var5, 148, 44, 0, 22, 24, 1);
+            this.drawEdgePatch(this.f_Image_arr2_00[8][23], 215 + var5, 148, 44, 0, 22, 24, 1);
             return;
          case 3:
             int var10001 = var3 + 16;
@@ -5998,7 +5998,7 @@ public final class a extends Canvas implements Runnable {
          var1 += 4;
       } else {
          var1 += 4;
-         this.m_042(this.f_Image_arr2_00[8][18], this.currentFloor, 40, var1 + 2);
+         this.paintNumber(this.f_Image_arr2_00[8][18], this.currentFloor, 40, var1 + 2);
          this.f_Graphics_00.drawImage(this.f_Image_arr2_00[8][8], 41, var1 + 10, 0);
       }
 
@@ -6010,7 +6010,7 @@ public final class a extends Canvas implements Runnable {
       this.m_036(2, this.redKeyCount, 149, var1);
       var1 += 3;
       this.f_Graphics_00.drawImage(this.f_Image_arr2_00[8][1], 191, var1, 0);
-      this.m_042(this.f_Image_arr2_00[8][2], this.goldAmount, 237, var1 + 2);
+      this.paintNumber(this.f_Image_arr2_00[8][2], this.goldAmount, 237, var1 + 2);
    }
 
    private void m_036(int var1, int var2, int var3, int var4) {
@@ -6019,7 +6019,7 @@ public final class a extends Canvas implements Runnable {
       this.f_Graphics_00.setClip(0, 0, 240, 320);
       var4 += 5;
       var3 += 40;
-      this.m_042(this.f_Image_arr2_00[8][2], var2, var3, var4);
+      this.paintNumber(this.f_Image_arr2_00[8][2], var2, var3, var4);
    }
 
    private void m_037(int var1, int var2) {
@@ -6034,25 +6034,25 @@ public final class a extends Canvas implements Runnable {
       this.f_Graphics_00.drawImage(this.f_Image_arr2_00[8][7], var3, var4 - 2, 0);
       this.f_Graphics_00.setClip(0, 0, 240, 320);
       var3 += 16;
-      this.m_041(var3, var4 + 1, 58, 11);
-      this.m_042(this.f_Image_arr2_00[8][2], this.playerHp, var3 + 52, var4 + 2);
+      this.paintMiniFrame(var3, var4 + 1, 58, 11);
+      this.paintNumber(this.f_Image_arr2_00[8][2], this.playerHp, var3 + 52, var4 + 2);
       int var9 = var6;
       var4 += 12;
       this.drawImageClipped(this.f_Image_arr2_00[8][7], var9, var4, 10, 0, 10, 13);
       var9 += 16;
       this.f_Graphics_00.setColor(512);
-      this.m_041(var9, var4 + 1, 58, 11);
-      this.m_042(this.f_Image_arr2_00[8][2], this.playerAtk, var9 + 52, var4 + 2);
+      this.paintMiniFrame(var9, var4 + 1, 58, 11);
+      this.paintNumber(this.f_Image_arr2_00[8][2], this.playerAtk, var9 + 52, var4 + 2);
       var4 += 12;
       int var11 = var6;
       this.drawImageClipped(this.f_Image_arr2_00[8][7], var11, var4, 20, 0, 10, 13);
       var11 += 16;
       this.f_Graphics_00.setColor(512);
-      this.m_041(var11, var4 + 1, 58, 11);
-      this.m_042(this.f_Image_arr2_00[8][2], this.playerDef, var11 + 52, var4 + 2);
+      this.paintMiniFrame(var11, var4 + 1, 58, 11);
+      this.paintNumber(this.f_Image_arr2_00[8][2], this.playerDef, var11 + 52, var4 + 2);
       var11 += 60;
       var4 = var2 + 2;
-      this.m_041(var11, var4, 32, 32);
+      this.paintMiniFrame(var11, var4, 32, 32);
       if (this.equippedWeaponType == 0) {
          this.f_Graphics_00.setColor(-1);
          this.f_Graphics_00
@@ -6068,7 +6068,7 @@ public final class a extends Canvas implements Runnable {
       }
 
       var11 += 34;
-      this.m_041(var11, var4, 32, 32);
+      this.paintMiniFrame(var11, var4, 32, 32);
       if (this.equippedArmorType == 0) {
          this.f_Graphics_00.setColor(-1);
          this.f_Graphics_00
@@ -6084,15 +6084,15 @@ public final class a extends Canvas implements Runnable {
       }
    }
 
-   private void m_038(int var1, int var2, int var3, int var4, int var5) {
-      this.m_040(var2, var3, var4, var5);
+   private void paintTitledBox(int var1, int var2, int var3, int var4, int var5) {
+      this.paintBoxFrame(var2, var3, var4, var5);
       int var10002 = var2 + 2;
       var3 -= 2;
       var2 = var10002;
       var1 = var1;
       a var6 = this;
       int[] var8;
-      var4 = (var8 = this.f_int_arr2_00[var1]).length;
+      var4 = (var8 = this.titleBarSegments[var1]).length;
       var2 = var2;
 
       for (int var13 = 0; var13 < var4; var2 += 14) {
@@ -6116,7 +6116,7 @@ public final class a extends Canvas implements Runnable {
       }
 
       this.f_Graphics_00.setClip(0, 0, 240, 320);
-      this.m_005(this.f_Image_arr2_00[8][0], var1 + var3 - 26, var6, 0, 0, 26, 16, 1);
+      this.drawEdgePatch(this.f_Image_arr2_00[8][0], var1 + var3 - 26, var6, 0, 0, 26, 16, 1);
       var5 = var1 + 11;
       var6 += 16;
       this.f_Graphics_00.setColor(2699825);
@@ -6134,7 +6134,7 @@ public final class a extends Canvas implements Runnable {
       this.f_Graphics_00.setClip(0, 0, 240, 320);
    }
 
-   private void m_040(int var1, int var2, int var3, int var4) {
+   private void paintBoxFrame(int var1, int var2, int var3, int var4) {
       int var5 = var1;
       int var6 = var2;
       this.f_Graphics_00.setClip(var5, var6, 26, 16);
@@ -6143,11 +6143,11 @@ public final class a extends Canvas implements Runnable {
       for (int var7 = var5 + 26; var7 < var1 + var3 - 26; var7 += 16) {
          this.f_Graphics_00.setClip(var7, var6, 16, 16);
          this.f_Graphics_00.drawImage(this.f_Image_arr2_00[8][0], var7 - 26, var6, 0);
-         this.m_005(this.f_Image_arr2_00[8][0], var7, var6 + var4 - 16, 26, 0, 16, 16, 2);
+         this.drawEdgePatch(this.f_Image_arr2_00[8][0], var7, var6 + var4 - 16, 26, 0, 16, 16, 2);
       }
 
       this.f_Graphics_00.setClip(0, 0, 240, 320);
-      this.m_005(this.f_Image_arr2_00[8][0], var1 + var3 - 26, var6, 0, 0, 26, 16, 1);
+      this.drawEdgePatch(this.f_Image_arr2_00[8][0], var1 + var3 - 26, var6, 0, 0, 26, 16, 1);
       var5 = var1 + 11;
       var6 += 16;
       this.f_Graphics_00.setColor(2699825);
@@ -6163,12 +6163,12 @@ public final class a extends Canvas implements Runnable {
       }
 
       var6 = var2 + var4 - 16;
-      this.m_005(this.f_Image_arr2_00[8][0], var1, var6, 0, 0, 26, 16, 2);
-      this.m_005(this.f_Image_arr2_00[8][0], var1 + var3 - 26, var6, 0, 0, 26, 16, 3);
+      this.drawEdgePatch(this.f_Image_arr2_00[8][0], var1, var6, 0, 0, 26, 16, 2);
+      this.drawEdgePatch(this.f_Image_arr2_00[8][0], var1 + var3 - 26, var6, 0, 0, 26, 16, 3);
       this.f_Graphics_00.setClip(0, 0, 240, 320);
    }
 
-   private void m_041(int var1, int var2, int var3, int var4) {
+   private void paintMiniFrame(int var1, int var2, int var3, int var4) {
       int var5 = var2 + var4 - 2;
       int var6 = var1 + var3 - 1;
       this.f_Graphics_00.setColor(4803902);
@@ -6179,7 +6179,7 @@ public final class a extends Canvas implements Runnable {
       this.f_Graphics_00.drawLine(var1 + 1, var5 + 1, var6 - 1, var5 + 1);
    }
 
-   private int m_042(Image var1, int var2, int var3, int var4) {
+   private int paintNumber(Image var1, int var2, int var3, int var4) {
       boolean var5;
       if (var5 = var2 < 0) {
          var2 = -var2;
@@ -6633,7 +6633,7 @@ public final class a extends Canvas implements Runnable {
                            var31 = var8 * this.f_byte_19;
                            if (this.f_byte_19 == 3) {
                               var31 -= var8;
-                              this.m_005(var4, var9 + (32 - var7 >> 1), var10 - (var8 - 32), var5, var31, var7, var8, 1);
+                              this.drawEdgePatch(var4, var9 + (32 - var7 >> 1), var10 - (var8 - 32), var5, var31, var7, var8, 1);
                            } else {
                               this.drawImageClipped(var4, var9 + (32 - var7 >> 1), var10 - (var8 - 32), var5, var31, var7, var8);
                            }
@@ -6851,7 +6851,7 @@ public final class a extends Canvas implements Runnable {
 
    private void m_057() {
       this.f_Image_03 = null;
-      if (this.f_bool_arr_05[1]) {
+      if (this.optionChecked[1]) {
          Image var1;
          a var8;
          Graphics var2 = (var1 = Image.createImage((var8 = this).mapCellsWide << 2, var8.mapCellsHigh << 2)).getGraphics();
@@ -7008,7 +7008,7 @@ public final class a extends Canvas implements Runnable {
             if ((var18 = this.mapTerrainGrid[var2]) > 0) {
                int var5 = (var18 & 7) << 4;
                var18 = var18 >> 3 << 4;
-               this.m_005(this.f_Image_arr2_00[2][0], var6, var7, var5, var18, 16, 16, this.mapTransformGrid[var2]);
+               this.drawEdgePatch(this.f_Image_arr2_00[2][0], var6, var7, var5, var18, 16, 16, this.mapTransformGrid[var2]);
             }
 
             var9++;
@@ -7237,21 +7237,21 @@ public final class a extends Canvas implements Runnable {
    }
 
    private void m_072(int var1) {
-      int var2 = this.f_Font_00.stringWidth(this.f_String_arr_05[var1]) + 80;
-      this.f_byte_arr_11[this.f_int_83++] = (byte)var1;
-      if (this.f_int_83 == 1) {
-         this.f_int_85 = 32 + this.f_int_81;
-         this.f_int_84 = var2;
+      int var2 = this.f_Font_00.stringWidth(this.optionLabels[var1]) + 80;
+      this.optionLabelIdx[this.optionCount++] = (byte)var1;
+      if (this.optionCount == 1) {
+         this.optionBoxHeight = 32 + this.optionRowHeight;
+         this.optionBoxWidth = var2;
       } else {
-         this.f_int_85 = this.f_int_85 + this.f_int_81;
-         if (this.f_int_84 < var2) {
-            this.f_int_84 = var2;
+         this.optionBoxHeight = this.optionBoxHeight + this.optionRowHeight;
+         if (this.optionBoxWidth < var2) {
+            this.optionBoxWidth = var2;
          }
       }
 
       switch (var1) {
          case 0:
-            this.f_bool_arr_05[this.f_int_83 - 1] = this.soundEnabled;
+            this.optionChecked[this.optionCount - 1] = this.soundEnabled;
       }
    }
 
@@ -7819,7 +7819,7 @@ public final class a extends Canvas implements Runnable {
                if (var5) {
                   this.gameMode = 3;
                   var2 = true;
-               } else if (!this.f_bool_05) {
+               } else if (!this.overlayActive) {
                   this.showOverlayMessage((byte)0, "无法移动到该位置", (byte)0, (byte)0);
                }
             }
@@ -8206,14 +8206,14 @@ public final class a extends Canvas implements Runnable {
          this.f_int_119 = this.m_104(this.f_byte_17);
          var2 = this.f_byte_17;
          if (this.f_byte_17 < 0) {
-            this.f_String_03 = this.overlayText = "?: \\cF8F8F8" + this.dialogueTexts[this.f_int_112];
+            this.overlayLayoutCache = this.overlayText = "?: \\cF8F8F8" + this.dialogueTexts[this.f_int_112];
             this.f_int_33 = 11;
          } else {
-            this.f_String_03 = this.overlayText = this.objectTypeNames[var2] + ": \\cF8F8F8" + this.dialogueTexts[this.f_int_112];
+            this.overlayLayoutCache = this.overlayText = this.objectTypeNames[var2] + ": \\cF8F8F8" + this.dialogueTexts[this.f_int_112];
             this.f_int_33 = this.objectTypeNames[var2].length() + 10;
          }
 
-         this.m_018(this.overlayText, 129, (this.f_int_34 << 1) + 12, this.f_int_33);
+         this.layoutWrappedText(this.overlayText, 129, (this.textLineHeight << 1) + 12, this.f_int_33);
       } else {
          this.dialogPhase = 0;
          this.f_int_33 = 0;
@@ -8898,7 +8898,7 @@ public final class a extends Canvas implements Runnable {
          this.f_DataOutputStream_00 = new DataOutputStream(this.f_ByteArrayOutputStream_00);
 
          for (int var4 = 0; var4 < 4; var4++) {
-            this.f_DataOutputStream_00.writeBoolean(this.f_bool_arr_05[var4]);
+            this.f_DataOutputStream_00.writeBoolean(this.optionChecked[var4]);
          }
 
          this.f_DataOutputStream_00.writeByte(this.f_int_arr_34.length);
@@ -9024,20 +9024,20 @@ public final class a extends Canvas implements Runnable {
 
    private void m_113(boolean var1) {
       int var1i = var1 ? 2 : 1;
-      int var2 = 240 - this.f_int_135 - 22 >> 1;
-      int var3 = 320 - this.f_int_131 >> 1;
+      int var2 = 240 - this.slotListWidth - 22 >> 1;
+      int var3 = 320 - this.slotListHeight >> 1;
       Image var4 = null;
-      this.m_038(var1i, var2, var3, this.f_int_135 + 22, this.f_int_131);
+      this.paintTitledBox(var1i, var2, var3, this.slotListWidth + 22, this.slotListHeight);
       var3 += 16;
 
-      for (int var6 = this.f_int_132; var6 < this.f_int_133; var3 += this.fontHeight + 4) {
-         if (var6 != this.f_int_134) {
+      for (int var6 = this.slotScrollTop; var6 < this.slotScrollBottom; var3 += this.fontHeight + 4) {
+         if (var6 != this.slotCursor) {
             this.f_Graphics_00.setColor(7574946);
          } else {
             this.f_Graphics_00.setColor(3156024);
-            this.f_Graphics_00.fillRect(120 - (this.f_int_135 >> 1), var3, this.f_int_135, this.fontHeight + 4);
-            this.f_Graphics_00.drawImage(this.f_Image_arr2_00[8][14], 120 - (this.f_int_135 >> 1) + 10, var3 + (this.fontHeight - 8 >> 1), 0);
-            this.drawImageWithNokiaTransform(this.f_Image_arr2_00[8][14], 120 + (this.f_int_135 >> 1) - 30, var3 + (this.fontHeight - 8 >> 1), 1);
+            this.f_Graphics_00.fillRect(120 - (this.slotListWidth >> 1), var3, this.slotListWidth, this.fontHeight + 4);
+            this.f_Graphics_00.drawImage(this.f_Image_arr2_00[8][14], 120 - (this.slotListWidth >> 1) + 10, var3 + (this.fontHeight - 8 >> 1), 0);
+            this.drawImageWithNokiaTransform(this.f_Image_arr2_00[8][14], 120 + (this.slotListWidth >> 1) - 30, var3 + (this.fontHeight - 8 >> 1), 1);
             this.f_Graphics_00.setColor(16377897);
          }
 
@@ -9050,41 +9050,41 @@ public final class a extends Canvas implements Runnable {
          var6++;
       }
 
-      var2 = 120 + ((this.f_int_135 >> 1) - 10);
-      if (this.f_int_132 > 0) {
+      var2 = 120 + ((this.slotListWidth >> 1) - 10);
+      if (this.slotScrollTop > 0) {
          this.drawImageClipped(this.f_Image_arr2_00[8][15], var2, var3 - 20, 0, 0, 7, 9);
       }
 
-      if (this.f_int_133 < 6) {
+      if (this.slotScrollBottom < 6) {
          this.drawImageClipped(this.f_Image_arr2_00[8][15], var2, var3 - 10, 7, 0, 7, 9);
       }
 
       var3 += 2;
-      var2 -= this.f_int_135 - 10;
+      var2 -= this.slotListWidth - 10;
       this.f_Graphics_00.setColor(6178);
-      this.f_Graphics_00.drawLine(var2, var3, var2 + this.f_int_135 - 1, var3);
+      this.f_Graphics_00.drawLine(var2, var3, var2 + this.slotListWidth - 1, var3);
       var3++;
       this.f_Graphics_00.setColor(3564144);
-      this.f_Graphics_00.drawLine(var2, var3, var2 + this.f_int_135 - 1, var3);
-      if (this.slotValidFlags[this.f_int_134]) {
+      this.f_Graphics_00.drawLine(var2, var3, var2 + this.slotListWidth - 1, var3);
+      if (this.slotValidFlags[this.slotCursor]) {
          var2 += 6;
          var3 += 8;
-         if (this.slotFloorNumbers[this.f_int_134] < 51) {
-            this.m_042(this.f_Image_arr2_00[8][18], this.slotFloorNumbers[this.f_int_134], var2 + 48, var3);
+         if (this.slotFloorNumbers[this.slotCursor] < 51) {
+            this.paintNumber(this.f_Image_arr2_00[8][18], this.slotFloorNumbers[this.slotCursor], var2 + 48, var3);
             this.f_Graphics_00.drawImage(this.f_Image_arr2_00[8][8], var2 + 50, var3 + 8, 0);
          }
 
-         var2 = 240 + this.f_int_135 >> 1;
+         var2 = 240 + this.slotListWidth >> 1;
          var2 -= 68;
-         this.m_041(var2, var3, 32, 32);
-         if (this.f_byte_arr_25[this.f_int_134] == 0) {
+         this.paintMiniFrame(var2, var3, 32, 32);
+         if (this.f_byte_arr_25[this.slotCursor] == 0) {
             this.f_Graphics_00.setColor(-1);
             this.f_Graphics_00
                .drawString(
-                  this.f_String_arr_04[this.f_byte_arr_25[this.f_int_134]], var2 + (32 - this.wideCharWidth >> 1), var3 + (32 - this.fontHeight >> 1), 0
+                  this.f_String_arr_04[this.f_byte_arr_25[this.slotCursor]], var2 + (32 - this.wideCharWidth >> 1), var3 + (32 - this.fontHeight >> 1), 0
                );
          } else {
-            if ((var1i = this.f_byte_arr_25[this.f_int_134] - 33) > 7) {
+            if ((var1i = this.f_byte_arr_25[this.slotCursor] - 33) > 7) {
                var1i = 8;
             }
 
@@ -9093,15 +9093,15 @@ public final class a extends Canvas implements Runnable {
          }
 
          var2 += 34;
-         this.m_041(var2, var3, 32, 32);
-         if (this.f_byte_arr_26[this.f_int_134] == 0) {
+         this.paintMiniFrame(var2, var3, 32, 32);
+         if (this.f_byte_arr_26[this.slotCursor] == 0) {
             this.f_Graphics_00.setColor(-1);
             this.f_Graphics_00
                .drawString(
-                  this.f_String_arr_04[this.f_byte_arr_26[this.f_int_134]], var2 + (32 - this.wideCharWidth >> 1), var3 + (32 - this.fontHeight >> 1), 0
+                  this.f_String_arr_04[this.f_byte_arr_26[this.slotCursor]], var2 + (32 - this.wideCharWidth >> 1), var3 + (32 - this.fontHeight >> 1), 0
                );
          } else {
-            if ((var1i = this.f_byte_arr_26[this.f_int_134] - 33) > 7) {
+            if ((var1i = this.f_byte_arr_26[this.slotCursor] - 33) > 7) {
                var1i = 9;
             }
 
@@ -9109,36 +9109,36 @@ public final class a extends Canvas implements Runnable {
             this.f_Graphics_00.drawImage(var4, var2 + (32 - var4.getWidth() >> 1), var3 + (32 - var4.getHeight() >> 1), 0);
          }
 
-         var2 = 240 - this.f_int_135 + 10 >> 1;
+         var2 = 240 - this.slotListWidth + 10 >> 1;
          var3 += 20;
          this.f_Graphics_00.drawImage(this.f_Image_arr2_00[8][1], var2, var3, 0);
          var2 += 60;
-         this.m_042(this.f_Image_arr2_00[8][2], this.f_int_arr_29[this.f_int_134], var2, var3 + 2);
+         this.paintNumber(this.f_Image_arr2_00[8][2], this.f_int_arr_29[this.slotCursor], var2, var3 + 2);
          var2 -= 64;
          var3 += 16;
          this.drawImageClipped(this.f_Image_arr2_00[8][7], var2, var3, 0, 2, 10, 10);
          var2 += 15;
-         this.m_041(var2 - 1, var3, 48, 12);
-         this.m_042(this.f_Image_arr2_00[8][2], this.f_int_arr_23[this.f_int_134], var2 + 45, var3 + 2);
+         this.paintMiniFrame(var2 - 1, var3, 48, 12);
+         this.paintNumber(this.f_Image_arr2_00[8][2], this.f_int_arr_23[this.slotCursor], var2 + 45, var3 + 2);
          var2 += 47;
          this.drawImageClipped(this.f_Image_arr2_00[8][7], var2, var3, 10, 0, 10, 13);
          var2 += 11;
          this.f_Graphics_00.setColor(512);
-         this.m_041(var2, var3, 30, 12);
-         this.m_042(this.f_Image_arr2_00[8][2], this.f_int_arr_24[this.f_int_134], var2 + 28, var3 + 2);
+         this.paintMiniFrame(var2, var3, 30, 12);
+         this.paintNumber(this.f_Image_arr2_00[8][2], this.f_int_arr_24[this.slotCursor], var2 + 28, var3 + 2);
          var2 += 32;
          this.drawImageClipped(this.f_Image_arr2_00[8][7], var2, var3, 20, 2, 10, 10);
          var2 += 12;
          this.f_Graphics_00.setColor(512);
-         this.m_041(var2, var3, 30, 12);
-         this.m_042(this.f_Image_arr2_00[8][2], this.f_int_arr_25[this.f_int_134], var2 + 28, var3 + 2);
-         var2 = (240 - this.f_int_135 >> 1) + 6;
+         this.paintMiniFrame(var2, var3, 30, 12);
+         this.paintNumber(this.f_Image_arr2_00[8][2], this.f_int_arr_25[this.slotCursor], var2 + 28, var3 + 2);
+         var2 = (240 - this.slotListWidth >> 1) + 6;
          var3 += 16;
-         this.m_036(0, this.f_int_arr_26[this.f_int_134], var2, var3);
+         this.m_036(0, this.f_int_arr_26[this.slotCursor], var2, var3);
          var2 += 42;
-         this.m_036(1, this.f_int_arr_27[this.f_int_134], var2, var3);
+         this.m_036(1, this.f_int_arr_27[this.slotCursor], var2, var3);
          var2 += 42;
-         this.m_036(2, this.f_int_arr_28[this.f_int_134], var2, var3);
+         this.m_036(2, this.f_int_arr_28[this.slotCursor], var2, var3);
       }
    }
 
@@ -9734,13 +9734,13 @@ public final class a extends Canvas implements Runnable {
                   this.drawDigitStrip(this.f_Image_arr2_00[2][5], var6, var1, var2);
                   break;
                case 5:
-                  this.m_042(this.f_Image_arr2_00[8][9], var6, var1 + this.f_byte_arr_32[var3], 16 + this.popupY[var4] + this.f_byte_arr_33[var3]);
+                  this.paintNumber(this.f_Image_arr2_00[8][9], var6, var1 + this.f_byte_arr_32[var3], 16 + this.popupY[var4] + this.f_byte_arr_33[var3]);
                   break;
                case 6:
-                  this.m_042(this.f_Image_arr2_00[8][9], var6, var1 + this.f_byte_arr_34[var3], 16 + this.popupY[var4] + this.f_byte_arr_35[var3]);
+                  this.paintNumber(this.f_Image_arr2_00[8][9], var6, var1 + this.f_byte_arr_34[var3], 16 + this.popupY[var4] + this.f_byte_arr_35[var3]);
                   break;
                case 7:
-                  this.m_042(this.f_Image_arr2_00[8][9], var6, var1 + this.f_byte_arr_36[var3], 16 + this.popupY[var4] + this.f_byte_arr_37[var3]);
+                  this.paintNumber(this.f_Image_arr2_00[8][9], var6, var1 + this.f_byte_arr_36[var3], 16 + this.popupY[var4] + this.f_byte_arr_37[var3]);
             }
 
             if (var3 > 7) {

@@ -4,6 +4,6 @@
   "kind": "method-replace",
   "method": "   private int findFloorGateEntity(boolean var1) {",
   "body": "   private int findFloorGateEntity(boolean var1) {\n      if (var1) {\n         for (int var2 = 0; var2 < this.entityCount; var2++) {\n            int var3 = this.entityParam[var2] >> 9;\n            if (this.entityType[var2] == 7 && var3 == 0) {\n               return var2;\n            }\n         }\n      } else {\n         for (int var5 = 0; var5 < this.entityCount; var5++) {\n            int var6 = this.entityParam[var5] >> 9;\n            if (this.entityType[var5] == 8 && var6 == 0) {\n               return var5;\n            }\n         }\n      }\n\n      return -1;\n   }\n",
-  "evidence": "javap m_065: 偏移23 istore_1 把 entityParam[i]>>9 的 int 存进 boolean 参数槽（槽位转世）；CLDC StackMap 帧@6 locals=[class a,int,int] 实锤 slot1=int；VF 误判 boolean 致 4 编译错。整方法还原（55 指令）。",
+  "evidence": "javap findFloorGateEntity: 偏移23 istore_1 把 entityParam[i]>>9 的 int 存进 boolean 参数槽（槽位转世）；CLDC StackMap 帧@6 locals=[class a,int,int] 实锤 slot1=int；VF 误判 boolean 致 4 编译错。整方法还原（55 指令）。",
   "confidence": 95
 }

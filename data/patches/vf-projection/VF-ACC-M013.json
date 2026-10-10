@@ -15,6 +15,6 @@
       "count": 1
     }
   ],
-  "evidence": "oracle 变体 C 首跑 FAIL 实证：m_013 偏移95 iinc 2,17 / 偏移92 iinc 9,17（整型窄槽、无 i2b）——var10 第4次迭代 137 被 javac 的 i2b 截为 -119（A trace clip x=138 vs C=-118）。提升 int 恢复。",
+  "evidence": "oracle 变体 C 首跑 FAIL 实证：drawIconStrip 偏移95 iinc 2,17 / 偏移92 iinc 9,17（整型窄槽、无 i2b）——var10 第4次迭代 137 被 javac 的 i2b 截为 -119（A trace clip x=138 vs C=-118）。提升 int 恢复。",
   "confidence": 97
 }

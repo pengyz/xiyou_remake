@@ -39,6 +39,6 @@
       "count": 1
     }
   ],
-  "evidence": "各单点槽位转世逐一 javap 核对：m_019/killAdjacentAt (boolean)0 为 iconst_0 死存（int 槽）；m_089 slot1 第二世 m_100 返回 int；m_125 偏移174-176 dup/istore_1/istore_3；paint var141（aconst_null 死存）/var9（160 int 死存）。；【2026-10-10 增补】m_125 else 分支：字节码偏移 153 iload_3 先压入 slot3 旧值（=var4）再于 176 覆盖为宽度，最终 store=var4+((32+w*(digits+1))>>1)；VF 单变量渲染丢失栈上旧值 ⇒ javac 语义改变（深场景 A==C FAIL 实证：f_short_arr_09 A=134=var4(104)+30 vs C=58）。精确语义（字节码 153 iload_3 在 176 istore_3 覆盖前压栈）：旧值 = var3+camX（X 基址），非 var4；trace 实证 A=134=(playerX96+camX8)+((32+14×2)>>1)。basePos125=var3 在覆盖前捕获。注：本修复依赖本记录前两条 m_125 替换先执行（同记录内顺序保证）注：本修复依赖本记录前两条 m_125 替换先执行（同记录内顺序保证）",
+  "evidence": "各单点槽位转世逐一 javap 核对：paintWrappedText/killAdjacentAt (boolean)0 为 iconst_0 死存（int 槽）；m_089 slot1 第二世 m_100 返回 int；spawnPopup 偏移174-176 dup/istore_1/istore_3；paint var141（aconst_null 死存）/var9（160 int 死存）。；【2026-10-10 增补】spawnPopup else 分支：字节码偏移 153 iload_3 先压入 slot3 旧值（=var4）再于 176 覆盖为宽度，最终 store=var4+((32+w*(digits+1))>>1)；VF 单变量渲染丢失栈上旧值 ⇒ javac 语义改变（深场景 A==C FAIL 实证：popupX A=134=var4(104)+30 vs C=58）。精确语义（字节码 153 iload_3 在 176 istore_3 覆盖前压栈）：旧值 = var3+camX（X 基址），非 var4；trace 实证 A=134=(playerX96+camX8)+((32+14×2)>>1)。basePos125=var3 在覆盖前捕获。注：本修复依赖本记录前两条 spawnPopup 替换先执行（同记录内顺序保证）注：本修复依赖本记录前两条 spawnPopup 替换先执行（同记录内顺序保证）",
   "confidence": 90
 }

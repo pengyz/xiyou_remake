@@ -16,7 +16,7 @@
 //!
 //! - [x] 入口：`setFont(f_Font_00)`（SIZE_SMALL，a.java:2336、24）
 //! - [x] mode 0 全分支：白底+启动图居中（a.java:2338-2344）/ paintLogoAnimation logo 层
-//! - [x] mode 0 tick 逻辑：加载轮播 + logo 时间线（a.java:3339-3370）
+//! - [x] mode 0 tick 逻辑：加载轮播 + logo 时间线（a.java:3341-3372）
 //! - [ ] mode 21（logo 后过渡）、mode 4/19 主菜单、mode 1/2 加载、其余分支
 
 use crate::render::{ArgbImage, SoftFont, SoftGraphics, font_size, font_style};
@@ -26,18 +26,18 @@ pub fn paint_font() -> SoftFont {
     SoftFont::get_font(0, font_style::PLAIN, font_size::SMALL)
 }
 
-/// `f_int_arr_01`（a.java:44）：`drawImageWithNokiaTransform` 的 Nokia 变换码表。
+/// `nokiaTransformTable`（a.java:44）：`drawImageWithNokiaTransform` 的 Nokia 变换码表。
 /// 全部值 >7 ⇒ shim `drawImageTransformed` 的 switch 落 default = 原样绘制
 /// （op 文本仍记录原始码，`drawImageT`）。
 pub const NOKIA_TRANSFORM_TABLE: [i32; 8] = [0, 8192, 16384, 24576, 8462, 270, 90, 8282];
 
-/// `drawImageWithNokiaTransform`（a.java:4547-4549）：DirectGraphics 变换绘制（shim 下视觉 = 原样）。
+/// `drawImageWithNokiaTransform`（a.java:4549-4551）：DirectGraphics 变换绘制（shim 下视觉 = 原样）。
 fn draw_image_with_nokia_transform(g: &mut SoftGraphics<'_>, img: &ArgbImage, x: i32, y: i32, kind: i32) {
     let t = NOKIA_TRANSFORM_TABLE[kind as usize];
     g.draw_image_transformed(img, x, y, 0, t);
 }
 
-/// `drawImageClipped`（a.java:4535-4539）：源矩形 clip 绘制——clip(x,y,w,h) 后把图
+/// `drawImageClipped`（a.java:4537-4541）：源矩形 clip 绘制——clip(x,y,w,h) 后把图
 /// 画在 `(x-sx, y-sy)`，只露出 `(sx,sy)` 起的子区。
 pub fn draw_image_clipped(g: &mut SoftGraphics<'_>, img: &ArgbImage, x: i32, y: i32, sx: i32, sy: i32, w: i32, h: i32) {
     g.set_clip(x, y, w, h);
@@ -45,7 +45,7 @@ pub fn draw_image_clipped(g: &mut SoftGraphics<'_>, img: &ArgbImage, x: i32, y: 
     g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
 }
 
-/// `paintSoftkeyBar`（a.java:5979-5989）：软键栏。`left`/`right` = f_byte_13/f_byte_14
+/// `paintSoftkeyBar`（a.java:5979-5989）：软键栏。`left`/`right` = softkeyLeftKind/softkeyRightKind
 /// （0 = 不绘制；kind 1..n 选 ui[11] 精灵条的第 n 个 12×10 图标）。
 pub fn m_034_softkeys(g: &mut SoftGraphics<'_>, ui10: &ArgbImage, ui11: &ArgbImage, left: i8, right: i8) {
     if left != 0 {
@@ -76,9 +76,9 @@ pub fn m_034_softkeys(g: &mut SoftGraphics<'_>, ui10: &ArgbImage, ui11: &ArgbIma
     }
 }
 
-/// mode 21（声音询问）绘制：a.java:3056-3063 + paintSoftkeyBar 软键栏。
+/// mode 21（声音询问）绘制：a.java:3058-3065 + paintSoftkeyBar 软键栏。
 ///
-/// 软键 (1,2) 由 m_000 case 21 设置（a.java:4466-4467）。
+/// 软键 (1,2) 由 m_000 case 21 设置（a.java:4468-4469）。
 pub fn paint_sound_prompt(g: &mut SoftGraphics<'_>, ui10: &ArgbImage, ui11: &ArgbImage, softkeys: (i8, i8)) {
     g.set_color(0);
     g.fill_rect(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
@@ -92,10 +92,10 @@ pub fn paint_sound_prompt(g: &mut SoftGraphics<'_>, ui10: &ArgbImage, ui11: &Arg
     m_034_softkeys(g, ui10, ui11, softkeys.0, softkeys.1);
 }
 
-/// mode 15 帮助 overlay 文本（a.java:4389-4395，逐字）。
+/// mode 15 帮助 overlay 文本（a.java:4391-4397，逐字）。
 pub const HELP_TEXT: &str = "游戏描述：\n\\c99FFCC有人的地方就有江湖，有神仙的地方何尝不是江湖；百战百胜的本事，换不回女人的真心，兄弟的真义；齐天大圣又如何，没有真情实义，做神仙跟做咸鱼有什么区别？\n\n操作方式：按左软键调出物品栏，左右选择一件道具，按确定键使用。\n游戏操作：\n上方向键/2：向上行走\n下方向键/8：向下行走\n左方向键/4：向左行走\n右方向键/6：向右行走\n确定键/5:探索地图\n左软键：打开道具列表\n右软键：打开游戏中菜单\n\n代理发行：广州易诚计算机科技有限公司\n发行商网站：www.9266.net\n客服电话：4006509913\n客服信箱：kefu@9266.net";
 
-/// mode 17 关于 overlay 文本（a.java:4408-4421，逐字）。
+/// mode 17 关于 overlay 文本（a.java:4410-4423，逐字）。
 pub const ABOUT_TEXT: &str = "版权所有：\n上海雪鲤鱼计算机科技有限公司\nwww.kgame.com.cn\n手机上网：\nwap.kgame.com.cn\n制作人：梁一\n编剧：王之浣\n策划：孙悦\n程序：杨政\n美术：梁一、王之浣、黄吉力\n测试：金鑫，王毅，计成毅\n版本：V1.0\n客服电话：4006305518";
 
 /// `Graphics.TOP | Graphics.HCENTER` = 17（drawString 第三参的常用组合）。
@@ -120,7 +120,7 @@ pub fn paint_boot(g: &mut SoftGraphics<'_>, boot: &BootPaintState) {
     } else {
         match (&boot.logo, &boot.sflogo7) {
             (Some(logo), Some(sflogo7)) => logo.paint(g, sflogo7),
-            // logic 已切 f_int_04>=2 但首个 runLogoAnimation 未跑：f_byte_29=0 ⇒ paintLogoAnimation 仅白底
+            // logic 已切 bootLoadPhase>=2 但首个 runLogoAnimation 未跑：logoItemCount=0 ⇒ paintLogoAnimation 仅白底
             // （A-boot-menu T32 硬锚：a682fa57=纯白）
             _ => {
                 g.set_color(0xFFFFFF);
@@ -130,35 +130,35 @@ pub fn paint_boot(g: &mut SoftGraphics<'_>, boot: &BootPaintState) {
     }
 }
 
-/// mode 0 启动状态机：tick 逻辑（a.java:3339-3370）+ paint 输入投影。
+/// mode 0 启动状态机：tick 逻辑（a.java:3341-3372）+ paint 输入投影。
 ///
 /// # 时序合同（差分实测，A-boot-menu 四硬锚交叉验证）
 ///
 /// 每 tick **逻辑先 paint 后**：TICK n 的帧 = 第 n 次逻辑推进后的投影。
-/// 硬锚：T17=l1（logic#17 加载即生效）、T31=l1/T32=白（f_int_04 切换
+/// 硬锚：T17=l1（logic#17 加载即生效）、T31=l1/T32=白（bootLoadPhase 切换
 /// 发生在 31/32 帧之间）、T33=首个 logo 帧、T40=时间线 8 状态。
-/// 计数细节：logic#1 走 `f_int_156==0` 加载分支（不加计数），`++` 自
+/// 计数细节：logic#1 走 `bootPhaseCounter==0` 加载分支（不加计数），`++` 自
 /// logic#2 起拍——l0 显示 TICK 1-16（16 帧）、l1 显示 TICK 17-31（15 帧）。
 pub struct BootMachine {
     /// gameMode（0=启动屏, 21=声音询问；1=title 菜单未端口）。
     pub mode: i32,
-    /// keyValue（keyPressed 设置、tick 末清零，a.java:4648/4251）。
+    /// keyValue（keyPressed 设置、tick 末清零，a.java:4650/4251）。
     pub key_value: i32,
-    /// f_int_04：加载相位（0=l0, 1=l1, 2+=logo 时间线）。
+    /// bootLoadPhase：加载相位（0=l0, 1=l1, 2+=logo 时间线）。
     pub phase: i32,
-    /// f_int_156：相位内计数（轮播每张 16 tick：1..15 显示，16 切换；时间线 1..35）。
+    /// bootPhaseCounter：相位内计数（轮播每张 16 tick：1..15 显示，16 切换；时间线 1..35）。
     pub counter: i32,
     /// f_Image_00：当前启动图（l0/l1）。
     pub image: Option<ArgbImage>,
-    /// logo 动画层（f_int_04>=2 起参与绘制）。
+    /// logo 动画层（bootLoadPhase>=2 起参与绘制）。
     pub logo: Option<crate::logo_anim::LogoAnim>,
-    /// l0/l1 预解码件（a.java:3344 的 `/l{n}.png`）。
+    /// l0/l1 预解码件（a.java:3346 的 `/l{n}.png`）。
     boot_images: Vec<ArgbImage>,
     /// sflogo 容器 8 张（m_001(0) 首次进 logo 相位时加载）。
     sflogo: Vec<ArgbImage>,
-    /// ui 容器 25 张（m_001(8)，m_000 case 21 a.java:4465 加载）。
+    /// ui 容器 25 张（m_001(8)，m_000 case 21 a.java:4467 加载）。
     ui: Vec<ArgbImage>,
-    /// f_byte_13/f_byte_14 软键栏状态（paintSoftkeyBar 绘制输入）。
+    /// softkeyLeftKind/softkeyRightKind 软键栏状态（paintSoftkeyBar 绘制输入）。
     pub softkeys: (i8, i8),
     /// mode 1 标题菜单（gameMode=1 起接管 tick/paint）。
     pub title: Option<crate::title::TitleMachine>,
@@ -170,11 +170,11 @@ pub struct BootMachine {
     mapbg: ArgbImage,
     /// 视差背景滚动（paint 内推进）。
     pub backdrop: crate::menu_family::ParallaxBackdrop,
-    /// overlay 文本引擎（f_bool_05 层）。
+    /// overlay 文本引擎（overlayActive 层）。
     pub overlay: crate::menu_family::OverlayEngine,
-    /// f_bool_05：overlay 激活。
+    /// overlayActive：overlay 激活。
     pub overlay_active: bool,
-    /// f_byte_01：overlay/菜单的「返回模式」。
+    /// menuReturnMode：overlay/菜单的「返回模式」。
     pub return_mode: i32,
     /// mode 8 槽位表。
     pub slots: Option<crate::menu_family::SlotSelect>,
@@ -185,11 +185,11 @@ pub struct BootMachine {
     /// soundEnabled（mode 16 勾选联动）。
     pub sound_enabled: bool,
     /// f_int_02 帧间隔 ms（构造 75，a.java:27；mode 0 每 tick 设 100，
-    /// a.java:3340；切 mode 21 时回 75，a.java:3367）。
+    /// a.java:3342；切 mode 21 时回 75，a.java:3369）。
     pub frame_interval_ms: i64,
     /// paint 计数（对拍 TICK n 用）。
     pub paints: u32,
-    /// mode 0 结束标志（logo 时间线 35 耗尽，a.java:3360-3369 切 gameMode=21）。
+    /// mode 0 结束标志（logo 时间线 35 耗尽，a.java:3362-3371 切 gameMode=21）。
     pub finished: bool,
 }
 
@@ -250,7 +250,7 @@ impl BootMachine {
             }
             8 => {
                 self.backdrop.paint(g, &self.mapbg, false, 0);
-                let segs = [3, 5]; // f_int_arr2_00[1]
+                let segs = [3, 5]; // titleBarSegments[1]
                 if let Some(slots) = &self.slots {
                     slots.paint(g, &self.ui, &segs, || 0);
                 }
@@ -294,16 +294,16 @@ impl BootMachine {
 
     /// 一次逻辑 tick。`key` 为本 tick 边界投递的按键码（`keyValue`，无则 0）。
     ///
-    /// - mode 0：a.java:3339-3370（加载轮播/logo 时间线/清理切换）
-    /// - mode 21：a.java:4213-4232（-6 确认 / -7 否定 → gameMode=1）
+    /// - mode 0：a.java:3341-3372（加载轮播/logo 时间线/清理切换）
+    /// - mode 21：a.java:4215-4234（-6 确认 / -7 否定 → gameMode=1）
     pub fn tick(&mut self, key: i32) {
         match self.mode {
             21 => {
-                // a.java:4215-4232：switch (keyValue)
+                // a.java:4217-4234：switch (keyValue)
                 match key {
                     -7 | -6 => {
                         // -7: soundEnabled=false；-6: true（音量 0→60）
-                        //（a.java:4216-4225）。两者都 gameMode=1 + m_000()
+                        //（a.java:4218-4227）。两者都 gameMode=1 + m_000()
                         self.sound_enabled = key == -6;
                         self.mode = 1;
                         self.title = Some(crate::title::TitleMachine::new());
@@ -313,7 +313,7 @@ impl BootMachine {
                 self.key_value = 0;
             }
             1 => {
-                // a.java:3381-3436。frame_counter：迭代 N 拍用 f=N-1
+                // a.java:3383-3438。frame_counter：迭代 N 拍用 f=N-1
                 //（for 自增在体后）；paints 在 tick 时 = 已 paint 数 = N-1
                 let f = self.paints as i32;
                 let mut next = None;
@@ -325,7 +325,7 @@ impl BootMachine {
                 }
                 if let Some(mode) = next {
                     self.mode = mode;
-                    // f_byte_01：kind 1/2/3/4 → 1（a.java:3391/3397/3402）；
+                    // menuReturnMode：kind 1/2/3/4 → 1（a.java:3393/3397/3402）；
                     // kind 0(14)/5(22) 不设
                     if (1..=4).contains(&self.title_kind()) {
                         self.return_mode = 1;
@@ -335,7 +335,7 @@ impl BootMachine {
                 self.key_value = 0;
             }
             8 => {
-                // run case 8（a.java:3817-3872）
+                // run case 8（a.java:3819-3874）
                 match key {
                     -7 => self.mode = self.return_mode,
                     -2 => self.slots.as_mut().unwrap().cursor_down(),
@@ -346,7 +346,7 @@ impl BootMachine {
                 self.key_value = 0;
             }
             15 | 17 => {
-                // overlay 层 case 0 的 15/17 分支（a.java:3248-3261）
+                // overlay 层 case 0 的 15/17 分支（a.java:3250-3263）
                 match key {
                     -7 => {
                         self.overlay_active = false;
@@ -367,7 +367,7 @@ impl BootMachine {
                 self.key_value = 0;
             }
             16 => {
-                // run case 16（a.java:4127-4175）
+                // run case 16（a.java:4129-4177）
                 match key {
                     -7 | -6 => self.mode = self.return_mode,
                     -5 | -4 | -3 => {
@@ -375,7 +375,7 @@ impl BootMachine {
                             let i = opts.highlight as usize;
                             opts.checked[i] = !opts.checked[i];
                             if opts.labels[i] == 0 {
-                                // case 0：声音联动（a.java:4140-4153）
+                                // case 0：声音联动（a.java:4142-4155）
                                 self.sound_enabled = !self.sound_enabled;
                             }
                         }
@@ -401,7 +401,7 @@ impl BootMachine {
                 self.key_value = 0;
             }
             22 => {
-                // run case 22（a.java:4233-4242）：++f_int_156 ≤ 70 →
+                // run case 22（a.java:4235-4244）：++bootPhaseCounter ≤ 70 →
                 // runLogoAnimation(1, t)；否则退出进程
                 self.counter += 1;
                 if self.counter <= 70 {
@@ -425,16 +425,16 @@ impl BootMachine {
             .unwrap_or(-1)
     }
 
-    /// m_000 的菜单族 case（a.java:4344/4386-4425）：进入模式时初始化。
+    /// m_000 的菜单族 case（a.java:4346/4386-4425）：进入模式时初始化。
     fn enter_menu_mode(&mut self) {
         match self.mode {
             8 => {
-                // case 8（a.java:4344-4369）：槽表 + 布局常量 + 软键 (1,3)
+                // case 8（a.java:4346-4371）：槽表 + 布局常量 + 软键 (1,3)
                 self.slots = Some(crate::menu_family::SlotSelect::new());
                 self.softkeys = (1, 3);
             }
             15 => {
-                // case 15（a.java:4386-4396）：帮助 overlay + 软键 (0,3)
+                // case 15（a.java:4388-4398）：帮助 overlay + 软键 (0,3)
                 let text = HELP_TEXT.encode_utf16().collect::<Vec<u16>>();
                 let font = paint_font();
                 self.overlay.show_kind0(&text, &font, (0, 0));
@@ -442,7 +442,7 @@ impl BootMachine {
                 self.softkeys = (0, 3);
             }
             17 => {
-                // case 17（a.java:4407-4425）：关于 overlay + 软键 (0,3)
+                // case 17（a.java:4409-4427）：关于 overlay + 软键 (0,3)
                 let text = ABOUT_TEXT.encode_utf16().collect::<Vec<u16>>();
                 let font = paint_font();
                 self.overlay.show_kind0(&text, &font, (0, 0));
@@ -450,8 +450,8 @@ impl BootMachine {
                 self.softkeys = (0, 3);
             }
             16 => {
-                // case 16（a.java:4398-4406）：选项表 + 软键 (0,3)。
-                // f_bool_arr_05[1]=true：mode 21 的 RMS 失败 catch（a.java:4451）
+                // case 16（a.java:4400-4408）：选项表 + 软键 (0,3)。
+                // optionChecked[1]=true：mode 21 的 RMS 失败 catch（a.java:4453）
                 self.options = Some(crate::menu_family::OptionList::new(
                     self.sound_enabled,
                     true,
@@ -459,8 +459,8 @@ impl BootMachine {
                 self.softkeys = (0, 3);
             }
             22 => {
-                // case 22（a.java:4470）：closeAudio（shim 无副作用）；
-                // f_int_156 已为 0（mode 0→21 清理）
+                // case 22（a.java:4472）：closeAudio（shim 无副作用）；
+                // bootPhaseCounter 已为 0（mode 0→21 清理）
                 self.counter = 0;
             }
             _ => {
@@ -469,7 +469,7 @@ impl BootMachine {
         }
     }
 
-    /// paint 公共尾 overlay（a.java:3119-3167，f_bool_05 && !f_bool_16）。
+    /// paint 公共尾 overlay（a.java:3121-3169，overlayActive && !f_bool_16）。
     fn paint_overlay_tail(&mut self, g: &mut SoftGraphics<'_>) {
         if !self.overlay_active {
             return;
@@ -488,55 +488,55 @@ impl BootMachine {
         self.overlay.paint(g, &text, x + 16, y + 16, 180, 240, true, f, &font);
     }
 
-    /// gameMode 0 的逻辑 tick（a.java:3339-3370）。
+    /// gameMode 0 的逻辑 tick（a.java:3341-3372）。
     fn tick_mode0(&mut self) {
-        self.frame_interval_ms = 100; // a.java:3340（mode 0 每 tick 首行）
+        self.frame_interval_ms = 100; // a.java:3342（mode 0 每 tick 首行）
         if self.phase < 2 {
             if self.counter == 0 {
-                // a.java:3344：加载 /l{phase}.png；夹具恒存在 ⇒ 恒成功路径
+                // a.java:3346：加载 /l{phase}.png；夹具恒存在 ⇒ 恒成功路径
                 let idx = self.phase as usize;
                 self.image = self.boot_images.get(idx).cloned();
                 if self.image.is_some() {
                     self.counter = 1;
                 } else {
-                    self.phase += 1; // 防御：a.java:3348-3350
+                    self.phase += 1; // 防御：a.java:3350-3352
                 }
             } else {
                 self.counter += 1;
                 if self.counter > 15 {
-                    self.phase += 1; // a.java:3355
+                    self.phase += 1; // a.java:3357
                     self.counter = 0;
                 }
             }
         } else {
-            self.counter += 1; // a.java:3358
+            self.counter += 1; // a.java:3360
             if self.counter <= 35 {
                 self.logo.get_or_insert_with(crate::logo_anim::LogoAnim::new)
                     .tick(&self.sflogo, self.counter);
             } else {
-                // a.java:3361-3369：清理 + gameMode=21 + m_000()
+                // a.java:3363-3371：清理 + gameMode=21 + m_000()
                 self.logo.as_mut().unwrap().clear_all(); // removeLogoItem(-1)
-                self.logo.as_mut().unwrap().reset_layout_flag(); // f_bool_30=false（a.java:3362）
+                self.logo.as_mut().unwrap().reset_layout_flag(); // logoLayoutDone=false（a.java:3364）
                 self.image = None;
                 self.counter = 0;
                 self.mode = 21;
-                self.frame_interval_ms = 75; // f_int_02=75（a.java:3367）
-                // m_000 case 21（a.java:4466-4468）：软键 (1,2)；f_bool_29=false；
+                self.frame_interval_ms = 75; // f_int_02=75（a.java:3369）
+                // m_000 case 21（a.java:4468-4470）：软键 (1,2)；soundEnabled=false；
                 // RMS "SKY_WAR" 读档失败路径（oracle 内存库恒空 ⇒ catch 删库重置）
                 self.softkeys = (1, 2);
                 self.finished = false; // mode 21 属对拍范围
             }
         }
-        self.key_value = 0; // a.java:4260（tick 末 keyValue=0）
+        self.key_value = 0; // a.java:4262（tick 末 keyValue=0）
     }
 }
 
-/// mode 0 分支的绘制输入投影（a.java:2339 `f_int_04` 等的只读快照）。
+/// mode 0 分支的绘制输入投影（a.java:2339 `bootLoadPhase` 等的只读快照）。
 #[derive(Clone)]
 pub struct BootPaintState {
     /// 启动加载相位：0/1 → 轮播 `/l{n}.png`；>=2 → logo 动画层。
     pub phase: i32,
-    /// 启动图（l0.png 164×117 / l1.png 176×138，加载线程 a.java:3341-3355）。
+    /// 启动图（l0.png 164×117 / l1.png 176×138，加载线程 a.java:3343-3357）。
     pub image: Option<ArgbImage>,
     /// logo 动画层（phase>=2 时 Some）。
     pub logo: Option<crate::logo_anim::LogoAnim>,
