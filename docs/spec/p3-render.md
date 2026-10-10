@@ -60,6 +60,30 @@ logic#(n+1) 消费（延迟一拍；trace T70 press(-6) → T71 帧切换实证�
 8. Canvas 时序：needRepaint=false 的 tick、同 tick 多事件投递。
 9. createImage(String) 双路径资源名解析（Rust 走文件系统直读）。
 
+## 3.5 mode 3 游戏画面勘察（2026-10-09，第七批后）
+
+- **ops 截断上限 256**（Graphics shim `OPS.size() < 256`，a.java 侧同）：
+  gameplay-floor1 的 mode 3 帧 256 ops = **截断值**——瓦片层吃满窗口，
+  HUD/实体/软键的 ops 不可见，但 **FRAME sha 含全部绘制**（对拍不降级）。
+- mode 3 画面构成（T544-3000 恒定）：parallax(true)（base_y = f_int_48-320+6，
+  f_int_48=270 ⇒ -44）+ m_063 瓦片层（map 容器 [2][0] 128x208 tileset，
+  16px 切片 + mapTransformGrid 变换）+ m_053 实体层 + 小地图（optionChecked[1]
+  =true（RMS catch）+ f_Image_03（m_057 生成）+ 玩家点）+ m_037 HUD + m_035
+  状态栏 + 楼梯指示 + drawPopupLayer + 软键 (1,3)。
+- **m_063 瓦片层**（a.java:6964-7020）：起点 x=f_int_56+(f_int_60<<4)、
+  y=f_int_57+20+(f_int_62<<4)；列窗 f_int_60..f_int_61、行窗 f_int_62..f_int_63；
+  下标步进 mapCellsWide<<1（**双宽 stride**——terrain/transform 平行数组，
+  装载链待考证 m_121）；瓦片值 v：sx=(v&7)<<4、sy=(v>>3)<<4。
+- **m_033 玩家**（a.java:5829-5885）：sptprop[5][0] 阴影 + actor[3][0]
+  （123x138 = 3 行×41x46 帧，行=facingDirection、列=f_int_arr_03[f_int_38]）
+  + walkPhase==2 的四向残影。
+- **存档格式**：MOT_L{n}（save.rs parse_floor_save 全字段序 + python struct
+  复算 golden）；SKY_WAR（optionChecked×4 + …）。
+- **剩余件**（下批）：m_053 实体渲染 switch（f_byte_arr_03 渲染类别 1/2/8/
+  16/32/67/69/72 分支 + 拼装表 f_byte_arr2_00/b01/b02）、m_037/m_035 HUD、
+  m_057 小地图、m_121 楼层装载（grid stride 考证）、mode 11 对话框
+  （prologue 场景）、mode 4/19 暂停菜单。
+
 ## 4. 证据基线
 
 - 像素模型：`reference/shim/src/javax/microedition/lcdui/{Graphics,Font,Image,Canvas}.java`
