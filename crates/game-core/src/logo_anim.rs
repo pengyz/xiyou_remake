@@ -90,12 +90,12 @@ impl LogoAnim {
             return;
         }
         let sum: i32 = SEGMENT_HEIGHTS.iter().sum();
-        let gap = 15.min((320 - sum >> 2).abs());
-        let base = 320 - sum - (gap << 1) >> 1;
+        let gap = 15.min((crate::layout::SCREEN_H - sum >> 2).abs()); // a.java:10193
+        let base = crate::layout::SCREEN_H - sum - (gap << 1) >> 1; // a.java:10194
         self.anchors_y[0] = base + (SEGMENT_HEIGHTS[0] >> 1);
         self.anchors_y[1] = base + SEGMENT_HEIGHTS[0] + gap;
         self.anchors_y[2] = self.anchors_y[1] + SEGMENT_HEIGHTS[1] + gap;
-        self.bar_x = 240 - sflogo7_width >> 1;
+        self.bar_x = crate::layout::SCREEN_W - sflogo7_width >> 1; // a.java:10197
         self.initialized = true;
     }
 
@@ -360,13 +360,13 @@ impl LogoAnim {
             // a.java:10369：x 参数恒 240（屏外起点），y 参数 = ay[2]；目标 x 在 [4]
             let idx = timeline - 9;
             let target = bx + GLYPH_METRICS[idx as usize * 2] as i32;
-            self.register(None, 240, ay[2], 3, 0, 4, target, ay[2], idx, -1);
+            self.register(None, crate::layout::SCREEN_W, ay[2], 3, 0, 4, target, ay[2], idx, -1); // x=240 屏外起点
             return;
         }
         if (14..=17).contains(&timeline) {
             let idx = timeline - 10;
             let x = bx + GLYPH_METRICS[idx as usize * 2] as i32;
-            self.register(None, x, 320, 3, 0, 4, x, ay[2], idx, -1);
+            self.register(None, x, crate::layout::SCREEN_H, 3, 0, 4, x, ay[2], idx, -1); // y=320 屏外起点
             return;
         }
         if (25..=31).contains(&timeline) {
@@ -386,7 +386,7 @@ impl LogoAnim {
     /// 每项绘制后 `setClip(0,0,240,320)` 复位。
     pub fn paint(&self, g: &mut SoftGraphics<'_>, sflogo7: &ArgbImage) {
         g.set_color(0xFFFFFF);
-        g.fill_rect(0, 0, 240, 320);
+        g.fill_rect(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
         for i in 0..self.count as usize {
             let m = self.registry[i];
             let mut x = m[0];
@@ -397,7 +397,7 @@ impl LogoAnim {
                     x + GLYPH_METRICS[m[6] as usize * 2] as i32,
                     y,
                     GLYPH_METRICS[m[6] as usize * 2 + 1] as i32,
-                    320,
+                    crate::layout::SCREEN_H,
                 );
                 g.draw_image(sflogo7, x, y, 0);
             } else if m[2] == 2 {
@@ -406,14 +406,14 @@ impl LogoAnim {
                     progress = m[3] - progress - 2;
                 }
                 x -= m[6] * progress;
-                g.set_clip(x + m[6] * progress, y, m[6], 320);
+                g.set_clip(x + m[6] * progress, y, m[6], crate::layout::SCREEN_H);
                 if let Some(img) = &self.images[i] {
                     g.draw_image(img, x, y, 0);
                 }
             } else if let Some(img) = &self.images[i] {
                 g.draw_image(img, x, y, 0);
             }
-            g.set_clip(0, 0, 240, 320);
+            g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
         }
     }
 }
