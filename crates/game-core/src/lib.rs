@@ -2,7 +2,9 @@
 //!
 //! P3.1：脚本 DSL 解释器（docs/spec/p3-script-interpreter.md）。
 pub mod enums;
+pub mod camera;
 pub mod entity;
 pub mod sprite_spawn;
 pub mod pathfind;
 pub mod script;
+pub mod walk;
