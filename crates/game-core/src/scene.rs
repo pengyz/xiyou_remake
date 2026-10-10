@@ -1168,10 +1168,10 @@ impl GameScene {
         var2 += 3;
         if op == "TAK" {
             let (start, e1) = Self::parse_script_int(&line, var2 + 1, '_');
-            let (end, _e2) = Self::parse_script_int(&line, e1 + 1, ' ');
+            let (end, e2) = Self::parse_script_int(&line, e1 + 1, ' ');
             self.dialog_page = start;
             self.dialog_page_end = end;
-            self.script_cursor = e1 + 2;
+            self.script_cursor = e2 + 1; // f_int_122 + 1（a.java:8259）
             self.dialog_phase = 1;
             self.open_dialog_page(start);
         } else if op == "SEE" {
@@ -1395,6 +1395,13 @@ impl GameScene {
             // held 残留会让关层后首拍误触发 tryStep（floor2-tour T1238 实证）
             self.key_value = 0;
             self.key_held = 0;
+            return;
+        }
+        if self.game_mode == 11 {
+            // run case 11（a.java:4001）：m_055 公共段照跑 + 相位机
+            self.tick_dialog();
+            entity::advance_frames(&mut self.entities, &mut self.grid, frame_counter, width_table);
+            self.key_value = 0;
             return;
         }
         match self.walk_phase {
@@ -2167,6 +2174,10 @@ impl GameScene {
 
     /// paint case 3（a.java:2385-2422）。
     pub fn paint(&mut self, g: &mut SoftGraphics<'_>, tileset: &ArgbImage) {
+        if self.game_mode == 11 {
+            self.paint_dialog(g, tileset);
+            return;
+        }
         self.paint_parallax(g, true);
         let tile_off = view_top_y() + if self.walk_phase == 4 { self.tile_bob } else { 0 };
         self.view.paint_tiles(g, tileset, tile_off);
@@ -2186,10 +2197,6 @@ impl GameScene {
                     MINIMAP_DOT_PX,
                 );
             }
-        }
-        if self.game_mode == 11 {
-            self.paint_dialog(g, tileset);
-            return;
         }
         self.paint_hud(g);
         self.paint_status_bar(g);
@@ -2630,7 +2637,8 @@ impl GameScene {
                 cx += 16;
             }
             g.set_clip(0, 0, SCREEN_W, SCREEN_H);
-            crate::menu_family::draw_edge_patch(g, &self.images.ui[0], 214, var120, 0, 0, 26, 16, 1);
+            // a.java:2846-2849：var48 += 16 后再画右角件（y = var120+16）
+            crate::menu_family::draw_edge_patch(g, &self.images.ui[0], 214, var120 + 16, 0, 0, 26, 16, 1);
             g.set_color(HUD_FILL);
             g.fill_rect(80, var120 + 16, 149, var91 - 16);
             if self.dialog_speaker > 0 {
@@ -2703,21 +2711,26 @@ impl GameScene {
         g.set_clip(0, 0, SCREEN_W, SCREEN_H);
         g.draw_image(&self.images.ui[3], 0, base_y, 0);
         if self.floor > 50 {
-            // "引子" outline 文本（m_142 a.java:4483-4491：8 向色[0] + 中彩色[1]）
+            // "引子" outline 文本（m_142 a.java:4483-4491）：anchor 17 =
+            // TOP(16)|HCENTER(1) 顶部居中——8 向偏移点各画一次全串（色[0]）+
+            // 中心 fill（色[1]）。shim 常量：VCENTER=2 非 16！
             let text: Vec<u16> = "引子".encode_utf16().collect();
-            let mut x = 32 - 1;
-            let mut y = base_y + 9 + ((19 - font.height) >> 1) - 1;
+            let x0 = 32 - 1;
+            let y0 = base_y + 9 + ((19 - font.height) >> 1) - 1;
             let outline = [4202520u32, WHITE];
-            g.set_color(outline[0]);
-            // 8 向描边（Java var2++/var3++ 序：右右下下左左上上…原序展开）
             let deltas = [(1i32, 0i32), (1, 0), (0, 1), (0, 1), (-1, 0), (-1, 0), (0, -1), (0, -1)];
+            let mut pts = Vec::new();
+            let (mut x, mut y) = (x0, y0);
             for (dx, dy) in deltas {
                 x += dx;
                 y += dy;
-                g.draw_string(&text, x, y, 17);
+                pts.push((x, y));
             }
-            g.set_color(outline[1]);
-            g.draw_string(&text, x, y, 17);
+            pts.push((x0 + 1, y0 + 1)); // 中心 fill（var2++→32、var3 循环回 y0+1）
+            for (i, (px, py)) in pts.iter().enumerate() {
+                g.set_color(if i == 8 { outline[1] } else { outline[0] });
+                g.draw_string(&text, *px, *py, 17);
+            }
         } else {
             paint_number(g, &self.images.ui[18], self.floor, STATUS_FLOOR_NUM_X, base_y + 4 + 2);
             g.draw_image(&self.images.ui[8], STATUS_TIER_ICON_X, base_y + 4 + 10, 0);

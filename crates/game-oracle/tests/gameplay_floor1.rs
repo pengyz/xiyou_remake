@@ -677,9 +677,13 @@ fn prologue_dialog_frames_match() {
     scene.player.def = 10;
     scene.build_minimap();
     scene.enter_view();
-    // 出生格 type83 → script 40（m_000 case3 → applyStepCellEffects 链）
-    assert!(scene.try_run_scene(40, true), "script 40 门控应通过");
-    scene.load_level_script(40);
+    // backdropScroll：java T577 postTick=-1（paint 先减后画 ⇒ paint(577) 用 -1，
+    // 进入前 = 0），此后每拍 -1
+    scene.backdrop_scroll = 0;
+    // 出生格 type83 触发（m_000 case3 → applyStepCellEffects → loadLevelScript）
+    // 发生在 logic(584)（装载完成拍）——帧 584 时 mode=11 但 TAK 尚未执行
+    //（typewriterPos=17 为 mode 14 序章打字 dialogueTexts[260] 的残留值，
+    //  openDialogPage(255) 会重置为 14）
 
     let tileset = {
         let map = load_container("map", 12);
@@ -690,7 +694,10 @@ fn prologue_dialog_frames_match() {
     let mut pending_press = 0i32;
     let mut pending_release = false;
     for rec in &records {
-        if !(584..=9800).contains(&rec.tick) {
+        // mode 11 首帧 = T577（装载完成拍：overlayText=null → HUD panel 分支）；
+        // TAK 首执行 = logic(577)（帧 578：pos=14 前缀）；打字机双拍推进
+        //（fc=tick-1 奇偶门控，java T579=14/T580=15 序列实证）
+        if !(577..=9800).contains(&rec.tick) {
             continue;
         }
         if pending_press != 0 {
@@ -701,7 +708,12 @@ fn prologue_dialog_frames_match() {
             scene.release_key();
             pending_release = false;
         }
-        if rec.tick > 584 {
+        if rec.tick == 577 {
+            // 装载完成拍：m_000 case3 → applyStep → case83 → loadLevelScript(40)
+            assert!(scene.try_run_scene(40, true), "script 40 门控应通过");
+            scene.load_level_script(40);
+        }
+        if rec.tick > 577 {
             scene.tick(rec.tick as i64 - 1, &width_table());
         }
         if let Some(inp) = &rec.input {
@@ -713,6 +725,12 @@ fn prologue_dialog_frames_match() {
                 pending_release = true;
             }
         }
+        if rec.tick == 577 || rec.tick == 578 {
+            eprintln!("T{} pre: mode={} phase={} page={} char={} ov_active={} ov_text={:?} box_w={} box_h={}",
+                rec.tick, scene.game_mode, scene.dialog_phase, scene.dialog_page,
+                scene.dialog_char, scene.overlay_active, scene.overlay_text.as_ref().map(|t| t.chars().take(12).collect::<String>()),
+                scene.overlay_box_w, scene.overlay_box_h);
+        }
         let sha;
         {
             let mut g = SoftGraphics::new(&mut screen);
@@ -722,10 +740,10 @@ fn prologue_dialog_frames_match() {
             sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
         }
         if let Some(expect) = &rec.frame_sha {
-            if rec.tick == 584 {
-                std::fs::write("/tmp/rust-pro-584.bin", screen.hash_stream()).unwrap();
-                eprintln!("T584: cam=({},{}) ease=({},{},{},{}) mode={} phase={} char={} page={} speaker={} px=({},{})",
-                    scene.view.cam_x, scene.view.cam_y, scene.ease_cam_x, scene.ease_cam_y,
+            if rec.tick == 578 {
+                std::fs::write("/tmp/rust-pro-578.bin", screen.hash_stream()).unwrap();
+                eprintln!("T578: scroll={} cam=({},{}) ease=({},{},{},{}) mode={} phase={} char={} page={} speaker={} px=({},{})",
+                    scene.backdrop_scroll, scene.view.cam_x, scene.view.cam_y, scene.ease_cam_x, scene.ease_cam_y,
                     scene.ease_target_x, scene.ease_target_y, scene.game_mode, scene.dialog_phase,
                     scene.dialog_char, scene.dialog_page, scene.dialog_speaker,
                     scene.view.player_px, scene.view.player_py);
@@ -742,5 +760,15 @@ fn prologue_dialog_frames_match() {
             checked += 1;
         }
     }
-    assert_eq!(checked, 9800 - 584 + 1, "T584-9800 应有帧数");
+    assert_eq!(checked, 9800 - 577 + 1, "T577-9800 应有帧数");
+}
+
+/// 诊断（ignored）：entity[87]（菩提老祖立绘）尺寸。
+#[test]
+#[ignore]
+fn dump_entity87() {
+    let imgs = load_container("sptenemy2", 20);
+    let a = &imgs[19];
+    eprintln!("sptenemy2[19] {}x{}", a.width, a.height);
+    std::fs::write("/tmp/spte87.bin", a.hash_stream()).unwrap();
 }
