@@ -1,14 +1,14 @@
-//! mode 1 标题主菜单（paint case 1，a.java:2349-2376 + run case 1，a.java:3374-3429）。
+//! mode 1 标题主菜单（paint case 1，a.java:2349-2376 + run case 1，a.java:3380-3429）。
 //!
 //! # 结构（A 级证据）
 //!
 //! - **paint**（a.java:2349-2376）：map 背景图 → 底部状态条 → 图标带动画
-//!   （drawIconStrip，a.java:4780-4793）→ 双侧羽化箭头（bob 摆动）→ 粒子层
+//!   （drawIconStrip，a.java:4786-4793）→ 双侧羽化箭头（bob 摆动）→ 粒子层
 //!   （updateAndDrawParticles，clip 0..308）。
-//! - **tick**（a.java:3374-3429）：`(frameCounter&3)==0` 时 spawn 粒子（每次
+//! - **tick**（a.java:3380-3429）：`(frameCounter&3)==0` 时 spawn 粒子（每次
 //!   吃两个 randomBelow：先 x=rb(240) 后 y=295-rb(150)）；advanceBobPhase bob 摆动；
 //!   方向键移动 cursor（环绕）；-5 确认按 menuItemKinds[cursor] 切 gameMode。
-//! - **粒子演化**（updateAndDrawParticles a.java:9830-9848）：槽位 **31→0 倒序**；每 paint 先
+//! - **粒子演化**（updateAndDrawParticles a.java:9836-9848）：槽位 **31→0 倒序**；每 paint 先
 //!   画后推进：x+=velX；velX 不满（waxing=false）时 ++，触顶 2*size 翻转；
 //!   满（waxing=true）时 --，触底 -2*size 翻转且 size++（>5 死亡）；y+=velY
 //!   匀速。spawn 初值 velX=-3/velY=-4/size=2/waxing=false。
@@ -67,7 +67,7 @@ impl Particles {
         }
     }
 
-    /// `spawnParticle`（a.java:9816-9828）：环形游标登记新粒子。
+    /// `spawnParticle`（a.java:9822-9828）：环形游标登记新粒子。
     pub fn spawn(&mut self, x: i32, y: i32) {
         let i = self.cursor;
         self.x[i] = x;
@@ -80,7 +80,7 @@ impl Particles {
         self.cursor = if self.cursor + 1 > 31 { 0 } else { self.cursor + 1 };
     }
 
-    /// `updateAndDrawParticles`（a.java:9830-9848）：**paint 内调用**——先画后推进，槽位 31→0 倒序。
+    /// `updateAndDrawParticles`（a.java:9836-9848）：**paint 内调用**——先画后推进，槽位 31→0 倒序。
     pub fn paint_and_update(&mut self, g: &mut SoftGraphics<'_>) {
         g.set_color(self.color);
         for i in (0..PARTICLE_SLOTS).rev() {
@@ -89,7 +89,7 @@ impl Particles {
             }
             let s = self.size[i];
             g.fill_rect(self.x[i], self.y[i], s, s);
-            // 推进（a.java:9831-9847）
+            // 推进（a.java:9837-9847）
             self.x[i] += self.vel_x[i];
             let limit = s << 1;
             if !self.waxing[i] {
@@ -112,7 +112,7 @@ impl Particles {
     }
 }
 
-/// `drawIconStrip` 通用形（a.java:4783-4801）。`frame` 为 iconStripFrame
+/// `drawIconStrip` 通用形（a.java:4789-4801）。`frame` 为 iconStripFrame
 ///（每 paint +1 环 8）；count 为源宽度阈值（60=title 4 列、68=菜单族 4 列）。
 pub fn paint_icon_strip_at(
     g: &mut SoftGraphics<'_>,
@@ -167,7 +167,7 @@ impl TitleMachine {
     pub fn new() -> TitleMachine {
         TitleMachine {
             cursor: 0,
-            // m_000 case 1：resetMenuLayout 重置后 addMenuItem(0..5)（a.java:4281-4287）
+            // m_000 case 1：resetMenuLayout 重置后 addMenuItem(0..5)（a.java:4287-4287）
             menu_kinds: vec![0, 1, 2, 3, 4, 5],
             bob: 0,
             bob_rising: false,
@@ -177,7 +177,7 @@ impl TitleMachine {
         }
     }
 
-    /// `advanceBobPhase`（a.java:6466-6475）：bob ±1 摆动（下降相 --<-1 翻上升；上升 ++>1 翻下降）。
+    /// `advanceBobPhase`（a.java:6472-6475）：bob ±1 摆动（下降相 --<-1 翻上升；上升 ++>1 翻下降）。
     /// iconStripFrame 外部同步（与 BootMachine 共享同一 Java 字段 a.java:464）。
     pub fn set_strip_frame(&mut self, f: usize) {
         self.strip_frame = f;
@@ -201,20 +201,20 @@ impl TitleMachine {
         }
     }
 
-    /// run case 1 的逻辑 tick（a.java:3374-3429）。
+    /// run case 1 的逻辑 tick（a.java:3380-3429）。
     ///
     /// `frame_counter` = 本拍的 frameCounter 值（迭代 N 拍 = N-1）。
     /// 返回 `Some(new_mode)` 当确认键切模式（调用方负责后续状态机移交）。
     pub fn tick(&mut self, key: i32, frame_counter: i32, rng: &mut JavaRandom) -> Option<i32> {
         if frame_counter & 3 == 0 {
-            // a.java:3376：参数求值序 L2R——先 x=rb(240) 后 y=295-rb(150)
+            // a.java:3382：参数求值序 L2R——先 x=rb(240) 后 y=295-rb(150)
             let x = rng.random_below(240);
             let y = 320 - self.bar_height - rng.random_below(150);
             self.particles.spawn(x, y);
         }
         self.tick_bob();
         match key {
-            // 确认（a.java:3382-3415）：按 menuItemKinds[cursor] 切模式
+            // 确认（a.java:3388-3415）：按 menuItemKinds[cursor] 切模式
             -5 | 53 => {
                 let next = match self.menu_kinds[self.cursor as usize] {
                     0 => 14,
@@ -227,7 +227,7 @@ impl TitleMachine {
                 };
                 Some(next as i32)
             }
-            // 下移（a.java:3408-3417）
+            // 下移（a.java:3414-3417）
             -4 | -2 | 54 | 56 => {
                 if self.cursor < self.menu_kinds.len() as i32 - 1 {
                     self.cursor += 1;
@@ -236,7 +236,7 @@ impl TitleMachine {
                 }
                 None
             }
-            // 上移（a.java:3418-3426）
+            // 上移（a.java:3424-3426）
             -3 | -1 | 50 | 52 => {
                 if self.cursor > 0 {
                     self.cursor -= 1;
@@ -278,7 +278,7 @@ impl TitleMachine {
         g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
     }
 
-    /// `drawIconStrip`（a.java:4780-4793）：4 列图标带（列源 x = 0/17/34/51），
+    /// `drawIconStrip`（a.java:4786-4793）：4 列图标带（列源 x = 0/17/34/51），
     /// 每列按 STRIP_DX/DY[帧] 波动；字段帧每 paint +1（环 8）。
     fn paint_icon_strip(&mut self, g: &mut SoftGraphics<'_>, strip: &ArgbImage, x0: i32, y0: i32, sy: i32) {
         let mut frame = self.strip_frame;

@@ -155,7 +155,7 @@ pub const OPEN_ANIM_STEP: i32 = 8;
 pub const SMALL_ITEM_MAX_TYPE: i32 = 26;
 
 // —— 玩家精灵（paintPlayerSprite 各朝向的 (dx, dy, 行) 锚）——
-/// 下/上/右/左；**左向（facing 3）是右向行（行 2）的镜像**（a.java:5915
+/// 下/上/右/左；**左向（facing 3）是右向行（行 2）的镜像**（a.java:5921
 /// drawEdgePatch(..., frame*41, 92, 41, 46, 1)——条带仅 3 行，无独立左行）。
 pub const PLAYER_ANCHORS: [(i32, i32, i32); 4] = [(-3, -18, 0), (-8, -14, 1), (-8, -16, 2), (0, -16, 2)];
 
@@ -247,48 +247,48 @@ pub const PARSE_DEFAULT: u32 = 0x2B2B2B;
 /// 引子字幕调色循环（Java introColors a.java:467：灰阶 5 色循环）。
 pub const SUBTITLE_COLORS: [u32; 5] = [0xF8F8F8, 0xAAAAAA, 0x888888, 0x444444, 0x111111];
 
-/// mode 21 声音询问的提示文字（a.java:3065）的 UTF-16 码元序列。
+/// mode 21 声音询问的提示文字（a.java:3071）的 UTF-16 码元序列。
 /// 「是否开启声音？」= U+662F U+5426 U+5F00 U+542F U+58F0 U+97F3 U+FF1F。
 pub const SOUND_PROMPT_TEXT: &[u16] = &[0x662F, 0x5426, 0x5F00, 0x542F, 0x58F0, 0x97F3, 0xFF1F];
 
-/// mode 21 提示文字锚点 x（a.java:3065 `drawString(..., 120, 160, 17)`）。
+/// mode 21 提示文字锚点 x（a.java:3071 `drawString(..., 120, 160, 17)`）。
 /// 语义 = 水平居中锚：`SCREEN_W / 2`。
 pub fn prompt_cx() -> i32 {
     SCREEN_W / 2
 }
 
-/// mode 21 提示文字锚点 y（a.java:3065）。语义 = 垂直居中：`SCREEN_H / 2`。
+/// mode 21 提示文字锚点 y（a.java:3071）。语义 = 垂直居中：`SCREEN_H / 2`。
 pub fn prompt_cy() -> i32 {
     SCREEN_H / 2
 }
 
-/// paintSoftkeyBar 左软键底图 y（a.java:5998 `drawImage(f_Image_arr2_00[8][10], 0, 302, 0)`）。
+/// paintSoftkeyBar 左软键底图 y（a.java:6004 `drawImage(f_Image_arr2_00[8][10], 0, 302, 0)`）。
 /// 语义 = `SCREEN_H - 18`（302 = 320-18）。
 pub fn softkey_base_y() -> i32 {
     SCREEN_H - 18
 }
 
-/// paintSoftkeyBar 右软键底图 x（a.java:6002 drawImageWithNokiaTransform(..., 222, 302, 1)）。
+/// paintSoftkeyBar 右软键底图 x（a.java:6008 drawImageWithNokiaTransform(..., 222, 302, 1)）。
 /// 语义 = 右对齐 18px 边距：`SCREEN_W - 18`。
 pub fn softkey_right_x() -> i32 {
     SCREEN_W - 18
 }
 
-/// paintSoftkeyBar 软键图标 y（a.java:5999 drawImageClipped(..., 2, 307, ...)）。
+/// paintSoftkeyBar 软键图标 y（a.java:6005 drawImageClipped(..., 2, 307, ...)）。
 pub fn softkey_icon_y() -> i32 {
     SCREEN_H - 13
 }
 
-/// paintSoftkeyBar 左软键图标 x（a.java:5999）。
+/// paintSoftkeyBar 左软键图标 x（a.java:6005）。
 pub const SOFTKEY_ICON_LEFT_X: i32 = 2;
 
-/// paintSoftkeyBar 右软键图标 x（a.java:6003 drawImageClipped(..., 226, 307, ...)）。
+/// paintSoftkeyBar 右软键图标 x（a.java:6009 drawImageClipped(..., 226, 307, ...)）。
 /// 语义 = `SCREEN_W - 14`。
 pub fn softkey_icon_right_x() -> i32 {
     SCREEN_W - 14
 }
 
-/// paintSoftkeyBar 软键图标尺寸 12×10（a.java:5999/6003 的 drawImageClipped 宽高）。
+/// paintSoftkeyBar 软键图标尺寸 12×10（a.java:6005/6003 的 drawImageClipped 宽高）。
 pub const SOFTKEY_ICON_W: i32 = 12;
 pub const SOFTKEY_ICON_H: i32 = 10;
 

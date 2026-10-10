@@ -93,7 +93,7 @@ public final class a extends Canvas implements Runnable {
    private int overlayLinesPerPage;
    private int overlayPageHeight;
    private int overlaySavedColor;
-   private int f_int_33;
+   private int typewriterPos;
    private int textLineHeight;
    private int playerHp;
    private int playerAtk;
@@ -259,20 +259,20 @@ public final class a extends Canvas implements Runnable {
    private byte[] dialogueSpeakerType;
    private byte[] f_byte_arr_22;
    private String[] dialogueTexts;
-   private int f_int_112;
+   private int dialogPage;
    private int scriptLineCount;
    private boolean[] scriptLineFlags;
-   private int f_int_114;
-   private int f_int_115;
+   private int dialogMoveX;
+   private int dialogMoveY;
    private byte dialogPhase;
-   private String f_String_05;
+   private String dialogScriptLine;
    private int scriptCursor;
-   private int f_int_117;
-   private int f_int_118;
-   private byte f_byte_17;
-   private int f_int_119;
-   private int f_int_120;
-   private int f_int_121;
+   private int seeModeFlag;
+   private int scriptStepDelay;
+   private byte dialogSpeakerType;
+   private int dialogAnchorEntity;
+   private int dialogPageStart;
+   private int dialogPageEnd;
    private int f_int_122;
    private int cameraX;
    private int cameraY;
@@ -2037,7 +2037,7 @@ public final class a extends Canvas implements Runnable {
       };
       this.scriptLineCount = this.levelScriptLines.length;
       this.scriptLineFlags = new boolean[this.scriptLineCount];
-      this.f_int_118 = 0;
+      this.scriptStepDelay = 0;
       this.bossEventSpawns = new byte[][]{
          {
                29,
@@ -2835,17 +2835,23 @@ public final class a extends Canvas implements Runnable {
                }
 
                var10.f_Graphics_00.setClip(0, 0, 240, 320);
-               if (var25.f_byte_17 > 0) {
-                  var9 = var25.entityTypeImage[var25.f_byte_17];
-                  if (var25.f_byte_17 != 72) {
+               if (var25.dialogSpeakerType > 0) {
+                  var9 = var25.entityTypeImage[var25.dialogSpeakerType];
+                  if (var25.dialogSpeakerType != 72) {
                      var91 = var9.getHeight();
                      var25.drawImageClipped(
-                        var9, 0 + (80 - var25.typeFrameWidth[var25.f_byte_17] >> 1), 320 - var91, 0, 0, var25.typeFrameWidth[var25.f_byte_17], var91
+                        var9,
+                        0 + (80 - var25.typeFrameWidth[var25.dialogSpeakerType] >> 1),
+                        320 - var91,
+                        0,
+                        0,
+                        var25.typeFrameWidth[var25.dialogSpeakerType],
+                        var91
                      );
                   } else {
                      var25.drawImageClipped(var9, 24, 275, 0, 0, 32, 45);
                   }
-               } else if (var25.f_byte_17 == 0) {
+               } else if (var25.dialogSpeakerType == 0) {
                   var25.f_Graphics_00
                      .drawImage(
                         var25.f_Image_arr2_00[3][1], 40 - (var25.f_Image_arr2_00[3][1].getWidth() >> 1), 320 - var25.f_Image_arr2_00[3][1].getHeight(), 0
@@ -2866,11 +2872,11 @@ public final class a extends Canvas implements Runnable {
                }
 
                byte var92;
-               if ((var25.dialogPhase == 6 || var25.dialogPhase == 1) && (var92 = var25.f_byte_arr_22[var25.f_int_112]) >= 0) {
-                  if (var25.f_int_119 >= 0) {
-                     var48 = var25.entityPixelX[var25.f_int_119] + 16;
-                     var120 = var25.entityPixelY[var25.f_int_119] - 30;
-                     if (var25.f_byte_17 == 84) {
+               if ((var25.dialogPhase == 6 || var25.dialogPhase == 1) && (var92 = var25.f_byte_arr_22[var25.dialogPage]) >= 0) {
+                  if (var25.dialogAnchorEntity >= 0) {
+                     var48 = var25.entityPixelX[var25.dialogAnchorEntity] + 16;
+                     var120 = var25.entityPixelY[var25.dialogAnchorEntity] - 30;
+                     if (var25.dialogSpeakerType == 84) {
                         var120 -= 20;
                      }
                   } else {
@@ -2885,8 +2891,8 @@ public final class a extends Canvas implements Runnable {
                   var25.f_Graphics_00
                      .drawImage(
                         var25.f_Image_arr2_00[2][11],
-                        var25.cameraPixelX + 5 + (var25.f_int_114 << 5),
-                        var25.cameraPixelY + (var25.f_int_115 << 5) - 12 + var25.animBobOffset,
+                        var25.cameraPixelX + 5 + (var25.dialogMoveX << 5),
+                        var25.cameraPixelY + (var25.dialogMoveY << 5) - 12 + var25.animBobOffset,
                         0
                      );
                }
@@ -3038,9 +3044,9 @@ public final class a extends Canvas implements Runnable {
                var20.f_bool_04 = true;
             }
 
-            if ((var20.frameCounter & 3) >> 1 != 0 && var20.f_int_33 < var20.dialogueTexts[260].length()) {
-               var20.f_int_33++;
-               var20.layoutWrappedText(var20.dialogueTexts[260], 209, (var20.textLineHeight << 1) + 12, var20.f_int_33);
+            if ((var20.frameCounter & 3) >> 1 != 0 && var20.typewriterPos < var20.dialogueTexts[260].length()) {
+               var20.typewriterPos++;
+               var20.layoutWrappedText(var20.dialogueTexts[260], 209, (var20.textLineHeight << 1) + 12, var20.typewriterPos);
                var20.overlayPageTop = var20.overlayTotalLines - 1;
                if (var20.overlayPageTop < 0) {
                   var20.overlayPageTop = 0;
@@ -4005,36 +4011,36 @@ public final class a extends Canvas implements Runnable {
                         char var33 = '\u0000';
                         switch (var20.dialogPhase) {
                            case 0:
-                              if (var20.f_int_118 > 0) {
-                                 var20.f_int_118--;
+                              if (var20.scriptStepDelay > 0) {
+                                 var20.scriptStepDelay--;
                               } else {
-                                 var20.executeScriptInstruction(var20.f_String_05, var20.scriptCursor);
+                                 var20.executeScriptInstruction(var20.dialogScriptLine, var20.scriptCursor);
                               }
                               break label534;
                            case 1:
                            case 6:
                               if (var20.dialogPhase != 6 || var20.cameraAtTarget()) {
-                                 if (var20.f_int_33 < var20.overlayText.length()) {
+                                 if (var20.typewriterPos < var20.overlayText.length()) {
                                     label519: {
                                        if (var20.keyValue != 0) {
                                           var20.layoutFullText(var20.overlayText, 129, (var20.textLineHeight << 1) + 12);
-                                          var20.f_int_33 = var20.skipTextToLineEnd(var20.f_int_33);
+                                          var20.typewriterPos = var20.skipTextToLineEnd(var20.typewriterPos);
                                        } else {
                                           if ((var20.frameCounter & 1) == 0) {
                                              break label519;
                                           }
 
-                                          var20.f_int_33++;
-                                          if (var20.overlayText.charAt(var20.f_int_33 - 1) == '\\') {
-                                             if ((var33 = var20.overlayText.charAt(var20.f_int_33)) == 'c') {
-                                                var20.f_int_33 += 8;
+                                          var20.typewriterPos++;
+                                          if (var20.overlayText.charAt(var20.typewriterPos - 1) == '\\') {
+                                             if ((var33 = var20.overlayText.charAt(var20.typewriterPos)) == 'c') {
+                                                var20.typewriterPos += 8;
                                              } else if (var33 == 'r') {
-                                                var20.f_int_33 += 2;
+                                                var20.typewriterPos += 2;
                                              }
                                           }
                                        }
 
-                                       var20.layoutWrappedText(var20.overlayText, 129, (var20.textLineHeight << 1) + 12, var20.f_int_33);
+                                       var20.layoutWrappedText(var20.overlayText, 129, (var20.textLineHeight << 1) + 12, var20.typewriterPos);
                                     }
 
                                     if (var20.overlayTotalLines > var20.overlayPageBottom) {
@@ -4050,10 +4056,10 @@ public final class a extends Canvas implements Runnable {
                                        case 0:
                                           break label534;
                                        default:
-                                          var20.f_int_33 = 1;
-                                          var20.openDialogPage(var20.f_int_112 + 1);
+                                          var20.typewriterPos = 1;
+                                          var20.openDialogPage(var20.dialogPage + 1);
                                           if (var20.dialogPhase == 6) {
-                                             var20.m_103(var20.f_int_114, var20.f_int_115);
+                                             var20.m_103(var20.dialogMoveX, var20.dialogMoveY);
                                           }
                                     }
                                  }
@@ -4434,8 +4440,8 @@ public final class a extends Canvas implements Runnable {
             this.releaseSceneImages();
             this.m_001(14);
             this.overlayLayoutCache = this.dialogueTexts[260];
-            this.f_int_33 = 1;
-            this.layoutWrappedText(this.overlayText, 209, (this.textLineHeight << 1) + 12, this.f_int_33);
+            this.typewriterPos = 1;
+            this.layoutWrappedText(this.overlayText, 209, (this.textLineHeight << 1) + 12, this.typewriterPos);
             return;
          case 21:
             a var1 = this;
@@ -8026,10 +8032,10 @@ public final class a extends Canvas implements Runnable {
       this.scriptWalkArmed = false;
       this.gameMode = 11;
       this.currentScriptIndex = var1;
-      this.f_int_112 = 0;
+      this.dialogPage = 0;
       this.lockCameraOn(0);
       this.dialogPhase = 0;
-      this.f_String_05 = this.levelScriptLines[this.currentScriptIndex];
+      this.dialogScriptLine = this.levelScriptLines[this.currentScriptIndex];
       this.overlayText = null;
       this.scriptCursor = 0;
       switch (var1) {
@@ -8212,28 +8218,28 @@ public final class a extends Canvas implements Runnable {
 
    private void openDialogPage(int var1) {
       byte var2 = 0;
-      if (var1 <= this.f_int_121) {
-         this.f_int_112 = var1;
-         if (this.f_int_112 < 0) {
-            this.f_byte_17 = -1;
+      if (var1 <= this.dialogPageEnd) {
+         this.dialogPage = var1;
+         if (this.dialogPage < 0) {
+            this.dialogSpeakerType = -1;
          } else {
-            this.f_byte_17 = this.dialogueSpeakerType[this.f_int_112];
+            this.dialogSpeakerType = this.dialogueSpeakerType[this.dialogPage];
          }
 
-         this.f_int_119 = this.lockCameraOn(this.f_byte_17);
-         var2 = this.f_byte_17;
-         if (this.f_byte_17 < 0) {
-            this.overlayLayoutCache = this.overlayText = "?: \\cF8F8F8" + this.dialogueTexts[this.f_int_112];
-            this.f_int_33 = 11;
+         this.dialogAnchorEntity = this.lockCameraOn(this.dialogSpeakerType);
+         var2 = this.dialogSpeakerType;
+         if (this.dialogSpeakerType < 0) {
+            this.overlayLayoutCache = this.overlayText = "?: \\cF8F8F8" + this.dialogueTexts[this.dialogPage];
+            this.typewriterPos = 11;
          } else {
-            this.overlayLayoutCache = this.overlayText = this.objectTypeNames[var2] + ": \\cF8F8F8" + this.dialogueTexts[this.f_int_112];
-            this.f_int_33 = this.objectTypeNames[var2].length() + 10;
+            this.overlayLayoutCache = this.overlayText = this.objectTypeNames[var2] + ": \\cF8F8F8" + this.dialogueTexts[this.dialogPage];
+            this.typewriterPos = this.objectTypeNames[var2].length() + 10;
          }
 
-         this.layoutWrappedText(this.overlayText, 129, (this.textLineHeight << 1) + 12, this.f_int_33);
+         this.layoutWrappedText(this.overlayText, 129, (this.textLineHeight << 1) + 12, this.typewriterPos);
       } else {
          this.dialogPhase = 0;
-         this.f_int_33 = 0;
+         this.typewriterPos = 0;
       }
    }
 
@@ -8252,12 +8258,12 @@ public final class a extends Canvas implements Runnable {
          var3 = var1.substring(var2, var2 + 3);
          var2 += 3;
          if (var3.equals("TAK")) {
-            this.f_int_120 = this.parseScriptInt(var1, var2 + 1, "_");
+            this.dialogPageStart = this.parseScriptInt(var1, var2 + 1, "_");
             var2 = this.f_int_122;
-            this.f_int_121 = this.parseScriptInt(var1, var2 + 1, " ");
+            this.dialogPageEnd = this.parseScriptInt(var1, var2 + 1, " ");
             this.scriptCursor = this.f_int_122 + 1;
             this.dialogPhase = 1;
-            this.openDialogPage(this.f_int_120);
+            this.openDialogPage(this.dialogPageStart);
          } else if (var3.equals("MOV")) {
             int var55 = this.parseScriptInt(var1, var2 + 1, "_");
             var2 = this.f_int_122;
@@ -8268,9 +8274,9 @@ public final class a extends Canvas implements Runnable {
                var2 = this.f_int_122;
             }
 
-            this.f_int_114 = this.parseScriptInt(var1, var2 + 1, "_");
+            this.dialogMoveX = this.parseScriptInt(var1, var2 + 1, "_");
             var2 = this.f_int_122;
-            this.f_int_115 = this.parseScriptInt(var1, var2 + 1, " ");
+            this.dialogMoveY = this.parseScriptInt(var1, var2 + 1, " ");
             this.scriptCursor = this.f_int_122 + 1;
             if (var55 > 0) {
                this.f_int_127 = this.m_100(var5, var6, var55);
@@ -8283,12 +8289,12 @@ public final class a extends Canvas implements Runnable {
 
                   var19.f_int_129 = var19.entityPixelX[var19.f_int_127] >> 5;
                   var19.f_int_130 = var19.entityPixelY[var19.f_int_127] >> 5;
-                  var19.findPath(var19.f_int_129, var19.f_int_130, var19.f_int_114, var19.f_int_115);
+                  var19.findPath(var19.f_int_129, var19.f_int_130, var19.dialogMoveX, var19.dialogMoveY);
                   this.dialogPhase = 2;
                } else {
-                  this.executeScriptInstruction(this.f_String_05, this.scriptCursor);
+                  this.executeScriptInstruction(this.dialogScriptLine, this.scriptCursor);
                }
-            } else if (this.findPath(this.playerCellX, this.playerCellY, this.f_int_114, this.f_int_115)) {
+            } else if (this.findPath(this.playerCellX, this.playerCellY, this.dialogMoveX, this.dialogMoveY)) {
                this.scriptWalkArmed = true;
                this.dialogPhase = 3;
                this.walkPhase = 0;
@@ -8406,7 +8412,7 @@ public final class a extends Canvas implements Runnable {
                      var10001 = 0;
                }
 
-               this.f_int_118 = var10001;
+               this.scriptStepDelay = var10001;
                this.scriptCursor = this.f_int_122 + 1;
             } else if (var3.equals("GIN")) {
                var4 = this.parseScriptInt(var1, var2 + 1, "_");
@@ -8421,7 +8427,7 @@ public final class a extends Canvas implements Runnable {
                }
 
                this.scriptCursor = this.f_int_122 + 1;
-               this.executeScriptInstruction(this.f_String_05, this.scriptCursor);
+               this.executeScriptInstruction(this.dialogScriptLine, this.scriptCursor);
             } else if (var3.equals("ADD")) {
                var4 = this.parseScriptInt(var1, var2 + 1, "_");
                var2 = this.f_int_122;
@@ -8472,27 +8478,27 @@ public final class a extends Canvas implements Runnable {
 
                this.scriptCursor = this.f_int_122 + 1;
             } else if (var3.equals("SEE")) {
-               this.f_int_114 = this.parseScriptInt(var1, var2 + 1, "_");
+               this.dialogMoveX = this.parseScriptInt(var1, var2 + 1, "_");
                var2 = this.f_int_122;
-               this.f_int_115 = this.parseScriptInt(var1, var2 + 1, "_");
+               this.dialogMoveY = this.parseScriptInt(var1, var2 + 1, "_");
                var2 = this.f_int_122;
-               this.f_int_120 = this.parseScriptInt(var1, var2 + 1, "_");
+               this.dialogPageStart = this.parseScriptInt(var1, var2 + 1, "_");
                var2 = this.f_int_122;
-               this.f_int_121 = this.parseScriptInt(var1, var2 + 1, "_");
+               this.dialogPageEnd = this.parseScriptInt(var1, var2 + 1, "_");
                var2 = this.f_int_122;
-               this.f_int_117 = this.parseScriptInt(var1, var2 + 1, " ");
+               this.seeModeFlag = this.parseScriptInt(var1, var2 + 1, " ");
                this.scriptCursor = this.f_int_122 + 1;
-               this.openDialogPage(this.f_int_120);
-               switch (this.f_int_117) {
+               this.openDialogPage(this.dialogPageStart);
+               switch (this.seeModeFlag) {
                   case 1:
-                     if (this.findPath(this.playerCellX, this.playerCellY, this.f_int_114, this.f_int_115)) {
+                     if (this.findPath(this.playerCellX, this.playerCellY, this.dialogMoveX, this.dialogMoveY)) {
                         this.f_bool_26 = true;
                         this.walkPhase = 0;
                      }
                   case 0:
                   default:
                      this.dialogPhase = 6;
-                     this.m_103(this.f_int_114, this.f_int_115);
+                     this.m_103(this.dialogMoveX, this.dialogMoveY);
                }
             } else if (var3.equals("END")) {
                this.parseScriptInt(var1, var2 + 1, " ");
@@ -8578,7 +8584,7 @@ public final class a extends Canvas implements Runnable {
             this.scriptCursor = var2 + 1;
          }
 
-         if (this.scriptCursor < this.f_String_05.length()) {
+         if (this.scriptCursor < this.dialogScriptLine.length()) {
             return;
          }
       } else {

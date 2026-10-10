@@ -179,7 +179,7 @@ fn build_scene() -> GameScene {
     scene.player.gold = s.gold;
     scene.floor = s.current_floor as i32;
     // 敌方表：基础三表（夹具）× 难度乘数 1（difficultyIndex=0 → ×1，
-    // scaleEnemyStats a.java:7229-7236）+ 赏金/基础 HP
+    // scaleEnemyStats a.java:7235-7236）+ 赏金/基础 HP
     let base = game_core::combat::CombatTables {
         enemy_base_hp: fixture_ints("enemybasehp.txt"),
         enemy_base_atk: fixture_ints("enemybaseatk.txt"),
@@ -202,7 +202,7 @@ fn build_scene() -> GameScene {
     // （mode 8 末次 parallax=T500 绘后 -30，mode 2 无 parallax）
     scene.backdrop_scroll = -30;
     // RNG 预推进：mode 1（T72-161）粒子消费——每 4 拍 spawnParticle
-    // randomBelow(240)+randomBelow(150)（a.java:3376-3379），共 23 组；
+    // randomBelow(240)+randomBelow(150)（a.java:3382-3379），共 23 组；
     // 消费链已被 title/menu-sweep 全帧回放验证
     for _ in 0..23 {
         scene.rng.random_below(240);
@@ -239,7 +239,7 @@ fn gameplay_floor1_t537_1700_frames_match() {
         // T537 的 run 是 case 2（切换发生在其 else 分支内）⇒ 本拍无 advanceEntityFrames；
         // T538 起 case 3 以 frameCounter=tick-1 跑（偶数拍推进——运行时实证）。
         // 输入投递：TICK n 的 INPUT 在 preTick(n)（paint#n 后）→ logic#(n+1) 消费；
-        // keyValue 为边沿触发（run 尾清零 a.java:4266），keyHeldCode 电平（release 清）
+        // keyValue 为边沿触发（run 尾清零 a.java:4272），keyHeldCode 电平（release 清）
         if pending_press != 0 {
             scene.press_key(pending_press);
             pending_press = 0;
@@ -360,7 +360,7 @@ fn floor2_tour_frames_match() {
     let mut pending_release = false;
     for rec in &records {
         // 全窗口 T537-1500：(9,1) 怪已在 floor1 巡回期打死——m_119 只存存活实体、
-        // m_122 存档分支优先（死怪不复活 a.java:9455+），回流步进无战斗 ✓
+        // m_122 存档分支优先（死怪不复活 a.java:9461+），回流步进无战斗 ✓
         if !(537..=1500).contains(&rec.tick) {
             continue;
         }
@@ -595,7 +595,7 @@ fn dump_frame_pixels() {
 /// (c) 对话框文本内容（T584 应已显示 TAK_255 首页前缀）。
 /// 相机已一致 (64,-228)；maplv51=12×13（wide=12，行距 wide*4=48/24）已确认。
 #[ignore]
-/// 场景状态按 a.java:3475-3487 冷启动（floor51/hp300/atk10/def10）。
+/// 场景状态按 a.java:3481-3487 冷启动（floor51/hp300/atk10/def10）。
 #[test]
 fn prologue_dialog_frames_match() {
     let trace_text = std::fs::read_to_string(
@@ -656,7 +656,7 @@ fn prologue_dialog_frames_match() {
         records: records51.clone(),
     });
 
-    // 冷启动（a.java:3475-3487）：floor51、cell(1,11)、hp300/atk10/def10
+    // 冷启动（a.java:3481-3487）：floor51、cell(1,11)、hp300/atk10/def10
     let mut scene = GameScene::load_floor(
         &maplv51,
         32,

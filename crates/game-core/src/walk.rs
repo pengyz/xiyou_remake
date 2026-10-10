@@ -12,7 +12,7 @@ use crate::enums::Dir;
 
 pub const STEP_PX: i32 = 8;
 pub const CELL_PX: i32 = 32;
-/// 屏幕边缘跟随阈值（a.java:3556 等：106 = 240-... 的布局常量）
+/// 屏幕边缘跟随阈值（a.java:3562 等：106 = 240-... 的布局常量）
 pub const EDGE_MARGIN: i32 = 106;
 
 pub struct WalkState {
@@ -48,7 +48,7 @@ impl Default for WalkState {
     }
 }
 
-/// 相机边缘跟随（run walkPhase-1 分支 a.java:3555-3577）。
+/// 相机边缘跟随（run walkPhase-1 分支 a.java:3561-3577）。
 /// 阈值逐方向核对（复核 R2/R3）：下 252-106=146；上 106；右 240-106=134；左 106。
 pub fn camera_edge_follow(
     camera: &mut Camera,
@@ -84,7 +84,7 @@ pub fn camera_edge_follow(
     }
 }
 
-/// 完整步进 tick（a.java:3555-3593）：像素 ±8 + 相机边缘跟随 + 32px 归格
+/// 完整步进 tick（a.java:3561-3593）：像素 ±8 + 相机边缘跟随 + 32px 归格
 /// （progress 清零 + applyStepCellEffects hook）。
 #[allow(clippy::too_many_arguments)]
 pub fn tick_stepping(
@@ -103,7 +103,7 @@ pub fn tick_stepping(
     }
 }
 
-/// dialogPhase-3 缓冲消费一步（a.java:4062 区域语义；方向码 → Dir）：
+/// dialogPhase-3 缓冲消费一步（a.java:4068 区域语义；方向码 → Dir）：
 /// walkStepCount > 0 → 取 `buffer[--count]` 交给 tryStep；
 /// == 0 → script_walk_armed=false、dialogPhase=0（恢复脚本）。
 /// 返回 Option<方向码>（Some(dir) 时调用方执行 tryStep）。

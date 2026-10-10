@@ -5,7 +5,7 @@
 - 输入：`original/囧囧西游-大闹天宫.jar`（只读）→ `analysis/rename-pipeline/orig/*.class`
 - 对比对象：`analysis/rename-pipeline/orig/` vs `analysis/rename-pipeline/renamed/*.class`
 - 映射表：`data/naming/remap-table.json`（581 条符号，机械改名 569 条）
-- 语义叠加：`data/naming/ledger.jsonl`（applied 359 条，改写与验证均经两层符号还原：语义名→机械名→原始名）
+- 语义叠加：`data/naming/ledger.jsonl`（applied 370 条，改写与验证均经两层符号还原：语义名→机械名→原始名）
 
 ## 验证方法（为什么这能证明“仅符号名变化”）
 
@@ -135,7 +135,7 @@
 | 70 | E | overlayLinesPerPage | 0 | 0 | ✓ |
 | 71 | F | overlayPageHeight | 0 | 0 | ✓ |
 | 72 | G | overlaySavedColor | 0 | 0 | ✓ |
-| 73 | H | f_int_33 | 0 | 0 | ✓ |
+| 73 | H | typewriterPos | 0 | 0 | ✓ |
 | 74 | I | textLineHeight | 0 | 0 | ✓ |
 | 75 | J | playerHp | 0 | 0 | ✓ |
 | 76 | K | playerAtk | 0 | 0 | ✓ |
@@ -301,20 +301,20 @@
 | 236 | v | dialogueSpeakerType | 0 | 0 | ✓ |
 | 237 | w | f_byte_arr_22 | 0 | 0 | ✓ |
 | 238 | o | dialogueTexts | 0 | 0 | ✓ |
-| 239 | bi | f_int_112 | 0 | 0 | ✓ |
+| 239 | bi | dialogPage | 0 | 0 | ✓ |
 | 240 | bj | scriptLineCount | 0 | 0 | ✓ |
 | 241 | g | scriptLineFlags | 0 | 0 | ✓ |
-| 242 | bk | f_int_114 | 0 | 0 | ✓ |
-| 243 | bl | f_int_115 | 0 | 0 | ✓ |
+| 242 | bk | dialogMoveX | 0 | 0 | ✓ |
+| 243 | bl | dialogMoveY | 0 | 0 | ✓ |
 | 244 | q | dialogPhase | 0 | 0 | ✓ |
-| 245 | f | f_String_05 | 0 | 0 | ✓ |
+| 245 | f | dialogScriptLine | 0 | 0 | ✓ |
 | 246 | bm | scriptCursor | 0 | 0 | ✓ |
-| 247 | bn | f_int_117 | 0 | 0 | ✓ |
-| 248 | bo | f_int_118 | 0 | 0 | ✓ |
-| 249 | r | f_byte_17 | 0 | 0 | ✓ |
-| 250 | bp | f_int_119 | 0 | 0 | ✓ |
-| 251 | bq | f_int_120 | 0 | 0 | ✓ |
-| 252 | br | f_int_121 | 0 | 0 | ✓ |
+| 247 | bn | seeModeFlag | 0 | 0 | ✓ |
+| 248 | bo | scriptStepDelay | 0 | 0 | ✓ |
+| 249 | r | dialogSpeakerType | 0 | 0 | ✓ |
+| 250 | bp | dialogAnchorEntity | 0 | 0 | ✓ |
+| 251 | bq | dialogPageStart | 0 | 0 | ✓ |
+| 252 | br | dialogPageEnd | 0 | 0 | ✓ |
 | 253 | bs | f_int_122 | 0 | 0 | ✓ |
 | 254 | bt | cameraX | 0 | 0 | ✓ |
 | 255 | bu | cameraY | 0 | 0 | ✓ |

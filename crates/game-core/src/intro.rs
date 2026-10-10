@@ -1,5 +1,5 @@
-//! mode 14 新游戏引子（runIntroViewer a.java:4816-4887 + paint case 14 a.java:2917-2950）
-//! 与 mode 2 加载链（run case 2 a.java:3441-3542 + startNewGameLoad/m_131/m_132）。
+//! mode 14 新游戏引子（runIntroViewer a.java:4822-4887 + paint case 14 a.java:2923-2950）
+//! 与 mode 2 加载链（run case 2 a.java:3447-3542 + startNewGameLoad/m_131/m_132）。
 //!
 //! # mode 14 引子（三页图文 + 字幕滚动机）
 //!
@@ -27,7 +27,7 @@
 
 use crate::render::{ArgbImage, SoftGraphics};
 
-/// `dimImage`（a.java:4604-4626）：压暗变换——白色像素(-1)跳过，其余非透明
+/// `dimImage`（a.java:4610-4626）：压暗变换——白色像素(-1)跳过，其余非透明
 /// 像素 alpha 置 `alpha`。
 pub fn dim_image(img: &ArgbImage, alpha: i32) -> ArgbImage {
     let a = (alpha as u32) << 24;
@@ -52,7 +52,7 @@ pub fn intro_text(page: i32) -> Vec<u16> {
     }
 }
 
-/// 「跳过」/「请按任意键」（a.java:2938/2940）。
+/// 「跳过」/「请按任意键」（a.java:2944/2940）。
 pub const SKIP_LABEL: &[u16] = &[0x8DF3, 0x8FC7]; // 跳过
 pub const PRESS_ANY_KEY: &[u16] = &[0x8BF7, 0x6309, 0x4EFB, 0x610F, 0x952E]; // 请按任意键
 
@@ -85,7 +85,7 @@ impl IntroSequence {
         IntroSequence { page: 0, page_tick: 0, scroll_x: 0, color_phase: false, color_idx: 0, image: None, text: None }
     }
 
-    /// 页首拍装载（runIntroViewer 的 introPageTick==0 分支，a.java:4826-4850）。
+    /// 页首拍装载（runIntroViewer 的 introPageTick==0 分支，a.java:4832-4850）。
     /// `intro`/`end_container` 为容器图列表。
     fn load_page(&mut self, intro: &[ArgbImage], end: &[ArgbImage]) {
         self.image = None;
@@ -106,7 +106,7 @@ impl IntroSequence {
         }
     }
 
-    /// runIntroViewer 一次 tick（a.java:4816-4887）。返回 `true` 当引子结束
+    /// runIntroViewer 一次 tick（a.java:4822-4887）。返回 `true` 当引子结束
     /// （-7 或页 3 滚完 → 调用方启动 startNewGameLoad 加载链）。
     pub fn tick(
         &mut self,
@@ -126,7 +126,7 @@ impl IntroSequence {
         self.page_tick += 1;
         if self.page < 3 {
             if let Some(text) = self.text.clone() {
-                // 滚动机（a.java:4852-4885）：门槛 overlayLayoutCache != null——
+                // 滚动机（a.java:4858-4885）：门槛 overlayLayoutCache != null——
                 // **上次 paint 的布局锚**。首拍锚为 null ⇒ 整段跳过（enter-game
                 // T102 实证：scroll 自 T103 起 +4）；tick 不主动布局，读 overlay
                 // 现有行（paint 首拍已按 (220, 28) 排好）
@@ -158,7 +158,7 @@ impl IntroSequence {
                             return false;
                         }
                         // 本页滚完 → 页++（Java 递归 runIntroViewer：装载下一页并**同拍
-                        // 继续滚动机**——a.java:4881-4884，enter-game T285 实证）
+                        // 继续滚动机**——a.java:4887-4884，enter-game T285 实证）
                         self.page += 1;
                         self.page_tick = 0;
                         if self.page < 3 {
@@ -178,7 +178,7 @@ impl IntroSequence {
                 return true;
             }
         } else {
-            // 页 >= 3（a.java:4871-4879）：清理 + startNewGameLoad
+            // 页 >= 3（a.java:4877-4879）：清理 + startNewGameLoad
             self.reset();
             return true;
         }
@@ -195,7 +195,7 @@ impl IntroSequence {
         self.color_idx = 0;
     }
 
-    /// paint case 14（a.java:2917-2950）。`particles` 由调用方持有（case 14
+    /// paint case 14（a.java:2923-2950）。`particles` 由调用方持有（case 14
     /// 尾部的粒子层）；返回值无。
     pub fn paint(
         &self,
@@ -263,17 +263,17 @@ pub struct LoadProgress {
 }
 
 impl LoadProgress {
-    /// `m_131(target, call_m000)` + `m_132(...)`（a.java:9875-9889 区）。
+    /// `m_131(target, call_m000)` + `m_132(...)`（a.java:9881-9889 区）。
     pub fn new(target: i32, call_m000: bool, steps: &[i8]) -> LoadProgress {
         LoadProgress { steps: steps.to_vec(), step_idx: 0, progress: 0, bar_max: 0, target_mode: target, call_m000 }
     }
 
-    /// `startNewGameLoad`（a.java:7162-7175）：新游戏加载链。
+    /// `startNewGameLoad`（a.java:7168-7175）：新游戏加载链。
     pub fn new_game() -> LoadProgress {
         LoadProgress::new(3, true, &[6, 8, 5, 13, 9, 10, 2, 3, 12, 11])
     }
 
-    /// run case 2 一次 tick（a.java:3443-3541）。返回 `Some(target_mode)`
+    /// run case 2 一次 tick（a.java:3449-3541）。返回 `Some(target_mode)`
     /// 当进度 ≥100（加载完成；`call_m000` 供调用方决定初始化）。
     pub fn tick(&mut self) -> Option<(i32, bool)> {
         if self.progress < 100 {
@@ -294,7 +294,7 @@ impl LoadProgress {
         }
     }
 
-    /// 步骤 8 语义（a.java:3476-3489）：新游戏初始状态（HP/楼层/钥匙）。
+    /// 步骤 8 语义（a.java:3482-3489）：新游戏初始状态（HP/楼层/钥匙）。
     /// 返回 (hp, atk, def, floor)。
     pub fn new_game_stats() -> (i32, i32, i32, i32) {
         (300, 10, 10, 51)
