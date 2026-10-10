@@ -5,6 +5,7 @@ pub mod enums;
 pub mod camera;
 pub mod combat;
 pub mod entity;
+pub mod logo_anim;
 pub mod sprite_spawn;
 pub mod paint;
 pub mod pathfind;

@@ -4,5 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+game-platform = { path = "../game-platform" }
 game-core = { path = "../game-core" }
 game-data = { path = "../game-data" }

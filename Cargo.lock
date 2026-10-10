@@ -13,6 +13,9 @@ dependencies = [
 [[package]]
 name = "game-data"
 version = "0.1.0"
+dependencies = [
+ "game-platform",
+]
 
 [[package]]
 name = "game-oracle"
@@ -20,6 +23,7 @@ version = "0.1.0"
 dependencies = [
  "game-core",
  "game-data",
+ "game-platform",
 ]
 
 [[package]]

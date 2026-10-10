@@ -6,6 +6,8 @@ pub struct TickRecord {
     pub tick: u32,
     pub input: Option<String>,
     pub fields: HashMap<u32, String>,
+    /// `FRAME sha=` 行的截断哈希（TickHooks.hex(digest,16) = 32 hex 字符）。
+    pub frame_sha: Option<String>,
 }
 
 pub fn parse(text: &str) -> Vec<TickRecord> {
@@ -21,10 +23,16 @@ pub fn parse(text: &str) -> Vec<TickRecord> {
                 tick: n.parse().unwrap_or(0),
                 input: None,
                 fields: HashMap::new(),
+                frame_sha: None,
             });
         } else if let Some(i) = line.strip_prefix("INPUT ") {
             if let Some(c) = cur.as_mut() {
                 c.input = Some(i.to_string());
+            }
+        } else if let Some(rest) = line.strip_prefix("FRAME sha=") {
+            let sha = rest.split_whitespace().next().unwrap_or("").to_string();
+            if let Some(c) = cur.as_mut() {
+                c.frame_sha = Some(sha);
             }
         } else if let Some(rest) = line.strip_prefix("  FLD ") {
             let mut it = rest.splitn(3, ' ');
