@@ -307,7 +307,13 @@ speaker_entity（=f_int_119）、dialog_page（=f_int_112）与 DSL 解释
    序章 = floor51 + script 0 全链（CES/MOV/TAK/ROS/GUT）。需 scene 支持
    floor51 资产（maplv51/sprite51 夹具已有）与序章 preset（无存档冷启动）。
 
-剩余（下批）：mode 11 对话实现（按上述 1-5）+ mode 4/19 暂停菜单 + cat 67/69 拼装臂。
+**实现进度（93706ec + 本批）**：触发链/门控/DSL 子集（TAK/SEE/END/SMS）/
+相位机/paint case 11 全部落库（旧对拍不破）。prologue 对拍 T584 三带差异
+待调：(a) 状态栏"引子" m_142 outline 已实现但字形位置偏上（疑 BASELINE=17
+的 draw_string 字形 y 范围语义，SMALL 字体 baseline=8/h=10）；(b) 实体动画
+帧差；(c) 对话框文本内容差。相机已一致 (64,-228)；maplv51=12×13。
+
+剩余（下批）：prologue T584 三带调试 + mode 4/19 暂停菜单 + cat 67/69 拼装臂。
 
 剩余（下批）：changeFloor 楼梯换层（walkPhase 4 + 动画）、宝箱 m_073、
 装备拾取 33-40/79/80、cat 16/32/67/69 渲染臂、mode 11 对话、mode 4/19。

@@ -2699,11 +2699,29 @@ impl GameScene {
     /// paintStatusBar（a.java:6008-6031）：顶部状态栏（层数/三钥/金币）+ paintKeySlot。
     pub fn paint_status_bar(&mut self, g: &mut SoftGraphics<'_>) {
         let base_y = 0;
+        let font = crate::paint::paint_font();
         g.set_clip(0, 0, SCREEN_W, SCREEN_H);
         g.draw_image(&self.images.ui[3], 0, base_y, 0);
-        // currentFloor ≤ 50 分支（>50 的"引子"文字属尾声楼层）
-        paint_number(g, &self.images.ui[18], self.floor, STATUS_FLOOR_NUM_X, base_y + 4 + 2);
-        g.draw_image(&self.images.ui[8], STATUS_TIER_ICON_X, base_y + 4 + 10, 0);
+        if self.floor > 50 {
+            // "引子" outline 文本（m_142 a.java:4477-4491：8 向色[0] + 中彩色[1]）
+            let text: Vec<u16> = "引子".encode_utf16().collect();
+            let mut x = 32 - 1;
+            let mut y = base_y + 9 + ((19 - font.height) >> 1) - 1;
+            let outline = [4202520u32, WHITE];
+            g.set_color(outline[0]);
+            // 8 向描边（Java var2++/var3++ 序：右右下下左左上上…原序展开）
+            let deltas = [(1i32, 0i32), (1, 0), (0, 1), (0, 1), (-1, 0), (-1, 0), (0, -1), (0, -1)];
+            for (dx, dy) in deltas {
+                x += dx;
+                y += dy;
+                g.draw_string(&text, x, y, 17);
+            }
+            g.set_color(outline[1]);
+            g.draw_string(&text, x, y, 17);
+        } else {
+            paint_number(g, &self.images.ui[18], self.floor, STATUS_FLOOR_NUM_X, base_y + 4 + 2);
+            g.draw_image(&self.images.ui[8], STATUS_TIER_ICON_X, base_y + 4 + 10, 0);
+        }
         g.set_color(STATUS_FILL);
         g.fill_rect(STATUS_KEY_X[0], base_y, SCREEN_W - STATUS_KEY_X[0], STATUS_BAR_H);
         self.paint_key_slot(g, 0, self.player.yellow_keys, STATUS_KEY_X[0], base_y);

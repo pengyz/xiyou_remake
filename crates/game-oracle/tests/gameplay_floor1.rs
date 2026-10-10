@@ -588,7 +588,12 @@ fn dump_frame_pixels() {
 
 /// prologue 对拍：floor51 冷启动（玩家 (1,11) 出生即触发 script 40）——
 /// T584-9800 逐 tick FRAME sha（T584 起为 mode 11 对话）。
-/// 当前 ignore：T584 瓦片内容差（相机已一致 (64,-228)）——下轮逐像素调试。
+/// 当前 ignore：T584 三带差异待调——
+/// (a) 状态栏"引子"（m_142 outline 已实现但位置偏上：我 y9 白 vs java y16 白，
+///     疑 draw_string BASELINE=17 语义/SMALL 字形位图 y 范围（baseline=8, h=10）；
+/// (b) 游戏视图实体动画帧（sprite51 怪/仙桃 advanceEntityFrames 相位）；
+/// (c) 对话框文本内容（T584 应已显示 TAK_255 首页前缀）。
+/// 相机已一致 (64,-228)；maplv51=12×13（wide=12，行距 wide*4=48/24）已确认。
 #[ignore]
 /// 场景状态按 a.java:3475-3487 冷启动（floor51/hp300/atk10/def10）。
 #[test]
