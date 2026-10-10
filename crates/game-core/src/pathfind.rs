@@ -19,7 +19,7 @@ pub const DIR_RIGHT: u8 = Dir::Right as u8;
 pub const DIR_LEFT: u8 = Dir::Left as u8;
 
 pub struct Walkability<'g> {
-    /// f_bool_arr2_00[y][x]：地形可通行（m_061 由 maplv tile 表构建）
+    /// walkableGrid[y][x]：地形可通行（m_061 由 maplv tile 表构建）
     pub terrain: Vec<Vec<bool>>,
     /// m_062：格有实体槽（容量 > 0）亦可通行
     pub has_entity_slot: &'g dyn Fn(i32, i32) -> bool,

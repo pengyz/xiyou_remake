@@ -256,13 +256,13 @@ impl TitleMachine {
         // ① 顶部补条（a.java:2352-2355：间隙 >0 才画）
         let top_gap = 320 - bar - map_bg.height;
         if top_gap > 0 {
-            g.set_color(6662375);
+            g.set_color(crate::layout::TITLE_TOP_GAP);
             g.fill_rect(0, 0, 240, top_gap);
         }
         // ② 背景图（a.java:2357）
         g.draw_image(map_bg, 0, top_gap, 0);
         // ③ 底部条（a.java:2358-2359）
-        g.set_color(3156024);
+        g.set_color(crate::layout::DARK_BACKDROP);
         g.fill_rect(0, 320 - bar, 240, bar);
         // ④ 图标带（a.java:2360-2369 + drawIconStrip）
         let strip_y = 320 - bar + (bar - 17 >> 1);

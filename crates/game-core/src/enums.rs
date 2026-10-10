@@ -118,7 +118,7 @@ impl Dir {
     }
 }
 
-/// 实体类目（Java `f_byte_arr_03[type]`，a.java:6204-6252 初始化）。
+/// 实体类目（Java `renderCategoryByType[type]`，a.java:6204-6252 初始化）。
 /// CES 延迟与 markEntityRemoved 移除分派都查此表。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Category {
@@ -160,11 +160,11 @@ impl Category {
 /// 实体类型码常量（开放域：此处仅列已被 trace/deobf 证实语义者；
 /// 证据：object_type_names 夹具中文名 + trace 行为）。
 pub mod entity_kind {
-    /// 上楼梯（spawnEntity 楼梯锚点 f_int_70/72）
+    /// 上楼梯（spawnEntity 楼梯锚点 stairUpMarkerX/72）
     pub const STAIR_UP: i32 = 7;
-    /// 下楼梯（f_int_71/73）
+    /// 下楼梯（stairDownMarkerX/73）
     pub const STAIR_DOWN: i32 = 8;
-    /// 路线触发型（MOV 5 参分支写 f_int_arr_12=1）
+    /// 路线触发型（MOV 5 参分支写 entityAnimRow=1）
     pub const ROUTE: i32 = 72;
     /// 菩提老祖（序章 NPC；m_104 说话人特例 0/87 免查实体）
     pub const NPC_BODHI: i32 = 87;

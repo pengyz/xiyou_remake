@@ -210,7 +210,7 @@ impl IntroSequence {
         if let Some(img) = &self.image {
             let ih = img.height;
             let band_y = 320 - ih - (font.height + 4) * 3 >> 1;
-            g.set_color(0);
+            g.set_color(crate::layout::BLACK);
             g.fill_rect(0, 0, 240, band_y);
             let below = band_y + ih;
             g.fill_rect(0, below, 240, 320 - below);
@@ -305,7 +305,7 @@ impl LoadProgress {
 
     /// paint case 2（a.java:2377-2384）：全屏底色 + 双段进度条（load 容器图）。
     pub fn paint(&self, g: &mut SoftGraphics<'_>, load: &[ArgbImage]) {
-        g.set_color(3156024);
+        g.set_color(crate::layout::DARK_BACKDROP);
         g.fill_rect(0, 0, 240, 320);
         let shown = 148 * self.progress / 100;
         crate::paint::draw_image_clipped(g, &load[0], 108, 86, 0, 0, 24, shown);

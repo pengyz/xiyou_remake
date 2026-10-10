@@ -13,7 +13,7 @@ pub struct DialogueTable {
     pub texts: Vec<String>,
     pub speakers: Vec<i8>,
     pub type_names: Vec<String>,
-    /// 类型→类目表（Java f_byte_arr_03，a.java:6204-6252 初始化；CES 延迟查此表）
+    /// 类型→类目表（Java renderCategoryByType，a.java:6204-6252 初始化；CES 延迟查此表）
     pub type_categories: Vec<u8>,
 }
 
@@ -153,7 +153,7 @@ pub trait HostCtx {
     fn mvs_exchange(&mut self);
     /// ROS_2：m_082（对白目标设置，实体域）。
     fn m_082_set_dialog_target(&mut self, v: i32);
-    /// MOV 5 参分支：实体 72 的路线标志写（f_int_arr_12[idx]=1，a.java:8252-8254）。
+    /// MOV 5 参分支：实体 72 的路线标志写（entityAnimRow[idx]=1，a.java:8252-8254）。
     fn set_entity_route_flag(&mut self, idx: i32);
     /// ROS_1 后 m_104(0)：相机锚 = 新玩家像素位。
     fn snap_camera_after_ros1(&mut self, px: i32, py: i32);
@@ -398,7 +398,7 @@ impl<'d> ScriptEngine<'d> {
                 let cy = self.parse_script_int(&line, p + 1, ' ');
                 let idx = host.spawn_entity(t, cx << 5, cy << 5);
                 host.ces_camera(idx);
-                // scene_delay：switch(f_byte_arr_03[type]) 类目表（a.java:8367；
+                // scene_delay：switch(renderCategoryByType[type]) 类目表（a.java:8367；
                 // 类目表初始化 a.java:6204-6252——复核 R3 纠正：查类目非裸 type）
                 self.state.scene_delay = crate::enums::Category::from_raw(
                     self.data.type_categories[t as usize],

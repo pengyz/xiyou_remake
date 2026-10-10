@@ -80,7 +80,7 @@ pub fn m_034_softkeys(g: &mut SoftGraphics<'_>, ui10: &ArgbImage, ui11: &ArgbIma
 ///
 /// 软键 (1,2) 由 m_000 case 21 设置（a.java:4472-4473）。
 pub fn paint_sound_prompt(g: &mut SoftGraphics<'_>, ui10: &ArgbImage, ui11: &ArgbImage, softkeys: (i8, i8)) {
-    g.set_color(0);
+    g.set_color(crate::layout::BLACK);
     g.fill_rect(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
     g.set_color((-1i32) as u32);
     g.draw_string(
@@ -123,7 +123,7 @@ pub fn paint_boot(g: &mut SoftGraphics<'_>, boot: &BootPaintState) {
             // logic 已切 bootLoadPhase>=2 但首个 runLogoAnimation 未跑：logoItemCount=0 ⇒ paintLogoAnimation 仅白底
             // （A-boot-menu T32 硬锚：a682fa57=纯白）
             _ => {
-                g.set_color(0xFFFFFF);
+                g.set_color(crate::layout::WHITE);
                 g.fill_rect(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
             }
         }

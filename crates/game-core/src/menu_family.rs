@@ -151,7 +151,7 @@ pub fn paint_box_frame(g: &mut SoftGraphics<'_>, ui0: &ArgbImage, x: i32, y: i32
     g.set_clip(0, 0, 240, 320);
     draw_edge_patch(g, ui0, x + w - 26, y, 0, 0, 26, 16, 1);
     // 内衬
-    g.set_color(2699825);
+    g.set_color(crate::layout::HUD_FILL);
     g.fill_rect(x + 11, y + 16, w - 22, h - 32);
     // 侧边
     let right_x = x + w - 11;
@@ -195,10 +195,10 @@ pub fn paint_titled_box(
 pub fn paint_mini_frame(g: &mut SoftGraphics<'_>, x: i32, y: i32, w: i32, h: i32) {
     let bottom = y + h - 2;
     let right = x + w - 1;
-    g.set_color(4803902);
+    g.set_color(crate::layout::MINIFRAME_FILL);
     g.fill_rect(x + 1, y, w - 2, h - 1);
     g.draw_line(x, y + 1, x, bottom);
-    g.set_color(1645850);
+    g.set_color(crate::layout::MINIFRAME_SHADE);
     g.draw_line(right, y + 1, right, bottom);
     g.draw_line(x + 1, bottom + 1, right - 1, bottom + 1);
 }
@@ -225,7 +225,7 @@ pub fn paint_number(g: &mut SoftGraphics<'_>, digits: &ArgbImage, value: i32, x:
     }
     g.set_clip(0, 0, 240, 320);
     if negative {
-        g.set_color(15027533);
+        g.set_color(crate::layout::NUMBER_NEGATIVE);
         g.draw_line(cx - dw + 1, y + 3, cx - 1, y + 3);
         count += 1;
     }
@@ -607,14 +607,14 @@ impl SlotSelect {
         y += 16;
         for row in self.scroll_top..self.scroll_bottom {
             if row != self.cursor {
-                g.set_color(7574946);
+                g.set_color(crate::layout::SLOT_TEXT);
             } else {
-                g.set_color(3156024);
+                g.set_color(crate::layout::DARK_BACKDROP);
                 g.fill_rect(120 - (self.content_w >> 1), y, self.content_w, 10 + 4);
                 g.draw_image(&ui[14], 120 - (self.content_w >> 1) + 10, y + (10 - 8 >> 1), 0);
                 let t = crate::paint::NOKIA_TRANSFORM_TABLE[1];
                 g.draw_image_transformed(&ui[14], 120 + (self.content_w >> 1) - 30, y + (10 - 8 >> 1), 0, t);
-                g.set_color(16377897);
+                g.set_color(crate::layout::SLOT_TEXT_ACTIVE);
             }
             if !self.valid[row as usize] {
                 g.draw_string(&DASH_LABEL, 120, y + 2, 17);
@@ -636,10 +636,10 @@ impl SlotSelect {
         // 分隔线（a.java:9064-9070）
         let mut ly = y + 2;
         let lx = ax - self.content_w + 10;
-        g.set_color(6178);
+        g.set_color(crate::layout::SLOT_RULE_DARK);
         g.draw_line(lx, ly, lx + self.content_w - 1, ly);
         ly += 1;
-        g.set_color(3564144);
+        g.set_color(crate::layout::SLOT_RULE_LIGHT);
         g.draw_line(lx, ly, lx + self.content_w - 1, ly);
         let _ = arrow_y; // 详情面板（有效槽）未启用——oracle RMS 恒空
     }
@@ -731,7 +731,7 @@ impl OptionList {
         let content_x = x + 11;
         y += 16;
         let hl = (font.height + 8) * self.highlight;
-        g.set_color(549016);
+        g.set_color(crate::layout::OPTION_HIGHLIGHT);
         g.fill_rect(content_x, y + hl, self.box_w, font.height + 8);
         g.draw_image(&ui[14], content_x + 10, y + 2 + hl + (font.height - 5 >> 1), 0);
         let t = crate::paint::NOKIA_TRANSFORM_TABLE[1];

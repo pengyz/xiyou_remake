@@ -432,7 +432,7 @@ impl LogoAnim {
     /// kind 3/4 = 字形槽 clip + sflogo#7；kind 2 = 展开列 clip；其余直接画。
     /// 每项绘制后 `setClip(0,0,240,320)` 复位。
     pub fn paint(&self, g: &mut SoftGraphics<'_>, sflogo7: &ArgbImage) {
-        g.set_color(0xFFFFFF);
+        g.set_color(crate::layout::WHITE);
         g.fill_rect(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
         for i in 0..self.count as usize {
             let m = self.registry[i];

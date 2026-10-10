@@ -174,7 +174,7 @@ fn gameplay_floor1_t544_599_frames_match() {
         // T537-543 的 ops 行只是 dumpStride=8 采样未打印，帧仍在演变）。
         // T537 的 run 是 case 2（切换发生在其 else 分支内）⇒ 本拍无 advanceEntityFrames；
         // T538 起 case 3 以 frameCounter=tick-1 跑 advanceEntityFrames（偶数拍推进——
-        // 运行时 f_int_arr_10 实证：T544 时 type44 帧=4、type45 帧=1）
+        // 运行时 entityAnimFrame 实证：T544 时 type44 帧=4、type45 帧=1）
         if rec.tick > 537 {
             scene.tick(rec.tick as i64 - 1, &width_table());
         }
@@ -299,7 +299,7 @@ fn floor1_entity_draw_order_anchor() {
     }
     let i = insert_at.expect("玩家南侧实体存在");
     assert_eq!((scene.entities.pixel_x[i], scene.entities.pixel_y[i]), (96, 352));
-    // type 83 三实体隐藏（m_122 case 83 → f_bool_arr_00=false）
+    // type 83 三实体隐藏（m_122 case 83 → entityVisible=false）
     let hidden_83: usize = (0..scene.entities.count)
         .filter(|&i| scene.entities.entity_type[i] == 83 && !scene.entities.visible[i])
         .count();
