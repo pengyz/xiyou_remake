@@ -15,6 +15,7 @@ pub mod paint;
 pub mod pathfind;
 pub mod render;
 pub mod save;
+pub mod scene;
 pub mod title;
 pub mod script;
 pub mod walk;

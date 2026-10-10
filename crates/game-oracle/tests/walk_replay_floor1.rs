@@ -12,7 +12,9 @@ use game_core::walk::{camera_edge_follow, WalkState};
 use game_data::sprite::SpriteTable;
 use game_oracle::trace::parse;
 
-/// maplv1 地形可行走网格（m_121 + m_061 语义，stride-2 tile 字节）。
+/// maplv1 地形可行走网格（rebuildWalkability a.java:6941-6959 语义：
+/// 行距 wide·4、列距 2——与 paintTileLayer 的行距 wide·2、列距 1 是同一
+/// 数组的两套读法；A 级：oracle FLD 134 13×13 逐格复算匹配）。
 fn terrain_floor1() -> Vec<Vec<bool>> {
     let data = include_bytes!("fixtures/maplv1.bin");
     let walk: Vec<i32> = include_str!("../../game-core/tests/fixtures/tile_walkability.txt")
@@ -24,7 +26,7 @@ fn terrain_floor1() -> Vec<Vec<bool>> {
     let mut terrain = vec![vec![false; cols]; rows];
     for y in 0..rows {
         for x in 0..cols {
-            let tile = body[(y * cols + x) * 2] as usize;
+            let tile = body[y * cols * 4 + x * 2] as usize;
             terrain[y][x] = tile < walk.len() && walk[tile] == 1;
         }
     }
@@ -56,7 +58,7 @@ impl Floor1Host {
                 .collect(),
         };
         for rec in &sp.records {
-            let (param, _visible) =
+            let (param, _hide_after_spawn) =
                 spawn_param_and_visibility(rec.type_code, &rec.extra, &doors);
             entity::spawn(
                 &mut table,
@@ -66,6 +68,7 @@ impl Floor1Host {
                 rec.y as i32,
                 param,
                 &type_width_table(),
+                None,
             );
         }
         Self {
@@ -124,7 +127,7 @@ impl HostCtx for Floor1Host {
     fn set_typewriter(&mut self, _: &str, _: i32, _: i32) {}
     fn reload_floor_entities(&mut self, _: i32) {}
     fn spawn_entity(&mut self, t: i32, x: i32, y: i32) -> i32 {
-        entity::spawn(&mut self.table, &mut self.grid, t, x, y, 0, &type_width_table()) as i32
+        entity::spawn(&mut self.table, &mut self.grid, t, x, y, 0, &type_width_table(), None) as i32
     }
     fn ces_camera(&mut self, _: i32) {}
     fn set_camera_anchor_target(&mut self, _: i32, _: i32) {}
@@ -143,8 +146,6 @@ impl HostCtx for Floor1Host {
 // 空格/物品格 → 地形可通行判定。
 impl Floor1Host {
     fn interact_allows_walk(&mut self, x: i32, y: i32) -> bool {
-        use game_core::combat::{consume_key_for_door, door_code};
-use game_core::sprite_spawn::{spawn_param_and_visibility, DoorTables};
         // Java：var6 初始 true；遍历实体处理；末段地形判定
         let mut can_walk = true;
         let ct = if x >= 0 && y >= 0 && (x as usize) < 13 && (y as usize) < 13 {
@@ -220,7 +221,16 @@ fn dir_from_key(key: i32) -> Option<Dir> {
     }
 }
 
-/// 行走重放：Java trace INPUT → tryStep（交互）→ 4-tick 步进 → 像素比对。
+/// 行走重放（战前段）：Java trace INPUT → tryStep（交互）→ 像素锚比对。
+///
+/// 2026-10-09 修正（walkability 索引 bug 揭露后重写）：
+/// - 旧版用 (y*13+x)*2 索引重建可行走网格——与 Java rebuildWalkability 的
+///   行距 4·wide/列距 2 不符（A 级：oracle FLD 134 13×13 逐格匹配）；
+///   旧测试靠错误网格的"向上可走"假绿。
+/// - Java 真实行为（fixture FLD 083/084 实证）：T744-1248 玩家恒 (96,320)
+///   ——上格 (3,9) 不可走、三次 -1 全被阻挡；T1240 -2 触发场上战斗
+///   （walkPhase=5，cat 8 var6=false 不放行），T1256 胜利后跳入怪格 (96,352)
+///   ——战斗/胜利跳格语义属战斗批次，本测试只锚战前段。
 #[test]
 fn walk_pure_replay_pixel_timeline_matches_java() {
     let text = include_str!("fixtures/walk_pure_excerpt.txt");
@@ -239,17 +249,18 @@ fn walk_pure_replay_pixel_timeline_matches_java() {
     walk.cell_x = px >> 5;
     walk.cell_y = py >> 5;
 
-    let mut game_mode = 0i32;
     let mut pending_dir: Option<Dir> = None;
     let mut stepping_ticks_left = 0i32;
-    let mut walking = false; // 对应 Java walkPhase==1 的步进窗口
-    let mut game_mode = 0i32; // 从 trace FLD 010 读取
-    let mut checked = 0usize;
+    let mut walking = false;
     let mut last_px = px;
     let mut last_py = py;
     let mut pixel_transitions: Vec<(u32, i32, i32)> = Vec::new();
 
     for rec in &records {
+        // 战前段窗口：T1248 之后进入战斗段（胜利跳格 = 战斗批语义）
+        if rec.tick > 1248 {
+            break;
+        }
         // 步进先于输入（Java：walkPhase=1 的像素移动在本 tick walk 分支）
         if walking && stepping_ticks_left > 0 {
             let dir = pending_dir.unwrap();
@@ -290,34 +301,28 @@ fn walk_pure_replay_pixel_timeline_matches_java() {
             }
         }
 
-        if checked == 0 && rec.tick % 100 == 0 {
-            eprintln!("tick {}: fields={:?} has83={} has84={}", rec.tick,
-                rec.fields.keys().collect::<Vec<_>>(),
-                rec.fields.contains_key(&83), rec.fields.contains_key(&84));
-        }
-        if let Some(gm) = rec.fields.get(&10) {
-            if let Ok(v) = gm.parse::<i32>() {
-                game_mode = v;
-            }
-        }
-        if let Some(fx) = rec.fields.get(&83) {
-            if let Ok(expect_x) = fx.parse::<i32>() {
-                if let Some(fy) = rec.fields.get(&84) {
-                    if let Ok(expect_y) = fy.parse::<i32>() {
-                        if (px, py) == (expect_x, expect_y) {
-                            checked += 1;
-                        }
-                    }
-                }
-            }
-        }
         if px != last_px || py != last_py {
             pixel_transitions.push((rec.tick, px, py));
             last_px = px;
             last_py = py;
         }
     }
-    assert!(!pixel_transitions.is_empty());
-    // 轨迹首尾锚（Java 实测）：起点 (96,320)；末段向右至 64
-    assert!(pixel_transitions.len() >= 8, "轨迹变化数: {}", pixel_transitions.len());
+    // Java 实证锚（FLD 083/084）：T744-1248 恒 (96,320)——上格 (3,9) 不可走
+    // （权威网格）+ 三次 -1 均被阻挡；-2（T1240）踩怪格 (3,11) 亦不放行
+    // （cat 8 → 战斗，var6=false）⇒ 战前段零像素位移
+    assert!(pixel_transitions.is_empty(),
+        "战前段不应有位移（实测 {:?}）——上格不可走 + 怪格阻挡", pixel_transitions);
+    assert_eq!((px, py), (96, 320), "玩家保持出生位");
+}
+
+/// 权威网格锚：rebuildWalkability 的行距 4·wide / 列距 2 索引（A 级：
+/// oracle FLD 134 逐格匹配）。抽查出生点邻域：
+/// (3,9)=不可走（挡住三次向上）、(3,10)/(3,11)=可走、(2,11)/(1,11)=可走。
+#[test]
+fn walkability_grid_anchor() {
+    let terrain = terrain_floor1();
+    assert!(!terrain[9][3], "(3,9) 上格不可走（Java FLD 实证：三次 -1 被阻）");
+    assert!(terrain[10][3], "(3,10) 出生格可走");
+    assert!(terrain[11][3], "(3,11) 怪格地形可走（阻挡来自实体非地形）");
+    assert!(terrain[11][2] && terrain[11][1], "(2,11)/(1,11) 左行走廊可走");
 }

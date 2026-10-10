@@ -106,9 +106,56 @@ logic#(n+1) 消费（延迟一拍；trace T70 press(-6) → T71 帧切换实证�
   （m_043 a.java:6302），帧推进在 m_055（每 tick 换帧——a.java:6806）。
 - **m_049**（a.java:6408-6424）：组移除（f_byte_arr2_02 行×f_byte_arr2_03
   组成员，按类型筛除并置 removed）。
-- **剩余件**（下批）：m_053 端口（floor1 仅需 case 1/2/8）+ m_033 +
-  m_037/m_035 HUD + m_057 小地图 → gameplay-floor1 全帧对拍；mode 11
-  对话框；mode 4/19 暂停菜单。
+- **剩余件**（下批）：popup 环形队列 + walkPhase 1/5（步进/场上战斗/胜利
+  跳格）+ m_104 交互 → gameplay-floor1 T1500+ 移动段全帧对拍；mode 11
+  对话框；mode 4/19 暂停菜单；m_053 case 16/32 与 67/69 拼装（floor1 无）。
+
+## 3.6 mode 3 场景端口与 T537-599 全帧对拍（2026-10-09，第八批）
+
+**结论：gameplay-floor1 T537-599（63 帧）逐 tick FRAME sha 全对拍 PASS**
+（`crates/game-oracle/tests/gameplay_floor1.rs`）——画面构成 100% 覆盖：
+parallax + 瓦片层 + m_053 实体层（含 m_033 玩家插入）+ m_057 小地图 +
+m_037 HUD + m_035 状态栏 + 空弹层 + 软键。T544 ops 前 256 条亦逐条一致
+（parallax 5 + 瓦片 250 + 实体层首条）。
+
+本批新 A 级发现（全部有运行时 dump/像素复算证据）：
+
+1. **mapTerrainGrid 双索引**：rebuildWalkability（a.java:6941-6959）用
+   行距 wide·4、列距 2（var1 行尾 +=wide<<1 叠加列循环 ×2）；paintTileLayer
+   用行距 wide·2、列距 1——同一数组的两套读法原版共存。
+   证据：oracle FLD 134（f_bool_arr2_00）13×13 逐格复算匹配。
+2. **m_054 槽修复是完整双向**：① var2 旧格 var2+1→var5+1（a.java:6739-6749）
+   ② var2 新格（=var5 旧位）var5+1→var2+1（a.java:6763-6777）。
+   排序后槽表与 FD 137（f_byte_arr2_03）128×16 逐格一致。
+3. **mode 3 起点 = T537**（dense dumpStride=1 复跑实证：T536=mode2、
+   T537=mode3）；T537-543 的 trace 无 ops 行只是 dumpStride=8 采样未打印，
+   帧仍在演变（PNG 像素 diff 证实逐拍重绘）。
+4. **m_055 帧时序**：T537 的 run 是 case 2（切换发生在 else 分支内）⇒ 本拍
+   不推进；T538 起 case 3 以 frameCounter=tick-1 跑 m_055，**偶数拍推进**。
+   T544 运行时锚（FLD 103）：type44（行 4）帧=4、type45（行 2）帧=1
+   （0→1→2→0→1 一次回绕）。
+5. **bob 相位链**：m_052 初值 (0,false)（字段默认，无构造器初始化）；
+   mode 1 T72-161 的 90 次调用 → 进 mode 3 时 (-2,true)；mode 8/2 不调
+   m_052；m_053 每次 paint 首行调用（T537 首绘 → -1）。
+6. **backdropScroll 相位链**：mode 8 parallax 每拍 -1（T500 绘后 -30）；
+   mode 2 无 parallax；mode 3 首绘 T537 → -31，T544 → -38（trace 首列
+   drawImage x 实证）。
+7. **m_037 槽位**：武器框 x=159、甲框 x=193（var11 = 83+16(=99) 后 +60、
+   +34——不是 83+60）。
+8. **HUD 数值源**：MOT_L0 preset（HP500/ATK30/**DEF30**/黄钥1/金100/
+   cell(3,10)）；小地图开关 = SKY_WAR 第 2 字节（=1 开）。
+9. **entityGold 修正**：f_byte_arr_07[45]=23（a.java 构造字面量 + 运行时
+   FLD 101 一致）；精灵哈希（FLD 019 像素级 sha）与 Rust 解码逐张一致。
+10. **interactWithCell cat 8 语义**（walk 前史误读修正）：踩怪格不放行
+   （var6=false）但触发场上战斗（walkPhase=5）；胜利后玩家跳入怪格
+   （fixture FLD 083/084：T1248=(96,320) → T1256=(96,352)）。walk-pure
+   场景注释"向上走廊可走"是错误网格时代的产物——权威网格 (3,9) 不可走，
+   三次 -1 被阻与 Java 一致。
+
+已入库模块：`crates/game-core/src/scene.rs`（GameScene：load_floor 装载链 +
+build_minimap + paint 全链 + 稳态 tick）、`entity.rs` 扩展（视觉字段
+sprite_w/h/anim_idx/frame、render_category、ANIM_TABLE_IDX/ANIM_OFFSET_TABLE、
+m_044/m_045/m_046/m_047/m_054/m_055/m_052、m_051 detach）。
 
 ## 4. 证据基线
 

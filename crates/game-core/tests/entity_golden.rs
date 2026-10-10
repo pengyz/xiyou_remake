@@ -41,12 +41,12 @@ fn spawn_registers_cell_slot_and_stair_anchor() {
     let mut t = EntityTable::new(100);
     let mut g = CellGrid::new(13, 13);
     // type 7（上楼梯）在像素 (96, 320) → 格 (3, 10)
-    let idx = entity::spawn(&mut t, &mut g, 7, 96, 320, 0, &width_table);
+    let idx = entity::spawn(&mut t, &mut g, 7, 96, 320, 0, &width_table, None);
     assert_eq!(idx, 0);
     assert_eq!(t.pixel_x[0], 96);
     assert_eq!(t.pixel_y[0], 320);
     assert_eq!(t.entity_type[0], 7);
-    assert!(t.hidden[0], "m_048 默认 hidden=true");
+    assert!(t.visible[0], "m_048 默认 visible=true");
     assert_eq!(t.stair_up, Some((96, 320)));
     // m_100 查询：格 (3,10) 上 type 7 → idx 0
     assert_eq!(entity::cell_entity(&g, &t, 3, 10, 7), 0);
@@ -59,8 +59,8 @@ fn remove_marks_solid_and_lookup_skips() {
     let width_table = width_table();
     let mut t = EntityTable::new(100);
     let mut g = CellGrid::new(13, 13);
-    let a = entity::spawn(&mut t, &mut g, 26, 96, 320, 0, &width_table); // 黄门
-    let b = entity::spawn(&mut t, &mut g, 26, 128, 320, 0, &width_table); // 同类型另一扇
+    let a = entity::spawn(&mut t, &mut g, 26, 96, 320, 0, &width_table, None); // 黄门
+    let b = entity::spawn(&mut t, &mut g, 26, 128, 320, 0, &width_table, None); // 同类型另一扇
     assert_eq!(entity::cell_entity(&g, &t, 3, 10, 26), a as i32);
     entity::remove(&mut t, a as usize);
     assert_eq!(t.solid[a as usize], 1);
@@ -74,9 +74,9 @@ fn remove_all_of_type_matches_des_negative() {
     let width_table = width_table();
     let mut t = EntityTable::new(100);
     let mut g = CellGrid::new(13, 13);
-    entity::spawn(&mut t, &mut g, 44, 32, 32, 0, &width_table);
-    entity::spawn(&mut t, &mut g, 44, 64, 32, 0, &width_table);
-    entity::spawn(&mut t, &mut g, 45, 96, 32, 0, &width_table);
+    entity::spawn(&mut t, &mut g, 44, 32, 32, 0, &width_table, None);
+    entity::spawn(&mut t, &mut g, 44, 64, 32, 0, &width_table, None);
+    entity::spawn(&mut t, &mut g, 45, 96, 32, 0, &width_table, None);
     entity::remove_all_of_type(&mut t, 44);
     assert_eq!(entity::cell_entity(&g, &t, 1, 1, 44), -1);
     assert!(t.solid[0] == 1 && t.solid[1] == 1);
@@ -169,7 +169,7 @@ fn bug006_replay_with_sprite51_entities_full_chain() {
 
     for rec in &sp.records {
         let (param, _visible) = spawn_param_and_visibility(rec.type_code, &rec.extra, &doors);
-        entity::spawn(&mut t, &mut g, rec.type_code as i32, rec.x as i32, rec.y as i32, param, &width_table);
+        entity::spawn(&mut t, &mut g, rec.type_code as i32, rec.x as i32, rec.y as i32, param, &width_table, None);
     }
     assert_eq!(t.count, sp.records.len(), "全部记录生成");
 

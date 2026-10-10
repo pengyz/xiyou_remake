@@ -23,32 +23,33 @@ pub struct DoorTables {
 pub fn spawn_param_and_visibility(type_code: u8, extra: &[u8], doors: &DoorTables) -> (i16, bool) {
     let e0 = extra.first().map(|b| *b as i32).unwrap_or(0);
     let e1 = extra.get(1).map(|b| *b as i32).unwrap_or(0);
-    let mut visible = false;
+    // hide_after_spawn = m_122 生成分支随后置 f_bool_arr_00=false（不参与 m_053 绘制）
+    let mut hide_after_spawn = false;
     let param = match type_code {
         4 => e0 + 1,
         // 5 / 81（封印门，entity_kind::SEAL_GATE）
         5 | 81 => {
-            visible = true;
+            hide_after_spawn = true;
             e0 + 1
         }
         6 | 12 => {
-            visible = true;
+            hide_after_spawn = true;
             0
         }
         7 | 8 => e0 | (e1 << 8),
         9 => e0,
         57 | 59 | 70 | 71 | 72 | 73 => e0 + 1,
         76 | 82 => {
-            visible = true;
+            hide_after_spawn = true;
             e0 | ((e1 + 1) << 8)
         }
         77 => e0 | (doors.door12[(e0 - 1) as usize] << 8),
         78 => e0 | (doors.door13[(e0 - 1) as usize] << 8),
         83 => {
-            visible = true;
+            hide_after_spawn = true;
             e0
         }
         _ => 0,
     };
-    (param as i16, visible)
+    (param as i16, hide_after_spawn)
 }
