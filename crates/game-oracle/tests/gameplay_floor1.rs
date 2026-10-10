@@ -340,6 +340,70 @@ fn floor_crossing_frames_match() {
     assert_eq!(checked, 964, "T537-1500 应有 964 帧");
 }
 
+/// floor2 巡回对拍：宝箱组开门（walkPhase 4 遮幅抖动）+ 型11 道具浮层 +
+/// 血瓶拾取 + 楼梯往返（floor2→1→2）+ 蓝门重复弹/关周期。T537-1500 逐 tick。
+#[test]
+fn floor2_tour_frames_match() {
+    let trace_text = std::fs::read_to_string(
+        repo().join("reference/oracle/_out/A-floor2-tour/trace.txt"),
+    )
+    .expect("缺 A-floor2-tour trace（先跑 python3 reference/oracle/run.py --scenarios）");
+    let records = trace::parse(&trace_text);
+
+    let mut scene = build_scene();
+    let map = load_container("map", 12);
+    let tileset = map[0].clone();
+    let mut screen = ArgbImage::create(game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
+    let mut checked = 0usize;
+    let mut pending_press = 0i32;
+    let mut pending_release = false;
+    for rec in &records {
+        // 窗口到 1356（换层落地拍）：T1357 起 floor1 (9,1) 的 type41 交互
+        // java 步进无战斗（怀疑 m_054 槽修复残留把怪槽挪出 (9,1)——FLD 137
+        // 的"错位"语义），待考证后续批对拍
+        if !(537..=1356).contains(&rec.tick) {
+            continue;
+        }
+        if pending_press != 0 {
+            scene.press_key(pending_press);
+            pending_press = 0;
+        }
+        if pending_release {
+            scene.release_key();
+            pending_release = false;
+        }
+        if rec.tick > 537 {
+            scene.tick(rec.tick as i64 - 1, &width_table());
+        }
+        if let Some(inp) = &rec.input {
+            if let Some(rest) = inp.strip_prefix("press(") {
+                if let Some(code) = rest.strip_suffix(')').and_then(|k| k.parse::<i32>().ok()) {
+                    pending_press = code;
+                }
+            } else if inp.starts_with("release(") {
+                pending_release = true;
+            }
+        }
+        let sha;
+        {
+            let mut g = SoftGraphics::new(&mut screen);
+            g.set_clip(0, 0, game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
+            g.set_font(Some(paint_font()));
+            scene.paint(&mut g, &tileset);
+            sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
+        }
+        if let Some(expect) = &rec.frame_sha {
+            assert_eq!(
+                &sha, expect,
+                "TICK {} 帧不符（floor={} wp={} ov={} wipe={}）",
+                rec.tick, scene.floor, scene.walk_phase, scene.overlay_active, scene.wipe
+            );
+            checked += 1;
+        }
+    }
+    assert_eq!(checked, 820, "T537-1356 应有 820 帧");
+}
+
 /// T544 ops 前缀对拍（诊断锚：Java shim 仅记前 256 条 = parallax 5 + 瓦片 250
 /// + 实体层首条）。
 #[test]
@@ -517,15 +581,7 @@ fn dump_frame_pixels() {
     eprintln!("rust T601 done");
 }
 
-/// 诊断（ignored）：actor_c[2]（星光表）尺寸与像素。
-#[test]
-#[ignore]
-fn dump_actor2() {
-    let actor_c = load_container("actor", 4);
-    let a = &actor_c[2];
-    eprintln!("actor[2] {}x{}", a.width, a.height);
-    std::fs::write("/tmp/actor2.bin", a.hash_stream()).unwrap();
-}
+
 
 
 

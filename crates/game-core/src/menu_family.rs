@@ -30,6 +30,12 @@
 use crate::render::{ArgbImage, SoftGraphics};
 
 /// parseHexColor（a.java:5149-5159）：hex 颜色解析，失败 → PARSE_DEFAULT（永不 -1）。
+/// parseHexColor 的 &str 薄壳（scene 的 paintWrappedText 用）。
+pub fn parse_hex_color_public(hex: &str) -> Option<u32> {
+    let v = i32::from_str_radix(hex, 16).unwrap_or(crate::layout::PARSE_DEFAULT as i32);
+    Some(v as u32)
+}
+
 fn parse_hex_color(s: &[u16]) -> i32 {
     let txt: String = s.iter().map(|&c| c as u8 as char).collect();
     i32::from_str_radix(&txt, 16).unwrap_or(crate::layout::PARSE_DEFAULT as i32)

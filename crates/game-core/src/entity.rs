@@ -462,3 +462,26 @@ pub fn remove_all_of_type(table: &mut EntityTable, type_id: i32) {
         }
     }
 }
+
+/// m_049 removeGroupAtCellByType（a.java:6408-6423）：格 (cx,cy) 的槽组内
+/// 按类型筛除（removed=true + 槽压缩）。
+pub fn remove_group_at_cell_by_type(cx: i32, cy: i32, type_id: i32, table: &mut EntityTable, grid: &mut CellGrid) {
+    let ct = grid.cell_type[cy as usize][cx as usize] as usize;
+    let cap = grid.capacity[ct] as usize;
+    if cap == 0 {
+        return;
+    }
+    let mut kept: Vec<u8> = Vec::new();
+    for s in 0..cap {
+        let id = grid.slots[ct][s] as usize - 1;
+        if table.entity_type[id] != type_id {
+            kept.push(grid.slots[ct][s]);
+        } else {
+            table.removed[id] = true;
+        }
+    }
+    for (s, v) in kept.iter().enumerate() {
+        grid.slots[ct][s] = *v;
+    }
+    grid.capacity[ct] = kept.len() as u8;
+}

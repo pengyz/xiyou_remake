@@ -229,6 +229,43 @@ pub struct GameScene {
     pub current_floor: i32,
     /// 层资产表（按层号索引）
     pub floor_assets: Vec<Option<FloorAssets>>,
+    /// equippedWeaponType/ArmorType（m_068 重置；tryEquip 更新；HUD 槽显示）
+    pub equipped_weapon: i32,
+    pub equipped_armor: i32,
+    /// equipTierBonuses/Types（a.java:977-991 构造常量）
+    pub equip_bonuses: [i32; 12],
+    pub equip_types: [i32; 12],
+    /// 提示浮层（showOverlayMessage a.java:4888-4912）：active/kind/text/框宽高/页
+    pub overlay_active: bool,
+    pub overlay_kind: i32,
+    pub overlay_text: Option<String>,
+    pub overlay_box_w: i32,
+    pub overlay_box_h: i32,
+    pub overlay_left_icon: i8,
+    pub overlay_right_icon: i8,
+    /// layoutWrappedText 产物（行列表 + 分页游标）
+    pub overlay_lines: Vec<String>,
+    pub overlay_page_top: i32,
+    pub overlay_page_bottom: i32,
+    pub overlay_lines_per_page: i32,
+    pub overlay_total_lines: i32,
+    pub overlay_content_w: i32,
+    /// 组开门动画数组（tryOpenChest 填充；paintTileLayer walkPhase4 消耗）
+    pub open_group: Vec<usize>,
+    /// f_int_55：组开门动画计数（18 置 removed 动画、24 收尾）
+    pub open_anim_tick: i32,
+    /// f_int_54：遮幅纵向抖动（±2 交替）
+    pub tile_bob: i32,
+    /// f_bool_12：教程标记（型 15 拾取置 true——f_bool_13 楼梯指示的门控）
+    pub tutorial_seen: bool,
+    /// f_byte_07：最近拾取/装备的类型号（浮层图标 + 商店显示）
+    pub overlay_kind_item: i32,
+    /// 浮层图标图（kind1/3：entityTypeImage[f_byte_07] 的克隆——paint 免借用冲突）
+    pub overlay_icon: Option<ArgbImage>,
+    /// 浮层标题（objectTypeNames[f_byte_07]）
+    pub overlay_item_name: Option<Vec<u16>>,
+    /// objectTypeNames（89 项；夹具同源 a.java:954-1041）
+    pub object_type_names: Vec<String>,
     /// 宽度表/可行走表（换层重载用）
     pub width_table: Vec<i32>,
     pub tile_walk: Vec<i32>,
@@ -329,6 +366,34 @@ impl GameScene {
             form_19: 0,
             current_floor: 1,
             floor_assets,
+            object_type_names: {
+                let raw = include_str!("../tests/fixtures/object_type_names.txt");
+                raw.lines().map(|l| l.trim().to_string()).collect()
+            },
+            equipped_weapon: 0,
+            equipped_armor: 0,
+            equip_bonuses: [0, 10, 30, 70, 120, 220, 0, 10, 30, 70, 120, 220],
+            equip_types: [0, 33, 34, 35, 79, 36, 0, 37, 38, 39, 80, 40],
+            overlay_active: false,
+            overlay_kind: 0,
+            overlay_text: None,
+            overlay_box_w: 0,
+            overlay_box_h: 0,
+            overlay_left_icon: 0,
+            overlay_right_icon: 0,
+            overlay_lines: Vec::new(),
+            overlay_page_top: 0,
+            overlay_page_bottom: 0,
+            overlay_lines_per_page: 0,
+            overlay_total_lines: 0,
+            overlay_content_w: 0,
+            open_group: Vec::new(),
+            open_anim_tick: 0,
+            tile_bob: 0,
+            tutorial_seen: false,
+            overlay_kind_item: 0,
+            overlay_icon: None,
+            overlay_item_name: None,
             width_table: width_table.to_vec(),
             tile_walk: tile_walkability.to_vec(),
             afterimage_x: [0; 4],
@@ -487,6 +552,254 @@ impl GameScene {
         self.step_progress = 0;
     }
 
+    /// m_050 removeSlotAt（a.java:6425-6437）：槽位摘除 + 前移。
+    pub fn remove_slot_at(&mut self, cx: i32, cy: i32, slot: i32) {
+        let ct = self.grid.cell_type[cy as usize][cx as usize] as usize;
+        let cap = self.grid.capacity[ct] as usize;
+        if cap == 0 {
+            return;
+        }
+        let idx = self.grid.slots[ct][slot as usize] as usize - 1;
+        self.entities.removed[idx] = true;
+        for k in slot as usize..cap - 1 {
+            self.grid.slots[ct][k] = self.grid.slots[ct][k + 1];
+        }
+        self.grid.capacity[ct] -= 1;
+    }
+
+    /// m_073 tryOpenChest（a.java:7275-7295）：全图收集同 param 型 4（未移除、
+    /// 非 5）；open_group 非空 = 有锁可开（walkPhase 4 动画）。
+    pub fn try_open_chest(&mut self, chest_param: i16) -> bool {
+        self.open_group.clear();
+        for k in 0..self.entities.count {
+            if !self.entities.removed[k] && chest_param == self.entities.param[k] {
+                let tk = self.entities.entity_type[k];
+                if tk == 5 {
+                    return false; // 未开的另一宝箱挡路
+                }
+                if tk == 4 {
+                    self.open_group.push(k);
+                }
+            }
+        }
+        !self.open_group.is_empty()
+    }
+
+    /// showOverlayMessage（a.java:4888-4912）：kind 0/2/4/5 = 纯文本框；
+    /// 1/3 = 带图标框（定宽 212、高 68+页高）。
+    pub fn show_overlay_message(&mut self, kind: i32, text: &str, left: i8, right: i8) {
+        self.overlay_active = true;
+        self.overlay_kind = kind;
+        self.overlay_text = Some(text.to_string());
+        if matches!(kind, 1 | 3) {
+            let t = self.overlay_kind_item;
+            self.overlay_icon = self.images.entity.get(t as usize).cloned().flatten();
+            self.overlay_item_name = self.object_type_name(t);
+        }
+        let font = crate::paint::paint_font();
+        let line_h = font.height + 4;
+        if matches!(kind, 0 | 2 | 4 | 5) {
+            self.layout_full_text(text, 180, 240);
+            self.overlay_box_w = self.overlay_content_w + 32;
+            self.overlay_box_h = 32 + (self.overlay_page_bottom - self.overlay_page_top) * line_h;
+        } else {
+            self.layout_full_text(text, 180, 234);
+            self.overlay_box_w = 212;
+            self.overlay_box_h = 68 + (self.overlay_page_bottom - self.overlay_page_top) * line_h;
+        }
+        self.overlay_left_icon = left;
+        self.overlay_right_icon = right;
+        if left != 0 || right != 0 {
+            self.overlay_box_h += 18;
+        }
+    }
+
+    /// layoutFullText → layoutWrappedText（a.java:4930-5032）：逐字换行
+    ///（'\\c' 六位色 / '\\r' 转义宽度跳过），页高 = maxLines/page。
+    pub fn layout_full_text(&mut self, text: &str, w: i32, max_h: i32) {
+        let font = crate::paint::paint_font();
+        let line_h = font.height + 4;
+        let chars: Vec<char> = text.chars().collect();
+        let mut lines: Vec<String> = Vec::new();
+        let mut cur = String::new();
+        let mut acc_w = 0i32;
+        let mut i = 0;
+        while i < chars.len() {
+            let c = chars[i];
+            if c == '\n' {
+                lines.push(std::mem::take(&mut cur));
+                acc_w = 0;
+                i += 1;
+                continue;
+            }
+            let cw;
+            if c == '\\' && i + 1 < chars.len() {
+                let nxt = chars[i + 1];
+                if nxt == 'c' && i + 7 < chars.len() {
+                    // \cXXXXXX：六位色——颜色消费语义在 paintWrappedText；
+                    // 宽度按转义总长 0（Java var11 += 7/var6=0 的行宽记账等价）
+                    cur.push(c);
+                    for k in 1..=6 {
+                        cur.push(chars[i + k]);
+                    }
+                    i += 7;
+                    continue;
+                } else if nxt == 'r' {
+                    cur.push(c);
+                    cur.push(nxt);
+                    i += 2;
+                    continue;
+                }
+                cw = font.char_width('\\' as u16);
+                cur.push(c);
+                acc_w += cw;
+                i += 1;
+                continue;
+            } else {
+                cw = font.char_width(c as u16);
+            }
+            if acc_w + cw > w {
+                lines.push(std::mem::take(&mut cur));
+                cur.push(c);
+                acc_w = cw;
+            } else {
+                cur.push(c);
+                acc_w += cw;
+            }
+            i += 1;
+        }
+        if !cur.is_empty() || lines.is_empty() {
+            lines.push(cur);
+        }
+        self.overlay_page_top = 0;
+        self.overlay_total_lines = lines.len() as i32;
+        self.overlay_lines_per_page = (max_h / line_h).min(self.overlay_total_lines);
+        self.overlay_page_bottom = if self.overlay_total_lines > self.overlay_lines_per_page {
+            self.overlay_lines_per_page
+        } else {
+            self.overlay_total_lines
+        };
+        self.overlay_content_w = if self.overlay_total_lines == 1 {
+            font.string_width(&text.encode_utf16().collect::<Vec<u16>>())
+        } else {
+            w
+        };
+        self.overlay_lines = lines;
+    }
+
+    /// tryEquip（a.java:7658-7676）：武器（<6）/甲（≥6）分档；降级拒绝
+    ///（!force 且当前档 >= 新档 → false）；属性按 equipTierBonuses 增减。
+    pub fn try_equip(&mut self, tier: i32, force: bool) -> bool {
+        if tier < 6 {
+            let cur = self.m_083_index(self.equipped_weapon, 0, 6);
+            if cur >= tier && !force {
+                return false;
+            }
+            self.player.atk -= self.equip_bonuses[cur as usize];
+            self.player.atk += self.equip_bonuses[tier as usize];
+            self.equipped_weapon = self.equip_types[tier as usize];
+        } else {
+            let cur = self.m_083_index(self.equipped_armor, 6, 12);
+            if cur >= tier && !force {
+                return false;
+            }
+            self.player.def -= self.equip_bonuses[cur as usize];
+            self.player.def += self.equip_bonuses[tier as usize];
+            self.equipped_armor = self.equip_types[tier as usize];
+        }
+        true
+    }
+
+    /// m_083（a.java:7678-7690）：档位区间倒序查当前装备所在档。
+    fn m_083_index(&self, equipped: i32, lo: i32, hi: i32) -> i32 {
+        let mut t = hi;
+        while t >= lo {
+            if self.equip_types[t as usize] == equipped {
+                return t;
+            }
+            t -= 1;
+        }
+        0
+    }
+
+    /// objectTypeNames[type]（UTF-16 供 draw_string）。
+    fn object_type_name(&self, t: i32) -> Option<Vec<u16>> {
+        self.object_type_names
+            .get(t as usize)
+            .filter(|s| !s.is_empty())
+            .map(|s| s.encode_utf16().collect())
+    }
+
+    /// paintWrappedText（a.java:5034-5117）：行渲染 + \\c 色切换 / \\r 复位 +
+    /// 上下页三角（frameCounter 闪烁）。
+    fn paint_wrapped_text(&mut self, g: &mut SoftGraphics<'_>, x: i32, y: i32, w: i32, max_h: i32) {
+        let font = crate::paint::paint_font();
+        let line_h = font.height + 4;
+        // 向上找最近 \\c 起始色（跨页继承，a.java:5060-5070）
+        let saved = g.get_color();
+        for i in (0..self.overlay_page_top as usize).rev() {
+            if let Some(line) = self.overlay_lines.get(i) {
+                if let Some(pos) = line.rfind("\\c") {
+                    let hex = &line[pos + 2..(pos + 8).min(line.len())];
+                    if let Some(c) = crate::menu_family::parse_hex_color_public(hex) {
+                        g.set_color(c);
+                        break;
+                    }
+                }
+            }
+        }
+        let mut ty = y + 2;
+        for li in self.overlay_page_top as usize..self.overlay_page_bottom as usize {
+            if let Some(line) = self.overlay_lines.get(li).cloned() {
+                let chars: Vec<char> = line.chars().collect();
+                let mut cx = x;
+                let mut i = 0;
+                let mut cmd_start: Option<usize> = None;
+                while i < chars.len() {
+                    if chars[i] == '\\' && i + 1 < chars.len() {
+                        let nxt = chars[i + 1];
+                        if nxt == 'c' && i + 7 < chars.len() {
+                            let hex: String = chars[i + 2..(i + 8).min(chars.len())].iter().collect();
+                            if let Some(c) = crate::menu_family::parse_hex_color_public(&hex) {
+                                g.set_color(c);
+                                i += 8;
+                                continue;
+                            }
+                            cmd_start.get_or_insert(i);
+                            cx += font.char_width('\\' as u16) + font.char_width('c' as u16);
+                            i += 2;
+                            continue;
+                        } else if nxt == 'r' {
+                            g.set_color(saved);
+                            i += 2;
+                            continue;
+                        }
+                        cx += font.char_width('\\' as u16);
+                        i += 1;
+                        continue;
+                    }
+                    if cmd_start.is_none() {
+                        g.draw_char(chars[i] as u16, cx, ty, 0);
+                    }
+                    cx += font.char_width(chars[i] as u16);
+                    i += 1;
+                }
+            }
+            ty += line_h;
+        }
+        // 翻页三角（a.java:5100-5115）
+        g.set_color(WHITE);
+        let ax = x + (w >> 1);
+        if self.overlay_page_top > 0 {
+            let ay = y - 8 + ((self.frame_counter & 1) as i32);
+            g.fill_triangle(ax, ay, ax - 7, ay + 7, ax + 7, ay + 7);
+        }
+        if self.overlay_page_bottom < self.overlay_total_lines {
+            let ay = y + self.overlay_lines_per_page * line_h + 3 - ((self.frame_counter & 1) as i32);
+            g.fill_triangle(ax, ay, ax - 6, ay - 6, ax + 6, ay - 6);
+        }
+    }
+
     fn walkable_at(&self, x: i32, y: i32) -> bool {
         x >= 0
             && y >= 0
@@ -577,6 +890,43 @@ impl GameScene {
     /// `frame_counter` 为本拍值（TICK n → n-1）。
     pub fn tick(&mut self, frame_counter: i64, width_table: &[i32]) {
         self.frame_counter = frame_counter;
+        // overlay 显示期（run 的 label510 分支 a.java:3246）：handleOverlayKey
+        // 消费 keyValue（任意非翻页键关浮层），**walkPhase 状态机与 m_055 冻结**
+        if self.overlay_active {
+            // handleOverlayKey（a.java:4913-4927）：±2 翻页（flipOverlayPage
+            // 钳制 a.java:5119-5136）、其余键关闭
+            match self.key_value {
+                -2 => {
+                    let mut top = self.overlay_page_top + self.overlay_lines_per_page;
+                    if top >= self.overlay_total_lines - self.overlay_lines_per_page + 1 {
+                        top = self.overlay_total_lines - self.overlay_lines_per_page;
+                    }
+                    self.overlay_page_top = top;
+                    self.overlay_page_bottom = top + self.overlay_lines_per_page;
+                    if self.overlay_page_bottom > self.overlay_total_lines {
+                        self.overlay_page_bottom = self.overlay_total_lines;
+                    }
+                }
+                -1 => {
+                    let mut top = self.overlay_page_top - self.overlay_lines_per_page;
+                    if top < 0 {
+                        top = 0;
+                    }
+                    self.overlay_page_top = top;
+                    self.overlay_page_bottom = top + self.overlay_lines_per_page;
+                    if self.overlay_page_bottom > self.overlay_total_lines {
+                        self.overlay_page_bottom = self.overlay_total_lines;
+                    }
+                }
+                0 => {}
+                _ => self.overlay_active = false, // 任意其他键关闭
+            }
+            // label510 块尾双清（a.java:3339）：keyValue 与 **keyHeldCode 同清**——
+            // held 残留会让关层后首拍误触发 tryStep（floor2-tour T1238 实证）
+            self.key_value = 0;
+            self.key_held = 0;
+            return;
+        }
         match self.walk_phase {
             0 => self.handle_field_input(),
             1 => {
@@ -664,6 +1014,30 @@ impl GameScene {
             }
             5 => self.tick_battle(true),
             _ => {} // 3 道具菜单 / 4 楼层切换：本窗口无
+        }
+        // 组开门动画（paintTileLayer 头段 a.java:6982-7003，每拍推进）：
+        // 18 拍置 removed 动画（row 6/state 1）；24 拍 removeGroupAtCellByType(4) 收尾
+        if self.walk_phase == 4 {
+            self.open_anim_tick += 1;
+            if self.open_anim_tick == 18 {
+                let group = self.open_group.clone();
+                for e in group {
+                    self.entities.anim_idx[e] = 6;
+                    self.entities.solid[e] = 1;
+                }
+            } else if self.open_anim_tick >= 24 {
+                let group = std::mem::take(&mut self.open_group);
+                for e in group {
+                    let gx = self.entities.pixel_x[e] >> 5;
+                    let gy = self.entities.pixel_y[e] >> 5;
+                    entity::remove_group_at_cell_by_type(gx, gy, 4, &mut self.entities, &mut self.grid);
+                }
+                self.open_anim_tick = 0;
+                self.tile_bob = 0;
+                self.walk_phase = 0;
+            }
+            // f_int_54 ±2 交替（a.java:7006-7010）
+            self.tile_bob = if self.tile_bob == -2 { 2 } else { -2 };
         }
         entity::advance_frames(&mut self.entities, &mut self.grid, frame_counter, width_table);
         // run 主循环尾部（a.java:4266，else 分支）：**keyValue 每拍清零**
@@ -877,6 +1251,17 @@ impl GameScene {
                                     self.build_minimap();
                                 } else {
                                     self.walk_step_count = 0;
+                                    self.overlay_kind_item = 0;
+                                    self.show_overlay_message(
+                                        0,
+                                        match t {
+                                            1 => "你没有黄钥匙",
+                                            2 => "你没有红钥匙",
+                                            _ => "你没有蓝钥匙",
+                                        },
+                                        0,
+                                        0,
+                                    );
                                     allowed = false;
                                 }
                             }
@@ -1039,6 +1424,7 @@ impl GameScene {
     fn apply_step_cell_effects(&mut self) {
         self.player_cell_x = self.view.player_px >> 5;
         self.player_cell_y = self.view.player_py >> 5;
+        self.player_bob_applied = false; // f_bool_07 每步清零（a.java:5540），踩喷泉再置
         let ct = self.grid.cell_type[self.player_cell_y as usize][self.player_cell_x as usize] as usize;
         let cap = self.grid.capacity[ct] as usize;
         let mut s = cap as i32 - 1;
@@ -1070,6 +1456,57 @@ impl GameScene {
             }
             s -= 1;
         }
+        // 型 5 宝箱 / 型 76 组门（cat 1 特例，a.java:5631-5701）：
+        // 槽**倒序**遍历后置 s 重扫——Java 的 continue 语义（removeSlotAt 改槽表）
+        let ct2 = self.grid.cell_type[self.player_cell_y as usize][self.player_cell_x as usize] as usize;
+        let cap2 = self.grid.capacity[ct2] as usize;
+        let mut s2 = cap2 as i32 - 1;
+        while s2 >= 0 {
+            let e = self.grid.slots[ct2][s2 as usize] as usize - 1;
+            let t = self.entities.entity_type[e];
+            if t == 5 {
+                // 宝箱（a.java:5631-5636）：removeSlotAt + tryOpenChest(param)
+                let chest_param = self.entities.param[e];
+                self.remove_slot_at(self.player_cell_x, self.player_cell_y, s2);
+                if self.try_open_chest(chest_param) {
+                    self.walk_phase = 4;
+                }
+            } else if t == 76 {
+                // 76 组门（a.java:5645-5701）：param&0xff + 1 为组号；摘槽 + 全图
+                // 收集同组型 4（开锁动画）+ 清组内 76 槽
+                let group = ((self.entities.param[e] & 0xff) as i32) + 1;
+                self.remove_slot_at(self.player_cell_x, self.player_cell_y, s2);
+                self.open_group.clear();
+                let mut slots_to_clear: Vec<(usize, u8)> = Vec::new();
+                for k in 0..self.entities.count {
+                    if self.entities.removed[k] {
+                        continue;
+                    }
+                    let p = self.entities.param[k] & 0xff;
+                    let tk = self.entities.entity_type[k];
+                    if tk != 76 {
+                        if tk == 4 && p as i32 == group {
+                            self.open_group.push(k);
+                        }
+                    } else if (p as i32) + 1 == group {
+                        let gx = self.entities.pixel_x[k] >> 5;
+                        let gy = self.entities.pixel_y[k] >> 5;
+                        let ctk = self.grid.cell_type[gy as usize][gx as usize] as usize;
+                        slots_to_clear.push((ctk, 0));
+                        let cap3 = self.grid.capacity[ctk] as usize;
+                        for q in 0..cap3 {
+                            let id = self.grid.slots[ctk][q] as usize - 1;
+                            self.entities.removed[id] = true;
+                        }
+                        self.grid.capacity[ctk] = 0;
+                    }
+                }
+                if !self.open_group.is_empty() {
+                    self.walk_phase = 4;
+                }
+            }
+            s2 -= 1;
+        }
         if self.walk_phase != 4 {
             self.walk_phase = 0;
             self.handle_field_input();
@@ -1079,33 +1516,133 @@ impl GameScene {
     /// pickupItemType（a.java:7515-7617，floor1 可达子集）+ applyHpDelta
     /// （a.java:5162-5180，difficultyIndex=0 → 无 ×16）。
     fn pickup_item_type(&mut self, t: i32) {
+        // 描述表（itemDescriptions a.java:906 / equipDescriptions a.java:930——
+        // 全量入库 reference；此处取用句柄）
         match t {
             13..=25 | 85 | 86 => {
-                // 物品入栈（addItemToItemStack）：type 15 另置 f_bool_12
                 if t == 15 {
-                    // f_bool_12（教程标记）：教程批次
+                    self.tutorial_seen = true; // f_bool_12
                 }
-                let n = self.player.item_stack_size as usize;
-                if n < self.player.item_types.len() {
-                    self.player.item_types[n] = t as u8;
-                    self.player.item_stack_size += 1;
-                }
+                self.add_item_to_stack(t);
             }
             26 => self.player.yellow_keys += 1,
             27 => self.player.red_keys += 1,
             28 => self.player.blue_keys += 1,
             29 => self.player.atk += 1, // floor ≤ 10 分支
             30 => self.player.def += 1,
-            31 => {
-                let heal = 50;
-                self.apply_hp_delta(heal);
+            31 => self.apply_hp_delta(50),  // floorTier()=1（floor ≤ 10）
+            32 => self.apply_hp_delta(200), // case 32 无 break 落穿 41..=84=空
+            33..=36 | 79 => {
+                // 武器档（equip_types 1..5 槽）——m_083 档位 = 表下标
+                let tier = match t {
+                    33 => 1,
+                    34 => 2,
+                    35 => 3,
+                    79 => 4,
+                    _ => 5, // 36
+                };
+                if self.try_equip(tier, false) {
+                    self.overlay_kind_pickup(t);
+                } else {
+                    self.show_overlay_message(0, "你拥有更强力装备", 0, 3);
+                }
             }
-            32 => {
-                let heal = 200;
-                self.apply_hp_delta(heal);
+            37..=40 | 80 => {
+                let tier = match t {
+                    37 => 7,
+                    38 => 8,
+                    39 => 9,
+                    80 => 10,
+                    _ => 11, // 40
+                };
+                if self.try_equip(tier, false) {
+                    self.overlay_kind_pickup(t);
+                } else {
+                    self.show_overlay_message(0, "你拥有更强力装备", 0, 3);
+                }
             }
-            _ => {} // 33-40/79/80 装备：装备批次；41+ 怪物类型不可达
+            _ => {} // 41+ 怪物类型不可达（a.java:7598-7616 default return）
         }
+    }
+
+    /// addItemToItemStack（a.java:7692-7710）：栈顶追加或叠加次数 +
+    /// showOverlayMessage(kind1, itemDescriptions[idx])。
+    fn add_item_to_stack(&mut self, t: i32) {
+        let idx = if t == 85 {
+            20
+        } else if t == 86 {
+            21
+        } else {
+            (t - 13) as usize
+        };
+        const ITEM_USES: [i32; 22] = [-1, -1, -1, -1, 1, 1, 1, 3, 1, 1, -1, -1, -1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
+        let existing = self.player.find_item(t as u8);
+        if existing < 0 {
+            let n = self.player.item_stack_size as usize;
+            if n < self.player.item_types.len() {
+                self.player.item_types[n] = t as u8;
+                self.player.item_uses[n] = ITEM_USES[idx] as u8;
+                self.player.item_stack_size += 1;
+            }
+        } else {
+            let u = self.player.item_uses[existing as usize];
+            self.player.item_uses[existing as usize] = (u as i32 + ITEM_USES[idx]) as u8;
+        }
+        let text = self.item_description(idx);
+        self.show_overlay_message(1, &text, 0, 3);
+    }
+
+    /// itemDescriptions[idx]（a.java:906-929 全量；截取本批可达项的原文）。
+    fn item_description(&self, idx: usize) -> String {
+        const D: [&str; 22] = [
+            "能看破敌人底细，显示敌人详细信息。在游戏中按快捷键5也可以查看伤害量。\n\\c00ff00[使用次数：无限]",
+            "记录前尘往事。\n\\c00ff00[使用次数：无限]",
+            "在楼梯边，可以瞬间上下层，留神晕机。\n\\c00ff00[使用次数：无限]",
+            "熄灭\\cFFCC33三昧真火\\r的神器。\n\\c00ff00[使用次数：无限]",
+            "挖洞开墙越狱的利器,挫是挫了点，但是真的很好用。\n\\c00ff00[使用次数：1次]",
+            "可以震开当前层所有的墙\n\\c00ff00[使用次数：1次]",
+            "喝下后，增加相当于当前\\c00FFFF攻击力\\cFFFFFF加\\c00FFFF防御力\\cFFFFFF值740%的",
+            "瞬移到以中心为对称点的位置上。\n\\c00ff00[使用次数：3次]",
+            "瞬移上行一层\n\\c00ff00[使用次数：1次]",
+            "瞬移下行一层\n\\c00ff00[使用次数：1次]",
+            "当年姜子牙受天命封神，他的钓鱼竹竿被原始天尊附上了神力，可以役使天神力士供他差遣，此杖又名“打神鞭”，对天神力士（包括巨灵神）伤害加倍。\n\\cFFCC00[放在道具栏中有效]",
+            "对某些自恋的神仙伤害加倍。\n\\cFFCC00[放在道具栏中有效]",
+            "打怪得到的金钱加倍。\n\\cFFCC00[放在道具栏中有效]",
+            "可以开启黄门。",
+            "可以开启红门。",
+            "可以开启蓝门。",
+            "加攻击。",
+            "加防御。",
+            "加血。",
+            "加血。",
+            "开启当前层所有黄门",
+            "如来开“慈悲为怀”巡回佛经演唱会的时候，伴奏罗汉用的乐器，道行浅的敌人，会被其梵天佛音瞬间化为灰飞\n\\cFFCC00",
+        ];
+        D[idx].to_string()
+    }
+
+    /// 装备拾取成功浮层（equipDescriptions[tier]；a.java:7623-7629）。
+    fn overlay_kind_pickup(&mut self, t: i32) {
+        const D: [&str; 12] = [
+            "",
+            "\\cdddddd一根相当长的木制长棍,新手必备.有了它杀人越货不慌不愁.\n\\c00ff00装备: 攻击+10.\n",
+            "\\cdddddd乌黑油亮，显然经历过多人之手。\n\\c00ff00装备: 攻击+30.\n\\cFFCC00\"很粗\"",
+            "\\cdddddd银棍，恩，有这个名字就足够了。\n\\c00ff00装备: 攻击+70.\n\\cFFCC00\"只是\"",
+            "\\cdddddd因乘天地之灵气，集日月之精华乃“万木之灵，灵木之尊”。\n\\c00ff00装备: 攻击+120.\n\\cFFCC00",
+            "\\cdddddd您的需要，它知道；您的需求，它满足。它好，你也好，龙王后宫，镇宫之宝！\n\\c00ff00装备: 攻击+220.\n\\cFFCC00",
+            "",
+            "\\cdddddd没有太多的装饰，一件非常朴素、轻便的布衣.\n\\c00ff00装备: 防御+10.\n\\cFFCC00",
+            "\\cdddddd保暖御寒，腰不酸，腿不疼，走路也有劲了。\n\\c00ff00装备: 防御+30.\n\\cFFCC00",
+            "\\cdddddd如果没有上面的那行字，它也算是个杰作。\n\\c00ff00装备: 防御+70.\n\\cFFCC00",
+            "\\cdddddd华丽的装饰，就是有点旧。\n\\c00ff00装备: 防御+120.\n\\cFFCC00\"别人穿过\"",
+            "\\cdddddd东海龙鳞编织而成，限量版，天上天下，只此一款。\n\\cFFCC00",
+        ];
+        let tier = if t < 37 {
+            match t { 33 => 1, 34 => 2, 35 => 3, 79 => 4, _ => 5 }
+        } else {
+            match t { 37 => 7, 38 => 8, 39 => 9, 80 => 10, _ => 11 }
+        };
+        self.show_overlay_message(1, D[tier as usize], 0, 3);
     }
 
     /// applyHpDelta（a.java:5162-5180）：负 → popup2；正 → popup3。
@@ -1142,7 +1679,8 @@ impl GameScene {
     /// paint case 3（a.java:2385-2422）。
     pub fn paint(&mut self, g: &mut SoftGraphics<'_>, tileset: &ArgbImage) {
         self.paint_parallax(g, true);
-        self.view.paint_tiles(g, tileset, view_top_y());
+        let tile_off = view_top_y() + if self.walk_phase == 4 { self.tile_bob } else { 0 };
+        self.view.paint_tiles(g, tileset, tile_off);
         self.paint_entities(g, self.view.cam_x, self.view.cam_y + view_top_y());
         // 小地图（optionChecked[1] && minimapImage）：右上角，玩家点
         if self.minimap_enabled {
@@ -1165,6 +1703,41 @@ impl GameScene {
         // 楼梯指示（f_bool_13；稳态 false—— proximity 更新在 lockCameraOn/行走批次）
         self.popups.draw(g, &self.images.popup);
         m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
+        // 提示浮层（paint 公共尾 a.java:3123-3168，!f_bool_16 && overlayActive）：
+        // 盒框 + kind 0/2/4/5 纯文本 / kind 1/3 图标+文本 + 软键图标
+        if !self.transitioning && self.overlay_active {
+            let bx = (SCREEN_W - self.overlay_box_w) >> 1;
+            let by = (SCREEN_H - self.overlay_box_h) >> 1;
+            crate::menu_family::paint_box_frame(g, &self.images.ui[0], bx, by, self.overlay_box_w, self.overlay_box_h);
+            let font = crate::paint::paint_font();
+            let line_h = font.height + 4;
+            let mut tx = bx + 16;
+            let mut ty = by + 16;
+            if matches!(self.overlay_kind, 0 | 2 | 4 | 5) {
+                g.set_color(WHITE);
+                self.paint_wrapped_text(g, tx, ty, 180, 240);
+            } else {
+                paint_mini_frame(g, tx, ty, 32, 32);
+                // 图标 = entityTypeImage[overlayKindItem]（f_byte_07——拾取时记录）
+                if let Some(img) = &self.overlay_icon {
+                    g.draw_image(img, tx + ((32 - img.width) >> 1), ty + ((32 - img.height) >> 1), 0);
+                }
+                tx += 42;
+                g.set_color(16770173);
+                if let Some(name) = &self.overlay_item_name {
+                    g.draw_string(name, tx, ty + ((32 - font.height) >> 1), 0);
+                }
+                g.set_color(WHITE);
+                self.paint_wrapped_text(g, bx + 16, ty + 36, 180, self.overlay_box_h - 32 - 36);
+            }
+            let iy = by + self.overlay_box_h - 12 - 18;
+            if self.overlay_left_icon != 0 {
+                draw_image_clipped(g, &self.images.ui[11], bx + 13, iy + 6, (self.overlay_left_icon as i32 - 1) * 12, 0, 12, 10);
+            }
+            if self.overlay_right_icon != 0 {
+                draw_image_clipped(g, &self.images.ui[11], bx + self.overlay_box_w - 25, iy + 6, (self.overlay_right_icon as i32 - 1) * 12, 0, 12, 10);
+            }
+        }
         // 换层遮幅（paint 公共尾 a.java:3171-3215）：状态机先行、后画黑格。
         // 闭合（wipe_closing）1..=4 全黑 → 中段换层 → 开启 4..=0。
         if self.transitioning {

@@ -239,8 +239,39 @@ PASS**——行走（4 场战斗）→ 踩型 7 楼梯（11,1）→ changeFloor 
 (7,7) 不可走）——以 fixture 复算 + sha 双 trace 互证裁决；shim ops 上限
 4096 通道二度用于换层拍全量 ops 对齐（用后还原 + reference 重验）。
 
-剩余（下批）：宝箱 m_073 + 装备拾取（33-40/79/80）+ cat 16/32 的 67/69
-拼装臂 + mode 11 对话 + mode 4/19 暂停菜单。
+## 3.9 floor2 巡回：宝箱/装备/浮层/组开门（2026-10-10，第十二批）
+
+**结论：新场景 floor2-tour（T537-1356，820 帧）逐 tick FRAME sha 全对拍 PASS**
+——型 11 道具浮层、血瓶拾取、蓝门"无钥匙"浮层、翻页钳制、宝箱组开门
+（walkPhase 4）、换层往返、keyHeld 连走。场景入 gates 套件（A==B==C 11/11）。
+
+本批新 A 级发现：
+
+1. **overlay 冻结 run**（label510 a.java:3246）：overlayActive 时 run 走
+   label510 分支——handleOverlayKey 消费 keyValue（±2 翻页带钳制
+   flipOverlayPage a.java:5119-5136；其余键关闭）、**walkPhase 状态机与
+   m_055 全部冻结**、块尾 **keyValue = keyHeldCode 双清**（a.java:3339——
+   held 残留会让关层后首拍误触发 tryStep，floor2-tour T1238 实证）。
+2. **浮层弹回周期**：按住方向键顶门时 press→弹、下个 press→关（label510
+   消费），8 拍 press 间隔 → 8 拍弹/关交替（T1229-1300 实证）。
+3. **宝箱链**（type5 → tryOpenChest a.java:7275-7295）：同 param 型 4 收集
+   → walkPhase=4 → paintTileLayer 头段动画（f_int_55：18 拍置 removed 动画、
+   24 拍 removeGroupAtCellByType(4) 收尾）+ f_int_54 ±2 瓦片抖动——**非
+   f16 遮幅**。型 76 组门：param&0xff+1 组号、全图清组内 76 槽。
+4. **装备**（tryEquip a.java:7658-7676）：武器档 1..5（types 33/34/35/79/36）、
+   甲档 7..11（37/38/39/80/40）；降级拒绝（!force 且当前档>=新档）；属性按
+   equipTierBonuses {0,10,30,70,120,220}×2 增减；equipDescriptions 弹层。
+5. **拾取浮层**：addItemToItemStack（a.java:7692-7710）叠加次数
+   itemUseCounts、showOverlayMessage(kind1) 带**图标+名**（f_byte_07 +
+   entityTypeImage/objectTypeNames）；装备成功 kind1 装备描述、降级
+   "你拥有更强力装备"（kind0）。
+6. **未解差异（登记待查）**：floor1 落地 (10,1) 后 L 步进 (9,1)——java 无战斗
+   （wp=1 步进过），我方触发 type41 战斗。(9,1) 槽（ct2 cap=1）含怪、
+   entityState=0 复活——怀疑 m_054 槽修复的**原版残留**把怪槽挪出 (9,1)
+   （FLD 137 的"错位"即此语义），需 T1357+ 全量 ops 考证。窗口裁到 1356。
+
+剩余（下批）：(9,1) 怪交互差异考证 + mode 11 对话 + mode 4/19 暂停菜单 +
+cat 67/69 拼装臂。
 
 剩余（下批）：changeFloor 楼梯换层（walkPhase 4 + 动画）、宝箱 m_073、
 装备拾取 33-40/79/80、cat 16/32/67/69 渲染臂、mode 11 对话、mode 4/19。
