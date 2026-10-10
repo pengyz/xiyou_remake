@@ -26,13 +26,13 @@ logic#(n+1) 消费（延迟一拍；trace T70 press(-6) → T71 帧切换实证�
 结论：**PASS-with-risks**——零对拍破坏缺陷。已修复：
 
 - D-1 `in_arc` 负弧递归缺 `% 360`（render.rs，对照 Graphics.java:322）——死代码
-  路径（游戏唯一弧调用 fillArc(…,0,360) a.java:6648 短路），已补齐对齐 shim。
+  路径（游戏唯一弧调用 fillArc(…,0,360) a.java:6650 短路），已补齐对齐 shim。
 - D-2 `drawSubstring` 负 len：shim 空循环静默，Rust 原 panic——已按 shim 语义钳制
-  （调用方 a.java:5046 的 len 是差值可能为负）。
+  （调用方 a.java:5048 的 len 是差值可能为负）。
 - R-5 mode 0→21 清理分支补全：logoLayoutDone 复位（reset_layout_flag）+ f_int_02=75
   帧间隔字段化。
 - R-8 layout.rs 头注收窄：仅覆盖 boot 渲染路径；camera 的 view_h=252、walk 的
-  边缘阈值 106 是**独立游戏常量**（f_int_59 等），扩视口时不可盲目替换。
+  边缘阈值 106 是**独立游戏常量**（viewHeightPx 等），扩视口时不可盲目替换。
 
 登记在案、后续批次处理：
 
@@ -66,22 +66,22 @@ logic#(n+1) 消费（延迟一拍；trace T70 press(-6) → T71 帧切换实证�
   gameplay-floor1 的 mode 3 帧 256 ops = **截断值**——瓦片层吃满窗口，
   HUD/实体/软键的 ops 不可见，但 **FRAME sha 含全部绘制**（对拍不降级）。
 - mode 3 画面构成（T544-3000 恒定）：parallax(true)（base_y = f_int_48-320+6，
-  f_int_48=270 ⇒ -44）+ m_063 瓦片层（map 容器 [2][0] 128x208 tileset，
+  f_int_48=270 ⇒ -44）+ paintTileLayer 瓦片层（map 容器 [2][0] 128x208 tileset，
   16px 切片 + mapTransformGrid 变换）+ m_053 实体层 + 小地图（optionChecked[1]
   =true（RMS catch）+ f_Image_03（m_057 生成）+ 玩家点）+ m_037 HUD + m_035
   状态栏 + 楼梯指示 + drawPopupLayer + 软键 (1,3)。
-- **m_063 瓦片层**（a.java:6964-7020）：起点 x=f_int_56+(f_int_60<<4)、
-  y=f_int_57+20+(f_int_62<<4)；列窗 f_int_60..f_int_61、行窗 f_int_62..f_int_63；
+- **paintTileLayer 瓦片层**（a.java:6966-7022）：起点 x=cameraPixelX+(tileColStart<<4)、
+  y=cameraPixelY+20+(tileRowStart<<4)；列窗 tileColStart..tileColEnd、行窗 tileRowStart..tileRowEnd；
   下标步进 mapCellsWide<<1（**双宽 stride**——terrain/transform 平行数组，
-  装载链待考证 m_121）；瓦片值 v：sx=(v&7)<<4、sy=(v>>3)<<4。
-- **m_033 玩家**（a.java:5829-5885）：sptprop[5][0] 阴影 + actor[3][0]
+  装载链待考证 loadFloorData）；瓦片值 v：sx=(v&7)<<4、sy=(v>>3)<<4。
+- **m_033 玩家**（a.java:5831-5887）：sptprop[5][0] 阴影 + actor[3][0]
   （123x138 = 3 行×41x46 帧，行=facingDirection、列=f_int_arr_03[f_int_38]）
   + walkPhase==2 的四向残影。
 - **存档格式**：MOT_L{n}（save.rs parse_floor_save 全字段序 + python struct
   复算 golden）；SKY_WAR（optionChecked×4 + …）。
 - **剩余件**（下批）：m_053 实体渲染 switch（f_byte_arr_03 渲染类别 1/2/8/
   16/32/67/69/72 分支 + 拼装表 f_byte_arr2_00/b01/b02）、m_037/m_035 HUD、
-  m_057 小地图、m_121 楼层装载（grid stride 考证）、mode 11 对话框
+  m_057 小地图、loadFloorData 楼层装载（grid stride 考证）、mode 11 对话框
   （prologue 场景）、mode 4/19 暂停菜单。
 
 ## 4. 证据基线

@@ -155,7 +155,7 @@ fn enter_game_frames_match_tick_by_tick() {
 }
 
 /// INPUT 行 → 本 tick 边界投递的按键码（keyPressed；release 只清 keyHeldCode，
-/// 对 keyValue 语义无影响——a.java:4652/4654）。同 tick 多键取首个 press。
+/// 对 keyValue 语义无影响——a.java:4654/4654）。同 tick 多键取首个 press。
 fn input_key(input: &Option<String>) -> i32 {
     let Some(text) = input else { return 0 };
     for ev in text.split(' ') {

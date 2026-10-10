@@ -151,8 +151,8 @@ public final class a extends Canvas implements Runnable {
    private Image f_Image_03;
    private int mapCellsWide;
    private int mapCellsHigh;
-   private int f_int_52;
-   private int f_int_53;
+   private int mapPixelWidth;
+   private int mapPixelHeight;
    private byte[] mapTerrainGrid;
    private byte[] mapTransformGrid;
    private boolean[][] f_bool_arr2_00;
@@ -163,16 +163,16 @@ public final class a extends Canvas implements Runnable {
    private boolean[] f_bool_arr_04;
    private int f_int_54;
    private int f_int_55;
-   private int f_int_56;
-   private int f_int_57;
-   private int f_int_58;
-   private int f_int_59;
-   private int f_int_60;
-   private int f_int_61;
-   private int f_int_62;
-   private int f_int_63;
-   private boolean f_bool_10;
-   private boolean f_bool_11;
+   private int cameraPixelX;
+   private int cameraPixelY;
+   private int viewWidthPx;
+   private int viewHeightPx;
+   private int tileColStart;
+   private int tileColEnd;
+   private int tileRowStart;
+   private int tileRowEnd;
+   private boolean mapFitsWidth;
+   private boolean mapFitsHeight;
    private int currentFloor;
    private int minFloorReached;
    private int maxFloorReached;
@@ -2384,8 +2384,8 @@ public final class a extends Canvas implements Runnable {
             break;
          case 3:
             this.drawParallaxBackdrop(true);
-            this.m_063(0, 20);
-            this.m_053(this.f_int_56, this.f_int_57 + 20, true);
+            this.paintTileLayer(0, 20);
+            this.m_053(this.cameraPixelX, this.cameraPixelY + 20, true);
             int var194 = 240 - (this.mapCellsWide + 1 << 2);
             byte var115 = 20;
             int var82 = var194;
@@ -2688,8 +2688,8 @@ public final class a extends Canvas implements Runnable {
             break;
          case 9:
             this.drawParallaxBackdrop(true);
-            this.m_063(0, 20);
-            this.m_053(this.f_int_56, this.f_int_57 + 20, true);
+            this.paintTileLayer(0, 20);
+            this.m_053(this.cameraPixelX, this.cameraPixelY + 20, true);
             this.m_037(0, this.f_int_48);
             this.m_035(0, 0);
             this.paintSoftkeyBar();
@@ -2797,8 +2797,8 @@ public final class a extends Canvas implements Runnable {
             break;
          case 11:
             this.drawParallaxBackdrop(true);
-            this.m_063(0, 20);
-            this.m_053(this.f_int_56, this.f_int_57 + 20, true);
+            this.paintTileLayer(0, 20);
+            this.m_053(this.cameraPixelX, this.cameraPixelY + 20, true);
             this.drawPopupLayer();
             this.m_035(0, 0);
             a var25 = this;
@@ -2878,15 +2878,15 @@ public final class a extends Canvas implements Runnable {
                      var120 = var25.playerPixelY - 30;
                   }
 
-                  var25.f_Graphics_00.drawImage(var25.f_Image_arr2_00[12][var92], var48 + var25.f_int_56, var120 + var25.f_int_57 + 20, 0);
+                  var25.f_Graphics_00.drawImage(var25.f_Image_arr2_00[12][var92], var48 + var25.cameraPixelX, var120 + var25.cameraPixelY + 20, 0);
                }
 
                if (var25.dialogPhase == 6) {
                   var25.f_Graphics_00
                      .drawImage(
                         var25.f_Image_arr2_00[2][11],
-                        var25.f_int_56 + 5 + (var25.f_int_114 << 5),
-                        var25.f_int_57 + (var25.f_int_115 << 5) - 12 + var25.animBobOffset,
+                        var25.cameraPixelX + 5 + (var25.f_int_114 << 5),
+                        var25.cameraPixelY + (var25.f_int_115 << 5) - 12 + var25.animBobOffset,
                         0
                      );
                }
@@ -3179,16 +3179,16 @@ public final class a extends Canvas implements Runnable {
                var35.f_int_142 = 4;
                var35.f_bool_17 = false;
                var35.currentFloor = var35.f_byte_23;
-               var35.m_121(var35.currentFloor);
+               var35.loadFloorData(var35.currentFloor);
                if (var35.currentFloor == 0) {
                   var35.m_024(1, 2);
-                  var35.m_064((var35.f_int_58 - 32 >> 1) - var35.playerPixelX, (var35.f_int_59 - 32 >> 1) - var35.playerPixelY);
+                  var35.setCameraClamped((var35.viewWidthPx - 32 >> 1) - var35.playerPixelX, (var35.viewHeightPx - 32 >> 1) - var35.playerPixelY);
                } else if (var35.currentFloor == 50) {
                   var35.m_024(6, 7);
-                  var35.m_064((var35.f_int_58 - 32 >> 1) - var35.playerPixelX, (var35.f_int_59 - 32 >> 1) - var35.playerPixelY);
+                  var35.setCameraClamped((var35.viewWidthPx - 32 >> 1) - var35.playerPixelX, (var35.viewHeightPx - 32 >> 1) - var35.playerPixelY);
                } else if (var35.currentFloor == 1 && !var35.f_bool_18) {
                   var35.m_024(6, 11);
-                  var35.m_064((var35.f_int_58 - 32 >> 1) - var35.playerPixelX, (var35.f_int_59 - 32 >> 1) - var35.playerPixelY);
+                  var35.setCameraClamped((var35.viewWidthPx - 32 >> 1) - var35.playerPixelX, (var35.viewHeightPx - 32 >> 1) - var35.playerPixelY);
                } else {
                   int var175;
                   if ((var175 = var35.findFloorGateEntity(var35.f_bool_18)) >= 0) {
@@ -3491,7 +3491,7 @@ public final class a extends Canvas implements Runnable {
                                     var37.m_118();
                                     break;
                                  case 10:
-                                    var37.m_121(var37.currentFloor);
+                                    var37.loadFloorData(var37.currentFloor);
                                     var37.m_057();
                                     break;
                                  case 11:
@@ -3501,7 +3501,9 @@ public final class a extends Canvas implements Runnable {
                                     var38.f_int_arr_03 = var38.f_int_arr2_01[0];
                                     var38.f_int_38 = 0;
                                     var38.facingDirection = 0;
-                                    var38.m_064((var38.f_int_58 - 32 >> 1) - var38.playerPixelX, (var38.f_int_59 - 32 >> 1) - var38.playerPixelY);
+                                    var38.setCameraClamped(
+                                       (var38.viewWidthPx - 32 >> 1) - var38.playerPixelX, (var38.viewHeightPx - 32 >> 1) - var38.playerPixelY
+                                    );
                                     break;
                                  case 12:
                                     var37.m_068();
@@ -3566,26 +3568,26 @@ public final class a extends Canvas implements Runnable {
                               switch (var26.facingDirection) {
                                  case 0:
                                     var26.playerPixelY += 8;
-                                    if (var26.playerPixelY + var26.f_int_57 + 16 > var26.f_int_59 - 106) {
-                                       var26.m_064(var26.f_int_56, var26.f_int_57 - 8);
+                                    if (var26.playerPixelY + var26.cameraPixelY + 16 > var26.viewHeightPx - 106) {
+                                       var26.setCameraClamped(var26.cameraPixelX, var26.cameraPixelY - 8);
                                     }
                                     break;
                                  case 1:
                                     var26.playerPixelY -= 8;
-                                    if (var26.playerPixelY + var26.f_int_57 + 16 < 106) {
-                                       var26.m_064(var26.f_int_56, var26.f_int_57 + 8);
+                                    if (var26.playerPixelY + var26.cameraPixelY + 16 < 106) {
+                                       var26.setCameraClamped(var26.cameraPixelX, var26.cameraPixelY + 8);
                                     }
                                     break;
                                  case 2:
                                     var26.playerPixelX += 8;
-                                    if (var26.playerPixelX + var26.f_int_56 + 16 > var26.f_int_58 - 106) {
-                                       var26.m_064(var26.f_int_56 - 8, var26.f_int_57);
+                                    if (var26.playerPixelX + var26.cameraPixelX + 16 > var26.viewWidthPx - 106) {
+                                       var26.setCameraClamped(var26.cameraPixelX - 8, var26.cameraPixelY);
                                     }
                                     break;
                                  case 3:
                                     var26.playerPixelX -= 8;
-                                    if (var26.playerPixelX + var26.f_int_56 + 16 < 106) {
-                                       var26.m_064(var26.f_int_56 + 8, var26.f_int_57);
+                                    if (var26.playerPixelX + var26.cameraPixelX + 16 < 106) {
+                                       var26.setCameraClamped(var26.cameraPixelX + 8, var26.cameraPixelY);
                                     }
                               }
 
@@ -3604,26 +3606,26 @@ public final class a extends Canvas implements Runnable {
                                     case -4:
                                     case 54:
                                        var26.facingDirection = 2;
-                                       var26.f_int_56 -= 16;
-                                       var26.m_064(var26.f_int_56, var26.f_int_57);
+                                       var26.cameraPixelX -= 16;
+                                       var26.setCameraClamped(var26.cameraPixelX, var26.cameraPixelY);
                                        break;
                                     case -3:
                                     case 52:
                                        var26.facingDirection = 3;
-                                       var26.f_int_56 += 16;
-                                       var26.m_064(var26.f_int_56, var26.f_int_57);
+                                       var26.cameraPixelX += 16;
+                                       var26.setCameraClamped(var26.cameraPixelX, var26.cameraPixelY);
                                        break;
                                     case -2:
                                     case 56:
                                        var26.facingDirection = 0;
-                                       var26.f_int_57 -= 16;
-                                       var26.m_064(var26.f_int_56, var26.f_int_57);
+                                       var26.cameraPixelY -= 16;
+                                       var26.setCameraClamped(var26.cameraPixelX, var26.cameraPixelY);
                                        break;
                                     case -1:
                                     case 50:
                                        var26.facingDirection = 1;
-                                       var26.f_int_57 += 16;
-                                       var26.m_064(var26.f_int_56, var26.f_int_57);
+                                       var26.cameraPixelY += 16;
+                                       var26.setCameraClamped(var26.cameraPixelX, var26.cameraPixelY);
                                  }
 
                                  switch (var26.keyValue) {
@@ -5199,8 +5201,8 @@ public final class a extends Canvas implements Runnable {
       int var2 = 0;
       int var3 = 0;
       if (!this.f_bool_06) {
-         var1 = (this.f_int_58 - 41 >> 1) - this.f_int_56;
-         var2 = (this.f_int_59 >> 1) - this.f_int_57 + this.animBobOffset;
+         var1 = (this.viewWidthPx - 41 >> 1) - this.cameraPixelX;
+         var2 = (this.viewHeightPx >> 1) - this.cameraPixelY + this.animBobOffset;
       } else {
          var1 = this.playerPixelX;
          var2 = this.playerPixelY;
@@ -5804,7 +5806,7 @@ public final class a extends Canvas implements Runnable {
       }
 
       this.m_024(var1, var2);
-      this.m_064((this.f_int_58 - 32 >> 1) - this.playerPixelX, (this.f_int_59 - 32 >> 1) - this.playerPixelY);
+      this.setCameraClamped((this.viewWidthPx - 32 >> 1) - this.playerPixelX, (this.viewHeightPx - 32 >> 1) - this.playerPixelY);
    }
 
    private void advanceScriptWalk() {
@@ -6483,7 +6485,7 @@ public final class a extends Canvas implements Runnable {
             var13 = this.f_byte_arr_04[var14];
             int var9 = var1 + var5;
             int var10 = var2 + var6;
-            if (var9 >= -var7 && var9 <= this.f_int_58 && var10 >= -12 && var10 <= 20 + this.f_int_59) {
+            if (var9 >= -var7 && var9 <= this.viewWidthPx && var10 >= -12 && var10 <= 20 + this.viewHeightPx) {
                var11 = this.entityType[var14];
                if ((var4 = this.f_Image_arr_00[var11]) != null) {
                   var12 = this.f_byte_arr_03[var11];
@@ -6665,8 +6667,8 @@ public final class a extends Canvas implements Runnable {
       if (this.walkPhase == 5) {
          a var25 = this;
          if (this.f_int_44 >= 0) {
-            int var30 = var25.f_int_56 + var25.entityPixelX[var25.f_int_44] + 16;
-            int var37 = var25.f_int_57 + var25.entityPixelY[var25.f_int_44] + 32;
+            int var30 = var25.cameraPixelX + var25.entityPixelX[var25.f_int_44] + 16;
+            int var37 = var25.cameraPixelY + var25.entityPixelY[var25.f_int_44] + 32;
             int var43 = var25.f_int_151 & 7;
             int var47;
             if ((var47 = var25.f_byte_arr_44[var43]) > 0) {
@@ -6687,7 +6689,7 @@ public final class a extends Canvas implements Runnable {
       if (this.f_int_70 >= 0) {
          int var50 = var1 + this.f_int_70;
          int var53 = var2 + this.f_int_72;
-         if (var50 >= -32 && var50 <= this.f_int_58 && var53 >= -12 && var53 <= 20 + this.f_int_59) {
+         if (var50 >= -32 && var50 <= this.viewWidthPx && var53 >= -12 && var53 <= 20 + this.viewHeightPx) {
             this.f_Graphics_00.drawImage(this.f_Image_arr2_00[2][1], var50 + 5, var53 - 30 + this.animBobOffset, 0);
          }
       }
@@ -6695,7 +6697,7 @@ public final class a extends Canvas implements Runnable {
       if (this.f_int_71 >= 0) {
          int var51 = var1 + this.f_int_71;
          int var54 = var2 + this.f_int_73;
-         if (var51 >= -32 && var51 <= this.f_int_58 && var54 >= -12 && var54 <= 20 + this.f_int_59) {
+         if (var51 >= -32 && var51 <= this.viewWidthPx && var54 >= -12 && var54 <= 20 + this.viewHeightPx) {
             this.f_Graphics_00.drawImage(this.f_Image_arr2_00[2][2], var51, var54 - 30 + this.animBobOffset, 0);
          }
       }
@@ -6921,7 +6923,7 @@ public final class a extends Canvas implements Runnable {
       }
    }
 
-   private static short m_058(InputStream var0) throws IOException {
+   private static short readU16BE(InputStream var0) throws IOException {
       return (short)(var0.read() & 0xFF | var0.read() << 8 & 0xFF00);
    }
 
@@ -6936,7 +6938,7 @@ public final class a extends Canvas implements Runnable {
       return var1 >= 0 && var1 < this.mapCellsWide && var2 >= 0 && var2 < this.mapCellsHigh ? this.f_bool_arr2_00[var2][var1] : false;
    }
 
-   private void m_061() {
+   private void rebuildWalkability() {
       int var1 = 0;
       byte var2 = 0;
       int var3 = this.mapCellsWide;
@@ -6961,7 +6963,7 @@ public final class a extends Canvas implements Runnable {
       return var1 >= 0 && var1 < this.mapCellsWide && var2 >= 0 && var2 < this.mapCellsHigh ? this.f_byte_arr_10[this.f_byte_arr2_02[var2][var1]] > 0 : false;
    }
 
-   private void m_063(int var1, int var2) {
+   private void paintTileLayer(int var1, int var2) {
       if (this.walkPhase == 4) {
          a var10 = this;
          this.f_int_55++;
@@ -6997,16 +6999,16 @@ public final class a extends Canvas implements Runnable {
          var2 = 20 + this.f_int_54;
       }
 
-      var1 = this.f_int_56 + (this.f_int_60 << 4);
-      var2 = this.f_int_57 + var2 + (this.f_int_62 << 4);
+      var1 = this.cameraPixelX + (this.tileColStart << 4);
+      var2 = this.cameraPixelY + var2 + (this.tileRowStart << 4);
       int var18 = 0;
       int var6 = var1;
       int var7 = var2;
       int var21;
-      var2 = var21 = this.f_int_60 + (this.f_int_62 * this.mapCellsWide << 1);
+      var2 = var21 = this.tileColStart + (this.tileRowStart * this.mapCellsWide << 1);
 
-      for (int var8 = this.f_int_62; var8 < this.f_int_63; var2 = var21 += this.mapCellsWide << 1) {
-         for (int var9 = this.f_int_60; var9 < this.f_int_61; var6 += 16) {
+      for (int var8 = this.tileRowStart; var8 < this.tileRowEnd; var2 = var21 += this.mapCellsWide << 1) {
+         for (int var9 = this.tileColStart; var9 < this.tileColEnd; var6 += 16) {
             if ((var18 = this.mapTerrainGrid[var2]) > 0) {
                int var5 = (var18 & 7) << 4;
                var18 = var18 >> 3 << 4;
@@ -7025,56 +7027,56 @@ public final class a extends Canvas implements Runnable {
       this.f_Graphics_00.setClip(0, 0, 240, 320);
    }
 
-   private void m_064(int var1, int var2) {
-      if (!this.f_bool_10) {
+   private void setCameraClamped(int var1, int var2) {
+      if (!this.mapFitsWidth) {
          if (var1 > 64) {
             var1 = 64;
-         } else if (var1 < -((this.mapCellsWide + 2 << 5) - this.f_int_58)) {
-            var1 = -((this.mapCellsWide + 2 << 5) - this.f_int_58);
+         } else if (var1 < -((this.mapCellsWide + 2 << 5) - this.viewWidthPx)) {
+            var1 = -((this.mapCellsWide + 2 << 5) - this.viewWidthPx);
          }
 
-         this.f_int_56 = var1;
+         this.cameraPixelX = var1;
          if (var1 < 0) {
-            this.f_int_60 = -var1 >> 4;
-            this.f_int_61 = this.f_int_60 + (this.f_int_58 >> 4) + 1;
+            this.tileColStart = -var1 >> 4;
+            this.tileColEnd = this.tileColStart + (this.viewWidthPx >> 4) + 1;
          } else {
-            this.f_int_60 = 0;
-            this.f_int_61 = (this.f_int_58 - var1 >> 4) + 1;
+            this.tileColStart = 0;
+            this.tileColEnd = (this.viewWidthPx - var1 >> 4) + 1;
          }
 
-         if (this.f_int_61 > this.mapCellsWide << 1) {
-            this.f_int_61 = this.mapCellsWide << 1;
+         if (this.tileColEnd > this.mapCellsWide << 1) {
+            this.tileColEnd = this.mapCellsWide << 1;
          }
 
          if (var2 > 64) {
             var2 = 64;
-         } else if (var2 < -((this.mapCellsHigh + 2 << 5) - this.f_int_59)) {
-            var2 = -((this.mapCellsHigh + 2 << 5) - this.f_int_59);
+         } else if (var2 < -((this.mapCellsHigh + 2 << 5) - this.viewHeightPx)) {
+            var2 = -((this.mapCellsHigh + 2 << 5) - this.viewHeightPx);
          }
       } else {
-         this.f_int_56 = this.f_int_58 - this.f_int_52 >> 1;
-         this.f_int_60 = 0;
-         this.f_int_61 = this.mapCellsWide << 1;
+         this.cameraPixelX = this.viewWidthPx - this.mapPixelWidth >> 1;
+         this.tileColStart = 0;
+         this.tileColEnd = this.mapCellsWide << 1;
       }
 
-      if (!this.f_bool_11) {
-         this.f_int_57 = var2;
+      if (!this.mapFitsHeight) {
+         this.cameraPixelY = var2;
          if (var2 < 0) {
-            this.f_int_62 = -var2 >> 4;
-            this.f_int_63 = this.f_int_62 + (this.f_int_59 >> 4) + 2;
+            this.tileRowStart = -var2 >> 4;
+            this.tileRowEnd = this.tileRowStart + (this.viewHeightPx >> 4) + 2;
          } else {
-            this.f_int_62 = 0;
-            this.f_int_63 = (this.f_int_59 - var2 >> 4) + 1;
+            this.tileRowStart = 0;
+            this.tileRowEnd = (this.viewHeightPx - var2 >> 4) + 1;
          }
 
-         if (this.f_int_63 > this.mapCellsHigh << 1) {
-            this.f_int_63 = this.mapCellsHigh << 1;
+         if (this.tileRowEnd > this.mapCellsHigh << 1) {
+            this.tileRowEnd = this.mapCellsHigh << 1;
             return;
          }
       } else {
-         this.f_int_57 = this.f_int_59 - this.f_int_53 >> 1;
-         this.f_int_62 = 0;
-         this.f_int_63 = this.mapCellsHigh << 1;
+         this.cameraPixelY = this.viewHeightPx - this.mapPixelHeight >> 1;
+         this.tileRowStart = 0;
+         this.tileRowEnd = this.mapCellsHigh << 1;
       }
    }
 
@@ -7814,7 +7816,7 @@ public final class a extends Canvas implements Runnable {
                boolean var5;
                if (var5 = var8.interactWithCell(var12, var13)) {
                   var8.m_024(var12, var13);
-                  var8.m_064((var8.f_int_58 - 32 >> 1) - var8.playerPixelX, (var8.f_int_59 - 32 >> 1) - var8.playerPixelY);
+                  var8.setCameraClamped((var8.viewWidthPx - 32 >> 1) - var8.playerPixelX, (var8.viewHeightPx - 32 >> 1) - var8.playerPixelY);
                   var8.applyStepCellEffects();
                }
 
@@ -8368,8 +8370,8 @@ public final class a extends Canvas implements Runnable {
                this.m_046(var4);
                var4 = var4;
                a var14 = this;
-               this.cameraX = (var14.f_int_58 - 32 >> 1) - var14.f_int_56;
-               var14.cameraY = (var14.f_int_59 - 32 >> 1) - var14.f_int_57;
+               this.cameraX = (var14.viewWidthPx - 32 >> 1) - var14.cameraPixelX;
+               var14.cameraY = (var14.viewHeightPx - 32 >> 1) - var14.cameraPixelY;
                if (var4 >= 0) {
                   var14.cameraTargetX = var14.entityPixelX[var4];
                   var14.cameraTargetY = var14.entityPixelY[var4];
@@ -8632,15 +8634,15 @@ public final class a extends Canvas implements Runnable {
    }
 
    private void m_103(int var1, int var2) {
-      this.cameraX = (this.f_int_58 - 32 >> 1) - this.f_int_56;
-      this.cameraY = (this.f_int_59 - 32 >> 1) - this.f_int_57;
+      this.cameraX = (this.viewWidthPx - 32 >> 1) - this.cameraPixelX;
+      this.cameraY = (this.viewHeightPx - 32 >> 1) - this.cameraPixelY;
       this.cameraTargetX = var1 << 5;
       this.cameraTargetY = var2 << 5;
    }
 
    private int m_104(int var1) {
-      this.cameraX = (this.f_int_58 - 32 >> 1) - this.f_int_56;
-      this.cameraY = (this.f_int_59 - 32 >> 1) - this.f_int_57;
+      this.cameraX = (this.viewWidthPx - 32 >> 1) - this.cameraPixelX;
+      this.cameraY = (this.viewHeightPx - 32 >> 1) - this.cameraPixelY;
       if (var1 != 0 && var1 != 87) {
          int var3 = var1;
          a var2 = this;
@@ -8704,7 +8706,7 @@ public final class a extends Canvas implements Runnable {
          }
       }
 
-      this.m_064((this.f_int_58 - 32 >> 1) - this.cameraX, (this.f_int_59 - 32 >> 1) - this.cameraY);
+      this.setCameraClamped((this.viewWidthPx - 32 >> 1) - this.cameraX, (this.viewHeightPx - 32 >> 1) - this.cameraY);
    }
 
    private void m_106() {
@@ -9370,18 +9372,18 @@ public final class a extends Canvas implements Runnable {
       this.f_byte_arr_28[this.f_int_137++] = (byte)var1;
    }
 
-   private void m_121(int var1) {
+   private void loadFloorData(int var1) {
       int var3 = var1;
       a var2 = this;
       InputStream var14 = this.getClass().getResourceAsStream("maplv" + var3);
 
       try {
-         var2.mapCellsWide = m_058(var14) >> 1;
-         var2.mapCellsHigh = m_058(var14) >> 1;
+         var2.mapCellsWide = readU16BE(var14) >> 1;
+         var2.mapCellsHigh = readU16BE(var14) >> 1;
          System.out.println("Width:" + var2.mapCellsWide + ",Height:" + var2.mapCellsHigh);
          int var4 = var2.mapCellsWide * var2.mapCellsHigh << 2;
-         var2.f_int_52 = var2.mapCellsWide << 5;
-         var2.f_int_53 = var2.mapCellsHigh << 5;
+         var2.mapPixelWidth = var2.mapCellsWide << 5;
+         var2.mapPixelHeight = var2.mapCellsHigh << 5;
          var2.mapTerrainGrid = new byte[var4];
          var2.mapTransformGrid = new byte[var4];
          var14.read(var2.mapTerrainGrid, 0, var4);
@@ -9397,15 +9399,15 @@ public final class a extends Canvas implements Runnable {
          }
       }
 
-      var2.f_int_58 = 240;
-      var2.f_int_59 = 252;
-      var2.f_bool_10 = var2.f_int_58 >= var2.f_int_52;
-      var2.f_bool_11 = var2.f_int_59 >= var2.f_int_53;
+      var2.viewWidthPx = 240;
+      var2.viewHeightPx = 252;
+      var2.mapFitsWidth = var2.viewWidthPx >= var2.mapPixelWidth;
+      var2.mapFitsHeight = var2.viewHeightPx >= var2.mapPixelHeight;
       var2.m_059();
       a var13;
       (var13 = var2).f_bool_arr2_00 = new boolean[var13.mapCellsHigh][var13.mapCellsWide];
-      var13.m_064(0, 0);
-      var13.m_061();
+      var13.setCameraClamped(0, 0);
+      var13.rebuildWalkability();
       this.entityCount = 0;
       this.f_int_70 = this.f_int_72 = this.f_int_71 = this.f_int_73 = -1;
       this.m_122(var1);
@@ -9460,12 +9462,12 @@ public final class a extends Canvas implements Runnable {
 
             try {
                InputStream var27 = var25;
-               var3 = m_058(var27) & '\uffff' | m_058(var27) << 16;
+               var3 = readU16BE(var27) & '\uffff' | readU16BE(var27) << 16;
 
                for (int var9 = 0; var9 < var3; var9++) {
                   var5 = var25.read();
-                  var6 = m_058(var25);
-                  short var7 = m_058(var25);
+                  var6 = readU16BE(var25);
+                  short var7 = readU16BE(var25);
                   switch (var5) {
                      case 4:
                         var8 = var25.read() + 1;
@@ -9655,8 +9657,8 @@ public final class a extends Canvas implements Runnable {
    }
 
    private void spawnPopup(byte var1, int var2, int var3, int var4) {
-      var3 += this.f_int_56;
-      var4 += this.f_int_57;
+      var3 += this.cameraPixelX;
+      var4 += this.cameraPixelY;
       this.popupKind[this.popupWriteCursor] = (byte)var1;
       this.popupValue[this.popupWriteCursor] = var2;
       this.f_bool_arr_08[this.popupWriteCursor] = false;

@@ -1,7 +1,7 @@
-//! RMS 存档格式解析（`loadFloorSave` a.java:9213-9275 + `saveFloorState` 对偶）
-//! 与全局进度（`m_000` case 21 的 SKY_WAR 读档 a.java:4425-4468）。
+//! RMS 存档格式解析（`loadFloorSave` a.java:9215-9277 + `saveFloorState` 对偶）
+//! 与全局进度（`m_000` case 21 的 SKY_WAR 读档 a.java:4427-4470）。
 //!
-//! # MOT_L{n} 楼层存档字段序（DataInputStream 大端，a.java:9222-9262）
+//! # MOT_L{n} 楼层存档字段序（DataInputStream 大端，a.java:9224-9264）
 //!
 //! | # | 类型 | 字段 |
 //! |---|---|---|
@@ -16,7 +16,7 @@
 //! | 20 | byte | itemStackSize + N×(type,uses) |
 //! | 21 | 56×(short len + byte[len]) | 楼层触发状态 f_byte_arr2_05 |
 //!
-//! # SKY_WAR 全局进度（a.java:4437-4449）
+//! # SKY_WAR 全局进度（a.java:4439-4451）
 //!
 //! bool×4（optionChecked）+ int×N（f_int_arr_35）+ byte 计数 + N×int
 //! （f_int_arr_35 尾段）+ int×3（f_int_152/153/154）。

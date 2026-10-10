@@ -31,13 +31,13 @@ pub fn paint_font() -> SoftFont {
 /// （op 文本仍记录原始码，`drawImageT`）。
 pub const NOKIA_TRANSFORM_TABLE: [i32; 8] = [0, 8192, 16384, 24576, 8462, 270, 90, 8282];
 
-/// `drawImageWithNokiaTransform`（a.java:4551-4553）：DirectGraphics 变换绘制（shim 下视觉 = 原样）。
+/// `drawImageWithNokiaTransform`（a.java:4553-4555）：DirectGraphics 变换绘制（shim 下视觉 = 原样）。
 fn draw_image_with_nokia_transform(g: &mut SoftGraphics<'_>, img: &ArgbImage, x: i32, y: i32, kind: i32) {
     let t = NOKIA_TRANSFORM_TABLE[kind as usize];
     g.draw_image_transformed(img, x, y, 0, t);
 }
 
-/// `drawImageClipped`（a.java:4539-4543）：源矩形 clip 绘制——clip(x,y,w,h) 后把图
+/// `drawImageClipped`（a.java:4541-4545）：源矩形 clip 绘制——clip(x,y,w,h) 后把图
 /// 画在 `(x-sx, y-sy)`，只露出 `(sx,sy)` 起的子区。
 pub fn draw_image_clipped(g: &mut SoftGraphics<'_>, img: &ArgbImage, x: i32, y: i32, sx: i32, sy: i32, w: i32, h: i32) {
     g.set_clip(x, y, w, h);
@@ -45,7 +45,7 @@ pub fn draw_image_clipped(g: &mut SoftGraphics<'_>, img: &ArgbImage, x: i32, y: 
     g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
 }
 
-/// `paintSoftkeyBar`（a.java:5981-5991）：软键栏。`left`/`right` = softkeyLeftKind/softkeyRightKind
+/// `paintSoftkeyBar`（a.java:5983-5993）：软键栏。`left`/`right` = softkeyLeftKind/softkeyRightKind
 /// （0 = 不绘制；kind 1..n 选 ui[11] 精灵条的第 n 个 12×10 图标）。
 pub fn m_034_softkeys(g: &mut SoftGraphics<'_>, ui10: &ArgbImage, ui11: &ArgbImage, left: i8, right: i8) {
     if left != 0 {
@@ -78,7 +78,7 @@ pub fn m_034_softkeys(g: &mut SoftGraphics<'_>, ui10: &ArgbImage, ui11: &ArgbIma
 
 /// mode 21（声音询问）绘制：a.java:3060-3067 + paintSoftkeyBar 软键栏。
 ///
-/// 软键 (1,2) 由 m_000 case 21 设置（a.java:4470-4471）。
+/// 软键 (1,2) 由 m_000 case 21 设置（a.java:4472-4473）。
 pub fn paint_sound_prompt(g: &mut SoftGraphics<'_>, ui10: &ArgbImage, ui11: &ArgbImage, softkeys: (i8, i8)) {
     g.set_color(0);
     g.fill_rect(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
@@ -92,10 +92,10 @@ pub fn paint_sound_prompt(g: &mut SoftGraphics<'_>, ui10: &ArgbImage, ui11: &Arg
     m_034_softkeys(g, ui10, ui11, softkeys.0, softkeys.1);
 }
 
-/// mode 15 帮助 overlay 文本（a.java:4393-4399，逐字）。
+/// mode 15 帮助 overlay 文本（a.java:4395-4401，逐字）。
 pub const HELP_TEXT: &str = "游戏描述：\n\\c99FFCC有人的地方就有江湖，有神仙的地方何尝不是江湖；百战百胜的本事，换不回女人的真心，兄弟的真义；齐天大圣又如何，没有真情实义，做神仙跟做咸鱼有什么区别？\n\n操作方式：按左软键调出物品栏，左右选择一件道具，按确定键使用。\n游戏操作：\n上方向键/2：向上行走\n下方向键/8：向下行走\n左方向键/4：向左行走\n右方向键/6：向右行走\n确定键/5:探索地图\n左软键：打开道具列表\n右软键：打开游戏中菜单\n\n代理发行：广州易诚计算机科技有限公司\n发行商网站：www.9266.net\n客服电话：4006509913\n客服信箱：kefu@9266.net";
 
-/// mode 17 关于 overlay 文本（a.java:4412-4425，逐字）。
+/// mode 17 关于 overlay 文本（a.java:4414-4427，逐字）。
 pub const ABOUT_TEXT: &str = "版权所有：\n上海雪鲤鱼计算机科技有限公司\nwww.kgame.com.cn\n手机上网：\nwap.kgame.com.cn\n制作人：梁一\n编剧：王之浣\n策划：孙悦\n程序：杨政\n美术：梁一、王之浣、黄吉力\n测试：金鑫，王毅，计成毅\n版本：V1.0\n客服电话：4006305518";
 
 /// `Graphics.TOP | Graphics.HCENTER` = 17（drawString 第三参的常用组合）。
@@ -142,7 +142,7 @@ pub fn paint_boot(g: &mut SoftGraphics<'_>, boot: &BootPaintState) {
 pub struct BootMachine {
     /// gameMode（0=启动屏, 21=声音询问；1=title 菜单未端口）。
     pub mode: i32,
-    /// keyValue（keyPressed 设置、tick 末清零，a.java:4652/4251）。
+    /// keyValue（keyPressed 设置、tick 末清零，a.java:4654/4251）。
     pub key_value: i32,
     /// bootLoadPhase：加载相位（0=l0, 1=l1, 2+=logo 时间线）。
     pub phase: i32,
@@ -156,7 +156,7 @@ pub struct BootMachine {
     boot_images: Vec<ArgbImage>,
     /// sflogo 容器 8 张（m_001(0) 首次进 logo 相位时加载）。
     sflogo: Vec<ArgbImage>,
-    /// ui 容器 25 张（m_001(8)，m_000 case 21 a.java:4469 加载）。
+    /// ui 容器 25 张（m_001(8)，m_000 case 21 a.java:4471 加载）。
     ui: Vec<ArgbImage>,
     /// softkeyLeftKind/softkeyRightKind 软键栏状态（paintSoftkeyBar 绘制输入）。
     pub softkeys: (i8, i8),
@@ -327,15 +327,15 @@ impl BootMachine {
     /// 一次逻辑 tick。`key` 为本 tick 边界投递的按键码（`keyValue`，无则 0）。
     ///
     /// - mode 0：a.java:3343-3374（加载轮播/logo 时间线/清理切换）
-    /// - mode 21：a.java:4217-4236（-6 确认 / -7 否定 → gameMode=1）
+    /// - mode 21：a.java:4219-4238（-6 确认 / -7 否定 → gameMode=1）
     pub fn tick(&mut self, key: i32) {
         match self.mode {
             21 => {
-                // a.java:4219-4236：switch (keyValue)
+                // a.java:4221-4238：switch (keyValue)
                 match key {
                     -7 | -6 => {
                         // -7: soundEnabled=false；-6: true（音量 0→60）
-                        //（a.java:4220-4229）。两者都 gameMode=1 + m_000()
+                        //（a.java:4222-4231）。两者都 gameMode=1 + m_000()
                         self.sound_enabled = key == -6;
                         self.mode = 1;
                         self.title = Some(crate::title::TitleMachine::new());
@@ -367,7 +367,7 @@ impl BootMachine {
                 self.key_value = 0;
             }
             8 => {
-                // run case 8（a.java:3821-3876）
+                // run case 8（a.java:3823-3878）
                 match key {
                     -7 => self.mode = self.return_mode,
                     -2 => self.slots.as_mut().unwrap().cursor_down(),
@@ -399,7 +399,7 @@ impl BootMachine {
                 self.key_value = 0;
             }
             16 => {
-                // run case 16（a.java:4131-4179）
+                // run case 16（a.java:4133-4181）
                 match key {
                     -7 | -6 => self.mode = self.return_mode,
                     -5 | -4 | -3 => {
@@ -407,7 +407,7 @@ impl BootMachine {
                             let i = opts.highlight as usize;
                             opts.checked[i] = !opts.checked[i];
                             if opts.labels[i] == 0 {
-                                // case 0：声音联动（a.java:4144-4157）
+                                // case 0：声音联动（a.java:4146-4159）
                                 self.sound_enabled = !self.sound_enabled;
                             }
                         }
@@ -433,7 +433,7 @@ impl BootMachine {
                 self.key_value = 0;
             }
             14 => {
-                // run case 14（a.java:4125-4130）：runIntroViewer + 粒子雨 4 分频
+                // run case 14（a.java:4127-4132）：runIntroViewer + 粒子雨 4 分频
                 let f = self.paints as i32;
                 if f & 3 == 0 {
                     let x = self.rng.random_below(240);
@@ -448,14 +448,14 @@ impl BootMachine {
                     .unwrap()
                     .tick(key, &self.intro_imgs, &self.end_imgs, &mut self.overlay, &paint_font());
                 if done {
-                    // startNewGameLoad（a.java:7149-7162）：新游戏加载链
+                    // startNewGameLoad（a.java:7151-7164）：新游戏加载链
                     self.loading = Some(crate::intro::LoadProgress::new_game());
                     self.mode = 2;
                 }
                 self.key_value = 0;
             }
             2 => {
-                // run case 2（a.java:3443-3542）：进度追赶模型
+                // run case 2（a.java:3443-3544）：进度追赶模型
                 if let Some((target, call_m000)) = self.loading.as_mut().unwrap().tick() {
                     self.loading = None;
                     self.mode = target;
@@ -466,7 +466,7 @@ impl BootMachine {
                 self.key_value = 0;
             }
             22 => {
-                // run case 22（a.java:4237-4246）：++bootPhaseCounter ≤ 70 →
+                // run case 22（a.java:4239-4248）：++bootPhaseCounter ≤ 70 →
                 // runLogoAnimation(1, t)；否则退出进程
                 self.counter += 1;
                 if self.counter <= 70 {
@@ -490,16 +490,16 @@ impl BootMachine {
             .unwrap_or(-1)
     }
 
-    /// m_000 的菜单族 case（a.java:4348/4386-4425）：进入模式时初始化。
+    /// m_000 的菜单族 case（a.java:4350/4386-4425）：进入模式时初始化。
     fn enter_menu_mode(&mut self) {
         match self.mode {
             8 => {
-                // case 8（a.java:4348-4373）：槽表 + 布局常量 + 软键 (1,3)
+                // case 8（a.java:4350-4375）：槽表 + 布局常量 + 软键 (1,3)
                 self.slots = Some(crate::menu_family::SlotSelect::new());
                 self.softkeys = (1, 3);
             }
             15 => {
-                // case 15（a.java:4390-4400）：帮助 overlay + 软键 (0,3)
+                // case 15（a.java:4392-4402）：帮助 overlay + 软键 (0,3)
                 let text = HELP_TEXT.encode_utf16().collect::<Vec<u16>>();
                 let font = paint_font();
                 self.overlay.show_kind0(&text, &font, (0, 0));
@@ -507,7 +507,7 @@ impl BootMachine {
                 self.softkeys = (0, 3);
             }
             17 => {
-                // case 17（a.java:4411-4429）：关于 overlay + 软键 (0,3)
+                // case 17（a.java:4413-4431）：关于 overlay + 软键 (0,3)
                 let text = ABOUT_TEXT.encode_utf16().collect::<Vec<u16>>();
                 let font = paint_font();
                 self.overlay.show_kind0(&text, &font, (0, 0));
@@ -515,8 +515,8 @@ impl BootMachine {
                 self.softkeys = (0, 3);
             }
             16 => {
-                // case 16（a.java:4402-4410）：选项表 + 软键 (0,3)。
-                // optionChecked[1]=true：mode 21 的 RMS 失败 catch（a.java:4455）
+                // case 16（a.java:4404-4412）：选项表 + 软键 (0,3)。
+                // optionChecked[1]=true：mode 21 的 RMS 失败 catch（a.java:4457）
                 self.options = Some(crate::menu_family::OptionList::new(
                     self.sound_enabled,
                     true,
@@ -524,12 +524,12 @@ impl BootMachine {
                 self.softkeys = (0, 3);
             }
             14 => {
-                // case 14（a.java:4374-4382 区）：intro/end 容器 + 引子状态机
+                // case 14（a.java:4376-4384 区）：intro/end 容器 + 引子状态机
                 //（粒子表沿用 title 的 Particles——Java 全局唯一）
                 self.intro = Some(crate::intro::IntroSequence::new());
             }
             22 => {
-                // case 22（a.java:4474）：closeAudio（shim 无副作用）；
+                // case 22（a.java:4476）：closeAudio（shim 无副作用）；
                 // bootPhaseCounter 已为 0（mode 0→21 清理）
                 self.counter = 0;
             }
@@ -591,13 +591,13 @@ impl BootMachine {
                 self.counter = 0;
                 self.mode = 21;
                 self.frame_interval_ms = 75; // f_int_02=75（a.java:3371）
-                // m_000 case 21（a.java:4470-4472）：软键 (1,2)；soundEnabled=false；
+                // m_000 case 21（a.java:4472-4474）：软键 (1,2)；soundEnabled=false；
                 // RMS "SKY_WAR" 读档失败路径（oracle 内存库恒空 ⇒ catch 删库重置）
                 self.softkeys = (1, 2);
                 self.finished = false; // mode 21 属对拍范围
             }
         }
-        self.key_value = 0; // a.java:4264（tick 末 keyValue=0）
+        self.key_value = 0; // a.java:4266（tick 末 keyValue=0）
     }
 }
 
@@ -610,7 +610,7 @@ pub struct BootPaintState {
     pub image: Option<ArgbImage>,
     /// logo 动画层（phase>=2 时 Some）。
     pub logo: Option<crate::logo_anim::LogoAnim>,
-    /// sflogo#7（paintLogoAnimation 字形槽源图，a.java:10453）。
+    /// sflogo#7（paintLogoAnimation 字形槽源图，a.java:10455）。
     pub sflogo7: Option<ArgbImage>,
 }
 
