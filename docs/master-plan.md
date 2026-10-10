@@ -118,10 +118,11 @@ reference/         参考版 Java + 自研 MIDP/Nokia shim + 追踪钩子（D3 �
 | 项 | 来源 | 说明 |
 |---|---|---|
 | game-core 移植（战斗/移动/道具/脚本解释器） | P3 主线 | **锚点已升级**（2026-10-10）：deobf 为 VF 可编译实体，oracle 三方对拍 A==B==C 逐字节一致；语义命名第二批现可直接在可编译源上做（改后 javac+oracle 双保险） | 规格已备（gameplay.md 合同 40 条）；**必须复刻 oracle 策略**（虚拟时钟/FIFO 协作调度/网络离线/RMS 内存，`reference/oracle/_diff/report.md` §4 为权威）；战斗零随机、HP 下限 1 无死亡——禁止发明死亡/随机伤害 |
+| 渲染层 paint 调用树（P3 末块） | P3 主线 | **基础设施已收口**（2026-10-09，6f50aec/97f49b2）：software 光栅器逐字节复刻 shim（L1b golden 16 用例 + 164 PNG 全绿）、PNG/inflate/SHA-256 零依赖链、mode0 启动屏双相 FRAME+OPS 双对拍命中 trace。**余项**：m_144 logo 动画子系统（登记表+度量表+tick 推进）、mode 4/19 主菜单、mode 1/2 加载、mode 3+ 地图/实体/弹窗层、paint 状态机逐 tick 时序对拍（TICK 行 ops/frame 为最新 paint 快照，调度语义见 TickHooks.afterPaint） |
 | game-platform trait 层 | P3 | 扩展缝按 §2；RNG/时钟接管点见 state-machine.md §6 五项清单 |
 | 语义命名第二批 | P1 残余 | 局部变量（VF 投影名 varN）与类名（a/CMidlet）重命名批次（引擎已切换 VF，2026-10-10）；4 条台账 hypothesis（f_int_26 双用途/f_byte_26 语义/w[B]/x[Z]）考证后转正 |
 | DSL 解释器逐指令语义残项 | P2 残余 | script-dsl-semantics.md 遗留清单 7 项（含 per-tick 驱动循环定位） |
 | 深场景输入脚本 | P4 | oracle `--script` 扩展至全 55 层可跑（L5 流程级） |
-| 视觉保真 L4 | P4 | 字形现为确定性示意图案（R2 字体风险），字体方案定案后做截图 diff 白名单 |
+| 视觉保真 L4 | P4 | 字形现为确定性示意图案（R2 字体风险），字体方案定案后做截图 diff 白名单；光栅器+PNG+帧哈希链路 2026-10-09 已备（render-golden.json 可再生） |
 | oracle 报告 §3「Thread→6」计数口径 | t10-F2 | 注明"4 成员引用/6 调用点"，下次报告再生成时修（cosmetic） |
-| diff-trace / visual-diff 门禁启用 | P4 | game-oracle crate 与 gates/visual_diff.py 落地后自动转 PASS |
+| diff-trace / visual-diff 门禁启用 | P4 | game-oracle crate 与 gates/visual_diff.py 落地后自动转 PASS；FRAME sha 比对器可复用 game-platform/hash + hash_stream()（2026-10-09） |
