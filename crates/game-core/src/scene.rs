@@ -55,6 +55,8 @@ pub struct SceneImages {
     pub spark_sheet: ArgbImage,
     /// ui[8][23]：walkPhase 2 四角装饰（22×24 帧 ×3）
     pub corner_sprites: ArgbImage,
+    /// map[2][11]：SEE phase6 目标箭头
+    pub map211: Option<ArgbImage>,
     /// map[2][8]：战后数字条目标图标
     pub battle_icon: ArgbImage,
     /// map[2][7]：战后数字条（drawDigitStrip 7px 数字带）
@@ -126,6 +128,40 @@ const BLOCKS_PLAYER_INSERT: [bool; 13] = {
     }
     t
 };
+
+/// 对白数据集（构造期从夹具装载；game-core 无 I/O——include_str 编译期）。
+pub struct DialogData {
+    /// levelScriptLines（68 行 DSL）
+    pub scripts: Vec<String>,
+    /// dialogueTexts（269 条）
+    pub texts: Vec<String>,
+    /// dialogueSpeakerType（269 项）
+    pub speakers: Vec<i8>,
+    /// f_byte_arr_22（300 项气泡 face 索引）
+    pub bubbles: Vec<i8>,
+}
+
+impl DialogData {
+    fn from_fixtures() -> Self {
+        let scripts = include_str!("../tests/fixtures/level_scripts.txt")
+            .lines()
+            .map(|l| l.trim().to_string())
+            .collect();
+        let texts = include_str!("../tests/fixtures/dialogue_texts.txt")
+            .lines()
+            .map(|l| l.trim().to_string())
+            .collect();
+        let speakers = include_str!("../tests/fixtures/speaker_types.txt")
+            .lines()
+            .filter_map(|l| l.trim().parse().ok())
+            .collect();
+        let bubbles = include_str!("../tests/fixtures/speaker_bubbles.txt")
+            .lines()
+            .filter_map(|l| l.trim().parse().ok())
+            .collect();
+        Self { scripts, texts, speakers, bubbles }
+    }
+}
 
 /// 单层资产（换层时由场景内自带——game-core 无 I/O，字节由宿主预置）。
 #[derive(Clone)]
@@ -260,6 +296,39 @@ pub struct GameScene {
     pub tile_bob: i32,
     /// f_bool_12：教程标记（型 15 拾取置 true——f_bool_13 楼梯指示的门控）
     pub tutorial_seen: bool,
+
+    // —— mode 11 对话（gameMode 3=世界 / 11=对话；a.java:4001-4064 相位机）——
+    pub game_mode: i32,
+    /// dialogPhase：0 脚本步进 / 1 TAK 打字 / 2 实体路径 / 3 脚本行走 / 4 等相机 / 6 SEE 打字
+    pub dialog_phase: i32,
+    /// f_int_112：当前对白页（dialogueTexts 下标）
+    pub dialog_page: i32,
+    /// f_int_121：TAK 页尾（openDialogPage 边界）
+    pub dialog_page_end: i32,
+    /// f_byte_17：说话者类型（>=0 实体立绘 / 0 玩家头像 / <0 "?"）
+    pub dialog_speaker: i32,
+    /// f_int_119：lockCameraOn 返回的锚实体（气泡定位）
+    pub dialog_anchor: i32,
+    /// f_int_33：打字机游标（UTF-16 单位）
+    pub dialog_char: i32,
+    /// f_int_114/115：SEE/MOV 目标格
+    pub dialog_target: (i32, i32),
+    /// f_String_05：当前脚本行
+    pub script_line: String,
+    /// scriptCursor
+    pub script_cursor: usize,
+    /// f_int_118：phase0 步进延迟
+    pub script_delay: i32,
+    /// scriptLineFlags（68 位）
+    pub script_line_flags: Vec<bool>,
+    /// currentScriptIndex
+    pub current_script_index: usize,
+    /// 对白数据集
+    pub dialog_data: DialogData,
+    /// difficultyIndex（难度乘数索引；tryRunScene case 67 门控）
+    pub difficulty_index: i32,
+    /// scriptWalkArmed（脚本行走武装；phase 3 门控）
+    pub script_walk_armed: bool,
     /// f_byte_07：最近拾取/装备的类型号（浮层图标 + 商店显示）
     pub overlay_kind_item: i32,
     /// 浮层图标图（kind1/3：entityTypeImage[f_byte_07] 的克隆——paint 免借用冲突）
@@ -397,6 +466,22 @@ impl GameScene {
             overlay_kind_item: 0,
             overlay_icon: None,
             overlay_item_name: None,
+            game_mode: 3,
+            dialog_phase: 0,
+            dialog_page: 0,
+            dialog_page_end: 0,
+            dialog_speaker: 0,
+            dialog_anchor: -1,
+            dialog_char: 0,
+            dialog_target: (0, 0),
+            script_line: String::new(),
+            script_cursor: 0,
+            script_delay: 0,
+            script_line_flags: vec![false; 68],
+            current_script_index: 0,
+            dialog_data: DialogData::from_fixtures(),
+            difficulty_index: 0,
+            script_walk_armed: false,
             width_table: width_table.to_vec(),
             tile_walk: tile_walkability.to_vec(),
             afterimage_x: [0; 4],
@@ -790,8 +875,8 @@ impl GameScene {
     }
 
     /// paintWrappedText（a.java:5034-5117）：行渲染 + \\c 色切换 / \\r 复位 +
-    /// 上下页三角（frameCounter 闪烁）。
-    fn paint_wrapped_text(&mut self, g: &mut SoftGraphics<'_>, x: i32, y: i32, w: i32, max_h: i32) {
+    /// 上下页三角（frameCounter 闪烁；arrows=false 时省略——mode 11 对话框）。
+    fn paint_wrapped_text(&mut self, g: &mut SoftGraphics<'_>, x: i32, y: i32, w: i32, max_h: i32, arrows: bool) {
         let font = crate::paint::paint_font();
         let line_h = font.height + 4;
         // 向上找最近 \\c 起始色（跨页继承，a.java:5060-5070）
@@ -847,6 +932,9 @@ impl GameScene {
             ty += line_h;
         }
         // 翻页三角（a.java:5100-5115）
+        if !arrows {
+            return;
+        }
         g.set_color(WHITE);
         let ax = x + (w >> 1);
         if self.overlay_page_top > 0 {
@@ -857,6 +945,274 @@ impl GameScene {
             let ay = y + self.overlay_lines_per_page * line_h + 3 - ((self.frame_counter & 1) as i32);
             g.fill_triangle(ax, ay, ax - 6, ay - 6, ax + 6, ay - 6);
         }
+    }
+
+    /// tryRunScene（a.java:8055-8135）：脚本行门控（scriptLineFlags + 场景参数
+    /// var2=fromWalk）。case 40 落 5..40 直通组（var3 原样 = !flags[40]）。
+    pub fn try_run_scene(&mut self, idx: i32, from_walk: bool) -> bool {
+        if idx >= self.dialog_data.scripts.len() as i32 {
+            return false;
+        }
+        let mut gate = !self.script_line_flags[idx as usize];
+        match idx {
+            0 => {
+                if gate {
+                    self.script_line_flags[19] = true;
+                }
+            }
+            1 => gate &= self.script_line_flags[0] && !from_walk,
+            2 => gate &= self.script_line_flags[1] && !from_walk,
+            3 => gate &= from_walk,
+            4 => gate &= self.script_line_flags[3] && from_walk,
+            // 5/6/10/13/14/17/20/21/22/23/28/29/35/36/37/38/39/40：直通（无门控）
+            46 => gate &= from_walk && !self.script_line_flags[47],
+            47 => gate &= from_walk && !self.script_line_flags[46],
+            66 => gate = false,
+            67 => gate &= self.difficulty_index > 0,
+            _ => {}
+        }
+        gate
+    }
+
+    /// loadLevelScript（a.java:8025-8048）：mode 11 + 脚本行装载。
+    /// case 31 层重排特例（a.java:8018-8024）未达（script 40 不涉），todo 守卫。
+    pub fn load_level_script(&mut self, idx: i32) {
+        self.script_walk_armed = false;
+        self.game_mode = 11;
+        self.dialog_page = 0;
+        self.lockCameraOn(0); // ease 相机初始化到玩家
+        self.dialog_phase = 0;
+        self.current_script_index = idx as usize;
+        self.script_line = self.dialog_data.scripts[idx as usize].clone();
+        self.overlay_text = None;
+        self.script_cursor = 0;
+        // scriptLineFlags[idx] 在行尾收尾（AwaitCamera）或 GUT/DES 时置位——
+        // loadLevelScript 本身不置（a.java:8025-8048 无 flag 写）
+    }
+
+    /// parseScriptInt（a.java:8573-8580）：from 起找 delim，返回值与终位。
+    fn parse_script_int(line: &str, from: usize, delim: char) -> (i32, usize) {
+        let rel = line[from..].find(delim).expect("脚本整数分隔符缺失");
+        let end = from + rel;
+        (line[from..end].parse().expect("脚本整数解析失败"), end)
+    }
+
+    /// openDialogPage（a.java:8198-8223）：页装载 + 说话者/锚 + 预排版。
+    /// 布局走 layout_wrapped_text_limited（w=129、高=2·lineH+12、limit=f_int_33）。
+    fn open_dialog_page(&mut self, page: i32) {
+        if page <= self.dialog_page_end {
+            self.dialog_page = page;
+            self.dialog_speaker = if page < 0 {
+                -1
+            } else {
+                self.dialog_data.speakers[page as usize] as i32
+            };
+            self.dialog_anchor = {
+                // lockCameraOn(speaker)：相机锚初始化 + 返回目标实体
+                self.lockCameraOn(self.dialog_speaker);
+                if self.dialog_speaker != 0 && self.dialog_speaker != 87 {
+                    let mut found = -1;
+                    for e in (0..self.entities.count).rev() {
+                        if self.entities.entity_type[e] == self.dialog_speaker {
+                            found = e as i32;
+                            break;
+                        }
+                    }
+                    if found >= 0 {
+                        self.ease_target_x = self.entities.pixel_x[found as usize];
+                        self.ease_target_y = self.entities.pixel_y[found as usize];
+                    }
+                    found
+                } else {
+                    self.ease_target_x = self.view.player_px;
+                    self.ease_target_y = self.view.player_py;
+                    -1
+                }
+            };
+            let composed = if self.dialog_speaker < 0 {
+                format!("?: \\cF8F8F8{}", self.dialog_data.texts[page as usize])
+            } else {
+                let name = &self.object_type_names[self.dialog_speaker as usize];
+                format!("{}: \\cF8F8F8{}", name, self.dialog_data.texts[page as usize])
+            };
+            self.dialog_char = if self.dialog_speaker < 0 {
+                11
+            } else {
+                (self.object_type_names[self.dialog_speaker as usize].chars().count() + 10) as i32
+            };
+            self.overlay_text = Some(composed.clone());
+            let line_h = crate::paint::paint_font().height + 4;
+            self.layout_wrapped_text_limited(&composed, 129, (line_h << 1) + 12, self.dialog_char);
+        } else {
+            self.dialog_phase = 0;
+            self.dialog_char = 0;
+        }
+    }
+
+    /// layoutWrappedText 带**字符上限**（Java 第 4 参 = 只排版前 limit 个字符——
+    /// 打字机逐步放行的机制）。layout_full_text 是 limit=全长 的特例。
+    fn layout_wrapped_text_limited(&mut self, text: &str, w: i32, max_h: i32, limit: i32) {
+        let font = crate::paint::paint_font();
+        let line_h = font.height + 4;
+        let chars: Vec<char> = text.chars().take(limit as usize).collect();
+        let mut lines: Vec<String> = Vec::new();
+        let mut cur = String::new();
+        let mut acc_w = 0i32;
+        let mut i = 0;
+        while i < chars.len() {
+            let c = chars[i];
+            if c == '\n' {
+                lines.push(std::mem::take(&mut cur));
+                acc_w = 0;
+                i += 1;
+                continue;
+            }
+            let cw;
+            if c == '\\' && i + 1 < chars.len() {
+                let nxt = chars[i + 1];
+                if nxt == 'c' && i + 7 < chars.len() {
+                    cur.push(c);
+                    for k in 1..=6 {
+                        cur.push(chars[i + k]);
+                    }
+                    i += 7;
+                    continue;
+                } else if nxt == 'r' {
+                    cur.push(c);
+                    cur.push(nxt);
+                    i += 2;
+                    continue;
+                }
+                cw = font.char_width('\\' as u16);
+                cur.push(c);
+                acc_w += cw;
+                i += 1;
+                continue;
+            } else {
+                cw = font.char_width(c as u16);
+            }
+            if acc_w + cw > w {
+                lines.push(std::mem::take(&mut cur));
+                cur.push(c);
+                acc_w = cw;
+            } else {
+                cur.push(c);
+                acc_w += cw;
+            }
+            i += 1;
+        }
+        if !cur.is_empty() || lines.is_empty() {
+            lines.push(cur);
+        }
+        self.overlay_page_top = 0;
+        self.overlay_total_lines = lines.len() as i32;
+        self.overlay_lines_per_page = (max_h / line_h).min(self.overlay_total_lines);
+        self.overlay_page_bottom = self.overlay_total_lines.min(self.overlay_lines_per_page);
+        self.overlay_content_w = if self.overlay_total_lines == 1 {
+            font.string_width(&text.chars().take(limit as usize).map(|c| c as u16).collect::<Vec<u16>>())
+        } else {
+            w
+        };
+        self.overlay_lines = lines;
+    }
+
+    /// flipOverlayPage（a.java:5119-5136）：页顶/页底钳制。
+    fn flip_overlay_page(&mut self, page: i32) {
+        let mut top = page;
+        if top >= 0 {
+            if top >= self.overlay_total_lines - self.overlay_lines_per_page + 1 {
+                top = self.overlay_total_lines - self.overlay_lines_per_page;
+            }
+        } else {
+            top = 0;
+        }
+        self.overlay_page_top = top;
+        self.overlay_page_bottom = top + self.overlay_lines_per_page;
+        if self.overlay_page_top < 0 {
+            self.overlay_page_top = 0;
+        }
+        if self.overlay_page_bottom > self.overlay_total_lines {
+            self.overlay_page_bottom = self.overlay_total_lines;
+        }
+    }
+
+    /// skipTextToLineEnd（a.java:5125-5144）：打字机跳到当前行尾（累计长度）。
+    fn skip_text_to_line_end(&self, mut pos: i32) -> i32 {
+        let mut cum = 0i32;
+        for line in &self.overlay_lines {
+            cum += line.chars().count() as i32;
+            if pos >= cum - line.chars().count() as i32 && pos < cum {
+                return cum;
+            }
+            pos = pos; // 保持
+        }
+        cum
+    }
+
+    /// executeScriptInstruction 的 script 40 可达子集：TAK/SEE/END/SMS。
+    /// 其余 opcode（MOV/DES/CES/GUT/LAY/ROS/RES/ADD/MVS）在对应脚本对拍批实现。
+    fn execute_script_instruction(&mut self) {
+        let line = self.script_line.clone();
+        let mut var2 = self.script_cursor;
+        if var2 + 3 > line.len() {
+            // 行尾收尾（a.java:8564-8576）：phase=4 等相机 + 置 flag + 相机回玩家
+            self.dialog_phase = 4;
+            let cur = self.current_script_index;
+            if cur != 32 {
+                self.script_line_flags[cur] = true;
+            }
+            self.lockCameraOn(0);
+            return;
+        }
+        let op = &line[var2..var2 + 3];
+        var2 += 3;
+        if op == "TAK" {
+            let (start, e1) = Self::parse_script_int(&line, var2 + 1, '_');
+            let (end, _e2) = Self::parse_script_int(&line, e1 + 1, ' ');
+            self.dialog_page = start;
+            self.dialog_page_end = end;
+            self.script_cursor = e1 + 2;
+            self.dialog_phase = 1;
+            self.open_dialog_page(start);
+        } else if op == "SEE" {
+            let (tx, a) = Self::parse_script_int(&line, var2 + 1, '_');
+            let (ty, b) = Self::parse_script_int(&line, a + 1, '_');
+            let (pg, c) = Self::parse_script_int(&line, b + 1, '_');
+            let (_pg2, d) = Self::parse_script_int(&line, c + 1, '_');
+            let (flag, _e) = Self::parse_script_int(&line, d + 1, ' ');
+            self.dialog_target = (tx, ty);
+            self.script_cursor = d + 2;
+            self.open_dialog_page(pg);
+            if flag == 1 {
+                // 玩家路径（findPath + f_bool_26）：行走批实现——script 40 的
+                // SEE_3_10_166_166_1 flag=1 走 default 落 phase 6 + m_103
+                // （Java switch case1 **无 break 落穿 default**：路径成立时两者都做）
+                if self.find_path_player(tx, ty) {
+                    self.walk_step_count = 0;
+                    self.walk_phase = 0;
+                }
+            }
+            self.dialog_phase = 6;
+            // m_103：ease 相机目标 = 目标格
+            self.ease_cam_x = (self.view.view_w - 32 >> 1) - self.view.cam_x;
+            self.ease_cam_y = (self.view.view_h - 32 >> 1) - self.view.cam_y;
+            self.ease_target_x = tx << 5;
+            self.ease_target_y = ty << 5;
+        } else if op == "END" {
+            let (_v, e) = Self::parse_script_int(&line, var2 + 1, ' ');
+            self.game_mode = 20;
+            self.script_cursor = e + 1;
+        } else if op == "SMS" {
+            let (_v, e) = Self::parse_script_int(&line, var2 + 1, ' ');
+            self.script_cursor = e + 1;
+        } else {
+            todo!("executeScriptInstruction 的 {op} opcode（对应脚本对拍批实现）")
+        }
+    }
+
+    /// findPath 的玩家路径（phase 6 flag=1 的 f_bool_26）：行走批接线，暂 true。
+    fn find_path_player(&self, _tx: i32, _ty: i32) -> bool {
+        true
     }
 
     fn walkable_at(&self, x: i32, y: i32) -> bool {
@@ -933,6 +1289,81 @@ impl GameScene {
         self.minimap = Some(crate::intro::dim_image(&img, MINIMAP_DIM_ALPHA));
     }
 
+    /// run case 11 相位机（a.java:4001-4064）。m_055 由调用方公共段跑。
+    fn tick_dialog(&mut self) {
+        self.step_camera_toward_target();
+        match self.dialog_phase {
+            0 => {
+                if self.script_delay > 0 {
+                    self.script_delay -= 1;
+                } else {
+                    self.execute_script_instruction();
+                }
+            }
+            1 | 6 => {
+                if self.dialog_phase != 6 || self.camera_at_target() {
+                    let text = self.overlay_text.clone().unwrap_or_default();
+                    let text_len = text.chars().count() as i32;
+                    let line_h = crate::paint::paint_font().height + 4;
+                    if self.dialog_char < text_len {
+                        if self.key_value != 0 {
+                            // 全量 layout + 跳到行尾（a.java:4019-4022）
+                            self.layout_full_text(&text, 129, (line_h << 1) + 12);
+                            self.dialog_char = self.skip_text_to_line_end(self.dialog_char);
+                        } else if (self.frame_counter & 1) == 1 {
+                            self.dialog_char += 1;
+                            // 转义跳宽（charAt(f_int_33-1)=='\\'）
+                            let chars: Vec<char> = text.chars().collect();
+                            let idx = self.dialog_char as usize - 1;
+                            if idx < chars.len() && chars[idx] == '\\' {
+                                match chars.get(idx + 1).copied().unwrap_or(' ') {
+                                    'c' => self.dialog_char += 8,
+                                    'r' => self.dialog_char += 2,
+                                    _ => {}
+                                }
+                            }
+                        }
+                        self.layout_wrapped_text_limited(&text, 129, (line_h << 1) + 12, self.dialog_char);
+                        if self.overlay_total_lines > self.overlay_page_bottom {
+                            self.flip_overlay_page(self.overlay_total_lines - self.overlay_lines_per_page);
+                        }
+                    } else {
+                        match self.key_value {
+                            -2 => self.flip_overlay_page(self.overlay_page_top + self.overlay_lines_per_page),
+                            -1 => self.flip_overlay_page(self.overlay_page_top - self.overlay_lines_per_page),
+                            0 => {}
+                            _ => {
+                                self.dialog_char = 1;
+                                self.open_dialog_page(self.dialog_page + 1);
+                                if self.dialog_phase == 6 {
+                                    // m_103：ease 目标 = SEE 目标格
+                                    self.ease_cam_x = (self.view.view_w - 32 >> 1) - self.view.cam_x;
+                                    self.ease_cam_y = (self.view.view_h - 32 >> 1) - self.view.cam_y;
+                                    self.ease_target_x = self.dialog_target.0 << 5;
+                                    self.ease_target_y = self.dialog_target.1 << 5;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            2 => todo!("m_106 实体路径缓动（MOV 对拍批）"),
+            3 => todo!("script walk 相位（脚本行走对拍批）"),
+            4 => {
+                if self.camera_at_target() {
+                    self.game_mode = 3;
+                }
+            }
+            5 => {} // f_bool_16 组合（LAY 批）
+            _ => {}
+        }
+    }
+
+    /// cameraAtTarget（a.java:8195-8197）。
+    fn camera_at_target(&self) -> bool {
+        self.ease_cam_x == self.ease_target_x && self.ease_cam_y == self.ease_target_y
+    }
+
     /// keyPressed（a.java:4653-4666）：keyValue = keyHeldCode = code。
     pub fn press_key(&mut self, code: i32) {
         self.key_value = code;
@@ -955,28 +1386,8 @@ impl GameScene {
             // handleOverlayKey（a.java:4913-4927）：±2 翻页（flipOverlayPage
             // 钳制 a.java:5119-5136）、其余键关闭
             match self.key_value {
-                -2 => {
-                    let mut top = self.overlay_page_top + self.overlay_lines_per_page;
-                    if top >= self.overlay_total_lines - self.overlay_lines_per_page + 1 {
-                        top = self.overlay_total_lines - self.overlay_lines_per_page;
-                    }
-                    self.overlay_page_top = top;
-                    self.overlay_page_bottom = top + self.overlay_lines_per_page;
-                    if self.overlay_page_bottom > self.overlay_total_lines {
-                        self.overlay_page_bottom = self.overlay_total_lines;
-                    }
-                }
-                -1 => {
-                    let mut top = self.overlay_page_top - self.overlay_lines_per_page;
-                    if top < 0 {
-                        top = 0;
-                    }
-                    self.overlay_page_top = top;
-                    self.overlay_page_bottom = top + self.overlay_lines_per_page;
-                    if self.overlay_page_bottom > self.overlay_total_lines {
-                        self.overlay_page_bottom = self.overlay_total_lines;
-                    }
-                }
+                -2 => self.flip_overlay_page(self.overlay_page_top + self.overlay_lines_per_page),
+                -1 => self.flip_overlay_page(self.overlay_page_top - self.overlay_lines_per_page),
                 0 => {}
                 _ => self.overlay_active = false, // 任意其他键关闭
             }
@@ -1331,7 +1742,17 @@ impl GameScene {
                                 }
                             }
                             6 | 7 | 8 => stair_count += 1,
-                            _ => {} // 9 炼丹 / 11 / 76/82 / 83 场景门：后续批次
+                            83 => {
+                            // 场景门（a.java:5498-5506）：tryRunScene 门控 →
+                            // loadLevelScript(mode 11)
+                            if self.try_run_scene(self.entities.param[e] as i32, true) {
+                                self.overlay_active = false;
+                                self.overlay_text = None;
+                                let idx = self.entities.param[e] as i32;
+                                self.load_level_script(idx);
+                            }
+                        }
+                        _ => {} // 9 炼丹 / 11 / 76/82：后续批次
                         },
                         8 => {
                             // 怪物（a.java:5460-5486）：可胜 → 场上战斗；否则阻挡
@@ -1493,6 +1914,15 @@ impl GameScene {
             match entity::render_category(t) {
                 1 => match t {
                     6 => self.player_bob_applied = true, // f_bool_07（喷泉浮沉）
+                    83 => {
+                        // 出生/踩格触发（a.java:5698-5705）：序章 script 40 入口
+                        if self.try_run_scene(self.entities.param[e] as i32, true) {
+                            self.overlay_active = false;
+                            self.overlay_text = None;
+                            let idx = self.entities.param[e] as i32;
+                            self.load_level_script(idx);
+                        }
+                    }
                     7 => {
                         // 上楼梯（a.java:5650-5655）：changeFloor(param, false, false)
                         let target = (self.entities.param[e] & 0xff) as i32;
@@ -1757,6 +2187,10 @@ impl GameScene {
                 );
             }
         }
+        if self.game_mode == 11 {
+            self.paint_dialog(g, tileset);
+            return;
+        }
         self.paint_hud(g);
         self.paint_status_bar(g);
         // 楼梯指示（f_bool_13；稳态 false—— proximity 更新在 lockCameraOn/行走批次）
@@ -1774,7 +2208,7 @@ impl GameScene {
             let mut ty = by + 16;
             if matches!(self.overlay_kind, 0 | 2 | 4 | 5) {
                 g.set_color(WHITE);
-                self.paint_wrapped_text(g, tx, ty, 180, 240);
+                self.paint_wrapped_text(g, tx, ty, 180, 240, true);
             } else {
                 paint_mini_frame(g, tx, ty, 32, 32);
                 // 图标 = entityTypeImage[overlayKindItem]（f_byte_07——拾取时记录）
@@ -1787,7 +2221,7 @@ impl GameScene {
                     g.draw_string(name, tx, ty + ((32 - font.height) >> 1), 0);
                 }
                 g.set_color(WHITE);
-                self.paint_wrapped_text(g, bx + 16, ty + 36, 180, self.overlay_box_h - 32 - 36);
+                self.paint_wrapped_text(g, bx + 16, ty + 36, 180, self.overlay_box_h - 32 - 36, true);
             }
             let iy = by + self.overlay_box_h - 12 - 18;
             if self.overlay_left_icon != 0 {
@@ -2171,6 +2605,95 @@ impl GameScene {
             );
             slot_x += HUD_SLOT_STEP;
         }
+    }
+
+    /// paint case 11（a.java:2798-2896）：世界层 + 对话框/立绘/气泡/翻页箭头。
+    /// overlayText==null 或 overlayActive 或 phase==4 时走 paintHudPanel 分支。
+    fn paint_dialog(&mut self, g: &mut SoftGraphics<'_>, tileset: &ArgbImage) {
+        self.paint_parallax(g, true);
+        let tile_off = view_top_y() + if self.walk_phase == 4 { self.tile_bob } else { 0 };
+        self.view.paint_tiles(g, tileset, tile_off);
+        self.paint_entities(g, self.view.cam_x, self.view.cam_y + view_top_y());
+        self.popups.draw(g, &self.images.popup);
+        self.paint_status_bar(g);
+        let show_box = self.overlay_text.is_some() && !self.overlay_active && self.dialog_phase != 4;
+        if show_box {
+            let font = crate::paint::paint_font();
+            let line_h = font.height + 4;
+            let var91 = (line_h << 1) + 12;
+            let var120 = SCREEN_H - var91;
+            self.paint_hud_frame(g, 0, var120, 80, var91);
+            let mut cx = 80;
+            while cx < 214 {
+                g.set_clip(cx, var120, 16, 16);
+                g.draw_image(&self.images.ui[0], cx - 26, var120, 0);
+                cx += 16;
+            }
+            g.set_clip(0, 0, SCREEN_W, SCREEN_H);
+            crate::menu_family::draw_edge_patch(g, &self.images.ui[0], 214, var120, 0, 0, 26, 16, 1);
+            g.set_color(HUD_FILL);
+            g.fill_rect(80, var120 + 16, 149, var91 - 16);
+            if self.dialog_speaker > 0 {
+                if let Some(img) = &self.images.entity[self.dialog_speaker as usize] {
+                    if self.dialog_speaker != 72 {
+                        let fw = self.type_frame_width_for(self.dialog_speaker);
+                        draw_image_clipped(g, img, (80 - fw >> 1), SCREEN_H - img.height, 0, 0, fw, img.height);
+                    } else {
+                        draw_image_clipped(g, img, 24, 275, 0, 0, 32, 45);
+                    }
+                }
+            } else if self.dialog_speaker == 0 {
+                let face = &self.images.actor_face;
+                g.draw_image(face, 40 - (face.width >> 1), SCREEN_H - face.height, 0);
+            } else {
+                g.set_color(WHITE);
+                let q: Vec<u16> = "?".encode_utf16().collect();
+                g.draw_string(&q, 40, var120 + (var91 - font.height >> 1), 17);
+            }
+            g.set_color(10473684);
+            self.paint_wrapped_text(g, 85, var120 + 12, 129, var91 - 12, false);
+            if self.overlay_page_top > 0 {
+                draw_image_clipped(g, &self.images.ui[15], 220, SCREEN_H - line_h - 10, 0, 0, 7, 9);
+            }
+            if self.overlay_page_bottom < self.overlay_total_lines {
+                draw_image_clipped(g, &self.images.ui[15], 220, SCREEN_H - line_h + 1, 7, 0, 7, 9);
+            }
+            if (self.dialog_phase == 6 || self.dialog_phase == 1)
+                && self.dialog_page >= 0
+                && (self.dialog_page as usize) < self.dialog_data.bubbles.len()
+            {
+                let bubble = self.dialog_data.bubbles[self.dialog_page as usize];
+                if bubble >= 0 {
+                    let (bx, by) = if self.dialog_anchor >= 0 {
+                        let e = self.dialog_anchor as usize;
+                        (self.entities.pixel_x[e] + 16, self.entities.pixel_y[e] - 30)
+                    } else {
+                        (self.view.player_px + 16, self.view.player_py - 30)
+                    };
+                    let by = if self.dialog_speaker == 84 { by - 20 } else { by };
+                    if let Some(face) = self.images.entity.get(bubble as usize).cloned().flatten() {
+                        g.draw_image(&face, bx + self.view.cam_x, by + self.view.cam_y + 20, 0);
+                    }
+                }
+            }
+            if self.dialog_phase == 6 {
+                if let Some(arrow) = &self.images.map211 {
+                    g.draw_image(
+                        arrow,
+                        self.view.cam_x + 5 + (self.dialog_target.0 << 5),
+                        self.view.cam_y + (self.dialog_target.1 << 5) - 12 + self.bob_offset,
+                        0,
+                    );
+                }
+            }
+        } else {
+            self.paint_hud(g);
+        }
+    }
+
+    /// typeFrameWidth[type]（type_width_px 夹具的 i32 视图）。
+    fn type_frame_width_for(&self, t: i32) -> i32 {
+        self.width_table.get(t as usize).copied().unwrap_or(32)
     }
 
     /// paintStatusBar（a.java:6008-6031）：顶部状态栏（层数/三钥/金币）+ paintKeySlot。

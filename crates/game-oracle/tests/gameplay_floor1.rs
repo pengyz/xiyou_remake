@@ -115,6 +115,7 @@ fn build_scene() -> GameScene {
         },
         spark_sheet: actor_c[2].clone(),
         corner_sprites: ui[23].clone(),
+        map211: Some(map[11].clone()),
         battle_icon: map[8].clone(),
         battle_strip: map[7].clone(),
         ui,
@@ -584,3 +585,157 @@ fn dump_frame_pixels() {
 
 
 
+
+/// prologue 对拍：floor51 冷启动（玩家 (1,11) 出生即触发 script 40）——
+/// T584-9800 逐 tick FRAME sha（T584 起为 mode 11 对话）。
+/// 当前 ignore：T584 瓦片内容差（相机已一致 (64,-228)）——下轮逐像素调试。
+#[ignore]
+/// 场景状态按 a.java:3475-3487 冷启动（floor51/hp300/atk10/def10）。
+#[test]
+fn prologue_dialog_frames_match() {
+    let trace_text = std::fs::read_to_string(
+        repo().join("reference/oracle/_out/A-prologue-dialog/trace.txt"),
+    )
+    .expect("缺 A-prologue-dialog trace");
+    let records = trace::parse(&trace_text);
+
+    // floor51 资产
+    let maplv51 =
+        std::fs::read(repo().join("crates/game-oracle/tests/fixtures/maplv51.bin")).unwrap();
+    let sprite_bin =
+        std::fs::read(repo().join("crates/game-oracle/tests/fixtures/sprite51.bin")).unwrap();
+    let sp = SpriteTable::parse(&sprite_bin).expect("sprite51 解析");
+    let doors = door_tables();
+    let records51: Vec<(u8, u16, u16, i16, bool)> = sp
+        .records
+        .iter()
+        .map(|rec| {
+            let (param, hide) = spawn_param_and_visibility(rec.type_code, &rec.extra, &doors);
+            (rec.type_code, rec.x, rec.y, param, !hide)
+        })
+        .collect();
+
+    let mapbg = load_container("mapbg", 1);
+    let map = load_container("map", 12);
+    let actor_c = load_container("actor", 4);
+    let sptmap = load_container("sptmap", 13);
+    let sptprop = load_container("sptprop", 23);
+    let sptarm = load_container("sptarm", 10);
+    let sptenemy1 = load_container("sptenemy1", 20);
+    let sptenemy2 = load_container("sptenemy2", 20);
+    let ui = load_container("ui", 25);
+    let images = SceneImages {
+        backdrop: mapbg[0].clone(),
+        shadow: sptprop[0].clone(),
+        actor: actor_c[0].clone(),
+        actor_face: actor_c[1].clone(),
+        stair_icons: (map[1].clone(), map[2].clone()),
+        open_anim: map[9].clone(),
+        opened_door: sptmap[12].clone(),
+        entity: SceneImages::map_entity_images(&sptmap, &sptprop, &sptarm, &sptenemy1, &sptenemy2),
+        popup: game_core::popup::PopupImages {
+            digit_strips: [map[3].clone(), map[4].clone(), map[5].clone()],
+            icon_strip: map[6].clone(),
+            battle_digits: ui[9].clone(),
+        },
+        spark_sheet: actor_c[2].clone(),
+        corner_sprites: ui[23].clone(),
+        map211: Some(map[11].clone()),
+        battle_icon: map[8].clone(),
+        battle_strip: map[7].clone(),
+        ui,
+    };
+    let mut floor_assets: Vec<Option<game_core::scene::FloorAssets>> = vec![None; 56];
+    floor_assets[51] = Some(game_core::scene::FloorAssets {
+        maplv: maplv51.clone(),
+        records: records51.clone(),
+    });
+
+    // 冷启动（a.java:3475-3487）：floor51、cell(1,11)、hp300/atk10/def10
+    let mut scene = GameScene::load_floor(
+        &maplv51,
+        32,
+        352,
+        &records51,
+        &width_table(),
+        &tile_walkability(),
+        images,
+        floor_assets,
+    )
+    .unwrap();
+    scene.floor = 51;
+    scene.current_floor = 51;
+    scene.min_floor = 51;
+    scene.max_floor = 51;
+    scene.player.hp = 300;
+    scene.player.atk = 10;
+    scene.player.def = 10;
+    scene.build_minimap();
+    scene.enter_view();
+    // 出生格 type83 → script 40（m_000 case3 → applyStepCellEffects 链）
+    assert!(scene.try_run_scene(40, true), "script 40 门控应通过");
+    scene.load_level_script(40);
+
+    let tileset = {
+        let map = load_container("map", 12);
+        map[0].clone()
+    };
+    let mut screen = ArgbImage::create(game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
+    let mut checked = 0usize;
+    let mut pending_press = 0i32;
+    let mut pending_release = false;
+    for rec in &records {
+        if !(584..=9800).contains(&rec.tick) {
+            continue;
+        }
+        if pending_press != 0 {
+            scene.press_key(pending_press);
+            pending_press = 0;
+        }
+        if pending_release {
+            scene.release_key();
+            pending_release = false;
+        }
+        if rec.tick > 584 {
+            scene.tick(rec.tick as i64 - 1, &width_table());
+        }
+        if let Some(inp) = &rec.input {
+            if let Some(rest) = inp.strip_prefix("press(") {
+                if let Some(code) = rest.strip_suffix(')').and_then(|k| k.parse::<i32>().ok()) {
+                    pending_press = code;
+                }
+            } else if inp.starts_with("release(") {
+                pending_release = true;
+            }
+        }
+        let sha;
+        {
+            let mut g = SoftGraphics::new(&mut screen);
+            g.set_clip(0, 0, game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
+            g.set_font(Some(paint_font()));
+            scene.paint(&mut g, &tileset);
+            sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
+        }
+        if let Some(expect) = &rec.frame_sha {
+            if rec.tick == 584 {
+                std::fs::write("/tmp/rust-pro-584.bin", screen.hash_stream()).unwrap();
+                eprintln!("T584: cam=({},{}) ease=({},{},{},{}) mode={} phase={} char={} page={} speaker={} px=({},{})",
+                    scene.view.cam_x, scene.view.cam_y, scene.ease_cam_x, scene.ease_cam_y,
+                    scene.ease_target_x, scene.ease_target_y, scene.game_mode, scene.dialog_phase,
+                    scene.dialog_char, scene.dialog_page, scene.dialog_speaker,
+                    scene.view.player_px, scene.view.player_py);
+            }
+            assert_eq!(
+                &sha, expect,
+                "TICK {} 帧不符（mode={} phase={} page={} char={}）",
+                rec.tick,
+                scene.game_mode,
+                scene.dialog_phase,
+                scene.dialog_page,
+                scene.dialog_char
+            );
+            checked += 1;
+        }
+    }
+    assert_eq!(checked, 9800 - 584 + 1, "T584-9800 应有帧数");
+}
