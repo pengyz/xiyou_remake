@@ -276,7 +276,38 @@ PASS**——行走（4 场战斗）→ 踩型 7 楼梯（11,1）→ changeFloor 
    visible 按存档字节。全窗 T537-1500（964 帧）对拍 PASS（含二次换层 +
    floor2 重入 + 死怪不复活的 L 步进 (9,1)）。
 
-剩余（下批）：mode 11 对话 + mode 4/19 暂停菜单 + cat 67/69 拼装臂。
+## 3.10 mode 11 对话勘察（2026-10-11，第十三批，待实现）
+
+**L2 基础已备**：script.rs 的 ScriptEngine（P3.1）已建模 dialog_char_pos
+（=f_int_33）、scene_delay（=f_int_118）、speaker（=f_byte_17）、
+speaker_entity（=f_int_119）、dialog_page（=f_int_112）与 DSL 解释
+（TAK/MOV/GUT/DES/SWD/LAY/ROS/CES/RES/ADD）。剩余为**帧时序接线**：
+
+1. **触发链**：interactWithCell cat1 case83 → tryRunScene(param, true)
+   （a.java:8055：scriptLineFlags 门控逐 case）→ loadLevelScript
+   （a.java:8025-8048：gameMode=11、lockCameraOn(0)、dialogPhase=0、
+   f_String_05=levelScriptLines[idx]、scriptCursor=0）。
+2. **run case 11 相位机**（a.java:4001-4064）：m_055 + stepCameraTowardTarget
+   常跑；phase0 = f_int_118 延迟后 executeScriptInstruction(scriptCursor)；
+   phase1/6 = 打字机（frameCounter&1 每双拍 +1 字、\\c +8/\\r +2 转义跳宽、
+   keyValue!=0 → layoutFullText 全量 + skipTextToLineEnd a.java:5125）；
+   文本走完后 ±2 翻页 / 其余键 openDialogPage(page+1)（phase6 尾 m_103）；
+   phase2 = m_106（实体路径缓动）；phase3 = scriptWalk（case 2 分支 4066-4120）。
+3. **paint case 11**（a.java:2798-2896）：parallax+瓦片+实体+弹层+状态栏 +
+   m_039 对话框（0,320-框高,80,框高）+ 右缘补条 + **说话者立绘**
+   （f_byte_17>0 → entityTypeImage 立绘贴地；=0 → actor_face 头像；<0 → "?"）+
+   paintWrappedText(85, 120+12, 129, 框高-12, **false 无三角**) + 翻页箭头
+   ui[8][15] + **对话气泡**（f_byte_arr_22[f_int_112] ≥0 时 face 容器贴实体/玩家
+   头顶，a.java:2871-2885）+ phase6 目标箭头 map[2][11]。
+4. **数据**：dialogueTexts 269 条（夹具 dialogue_texts.txt ✓）、
+   dialogueSpeakerType 269（speaker_types.txt ✓）、f_byte_arr_22 300 条
+   （**无夹具**——需从 a.java:1465 提取）、levelScriptLines 68 行
+   （level_scripts.txt ✓）。
+5. **对拍目标**：现成 A-prologue-dialog trace（9800 ticks，A==B==C 已 PASS）——
+   序章 = floor51 + script 0 全链（CES/MOV/TAK/ROS/GUT）。需 scene 支持
+   floor51 资产（maplv51/sprite51 夹具已有）与序章 preset（无存档冷启动）。
+
+剩余（下批）：mode 11 对话实现（按上述 1-5）+ mode 4/19 暂停菜单 + cat 67/69 拼装臂。
 
 剩余（下批）：changeFloor 楼梯换层（walkPhase 4 + 动画）、宝箱 m_073、
 装备拾取 33-40/79/80、cat 16/32/67/69 渲染臂、mode 11 对话、mode 4/19。
