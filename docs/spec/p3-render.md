@@ -79,10 +79,24 @@ logic#(n+1) 消费（延迟一拍；trace T70 press(-6) → T71 帧切换实证�
   + walkPhase==2 的四向残影。
 - **存档格式**：MOT_L{n}（save.rs parse_floor_save 全字段序 + python struct
   复算 golden）；SKY_WAR（optionChecked×4 + …）。
-- **剩余件**（下批）：m_053 实体渲染 switch（f_byte_arr_03 渲染类别 1/2/8/
-  16/32/67/69/72 分支 + 拼装表 f_byte_arr2_00/b01/b02）、m_037/m_035 HUD、
-  m_057 小地图、loadFloorData 楼层装载（grid stride 考证）、mode 11 对话框
-  （prologue 场景）、mode 4/19 暂停菜单。
+- **m_053 实体渲染层**（a.java:6468-6700，2026-10-09 考证）：
+  - 筛选：活跃且未移除；屏裁 `x∈[-w,viewWidthPx] && y∈[-12,20+viewHeightPx]`；
+    首个玩家南侧实体之前插画玩家 m_033（单次，f_bool_arr_02[type] 除外）
+  - 帧偏移 `= 精灵宽 × f_int_arr2_02[动画表idx][帧idx]`（二维动画偏移表）
+  - 渲染类别 `f_byte_arr_03[type]`（m_043 a.java:6244-6271：1..12→1、
+    13..32→2、33..40→4、41..78→8，特例 76/81/82/83→1、77/78→16、
+    79/80→4、72/84/87→32、85/86→2）
+  - switch 六类：1=条带精灵（类型 6/9 浮沉/右移特例）；2=条带/门贴图
+    （27x29 上移动画）/阴影浮沉；4=阴影+浮沉条带；8=阴影+直立（67/69
+    拼装表多片组合：f_byte_arr2_01 行×f_byte_arr2_00 元数据）；16=阴影
+    浮沉/门贴图；32=多形态（f_byte_19 倍率 + m_127 高亮）
+  - walkPhase==2 && f_bool_08：交互浮标（iconStripDx/Dy[frameCounter&7]
+    波动 + drawDigitStrip 数值）
+- **m_033 玩家**（a.java:5829-5885）：sptprop[5][0] 阴影 + actor[3][0]
+  三向精灵（行=facingDirection、列=帧表 f_int_arr_03[f_int_38]×41px 的
+  41x46 帧）；walkPhase==2 四向残影。
+- **剩余件**（下批）：m_053 端口 + m_033 + m_037/m_035 HUD + m_057 小地图
+  → gameplay-floor1 全帧对拍；mode 11 对话框；mode 4/19 暂停菜单。
 
 ## 4. 证据基线
 
