@@ -154,6 +154,9 @@ pub struct BootMachine {
     ui: Vec<ArgbImage>,
     /// f_byte_13/f_byte_14 软键栏状态（m_034 绘制输入）。
     pub softkeys: (i8, i8),
+    /// f_int_02 帧间隔 ms（构造 75，a.java:27；mode 0 每 tick 设 100，
+    /// a.java:3331；切 mode 21 时回 75，a.java:3358）。
+    pub frame_interval_ms: i64,
     /// paint 计数（对拍 TICK n 用）。
     pub paints: u32,
     /// mode 0 结束标志（logo 时间线 35 耗尽，a.java:3351-3360 切 gameMode=21）。
@@ -163,8 +166,8 @@ pub struct BootMachine {
 impl BootMachine {
     /// 构造：预解码全部依赖资源（解码耗时与 tick 语义无关）。
     pub fn new(l0: ArgbImage, l1: ArgbImage, sflogo: Vec<ArgbImage>, ui: Vec<ArgbImage>) -> BootMachine {
-        assert_eq!(sflogo.len(), 8, "sflogo 容器 8 张（a.java:465-466 计数表）");
-        assert_eq!(ui.len(), 25, "ui 容器 25 张（a.java:465-466 计数表）");
+        assert_eq!(sflogo.len(), 8, "sflogo 容器 8 张（a.java:453 f_int_arr_00 计数表）");
+        assert_eq!(ui.len(), 25, "ui 容器 25 张（a.java:453 f_int_arr_00 计数表）");
         BootMachine {
             mode: 0,
             key_value: 0,
@@ -176,6 +179,7 @@ impl BootMachine {
             sflogo,
             ui,
             softkeys: (0, 0),
+            frame_interval_ms: 75,
             paints: 0,
             finished: false,
         }
@@ -227,6 +231,7 @@ impl BootMachine {
 
     /// gameMode 0 的逻辑 tick（a.java:3330-3361）。
     fn tick_mode0(&mut self) {
+        self.frame_interval_ms = 100; // a.java:3331（mode 0 每 tick 首行）
         if self.phase < 2 {
             if self.counter == 0 {
                 // a.java:3335：加载 /l{phase}.png；夹具恒存在 ⇒ 恒成功路径
@@ -252,9 +257,11 @@ impl BootMachine {
             } else {
                 // a.java:3352-3360：清理 + gameMode=21 + m_000()
                 self.logo.as_mut().unwrap().clear_all(); // m_147(-1)
+                self.logo.as_mut().unwrap().reset_layout_flag(); // f_bool_30=false（a.java:3353）
                 self.image = None;
                 self.counter = 0;
                 self.mode = 21;
+                self.frame_interval_ms = 75; // f_int_02=75（a.java:3358）
                 // m_000 case 21（a.java:4457-4459）：软键 (1,2)；f_bool_29=false；
                 // RMS "SKY_WAR" 读档失败路径（oracle 内存库恒空 ⇒ catch 删库重置）
                 self.softkeys = (1, 2);

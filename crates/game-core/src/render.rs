@@ -511,13 +511,21 @@ impl<'a> SoftGraphics<'a> {
     }
 
     /// `drawSubstring`。
+    ///
+    /// len<0 或越界时与 shim 同语义 = 空循环静默无操作
+    /// （Font.substringWidth/Graphics.drawText 的 `i < offset+len` 不执行；
+    /// 对抗 review D-2：调用方 a.java:5035 的 len 是差值，可能为负）。
     pub fn draw_substring(&mut self, s: &[u16], offset: i32, len: i32, x: i32, y: i32, anchor: i32) {
         self.op(format!(
             "drawSubstring({}, {offset},{len},{x},{y},{anchor})",
             quote_utf16(s)
         ));
-        let from = offset as usize;
-        self.draw_text(s, from, from + len as usize, x, y, anchor);
+        let from = offset.max(0) as usize;
+        let to = (offset + len).clamp(0, s.len() as i32) as usize;
+        if from >= to || to > s.len() {
+            return;
+        }
+        self.draw_text(s, from, to, x, y, anchor);
     }
 
     /// `drawText`：先整体度量锚点，再逐字符步进（`Graphics.java:424-438`）。
@@ -583,7 +591,9 @@ fn in_arc(rad: f64, start_deg: i32, arc_deg: i32) -> bool {
         return true;
     }
     if arc_deg < 0 {
-        return !in_arc(rad, start_deg + arc_deg, -arc_deg);
+        // shim 同位置有 % 360（Graphics.java:322）；大角度下省略会因 f64
+        // 精度丢失与 while 归一化产生 ULP 级漂移（对抗 review D-1）
+        return !in_arc(rad, (start_deg + arc_deg) % 360, -arc_deg);
     }
     let mut rel = deg - start_deg as f64;
     while rel < 0.0 {

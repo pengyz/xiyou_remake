@@ -53,7 +53,7 @@ pub struct LogoAnim {
     pub anchors_y: [i32; 3],
     /// f_int_158：底条 x 居中偏移。
     pub bar_x: i32,
-    /// f_bool_30：布局已初始化。
+    /// f_bool_30：布局已初始化（mode 0→21 清理时复位，a.java:3353）。
     initialized: bool,
 }
 
@@ -79,6 +79,12 @@ impl LogoAnim {
     pub fn clear_all(&mut self) {
         self.count = 0;
         self.images = vec![None; CAPACITY];
+    }
+
+    /// mode 0→21 清理路径的复位（a.java:3353 `f_bool_30 = false`）：
+    /// 复用同一 LogoAnim 实例时布局常量会重算（对抗 review R-5）。
+    pub fn reset_layout_flag(&mut self) {
+        self.initialized = false;
     }
 
     /// f_bool_30 布局初始化（a.java:10189-10198）。
