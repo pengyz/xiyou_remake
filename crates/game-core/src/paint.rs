@@ -32,14 +32,14 @@ pub fn paint_font() -> SoftFont {
 pub const NOKIA_TRANSFORM_TABLE: [i32; 8] = [0, 8192, 16384, 24576, 8462, 270, 90, 8282];
 
 /// `drawImageWithNokiaTransform`（a.java:4547-4549）：DirectGraphics 变换绘制（shim 下视觉 = 原样）。
-fn drawImageWithNokiaTransform(g: &mut SoftGraphics<'_>, img: &ArgbImage, x: i32, y: i32, kind: i32) {
+fn draw_image_with_nokia_transform(g: &mut SoftGraphics<'_>, img: &ArgbImage, x: i32, y: i32, kind: i32) {
     let t = NOKIA_TRANSFORM_TABLE[kind as usize];
     g.draw_image_transformed(img, x, y, 0, t);
 }
 
 /// `drawImageClipped`（a.java:4535-4539）：源矩形 clip 绘制——clip(x,y,w,h) 后把图
 /// 画在 `(x-sx, y-sy)`，只露出 `(sx,sy)` 起的子区。
-fn drawImageClipped(g: &mut SoftGraphics<'_>, img: &ArgbImage, x: i32, y: i32, sx: i32, sy: i32, w: i32, h: i32) {
+pub fn draw_image_clipped(g: &mut SoftGraphics<'_>, img: &ArgbImage, x: i32, y: i32, sx: i32, sy: i32, w: i32, h: i32) {
     g.set_clip(x, y, w, h);
     g.draw_image(img, x - sx, y - sy, 0);
     g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
@@ -50,7 +50,7 @@ fn drawImageClipped(g: &mut SoftGraphics<'_>, img: &ArgbImage, x: i32, y: i32, s
 pub fn m_034_softkeys(g: &mut SoftGraphics<'_>, ui10: &ArgbImage, ui11: &ArgbImage, left: i8, right: i8) {
     if left != 0 {
         g.draw_image(ui10, 0, crate::layout::softkey_base_y(), 0);
-        drawImageClipped(
+        draw_image_clipped(
             g,
             ui11,
             crate::layout::SOFTKEY_ICON_LEFT_X,
@@ -62,8 +62,8 @@ pub fn m_034_softkeys(g: &mut SoftGraphics<'_>, ui10: &ArgbImage, ui11: &ArgbIma
         );
     }
     if right != 0 {
-        drawImageWithNokiaTransform(g, ui10, crate::layout::softkey_right_x(), crate::layout::softkey_base_y(), 1);
-        drawImageClipped(
+        draw_image_with_nokia_transform(g, ui10, crate::layout::softkey_right_x(), crate::layout::softkey_base_y(), 1);
+        draw_image_clipped(
             g,
             ui11,
             crate::layout::softkey_icon_right_x(),
@@ -91,6 +91,12 @@ pub fn paint_sound_prompt(g: &mut SoftGraphics<'_>, ui10: &ArgbImage, ui11: &Arg
     );
     m_034_softkeys(g, ui10, ui11, softkeys.0, softkeys.1);
 }
+
+/// mode 15 帮助 overlay 文本（a.java:4389-4395，逐字）。
+pub const HELP_TEXT: &str = "游戏描述：\n\\c99FFCC有人的地方就有江湖，有神仙的地方何尝不是江湖；百战百胜的本事，换不回女人的真心，兄弟的真义；齐天大圣又如何，没有真情实义，做神仙跟做咸鱼有什么区别？\n\n操作方式：按左软键调出物品栏，左右选择一件道具，按确定键使用。\n游戏操作：\n上方向键/2：向上行走\n下方向键/8：向下行走\n左方向键/4：向左行走\n右方向键/6：向右行走\n确定键/5:探索地图\n左软键：打开道具列表\n右软键：打开游戏中菜单\n\n代理发行：广州易诚计算机科技有限公司\n发行商网站：www.9266.net\n客服电话：4006509913\n客服信箱：kefu@9266.net";
+
+/// mode 17 关于 overlay 文本（a.java:4408-4421，逐字）。
+pub const ABOUT_TEXT: &str = "版权所有：\n上海雪鲤鱼计算机科技有限公司\nwww.kgame.com.cn\n手机上网：\nwap.kgame.com.cn\n制作人：梁一\n编剧：王之浣\n策划：孙悦\n程序：杨政\n美术：梁一、王之浣、黄吉力\n测试：金鑫，王毅，计成毅\n版本：V1.0\n客服电话：4006305518";
 
 /// `Graphics.TOP | Graphics.HCENTER` = 17（drawString 第三参的常用组合）。
 pub fn anchor_top_hcenter() -> i32 {
@@ -160,6 +166,24 @@ pub struct BootMachine {
     menu: Vec<ArgbImage>,
     /// gameRandom（构造时 setSeed(VTime=0)；JavaRandom LCG）。
     pub rng: game_platform::JavaRandom,
+    /// mapbg 容器 1 张（m_001(1)：资源名表第 1 项，parallax 平铺 77x320）。
+    mapbg: ArgbImage,
+    /// 视差背景滚动（paint 内推进）。
+    pub backdrop: crate::menu_family::ParallaxBackdrop,
+    /// overlay 文本引擎（f_bool_05 层）。
+    pub overlay: crate::menu_family::OverlayEngine,
+    /// f_bool_05：overlay 激活。
+    pub overlay_active: bool,
+    /// f_byte_01：overlay/菜单的「返回模式」。
+    pub return_mode: i32,
+    /// mode 8 槽位表。
+    pub slots: Option<crate::menu_family::SlotSelect>,
+    /// mode 16 选项表。
+    pub options: Option<crate::menu_family::OptionList>,
+    /// iconStripFrame 共享（菜单族与 title 同一字段 a.java:464）。
+    pub strip_frame: usize,
+    /// soundEnabled（mode 16 勾选联动）。
+    pub sound_enabled: bool,
     /// f_int_02 帧间隔 ms（构造 75，a.java:27；mode 0 每 tick 设 100，
     /// a.java:3340；切 mode 21 时回 75，a.java:3367）。
     pub frame_interval_ms: i64,
@@ -177,6 +201,7 @@ impl BootMachine {
         sflogo: Vec<ArgbImage>,
         ui: Vec<ArgbImage>,
         menu: Vec<ArgbImage>,
+        mapbg: ArgbImage,
     ) -> BootMachine {
         assert_eq!(sflogo.len(), 8, "sflogo 容器 8 张（a.java:453 resourceImageCounts 计数表）");
         assert_eq!(ui.len(), 25, "ui 容器 25 张（a.java:453 resourceImageCounts 计数表）");
@@ -194,6 +219,15 @@ impl BootMachine {
             softkeys: (0, 0),
             title: None,
             menu: menu,
+            mapbg: mapbg,
+            backdrop: crate::menu_family::ParallaxBackdrop::new(),
+            overlay: crate::menu_family::OverlayEngine::new(),
+            overlay_active: false,
+            return_mode: 0,
+            slots: None,
+            options: None,
+            strip_frame: 0,
+            sound_enabled: false,
             rng: game_platform::JavaRandom::new_seeded(0),
             frame_interval_ms: 75,
             paints: 0,
@@ -206,7 +240,46 @@ impl BootMachine {
         self.paints += 1;
         match self.mode {
             21 => paint_sound_prompt(g, &self.ui[10], &self.ui[11], self.softkeys),
-            1 => self.title.as_mut().unwrap().paint(g, &self.menu[0], &self.menu[1], &self.ui[14]),
+            1 => {
+                let mut t = self.title.take().unwrap();
+                let sf = self.strip_frame;
+                t.set_strip_frame(sf);
+                t.paint(g, &self.menu[0], &self.menu[1], &self.ui[14]);
+                self.strip_frame = t.strip_frame_value();
+                self.title = Some(t);
+            }
+            8 => {
+                self.backdrop.paint(g, &self.mapbg, false, 0);
+                let segs = [3, 5]; // f_int_arr2_00[1]
+                if let Some(slots) = &self.slots {
+                    slots.paint(g, &self.ui, &segs, || 0);
+                }
+                m_034_softkeys(g, &self.ui[10], &self.ui[11], self.softkeys.0, self.softkeys.1);
+            }
+            15 | 17 => {
+                self.backdrop.paint(g, &self.mapbg, false, 0);
+                let sy = if self.mode == 15 { 51 } else { 68 };
+                let mut f = self.strip_frame;
+                crate::title::paint_icon_strip_at(g, &self.menu[1], 86, 10, sy, 68, &mut f);
+                self.strip_frame = f;
+                m_034_softkeys(g, &self.ui[10], &self.ui[11], self.softkeys.0, self.softkeys.1);
+                self.paint_overlay_tail(g);
+            }
+            16 => {
+                self.backdrop.paint(g, &self.mapbg, false, 0);
+                let mut f = self.strip_frame;
+                crate::title::paint_icon_strip_at(g, &self.menu[1], 86, 10, 34, 68, &mut f);
+                self.strip_frame = f;
+                if let Some(opts) = &self.options {
+                    opts.paint(g, &self.ui, &crate::paint::paint_font());
+                }
+                m_034_softkeys(g, &self.ui[10], &self.ui[11], self.softkeys.0, self.softkeys.1);
+            }
+            22 => {
+                let logo = self.logo.as_ref().unwrap();
+                let sf7 = self.sflogo[7].clone();
+                logo.paint(g, &sf7);
+            }
             _ => {
                 let state = BootPaintState {
                     phase: self.phase,
@@ -229,8 +302,9 @@ impl BootMachine {
                 // a.java:4215-4232：switch (keyValue)
                 match key {
                     -7 | -6 => {
-                        // -7: f_bool_29=false（声音关）；-6: true（音量 0→60）。
-                        // 两者都 gameMode=1 + m_000()（a.java:4219/4228）
+                        // -7: soundEnabled=false；-6: true（音量 0→60）
+                        //（a.java:4216-4225）。两者都 gameMode=1 + m_000()
+                        self.sound_enabled = key == -6;
                         self.mode = 1;
                         self.title = Some(crate::title::TitleMachine::new());
                     }
@@ -242,19 +316,176 @@ impl BootMachine {
                 // a.java:3381-3436。frame_counter：迭代 N 拍用 f=N-1
                 //（for 自增在体后）；paints 在 tick 时 = 已 paint 数 = N-1
                 let f = self.paints as i32;
-                if let Some(next) =
-                    self.title
-                        .as_mut()
-                        .unwrap()
-                        .tick(key, f, &mut self.rng)
-                {
-                    self.mode = next;
-                    self.finished = true; // 后续模式（8/14/15/16/17/22）未端口
+                let mut next = None;
+                if let Some(t) = self.title.as_mut() {
+                    let sf = self.strip_frame;
+                    t.set_strip_frame(sf);
+                    next = t.tick(key, f, &mut self.rng);
+                    self.strip_frame = t.strip_frame_value();
+                }
+                if let Some(mode) = next {
+                    self.mode = mode;
+                    // f_byte_01：kind 1/2/3/4 → 1（a.java:3391/3397/3402）；
+                    // kind 0(14)/5(22) 不设
+                    if (1..=4).contains(&self.title_kind()) {
+                        self.return_mode = 1;
+                    }
+                    self.enter_menu_mode();
+                }
+                self.key_value = 0;
+            }
+            8 => {
+                // run case 8（a.java:3817-3872）
+                match key {
+                    -7 => self.mode = self.return_mode,
+                    -2 => self.slots.as_mut().unwrap().cursor_down(),
+                    -1 => self.slots.as_mut().unwrap().cursor_up(),
+                    // -6/-5：mode 8 且槽有效才读档（oracle 恒无效 ⇒ 无操作）
+                    _ => {}
+                }
+                self.key_value = 0;
+            }
+            15 | 17 => {
+                // overlay 层 case 0 的 15/17 分支（a.java:3248-3261）
+                match key {
+                    -7 => {
+                        self.overlay_active = false;
+                        self.mode = self.return_mode;
+                    }
+                    -2 => {
+                        let per = self.overlay.lines_per_page();
+                        let top = self.overlay.page_top();
+                        self.overlay.flip_page(top + per);
+                    }
+                    -1 => {
+                        let per = self.overlay.lines_per_page();
+                        let top = self.overlay.page_top();
+                        self.overlay.flip_page(top - per);
+                    }
+                    _ => {}
+                }
+                self.key_value = 0;
+            }
+            16 => {
+                // run case 16（a.java:4127-4175）
+                match key {
+                    -7 | -6 => self.mode = self.return_mode,
+                    -5 | -4 | -3 => {
+                        if let Some(opts) = self.options.as_mut() {
+                            let i = opts.highlight as usize;
+                            opts.checked[i] = !opts.checked[i];
+                            if opts.labels[i] == 0 {
+                                // case 0：声音联动（a.java:4140-4153）
+                                self.sound_enabled = !self.sound_enabled;
+                            }
+                        }
+                    }
+                    -2 => {
+                        if let Some(opts) = self.options.as_mut() {
+                            opts.highlight += 1;
+                            if opts.highlight > opts.labels.len() as i32 - 1 {
+                                opts.highlight = 0;
+                            }
+                        }
+                    }
+                    -1 => {
+                        if let Some(opts) = self.options.as_mut() {
+                            opts.highlight -= 1;
+                            if opts.highlight < 0 {
+                                opts.highlight = opts.labels.len() as i32 - 1;
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+                self.key_value = 0;
+            }
+            22 => {
+                // run case 22（a.java:4233-4242）：++f_int_156 ≤ 70 →
+                // runLogoAnimation(1, t)；否则退出进程
+                self.counter += 1;
+                if self.counter <= 70 {
+                    self.logo
+                        .get_or_insert_with(crate::logo_anim::LogoAnim::new)
+                        .tick_help(&self.sflogo, self.counter);
+                } else {
+                    self.finished = true; // CMidlet.m_000()（进程退出）
                 }
                 self.key_value = 0;
             }
             _ => self.tick_mode0(),
         }
+    }
+
+    /// 当前 title 光标对应的 kind（mode 1 出口分派键）。
+    fn title_kind(&self) -> i32 {
+        self.title
+            .as_ref()
+            .map(|t| t.menu_kinds[t.cursor as usize] as i32)
+            .unwrap_or(-1)
+    }
+
+    /// m_000 的菜单族 case（a.java:4344/4386-4425）：进入模式时初始化。
+    fn enter_menu_mode(&mut self) {
+        match self.mode {
+            8 => {
+                // case 8（a.java:4344-4369）：槽表 + 布局常量 + 软键 (1,3)
+                self.slots = Some(crate::menu_family::SlotSelect::new());
+                self.softkeys = (1, 3);
+            }
+            15 => {
+                // case 15（a.java:4386-4396）：帮助 overlay + 软键 (0,3)
+                let text = HELP_TEXT.encode_utf16().collect::<Vec<u16>>();
+                let font = paint_font();
+                self.overlay.show_kind0(&text, &font, (0, 0));
+                self.overlay_active = true;
+                self.softkeys = (0, 3);
+            }
+            17 => {
+                // case 17（a.java:4407-4425）：关于 overlay + 软键 (0,3)
+                let text = ABOUT_TEXT.encode_utf16().collect::<Vec<u16>>();
+                let font = paint_font();
+                self.overlay.show_kind0(&text, &font, (0, 0));
+                self.overlay_active = true;
+                self.softkeys = (0, 3);
+            }
+            16 => {
+                // case 16（a.java:4398-4406）：选项表 + 软键 (0,3)。
+                // f_bool_arr_05[1]=true：mode 21 的 RMS 失败 catch（a.java:4451）
+                self.options = Some(crate::menu_family::OptionList::new(
+                    self.sound_enabled,
+                    true,
+                ));
+                self.softkeys = (0, 3);
+            }
+            22 => {
+                // case 22（a.java:4470）：closeAudio（shim 无副作用）；
+                // f_int_156 已为 0（mode 0→21 清理）
+                self.counter = 0;
+            }
+            _ => {
+                self.finished = true; // 14 等未端口模式
+            }
+        }
+    }
+
+    /// paint 公共尾 overlay（a.java:3119-3167，f_bool_05 && !f_bool_16）。
+    fn paint_overlay_tail(&mut self, g: &mut SoftGraphics<'_>) {
+        if !self.overlay_active {
+            return;
+        }
+        let x = 240 - self.overlay.box_w >> 1;
+        let y = 320 - self.overlay.box_h >> 1;
+        crate::menu_family::paint_box_frame(g, &self.ui[0], x, y, self.overlay.box_w, self.overlay.box_h);
+        g.set_color((-1i32) as u32);
+        let text: Vec<u16> = if self.mode == 15 {
+            HELP_TEXT.encode_utf16().collect()
+        } else {
+            ABOUT_TEXT.encode_utf16().collect()
+        };
+        let f = self.paints as i32 - 1;
+        let font = paint_font();
+        self.overlay.paint(g, &text, x + 16, y + 16, 180, 240, true, f, &font);
     }
 
     /// gameMode 0 的逻辑 tick（a.java:3339-3370）。

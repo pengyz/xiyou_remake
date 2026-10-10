@@ -25,9 +25,9 @@ use crate::render::{ArgbImage, SoftGraphics};
 use game_platform::JavaRandom;
 
 /// drawIconStrip 的列波动表 iconStripDx（a.java:462）。
-const STRIP_DX: [i32; 8] = [-1, 0, 1, 1, 1, 0, -1, -1];
+pub const STRIP_DX: [i32; 8] = [-1, 0, 1, 1, 1, 0, -1, -1];
 /// drawIconStrip 的行波动表 iconStripDy（a.java:463）。
-const STRIP_DY: [i32; 8] = [-1, -1, -1, 0, 1, 1, 1, 0];
+pub const STRIP_DY: [i32; 8] = [-1, -1, -1, 0, 1, 1, 1, 0];
 
 /// 粒子槽位容量（spawnParticle/updateAndDrawParticles 的 32 槽环形游标）。
 const PARTICLE_SLOTS: usize = 32;
@@ -112,6 +112,39 @@ impl Particles {
     }
 }
 
+/// `drawIconStrip` 通用形（a.java:4781-4799）。`frame` 为 iconStripFrame
+///（每 paint +1 环 8）；count 为源宽度阈值（60=title 4 列、68=菜单族 4 列）。
+pub fn paint_icon_strip_at(
+    g: &mut SoftGraphics<'_>,
+    strip: &ArgbImage,
+    x0: i32,
+    y0: i32,
+    sy: i32,
+    count: i32,
+    frame: &mut usize,
+) {
+    let mut f = *frame;
+    let mut src_x = 0;
+    let mut base_x = x0;
+    while src_x < count {
+        let cx = base_x + STRIP_DX[f];
+        let cy = y0 + STRIP_DY[f];
+        g.set_clip(cx, cy, 17, 17);
+        g.draw_image(strip, cx - src_x, cy - sy, 0);
+        f += 1;
+        if f > 7 {
+            f = 0;
+        }
+        src_x += 17;
+        base_x += 17;
+    }
+    *frame += 1;
+    if *frame > 7 {
+        *frame = 0;
+    }
+    g.set_clip(0, 0, 240, 320);
+}
+
 /// mode 1 标题菜单状态机（run case 1 的 tick + paint case 1 的绘制输入）。
 pub struct TitleMachine {
     /// f_int_10：菜单光标（0..menu_item_count-1 环绕）。
@@ -145,6 +178,15 @@ impl TitleMachine {
     }
 
     /// `m_052`（a.java:6453-6462）：bob ±1 摆动（下降相 --<-1 翻上升；上升 ++>1 翻下降）。
+    /// iconStripFrame 外部同步（与 BootMachine 共享同一 Java 字段 a.java:464）。
+    pub fn set_strip_frame(&mut self, f: usize) {
+        self.strip_frame = f;
+    }
+
+    pub fn strip_frame_value(&self) -> usize {
+        self.strip_frame
+    }
+
     fn tick_bob(&mut self) {
         if self.bob_rising {
             self.bob += 1;

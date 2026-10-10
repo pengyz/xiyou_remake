@@ -241,6 +241,17 @@ impl LogoAnim {
     /// `sflogo` 为容器 8 张子图（a.java:10341 等引用 `[0][k]`）；
     /// `timeline` 为 f_int_156（1..35，a.java:3358-3359）。
     pub fn tick(&mut self, sflogo: &[ArgbImage], timeline: i32) {
+        self.tick_variant(sflogo, timeline, false);
+    }
+
+    /// `runLogoAnimation(1, var2)`：帮助退出动画（mode 22，a.java:4244-4245，
+    /// 时间线 1..70）。var1=1 分支（a.java:10295-10343）。
+    pub fn tick_help(&mut self, sflogo: &[ArgbImage], timeline: i32) {
+        self.tick_variant(sflogo, timeline, true);
+    }
+
+    /// var1 维度统一入口（对抗 review R-3 补齐：原实现只有 var1==0）。
+    fn tick_variant(&mut self, sflogo: &[ArgbImage], timeline: i32, help: bool) {
         self.ensure_layout(sflogo[7].width);
         // 推进循环（倒序，a.java:10218-10287）
         for i in (0..self.count as usize).rev() {
@@ -322,6 +333,34 @@ impl LogoAnim {
             }
         }
 
+        // var1!=0 且 t>=18 的帮助分支（a.java:10295-10343）；t<18 落到下方
+        // 启动时间线重放（else 分支与 var1==0 共享——menu-sweep T1762-1779 实证）
+        if help && timeline >= 18 {
+            let ay = self.anchors_y;
+            let bx = self.bar_x;
+            if (18..31).contains(&timeline) {
+                let idx = timeline - 10;
+                let x = bx + GLYPH_METRICS[idx as usize * 2] as i32;
+                self.register(None, x, crate::layout::SCREEN_H, 3, 0, 4, x, ay[2], idx, -1);
+            }
+            match timeline {
+                50 => self.modify(2, 2, 4, 4, 4, 1),
+                51 => self.modify(3, 2, 4, 4, 4, 1),
+                52 => self.modify(4, 2, 4, 4, 4, 1),
+                58 => {
+                    self.modify(0, 1, 0, 1, 1000, 1000);
+                    self.modify(1, 2, 4, 4, 4, 1);
+                }
+                63 => self.modify(15, 3, 0, 4, -10, ay[2]),
+                _ => {}
+            }
+            if timeline > 52 && timeline < 63 {
+                let v = timeline - 52;
+                self.modify(v + 4, 3, 0, 4, -10, ay[2]);
+                self.modify(26 - v, 3, 0, 4, 240, ay[2]);
+            }
+            return;
+        }
         // 时间线 switch（a.java:10305-10381；case 11+ 部分待对拍扩产）
         let ay = self.anchors_y;
         let bx = self.bar_x;

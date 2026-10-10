@@ -43,12 +43,17 @@ fn boot_menu_frames_match_tick_by_tick() {
     let records = trace::parse(&trace_text);
     assert!(records.len() >= 40, "trace 过短");
 
+    let mapbg = {
+        let v = load_container("mapbg", 1);
+        v.into_iter().next().unwrap()
+    };
     let mut machine = BootMachine::new(
         decode_png("l0.png"),
         decode_png("l1.png"),
         load_sflogo(),
         load_container("ui", 25),
         load_container("menu", 2),
+        mapbg,
     );
     let mut checked = 0usize;
     // 按键投递时序：TICK n 的 INPUT 行在 preTick(n)（paint#n 之后）投递，
@@ -59,10 +64,10 @@ fn boot_menu_frames_match_tick_by_tick() {
         pending_key = input_key(&rec.input);
         machine.tick(key);
         if machine.finished {
-            // T150 press(-5) 由 logic#151 消费：kinds[cursor=1]=1「继续游戏」
-            // → gameMode=8（读档链，a.java:3389-3393），属下一批范围
-            assert_eq!(rec.tick, 151, "mode 1 出口应在 T151（T150 的 -5 延迟一拍）");
-            assert_eq!(machine.mode, 8, "-5@cursor1 ⇒ gameMode=8（a.java:3390）");
+            // menu-sweep 终点：T1760 press(-5) → kinds[5]=5「帮助」（BUG-007 实为
+            // 退出）→ mode 22 → runLogoAnimation(1,·) 70 拍 → T1831 后进程退出
+            assert_eq!(rec.tick, 1832, "menu-sweep 终点 = mode 22 动画 70 拍耗尽（T1762+70）");
+            assert_eq!(machine.mode, 22, "终点模式");
             break;
         }
         let mut screen = ArgbImage::create(240, 320);
@@ -84,7 +89,7 @@ fn boot_menu_frames_match_tick_by_tick() {
         }
     }
     // 覆盖锚：l0 T1-16 + l1 T17-31 + logo T32-67 + 声音询问 T68-70 + title T71-150
-    assert_eq!(checked, 150, "mode 0+21+1 全程 T1-T150 帧必须全部比对（T151 起 mode 8 未端口）");
+    assert_eq!(checked, 1831, "mode 0/21/1/8/16/15/17/22 全程 T1-T1831 帧必须全部比对");
 }
 
 /// INPUT 行 → 本 tick 边界投递的按键码（keyPressed；release 只清 keyHeldCode，

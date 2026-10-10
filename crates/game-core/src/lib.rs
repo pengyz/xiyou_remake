@@ -7,6 +7,7 @@ pub mod camera;
 pub mod combat;
 pub mod entity;
 pub mod logo_anim;
+pub mod menu_family;
 pub mod sprite_spawn;
 pub mod paint;
 pub mod pathfind;
