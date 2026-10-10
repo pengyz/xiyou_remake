@@ -1,25 +1,25 @@
-//! mode 14 新游戏引子（m_014 a.java:4814-4885 + paint case 14 a.java:2917-2948）
-//! 与 mode 2 加载链（run case 2 a.java:3439-3540 + m_067/m_131/m_132）。
+//! mode 14 新游戏引子（runIntroViewer a.java:4816-4887 + paint case 14 a.java:2917-2950）
+//! 与 mode 2 加载链（run case 2 a.java:3441-3542 + startNewGameLoad/m_131/m_132）。
 //!
 //! # mode 14 引子（三页图文 + 字幕滚动机）
 //!
-//! - 页 0/1：intro 容器图 + `m_007(img, 34)`（alpha=34 压暗）；文本
-//!   f_String_arr_00[4]/[6]；页 2：end 容器图 + 文本[7]；页 3：无图占位
+//! - 页 0/1：intro 容器图 + `dimImage(img, 34)`（alpha=34 压暗）；文本
+//!   miscTexts[4]/[6]；页 2：end 容器图 + 文本[7]；页 3：无图占位
 //!   （立即转加载）。
 //! - **字幕滚动机**（复用 overlay 排版状态 wrappedLines/overlayPageTop）：
-//!   滚动相 `f_int_21 += 4`（按键快进 =240），达 `stringWidth(行[页首])+10`
-//!   翻调色相；调色相 `++f_byte_04 >= 5` 翻回且 2 行窗口下滚
+//!   滚动相 `introScrollX += 4`（按键快进 =240），达 `stringWidth(行[页首])+10`
+//!   翻调色相；调色相 `++introColorIdx >= 5` 翻回且 2 行窗口下滚
 //!   （flipOverlayPage(+2)）；滚到尾（overlayTotalLines-2）→ 页++。
 //! - paint：黑遮幅上下 + HCENTER 图 + 字幕（滚动相白 / 调色相 5 色循环
-//!   f_int_arr_02）+「跳过/请按任意键」+ 粒子雨（case 14 tick 4 分频 spawn）。
-//! - -7 或页 3 → `m_067()` 启动加载链。
+//!   introColors）+「跳过/请按任意键」+ 粒子雨（case 14 tick 4 分频 spawn）。
+//! - -7 或页 3 → `startNewGameLoad()` 启动加载链。
 //!
 //! # mode 2 加载链（进度追赶模型）
 //!
-//! `m_131(target, call_m000)`：steps 表 f_byte_arr_41[16]、f_int_144=步数、
-//! m_001(15)（load 容器进度条图）。tick：`f_int_143 < f_int_146` 时进度
-//! +4/tick；否则执行 steps[f_int_145] 并 `f_int_146 = 步idx*100/步数`（≤
-//! 进度则 = 进度+1）。进度 ≥100 → 重置 + gameMode=f_byte_24（f_bool_19 则
+//! `m_131(target, call_m000)`：steps 表 loadSteps[16]、loadStepCount=步数、
+//! m_001(15)（load 容器进度条图）。tick：`loadProgress < loadProgressTarget` 时进度
+//! +4/tick；否则执行 steps[loadStepIndex] 并 `loadProgressTarget = 步idx*100/步数`（≤
+//! 进度则 = 进度+1）。进度 ≥100 → 重置 + gameMode=loadTargetMode（loadCallInit 则
 //! m_000）。**42 tick/次**（enter-game T382-423 实证）。
 //!
 //! Rust 侧资源已全预载——步骤只落实**状态效果**（步骤 8 的新游戏初始值），
@@ -27,7 +27,7 @@
 
 use crate::render::{ArgbImage, SoftGraphics};
 
-/// `m_007`（a.java:4602-4624）：压暗变换——白色像素(-1)跳过，其余非透明
+/// `dimImage`（a.java:4604-4626）：压暗变换——白色像素(-1)跳过，其余非透明
 /// 像素 alpha 置 `alpha`。
 pub fn dim_image(img: &ArgbImage, alpha: i32) -> ArgbImage {
     let a = (alpha as u32) << 24;
@@ -40,10 +40,10 @@ pub fn dim_image(img: &ArgbImage, alpha: i32) -> ArgbImage {
     out
 }
 
-/// f_int_arr_02（a.java:467）：字幕调色 5 色循环。
+/// introColors（a.java:467）：字幕调色 5 色循环。
 pub const SUBTITLE_COLORS: [u32; 5] = [16316664, 11184810, 8947848, 4473924, 1118481];
 
-/// 引子文本表 f_String_arr_00[4]/[6]/[7]（a.java:438-447，UTF-16）。
+/// 引子文本表 miscTexts[4]/[6]/[7]（a.java:438-447，UTF-16）。
 pub fn intro_text(page: i32) -> Vec<u16> {
     const T4: &str = "俺，当世神界第一斗者，孙!悟!空! 自从受封为齐天大圣，掌管蟠桃园以来，一直逍遥快活，无拘束……";
     const T6: &str = "直到那一天，遇到了她，在筋斗云上的我，竟然第一次心潮起伏，有了晕机的感觉……";
@@ -55,25 +55,25 @@ pub fn intro_text(page: i32) -> Vec<u16> {
     }
 }
 
-/// 「跳过」/「请按任意键」（a.java:2936/2940）。
+/// 「跳过」/「请按任意键」（a.java:2938/2940）。
 pub const SKIP_LABEL: &[u16] = &[0x8DF3, 0x8FC7]; // 跳过
 pub const PRESS_ANY_KEY: &[u16] = &[0x8BF7, 0x6309, 0x4EFB, 0x610F, 0x952E]; // 请按任意键
 
 /// mode 14 引子状态机。
 pub struct IntroSequence {
-    /// f_int_19：页号（0/1/2 图文，3=空页转加载）。
+    /// introPage：页号（0/1/2 图文，3=空页转加载）。
     pub page: i32,
-    /// f_int_20：页内 tick 计数（0=本页首拍装载）。
+    /// introPageTick：页内 tick 计数（0=本页首拍装载）。
     page_tick: i32,
-    /// f_int_21：字幕滚动偏移。
+    /// introScrollX：字幕滚动偏移。
     scroll_x: i32,
-    /// f_bool_03：调色相标志（false=滚动相）。
+    /// introColorPhase：调色相标志（false=滚动相）。
     color_phase: bool,
-    /// f_byte_04：调色索引。
+    /// introColorIdx：调色索引。
     color_idx: i32,
-    /// f_Image_01：当前引子图（压暗后）。
+    /// introImage：当前引子图（压暗后）。
     image: Option<ArgbImage>,
-    /// f_String_01：当前字幕文本。
+    /// introText：当前字幕文本。
     text: Option<Vec<u16>>,
 }
 
@@ -88,7 +88,7 @@ impl IntroSequence {
         IntroSequence { page: 0, page_tick: 0, scroll_x: 0, color_phase: false, color_idx: 0, image: None, text: None }
     }
 
-    /// 页首拍装载（m_014 的 f_int_20==0 分支，a.java:4824-4848）。
+    /// 页首拍装载（runIntroViewer 的 introPageTick==0 分支，a.java:4826-4850）。
     /// `intro`/`end_container` 为容器图列表。
     fn load_page(&mut self, intro: &[ArgbImage], end: &[ArgbImage]) {
         self.image = None;
@@ -109,8 +109,8 @@ impl IntroSequence {
         }
     }
 
-    /// m_014 一次 tick（a.java:4814-4885）。返回 `true` 当引子结束
-    /// （-7 或页 3 滚完 → 调用方启动 m_067 加载链）。
+    /// runIntroViewer 一次 tick（a.java:4816-4887）。返回 `true` 当引子结束
+    /// （-7 或页 3 滚完 → 调用方启动 startNewGameLoad 加载链）。
     pub fn tick(
         &mut self,
         key: i32,
@@ -129,7 +129,7 @@ impl IntroSequence {
         self.page_tick += 1;
         if self.page < 3 {
             if let Some(text) = self.text.clone() {
-                // 滚动机（a.java:4850-4883）：门槛 overlayLayoutCache != null——
+                // 滚动机（a.java:4852-4885）：门槛 overlayLayoutCache != null——
                 // **上次 paint 的布局锚**。首拍锚为 null ⇒ 整段跳过（enter-game
                 // T102 实证：scroll 自 T103 起 +4）；tick 不主动布局，读 overlay
                 // 现有行（paint 首拍已按 (220, 28) 排好）
@@ -160,8 +160,8 @@ impl IntroSequence {
                             overlay.flip_page(top + 2);
                             return false;
                         }
-                        // 本页滚完 → 页++（Java 递归 m_014：装载下一页并**同拍
-                        // 继续滚动机**——a.java:4879-4882，enter-game T285 实证）
+                        // 本页滚完 → 页++（Java 递归 runIntroViewer：装载下一页并**同拍
+                        // 继续滚动机**——a.java:4881-4884，enter-game T285 实证）
                         self.page += 1;
                         self.page_tick = 0;
                         if self.page < 3 {
@@ -173,7 +173,7 @@ impl IntroSequence {
                             }
                             return false;
                         }
-                        return true; // 页 3 → 清理 + m_067
+                        return true; // 页 3 → 清理 + startNewGameLoad
                     }
                 }
             } else {
@@ -181,7 +181,7 @@ impl IntroSequence {
                 return true;
             }
         } else {
-            // 页 >= 3（a.java:4869-4877）：清理 + m_067
+            // 页 >= 3（a.java:4871-4879）：清理 + startNewGameLoad
             self.reset();
             return true;
         }
@@ -198,7 +198,7 @@ impl IntroSequence {
         self.color_idx = 0;
     }
 
-    /// paint case 14（a.java:2917-2948）。`particles` 由调用方持有（case 14
+    /// paint case 14（a.java:2917-2950）。`particles` 由调用方持有（case 14
     /// 尾部的粒子层）；返回值无。
     pub fn paint(
         &self,
@@ -251,32 +251,32 @@ impl IntroSequence {
 
 /// mode 2 加载链状态（m_131/m_132 + run case 2 的进度追赶）。
 pub struct LoadProgress {
-    /// steps：f_byte_arr_41 有效前缀（m_132 登记序）。
+    /// steps：loadSteps 有效前缀（m_132 登记序）。
     steps: Vec<i8>,
-    /// f_int_145：步指针。
+    /// loadStepIndex：步指针。
     step_idx: i32,
-    /// f_int_143：进度（0..100）。
+    /// loadProgress：进度（0..100）。
     progress: i32,
-    /// f_int_146：进度追赶目标。
+    /// loadProgressTarget：进度追赶目标。
     bar_max: i32,
-    /// f_byte_24：目标模式。
+    /// loadTargetMode：目标模式。
     pub target_mode: i32,
-    /// f_bool_19：完成时是否调 m_000。
+    /// loadCallInit：完成时是否调 m_000。
     call_m000: bool,
 }
 
 impl LoadProgress {
-    /// `m_131(target, call_m000)` + `m_132(...)`（a.java:9854-9868 区）。
+    /// `m_131(target, call_m000)` + `m_132(...)`（a.java:9856-9870 区）。
     pub fn new(target: i32, call_m000: bool, steps: &[i8]) -> LoadProgress {
         LoadProgress { steps: steps.to_vec(), step_idx: 0, progress: 0, bar_max: 0, target_mode: target, call_m000 }
     }
 
-    /// `m_067`（a.java:7147-7160）：新游戏加载链。
+    /// `startNewGameLoad`（a.java:7149-7162）：新游戏加载链。
     pub fn new_game() -> LoadProgress {
         LoadProgress::new(3, true, &[6, 8, 5, 13, 9, 10, 2, 3, 12, 11])
     }
 
-    /// run case 2 一次 tick（a.java:3441-3539）。返回 `Some(target_mode)`
+    /// run case 2 一次 tick（a.java:3443-3541）。返回 `Some(target_mode)`
     /// 当进度 ≥100（加载完成；`call_m000` 供调用方决定初始化）。
     pub fn tick(&mut self) -> Option<(i32, bool)> {
         if self.progress < 100 {
@@ -297,7 +297,7 @@ impl LoadProgress {
         }
     }
 
-    /// 步骤 8 语义（a.java:3474-3487）：新游戏初始状态（HP/楼层/钥匙）。
+    /// 步骤 8 语义（a.java:3476-3489）：新游戏初始状态（HP/楼层/钥匙）。
     /// 返回 (hp, atk, def, floor)。
     pub fn new_game_stats() -> (i32, i32, i32, i32) {
         (300, 10, 10, 51)

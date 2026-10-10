@@ -26,9 +26,9 @@ logic#(n+1) 消费（延迟一拍；trace T70 press(-6) → T71 帧切换实证�
 结论：**PASS-with-risks**——零对拍破坏缺陷。已修复：
 
 - D-1 `in_arc` 负弧递归缺 `% 360`（render.rs，对照 Graphics.java:322）——死代码
-  路径（游戏唯一弧调用 fillArc(…,0,360) a.java:6646 短路），已补齐对齐 shim。
+  路径（游戏唯一弧调用 fillArc(…,0,360) a.java:6648 短路），已补齐对齐 shim。
 - D-2 `drawSubstring` 负 len：shim 空循环静默，Rust 原 panic——已按 shim 语义钳制
-  （调用方 a.java:5044 的 len 是差值可能为负）。
+  （调用方 a.java:5046 的 len 是差值可能为负）。
 - R-5 mode 0→21 清理分支补全：logoLayoutDone 复位（reset_layout_flag）+ f_int_02=75
   帧间隔字段化。
 - R-8 layout.rs 头注收窄：仅覆盖 boot 渲染路径；camera 的 view_h=252、walk 的
@@ -63,7 +63,7 @@ logic#(n+1) 消费（延迟一拍；trace T70 press(-6) → T71 帧切换实证�
 ## 4. 证据基线
 
 - 像素模型：`reference/shim/src/javax/microedition/lcdui/{Graphics,Font,Image,Canvas}.java`
-- 游戏侧：paint（a.java:2333-3219）、logo（10187-10553）、mode21
+- 游戏侧：paint（a.java:2333-3221）、logo（10187-10553）、mode21
   （3047-3054/4204-4223/4425-4460）、paintSoftkeyBar（5970-5980）
 - golden 裁判：`data/golden/render-golden.json`（Java 微驱动
   reference/oracle/src/oracle/host/RenderGolden.java 可再生）

@@ -26,7 +26,7 @@ public final class a extends Canvas implements Runnable {
    private int fontHeight = this.f_Font_00.getHeight();
    private int f_int_02 = 75;
    private String f_String_00 = "$Rev: 3289 $";
-   private String[] f_String_arr_00;
+   private String[] miscTexts;
    private boolean f_bool_00;
    private Graphics f_Graphics_00;
    private boolean f_bool_01;
@@ -37,7 +37,7 @@ public final class a extends Canvas implements Runnable {
    private DirectGraphics f_DirectGraphics_00;
    private int bootLoadPhase;
    private Image f_Image_00;
-   private boolean f_bool_02;
+   private boolean anyKeyPlayed;
    private String[] resourceNames;
    private int[] resourceImageCounts;
    private Image[][] f_Image_arr2_00;
@@ -63,16 +63,16 @@ public final class a extends Canvas implements Runnable {
    private byte[] iconStripDx;
    private byte[] iconStripDy;
    private byte iconStripFrame;
-   private int f_int_17;
-   private int f_int_18;
-   private Image f_Image_01;
-   private int f_int_19;
-   private int f_int_20;
-   private String f_String_01;
-   private int f_int_21;
-   private boolean f_bool_03;
-   private byte f_byte_04;
-   private int[] f_int_arr_02;
+   private int introImageHeight;
+   private int introBandY;
+   private Image introImage;
+   private int introPage;
+   private int introPageTick;
+   private String introText;
+   private int introScrollX;
+   private boolean introColorPhase;
+   private byte introColorIdx;
+   private int[] introColors;
    private int f_int_22;
    private int f_int_23;
    private boolean f_bool_04;
@@ -352,13 +352,13 @@ public final class a extends Canvas implements Runnable {
    private int f_int_142;
    private byte f_byte_23;
    private boolean f_bool_18;
-   private byte[] f_byte_arr_41;
-   private int f_int_143;
-   private int f_int_144;
-   private int f_int_145;
-   private byte f_byte_24;
-   private boolean f_bool_19;
-   private int f_int_146;
+   private byte[] loadSteps;
+   private int loadProgress;
+   private int loadStepCount;
+   private int loadStepIndex;
+   private byte loadTargetMode;
+   private boolean loadCallInit;
+   private int loadProgressTarget;
    private int f_int_147;
    private int[] f_int_arr_32;
    private byte f_byte_25;
@@ -435,7 +435,7 @@ public final class a extends Canvas implements Runnable {
 
    public a() {
       new StringBuffer().append("(内部版本").append(this.f_String_00.substring(4, this.f_String_00.length() - 1)).append(")");
-      this.f_String_arr_00 = new String[]{
+      this.miscTexts = new String[]{
          "无法再下一层了，这是你达到的最底层",
          "无法再上一层了，这是你达到的最高层",
          "无法再下去了。",
@@ -462,9 +462,9 @@ public final class a extends Canvas implements Runnable {
       this.iconStripDx = new byte[]{-1, 0, 1, 1, 1, 0, -1, -1};
       this.iconStripDy = new byte[]{-1, -1, -1, 0, 1, 1, 1, 0};
       this.iconStripFrame = 0;
-      this.f_int_17 = 0;
-      this.f_int_18 = 0;
-      this.f_int_arr_02 = new int[]{16316664, 11184810, 8947848, 4473924, 1118481};
+      this.introImageHeight = 0;
+      this.introBandY = 0;
+      this.introColors = new int[]{16316664, 11184810, 8947848, 4473924, 1118481};
       int[] var10000 = new int[]{0, 12, 24, 36, 47, 57, 67, 75, 83, 89, 94, 97, 100, 97, 94, 89, 83, 75, 67, 57, 47, 36, 24, 12, 0};
       this.f_byte_07 = 0;
       this.wrappedLines = new String[50];
@@ -2222,9 +2222,9 @@ public final class a extends Canvas implements Runnable {
       this.f_byte_arr_37 = new byte[]{20, 1, -15, 0, 24, 20, 24, 20, 24};
       this.f_bool_17 = true;
       String[] var5 = new String[]{"界面", "菜单", "地图", "背景", "人物", "组件", "表情", "效果", "脚本", "缓存", "楼层", "角色", "设定", "敌人", "引子", "结局", "载入进度"};
-      this.f_int_143 = 0;
-      this.f_int_144 = 0;
-      this.f_int_145 = 0;
+      this.loadProgress = 0;
+      this.loadStepCount = 0;
+      this.loadStepIndex = 0;
       var10000 = new int[]{15658734, 13421772, 11184810, 8947848, 6710886, 4473924, 2236962, 1118481};
       this.f_int_arr_32 = new int[]{16711680, 16748544, 16776194, 1244928, 65478, 26367, 14156031};
       this.f_bool_20 = false;
@@ -2378,7 +2378,7 @@ public final class a extends Canvas implements Runnable {
             a var33 = this;
             this.f_Graphics_00.setColor(3156024);
             var33.f_Graphics_00.fillRect(0, 0, 240, 320);
-            var33.f_int_147 = 148 * var33.f_int_143 / 100;
+            var33.f_int_147 = 148 * var33.loadProgress / 100;
             var33.drawImageClipped(var33.f_Image_arr2_00[15][0], 108, 86, 0, 0, 24, var33.f_int_147);
             var33.drawImageClipped(var33.f_Image_arr2_00[15][1], 108, 86 + var33.f_int_147, 0, var33.f_int_147, 24, 148 - var33.f_int_147);
             break;
@@ -2916,26 +2916,28 @@ public final class a extends Canvas implements Runnable {
          case 14:
             a var23 = this;
             int var44 = 0;
-            if (var23.f_Image_01 != null) {
-               var23.f_int_17 = var23.f_Image_01.getHeight();
-               var23.f_int_18 = 320 - var23.f_int_17 - (var23.fontHeight + 4) * 3 >> 1;
+            if (var23.introImage != null) {
+               var23.introImageHeight = var23.introImage.getHeight();
+               var23.introBandY = 320 - var23.introImageHeight - (var23.fontHeight + 4) * 3 >> 1;
                var23.f_Graphics_00.setColor(0);
-               var23.f_Graphics_00.fillRect(0, 0, 240, var23.f_int_18);
-               var44 = var23.f_int_18 + var23.f_Image_01.getHeight();
+               var23.f_Graphics_00.fillRect(0, 0, 240, var23.introBandY);
+               var44 = var23.introBandY + var23.introImage.getHeight();
                var23.f_Graphics_00.fillRect(0, var44, 240, 320 - var44);
-               var23.f_Graphics_00.drawImage(var23.f_Image_01, 120, var23.f_int_18, 17);
-               if (!var23.f_bool_03) {
+               var23.f_Graphics_00.drawImage(var23.introImage, 120, var23.introBandY, 17);
+               if (!var23.introColorPhase) {
                   var23.f_Graphics_00.setColor(-1);
                } else {
-                  var23.f_Graphics_00.setColor(var23.f_int_arr_02[var23.f_byte_04]);
+                  var23.f_Graphics_00.setColor(var23.introColors[var23.introColorIdx]);
                }
 
-               if (var23.f_int_19 < 3 && var23.f_String_01 != null) {
-                  var23.paintWrappedText(var23.f_String_01, 10, var23.f_int_18 + var23.f_int_17 + var23.fontHeight, 220, var23.textLineHeight << 1, false);
+               if (var23.introPage < 3 && var23.introText != null) {
+                  var23.paintWrappedText(
+                     var23.introText, 10, var23.introBandY + var23.introImageHeight + var23.fontHeight, 220, var23.textLineHeight << 1, false
+                  );
                }
             }
 
-            if (var23.f_int_19 > 2) {
+            if (var23.introPage > 2) {
                var23.f_Graphics_00.setColor(-1);
                var23.f_Graphics_00.drawString("请按任意键", 120, 320 - var23.fontHeight - 2, 17);
             } else {
@@ -3438,11 +3440,11 @@ public final class a extends Canvas implements Runnable {
                         }
                      case 2:
                         a var28 = var15;
-                        if (var15.f_int_143 < 100) {
-                           if (var28.f_int_143 < var28.f_int_146) {
-                              var28.f_int_143 += 4;
+                        if (var15.loadProgress < 100) {
+                           if (var28.loadProgress < var28.loadProgressTarget) {
+                              var28.loadProgress += 4;
                            } else {
-                              byte var41 = var28.f_byte_arr_41[var28.f_int_145];
+                              byte var41 = var28.loadSteps[var28.loadStepIndex];
                               a var37 = var28;
                               switch (var41) {
                                  case 0:
@@ -3517,23 +3519,23 @@ public final class a extends Canvas implements Runnable {
                                     break;
                                  case 16:
                                     if (!var37.loadFloorSave(var37.slotCursor)) {
-                                       var37.f_int_144 = 0;
+                                       var37.loadStepCount = 0;
                                        var37.gameMode = 8;
                                        var37.m_000();
                                     }
                               }
 
-                              var28.f_int_145++;
-                              var28.f_int_146 = var28.f_int_145 * 100 / var28.f_int_144;
-                              if (var28.f_int_146 <= var28.f_int_143) {
-                                 var28.f_int_146 = var28.f_int_143 + 1;
+                              var28.loadStepIndex++;
+                              var28.loadProgressTarget = var28.loadStepIndex * 100 / var28.loadStepCount;
+                              if (var28.loadProgressTarget <= var28.loadProgress) {
+                                 var28.loadProgressTarget = var28.loadProgress + 1;
                               }
                            }
                         } else {
-                           var28.f_int_146 = var28.f_int_143 = 0;
+                           var28.loadProgressTarget = var28.loadProgress = 0;
                            var28.f_Image_arr2_00[15] = null;
-                           var28.gameMode = var28.f_byte_24;
-                           if (var28.f_bool_19) {
+                           var28.gameMode = var28.loadTargetMode;
+                           if (var28.loadCallInit) {
                               var28.m_000();
                            }
                         }
@@ -4121,7 +4123,7 @@ public final class a extends Canvas implements Runnable {
                         var15.m_052();
                         break;
                      case 14:
-                        var15.m_014();
+                        var15.runIntroViewer();
                         if ((var15.frameCounter & 3) == 0) {
                            var15.spawnParticle(var15.randomBelow(240), 320 - var15.statusBarHeight - var15.randomBelow(150), 2, -1);
                         }
@@ -4377,13 +4379,13 @@ public final class a extends Canvas implements Runnable {
             return;
          case 14:
             a var6 = this;
-            this.f_int_19 = 0;
-            var6.f_int_20 = 0;
-            var6.f_int_21 = 0;
-            var6.f_String_01 = null;
+            this.introPage = 0;
+            var6.introPageTick = 0;
+            var6.introScrollX = 0;
+            var6.introText = null;
             var6.overlayLayoutCache = null;
-            var6.f_Image_01 = null;
-            var6.f_bool_03 = false;
+            var6.introImage = null;
+            var6.introColorPhase = false;
             return;
          case 15:
             this.m_001(8);
@@ -4493,7 +4495,7 @@ public final class a extends Canvas implements Runnable {
          }
 
          this.closeAudioPlayer();
-         this.f_bool_02 = true;
+         this.anyKeyPlayed = true;
          this.f_bool_01 = false;
          super.hideNotify();
       }
@@ -4599,7 +4601,7 @@ public final class a extends Canvas implements Runnable {
       return Image.createRGBImage(var3, 32, 32, true);
    }
 
-   private static Image m_007(Image var0, int var1) {
+   private static Image dimImage(Image var0, int var1) {
       int var2 = var0.getWidth();
       int var3 = var0.getHeight();
       int[] var4 = new int[var2 * var3];
@@ -4648,7 +4650,7 @@ public final class a extends Canvas implements Runnable {
 
    protected final void keyPressed(int var1) {
       this.keyValue = this.keyHeldCode = var1;
-      if (this.f_bool_02) {
+      if (this.anyKeyPlayed) {
          if (this.gameMode != 21 && this.gameMode != 0) {
             if (!this.f_bool_28) {
                this.m_139((byte)2, -1);
@@ -4657,7 +4659,7 @@ public final class a extends Canvas implements Runnable {
             }
          }
 
-         this.f_bool_02 = false;
+         this.anyKeyPlayed = false;
       }
    }
 
@@ -4801,82 +4803,82 @@ public final class a extends Canvas implements Runnable {
       this.f_Graphics_00.setClip(0, 0, 240, 320);
    }
 
-   private void m_014() {
+   private void runIntroViewer() {
       if (this.keyValue == -7) {
-         this.f_Image_01 = null;
+         this.introImage = null;
          this.f_Image_arr2_00[11] = null;
          this.f_Image_arr2_00[14] = null;
-         this.f_String_01 = null;
-         this.f_int_19 = 0;
-         this.f_int_20 = 0;
-         this.f_int_21 = 0;
-         this.m_067();
+         this.introText = null;
+         this.introPage = 0;
+         this.introPageTick = 0;
+         this.introScrollX = 0;
+         this.startNewGameLoad();
       } else {
-         if (this.f_int_20 == 0) {
-            this.f_Image_01 = null;
-            switch (this.f_int_19) {
+         if (this.introPageTick == 0) {
+            this.introImage = null;
+            switch (this.introPage) {
                case 0:
                   this.m_001(11);
-                  this.f_Image_01 = m_007(this.f_Image_arr2_00[11][0], 34);
-                  this.f_String_01 = this.f_String_arr_00[4];
+                  this.introImage = dimImage(this.f_Image_arr2_00[11][0], 34);
+                  this.introText = this.miscTexts[4];
                   break;
                case 1:
                   this.m_001(11);
-                  this.f_Image_01 = m_007(this.f_Image_arr2_00[11][1], 34);
-                  this.f_String_01 = this.f_String_arr_00[6];
+                  this.introImage = dimImage(this.f_Image_arr2_00[11][1], 34);
+                  this.introText = this.miscTexts[6];
                   break;
                case 2:
                   this.f_Image_arr2_00[11] = null;
                   this.m_001(14);
-                  this.f_Image_01 = m_007(this.f_Image_arr2_00[14][0], 34);
-                  this.f_String_01 = this.f_String_arr_00[7];
+                  this.introImage = dimImage(this.f_Image_arr2_00[14][0], 34);
+                  this.introText = this.miscTexts[7];
             }
 
-            if (this.f_Image_01 != null) {
-               this.f_Image_01.getWidth();
+            if (this.introImage != null) {
+               this.introImage.getWidth();
             }
 
-            this.f_bool_03 = false;
+            this.introColorPhase = false;
          }
 
-         this.f_int_20++;
-         if (this.f_int_19 < 3) {
+         this.introPageTick++;
+         if (this.introPage < 3) {
             if (this.overlayLayoutCache != null) {
-               if (!this.f_bool_03) {
-                  if (this.f_int_21 >= this.f_Font_00.stringWidth(this.wrappedLines[this.overlayPageTop]) + 10) {
-                     this.f_bool_03 = true;
-                     this.f_byte_04 = 0;
+               if (!this.introColorPhase) {
+                  if (this.introScrollX >= this.f_Font_00.stringWidth(this.wrappedLines[this.overlayPageTop]) + 10) {
+                     this.introColorPhase = true;
+                     this.introColorIdx = 0;
                      return;
                   }
 
-                  this.f_int_21 += 4;
+                  this.introScrollX += 4;
                   if (this.keyValue != 0) {
-                     this.f_int_21 = 240;
+                     this.introScrollX = 240;
                      return;
                   }
-               } else if (++this.f_byte_04 >= this.f_int_arr_02.length) {
-                  this.f_int_21 = 0;
-                  this.f_byte_04 = 0;
-                  this.f_bool_03 = false;
+               } else if (++this.introColorIdx >= this.introColors.length) {
+                  this.introScrollX = 0;
+                  this.introColorIdx = 0;
+                  this.introColorPhase = false;
                   if (this.overlayPageTop < this.overlayTotalLines - 2) {
                      this.flipOverlayPage(this.overlayPageTop + 2);
                      return;
                   }
 
                   System.out.println("++~");
-                  this.f_int_19++;
-                  this.f_int_20 = 0;
-                  this.m_014();
+                  this.introPage++;
+                  this.introPageTick = 0;
+                  this.runIntroViewer();
                   return;
                }
             }
          } else {
-            this.f_Image_01 = null;
+            this.introImage = null;
             this.f_Image_arr2_00[11] = null;
             this.f_Image_arr2_00[14] = null;
-            this.f_String_01 = null;
-            this.f_int_19 = 0;
-            this.m_067();
+            this.introText = null;
+            this.introPage = 0;
+            this.startNewGameLoad();
          }
       }
    }
@@ -6915,7 +6917,7 @@ public final class a extends Canvas implements Runnable {
             var4 += 4;
          }
 
-         this.f_Image_03 = m_007(var1, 170);
+         this.f_Image_03 = dimImage(var1, 170);
       }
    }
 
@@ -7102,14 +7104,14 @@ public final class a extends Canvas implements Runnable {
          var5 = false;
          if (var3) {
             if (var1 < this.minFloorReached) {
-               this.showOverlayMessage((byte)0, this.f_String_arr_00[0], (byte)0, (byte)0);
+               this.showOverlayMessage((byte)0, this.miscTexts[0], (byte)0, (byte)0);
                var5 = false;
                break label37;
             }
 
             if (var1 > this.maxFloorReached) {
                var5 = false;
-               this.showOverlayMessage((byte)0, this.f_String_arr_00[1], (byte)0, (byte)0);
+               this.showOverlayMessage((byte)0, this.miscTexts[1], (byte)0, (byte)0);
                break label37;
             }
          }
@@ -7120,9 +7122,9 @@ public final class a extends Canvas implements Runnable {
       if (var5) {
          var5 = false;
          if (var1 < 0) {
-            this.showOverlayMessage((byte)0, this.f_String_arr_00[2], (byte)0, (byte)0);
+            this.showOverlayMessage((byte)0, this.miscTexts[2], (byte)0, (byte)0);
          } else if (var1 > this.f_int_68) {
-            this.showOverlayMessage((byte)0, this.f_String_arr_00[3], (byte)0, (byte)0);
+            this.showOverlayMessage((byte)0, this.miscTexts[3], (byte)0, (byte)0);
          } else {
             var5 = true;
             this.f_bool_16 = true;
@@ -7144,7 +7146,7 @@ public final class a extends Canvas implements Runnable {
       return var5;
    }
 
-   private void m_067() {
+   private void startNewGameLoad() {
       this.m_131((byte)3, true);
       this.m_132(6);
       this.m_132(8);
@@ -7607,7 +7609,7 @@ public final class a extends Canvas implements Runnable {
                this.f_byte_07 = (byte)var1;
                this.showOverlayMessage((byte)1, this.equipDescriptions[var2], (byte)0, (byte)3);
             } else {
-               this.showOverlayMessage((byte)0, this.f_String_arr_00[5], (byte)0, (byte)3);
+               this.showOverlayMessage((byte)0, this.miscTexts[5], (byte)0, (byte)3);
             }
       }
    }
@@ -9838,19 +9840,19 @@ public final class a extends Canvas implements Runnable {
    }
 
    private void m_131(byte var1, boolean var2) {
-      this.f_byte_24 = 3;
-      this.f_bool_19 = true;
-      if (this.f_byte_arr_41 == null) {
-         this.f_byte_arr_41 = new byte[16];
+      this.loadTargetMode = 3;
+      this.loadCallInit = true;
+      if (this.loadSteps == null) {
+         this.loadSteps = new byte[16];
       }
 
-      this.f_int_144 = this.f_int_145 = 0;
+      this.loadStepCount = this.loadStepIndex = 0;
       this.gameMode = 2;
       this.m_001(15);
    }
 
    private void m_132(int var1) {
-      this.f_byte_arr_41[this.f_int_144++] = (byte)var1;
+      this.loadSteps[this.loadStepCount++] = (byte)var1;
    }
 
    private boolean findPath(int var1, int var2, int var3, int var4) {
