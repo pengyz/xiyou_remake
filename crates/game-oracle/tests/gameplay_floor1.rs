@@ -120,6 +120,30 @@ fn build_scene() -> GameScene {
         ui,
     };
 
+    // 换层资产表：floor 1/2（floor2 = maplv2 + sprite2 权威解析）
+    let mut floor_assets: Vec<Option<game_core::scene::FloorAssets>> = vec![None; 3];
+    floor_assets[1] = Some(game_core::scene::FloorAssets {
+        maplv: maplv.clone(),
+        records: records.clone(),
+    });
+    let records2: Vec<(u8, u16, u16, i16, bool)> = {
+        let sp2 = SpriteTable::parse(
+            &std::fs::read(repo().join("crates/game-oracle/tests/fixtures/sprite2.bin")).unwrap(),
+        )
+        .expect("sprite2 解析");
+        let doors = door_tables();
+        sp2.records
+            .iter()
+            .map(|rec| {
+                let (param, hide) = spawn_param_and_visibility(rec.type_code, &rec.extra, &doors);
+                (rec.type_code, rec.x, rec.y, param, !hide)
+            })
+            .collect()
+    };
+    floor_assets[2] = Some(game_core::scene::FloorAssets {
+        maplv: std::fs::read(repo().join("crates/game-oracle/tests/fixtures/maplv2.bin")).unwrap(),
+        records: records2,
+    });
     let mut scene = GameScene::load_floor(
         &maplv,
         96,
@@ -128,6 +152,7 @@ fn build_scene() -> GameScene {
         &width_table(),
         &tile_walkability(),
         images,
+        floor_assets,
     )
     .unwrap();
     scene.build_minimap();
@@ -252,6 +277,67 @@ fn gameplay_floor1_t537_1700_frames_match() {
         }
     }
     assert_eq!(checked, 1164, "T537-1700 应有 1164 帧");
+}
+
+/// 换层全链对拍：floor1-to-floor2 场景 T537-1500（行走 4 战 + 踩楼梯遮幅
+/// 换层 → floor2 落地 m_031 → 静止）逐 tick FRAME sha。
+#[test]
+fn floor_crossing_frames_match() {
+    let trace_text = std::fs::read_to_string(
+        repo().join("reference/oracle/_out/A-floor1-to-floor2/trace.txt"),
+    )
+    .expect("缺 A-floor1-to-floor2 trace（先跑 python3 reference/oracle/run.py --scenarios）");
+    let records = trace::parse(&trace_text);
+
+    let mut scene = build_scene();
+    let map = load_container("map", 12);
+    let tileset = map[0].clone();
+    let mut screen = ArgbImage::create(game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
+    let mut checked = 0usize;
+    let mut pending_press = 0i32;
+    let mut pending_release = false;
+    for rec in &records {
+        if !(537..=1500).contains(&rec.tick) {
+            continue;
+        }
+        if pending_press != 0 {
+            scene.press_key(pending_press);
+            pending_press = 0;
+        }
+        if pending_release {
+            scene.release_key();
+            pending_release = false;
+        }
+        if rec.tick > 537 {
+            scene.tick(rec.tick as i64 - 1, &width_table());
+        }
+        if let Some(inp) = &rec.input {
+            if let Some(rest) = inp.strip_prefix("press(") {
+                if let Some(code) = rest.strip_suffix(')').and_then(|k| k.parse::<i32>().ok()) {
+                    pending_press = code;
+                }
+            } else if inp.starts_with("release(") {
+                pending_release = true;
+            }
+        }
+        let sha;
+        {
+            let mut g = SoftGraphics::new(&mut screen);
+            g.set_clip(0, 0, game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
+            g.set_font(Some(paint_font()));
+            scene.paint(&mut g, &tileset);
+            sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
+        }
+        if let Some(expect) = &rec.frame_sha {
+            assert_eq!(
+                &sha, expect,
+                "TICK {} 帧不符（floor={} transitioning={} wipe={}）",
+                rec.tick, scene.floor, scene.transitioning, scene.wipe
+            );
+            checked += 1;
+        }
+    }
+    assert_eq!(checked, 964, "T537-1500 应有 964 帧");
 }
 
 /// T544 ops 前缀对拍（诊断锚：Java shim 仅记前 256 条 = parallax 5 + 瓦片 250
@@ -408,7 +494,7 @@ fn dump_frame_pixels() {
     let mut pending_press = 0i32;
     let mut pending_release = false;
     for rec in &records {
-        if !(537..=1506).contains(&rec.tick) { continue; }
+        if !(537..=601).contains(&rec.tick) { continue; }
         if pending_press != 0 { scene.press_key(pending_press); pending_press = 0; }
         if pending_release { scene.release_key(); pending_release = false; }
         if rec.tick > 537 { scene.tick(rec.tick as i64 - 1, &width_table()); }
@@ -422,12 +508,12 @@ fn dump_frame_pixels() {
             g.set_clip(0, 0, game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
             g.set_font(Some(paint_font()));
             scene.paint(&mut g, &tileset);
-            if rec.tick == 1506 {
-                std::fs::write("/tmp/rust-1506.ops", g.ops.join("\n")).unwrap();
+            if rec.tick == 601 {
+                std::fs::write("/tmp/rust-601.ops", g.ops.join("\n")).unwrap();
             }
         }
     }
-    std::fs::write("/tmp/rust-1506.bin", screen.hash_stream()).unwrap();
+    std::fs::write("/tmp/rust-601.bin", screen.hash_stream()).unwrap();
     eprintln!("rust T601 done");
 }
 

@@ -177,7 +177,7 @@ public final class a extends Canvas implements Runnable {
    private int minFloorReached;
    private int maxFloorReached;
    private int f_int_67;
-   private int f_int_68;
+   private int floorCountMax;
    private int alchemyUpgradeCount;
    private int stairUpMarkerX;
    private int stairDownMarkerX;
@@ -347,11 +347,11 @@ public final class a extends Canvas implements Runnable {
    private boolean[] particleActive;
    private boolean[] particleVelXWaxing;
    private int particleColor;
-   private boolean f_bool_16;
-   private boolean f_bool_17;
-   private int f_int_142;
-   private byte f_byte_23;
-   private boolean f_bool_18;
+   private boolean floorTransitioning;
+   private boolean wipeClosing;
+   private int wipePhase;
+   private byte pendingFloor;
+   private boolean wentDown;
    private byte[] loadSteps;
    private int loadProgress;
    private int loadStepCount;
@@ -805,7 +805,7 @@ public final class a extends Canvas implements Runnable {
       };
       this.currentFloor = 0;
       this.f_int_67 = 0;
-      this.f_int_68 = 55;
+      this.floorCountMax = 55;
       this.f_int_74 = this.fontHeight + 90;
       this.f_int_75 = 115;
       this.optionLabels = new String[]{"声音", "小地图"};
@@ -2220,7 +2220,7 @@ public final class a extends Canvas implements Runnable {
       this.scatterYKind6 = new byte[]{15, -2, -19, -1, 21, 17, 21, 19, 21};
       this.scatterXKind7 = new byte[]{9, -1, -10, -22, -26, -27, -29, -30, -32};
       this.scatterYKind7 = new byte[]{20, 1, -15, 0, 24, 20, 24, 20, 24};
-      this.f_bool_17 = true;
+      this.wipeClosing = true;
       String[] var5 = new String[]{"界面", "菜单", "地图", "背景", "人物", "组件", "表情", "效果", "脚本", "缓存", "楼层", "角色", "设定", "敌人", "引子", "结局", "载入进度"};
       this.loadProgress = 0;
       this.loadStepCount = 0;
@@ -3120,7 +3120,7 @@ public final class a extends Canvas implements Runnable {
             var18.f_Graphics_00.drawString(var18.f_String_07, 120, 320 - var18.fontHeight >> 1, 17);
       }
 
-      if (!this.f_bool_16) {
+      if (!this.floorTransitioning) {
          if (this.overlayActive) {
             int var195 = 240 - this.overlayBoxWidth >> 1;
             int var116 = 320 - this.overlayBoxHeight >> 1;
@@ -3174,38 +3174,38 @@ public final class a extends Canvas implements Runnable {
          int var131 = 0;
          int var149 = 0;
          int var166 = 0;
-         if (var35.f_bool_17) {
-            if (++var35.f_int_142 > 4) {
-               var35.f_int_142 = 4;
-               var35.f_bool_17 = false;
-               var35.currentFloor = var35.f_byte_23;
+         if (var35.wipeClosing) {
+            if (++var35.wipePhase > 4) {
+               var35.wipePhase = 4;
+               var35.wipeClosing = false;
+               var35.currentFloor = var35.pendingFloor;
                var35.loadFloorData(var35.currentFloor);
                if (var35.currentFloor == 0) {
-                  var35.m_024(1, 2);
+                  var35.placePlayerAtCell(1, 2);
                   var35.setCameraClamped((var35.viewWidthPx - 32 >> 1) - var35.playerPixelX, (var35.viewHeightPx - 32 >> 1) - var35.playerPixelY);
                } else if (var35.currentFloor == 50) {
-                  var35.m_024(6, 7);
+                  var35.placePlayerAtCell(6, 7);
                   var35.setCameraClamped((var35.viewWidthPx - 32 >> 1) - var35.playerPixelX, (var35.viewHeightPx - 32 >> 1) - var35.playerPixelY);
-               } else if (var35.currentFloor == 1 && !var35.f_bool_18) {
-                  var35.m_024(6, 11);
+               } else if (var35.currentFloor == 1 && !var35.wentDown) {
+                  var35.placePlayerAtCell(6, 11);
                   var35.setCameraClamped((var35.viewWidthPx - 32 >> 1) - var35.playerPixelX, (var35.viewHeightPx - 32 >> 1) - var35.playerPixelY);
                } else {
                   int var175;
-                  if ((var175 = var35.findFloorGateEntity(var35.f_bool_18)) >= 0) {
-                     var35.m_031(var35.entityPixelX[var175] >> 5, var35.entityPixelY[var175] >> 5);
+                  if ((var175 = var35.findFloorGateEntity(var35.wentDown)) >= 0) {
+                     var35.stepOffStairs(var35.entityPixelX[var175] >> 5, var35.entityPixelY[var175] >> 5);
                   }
                }
 
                var35.buildMinimap();
                var35.applyStepCellEffects();
             }
-         } else if (--var35.f_int_142 <= 0) {
-            var35.f_bool_17 = true;
-            var35.f_bool_16 = false;
+         } else if (--var35.wipePhase <= 0) {
+            var35.wipeClosing = true;
+            var35.floorTransitioning = false;
          }
 
-         var149 = var131 = 4 - var35.f_int_142;
-         var166 = var35.f_int_142 << 1;
+         var149 = var131 = 4 - var35.wipePhase;
+         var166 = var35.wipePhase << 1;
          var35.f_Graphics_00.setColor(0);
 
          for (int var176 = 0; var176 < 40; var149 += 8) {
@@ -3215,7 +3215,7 @@ public final class a extends Canvas implements Runnable {
             }
 
             var176++;
-            var131 = 4 - var35.f_int_142;
+            var131 = 4 - var35.wipePhase;
          }
       }
    }
@@ -4063,7 +4063,7 @@ public final class a extends Canvas implements Runnable {
                               var20.m_106();
                               break label534;
                            case 3:
-                              if (!var20.f_bool_16) {
+                              if (!var20.floorTransitioning) {
                                  a var8 = var20;
                                  switch (var20.walkPhase) {
                                     case 0:
@@ -4115,7 +4115,7 @@ public final class a extends Canvas implements Runnable {
                               }
                               break label534;
                            case 5:
-                              if (var20.f_bool_16 && !var20.f_bool_17) {
+                              if (var20.floorTransitioning && !var20.wipeClosing) {
                                  var20.dialogPhase = 0;
                               }
                            default:
@@ -5180,7 +5180,7 @@ public final class a extends Canvas implements Runnable {
       }
    }
 
-   private void m_024(int var1, int var2) {
+   private void placePlayerAtCell(int var1, int var2) {
       this.playerCellX = var1;
       this.playerCellY = var2;
       this.playerPixelX = var1 << 5;
@@ -5794,7 +5794,7 @@ public final class a extends Canvas implements Runnable {
       }
    }
 
-   private void m_031(int var1, int var2) {
+   private void stepOffStairs(int var1, int var2) {
       if (this.isCellWalkable(var1, var2 - 1)) {
          var2--;
       } else if (this.isCellWalkable(var1, var2 + 1)) {
@@ -5805,7 +5805,7 @@ public final class a extends Canvas implements Runnable {
          var1++;
       }
 
-      this.m_024(var1, var2);
+      this.placePlayerAtCell(var1, var2);
       this.setCameraClamped((this.viewWidthPx - 32 >> 1) - this.playerPixelX, (this.viewHeightPx - 32 >> 1) - this.playerPixelY);
    }
 
@@ -7138,11 +7138,11 @@ public final class a extends Canvas implements Runnable {
          var5 = false;
          if (var1 < 0) {
             this.showOverlayMessage((byte)0, this.miscTexts[2], (byte)0, (byte)0);
-         } else if (var1 > this.f_int_68) {
+         } else if (var1 > this.floorCountMax) {
             this.showOverlayMessage((byte)0, this.miscTexts[3], (byte)0, (byte)0);
          } else {
             var5 = true;
-            this.f_bool_16 = true;
+            this.floorTransitioning = true;
             if (var1 < this.minFloorReached) {
                this.minFloorReached = var1;
             } else if (var1 > this.maxFloorReached) {
@@ -7153,8 +7153,8 @@ public final class a extends Canvas implements Runnable {
             }
 
             this.m_119(this.currentFloor);
-            this.f_byte_23 = (byte)var1;
-            this.f_bool_18 = var2;
+            this.pendingFloor = (byte)var1;
+            this.wentDown = var2;
          }
       }
 
@@ -7179,15 +7179,15 @@ public final class a extends Canvas implements Runnable {
       this.equippedWeaponType = 0;
       this.equippedArmorType = 0;
       if (this.currentFloor == 1) {
-         this.m_024(6, 11);
+         this.placePlayerAtCell(6, 11);
       } else if (this.currentFloor == 51) {
-         this.m_024(1, 11);
+         this.placePlayerAtCell(1, 11);
       } else if (this.currentFloor == 50) {
-         this.m_024(6, 6);
+         this.placePlayerAtCell(6, 6);
       } else {
          int var1;
          if ((var1 = this.findFloorGateEntity(false)) >= 0) {
-            this.m_031(this.entityPixelX[var1] >> 5, this.entityPixelY[var1] >> 5);
+            this.stepOffStairs(this.entityPixelX[var1] >> 5, this.entityPixelY[var1] >> 5);
          }
       }
 
@@ -7828,7 +7828,7 @@ public final class a extends Canvas implements Runnable {
                int var13 = var8.mapCellsHigh - 1 - var8.playerCellY;
                boolean var5;
                if (var5 = var8.interactWithCell(var12, var13)) {
-                  var8.m_024(var12, var13);
+                  var8.placePlayerAtCell(var12, var13);
                   var8.setCameraClamped((var8.viewWidthPx - 32 >> 1) - var8.playerPixelX, (var8.viewHeightPx - 32 >> 1) - var8.playerPixelY);
                   var8.applyStepCellEffects();
                }
@@ -8341,9 +8341,9 @@ public final class a extends Canvas implements Runnable {
          } else if (!var3.equals("MVS")) {
             if (var3.equals("LAY")) {
                this.m_119(this.currentFloor);
-               this.f_byte_23 = (byte)this.parseScriptInt(var1, var2 + 1, " ");
+               this.pendingFloor = (byte)this.parseScriptInt(var1, var2 + 1, " ");
                this.scriptCursor = this.f_int_122 + 1;
-               this.f_bool_16 = true;
+               this.floorTransitioning = true;
                this.overlayText = null;
                this.dialogPhase = 5;
             } else if (var3.equals("ROS")) {

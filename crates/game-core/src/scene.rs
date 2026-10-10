@@ -127,6 +127,14 @@ const BLOCKS_PLAYER_INSERT: [bool; 13] = {
     t
 };
 
+/// 单层资产（换层时由场景内自带——game-core 无 I/O，字节由宿主预置）。
+#[derive(Clone)]
+pub struct FloorAssets {
+    pub maplv: Vec<u8>,
+    /// (type, x, y, param, visible)（sprite{n} 解析 + m_122 可见性）
+    pub records: Vec<(u8, u16, u16, i16, bool)>,
+}
+
 /// mode 3 场景状态。
 pub struct GameScene {
     pub view: GameView,
@@ -199,6 +207,31 @@ pub struct GameScene {
 
     // —— popup 环形队列 ——
     pub popups: crate::popup::PopupRing,
+
+    // —— 换层（changeFloor a.java:7116-7160 + paint 遮幅 a.java:3171-3215）——
+    /// f_bool_16：遮幅进行中
+    pub transitioning: bool,
+    /// f_bool_17：闭合相位（构造 true；全黑后翻 false 开启）
+    pub wipe_closing: bool,
+    /// f_int_142：遮幅计数 0..=4
+    pub wipe: i32,
+    /// f_byte_23：目标层
+    pub pending_floor: i32,
+    /// f_bool_18：下楼标记（型7 上楼传 false）
+    pub went_down: bool,
+    /// minFloorReached/maxFloorReached
+    pub min_floor: i32,
+    pub max_floor: i32,
+    /// f_int_127：脚本路线实体（case 32 型 72 的"追踪中"分支；默认 0）
+    pub route_entity: i32,
+    /// f_byte_19：型 72 形态号（脚本写；默认 0）
+    pub form_19: i32,
+    pub current_floor: i32,
+    /// 层资产表（按层号索引）
+    pub floor_assets: Vec<Option<FloorAssets>>,
+    /// 宽度表/可行走表（换层重载用）
+    pub width_table: Vec<i32>,
+    pub tile_walk: Vec<i32>,
     /// gameRandom（java.util.Random，seed=0 起的全局单例——粒子/战斗抖动共用
     /// 消费链；装载历史由测试侧预推进，paint 内 state==3 抖动消费）
     pub rng: game_platform::JavaRandom,
@@ -223,7 +256,7 @@ pub struct GameScene {
 impl GameScene {
     /// loadFloorData（a.java:9394-9434）：maplv 装载 + m_059 格索引重建 +
     /// 可行走重建 + m_122 实体生成 + sortEntitiesByY 排序。
-    /// `sprite_records`：sprite{n} 权威解析产物（type, x, y, param, visible）。
+    /// `floor_assets`：按层号索引的换层资产（索引缺省 = 该层不可达）。
     #[allow(clippy::too_many_arguments)]
     pub fn load_floor(
         maplv: &[u8],
@@ -233,47 +266,14 @@ impl GameScene {
         width_table: &[i32],
         tile_walkability: &[i32],
         images: SceneImages,
+        floor_assets: Vec<Option<FloorAssets>>,
     ) -> Result<GameScene, String> {
-        let view = GameView::from_maplv(maplv, player_px, player_py)?;
-        let cols = view.wide as usize;
-        let rows = view.high as usize;
-        let mut walkable = vec![vec![false; cols]; rows];
-        for y in 0..rows {
-            for x in 0..cols {
-                // rebuildWalkability（a.java:6954-6972）的索引：**行距 wide·4、
-                // 列距 2**（var1 行尾 +=wide<<1 叠加列循环的 ×2）——与 paintTileLayer
-                // 的行距 wide·2、列距 1 是同一数组的两套读法（原版共存）。
-                // A 级：oracle FLD 134（walkableGrid）13×13 逐格复算匹配。
-                let idx = (y * cols * 4 + x * 2) as i32;
-                let tile = view.terrain_at(0, idx) as usize;
-                walkable[y][x] = tile < tile_walkability.len() && tile_walkability[tile] == 1;
-            }
-        }
-        let mut entities = EntityTable::new(100);
-        let mut grid = CellGrid::new(view.wide, view.high);
-        for &(type_code, x, y, param, visible) in records {
-            let img_h = images.entity[type_code as usize].as_ref().map(|i| i.height);
-            let idx = entity::spawn(
-                &mut entities,
-                &mut grid,
-                type_code as i32,
-                x as i32,
-                y as i32,
-                param,
-                width_table,
-                img_h,
-            );
-            if !visible {
-                entities.visible[idx] = false; // m_122 特例分支（5/81/6/12/76/82/83）
-            }
-        }
-        entity::sort_by_y(&mut entities, &mut grid);
-        Ok(GameScene {
-            view,
-            entities,
-            grid,
+        let mut scene = GameScene {
+            view: GameView::from_maplv(maplv, player_px, player_py)?,
+            entities: EntityTable::new(100),
+            grid: CellGrid::new(1, 1),
             images,
-            walkable,
+            walkable: Vec::new(),
             minimap: None,
             minimap_enabled: true,
             frame_counter: 0,
@@ -318,6 +318,19 @@ impl GameScene {
             battle_active: false,
             popups: crate::popup::PopupRing::default(),
             rng: game_platform::JavaRandom::new_seeded(0),
+            transitioning: false,
+            wipe_closing: true,
+            wipe: 0,
+            pending_floor: 0,
+            went_down: false,
+            min_floor: 1,
+            max_floor: 1,
+            route_entity: 0,
+            form_19: 0,
+            current_floor: 1,
+            floor_assets,
+            width_table: width_table.to_vec(),
+            tile_walk: tile_walkability.to_vec(),
             afterimage_x: [0; 4],
             afterimage_y: [0; 4],
             view_locked: false,
@@ -327,7 +340,159 @@ impl GameScene {
             ease_cam_y: 0,
             ease_target_x: 0,
             ease_target_y: 0,
-        })
+        };
+        scene.load_floor_data(maplv, player_px, player_py, records)?;
+        Ok(scene)
+    }
+
+    /// loadFloorData 的原地重载（换层遮幅中段 a.java:3183 调用同方法）：
+    /// 重建 view/entities/grid/walkable，其余场景状态（玩家/HUD/RNG/popup）保留。
+    pub fn load_floor_data(
+        &mut self,
+        maplv: &[u8],
+        player_px: i32,
+        player_py: i32,
+        records: &[(u8, u16, u16, i16, bool)],
+    ) -> Result<(), String> {
+        let view = GameView::from_maplv(maplv, player_px, player_py)?;
+        let cols = view.wide as usize;
+        let rows = view.high as usize;
+        let mut walkable = vec![vec![false; cols]; rows];
+        for y in 0..rows {
+            for x in 0..cols {
+                // rebuildWalkability（a.java:6954-6972）的索引：**行距 wide·4、
+                // 列距 2**（var1 行尾 +=wide<<1 叠加列循环的 ×2）——与 paintTileLayer
+                // 的行距 wide·2、列距 1 是同一数组的两套读法（原版共存）。
+                // A 级：oracle FLD 134（walkableGrid）13×13 逐格复算匹配。
+                let idx = (y * cols * 4 + x * 2) as i32;
+                let tile = view.terrain_at(0, idx) as usize;
+                walkable[y][x] = tile < self.tile_walk.len() && self.tile_walk[tile] == 1;
+            }
+        }
+        let mut entities = EntityTable::new(100);
+        let mut grid = CellGrid::new(view.wide, view.high);
+        for &(type_code, x, y, param, visible) in records {
+            let img_h = self.images.entity[type_code as usize].as_ref().map(|i| i.height);
+            let idx = entity::spawn(
+                &mut entities,
+                &mut grid,
+                type_code as i32,
+                x as i32,
+                y as i32,
+                param,
+                &self.width_table,
+                img_h,
+            );
+            if !visible {
+                entities.visible[idx] = false; // m_122 特例分支（5/81/6/12/76/82/83）
+            }
+        }
+        entity::sort_by_y(&mut entities, &mut grid);
+        self.view = view;
+        self.entities = entities;
+        self.grid = grid;
+        self.walkable = walkable;
+        self.minimap = None;
+        Ok(())
+    }
+
+    /// changeFloor（a.java:7116-7160）：层号合法性（strict=键 49/55 路径；
+    /// 楼梯路径 strict=false 跳过已达层检查）→ 置遮幅态 + 记录目标层。
+    /// 越界提示浮层（miscTexts 0-3）属交互批次——todo 守卫。
+    pub fn change_floor(&mut self, target: i32, down: bool, strict: bool) -> bool {
+        if strict {
+            if target < self.min_floor || target > self.max_floor {
+                todo!("changeFloor 已达层提示浮层（miscTexts[0/1]，交互批次）")
+            }
+        }
+        if target < 0 || target > 55 {
+            // f_int_68=55（a.java:808）；miscTexts[2/3]
+            todo!("changeFloor 层界提示浮层（miscTexts[2/3]，交互批次）")
+        }
+        self.transitioning = true;
+        if target < self.min_floor {
+            self.min_floor = target;
+        } else if target > self.max_floor {
+            self.max_floor = target;
+            // f_int_154 全局进度（RMS）不追踪
+        }
+        // m_119(currentFloor)（楼层状态序列化 → RMS，Rust 不追踪）
+        self.pending_floor = target;
+        self.went_down = down;
+        true
+    }
+
+    /// 遮幅中段换层（a.java:3180-3206）：loadFloorData + 落点特例
+    /// （0/50/1-上行 m_024；其余 findFloorGateEntity → m_031）+ 小地图 + 步效果。
+    fn swap_floor(&mut self) {
+        self.floor = self.pending_floor;
+        self.current_floor = self.pending_floor;
+        let fa = self.floor_assets[self.pending_floor as usize]
+            .clone()
+            .expect("层资产未提供");
+        let px = self.view.player_px;
+        let py = self.view.player_py;
+        self.load_floor_data(&fa.maplv, px, py, &fa.records)
+            .expect("层资产重载失败");
+        if self.floor == 0 {
+            self.m_024(1, 2);
+            self.view.center_on_player();
+        } else if self.floor == 50 {
+            self.m_024(6, 7);
+            self.view.center_on_player();
+        } else if self.floor == 1 && !self.went_down {
+            self.m_024(6, 11);
+            self.view.center_on_player();
+        } else if let Some((gx, gy)) = self.find_floor_gate(self.went_down) {
+            self.m_031(gx, gy);
+        }
+        self.build_minimap();
+        self.apply_step_cell_effects();
+    }
+
+    /// findFloorGateEntity（a.java:7096-7114）：up=true 找型 7、false 找型 8；
+/// 换层落点直传 f_bool_18（false=上楼抵达→机型 8 下楼梯），
+    /// param>>9==0（低 9 位无高字节——目标层 ≤255 的常规门）。
+    fn find_floor_gate(&self, up: bool) -> Option<(i32, i32)> {
+        let want = if up { 7 } else { 8 };
+        for e in 0..self.entities.count {
+            if self.entities.entity_type[e] == want && (self.entities.param[e] >> 9) == 0 {
+                return Some((self.entities.pixel_x[e] >> 5, self.entities.pixel_y[e] >> 5));
+            }
+        }
+        None
+    }
+
+    /// m_031（a.java:5797-5810）：楼梯落点 = 首个可行走邻格（上/下/左/右序）。
+    fn m_031(&mut self, mut gx: i32, mut gy: i32) {
+        if self.walkable_at(gx, gy - 1) {
+            gy -= 1;
+        } else if self.walkable_at(gx, gy + 1) {
+            gy += 1;
+        } else if self.walkable_at(gx - 1, gy) {
+            gx -= 1;
+        } else if self.walkable_at(gx + 1, gy) {
+            gx += 1;
+        }
+        self.m_024(gx, gy);
+        self.view.center_on_player();
+    }
+
+    /// m_024（a.java:5183-5189）：格坐标直置 + 步进度清零。
+    fn m_024(&mut self, cx: i32, cy: i32) {
+        self.player_cell_x = cx;
+        self.player_cell_y = cy;
+        self.view.player_px = cx << 5;
+        self.view.player_py = cy << 5;
+        self.step_progress = 0;
+    }
+
+    fn walkable_at(&self, x: i32, y: i32) -> bool {
+        x >= 0
+            && y >= 0
+            && x < self.view.wide
+            && y < self.view.high
+            && self.walkable[y as usize][x as usize]
     }
 
     /// 加载步 11（a.java:3504-3514）：进游戏视图 + 居中相机。
@@ -687,16 +852,28 @@ impl GameScene {
                     match entity::render_category(t) {
                         1 => match t {
                             1 | 2 | 3 => {
-                                // 门（a.java:5381-5407）：耗钥 → markEntityRemoved
-                                // + 重建小地图；无钥 → 阻挡 + walkStepCount=0（提示浮层）
+                                // 门（a.java:5381-5407）：耗钥（consumeKeyForDoor
+                                // 内部 spawnPopup kind1 图标 a.java:7723-7745）→
+                                // markEntityRemoved + 重建小地图；无钥 → 阻挡 +
+                                // walkStepCount=0（提示浮层属交互批次）
                                 let door = match t {
                                     1 => crate::combat::door_code::YELLOW,
                                     2 => crate::combat::door_code::RED,
                                     _ => crate::combat::door_code::BLUE,
                                 };
-                                let (consumed, _) = crate::combat::consume_key_for_door(&mut self.player, door);
+                                let (consumed, icon) =
+                                    crate::combat::consume_key_for_door(&mut self.player, door);
                                 if consumed {
                                     entity::remove(&mut self.entities, e);
+                                    self.popups.spawn(
+                                        1,
+                                        icon,
+                                        self.view.player_px,
+                                        self.view.player_py,
+                                        self.view.cam_x,
+                                        self.view.cam_y,
+                                        self.images.popup.digit_strips[0].width / 11,
+                                    );
                                     self.build_minimap();
                                 } else {
                                     self.walk_step_count = 0;
@@ -871,8 +1048,17 @@ impl GameScene {
             match entity::render_category(t) {
                 1 => match t {
                     6 => self.player_bob_applied = true, // f_bool_07（喷泉浮沉）
-                    7 | 8 => {
-                        todo!("楼梯换层（changeFloor，walkPhase 4 动画批次）")
+                    7 => {
+                        // 上楼梯（a.java:5650-5655）：changeFloor(param, false, false)
+                        let target = (self.entities.param[e] & 0xff) as i32;
+                        self.change_floor(target, false, false);
+                        self.key_held = 0;
+                    }
+                    8 => {
+                        // 下楼梯（a.java:5656-5661）：changeFloor(param, true, false)
+                        let target = (self.entities.param[e] & 0xff) as i32;
+                        self.change_floor(target, true, false);
+                        self.key_held = 0;
                     }
                     _ => {} // 5 宝箱/76/83 场景门：后续批次
                 },
@@ -964,9 +1150,11 @@ impl GameScene {
                 let x = SCREEN_W - ((self.view.wide + 1) * MINIMAP_PX_PER_CELL);
                 g.draw_image(mm, x, view_top_y(), 0);
                 g.set_color(MINIMAP_PLAYER_DOT);
+                // a.java:2397-2398：点 = playerCellX/Y（**格坐标**——步进中
+                // 与像素 >>5 不同，上/左行时像素已进目标格而格坐标未更新）
                 g.fill_rect(
-                    x + (self.view.player_px >> 5) * MINIMAP_PX_PER_CELL,
-                    view_top_y() + (self.view.player_py >> 5) * MINIMAP_PX_PER_CELL,
+                    x + self.player_cell_x * MINIMAP_PX_PER_CELL,
+                    view_top_y() + self.player_cell_y * MINIMAP_PX_PER_CELL,
                     MINIMAP_DOT_PX,
                     MINIMAP_DOT_PX,
                 );
@@ -977,6 +1165,33 @@ impl GameScene {
         // 楼梯指示（f_bool_13；稳态 false—— proximity 更新在 lockCameraOn/行走批次）
         self.popups.draw(g, &self.images.popup);
         m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
+        // 换层遮幅（paint 公共尾 a.java:3171-3215）：状态机先行、后画黑格。
+        // 闭合（wipe_closing）1..=4 全黑 → 中段换层 → 开启 4..=0。
+        if self.transitioning {
+            if self.wipe_closing {
+                self.wipe += 1;
+                if self.wipe > 4 {
+                    self.wipe = 4;
+                    self.wipe_closing = false;
+                    self.swap_floor();
+                }
+            } else {
+                self.wipe -= 1;
+                if self.wipe <= 0 {
+                    self.wipe_closing = true;
+                    self.transitioning = false;
+                }
+            }
+            let size = self.wipe * 2;
+            let off = 4 - self.wipe;
+            g.set_color(BLACK);
+            for row in 0..40 {
+                let y = off + row * 8;
+                for col in 0..30 {
+                    g.fill_rect(off + col * 8, y, size, size);
+                }
+            }
+        }
     }
 
     /// drawParallaxBackdrop（a.java:6840-6867）：滚动 -1/拍（PARALLAX_WRAP 回绕），
@@ -1124,8 +1339,18 @@ impl GameScene {
                                     draw_image_clipped(g, &self.images.open_anim, sx + OPEN_ANIM_DX, sy + OPEN_ANIM_DX - (frame * OPEN_ANIM_STEP), frame_off, 0, OPEN_ANIM_W, OPEN_ANIM_H);
                                 } else if t != 72 {
                                     draw_image_clipped(g, img, (sx + cx_off), sy - (h - ANCHOR_MARGIN_16) + bob, frame_off, 0, w, h);
+                                } else if self.route_entity != e as i32 {
+                                    // 型 72 非追踪实体：静态（无 bob），y-(h-32)（a.java:6647-6648）
+                                    draw_image_clipped(g, img, (sx + cx_off), sy - (h - CELL_PX), frame_off, 0, w, h);
                                 } else {
-                                    todo!("paintEntityLayer case 32 的 72 型多形态（f_byte_19 倍率 + f_int_127）")
+                                    // 追踪实体：形态号帧（f_byte_19；==3 时镜像，a.java:6650-6657）
+                                    let mut src_y = h * self.form_19;
+                                    if self.form_19 == 3 {
+                                        src_y -= h;
+                                        crate::menu_family::draw_edge_patch(g, img, sx + cx_off, sy - (h - CELL_PX), frame_off, src_y, w, h, 1);
+                                    } else {
+                                        draw_image_clipped(g, img, (sx + cx_off), sy - (h - CELL_PX), frame_off, src_y, w, h);
+                                    }
                                 }
                             }
                             _ => {}

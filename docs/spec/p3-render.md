@@ -198,6 +198,50 @@ walkPhase 0/1/2/5 状态机、场上战斗、胜利跳格、popup 环形队列�
 诊断方法学：shim ops 上限 256 → 临时 2048 重编拿全量 ops 对拍（事后还原 +
 reference 门禁重验 A==B==C 等价 PASS）。
 
+## 3.8 换层全链对拍（2026-10-10，第十一批）
+
+**结论：新场景 floor1-to-floor2（T537-1500，964 帧）逐 tick FRAME sha 全对拍
+PASS**——行走（4 场战斗）→ 踩型 7 楼梯（11,1）→ changeFloor 遮幅（闭合
+1..4 → 中段换层 → 开启 4..1）→ floor 2 落地（findFloorGateEntity 型 8
+(1,1) → m_031 邻格 (1,2) → 居中相机）。场景已入 gates reference 套件
+（A==B==C 9/9 PASS）。
+
+本批新 A 级发现：
+
+1. **changeFloor（a.java:7116-7160）**：strict 路径（键 49/55）查
+   min/maxFloorReached（miscTexts 0/1 提示）；层界 0..55（f_int_68，
+   a.java:808）；置 f_bool_16 + 记录 f_byte_23（目标层）/f_bool_18（下楼标记，
+   型 7 上楼传 false）；m_119 存离层状态（RMS，Rust 不追踪）。
+2. **遮幅是 paint 侧状态机**（a.java:3171-3215，公共尾）：f_bool_17 构造
+   true=闭合相；++wipe>4 → 钳 4、翻相、**同 paint 中段换层**（loadFloorData
+   + 落点 + buildMinimap + applyStepCellEffects）；开启相 --wipe≤0 → 收。
+   黑格 40×30 网格 8px 步进、尺寸 wipe<<1、偏移 4-wipe、setColor(0)
+   （不透明黑，shim opaqueColor |0xFF000000）。
+3. **换层落点直传 f_bool_18**：findFloorGateEntity(true/false) 找型 7/型 8
+   （param>>9==0）——上楼抵达（f_bool_18=false）落机型 8 下楼梯；
+   m_031 落点 = 首个可行走邻格（上/下/左/右序，a.java:5797-5810）。
+   特例：floor 0→m_024(1,2)、floor 50→(6,7)、floor 1 上行→(6,11)。
+4. **m_054 槽修复的原版残留进入交互路径**：floor 1 排序后 (2,9) 的格槽
+   含黄门 id（FLD 137 逐格一致）——上行踩 (2,9) 触发**开门**（耗黄钥匙
+   spawnPopup kind1 图标 + m_047 cat1 重建小地图）。对拍实证原版槽表
+   的"错位"是可交互语义的一部分。
+5. **markEntityRemoved 的字节码共尾**（javap offset 188）：buildMinimap
+   无条件执行于**所有类别**（Vineflower 反编译折叠进 case 1 是投影假象；
+   cat 8/16/32 从 225 起不走 188）。此前"cat 1 才重建"的读法作废。
+6. **小地图玩家点用 playerCellX/Y**（a.java:2397-2398）而非像素 >>5——
+   上/左行步进中格坐标未更新而像素已进目标格（gameplay-floor1 窗口的
+   下行恰好末拍翻转，掩盖至本批）。
+7. **型 72（cat 32）渲染臂**（a.java:6645-6657）：非追踪实体静态贴
+   （无 bob、y-(h-32)、src frameOff/0）；追踪实体（=f_int_127，脚本路线
+   对象）按形态号 f_byte_19 取帧行（==3 时镜像）。
+
+诊断方法学（二次验证）：FLD 134 早期解析曾有嵌套数组错位（错误地显示
+(7,7) 不可走）——以 fixture 复算 + sha 双 trace 互证裁决；shim ops 上限
+4096 通道二度用于换层拍全量 ops 对齐（用后还原 + reference 重验）。
+
+剩余（下批）：宝箱 m_073 + 装备拾取（33-40/79/80）+ cat 16/32 的 67/69
+拼装臂 + mode 11 对话 + mode 4/19 暂停菜单。
+
 剩余（下批）：changeFloor 楼梯换层（walkPhase 4 + 动画）、宝箱 m_073、
 装备拾取 33-40/79/80、cat 16/32/67/69 渲染臂、mode 11 对话、mode 4/19。
 
