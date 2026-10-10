@@ -64,10 +64,11 @@ pub fn scale_enemy_stats(base: &CombatTables, multiplier: i32) -> ScaledEnemies 
 /// effectiveAttackVsType 忠实移植（a.java:9940-9950）：
 /// 特性位 &1 + 背包有 23 号 → ×2；特性位 &2 + 背包有 24 号 → ×2；返回 atk × 倍。
 pub fn effective_attack_vs_type(player: &PlayerCombat, trait_flags: u8) -> i32 {
+    use item_kind::{TRAIT1_AMULET, TRAIT2_AMULET};
     let mut mult = 1;
-    if (trait_flags & 1) != 0 && player.find_item(23) >= 0 {
+    if (trait_flags & 1) != 0 && player.find_item(TRAIT1_AMULET) >= 0 {
         mult = 2;
-    } else if (trait_flags & 2) != 0 && player.find_item(24) >= 0 {
+    } else if (trait_flags & 2) != 0 && player.find_item(TRAIT2_AMULET) >= 0 {
         mult = 2;
     }
     player.atk * mult
@@ -119,27 +120,48 @@ pub fn predict_hp_loss_vs_type(
     )
 }
 
-/// spawnPopup kind 常量（a.java:9650-9663 分支语义）。
+/// spawnPopup kind 常量（a.java:9650-9663 分支语义 + tickBattle 写点）。
 pub mod popup_kind {
+    /// 1：左移小字（钥匙消耗）
     pub const LEFT_SHIFT: i32 = 1;
+    /// 2：玩家侧预测伤害数字（kind2 走数字宽度居中分支）
+    pub const PLAYER_DAMAGE: i32 = 2;
+    /// 4：特殊（y/宽常量 240/30）
     pub const SPECIAL: i32 = 4;
-    // 5..=7：彩色右移（tickBattle 按 f_int_151%3 选色）
+    /// 5..=7：彩色右移（tickBattle 按 f_int_151%3 选色）
+    pub const ENEMY_DAMAGE_BASE: i32 = 5;
+}
+
+/// 门码（consumeKeyForDoor 参数；a.java:8081-8106 + interactWithCell 对账）。
+pub mod door_code {
+    pub const YELLOW: u8 = 26;
+    pub const RED: u8 = 27;
+    pub const BLUE: u8 = 28;
+}
+
+/// 战斗特性道具（effectiveAttackVsType 背包检索；a.java:9944-9948）。
+pub mod item_kind {
+    /// 特性位 &1 配对：攻击 ×2
+    pub const TRAIT1_AMULET: u8 = 23;
+    /// 特性位 &2 配对：攻击 ×2
+    pub const TRAIT2_AMULET: u8 = 24;
 }
 
 /// consumeKeyForDoor 忠实移植（a.java:8081-8106）：
 /// 26=黄门（popup 1,2）/ 27=红门（popup 1,1）/ 28=蓝门（popup 1,0）。
 /// 返回 (是否消耗, popup_value)。
-pub fn consume_key_for_door(player: &mut PlayerCombat, door_code: u8) -> (bool, i32) {
-    match door_code {
-        26 if player.yellow_keys > 0 => {
+pub fn consume_key_for_door(player: &mut PlayerCombat, door: u8) -> (bool, i32) {
+    use door_code::{BLUE, RED, YELLOW};
+    match door {
+        YELLOW if player.yellow_keys > 0 => {
             player.yellow_keys -= 1;
             (true, 2)
         }
-        27 if player.red_keys > 0 => {
+        RED if player.red_keys > 0 => {
             player.red_keys -= 1;
             (true, 1)
         }
-        28 if player.blue_keys > 0 => {
+        BLUE if player.blue_keys > 0 => {
             player.blue_keys -= 1;
             (true, 0)
         }

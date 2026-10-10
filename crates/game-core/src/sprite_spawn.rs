@@ -26,6 +26,7 @@ pub fn spawn_param_and_visibility(type_code: u8, extra: &[u8], doors: &DoorTable
     let mut visible = false;
     let param = match type_code {
         4 => e0 + 1,
+        // 5 / 81（封印门，entity_kind::SEAL_GATE）
         5 | 81 => {
             visible = true;
             e0 + 1

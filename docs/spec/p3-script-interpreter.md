@@ -119,3 +119,34 @@ SEE 所写——findPath(1,11→3,10) 在第 51 层不可达（地形+实体槽�
 
 测试：walk_camera_golden.rs 4 向量（步进 4×8px/边缘 ±8/easing 收敛/缓冲
 末端消费）；entity_golden.rs 期望按 m_133 缓冲序校准（目标端优先）。
+
+---
+
+## P3.2~P3.4 联合独立复核记录（2026-10-10 第二轮）
+
+裁决 fail → 16 findings（4 high）全收口：
+- R1(high) SWD 游标：Java var2 在 substring 后无条件 +3，分支内 +1 ⇒ 原始+4；
+  实现误用未推进值 ⇒ 真实数据 3 条 SWD 全部死锁。修正 + SWD 边界说明。
+- R2/R3(high) 相机边缘阈值四向两对两错（+90 幽灵补丁源于文档幽灵 320；
+  f_int_59 唯一值 252）→ 阈值逐方向按 a.java:3556-3577 校准，Dir 枚举采用。
+- R4(high) m_048 格登记宽度硬编码 1 → 宽度表 f_byte_arr_07（88 项夹具）+
+  m_044 特例（69→3 格、72→1 格）+ width_cells()；调用方全量更新。
+- R5(medium) 枚举采用收口：entity_kind/GameMode/Dir/Category 进生产代码。
+- R6(medium) 门码 26/27/28、物品 23/24、popup kind 2 常量化（door_code/
+  item_kind/popup_kind 模块）。
+- R7(medium) m_105 尾行 m_064 重导出 offset 补齐（a.java:8700）。
+- R8(medium) m_064 y 钳制嵌套怪癖登记保留（真实地图宽度下不触发）。
+- R9(medium) 步进机完整化：tick_stepping（±8 + 边缘跟随 + 32px 归格）。
+- R10(medium) MVS panic → 委托 HostCtx::mvs_exchange（边界模式一致）。
+- R11(medium) case 31 副作用缺口：层重载 hook 已表达最小保真，全序列
+  （SWD 清除/m_059 格重置）随 P3.2 实体模块边界登记——夹具无 GUT_31。
+- R12(medium) 门禁覆盖：SWD golden 补充至本轮 spec 记录；深场景 Rust-vs-Java
+  对拍待行走/战斗模块入 ReplayHost 后启用（P3.5）。
+- R13~R16(low) 证据指针校准（m_048:6348/m_100:8574/m_104:8628）、容量出处
+  注释、push 序注释更正、测试改名（path_not_found_without_entity_slots）。
+
+复核确认的正确面（摘）：m_048 主体/m_100/m_047 首行、m_133+m_134 全怪癖、
+effectiveAttackVsType、predictBattleHpLoss、consumeKeyForDoor、gainGold、
+scaleEnemyStats、RES_0 重置表、行尾收尾门、SEE 落穿、GIN 尾递归、
+游标链（TAK/MOV/GUT/DES/LAY/ROS/ADD/GLV/END/SMS）、openDialogPage
+（UTF-16 计数/129/11/+10）——逐行对上。红线干净。

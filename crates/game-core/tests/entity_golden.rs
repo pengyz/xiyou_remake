@@ -7,6 +7,13 @@
 use game_core::entity::{self, CellGrid, EntityTable};
 use game_core::pathfind::{find_path, Walkability};
 
+fn width_table() -> Vec<i32> {
+    include_str!("fixtures/type_width_px.txt")
+        .lines()
+        .filter_map(|l| l.trim().parse().ok())
+        .collect()
+}
+
 fn grid51() -> (i32, i32, Vec<Vec<bool>>) {
     // m_121 + m_061：maplv51 → 13×13 地形可行走网格
     let data = include_bytes!("fixtures/maplv51.bin");
@@ -30,10 +37,11 @@ fn grid51() -> (i32, i32, Vec<Vec<bool>>) {
 #[test]
 fn spawn_registers_cell_slot_and_stair_anchor() {
     // m_048（a.java:9641 区域）：像素取整、槽位登记、楼梯锚点
+    let width_table = width_table();
     let mut t = EntityTable::new(100);
     let mut g = CellGrid::new(13, 13);
     // type 7（上楼梯）在像素 (96, 320) → 格 (3, 10)
-    let idx = entity::spawn(&mut t, &mut g, 7, 96, 320, 0);
+    let idx = entity::spawn(&mut t, &mut g, 7, 96, 320, 0, &width_table);
     assert_eq!(idx, 0);
     assert_eq!(t.pixel_x[0], 96);
     assert_eq!(t.pixel_y[0], 320);
@@ -48,10 +56,11 @@ fn spawn_registers_cell_slot_and_stair_anchor() {
 #[test]
 fn remove_marks_solid_and_lookup_skips() {
     // m_047（a.java:6308：solid=1）+ m_100 跳过 solid==1
+    let width_table = width_table();
     let mut t = EntityTable::new(100);
     let mut g = CellGrid::new(13, 13);
-    let a = entity::spawn(&mut t, &mut g, 26, 96, 320, 0); // 黄门
-    let b = entity::spawn(&mut t, &mut g, 26, 128, 320, 0); // 同类型另一扇
+    let a = entity::spawn(&mut t, &mut g, 26, 96, 320, 0, &width_table); // 黄门
+    let b = entity::spawn(&mut t, &mut g, 26, 128, 320, 0, &width_table); // 同类型另一扇
     assert_eq!(entity::cell_entity(&g, &t, 3, 10, 26), a as i32);
     entity::remove(&mut t, a as usize);
     assert_eq!(t.solid[a as usize], 1);
@@ -62,11 +71,12 @@ fn remove_marks_solid_and_lookup_skips() {
 #[test]
 fn remove_all_of_type_matches_des_negative() {
     // DES 负参批量移除（executeScriptInstruction DES 分支）
+    let width_table = width_table();
     let mut t = EntityTable::new(100);
     let mut g = CellGrid::new(13, 13);
-    entity::spawn(&mut t, &mut g, 44, 32, 32, 0);
-    entity::spawn(&mut t, &mut g, 44, 64, 32, 0);
-    entity::spawn(&mut t, &mut g, 45, 96, 32, 0);
+    entity::spawn(&mut t, &mut g, 44, 32, 32, 0, &width_table);
+    entity::spawn(&mut t, &mut g, 44, 64, 32, 0, &width_table);
+    entity::spawn(&mut t, &mut g, 45, 96, 32, 0, &width_table);
     entity::remove_all_of_type(&mut t, 44);
     assert_eq!(entity::cell_entity(&g, &t, 1, 1, 44), -1);
     assert!(t.solid[0] == 1 && t.solid[1] == 1);
@@ -104,9 +114,9 @@ fn find_path_respects_terrain() {
     let r = find_path(&walk, 0, 1, 2, 0);
     // (0,1)→(1,1)→(2,1)→(2,0)：3 步（绕过 (1,0) 墙）
     assert!(r.found);
-    // m_133 缓冲序 = 回溯序（目标端优先）：up, right, right；
-    // 游戏消费走 --walkStepCount（末端 = 行走首步），语义一致
-    assert_eq!(r.steps, vec![0, 2, 2]);
+    // m_133 缓冲序 = 目标端优先：首 push 为目标侧末腿（up），消费走 --walkStepCount
+    // 自末端（= 行走首段 right,right）——方向码 Up=1
+    assert_eq!(r.steps, vec![1, 2, 2]);
 }
 
 /// BUG-006 重放：真实第 51 层网格上 (1,11) → (3,10)。
@@ -117,7 +127,7 @@ fn find_path_respects_terrain() {
 /// （3 步路径存在），冻结来自行尾收尾门（a.java:8551）覆写 dialogPhase 6→4、
 /// 使已武装的行走永远不被执行。
 #[test]
-fn bug006_replay_floor51_path_exists_with_3_steps() {
+fn path_not_found_without_entity_slots_floor51() {
     let (cols, rows, terrain) = grid51();
     let walk = Walkability {
         terrain,
@@ -140,6 +150,7 @@ fn bug006_replay_with_sprite51_entities_full_chain() {
     use game_core::sprite_spawn::{spawn_param_and_visibility, DoorTables};
 
     let (cols, rows, terrain) = grid51();
+    let width_table = width_table();
     let mut t = EntityTable::new(100);
     let mut g = CellGrid::new(cols, rows);
 
@@ -158,7 +169,7 @@ fn bug006_replay_with_sprite51_entities_full_chain() {
 
     for rec in &sp.records {
         let (param, _visible) = spawn_param_and_visibility(rec.type_code, &rec.extra, &doors);
-        entity::spawn(&mut t, &mut g, rec.type_code as i32, rec.x as i32, rec.y as i32, param);
+        entity::spawn(&mut t, &mut g, rec.type_code as i32, rec.x as i32, rec.y as i32, param, &width_table);
     }
     assert_eq!(t.count, sp.records.len(), "全部记录生成");
 

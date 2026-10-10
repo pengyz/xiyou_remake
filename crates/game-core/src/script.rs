@@ -308,7 +308,7 @@ impl<'d> ScriptEngine<'d> {
             if target_type > 0 {
                 let idx = host.cell_entity(cell_x, cell_y, target_type);
                 if idx >= 0 {
-                    if host.entity_type(idx) == 72 {
+                    if host.entity_type(idx) == crate::enums::entity_kind::ROUTE {
                         host.set_entity_route_flag(idx);
                     }
                     let (px, py) = host.entity_pixel(idx);
@@ -354,7 +354,9 @@ impl<'d> ScriptEngine<'d> {
             self.state.script_cursor = self.state.last_delim_pos + 1;
         } else if var3 == "SWD" {
             host.swd_convert_type81();
-            self.state.script_cursor = var2 + 1; // 无参数（Java：var2 未推进 ⇒ +1）
+            // Java：var2 在 substring 后无条件 +3（a.java:8221-8222），
+            // SWD 分支 scriptCursor = var2 + 1 ⇒ 原始 cursor + 4（复核 R1）
+            self.state.script_cursor = var2p4 + 1;
         } else if var3 != "MVS" {
             if var3 == "LAY" {
                 host.reload_floor_entities(self.state.current_floor); // m_119
@@ -398,11 +400,10 @@ impl<'d> ScriptEngine<'d> {
                 host.ces_camera(idx);
                 // scene_delay：switch(f_byte_arr_03[type]) 类目表（a.java:8367；
                 // 类目表初始化 a.java:6204-6252——复核 R3 纠正：查类目非裸 type）
-                self.state.scene_delay = match self.data.type_categories[t as usize] {
-                    1 | 8 | 16 => 5,
-                    2 | 4 => 8,
-                    _ => 0,
-                };
+                self.state.scene_delay = crate::enums::Category::from_raw(
+                    self.data.type_categories[t as usize],
+                )
+                .scene_delay();
                 self.state.script_cursor = self.state.last_delim_pos + 1;
             } else if var3 == "GIN" {
                 let k = self.parse_script_int(&line, var2p4, '_');
@@ -487,7 +488,7 @@ impl<'d> ScriptEngine<'d> {
                 );
             } else if var3 == "END" {
                 self.parse_script_int(&line, var2p4, ' ');
-                self.state.game_mode = 20;
+                self.state.game_mode = crate::enums::GameMode::Ending.raw();
                 host.exit_application();
                 self.state.script_cursor = self.state.last_delim_pos + 1;
             } else if var3 == "SMS" {
@@ -495,8 +496,8 @@ impl<'d> ScriptEngine<'d> {
                 self.state.script_cursor = self.state.last_delim_pos + 1;
             }
         } else {
-            // MVS：P3.2 边界（数据域 68 条脚本零使用）
-            panic!("MVS P3.2 边界：语义移植待实体模块（deobf a.java:8490-8564）");
+            // MVS：P3.2 边界（数据域 68 条脚本零使用）——委托 hook，由实现方决定
+            host.mvs_exchange();
         }
 
         // 尾部收尾门（a.java:8551-8563）：行被消费完 ⇒ phase=4 + 旗标 + 相机

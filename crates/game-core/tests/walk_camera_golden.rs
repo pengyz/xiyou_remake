@@ -3,6 +3,7 @@
 //! m_105 easing trace（tick20002-20010 十步收敛）、a.java:3546-3593/:8669-8700。
 
 use game_core::camera::Camera;
+use game_core::enums::Dir;
 use game_core::walk::{camera_edge_follow, next_script_walk_direction, WalkState};
 
 #[test]
@@ -15,7 +16,7 @@ fn stepping_y_direction_4_ticks_to_cross_cell() {
     let mut progress = 0i32;
     let mut cell_snaps = 0;
     for _ in 0..4 {
-        camera_edge_follow(&mut cam, 0, &mut px, &mut py);
+        camera_edge_follow(&mut cam, Dir::Down, &mut px, &mut py);
         progress += 8;
         if progress >= 32 {
             progress = 0;
@@ -33,7 +34,7 @@ fn camera_edge_follow_shifts_by_8() {
     cam.offset_x = 40; // 行走态相机偏移恒 ≤ 64（m_064 夹取）
     let mut px = 128i32; // 128 + 40 + 16 = 184 > 240 - 106 = 134 ✓ 触发
     let mut py = 0i32;
-    camera_edge_follow(&mut cam, 2, &mut px, &mut py);
+    camera_edge_follow(&mut cam, Dir::Right, &mut px, &mut py);
     assert_eq!(px, 136);
     assert_eq!(cam.offset_x, 32);
 }
@@ -63,11 +64,11 @@ fn script_walk_consumes_buffer_from_tail() {
     walk.script_walk_armed = true;
 
     let d1 = next_script_walk_direction(&mut walk);
-    assert_eq!(d1, Some(2), "末端 = 行走首步（向右）");
+    assert_eq!(d1, Some(Dir::Right), "末端 = 行走首步（向右）");
     let d2 = next_script_walk_direction(&mut walk);
-    assert_eq!(d2, Some(2));
+    assert_eq!(d2, Some(Dir::Right));
     let d3 = next_script_walk_direction(&mut walk);
-    assert_eq!(d3, Some(3));
+    assert_eq!(d3, Some(Dir::Left));
     let d4 = next_script_walk_direction(&mut walk);
     assert_eq!(d4, None);
     assert!(!walk.script_walk_armed, "耗尽 ⇒ 取消武装");

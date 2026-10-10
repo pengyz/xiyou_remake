@@ -8,6 +8,7 @@
 //! - 步进 trace 实证：gameplay-floor1 tick1513-1516 玩家 y 328→336→344→352（4×8px）
 
 use crate::camera::Camera;
+use crate::enums::Dir;
 
 pub const STEP_PX: i32 = 8;
 pub const CELL_PX: i32 = 32;
@@ -47,50 +48,75 @@ impl Default for WalkState {
     }
 }
 
-/// 相机边缘跟随（run walkPhase-1 分支 a.java:3555-3577 的方向敏感写点）。
+/// 相机边缘跟随（run walkPhase-1 分支 a.java:3555-3577）。
+/// 阈值逐方向核对（复核 R2/R3）：下 252-106=146；上 106；右 240-106=134；左 106。
 pub fn camera_edge_follow(
     camera: &mut Camera,
-    dir: i32,
+    dir: Dir,
     player_px: &mut i32,
     player_py: &mut i32,
 ) {
     match dir {
-        0 => {
+        Dir::Down => {
             *player_py += STEP_PX;
-            if *player_py + camera.offset_y + 16 > camera.view_h - EDGE_MARGIN + 90 {
+            if *player_py + camera.offset_y + 16 > camera.view_h - EDGE_MARGIN {
                 camera.set_offset(camera.offset_x, camera.offset_y - STEP_PX);
             }
         }
-        1 => {
+        Dir::Up => {
             *player_py -= STEP_PX;
-            if *player_py + camera.offset_y + 16 < EDGE_MARGIN + 16 {
+            if *player_py + camera.offset_y + 16 < EDGE_MARGIN {
                 camera.set_offset(camera.offset_x, camera.offset_y + STEP_PX);
             }
         }
-        2 => {
+        Dir::Right => {
             *player_px += STEP_PX;
             if *player_px + camera.offset_x + 16 > camera.view_w - EDGE_MARGIN {
                 camera.set_offset(camera.offset_x - STEP_PX, camera.offset_y);
             }
         }
-        3 => {
+        Dir::Left => {
             *player_px -= STEP_PX;
             if *player_px + camera.offset_x + 16 < EDGE_MARGIN {
                 camera.set_offset(camera.offset_x + STEP_PX, camera.offset_y);
             }
         }
-        _ => {}
     }
 }
 
-/// dialogPhase-3 缓冲消费一步（a.java:4062 区域语义）：
+/// 完整步进 tick（a.java:3555-3593）：像素 ±8 + 相机边缘跟随 + 32px 归格
+/// （progress 清零 + applyStepCellEffects hook）。
+#[allow(clippy::too_many_arguments)]
+pub fn tick_stepping(
+    walk: &mut WalkState,
+    camera: &mut Camera,
+    dir: Dir,
+    apply_step_effects: &mut dyn FnMut(&mut WalkState),
+) {
+    camera_edge_follow(camera, dir, &mut walk.pixel_x, &mut walk.pixel_y);
+    walk.step_progress_px += STEP_PX;
+    if walk.step_progress_px >= CELL_PX {
+        walk.step_progress_px = 0;
+        walk.cell_x = walk.pixel_x >> 5;
+        walk.cell_y = walk.pixel_y >> 5;
+        apply_step_effects(walk);
+    }
+}
+
+/// dialogPhase-3 缓冲消费一步（a.java:4062 区域语义；方向码 → Dir）：
 /// walkStepCount > 0 → 取 `buffer[--count]` 交给 tryStep；
 /// == 0 → script_walk_armed=false、dialogPhase=0（恢复脚本）。
 /// 返回 Option<方向码>（Some(dir) 时调用方执行 tryStep）。
-pub fn next_script_walk_direction(walk: &mut WalkState) -> Option<u8> {
+pub fn next_script_walk_direction(walk: &mut WalkState) -> Option<Dir> {
     if walk.walk_step_count > 0 {
         walk.walk_step_count -= 1;
-        Some(walk.walk_path_buffer[walk.walk_step_count])
+        Some(match walk.walk_path_buffer[walk.walk_step_count] {
+            0 => Dir::Down,
+            1 => Dir::Up,
+            2 => Dir::Right,
+            3 => Dir::Left,
+            other => panic!("未知方向码 {other}（buffer 损坏）"),
+        })
     } else {
         walk.script_walk_armed = false;
         None

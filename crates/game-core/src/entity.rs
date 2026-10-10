@@ -1,9 +1,10 @@
 //! 实体表与格子索引 —— Java m_048（生成）/ m_100（格查）/ m_047（移除）的忠实移植。
 //!
 //! 证据：reference/src/deobf/a.java
-//! - m_048 :9641 附近（像素取整、双数组登记、f_byte_15 格类型分配、楼梯锚点）
-//! - m_100 :6570 附近（格类型→容量→槽位表查实体，跳过 solid==1）
+//! - m_048 :6348（像素取整、双数组登记、f_byte_15 格类型分配、楼梯锚点）
+//! - m_100 :8574 附近（格类型→容量→槽位表查实体，跳过 solid==1）
 //! - m_047 :6308（solid=1 + 类目分派视觉字段）
+//! - 宽度表 f_byte_arr_07 :589（88 项）+ m_044 特例 :6250-6262（69→96px、72→32px）
 
 /// 实体表（100 槽，Java god class 的实体数组族）。
 pub struct EntityTable {
@@ -70,10 +71,22 @@ impl CellGrid {
     }
 }
 
-/// m_048 忠实移植：像素取整到格、实体字段初始化、格槽登记、楼梯锚点。
-/// 返回新实体索引。`width_fields`（f_int_arr_08[type]>>5）是绘制宽度格数，
-/// 影响多格登记（Java 按宽度逐格登记槽位）——P3.2 用 1（角色/物件默认宽 1 格，
-/// 多格宽表 f_int_arr_08 的初始化属实体常量域，随 P3.3 战斗考证补全）。
+/// 类型绘制宽度表（Java f_byte_arr_07，a.java:589，88 项；夹具 type_width_px.txt）。
+/// m_044 特例：type 69 → 96px（3 格）、type 72 → 32px（1 格）；m_045：类型
+/// 1/2/8/16/32 → 27px（27>>5 = 0 ⇒ ≤0 取 1 格）。其余 = 表值 >> 5，≤0 取 1。
+pub fn width_cells(type_id: i32, width_table: &[i32]) -> i32 {
+    let px = match type_id {
+        69 => 96,
+        72 => 32,
+        _ => width_table.get(type_id as usize).copied().unwrap_or(32),
+    };
+    let cells = px >> 5;
+    if cells <= 0 { 1 } else { cells }
+}
+
+/// m_048 忠实移植：像素取整到格、实体字段初始化、格槽登记（按类型宽度
+/// `width_cells` 逐格，复核 R4：type 69 = 3 格）、楼梯锚点。
+/// 返回新实体索引。
 pub fn spawn(
     table: &mut EntityTable,
     grid: &mut CellGrid,
@@ -81,6 +94,7 @@ pub fn spawn(
     px: i32,
     py: i32,
     param: i16,
+    width_table: &[i32],
 ) -> usize {
     let idx = table.count;
     let cell_x = (px + 16) >> 5;
@@ -97,24 +111,24 @@ pub fn spawn(
     table.solid[idx] = 0;
     table.count += 1;
 
-    // 格槽登记（Java var5 = f_int_arr_08[type]>>5，≤0 取 1）
-    let mut dx = 0;
-    for _ in 0..1 {
-        let mut ct = grid.cell_type[cell_y as usize][(cell_x + dx) as usize];
+    // 格槽登记（Java var5 = m_044 写入的 f_int_arr_08>>5，≤0 取 1；a.java:6351）
+    let width = width_cells(type_id, width_table);
+    for dx in 0..width {
+        let cx = (cell_x + dx) as usize;
+        let mut ct = grid.cell_type[cell_y as usize][cx];
         if ct == 0 {
             grid.next_cell_type += 1;
             ct = grid.next_cell_type;
-            grid.cell_type[cell_y as usize][(cell_x + dx) as usize] = ct;
+            grid.cell_type[cell_y as usize][cx] = ct;
         }
         let cap = grid.capacity[ct as usize];
         grid.slots[ct as usize][cap as usize] = (idx + 1) as u8;
         grid.capacity[ct as usize] += 1;
-        dx += 1;
     }
 
-    if type_id == 7 {
+    if type_id == crate::enums::entity_kind::STAIR_UP {
         table.stair_up = Some((snapped_x, snapped_y));
-    } else if type_id == 8 {
+    } else if type_id == crate::enums::entity_kind::STAIR_DOWN {
         table.stair_down = Some((snapped_x, snapped_y));
     }
     idx

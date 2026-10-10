@@ -10,10 +10,13 @@
 //!   dy=-w→0 / dy=+w→1；
 //! - 可通行判定 = isCellWalkable(terrain) || m_062(格有实体槽)。
 
-pub const DIR_UP: u8 = 0; // y + 1 行进方向（回溯映射，见模块注释）
-pub const DIR_DOWN: u8 = 1;
-pub const DIR_RIGHT: u8 = 2;
-pub const DIR_LEFT: u8 = 3;
+use crate::enums::Dir;
+
+/// 方向码常量复用 enums::Dir（复核 R12/R5：消灭双真相源）。
+pub const DIR_UP: u8 = Dir::Up as u8;
+pub const DIR_DOWN: u8 = Dir::Down as u8;
+pub const DIR_RIGHT: u8 = Dir::Right as u8;
+pub const DIR_LEFT: u8 = Dir::Left as u8;
 
 pub struct Walkability<'g> {
     /// f_bool_arr2_00[y][x]：地形可通行（m_061 由 maplv tile 表构建）
@@ -42,7 +45,7 @@ impl Walkability<'_> {
     }
 }
 
-/// m_133 返回值：found + 步数序列（方向码，tryStep 语义）。
+/// m_133 返回值：found + 步数序列（缓冲序 = 目标端优先，游戏自末端消费）。
 pub struct PathResult {
     pub found: bool,
     pub steps: Vec<u8>,

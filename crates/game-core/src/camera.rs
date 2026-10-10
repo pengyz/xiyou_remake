@@ -6,6 +6,14 @@
 //! - m_104 头部（:8246 区域）：cameraX/Y = 屏幕中心像素 - 相机偏移 = 玩家世界位
 //! trace 实证：m_105 每步 6px（Δ=16 时 (16>>2)+2），tick20002-20010 十步收敛。
 
+fn self_view_w() -> i32 {
+    240
+}
+
+fn self_view_h() -> i32 {
+    252 // f_int_59 唯一赋值（a.java:9384；复核 R2/R13：无 320）
+}
+
 pub struct Camera {
     /// f_int_56/57：相机偏移（左上角相对地图原点）
     pub offset_x: i32,
@@ -16,7 +24,8 @@ pub struct Camera {
     /// f_int_125/126：锚点目标
     pub target_x: i32,
     pub target_y: i32,
-    /// f_int_58/59：视口尺寸（240×320；m_121 里 252 与地图相关——Y 用 320/252 视场景）
+    /// f_int_58/59：视口尺寸（f_int_58=240、f_int_59=252，a.java:9384-9385——
+    /// 无 320；此前文档的 320 为幽灵值，复核 R13/R2 指认）
     pub view_w: i32,
     pub view_h: i32,
     /// 地图像素尺寸（f_int_52/53 = cells<<5）
@@ -41,8 +50,8 @@ impl Camera {
             view_h: 252, // m_121: f_int_59 = 252
             map_px_w,
             map_px_h,
-            map_fits_w: 240 >= map_px_w,
-            map_fits_h: 252 >= map_px_h,
+            map_fits_w: self_view_w() >= map_px_w,
+            map_fits_h: self_view_h() >= map_px_h,
         }
     }
 
@@ -61,7 +70,9 @@ impl Camera {
         } else {
             self.offset_x = (self.view_w - self.map_px_w) >> 1;
         }
-        if !self.map_fits_h {
+        // m_064 的 y 钳制嵌在 !f_bool_10 分支内（a.java:7047-7059 花括号结构，
+        // 复核 R8）：map 宽度适配时 y 落盘不钳制——原版怪癖保留。
+        if !self.map_fits_w {
             let min_y = -(((self.map_px_h >> 5) + 2) << 5) + self.view_h;
             self.offset_y = if y > 64 {
                 64
@@ -82,7 +93,8 @@ impl Camera {
         let _ = (player_px, player_py);
     }
 
-    /// m_105 忠实移植：每轴 (Δ>>2)+2 趋近 target，跨过后钳制（a.java:8669-8700）。
+    /// m_105 忠实移植：每轴 (Δ>>2)+2 趋近 target，跨过后钳制，尾行由锚点重导出
+    /// offset（a.java:8669-8700，复核 R7 补 :8700 尾行）。
     pub fn step_toward_target(&mut self) {
         if self.anchor_x < self.target_x {
             self.anchor_x += ((self.target_x - self.anchor_x) >> 2) + 2;
