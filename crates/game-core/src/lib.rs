@@ -2,6 +2,7 @@
 //!
 //! P3.1：脚本 DSL 解释器（docs/spec/p3-script-interpreter.md）。
 pub mod enums;
+pub mod game_view;
 pub mod layout;
 pub mod camera;
 pub mod combat;
