@@ -1,4 +1,4 @@
-//! mode 3 游戏画面场景（a.java paint case 3 :2388-2425 + run case 3 :3548-3679）。
+//! mode 3 游戏画面场景（a.java paint case 3 :2385-2422 + run case 3 :3545-3679）。
 //!
 //! 绘制链（paint 顺序，T544 实证 ops 同序）：
 //! `drawParallaxBackdrop(true)` → `paintTileLayer(0, view_top)` → `paintEntityLayer`
@@ -95,8 +95,22 @@ impl SceneImages {
     }
 }
 
-/// 玩家帧表 playerAnimTables[0]（a.java:480：{0,1,0,2}）。
+/// 玩家帧表 playerAnimTables[0]（a.java:477：{0,1,0,2}）。
 const PLAYER_FRAME_TABLE: [i32; 4] = [0, 1, 0, 2];
+
+/// f_bool_arr_02（initEntityTables 从构造字面量 f_bool_arr_03 拷贝，a.java:679/
+/// 6237）：true 的类型（0/5/6/7/8/10）占据插入窗口时**不**在其前插画玩家
+/// （paintEntityLayer 插入条件的 `!f_bool_arr_02[type]` 项，a.java:6510）。
+const BLOCKS_PLAYER_INSERT: [bool; 13] = {
+    let mut t = [false; 13];
+    let true_at = [0usize, 5, 6, 7, 8, 10];
+    let mut i = 0;
+    while i < true_at.len() {
+        t[true_at[i]] = true;
+        i += 1;
+    }
+    t
+};
 
 /// mode 3 场景状态。
 pub struct GameScene {
@@ -108,7 +122,7 @@ pub struct GameScene {
     pub walkable: Vec<Vec<bool>>,
     /// minimapImage：小地图（buildMinimap 生成；None = optionChecked[1]=false）
     pub minimap: Option<ArgbImage>,
-    /// optionChecked[1]：小地图开关（RMS 读档失败 catch 默认 true，a.java:4451）
+    /// optionChecked[1]：小地图开关（RMS 读档失败 catch 默认 true，a.java:4465-4467）
     pub minimap_enabled: bool,
     /// frameCounter（run 循环变量，TICK n 拍 = n-1）
     pub frame_counter: i64,
@@ -249,15 +263,15 @@ impl GameScene {
                                     g.draw_line(px + 3, py, px + 3, py + 3);
                                     g.draw_line(px, py + 3, px + 3, py + 3);
                                 }
-                                // case 2 无 break 落穿 case 3（原版行为，floor1 无 2/3 型）
-                                2 | 3 => {
-                                    if self.entities.entity_type[first] == 2 {
-                                        g.set_color(MINIMAP_DOOR2);
-                                        g.fill_rect(px, py, 4, 4);
-                                        g.set_color(MINIMAP_DOOR2_EDGE);
-                                        g.draw_line(px + 3, py, px + 3, py + 3);
-                                        g.draw_line(px, py + 3, px + 3, py + 3);
-                                    }
+                                // case 2/3 各自显式 break（a.java:6900-6913，无落穿）
+                                2 => {
+                                    g.set_color(MINIMAP_DOOR2);
+                                    g.fill_rect(px, py, 4, 4);
+                                    g.set_color(MINIMAP_DOOR2_EDGE);
+                                    g.draw_line(px + 3, py, px + 3, py + 3);
+                                    g.draw_line(px, py + 3, px + 3, py + 3);
+                                }
+                                3 => {
                                     g.set_color(MINIMAP_DOOR3);
                                     g.fill_rect(px, py, 3, 3);
                                     g.set_color(MINIMAP_DOOR3_EDGE);
@@ -276,7 +290,7 @@ impl GameScene {
         self.minimap = Some(crate::intro::dim_image(&img, MINIMAP_DIM_ALPHA));
     }
 
-    /// run case 3 的稳态子集（a.java:3548-3679）：无输入时仅 advanceEntityFrames。
+    /// run case 3 的稳态子集（a.java:3545-3679）：无输入时仅 advanceEntityFrames。
     /// `frame_counter` 为本拍值（TICK n → n-1）。
     pub fn tick(&mut self, frame_counter: i64, width_table: &[i32]) {
         self.frame_counter = frame_counter;
@@ -284,7 +298,7 @@ impl GameScene {
         // walkPhase 状态机（步进/交互）与 popup 环队列属移动批次（spec 待办）
     }
 
-    /// paint case 3（a.java:2388-2425）。
+    /// paint case 3（a.java:2385-2422）。
     pub fn paint(&mut self, g: &mut SoftGraphics<'_>, tileset: &ArgbImage) {
         self.paint_parallax(g, true);
         self.view.paint_tiles(g, tileset, view_top_y());
@@ -357,13 +371,14 @@ impl GameScene {
                 let mut sy = cam_y + ey;
                 if sx >= -w && sx <= self.view.view_w && sy >= ENTITY_CULL_TOP && sy <= cull_bottom {
                     if let Some(img) = &self.images.entity[t as usize] {
-                        // 玩家插入（单次；f_bool_arr_02 全 false——
-                        // initEntityTables 对新分配数组的全 false 拷贝）
+                        // 玩家插入（单次；f_bool_arr_02 在 0/5/6/7/8/10 型为 true，
+                        // 这些类型占据插入窗口时不插画玩家——a.java:6510）
                         if !player_drawn
                             && self.view.player_px > ex - PLAYER_INSERT_WINDOW
                             && self.view.player_px < ex + PLAYER_INSERT_WINDOW
                             && self.view.player_py >= ey - PLAYER_INSERT_WINDOW
                             && ey > self.view.player_py
+                            && !BLOCKS_PLAYER_INSERT.get(t as usize).copied().unwrap_or(false)
                         {
                             self.paint_player(g, cam_x, cam_y);
                             player_drawn = true;
@@ -436,7 +451,7 @@ impl GameScene {
                                 } else if t != 72 {
                                     draw_image_clipped(g, img, cx, sy - (h - ANCHOR_MARGIN_16) + bob, frame_off, 0, w, h);
                                 } else {
-                                    todo!("paintEntityLayer case 32 的 72 型多形态（f_byte_19 倍率 + m_127）")
+                                    todo!("paintEntityLayer case 32 的 72 型多形态（f_byte_19 倍率 + f_int_127）")
                                 }
                             }
                             _ => {}
@@ -498,27 +513,28 @@ impl GameScene {
     /// paintHudFrame（a.java:6124-6153）：HUD 大框（ui[8][0] 边框件 64×16）。
     fn paint_hud_frame(&mut self, g: &mut SoftGraphics<'_>, x: i32, y: i32, w: i32, h: i32) {
         let img = &self.images.ui[0];
-        let (corner, mid, side) = (HUD_BORDER_CORNER_W, HUD_BORDER_MID_W, HUD_BORDER_SIDE_W);
-        g.set_clip(x, y, corner, 16);
+        let (corner, mid, side) = (BORDER_CORNER_W, BORDER_MID_W, BORDER_SIDE_W);
+        let strip = BORDER_STRIP_H;
+        g.set_clip(x, y, corner, strip);
         g.draw_image(img, x, y, 0);
         let mut cx = x + corner;
         while cx < x + w - corner {
-            g.set_clip(cx, y, mid, mid);
+            g.set_clip(cx, y, mid, strip);
             g.draw_image(img, cx - corner, y, 0);
             cx += mid;
         }
         g.set_clip(0, 0, SCREEN_W, SCREEN_H);
-        crate::menu_family::draw_edge_patch(g, img, x + w - corner, y, 0, 0, corner, 16, 1);
+        crate::menu_family::draw_edge_patch(g, img, x + w - corner, y, 0, 0, corner, strip, 1);
         g.set_color(HUD_FILL);
-        g.fill_rect(x + side, y + 16, w - side * 2, h - 16);
+        g.fill_rect(x + side, y + strip, w - side * 2, h - strip);
         let right = x + w - side;
-        let mut cy = y + 16;
+        let mut cy = y + strip;
         while cy < y + h {
-            g.set_clip(x, cy, side, 16);
-            g.draw_image(img, x - 42, cy, 0);
-            g.set_clip(right, cy, side, 16);
-            g.draw_image(img, right - 53, cy, 0);
-            cy += 16;
+            g.set_clip(x, cy, side, strip);
+            g.draw_image(img, x - BORDER_SIDE_SRC_L, cy, 0);
+            g.set_clip(right, cy, side, strip);
+            g.draw_image(img, right - BORDER_SIDE_SRC_R, cy, 0);
+            cy += strip;
         }
         g.set_clip(0, 0, SCREEN_W, SCREEN_H);
     }
@@ -532,25 +548,25 @@ impl GameScene {
         g.draw_image(face, HUD_FACE_AX - (face.width >> 1), base_y + HUD_FRAME_H - face.height, 0);
         let bar_x = HUD_ICON_X + HUD_BAR_DX;
         let mut y = base_y + HUD_STAT_Y0;
-        // HP 行：图标 10×10 + 条框 + 数值
-        g.set_clip(HUD_ICON_X, y, 10, 10);
-        g.draw_image(&self.images.ui[7], HUD_ICON_X, y - 2, 0);
+        // HP 行：图标 HUD_ICON_CLIP 见方 + 条框 + 数值
+        g.set_clip(HUD_ICON_X, y, HUD_ICON_CLIP, HUD_ICON_CLIP);
+        g.draw_image(&self.images.ui[7], HUD_ICON_X, y + HUD_ICON_LIFT, 0);
         g.set_clip(0, 0, SCREEN_W, SCREEN_H);
         paint_mini_frame(g, bar_x, y + 1, HUD_BAR_W, HUD_BAR_H);
         paint_number(g, &self.images.ui[2], self.hp, bar_x + HUD_NUM_DX, y + 2);
         // 攻行：图标条带片 (10,0,10,13)
         y += HUD_ROW_STEP;
-        draw_image_clipped(g, &self.images.ui[7], HUD_ICON_X, y, 10, 0, 10, 13);
+        draw_image_clipped(g, &self.images.ui[7], HUD_ICON_X, y, 10, 0, HUD_ICON_CLIP, HUD_ICON_STRIP_H);
         g.set_color(HUD_ROW_ACCENT);
         paint_mini_frame(g, bar_x, y + 1, HUD_BAR_W, HUD_BAR_H);
         paint_number(g, &self.images.ui[2], self.atk, bar_x + HUD_NUM_DX, y + 2);
         // 防行：图标条带片 (20,0,10,13)
         y += HUD_ROW_STEP;
-        draw_image_clipped(g, &self.images.ui[7], HUD_ICON_X, y, 20, 0, 10, 13);
+        draw_image_clipped(g, &self.images.ui[7], HUD_ICON_X, y, 20, 0, HUD_ICON_CLIP, HUD_ICON_STRIP_H);
         g.set_color(HUD_ROW_ACCENT);
         paint_mini_frame(g, bar_x, y + 1, HUD_BAR_W, HUD_BAR_H);
         paint_number(g, &self.images.ui[2], self.def, bar_x + HUD_NUM_DX, y + 2);
-        // 装备槽（equipmentMaterialNames = 无/木/铁/银/金/布/皮/锁/金，a.java:479）
+        // 装备槽（equipmentMaterialNames = 无/木/铁/银/金/布/皮/锁/金，a.java:484）
         // 槽 x：var11 = HUD_ICON_X+16 后 +60 → 159；甲槽 +34 → 193（a.java:6070/6087）
         let slot_y = base_y + HUD_SLOT_DY;
         let mut slot_x = bar_x + 60;

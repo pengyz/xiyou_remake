@@ -89,7 +89,7 @@ logic#(n+1) 消费（延迟一拍；trace T70 press(-6) → T71 帧切换实证�
   - switch 六类：1=条带精灵（类型 6/9 浮沉/右移特例）；2=条带/门贴图
     （27x29 上移动画）/阴影浮沉；4=阴影+浮沉条带；8=阴影+直立（67/69
     拼装表多片组合：f_byte_arr2_01 行×f_byte_arr2_00 元数据）；16=阴影
-    浮沉/门贴图；32=多形态（f_byte_19 倍率 + m_127 高亮）
+    浮沉/门贴图；32=多形态（f_byte_19 倍率 + f_int_127 高亮）
   - walkPhase==2 && f_bool_08：交互浮标（iconStripDx/Dy[frameCounter&7]
     波动 + drawDigitStrip 数值）
 - **paintPlayerSprite 玩家**（a.java:5829-5891）：sptprop[5][0] 阴影 + actor[3][0]

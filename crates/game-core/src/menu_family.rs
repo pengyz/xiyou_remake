@@ -29,10 +29,10 @@
 
 use crate::render::{ArgbImage, SoftGraphics};
 
-/// parseHexColor（a.java:10482-10492）：hex 颜色解析，失败 → 2829099（永不 -1）。
+/// parseHexColor（a.java:5149-5159）：hex 颜色解析，失败 → PARSE_DEFAULT（永不 -1）。
 fn parse_hex_color(s: &[u16]) -> i32 {
     let txt: String = s.iter().map(|&c| c as u8 as char).collect();
-    i32::from_str_radix(&txt, 16).unwrap_or(2829099)
+    i32::from_str_radix(&txt, 16).unwrap_or(crate::layout::PARSE_DEFAULT as i32)
 }
 
 /// parseHexColor 恒不为 -1 的判定（6 位 hex 解析结果域内不为 -1；NaN 路径返回默认色）。
@@ -60,19 +60,20 @@ impl ParallaxBackdrop {
         ParallaxBackdrop { scroll: 0 }
     }
 
-    /// `drawParallaxBackdrop(game_view)`（a.java:6838-6865）。
+    /// `drawParallaxBackdrop(game_view)`（a.java:6840-6867，与 scene.rs
+    /// `paint_parallax` 同一 Java 方法——列步进/回绕/行步进共用 layout 常量）。
     /// `game_view=true` 时纵向平铺带翻转（mode 3/4/19 用），菜单族恒 false。
     pub fn paint(&mut self, g: &mut SoftGraphics<'_>, tile: &ArgbImage, game_view: bool, view_bottom: i32) {
         self.scroll -= 1;
-        if self.scroll < -154 {
+        if self.scroll < crate::layout::PARALLAX_WRAP {
             self.scroll = 0;
         }
-        let base_y = if game_view { view_bottom - 320 + 6 } else { 0 };
+        let base_y = if game_view { view_bottom - crate::layout::SCREEN_H + 6 } else { 0 };
         let mut x = self.scroll;
-        while x < 240 {
+        while x < crate::layout::SCREEN_W {
             let mut y = base_y;
             let mut flipped = false;
-            while y > -320 {
+            while y > -crate::layout::SCREEN_H {
                 if flipped {
                     let t = crate::paint::NOKIA_TRANSFORM_TABLE[2];
                     g.draw_image_transformed(tile, x, y, 0, t);
@@ -80,9 +81,9 @@ impl ParallaxBackdrop {
                     g.draw_image(tile, x, y, 0);
                 }
                 flipped = !flipped;
-                y -= 320;
+                y -= crate::layout::SCREEN_H;
             }
-            x += 77;
+            x += crate::layout::PARALLAX_COL_STEP;
         }
     }
 }
@@ -133,7 +134,7 @@ pub fn draw_edge_patch(
         let t = crate::paint::NOKIA_TRANSFORM_TABLE[kind as usize];
         g.draw_image_transformed(img, dx, dy, 0, t);
     }
-    g.set_clip(0, 0, 240, 320);
+    g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
 }
 
 /// `paintBoxFrame`（a.java:6109-6149）：标准盒框（ui[8][0] 角片 26×16 / 边片 16×16）。
@@ -142,30 +143,34 @@ pub fn paint_box_frame(g: &mut SoftGraphics<'_>, ui0: &ArgbImage, x: i32, y: i32
     g.set_clip(x, y, 26, 16);
     g.draw_image(ui0, x, y, 0);
     let mut vx = x + 26;
-    while vx < x + w - 26 {
-        g.set_clip(vx, y, 16, 16);
-        g.draw_image(ui0, vx - 26, y, 0);
-        draw_edge_patch(g, ui0, vx, y + h - 16, 26, 0, 16, 16, 2);
-        vx += 16;
+    use crate::layout::{
+        BORDER_CORNER_W, BORDER_MID_W, BORDER_SIDE_SRC_L, BORDER_SIDE_SRC_R, BORDER_SIDE_W,
+        BORDER_STRIP_H,
+    };
+    while vx < x + w - BORDER_CORNER_W {
+        g.set_clip(vx, y, BORDER_MID_W, BORDER_STRIP_H);
+        g.draw_image(ui0, vx - BORDER_CORNER_W, y, 0);
+        draw_edge_patch(g, ui0, vx, y + h - BORDER_STRIP_H, BORDER_CORNER_W, 0, BORDER_MID_W, BORDER_STRIP_H, 2);
+        vx += BORDER_MID_W;
     }
-    g.set_clip(0, 0, 240, 320);
-    draw_edge_patch(g, ui0, x + w - 26, y, 0, 0, 26, 16, 1);
+    g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
+    draw_edge_patch(g, ui0, x + w - BORDER_CORNER_W, y, 0, 0, BORDER_CORNER_W, BORDER_STRIP_H, 1);
     // 内衬
     g.set_color(crate::layout::HUD_FILL);
-    g.fill_rect(x + 11, y + 16, w - 22, h - 32);
+    g.fill_rect(x + BORDER_SIDE_W, y + BORDER_STRIP_H, w - BORDER_SIDE_W * 2, h - BORDER_STRIP_H * 2);
     // 侧边
-    let right_x = x + w - 11;
-    let mut vy = y + 16;
-    while vy < y + h - 16 {
-        g.set_clip(x, vy, 11, 16);
-        g.draw_image(ui0, x - 42, vy, 0);
-        g.set_clip(right_x, vy, 11, 16);
-        g.draw_image(ui0, right_x - 53, vy, 0);
-        vy += 16;
+    let right_x = x + w - BORDER_SIDE_W;
+    let mut vy = y + BORDER_STRIP_H;
+    while vy < y + h - BORDER_STRIP_H {
+        g.set_clip(x, vy, BORDER_SIDE_W, BORDER_STRIP_H);
+        g.draw_image(ui0, x - BORDER_SIDE_SRC_L, vy, 0);
+        g.set_clip(right_x, vy, BORDER_SIDE_W, BORDER_STRIP_H);
+        g.draw_image(ui0, right_x - BORDER_SIDE_SRC_R, vy, 0);
+        vy += BORDER_STRIP_H;
     }
-    draw_edge_patch(g, ui0, x, y + h - 16, 0, 0, 26, 16, 2);
-    draw_edge_patch(g, ui0, x + w - 26, y + h - 16, 0, 0, 26, 16, 3);
-    g.set_clip(0, 0, 240, 320);
+    draw_edge_patch(g, ui0, x, y + h - BORDER_STRIP_H, 0, 0, BORDER_CORNER_W, BORDER_STRIP_H, 2);
+    draw_edge_patch(g, ui0, x + w - BORDER_CORNER_W, y + h - BORDER_STRIP_H, 0, 0, BORDER_CORNER_W, BORDER_STRIP_H, 3);
+    g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
 }
 
 /// `paintTitledBox`（a.java:6102-6121）：盒框 + 顶部标题条（ui[8][13] 按 `segs`
@@ -188,7 +193,7 @@ pub fn paint_titled_box(
         g.draw_image(ui13, tx - seg * 14, ty, 0);
         tx += 14;
     }
-    g.set_clip(0, 0, 240, 320);
+    g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
 }
 
 /// `paintMiniFrame`（a.java:6186-6195）：小框（32×32 图标框底）。
@@ -223,7 +228,7 @@ pub fn paint_number(g: &mut SoftGraphics<'_>, digits: &ArgbImage, value: i32, x:
             break;
         }
     }
-    g.set_clip(0, 0, 240, 320);
+    g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
     if negative {
         g.set_color(crate::layout::NUMBER_NEGATIVE);
         g.draw_line(cx - dw + 1, y + 3, cx - 1, y + 3);
@@ -514,7 +519,7 @@ impl OverlayEngine {
         // 翻页箭头（a.java:5073-5088）
         let cx = x + (w >> 1);
         if arrows {
-            g.set_color((-1i32) as u32);
+            g.set_color(crate::layout::WHITE);
             if self.page_top > 0 {
                 let ay = y - 8 + (frame_counter & 1);
                 g.fill_triangle(cx, ay, cx - 7, ay + 7, cx + 7, ay + 7);
@@ -692,7 +697,7 @@ impl OptionList {
     /// m_000 case 16（a.java:4402-4410）：optionCount=0 后 addOption(0)/addOption(1)。
     ///
     /// `minimap_checked`：optionChecked[1]——oracle RMS 恒空 ⇒ mode 21 的
-    /// m_000 case 21 catch 分支设 true（a.java:4455-4456）。
+    /// m_000 case 21 catch 分支设 true（a.java:4465-4467）。
     pub fn new(sound_enabled: bool, minimap_checked: bool) -> OptionList {
         let mut list = OptionList {
             labels: Vec::new(),
@@ -745,7 +750,7 @@ impl OptionList {
         for i in 0..self.labels.len() {
             let label = OPTION_LABELS[self.labels[i]];
             let mut lx = 240 - font.string_width(label) - 16 >> 1;
-            g.set_color((-1i32) as u32);
+            g.set_color(crate::layout::WHITE);
             g.draw_string(label, lx, y + 4, 0);
             lx += 2 + font.string_width(label);
             // 勾选框：未选中 sy=12、选中 sy=0（a.java:2981-2987 分支方向）

@@ -164,7 +164,7 @@ fn gameplay_floor1_t544_599_frames_match() {
         let map = load_container("map", 12);
         map[0].clone()
     };
-    let mut screen = ArgbImage::create(240, 320);
+    let mut screen = ArgbImage::create(game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
     let mut checked = 0usize;
     for rec in &records {
         if !(537..=599).contains(&rec.tick) {
@@ -181,7 +181,7 @@ fn gameplay_floor1_t544_599_frames_match() {
         let sha;
         {
             let mut g = SoftGraphics::new(&mut screen);
-            g.set_clip(0, 0, 240, 320);
+            g.set_clip(0, 0, game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
             g.set_font(Some(paint_font()));
             scene.paint(&mut g, &tileset);
             sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
@@ -239,7 +239,7 @@ fn gameplay_floor1_t544_ops_prefix_match() {
     let mut scene = build_scene();
     let map = load_container("map", 12);
     let tileset = map[0].clone();
-    let mut screen = ArgbImage::create(240, 320);
+    let mut screen = ArgbImage::create(game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
     // 逐拍推进到 T544（bob/scroll 在 paint 内推进、帧在 tick 内推进）；
     // T544 拍就地取 ops 前缀比对
     let norm = |s: &str| s.replace(", ", ",");
@@ -249,7 +249,7 @@ fn gameplay_floor1_t544_ops_prefix_match() {
             scene.tick(t - 1, &width_table());
         }
         let mut g = SoftGraphics::new(&mut screen);
-        g.set_clip(0, 0, 240, 320);
+        g.set_clip(0, 0, game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
         g.set_font(Some(paint_font()));
         scene.paint(&mut g, &tileset);
         if t == 544 {
@@ -319,10 +319,10 @@ fn dump_t544_pixels() {
     let mut scene = build_scene();
     let map = load_container("map", 12);
     let tileset = map[0].clone();
-    let mut screen = ArgbImage::create(240, 320);
+    let mut screen = ArgbImage::create(game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
     {
         let mut g = SoftGraphics::new(&mut screen);
-        g.set_clip(0, 0, 240, 320);
+        g.set_clip(0, 0, game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
         g.set_font(Some(paint_font()));
         scene.paint(&mut g, &tileset);
     }

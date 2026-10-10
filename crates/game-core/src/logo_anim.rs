@@ -503,9 +503,9 @@ mod tests {
             anim.tick(&sflogo, t);
         }
 
-        let mut screen = ArgbImage::create(240, 320);
+        let mut screen = ArgbImage::create(crate::layout::SCREEN_W, crate::layout::SCREEN_H);
         let mut g = crate::render::SoftGraphics::new(&mut screen);
-        g.set_clip(0, 0, 240, 320); // serviceRepaints 入口（Canvas.java:71）
+        g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H); // serviceRepaints 入口（Canvas.java:71）
         g.set_font(Some(crate::paint::paint_font())); // paint 入口 a.java:2336
         anim.paint(&mut g, &sflogo[7]);
 
@@ -549,10 +549,10 @@ mod tests {
         for t in 1..=8 {
             anim.tick(&sflogo, t);
         }
-        let mut screen = ArgbImage::create(240, 320);
+        let mut screen = ArgbImage::create(crate::layout::SCREEN_W, crate::layout::SCREEN_H);
         {
             let mut g = crate::render::SoftGraphics::new(&mut screen);
-            g.set_clip(0, 0, 240, 320);
+            g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
             g.set_font(Some(crate::paint::paint_font()));
             anim.paint(&mut g, &sflogo[7]);
         }

@@ -63,7 +63,7 @@ impl Particles {
             active: [false; PARTICLE_SLOTS],
             waxing: [false; PARTICLE_SLOTS],
             cursor: 0,
-            color: 0xFFFFFF,
+            color: crate::layout::WHITE,
         }
     }
 
@@ -142,7 +142,7 @@ pub fn paint_icon_strip_at(
     if *frame > 7 {
         *frame = 0;
     }
-    g.set_clip(0, 0, 240, 320);
+    g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
 }
 
 /// mode 1 标题菜单状态机（run case 1 的 tick + paint case 1 的绘制输入）。
@@ -275,7 +275,7 @@ impl TitleMachine {
         // ⑥ 粒子层（clip 0..308，a.java:2373-2375）
         g.set_clip(0, bar, 240, 320 - (bar >> 1));
         self.particles.paint_and_update(g);
-        g.set_clip(0, 0, 240, 320);
+        g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
     }
 
     /// `drawIconStrip`（a.java:4780-4793）：4 列图标带（列源 x = 0/17/34/51），
@@ -300,6 +300,6 @@ impl TitleMachine {
         if self.strip_frame > 7 {
             self.strip_frame = 0;
         }
-        g.set_clip(0, 0, 240, 320);
+        g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
     }
 }

@@ -40,9 +40,6 @@ pub fn dim_image(img: &ArgbImage, alpha: i32) -> ArgbImage {
     out
 }
 
-/// introColors（a.java:467）：字幕调色 5 色循环。
-pub const SUBTITLE_COLORS: [u32; 5] = [16316664, 11184810, 8947848, 4473924, 1118481];
-
 /// 引子文本表 miscTexts[4]/[6]/[7]（a.java:438-447，UTF-16）。
 pub fn intro_text(page: i32) -> Vec<u16> {
     const T4: &str = "俺，当世神界第一斗者，孙!悟!空! 自从受封为齐天大圣，掌管蟠桃园以来，一直逍遥快活，无拘束……";
@@ -151,7 +148,7 @@ impl IntroSequence {
                     }
                 } else {
                     self.color_idx += 1;
-                    if self.color_idx >= SUBTITLE_COLORS.len() as i32 {
+                    if self.color_idx >= crate::layout::SUBTITLE_COLORS.len() as i32 {
                         self.scroll_x = 0;
                         self.color_idx = 0;
                         self.color_phase = false;
@@ -216,9 +213,9 @@ impl IntroSequence {
             g.fill_rect(0, below, 240, 320 - below);
             g.draw_image(img, 120, band_y, 17);
             if !self.color_phase {
-                g.set_color((-1i32) as u32);
+                g.set_color(crate::layout::WHITE);
             } else {
-                g.set_color(SUBTITLE_COLORS[self.color_idx as usize]);
+                g.set_color(crate::layout::SUBTITLE_COLORS[self.color_idx as usize]);
             }
             if self.page < 3 {
                 if let Some(text) = &self.text {
@@ -237,15 +234,15 @@ impl IntroSequence {
             }
         }
         if self.page > 2 {
-            g.set_color((-1i32) as u32);
+            g.set_color(crate::layout::WHITE);
             g.draw_string(PRESS_ANY_KEY, 120, 320 - font.height - 2, 17);
         } else {
-            g.set_color((-1i32) as u32);
+            g.set_color(crate::layout::WHITE);
             g.draw_string(SKIP_LABEL, 240 - font.string_width(SKIP_LABEL) - 5, 320 - font.height - 2, 0);
         }
-        g.set_clip(0, 0, 240, 320);
+        g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
         particles.paint_and_update(g);
-        g.set_clip(0, 0, 240, 320);
+        g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
     }
 }
 
@@ -306,7 +303,7 @@ impl LoadProgress {
     /// paint case 2（a.java:2377-2384）：全屏底色 + 双段进度条（load 容器图）。
     pub fn paint(&self, g: &mut SoftGraphics<'_>, load: &[ArgbImage]) {
         g.set_color(crate::layout::DARK_BACKDROP);
-        g.fill_rect(0, 0, 240, 320);
+        g.fill_rect(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
         let shown = 148 * self.progress / 100;
         crate::paint::draw_image_clipped(g, &load[0], 108, 86, 0, 0, 24, shown);
         crate::paint::draw_image_clipped(g, &load[1], 108, 86 + shown, 0, shown, 24, 148 - shown);

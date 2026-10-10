@@ -189,7 +189,7 @@ impl GameView {
             row += 1;
             py += 16;
         }
-        g.set_clip(0, 0, 240, 320);
+        g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
     }
 
     /// 加载步 11 的居中相机（a.java:3502：`setCameraClamped((view_w-32>>1)-px, (view_h-32>>1)-py)`）。
@@ -228,7 +228,7 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!((tiles[0].width, tiles[0].height), (128, 208));
 
-        let mut screen = ArgbImage::create(240, 320);
+        let mut screen = ArgbImage::create(crate::layout::SCREEN_W, crate::layout::SCREEN_H);
         let mut g = SoftGraphics::new(&mut screen);
         v.paint_tiles(&mut g, &tiles[0], 20);
 

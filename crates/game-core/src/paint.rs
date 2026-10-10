@@ -82,7 +82,7 @@ pub fn m_034_softkeys(g: &mut SoftGraphics<'_>, ui10: &ArgbImage, ui11: &ArgbIma
 pub fn paint_sound_prompt(g: &mut SoftGraphics<'_>, ui10: &ArgbImage, ui11: &ArgbImage, softkeys: (i8, i8)) {
     g.set_color(crate::layout::BLACK);
     g.fill_rect(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
-    g.set_color((-1i32) as u32);
+    g.set_color(crate::layout::WHITE);
     g.draw_string(
         &crate::layout::SOUND_PROMPT_TEXT,
         crate::layout::prompt_cx(),
@@ -110,7 +110,7 @@ pub fn anchor_top_hcenter() -> i32 {
 pub fn paint_boot(g: &mut SoftGraphics<'_>, boot: &BootPaintState) {
     if boot.phase < 2 {
         // setColor(-1)：Java int -1 位模式 & 0xFFFFFF = 0xFFFFFF
-        g.set_color((-1i32) as u32);
+        g.set_color(crate::layout::WHITE);
         g.fill_rect(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
         if let Some(img) = &boot.image {
             let x = crate::layout::SCREEN_W - img.width >> 1;
@@ -547,7 +547,7 @@ impl BootMachine {
         let x = 240 - self.overlay.box_w >> 1;
         let y = 320 - self.overlay.box_h >> 1;
         crate::menu_family::paint_box_frame(g, &self.ui[0], x, y, self.overlay.box_w, self.overlay.box_h);
-        g.set_color((-1i32) as u32);
+        g.set_color(crate::layout::WHITE);
         let text: Vec<u16> = if self.mode == 15 {
             HELP_TEXT.encode_utf16().collect()
         } else {
@@ -658,7 +658,7 @@ mod tests {
             let img = decode(file);
             assert_eq!((img.width, img.height), (w, h), "{file} 尺寸");
 
-            let mut screen = ArgbImage::create(240, 320);
+            let mut screen = ArgbImage::create(crate::layout::SCREEN_W, crate::layout::SCREEN_H);
             let ops;
             {
                 let mut g = SoftGraphics::new(&mut screen);
@@ -693,7 +693,7 @@ mod tests {
     /// trace TICK 32：f_Image_00 已释放（null）⇒ 纯白帧。
     #[test]
     fn boot_phase0_no_image_matches_trace_t32() {
-        let mut screen = ArgbImage::create(240, 320);
+        let mut screen = ArgbImage::create(crate::layout::SCREEN_W, crate::layout::SCREEN_H);
         {
             let mut g = SoftGraphics::new(&mut screen);
             g.set_font(Some(paint_font()));

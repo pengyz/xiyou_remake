@@ -64,7 +64,7 @@ fn boot_menu_frames_match_tick_by_tick() {
     let mut pending_key = 0i32;
     // **持久画布**（对抗 review R-1）：Java Canvas 的 screen 跨帧保留——
     // 非全屏覆盖分支（如 mode 14 首拍无引子图）依赖上一帧残影
-    let mut screen = ArgbImage::create(240, 320);
+    let mut screen = ArgbImage::create(game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
     for rec in &records {
         let key = pending_key;
         pending_key = input_key(&rec.input);
@@ -79,7 +79,7 @@ fn boot_menu_frames_match_tick_by_tick() {
         let sha;
         {
             let mut g = SoftGraphics::new(&mut screen);
-            g.set_clip(0, 0, 240, 320); // serviceRepaints 入口（Canvas.java:71）
+            g.set_clip(0, 0, game_core::layout::SCREEN_W, game_core::layout::SCREEN_H); // serviceRepaints 入口（Canvas.java:71）
             g.set_font(Some(game_core::paint::paint_font()));
             machine.paint(&mut g);
             sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
@@ -124,7 +124,7 @@ fn enter_game_frames_match_tick_by_tick() {
     let mut checked = 0usize;
     let mut pending_key = 0i32;
     // **持久画布**（同 menu-sweep：Java Canvas 跨帧保留）
-    let mut screen = ArgbImage::create(240, 320);
+    let mut screen = ArgbImage::create(game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
     for rec in &records {
         let key = pending_key;
         pending_key = input_key(&rec.input);
@@ -137,7 +137,7 @@ fn enter_game_frames_match_tick_by_tick() {
         let sha;
         {
             let mut g = SoftGraphics::new(&mut screen);
-            g.set_clip(0, 0, 240, 320);
+            g.set_clip(0, 0, game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
             g.set_font(Some(game_core::paint::paint_font()));
             machine.paint(&mut g);
             sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
