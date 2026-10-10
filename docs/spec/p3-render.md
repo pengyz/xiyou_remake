@@ -26,7 +26,7 @@ logic#(n+1) 消费（延迟一拍；trace T70 press(-6) → T71 帧切换实证�
 结论：**PASS-with-risks**——零对拍破坏缺陷。已修复：
 
 - D-1 `in_arc` 负弧递归缺 `% 360`（render.rs，对照 Graphics.java:322）——死代码
-  路径（游戏唯一弧调用 fillArc(…,0,360) a.java:6644 短路），已补齐对齐 shim。
+  路径（游戏唯一弧调用 fillArc(…,0,360) a.java:6646 短路），已补齐对齐 shim。
 - D-2 `drawSubstring` 负 len：shim 空循环静默，Rust 原 panic——已按 shim 语义钳制
   （调用方 a.java:5044 的 len 是差值可能为负）。
 - R-5 mode 0→21 清理分支补全：f_bool_30 复位（reset_layout_flag）+ f_int_02=75

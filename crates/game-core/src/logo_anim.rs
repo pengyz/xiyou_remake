@@ -1,20 +1,20 @@
 //! SNOWFISH logo 动画子系统（deobf 语义名 runLogoAnimation/paintLogoAnimation/
 //! registerLogoItem/modifyLogoItem/removeLogoItem——台账 N-0138..N-0142，机械名
-//! m_143..m_147，a.java:10196-10564）
+//! runLogoAnimation..removeLogoItem，a.java:10202-10570）
 //! 的 Rust 端口：注册表驱动的多元素动画层 + 绘制。
 //!
 //! # 结构（A 级证据：a.java 行内锚点）
 //!
 //! - **注册表**：`f_int_arr2_03[26][7]` 每项 `{x, y, kind, p3, p4, p5, slot}` +
 //!   `f_Image_arr_01[26]` 平行图列表，`f_byte_29` 为活跃数（a.java:2253、411）
-//! - **registerLogoItem 登记**（a.java:10464）：kind 0=静止；1=缓动移向目标（p3 步数）；
+//! - **registerLogoItem 登记**（a.java:10470）：kind 0=静止；1=缓动移向目标（p3 步数）；
 //!   2=逐列展开（p3=总列数、p4=已展开数、p6=列宽）；3=字形槽（slot=p9 索引
 //!   f_byte_arr_46 度量表）；4=方形环绕步进
-//! - **runLogoAnimation 推进**（a.java:10196）：每 tick 倒序遍历注册表按 kind 推进，
+//! - **runLogoAnimation 推进**（a.java:10202）：每 tick 倒序遍历注册表按 kind 推进，
 //!   然后按时间线 `var2` 登记/删除/改型（case 1..35）
-//! - **paintLogoAnimation 绘制**（a.java:10434）：白底 → 遍历注册表（kind 3/4 走字形槽
+//! - **paintLogoAnimation 绘制**（a.java:10440）：白底 → 遍历注册表（kind 3/4 走字形槽
 //!   clip+sflogo#7；kind 2 走展开列 clip；其余直接画）
-//! - **度量布局**（runLogoAnimation 首次，a.java:10199-10206）：三段高度 {87,18,9}
+//! - **度量布局**（runLogoAnimation 首次，a.java:10205-10212）：三段高度 {87,18,9}
 //!   （a.java:2248）→ y 锚表 f_int_arr_37、x 居中 f_int_158；字形槽宽表
 //!   f_byte_arr_46 21 对 {x,w}（a.java:2250-2252）
 //!
@@ -39,7 +39,7 @@ pub const GLYPH_METRICS: [i8; 42] = [
     3, 57, 3, 60, 4, 64, 2, 66, 2, 68, 4, 72, 4, 76, 5,
 ];
 
-/// 注册表容量（a.java:10469 `f_byte_29 < 26`）。
+/// 注册表容量（a.java:10475 `f_byte_29 < 26`）。
 const CAPACITY: usize = 26;
 
 /// logo 动画层状态。
@@ -47,7 +47,7 @@ const CAPACITY: usize = 26;
 pub struct LogoAnim {
     /// 注册表元数据（a.java:2253 `int[26][7]`，初始全 0）。测试探针需要快照/还原。
     registry: Vec<[i32; 7]>,
-    /// 注册表平行图列表（a.java:10466，首次登记时分配；removeLogoItem(-1) 置回 None）。
+    /// 注册表平行图列表（a.java:10472，首次登记时分配；removeLogoItem(-1) 置回 None）。
     images: Vec<Option<ArgbImage>>,
     /// f_byte_29 活跃项数。
     pub count: i32,
@@ -77,7 +77,7 @@ impl LogoAnim {
         }
     }
 
-    /// `removeLogoItem(-1)`：全清（a.java:10560-10563）。
+    /// `removeLogoItem(-1)`：全清（a.java:10566-10569）。
     pub fn clear_all(&mut self) {
         self.count = 0;
         self.images = vec![None; CAPACITY];
@@ -89,7 +89,7 @@ impl LogoAnim {
         self.initialized = false;
     }
 
-    /// f_bool_30 布局初始化（a.java:10198-10207）。
+    /// f_bool_30 布局初始化（a.java:10204-10213）。
     ///
     /// `f_int_157 = min(15, |320-Σh|>>2)`；`var4 = (320-Σh-2·f_int_157)>>1`；
     /// anchors = [var4+87/2, var4+87+15, 190+18+15]；bar_x = (240-w_sflogo7)>>1。
@@ -98,16 +98,16 @@ impl LogoAnim {
             return;
         }
         let sum: i32 = SEGMENT_HEIGHTS.iter().sum();
-        let gap = 15.min((crate::layout::SCREEN_H - sum >> 2).abs()); // a.java:10202
-        let base = crate::layout::SCREEN_H - sum - (gap << 1) >> 1; // a.java:10203
+        let gap = 15.min((crate::layout::SCREEN_H - sum >> 2).abs()); // a.java:10208
+        let base = crate::layout::SCREEN_H - sum - (gap << 1) >> 1; // a.java:10209
         self.anchors_y[0] = base + (SEGMENT_HEIGHTS[0] >> 1);
         self.anchors_y[1] = base + SEGMENT_HEIGHTS[0] + gap;
         self.anchors_y[2] = self.anchors_y[1] + SEGMENT_HEIGHTS[1] + gap;
-        self.bar_x = crate::layout::SCREEN_W - sflogo7_width >> 1; // a.java:10206
+        self.bar_x = crate::layout::SCREEN_W - sflogo7_width >> 1; // a.java:10212
         self.initialized = true;
     }
 
-    /// `registerLogoItem`：登记一项（a.java:10464-10521）。
+    /// `registerLogoItem`：登记一项（a.java:10470-10527）。
     ///
     /// 参数序与 Java 一致：`(img, x, y, kind, anchor, cols, p7, p8, p9, insert_at)`。
     /// kind 2 的 `cols` 把源图按列切分（宽/cols 入 [6]）；kind 3 的 `p9` 直入 [6]。
@@ -129,7 +129,7 @@ impl LogoAnim {
             return;
         }
         let tail = self.count as usize;
-        // var10 复用交换分支（a.java:10471-10479）：新元素占据 insert_at，
+        // var10 复用交换分支（a.java:10477-10485）：新元素占据 insert_at，
         // 原 insert_at 的（数组,图）顶到尾部；后续配置写回**新元素所在槽**（Java var11 重绑定）
         let (dst, slot_meta): (usize, [i32; 7]);
         if insert_at >= 0 && insert_at < self.count {
@@ -154,7 +154,7 @@ impl LogoAnim {
                 w /= cols;
                 meta[6] = w;
             }
-            // anchor 折算（a.java:10491-10503）：HCENTER→-全宽 / LEFT→-半宽；
+            // anchor 折算（a.java:10497-10509）：HCENTER→-全宽 / LEFT→-半宽；
             // VCENTER→-(h-1) / BOTTOM→-(h/2-1)
             let mut ax = 0;
             let mut ay = 0;
@@ -190,7 +190,7 @@ impl LogoAnim {
         self.count += 1;
     }
 
-    /// `modifyLogoItem`：改第 `idx` 项的 kind/参数（a.java:10523-10547）。
+    /// `modifyLogoItem`：改第 `idx` 项的 kind/参数（a.java:10529-10553）。
     /// `anchor != 0` 且 kind==1 时把 anchor 折算进 (p5,p6)。
     pub fn modify(&mut self, idx: i32, kind: i32, anchor: i32, p4: i32, p5: i32, p6: i32) {
         if idx >= self.count {
@@ -220,7 +220,7 @@ impl LogoAnim {
         meta[5] = p6;
     }
 
-    /// `removeLogoItem`：删除第 `idx` 项（swap-到尾）或 `idx<0` 全清（a.java:10549-10564）。
+    /// `removeLogoItem`：删除第 `idx` 项（swap-到尾）或 `idx<0` 全清（a.java:10555-10570）。
     pub fn remove(&mut self, idx: i32) {
         if idx >= 0 {
             if idx < self.count {
@@ -236,13 +236,13 @@ impl LogoAnim {
         }
     }
 
-    /// `runLogoAnimation(0, var2)`：推进 + 时间线（a.java:10196-10432）。
+    /// `runLogoAnimation(0, var2)`：推进 + 时间线（a.java:10202-10438）。
     ///
-    /// `sflogo` 为容器 8 张子图（a.java:10335 等引用 `[0][k]`）；
+    /// `sflogo` 为容器 8 张子图（a.java:10341 等引用 `[0][k]`）；
     /// `timeline` 为 f_int_156（1..35，a.java:3358-3359）。
     pub fn tick(&mut self, sflogo: &[ArgbImage], timeline: i32) {
         self.ensure_layout(sflogo[7].width);
-        // 推进循环（倒序，a.java:10212-10281）
+        // 推进循环（倒序，a.java:10218-10287）
         for i in (0..self.count as usize).rev() {
             let m = &mut self.registry[i];
             match m[2] {
@@ -322,7 +322,7 @@ impl LogoAnim {
             }
         }
 
-        // 时间线 switch（a.java:10299-10375；case 11+ 部分待对拍扩产）
+        // 时间线 switch（a.java:10305-10381；case 11+ 部分待对拍扩产）
         let ay = self.anchors_y;
         let bx = self.bar_x;
         match timeline {
@@ -338,7 +338,7 @@ impl LogoAnim {
                 self.register(Some(sflogo[2].clone()), 90, ay[1], 2, 4, 4, 4, 0, 0, -1);
                 self.register(Some(sflogo[3].clone()), 120, ay[1], 2, 4, 4, 4, 0, 0, -1);
                 self.register(Some(sflogo[4].clone()), 150, ay[1], 2, 4, 4, 4, 0, 0, -1);
-                self.register(Some(sflogo[6].clone()), 15, ay[1], 1, 12, 3, bx, ay[2], 0, -1); // f_int_158（a.java:10357）
+                self.register(Some(sflogo[6].clone()), 15, ay[1], 1, 12, 3, bx, ay[2], 0, -1); // f_int_158（a.java:10363）
             }
             10 => {
                 self.remove(5);
@@ -357,15 +357,15 @@ impl LogoAnim {
                 self.modify(6, 3, 0, 3, bx + GLYPH_METRICS[2] as i32, ay[2]);
                 self.modify(7, 3, 0, 2, bx + GLYPH_METRICS[4] as i32, ay[2]);
             }
-            // Java switch 的 default 分支（a.java:10336-10346）：无操作。
+            // Java switch 的 default 分支（a.java:10342-10352）：无操作。
             // timeline 全域 1..=35（a.java:3358）：25..=31 由下方公共段处理
             2..=4 | 6 | 7 | 9 | 11 | 12 | 13 | 16 | 18..=24 | 25..=31 | 32..=35 => {}
             _ => unreachable!("timeline 超出 1..=35（a.java:3358 计数域）: got {timeline}"),
         }
 
-        // switch 后的公共注册段（a.java:10377-10430，命中即 return）
+        // switch 后的公共注册段（a.java:10383-10436，命中即 return）
         if (10..13).contains(&timeline) {
-            // a.java:10369：x 参数恒 240（屏外起点），y 参数 = ay[2]；目标 x 在 [4]
+            // a.java:10375：x 参数恒 240（屏外起点），y 参数 = ay[2]；目标 x 在 [4]
             let idx = timeline - 9;
             let target = bx + GLYPH_METRICS[idx as usize * 2] as i32;
             self.register(None, crate::layout::SCREEN_W, ay[2], 3, 0, 4, target, ay[2], idx, -1); // x=240 屏外起点
@@ -389,7 +389,7 @@ impl LogoAnim {
         }
     }
 
-    /// `paintLogoAnimation`：绘制（a.java:10434-10462）。白底后按注册表序绘制；
+    /// `paintLogoAnimation`：绘制（a.java:10440-10468）。白底后按注册表序绘制；
     /// kind 3/4 = 字形槽 clip + sflogo#7；kind 2 = 展开列 clip；其余直接画。
     /// 每项绘制后 `setClip(0,0,240,320)` 复位。
     pub fn paint(&self, g: &mut SoftGraphics<'_>, sflogo7: &ArgbImage) {

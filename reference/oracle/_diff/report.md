@@ -6,9 +6,9 @@
 
 | 判定项 | 结果 | 证据 |
 |--------|------|------|
-| 确定性：A1 vs A2 同输入 trace 逐字节一致 | **PASS** | trace sha256 `8d10a18f51373016…` vs `8d10a18f51373016…` |
-| 语义等价：原始版(A) vs 无歧义版(B) 同输入 trace 逐字节一致 | **PASS** | trace sha256 `8d10a18f51373016…` vs `8d10a18f51373016…` |
-| 源码投影等价：原始版(A) vs javac 源码投影(C) 同输入 trace 逐字节一致 | **PASS** | trace sha256 `8d10a18f51373016…` vs `8d10a18f51373016…` |
+| 确定性：A1 vs A2 同输入 trace 逐字节一致 | **PASS** | trace sha256 `f95a9abe46b7c201…` vs `f95a9abe46b7c201…` |
+| 语义等价：原始版(A) vs 无歧义版(B) 同输入 trace 逐字节一致 | **PASS** | trace sha256 `f95a9abe46b7c201…` vs `f95a9abe46b7c201…` |
+| 源码投影等价：原始版(A) vs javac 源码投影(C) 同输入 trace 逐字节一致 | **PASS** | trace sha256 `f95a9abe46b7c201…` vs `f95a9abe46b7c201…` |
 | stderr 对照（符号规范化后，辅助证据） | PASS（规范化后一致） | 见 §4 |
 | T-变换 javap 归一化等价 | **PASS** | System/Thread→VTime/VThread 归一化后逐字节相同 |
 | 运行成功（退出码 0 / tick 数 > 0） | **PASS** | A1 ticks=150, B1 ticks=150, C1 ticks=150 |
@@ -18,8 +18,8 @@
 | 变体 | 来源 | a.class sha256 | CMidlet.class sha256 |
 |------|------|----------------|----------------------|
 | A 原始版 | `original/囧囧西游-大闹天宫.jar`（原样字节） | `128b7462031cb97dd7b9e873e2bc4f704da452928fa93382fad98d51d948d4fa` | `a3ce9ae3d24b0e091f915295ac4c8adfe5b94df25b05789e6e04ca113c0ae006` |
-| B 无歧义版 | `analysis/rename-pipeline/renamed/`（t1 重映射产物） | `c6948beec3105e63bbaae8617cdf690a451d1e64356443e01c17ca270c29d1f8` | `730128b564f1d6d3a3d6a5bee29ab34f45f2e80966d5277ffaf237ae3d4792df` |
-| C javac 源码投影 | `analysis/build/deobf`（deobf 源码 javac 编译产物） | `a563b6b7ce201a442df21a1d13fba830ca34ac6ec923b8d705324df61ec6c163` | `023bf780e562d9fd841c228ae8da79a836f844d91f15d497676a33fef6f42772` |
+| B 无歧义版 | `analysis/rename-pipeline/renamed/`（t1 重映射产物） | `6ec69ec93a47cac266d0732701790ceed27b40d27a3421cecaed3ac636a57723` | `730128b564f1d6d3a3d6a5bee29ab34f45f2e80966d5277ffaf237ae3d4792df` |
+| C javac 源码投影 | `analysis/build/deobf`（deobf 源码 javac 编译产物） | `424974ceab0007c0641d93a810a0480b1449494bfbabd8ced2f967adea83257c` | `023bf780e562d9fd841c228ae8da79a836f844d91f15d497676a33fef6f42772` |
 
 三个变体施加**同一 T-变换**（常量池 Class 项重定向，见 §3）后运行。seed 版 `reference/seed/a.java` 是历史 CFR 投影（冻结件；存在重复成员名与 `this = v3` 等不可编译结构），按 AGENTS.md §1「字节码是最终真相」，运行时 A 变体取 JAR 内原始字节码。
 C 变体是 deobf 源码（`reference/src/deobf/*.java`）经 javac 编译的 class：字节码由 javac 产出，版本/常量池布局/指令选择与原始字节码可能不同，T-变换只重定向 System/Thread 两个常量池 Class 项（§3），trace 等价性验证的是「状态向量/帧哈希/绘制操作流」语义层，不要求字节码本身相同。
@@ -97,9 +97,9 @@ END reason=<停止原因> ticks=<n>
 
 | 变体 | trace sha256（前 16 位） |
 |------|---------------------------|
-| A1 | `8d10a18f51373016…` |
-| B1 | `8d10a18f51373016…` |
-| C1 | `8d10a18f51373016…` |
+| A1 | `f95a9abe46b7c201…` |
+| B1 | `f95a9abe46b7c201…` |
+| C1 | `f95a9abe46b7c201…` |
 
 C 变体源 class 目录：`analysis/build/deobf`。三方对拍命令：`python3 reference/oracle/run.py --diff-abc`（若省略 `--variant-c`，按约定路径 `analysis/build/deobf/` 自动发现；缺失则该命令以基础设施错误退出 2，不会误判为 FAIL）。
 

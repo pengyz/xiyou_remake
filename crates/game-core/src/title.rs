@@ -4,11 +4,11 @@
 //!
 //! - **paint**（a.java:2349-2376）：map 背景图 → 底部状态条 → 图标带动画
 //!   （drawIconStrip，a.java:4778-4791）→ 双侧羽化箭头（bob 摆动）→ 粒子层
-//!   （m_130，clip 0..308）。
+//!   （updateAndDrawParticles，clip 0..308）。
 //! - **tick**（a.java:3372-3427）：`(frameCounter&3)==0` 时 spawn 粒子（每次
 //!   吃两个 randomBelow：先 x=rb(240) 后 y=295-rb(150)）；m_052 bob 摆动；
 //!   方向键移动 cursor（环绕）；-5 确认按 menuItemKinds[cursor] 切 gameMode。
-//! - **粒子演化**（m_130 a.java:9805-9823）：槽位 **31→0 倒序**；每 paint 先
+//! - **粒子演化**（updateAndDrawParticles a.java:9811-9829）：槽位 **31→0 倒序**；每 paint 先
 //!   画后推进：x+=velX；velX 不满（waxing=false）时 ++，触顶 2*size 翻转；
 //!   满（waxing=true）时 --，触底 -2*size 翻转且 size++（>5 死亡）；y+=velY
 //!   匀速。spawn 初值 velX=-3/velY=-4/size=2/waxing=false。
@@ -24,15 +24,15 @@
 use crate::render::{ArgbImage, SoftGraphics};
 use game_platform::JavaRandom;
 
-/// drawIconStrip 的列波动表 f_byte_arr_01（a.java:462）。
+/// drawIconStrip 的列波动表 iconStripDx（a.java:462）。
 const STRIP_DX: [i32; 8] = [-1, 0, 1, 1, 1, 0, -1, -1];
-/// drawIconStrip 的行波动表 f_byte_arr_02（a.java:463）。
+/// drawIconStrip 的行波动表 iconStripDy（a.java:463）。
 const STRIP_DY: [i32; 8] = [-1, -1, -1, 0, 1, 1, 1, 0];
 
-/// 粒子槽位容量（m_129/m_130 的 32 槽环形游标）。
+/// 粒子槽位容量（spawnParticle/updateAndDrawParticles 的 32 槽环形游标）。
 const PARTICLE_SLOTS: usize = 32;
 
-/// 粒子系统状态（m_129 登记表 + m_130 演化）。
+/// 粒子系统状态（spawnParticle 登记表 + updateAndDrawParticles 演化）。
 pub struct Particles {
     x: [i32; PARTICLE_SLOTS],
     y: [i32; PARTICLE_SLOTS],
@@ -42,7 +42,7 @@ pub struct Particles {
     active: [bool; PARTICLE_SLOTS],
     waxing: [bool; PARTICLE_SLOTS],
     cursor: usize,
-    /// f_int_141：粒子颜色（m_000 case 1 设 -1 = 白）。
+    /// particleColor：粒子颜色（m_000 case 1 设 -1 = 白）。
     pub color: u32,
 }
 
@@ -67,7 +67,7 @@ impl Particles {
         }
     }
 
-    /// `m_129`（a.java:9791-9803）：环形游标登记新粒子。
+    /// `spawnParticle`（a.java:9797-9809）：环形游标登记新粒子。
     pub fn spawn(&mut self, x: i32, y: i32) {
         let i = self.cursor;
         self.x[i] = x;
@@ -80,7 +80,7 @@ impl Particles {
         self.cursor = if self.cursor + 1 > 31 { 0 } else { self.cursor + 1 };
     }
 
-    /// `m_130`（a.java:9805-9823）：**paint 内调用**——先画后推进，槽位 31→0 倒序。
+    /// `updateAndDrawParticles`（a.java:9811-9829）：**paint 内调用**——先画后推进，槽位 31→0 倒序。
     pub fn paint_and_update(&mut self, g: &mut SoftGraphics<'_>) {
         g.set_color(self.color);
         for i in (0..PARTICLE_SLOTS).rev() {
@@ -89,7 +89,7 @@ impl Particles {
             }
             let s = self.size[i];
             g.fill_rect(self.x[i], self.y[i], s, s);
-            // 推进（a.java:9806-9822）
+            // 推进（a.java:9812-9828）
             self.x[i] += self.vel_x[i];
             let limit = s << 1;
             if !self.waxing[i] {
@@ -116,7 +116,7 @@ impl Particles {
 pub struct TitleMachine {
     /// f_int_10：菜单光标（0..menu_item_count-1 环绕）。
     pub cursor: i32,
-    /// menuItemKinds 的条目（m_000 case 1 经 m_010(0..5) 登记为 0..5）。
+    /// menuItemKinds 的条目（m_000 case 1 经 addMenuItem(0..5) 登记为 0..5）。
     pub menu_kinds: Vec<i8>,
     /// f_int_46：bob 摆动偏移（m_052 演化）。
     pub bob: i32,
@@ -126,7 +126,7 @@ pub struct TitleMachine {
     strip_frame: usize,
     /// 粒子层。
     pub particles: Particles,
-    /// f_int_16：底部条高（构造 25）。
+    /// statusBarHeight：底部条高（构造 25）。
     pub bar_height: i32,
 }
 
@@ -134,7 +134,7 @@ impl TitleMachine {
     pub fn new() -> TitleMachine {
         TitleMachine {
             cursor: 0,
-            // m_000 case 1：m_009 重置后 m_010(0..5)（a.java:4279-4285）
+            // m_000 case 1：resetMenuLayout 重置后 addMenuItem(0..5)（a.java:4279-4285）
             menu_kinds: vec![0, 1, 2, 3, 4, 5],
             bob: 0,
             bob_rising: false,
@@ -144,7 +144,7 @@ impl TitleMachine {
         }
     }
 
-    /// `m_052`（a.java:6451-6460）：bob ±1 摆动（下降相 --<-1 翻上升；上升 ++>1 翻下降）。
+    /// `m_052`（a.java:6453-6462）：bob ±1 摆动（下降相 --<-1 翻上升；上升 ++>1 翻下降）。
     fn tick_bob(&mut self) {
         if self.bob_rising {
             self.bob += 1;

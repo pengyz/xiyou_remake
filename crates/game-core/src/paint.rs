@@ -178,9 +178,9 @@ impl BootMachine {
         ui: Vec<ArgbImage>,
         menu: Vec<ArgbImage>,
     ) -> BootMachine {
-        assert_eq!(sflogo.len(), 8, "sflogo 容器 8 张（a.java:453 f_int_arr_00 计数表）");
-        assert_eq!(ui.len(), 25, "ui 容器 25 张（a.java:453 f_int_arr_00 计数表）");
-        assert_eq!(menu.len(), 2, "menu 容器 2 张（a.java:453 f_int_arr_00 计数表第 10 项）");
+        assert_eq!(sflogo.len(), 8, "sflogo 容器 8 张（a.java:453 resourceImageCounts 计数表）");
+        assert_eq!(ui.len(), 25, "ui 容器 25 张（a.java:453 resourceImageCounts 计数表）");
+        assert_eq!(menu.len(), 2, "menu 容器 2 张（a.java:453 resourceImageCounts 计数表第 10 项）");
         BootMachine {
             mode: 0,
             key_value: 0,
@@ -309,7 +309,7 @@ pub struct BootPaintState {
     pub image: Option<ArgbImage>,
     /// logo 动画层（phase>=2 时 Some）。
     pub logo: Option<crate::logo_anim::LogoAnim>,
-    /// sflogo#7（paintLogoAnimation 字形槽源图，a.java:10445）。
+    /// sflogo#7（paintLogoAnimation 字形槽源图，a.java:10451）。
     pub sflogo7: Option<ArgbImage>,
 }
 
