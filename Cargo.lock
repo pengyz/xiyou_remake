@@ -19,6 +19,7 @@ name = "game-oracle"
 version = "0.1.0"
 dependencies = [
  "game-core",
+ "game-data",
 ]
 
 [[package]]

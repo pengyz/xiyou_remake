@@ -1,0 +1,43 @@
+# ticks: 4000
+# preset: preset-floor1.preset
+# cover: 纯行走对拍轨迹（预设第 1 层，避开实体格）——Rust ReplayHost vs Java
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+160 -5 press
+162 -5 release
+# mode8 存档槽确认 ×3
+500 -5 press
+502 -5 release
+600 -5 press
+602 -5 release
+700 -5 press
+702 -5 release
+# mode3 行走段：起点 (3,10)=px96,py320。向上走廊（y10→y8 已知可通行）
+900 -1 press
+902 -1 release
+960 -1 press
+962 -1 release
+1020 -1 press
+1022 -1 release
+1100 -4 press
+1102 -4 release
+1160 -4 press
+1162 -4 release
+1240 -2 press
+1242 -2 release
+1300 -2 press
+1302 -2 release
+1380 -3 press
+1382 -3 release
+1440 -3 press
+1442 -3 release
+1520 -1 press
+1522 -1 release
+1580 -1 press
+1582 -1 release
+1660 -2 press
+1662 -2 release
+1720 -4 press
+1722 -4 release
