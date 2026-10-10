@@ -1,9 +1,10 @@
-//! boot 启动屏回放（P3 渲染层）：Rust `BootMachine` 重放 A-boot-menu trace
-//! 的 mode 0 + mode 21 阶段，**逐 tick** 比对 FRAME sha（TICK n 的帧 = 第 n 次
-//! 逻辑推进**后**的 paint，时序合同见 `game-core/src/paint.rs` BootMachine 注释）。
+//! boot→title 回放（P3 渲染层）：Rust `BootMachine` 重放 A-menu-sweep trace
+//! 的 mode 0 + mode 21 + mode 1 阶段，**逐 tick** 比对 FRAME sha（TICK n 的帧
+//! = 第 n 次逻辑推进**后**的 paint；INPUT 在 preTick(n) 投递、logic#(n+1) 消费）。
 //!
-//! 覆盖：l0/l1 加载轮播（T1-31）、logo 时间线（T32-67）、声音询问（T68-70，
-//! T70 的 -6 按键切 gameMode=1 后为 title 菜单，属下一批端口范围）。
+//! 覆盖：l0/l1 轮播（T1-31）、logo 时间线（T32-67）、声音询问（T68-70）、
+//! title 菜单（T71-151：图标带动画、bob 箭头、粒子系统、光标移动 T90 -2、
+//! T150 -5 确认「继续游戏」→ gameMode=8 后为读档链，属下一批范围）。
 
 use game_core::paint::BootMachine;
 use game_core::render::{ArgbImage, SoftGraphics};
@@ -36,9 +37,9 @@ fn load_sflogo() -> Vec<ArgbImage> {
 #[test]
 fn boot_menu_frames_match_tick_by_tick() {
     let trace_text = std::fs::read_to_string(
-        repo().join("reference/oracle/_out/A-boot-menu/trace.txt"),
+        repo().join("reference/oracle/_out/A-menu-sweep/trace.txt"),
     )
-    .expect("缺 A-boot-menu trace（先跑 python3 reference/oracle/run.py --scenarios）");
+    .expect("缺 A-menu-sweep trace（先跑 python3 reference/oracle/run.py --scenarios）");
     let records = trace::parse(&trace_text);
     assert!(records.len() >= 40, "trace 过短");
 
@@ -47,6 +48,7 @@ fn boot_menu_frames_match_tick_by_tick() {
         decode_png("l1.png"),
         load_sflogo(),
         load_container("ui", 25),
+        load_container("menu", 2),
     );
     let mut checked = 0usize;
     // 按键投递时序：TICK n 的 INPUT 行在 preTick(n)（paint#n 之后）投递，
@@ -57,9 +59,10 @@ fn boot_menu_frames_match_tick_by_tick() {
         pending_key = input_key(&rec.input);
         machine.tick(key);
         if machine.finished {
-            // gameMode 已切 1（title 菜单未端口）：T70 press(-6) 由 logic#71 消费
-            assert_eq!(rec.tick, 71, "模式切换应在 T71（T70 的 -6 延迟一拍消费）");
-            assert_eq!(machine.mode, 1, "-6 ⇒ gameMode=1（a.java:4222-4229）");
+            // T150 press(-5) 由 logic#151 消费：kinds[cursor=1]=1「继续游戏」
+            // → gameMode=8（读档链，a.java:3389-3393），属下一批范围
+            assert_eq!(rec.tick, 151, "mode 1 出口应在 T151（T150 的 -5 延迟一拍）");
+            assert_eq!(machine.mode, 8, "-5@cursor1 ⇒ gameMode=8（a.java:3390）");
             break;
         }
         let mut screen = ArgbImage::create(240, 320);
@@ -80,8 +83,8 @@ fn boot_menu_frames_match_tick_by_tick() {
             checked += 1;
         }
     }
-    // 覆盖锚：l0 轮播 T1-16 + l1 T17-31 + logo T32-67 + 声音询问 T68-70
-    assert_eq!(checked, 70, "mode 0+21 全程 70 帧必须全部比对");
+    // 覆盖锚：l0 T1-16 + l1 T17-31 + logo T32-67 + 声音询问 T68-70 + title T71-150
+    assert_eq!(checked, 150, "mode 0+21+1 全程 T1-T150 帧必须全部比对（T151 起 mode 8 未端口）");
 }
 
 /// INPUT 行 → 本 tick 边界投递的按键码（keyPressed；release 只清 keyHeldCode，

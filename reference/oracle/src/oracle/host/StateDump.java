@@ -79,6 +79,20 @@ public final class StateDump {
             Image img = (Image) v;
             return "IMG(" + img.getWidth() + "x" + img.getHeight() + ",#" + imgHash(img) + ")";
         }
+        if (v instanceof java.util.Random) {
+            // LCG 原始状态（AtomicLong seed 字段）：随机数消费链的可审计投影。
+            // 2026-10-09 粒子非确定性排查引入——gameRandom 的 setSeed(VTime) 后
+            // 首消费序列与实测不符，把 seed 暴露进 trace 以定位分歧点。
+            try {
+                Field sf = java.util.Random.class.getDeclaredField("seed");
+                sf.setAccessible(true);
+                Object raw = sf.get(v);
+                long seedRaw = ((java.util.concurrent.atomic.AtomicLong) raw).get();
+                return "RND(seed=" + Long.toHexString(seedRaw) + ")";
+            } catch (Throwable t) {
+                return "RND(?)";
+            }
+        }
         if (c.isArray()) {
             return array(v, root, depth);
         }

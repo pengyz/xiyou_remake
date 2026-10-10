@@ -154,6 +154,12 @@ pub struct BootMachine {
     ui: Vec<ArgbImage>,
     /// f_byte_13/f_byte_14 软键栏状态（paintSoftkeyBar 绘制输入）。
     pub softkeys: (i8, i8),
+    /// mode 1 标题菜单（gameMode=1 起接管 tick/paint）。
+    pub title: Option<crate::title::TitleMachine>,
+    /// menu 容器 2 张（m_001(10)：资源名表第 10 项 "menu"，mode 1 背景/图标带）。
+    menu: Vec<ArgbImage>,
+    /// gameRandom（构造时 setSeed(VTime=0)；JavaRandom LCG）。
+    pub rng: game_platform::JavaRandom,
     /// f_int_02 帧间隔 ms（构造 75，a.java:27；mode 0 每 tick 设 100，
     /// a.java:3340；切 mode 21 时回 75，a.java:3367）。
     pub frame_interval_ms: i64,
@@ -165,9 +171,16 @@ pub struct BootMachine {
 
 impl BootMachine {
     /// 构造：预解码全部依赖资源（解码耗时与 tick 语义无关）。
-    pub fn new(l0: ArgbImage, l1: ArgbImage, sflogo: Vec<ArgbImage>, ui: Vec<ArgbImage>) -> BootMachine {
+    pub fn new(
+        l0: ArgbImage,
+        l1: ArgbImage,
+        sflogo: Vec<ArgbImage>,
+        ui: Vec<ArgbImage>,
+        menu: Vec<ArgbImage>,
+    ) -> BootMachine {
         assert_eq!(sflogo.len(), 8, "sflogo 容器 8 张（a.java:453 f_int_arr_00 计数表）");
         assert_eq!(ui.len(), 25, "ui 容器 25 张（a.java:453 f_int_arr_00 计数表）");
+        assert_eq!(menu.len(), 2, "menu 容器 2 张（a.java:453 f_int_arr_00 计数表第 10 项）");
         BootMachine {
             mode: 0,
             key_value: 0,
@@ -179,6 +192,9 @@ impl BootMachine {
             sflogo,
             ui,
             softkeys: (0, 0),
+            title: None,
+            menu: menu,
+            rng: game_platform::JavaRandom::new_seeded(0),
             frame_interval_ms: 75,
             paints: 0,
             finished: false,
@@ -190,6 +206,7 @@ impl BootMachine {
         self.paints += 1;
         match self.mode {
             21 => paint_sound_prompt(g, &self.ui[10], &self.ui[11], self.softkeys),
+            1 => self.title.as_mut().unwrap().paint(g, &self.menu[0], &self.menu[1], &self.ui[14]),
             _ => {
                 let state = BootPaintState {
                     phase: self.phase,
@@ -211,17 +228,28 @@ impl BootMachine {
             21 => {
                 // a.java:4215-4232：switch (keyValue)
                 match key {
-                    -7 => {
-                        // f_bool_29=false（声音关）… gameMode=1
+                    -7 | -6 => {
+                        // -7: f_bool_29=false（声音关）；-6: true（音量 0→60）。
+                        // 两者都 gameMode=1 + m_000()（a.java:4219/4228）
                         self.mode = 1;
-                        self.finished = true; // mode 1 未端口，对拍范围到切换为止
-                    }
-                    -6 => {
-                        // f_bool_29=true；f_int_155==0 → 60；gameMode=1
-                        self.mode = 1;
-                        self.finished = true;
+                        self.title = Some(crate::title::TitleMachine::new());
                     }
                     _ => {}
+                }
+                self.key_value = 0;
+            }
+            1 => {
+                // a.java:3381-3436。frame_counter：迭代 N 拍用 f=N-1
+                //（for 自增在体后）；paints 在 tick 时 = 已 paint 数 = N-1
+                let f = self.paints as i32;
+                if let Some(next) =
+                    self.title
+                        .as_mut()
+                        .unwrap()
+                        .tick(key, f, &mut self.rng)
+                {
+                    self.mode = next;
+                    self.finished = true; // 后续模式（8/14/15/16/17/22）未端口
                 }
                 self.key_value = 0;
             }
