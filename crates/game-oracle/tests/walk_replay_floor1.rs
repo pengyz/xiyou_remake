@@ -12,7 +12,7 @@ use game_core::walk::{camera_edge_follow, WalkState};
 use game_data::sprite::SpriteTable;
 use game_oracle::trace::parse;
 
-/// maplv1 地形可行走网格（rebuildWalkability a.java:6941-6959 语义：
+/// maplv1 地形可行走网格（rebuildWalkability a.java:6954-6972 语义：
 /// 行距 wide·4、列距 2——与 paintTileLayer 的行距 wide·2、列距 1 是同一
 /// 数组的两套读法；A 级：oracle FLD 134 13×13 逐格复算匹配）。
 fn terrain_floor1() -> Vec<Vec<bool>> {
@@ -182,7 +182,7 @@ impl Floor1Host {
                 _ => {}
             }
         }
-        // Java a.java:8214-8216：can_walk && 无实体交互 ⇒ 纯地形判定；
+        // Java a.java:8227-8229：can_walk && 无实体交互 ⇒ 纯地形判定；
         // 有实体交互 ⇒ 实体结果为准，但地形不可走仍可否决
         let has_entities = !entity_ids.is_empty(); // entity_ids 未被移动
         if can_walk && !has_entities {
@@ -203,7 +203,7 @@ impl Floor1Host {
 }
 
 fn category_of(etype: i32) -> u8 {
-    // 类目表与 a.java:6204-6252 一致（type_categories 夹具同源）
+    // 类目表与 a.java:6217-6265 一致（type_categories 夹具同源）
     const CATS: &str = include_str!("../../game-core/tests/fixtures/type_categories.txt");
     CATS.lines()
         .nth(etype as usize)

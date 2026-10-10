@@ -16,7 +16,7 @@
 //!   run case 16（a.java:4131-4179）：-2/-1 移动 optionCursor、-5/-4/-3 翻转
 //!   optionChecked[高亮]；-7/-6 → menuReturnMode。
 //! - **mode 22**（帮助→退出）：run case 22（a.java:4237-4246）++bootPhaseCounter≤70
-//!   ⇒ runLogoAnimation(1, t)（var1=1 分支 a.java:10291-10339：t=18..30 逐字
+//!   ⇒ runLogoAnimation(1, t)（var1=1 分支 a.java:10312-10360：t=18..30 逐字
 //!   上滑注册、t=50/51/52/58/63 修改项）；paint case 22 = paintLogoAnimation。
 //!   70 拍后 f_bool_00=false（进程退出）。
 //! - **overlay 绘制**（paint 公共尾 a.java:3123-3171）：paintBoxFrame 居中盒 +
@@ -29,7 +29,7 @@
 
 use crate::render::{ArgbImage, SoftGraphics};
 
-/// parseHexColor（a.java:10461-10471）：hex 颜色解析，失败 → 2829099（永不 -1）。
+/// parseHexColor（a.java:10482-10492）：hex 颜色解析，失败 → 2829099（永不 -1）。
 fn parse_hex_color(s: &[u16]) -> i32 {
     let txt: String = s.iter().map(|&c| c as u8 as char).collect();
     i32::from_str_radix(&txt, 16).unwrap_or(2829099)
@@ -43,7 +43,7 @@ fn hex_color_valid(s: &[u16]) -> bool {
 
 // ================================ parallax ================================
 
-/// 视差背景（drawParallaxBackdrop a.java:6825-6852）。
+/// 视差背景（drawParallaxBackdrop a.java:6838-6865）。
 pub struct ParallaxBackdrop {
     /// f_int_149 之外独立字段 backdropScroll（paint 内每拍 -1，<-154 重置）。
     scroll: i32,
@@ -60,7 +60,7 @@ impl ParallaxBackdrop {
         ParallaxBackdrop { scroll: 0 }
     }
 
-    /// `drawParallaxBackdrop(game_view)`（a.java:6825-6852）。
+    /// `drawParallaxBackdrop(game_view)`（a.java:6838-6865）。
     /// `game_view=true` 时纵向平铺带翻转（mode 3/4/19 用），菜单族恒 false。
     pub fn paint(&mut self, g: &mut SoftGraphics<'_>, tile: &ArgbImage, game_view: bool, view_bottom: i32) {
         self.scroll -= 1;
@@ -136,7 +136,7 @@ pub fn draw_edge_patch(
     g.set_clip(0, 0, 240, 320);
 }
 
-/// `paintBoxFrame`（a.java:6096-6136）：标准盒框（ui[8][0] 角片 26×16 / 边片 16×16）。
+/// `paintBoxFrame`（a.java:6109-6149）：标准盒框（ui[8][0] 角片 26×16 / 边片 16×16）。
 pub fn paint_box_frame(g: &mut SoftGraphics<'_>, ui0: &ArgbImage, x: i32, y: i32, w: i32, h: i32) {
     // 顶边（含左上角）
     g.set_clip(x, y, 26, 16);
@@ -168,7 +168,7 @@ pub fn paint_box_frame(g: &mut SoftGraphics<'_>, ui0: &ArgbImage, x: i32, y: i32
     g.set_clip(0, 0, 240, 320);
 }
 
-/// `paintTitledBox`（a.java:6089-6108）：盒框 + 顶部标题条（ui[8][13] 按 `segs`
+/// `paintTitledBox`（a.java:6102-6121）：盒框 + 顶部标题条（ui[8][13] 按 `segs`
 /// 段表切 14px 片）。
 pub fn paint_titled_box(
     g: &mut SoftGraphics<'_>,
@@ -191,7 +191,7 @@ pub fn paint_titled_box(
     g.set_clip(0, 0, 240, 320);
 }
 
-/// `paintMiniFrame`（a.java:6173-6182）：小框（32×32 图标框底）。
+/// `paintMiniFrame`（a.java:6186-6195）：小框（32×32 图标框底）。
 pub fn paint_mini_frame(g: &mut SoftGraphics<'_>, x: i32, y: i32, w: i32, h: i32) {
     let bottom = y + h - 2;
     let right = x + w - 1;
@@ -203,7 +203,7 @@ pub fn paint_mini_frame(g: &mut SoftGraphics<'_>, x: i32, y: i32, w: i32, h: i32
     g.draw_line(x + 1, bottom + 1, right - 1, bottom + 1);
 }
 
-/// `paintNumber`（a.java:6184-6213）：数字条（右对齐逐位，负数画横线）。
+/// `paintNumber`（a.java:6197-6226）：数字条（右对齐逐位，负数画横线）。
 /// 返回绘制位数（调用方用于宽度推进）。
 pub fn paint_number(g: &mut SoftGraphics<'_>, digits: &ArgbImage, value: i32, x: i32, y: i32) -> i32 {
     let negative = value < 0;
@@ -529,7 +529,7 @@ impl OverlayEngine {
 
 // ============================== 槽位列表 ==============================
 
-/// paintSlotList（a.java:9027-9132）的槽位表（oracle RMS 恒空 ⇒ 全无效）。
+/// paintSlotList（a.java:9040-9151）的槽位表（oracle RMS 恒空 ⇒ 全无效）。
 pub struct SlotSelect {
     /// slotCursor：槽光标（0..5 环绕）。
     pub cursor: i32,
@@ -593,7 +593,7 @@ impl SlotSelect {
         }
     }
 
-    /// `paintSlotList(false)`（a.java:9027-9070 无效槽路径：详情面板跳过）。
+    /// `paintSlotList(false)`（a.java:9040-9083 无效槽路径：详情面板跳过）。
     pub fn paint(
         &self,
         g: &mut SoftGraphics<'_>,
@@ -625,7 +625,7 @@ impl SlotSelect {
             }
             y += 14;
         }
-        // 翻页箭头（a.java:9055-9062）
+        // 翻页箭头（a.java:9068-9075）
         let ax = 120 + ((self.content_w >> 1) - 10);
         if self.scroll_top > 0 {
             crate::paint::draw_image_clipped(g, &ui[15], ax, y - 20, 0, 0, 7, 9);
@@ -633,7 +633,7 @@ impl SlotSelect {
         if self.scroll_bottom < 6 {
             crate::paint::draw_image_clipped(g, &ui[15], ax, y - 10, 7, 0, 7, 9);
         }
-        // 分隔线（a.java:9064-9070）
+        // 分隔线（a.java:9077-9083）
         let mut ly = y + 2;
         let lx = ax - self.content_w + 10;
         g.set_color(crate::layout::SLOT_RULE_DARK);
@@ -645,9 +645,9 @@ impl SlotSelect {
     }
 }
 
-/// "---"（无效槽标签，a.java:9047）。
+/// "---"（无效槽标签，a.java:9060）。
 const DASH_LABEL: &[u16] = &[0x2D, 0x2D, 0x2D];
-/// "存档"（有效槽标签前缀，a.java:9049）。
+/// "存档"（有效槽标签前缀，a.java:9062）。
 const SAVE_LABEL: &[u16] = &[0x5B58, 0x6863];
 
 // ============================== 菜单族状态机 ==============================
@@ -706,7 +706,7 @@ impl OptionList {
         list
     }
 
-    /// `addOption`（a.java:9882-9903）：登记选项 + 盒尺寸累加。
+    /// `addOption`（a.java:9901-9922）：登记选项 + 盒尺寸累加。
     fn add(&mut self, label_idx: usize, checked: bool) {
         let font = crate::paint::paint_font();
         let w = font.string_width(OPTION_LABELS[label_idx]) + 80;

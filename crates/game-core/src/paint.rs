@@ -45,7 +45,7 @@ pub fn draw_image_clipped(g: &mut SoftGraphics<'_>, img: &ArgbImage, x: i32, y: 
     g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
 }
 
-/// `paintSoftkeyBar`（a.java:5983-5993）：软键栏。`left`/`right` = softkeyLeftKind/softkeyRightKind
+/// `paintSoftkeyBar`（a.java:5996-6006）：软键栏。`left`/`right` = softkeyLeftKind/softkeyRightKind
 /// （0 = 不绘制；kind 1..n 选 ui[11] 精灵条的第 n 个 12×10 图标）。
 pub fn m_034_softkeys(g: &mut SoftGraphics<'_>, ui10: &ArgbImage, ui11: &ArgbImage, left: i8, right: i8) {
     if left != 0 {
@@ -448,7 +448,7 @@ impl BootMachine {
                     .unwrap()
                     .tick(key, &self.intro_imgs, &self.end_imgs, &mut self.overlay, &paint_font());
                 if done {
-                    // startNewGameLoad（a.java:7151-7164）：新游戏加载链
+                    // startNewGameLoad（a.java:7164-7177）：新游戏加载链
                     self.loading = Some(crate::intro::LoadProgress::new_game());
                     self.mode = 2;
                 }
@@ -610,7 +610,7 @@ pub struct BootPaintState {
     pub image: Option<ArgbImage>,
     /// logo 动画层（phase>=2 时 Some）。
     pub logo: Option<crate::logo_anim::LogoAnim>,
-    /// sflogo#7（paintLogoAnimation 字形槽源图，a.java:10455）。
+    /// sflogo#7（paintLogoAnimation 字形槽源图，a.java:10476）。
     pub sflogo7: Option<ArgbImage>,
 }
 

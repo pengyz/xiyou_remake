@@ -13,7 +13,7 @@ pub struct DialogueTable {
     pub texts: Vec<String>,
     pub speakers: Vec<i8>,
     pub type_names: Vec<String>,
-    /// 类型→类目表（Java renderCategoryByType，a.java:6204-6252 初始化；CES 延迟查此表）
+    /// 类型→类目表（Java renderCategoryByType，a.java:6217-6265 初始化；CES 延迟查此表）
     pub type_categories: Vec<u8>,
 }
 
@@ -149,11 +149,11 @@ pub trait HostCtx {
     fn set_camera_anchor_target(&mut self, x: i32, y: i32);
     /// CMidlet.m_000：退出应用。
     fn exit_application(&mut self);
-    /// MVS（P3.2：deobf a.java:8490-8564；数据域 68 条脚本零使用）。
+    /// MVS（P3.2：deobf a.java:8503-8577；数据域 68 条脚本零使用）。
     fn mvs_exchange(&mut self);
     /// ROS_2：m_082（对白目标设置，实体域）。
     fn m_082_set_dialog_target(&mut self, v: i32);
-    /// MOV 5 参分支：实体 72 的路线标志写（entityAnimRow[idx]=1，a.java:8252-8254）。
+    /// MOV 5 参分支：实体 72 的路线标志写（entityAnimRow[idx]=1，a.java:8265-8267）。
     fn set_entity_route_flag(&mut self, idx: i32);
     /// ROS_1 后 m_104(0)：相机锚 = 新玩家像素位。
     fn snap_camera_after_ros1(&mut self, px: i32, py: i32);
@@ -187,7 +187,7 @@ impl<'d> ScriptEngine<'d> {
         }
     }
 
-    /// GUT_ 目标装载 = Java loadLevelScript（a.java:7997-8012）。
+    /// GUT_ 目标装载 = Java loadLevelScript（a.java:8010-8025）。
     pub fn load_level_script(&mut self, host: &mut impl HostCtx, idx: usize) {
         self.state.script_walk_armed = false;
         self.state.game_mode = 11;
@@ -197,7 +197,7 @@ impl<'d> ScriptEngine<'d> {
         self.state.dialog_phase = DialogPhase::ScriptStep;
         self.state.overlay_text = None;
         self.state.script_cursor = 0;
-        // Java case 31 特例（地图/实体重排，a.java:8005-8011）：
+        // Java case 31 特例（地图/实体重排，a.java:8018-8024）：
         // 层重排属实体域，P3.1 以层重载 hook 表达可见副作用的最小保真。
         if idx == 31 {
             host.reload_floor_entities(self.state.current_floor);
@@ -210,7 +210,7 @@ impl<'d> ScriptEngine<'d> {
         self.open_dialog_page(host, next);
     }
 
-    /// openDialogPage 忠实移植（a.java:8185-8210）。
+    /// openDialogPage 忠实移植（a.java:8198-8223）。
     pub fn open_dialog_page(&mut self, host: &mut impl HostCtx, page: i32) {
         if page <= self.state.tak_page_end {
             self.state.dialog_page = page;
@@ -253,7 +253,7 @@ impl<'d> ScriptEngine<'d> {
         }
     }
 
-    /// parseScriptInt 忠实移植（a.java:8560-8567）：
+    /// parseScriptInt 忠实移植（a.java:8573-8580）：
     /// 从 from 起找 delim，值 = substring，解析终位（Java f_int_122）= 分隔符位。
     fn parse_script_int(&mut self, line: &str, from: usize, delim: char) -> i32 {
         let rel = line[from..].find(delim).expect("脚本整数的分隔符缺失");
@@ -262,13 +262,13 @@ impl<'d> ScriptEngine<'d> {
         line[from..d].parse().expect("脚本整数解析失败")
     }
 
-    /// executeScriptInstruction 忠实移植（a.java:8216-8564）。
+    /// executeScriptInstruction 忠实移植（a.java:8229-8577）。
     pub fn execute_script_instruction(&mut self, host: &mut impl HostCtx) {
         let line = self.line();
         let var2 = self.state.script_cursor;
         let has_opcode = var2 + 3 <= line.len();
         if !has_opcode {
-            // 行尾收尾门（a.java:8551-8563）：序章 cursor=43 冻结 phase=4 实证
+            // 行尾收尾门（a.java:8564-8576）：序章 cursor=43 冻结 phase=4 实证
             self.state.dialog_phase = DialogPhase::AwaitCamera;
             if self.state.current_script_index != 32 {
                 let cur = self.state.current_script_index;
@@ -292,7 +292,7 @@ impl<'d> ScriptEngine<'d> {
             let mut p = var2p4;
             let target_type = self.parse_script_int(&line, p, '_');
             p = self.state.last_delim_pos;
-            // 5 参形态 y 也用 '_' 分隔（a.java:8239-8241；真实数据 MOV_72_3_7_1_8）
+            // 5 参形态 y 也用 '_' 分隔（a.java:8252-8254；真实数据 MOV_72_3_7_1_8）
             let mut cell_x = 0;
             let mut cell_y = 0;
             if target_type > 0 {
@@ -304,7 +304,7 @@ impl<'d> ScriptEngine<'d> {
             self.state.camera_anchor_x = self.parse_script_int(&line, p + 1, '_');
             p = self.state.last_delim_pos;
             self.state.camera_anchor_y = self.parse_script_int(&line, p + 1, ' ');
-            self.state.script_cursor = self.state.last_delim_pos + 1; // 分支前推进（a.java:8245）
+            self.state.script_cursor = self.state.last_delim_pos + 1; // 分支前推进（a.java:8258）
             if target_type > 0 {
                 let idx = host.cell_entity(cell_x, cell_y, target_type);
                 if idx >= 0 {
@@ -313,10 +313,10 @@ impl<'d> ScriptEngine<'d> {
                     }
                     let (px, py) = host.entity_pixel(idx);
                     host.find_path(px >> 5, py >> 5, self.state.camera_anchor_x, self.state.camera_anchor_y);
-                    // Java 无条件置 2（a.java:8261，findPath 结果不影响 phase）
+                    // Java 无条件置 2（a.java:8274，findPath 结果不影响 phase）
                     self.state.dialog_phase = DialogPhase::Choice;
                 } else {
-                    self.execute_script_instruction(host); // Java 尾递归（a.java:8264）
+                    self.execute_script_instruction(host); // Java 尾递归（a.java:8277）
                 }
             } else if host.find_path(
                 self.state.player_cell_x,
@@ -324,7 +324,7 @@ impl<'d> ScriptEngine<'d> {
                 self.state.camera_anchor_x,
                 self.state.camera_anchor_y,
             ) {
-                // a.java:8265-8267：三写点缺一不可（复核 R2）
+                // a.java:8278-8280：三写点缺一不可（复核 R2）
                 self.state.script_walk_armed = true;
                 self.state.dialog_phase = DialogPhase::Walk;
                 self.state.walk_phase = crate::enums::WalkPhase::Idle;
@@ -354,7 +354,7 @@ impl<'d> ScriptEngine<'d> {
             self.state.script_cursor = self.state.last_delim_pos + 1;
         } else if var3 == "SWD" {
             host.swd_convert_type81();
-            // Java：var2 在 substring 后无条件 +3（a.java:8221-8222），
+            // Java：var2 在 substring 后无条件 +3（a.java:8234-8235），
             // SWD 分支 scriptCursor = var2 + 1 ⇒ 原始 cursor + 4（复核 R1）
             self.state.script_cursor = var2p4 + 1;
         } else if var3 != "MVS" {
@@ -362,7 +362,7 @@ impl<'d> ScriptEngine<'d> {
                 host.reload_floor_entities(self.state.current_floor); // m_119
                 self.state.layer_byte = self.parse_script_int(&line, var2p4, ' ');
                 self.state.script_cursor = self.state.last_delim_pos + 1;
-                self.state.flag_bool_16 = true; // a.java:8317（复核 R7）
+                self.state.flag_bool_16 = true; // a.java:8330（复核 R7）
                 self.state.overlay_text = None;
                 self.state.dialog_phase = DialogPhase::LayCutscene;
             } else if var3 == "ROS" {
@@ -370,7 +370,7 @@ impl<'d> ScriptEngine<'d> {
                 let p = self.state.last_delim_pos;
                 match sub {
                     1 => {
-                        // ROS_1（a.java:8325-8330）：玩家像素坐标直写 + m_104(0)（复核 R9）
+                        // ROS_1（a.java:8338-8343）：玩家像素坐标直写 + m_104(0)（复核 R9）
                         let x = self.parse_script_int(&line, p + 1, '_');
                         let pm = self.state.last_delim_pos;
                         let y = self.parse_script_int(&line, pm + 1, ' ');
@@ -398,8 +398,8 @@ impl<'d> ScriptEngine<'d> {
                 let cy = self.parse_script_int(&line, p + 1, ' ');
                 let idx = host.spawn_entity(t, cx << 5, cy << 5);
                 host.ces_camera(idx);
-                // scene_delay：switch(renderCategoryByType[type]) 类目表（a.java:8367；
-                // 类目表初始化 a.java:6204-6252——复核 R3 纠正：查类目非裸 type）
+                // scene_delay：switch(renderCategoryByType[type]) 类目表（a.java:8380；
+                // 类目表初始化 a.java:6217-6265——复核 R3 纠正：查类目非裸 type）
                 self.state.scene_delay = crate::enums::Category::from_raw(
                     self.data.type_categories[t as usize],
                 )
@@ -415,7 +415,7 @@ impl<'d> ScriptEngine<'d> {
                     _ => {}
                 }
                 self.state.script_cursor = self.state.last_delim_pos + 1;
-                self.execute_script_instruction(host); // 唯一显式尾递归（a.java:8397）
+                self.execute_script_instruction(host); // 唯一显式尾递归（a.java:8410）
             } else if var3 == "ADD" {
                 let mut p = var2p4;
                 let floor = self.parse_script_int(&line, p, '_');
@@ -452,7 +452,7 @@ impl<'d> ScriptEngine<'d> {
                     self.state.player_atk = 10;
                     self.state.player_def = 10;
                     self.state.player_hp = 400;
-                    self.state.inventory_entry_count = 0; // f_int_89=0（a.java:8442，复核 R6）
+                    self.state.inventory_entry_count = 0; // f_int_89=0（a.java:8455，复核 R6）
                 }
                 self.state.script_cursor = self.state.last_delim_pos + 1;
             } else if var3 == "SEE" {
@@ -469,7 +469,7 @@ impl<'d> ScriptEngine<'d> {
                 self.state.script_cursor = self.state.last_delim_pos + 1;
                 let page = self.state.tak_page_start;
                 self.open_dialog_page(host, page);
-                // Java switch(f_int_117) case 1 落穿 case 0/default（a.java:8456-8464）
+                // Java switch(f_int_117) case 1 落穿 case 0/default（a.java:8469-8477）
                 if mode_e == 1
                     && host.find_path(
                         self.state.player_cell_x,
@@ -500,7 +500,7 @@ impl<'d> ScriptEngine<'d> {
             host.mvs_exchange();
         }
 
-        // 尾部收尾门（a.java:8551-8563）：行被消费完 ⇒ phase=4 + 旗标 + 相机
+        // 尾部收尾门（a.java:8564-8576）：行被消费完 ⇒ phase=4 + 旗标 + 相机
         if self.state.script_cursor >= line.len() {
             self.state.dialog_phase = DialogPhase::AwaitCamera;
             if self.state.current_script_index != 32 {

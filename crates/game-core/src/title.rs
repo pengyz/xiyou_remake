@@ -8,7 +8,7 @@
 //! - **tick**（a.java:3374-3429）：`(frameCounter&3)==0` 时 spawn 粒子（每次
 //!   吃两个 randomBelow：先 x=rb(240) 后 y=295-rb(150)）；advanceBobPhase bob 摆动；
 //!   方向键移动 cursor（环绕）；-5 确认按 menuItemKinds[cursor] 切 gameMode。
-//! - **粒子演化**（updateAndDrawParticles a.java:9811-9829）：槽位 **31→0 倒序**；每 paint 先
+//! - **粒子演化**（updateAndDrawParticles a.java:9830-9848）：槽位 **31→0 倒序**；每 paint 先
 //!   画后推进：x+=velX；velX 不满（waxing=false）时 ++，触顶 2*size 翻转；
 //!   满（waxing=true）时 --，触底 -2*size 翻转且 size++（>5 死亡）；y+=velY
 //!   匀速。spawn 初值 velX=-3/velY=-4/size=2/waxing=false。
@@ -67,7 +67,7 @@ impl Particles {
         }
     }
 
-    /// `spawnParticle`（a.java:9797-9809）：环形游标登记新粒子。
+    /// `spawnParticle`（a.java:9816-9828）：环形游标登记新粒子。
     pub fn spawn(&mut self, x: i32, y: i32) {
         let i = self.cursor;
         self.x[i] = x;
@@ -80,7 +80,7 @@ impl Particles {
         self.cursor = if self.cursor + 1 > 31 { 0 } else { self.cursor + 1 };
     }
 
-    /// `updateAndDrawParticles`（a.java:9811-9829）：**paint 内调用**——先画后推进，槽位 31→0 倒序。
+    /// `updateAndDrawParticles`（a.java:9830-9848）：**paint 内调用**——先画后推进，槽位 31→0 倒序。
     pub fn paint_and_update(&mut self, g: &mut SoftGraphics<'_>) {
         g.set_color(self.color);
         for i in (0..PARTICLE_SLOTS).rev() {
@@ -89,7 +89,7 @@ impl Particles {
             }
             let s = self.size[i];
             g.fill_rect(self.x[i], self.y[i], s, s);
-            // 推进（a.java:9812-9828）
+            // 推进（a.java:9831-9847）
             self.x[i] += self.vel_x[i];
             let limit = s << 1;
             if !self.waxing[i] {
@@ -177,7 +177,7 @@ impl TitleMachine {
         }
     }
 
-    /// `advanceBobPhase`（a.java:6453-6462）：bob ±1 摆动（下降相 --<-1 翻上升；上升 ++>1 翻下降）。
+    /// `advanceBobPhase`（a.java:6466-6475）：bob ±1 摆动（下降相 --<-1 翻上升；上升 ++>1 翻下降）。
     /// iconStripFrame 外部同步（与 BootMachine 共享同一 Java 字段 a.java:464）。
     pub fn set_strip_frame(&mut self, f: usize) {
         self.strip_frame = f;

@@ -169,7 +169,7 @@ fn fill_triangle_degenerate() {
 
 #[test]
 fn fill_arc_full() {
-    // 游戏唯一 fillArc 调用形态（a.java:6635：32x32 全圆加载环）
+    // 游戏唯一 fillArc 调用形态（a.java:6648：32x32 全圆加载环）
     assert_eq!(
         render(|g| {
             g.set_color(0x0000FF);

@@ -1,6 +1,6 @@
 //! m_133 findPath 忠实移植 —— best-first 搜索 + 父指针回溯。
 //!
-//! 证据：reference/src/deobf/a.java:9840-9905（findPath）+ m_134（:9908-9936）。
+//! 证据：reference/src/deobf/a.java:9859-9924（findPath）+ m_134（:9908-9936）。
 //! 忠实点（含原版怪癖）：
 //! - 优先值 cost = |x-dst| + |y-dst| + |x-src| + |y-src|；
 //! - 插入循环 `while (--var3 >= 0) { if cost < arr[var3] || var3 == 0 {…break} }`

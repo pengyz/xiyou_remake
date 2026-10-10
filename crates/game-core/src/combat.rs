@@ -34,7 +34,7 @@ pub struct PlayerCombat {
 }
 
 impl PlayerCombat {
-    /// m_081 忠实移植（a.java:8462 区域）：按类型找物品栈下标，无则 -1。
+    /// m_081 忠实移植（a.java:8475 区域）：按类型找物品栈下标，无则 -1。
     pub fn find_item(&self, item_type: u8) -> i32 {
         for i in 0..self.item_stack_size as usize {
             if self.item_types[i] == item_type {
@@ -45,7 +45,7 @@ impl PlayerCombat {
     }
 }
 
-/// 敌方缩放三表（scaleEnemyStats a.java:7180-7210：scaled = base × multiplier）。
+/// 敌方缩放三表（scaleEnemyStats a.java:7193-7223：scaled = base × multiplier）。
 #[derive(Default)]
 pub struct ScaledEnemies {
     pub atk: Vec<i32>,
@@ -61,7 +61,7 @@ pub fn scale_enemy_stats(base: &CombatTables, multiplier: i32) -> ScaledEnemies 
     }
 }
 
-/// effectiveAttackVsType 忠实移植（a.java:9940-9950）：
+/// effectiveAttackVsType 忠实移植（a.java:9959-9969）：
 /// 特性位 &1 + 背包有 23 号 → ×2；特性位 &2 + 背包有 24 号 → ×2；返回 atk × 倍。
 pub fn effective_attack_vs_type(player: &PlayerCombat, trait_flags: u8) -> i32 {
     use item_kind::{TRAIT1_AMULET, TRAIT2_AMULET};
@@ -74,8 +74,8 @@ pub fn effective_attack_vs_type(player: &PlayerCombat, trait_flags: u8) -> i32 {
     player.atk * mult
 }
 
-/// predictBattleHpLoss 纯函数忠实移植（a.java:9952-9970）。
-/// 参数序 = Java 调用点（a.java:9938）：(atk, def, enemy_hp, enemy_atk, enemy_def, has_armor_gate)
+/// predictBattleHpLoss 纯函数忠实移植（a.java:9971-9989）。
+/// 参数序 = Java 调用点（a.java:9957）：(atk, def, enemy_hp, enemy_atk, enemy_def, has_armor_gate)
 pub fn predict_battle_hp_loss(
     player_atk: i32,
     player_def: i32,
@@ -103,7 +103,7 @@ pub fn predict_battle_hp_loss(
     result
 }
 
-/// predictHpLossVsType 参数桥接（a.java:9937-9939）。
+/// predictHpLossVsType 参数桥接（a.java:9956-9958）。
 pub fn predict_hp_loss_vs_type(
     player: &PlayerCombat,
     scaled: &ScaledEnemies,
@@ -120,7 +120,7 @@ pub fn predict_hp_loss_vs_type(
     )
 }
 
-/// spawnPopup kind 常量（a.java:9650-9663 分支语义 + tickBattle 写点）。
+/// spawnPopup kind 常量（a.java:9669-9682 分支语义 + tickBattle 写点）。
 pub mod popup_kind {
     /// 1：左移小字（钥匙消耗）
     pub const LEFT_SHIFT: i32 = 1;
@@ -132,14 +132,14 @@ pub mod popup_kind {
     pub const ENEMY_DAMAGE_BASE: i32 = 5;
 }
 
-/// 门码（consumeKeyForDoor 参数；a.java:8081-8106 + interactWithCell 对账）。
+/// 门码（consumeKeyForDoor 参数；a.java:8094-8119 + interactWithCell 对账）。
 pub mod door_code {
     pub const YELLOW: u8 = 26;
     pub const RED: u8 = 27;
     pub const BLUE: u8 = 28;
 }
 
-/// 战斗特性道具（effectiveAttackVsType 背包检索；a.java:9944-9948）。
+/// 战斗特性道具（effectiveAttackVsType 背包检索；a.java:9963-9967）。
 pub mod item_kind {
     /// 特性位 &1 配对：攻击 ×2
     pub const TRAIT1_AMULET: u8 = 23;
@@ -147,7 +147,7 @@ pub mod item_kind {
     pub const TRAIT2_AMULET: u8 = 24;
 }
 
-/// consumeKeyForDoor 忠实移植（a.java:8081-8106）：
+/// consumeKeyForDoor 忠实移植（a.java:8094-8119）：
 /// 26=黄门（popup 1,2）/ 27=红门（popup 1,1）/ 28=蓝门（popup 1,0）。
 /// 返回 (是否消耗, popup_value)。
 pub fn consume_key_for_door(player: &mut PlayerCombat, door: u8) -> (bool, i32) {
@@ -169,7 +169,7 @@ pub fn consume_key_for_door(player: &mut PlayerCombat, door: u8) -> (bool, i32) 
     }
 }
 
-/// gainGold 忠实移植（a.java:7480-7486）：gold += n；n>0 时 popup kind4。
+/// gainGold 忠实移植（a.java:7493-7499）：gold += n；n>0 时 popup kind4。
 /// 返回 popup 值（n>0 时 Some(n)）。
 pub fn gain_gold(player: &mut PlayerCombat, amount: i32) -> Option<i32> {
     player.gold += amount;

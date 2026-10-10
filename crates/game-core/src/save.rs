@@ -1,7 +1,7 @@
-//! RMS 存档格式解析（`loadFloorSave` a.java:9215-9277 + `saveFloorState` 对偶）
+//! RMS 存档格式解析（`loadFloorSave` a.java:9234-9296 + `saveFloorState` 对偶）
 //! 与全局进度（`m_000` case 21 的 SKY_WAR 读档 a.java:4427-4470）。
 //!
-//! # MOT_L{n} 楼层存档字段序（DataInputStream 大端，a.java:9224-9264）
+//! # MOT_L{n} 楼层存档字段序（DataInputStream 大端，a.java:9243-9283）
 //!
 //! | # | 类型 | 字段 |
 //! |---|---|---|

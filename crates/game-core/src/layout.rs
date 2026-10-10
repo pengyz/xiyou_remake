@@ -248,33 +248,33 @@ pub fn prompt_cy() -> i32 {
     SCREEN_H / 2
 }
 
-/// m_034 左软键底图 y（a.java:5972 `drawImage(f_Image_arr2_00[8][10], 0, 302, 0)`）。
+/// m_034 左软键底图 y（a.java:5985 `drawImage(f_Image_arr2_00[8][10], 0, 302, 0)`）。
 /// 语义 = `SCREEN_H - 18`（302 = 320-18）。
 pub fn softkey_base_y() -> i32 {
     SCREEN_H - 18
 }
 
-/// m_034 右软键底图 x（a.java:5977 `m_004(..., 222, 302, 1)`）。
+/// m_034 右软键底图 x（a.java:5990 `m_004(..., 222, 302, 1)`）。
 /// 语义 = 右对齐 18px 边距：`SCREEN_W - 18`。
 pub fn softkey_right_x() -> i32 {
     SCREEN_W - 18
 }
 
-/// m_034 软键图标 y（a.java:5973 `m_002(..., 2, 307, ...)`）。
+/// m_034 软键图标 y（a.java:5986 `m_002(..., 2, 307, ...)`）。
 pub fn softkey_icon_y() -> i32 {
     SCREEN_H - 13
 }
 
-/// m_034 左软键图标 x（a.java:5973）。
+/// m_034 左软键图标 x（a.java:5986）。
 pub const SOFTKEY_ICON_LEFT_X: i32 = 2;
 
-/// m_034 右软键图标 x（a.java:5978 `m_002(..., 226, 307, ...)`）。
+/// m_034 右软键图标 x（a.java:5991 `m_002(..., 226, 307, ...)`）。
 /// 语义 = `SCREEN_W - 14`。
 pub fn softkey_icon_right_x() -> i32 {
     SCREEN_W - 14
 }
 
-/// m_034 软键精灵条子图标尺寸 12×10（a.java:5973/5978 的 m_002 宽高参数）。
+/// m_034 软键精灵条子图标尺寸 12×10（a.java:5986/5978 的 m_002 宽高参数）。
 pub const SOFTKEY_ICON_W: i32 = 12;
 pub const SOFTKEY_ICON_H: i32 = 10;
 

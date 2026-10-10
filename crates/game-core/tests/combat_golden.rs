@@ -1,6 +1,6 @@
 //! P3.4 战斗模块 golden vectors（TDD）。
 //!
-//! 证据：deobf a.java:9940-9998（战斗数值链）/8081-8106（consumeKeyForDoor）/
+//! 证据：deobf a.java:9959-10017（战斗数值链）/8081-8106（consumeKeyForDoor）/
 //! 7480-7486（gainGold）/7180-7210（scaleEnemyStats）/1044-1118（基础表）；
 //! gameplay-floor1 trace（tick1557 HP -8 / popup 值 27,27,8,3）；
 //! 规格合同：docs/spec/gameplay.md R-battle-*（零随机、HP 下限 1）。
@@ -45,7 +45,7 @@ fn tables() -> CombatTables {
 
 #[test]
 fn predict_battle_hp_loss_matches_deobf_arithmetic() {
-    // 手算锚点（a.java:9952-9970）：atk=30 > edef=10；
+    // 手算锚点（a.java:9971-9989）：atk=30 > edef=10；
     // hits = hp/(20) = 40/20 = 2（2*20=40 不<40）；hits>1 && eatk 20 > def 10
     // → (20-10)*(2-1)=10；!gate && eatk>def → +10 ⇒ 20
     assert_eq!(predict_battle_hp_loss(30, 10, 40, 20, 10, false), 20);

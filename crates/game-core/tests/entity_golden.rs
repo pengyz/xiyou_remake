@@ -36,7 +36,7 @@ fn grid51() -> (i32, i32, Vec<Vec<bool>>) {
 
 #[test]
 fn spawn_registers_cell_slot_and_stair_anchor() {
-    // m_048（a.java:9641 区域）：像素取整、槽位登记、楼梯锚点
+    // m_048（a.java:9660 区域）：像素取整、槽位登记、楼梯锚点
     let width_table = width_table();
     let mut t = EntityTable::new(100);
     let mut g = CellGrid::new(13, 13);
@@ -55,7 +55,7 @@ fn spawn_registers_cell_slot_and_stair_anchor() {
 
 #[test]
 fn remove_marks_solid_and_lookup_skips() {
-    // m_047（a.java:6308：solid=1）+ m_100 跳过 solid==1
+    // m_047（a.java:6321：solid=1）+ m_100 跳过 solid==1
     let width_table = width_table();
     let mut t = EntityTable::new(100);
     let mut g = CellGrid::new(13, 13);
@@ -124,7 +124,7 @@ fn find_path_respects_terrain() {
 /// [证据链] oracle trace：playerCell(1,11)、SEE_3_10_166_166_1、f_int_148(walkStepCount)=3、
 /// f_bool_26(walk_request_flag)=true（findPath 成功写点）。本测试用 Rust 重实现验证
 /// Java 侧行为，并**更正 BUG-006 台账的根因**：原登记"寻路失败"——实为寻路成功
-/// （3 步路径存在），冻结来自行尾收尾门（a.java:8551）覆写 dialogPhase 6→4、
+/// （3 步路径存在），冻结来自行尾收尾门（a.java:8564）覆写 dialogPhase 6→4、
 /// 使已武装的行走永远不被执行。
 #[test]
 fn path_not_found_without_entity_slots_floor51() {

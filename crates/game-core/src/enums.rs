@@ -99,7 +99,7 @@ impl WalkPhase {
 }
 
 /// 行走方向码（walkPathBuffer / tryStep 语义，m_133 回溯映射）。
-/// 证据：deobf a.java:9887-9899（差分 → 方向码映射）+ walkPhase 1 步进 switch。
+/// 证据：deobf a.java:9906-9918（差分 → 方向码映射）+ walkPhase 1 步进 switch。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Dir {
     /// 0：屏幕向下（pixelY += 8）
@@ -118,7 +118,7 @@ impl Dir {
     }
 }
 
-/// 实体类目（Java `renderCategoryByType[type]`，a.java:6204-6252 初始化）。
+/// 实体类目（Java `renderCategoryByType[type]`，a.java:6217-6265 初始化）。
 /// CES 延迟与 markEntityRemoved 移除分派都查此表。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Category {
@@ -147,7 +147,7 @@ impl Category {
         }
     }
 
-    /// CES 延迟映射（a.java:8384-8391）：Cat1/Cat8/Cat16 → 5；Cat2/Cat4 → 8；默认 0。
+    /// CES 延迟映射（a.java:8397-8404）：Cat1/Cat8/Cat16 → 5；Cat2/Cat4 → 8；默认 0。
     pub fn scene_delay(self) -> i32 {
         match self {
             Self::Cat1 | Self::Cat8 | Self::Cat16 => 5,

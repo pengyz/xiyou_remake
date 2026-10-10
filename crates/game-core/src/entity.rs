@@ -93,7 +93,7 @@ pub fn width_cells(type_id: i32, width_table: &[i32]) -> i32 {
     if cells <= 0 { 1 } else { cells }
 }
 
-/// 渲染类别表（Java renderCategoryByType，initEntityTables 初始化 a.java:6243-6271）：
+/// 渲染类别表（Java renderCategoryByType，initEntityTables 初始化 a.java:6256-6284）：
 /// 区间 1..12→1、13..32→2、33..40→4、41..78→8，**特例覆盖优先**：
 /// 76/81/82/83→1、77/78→16、79/80→4、72/84/87→32、85/86→2。
 /// type 0 / ≥88 → 0。
@@ -139,7 +139,7 @@ pub const ANIM_OFFSET_TABLE: [&[i32]; 11] = [
     &[2, 3, 4],
 ];
 
-/// dispatchSpriteSize（a.java:6274-6299）：实体精灵尺寸分派。
+/// dispatchSpriteSize（a.java:6287-6312）：实体精灵尺寸分派。
 /// type 69 → (96,32)；type 72 → (32,45)；type 67 → (32,32)（m_001(9) 换容器后走尾部）；
 /// 图存在 → (typeFrameWidth[type], 图高)；图空 → (32,32)。
 pub fn dispatch_sprite_size(type_id: i32, idx: usize, table: &mut EntityTable, width_table: &[i32], img_h: Option<i32>) {
@@ -167,7 +167,7 @@ pub fn dispatch_sprite_size(type_id: i32, idx: usize, table: &mut EntityTable, w
     table.sprite_h[idx] = 32;
 }
 
-/// dispatchAnimFields（a.java:6301-6304）：动画字段初始化（行号 = animRowByType[type]，帧 0）。
+/// dispatchAnimFields（a.java:6314-6317）：动画字段初始化（行号 = animRowByType[type]，帧 0）。
 pub fn dispatch_anim(type_id: i32, idx: usize, table: &mut EntityTable) {
     table.anim_idx[idx] = ANIM_TABLE_IDX[type_id as usize] as i32;
     table.frame[idx] = 0;
@@ -204,7 +204,7 @@ pub fn spawn(
     table.solid[idx] = 0;
     table.count += 1;
 
-    // 格槽登记（Java var5 = dispatchSpriteSize 写入的 entitySpriteW>>5，≤0 取 1；a.java:6386-6395）
+    // 格槽登记（Java var5 = dispatchSpriteSize 写入的 entitySpriteW>>5，≤0 取 1；a.java:6399-6408）
     let width = width_cells(type_id, width_table);
     for dx in 0..width {
         let cx = (cell_x + dx) as usize;
@@ -244,7 +244,7 @@ pub fn cell_entity(grid: &CellGrid, table: &EntityTable, x: i32, y: i32, type_id
     -1
 }
 
-/// markEntityRemoved 核心（a.java:6323-6361）：solid=1（移除态）+ 类目分派视觉字段：
+/// markEntityRemoved 核心（a.java:6336-6374）：solid=1（移除态）+ 类目分派视觉字段：
 /// - 类目 1：type 1/2/3 → (45,56) 行 6；type 11 → (45,57) 行 2；其余不变；
 ///   随后调用方重绘小地图（buildMinimap）
 /// - 类目 2/4 → (45,56) 行 10
@@ -284,7 +284,7 @@ pub fn remove(table: &mut EntityTable, idx: usize) {
     }
 }
 
-/// markEntityDesRemoved（a.java:6306-6321）：DES 变体——solid=2 + 类目 2/8/16/32 → (27,29) 行 8。
+/// markEntityDesRemoved（a.java:6319-6334）：DES 变体——solid=2 + 类目 2/8/16/32 → (27,29) 行 8。
 pub fn remove_des(table: &mut EntityTable, idx: usize) {
     table.solid[idx] = 2;
     let t = table.entity_type[idx];
@@ -299,10 +299,10 @@ pub fn remove_des(table: &mut EntityTable, idx: usize) {
     }
 }
 
-/// sortEntitiesByY（a.java:6706-6795）：实体按 pixelY 升序的冒泡排序（严格小于 ⇒ 等值保序）。
+/// sortEntitiesByY（a.java:6719-6808）：实体按 pixelY 升序的冒泡排序（严格小于 ⇒ 等值保序）。
 /// 每次交换（var2=var4-1 ↔ var5=var4）伴随：
-/// - 槽修复①（var2 **旧**格，a.java:6739-6749）：var2+1 → var5+1（var2 的记录迁去 var5）
-/// - 槽修复②（var2 **新**格 = var5 旧位，a.java:6763-6777）：var5+1 → var2+1
+/// - 槽修复①（var2 **旧**格，a.java:6752-6762）：var2+1 → var5+1（var2 的记录迁去 var5）
+/// - 槽修复②（var2 **新**格 = var5 旧位，a.java:6776-6790）：var5+1 → var2+1
 /// 两段合成完整双向修复；交换后双向 dispatchAnimFields 重置动画字段。
 /// A 级验证：排序后槽表与 oracle FLD 137（cellSlotTable）逐格一致。
 pub fn sort_by_y(table: &mut EntityTable, grid: &mut CellGrid) {
@@ -363,7 +363,7 @@ pub fn sort_by_y(table: &mut EntityTable, grid: &mut CellGrid) {
 }
 
 /// sortEntitiesByY 交换的格槽修复片段：在 (px,py) 起的 width 格里找 id_from+1 → 写 id_to+1
-/// （a.java:6739-6749 / 6763-6777 同构两段）。
+/// （a.java:6752-6762 / 6763-6777 同构两段）。
 fn fix_slot(grid: &mut CellGrid, px: i32, py: i32, sprite_w: i32, id_from: usize, id_to: usize) {
     let mut width = sprite_w >> 5;
     if width <= 0 {
@@ -382,7 +382,7 @@ fn fix_slot(grid: &mut CellGrid, px: i32, py: i32, sprite_w: i32, id_from: usize
     }
 }
 
-/// advanceEntityFrames（a.java:6799-6825）：实体动画帧推进（frameCounter 奇数拍生效）。
+/// advanceEntityFrames（a.java:6812-6838）：实体动画帧推进（frameCounter 奇数拍生效）。
 /// 帧到表尾：solid==1 → pullEntityFromCell 格槽摘除；solid==2 → dispatchSpriteSize/dispatchAnimFields 重置 + solid=0；
 /// 其余 → 帧 0。pullEntityFromCell 的槽摘除当前仅在移除动画完成后需要（调用方
 /// `detach_from_cell`）——此处返回"待摘除"实体索引列表，由场景层执行。
@@ -421,7 +421,7 @@ pub fn advance_frames(table: &mut EntityTable, grid: &mut CellGrid, frame_counte
     detach
 }
 
-/// pullEntityFromCell（a.java:6439-6455）：实体从所属格槽摘除 + removed=true。
+/// pullEntityFromCell（a.java:6452-6468）：实体从所属格槽摘除 + removed=true。
 pub fn detach_from_cell(grid: &mut CellGrid, table: &mut EntityTable, idx: usize) {
     table.removed[idx] = true;
     let cy = (table.pixel_y[idx] >> 5) as usize;
@@ -439,7 +439,7 @@ pub fn detach_from_cell(grid: &mut CellGrid, table: &mut EntityTable, idx: usize
     }
 }
 
-/// advanceBobPhase（a.java:6457-6466）：bob 浮沉相位推进（每拍 ±1，域 [-2,2] 翻转）。
+/// advanceBobPhase（a.java:6470-6479）：bob 浮沉相位推进（每拍 ±1，域 [-2,2] 翻转）。
 pub fn advance_bob(offset: &mut i32, rising: &mut bool) {
     if *rising {
         *offset += 1;

@@ -19,7 +19,7 @@
 //!
 //! `fill_triangle`/`fill_arc` 内的乘除与 ceil/floor 是 IEEE-754 精确操作，Java/Rust
 //! 逐位一致。`atan2` 有 libm ULP 风险，但其结果只喂给 `in_arc`，而游戏唯一调用
-//! `fillArc(x,y,32,32,0,360)`（a.java:6644）走 `arcDeg >= 360 ⇒ true` 短路，返回值
+//! `fillArc(x,y,32,32,0,360)`（a.java:6657）走 `arcDeg >= 360 ⇒ true` 短路，返回值
 //! 被丢弃，ULP 差异不影响任何像素。
 //!
 //! # Java int 位语义
@@ -373,7 +373,7 @@ impl<'a> SoftGraphics<'a> {
         }
     }
 
-    /// `fillArc`（`Graphics.java:261-286`）。游戏唯一调用为全圆 0..360（a.java:6644）。
+    /// `fillArc`（`Graphics.java:261-286`）。游戏唯一调用为全圆 0..360（a.java:6657）。
     pub fn fill_arc(&mut self, x: i32, y: i32, w: i32, h: i32, start_angle: i32, arc_angle: i32) {
         self.op(format!(
             "fillArc({x},{y},{w},{h},{start_angle},{arc_angle},#{:06x})",

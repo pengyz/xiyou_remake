@@ -266,12 +266,12 @@ pub struct LoadProgress {
 }
 
 impl LoadProgress {
-    /// `m_131(target, call_m000)` + `m_132(...)`（a.java:9856-9870 区）。
+    /// `m_131(target, call_m000)` + `m_132(...)`（a.java:9875-9889 区）。
     pub fn new(target: i32, call_m000: bool, steps: &[i8]) -> LoadProgress {
         LoadProgress { steps: steps.to_vec(), step_idx: 0, progress: 0, bar_max: 0, target_mode: target, call_m000 }
     }
 
-    /// `startNewGameLoad`（a.java:7149-7162）：新游戏加载链。
+    /// `startNewGameLoad`（a.java:7162-7175）：新游戏加载链。
     pub fn new_game() -> LoadProgress {
         LoadProgress::new(3, true, &[6, 8, 5, 13, 9, 10, 2, 3, 12, 11])
     }

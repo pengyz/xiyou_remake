@@ -99,7 +99,7 @@ const PROLOGUE: usize = 40;
 
 #[test]
 fn tak_opens_page255_cursor0_to_12() {
-    // deobf a.java:8227-8233（TAK 分支）+ m_096:8185-8210；
+    // deobf a.java:8240-8246（TAK 分支）+ m_096:8185-8210；
     // trace 实证：tick578 scriptCursor=12、dialogPhase=1、overlayText="菩提老祖: \cF8F8F8悟空…"
     let t = table();
     let mut host = StubHost::default();
@@ -125,7 +125,7 @@ fn tak_opens_page255_cursor0_to_12() {
 
 #[test]
 fn tak_page_advance_and_exhaust_resumes_script() {
-    // m_096 else 分支（a.java:8206-8210）：page > range_end ⇒ phase=0；
+    // m_096 else 分支（a.java:8219-8223）：page > range_end ⇒ phase=0；
     // phase=0 后下一次 step 执行下一条指令（trace t1002：cursor=24，第 6 句对白 text[165]）
     let t = table();
     let mut host = StubHost::default();
@@ -160,7 +160,7 @@ fn drive_to_see(eng: &mut ScriptEngine, host: &mut StubHost) {
 fn see_bug006_replay_cursor_advances_walk_not_armed() {
     // BUG-006 回归锚：SEE_3_10_166_166_1 在 find_path=false 下 cursor 仍推进 43
     // （trace t1202），walk 不武装（script_walk_armed=false，f_int_148 死写）。
-    // SEE 分支 deobf a.java:8449-8464：先 openDialogPage(c)，cursor 推进，phase=6。
+    // SEE 分支 deobf a.java:8462-8477：先 openDialogPage(c)，cursor 推进，phase=6。
     let t = table();
     let mut host = StubHost::default();
     host.path_result = false;
@@ -170,7 +170,7 @@ fn see_bug006_replay_cursor_advances_walk_not_armed() {
     eng.step(&mut host); // SEE_3_10_166_166_1
     assert_eq!(eng.state.script_cursor, 43, "trace t1202");
     assert_eq!(eng.state.script_walk_armed, false);
-    // SEE 置 phase=6，随后行尾收尾门（a.java:8551）覆写为 4——BUG-006 冻结态实证
+    // SEE 置 phase=6，随后行尾收尾门（a.java:8564）覆写为 4——BUG-006 冻结态实证
     assert_eq!(eng.state.dialog_phase, DialogPhase::AwaitCamera);
     assert_eq!(eng.state.dialog_page, 166);
     assert_eq!(host.find_path_calls, vec![(1, 11, 3, 10)]);
@@ -178,7 +178,7 @@ fn see_bug006_replay_cursor_advances_walk_not_armed() {
 
 #[test]
 fn see_path_found_arms_walk() {
-    // SEE e=1 分支（a.java:8456-8459）：find_path 成功 ⇒ walk_request_flag=true + walkPhase=0
+    // SEE e=1 分支（a.java:8469-8472）：find_path 成功 ⇒ walk_request_flag=true + walkPhase=0
     let t = table();
     let mut host = StubHost::default();
     host.path_result = true;
@@ -193,7 +193,7 @@ fn see_path_found_arms_walk() {
 
 #[test]
 fn gut_flags_and_jumps() {
-    // GUT 分支 a.java:8269-8273 + loadLevelScript a.java:7997-8012：
+    // GUT 分支 a.java:8282-8286 + loadLevelScript a.java:8010-8025：
     // flags[当前]=true；current=n；cursor=0；gameMode=11；phase=0；overlay=null
     let t = table();
     let gut_entry = t.scripts.iter().position(|s| s.contains("GUT_37")).unwrap();
@@ -213,7 +213,7 @@ fn gut_flags_and_jumps() {
 
 #[test]
 fn res_resets_stats_when_difficulty_zero() {
-    // RES 分支 a.java:8462-8479（difficultyIndex==0）：钥匙清零/金=4/攻防10/HP400/层1-3
+    // RES 分支 a.java:8475-8492（difficultyIndex==0）：钥匙清零/金=4/攻防10/HP400/层1-3
     let t = table();
     let res_entry = t.scripts.iter().position(|s| s.starts_with("ROS_4_1 TAK_92_97")).unwrap();
     // 用含 RES_0 的条目（条目 0："… RES_0 GUT_1"）
@@ -240,7 +240,7 @@ fn res_resets_stats_when_difficulty_zero() {
 
 #[test]
 fn ros_sets_player_fields() {
-    // ROS 子命令 a.java:8340-8357：3=HP/4=朝向/5=ATK/6=DEF（1/2 走 hook，P3.2 实体）
+    // ROS 子命令 a.java:8353-8370：3=HP/4=朝向/5=ATK/6=DEF（1/2 走 hook，P3.2 实体）
     let t = table();
     let mut host = StubHost::default();
     let mut eng = ScriptEngine::new(&t, 0);
@@ -256,11 +256,11 @@ fn ros_sets_player_fields() {
 
 #[test]
 fn gin_tail_recurses_into_next_instruction() {
-    // GIN 分支 a.java:8395-8397：cursor 推进后**同 tick 显式尾递归**执行下一条
+    // GIN 分支 a.java:8408-8410：cursor 推进后**同 tick 显式尾递归**执行下一条
     let t = table();
     let mut host = StubHost::default();
     let mut eng = ScriptEngine::new(&t, 0);
-    // GIN 置于行中（行尾会触发 a.java:8551 收尾门 phase=4——Java 同款语义）
+    // GIN 置于行中（行尾会触发 a.java:8564 收尾门 phase=4——Java 同款语义）
     eng.set_script_line_for_test("GIN_1_1000 TAK_8_9 X ");
     eng.step(&mut host);
     assert_eq!(host.gold_calls, vec![1000]);
@@ -272,7 +272,7 @@ fn gin_tail_recurses_into_next_instruction() {
 
 #[test]
 fn end_requests_exit() {
-    // END 分支 a.java:8479-8483：gameMode=20 + m_000（exit hook）
+    // END 分支 a.java:8492-8496：gameMode=20 + m_000（exit hook）
     let t = table();
     let mut host = StubHost::default();
     let mut eng = ScriptEngine::new(&t, 0);
@@ -284,7 +284,7 @@ fn end_requests_exit() {
 
 #[test]
 fn mov_player_path_gates_walk_phase() {
-    // MOV 3 参分支 a.java:8246-8253：find_path 成功 ⇒ phase=3；失败 ⇒ 无动作
+    // MOV 3 参分支 a.java:8259-8266：find_path 成功 ⇒ phase=3；失败 ⇒ 无动作
     let t = table();
     let mut host = StubHost::default();
     host.path_result = true;
@@ -292,7 +292,7 @@ fn mov_player_path_gates_walk_phase() {
     eng.set_script_line_for_test("MOV_0_5_11 GLV_0 ");
     eng.step(&mut host);
     assert_eq!(eng.state.dialog_phase, DialogPhase::Walk);
-    assert_eq!(eng.state.script_walk_armed, true, "a.java:8265 三写点（复核 R2）");
+    assert_eq!(eng.state.script_walk_armed, true, "a.java:8278 三写点（复核 R2）");
     assert_eq!(eng.state.walk_phase, WalkPhase::Idle);
     assert!(host.camera_snaps > 0);
     assert_eq!(host.find_path_calls, vec![(1, 11, 5, 11)]); // playerCell(1,11)（gameplay-floor1 实测起点）
@@ -305,7 +305,7 @@ fn mov_player_path_gates_walk_phase() {
 
 #[test]
 fn cursor_stops_at_line_end_bug006_frozen() {
-    // 行尾门 a.java:8217（cursor+3 <= len）：cursor=43 冻结态步进 no-op（BUG-006）
+    // 行尾门 a.java:8230（cursor+3 <= len）：cursor=43 冻结态步进 no-op（BUG-006）
     let t = table();
     let mut host = StubHost::default();
     let mut eng = ScriptEngine::new(&t, PROLOGUE);
@@ -316,7 +316,7 @@ fn cursor_stops_at_line_end_bug006_frozen() {
 
 #[test]
 fn lay_sets_phase5_and_clears_overlay() {
-    // LAY 分支 a.java:8314-8320
+    // LAY 分支 a.java:8327-8333
     let t = table();
     let mut host = StubHost::default();
     let mut eng = ScriptEngine::new(&t, 0);
@@ -326,7 +326,7 @@ fn lay_sets_phase5_and_clears_overlay() {
     assert_eq!(eng.state.layer_byte, 2);
     assert_eq!(eng.state.overlay_text, None);
     assert_eq!(eng.state.dialog_phase, DialogPhase::LayCutscene);
-    assert!(eng.state.flag_bool_16, "a.java:8317");
+    assert!(eng.state.flag_bool_16, "a.java:8330");
     assert_eq!(host.reloaded_floors, vec![eng.state.current_floor]);
 }
 

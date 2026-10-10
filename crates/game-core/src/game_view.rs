@@ -1,12 +1,12 @@
-//! mode 3 游戏画面的数据层与瓦片层（loadFloorData 装载 a.java:9375-9417、
-//! setCameraClamped 相机 a.java:7014-7062、paintTileLayer 瓦片层 a.java:6966-7022）。
+//! mode 3 游戏画面的数据层与瓦片层（loadFloorData 装载 a.java:9394-9436、
+//! setCameraClamped 相机 a.java:7027-7075、paintTileLayer 瓦片层 a.java:6979-7035）。
 //!
 //! # 地图 grid 语义（loadFloorData + rebuildWalkability/paintTileLayer 的 stride-2 一致性）
 //!
-//! - maplv 头：`u16 wide<<1`、`u16 high<<1`（`>>1` 得格数，a.java:9382-9383）
-//! - terrain/transform 各为 `byte[wide*high*4]` 连续区（a.java:9387-9391）
+//! - maplv 头：`u16 wide<<1`、`u16 high<<1`（`>>1` 得格数，a.java:9401-9402）
+//! - terrain/transform 各为 `byte[wide*high*4]` 连续区（a.java:9406-9410）
 //! - **取值下标 stride-2**：格 (r,c) 的值 = `grid[(r*wide + c) * 2]`
-//!   （paintTileLayer a.java:6996-7001 与 rebuildWalkability a.java:7108-7112 同一算式——
+//!   （paintTileLayer a.java:7009-7014 与 rebuildWalkability a.java:6960-6963 同一算式——
 //!   每格 4 字节块中有效数据在偶位）
 //! - 瓦片值 v：`sx = (v&7)<<4`、`sy = (v>>3)<<4`（tileset 128x208 的
 //!   8×13 格 16px 索引）；变换取 mapTransformGrid 同下标
@@ -55,14 +55,14 @@ pub struct GameView {
 }
 
 impl GameView {
-    /// `loadFloorData(floor)`（a.java:9375-9407）：maplv 头 + 双 grid 读取 + 相机 0。
+    /// `loadFloorData(floor)`（a.java:9394-9426）：maplv 头 + 双 grid 读取 + 相机 0。
     /// `m_122/sortEntitiesByY`（实体装载）在 game_view 之外（Floor1Host 侧）。
     pub fn from_maplv(data: &[u8], player_px: i32, player_py: i32) -> Result<GameView, String> {
         if data.len() < 4 {
             return Err("maplv too short".into());
         }
         // 头为 u16 **LE**（resource-formats.md：maplv0 头 1a00 1a00 = 26×26，
-        // readU16BE 读后 >>1 得格数 13×13——a.java:9382-9383）
+        // readU16BE 读后 >>1 得格数 13×13——a.java:9401-9402）
         let wide = u16::from_le_bytes([data[0], data[1]]) as i32 >> 1;
         let high = u16::from_le_bytes([data[2], data[3]]) as i32 >> 1;
         let grid_len = (wide * high << 2) as usize;
@@ -97,7 +97,7 @@ impl GameView {
         Ok(v)
     }
 
-    /// `setCameraClamped(x, y)`（a.java:7014-7062）：钳制 + 窗口派生。
+    /// `setCameraClamped(x, y)`（a.java:7027-7075）：钳制 + 窗口派生。
     pub fn set_camera(&mut self, mut x: i32, mut y: i32) {
         if !self.fits_w {
             let min = -((self.wide + 2 << 5) - self.view_w);
@@ -148,7 +148,7 @@ impl GameView {
     }
 
     /// 格 (r,c) 的 terrain 值：`idx = r*wide*2 + c`（**行步进 2·wide、
-    /// 列步进 1**——paintTileLayer a.java:6996/6998 与 rebuildWalkability a.java:7108 同式）。
+    /// 列步进 1**——paintTileLayer a.java:7009/6998 与 rebuildWalkability a.java:6961-6962 同式）。
     pub fn terrain_at(&self, r: i32, c: i32) -> u8 {
         self.terrain[(r * self.wide * 2 + c) as usize]
     }
@@ -159,12 +159,12 @@ impl GameView {
         self.transform[(r * self.wide * 2 + c) as usize]
     }
 
-    /// `paintTileLayer(0, offset_y)`（a.java:6996-7022）：瓦片层绘制。
+    /// `paintTileLayer(0, offset_y)`（a.java:7009-7035）：瓦片层绘制。
     /// `walkPhase==4` 的楼层切换特例未端口（mode 3 稳态不用）。
     pub fn paint_tiles(&self, g: &mut SoftGraphics<'_>, tileset: &ArgbImage, offset_y: i32) {
         let x0 = self.cam_x + (self.col_start << 4);
         let y0 = self.cam_y + offset_y + (self.row_start << 4);
-        // 下标布局（a.java:6996/7001-7004）：行 base = col_start + row*wide*2，
+        // 下标布局（a.java:7009/7001-7004）：行 base = col_start + row*wide*2，
         // 列步进 1；**行尾 base += wide*2**（跳过整行距——不是列循环自然累加）
         let mut base = self.col_start + self.row_start * self.wide * 2;
         let mut py = y0;

@@ -1,7 +1,7 @@
-//! m_122 的 sprite 类型码生成 switch 忠实移植（a.java:9398-9560 区域）。
+//! m_122 的 sprite 类型码生成 switch 忠实移植（a.java:9417-9579 区域）。
 //!
 //! 每条 sprite 记录 → (param: i16, visible: bool)，随后 spawnEntity 生成。
-//! 参数形态（A 级，deobf a.java:9449-9560 逐分支）：
+//! 参数形态（A 级，deobf a.java:9468-9579 逐分支）：
 //! - 4：e0+1
 //! - 5/81：e0+1，可见
 //! - 6/12：0，可见
