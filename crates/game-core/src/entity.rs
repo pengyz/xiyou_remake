@@ -141,7 +141,7 @@ pub fn cell_entity(grid: &CellGrid, table: &EntityTable, x: i32, y: i32, type_id
     }
     let ct = grid.cell_type[y as usize][x as usize] as usize;
     let cap = grid.capacity[ct] as usize;
-    let mut found = 0i32;
+    let mut found;
     for slot in 0..cap {
         found = grid.slots[ct][slot] as i32 - 1;
         if table.entity_type[found as usize] == type_id && table.solid[found as usize] != 1 {

@@ -85,7 +85,7 @@ pub fn predict_battle_hp_loss(
     armor_gate: bool,
 ) -> i32 {
     let mut result = -1;
-    let mut hits = 0;
+    let mut hits;
     if player_atk > enemy_def {
         hits = enemy_hp / (player_atk - enemy_def);
         if hits * (player_atk - enemy_def) < enemy_hp {

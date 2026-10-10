@@ -64,7 +64,7 @@ pub fn find_path(walk: &Walkability, from_x: i32, from_y: i32, to_x: i32, to_y: 
     let mut parent = vec![vec![0i16; cols as usize]; walk.rows as usize]; // f_short_arr2_00
     let mut prio: Vec<i16> = vec![0; 100]; // f_short_arr_13
     let mut queue: Vec<i16> = vec![0; 100]; // f_short_arr_14
-    let mut open_count = 1i32; // f_int_149（Java 初始 1：零填充队列 + 计数自增）
+    let mut open_count; // f_int_149（Java 初始 1：零填充队列 + 计数自增）
 
     let mut var6 = from_x;
     let mut var7 = from_y;
