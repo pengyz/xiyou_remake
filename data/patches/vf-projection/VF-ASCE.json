@@ -55,8 +55,8 @@
       "count": 2
     },
     {
-      "old": "var7 = var21.f_int_70 >> 5;",
-      "new": "int var7f = var21.f_int_70 >> 5;",
+      "old": "var7 = var21.stairUpMarkerX >> 5;",
+      "new": "int var7f = var21.stairUpMarkerX >> 5;",
       "count": 1
     },
     {

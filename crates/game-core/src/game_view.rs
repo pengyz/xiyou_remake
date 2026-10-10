@@ -49,14 +49,14 @@ pub struct GameView {
     col_end: i32,
     row_start: i32,
     row_end: i32,
-    /// 玩家像素位（加载步 11 的 m_033 输入）。
+    /// 玩家像素位（加载步 11 的 paintPlayerSprite 输入）。
     pub player_px: i32,
     pub player_py: i32,
 }
 
 impl GameView {
     /// `loadFloorData(floor)`（a.java:9375-9407）：maplv 头 + 双 grid 读取 + 相机 0。
-    /// `m_122/m_054`（实体装载）在 game_view 之外（Floor1Host 侧）。
+    /// `m_122/sortEntitiesByY`（实体装载）在 game_view 之外（Floor1Host 侧）。
     pub fn from_maplv(data: &[u8], player_px: i32, player_py: i32) -> Result<GameView, String> {
         if data.len() < 4 {
             return Err("maplv too short".into());

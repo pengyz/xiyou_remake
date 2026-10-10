@@ -124,7 +124,7 @@ pub trait HostCtx {
     fn cell_entity(&self, x: i32, y: i32, type_id: i32) -> i32;
     /// 实体类型读取（entityType[idx]）。
     fn entity_type(&self, idx: i32) -> i32;
-    /// m_047：移除实体。
+    /// markEntityRemoved：移除实体。
     fn remove_entity(&mut self, idx: i32);
     /// DES 负参变体：按类型批量移除（Java 全表遍历，Host 侧持有实体表）。
     fn remove_all_of_type(&mut self, type_id: i32);
@@ -141,7 +141,7 @@ pub trait HostCtx {
     fn set_typewriter(&mut self, text: &str, y: i32, pos: i32);
     /// m_119/m_122：层实体表重载。
     fn reload_floor_entities(&mut self, floor: i32);
-    /// m_048：像素坐标生成实体 → 索引。
+    /// spawnEntity：像素坐标生成实体 → 索引。
     fn spawn_entity(&mut self, type_id: i32, px: i32, py: i32) -> i32;
     /// CES 尾部：相机 = 玩家屏幕位；若实体存在则 target = 实体像素位。
     fn ces_camera(&mut self, entity_idx: i32);

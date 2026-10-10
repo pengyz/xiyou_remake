@@ -1,10 +1,10 @@
-//! 实体表与格子索引 —— Java m_048（生成）/ m_100（格查）/ m_047（移除）的忠实移植。
+//! 实体表与格子索引 —— Java spawnEntity（生成）/ m_100（格查）/ markEntityRemoved（移除）的忠实移植。
 //!
 //! 证据：reference/src/deobf/a.java
-//! - m_048 :6363（像素取整、双数组登记、f_byte_15 格类型分配、楼梯锚点）
+//! - spawnEntity :6363（像素取整、双数组登记、f_byte_15 格类型分配、楼梯锚点）
 //! - m_100 :8574 附近（格类型→容量→槽位表查实体，跳过 solid==1）
-//! - m_047 :6323（solid=1 + 类目分派视觉字段）
-//! - 宽度表 f_byte_arr_07 :589（88 项）+ m_044 特例 :6274-6299（69→96px、72→32px）
+//! - markEntityRemoved :6323（solid=1 + 类目分派视觉字段）
+//! - 宽度表 f_byte_arr_07 :589（88 项）+ dispatchSpriteSize 特例 :6274-6299（69→96px、72→32px）
 
 /// 实体表（100 槽，Java god class 的实体数组族）。
 pub struct EntityTable {
@@ -12,22 +12,22 @@ pub struct EntityTable {
     pub param: Vec<i16>,
     pub pixel_x: Vec<i32>,
     pub pixel_y: Vec<i32>,
-    /// f_byte_arr_04：实体状态（0=常态；1=m_047 移除态〔开格动画〕；2=m_046 DES 态）
+    /// f_byte_arr_04：实体状态（0=常态；1=markEntityRemoved 移除态〔开格动画〕；2=markEntityDesRemoved DES 态）
     pub solid: Vec<u8>,
-    /// f_bool_arr_00：可见标志（m_048 默认 true；m_122 的 5/81/6/12/76/82/83 生成分支置 false）
+    /// f_bool_arr_00：可见标志（spawnEntity 默认 true；m_122 的 5/81/6/12/76/82/83 生成分支置 false）
     pub visible: Vec<bool>,
-    /// f_bool_arr_01：移除标志（DES/GUT/m_051 消耗用；m_054 排序跳过、m_053 不画）
+    /// f_bool_arr_01：移除标志（DES/GUT/pullEntityFromCell 消耗用；sortEntitiesByY 排序跳过、paintEntityLayer 不画）
     pub removed: Vec<bool>,
-    /// f_int_arr_08：精灵条带帧宽 px（m_044 分派）
+    /// f_int_arr_08：精灵条带帧宽 px（dispatchSpriteSize 分派）
     pub sprite_w: Vec<i32>,
-    /// f_int_arr_09：精灵条带高 px（m_044 分派）
+    /// f_int_arr_09：精灵条带高 px（dispatchSpriteSize 分派）
     pub sprite_h: Vec<i32>,
-    /// f_int_arr_12：动画偏移表行号（m_045 = f_byte_arr_06[type]）
+    /// f_int_arr_12：动画偏移表行号（dispatchAnimFields = f_byte_arr_06[type]）
     pub anim_idx: Vec<i32>,
-    /// f_int_arr_10：动画帧下标（m_055 推进）
+    /// f_int_arr_10：动画帧下标（advanceEntityFrames 推进）
     pub frame: Vec<i32>,
     pub count: usize,
-    /// 楼梯锚点（m_048：type 7→f_int_70/72，type 8→f_int_71/73）
+    /// 楼梯锚点（spawnEntity：type 7→f_int_70/72，type 8→f_int_71/73）
     pub stair_up: Option<(i32, i32)>,
     pub stair_down: Option<(i32, i32)>,
 }
@@ -53,11 +53,11 @@ impl EntityTable {
     }
 }
 
-/// 格子索引（m_059 初始化 + m_048 增量登记）。
+/// 格子索引（m_059 初始化 + spawnEntity 增量登记）。
 pub struct CellGrid {
     pub cols: i32,
     pub rows: i32,
-    /// f_byte_arr2_02[y][x]：格类型（0=未分配，由 m_048 分配递增新类型）
+    /// f_byte_arr2_02[y][x]：格类型（0=未分配，由 spawnEntity 分配递增新类型）
     pub cell_type: Vec<Vec<u8>>,
     /// f_byte_arr_10[格类型]：容量
     pub capacity: Vec<u8>,
@@ -81,7 +81,7 @@ impl CellGrid {
 }
 
 /// 类型绘制宽度表（Java f_byte_arr_07，a.java:589，88 项；夹具 type_width_px.txt）。
-/// m_044 特例：type 69 → 96px（3 格）、type 72 → 32px（1 格）；m_045：类型
+/// dispatchSpriteSize 特例：type 69 → 96px（3 格）、type 72 → 32px（1 格）；dispatchAnimFields：类型
 /// 1/2/8/16/32 → 27px（27>>5 = 0 ⇒ ≤0 取 1 格）。其余 = 表值 >> 5，≤0 取 1。
 pub fn width_cells(type_id: i32, width_table: &[i32]) -> i32 {
     let px = match type_id {
@@ -93,7 +93,7 @@ pub fn width_cells(type_id: i32, width_table: &[i32]) -> i32 {
     if cells <= 0 { 1 } else { cells }
 }
 
-/// 渲染类别表（Java f_byte_arr_03，m_043 初始化 a.java:6243-6271）：
+/// 渲染类别表（Java f_byte_arr_03，initEntityTables 初始化 a.java:6243-6271）：
 /// 区间 1..12→1、13..32→2、33..40→4、41..78→8，**特例覆盖优先**：
 /// 76/81/82/83→1、77/78→16、79/80→4、72/84/87→32、85/86→2。
 /// type 0 / ≥88 → 0。
@@ -139,7 +139,7 @@ pub const ANIM_OFFSET_TABLE: [&[i32]; 11] = [
     &[2, 3, 4],
 ];
 
-/// m_044（a.java:6274-6299）：实体精灵尺寸分派。
+/// dispatchSpriteSize（a.java:6274-6299）：实体精灵尺寸分派。
 /// type 69 → (96,32)；type 72 → (32,45)；type 67 → (32,32)（m_001(9) 换容器后走尾部）；
 /// 图存在 → (f_byte_arr_07[type], 图高)；图空 → (32,32)。
 pub fn dispatch_sprite_size(type_id: i32, idx: usize, table: &mut EntityTable, width_table: &[i32], img_h: Option<i32>) {
@@ -167,15 +167,15 @@ pub fn dispatch_sprite_size(type_id: i32, idx: usize, table: &mut EntityTable, w
     table.sprite_h[idx] = 32;
 }
 
-/// m_045（a.java:6301-6304）：动画字段初始化（行号 = f_byte_arr_06[type]，帧 0）。
+/// dispatchAnimFields（a.java:6301-6304）：动画字段初始化（行号 = f_byte_arr_06[type]，帧 0）。
 pub fn dispatch_anim(type_id: i32, idx: usize, table: &mut EntityTable) {
     table.anim_idx[idx] = ANIM_TABLE_IDX[type_id as usize] as i32;
     table.frame[idx] = 0;
 }
 
-/// m_048 忠实移植：像素取整到格、实体字段初始化、格槽登记（按类型宽度
+/// spawnEntity 忠实移植：像素取整到格、实体字段初始化、格槽登记（按类型宽度
 /// `width_cells` 逐格，复核 R4：type 69 = 3 格）、楼梯锚点。
-/// 返回新实体索引。含 m_044/m_045 尺寸/动画分派（img_h = 该类型精灵条带高，
+/// 返回新实体索引。含 dispatchSpriteSize/dispatchAnimFields 尺寸/动画分派（img_h = 该类型精灵条带高，
 /// None = f_Image_arr_00[type] 为 null）。
 pub fn spawn(
     table: &mut EntityTable,
@@ -199,12 +199,12 @@ pub fn spawn(
     table.pixel_x[idx] = snapped_x;
     table.pixel_y[idx] = snapped_y;
     table.removed[idx] = false;
-    table.visible[idx] = true; // m_048 默认可见（m_122 特例分支随后置 false）
+    table.visible[idx] = true; // spawnEntity 默认可见（m_122 特例分支随后置 false）
     table.param[idx] = param;
     table.solid[idx] = 0;
     table.count += 1;
 
-    // 格槽登记（Java var5 = m_044 写入的 f_int_arr_08>>5，≤0 取 1；a.java:6386-6395）
+    // 格槽登记（Java var5 = dispatchSpriteSize 写入的 f_int_arr_08>>5，≤0 取 1；a.java:6386-6395）
     let width = width_cells(type_id, width_table);
     for dx in 0..width {
         let cx = (cell_x + dx) as usize;
@@ -244,9 +244,9 @@ pub fn cell_entity(grid: &CellGrid, table: &EntityTable, x: i32, y: i32, type_id
     -1
 }
 
-/// m_047 核心（a.java:6323-6361）：solid=1（移除态）+ 类目分派视觉字段：
+/// markEntityRemoved 核心（a.java:6323-6361）：solid=1（移除态）+ 类目分派视觉字段：
 /// - 类目 1：type 1/2/3 → (45,56) 行 6；type 11 → (45,57) 行 2；其余不变；
-///   随后调用方重绘小地图（m_057）
+///   随后调用方重绘小地图（buildMinimap）
 /// - 类目 2/4 → (45,56) 行 10
 /// - 类目 8/16/32 → (27,29) 行 6
 pub fn remove(table: &mut EntityTable, idx: usize) {
@@ -284,7 +284,7 @@ pub fn remove(table: &mut EntityTable, idx: usize) {
     }
 }
 
-/// m_046（a.java:6306-6321）：DES 变体——solid=2 + 类目 2/8/16/32 → (27,29) 行 8。
+/// markEntityDesRemoved（a.java:6306-6321）：DES 变体——solid=2 + 类目 2/8/16/32 → (27,29) 行 8。
 pub fn remove_des(table: &mut EntityTable, idx: usize) {
     table.solid[idx] = 2;
     let t = table.entity_type[idx];
@@ -299,11 +299,11 @@ pub fn remove_des(table: &mut EntityTable, idx: usize) {
     }
 }
 
-/// m_054（a.java:6706-6795）：实体按 pixelY 升序的冒泡排序（严格小于 ⇒ 等值保序）。
+/// sortEntitiesByY（a.java:6706-6795）：实体按 pixelY 升序的冒泡排序（严格小于 ⇒ 等值保序）。
 /// 每次交换（var2=var4-1 ↔ var5=var4）伴随：
 /// - 槽修复①（var2 **旧**格，a.java:6739-6749）：var2+1 → var5+1（var2 的记录迁去 var5）
 /// - 槽修复②（var2 **新**格 = var5 旧位，a.java:6763-6777）：var5+1 → var2+1
-/// 两段合成完整双向修复；交换后双向 m_045 重置动画字段。
+/// 两段合成完整双向修复；交换后双向 dispatchAnimFields 重置动画字段。
 /// A 级验证：排序后槽表与 oracle FLD 137（f_byte_arr2_03）逐格一致。
 pub fn sort_by_y(table: &mut EntityTable, grid: &mut CellGrid) {
     if table.count == 0 {
@@ -362,7 +362,7 @@ pub fn sort_by_y(table: &mut EntityTable, grid: &mut CellGrid) {
     }
 }
 
-/// m_054 交换的格槽修复片段：在 (px,py) 起的 width 格里找 id_from+1 → 写 id_to+1
+/// sortEntitiesByY 交换的格槽修复片段：在 (px,py) 起的 width 格里找 id_from+1 → 写 id_to+1
 /// （a.java:6739-6749 / 6763-6777 同构两段）。
 fn fix_slot(grid: &mut CellGrid, px: i32, py: i32, sprite_w: i32, id_from: usize, id_to: usize) {
     let mut width = sprite_w >> 5;
@@ -382,9 +382,9 @@ fn fix_slot(grid: &mut CellGrid, px: i32, py: i32, sprite_w: i32, id_from: usize
     }
 }
 
-/// m_055（a.java:6799-6825）：实体动画帧推进（frameCounter 奇数拍生效）。
-/// 帧到表尾：solid==1 → m_051 格槽摘除；solid==2 → m_044/m_045 重置 + solid=0；
-/// 其余 → 帧 0。m_051 的槽摘除当前仅在移除动画完成后需要（调用方
+/// advanceEntityFrames（a.java:6799-6825）：实体动画帧推进（frameCounter 奇数拍生效）。
+/// 帧到表尾：solid==1 → pullEntityFromCell 格槽摘除；solid==2 → dispatchSpriteSize/dispatchAnimFields 重置 + solid=0；
+/// 其余 → 帧 0。pullEntityFromCell 的槽摘除当前仅在移除动画完成后需要（调用方
 /// `detach_from_cell`）——此处返回"待摘除"实体索引列表，由场景层执行。
 pub fn advance_frames(table: &mut EntityTable, grid: &mut CellGrid, frame_counter: i64, width_table: &[i32]) -> Vec<usize> {
     let mut detach = Vec::new();
@@ -421,7 +421,7 @@ pub fn advance_frames(table: &mut EntityTable, grid: &mut CellGrid, frame_counte
     detach
 }
 
-/// m_051（a.java:6439-6455）：实体从所属格槽摘除 + removed=true。
+/// pullEntityFromCell（a.java:6439-6455）：实体从所属格槽摘除 + removed=true。
 pub fn detach_from_cell(grid: &mut CellGrid, table: &mut EntityTable, idx: usize) {
     table.removed[idx] = true;
     let cy = (table.pixel_y[idx] >> 5) as usize;
@@ -439,7 +439,7 @@ pub fn detach_from_cell(grid: &mut CellGrid, table: &mut EntityTable, idx: usize
     }
 }
 
-/// m_052（a.java:6457-6466）：bob 浮沉相位推进（每拍 ±1，域 [-2,2] 翻转）。
+/// advanceBobPhase（a.java:6457-6466）：bob 浮沉相位推进（每拍 ±1，域 [-2,2] 翻转）。
 pub fn advance_bob(offset: &mut i32, rising: &mut bool) {
     if *rising {
         *offset += 1;

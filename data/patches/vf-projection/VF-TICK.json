@@ -5,8 +5,8 @@
   "method": "   private void tickBattle(boolean var1) {",
   "replacements": [
     {
-      "old": "var1 = this.entityType[this.f_int_44];",
-      "new": "int var1t = this.entityType[this.f_int_44];",
+      "old": "var1 = this.entityType[this.battleTargetEntity];",
+      "new": "int var1t = this.entityType[this.battleTargetEntity];",
       "count": 1
     },
     {

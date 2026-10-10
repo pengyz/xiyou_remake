@@ -2,7 +2,7 @@
   "id": "VF-ACC-M049",
   "target": "a.java",
   "kind": "scoped",
-  "method": "   private void m_049(int var1, int var2, int var3) {",
+  "method": "   private void removeGroupAtCellByType(int var1, int var2, int var3) {",
   "replacements": [
     {
       "old": "byte var4",
@@ -10,11 +10,11 @@
       "count": 1
     },
     {
-      "old": "this.f_byte_arr_10[var6] = var4;",
-      "new": "this.f_byte_arr_10[var6] = (byte)var4;",
+      "old": "this.cellSlotCount[var6] = var4;",
+      "new": "this.cellSlotCount[var6] = (byte)var4;",
       "count": 1
     }
   ],
-  "evidence": "javap m_049: iinc 5,1（int 累加）；var4 存 f_byte_arr_10 处 bastore 本身截断 ⇒ 显式 (byte) 同点位截断。",
+  "evidence": "javap removeGroupAtCellByType: iinc 5,1（int 累加）；var4 存 cellSlotCount 处 bastore 本身截断 ⇒ 显式 (byte) 同点位截断。",
   "confidence": 92
 }

@@ -9,8 +9,8 @@
       "count": 1
     },
     {
-      "old": "if (var1 >= 0) {\n         this.m_047(var1);",
-      "new": "if (var7 >= 0) {\n         this.m_047(var7);",
+      "old": "if (var1 >= 0) {\n         this.markEntityRemoved(var1);",
+      "new": "if (var7 >= 0) {\n         this.markEntityRemoved(var7);",
       "count": 1
     },
     {

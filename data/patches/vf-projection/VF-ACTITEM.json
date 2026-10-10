@@ -50,8 +50,8 @@
       "count": 2
     },
     {
-      "old": "m_047(var1);",
-      "new": "m_047(var1c);",
+      "old": "markEntityRemoved(var1);",
+      "new": "markEntityRemoved(var1c);",
       "count": 2
     }
   ],

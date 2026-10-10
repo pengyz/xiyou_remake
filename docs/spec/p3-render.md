@@ -26,7 +26,7 @@ logic#(n+1) 消费（延迟一拍；trace T70 press(-6) → T71 帧切换实证�
 结论：**PASS-with-risks**——零对拍破坏缺陷。已修复：
 
 - D-1 `in_arc` 负弧递归缺 `% 360`（render.rs，对照 Graphics.java:322）——死代码
-  路径（游戏唯一弧调用 fillArc(…,0,360) a.java:6650 短路），已补齐对齐 shim。
+  路径（游戏唯一弧调用 fillArc(…,0,360) a.java:6663 短路），已补齐对齐 shim。
 - D-2 `drawSubstring` 负 len：shim 空循环静默，Rust 原 panic——已按 shim 语义钳制
   （调用方 a.java:5048 的 len 是差值可能为负）。
 - R-5 mode 0→21 清理分支补全：logoLayoutDone 复位（reset_layout_flag）+ f_int_02=75
@@ -67,23 +67,23 @@ logic#(n+1) 消费（延迟一拍；trace T70 press(-6) → T71 帧切换实证�
   HUD/实体/软键的 ops 不可见，但 **FRAME sha 含全部绘制**（对拍不降级）。
 - mode 3 画面构成（T544-3000 恒定）：parallax(true)（base_y = f_int_48-320+6，
   f_int_48=270 ⇒ -44）+ paintTileLayer 瓦片层（map 容器 [2][0] 128x208 tileset，
-  16px 切片 + mapTransformGrid 变换）+ m_053 实体层 + 小地图（optionChecked[1]
-  =true（RMS catch）+ f_Image_03（m_057 生成）+ 玩家点）+ m_037 HUD + m_035
+  16px 切片 + mapTransformGrid 变换）+ paintEntityLayer 实体层 + 小地图（optionChecked[1]
+  =true（RMS catch）+ f_Image_03（buildMinimap 生成）+ 玩家点）+ paintHudPanel HUD + paintStatusBar
   状态栏 + 楼梯指示 + drawPopupLayer + 软键 (1,3)。
-- **paintTileLayer 瓦片层**（a.java:6966-7022）：起点 x=cameraPixelX+(tileColStart<<4)、
+- **paintTileLayer 瓦片层**（a.java:6979-7035）：起点 x=cameraPixelX+(tileColStart<<4)、
   y=cameraPixelY+20+(tileRowStart<<4)；列窗 tileColStart..tileColEnd、行窗 tileRowStart..tileRowEnd；
   下标步进 mapCellsWide<<1（**双宽 stride**——terrain/transform 平行数组，
   装载链待考证 loadFloorData）；瓦片值 v：sx=(v&7)<<4、sy=(v>>3)<<4。
-- **m_033 玩家**（a.java:5831-5887）：sptprop[5][0] 阴影 + actor[3][0]
+- **paintPlayerSprite 玩家**（a.java:5831-5893）：sptprop[5][0] 阴影 + actor[3][0]
   （123x138 = 3 行×41x46 帧，行=facingDirection、列=f_int_arr_03[f_int_38]）
   + walkPhase==2 的四向残影。
 - **存档格式**：MOT_L{n}（save.rs parse_floor_save 全字段序 + python struct
   复算 golden）；SKY_WAR（optionChecked×4 + …）。
-- **m_053 实体渲染层**（a.java:6468-6700，2026-10-09 考证）：
+- **paintEntityLayer 实体渲染层**（a.java:6481-6713，2026-10-09 考证）：
   - 筛选：活跃且未移除；屏裁 `x∈[-w,viewWidthPx] && y∈[-12,20+viewHeightPx]`；
-    首个玩家南侧实体之前插画玩家 m_033（单次，f_bool_arr_02[type] 除外）
+    首个玩家南侧实体之前插画玩家 paintPlayerSprite（单次，f_bool_arr_02[type] 除外）
   - 帧偏移 `= 精灵宽 × f_int_arr2_02[动画表idx][帧idx]`（二维动画偏移表）
-  - 渲染类别 `f_byte_arr_03[type]`（m_043 a.java:6244-6271：1..12→1、
+  - 渲染类别 `f_byte_arr_03[type]`（initEntityTables a.java:6257-6284：1..12→1、
     13..32→2、33..40→4、41..78→8，特例 76/81/82/83→1、77/78→16、
     79/80→4、72/84/87→32、85/86→2）
   - switch 六类：1=条带精灵（类型 6/9 浮沉/右移特例）；2=条带/门贴图
@@ -92,7 +92,7 @@ logic#(n+1) 消费（延迟一拍；trace T70 press(-6) → T71 帧切换实证�
     浮沉/门贴图；32=多形态（f_byte_19 倍率 + m_127 高亮）
   - walkPhase==2 && f_bool_08：交互浮标（iconStripDx/Dy[frameCounter&7]
     波动 + drawDigitStrip 数值）
-- **m_033 玩家**（a.java:5829-5885）：sptprop[5][0] 阴影 + actor[3][0]
+- **paintPlayerSprite 玩家**（a.java:5829-5891）：sptprop[5][0] 阴影 + actor[3][0]
   三向精灵（行=facingDirection、列=帧表 f_int_arr_03[f_int_38]×41px 的
   41x46 帧）；walkPhase==2 四向残影。
 - **floor1 实体清单**（2026-10-09 盘点，sprite1.bin 权威解析）：35 实体，
@@ -103,44 +103,44 @@ logic#(n+1) 消费（延迟一拍；trace T70 press(-6) → T71 帧切换实证�
   {0},{0,1,0,2},{0,1,2},{0,1,2,1},{0,1,2,2,1,0},{0,1,2,3,2,1},
   {0,1,2,3,4},{3,4,5,6},{4,3,2,1,0},{2,1,0}）：帧偏移 =
   `精灵宽 × 表[动画表idx][帧idx]`；动画表 idx 由 f_byte_arr_06[type] 初始化
-  （m_043 a.java:6302），帧推进在 m_055（每 tick 换帧——a.java:6806）。
-- **m_049**（a.java:6408-6424）：组移除（f_byte_arr2_02 行×f_byte_arr2_03
+  （initEntityTables a.java:6315），帧推进在 advanceEntityFrames（每 tick 换帧——a.java:6819）。
+- **removeGroupAtCellByType**（a.java:6421-6437）：组移除（f_byte_arr2_02 行×f_byte_arr2_03
   组成员，按类型筛除并置 removed）。
 - **剩余件**（下批）：popup 环形队列 + walkPhase 1/5（步进/场上战斗/胜利
   跳格）+ m_104 交互 → gameplay-floor1 T1500+ 移动段全帧对拍；mode 11
-  对话框；mode 4/19 暂停菜单；m_053 case 16/32 与 67/69 拼装（floor1 无）。
+  对话框；mode 4/19 暂停菜单；paintEntityLayer case 16/32 与 67/69 拼装（floor1 无）。
 
 ## 3.6 mode 3 场景端口与 T537-599 全帧对拍（2026-10-09，第八批）
 
 **结论：gameplay-floor1 T537-599（63 帧）逐 tick FRAME sha 全对拍 PASS**
 （`crates/game-oracle/tests/gameplay_floor1.rs`）——画面构成 100% 覆盖：
-parallax + 瓦片层 + m_053 实体层（含 m_033 玩家插入）+ m_057 小地图 +
-m_037 HUD + m_035 状态栏 + 空弹层 + 软键。T544 ops 前 256 条亦逐条一致
+parallax + 瓦片层 + paintEntityLayer 实体层（含 paintPlayerSprite 玩家插入）+ buildMinimap 小地图 +
+paintHudPanel HUD + paintStatusBar 状态栏 + 空弹层 + 软键。T544 ops 前 256 条亦逐条一致
 （parallax 5 + 瓦片 250 + 实体层首条）。
 
 本批新 A 级发现（全部有运行时 dump/像素复算证据）：
 
-1. **mapTerrainGrid 双索引**：rebuildWalkability（a.java:6941-6959）用
+1. **mapTerrainGrid 双索引**：rebuildWalkability（a.java:6954-6972）用
    行距 wide·4、列距 2（var1 行尾 +=wide<<1 叠加列循环 ×2）；paintTileLayer
    用行距 wide·2、列距 1——同一数组的两套读法原版共存。
    证据：oracle FLD 134（f_bool_arr2_00）13×13 逐格复算匹配。
-2. **m_054 槽修复是完整双向**：① var2 旧格 var2+1→var5+1（a.java:6739-6749）
-   ② var2 新格（=var5 旧位）var5+1→var2+1（a.java:6763-6777）。
+2. **sortEntitiesByY 槽修复是完整双向**：① var2 旧格 var2+1→var5+1（a.java:6752-6762）
+   ② var2 新格（=var5 旧位）var5+1→var2+1（a.java:6776-6790）。
    排序后槽表与 FD 137（f_byte_arr2_03）128×16 逐格一致。
 3. **mode 3 起点 = T537**（dense dumpStride=1 复跑实证：T536=mode2、
    T537=mode3）；T537-543 的 trace 无 ops 行只是 dumpStride=8 采样未打印，
    帧仍在演变（PNG 像素 diff 证实逐拍重绘）。
-4. **m_055 帧时序**：T537 的 run 是 case 2（切换发生在 else 分支内）⇒ 本拍
-   不推进；T538 起 case 3 以 frameCounter=tick-1 跑 m_055，**偶数拍推进**。
+4. **advanceEntityFrames 帧时序**：T537 的 run 是 case 2（切换发生在 else 分支内）⇒ 本拍
+   不推进；T538 起 case 3 以 frameCounter=tick-1 跑 advanceEntityFrames，**偶数拍推进**。
    T544 运行时锚（FLD 103）：type44（行 4）帧=4、type45（行 2）帧=1
    （0→1→2→0→1 一次回绕）。
-5. **bob 相位链**：m_052 初值 (0,false)（字段默认，无构造器初始化）；
+5. **bob 相位链**：advanceBobPhase 初值 (0,false)（字段默认，无构造器初始化）；
    mode 1 T72-161 的 90 次调用 → 进 mode 3 时 (-2,true)；mode 8/2 不调
-   m_052；m_053 每次 paint 首行调用（T537 首绘 → -1）。
+   advanceBobPhase；paintEntityLayer 每次 paint 首行调用（T537 首绘 → -1）。
 6. **backdropScroll 相位链**：mode 8 parallax 每拍 -1（T500 绘后 -30）；
    mode 2 无 parallax；mode 3 首绘 T537 → -31，T544 → -38（trace 首列
    drawImage x 实证）。
-7. **m_037 槽位**：武器框 x=159、甲框 x=193（var11 = 83+16(=99) 后 +60、
+7. **paintHudPanel 槽位**：武器框 x=159、甲框 x=193（var11 = 83+16(=99) 后 +60、
    +34——不是 83+60）。
 8. **HUD 数值源**：MOT_L0 preset（HP500/ATK30/**DEF30**/黄钥1/金100/
    cell(3,10)）；小地图开关 = SKY_WAR 第 2 字节（=1 开）。
@@ -155,7 +155,7 @@ m_037 HUD + m_035 状态栏 + 空弹层 + 软键。T544 ops 前 256 条亦逐条
 已入库模块：`crates/game-core/src/scene.rs`（GameScene：load_floor 装载链 +
 build_minimap + paint 全链 + 稳态 tick）、`entity.rs` 扩展（视觉字段
 sprite_w/h/anim_idx/frame、render_category、ANIM_TABLE_IDX/ANIM_OFFSET_TABLE、
-m_044/m_045/m_046/m_047/m_054/m_055/m_052、m_051 detach）。
+dispatchSpriteSize/dispatchAnimFields/markEntityDesRemoved/markEntityRemoved/sortEntitiesByY/advanceEntityFrames/advanceBobPhase、pullEntityFromCell detach）。
 
 ## 4. 证据基线
 

@@ -6,7 +6,7 @@
 //!   （drawIconStrip，a.java:4780-4793）→ 双侧羽化箭头（bob 摆动）→ 粒子层
 //!   （updateAndDrawParticles，clip 0..308）。
 //! - **tick**（a.java:3374-3429）：`(frameCounter&3)==0` 时 spawn 粒子（每次
-//!   吃两个 randomBelow：先 x=rb(240) 后 y=295-rb(150)）；m_052 bob 摆动；
+//!   吃两个 randomBelow：先 x=rb(240) 后 y=295-rb(150)）；advanceBobPhase bob 摆动；
 //!   方向键移动 cursor（环绕）；-5 确认按 menuItemKinds[cursor] 切 gameMode。
 //! - **粒子演化**（updateAndDrawParticles a.java:9811-9829）：槽位 **31→0 倒序**；每 paint 先
 //!   画后推进：x+=velX；velX 不满（waxing=false）时 ++，触顶 2*size 翻转；
@@ -151,7 +151,7 @@ pub struct TitleMachine {
     pub cursor: i32,
     /// menuItemKinds 的条目（m_000 case 1 经 addMenuItem(0..5) 登记为 0..5）。
     pub menu_kinds: Vec<i8>,
-    /// animBobOffset：bob 摆动偏移（m_052 演化）。
+    /// animBobOffset：bob 摆动偏移（advanceBobPhase 演化）。
     pub bob: i32,
     /// animBobRising：bob 方向（false=下降相 --，true=上升相 ++）。
     bob_rising: bool,
@@ -177,7 +177,7 @@ impl TitleMachine {
         }
     }
 
-    /// `m_052`（a.java:6453-6462）：bob ±1 摆动（下降相 --<-1 翻上升；上升 ++>1 翻下降）。
+    /// `advanceBobPhase`（a.java:6453-6462）：bob ±1 摆动（下降相 --<-1 翻上升；上升 ++>1 翻下降）。
     /// iconStripFrame 外部同步（与 BootMachine 共享同一 Java 字段 a.java:464）。
     pub fn set_strip_frame(&mut self, f: usize) {
         self.strip_frame = f;

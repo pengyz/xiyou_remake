@@ -2,7 +2,7 @@
   "id": "VF-ACC-M057",
   "target": "a.java",
   "kind": "scoped",
-  "method": "   private void m_057() {",
+  "method": "   private void buildMinimap() {",
   "replacements": [
     {
       "old": "byte var3",
@@ -15,6 +15,6 @@
       "count": 1
     }
   ],
-  "evidence": "javap m_057: iinc 3,4 / iinc 4,4（int 累加，方法内 i2b=0）。",
+  "evidence": "javap buildMinimap: iinc 3,4 / iinc 4,4（int 累加，方法内 i2b=0）。",
   "confidence": 92
 }

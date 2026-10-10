@@ -1,6 +1,6 @@
 //! m_122 的 sprite 类型码生成 switch 忠实移植（a.java:9398-9560 区域）。
 //!
-//! 每条 sprite 记录 → (param: i16, visible: bool)，随后 m_048 生成。
+//! 每条 sprite 记录 → (param: i16, visible: bool)，随后 spawnEntity 生成。
 //! 参数形态（A 级，deobf a.java:9449-9560 逐分支）：
 //! - 4：e0+1
 //! - 5/81：e0+1，可见
@@ -23,7 +23,7 @@ pub struct DoorTables {
 pub fn spawn_param_and_visibility(type_code: u8, extra: &[u8], doors: &DoorTables) -> (i16, bool) {
     let e0 = extra.first().map(|b| *b as i32).unwrap_or(0);
     let e1 = extra.get(1).map(|b| *b as i32).unwrap_or(0);
-    // hide_after_spawn = m_122 生成分支随后置 f_bool_arr_00=false（不参与 m_053 绘制）
+    // hide_after_spawn = m_122 生成分支随后置 f_bool_arr_00=false（不参与 paintEntityLayer 绘制）
     let mut hide_after_spawn = false;
     let param = match type_code {
         4 => e0 + 1,

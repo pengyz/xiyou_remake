@@ -1,12 +1,12 @@
 //! mode 3 游戏画面场景（a.java paint case 3 :2385-2422 + run case 3 :3545-3676）。
 //!
 //! 绘制链（paint 顺序，T544 实证 ops 同序）：
-//! `drawParallaxBackdrop(true)` → `paintTileLayer(0,20)` → `m_053` 实体层
-//! （含玩家 m_033 插入 + 楼梯浮标）→ 小地图 → `m_037` HUD → `m_035` 状态栏
+//! `drawParallaxBackdrop(true)` → `paintTileLayer(0,20)` → `paintEntityLayer` 实体层
+//! （含玩家 paintPlayerSprite 插入 + 楼梯浮标）→ 小地图 → `paintHudPanel` HUD → `paintStatusBar` 状态栏
 //! → 楼梯指示（f_bool_13）→ `drawPopupLayer` → `paintSoftkeyBar`。
 //!
-//! 逻辑链（每 tick）：keyValue 开关 → walkPhase 状态机 → `m_055` 帧推进。
-//! bob（m_052）在 **paint** 内推进（m_053 首行调用，一拍一次）。
+//! 逻辑链（每 tick）：keyValue 开关 → walkPhase 状态机 → `advanceEntityFrames` 帧推进。
+//! bob（advanceBobPhase）在 **paint** 内推进（paintEntityLayer 首行调用，一拍一次）。
 //!
 //! P3.5 对拍窗口：gameplay-floor1 T544-599 稳态（无输入）——popup 环形队列、
 //! walkPhase 1 步进、m_104 交互为后续批次（spec p3-render §3.5 待办）。
@@ -98,27 +98,27 @@ pub struct GameScene {
     pub entities: EntityTable,
     pub grid: CellGrid,
     pub images: SceneImages,
-    /// f_bool_arr2_00：可行走网格（rebuildWalkability，m_057 小地图用）
+    /// f_bool_arr2_00：可行走网格（rebuildWalkability，buildMinimap 小地图用）
     pub walkable: Vec<Vec<bool>>,
-    /// f_Image_03：小地图（m_057 生成；None = optionChecked[1]=false）
+    /// f_Image_03：小地图（buildMinimap 生成；None = optionChecked[1]=false）
     pub minimap: Option<ArgbImage>,
     /// optionChecked[1]：小地图开关（RMS 读档失败 catch 默认 true，a.java:4451）
     pub minimap_enabled: bool,
     /// frameCounter（run 循环变量，TICK n 拍 = n-1）
     pub frame_counter: i64,
-    /// m_052 浮沉相位（paint 内推进）
+    /// advanceBobPhase 浮沉相位（paint 内推进）
     pub bob_offset: i32,
     pub bob_rising: bool,
     /// drawParallaxBackdrop 的滚动相位（每 paint -1，<-154 → 0）
     pub backdrop_scroll: i32,
     /// f_int_48：视口底（HUD 顶）
     pub view_bottom: i32,
-    /// 玩家态（m_033 输入）
+    /// 玩家态（paintPlayerSprite 输入）
     pub facing: i32,
     pub walk_phase: i32,
     pub player_frame: i32,
     pub player_bob_applied: bool, // f_bool_07
-    /// HUD 数值（m_037/m_035 输入）
+    /// HUD 数值（paintHudPanel/paintStatusBar 输入）
     pub floor: i32,
     pub hp: i32,
     pub atk: i32,
@@ -131,7 +131,7 @@ pub struct GameScene {
 
 impl GameScene {
     /// loadFloorData（a.java:9375-9415）：maplv 装载 + m_059 格索引重建 +
-    /// 可行走重建 + m_122 实体生成 + m_054 排序。
+    /// 可行走重建 + m_122 实体生成 + sortEntitiesByY 排序。
     /// `sprite_records`：sprite{n} 权威解析产物（type, x, y, param, visible）。
     #[allow(clippy::too_many_arguments)]
     pub fn load_floor(
@@ -209,7 +209,7 @@ impl GameScene {
         self.view.center_on_player();
     }
 
-    /// m_057（a.java:6856-6924）：小地图生成（52x52 = 13 格 × 4px，dim 170）。
+    /// buildMinimap（a.java:6856-6924）：小地图生成（52x52 = 13 格 × 4px，dim 170）。
     pub fn build_minimap(&mut self) {
         self.minimap = None;
         if !self.minimap_enabled {
@@ -269,7 +269,7 @@ impl GameScene {
         self.minimap = Some(crate::intro::dim_image(&img, 170));
     }
 
-    /// run case 3 的稳态子集（a.java:3545-3676）：无输入时仅 m_055。
+    /// run case 3 的稳态子集（a.java:3545-3676）：无输入时仅 advanceEntityFrames。
     /// `frame_counter` 为本拍值（TICK n → n-1）。
     pub fn tick(&mut self, frame_counter: i64, width_table: &[i32]) {
         self.frame_counter = frame_counter;
@@ -328,7 +328,7 @@ impl GameScene {
         }
     }
 
-    /// m_053（a.java:6468-6704）：实体层。`cam_x/cam_y` 为调用参数
+    /// paintEntityLayer（a.java:6468-6704）：实体层。`cam_x/cam_y` 为调用参数
     /// （paint case 3：cameraPixelX / cameraPixelY+20）。
     /// floor1 类别覆盖 1/2/8 + 空图文字标签；16/32/67/69 拼装 todo（floor1
     /// 实体清单无这些类型，spec p3-render §3.5）。
@@ -349,7 +349,7 @@ impl GameScene {
                 let mut sy = cam_y + ey;
                 if sx >= -w && sx <= self.view.view_w && sy >= -12 && sy <= 20 + self.view.view_h {
                     if let Some(img) = &self.images.entity[t as usize] {
-                        // 玩家插入（单次；f_bool_arr_02 全 false——m_043 对新数组拷贝）
+                        // 玩家插入（单次；f_bool_arr_02 全 false——initEntityTables 对新数组拷贝）
                         if !player_drawn
                             && self.view.player_px > ex - 32
                             && self.view.player_px < ex + 32
@@ -394,7 +394,7 @@ impl GameScene {
                             8 => {
                                 if state == 3 {
                                     // var13==3 抖动（randomBelow(5)-2）——floor1 无此态
-                                    todo!("m_053 case 8 var13==3 抖动（floor1 实体清单无此态）")
+                                    todo!("paintEntityLayer case 8 var13==3 抖动（floor1 实体清单无此态）")
                                 }
                                 if state == 1 || state == 2 {
                                     draw_image_clipped(g, &self.images.open_anim, sx + 2, sy + 2 - (self.entities.frame[e] << 3), frame_off, 0, 27, 29);
@@ -404,10 +404,10 @@ impl GameScene {
                                     draw_image_clipped(g, img, sx + ((32 - w) >> 1), sy - (h - 32), frame_off, 0, w, h);
                                 } else {
                                     // 67/69 拼装表组合（f_byte_arr2_00/01 元数据）——floor1 无
-                                    todo!("m_053 case 8 的 67/69 拼装组合（floor1 实体清单无）")
+                                    todo!("paintEntityLayer case 8 的 67/69 拼装组合（floor1 实体清单无）")
                                 }
                                 if self.walk_phase == 2 {
-                                    todo!("m_053 case 8 walkPhase==2 交互浮标（战斗后批次）")
+                                    todo!("paintEntityLayer case 8 walkPhase==2 交互浮标（战斗后批次）")
                                 }
                             }
                             16 => {
@@ -427,14 +427,14 @@ impl GameScene {
                                 } else if t != 72 {
                                     draw_image_clipped(g, img, sx + ((32 - w) >> 1), sy - (h - 16) + bob, frame_off, 0, w, h);
                                 } else {
-                                    todo!("m_053 case 32 的 72 型多形态（f_byte_19 倍率 + m_127）")
+                                    todo!("paintEntityLayer case 32 的 72 型多形态（f_byte_19 倍率 + m_127）")
                                 }
                             }
                             _ => {}
                         }
                     } else {
                         // 空图文字标签（objectTypeNames 圆底标签；type 83 走此径但 m_122 置 visible=false）
-                        todo!("m_053 空图标签分支（objectTypeNames 文本，floor1 不可达）")
+                        todo!("paintEntityLayer 空图标签分支（objectTypeNames 文本，floor1 不可达）")
                     }
                 }
             }
@@ -445,7 +445,7 @@ impl GameScene {
             self.paint_player(g, cam_x, cam_y);
         }
         // walkPhase==5 星光（f_int_44 >= 0）：战斗批次
-        // 楼梯浮标（m_053 尾段 a.java:6689-6703）
+        // 楼梯浮标（paintEntityLayer 尾段 a.java:6689-6703）
         if let Some((ux, uy)) = self.entities.stair_up {
             let x = cam_x + ux;
             let y = cam_y + uy;
@@ -462,7 +462,7 @@ impl GameScene {
         }
     }
 
-    /// m_033（a.java:5829-5903）：玩家。facing 0/1/2/3 = 下/上/右/左行；
+    /// paintPlayerSprite（a.java:5829-5903）：玩家。facing 0/1/2/3 = 下/上/右/左行；
     /// 行 y 偏移 0/46/92（case 3 为镜像——drawEdgePatch transform 1）；
     /// walkPhase==2 残影（f_int_arr_04/05）战斗批次。
     pub fn paint_player(&self, g: &mut SoftGraphics<'_>, cam_x: i32, cam_y: i32) {
@@ -484,7 +484,7 @@ impl GameScene {
         // f_bool_26 路径残影 + walkPhase 2/3 特效：行走批次（spec 待办）
     }
 
-    /// m_039（a.java:6111-6140）：HUD 大框（ui[8][0] 边框件 64x16）。
+    /// paintHudFrame（a.java:6111-6140）：HUD 大框（ui[8][0] 边框件 64x16）。
     fn paint_hud_frame(&mut self, g: &mut SoftGraphics<'_>, x: i32, y: i32, w: i32, h: i32) {
         let img = &self.images.ui[0];
         g.set_clip(x, y, 26, 16);
@@ -511,7 +511,7 @@ impl GameScene {
         g.set_clip(0, 0, 240, 320);
     }
 
-    /// m_037（a.java:6029-6089）：HUD（头像/HP/攻/防/武器/甲）。
+    /// paintHudPanel（a.java:6029-6089）：HUD（头像/HP/攻/防/武器/甲）。
     pub fn paint_hud(&mut self, g: &mut SoftGraphics<'_>) {
         let font = crate::paint::paint_font();
         let base_y = self.view_bottom;
@@ -550,7 +550,7 @@ impl GameScene {
         g.draw_string(&none, slot_x + ((32 - cw) >> 1), slot_y + ((32 - font.height) >> 1), 0);
     }
 
-    /// m_035（a.java:5995-6018）：顶部状态栏（层数/三钥/金币）+ m_036 钥匙格。
+    /// paintStatusBar（a.java:5995-6018）：顶部状态栏（层数/三钥/金币）+ paintKeySlot 钥匙格。
     pub fn paint_status_bar(&mut self, g: &mut SoftGraphics<'_>) {
         let base_y = 0;
         g.set_clip(0, 0, 240, 320);
@@ -568,7 +568,7 @@ impl GameScene {
         paint_number(g, &self.images.ui[2], self.gold, 237, y + 2);
     }
 
-    /// m_036（a.java:6020-6027）：钥匙格（ui[8][6] 18px 三联图 + 数量）。
+    /// paintKeySlot（a.java:6020-6027）：钥匙格（ui[8][6] 18px 三联图 + 数量）。
     fn paint_key_slot(&mut self, g: &mut SoftGraphics<'_>, kind: i32, count: i32, x: i32, y: i32) {
         g.set_clip(x, y, 18, 16);
         g.draw_image(&self.images.ui[6], x - kind * 18, y, 0);
@@ -577,7 +577,7 @@ impl GameScene {
     }
 }
 
-/// m_003（a.java:4547-4552）：5x5 定尺寸裁剪贴图（小地图标记）。
+/// blit5Clip（a.java:4547-4552）：5x5 定尺寸裁剪贴图（小地图标记）。
 fn m_003_clip5(g: &mut SoftGraphics<'_>, img: &ArgbImage, x: i32, y: i32, src_x: i32) {
     g.set_clip(x, y, 5, 5);
     g.draw_image(img, x - src_x, y, 0);

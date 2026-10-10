@@ -1,17 +1,17 @@
 //! P3.5 gameplay-floor1 全帧对拍：mode 3 游戏画面（A-gameplay-floor1 trace
 //! T544-599 稳态窗）逐 tick FRAME sha 比对。
 //!
-//! 画面构成（paint case 3 a.java:2385-2422）：parallax + 瓦片层 + m_053 实体层
-//! （含 m_033 玩家插入）+ 小地图（m_057 预生成）+ m_037 HUD + m_035 状态栏
+//! 画面构成（paint case 3 a.java:2385-2422）：parallax + 瓦片层 + paintEntityLayer 实体层
+//! （含 paintPlayerSprite 玩家插入）+ 小地图（buildMinimap 预生成）+ paintHudPanel HUD + paintStatusBar 状态栏
 //! + drawPopupLayer（空）+ paintSoftkeyBar。
 //!
 //! 入口态构造（A 级证据）：
 //! - 玩家/属性：preset-floor1 MOT_L0（cell(3,10)/HP500/ATK30/DEF30/黄钥1/金100）
-//! - 实体：sprite1.bin 35 条 + m_122 可见性 + m_054 排序
+//! - 实体：sprite1.bin 35 条 + m_122 可见性 + sortEntitiesByY 排序
 //! - backdropScroll = -38（trace T544 首列 drawImage(77x320,-38)）
-//! - bob = (offset -2, rising true)（mode 1 T72-161 的 90 次 m_052 推进，
+//! - bob = (offset -2, rising true)（mode 1 T72-161 的 90 次 advanceBobPhase 推进，
 //!   序列 -1,-2,-1,0,1,2,1,0 循环，初值 (0,false) Java 字段默认）
-//! - frameCounter：TICK n 拍 = n-1（run 循环变量，m_055 奇数拍推进）
+//! - frameCounter：TICK n 拍 = n-1（run 循环变量，advanceEntityFrames 奇数拍推进）
 //! - minimap on：SKY_WAR optionChecked[1]（preset 第 2 字节 = 0x01）
 
 use game_core::entity;
@@ -65,7 +65,7 @@ fn door_tables() -> DoorTables {
     }
 }
 
-/// mode 3 入口态（装载链末态：loadFloorData + m_057 + 加载步 11）。
+/// mode 3 入口态（装载链末态：loadFloorData + buildMinimap + 加载步 11）。
 fn build_scene() -> GameScene {
     let maplv = std::fs::read(repo().join("crates/game-oracle/tests/fixtures/maplv1.bin")).unwrap();
     let sprite_bin =
@@ -172,8 +172,8 @@ fn gameplay_floor1_t544_599_frames_match() {
         }
         // mode 3 从 T537 开始（dense dumpStride=1 实证：T536=mode2、T537=mode3；
         // T537-543 的 ops 行只是 dumpStride=8 采样未打印，帧仍在演变）。
-        // T537 的 run 是 case 2（切换发生在其 else 分支内）⇒ 本拍无 m_055；
-        // T538 起 case 3 以 frameCounter=tick-1 跑 m_055（偶数拍推进——
+        // T537 的 run 是 case 2（切换发生在其 else 分支内）⇒ 本拍无 advanceEntityFrames；
+        // T538 起 case 3 以 frameCounter=tick-1 跑 advanceEntityFrames（偶数拍推进——
         // 运行时 f_int_arr_10 实证：T544 时 type44 帧=4、type45 帧=1）
         if rec.tick > 537 {
             scene.tick(rec.tick as i64 - 1, &width_table());
@@ -262,7 +262,7 @@ fn gameplay_floor1_t544_ops_prefix_match() {
     }
 }
 
-/// 排序后实体表的 draw 序锚（m_054：pixelY 升序、等值保序）+ 玩家插入位。
+/// 排序后实体表的 draw 序锚（sortEntitiesByY：pixelY 升序、等值保序）+ 玩家插入位。
 #[test]
 fn floor1_entity_draw_order_anchor() {
     let scene = build_scene();
@@ -278,7 +278,7 @@ fn floor1_entity_draw_order_anchor() {
         let mut s = y.clone();
         s.sort();
         s
-    }, "m_054 排序后 pixelY 必须非降");
+    }, "sortEntitiesByY 排序后 pixelY 必须非降");
     // 首批（Y=32）：spawn 序 7,41,42,41
     assert_eq!(&t[..4], &[7, 41, 42, 41]);
     // 玩家插入锚：首个"玩家正下方 32px 邻域"实体 = (96,352) 的 type41

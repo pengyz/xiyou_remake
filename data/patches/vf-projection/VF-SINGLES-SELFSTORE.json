@@ -24,6 +24,6 @@
       "count": 1
     }
   ],
-  "evidence": "javap 实测 aload_0→astore_0 自存 no-op ×3（m_033 偏移970-982、m_037 偏移59-68、useItemStack 偏移37-40）；m_033 istore_1 收 var3+16（VF 渲染为幻影 var10001）。删 no-op 零行为差。",
+  "evidence": "javap 实测 aload_0→astore_0 自存 no-op ×3（paintPlayerSprite 偏移970-982、paintHudPanel 偏移59-68、useItemStack 偏移37-40）；paintPlayerSprite istore_1 收 var3+16（VF 渲染为幻影 var10001）。删 no-op 零行为差。",
   "confidence": 95
 }
