@@ -57,7 +57,7 @@ fn m_105_easing_converges_6px_per_tick() {
 
 #[test]
 fn script_walk_consumes_buffer_from_tail() {
-    // dialogPhase-3 消费（a.java:4062）：--walkStepCount ⇒ 从缓冲末端取方向
+    // dialogPhase-3 消费（a.java:4066）：--walkStepCount ⇒ 从缓冲末端取方向
     let mut walk = WalkState::default();
     walk.walk_path_buffer = vec![3, 2, 2]; // m_133 缓冲序（目标端优先）
     walk.walk_step_count = 3;

@@ -73,7 +73,7 @@ impl JavaRandom {
     }
 
     /// 游戏侧唯一消费形态 `randomBelow(n)`：`(nextInt() >>> 1) % n`
-    /// （a.java:10177；参数求值序 L2R——spawn 先 x 后 y）。
+    /// （a.java:10181；参数求值序 L2R——spawn 先 x 后 y）。
     pub fn random_below(&mut self, n: i32) -> i32 {
         ((self.next_int() as u32) >> 1) as i32 % n
     }

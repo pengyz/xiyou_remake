@@ -21,7 +21,7 @@ MIDP/Nokia 引用全部覆盖，缺失 0**）。
 | `javax.microedition.midlet` | MIDlet | 生命周期 + `notifyDestroyed` 计数 |
 | `javax.microedition.rms` | RecordStore / RecordEnumeration / RecordFilter / RecordComparator | 内存实现（进程内静态 Map），无 I/O |
 | `javax.microedition.media` | Manager / Player / Controllable / Control / control.VolumeControl | 状态机 stub（UNREALIZED/REALIZED/PREFETCHED/STARTED），无音频输出，调用记入 trace EVT 流 |
-| `javax.microedition.io` | Connector / Connection / InputConnection / OutputConnection / ContentConnection / HttpConnection | **网络永久离线**：`Connector.open` 一律抛 IOException（确定性），驱动原版失败分支（a.java:8321） |
+| `javax.microedition.io` | Connector / Connection / InputConnection / OutputConnection / ContentConnection / HttpConnection | **网络永久离线**：`Connector.open` 一律抛 IOException（确定性），驱动原版失败分支（a.java:8325） |
 | `com.nokia.mid.ui` | DirectGraphics / DirectUtils | `drawImage(Image,x,y,anchor,transform)` 8 种变换（Nokia 变换码） |
 
 ## 源码布局

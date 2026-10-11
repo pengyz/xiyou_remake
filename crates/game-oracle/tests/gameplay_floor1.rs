@@ -180,7 +180,7 @@ fn build_scene() -> GameScene {
     scene.player.gold = s.gold;
     scene.floor = s.current_floor as i32;
     // 敌方表：基础三表（夹具）× 难度乘数 1（difficultyIndex=0 → ×1，
-    // scaleEnemyStats a.java:7235-7236）+ 赏金/基础 HP
+    // scaleEnemyStats a.java:7239-7240）+ 赏金/基础 HP
     let base = game_core::combat::CombatTables {
         enemy_base_hp: fixture_ints("enemybasehp.txt"),
         enemy_base_atk: fixture_ints("enemybaseatk.txt"),
@@ -240,7 +240,7 @@ fn gameplay_floor1_t537_1700_frames_match() {
         // T537 的 run 是 case 2（切换发生在其 else 分支内）⇒ 本拍无 advanceEntityFrames；
         // T538 起 case 3 以 frameCounter=tick-1 跑（偶数拍推进——运行时实证）。
         // 输入投递：TICK n 的 INPUT 在 preTick(n)（paint#n 后）→ logic#(n+1) 消费；
-        // keyValue 为边沿触发（run 尾清零 a.java:4272），keyHeldCode 电平（release 清）
+        // keyValue 为边沿触发（run 尾清零 a.java:4276），keyHeldCode 电平（release 清）
         if pending_press != 0 {
             scene.press_key(pending_press);
             pending_press = 0;
@@ -361,7 +361,7 @@ fn floor2_tour_frames_match() {
     let mut pending_release = false;
     for rec in &records {
         // 全窗口 T537-1500：(9,1) 怪已在 floor1 巡回期打死——m_119 只存存活实体、
-        // m_122 存档分支优先（死怪不复活 a.java:9461+），回流步进无战斗 ✓
+        // m_122 存档分支优先（死怪不复活 a.java:9465+），回流步进无战斗 ✓
         if !(537..=1500).contains(&rec.tick) {
             continue;
         }
@@ -677,7 +677,7 @@ fn prologue_dialog_frames_match() {
     // 与帧内箭头坐标（101,117）吻合
     scene.bob_offset = 2;
     scene.bob_rising = false;
-    // m_068 新游重置尾（a.java:7206-7211）：difficultyIndex=0 → scaleEnemyStats(×1)；
+    // m_068 新游重置尾（a.java:7210-7215）：difficultyIndex=0 → scaleEnemyStats(×1)；
     // 序章 -5 键的 predictHpLossVsType 需要该表（floor51 无战斗但 cat-8 实体存在）
     scene.enemies = game_core::combat::scale_enemy_stats(
         &game_core::combat::CombatTables {

@@ -5,7 +5,7 @@
 - 输入：`original/囧囧西游-大闹天宫.jar`（只读）→ `analysis/rename-pipeline/orig/*.class`
 - 对比对象：`analysis/rename-pipeline/orig/` vs `analysis/rename-pipeline/renamed/*.class`
 - 映射表：`data/naming/remap-table.json`（581 条符号，机械改名 569 条）
-- 语义叠加：`data/naming/ledger.jsonl`（applied 370 条，改写与验证均经两层符号还原：语义名→机械名→原始名）
+- 语义叠加：`data/naming/ledger.jsonl`（applied 380 条，改写与验证均经两层符号还原：语义名→机械名→原始名）
 
 ## 验证方法（为什么这能证明“仅符号名变化”）
 
@@ -121,7 +121,7 @@
 | 56 | f | overlayActive | 0 | 0 | ✓ |
 | 57 | f | overlayLeftIcon | 0 | 0 | ✓ |
 | 58 | g | overlayRightIcon | 0 | 0 | ✓ |
-| 59 | h | f_byte_07 | 0 | 0 | ✓ |
+| 59 | h | itemUseTargetType | 0 | 0 | ✓ |
 | 60 | i | overlayKind | 0 | 0 | ✓ |
 | 61 | y | overlayBoxWidth | 0 | 0 | ✓ |
 | 62 | z | overlayBoxHeight | 0 | 0 | ✓ |
@@ -270,14 +270,14 @@
 | 205 | aS | f_int_96 | 0 | 0 | ✓ |
 | 206 | o | equipTierBonuses | 0 | 0 | ✓ |
 | 207 | t | equipTierTypes | 0 | 0 | ✓ |
-| 208 | aT | f_int_97 | 0 | 0 | ✓ |
-| 209 | aU | f_int_98 | 0 | 0 | ✓ |
-| 210 | aV | f_int_99 | 0 | 0 | ✓ |
-| 211 | aW | f_int_100 | 0 | 0 | ✓ |
-| 212 | aX | f_int_101 | 0 | 0 | ✓ |
-| 213 | aY | f_int_102 | 0 | 0 | ✓ |
-| 214 | aZ | f_int_103 | 0 | 0 | ✓ |
-| 215 | ba | f_int_104 | 0 | 0 | ✓ |
+| 208 | aT | itemPanelCols | 0 | 0 | ✓ |
+| 209 | aU | itemPanelScrollTop | 0 | 0 | ✓ |
+| 210 | aV | itemPanelScrollBottom | 0 | 0 | ✓ |
+| 211 | aW | itemPanelRowsVisible | 0 | 0 | ✓ |
+| 212 | aX | itemPanelRowsTotal | 0 | 0 | ✓ |
+| 213 | aY | itemPanelBoxH | 0 | 0 | ✓ |
+| 214 | aZ | itemPanelBoxW | 0 | 0 | ✓ |
+| 215 | ba | itemPanelCursor | 0 | 0 | ✓ |
 | 216 | m | f_bool_12 | 0 | 0 | ✓ |
 | 217 | n | f_bool_13 | 0 | 0 | ✓ |
 | 218 | m | objectTypeNames | 0 | 0 | ✓ |
@@ -428,7 +428,7 @@
 | 363 | z | battlePredictGate | 0 | 0 | ✓ |
 | 364 | R | sparkQuads | 0 | 0 | ✓ |
 | 365 | S | sparkFrames | 0 | 0 | ✓ |
-| 366 | A | f_bool_26 | 0 | 0 | ✓ |
+| 366 | A | pathArrowsVisible | 0 | 0 | ✓ |
 | 367 | B | scriptWalkArmed | 0 | 0 | ✓ |
 | 368 | I | f_int_arr_34 | 0 | 0 | ✓ |
 | 369 | J | f_int_arr_35 | 0 | 0 | ✓ |

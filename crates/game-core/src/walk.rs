@@ -103,7 +103,7 @@ pub fn tick_stepping(
     }
 }
 
-/// dialogPhase-3 缓冲消费一步（a.java:4068 区域语义；方向码 → Dir）：
+/// dialogPhase-3 缓冲消费一步（a.java:4072 区域语义；方向码 → Dir）：
 /// walkStepCount > 0 → 取 `buffer[--count]` 交给 tryStep；
 /// == 0 → script_walk_armed=false、dialogPhase=0（恢复脚本）。
 /// 返回 Option<方向码>（Some(dir) 时调用方执行 tryStep）。

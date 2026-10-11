@@ -1,4 +1,4 @@
-//! popup 环形队列（spawnPopup a.java:9684-9715 + drawPopupLayer a.java:9725-9779）。
+//! popup 环形队列（spawnPopup a.java:9688-9719 + drawPopupLayer a.java:9729-9783）。
 //!
 //! 30 槽环形缓冲：write 追加（回绕覆盖）、retire 在 draw 中推进（绘制完
 //! 最后一帧后跳过已 retired 槽）。种类：
@@ -45,7 +45,7 @@ pub struct PopupRing {
 }
 
 impl PopupRing {
-    /// spawnPopup（a.java:9684-9715）。`wx/wy` 为世界坐标（+cam 平移在此发生）；
+    /// spawnPopup（a.java:9688-9719）。`wx/wy` 为世界坐标（+cam 平移在此发生）；
     /// `digit_w` = map[2][3] 的数字格宽（宽/11）——kind 2/3/4 的 x 居中计算用。
     pub fn spawn(&mut self, kind: i32, mut value: i32, wx: i32, wy: i32, cam_x: i32, cam_y: i32, digit_w: i32) {
         let sx = wx + cam_x;
@@ -82,7 +82,7 @@ impl PopupRing {
         self.write = (self.write + 1) % 30;
     }
 
-    /// drawPopupLayer（a.java:9725-9779）：retire→write 遍历绘制并推进计数。
+    /// drawPopupLayer（a.java:9729-9783）：retire→write 遍历绘制并推进计数。
     pub fn draw(&mut self, g: &mut SoftGraphics<'_>, imgs: &PopupImages) {
         let mut i = self.retire;
         loop {
@@ -138,8 +138,8 @@ impl PopupRing {
     }
 }
 
-/// drawDigitStrip（a.java:9786-9807）：11 分格数字带右对齐逐位绘制 +
-/// **第 11 格装饰字形无条件绘制**（a.java:9806-9803：负值标志 var5 是死变量，
+/// drawDigitStrip（a.java:9790-9811）：11 分格数字带右对齐逐位绘制 +
+/// **第 11 格装饰字形无条件绘制**（a.java:9810-9807：负值标志 var5 是死变量，
 /// 取反只影响逐位数字，尾部装饰格恒画——T1506 全量 ops 实证）。
 /// 返回绘制位数+1（宽度推进用）。
 pub fn draw_digit_strip(g: &mut SoftGraphics<'_>, strip: &ArgbImage, mut value: i32, x: i32, y: i32) -> i32 {

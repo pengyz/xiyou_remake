@@ -155,7 +155,7 @@ pub const OPEN_ANIM_STEP: i32 = 8;
 pub const SMALL_ITEM_MAX_TYPE: i32 = 26;
 
 // —— 玩家精灵（paintPlayerSprite 各朝向的 (dx, dy, 行) 锚）——
-/// 下/上/右/左；**左向（facing 3）是右向行（行 2）的镜像**（a.java:5921
+/// 下/上/右/左；**左向（facing 3）是右向行（行 2）的镜像**（a.java:5925
 /// drawEdgePatch(..., frame*41, 92, 41, 46, 1)——条带仅 3 行，无独立左行）。
 pub const PLAYER_ANCHORS: [(i32, i32, i32); 4] = [(-3, -18, 0), (-8, -14, 1), (-8, -16, 2), (0, -16, 2)];
 
@@ -262,33 +262,33 @@ pub fn prompt_cy() -> i32 {
     SCREEN_H / 2
 }
 
-/// paintSoftkeyBar 左软键底图 y（a.java:6004 `drawImage(f_Image_arr2_00[8][10], 0, 302, 0)`）。
+/// paintSoftkeyBar 左软键底图 y（a.java:6008 `drawImage(f_Image_arr2_00[8][10], 0, 302, 0)`）。
 /// 语义 = `SCREEN_H - 18`（302 = 320-18）。
 pub fn softkey_base_y() -> i32 {
     SCREEN_H - 18
 }
 
-/// paintSoftkeyBar 右软键底图 x（a.java:6008 drawImageWithNokiaTransform(..., 222, 302, 1)）。
+/// paintSoftkeyBar 右软键底图 x（a.java:6012 drawImageWithNokiaTransform(..., 222, 302, 1)）。
 /// 语义 = 右对齐 18px 边距：`SCREEN_W - 18`。
 pub fn softkey_right_x() -> i32 {
     SCREEN_W - 18
 }
 
-/// paintSoftkeyBar 软键图标 y（a.java:6005 drawImageClipped(..., 2, 307, ...)）。
+/// paintSoftkeyBar 软键图标 y（a.java:6009 drawImageClipped(..., 2, 307, ...)）。
 pub fn softkey_icon_y() -> i32 {
     SCREEN_H - 13
 }
 
-/// paintSoftkeyBar 左软键图标 x（a.java:6005）。
+/// paintSoftkeyBar 左软键图标 x（a.java:6009）。
 pub const SOFTKEY_ICON_LEFT_X: i32 = 2;
 
-/// paintSoftkeyBar 右软键图标 x（a.java:6009 drawImageClipped(..., 226, 307, ...)）。
+/// paintSoftkeyBar 右软键图标 x（a.java:6013 drawImageClipped(..., 226, 307, ...)）。
 /// 语义 = `SCREEN_W - 14`。
 pub fn softkey_icon_right_x() -> i32 {
     SCREEN_W - 14
 }
 
-/// paintSoftkeyBar 软键图标尺寸 12×10（a.java:6005/6003 的 drawImageClipped 宽高）。
+/// paintSoftkeyBar 软键图标尺寸 12×10（a.java:6009/6003 的 drawImageClipped 宽高）。
 pub const SOFTKEY_ICON_W: i32 = 12;
 pub const SOFTKEY_ICON_H: i32 = 10;
 

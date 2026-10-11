@@ -11,7 +11,7 @@ fn self_view_w() -> i32 {
 }
 
 fn self_view_h() -> i32 {
-    252 // f_int_59 唯一赋值（a.java:9409；复核 R2/R13：无 320）
+    252 // f_int_59 唯一赋值（a.java:9413；复核 R2/R13：无 320）
 }
 
 pub struct Camera {
@@ -24,7 +24,7 @@ pub struct Camera {
     /// f_int_125/126：锚点目标
     pub target_x: i32,
     pub target_y: i32,
-    /// f_int_58/59：视口尺寸（f_int_58=240、f_int_59=252，a.java:9409-9404——
+    /// f_int_58/59：视口尺寸（f_int_58=240、f_int_59=252，a.java:9413-9408——
     /// 无 320；此前文档的 320 为幽灵值，复核 R13/R2 指认）
     pub view_w: i32,
     pub view_h: i32,
@@ -55,7 +55,7 @@ impl Camera {
         }
     }
 
-    /// m_064 忠实移植（a.java:7034-7079）。
+    /// m_064 忠实移植（a.java:7038-7083）。
     /// x 夹取：>64 → 64；< -((cellsW+2)<<5 - 240) → 该下限；y 对称（视口 252）。
     pub fn set_offset(&mut self, x: i32, y: i32) {
         if !self.map_fits_w {
@@ -70,7 +70,7 @@ impl Camera {
         } else {
             self.offset_x = (self.view_w - self.map_px_w) >> 1;
         }
-        // m_064 的 y 钳制嵌在 !f_bool_10 分支内（a.java:7066-7072 花括号结构，
+        // m_064 的 y 钳制嵌在 !f_bool_10 分支内（a.java:7070-7076 花括号结构，
         // 复核 R8）：map 宽度适配时 y 落盘不钳制——原版怪癖保留。
         if !self.map_fits_w {
             let min_y = -(((self.map_px_h >> 5) + 2) << 5) + self.view_h;
@@ -94,7 +94,7 @@ impl Camera {
     }
 
     /// m_105 忠实移植：每轴 (Δ>>2)+2 趋近 target，跨过后钳制，尾行由锚点重导出
-    /// offset（a.java:8688-8713，复核 R7 补 :8700 尾行）。
+    /// offset（a.java:8692-8717，复核 R7 补 :8700 尾行）。
     pub fn step_toward_target(&mut self) {
         if self.anchor_x < self.target_x {
             self.anchor_x += ((self.target_x - self.anchor_x) >> 2) + 2;

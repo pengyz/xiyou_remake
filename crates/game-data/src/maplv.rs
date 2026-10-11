@@ -4,33 +4,33 @@
 //!
 //! | 偏移 | 类型 | 含义 | 证据 |
 //! |---|---|---|---|
-//! | +0 | u16 LE（原始值 = 真实宽 ×2） | 真实网格宽 `Y = raw>>1` | `docs/findings/resource-formats.md:177`；`a.java:7175` |
-//! | +2 | u16 LE（原始值 = 真实高 ×2） | 真实网格高 `Z = raw>>1` | `docs/findings/resource-formats.md:178`；`a.java:7176` |
-//! | +4 .. +4+Y·Z·4 | byte[Y·Z·4] | 网格 1（地形 tile-id）：`id&7`=图集列、`id>>3`=图集行（各 ×16px） | `docs/findings/resource-formats.md:179`；`a.java:7178,7181,7183`；`a.java:4996-4999` |
-//! | +4+Y·Z·4 .. +4+2·Y·Z·4 | byte[Y·Z·4] | 网格 2（贴图翻转/变换码）：取值域 0-7（`switch(n7){case 1..7}` 8 种变换） | `docs/findings/resource-formats.md:180`；`a.java:7178,7182,7184`；`a.java:2708-2744`；`a.java:5000` |
+//! | +0 | u16 LE（原始值 = 真实宽 ×2） | 真实网格宽 `Y = raw>>1` | `docs/findings/resource-formats.md:177`；`a.java:7179` |
+//! | +2 | u16 LE（原始值 = 真实高 ×2） | 真实网格高 `Z = raw>>1` | `docs/findings/resource-formats.md:178`；`a.java:7180` |
+//! | +4 .. +4+Y·Z·4 | byte[Y·Z·4] | 网格 1（地形 tile-id）：`id&7`=图集列、`id>>3`=图集行（各 ×16px） | `docs/findings/resource-formats.md:179`；`a.java:7182,7181,7183`；`a.java:5000-5003` |
+//! | +4+Y·Z·4 .. +4+2·Y·Z·4 | byte[Y·Z·4] | 网格 2（贴图翻转/变换码）：取值域 0-7（`switch(n7){case 1..7}` 8 种变换） | `docs/findings/resource-formats.md:180`；`a.java:7182,7182,7184`；`a.java:2708-2744`；`a.java:5004` |
 //!
 //! # 「每格 4 字节」与「每格 1 字节」两种视角（findings 注 1，字节等价）
 //!
-//! 每张网格共 `Y·Z·4` 字节（`a.java:7178` `int n3 = a2.Y * a2.Z << 2`）：
+//! 每张网格共 `Y·Z·4` 字节（`a.java:7182` `int n3 = a2.Y * a2.Z << 2`）：
 //! - 视角 A（契约/注 1 表述）：`Y×Z` 个「大格」，每格 4 字节；
-//! - 视角 B（引擎实际索引）：`2Y×2Z` 个 1 字节格——绘制循环 `a.java:4991`
+//! - 视角 B（引擎实际索引）：`2Y×2Z` 个 1 字节格——绘制循环 `a.java:4995`
 //!   `n2 = n3 = this.ai + (this.ak * this.Y << 1)`（线性下标 = 列 + 行 × 2Y）、
-//!   `a.java:5009` `n2 = n3 += this.Y << 1`（行跨距 = `Y<<1` = 2Y）、每步 16px（`a.java:5002` `n5 += 16`），
-//!   且逐格只取 1 字节 `this.i[n2]` / `this.j[n2]`（`a.java:4996`、`a.java:5000`）。
+//!   `a.java:5013` `n2 = n3 += this.Y << 1`（行跨距 = `Y<<1` = 2Y）、每步 16px（`a.java:5006` `n5 += 16`），
+//!   且逐格只取 1 字节 `this.i[n2]` / `this.j[n2]`（`a.java:5000`、`a.java:5004`）。
 //!
 //! 两种视角字节总量恒等（`4·Y·Z = 2Y·2Z·1`）。本解析器按代码字面量存 `Y·Z·4` 字节的
-//! 平铺网格（= `byte[] i`/`byte[] j`，`a.java:7181-7182`），并提供按视角 B 的行列访问
+//! 平铺网格（= `byte[] i`/`byte[] j`，`a.java:7185-7186`），并提供按视角 B 的行列访问
 //! [`Maplv::tile_at`]/[`Maplv::flip_at`]（行跨距 2Y）。`docs/findings/resource-formats.md:182-187`
 //! 注 1 的「设计者原意」仍为待证点（findings 假设 1），不在本 crate 下结论。
 //!
 //! # 证据（A 级）
 //!
-//! - 读取：`reference/seed/a.java:7169-7184` `private void s(int n)`——
-//!   `a.java:7174` 读 `maplv{n}` 资源、`a.java:7175-7176` 两个 LE16 `>>1`、
-//!   `a.java:7178` `n3 = Y*Z<<2`、`a.java:7183-7184` 顺序读两张网格。
+//! - 读取：`reference/seed/a.java:7173-7188` `private void s(int n)`——
+//!   `a.java:7178` 读 `maplv{n}` 资源、`a.java:7179-7180` 两个 LE16 `>>1`、
+//!   `a.java:7182` `n3 = Y*Z<<2`、`a.java:7187-7188` 顺序读两张网格。
 //! - 字节复现（55/55 自洽，含 `maplv51` 非方阵 12×13/1252B）：`docs/findings/resource-formats.md:120-148`、`291-296`。
 //! - 网格 2 翻转码语义：`a.java:2708-2744` 7 参数绘制方法的 `switch(n7){case 1..7}` 镜像/旋转分支，
-//!   `a.java:5000` 把 `this.j[n2]` 传入该参数（`docs/findings/resource-formats.md:163-168`）。
+//!   `a.java:5004` 把 `this.j[n2]` 传入该参数（`docs/findings/resource-formats.md:163-168`）。
 
 use crate::error::Error;
 use crate::read;
@@ -38,35 +38,35 @@ use crate::read;
 /// maplv 关卡（网格平铺为 `byte[]`，与引擎 `this.i`/`this.j` 同构）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Maplv {
-    /// +0：`u16 LE`，原始值 = 真实宽 ×2。Evidence: `docs/findings/resource-formats.md:177`；`a.java:7175`。
+    /// +0：`u16 LE`，原始值 = 真实宽 ×2。Evidence: `docs/findings/resource-formats.md:177`；`a.java:7179`。
     pub raw_width: u16,
-    /// +2：`u16 LE`，原始值 = 真实高 ×2。Evidence: `docs/findings/resource-formats.md:178`；`a.java:7176`。
+    /// +2：`u16 LE`，原始值 = 真实高 ×2。Evidence: `docs/findings/resource-formats.md:178`；`a.java:7180`。
     pub raw_height: u16,
-    /// 真实网格宽 `Y = raw_width >> 1`。Evidence: `a.java:7175` `a2.Y = a.a(inputStream) >> 1`。
+    /// 真实网格宽 `Y = raw_width >> 1`。Evidence: `a.java:7179` `a2.Y = a.a(inputStream) >> 1`。
     pub width: u16,
-    /// 真实网格高 `Z = raw_height >> 1`。Evidence: `a.java:7176`。
+    /// 真实网格高 `Z = raw_height >> 1`。Evidence: `a.java:7180`。
     pub height: u16,
-    /// 网格 1（地形 tile-id）：`Y·Z·4` 字节平铺 = 引擎 `byte[] i`（`a.java:7181,7183`）。
-    /// 每字节一个 tile-id：`id&7`=图集列、`id>>3`=图集行（`a.java:4998-4999`）。
+    /// 网格 1（地形 tile-id）：`Y·Z·4` 字节平铺 = 引擎 `byte[] i`（`a.java:7185,7183`）。
+    /// 每字节一个 tile-id：`id&7`=图集列、`id>>3`=图集行（`a.java:5002-5003`）。
     pub terrain: Vec<u8>,
-    /// 网格 2（贴图翻转/变换码）：`Y·Z·4` 字节平铺 = 引擎 `byte[] j`（`a.java:7182,7184`）。
-    /// 传入 7 参数绘制方法的 `switch(n7){case 1..7}` 变换分支（`a.java:2708-2744`；`a.java:5000`）。
+    /// 网格 2（贴图翻转/变换码）：`Y·Z·4` 字节平铺 = 引擎 `byte[] j`（`a.java:7186,7184`）。
+    /// 传入 7 参数绘制方法的 `switch(n7){case 1..7}` 变换分支（`a.java:2708-2744`；`a.java:5004`）。
     pub flip: Vec<u8>,
 }
 
 impl Maplv {
     /// 解析前缀，返回（结果，消费字节数）。消费恒为 `4 + 2·(Y·Z·4)`。
     pub fn parse_partial(data: &[u8]) -> Result<(Self, usize), Error> {
-        // +0 / +2：u16 LE，原始值 = 真实尺寸 ×2（a.java:7175-7176；docs/findings/resource-formats.md:177-178）
+        // +0 / +2：u16 LE，原始值 = 真实尺寸 ×2（a.java:7179-7180；docs/findings/resource-formats.md:177-178）
         let raw_width = read::u16_le(data, 0)?;
         let raw_height = read::u16_le(data, 2)?;
         let width = (raw_width >> 1) as usize;
         let height = (raw_height >> 1) as usize;
-        // 每张网格 Y·Z·4 字节（a.java:7178 `int n3 = a2.Y * a2.Z << 2`）
+        // 每张网格 Y·Z·4 字节（a.java:7182 `int n3 = a2.Y * a2.Z << 2`）
         let grid_bytes = width * height * 4;
-        // 网格 1：+4 .. +4+Y·Z·4（a.java:7181,7183；docs/findings/resource-formats.md:179）
+        // 网格 1：+4 .. +4+Y·Z·4（a.java:7185,7183；docs/findings/resource-formats.md:179）
         let terrain = read::take(data, 4, grid_bytes)?.to_vec();
-        // 网格 2：紧接其后同长（a.java:7182,7184；docs/findings/resource-formats.md:180）
+        // 网格 2：紧接其后同长（a.java:7186,7184；docs/findings/resource-formats.md:180）
         let flip = read::take(data, 4 + grid_bytes, grid_bytes)?.to_vec();
         let consumed = 4 + 2 * grid_bytes;
         Ok((
@@ -92,22 +92,22 @@ impl Maplv {
         Ok(maplv)
     }
 
-    /// 每张网格字节数 = `Y·Z·4`（`a.java:7178`）。
+    /// 每张网格字节数 = `Y·Z·4`（`a.java:7182`）。
     pub fn grid_bytes(&self) -> usize {
         self.terrain.len()
     }
 
-    /// 视角 B 的列数 = `2Y` = `raw_width`（行跨距 `Y<<1`，`a.java:4991`、`a.java:5009`）。
+    /// 视角 B 的列数 = `2Y` = `raw_width`（行跨距 `Y<<1`，`a.java:4995`、`a.java:5013`）。
     pub fn cell_cols(&self) -> usize {
         self.raw_width as usize
     }
 
-    /// 视角 B 的行数 = `2Z` = `raw_height`（每步 16px，`a.java:5002`）。
+    /// 视角 B 的行数 = `2Z` = `raw_height`（每步 16px，`a.java:5006`）。
     pub fn cell_rows(&self) -> usize {
         self.raw_height as usize
     }
 
-    /// 地形 tile-id（视角 B：1 字节/格，下标 = `row*2Y + col`，`a.java:4991`、`a.java:4996`）。
+    /// 地形 tile-id（视角 B：1 字节/格，下标 = `row*2Y + col`，`a.java:4995`、`a.java:5000`）。
     pub fn tile_at(&self, col: usize, row: usize) -> Option<u8> {
         if col >= self.cell_cols() || row >= self.cell_rows() {
             return None;
@@ -115,7 +115,7 @@ impl Maplv {
         self.terrain.get(row * self.cell_cols() + col).copied()
     }
 
-    /// 翻转/变换码（同上索引；喂给绘制方法第 8 参数，`a.java:5000`、`a.java:2708-2744`）。
+    /// 翻转/变换码（同上索引；喂给绘制方法第 8 参数，`a.java:5004`、`a.java:2708-2744`）。
     pub fn flip_at(&self, col: usize, row: usize) -> Option<u8> {
         if col >= self.cell_cols() || row >= self.cell_rows() {
             return None;
@@ -123,13 +123,13 @@ impl Maplv {
         self.flip.get(row * self.cell_cols() + col).copied()
     }
 
-    /// tile-id → 图集列（`id&7`，×16px）。Evidence: `a.java:4998` `int n9 = (n4 & 7) << 4`；
+    /// tile-id → 图集列（`id&7`，×16px）。Evidence: `a.java:5002` `int n9 = (n4 & 7) << 4`；
     /// `docs/findings/resource-formats.md:179`。
     pub fn tile_atlas_col(id: u8) -> u8 {
         id & 7
     }
 
-    /// tile-id → 图集行（`id>>3`，×16px）。Evidence: `a.java:4999` `n4 = n4 >> 3 << 4`；
+    /// tile-id → 图集行（`id>>3`，×16px）。Evidence: `a.java:5003` `n4 = n4 >> 3 << 4`；
     /// `docs/findings/resource-formats.md:179`。
     pub fn tile_atlas_row(id: u8) -> u8 {
         id >> 3
@@ -182,7 +182,7 @@ mod tests {
         );
     }
 
-    /// 视角 B 行列索引与平铺下标一致（`a.java:4991` 下标 = 列 + 行×2Y）。
+    /// 视角 B 行列索引与平铺下标一致（`a.java:4995` 下标 = 列 + 行×2Y）。
     #[test]
     fn cell_indexing_matches_engine_stride() {
         let mut data = vec![0x1a, 0x00, 0x1a, 0x00];

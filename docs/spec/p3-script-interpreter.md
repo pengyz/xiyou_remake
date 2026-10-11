@@ -22,16 +22,16 @@
 |---|---|---|
 | `script_cursor` | `scriptCursor`（FLD245） | trace tick578=12/1002=24/1202=43 |
 | `dialog_phase` | `dialogPhase`（FLD024→N-0104 dialogPhase） | 0 步进/1·6 打字机/3 行走/4 等相机/5 战斗 |
-| `dialog_page` / `speaker` / `dialog_char_pos` | `f_int_112`/`f_byte_17`/`f_int_33` | openDialogPage（原名 m_096，台账 N-0090）a.java:8185-8210 |
+| `dialog_page` / `speaker` / `dialog_char_pos` | `f_int_112`/`f_byte_17`/`f_int_33` | openDialogPage（原名 m_096，台账 N-0090）a.java:8189-8214 |
 | `overlay_text` | `overlayText`（N-0114） | trace FLD062 六句序章对白实证 |
-| `tak_page_start/end` | `f_int_120/121` | a.java:8227-8231 |
-| `scene_delay` | `f_int_118`（CES 派生延迟） | a.java:8379-8384 |
+| `tak_page_start/end` | `f_int_120/121` | a.java:8231-8235 |
+| `scene_delay` | `f_int_118`（CES 派生延迟） | a.java:8383-8388 |
 | `game_mode`/`walk_phase`/`script_walk_armed`/`walk_request_flag` | 已命名（台账） | — |
-| `player stats`（hp/atk/def/三钥匙/金/物品栈/炼丹/层里程碑） | RES_ 重置集 | a.java:8466-8479 |
+| `player stats`（hp/atk/def/三钥匙/金/物品栈/炼丹/层里程碑） | RES_ 重置集 | a.java:8470-8483 |
 
-## 3. 指令语义合同（16 opcode，deobf executeScriptInstruction a.java:8216-8564）
+## 3. 指令语义合同（16 opcode，deobf executeScriptInstruction a.java:8220-8568）
 
-解析规则：3 字符 opcode；`parseScriptInt`（a.java:8560-8567）= 从 pos 起找分隔符
+解析规则：3 字符 opcode；`parseScriptInt`（a.java:8564-8571）= 从 pos 起找分隔符
 （`_` 或空格），`f_int_122` = 分隔符位，cursor = `f_int_122 + 1`；行尾门
 `cursor + 3 <= len` 否则 no-op（序章 cursor=43 冻结态实证）。
 
@@ -42,7 +42,7 @@
 | GLV_n / SMS_n | 解析后仅 cursor 推进（空指令，:8456/:8486） | **全** |
 | LAY_n | m_119(层重载 hook) + layer=n + **f_bool_16=true**（:8317）+ phase=5 + overlayText=null | **全**（m_119 走 hook） |
 | ROS_sub | 1=玩家坐标/3=HP/4=朝向/5=ATK/6=DEF 直写，2=m_082 hook | **全**（2 走 hook） |
-| CES_a_b_c | m_048 生成实体 + 相机锚 + scene_delay（**按类目表 f_byte_arr_03[type]**：类目 1/8/16→5，2/4→8，默认 0；类目表初始化 a.java:6204-6252——2026-10-10 复核 R3 更正，原误写为按裸 type） | 实体操作走 hook |
+| CES_a_b_c | m_048 生成实体 + 相机锚 + scene_delay（**按类目表 f_byte_arr_03[type]**：类目 1/8/16→5，2/4→8，默认 0；类目表初始化 a.java:6208-6256——2026-10-10 复核 R3 更正，原误写为按裸 type） | 实体操作走 hook |
 | MOV_(3|5 参) | 5 参 y 也用 `_` 分隔；**cursor 在分支前推进**（:8245）；实体命中→findPath→phase=2（无条件），未命中尾递归；玩家 findPath 成功→**script_walk_armed=true + phase=3 + walkPhase=0 + m_104(0)**（:8265-8267，三写点缺一不可） | 路径走 hook |
 | DES_t_x_y | m_100 查得→m_047 移除（hook）；t<0 按类型批量 | 移除走 hook |
 | GIN_k_v | 0=pickupItem/1=gainGold（hook）+ **尾递归继续下一条**（唯一显式递归，:8395-8397） | **全** |
@@ -50,9 +50,9 @@
 | SWD | 类型 81→4 改写（五字段写，hook） | hooks |
 | SEE_a_b_c_d_e | 先 openDialogPage(c)，cursor 推进，phase=6 + m_103 hook；e=1 时 findPath 门控 walkPhase=0+f_bool_26 | **全**（路径走 hook） |
 | END_0 | gameMode=20 + m_000（exit hook） | **全** |
-| MVS | 数据域 68 条脚本 **零使用** → P3.2 边界（panic 指引 deobf a.java:8490-8564） | 显式未实现 |
+| MVS | 数据域 68 条脚本 **零使用** → P3.2 边界（panic 指引 deobf a.java:8494-8568） | 显式未实现 |
 
-### 3.1 行尾收尾门（2026-10-10 复核 R4 补，a.java:8551-8563）
+### 3.1 行尾收尾门（2026-10-10 复核 R4 补，a.java:8555-8567）
 
 方法尾部（dispatch 之外）恒执行：`if cursor < line.len() { return; }` 否则
 **dialogPhase=4 + scriptLineFlags[current]=true（index≠32 时）+ m_104(0)**。
@@ -89,9 +89,9 @@ phase 4 与教学页 166（"好了，现在请试着按方向键移动"）均已
 ## 复核记录（2026-10-10，独立复核者非实现者）
 
 裁决 fail → 修复 → 复验。Findings 全收口：
-- R1(high) MOV 5 参分支：y 分隔符错误/cursor 不推进/终点用错 → 重写（a.java:8233-8268 忠实序）
+- R1(high) MOV 5 参分支：y 分隔符错误/cursor 不推进/终点用错 → 重写（a.java:8237-8272 忠实序）
 - R2(high) MOV 玩家分支缺 walk-arm 三写点 → 补齐 + 测试断言
-- R3(high) CES 延迟查类目表而非裸 type → spec 与实现更正 + 类目表夹具（a.java:6204-6252）
+- R3(high) CES 延迟查类目表而非裸 type → spec 与实现更正 + 类目表夹具（a.java:6208-6256）
 - R4(high) 行尾门非 no-op（phase=4+旗标+相机）→ 新增 §3.1 + 双触发面实现 + BUG-006 冻结态断言
 - R5(high) char_pos 按 UTF-8 字节 → chars().count()（UTF-16 单位）
 - R6/R7(medium) RES 补 f_int_89=0；LAY 补 f_bool_16
@@ -134,7 +134,7 @@ SEE 所写——findPath(1,11→3,10) 在第 51 层不可达（地形+实体槽�
 - R5(medium) 枚举采用收口：entity_kind/GameMode/Dir/Category 进生产代码。
 - R6(medium) 门码 26/27/28、物品 23/24、popup kind 2 常量化（door_code/
   item_kind/popup_kind 模块）。
-- R7(medium) m_105 尾行 m_064 重导出 offset 补齐（a.java:8700）。
+- R7(medium) m_105 尾行 m_064 重导出 offset 补齐（a.java:8704）。
 - R8(medium) m_064 y 钳制嵌套怪癖登记保留（真实地图宽度下不触发）。
 - R9(medium) 步进机完整化：tick_stepping（±8 + 边缘跟随 + 32px 归格）。
 - R10(medium) MVS panic → 委托 HostCtx::mvs_exchange（边界模式一致）。

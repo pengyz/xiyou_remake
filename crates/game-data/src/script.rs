@@ -5,9 +5,9 @@
 //!
 //! # 证据（A 级）
 //!
-//! - 定长前缀匹配：`reference/seed/a.java:6121` `string = object.substring(n, n + 3)` 配
-//!   `a.java:6122-6433` 的 16 路 `if/else if`（`docs/findings/script-dsl-semantics.md:36`）。
-//! - 参数分隔符 tokenizer：`reference/seed/a.java:6440-6446` `private int a(String, int, String)`——
+//! - 定长前缀匹配：`reference/seed/a.java:6125` `string = object.substring(n, n + 3)` 配
+//!   `a.java:6126-6437` 的 16 路 `if/else if`（`docs/findings/script-dsl-semantics.md:36`）。
+//! - 参数分隔符 tokenizer：`reference/seed/a.java:6444-6450` `private int a(String, int, String)`——
 //!   从游标找下一个分隔符（`"_"` 或 `" "`），子串 `Integer.parseInt`，游标写入 `this.bs`
 //!   （`docs/findings/script-dsl-semantics.md:37`）。
 //! - 指令间以空格分隔、行内线性执行（`docs/findings/script-dsl-semantics.md:38`）；
@@ -21,7 +21,7 @@
 use crate::error::Error;
 
 /// 16 个指令词（定长 3 字母，大小写敏感）。
-/// Evidence: `docs/findings/script-dsl-semantics.md:36`；`reference/seed/a.java:6122-6433` 的 `.equals` 链。
+/// Evidence: `docs/findings/script-dsl-semantics.md:36`；`reference/seed/a.java:6126-6437` 的 `.equals` 链。
 pub const OPCODES: [&str; 16] = [
     "CES", "MOV", "TAK", "DES", "ROS", "SEE", "GUT", "GIN", "ADD", "GLV", "RES", "SWD", "MVS", "LAY",
     "END", "SMS",
@@ -37,9 +37,9 @@ pub fn is_known_opcode(opcode: &str) -> bool {
 pub struct Instr<'a> {
     /// 指令 token 原文（如 `TAK_8_9`），便于回指脚本串。
     pub raw: &'a str,
-    /// 3 字母指令词（如 `TAK`）。Evidence: `a.java:6121`。
+    /// 3 字母指令词（如 `TAK`）。Evidence: `a.java:6125`。
     pub opcode: &'a str,
-    /// 下划线切分出的整数参数（如 `[8, 9]`）。Evidence: `a.java:6440-6446`。
+    /// 下划线切分出的整数参数（如 `[8, 9]`）。Evidence: `a.java:6444-6450`。
     pub args: Vec<i32>,
 }
 
@@ -48,29 +48,29 @@ pub struct Instr<'a> {
 /// `CES_84_6_11` → (`CES`, `[84, 6, 11]`)；`SWD` → (`SWD`, `[]`)；`DES_-59_0` → (`DES`, `[-59, 0]`，负参数
 /// 见 `docs/findings/script-dsl-semantics.md:58`)。
 ///
-/// 游标模型与解释器等价：指令词占 3 字符（`a.java:6121`），其后每个参数前缀 `_`
+/// 游标模型与解释器等价：指令词占 3 字符（`a.java:6125`），其后每个参数前缀 `_`
 /// （末参数在行内以空格结尾，切词后即 token 尾，`docs/findings/script-dsl-semantics.md:38`）。
 pub fn split_instr_token(token: &str) -> Result<Instr<'_>, Error> {
     let token = token.trim();
     if token.len() < 3 {
         return Err(Error::BadToken {
             token: token.to_string(),
-            reason: "指令 token 至少 3 字符（定长指令词，a.java:6121）",
+            reason: "指令 token 至少 3 字符（定长指令词，a.java:6125）",
         });
     }
     let (opcode, mut rest) = token.split_at(3);
     if !opcode.chars().all(|c| c.is_ascii_alphabetic()) {
         return Err(Error::BadToken {
             token: token.to_string(),
-            reason: "指令词必须是 3 个 ASCII 字母（a.java:6121 substring(n, n+3)）",
+            reason: "指令词必须是 3 个 ASCII 字母（a.java:6125 substring(n, n+3)）",
         });
     }
     let mut args = Vec::new();
     while !rest.is_empty() {
-        // 每个参数以 '_' 前缀引导（a.java:6440-6446 的分隔符 tokenizer）
+        // 每个参数以 '_' 前缀引导（a.java:6444-6450 的分隔符 tokenizer）
         let body = rest.strip_prefix('_').ok_or_else(|| Error::BadToken {
             token: token.to_string(),
-            reason: "参数必须以 '_' 分隔（a.java:6440-6446）",
+            reason: "参数必须以 '_' 分隔（a.java:6444-6450）",
         })?;
         let (arg, next) = match body.find('_') {
             Some(at) => (&body[..at], &body[at..]),
@@ -78,7 +78,7 @@ pub fn split_instr_token(token: &str) -> Result<Instr<'_>, Error> {
         };
         let value = arg.parse::<i32>().map_err(|_| Error::BadToken {
             token: token.to_string(),
-            reason: "参数不是整数（Integer.parseInt，a.java:6445）",
+            reason: "参数不是整数（Integer.parseInt，a.java:6449）",
         })?;
         args.push(value);
         rest = next;

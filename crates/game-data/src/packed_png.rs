@@ -8,14 +8,14 @@
 //! | 偏移 | 类型 | 含义 | 证据 |
 //! |---|---|---|---|
 //! | 文件级：无固定头，总张数不写入文件内 | — | 张数来自常量表 | `a.java:465-466` |
-//! | 每张记录 +0 | u16 LE | 本张 PNG 字节长度 | `a.java:2667`、`a.java:4914-4915` |
+//! | 每张记录 +0 | u16 LE | 本张 PNG 字节长度 | `a.java:2667`、`a.java:4918-4919` |
 //! | 每张记录 +2 .. +2+len | byte[len] | 标准 PNG（魔数 `89504E470D0A1A0A` 开头） | `docs/findings/resource-formats.md:80` |
 //! | （下一张紧接上一张末尾） | — | 顺序排列，无填充/对齐 | `docs/findings/resource-formats.md:81`（`remaining=0`） |
 //!
 //! # 证据（A 级）
 //!
 //! - 读取循环：`reference/seed/a.java:2657-2676` `private void a(int n)`——
-//!   `a.java:2667` 逐图读 `u16 LE` 长度（等价 `a.java:4914-4915` `private static short a(InputStream)`），
+//!   `a.java:2667` 逐图读 `u16 LE` 长度（等价 `a.java:4918-4919` `private static short a(InputStream)`），
 //!   `a.java:2674-2675` 按长度取 PNG 字节并 `Image.createImage` 解码。
 //! - 张数常量表：`reference/seed/a.java:465`（`this.b` 资源名数组）与 `a.java:466`（`this.a` 计数数组）
 //!   一一对应；与 `docs/findings/resource-formats.md:83-94` 表格一致。
@@ -82,7 +82,7 @@ impl<'a> PackedPng<'a> {
         let mut images = Vec::with_capacity(image_count);
         for image in 0..image_count {
             let offset = pos;
-            // 每张记录 +0：u16 LE 长度（a.java:2667；a.java:4914-4915）
+            // 每张记录 +0：u16 LE 长度（a.java:2667；a.java:4918-4919）
             let length = read::u16_le(data, pos)?;
             pos += 2;
             // 每张记录 +2 .. +2+len：PNG 字节（docs/findings/resource-formats.md:80）

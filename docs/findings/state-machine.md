@@ -76,8 +76,8 @@ paint() 的 `case 4: case 19:`（两个 paint 分支共享一套渐变/列表绘
 | 18 | **（B 级）烟花/粒子特效渲染层**：4 方向扩散的 4×4 色块点阵动画，`run()` 中**没有**对应 case（无逐帧状态推进代码），推测是在其它 mode（很可能 14=战斗过场 或某个胜利场景）内被 `paint()` 直接当作同帧叠加绘制调用，而非独立可切换 mode | 证据不足：未定位到 `this.a = (byte)18` 或等效赋值 | 同上不明 | `a.java:1095` | **无**（见"遗留问题"） |
 | 19 | **开发组/鸣谢滚动列表或教程选项列表**（B，复用 mode4 渲染代码块；`private void a()` case 19 批量注册文本项 12-16） | `run()` case 4 的 `-7` 分支（右软键）从某菜单跳入；或 mode1 分派表选中特定项 | 右软键(-7) → `this.a = (byte)4; super.a();`（转回菜单型 mode4） | `a.java:801`（与 case 4 共享渲染） | `a.java:2306-2340` |
 | 20 | **片头/插画横向卷动过场（intro 剧情）**（A）：`this.w` 卷动位移，`this.o[260]` 文本逐字显示 | `private void a()` case 20：`this.a(14)`（载入 intro 图集）、`this.H=1` | `!this.e && this.f==0` 结束后 `this.a=1; super.a()`（回主菜单） | `a.java:1185` | `a.java:2403-2409` |
-| 22 | **退出确认/存档清理收尾过场**（A）：70 帧粒子淡出（m_143/m_144 逐帧推进）后 `CMidlet.m_000()` 销毁进程（run a.java:4227-4233；END=all-threads-exited trace 实证） | >【2026-10-10 更正（BUG-007）】主菜单无"退出"项（注册只到光标5）；mode 22 的实际入口是主菜单**"帮助"项(光标5)**（错位） | 70 帧后终止：`var5_3.a = false`（**注意**：这里赋值给的是 `this.a`，当前上下文已确定为"主循环 continue 布尔标志"而非 mode 字节，CFR 对两个同名字段按类型区分，见假设节关于该行潜在歧义的讨论）＋调用 `CMidlet.a()` | `a.java:1210`（即 `this.H()`，复用片头特效渲染） | `a.java:2410-2416` |
-| 99 | **异步联网等待层（HTTP 登录/短信相关）**（A）：`this.F==true` 时轮询 `super.b()`（`a.java:8349` 的 `private boolean b()`），`cj` 计时超时(300帧)后提示"已超时，请重试" | `this.F = true` 由联网/登录/充值流程设置 | `super.b()` 返回且 `this.F=false` 后 `this.a=0`（回到启动态）；或 `super.f()!=0&&!=3 && this.f==0` 直接 `this.a=0` | `a.java:1214` | `a.java:2417-2432` |
+| 22 | **退出确认/存档清理收尾过场**（A）：70 帧粒子淡出（m_143/m_144 逐帧推进）后 `CMidlet.m_000()` 销毁进程（run a.java:4231-4237；END=all-threads-exited trace 实证） | >【2026-10-10 更正（BUG-007）】主菜单无"退出"项（注册只到光标5）；mode 22 的实际入口是主菜单**"帮助"项(光标5)**（错位） | 70 帧后终止：`var5_3.a = false`（**注意**：这里赋值给的是 `this.a`，当前上下文已确定为"主循环 continue 布尔标志"而非 mode 字节，CFR 对两个同名字段按类型区分，见假设节关于该行潜在歧义的讨论）＋调用 `CMidlet.a()` | `a.java:1210`（即 `this.H()`，复用片头特效渲染） | `a.java:2410-2416` |
+| 99 | **异步联网等待层（HTTP 登录/短信相关）**（A）：`this.F==true` 时轮询 `super.b()`（`a.java:8353` 的 `private boolean b()`），`cj` 计时超时(300帧)后提示"已超时，请重试" | `this.F = true` 由联网/登录/充值流程设置 | `super.b()` 返回且 `this.F=false` 后 `this.a=0`（回到启动态）；或 `super.f()!=0&&!=3 && this.f==0` 直接 `this.a=0` | `a.java:1214` | `a.java:2417-2432` |
 
 > 备注：mode 18（粒子特效）在 `run()` 中没有专属 `case`——这是真正意义上的"paint 独有"，
 > 与 mode 15/17（帮助/关于，`run()` 中有合并空分支但不含任何字段操作）性质不同：
@@ -147,12 +147,12 @@ stateDiagram-v2
 ### 4. 主循环骨架
 
 - **结论**：`run()`（`a.java:1359`）入口先检查 `this.F`（async 标志）：若为真，则**不进入游戏主循环**，
-  而是反复调用 `this.e()`（HTTP 请求，`a.java:8237`）直到其返回值不为 1，然后把结果写入
+  而是反复调用 `this.e()`（HTTP 请求，`a.java:8241`）直到其返回值不为 1，然后把结果写入
   `this.cf`（在 `this.a`——HttpConnection 对象，被当作同步锁——保护下）并直接 `return`。
   这意味着**同一个 `Runnable` 既是主游戏线程体，也是一次性异步网络线程体**，由调用处
-  `new Thread(a4).start()`（`a.java:8421`，在 `private boolean b()` 内部）区分场景；
+  `new Thread(a4).start()`（`a.java:8425`，在 `private boolean b()` 内部）区分场景；
   两者永不同时运行同一份状态（主循环执行期间 `this.F` 恒为 false）。
-  Evidence: `reference/seed/a.java:1359-1370`、`reference/seed/a.java:8421-8422`。
+  Evidence: `reference/seed/a.java:1359-1370`、`reference/seed/a.java:8425-8426`。
 - **结论**：正常游戏主循环体为 `while (this.a) { ... }`（这里 `this.a` 是 **布尔型**"继续运行"
   字段，与"mode"的 `byte a` 是同名不同类型字段，CFR 按调用点类型消歧）。每轮循环顺序：
   1) 记录帧起始时间 `var1_7 = System.currentTimeMillis()`，计算帧截止时间
@@ -234,7 +234,7 @@ stateDiagram-v2
 |---|---|---|---|
 | `a.java:622` | `a2.a = new Random();` | 构造唯一的 `Random` 实例，赋给 `private Random a` 字段（`a.java:425`） | 构造器内，游戏启动时一次性创建 |
 | `a.java:623` | `a2.a.setSeed(System.currentTimeMillis());` | 用系统时钟播种 | **必须接管点**：Rust 侧需用可注入的固定种子替代，否则无法差分复现 |
-| `a.java:7889` | `return (this.a.nextInt() >>> 1) % n;` | **唯一**的随机数取值点，`private int g(int n)` 风格的"取 [0,n) 随机数"工具方法（右移 1 位去掉符号位再取模） | 游戏内所有随机效果（如 paint case 18 粒子扩散用的 `super.g(15)`、怪物掉落、战斗抽取等）最终都归约到这一行；接管虚拟 RNG 时只需替换本行调用的后端 |
+| `a.java:7893` | `return (this.a.nextInt() >>> 1) % n;` | **唯一**的随机数取值点，`private int g(int n)` 风格的"取 [0,n) 随机数"工具方法（右移 1 位去掉符号位再取模） | 游戏内所有随机效果（如 paint case 18 粒子扩散用的 `super.g(15)`、怪物掉落、战斗抽取等）最终都归约到这一行；接管虚拟 RNG 时只需替换本行调用的后端 |
 | `a.java:1380` | `var1_7 = System.currentTimeMillis();` | 主循环帧起始时间戳 | 用于 busy-wait 计算，需虚拟时钟接管 |
 | `a.java:2425` | `} while ((var5_2 = System.currentTimeMillis()) >= var1_7 && var5_2 < var3_10);` | busy-wait 条件判断（帧对齐） | 同上，虚拟时钟的"流逝时间"查询点 |
 
@@ -249,13 +249,13 @@ Evidence: 全文件 grep `new Random|\.setSeed\(|currentTimeMillis|\.nextInt\(` 
 
 - **结论**：共确认 **2 个 RecordStore 名字**：
   - `"SKY_WAR"`：主游戏进度存档（读 `private void a()` case 21 分支；写 `private void z()`，
-    `a.java:6733`）；
+    `a.java:6737`）；
   - `"MOT_IF"`：**6 个存档位**的额外存档槛（命名疑似"motif"或内部缩写，证据不足以定论语义，
-    见假设节），读 `private void A()`（`a.java:6765`），写 `private void p(int n)`（`a.java:6793`）。
+    见假设节），读 `private void A()`（`a.java:6769`），写 `private void p(int n)`（`a.java:6797`）。
   Evidence: `reference/seed/a.java:2445`（读 SKY_WAR）、
-  `reference/seed/a.java:6740`（写 SKY_WAR, `openRecordStore(string,true)`）、
-  `reference/seed/a.java:6782`（读 MOT_IF，经由 `private void A()`）、
-  `reference/seed/a.java:6832`（写 MOT_IF，经由 `private void p(int)`）。
+  `reference/seed/a.java:6744`（写 SKY_WAR, `openRecordStore(string,true)`）、
+  `reference/seed/a.java:6786`（读 MOT_IF，经由 `private void A()`）、
+  `reference/seed/a.java:6836`（写 MOT_IF，经由 `private void p(int)`）。
 - **结论**：`"SKY_WAR"` 存档的 **写入**（`z()`，权威字段顺序，因为写方法逻辑最直接）字节序列：
   ```
   DataOutputStream 顺序：
@@ -268,7 +268,7 @@ Evidence: 全文件 grep `new Random|\.setSeed\(|currentTimeMillis|\.nextInt\(` 
   ```
   对应的**读取**（`private void a()` case 21）严格按相同顺序 `readBoolean()×4` →
   `readByte()`(count) → `readInt()×count` → `readInt()×3`，顺序与写入完全对称，已交叉核对。
-  Evidence: `reference/seed/a.java:6733-6761`（`z()` 写方法全文）、
+  Evidence: `reference/seed/a.java:6737-6765`（`z()` 写方法全文）、
   `reference/seed/a.java:2441-2463`（`private void a()` case 21 读取段）、
   `reference/seed/a.java:598`（`this.J = new int[this.I.length];`，确定数组长度来源）、
   `reference/seed/a.java:579`（`this.I = new byte[]{9,22,34,41,51,52,54,55,56};` 常量定义）。
@@ -295,26 +295,26 @@ Evidence: 全文件 grep `new Random|\.setSeed\(|currentTimeMillis|\.nextInt\(` 
   `write(1)` 对称；6 个槛位对应读方法开头声明的 6 个并行数组
   `boolean[6] h / byte[6] y,z,A / int[6] x,y,z,A,B,C,D`（部分变量名在同一作用域内重复声明
   不同类型，这是 CFR 对寄存器复用的产物，Rust 侧移植时必须按字节偏移顺序而非按名字对齐）。
-  Evidence: `reference/seed/a.java:6765-6791`（`A()` 读方法，字段声明与读取顺序）、
-  `reference/seed/a.java:6793-6834`（`p(int)` 写方法，前半部分可见；完整 else 分支需进一步
-  阅读 `a.java:6834` 之后代码，已记入遗留问题）。
-- **结论**：`RecordStore.deleteRecordStore` 调用点存在（`a.java:7092`，方法 `a.a(String)`
+  Evidence: `reference/seed/a.java:6769-6795`（`A()` 读方法，字段声明与读取顺序）、
+  `reference/seed/a.java:6797-6838`（`p(int)` 写方法，前半部分可见；完整 else 分支需进一步
+  阅读 `a.java:6838` 之后代码，已记入遗留问题）。
+- **结论**：`RecordStore.deleteRecordStore` 调用点存在（`a.java:7096`，方法 `a.a(String)`
   的静态工具方法，被多处异常处理分支调用，用于"存档损坏则删除重建"的兜底逻辑），
-  以及统一的 `closeRecordStore()` 清理点（`a.java:7103`）。
-  Evidence: `reference/seed/a.java:7092`、`reference/seed/a.java:7103`。
+  以及统一的 `closeRecordStore()` 清理点（`a.java:7107`）。
+  Evidence: `reference/seed/a.java:7096`、`reference/seed/a.java:7107`。
 
 ### 8. 联网/计费子系统边界（确认可整体剔除）
 
-- **结论**：核心 HTTP 请求方法为 `private int e()`（行范围 `a.java:8241-8328`），
+- **结论**：核心 HTTP 请求方法为 `private int e()`（行范围 `a.java:8245-8332`），
   内部硬编码测试服务器地址 `"http://10.0.0.172:80"`（当 `this.H` 为真时启用，疑似"内网/
   调试模式"开关）并执行 POST 请求、解析响应头 `Location`（30x 重定向）与十六进制编码的
-  响应体；轮询/重试状态机为 `private boolean b()`（`a.java:8349-8441` 区间，含最多 3 次
+  响应体；轮询/重试状态机为 `private boolean b()`（`a.java:8353-8445` 区间，含最多 3 次
   自动重试与 300 帧超时判定）；底层字节读取工具 `private int c()`/`private int d()`
-  （`a.java:8233-8239`，16/32 位大端读取）仅服务于 HTTP 响应体解析。
-  Evidence: `reference/seed/a.java:8241`（方法起始）、`reference/seed/a.java:8349`
-  （`private boolean b()` 起始）、`reference/seed/a.java:8233`（`private int c()`）。
+  （`a.java:8237-8243`，16/32 位大端读取）仅服务于 HTTP 响应体解析。
+  Evidence: `reference/seed/a.java:8245`（方法起始）、`reference/seed/a.java:8353`
+  （`private boolean b()` 起始）、`reference/seed/a.java:8237`（`private int c()`）。
 - **结论**：触发入口仅 **run() 的 mode 99 分支**（`a.java:2417-2432`，联网等待层）与
-  `private boolean b()` 内部的 `new Thread(a4).start()`（`a.java:8421`，用同一 Runnable
+  `private boolean b()` 内部的 `new Thread(a4).start()`（`a.java:8425`，用同一 Runnable
   另起线程重跑 `run()` 以执行 `e()`）；没有发现其它 mode 直接调用 `e()`/`b()`。
   字段层面依赖 `HttpConnection a`（字段声明含一个奇怪的默认值字符串
   `"$Rev: 3289 $"` ——SVN 版本戳残留，证明该字段最初由构建系统注入版本号，后被类型复用为
@@ -322,8 +322,8 @@ Evidence: 全文件 grep `new Random|\.setSeed\(|currentTimeMillis|\.nextInt\(` 
   `this.H`（调试服务器开关）、`this.V`（请求体字节）、`this.W`（响应体字节）、
   `this.ce/this.cf/this.cg/this.ch/this.ci/this.cj/this.ck`（HTTP 状态机计数器组）。
   Evidence: `reference/seed/a.java:453`（`HttpConnection a = "$Rev: 3289 $";` 字段声明异常默认值）、
-  `reference/seed/a.java:8421`（二次起线程调用点）。
-- **结论（裁剪边界，范围已锁定）**：联网/计费子系统的方法体行号范围 **`a.java:8233-8450`**
+  `reference/seed/a.java:8425`（二次起线程调用点）。
+- **结论（裁剪边界，范围已锁定）**：联网/计费子系统的方法体行号范围 **`a.java:8237-8454`**
   （字节级 HTTP 工具方法 `c/d` + 请求方法 `e` + 轮询方法 `b` + 可能的少量辅助方法），
   配合 mode 99（`run()` 内 `a.java:2417-2432` 与 `paint()` 内 `a.java:1214-1238`）以及
   字段表中以 `H/V/W/ce/cf/cg/ch/ci/cj/ck` 命名的那组计数器/缓冲区，构成**可整体剔除**的边界；
@@ -355,7 +355,7 @@ Evidence: 全文件 grep `new Random|\.setSeed\(|currentTimeMillis|\.nextInt\(` 
    等字段在 paint 内被持续累加），这种"渲染方法里带副作用状态推进"违反常见 MIDP 范式，
    需确认是否存在"切到其它 mode 后仍残留 18 的渐变状态未清空"的轻微状态泄漏。
 4. **`"MOT_IF"` 存档写入的 else 分支（未使用槛位写什么）未读到**（见 §7 最后一条），
-   需继续阅读 `a.java:6834` 之后代码确认，是否存在"未初始化槛位读出垃圾字节"的隐患。
+   需继续阅读 `a.java:6838` 之后代码确认，是否存在"未初始化槛位读出垃圾字节"的隐患。
 
 ---
 
@@ -368,9 +368,9 @@ Evidence: 全文件 grep `new Random|\.setSeed\(|currentTimeMillis|\.nextInt\(` 
    （按键脚本驱动实机/模拟器）才能升级为 A/B 级。
 3. **`this.H`（HTTP 调试服务器开关 `10.0.0.172`）触发条件**：未在样本阅读范围内找到对
    `this.H` 的显式赋值语句，猜测可能由联网登录流程的某个分支根据服务器返回内容反转
-   （`a.java:8470` 附近出现过 `this.H = !this.H`），但具体业务含义（"切换生产/测试环境"？）
+   （`a.java:8474` 附近出现过 `this.H = !this.H`），但具体业务含义（"切换生产/测试环境"？）
    纯属推测。
-4. **`b()` 方法内 `switch (this.f())` 的 case 0 子逻辑**（`a.java:8352-8378`）疑似实现了
+4. **`b()` 方法内 `switch (this.f())` 的 case 0 子逻辑**（`a.java:8356-8382`）疑似实现了
    某种"分段数据包"协议解析（`a2.b = a2.a; a2.a = l;` 时间戳位移运算），可能用于断点续传或
    多包响应合并，纯代码语境推断，证据级别 B（已在正文体现），但其业务目的（为何 web 登录
    响应需要分包）纯属猜测，不升级为已证实。
@@ -390,7 +390,7 @@ Evidence: 全文件 grep `new Random|\.setSeed\(|currentTimeMillis|\.nextInt\(` 
    等效赋值语句，需要专门针对字节码常量 18 做 `putfield` 检索，确认是否存在仅存在于
    异常处理路径/switch 默认分支之外的隐藏赋值点。
 4. **`"MOT_IF"` 写方法 `p(int)` 的完整 else 分支**（未使用槛位的具体写入字节）需继续阅读
-   `a.java:6834` 之后的代码并补全格式表。
+   `a.java:6838` 之后的代码并补全格式表。
 5. ~~**mode 7 "保存成功"提示的触发条件**是否对应真实存档副作用，需要动态验证（见 bug 线索 1）~~
    【2026-10-09 已解决】t3 考证确认触发即真实存档（`r(am)+q(槽号)`），线索 1 销案。
 6. **`run()` case 4 与 `paint()` case 4/19 共享渲染代码但独立按键分支**的完整语义边界——

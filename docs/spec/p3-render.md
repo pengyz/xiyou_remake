@@ -26,9 +26,9 @@ logic#(n+1) 消费（延迟一拍；trace T70 press(-6) → T71 帧切换实证�
 结论：**PASS-with-risks**——零对拍破坏缺陷。已修复：
 
 - D-1 `in_arc` 负弧递归缺 `% 360`（render.rs，对照 Graphics.java:322）——死代码
-  路径（游戏唯一弧调用 fillArc(…,0,360) a.java:6663 短路），已补齐对齐 shim。
+  路径（游戏唯一弧调用 fillArc(…,0,360) a.java:6667 短路），已补齐对齐 shim。
 - D-2 `drawSubstring` 负 len：shim 空循环静默，Rust 原 panic——已按 shim 语义钳制
-  （调用方 a.java:5048 的 len 是差值可能为负）。
+  （调用方 a.java:5052 的 len 是差值可能为负）。
 - R-5 mode 0→21 清理分支补全：logoLayoutDone 复位（reset_layout_flag）+ f_int_02=75
   帧间隔字段化。
 - R-8 layout.rs 头注收窄：仅覆盖 boot 渲染路径；camera 的 view_h=252、walk 的
@@ -70,20 +70,20 @@ logic#(n+1) 消费（延迟一拍；trace T70 press(-6) → T71 帧切换实证�
   16px 切片 + mapTransformGrid 变换）+ paintEntityLayer 实体层 + 小地图（optionChecked[1]
   =true（RMS catch）+ f_Image_03（buildMinimap 生成）+ 玩家点）+ paintHudPanel HUD + paintStatusBar
   状态栏 + 楼梯指示 + drawPopupLayer + 软键 (1,3)。
-- **paintTileLayer 瓦片层**（a.java:6979-7035）：起点 x=cameraPixelX+(tileColStart<<4)、
+- **paintTileLayer 瓦片层**（a.java:6983-7039）：起点 x=cameraPixelX+(tileColStart<<4)、
   y=cameraPixelY+20+(tileRowStart<<4)；列窗 tileColStart..tileColEnd、行窗 tileRowStart..tileRowEnd；
   下标步进 mapCellsWide<<1（**双宽 stride**——terrain/transform 平行数组，
   装载链待考证 loadFloorData）；瓦片值 v：sx=(v&7)<<4、sy=(v>>3)<<4。
-- **paintPlayerSprite 玩家**（a.java:5831-5893）：sptprop[5][0] 阴影 + actor[3][0]
+- **paintPlayerSprite 玩家**（a.java:5835-5897）：sptprop[5][0] 阴影 + actor[3][0]
   （123x138 = 3 行×41x46 帧，行=facingDirection、列=f_int_arr_03[f_int_38]）
   + walkPhase==2 的四向残影。
 - **存档格式**：MOT_L{n}（save.rs parse_floor_save 全字段序 + python struct
   复算 golden）；SKY_WAR（optionChecked×4 + …）。
-- **paintEntityLayer 实体渲染层**（a.java:6481-6713，2026-10-09 考证）：
+- **paintEntityLayer 实体渲染层**（a.java:6485-6717，2026-10-09 考证）：
   - 筛选：活跃且未移除；屏裁 `x∈[-w,viewWidthPx] && y∈[-12,20+viewHeightPx]`；
     首个玩家南侧实体之前插画玩家 paintPlayerSprite（单次，f_bool_arr_02[type] 除外）
   - 帧偏移 `= 精灵宽 × f_int_arr2_02[动画表idx][帧idx]`（二维动画偏移表）
-  - 渲染类别 `f_byte_arr_03[type]`（initEntityTables a.java:6257-6284：1..12→1、
+  - 渲染类别 `f_byte_arr_03[type]`（initEntityTables a.java:6261-6288：1..12→1、
     13..32→2、33..40→4、41..78→8，特例 76/81/82/83→1、77/78→16、
     79/80→4、72/84/87→32、85/86→2）
   - switch 六类：1=条带精灵（类型 6/9 浮沉/右移特例）；2=条带/门贴图
@@ -92,7 +92,7 @@ logic#(n+1) 消费（延迟一拍；trace T70 press(-6) → T71 帧切换实证�
     浮沉/门贴图；32=多形态（f_byte_19 倍率 + f_int_127 高亮）
   - walkPhase==2 && f_bool_08：交互浮标（iconStripDx/Dy[frameCounter&7]
     波动 + drawDigitStrip 数值）
-- **paintPlayerSprite 玩家**（a.java:5829-5891）：sptprop[5][0] 阴影 + actor[3][0]
+- **paintPlayerSprite 玩家**（a.java:5833-5895）：sptprop[5][0] 阴影 + actor[3][0]
   三向精灵（行=facingDirection、列=帧表 f_int_arr_03[f_int_38]×41px 的
   41x46 帧）；walkPhase==2 四向残影。
 - **floor1 实体清单**（2026-10-09 盘点，sprite1.bin 权威解析）：35 实体，
@@ -103,8 +103,8 @@ logic#(n+1) 消费（延迟一拍；trace T70 press(-6) → T71 帧切换实证�
   {0},{0,1,0,2},{0,1,2},{0,1,2,1},{0,1,2,2,1,0},{0,1,2,3,2,1},
   {0,1,2,3,4},{3,4,5,6},{4,3,2,1,0},{2,1,0}）：帧偏移 =
   `精灵宽 × 表[动画表idx][帧idx]`；动画表 idx 由 f_byte_arr_06[type] 初始化
-  （initEntityTables a.java:6315），帧推进在 advanceEntityFrames（每 tick 换帧——a.java:6819）。
-- **removeGroupAtCellByType**（a.java:6421-6437）：组移除（f_byte_arr2_02 行×f_byte_arr2_03
+  （initEntityTables a.java:6319），帧推进在 advanceEntityFrames（每 tick 换帧——a.java:6823）。
+- **removeGroupAtCellByType**（a.java:6425-6441）：组移除（f_byte_arr2_02 行×f_byte_arr2_03
   组成员，按类型筛除并置 removed）。
 - **剩余件**（下批）：popup 环形队列 + walkPhase 1/5（步进/场上战斗/胜利
   跳格）+ m_104 交互 → gameplay-floor1 T1500+ 移动段全帧对拍；mode 11
@@ -120,12 +120,12 @@ paintHudPanel HUD + paintStatusBar 状态栏 + 空弹层 + 软键。T544 ops 前
 
 本批新 A 级发现（全部有运行时 dump/像素复算证据）：
 
-1. **mapTerrainGrid 双索引**：rebuildWalkability（a.java:6954-6972）用
+1. **mapTerrainGrid 双索引**：rebuildWalkability（a.java:6958-6976）用
    行距 wide·4、列距 2（var1 行尾 +=wide<<1 叠加列循环 ×2）；paintTileLayer
    用行距 wide·2、列距 1——同一数组的两套读法原版共存。
    证据：oracle FLD 134（f_bool_arr2_00）13×13 逐格复算匹配。
-2. **sortEntitiesByY 槽修复是完整双向**：① var2 旧格 var2+1→var5+1（a.java:6752-6762）
-   ② var2 新格（=var5 旧位）var5+1→var2+1（a.java:6776-6790）。
+2. **sortEntitiesByY 槽修复是完整双向**：① var2 旧格 var2+1→var5+1（a.java:6756-6766）
+   ② var2 新格（=var5 旧位）var5+1→var2+1（a.java:6780-6794）。
    排序后槽表与 FD 137（f_byte_arr2_03）128×16 逐格一致。
 3. **mode 3 起点 = T537**（dense dumpStride=1 复跑实证：T536=mode2、
    T537=mode3）；T537-543 的 trace 无 ops 行只是 dumpStride=8 采样未打印，
@@ -165,7 +165,7 @@ walkPhase 0/1/2/5 状态机、场上战斗、胜利跳格、popup 环形队列�
 
 本批新 A 级发现（全帧对拍 + 全量 ops 诊断实证）：
 
-1. **keyValue 是边沿触发**：run 主循环尾部 `keyValue = 0`（a.java:4266，
+1. **keyValue 是边沿触发**：run 主循环尾部 `keyValue = 0`（a.java:4270，
    else 分支；overlay 分支清双键 a.java:3339）——每拍清零，与 keyReleased
    无关。boot replay 的"粘性"注释是误读（按键恰好单拍消费故未暴露）。
 2. **-5 双段语义**：第一次 -5 → 残影填充 + walkPhase=2 + battleDigitByType
@@ -176,9 +176,9 @@ walkPhase 0/1/2/5 状态机、场上战斗、胜利跳格、popup 环形队列�
    锁定 → walkPhase=0。
 4. **m_104/stepCameraTowardTarget 坐标是反演关系**：ease 坐标 = 视口中心
    −cameraPixel；回写 setCameraClamped((中心)−ease)。
-5. **星光用裸 cameraPixelY**（a.java:6683 读字段而非 m_053 入参——入参带
+5. **星光用裸 cameraPixelY**（a.java:6687 读字段而非 m_053 入参——入参带
    +view_top 偏移，星光 y 少 20px）。
-6. **drawDigitStrip 尾格恒画**（a.java:9800-9803：负值标志 var5 死变量，
+6. **drawDigitStrip 尾格恒画**（a.java:9804-9807：负值标志 var5 死变量，
    第 11 格装饰字形无条件绘制——T1506 全量 ops + popupValue=[29,29,1]
    实证"1"后面跟装饰格）。
 7. **战斗节奏**：交换拍 = f_int_151&3==0（起手第 1 拍即交换）；胜利 →
@@ -187,13 +187,13 @@ walkPhase 0/1/2/5 状态机、场上战斗、胜利跳格、popup 环形队列�
 8. **RNG 消费链**（gameRandom 单例 seed=0）：mode 1 粒子 23×2 次
    （T72-161 每 4 拍 randomBelow(240)+randomBelow(150)）→ 战斗抖动
    每拍 2×randomBelow(5)（paintEntityLayer state==3 且过屏裁后）。
-   randomBelow = (nextInt()>>>1)%n（a.java:10177，非 JDK bound 算法）。
+   randomBelow = (nextInt()>>>1)%n（a.java:10181，非 JDK bound 算法）。
 9. **popup 环形队列**：30 槽 write 回绕；kind 5/6/7 用 ui[8][9]+六张
    散射表（f_byte_arr_32-37，计数 0..=8）；kind 1/2/3/4 用 map[2][6]
    图标条 / map[2][3/4/5] 数字带 + y 上升 4px/拍；>7 拍退役。
 10. **玩家插入阻断表 f_bool_arr_02**：构造字面量 {T,F,F,F,F,T,T,T,T,F,T,F,F}
     （a.java:679）经 initEntityTables 拷贝——类型 0/5/6/7/8/10 占据插入
-    窗口时不插画玩家（a.java:6510）。
+    窗口时不插画玩家（a.java:6514）。
 
 诊断方法学：shim ops 上限 256 → 临时 2048 重编拿全量 ops 对拍（事后还原 +
 reference 门禁重验 A==B==C 等价 PASS）。
@@ -208,7 +208,7 @@ PASS**——行走（4 场战斗）→ 踩型 7 楼梯（11,1）→ changeFloor 
 
 本批新 A 级发现：
 
-1. **changeFloor（a.java:7116-7160）**：strict 路径（键 49/55）查
+1. **changeFloor（a.java:7120-7164）**：strict 路径（键 49/55）查
    min/maxFloorReached（miscTexts 0/1 提示）；层界 0..55（f_int_68，
    a.java:808）；置 f_bool_16 + 记录 f_byte_23（目标层）/f_bool_18（下楼标记，
    型 7 上楼传 false）；m_119 存离层状态（RMS，Rust 不追踪）。
@@ -219,7 +219,7 @@ PASS**——行走（4 场战斗）→ 踩型 7 楼梯（11,1）→ changeFloor 
    （不透明黑，shim opaqueColor |0xFF000000）。
 3. **换层落点直传 f_bool_18**：findFloorGateEntity(true/false) 找型 7/型 8
    （param>>9==0）——上楼抵达（f_bool_18=false）落机型 8 下楼梯；
-   m_031 落点 = 首个可行走邻格（上/下/左/右序，a.java:5797-5810）。
+   m_031 落点 = 首个可行走邻格（上/下/左/右序，a.java:5801-5814）。
    特例：floor 0→m_024(1,2)、floor 50→(6,7)、floor 1 上行→(6,11)。
 4. **m_054 槽修复的原版残留进入交互路径**：floor 1 排序后 (2,9) 的格槽
    含黄门 id（FLD 137 逐格一致）——上行踩 (2,9) 触发**开门**（耗黄钥匙
@@ -231,7 +231,7 @@ PASS**——行走（4 场战斗）→ 踩型 7 楼梯（11,1）→ changeFloor 
 6. **小地图玩家点用 playerCellX/Y**（a.java:2397-2398）而非像素 >>5——
    上/左行步进中格坐标未更新而像素已进目标格（gameplay-floor1 窗口的
    下行恰好末拍翻转，掩盖至本批）。
-7. **型 72（cat 32）渲染臂**（a.java:6645-6657）：非追踪实体静态贴
+7. **型 72（cat 32）渲染臂**（a.java:6649-6661）：非追踪实体静态贴
    （无 bob、y-(h-32)、src frameOff/0）；追踪实体（=f_int_127，脚本路线
    对象）按形态号 f_byte_19 取帧行（==3 时镜像）。
 
@@ -249,23 +249,23 @@ PASS**——行走（4 场战斗）→ 踩型 7 楼梯（11,1）→ changeFloor 
 
 1. **overlay 冻结 run**（label510 a.java:3246）：overlayActive 时 run 走
    label510 分支——handleOverlayKey 消费 keyValue（±2 翻页带钳制
-   flipOverlayPage a.java:5119-5136；其余键关闭）、**walkPhase 状态机与
+   flipOverlayPage a.java:5123-5140；其余键关闭）、**walkPhase 状态机与
    m_055 全部冻结**、块尾 **keyValue = keyHeldCode 双清**（a.java:3339——
    held 残留会让关层后首拍误触发 tryStep，floor2-tour T1238 实证）。
 2. **浮层弹回周期**：按住方向键顶门时 press→弹、下个 press→关（label510
    消费），8 拍 press 间隔 → 8 拍弹/关交替（T1229-1300 实证）。
-3. **宝箱链**（type5 → tryOpenChest a.java:7275-7295）：同 param 型 4 收集
+3. **宝箱链**（type5 → tryOpenChest a.java:7279-7299）：同 param 型 4 收集
    → walkPhase=4 → paintTileLayer 头段动画（f_int_55：18 拍置 removed 动画、
    24 拍 removeGroupAtCellByType(4) 收尾）+ f_int_54 ±2 瓦片抖动——**非
    f16 遮幅**。型 76 组门：param&0xff+1 组号、全图清组内 76 槽。
-4. **装备**（tryEquip a.java:7658-7676）：武器档 1..5（types 33/34/35/79/36）、
+4. **装备**（tryEquip a.java:7662-7680）：武器档 1..5（types 33/34/35/79/36）、
    甲档 7..11（37/38/39/80/40）；降级拒绝（!force 且当前档>=新档）；属性按
    equipTierBonuses {0,10,30,70,120,220}×2 增减；equipDescriptions 弹层。
-5. **拾取浮层**：addItemToItemStack（a.java:7692-7710）叠加次数
+5. **拾取浮层**：addItemToItemStack（a.java:7696-7714）叠加次数
    itemUseCounts、showOverlayMessage(kind1) 带**图标+名**（f_byte_07 +
    entityTypeImage/objectTypeNames）；装备成功 kind1 装备描述、降级
    "你拥有更强力装备"（kind0）。
-6. **层状态持久化**（m_119/m_122 存档分支，a.java:9360-9384/9455+）：
+6. **层状态持久化**（m_119/m_122 存档分支，a.java:9364-9388/9455+）：
    **(9,1) "无战斗"差异的根源**——type41 在 floor1 巡回期已死（R×22 战斗），
    changeFloor 的 **m_119 只序列化存活实体**（removed/state==1 跳过）到
    f_byte_arr2_05[floor]（u16 计数 BE + 每实体 [type u8, x u16 BE, y u16 BE,
@@ -284,13 +284,13 @@ speaker_entity（=f_int_119）、dialog_page（=f_int_112）与 DSL 解释
 （TAK/MOV/GUT/DES/SWD/LAY/ROS/CES/RES/ADD）。剩余为**帧时序接线**：
 
 1. **触发链**：interactWithCell cat1 case83 → tryRunScene(param, true)
-   （a.java:8055：scriptLineFlags 门控逐 case）→ loadLevelScript
-   （a.java:8025-8048：gameMode=11、lockCameraOn(0)、dialogPhase=0、
+   （a.java:8059：scriptLineFlags 门控逐 case）→ loadLevelScript
+   （a.java:8029-8052：gameMode=11、lockCameraOn(0)、dialogPhase=0、
    f_String_05=levelScriptLines[idx]、scriptCursor=0）。
-2. **run case 11 相位机**（a.java:4001-4064）：m_055 + stepCameraTowardTarget
+2. **run case 11 相位机**（a.java:4004-4068）：m_055 + stepCameraTowardTarget
    常跑；phase0 = f_int_118 延迟后 executeScriptInstruction(scriptCursor)；
    phase1/6 = 打字机（frameCounter&1 每双拍 +1 字、\\c +8/\\r +2 转义跳宽、
-   keyValue!=0 → layoutFullText 全量 + skipTextToLineEnd a.java:5125）；
+   keyValue!=0 → layoutFullText 全量 + skipTextToLineEnd a.java:5129）；
    文本走完后 ±2 翻页 / 其余键 openDialogPage(page+1)（phase6 尾 m_103）；
    phase2 = m_106（实体路径缓动）；phase3 = scriptWalk（case 2 分支 4066-4120）。
 3. **paint case 11**（a.java:2798-2896）：parallax+瓦片+实体+弹层+状态栏 +
@@ -325,22 +325,22 @@ prologue_dialog_frames_match **T577-9800 全窗 9224 帧 PASS**（摘除 ignore�
 
 1. **f_bool_26 路径箭头子系统**（N-0403）：
    - SEE flag=1 → findPath(player→dialogMove) 成功 ⇒ pathArrowsVisible=true +
-     walkPhase=0，**落穿 default** 相机 ease（a.java:8493-8501，case1 无 break）；
+     walkPhase=0，**落穿 default** 相机 ease（a.java:8497-8505，case1 无 break）；
    - paintPlayerSprite 尾（setClip 全屏复位后）沿 walkPathBuffer 自顶（玩家侧
      第一步）外扩绘制 [8][22] 三联贴片 21×22：0 下(y+bob)/1 上(y+bob)/
      2 右(edge patch 镜像, x+bob)/3 左(x+bob)，setColor(136) 每步重设
-     （a.java:5925-5952）；
-   - 消费：applyStepCellEffects 尾 label216（a.java:5744-5757）顶步==朝向 →
+     （a.java:5929-5956）；
+   - 消费：applyStepCellEffects 尾 label216（a.java:5748-5761）顶步==朝向 →
      消费一步，否则整条清空+熄箭头；tryStep 撞格时 overlayActive&&walkPhase==1
-     亦清（a.java:5349-5354）；
-   - advanceScriptWalk（a.java:5818-5834）+ handleFieldInput 的 mode11 委托
-     （a.java:5263-5265）——MOV_0 对白自动行走的机制位，序章 script 40 未触达。
+     亦清（a.java:5353-5358）；
+   - advanceScriptWalk（a.java:5822-5838）+ handleFieldInput 的 mode11 委托
+     （a.java:5267-5269）——MOV_0 对白自动行走的机制位，序章 script 40 未触达。
 2. **bob 跨模式状态**：animBobOffset 8 周期 [0,1,2,1,0,-1,-2,-1]；mode 11
-   **无** case12 落穿（dialogPhase 各分支 break 外层 label534，a.java:4131
-   不可达），推进仅来自 paintEntityLayer 头（a.java:6495）每 paint 一次；
+   **无** case12 落穿（dialogPhase 各分支 break 外层 label534，a.java:4135
+   不可达），推进仅来自 paintEntityLayer 头（a.java:6499）每 paint 一次；
    run case1（标题）每 tick 推进（a.java:3387）——BootMachine 已接同机制，
    场景初值 (2,false) 由 trace FLD 120=T120 dump 实测锚定（T576=2、T902=0）。
-3. **paintWrappedText 忠实重写**（a.java:5040-5117）：整行按 \c 色段
+3. **paintWrappedText 忠实重写**（a.java:5044-5121）：整行按 \c 色段
    drawSubstring flush（原逐字 drawChar 会把转义字面画出）；跨页起始色继承、
    \r 恢复 overlaySavedColor、非法 hex 从反斜杠重画、var15 每行清 0 的
    `!= -1` 怪癖。
@@ -352,8 +352,8 @@ prologue_dialog_frames_match **T577-9800 全窗 9224 帧 PASS**（摘除 ignore�
 ### mode 10 道具面板（-6 进入）
 
 run case3 头 keyValue 开关（a.java:3552-3562）-6 → gameMode=10 + m_000
-case10 布局（a.java:4366-4377：4 列/8 行总/6 行可见/框 202×296）；run case10
-键位（a.java:3931-4005：-7 返回、-6/-5 使用、-4/-3 行内环绕、-2/-1 翻行滚窗）；
+case10 布局（a.java:4370-4380：4 列/8 行总/6 行可见/框 202×296）；run case10
+键位（a.java:3931-4009：-7 返回、-6/-5 使用、-4/-3 行内环绕、-2/-1 翻行滚窗）；
 paint case10（a.java:2724-2792：斜线背景（颜色驻留恰为 #000000）+ 框 + 4×N
 格阵 + [2][10] 38×38 双帧选中框 + 翻页箭头 + 软键栏）。字段 N-0409..N-0417。
 -7 在 mode3 → mode4（存档菜单）**未移植**——mode 4/19 批次待办。

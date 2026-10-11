@@ -169,7 +169,7 @@ fn fill_triangle_degenerate() {
 
 #[test]
 fn fill_arc_full() {
-    // 游戏唯一 fillArc 调用形态（a.java:6648：32x32 全圆加载环）
+    // 游戏唯一 fillArc 调用形态（a.java:6652：32x32 全圆加载环）
     assert_eq!(
         render(|g| {
             g.set_color(0x0000FF);
@@ -209,7 +209,7 @@ fn draw_image_anchors() {
 
 #[test]
 fn draw_image_transformed() {
-    // Nokia DirectGraphics 8 变换码逐一落位（a.java:4539 的消费面）
+    // Nokia DirectGraphics 8 变换码逐一落位（a.java:4543 的消费面）
     assert_eq!(
         render(|g| {
             let src = gradient_source();

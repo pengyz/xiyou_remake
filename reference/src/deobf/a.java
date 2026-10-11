@@ -79,7 +79,7 @@ public final class a extends Canvas implements Runnable {
    private boolean overlayActive;
    private byte overlayLeftIcon;
    private byte overlayRightIcon;
-   private byte f_byte_07;
+   private byte itemUseTargetType;
    private byte overlayKind;
    private int overlayBoxWidth;
    private int overlayBoxHeight;
@@ -228,14 +228,14 @@ public final class a extends Canvas implements Runnable {
    private int f_int_96;
    private int[] equipTierBonuses;
    private byte[] equipTierTypes;
-   private int f_int_97;
-   private int f_int_98;
-   private int f_int_99;
-   private int f_int_100;
-   private int f_int_101;
-   private int f_int_102;
-   private int f_int_103;
-   private int f_int_104;
+   private int itemPanelCols;
+   private int itemPanelScrollTop;
+   private int itemPanelScrollBottom;
+   private int itemPanelRowsVisible;
+   private int itemPanelRowsTotal;
+   private int itemPanelBoxH;
+   private int itemPanelBoxW;
+   private int itemPanelCursor;
    private boolean f_bool_12;
    private boolean f_bool_13;
    private String[] objectTypeNames;
@@ -386,7 +386,7 @@ public final class a extends Canvas implements Runnable {
    private boolean battlePredictGate;
    private byte[] sparkQuads;
    private byte[] sparkFrames;
-   private boolean f_bool_26;
+   private boolean pathArrowsVisible;
    private boolean scriptWalkArmed;
    private int[] f_int_arr_34;
    private int[] f_int_arr_35;
@@ -466,7 +466,7 @@ public final class a extends Canvas implements Runnable {
       this.introBandY = 0;
       this.introColors = new int[]{16316664, 11184810, 8947848, 4473924, 1118481};
       int[] var10000 = new int[]{0, 12, 24, 36, 47, 57, 67, 75, 83, 89, 94, 97, 100, 97, 94, 89, 83, 75, 67, 57, 47, 36, 24, 12, 0};
-      this.f_byte_07 = 0;
+      this.itemUseTargetType = 0;
       this.wrappedLines = new String[50];
       this.textLineHeight = this.fontHeight + 4;
       this.playerHp = 498;
@@ -2734,35 +2734,35 @@ public final class a extends Canvas implements Runnable {
             }
 
             a var27 = this;
-            var53 = 240 - var27.f_int_103 >> 1;
-            var93 = 320 - var27.f_int_102 >> 1;
+            var53 = 240 - var27.itemPanelBoxW >> 1;
+            var93 = 320 - var27.itemPanelBoxH >> 1;
             int var123 = 0;
             Object var141n = null;
-            var27.paintBoxFrame(var53, var93, var27.f_int_103, var27.f_int_102);
+            var27.paintBoxFrame(var53, var93, var27.itemPanelBoxW, var27.itemPanelBoxH);
             var53 += 20;
             var93 += 16;
             var27.f_Graphics_00.setColor(13097429);
-            if (var27.f_int_104 < var27.itemStackSize) {
-               var27.f_Graphics_00.drawString(var27.objectTypeNames[var27.itemStackTypes[var27.f_int_104]], var53, var93 + 2, 0);
+            if (var27.itemPanelCursor < var27.itemStackSize) {
+               var27.f_Graphics_00.drawString(var27.objectTypeNames[var27.itemStackTypes[var27.itemPanelCursor]], var53, var93 + 2, 0);
             }
 
             var93 += var27.fontHeight + 4;
             var53 -= 9;
             var27.f_Graphics_00.setColor(6178);
-            var27.f_Graphics_00.drawLine(var53, var93, var53 + var27.f_int_103 - 23, var93);
+            var27.f_Graphics_00.drawLine(var53, var93, var53 + var27.itemPanelBoxW - 23, var93);
             var93++;
             var27.f_Graphics_00.setColor(3564144);
-            var27.f_Graphics_00.drawLine(var53, var93, var53 + var27.f_int_103 - 23, var93);
+            var27.f_Graphics_00.drawLine(var53, var93, var53 + var27.itemPanelBoxW - 23, var93);
             var93 += 10;
             var53 += 9;
             var123 = var53;
-            int var160 = var27.f_int_98;
-            int var169 = var27.f_int_97 * var27.f_int_98;
+            int var160 = var27.itemPanelScrollTop;
+            int var169 = var27.itemPanelCols * var27.itemPanelScrollTop;
 
-            while (var160 < var27.f_int_99) {
-               for (int var8 = 0; var8 < var27.f_int_97; var169++) {
+            while (var160 < var27.itemPanelScrollBottom) {
+               for (int var8 = 0; var8 < var27.itemPanelCols; var169++) {
                   var27.paintMiniFrame(var53, var93, 32, 32);
-                  if (var169 == var27.f_int_104) {
+                  if (var169 == var27.itemPanelCursor) {
                      var27.drawImageClipped(var27.f_Image_arr2_00[2][10], var53 - 4, var93 - 3, 38 * (var27.frameCounter & 1), 0, 38, 38);
                   }
 
@@ -2783,13 +2783,13 @@ public final class a extends Canvas implements Runnable {
                var93 += 40;
             }
 
-            var53 = (240 + var27.f_int_103 >> 1) - 22;
-            var93 -= var27.f_int_102 - 32 - var27.fontHeight - 4 >> 1;
-            if (var27.f_int_98 > 0) {
+            var53 = (240 + var27.itemPanelBoxW >> 1) - 22;
+            var93 -= var27.itemPanelBoxH - 32 - var27.fontHeight - 4 >> 1;
+            if (var27.itemPanelScrollTop > 0) {
                var27.drawImageClipped(var27.f_Image_arr2_00[8][15], var53, var93 - 15, 0, 0, 7, 9);
             }
 
-            if (var27.f_int_99 < var27.f_int_101) {
+            if (var27.itemPanelScrollBottom < var27.itemPanelRowsTotal) {
                var27.drawImageClipped(var27.f_Image_arr2_00[8][15], var53, var93 + 5, 7, 0, 7, 9);
             }
 
@@ -3151,13 +3151,13 @@ public final class a extends Canvas implements Runnable {
                   var151 += 16;
                   var36.paintMiniFrame(var133, var151, 32, 32);
                   Image var168;
-                  if ((var168 = var36.entityTypeImage[var36.f_byte_07]) != null) {
+                  if ((var168 = var36.entityTypeImage[var36.itemUseTargetType]) != null) {
                      var36.f_Graphics_00.drawImage(var168, var133 + (32 - var168.getWidth() >> 1), var151 + (32 - var168.getHeight() >> 1), 0);
                   }
 
                   var133 += 42;
                   var36.f_Graphics_00.setColor(16770173);
-                  var36.f_Graphics_00.drawString(var36.objectTypeNames[var36.f_byte_07], var133, var151 + (32 - var36.fontHeight >> 1), 0);
+                  var36.f_Graphics_00.drawString(var36.objectTypeNames[var36.itemUseTargetType], var133, var151 + (32 - var36.fontHeight >> 1), 0);
                   var36.f_Graphics_00.setColor(-1);
                   var133 = var86 + 16;
                   var151 += 36;
@@ -3299,7 +3299,7 @@ public final class a extends Canvas implements Runnable {
                               break label510;
                            case -6:
                               var15.overlayActive = false;
-                              var15.useItemStack(var15.f_int_104);
+                              var15.useItemStack(var15.itemPanelCursor);
                               break label510;
                            default:
                               var15.handleOverlayKey();
@@ -3936,19 +3936,21 @@ public final class a extends Canvas implements Runnable {
                               break label534;
                            case -6:
                            case -5:
-                              if (var21.f_int_104 < var21.itemStackSize) {
-                                 var21.f_byte_07 = var21.itemStackTypes[var21.f_int_104];
-                                 switch (var21.f_byte_07) {
+                              if (var21.itemPanelCursor < var21.itemStackSize) {
+                                 var21.itemUseTargetType = var21.itemStackTypes[var21.itemPanelCursor];
+                                 switch (var21.itemUseTargetType) {
                                     case 13:
                                     case 14:
                                        var21.gameMode = 3;
-                                       var21.activateItem(var21.f_byte_07);
+                                       var21.activateItem(var21.itemUseTargetType);
                                        break label534;
                                     case 15:
                                     case 23:
                                     case 24:
                                     case 25:
-                                       var21.showOverlayMessage((byte)3, var21.itemDescriptions[itemTypeToStackIndex(var21.f_byte_07)], (byte)0, (byte)3);
+                                       var21.showOverlayMessage(
+                                          (byte)3, var21.itemDescriptions[itemTypeToStackIndex(var21.itemUseTargetType)], (byte)0, (byte)3
+                                       );
                                        break label534;
                                     case 16:
                                     case 17:
@@ -3958,48 +3960,50 @@ public final class a extends Canvas implements Runnable {
                                     case 21:
                                     case 22:
                                     default:
-                                       var21.showOverlayMessage((byte)3, var21.itemDescriptions[itemTypeToStackIndex(var21.f_byte_07)], (byte)1, (byte)2);
+                                       var21.showOverlayMessage(
+                                          (byte)3, var21.itemDescriptions[itemTypeToStackIndex(var21.itemUseTargetType)], (byte)1, (byte)2
+                                       );
                                  }
                               }
                               break label534;
                            case -4:
-                              if (var21.f_int_104 % var21.f_int_97 < var21.f_int_97 - 1) {
-                                 var21.f_int_104++;
+                              if (var21.itemPanelCursor % var21.itemPanelCols < var21.itemPanelCols - 1) {
+                                 var21.itemPanelCursor++;
                               } else {
-                                 var21.f_int_104 = var21.f_int_104 - (var21.f_int_97 - 1);
+                                 var21.itemPanelCursor = var21.itemPanelCursor - (var21.itemPanelCols - 1);
                               }
                               break label534;
                            case -3:
-                              if (var21.f_int_104 % var21.f_int_97 > 0) {
-                                 var21.f_int_104--;
+                              if (var21.itemPanelCursor % var21.itemPanelCols > 0) {
+                                 var21.itemPanelCursor--;
                               } else {
-                                 var21.f_int_104 = var21.f_int_104 + (var21.f_int_97 - 1);
+                                 var21.itemPanelCursor = var21.itemPanelCursor + (var21.itemPanelCols - 1);
                               }
                               break label534;
                            case -2:
-                              if (var21.f_int_104 < var21.f_int_97 * (var21.f_int_101 - 1)) {
-                                 var21.f_int_104 = var21.f_int_104 + var21.f_int_97;
-                                 if (var21.f_int_104 / var21.f_int_97 >= var21.f_int_99) {
-                                    var21.f_int_98++;
-                                    var21.f_int_99++;
+                              if (var21.itemPanelCursor < var21.itemPanelCols * (var21.itemPanelRowsTotal - 1)) {
+                                 var21.itemPanelCursor = var21.itemPanelCursor + var21.itemPanelCols;
+                                 if (var21.itemPanelCursor / var21.itemPanelCols >= var21.itemPanelScrollBottom) {
+                                    var21.itemPanelScrollTop++;
+                                    var21.itemPanelScrollBottom++;
                                  }
                               } else {
-                                 var21.f_int_104 = var21.f_int_104 - (var21.f_int_101 - 1) * var21.f_int_97;
-                                 var21.f_int_98 = 0;
-                                 var21.f_int_99 = var21.f_int_100;
+                                 var21.itemPanelCursor = var21.itemPanelCursor - (var21.itemPanelRowsTotal - 1) * var21.itemPanelCols;
+                                 var21.itemPanelScrollTop = 0;
+                                 var21.itemPanelScrollBottom = var21.itemPanelRowsVisible;
                               }
                               break label534;
                            case -1:
-                              if (var21.f_int_104 >= var21.f_int_97) {
-                                 var21.f_int_104 = var21.f_int_104 - var21.f_int_97;
-                                 if (var21.f_int_104 / var21.f_int_97 < var21.f_int_98) {
-                                    var21.f_int_98--;
-                                    var21.f_int_99--;
+                              if (var21.itemPanelCursor >= var21.itemPanelCols) {
+                                 var21.itemPanelCursor = var21.itemPanelCursor - var21.itemPanelCols;
+                                 if (var21.itemPanelCursor / var21.itemPanelCols < var21.itemPanelScrollTop) {
+                                    var21.itemPanelScrollTop--;
+                                    var21.itemPanelScrollBottom--;
                                  }
                               } else {
-                                 var21.f_int_104 = var21.f_int_104 + (var21.f_int_101 - 1) * var21.f_int_97;
-                                 var21.f_int_99 = var21.f_int_101;
-                                 var21.f_int_98 = var21.f_int_101 - var21.f_int_100;
+                                 var21.itemPanelCursor = var21.itemPanelCursor + (var21.itemPanelRowsTotal - 1) * var21.itemPanelCols;
+                                 var21.itemPanelScrollBottom = var21.itemPanelRowsTotal;
+                                 var21.itemPanelScrollTop = var21.itemPanelRowsTotal - var21.itemPanelRowsVisible;
                               }
                            default:
                               break label534;
@@ -4365,17 +4369,17 @@ public final class a extends Canvas implements Runnable {
             return;
          case 10:
             a var7 = this;
-            this.f_int_97 = 4;
-            var7.f_int_101 = 32 / var7.f_int_97;
-            var7.f_int_100 = (268 - var7.fontHeight - 10) / 40;
-            if (var7.f_int_100 > var7.f_int_101) {
-               var7.f_int_100 = var7.f_int_101;
+            this.itemPanelCols = 4;
+            var7.itemPanelRowsTotal = 32 / var7.itemPanelCols;
+            var7.itemPanelRowsVisible = (268 - var7.fontHeight - 10) / 40;
+            if (var7.itemPanelRowsVisible > var7.itemPanelRowsTotal) {
+               var7.itemPanelRowsVisible = var7.itemPanelRowsTotal;
             }
 
-            var7.f_int_98 = 0;
-            var7.f_int_99 = var7.f_int_100;
-            var7.f_int_103 = 42 + 40 * var7.f_int_97;
-            var7.f_int_102 = 34 + var7.fontHeight + 10 + 40 * var7.f_int_100;
+            var7.itemPanelScrollTop = 0;
+            var7.itemPanelScrollBottom = var7.itemPanelRowsVisible;
+            var7.itemPanelBoxW = 42 + 40 * var7.itemPanelCols;
+            var7.itemPanelBoxH = 34 + var7.fontHeight + 10 + 40 * var7.itemPanelRowsVisible;
             this.softkeyLeftKind = 1;
             this.softkeyRightKind = 3;
             return;
@@ -5348,7 +5352,7 @@ public final class a extends Canvas implements Runnable {
       if (var5 = this.interactWithCell(var2, var3)) {
          this.walkPhase = 1;
       } else if (this.overlayActive && this.walkPhase == 1) {
-         this.f_bool_26 = false;
+         this.pathArrowsVisible = false;
          this.walkStepCount = 0;
          this.walkPhase = 0;
       }
@@ -5741,7 +5745,7 @@ public final class a extends Canvas implements Runnable {
       }
 
       label216:
-      if (this.f_bool_26) {
+      if (this.pathArrowsVisible) {
          if (this.walkStepCount > 0) {
             if (this.walkPathBuffer[this.walkStepCount - 1] == this.facingDirection) {
                this.walkStepCount--;
@@ -5751,7 +5755,7 @@ public final class a extends Canvas implements Runnable {
             this.walkStepCount = 0;
          }
 
-         this.f_bool_26 = false;
+         this.pathArrowsVisible = false;
       }
 
       a var21 = this;
@@ -5922,7 +5926,7 @@ public final class a extends Canvas implements Runnable {
       }
 
       this.f_Graphics_00.setClip(0, 0, 240, 320);
-      if (this.f_bool_26) {
+      if (this.pathArrowsVisible) {
          var3 = (this.playerCellX << 5) + var1;
          var4 = (this.playerCellY << 5) + var2;
          var5 = this.walkStepCount;
@@ -7627,7 +7631,7 @@ public final class a extends Canvas implements Runnable {
          case 79:
          case 80:
             if (this.tryEquip(var2, false)) {
-               this.f_byte_07 = (byte)var1;
+               this.itemUseTargetType = (byte)var1;
                this.showOverlayMessage((byte)1, this.equipDescriptions[var2], (byte)0, (byte)3);
             } else {
                this.showOverlayMessage((byte)0, this.miscTexts[5], (byte)0, (byte)3);
@@ -7722,7 +7726,7 @@ public final class a extends Canvas implements Runnable {
          this.itemStackUses[var2] = (byte)(this.itemStackUses[var2] + this.itemUseCounts[var3]);
       }
 
-      this.f_byte_07 = (byte)var1;
+      this.itemUseTargetType = (byte)var1;
       this.showOverlayMessage((byte)1, this.itemDescriptions[var3], (byte)0, (byte)3);
    }
 
@@ -8492,7 +8496,7 @@ public final class a extends Canvas implements Runnable {
                switch (this.seeModeFlag) {
                   case 1:
                      if (this.findPath(this.playerCellX, this.playerCellY, this.dialogMoveX, this.dialogMoveY)) {
-                        this.f_bool_26 = true;
+                        this.pathArrowsVisible = true;
                         this.walkPhase = 0;
                      }
                   case 0:

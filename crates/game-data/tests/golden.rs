@@ -101,7 +101,7 @@ fn maplv_flip_codes_within_transform_domain() {
             assert!(code <= 7, "maplv{i} 翻转码 {code} 超出 0..=7");
             seen[code as usize] = true;
         }
-        // 视角 B（2Y×2Z、1 字节/格，a.java:4991/5009）行列访问与平铺一致
+        // 视角 B（2Y×2Z、1 字节/格，a.java:4995/5009）行列访问与平铺一致
         assert_eq!(
             maplv.tile_at(0, 0),
             maplv.terrain.first().copied(),
@@ -118,7 +118,7 @@ fn maplv_flip_codes_within_transform_domain() {
     }
 }
 
-/// 地形 tile-id 域：`id&7`=图集列、`id>>3`=图集行（`a.java:4998-4999`），
+/// 地形 tile-id 域：`id&7`=图集列、`id>>3`=图集行（`a.java:5002-5003`），
 /// 图集 `map` 第 1 张子图 128×208 = 8 列 × 13 行 16px 格（`docs/findings/resource-formats.md:96-97`）
 /// ⇒ `id ≤ 8·13-1 = 103`。语料实测 max=103、102 种取值。
 #[test]
