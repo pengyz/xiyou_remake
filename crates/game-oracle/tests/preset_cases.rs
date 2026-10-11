@@ -1,9 +1,11 @@
 //! preset 槽载入 + 短脚本场景用例集（spec p3-render §3.13）。
 //!
-//! 对拍窗口 = 槽载入完成后（T240 起）：标题期粒子（a.java:2325
-//! setSeed(墙钟)）跨运行不可复现（同命令两次生成 T73 sha 60015c67 vs
-//! 28e5a56a 实测不同）——Java 侧非确定性，非 Rust 缺陷；载入完成后的
-//! 世界帧完全确定（槽载入链 T240 + 菜单族短链 + 存档拍）。
+//! 对拍窗口 = T240 起（槽载入完成后）。标题期粒子不可复现的根因：
+//! a.java:2325 `setSeed(System.currentTimeMillis())` 的墙钟种子未被
+//! ttransform 完全消除（构造器内的调用点在 A 变体仍指向真钟），故
+//! 标题粒子帧（T71-239）Java 自身跨运行即不同（T73 sha 两次生成
+//! 60015c67 vs 28e5a56a 实测）——Java 侧非确定性，非 Rust 缺陷；
+//! 载入完成后的世界帧完全确定（槽载入链 + 菜单族短链 + 存档拍）。
 //!
 //! #[ignore] 理由（收敛中，残差已缩至子元素级）：① T77 标题第二粒子
 //! （Java (214,218)，rb 对 (214,77)，不在 seed-27879 流 4000 词内——T74-76
@@ -94,7 +96,6 @@ fn input_key(inp: &Option<String>) -> i32 {
 }
 
 #[test]
-#[ignore] // 残差两项收敛中（见头注 + spec §3.13 第 8/9 条）
 fn preset_load_menu_frames_match() {
     let repo_path = repo();
     let preset_text =
@@ -292,7 +293,7 @@ fn preset_load_menu_frames_match() {
     }
     assert_eq!(
         checked,
-        records.len().saturating_sub(240),
-        "T241-800 应全比对（标题期粒子为墙钟不可复现区）"
+        records.len() - 239,
+        "T240-800 应全比对（标题期粒子为墙钟不可复现区除外）"
     );
 }

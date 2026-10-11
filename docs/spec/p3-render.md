@@ -432,18 +432,19 @@ paint case10（a.java:2724-2792：斜线背景（颜色驻留恰为 #000000）+ 
 6. **preset 场景 rng 种子实测**：a.java:2325 setSeed(VTime)——preset 触发
    RecordStore 类载入点变化 ⇒ V(ctor)=11813（非 preset 场景 0；T73 标题
    粒子 (208,206) 暴力反推唯一解）。BootMachine::set_rng_seed 承接。
-7. **T73 已收敛（迭代 20）**：残差根因 = 游戏种子模型错误——a.java:2325
-   setSeed(VTime) 的 V(ctor) 随 preset 变化：非 preset=0、preset=27879
-   （T73 粒子 (67,293) 唯一解；rb 含 nextInt>>>1，先前暴力漏了移位）。
-   BootMachine::set_rng_seed(27879) 后 T73 命中。
-8. **T77 第二粒子分歧（迭代 20 续，收敛中）**：Java spawn1=(214,218)
-   （rb 对 (214,77)）不在 seed-27879 LCG 延续流 4000 词内 ⇒ T74-76 间有
-   preset 条件性的 2 词 rng 消耗——嫌疑：mode-21 火花循环
-   （a.java:3018 randomBelow(15)×f_byte_20，paint 侧）的 SKY_WAR 成功路径
-   差异；收敛动作：Runner 加 gameRandom 状态 dump 或逐 paint 消耗计数。
-9. **存档拍后 mode7 详情面板（case-set 首案后续）**：存档动作/浮层/数据
-   两侧一致；残差 = 详情面板槽光标位置与布局子元素（T341 2382px，
-   y137-182）。待逐 op 对拍（preset 短 trace 267 ops 已可全量比对）。
+7. **标题期粒子墙钟种子（迭代 20/21 定案）**：a.java:2325
+   setSeed(System.currentTimeMillis()) 的构造器调用点未被 ttransform
+   消除（A 变体仍指向真钟）⇒ 标题期粒子帧（T71-239）Java 自身跨运行
+   不可复现（同命令两次生成 T73 sha 60015c67 vs 28e5a56a 实测）。
+   处置：preset 用例对拍窗口从 T240 起（槽载入完成后完全确定）；
+   BootMachine::set_rng_seed 供 Rust 侧按需拟合（27879 = 该次生成实值）。
+   oracle 收敛动作（可选）：ttransform 补构造器内 currentTimeMillis 重定向。
+8. **浮层尾全局化（迭代 21 收敛）**：showOverlayMessage 后的浮层框
+   （a.java:3129-3168）为 paint 公共尾——mode 4/7/10/16/19 各 paint 均需
+   追加（此前仅 mode 3 有）⇒ 抽 paint_overlay_box 并全模式挂接。
+   T341 存档拍浮层命中。
+9. **mode7 详情面板布局已一致（迭代 21）**：T341 残差=浮层尾缺失所致
+   （非面板本身）；preset_cases T240-800 全窗 PASS。
 
 ## 4. 证据基线
 

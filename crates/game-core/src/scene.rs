@@ -513,6 +513,46 @@ impl GameScene {
     /// 可行走重建 + m_122 实体生成 + sortEntitiesByY 排序。
     /// `floor_assets`：按层号索引的换层资产（索引缺省 = 该层不可达）。
     #[allow(clippy::too_many_arguments)]
+    /// 浮层框绘制（paint 公共尾 a.java:3129-3168）：盒框 + kind 分派内容 +
+    /// 左右软键图标。mode 3/4/7/10/16/19 各 paint 共用。
+    fn paint_overlay_box(&mut self, g: &mut SoftGraphics<'_>) {
+        // 提示浮层（paint 公共尾 a.java:3129-3168，!f_bool_16 && overlayActive）：
+        // 盒框 + kind 0/2/4/5 纯文本 / kind 1/3 图标+文本 + 软键图标
+        if !self.transitioning && self.overlay_active {
+            let bx = (SCREEN_W - self.overlay_box_w) >> 1;
+            let by = (SCREEN_H - self.overlay_box_h) >> 1;
+            crate::menu_family::paint_box_frame(g, &self.images.ui[0], bx, by, self.overlay_box_w, self.overlay_box_h);
+            let font = crate::paint::paint_font();
+            let line_h = font.height + 4;
+            let mut tx = bx + 16;
+            let mut ty = by + 16;
+            if matches!(self.overlay_kind, 0 | 2 | 4 | 5) {
+                g.set_color(WHITE);
+                self.paint_wrapped_text(g, tx, ty, 180, 240, true);
+            } else {
+                paint_mini_frame(g, tx, ty, 32, 32);
+                // 图标 = entityTypeImage[overlayKindItem]（f_byte_07——拾取时记录）
+                if let Some(img) = &self.overlay_icon {
+                    g.draw_image(img, tx + ((32 - img.width) >> 1), ty + ((32 - img.height) >> 1), 0);
+                }
+                tx += 42;
+                g.set_color(16770173);
+                if let Some(name) = &self.overlay_item_name {
+                    g.draw_string(name, tx, ty + ((32 - font.height) >> 1), 0);
+                }
+                g.set_color(WHITE);
+                self.paint_wrapped_text(g, bx + 16, ty + 36, 180, self.overlay_box_h - 32 - 36, true);
+            }
+            let iy = by + self.overlay_box_h - 12 - 18;
+            if self.overlay_left_icon != 0 {
+                draw_image_clipped(g, &self.images.ui[11], bx + 13, iy + 6, (self.overlay_left_icon as i32 - 1) * 12, 0, 12, 10);
+            }
+            if self.overlay_right_icon != 0 {
+                draw_image_clipped(g, &self.images.ui[11], bx + self.overlay_box_w - 25, iy + 6, (self.overlay_right_icon as i32 - 1) * 12, 0, 12, 10);
+            }
+        }
+    }
+
     pub fn load_floor(
         maplv: &[u8],
         player_px: i32,
@@ -3182,15 +3222,18 @@ impl GameScene {
         if self.game_mode == 7 {
             // paint case 7（a.java:2679-2682）：m_113(true) 存档变体
             self.paint_slot_list(g);
+            self.paint_overlay_box(g);
             return;
         }
         if self.game_mode == 4 || self.game_mode == 19 {
             // paint case 4/19 共享（a.java:2427-2490）
             self.paint_menu_list(g);
+            self.paint_overlay_box(g);
             return;
         }
         if self.game_mode == 10 {
             self.paint_item_panel(g);
+            self.paint_overlay_box(g);
             return;
         }
         if self.game_mode == 11 {
@@ -3225,40 +3268,9 @@ impl GameScene {
         // softkey 落回 mode 3 时由 paint 复位（Java 字段赋值语义）
         self.softkeys = (1, 3);
         m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
-        // 提示浮层（paint 公共尾 a.java:3129-3168，!f_bool_16 && overlayActive）：
-        // 盒框 + kind 0/2/4/5 纯文本 / kind 1/3 图标+文本 + 软键图标
+        // 提示浮层（paint 公共尾 a.java:3129-3168，!f_bool_16 && overlayActive）
         if !self.transitioning && self.overlay_active {
-            let bx = (SCREEN_W - self.overlay_box_w) >> 1;
-            let by = (SCREEN_H - self.overlay_box_h) >> 1;
-            crate::menu_family::paint_box_frame(g, &self.images.ui[0], bx, by, self.overlay_box_w, self.overlay_box_h);
-            let font = crate::paint::paint_font();
-            let line_h = font.height + 4;
-            let mut tx = bx + 16;
-            let mut ty = by + 16;
-            if matches!(self.overlay_kind, 0 | 2 | 4 | 5) {
-                g.set_color(WHITE);
-                self.paint_wrapped_text(g, tx, ty, 180, 240, true);
-            } else {
-                paint_mini_frame(g, tx, ty, 32, 32);
-                // 图标 = entityTypeImage[overlayKindItem]（f_byte_07——拾取时记录）
-                if let Some(img) = &self.overlay_icon {
-                    g.draw_image(img, tx + ((32 - img.width) >> 1), ty + ((32 - img.height) >> 1), 0);
-                }
-                tx += 42;
-                g.set_color(16770173);
-                if let Some(name) = &self.overlay_item_name {
-                    g.draw_string(name, tx, ty + ((32 - font.height) >> 1), 0);
-                }
-                g.set_color(WHITE);
-                self.paint_wrapped_text(g, bx + 16, ty + 36, 180, self.overlay_box_h - 32 - 36, true);
-            }
-            let iy = by + self.overlay_box_h - 12 - 18;
-            if self.overlay_left_icon != 0 {
-                draw_image_clipped(g, &self.images.ui[11], bx + 13, iy + 6, (self.overlay_left_icon as i32 - 1) * 12, 0, 12, 10);
-            }
-            if self.overlay_right_icon != 0 {
-                draw_image_clipped(g, &self.images.ui[11], bx + self.overlay_box_w - 25, iy + 6, (self.overlay_right_icon as i32 - 1) * 12, 0, 12, 10);
-            }
+            self.paint_overlay_box(g);
         }
         // 换层遮幅（paint 公共尾 a.java:3177-3215）：状态机先行、后画黑格。
         // 闭合（wipe_closing）1..=4 全黑 → 中段换层 → 开启 4..=0。
