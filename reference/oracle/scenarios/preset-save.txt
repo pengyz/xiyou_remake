@@ -1,0 +1,32 @@
+# ticks: 700
+# preset: preset-floor1.preset
+# cover: preset 槽载入 → mode4 菜单 → kind3 保存（mode7 存档槽 → -5 确认写回
+#   m_114 + 「保存成功！」浮层 → 关浮层 → 返回 mode4/mode3 → 行走验证续玩）
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+260 -7 press
+262 -7 release
+300 -1 press
+302 -1 release
+320 -2 press
+322 -2 release
+340 -5 press
+342 -5 release
+400 -5 press
+402 -5 release
+460 -6 press
+462 -6 release
+520 -7 press
+522 -7 release
+560 -7 press
+562 -7 release
+600 2 press
+602 2 release
+640 8 press
+642 8 release
