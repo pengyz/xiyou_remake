@@ -51,7 +51,7 @@
 | 3 | 地图主玩法 | ✅ GameScene | L3 | scenario:`preset-floor2.txt` |
 | 4 | 游戏内菜单 | ✅ | L3 | scenario:`preset-save.txt` |
 | 5 | 敌人图鉴 | ✅ | L3 | scenario:`preset-item13.txt` T340-500 |
-| 6 | **战斗** | ❌ 未实现 | — | （最大未覆盖块，含 cat 渲染臂） |
+| （无 mode 6） | 战斗 = mode 3 子态（battleActiveFlag+tickBattle），非独立模式——2026-10-12 更正，矩阵初版误设 mode 6 行 | ✅ combat.rs | L3 | scenario:`floor1-to-floor2.txt`（4 战）+ `floor2-tour.txt` |
 | 7 | 存档槽（写回） | ✅ | L3 | scenario:`preset-save.txt` T340-560 |
 | 8 | 读档槽 | ✅ | L3 | scenario:`preset-help.txt` T150-240 |
 | 9 | 炼丹/加点 | ❌ | — | |
@@ -61,12 +61,12 @@
 | 14 | 新游戏引子插画 | ✅ BootMachine | L3 | scenario:`enter-game.txt` |
 | 15 | 帮助浮层 | ✅ | L3 | scenario:`preset-help.txt` T450-700 |
 | 16 | 设置 | ✅ | L3 | scenario:`preset-load-menu.txt` |
-| 17 | 关于 | ⚠️ menu-sweep Java 侧 | L2* | trace:`A-menu-sweep`（Rust 侧未建） |
+| 17 | 关于 | ✅ BootMachine | L3 | scenario:`menu-sweep.txt`（boot_replay 全量重放至 T1832） |
 | 18 | 粒子特效层 | ❌ | — | |
-| 19 | 商店 | ✅ enter/paint | L2*（无专用场景） | trace:`A-menu-sweep` |
+| 19 | 商店 | ✅ enter/paint | L0（无任何场景覆盖——待迭代） | — |
 | 20 | 结束/退出确认 | ⚠️ menu-sweep Java 侧 | L2* | trace:`A-menu-sweep` |
 | 21 | 音效询问 | ✅ BootMachine | L3 | 全部 preset 场景 T66-70 |
-| 22 | 退出淡出 70 帧 | ⚠️ menu-sweep Java 侧 | L2* | trace:`A-menu-sweep` |
+| 22 | 退出淡出 70 帧 | ✅ BootMachine | L3 | scenario:`menu-sweep.txt` T1762-1832（boot_replay 终点断言） |
 | 99 | paint 特殊屏 | ❌ | — | |
 
 L2* = Java 三方对拍绿但 Rust 侧未建用例（覆盖声明的过渡态）。
@@ -76,7 +76,10 @@ L2* = Java 三方对拍绿但 Rust 侧未建用例（覆盖声明的过渡态）
 - DSL 15 码：TAK/CES/MOV/DES/GIN/LAY/ROS/RES/GUT/SEE/END/GLV/SMS/SWD/ADD。
   已在 Java 侧验证 trace 中出现（prologue/gameplay 系列）；**Rust 解释器覆盖
   以 game-core script 引擎对拍为准——逐码登记待迭代 29+ 细化**。
-- 楼层：夹具已备 3/55（1/2/51），L3 对拍达成 2/55（floor1、floor2）。
+- 楼层：夹具已备 3/55（1/2/51），L3 对拍达成 2/55（floor1、floor2）+ floor51 直达
+  场景三方 PASS、Rust L3 残差 = 对话层文本换行（迭代 30 修，BUG-008 另记框体观感）。
+- DSL：ROS 六子码已移植（迭代 29，floor51 层脚本踩中 todo 后补——按层铺路线
+  逼出真实缺口的第一个实例）。
 - 资源：138 条 manifest 全部经 L1 golden（解析级）；渲染级随场景逐步覆盖。
 
 ### 3.3 场景面（D 维）
@@ -92,8 +95,11 @@ L2* = Java 三方对拍绿但 Rust 侧未建用例（覆盖声明的过渡态）
    发现假绿（如嵌套测试、缺 preset 头）修正后必须**重建对拍基准**而非
    保留绿状态。
 3. **每报告给"下一最优目标"**：按分母大小 × 玩法权重选出未覆盖最大块。
-   当前（2026-10-12）：**mode 6 战斗链**（含战斗渲染臂，玩法权重最高）>
-   mode 11 对话层 Rust 化 > 按层铺 51 深层。
+   当前（2026-10-12 二次校准）：mode 11 对话层 Rust L3 化（现为 L2）>
+   mode 9 炼丹链（Rust 未实现）> mode 19 商店场景（Rust 已实现零覆盖）>
+   按层铺 51 深层（夹具已备）。矩阵初版的"mode 6 战斗 ❌"系误读
+   （战斗非独立模式），方法论自身首日即捕获一处分母错误——分母提取
+   同样要过证据关。
 
 ## 5. 更新 ritual
 

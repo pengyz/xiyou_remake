@@ -1504,8 +1504,55 @@ impl GameScene {
         } else if op == "SMS" {
             let (_v, e) = Self::parse_script_int(&line, var2 + 1, ' ');
             self.script_cursor = e + 1;
+        } else if op == "ROS" {
+            // ROS_sub（a.java:8359-8381）：子码直写玩家态。
+            // 1=玩家格坐标(px<<5/py<<5)+锁相机回玩家；2=强制装备 tryEquip(t,true)；
+            // 3/5/6=HP/ATK/DEF；4=朝向（Java byte 字段 ⇒ i8 截断保真）。
+            // Java 收尾 scriptCursor = f_int_122 + 1：f_int_122 是**最后一次**
+            // parseScriptInt 的终位——每臂都必须把终位写回 v2（含 case 1 的
+            // y 解析与 2-6 的单解析），否则游标停在参数中间（实测 ROS_4_1
+            // 后 cursor=37 落进 "1 S"）。
+            let (sub, mut v2) = Self::parse_script_int(&line, var2 + 1, '_');
+            match sub {
+                1 => {
+                    let (px, e) = Self::parse_script_int(&line, v2 + 1, '_');
+                    v2 = e;
+                    self.view.player_px = px << 5;
+                    let (py, e) = Self::parse_script_int(&line, v2 + 1, ' ');
+                    v2 = e;
+                    self.view.player_py = py << 5;
+                    self.lockCameraOn(0);
+                }
+                2 => {
+                    let (tier, e) = Self::parse_script_int(&line, v2 + 1, ' ');
+                    v2 = e;
+                    self.try_equip(tier, true);
+                }
+                3 => {
+                    let (v, e) = Self::parse_script_int(&line, v2 + 1, ' ');
+                    v2 = e;
+                    self.player.hp = v;
+                }
+                4 => {
+                    let (v, e) = Self::parse_script_int(&line, v2 + 1, ' ');
+                    v2 = e;
+                    self.facing = (v as i8) as i32;
+                }
+                5 => {
+                    let (v, e) = Self::parse_script_int(&line, v2 + 1, ' ');
+                    v2 = e;
+                    self.player.atk = v;
+                }
+                6 => {
+                    let (v, e) = Self::parse_script_int(&line, v2 + 1, ' ');
+                    v2 = e;
+                    self.player.def = v;
+                }
+                _ => {}
+            }
+            self.script_cursor = v2 + 1;
         } else {
-            todo!("executeScriptInstruction 的 {op} opcode（对应脚本对拍批实现）")
+            todo!("executeScriptInstruction 的 {op:?} @op_start={} entry_cursor={} line={line:?}（对应脚本对拍批实现）", var2 - 3, self.script_cursor)
         }
     }
 
