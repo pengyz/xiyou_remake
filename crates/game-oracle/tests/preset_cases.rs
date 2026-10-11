@@ -480,8 +480,7 @@ fn preset_load_menu_frames_match() {
 /// preset-item13.preset（MOT_L0 itemStack[0]=13×99）+ preset-item13.txt
 /// （-6 道具面板 / -5 使用 → mode5 / -2/-1 翻页），窗口 T1-500 全帧。
 #[test]
-#[test]
-#[ignore] // T351 mode5 paint case5 残差待逐 op 收敛（spec §3.13 第 12b 条）
+#[ignore] // T351 mode5 残差待收敛（HP 数值差+白精灵，spec §3.13 第 12b 条）
 fn preset_item13_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(
@@ -628,6 +627,15 @@ fn preset_item13_frames_match() {
                     .iter()
                     .find(|(k, _)| k.starts_with("MOT_IF@"))
                     .map(|(_, v)| v.clone());
+                sc.enemies = game_core::combat::scale_enemy_stats(
+                    &game_core::combat::CombatTables {
+                        enemy_base_hp: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasehp.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
+                        enemy_base_atk: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybaseatk.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
+                        enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
+                        difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
+                    },
+                    1,
+                );
                 if pending_key != 0 {
                     sc.press_key(pending_key);
                     pending_key = 0;
@@ -643,6 +651,13 @@ fn preset_item13_frames_match() {
             match scene.as_mut() {
                 Some(sc) => sc.paint(&mut g, &tileset),
                 None => machine.paint(&mut g),
+            }
+            if rec.tick == 351 {
+                let mut buf = Vec::new();
+                for &p in &screen.argb {
+                    buf.extend_from_slice(&p.to_be_bytes());
+                }
+                std::fs::write("/tmp/rust-351-argb.bin", &buf).unwrap();
             }
             sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
         }
