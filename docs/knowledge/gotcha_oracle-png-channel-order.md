@@ -16,3 +16,8 @@ R=alpha、G=R、B=G、（丢弃的）A=B。任何用 `PIL.Image.open(...).conver
 **何时使用：** 一切以 frame-*.png 为对象的像素级对比/采样脚本。正确读法：
 `img = open(...).convert('RGBA'); c0,c1,c2,c3 = px[x,y]; 真RGB = (c1,c2,c3)`。
 两侧都来自 oracle PNG 时对称无影响；**Rust 帧 vs Java PNG** 对比时必须修正通道序。
+
+> 【2026-10-11 更正】写侧已修复：PngWriter.java 直写 ARGB 序是病根（用户报告
+> "Java 渲染色偏、Rust 没有"），已改为 R,G,B,A 正序；复跑 trace 逐字节一致
+> （比对权威是 hash_stream，PNG 字节不参与）。修复前生成的历史 PNG 归档仍带
+> 错序，读旧帧仍需本文换算；新 trace 的 PNG 可直接 convert('RGB') 使用。
