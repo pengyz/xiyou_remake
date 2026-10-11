@@ -1958,7 +1958,11 @@ impl GameScene {
     /// 分支（破墙/回血/瞬移等）为道具批次待办——序章背包恒空不可达。
     fn activate_item(&mut self, t: i32) {
         match t {
-            13 => self.game_mode = 5,
+            13 => {
+                // a.java:7786-7788：gameMode=5 + m_000 case5（m_091+软键）
+                self.game_mode = 5;
+                self.enter_menu5();
+            }
             14 => self.game_mode = 12,
             _ => {}
         }

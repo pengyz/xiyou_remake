@@ -480,7 +480,8 @@ fn preset_load_menu_frames_match() {
 /// preset-item13.preset（MOT_L0 itemStack[0]=13×99）+ preset-item13.txt
 /// （-6 道具面板 / -5 使用 → mode5 / -2/-1 翻页），窗口 T1-500 全帧。
 #[test]
-#[ignore] // T351 mode5 敌人图鉴首帧残差（paint case5 逐 op 对拍待迭代）
+#[test]
+#[ignore] // T351 mode5 paint case5 残差待逐 op 收敛（spec §3.13 第 12b 条）
 fn preset_item13_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(
