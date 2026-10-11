@@ -432,10 +432,15 @@ paint case10（a.java:2724-2792：斜线背景（颜色驻留恰为 #000000）+ 
 6. **preset 场景 rng 种子实测**：a.java:2325 setSeed(VTime)——preset 触发
    RecordStore 类载入点变化 ⇒ V(ctor)=11813（非 preset 场景 0；T73 标题
    粒子 (208,206) 暴力反推唯一解）。BootMachine::set_rng_seed 承接。
-7. **T73 标题帧 8px TOLERATED 候选**（preset_cases #[ignore]）：①粒子
-   age-0 可见性（Java spawn 当拍不画）②底部图标条相位一格——mode1 标题
-   化妆品子系统，收敛动作：粒子 paint 首拍隐身 + drawIconStrip 的
-   iconStripDx/Dy 相位表核对（a.java:4794-4814）。
+7. **T73 已收敛（迭代 20）**：残差根因 = 游戏种子模型错误——a.java:2325
+   setSeed(VTime) 的 V(ctor) 随 preset 变化：非 preset=0、preset=27879
+   （T73 粒子 (67,293) 唯一解；rb 含 nextInt>>>1，先前暴力漏了移位）。
+   BootMachine::set_rng_seed(27879) 后 T73 命中。
+8. **T77 第二粒子分歧（迭代 20 续，收敛中）**：Java spawn1=(214,218)
+   （rb 对 (214,77)）不在 seed-27879 LCG 延续流 4000 词内 ⇒ T74-76 间有
+   preset 条件性的 2 词 rng 消耗——嫌疑：mode-21 火花循环
+   （a.java:3018 randomBelow(15)×f_byte_20，paint 侧）的 SKY_WAR 成功路径
+   差异；收敛动作：Runner 加 gameRandom 状态 dump 或逐 paint 消耗计数。
 
 ## 4. 证据基线
 

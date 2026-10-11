@@ -1,9 +1,10 @@
 //! preset 槽载入 + 短脚本场景用例集（spec p3-render §3.13）。
 //!
-//! #[ignore] 理由（TOLERATED 候选，收敛中）：T73 标题帧 8px 残差 =
-//! ① 粒子 age-0 可见性（Java spawn 当拍不画、Rust 画了 (0,147)）
-//! ② 底部图标条相位一格（(67,293) Java 白/Rust 粉）——均属 mode1 标题
-//! 化妆品子系统，与槽载入交接无关；收敛动作见 spec §3.13 第 7 条。
+//! #[ignore] 理由（收敛中）：T73 已收敛（V(ctor)=27879，种子修复后首粒
+//! (67,293) 命中）；当前残差 = T77 第二粒子：Java (214,218)（rb 对 (214,77)）
+//! 不在 seed-27879 LCG 延续流（4000 词无匹配）⇒ preset 条件性的额外 rng
+//! 消耗（T74-76 间恰 2 词）待定位——嫌疑：SKY_WAR 读成功路径 / mode-21
+//! 火花循环（a.java:3018 randomBelow(15)×N）的 paint 侧消耗。迭代 20 续。
 //!
 //! 路径：boot → 标题 → 载入进度（mode8）→ slot0 → mode2 步进链（含
 //! step16 loadFloorSave）→ mode3 交 GameScene → 菜单族短链。
@@ -89,7 +90,7 @@ fn input_key(inp: &Option<String>) -> i32 {
 }
 
 #[test]
-#[ignore]
+#[ignore] // T77 第二粒子分歧收敛中（见文件头说明 + spec §3.13 第 8 条）
 fn preset_load_menu_frames_match() {
     let repo_path = repo();
     let preset_text =
@@ -179,7 +180,7 @@ fn preset_load_menu_frames_match() {
     // V(ctor) 种子（a.java:2325 setSeed(VTime.currentTimeMillis())）：preset 触发
     // RecordStore 类载入点变化 ⇒ 构造时 VTime=11813（T73 标题粒子 (208,206) 暴力
     // 反推唯一解；非 preset 场景为 0）。机制锚定待 Runner 加 VTime dump 后收口。
-    machine.set_rng_seed(11813);
+    machine.set_rng_seed(27879);
 
     let tileset = map[0].clone();
     let mut screen = ArgbImage::create(game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
@@ -238,6 +239,11 @@ fn preset_load_menu_frames_match() {
                 }
             }
         }
+        if rec.tick == 73 {
+            if let Some(t) = &machine.title {
+                eprintln!("title particles: {:?}", t.particles.dump_first());
+            }
+        }
         let sha;
         {
             let mut g = SoftGraphics::new(&mut screen);
@@ -247,7 +253,12 @@ fn preset_load_menu_frames_match() {
                 Some(sc) => sc.paint(&mut g, &tileset),
                 None => machine.paint(&mut g),
             }
+            let dbg = (rec.tick == 73).then(|| (g.ops.join("\n"), screen.hash_stream()));
             sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
+            if let Some((ops, raw)) = &dbg {
+                std::fs::write("/tmp/rust-73-ops.txt", ops).unwrap();
+                std::fs::write("/tmp/rust-73.raw", raw.clone()).unwrap();
+            }
         }
         if let Some(expect) = &rec.frame_sha {
             let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);

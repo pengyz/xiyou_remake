@@ -46,6 +46,15 @@ pub struct Particles {
     pub color: u32,
 }
 
+impl Particles {
+    /// 诊断探针：首个活跃粒子位置。
+    pub fn dump_first(&self) -> Option<(i32, i32)> {
+        (0..PARTICLE_SLOTS)
+            .find(|&k| self.active[k])
+            .map(|k| (self.x[k], self.y[k]))
+    }
+}
+
 impl Default for Particles {
     fn default() -> Self {
         Self::new()
