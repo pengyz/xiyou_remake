@@ -453,6 +453,12 @@ paint case10（a.java:2724-2792：斜线背景（颜色驻留恰为 #000000）+ 
    （层数/装备框（weapon-33 钳 8、armor-33 钳 9 的 sptarm 位图或 无 字）/
    金币/三围（setColor(512) 暗框）/三钥（paintKeySlot 内联 +40/+5））——
    T151 全帧命中。BootMachine 增 sptarm 容器注。
+12a. **mode8 MOT_IF 37 字节修正（迭代 24）**：preset-item13 的 MOT_IF 仅
+   32 字节（slot0）——缺 slots1-5 的 5×valid 字节导致 loadSlotTable 解析
+   失败回退全无效。补 5×00 后 T151 命中。
+12b. **mode5 敌人图鉴（迭代 24 首帧残差）**：paint case5 逐行复刻已入库
+   （a.java:2497-2560 verbatim：paintBoxFrame/名称/预测/精灵/攻防/金币/
+   行分隔线/箭头），T351 首帧残差待逐 op 对拍定位。
 12. **mode 15 帮助（迭代 23 收敛）**：kind5 → gameMode=15 + menuReturnMode=4
    + m_000 case15（a.java:4402-4413：showOverlayMessage(0, 帮助全文283字,
    0,0) + 软键(0,3)）→ 浮层全文（paint_wrapped_text 180px 多页换行 +

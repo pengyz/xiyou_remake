@@ -1,0 +1,19 @@
+# ticks: 500
+# cover: preset（含道具13火眼金睛）槽载入 → mode10 道具面板 → 使用13 →
+#   mode5 敌人图鉴（m_091 数据 + paint case5）→ 翻页 → 返回
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -6 press
+302 -6 release
+350 -5 press
+352 -5 release
+400 -2 press
+402 -2 release
+450 -1 press
+452 -1 release

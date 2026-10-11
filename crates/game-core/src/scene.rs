@@ -378,6 +378,15 @@ pub struct GameScene {
     pub slot: crate::menu_family::SlotSelect,
     /// MOT_IF 槽表 blob（preset 虚拟 RMS；loadSlotTable 每次进 mode7 重读）
     pub preset_mot_if: Option<Vec<u8>>,
+    /// mode 5 敌人图鉴：f_int_arr_22（预测伤害）/f_byte_arr_20（类型）
+    pub encyc_damage: Vec<i32>,
+    pub encyc_types: Vec<u8>,
+    pub encyc_panel_w: i32,
+    pub encyc_count: i32,
+    pub encyc_rows_visible: i32,
+    pub encyc_panel_h: i32,
+    pub encyc_scroll_top: i32,
+    pub encyc_scroll_bottom: i32,
     /// mode 16 设置面板（kind4 进入；menuReturnMode=4 返回）
     pub options: Option<crate::menu_family::OptionList>,
     /// soundEnabled（run case16 label0 翻转；无像素效应，RMS 进度侧状态）
@@ -683,6 +692,14 @@ impl GameScene {
             menu_return_mode: 1,
             slot: crate::menu_family::SlotSelect::new(),
             preset_mot_if: None,
+            encyc_damage: Vec::new(),
+            encyc_types: Vec::new(),
+            encyc_panel_w: 208,
+            encyc_count: 0,
+            encyc_rows_visible: 0,
+            encyc_panel_h: 0,
+            encyc_scroll_top: 0,
+            encyc_scroll_bottom: 0,
             options: None,
             sound_enabled: true,
             special_item_types: Vec::new(),
@@ -2288,6 +2305,191 @@ impl GameScene {
     }
 
 
+    /// m_091（a.java:7954-8010）：敌人图鉴数据构建——活体敌人（cat8/type41+）
+    /// 按类型去重 → 预测伤害（predictBattleHpLoss noCounter=true）→ 冒泡降序
+    /// → 可见行数 258/50 钳条目数 → 面板高 50×行+32 → 滚动窗 [0,行)。
+    fn build_encyclopedia(&mut self) {
+        self.encyc_damage = vec![0; 128];
+        self.encyc_types = vec![0; 128];
+        self.encyc_panel_w = 208;
+        self.encyc_count = 0;
+        'outer: for e in 0..self.entities.count {
+            if self.entities.removed[e] {
+                continue;
+            }
+            let t = self.entities.entity_type[e] as i32;
+            if entity::render_category(t) != 8 || t < 41 {
+                continue;
+            }
+            for k in 0..self.encyc_count as usize {
+                if self.encyc_types[k] as i32 == t {
+                    continue 'outer;
+                }
+            }
+            let dmg = self.predict_hp_loss(t, true);
+            let c = self.encyc_count as usize;
+            self.encyc_damage[c] = dmg;
+            self.encyc_types[c] = t as u8;
+            self.encyc_count += 1;
+        }
+        // 冒泡降序（a.java:7986-7998）
+        for a in 0..self.encyc_count {
+            let mut b = self.encyc_count;
+            while b > a + 1 {
+                b -= 1;
+                let dm = self.encyc_damage[b as usize];
+                let dp = self.encyc_damage[b as usize - 1];
+                if dm >= 0 && dm < dp {
+                    self.encyc_damage.swap(b as usize, b as usize - 1);
+                    self.encyc_types.swap(b as usize, b as usize - 1);
+                }
+            }
+        }
+        let font = crate::paint::paint_font();
+        let row_h = font.height + 4 + 36;
+        self.encyc_rows_visible = 258 / row_h;
+        if self.encyc_rows_visible > self.encyc_count {
+            self.encyc_rows_visible = self.encyc_count;
+        }
+        self.encyc_panel_h = row_h * self.encyc_rows_visible + 32;
+        self.encyc_scroll_top = 0;
+        self.encyc_scroll_bottom = self.encyc_rows_visible;
+    }
+
+    /// m_092（a.java:8016-8027）：翻页。
+    fn encyclopedia_set_page(&mut self, page: i32) {
+        let max_page = (self.encyc_count - self.encyc_rows_visible).max(0);
+        if page >= 0 && page <= max_page {
+            self.encyc_scroll_top = page;
+            self.encyc_scroll_bottom = self.encyc_scroll_top + self.encyc_rows_visible;
+            if self.encyc_scroll_bottom > self.encyc_count {
+                self.encyc_scroll_bottom = self.encyc_count;
+            }
+        }
+    }
+
+    /// m_000 case 5：m_091 + 软键 (0,3)。
+    fn enter_menu5(&mut self) {
+        self.build_encyclopedia();
+        self.softkeys = (0, 3);
+    }
+
+    /// run case 5（a.java:3737-3755）：-7/-6 回 mode 3；-2 下一页、-1 上一页。
+    fn tick_menu5(&mut self) {
+        match self.key_value {
+            -7 | -6 => self.game_mode = 3,
+            -2 => {
+                let p = self.encyc_scroll_top + 1;
+                self.encyclopedia_set_page(p);
+            }
+            -1 => {
+                let p = self.encyc_scroll_top - 1;
+                self.encyclopedia_set_page(p);
+            }
+            _ => {}
+        }
+    }
+
+    /// paint case 5（a.java:2497-2560）：parallax(false) + 居中 paintBoxFrame
+    /// + 逐行（名称/预测/精灵/攻防/金币）+ 行分隔线 + 箭头 + 软键。
+    fn paint_menu5(&mut self, g: &mut SoftGraphics<'_>) {
+        self.paint_parallax(g, false);
+        let font = crate::paint::paint_font();
+        let bx = (SCREEN_W - self.encyc_panel_w) >> 1;
+        let by = (SCREEN_H - self.encyc_panel_h) >> 1;
+        if self.encyc_scroll_bottom - self.encyc_scroll_top > 0 {
+            crate::menu_family::paint_box_frame(g, &self.images.ui[0], bx, by, self.encyc_panel_w, self.encyc_panel_h);
+            if self.encyc_scroll_top > 0 {
+                draw_image_clipped(g, &self.images.ui[19], 112, by - 17 - (self.frame_counter & 1) as i32, 16, 0, 15, 17);
+            }
+            let mut x = bx + 16;
+            let mut y = by + 16;
+            for row in self.encyc_scroll_top..self.encyc_scroll_bottom {
+                let c = row as usize;
+                let t = self.encyc_types[c] as usize;
+                let pred = self.encyc_damage[c];
+                g.set_color(13097429);
+                let name: Vec<u16> = self.object_type_names[t].encode_utf16().collect();
+                g.draw_string(&name, x, y + 2, 0);
+                let dmg_x = (SCREEN_W + self.encyc_panel_w >> 1) - 75;
+                let name_dy = (font.height - 19) >> 1;
+                y += name_dy;
+                if pred < 0 {
+                    g.draw_image(&self.images.ui[17], dmg_x - 4, y + 2, 0);
+                } else {
+                    g.draw_image(&self.images.ui[16], dmg_x - 12, y + 2, 0);
+                    x = dmg_x + 3;
+                    crate::menu_family::paint_mini_frame(g, x - 1, y + 6, 48, 12);
+                    paint_number(g, &self.images.ui[2], pred, x + 45, y + 8);
+                }
+                x = bx + 16;
+                y += name_dy + 19 + 4;
+                crate::menu_family::paint_mini_frame(g, x, y, 32, 32);
+                if t > 40 {
+                    let img = self.images.entity.get(t).cloned().flatten();
+                    if let Some(img) = img {
+                        let fw = self.type_frame_width_for(t as i32);
+                        let off_x = (32 - fw) >> 1;
+                        let draw_h = (img.height).min(31);
+                        if off_x < 0 {
+                            draw_image_clipped(g, &img, x, y + 31 - draw_h, -off_x, 0, fw, draw_h);
+                        } else {
+                            draw_image_clipped(g, &img, x + off_x, y + 31 - draw_h, 0, 0, fw, draw_h);
+                        }
+                    }
+                } else {
+                    g.set_clip(x, y, 32, 32);
+                    if let Some(Some(img)) = self.images.entity.get(t) {
+                        g.draw_image(img, x + ((32 - img.width) >> 1), y + ((32 - img.height) >> 1), 0);
+                    }
+                    g.set_clip(x, y, SCREEN_W, SCREEN_H);
+                }
+                y += 4;
+                x += 36;
+                draw_image_clipped(g, &self.images.ui[7], x, y, 10, 0, 10, 13);
+                x += 15;
+                crate::menu_family::paint_mini_frame(g, x, y, 48, 12);
+                let atk_v = self.enemies.atk.get(t.saturating_sub(41)).copied().unwrap_or(0);
+                paint_number(g, &self.images.ui[2], atk_v, x + 45, y + 2);
+                x += 52;
+                draw_image_clipped(g, &self.images.ui[7], x, y, 20, 2, 10, 10);
+                x += 15;
+                g.set_color(512);
+                crate::menu_family::paint_mini_frame(g, x, y, 48, 12);
+                let def_v = self.enemies.def.get(t.saturating_sub(41)).copied().unwrap_or(0);
+                paint_number(g, &self.images.ui[2], def_v, x + 45, y + 2);
+                x -= 82;
+                y += 12;
+                draw_image_clipped(g, &self.images.ui[7], x, y + 5, 0, 2, 10, 10);
+                x += 15;
+                crate::menu_family::paint_mini_frame(g, x, y + 5, 48, 12);
+                let hp_v = self.enemies.hp.get(t.saturating_sub(41)).copied().unwrap_or(0);
+                paint_number(g, &self.images.ui[2], hp_v, x + 45, y + 7);
+                x += 40;
+                g.draw_image(&self.images.battle_icon, x, y, 0);
+                x += 15;
+                crate::menu_family::paint_mini_frame(g, x, y + 5, 48, 12);
+                let gold = self.enemy_base_gold.get(t.saturating_sub(41)).copied().unwrap_or(0);
+                paint_number(g, &self.images.ui[2], gold, x + 45, y + 7);
+                y += 18;
+                if row + 1 < self.encyc_scroll_bottom {
+                    x = bx + 16 - 5;
+                    g.set_color(6435);
+                    g.draw_line(x, y, x + self.encyc_panel_w - 1, y);
+                    y += 1;
+                    g.set_color(4803902);
+                    g.draw_line(x, y, x + self.encyc_panel_w - 1, y);
+                    y += 2;
+                }
+            }
+            y += 16;
+            if self.encyc_scroll_bottom < self.encyc_count {
+                draw_image_clipped(g, &self.images.ui[19], 112, y + (self.frame_counter & 1) as i32, 7, 0, 14, 14);
+            }
+        }
+        m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
+    }
+
     fn enter_menu16(&mut self) {
         self.options = Some(crate::menu_family::OptionList::new(
             self.sound_enabled,
@@ -2381,6 +2583,12 @@ impl GameScene {
             if self.game_mode == 15 {
                 self.key_value = 0;
             }
+            return;
+        }
+        if self.game_mode == 5 {
+            // run case 5（a.java:3737-3755）
+            self.tick_menu5();
+            self.key_value = 0;
             return;
         }
         if self.game_mode == 16 {
@@ -3263,6 +3471,10 @@ impl GameScene {
 
     /// paint case 3（a.java:2385-2422）。
     pub fn paint(&mut self, g: &mut SoftGraphics<'_>, tileset: &ArgbImage) {
+        if self.game_mode == 5 {
+            self.paint_menu5(g);
+            return;
+        }
         if self.game_mode == 16 {
             // paint case 16（a.java:2963-2990）：parallax(false) + 图标条 +
             // paintBoxFrame + 选项行（OptionList::paint）
