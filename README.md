@@ -42,5 +42,7 @@ CI：`.github/workflows/gates.yml` 在 push/PR 到 `master` 时自动跑 `gates/
 - [x] P1 反混淆：机械重映射管线（javap 等价）+ 语义命名第一批（82 名）+ 中文明文化
       + MIDP shim/oracle 差分地基（原始 vs 无歧义版 trace 逐字节一致）
 - [x] P2 玩法规格与数值表（`docs/spec/gameplay.md` 40 条合同 + `constants.md`）
-- [ ] P3 Rust 改写（game-data ✅；game-core/game-platform 待启动）
+- [~] P3 Rust 改写（game-data ✅；game-core/game-platform 深度进行中——2026-10-11 更正：
+      菜单族 mode 4/5/7/8/10/15/16/19 + 场景/浮层/图鉴已复刻，preset 三用例全帧一致，
+      oracle 差分 trace 门禁绿；战斗链/boss 链/桌面壳未启动）
 - [ ] P4 差分验证全面铺开 → Stage A 完成

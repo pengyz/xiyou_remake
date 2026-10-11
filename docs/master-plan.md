@@ -109,7 +109,9 @@ reference/         参考版 Java + 自研 MIDP/Nokia shim + 追踪钩子（D3 �
 - [x] M0 资产与格式考证（2026-10-09，见 docs/findings/ 三份考证）
 - [x] M1 参考版 Java 可运行 + trace 输出（2026-10-09，oracle 差分地基 + reference 门禁启用）
 - [x] M2 规格书齐备（2026-10-09，gameplay 40 条合同 + constants；DSL/格式 spec 见 findings）
-- M3 Rust core+data 移植完成（P3）——game-data ✅，game-core/game-platform 待启动
+- M3 Rust core+data 移植完成（P3）——game-data ✅；game-core/game-platform 深度进行中
+  （2026-10-11 更正：菜单族 mode 4/5/7/8/10/15/16/19 + 场景/浮层/图鉴已复刻，
+  preset 三用例全帧一致；余量：战斗链/boss 链/存档写回/桌面壳）
 - M4 差分验证通过 = **Stage A 完成（像素级一致）**
 - M5 现代化改造（Stage B，含 bug 台账清偿）
 
@@ -124,5 +126,7 @@ reference/         参考版 Java + 自研 MIDP/Nokia shim + 追踪钩子（D3 �
 | DSL 解释器逐指令语义残项 | P2 残余 | script-dsl-semantics.md 遗留清单 7 项（含 per-tick 驱动循环定位） |
 | 深场景输入脚本 | P4 | oracle `--script` 扩展至全 55 层可跑（L5 流程级） |
 | 视觉保真 L4 | P4 | 字形现为确定性示意图案（R2 字体风险），字体方案定案后做截图 diff 白名单；光栅器+PNG+帧哈希链路 2026-10-09 已备（render-golden.json 可再生） |
+| 桌面最小壳（winit + pixels） | P3/P4 交界（2026-10-11 登记，用户提议采纳） | 目的：①人工试玩可行性验证；②实证 p3-render 两个回放假设 R-1（每帧新建画布）/R-2（同 tick 多按键取一）在真输入下的行为面。最小范围：game-desktop crate + Clock/Rng/Input/Renderer 四 trait 的桌面实现 + BootMachine/GameScene 主循环接线，复用现有光栅器；不含音频/存档 UI |
+| 字体方案考证（R2 收口前置） | P4 前（2026-10-11 登记） | 原机型 MIDP 系统字体度量考证（字宽/行高/基线）→ 位图字形还原 vs 自绘字库取舍；spec §3.13 第 14 条为现状权威 |
 | oracle 报告 §3「Thread→6」计数口径 | t10-F2 | 注明"4 成员引用/6 调用点"，下次报告再生成时修（cosmetic） |
 | diff-trace / visual-diff 门禁启用 | P4 | game-oracle crate 与 gates/visual_diff.py 落地后自动转 PASS；FRAME sha 比对器可复用 game-platform/hash + hash_stream()（2026-10-09） |
