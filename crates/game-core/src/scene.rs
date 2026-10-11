@@ -30,6 +30,7 @@ pub const CONTAINER_NAMES: [&str; 16] = [
 ];
 
 /// 场景图像集（按需装载的容器子集 + m_122 实体类型→精灵条带映射产物）。
+#[derive(Clone)]
 pub struct SceneImages {
     /// f_Image_arr2_00[1][0]：视差背景瓦（77×SCREEN_H）
     pub backdrop: ArgbImage,
@@ -1765,6 +1766,12 @@ impl GameScene {
                 self.game_mode = 16;
                 self.enter_menu16();
             }
+            5 => {
+                // a.java:4786-4790：gameMode=15 + menuReturnMode=4 + m_000
+                self.menu_return_mode = 4;
+                self.game_mode = 15;
+                self.enter_menu15();
+            }
             11 => {
                 self.game_mode = 19;
                 self.enter_menu19();
@@ -2237,7 +2244,50 @@ impl GameScene {
         m_034_softkeys(g, &ui[10], &ui[11], self.softkeys.0, self.softkeys.1);
     }
 
-    /// m_000 case 16（a.java:4414-4420）：两选项（音乐/小地图）+ 软键 (0,3)。
+    /// mode 15 帮助全文（m_000 case 15 a.java:4407-4411，showOverlayMessage
+    /// kind 0 逐字原文：99FFCC 色段 + 换行转义）。
+    pub const HELP_TEXT: &str = "游戏描述：\n\\c99FFCC有人的地方就有江湖，有神仙的地方何尝不是江湖；百战百胜的本事，换不回女人的真心，兄弟的真义；齐天大圣又如何，没有真情实义，做神仙跟做咸鱼有什么区别？\n\n操作方式：按左软键调出物品栏，左右选择一件道具，按确定键使用。\n游戏操作：\n上方向键/2：向上行走\n下方向键/8：向下行走\n左方向键/4：向左行走\n右方向键/6：向右行走\n确定键/5:探索地图\n左软键：打开道具列表\n右软键：打开游戏中菜单\n\n代理发行：广州易诚计算机科技有限公司\n发行商网站：www.9266.net\n客服电话：4006509913\n客服信箱：kefu@9266.net";
+
+    /// m_000 case 15（a.java:4402-4413）：帮助全文浮层（kind 0）+ 软键 (0,3)。
+    fn enter_menu15(&mut self) {
+        let font = crate::paint::paint_font();
+        self.layout_full_text(Self::HELP_TEXT, 180, 240);
+        self.overlay_box_w = self.overlay_content_w + 32;
+        self.overlay_box_h = 32 + (self.overlay_page_bottom - self.overlay_page_top) * (font.height + 4);
+        self.overlay_left_icon = 0;
+        self.overlay_right_icon = 0;
+        self.softkeys = (0, 3);
+    }
+
+    /// run case 15（fallthrough no-op 组 a.java:3747-3762）：键全部无操作；
+    /// 唯一活动 = 浮层支路（run 头 a.java:3252：-2/-1 翻页、他键关浮层），
+    /// 关闭后 mode 15 停留空图标条屏（原版行为，D4 保真）。
+    fn tick_menu15(&mut self) {
+        if self.overlay_active {
+            match self.key_value {
+                -2 => self.flip_overlay_page(self.overlay_page_top + self.overlay_lines_per_page),
+                -1 => self.flip_overlay_page(self.overlay_page_top - self.overlay_lines_per_page),
+                0 => {}
+                _ => self.overlay_active = false,
+            }
+            self.key_value = 0;
+        }
+    }
+
+    /// paint case 15（a.java:2958-2962）：parallax(false) + 帮助图标条
+    /// （menu_strip sy=51）+ 软键 + 浮层尾。
+    fn paint_menu15(&mut self, g: &mut SoftGraphics<'_>) {
+        self.paint_parallax(g, false);
+        let mut f = self.strip_frame;
+        crate::title::paint_icon_strip_at(g, &self.images.menu_strip, 86, 10, 51, 68, &mut f);
+        self.strip_frame = f;
+        m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
+        if !self.transitioning && self.overlay_active {
+            self.paint_overlay_box(g);
+        }
+    }
+
+
     fn enter_menu16(&mut self) {
         self.options = Some(crate::menu_family::OptionList::new(
             self.sound_enabled,
@@ -2323,6 +2373,14 @@ impl GameScene {
             // held 残留会让关层后首拍误触发 tryStep（floor2-tour T1238 实证）
             self.key_value = 0;
             self.key_held = 0;
+            return;
+        }
+        if self.game_mode == 15 {
+            // run case 15（fallthrough no-op）；浮层支路在 run 头消费键
+            self.tick_menu15();
+            if self.game_mode == 15 {
+                self.key_value = 0;
+            }
             return;
         }
         if self.game_mode == 16 {
@@ -3223,6 +3281,11 @@ impl GameScene {
             // paint case 7（a.java:2679-2682）：m_113(true) 存档变体
             self.paint_slot_list(g);
             self.paint_overlay_box(g);
+            return;
+        }
+        if self.game_mode == 15 {
+            // paint case 15（a.java:2958-2962）
+            self.paint_menu15(g);
             return;
         }
         if self.game_mode == 4 || self.game_mode == 19 {

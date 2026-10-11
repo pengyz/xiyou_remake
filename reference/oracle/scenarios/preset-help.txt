@@ -1,0 +1,26 @@
+# ticks: 800
+# cover: preset 槽载入 → mode4 菜单 → kind5 帮助（mode15 浮层全文/翻页/关闭）
+#   路径：100 -2 载入进度 / 150 -5 mode8 / 200 -5 slot0 载入 / 300 -7 菜单 /
+#   350+400 -2 光标→帮助 / 450 -6 激活 / 550 -2 浮层翻页 / 650 -6 关浮层
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -7 press
+302 -7 release
+350 -2 press
+352 -2 release
+400 -2 press
+402 -2 release
+450 -6 press
+452 -6 release
+550 -2 press
+552 -2 release
+650 -6 press
+652 -6 release
+750 -7 press
+752 -7 release

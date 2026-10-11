@@ -22,6 +22,7 @@ const RISE_X7: [i32; 9] = [9, -1, -10, -22, -26, -27, -29, -30, -32];
 const RISE_Y7: [i32; 9] = [20, 1, -15, 0, 24, 20, 24, 20, 24];
 
 /// popup 层绘制所需的 map/ui 图集（scene 装配）。
+#[derive(Clone)]
 pub struct PopupImages {
     /// map[2][3]/[2][4]/[2][5]：kind 2/3/4 的 11 分格数字带
     pub digit_strips: [ArgbImage; 3],

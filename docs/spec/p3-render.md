@@ -453,6 +453,15 @@ paint case10（a.java:2724-2792：斜线背景（颜色驻留恰为 #000000）+ 
    （层数/装备框（weapon-33 钳 8、armor-33 钳 9 的 sptarm 位图或 无 字）/
    金币/三围（setColor(512) 暗框）/三钥（paintKeySlot 内联 +40/+5））——
    T151 全帧命中。BootMachine 增 sptarm 容器注。
+12. **mode 15 帮助（迭代 23 收敛）**：kind5 → gameMode=15 + menuReturnMode=4
+   + m_000 case15（a.java:4402-4413：showOverlayMessage(0, 帮助全文283字,
+   0,0) + 软键(0,3)）→ 浮层全文（paint_wrapped_text 180px 多页换行 +
+   99FFCC 色段 + 翻页箭头）；run case15 = fallthrough no-op（键全无操作，
+   浮层支路消费：-2/-1 翻页、他键关浮层；关后停留空图标条屏=D4 原版行为）；
+   paint case15 = parallax(false) + menu_strip(sy=51) + 软键 + 浮层尾。
+   preset_help 场景（T240-800）首跑 PASS。
+13. **场景相按键注入修复（迭代 20/21）**：preset 骨架的场景相此前无
+   INPUT 提取——补 rec.input press/release → pending 注入（延迟一拍）。
 
 ## 4. 证据基线
 

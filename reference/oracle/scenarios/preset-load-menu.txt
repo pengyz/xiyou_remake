@@ -36,3 +36,9 @@
 702 -4 release
 740 -4 press
 742 -4 release
+11500 -7 press
+11504 -7 release
+11550 -1 press
+11554 -1 release
+11600 -6 press
+11604 -6 release
