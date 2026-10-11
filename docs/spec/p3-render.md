@@ -476,13 +476,22 @@ paint case10（a.java:2724-2792：斜线背景（颜色驻留恰为 #000000）+ 
    名字 x=27 应为 32）；行尾 y+=2 误入分隔线 if 内（Java 在 if 外恒加 ⇒ 箭头
    y 差 2px）。另：enemy_base_gold 表未随 preset 测试装配。修正后 preset_item13
    T1-500 全帧一致（含 mode10→mode5 使用链全程）。
-12. **mode 15 帮助（迭代 23 收敛）**：kind5 → gameMode=15 + menuReturnMode=4
-   + m_000 case15（a.java:4402-4413：showOverlayMessage(0, 帮助全文283字,
-   0,0) + 软键(0,3)）→ 浮层全文（paint_wrapped_text 180px 多页换行 +
-   99FFCC 色段 + 翻页箭头）；run case15 = fallthrough no-op（键全无操作，
-   浮层支路消费：-2/-1 翻页、他键关浮层；关后停留空图标条屏=D4 原版行为）；
-   paint case15 = parallax(false) + menu_strip(sy=51) + 软键 + 浮层尾。
-   preset_help 场景（T240-800）首跑 PASS。
+12. **mode 15 帮助（迭代 23 收敛 → 迭代 26 更正）**：kind5 → gameMode=15 +
+   menuReturnMode=4 + m_000 case15（a.java:4402-4413：showOverlayMessage(0,
+   帮助全文283字, 0,0) + 软键(0,3)）→ 浮层全文（paint_wrapped_text 180px
+   多页换行 + 99FFCC 色段 + 翻页箭头）；paint case15 = parallax(false) +
+   menu_strip(sy=51) + 软键 + 浮层尾。
+   > 【2026-10-11 更正】迭代 23 的"preset_help 首跑 PASS"是假绿——测试函数
+   > 被误嵌套在 preset_load_menu 体内，libtest 从未发现它（82ef6c0 起从未
+   > 执行）。提顶层真跑后暴露三处误植，均以 op 逐行对拍定位：
+   > ① enter_menu15 内联排版漏 `overlayActive=true`（Java 首行即置位，
+   > a.java:4899）⇒ 浮层整体未画；② `\c` 转义布局少吞 1 字符（尾 hex 被当
+   > 正文计 6px ⇒ 每行 14 字，Java 有效转义 8 字全吞 0 宽 ⇒ 15 字）且色段
+   > 绘制应用 drawSubstring(原文,off,len) 而非切片 drawString；③ 关层语义：
+   > Java run 头浮层支路（a.java:3262-3272）kind0 且 gameMode∈{15,17} 时
+   > **仅 -7 关层且回 menuReturnMode，其余键（含 -6）一律吞掉**——原
+   > "他键关浮层；关后停留空图标条屏"结论错误（scene 级全局 handleOverlayKey
+   > 分支误罩 mode15）。修正后 preset_help T240-800 全帧一致。
 13. **场景相按键注入修复（迭代 20/21）**：preset 骨架的场景相此前无
    INPUT 提取——补 rec.input press/release → pending 注入（延迟一拍）。
 

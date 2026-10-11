@@ -1015,21 +1015,36 @@ impl GameScene {
             let cw;
             if c == '\\' && i + 1 < chars.len() {
                 let nxt = chars[i + 1];
-                if nxt == 'c' && i + 7 < chars.len() {
-                    // \cXXXXXX：六位色——颜色消费语义在 paintWrappedText；
-                    // 宽度按转义总长 0（Java var11 += 7/var6=0 的行宽记账等价）
-                    cur.push(c);
-                    for k in 1..=6 {
-                        cur.push(chars[i + k]);
+                if nxt == 'c' {
+                    // \cXXXXXX：Java 条件 var12+6<len 且 parseHex 有效（a.java:4967）——
+                    // 有效 ⇒ 整段 8 字符吞入行、宽 0（var11+=7+底部++=8，var6=0）
+                    let hex: String = chars[i + 2..(i + 8).min(chars.len())].iter().collect();
+                    let valid = i + 7 < chars.len()
+                        && crate::menu_family::parse_hex_color_public(&hex).is_some();
+                    if valid {
+                        cur.push(c);
+                        for k in 1..=7 {
+                            cur.push(chars[i + k]);
+                        }
+                        i += 8;
+                        continue;
+                    } else {
+                        // 非法色：\c 两字符按正常宽度计入（a.java:4969-4971 var6=两宽）
+                        cw = font.char_width('\\' as u16) + font.char_width(nxt as u16);
+                        cur.push(c);
+                        cur.push(nxt);
+                        acc_w += cw;
+                        i += 2;
+                        continue;
                     }
-                    i += 7;
-                    continue;
                 } else if nxt == 'r' {
+                    // \r：2 字符吞入、宽 0（a.java:4972-4975）
                     cur.push(c);
                     cur.push(nxt);
                     i += 2;
                     continue;
                 }
+                // 未知转义：反斜杠计宽，命令字符下轮当正文（近似；HELP_TEXT 不触发）
                 cw = font.char_width('\\' as u16);
                 cur.push(c);
                 acc_w += cw;
@@ -1145,10 +1160,11 @@ impl GameScene {
                 while i < n {
                     if codes[i as usize] == '\\' as u16 {
                         if i > 0 {
-                            // flush [seg_start, i) + x 推进（substringWidth）
-                            let len = (i - seg_start) as usize;
-                            let seg: Vec<u16> = codes[seg_start as usize..seg_start as usize + len].to_vec();
-                            g.draw_string(&seg, cx, ty, 0);
+                            // flush [seg_start, i)（Java drawSubstring(var25,var12,var16-var12)）
+                            let len = i - seg_start;
+                            let seg: Vec<u16> =
+                                codes[seg_start as usize..i as usize].to_vec();
+                            g.draw_substring(&codes, seg_start, len, cx, ty, 0);
                             cx += seg.iter().map(|c| font.char_width(*c)).sum::<i32>();
                         }
                         i += 1;
@@ -1184,8 +1200,7 @@ impl GameScene {
                 }
                 if seg_start != 0 {
                     if seg_start < n {
-                        let seg: Vec<u16> = codes[seg_start as usize..].to_vec();
-                        g.draw_string(&seg, cx, ty, 0);
+                        g.draw_substring(&codes, seg_start, n - seg_start, cx, ty, 0);
                     }
                 } else {
                     g.draw_string(&codes, x, ty, 0);
@@ -2270,26 +2285,28 @@ impl GameScene {
     pub const HELP_TEXT: &str = "游戏描述：\n\\c99FFCC有人的地方就有江湖，有神仙的地方何尝不是江湖；百战百胜的本事，换不回女人的真心，兄弟的真义；齐天大圣又如何，没有真情实义，做神仙跟做咸鱼有什么区别？\n\n操作方式：按左软键调出物品栏，左右选择一件道具，按确定键使用。\n游戏操作：\n上方向键/2：向上行走\n下方向键/8：向下行走\n左方向键/4：向左行走\n右方向键/6：向右行走\n确定键/5:探索地图\n左软键：打开道具列表\n右软键：打开游戏中菜单\n\n代理发行：广州易诚计算机科技有限公司\n发行商网站：www.9266.net\n客服电话：4006509913\n客服信箱：kefu@9266.net";
 
     /// m_000 case 15（a.java:4402-4413）：帮助全文浮层（kind 0）+ 软键 (0,3)。
+    /// m_001(8)/m_001(1) = 懒加载资源容器（Rust 构造期全量装载，等价 no-op）。
+    /// 迭代 26：改走 showOverlayMessage 完整口（原内联排版漏 overlayActive=true，
+    /// 浮层整体不画——preset_help 嵌套假绿掩盖至今）。
     fn enter_menu15(&mut self) {
-        let font = crate::paint::paint_font();
-        self.layout_full_text(Self::HELP_TEXT, 180, 240);
-        self.overlay_box_w = self.overlay_content_w + 32;
-        self.overlay_box_h = 32 + (self.overlay_page_bottom - self.overlay_page_top) * (font.height + 4);
-        self.overlay_left_icon = 0;
-        self.overlay_right_icon = 0;
+        self.show_overlay_message(0, Self::HELP_TEXT, 0, 0);
         self.softkeys = (0, 3);
     }
 
-    /// run case 15（fallthrough no-op 组 a.java:3747-3762）：键全部无操作；
-    /// 唯一活动 = 浮层支路（run 头 a.java:3252：-2/-1 翻页、他键关浮层），
-    /// 关闭后 mode 15 停留空图标条屏（原版行为，D4 保真）。
+    /// run case 15（fallthrough no-op 组 a.java:3747-3762）+ run 头浮层支路
+    /// （a.java:3262-3272，kind0 且 gameMode∈{15,17}）：仅 -7 关浮层且回
+    /// menuReturnMode；-2/-1 翻页；**其余键（含 -6）一律吞掉不关**——
+    /// 迭代 26 更正：原 `_ => 关浮层` 系误植，-6 关闭语义不存在于原版。
     fn tick_menu15(&mut self) {
         if self.overlay_active {
             match self.key_value {
+                -7 => {
+                    self.overlay_active = false;
+                    self.game_mode = self.menu_return_mode;
+                }
                 -2 => self.flip_overlay_page(self.overlay_page_top + self.overlay_lines_per_page),
                 -1 => self.flip_overlay_page(self.overlay_page_top - self.overlay_lines_per_page),
-                0 => {}
-                _ => self.overlay_active = false,
+                _ => {}
             }
             self.key_value = 0;
         }
@@ -2566,16 +2583,34 @@ impl GameScene {
     /// `frame_counter` 为本拍值（TICK n → n-1）。
     pub fn tick(&mut self, frame_counter: i64, width_table: &[i32]) {
         self.frame_counter = frame_counter;
-        // overlay 显示期（run 的 label510 分支 a.java:3252）：handleOverlayKey
-        // 消费 keyValue（任意非翻页键关浮层），**walkPhase 状态机与 m_055 冻结**
+        // overlay 显示期（run 的 label510 分支 a.java:3252）：kind0 且
+        // gameMode∈{15,17} 走 -7 专用支路（仅 -7 关层+回 menuReturnMode，
+        // 其余键吞掉）；其余情况 handleOverlayKey（a.java:4923-4931：任意
+        // 非翻页键关层）。**walkPhase 状态机与 m_055 冻结**。
         if self.overlay_active {
-            // handleOverlayKey（a.java:4923-4931）：±2 翻页（flipOverlayPage
-            // 钳制 a.java:5129-5140）、其余键关闭
-            match self.key_value {
-                -2 => self.flip_overlay_page(self.overlay_page_top + self.overlay_lines_per_page),
-                -1 => self.flip_overlay_page(self.overlay_page_top - self.overlay_lines_per_page),
-                0 => {}
-                _ => self.overlay_active = false, // 任意其他键关闭
+            if self.overlay_kind == 0 && (self.game_mode == 15 || self.game_mode == 17) {
+                match self.key_value {
+                    -7 => {
+                        self.overlay_active = false;
+                        self.game_mode = self.menu_return_mode;
+                    }
+                    -2 => {
+                        self.flip_overlay_page(self.overlay_page_top + self.overlay_lines_per_page)
+                    }
+                    -1 => {
+                        self.flip_overlay_page(self.overlay_page_top - self.overlay_lines_per_page)
+                    }
+                    _ => {}
+                }
+            } else {
+                // handleOverlayKey（a.java:4923-4931）：±2 翻页（flipOverlayPage
+                // 钳制 a.java:5129-5140）、其余键关闭
+                match self.key_value {
+                    -2 => self.flip_overlay_page(self.overlay_page_top + self.overlay_lines_per_page),
+                    -1 => self.flip_overlay_page(self.overlay_page_top - self.overlay_lines_per_page),
+                    0 => {}
+                    _ => self.overlay_active = false, // 任意其他键关闭
+                }
             }
             // label510 块尾双清（a.java:3345）：keyValue 与 **keyHeldCode 同清**——
             // held 残留会让关层后首拍误触发 tryStep（floor2-tour T1238 实证）
