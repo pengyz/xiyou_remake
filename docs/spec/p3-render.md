@@ -445,6 +445,14 @@ paint case10（a.java:2724-2792：斜线背景（颜色驻留恰为 #000000）+ 
    T341 存档拍浮层命中。
 9. **mode7 详情面板布局已一致（迭代 21）**：T341 残差=浮层尾缺失所致
    （非面板本身）；preset_cases T240-800 全窗 PASS。
+10. **preset trace 生成规则（迭代 22 定案）**：必须用 ttransform 后的
+   `_out/variantA` 生成（run.py 门禁同源）；`_out/orig` 原始字节含
+   真钟 setSeed ⇒ 标题粒子跨运行不可复现。variantA 生成 ⇒ 标题粒子
+   seed0 确定序列，preset_cases 对拍窗口扩至 T1-800 全帧。
+11. **mode8 详情面板（迭代 22 收敛）**：SlotSelect::paint 补 m_113 后半段
+   （层数/装备框（weapon-33 钳 8、armor-33 钳 9 的 sptarm 位图或 无 字）/
+   金币/三围（setColor(512) 暗框）/三钥（paintKeySlot 内联 +40/+5））——
+   T151 全帧命中。BootMachine 增 sptarm 容器注。
 
 ## 4. 证据基线
 

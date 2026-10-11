@@ -691,12 +691,15 @@ impl SlotSelect {
         }
     }
 
-    /// `paintSlotList(false)`（a.java:9050-9087 无效槽路径：详情面板跳过）。
+    /// `paintSlotList(false)`（a.java:9050-9087）：列表 + 有效槽详情面板
+    ///（m_113 var2+=6 起全段：层数/装备框/金币/三围/三钥）。
+    /// `sptarm` = f_Image_arr2_00[6]（武器/防具位图）；paintKeySlot 语义内联。
     pub fn paint(
         &self,
         g: &mut SoftGraphics<'_>,
         ui: &[ArgbImage],
         segs: &[i32],
+        sptarm: &[ArgbImage],
         arrow_y: fn() -> i32,
     ) {
         let x = 240 - self.content_w - 22 >> 1;
@@ -739,7 +742,78 @@ impl SlotSelect {
         ly += 1;
         g.set_color(crate::layout::SLOT_RULE_LIGHT);
         g.draw_line(lx, ly, lx + self.content_w - 1, ly);
-        let _ = arrow_y; // 详情面板（有效槽）未启用——oracle RMS 恒空
+        let _ = arrow_y;
+        // 详情面板（a.java:9130-9150，slotValidFlags[cursor] 才画）
+        if self.valid[self.cursor as usize] {
+            let c = self.cursor as usize;
+            let mut vx = lx + 6;
+            let mut vy = ly + 8;
+            if self.floor_num[c] < 51 {
+                paint_number(g, &ui[18], self.floor_num[c] as i32, vx + 48, vy);
+                g.draw_image(&ui[8], vx + 50, vy + 8, 0);
+            }
+            vx = (240 + self.content_w >> 1) - 68;
+            paint_mini_frame(g, vx, vy, 32, 32);
+            if self.weapon[c] == 0 {
+                g.set_color(-1i32 as u32);
+                let m: Vec<u16> = "无".encode_utf16().collect();
+                g.draw_string(&m, vx + ((32 - 12) >> 1), vy + ((32 - 10) >> 1), 0);
+            } else {
+                let mut idx = (self.weapon[c] - 33) as usize;
+                if idx > 7 {
+                    idx = 8;
+                }
+                let img = &sptarm[idx];
+                g.draw_image(img, vx + ((32 - img.width) >> 1), vy + ((32 - img.height) >> 1), 0);
+            }
+            vx += 34;
+            paint_mini_frame(g, vx, vy, 32, 32);
+            if self.armor[c] == 0 {
+                g.set_color(-1i32 as u32);
+                let m: Vec<u16> = "无".encode_utf16().collect();
+                g.draw_string(&m, vx + ((32 - 12) >> 1), vy + ((32 - 10) >> 1), 0);
+            } else {
+                let mut idx = (self.armor[c] - 33) as usize;
+                if idx > 9 {
+                    idx = 9;
+                }
+                let img = &sptarm[idx];
+                g.draw_image(img, vx + ((32 - img.width) >> 1), vy + ((32 - img.height) >> 1), 0);
+            }
+            vx = (240 - self.content_w + 10 >> 1);
+            vy += 20;
+            g.draw_image(&ui[1], vx, vy, 0);
+            vx += 60;
+            paint_number(g, &ui[2], self.gold[c], vx, vy + 2);
+            vx -= 64;
+            vy += 16;
+            crate::paint::draw_image_clipped(g, &ui[7], vx, vy, 0, 2, 10, 10);
+            vx += 15;
+            paint_mini_frame(g, vx - 1, vy, 48, 12);
+            paint_number(g, &ui[2], self.hp[c], vx + 45, vy + 2);
+            vx += 47;
+            crate::paint::draw_image_clipped(g, &ui[7], vx, vy, 10, 0, 10, 13);
+            vx += 11;
+            g.set_color(512);
+            paint_mini_frame(g, vx, vy, 30, 12);
+            paint_number(g, &ui[2], self.atk[c], vx + 28, vy + 2);
+            vx += 32;
+            crate::paint::draw_image_clipped(g, &ui[7], vx, vy, 20, 2, 10, 10);
+            vx += 12;
+            g.set_color(512);
+            paint_mini_frame(g, vx, vy, 30, 12);
+            paint_number(g, &ui[2], self.def[c], vx + 28, vy + 2);
+            vx = (240 - self.content_w >> 1) + 6;
+            vy += 16;
+            // paintKeySlot（a.java:6046-6052）：ui[6] 槽位图 + ui[2] 数字（+40/+5）
+            for (kind, count) in [(0, self.keys_yellow[c]), (1, self.keys_blue[c]), (2, self.keys_red[c])] {
+                g.set_clip(vx, vy, 18, 16);
+                g.draw_image(&ui[6], vx - kind * 18, vy, 0);
+                g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
+                paint_number(g, &ui[2], count as i32, vx + 40, vy + 5);
+                vx += 42;
+            }
+        }
     }
 }
 

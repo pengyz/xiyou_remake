@@ -7,10 +7,8 @@
 //! 60015c67 vs 28e5a56a 实测）——Java 侧非确定性，非 Rust 缺陷；
 //! 载入完成后的世界帧完全确定（槽载入链 + 菜单族短链 + 存档拍）。
 //!
-//! #[ignore] 理由（收敛中，残差已缩至子元素级）：① T77 标题第二粒子
-//! （Java (214,218)，rb 对 (214,77)，不在 seed-27879 流 4000 词内——T74-76
-//! 间 2 词 preset 条件性消耗待定位）；② T341 存档拍 mode7 详情面板槽光标
-//! 位置/布局差（存档动作/浮层/数据两侧一致）。收敛动作见 spec §3.13。
+//! 迭代 21/22 定案：旧残差（T73/T77 粒子、T341 浮层）全部源于生成命令误用
+//! _out/orig（原始字节真钟种子）——改用 variantA（ttransform 后）即确定性。
 //!
 //! 路径：boot → 标题 → 载入进度（mode8）→ slot0 → mode2 步进链（含
 //! step16 loadFloorSave）→ mode3 交 GameScene → 菜单族短链。
@@ -182,10 +180,10 @@ fn preset_load_menu_frames_match() {
         load_container("load", 2),
     );
     machine.preset_stores = stores.clone();
-    // V(ctor) 种子（a.java:2325 setSeed(VTime.currentTimeMillis())）：preset 触发
-    // RecordStore 类载入点变化 ⇒ 构造时 VTime=11813（T73 标题粒子 (208,206) 暴力
-    // 反推唯一解；非 preset 场景为 0）。机制锚定待 Runner 加 VTime dump 后收口。
-    machine.set_rng_seed(27879);
+    machine.sptarm = load_container("sptarm", 10);
+    // rng 种子 = 0（默认）：trace 生成必须用 ttransform 后的 variantA
+    //（a.java:2325 setSeed(VTime.currentTimeMillis()) → V(ctor)=0 确定；
+    //  若误用 _out/orig 原始字节，种子=墙钟 ⇒ 标题粒子跨运行不可复现）
 
     let tileset = map[0].clone();
     let mut screen = ArgbImage::create(game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
@@ -272,28 +270,26 @@ fn preset_load_menu_frames_match() {
                 Some(sc) => sc.paint(&mut g, &tileset),
                 None => machine.paint(&mut g),
             }
-            let dbg = if rec.tick == 341 { Some((g.ops.join("\n"), screen.hash_stream())) } else { None };
+            let dbg = if rec.tick == 151 { Some((g.ops.join("\n"), screen.hash_stream())) } else { None };
             sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
             if let Some((ops, raw)) = &dbg {
-                std::fs::write("/tmp/rust-341-ops.txt", ops).unwrap();
-                std::fs::write("/tmp/rust-341.raw", raw.clone()).unwrap();
+                std::fs::write("/tmp/rust-151-ops.txt", ops).unwrap();
+                std::fs::write("/tmp/rust-151.raw", raw.clone()).unwrap();
             }
         }
-        if rec.tick >= 240 {
-            if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
-                assert_eq!(
-                    &sha, expect,
-                    "TICK {} 帧不符（mode={}）",
-                    rec.tick, mode
-                );
-                checked += 1;
-            }
+        if let Some(expect) = &rec.frame_sha {
+            let mode = if let Some(sc) = &scene {
+                sc.game_mode
+            } else {
+                machine.mode as i32
+            };
+            assert_eq!(
+                &sha, expect,
+                "TICK {} 帧不符（mode={}）",
+                rec.tick, mode
+            );
+            checked += 1;
         }
     }
-    assert_eq!(
-        checked,
-        records.len() - 239,
-        "T240-800 应全比对（标题期粒子为墙钟不可复现区除外）"
-    );
+    assert_eq!(checked, records.len(), "T1-800 全帧必须比对");
 }

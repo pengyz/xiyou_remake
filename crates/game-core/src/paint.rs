@@ -189,6 +189,8 @@ pub struct BootMachine {
     pub strip_frame: usize,
     /// 虚拟 RMS：preset 解析产物（store→blob；槽载入/进度读档用）
     pub preset_stores: Vec<(String, Vec<u8>)>,
+    /// sptarm 容器（mode8 详情面板装备位图）
+    pub sptarm: Vec<ArgbImage>,
     /// 槽载入完成信号（run case8 -5 → mode2 链走完 → mode3）：
     /// Some(slot_cursor) = 应构建 GameScene 并接管
     pub slot_loaded: Option<usize>,
@@ -251,6 +253,7 @@ impl BootMachine {
             options: None,
             strip_frame: 0,
             preset_stores: Vec::new(),
+            sptarm: Vec::new(),
             slot_loaded: None,
             sound_enabled: false,
             bob_offset: 0,
@@ -284,7 +287,8 @@ impl BootMachine {
                 self.backdrop.paint(g, &self.mapbg, false, 0);
                 let segs = [3, 5]; // titleBarSegments[1]
                 if let Some(slots) = &self.slots {
-                    slots.paint(g, &self.ui, &segs, || 0);
+                    let sptarm = self.sptarm_for_slots();
+                    slots.paint(g, &self.ui, &segs, &sptarm, || 0);
                 }
                 m_034_softkeys(g, &self.ui[10], &self.ui[11], self.softkeys.0, self.softkeys.1);
             }
@@ -525,6 +529,11 @@ impl BootMachine {
         self.rng = game_platform::JavaRandom::new_seeded(seed);
     }
 
+    /// mode8 详情面板的 sptarm 容器（preset_stores 不可承载图像，单独注）。
+    fn sptarm_for_slots(&self) -> Vec<ArgbImage> {
+        self.sptarm.clone()
+    }
+
     /// 当前 title 光标对应的 kind（mode 1 出口分派键）。
     fn title_kind(&self) -> i32 {
         self.title
@@ -549,6 +558,9 @@ impl BootMachine {
                     Some(d) => {
                         let mut sl = slots;
                         sl.load_slot_table(Some(&d));
+                        if std::env::var("PROBE_SLOTS").is_ok() {
+                            eprintln!("MOT_IF len={} valid0={}", d.len(), sl.valid[0]);
+                        }
                         sl
                     }
                     None => slots,
