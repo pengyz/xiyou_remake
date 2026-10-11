@@ -385,6 +385,45 @@ paint case10（a.java:2724-2792：斜线背景（颜色驻留恰为 #000000）+ 
 - cat 67/69（xtq 容器 9 拼装/宽精灵）：仅 boss 击杀事件生成（层 35/40/49
   深链，a.java:10058-10141），当前对拍面不可达——待 boss 链批次。
 
+## 3.13 mode 7/16 + 场景化用例集基建（2026-10-11，第十八批，进行中）
+
+### 已落地
+
+- **mode 7 存档槽**（kind3 进入，menuReturnMode=4）：m_000 case7 布局
+  （a.java:4342-4364，6 槽/宽 148/高 196）+ run case7 键位（a.java:3829-3878：
+  -7 回 menuReturnMode、-6/-5 = **存档动作** m_119+saveFloorState+“保存成功！”
+  浮层、-2/-1 槽滚动）+ m_113(true) paint（a.java:9046-9147，标题变体
+  segs{4,5} + **有效槽详情面板**：层数/装备材质/金币/三围/三钥）。
+  saveFloorState 写侧 = serialize_slot_blob（parse_floor_save 读序镜像；
+  装备位/剧情物清单当前可达面恒空）。虚拟 RMS：saved_slot_blobs[6]。
+- **mode 16 设置**（kind4 进入）：复用 menu_family::OptionList（2 选项）；
+  run case16（a.java:4143-4188）：-7/**-6** 回 menuReturnMode、-5/-4/-3 翻转
+  （label1 小地图→minimap null/rebuild 有像素效应）、-2/-1 环绕；paint
+  （a.java:2963-2990）parallax(false)+menu_strip 图标条（iconStripFrame
+  全局动画帧，场景初值 6 由 FLD 041 实测）+ OptionList::paint。
+- **软键断言语义**：paint case3 在 paint 内重断言 (1,3)（a.java:2421-2422）
+  ——菜单族残留的 (0,3) 由 paint 复位（T10901 C 角标帧差实证）。
+- **光标键勘误**：run case4 的 -4/-3 落 default **无操作**（a.java:3691-3698），
+  光标仅 -2/-1（模式 19 才用 -4/-3）——T11001 帧差实证修正。
+
+### 场景化用例集（下一迭代主目标，用户决议）
+
+长脚本（序章前缀 9700+ tick）仅作首轮全链验证；**开发/对齐阶段改用
+「存档 preset + 短脚本」分场景用例集**：
+
+1. 基建已存在：`reference/oracle/preset_rms.py`（MOT_L/SKY_WAR blob 生成，
+   可设楼层/属性/钥/金币/脚本旗标）+ `-Doracle.preset=<file>` 注入 +
+   `scenarios/preset-floor1.preset` 样例（floor1 (3,10) hp500/atk30/def30）。
+2. 短场景路径：boot(~577) → 标题 → 载入进度（mode8）→ slot0 → loadFloorSave
+   → mode3 ⇒ **~700 tick 直达任意存档态**，替代 11000+ 的长前缀。
+3. 待建：BootMachine→GameScene 的**槽载入交接**（run case8 -5 → m_131(3,true)
+   + m_132 载入步序列 → mode2 步进机 → mode3 交场景——桌面宿主 P3.3 同型）；
+   用例集登记（menu/save/settings/walk 每场景一个短脚本 + 对应 preset）。
+4. **已知分歧（case-set 首案）**：长脚本存档拍 T11601——Java 面板即时更新
+   （markSlotEntry 生效）且浮层未现；Rust 同拍多画浮层尾。存档拍 show
+   OverlayMessage 的 overlayActive 生效时机 + mode7 paint 的浮层尾挂接，
+   在短场景（preset 直达 + ~800 tick）里以 stride-1 trace 精确定位。
+
 ## 4. 证据基线
 
 - 像素模型：`reference/shim/src/javax/microedition/lcdui/{Graphics,Font,Image,Canvas}.java`

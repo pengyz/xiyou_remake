@@ -117,6 +117,7 @@ fn build_scene() -> GameScene {
         corner_sprites: ui[23].clone(),
         map211: Some(map[11].clone()),
         map210: map[10].clone(),
+        menu_strip: load_container("menu", 2)[1].clone(),
         battle_icon: map[8].clone(),
         battle_strip: map[7].clone(),
         ui,
@@ -604,13 +605,13 @@ fn prologue_dialog_frames_match() {
 }
 
 /// floor51 菜单族对拍：mode4 菜单（-7 开/导航/kind17 跳过教程→回层 1）+ 恢复行走。
-/// 场景 = floor51-menu.txt（序章场景追加菜单键 9900-10554）。
+/// 场景 = floor51-menu.txt（序章场景追加菜单键 9900-10554 + 存档链 10700-11054）。
 #[test]
 fn floor51_menu_frames_match() {
     replay_floor51_window(
         "reference/oracle/_out/A-floor51-menu/trace.txt",
         9700,
-        10599,
+        11099,
     );
 }
 
@@ -665,6 +666,7 @@ fn replay_floor51_window(trace_rel: &str, win_start: i32, win_end: i32) {
         corner_sprites: ui[23].clone(),
         map211: Some(map[11].clone()),
         map210: map[10].clone(),
+        menu_strip: load_container("menu", 2)[1].clone(),
         battle_icon: map[8].clone(),
         battle_strip: map[7].clone(),
         ui,
@@ -715,6 +717,9 @@ fn replay_floor51_window(trace_rel: &str, win_start: i32, win_end: i32) {
     // 与帧内箭头坐标（101,117）吻合
     scene.bob_offset = 2;
     scene.bob_rising = false;
+    // iconStripFrame 初值（A-floor51-menu trace FLD 041 实测：T100=6 后场景期
+    // 无图标条绘制 ⇒ 冻结在 6；mode16 首绘 T10801 用 6 后每 paint +1）
+    scene.strip_frame = 6;
     // m_068 新游重置尾（a.java:7210-7215）：difficultyIndex=0 → scaleEnemyStats(×1)；
     // 序章 -5 键的 predictHpLossVsType 需要该表（floor51 无战斗但 cat-8 实体存在）
     scene.enemies = game_core::combat::scale_enemy_stats(

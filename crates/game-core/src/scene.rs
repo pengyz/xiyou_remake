@@ -59,6 +59,8 @@ pub struct SceneImages {
     pub map211: Option<ArgbImage>,
     /// map[2][10]：道具面板选中框（38×38 双帧）
     pub map210: ArgbImage,
+    /// f_Image_arr2_00[10][1]：菜单图标动画条（mode16 设置条）
+    pub menu_strip: ArgbImage,
     /// map[2][8]：战后数字条目标图标
     pub battle_icon: ArgbImage,
     /// map[2][7]：战后数字条（drawDigitStrip 7px 数字带）
@@ -369,8 +371,23 @@ pub struct GameScene {
     pub menu_scroll_top: i32,
     pub menu_visible_bottom: i32,
     pub menu_cursor: i32,
+    /// f_byte_01（N-0240 menuReturnMode）：mode7/8 -7 的返回目标
+    pub menu_return_mode: i32,
+    /// mode 7 存档槽状态（m_000 case7 布局 + loadSlotTable 冷态）
+    pub slot: crate::menu_family::SlotSelect,
+    /// mode 16 设置面板（kind4 进入；menuReturnMode=4 返回）
+    pub options: Option<crate::menu_family::OptionList>,
+    /// soundEnabled（run case16 label0 翻转；无像素效应，RMS 进度侧状态）
+    pub sound_enabled: bool,
+    /// f_byte_arr_14/15 + f_int_89：剧情物清单（m_075 维护；序章不可达恒空）
+    pub special_item_types: Vec<u8>,
+    pub special_item_uses: Vec<u8>,
+    /// 虚拟 RMS：MOT_L{slot} 槽位 blob（saveFloorState 写侧；game-core 无 I/O）
+    pub saved_slot_blobs: [Option<Vec<u8>>; 6],
     /// f_byte_25：商店条目彩虹色相位（paint 每 4 拍推进）
     pub rainbow_phase: i32,
+    /// iconStripFrame（a.java:464 全局；mode16 图标条动画帧）
+    pub strip_frame: usize,
     /// f_byte_02：菜单返回目标（run case3 -7 时存 gameMode）
     pub in_game_menu_return_mode: i32,
     /// mode 10 道具面板布局（m_000 case10 a.java:4370-4380：f_int_97..104）
@@ -428,6 +445,10 @@ pub const MENU_LABELS: [&str; 18] = [
 pub const RAINBOW_COLORS: [u32; 7] = [
     16711680, 16748544, 16776194, 1244928, 65478, 26367, 14156031,
 ];
+
+/// equipmentMaterialNames（a.java:484）：装备材质名（0=无）。
+pub const EQUIPMENT_MATERIAL_NAMES: [&str; 9] =
+    ["无", "木", "铁", "银", "金", "布", "皮", "锁", "金"];
 
 impl GameScene {
     /// loadFloorData（a.java:9404-9438）：maplv 装载 + m_059 格索引重建 +
@@ -560,7 +581,15 @@ impl GameScene {
             menu_scroll_top: 0,
             menu_visible_bottom: 0,
             menu_cursor: 0,
+            menu_return_mode: 1,
+            slot: crate::menu_family::SlotSelect::new(),
+            options: None,
+            sound_enabled: true,
+            special_item_types: Vec::new(),
+            special_item_uses: Vec::new(),
+            saved_slot_blobs: [None, None, None, None, None, None],
             rainbow_phase: 0,
+            strip_frame: 0,
             in_game_menu_return_mode: 3,
             item_cols: 4,
             item_rows_total: 8,
@@ -1554,7 +1583,8 @@ impl GameScene {
         match self.key_value {
             -7 => self.game_mode = self.in_game_menu_return_mode,
             -6 | -5 => self.activate_menu_item(),
-            -2 | -4 => {
+            -2 => {
+                // 仅 -2 下移（a.java:3699）：-4/-3 落 default 无操作
                 if self.menu_cursor < self.menu_item_count - 1 {
                     self.menu_cursor += 1;
                     if self.menu_cursor >= self.menu_visible_bottom {
@@ -1570,7 +1600,8 @@ impl GameScene {
                     }
                 }
             }
-            -1 | -3 => {
+            -1 => {
+                // 仅 -1 上移（a.java:3713）
                 if self.menu_cursor > 0 {
                     self.menu_cursor -= 1;
                     if self.menu_cursor < self.menu_scroll_top {
@@ -1623,6 +1654,18 @@ impl GameScene {
     fn activate_menu_item(&mut self) {
         match self.menu_kinds[self.menu_cursor as usize] {
             1 => self.game_mode = 3,
+            3 => {
+                // a.java:4776-4780：gameMode=7 + menuReturnMode=4 + m_000
+                self.menu_return_mode = 4;
+                self.game_mode = 7;
+                self.enter_menu7();
+            }
+            4 => {
+                // a.java:4781-4785：gameMode=16 + menuReturnMode=4 + m_000
+                self.menu_return_mode = 4;
+                self.game_mode = 16;
+                self.enter_menu16();
+            }
             11 => {
                 self.game_mode = 19;
                 self.enter_menu19();
@@ -1891,6 +1934,256 @@ impl GameScene {
         m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
     }
 
+    /// m_000 case 7（a.java:4342-4364，case7/8 共享）：软键 (1,3) + loadSlotTable
+    /// （oracle 冷态 RMS 恒空 ⇒ 六槽全无效）+ 槽表布局（6 行/宽 148/高 196）。
+    fn enter_menu7(&mut self) {
+        self.slot = crate::menu_family::SlotSelect::new();
+        self.softkeys = (1, 3);
+    }
+
+    /// run case 7（a.java:3829-3878，case7/8 共享）：-7 回 menuReturnMode；
+    /// -6/-5 在 mode7 = 存档（m_119 + saveFloorState + “保存成功！”浮层）；
+    /// -2/-1 槽光标滚动。
+    fn tick_menu7(&mut self) {
+        match self.key_value {
+            -7 => self.game_mode = self.menu_return_mode,
+            -6 | -5 => {
+                if self.game_mode == 7 {
+                    self.save_floor_state();
+                    let cursor = self.slot.cursor as usize;
+                    let blob = self.serialize_slot_blob();
+                    self.saved_slot_blobs[cursor] = Some(blob);
+                    // markSlotEntry（a.java:9152-9172）
+                    self.slot.valid[cursor] = true;
+                    self.slot.floor_num[cursor] = self.floor as i8;
+                    self.slot.hp[cursor] = self.player.hp;
+                    self.slot.atk[cursor] = self.player.atk;
+                    self.slot.def[cursor] = self.player.def;
+                    self.slot.keys_yellow[cursor] = self.player.yellow_keys as i16;
+                    self.slot.keys_blue[cursor] = self.player.blue_keys as i16;
+                    self.slot.keys_red[cursor] = self.player.red_keys as i16;
+                    self.slot.gold[cursor] = self.player.gold;
+                    self.slot.weapon[cursor] = 0; // equippedWeaponType（装备批次）
+                    self.slot.armor[cursor] = 0; // equippedArmorType（装备批次）
+                    self.show_overlay_message(0, "保存成功！", 0, 0);
+                }
+            }
+            -2 => self.slot.cursor_down(),
+            -1 => self.slot.cursor_up(),
+            _ => {}
+        }
+    }
+
+    /// saveFloorState 写侧（a.java:9182-9244）：blob 序 = parse_floor_save 读序
+    /// 的镜像（difficulty..follow 对/128 旗标/道具栈/56 层触发）。
+    /// 装备位恒 0：equippedWeaponType/ArmorType 为装备批次字段（当前层恒无装备）。
+    fn serialize_slot_blob(&self) -> Vec<u8> {
+        let mut o = Vec::new();
+        o.push(self.difficulty_index as u8);
+        o.push(self.floor as u8);
+        o.push(self.min_floor as u8);
+        o.push(self.max_floor as u8);
+        o.push(self.facing as u8);
+        o.push(0u8); // equippedWeaponType
+        o.push(0u8); // equippedArmorType
+        o.extend_from_slice(&(self.view.player_px >> 5).to_be_bytes()); // playerCellX
+        o.extend_from_slice(&(self.view.player_py >> 5).to_be_bytes()); // playerCellY
+        for v in [self.player.hp, self.player.atk, self.player.def] {
+            o.extend_from_slice(&v.to_be_bytes());
+        }
+        for v in [
+            self.player.yellow_keys as i16,
+            self.player.blue_keys as i16,
+            self.player.red_keys as i16,
+        ] {
+            o.extend_from_slice(&v.to_be_bytes());
+        }
+        o.extend_from_slice(&self.player.gold.to_be_bytes());
+        o.extend_from_slice(&0i16.to_be_bytes()); // alchemyUpgradeCount
+        // f_int_89 + f_byte_arr_14/15 跟随对（剧情物清单，序章恒空）
+        o.extend_from_slice(&(self.special_item_types.len() as i16).to_be_bytes());
+        for k in 0..self.special_item_types.len() {
+            o.push(self.special_item_types[k] as u8);
+            o.push(self.special_item_uses[k] as u8);
+        }
+        // 128 字节脚本旗标（不足补 false）
+        for k in 0..128 {
+            let v = self.script_line_flags.get(k).copied().unwrap_or(false);
+            o.push(v as u8);
+        }
+        // 道具栈
+        o.push(self.player.item_stack_size as u8);
+        for k in 0..self.player.item_stack_size as usize {
+            o.push(self.player.item_types[k]);
+            o.push(self.player.item_uses[k]);
+        }
+        // 56 层触发状态
+        for k in 0..56usize {
+            match &self.saved_floor_states[k] {
+                Some(d) => {
+                    o.extend_from_slice(&(d.len() as i16).to_be_bytes());
+                    o.extend_from_slice(d);
+                }
+                None => o.extend_from_slice(&(-1i16).to_be_bytes()),
+            }
+        }
+        o
+    }
+
+    /// m_113(true)（a.java:2679-2682 + 9046-9215）：mode 7 槽表（存档标题变体
+    /// titledBox segs[2]）+ 有效槽详情面板（层数/装备/金币/三围/三钥）。
+    fn paint_slot_list(&mut self, g: &mut SoftGraphics<'_>) {
+        self.paint_parallax(g, false);
+        let font = crate::paint::paint_font();
+        let ui = &self.images.ui;
+        let x = 240 - self.slot.content_w - 22 >> 1;
+        let mut y = 320 - self.slot.content_h >> 1;
+        // 标题变体 2（存档）：titleBarSegments[2] = {4,5}
+        crate::menu_family::paint_titled_box(g, &ui[0], &ui[13], &[4, 5], x, y, self.slot.content_w + 22, self.slot.content_h);
+        y += 16;
+        let mut row = self.slot.scroll_top;
+        while row < self.slot.scroll_bottom {
+            if row != self.slot.cursor {
+                g.set_color(crate::layout::SLOT_TEXT);
+            } else {
+                g.set_color(crate::layout::DARK_BACKDROP);
+                g.fill_rect(120 - (self.slot.content_w >> 1), y, self.slot.content_w, 10 + 4);
+                g.draw_image(&ui[14], 120 - (self.slot.content_w >> 1) + 10, y + (10 - 8 >> 1), 0);
+                let t = crate::paint::NOKIA_TRANSFORM_TABLE[1];
+                g.draw_image_transformed(&ui[14], 120 + (self.slot.content_w >> 1) - 30, y + (10 - 8 >> 1), 0, t);
+                g.set_color(crate::layout::SLOT_TEXT_ACTIVE);
+            }
+            if !self.slot.valid[row as usize] {
+                g.draw_string(&[0x2D, 0x2D, 0x2D], 120, y + 2, 17);
+            } else {
+                let mut label: Vec<u16> = "存档".encode_utf16().collect();
+                label.extend((row as u16).to_string().chars().map(|c| c as u16));
+                g.draw_string(&label, 120, y + 2, 17);
+            }
+            y += 14;
+            row += 1;
+        }
+        // 翻页箭头 + 分隔线（a.java:9078-9090）
+        let ax = 120 + ((self.slot.content_w >> 1) - 10);
+        if self.slot.scroll_top > 0 {
+            draw_image_clipped(g, &ui[15], ax, y - 20, 0, 0, 7, 9);
+        }
+        if self.slot.scroll_bottom < 6 {
+            draw_image_clipped(g, &ui[15], ax, y - 10, 7, 0, 7, 9);
+        }
+        y += 2;
+        let lx = ax - self.slot.content_w + 10;
+        g.set_color(crate::layout::SLOT_RULE_DARK);
+        g.draw_line(lx, y, lx + self.slot.content_w - 1, y);
+        y += 1;
+        g.set_color(crate::layout::SLOT_RULE_LIGHT);
+        g.draw_line(lx, y, lx + self.slot.content_w - 1, y);
+        // 详情面板（a.java:9092-9147，slotValidFlags[cursor] 才画）
+        let c = self.slot.cursor as usize;
+        if self.slot.valid[c] {
+            let mut vx = lx + 6;
+            let mut vy = y + 8;
+            if self.slot.floor_num[c] < 51 {
+                paint_number(g, &ui[18], self.slot.floor_num[c] as i32, vx + 48, vy);
+                g.draw_image(&ui[8], vx + 50, vy + 8, 0);
+            }
+            vx = (240 + self.slot.content_w >> 1) - 68;
+            crate::menu_family::paint_mini_frame(g, vx, vy, 32, 32);
+            // 武器（f_byte_arr_25；装备批次恒 0 = “无”）
+            g.set_color(0xFFFFFF);
+            let m = EQUIPMENT_MATERIAL_NAMES[self.slot.weapon[c as usize].clamp(0, 8) as usize];
+            let mu: Vec<u16> = m.encode_utf16().collect();
+            g.draw_string(&mu, vx + ((32 - font.char_width('回' as u16)) >> 1), vy + ((32 - font.height) >> 1), 0);
+            vx += 34;
+            crate::menu_family::paint_mini_frame(g, vx, vy, 32, 32);
+            g.set_color(0xFFFFFF);
+            let a = EQUIPMENT_MATERIAL_NAMES[self.slot.armor[c as usize].clamp(0, 8) as usize];
+            let au: Vec<u16> = a.encode_utf16().collect();
+            g.draw_string(&au, vx + ((32 - font.char_width('回' as u16)) >> 1), vy + ((32 - font.height) >> 1), 0);
+            vx = (240 - self.slot.content_w + 10 >> 1);
+            vy += 20;
+            g.draw_image(&ui[1], vx, vy, 0);
+            vx += 60;
+            paint_number(g, &ui[2], self.slot.gold[c], vx, vy + 2);
+            vx -= 64;
+            vy += 16;
+            draw_image_clipped(g, &ui[7], vx, vy, 0, 2, 10, 10);
+            vx += 15;
+            crate::menu_family::paint_mini_frame(g, vx - 1, vy, 48, 12);
+            paint_number(g, &ui[2], self.slot.hp[c], vx + 45, vy + 2);
+            vx += 47;
+            draw_image_clipped(g, &ui[7], vx, vy, 10, 0, 10, 13);
+            vx += 11;
+            g.set_color(512);
+            crate::menu_family::paint_mini_frame(g, vx, vy, 30, 12);
+            paint_number(g, &ui[2], self.slot.atk[c], vx + 28, vy + 2);
+            vx += 32;
+            draw_image_clipped(g, &ui[7], vx, vy, 20, 2, 10, 10);
+            vx += 12;
+            g.set_color(512);
+            crate::menu_family::paint_mini_frame(g, vx, vy, 30, 12);
+            paint_number(g, &ui[2], self.slot.def[c], vx + 28, vy + 2);
+            vx = (240 - self.slot.content_w >> 1) + 6;
+            vy += 16;
+            self.paint_key_slot(g, 0, self.slot.keys_yellow[c] as i32, vx, vy);
+            vx += 42;
+            self.paint_key_slot(g, 1, self.slot.keys_blue[c] as i32, vx, vy);
+            vx += 42;
+            self.paint_key_slot(g, 2, self.slot.keys_red[c] as i32, vx, vy);
+        }
+        m_034_softkeys(g, &ui[10], &ui[11], self.softkeys.0, self.softkeys.1);
+    }
+
+    /// m_000 case 16（a.java:4414-4420）：两选项（音乐/小地图）+ 软键 (0,3)。
+    fn enter_menu16(&mut self) {
+        self.options = Some(crate::menu_family::OptionList::new(
+            self.sound_enabled,
+            self.minimap_enabled,
+        ));
+        self.softkeys = (0, 3);
+    }
+
+    /// run case 16（a.java:4143-4188）：-7/-6 回 menuReturnMode；-5/-4/-3 翻转
+    /// （label0 音乐→音源态翻转 + saveGlobalProgress；label1 小地图→null/rebuild）；
+    /// -2/-1 光标环绕。
+    fn tick_menu16(&mut self) {
+        let Some(opt) = &mut self.options else { return };
+        match self.key_value {
+            -7 | -6 => self.game_mode = self.menu_return_mode,
+            -5 | -4 | -3 => {
+                let cur = opt.highlight as usize;
+                opt.checked[cur] = !opt.checked[cur];
+                match opt.labels[cur] {
+                    0 => {
+                        self.sound_enabled = !self.sound_enabled;
+                        // saveGlobalProgress（RMS 侧，无像素效应；game-core 无 I/O）
+                    }
+                    1 => {
+                        if !opt.checked[1] {
+                            self.minimap = None;
+                        } else if self.menu_return_mode == 4 {
+                            self.build_minimap();
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            -2 => {
+                opt.highlight += 1;
+                if opt.highlight > opt.labels.len() as i32 - 1 {
+                    opt.highlight = 0;
+                }
+            }
+            -1 => {
+                opt.highlight -= 1;
+                if opt.highlight < 0 {
+                    opt.highlight = opt.labels.len() as i32 - 1;
+                }
+            }
+            _ => {}
+        }
+    }
+
     /// cameraAtTarget（a.java:8205-8201）。
     fn camera_at_target(&self) -> bool {
         self.ease_cam_x == self.ease_target_x && self.ease_cam_y == self.ease_target_y
@@ -1927,6 +2220,18 @@ impl GameScene {
             // held 残留会让关层后首拍误触发 tryStep（floor2-tour T1238 实证）
             self.key_value = 0;
             self.key_held = 0;
+            return;
+        }
+        if self.game_mode == 16 {
+            // run case 16（a.java:4143-4188）
+            self.tick_menu16();
+            self.key_value = 0;
+            return;
+        }
+        if self.game_mode == 7 {
+            // run case 7（a.java:3829-3878）
+            self.tick_menu7();
+            self.key_value = 0;
             return;
         }
         if self.game_mode == 4 {
@@ -2797,6 +3102,25 @@ impl GameScene {
 
     /// paint case 3（a.java:2385-2422）。
     pub fn paint(&mut self, g: &mut SoftGraphics<'_>, tileset: &ArgbImage) {
+        if self.game_mode == 16 {
+            // paint case 16（a.java:2963-2990）：parallax(false) + 图标条 +
+            // paintBoxFrame + 选项行（OptionList::paint）
+            self.paint_parallax(g, false);
+            let mut f = self.strip_frame;
+            crate::title::paint_icon_strip_at(g, &self.images.menu_strip, 86, 10, 34, 68, &mut f);
+            self.strip_frame = f;
+            if let Some(opt) = &self.options {
+                let font = crate::paint::paint_font();
+                opt.paint(g, &self.images.ui, &font);
+            }
+            m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
+            return;
+        }
+        if self.game_mode == 7 {
+            // paint case 7（a.java:2679-2682）：m_113(true) 存档变体
+            self.paint_slot_list(g);
+            return;
+        }
         if self.game_mode == 4 || self.game_mode == 19 {
             // paint case 4/19 共享（a.java:2427-2490）
             self.paint_menu_list(g);
@@ -2834,6 +3158,9 @@ impl GameScene {
         self.paint_status_bar(g);
         // 楼梯指示（f_bool_13；稳态 false—— proximity 更新在 lockCameraOn/行走批次）
         self.popups.draw(g, &self.images.popup);
+        // paint case 3 内断言软键 (1,3)（a.java:2421-2422）——菜单族改写的
+        // softkey 落回 mode 3 时由 paint 复位（Java 字段赋值语义）
+        self.softkeys = (1, 3);
         m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
         // 提示浮层（paint 公共尾 a.java:3129-3168，!f_bool_16 && overlayActive）：
         // 盒框 + kind 0/2/4/5 纯文本 / kind 1/3 图标+文本 + 软键图标
@@ -3417,7 +3744,7 @@ impl GameScene {
     }
 
     /// paintKeySlot（a.java:6043-6044）：钥匙格（ui[8][6] KEY_SLOT_W 三联图 + 数量）。
-    fn paint_key_slot(&mut self, g: &mut SoftGraphics<'_>, kind: i32, count: i32, x: i32, y: i32) {
+    fn paint_key_slot(&self, g: &mut SoftGraphics<'_>, kind: i32, count: i32, x: i32, y: i32) {
         g.set_clip(x, y, KEY_SLOT_W, KEY_SLOT_H);
         g.draw_image(&self.images.ui[6], x - kind * KEY_SLOT_W, y, 0);
         g.set_clip(0, 0, SCREEN_W, SCREEN_H);

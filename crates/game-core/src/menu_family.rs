@@ -545,16 +545,27 @@ pub struct SlotSelect {
     /// slotCursor：槽光标（0..5 环绕）。
     pub cursor: i32,
     /// slotScrollTop/slotScrollBottom：可见窗口。
-    scroll_top: i32,
-    scroll_bottom: i32,
+    pub scroll_top: i32,
+    pub scroll_bottom: i32,
     /// slotsPerPage：每页行数（m_000 case 8 = min(6, 208/14) = 6）。
-    rows_per_page: i32,
+    pub rows_per_page: i32,
     /// slotListWidth：内容宽（max(148, wideCharWidth*3+60) = 148）。
-    content_w: i32,
+    pub content_w: i32,
     /// slotListHeight：内容高（112+14*6 = 196）。
-    content_h: i32,
-    /// 槽有效性（RMS 读档；oracle 恒 [false;6]）。
+    pub content_h: i32,
+    /// 槽有效性（RMS 读档；oracle 冷态恒 [false;6]）。
     pub valid: [bool; 6],
+    /// markSlotEntry 详情（a.java:9157-9172）：层数/三围/三钥/金币/装备。
+    pub floor_num: [i8; 6],
+    pub hp: [i32; 6],
+    pub atk: [i32; 6],
+    pub def: [i32; 6],
+    pub keys_yellow: [i16; 6],
+    pub keys_blue: [i16; 6],
+    pub keys_red: [i16; 6],
+    pub gold: [i32; 6],
+    pub weapon: [i8; 6],
+    pub armor: [i8; 6],
 }
 
 impl SlotSelect {
@@ -571,6 +582,16 @@ impl SlotSelect {
             content_w: w,
             content_h: h,
             valid: [false; 6],
+            floor_num: [0; 6],
+            hp: [0; 6],
+            atk: [0; 6],
+            def: [0; 6],
+            keys_yellow: [0; 6],
+            keys_blue: [0; 6],
+            keys_red: [0; 6],
+            gold: [0; 6],
+            weapon: [0; 6],
+            armor: [0; 6],
         }
     }
 
