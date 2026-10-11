@@ -492,6 +492,17 @@ paint case10（a.java:2724-2792：斜线背景（颜色驻留恰为 #000000）+ 
    > **仅 -7 关层且回 menuReturnMode，其余键（含 -6）一律吞掉**——原
    > "他键关浮层；关后停留空图标条屏"结论错误（scene 级全局 handleOverlayKey
    > 分支误罩 mode15）。修正后 preset_help T240-800 全帧一致。
+12c. **按层铺 preset 用例路线（迭代 27 起，用户定为主路线）**：`preset_rms.py`
+    生成任意层号存档（MOT_L0 current_floor=N + MOT_IF + SKY_WAR）+ 短输入
+    脚本 → oracle 单场景 trace（frames=all）→ Rust 侧逐帧对拍。**首例
+    preset-floor2（T1-600 全帧一致，首跑即绿）**：floor2 maplv/实体/拾取
+    弹窗 + 四方向走查 + mode10 道具面板开合；A==B==C 三方一致
+    （sha 2fb3124a…）。后续按层批量复制（floor51 等深层数据已备夹具）。
+12d. **oracle 截图色偏更正（2026-10-11，用户报告）**：PngWriter 按 ARGB 序
+    直写 RGBA 色型 PNG（R←alpha 恒 FF、A←真蓝）⇒ 看图器红/粉罩 + 低蓝
+    半透明合成。**仅影响人眼调试截图**——比对权威是 trace 像素 SHA-256
+    （hash_stream），修复后复跑 trace.txt 逐字节一致。修复前生成的历史
+    PNG 归档仍带错序，读旧帧按 gotcha_oracle-png-channel-order 换算。
 13. **场景相按键注入修复（迭代 20/21）**：preset 骨架的场景相此前无
    INPUT 提取——补 rec.input press/release → pending 注入（延迟一拍）。
 
