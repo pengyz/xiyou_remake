@@ -15,6 +15,8 @@
   python3 gates/cli.py trace       # 差分 L1-L3（P3 后启用）
   python3 gates/cli.py visual      # 视觉 L4（P3 后启用）
   python3 gates/cli.py all         # 全量
+  python3 gates/cli.py ratchet         # 测试计数 ratchet 校验（只许增不许减）
+  python3 gates/cli.py ratchet-update  # 重建测试计数基线（commit 须写明原因）
 """
 import hashlib
 import json
@@ -210,6 +212,89 @@ def gate_rust_tests():
                   "cargo test 全绿" if r.returncode == 0 else r.stdout[-200:])
 
 
+# ---------- 测试计数 ratchet（迭代 27，防嵌套 #[test] 假绿） ----------
+
+RATCHET = ROOT / "data/status/baselines/rust-test-counts.json"
+
+
+def collect_test_counts():
+    """逐测试二进制清点用例数。返回 {key: count}；key = "<target>(<kind>)"。
+    cargo test 对嵌套 #[test]（libtest 不可见）静默 0 收录——只有计数 ratchet 能抓
+    （docs/knowledge/gotcha_nested-test-silently-skipped.md，preset_help 实证）。"""
+    r = subprocess.run(["cargo", "test", "--workspace", "--no-run", "--message-format=json"],
+                       cwd=ROOT, capture_output=True, text=True)
+    if r.returncode != 0:
+        return None
+    seen = {}
+    for line in r.stdout.splitlines():
+        try:
+            msg = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if msg.get("reason") != "compiler-artifact" or not msg.get("profile", {}).get("test"):
+            continue
+        exe = msg.get("executable")
+        target = msg.get("target", {})
+        kinds = [k for k in target.get("kind", []) if k in ("lib", "bin", "test")]
+        if not exe or not kinds:
+            continue
+        seen[f"{target.get('name', '?')}({kinds[0]})"] = exe
+    counts = {}
+    for key, exe in sorted(seen.items()):
+        lr = subprocess.run([exe, "--list", "--format", "terse"],
+                            capture_output=True, text=True)
+        n = sum(1 for l in lr.stdout.splitlines() if l.endswith(": test"))
+        counts[key] = counts.get(key, 0) + n
+    return counts
+
+
+def gate_test_ratchet():
+    """测试计数 ratchet：每测试二进制用例数只许增不许减。
+    减少 ⇒ 有测试被删除或嵌套化静默失效（iteration 26 前车）。"""
+    if not (ROOT / "crates").exists():
+        return report("test-ratchet", SKIP, "crates/ 不存在")
+    cur = collect_test_counts()
+    if cur is None:
+        return report("test-ratchet", FAIL, "cargo test --no-run 失败")
+    if not RATCHET.exists():
+        return report("test-ratchet", FAIL,
+                      f"基线缺失 {RATCHET}（python3 gates/cli.py ratchet-update 生成）")
+    basec = json.loads(RATCHET.read_text()).get("binaries", {})
+    drops = []
+    for k, b in basec.items():
+        c = cur.get(k)
+        if c is None:
+            drops.append(f"{k}: 二进制消失(基线{b})")
+        elif c < b:
+            drops.append(f"{k}: {b}->{c}")
+    if drops:
+        return report("test-ratchet", FAIL,
+                      "用例数回退（疑似删除/嵌套化静默失效）: " + "; ".join(drops))
+    newbins = {k: v for k, v in cur.items() if k not in basec}
+    detail = (f"total={sum(cur.values())}(基线{sum(basec.values())}) 无回退"
+              + (f"；新增二进制待 ratchet-update: {newbins}" if newbins else ""))
+    return report("test-ratchet", PASS, detail)
+
+
+def cmd_ratchet_update():
+    """重建测试计数基线（基线更新须在 commit 正文写明原因——AGENTS.md §2）。"""
+    cur = collect_test_counts()
+    if cur is None:
+        print("cargo test --no-run 失败")
+        return 1
+    payload = {
+        "comment": "每测试二进制用例数 ratchet（只许增不许减）。减少 = 测试被删除或"
+                   "嵌套化静默失效（gotcha_nested-test-silently-skipped）。"
+                   "更新基线必须在 commit 正文写明原因与影响。",
+        "binaries": dict(sorted(cur.items())),
+        "total": sum(cur.values()),
+    }
+    RATCHET.parent.mkdir(parents=True, exist_ok=True)
+    RATCHET.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
+    print(f"基线已更新: total={payload['total']} binaries={len(cur)} -> {RATCHET}")
+    return 0
+
+
 def gate_reference():
     """参考版回归：改 reference/ 后 trace 必须逐 tick 不变（P1 oracle 就绪后启用）。"""
     if not (ROOT / "reference/oracle").exists():
@@ -260,6 +345,7 @@ def cmd_status():
     # 场景套件（gate_scenarios）不进 status：重跑动辄数十分钟，只在 all/子命令执行
     statuses = [gate_original(), gate_assets_manifest(), gate_reference_seed_integrity(),
                 gate_knowledge_format(), gate_docs_links(), gate_naming_ledger(), gate_rust_tests(),
+                gate_test_ratchet(),
                 gate_reference(), gate_trace(), gate_visual()]
     print("== 汇总 ==")
     print(f"PASS={statuses.count(PASS)} FAIL={statuses.count(FAIL)} "
@@ -270,7 +356,8 @@ def cmd_status():
 def cmd_check():
     print("== 总闸 gates/cli.py check ==")
     statuses = [gate_original(), gate_assets_manifest(), gate_reference_seed_integrity(),
-                gate_knowledge_format(), gate_docs_links(), gate_naming_ledger(), gate_rust_tests()]
+                gate_knowledge_format(), gate_docs_links(), gate_naming_ledger(), gate_rust_tests(),
+                gate_test_ratchet()]
     # SKIP 项必须显式出现在输出（上面已打印），不得静默
     print("== 汇总 ==")
     print(f"PASS={statuses.count(PASS)} FAIL={statuses.count(FAIL)} SKIP={statuses.count(SKIP)}")
@@ -281,6 +368,7 @@ def cmd_all():
     print("== 全量门禁 ==")
     statuses = [gate_original(), gate_assets_manifest(), gate_reference_seed_integrity(),
                 gate_knowledge_format(), gate_docs_links(), gate_naming_ledger(), gate_rust_tests(),
+                gate_test_ratchet(),
                 gate_reference(), gate_scenarios(), gate_trace(), gate_visual()]
     print(f"PASS={statuses.count(PASS)} FAIL={statuses.count(FAIL)} SKIP={statuses.count(SKIP)}")
     return 1 if FAIL in statuses else 0
@@ -296,6 +384,8 @@ COMMANDS = {
     "reference": lambda: 1 if gate_reference() == FAIL else 0,
     "trace": lambda: 1 if gate_trace() == FAIL else 0,
     "visual": lambda: 1 if gate_visual() == FAIL else 0,
+    "ratchet": lambda: 1 if gate_test_ratchet() == FAIL else 0,
+    "ratchet-update": cmd_ratchet_update,
 }
 
 if __name__ == "__main__":
