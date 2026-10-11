@@ -358,6 +358,21 @@ pub struct GameScene {
     pub script_walk_armed: bool,
     /// overlaySavedColor（paintWrappedText \c 保存/\r 恢复的色；Java 字段默认 0）
     pub overlay_saved_color: i32,
+    /// mode 4/19 菜单族共享布局（menuLabels a.java:458-462 / resetMenuLayout
+    /// a.java:4690-4702 / addMenuItem a.java:4704-4716）
+    pub menu_kinds: Vec<i8>,
+    pub menu_item_count: i32,
+    pub menu_box_width: i32,
+    pub menu_line_height: i32,
+    pub menu_visible_rows: i32,
+    pub menu_list_height: i32,
+    pub menu_scroll_top: i32,
+    pub menu_visible_bottom: i32,
+    pub menu_cursor: i32,
+    /// f_byte_25：商店条目彩虹色相位（paint 每 4 拍推进）
+    pub rainbow_phase: i32,
+    /// f_byte_02：菜单返回目标（run case3 -7 时存 gameMode）
+    pub in_game_menu_return_mode: i32,
     /// mode 10 道具面板布局（m_000 case10 a.java:4370-4380：f_int_97..104）
     pub item_cols: i32,
     pub item_rows_total: i32,
@@ -402,6 +417,17 @@ pub struct GameScene {
     pub ease_target_x: i32,
     pub ease_target_y: i32,
 }
+
+/// menuLabels（a.java:458-462）：18 条菜单标签。
+pub const MENU_LABELS: [&str; 18] = [
+    "新游戏", "继续游戏", "载入进度", "保存游戏", "设置", "帮助", "关于", "退出",
+    "返回菜单", "回放", "停止回放", "商店", "十全大补包", "攻防神油", "开门天天乐",
+    "天庭消费券", "印度神血油", "跳过教程",
+];
+/// f_int_arr_32（a.java:2229）：商店条目逐字彩虹色环（7 色随 f_byte_25 相位）。
+pub const RAINBOW_COLORS: [u32; 7] = [
+    16711680, 16748544, 16776194, 1244928, 65478, 26367, 14156031,
+];
 
 impl GameScene {
     /// loadFloorData（a.java:9404-9438）：maplv 装载 + m_059 格索引重建 +
@@ -525,6 +551,17 @@ impl GameScene {
             difficulty_index: 0,
             script_walk_armed: false,
             overlay_saved_color: 0,
+            menu_kinds: Vec::new(),
+            menu_item_count: 0,
+            menu_box_width: 0,
+            menu_line_height: 0,
+            menu_visible_rows: 0,
+            menu_list_height: 0,
+            menu_scroll_top: 0,
+            menu_visible_bottom: 0,
+            menu_cursor: 0,
+            rainbow_phase: 0,
+            in_game_menu_return_mode: 3,
             item_cols: 4,
             item_rows_total: 8,
             item_rows_visible: 6,
@@ -1455,6 +1492,216 @@ impl GameScene {
         }
     }
 
+    /// resetMenuLayout（a.java:4690-4702）。
+    fn reset_menu_layout(&mut self) {
+        let font = crate::paint::paint_font();
+        self.menu_line_height = font.height + 6;
+        self.menu_visible_rows = 238 / self.menu_line_height;
+        self.menu_list_height = self.menu_line_height * self.menu_visible_rows;
+        self.menu_box_width = font.char_width('回' as u16) << 1; // wideCharWidth（全宽字符宽）
+        self.menu_item_count = 0;
+        self.menu_kinds.clear();
+        self.menu_scroll_top = 0;
+    }
+
+    /// addMenuItem（a.java:4704-4716）：kind 登记 + 框宽按 stringWidth+60 伸长。
+    fn add_menu_item(&mut self, kind: i8) {
+        if self.menu_item_count < 16 {
+            let font = crate::paint::paint_font();
+            let label = MENU_LABELS[kind as usize];
+            let w: i32 = label.chars().map(|c| font.char_width(c as u16)).sum();
+            let w = w + 60;
+            self.menu_kinds.push(kind);
+            if w > self.menu_box_width {
+                self.menu_box_width = w;
+            }
+            self.menu_item_count += 1;
+            if self.menu_item_count <= self.menu_visible_rows {
+                self.menu_visible_bottom = self.menu_item_count;
+            }
+            // menuTotalHeight += lineHeight；listHeight 按可见区间重算
+            //（a.java:4712-4713——非 resetMenuLayout 的行数积）
+            self.menu_list_height =
+                (self.menu_visible_bottom - self.menu_scroll_top) * self.menu_line_height;
+        }
+    }
+
+    /// m_000 case 4（a.java:4326-4337）：继续游戏（+floor>50 的跳过教程）/
+    /// 保存/设置/帮助/退出；软键 (1,3)。
+    fn enter_menu4(&mut self) {
+        self.reset_menu_layout();
+        self.add_menu_item(1);
+        if self.floor > 50 {
+            self.add_menu_item(17);
+        }
+        self.add_menu_item(3);
+        self.add_menu_item(4);
+        self.add_menu_item(5);
+        self.add_menu_item(7);
+        self.softkeys = (1, 3);
+    }
+
+    /// m_000 case 19（a.java:4439-4448）：商店 5 条目。
+    fn enter_menu19(&mut self) {
+        self.reset_menu_layout();
+        for k in 12..=16 {
+            self.add_menu_item(k);
+        }
+    }
+
+    /// run case 4（a.java:3686-3731）：-7 返回、-6/-5 激活、-2/-4 下移、-1/-3 上移。
+    fn tick_menu4(&mut self) {
+        match self.key_value {
+            -7 => self.game_mode = self.in_game_menu_return_mode,
+            -6 | -5 => self.activate_menu_item(),
+            -2 | -4 => {
+                if self.menu_cursor < self.menu_item_count - 1 {
+                    self.menu_cursor += 1;
+                    if self.menu_cursor >= self.menu_visible_bottom {
+                        self.menu_visible_bottom += 1;
+                        self.menu_scroll_top += 1;
+                    }
+                } else {
+                    self.menu_cursor = 0;
+                    self.menu_scroll_top = 0;
+                    self.menu_visible_bottom = self.menu_item_count;
+                    if self.menu_item_count > self.menu_visible_rows {
+                        self.menu_visible_bottom = self.menu_visible_rows;
+                    }
+                }
+            }
+            -1 | -3 => {
+                if self.menu_cursor > 0 {
+                    self.menu_cursor -= 1;
+                    if self.menu_cursor < self.menu_scroll_top {
+                        self.menu_scroll_top -= 1;
+                        self.menu_visible_bottom -= 1;
+                    }
+                } else {
+                    self.menu_cursor = self.menu_item_count - 1;
+                    self.menu_visible_bottom = self.menu_item_count;
+                    self.menu_scroll_top = self.menu_visible_bottom - self.menu_visible_rows;
+                    if self.menu_scroll_top < 0 {
+                        self.menu_scroll_top = 0;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// run case 19（a.java:4196-4222）：-7 回 mode 4（无 break 落 default 效果相同）；
+    /// -6/-5 无操作（购买走软键链路，本批对拍面不含）；-2/-4 下移环绕、-1/-3 上移环绕。
+    fn tick_menu19(&mut self) {
+        match self.key_value {
+            -7 => {
+                self.game_mode = 4;
+                self.enter_menu4();
+            }
+            -4 | -2 | 54 | 56 => {
+                if self.menu_cursor < self.menu_item_count - 1 {
+                    self.menu_cursor += 1;
+                } else {
+                    self.menu_cursor = 0;
+                }
+            }
+            -3 | -1 | 50 | 52 => {
+                if self.menu_cursor > 0 {
+                    self.menu_cursor -= 1;
+                } else {
+                    self.menu_cursor = self.menu_item_count - 1;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// activateMenuItem（a.java:4762-4810）可达子集：1 继续游戏→mode3；
+    /// 11 商店→mode19；17 跳过教程→changeFloor(1)+hp1000/atk710/def710→mode3。
+    /// 3→mode7（存档槽）/4→mode16（设置）/5→mode15（帮助）/7→mode1（退出标题）
+    /// 为跨机模式移交，桌面宿主批次接线——本批对拍面不激活。
+    fn activate_menu_item(&mut self) {
+        match self.menu_kinds[self.menu_cursor as usize] {
+            1 => self.game_mode = 3,
+            11 => {
+                self.game_mode = 19;
+                self.enter_menu19();
+            }
+            17 => {
+                self.change_floor(1, false, false);
+                self.game_mode = 3;
+                self.player.hp = 1000;
+                self.player.atk = 710;
+                self.player.def = 710;
+            }
+            other => {
+                let _ = other; // 3/4/5/7：待跨机模式批次
+            }
+        }
+    }
+
+    /// paint case 4/19 共享（a.java:2423-2486）：世界底（视差+HUD 面板+状态栏，
+    /// 无瓦片/实体层）+ 框 + 条目（商店 12-16 逐字彩虹；普通 drawString 17）+
+    /// 翻页箭头 + 软键栏。
+    fn paint_menu_list(&mut self, g: &mut SoftGraphics<'_>) {
+        self.paint_parallax(g, true);
+        self.paint_hud(g);
+        self.paint_status_bar(g);
+        let font = crate::paint::paint_font();
+        let box_w = self.menu_box_width + 22;
+        let box_h = self.menu_list_height + 32;
+        let mut bx = 120 - (self.menu_box_width + 22 >> 1);
+        let mut by = 160 - (self.menu_list_height + 32 >> 1);
+        let pad = (self.menu_line_height - font.height) >> 1;
+        crate::menu_family::paint_box_frame(g, &self.images.ui[0], bx, by, box_w, box_h);
+        by += 16 + pad;
+        let mut i = self.menu_scroll_top;
+        while i < self.menu_visible_bottom {
+            let kind = self.menu_kinds[i as usize];
+            if self.menu_cursor == i {
+                g.set_color(0);
+                g.fill_rect(120 - (self.menu_box_width >> 1), by - pad, self.menu_box_width, self.menu_line_height);
+                g.set_color(16377897);
+            } else if kind != 11 {
+                g.set_color(7574946);
+            } else {
+                g.set_color(16751103);
+            }
+            if kind > 11 && kind < 17 {
+                // 商店条目：逐字彩虹（f_int_arr_32[f_byte_25 起步环绕]），
+                // 相位在 paint 尾按 fc&3 推进（a.java:2476-2479）
+                let label = MENU_LABELS[kind as usize];
+                let n = RAINBOW_COLORS.len();
+                let label_u: Vec<u16> = label.encode_utf16().collect();
+                let mut cx = 120 - (font.string_width(&label_u) >> 1);
+                let mut phase = self.rainbow_phase as usize;
+                for ch in label.chars() {
+                    g.set_color(RAINBOW_COLORS[phase]);
+                    g.draw_char(ch as u16, cx, by, 0);
+                    cx += font.char_width(ch as u16);
+                    phase = (phase + 1) % n;
+                }
+                if self.frame_counter & 3 == 0 {
+                    self.rainbow_phase = (self.rainbow_phase + 1) % n as i32;
+                }
+            } else {
+                let label: Vec<u16> = MENU_LABELS[kind as usize].encode_utf16().collect();
+                g.draw_string(&label, 120, by, 17);
+            }
+            by += self.menu_line_height;
+            i += 1;
+        }
+        let ax = 120 + (box_w >> 1) - 23;
+        let ay = 160 + (box_h >> 1) - 38;
+        if self.menu_scroll_top > 0 {
+            draw_image_clipped(g, &self.images.ui[15], ax, ay, 0, 0, 7, 9);
+        }
+        if self.menu_visible_bottom < self.menu_item_count {
+            draw_image_clipped(g, &self.images.ui[15], ax, ay + 9, 7, 0, 7, 9);
+        }
+        m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
+    }
+
     /// m_000 case 10（a.java:4370-4380）：道具面板布局初始化。
     fn enter_item_panel(&mut self) {
         let font = crate::paint::paint_font();
@@ -1682,6 +1929,18 @@ impl GameScene {
             self.key_held = 0;
             return;
         }
+        if self.game_mode == 4 {
+            // run case 4（a.java:3690-3735），尾清 keyValue（a.java:4270）
+            self.tick_menu4();
+            self.key_value = 0;
+            return;
+        }
+        if self.game_mode == 19 {
+            // run case 19（a.java:4200-4226）
+            self.tick_menu19();
+            self.key_value = 0;
+            return;
+        }
         if self.game_mode == 10 {
             // run case 10（a.java:3931-4009）：键位导航，尾清 keyValue（a.java:4270）
             self.tick_item_panel();
@@ -1702,6 +1961,12 @@ impl GameScene {
         // run case 3 头（a.java:3552-3562）：keyValue 开关。-7 → gameMode=4
         // （存档菜单，mode 4 批次待办）；-6 → gameMode=10 + m_000。
         match self.key_value {
+            -7 => {
+                // a.java:3559-3561：f_byte_02=gameMode → gameMode=4 + m_000
+                self.in_game_menu_return_mode = self.game_mode;
+                self.game_mode = 4;
+                self.enter_menu4();
+            }
             -6 => {
                 self.game_mode = 10;
                 self.enter_item_panel();
@@ -2532,6 +2797,11 @@ impl GameScene {
 
     /// paint case 3（a.java:2385-2422）。
     pub fn paint(&mut self, g: &mut SoftGraphics<'_>, tileset: &ArgbImage) {
+        if self.game_mode == 4 || self.game_mode == 19 {
+            // paint case 4/19 共享（a.java:2427-2490）
+            self.paint_menu_list(g);
+            return;
+        }
         if self.game_mode == 10 {
             self.paint_item_panel(g);
             return;

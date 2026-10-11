@@ -358,6 +358,33 @@ paint case10（a.java:2724-2792：斜线背景（颜色驻留恰为 #000000）+ 
 格阵 + [2][10] 38×38 双帧选中框 + 翻页箭头 + 软键栏）。字段 N-0409..N-0417。
 -7 在 mode3 → mode4（存档菜单）**未移植**——mode 4/19 批次待办。
 
+## 3.12 mode 4/19 菜单族（2026-10-11，第十七批）
+
+- **mode 4 游戏内菜单**（-7 进入，a.java:3559-3561 存 inGameMenuReturnMode）：
+  m_000 case4 布局（a.java:4330-4341：继续游戏 + floor>50 的跳过教程 + 保存/
+  设置/帮助/退出，软键 (1,3)）；run case4 键位（a.java:3690-3735：-7 返回、
+  -6/-5 激活、-2/-4 下移带滚动窗跟随、-1/-3 上移镜像、环绕重置滚动）；
+  activateMenuItem 可达子集（a.java:4766-4814）：kind1→mode3、kind11→mode19、
+  kind17→changeFloor(1)+hp1000/atk710/def710→mode3。
+- **mode 19 商店**（kind11 进入）：m_000 case19（a.java:4439-4448，kind12-16
+  五条目）；run case19（a.java:4200-4226：-7→mode4、-2/-4/-1/-3 环绕、
+  -6/-5 无操作——购买走软键链路未移植）；paint 与 mode 4 **共享**
+  （a.java:2427-2490 case4/case19 落穿）：世界底（视差+HUD 面板+状态栏，
+  无瓦片/实体层）+ paintBoxFrame + 条目（kind12-16 逐字彩虹
+  shopRainbowColors[shopRainbowPhase]，相位 paint 内 fc&3 推进 a.java:2481；
+  普通 drawString 锚 17）+ ui[15] 翻页箭头 + 软键栏。
+- **布局公式勘误**：menuListHeight 并非 resetMenuLayout 的 lineHeight×
+  visibleRows（238/16=14），addMenuItem 每条按 (visibleBottom-scrollTop)
+  ×lineHeight 重算（a.java:4713）——floor51 六条目 ⇒ 96，框 96+32=128，
+  与 T9901 帧实测（框体 y96-224）吻合。menuBoxWidth = max(stringWidth+60)。
+- **kind17 跳过教程**：boss 层直达 cheat（hp1000/atk710/def710 + changeFloor(1)
+  上行语义）——floor51-menu 场景 T10050 激活后换层全程差分验证。
+- 对拍：`floor51_menu_frames_match`（A-floor51-menu trace，窗口 9700-10599，
+  前缀 1-9800 与 A-prologue-dialog 逐字节同源）；mode7（存档槽）/mode15（帮助）
+  /kind3/4/5/7 的跨机模式移交待桌面宿主批次。
+- cat 67/69（xtq 容器 9 拼装/宽精灵）：仅 boss 击杀事件生成（层 35/40/49
+  深链，a.java:10058-10141），当前对拍面不可达——待 boss 链批次。
+
 ## 4. 证据基线
 
 - 像素模型：`reference/shim/src/javax/microedition/lcdui/{Graphics,Font,Image,Canvas}.java`

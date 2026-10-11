@@ -33,7 +33,7 @@ public final class a extends Canvas implements Runnable {
    private int frameCounter;
    private byte gameMode;
    private byte menuReturnMode;
-   private byte f_byte_02;
+   private byte inGameMenuReturnMode;
    private DirectGraphics f_DirectGraphics_00;
    private int bootLoadPhase;
    private Image f_Image_00;
@@ -360,8 +360,8 @@ public final class a extends Canvas implements Runnable {
    private boolean loadCallInit;
    private int loadProgressTarget;
    private int f_int_147;
-   private int[] f_int_arr_32;
-   private byte f_byte_25;
+   private int[] shopRainbowColors;
+   private byte shopRainbowPhase;
    private byte[] walkPathBuffer;
    private int walkStepCount;
    private byte[][] f_byte_arr2_06;
@@ -2226,7 +2226,7 @@ public final class a extends Canvas implements Runnable {
       this.loadStepCount = 0;
       this.loadStepIndex = 0;
       var10000 = new int[]{15658734, 13421772, 11184810, 8947848, 6710886, 4473924, 2236962, 1118481};
-      this.f_int_arr_32 = new int[]{16711680, 16748544, 16776194, 1244928, 65478, 26367, 14156031};
+      this.shopRainbowColors = new int[]{16711680, 16748544, 16776194, 1244928, 65478, 26367, 14156031};
       this.f_bool_20 = false;
       this.f_bool_21 = false;
       this.f_bool_22 = false;
@@ -2454,11 +2454,11 @@ public final class a extends Canvas implements Runnable {
                   var79 = 4;
                   int var192 = var172;
                   int var190 = 120;
-                  int[] var187 = var30.f_int_arr_32;
+                  int[] var187 = var30.shopRainbowColors;
                   String var164 = var10001;
                   a var81 = var30;
                   var113 = var164.length();
-                  int var13 = var81.f_byte_25;
+                  int var13 = var81.shopRainbowPhase;
                   int var14 = var187.length;
                   char var15 = '\u0000';
                   var190 -= var81.f_Font_00.stringWidth(var164) >> 1;
@@ -2473,8 +2473,8 @@ public final class a extends Canvas implements Runnable {
                      }
                   }
 
-                  if ((var81.frameCounter & 3) == 0 && ++var81.f_byte_25 >= var14) {
-                     var81.f_byte_25 = 0;
+                  if ((var81.frameCounter & 3) == 0 && ++var81.shopRainbowPhase >= var14) {
+                     var81.shopRainbowPhase = 0;
                   }
                } else {
                   var30.f_Graphics_00.drawString(var30.menuLabels[var185], 120, var172, 17);
@@ -3552,7 +3552,7 @@ public final class a extends Canvas implements Runnable {
                         a var26 = var15;
                         switch (var15.keyValue) {
                            case -7:
-                              var26.f_byte_02 = var26.gameMode;
+                              var26.inGameMenuReturnMode = var26.gameMode;
                               var26.gameMode = 4;
                               var26.m_000();
                               break;
@@ -3684,7 +3684,7 @@ public final class a extends Canvas implements Runnable {
                         a var25 = var15;
                         switch (var15.keyValue) {
                            case -7:
-                              var25.gameMode = var25.f_byte_02;
+                              var25.gameMode = var25.inGameMenuReturnMode;
                               break label534;
                            case -6:
                            case -5:

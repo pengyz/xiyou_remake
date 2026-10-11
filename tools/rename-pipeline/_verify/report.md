@@ -5,7 +5,7 @@
 - 输入：`original/囧囧西游-大闹天宫.jar`（只读）→ `analysis/rename-pipeline/orig/*.class`
 - 对比对象：`analysis/rename-pipeline/orig/` vs `analysis/rename-pipeline/renamed/*.class`
 - 映射表：`data/naming/remap-table.json`（581 条符号，机械改名 569 条）
-- 语义叠加：`data/naming/ledger.jsonl`（applied 380 条，改写与验证均经两层符号还原：语义名→机械名→原始名）
+- 语义叠加：`data/naming/ledger.jsonl`（applied 383 条，改写与验证均经两层符号还原：语义名→机械名→原始名）
 
 ## 验证方法（为什么这能证明“仅符号名变化”）
 
@@ -75,7 +75,7 @@
 | 10 | d | frameCounter | 0 | 0 | ✓ |
 | 11 | a | gameMode | 0 | 0 | ✓ |
 | 12 | b | menuReturnMode | 0 | 0 | ✓ |
-| 13 | c | f_byte_02 | 0 | 0 | ✓ |
+| 13 | c | inGameMenuReturnMode | 0 | 0 | ✓ |
 | 14 | a | f_DirectGraphics_00 | 0 | 0 | ✓ |
 | 15 | e | bootLoadPhase | 0 | 0 | ✓ |
 | 16 | a | f_Image_00 | 0 | 0 | ✓ |
@@ -402,8 +402,8 @@
 | 337 | t | loadCallInit | 0 | 0 | ✓ |
 | 338 | bQ | loadProgressTarget | 0 | 0 | ✓ |
 | 339 | bR | f_int_147 | 0 | 0 | ✓ |
-| 340 | G | f_int_arr_32 | 0 | 0 | ✓ |
-| 341 | z | f_byte_25 | 0 | 0 | ✓ |
+| 340 | G | shopRainbowColors | 0 | 0 | ✓ |
+| 341 | z | shopRainbowPhase | 0 | 0 | ✓ |
 | 342 | Q | walkPathBuffer | 0 | 0 | ✓ |
 | 343 | bS | walkStepCount | 0 | 0 | ✓ |
 | 344 | g | f_byte_arr2_06 | 0 | 0 | ✓ |

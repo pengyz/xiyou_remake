@@ -596,17 +596,37 @@ fn dump_frame_pixels() {
 /// 场景状态按 a.java:3481-3487 冷启动（floor51/hp300/atk10/def10）。
 #[test]
 fn prologue_dialog_frames_match() {
-    let trace_text = std::fs::read_to_string(
-        repo().join("reference/oracle/_out/A-prologue-dialog/trace.txt"),
-    )
-    .expect("缺 A-prologue-dialog trace");
+    replay_floor51_window(
+        "reference/oracle/_out/A-prologue-dialog/trace.txt",
+        577,
+        9800,
+    );
+}
+
+/// floor51 菜单族对拍：mode4 菜单（-7 开/导航/kind17 跳过教程→回层 1）+ 恢复行走。
+/// 场景 = floor51-menu.txt（序章场景追加菜单键 9900-10554）。
+#[test]
+fn floor51_menu_frames_match() {
+    replay_floor51_window(
+        "reference/oracle/_out/A-floor51-menu/trace.txt",
+        9700,
+        10599,
+    );
+}
+
+/// 序章/菜单族共享回放骨架：T577 合成装载（floor51 冷启动 + script 40），
+/// 自 577 起**全量推演**，[win_start, win_end] 内逐帧比对。
+fn replay_floor51_window(trace_rel: &str, win_start: i32, win_end: i32) {
+    let repo = repo();
+    let trace_text = std::fs::read_to_string(repo.join(trace_rel))
+        .expect("缺 trace（用 oracle host 按场景再生）");
     let records = trace::parse(&trace_text);
 
     // floor51 资产
     let maplv51 =
-        std::fs::read(repo().join("crates/game-oracle/tests/fixtures/maplv51.bin")).unwrap();
+        std::fs::read(repo.join("crates/game-oracle/tests/fixtures/maplv51.bin")).unwrap();
     let sprite_bin =
-        std::fs::read(repo().join("crates/game-oracle/tests/fixtures/sprite51.bin")).unwrap();
+        std::fs::read(repo.join("crates/game-oracle/tests/fixtures/sprite51.bin")).unwrap();
     let sp = SpriteTable::parse(&sprite_bin).expect("sprite51 解析");
     let doors = door_tables();
     let records51: Vec<(u8, u16, u16, i16, bool)> = sp
@@ -654,8 +674,26 @@ fn prologue_dialog_frames_match() {
         maplv: maplv51.clone(),
         records: records51.clone(),
     });
+    // 跳过教程（kind17）→ changeFloor(1)：层 1 资产（同 floor_crossing 夹具）
+    let maplv1 =
+        std::fs::read(repo.join("crates/game-oracle/tests/fixtures/maplv1.bin")).unwrap();
+    let sprite1 =
+        std::fs::read(repo.join("crates/game-oracle/tests/fixtures/sprite1.bin")).unwrap();
+    let sp1 = SpriteTable::parse(&sprite1).expect("sprite1 解析");
+    let records1: Vec<(u8, u16, u16, i16, bool)> = sp1
+        .records
+        .iter()
+        .map(|rec| {
+            let (param, hide) = spawn_param_and_visibility(rec.type_code, &rec.extra, &doors);
+            (rec.type_code, rec.x, rec.y, param, !hide)
+        })
+        .collect();
+    floor_assets[1] = Some(game_core::scene::FloorAssets {
+        maplv: maplv1.clone(),
+        records: records1.clone(),
+    });
 
-    // 冷启动（a.java:3481-3487）：floor51、cell(1,11)、hp300/atk10/def10
+    // 冷启动（a.java:3485-3491）：floor51、cell(1,11)、hp300/atk10/def10
     let mut scene = GameScene::load_floor(
         &maplv51,
         32,
@@ -673,7 +711,7 @@ fn prologue_dialog_frames_match() {
     scene.max_floor = 51;
     // bob 初值（A-prologue-dialog trace FLD 120=animBobOffset 实测：T576 dump=2，
     // 8 周期 [0,1,2,1,0,-1,-2,-1] 中值 2 唯一对应 rising=false；标题期 run case 1
-    // 每 tick 推进 a.java:3387 + 加载期无 entity layer ⇒ 冻结在 2）。T902 外推 =0，
+    // 每 tick 推进 a.java:3391 + 加载期无 entity layer ⇒ 冻结在 2）。T902 外推 =0，
     // 与帧内箭头坐标（101,117）吻合
     scene.bob_offset = 2;
     scene.bob_rising = false;
@@ -710,10 +748,8 @@ fn prologue_dialog_frames_match() {
     let mut pending_press = 0i32;
     let mut pending_release = false;
     for rec in &records {
-        // mode 11 首帧 = T577（装载完成拍：overlayText=null → HUD panel 分支）；
-        // TAK 首执行 = logic(577)（帧 578：pos=14 前缀）；打字机双拍推进
-        //（fc=tick-1 奇偶门控，java T579=14/T580=15 序列实证）
-        if !(577..=9800).contains(&rec.tick) {
+        // mode 11 首帧 = T577（装载完成拍）；T577 前为装载链（合成场景覆盖）
+        if rec.tick < 577 {
             continue;
         }
         if pending_press != 0 {
@@ -741,12 +777,6 @@ fn prologue_dialog_frames_match() {
                 pending_release = true;
             }
         }
-        if rec.tick == 577 || rec.tick == 578 {
-            eprintln!("T{} pre: mode={} phase={} page={} char={} ov_active={} ov_text={:?} box_w={} box_h={}",
-                rec.tick, scene.game_mode, scene.dialog_phase, scene.dialog_page,
-                scene.dialog_char, scene.overlay_active, scene.overlay_text.as_ref().map(|t| t.chars().take(12).collect::<String>()),
-                scene.overlay_box_w, scene.overlay_box_h);
-        }
         let sha;
         {
             let mut g = SoftGraphics::new(&mut screen);
@@ -755,20 +785,24 @@ fn prologue_dialog_frames_match() {
             scene.paint(&mut g, &tileset);
             sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
         }
-        if let Some(expect) = &rec.frame_sha {
-            assert_eq!(
-                &sha, expect,
-                "TICK {} 帧不符（mode={} phase={} page={} char={}）",
-                rec.tick,
-                scene.game_mode,
-                scene.dialog_phase,
-                scene.dialog_page,
-                scene.dialog_char
-            );
-            checked += 1;
+        if (win_start..=win_end).contains(&(rec.tick as i32)) {
+            if let Some(expect) = &rec.frame_sha {
+                assert_eq!(
+                    &sha, expect,
+                    "TICK {} 帧不符（mode={} phase={} page={}）",
+                    rec.tick, scene.game_mode, scene.dialog_phase, scene.dialog_page
+                );
+                checked += 1;
+            }
         }
     }
-    assert_eq!(checked, 9800 - 577 + 1, "T577-9800 应有帧数");
+    assert_eq!(
+        checked,
+        (win_end - win_start + 1) as usize,
+        "T{}-{} 应有帧数",
+        win_start,
+        win_end
+    );
 }
 
 /// 诊断（ignored）：entity[87]（菩提老祖立绘）尺寸。
