@@ -9,7 +9,9 @@
 //!
 //! 迭代 21/22 定案：旧残差（T73/T77 粒子、T341 浮层）全部源于生成命令误用
 //! _out/orig（原始字节真钟种子）——改用 variantA（ttransform 后）即确定性。
-//! 迭代 24：preset_item13 追加（mode5 敌人图鉴），T351 残差待逐 op 收敛。
+//! 迭代 24：preset_item13 追加（mode5 敌人图鉴）。
+//! 迭代 25：T351/352 收敛——paint_menu5 八处移植笔误逐 op 对拍定位后修正，
+//! T1-500 全帧一致。
 //!
 //! 路径：boot → 标题 → 载入进度（mode8）→ slot0 → mode2 步进链（含
 //! step16 loadFloorSave）→ mode3 交 GameScene → 菜单族短链。
@@ -479,8 +481,8 @@ fn preset_load_menu_frames_match() {
 /// 道具13使用链（mode10 → activateItem(13) → mode5 敌人图鉴）。
 /// preset-item13.preset（MOT_L0 itemStack[0]=13×99）+ preset-item13.txt
 /// （-6 道具面板 / -5 使用 → mode5 / -2/-1 翻页），窗口 T1-500 全帧。
+/// 迭代 25 收敛：T351/352 残差 = paint_menu5 八处移植笔误（见 scene.rs 注释）。
 #[test]
-#[ignore] // T351 mode5 paint case5 残差 + T77 粒子（迭代 25 收敛中）
 fn preset_item13_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(
@@ -636,6 +638,7 @@ fn preset_item13_frames_match() {
                     },
                     1,
                 );
+                sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
                 if pending_key != 0 {
                     sc.press_key(pending_key);
                     pending_key = 0;
@@ -658,13 +661,6 @@ fn preset_item13_frames_match() {
                     buf.extend_from_slice(&p.to_be_bytes());
                 }
                 std::fs::write("/tmp/rust-item13-351.bin", &buf).unwrap();
-            }
-            if rec.tick == 351 {
-                let mut buf = Vec::new();
-                for &p in &screen.argb {
-                    buf.extend_from_slice(&p.to_be_bytes());
-                }
-                std::fs::write("/tmp/rust-351-argb.bin", &buf).unwrap();
             }
             sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
         }

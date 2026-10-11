@@ -12,6 +12,7 @@
 - [commit 声称必须与内容一致](gotcha_commit-claims-must-match-content.md) — 同批工具调用中 edit 失败但 bash commit 照跑 ⇒ message 声称了未落地变更（实测 413a697）；commit 前逐项核对 `git show --stat`
 - [changedPaths 精确匹配语义](gotcha_agentteams-changedpaths-exact-match.md) — inScope 无尾斜杠=精确串非前缀，文件级登记被判 undeclared；契约粒度要与登记粒度对齐
 - [cargo glob members 要求目录有 manifest](gotcha_cargo-workspace-glob-requires-manifest.md) — `crates/*` 每个命中目录都是成员候选，缺 Cargo.toml 直接报错；crates/ 只放 crate 目录
+- [oracle 帧 PNG 通道序 (A,R,G,B)](gotcha_oracle-png-channel-order.md) — PIL convert('RGB') 取到 (255,R,G)，帧对比会得出 ~99% 假差异；须 convert('RGBA') 取后三通道
 
 ## Patterns
 
@@ -20,6 +21,7 @@
 ## Debug
 
 - [同名重载消歧用 renamed javap](debug_renamed-javap-disambiguates-overloads.md) — CFR 文本的重载同名无法 grep 消歧；对 renamed class 跑 javap，`getfield #NNN` 一条定案
+- [帧残差收敛用 op 逐行对拍](debug_op-stream-diff-convergence.md) — g.ops 前 256 条 vs trace OPS 块 diff，一次定位全部移植笔误；flushOps 块内 256 条上限（count=N 是全量）
 
 ## Decisions
 

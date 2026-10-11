@@ -506,7 +506,7 @@ impl<'a> SoftGraphics<'a> {
 
     /// `drawString`。
     pub fn draw_string(&mut self, s: &[u16], x: i32, y: i32, anchor: i32) {
-        self.op(format!("drawString({}, {x},{y},{anchor})", quote_utf16(s)));
+        self.op(format!("drawString({},{x},{y},{anchor})", quote_utf16(s)));
         self.draw_text(s, 0, s.len(), x, y, anchor);
     }
 
@@ -517,7 +517,7 @@ impl<'a> SoftGraphics<'a> {
     /// 对抗 review D-2：调用方 a.java:5054 的 len 是差值，可能为负）。
     pub fn draw_substring(&mut self, s: &[u16], offset: i32, len: i32, x: i32, y: i32, anchor: i32) {
         self.op(format!(
-            "drawSubstring({}, {offset},{len},{x},{y},{anchor})",
+            "drawSubstring({},{offset},{len},{x},{y},{anchor})",
             quote_utf16(s)
         ));
         let from = offset.max(0) as usize;

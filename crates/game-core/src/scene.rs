@@ -2412,6 +2412,7 @@ impl GameScene {
                 let c = row as usize;
                 let t = self.encyc_types[c] as usize;
                 let pred = self.encyc_damage[c];
+                x = bx + 16;
                 g.set_color(13097429);
                 let name: Vec<u16> = self.object_type_names[t].encode_utf16().collect();
                 g.draw_string(&name, x, y + 2, 0);
@@ -2422,7 +2423,7 @@ impl GameScene {
                     g.draw_image(&self.images.ui[17], dmg_x - 4, y + 2, 0);
                 } else {
                     g.draw_image(&self.images.ui[16], dmg_x - 12, y + 2, 0);
-                    x = dmg_x + 3;
+                    x = dmg_x + 15;
                     crate::menu_family::paint_mini_frame(g, x - 1, y + 6, 48, 12);
                     paint_number(g, &self.images.ui[2], pred, x + 45, y + 8);
                 }
@@ -2454,41 +2455,42 @@ impl GameScene {
                 x += 15;
                 crate::menu_family::paint_mini_frame(g, x, y, 48, 12);
                 let atk_v = self.enemies.atk.get(t.saturating_sub(41)).copied().unwrap_or(0);
-                paint_number(g, &self.images.ui[2], atk_v, x + 45, y + 2);
+                paint_number(g, &self.images.ui[2], atk_v, x + 40, y + 2);
                 x += 52;
                 draw_image_clipped(g, &self.images.ui[7], x, y, 20, 2, 10, 10);
                 x += 15;
                 g.set_color(512);
                 crate::menu_family::paint_mini_frame(g, x, y, 48, 12);
                 let def_v = self.enemies.def.get(t.saturating_sub(41)).copied().unwrap_or(0);
-                paint_number(g, &self.images.ui[2], def_v, x + 45, y + 2);
+                paint_number(g, &self.images.ui[2], def_v, x + 40, y + 2);
                 x -= 82;
                 y += 12;
                 draw_image_clipped(g, &self.images.ui[7], x, y + 5, 0, 2, 10, 10);
                 x += 15;
                 crate::menu_family::paint_mini_frame(g, x, y + 5, 48, 12);
                 let hp_v = self.enemies.hp.get(t.saturating_sub(41)).copied().unwrap_or(0);
-                paint_number(g, &self.images.ui[2], hp_v, x + 45, y + 7);
-                x += 40;
-                g.draw_image(&self.images.battle_icon, x, y, 0);
+                paint_number(g, &self.images.ui[2], hp_v, x + 40, y + 7);
+                x += 52;
+                g.draw_image(&self.images.ui[1], x, y + 5, 0);
                 x += 15;
                 crate::menu_family::paint_mini_frame(g, x, y + 5, 48, 12);
                 let gold = self.enemy_base_gold.get(t.saturating_sub(41)).copied().unwrap_or(0);
-                paint_number(g, &self.images.ui[2], gold, x + 45, y + 7);
+                x += 40;
+                paint_number(g, &self.images.ui[2], gold, x, y + 7);
                 y += 18;
                 if row + 1 < self.encyc_scroll_bottom {
                     x = bx + 16 - 5;
                     g.set_color(6435);
-                    g.draw_line(x, y, x + self.encyc_panel_w - 1, y);
+                    g.draw_line(x, y, x + self.encyc_panel_w - 22, y);
                     y += 1;
                     g.set_color(4803902);
-                    g.draw_line(x, y, x + self.encyc_panel_w - 1, y);
-                    y += 2;
+                    g.draw_line(x, y, x + self.encyc_panel_w - 22, y);
                 }
+                y += 2;
             }
             y += 16;
             if self.encyc_scroll_bottom < self.encyc_count {
-                draw_image_clipped(g, &self.images.ui[19], 112, y + (self.frame_counter & 1) as i32, 7, 0, 14, 14);
+                draw_image_clipped(g, &self.images.ui[19], 112, y + (self.frame_counter & 1) as i32, 16, 17, 15, 17);
             }
         }
         m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);

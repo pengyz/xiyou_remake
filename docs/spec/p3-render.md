@@ -467,9 +467,15 @@ paint case10（a.java:2724-2792：斜线背景（颜色驻留恰为 #000000）+ 
 12a. **mode8 MOT_IF 37 字节修正（迭代 24）**：preset-item13 的 MOT_IF 仅
    32 字节（slot0）——缺 slots1-5 的 5×valid 字节导致 loadSlotTable 解析
    失败回退全无效。补 5×00 后 T151 命中。
-12b. **mode5 敌人图鉴（迭代 24 首帧残差）**：paint case5 逐行复刻已入库
+12b. **mode5 敌人图鉴（迭代 24 首帧残差 → 迭代 25 收敛）**：paint case5 逐行复刻入库
    （a.java:2497-2560 verbatim：paintBoxFrame/名称/预测/精灵/攻防/金币/
-   行分隔线/箭头），T351 首帧残差待逐 op 对拍定位。
+   行分隔线/箭头）。T351/352 残差经 op 逐行对拍定位为 paint_menu5 九处移植笔误：
+   掉落组 x 基准 dmg_x+3 应为 +15；攻/防/血/金币 paintNumber x+45 应为 +40；
+   金币图标 ui[1]（11x12）误用 battle_icon（39x22）；金币推进 x+=40 应为 +52、
+   画于 y+5；行分隔线终点 -22 误为 -1；行首 x 未按 Java for-update 重置（第二行
+   名字 x=27 应为 32）；行尾 y+=2 误入分隔线 if 内（Java 在 if 外恒加 ⇒ 箭头
+   y 差 2px）。另：enemy_base_gold 表未随 preset 测试装配。修正后 preset_item13
+   T1-500 全帧一致（含 mode10→mode5 使用链全程）。
 12. **mode 15 帮助（迭代 23 收敛）**：kind5 → gameMode=15 + menuReturnMode=4
    + m_000 case15（a.java:4402-4413：showOverlayMessage(0, 帮助全文283字,
    0,0) + 软键(0,3)）→ 浮层全文（paint_wrapped_text 180px 多页换行 +
