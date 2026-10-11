@@ -62,6 +62,18 @@ impl Default for ParallaxBackdrop {
 }
 
 impl ParallaxBackdrop {
+    /// backdropScroll 只读（boot→场景交接用）。
+    pub fn scroll(&self) -> i32 {
+        self.scroll
+    }
+
+    /// backdropScroll 写入（场景接管）。
+    pub fn set_scroll(&mut self, v: i32) {
+        self.scroll = v;
+    }
+}
+
+impl ParallaxBackdrop {
     pub fn new() -> ParallaxBackdrop {
         ParallaxBackdrop { scroll: 0 }
     }
@@ -592,6 +604,59 @@ impl SlotSelect {
             gold: [0; 6],
             weapon: [0; 6],
             armor: [0; 6],
+        }
+    }
+
+    /// loadSlotTable（a.java:9313-9346）：MOT_IF 槽表解析（6 槽，有效槽
+    /// 11 字段：valid/floor/weapon/armor/hp/atk/def/钥×3/gold）；无记录/
+    /// 解析失败 → markSlotEntry(-1)（全无效冷态）。
+    pub fn load_slot_table(&mut self, mot_if: Option<&[u8]>) {
+        let data = match mot_if {
+            Some(d) if !d.is_empty() => d,
+            _ => {
+                *self = SlotSelect::new();
+                return;
+            }
+        };
+        let mut pos = 0usize;
+        let read_u8 = |p: &mut usize| {
+            let v = data[*p];
+            *p += 1;
+            v
+        };
+        let read_i32 = |p: &mut usize| {
+            let v = i32::from_be_bytes(data[*p..*p + 4].try_into().unwrap());
+            *p += 4;
+            v
+        };
+        self.valid = [false; 6];
+        let mut ok = true;
+        for k in 0..6 {
+            if pos >= data.len() {
+                ok = false;
+                break;
+            }
+            let valid = read_u8(&mut pos) != 0;
+            self.valid[k] = valid;
+            if valid {
+                if pos + 2 + 28 > data.len() {
+                    ok = false;
+                    break;
+                }
+                self.floor_num[k] = read_u8(&mut pos) as i8;
+                self.weapon[k] = read_u8(&mut pos) as i8;
+                self.armor[k] = read_u8(&mut pos) as i8;
+                self.hp[k] = read_i32(&mut pos);
+                self.atk[k] = read_i32(&mut pos);
+                self.def[k] = read_i32(&mut pos);
+                self.keys_yellow[k] = read_i32(&mut pos) as i16;
+                self.keys_blue[k] = read_i32(&mut pos) as i16;
+                self.keys_red[k] = read_i32(&mut pos) as i16;
+                self.gold[k] = read_i32(&mut pos);
+            }
+        }
+        if !ok {
+            *self = SlotSelect::new();
         }
     }
 

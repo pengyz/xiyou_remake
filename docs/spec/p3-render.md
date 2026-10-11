@@ -423,6 +423,19 @@ paint case10（a.java:2724-2792：斜线背景（颜色驻留恰为 #000000）+ 
    （markSlotEntry 生效）且浮层未现；Rust 同拍多画浮层尾。存档拍 show
    OverlayMessage 的 overlayActive 生效时机 + mode7 paint 的浮层尾挂接，
    在短场景（preset 直达 + ~800 tick）里以 stride-1 trace 精确定位。
+5. **槽载入交接已落地**（迭代 19）：BootMachine mode8 -6/-5 → LoadProgress
+   槽链 [6,8,5,13,9,16,10,2,3,11] → mode3 + slot_loaded 信号 → 宿主
+   GameScene::load_floor_from_save（loadFloorSave 应用 + step10/11 +
+   m_000 case3）；SlotSelect::load_slot_table（MOT_IF 解析）；BootMachine
+   preset_stores/set_rng_seed。测试 preset_cases（A-preset-load-menu，
+   800 tick，boot+槽载入+菜单族短链）。
+6. **preset 场景 rng 种子实测**：a.java:2325 setSeed(VTime)——preset 触发
+   RecordStore 类载入点变化 ⇒ V(ctor)=11813（非 preset 场景 0；T73 标题
+   粒子 (208,206) 暴力反推唯一解）。BootMachine::set_rng_seed 承接。
+7. **T73 标题帧 8px TOLERATED 候选**（preset_cases #[ignore]）：①粒子
+   age-0 可见性（Java spawn 当拍不画）②底部图标条相位一格——mode1 标题
+   化妆品子系统，收敛动作：粒子 paint 首拍隐身 + drawIconStrip 的
+   iconStripDx/Dy 相位表核对（a.java:4794-4814）。
 
 ## 4. 证据基线
 

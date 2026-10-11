@@ -1,0 +1,38 @@
+# ticks: 800
+# cover: preset 槽载入（MOT_L0 floor1 (3,10) hp500/atk30/def30 钥1/0/0 金100）直达
+#   mode3 → 菜单族短链：mode4 菜单/继续游戏/mode10 道具面板/mode7 存档槽+存档/
+#   浮层关闭/返回行走
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+260 -7 press
+262 -7 release
+300 -6 press
+302 -6 release
+340 -6 press
+342 -6 release
+380 -7 press
+382 -7 release
+420 -7 press
+422 -7 release
+460 -2 press
+462 -2 release
+500 -6 press
+502 -6 release
+540 -6 press
+542 -6 release
+580 -7 press
+582 -7 release
+620 -7 press
+622 -7 release
+660 -7 press
+662 -7 release
+700 -4 press
+702 -4 release
+740 -4 press
+742 -4 release

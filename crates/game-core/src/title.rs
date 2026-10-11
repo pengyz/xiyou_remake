@@ -154,7 +154,7 @@ pub struct TitleMachine {
     /// animBobOffset：bob 摆动偏移（advanceBobPhase 演化）。
     pub bob: i32,
     /// animBobRising：bob 方向（false=下降相 --，true=上升相 ++）。
-    bob_rising: bool,
+    pub bob_rising: bool,
     /// iconStripFrame（drawIconStrip 每 paint +1，环绕 8）。
     strip_frame: usize,
     /// 粒子层。

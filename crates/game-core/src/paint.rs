@@ -187,6 +187,11 @@ pub struct BootMachine {
     pub options: Option<crate::menu_family::OptionList>,
     /// iconStripFrame 共享（菜单族与 title 同一字段 a.java:464）。
     pub strip_frame: usize,
+    /// 虚拟 RMS：preset 解析产物（store→blob；槽载入/进度读档用）
+    pub preset_stores: Vec<(String, Vec<u8>)>,
+    /// 槽载入完成信号（run case8 -5 → mode2 链走完 → mode3）：
+    /// Some(slot_cursor) = 应构建 GameScene 并接管
+    pub slot_loaded: Option<usize>,
     /// soundEnabled（mode 16 勾选联动）。
     pub sound_enabled: bool,
     /// intro 容器 2 张（m_001(11)，引子页 0/1 图）。
@@ -245,6 +250,8 @@ impl BootMachine {
             slots: None,
             options: None,
             strip_frame: 0,
+            preset_stores: Vec::new(),
+            slot_loaded: None,
             sound_enabled: false,
             bob_offset: 0,
             bob_rising: false,
@@ -381,7 +388,20 @@ impl BootMachine {
                     -7 => self.mode = self.return_mode,
                     -2 => self.slots.as_mut().unwrap().cursor_down(),
                     -1 => self.slots.as_mut().unwrap().cursor_up(),
-                    // -6/-5：mode 8 且槽有效才读档（oracle 恒无效 ⇒ 无操作）
+                    // -6/-5：槽有效才读档（a.java:3844-3845）→ m_131(3,true)
+                    // + m_132 步序列 → mode 2 步进机（a.java:3845-3857）
+                    -6 | -5 => {
+                        let cursor = self.slots.as_ref().unwrap().cursor as usize;
+                        if self.slots.as_ref().unwrap().valid[cursor] {
+                            self.slot_loaded = Some(cursor); // 信号位：完成时置 Some
+                            self.loading = Some(crate::intro::LoadProgress::new(
+                                3,
+                                true,
+                                &[6, 8, 5, 13, 9, 16, 10, 2, 3, 11],
+                            ));
+                            self.mode = 2;
+                        }
+                    }
                     _ => {}
                 }
                 self.key_value = 0;
@@ -469,7 +489,14 @@ impl BootMachine {
                     self.loading = None;
                     self.mode = target;
                     if call_m000 {
-                        self.finished = true; // m_000 case 3（游戏态初始化）未端口
+                        if self.slot_loaded.is_some() {
+                            // 槽载入完成：m_000 case 3 的软键/清理由宿主在
+                            // 场景构建时落实（mode 3 交 GameScene 接管）
+                            self.softkeys = (1, 3);
+                            self.overlay_active = false;
+                        } else {
+                            self.finished = true; // 新游戏链 m_000 case 3 未端口
+                        }
                     }
                 }
                 self.key_value = 0;
@@ -491,6 +518,13 @@ impl BootMachine {
         }
     }
 
+    /// gameRandom 种子重设（a.java:2325 setSeed(VTime)：VTime 在 a() 构造时
+    /// 的取值随 Runner 前置行为（如 preset 触发的 RecordStore 类载入点）变化
+    /// ——preset 场景实测 11813（T73 粒子 (208,206) 暴力反推），非 preset 场景 0。
+    pub fn set_rng_seed(&mut self, seed: u64) {
+        self.rng = game_platform::JavaRandom::new_seeded(seed);
+    }
+
     /// 当前 title 光标对应的 kind（mode 1 出口分派键）。
     fn title_kind(&self) -> i32 {
         self.title
@@ -503,8 +537,22 @@ impl BootMachine {
     fn enter_menu_mode(&mut self) {
         match self.mode {
             8 => {
-                // case 8（a.java:4360-4379）：槽表 + 布局常量 + 软键 (1,3)
-                self.slots = Some(crate::menu_family::SlotSelect::new());
+                // case 8（a.java:4360-4379）：槽表（loadSlotTable 读 MOT_IF）
+                // + 布局常量 + 软键 (1,3)
+                let mot_if = self
+                    .preset_stores
+                    .iter()
+                    .find(|(k, _)| k.starts_with("MOT_IF@"))
+                    .map(|(_, v)| v.clone());
+                let slots = crate::menu_family::SlotSelect::new();
+                self.slots = Some(match mot_if {
+                    Some(d) => {
+                        let mut sl = slots;
+                        sl.load_slot_table(Some(&d));
+                        sl
+                    }
+                    None => slots,
+                });
                 self.softkeys = (1, 3);
             }
             15 => {

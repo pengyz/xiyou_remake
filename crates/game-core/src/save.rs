@@ -44,6 +44,10 @@ pub struct FloorSave {
     pub red_keys: i16,
     pub gold: i32,
     pub alchemy_upgrades: i16,
+    /// 道具栈（itemStackSize + 类型/次数对）
+    pub item_stack_size: u8,
+    pub item_stack_types: Vec<u8>,
+    pub item_stack_uses: Vec<u8>,
     /// 楼层触发状态（56 层变长块）。
     pub floor_states: Vec<Option<Vec<u8>>>,
 }
@@ -122,7 +126,13 @@ pub fn parse_floor_save(data: &[u8], script_line_count: usize) -> Result<FloorSa
     }
     // 道具栏
     let stack = c.u8() as usize;
-    c.skip(stack * 2);
+    s.item_stack_size = stack as u8;
+    s.item_stack_types = Vec::with_capacity(stack);
+    s.item_stack_uses = Vec::with_capacity(stack);
+    for _ in 0..stack {
+        s.item_stack_types.push(c.u8());
+        s.item_stack_uses.push(c.u8());
+    }
     // 56 层触发状态
     for _ in 0..56 {
         let len = c.i16();

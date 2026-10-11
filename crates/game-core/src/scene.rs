@@ -450,6 +450,62 @@ pub const RAINBOW_COLORS: [u32; 7] = [
 pub const EQUIPMENT_MATERIAL_NAMES: [&str; 9] =
     ["无", "木", "铁", "银", "金", "布", "皮", "锁", "金"];
 
+/// GameScene 的存档载入构造（run case8 → mode2 链 → step16 loadFloorSave +
+/// step10 loadFloorData/buildMinimap + step11 相机/朝向 + m_000 case3）。
+#[allow(clippy::too_many_arguments)]
+pub fn load_floor_from_save(
+    maplv: &[u8],
+    records: &[(u8, u16, u16, i16, bool)],
+    width_table: &[i32],
+    tile_walkability: &[i32],
+    images: SceneImages,
+    floor_assets: Vec<Option<FloorAssets>>,
+    save: &crate::save::FloorSave,
+) -> Result<GameScene, String> {
+    let px = (save.player_cell_x as i32) << 5;
+    let py = (save.player_cell_y as i32) << 5;
+    let mut scene = GameScene::load_floor(
+        maplv,
+        px,
+        py,
+        records,
+        width_table,
+        tile_walkability,
+        images,
+        floor_assets,
+    )?;
+    // step 16 = loadFloorSave 字段应用（a.java:9257-9299）
+    scene.floor = save.current_floor as i32;
+    scene.current_floor = save.current_floor as i32;
+    scene.min_floor = save.min_floor_reached as i32;
+    scene.max_floor = save.max_floor_reached as i32;
+    scene.facing = 0; // step 11（a.java:3521，覆盖 blob 朝向——Java 原样）
+    scene.player.hp = save.player_hp;
+    scene.player.atk = save.player_atk;
+    scene.player.def = save.player_def;
+    scene.player.yellow_keys = save.yellow_keys as i32;
+    scene.player.blue_keys = save.blue_keys as i32;
+    scene.player.red_keys = save.red_keys as i32;
+    scene.player.gold = save.gold;
+    scene.player.item_stack_size = save.item_stack_size as i32;
+    for k in 0..save.item_stack_size as usize {
+        scene.player.item_types[k] = save.item_stack_types[k];
+        scene.player.item_uses[k] = save.item_stack_uses[k];
+    }
+    scene.saved_floor_states = save.floor_states.clone();
+    scene.script_line_flags = vec![false; 128];
+    // step 10 = loadFloorData（应用本层触发缓存）+ buildMinimap（a.java:3515-3517）
+    scene.load_floor_data(maplv, px, py, records)?;
+    scene.build_minimap();
+    // step 11 相机（a.java:3523-3525）+ m_000 case 3（a.java:4312-4318）
+    scene.enter_view();
+    scene.softkeys = (1, 3);
+    scene.overlay_active = false;
+    scene.apply_step_cell_effects();
+    Ok(scene)
+}
+
+
 impl GameScene {
     /// loadFloorData（a.java:9404-9438）：maplv 装载 + m_059 格索引重建 +
     /// 可行走重建 + m_122 实体生成 + sortEntitiesByY 排序。
