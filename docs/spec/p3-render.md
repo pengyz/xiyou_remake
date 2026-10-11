@@ -437,8 +437,19 @@ paint case10（a.java:2724-2792：斜线背景（颜色驻留恰为 #000000）+ 
    消除（A 变体仍指向真钟）⇒ 标题期粒子帧（T71-239）Java 自身跨运行
    不可复现（同命令两次生成 T73 sha 60015c67 vs 28e5a56a 实测）。
    处置：preset 用例对拍窗口从 T240 起（槽载入完成后完全确定）；
-   BootMachine::set_rng_seed 供 Rust 侧按需拟合（27879 = 该次生成实值）。
-   oracle 收敛动作（可选）：ttransform 补构造器内 currentTimeMillis 重定向。
+   BootMachine::set_rng_seed 供 Rust 侧按需拟合。
+   **oracle 收敛动作（必须）**：ttransform 已全局重定向 currentTimeMillis
+   → VTime，但 preset 场景 A-preset-item13 需用 variantA（非 orig）生成
+   ——这已在迭代 22 定案并写入用例头注（variantA 的 V(ctor)=0 确定）。
+14. **⚠ shim drawGlyph = 哈希占位字形（用户质疑定案，迭代 25）**：
+   shim Graphics.drawGlyph 用字符码哈希派生 5×5 点阵**代替真实汉字渲染**
+   （注释"确定性示意字形"）——所有文字帧中"汉字"均为哈希噪声图案，
+   **不可读**。这是 shim 有意设计（非设备保真），Java↔Rust 像素对拍
+   不受影响（同一 shim）。但**不能将不可读文字归咎于"原版 Bug"**。
+   真机字体渲染 = P4 视觉门禁范围（需 Nokia S40 CJK 点阵字库数据）。
+   同理：**mode 5 布局/间距差异来自原始字节码**（A 变体=原始字节），
+   不是反编译错误——但字号/行高等 shim Font 度量为近似值，真机排版
+   可能有差异。
 8. **浮层尾全局化（迭代 21 收敛）**：showOverlayMessage 后的浮层框
    （a.java:3129-3168）为 paint 公共尾——mode 4/7/10/16/19 各 paint 均需
    追加（此前仅 mode 3 有）⇒ 抽 paint_overlay_box 并全模式挂接。

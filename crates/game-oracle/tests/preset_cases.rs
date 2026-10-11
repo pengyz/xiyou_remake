@@ -480,7 +480,7 @@ fn preset_load_menu_frames_match() {
 /// preset-item13.preset（MOT_L0 itemStack[0]=13×99）+ preset-item13.txt
 /// （-6 道具面板 / -5 使用 → mode5 / -2/-1 翻页），窗口 T1-500 全帧。
 #[test]
-#[ignore] // T351 mode5 残差待收敛（HP 数值差+白精灵，spec §3.13 第 12b 条）
+#[ignore] // T351 mode5 paint case5 残差 + T77 粒子（迭代 25 收敛中）
 fn preset_item13_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(
@@ -651,6 +651,13 @@ fn preset_item13_frames_match() {
             match scene.as_mut() {
                 Some(sc) => sc.paint(&mut g, &tileset),
                 None => machine.paint(&mut g),
+            }
+            if rec.tick == 351 {
+                let mut buf = Vec::new();
+                for &p in &screen.argb {
+                    buf.extend_from_slice(&p.to_be_bytes());
+                }
+                std::fs::write("/tmp/rust-item13-351.bin", &buf).unwrap();
             }
             if rec.tick == 351 {
                 let mut buf = Vec::new();
