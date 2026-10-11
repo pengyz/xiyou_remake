@@ -1,3 +1,4 @@
+# preset: preset-item13.preset
 # ticks: 500
 # cover: preset（含道具13火眼金睛）槽载入 → mode10 道具面板 → 使用13 →
 #   mode5 敌人图鉴（m_091 数据 + paint case5）→ 翻页 → 返回

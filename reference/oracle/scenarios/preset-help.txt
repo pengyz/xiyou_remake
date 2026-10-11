@@ -1,3 +1,4 @@
+# preset: preset-floor1.preset
 # ticks: 800
 # cover: preset 槽载入 → mode4 菜单 → kind5 帮助（mode15 浮层全文/翻页/关闭）
 #   路径：100 -2 载入进度 / 150 -5 mode8 / 200 -5 slot0 载入 / 300 -7 菜单 /

@@ -1,3 +1,4 @@
+# preset: preset-floor1.preset
 # ticks: 800
 # cover: preset 槽载入（MOT_L0 floor1 (3,10) hp500/atk30/def30 钥1/0/0 金100）直达
 #   mode3 → 菜单族短链：mode4 菜单/继续游戏/mode10 道具面板/mode7 存档槽+存档/
