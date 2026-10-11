@@ -553,6 +553,7 @@ impl OverlayEngine {
 // ============================== 槽位列表 ==============================
 
 /// paintSlotList（a.java:9050-9155）的槽位表（oracle RMS 恒空 ⇒ 全无效）。
+#[derive(Clone)]
 pub struct SlotSelect {
     /// slotCursor：槽光标（0..5 环绕）。
     pub cursor: i32,

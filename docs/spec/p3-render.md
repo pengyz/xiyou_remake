@@ -441,6 +441,9 @@ paint case10（a.java:2724-2792：斜线背景（颜色驻留恰为 #000000）+ 
    preset 条件性的 2 词 rng 消耗——嫌疑：mode-21 火花循环
    （a.java:3018 randomBelow(15)×f_byte_20，paint 侧）的 SKY_WAR 成功路径
    差异；收敛动作：Runner 加 gameRandom 状态 dump 或逐 paint 消耗计数。
+9. **存档拍后 mode7 详情面板（case-set 首案后续）**：存档动作/浮层/数据
+   两侧一致；残差 = 详情面板槽光标位置与布局子元素（T341 2382px，
+   y137-182）。待逐 op 对拍（preset 短 trace 267 ops 已可全量比对）。
 
 ## 4. 证据基线
 

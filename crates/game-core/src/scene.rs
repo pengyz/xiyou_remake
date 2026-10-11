@@ -375,6 +375,8 @@ pub struct GameScene {
     pub menu_return_mode: i32,
     /// mode 7 存档槽状态（m_000 case7 布局 + loadSlotTable 冷态）
     pub slot: crate::menu_family::SlotSelect,
+    /// MOT_IF 槽表 blob（preset 虚拟 RMS；loadSlotTable 每次进 mode7 重读）
+    pub preset_mot_if: Option<Vec<u8>>,
     /// mode 16 设置面板（kind4 进入；menuReturnMode=4 返回）
     pub options: Option<crate::menu_family::OptionList>,
     /// soundEnabled（run case16 label0 翻转；无像素效应，RMS 进度侧状态）
@@ -639,6 +641,7 @@ impl GameScene {
             menu_cursor: 0,
             menu_return_mode: 1,
             slot: crate::menu_family::SlotSelect::new(),
+            preset_mot_if: None,
             options: None,
             sound_enabled: true,
             special_item_types: Vec::new(),
@@ -1994,6 +1997,10 @@ impl GameScene {
     /// （oracle 冷态 RMS 恒空 ⇒ 六槽全无效）+ 槽表布局（6 行/宽 148/高 196）。
     fn enter_menu7(&mut self) {
         self.slot = crate::menu_family::SlotSelect::new();
+        // loadSlotTable（a.java:9313-9346）：每次进入重读 RMS 槽表
+        if let Some(mot_if) = &self.preset_mot_if {
+            self.slot.load_slot_table(Some(mot_if));
+        }
         self.softkeys = (1, 3);
     }
 

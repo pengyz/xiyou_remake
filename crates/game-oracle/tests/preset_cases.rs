@@ -1,10 +1,14 @@
 //! preset 槽载入 + 短脚本场景用例集（spec p3-render §3.13）。
 //!
-//! #[ignore] 理由（收敛中）：T73 已收敛（V(ctor)=27879，种子修复后首粒
-//! (67,293) 命中）；当前残差 = T77 第二粒子：Java (214,218)（rb 对 (214,77)）
-//! 不在 seed-27879 LCG 延续流（4000 词无匹配）⇒ preset 条件性的额外 rng
-//! 消耗（T74-76 间恰 2 词）待定位——嫌疑：SKY_WAR 读成功路径 / mode-21
-//! 火花循环（a.java:3018 randomBelow(15)×N）的 paint 侧消耗。迭代 20 续。
+//! 对拍窗口 = 槽载入完成后（T240 起）：标题期粒子（a.java:2325
+//! setSeed(墙钟)）跨运行不可复现（同命令两次生成 T73 sha 60015c67 vs
+//! 28e5a56a 实测不同）——Java 侧非确定性，非 Rust 缺陷；载入完成后的
+//! 世界帧完全确定（槽载入链 T240 + 菜单族短链 + 存档拍）。
+//!
+//! #[ignore] 理由（收敛中，残差已缩至子元素级）：① T77 标题第二粒子
+//! （Java (214,218)，rb 对 (214,77)，不在 seed-27879 流 4000 词内——T74-76
+//! 间 2 词 preset 条件性消耗待定位）；② T341 存档拍 mode7 详情面板槽光标
+//! 位置/布局差（存档动作/浮层/数据两侧一致）。收敛动作见 spec §3.13。
 //!
 //! 路径：boot → 标题 → 载入进度（mode8）→ slot0 → mode2 步进链（含
 //! step16 loadFloorSave）→ mode3 交 GameScene → 菜单族短链。
@@ -90,7 +94,7 @@ fn input_key(inp: &Option<String>) -> i32 {
 }
 
 #[test]
-#[ignore] // T77 第二粒子分歧收敛中（见文件头说明 + spec §3.13 第 8 条）
+#[ignore] // 残差两项收敛中（见头注 + spec §3.13 第 8/9 条）
 fn preset_load_menu_frames_match() {
     let repo_path = repo();
     let preset_text =
@@ -208,6 +212,15 @@ fn preset_load_menu_frames_match() {
                 .as_mut()
                 .unwrap()
                 .tick(rec.tick as i64 - 1, &width_table());
+            if let Some(inp) = &rec.input {
+                if let Some(rest) = inp.strip_prefix("press(") {
+                    if let Some(code) = rest.strip_suffix(')').and_then(|k| k.parse::<i32>().ok()) {
+                        pending_press = code;
+                    }
+                } else if inp.starts_with("release(") {
+                    pending_release = true;
+                }
+            }
         } else {
             machine.tick(key);
             // 槽载入完成（run case2 完成分支 → mode3）：交接 GameScene
@@ -231,6 +244,11 @@ fn preset_load_menu_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
+                    sc.preset_mot_if = m
+                        .preset_stores
+                        .iter()
+                        .find(|(k, _)| k.starts_with("MOT_IF@"))
+                        .map(|(_, v)| v.clone());
                     if pending_key != 0 {
                         sc.press_key(pending_key);
                         pending_key = 0;
@@ -253,22 +271,28 @@ fn preset_load_menu_frames_match() {
                 Some(sc) => sc.paint(&mut g, &tileset),
                 None => machine.paint(&mut g),
             }
-            let dbg = (rec.tick == 73).then(|| (g.ops.join("\n"), screen.hash_stream()));
+            let dbg = if rec.tick == 341 { Some((g.ops.join("\n"), screen.hash_stream())) } else { None };
             sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
             if let Some((ops, raw)) = &dbg {
-                std::fs::write("/tmp/rust-73-ops.txt", ops).unwrap();
-                std::fs::write("/tmp/rust-73.raw", raw.clone()).unwrap();
+                std::fs::write("/tmp/rust-341-ops.txt", ops).unwrap();
+                std::fs::write("/tmp/rust-341.raw", raw.clone()).unwrap();
             }
         }
-        if let Some(expect) = &rec.frame_sha {
-            let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
-            assert_eq!(
-                &sha, expect,
-                "TICK {} 帧不符（mode={}）",
-                rec.tick, mode
-            );
-            checked += 1;
+        if rec.tick >= 240 {
+            if let Some(expect) = &rec.frame_sha {
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                assert_eq!(
+                    &sha, expect,
+                    "TICK {} 帧不符（mode={}）",
+                    rec.tick, mode
+                );
+                checked += 1;
+            }
         }
     }
-    assert_eq!(checked, records.len(), "全部帧必须比对");
+    assert_eq!(
+        checked,
+        records.len().saturating_sub(240),
+        "T241-800 应全比对（标题期粒子为墙钟不可复现区）"
+    );
 }
