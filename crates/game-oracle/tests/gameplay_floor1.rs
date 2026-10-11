@@ -116,6 +116,7 @@ fn build_scene() -> GameScene {
         spark_sheet: actor_c[2].clone(),
         corner_sprites: ui[23].clone(),
         map211: Some(map[11].clone()),
+        map210: map[10].clone(),
         battle_icon: map[8].clone(),
         battle_strip: map[7].clone(),
         ui,
@@ -592,9 +593,6 @@ fn dump_frame_pixels() {
 /// (a) 状态栏"引子"（m_142 outline 已实现但位置偏上：我 y9 白 vs java y16 白，
 ///     疑 draw_string BASELINE=17 语义/SMALL 字形位图 y 范围（baseline=8, h=10）；
 /// (b) 游戏视图实体动画帧（sprite51 怪/仙桃 advanceEntityFrames 相位）；
-/// (c) 对话框文本内容（T584 应已显示 TAK_255 首页前缀）。
-/// 相机已一致 (64,-228)；maplv51=12×13（wide=12，行距 wide*4=48/24）已确认。
-#[ignore]
 /// 场景状态按 a.java:3481-3487 冷启动（floor51/hp300/atk10/def10）。
 #[test]
 fn prologue_dialog_frames_match() {
@@ -646,6 +644,7 @@ fn prologue_dialog_frames_match() {
         spark_sheet: actor_c[2].clone(),
         corner_sprites: ui[23].clone(),
         map211: Some(map[11].clone()),
+        map210: map[10].clone(),
         battle_icon: map[8].clone(),
         battle_strip: map[7].clone(),
         ui,
@@ -672,6 +671,23 @@ fn prologue_dialog_frames_match() {
     scene.current_floor = 51;
     scene.min_floor = 51;
     scene.max_floor = 51;
+    // bob 初值（A-prologue-dialog trace FLD 120=animBobOffset 实测：T576 dump=2，
+    // 8 周期 [0,1,2,1,0,-1,-2,-1] 中值 2 唯一对应 rising=false；标题期 run case 1
+    // 每 tick 推进 a.java:3387 + 加载期无 entity layer ⇒ 冻结在 2）。T902 外推 =0，
+    // 与帧内箭头坐标（101,117）吻合
+    scene.bob_offset = 2;
+    scene.bob_rising = false;
+    // m_068 新游重置尾（a.java:7206-7211）：difficultyIndex=0 → scaleEnemyStats(×1)；
+    // 序章 -5 键的 predictHpLossVsType 需要该表（floor51 无战斗但 cat-8 实体存在）
+    scene.enemies = game_core::combat::scale_enemy_stats(
+        &game_core::combat::CombatTables {
+            enemy_base_hp: fixture_ints("enemybasehp.txt"),
+            enemy_base_atk: fixture_ints("enemybaseatk.txt"),
+            enemy_base_def: fixture_ints("enemybasedef.txt"),
+            difficulty_multipliers: fixture_ints("difficulty_multipliers.txt"),
+        },
+        1,
+    );
     scene.player.hp = 300;
     scene.player.atk = 10;
     scene.player.def = 10;
@@ -740,14 +756,6 @@ fn prologue_dialog_frames_match() {
             sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
         }
         if let Some(expect) = &rec.frame_sha {
-            if rec.tick == 578 {
-                std::fs::write("/tmp/rust-pro-578.bin", screen.hash_stream()).unwrap();
-                eprintln!("T578: scroll={} cam=({},{}) ease=({},{},{},{}) mode={} phase={} char={} page={} speaker={} px=({},{})",
-                    scene.backdrop_scroll, scene.view.cam_x, scene.view.cam_y, scene.ease_cam_x, scene.ease_cam_y,
-                    scene.ease_target_x, scene.ease_target_y, scene.game_mode, scene.dialog_phase,
-                    scene.dialog_char, scene.dialog_page, scene.dialog_speaker,
-                    scene.view.player_px, scene.view.player_py);
-            }
             assert_eq!(
                 &sha, expect,
                 "TICK {} 帧不符（mode={} phase={} page={} char={}）",

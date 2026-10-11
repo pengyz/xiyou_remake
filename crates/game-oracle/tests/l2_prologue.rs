@@ -16,8 +16,8 @@ fn table() -> DialogueTable {
         .map(|s| s.trim_end_matches('\u{1e}').to_string())
         .collect();
     let texts: Vec<String> = include_str!("../../game-core/tests/fixtures/dialogue_texts.txt")
-        .split("\u{1e}\n")
-        .map(|s| s.trim_end_matches('\u{1e}').to_string())
+        .lines()
+        .map(game_core::scene::unescape_text_fixture)
         .collect();
     let speakers: Vec<i8> = include_str!("../../game-core/tests/fixtures/speaker_types.txt")
         .lines()

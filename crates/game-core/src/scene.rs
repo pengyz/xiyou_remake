@@ -57,6 +57,8 @@ pub struct SceneImages {
     pub corner_sprites: ArgbImage,
     /// map[2][11]：SEE phase6 目标箭头
     pub map211: Option<ArgbImage>,
+    /// map[2][10]：道具面板选中框（38×38 双帧）
+    pub map210: ArgbImage,
     /// map[2][8]：战后数字条目标图标
     pub battle_icon: ArgbImage,
     /// map[2][7]：战后数字条（drawDigitStrip 7px 数字带）
@@ -141,6 +143,31 @@ pub struct DialogData {
     pub bubbles: Vec<i8>,
 }
 
+/// dialogue_texts.txt 行反转义（行安全格式：`\\` `\n` `\r` 为字面转义，
+/// 由 a.java dialogueTexts 初始化器 a.java:1909-1930 一致提取；2026-10-11
+/// 修复旧夹具把 trace 转义层 `\\c` 当内容的污染，19 条含 \c 转义的对白）。
+pub fn unescape_text_fixture(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut it = line.chars();
+    while let Some(c) = it.next() {
+        if c == '\\' {
+            match it.next() {
+                Some('n') => out.push('\n'),
+                Some('r') => out.push('\r'),
+                Some('\\') => out.push('\\'),
+                Some(other) => {
+                    out.push('\\');
+                    out.push(other);
+                }
+                None => out.push('\\'),
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
 impl DialogData {
     fn from_fixtures() -> Self {
         let scripts = include_str!("../tests/fixtures/level_scripts.txt")
@@ -149,7 +176,7 @@ impl DialogData {
             .collect();
         let texts = include_str!("../tests/fixtures/dialogue_texts.txt")
             .lines()
-            .map(|l| l.trim().to_string())
+            .map(unescape_text_fixture)
             .collect();
         let speakers = include_str!("../tests/fixtures/speaker_types.txt")
             .lines()
@@ -329,6 +356,21 @@ pub struct GameScene {
     pub difficulty_index: i32,
     /// scriptWalkArmed（脚本行走武装；phase 3 门控）
     pub script_walk_armed: bool,
+    /// overlaySavedColor（paintWrappedText \c 保存/\r 恢复的色；Java 字段默认 0）
+    pub overlay_saved_color: i32,
+    /// mode 10 道具面板布局（m_000 case10 a.java:4366-4377：f_int_97..104）
+    pub item_cols: i32,
+    pub item_rows_total: i32,
+    pub item_rows_visible: i32,
+    pub item_scroll_top: i32,
+    pub item_scroll_bottom: i32,
+    pub item_box_w: i32,
+    pub item_box_h: i32,
+    pub item_cursor: i32,
+    /// f_bool_26：路径箭头可见（SEE flag=1 且 findPath 成功）
+    pub path_arrows_visible: bool,
+    /// walkPathBuffer（findPath 步序，目标端优先）
+    pub walk_path_buffer: Vec<u8>,
     /// f_byte_07：最近拾取/装备的类型号（浮层图标 + 商店显示）
     pub overlay_kind_item: i32,
     /// 浮层图标图（kind1/3：entityTypeImage[f_byte_07] 的克隆——paint 免借用冲突）
@@ -482,6 +524,17 @@ impl GameScene {
             dialog_data: DialogData::from_fixtures(),
             difficulty_index: 0,
             script_walk_armed: false,
+            overlay_saved_color: 0,
+            item_cols: 4,
+            item_rows_total: 8,
+            item_rows_visible: 6,
+            item_scroll_top: 0,
+            item_scroll_bottom: 6,
+            item_box_w: 202,
+            item_box_h: 296,
+            item_cursor: 0,
+            path_arrows_visible: false,
+            walk_path_buffer: Vec::new(),
             width_table: width_table.to_vec(),
             tile_walk: tile_walkability.to_vec(),
             afterimage_x: [0; 4],
@@ -812,7 +865,8 @@ impl GameScene {
             }
             i += 1;
         }
-        if !cur.is_empty() || lines.is_empty() {
+        // java：仅当末行有字符时 push（limit=0 → 0 行，a.java:5006-5010）
+        if !cur.is_empty() {
             lines.push(cur);
         }
         self.overlay_page_top = 0;
@@ -874,19 +928,23 @@ impl GameScene {
             .map(|s| s.encode_utf16().collect())
     }
 
-    /// paintWrappedText（a.java:5040-5117）：行渲染 + \\c 色切换 / \\r 复位 +
-    /// 上下页三角（frameCounter 闪烁；arrows=false 时省略——mode 11 对话框）。
+    /// paintWrappedText（a.java:5040-5117）：整行按 \\c 色段 flush（drawSubstring
+    /// 语义 = 片段 drawString）+ 跨页起始色继承 + \\r 恢复 + 翻页三角。
+    /// 忠实点：段起始 var12/游标 var16 的推进序、非法 hex 从反斜杠重画、
+    /// 未知转义丢反斜杠、var15 每行清 0 的 `!= -1` 怪癖。
     fn paint_wrapped_text(&mut self, g: &mut SoftGraphics<'_>, x: i32, y: i32, w: i32, max_h: i32, arrows: bool) {
         let font = crate::paint::paint_font();
         let line_h = font.height + 4;
-        // 向上找最近 \\c 起始色（跨页继承，a.java:5066-5070）
-        let saved = g.get_color();
+        // 向上找最近 \\c 起始色（a.java:5060-5070；解析失败 setColor(-1)=白）
         for i in (0..self.overlay_page_top as usize).rev() {
             if let Some(line) = self.overlay_lines.get(i) {
-                if let Some(pos) = line.rfind("\\c") {
-                    let hex = &line[pos + 2..(pos + 8).min(line.len())];
-                    if let Some(c) = crate::menu_family::parse_hex_color_public(hex) {
-                        g.set_color(c);
+                if let Some(pos) = line.rfind('\\') {
+                    if line[pos + 1..].starts_with('c') {
+                        let hex = &line[(pos + 2).min(line.len())..(pos + 8).min(line.len())];
+                        let c = crate::menu_family::parse_hex_color_public(hex)
+                            .map(|v| v as i32)
+                            .unwrap_or(-1);
+                        g.set_color(c as u32);
                         break;
                     }
                 }
@@ -895,38 +953,59 @@ impl GameScene {
         let mut ty = y + 2;
         for li in self.overlay_page_top as usize..self.overlay_page_bottom as usize {
             if let Some(line) = self.overlay_lines.get(li).cloned() {
-                let chars: Vec<char> = line.chars().collect();
-                let mut cx = x;
-                let mut i = 0;
-                let mut cmd_start: Option<usize> = None;
-                while i < chars.len() {
-                    if chars[i] == '\\' && i + 1 < chars.len() {
-                        let nxt = chars[i + 1];
-                        if nxt == 'c' && i + 7 < chars.len() {
-                            let hex: String = chars[i + 2..(i + 8).min(chars.len())].iter().collect();
-                            if let Some(c) = crate::menu_family::parse_hex_color_public(&hex) {
-                                g.set_color(c);
-                                i += 8;
-                                continue;
-                            }
-                            cmd_start.get_or_insert(i);
-                            cx += font.char_width('\\' as u16) + font.char_width('c' as u16);
-                            i += 2;
-                            continue;
-                        } else if nxt == 'r' {
-                            g.set_color(saved);
-                            i += 2;
-                            continue;
+                let codes: Vec<u16> = line.encode_utf16().collect();
+                let n = codes.len() as i32;
+                let mut seg_start = 0i32; // var12
+                let mut cx = x; // var13
+                let mut var15 = 0i32; // 每行清 0（a.java:5049）
+                let mut i = 0i32;
+                while i < n {
+                    if codes[i as usize] == '\\' as u16 {
+                        if i > 0 {
+                            // flush [seg_start, i) + x 推进（substringWidth）
+                            let len = (i - seg_start) as usize;
+                            let seg: Vec<u16> = codes[seg_start as usize..seg_start as usize + len].to_vec();
+                            g.draw_string(&seg, cx, ty, 0);
+                            cx += seg.iter().map(|c| font.char_width(*c)).sum::<i32>();
                         }
-                        cx += font.char_width('\\' as u16);
                         i += 1;
-                        continue;
+                        if i < n {
+                            let cmd = codes[i as usize];
+                            if cmd == 'c' as u16 {
+                                if i + 6 < n {
+                                    let hex: String = codes[i as usize + 1..i as usize + 7]
+                                        .iter()
+                                        .map(|c| *c as u8 as char)
+                                        .collect();
+                                    var15 = crate::menu_family::parse_hex_color_public(&hex)
+                                        .map(|v| v as i32)
+                                        .unwrap_or(-1);
+                                }
+                                if var15 != -1 {
+                                    self.overlay_saved_color = g.get_color() as i32;
+                                    g.set_color(var15 as u32);
+                                    i += 6;
+                                    seg_start = i + 1;
+                                } else {
+                                    seg_start = i - 1; // 非法 hex：从反斜杠起当文本
+                                }
+                            } else if cmd == 'r' as u16 {
+                                g.set_color(self.overlay_saved_color as u32);
+                                seg_start = i + 1;
+                            } else {
+                                seg_start = i; // 未知转义：丢反斜杠画命令字符
+                            }
+                        }
                     }
-                    if cmd_start.is_none() {
-                        g.draw_char(chars[i] as u16, cx, ty, 0);
-                    }
-                    cx += font.char_width(chars[i] as u16);
                     i += 1;
+                }
+                if seg_start != 0 {
+                    if seg_start < n {
+                        let seg: Vec<u16> = codes[seg_start as usize..].to_vec();
+                        g.draw_string(&seg, cx, ty, 0);
+                    }
+                } else {
+                    g.draw_string(&codes, x, ty, 0);
                 }
             }
             ty += line_h;
@@ -1101,7 +1180,8 @@ impl GameScene {
             }
             i += 1;
         }
-        if !cur.is_empty() || lines.is_empty() {
+        // java：仅当末行有字符时 push（limit=0 → 0 行，a.java:5006-5010）
+        if !cur.is_empty() {
             lines.push(cur);
         }
         self.overlay_page_top = 0;
@@ -1144,7 +1224,6 @@ impl GameScene {
             if pos >= cum - line.chars().count() as i32 && pos < cum {
                 return cum;
             }
-            pos = pos; // 保持
         }
         cum
     }
@@ -1178,18 +1257,40 @@ impl GameScene {
             let (tx, a) = Self::parse_script_int(&line, var2 + 1, '_');
             let (ty, b) = Self::parse_script_int(&line, a + 1, '_');
             let (pg, c) = Self::parse_script_int(&line, b + 1, '_');
-            let (_pg2, d) = Self::parse_script_int(&line, c + 1, '_');
-            let (flag, _e) = Self::parse_script_int(&line, d + 1, ' ');
+            let (pg2, d) = Self::parse_script_int(&line, c + 1, '_');
+            let (flag, e) = Self::parse_script_int(&line, d + 1, ' ');
             self.dialog_target = (tx, ty);
-            self.script_cursor = d + 2;
+            // Java 先把 pageStart/pageEnd 解析入字段再 openDialogPage
+            //（a.java:8483-8491）：pageEnd 不先更新会误判“越界”而丢页
+            self.dialog_page = pg;
+            self.dialog_page_end = pg2;
+            self.script_cursor = e + 1; // f_int_122 + 1（a.java:8489，同 TAK 口径）
             self.open_dialog_page(pg);
             if flag == 1 {
-                // 玩家路径（findPath + f_bool_26）：行走批实现——script 40 的
-                // SEE_3_10_166_166_1 flag=1 走 default 落 phase 6 + m_103
-                // （Java switch case1 **无 break 落穿 default**：路径成立时两者都做）
-                if self.find_path_player(tx, ty) {
-                    self.walk_step_count = 0;
+                // findPath(player → target)：成功 → f_bool_26=true + walkPhase=0
+                //（a.java:8493-8497；Java switch case1 **无 break 落穿 default**：
+                //  路径成立时 m_103 与路径箭头两者都做）
+                let walk = crate::pathfind::Walkability {
+                    terrain: self.walkable.clone(),
+                    has_entity_slot: &|x, y| {
+                        let ct = self.grid.cell_type[y as usize][x as usize] as usize;
+                        self.grid.capacity[ct] > 0
+                    },
+                    cols: self.view.wide,
+                    rows: self.view.high,
+                };
+                let result = crate::pathfind::find_path(
+                    &walk,
+                    self.player_cell_x,
+                    self.player_cell_y,
+                    tx,
+                    ty,
+                );
+                if result.found {
+                    self.path_arrows_visible = true;
                     self.walk_phase = 0;
+                    self.walk_path_buffer = result.steps;
+                    self.walk_step_count = self.walk_path_buffer.len() as i32;
                 }
             }
             self.dialog_phase = 6;
@@ -1208,11 +1309,6 @@ impl GameScene {
         } else {
             todo!("executeScriptInstruction 的 {op} opcode（对应脚本对拍批实现）")
         }
-    }
-
-    /// findPath 的玩家路径（phase 6 flag=1 的 f_bool_26）：行走批接线，暂 true。
-    fn find_path_player(&self, _tx: i32, _ty: i32) -> bool {
-        true
     }
 
     fn walkable_at(&self, x: i32, y: i32) -> bool {
@@ -1359,6 +1455,195 @@ impl GameScene {
         }
     }
 
+    /// m_000 case 10（a.java:4366-4377）：道具面板布局初始化。
+    fn enter_item_panel(&mut self) {
+        let font = crate::paint::paint_font();
+        self.item_cols = 4;
+        self.item_rows_total = 32 / self.item_cols;
+        self.item_rows_visible = (268 - font.height - 10) / 40;
+        if self.item_rows_visible > self.item_rows_total {
+            self.item_rows_visible = self.item_rows_total;
+        }
+        self.item_scroll_top = 0;
+        self.item_scroll_bottom = self.item_rows_visible;
+        self.item_box_w = 42 + 40 * self.item_cols;
+        self.item_box_h = 34 + font.height + 10 + 40 * self.item_rows_visible;
+        self.softkeys = (1, 3);
+    }
+
+    /// run case 10（a.java:3931-4005）：-7 返回 mode 3；-6/-5 使用道具
+    /// （13/14 直接生效回 mode 3、15/23/24/25 浮层(0,3)、其余浮层(1,2)）；
+    /// -4/-3 行内环绕、-2/-1 翻行+滚动窗跟随。
+    fn tick_item_panel(&mut self) {
+        match self.key_value {
+            -7 => self.game_mode = 3,
+            -6 | -5 => {
+                if self.item_cursor < self.player.item_stack_size {
+                    let t = self.player.item_types[self.item_cursor as usize] as i32;
+                    match t {
+                        13 | 14 => {
+                            self.game_mode = 3;
+                            self.activate_item(t);
+                        }
+                        15 | 23 | 24 | 25 => {
+                            let text = self.item_description(self.item_desc_index(t));
+                            self.show_overlay_message(3, &text, 0, 3);
+                        }
+                        _ => {
+                            let text = self.item_description(self.item_desc_index(t));
+                            self.show_overlay_message(3, &text, 1, 2);
+                        }
+                    }
+                }
+            }
+            -4 => {
+                if self.item_cursor % self.item_cols < self.item_cols - 1 {
+                    self.item_cursor += 1;
+                } else {
+                    self.item_cursor -= self.item_cols - 1;
+                }
+            }
+            -3 => {
+                if self.item_cursor % self.item_cols > 0 {
+                    self.item_cursor -= 1;
+                } else {
+                    self.item_cursor += self.item_cols - 1;
+                }
+            }
+            -2 => {
+                if self.item_cursor < self.item_cols * (self.item_rows_total - 1) {
+                    self.item_cursor += self.item_cols;
+                    if self.item_cursor / self.item_cols >= self.item_scroll_bottom {
+                        self.item_scroll_top += 1;
+                        self.item_scroll_bottom += 1;
+                    }
+                } else {
+                    self.item_cursor -= (self.item_rows_total - 1) * self.item_cols;
+                    self.item_scroll_top = 0;
+                    self.item_scroll_bottom = self.item_rows_visible;
+                }
+            }
+            -1 => {
+                if self.item_cursor >= self.item_cols {
+                    self.item_cursor -= self.item_cols;
+                    if self.item_cursor / self.item_cols < self.item_scroll_top {
+                        self.item_scroll_top -= 1;
+                        self.item_scroll_bottom -= 1;
+                    }
+                } else {
+                    self.item_cursor += (self.item_rows_total - 1) * self.item_cols;
+                    self.item_scroll_bottom = self.item_rows_total;
+                    self.item_scroll_top = self.item_rows_total - self.item_rows_visible;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// activateItem（a.java:7777-7870+）的 mode10 头：13 → gameMode=5、
+    /// 14 → gameMode=12（m_000 布局侧效果随对应模式批次）。16-25 的效果
+    /// 分支（破墙/回血/瞬移等）为道具批次待办——序章背包恒空不可达。
+    fn activate_item(&mut self, t: i32) {
+        match t {
+            13 => self.game_mode = 5,
+            14 => self.game_mode = 12,
+            _ => {}
+        }
+    }
+
+    /// itemTypeToStackIndex（a.java:899-905 语义：85/86 特判，其余 -13）。
+    fn item_desc_index(&self, t: i32) -> usize {
+        if t == 85 {
+            20
+        } else if t == 86 {
+            21
+        } else {
+            (t - 13) as usize
+        }
+    }
+
+    /// paint case 10（a.java:2724-2792）：斜线背景 + paintBoxFrame + 标题 +
+    /// 分隔线 + 4×N 格阵（选中框 [2][10] 双帧闪烁）+ 翻页箭头 + 软键栏。
+    fn paint_item_panel(&mut self, g: &mut SoftGraphics<'_>) {
+        let font = crate::paint::paint_font();
+        let mut v159 = 319i32;
+        while v159 >= 1 {
+            g.draw_line(-1, -1 + (320 - v159), -1 + v159 - 1, 318);
+            g.draw_line(239 - v159, -1, 239, -1 + v159);
+            v159 -= 2;
+        }
+        let mut x = (240 - self.item_box_w) >> 1;
+        let mut y = (320 - self.item_box_h) >> 1;
+        crate::menu_family::paint_box_frame(g, &self.images.ui[0], x, y, self.item_box_w, self.item_box_h);
+        x += 20;
+        y += 16;
+        g.set_color(13097429);
+        if self.item_cursor < self.player.item_stack_size {
+            let name = self.object_type_names[self.player.item_types[self.item_cursor as usize] as usize]
+                .encode_utf16()
+                .collect::<Vec<u16>>();
+            g.draw_string(&name, x, y + 2, 0);
+        }
+        y += font.height + 4;
+        x -= 9;
+        g.set_color(6178);
+        g.draw_line(x, y, x + self.item_box_w - 23, y);
+        y += 1;
+        g.set_color(3564144);
+        g.draw_line(x, y, x + self.item_box_w - 23, y);
+        y += 10;
+        x += 9;
+        let col_x0 = x;
+        let mut grid = self.item_cols * self.item_scroll_top;
+        let mut row = self.item_scroll_top;
+        while row < self.item_scroll_bottom {
+            for _ in 0..self.item_cols {
+                crate::menu_family::paint_mini_frame(g, x, y, 32, 32);
+                if grid == self.item_cursor {
+                    draw_image_clipped(
+                        g,
+                        &self.images.map210,
+                        x - 4,
+                        y - 3,
+                        38 * (self.frame_counter & 1) as i32,
+                        0,
+                        38,
+                        38,
+                    );
+                }
+                if grid < self.player.item_stack_size {
+                    let t = self.player.item_types[grid as usize] as usize;
+                    if let Some(Some(img)) = self.images.entity.get(t) {
+                        g.draw_image(img, x + ((32 - img.width) >> 1), y + ((32 - img.height) >> 1), 0);
+                    }
+                    if self.player.item_uses[grid as usize] > 0 {
+                        crate::menu_family::paint_number(
+                            g,
+                            &self.images.ui[2],
+                            self.player.item_uses[grid as usize] as i32,
+                            x + 32,
+                            y + 26,
+                        );
+                    }
+                }
+                grid += 1;
+                x += 40;
+            }
+            row += 1;
+            x = col_x0;
+            y += 40;
+        }
+        x = ((240 + self.item_box_w) >> 1) - 22;
+        y -= (self.item_box_h - 32 - font.height - 4) >> 1;
+        if self.item_scroll_top > 0 {
+            draw_image_clipped(g, &self.images.ui[15], x, y - 15, 0, 0, 7, 9);
+        }
+        if self.item_scroll_bottom < self.item_rows_total {
+            draw_image_clipped(g, &self.images.ui[15], x, y + 5, 7, 0, 7, 9);
+        }
+        m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
+    }
+
     /// cameraAtTarget（a.java:8201-8197）。
     fn camera_at_target(&self) -> bool {
         self.ease_cam_x == self.ease_target_x && self.ease_cam_y == self.ease_target_y
@@ -1397,12 +1682,31 @@ impl GameScene {
             self.key_held = 0;
             return;
         }
-        if self.game_mode == 11 {
-            // run case 11（a.java:4001）：m_055 公共段照跑 + 相位机
-            self.tick_dialog();
-            entity::advance_frames(&mut self.entities, &mut self.grid, frame_counter, width_table);
+        if self.game_mode == 10 {
+            // run case 10（a.java:3931-4005）：键位导航，尾清 keyValue（a.java:4266）
+            self.tick_item_panel();
             self.key_value = 0;
             return;
+        }
+        if self.game_mode == 11 {
+            // run case 11 顺序（a.java:4005-4007）：advanceEntityFrames →
+            // stepCameraTowardTarget → switch(dialogPhase)。**无 case 12 落穿**：
+            // dialogPhase 各分支 break 的是外层 label534（a.java:3340），
+            // a.java:4131 的 advanceBobPhase 自 mode 11 不可达——bob 仅随
+            // paintEntityLayer（a.java:6495）每 paint 推进一次
+            entity::advance_frames(&mut self.entities, &mut self.grid, frame_counter, width_table);
+            self.tick_dialog();
+            self.key_value = 0;
+            return;
+        }
+        // run case 3 头（a.java:3552-3562）：keyValue 开关。-7 → gameMode=4
+        // （存档菜单，mode 4 批次待办）；-6 → gameMode=10 + m_000。
+        match self.key_value {
+            -6 => {
+                self.game_mode = 10;
+                self.enter_item_panel();
+            }
+            _ => {}
         }
         match self.walk_phase {
             0 => self.handle_field_input(),
@@ -1633,6 +1937,11 @@ impl GameScene {
     /// 49/55 楼梯换乘——本窗口无）+ keyHeld 移动（Nokia 映射：
     /// -1=上 -2=下 -3=左 -4=右）。
     fn handle_field_input(&mut self) {
+        if self.game_mode == 11 {
+            // mode 11 委托（a.java:5263-5265）：场输入在对话模式=脚本行走推进
+            self.advance_script_walk();
+            return;
+        }
         if self.key_value == -5 || self.key_value == 53 {
             // -5（a.java:5271-5286）：残影位填充玩家位 + 各怪预测伤害数字 +
             // walkPhase=2 + showBattleDigits（有 13 号道具才画数字条）
@@ -1676,7 +1985,9 @@ impl GameScene {
         let ok = self.interact_with_cell(tx, ty);
         if ok {
             self.walk_phase = 1;
-        } else if self.walk_phase == 1 {
+        } else if self.overlay_active && self.walk_phase == 1 {
+            // a.java:5349-5354：overlay 内撞格中断 → 路径与相位一并清
+            self.path_arrows_visible = false;
             self.walk_step_count = 0;
             self.walk_phase = 0;
         }
@@ -1697,61 +2008,233 @@ impl GameScene {
         if cap > 0 {
             let mut s = cap as i32 - 1;
             while s >= 0 {
-                let e = self.grid.slots[ct][s as usize] as usize - 1;
-                let t = self.entities.entity_type[e];
-                if self.entities.solid[e] != 1 {
-                    match entity::render_category(t) {
-                        1 => match t {
-                            1 | 2 | 3 => {
-                                // 门（a.java:5387-5407）：耗钥（consumeKeyForDoor
-                                // 内部 spawnPopup kind1 图标 a.java:7729-7745）→
-                                // markEntityRemoved + 重建小地图；无钥 → 阻挡 +
-                                // walkStepCount=0（提示浮层属交互批次）
-                                let door = match t {
-                                    1 => crate::combat::door_code::YELLOW,
-                                    2 => crate::combat::door_code::RED,
-                                    _ => crate::combat::door_code::BLUE,
-                                };
-                                let (consumed, icon) =
-                                    crate::combat::consume_key_for_door(&mut self.player, door);
-                                if consumed {
-                                    entity::remove(&mut self.entities, e);
+                    let e = self.grid.slots[ct][s as usize] as usize - 1;
+                    let t = self.entities.entity_type[e];
+                    if self.entities.solid[e] != 1 {
+                        match entity::render_category(t) {
+                            1 => match t {
+                                1 | 2 | 3 => {
+                                    // 门（a.java:5387-5407）：耗钥（consumeKeyForDoor
+                                    // 内部 spawnPopup kind1 图标 a.java:7729-7745）→
+                                    // markEntityRemoved + 重建小地图；无钥 → 阻挡 +
+                                    // walkStepCount=0（提示浮层属交互批次）
+                                    let door = match t {
+                                        1 => crate::combat::door_code::YELLOW,
+                                        2 => crate::combat::door_code::RED,
+                                        _ => crate::combat::door_code::BLUE,
+                                    };
+                                    let (consumed, icon) =
+                                        crate::combat::consume_key_for_door(&mut self.player, door);
+                                    if consumed {
+                                        entity::remove(&mut self.entities, e);
+                                        self.popups.spawn(
+                                            1,
+                                            icon,
+                                            self.view.player_px,
+                                            self.view.player_py,
+                                            self.view.cam_x,
+                                            self.view.cam_y,
+                                            self.images.popup.digit_strips[0].width / 11,
+                                        );
+                                        self.build_minimap();
+                                    } else {
+                                        self.walk_step_count = 0;
+                                        self.overlay_kind_item = 0;
+                                        self.show_overlay_message(
+                                            0,
+                                            match t {
+                                                1 => "你没有黄钥匙",
+                                                2 => "你没有红钥匙",
+                                                _ => "你没有蓝钥匙",
+                                            },
+                                            0,
+                                            0,
+                                        );
+                                        allowed = false;
+                                    }
+                                }
+                                5 | 81 | 4 => {
+                                    if t != 4 {
+                                        // 封印门/障碍（a.java:5428-5428）：阻挡
+                                        allowed = false;
+                                    }
+                                }
+                                6 | 7 | 8 => stair_count += 1,
+                                83 => {
+                                // 场景门（a.java:5504-5506）：tryRunScene 门控 →
+                                // loadLevelScript(mode 11)
+                                if self.try_run_scene(self.entities.param[e] as i32, true) {
+                                    self.overlay_active = false;
+                                    self.overlay_text = None;
+                                    let idx = self.entities.param[e] as i32;
+                                    self.load_level_script(idx);
+                                }
+                            }
+                            _ => {} // 9 炼丹 / 11 / 76/82：后续批次
+                            },
+                            8 => {
+                                // 怪物（a.java:5466-5486）：可胜 → 场上战斗；否则阻挡
+                                let loss = self.predict_hp_loss(t, true);
+                                allowed = false;
+                                if loss >= 0 && loss < self.player.hp {
+                                    self.walk_phase = 5;
+                                    self.entities.solid[e] = 3;
+                                    self.battle_target = e as i32;
+                                    // battleEnemyHp = enemyBaseHp[type-41]（**基础表**非缩放表）
+                                    self.battle_enemy_hp = self.enemy_base_hp[(t - 41) as usize];
+                                    self.battle_active = true;
+                                    self.battle_no_counter = true;
+                                } else {
+                                    self.walk_step_count = 0;
+                                    // "你无法战胜它" 提示浮层：交互批次
+                                }
+                            }
+                            16 | 32 => allowed = false, // 联动门/多形态：阻挡（a.java:5496/5520）
+                            _ => {}                    // 2/4 拾取：放行（步末 applyStepCellEffects）
+                        }
+                    }
+                    s -= 1;
+                }
+                if allowed && stair_count <= 0 {
+                    allowed = self.walkable[y as usize][x as usize];
+                }
+            } else if !self.walkable[y as usize][x as usize] {
+                allowed = false;
+            }
+            allowed
+        }
+
+        /// predictHpLossVsType（a.java:9979-9978）：effectiveAttackVsType 桥接。
+        fn predict_hp_loss(&self, t: i32, no_counter: bool) -> i32 {
+            let idx = (t - 41) as usize;
+            let atk = crate::combat::effective_attack_vs_type(&self.player, self.trait_flags(t));
+            crate::combat::predict_battle_hp_loss(
+                atk,
+                self.player.def,
+                self.enemies.hp[idx],
+                self.enemies.atk[idx],
+                self.enemies.def[idx],
+                no_counter,
+            )
+        }
+
+        /// f_byte_arr_05 特性位（initEntityTables a.java:6262-6258：49/53/74=1、69=2）。
+        fn trait_flags(&self, t: i32) -> u8 {
+            match t {
+                49 | 53 | 74 => 1,
+                69 => 2,
+                _ => 0,
+            }
+        }
+
+        /// tickBattle（a.java:10019-10145）：4 拍一击 → 胜利 → 死亡动画 6 拍 →
+        /// tryStep(facing) 重试（胜利跳格）→ battleTargetEntity=-1。
+        fn tick_battle(&mut self, allow_restep: bool) {
+            if !self.battle_finishing {
+                if self.battle_target < 0 {
+                    self.walk_phase = 0;
+                } else {
+                    let e = self.battle_target as usize;
+                    let t = self.entities.entity_type[e];
+                    let idx = (t - 41) as usize;
+                    let dmg = crate::combat::effective_attack_vs_type(&self.player, self.trait_flags(t))
+                        - self.enemies.def[idx];
+                    if dmg > 0 {
+                        if (self.battle_tick & 3) == 0 {
+                            self.battle_enemy_hp -= dmg;
+                            let (ex, ey) = (self.entities.pixel_x[e], self.entities.pixel_y[e]);
+                            self.popups.spawn(
+                                5 + self.battle_tick % 3,
+                                dmg,
+                                ex,
+                                ey,
+                                self.view.cam_x,
+                                self.view.cam_y,
+                                self.images.popup.digit_strips[0].width / 11,
+                            );
+                            if self.battle_enemy_hp > 0 {
+                                let counter = self.enemies.atk[idx] - self.player.def;
+                                if counter > 0 {
+                                    self.player.hp -= counter;
+                                }
+                            } else {
+                                // 击杀（a.java:10032-10058）：终伤预测 popup + 赏金 +
+                                // boss 分支（floor1 无 73-75 型）→ 胜利动画阶段
+                                let loss = self.predict_hp_loss(t, self.battle_no_counter);
+                                if loss > 0 {
                                     self.popups.spawn(
-                                        1,
-                                        icon,
+                                        2,
+                                        loss,
                                         self.view.player_px,
                                         self.view.player_py,
                                         self.view.cam_x,
                                         self.view.cam_y,
                                         self.images.popup.digit_strips[0].width / 11,
                                     );
-                                    self.build_minimap();
+                                }
+                                let gold = if self.player.find_item(25) >= 0 {
+                                    self.enemy_base_gold[idx] << 1
                                 } else {
-                                    self.walk_step_count = 0;
-                                    self.overlay_kind_item = 0;
-                                    self.show_overlay_message(
-                                        0,
-                                        match t {
-                                            1 => "你没有黄钥匙",
-                                            2 => "你没有红钥匙",
-                                            _ => "你没有蓝钥匙",
-                                        },
-                                        0,
-                                        0,
+                                    self.enemy_base_gold[idx]
+                                };
+                                let (gx, gy) = (self.entities.pixel_x[e], self.entities.pixel_y[e]);
+                                self.player.gold += gold;
+                                if gold > 0 {
+                                    self.popups.spawn(
+                                        4,
+                                        gold,
+                                        gx,
+                                        gy,
+                                        self.view.cam_x,
+                                        self.view.cam_y,
+                                        self.images.popup.digit_strips[0].width / 11,
                                     );
-                                    allowed = false;
                                 }
+                                self.battle_rerun_scene = false;
+                                self.battle_finishing = true;
                             }
-                            5 | 81 | 4 => {
-                                if t != 4 {
-                                    // 封印门/障碍（a.java:5428-5428）：阻挡
-                                    allowed = false;
-                                }
-                            }
-                            6 | 7 | 8 => stair_count += 1,
-                            83 => {
-                            // 场景门（a.java:5504-5506）：tryRunScene 门控 →
-                            // loadLevelScript(mode 11)
+                        }
+                    } else {
+                        self.walk_phase = 0;
+                    }
+                    self.battle_tick += 1;
+                }
+            } else {
+                if self.battle_anim_tick == 0 {
+                    entity::remove(&mut self.entities, self.battle_target as usize);
+                }
+                self.battle_anim_tick += 1;
+                if self.battle_anim_tick > 5 {
+                    self.battle_anim_tick = 0;
+                    if !self.battle_rerun_scene && allow_restep {
+                        self.try_step(self.facing);
+                    }
+                    self.battle_finishing = false;
+                    self.battle_target = -1;
+                    // 胜利后类型特判（61-72 层绑定剧情，a.java:10114-10140）：floor1 无
+                }
+            }
+        }
+
+        /// applyStepCellEffects（a.java:5539-5725，floor1 可达子集）：
+        /// 玩家格坐标刷新 + 格内实体效果（拾取 cat2/4；楼梯 7/8 → 换层批次）+
+        /// walkPhase=0 + handleFieldInput（按住连走）。
+        fn apply_step_cell_effects(&mut self) {
+            self.player_cell_x = self.view.player_px >> 5;
+            self.player_cell_y = self.view.player_py >> 5;
+            self.player_bob_applied = false; // f_bool_07 每步清零（a.java:5546），踩喷泉再置
+            let ct = self.grid.cell_type[self.player_cell_y as usize][self.player_cell_x as usize] as usize;
+            let cap = self.grid.capacity[ct] as usize;
+            if cap > 0 {
+                let mut s = cap as i32 - 1;
+                while s >= 0 {
+                let e = self.grid.slots[ct][s as usize] as usize - 1;
+                let t = self.entities.entity_type[e];
+                match entity::render_category(t) {
+                    1 => match t {
+                        6 => self.player_bob_applied = true, // f_bool_07（喷泉浮沉）
+                        83 => {
+                            // 出生/踩格触发（a.java:5704-5705）：序章 script 40 入口
                             if self.try_run_scene(self.entities.param[e] as i32, true) {
                                 self.overlay_active = false;
                                 self.overlay_text = None;
@@ -1759,253 +2242,128 @@ impl GameScene {
                                 self.load_level_script(idx);
                             }
                         }
-                        _ => {} // 9 炼丹 / 11 / 76/82：后续批次
-                        },
-                        8 => {
-                            // 怪物（a.java:5466-5486）：可胜 → 场上战斗；否则阻挡
-                            let loss = self.predict_hp_loss(t, true);
-                            allowed = false;
-                            if loss >= 0 && loss < self.player.hp {
-                                self.walk_phase = 5;
-                                self.entities.solid[e] = 3;
-                                self.battle_target = e as i32;
-                                // battleEnemyHp = enemyBaseHp[type-41]（**基础表**非缩放表）
-                                self.battle_enemy_hp = self.enemy_base_hp[(t - 41) as usize];
-                                self.battle_active = true;
-                                self.battle_no_counter = true;
-                            } else {
-                                self.walk_step_count = 0;
-                                // "你无法战胜它" 提示浮层：交互批次
-                            }
+                        7 => {
+                            // 上楼梯（a.java:5656-5655）：changeFloor(param, false, false)
+                            let target = (self.entities.param[e] & 0xff) as i32;
+                            self.change_floor(target, false, false);
+                            self.key_held = 0;
                         }
-                        16 | 32 => allowed = false, // 联动门/多形态：阻挡（a.java:5496/5520）
-                        _ => {}                    // 2/4 拾取：放行（步末 applyStepCellEffects）
+                        8 => {
+                            // 下楼梯（a.java:5662-5661）：changeFloor(param, true, false)
+                            let target = (self.entities.param[e] & 0xff) as i32;
+                            self.change_floor(target, true, false);
+                            self.key_held = 0;
+                        }
+                        _ => {} // 5 宝箱/76/83 场景门：后续批次
+                    },
+                    2 | 4 => {
+                        self.pickup_item_type(t);
+                        entity::remove(&mut self.entities, e);
                     }
+                    _ => {}
                 }
                 s -= 1;
             }
-            if allowed && stair_count <= 0 {
-                allowed = self.walkable[y as usize][x as usize];
-            }
-        } else if !self.walkable[y as usize][x as usize] {
-            allowed = false;
-        }
-        allowed
-    }
-
-    /// predictHpLossVsType（a.java:9979-9978）：effectiveAttackVsType 桥接。
-    fn predict_hp_loss(&self, t: i32, no_counter: bool) -> i32 {
-        let idx = (t - 41) as usize;
-        let atk = crate::combat::effective_attack_vs_type(&self.player, self.trait_flags(t));
-        crate::combat::predict_battle_hp_loss(
-            atk,
-            self.player.def,
-            self.enemies.hp[idx],
-            self.enemies.atk[idx],
-            self.enemies.def[idx],
-            no_counter,
-        )
-    }
-
-    /// f_byte_arr_05 特性位（initEntityTables a.java:6262-6258：49/53/74=1、69=2）。
-    fn trait_flags(&self, t: i32) -> u8 {
-        match t {
-            49 | 53 | 74 => 1,
-            69 => 2,
-            _ => 0,
-        }
-    }
-
-    /// tickBattle（a.java:10019-10145）：4 拍一击 → 胜利 → 死亡动画 6 拍 →
-    /// tryStep(facing) 重试（胜利跳格）→ battleTargetEntity=-1。
-    fn tick_battle(&mut self, allow_restep: bool) {
-        if !self.battle_finishing {
-            if self.battle_target < 0 {
-                self.walk_phase = 0;
-            } else {
-                let e = self.battle_target as usize;
+            // 型 5 宝箱 / 型 76 组门（cat 1 特例，a.java:5637-5701）：
+            // 槽**倒序**遍历后置 s 重扫——Java 的 continue 语义（removeSlotAt 改槽表）
+            let ct2 = self.grid.cell_type[self.player_cell_y as usize][self.player_cell_x as usize] as usize;
+            let cap2 = self.grid.capacity[ct2] as usize;
+            let mut s2 = cap2 as i32 - 1;
+            while s2 >= 0 {
+                let e = self.grid.slots[ct2][s2 as usize] as usize - 1;
                 let t = self.entities.entity_type[e];
-                let idx = (t - 41) as usize;
-                let dmg = crate::combat::effective_attack_vs_type(&self.player, self.trait_flags(t))
-                    - self.enemies.def[idx];
-                if dmg > 0 {
-                    if (self.battle_tick & 3) == 0 {
-                        self.battle_enemy_hp -= dmg;
-                        let (ex, ey) = (self.entities.pixel_x[e], self.entities.pixel_y[e]);
-                        self.popups.spawn(
-                            5 + self.battle_tick % 3,
-                            dmg,
-                            ex,
-                            ey,
-                            self.view.cam_x,
-                            self.view.cam_y,
-                            self.images.popup.digit_strips[0].width / 11,
-                        );
-                        if self.battle_enemy_hp > 0 {
-                            let counter = self.enemies.atk[idx] - self.player.def;
-                            if counter > 0 {
-                                self.player.hp -= counter;
+                if t == 5 {
+                    // 宝箱（a.java:5637-5636）：removeSlotAt + tryOpenChest(param)
+                    let chest_param = self.entities.param[e];
+                    self.remove_slot_at(self.player_cell_x, self.player_cell_y, s2);
+                    if self.try_open_chest(chest_param) {
+                        self.walk_phase = 4;
+                    }
+                } else if t == 76 {
+                    // 76 组门（a.java:5651-5701）：param&0xff + 1 为组号；摘槽 + 全图
+                    // 收集同组型 4（开锁动画）+ 清组内 76 槽
+                    let group = ((self.entities.param[e] & 0xff) as i32) + 1;
+                    self.remove_slot_at(self.player_cell_x, self.player_cell_y, s2);
+                    self.open_group.clear();
+                    let mut slots_to_clear: Vec<(usize, u8)> = Vec::new();
+                    for k in 0..self.entities.count {
+                        if self.entities.removed[k] {
+                            continue;
+                        }
+                        let p = self.entities.param[k] & 0xff;
+                        let tk = self.entities.entity_type[k];
+                        if tk != 76 {
+                            if tk == 4 && p as i32 == group {
+                                self.open_group.push(k);
                             }
-                        } else {
-                            // 击杀（a.java:10032-10058）：终伤预测 popup + 赏金 +
-                            // boss 分支（floor1 无 73-75 型）→ 胜利动画阶段
-                            let loss = self.predict_hp_loss(t, self.battle_no_counter);
-                            if loss > 0 {
-                                self.popups.spawn(
-                                    2,
-                                    loss,
-                                    self.view.player_px,
-                                    self.view.player_py,
-                                    self.view.cam_x,
-                                    self.view.cam_y,
-                                    self.images.popup.digit_strips[0].width / 11,
-                                );
+                        } else if (p as i32) + 1 == group {
+                            let gx = self.entities.pixel_x[k] >> 5;
+                            let gy = self.entities.pixel_y[k] >> 5;
+                            let ctk = self.grid.cell_type[gy as usize][gx as usize] as usize;
+                            slots_to_clear.push((ctk, 0));
+                            let cap3 = self.grid.capacity[ctk] as usize;
+                            for q in 0..cap3 {
+                                let id = self.grid.slots[ctk][q] as usize - 1;
+                                self.entities.removed[id] = true;
                             }
-                            let gold = if self.player.find_item(25) >= 0 {
-                                self.enemy_base_gold[idx] << 1
-                            } else {
-                                self.enemy_base_gold[idx]
-                            };
-                            let (gx, gy) = (self.entities.pixel_x[e], self.entities.pixel_y[e]);
-                            self.player.gold += gold;
-                            if gold > 0 {
-                                self.popups.spawn(
-                                    4,
-                                    gold,
-                                    gx,
-                                    gy,
-                                    self.view.cam_x,
-                                    self.view.cam_y,
-                                    self.images.popup.digit_strips[0].width / 11,
-                                );
-                            }
-                            self.battle_rerun_scene = false;
-                            self.battle_finishing = true;
+                            self.grid.capacity[ctk] = 0;
                         }
                     }
-                } else {
-                    self.walk_phase = 0;
+                    if !self.open_group.is_empty() {
+                        self.walk_phase = 4;
+                    }
                 }
-                self.battle_tick += 1;
+                s2 -= 1;
             }
-        } else {
-            if self.battle_anim_tick == 0 {
-                entity::remove(&mut self.entities, self.battle_target as usize);
-            }
-            self.battle_anim_tick += 1;
-            if self.battle_anim_tick > 5 {
-                self.battle_anim_tick = 0;
-                if !self.battle_rerun_scene && allow_restep {
-                    self.try_step(self.facing);
-                }
-                self.battle_finishing = false;
-                self.battle_target = -1;
-                // 胜利后类型特判（61-72 层绑定剧情，a.java:10114-10140）：floor1 无
-            }
-        }
-    }
 
-    /// applyStepCellEffects（a.java:5539-5725，floor1 可达子集）：
-    /// 玩家格坐标刷新 + 格内实体效果（拾取 cat2/4；楼梯 7/8 → 换层批次）+
-    /// walkPhase=0 + handleFieldInput（按住连走）。
-    fn apply_step_cell_effects(&mut self) {
-        self.player_cell_x = self.view.player_px >> 5;
-        self.player_cell_y = self.view.player_py >> 5;
-        self.player_bob_applied = false; // f_bool_07 每步清零（a.java:5546），踩喷泉再置
-        let ct = self.grid.cell_type[self.player_cell_y as usize][self.player_cell_x as usize] as usize;
-        let cap = self.grid.capacity[ct] as usize;
-        let mut s = cap as i32 - 1;
-        while s >= 0 {
-            let e = self.grid.slots[ct][s as usize] as usize - 1;
-            let t = self.entities.entity_type[e];
-            match entity::render_category(t) {
-                1 => match t {
-                    6 => self.player_bob_applied = true, // f_bool_07（喷泉浮沉）
-                    83 => {
-                        // 出生/踩格触发（a.java:5704-5705）：序章 script 40 入口
-                        if self.try_run_scene(self.entities.param[e] as i32, true) {
-                            self.overlay_active = false;
-                            self.overlay_text = None;
-                            let idx = self.entities.param[e] as i32;
-                            self.load_level_script(idx);
-                        }
-                    }
-                    7 => {
-                        // 上楼梯（a.java:5656-5655）：changeFloor(param, false, false)
-                        let target = (self.entities.param[e] & 0xff) as i32;
-                        self.change_floor(target, false, false);
-                        self.key_held = 0;
-                    }
-                    8 => {
-                        // 下楼梯（a.java:5662-5661）：changeFloor(param, true, false)
-                        let target = (self.entities.param[e] & 0xff) as i32;
-                        self.change_floor(target, true, false);
-                        self.key_held = 0;
-                    }
-                    _ => {} // 5 宝箱/76/83 场景门：后续批次
-                },
-                2 | 4 => {
-                    self.pickup_item_type(t);
-                    entity::remove(&mut self.entities, e);
-                }
-                _ => {}
+            if self.walk_phase != 4 {
+                self.walk_phase = 0;
+                self.handle_field_input();
             }
-            s -= 1;
-        }
-        // 型 5 宝箱 / 型 76 组门（cat 1 特例，a.java:5637-5701）：
-        // 槽**倒序**遍历后置 s 重扫——Java 的 continue 语义（removeSlotAt 改槽表）
-        let ct2 = self.grid.cell_type[self.player_cell_y as usize][self.player_cell_x as usize] as usize;
-        let cap2 = self.grid.capacity[ct2] as usize;
-        let mut s2 = cap2 as i32 - 1;
-        while s2 >= 0 {
-            let e = self.grid.slots[ct2][s2 as usize] as usize - 1;
-            let t = self.entities.entity_type[e];
-            if t == 5 {
-                // 宝箱（a.java:5637-5636）：removeSlotAt + tryOpenChest(param)
-                let chest_param = self.entities.param[e];
-                self.remove_slot_at(self.player_cell_x, self.player_cell_y, s2);
-                if self.try_open_chest(chest_param) {
-                    self.walk_phase = 4;
-                }
-            } else if t == 76 {
-                // 76 组门（a.java:5651-5701）：param&0xff + 1 为组号；摘槽 + 全图
-                // 收集同组型 4（开锁动画）+ 清组内 76 槽
-                let group = ((self.entities.param[e] & 0xff) as i32) + 1;
-                self.remove_slot_at(self.player_cell_x, self.player_cell_y, s2);
-                self.open_group.clear();
-                let mut slots_to_clear: Vec<(usize, u8)> = Vec::new();
-                for k in 0..self.entities.count {
-                    if self.entities.removed[k] {
-                        continue;
-                    }
-                    let p = self.entities.param[k] & 0xff;
-                    let tk = self.entities.entity_type[k];
-                    if tk != 76 {
-                        if tk == 4 && p as i32 == group {
-                            self.open_group.push(k);
-                        }
-                    } else if (p as i32) + 1 == group {
-                        let gx = self.entities.pixel_x[k] >> 5;
-                        let gy = self.entities.pixel_y[k] >> 5;
-                        let ctk = self.grid.cell_type[gy as usize][gx as usize] as usize;
-                        slots_to_clear.push((ctk, 0));
-                        let cap3 = self.grid.capacity[ctk] as usize;
-                        for q in 0..cap3 {
-                            let id = self.grid.slots[ctk][q] as usize - 1;
-                            self.entities.removed[id] = true;
-                        }
-                        self.grid.capacity[ctk] = 0;
-                    }
-                }
-                if !self.open_group.is_empty() {
-                    self.walk_phase = 4;
-                }
-            }
-            s2 -= 1;
-        }
-        if self.walk_phase != 4 {
+        } else if self.script_walk_armed {
+            // 分支 2（a.java:5738-5742）：脚本行走武装 → advanceScriptWalk
+            self.advance_script_walk();
+        } else {
+            // 分支 3（a.java:5743-5747）：空格 → 复位相位 + 场输入
+            //（var4 踩伤短路 a.java:5641 未移植：伤害格批次待办，当前层无此格）
             self.walk_phase = 0;
             self.handle_field_input();
+        }
+        // label216（a.java:5744-5757）：路径消费/清除——顶步 == 朝向则消费一步，
+        // 否则整条清空 + 熄箭头；步数已尽也熄箭头
+        if self.path_arrows_visible {
+            if self.walk_step_count > 0 {
+                let top = self.walk_path_buffer[(self.walk_step_count - 1) as usize] as i32;
+                if top == self.facing {
+                    self.walk_step_count -= 1;
+                } else {
+                    self.walk_step_count = 0;
+                    self.path_arrows_visible = false;
+                }
+            } else {
+                self.path_arrows_visible = false;
+            }
+        }
+    }
+
+    /// advanceScriptWalk（a.java:5818-5834）：弹顶步 → tryStep；步尽解除武装；
+    /// 撞格（返回 false）解除武装并清步（walkPhase==5 战斗中除外）。
+    fn advance_script_walk(&mut self) {
+        if self.walk_step_count > 0 {
+            self.walk_step_count -= 1;
+            self.facing = self.walk_path_buffer[self.walk_step_count as usize] as i32;
+            let ok = self.try_step(self.facing);
+            if self.walk_step_count == 0 {
+                self.script_walk_armed = false;
+                return;
+            }
+            if !ok {
+                self.script_walk_armed = false;
+                if self.walk_phase != 5 {
+                    self.walk_phase = 0;
+                    self.walk_step_count = 0;
+                }
+            }
         }
     }
 
@@ -2174,6 +2532,10 @@ impl GameScene {
 
     /// paint case 3（a.java:2385-2422）。
     pub fn paint(&mut self, g: &mut SoftGraphics<'_>, tileset: &ArgbImage) {
+        if self.game_mode == 10 {
+            self.paint_item_panel(g);
+            return;
+        }
         if self.game_mode == 11 {
             self.paint_dialog(g, tileset);
             return;
@@ -2511,7 +2873,37 @@ impl GameScene {
             self.paint_afterimages(g, cam_x, cam_y, frame_x);
         }
         g.set_clip(0, 0, SCREEN_W, SCREEN_H);
-        // f_bool_26 路径走格精灵（[8][22]）：脚本行走批次（spec 待办）
+        // f_bool_26 路径箭头（a.java:5925-5952）：自玩家格沿 walkPathBuffer 逐格外扩，
+        // buffer 顶 = 玩家侧第一步；[8][22] 三联贴片 21×22（0 下/1 上裁剪源、2 右镜像、3 左），
+        // 0/1 的 bob 加在 y、2/3 加在 x（Java 原样）；setColor(136) 每步重设。
+        if self.path_arrows_visible {
+            let mut ax = (self.player_cell_x << 5) + cam_x;
+            let mut ay = (self.player_cell_y << 5) + cam_y;
+            let bob = self.bob_offset;
+            let piece = &self.images.ui[22];
+            for i in (0..self.walk_step_count as usize).rev() {
+                g.set_color(136);
+                match self.walk_path_buffer[i] {
+                    0 => {
+                        ay += 32;
+                        draw_image_clipped(g, piece, ax + 5, ay + 5 + bob, 21, 0, 21, 22);
+                    }
+                    1 => {
+                        ay -= 32;
+                        draw_image_clipped(g, piece, ax + 5, ay + 5 + bob, 0, 0, 21, 22);
+                    }
+                    2 => {
+                        ax += 32;
+                        crate::menu_family::draw_edge_patch(g, piece, ax + 5 + bob, ay + 5, 42, 0, 21, 22, 1);
+                    }
+                    3 => {
+                        ax -= 32;
+                        draw_image_clipped(g, piece, ax + 5 + bob, ay + 5, 42, 0, 21, 22);
+                    }
+                    _ => {}
+                }
+            }
+        }
         // walkPhase==2 四角装饰（a.java:5955-5955，画后直接 return 语义）
         if self.walk_phase == 2 {
             let bob = self.bob_offset;
@@ -2637,10 +3029,19 @@ impl GameScene {
                 cx += 16;
             }
             g.set_clip(0, 0, SCREEN_W, SCREEN_H);
-            // a.java:2846-2849：var48 += 16 后再画右角件（y = var120+16）
-            crate::menu_family::draw_edge_patch(g, &self.images.ui[0], 214, var120 + 16, 0, 0, 26, 16, 1);
+            // a.java:2828：edge patch 用 var48=var120（+=16 之前）
+            crate::menu_family::draw_edge_patch(g, &self.images.ui[0], 214, var120, 0, 0, 26, 16, 1);
             g.set_color(HUD_FILL);
             g.fill_rect(80, var120 + 16, 149, var91 - 16);
+            // a.java:2832-2836：右条带循环 (229, var48) 画 ui[8][0]@176——
+            // var48 从 var120+16 步进 16 直到 var158+var11（320）
+            let mut var48 = var120 + 16;
+            while var48 < var120 + var91 {
+                g.set_clip(229, var48, 11, 16);
+                g.draw_image(&self.images.ui[0], 176, var48, 0);
+                var48 += 16;
+            }
+            g.set_clip(0, 0, SCREEN_W, SCREEN_H);
             if self.dialog_speaker > 0 {
                 if let Some(img) = &self.images.entity[self.dialog_speaker as usize] {
                     if self.dialog_speaker != 72 {

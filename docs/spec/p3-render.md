@@ -318,6 +318,46 @@ speaker_entity（=f_int_119）、dialog_page（=f_int_112）与 DSL 解释
 剩余（下批）：changeFloor 楼梯换层（walkPhase 4 + 动画）、宝箱 m_073、
 装备拾取 33-40/79/80、cat 16/32/67/69 渲染臂、mode 11 对话、mode 4/19。
 
+## 3.11 序章全窗对拍收官（2026-10-11，第十六批）
+
+prologue_dialog_frames_match **T577-9800 全窗 9224 帧 PASS**（摘除 ignore）。
+本批收口的四类机制（全部 A 级证据，op 流逐条对拍定位）：
+
+1. **f_bool_26 路径箭头子系统**（N-0403）：
+   - SEE flag=1 → findPath(player→dialogMove) 成功 ⇒ pathArrowsVisible=true +
+     walkPhase=0，**落穿 default** 相机 ease（a.java:8493-8501，case1 无 break）；
+   - paintPlayerSprite 尾（setClip 全屏复位后）沿 walkPathBuffer 自顶（玩家侧
+     第一步）外扩绘制 [8][22] 三联贴片 21×22：0 下(y+bob)/1 上(y+bob)/
+     2 右(edge patch 镜像, x+bob)/3 左(x+bob)，setColor(136) 每步重设
+     （a.java:5925-5952）；
+   - 消费：applyStepCellEffects 尾 label216（a.java:5744-5757）顶步==朝向 →
+     消费一步，否则整条清空+熄箭头；tryStep 撞格时 overlayActive&&walkPhase==1
+     亦清（a.java:5349-5354）；
+   - advanceScriptWalk（a.java:5818-5834）+ handleFieldInput 的 mode11 委托
+     （a.java:5263-5265）——MOV_0 对白自动行走的机制位，序章 script 40 未触达。
+2. **bob 跨模式状态**：animBobOffset 8 周期 [0,1,2,1,0,-1,-2,-1]；mode 11
+   **无** case12 落穿（dialogPhase 各分支 break 外层 label534，a.java:4131
+   不可达），推进仅来自 paintEntityLayer 头（a.java:6495）每 paint 一次；
+   run case1（标题）每 tick 推进（a.java:3387）——BootMachine 已接同机制，
+   场景初值 (2,false) 由 trace FLD 120=T120 dump 实测锚定（T576=2、T902=0）。
+3. **paintWrappedText 忠实重写**（a.java:5040-5117）：整行按 \c 色段
+   drawSubstring flush（原逐字 drawChar 会把转义字面画出）；跨页起始色继承、
+   \r 恢复 overlaySavedColor、非法 hex 从反斜杠重画、var15 每行清 0 的
+   `!= -1` 怪癖。
+4. **夹具转义污染修复**：dialogue_texts.txt 旧提取把 trace 转义层 `\\c`
+   当内容（19 条含 \c 转义的对白全部多一反斜杠）→ 从 a.java:1909-1930
+   dialogueTexts 初始化器重新机械提取（行安全格式：\\/\n/\r 字面转义），
+   三处消费端统一 unescape_text_fixture。同源 \x1e 分隔符残留不复存在。
+
+### mode 10 道具面板（-6 进入）
+
+run case3 头 keyValue 开关（a.java:3552-3562）-6 → gameMode=10 + m_000
+case10 布局（a.java:4366-4377：4 列/8 行总/6 行可见/框 202×296）；run case10
+键位（a.java:3931-4005：-7 返回、-6/-5 使用、-4/-3 行内环绕、-2/-1 翻行滚窗）；
+paint case10（a.java:2724-2792：斜线背景（颜色驻留恰为 #000000）+ 框 + 4×N
+格阵 + [2][10] 38×38 双帧选中框 + 翻页箭头 + 软键栏）。字段 N-0409..N-0417。
+-7 在 mode3 → mode4（存档菜单）**未移植**——mode 4/19 批次待办。
+
 ## 4. 证据基线
 
 - 像素模型：`reference/shim/src/javax/microedition/lcdui/{Graphics,Font,Image,Canvas}.java`

@@ -176,6 +176,11 @@ pub struct BootMachine {
     pub overlay_active: bool,
     /// menuReturnMode：overlay/菜单的「返回模式」。
     pub return_mode: i32,
+    /// animBobOffset/animBobRising（a.java:144-145）：mode 1 每 tick 推进
+    ///（run case 1 头 a.java:3387）；进游戏后由 paintEntityLayer 接力
+    ///（a.java:6495）。跨 mode 单一状态，统一流交接给 GameScene。
+    pub bob_offset: i32,
+    pub bob_rising: bool,
     /// mode 8 槽位表。
     pub slots: Option<crate::menu_family::SlotSelect>,
     /// mode 16 选项表。
@@ -241,6 +246,8 @@ impl BootMachine {
             options: None,
             strip_frame: 0,
             sound_enabled: false,
+            bob_offset: 0,
+            bob_rising: false,
             intro_imgs: intro_imgs,
             end_imgs: end_imgs,
             load_imgs: load_imgs,
@@ -346,7 +353,9 @@ impl BootMachine {
             }
             1 => {
                 // a.java:3391-3440。frame_counter：迭代 N 拍用 f=N-1
-                //（for 自增在体后）；paints 在 tick 时 = 已 paint 数 = N-1
+                //（for 自增在体后）；paints 在 tick 时 = 已 paint 数 = N-1。
+                // case 1 头部（a.java:3387）：advanceBobPhase 每 tick。
+                crate::entity::advance_bob(&mut self.bob_offset, &mut self.bob_rising);
                 let f = self.paints as i32;
                 let mut next = None;
                 if let Some(t) = self.title.as_mut() {
