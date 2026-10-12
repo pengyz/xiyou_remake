@@ -236,6 +236,17 @@ pub struct GameScene {
     /// 敌方基础表（enemyBaseHp/enemyBaseGold，a.java:1044/1121；夹具）
     pub enemy_base_hp: Vec<i32>,
     pub enemy_base_gold: Vec<i32>,
+    /// —— mode 9 炼丹（run case 9 a.java:3885-3940 / paint case 9 a.java:2690-2740）——
+    /// alchemyPrice：当前升级价（alchemyPriceFor(upgrades+1)，a.java:7256）
+    pub alchemy_price: i32,
+    /// f_int_77/78/79：本次升级 HP/ATK/DEF 增量（scaledByFloorTier，a.java:7250）
+    pub alchemy_gain_hp: i32,
+    pub alchemy_gain_atk: i32,
+    pub alchemy_gain_def: i32,
+    /// f_int_80：三行选择光标（0=HP 1=ATK 2=DEF）
+    pub alchemy_cursor: i32,
+    /// alchemyUpgradeCount：运行时升级计数（存档 alchemy_upgrades 装入）
+    pub alchemy_upgrade_count: i32,
     /// 软键（m_000 case 3：1/3）
     pub softkeys: (i8, i8),
 
@@ -500,6 +511,7 @@ pub fn load_floor_from_save(
     scene.player.red_keys = save.red_keys as i32;
     scene.player.gold = save.gold;
     scene.player.item_stack_size = save.item_stack_size as i32;
+    scene.alchemy_upgrade_count = save.alchemy_upgrades as i32; // a.java:9281 链（loadFloorSave 应用）
     for k in 0..save.item_stack_size as usize {
         scene.player.item_types[k] = save.item_stack_types[k];
         scene.player.item_uses[k] = save.item_stack_uses[k];
@@ -695,6 +707,12 @@ impl GameScene {
             encyc_damage: Vec::new(),
             encyc_types: Vec::new(),
             encyc_panel_w: 208,
+            alchemy_price: 0,
+            alchemy_gain_hp: 0,
+            alchemy_gain_atk: 0,
+            alchemy_gain_def: 0,
+            alchemy_cursor: 0,
+            alchemy_upgrade_count: 0,
             encyc_count: 0,
             encyc_rows_visible: 0,
             encyc_panel_h: 0,
@@ -2575,6 +2593,90 @@ impl GameScene {
         m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
     }
 
+    /// alchemyPriceFor（a.java:7256-7262）：第 k 次升级价 = 20 + Σ20i (i=1..k-2)
+    fn alchemy_price_for(k: i32) -> i32 {
+        let mut price = 20;
+        for i in 1..k - 1 {
+            price += 20 * i;
+        }
+        price
+    }
+
+    /// scaledByFloorTier（a.java:7250-7254）：tier = (floor-1)/10 + 1，n × tier
+    fn scaled_by_floor_tier(n: i32, floor: i32) -> i32 {
+        n * (((floor - 1) / 10) + 1)
+    }
+
+    /// run case 9（a.java:3885-3940）：-7 回 mode3；-6/-5 金币够则按光标加属性
+    /// 并推进计数/价格，否则「没有足够的金钱」浮层；-2/-1 光标三行环绕。
+    fn tick_menu9(&mut self) {
+        match self.key_value {
+            -7 => self.game_mode = 3,
+            -6 | -5 => {
+                if self.player.gold >= self.alchemy_price {
+                    self.player.gold -= self.alchemy_price;
+                    match self.alchemy_cursor {
+                        0 => self.player.hp += self.alchemy_gain_hp,
+                        1 => self.player.atk += self.alchemy_gain_atk,
+                        _ => self.player.def += self.alchemy_gain_def,
+                    }
+                    self.alchemy_upgrade_count += 1;
+                    self.alchemy_price = Self::alchemy_price_for(self.alchemy_upgrade_count + 1);
+                } else {
+                    self.show_overlay_message(0, "没有足够的金钱", 0, 0);
+                }
+            }
+            -2 => {
+                self.alchemy_cursor = if self.alchemy_cursor < 2 { self.alchemy_cursor + 1 } else { 0 };
+            }
+            -1 => {
+                self.alchemy_cursor = if self.alchemy_cursor > 0 { self.alchemy_cursor - 1 } else { 2 };
+            }
+            _ => {}
+        }
+    }
+
+    /// paint case 9（a.java:2690-2740）：地图/实体/HUD/状态条 + 炼丹题头框
+    ///（paintTitledBox(0,·)）+ 花费行 + 三行属性（光标高亮 + 双柱图标 + 数字）。
+    fn paint_menu9(&mut self, g: &mut SoftGraphics<'_>, tileset: &ArgbImage) {
+        self.paint_parallax(g, true);
+        self.view.paint_tiles(g, tileset, view_top_y());
+        self.paint_entities(g, self.view.cam_x, self.view.cam_y + view_top_y());
+        self.paint_hud(g);
+        self.paint_status_bar(g);
+        m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
+
+        let font = crate::paint::paint_font();
+        let bw = 115i32; // f_int_75（a.java:810）
+        let bh = font.height + 90; // f_int_74（a.java:809）
+        let bx = (240 - bw - 22) >> 1;
+        let by = (320 - bh) >> 1;
+        crate::menu_family::paint_titled_box(g, &self.images.ui[0], &self.images.ui[13], &[0, 1, 2], bx, by, bw + 22, bh);
+        let wide = font.char_width('回' as u16) << 1;
+        let mut x = (240 - (wide + 16 + 48)) >> 1;
+        let mut y = by + 21;
+        g.set_color(7575203);
+        g.draw_string(&"花费".encode_utf16().collect::<Vec<u16>>(), x, y, 0);
+        x += wide + 4;
+        g.draw_image(&self.images.ui[1], x, y + ((font.height - 10) >> 1), 0);
+        x += 60;
+        paint_number(g, &self.images.ui[2], self.alchemy_price, x, y + 3 + ((font.height - 10) >> 1));
+        y += font.height + 5;
+        x = (240 - bw) >> 1;
+        g.set_color(549016);
+        g.fill_rect(x, y + (self.alchemy_cursor << 4), bw, 16);
+        g.draw_image(&self.images.ui[14], x + 10, y + 2 + (self.alchemy_cursor << 4), 0);
+        g.draw_image_transformed(&self.images.ui[14], x + bw - 30, y + 2 + (self.alchemy_cursor << 4), 0, 8192);
+        draw_image_clipped(g, &self.images.ui[7], 97, y + 4, 0, 2, 10, 10);
+        paint_number(g, &self.images.ui[2], self.alchemy_gain_hp, 142, y + 6);
+        y += 16;
+        draw_image_clipped(g, &self.images.ui[7], 97, y + 4, 11, 0, 8, 13);
+        paint_number(g, &self.images.ui[2], self.alchemy_gain_atk, 142, y + 6);
+        y += 16;
+        draw_image_clipped(g, &self.images.ui[7], 97, y + 4, 20, 2, 10, 11);
+        paint_number(g, &self.images.ui[2], self.alchemy_gain_def, 142, y + 6);
+    }
+
     fn enter_menu16(&mut self) {
         self.options = Some(crate::menu_family::OptionList::new(
             self.sound_enabled,
@@ -2703,6 +2805,12 @@ impl GameScene {
         if self.game_mode == 7 {
             // run case 7（a.java:3829-3878）
             self.tick_menu7();
+            self.key_value = 0;
+            return;
+        }
+        if self.game_mode == 9 {
+            // run case 9（a.java:3885-3940）
+            self.tick_menu9();
             self.key_value = 0;
             return;
         }
@@ -3112,7 +3220,21 @@ impl GameScene {
                                     self.load_level_script(idx);
                                 }
                             }
-                            _ => {} // 9 炼丹 / 11 / 76/82：后续批次
+                            9 => {
+                                // 炼丹台（a.java:5419-5429）：步进必阻挡；
+                                // 朝上（facingDirection==1）触发 mode 9 + 价格/增量初始化
+                                allowed = false;
+                                if self.facing == 1 {
+                                    self.game_mode = 9;
+                                    self.alchemy_price =
+                                        Self::alchemy_price_for(self.alchemy_upgrade_count + 1);
+                                    self.alchemy_gain_hp = Self::scaled_by_floor_tier(100, self.floor);
+                                    self.alchemy_gain_atk = Self::scaled_by_floor_tier(2, self.floor);
+                                    self.alchemy_gain_def = Self::scaled_by_floor_tier(4, self.floor);
+                                    // m_000()：mode 9 run 臂对无键进入无动作（a.java:3885 default）
+                                }
+                            }
+                            _ => {} // 11 / 76/82：后续批次
                             },
                             8 => {
                                 // 怪物（a.java:5470-5490）：可胜 → 场上战斗；否则阻挡
@@ -3616,6 +3738,11 @@ impl GameScene {
         }
         if self.game_mode == 11 {
             self.paint_dialog(g, tileset);
+            return;
+        }
+        if self.game_mode == 9 {
+            // paint case 9（a.java:2690-2740）
+            self.paint_menu9(g, tileset);
             return;
         }
         self.paint_parallax(g, true);
