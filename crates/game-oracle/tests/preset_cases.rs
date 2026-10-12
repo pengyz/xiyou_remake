@@ -1527,6 +1527,11 @@ fn preset_itemcymbal_frames_match() {
 ///    （Rust frame=1 = 生成后首推进）。疑点 = 击杀拍差（bump→battle
 ///    计拍差或 popup 首现拍 ≠ 击杀拍）。待办：战斗拍台账（双侧逐拍
 ///    battle_tick + popup 首现拍对表）定击杀拍后对齐。
+/// 迭代 47 续办（台账建账）：Java 侧逐拍对表完成——击杀拍=T302
+/// （f_int_151 0→1 冻结、battleActive=true、popupV=[150,100] 首现）
+/// 与 Rust 击杀拍**完全对齐**；残差聚焦 popup/实体绘制的 y 域
+/// （T303 diff 带 y87-106 = damage popup「150」首现位附近），
+/// 待 popup 生存期/上升计数与实体 sprite 源的逐字段对表。
 /// 迭代 47 续办取证：Java 台账 f_int_151=1/battleActive=true/popupV=
 /// [150,100] 首现于 T302（= Rust 击杀拍，**击杀拍无差**！）；
 /// stride-1 op 流对表发现 **Java 转场拍（T303）paint 为部分绘制**——
