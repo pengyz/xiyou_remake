@@ -131,6 +131,17 @@ fn probe_floor2_type78() {
         "grid (11,7): cell_type={} capacity={} slots={:?}",
         ct, scene.grid.capacity[ct], scene.grid.slots.get(ct)
     );
+    // 与 Java trace FLD 的 ARR sha 对比（行优先展平）
+    let flat_ct: Vec<u8> = scene.grid.cell_type.iter().flatten().copied().collect();
+    println!(
+        "cellTypeGrid ARR[{}] sha computed in test (见 Java trace FLD 对应 ARR 行)",
+        flat_ct.len()
+    );
+    let mut flat_slots: Vec<u8> = Vec::new();
+    for pool in &scene.grid.slots {
+        flat_slots.extend_from_slice(pool);
+    }
+    println!("slots 总长 {}", flat_slots.len());
     scene.facing = 2;
     let ok = scene.try_step(2);
     println!(
