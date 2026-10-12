@@ -1532,6 +1532,13 @@ fn preset_itemcymbal_frames_match() {
 /// 与 Rust 击杀拍**完全对齐**；残差聚焦 popup/实体绘制的 y 域
 /// （T303 diff 带 y87-106 = damage popup「150」首现位附近），
 /// 待 popup 生存期/上升计数与实体 sprite 源的逐字段对表。
+/// 迭代 49 续办：T303 差异连通域分解 = **4 个独立泡框团簇**
+/// （x120-152/156-187/191-222/226-239，各 32px 宽、间隔 35px =
+/// DES 实体位 + open_anim 泐框；y68-106 = 泡 y 位移帧 3-4 域）。
+/// popup 链（值/位置/散布/退役）与 DES 状态全对齐——残差 = 泡绘制
+/// 的帧位差（Java 帧位超前 Rust ~2-3）或 dst y 基准差，单变量待定。
+/// 注：trace op 流 256 条截断（Graphics.flushOps Math.min cap）——
+/// 实体 draw 不在 trace 内，op 对表不可行；像素台账为唯一仪器。
 /// 迭代 48 续办（逐拍台账完整表）：popup 链排除（retire=-rise>7、
 /// 8 拍生存期、scatter 表、kind/x/y 全对齐）。残差空间结构：
 /// T303-309 = 单条上升泡带 ~3037px（51-80 行带渐升至 75-104，
