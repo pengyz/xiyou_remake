@@ -3439,7 +3439,13 @@ impl GameScene {
             // dialogPhase 各分支 break 的是外层 label534（a.java:3340），
             // a.java:4135 的 advanceBobPhase 自 mode 11 不可达——bob 仅随
             // paintEntityLayer（a.java:6499）每 paint 推进一次
-            entity::advance_frames(&mut self.entities, &mut self.grid, frame_counter, width_table);
+            entity::advance_frames(
+                &mut self.entities,
+                &mut self.grid,
+                frame_counter,
+                width_table,
+                &self.images.entity,
+            );
             self.tick_dialog();
             self.key_value = 0;
             return;
@@ -3571,7 +3577,13 @@ impl GameScene {
             // f_int_54 ±2 交替（a.java:7016-7014）
             self.tile_bob = if self.tile_bob == -2 { 2 } else { -2 };
         }
-        entity::advance_frames(&mut self.entities, &mut self.grid, frame_counter, width_table);
+        entity::advance_frames(
+                &mut self.entities,
+                &mut self.grid,
+                frame_counter,
+                width_table,
+                &self.images.entity,
+            );
         // run 主循环尾部（a.java:4276，else 分支）：**keyValue 每拍清零**
         // （边沿触发；keyHeldCode 由 keyReleased 清——a.java:4678）
         self.key_value = 0;

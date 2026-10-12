@@ -201,7 +201,19 @@
    gameMode=3 实证——面板内道具触发 changeFloor 后即回行走世界）——
    change_floor 内补 game_mode=3（楼梯路径原值即 3，无副作用）。
    preset_item21 摘除 #[ignore] 转全帧一致；boss40 DES 登场残差另批
-   （mode 11 paint/advance 顺序，非本类）。 |
+   （mode 11 paint/advance 顺序，非本类）。
+   **迭代 47 续办（战斗拍台账 + 重派发高度语义修复）**：① Java 侧逐拍
+   台账建账（T296-311：f_int_151 0→1 冻结、popupV=[150,100] 首现
+   T302）——击杀拍与 Rust 完全对齐，「击杀拍差」假说二次证伪；
+   ② **重派发高度语义修复**（a.java:6297 dispatchSpriteSize 无高度
+   参数，高度 = entityTypeImage 自身高）：Rust advance_frames 重派发臂
+   传 Some(sprite_h=29)（remove_des 的 DES 高度驻留）→ 类型图高≠29 的
+   实体重派发后按错误高度绘制（越界读=火焰状杂纹）——改为取类型图
+   自身高（entity_imgs 参数入 advance_frames）；③ itemboss40 的
+   T310-700 段随之收口；**T303-309 段残差仍开放**（DES 登场泡绘制
+   相位/源——泡绘制链 src/dst 逐字段对表待办）。**教训入册**：断言
+   中和式验证产生假绿（迭代 49 首轮"通过"实为 assert 被临时 eprintln
+   替换后未恢复）——挂起用例的复验必须恢复原断言后重跑。 |
 
 口径教训：名字/行号自动匹配只能出候选名单，分子终审必须人工（本轮抽样 7/7
 候选"未移植"实为内联移植）。三档随迭代人工更新，工具只保证候选不丢。

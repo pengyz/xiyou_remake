@@ -6,6 +6,8 @@
 //! - markEntityRemoved :6323（solid=1 + 类目分派视觉字段）
 //! - 宽度表 typeFrameWidth :589（88 项）+ dispatchSpriteSize 特例 :6274-6299（69→96px、72→32px）
 
+use crate::render::ArgbImage;
+
 /// 实体表（100 槽，Java god class 的实体数组族）。
 pub struct EntityTable {
     pub entity_type: Vec<i32>,
@@ -386,7 +388,13 @@ fn fix_slot(grid: &mut CellGrid, px: i32, py: i32, sprite_w: i32, id_from: usize
 /// 帧到表尾：solid==1 → pullEntityFromCell 格槽摘除；solid==2 → dispatchSpriteSize/dispatchAnimFields 重置 + solid=0；
 /// 其余 → 帧 0。pullEntityFromCell 的槽摘除当前仅在移除动画完成后需要（调用方
 /// `detach_from_cell`）——此处返回"待摘除"实体索引列表，由场景层执行。
-pub fn advance_frames(table: &mut EntityTable, grid: &mut CellGrid, frame_counter: i64, width_table: &[i32]) -> Vec<usize> {
+pub fn advance_frames(
+    table: &mut EntityTable,
+    grid: &mut CellGrid,
+    frame_counter: i64,
+    width_table: &[i32],
+    entity_imgs: &[Option<ArgbImage>],
+) -> Vec<usize> {
     let mut detach = Vec::new();
     if table.count == 0 || (frame_counter & 1) == 0 {
         return detach;
@@ -406,9 +414,14 @@ pub fn advance_frames(table: &mut EntityTable, grid: &mut CellGrid, frame_counte
                         detach_from_cell(grid, table, i);
                     }
                     2 => {
+                        // a.java:6297 dispatchSpriteSize(type)：高度 = 类型图自身高
+                        //（无 Some(h) 直通——DES 高度 29 不得驻留，迭代 49）
                         let t = table.entity_type[i];
-                        let h = table.sprite_h[i];
-                        dispatch_sprite_size(t, i, table, width_table, Some(h));
+                        let img_h = entity_imgs
+                            .get(t as usize)
+                            .and_then(|im| im.as_ref())
+                            .map(|im| im.height);
+                        dispatch_sprite_size(t, i, table, width_table, img_h);
                         dispatch_anim(t, i, table);
                         table.solid[i] = 0;
                     }
