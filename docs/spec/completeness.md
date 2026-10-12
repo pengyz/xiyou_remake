@@ -70,11 +70,17 @@
   与 Rust 逐帧一致（含不足浮层），此前分歧源于行走键空操作导致的
   场景状态从未到达触发点。floor4 的 type9 贴 y=0 崩溃行 = 不可达死内容
   （BUG-009）不变。
-  **迭代 34 入口（渲染层变换表 bug，用户报告框底未翻转）**：Java
-  drawEdgePatch 传 1/2/3 = 诺基亚旋转族（ROT90/180/270），Rust 变换表
-  误映射为翻转族且无 FLIP_H/FLIP_V 臂——框体角件/底边视觉错误。
-  迭代 34 = 变换表按 MIDP 规范重写 + 全 drawImageT 调用点审计 + 受影响
-  场景重灌。 |
+  **迭代 34 收敛（变换表修复 + 行走键审计）**：shim Graphics.drawImageTransformed
+  补 8192/16384/24576 FLIP 臂（此前 default 恒等绘制 = 框体角件/底边未翻转
+  ——用户报告的框体观感根因，真机 Nokia UI 实现这些常量故观感不同）；
+  Rust draw_image_transformed 同步补臂；draw_edge_patch 经
+  NOKIA_TRANSFORM_TABLE 路由 draw_image_transformed。行走键审计修正：
+  场景数字键 2/4/6/8 = 无效键码空操作（真键 = raw 50/52/54/56），四场景
+  16 行修正后真实行走生效。
+  **新暴露缺口（迭代 35 队列）**：真实行走下 gameplay_floor1 系四用例
+  分歧（floor_crossing/floor2_tour/floor51_menu/t537 首行走帧）——
+  floor1 冷载路径的行走/实体渲染差异 + 战斗流（本队列已知项）待逐帧
+  考证。preset 系七用例不受影响全绿。 |
 
 口径教训：名字/行号自动匹配只能出候选名单，分子终审必须人工（本轮抽样 7/7
 候选"未移植"实为内联移植）。三档随迭代人工更新，工具只保证候选不丢。

@@ -883,7 +883,14 @@ fn preset_floor2_frames_match() {
                 Some(sc) => sc.paint(&mut g, &tileset),
                 None => machine.paint(&mut g),
             }
-            sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
+                        if matches!(rec.tick, 68 | 261 | 262 | 263) {
+                let mut buf = Vec::new();
+                for &p in &screen.argb {
+                    buf.extend_from_slice(&p.to_be_bytes());
+                }
+                std::fs::write(format!("/tmp/rust-f2-{}.bin", rec.tick), &buf).unwrap();
+            }
+sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
         }
         {
             if let Some(expect) = &rec.frame_sha {

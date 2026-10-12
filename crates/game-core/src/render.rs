@@ -468,6 +468,14 @@ impl<'a> SoftGraphics<'a> {
                 if (p >> 24) & 0xFF == 0 {
                     continue;
                 }
+                // 变换码表 = shim DirectGraphics 自定义 1..=7（Graphics.java:346-376
+                // 权威分派，与 MIDP 旋转族同名不同义）：
+                //   1=MIRROR_ROT180(垂直翻转) 2=MIRROR(水平翻转) 3=ROT180
+                //   4=MIRROR_ROT270 5=ROT90 6=ROT270 7=MIRROR_ROT90
+                // 另支持诺基亚 FLIP 常量 8192/16384/24576（shim 同步实现，
+                // a.java:44 f_int_arr_01 值域）。迭代 34：框体角件/底边翻转
+                // 此前两侧均未实现（shim default 恒等 + Rust 无臂）= 锚点与
+                // 真机观感分歧的根因，现两侧同步翻转。
                 let (dx, dy) = match transform {
                     1 => (sx, h - 1 - sy),
                     2 => (w - 1 - sx, sy),
@@ -476,6 +484,9 @@ impl<'a> SoftGraphics<'a> {
                     5 => (h - 1 - sy, sx),
                     6 => (sy, w - 1 - sx),
                     7 => (h - 1 - sy, w - 1 - sx),
+                    8192 => (w - 1 - sx, sy),
+                    16384 => (sx, h - 1 - sy),
+                    24576 => (w - 1 - sx, h - 1 - sy),
                     _ => (sx, sy),
                 };
                 self.set_pixel(ox + dx, oy + dy, p);

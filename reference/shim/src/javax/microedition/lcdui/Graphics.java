@@ -368,6 +368,9 @@ public class Graphics {
                     case 5: dx = h - 1 - sy; dy = sx; break;             // ROT90
                     case 6: dx = sy; dy = w - 1 - sx; break;             // ROT270
                     case 7: dx = h - 1 - sy; dy = w - 1 - sx; break;     // MIRROR_ROT90
+                    case 8192: dx = w - 1 - sx; dy = sy; break;          // FLIP_HORIZONTAL（诺基亚常量，真机有效）
+                    case 16384: dx = sx; dy = h - 1 - sy; break;         // FLIP_VERTICAL
+                    case 24576: dx = w - 1 - sx; dy = h - 1 - sy; break; // FLIP_H|FLIP_V
                     default: dx = sx; dy = sy; break;                    // NONE
                 }
                 setPixel(ox + dx, oy + dy, p);
