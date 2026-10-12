@@ -22,3 +22,10 @@ sources: [迭代 28 preset-help/load-menu 重生成（旧档由会话外显式�
 预置路径。ttransform/套件外的单场景驱动若图省事传错路径，失败形态是
 T≈67 的 ExceptionInInitializerError（音效窗首触 SKY_WAR），见
 preset_rms.py 头注释的 SKY_WAR 读点。
+
+
+**手工单场景再生的同型坑（迭代 40 补记）：** 逐场景 `run_variants_parallel`
+再生时漏传 `preset=` 参数 ⇒ 同样产出"卡空槽列表"的静默退化 trace
+（2026-10-12 18:2x 批次：A-walk-pure/A-floor1-tour/A-floor1-to-floor2 三例，
+帧数齐全、A==B==C 可绿，唯独永不进入 mode 3）。再生后**必须核验 trace
+状态转储出现 `FLD 010 byte 3`**（进入 mode 3）才算再生有效。
