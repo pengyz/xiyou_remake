@@ -1527,6 +1527,13 @@ fn preset_itemcymbal_frames_match() {
 ///    （Rust frame=1 = 生成后首推进）。疑点 = 击杀拍差（bump→battle
 ///    计拍差或 popup 首现拍 ≠ 击杀拍）。待办：战斗拍台账（双侧逐拍
 ///    battle_tick + popup 首现拍对表）定击杀拍后对齐。
+/// 迭代 47 续办取证：Java 台账 f_int_151=1/battleActive=true/popupV=
+/// [150,100] 首现于 T302（= Rust 击杀拍，**击杀拍无差**！）；
+/// stride-1 op 流对表发现 **Java 转场拍（T303）paint 为部分绘制**——
+/// op 仅背景(77x320×5)+瓦片(128x208×83)，实体/浮层/对话层整层跳过
+/// （帧上实体像素 = 持久画布残影）→ Rust 全量 paint 与 Java 部分绘制
+/// 的差 = 残差本体。待办：a.java paint 的实体层跳过条件考证
+/// （floorTransitioning/对话相位门控）+ op 流多行重组解析。
 #[ignore]
 fn preset_itemboss40_frames_match() {
     let repo_path = repo();
