@@ -212,6 +212,11 @@
    shim Graphics.flushOps 256 条截断 → 2048（转场拍实体 draw 入
    trace；reference 门禁全绿）。待办：mode11 dialogPhase 门控的
    paint 语义对表（paint case 11 a.java:2798-2900）→ 摘除挂起。
+   **迭代 54 结论（entityAnimFrame 逐拍推进对表）**：Java/Rust 的 DES
+   怪 frame 推进完全一致（T302 frame=1、T304 frame=2，advance 奇偶
+   门控 fc ODD 同步）——游戏逻辑无差。残差根因定性 = **Java paint
+   调度差异**（转场拍部分绘制/空拍，画布残影 vs Rust 全量重绘），
+   需 shim paint 调用/时机诊断插桩专项收口。 |
    **迭代 53 取证（摘牌尝试=残差确认）**：itemboss40 摘除 #[ignore]
    后 T303 仍差（Rust 全量 paint_dialog 的 DES 怪 sprite 帧位差）——
    型73 boss 死亡动画的 entityAnimFrame 推进拍差需专项对表

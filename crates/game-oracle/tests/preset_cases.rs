@@ -1583,6 +1583,12 @@ fn preset_itemcymbal_frames_match() {
 /// 3037px 聚焦 = **型26/29/30/32 怪自身 sprite 的火焰发饰动画帧位
 /// 差**（sptenemy 条带内多行动画，Java 帧位超前 Rust ~2）——
 /// entityAnimFrame 逐拍对表待办。op 流 256 截断已修（cap 2048）。
+/// 迭代 54 结论：entityAnimFrame 逐拍推进两侧一致确认（T302 frame=1、
+/// T304 frame=2、advance 奇偶门控 fc ODD 同步）——游戏逻辑无差。
+/// 残差根因 = **Java paint 调度差异**（转场拍部分绘制/空拍，画布
+/// 残影 vs Rust 全量 paint_dialog 重绘），需 shim paint 调用/时机
+/// 诊断插桩专项收口（SRV/PAINT 700/700 已装，待 paint 跳过拍定
+/// 位）。
 #[ignore] // 迭代 53：T303 残差=型73 boss 死亡动画拍差（battle_finishing 动画帧对表待办；专项见 completeness 迭代 53）
 fn preset_itemboss40_frames_match() {
     let repo_path = repo();
