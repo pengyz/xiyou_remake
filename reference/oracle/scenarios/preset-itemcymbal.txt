@@ -1,0 +1,23 @@
+# ticks: 600
+# preset: preset-itemcymbal.preset
+# cover: 钹（86 型道具）消耗链（killAdjacentAt a.java:7923）：槽载入 floor1
+#   (3,10) → mode10 面板 → -5 确认浮层 → -6 使用 → 四邻格 (2,10) 型43 怪
+#   清除 + 赏金 popup（世界原点）→ 栈压实 → -3 左行由阻挡变通行
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -6 press
+302 -6 release
+350 -5 press
+352 -5 release
+400 -6 press
+402 -6 release
+450 -3 press
+452 -3 release
+500 -3 press
+502 -3 release

@@ -139,7 +139,27 @@
   全帧，4 倍行走时长——相机边缘跟随全图巡回/parallax/实体动画长程相位）
   首跑全帧一致。附带修复两例静默退化 trace（A-walk-pure/A-floor1-tour
   18:2x 手工再生漏 preset，已带注入重生并核验 mode3；坑型补入知识库
-  gotcha_scenario-preset-header-required）。 |
+  gotcha_scenario-preset-header-required）。
+  **迭代 41 收敛（物品栈族 useItemStack 全语义）**：新用例
+  preset_cases::preset_itemstack（preset-itemstack 场景 = item13 preset 变体
+  注入 [19 型×1 次]，T1-500 全帧）。移植面：① useItemStack（a.java:7761-7781
+  uses>0 → activate → 消耗且减至 0 时栈压实）；② activateItem 补消耗臂
+  16/17（m_089 四邻格门控 + 文案）/18（全场型11 清除）/19（(atk+def)*74/10
+  加血）+ m_100/m_089 助手；③ kind3 道具确认浮层分派（0 拍 no-op 系 T352
+  实证）；④ 面板臂补 itemUseTargetType 装填；⑤ 文案表三处漂移修复
+  （[6]/[21] 截断、[10] 威力加倍误植）。矩阵 mode 19 行同步修正为不可达
+  死内容（迭代 41 核对）。
+  **迭代 42 收敛（钹族 killAdjacentAt + activateItem 85/86）**：新用例
+  preset_cases::preset_itemcymbal（preset-itemcymbal 场景 = 栈注入
+  [86 型×1 次]，floor1 (3,10) 左邻 (2,10) 型43 怪），T1-600 全帧。移植面：
+  ① activateItem 补 85（全场黄门清除）/86（四邻格 killAdjacentAt）消耗臂
+  （a.java:7865-7886）；② killAdjacentAt（a.java:7923-7951：型5 宝箱类
+  removeSlotAt + tryOpenChest 开则 walkPhase=4；型<67 且 cat8 且 state!=1
+  怪物 → 移除 + 赏金〔持 25 型加倍〕，popup 落世界原点 (0,0)——Java 字面量；
+  for 循环 removeSlotAt 压实后仍 slot++ 的跳位缺陷保真）；③ findFloorGate
+  实体索引变体既有（load 落点步离已用），脚本 49/55 暗道换层命令与
+  spawnBossEvent（需 boss 层夹具，现缺 40 层）留待后续批次。差分信号：
+  激活前 (2,10) 撞怪阻挡 → 激活后金 100→104 + 左行通达。 |
 
 口径教训：名字/行号自动匹配只能出候选名单，分子终审必须人工（本轮抽样 7/7
 候选"未移植"实为内联移植）。三档随迭代人工更新，工具只保证候选不丢。

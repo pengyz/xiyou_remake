@@ -2121,10 +2121,82 @@ impl GameScene {
                 self.show_overlay_message(0, &format!("增加了{delta}血量"), 0, 0);
                 true
             }
+            85 => {
+                // a.java:7865-7875：移除全场型1（黄门）实体 + mode3 + 消耗
+                let mut e = self.entities.count;
+                while e > 0 {
+                    e -= 1;
+                    if self.entities.entity_type[e] == 1 {
+                        entity::remove(&mut self.entities, e);
+                    }
+                }
+                self.game_mode = 3;
+                true
+            }
+            86 => {
+                // a.java:7876-7886：四邻格 killAdjacentAt + mode3 + 消耗
+                let cx = self.view.player_px >> 5;
+                let cy = self.view.player_py >> 5;
+                self.kill_adjacent_at(cx, cy - 1);
+                self.kill_adjacent_at(cx, cy + 1);
+                self.kill_adjacent_at(cx - 1, cy);
+                self.kill_adjacent_at(cx + 1, cy);
+                self.game_mode = 3;
+                true
+            }
             // 20 对角瞬移（a.java:7832-7850）/ 21 下一层（7851-7852）：
             // 需 placePlayerAtCell/changeFloor-in-activate 交互考证——专属场景批次
             20 | 21 => todo!("activateItem 消耗臂 {t}（a.java:7832-7852）"),
             _ => false,
+        }
+    }
+
+    /// killAdjacentAt（a.java:7923-7951）：格 (cx,cy) 槽位逐个——型5 宝箱类
+    /// → removeSlotAt + tryOpenChest（开则 walkPhase=4 遮幅）；型<67 且
+    /// renderCategory==8 且 state!=1（怪物）→ markEntityRemoved + 赏金
+    /// （持 25 型金币加倍；popup 落世界原点 (0,0)——Java 字面量）。
+    /// Java for 循环 slot++ 在 removeSlotAt 压实后仍前进（跳过补位项）——
+    /// 缺陷保真，镜像之。
+    fn kill_adjacent_at(&mut self, cx: i32, cy: i32) {
+        if cx < 0 || cy < 0 || cx >= self.view.wide || cy >= self.view.high {
+            return; // Java try/catch(ArrayIndexOutOfBounds) 静默等价
+        }
+        let ct = self.grid.cell_type[cy as usize][cx as usize] as usize;
+        let cap = self.grid.capacity[ct] as i32;
+        let mut slot = 0i32;
+        while slot < cap {
+            let e = self.grid.slots[ct][slot as usize] as usize - 1;
+            let t = self.entities.entity_type[e];
+            if t == 5 {
+                let param = self.entities.param[e];
+                self.remove_slot_at(cx, cy, slot);
+                if self.try_open_chest(param) {
+                    self.walk_phase = 4;
+                }
+            } else if t < 67
+                && entity::render_category(t) == 8
+                && self.entities.solid[e] != 1
+            {
+                entity::remove(&mut self.entities, e);
+                let gold = if self.player.find_item(25) >= 0 {
+                    self.enemy_base_gold[(t - 41) as usize] << 1
+                } else {
+                    self.enemy_base_gold[(t - 41) as usize]
+                };
+                self.player.gold += gold;
+                if gold > 0 {
+                    self.popups.spawn(
+                        4,
+                        gold,
+                        0,
+                        0,
+                        self.view.cam_x,
+                        self.view.cam_y,
+                        self.images.popup.digit_strips[0].width / 11,
+                    );
+                }
+            }
+            slot += 1;
         }
     }
 
