@@ -157,6 +157,7 @@ fn preset_load_menu_frames_match() {
         battle_icon: map[8].clone(),
         battle_strip: map[7].clone(),
         ui,
+        faces: load_container("face", 12),
     };
     images_slot = Some(images_tmp);
     let mut floor_assets: Vec<Option<game_core::scene::FloorAssets>> = vec![None; 56];
@@ -354,6 +355,7 @@ fn preset_help_frames_match() {
         battle_icon: map[8].clone(),
         battle_strip: map[7].clone(),
         ui,
+        faces: load_container("face", 12),
     };
     let mut floor_assets: Vec<Option<game_core::scene::FloorAssets>> = vec![None; 56];
     floor_assets[1] = Some(game_core::scene::FloorAssets {
@@ -538,6 +540,7 @@ fn preset_item13_frames_match() {
         battle_icon: map[8].clone(),
         battle_strip: map[7].clone(),
         ui,
+        faces: load_container("face", 12),
     };
     let mut floor_assets: Vec<Option<game_core::scene::FloorAssets>> = vec![None; 56];
     floor_assets[1] = Some(game_core::scene::FloorAssets {
@@ -737,6 +740,7 @@ fn preset_itemstack_frames_match() {
         battle_icon: map[8].clone(),
         battle_strip: map[7].clone(),
         ui,
+        faces: load_container("face", 12),
     };
     let mut floor_assets: Vec<Option<game_core::scene::FloorAssets>> = vec![None; 56];
     floor_assets[1] = Some(game_core::scene::FloorAssets {
@@ -937,6 +941,7 @@ fn preset_item2122_frames_match() {
         battle_icon: map[8].clone(),
         battle_strip: map[7].clone(),
         ui,
+        faces: load_container("face", 12),
     };
     let mut floor_assets: Vec<Option<game_core::scene::FloorAssets>> = vec![None; 56];
     floor_assets[1] = Some(game_core::scene::FloorAssets {
@@ -1158,6 +1163,7 @@ fn preset_item21_frames_match() {
         battle_icon: map[8].clone(),
         battle_strip: map[7].clone(),
         ui,
+        faces: load_container("face", 12),
     };
     let mut floor_assets: Vec<Option<game_core::scene::FloorAssets>> = vec![None; 56];
     floor_assets[1] = Some(game_core::scene::FloorAssets {
@@ -1376,6 +1382,7 @@ fn preset_itemcymbal_frames_match() {
         battle_icon: map[8].clone(),
         battle_strip: map[7].clone(),
         ui,
+        faces: load_container("face", 12),
     };
     let mut floor_assets: Vec<Option<game_core::scene::FloorAssets>> = vec![None; 56];
     floor_assets[1] = Some(game_core::scene::FloorAssets {
@@ -1517,79 +1524,29 @@ fn preset_itemcymbal_frames_match() {
 /// hp120）→ 击杀钩子（bossTypeOrder 未命中〔73 不在表〕→ case73 →
 /// 脚本旗标 + loadLevelScript(22) + spawnBossEvent(6)（12 只 DES 态登场）→
 /// battle_rerun_scene=false 收尾）+ 脚本 22 对话浮层。
+/// 40 层 boss 击杀链（preset-itemboss40）：槽载入 (6,3) → -1 撞 boss(6,2)
+/// → 一拍斩 → case73 脚本 + spawnBossEvent(6)（12 只 event-6 DES 登场）。
+/// 迭代 55 收口（T1-700 全帧一致）：残差根因 = **对话气泡标记用错图集**
+/// —— a.java:2887 标记图 = f_Image_arr2_00[12][f_byte_arr_22[dialogPage]]，
+/// row 12 = **face 包**（resourceNames[12]="face"，12 张全 26×22，hexdump
+/// 零余字节）；Rust 误用 `images.entity[bubble]`（实体 sprite 条带
+/// 245×39）→ T303-306 每拍多画一条 245×39 条带（全屏 clip，x120 起）
+/// ≈3037px 残差带。仪器 = FX-itemboss40 取证重跑（dumpStride=1）：
+/// T303 双侧 op 流 872 vs 872，前 871 条逐字节全同，唯一分歧 op
+/// `drawImage(26x22,120,68,0)` vs `drawImage(245x39,120,68,0)`。
+/// 修复：SceneImages.faces 字段 + paint_dialog 改 face 表 + 全构造点装
+/// load_container("face", 12)。
+/// 【历史定性更正】以下旧定性全部证伪，读者可见错在哪：
+/// - "T303 空 paint/0 ops"（迭代 49/50/54）= dumpStride=8 采样伪影
+///   误读——非采样拍不落 OPS 块（run.py:185 硬编码），SRV/PAINT
+///   700/700 实证 paint 每拍全量绘制；
+/// - "Java paint 调度差异/画布残影"（迭代 54）同上证伪；
+/// - "DES 登场泡 open_anim 帧位超前 ~2"（迭代 49/51）、"型26 火焰
+///   发饰 sprite 差"（迭代 48）、"40 层相机 y 位差"（迭代 48，已
+///   自行撤销）、"型73 boss 死亡动画拍差"（迭代 53）——皆是 245×39
+///   错图上屏像素被误读为对方绘制差异；entityAnimFrame/popup 链/
+///   击杀拍对表结论本身仍有效（那些机制两侧确实一致）。
 #[test]
-/// 迭代 49 收口（残差闭合，历史取证见 git）：：T303 起 3037px
-/// （x120-239 y68-106 = Java 白泡 vs Rust 无泡背景）。取证结论：
-/// ① Rust T303 实体状态 solid=2/row8/frame=1、12 只落位坐标逐项吻合；
-/// ② Java T303 白泡位于 y87-106（y 位移 -24~-32 = open_anim 帧 3-4，
-///    strip 全白泡无火焰——open_anim 五列均为白烟）→ Java 的 DES frame
-///    在 T303 已推进至 3-4，即 **Java 击杀/生成早于 Rust ~2-3 拍**
-///    （Rust frame=1 = 生成后首推进）。疑点 = 击杀拍差（bump→battle
-///    计拍差或 popup 首现拍 ≠ 击杀拍）。待办：战斗拍台账（双侧逐拍
-///    battle_tick + popup 首现拍对表）定击杀拍后对齐。
-/// 迭代 49 台账+判定：击杀拍双侧对齐（T302，f_int_151=1/popupV=
-/// [150,100] 首现；A1==A2 双跑 sha 一致=Java 确定性无差）；
-/// **T303 paint = 空绘制**（Java mode11 dialogPhase-0 该拍 0 ops，
-/// 画布残影）vs Rust 全量 paint_dialog——mode11 空拍语义为残差
-/// 本体，专项待办（shim ops cap 256→2048 后实体 draw 已入 trace）。
-/// 迭代 47 续办（台账建账）：Java 侧逐拍对表完成——击杀拍=T302
-/// （f_int_151 0→1 冻结、battleActive=true、popupV=[150,100] 首现）
-/// 与 Rust 击杀拍**完全对齐**；残差聚焦 popup/实体绘制的 y 域
-/// （T303 diff 带 y87-106 = damage popup「150」首现位附近），
-/// 待 popup 生存期/上升计数与实体 sprite 源的逐字段对表。
-/// 迭代 49 续办：T303 差异连通域分解 = **4 个独立泡框团簇**
-/// （x120-152/156-187/191-222/226-239，各 32px 宽、间隔 35px =
-/// DES 实体位 + open_anim 泐框；y68-106 = 泡 y 位移帧 3-4 域）。
-/// popup 链（值/位置/散布/退役）与 DES 状态全对齐——残差 = 泡绘制
-/// 的帧位差（Java 帧位超前 Rust ~2-3）或 dst y 基准差，单变量待定。
-/// 注：trace op 流 256 条截断（Graphics.flushOps Math.min cap）——
-/// 实体 draw 不在 trace 内，op 对表不可行；像素台账为唯一仪器。
-/// 迭代 48 续办（逐拍台账完整表）：popup 链排除（retire=-rise>7、
-/// 8 拍生存期、scatter 表、kind/x/y 全对齐）。残差空间结构：
-/// T303-309 = 单条上升泡带 ~3037px（51-80 行带渐升至 75-104，
-/// 6-7px/拍渐缓=ease）；T310 起新增 y122-143/y170-191 两条 21px
-/// 带（= 两排 DES 怪 sprite 本体，重派发高度修复后仍差）。
-/// 待办：T310+ = 重派发后 sprite 绘制对表（帧/行/落点）；
-/// T303-309 = 泡带 = open_anim 帧序或 y 基准差。
-/// 迭代 48 取证：popup y 差 10px 实锤——Java popupY[0]=78（=boss y64+
-/// cam_y14）vs Rust popup y=88（cam_y24）：**40 层行走相机 y 位差**
-/// （spawn 相机=居中 48，两侧行走/钳制模型在 floor40 分岔）。
-/// 待办：40 层相机钳制模型考证（mapCellsHigh/可视行数）→ 对齐后摘牌。
-/// 迭代 48 续办：残差=型26 火焰发饰 sprite 的绘制差（T303-306：Rust 画
-/// 了火焰发饰帧、Java 未画/后画）——非 popup、非相机、非 DES 状态差
-/// （实体状态/坐标/popup 值全部对齐）。open_anim 条带 4-bit 解码已
-/// 验证为白烟泡（无火焰帧）；相机 y 位差假说排除（cam 20 偏移两侧
-/// 一致）。待办：T303-306 op 流实体 draw 逐条对表（多行重组解析）。
-/// 另：40 层相机钳制考证取消（popup y 差来自 open_anim 帧位差）。
-/// 迭代 47 续办取证（迭代 48/49 深化）：Java 台账 T302 击杀拍与 Rust
-/// 完全对齐（f_int_151=1/popupV=[150,100] 首现；A1==A2 双跑 sha 一致
-/// =Java 确定性无差）。**T303 paint = 空绘制**（该拍 0 ops，画布残影）
-/// —— shim ops cap 256→2048 修复后实体 draw 已可入 trace（对表工具
-/// 就绪）。残差 = mode11 dialogPhase 门控的 paint 语义（Rust paint_dialog
-/// 全量 vs Java 空拍）——专项待办。
-/// 另证伪：相机 y 位差假说（cam+20 两侧一致=20）；popup 链全对齐
-/// （retire=-rise>7、8 拍生存期、scatter 表）。
-/// 迭代 49/50 状态：T303 = Java **空 paint**（0 ops 无异常，A1==A2 双跑
-/// 一致）vs Rust 全量 paint_dialog——paint 调用/门控机制待 shim 诊断
-/// 专项（paint 调用计数/时机插桩）；T310-700 段已由重派发高度语义
-/// 修复收口（见下）；
-/// T303-309 段残差（DES 登场泡绘制相位/源）仍开放——战斗拍台账已证
-/// 击杀拍/popup 值/rise 计数全对齐，剩余疑点 = 泡绘制链 src/dst 逐
-/// 字段对表。禁用断言中和式假绿（迭代 49 教训）。
-/// 迭代 51 取证（dumpStride=1 全量 op 流 + 双上限 2048 解锁）：
-/// Java T303 = 全量 873 op（实体层全画：六 poofs@124、怪 sprite、
-/// 状态条、+100 popup 全部入 op）；与 Rust op 流 872 条仅差 1
-/// （末尾 drawSubstring 说话人名——两侧均有，内容同）。帧像素差
-/// 3037px 聚焦 = **型26/29/30/32 怪自身 sprite 的火焰发饰动画帧位
-/// 差**（sptenemy 条带内多行动画，Java 帧位超前 Rust ~2）——
-/// entityAnimFrame 逐拍对表待办。op 流 256 截断已修（cap 2048）。
-/// 迭代 54 结论：entityAnimFrame 逐拍推进两侧一致确认（T302 frame=1、
-/// T304 frame=2、advance 奇偶门控 fc ODD 同步）——游戏逻辑无差。
-/// 残差根因 = **Java paint 调度差异**（转场拍部分绘制/空拍，画布
-/// 残影 vs Rust 全量 paint_dialog 重绘），需 shim paint 调用/时机
-/// 诊断插桩专项收口（SRV/PAINT 700/700 已装，待 paint 跳过拍定
-/// 位）。
-#[ignore] // 迭代 53：T303 残差=型73 boss 死亡动画拍差（battle_finishing 动画帧对表待办；专项见 completeness 迭代 53）
 fn preset_itemboss40_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(
@@ -1663,6 +1620,7 @@ fn preset_itemboss40_frames_match() {
         battle_icon: map[8].clone(),
         battle_strip: map[7].clone(),
         ui,
+        faces: load_container("face", 12),
     };
     let mut floor_assets: Vec<Option<game_core::scene::FloorAssets>> = vec![None; 56];
     floor_assets[40] = Some(game_core::scene::FloorAssets {
@@ -1886,6 +1844,7 @@ fn preset_floor2_frames_match() {
         battle_icon: map[8].clone(),
         battle_strip: map[7].clone(),
         ui,
+        faces: load_container("face", 12),
     };
     let mut floor_assets: Vec<Option<game_core::scene::FloorAssets>> = vec![None; 56];
     floor_assets[1] = Some(game_core::scene::FloorAssets {
@@ -2108,6 +2067,7 @@ fn preset_merchant_frames_match() {
         battle_icon: map[8].clone(),
         battle_strip: map[7].clone(),
         ui,
+        faces: load_container("face", 12),
     };
     let mut floor_assets: Vec<Option<game_core::scene::FloorAssets>> = vec![None; 56];
     floor_assets[1] = Some(game_core::scene::FloorAssets {
@@ -2322,6 +2282,7 @@ fn floor_crossing_frames_match() {
         battle_icon: map[8].clone(),
         battle_strip: map[7].clone(),
         ui,
+        faces: load_container("face", 12),
     };
     let mut floor_assets: Vec<Option<game_core::scene::FloorAssets>> = vec![None; 56];
     floor_assets[1] = Some(game_core::scene::FloorAssets {
@@ -2536,6 +2497,7 @@ fn prologue_frames_match() {
         battle_icon: map[8].clone(),
         battle_strip: map[7].clone(),
         ui,
+        faces: load_container("face", 12),
     };
     let mut floor_assets: Vec<Option<game_core::scene::FloorAssets>> = vec![None; 56];
     floor_assets[51] = Some(game_core::scene::FloorAssets {
@@ -2743,6 +2705,7 @@ fn floor51_menu_frames_match() {
         battle_icon: map[8].clone(),
         battle_strip: map[7].clone(),
         ui,
+        faces: load_container("face", 12),
     };
     let mut floor_assets: Vec<Option<game_core::scene::FloorAssets>> = vec![None; 56];
     floor_assets[51] = Some(game_core::scene::FloorAssets {
@@ -2953,6 +2916,7 @@ fn gameplay_floor1_frames_match() {
         battle_icon: map[8].clone(),
         battle_strip: map[7].clone(),
         ui,
+        faces: load_container("face", 12),
     };
     let mut floor_assets: Vec<Option<game_core::scene::FloorAssets>> = vec![None; 56];
     floor_assets[1] = Some(game_core::scene::FloorAssets {
@@ -3168,6 +3132,7 @@ fn floor2_tour_frames_match() {
         battle_icon: map[8].clone(),
         battle_strip: map[7].clone(),
         ui,
+        faces: load_container("face", 12),
     };
     let mut floor_assets: Vec<Option<game_core::scene::FloorAssets>> = vec![None; 56];
     floor_assets[1] = Some(game_core::scene::FloorAssets {
@@ -3381,6 +3346,7 @@ fn floor1_tour_frames_match() {
         battle_icon: map[8].clone(),
         battle_strip: map[7].clone(),
         ui,
+        faces: load_container("face", 12),
     };
     let mut floor_assets: Vec<Option<game_core::scene::FloorAssets>> = vec![None; 56];
     floor_assets[1] = Some(game_core::scene::FloorAssets {
@@ -3594,6 +3560,7 @@ fn walk_pure_frames_match() {
         battle_icon: map[8].clone(),
         battle_strip: map[7].clone(),
         ui,
+        faces: load_container("face", 12),
     };
     let mut floor_assets: Vec<Option<game_core::scene::FloorAssets>> = vec![None; 56];
     floor_assets[1] = Some(game_core::scene::FloorAssets {
@@ -3802,6 +3769,7 @@ fn preset_save_frames_match() {
         battle_icon: map[8].clone(),
         battle_strip: map[7].clone(),
         ui,
+        faces: load_container("face", 12),
     };
     let mut floor_assets: Vec<Option<game_core::scene::FloorAssets>> = vec![None; 56];
     floor_assets[1] = Some(game_core::scene::FloorAssets {
@@ -4023,6 +3991,7 @@ fn preset_floor51_frames_match() {
         battle_icon: map[8].clone(),
         battle_strip: map[7].clone(),
         ui,
+        faces: load_container("face", 12),
     };
     let mut floor_assets: Vec<Option<game_core::scene::FloorAssets>> = vec![None; 56];
     floor_assets[51] = Some(game_core::scene::FloorAssets {
@@ -4244,6 +4213,7 @@ fn preset_alchemy_frames_match() {
         battle_icon: map[8].clone(),
         battle_strip: map[7].clone(),
         ui,
+        faces: load_container("face", 12),
     };
     let mut floor_assets: Vec<Option<game_core::scene::FloorAssets>> = vec![None; 56];
     floor_assets[12] = Some(game_core::scene::FloorAssets {

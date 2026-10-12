@@ -121,6 +121,7 @@ fn build_scene() -> GameScene {
         battle_icon: map[8].clone(),
         battle_strip: map[7].clone(),
         ui,
+        faces: load_container("face", 12),
     };
 
     // 换层资产表：floor 1/2（floor2 = maplv2 + sprite2 权威解析）

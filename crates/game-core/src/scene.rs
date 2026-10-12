@@ -66,6 +66,11 @@ pub struct SceneImages {
     pub battle_icon: ArgbImage,
     /// map[2][7]：战后数字条（drawDigitStrip 7px 数字带）
     pub battle_strip: ArgbImage,
+    /// f_Image_arr2_00[12][*]：face 包（12 张 26×22，零余字节实测）——对话
+    /// 气泡标记表，索引 = f_byte_arr_22[dialogPage]（a.java:2887）。
+    /// **不是** entityTypeImage——迭代 55 根因：entity[bubble] 误用致 245×39
+    /// 条带上屏（T303 op 流 872 条唯一分歧 op 实证）。
+    pub faces: Vec<ArgbImage>,
 }
 
 impl SceneImages {
@@ -4983,8 +4988,9 @@ impl GameScene {
                         (self.view.player_px + 16, self.view.player_py - 30)
                     };
                     let by = if self.dialog_speaker == 84 { by - 20 } else { by };
-                    if let Some(face) = self.images.entity.get(bubble as usize).cloned().flatten() {
-                        g.draw_image(&face, bx + self.view.cam_x, by + self.view.cam_y + 20, 0);
+                    // a.java:2887：标记图 = face 包第 bubble 张（26×22），非实体表
+                    if let Some(face) = self.images.faces.get(bubble as usize) {
+                        g.draw_image(face, bx + self.view.cam_x, by + self.view.cam_y + 20, 0);
                     }
                 }
             }

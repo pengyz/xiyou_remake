@@ -217,6 +217,9 @@
    门控 fc ODD 同步）——游戏逻辑无差。残差根因定性 = **Java paint
    调度差异**（转场拍部分绘制/空拍，画布残影 vs Rust 全量重绘），
    需 shim paint 调用/时机诊断插桩专项收口。 |
+   > 【2026-10-12 更正】"Java paint 调度差异"定性证伪：SRV/PAINT
+   > 插桩 700/700 全跑 + FX 取证重跑（dumpStride=1）T303 = 872 op
+   > 全量绘制。真根因见迭代 55。
    **迭代 53 取证（摘牌尝试=残差确认）**：itemboss40 摘除 #[ignore]
    后 T303 仍差（Rust 全量 paint_dialog 的 DES 怪 sprite 帧位差）——
    型73 boss 死亡动画的 entityAnimFrame 推进拍差需专项对表
@@ -237,6 +240,10 @@
    dialogPhase-0 该拍 paint 未调用或空体；A1==A2 双跑一致（非
    墙钟非确定）；Rust 为全量 paint_dialog。待 shim 诊断专项：
    paint 调用计数/时机插桩 → 空拍语义对表 → 摘除挂起。
+   > 【2026-10-12 更正】"T303 空 paint" = **dumpStride=8 采样伪影
+   > 误读**（run.py 硬编码 stride=8；非采样拍 postTick 不落
+   > opsBlock，下拍 flushOps 覆盖）：FX 取证重跑（stride=1）T303
+   > = 872 op 全量，与基线 700 帧 sha 全同——paint 每拍都在画。
    **迭代 47 续办（战斗拍台账 + 重派发高度语义修复）**：① Java 侧逐拍
    台账建账（T296-311：f_int_151 0→1 冻结、popupV=[150,100] 首现
    T302）——击杀拍与 Rust 完全对齐，「击杀拍差」假说二次证伪；
@@ -249,6 +256,21 @@
    相位/源——泡绘制链 src/dst 逐字段对表待办）。**教训入册**：断言
    中和式验证产生假绿（迭代 49 首轮"通过"实为 assert 被临时 eprintln
    替换后未恢复）——挂起用例的复验必须恢复原断言后重跑。 |
+   **迭代 55 收口（itemboss40 残差闭合，#[ignore] 摘除）**：真根因 =
+   **对话气泡标记用错图集**——a.java:2887 标记图 =
+   f_Image_arr2_00[12][f_byte_arr_22[dialogPage]]，row 12 =
+   **face 包**（resourceNames[12]="face"，12 张全 26×22，hexdump
+   零余字节）；Rust paint_dialog 误用 `images.entity[bubble]`（实体
+   sprite 条带 245×39）→ T303-306 每拍在全屏 clip 下多画一条
+   245×39 条带（x120 起）≈3037px 残差带。仪器 = FX-itemboss40
+   取证变体（run.py 新增 dump_stride 参数）：T303 双侧 op 流
+   872 vs 872，前 871 条逐字节全同，唯一分歧 op
+   `drawImage(26x22,120,68,0)` vs `drawImage(245x39,120,68,0)`。
+   修复：SceneImages.faces + paint_dialog 改 face 表 + 全构造点
+   load_container("face", 12)。preset_itemboss40 T1-700 全帧一致，
+   20/20 全绿 0 挂起。连带证伪：迭代 49/51"泡带帧位/火焰发饰"、
+   52/53"boss 死亡动画拍差"定性（错图像素被误读为对方绘制差）；
+   击杀拍/popup 链/entityAnimFrame 对表结论仍有效。 |
 
 口径教训：名字/行号自动匹配只能出候选名单，分子终审必须人工（本轮抽样 7/7
 候选"未移植"实为内联移植）。三档随迭代人工更新，工具只保证候选不丢。

@@ -101,6 +101,7 @@ fn probe_floor2_type78() {
         battle_icon: map[8].clone(),
         battle_strip: map[7].clone(),
         ui,
+        faces: load_container("face", 12),
     };
 
     let mut scene = GameScene::load_floor(
