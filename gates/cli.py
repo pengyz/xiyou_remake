@@ -207,13 +207,25 @@ def gate_rust_tests():
     crates = ROOT / "crates"
     if not any(crates.glob("*/Cargo.toml")):
         return report("rust-tests", SKIP, "crates/ 尚无 Cargo 工程（P3 启动后启用）")
+    # 夹具自供给（迭代 55）：assets/raw 与 oracle trace 均不入库，CI checkout
+    # 缺失曾致 cargo test 即刻 panic（gates CI 100+ 次全红根因）。缺则再生，
+    # 齐备则零成本（扫描+stat）。供给失败 ⇒ 门禁 FAIL（不静默跳过）。
+    prov = subprocess.run([sys.executable, str(ROOT / "reference/oracle/provision_tests.py")],
+                          cwd=ROOT, capture_output=True, text=True)
+    prov_lines = [l for l in prov.stdout.splitlines() if l.startswith("[provision]")]
+    prov_note = "；".join(prov_lines[-6:]) if prov.returncode == 0 else \
+        "夹具供给失败: " + (prov.stdout[-400:] + prov.stderr[-400:])
+    if prov.returncode != 0:
+        return report("rust-tests", FAIL, prov_note)
     # --release：与差分/移植工作同档（缓存常热）。迭代 39 实测 debug 档每次
     # check 付 ~390s 近全量重编译（开发全程只构建 release）；溢出检查由
     # [profile.release] overflow-checks=true 保持（Cargo.toml）。
     r = subprocess.run(["cargo", "test", "--workspace", "--release"],
                        cwd=ROOT, capture_output=True, text=True)
-    return report("rust-tests", PASS if r.returncode == 0 else FAIL,
-                  "cargo test --release 全绿" if r.returncode == 0 else r.stdout[-200:])
+    ok = r.returncode == 0
+    msg = (("cargo test --release 全绿" if ok else r.stdout[-200:]) +
+           ("；" + prov_note if prov_note and "已再生" in prov_note else ""))
+    return report("rust-tests", PASS if ok else FAIL, msg)
 
 
 # ---------- 测试计数 ratchet（迭代 27，防嵌套 #[test] 假绿） ----------

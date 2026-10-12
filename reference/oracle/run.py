@@ -163,7 +163,7 @@ def first_diff_line(a: str, b: str):
 # ---------------------------------------------------------------- 运行
 
 def variant_cmd(classes: Path, variant_dir: Path, label: str, ticks: int, script: Path,
-                 frames: str = "all", preset: str = None) -> tuple:
+                 frames: str = "all", preset: str = None, dump_stride: int = 8) -> tuple:
     out_dir = OUT / label
     if out_dir.exists():
         shutil.rmtree(out_dir)
@@ -182,7 +182,9 @@ def variant_cmd(classes: Path, variant_dir: Path, label: str, ticks: int, script
         # 转储采样：全量字段每 8 tick + 输入事件 tick + 末 tick（FRAME sha 每 tick 恒有）。
         # 对拍对比只发生在 A/B/C 之间（同 stride ⇒ 语义不变）；默认模式（reference 门禁）
         # 不传此属性保持每 tick 全量的 legacy 高保真格式。
-        "-Doracle.dumpStride=8",
+        # dump_stride=1 → 取证模式（每 tick 落 ops+状态向量；迭代 55：非采样拍无 OPS 块
+        # 曾被误读为"空 paint"——paint 实际每拍都跑，见 Canvas.serviceRepaints）。
+        f"-Doracle.dumpStride={dump_stride}",
         "oracle.host.Runner",
     ]
     if preset:
@@ -191,22 +193,26 @@ def variant_cmd(classes: Path, variant_dir: Path, label: str, ticks: int, script
 
 
 def run_variant(classes: Path, variant_dir: Path, label: str, ticks: int, script: Path,
-                frames: str = "all", preset: str = None):
-    cmd, out_dir = variant_cmd(classes, variant_dir, label, ticks, script, frames, preset)
+                frames: str = "all", preset: str = None, dump_stride: int = 8):
+    cmd, out_dir = variant_cmd(classes, variant_dir, label, ticks, script, frames, preset, dump_stride)
     r = sh(cmd)
     (out_dir / "stdout.txt").write_text(r.stdout, encoding="utf-8")
     (out_dir / "stderr.txt").write_text(r.stderr, encoding="utf-8")
     return r.returncode, out_dir
 
 
-def run_variants_parallel(specs: list, frames: str = "all", preset: str = None) -> dict:
+def run_variants_parallel(specs: list, frames: str = "all", preset: str = None, dump_stride: int = 8) -> dict:
     """并行运行多个变体（A/B/C 同时跑，墙钟 ÷N）。
-    specs = [(classes, variant_dir, label, ticks, script)]，preset 可选 RMS 预置文件。
+    specs = [(classes, variant_dir, label, ticks, script)]，preset 可选 RMS 预置文件；
+    spec 可为 6 元组（末位逐场景 preset，覆盖批级 preset——迭代 55：混批不同
+    preset 的场景必须逐 spec 携带，整批共享曾致预置静默丢失）。
     返回 {label: (rc, out_dir)}；stdout/stderr 落盘语义与 run_variant 一致。"""
     import subprocess as sp
     procs, dirs = [], {}
-    for classes, variant_dir, label, ticks, script in specs:
-        cmd, out_dir = variant_cmd(classes, variant_dir, label, ticks, script, frames, preset)
+    for spec in specs:
+        classes, variant_dir, label, ticks, script = spec[:5]
+        spec_preset = spec[5] if len(spec) > 5 else preset
+        cmd, out_dir = variant_cmd(classes, variant_dir, label, ticks, script, frames, spec_preset, dump_stride)
         outf = open(out_dir / "stdout.txt", "w", encoding="utf-8")
         errf = open(out_dir / "stderr.txt", "w", encoding="utf-8")
         p = sp.Popen(cmd, stdout=outf, stderr=errf, cwd=str(ROOT))
@@ -449,6 +455,9 @@ def main():
     preset_arg = None
     if "--preset" in args:
         preset_arg = args[args.index("--preset") + 1]
+    dump_stride = 8
+    if "--dump-stride" in args:
+        dump_stride = int(args[args.index("--dump-stride") + 1])
 
     if not JAR.exists():
         log(f"缺 {JAR}")
@@ -457,7 +466,7 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
 
     if diff_abc:
-        return run_diff_abc(ticks, script, variant_c_arg, frames, preset_arg)
+        return run_diff_abc(ticks, script, variant_c_arg, frames, preset_arg, dump_stride)
     if "--scenarios" in args:
         return run_scenarios()
 
@@ -670,7 +679,7 @@ def run_scenarios() -> int:
 
 
 def run_diff_abc(ticks: int, script: Path, variant_c_arg: Path, frames: str = "all",
-                 preset: str = None):
+                 preset: str = None, dump_stride: int = 8):
     """--diff-abc：三方对拍模式。A/B/C 各跑一次，sha256 对照，PASS/FAIL 判定，
     写入 _diff/report.md 的「变体 C」章节。变体 C 缺失（显式路径与约定路径均无
     class）视为基础设施错误（退出 2），不污染 PASS/FAIL 判定语义。"""
@@ -698,7 +707,8 @@ def run_diff_abc(ticks: int, script: Path, variant_c_arg: Path, frames: str = "a
     res = run_variants_parallel(
         [(classes, OUT / "variantA", "A1", ticks, script),
          (classes, OUT / "variantB", "B1", ticks, script),
-         (classes, OUT / "variantC", "C1", ticks, script)], frames=frames, preset=preset)
+         (classes, OUT / "variantC", "C1", ticks, script)], frames=frames, preset=preset,
+        dump_stride=dump_stride)
     rc_a1, dir_a1 = res["A1"]
     rc_b1, dir_b1 = res["B1"]
     rc_c1, dir_c1 = res["C1"]
