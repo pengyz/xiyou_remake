@@ -445,8 +445,14 @@ pub struct GameScene {
     /// 宽度表/可行走表（换层重载用）
     pub width_table: Vec<i32>,
     pub tile_walk: Vec<i32>,
-    /// gameRandom（java.util.Random，seed=0 起的全局单例——粒子/战斗抖动共用
-    /// 消费链；装载历史由测试侧预推进，paint 内 state==3 抖动消费）
+    /// gameRandom（java.util.Random，a.java:2324 **全局单例**——标题雪花/
+    /// 菜单/粒子/战斗抖动共用一条连续消费链）。
+    /// ⚠️ `new_seeded(0)` 只是构造默认值，**不是** Java 语义：Java 从 boot 起
+    /// 单实例连续消费，不因换层/读档重置。任何构造 GameScene 的调用方
+    /// （测试 harness/未来桌面壳）必须把 machine 阶段已消费的 LCG 状态
+    /// 续接进来（`sc.rng = machine.rng.clone()`），否则场景首个消费者
+    /// （state==3 战斗抖动 a.java:6559-6560 randomBelow(5)）序列错位，
+    /// ±2px 抖动与 Java 分歧（迭代 35 T801 实证）。
     pub rng: game_platform::JavaRandom,
 
     // —— walkPhase 2 交互视点（-5 键；easeAfterimages/lockCameraOn 家族）——

@@ -15,6 +15,7 @@
 - [oracle 帧 PNG 通道序 (A,R,G,B)](gotcha_oracle-png-channel-order.md) — PIL convert('RGB') 取到 (255,R,G)，帧对比会得出 ~99% 假差异；须 convert('RGBA') 取后三通道
 - [嵌套 #[test] 被静默跳过](gotcha_nested-test-silently-skipped.md) — 测试 fn 误嵌进上一函数体 ⇒ 编译过、libtest 不发现、假绿可存活多迭代；结论前先 `cargo test <name> -- --list` 核对
 - [场景预置必须带 # preset: 头](gotcha_scenario-preset-header-required.md) — 缺头 ⇒ --scenarios 静默无注入、A==B==C 仍绿但语义漂移；再生 trace 一律走头解析
+- [GameScene rng 必须续接 machine LCG](gotcha_gamescene-rng-must-continue-machine-lcg.md) — Java 单一 gameRandom 连续消费跨模式不重置；场景新建 seed 0 ⇒ 战斗抖动等首个场景消费者序列错位
 
 ## Patterns
 

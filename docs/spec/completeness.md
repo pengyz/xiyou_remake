@@ -85,7 +85,19 @@
   全流程按键，状态从首个游戏 tick 分道（Java T537=存档选择界面、
   Rust=游玩画面，双侧实证）。**修复 = harness 统一**：四用例迁移至
   preset_cases 式全流程 harness（BootMachine→菜单→槽载入→场景移交），
-  迁移后真实行走 + 战斗流差异逐帧考证（战斗流 = 本队列已知最大块）。 |
+  迁移后真实行走 + 战斗流差异逐帧考证（战斗流 = 本队列已知最大块）。
+  **迭代 35 收敛（harness 统一 1/4 + rng 连续性缺口修复）**：floor_crossing
+  迁入 preset_cases 全流程 harness（preset-floor1.preset，T1-1500 全帧）——
+  **战斗流首次纳入全帧对拍**（行走 4 战 + state==3 抖动 + 伤害弹窗 + 换层
+  遮幅）。迁移暴露并修复真缺口：`GameScene.rng` 构造默认 `new_seeded(0)`
+  未续接 machine 阶段已消费的 LCG 位置（Java = a.java:2324 全局单例连续
+  消费不重置）——战斗抖动为场景首个消费者故 T801 必爆。修复 = handoff 处
+  `sc.rng = m.rng.clone()`（6 处 preset harness 统一补齐）；旧冷场景 harness
+  的 `random_below(240)/(150)` 手工预消费 hack 即同一错位的遗迹。取证链：
+  A-floor1-to-floor2 trace 曾于 10-12 18:43 被无 preset 再生覆盖（游戏卡
+  空槽列表），已带 preset 再生并与 10-10 B trace 帧 sha 序列比对定位主机
+  版本漂移；帧像素取证（ARGB 通道序陷阱见知识库 gotcha-oracle-png-channel-order）。
+  余 3 用例（floor1-tour/floor2-tour/floor51-menu 系）迁移排队。 |
 
 口径教训：名字/行号自动匹配只能出候选名单，分子终审必须人工（本轮抽样 7/7
 候选"未移植"实为内联移植）。三档随迭代人工更新，工具只保证候选不丢。
@@ -105,7 +117,7 @@
 | 3 | 地图主玩法 | ✅ GameScene | L3 | scenario:`preset-floor2.txt` |
 | 4 | 游戏内菜单 | ✅ | L3 | scenario:`preset-save.txt` |
 | 5 | 敌人图鉴 | ✅ | L3 | scenario:`preset-item13.txt` T340-500 |
-| （无 mode 6） | 战斗 = mode 3 子态（battleActiveFlag+tickBattle），非独立模式——2026-10-12 更正，矩阵初版误设 mode 6 行 | ✅ combat.rs | L3 | scenario:`floor1-to-floor2.txt`（4 战）+ `floor2-tour.txt` |
+| （无 mode 6） | 战斗 = mode 3 子态（battleActiveFlag+tickBattle），非独立模式——2026-10-12 更正，矩阵初版误设 mode 6 行 | ✅ combat.rs | L3 | scenario:`floor1-to-floor2.txt`（4 战）+ `floor2-tour.txt`；迭代 35 起 Rust L3：`preset_cases::floor_crossing` T1-1500 全帧（抖动/伤害弹窗；前提 = rng 续接，见知识库 gotcha_gamescene-rng-must-continue-machine-lcg） |
 | 7 | 存档槽（写回） | ✅ | L3 | scenario:`preset-save.txt` T340-560 |
 | 8 | 读档槽 | ✅ | L3 | scenario:`preset-help.txt` T150-240 |
 | 9 | 炼丹/加点 | ❌ | — | |

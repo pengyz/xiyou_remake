@@ -283,67 +283,6 @@ fn gameplay_floor1_t537_1700_frames_match() {
     assert_eq!(checked, 1164, "T537-1700 应有 1164 帧");
 }
 
-/// 换层全链对拍：floor1-to-floor2 场景 T537-1500（行走 4 战 + 踩楼梯遮幅
-/// 换层 → floor2 落地 m_031 → 静止）逐 tick FRAME sha。
-    #[ignore] // 迭代 35：真实行走键（raw 54 等）下与 Java 分歧——floor1 冷载行走/实体/战斗流考证
-#[test]
-fn floor_crossing_frames_match() {
-    let trace_text = std::fs::read_to_string(
-        repo().join("reference/oracle/_out/A-floor1-to-floor2/trace.txt"),
-    )
-    .expect("缺 A-floor1-to-floor2 trace（先跑 python3 reference/oracle/run.py --scenarios）");
-    let records = trace::parse(&trace_text);
-
-    let mut scene = build_scene();
-    let map = load_container("map", 12);
-    let tileset = map[0].clone();
-    let mut screen = ArgbImage::create(game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
-    let mut checked = 0usize;
-    let mut pending_press = 0i32;
-    let mut pending_release = false;
-    for rec in &records {
-        if !(537..=1500).contains(&rec.tick) {
-            continue;
-        }
-        if pending_press != 0 {
-            scene.press_key(pending_press);
-            pending_press = 0;
-        }
-        if pending_release {
-            scene.release_key();
-            pending_release = false;
-        }
-        if rec.tick > 537 {
-            scene.tick(rec.tick as i64 - 1, &width_table());
-        }
-        if let Some(inp) = &rec.input {
-            if let Some(rest) = inp.strip_prefix("press(") {
-                if let Some(code) = rest.strip_suffix(')').and_then(|k| k.parse::<i32>().ok()) {
-                    pending_press = code;
-                }
-            } else if inp.starts_with("release(") {
-                pending_release = true;
-            }
-        }
-        let sha;
-        {
-            let mut g = SoftGraphics::new(&mut screen);
-            g.set_clip(0, 0, game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
-            g.set_font(Some(paint_font()));
-            scene.paint(&mut g, &tileset);
-            sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
-        }
-        if let Some(expect) = &rec.frame_sha {
-            assert_eq!(
-                &sha, expect,
-                "TICK {} 帧不符（floor={} transitioning={} wipe={}）",
-                rec.tick, scene.floor, scene.transitioning, scene.wipe
-            );
-            checked += 1;
-        }
-    }
-    assert_eq!(checked, 964, "T537-1500 应有 964 帧");
-}
 
 /// floor2 巡回对拍：宝箱组开门（walkPhase 4 遮幅抖动）+ 型11 道具浮层 +
 /// 血瓶拾取 + 楼梯往返（floor2→1→2）+ 蓝门重复弹/关周期。T537-1500 逐 tick。
