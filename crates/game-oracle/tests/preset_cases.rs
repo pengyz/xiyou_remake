@@ -1518,10 +1518,15 @@ fn preset_itemcymbal_frames_match() {
 /// 脚本旗标 + loadLevelScript(22) + spawnBossEvent(6)（12 只 DES 态登场）→
 /// battle_rerun_scene=false 收尾）+ 脚本 22 对话浮层。
 #[test]
-/// 当前 ignore（迭代 43，残差透明化）：T303 起 3037px（x120-239 y68-106）
-/// ——DES 登场动画相位差 ~2-3 帧（Java 白泡帧 vs Rust 火焰帧；机制/坐标/
-/// 状态数组全对齐：solid=2/row8/frame 与 event-6 12 只落位逐项吻合）。
-/// 待办：战斗拍台账（battle_tick × advance 奇偶 × popup 生存期逐拍对表）。
+/// 当前 ignore（迭代 43 挂起；迭代 47 取证锐化）：T303 起 3037px
+/// （x120-239 y68-106 = Java 白泡 vs Rust 无泡背景）。取证结论：
+/// ① Rust T303 实体状态 solid=2/row8/frame=1、12 只落位坐标逐项吻合；
+/// ② Java T303 白泡位于 y87-106（y 位移 -24~-32 = open_anim 帧 3-4，
+///    strip 全白泡无火焰——open_anim 五列均为白烟）→ Java 的 DES frame
+///    在 T303 已推进至 3-4，即 **Java 击杀/生成早于 Rust ~2-3 拍**
+///    （Rust frame=1 = 生成后首推进）。疑点 = 击杀拍差（bump→battle
+///    计拍差或 popup 首现拍 ≠ 击杀拍）。待办：战斗拍台账（双侧逐拍
+///    battle_tick + popup 首现拍对表）定击杀拍后对齐。
 #[ignore]
 fn preset_itemboss40_frames_match() {
     let repo_path = repo();
