@@ -1576,6 +1576,13 @@ fn preset_itemcymbal_frames_match() {
 /// T303-309 段残差（DES 登场泡绘制相位/源）仍开放——战斗拍台账已证
 /// 击杀拍/popup 值/rise 计数全对齐，剩余疑点 = 泡绘制链 src/dst 逐
 /// 字段对表。禁用断言中和式假绿（迭代 49 教训）。
+/// 迭代 51 取证（dumpStride=1 全量 op 流 + 双上限 2048 解锁）：
+/// Java T303 = 全量 873 op（实体层全画：六 poofs@124、怪 sprite、
+/// 状态条、+100 popup 全部入 op）；与 Rust op 流 872 条仅差 1
+/// （末尾 drawSubstring 说话人名——两侧均有，内容同）。帧像素差
+/// 3037px 聚焦 = **型26/29/30/32 怪自身 sprite 的火焰发饰动画帧位
+/// 差**（sptenemy 条带内多行动画，Java 帧位超前 Rust ~2）——
+/// entityAnimFrame 逐拍对表待办。op 流 256 截断已修（cap 2048）。
 #[ignore]
 fn preset_itemboss40_frames_match() {
     let repo_path = repo();

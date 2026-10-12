@@ -212,6 +212,13 @@
    shim Graphics.flushOps 256 条截断 → 2048（转场拍实体 draw 入
    trace；reference 门禁全绿）。待办：mode11 dialogPhase 门控的
    paint 语义对表（paint case 11 a.java:2798-2900）→ 摘除挂起。
+   **迭代 51 取证深化（dumpStride=1 全量 op 流 + 双上限 2048）**：
+   Java T303 = 全量 873 op（实体层全画：六 poofs@y124、怪 sprite、
+   状态条、+100 popup）；与 Rust op 流 872 条仅差 1（末尾
+   drawSubstring 说话人名，内容同）。帧像素差 3037px 聚焦 = **型
+   26/29/30/32 怪自身 sprite 的火焰发饰动画帧位差**（sptenemy 条带
+   内多行动画，Java 帧位超前 Rust ~2）——entityAnimFrame 逐拍对表
+   待办。ops 记录/截断双上限 256→2048 已修（flushOps + OPS.add）。
    **迭代 50 取证深化（T303 空 paint 确认）**：regen trace（cap 2048）
    T303 块 = 仅 TICK+FRAME 93 字节（0 ops 无异常）——Java mode11
    dialogPhase-0 该拍 paint 未调用或空体；A1==A2 双跑一致（非
