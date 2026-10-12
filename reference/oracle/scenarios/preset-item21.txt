@@ -1,0 +1,23 @@
+# ticks: 900
+# preset: preset-item21.preset
+# cover: 消耗臂 21 正路径（a.java:7851-7852）：槽载入 floor1 (3,10) 栈
+#   [21×1] → 面板 → 确认 → 使用 → changeFloor(+1) 遮幅换层 → floor2 落地
+#   → 栈压实归零 →行走
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -6 press
+302 -6 release
+350 -5 press
+352 -5 release
+400 -6 press
+402 -6 release
+600 -3 press
+602 -3 release
+700 -3 press
+702 -3 release
