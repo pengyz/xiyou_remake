@@ -11,9 +11,9 @@
 152 -5 release
 200 -5 press
 202 -5 release
-260 6 press
-262 6 release
+260 54 press
+262 54 release
 320 -6 press
 322 -6 release
-380 8 press
-382 8 release
+380 56 press
+382 56 release

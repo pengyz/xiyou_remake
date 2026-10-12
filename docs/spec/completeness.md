@@ -62,17 +62,14 @@
   **迭代 32 L2 移植入库**：interact case16 分支（param 打包/文本表 06-09/kind4
   是否图标）+ overlay 分派 case4（applyMerchantOffer）/case5（报价浏览）+
   applyMerchantOffer 13 项效果表 + 报价队列（m_075/m_076）+ spendGold——
-  结构逐行对照字节码。**L3 待 Java 侧 interact 取证（迭代 33 核心）**：Rust 探针实证触发完好
-  ——floor2 (10,7) facing2 撞 (11,7) type78（param 0x0201：flags&2、idx1）
-  → case16 分支 → kind4 浮层开（merchant_entity=13、MERCHANT_OFFERS[0]
-  "大圣饶命 3%"）✓。Java 同场景 T262 FLD 实证 **overlayActive=false、
-  mode=3、帧无浮层框**——Java 的 interact(11,7) 未命中 case16。实体
-  (352,224) 在 spawn 表 ✓、renderCategoryByType[78]=16 ✓（字节码
-  a.java:6287）、格槽 pool17 slots=[14] ✓（Rust 探针）——分歧点在
-  Java interact 运行时状态（格槽计数/entityState/或 tryStep 未达
-  interact）。**取证法 = Java 侧临时探针**：interactWithCell 入口加
-  System.out（cell/槽/类型/分支命中），跑 preset-merchant 取真值后
-  按真值修 Rust。 |
+  结构逐行对照字节码。**L3 已收敛（迭代 33）**：preset-alchemy（floor12）T1-700 全帧一致
+  ——真实行走键（raw 50/52/54/56，此前场景的 2/4/6/8 为无效键码空操作，
+  全量审计修正）+ 炼丹三连购（HP×tier2/ATK×tier2/第三次不足→
+  「没有足够的金钱」浮层）+ 商人/联动门 case16 全机制。**Java 侧取证的
+  关键修正**：此前"Java 不开浮层"的判断有误——真实行走后 Java 帧序列
+  与 Rust 逐帧一致（含不足浮层），此前分歧源于行走键空操作导致的
+  场景状态从未到达触发点。floor4 的 type9 贴 y=0 崩溃行 = 不可达死内容
+  （BUG-009）不变。 |
 
 口径教训：名字/行号自动匹配只能出候选名单，分子终审必须人工（本轮抽样 7/7
 候选"未移植"实为内联移植）。三档随迭代人工更新，工具只保证候选不丢。

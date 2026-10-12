@@ -1530,6 +1530,13 @@ fn preset_alchemy_frames_match() {
                     sc.player.atk, sc.player.def
                 );
             }
+            if rec.tick == 581 {
+                let mut buf = Vec::new();
+                for &p in &screen.argb {
+                    buf.extend_from_slice(&p.to_be_bytes());
+                }
+                std::fs::write("/tmp/rust-alch-581.bin", &buf).unwrap();
+            }
             sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
         }
         {

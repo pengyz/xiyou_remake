@@ -2688,6 +2688,8 @@ impl GameScene {
         y += 16;
         draw_image_clipped(g, &self.images.ui[7], 97, y + 4, 20, 2, 10, 11);
         paint_number(g, &self.images.ui[2], self.alchemy_gain_def, 142, y + 6);
+        // 全局浮层（paint 尾部 a.java:3125-3210 对全部模式生效）
+        self.paint_overlay_box(g);
     }
 
     pub const OFFER_TEXTS_A: [&str; 22] = [

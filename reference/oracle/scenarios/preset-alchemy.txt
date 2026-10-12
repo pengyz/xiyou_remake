@@ -11,8 +11,8 @@
 152 -5 release
 200 -5 press
 202 -5 release
-260 2 press
-262 2 release
+260 50 press
+262 50 release
 320 -5 press
 322 -5 release
 380 -2 press
