@@ -202,6 +202,16 @@
    change_floor 内补 game_mode=3（楼梯路径原值即 3，无副作用）。
    preset_item21 摘除 #[ignore] 转全帧一致；boss40 DES 登场残差另批
    （mode 11 paint/advance 顺序，非本类）。
+   **迭代 49/50 续办（itemboss40 残差根因定性 + 取证工具修复）**：
+   ① 战斗拍台账建账：击杀拍 = T302 双侧对齐（f_int_151 0→1 冻结、
+   popupV=[150,100] 首现、A1==A2 双跑 sha 一致 = Java 确定性无差）；
+   ② 逐拍像素表：T302=0 全对齐锚点、T303-309 稳定 ~9000px、T310 起
+   跳至 ~21900px（= DES 重派发拍；重派发高度语义修复已入 47 续办）；
+   ③ **T303 空 paint 定性**：Java mode11 dialogPhase 门控该拍 0 ops
+   （画布残影）vs Rust 全量 paint_dialog——残差本体；④ 取证工具修复：
+   shim Graphics.flushOps 256 条截断 → 2048（转场拍实体 draw 入
+   trace；reference 门禁全绿）。待办：mode11 dialogPhase 门控的
+   paint 语义对表（paint case 11 a.java:2798-2900）→ 摘除挂起。
    **迭代 47 续办（战斗拍台账 + 重派发高度语义修复）**：① Java 侧逐拍
    台账建账（T296-311：f_int_151 0→1 冻结、popupV=[150,100] 首现
    T302）——击杀拍与 Rust 完全对齐，「击杀拍差」假说二次证伪；

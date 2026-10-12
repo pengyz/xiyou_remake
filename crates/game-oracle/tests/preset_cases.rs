@@ -1561,13 +1561,14 @@ fn preset_itemcymbal_frames_match() {
 /// 验证为白烟泡（无火焰帧）；相机 y 位差假说排除（cam 20 偏移两侧
 /// 一致）。待办：T303-306 op 流实体 draw 逐条对表（多行重组解析）。
 /// 另：40 层相机钳制考证取消（popup y 差来自 open_anim 帧位差）。
-/// 迭代 47 续办取证：Java 台账 f_int_151=1/battleActive=true/popupV=
-/// [150,100] 首现于 T302（= Rust 击杀拍，**击杀拍无差**！）；
-/// stride-1 op 流对表发现 **Java 转场拍（T303）paint 为部分绘制**——
-/// op 仅背景(77x320×5)+瓦片(128x208×83)，实体/浮层/对话层整层跳过
-/// （帧上实体像素 = 持久画布残影）→ Rust 全量 paint 与 Java 部分绘制
-/// 的差 = 残差本体。待办：a.java paint 的实体层跳过条件考证
-/// （floorTransitioning/对话相位门控）+ op 流多行重组解析。
+/// 迭代 47 续办取证（迭代 48/49 深化）：Java 台账 T302 击杀拍与 Rust
+/// 完全对齐（f_int_151=1/popupV=[150,100] 首现；A1==A2 双跑 sha 一致
+/// =Java 确定性无差）。**T303 paint = 空绘制**（该拍 0 ops，画布残影）
+/// —— shim ops cap 256→2048 修复后实体 draw 已可入 trace（对表工具
+/// 就绪）。残差 = mode11 dialogPhase 门控的 paint 语义（Rust paint_dialog
+/// 全量 vs Java 空拍）——专项待办。
+/// 另证伪：相机 y 位差假说（cam+20 两侧一致=20）；popup 链全对齐
+/// （retire=-rise>7、8 拍生存期、scatter 表）。
 /// 迭代 49 状态：T310-700 段已由重派发高度语义修复收口（见下）；
 /// T303-309 段残差（DES 登场泡绘制相位/源）仍开放——战斗拍台账已证
 /// 击杀拍/popup 值/rise 计数全对齐，剩余疑点 = 泡绘制链 src/dst 逐
