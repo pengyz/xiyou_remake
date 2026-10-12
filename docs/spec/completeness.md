@@ -99,12 +99,15 @@ L2* = Java 三方对拍绿但 Rust 侧未建用例（覆盖声明的过渡态）
   转义偏差两处真实缺口，按层铺路线连续逼出真实缺口的实例）。
 - DSL：ROS 六子码已移植（迭代 29）；布局算法双拷贝（全量/限量）已对齐转义
   语义——遗留重构项：抽公共函数消除双份拷贝（迭代 30 教训入库）。
-- **mode 9 炼丹链（迭代 31 实现中，L2）**：type9 炼丹台分支（interact_with_cell，
+- **mode 9 炼丹链（迭代 31 完成，L3）**：type9 炼丹台分支（interact_with_cell，
   a.java:5419-5429 阻挡+朝上触发）+ run case 9（买/换光标/不足浮层）+ paint
-  case 9（题头框+花费行+三行属性）+ alchemyPriceFor/scaledByFloorTier 已入库；
-  **L3 待场景**——触发几何实证：type9 @floor4 cell(5,1) 需从 (5,0) 向下踩
-  （facing==1），而 (5,0) 出生触发原版 y-1 越界崩溃（BUG-009）；合法路径 =
-  3 层 changeFloor 降落 (5,0) 后下踩（待场景验证降落是否绕过崩溃点）。
+  case 9（题头框+花费行+三行属性）+ alchemyPriceFor/scaledByFloorTier。
+  场景 = preset-alchemy（**floor12** type9 @cell(5,9)，(5,10) key2 向上踩台
+  ——facing 语义实证：键2/-1 组 = facing1 = y-1 向上；键8/-2 组 = facing0 =
+  y+1 向下），T1-700 全帧一致，A==B==C 三方 PASS。同迭代另修两处真缺口：
+  拾取 floorTier 缺失（type29/30/31/32 层域倍率，floor12 +50 应 +100 实证）
+  与 alchemyPriceFor 循环上界（1..k-1 应 1..k，价格 20 应 40 实证）。
+  floor4 的 type9（cell(5,1)）贴 y=0 崩溃行 = 不可达死内容（BUG-009）。
 - 资源：138 条 manifest 全部经 L1 golden（解析级）；渲染级随场景逐步覆盖。
 
 ### 3.3 场景面（D 维）

@@ -2596,7 +2596,8 @@ impl GameScene {
     /// alchemyPriceFor（a.java:7256-7262）：第 k 次升级价 = 20 + Σ20i (i=1..k-2)
     fn alchemy_price_for(k: i32) -> i32 {
         let mut price = 20;
-        for i in 1..k - 1 {
+        for i in 1..k {
+            // Java: for (var2 = 1; var2 < var0; var2++)（a.java:7259）——上界含 k-1
             price += 20 * i;
         }
         price
@@ -3122,7 +3123,7 @@ impl GameScene {
     }
 
     /// tryStep（a.java:5335-5356）：目标格 + interactWithCell 放行判定。
-    fn try_step(&mut self, facing: i32) -> bool {
+    pub fn try_step(&mut self, facing: i32) -> bool {
         let mut tx = self.view.player_px >> 5;
         let mut ty = self.view.player_py >> 5;
         match facing {
@@ -3533,6 +3534,18 @@ impl GameScene {
 
     /// pickupItemType（a.java:7525-7621，floor1 可达子集）+ applyHpDelta
     /// （a.java:5172-5184，difficultyIndex=0 → 无 ×16）。
+    /// floorTier（a.java:7642-7652）：((floor-1)/10) 钳负、floor>50 归 0，返回 +1。
+    pub fn floor_tier(&self) -> i32 {
+        let mut tier = (self.floor - 1) / 10;
+        if tier < 0 {
+            tier = 0;
+        }
+        if self.floor > 50 {
+            tier = 0;
+        }
+        tier + 1
+    }
+
     fn pickup_item_type(&mut self, t: i32) {
         // 描述表（itemDescriptions a.java:906 / equipDescriptions a.java:930——
         // 全量入库 reference；此处取用句柄）
@@ -3546,10 +3559,18 @@ impl GameScene {
             26 => self.player.yellow_keys += 1,
             27 => self.player.red_keys += 1,
             28 => self.player.blue_keys += 1,
-            29 => self.player.atk += 1, // floor ≤ 10 分支
-            30 => self.player.def += 1,
-            31 => self.apply_hp_delta(50),  // floorTier()=1（floor ≤ 10）
-            32 => self.apply_hp_delta(200), // case 32 无 break 落穿 41..=84=空
+            // 29/30（a.java:7556-7567）：floor ≤ 10 +1，否则 +floorTier()；
+            // 31/32（a.java:7568-7577）：50/200 × floorTier()——floorTier =
+            // ((floor-1)/10)+1（floor>50 钳 0，a.java:7642-7652）。迭代 31：
+            // 原硬编码 tier=1 仅对 ≤10 层成立，floor12 实测 +50 应为 +100。
+            29 => {
+                if self.floor <= 10 { self.player.atk += 1 } else { self.player.atk += self.floor_tier() }
+            }
+            30 => {
+                if self.floor <= 10 { self.player.def += 1 } else { self.player.def += self.floor_tier() }
+            }
+            31 => self.apply_hp_delta(50 * self.floor_tier()),
+            32 => self.apply_hp_delta(200 * self.floor_tier()),
             33..=36 | 79 => {
                 // 武器档（equip_types 1..5 槽）——m_083 档位 = 表下标
                 let tier = match t {

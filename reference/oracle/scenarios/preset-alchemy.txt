@@ -1,8 +1,8 @@
 # ticks: 700
 # preset: preset-alchemy.preset
-# cover: preset 直达第 4 层（type9 炼丹台 @cell(5,1)，触发面朝下）：槽载入
-#   → 下行踩台 → mode9 炼丹（-5 买 HP / -2 换光标 / -5 买 ATK / -1×2 回绕
-#   / -5 买 DEF / -7 离开）——mode 9 首个场景
+# cover: preset 直达第 12 层（type9 炼丹台 @cell(5,9)，facing==1 向下踩触发）：
+#   槽载入 (5,8) → key8 踩台 → mode9 炼丹（key2 向上踩台 → -5 买 HP → -2 换光标 → -5 买 ATK
+#   → -1×2 回绕 → -5 买 DEF → -7 离开）——mode 9 首个 L3 场景
 70 -6 press
 72 -6 release
 100 -2 press
@@ -11,8 +11,8 @@
 152 -5 release
 200 -5 press
 202 -5 release
-260 8 press
-262 8 release
+260 2 press
+262 2 release
 320 -5 press
 322 -5 release
 380 -2 press
