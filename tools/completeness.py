@@ -134,6 +134,11 @@ def main() -> int:
     print("## A. 符号面（remap-table，机械）")
     print(f"- 总符号 {syms['total']} = 字段 {syms['by_kind'].get('field', 0)} + 方法 {syms['by_kind'].get('method', 0)}"
           f"（重命名 {syms['renamed']}，保留 {syms['kept']}）")
+    sym = symbol_surface()
+    tot = sym["total"]
+    print(f"- applied 方法分子（Rust 覆盖）：fn 直证 {len(sym['fn_direct'])}/{tot}，"
+          f"内联候选 {len(sym['inline_candidate'])}（人工确认），未移植候选 {len(sym['missing_candidate'])}")
+    print(f"  未移植候选清单：{' '.join(sym['missing_candidate'])}")
     print()
     print("## B. 模式面（paint/run 非空 case 臂，机械提取）")
     print(f"- paint() 非空臂 {len(arms['paint_nonempty'])}: {arms['paint_nonempty']}")
@@ -164,6 +169,48 @@ def main() -> int:
             return 1
         print("证据指针校验通过")
     return 0
+
+
+# ---------- A 维分子：applied 方法 → Rust 三档（fn 直证/内联候选/未移植） ----------
+
+LEDGER = ROOT / "data/naming/ledger.jsonl"
+
+
+def symbol_surface() -> dict:
+    """applied 方法的 Rust 覆盖三档。四信号：语义名/蛇形名/机械名前缀/证据行号引用。
+    信号 4 命中 = 内联移植候选（人工确认）；全部未命中 = 未移植候选（人工终审）。"""
+    import glob
+    led = [json.loads(l) for l in open(LEDGER, encoding="utf-8")]
+    methods = [d for d in led if d.get("status") == "applied" and d.get("kind") == "method"]
+
+    def snake(camel):
+        return re.sub(r"(?<!^)(?=[A-Z])", "_", camel).lower()
+
+    rust = ""
+    for f in glob.glob(str(ROOT / "crates/*/src/**/*.rs"), recursive=True):
+        try:
+            rust += open(f, encoding="utf-8").read()
+        except OSError:
+            pass
+
+    fn_direct, inline, missing = [], [], []
+    for d in methods:
+        n = d["new"]
+        m = re.search(r"m_(\d+)", d.get("ref", ""))
+        mech = f"m_{m.group(1)}" if m else None
+        pats = [rf"fn {n}\b", rf"fn {snake(n)}\b"]
+        if mech:
+            pats.append(rf"fn \w*{mech}")
+        if any(re.search(p, rust) for p in pats):
+            fn_direct.append(n)
+            continue
+        ev_lines = re.findall(r"a\.java:(\d+)", d.get("evidence", ""))
+        if ev_lines and any(l in rust for l in ev_lines):
+            inline.append(n)
+        else:
+            missing.append(n)
+    return {"fn_direct": fn_direct, "inline_candidate": inline, "missing_candidate": missing,
+            "total": len(methods)}
 
 
 if __name__ == "__main__":

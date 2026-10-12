@@ -123,7 +123,7 @@ reference/         参考版 Java + 自研 MIDP/Nokia shim + 追踪钩子（D3 �
 | 渲染层 paint 调用树（P3 末块） | P3 主线 | **基础设施已收口**（2026-10-09，6f50aec/97f49b2）：software 光栅器逐字节复刻 shim（L1b golden 16 用例 + 164 PNG 全绿）、PNG/inflate/SHA-256 零依赖链、mode0 启动屏双相 FRAME+OPS 双对拍命中 trace。**余项**：m_144 logo 动画子系统（登记表+度量表+tick 推进）、mode 4/19 主菜单、mode 1/2 加载、mode 3+ 地图/实体/弹窗层、paint 状态机逐 tick 时序对拍（TICK 行 ops/frame 为最新 paint 快照，调度语义见 TickHooks.afterPaint） |
 | game-platform trait 层 | P3 | 扩展缝按 §2；RNG/时钟接管点见 state-machine.md §6 五项清单 |
 | 语义命名第二批 | P1 残余 | 局部变量（VF 投影名 varN）与类名（a/CMidlet）重命名批次（引擎已切换 VF，2026-10-10）；4 条台账 hypothesis（f_int_26 双用途/f_byte_26 语义/w[B]/x[Z]）考证后转正 |
-| 完整度测量（方法论 + 机械分母） | **机制**（2026-10-12 建立，用户提出） | `docs/spec/completeness.md`：绿≠完整度，分母独立于测试（符号 581/模式臂 21+16/DSL 15/55 层/资源 138）；`tools/completeness.py` 机械提取 + 证据指针校验；每迭代语义回流更新矩阵；防钝化三约束（新用例准入声明/覆盖只增/每报告给下一最优目标）。当前最大未覆盖块 = mode 6 战斗链 |
+| **长线目标：完备性驱动主线**（2026-10-12 用户指令，原"机制"行升格） | **主线** | 完整度矩阵 = 迭代队列：每次迭代收敛分母四维（符号 112 方法/模式臂 21+16/DSL 15 码/55 层×资源）之一的一格，验收 = 覆盖增量 + 对拍一致；`tools/completeness.py` 报告每轮刷新（符号分子三档：fn 直证 63/内联候选 10/未移植候选 39，真实缺口 = 炼丹/商人/boss/暗道/物品栈族）。详见 docs/spec/completeness.md | `docs/spec/completeness.md`：绿≠完整度，分母独立于测试（符号 581/模式臂 21+16/DSL 15/55 层/资源 138）；`tools/completeness.py` 机械提取 + 证据指针校验；每迭代语义回流更新矩阵；防钝化三约束（新用例准入声明/覆盖只增/每报告给下一最优目标）。当前最大未覆盖块 = mode 6 战斗链 |
 | DSL 解释器逐指令语义残项 | P2 残余 | script-dsl-semantics.md 遗留清单 7 项（含 per-tick 驱动循环定位） |
 | 深场景输入脚本 | P4 | oracle `--script` 扩展至全 55 层可跑（L5 流程级） |
 | 视觉保真 L4 | P4 | 字形现为确定性示意图案（R2 字体风险），字体方案定案后做截图 diff 白名单；光栅器+PNG+帧哈希链路 2026-10-09 已备（render-golden.json 可再生） |
