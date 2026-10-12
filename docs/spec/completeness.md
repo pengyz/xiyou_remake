@@ -212,6 +212,11 @@
    shim Graphics.flushOps 256 条截断 → 2048（转场拍实体 draw 入
    trace；reference 门禁全绿）。待办：mode11 dialogPhase 门控的
    paint 语义对表（paint case 11 a.java:2798-2900）→ 摘除挂起。
+   **迭代 50 取证深化（T303 空 paint 确认）**：regen trace（cap 2048）
+   T303 块 = 仅 TICK+FRAME 93 字节（0 ops 无异常）——Java mode11
+   dialogPhase-0 该拍 paint 未调用或空体；A1==A2 双跑一致（非
+   墙钟非确定）；Rust 为全量 paint_dialog。待 shim 诊断专项：
+   paint 调用计数/时机插桩 → 空拍语义对表 → 摘除挂起。
    **迭代 47 续办（战斗拍台账 + 重派发高度语义修复）**：① Java 侧逐拍
    台账建账（T296-311：f_int_151 0→1 冻结、popupV=[150,100] 首现
    T302）——击杀拍与 Rust 完全对齐，「击杀拍差」假说二次证伪；
