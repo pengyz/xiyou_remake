@@ -247,6 +247,14 @@ pub struct GameScene {
     pub alchemy_cursor: i32,
     /// alchemyUpgradeCount：运行时升级计数（存档 alchemy_upgrades 装入）
     pub alchemy_upgrade_count: i32,
+    /// —— 商人/告示牌链（interact case16 a.java:5494-5517 + overlay 分派
+    ///     case4/5 a.java:3300-3334 + applyMerchantOffer a.java:7307-7370）——
+    /// f_int_87：最近 interact 命中的实体下标
+    pub merchant_entity: i32,
+    /// 报价队列（m_075/m_076，f_byte_arr_14/15 + f_int_88/89/90）：(文本源, 报价序号)
+    pub offer_queue_src: Vec<u8>,
+    pub offer_queue_idx: Vec<u8>,
+    pub offer_queue_cursor: i32,
     /// 软键（m_000 case 3：1/3）
     pub softkeys: (i8, i8),
 
@@ -713,6 +721,10 @@ impl GameScene {
             alchemy_gain_def: 0,
             alchemy_cursor: 0,
             alchemy_upgrade_count: 0,
+            merchant_entity: -1,
+            offer_queue_src: Vec::new(),
+            offer_queue_idx: Vec::new(),
+            offer_queue_cursor: 0,
             encyc_count: 0,
             encyc_rows_visible: 0,
             encyc_panel_h: 0,
@@ -2678,6 +2690,264 @@ impl GameScene {
         paint_number(g, &self.images.ui[2], self.alchemy_gain_def, 142, y + 6);
     }
 
+    pub const OFFER_TEXTS_A: [&str; 22] = [
+            "",
+            "",
+            "有些门不能用钥匙打开，只有当你打败它的守卫后才会自动打开。",
+            "你购买了礼物后再与天宫商人对话，他会告诉你一些重要的消息。",
+            "",
+            "我听说在天宫中有2把隐藏的红钥匙。",
+            "在这个区域不多次提升攻击力，就不能打败“杨戬副手”。切记前人教训！",
+            "太上老君就在25楼。以你现在的状态去攻击他简直就是自杀。 你应当在取得更高级别的道具后再去打败他。",
+            "不找到所有的暗墙29楼的暗道是不会打开的",
+            "如果你到27楼时状态为：生命1500、攻击80、防御98、拥有1把蓝钥匙、5把黄钥匙。那么祝贺你，你的前期是比较成功的。",
+            "六丁六甲的攻击力太高了，你最好到能对他一击必杀时再与他战斗。",
+            "别匆忙，放慢速度。",
+            "如果你能用好4种移动宝物，你不用与强敌作战就能上楼。",
+            "",
+            "你需要用“玄明石”取出37楼仓库内的所有宝物。",
+            "谜题：“在3点，拥有传送功能的密宝就会出现。”",
+            "“巫师”会用魔法攻击路过的人，在2个“太上老君护卫”间通过会使你的生命减少一半。",
+            "44楼，被藏在异空间，你只能用密宝才能到达。",
+            "41楼事实上是左右对称的。",
+            "像骰子上5的形状是一种封印魔法，你最好记住它在你与49楼假魔王战斗时有用",
+            "",
+            "你好，我是太白金星。你最好别见敌人就杀，先往上走，拿到武器和防具再做打算。",
+    ];
+
+    pub const OFFER_TEXTS_B: [&str; 22] = [
+            "感谢你救了我，这是1000金就送给你吧。",
+            "试下火眼金睛吧，你能看到怪物的信息和战斗损失的血量，你可以在物品栏中使用它。",
+            "",
+            "",
+            "很好，你居然找到了我，作为奖励我将给你一瓶千年月桂露，喝了它将按你的攻击力和防御力的综合增加的你生命点数，你越晚使用它效果越好。",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "感谢你救了我，这是1000金就送给你吧。",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "哈喽，送你1000金作为见面礼，记得经常来找我哦。",
+            "",
+    ];
+
+    pub const MERCHANT_OFFERS: [&str; 13] = [
+            "大圣饶命，我可以提升3%攻击力和防御力，需要小的为你效劳吗？",
+            "",
+            "大圣爷，我这里有1把蓝钥匙，你给50金币吧。",
+            "我有5把黄钥匙，一共50金币",
+            "嘿嘿，我有很多把黄钥匙，1把1000金币",
+            "我有1把红钥匙，只要800金币",
+            "我有1把蓝钥匙，只要200金币",
+            "我跟其他人不一样，你可以把多余的钥匙卖给我。100金币回收1把黄钥匙",
+            "我有1把黄钥匙，1把蓝钥匙，一共是1000金币",
+            "我有3把黄钥匙，只要200金币",
+            "我有3把蓝钥匙，收你2000金币",
+            "我可以恢复你2000点血，不过要1000金币",
+            "我有个宝物，要收你4000金币，是个玄明石。",
+    ];
+
+    pub const SIGN_TEXTS_B: [&str; 13] = [
+            "",
+            "",
+            "天宫一共50层，每10层为一个区域。如果不打败该区域的头目就不能到更高的地方。",
+            "在商店里你最好选择提升防御力，只有在攻击力低于敌人的防御力时才提升攻击力。",
+            "",
+            "你是否注意到5、9、14、16、18楼有的墙与众不同？",
+            "如果你持有太公杖，面对天神力士和巨灵神时你的攻击力加倍。在没有太公杖的情况下你是无法打败巨灵神的。太公杖被藏在15楼以上的墙内。",
+            "",
+            "天宫一共有50层，但50楼并不能直接上去。",
+            "存放乌金棍的房间的门坏了，你必须用金勺子破墙而入。",
+            "天宫中藏有有个“幸运金币”拥有它在打败敌人后能够获得2倍的金钱。",
+            "“紫金龙鳞甲”能防御“太上老君护卫”的夹击，但它被深藏在神秘的楼层中。",
+            "如果要打败杨戬你需要“乌金棍”、“银缕锁甲”、“捆仙绳”或更高等级的宝物。",
+    ];
+
+    /// m_075（a.java:7472-7477）：报价入队。
+    fn offer_queue_push(&mut self, src: i32, idx: i32) {
+        let cap = (Self::OFFER_TEXTS_A.len() + Self::SIGN_TEXTS_B.len()) as i32;
+        if (self.offer_queue_src.len() as i32) < cap {
+            self.offer_queue_src.push(src as u8);
+            self.offer_queue_idx.push(idx as u8);
+        }
+    }
+
+    /// m_076（a.java:7479-7495）：游标钳位导航。
+    fn offer_queue_seek(&mut self, cursor: i32) {
+        let n = self.offer_queue_src.len() as i32;
+        if n == 0 {
+            return;
+        }
+        self.offer_queue_cursor = if cursor < 0 {
+            n - 1
+        } else if cursor >= n {
+            0
+        } else {
+            cursor
+        };
+    }
+
+    /// spendGold：够则扣减返回 true（a.java:7702 邻接族，m_083）。
+    fn spend_gold(&mut self, amount: i32) -> bool {
+        if self.player.gold >= amount {
+            self.player.gold -= amount;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// applyMerchantOffer（a.java:7307-7370）：buy=true 购买/false 拒绝。
+    /// 返回 overlayActive 新值（true=浮层停留，false=关闭）。
+    fn apply_merchant_offer(&mut self, buy: bool) -> bool {
+        let param = self.entities.param[self.merchant_entity as usize] as i32;
+        let flags = (param >> 8) as i8;
+        let idx = param as i8;
+        let src = if self.entities.entity_type[self.merchant_entity as usize] == 77 {
+            0
+        } else {
+            1
+        };
+        let mut stay = true;
+        if idx <= 0 {
+            return false;
+        }
+
+        if buy && (flags & 2) != 0 {
+            match (src, idx) {
+                (0, 1 | 15 | 21) => {
+                    crate::combat::gain_gold(&mut self.player, 1000);
+                }
+                (0, 2) => self.add_item_to_stack(13),
+                (0, 6) => self.add_item_to_stack(19),
+                (1, 1) => {
+                    self.player.atk += self.player.atk * 3 / 100;
+                    self.player.def += self.player.def * 3 / 100;
+                }
+                (1, 3) => {
+                    if !self.spend_gold(50) {
+                        self.show_overlay_message(0, "没有足够的金钱", 0, 0);
+                        stay = false;
+                    } else {
+                        self.player.blue_keys += 1;
+                    }
+                }
+                (1, 4) => {
+                    if !self.spend_gold(50) {
+                        self.show_overlay_message(0, "没有足够的金钱", 0, 0);
+                        stay = false;
+                    } else {
+                        self.player.yellow_keys += 5;
+                    }
+                }
+                (1, 5) => {
+                    if !self.spend_gold(1000) {
+                        self.show_overlay_message(0, "没有足够的金钱", 0, 0);
+                        stay = false;
+                    } else {
+                        self.player.yellow_keys += 1;
+                    }
+                }
+                (1, 6) => {
+                    if !self.spend_gold(800) {
+                        self.show_overlay_message(0, "没有足够的金钱", 0, 0);
+                        stay = false;
+                    } else {
+                        self.player.red_keys += 1;
+                    }
+                }
+                (1, 7) => {
+                    if !self.spend_gold(200) {
+                        self.show_overlay_message(0, "没有足够的金钱", 0, 0);
+                        stay = false;
+                    } else {
+                        self.player.blue_keys += 1;
+                    }
+                }
+                (1, 8) => {
+                    if self.player.yellow_keys > 0 {
+                        self.player.yellow_keys -= 1;
+                        self.player.gold += 100;
+                    } else {
+                        self.show_overlay_message(0, "没有黄钥匙", 0, 0);
+                        stay = false;
+                    }
+                }
+                (1, 9) => {
+                    if !self.spend_gold(1000) {
+                        self.show_overlay_message(0, "没有足够的金钱", 0, 0);
+                        stay = false;
+                    } else {
+                        self.player.yellow_keys += 1;
+                        self.player.blue_keys += 1;
+                    }
+                }
+                (1, 10) => {
+                    if !self.spend_gold(200) {
+                        self.show_overlay_message(0, "没有足够的金钱", 0, 0);
+                        stay = false;
+                    } else {
+                        self.player.yellow_keys += 3;
+                    }
+                }
+                (1, 11) => {
+                    if !self.spend_gold(2000) {
+                        self.show_overlay_message(0, "没有足够的金钱", 0, 0);
+                        stay = false;
+                    } else {
+                        self.player.blue_keys += 3;
+                    }
+                }
+                (1, 12) => {
+                    if !self.spend_gold(1000) {
+                        self.show_overlay_message(0, "没有足够的金钱", 0, 0);
+                        stay = false;
+                    } else {
+                        self.player.hp += 2000;
+                    }
+                }
+                (1, 13) => {
+                    if !self.spend_gold(4000) {
+                        self.show_overlay_message(0, "没有足够的金钱", 0, 0);
+                        stay = false;
+                    } else {
+                        self.pickup_item_type(18);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        if stay {
+            if flags & 4 == 0 {
+                self.entities.param[self.merchant_entity as usize] ^= 512;
+                if flags & 1 != 0 {
+                    self.offer_queue_push(src, (idx - 1) as i32);
+                    let text = if src == 0 {
+                        Self::OFFER_TEXTS_A[(idx - 1) as usize]
+                    } else {
+                        Self::SIGN_TEXTS_B[(idx - 1) as usize]
+                    };
+                    self.show_overlay_message(4, text, 0, 0);
+                    stay = true;
+                } else {
+                    entity::remove(&mut self.entities, self.merchant_entity as usize);
+                    self.build_minimap();
+                }
+            }
+        }
+        stay
+    }
+
     fn enter_menu16(&mut self) {
         self.options = Some(crate::menu_family::OptionList::new(
             self.sound_enabled,
@@ -2753,7 +3023,34 @@ impl GameScene {
         // 其余键吞掉）；其余情况 handleOverlayKey（a.java:4923-4931：任意
         // 非翻页键关层）。**walkPhase 状态机与 m_055 冻结**。
         if self.overlay_active {
-            if self.overlay_kind == 0 && (self.game_mode == 15 || self.game_mode == 17) {
+            if self.overlay_kind == 4 {
+                // 商人/告示牌（overlay 分派 case4，a.java:3305-3320）：-6/-5=
+                // applyMerchantOffer(true)，-7=(false)，-2/-1 翻页，其余关闭
+                match self.key_value {
+                    -7 => self.overlay_active = self.apply_merchant_offer(false),
+                    -6 | -5 => self.overlay_active = self.apply_merchant_offer(true),
+                    -2 => {
+                        self.flip_overlay_page(self.overlay_page_top + self.overlay_lines_per_page)
+                    }
+                    -1 => {
+                        self.flip_overlay_page(self.overlay_page_top - self.overlay_lines_per_page)
+                    }
+                    0 => {}
+                    _ => self.overlay_active = false,
+                }
+            } else if self.overlay_kind == 5 {
+                // 报价浏览（overlay 分派 case5，a.java:3325-3334）：-3/-4 游标、
+                // -5/-6/-7 关浮层回 mode10
+                match self.key_value {
+                    -3 => self.offer_queue_seek(self.offer_queue_cursor - 1),
+                    -4 => self.offer_queue_seek(self.offer_queue_cursor + 1),
+                    -5 | -6 | -7 => {
+                        self.overlay_active = false;
+                        self.game_mode = 10;
+                    }
+                    _ => {}
+                }
+            } else if self.overlay_kind == 0 && (self.game_mode == 15 || self.game_mode == 17) {
                 match self.key_value {
                     -7 => {
                         self.overlay_active = false;
@@ -3254,7 +3551,40 @@ impl GameScene {
                                     // "你无法战胜它" 提示浮层：交互批次
                                 }
                             }
-                            16 | 32 => allowed = false, // 联动门/多形态：阻挡（a.java:5500/5520）
+                            16 => {
+                                // 告示牌/商人（a.java:5494-5517）：param 打包交互——
+                                // 高字节=标志（&1=open 入队、&2=效果表、&4=一次性），
+                                // 低字节=报价序号（1 基）；type77=文本源 0，其余=源 1；
+                                // 触发即阻挡（var6=false）+ kind4 报价浮层开。
+                                self.merchant_entity = e as i32;
+                                let var6p = self.entities.param[e] as i32;
+                                let flags = (var6p >> 8) as i8;
+                                let mut offer = var6p as i8;
+                                let src = if t == 77 { 0 } else { 1 };
+                                if offer > 0 {
+                                    offer -= 1;
+                                    if flags & 2 != 0 {
+                                        let text = if src == 0 {
+                                            Self::OFFER_TEXTS_B[offer as usize]
+                                        } else {
+                                            Self::MERCHANT_OFFERS[offer as usize]
+                                        };
+                                        let (l, r) = if src == 1 { (1, 2) } else { (0, 0) };
+                                        self.show_overlay_message(4, text, l, r);
+                                    } else {
+                                        self.offer_queue_push(src, offer as i32);
+                                        let text = if src == 0 {
+                                            Self::OFFER_TEXTS_A[offer as usize]
+                                        } else {
+                                            Self::SIGN_TEXTS_B[offer as usize]
+                                        };
+                                        let (l, r) = if src == 1 { (1, 2) } else { (0, 0) };
+                                        self.show_overlay_message(4, text, l, r);
+                                    }
+                                }
+                                allowed = false;
+                            }
+                            32 => allowed = false, // 联动门（a.java:5520）
                             _ => {}                    // 2/4 拾取：放行（步末 applyStepCellEffects）
                         }
                     }

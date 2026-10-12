@@ -58,7 +58,13 @@
 |---|---|---|
 | fn 直证 | **63** | Rust 侧有同名/蛇形/机械名前缀函数 |
 | 内联移植候选 | **10** | Rust 注释引用同源 a.java 行号（如 markSlotEntry、handleOverlayKey）——人工终审后转正 |
-| 未移植候选 | **36** | 迭代 31 已消费炼丹族（alchemyPriceFor/scaledByFloorTier → fn 直证 66）。**剩余真实缺口（迭代 32+ 队列，机制图谱已备）**：① 商人/告示牌链（最厚）：interact case16（render cat 16 = type 77/78 告示与商人，param 打包：高字节=标志位[&1=open 时 m_075、&2=效果表、&4=一次性]、低字节=报价序号+1；type77=文本源0（f_String_arr_06/07）、78/其余=源1（f_String_arr_08/09=商人 13 项））→ showOverlayMessage(kind4/5, 是/否图标) → overlay 分派 case4（-6/-5=applyMerchantOffer(true)/-7=(false)）与 case5（-3/-4=m_076 游标浏览、-5/-6/-7=关+回 mode10）→ applyMerchantOffer（m_074，13 项效果表：金币换钥/换血/加攻防 3%等 + param ^512/^256 翻转 + m_075 队列推进 + markEntityRemoved 一次性）+ 报价队列（m_075/m_076，f_byte_arr_14/15+f_int_88/89/90）；② spawnBossEvent/killAdjacentAt/findFloorGateEntity（boss/钹/暗道）；③ 物品栈族（useItemStack 全语义） |
+| 未移植候选 | **36** | 迭代 31 已消费炼丹族（alchemyPriceFor/scaledByFloorTier → fn 直证 66）。**剩余真实缺口（迭代 32+ 队列，机制图谱已备）**：① 商人/告示牌链（最厚）：interact case16（render cat 16 = type 77/78 告示与商人，param 打包：高字节=标志位[&1=open 时 m_075、&2=效果表、&4=一次性]、低字节=报价序号+1；type77=文本源0（f_String_arr_06/07）、78/其余=源1（f_String_arr_08/09=商人 13 项））→ showOverlayMessage(kind4/5, 是/否图标) → overlay 分派 case4（-6/-5=applyMerchantOffer(true)/-7=(false)）与 case5（-3/-4=m_076 游标浏览、-5/-6/-7=关+回 mode10）→ applyMerchantOffer（m_074，13 项效果表：金币换钥/换血/加攻防 3%等 + param ^512/^256 翻转 + m_075 队列推进 + markEntityRemoved 一次性）+ 报价队列（m_075/m_076，f_byte_arr_14/15+f_int_88/89/90）；② spawnBossEvent/killAdjacentAt/findFloorGateEntity（boss/钹/暗道）；③ 物品栈族（useItemStack 全语义）。
+  **迭代 32 L2 移植入库**：interact case16 分支（param 打包/文本表 06-09/kind4
+  是否图标）+ overlay 分派 case4（applyMerchantOffer）/case5（报价浏览）+
+  applyMerchantOffer 13 项效果表 + 报价队列（m_075/m_076）+ spendGold——
+  结构逐行对照字节码。**L3 待门状态机考证**：floor12 实测 bump 联动门
+  (11,1) 两实现一致不开浮层（door12[4] 联动类型的条件消息），Java 亦
+  mode3 无浮层——非移植差异，触发条件考证列入迭代 33。 |
 
 口径教训：名字/行号自动匹配只能出候选名单，分子终审必须人工（本轮抽样 7/7
 候选"未移植"实为内联移植）。三档随迭代人工更新，工具只保证候选不丢。
