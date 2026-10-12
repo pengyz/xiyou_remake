@@ -2006,6 +2006,8 @@ impl GameScene {
             -6 | -5 => {
                 if self.item_cursor < self.player.item_stack_size {
                     let t = self.player.item_types[self.item_cursor as usize] as i32;
+                    // itemUseTargetType（a.java:3941）：确认浮层图标/名称的数据源
+                    self.overlay_kind_item = t;
                     match t {
                         13 | 14 => {
                             self.game_mode = 3;
@@ -2069,15 +2071,116 @@ impl GameScene {
     /// activateItem（a.java:7781-7874+）的 mode10 头：13 → gameMode=5、
     /// 14 → gameMode=12（m_000 布局侧效果随对应模式批次）。16-25 的效果
     /// 分支（破墙/回血/瞬移等）为道具批次待办——序章背包恒空不可达。
-    fn activate_item(&mut self, t: i32) {
+    /// activateItem（a.java:7795-7860）：返回是否**消耗**（var2——true 时
+    /// useItemStack 递减次数并在 0 时压实栈）。
+    fn activate_item(&mut self, t: i32) -> bool {
         match t {
             13 => {
                 // a.java:7786-7788：gameMode=5 + m_000 case5（m_091+软键）
                 self.game_mode = 5;
                 self.enter_menu5();
+                false
             }
-            14 => self.game_mode = 12,
-            _ => {}
+            14 => {
+                // a.java:7789-7791：gameMode=12（m_000 case12 落穿 default）
+                self.game_mode = 12;
+                false
+            }
+            16 | 17 => {
+                // a.java:7795-7810：四邻格 gates——16=型10 三昧真火、17=型11；
+                // 未命中提示、命中 mode3 + 消耗
+                let (target, msg) = if t == 16 {
+                    (10, "你必须面对三昧真火再使用它。")
+                } else {
+                    (11, "你必须面对一堵墙使用")
+                };
+                if self.remove_adjacent_entity_of_type(target) {
+                    self.game_mode = 3;
+                    true
+                } else {
+                    self.show_overlay_message(0, msg, 0, 0);
+                    false
+                }
+            }
+            18 => {
+                // a.java:7812-7825：移除全场型11 实体 + mode3 + 消耗
+                let mut e = self.entities.count;
+                while e > 0 {
+                    e -= 1;
+                    if self.entities.entity_type[e] == 11 {
+                        entity::remove(&mut self.entities, e);
+                    }
+                }
+                self.game_mode = 3;
+                true
+            }
+            19 => {
+                // a.java:7826-7831：(atk+def)*74/10 加血 + 提示 + 消耗
+                let delta = (self.player.atk + self.player.def) * 74 / 10;
+                self.apply_hp_delta(delta);
+                self.show_overlay_message(0, &format!("增加了{delta}血量"), 0, 0);
+                true
+            }
+            // 20 对角瞬移（a.java:7832-7850）/ 21 下一层（7851-7852）：
+            // 需 placePlayerAtCell/changeFloor-in-activate 交互考证——专属场景批次
+            20 | 21 => todo!("activateItem 消耗臂 {t}（a.java:7832-7852）"),
+            _ => false,
+        }
+    }
+
+    /// m_100 语义（a.java:cellSlotTable 查找）：格 (cx,cy) 上首个型 target
+    /// 且 state!=1 的实体下标，无则 -1。
+    fn find_entity_of_type_at(&self, cx: i32, cy: i32, target: i32) -> i32 {
+        if cx < 0 || cy < 0 || cx >= self.view.wide || cy >= self.view.high {
+            return -1;
+        }
+        let ct = self.grid.cell_type[cy as usize][cx as usize] as usize;
+        let cap = self.grid.capacity[ct] as usize;
+        for s in 0..cap {
+            let e = self.grid.slots[ct][s] as usize - 1;
+            if self.entities.entity_type[e] == target && self.entities.solid[e] != 1 {
+                return e as i32;
+            }
+        }
+        -1
+    }
+
+    /// m_089（a.java:7892-7920）：四邻格逐格移除首个型 target 实体，
+    /// 任一格命中返回 true（Java 无小地图重建，镜像之）。
+    fn remove_adjacent_entity_of_type(&mut self, target: i32) -> bool {
+        let cx = self.view.player_px >> 5;
+        let cy = self.view.player_py >> 5;
+        let mut hit = false;
+        for (dx, dy) in [(0i32, -1i32), (0, 1), (-1, 0), (1, 0)] {
+            let e = self.find_entity_of_type_at(cx + dx, cy + dy, target);
+            if e >= 0 {
+                entity::remove(&mut self.entities, e as usize);
+                hit = true;
+            }
+        }
+        hit
+    }
+
+    /// useItemStack（a.java:7761-7781）：uses>0 → activate，消耗且减至 0
+    /// 时栈压实（后项前移 + size--）；uses==0 → 仅 activate 不消耗。
+    fn use_item_stack(&mut self, idx: usize) {
+        if self.player.item_uses[idx] > 0 {
+            let consumed = self.activate_item(self.player.item_types[idx] as i32);
+            if consumed {
+                self.player.item_uses[idx] -= 1;
+                if self.player.item_uses[idx] == 0 {
+                    let n = self.player.item_stack_size as usize;
+                    for k in idx..n.saturating_sub(1) {
+                        self.player.item_types[k] = self.player.item_types[k + 1];
+                        self.player.item_uses[k] = self.player.item_uses[k + 1];
+                    }
+                    if self.player.item_stack_size > 0 {
+                        self.player.item_stack_size -= 1;
+                    }
+                }
+            }
+        } else {
+            self.activate_item(self.player.item_types[idx] as i32);
         }
     }
 
@@ -3085,6 +3188,23 @@ impl GameScene {
                     }
                     _ => {}
                 }
+            } else if self.overlay_kind == 3 {
+                // 道具确认浮层（overlay 分派 case3，a.java:3296-3306）：
+                // -7 回面板、-6 关层 + useItemStack、其余 handleOverlayKey
+                match self.key_value {
+                    -7 => {
+                        self.game_mode = 10;
+                        self.overlay_active = false;
+                    }
+                    -6 => {
+                        self.overlay_active = false;
+                        self.use_item_stack(self.item_cursor as usize);
+                    }
+                    -2 => self.flip_overlay_page(self.overlay_page_top + self.overlay_lines_per_page),
+                    -1 => self.flip_overlay_page(self.overlay_page_top - self.overlay_lines_per_page),
+                    0 => {}
+                    _ => self.overlay_active = false,
+                }
             } else {
                 // handleOverlayKey（a.java:4923-4931）：±2 翻页（flipOverlayPage
                 // 钳制 a.java:5129-5140）、其余键关闭
@@ -3999,11 +4119,11 @@ impl GameScene {
             "熄灭\\cFFCC33三昧真火\\r的神器。\n\\c00ff00[使用次数：无限]",
             "挖洞开墙越狱的利器,挫是挫了点，但是真的很好用。\n\\c00ff00[使用次数：1次]",
             "可以震开当前层所有的墙\n\\c00ff00[使用次数：1次]",
-            "喝下后，增加相当于当前\\c00FFFF攻击力\\cFFFFFF加\\c00FFFF防御力\\cFFFFFF值740%的",
+            "喝下后，增加相当于当前\\c00FFFF攻击力\\cFFFFFF加\\c00FFFF防御力\\cFFFFFF值740%的\\cFFCC00血量\n[月宫出品，手工酿制，不含三聚氰胺，冷藏效果更佳，使用次数：1次]",
             "瞬移到以中心为对称点的位置上。\n\\c00ff00[使用次数：3次]",
             "瞬移上行一层\n\\c00ff00[使用次数：1次]",
             "瞬移下行一层\n\\c00ff00[使用次数：1次]",
-            "当年姜子牙受天命封神，他的钓鱼竹竿被原始天尊附上了神力，可以役使天神力士供他差遣，此杖又名“打神鞭”，对天神力士（包括巨灵神）伤害加倍。\n\\cFFCC00[放在道具栏中有效]",
+            "当年姜子牙受天命封神，他的钓鱼竹竿被原始天尊附上了神力，可以役使天神力士供他差遣，此杖又名“打神鞭”，对天神力士（包括巨灵神）威力加倍。\n\\cFFCC00[放在道具栏中有效]",
             "对某些自恋的神仙伤害加倍。\n\\cFFCC00[放在道具栏中有效]",
             "打怪得到的金钱加倍。\n\\cFFCC00[放在道具栏中有效]",
             "可以开启黄门。",
@@ -4014,7 +4134,7 @@ impl GameScene {
             "加血。",
             "加血。",
             "开启当前层所有黄门",
-            "如来开“慈悲为怀”巡回佛经演唱会的时候，伴奏罗汉用的乐器，道行浅的敌人，会被其梵天佛音瞬间化为灰飞\n\\cFFCC00",
+            "如来开“慈悲为怀”巡回佛经演唱会的时候，伴奏罗汉用的乐器，道行浅的敌人，会被其梵天佛音瞬间化为灰飞\n\\cFFCC00使用：杀死上下左右的敌人，对BOSS不起作用。",
         ];
         D[idx].to_string()
     }

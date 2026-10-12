@@ -171,7 +171,7 @@
 | 16 | 设置 | ✅ | L3 | scenario:`preset-load-menu.txt` |
 | 17 | 关于 | ✅ BootMachine | L3 | scenario:`menu-sweep.txt`（boot_replay 全量重放至 T1832） |
 | 18 | 粒子特效层 | ❌ | — | |
-| 19 | 商店 | ✅ enter/paint | L0（无任何场景覆盖——待迭代） | — |
+| 19 | 商店 | ✅ enter/paint（Rust 侧） | ❌ 不可达死内容 | 原版 kind11（商店）从未加入任何菜单（a.java:4305-4333/4437-4441 全量 addMenuItem 核对，迭代 41）——activateMenuItem case11（a.java:4775）为死臂；Rust enter_menu19 同为死码保真 |
 | 20 | 结束/退出确认 | ⚠️ menu-sweep Java 侧 | L2* | trace:`A-menu-sweep` |
 | 21 | 音效询问 | ✅ BootMachine | L3 | 全部 preset 场景 T66-70 |
 | 22 | 退出淡出 70 帧 | ✅ BootMachine | L3 | scenario:`menu-sweep.txt` T1762-1832（boot_replay 终点断言） |

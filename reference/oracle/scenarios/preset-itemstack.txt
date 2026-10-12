@@ -1,0 +1,21 @@
+# ticks: 500
+# preset: preset-itemstack.preset
+# cover: 物品栈消耗链（useItemStack a.java:7761）：槽载入 → mode10 面板 →
+#   -5 确认浮层(kind3) → -6 使用 → activateItem(19) 加血 (atk+def)*74/10
+#   → uses 1→0 → 栈压实（size 1→0）→ 空面板 → 返回行走
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -6 press
+302 -6 release
+350 -6 press
+352 -6 release
+400 -7 press
+402 -7 release
+450 -7 press
+452 -7 release
