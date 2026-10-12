@@ -1527,6 +1527,11 @@ fn preset_itemcymbal_frames_match() {
 ///    （Rust frame=1 = 生成后首推进）。疑点 = 击杀拍差（bump→battle
 ///    计拍差或 popup 首现拍 ≠ 击杀拍）。待办：战斗拍台账（双侧逐拍
 ///    battle_tick + popup 首现拍对表）定击杀拍后对齐。
+/// 迭代 49 台账+判定：击杀拍双侧对齐（T302，f_int_151=1/popupV=
+/// [150,100] 首现；A1==A2 双跑 sha 一致=Java 确定性无差）；
+/// **T303 paint = 空绘制**（Java mode11 dialogPhase-0 该拍 0 ops，
+/// 画布残影）vs Rust 全量 paint_dialog——mode11 空拍语义为残差
+/// 本体，专项待办（shim ops cap 256→2048 后实体 draw 已入 trace）。
 /// 迭代 47 续办（台账建账）：Java 侧逐拍对表完成——击杀拍=T302
 /// （f_int_151 0→1 冻结、battleActive=true、popupV=[150,100] 首现）
 /// 与 Rust 击杀拍**完全对齐**；残差聚焦 popup/实体绘制的 y 域

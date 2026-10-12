@@ -52,7 +52,9 @@ public class Graphics {
 
     public static synchronized String flushOps() {
         StringBuilder sb = new StringBuilder();
-        int n = Math.min(OPS.size(), 256);
+        // 迭代 49：256 条截断导致转场拍（count 751）的实体层 draw 不入 trace——
+        // 对表取证不可行。上限提至 2048（深场景 paint 实测 <800 ops，2048 余量充足）。
+        int n = Math.min(OPS.size(), 2048);
         for (int i = 0; i < n; i++) {
             if (i > 0) {
                 sb.append('\n');
