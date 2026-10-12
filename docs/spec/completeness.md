@@ -212,6 +212,10 @@
    shim Graphics.flushOps 256 条截断 → 2048（转场拍实体 draw 入
    trace；reference 门禁全绿）。待办：mode11 dialogPhase 门控的
    paint 语义对表（paint case 11 a.java:2798-2900）→ 摘除挂起。
+   **迭代 52 取证**：speaker_types.txt 与 Java dialogueSpeakerType
+   269 项逐项对表 0 diff（说话人表排除）——残差重新聚焦 = **型73
+   boss 死亡动画相位差**（boss sprite 火焰帧 entityAnimFrame 推进，
+   battle_finishing 动画拍对表待办）。
    **迭代 51 取证深化（dumpStride=1 全量 op 流 + 双上限 2048）**：
    Java T303 = 全量 873 op（实体层全画：六 poofs@y124、怪 sprite、
    状态条、+100 popup）；与 Rust op 流 872 条仅差 1（末尾
