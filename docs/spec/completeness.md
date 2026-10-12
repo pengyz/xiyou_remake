@@ -62,9 +62,12 @@
   **迭代 32 L2 移植入库**：interact case16 分支（param 打包/文本表 06-09/kind4
   是否图标）+ overlay 分派 case4（applyMerchantOffer）/case5（报价浏览）+
   applyMerchantOffer 13 项效果表 + 报价队列（m_075/m_076）+ spendGold——
-  结构逐行对照字节码。**L3 待门状态机考证**：floor12 实测 bump 联动门
-  (11,1) 两实现一致不开浮层（door12[4] 联动类型的条件消息），Java 亦
-  mode3 无浮层——非移植差异，触发条件考证列入迭代 33。 |
+  结构逐行对照字节码。**L3 待触发前置考证（迭代 33 入口）**：floor2 type78 告示
+  @cell(11,7) param01——(10,7) 右行撞牌实测 **Java 自身亦不开浮层**
+  （帧 0261-0262 无框，mode 恒 3）；case16 分支的三前置（实体在格槽/
+  entityState≠1/renderCategory=16）逐条满足却未触发，疑因在
+  cellSlotTable 注册或 entityState 的载入期状态——需 m_059/m_122 载入期
+  格槽考古。floor12 联动门 (11,1) 同样两实现一致不触发。 |
 
 口径教训：名字/行号自动匹配只能出候选名单，分子终审必须人工（本轮抽样 7/7
 候选"未移植"实为内联移植）。三档随迭代人工更新，工具只保证候选不丢。

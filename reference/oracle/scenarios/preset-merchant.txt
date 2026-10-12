@@ -1,8 +1,8 @@
-# ticks: 700
+# ticks: 600
 # preset: preset-merchant.preset
-# cover: preset 直达第 12 层（type78 商人告示 @cell(11,1) param06=报价5
-#   「红钥匙 800 金」）：上行撞告示 → case16 kind4 报价浮层 → -6 购买
-#   （spend 800 → 红钥+1、商人移除）→ 浮层关闭 → 上行踏入空格
+# cover: preset 直达第 2 层（type78 告示牌 @cell(11,7) param01=报价0）：右行撞牌
+#   → case16 kind4 浮层（空文本+是/否图标）→ -6 applyMerchantOffer(true)
+#   （攻防各+3%、实体移除、浮层关）→ 验证告示牌消失
 70 -6 press
 72 -6 release
 100 -2 press
@@ -11,11 +11,9 @@
 152 -5 release
 200 -5 press
 202 -5 release
-260 2 press
-262 2 release
+260 6 press
+262 6 release
 320 -6 press
 322 -6 release
-380 2 press
-382 2 release
-440 8 press
-442 8 release
+380 8 press
+382 8 release
