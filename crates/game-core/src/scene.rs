@@ -3720,6 +3720,14 @@ impl GameScene {
         }
 
         /// applyStepCellEffects（a.java:5543-5729，floor1 可达子集）：
+
+        /// m_000 case 3 尾（a.java:4315 applyStepCellEffects）：进图瞬间出生格
+        /// 触发（type83 → try_run_scene/loadLevelScript，序章 script 40 入口）。
+        /// 槽载入链在 load_floor_from_save 尾内联；新游戏冷启动链（宿主构造
+        /// 场景后）经此入口。
+        pub fn apply_entry_step_effects(&mut self) {
+            self.apply_step_cell_effects();
+        }
         /// 玩家格坐标刷新 + 格内实体效果（拾取 cat2/4；楼梯 7/8 → 换层批次）+
         /// walkPhase=0 + handleFieldInput（按住连走）。
         fn apply_step_cell_effects(&mut self) {

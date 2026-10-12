@@ -402,19 +402,6 @@ fn dump_frame_pixels() {
 
 /// prologue 对拍：floor51 冷启动（玩家 (1,11) 出生即触发 script 40）——
 /// T584-9800 逐 tick FRAME sha（T584 起为 mode 11 对话）。
-/// 当前 ignore：T584 三带差异待调——
-/// (a) 状态栏"引子"（m_142 outline 已实现但位置偏上：我 y9 白 vs java y16 白，
-///     疑 draw_string BASELINE=17 语义/SMALL 字形位图 y 范围（baseline=8, h=10）；
-/// (b) 游戏视图实体动画帧（sprite51 怪/仙桃 advanceEntityFrames 相位）；
-/// 场景状态按 a.java:3481-3487 冷启动（floor51/hp300/atk10/def10）。
-#[test]
-fn prologue_dialog_frames_match() {
-    replay_floor51_window(
-        "reference/oracle/_out/A-prologue-dialog/trace.txt",
-        577,
-        9800,
-    );
-}
 
 /// floor51 菜单族对拍：mode4 菜单（-7 开/导航/kind17 跳过教程→回层 1）+ 恢复行走。
 /// 场景 = floor51-menu.txt（序章场景追加菜单键 9900-10554 + 存档链 10700-11054）。

@@ -106,7 +106,17 @@
   往返 floor2→1→2 / 蓝门重复弹关周期 / 金币拾取(+1) 首次获得 Rust L3。
   余 floor51_menu 1 例（序章 boot 型场景，非 preset 直达——需独立评估
   全流程重放或 preset 化，队列下批）。gameplay_floor1.rs 内 3 个诊断用例
-  （dump_t544/dump_frame/dump_entity87）保留 ignored。 |
+  （dump_t544/dump_frame/dump_entity87）保留 ignored。
+  **迭代 37 收敛（mode 11 全流程化）**：BootMachine 新游戏链补端口——
+  mode 2 装载完成（非槽载入）由 `finished=true`（与 mode0/退出语义混用）
+  改为专用 `new_game_ready` 信号 + m_000 case 3 软键/浮层清位
+  （a.java:4312-4318）；`GameScene::apply_entry_step_effects` 公开入口
+  （出生格 type83 → script 40，a.java:5708-5709/4315）。新用例
+  preset_cases::prologue：**T1-9800 全帧一次通过**——boot logo/声音询问/
+  标题/引子插画(mode14)/装载链(mode2)/冷启动移交（floor51 cell(1,11)
+  hp300/atk10/def10 + bob/strip/backdrop/rng 连续量移交）/mode 11 对话层
+  全程。旧冷场景 prologue_dialog（T577-9800 手调初值）退役。矩阵补正：
+  mode 9 行（迭代 31/33 已 L3，二次校准漏更正）、mode 11 行（L2*→L3）。 |
 
 口径教训：名字/行号自动匹配只能出候选名单，分子终审必须人工（本轮抽样 7/7
 候选"未移植"实为内联移植）。三档随迭代人工更新，工具只保证候选不丢。
@@ -129,9 +139,9 @@
 | （无 mode 6） | 战斗 = mode 3 子态（battleActiveFlag+tickBattle），非独立模式——2026-10-12 更正，矩阵初版误设 mode 6 行 | ✅ combat.rs | L3 | scenario:`floor1-to-floor2.txt`（4 战）+ `floor2-tour.txt`；迭代 35 起 Rust L3：`preset_cases::floor_crossing` T1-1500 全帧（抖动/伤害弹窗；前提 = rng 续接，见知识库 gotcha_gamescene-rng-must-continue-machine-lcg） |
 | 7 | 存档槽（写回） | ✅ | L3 | scenario:`preset-save.txt` T340-560 |
 | 8 | 读档槽 | ✅ | L3 | scenario:`preset-help.txt` T150-240 |
-| 9 | 炼丹/加点 | ❌ | — | |
+| 9 | 炼丹/加点 | ✅（迭代 31 实现 / 33 L3 收敛——本行 2026-10-12 二次校准时漏更正，迭代 37 补正） | L3 | scenario:`preset-alchemy.txt` T1-700 全帧（三连购 + 不足浮层） |
 | 10 | 道具面板 | ✅ | L3 | scenario:`preset-item13.txt` |
-| 11 | 对话/剧情层 | ⚠️ 部分（序章 Java 侧验证） | L2* | trace:`A-prologue-dialog`（Rust 侧未建） |
+| 11 | 对话/剧情层 | ✅（scene script/mode11 + BootMachine 新游戏链） | L3 | scenario:`prologue-dialog.txt`——迭代 37 起 Rust **全流程 T1-9800**（preset_cases::prologue，冷启动移交 + type83→script40 + 打字机/游标/翻页/电影镜头）；旧冷场景窗口版退役 |
 | 12/13 | 过渡（B 级语义） | ❌ | — | |
 | 14 | 新游戏引子插画 | ✅ BootMachine | L3 | scenario:`enter-game.txt` |
 | 15 | 帮助浮层 | ✅ | L3 | scenario:`preset-help.txt` T450-700 |

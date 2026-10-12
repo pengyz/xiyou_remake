@@ -213,6 +213,10 @@ pub struct BootMachine {
     pub paints: u32,
     /// mode 0 结束标志（logo 时间线 35 耗尽，a.java:3370-3373 切 gameMode=21）。
     pub finished: bool,
+    /// 新游戏链完成（mode 2 装载进度 ≥100 且非槽载入，m_000 case 3）：
+    /// 宿主据此构造冷启动场景（step8 统计 floor51/hp300/atk10/def10，
+    /// a.java:3496-3506）并接管 mode 3。与 `finished`（mode 0/退出语义）分离。
+    pub new_game_ready: bool,
 }
 
 impl BootMachine {
@@ -267,6 +271,7 @@ impl BootMachine {
             frame_interval_ms: 75,
             paints: 0,
             finished: false,
+            new_game_ready: false,
         }
     }
 
@@ -499,7 +504,12 @@ impl BootMachine {
                             self.softkeys = (1, 3);
                             self.overlay_active = false;
                         } else {
-                            self.finished = true; // 新游戏链 m_000 case 3 未端口
+                            // 新游戏链完成（m_000 case 3，a.java:4312-4318 同款软键/
+                            // 浮层清位；冷启动场景由宿主按 step8 统计构造——
+                            // floor51/hp300/atk10/def10，a.java:3496-3506）
+                            self.softkeys = (1, 3);
+                            self.overlay_active = false;
+                            self.new_game_ready = true;
                         }
                     }
                 }
