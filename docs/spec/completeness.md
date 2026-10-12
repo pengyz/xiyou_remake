@@ -97,7 +97,16 @@
   A-floor1-to-floor2 trace 曾于 10-12 18:43 被无 preset 再生覆盖（游戏卡
   空槽列表），已带 preset 再生并与 10-10 B trace 帧 sha 序列比对定位主机
   版本漂移；帧像素取证（ARGB 通道序陷阱见知识库 gotcha-oracle-png-channel-order）。
-  余 3 用例（floor1-tour/floor2-tour/floor51-menu 系）迁移排队。 |
+  余 3 用例（floor1-tour/floor2-tour/floor51-menu 系）迁移排队。
+  **迭代 36 收敛（harness 统一 3/4）**：gameplay_floor1（T1-3000 全帧，
+  含此前从未比对过的 T1701-3000 区段）与 floor2_tour（T1-2000 全帧，含
+  T1501-2000 区段）迁入全流程 preset harness，**首跑即全帧一致**——rng
+  连续性修复（迭代 35）即二者"真实行走分歧"的同一根因。新增覆盖首报：
+  宝箱组开门（walkPhase 4 遮幅抖动）/ 型11 道具浮层 / 血瓶拾取 / 楼梯
+  往返 floor2→1→2 / 蓝门重复弹关周期 / 金币拾取(+1) 首次获得 Rust L3。
+  余 floor51_menu 1 例（序章 boot 型场景，非 preset 直达——需独立评估
+  全流程重放或 preset 化，队列下批）。gameplay_floor1.rs 内 3 个诊断用例
+  （dump_t544/dump_frame/dump_entity87）保留 ignored。 |
 
 口径教训：名字/行号自动匹配只能出候选名单，分子终审必须人工（本轮抽样 7/7
 候选"未移植"实为内联移植）。三档随迭代人工更新，工具只保证候选不丢。
