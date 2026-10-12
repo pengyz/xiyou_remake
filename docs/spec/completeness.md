@@ -62,13 +62,17 @@
   **迭代 32 L2 移植入库**：interact case16 分支（param 打包/文本表 06-09/kind4
   是否图标）+ overlay 分派 case4（applyMerchantOffer）/case5（报价浏览）+
   applyMerchantOffer 13 项效果表 + 报价队列（m_075/m_076）+ spendGold——
-  结构逐行对照字节码。**L3 待撞牌一帧闪现取证（迭代 33 入口）**：Rust 探针实证本链完好——
-  floor2 (10,7) facing2 撞 (11,7) type78（param 0x0201：flags&2、idx1）
-  → kind4 浮层开（merchant_entity=13、MERCHANT_OFFERS[0] "大圣饶命 3%"）
-  ✓。Java 侧 bump 后帧 0261-0262 无框：**撞牌 tick 浮层开启后，行走键
-  keyValue（54）在同/次 tick 落入 overlay 分派 default（handleOverlayKey
-  → 关闭）——一帧闪现语义**。取证 = dumpStride=1 专项 trace 逐 tick 验
-  浮层开合时序；Rust 需复刻同 tick 内"开后即被行走键关闭"的时序。 |
+  结构逐行对照字节码。**L3 待 Java 侧 interact 取证（迭代 33 核心）**：Rust 探针实证触发完好
+  ——floor2 (10,7) facing2 撞 (11,7) type78（param 0x0201：flags&2、idx1）
+  → case16 分支 → kind4 浮层开（merchant_entity=13、MERCHANT_OFFERS[0]
+  "大圣饶命 3%"）✓。Java 同场景 T262 FLD 实证 **overlayActive=false、
+  mode=3、帧无浮层框**——Java 的 interact(11,7) 未命中 case16。实体
+  (352,224) 在 spawn 表 ✓、renderCategoryByType[78]=16 ✓（字节码
+  a.java:6287）、格槽 pool17 slots=[14] ✓（Rust 探针）——分歧点在
+  Java interact 运行时状态（格槽计数/entityState/或 tryStep 未达
+  interact）。**取证法 = Java 侧临时探针**：interactWithCell 入口加
+  System.out（cell/槽/类型/分支命中），跑 preset-merchant 取真值后
+  按真值修 Rust。 |
 
 口径教训：名字/行号自动匹配只能出候选名单，分子终审必须人工（本轮抽样 7/7
 候选"未移植"实为内联移植）。三档随迭代人工更新，工具只保证候选不丢。
