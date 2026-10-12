@@ -1104,9 +1104,10 @@ fn preset_save_frames_match() {
 /// current_floor=51），窗口 T1-600 全帧。主层资产 = maplv51/sprite51
 /// （非方阵 12×13 特例骨架），floor_assets[1] 同时装配。覆盖深层地图渲染
 /// + NPC 对话条 + 走查 + mode10。
+/// 迭代 30 收敛：T372 残差 = layout_wrapped_text_limited（打字机限量版）的
+/// \c 转义处理未同步迭代 26 的 overlay 全量版修复（7 字符消费留尾字计宽）
+/// ——对齐后 T1-600 全帧一致。
 #[test]
-#[ignore] // T372 起对话框文本换行差 1 字符（44px，Java 一行放下末字/Rust 提前换行）
-          // —— 对话层文本布局移植差异，迭代 30 修；ROS 六子码移植已在本用例踩中并落地
 fn preset_floor51_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(
@@ -1303,16 +1304,7 @@ fn preset_floor51_frames_match() {
                 Some(sc) => sc.paint(&mut g, &tileset),
                 None => machine.paint(&mut g),
             }
-                        if rec.tick == 372 {
-                let ops = g.ops.join("\n");
-                std::fs::write("/tmp/rust-f51-372-ops.txt", ops).unwrap();
-                let mut buf = Vec::new();
-                for &p in &screen.argb {
-                    buf.extend_from_slice(&p.to_be_bytes());
-                }
-                std::fs::write("/tmp/rust-f51-372.bin", &buf).unwrap();
-            }
-sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
+            sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
         }
         {
             if let Some(expect) = &rec.frame_sha {

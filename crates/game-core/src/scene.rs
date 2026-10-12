@@ -1344,16 +1344,31 @@ impl GameScene {
                 i += 1;
                 continue;
             }
+            // 转义语义与 layout_full_text 同源（a.java:4962-4976）——迭代 26 修的是
+            // overlay 全量版，本打字机限量版漏改致同一处偏差复发（迭代 30 教训：
+            // 同一算法的两份拷贝必须同步修，或抽公共函数）。
             let cw;
             if c == '\\' && i + 1 < chars.len() {
                 let nxt = chars[i + 1];
-                if nxt == 'c' && i + 7 < chars.len() {
-                    cur.push(c);
-                    for k in 1..=6 {
-                        cur.push(chars[i + k]);
+                if nxt == 'c' {
+                    let hex: String = chars[i + 2..(i + 8).min(chars.len())].iter().collect();
+                    let valid = i + 7 < chars.len()
+                        && crate::menu_family::parse_hex_color_public(&hex).is_some();
+                    if valid {
+                        cur.push(c);
+                        for k in 1..=7 {
+                            cur.push(chars[i + k]);
+                        }
+                        i += 8;
+                        continue;
+                    } else {
+                        cw = font.char_width('\\' as u16) + font.char_width(nxt as u16);
+                        cur.push(c);
+                        cur.push(nxt);
+                        acc_w += cw;
+                        i += 2;
+                        continue;
                     }
-                    i += 7;
-                    continue;
                 } else if nxt == 'r' {
                     cur.push(c);
                     cur.push(nxt);

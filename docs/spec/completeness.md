@@ -76,10 +76,11 @@ L2* = Java 三方对拍绿但 Rust 侧未建用例（覆盖声明的过渡态）
 - DSL 15 码：TAK/CES/MOV/DES/GIN/LAY/ROS/RES/GUT/SEE/END/GLV/SMS/SWD/ADD。
   已在 Java 侧验证 trace 中出现（prologue/gameplay 系列）；**Rust 解释器覆盖
   以 game-core script 引擎对拍为准——逐码登记待迭代 29+ 细化**。
-- 楼层：夹具已备 3/55（1/2/51），L3 对拍达成 2/55（floor1、floor2）+ floor51 直达
-  场景三方 PASS、Rust L3 残差 = 对话层文本换行（迭代 30 修，BUG-008 另记框体观感）。
-- DSL：ROS 六子码已移植（迭代 29，floor51 层脚本踩中 todo 后补——按层铺路线
-  逼出真实缺口的第一个实例）。
+- 楼层：夹具已备 3/55（1/2/51），**L3 对拍达成 3/55（floor1、floor2、floor51）**
+  ——floor51 于迭代 30 全帧收敛（迭代 29 曾暴露 ROS todo 与打字机限量布局
+  转义偏差两处真实缺口，按层铺路线连续逼出真实缺口的实例）。
+- DSL：ROS 六子码已移植（迭代 29）；布局算法双拷贝（全量/限量）已对齐转义
+  语义——遗留重构项：抽公共函数消除双份拷贝（迭代 30 教训入库）。
 - 资源：138 条 manifest 全部经 L1 golden（解析级）；渲染级随场景逐步覆盖。
 
 ### 3.3 场景面（D 维）
