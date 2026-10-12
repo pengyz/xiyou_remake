@@ -173,7 +173,18 @@
   Java 一致，臂已就位）。新用例 preset_cases::preset_itemboss40（40 层
   槽载入 (6,3) atk200 撞型73 boss 一拍斩 → 钩子全链 → 脚本 22 对话），
   T303 起 3037px 残差 = DES 登场动画相位差 ~2-3 帧（机制/坐标/状态全
-  对齐），#[ignore] 挂起 + 战斗拍台账待办（residual 透明化）。 |
+  对齐），#[ignore] 挂起 + 战斗拍台账待办（residual 透明化）。
+  **迭代 44 收敛（activateItem 20/21 消耗臂）**：todo!() 清除——20 对角
+  瞬移（a.java:7832-7850：40 层禁用文案；镜像格 (w-1-x,h-1-y) interact
+  放行 → placePlayerAtCell(m_024) + setCameraClamped 居中 +
+  applyStepCellEffects + 消耗；拦截且无浮层 → 「无法移动到该位置」不
+  消耗）；21 changeFloor(+1)（返回值即消耗与否，a.java:7851-7852）。
+  新用例 preset_cases::preset_item2122（preset-item2122 场景 = 栈注入
+  [20×1, 21×1]），T1-900 全帧首跑一致——覆盖 20 臂**拦截路径**（floor1
+  出生点镜像格判定失败 → 文案浮层 → 栈不消耗；消耗/换层正路径随
+  按层铺场景批次）。itemboss40 DES 登场相位残差的取证基建就位
+  （stride-1 trace + 双侧 op 流转储；op 计数 872 vs 751+ 多行 drawString
+  解析截断待解），战斗拍台账下批续办。 |
 
 口径教训：名字/行号自动匹配只能出候选名单，分子终审必须人工（本轮抽样 7/7
 候选"未移植"实为内联移植）。三档随迭代人工更新，工具只保证候选不丢。

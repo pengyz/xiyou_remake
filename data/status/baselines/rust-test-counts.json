@@ -12,12 +12,12 @@
     "golden(test)": 9,
     "l2_prologue(test)": 1,
     "png_golden(test)": 1,
-    "preset_cases(test)": 18,
+    "preset_cases(test)": 19,
     "probe_floor2(test)": 1,
     "render_golden(test)": 16,
     "script_golden(test)": 14,
     "walk_camera_golden(test)": 4,
     "walk_replay_floor1(test)": 2
   },
-  "total": 127
+  "total": 128
 }

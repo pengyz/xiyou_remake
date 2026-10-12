@@ -872,6 +872,224 @@ fn preset_itemstack_frames_match() {
     }
     assert_eq!(checked, records.len(), "T1-500 全帧必须比对");
 }
+/// 消耗臂 20 拦截路径（迭代 44，activateItem a.java:7832-7850）：preset-item2122
+/// 场景（MOT_L0 栈注入 [20×1, 21×1]，floor1 (3,10)），T1-900 全帧。覆盖：
+/// 20 对角瞬移的镜像格 interact 拦截 → 「无法移动到该位置」不消耗（栈保持
+/// [20,21]）→ 确认浮层复现。21 臂的 changeFloor(+1) 需游标换位——独立场景
+/// 批次（与按层铺合并）。
+#[test]
+fn preset_item2122_frames_match() {
+    let repo_path = repo();
+    let preset_text = std::fs::read_to_string(
+        repo_path.join("reference/oracle/scenarios/preset-item2122.preset"),
+    )
+    .unwrap();
+    let stores = parse_preset(&preset_text);
+    let trace_text = std::fs::read_to_string(
+        repo_path.join("reference/oracle/_out/A-preset-item2122/trace.txt"),
+    )
+    .expect("缺 A-preset-item2122 trace");
+    let records = trace::parse(&trace_text);
+
+    let maplv1 =
+        std::fs::read(repo_path.join("crates/game-oracle/tests/fixtures/maplv1.bin")).unwrap();
+    let sprite1 =
+        std::fs::read(repo_path.join("crates/game-oracle/tests/fixtures/sprite1.bin")).unwrap();
+    let sp = SpriteTable::parse(&sprite1).unwrap();
+    let doors = door_tables();
+    let records1: Vec<(u8, u16, u16, i16, bool)> = sp
+        .records
+        .iter()
+        .map(|rec| {
+            let (param, hide) = spawn_param_and_visibility(rec.type_code, &rec.extra, &doors);
+            (rec.type_code, rec.x, rec.y, param, !hide)
+        })
+        .collect();
+
+    let mapbg = load_container("mapbg", 1);
+    let map = load_container("map", 12);
+    let actor_c = load_container("actor", 4);
+    let sptmap = load_container("sptmap", 13);
+    let sptprop = load_container("sptprop", 23);
+    let sptarm = load_container("sptarm", 10);
+    let sptenemy1 = load_container("sptenemy1", 20);
+    let sptenemy2 = load_container("sptenemy2", 20);
+    let ui = load_container("ui", 25);
+    let images = SceneImages {
+        backdrop: mapbg[0].clone(),
+        shadow: sptprop[0].clone(),
+        actor: actor_c[0].clone(),
+        actor_face: actor_c[1].clone(),
+        stair_icons: (map[1].clone(), map[2].clone()),
+        open_anim: map[9].clone(),
+        opened_door: sptmap[12].clone(),
+        entity: SceneImages::map_entity_images(&sptmap, &sptprop, &sptarm, &sptenemy1, &sptenemy2),
+        popup: game_core::popup::PopupImages {
+            digit_strips: [map[3].clone(), map[4].clone(), map[5].clone()],
+            icon_strip: map[6].clone(),
+            battle_digits: ui[9].clone(),
+        },
+        spark_sheet: actor_c[2].clone(),
+        corner_sprites: ui[23].clone(),
+        map211: Some(map[11].clone()),
+        map210: map[10].clone(),
+        menu_strip: load_container("menu", 2)[1].clone(),
+        battle_icon: map[8].clone(),
+        battle_strip: map[7].clone(),
+        ui,
+    };
+    let mut floor_assets: Vec<Option<game_core::scene::FloorAssets>> = vec![None; 56];
+    floor_assets[1] = Some(game_core::scene::FloorAssets {
+        maplv: maplv1.clone(),
+        records: records1.clone(),
+    });
+    let records2: Vec<(u8, u16, u16, i16, bool)> = {
+        let sp2 = SpriteTable::parse(
+            &std::fs::read(repo_path.join("crates/game-oracle/tests/fixtures/sprite2.bin")).unwrap(),
+        )
+        .unwrap();
+        let doors = door_tables();
+        sp2.records
+            .iter()
+            .map(|rec| {
+                let (param, hide) = spawn_param_and_visibility(rec.type_code, &rec.extra, &doors);
+                (rec.type_code, rec.x, rec.y, param, !hide)
+            })
+            .collect()
+    };
+    floor_assets[2] = Some(game_core::scene::FloorAssets {
+        maplv: std::fs::read(repo_path.join("crates/game-oracle/tests/fixtures/maplv2.bin")).unwrap(),
+        records: records2,
+    });
+
+    let mot_l0 = &stores
+        .iter()
+        .find(|(k, _)| k.starts_with("MOT_L0@"))
+        .expect("MOT_L0")
+        .1;
+    let save = parse_floor_save(mot_l0, 0).unwrap();
+
+    let mapbg = load_container("mapbg", 1);
+    let mut machine = game_core::paint::BootMachine::new(
+        decode_png(&std::fs::read(repo_path.join("assets/raw/l0.png")).unwrap()),
+        decode_png(&std::fs::read(repo_path.join("assets/raw/l1.png")).unwrap()),
+        load_sflogo(),
+        load_container("ui", 25),
+        load_container("menu", 2),
+        mapbg[0].clone(),
+        load_container("intro", 2),
+        load_container("end", 1),
+        load_container("load", 2),
+    );
+    machine.preset_stores = stores.clone();
+    machine.sptarm = load_container("sptarm", 10);
+
+    let tileset = map[0].clone();
+    let mut screen = ArgbImage::create(game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
+    let mut checked = 0usize;
+    let mut scene: Option<GameScene> = None;
+    let mut pending_key = 0i32;
+    let mut pending_press = 0i32;
+    let mut pending_release = false;
+    for rec in &records {
+        let key = pending_key;
+        pending_key = input_key(&rec.input);
+        if scene.is_some() {
+            if pending_press != 0 {
+                scene.as_mut().unwrap().press_key(pending_press);
+                pending_press = 0;
+            }
+            if pending_release {
+                scene.as_mut().unwrap().release_key();
+                pending_release = false;
+            }
+            scene
+                .as_mut()
+                .unwrap()
+                .tick(rec.tick as i64 - 1, &width_table());
+            if let Some(inp) = &rec.input {
+                if let Some(rest) = inp.strip_prefix("press(") {
+                    if let Some(code) = rest.strip_suffix(')').and_then(|k| k.parse::<i32>().ok()) {
+                        pending_press = code;
+                    }
+                } else if inp.starts_with("release(") {
+                    pending_release = true;
+                }
+            }
+        } else {
+            machine.tick(key);
+            if machine.mode == 3 && machine.slot_loaded.is_some() {
+                let m = &machine;
+                let mut sc = game_core::scene::load_floor_from_save(
+                    &maplv1,
+                    &records1,
+                    &width_table(),
+                    &tile_walkability(),
+                    images.clone(),
+                    floor_assets.clone(),
+                    &save,
+                )
+                .unwrap();
+                sc.backdrop_scroll = m.backdrop.scroll();
+                if let Some(t) = &m.title {
+                    sc.menu_cursor = t.cursor;
+                    sc.bob_offset = t.bob;
+                    sc.bob_rising = t.bob_rising;
+                }
+                sc.strip_frame = m.strip_frame;
+                sc.preset_mot_if = m
+                    .preset_stores
+                    .iter()
+                    .find(|(k, _)| k.starts_with("MOT_IF@"))
+                    .map(|(_, v)| v.clone());
+                let combat_tables = game_core::combat::CombatTables {
+                        enemy_base_hp: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasehp.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
+                        enemy_base_atk: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybaseatk.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
+                        enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
+                        difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
+                };
+                sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
+                sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
+                sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
+                // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
+                // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
+                // 则抖动序列错位（迭代 35 T801 分歧根因）
+                sc.rng = m.rng.clone();
+                if pending_key != 0 {
+                    sc.press_key(pending_key);
+                    pending_key = 0;
+                }
+                scene = Some(sc);
+            }
+        }
+        let sha;
+        {
+            let mut g = SoftGraphics::new(&mut screen);
+            g.set_clip(0, 0, game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
+            g.set_font(Some(game_core::paint::paint_font()));
+            match scene.as_mut() {
+                Some(sc) => sc.paint(&mut g, &tileset),
+                None => machine.paint(&mut g),
+            }
+            sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
+        }
+        if let Some(expect) = &rec.frame_sha {
+            let mode = if let Some(sc) = &scene {
+                sc.game_mode
+            } else {
+                machine.mode as i32
+            };
+            assert_eq!(
+                &sha, expect,
+                "TICK {} 帧不符（mode={}）",
+                rec.tick, mode
+            );
+            checked += 1;
+        }
+    }
+    assert_eq!(checked, records.len(), "T1-500 全帧必须比对");
+}
 /// 钹消耗链（迭代 42，killAdjacentAt a.java:7923 全语义）：preset-itemcymbal
 /// 场景（MOT_L0 栈注入 [86 型×1 次]，floor1 (3,10)），T1-600 全帧。覆盖：
 /// mode10 面板 → 确认浮层 → 使用 → 四邻格 (2,10) 型43 怪清除 + 赏金 popup

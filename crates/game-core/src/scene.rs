@@ -2182,9 +2182,38 @@ impl GameScene {
                 self.game_mode = 3;
                 true
             }
-            // 20 对角瞬移（a.java:7832-7850）/ 21 下一层（7851-7852）：
-            // 需 placePlayerAtCell/changeFloor-in-activate 交互考证——专属场景批次
-            20 | 21 => todo!("activateItem 消耗臂 {t}（a.java:7832-7852）"),
+            20 => {
+                // a.java:7832-7850：对角瞬移——40 层禁用；镜像格 interact 放行
+                // → placePlayerAtCell + 相机居中 + applyStepCellEffects + 消耗；
+                // 拦截且无浮层 → 「无法移动到该位置」不消耗
+                if self.floor == 40 {
+                    self.show_overlay_message(0, "本层不能直接瞬移。", 0, 0);
+                    false
+                } else {
+                    let tx = self.view.wide - 1 - (self.view.player_px >> 5);
+                    let ty = self.view.high - 1 - (self.view.player_py >> 5);
+                    let pass = self.interact_with_cell(tx, ty);
+                    if pass {
+                        self.m_024(tx, ty);
+                        self.view.set_camera(
+                            (self.view.view_w - 32 >> 1) - self.view.player_px,
+                            (self.view.view_h - 32 >> 1) - self.view.player_py,
+                        );
+                        self.apply_step_cell_effects();
+                        self.game_mode = 3;
+                        true
+                    } else {
+                        if !self.overlay_active {
+                            self.show_overlay_message(0, "无法移动到该位置", 0, 0);
+                        }
+                        false
+                    }
+                }
+            }
+            21 => {
+                // a.java:7851-7852：changeFloor(+1)——返回值即消耗与否
+                self.change_floor(self.floor + 1, false, false)
+            }
             _ => false,
         }
     }
