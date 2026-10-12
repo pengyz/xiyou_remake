@@ -1532,6 +1532,10 @@ fn preset_itemcymbal_frames_match() {
 /// 与 Rust 击杀拍**完全对齐**；残差聚焦 popup/实体绘制的 y 域
 /// （T303 diff 带 y87-106 = damage popup「150」首现位附近），
 /// 待 popup 生存期/上升计数与实体 sprite 源的逐字段对表。
+/// 迭代 48 取证：popup y 差 10px 实锤——Java popupY[0]=78（=boss y64+
+/// cam_y14）vs Rust popup y=88（cam_y24）：**40 层行走相机 y 位差**
+/// （spawn 相机=居中 48，两侧行走/钳制模型在 floor40 分岔）。
+/// 待办：40 层相机钳制模型考证（mapCellsHigh/可视行数）→ 对齐后摘牌。
 /// 迭代 47 续办取证：Java 台账 f_int_151=1/battleActive=true/popupV=
 /// [150,100] 首现于 T302（= Rust 击杀拍，**击杀拍无差**！）；
 /// stride-1 op 流对表发现 **Java 转场拍（T303）paint 为部分绘制**——
