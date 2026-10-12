@@ -69,8 +69,11 @@ public abstract class Canvas extends Displayable {
     }
 
     public void serviceRepaints() {
+        // 迭代 51 诊断（stdout，非 trace）：paint 调用时机/跳过计数
+        System.out.println("SRV need=" + needRepaint);
         if (needRepaint) {
             needRepaint = false;
+            System.out.println("PAINT ran");
             Graphics g = screen.getGraphics();
             g.setClip(0, 0, SCREEN_W, SCREEN_H);
             paint(g);

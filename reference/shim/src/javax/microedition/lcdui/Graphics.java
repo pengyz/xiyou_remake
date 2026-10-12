@@ -69,7 +69,8 @@ public class Graphics {
 
     private static synchronized void op(String s) {
         opCount++;
-        if (OPS.size() < 256) {
+        // 迭代 49/50：记录上限同步 2048（原 256 截断致转场拍实体 draw 不入 trace）
+        if (OPS.size() < 2048) {
             OPS.add(s);
         }
     }
