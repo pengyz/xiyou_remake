@@ -1583,7 +1583,7 @@ fn preset_itemcymbal_frames_match() {
 /// 3037px 聚焦 = **型26/29/30/32 怪自身 sprite 的火焰发饰动画帧位
 /// 差**（sptenemy 条带内多行动画，Java 帧位超前 Rust ~2）——
 /// entityAnimFrame 逐拍对表待办。op 流 256 截断已修（cap 2048）。
-#[ignore]
+#[ignore] // 迭代 53：T303 残差=型73 boss 死亡动画拍差（battle_finishing 动画帧对表待办；专项见 completeness 迭代 53）
 fn preset_itemboss40_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(

@@ -212,6 +212,10 @@
    shim Graphics.flushOps 256 条截断 → 2048（转场拍实体 draw 入
    trace；reference 门禁全绿）。待办：mode11 dialogPhase 门控的
    paint 语义对表（paint case 11 a.java:2798-2900）→ 摘除挂起。
+   **迭代 53 取证（摘牌尝试=残差确认）**：itemboss40 摘除 #[ignore]
+   后 T303 仍差（Rust 全量 paint_dialog 的 DES 怪 sprite 帧位差）——
+   型73 boss 死亡动画的 entityAnimFrame 推进拍差需专项对表
+   （battle_finishing 动画帧 advance 时机差），非单轮可闭。 |
    **迭代 52 取证**：speaker_types.txt 与 Java dialogueSpeakerType
    269 项逐项对表 0 diff（说话人表排除）——残差重新聚焦 = **型73
    boss 死亡动画相位差**（boss sprite 火焰帧 entityAnimFrame 推进，
