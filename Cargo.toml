@@ -10,3 +10,9 @@
 [workspace]
 members = ["crates/*"]
 resolver = "2"
+
+# 门禁/差分工作统一走 release（gates/cli.py check 的 cargo test 同档）；
+# overflow-checks 保住 debug 档的算术溢出 panic 语义——移植期数值越界
+# （Java int 溢出/负数下标类缺口）在 release 门禁下同样当场暴露。
+[profile.release]
+overflow-checks = true

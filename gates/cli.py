@@ -207,9 +207,13 @@ def gate_rust_tests():
     crates = ROOT / "crates"
     if not any(crates.glob("*/Cargo.toml")):
         return report("rust-tests", SKIP, "crates/ 尚无 Cargo 工程（P3 启动后启用）")
-    r = subprocess.run(["cargo", "test", "--workspace"], cwd=ROOT, capture_output=True, text=True)
+    # --release：与差分/移植工作同档（缓存常热）。迭代 39 实测 debug 档每次
+    # check 付 ~390s 近全量重编译（开发全程只构建 release）；溢出检查由
+    # [profile.release] overflow-checks=true 保持（Cargo.toml）。
+    r = subprocess.run(["cargo", "test", "--workspace", "--release"],
+                       cwd=ROOT, capture_output=True, text=True)
     return report("rust-tests", PASS if r.returncode == 0 else FAIL,
-                  "cargo test 全绿" if r.returncode == 0 else r.stdout[-200:])
+                  "cargo test --release 全绿" if r.returncode == 0 else r.stdout[-200:])
 
 
 # ---------- 测试计数 ratchet（迭代 27，防嵌套 #[test] 假绿） ----------
@@ -221,7 +225,8 @@ def collect_test_counts():
     """逐测试二进制清点用例数。返回 {key: count}；key = "<target>(<kind>)"。
     cargo test 对嵌套 #[test]（libtest 不可见）静默 0 收录——只有计数 ratchet 能抓
     （docs/knowledge/gotcha_nested-test-silently-skipped.md，preset_help 实证）。"""
-    r = subprocess.run(["cargo", "test", "--workspace", "--no-run", "--message-format=json"],
+    r = subprocess.run(["cargo", "test", "--workspace", "--release", "--no-run",
+                        "--message-format=json"],
                        cwd=ROOT, capture_output=True, text=True)
     if r.returncode != 0:
         return None
