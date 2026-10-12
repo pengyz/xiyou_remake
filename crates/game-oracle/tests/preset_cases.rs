@@ -1536,6 +1536,12 @@ fn preset_itemcymbal_frames_match() {
 /// cam_y14）vs Rust popup y=88（cam_y24）：**40 层行走相机 y 位差**
 /// （spawn 相机=居中 48，两侧行走/钳制模型在 floor40 分岔）。
 /// 待办：40 层相机钳制模型考证（mapCellsHigh/可视行数）→ 对齐后摘牌。
+/// 迭代 48 续办：残差=型26 火焰发饰 sprite 的绘制差（T303-306：Rust 画
+/// 了火焰发饰帧、Java 未画/后画）——非 popup、非相机、非 DES 状态差
+/// （实体状态/坐标/popup 值全部对齐）。open_anim 条带 4-bit 解码已
+/// 验证为白烟泡（无火焰帧）；相机 y 位差假说排除（cam 20 偏移两侧
+/// 一致）。待办：T303-306 op 流实体 draw 逐条对表（多行重组解析）。
+/// 另：40 层相机钳制考证取消（popup y 差来自 open_anim 帧位差）。
 /// 迭代 47 续办取证：Java 台账 f_int_151=1/battleActive=true/popupV=
 /// [150,100] 首现于 T302（= Rust 击杀拍，**击杀拍无差**！）；
 /// stride-1 op 流对表发现 **Java 转场拍（T303）paint 为部分绘制**——
