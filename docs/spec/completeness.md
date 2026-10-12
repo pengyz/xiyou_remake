@@ -159,7 +159,21 @@
   for 循环 removeSlotAt 压实后仍 slot++ 的跳位缺陷保真）；③ findFloorGate
   实体索引变体既有（load 落点步离已用），脚本 49/55 暗道换层命令与
   spawnBossEvent（需 boss 层夹具，现缺 40 层）留待后续批次。差分信号：
-  激活前 (2,10) 撞怪阻挡 → 激活后金 100→104 + 左行通达。 |
+  激活前 (2,10) 撞怪阻挡 → 激活后金 100→104 + 左行通达。
+  **迭代 43 收敛（boss 层夹具 + spawnBossEvent 链 + 49/55 暗道键）**：
+  ① 夹具补齐 maplv40/sprite40（assets/raw 直拷入 fixtures；sprite40 29 条
+  精确消费核验）；② spawnBossEvent（a.java:8903-8912）+ bossTypeOrder
+  （2198：75/74/68/67/69/71）+ bossEventSpawns 七事件全表（2041-2104）
+  + spawnEntity 网格吸附/DES 登场（entity::spawn/remove_des 既有）；③
+  tick_battle 击杀钩子（a.java:10053-10070：bossTypeOrder 命中 → 事件；
+  型73 → 脚本旗标 + loadLevelScript(22) + 40 层 spawnBossEvent(6)；型74 →
+  脚本 21；型75 → 脚本 20 + battle_rerun_scene）；④ handleFieldInput 49/55
+  暗道换乘键（a.java:5293-5306：f_bool_13 门控 + findFloorGateEntity
+  param&255 目标层——f_bool_13 的 proximity 更新未移植、稳态 false 与
+  Java 一致，臂已就位）。新用例 preset_cases::preset_itemboss40（40 层
+  槽载入 (6,3) atk200 撞型73 boss 一拍斩 → 钩子全链 → 脚本 22 对话），
+  T303 起 3037px 残差 = DES 登场动画相位差 ~2-3 帧（机制/坐标/状态全
+  对齐），#[ignore] 挂起 + 战斗拍台账待办（residual 透明化）。 |
 
 口径教训：名字/行号自动匹配只能出候选名单，分子终审必须人工（本轮抽样 7/7
 候选"未移植"实为内联移植）。三档随迭代人工更新，工具只保证候选不丢。

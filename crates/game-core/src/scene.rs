@@ -116,6 +116,28 @@ impl SceneImages {
 const PLAYER_FRAME_TABLE: [i32; 4] = [0, 1, 0, 2];
 
 /// 战斗星光帧号表（Java sparkFrames，a.java:766-773：8 拍循环，0 = 不画）。
+
+/// bossTypeOrder（a.java:2198）：boss 型 → bossEventSpawns 事件序（击杀钩子）。
+const BOSS_TYPE_ORDER: [i32; 6] = [75, 74, 68, 67, 69, 71];
+/// bossEventSpawns（a.java:2041-2104）：每事件 = [型, 格x, 格y, param]×N。
+const BOSS_EVENT_SPAWNS: [&[i32]; 7] = [
+    &[
+        29, 1, 3, 0, 29, 2, 3, 0, 29, 3, 3, 0, 26, 1, 4, 0, 26, 2, 4, 0, 26, 3, 4, 0, 30, 9, 3,
+        0, 30, 10, 3, 0, 30, 11, 3, 0, 32, 9, 4, 0, 32, 10, 4, 0, 32, 11, 4, 0,
+    ],
+    &[
+        29, 4, 4, 0, 29, 4, 5, 0, 29, 5, 4, 0, 26, 7, 4, 0, 26, 8, 4, 0, 26, 8, 5, 0, 30, 4, 7,
+        0, 30, 4, 8, 0, 30, 5, 8, 0, 32, 8, 8, 0, 32, 7, 8, 0, 32, 8, 7, 0,
+    ],
+    &[27, 6, 5, 0, 27, 5, 6, 0, 27, 7, 6, 0, 27, 6, 7, 0],
+    &[17, 6, 4, 0],
+    &[16, 5, 5, 0],
+    &[24, 6, 2, 0, 32, 5, 1, 0, 32, 6, 1, 0, 32, 7, 1, 0, 27, 6, 6, 0],
+    &[
+        32, 2, 3, 0, 32, 3, 3, 0, 32, 4, 3, 0, 26, 8, 3, 0, 26, 9, 3, 0, 26, 10, 3, 0, 29, 3, 5,
+        0, 29, 4, 5, 0, 29, 5, 5, 0, 30, 7, 5, 0, 30, 8, 5, 0, 30, 9, 5, 0,
+    ],
+];
 const SPARK_FRAME: [i32; 8] = [1, 2, 0, 3, 4, 1, 2, 0];
 /// 星光四联组 (sx,sy,w,h)×4（Java sparkQuads，a.java:748-764）。
 const SPARK_QUADS: [i32; 16] = [29, 31, 39, 15, 0, 31, 29, 10, 0, 0, 37, 31, 36, 0, 32, 29];
@@ -345,6 +367,9 @@ pub struct GameScene {
     pub tile_bob: i32,
     /// f_bool_12：教程标记（型 15 拾取置 true——f_bool_13 楼梯指示的门控）
     pub tutorial_seen: bool,
+    /// f_bool_13：楼梯指示（49/55 暗道换乘键门控；proximity 更新——
+    /// lockCameraOn/行走批次——未移植，稳态 false 与 Java 稳态一致）
+    pub stair_hint: bool,
 
     // —— mode 11 对话（gameMode 3=世界 / 11=对话；a.java:4011-4068 相位机）——
     pub game_mode: i32,
@@ -686,6 +711,7 @@ impl GameScene {
             open_anim_tick: 0,
             tile_bob: 0,
             tutorial_seen: false,
+            stair_hint: false,
             overlay_kind_item: 0,
             overlay_icon: None,
             overlay_item_name: None,
@@ -934,6 +960,18 @@ impl GameScene {
     /// findFloorGateEntity（a.java:7106-7118）：up=true 找型 7、false 找型 8；
 /// 换层落点直传 f_bool_18（false=上楼抵达→机型 8 下楼梯），
     /// param>>9==0（低 9 位无高字节——目标层 ≤255 的常规门）。
+    /// findFloorGateEntity（a.java:7106-7122）：首个 param>>9==0 的型7/8
+    /// 门格实体下标（暗道换乘目标——param 低 8 位 = 目标层）。
+    fn find_floor_gate_entity(&self, up: bool) -> Option<usize> {
+        let want = if up { 7 } else { 8 };
+        for e in 0..self.entities.count {
+            if self.entities.entity_type[e] == want && (self.entities.param[e] >> 9) == 0 {
+                return Some(e);
+            }
+        }
+        None
+    }
+
     fn find_floor_gate(&self, up: bool) -> Option<(i32, i32)> {
         let want = if up { 7 } else { 8 };
         for e in 0..self.entities.count {
@@ -2231,6 +2269,25 @@ impl GameScene {
             }
         }
         hit
+    }
+
+    /// spawnBossEvent（a.java:8903-8912）：按 bossEventSpawns[idx] 逐项
+    /// spawnEntity（cell<<5 网格吸附在 entity::spawn 内）+ markEntityDesRemoved
+    /// （DES 态 solid=2，登场动画帧 8）。
+    fn spawn_boss_event(&mut self, idx: usize) {
+        for ent in BOSS_EVENT_SPAWNS[idx].chunks_exact(4) {
+            let e = entity::spawn(
+                &mut self.entities,
+                &mut self.grid,
+                ent[0],
+                ent[1] << 5,
+                ent[2] << 5,
+                ent[3] as i16,
+                &self.width_table,
+                None,
+            );
+            entity::remove_des(&mut self.entities, e);
+        }
     }
 
     /// useItemStack（a.java:7761-7781）：uses>0 → activate，消耗且减至 0
@@ -3621,6 +3678,20 @@ impl GameScene {
             self.show_battle_digits = self.player.find_item(13) >= 0;
             return;
         }
+        if self.key_value == 49 || self.key_value == 55 {
+            // 49/55（a.java:5293-5306）：暗道换乘键——f_bool_13（楼梯指示）
+            // 点亮且存在无高层位的型7/8 门格（param>>9==0）→ changeFloor
+            // （目标层 = param & 255）
+            self.key_value = 0;
+            let up = self.key_value == 49;
+            if self.stair_hint {
+                if let Some(e) = self.find_floor_gate_entity(up) {
+                    let target = self.entities.param[e] as i32 & 255;
+                    self.change_floor(target, !up, true);
+                }
+            }
+            return;
+        }
         let facing = match self.key_held {
             -4 | 54 => 2,
             -3 | 52 => 3,
@@ -3898,7 +3969,37 @@ impl GameScene {
                                         self.images.popup.digit_strips[0].width / 11,
                                     );
                                 }
-                                self.battle_rerun_scene = false;
+                                // 击杀钩子（a.java:10053-10070）：bossTypeOrder
+                                // 击杀 → spawnBossEvent；型73 → 脚本旗标 +
+                                // loadLevelScript(22) + 40 层 spawnBossEvent(6)；
+                                // 型74 → 脚本 21；型75 → 脚本 20（重入场景）
+                                let mut rerun = false;
+                                if self.floor <= 50 {
+                                    if let Some(bi) =
+                                        BOSS_TYPE_ORDER.iter().rposition(|&b| b == t)
+                                    {
+                                        self.spawn_boss_event(bi);
+                                    }
+                                    match t {
+                                        73 => {
+                                            self.script_line_flags
+                                                [self.current_script_index] = true;
+                                            self.load_level_script(22);
+                                            if self.floor == 40 {
+                                                self.spawn_boss_event(6);
+                                            }
+                                        }
+                                        74 => self.load_level_script(21),
+                                        75 => {
+                                            if self.try_run_scene(20, true) {
+                                                self.load_level_script(20);
+                                                rerun = true;
+                                            }
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                                self.battle_rerun_scene = rerun;
                                 self.battle_finishing = true;
                             }
                         }

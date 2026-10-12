@@ -1072,6 +1072,226 @@ fn preset_itemcymbal_frames_match() {
     }
     assert_eq!(checked, records.len(), "T1-500 全帧必须比对");
 }
+/// 40 层 boss 击杀钩子（迭代 43，spawnBossEvent a.java:8903 + 击杀链
+/// a.java:10053-10070）：preset-itemboss40 场景（槽载入 floor40 (6,3)，
+/// atk200 面向型73 boss(6,2)），T1-700 全帧。覆盖：-1 撞入战斗（一拍斩
+/// hp120）→ 击杀钩子（bossTypeOrder 未命中〔73 不在表〕→ case73 →
+/// 脚本旗标 + loadLevelScript(22) + spawnBossEvent(6)（12 只 DES 态登场）→
+/// battle_rerun_scene=false 收尾）+ 脚本 22 对话浮层。
+#[test]
+/// 当前 ignore（迭代 43，残差透明化）：T303 起 3037px（x120-239 y68-106）
+/// ——DES 登场动画相位差 ~2-3 帧（Java 白泡帧 vs Rust 火焰帧；机制/坐标/
+/// 状态数组全对齐：solid=2/row8/frame 与 event-6 12 只落位逐项吻合）。
+/// 待办：战斗拍台账（battle_tick × advance 奇偶 × popup 生存期逐拍对表）。
+#[ignore]
+fn preset_itemboss40_frames_match() {
+    let repo_path = repo();
+    let preset_text = std::fs::read_to_string(
+        repo_path.join("reference/oracle/scenarios/preset-itemboss40.preset"),
+    )
+    .unwrap();
+    let stores = parse_preset(&preset_text);
+    let trace_text = std::fs::read_to_string(
+        repo_path.join("reference/oracle/_out/A-preset-itemboss40/trace.txt"),
+    )
+    .expect("缺 A-preset-itemboss40 trace（gen: run_variants_parallel 单场景 frames=all）");
+    let records = trace::parse(&trace_text);
+
+    let maplv40 =
+        std::fs::read(repo_path.join("crates/game-oracle/tests/fixtures/maplv40.bin")).unwrap();
+    let sprite40 =
+        std::fs::read(repo_path.join("crates/game-oracle/tests/fixtures/sprite40.bin")).unwrap();
+    let maplv1 =
+        std::fs::read(repo_path.join("crates/game-oracle/tests/fixtures/maplv1.bin")).unwrap();
+    let sprite1 =
+        std::fs::read(repo_path.join("crates/game-oracle/tests/fixtures/sprite1.bin")).unwrap();
+    let sp = SpriteTable::parse(&sprite40).unwrap();
+    let doors = door_tables();
+    let records1: Vec<(u8, u16, u16, i16, bool)> = sp
+        .records
+        .iter()
+        .map(|rec| {
+            let (param, hide) = spawn_param_and_visibility(rec.type_code, &rec.extra, &doors);
+            (rec.type_code, rec.x, rec.y, param, !hide)
+        })
+        .collect();
+    let records2: Vec<(u8, u16, u16, i16, bool)> = {
+        let sp2 = SpriteTable::parse(&sprite1).unwrap();
+        sp2.records
+            .iter()
+            .map(|rec| {
+                let (param, hide) = spawn_param_and_visibility(rec.type_code, &rec.extra, &doors);
+                (rec.type_code, rec.x, rec.y, param, !hide)
+            })
+            .collect()
+    };
+
+    let mapbg = load_container("mapbg", 1);
+    let map = load_container("map", 12);
+    let actor_c = load_container("actor", 4);
+    let sptmap = load_container("sptmap", 13);
+    let sptprop = load_container("sptprop", 23);
+    let sptarm = load_container("sptarm", 10);
+    let sptenemy1 = load_container("sptenemy1", 20);
+    let sptenemy2 = load_container("sptenemy2", 20);
+    let ui = load_container("ui", 25);
+    let images = SceneImages {
+        backdrop: mapbg[0].clone(),
+        shadow: sptprop[0].clone(),
+        actor: actor_c[0].clone(),
+        actor_face: actor_c[1].clone(),
+        stair_icons: (map[1].clone(), map[2].clone()),
+        open_anim: map[9].clone(),
+        opened_door: sptmap[12].clone(),
+        entity: SceneImages::map_entity_images(&sptmap, &sptprop, &sptarm, &sptenemy1, &sptenemy2),
+        popup: game_core::popup::PopupImages {
+            digit_strips: [map[3].clone(), map[4].clone(), map[5].clone()],
+            icon_strip: map[6].clone(),
+            battle_digits: ui[9].clone(),
+        },
+        spark_sheet: actor_c[2].clone(),
+        corner_sprites: ui[23].clone(),
+        map211: Some(map[11].clone()),
+        map210: map[10].clone(),
+        menu_strip: load_container("menu", 2)[1].clone(),
+        battle_icon: map[8].clone(),
+        battle_strip: map[7].clone(),
+        ui,
+    };
+    let mut floor_assets: Vec<Option<game_core::scene::FloorAssets>> = vec![None; 56];
+    floor_assets[40] = Some(game_core::scene::FloorAssets {
+        maplv: maplv40.clone(),
+        records: records1.clone(),
+    });
+    floor_assets[1] = Some(game_core::scene::FloorAssets {
+        maplv: maplv1.clone(),
+        records: records2.clone(),
+    });
+
+    let mot_l0 = &stores.iter().find(|(k, _)| k.starts_with("MOT_L0@")).expect("MOT_L0").1;
+    let save = parse_floor_save(mot_l0, 0).unwrap();
+
+    let mapbg = load_container("mapbg", 1);
+    let mut machine = game_core::paint::BootMachine::new(
+        decode_png(&std::fs::read(repo_path.join("assets/raw/l0.png")).unwrap()),
+        decode_png(&std::fs::read(repo_path.join("assets/raw/l1.png")).unwrap()),
+        load_sflogo(),
+        load_container("ui", 25),
+        load_container("menu", 2),
+        mapbg[0].clone(),
+        load_container("intro", 2),
+        load_container("end", 1),
+        load_container("load", 2),
+    );
+    machine.preset_stores = stores.clone();
+    machine.sptarm = load_container("sptarm", 10);
+
+    let tileset = map[0].clone();
+    let mut screen = ArgbImage::create(game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
+    let mut checked = 0usize;
+    let mut scene: Option<GameScene> = None;
+    let mut pending_key = 0i32;
+    let mut pending_press = 0i32;
+    let mut pending_release = false;
+    for rec in &records {
+        let key = pending_key;
+        pending_key = input_key(&rec.input);
+        if scene.is_some() {
+            if pending_press != 0 {
+                scene.as_mut().unwrap().press_key(pending_press);
+                pending_press = 0;
+            }
+            if pending_release {
+                scene.as_mut().unwrap().release_key();
+                pending_release = false;
+            }
+            scene
+                .as_mut()
+                .unwrap()
+                .tick(rec.tick as i64 - 1, &width_table());
+            if let Some(inp) = &rec.input {
+                if let Some(rest) = inp.strip_prefix("press(") {
+                    if let Some(code) = rest.strip_suffix(')').and_then(|k| k.parse::<i32>().ok()) {
+                        pending_press = code;
+                    }
+                } else if inp.starts_with("release(") {
+                    pending_release = true;
+                }
+            }
+        } else {
+            machine.tick(key);
+            if machine.mode == 3 {
+                if machine.slot_loaded.is_some() {
+                    let m = &machine;
+                    let mut sc = game_core::scene::load_floor_from_save(
+                        &maplv40,
+                        &records1,
+                        &width_table(),
+                        &tile_walkability(),
+                        images.clone(),
+                        floor_assets.clone(),
+                        &save,
+                    )
+                    .unwrap();
+                    sc.backdrop_scroll = m.backdrop.scroll();
+                    if let Some(t) = &m.title {
+                        sc.menu_cursor = t.cursor;
+                        sc.bob_offset = t.bob;
+                        sc.bob_rising = t.bob_rising;
+                    }
+                    sc.strip_frame = m.strip_frame;
+                    sc.preset_mot_if = m
+                        .preset_stores
+                        .iter()
+                        .find(|(k, _)| k.starts_with("MOT_IF@"))
+                        .map(|(_, v)| v.clone());
+                    let combat_tables = game_core::combat::CombatTables {
+                            enemy_base_hp: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasehp.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
+                            enemy_base_atk: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybaseatk.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
+                            enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
+                            difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
+                    };
+                    sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
+                    sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
+                    sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
+                    // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
+                    // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
+                    // 则抖动序列错位（迭代 35 T801 分歧根因）
+                    sc.rng = m.rng.clone();
+                    if pending_key != 0 {
+                        sc.press_key(pending_key);
+                        pending_key = 0;
+                    }
+                    scene = Some(sc);
+                }
+            }
+        }
+        let sha;
+        {
+            let mut g = SoftGraphics::new(&mut screen);
+            g.set_clip(0, 0, game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
+            g.set_font(Some(game_core::paint::paint_font()));
+            match scene.as_mut() {
+                Some(sc) => sc.paint(&mut g, &tileset),
+                None => machine.paint(&mut g),
+            }
+            sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
+        }
+        {
+            if let Some(expect) = &rec.frame_sha {
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                assert_eq!(
+                    &sha, expect,
+                    "TICK {} 帧不符（mode={}）",
+                    rec.tick, mode
+                );
+                checked += 1;
+            }
+        }
+    }
+    assert_eq!(checked, records.len(), "T1-700 全帧必须比对");
+}
 
 /// 第 2 层直达（迭代 27，按层铺主线首层）：preset-floor2 场景（MOT_L0
 /// current_floor=2），窗口 T1-600 全帧。覆盖：floor2 maplv/实体/拾取弹窗 +

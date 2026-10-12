@@ -1,0 +1,20 @@
+# ticks: 700
+# preset: preset-itemboss40.preset
+# cover: 40 层 boss 击杀钩子（a.java:10053-10070）：槽载入 (6,3) 面向型73
+#   boss(6,2) → -1 撞入战斗（atk200 一拍斩 hp120）→ case73 → 脚本旗标 +
+#   loadLevelScript(22) + spawnBossEvent(6)（12 只 event-6 实体 DES 登场）→
+#   battleSceneRerun=false 收尾
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -1 press
+302 -1 release
+400 -1 press
+402 -1 release
+500 -5 press
+502 -5 release
