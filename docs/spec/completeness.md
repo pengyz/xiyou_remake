@@ -116,7 +116,13 @@
   标题/引子插画(mode14)/装载链(mode2)/冷启动移交（floor51 cell(1,11)
   hp300/atk10/def10 + bob/strip/backdrop/rng 连续量移交）/mode 11 对话层
   全程。旧冷场景 prologue_dialog（T577-9800 手调初值）退役。矩阵补正：
-  mode 9 行（迭代 31/33 已 L3，二次校准漏更正）、mode 11 行（L2*→L3）。 |
+  mode 9 行（迭代 31/33 已 L3，二次校准漏更正）、mode 11 行（L2*→L3）。
+  **迭代 38 收敛（harness 统一收官）**：floor51_menu 迁入全流程
+  （preset_cases::floor51_menu，T1-9800 全帧首跑一致——序章全程 + 电影
+  镜头等待态 -6/-7 大地图 UI 开关；旧 #[ignore] 版的 T9700-11099 窗口
+  系旧版场景刻度已失效）。gameplay_floor1.rs 冷场景骨架
+  replay_floor51_window 整体退役，仅余 3 个诊断用例（ignored）。
+  ** gameplay_floor1 系四用例 harness 不匹配问题就此清零。 |
 
 口径教训：名字/行号自动匹配只能出候选名单，分子终审必须人工（本轮抽样 7/7
 候选"未移植"实为内联移植）。三档随迭代人工更新，工具只保证候选不丢。
