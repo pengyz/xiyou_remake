@@ -122,7 +122,17 @@
   镜头等待态 -6/-7 大地图 UI 开关；旧 #[ignore] 版的 T9700-11099 窗口
   系旧版场景刻度已失效）。gameplay_floor1.rs 冷场景骨架
   replay_floor51_window 整体退役，仅余 3 个诊断用例（ignored）。
-  ** gameplay_floor1 系四用例 harness 不匹配问题就此清零。 |
+  ** gameplay_floor1 系四用例 harness 不匹配问题就此清零。
+  **迭代 39 收敛（商人链 apply 语义真缺口修复 + 独立用例）**：新用例
+  preset_cases::preset_merchant（A-preset-merchant T1-600 全帧）首跑即于
+  T321（-6 接受报价拍）暴露 apply_merchant_offer 两处移植缺口：
+  ① 返回值误用购买成功标志（var5）而非挂起标志（var6，a.java:7465
+  return var6——入队/失败提示时 true、普通成交/移除时 false，浮层去留
+  由此决定）；② 拒绝路径整体缺失（buy=false 且 flags&2==0 且 flags&1!=0
+  → param ^256（非 ^512）+ 非一次性移除，a.java:7453-7460）。按 Java
+  结构重构后 T1-600 全帧一致。附注：告示牌 param01（报价序号 1=攻防+3%
+  项）整数运算 atk+atk*3/100 = +0（30 基数下整除为零），帧面无数值变化
+  ——语义由 param^512 + markEntityRemoved 呈现（告示牌消失）。 |
 
 口径教训：名字/行号自动匹配只能出候选名单，分子终审必须人工（本轮抽样 7/7
 候选"未移植"实为内联移植）。三档随迭代人工更新，工具只保证候选不丢。

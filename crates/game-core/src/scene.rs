@@ -2825,12 +2825,14 @@ impl GameScene {
         } else {
             1
         };
-        let mut stay = true;
+        let mut purchase_ok = true; // var5：购买/执行是否成功
+        let mut follow_up = false; // var6：后续挂起（报价队列/失败提示浮层）
         if idx <= 0 {
             return false;
         }
 
-        if buy && (flags & 2) != 0 {
+        if buy {
+            if flags & 2 != 0 {
             match (src, idx) {
                 (0, 1 | 15 | 21) => {
                     crate::combat::gain_gold(&mut self.player, 1000);
@@ -2844,7 +2846,7 @@ impl GameScene {
                 (1, 3) => {
                     if !self.spend_gold(50) {
                         self.show_overlay_message(0, "没有足够的金钱", 0, 0);
-                        stay = false;
+                        purchase_ok = false;
                     } else {
                         self.player.blue_keys += 1;
                     }
@@ -2852,7 +2854,7 @@ impl GameScene {
                 (1, 4) => {
                     if !self.spend_gold(50) {
                         self.show_overlay_message(0, "没有足够的金钱", 0, 0);
-                        stay = false;
+                        purchase_ok = false;
                     } else {
                         self.player.yellow_keys += 5;
                     }
@@ -2860,7 +2862,7 @@ impl GameScene {
                 (1, 5) => {
                     if !self.spend_gold(1000) {
                         self.show_overlay_message(0, "没有足够的金钱", 0, 0);
-                        stay = false;
+                        purchase_ok = false;
                     } else {
                         self.player.yellow_keys += 1;
                     }
@@ -2868,7 +2870,7 @@ impl GameScene {
                 (1, 6) => {
                     if !self.spend_gold(800) {
                         self.show_overlay_message(0, "没有足够的金钱", 0, 0);
-                        stay = false;
+                        purchase_ok = false;
                     } else {
                         self.player.red_keys += 1;
                     }
@@ -2876,7 +2878,7 @@ impl GameScene {
                 (1, 7) => {
                     if !self.spend_gold(200) {
                         self.show_overlay_message(0, "没有足够的金钱", 0, 0);
-                        stay = false;
+                        purchase_ok = false;
                     } else {
                         self.player.blue_keys += 1;
                     }
@@ -2887,13 +2889,13 @@ impl GameScene {
                         self.player.gold += 100;
                     } else {
                         self.show_overlay_message(0, "没有黄钥匙", 0, 0);
-                        stay = false;
+                        purchase_ok = false;
                     }
                 }
                 (1, 9) => {
                     if !self.spend_gold(1000) {
                         self.show_overlay_message(0, "没有足够的金钱", 0, 0);
-                        stay = false;
+                        purchase_ok = false;
                     } else {
                         self.player.yellow_keys += 1;
                         self.player.blue_keys += 1;
@@ -2902,7 +2904,7 @@ impl GameScene {
                 (1, 10) => {
                     if !self.spend_gold(200) {
                         self.show_overlay_message(0, "没有足够的金钱", 0, 0);
-                        stay = false;
+                        purchase_ok = false;
                     } else {
                         self.player.yellow_keys += 3;
                     }
@@ -2910,7 +2912,7 @@ impl GameScene {
                 (1, 11) => {
                     if !self.spend_gold(2000) {
                         self.show_overlay_message(0, "没有足够的金钱", 0, 0);
-                        stay = false;
+                        purchase_ok = false;
                     } else {
                         self.player.blue_keys += 3;
                     }
@@ -2918,7 +2920,7 @@ impl GameScene {
                 (1, 12) => {
                     if !self.spend_gold(1000) {
                         self.show_overlay_message(0, "没有足够的金钱", 0, 0);
-                        stay = false;
+                        purchase_ok = false;
                     } else {
                         self.player.hp += 2000;
                     }
@@ -2926,7 +2928,7 @@ impl GameScene {
                 (1, 13) => {
                     if !self.spend_gold(4000) {
                         self.show_overlay_message(0, "没有足够的金钱", 0, 0);
-                        stay = false;
+                        purchase_ok = false;
                     } else {
                         self.pickup_item_type(18);
                     }
@@ -2935,25 +2937,36 @@ impl GameScene {
             }
         }
 
-        if stay {
-            if flags & 4 == 0 {
-                self.entities.param[self.merchant_entity as usize] ^= 512;
-                if flags & 1 != 0 {
-                    self.offer_queue_push(src, (idx - 1) as i32);
-                    let text = if src == 0 {
-                        Self::OFFER_TEXTS_A[(idx - 1) as usize]
+            if purchase_ok {
+                if flags & 4 == 0 {
+                    self.entities.param[self.merchant_entity as usize] ^= 512;
+                    if flags & 1 != 0 {
+                        self.offer_queue_push(src, (idx - 1) as i32);
+                        let text = if src == 0 {
+                            Self::OFFER_TEXTS_A[(idx - 1) as usize]
+                        } else {
+                            Self::SIGN_TEXTS_B[(idx - 1) as usize]
+                        };
+                        self.show_overlay_message(4, text, 0, 0);
+                        follow_up = true;
                     } else {
-                        Self::SIGN_TEXTS_B[(idx - 1) as usize]
-                    };
-                    self.show_overlay_message(4, text, 0, 0);
-                    stay = true;
-                } else {
-                    entity::remove(&mut self.entities, self.merchant_entity as usize);
-                    self.build_minimap();
+                        entity::remove(&mut self.entities, self.merchant_entity as usize);
+                        self.build_minimap();
+                    }
                 }
+            } else {
+                // 购买失败（「没有足够的金钱」提示浮层已开）→ 浮层保持
+                follow_up = true;
+            }
+        } else if flags & 2 == 0 && flags & 1 != 0 {
+            // 拒绝路径（a.java:7453-7460）：^256（非 ^512）+ 非一次性则移除
+            self.entities.param[self.merchant_entity as usize] ^= 256;
+            if flags & 4 == 0 {
+                entity::remove(&mut self.entities, self.merchant_entity as usize);
+                self.build_minimap();
             }
         }
-        stay
+        follow_up
     }
 
     fn enter_menu16(&mut self) {
