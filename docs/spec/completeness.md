@@ -192,6 +192,16 @@
   状态转储逐拍台账待办（transitioning/wipe 计数器字段级）。机制本身
   已被 floor2-tour 系（楼梯触发 changeFloor）全帧验证——**挂起范围
   仅 mode10 面板内道具触发 changeFloor 的转场相位**。 |
+   **迭代 46 收敛（item21 残差闭合 + 遮幅公共尾语义修正）**：台账法
+   收口——A-preset-item21 全量转储字段级对表（T402：phase=2/closing=
+   true/transitioning=true/**gameMode=3**/floor=1-pending=2）暴露双缺口：
+   ① 遮幅点阵绘制只挂在 mode3 paint 路径（Java = paint 公共尾
+   a.java:3177-3215，**所有 mode 后置共跑**）——提取 paint_wipe_tail
+   于 mode10 路径复用；② changeFloor 未回 mode 3（Java 台账 T402
+   gameMode=3 实证——面板内道具触发 changeFloor 后即回行走世界）——
+   change_floor 内补 game_mode=3（楼梯路径原值即 3，无副作用）。
+   preset_item21 摘除 #[ignore] 转全帧一致；boss40 DES 登场残差另批
+   （mode 11 paint/advance 顺序，非本类）。 |
 
 口径教训：名字/行号自动匹配只能出候选名单，分子终审必须人工（本轮抽样 7/7
 候选"未移植"实为内联移植）。三档随迭代人工更新，工具只保证候选不丢。

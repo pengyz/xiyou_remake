@@ -1094,13 +1094,11 @@ fn preset_item2122_frames_match() {
 /// （MOT_L0 栈注入 [21×1]，floor1 (3,10)），T1-900 全帧。覆盖：面板 →
 /// 确认浮层 → 使用 → changeFloor(+1) 遮幅换层 → floor2 落地 → 栈压实
 /// 归零 → floor2 行走。21 臂 changeFloor 正路径与道具消耗压实同框。
-/// 当前 ignore（迭代 45，残差透明化）：T401 起 wipe 起始相位差一拍
-/// （Java T401 仍面板、T402 起 dither-wipe；Rust T401 已进遮幅）——
-/// mode10 面板内 changeFloor 的转场相位需状态转储逐拍台账
-/// （transitioning/wipe 计数器字段级对表）。机制本身已被 floor2-tour
-/// 系（楼梯触发 changeFloor）全帧验证。
+/// 迭代 46 收口：根因 = 遮幅公共尾（a.java:3177-3215）只挂在 mode3
+/// paint 路径 + changeFloor 未回 mode 3（A-preset-item21 T402 台账
+/// gameMode=3 实证）——paint_wipe_tail 提取共跑 + change_floor 内
+/// game_mode=3 后双缺口闭合。
 #[test]
-#[ignore]
 fn preset_item21_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(

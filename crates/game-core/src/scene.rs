@@ -897,6 +897,10 @@ impl GameScene {
         // （removed/state==1 跳过）——死怪/已开门跨层持久
         self.save_floor_state();
         self.transitioning = true;
+        // a.java 台账实证（迭代 46，A-preset-item21 T402）：changeFloor 起
+        // 遮幅即回 mode 3（行走世界 + 遮幅点阵渐显）——面板内道具触发路径
+        // 的 gameMode 不再停留 mode 10
+        self.game_mode = 3;
         if target < self.min_floor {
             self.min_floor = target;
         } else if target > self.max_floor {
@@ -4436,6 +4440,8 @@ impl GameScene {
         if self.game_mode == 10 {
             self.paint_item_panel(g);
             self.paint_overlay_box(g);
+            // 面板内道具触发 changeFloor：遮幅公共尾同样共跑（a.java:3177-3215）
+            self.paint_wipe_tail(g);
             return;
         }
         if self.game_mode == 11 {
@@ -4479,8 +4485,14 @@ impl GameScene {
         if !self.transitioning && self.overlay_active {
             self.paint_overlay_box(g);
         }
-        // 换层遮幅（paint 公共尾 a.java:3177-3215）：状态机先行、后画黑格。
-        // 闭合（wipe_closing）1..=4 全黑 → 中段换层 → 开启 4..=0。
+        self.paint_wipe_tail(g);
+    }
+
+    /// 换层遮幅（paint 公共尾 a.java:3177-3215——**所有 mode 后置共跑**，
+    /// 非 mode3 专属）：状态机先行、后画黑格。闭合（wipe_closing）1..=4
+    /// 全黑 → 中段换层（swap_floor）→ 开启 4..=0。mode10 面板内道具触发
+    /// changeFloor 同样经过此尾（迭代 45 T401 实证缺口）。
+    fn paint_wipe_tail(&mut self, g: &mut SoftGraphics<'_>) {
         if self.transitioning {
             if self.wipe_closing {
                 self.wipe += 1;
