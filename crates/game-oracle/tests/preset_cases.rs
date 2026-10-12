@@ -1532,6 +1532,13 @@ fn preset_itemcymbal_frames_match() {
 /// 与 Rust 击杀拍**完全对齐**；残差聚焦 popup/实体绘制的 y 域
 /// （T303 diff 带 y87-106 = damage popup「150」首现位附近），
 /// 待 popup 生存期/上升计数与实体 sprite 源的逐字段对表。
+/// 迭代 48 续办（逐拍台账完整表）：popup 链排除（retire=-rise>7、
+/// 8 拍生存期、scatter 表、kind/x/y 全对齐）。残差空间结构：
+/// T303-309 = 单条上升泡带 ~3037px（51-80 行带渐升至 75-104，
+/// 6-7px/拍渐缓=ease）；T310 起新增 y122-143/y170-191 两条 21px
+/// 带（= 两排 DES 怪 sprite 本体，重派发高度修复后仍差）。
+/// 待办：T310+ = 重派发后 sprite 绘制对表（帧/行/落点）；
+/// T303-309 = 泡带 = open_anim 帧序或 y 基准差。
 /// 迭代 48 取证：popup y 差 10px 实锤——Java popupY[0]=78（=boss y64+
 /// cam_y14）vs Rust popup y=88（cam_y24）：**40 层行走相机 y 位差**
 /// （spawn 相机=居中 48，两侧行走/钳制模型在 floor40 分岔）。
