@@ -432,6 +432,17 @@
    （a.java:3010-3037 双缓冲火花：f_byte_20 仅 3035=sparkCount 写、
    addSpark 仅循环内调——自播种为零闭环，randomBelow(15) 永不消费；
    Rust 无此臂 = 零行为差，复核登记关闭）。 |
+   【迭代 68（floor46 摘挂考证：单点精确化）】stride=1 取证（A46s1）+
+   逐像素定位把 T451 分歧收敛为**单点：玩家/NPC 绘制顺序**——受领拍
+   （-5，flags=0x1 仅关浮层）NPC markEntityRemoved → state=1 → cat1 画
+   opened_door 白烟帧 0（两侧绘制一致 ✓）；分歧 = 玩家头饰 Java 在白烟
+   **上**（paintEntityLayer 循环外兜底后画）、Rust 被白烟**盖**（循环内
+   先画）——NPC 不满足玩家插入条件（npc_y < player_y）时的玩家兜底绘制
+   时序待移植。同轮证伪两项：① "NPC 受领即移除"——实为 state=1 白烟绘
+   制（remove 反致白烟消失，已回滚）；② "实体生成序谜题"——取证脚本
+   LE/BE 误读（seed readU16BE），实体表两侧一致（T1-450 绿含 NPC 本体
+   绘制）；77 双字节读经 sprite2 152/152 实证不成立（文件布局 1 字节，
+   extra_len 回滚留注）。 |
    【迭代 67（floor46 铺层：85 黄金钥匙 + 77 太白金星告示，挂起）】
    preset_floor46 T1-450 全帧绿，T451 起挂起：① **77 太白金星绘制态分
    歧**——Java 受领拍（-5，flags=0 仅关浮层）后 NPC 置 state=1 画

@@ -4396,12 +4396,13 @@ fn preset_floor10_frames_match() {
 }
 
 /// 按层铺 floor46（85 黄金钥匙拾取 + 77 太白金星告示首验，迭代 67）：
-/// 【挂起】T1-450 已绿；T451 起太白金星（77）绘制分歧——Java 在受领拍将其
-/// 置 state=1（画 opened_door 白烟）而 Rust 仍画本体；且 m_122 实体生成
-/// 序 ≠ sprite 记录序（A trace 头 1,3,60,9,8,31,... vs 记录序
-/// 1,1,...,3,3,62...）。77 的 seed 双字节读（a.java:7321-7331）经 sprite2
-/// 152/152 实证**不成立**——文件布局 77/78 = 1 字节（extra_len 曾误改 2
-/// 已回滚）。
+/// 【挂起】T1-450 已绿；T451 起单点 = **玩家/NPC 绘制顺序**：受领拍 NPC
+/// markEntityRemoved → state=1 白烟（opened_door 帧 0，两侧绘制一致），
+/// 但玩家头饰 Java 在白烟**上**、Rust 被白烟**盖**——paintEntityLayer 的
+/// 玩家插入兜底序（NPC 不满足插入条件时玩家何时画）待考。此前"实体生成
+/// 序谜题" = 取证脚本 LE/BE 误读（seed 用 readU16BE），实体表两侧一致
+/// （T1-450 绿含 NPC 本体绘制）；77 的 seed 双字节读经 sprite2 152/152
+/// 实证不成立——文件布局 77/78 = 1 字节（extra_len 曾误改已回滚）。
 /// preset-floor46 场景（MOT_L0 current_floor=46），窗口 T1-1600 全帧。
 /// 链：-2 光标 → -5 载入 (6,11) → (6,10) → (5,10)/(7,10) 门卫@2（60 敌
 /// bump 战×2）→ wp4 开封印门 (6,9)@2 → (6,8)=83 首访 inert（case15 门：
@@ -4605,6 +4606,21 @@ fn preset_floor46_frames_match() {
                 }
             }
         }
+        if std::env::var("F46DUMP").is_ok() && rec.tick >= 446 && rec.tick <= 456 {
+            if let Some(sc) = &scene {
+                eprintln!("F46DUMP T{} mode={} ov={} kind={} pxy=({},{}) face={} key={} qcur={}",
+                    rec.tick, sc.game_mode, sc.overlay_active, sc.overlay_kind,
+                    sc.view.player_px, sc.view.player_py, sc.facing,
+                    sc.key_value, sc.offer_queue_cursor);
+                for e in 0..sc.entities.count {
+                    if sc.entities.entity_type[e] == 77 {
+                        eprintln!("F46DUMP   npc e={} param={:#x} removed={} vis={} solid={}",
+                            e, sc.entities.param[e], sc.entities.removed[e],
+                            sc.entities.visible[e], sc.entities.solid[e]);
+                    }
+                }
+            }
+        }
         let sha;
         {
             let mut g = SoftGraphics::new(&mut screen);
@@ -4615,6 +4631,15 @@ fn preset_floor46_frames_match() {
                 None => machine.paint(&mut g),
             }
             sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
+            if std::env::var("F46DUMP").is_ok() && rec.tick >= 446 && rec.tick <= 456 {
+                let mut ppm = format!("P6\n{} {}\n255\n", screen.width, screen.height).into_bytes();
+                for &p in &screen.argb {
+                    ppm.push(((p >> 16) & 0xFF) as u8);
+                    ppm.push(((p >> 8) & 0xFF) as u8);
+                    ppm.push(p as u8);
+                }
+                std::fs::write(format!("/tmp/f46rust-{:04}.ppm", rec.tick), &ppm).unwrap();
+            }
         }
         {
             if let Some(expect) = &rec.frame_sha {

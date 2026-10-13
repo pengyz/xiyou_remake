@@ -3412,6 +3412,10 @@ impl GameScene {
         let param = self.entities.param[self.merchant_entity as usize] as i32;
         let flags = (param >> 8) as i8;
         let idx = param as i8;
+        if std::env::var("F46DBG").is_ok() {
+            eprintln!("apply_offer buy={} param={:#x} flags={:#x} idx={:#x} me={}",
+                buy, param, flags, idx, self.merchant_entity);
+        }
         let src = if self.entities.entity_type[self.merchant_entity as usize] == 77 {
             0
         } else {
@@ -3527,9 +3531,13 @@ impl GameScene {
                 }
                 _ => {}
             }
+            }
             // a.java:7422-7436：**收尾块在 flags&2 门内**——flags=0（纯告示）
-            // 受领 = 无效果仅关浮层（floor46 T451 实证：错位会 ^512+移除 NPC）
+            // 受领 = 无效果仅关浮层。
             if purchase_ok {
+                if std::env::var("F46DBG").is_ok() {
+                    eprintln!("apply_offer tail: purchase_ok branch");
+                }
                 if flags & 4 == 0 {
                     self.entities.param[self.merchant_entity as usize] ^= 512;
                     if flags & 1 != 0 {
@@ -3550,9 +3558,11 @@ impl GameScene {
                 // 购买失败（「没有足够的金钱」提示浮层已开）→ 浮层保持
                 follow_up = true;
             }
-        }
         } else if flags & 2 == 0 && flags & 1 != 0 {
             // 拒绝路径（a.java:7453-7460）：^256（非 ^512）+ 非一次性则移除
+            if std::env::var("F46DBG").is_ok() {
+                eprintln!("apply_offer REFUSE branch");
+            }
             self.entities.param[self.merchant_entity as usize] ^= 256;
             if flags & 4 == 0 {
                 entity::remove(&mut self.entities, self.merchant_entity as usize);
