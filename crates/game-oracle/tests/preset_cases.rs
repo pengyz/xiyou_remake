@@ -5095,16 +5095,14 @@ fn preset_floor43_frames_match() {
             }
             sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
         }
-        {
-            if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
-                assert_eq!(
-                    &sha, expect,
-                    "TICK {} 帧不符（mode={}）",
-                    rec.tick, mode
-                );
-                checked += 1;
-            }
+        if let Some(expect) = &rec.frame_sha {
+            let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+            assert_eq!(
+                &sha, expect,
+                "TICK {} 帧不符（mode={}）",
+                rec.tick, mode
+            );
+            checked += 1;
         }
     }
     assert_eq!(checked, records.len(), "T1-1500 全帧必须比对");

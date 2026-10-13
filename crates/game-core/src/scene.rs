@@ -1225,12 +1225,15 @@ impl GameScene {
 
     /// m_083（a.java:7688-7694）：档位区间倒序查当前装备所在档。
     fn m_083_index(&self, equipped: i32, lo: i32, hi: i32) -> i32 {
+        // a.java:7693 `while (--var3 >= var2)`：**先减后比**——扫描区间 =
+        // [lo, hi-1]，索引 hi 永不触达（equip_types 12 项、hi=12 不越界）。
+        // 迭代 70 floor43 80 甲拾取越界实为此处误译（后减结构触达 hi）。
         let mut t = hi;
-        while t >= lo {
+        while t > lo {
+            t -= 1;
             if self.equip_types[t as usize] == equipped {
                 return t;
             }
-            t -= 1;
         }
         0
     }
