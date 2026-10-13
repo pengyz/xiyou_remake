@@ -341,7 +341,15 @@
    （lockCameraOn 内 + open_dialog_page 锚块覆写点）。相机 Y 收尾已对齐
    （-66 = walk 边缘跟随稳定位）。**剩余 = 封门实体消失差**：T924 起
    Java 移除封门 (5,3)（玩家踏 (4,7) 后门消失露出墙，1198px；移除路径
-   待考——非 bump/非 seen skip），Rust 未实现该移除 ⇒ 门残留。 |
+   待考——非 bump/非 seen skip），Rust 未实现该移除 ⇒ 门残留。
+   **迭代 63 终勘误（67137f1 后续）**：门"移除"定性撤回——T924 起真
+   差异 = **walkPhase4 tile bob 相位差**（双侧均进 wp4=tile24 震动砖
+   态，Java tile 层 Y ±2 交替 setClip y 16/20 实证，Rust wp4 进入晚
+   ~11 拍 ⇒ bob 相位错位 1198px）。**深层根因 = mode11→3 翻转时机**：
+   Java 于 T903 翻转（相机未到位即翻转），Rust 于 ~913（收敛后）——
+   **Java 对话期 cameraX 恒 128（=玩家 px，未向 boss px+32 缓动）**与
+   a.java:8668 的 +32 规则矛盾——lockCameraOn 调用链专项（下一迭代
+   首项）。 |
    **迭代 59 实现收口（mode12 L3）**：preset_floor5 T1-1200 全帧一致。
    ① save.rs：MOT_L 日志槽（f_int_89 对 = f_byte_arr_14/15）解析入
    FloorSave.journal（原 skip）；② 场景五件套：activate_item case14
