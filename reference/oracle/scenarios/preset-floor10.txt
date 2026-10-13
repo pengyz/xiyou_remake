@@ -1,0 +1,31 @@
+# ticks: 1200
+# preset: preset-floor10.preset
+# cover: 按层铺 floor10（哪吒+门卫环+SWD 首验）：载入 (6,8) → 北行穿 (6,7)
+#   隐形81 → 撞 (6,6) 门卫+83(param3) → script3：TAK→MOV 环心→DES 云雾×6
+#   →CES 门卫×8→SWD(81→4)→TAK → 哪吒(75) case75 待后续键。
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -1 press
+302 -1 release
+400 -1 press
+402 -1 release
+500 -5 press
+502 -5 release
+600 -5 press
+602 -5 release
+700 -5 press
+702 -5 release
+800 -5 press
+802 -5 release
+900 -5 press
+902 -5 release
+1000 -5 press
+1002 -5 release
+1100 -5 press
+1102 -5 release

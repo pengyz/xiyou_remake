@@ -1640,6 +1640,145 @@ impl GameScene {
             let cur = self.current_script_index;
             self.script_line_flags[cur] = true;
             self.load_level_script(n);
+        } else if op == "MOV" {
+            // MOV（a.java:8271-8306）：type=0 → 玩家脚本行走（findPath 成功 →
+            // scriptWalkArmed + dp3 + walkPhase=0 + lockCameraOn(0)；失败则
+            // 无副作用，游标已前进）；type>0 → 实体路径缓动 dp2（m_106，
+            // 本窗口无 5 参实体 MOV——floor10 n[10] 不触发）。
+            let (target_type, mut v2) = Self::parse_script_int(&line, var2 + 1, '_');
+            let (mut ent_x, mut ent_y) = (0, 0);
+            if target_type > 0 {
+                let (cx, e) = Self::parse_script_int(&line, v2 + 1, '_');
+                v2 = e;
+                ent_x = cx;
+                let (cy, e) = Self::parse_script_int(&line, v2 + 1, '_');
+                v2 = e;
+                ent_y = cy;
+            }
+            let (mx, e) = Self::parse_script_int(&line, v2 + 1, '_');
+            v2 = e;
+            let (my, e) = Self::parse_script_int(&line, v2 + 1, ' ');
+            v2 = e;
+            self.dialog_target = (mx, my);
+            self.script_cursor = e + 1;
+            if target_type == 0 {
+                let walk = crate::pathfind::Walkability {
+                    terrain: self.walkable.clone(),
+                    has_entity_slot: &|x, y| {
+                        let ct = self.grid.cell_type[y as usize][x as usize] as usize;
+                        self.grid.capacity[ct] > 0
+                    },
+                    cols: self.view.wide,
+                    rows: self.view.high,
+                };
+                let result = crate::pathfind::find_path(
+                    &walk,
+                    self.player_cell_x,
+                    self.player_cell_y,
+                    mx,
+                    my,
+                );
+                if result.found {
+                    self.walk_path_buffer = result.steps;
+                    self.walk_step_count = self.walk_path_buffer.len() as i32;
+                    self.script_walk_armed = true;
+                    self.dialog_phase = 3;
+                    self.walk_phase = 0;
+                    self.lockCameraOn(0);
+                }
+            } else {
+                let idx = self.entity_at_cell(ent_x, ent_y, target_type);
+                if idx >= 0 {
+                    self.dialog_phase = 2;
+                }
+                // 实体未找到 → Java 尾递归下一条（a.java:8297-8300）；找到但
+                // m_106 未移植 ⇒ 本窗口不可达（无 5 参 MOV 触发）
+            }
+        } else if op == "DES" {
+            // DES（a.java:8311-8334）：type<0 → 全表批量移除（-type）；否则
+            // 格上首只该类型移除（m_100 + markEntityRemoved）。
+            let (t0, mut v2) = Self::parse_script_int(&line, var2 + 1, '_');
+            if t0 < 0 {
+                let (_, e) = Self::parse_script_int(&line, v2 + 1, ' ');
+                let want = -t0;
+                for i in (0..self.entities.count as usize).rev() {
+                    if self.entities.entity_type[i] == want {
+                        entity::remove(&mut self.entities, i);
+                    }
+                }
+                self.script_cursor = e + 1;
+            } else {
+                let (cx, e1) = Self::parse_script_int(&line, v2 + 1, '_');
+                let (cy, e2) = Self::parse_script_int(&line, e1 + 1, ' ');
+                let idx = self.entity_at_cell(cx, cy, t0);
+                if idx >= 0 {
+                    entity::remove(&mut self.entities, idx as usize);
+                }
+                self.script_cursor = e2 + 1;
+            }
+        } else if op == "SWD" {
+            // SWD（a.java:8336-8352）：全表扫 81 → 显形 + 改型 4 + DES 状态
+            // 动画（state=2 行 8——advance_frames 帧尽自解为常态）。
+            for i in (0..self.entities.count as usize).rev() {
+                if !self.entities.removed[i] && self.entities.entity_type[i] == 81 {
+                    self.entities.visible[i] = true;
+                    self.entities.entity_type[i] = 4;
+                    let img_h = self
+                        .images
+                        .entity
+                        .get(4)
+                        .cloned()
+                        .flatten()
+                        .map(|im| im.height);
+                    entity::dispatch_sprite_size(
+                        4,
+                        i,
+                        &mut self.entities,
+                        &self.width_table,
+                        img_h,
+                    );
+                    self.entities.solid[i] = 2;
+                    self.entities.anim_idx[i] = 8;
+                }
+            }
+            self.script_cursor = var2 + 1;
+        } else if op == "CES" {
+            // CES（a.java:8386-8420）：spawnEntity(type, cx<<5, cy<<5, 0) +
+            // markEntityDesRemoved + 相机回中后缓向新实体 + scriptStepDelay
+            // （cat 1/8/16=5、2/4=8、其余 0）。
+            let (t0, mut v2) = Self::parse_script_int(&line, var2 + 1, '_');
+            let (cx, e1) = Self::parse_script_int(&line, v2 + 1, '_');
+            let (cy, e2) = Self::parse_script_int(&line, e1 + 1, ' ');
+            let img_h = self
+                .images
+                .entity
+                .get(t0 as usize)
+                .cloned()
+                .flatten()
+                .map(|im| im.height);
+            let idx = entity::spawn(
+                &mut self.entities,
+                &mut self.grid,
+                t0,
+                cx << 5,
+                cy << 5,
+                0,
+                &self.width_table,
+                img_h,
+            );
+            entity::remove_des(&mut self.entities, idx);
+            self.ease_cam_x = (self.view.view_w - 32 >> 1) - self.view.cam_x;
+            self.ease_cam_y = (self.view.view_h - 32 >> 1) - self.view.cam_y;
+            if idx >= 0 {
+                self.ease_target_x = self.entities.pixel_x[idx as usize];
+                self.ease_target_y = self.entities.pixel_y[idx as usize];
+            }
+            self.script_delay = match self.entity_category(t0) {
+                1 | 8 | 16 => 5,
+                2 | 4 => 8,
+                _ => 0,
+            };
+            self.script_cursor = e2 + 1;
         } else if op == "GLV" {
             // GLV_n（a.java:8464-8466）：纯解析推进（无副作用）。
             let (_v, e) = Self::parse_script_int(&line, var2 + 1, ' ');
@@ -1844,7 +1983,54 @@ impl GameScene {
                 }
             }
             2 => todo!("m_106 实体路径缓动（MOV 对拍批）"),
-            3 => todo!("script walk 相位（脚本行走对拍批）"),
+            3 => {
+                // dp3 脚本行走（a.java:4077-4114）：wp0 弹路径步 tryStep /
+                // 耗尽 → scriptWalkArmed=false + dp0；wp1 8px 步进（无边缘
+                // 跟随，cameraTarget 随玩家）+ m_025 帧 + 32px 归格
+                // applyStepCellEffects；wp5 战斗拍。
+                if !self.transitioning {
+                    match self.walk_phase {
+                        0 => {
+                            if self.walk_step_count > 0 {
+                                self.walk_step_count -= 1;
+                                self.facing =
+                                    self.walk_path_buffer[self.walk_step_count as usize] as i32;
+                                self.walk_phase = 1;
+                                self.try_step(self.facing);
+                            } else {
+                                self.script_walk_armed = false;
+                                self.dialog_phase = 0;
+                            }
+                        }
+                        1 => {
+                            match self.facing {
+                                0 => self.view.player_py += 8,
+                                1 => self.view.player_py -= 8,
+                                2 => self.view.player_px += 8,
+                                _ => self.view.player_px -= 8,
+                            }
+                            self.step_progress += 8;
+                            self.ease_target_x = self.view.player_px;
+                            self.ease_target_y = self.view.player_py;
+                            if self.player_frame < PLAYER_FRAME_TABLE.len() as i32 - 1 {
+                                self.player_frame += 1;
+                            } else {
+                                self.player_frame = 0;
+                            }
+                            if self.step_progress >= 32 {
+                                self.step_progress = 0;
+                                self.player_frame = 0;
+                                self.walk_phase = 0;
+                                self.player_cell_x = self.view.player_px >> 5;
+                                self.player_cell_y = self.view.player_py >> 5;
+                                self.apply_step_cell_effects();
+                            }
+                        }
+                        5 => self.tick_battle(true),
+                        _ => {}
+                    }
+                }
+            }
             4 => {
                 if self.camera_at_target() {
                     self.game_mode = 3;
@@ -3823,12 +4009,9 @@ impl GameScene {
         }
         let ok = self.interact_with_cell(tx, ty);
         if ok {
+            // a.java:5341-5342：interact 通过即 wp=1，**无 mode11 特例**（迭代 65：
+            // 旧权宜复位会杀掉 dp3 脚本行走——floor10 MOV_0_6_5 T504 实证）。
             self.walk_phase = 1;
-            if self.game_mode == 11 {
-                // 83 触发开对话的净效应（A-preset-ending T304+ wp=0 dump 实证；
-                // a.java:5341 wp=1 后被对话链复位）——不复位则解冻后玩家滑步。
-                self.walk_phase = 0;
-            }
         } else if self.overlay_active && self.walk_phase == 1 {
             // a.java:5353-5358：overlay 内撞格中断 → 路径与相位一并清
             self.path_arrows_visible = false;
@@ -3897,25 +4080,62 @@ impl GameScene {
                                         allowed = false;
                                     }
                                 }
-                                5 | 81 | 4 => {
-                                    if t != 4 {
-                                        // 封印门/障碍（a.java:5432-5432）：阻挡
+                                4 => {
+                                    // 封印门（a.java:5432-5437）：恒拦截 + 文案
+                                    // + 停扫（var8=0）
+                                    self.show_overlay_message(
+                                        0,
+                                        "障碍物：封印门\n需要消灭指定的怪物才能打开的门！",
+                                        0,
+                                        0,
+                                    );
+                                    allowed = false;
+                                    s = -1;
+                                }
+                                81 => {
+                                    // 封印门81（a.java:5458-5465）：**仅可见时**拦截
+                                    // + 同文案 + 停扫；隐形期 continue 放行（floor10
+                                    // 南北隐形封印门可穿，迭代 65 差分实证）
+                                    if self.entities.visible[e] {
+                                        self.show_overlay_message(
+                                            0,
+                                            "障碍物：封印门\n需要消灭指定的怪物才能打开的门！",
+                                            0,
+                                            0,
+                                        );
                                         allowed = false;
+                                        s = -1;
                                     }
                                 }
+                                5 => {} // 门卫：cat1 交互臂无 case（a.java:5391-5530
+                                        // switch 无 5）→ bump 放行；开启臂在
+                                        // applyStepCellEffects case5（宝箱）。
+                                        // **不可写 `_`**——会吞掉其后的 83/9/77 臂。
                                 6 | 7 | 8 => stair_count += 1,
                                 83 => {
                                 // 场景门（a.java:5508-5510）：tryRunScene 门控 →
                                 // loadLevelScript(mode 11)。命中即 var8=0 停扫
                                 // （a.java:5512）——同格后继实体（如 floor50 的
                                 // 型72）不再处理，迭代 57：缺停扫曾同时触发
-                                // 对话+战斗。
-                                if self.try_run_scene(self.entities.param[e] as i32, true) {
+                                // 对话+战斗。**bump 侧第二参 = false**
+                                // （a.java:5508 原文）——script3 类 `gate &=
+                                // from_walk` 门控使 bump 不触发、到达才触发
+                                // （floor10 T401 实证：Java -1 撞 (6,6) 先行走、
+                                // applyStep 到达才开 script3 对话）。
+                                if self.try_run_scene(self.entities.param[e] as i32, false) {
                                     self.overlay_active = false;
                                     self.overlay_text = None;
                                     let idx = self.entities.param[e] as i32;
                                     self.load_level_script(idx);
                                     s = -1;
+                                    // a.java:5509 `var6 = loadLevelScript(...)`：声明
+                                    // boolean 但 **default 恒 return false**（a.java:8075）
+                                    // ⇒ var6=false，tryStep 不置 wp=1。**仅在命中分支**：
+                                    // seen 跳过时 var6 保持 true——击杀后重步
+                                    // （tick_battle → try_step，T768）必须放行置 wp=1，
+                                    // 驱动对话关闭后的 (4,6) 行走与 wp4 组开门链
+                                    // （迭代 65 T904 实证）。
+                                    allowed = false;
                                 }
                             }
                             9 => {
