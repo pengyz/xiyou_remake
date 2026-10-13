@@ -3948,11 +3948,11 @@ fn preset_save_frames_match() {
 /// Java 锚：T302 script24 / T648 冻结 / T762 battle / T768 script36 /
 /// T904 关闭静态。
 #[test]
-#[ignore] // 迭代 60-63：真根因链已修两处——① lockCameraOn 型69 目标 X+=32
-          //（a.java:8667-8668，open_dialog_page 锚块覆写点同步）② 对话相机
-          // 逐页交替锁（boss -82/玩家 -50）与击杀链全对齐：T303-923 全帧一致。
-          // 剩余 T924 起 = 关闭后相机 Y 收尾（Java -50→-66 两拍后冻结，
-          // 疑 walk 边缘跟随与 ease 的交错；Rust 收敛 -48 持续）——单点待考。
+#[ignore] // 迭代 60-63：链体已对齐至 T923（对话五页交替锁 boss px+32/玩家、
+          // 击杀链、case69→event[7]+script36、lockCameraOn 型69 X+=32 规则补齐）。
+          // 剩余 T924 起 = 关闭后相机 Y 收尾：Java camY -50→-66 两拍后冻结
+          // （walk 边缘跟随 -8×2 至 py+cam+16>146 的稳定位），Rust 收敛 -48
+          // 持续——mode11→3 翻转与 walk/ease 交错次序为最后待考单点。
 fn preset_floor35_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(
@@ -4156,22 +4156,7 @@ fn preset_floor35_frames_match() {
                 Some(sc) => sc.paint(&mut g, &tileset),
                 None => machine.paint(&mut g),
             }
-            let ops_dump = if (300..=312).contains(&(rec.tick as i32)) {
-                Some(g.ops.join("\n"))
-            } else {
-                None
-            };
-            if (300..=312).contains(&(rec.tick as i32)) {
-                if let Some(sc) = &scene {
-                    eprintln!("DBG T{} mode={} cam=({},{}) dp={} script={} wp={} bscroll={} ease_y={}",
-                        rec.tick, sc.game_mode, sc.view.cam_x, sc.view.cam_y, sc.dialog_phase,
-                        sc.current_script_index, sc.walk_phase, sc.backdrop_scroll, sc.ease_cam_y);
-                }
-            }
             sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
-            if let Some(ops) = ops_dump {
-                std::fs::write(format!("/tmp/f35-T{:04}.ops", rec.tick), ops).unwrap();
-            }
         }
         {
             if let Some(expect) = &rec.frame_sha {

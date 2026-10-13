@@ -321,6 +321,10 @@
    （cameraTarget=226，非 speaker boss py192/玩家 160，Rust 收敛 -48
    且随页振荡）——floor35 对话相机锁目标语义待考
    （openDialogPage/lockCameraOn 链），#[ignore] 挂起。
+   **迭代 63 续（收尾单点精化）**：T924 起差异 = 关闭后相机 Y 收尾——
+   Java camY -50→-66 两拍后冻结（walk 边缘跟随 -8×2 至 py+cam+16>146
+   的稳定位），Rust 收敛 -48 持续——mode11→3 翻转与 walk/ease 交错次序
+   为最后待考单点（探针已清，注记精化）。
    **迭代 62 相机目标时间线全解**（cameraTarget FLD255/256）：页
    101/103/105（speaker69）→ (160,192)=boss px+32（a.java:8668
    var1==69 → cameraTargetX+=32 实证）；页 102/104（speaker0）→
