@@ -325,8 +325,16 @@
    "n / N"；键控走 overlay-kind5 分派（a.java:3325-3334：-3/-4 翻页、
    -5/-6/-7 关回 mode10）；paint case12（2866-2880）= backdrop(false)+
    m_142 页码指示 + 双箭头（f_int_90 钳位 paint [8][14] bob 摆动）+
-   softkeyBar。**待查**：f_int_89/f_byte_arr_14/15/06/09 数据表装载点
-   （游戏 init 还是 m_000 之外）+ m_142 文本渲染。另：台账 mode18 行
+   softkeyBar。**待查已清（本轮）**：数据表 = **SKY_WAR RMS 持久化日志**——
+   f_int_89 = readShort（a.java:9275，m_110 读档链）；f_String_arr_06/09
+   = init 常量字串表（a.java:823/887）；m_142 = **8+1 描边文字**
+   （f_int_arr_36[0] 暗色 8 向 ±1 偏移 drawString + [1] 主色 1 次，
+   a.java:10221-10236，页码 "n / N" 专用）。**下轮**：SKY_WAR 写入点
+   （f_int_89++ 日志追加语义）→ preset SKY_WAR 预置格式扩展 →
+   preset-floor5 场景（maplv5/sprite5 fixtures + 拾取道具14 + 面板使用
+   → mode12 翻页/退出）→ Rust 实现（activateItem case14 + m_000 case12
+   + m_076 + paint case12 + m_142 + overlay 分派 case5 归属核查〔Rust
+   现将 kind5 用于商人报价浏览，Java case5=m_076——需甄别〕）。另：台账 mode18 行
    陈旧——粒子系统 Rust 已实现（title::Particles，boot_menu T1-150
    粒子窗全帧绿 + intro case14），行更正待下迭代补证。 |
 
