@@ -4895,9 +4895,10 @@ fn preset_floor42_frames_match() {
 /// Java 锚：T402/552/1252/1402 守卫战、T568/1416 wp4、T1560 script15。
 /// T904 关闭静态。
 #[test]
-#[ignore] // 迭代 70 挂起（T1-拾取前绿）：(9,4) 80 银缕锁甲拾取 → m_083
-          // equip_types[12] 越界 panic——装备档位表对 80 型（银缕锁甲
-          // tier5）的索引语义待考（equip_types 12 项 vs tier 索引 12）。
+#[ignore] // 迭代 71 挂起（T1-1204 绿）：残余 413px 两子点——① 状态栏
+          // 甲槽：Java 画 entity[80] 图标、Rust 画"无"白字（paint_hud
+          // 图标分支未生效原因待查）；② 描述盒文本尾 105px（"别人穿过"
+          // 行，layout 差）。m_083 先减后比/装备盒双参已修。
 fn preset_floor43_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(
@@ -5004,6 +5005,7 @@ fn preset_floor43_frames_match() {
     machine.sptarm = load_container("sptarm", 10);
 
     let tileset = map[0].clone();
+    let mut out_state: Vec<String> = Vec::new();
     let mut screen = ArgbImage::create(game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
     let mut checked = 0usize;
     let mut scene: Option<GameScene> = None;
@@ -5083,6 +5085,17 @@ fn preset_floor43_frames_match() {
                     scene = Some(sc);
                 }
             }
+        }
+        if std::env::var("STATE_OUT").is_ok() {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                for line in dump_scene(sc) {
+                    out_state.push(line);
+                }
+            }
+            // 逐 tick 落盘：断言 panic 时状态已持久化（floor43 挂起期取证）
+            std::fs::write("/tmp/f43-state.txt", out_state.join("\n")).unwrap();
         }
         let sha;
         {

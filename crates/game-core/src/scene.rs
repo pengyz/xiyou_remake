@@ -5493,21 +5493,37 @@ impl GameScene {
         g.set_color(HUD_ROW_ACCENT);
         paint_mini_frame(g, bar_x, y + 1, HUD_BAR_W, HUD_BAR_H);
         paint_number(g, &self.images.ui[2], self.player.def, bar_x + HUD_NUM_DX, y + 2);
-        // 装备槽（equipmentMaterialNames = 无/木/铁/银/金/布/皮/锁/金，a.java:484）
+        // 装备槽（a.java:6079-6110）：equipped==0 → 白字“无”
+        // （equipmentMaterialNames[0]）；否则画 entityTypeImage[equipped]
+        // 居中（槽 32×32，(32-图宽>>1)/(32-图高>>1)）。
         // 槽 x：var11 = HUD_ICON_X+16 后 +60 → 159；甲槽 +34 → 193（a.java:6080/6087）
         let slot_y = base_y + HUD_SLOT_DY;
         let mut slot_x = bar_x + 60;
-        let none: Vec<u16> = "无".encode_utf16().collect();
-        let cw = font.char_width(none[0]);
-        for _ in 0..2 {
+        for equipped in [self.equipped_weapon, self.equipped_armor] {
             paint_mini_frame(g, slot_x, slot_y, HUD_SLOT_SIZE, HUD_SLOT_SIZE);
-            g.set_color(WHITE);
-            g.draw_string(
-                &none,
-                slot_x + ((HUD_SLOT_SIZE - cw) >> 1),
-                slot_y + ((HUD_SLOT_SIZE - font.height) >> 1),
-                0,
-            );
+            if equipped == 0 {
+                let none: Vec<u16> = "无".encode_utf16().collect();
+                let cw = font.char_width(none[0]);
+                g.set_color(WHITE);
+                g.draw_string(
+                    &none,
+                    slot_x + ((HUD_SLOT_SIZE - cw) >> 1),
+                    slot_y + ((HUD_SLOT_SIZE - font.height) >> 1),
+                    0,
+                );
+            } else if let Some(img) = self
+                .images
+                .entity
+                .get(equipped as usize)
+                .and_then(|o| o.as_ref())
+            {
+                g.draw_image(
+                    img,
+                    slot_x + ((HUD_SLOT_SIZE - img.width) >> 1),
+                    slot_y + ((HUD_SLOT_SIZE - img.height) >> 1),
+                    0,
+                );
+            }
             slot_x += HUD_SLOT_STEP;
         }
     }
