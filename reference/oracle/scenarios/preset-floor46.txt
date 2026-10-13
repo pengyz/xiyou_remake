@@ -1,0 +1,36 @@
+# ticks: 1600
+# preset: preset-floor46.preset
+# cover: 按层铺 floor46（85 黄金钥匙拾取 + 77 太白金星告示首验）：
+#   载入 (8,11) → (8,10) → (8,9) 撞 77（param 0x13 → 报价入队 + kind4 浮层）
+#   → -5 受领/-7 处置 → 西行 (5,9) 撞 62 敌战 → (4,9) → (3,9) → (3,8)
+#   黄金钥匙拾取（85 臂）。
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -1 press
+302 -1 release
+350 -1 press
+352 -1 release
+450 -5 press
+452 -5 release
+550 -7 press
+552 -7 release
+650 -7 press
+652 -7 release
+750 -3 press
+752 -3 release
+850 -3 press
+852 -3 release
+950 -3 press
+952 -3 release
+1050 -3 press
+1052 -3 release
+1250 -3 press
+1252 -3 release
+1350 -1 press
+1352 -1 release
