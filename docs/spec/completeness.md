@@ -432,6 +432,15 @@
    （a.java:3010-3037 双缓冲火花：f_byte_20 仅 3035=sparkCount 写、
    addSpark 仅循环内调——自播种为零闭环，randomBelow(15) 永不消费；
    Rust 无此臂 = 零行为差，复核登记关闭）。 |
+   【迭代 69（floor42 铺层：DES 剧情移除双 boss 首验，楼层 L3 11/55）】
+   preset_floor42 T1-1700 全帧**一次收敛**（零新移植——script14 的
+   ROS_4_1/TAK/DES 臂全部为迭代 65-68 已移植件的首实战）。链：载入
+   (7,11) → (7,10) → (6,10) 踩 83(param14) → script14（ROS_4_1 +
+   TAK_92_97 六页 + DES_73_6_8 天蓬移除 + TAK_98_100 三页 + DES_70_6_7
+   玉皇移除——双 boss 剧情消失非战斗）→ 关闭 → -5 field wp2 数字视。
+   覆盖增量：DES 臂多类型实战（73/70）、83 param14→script14 的
+   from_walk=true 到达触发（iter 68 语义的正面用例）、9 页长对话翻页
+   节奏。 |
    【迭代 68（floor46 摘挂考证：单点精确化）】stride=1 取证（A46s1）+
    逐像素定位把 T451 分歧收敛为**单点：玩家/NPC 绘制顺序**——受领拍
    （-5，flags=0x1 仅关浮层）NPC markEntityRemoved → state=1 → cat1 画
@@ -565,8 +574,9 @@ L2* = Java 三方对拍绿但 Rust 侧未建用例（覆盖声明的过渡态）
 - DSL 15 码：TAK/CES/MOV/DES/GIN/LAY/ROS/RES/GUT/SEE/END/GLV/SMS/SWD/ADD。
   已在 Java 侧验证 trace 中出现（prologue/gameplay 系列）；**Rust 解释器覆盖
   以 game-core script 引擎对拍为准——逐码登记待迭代 29+ 细化**。
-- 楼层：**L3 对拍达成 10/55（floor1、2、5〔道具14/mode12，迭代 59〕、
+- 楼层：**L3 对拍达成 11/55（floor1、2、5〔道具14/mode12，迭代 59〕、
   10〔哪吒+门卫环+SWD，迭代 65，T1-1200 全帧〕、12〔炼丹，迭代 31〕、
+  42〔DES 剧情移除双 boss，迭代 69，T1-1700 全帧〕、
   49〔case70 击杀钩子+守卫宝箱配对+陷阱臂+script15 伏击，迭代 66，
   T1-2600 全帧〕、
   35〔深 boss 层+case69 钩子+wp4 组开门动画，迭代 60-64〕、

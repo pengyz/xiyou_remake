@@ -1,0 +1,38 @@
+# ticks: 1700
+# preset: preset-floor42.preset
+# cover: 按层铺 floor42（DES 剧情移除双 boss 首验）：载入 (7,11) →
+#   (7,10) → (6,10) 踩 83(param14) → script14（ROS_4_1 + TAK_92_97 六页 +
+#   DES_73_6_8 天蓬移除 + TAK_98_100 三页 + DES_70_6_7 玉皇移除）→ 静置。
+#   70/73 双 boss 剧情消失（非战斗）。尾段 -5 触发 field wp2 数字视覆盖。
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -1 press
+302 -1 release
+400 -3 press
+402 -3 release
+500 -5 press
+502 -5 release
+600 -5 press
+602 -5 release
+700 -5 press
+702 -5 release
+800 -5 press
+802 -5 release
+900 -5 press
+902 -5 release
+1000 -5 press
+1002 -5 release
+1100 -5 press
+1102 -5 release
+1200 -5 press
+1202 -5 release
+1300 -5 press
+1302 -5 release
+1400 -5 press
+1402 -5 release
