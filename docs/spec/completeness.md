@@ -327,7 +327,9 @@
    (128,160)=玩家；cam 缓动交替收敛 **-82（boss）/ -50（玩家）**；
    T642 关闭 → lockCameraOn(0) → (128,160) 收敛 -50；T762 再撞 →
    script36（页 162 speaker0）→ T902 关闭 → camY -50→**-66** 后冻结
-   （dp=4/mode3 冻结截断闭合缓动半程——末段 16px 下移目标待考）。 |
+   （dp=4/mode3 冻结截断闭合缓动半程——末段 16px 下移目标待考）。
+   **CI 收敛确认（2026-13T03:30）**：feb6cb3 补交后 `check` 步 CI
+   **success**——迭代 57 起的全红根因（E0063 缺字段）闭环。 |
    **迭代 59 实现收口（mode12 L3）**：preset_floor5 T1-1200 全帧一致。
    ① save.rs：MOT_L 日志槽（f_int_89 对 = f_byte_arr_14/15）解析入
    FloorSave.journal（原 skip）；② 场景五件套：activate_item case14
