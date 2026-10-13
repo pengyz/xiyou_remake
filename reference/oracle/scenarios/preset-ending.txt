@@ -1,0 +1,36 @@
+# ticks: 1800
+# preset: preset-ending.preset
+# cover: 终局链全编排（mode 20 结局卷轴，按层铺深层终点）：槽载入 floor50
+#   (5,5) → -4 撞 (6,5)（型83 触发器 param16 → script16 TAK_123_126 五页
+#   前导对话，4×-5 + 1×-4（非翻页键亦推进 a.java:4053 match _ 臂）关页）
+#   → GUT_37 → GLV_1 → 行尾冻结（mode3/dphase4，a.java:4123 相机到位回
+#   mode3）→ -4 再撞（83 seen 跳过 → 型72 cat8 开战，一拍斩）→ case72
+#   （a.java:10143 → loadLevelScript(65)）→ TAK_127_128 两记 -5 → END_0 →
+#   mode 20（end 卷轴 + 信箱 + 打字机 dialogueTexts[260]；f_bool_04 后
+#   任意键回主菜单 → 卷轴期禁按键）
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -4 press
+302 -4 release
+400 -5 press
+402 -5 release
+460 -5 press
+462 -5 release
+520 -5 press
+522 -5 release
+640 -5 press
+642 -5 release
+760 -4 press
+762 -4 release
+900 -4 press
+902 -4 release
+1050 -5 press
+1052 -5 release
+1150 -5 press
+1152 -5 release

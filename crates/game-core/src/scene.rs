@@ -71,6 +71,8 @@ pub struct SceneImages {
     /// **不是** entityTypeImage——迭代 55 根因：entity[bubble] 误用致 245×39
     /// 条带上屏（T303 op 流 872 条唯一分歧 op 实证）。
     pub faces: Vec<ArgbImage>,
+    /// f_Image_arr2_00[14][0]：end 包结局卷轴（240×145，m_001(14) 迭代 57）
+    pub ending: ArgbImage,
 }
 
 impl SceneImages {
@@ -380,6 +382,11 @@ pub struct GameScene {
     pub game_mode: i32,
     /// dialogPhase：0 脚本步进 / 1 TAK 打字 / 2 实体路径 / 3 脚本行走 / 4 等相机 / 6 SEE 打字
     pub dialog_phase: i32,
+    /// mode20 结局卷轴状态（Java f_int_22/f_int_23/f_bool_04——m_000 case20
+    /// **不重置**，场景构造期零值即 Java 新运行初值）。
+    pub ending_scroll: i32,
+    pub ending_anim: i32,
+    pub ending_done: bool,
     /// dialogPage：当前对白页（dialogueTexts 下标）
     pub dialog_page: i32,
     /// dialogPageEnd：TAK 页尾（openDialogPage 边界）
@@ -722,6 +729,9 @@ impl GameScene {
             overlay_item_name: None,
             game_mode: 3,
             dialog_phase: 0,
+            ending_scroll: 0,
+            ending_anim: 0,
+            ending_done: false,
             dialog_page: 0,
             dialog_page_end: 0,
             dialog_speaker: 0,
@@ -1595,9 +1605,28 @@ impl GameScene {
             self.ease_cam_y = (self.view.view_h - 32 >> 1) - self.view.cam_y;
             self.ease_target_x = tx << 5;
             self.ease_target_y = ty << 5;
+        } else if op == "GUT" {
+            // GUT_n（a.java:8308-8311）：旗标置位 + loadLevelScript(n)（游标由
+            // load 重置为 0——Java 原样不前进）。
+            let (n, _e) = Self::parse_script_int(&line, var2 + 1, ' ');
+            let cur = self.current_script_index;
+            self.script_line_flags[cur] = true;
+            self.load_level_script(n);
+        } else if op == "GLV" {
+            // GLV_n（a.java:8464-8466）：纯解析推进（无副作用）。
+            let (_v, e) = Self::parse_script_int(&line, var2 + 1, ' ');
+            self.script_cursor = e + 1;
         } else if op == "END" {
             let (_v, e) = Self::parse_script_int(&line, var2 + 1, ' ');
             self.game_mode = 20;
+            // m_000 case 20（a.java:4443-4450）可观测部分：typewriterPos=1 +
+            // 初次 layout（对象 = **当时 overlayText 残页**，Java 原样）；
+            // f_int_22/23/f_bool_04 不重置。
+            self.dialog_char = 1;
+            if let Some(t) = self.overlay_text.clone() {
+                let line_h = crate::paint::paint_font().height + 4;
+                self.layout_wrapped_text_limited(&t, 209, (line_h << 1) + 12, 1);
+            }
             self.script_cursor = e + 1;
         } else if op == "SMS" {
             let (_v, e) = Self::parse_script_int(&line, var2 + 1, ' ');
@@ -3455,6 +3484,16 @@ impl GameScene {
             self.key_value = 0;
             return;
         }
+        if self.game_mode == 20 {
+            // run case 20（a.java:4223-4228）：f_bool_04 后任意键回主菜单
+            // （gameMode=1 + m_000——场景→BootMachine 反向移交为已知缝，
+            // 对拍窗口不触键）。f_bool_04 未到 → 任意键仍清零。
+            if self.ending_done && self.key_value != 0 {
+                self.game_mode = 1;
+            }
+            self.key_value = 0;
+            return;
+        }
         // run case 3 头（a.java:3552-3562）：keyValue 开关。-7 → gameMode=4
         // （存档菜单，mode 4 批次待办）；-6 → gameMode=10 + m_000。
         match self.key_value {
@@ -3767,6 +3806,11 @@ impl GameScene {
         let ok = self.interact_with_cell(tx, ty);
         if ok {
             self.walk_phase = 1;
+            if self.game_mode == 11 {
+                // 83 触发开对话的净效应（A-preset-ending T304+ wp=0 dump 实证；
+                // a.java:5341 wp=1 后被对话链复位）——不复位则解冻后玩家滑步。
+                self.walk_phase = 0;
+            }
         } else if self.overlay_active && self.walk_phase == 1 {
             // a.java:5353-5358：overlay 内撞格中断 → 路径与相位一并清
             self.path_arrows_visible = false;
@@ -3844,12 +3888,16 @@ impl GameScene {
                                 6 | 7 | 8 => stair_count += 1,
                                 83 => {
                                 // 场景门（a.java:5508-5510）：tryRunScene 门控 →
-                                // loadLevelScript(mode 11)
+                                // loadLevelScript(mode 11)。命中即 var8=0 停扫
+                                // （a.java:5512）——同格后继实体（如 floor50 的
+                                // 型72）不再处理，迭代 57：缺停扫曾同时触发
+                                // 对话+战斗。
                                 if self.try_run_scene(self.entities.param[e] as i32, true) {
                                     self.overlay_active = false;
                                     self.overlay_text = None;
                                     let idx = self.entities.param[e] as i32;
                                     self.load_level_script(idx);
+                                    s = -1;
                                 }
                             }
                             9 => {
@@ -4461,6 +4509,10 @@ impl GameScene {
             self.paint_wipe_tail(g);
             return;
         }
+        if self.game_mode == 20 {
+            self.paint_ending(g);
+            return;
+        }
         if self.game_mode == 11 {
             self.paint_dialog(g, tileset);
             return;
@@ -4928,6 +4980,40 @@ impl GameScene {
 
     /// paint case 11（a.java:2798-2896）：世界层 + 对话框/立绘/气泡/翻页箭头。
     /// overlayText==null 或 overlayActive 或 phase==4 时走 paintHudPanel 分支。
+    /// paint case 20（a.java:3039-3067）：结局卷轴。状态推进在 paint 内
+    /// （Java 原样）：滚动 f_int_22 奇数拍 ++（>w-240 → f_bool_04），
+    /// 打字机 (fc&3)>>1 门控推进并重排 209 宽限版；信箱 3156024 上下
+    /// 各 var37 高；卷轴画 (−f_int_22, var37)；底栏 paintWrappedText
+    /// (texts[260], 15, 320−fontHeight−10, 210, fontHeight+10)。
+    fn paint_ending(&mut self, g: &mut SoftGraphics<'_>) {
+        let img = self.images.ending.clone();
+        let text = self.dialog_data.texts[260].clone();
+        let font = crate::paint::paint_font();
+        let var37 = (SCREEN_H - img.height) >> 1;
+        self.ending_anim += 2;
+        if !self.ending_done && (self.frame_counter & 1) != 0 {
+            self.ending_scroll += 1;
+            if self.ending_scroll > img.width - SCREEN_W {
+                self.ending_done = true;
+            }
+        }
+        let text_len = text.chars().count() as i32;
+        if (self.frame_counter & 3) >> 1 != 0 && self.dialog_char < text_len {
+            self.dialog_char += 1;
+            let line_h = font.height + 4;
+            self.layout_wrapped_text_limited(&text, 209, (line_h << 1) + 12, self.dialog_char);
+            self.overlay_page_top = (self.overlay_total_lines - 1).max(0);
+            self.overlay_page_bottom = self.overlay_total_lines;
+        }
+        g.set_color(3156024);
+        g.fill_rect(0, 0, SCREEN_W, var37);
+        g.fill_rect(0, SCREEN_H - var37, SCREEN_W, var37);
+        g.set_clip(0, 0, SCREEN_W, SCREEN_H);
+        g.draw_image(&img, -self.ending_scroll, var37, 0);
+        g.set_color(0xFFFF_FFFF);
+        self.paint_wrapped_text(g, 15, SCREEN_H - font.height - 10, 210, font.height + 10, false);
+    }
+
     fn paint_dialog(&mut self, g: &mut SoftGraphics<'_>, tileset: &ArgbImage) {
         self.paint_parallax(g, true);
         let tile_off = view_top_y() + if self.walk_phase == 4 { self.tile_bob } else { 0 };

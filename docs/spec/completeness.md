@@ -289,6 +289,23 @@
    行尾冻结 scene 语义（mode11→3 回转位置）+ mode20 实现（含
    SceneImages.ending 装配）+ 终局编排节拍（与 72 开战路径）。撞格 83
    臂已实现（interact_with_cell 83 arm 实证）。 |
+   **迭代 57（终局链 Rust 前段全通 + mode20 实现 + 撞格停扫语义）**：
+   ① 场景引擎补 GUT/GLV 两臂（GUT=a.java:8308-8311 旗标+loadLevelScript
+   **命中即 var8=0 停扫**——缺停扫曾同拍同时触发对话+战斗，T301 状态
+   dump 实证；GLV=8464-8466 纯推进）；② **mode20 全实现**：paint 臂
+   （a.java:3039-3067 滚动/信箱/打字机 (fc&3)>>1，状态推进在 paint 内
+   Java 原样）+ tick 任意键臂（4223-4228，game_mode=1 反向移交为已知缝，
+   对拍窗口无键）+ END 入口 init（4443-4450 typewriterPos=1+残页 layout）
+   + SceneImages.ending（end 包 240×145）全构造点装配；③ 撞格对话的
+   walkPhase 净效应（tryStep wp=1 被对话链复位——T304+ wp=0 dump 实证，
+   不复位则解冻后玩家滑步 T766 分歧 1045px）；④ preset_ending T1-907
+   全帧一致（#[ignore] 挂起）：撞格83→script16 五页→GUT_37→GLV_1→
+   冻结→mode3→-4 再撞→型72 cat8 开战（T902）→ case72 → script65
+   （T912）→ END → mode20（T1152）→ 打字机满 46 字（T1240）静态——
+   Java 侧全锚齐。**待办**：T908 起战斗节拍差（Java 901-911 共 11 拍 vs
+   Rust 7 拍，itemboss40 同机制全绿 ⇒ 差异在 dp4 冻结态开战路径）。
+   教训入册：先插方法后全局替换 ⇒ 委托变自递归（TCO 静默死循环 48min，
+   gotcha_global-replace-hits-newly-added-method）。 |
 
 口径教训：名字/行号自动匹配只能出候选名单，分子终审必须人工（本轮抽样 7/7
 候选"未移植"实为内联移植）。三档随迭代人工更新，工具只保证候选不丢。
