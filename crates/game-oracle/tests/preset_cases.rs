@@ -4398,8 +4398,8 @@ fn preset_floor10_frames_match() {
 /// 按层铺 floor46（85 黄金钥匙拾取 + 77 太白金星告示首验，迭代 67）：
 /// 【挂起】T1-450 已绿；T451 起单点 = **玩家/NPC 绘制顺序**：受领拍 NPC
 /// markEntityRemoved → state=1 白烟（opened_door 帧 0，两侧绘制一致），
-/// 但玩家头饰 Java 在白烟**上**、Rust 被白烟**盖**——paintEntityLayer 的
-/// 玩家插入兜底序（NPC 不满足插入条件时玩家何时画）待考。此前"实体生成
+/// 玩家路径埋点实证 = FALLBACK（循环后）与 Java 同位，Z 序非分歧源；
+/// 残余差异 = 白烟内部纹理（opened_door 帧序/帧偏移待查）。此前"实体生成
 /// 序谜题" = 取证脚本 LE/BE 误读（seed 用 readU16BE），实体表两侧一致
 /// （T1-450 绿含 NPC 本体绘制）；77 的 seed 双字节读经 sprite2 152/152
 /// 实证不成立——文件布局 77/78 = 1 字节（extra_len 曾误改已回滚）。

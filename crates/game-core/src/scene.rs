@@ -5154,6 +5154,9 @@ impl GameScene {
                         {
                             self.paint_player(g, cam_x, cam_y);
                             player_drawn = true;
+                            if std::env::var("F46DBG").is_ok() {
+                                eprintln!("paint_ent: player INSERTED before e={} t={}", e, t);
+                            }
                         }
                         let anim = self.entities.anim_idx[e] as usize;
                         let frame = self.entities.frame[e];
@@ -5290,6 +5293,9 @@ impl GameScene {
 
         g.set_clip(0, 0, SCREEN_W, SCREEN_H);
         if !player_drawn {
+            if std::env::var("F46DBG").is_ok() {
+                eprintln!("paint_ent: player FALLBACK after loop");
+            }
             self.paint_player(g, cam_x, cam_y);
         }
         // walkPhase==5 星光（a.java:6692-6704）：battleTick&7 选帧，sparkFrames

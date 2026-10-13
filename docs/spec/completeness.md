@@ -442,7 +442,12 @@
    制（remove 反致白烟消失，已回滚）；② "实体生成序谜题"——取证脚本
    LE/BE 误读（seed readU16BE），实体表两侧一致（T1-450 绿含 NPC 本体
    绘制）；77 双字节读经 sprite2 152/152 实证不成立（文件布局 1 字节，
-   extra_len 回滚留注）。 |
+   extra_len 回滚留注）。
+   【迭代 68 续：埋点复核】paint_entities 玩家路径实证 = **FALLBACK
+   （循环后）与 Java 同位**——Z 序非分歧源；残余差异 = **白烟内部纹理**
+   （Java 致密 vs Rust 透底呈砖纹——opened_door 帧序/帧偏移待查：
+   NPC anim_idx 应恒 0/帧 0，两侧公式一致却绘出不同帧，疑 Rust 帧字段
+   被他人改写或 draw_image_clipped 的帧偏移取整差）。挂起注记已同步。 |
    【迭代 67（floor46 铺层：85 黄金钥匙 + 77 太白金星告示，挂起）】
    preset_floor46 T1-450 全帧绿，T451 起挂起：① **77 太白金星绘制态分
    歧**——Java 受领拍（-5，flags=0 仅关浮层）后 NPC 置 state=1 画
