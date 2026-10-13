@@ -440,13 +440,14 @@
    装备成功（def=150、arm=80 与 Java T1208 实值一致）；② **装备描述盒
    双参分解**（a.java:7595-7597：图标 itemUseTargetType=var1 物品类型、
    文本 equipDescriptions[var2]=tier——单参混用致 D 表越界错帧）。
-   【迭代 73 续：残余收敛至 121px 单点】描述盒第三行文案（"别人穿过"
-   引号行）渲染差——kind1 描述盒 layout 行数/换行宽待考
-   （showOverlayMessage 第 4 参=3 语义 vs Rust right=3）。同轮关闭：
-   ① 槽图标"颜色不对"——sptarm[9] 解码经 PIL 对照**无误**（蓝白铠甲
-   逐像素一致），真因 = 陈旧 PPM 对比 + 槽图标未移植（已移植后槽区差
-   清零）；② "实体生成序谜题" = 取证脚本 LE/BE 误读。装备语义本体
-   对齐（def=150/arm=80，A trace T1208 实证）。 |
+   【迭代 73 续+74：单点二分精化】原 121px 单点经 D 表重建（equipDescriptions
+   12 条中 10 条引号评价段曾被截断，已按 Java 原文重建）后**二分为
+   724px 换行计量差**：盒文本行数 Rust 4 行 vs Java 3 行——
+   layout_wrapped_text 对 \c 颜色转义（\cXXXXXX 不占宽）的宽度计量与
+   Java 不一致（Rust 更早换行，绿/黄段接排错位）。D 表重建后帧证：
+   f43_boxtext_1205b.png。待专项：layout_wrapped_text 转义宽度语义
+   （a.java:4940-5036 对照）。同轮关闭：sptarm[9] 解码经 PIL 对照无误。 |
+   【迭代 68（floor46 摘挂考证：单点精确化）】
    【迭代 70（floor43 铺层：80 银缕锁甲 + 64
    【迭代 70（floor43 铺层：80 银缕锁甲 + 64/65 敌表族，挂起）】
    preset_floor43 T1-拾取前全帧绿，(9,4) 80 银缕锁甲拾取 panic 挂起：

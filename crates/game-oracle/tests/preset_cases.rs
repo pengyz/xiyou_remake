@@ -4895,11 +4895,11 @@ fn preset_floor42_frames_match() {
 /// Java 锚：T402/552/1252/1402 守卫战、T568/1416 wp4、T1560 script15。
 /// T904 关闭静态。
 #[test]
-#[ignore] // 迭代 73 挂起（T1-1204 绿）：残余 121px 单点 = 描述盒第三行
-          // 文案（\"别人穿过\"引号行）渲染差——装备槽图标/m_083 先减后比/
-          // 双参描述盒均已修（sptarm[9] 解码经 PIL 对照**无误**）。待考：
-          // kind1 描述盒的 layout 行数/换行宽（a.java showOverlayMessage
-          // 第 4 参=3 的语义 vs Rust show_overlay_message right=3）。
+#[ignore] // 迭代 74 挂起（T1-1204 绿）：残余 724px 单点 = kind1 描述盒
+          // 换行计量——layout_wrapped_text 对 \c 颜色转义的宽度语义与
+          // Java 不一致（D 表重建后 Rust 4 行 vs Java 3 行，绿/黄段接排
+          // 错位）。已修：D 表重建（10 条截断文案按 Java 原文补全）+
+          // m_083 先减后比 + 装备盒双参 + 槽图标移植。
 fn preset_floor43_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(
