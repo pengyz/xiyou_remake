@@ -4157,27 +4157,7 @@ fn preset_floor35_frames_match() {
                 Some(sc) => sc.paint(&mut g, &tileset),
                 None => machine.paint(&mut g),
             }
-            let ops_dump = if rec.tick as i32 == 924 {
-                Some(g.ops.join("\n"))
-            } else {
-                None
-            };
-            if rec.tick as i32 == 924 {
-                if let Some(sc) = &scene {
-                    eprintln!("DBG T{} mode={} cam=({},{}) dp={} wp={} py={} bscroll={}",
-                        rec.tick, sc.game_mode, sc.view.cam_x, sc.view.cam_y,
-                        sc.dialog_phase, sc.walk_phase, sc.view.player_py, sc.backdrop_scroll);
-                }
-                let mut raw = Vec::new();
-                for px in &screen.argb {
-                    raw.extend_from_slice(&px.to_be_bytes());
-                }
-                std::fs::write("/tmp/f35-T0924.rgba", raw).unwrap();
-            }
             sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
-            if let Some(ops) = ops_dump {
-                std::fs::write("/tmp/f35-T0924.ops", ops).unwrap();
-            }
         }
         {
             if let Some(expect) = &rec.frame_sha {
