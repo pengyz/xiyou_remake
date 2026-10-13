@@ -439,9 +439,15 @@
    hi 永不触达；Rust 误译后减致 [12] 越界 panic）——修正后 80 甲拾取
    装备成功（def=150、arm=80 与 Java T1208 实值一致）；② **装备描述盒
    双参分解**（a.java:7595-7597：图标 itemUseTargetType=var1 物品类型、
-   文本 equipDescriptions[var2]=tier——单参混用致 D 表越界错帧）。残余
-   413px（自 7868）：状态栏区 292px（防御数字重绘时序/值）+ 描述盒细节
-   105px——下轮继续。 |
+   文本 equipDescriptions[var2]=tier——单参混用致 D 表越界错帧）。
+   【迭代 73 续：残余收敛至 121px 单点】描述盒第三行文案（"别人穿过"
+   引号行）渲染差——kind1 描述盒 layout 行数/换行宽待考
+   （showOverlayMessage 第 4 参=3 语义 vs Rust right=3）。同轮关闭：
+   ① 槽图标"颜色不对"——sptarm[9] 解码经 PIL 对照**无误**（蓝白铠甲
+   逐像素一致），真因 = 陈旧 PPM 对比 + 槽图标未移植（已移植后槽区差
+   清零）；② "实体生成序谜题" = 取证脚本 LE/BE 误读。装备语义本体
+   对齐（def=150/arm=80，A trace T1208 实证）。 |
+   【迭代 70（floor43 铺层：80 银缕锁甲 + 64
    【迭代 70（floor43 铺层：80 银缕锁甲 + 64/65 敌表族，挂起）】
    preset_floor43 T1-拾取前全帧绿，(9,4) 80 银缕锁甲拾取 panic 挂起：
    m_083 装备档位查表 equip_types[12] 越界（表 12 项 vs 80 型 tier 索引
