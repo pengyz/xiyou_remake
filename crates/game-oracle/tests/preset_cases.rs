@@ -3950,9 +3950,9 @@ fn preset_save_frames_match() {
 #[test]
 #[ignore] // 迭代 60-63：链体已对齐至 T923（对话五页交替锁 boss px+32/玩家、
           // 击杀链、case69→event[7]+script36、lockCameraOn 型69 X+=32 规则补齐）。
-          // 剩余 T924 起 = 关闭后相机 Y 收尾：Java camY -50→-66 两拍后冻结
-          // （walk 边缘跟随 -8×2 至 py+cam+16>146 的稳定位），Rust 收敛 -48
-          // 持续——mode11→3 翻转与 walk/ease 交错次序为最后待考单点。
+          // 相机 Y 收尾已对齐（-66 稳定位=walk 边缘跟随）。剩余 T924 起 =
+          // 封门（5,3）渲染差 1198px（47% 面积，蓝通道 -25，非脉动帧——
+          // T918-923 全同对照）：门影/封字渲染细节待考。
 fn preset_floor35_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(
@@ -4155,6 +4155,18 @@ fn preset_floor35_frames_match() {
             match scene.as_mut() {
                 Some(sc) => sc.paint(&mut g, &tileset),
                 None => machine.paint(&mut g),
+            }
+            if (918..=930).contains(&(rec.tick as i32)) {
+                if let Some(sc) = &scene {
+                    eprintln!("DBG T{} mode={} cam=({},{}) dp={} wp={} py={} bscroll={}",
+                        rec.tick, sc.game_mode, sc.view.cam_x, sc.view.cam_y,
+                        sc.dialog_phase, sc.walk_phase, sc.view.player_py, sc.backdrop_scroll);
+                }
+                let mut raw = Vec::new();
+                for px in &screen.argb {
+                    raw.extend_from_slice(&px.to_be_bytes());
+                }
+                std::fs::write(format!("/tmp/f35-T{:04}.rgba", rec.tick), raw).unwrap();
             }
             sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
         }
