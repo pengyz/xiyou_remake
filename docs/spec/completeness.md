@@ -342,6 +342,10 @@
    （-66 = walk 边缘跟随稳定位）。**剩余 = 封门实体消失差**：T924 起
    Java 移除封门 (5,3)（玩家踏 (4,7) 后门消失露出墙，1198px；移除路径
    待考——非 bump/非 seen skip），Rust 未实现该移除 ⇒ 门残留。
+   **迭代 64 赋值点定位**：T924 差异 = 门实体 drawImage src 45 vs 0
+   （anim_idx=6/frame=1/solid=1 vs Java row0/frame0/solid=0）——赋值点 =
+   **m_089 的 4 实体 markRemoved 方法**（a.java:7892-7919，var4-7 齐
+   markRemoved 即 return true；触发链待考）。
    **迭代 63 终勘误（67137f1 后续）**：门"移除"定性撤回——T924 起真
    差异 = **walkPhase4 tile bob 相位差**（双侧均进 wp4=tile24 震动砖
    态，Java tile 层 Y ±2 交替 setClip y 16/20 实证，Rust wp4 进入晚
