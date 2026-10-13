@@ -315,8 +315,12 @@
    case69 的 spawnBossEvent(7) 曾必越界；全 8 条逐元素对表 ALL MATCH）
    + preset_floor35 场景（Java 全链锚齐：T302 script24 五页 → T648
    冻结 → T762 开战 → **T768 case69→event[7]+script36** → T904 静态）。
-   Rust T1-907 一致；T303 起型69 拼装绘制位置差（紫翼浮于门上方，29611px）
-   ——bob 移交/69 臂基准待专项测量，#[ignore] 挂起。 |
+   Rust T1-907 一致；T303 起整屏 ~46% 像素差。**迭代 61 实测定性**：
+   双侧 animBob 均 0、型69 臂落点 (107,113±bob) 一致——非 sprite 位差；
+   真差异 = **对话相机 Y 目标**：Java camY 自 -50 缓动收敛 **-82**
+   （cameraTarget=226，非 speaker boss py192/玩家 160，Rust 收敛 -48
+   且随页振荡）——floor35 对话相机锁目标语义待考
+   （openDialogPage/lockCameraOn 链），#[ignore] 挂起。 |
    **迭代 59 实现收口（mode12 L3）**：preset_floor5 T1-1200 全帧一致。
    ① save.rs：MOT_L 日志槽（f_int_89 对 = f_byte_arr_14/15）解析入
    FloorSave.journal（原 skip）；② 场景五件套：activate_item case14

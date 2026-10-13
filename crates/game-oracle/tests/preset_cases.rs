@@ -3948,10 +3948,13 @@ fn preset_save_frames_match() {
 /// Java 锚：T302 script24 / T648 冻结 / T762 battle / T768 script36 /
 /// T904 关闭静态。
 #[test]
-#[ignore] // 迭代 60：Java 全链锚齐（T302 script24 五页 / T648 冻结 / T762
-          // 开战 / T768 case69→event[7]+script36 / T904 关闭静态）但 Rust
-          // T303 起型69 拼装绘制位置差（紫翼浮于门上方 ~80px，29611px diff）
-          // ——animBobOffset/bob 移交与 69 臂 (x+3,y−49+bob) 基准待专项测量。
+#[ignore] // 迭代 60/61：Java 全链锚齐（T302 script24 五页 / T648 冻结 / T762
+          // 开战 / T768 case69→event[7]+script36 / T904 关闭静态）但 T303 起
+          // 整屏 ~46% 像素差（非 sprite 位差）。迭代 61 实测：双侧 animBob
+          // 均 0、69 臂 (107,113±bob) 一致；真差异 = **对话相机 Y 目标**——
+          // Java camY 自 -50 缓动收敛 -82（cameraTarget=226，非 speaker
+          // boss py192/玩家 160，Rust 收敛 -48 且随页振荡）——floor35 对话
+          // 相机锁目标语义待考（a.java openDialogPage/lockCameraOn 链）。
 fn preset_floor35_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(
@@ -4155,10 +4158,11 @@ fn preset_floor35_frames_match() {
                 Some(sc) => sc.paint(&mut g, &tileset),
                 None => machine.paint(&mut g),
             }
-            if (499..=505).contains(&(rec.tick as i32)) || (256..=272).contains(&(rec.tick as i32)) {
+            if (296..=316).contains(&(rec.tick as i32)) {
                 if let Some(sc) = &scene {
-                    eprintln!("DBG T{} py={} sp={} wp={} ov={}", rec.tick,
-                        sc.view.player_py, sc.step_progress, sc.walk_phase, sc.overlay_active);
+                    eprintln!("DBG T{} mode={} cam=({},{}) dp={} script={} wp={}", rec.tick,
+                        sc.game_mode, sc.view.cam_x, sc.view.cam_y, sc.dialog_phase,
+                        sc.current_script_index, sc.walk_phase);
                 }
             }
             let frame_snap = if (300..=310).contains(&(rec.tick as i32))
