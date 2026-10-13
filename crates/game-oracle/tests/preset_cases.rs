@@ -4420,6 +4420,9 @@ fn preset_floor10_frames_match() {
 // **推进必须挂 paint 时点**（Rust 曾挂 tick → 同拍 advance_frames 多推一帧，
 // T924 src=45 vs Java src=0）。Java 锚：T302 script24 / T648 冻结 / T762
 // battle / T768 script36 / T904 关闭 / T907 wp=4 / T924 TAK 门开 / T930 门除。
+// 【迭代 76 挂起（T1-449 绿）】残余 413px 单点 = 太白金星（77，(8,9)）NPC
+// 形态：Java 白云形态 vs Rust 真身立绘（sptenemy2[16] 解码 PIL 对照零差
+// 异）——形态切换语义（anim/param/state 驱动）待专项。
 fn preset_floor46_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(
@@ -4526,6 +4529,7 @@ fn preset_floor46_frames_match() {
     machine.sptarm = load_container("sptarm", 10);
 
     let tileset = map[0].clone();
+    let mut out_state: Vec<String> = Vec::new();
     let mut screen = ArgbImage::create(game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
     let mut checked = 0usize;
     let mut scene: Option<GameScene> = None;
@@ -4869,6 +4873,15 @@ fn preset_floor42_frames_match() {
                 None => machine.paint(&mut g),
             }
             sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
+            if std::env::var("F46DUMP").is_ok() && rec.tick >= 340 && rec.tick <= 470 {
+                let mut ppm = format!("P6\n{} {}\n255\n", screen.width, screen.height).into_bytes();
+                for &p in &screen.argb {
+                    ppm.push(((p >> 16) & 0xFF) as u8);
+                    ppm.push(((p >> 8) & 0xFF) as u8);
+                    ppm.push(p as u8);
+                }
+                std::fs::write(format!("/tmp/f46rust-{:04}.ppm", rec.tick), &ppm).unwrap();
+            }
         }
         {
             if let Some(expect) = &rec.frame_sha {

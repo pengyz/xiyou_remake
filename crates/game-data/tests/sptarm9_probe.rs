@@ -16,11 +16,18 @@ fn ppm(path: &str, w: i32, h: i32, argb: &[u32]) {
 #[test]
 fn sptarm9_probe() {
     let data = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/raw/sptarm")).unwrap();
+    let data2 = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/raw/sptenemy2")).unwrap();
     let pack = PackedPng::parse(&data, 10).unwrap();
     // [8] = 79 乌金棍、[9] = 80 银缕锁甲（entityTypeImage 覆盖表同源）
     for (k, img) in pack.images.iter().enumerate().skip(8).take(2) {
         let d = decode_png(img.bytes).unwrap();
         println!("sub{}: {}x{} argb[0]={:#08x} argb[中心]={:#08x}", k, d.width, d.height, d.argb[0], d.argb[d.argb.len()/2 + d.width as usize/2]);
         ppm(&format!("/tmp/sptarm_rust_{}.ppm", k), d.width, d.height, &d.argb);
+    }
+    let pack2 = PackedPng::parse(&data2, 20).unwrap();
+    for (k, img) in pack2.images.iter().enumerate().skip(15).take(3) {
+        let d = decode_png(img.bytes).unwrap();
+        println!("sptenemy2 sub{}: {}x{}", k, d.width, d.height);
+        ppm(&format!("/tmp/sptenemy2_rust_{}.ppm", k), d.width, d.height, &d.argb);
     }
 }

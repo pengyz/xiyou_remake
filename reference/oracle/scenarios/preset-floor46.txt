@@ -17,8 +17,8 @@
 302 -1 release
 350 -1 press
 352 -1 release
-450 -5 press
-452 -5 release
+449 -5 press
+451 -5 release
 550 -7 press
 552 -7 release
 650 -7 press

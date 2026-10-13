@@ -3534,32 +3534,31 @@ impl GameScene {
                 }
                 _ => {}
             }
-            }
-            // a.java:7422-7436：**收尾块在 flags&2 门内**——flags=0（纯告示）
-            // 受领 = 无效果仅关浮层。
-            if purchase_ok {
-                if std::env::var("F46DBG").is_ok() {
-                    eprintln!("apply_offer tail: purchase_ok branch");
-                }
-                if flags & 4 == 0 {
-                    self.entities.param[self.merchant_entity as usize] ^= 512;
-                    if flags & 1 != 0 {
-                        self.offer_queue_push(src, (idx - 1) as i32);
-                        let text = if src == 0 {
-                            Self::OFFER_TEXTS_A[(idx - 1) as usize]
+                // a.java:7422-7436：**收尾块在 flags&2 门内**——flags&2=0
+                // 时整块跳过（无效果、浮层关、follow_up=false）。迭代 76：
+                // 此块曾误置门外致 flags=1 受领后 follow_up=true 浮层永开
+                // （floor46 T451 7868px 实证）。
+                if purchase_ok {
+                    if flags & 4 == 0 {
+                        self.entities.param[self.merchant_entity as usize] ^= 512;
+                        if flags & 1 != 0 {
+                            self.offer_queue_push(src, (idx - 1) as i32);
+                            let text = if src == 0 {
+                                Self::OFFER_TEXTS_A[(idx - 1) as usize]
+                            } else {
+                                Self::SIGN_TEXTS_B[(idx - 1) as usize]
+                            };
+                            self.show_overlay_message(4, text, 0, 0);
+                            follow_up = true;
                         } else {
-                            Self::SIGN_TEXTS_B[(idx - 1) as usize]
-                        };
-                        self.show_overlay_message(4, text, 0, 0);
-                        follow_up = true;
-                    } else {
-                        entity::remove(&mut self.entities, self.merchant_entity as usize);
-                        self.build_minimap();
+                            entity::remove(&mut self.entities, self.merchant_entity as usize);
+                            self.build_minimap();
+                        }
                     }
+                } else {
+                    // 购买失败（「没有足够的金钱」提示浮层已开）→ 浮层保持
+                    follow_up = true;
                 }
-            } else {
-                // 购买失败（「没有足够的金钱」提示浮层已开）→ 浮层保持
-                follow_up = true;
             }
         } else if flags & 2 == 0 && flags & 1 != 0 {
             // 拒绝路径（a.java:7453-7460）：^256（非 ^512）+ 非一次性则移除
@@ -3650,6 +3649,9 @@ impl GameScene {
         // 其余键吞掉）；其余情况 handleOverlayKey（a.java:4923-4931：任意
         // 非翻页键关层）。**walkPhase 状态机与 m_055 冻结**。
         if self.overlay_active {
+            if std::env::var("F46DBG").is_ok() {
+                eprintln!("ov-dispatch fc={} key={} kind={}", self.frame_counter, self.key_value, self.overlay_kind);
+            }
             if self.overlay_kind == 4 {
                 // 商人/告示牌（overlay 分派 case4，a.java:3305-3320）：-6/-5=
                 // applyMerchantOffer(true)，-7=(false)，-2/-1 翻页，其余关闭
