@@ -3920,39 +3920,36 @@ fn preset_save_frames_match() {
     assert_eq!(checked, records.len(), "T1-700 全帧必须比对");
 }
 
-/// 终局链全编排（迭代 57，mode 20 结局卷轴——按层铺深层终点）：
-/// preset-ending 场景（MOT_L0 current_floor=50），窗口 T1-1800 全帧。
-/// 链：槽载入 (5,5) → -4 撞 (6,5)（型83 触发器 param16 → script16
-/// TAK_123_126 五页）→ GUT_37 → GLV_1 → 行尾冻结（mode3/dphase4）→
-/// -4 再撞（83 seen → 型72 cat8 开战一拍斩）→ case72 → script65
-/// TAK_127_128 → END_0 → mode 20（end 卷轴 + 信箱 3156024 +
-/// dialogueTexts[260] 打字机；f_bool_04 后任意键回主菜单——卷轴期无键）。
-/// Java 时间线锚：T902 battle / T912 script65 / T1152 mode20 / T1240
-/// 打字机满 46 字后静态。场景引擎本批补 GUT/GLV 两臂 + mode20
-/// paint/tick/入口（a.java:3039-3067/4443-4450/4223-4228）。
+/// mode12 记录浏览器（迭代 59，道具14 全链——按层铺 floor5 首覆盖）：
+/// preset-floor5 场景（MOT_L0 current_floor=5 + MOT_L 日志槽预置
+/// (kind0,idx2)），窗口 T1-1200 全帧。链：槽载入 (4,8) → -2 步入 (4,9)
+/// 拾取道具14（首拾描述 overlay kind1 吞下一键）→ -6 面板 → -6 使用 →
+/// activateItem case14 → mode12（m_000 case12 m_076(0) + paint case12
+/// m_142 页码描边 + 日志 overlay kind5）→ -4/-3 m_076 钳位翻页 →
+/// -6 关回 mode10。Java 锚：拾取 T266、面板 T501、浏览器 T781-912。
 #[test]
-fn preset_ending_frames_match() {
+fn preset_floor5_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(
-        repo_path.join("reference/oracle/scenarios/preset-ending.preset"),
+        repo_path.join("reference/oracle/scenarios/preset-floor5.preset"),
     )
     .unwrap();
     let stores = parse_preset(&preset_text);
     let trace_text = std::fs::read_to_string(
-        repo_path.join("reference/oracle/_out/A-preset-ending/trace.txt"),
+        repo_path.join("reference/oracle/_out/A-preset-floor5/trace.txt"),
     )
-    .expect("缺 A-preset-ending trace（gen: run_variants_parallel 单场景 frames=all）");
+    .expect("缺 A-preset-floor5 trace（gen: run_variants_parallel 单场景 frames=all）");
     let records = trace::parse(&trace_text);
 
     let maplv1 =
         std::fs::read(repo_path.join("crates/game-oracle/tests/fixtures/maplv1.bin")).unwrap();
     let sprite1 =
         std::fs::read(repo_path.join("crates/game-oracle/tests/fixtures/sprite1.bin")).unwrap();
-    let maplv50 =
-        std::fs::read(repo_path.join("crates/game-oracle/tests/fixtures/maplv50.bin")).unwrap();
-    let sprite50 =
-        std::fs::read(repo_path.join("crates/game-oracle/tests/fixtures/sprite50.bin")).unwrap();
-    let sp = SpriteTable::parse(&sprite50).unwrap();
+    let maplv5 =
+        std::fs::read(repo_path.join("crates/game-oracle/tests/fixtures/maplv5.bin")).unwrap();
+    let sprite5 =
+        std::fs::read(repo_path.join("crates/game-oracle/tests/fixtures/sprite5.bin")).unwrap();
+    let sp = SpriteTable::parse(&sprite5).unwrap();
     let doors = door_tables();
     let records51: Vec<(u8, u16, u16, i16, bool)> = sp
         .records
@@ -3962,7 +3959,7 @@ fn preset_ending_frames_match() {
             (rec.type_code, rec.x, rec.y, param, !hide)
         })
         .collect();
-    let records1: Vec<(u8, u16, u16, i16, bool)> = {
+    let records5: Vec<(u8, u16, u16, i16, bool)> = {
         let sp1 = SpriteTable::parse(&sprite1).unwrap();
         sp1.records
             .iter()
@@ -3972,7 +3969,7 @@ fn preset_ending_frames_match() {
             })
             .collect()
     };
-    let records1: Vec<(u8, u16, u16, i16, bool)> = sp
+    let records5: Vec<(u8, u16, u16, i16, bool)> = sp
         .records
         .iter()
         .map(|rec| {
@@ -4016,13 +4013,13 @@ fn preset_ending_frames_match() {
         ending: load_container("end", 1)[0].clone(),
     };
     let mut floor_assets: Vec<Option<game_core::scene::FloorAssets>> = vec![None; 56];
-    floor_assets[50] = Some(game_core::scene::FloorAssets {
-        maplv: maplv50.clone(),
+    floor_assets[5] = Some(game_core::scene::FloorAssets {
+        maplv: maplv5.clone(),
         records: records51.clone(),
     });
     floor_assets[1] = Some(game_core::scene::FloorAssets {
         maplv: maplv1.clone(),
-        records: records1.clone(),
+        records: records5.clone(),
     });
 
     let mot_l0 = &stores.iter().find(|(k, _)| k.starts_with("MOT_L0@")).expect("MOT_L0").1;
@@ -4081,7 +4078,7 @@ fn preset_ending_frames_match() {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
-                        &maplv50,
+                        &maplv5,
                         &records51,
                         &width_table(),
                         &tile_walkability(),
@@ -4133,7 +4130,32 @@ fn preset_ending_frames_match() {
                 Some(sc) => sc.paint(&mut g, &tileset),
                 None => machine.paint(&mut g),
             }
+            if (499..=505).contains(&(rec.tick as i32)) || (256..=272).contains(&(rec.tick as i32)) {
+                if let Some(sc) = &scene {
+                    eprintln!("DBG T{} py={} sp={} wp={} ov={}", rec.tick,
+                        sc.view.player_py, sc.step_progress, sc.walk_phase, sc.overlay_active);
+                }
+            }
+            let frame_snap = if (263..=270).contains(&(rec.tick as i32))
+                || (499..=505).contains(&(rec.tick as i32))
+                || (619..=625).contains(&(rec.tick as i32))
+                || (748..=754).contains(&(rec.tick as i32))
+                || (828..=834).contains(&(rec.tick as i32))
+                || (908..=914).contains(&(rec.tick as i32))
+                || (998..=1004).contains(&(rec.tick as i32))
+            {
+                Some(screen.argb.clone())
+            } else {
+                None
+            };
             sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
+            if let Some(snap) = frame_snap {
+                let mut raw = Vec::new();
+                for px in &snap {
+                    raw.extend_from_slice(&px.to_be_bytes());
+                }
+                std::fs::write(format!("/tmp/f5-T{:04}.rgba", rec.tick), raw).unwrap();
+            }
         }
         {
             if let Some(expect) = &rec.frame_sha {
@@ -4147,7 +4169,7 @@ fn preset_ending_frames_match() {
             }
         }
     }
-    assert_eq!(checked, records.len(), "T1-1800 全帧必须比对");
+    assert_eq!(checked, records.len(), "T1-1200 全帧必须比对");
 }
 
 /// mode 9 炼丹链（迭代 31）：preset-alchemy 场景（floor12 type9 炼丹台

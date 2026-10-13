@@ -1,0 +1,29 @@
+# ticks: 1200
+# preset: preset-floor5.preset
+# cover: mode12 记录浏览器（迭代 59，道具14 全链）：槽载入 floor5 (4,8) →
+#   -2 步入 (4,9) 拾取道具14（首拾描述 overlay kind1）→ -6 吞键关描述 →
+#   -6 面板 → -6 使用 → mode12（paint case12 m_142 页码描边 + 日志
+#   overlay kind5 文本）→ -4/-3 m_076 翻页（总条数 1 双向钳位回绕）→
+#   -6 关回 mode10
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+260 -2 press
+262 -2 release
+380 -6 press
+382 -6 release
+500 -6 press
+502 -6 release
+620 -6 press
+622 -6 release
+750 -4 press
+752 -4 release
+830 -3 press
+832 -3 release
+910 -6 press
+912 -6 release

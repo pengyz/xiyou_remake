@@ -382,6 +382,13 @@ pub struct GameScene {
     pub game_mode: i32,
     /// dialogPhase：0 脚本步进 / 1 TAK 打字 / 2 实体路径 / 3 脚本行走 / 4 等相机 / 6 SEE 打字
     pub dialog_phase: i32,
+    /// mode12 日志浏览（f_int_90 页 + f_String_04 页码指示 + 日志对）
+    pub record_page: i32,
+    /// f_String_arr_06/09（a.java:823/887 init 常量；fixtures 迭代 59）
+    pub record_text_a: Vec<String>,
+    pub record_text_b: Vec<String>,
+    pub page_indicator: String,
+    pub journal: Vec<(i32, i32)>,
     /// mode20 结局卷轴状态（Java f_int_22/f_int_23/f_bool_04——m_000 case20
     /// **不重置**，场景构造期零值即 Java 新运行初值）。
     pub ending_scroll: i32,
@@ -561,6 +568,7 @@ pub fn load_floor_from_save(
     scene.player.blue_keys = save.blue_keys as i32;
     scene.player.red_keys = save.red_keys as i32;
     scene.player.gold = save.gold;
+    scene.journal = save.journal.iter().map(|(k, i)| (*k as i32, *i as i32)).collect();
     scene.player.item_stack_size = save.item_stack_size as i32;
     scene.alchemy_upgrade_count = save.alchemy_upgrades as i32; // a.java:9281 链（loadFloorSave 应用）
     for k in 0..save.item_stack_size as usize {
@@ -729,6 +737,17 @@ impl GameScene {
             overlay_item_name: None,
             game_mode: 3,
             dialog_phase: 0,
+            record_page: 0,
+            record_text_a: include_str!("../tests/fixtures/record_texts_a.txt")
+                .lines()
+                .map(|l| l.replace("\\n", "\n"))
+                .collect(),
+            record_text_b: include_str!("../tests/fixtures/record_texts_b.txt")
+                .lines()
+                .map(|l| l.replace("\\n", "\n"))
+                .collect(),
+            page_indicator: String::new(),
+            journal: Vec::new(),
             ending_scroll: 0,
             ending_anim: 0,
             ending_done: false,
@@ -2158,8 +2177,11 @@ impl GameScene {
                 false
             }
             14 => {
-                // a.java:7789-7791：gameMode=12（m_000 case12 落穿 default）
+                // a.java:7789-7791：gameMode=12 + m_000 case12（a.java:4386-4388：
+                // m_076(0) + softkeyRightKind=3）
                 self.game_mode = 12;
+                self.open_record_page(0);
+                self.softkeys.1 = 3;
                 false
             }
             16 | 17 => {
@@ -2360,7 +2382,9 @@ impl GameScene {
     /// useItemStack（a.java:7761-7781）：uses>0 → activate，消耗且减至 0
     /// 时栈压实（后项前移 + size--）；uses==0 → 仅 activate 不消耗。
     fn use_item_stack(&mut self, idx: usize) {
-        if self.player.item_uses[idx] > 0 {
+        // itemStackUses = **有符号 byte**（a.java:7762）：-1 = 无限次（走
+        // else 无条件 activate 不计数）——u8 直读会把 -1 读成 255 误计数。
+        if (self.player.item_uses[idx] as i8) > 0 {
             let consumed = self.activate_item(self.player.item_types[idx] as i32);
             if consumed {
                 self.player.item_uses[idx] -= 1;
@@ -2445,7 +2469,7 @@ impl GameScene {
                     if let Some(Some(img)) = self.images.entity.get(t) {
                         g.draw_image(img, x + ((32 - img.width) >> 1), y + ((32 - img.height) >> 1), 0);
                     }
-                    if self.player.item_uses[grid as usize] > 0 {
+                    if (self.player.item_uses[grid as usize] as i8) > 0 {
                         crate::menu_family::paint_number(
                             g,
                             &self.images.ui[2],
@@ -3359,15 +3383,19 @@ impl GameScene {
                     _ => self.overlay_active = false,
                 }
             } else if self.overlay_kind == 5 {
-                // 报价浏览（overlay 分派 case5，a.java:3325-3334）：-3/-4 游标、
-                // -5/-6/-7 关浮层回 mode10
+                // mode12 日志浏览（overlay 分派 case5，a.java:3325-3344）：
+                // -3/-4 = m_076 翻页、-2/-1 = 长文滚动、-5/-6/-7 关回 mode10。
+                // （迭代 59 纠偏：本臂曾被误挂商人报价 seek——商人 quote 实为
+                // kind4（a.java:7442），merchant 场景亦无 -3/-4 按键。）
                 match self.key_value {
-                    -3 => self.offer_queue_seek(self.offer_queue_cursor - 1),
-                    -4 => self.offer_queue_seek(self.offer_queue_cursor + 1),
-                    -5 | -6 | -7 => {
+                    -7 | -6 | -5 => {
                         self.overlay_active = false;
                         self.game_mode = 10;
                     }
+                    -4 => self.open_record_page(self.record_page + 1),
+                    -3 => self.open_record_page(self.record_page - 1),
+                    -2 => self.flip_overlay_page(self.overlay_page_top + 1),
+                    -1 => self.flip_overlay_page(self.overlay_page_top - 1),
                     _ => {}
                 }
             } else if self.overlay_kind == 0 && (self.game_mode == 15 || self.game_mode == 17) {
@@ -4350,6 +4378,8 @@ impl GameScene {
     }
 
     fn pickup_item_type(&mut self, t: i32) {
+        // a.java:7596 附近拾取链：f_byte_07 = 道具类型（描述 overlay 的图标/名）
+        self.overlay_kind_item = t;
         // 描述表（itemDescriptions a.java:906 / equipDescriptions a.java:930——
         // 全量入库 reference；此处取用句柄）
         match t {
@@ -4564,6 +4594,10 @@ impl GameScene {
         }
         if self.game_mode == 20 {
             self.paint_ending(g);
+            return;
+        }
+        if self.game_mode == 12 {
+            self.paint_mode12(g);
             return;
         }
         if self.game_mode == 11 {
@@ -5070,6 +5104,77 @@ impl GameScene {
         g.draw_image(&img, -self.ending_scroll, var37, 0);
         g.set_color(0xFFFF_FFFF);
         self.paint_wrapped_text(g, 15, SCREEN_H - font.height - 10, 210, font.height + 10, false);
+    }
+
+    /// m_076（a.java:7480-7503）：日志页钳位翻转 + kind 选表 + 页码指示。
+    /// kind=0 → f_String_arr_06，其余 → f_String_arr_09；总条数 0 →
+    /// "没有记录" 回 mode10。
+    fn open_record_page(&mut self, page: i32) {
+        let total = self.journal.len() as i32;
+        if total > 0 {
+            self.record_page = if page < 0 {
+                total - 1
+            } else if page >= total {
+                0
+            } else {
+                page
+            };
+            let (kind, idx) = self.journal[self.record_page as usize];
+            let text = if kind == 0 {
+                self.record_text_a.get(idx as usize).cloned().unwrap_or_default()
+            } else {
+                self.record_text_b.get(idx as usize).cloned().unwrap_or_default()
+            };
+            self.show_overlay_message(5, &text, 0, 3);
+            self.page_indicator = format!("{} / {}", self.record_page + 1, total);
+        } else {
+            self.show_overlay_message(0, "没有记录", 0, 3);
+            self.game_mode = 10;
+        }
+    }
+
+    /// paint case 12（a.java:2866-2880）：视差 + 页码描边指示 + 双箭头
+    /// （左 transform 镜像 60−bob / 右 160+bob）+ 软键条。
+    fn paint_mode12(&mut self, g: &mut SoftGraphics<'_>) {
+        self.paint_parallax(g, false);
+        let var46 = SCREEN_H - crate::paint::paint_font().height - 4;
+        let indicator = self.page_indicator.clone();
+        self.draw_shadow_text(g, &indicator, 120, var46 + 2, 4202520, 0xFFFF_FFFFu32 as i32);
+        let arrow_y = var46 + (crate::paint::paint_font().height + 4 - 13) >> 1;
+        let arrow = self.images.ui[14].clone();
+        let bob = self.bob_offset;
+        if self.record_page > 0 {
+            g.draw_image_transformed(&arrow, 60 - bob, arrow_y, 0, 1);
+        }
+        if self.record_page < self.journal.len() as i32 - 1 {
+            g.draw_image(&arrow, 160 + bob, arrow_y, 0);
+        }
+        m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
+        // 公共尾 overlay 框（paintOverlayBox）：日志文本 kind5 框在指示/箭头之上
+        self.paint_overlay_box(g);
+    }
+
+    /// m_142（a.java:10221-10236）：8 向 ±1 暗色描边 + 主色居中
+    /// （anchor 17 = HCENTER|BASELINE；坐标按反编译的绕圈次序）。
+    fn draw_shadow_text(&mut self, g: &mut SoftGraphics<'_>, text: &str, cx: i32, cy: i32, shadow: i32, main: i32) {
+        let codes: Vec<u16> = text.encode_utf16().collect();
+        let mut x = cx - 1;
+        let mut y = cy - 1;
+        g.set_color(shadow as u32);
+        // 初始点 (cx-1, cy-1) 先画（Java var2--/var3-- 后立即首画），
+        // 再按反编译绕圈次序走完 8 邻域
+        g.draw_string(&codes, x, y, 17);
+        // Java 序：右移画、右移画、**下移画**（(cx+1,cy-1) 与 (cx+1,cy)
+        // 各一画）——非斜跳；8 邻域全覆盖后主色居中
+        for (dx, dy) in [(1, 0), (1, 0), (0, 1), (0, 1), (-1, 0), (-1, 0), (0, -1)] {
+            x += dx;
+            y += dy;
+            g.draw_string(&codes, x, y, 17);
+        }
+        // 末次 var2++（a.java:10233）：主色落位 = 居中点 (cx, cy)
+        x += 1;
+        g.set_color(main as u32);
+        g.draw_string(&codes, x, y, 17);
     }
 
     fn paint_dialog(&mut self, g: &mut SoftGraphics<'_>, tileset: &ArgbImage) {

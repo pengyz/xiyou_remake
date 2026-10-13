@@ -306,6 +306,22 @@
    Rust 7 拍，itemboss40 同机制全绿 ⇒ 差异在 dp4 冻结态开战路径）。
    教训入册：先插方法后全局替换 ⇒ 委托变自递归（TCO 静默死循环 48min，
    gotcha_global-replace-hits-newly-added-method）。 |
+   **迭代 59 实现收口（mode12 L3）**：preset_floor5 T1-1200 全帧一致。
+   ① save.rs：MOT_L 日志槽（f_int_89 对 = f_byte_arr_14/15）解析入
+   FloorSave.journal（原 skip）；② 场景五件套：activate_item case14
+   （game_mode=12 + open_record_page(0) + 软键右3）、open_record_page
+   （m_076 钳位翻页 + kind 选表 + 页码指示）、paint_mode12（视差 +
+   m_142 指示 + 双箭头 + 软键 + **公共尾 overlay 框**）、draw_shadow_text
+   （m_142 8+1 描边：绕圈次序 7 步 delta + 末次 var2++ 主色落位居中点——
+   68px 色反转定位）、overlay kind5 臂归位（-3/-4 翻页/-2/-1 滚动/
+   -5/-6/-7 关回 mode10；商人报价浏览实为 kind4，merchant 场景无
+   -3/-4 按键故重挂安全）；③ 拾取链 overlay_kind_item 补设（描述框
+   图标 515px 缺失定位）；④ **itemStackUses 有符号 byte 语义**：
+   -1=无限次（useItemStack else 无条件 activate 不计数 + 面板不画次数）
+   ——u8 直读曾把 -1 读成 255 画出次数（T501 132px）。碰到的新坑：
+   mot_if 元组 s[2]=武器类型（f_byte_arr_25，equipmentMaterialNames[-28]
+   崩溃实证——负索引无钳位）；首拾描述 overlay 吞下一键（-6@380 被吞
+   实证）。 |
    **迭代 58 收口（终局链 L3，mode20 摘挂）**：真根因 = 击杀动画完成臂的
    **类型钩子（a.java:10110-10145）未实现**——动画完成后 Rust 无 case72
    分支（script 停在 37、restep 滑入空格），"T908 战斗节拍差 11 拍 vs 7 拍"
@@ -362,7 +378,8 @@
 | 9 | 炼丹/加点 | ✅（迭代 31 实现 / 33 L3 收敛——本行 2026-10-12 二次校准时漏更正，迭代 37 补正） | L3 | scenario:`preset-alchemy.txt` T1-700 全帧（三连购 + 不足浮层） |
 | 10 | 道具面板 | ✅ | L3 | scenario:`preset-item13.txt` |
 | 11 | 对话/剧情层 | ✅（scene script/mode11 + BootMachine 新游戏链） | L3 | scenario:`prologue-dialog.txt`——迭代 37 起 Rust **全流程 T1-9800**（preset_cases::prologue，冷启动移交 + type83→script40 + 打字机/游标/翻页/电影镜头）；旧冷场景窗口版退役 |
-| 12/13 | 过渡（B 级语义） | ❌ | — | |
+| 12 | 道具14 记录浏览器 | ✅（迭代 59：activate_item case14 + m_076 + paint case12 + m_142 描边文字 + 日志槽解析） | L3 | scenario:`preset-floor5.txt`——Rust **T1-1200 全帧**（拾取道具14@floor5(4,9)→面板→使用→mode12 翻页/关闭） |
+| 13 | 过渡（B 级语义） | ❌ | — | |
 | 14 | 新游戏引子插画 | ✅ BootMachine | L3 | scenario:`enter-game.txt` |
 | 15 | 帮助浮层 | ✅ | L3 | scenario:`preset-help.txt` T450-700 |
 | 16 | 设置 | ✅ | L3 | scenario:`preset-load-menu.txt` |
@@ -381,8 +398,8 @@ L2* = Java 三方对拍绿但 Rust 侧未建用例（覆盖声明的过渡态）
 - DSL 15 码：TAK/CES/MOV/DES/GIN/LAY/ROS/RES/GUT/SEE/END/GLV/SMS/SWD/ADD。
   已在 Java 侧验证 trace 中出现（prologue/gameplay 系列）；**Rust 解释器覆盖
   以 game-core script 引擎对拍为准——逐码登记待迭代 29+ 细化**。
-- 楼层：**L3 对拍达成 6/55（floor1、2、12〔炼丹，迭代 31——本行
-  2026-10-13 前漏更正〕、40〔boss 击杀链，迭代 43-55〕、50〔迭代 56〕、
+- 楼层：**L3 对拍达成 7/55（floor1、2、5〔道具14/mode12，迭代 59〕、
+  12〔炼丹，迭代 31〕、40〔boss 击杀链，迭代 43-55〕、50〔迭代 56〕、
   51）**——floor51 于迭代 30 全帧收敛（迭代 29 曾暴露 ROS todo 与打字机
   限量布局转义偏差两处真实缺口，按层铺路线连续逼出真实缺口的实例）；
   floor50 直达 T1-300 全帧（迭代 56，maplv50/sprite50 首覆盖 + 首例

@@ -44,6 +44,8 @@ pub struct FloorSave {
     pub red_keys: i16,
     pub gold: i32,
     pub alchemy_upgrades: i16,
+    /// mode12 日志（f_byte_arr_14/15 对，a.java:9207-9211 写 / 9278-9281 读）
+    pub journal: Vec<(u8, u8)>,
     /// 道具栈（itemStackSize + 类型/次数对）
     pub item_stack_size: u8,
     pub item_stack_types: Vec<u8>,
@@ -113,12 +115,15 @@ pub fn parse_floor_save(data: &[u8], script_line_count: usize) -> Result<FloorSa
     s.red_keys = c.i16();
     s.gold = c.i32();
     s.alchemy_upgrades = c.i16();
-    // f_int_89 跟随对
+    // f_int_89 跟随对 = mode12 日志（kind, idx）
     let n_follow = c.i16();
     if n_follow < 0 {
         return Err("negative follow count".into());
     }
-    c.skip(n_follow as usize * 2);
+    let mut journal = Vec::with_capacity(n_follow as usize);
+    for _ in 0..n_follow {
+        journal.push((c.u8(), c.u8()));
+    }
     // scriptLineFlags + skip 至 128 字节
     c.skip(script_line_count);
     if script_line_count < 128 {
@@ -126,6 +131,7 @@ pub fn parse_floor_save(data: &[u8], script_line_count: usize) -> Result<FloorSa
     }
     // 道具栏
     let stack = c.u8() as usize;
+    s.journal = journal;
     s.item_stack_size = stack as u8;
     s.item_stack_types = Vec::with_capacity(stack);
     s.item_stack_uses = Vec::with_capacity(stack);
