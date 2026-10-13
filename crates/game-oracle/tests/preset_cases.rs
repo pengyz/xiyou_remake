@@ -3951,9 +3951,9 @@ fn preset_save_frames_match() {
 #[ignore] // 迭代 60-63：链体已对齐至 T923（对话五页交替锁 boss px+32/玩家、
           // 击杀链、case69→event[7]+script36、lockCameraOn 型69 X+=32 规则补齐）。
           // 相机 Y 收尾已对齐（-66 稳定位=walk 边缘跟随）。剩余 T924 起 =
-          // **封门实体消失差**：Java 于玩家踏 (4,7) 后移除封门 (5,3)
-          // （露出墙体；移除路径待考——非 bump/非 seen skip），Rust 未实现
-          // 该移除 ⇒ 门残留 1198px。
+          // **封门实体 anim_idx=6/frame=1**（开门动画第 2 格 src=45）vs
+          // Java row0/frame0（src=0 密封画）⇒ 1198px。anim_idx=6 赋值点
+          // 待考（open_group 臂 / remove 8|16|32 臂）。
 fn preset_floor35_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(
