@@ -6,6 +6,7 @@
 
 ## Gotchas
 
+- [全局替换命中刚插入的方法体](gotcha_global-replace-hits-newly-added-method.md) — 先插后换使新方法委托变自递归，尾位置 TCO 成 100% CPU 静默死循环；替换前逐处核对命中上下文
 - [并行批共享 preset 参数](gotcha_parallel-batch-shared-preset-param.md) — run_variants_parallel 的 preset 是批级参数，混批逐场景预置会静默丢失；指纹=带 preset 场景全分歧、无 preset 全吻合
 - [javac 解析期掩蔽](gotcha_javac-parse-phase-masking.md) — 语法错挡住全部类型错误（实测"2 错"实为 4797）；计数必须 -Xmaxerrs 全量
 - [docs-links 门禁扫描范围](gotcha_docs-links-gate-scan-scope.md) — 硬编码目录清单会漏检未列入的文档断链，应改用 git ls-files 全量扫描
