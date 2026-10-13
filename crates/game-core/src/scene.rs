@@ -4774,9 +4774,9 @@ impl GameScene {
                         let cx_off = (CELL_PX - w) >> 1;
                         match self.entity_category(t) {
                             1 => {
-                                if t == 4 && std::env::var("F35DBG").is_ok() {
-                                    eprintln!("F35DBG door sx={} cx_off={} w={} h={} frame_off={} anim={} frame={} raw={}",
-                                        sx, cx_off, w, h, frame_off, anim, frame, ANIM_OFFSET_TABLE[anim][frame as usize]);
+                                if t == 4 && anim == 6 && std::env::var("F35DBG").is_ok() {
+                                    eprintln!("F35DBG fc={} door anim=6 frame={} frame_off={} state={}",
+                                        self.frame_counter, frame, frame_off, state);
                                 }
                                 if t == 6 {
                                     sy += 5 - bob;
