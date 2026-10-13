@@ -346,6 +346,19 @@
    （anim_idx=6/frame=1/solid=1 vs Java row0/frame0/solid=0）——赋值点 =
    **m_089 的 4 实体 markRemoved 方法**（a.java:7892-7919，var4-7 齐
    markRemoved 即 return true；触发链待考）。
+   【2026-10-12 更正（迭代 64 终）】上记 m_089 定性**证伪撤回**——
+   m_089（activateItem case 16/17 邻格门控）与本差异无关。真机制 =
+   **paintTileLayer 头段的 walkPhase=4 组开门动画**（a.java:6990-7015）：
+   对话关闭（T903 mode3）后脚本行走末步踏上 (4,6) **型76 组门踏板**
+   （applyStepCellEffects case 76，a.java:5655-5705：param+1 组号 →
+   f_short_arr_03 记录同组型4 封门 + wp=4，Rust 臂 scene.rs apply_step_
+   cell_effects 早已实现）；wp4 期 tile 层 f_int_54 ±2 交替（Y=20±2），
+   **每 paint 推进**计数 f_int_55：cnt=18 → 门 entityAnimRow=6/entity
+   State=1（切 sptmap[12] opened_door，T924/926/928 = 帧 0/1/2，A 侧
+   stride=1 trace OPS sx=0/45/90 实证）；cnt=24 → removeGroupAtCellBy
+   Type(4)（T930 门除，**重置拍 tile 偏移仍取 20+bob=18**——a.java:7015
+   `var2 = 20+f_int_54` 在 wp 清零后于块内计算）。逐拍锚（A35s1
+   stride=1）：T907 wp=4/cnt=1、T924 cnt=18、T930 wp=0/cnt=0。
    **迭代 63 终勘误（67137f1 后续）**：门"移除"定性撤回——T924 起真
    差异 = **walkPhase4 tile bob 相位差**（双侧均进 wp4=tile24 震动砖
    态，Java tile 层 Y ±2 交替 setClip y 16/20 实证，Rust wp4 进入晚
@@ -353,7 +366,17 @@
    Java 于 T903 翻转（相机未到位即翻转），Rust 于 ~913（收敛后）——
    **Java 对话期 cameraX 恒 128（=玩家 px，未向 boss px+32 缓动）**与
    a.java:8668 的 +32 规则矛盾——lockCameraOn 调用链专项（下一迭代
-   首项）。 |
+   首项）。
+   【2026-10-12 更正（迭代 64 终）】上记两处定性**证伪撤回**：①
+   "tile24 震动砖"——wp4 触发者是 (4,6) 的**型76 组门踏板**（非 tile24
+   震动砖机制，tile 层 ±2 是 paintTileLayer 对 wp4 的遮幅表现）；②
+   "mode11→3 翻转时机差"——stride=1 取证双侧 mode3 均 T903，翻转
+   无差。真差异即上条更正所述 **wp4 推进的 paint/tick 挂点错位**：
+   Java 在 paintTileLayer（paint 时点）推进，Rust 原挂在 tick 尾且先于
+   advance_frames ⇒ 同拍门被多推一帧（T924 Rust src=45 vs Java src=0）
+   + 重置拍 tile 偏移 20 vs 18（T930 一像素差）。修复：推进挪
+   paint_tile_layer 头段（advance_open_group_paint，paint case 3/9/11
+   三挂点），重置拍返回 bob。 |
    **迭代 59 实现收口（mode12 L3）**：preset_floor5 T1-1200 全帧一致。
    ① save.rs：MOT_L 日志槽（f_int_89 对 = f_byte_arr_14/15）解析入
    FloorSave.journal（原 skip）；② 场景五件套：activate_item case14
@@ -446,8 +469,9 @@ L2* = Java 三方对拍绿但 Rust 侧未建用例（覆盖声明的过渡态）
 - DSL 15 码：TAK/CES/MOV/DES/GIN/LAY/ROS/RES/GUT/SEE/END/GLV/SMS/SWD/ADD。
   已在 Java 侧验证 trace 中出现（prologue/gameplay 系列）；**Rust 解释器覆盖
   以 game-core script 引擎对拍为准——逐码登记待迭代 29+ 细化**。
-- 楼层：**L3 对拍达成 7/55（floor1、2、5〔道具14/mode12，迭代 59〕、
-  12〔炼丹，迭代 31〕、40〔boss 击杀链，迭代 43-55〕、50〔迭代 56〕、
+- 楼层：**L3 对拍达成 8/55（floor1、2、5〔道具14/mode12，迭代 59〕、
+  12〔炼丹，迭代 31〕、35〔深 boss 层+case69 钩子+wp4 组开门动画，
+  迭代 60-64，T1-1200 全帧〕、40〔boss 击杀链，迭代 43-55〕、50〔迭代 56〕、
   51）**——floor51 于迭代 30 全帧收敛（迭代 29 曾暴露 ROS todo 与打字机
   限量布局转义偏差两处真实缺口，按层铺路线连续逼出真实缺口的实例）；
   floor50 直达 T1-300 全帧（迭代 56，maplv50/sprite50 首覆盖 + 首例

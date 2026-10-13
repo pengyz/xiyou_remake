@@ -28,6 +28,7 @@
 
 - [同名重载消歧用 renamed javap](debug_renamed-javap-disambiguates-overloads.md) — CFR 文本的重载同名无法 grep 消歧；对 renamed class 跑 javap，`getfield #NNN` 一条定案
 - [帧残差收敛用 op 逐行对拍](debug_op-stream-diff-convergence.md) — g.ops 前 256 条 vs trace OPS 块 diff，一次定位全部移植笔误；flushOps 块内 256 条上限（count=N 是全量）
+- [oracle trace 相位模型](debug_oracle-trace-phase-model.md) — dump@tickN=post-paint；paint 消费同拍 mode-logic；Rust tick_N(fc=N-1)→paint_N 等价；paint 期推进不得挪 tick
 
 ## Decisions
 
