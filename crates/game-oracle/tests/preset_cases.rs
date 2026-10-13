@@ -4896,9 +4896,9 @@ fn preset_floor42_frames_match() {
 /// T904 关闭静态。
 #[test]
 #[ignore] // 迭代 71 挂起（T1-1204 绿）：残余 413px 两子点——① 状态栏
-          // 甲槽：Java 画 entity[80] 图标、Rust 画"无"白字（paint_hud
-          // 图标分支未生效原因待查）；② 描述盒文本尾 105px（"别人穿过"
-          // 行，layout 差）。m_083 先减后比/装备盒双参已修。
+          // 甲槽图标**颜色错误**（sptarm[9] 17×22 已绘制但解码色疑失真，
+          // bitdepth-4 调色板 PNG，对照 PIL pending）；② 描述盒文本尾
+          // 105px。m_083 先减后比/装备盒双参/槽图标移植已修。
 fn preset_floor43_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(

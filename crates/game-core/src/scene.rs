@@ -5501,6 +5501,9 @@ impl GameScene {
         let mut slot_x = bar_x + 60;
         for equipped in [self.equipped_weapon, self.equipped_armor] {
             paint_mini_frame(g, slot_x, slot_y, HUD_SLOT_SIZE, HUD_SLOT_SIZE);
+            if std::env::var("F46DBG").is_ok() {
+                eprintln!("equip_slot equipped={} img={:?}", equipped, self.images.entity.get(equipped as usize).and_then(|o| o.as_ref()).map(|i| (i.width, i.height)));
+            }
             if equipped == 0 {
                 let none: Vec<u16> = "无".encode_utf16().collect();
                 let cw = font.char_width(none[0]);
