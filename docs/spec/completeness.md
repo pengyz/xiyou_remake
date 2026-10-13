@@ -315,6 +315,20 @@
    新战斗改写 target，Java 同序）；m_100 = entity_at_cell 辅助。摘除
    #[ignore]：preset_ending T1-1800 全帧一致，**mode 20 L3 达成（L2\*
    过渡类消灭）**，全套 126 通过 0 失败。 |
+   **迭代 59 考古预登记（mode 12 = 下一实现目标）**：mode 12 = **道具 14
+   记录浏览器**，可达性实锤——全 55 层 sprite 扫描：type14 实体唯一
+   @floor5 (4,9)（55 层无缺文件，sprite55 不存在=该层无 sprite 数据）。
+   语义：activateItem case14（a.java:7790 gameMode=12+m_000）→ m_000
+   case12 = m_076(0)+softkeyRight=3（a.java:4386-4388）；m_076（7480-7503）
+   = f_int_89 总条数钳位翻页 + f_byte_arr_14[kind]/15[idx] 选
+   f_String_arr_06/09 文本 → showOverlayMessage(kind5) + f_String_04=
+   "n / N"；键控走 overlay-kind5 分派（a.java:3325-3334：-3/-4 翻页、
+   -5/-6/-7 关回 mode10）；paint case12（2866-2880）= backdrop(false)+
+   m_142 页码指示 + 双箭头（f_int_90 钳位 paint [8][14] bob 摆动）+
+   softkeyBar。**待查**：f_int_89/f_byte_arr_14/15/06/09 数据表装载点
+   （游戏 init 还是 m_000 之外）+ m_142 文本渲染。另：台账 mode18 行
+   陈旧——粒子系统 Rust 已实现（title::Particles，boot_menu T1-150
+   粒子窗全帧绿 + intro case14），行更正待下迭代补证。 |
 
 口径教训：名字/行号自动匹配只能出候选名单，分子终审必须人工（本轮抽样 7/7
 候选"未移植"实为内联移植）。三档随迭代人工更新，工具只保证候选不丢。
