@@ -306,6 +306,15 @@
    Rust 7 拍，itemboss40 同机制全绿 ⇒ 差异在 dp4 冻结态开战路径）。
    教训入册：先插方法后全局替换 ⇒ 委托变自递归（TCO 静默死循环 48min，
    gotcha_global-replace-hits-newly-added-method）。 |
+   **迭代 58 收口（终局链 L3，mode20 摘挂）**：真根因 = 击杀动画完成臂的
+   **类型钩子（a.java:10110-10145）未实现**——动画完成后 Rust 无 case72
+   分支（script 停在 37、restep 滑入空格），"T908 战斗节拍差 11 拍 vs 7 拍"
+   系采样拍误读（下游症状非相位差）。补齐 61（49 层封印门 puzzle 全条件）+
+   69（35 层→spawnBossEvent(7)+script36）+ 70/71（49 层→script35）+
+   72（50 层→script65），类型在 battle_target 清空**前**读取（restep 可开
+   新战斗改写 target，Java 同序）；m_100 = entity_at_cell 辅助。摘除
+   #[ignore]：preset_ending T1-1800 全帧一致，**mode 20 L3 达成（L2\*
+   过渡类消灭）**，全套 126 通过 0 失败。 |
 
 口径教训：名字/行号自动匹配只能出候选名单，分子终审必须人工（本轮抽样 7/7
 候选"未移植"实为内联移植）。三档随迭代人工更新，工具只保证候选不丢。
@@ -338,7 +347,7 @@
 | 17 | 关于 | ✅ BootMachine | L3 | scenario:`menu-sweep.txt`（boot_replay 全量重放至 T1832） |
 | 18 | 粒子特效层 | ❌ | — | |
 | 19 | 商店 | ✅ enter/paint（Rust 侧） | ❌ 不可达死内容 | 原版 kind11（商店）从未加入任何菜单（a.java:4305-4333/4437-4441 全量 addMenuItem 核对，迭代 41）——activateMenuItem case11（a.java:4775）为死臂；Rust enter_menu19 同为死码保真 |
-| 20 | 结束/退出确认 | ⚠️ menu-sweep Java 侧 | L2* | trace:`A-menu-sweep` |
+| 20 | 结束/退出确认（结局卷轴） | ✅（迭代 57 实现：paint/tick/END 入口 + SceneImages.ending） | L3 | scenario:`preset-ending.txt`——迭代 58 起 Rust **T1-1800 全帧**（终局链：撞格83→script16 五页→GUT_37/GLV_1 冻结→型72 cat8 开战→case72→script65→END→mode20 打字机卷轴；L2\* 过渡态消灭） |
 | 21 | 音效询问 | ✅ BootMachine | L3 | 全部 preset 场景 T66-70 |
 | 22 | 退出淡出 70 帧 | ✅ BootMachine | L3 | scenario:`menu-sweep.txt` T1762-1832（boot_replay 终点断言） |
 | 99 | paint 特殊屏 | ❌ | — | |

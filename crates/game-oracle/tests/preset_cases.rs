@@ -3931,10 +3931,6 @@ fn preset_save_frames_match() {
 /// 打字机满 46 字后静态。场景引擎本批补 GUT/GLV 两臂 + mode20
 /// paint/tick/入口（a.java:3039-3067/4443-4450/4223-4228）。
 #[test]
-#[ignore] // 迭代 57：T1-907 全帧一致（终局链前段全通）；T908 起 = 二次开战的
-          // 战斗节拍差（Java 901-911 共 11 拍 vs Rust 901-907 共 7 拍——杀敌
-          // 动画/预测门相位计时待专项对表；itemboss40 同机制全绿 ⇒ 差异点在
-          // dp4 冻结态开战路径）。专项收口后摘除。
 fn preset_ending_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(

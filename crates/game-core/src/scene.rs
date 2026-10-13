@@ -4117,8 +4117,61 @@ impl GameScene {
                         self.try_step(self.facing);
                     }
                     self.battle_finishing = false;
+                    // 胜利后类型特判（a.java:10110-10145）：类型在 battle_target
+                    // 清空**前**读取（restep 可能开新战斗改写 target，Java 同序）。
+                    // 69/70/71/72 = 层绑定剧情钩子；61 = 49 层封印门 puzzle。
+                    let vt = self.entities.entity_type[self.battle_target as usize];
+                    match vt {
+                        61 => {
+                            if self.floor == 49
+                                && self.entity_at_cell(6, 2, 61) < 0
+                                && self.entity_at_cell(5, 3, 61) < 0
+                                && self.entity_at_cell(7, 3, 61) < 0
+                                && self.entity_at_cell(6, 4, 61) < 0
+                                && self.entity_at_cell(5, 2, 61) >= 0
+                                && self.entity_at_cell(7, 2, 61) >= 0
+                                && self.entity_at_cell(5, 4, 61) >= 0
+                                && self.entity_at_cell(7, 4, 61) >= 0
+                            {
+                                entity::remove_group_at_cell_by_type(
+                                    6,
+                                    3,
+                                    70,
+                                    &mut self.entities,
+                                    &mut self.grid,
+                                );
+                                let img_h = self.images.entity[71].as_ref().map(|i| i.height);
+                                entity::spawn(
+                                    &mut self.entities,
+                                    &mut self.grid,
+                                    71,
+                                    192,
+                                    96,
+                                    0,
+                                    &self.width_table,
+                                    img_h,
+                                );
+                            }
+                        }
+                        69 => {
+                            if self.floor == 35 {
+                                self.spawn_boss_event(7);
+                                self.load_level_script(36);
+                            }
+                        }
+                        70 | 71 => {
+                            if self.floor == 49 {
+                                self.load_level_script(35);
+                            }
+                        }
+                        72 => {
+                            if self.floor == 50 {
+                                self.load_level_script(65);
+                            }
+                        }
+                        _ => {}
+                    }
                     self.battle_target = -1;
-                    // 胜利后类型特判（61-72 层绑定剧情，a.java:10118-10144）：floor1 无
                 }
             }
         }
@@ -4618,6 +4671,11 @@ impl GameScene {
     /// （paint case 3：cameraPixelX / cameraPixelY+view_top）。
     /// floor1 类别覆盖 1/2/8 + 空图文字标签；16/32/67/69 拼装 todo（floor1
     /// 实体清单无这些类型，spec p3-render §3.5）。
+    /// m_100（a.java:8610-8625）：格上首个指定类型的未移除实体索引（-1 = 无）。
+    fn entity_at_cell(&self, x: i32, y: i32, type_id: i32) -> i32 {
+        entity::cell_entity(&self.grid, &self.entities, x, y, type_id)
+    }
+
     /// renderCategoryByType 的场景视角（a.java:9669-9667 m_122 尾）：type 72
     /// 类别**层相关**——floor50 = 8（可战斗），其余层 = 32。静态
     /// entity::render_category 只覆盖非 50 层语义（迭代 56：floor50 boss
