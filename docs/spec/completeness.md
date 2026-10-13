@@ -376,7 +376,41 @@
    advance_frames ⇒ 同拍门被多推一帧（T924 Rust src=45 vs Java src=0）
    + 重置拍 tile 偏移 20 vs 18（T930 一像素差）。修复：推进挪
    paint_tile_layer 头段（advance_open_group_paint，paint case 3/9/11
-   三挂点），重置拍返回 bob。 |
+   
+   **迭代 65（floor10 铺层：哪吒+门卫环+SWD 变换首验，楼层 L3 9/55）**：
+   preset_floor10 T1-1200 全帧一致（一次收敛）。链：-2 光标 → -5 载入
+   (6,8) → -5 关横幅 → 北行穿 (6,7) 隐形81 → 撞 (6,6) 门卫+83(param3)
+   → script3（TAK_37 → MOV_0_6_5 脚本行走进环心 → DES_44/46×6 →
+   CES 44/46 门卫×8 → SWD(81→4 显形封印门) → TAK_42）→ 关闭。新移植：
+   ① 交互臂修正（a.java:5391-5530 cat1 switch **无 case 5**——门卫 bump
+   放行、开启臂在 applyStepCellEffects case5；case 4 恒拦截+文案+停扫
+   var8=0；case 81 **仅可见时**拦截——隐形期 continue 放行，floor10
+   南北隐形封印门可穿为差分实证）；② 场景解释器补 MOV/DES/SWD/CES 四臂
+   （a.java:8271/8311/8336/8386 逐臂对表：MOV 3 参=玩家脚本行走 findPath
+   +dp3+lockCameraOn(0)；DES 负参批量/正参格上单只；SWD 81→4+DES 状态
+   动画 state=2 行 8；CES=spawnEntity+markEntityDesRemoved+相机缓向新
+   实体+scriptStepDelay cat 表）；③ dp3 脚本行走相位（a.java:4077-4114
+   弹步 tryStep/8px 步进无边缘跟随/32px 归格）；④ **try_step 的 mode11
+   强制 wp=0 权宜移除**（a.java:5341 无 mode11 特例——旧权宜会杀 dp3
+   脚本行走，T504 实证）。
+   【迭代 65 续：83 触发语义三判 + 回归根因】floor35/alchemy 回归逼出
+   83 剧情点的完整触发模型（三处修正一次到位）：⑤ **bump 侧
+   tryRunScene(param, false)**（a.java:5508 原文第二参 false）——
+   script3 类 `gate &= from_walk`（门控表）使 **bump 不触发、applyStep
+   到达才触发**（floor10 T401 实证：Java -1 撞 (6,6) 先行走 402-405、
+   到达才开 script3 对话 408）；⑥ **var6 赋值仅在命中分支**
+   （a.java:5509 `var6 = loadLevelScript(...)` 在 tryRunScene-true 内、
+   且 loadLevelScript default 恒 return false ⇒ 命中后 var6=false 不置
+   wp；seen 跳过时 var6 保持 true）——击杀后重步链（tick_battle 完成
+   臂 try_step(facing) ⇒ T768 wp=1）依赖 seen-true 放行：floor35 T904
+   实证（重步被堵 ⇒ wp 恒 5 ⇒ 对话关闭后无 (4,6) 行走 ⇒ wp4 组开门
+   链消失）；⑦ 交互臂 catch-all 陷阱：新插 `_ => {}`（原意为 case 5）
+   会**吞掉其后全部 match 臂**（83/9/77 静默失联，floor35 T301 实证）
+   ——Rust match 首中语义，移植插臂必须用显式类型码。
+   次级发现：**spriteN/maplvN = floor N（1 基，N∈1..54；floor
+   55=ending 无需资产）**——早前按 0 基误读的层扫描表已作废。
+   挂起：dp2=m_106 实体路径缓动（本窗口无 5 参 MOV 触发，
+   todo 在位）、入口脚本 n[10] 牛魔王 CES 链（非本窗口路径）。 |
    **迭代 59 实现收口（mode12 L3）**：preset_floor5 T1-1200 全帧一致。
    ① save.rs：MOT_L 日志槽（f_int_89 对 = f_byte_arr_14/15）解析入
    FloorSave.journal（原 skip）；② 场景五件套：activate_item case14
@@ -469,10 +503,10 @@ L2* = Java 三方对拍绿但 Rust 侧未建用例（覆盖声明的过渡态）
 - DSL 15 码：TAK/CES/MOV/DES/GIN/LAY/ROS/RES/GUT/SEE/END/GLV/SMS/SWD/ADD。
   已在 Java 侧验证 trace 中出现（prologue/gameplay 系列）；**Rust 解释器覆盖
   以 game-core script 引擎对拍为准——逐码登记待迭代 29+ 细化**。
-- 楼层：**L3 对拍达成 8/55（floor1、2、5〔道具14/mode12，迭代 59〕、
-  12〔炼丹，迭代 31〕、35〔深 boss 层+case69 钩子+wp4 组开门动画，
-  迭代 60-64，T1-1200 全帧〕、40〔boss 击杀链，迭代 43-55〕、50〔迭代 56〕、
-  51）**——floor51 于迭代 30 全帧收敛（迭代 29 曾暴露 ROS todo 与打字机
+- 楼层：**L3 对拍达成 9/55（floor1、2、5〔道具14/mode12，迭代 59〕、
+  10〔哪吒+门卫环+SWD，迭代 65，T1-1200 全帧〕、12〔炼丹，迭代 31〕、
+  35〔深 boss 层+case69 钩子+wp4 组开门动画，迭代 60-64〕、
+  40〔boss 击杀链，迭代 43-55〕、50〔迭代 56〕、51）**——floor51 于迭代 30 全帧收敛（迭代 29 曾暴露 ROS todo 与打字机
   限量布局转义偏差两处真实缺口，按层铺路线连续逼出真实缺口的实例）；
   floor50 直达 T1-300 全帧（迭代 56，maplv50/sprite50 首覆盖 + 首例
   facing=2 出生渲染）。
