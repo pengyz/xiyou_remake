@@ -338,10 +338,10 @@
    相机 X 缓动首步 ±10px——**lockCameraOn 型69 规则缺失**（a.java:8667-8668
    `var1==69 → cameraTargetX += 32`，全调用方共用）：open_dialog_page 锚块
    覆写 ease_target 时丢失 +32 → 相机不动（Java 首步 -24→-34）。修复两处
-   （lockCameraOn 内 + open_dialog_page 锚块覆写点）。剩余 T924 起 =
-   **封门（5,3）渲染差 1198px（47% 面积，蓝通道 -25，非脉动帧——
-   T918-923 全同对照）**：门影/封字渲染细节待考；相机 Y 收尾已对齐
-   （-66 = walk 边缘跟随稳定位）。 |
+   （lockCameraOn 内 + open_dialog_page 锚块覆写点）。相机 Y 收尾已对齐
+   （-66 = walk 边缘跟随稳定位）。**剩余 = 封门实体消失差**：T924 起
+   Java 移除封门 (5,3)（玩家踏 (4,7) 后门消失露出墙，1198px；移除路径
+   待考——非 bump/非 seen skip），Rust 未实现该移除 ⇒ 门残留。 |
    **迭代 59 实现收口（mode12 L3）**：preset_floor5 T1-1200 全帧一致。
    ① save.rs：MOT_L 日志槽（f_int_89 对 = f_byte_arr_14/15）解析入
    FloorSave.journal（原 skip）；② 场景五件套：activate_item case14

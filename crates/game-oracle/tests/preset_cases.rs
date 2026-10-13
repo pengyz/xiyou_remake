@@ -3951,8 +3951,9 @@ fn preset_save_frames_match() {
 #[ignore] // 迭代 60-63：链体已对齐至 T923（对话五页交替锁 boss px+32/玩家、
           // 击杀链、case69→event[7]+script36、lockCameraOn 型69 X+=32 规则补齐）。
           // 相机 Y 收尾已对齐（-66 稳定位=walk 边缘跟随）。剩余 T924 起 =
-          // 封门（5,3）渲染差 1198px（47% 面积，蓝通道 -25，非脉动帧——
-          // T918-923 全同对照）：门影/封字渲染细节待考。
+          // **封门实体消失差**：Java 于玩家踏 (4,7) 后移除封门 (5,3)
+          // （露出墙体；移除路径待考——非 bump/非 seen skip），Rust 未实现
+          // 该移除 ⇒ 门残留 1198px。
 fn preset_floor35_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(
@@ -4156,7 +4157,12 @@ fn preset_floor35_frames_match() {
                 Some(sc) => sc.paint(&mut g, &tileset),
                 None => machine.paint(&mut g),
             }
-            if (918..=930).contains(&(rec.tick as i32)) {
+            let ops_dump = if rec.tick as i32 == 924 {
+                Some(g.ops.join("\n"))
+            } else {
+                None
+            };
+            if rec.tick as i32 == 924 {
                 if let Some(sc) = &scene {
                     eprintln!("DBG T{} mode={} cam=({},{}) dp={} wp={} py={} bscroll={}",
                         rec.tick, sc.game_mode, sc.view.cam_x, sc.view.cam_y,
@@ -4166,9 +4172,12 @@ fn preset_floor35_frames_match() {
                 for px in &screen.argb {
                     raw.extend_from_slice(&px.to_be_bytes());
                 }
-                std::fs::write(format!("/tmp/f35-T{:04}.rgba", rec.tick), raw).unwrap();
+                std::fs::write("/tmp/f35-T0924.rgba", raw).unwrap();
             }
             sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
+            if let Some(ops) = ops_dump {
+                std::fs::write("/tmp/f35-T0924.ops", ops).unwrap();
+            }
         }
         {
             if let Some(expect) = &rec.frame_sha {
