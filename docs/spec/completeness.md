@@ -320,7 +320,14 @@
    真差异 = **对话相机 Y 目标**：Java camY 自 -50 缓动收敛 **-82**
    （cameraTarget=226，非 speaker boss py192/玩家 160，Rust 收敛 -48
    且随页振荡）——floor35 对话相机锁目标语义待考
-   （openDialogPage/lockCameraOn 链），#[ignore] 挂起。 |
+   （openDialogPage/lockCameraOn 链），#[ignore] 挂起。
+   **迭代 62 相机目标时间线全解**（cameraTarget FLD255/256）：页
+   101/103/105（speaker69）→ (160,192)=boss px+32（a.java:8668
+   var1==69 → cameraTargetX+=32 实证）；页 102/104（speaker0）→
+   (128,160)=玩家；cam 缓动交替收敛 **-82（boss）/ -50（玩家）**；
+   T642 关闭 → lockCameraOn(0) → (128,160) 收敛 -50；T762 再撞 →
+   script36（页 162 speaker0）→ T902 关闭 → camY -50→**-66** 后冻结
+   （dp=4/mode3 冻结截断闭合缓动半程——末段 16px 下移目标待考）。 |
    **迭代 59 实现收口（mode12 L3）**：preset_floor5 T1-1200 全帧一致。
    ① save.rs：MOT_L 日志槽（f_int_89 对 = f_byte_arr_14/15）解析入
    FloorSave.journal（原 skip）；② 场景五件套：activate_item case14
