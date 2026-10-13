@@ -4820,7 +4820,12 @@ impl GameScene {
                     _ => 5, // 36
                 };
                 if self.try_equip(tier, false) {
-                    self.overlay_kind_pickup(t);
+                    let eq_tier = if t < 37 {
+                        match t { 33 => 1, 34 => 2, 35 => 3, 79 => 4, _ => 5 }
+                    } else {
+                        match t { 37 => 7, 38 => 8, 39 => 9, 80 => 10, _ => 11 }
+                    };
+                    self.overlay_kind_pickup(t, eq_tier);
                 } else {
                     self.show_overlay_message(0, "你拥有更强力装备", 0, 3);
                 }
@@ -4834,7 +4839,10 @@ impl GameScene {
                     _ => 11, // 40
                 };
                 if self.try_equip(tier, false) {
-                    self.overlay_kind_pickup(t);
+                    // a.java:7595 `equipDescriptions[var2]`：var2 = m_083 的
+                    // tier（10）——**非物品类型**，D 表按 tier 索引（迭代 70
+                    // floor43 80 甲实证：传类型 80 = D 表越界错帧）。
+                    self.overlay_kind_pickup(t, tier);
                 } else {
                     self.show_overlay_message(0, "你拥有更强力装备", 0, 3);
                 }
@@ -4900,7 +4908,7 @@ impl GameScene {
     }
 
     /// 装备拾取成功浮层（equipDescriptions[tier]；a.java:7633-7633）。
-    fn overlay_kind_pickup(&mut self, t: i32) {
+    fn overlay_kind_pickup(&mut self, t: i32, tier: i32) {
         const D: [&str; 12] = [
             "",
             "\\cdddddd一根相当长的木制长棍,新手必备.有了它杀人越货不慌不愁.\n\\c00ff00装备: 攻击+10.\n",
@@ -4915,11 +4923,10 @@ impl GameScene {
             "\\cdddddd华丽的装饰，就是有点旧。\n\\c00ff00装备: 防御+120.\n\\cFFCC00\"别人穿过\"",
             "\\cdddddd东海龙鳞编织而成，限量版，天上天下，只此一款。\n\\cFFCC00",
         ];
-        let tier = if t < 37 {
-            match t { 33 => 1, 34 => 2, 35 => 3, 79 => 4, _ => 5 }
-        } else {
-            match t { 37 => 7, 38 => 8, 39 => 9, 80 => 10, _ => 11 }
-        };
+        // a.java:7595-7597：图标 itemUseTargetType=var1（物品类型）、文本
+        // equipDescriptions[var2]（m_083 的 tier）——双参分列。tier 由调用
+        // 点传入，此处**不可按 t 重算**（80 的 tier=10 经 t<37 分支会误落
+        // _=>5 武器文案——迭代 70 floor43 T451 白烟盒文本错误实证）。
         self.show_overlay_message(1, D[tier as usize], 0, 3);
     }
 

@@ -432,6 +432,14 @@
    （a.java:3010-3037 双缓冲火花：f_byte_20 仅 3035=sparkCount 写、
    addSpark 仅循环内调——自播种为零闭环，randomBelow(15) 永不消费；
    Rust 无此臂 = 零行为差，复核登记关闭）。 |
+   【迭代 71（floor43 摘挂推进：7868→413px）】两项 A 级修正：① **m_083
+   先减后比**（a.java:7693 `while (--var3 >= var2)`——扫描 [lo,hi-1]，
+   hi 永不触达；Rust 误译后减致 [12] 越界 panic）——修正后 80 甲拾取
+   装备成功（def=150、arm=80 与 Java T1208 实值一致）；② **装备描述盒
+   双参分解**（a.java:7595-7597：图标 itemUseTargetType=var1 物品类型、
+   文本 equipDescriptions[var2]=tier——单参混用致 D 表越界错帧）。残余
+   413px（自 7868）：状态栏区 292px（防御数字重绘时序/值）+ 描述盒细节
+   105px——下轮继续。 |
    【迭代 70（floor43 铺层：80 银缕锁甲 + 64/65 敌表族，挂起）】
    preset_floor43 T1-拾取前全帧绿，(9,4) 80 银缕锁甲拾取 panic 挂起：
    m_083 装备档位查表 equip_types[12] 越界（表 12 项 vs 80 型 tier 索引
