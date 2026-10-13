@@ -4895,11 +4895,10 @@ fn preset_floor42_frames_match() {
 /// Java 锚：T402/552/1252/1402 守卫战、T568/1416 wp4、T1560 script15。
 /// T904 关闭静态。
 #[test]
-#[ignore] // 迭代 75 挂起（T1-1204 绿）：残余 724px 单点 = 盒文本换行
-          // （Rust 4 行 vs Java 3 行）——paint 时以 paint 参数重跑
-          // layoutFullText 的 overlayLayoutCache 语义（a.java:5038-5042）
-          // 与 show 时参数不一致待修。已修：D 表重建 + m_083 先减后比 +
-          // 装备盒双参 + 槽图标移植。
+// 迭代 76 摘挂 ✅ 楼层 L3 12/55：D 表重建（\n 换行转义逐字粘贴）+
+// m_083 先减后比 + 装备槽图标/双参盒全部落地后 T1-1700 全帧绿。
+// 挂起历史：甲槽图标"颜色不对"（sptarm[9] 解码 PIL 对照无误，真因 =
+// 槽未移植）；extra_len(77/78) 勘误回滚（sprite2 实证 1 字节）。
 fn preset_floor43_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(
@@ -5108,16 +5107,7 @@ fn preset_floor43_frames_match() {
                 None => machine.paint(&mut g),
             }
             sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
-            if std::env::var("F43DUMP").is_ok() {
-                let mut ppm = format!("P6\n{} {}\n255\n", screen.width, screen.height).into_bytes();
-                for &p in &screen.argb {
-                    ppm.push(((p >> 16) & 0xFF) as u8);
-                    ppm.push(((p >> 8) & 0xFF) as u8);
-                    ppm.push(p as u8);
-                }
-                std::fs::write(format!("/tmp/f43rust-{:04}.ppm", rec.tick), &ppm).unwrap();
             }
-        }
         if let Some(expect) = &rec.frame_sha {
             let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
             assert_eq!(

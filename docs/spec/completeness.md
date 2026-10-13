@@ -448,7 +448,11 @@
    （show 时 w=180/h=234，paint 时 w/h 另有值），Rust paint_overlay_box
    的重排参数与 show 时不一致 ⇒ 行数差。待修：paint 时重排参数对齐
    （overlayLayoutCache 缓存语义）。同轮关闭：sptarm[9] 解码经 PIL 对照
-   无误。 |
+   无误。
+   【迭代 76 摘挂 ✅ 楼层 L3 12/55】paint_overlay_box 重排参数对齐
+   （paint_hud 装备槽块移至 paint_status_bar 后的 HUD 路径修正）+
+   装备槽图标/双参盒/m_083 全部落地后 T1-1700 全帧绿，preset_floor43
+   摘挂（同轮 sptarm[9] 解码 PIL 对照无误，"解码颜色失真"证伪关闭）。 |
    【迭代 68（floor46 摘挂考证：单点精确化）】
    【迭代 70（floor43 铺层：80 银缕锁甲 + 64
    【迭代 70（floor43 铺层：80 银缕锁甲 + 64/65 敌表族，挂起）】
