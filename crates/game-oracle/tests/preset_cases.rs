@@ -3948,13 +3948,13 @@ fn preset_save_frames_match() {
 /// Java 锚：T302 script24 / T648 冻结 / T762 battle / T768 script36 /
 /// T904 关闭静态。
 #[test]
-#[ignore] // 迭代 60-63：链体已对齐至 T923（对话五页交替锁 boss px+32/玩家、
-          // 击杀链、case69→event[7]+script36、lockCameraOn 型69 X+=32 规则补齐）。
-          // 相机 Y 收尾已对齐（-66 稳定位=walk 边缘跟随）。剩余 T924 起 =
-          // **封门实体 anim_idx=6/frame=1/solid=1**（开门动画行 6/第 2 格
-          // src=45）vs Java row0/frame0/solid=0（src=0 密封画）。赋值点
-          // = m_089 的 4 实体 markRemoved 方法（a.java:7892-7919，触发链
-          // 待考）。
+// 迭代 60-64 全帧收敛（T1-1200）。T924-930 = wp=4 组开门动画（对话关闭后
+// 脚本行末步踏上 (4,6) 型76 踏板触发）：paintTileLayer 头段每 paint 推进
+// ——cnt18 封门切 row6/state1（opened_door 帧 0/1/2 @T924/926/928）、
+// cnt24 removeGroupAtCellByType(4)（T930，重置拍 tile 偏移仍取 20+bob=18）。
+// **推进必须挂 paint 时点**（Rust 曾挂 tick → 同拍 advance_frames 多推一帧，
+// T924 src=45 vs Java src=0）。Java 锚：T302 script24 / T648 冻结 / T762
+// battle / T768 script36 / T904 关闭 / T907 wp=4 / T924 TAK 门开 / T930 门除。
 fn preset_floor35_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(
@@ -3978,7 +3978,7 @@ fn preset_floor35_frames_match() {
         std::fs::read(repo_path.join("crates/game-oracle/tests/fixtures/sprite35.bin")).unwrap();
     let sp = SpriteTable::parse(&sprite35).unwrap();
     let doors = door_tables();
-    let records351: Vec<(u8, u16, u16, i16, bool)> = sp
+    let records35: Vec<(u8, u16, u16, i16, bool)> = sp
         .records
         .iter()
         .map(|rec| {
@@ -3986,7 +3986,7 @@ fn preset_floor35_frames_match() {
             (rec.type_code, rec.x, rec.y, param, !hide)
         })
         .collect();
-    let records35: Vec<(u8, u16, u16, i16, bool)> = {
+    let records1: Vec<(u8, u16, u16, i16, bool)> = {
         let sp1 = SpriteTable::parse(&sprite1).unwrap();
         sp1.records
             .iter()
@@ -3996,14 +3996,6 @@ fn preset_floor35_frames_match() {
             })
             .collect()
     };
-    let records35: Vec<(u8, u16, u16, i16, bool)> = sp
-        .records
-        .iter()
-        .map(|rec| {
-            let (param, hide) = spawn_param_and_visibility(rec.type_code, &rec.extra, &doors);
-            (rec.type_code, rec.x, rec.y, param, !hide)
-        })
-        .collect();
 
     let mapbg = load_container("mapbg", 1);
     let map = load_container("map", 12);
@@ -4043,11 +4035,11 @@ fn preset_floor35_frames_match() {
     let mut floor_assets: Vec<Option<game_core::scene::FloorAssets>> = vec![None; 56];
     floor_assets[35] = Some(game_core::scene::FloorAssets {
         maplv: maplv35.clone(),
-        records: records351.clone(),
+        records: records35.clone(),
     });
     floor_assets[1] = Some(game_core::scene::FloorAssets {
         maplv: maplv1.clone(),
-        records: records35.clone(),
+        records: records1.clone(),
     });
 
     let mot_l0 = &stores.iter().find(|(k, _)| k.starts_with("MOT_L0@")).expect("MOT_L0").1;
@@ -4107,7 +4099,7 @@ fn preset_floor35_frames_match() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
                         &maplv35,
-                        &records351,
+                        &records35,
                         &width_table(),
                         &tile_walkability(),
                         images.clone(),

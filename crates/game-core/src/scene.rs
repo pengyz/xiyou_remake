@@ -2991,7 +2991,8 @@ impl GameScene {
     ///（paintTitledBox(0,·)）+ 花费行 + 三行属性（光标高亮 + 双柱图标 + 数字）。
     fn paint_menu9(&mut self, g: &mut SoftGraphics<'_>, tileset: &ArgbImage) {
         self.paint_parallax(g, true);
-        self.view.paint_tiles(g, tileset, view_top_y());
+        let tile_off = view_top_y() + self.advance_open_group_paint();
+        self.view.paint_tiles(g, tileset, tile_off);
         self.paint_entities(g, self.view.cam_x, self.view.cam_y + view_top_y());
         self.paint_hud(g);
         self.paint_status_bar(g);
@@ -3633,30 +3634,6 @@ impl GameScene {
             }
             5 => self.tick_battle(true),
             _ => {} // 3 道具菜单 / 4 楼层切换：本窗口无
-        }
-        // 组开门动画（paintTileLayer 头段 a.java:6992-7007，每拍推进）：
-        // 18 拍置 removed 动画（row 6/state 1）；24 拍 removeGroupAtCellByType(4) 收尾
-        if self.walk_phase == 4 {
-            self.open_anim_tick += 1;
-            if self.open_anim_tick == 18 {
-                let group = self.open_group.clone();
-                for e in group {
-                    self.entities.anim_idx[e] = 6;
-                    self.entities.solid[e] = 1;
-                }
-            } else if self.open_anim_tick >= 24 {
-                let group = std::mem::take(&mut self.open_group);
-                for e in group {
-                    let gx = self.entities.pixel_x[e] >> 5;
-                    let gy = self.entities.pixel_y[e] >> 5;
-                    entity::remove_group_at_cell_by_type(gx, gy, 4, &mut self.entities, &mut self.grid);
-                }
-                self.open_anim_tick = 0;
-                self.tile_bob = 0;
-                self.walk_phase = 0;
-            }
-            // f_int_54 ±2 交替（a.java:7016-7014）
-            self.tile_bob = if self.tile_bob == -2 { 2 } else { -2 };
         }
         entity::advance_frames(
                 &mut self.entities,
@@ -4623,7 +4600,7 @@ impl GameScene {
             return;
         }
         self.paint_parallax(g, true);
-        let tile_off = view_top_y() + if self.walk_phase == 4 { self.tile_bob } else { 0 };
+        let tile_off = view_top_y() + self.advance_open_group_paint();
         self.view.paint_tiles(g, tileset, tile_off);
         self.paint_entities(g, self.view.cam_x, self.view.cam_y + view_top_y());
         // 小地图（optionChecked[1] && minimapImage）：右上角，玩家点
@@ -4774,10 +4751,6 @@ impl GameScene {
                         let cx_off = (CELL_PX - w) >> 1;
                         match self.entity_category(t) {
                             1 => {
-                                if t == 4 && anim == 6 && std::env::var("F35DBG").is_ok() {
-                                    eprintln!("F35DBG fc={} door anim=6 frame={} frame_off={} state={}",
-                                        self.frame_counter, frame, frame_off, state);
-                                }
                                 if t == 6 {
                                     sy += 5 - bob;
                                 } else if t == 9 {
@@ -5217,9 +5190,44 @@ impl GameScene {
         g.draw_string(&codes, x, y, 17);
     }
 
+    /// paintTileLayer 头段（a.java:6990-7014）：wp=4 组开门动画 **每 paint 推进**——
+    /// 计数 18 置 row6/state1（开门画切换）、24 removeGroupAtCellByType(4) 收尾
+    /// wp=0；f_int_54 ±2 交替供 tile 层 Y 偏移（20±2）。必须在 **paint 时点**推进
+    /// （Java 本就在 paintTileLayer 内）：若放 tick 内先推进，同拍 advance_frames
+    /// 会立刻多推一帧——迭代 64 T924 实证（Rust src=45 vs Java src=0）。
+    /// paint case 3/9/11 三处 paintTileLayer(0,20) 调用点均须先跑本函数。
+    fn advance_open_group_paint(&mut self) -> i32 {
+        if self.walk_phase == 4 {
+            self.open_anim_tick += 1;
+            if self.open_anim_tick == 18 {
+                let group = self.open_group.clone();
+                for e in group {
+                    self.entities.anim_idx[e] = 6;
+                    self.entities.solid[e] = 1;
+                }
+            } else if self.open_anim_tick >= 24 {
+                let group = std::mem::take(&mut self.open_group);
+                for e in group {
+                    let gx = self.entities.pixel_x[e] >> 5;
+                    let gy = self.entities.pixel_y[e] >> 5;
+                    entity::remove_group_at_cell_by_type(gx, gy, 4, &mut self.entities, &mut self.grid);
+                }
+                self.open_anim_tick = 0;
+                self.tile_bob = 0;
+                self.walk_phase = 0;
+            }
+            // f_int_54 ±2 交替（a.java:7016-7014）
+            self.tile_bob = if self.tile_bob == -2 { 2 } else { -2 };
+            // a.java:7015 `var2 = 20 + f_int_54`：**重置拍（cnt24）也取 bob**
+            //（wp 已清 0 但 var2 在块内计算）——迭代 64 T930 一像素差实证
+            return self.tile_bob;
+        }
+        0
+    }
+
     fn paint_dialog(&mut self, g: &mut SoftGraphics<'_>, tileset: &ArgbImage) {
         self.paint_parallax(g, true);
-        let tile_off = view_top_y() + if self.walk_phase == 4 { self.tile_bob } else { 0 };
+        let tile_off = view_top_y() + self.advance_open_group_paint();
         self.view.paint_tiles(g, tileset, tile_off);
         self.paint_entities(g, self.view.cam_x, self.view.cam_y + view_top_y());
         self.popups.draw(g, &self.images.popup);
