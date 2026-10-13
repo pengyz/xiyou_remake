@@ -411,12 +411,36 @@
    55=ending 无需资产）**——早前按 0 基误读的层扫描表已作废。
    挂起：dp2=m_106 实体路径缓动（本窗口无 5 参 MOV 触发，
    todo 在位）、入口脚本 n[10] 牛魔王 CES 链（非本窗口路径）。
+   【迭代 66（floor49 铺层：case70 击杀钩子 + 守卫宝箱配对开门 + script15
+   伏击，楼层 L3 10/55）】preset_floor49 T1-2600 全帧一次收敛。链：载入
+   (6,11) → (6,10)【陷阱首爆：60 邻接 -200】→ (5,10)/(7,10) 门卫@2（同格
+   60 敌 bump 战×2）→ wp4 开 (6,9)@2 → (6,8)=83 首访 inert → (5,8)/(7,8)
+   门卫@3（65 敌战×2）→ wp4 开 (6,7)@3 → 二访 (6,8) → script15 伏击
+   （ROS_4_1 + CES_61×8 + CES_70(6,3) + TAK_118_121）→ 北上 61/70 战 →
+   case70(floor49) → script35。新移植/考证：① **陷阱扣血臂整体移植**
+   （a.java:5549-5645：61 夹击 -HP/2、62 邻接 -100、60 邻接 -200 + var4
+   短路三分支场输入、armor40 火浣衣免疫、m_101 火焰上爬=拉旧格+上格重生
+   DES 态 60——floor49 T305 实证缺口：Java -200 浮层 + HP 500→300，Rust
+   无此臂）+ **tryRunScene 门控全表移植**（补 case 7/32 todo=m_102(23,12)
+   跨层快照、15=m_102(currentFloor,5)?false:from_walk【守卫全清才可触发
+   伏击——(6,8) 首访 inert 实证】、16/18/24/25/26/27/31/33/34 简单门、
+   8/9/11/12/19/30/41-50/52/53/55/56 from_walk 族——旧表仅 0-4/46/47/66/67）。
+   ② **type 5/81/4 精灵 param = extra+1**（a.java:9499-9502、83 无 +1
+   =原字节）——floor49 守卫@2/3 ↔ 封印门@2/3 配对（tryOpenChest 同 param
+   型5 存在即拒、型4 入组 wp4 开门；removeSlotAt 置 removed ⇒ 守卫清空
+   是 case15 门的达成条件）。③ **mode18 火花系统 = 原版死代码 A 级**
+   （a.java:3010-3037 双缓冲火花：f_byte_20 仅 3035=sparkCount 写、
+   addSpark 仅循环内调——自播种为零闭环，randomBelow(15) 永不消费；
+   Rust 无此臂 = 零行为差，复核登记关闭）。 |
    【迭代 65 对抗复核新登记】① **mode18 paint 期火花分支缺失**：
    a.java:3014-3034 paint case 18 对**每活跃粒子每 paint** 消费 1 次
    randomBelow(15) 并按位 addSpark ≤4（RNG 流消费者 + 视觉元素）——
    Rust Particles::paint_and_update 无此臂（title.rs:93-125 仅画+推进）。
-   已覆盖窗口（boot_menu T1-150/prologue case14）未引爆 ⇒ 粒子在那些
-   paint 拍不活跃或火花不可见，机制待专项考证后补臂。② 遗留探针清理：
+   【2026-10-13 更正（迭代 66）】**证伪关闭**：该分支为原版死代码——
+   火花缓冲 f_byte_20 全部写点 = 2207（分配置 0）与 3035（=sparkCount），
+   addSpark 全部调用点都在 f_byte_20>0 的循环内 ⇒ 自播种为零永不激活，
+   randomBelow(15) 在原版也永不消费 ⇒ Rust 缺臂零行为差（A 级：写者图
+   完备）。② 遗留探针清理：
    preset_cases floor35 的 F35DUMP（PPM 落盘）已除；paint.rs:571
    PROBE_SLOTS（迭代 22 起，env 门控惰性）保留待查。③ 未用变量警告
    5 处（records1 类影子绑定：alchemy/save 系 4451/3758/2038/1813）——
@@ -513,8 +537,10 @@ L2* = Java 三方对拍绿但 Rust 侧未建用例（覆盖声明的过渡态）
 - DSL 15 码：TAK/CES/MOV/DES/GIN/LAY/ROS/RES/GUT/SEE/END/GLV/SMS/SWD/ADD。
   已在 Java 侧验证 trace 中出现（prologue/gameplay 系列）；**Rust 解释器覆盖
   以 game-core script 引擎对拍为准——逐码登记待迭代 29+ 细化**。
-- 楼层：**L3 对拍达成 9/55（floor1、2、5〔道具14/mode12，迭代 59〕、
+- 楼层：**L3 对拍达成 10/55（floor1、2、5〔道具14/mode12，迭代 59〕、
   10〔哪吒+门卫环+SWD，迭代 65，T1-1200 全帧〕、12〔炼丹，迭代 31〕、
+  49〔case70 击杀钩子+守卫宝箱配对+陷阱臂+script15 伏击，迭代 66，
+  T1-2600 全帧〕、
   35〔深 boss 层+case69 钩子+wp4 组开门动画，迭代 60-64〕、
   40〔boss 击杀链，迭代 43-55〕、50〔迭代 56〕、51）**——floor51 于迭代 30 全帧收敛（迭代 29 曾暴露 ROS todo 与打字机
   限量布局转义偏差两处真实缺口，按层铺路线连续逼出真实缺口的实例）；

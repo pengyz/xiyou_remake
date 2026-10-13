@@ -1,0 +1,56 @@
+# ticks: 3400
+# preset: preset-floor49.preset
+# cover: 按层铺 floor49（case70 击杀钩子首验 + 守卫宝箱 param 配对开门 +
+#   script15 伏击 CES + tryRunScene case15 门）：载入 (6,11) → (6,10) →
+#   (5,10)/(7,10) 门卫@2（60 敌 bump 战×2）→ wp4 开 (6,9)@2 → (6,8)=83
+#   首访 inert（case15：当前层活型5 在场→false）→ (5,8)/(7,8) 门卫@3
+#   （65 敌战×2）→ wp4 开 (6,7)@3 → 二访 (6,8) → script15 伏击（ROS_4_1 +
+#   CES_61×8 + CES_70(6,3) + TAK_118_121 五页宽间隔翻页）→ 北上 (6,4) 61
+#   战 → (6,3) 玉皇大帝(70) 战 → case70(floor49) → script35 TAK_161 → 关闭。
+#   注：field 模式 -5 = wp2 战斗数字查看态（-1/-2 变滚动），全程回避。
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -1 press
+302 -1 release
+400 -3 press
+402 -3 release
+500 -4 press
+502 -4 release
+550 -4 press
+552 -4 release
+750 -3 press
+752 -3 release
+850 -1 press
+852 -1 release
+950 -1 press
+952 -1 release
+1650 -5 press
+1652 -5 release
+1750 -5 press
+1752 -5 release
+1850 -5 press
+1852 -5 release
+1950 -5 press
+1952 -5 release
+2050 -5 press
+2052 -5 release
+2450 -1 press
+2452 -1 release
+2550 -1 press
+2552 -1 release
+2650 -1 press
+2652 -1 release
+2750 -1 press
+2752 -1 release
+2850 -1 press
+2852 -1 release
+2950 -5 press
+2952 -5 release
+3050 -5 press
+3052 -5 release

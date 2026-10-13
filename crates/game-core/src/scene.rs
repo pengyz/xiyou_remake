@@ -1358,7 +1358,72 @@ impl GameScene {
             2 => gate &= self.script_line_flags[1] && !from_walk,
             3 => gate &= from_walk,
             4 => gate &= self.script_line_flags[3] && from_walk,
-            // 5/6/10/13/14/17/20/21/22/23/28/29/35/36/37/38/39/40：直通（无门控）
+            // 7/32 需 m_102(23,12) 跨层快照探针（f_byte_arr2_05 层序列化语义）——
+            // 未移植，显式挡路（覆盖窗不可达）。
+            7 | 32 => todo!("tryRunScene case {idx} 的 m_102(23,12) 跨层探针"),
+            // 15（a.java:8119-8126）：当前层有活型5（门卫/宝箱守卫）→ false；
+            // 否则 &= from_walk（bump 不触发、到达才触发——floor49 伏击门）。
+            15 => {
+                if self.m_102_current_floor(5) {
+                    gate = false;
+                } else {
+                    gate &= from_walk;
+                }
+            }
+            16 => gate &= self.difficulty_index == 0,
+            // 18（a.java:8127-8144）：from_walk 且八 Cell 扫描任一命中 → false
+            // + flags[18] 置位（六格缺型1 或两格有型1）。
+            18 => {
+                gate &= from_walk;
+                if gate
+                    && (self.entity_at_cell(2, 2, 1) < 0
+                        || self.entity_at_cell(2, 4, 1) < 0
+                        || self.entity_at_cell(2, 6, 1) < 0
+                        || self.entity_at_cell(6, 2, 1) < 0
+                        || self.entity_at_cell(4, 6, 1) < 0
+                        || self.entity_at_cell(6, 6, 1) < 0
+                        || self.entity_at_cell(4, 2, 1) >= 0
+                        || self.entity_at_cell(6, 4, 1) >= 0)
+                {
+                    gate = false;
+                    self.script_line_flags[18] = true;
+                }
+            }
+            24 => {
+                gate &= !from_walk;
+                if gate {
+                    gate = self.player.hp > 0;
+                }
+            }
+            25 => {
+                gate &= from_walk
+                    && self.script_line_flags[13]
+                    && self.entity_at_cell(2, 2, 60) < 0
+                    && self.entity_at_cell(10, 2, 60) < 0;
+            }
+            26 => {
+                if self.entity_at_cell(11, 4, 84) < 0 {
+                    gate = false;
+                }
+            }
+            27 => gate &= from_walk && self.script_line_flags[0],
+            31 => {
+                gate &= from_walk && self.player.find_item(16) >= 0;
+            }
+            33 => gate &= self.script_line_flags[7],
+            34 => {
+                gate &= from_walk && self.script_line_flags[10] == false;
+                if gate {
+                    let loss = self.predict_hp_loss(69, true);
+                    gate &= loss < 0 || loss >= self.player.hp;
+                }
+            }
+            // from_walk 族（a.java:8098-8117 簇）：8/9/11/12/19/30/41-45/48/49/
+            // 50/52/53/55/56 —— bump 不触发。
+            8 | 9 | 11 | 12 | 19 | 30 | 41 | 42 | 43 | 44 | 45 | 48 | 49 | 50
+            | 52 | 53 | 55 | 56 => gate &= from_walk,
+            // 5/6/10/13/14/17/20/21/22/23/28/29/35/36/37/38/39/40/51/54/57-65：
+            // 直通（无门控，a.java:8098-8108 簇 default: break）
             46 => gate &= from_walk && !self.script_line_flags[47],
             47 => gate &= from_walk && !self.script_line_flags[46],
             66 => gate = false,
@@ -1366,6 +1431,14 @@ impl GameScene {
             _ => {}
         }
         gate
+    }
+
+    /// m_102(currentFloor, type) 的同层路径（a.java:8637-8657 无换层分支）：
+    /// 扫当前实体表是否存在活的目标类型。跨层探针（case 7/32 的
+    /// m_102(23,12)）需层序列化快照，未移植（见上 todo）。
+    fn m_102_current_floor(&self, type_id: i32) -> bool {
+        (0..self.entities.count as usize)
+            .any(|i| !self.entities.removed[i] && self.entities.entity_type[i] == type_id)
     }
 
     /// loadLevelScript（a.java:8035-8052）：mode 11 + 脚本行装载。
@@ -4414,6 +4487,40 @@ impl GameScene {
             }
         }
 
+        /// m_101（a.java:8628-8636）：火焰陷阱上爬——上格可走/无槽/非玩家格
+        /// 时拉起旧 60（removed+脱槽）并在上格重生 DES 态新 60。
+        fn m_101(&mut self, x: i32, y: i32, idx: i32) {
+            let ty = y - 1;
+            let walkable = self.walkable_at(x, ty);
+            let has_slot = if x >= 0 && ty >= 0 && x < self.view.wide && ty < self.view.high {
+                let ct = self.grid.cell_type[ty as usize][x as usize] as usize;
+                self.grid.capacity[ct] > 0
+            } else {
+                false
+            };
+            if walkable && !has_slot && (x != self.player_cell_x || ty != self.player_cell_y) {
+                entity::detach_from_cell(&mut self.grid, &mut self.entities, idx as usize);
+                let img_h = self
+                    .images
+                    .entity
+                    .get(60)
+                    .cloned()
+                    .flatten()
+                    .map(|im| im.height);
+                let ni = entity::spawn(
+                    &mut self.entities,
+                    &mut self.grid,
+                    60,
+                    x << 5,
+                    ty << 5,
+                    0,
+                    &self.width_table,
+                    img_h,
+                );
+                entity::remove_des(&mut self.entities, ni);
+            }
+        }
+
         /// applyStepCellEffects（a.java:5543-5729，floor1 可达子集）：
 
         /// m_000 case 3 尾（a.java:4315 applyStepCellEffects）：进图瞬间出生格
@@ -4429,6 +4536,70 @@ impl GameScene {
             self.player_cell_x = self.view.player_px >> 5;
             self.player_cell_y = self.view.player_py >> 5;
             self.player_bob_applied = false; // f_bool_07 每步清零（a.java:5550），踩喷泉再置
+            // 陷阱扣血臂（a.java:5549-5645）：61 夹击 → -HP/2；62 邻接 → -100；
+            // 60 邻接 → -200 + var4 短路 handleFieldInput；60 上邻 → m_101
+            // 火焰上爬（拉旧格 + 上格重生 DES 态）。armor 40（火浣衣）免疫
+            // 61/62 与 60 计数，但仍执行上爬。（floor49 陷阱层 T305 实证缺口）
+            let (pcx, pcy) = (self.player_cell_x, self.player_cell_y);
+            let armor40 = self.equipped_armor == 40;
+            let mut step_triggered = false;
+            if !armor40 {
+                let hit_lr = pcx > 0
+                    && self.entity_at_cell(pcx - 1, pcy, 61) >= 0
+                    && pcx < self.view.wide - 1
+                    && self.entity_at_cell(pcx + 1, pcy, 61) >= 0;
+                let hit_ud = pcy > 0
+                    && self.entity_at_cell(pcx, pcy - 1, 61) >= 0
+                    && pcy < self.view.high - 1
+                    && self.entity_at_cell(pcx, pcy + 1, 61) >= 0;
+                if hit_lr || hit_ud {
+                    self.apply_hp_delta(-(self.player.hp >> 1));
+                }
+                let mut n62 = 0;
+                if self.entity_at_cell(pcx - 1, pcy, 62) >= 0 {
+                    n62 += 1;
+                }
+                if pcx < self.view.high - 1 && self.entity_at_cell(pcx + 1, pcy, 62) >= 0 {
+                    n62 += 1;
+                }
+                if pcy > 0 && self.entity_at_cell(pcx, pcy - 1, 62) >= 0 {
+                    n62 += 1;
+                }
+                if pcy < self.view.high - 1 && self.entity_at_cell(pcx, pcy + 1, 62) >= 0 {
+                    n62 += 1;
+                }
+                if n62 > 0 {
+                    self.apply_hp_delta(-100);
+                }
+            }
+            let mut n60 = 0;
+            if !armor40 {
+                if pcx > 0 && self.entity_at_cell(pcx - 1, pcy, 60) >= 0 {
+                    n60 += 1;
+                }
+                if pcx < self.view.high - 1 && self.entity_at_cell(pcx + 1, pcy, 60) >= 0 {
+                    n60 += 1;
+                }
+                if pcy > 0 {
+                    let idx = self.entity_at_cell(pcx, pcy - 1, 60);
+                    if idx >= 0 {
+                        n60 += 1;
+                        self.m_101(pcx, pcy - 1, idx);
+                    }
+                }
+                if pcy < self.view.high - 1 && self.entity_at_cell(pcx, pcy + 1, 60) >= 0 {
+                    n60 += 1;
+                }
+            } else if pcy > 0 {
+                let idx = self.entity_at_cell(pcx, pcy - 1, 60);
+                if idx >= 0 {
+                    self.m_101(pcx, pcy - 1, idx);
+                }
+            }
+            if n60 > 0 {
+                self.apply_hp_delta(-200);
+                step_triggered = true;
+            }
             let ct = self.grid.cell_type[self.player_cell_y as usize][self.player_cell_x as usize] as usize;
             let cap = self.grid.capacity[ct] as usize;
             if cap > 0 {
@@ -4446,6 +4617,7 @@ impl GameScene {
                                 self.overlay_text = None;
                                 let idx = self.entities.param[e] as i32;
                                 self.load_level_script(idx);
+                                step_triggered = true; // a.java:5712 var4=true
                             }
                         }
                         7 => {
@@ -4524,16 +4696,26 @@ impl GameScene {
 
             if self.walk_phase != 4 {
                 self.walk_phase = 0;
-                self.handle_field_input();
+                if !step_triggered {
+                    // a.java:5645 var4：83 触发/陷阱踩伤短路场输入
+                    self.handle_field_input();
+                }
             }
         } else if self.script_walk_armed {
             // 分支 2（a.java:5742-5746）：脚本行走武装 → advanceScriptWalk
-            self.advance_script_walk();
+            //（var4 踩伤 → 短路行走置 wp=0）
+            if !step_triggered {
+                self.advance_script_walk();
+            } else {
+                self.walk_phase = 0;
+            }
         } else {
             // 分支 3（a.java:5747-5751）：空格 → 复位相位 + 场输入
-            //（var4 踩伤短路 a.java:5645 未移植：伤害格批次待办，当前层无此格）
+            //（var4 踩伤短路 a.java:5645——陷阱臂迭代 66 已移植）
             self.walk_phase = 0;
-            self.handle_field_input();
+            if !step_triggered {
+                self.handle_field_input();
+            }
         }
         // label216（a.java:5748-5761）：路径消费/清除——顶步 == 朝向则消费一步，
         // 否则整条清空 + 熄箭头；步数已尽也熄箭头
