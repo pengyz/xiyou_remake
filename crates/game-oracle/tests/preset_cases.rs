@@ -3902,36 +3902,38 @@ fn preset_save_frames_match() {
     assert_eq!(checked, records.len(), "T1-700 全帧必须比对");
 }
 
-/// 第 51 层直达（迭代 29，按层铺深层首例）：preset-floor51 场景（MOT_L0
-/// current_floor=51），窗口 T1-600 全帧。主层资产 = maplv51/sprite51
-/// （非方阵 12×13 特例骨架），floor_assets[1] 同时装配。覆盖深层地图渲染
-/// + NPC 对话条 + 走查 + mode10。
-/// 迭代 30 收敛：T372 残差 = layout_wrapped_text_limited（打字机限量版）的
-/// \c 转义处理未同步迭代 26 的 overlay 全量版修复（7 字符消费留尾字计宽）
-/// ——对齐后 T1-600 全帧一致。
+/// 第 50 层直达（迭代 56，深层终局区首层）：preset-floor50 场景
+/// （MOT_L0 current_floor=50），窗口 T1-300 全帧。主层资产 = maplv50/
+/// sprite50（13×13 特例层，双记录：型72 最终 boss + 型83 触发器同格
+/// (6,5)），floor_assets[1] 同时装配。覆盖：深层地图渲染 + 槽载入 +
+/// -5 战斗预测视角（walkPhase2）。终局链（撞格83→script16 前导对话
+/// TAK_123_126→GUT_37→GLV_1 冻结→与72开战→case72→script65 TAK_127_128
+/// →END→mode20 结局卷轴）已 Java 侧取证（A-preset-ending 1500 拍
+/// trace + 时间线），Rust 侧待场景引擎 GUT/GLV/撞格83 臂 + mode20
+/// 实现后铺开——下一迭代专项。
 #[test]
-fn preset_floor51_frames_match() {
+fn preset_floor50_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(
-        repo_path.join("reference/oracle/scenarios/preset-floor51.preset"),
+        repo_path.join("reference/oracle/scenarios/preset-ending.preset"),
     )
     .unwrap();
     let stores = parse_preset(&preset_text);
     let trace_text = std::fs::read_to_string(
-        repo_path.join("reference/oracle/_out/A-preset-floor51/trace.txt"),
+        repo_path.join("reference/oracle/_out/A-preset-floor50/trace.txt"),
     )
-    .expect("缺 A-preset-floor51 trace（gen: run_variants_parallel 单场景 frames=all）");
+    .expect("缺 A-preset-floor50 trace（gen: run_variants_parallel 单场景 frames=all）");
     let records = trace::parse(&trace_text);
 
     let maplv1 =
         std::fs::read(repo_path.join("crates/game-oracle/tests/fixtures/maplv1.bin")).unwrap();
     let sprite1 =
         std::fs::read(repo_path.join("crates/game-oracle/tests/fixtures/sprite1.bin")).unwrap();
-    let maplv51 =
-        std::fs::read(repo_path.join("crates/game-oracle/tests/fixtures/maplv51.bin")).unwrap();
-    let sprite51 =
-        std::fs::read(repo_path.join("crates/game-oracle/tests/fixtures/sprite51.bin")).unwrap();
-    let sp = SpriteTable::parse(&sprite51).unwrap();
+    let maplv50 =
+        std::fs::read(repo_path.join("crates/game-oracle/tests/fixtures/maplv50.bin")).unwrap();
+    let sprite50 =
+        std::fs::read(repo_path.join("crates/game-oracle/tests/fixtures/sprite50.bin")).unwrap();
+    let sp = SpriteTable::parse(&sprite50).unwrap();
     let doors = door_tables();
     let records51: Vec<(u8, u16, u16, i16, bool)> = sp
         .records
@@ -3994,8 +3996,8 @@ fn preset_floor51_frames_match() {
         faces: load_container("face", 12),
     };
     let mut floor_assets: Vec<Option<game_core::scene::FloorAssets>> = vec![None; 56];
-    floor_assets[51] = Some(game_core::scene::FloorAssets {
-        maplv: maplv51.clone(),
+    floor_assets[50] = Some(game_core::scene::FloorAssets {
+        maplv: maplv50.clone(),
         records: records51.clone(),
     });
     floor_assets[1] = Some(game_core::scene::FloorAssets {
@@ -4059,7 +4061,7 @@ fn preset_floor51_frames_match() {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
-                        &maplv51,
+                        &maplv50,
                         &records51,
                         &width_table(),
                         &tile_walkability(),
@@ -4111,7 +4113,7 @@ fn preset_floor51_frames_match() {
                 Some(sc) => sc.paint(&mut g, &tileset),
                 None => machine.paint(&mut g),
             }
-                        sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
+            sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
         }
         {
             if let Some(expect) = &rec.frame_sha {
@@ -4125,7 +4127,7 @@ fn preset_floor51_frames_match() {
             }
         }
     }
-    assert_eq!(checked, records.len(), "T1-600 全帧必须比对");
+    assert_eq!(checked, records.len(), "T1-300 全帧必须比对");
 }
 
 /// mode 9 炼丹链（迭代 31）：preset-alchemy 场景（floor12 type9 炼丹台

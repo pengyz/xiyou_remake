@@ -271,6 +271,24 @@
    20/20 全绿 0 挂起。连带证伪：迭代 49/51"泡带帧位/火焰发饰"、
    52/53"boss 死亡动画拍差"定性（错图像素被误读为对方绘制差）；
    击杀拍/popup 链/entityAnimFrame 对表结论仍有效。 |
+   **迭代 56（floor50 直达 L3 + 型72 层相关类别修复 + 终局链取证）**：
+   ① preset_floor50 T1-300 全帧一致（maplv50/sprite50 fixtures 首装配；
+   13×13 特例层；型72 最终 boss + 型83 触发器同格 (6,5)；首例 facing=2
+   出生渲染）；② **真缺口修复 = renderCategoryByType[72] 层相关**
+   （a.java:9669-9667 m_122 尾：floor50=8 可战斗/其余=32）——Rust 静态
+   render_category 令 boss 走 cat32 臂（缺 4px ENTITY_LIFT），T237 op 流
+   376 条唯一分歧 `setClip(136,113)` vs `setClip(136,117)` 实证；新增
+   GameScene::entity_category（floor 感知）替换 6 处调用点；③ 终局链
+   Java 侧取证（A-preset-ending 1500 拍）：撞格 (6,5) 先触发型83 触发器
+   （param16 → script16 = TAK_123_126 GUT_37）→ GUT 跳 script37 =
+   GLV_1 → 行尾冻结（mode3/dphase4）；键向表 a.java:5312（-1上/-2下/
+   -3左/-4右，keyHeldCode 50/56/52/54 等价）；mode20 机制全解
+   （a.java:3039-3067 paint / 4443-4450 m_000 入口 / 4223-4228 任意键
+   回主菜单；end 卷轴 240×145 + dialogueTexts[260] 打字机 (fc&3)>>1）。
+   **下迭代专项**：场景引擎 GUT/GLV 臂（script.rs 有、scene.rs 无）+
+   行尾冻结 scene 语义（mode11→3 回转位置）+ mode20 实现（含
+   SceneImages.ending 装配）+ 终局编排节拍（与 72 开战路径）。撞格 83
+   臂已实现（interact_with_cell 83 arm 实证）。 |
 
 口径教训：名字/行号自动匹配只能出候选名单，分子终审必须人工（本轮抽样 7/7
 候选"未移植"实为内联移植）。三档随迭代人工更新，工具只保证候选不丢。
@@ -315,9 +333,12 @@ L2* = Java 三方对拍绿但 Rust 侧未建用例（覆盖声明的过渡态）
 - DSL 15 码：TAK/CES/MOV/DES/GIN/LAY/ROS/RES/GUT/SEE/END/GLV/SMS/SWD/ADD。
   已在 Java 侧验证 trace 中出现（prologue/gameplay 系列）；**Rust 解释器覆盖
   以 game-core script 引擎对拍为准——逐码登记待迭代 29+ 细化**。
-- 楼层：夹具已备 3/55（1/2/51），**L3 对拍达成 3/55（floor1、floor2、floor51）**
-  ——floor51 于迭代 30 全帧收敛（迭代 29 曾暴露 ROS todo 与打字机限量布局
-  转义偏差两处真实缺口，按层铺路线连续逼出真实缺口的实例）。
+- 楼层：**L3 对拍达成 6/55（floor1、2、12〔炼丹，迭代 31——本行
+  2026-10-13 前漏更正〕、40〔boss 击杀链，迭代 43-55〕、50〔迭代 56〕、
+  51）**——floor51 于迭代 30 全帧收敛（迭代 29 曾暴露 ROS todo 与打字机
+  限量布局转义偏差两处真实缺口，按层铺路线连续逼出真实缺口的实例）；
+  floor50 直达 T1-300 全帧（迭代 56，maplv50/sprite50 首覆盖 + 首例
+  facing=2 出生渲染）。
 - DSL：ROS 六子码已移植（迭代 29）；布局算法双拷贝（全量/限量）已对齐转义
   语义——遗留重构项：抽公共函数消除双份拷贝（迭代 30 教训入库）。
 - **mode 9 炼丹链（迭代 31 完成，L3）**：type9 炼丹台分支（interact_with_cell，

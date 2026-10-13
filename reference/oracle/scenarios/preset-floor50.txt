@@ -1,0 +1,15 @@
+# ticks: 300
+# preset: preset-ending.preset
+# cover: 第 50 层直达（深层终局区首层，maplv50/sprite50 双记录
+#   型72 boss+型83 触发器同格）：槽载入 (5,5) → mode3 待机 →
+#   -5 战斗预测视角（walkPhase2 四角装饰）。终局链（撞格83→script16
+#   前导对话→GUT_37/GLV_1→与72开战→case72→script65→END→mode20）
+#   为下一迭代专项（场景引擎 GUT/GLV/撞格83 臂 + mode20 实现）。
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release

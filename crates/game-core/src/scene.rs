@@ -2250,7 +2250,7 @@ impl GameScene {
                     self.walk_phase = 4;
                 }
             } else if t < 67
-                && entity::render_category(t) == 8
+                && self.entity_category(t) == 8
                 && self.entities.solid[e] != 1
             {
                 entity::remove(&mut self.entities, e);
@@ -2707,7 +2707,7 @@ impl GameScene {
                 continue;
             }
             let t = self.entities.entity_type[e] as i32;
-            if entity::render_category(t) != 8 || t < 41 {
+            if self.entity_category(t) != 8 || t < 41 {
                 continue;
             }
             for k in 0..self.encyc_count as usize {
@@ -3720,7 +3720,7 @@ impl GameScene {
             self.view_locked = false;
             for e in 0..self.entities.count {
                 let t = self.entities.entity_type[e];
-                if !self.entities.removed[e] && entity::render_category(t) == 8 {
+                if !self.entities.removed[e] && self.entity_category(t) == 8 {
                     self.battle_digit_by_type[t as usize] = self.predict_hp_loss(t, true);
                 }
             }
@@ -3793,7 +3793,7 @@ impl GameScene {
                     let e = self.grid.slots[ct][s as usize] as usize - 1;
                     let t = self.entities.entity_type[e];
                     if self.entities.solid[e] != 1 {
-                        match entity::render_category(t) {
+                        match self.entity_category(t) {
                             1 => match t {
                                 1 | 2 | 3 => {
                                     // 门（a.java:5391-5411）：耗钥（consumeKeyForDoor
@@ -4097,7 +4097,7 @@ impl GameScene {
                 while s >= 0 {
                 let e = self.grid.slots[ct][s as usize] as usize - 1;
                 let t = self.entities.entity_type[e];
-                match entity::render_category(t) {
+                match self.entity_category(t) {
                     1 => match t {
                         6 => self.player_bob_applied = true, // f_bool_07（喷泉浮沉）
                         83 => {
@@ -4566,6 +4566,18 @@ impl GameScene {
     /// （paint case 3：cameraPixelX / cameraPixelY+view_top）。
     /// floor1 类别覆盖 1/2/8 + 空图文字标签；16/32/67/69 拼装 todo（floor1
     /// 实体清单无这些类型，spec p3-render §3.5）。
+    /// renderCategoryByType 的场景视角（a.java:9669-9667 m_122 尾）：type 72
+    /// 类别**层相关**——floor50 = 8（可战斗），其余层 = 32。静态
+    /// entity::render_category 只覆盖非 50 层语义（迭代 56：floor50 boss
+    /// 走 cat32 臂缺 4px lift，T237 op 唯一分歧实证）。
+    fn entity_category(&self, t: i32) -> u8 {
+        if t == 72 && self.floor == 50 {
+            8
+        } else {
+            entity::render_category(t)
+        }
+    }
+
     pub fn paint_entities(&mut self, g: &mut SoftGraphics<'_>, cam_x: i32, cam_y: i32) {
         entity::advance_bob(&mut self.bob_offset, &mut self.bob_rising);
         let bob = self.bob_offset;
@@ -4603,7 +4615,7 @@ impl GameScene {
                         // 注：横向居中 (32-w)>>1 在**各臂内**取 sx 现值计算——
                         // case 8 抖动 / case 1 的 6/9 特例先改 sx 再用（Java var9 语义）
                         let cx_off = (CELL_PX - w) >> 1;
-                        match entity::render_category(t) {
+                        match self.entity_category(t) {
                             1 => {
                                 if t == 6 {
                                     sy += 5 - bob;
