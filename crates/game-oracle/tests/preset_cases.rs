@@ -3948,13 +3948,14 @@ fn preset_save_frames_match() {
 /// Java 锚：T302 script24 / T648 冻结 / T762 battle / T768 script36 /
 /// T904 关闭静态。
 #[test]
-#[ignore] // 迭代 60/61：Java 全链锚齐（T302 script24 五页 / T648 冻结 / T762
-          // 开战 / T768 case69→event[7]+script36 / T904 关闭静态）但 T303 起
-          // 整屏 ~46% 像素差（非 sprite 位差）。迭代 61 实测：双侧 animBob
-          // 均 0、69 臂 (107,113±bob) 一致；真差异 = **对话相机 Y 目标**——
-          // Java camY 自 -50 缓动收敛 -82（cameraTarget=226，非 speaker
-          // boss py192/玩家 160，Rust 收敛 -48 且随页振荡）——floor35 对话
-          // 相机锁目标语义待考（a.java openDialogPage/lockCameraOn 链）。
+#[ignore] // 迭代 60-62：Java 全链锚齐；相机目标时间线全解（cameraTarget
+          // FLD255/256）：页 101/103/105（speaker 69）→ (160,192)=boss px+32
+          //（a.java:8668 var1==69 → cameraTargetX+=32），页 102/104（speaker
+          // 0）→ (128,160)=玩家，cam 缓动交替收敛 -82/-50；T642 关闭 →
+          // lockCameraOn(0) → (128,160) 收敛 -50；T762 再撞 → script36（页
+          // 162 speaker=0 → (128,160)）；T902 关闭 → camY -50→-66 后冻结
+          // （闭合末段 16px 下移的缓动目标待考——疑似 dp=4 冻结截断半程）。
+          // Rust 侧同链待对齐此段后摘除。
 fn preset_floor35_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(
