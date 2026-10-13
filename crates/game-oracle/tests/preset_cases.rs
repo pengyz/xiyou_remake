@@ -4412,7 +4412,6 @@ fn preset_floor10_frames_match() {
 /// Java 锚：T402/552/1252/1402 守卫战、T568/1416 wp4、T1560 script15。
 /// T904 关闭静态。
 #[test]
-#[ignore] // 迭代 67 挂起：T451 太白金星绘制态分歧 + m_122 生成序待考（见 doc）。
 // 迭代 60-64 全帧收敛（T1-1200）。T924-930 = wp=4 组开门动画（对话关闭后
 // 脚本行末步踏上 (4,6) 型76 踏板触发）：paintTileLayer 头段每 paint 推进
 // ——cnt18 封门切 row6/state1（opened_door 帧 0/1/2 @T924/926/928）、
@@ -4420,9 +4419,15 @@ fn preset_floor10_frames_match() {
 // **推进必须挂 paint 时点**（Rust 曾挂 tick → 同拍 advance_frames 多推一帧，
 // T924 src=45 vs Java src=0）。Java 锚：T302 script24 / T648 冻结 / T762
 // battle / T768 script36 / T904 关闭 / T907 wp=4 / T924 TAK 门开 / T930 门除。
-// 【迭代 76 挂起（T1-449 绿）】残余 413px 单点 = 太白金星（77，(8,9)）NPC
-// 形态：Java 白云形态 vs Rust 真身立绘（sptenemy2[16] 解码 PIL 对照零差
-// 异）——形态切换语义（anim/param/state 驱动）待专项。
+// 迭代 67 挂起 →【迭代 77 摘挂 ✅ T1-1600 全帧绿】根因 = apply_merchant_offer
+// 缺 a.java:7456 臂：购买路径 flags&2==0 且 flags&1!=0 → param^=256 +
+// markEntityRemoved（cat16 → 27×29 row6 白烟）。floor46 商人 flags=0x01
+// 一次性：-5 购买即消耗（T449 键 -5 → T450 烟帧0 → T451 烟帧1 → 表尾
+// 摘除）。挂起注记勘误：所谓"白云形态"实为 **open_anim 白烟帧**（27×29
+// @(106,82)，与 sptprop[3] 云底座位置重叠致误判）；云底座两侧都画、
+// sptenemy2[16] 解码零差异结论均成立。随修：build_minimap 忠实化
+// （markEntityRemoved 仅 cat1 重绘，a.java:6367——Rust 曾 cat16 也重绘/脚本
+// REM·SWD·85-op·adjacent-cat1 移除不重绘，统一由 entity::remove 返回值驱动）。
 fn preset_floor46_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(
@@ -4610,21 +4615,6 @@ fn preset_floor46_frames_match() {
                 }
             }
         }
-        if std::env::var("F46DUMP").is_ok() && rec.tick >= 446 && rec.tick <= 456 {
-            if let Some(sc) = &scene {
-                eprintln!("F46DUMP T{} mode={} ov={} kind={} pxy=({},{}) face={} key={} qcur={}",
-                    rec.tick, sc.game_mode, sc.overlay_active, sc.overlay_kind,
-                    sc.view.player_px, sc.view.player_py, sc.facing,
-                    sc.key_value, sc.offer_queue_cursor);
-                for e in 0..sc.entities.count {
-                    if sc.entities.entity_type[e] == 77 {
-                        eprintln!("F46DUMP   npc e={} param={:#x} removed={} vis={} solid={}",
-                            e, sc.entities.param[e], sc.entities.removed[e],
-                            sc.entities.visible[e], sc.entities.solid[e]);
-                    }
-                }
-            }
-        }
         let sha;
         {
             let mut g = SoftGraphics::new(&mut screen);
@@ -4635,15 +4625,6 @@ fn preset_floor46_frames_match() {
                 None => machine.paint(&mut g),
             }
             sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
-            if std::env::var("F46DUMP").is_ok() && rec.tick >= 446 && rec.tick <= 456 {
-                let mut ppm = format!("P6\n{} {}\n255\n", screen.width, screen.height).into_bytes();
-                for &p in &screen.argb {
-                    ppm.push(((p >> 16) & 0xFF) as u8);
-                    ppm.push(((p >> 8) & 0xFF) as u8);
-                    ppm.push(p as u8);
-                }
-                std::fs::write(format!("/tmp/f46rust-{:04}.ppm", rec.tick), &ppm).unwrap();
-            }
         }
         {
             if let Some(expect) = &rec.frame_sha {
@@ -4873,15 +4854,6 @@ fn preset_floor42_frames_match() {
                 None => machine.paint(&mut g),
             }
             sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
-            if std::env::var("F46DUMP").is_ok() && rec.tick >= 340 && rec.tick <= 470 {
-                let mut ppm = format!("P6\n{} {}\n255\n", screen.width, screen.height).into_bytes();
-                for &p in &screen.argb {
-                    ppm.push(((p >> 16) & 0xFF) as u8);
-                    ppm.push(((p >> 8) & 0xFF) as u8);
-                    ppm.push(p as u8);
-                }
-                std::fs::write(format!("/tmp/f46rust-{:04}.ppm", rec.tick), &ppm).unwrap();
-            }
         }
         {
             if let Some(expect) = &rec.frame_sha {

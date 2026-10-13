@@ -246,12 +246,13 @@ pub fn cell_entity(grid: &CellGrid, table: &EntityTable, x: i32, y: i32, type_id
     -1
 }
 
-/// markEntityRemoved 核心（a.java:6346-6378）：solid=1（移除态）+ 类目分派视觉字段：
-/// - 类目 1：type 1/2/3 → (45,56) 行 6；type 11 → (45,57) 行 2；其余不变；
-///   随后调用方重绘小地图（buildMinimap）
+/// markEntityRemoved 核心（a.java:6346-6378）：solid=1（移除态）+ 类目分派视觉字段。
+/// 返回 true = renderCategory==1（Java 此分支内调 buildMinimap，a.java:6367——
+/// 调用方据此决定是否重绘小地图；cat2/4/8/16/32 一律不重建）：
+/// - 类目 1：type 1/2/3 → (45,56) 行 6；type 11 → (45,57) 行 2；其余不变
 /// - 类目 2/4 → (45,56) 行 10
 /// - 类目 8/16/32 → (27,29) 行 6
-pub fn remove(table: &mut EntityTable, idx: usize) {
+pub fn remove(table: &mut EntityTable, idx: usize) -> bool {
     table.solid[idx] = 1;
     let t = table.entity_type[idx];
     match render_category(t) {
@@ -284,6 +285,7 @@ pub fn remove(table: &mut EntityTable, idx: usize) {
         }
         _ => {}
     }
+    render_category(t) == 1
 }
 
 /// markEntityDesRemoved（a.java:6329-6338）：DES 变体——solid=2 + 类目 2/8/16/32 → (27,29) 行 8。

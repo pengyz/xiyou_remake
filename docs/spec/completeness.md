@@ -434,6 +434,30 @@
    （a.java:3010-3037 双缓冲火花：f_byte_20 仅 3035=sparkCount 写、
    addSpark 仅循环内调——自播种为零闭环，randomBelow(15) 永不消费；
    Rust 无此臂 = 零行为差，复核登记关闭）。 |
+   【迭代 77（floor46 摘挂 ✅ 楼层 L3 13/55，全套 24 绿 0 挂起——历史首次
+   无挂起）】**根因 = apply_merchant_offer 缺 a.java:7456 臂**：购买路径
+   `if(var1){ if(flags&2!=0){…} else if(flags&1!=0){ param^=256 +
+   markEntityRemoved } }`——一次性商人（flags&1）**买/拒皆消耗**（拒绝臂
+   7462 已有，购买臂 7456 缺）。floor46 链实证：T449 键 **-5（购买非拒绝）**
+   → flags=0x01（&2==0、&1!=0）→ Java 商人 T450 起消失（白烟帧 0 → T451
+   帧 1 → row6 表尾摘除），Rust 缺臂滞留本体（413px 单点）。
+   **取证链（模板匹配 + OPS + 记录表三重）**：① sptenemy2[16]=29×48 白发
+   老者（entityTypeImage[77]）、sptprop[3]=30×27 白云（cat16 底座，
+   entityTypeImage[15]）——两侧都画（T449 Java OPS：30x27@(105,89) +
+   29x48@(105,57)）；② tRNS 透明掩码模板匹配：Java T450 帧全窗口无
+   sptenemy2[16] 像素（973/973 错）⇒ 老者非换形态而是**被移除**；T451
+   OPS `drawImage(135x29,106,82)` clip 27×29 = open_anim 白烟；③ sprite46
+   (8,9) 单条 t=77 extra=0x13——无独立云实体，云=cat16 底座随实体消亡。
+   **挂起注记勘误**：迭代 67/68 的"白云形态 vs 真身立绘"定性**证伪**——
+   所谓"Java 白云"实为 **open_anim 白烟帧与 sptprop[3] 云底座位置重叠**
+   （(106,82) vs (105,89)，27×29 ⊂ 30×27 区域）的误读；sptenemy2[16]
+   解码零差异、云底座两侧都画等结论仍成立。
+   随修 **build_minimap 忠实化**：markEntityRemoved 仅 cat1 分支调
+   buildMinimap（a.java:6367）——Rust 曾 cat16 商人移除也重绘（多）/
+   脚本 REM·SWD(型11)·85-op(型1)·remove_adjacent（cat1 族）不重绘（少），
+   统一改为 entity::remove 返回 cat1 判定驱动。flags 三判入册：
+   **&1=一次性（买/拒皆 ^256+移除）、&2=多商品持久（购买循环+收尾块）、
+   &4=防移除防护**。 |
    【迭代 71（floor43 摘挂推进：7868→413px）】两项 A 级修正：① **m_083
    先减后比**（a.java:7693 `while (--var3 >= var2)`——扫描 [lo,hi-1]，
    hi 永不触达；Rust 误译后减致 [12] 越界 panic）——修正后 80 甲拾取
@@ -485,7 +509,11 @@
    （循环后）与 Java 同位**——Z 序非分歧源；残余差异 = **白烟内部纹理**
    （Java 致密 vs Rust 透底呈砖纹——opened_door 帧序/帧偏移待查：
    NPC anim_idx 应恒 0/帧 0，两侧公式一致却绘出不同帧，疑 Rust 帧字段
-   被他人改写或 draw_image_clipped 的帧偏移取整差）。挂起注记已同步。 |
+   被他人改写或 draw_image_clipped 的帧偏移取整差）。挂起注记已同步。
+   > 【2026-10-14 更正（迭代 77）】上记"白烟内部纹理"定性**证伪**——
+   > 分歧非烟纹理，而是**Java 侧烟 = 商人移除态（缺 7456 臂致 Rust 画
+   > 本体）**；"两侧绘制一致 ✓"与"NPC anim_idx 应恒 0/帧 0"前提不成立
+   > （NPC 实际进入 row6 白烟动画）。详见迭代 77 条目。 |
    【迭代 67（floor46 铺层：85 黄金钥匙 + 77 太白金星告示，挂起）】
    preset_floor46 T1-450 全帧绿，T451 起挂起：① **77 太白金星绘制态分
    歧**——Java 受领拍（-5，flags=0 仅关浮层）后 NPC 置 state=1 画

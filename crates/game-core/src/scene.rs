@@ -1778,8 +1778,10 @@ impl GameScene {
                 let (_, e) = Self::parse_script_int(&line, v2 + 1, ' ');
                 let want = -t0;
                 for i in (0..self.entities.count as usize).rev() {
-                    if self.entities.entity_type[i] == want {
-                        entity::remove(&mut self.entities, i);
+                    if self.entities.entity_type[i] == want
+                        && entity::remove(&mut self.entities, i)
+                    {
+                        self.build_minimap();
                     }
                 }
                 self.script_cursor = e + 1;
@@ -1787,8 +1789,8 @@ impl GameScene {
                 let (cx, e1) = Self::parse_script_int(&line, v2 + 1, '_');
                 let (cy, e2) = Self::parse_script_int(&line, e1 + 1, ' ');
                 let idx = self.entity_at_cell(cx, cy, t0);
-                if idx >= 0 {
-                    entity::remove(&mut self.entities, idx as usize);
+                if idx >= 0 && entity::remove(&mut self.entities, idx as usize) {
+                    self.build_minimap();
                 }
                 self.script_cursor = e2 + 1;
             }
@@ -2476,8 +2478,10 @@ impl GameScene {
                 let mut e = self.entities.count;
                 while e > 0 {
                     e -= 1;
-                    if self.entities.entity_type[e] == 11 {
-                        entity::remove(&mut self.entities, e);
+                    if self.entities.entity_type[e] == 11
+                        && entity::remove(&mut self.entities, e)
+                    {
+                        self.build_minimap();
                     }
                 }
                 self.game_mode = 3;
@@ -2495,8 +2499,8 @@ impl GameScene {
                 let mut e = self.entities.count;
                 while e > 0 {
                     e -= 1;
-                    if self.entities.entity_type[e] == 1 {
-                        entity::remove(&mut self.entities, e);
+                    if self.entities.entity_type[e] == 1 && entity::remove(&mut self.entities, e) {
+                        self.build_minimap();
                     }
                 }
                 self.game_mode = 3;
@@ -2624,7 +2628,9 @@ impl GameScene {
         for (dx, dy) in [(0i32, -1i32), (0, 1), (-1, 0), (1, 0)] {
             let e = self.find_entity_of_type_at(cx + dx, cy + dy, target);
             if e >= 0 {
-                entity::remove(&mut self.entities, e as usize);
+                if entity::remove(&mut self.entities, e as usize) {
+                    self.build_minimap();
+                }
                 hit = true;
             }
         }
@@ -3415,10 +3421,6 @@ impl GameScene {
         let param = self.entities.param[self.merchant_entity as usize] as i32;
         let flags = (param >> 8) as i8;
         let idx = param as i8;
-        if std::env::var("F46DBG").is_ok() {
-            eprintln!("apply_offer buy={} param={:#x} flags={:#x} idx={:#x} me={}",
-                buy, param, flags, idx, self.merchant_entity);
-        }
         let src = if self.entities.entity_type[self.merchant_entity as usize] == 77 {
             0
         } else {
@@ -3551,24 +3553,32 @@ impl GameScene {
                             self.show_overlay_message(4, text, 0, 0);
                             follow_up = true;
                         } else {
+                            // a.java:7450：flags&1==0 → markEntityRemoved（cat16
+                            // 不重绘小地图——buildMinimap 仅在 markEntityRemoved
+                            // 的 cat1 分支内，a.java:6367）
                             entity::remove(&mut self.entities, self.merchant_entity as usize);
-                            self.build_minimap();
                         }
                     }
                 } else {
                     // 购买失败（「没有足够的金钱」提示浮层已开）→ 浮层保持
                     follow_up = true;
                 }
+            } else if flags & 1 != 0 {
+                // a.java:7456-7460：**购买路径 flags&2==0 且 flags&1!=0 臂**——
+                // 一次性商人（flags&1）任意处置（买/拒）皆消耗：^256 + 非
+                // flags&4 防护则 markEntityRemoved（cat16 → 27×29 row6 白烟）。
+                // floor46 T450 实证：-5 购买后 Java 商人消失（白云残置），
+                // Rust 曾缺此臂致老者滞留（413px 单点根因，迭代 77）。
+                self.entities.param[self.merchant_entity as usize] ^= 256;
+                if flags & 4 == 0 {
+                    entity::remove(&mut self.entities, self.merchant_entity as usize);
+                }
             }
         } else if flags & 2 == 0 && flags & 1 != 0 {
-            // 拒绝路径（a.java:7453-7460）：^256（非 ^512）+ 非一次性则移除
-            if std::env::var("F46DBG").is_ok() {
-                eprintln!("apply_offer REFUSE branch");
-            }
+            // 拒绝路径（a.java:7462-7466）：^256（非 ^512）+ 非一次性则移除
             self.entities.param[self.merchant_entity as usize] ^= 256;
             if flags & 4 == 0 {
                 entity::remove(&mut self.entities, self.merchant_entity as usize);
-                self.build_minimap();
             }
         }
         follow_up
@@ -3649,9 +3659,6 @@ impl GameScene {
         // 其余键吞掉）；其余情况 handleOverlayKey（a.java:4923-4931：任意
         // 非翻页键关层）。**walkPhase 状态机与 m_055 冻结**。
         if self.overlay_active {
-            if std::env::var("F46DBG").is_ok() {
-                eprintln!("ov-dispatch fc={} key={} kind={}", self.frame_counter, self.key_value, self.overlay_kind);
-            }
             if self.overlay_kind == 4 {
                 // 商人/告示牌（overlay 分派 case4，a.java:3305-3320）：-6/-5=
                 // applyMerchantOffer(true)，-7=(false)，-2/-1 翻页，其余关闭
@@ -5166,9 +5173,6 @@ impl GameScene {
                         {
                             self.paint_player(g, cam_x, cam_y);
                             player_drawn = true;
-                            if std::env::var("F46DBG").is_ok() {
-                                eprintln!("paint_ent: player INSERTED before e={} t={}", e, t);
-                            }
                         }
                         let anim = self.entities.anim_idx[e] as usize;
                         let frame = self.entities.frame[e];
@@ -5305,9 +5309,6 @@ impl GameScene {
 
         g.set_clip(0, 0, SCREEN_W, SCREEN_H);
         if !player_drawn {
-            if std::env::var("F46DBG").is_ok() {
-                eprintln!("paint_ent: player FALLBACK after loop");
-            }
             self.paint_player(g, cam_x, cam_y);
         }
         // walkPhase==5 星光（a.java:6692-6704）：battleTick&7 选帧，sparkFrames

@@ -40,11 +40,18 @@ Stage B（现代化）在 Stage A 四条达成后另行立项，不在本计划�
 - 完成判据：两工具跑通并产出首份矩阵报告 ✅。
 
 ### P1 挂起清零（2-3 轮）
-- [ ] floor46：opened_door 白烟帧序（帧偏移/帧序专项）→ 摘挂。
-- [ ] floor43：状态栏防御数字重绘 292px + 描述盒尾行 105px → 摘挂。
+- [x] floor46：~~opened_door 白烟帧序（帧偏移/帧序专项）~~ → **迭代 77 摘挂
+      ✅**。真根因 = apply_merchant_offer 缺 a.java:7456 臂（购买路径
+      flags&2==0 且 flags&1!=0 → param^256+markEntityRemoved）；"白云形态"
+      系 open_anim 白烟帧与 sptprop[3] 云底座重叠误读（勘误入 completeness）。
+      随修 build_minimap 忠实化（仅 cat1 重绘）。T1-1600 全帧绿。
+- [x] floor43：~~状态栏防御数字重绘 292px + 描述盒尾行 105px~~ → **迭代 76
+      摘挂 ✅**（paint_overlay_box 重排参数对齐 + 装备槽图标移植，T1-1700 绿）。
 - [ ] dp2=m_106 实体路径缓动（MOV 五参，随首个含 5 参 MOV 的层落地）。
 - [ ] m_102 跨层快照（tryRunScene case 7/32，同上）。
 - 完成判据：completeness 挂起段清零（死内容/mode13/99 等带证条目除外）。
+  进度：帧级挂起已清零（迭代 77，24 绿 0 挂起）；余 dp2/m_102 两项随
+  P2 铺层触发。
 
 ### P2 定向铺层（主体，约 40-55 轮）
 - 按覆盖矩阵赤字 + 层序分批：每批 3-5 层，批内按新机制密度排序。
