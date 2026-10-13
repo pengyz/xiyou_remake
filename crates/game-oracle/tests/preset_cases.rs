@@ -4141,24 +4141,6 @@ fn preset_floor35_frames_match() {
                 }
             }
         }
-        if std::env::var("F35DUMP").is_ok() && rec.tick >= 760 && rec.tick <= 775 {
-            if let Some(sc) = &scene {
-                eprintln!("F35DUMP T{} wp={} dp={} mode={} pxy=({},{}) cam=({},{}) key={} cur={} idx={}",
-                    rec.tick, sc.walk_phase, sc.dialog_phase, sc.game_mode,
-                    sc.view.player_px, sc.view.player_py, sc.view.cam_x, sc.view.cam_y,
-                    sc.key_value, sc.script_cursor, sc.current_script_index);
-                let ct = sc.grid.cell_type[6][4] as usize;
-                eprintln!("F35DUMP   cell(4,6) ct={} cap={} slots={:?}",
-                    ct, sc.grid.capacity[ct], &sc.grid.slots[ct][..sc.grid.capacity[ct] as usize]);
-            }
-            let mut ppm = format!("P6\n{} {}\n255\n", screen.width, screen.height).into_bytes();
-            for &p in &screen.argb {
-                ppm.push(((p >> 16) & 0xFF) as u8);
-                ppm.push(((p >> 8) & 0xFF) as u8);
-                ppm.push(p as u8);
-            }
-            std::fs::write(format!("/tmp/f35rust-{:04}.ppm", rec.tick), &ppm).unwrap();
-        }
         let sha;
         {
             let mut g = SoftGraphics::new(&mut screen);

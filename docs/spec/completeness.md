@@ -410,7 +410,17 @@
    次级发现：**spriteN/maplvN = floor N（1 基，N∈1..54；floor
    55=ending 无需资产）**——早前按 0 基误读的层扫描表已作废。
    挂起：dp2=m_106 实体路径缓动（本窗口无 5 参 MOV 触发，
-   todo 在位）、入口脚本 n[10] 牛魔王 CES 链（非本窗口路径）。 |
+   todo 在位）、入口脚本 n[10] 牛魔王 CES 链（非本窗口路径）。
+   【迭代 65 对抗复核新登记】① **mode18 paint 期火花分支缺失**：
+   a.java:3014-3034 paint case 18 对**每活跃粒子每 paint** 消费 1 次
+   randomBelow(15) 并按位 addSpark ≤4（RNG 流消费者 + 视觉元素）——
+   Rust Particles::paint_and_update 无此臂（title.rs:93-125 仅画+推进）。
+   已覆盖窗口（boot_menu T1-150/prologue case14）未引爆 ⇒ 粒子在那些
+   paint 拍不活跃或火花不可见，机制待专项考证后补臂。② 遗留探针清理：
+   preset_cases floor35 的 F35DUMP（PPM 落盘）已除；paint.rs:571
+   PROBE_SLOTS（迭代 22 起，env 门控惰性）保留待查。③ 未用变量警告
+   5 处（records1 类影子绑定：alchemy/save 系 4451/3758/2038/1813）——
+   floor10/floor35 已核实无此问题，余者不涉换层窗口。 |
    **迭代 59 实现收口（mode12 L3）**：preset_floor5 T1-1200 全帧一致。
    ① save.rs：MOT_L 日志槽（f_int_89 对 = f_byte_arr_14/15）解析入
    FloorSave.journal（原 skip）；② 场景五件套：activate_item case14
