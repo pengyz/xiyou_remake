@@ -329,7 +329,14 @@
    script36（页 162 speaker0）→ T902 关闭 → camY -50→**-66** 后冻结
    （dp=4/mode3 冻结截断闭合缓动半程——末段 16px 下移目标待考）。
    **CI 收敛确认（2026-13T03:30）**：feb6cb3 补交后 `check` 步 CI
-   **success**——迭代 57 起的全红根因（E0063 缺字段）闭环。 |
+   **success**——迭代 57 起的全红根因（E0063 缺字段）闭环。
+   **迭代 63 真根因修复（floor35 T303-923 全帧一致）**：首差异 = 对话
+   相机 X 缓动首步 ±10px——**lockCameraOn 型69 规则缺失**（a.java:8667-8668
+   `var1==69 → cameraTargetX += 32`，全调用方共用）：open_dialog_page 锚块
+   覆写 ease_target 时丢失 +32 → 相机不动（Java 首步 -24→-34）。修复两处
+   （lockCameraOn 内 + open_dialog_page 锚块覆写点）。剩余 T924 起 = 关闭后
+   相机 Y 收尾两拍（Java -50→-66 后冻结；疑 walk 边缘跟随与 ease 交错，
+   Rust 收敛 -48 持续）——单点待考。 |
    **迭代 59 实现收口（mode12 L3）**：preset_floor5 T1-1200 全帧一致。
    ① save.rs：MOT_L 日志槽（f_int_89 对 = f_byte_arr_14/15）解析入
    FloorSave.journal（原 skip）；② 场景五件套：activate_item case14

@@ -1415,6 +1415,10 @@ impl GameScene {
                     if found >= 0 {
                         self.ease_target_x = self.entities.pixel_x[found as usize];
                         self.ease_target_y = self.entities.pixel_y[found as usize];
+                        // a.java:8667-8668（lockCameraOn 内）：型69 目标 X += 32
+                        if self.dialog_speaker == 69 {
+                            self.ease_target_x += 32;
+                        }
                     }
                     found
                 } else {
@@ -3735,6 +3739,10 @@ impl GameScene {
             if found >= 0 {
                 self.ease_target_x = self.entities.pixel_x[found as usize];
                 self.ease_target_y = self.entities.pixel_y[found as usize];
+                // a.java:8667-8668：型69 目标 X += 32（取景右偏，全调用方共用）
+                if target == 69 {
+                    self.ease_target_x += 32;
+                }
             }
         } else {
             self.ease_target_x = self.view.player_px;

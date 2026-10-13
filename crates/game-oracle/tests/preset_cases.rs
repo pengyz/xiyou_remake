@@ -3948,14 +3948,11 @@ fn preset_save_frames_match() {
 /// Java 锚：T302 script24 / T648 冻结 / T762 battle / T768 script36 /
 /// T904 关闭静态。
 #[test]
-#[ignore] // 迭代 60-62：Java 全链锚齐；相机目标时间线全解（cameraTarget
-          // FLD255/256）：页 101/103/105（speaker 69）→ (160,192)=boss px+32
-          //（a.java:8668 var1==69 → cameraTargetX+=32），页 102/104（speaker
-          // 0）→ (128,160)=玩家，cam 缓动交替收敛 -82/-50；T642 关闭 →
-          // lockCameraOn(0) → (128,160) 收敛 -50；T762 再撞 → script36（页
-          // 162 speaker=0 → (128,160)）；T902 关闭 → camY -50→-66 后冻结
-          // （闭合末段 16px 下移的缓动目标待考——疑似 dp=4 冻结截断半程）。
-          // Rust 侧同链待对齐此段后摘除。
+#[ignore] // 迭代 60-63：真根因链已修两处——① lockCameraOn 型69 目标 X+=32
+          //（a.java:8667-8668，open_dialog_page 锚块覆写点同步）② 对话相机
+          // 逐页交替锁（boss -82/玩家 -50）与击杀链全对齐：T303-923 全帧一致。
+          // 剩余 T924 起 = 关闭后相机 Y 收尾（Java -50→-66 两拍后冻结，
+          // 疑 walk 边缘跟随与 ease 的交错；Rust 收敛 -48 持续）——单点待考。
 fn preset_floor35_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(
@@ -4159,32 +4156,21 @@ fn preset_floor35_frames_match() {
                 Some(sc) => sc.paint(&mut g, &tileset),
                 None => machine.paint(&mut g),
             }
-            if (296..=316).contains(&(rec.tick as i32)) {
-                if let Some(sc) = &scene {
-                    eprintln!("DBG T{} mode={} cam=({},{}) dp={} script={} wp={}", rec.tick,
-                        sc.game_mode, sc.view.cam_x, sc.view.cam_y, sc.dialog_phase,
-                        sc.current_script_index, sc.walk_phase);
-                }
-            }
-            let frame_snap = if (300..=310).contains(&(rec.tick as i32))
-                || (499..=505).contains(&(rec.tick as i32))
-                || (619..=625).contains(&(rec.tick as i32))
-                || (748..=754).contains(&(rec.tick as i32))
-                || (828..=834).contains(&(rec.tick as i32))
-                || (908..=914).contains(&(rec.tick as i32))
-                || (998..=1004).contains(&(rec.tick as i32))
-            {
-                Some(screen.argb.clone())
+            let ops_dump = if (300..=312).contains(&(rec.tick as i32)) {
+                Some(g.ops.join("\n"))
             } else {
                 None
             };
-            sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
-            if let Some(snap) = frame_snap {
-                let mut raw = Vec::new();
-                for px in &snap {
-                    raw.extend_from_slice(&px.to_be_bytes());
+            if (300..=312).contains(&(rec.tick as i32)) {
+                if let Some(sc) = &scene {
+                    eprintln!("DBG T{} mode={} cam=({},{}) dp={} script={} wp={} bscroll={} ease_y={}",
+                        rec.tick, sc.game_mode, sc.view.cam_x, sc.view.cam_y, sc.dialog_phase,
+                        sc.current_script_index, sc.walk_phase, sc.backdrop_scroll, sc.ease_cam_y);
                 }
-                std::fs::write(format!("/tmp/f5-T{:04}.rgba", rec.tick), raw).unwrap();
+            }
+            sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
+            if let Some(ops) = ops_dump {
+                std::fs::write(format!("/tmp/f35-T{:04}.ops", rec.tick), ops).unwrap();
             }
         }
         {
