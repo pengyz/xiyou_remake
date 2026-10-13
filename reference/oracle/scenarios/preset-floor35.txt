@@ -1,0 +1,32 @@
+# ticks: 1200
+# preset: preset-floor35.preset
+# cover: 按层铺 floor35（深层 boss 层，case69 击杀钩子首验）：槽载入
+#   (4,5) → -2 撞 (4,6)（型83 触发器 param24 → script24 TAK_101_105 五页
+#   前导对话，5×-5 推进后行尾冻结）→ -2 再撞（83 seen → 型69 cat8 开战
+#   一拍斩）→ 击杀动画完成臂 case69（a.java:10135 floor35 →
+#   spawnBossEvent(7)（bossEventSpawns[7]=3×型32，迭代 58 补齐第 8 条）+
+#   loadLevelScript(36)）→ TAK_162 → -5 推进关闭 → 行尾冻结静态
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -2 press
+302 -2 release
+400 -5 press
+402 -5 release
+460 -5 press
+462 -5 release
+520 -5 press
+522 -5 release
+580 -5 press
+582 -5 release
+640 -5 press
+642 -5 release
+760 -2 press
+762 -2 release
+900 -5 press
+902 -5 release

@@ -73,6 +73,8 @@ pub struct SceneImages {
     pub faces: Vec<ArgbImage>,
     /// f_Image_arr2_00[14][0]：end 包结局卷轴（240×145，m_001(14) 迭代 57）
     pub ending: ArgbImage,
+    /// f_Image_arr2_00[9][*]：xtq 包（6 张；[5] = 型69 拼装效果帧条 26×13）
+    pub xtq: Vec<ArgbImage>,
 }
 
 impl SceneImages {
@@ -127,7 +129,7 @@ const PLAYER_FRAME_TABLE: [i32; 4] = [0, 1, 0, 2];
 /// bossTypeOrder（a.java:2198）：boss 型 → bossEventSpawns 事件序（击杀钩子）。
 const BOSS_TYPE_ORDER: [i32; 6] = [75, 74, 68, 67, 69, 71];
 /// bossEventSpawns（a.java:2041-2104）：每事件 = [型, 格x, 格y, param]×N。
-const BOSS_EVENT_SPAWNS: [&[i32]; 7] = [
+const BOSS_EVENT_SPAWNS: [&[i32]; 8] = [
     &[
         29, 1, 3, 0, 29, 2, 3, 0, 29, 3, 3, 0, 26, 1, 4, 0, 26, 2, 4, 0, 26, 3, 4, 0, 30, 9, 3,
         0, 30, 10, 3, 0, 30, 11, 3, 0, 32, 9, 4, 0, 32, 10, 4, 0, 32, 11, 4, 0,
@@ -143,6 +145,9 @@ const BOSS_EVENT_SPAWNS: [&[i32]; 7] = [
     &[
         32, 2, 3, 0, 32, 3, 3, 0, 32, 4, 3, 0, 26, 8, 3, 0, 26, 9, 3, 0, 26, 10, 3, 0, 29, 3, 5,
         0, 29, 4, 5, 0, 29, 5, 5, 0, 30, 7, 5, 0, 30, 8, 5, 0, 30, 9, 5, 0,
+    ],
+    &[
+        32, 4, 4, 0, 32, 5, 4, 0, 32, 6, 4, 0,
     ],
 ];
 const SPARK_FRAME: [i32; 8] = [1, 2, 0, 3, 4, 1, 2, 0];
@@ -4793,13 +4798,36 @@ impl GameScene {
                                 }
                                 if state == 1 || state == 2 {
                                     draw_image_clipped(g, &self.images.open_anim, sx + OPEN_ANIM_DX, sy + OPEN_ANIM_DX - (frame * OPEN_ANIM_STEP), frame_off, 0, OPEN_ANIM_W, OPEN_ANIM_H);
-                                } else if t != 67 && t != 69 {
+                                } else if t == 69 {
+                                    // a.java:6590-6600：型69 拼装——阴影 +40、
+                                    // 全身图整图直画 (x+3, y−49+bob)（无裁剪无
+                                    // 帧偏移）、帧偏移 >0 时 xtq[5] 26×13 效果帧
+                                    //（src = 26×(偏移−1)）。
+                                    g.draw_image(&self.images.shadow, sx + 40, sy + 22, 0);
+                                    let raw_off = ANIM_OFFSET_TABLE[anim][frame as usize];
+                                    let sx69 = sx + 3;
+                                    let sy69 = sy - 49 + self.bob_offset;
+                                    g.draw_image(img, sx69, sy69, 0);
+                                    if raw_off > 0 {
+                                        draw_image_clipped(
+                                            g,
+                                            &self.images.xtq[5],
+                                            sx69 + 32,
+                                            sy69 + 27,
+                                            (raw_off - 1) * 26,
+                                            0,
+                                            26,
+                                            13,
+                                        );
+                                    }
+                                } else if t != 67 {
                                     g.draw_image(&self.images.shadow, sx + SHADOW_DX, sy + SHADOW_DY, 0);
                                     sy -= ENTITY_LIFT;
                                     draw_image_clipped(g, img, (sx + cx_off), sy - (h - CELL_PX), frame_off, 0, w, h);
                                 } else {
-                                    // 67/69 拼装表组合（f_byte_arr2_00/01 元数据）——floor1 无
-                                    todo!("paintEntityLayer case 8 的 67/69 拼装组合（floor1 实体清单无）")
+                                    // 67 多段拼装（f_byte_arr2_00/01 元数据）——
+                                    // 实存层待考（floor1/5/12/35/40/50/51 无）
+                                    todo!("paintEntityLayer case 8 的 67 多段拼装")
                                 }
                                 // walkPhase==2 战后数字条（a.java:6617-6638）：
                                 // showBattleDigits 开关 + iconStrip 波动 + 预测伤害 drawDigitStrip

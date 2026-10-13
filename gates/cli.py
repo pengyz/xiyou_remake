@@ -223,8 +223,16 @@ def gate_rust_tests():
     r = subprocess.run(["cargo", "test", "--workspace", "--release"],
                        cwd=ROOT, capture_output=True, text=True)
     ok = r.returncode == 0
-    msg = (("cargo test --release 全绿" if ok else r.stdout[-200:]) +
-           ("；" + prov_note if prov_note and "已再生" in prov_note else ""))
+    if ok:
+        msg = "cargo test --release 全绿"
+    else:
+        # cargo 的编译/测试错误走 **stderr**——只入 stdout 会把 CI 失败原因
+        # 截断成不可见（迭代 57 起 CI 红根因排查受阻，迭代 60 补修）
+        msg = (r.stdout[-200:] + " | STDERR: " + r.stderr[-400:]) if (r.stdout or r.stderr) else "cargo test 无输出"
+    if not ok and prov_note:
+        msg += "；" + prov_note
+    elif ok and prov_note and "已再生" in prov_note:
+        msg += "；" + prov_note
     return report("rust-tests", PASS if ok else FAIL, msg)
 
 

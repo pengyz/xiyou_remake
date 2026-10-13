@@ -306,6 +306,17 @@
    Rust 7 拍，itemboss40 同机制全绿 ⇒ 差异在 dp4 冻结态开战路径）。
    教训入册：先插方法后全局替换 ⇒ 委托变自递归（TCO 静默死循环 48min，
    gotcha_global-replace-hits-newly-added-method）。 |
+   **迭代 60（floor35 铺层 + mode13/99/18 台账更正）**：① mode13/99
+   全量 grep 无入口 ⇒ **死内容**登记（照 mode19 例）；② **mode18 行
+   更正**：粒子系统 Rust 已实现（title::Particles，a.java:9830-9873
+   忠实移植），boot_menu T1-150 粒子窗 + prologue case14 全帧绿＝L3
+   （原 ❌ 系陈旧误报）；③ 楼层铺 floor35：fixtures + preset-floor35
+   场景 + **bossEventSpawns[7] 补齐**（Java 表 8 条，Rust 原仅 7——
+   case69 的 spawnBossEvent(7) 曾必越界；全 8 条逐元素对表 ALL MATCH）
+   + preset_floor35 场景（Java 全链锚齐：T302 script24 五页 → T648
+   冻结 → T762 开战 → **T768 case69→event[7]+script36** → T904 静态）。
+   Rust T1-907 一致；T303 起型69 拼装绘制位置差（紫翼浮于门上方，29611px）
+   ——bob 移交/69 臂基准待专项测量，#[ignore] 挂起。 |
    **迭代 59 实现收口（mode12 L3）**：preset_floor5 T1-1200 全帧一致。
    ① save.rs：MOT_L 日志槽（f_int_89 对 = f_byte_arr_14/15）解析入
    FloorSave.journal（原 skip）；② 场景五件套：activate_item case14
@@ -379,17 +390,17 @@
 | 10 | 道具面板 | ✅ | L3 | scenario:`preset-item13.txt` |
 | 11 | 对话/剧情层 | ✅（scene script/mode11 + BootMachine 新游戏链） | L3 | scenario:`prologue-dialog.txt`——迭代 37 起 Rust **全流程 T1-9800**（preset_cases::prologue，冷启动移交 + type83→script40 + 打字机/游标/翻页/电影镜头）；旧冷场景窗口版退役 |
 | 12 | 道具14 记录浏览器 | ✅（迭代 59：activate_item case14 + m_076 + paint case12 + m_142 描边文字 + 日志槽解析） | L3 | scenario:`preset-floor5.txt`——Rust **T1-1200 全帧**（拾取道具14@floor5(4,9)→面板→使用→mode12 翻页/关闭） |
-| 13 | 过渡（B 级语义） | ❌ | — | |
+| 13 | 过渡（paint 仅视差，a.java:2881-2882） | ❌ 死内容 | — | 全量 grep 无 `gameMode = 13` 入口（2026-10-13）——不可达 |
 | 14 | 新游戏引子插画 | ✅ BootMachine | L3 | scenario:`enter-game.txt` |
 | 15 | 帮助浮层 | ✅ | L3 | scenario:`preset-help.txt` T450-700 |
 | 16 | 设置 | ✅ | L3 | scenario:`preset-load-menu.txt` |
 | 17 | 关于 | ✅ BootMachine | L3 | scenario:`menu-sweep.txt`（boot_replay 全量重放至 T1832） |
-| 18 | 粒子特效层 | ❌ | — | |
+| 18 | 粒子特效层 | ✅（title::Particles：32 槽环 + fillRect + velX 摆动/size 增长消亡，a.java:9830-9873） | L3 | scenario:`boot-menu.txt` T1-150（含 T72+ 菜单粒子窗全帧绿，boot_replay）+ case14 引子（prologue T1-9800）——台账原 ❌ 系陈旧误报（2026-10-13 更正） |
 | 19 | 商店 | ✅ enter/paint（Rust 侧） | ❌ 不可达死内容 | 原版 kind11（商店）从未加入任何菜单（a.java:4305-4333/4437-4441 全量 addMenuItem 核对，迭代 41）——activateMenuItem case11（a.java:4775）为死臂；Rust enter_menu19 同为死码保真 |
 | 20 | 结束/退出确认（结局卷轴） | ✅（迭代 57 实现：paint/tick/END 入口 + SceneImages.ending） | L3 | scenario:`preset-ending.txt`——迭代 58 起 Rust **T1-1800 全帧**（终局链：撞格83→script16 五页→GUT_37/GLV_1 冻结→型72 cat8 开战→case72→script65→END→mode20 打字机卷轴；L2\* 过渡态消灭） |
 | 21 | 音效询问 | ✅ BootMachine | L3 | 全部 preset 场景 T66-70 |
 | 22 | 退出淡出 70 帧 | ✅ BootMachine | L3 | scenario:`menu-sweep.txt` T1762-1832（boot_replay 终点断言） |
-| 99 | paint 特殊屏 | ❌ | — | |
+| 99 | paint 特殊屏 | ❌ 死内容 | — | 全量 grep 无 `gameMode = 99` 入口（2026-10-13）——不可达 |
 
 L2* = Java 三方对拍绿但 Rust 侧未建用例（覆盖声明的过渡态）。
 
