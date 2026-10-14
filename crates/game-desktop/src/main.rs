@@ -242,8 +242,14 @@ mod font_inject {
     /// game_core::render::set_glyph_hook 的注入实现：系统 TTF 真 CJK 字形。
     /// 布局仍用 SoftFont 的格宽/格高（与差分验证过的排版一致），仅字形换真。
     pub fn install() {
-        let _ = FONT.set(load());
-        game_core::render::set_glyph_hook(Some(hook_fn));
+        let font = load();
+        let has_font = font.is_some();
+        let _ = FONT.set(font);
+        if has_font {
+            game_core::render::set_glyph_hook(Some(hook_fn));
+        }
+        // 无字体 = **不装 hook**：game-core 差分占位字形原样保留（真回退；
+        // 此前无条件装 hook 且 hook 内直接 return = 文字空白的假回退）
     }
 
     fn hook_fn(
@@ -262,9 +268,14 @@ mod font_inject {
             .glyph_id(char::from_u32(ch as u32).unwrap_or(' '))
             .with_scale_and_position(scale, point(px as f32, (py + chh - 1) as f32));
         if let Some(outline) = font.outline_glyph(glyph) {
+            // ab_glyph 回调坐标是 px_bounds **局部**坐标（outlined.rs draw() 文档：
+            // "pixel coordinate inside the bounds"），必须平移 bbox 最小角才是画布
+            // 绝对坐标——否则全部字形像素堆在 (0,0)，文本落点为空（mode21 文字不可见 bug）。
+            let bb = outline.px_bounds();
+            let (ox, oy) = (bb.min.x.round() as i32, bb.min.y.round() as i32);
             outline.draw(|gx, gy, a| {
-                if a > 0.5 {
-                    put(gx as i32, gy as i32, color);
+                if a > 0.25 {
+                    put(ox + gx as i32, oy + gy as i32, color);
                 }
             });
         }
@@ -292,13 +303,26 @@ mod font_inject {
                 g.set_color(game_core::layout::WHITE);
                 g.draw_string(SOUND_PROMPT_TEXT, 120, 160, anchor::TOP | anchor::HCENTER);
             }
-            let lit = img
-                .argb
-                .iter()
-                .filter(|&&p| p & 0x00FF_FFFF != 0)
-                .count();
-            eprintln!("注入真字形后 mode21 文本像素 = {lit}");
-            assert!(lit > 30, "真字形应画出 >30 像素，实得 {lit}（若为 0 说明 hook 未生效）");
+            // 区域断言（防假绿）：文本带必须有像素、原点邻域必须干净——
+            // ab_glyph 局部坐标 bug 的特征签名 = 字形堆在 (0,0) 且文本带为空。
+            let (mut band, mut origin) = (0usize, 0usize);
+            let w = SCREEN_W as usize;
+            for y in 0..SCREEN_H as usize {
+                for x in 0..w {
+                    if img.argb[y * w + x] & 0x00FF_FFFF == 0 {
+                        continue;
+                    }
+                    if (40..210).contains(&x) && (150..185).contains(&y) {
+                        band += 1;
+                    }
+                    if x < 32 && y < 32 {
+                        origin += 1;
+                    }
+                }
+            }
+            eprintln!("文本带像素 = {band}，原点 32×32 像素 = {origin}");
+            assert!(band > 30, "mode21 文本带应画出 >30 像素，实得 {band}");
+            assert_eq!(origin, 0, "原点邻域应无字形像素，实得 {origin}——非零即坐标未平移");
         }
     }
 }
@@ -494,6 +518,10 @@ fn run_window(mut shell: Shell) {
                             (W_U * SCALE) as u32,
                             (H_U * SCALE) as u32,
                         ))
+                        // 注：窗口 480×640 物理像素 1:1（xwininfo 实测）；若桌面启用
+                        // 分数缩放（如 1.31×），合成器会整窗平滑拉伸 ⇒ 观感模糊——
+                        // winit 0.30 无 per-window scale override，属 OS 层行为，
+                        // 缓解：桌面整数缩放，或后续 D2 缝按显示倍率原生渲染（见 backlog）。
                         .with_resizable(false),
                 )
                 .unwrap());
@@ -541,9 +569,8 @@ fn run_window(mut shell: Shell) {
                     }
                 }
                 WindowEvent::KeyboardInput { event, .. } => {
-                    if event.repeat {
-                        return;
-                    }
+                    // 键盘自动重复（OS repeat）按 Java keyPressed 语义透传为多次
+                    // press——原实现吞掉 repeat 导致"按住方向键不连走"的操作卡顿感。
                     let Some(code) = key_code(event.physical_key) else {
                         return;
                     };
@@ -572,7 +599,7 @@ fn run_window(mut shell: Shell) {
             }
         }
 
-        fn about_to_wait(&mut self, _el: &ActiveEventLoop) {
+        fn about_to_wait(&mut self, el: &ActiveEventLoop) {
             let now = std::time::Instant::now();
             let mut ran = false;
             while now >= self.next_tick {
@@ -585,6 +612,9 @@ fn run_window(mut shell: Shell) {
                     w.request_redraw();
                 }
             }
+            // 必须设定时唤醒：winit 默认 ControlFlow::Wait 会睡到下一个事件，
+            // 动画/逻辑只在输入等事件到达时推进 ⇒ "动画卡住、按一下才动"（实机根因）。
+            el.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(self.next_tick));
         }
     }
 
