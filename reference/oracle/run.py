@@ -21,6 +21,7 @@ trace/截图在 _out/（gitignore，不入库）。
 退出码：0 全部通过；1 任一断言失败；2 构建/运行基础设施错误。
 """
 import hashlib
+import os
 import re
 import shutil
 import struct
@@ -47,8 +48,20 @@ sys.path.insert(0, str(HERE))
 import ttransform  # noqa: E402
 
 
+# Windows 适配（2026-10-14）：JVM 在中文 Windows 按控制台编码（GBK）输出，
+# 而本工具链一律按 UTF-8 解码；统一强推 UTF-8，使 javap/trace/stderr 产物
+# 与 Linux 逐字节一致。-Dline.separator 同理——TraceSink.println 的行尾跟随
+# 平台 line.separator，不强制则 Windows 产 CRLF、跨平台 trace 字节不可比。
+JVM_UTF8 = ["-Dfile.encoding=UTF-8", "-Dsun.stdout.encoding=UTF-8",
+            "-Dsun.stderr.encoding=UTF-8"]
+JVM_TOOL_FLAGS = [f"-J{f}" for f in JVM_UTF8]   # javac/javap 形态
+
+
 def sh(cmd, **kw):
-    r = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, **kw)
+    # encoding 显式 UTF-8：Windows 上 text=True 默认按 GBK 解码子进程输出，
+    # 遇 javap 的 UTF-8 中文字符串字面量即 UnicodeDecodeError（迭代前实测）。
+    r = subprocess.run(cmd, cwd=ROOT, capture_output=True,
+                       text=True, encoding="utf-8", errors="replace", **kw)
     return r
 
 
@@ -98,7 +111,7 @@ def build_shim_host():
     sources = sorted(str(p.relative_to(ROOT)) for p in
                      list((ROOT / "reference/shim/src").rglob("*.java"))
                      + list((ROOT / "reference/oracle/src").rglob("*.java")))
-    r = sh(["javac", "-encoding", "UTF-8", "-nowarn", "-d", str(classes)] + sources)
+    r = sh(["javac", *JVM_TOOL_FLAGS, "-encoding", "UTF-8", "-nowarn", "-d", str(classes)] + sources)
     if r.returncode != 0:
         log("javac 失败:\n" + r.stdout[-4000:] + r.stderr[-4000:])
         sys.exit(2)
@@ -139,8 +152,8 @@ def verify_t_equivalence(orig: Path, variant_c: Path = None):
         pairs.append(("C", variant_c))
     for label, src in pairs:
         for c in SEED_CLASSES:
-            before = sh(["javap", "-c", "-p", "-l", str(src / f"{c}.class")]).stdout
-            after = sh(["javap", "-c", "-p", "-l", str(OUT / f"variant{label}" / f"{c}.class")]).stdout
+            before = sh(["javap", *JVM_TOOL_FLAGS, "-c", "-p", "-l", str(src / f"{c}.class")]).stdout
+            after = sh(["javap", *JVM_TOOL_FLAGS, "-c", "-p", "-l", str(OUT / f"variant{label}" / f"{c}.class")]).stdout
             norm = [("java/lang/System", "oracle/vt/VTime"), ("java/lang/Thread", "oracle/vt/VThread")]
             b, a = before, after
             for old, new in norm:
@@ -168,9 +181,13 @@ def variant_cmd(classes: Path, variant_dir: Path, label: str, ticks: int, script
     if out_dir.exists():
         shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True)
-    cp = f"{classes}:{variant_dir}:{JAR}"
+    cp = os.pathsep.join([str(classes), str(variant_dir), str(JAR)])  # Windows 用 ';'，POSIX 用 ':'
     cmd = [
-        "java", "-Djava.awt.headless=true", "-cp", cp,
+        "java", "-Djava.awt.headless=true", *JVM_UTF8,
+        # 行尾钉死 \n：TraceSink.println 跟随 line.separator，Windows 默认 CRLF
+        # ⇒ trace.txt 跨平台字节漂移（Linux 已是 \n，此参数在 POSIX 零变化）。
+        "-Dline.separator=\n",
+        "-cp", cp,
         f"-Doracle.out={out_dir}",
         f"-Doracle.max={ticks}",
         f"-Doracle.script={script}",
@@ -564,7 +581,8 @@ def main():
     if variant_c is not None:
         report_data.update({
             "has_c": True,
-            "variant_c_src": variant_c.relative_to(ROOT),
+            # as_posix：report 是跨平台确定性产物，Windows Path 默认渲染反斜杠会致漂移
+            "variant_c_src": variant_c.relative_to(ROOT).as_posix(),
             "sha_c1": sha_c1, "eq_ac": eq_ac, "eq_bc": eq_bc,
             "ticks_c1": ticks_c1,
             "lines_c1": lines_of(dir_c1 / "trace.txt"),
@@ -769,7 +787,7 @@ def run_diff_abc(ticks: int, script: Path, variant_c_arg: Path, frames: str = "a
         "stderr_lines_a": len(err_a.splitlines()), "stderr_lines_b": len(err_b.splitlines()),
         "api_shim": api_shim, "api_missing": api_missing, "api_jdk": api_jdk,
         "has_c": True,
-        "variant_c_src": variant_c.relative_to(ROOT) if _is_under_root(variant_c) else variant_c,
+        "variant_c_src": (variant_c.relative_to(ROOT) if _is_under_root(variant_c) else variant_c).as_posix(),
         "sha_c1": sha_c1, "eq_ac": eq_ac, "eq_bc": eq_bc,
         "ticks_c1": ticks_c1,
         "lines_c1": lines_of(dir_c1 / "trace.txt"),

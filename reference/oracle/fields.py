@@ -30,7 +30,10 @@ TIMELINE_DEFAULTS = ["gameMode", "playerHp", "currentFloor", "playerPixelX", "pl
 
 
 def field_names() -> list:
-    out = subprocess.run(["javap", "-p", str(RENAMED)], capture_output=True, text=True).stdout
+    out = subprocess.run(["javap", "-J-Dfile.encoding=UTF-8", "-J-Dsun.stdout.encoding=UTF-8",
+                          "-p", str(RENAMED)],
+                         capture_output=True, text=True,
+                         encoding="utf-8", errors="replace").stdout
     names = []
     for line in out.splitlines():
         l = line.strip()

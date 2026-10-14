@@ -76,8 +76,16 @@ def sha256_bytes(b: bytes) -> str:
     return hashlib.sha256(b).hexdigest()
 
 
+# Windows 适配（2026-10-14）：JVM 在中文 Windows 按 GBK 输出，显式钉死 UTF-8，
+# 与 Python 侧 UTF-8 解码配对（javap 中文字符串字面量实测触发过解码崩溃）。
+JVM_UTF8 = ["-Dfile.encoding=UTF-8", "-Dsun.stdout.encoding=UTF-8",
+            "-Dsun.stderr.encoding=UTF-8"]
+JVM_TOOL_FLAGS = [f"-J{f}" for f in JVM_UTF8]   # javac/javap 形态
+
+
 def run(cmd, **kw):
-    r = subprocess.run(cmd, capture_output=True, text=True, **kw)
+    r = subprocess.run(cmd, capture_output=True, text=True,
+                       encoding="utf-8", errors="replace", **kw)
     if r.returncode != 0:
         raise RuntimeError(f"命令失败: {' '.join(map(str, cmd))}\n{r.stdout[-2000:]}\n{r.stderr[-2000:]}")
     return r
@@ -214,7 +222,7 @@ def build() -> dict:
         old.unlink()
     class_files = [str(RENAMED / f"{c}.class") for c in sorted(classes)]
     vf = ensure_vf(ROOT, log=log)
-    run(["java", "-jar", str(vf), "--silent", *class_files, str(DEOBF)])
+    run(["java", *JVM_UTF8, "-jar", str(vf), "--silent", *class_files, str(DEOBF)])
     sources = sorted(DEOBF.glob("*.java"))
     log(f"Vineflower {VF_SHA256[:12]}… 再生 {len(sources)} 个 Java: {', '.join(p.name for p in sources)}")
 
@@ -240,10 +248,10 @@ def build() -> dict:
     shim_classes.mkdir(parents=True, exist_ok=True)
     deobf_classes.mkdir(parents=True, exist_ok=True)
     shim_sources = sorted(str(p) for p in SHIM_SRC.rglob("*.java"))
-    r_shim = run(["javac", "-encoding", "UTF-8", "-nowarn", "-d", str(shim_classes), *shim_sources])
+    r_shim = run(["javac", *JVM_TOOL_FLAGS, "-encoding", "UTF-8", "-nowarn", "-d", str(shim_classes), *shim_sources])
     if r_shim.returncode != 0:
         raise RuntimeError("shim 编译失败:\n" + r_shim.stderr[-2000:])
-    r_c = run(["javac", "-encoding", "UTF-8", "-nowarn", "-classpath", str(shim_classes),
+    r_c = run(["javac", *JVM_TOOL_FLAGS, "-encoding", "UTF-8", "-nowarn", "-classpath", str(shim_classes),
                "-d", str(deobf_classes), *[str(p) for p in sources]])
     if r_c.returncode != 0:
         raise RuntimeError("deobf javac 编译失败（补丁不完整？）:\n" + r_c.stderr[-3000:])
@@ -265,7 +273,7 @@ def check_outputs(classes: dict, sources: list) -> list:
     problems = []
     # (a) javap -p 扫描重映射 class 的成员声明
     for cname in sorted(classes):
-        out = run(["javap", "-p", str(RENAMED / f"{cname}.class")]).stdout
+        out = run(["javap", *JVM_TOOL_FLAGS, "-p", str(RENAMED / f"{cname}.class")]).stdout
         for line in out.splitlines():
             m = verifier.DECL_LINE.match(line) or verifier.CTOR_DECL.match(line)
             if not m:
@@ -321,8 +329,8 @@ def verify(build_state: dict):
 
     report_rows, method_rows, all_ok = [], [], True
     for cname in sorted(classes):
-        before_raw = run(["javap", "-c", "-p", "-l", str(ORIG / f"{cname}.class")]).stdout
-        after_raw = run(["javap", "-c", "-p", "-l", str(RENAMED / f"{cname}.class")]).stdout
+        before_raw = run(["javap", *JVM_TOOL_FLAGS, "-c", "-p", "-l", str(ORIG / f"{cname}.class")]).stdout
+        after_raw = run(["javap", *JVM_TOOL_FLAGS, "-c", "-p", "-l", str(RENAMED / f"{cname}.class")]).stdout
         (JAVAPDIR / f"{cname}.before.javap.txt").write_text(before_raw, encoding="utf-8")
         (JAVAPDIR / f"{cname}.after.javap.txt").write_text(after_raw, encoding="utf-8")
 

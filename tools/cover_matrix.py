@@ -426,7 +426,9 @@ def resolve_config(names: set[str]) -> list[str]:
 # ---------------------------------------------------------------- ① 方法清单
 
 def inventory() -> list[dict]:
-    out = subprocess.run(["javap", "-p", "-s", str(RENAMED)], capture_output=True, text=True)
+    out = subprocess.run(["javap", "-J-Dfile.encoding=UTF-8", "-J-Dsun.stdout.encoding=UTF-8",
+                          "-p", "-s", str(RENAMED)],
+                         capture_output=True, text=True, encoding="utf-8", errors="replace")
     if out.returncode != 0:
         print(f"javap 失败: {out.stderr}", file=sys.stderr)
         sys.exit(2)
@@ -639,7 +641,9 @@ def call_sites(rng: dict, names: list[str]) -> dict[str, list[tuple[int, str]]]:
 
 
 def javap_callers() -> dict[str, set[str]]:
-    out = subprocess.run(["javap", "-p", "-c", str(RENAMED)], capture_output=True, text=True).stdout
+    out = subprocess.run(["javap", "-J-Dfile.encoding=UTF-8", "-J-Dsun.stdout.encoding=UTF-8",
+                          "-p", "-c", str(RENAMED)],
+                         capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
     callers, cur = defaultdict(set), None
     for line in out.splitlines():
         if line.startswith("  ") and not line.startswith("   ") and line.rstrip().endswith(";"):

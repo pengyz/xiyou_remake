@@ -50,7 +50,7 @@ def main() -> int:
     if not (ROOT / "assets/raw/l0.png").exists():
         import subprocess
         r = subprocess.run([sys.executable, str(ROOT / "tools/extract-assets/extract.py")],
-                           capture_output=True, text=True)
+                           capture_output=True, text=True, encoding="utf-8", errors="replace")
         if r.returncode != 0:
             print(r.stdout[-1500:] + r.stderr[-1500:], file=sys.stderr)
             return 2

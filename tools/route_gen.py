@@ -49,7 +49,7 @@ def main() -> int:
     m = zf.read(f"maplv{floor}")
     wide = struct.unpack_from("<H", m, 0)[0] >> 1
     g1 = m[4:4 + wide * 13 * 4]
-    walk = [int(x) for x in (ROOT / "crates/game-core/tests/fixtures/tile_walkability.txt").read_text().split()]
+    walk = [int(x) for x in (ROOT / "crates/game-core/tests/fixtures/tile_walkability.txt").read_text(encoding="utf-8").split()]
 
     def wk(y, x):
         t = g1[y * wide * 4 + x * 2]
@@ -173,7 +173,7 @@ def main() -> int:
     total = t + 150
     lines[0] = f"# ticks: {total}"
     out = Path(f"reference/oracle/scenarios/preset-floor{floor}{suffix}.txt")
-    out.write_text("\n".join(lines) + "\n")
+    out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"OK actions={len(actions)} ticks={total} -> {out}")
     return 0
 
