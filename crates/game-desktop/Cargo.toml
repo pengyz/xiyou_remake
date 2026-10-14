@@ -1,0 +1,16 @@
+[package]
+name = "game-desktop"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "xiyou"
+path = "src/main.rs"
+
+[dependencies]
+game-core = { path = "../game-core" }
+game-data = { path = "../game-data" }
+game-platform = { path = "../game-platform" }
+winit = "0.30"
+softbuffer = "0.4"
+ab_glyph = "0.2"

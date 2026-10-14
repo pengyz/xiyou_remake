@@ -570,6 +570,13 @@ impl<'a> SoftGraphics<'a> {
         let px = x - adj[0];
         let py = y - adj[1];
         let c = self.opaque_color();
+        // D2 字体缝：平台真字形钩子（game-desktop 注入系统 TTF 渲染）。
+        // None = 差分占位字形（下方哈希块——与 Java shim 同构，差分逐像素可比）。
+        if let Some(h) = glyph_hook() {
+            let mut put = |gx: i32, gy: i32, col: u32| self.set_pixel(gx, gy, col);
+            h(ch, px, py, cw, chh, c, &mut put);
+            return;
+        }
         let gw = (cw * 4 / 5).max(2);
         let gh = (chh * 3 / 5).max(3);
         let hash = ((ch as i64).wrapping_mul(2654435761)) as i32 as u32;
@@ -659,4 +666,26 @@ fn quote_utf16(s: &[u16]) -> String {
     }
     out.push('"');
     out
+}
+
+
+// ---------------- D2 字体缝（字形渲染钩子） ----------------
+
+/// 平台字形渲染钩子。参数：(字符码, 格左上 x, 格上 y, 格宽, 格高, 颜色, 画点)。
+/// None（默认）= 差分占位字形（哈希块，与 Java shim 同构——oracle 差分逐像素
+/// 可比的锚，84 用例全绿基于此）；Some = 平台真字体（game-desktop 注入
+/// 系统 TTF；差分测试不受影响——测试进程从不注入）。
+pub type GlyphHook = fn(u16, i32, i32, i32, i32, u32, &mut dyn FnMut(i32, i32, u32));
+
+static mut GLYPH_HOOK: Option<GlyphHook> = None;
+
+/// 注入平台字形渲染（启动时一次；None 恢复差分占位）。
+pub fn set_glyph_hook(h: Option<GlyphHook>) {
+    unsafe {
+        GLYPH_HOOK = h;
+    }
+}
+
+fn glyph_hook() -> Option<GlyphHook> {
+    unsafe { GLYPH_HOOK }
 }
