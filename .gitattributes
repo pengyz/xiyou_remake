@@ -1,0 +1,6 @@
+# 全库统一 LF（2026-10-14 Windows 适配）：
+# core.autocrlf=true 的 Windows 检出把文本转成 CRLF，使按**原始字节**做 sha256
+# 的门禁（reference-seed-integrity）恒红——LF 归一化后与基线逐字节一致（实测
+# 21107ff3705a…）。文本强制 LF 后工作区字节跨平台一致，门禁恢复判别力。
+# 二进制（jar/class/png）由 text=auto 自动识别，不做转换。
+* text=auto eol=lf
