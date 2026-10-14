@@ -434,6 +434,16 @@
    （a.java:3010-3037 双缓冲火花：f_byte_20 仅 3035=sparkCount 写、
    addSpark 仅循环内调——自播种为零闭环，randomBelow(15) 永不消费；
    Rust 无此臂 = 零行为差，复核登记关闭）。 |
+   【迭代 78（floor41 铺层 ✅ P2 B1 首层，楼层 L3 14/55——首跑即绿零新
+   移植）】preset-floor41 场景（MOT_L0 current_floor=41，出生 (7,11)），
+   窗口 T1-1900 全帧**一次收敛**。覆盖增量：60-64 敌表族实战（64@(8,7)、
+   62@(9,5) 两场 bump 战——HP 500→750→650、金 100→140→220 帧证）、
+   **(10,2) 墙格双 83 触发器**（extra=0x0d/0x19=script13/25，同格双录
+   sprite41[50][51]，bump 触达语义首验）、红门无钥提示浮层（(7,6)）、
+   黄门开钥消耗（11,2，钥 2→1）、道具拾取（30@(8,11) 出生格踏格拾取
+   HP+250）。fixtures：maplv41/sprite41（270B 零余）；路线脚本
+   preset-floor41.txt（可走网格经 tile_walkability BFS 预核：(10,2)
+   为墙格 ⇒ 83 走 bump 侧）。 |
    【迭代 77（floor46 摘挂 ✅ 楼层 L3 13/55，全套 24 绿 0 挂起——历史首次
    无挂起）】**根因 = apply_merchant_offer 缺 a.java:7456 臂**：购买路径
    `if(var1){ if(flags&2!=0){…} else if(flags&1!=0){ param^=256 +

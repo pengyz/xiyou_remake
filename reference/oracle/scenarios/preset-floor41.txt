@@ -1,0 +1,51 @@
+# ticks: 1900
+# preset: preset-floor41.preset
+# cover: 按层铺 floor41（B1 敌表族首层：60-64 敌环 + 83 双触发器 + 红/黄门）：
+#   载入 (7,11) → (8,11) → (9,11) → (9,10) → (9,9) → (8,9) → (8,8)
+#   → (8,7) 撞 64 敌战 → (8,6) → (7,6) 撞红门（无红钥提示浮层）→ (8,6)
+#   → (9,6) → (9,5) 撞 62 敌战 → (9,4) → (9,3) → (9,2) → (10,2) 撞双 83
+#   （墙格 bump 触发 script13/25 语义首验）→ (9,2) → (9,3) 收尾静态。
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -4 press
+302 -4 release
+360 -4 press
+362 -4 release
+420 -1 press
+422 -1 release
+480 -1 press
+482 -1 release
+540 -3 press
+542 -3 release
+600 -1 press
+602 -1 release
+660 -1 press
+662 -1 release
+900 -1 press
+902 -1 release
+960 -3 press
+962 -3 release
+1100 -4 press
+1102 -4 release
+1160 -4 press
+1162 -4 release
+1220 -1 press
+1222 -1 release
+1400 -1 press
+1402 -1 release
+1460 -1 press
+1462 -1 release
+1520 -1 press
+1522 -1 release
+1580 -4 press
+1582 -4 release
+1700 -3 press
+1702 -3 release
+1760 -2 press
+1762 -2 release
