@@ -245,9 +245,20 @@ mod font_inject {
         "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
     ];
 
+    /// Windows 系统字体（2026-10-14 Windows 适配）：%WINDIR%\Fonts 下的 CJK 常驻字体。
+    /// 路径不写死 C:——系统盘符可变，走 WINDIR 环境变量（缺省回退 C:\Windows）。
+    fn windows_candidates() -> Vec<String> {
+        let windir = std::env::var("WINDIR").unwrap_or_else(|_| "C:\\Windows".to_string());
+        ["msyh.ttc", "msyhbd.ttc", "simhei.ttf", "simsun.ttc", "Deng.ttf"]
+            .iter()
+            .map(|f| format!("{windir}\\Fonts\\{f}"))
+            .collect()
+    }
+
     fn load() -> Option<FontVec> {
-        for path in CANDIDATES {
-            if let Ok(bytes) = std::fs::read(path) {
+        let extra = windows_candidates();
+        for path in CANDIDATES.iter().map(|s| s.to_string()).chain(extra) {
+            if let Ok(bytes) = std::fs::read(&path) {
                 match FontVec::try_from_vec_and_index(bytes, 0) {
                     Ok(f) => {
                         eprintln!("字形源：{path}");
