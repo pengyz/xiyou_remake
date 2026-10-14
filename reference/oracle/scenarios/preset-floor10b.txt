@@ -1,0 +1,13 @@
+# ticks: 850
+# preset: preset-floor10b.preset
+# cover: route_gen 生成（航点手拟，走步 BFS 填充 + 三重校验）
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -3 press
+302 -3 release

@@ -1,0 +1,25 @@
+# ticks: 1350
+# preset: preset-floor47.preset
+# cover: route_gen 生成（航点手拟，走步 BFS 填充 + 三重校验）
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -4 press
+302 -4 release
+360 -4 press
+362 -4 release
+420 -1 press
+422 -1 release
+480 -1 press
+482 -1 release
+540 -2 press
+542 -2 release
+740 -1 press
+742 -1 release
+800 -2 press
+802 -2 release
