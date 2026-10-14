@@ -2,11 +2,15 @@
 
 | 工具 | 用途 | 阶段 |
 |---|---|---|
-| `extract-assets/` | JAR → `analysis/`、`assets/`（解包 + packed PNG 剥头 + .mid→.ogg 转换） | P0/P3 |
+| `extract-assets/` | JAR → `analysis/`、`assets/`（解包 + packed PNG 剥头） | P0/P3 |
+| `audio/` | BGM 离线转换 `.mid → .ogg`（rustysynth + 入库 SoundFont + rusty_vorbis，独立 cargo workspace）+ 选轨语义 oracle 取证（`evidence.py`）；见 [audio/README.md](audio/README.md) | P3 |
 | `rename-pipeline/` | 反混淆/命名管线（常量池手术重映射 + Vineflower 再生 + 投影修复补丁 + javac 可编译门禁 + javap 等价验证） | P1 |
 | `trace-diff/` | 参考版 trace vs Rust trace 比对器 | P4 |
 | `vf_env.py` | Vineflower 1.12.0 定位/完整性校验/获取的单一真相源（vendor → urllib 下载） | P1 |
-| `vendor/` | 入库的第三方依赖（`vineflower-1.12.0.jar`，sha256 钉死，全新 clone 离线可用） | P1 |
+| `vendor/` | 入库的第三方依赖（`vineflower-1.12.0.jar`、`TimGM6mb.sf2` + 许可全文，sha256 钉死，全新 clone 离线可用） | P1/P3 |
+
+> 【2026-10-14 更正】`extract-assets/` 行原写「+ .mid→.ogg 转换」——该转换从未在 extract
+> 中实现（其 docstring 自注「未实现」）；现由 `audio/` 承担。
 
 原则：派生资产必须能从 `original/` 一键再生；工具自身变更必须跑门禁自测（AGENTS.md §2 gates 红线）。
 跨平台约定：逻辑放 `.py`（纯标准库，不依赖 curl/unzip/diff/sha256sum），`.sh` 只做薄包装；

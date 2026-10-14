@@ -6,7 +6,7 @@
   assets/png/   packed PNG 剥掉 2 字节头后的标准 PNG（魔数校验）
   assets/manifest.json  清单与计数（与 data/status/baselines/baseline.json 对账）
 
-音频 .mid → .ogg 转换未实现（P3 音频阶段需要 fluidsynth，见 tools/README.md）。
+音频 .mid → .ogg 转换不在本工具：见 tools/audio/（Rust 离线合成，产物 assets/audio/）。
 红线：本工具只读 original/，修正逻辑写在这里，永不改原始归档。
 """
 import json

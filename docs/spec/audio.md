@@ -117,7 +117,7 @@ T0651 gameMode=1 f_bool_28=false f_byte_28=2         EVT[close(state=400); creat
 ## 5. 宿主侧实现约定（game-desktop，非 Java 语义）
 
 - 音色：MIDI 经 `tools/audio/` 离线合成为 OGG（SF2 音色≠原机合成器，Stage A 已知偏差，
-  见 `tools/audio/README.md`）。
+  见 [tools/audio/README.md](../../tools/audio/README.md)）。
 - 音量：MMAPI 规定级别 0..100 线性刻度，「产生线性乘数的映射由实现决定」
   （JSR-135 VolumeControl 文档）；壳取幅度乘数 `level/100`（60 ⇒ ×0.6）。
 - 循环：OGG 带 `LOOPSTART/LOOPLENGTH`（样本），壳在 `LOOPSTART+LOOPLENGTH` 处跳回
