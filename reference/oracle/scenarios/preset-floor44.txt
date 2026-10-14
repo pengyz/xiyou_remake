@@ -1,0 +1,38 @@
+# ticks: 1600
+# preset: preset-floor44.preset
+# cover: 按层铺 floor44（B1：新敌型 66 首战 + 守卫-宝箱-封印门配对 + 中央 40 型装备 m_083）：
+#   载入 (6,11) → (6,10) → (6,9) → (5,9) 撞 66#1 敌战（restep 进格撞宝箱
+#   t=5@2 → wp4 组开门）→ (6,9) → (7,9) 撞 66#2 → 宝箱#2 → 北穿开封印门
+#   (6,8)@2 → (6,7) 31 拾取 → (6,6) 40 型装备拾取（m_083 档位）→ 收尾静态。
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -1 press
+302 -1 release
+360 -1 press
+362 -1 release
+420 -3 press
+422 -3 release
+700 -4 press
+702 -4 release
+760 -4 press
+762 -4 release
+900 -1 press
+902 -1 release
+960 -1 press
+962 -1 release
+1020 -3 press
+1022 -3 release
+1300 -1 press
+1302 -1 release
+1360 -1 press
+1362 -1 release
+1420 -1 press
+1422 -1 release
+1480 -1 press
+1482 -1 release
