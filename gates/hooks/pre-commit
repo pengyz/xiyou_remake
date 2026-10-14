@@ -1,4 +1,14 @@
 #!/bin/bash
 # pre-commit hook — 只调 gates/cli.py check（单一真相源，禁止内嵌第二套扫描器）
 # 安装: bash gates/install-hooks.sh
-exec python3 gates/cli.py check
+# python3→python 回退（2026-10-14 Windows 适配）：Windows 的 python3 常是
+# 微软商店占位符（存在但执行即报错），逐候选探活后取第一个真解释器。
+PY=""
+for cand in python3 python; do
+    if command -v "$cand" >/dev/null 2>&1 && "$cand" --version >/dev/null 2>&1; then
+        PY="$cand"
+        break
+    fi
+done
+[ -n "$PY" ] || { echo "[pre-commit] python3/python 均不可用，无法跑 gates check"; exit 1; }
+exec "$PY" gates/cli.py check

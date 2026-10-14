@@ -26,6 +26,15 @@ import sys
 import zipfile
 from pathlib import Path
 
+# Windows 适配（2026-10-14）：中文控制台 GBK 编码无法输出 ✓/✗ 门禁符号
+# （U+2713/2717 实测 UnicodeEncodeError 崩在 report()），统一 stdout/stderr
+# 为 UTF-8；管道/文件/CI 消费端均按 UTF-8 解码，与工具链其余部分同口径。
+for _s in (sys.stdout, sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass  # 非标准流（重定向包装等）保持原状，不该让门禁因打印而崩
+
 ROOT = Path(__file__).resolve().parent.parent
 BASELINE = ROOT / "data/status/baselines/baseline.json"
 PASS, FAIL, SKIP, TOLERATE = "PASS", "FAIL", "SKIP", "TOLERATED"
@@ -73,7 +82,7 @@ def gate_original():
         elif sha256(p) != digest:
             bad.append(f"{name} sha256 不匹配")
     return report("original-integrity", FAIL if bad else PASS,
-                  "; ".join(bad) if bad else f"{len(sums.read_text().splitlines())} 个归档校验通过")
+                  "; ".join(bad) if bad else f"{len(sums.read_text(encoding='utf-8').splitlines())} 个归档校验通过")
 
 
 def gate_assets_manifest():
@@ -122,7 +131,8 @@ def gate_knowledge_format():
 
 def _tracked_md_files():
     """全部 git 追踪的 .md 文件（覆盖面以仓库实际内容为准，不靠手写目录清单维护）。"""
-    r = subprocess.run(["git", "ls-files", "*.md"], cwd=ROOT, capture_output=True, text=True)
+    r = subprocess.run(["git", "ls-files", "*.md"], cwd=ROOT, capture_output=True,
+                       text=True, encoding="utf-8", errors="replace")
     if r.returncode != 0:
         # git 不可用时退化为静态目录清单，保证门禁仍可运行
         files = [ROOT / "AGENTS.md", ROOT / "CLAUDE.md", ROOT / "README.md"]
@@ -211,7 +221,8 @@ def gate_rust_tests():
     # 缺失曾致 cargo test 即刻 panic（gates CI 100+ 次全红根因）。缺则再生，
     # 齐备则零成本（扫描+stat）。供给失败 ⇒ 门禁 FAIL（不静默跳过）。
     prov = subprocess.run([sys.executable, str(ROOT / "reference/oracle/provision_tests.py")],
-                          cwd=ROOT, capture_output=True, text=True)
+                          cwd=ROOT, capture_output=True,
+                          text=True, encoding="utf-8", errors="replace")
     prov_lines = [l for l in prov.stdout.splitlines() if l.startswith("[provision]")]
     prov_note = "；".join(prov_lines[-6:]) if prov.returncode == 0 else \
         "夹具供给失败: " + (prov.stdout[-400:] + prov.stderr[-400:])
@@ -221,7 +232,8 @@ def gate_rust_tests():
     # check 付 ~390s 近全量重编译（开发全程只构建 release）；溢出检查由
     # [profile.release] overflow-checks=true 保持（Cargo.toml）。
     r = subprocess.run(["cargo", "test", "--workspace", "--release"],
-                       cwd=ROOT, capture_output=True, text=True)
+                       cwd=ROOT, capture_output=True,
+                       text=True, encoding="utf-8", errors="replace")
     ok = r.returncode == 0
     if ok:
         msg = "cargo test --release 全绿"
@@ -247,7 +259,8 @@ def collect_test_counts():
     （docs/knowledge/gotcha_nested-test-silently-skipped.md，preset_help 实证）。"""
     r = subprocess.run(["cargo", "test", "--workspace", "--release", "--no-run",
                         "--message-format=json"],
-                       cwd=ROOT, capture_output=True, text=True)
+                       cwd=ROOT, capture_output=True,
+                       text=True, encoding="utf-8", errors="replace")
     if r.returncode != 0:
         return None
     seen = {}
@@ -267,7 +280,8 @@ def collect_test_counts():
     counts = {}
     for key, exe in sorted(seen.items()):
         lr = subprocess.run([exe, "--list", "--format", "terse"],
-                            capture_output=True, text=True)
+                            capture_output=True,
+                            text=True, encoding="utf-8", errors="replace")
         n = sum(1 for l in lr.stdout.splitlines() if l.endswith(": test"))
         counts[key] = counts.get(key, 0) + n
     return counts
@@ -284,7 +298,7 @@ def gate_test_ratchet():
     if not RATCHET.exists():
         return report("test-ratchet", FAIL,
                       f"基线缺失 {RATCHET}（python3 gates/cli.py ratchet-update 生成）")
-    basec = json.loads(RATCHET.read_text()).get("binaries", {})
+    basec = json.loads(RATCHET.read_text(encoding="utf-8")).get("binaries", {})
     drops = []
     for k, b in basec.items():
         c = cur.get(k)
@@ -315,7 +329,7 @@ def cmd_ratchet_update():
         "total": sum(cur.values()),
     }
     RATCHET.parent.mkdir(parents=True, exist_ok=True)
-    RATCHET.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
+    RATCHET.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"基线已更新: total={payload['total']} binaries={len(cur)} -> {RATCHET}")
     return 0
 
@@ -324,7 +338,8 @@ def gate_reference():
     """参考版回归：改 reference/ 后 trace 必须逐 tick 不变（P1 oracle 就绪后启用）。"""
     if not (ROOT / "reference/oracle").exists():
         return report("reference-regression", SKIP, "参考版 oracle 未就绪（P1 交付后启用）")
-    r = subprocess.run(["python3", "reference/oracle/run.py"], cwd=ROOT, capture_output=True, text=True)
+    r = subprocess.run([sys.executable, "reference/oracle/run.py"], cwd=ROOT,
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
     return report("reference-regression", PASS if r.returncode == 0 else FAIL, r.stdout[-200:])
 
 
@@ -335,8 +350,8 @@ def gate_scenarios():
     scen = ROOT / "reference/oracle/scenarios"
     if not scen.exists() or not list(scen.glob("*.txt")):
         return report("scenario-suite", SKIP, "reference/oracle/scenarios/ 无场景脚本")
-    r = subprocess.run(["python3", "reference/oracle/run.py", "--scenarios"], cwd=ROOT,
-                       capture_output=True, text=True)
+    r = subprocess.run([sys.executable, "reference/oracle/run.py", "--scenarios"], cwd=ROOT,
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
     tail = r.stdout.strip().splitlines()
     return report("scenario-suite", PASS if r.returncode == 0 else FAIL,
                   tail[-1] if tail else r.stdout[-200:])
@@ -345,7 +360,8 @@ def gate_trace():
     """差分 L1-L3：参考版 vs Rust 同输入逐 tick 比对（P4 启用）。"""
     if not (ROOT / "crates/game-oracle/Cargo.toml").exists():
         return report("diff-trace", SKIP, "game-oracle 未就绪（P4 启动后启用）")
-    r = subprocess.run(["cargo", "test", "-p", "game-oracle"], cwd=ROOT, capture_output=True, text=True)
+    r = subprocess.run(["cargo", "test", "-p", "game-oracle"], cwd=ROOT,
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
     return report("diff-trace", PASS if r.returncode == 0 else FAIL, r.stdout[-200:])
 
 
@@ -353,7 +369,8 @@ def gate_visual():
     """视觉 L4：截图 diff（白名单外逐像素一致）。"""
     if not (ROOT / "gates/visual_diff.py").exists():
         return report("visual-diff", SKIP, "视觉比对器未就绪（P4 启动后启用）")
-    r = subprocess.run(["python3", "gates/visual_diff.py"], cwd=ROOT, capture_output=True, text=True)
+    r = subprocess.run([sys.executable, "gates/visual_diff.py"], cwd=ROOT,
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
     return report("visual-diff", PASS if r.returncode == 0 else FAIL, r.stdout[-200:])
 
 
