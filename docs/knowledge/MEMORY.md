@@ -23,6 +23,7 @@
 
 - [引用锚定小节而非裸行号](pattern_cite-section-anchor-not-raw-line.md) — 文档互引写「#小节标题（行 N）」双锚；纯行号在追加后必漂移（实测 +19/+73）
 - [双拷贝算法修复必须同步](pattern_dual-copy-algorithms-sync-fix.md) — layout_full_text/layout_wrapped_text_limited 同算法两份拷贝，修一份漏一份 = 偏差换入口复发（迭代 26→30 实证）；review 布局函数强制查姊妹
+- [接任务先盘点仓库最新状态](pattern_survey-repo-state-before-research.md) — 多会话推进项目，几百提交可让"待调研问题"早已定案（decision 条目为证）；先 git log + knowledge 再动手
 
 ## Debug
 
