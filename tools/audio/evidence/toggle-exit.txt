@@ -1,0 +1,48 @@
+# ticks: 700
+# preset: ../../../reference/oracle/scenarios/preset-floor1.preset
+# cover: BGM 取证①——mode21 -7 关声（soundEnabled=false/volumeLevel=0，m_000 case1 的
+#   m_139(2) 被门控）→ 标题「载入进度」项入 mode16（BUG-007）→ 声音开/关/开（m_139(2)/
+#   closeAudioPlayer/m_139(2) 重建）→ -7 回标题 → 读档入 mode3（m_000 case3 m_139(3)）→
+#   游戏内 mode4→设置 mode16 关/开（closeAudioPlayer/m_139(3)）→ 回 mode4 →「退出」
+#   kind7（m_000 case1：f_bool_28=false + m_139(2) 切回 menu.mid）。注：mode4 光标承接标题光标
+#   （menuCursorIndex 单字段跨模式，读档前停在 1）⇒ 一次 -2 即到「设置」(index2)
+70 -7 press
+72 -7 release
+100 -2 press
+102 -2 release
+110 -2 press
+112 -2 release
+130 -5 press
+132 -5 release
+160 -5 press
+162 -5 release
+200 -5 press
+202 -5 release
+240 -5 press
+242 -5 release
+280 -7 press
+282 -7 release
+300 -1 press
+302 -1 release
+330 -5 press
+332 -5 release
+360 -5 press
+362 -5 release
+440 -7 press
+442 -7 release
+460 -2 press
+462 -2 release
+490 -5 press
+492 -5 release
+520 -5 press
+522 -5 release
+560 -5 press
+562 -5 release
+600 -7 press
+602 -7 release
+620 -2 press
+622 -2 release
+630 -2 press
+632 -2 release
+650 -5 press
+652 -5 release

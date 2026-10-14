@@ -457,8 +457,10 @@ pub struct GameScene {
     pub encyc_scroll_bottom: i32,
     /// mode 16 设置面板（kind4 进入；menuReturnMode=4 返回）
     pub options: Option<crate::menu_family::OptionList>,
-    /// soundEnabled（run case16 label0 翻转；无像素效应，RMS 进度侧状态）
-    pub sound_enabled: bool,
+    /// 音频语义（crate::audio；docs/spec/audio.md）。soundEnabled 的唯一真相源
+    ///（run case16 label0 翻转，a.java:4157）。独立构造默认 = 「刚进 mode 3、声音开」；
+    /// 宿主从 BootMachine 交接时整体覆盖（Java 为同一对象，状态连续）。
+    pub bgm: crate::audio::BgmState,
     /// f_byte_arr_14/15 + f_int_89：剧情物清单（m_075 维护；序章不可达恒空）
     pub special_item_types: Vec<u8>,
     pub special_item_uses: Vec<u8>,
@@ -802,7 +804,7 @@ impl GameScene {
             encyc_scroll_top: 0,
             encyc_scroll_bottom: 0,
             options: None,
-            sound_enabled: true,
+            bgm: crate::audio::BgmState::in_game_default(),
             special_item_types: Vec::new(),
             special_item_uses: Vec::new(),
             saved_slot_blobs: [None, None, None, None, None, None],
@@ -3586,7 +3588,7 @@ impl GameScene {
 
     fn enter_menu16(&mut self) {
         self.options = Some(crate::menu_family::OptionList::new(
-            self.sound_enabled,
+            self.bgm.sound_enabled,
             self.minimap_enabled,
         ));
         self.softkeys = (0, 3);
@@ -3604,7 +3606,9 @@ impl GameScene {
                 opt.checked[cur] = !opt.checked[cur];
                 match opt.labels[cur] {
                     0 => {
-                        self.sound_enabled = !self.sound_enabled;
+                        // 开 ⇒ volumeLevel=60 + m_139(f_bool_28?3:2)，关 ⇒ closeAudioPlayer
+                        //（a.java:4157-4167；EV-toggle-exit T521/T561）。
+                        self.bgm.toggle_sound();
                         // saveGlobalProgress（RMS 侧，无像素效应；game-core 无 I/O）
                     }
                     1 => {
@@ -3638,15 +3642,33 @@ impl GameScene {
         self.ease_cam_x == self.ease_target_x && self.ease_cam_y == self.ease_target_y
     }
 
-    /// keyPressed（a.java:4663-4670）：keyValue = keyHeldCode = code。
+    /// keyPressed（a.java:4663-4676）：keyValue = keyHeldCode = code（覆盖式：同拍
+    /// 多次按下取末个，R-2）；anyKeyPlayed 时按 gameMode 恢复播放（音频半）。
     pub fn press_key(&mut self, code: i32) {
         self.key_value = code;
         self.key_held = code;
+        self.bgm.on_key_pressed(self.game_mode);
     }
 
     /// keyReleased（a.java:4678-4674）：只清 keyHeldCode。
     pub fn release_key(&mut self) {
         self.key_held = 0;
+    }
+
+    /// BGM 宿主契约：应当在放的轨道（`audio::TRACKS` 下标），None = 停止/无声。
+    /// 语义 = Java `f_Player_00 != null ? f_byte_28 : 无`（docs/spec/audio.md）。
+    pub fn bgm_request(&self) -> Option<usize> {
+        self.bgm.request()
+    }
+
+    /// 当前播放器序号：同轨 serial 变化 = Java 关闭重建（从头播放）。
+    pub fn bgm_serial(&self) -> u32 {
+        self.bgm.serial()
+    }
+
+    /// 当前播放器 VolumeControl 级别（0..=100）。
+    pub fn bgm_volume(&self) -> Option<i32> {
+        self.bgm.volume()
     }
 
     /// run case 3（a.java:3551-3679）：keyValue 开关（-7/-6 暂停/道具——
@@ -3810,6 +3832,10 @@ impl GameScene {
             // 对拍窗口不触键）。f_bool_04 未到 → 任意键仍清零。
             if self.ending_done && self.key_value != 0 {
                 self.game_mode = 1;
+                // m_000 case 1 音频半：f_bool_28=false + m_139(2)：game→menu 重建
+                //（a.java:4295/4311；EV-ending-title T1301）。非音频半（标题菜单
+                // 重建/反向移交 BootMachine）仍为已知缝。
+                self.bgm.enter_title();
             }
             self.key_value = 0;
             return;

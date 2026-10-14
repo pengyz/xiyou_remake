@@ -20,6 +20,8 @@
 
 | BUG-009 | （线索）floor4 出生于 y=0 行时原版游戏首拍即崩：`ArrayIndexOutOfBoundsException: Index -1 out of bounds for length 13`（a.b ← a.k ← run，T236 载入完成首 tick）——某处 y-1 邻居访问未钳制 | RMS 预置 current_floor=4 + cell(5,0)（scenario:`preset-alchemy.preset` 初版）：trace END=all-threads-exited ticks=236，stderr 堆栈实证；y≥1 出生正常 | 待定（原版对非法出生点的脆弱性；正常流程不会把玩家放在 y=0，疑似不可达状态） | 无正常流程影响（测试装置触发） | 保留原行为（崩溃即原版语义） | 测试装置规避：出生 y≥1 | lead |
 
+| BUG-010 | `logostart.mid`/`logoquit.mid` 两条 BGM 是**死资源**：轨道表 `f_String_arr_15`（a.java:2239）下标 0/1 无任何播放入口——全部 6 处 `m_139` 调用实参只有 2（menu）/3（game）；mode 0 启动 logo 与 mode 22 退出动画反而各调 `closeAudioPlayer`（a.java:3376/4487） | 字节码：`javap -c -p analysis/rename-pipeline/renamed/a.class` 中 m_139 前驱指令全为 `iconst_2`/`iconst_3`（run@6271/6281、m_000@410/560、keyPressed@41/50）；运行时：EV-toggle-exit/EV-ending-title/A-menu-sweep trace 的 `f_byte_28` 只取 -1/2/3（`python3 tools/audio/evidence.py`，见 `docs/spec/audio.md`） | 确定性不可达（A 级）；原意推测（C 级）：logostart 配 mode 0 logo、logoquit 配 mode 22「退出 logo」动画，收尾时改为静音 | 无（玩家听不到这两首；JAR 多带 17KB） | 保真保留：game-core 不播放，`audio::TRACKS` 保留表项；转换工具照常产出 track0/1（备 Stage B） | 待定（若补播需先考证真机行为） | open |
+
 > 【2026-10-09 更正·非反编译引入】应质疑复查，四级证据证明该错位是**原版 JAR 字节码的真实行为**，非反编译/投影引入：
 > ① 字节码静态：`javap` 原始 `<init>` 的 menuLabels 逐项 aastore 序列（@427-481：[0]新游戏 [1]继续游戏 [2]载入进度 [3]保存游戏 [4]设置 [5]帮助 [6]关于 [7]退出）与反编译源码逐字一致；
 > ② run() 内 6 个 gameMode(a:B) 写点（@19763-21295，等距 ~327B/case 臂）写入 14/8/16/15/17/22 且各带 f_byte_01=1——与源码 a.java 分派一致；

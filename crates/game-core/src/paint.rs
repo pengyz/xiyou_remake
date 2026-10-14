@@ -194,8 +194,9 @@ pub struct BootMachine {
     /// 槽载入完成信号（run case8 -5 → mode2 链走完 → mode3）：
     /// Some(slot_cursor) = 应构建 GameScene 并接管
     pub slot_loaded: Option<usize>,
-    /// soundEnabled（mode 16 勾选联动）。
-    pub sound_enabled: bool,
+    /// 音频语义（soundEnabled/volumeLevel/f_byte_28/f_bool_28/anyKeyPlayed/
+    /// f_Player_00，crate::audio；docs/spec/audio.md）。soundEnabled 的唯一真相源。
+    pub bgm: crate::audio::BgmState,
     /// intro 容器 2 张（m_001(11)，引子页 0/1 图）。
     intro_imgs: Vec<ArgbImage>,
     /// end 容器 1 张（m_001(14)，引子页 2 图）。
@@ -259,7 +260,7 @@ impl BootMachine {
             preset_stores: Vec::new(),
             sptarm: Vec::new(),
             slot_loaded: None,
-            sound_enabled: false,
+            bgm: crate::audio::BgmState::new(),
             bob_offset: 0,
             bob_rising: false,
             intro_imgs: intro_imgs,
@@ -352,16 +353,23 @@ impl BootMachine {
     /// - mode 0：a.java:3349-3374（加载轮播/logo 时间线/清理切换）
     /// - mode 21：a.java:4229-4242（-6 确认 / -7 否定 → gameMode=1）
     pub fn tick(&mut self, key: i32) {
+        // keyPressed 的音频半（a.java:4665-4674）：投递发生在上一拍 paint 之后、本拍
+        // logic 之前（preTick），故用本拍入口的 gameMode。仅 anyKeyPlayed 时生效。
+        if key != 0 {
+            self.bgm.on_key_pressed(self.mode);
+        }
         match self.mode {
             21 => {
                 // a.java:4231-4242：switch (keyValue)
                 match key {
                     -7 | -6 => {
-                        // -7: soundEnabled=false；-6: true（音量 0→60）
-                        //（a.java:4232-4235）。两者都 gameMode=1 + m_000()
-                        self.sound_enabled = key == -6;
+                        // -7: soundEnabled=false + volumeLevel=0；-6: true（音量 0→60）
+                        //（a.java:4232-4241）。两者都 gameMode=1 + m_000()
+                        self.bgm.answer_sound_prompt(key == -6);
                         self.mode = 1;
                         self.title = Some(crate::title::TitleMachine::new());
+                        // m_000 case 1 音频半：f_bool_28=false + m_139(2)（a.java:4295/4311）
+                        self.bgm.enter_title();
                     }
                     _ => {}
                 }
@@ -445,8 +453,9 @@ impl BootMachine {
                             let i = opts.highlight as usize;
                             opts.checked[i] = !opts.checked[i];
                             if opts.labels[i] == 0 {
-                                // case 0：声音联动（a.java:4156-4163）
-                                self.sound_enabled = !self.sound_enabled;
+                                // case 0：声音联动（a.java:4156-4167）：翻转 + 开则
+                                // volumeLevel=60 + m_139(f_bool_28?3:2)，关则 closeAudioPlayer
+                                self.bgm.toggle_sound();
                             }
                         }
                     }
@@ -498,6 +507,9 @@ impl BootMachine {
                     self.loading = None;
                     self.mode = target;
                     if call_m000 {
+                        // m_000 case 3 音频半（两支同一入口）：f_bool_28=true + m_139(3)
+                        //（a.java:4316/4321；A-enter-game T417 / EV-toggle-exit T397）
+                        self.bgm.enter_game();
                         if self.slot_loaded.is_some() {
                             // 槽载入完成：m_000 case 3 的软键/清理由宿主在
                             // 场景构建时落实（mode 3 交 GameScene 接管）
@@ -530,6 +542,22 @@ impl BootMachine {
             }
             _ => self.tick_mode0(),
         }
+    }
+
+    /// BGM 宿主契约：应当在放的轨道（`audio::TRACKS` 下标），None = 停止/无声。
+    /// 语义 = Java `f_Player_00 != null ? f_byte_28 : 无`（docs/spec/audio.md）。
+    pub fn bgm_request(&self) -> Option<usize> {
+        self.bgm.request()
+    }
+
+    /// 当前播放器序号：同轨 serial 变化 = Java 关闭重建（从头播放）。
+    pub fn bgm_serial(&self) -> u32 {
+        self.bgm.serial()
+    }
+
+    /// 当前播放器 VolumeControl 级别（0..=100）。
+    pub fn bgm_volume(&self) -> Option<i32> {
+        self.bgm.volume()
     }
 
     /// gameRandom 种子重设（a.java:2325 setSeed(VTime)：VTime 在 a() 构造时
@@ -597,7 +625,7 @@ impl BootMachine {
                 // case 16（a.java:4414-4416）：选项表 + 软键 (0,3)。
                 // optionChecked[1]=true：mode 21 的 RMS 失败 catch（a.java:4467）
                 self.options = Some(crate::menu_family::OptionList::new(
-                    self.sound_enabled,
+                    self.bgm.sound_enabled,
                     true,
                 ));
                 self.softkeys = (0, 3);
@@ -608,8 +636,9 @@ impl BootMachine {
                 self.intro = Some(crate::intro::IntroSequence::new());
             }
             22 => {
-                // case 22（a.java:4486）：closeAudio（shim 无副作用）；
-                // bootPhaseCounter 已为 0（mode 0→21 清理）
+                // case 22（a.java:4487）：closeAudioPlayer（A-menu-sweep T1761
+                // close(state=400)）；bootPhaseCounter 已为 0（mode 0→21 清理）
+                self.bgm.close();
                 self.counter = 0;
             }
             _ => {
@@ -668,11 +697,13 @@ impl BootMachine {
                 self.logo.as_mut().unwrap().reset_layout_flag(); // logoLayoutDone=false（a.java:3372）
                 self.image = None;
                 self.counter = 0;
+                self.bgm.close(); // closeAudioPlayer（a.java:3376，此时无播放器）
                 self.mode = 21;
                 self.frame_interval_ms = 75; // f_int_02=75（a.java:3377）
-                // m_000 case 21（a.java:4482-4478）：软键 (1,2)；soundEnabled=false；
-                // RMS "SKY_WAR" 读档失败路径（oracle 内存库恒空 ⇒ catch 删库重置）
+                // m_000 case 21（a.java:4482-4478）：软键 (1,2)；soundEnabled=false
+                //（a.java:4484）；RMS "SKY_WAR" 读档失败路径（oracle 内存库恒空 ⇒ catch 删库重置）
                 self.softkeys = (1, 2);
+                self.bgm.enter_sound_prompt();
                 self.finished = false; // mode 21 属对拍范围
             }
         }

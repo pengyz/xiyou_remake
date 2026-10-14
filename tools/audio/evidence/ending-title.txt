@@ -1,0 +1,32 @@
+# ticks: 1400
+# preset: ../../../reference/oracle/scenarios/preset-ending.preset
+# cover: BGM 取证②——终局链（输入逐行复制自 reference/oracle/scenarios/preset-ending.txt）→ mode 20
+#   结局卷轴（f_bool_04 置位后）任意键 → gameMode=1 + m_000 case1（f_bool_28=false + m_139(2)：game.mid→menu.mid）
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -4 press
+302 -4 release
+400 -5 press
+402 -5 release
+460 -5 press
+462 -5 release
+520 -5 press
+522 -5 release
+640 -5 press
+642 -5 release
+760 -4 press
+762 -4 release
+900 -4 press
+902 -4 release
+1050 -5 press
+1052 -5 release
+1150 -5 press
+1152 -5 release
+1300 -5 press
+1302 -5 release
