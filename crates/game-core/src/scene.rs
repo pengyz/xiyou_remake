@@ -568,6 +568,8 @@ pub fn load_floor_from_save(
     scene.min_floor = save.min_floor_reached as i32;
     scene.max_floor = save.max_floor_reached as i32;
     scene.facing = 0; // step 11（a.java:3521，覆盖 blob 朝向——Java 原样）
+    scene.equipped_weapon = save.equipped_weapon_type as i32; // 读档恢复装备（a.java:9260）
+    scene.equipped_armor = save.equipped_armor_type as i32; // （a.java:9261）
     scene.player.hp = save.player_hp;
     scene.player.atk = save.player_atk;
     scene.player.def = save.player_def;
@@ -2748,8 +2750,8 @@ impl GameScene {
         o.push(self.min_floor as u8);
         o.push(self.max_floor as u8);
         o.push(self.facing as u8);
-        o.push(0u8); // equippedWeaponType
-        o.push(0u8); // equippedArmorType
+        o.push(self.equipped_weapon as u8); // equippedWeaponType（a.java:9192 写真实值）
+        o.push(self.equipped_armor as u8); // equippedArmorType（a.java:9193）
         o.extend_from_slice(&(self.view.player_px >> 5).to_be_bytes()); // playerCellX
         o.extend_from_slice(&(self.view.player_py >> 5).to_be_bytes()); // playerCellY
         for v in [self.player.hp, self.player.atk, self.player.def] {
@@ -5705,7 +5707,7 @@ mod slot_equip_scene_tests {
     }
 
     /// maplv1 夹具 + 合成图集（sptarm = synthetic_sptarm，经 m_122 映射进 entity）。
-    fn scene_with(icons: &[ArgbImage]) -> GameScene {
+    fn fixtures() -> (Vec<i32>, Vec<i32>) {
         let width_table: Vec<i32> = include_str!("../tests/fixtures/type_width_px.txt")
             .lines()
             .filter_map(|l| l.trim().parse().ok())
@@ -5714,7 +5716,11 @@ mod slot_equip_scene_tests {
             .lines()
             .filter_map(|l| l.trim().parse().ok())
             .collect();
-        let images = SceneImages {
+        (width_table, walk)
+    }
+
+    fn synth_images(icons: &[ArgbImage]) -> SceneImages {
+        SceneImages {
             backdrop: solid(77, SCREEN_H),
             shadow: solid(24, 24),
             actor: solid(24, 24),
@@ -5739,7 +5745,11 @@ mod slot_equip_scene_tests {
             faces: many(12),
             ending: solid(24, 24),
             xtq: many(6),
-        };
+        }
+    }
+
+    fn scene_with(icons: &[ArgbImage]) -> GameScene {
+        let (width_table, walk) = fixtures();
         GameScene::load_floor(
             include_bytes!("../tests/fixtures/maplv1.bin"),
             3 << 5,
@@ -5747,10 +5757,39 @@ mod slot_equip_scene_tests {
             &[],
             &width_table,
             &walk,
-            images,
+            synth_images(icons),
             vec![None; 56],
         )
         .unwrap()
+    }
+
+    fn loaded_with(icons: &[ArgbImage], save: &crate::save::FloorSave) -> GameScene {
+        let (width_table, walk) = fixtures();
+        load_floor_from_save(
+            include_bytes!("../tests/fixtures/maplv1.bin"),
+            &[],
+            &width_table,
+            &walk,
+            synth_images(icons),
+            vec![None; 56],
+            save,
+        )
+        .unwrap()
+    }
+
+    /// ①②装备往返：serialize 写真实值（a.java:9192-9193）、load 恢复（a.java:9260-9261）。
+    #[test]
+    fn save_roundtrip_restores_equipment() {
+        let mut sc = scene_with(&synthetic_sptarm());
+        sc.equipped_weapon = 79;
+        sc.equipped_armor = 80;
+        let blob = sc.serialize_slot_blob();
+        assert_eq!(blob[5], 79, "blob[5]=equippedWeaponType（a.java:9192）");
+        assert_eq!(blob[6], 80, "blob[6]=equippedArmorType（a.java:9193）");
+        let save = crate::save::parse_floor_save(&blob, 128).expect("blob 可解析");
+        assert_eq!((save.equipped_weapon_type, save.equipped_armor_type), (79, 80));
+        let sc2 = loaded_with(&synthetic_sptarm(), &save);
+        assert_eq!((sc2.equipped_weapon, sc2.equipped_armor), (79, 80), "load 恢复装备（a.java:9260-9261）");
     }
 
     /// MOT_IF 6 槽表（loadSlotTable 读序 a.java:8974-8988）：`(槽, 武器, 甲)`。
