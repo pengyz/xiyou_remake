@@ -358,7 +358,6 @@ fn fx_fan_floor13_frames_match() {
 /// 吞掉型 10/11/12 撞击臂（无 todo! 标记，此前无场景触达故帧对拍恒绿）。T1-480，首分歧 T301。
 /// game-core 补臂后摘除 #[ignore]（本用例即其帧级验收）。
 #[test]
-#[ignore = "BLOCKED：game-core interact_with_cell 型10/11/12 撞击臂未移植（scene.rs cat1 `_ => {}`）"]
 fn fx_firebump_floor13_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-firebump-floor13.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-firebump-floor13.txt"));

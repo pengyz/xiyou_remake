@@ -4343,7 +4343,55 @@ impl GameScene {
                                     // m_000()：mode 9 run 臂对无键进入无动作（a.java:3885 default）
                                 }
                             }
-                            _ => {} // 11 / 76/82：后续批次
+                            10 => {
+                                // 三昧真火（a.java:5436-5440）：提示 + 阻挡 + 停扫
+                                self.show_overlay_message(
+                                    0,
+                                    "障碍物：三昧真火\n必须用芭蕉扇才能熄灭它. ",
+                                    0,
+                                    0,
+                                );
+                                allowed = false;
+                                s = -1;
+                            }
+                            11 => {
+                                // 墙（a.java:5441-5448）：23 层静默；其余提示。阻挡 + 停扫
+                                if self.floor != 23 {
+                                    self.show_overlay_message(
+                                        0,
+                                        "障碍物：墙\n只有金勺子、玄明石可以凿开。或者剧情打开！",
+                                        0,
+                                        0,
+                                    );
+                                }
+                                allowed = false;
+                                s = -1;
+                            }
+                            12 => {
+                                // 撞击墙（a.java:5449-5456）：变形为型 11（墙）+ 精灵/动画
+                                // 重派 + 置可见（state=2 行 9）；阻挡但**续扫**（无 var8=0）
+                                self.entities.entity_type[e] = 11;
+                                let img_h = self
+                                    .images
+                                    .entity
+                                    .get(11)
+                                    .cloned()
+                                    .flatten()
+                                    .map(|im| im.height);
+                                entity::dispatch_sprite_size(
+                                    11,
+                                    e,
+                                    &mut self.entities,
+                                    &self.width_table,
+                                    img_h,
+                                );
+                                entity::dispatch_anim(11, e, &mut self.entities);
+                                self.entities.solid[e] = 2;
+                                self.entities.anim_idx[e] = 9;
+                                self.entities.visible[e] = true;
+                                allowed = false;
+                            }
+                            _ => {} // 76/82：后续批次
                             },
                             8 => {
                                 // 怪物（a.java:5470-5490）：可胜 → 场上战斗；否则阻挡
