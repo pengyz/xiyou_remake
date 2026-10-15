@@ -47,7 +47,10 @@ public final class Font {
     public static Font getFont(int face, int style, int size) {
         int aw, h, bl;
         switch (size) {
-            case SIZE_SMALL:  aw = 6;  h = 10; bl = 8;  break;
+            // SMALL 高 14（2026-10-15 更正，原 10）：游戏 UI 以 16px 切片平铺，
+            // 对话框填充 2h+4 须为 16 整倍 ⇒ h=14（框 48=16×3 三片全收）；
+            // h=10 时底片在 y=320 裁半——BUG-008 "缺底边"假象的根因。
+            case SIZE_SMALL:  aw = 6;  h = 14; bl = 11;  break;
             case SIZE_LARGE:  aw = 12; h = 20; bl = 16; break;
             case SIZE_MEDIUM:
             default:          aw = 8;  h = 14; bl = 11; break;

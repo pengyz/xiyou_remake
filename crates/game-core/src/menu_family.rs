@@ -306,7 +306,7 @@ impl OverlayEngine {
             box_w: 0,
             box_h: 0,
             saved_color: 0,
-            line_height: 14, // textLineHeight = fontHeight+4（a.java:471）
+            line_height: crate::paint::paint_font().height + 4, // textLineHeight（a.java:471，fontHeight 派生）
         }
     }
 
@@ -393,7 +393,7 @@ impl OverlayEngine {
 
     /// 引子字幕布局（m_014 依赖行宽/总行数；布局参数与 paint 调用一致 220/28）。
     pub fn layout_for_intro(&mut self, text: &[u16], font: &crate::render::SoftFont) {
-        self.layout(text, 220, 28, font);
+        self.layout(text, 220, (font.height + 4) << 1, font); // max_h = textLineHeight<<1（a.java:2941）
         self.cached_text = Some(text.to_vec());
     }
 
@@ -584,10 +584,14 @@ pub struct SlotSelect {
 
 impl SlotSelect {
     pub fn new() -> SlotSelect {
-        let per = crate::layout::SLOT_LIST_MAX_H / (10 + 4); // 208 / (fontHeight+4 = 14)
+        // 度量全部由 fontHeight 派生（a.java:4354-4364；(10+4)/12 字面量在字高 10
+        // 时同值、字高 14 后与 Java 分叉——BUG-008 根因修复面）
+        let font = crate::paint::paint_font();
+        let lh = font.height + 4;
+        let per = crate::layout::SLOT_LIST_MAX_H / lh;
         let per = if per > 6 { 6 } else { per };
-        let w = (12 * 3 + 60).max(148); // wideCharWidth*3+60，钳 148
-        let h = 112 + (10 + 4) * per;
+        let w = (font.char_width('国' as u16) * 3 + 60).max(148); // wideCharWidth*3+60，钳 148
+        let h = 112 + lh * per;
         SlotSelect {
             cursor: 0,
             scroll_top: 0,
@@ -739,6 +743,8 @@ impl SlotSelect {
     /// a.java:9116-9123 / 9136-9143 图标分支；boot 侧甲胄钳位误作 `>9`），
     /// 已合并为 [`Self::paint_equipment_frames`] 单源。
     pub fn paint_list(&self, g: &mut SoftGraphics<'_>, ui: &[ArgbImage], segs: &[i32]) -> (i32, i32) {
+        let font = crate::paint::paint_font();
+        let lh = font.height + 4; // textLineHeight（a.java:471，fontHeight 派生）
         let x = (SCREEN_W - self.content_w - 22) >> 1;
         let mut y = (SCREEN_H - self.content_h) >> 1;
         paint_titled_box(g, &ui[0], &ui[13], segs, x, y, self.content_w + 22, self.content_h);
@@ -748,10 +754,10 @@ impl SlotSelect {
                 g.set_color(crate::layout::SLOT_TEXT);
             } else {
                 g.set_color(crate::layout::DARK_BACKDROP);
-                g.fill_rect(CENTER_X - (self.content_w >> 1), y, self.content_w, 10 + 4);
-                g.draw_image(&ui[14], CENTER_X - (self.content_w >> 1) + 10, y + ((10 - 8) >> 1), 0);
+                g.fill_rect(CENTER_X - (self.content_w >> 1), y, self.content_w, lh);
+                g.draw_image(&ui[14], CENTER_X - (self.content_w >> 1) + 10, y + ((font.height - 8) >> 1), 0);
                 let t = crate::paint::NOKIA_TRANSFORM_TABLE[1];
-                g.draw_image_transformed(&ui[14], CENTER_X + (self.content_w >> 1) - 30, y + ((10 - 8) >> 1), 0, t);
+                g.draw_image_transformed(&ui[14], CENTER_X + (self.content_w >> 1) - 30, y + ((font.height - 8) >> 1), 0, t);
                 g.set_color(crate::layout::SLOT_TEXT_ACTIVE);
             }
             if !self.valid[row as usize] {
@@ -761,7 +767,7 @@ impl SlotSelect {
                 label.extend((row as u16).to_string().chars().map(|c| c as u16));
                 g.draw_string(&label, CENTER_X, y + 2, 17);
             }
-            y += 14;
+            y += lh;
         }
         // 翻页箭头（a.java:9080-9087）
         let ax = CENTER_X + ((self.content_w >> 1) - 10);
@@ -1161,10 +1167,10 @@ impl OptionList {
         self.labels.push(label_idx);
         self.checked.push(checked);
         if self.labels.len() == 1 {
-            self.box_h = 32 + 18; // 32 + optionRowHeight(fontHeight+8)
+            self.box_h = 32 + (font.height + 8); // optionRowHeight = fontHeight+8（a.java:812）
             self.box_w = w;
         } else {
-            self.box_h += 18;
+            self.box_h += font.height + 8;
             if self.box_w < w {
                 self.box_w = w;
             }

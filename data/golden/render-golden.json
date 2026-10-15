@@ -13,7 +13,7 @@
     {"name":"blend_over","sha":"e47f75d2b7d449a9e157b0764c9215a442f941980cd789585fc9ac0eaf9fb3cc"},
     {"name":"draw_image_anchors","sha":"084fe0ae648b97058de78173e47727b19a78a006b4ca2550984fb1e6b3e09abf"},
     {"name":"draw_image_transformed","sha":"056c77c83f671d7924b4348f4962a0d7be8acd24e6c2ab7545f668f13dab503d"},
-    {"name":"font_glyphs","sha":"e61db4095ac4ca36e17e9b97977bb45cd992e7eca2f807a67d407647c533dac6"},
+    {"name":"font_glyphs","sha":"50496e738b6b80863c20821ff87cd4bd4e87c37c5863f1c20867dd425fdc828a"},
     {"name":"draw_substring","sha":"2e509254d822727bb4683ae7b02b099f56dfeb8950148aef96c49a31e0778d20"},
     {"name":"draw_char","sha":"e2f0c447d20d7b69851070af6a549743c9044301680ee64ff480bb33959a86c3"}
   ],

@@ -234,7 +234,9 @@ fn font_glyphs() {
             g.set_font(Some(SoftFont::get_font(0, font_style::PLAIN, font_size::LARGE)));
             g.draw_string(&utf16("L囧"), 20, 140, anchor::TOP | anchor::LEFT);
         }),
-        "e61db4095ac4ca36e17e9b97977bb45cd992e7eca2f807a67d407647c533dac6"
+        // 2026-10-15 随 shim 字高更正（SMALL 10→14）再生成；判据仍是 Java 侧
+        // RenderGolden（data/golden/render-golden.json cases.font_glyphs 同值）
+        "50496e738b6b80863c20821ff87cd4bd4e87c37c5863f1c20867dd425fdc828a"
     );
 }
 

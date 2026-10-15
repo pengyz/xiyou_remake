@@ -61,9 +61,12 @@ pub mod font_style {
     pub const BOLD: i32 = 1;
 }
 
-/// 字体度量（shim 自定义常量，`Font.java:47-62`）。
+/// 字体度量（shim 同源常量，`Font.java:47-62`）。
 ///
-/// 与 shim 同源：SMALL=6/10/8，MEDIUM=8/14/11，LARGE=12/20/16，BOLD 步进 +1。
+/// 与 shim 同源：SMALL=6/14/11，MEDIUM=8/14/11，LARGE=12/20/16，BOLD 步进 +1。
+/// SMALL 高 14（2026-10-15 更正，原 10）：16px 切片平铺的 UI 需要框体填充
+/// 2h+4 为 16 整倍（对话框 48=16×3），h=10 会裁半底片（BUG-008 根因）。
+/// **与 reference/shim Font.java 双拷贝同步**（pattern_dual-copy-algorithms-sync-fix）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SoftFont {
     /// ASCII 字符步进宽（像素）。
@@ -73,20 +76,23 @@ pub struct SoftFont {
     /// 基线距顶部（像素）。
     pub baseline: i32,
     pub style: i32,
+    /// MIDP size 码（SMALL=8/MEDIUM=16/LARGE=32）——op 文本 `setFont(size=…)`
+    /// 与 shim `Graphics.java:116` 同构（记 size 常量，非由字高反推）。
+    pub size: i32,
 }
 
 impl SoftFont {
     /// `Font.getFont(face, style, size)`。face 在 shim 中不影响度量（系统/等宽同度量）。
     pub fn get_font(_face: i32, style: i32, size: i32) -> SoftFont {
         let (mut aw, h, bl) = match size {
-            font_size::SMALL => (6, 10, 8),
+            font_size::SMALL => (6, 14, 11),
             font_size::LARGE => (12, 20, 16),
             _ => (8, 14, 11),
         };
         if style & font_style::BOLD != 0 {
             aw += 1;
         }
-        SoftFont { ascii_width: aw, height: h, baseline: bl, style }
+        SoftFont { ascii_width: aw, height: h, baseline: bl, style, size }
     }
 
     /// `Font.isWide`：CJK/全角区域按 2 倍步进（`Font.java:99-106`）。
@@ -222,7 +228,7 @@ impl<'a> SoftGraphics<'a> {
 
     /// `setFont`。`None` 对应 shim 传 null（后续文字绘制会 panic，模拟 NPE）。
     pub fn set_font(&mut self, font: Option<SoftFont>) {
-        self.op(format!("setFont(size={})", font.map(|f| size_code(f.height)).unwrap_or(-1)));
+        self.op(format!("setFont(size={})", font.map(|f| f.size).unwrap_or(-1)));
         self.font = font;
     }
 
@@ -638,16 +644,6 @@ fn anchor_adjust(anchor: i32, w: i32, h: i32) -> [i32; 2] {
         ay = h;
     }
     [ax, ay]
-}
-
-/// 由行高反推 shim `setFont` op 里的 size 码（只影响 op 文本，不影响像素）。
-fn size_code(height: i32) -> i32 {
-    match height {
-        10 => 8,  // SMALL
-        20 => 32, // LARGE
-        14 => 16, // MEDIUM
-        other => other,
-    }
 }
 
 /// OPS 文本里的字符串转义（shim `Graphics.q`，`Graphics.java:75-94`）。
