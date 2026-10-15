@@ -26,7 +26,7 @@
 - [mnemonic 推测混入结论](gotcha_c-level-mnemonic-speculation-in-ledger.md) — SMS="平台短信调用"系望文生义 C 级（真臂仅 parseScriptInt+游标空转，a.java:8515-8518）；副作用断言必须指认调用行，指认不出不入账
 - [双移植面并存漂移](gotcha_dual-porting-surfaces-drift.md) — executeScriptInstruction 有 scene.rs 生产体与 script.rs HostCtx harness 面两套（camera.rs 第二套相机状态同病）；改任一面必须对照另一面、禁造第三面，DC-9 桥漏道具加成=漂移实例（e951c65）
 - [Windows 五坑：POSIX 假设落地即炸](gotcha_windows-posix-assumptions.md) — python3 占位符/GBK 解码/classpath 冒号/line.separator/CRLF 检出；三层钉死模板（JVM UTF-8 + Python encoding + .gitattributes LF）
->>>>>>> 1230f19 (kb: Windows 工具链 POSIX 假设六坑入库 + MEMORY 索引 + kairos)
+- [共享 shim 假设自我印证](gotcha_shared-shim-assumption-self-confirming.md) — 对拍全绿≠真机真值：双端共享模拟器参数时四层证据互相印证同一错误前提；BUG-008"缺底边"= shim 字高 10 裁半饰条，真值考据分工 javap 管反编译、设计反证/真机管参数
 
 ## Patterns
 
