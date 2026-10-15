@@ -708,40 +708,14 @@ impl SlotSelect {
         // 详情面板（a.java:9130-9150，slotValidFlags[cursor] 才画）
         if self.valid[self.cursor as usize] {
             let c = self.cursor as usize;
-            let mut vx = lx + 6;
+            let vx = lx + 6;
             let vy = ly + 8;
             if self.floor_num[c] < 51 {
                 paint_number(g, &ui[18], self.floor_num[c] as i32, vx + 48, vy);
                 g.draw_image(&ui[8], vx + 50, vy + 8, 0);
             }
-            vx = (SCREEN_W + self.content_w >> 1) - 68;
-            paint_mini_frame(g, vx, vy, 32, 32);
-            if self.weapon[c] == 0 {
-                g.set_color(-1i32 as u32);
-                let m: Vec<u16> = "无".encode_utf16().collect();
-                g.draw_string(&m, vx + ((32 - 12) >> 1), vy + ((32 - 10) >> 1), 0);
-            } else {
-                let mut idx = (self.weapon[c] - 33) as usize;
-                if idx > 7 {
-                    idx = 8;
-                }
-                let img = &sptarm[idx];
-                g.draw_image(img, vx + ((32 - img.width) >> 1), vy + ((32 - img.height) >> 1), 0);
-            }
-            vx += 34;
-            paint_mini_frame(g, vx, vy, 32, 32);
-            if self.armor[c] == 0 {
-                g.set_color(-1i32 as u32);
-                let m: Vec<u16> = "无".encode_utf16().collect();
-                g.draw_string(&m, vx + ((32 - 12) >> 1), vy + ((32 - 10) >> 1), 0);
-            } else {
-                let mut idx = (self.armor[c] - 33) as usize;
-                if idx > 9 {
-                    idx = 9;
-                }
-                let img = &sptarm[idx];
-                g.draw_image(img, vx + ((32 - img.width) >> 1), vy + ((32 - img.height) >> 1), 0);
-            }
+            // 装备框段（a.java:9104-9143）：sptarm = f_Image_arr2_00[6] 原容器
+            self.paint_equipment_frames(g, c, vy, |i| sptarm.get(i));
             let (mut vx, vy) = self.paint_detail_stats(g, ui, c, vy);
             // paintKeySlot（a.java:6046-6052）：ui[6] 槽位图 + ui[2] 数字（+40/+5）
             for (kind, count) in [(0, self.keys_yellow[c]), (1, self.keys_blue[c]), (2, self.keys_red[c])] {
@@ -759,9 +733,11 @@ impl SlotSelect {
     /// 返回第二条分隔线的 `(lx, ly)`（详情面板锚点）。
     ///
     /// m_113 有两条移植——boot 读档 [`Self::paint`] 与场景存档
-    /// `GameScene::paint_slot_list`——本段与 [`Self::paint_detail_stats`] 原为逐字
-    /// 双拷贝，现共用；两者的装备框段**不一致**（场景侧恒画材质名，未移植
-    /// a.java:9116-9123 / 9136-9143 的 sptarm 图标分支），保留各自原状。
+    /// `GameScene::paint_slot_list`——本段、[`Self::paint_equipment_frames`] 与
+    /// [`Self::paint_detail_stats`] 原为逐字双拷贝，现共用。
+    /// 【2026-10-15 更正】装备框段曾两份**不一致**（场景侧恒画材质名、未移植
+    /// a.java:9116-9123 / 9136-9143 图标分支；boot 侧甲胄钳位误作 `>9`），
+    /// 已合并为 [`Self::paint_equipment_frames`] 单源。
     pub fn paint_list(&self, g: &mut SoftGraphics<'_>, ui: &[ArgbImage], segs: &[i32]) -> (i32, i32) {
         let x = SCREEN_W - self.content_w - 22 >> 1;
         let mut y = SCREEN_H - self.content_h >> 1;
@@ -806,6 +782,26 @@ impl SlotSelect {
         (lx, ly)
     }
 
+    /// m_113 装备框段（a.java:9104-9143）：槽 `c` 的武器框 + 甲框（`vy` = 装备框行 y）。
+    /// 两条移植共用（见 [`Self::paint_list`]）。
+    ///
+    /// `sptarm(i)` = `f_Image_arr2_00[6][i]`（boot 侧传原容器；场景侧经
+    /// [`SPTARM_ENTITY_TYPES`] 从 entityTypeImage 取同一位图）。
+    pub fn paint_equipment_frames<'a>(
+        &self,
+        g: &mut SoftGraphics<'_>,
+        c: usize,
+        vy: i32,
+        sptarm: impl Fn(usize) -> Option<&'a ArgbImage>,
+    ) {
+        // a.java:9104-9105：var2 = 240 + slotListWidth >> 1; var2 -= 68
+        let vx = (SCREEN_W + self.content_w >> 1) - 68;
+        // 武器 f_byte_arr_25（a.java:9106-9123）：v-33 > 7 ⇒ 钳 8
+        paint_equipment_frame(g, vx, vy, self.weapon[c], 8, &sptarm);
+        // 甲 f_byte_arr_26（a.java:9125-9143）：var2 += 34；v-33 > 7 ⇒ 钳 9
+        paint_equipment_frame(g, vx + 34, vy, self.armor[c], 9, &sptarm);
+    }
+
     /// m_113 详情面板中段（a.java:9145-9169）：金币行 + HP/攻/防 三围框（槽 `c`）。
     /// `vy` = 装备框行 y；返回三钥行起点 `(vx, vy)`。两条移植共用（见 [`Self::paint_list`]）。
     pub fn paint_detail_stats(&self, g: &mut SoftGraphics<'_>, ui: &[ArgbImage], c: usize, vy: i32) -> (i32, i32) {
@@ -841,7 +837,268 @@ const DASH_LABEL: &[u16] = &[0x2D, 0x2D, 0x2D];
 /// "存档"（有效槽标签前缀，a.java:9072）。
 const SAVE_LABEL: &[u16] = &[0x5B58, 0x6863];
 
+/// `f_Image_arr2_00[6][i]`（sptarm）↔ entityTypeImage 下标：m_122 是两者唯一
+/// 赋值点——`[33..=40] = [6][t-33]`（a.java:9462-9464）、`[79] = [6][8]`、
+/// `[80] = [6][9]`（a.java:9478-9479）。场景侧 [`crate::scene::SceneImages::entity`]
+/// 即该映射产物（`map_entity_images`），按本表反查即得 sptarm 原图。
+pub const SPTARM_ENTITY_TYPES: [usize; 10] = [33, 34, 35, 36, 37, 38, 39, 40, 79, 80];
+
+/// m_113 单个装备框（a.java:9106-9123 武器 / 9126-9143 甲）：`paintMiniFrame(32×32)`
+/// 后按槽值 `v` 二分——
+/// - `v == 0`：`setColor(-1)` + `drawString(equipmentMaterialNames[v])`（本支恒 [0]
+///   =“无”），偏移 `(32-wideCharWidth>>1, 32-fontHeight>>1)`（a.java:9107-9115）；
+/// - 否则：`i = v-33`（byte→int 提升，无溢出）；`i > 7 ⇒ i = clamp_to`（武器 8 /
+///   甲 9）；`drawImage([6][i])` 居中 `(32-w>>1, 32-h>>1)`（a.java:9116-9123）。
+///
+/// `i < 0`（v ∈ 1..=32 或负值）/ 容器缺图：Java 抛 AIOOBE（paint 中断）——仅损坏
+/// 存档可达（玩法写入值 ∈ {0,33..=40,79,80}，equipTierTypes）；此处不画图标、不 panic
+/// （与 HUD 装备槽 `.get()` 兜底同口径）。
+fn paint_equipment_frame<'a>(
+    g: &mut SoftGraphics<'_>,
+    vx: i32,
+    vy: i32,
+    v: i8,
+    clamp_to: i32,
+    sptarm: &impl Fn(usize) -> Option<&'a ArgbImage>,
+) {
+    paint_mini_frame(g, vx, vy, 32, 32);
+    if v == 0 {
+        let font = crate::paint::paint_font();
+        let wide = font.char_width('国' as u16); // wideCharWidth（a.java:25）
+        g.set_color(-1i32 as u32);
+        let name: Vec<u16> = crate::scene::EQUIPMENT_MATERIAL_NAMES[v as usize].encode_utf16().collect();
+        g.draw_string(&name, vx + ((32 - wide) >> 1), vy + ((32 - font.height) >> 1), 0);
+    } else {
+        let mut i = v as i32 - 33;
+        if i > 7 {
+            i = clamp_to;
+        }
+        if let Some(img) = usize::try_from(i).ok().and_then(|i| sptarm(i)) {
+            g.draw_image(img, vx + ((32 - img.width) >> 1), vy + ((32 - img.height) >> 1), 0);
+        }
+    }
+}
+
 // ============================== 菜单族状态机 ==============================
+
+/// 装备框像素断言工具（单测共用：本模块 + scene 的场景侧接线测试）。
+///
+/// 判据全部由 Java 公式直接推出（a.java:9104-9143），不经被测函数：
+/// 框 = paintMiniFrame(32×32) 的填充区 `[fx+1, fx+31) × [fy, fy+31)`；
+/// 图标 = sptarm[k] 左上 `(fx + (32-w>>1), fy + (32-h>>1))`；
+/// 材质名 = 白字“无”@`(fx + (32-12>>1), fy + (32-10>>1))`（wideCharWidth=12、fontHeight=10）。
+#[cfg(test)]
+pub(crate) mod slot_equip_test_support {
+    use crate::layout::{MINIFRAME_FILL, SCREEN_H, SCREEN_W};
+    use crate::render::{ArgbImage, SoftGraphics};
+
+    /// 合成 sptarm 的逐张纯色（互异，且异于框填充色/白字/黑底）。
+    pub const ICON_COLORS: [u32; 10] = [
+        0xFFFF0000, 0xFF00FF00, 0xFF0000FF, 0xFFFFFF00, 0xFFFF00FF, 0xFF00FFFF, 0xFF800000,
+        0xFF008000, 0xFF000080, 0xFF808000,
+    ];
+    pub const FILL: u32 = 0xFF000000 | MINIFRAME_FILL;
+    pub const WHITE: u32 = 0xFFFFFFFF;
+    /// 装备框行 y（SlotSelect::new 布局：paint_list 返回 ly=165，+8）。
+    pub const FRAME_Y: i32 = 173;
+    /// 武器框 x：(240 + slotListWidth(148) >> 1) - 68 = 126；甲框 +34 = 160。
+    pub const WEAPON_X: i32 = 126;
+    pub const ARMOR_X: i32 = 160;
+
+    /// 合成 sptarm 容器：第 i 张 `(11+2i) × (25-i)` 纯色——宽恒奇数（验 `>>1` 向下取整），
+    /// 尺寸逐张不同（居中偏移逐张可辨）。
+    pub fn synthetic_sptarm() -> Vec<ArgbImage> {
+        (0..10)
+            .map(|i| {
+                let (w, h) = (11 + 2 * i as i32, 25 - i as i32);
+                ArgbImage::from_rgb(&vec![ICON_COLORS[i]; (w * h) as usize], w, h, true)
+            })
+            .collect()
+    }
+
+    pub fn px(img: &ArgbImage, x: i32, y: i32) -> u32 {
+        img.argb[(y * img.width + x) as usize]
+    }
+
+    /// 框填充区内：图标矩形逐像素 = ICON_COLORS[k]，其余 = 框填充色。
+    pub fn assert_frame_icon(screen: &ArgbImage, fx: i32, fy: i32, icons: &[ArgbImage], k: usize, what: &str) {
+        let (w, h) = (icons[k].width, icons[k].height);
+        let (ox, oy) = (fx + ((32 - w) >> 1), fy + ((32 - h) >> 1));
+        for y in fy..fy + 31 {
+            for x in fx + 1..fx + 31 {
+                let inside = x >= ox && x < ox + w && y >= oy && y < oy + h;
+                let expect = if inside { ICON_COLORS[k] } else { FILL };
+                assert_eq!(px(screen, x, y), expect, "{what}: sptarm[{k}] 框({fx},{fy}) 像素({x},{y})");
+            }
+        }
+    }
+
+    /// Java 参照（a.java:9106-9115 逐句）：paintMiniFrame + setColor(-1) +
+    /// drawString(“无”, fx+(32-12>>1), fy+(32-10>>1), 0)——与被测画面的框区逐像素相等；
+    /// 另断言白字确实落笔且框内无任何图标色。
+    pub fn assert_frame_material_name(screen: &ArgbImage, fx: i32, fy: i32, what: &str) {
+        let mut reference = ArgbImage::create(SCREEN_W, SCREEN_H);
+        {
+            let mut g = SoftGraphics::new(&mut reference);
+            g.set_font(Some(crate::paint::paint_font()));
+            crate::menu_family::paint_mini_frame(&mut g, fx, fy, 32, 32);
+            g.set_color(0xFFFFFF);
+            g.draw_string(&[0x65E0], fx + 10, fy + 11, 0); // “无”
+        }
+        let mut white = 0;
+        for y in fy..fy + 31 {
+            for x in fx + 1..fx + 31 {
+                let p = px(screen, x, y);
+                assert_eq!(p, px(&reference, x, y), "{what}: 材质名框({fx},{fy}) 像素({x},{y})");
+                assert!(!ICON_COLORS.contains(&p), "{what}: 材质名框内出现图标色 ({x},{y})");
+                if p == WHITE {
+                    white += 1;
+                }
+            }
+        }
+        assert!(white > 0, "{what}: 材质名白字未落笔");
+    }
+
+    /// 框填充区全为填充色（无字无图）。
+    pub fn assert_frame_empty(screen: &ArgbImage, fx: i32, fy: i32, what: &str) {
+        for y in fy..fy + 31 {
+            for x in fx + 1..fx + 31 {
+                assert_eq!(px(screen, x, y), FILL, "{what}: 空框({fx},{fy}) 像素({x},{y})");
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod slot_equip_tests {
+    use super::slot_equip_test_support::*;
+    use super::*;
+
+    /// 只画装备框段（槽 0），y 取 FRAME_Y。
+    fn render_frames(weapon: i8, armor: i8, icons: &[ArgbImage]) -> ArgbImage {
+        let mut slot = SlotSelect::new();
+        slot.valid[0] = true;
+        slot.weapon[0] = weapon;
+        slot.armor[0] = armor;
+        let mut screen = ArgbImage::create(SCREEN_W, SCREEN_H);
+        {
+            let mut g = SoftGraphics::new(&mut screen);
+            g.set_font(Some(crate::paint::paint_font()));
+            slot.paint_equipment_frames(&mut g, 0, FRAME_Y, |i| icons.get(i));
+        }
+        screen
+    }
+
+    /// 框 x 公式（a.java:9104-9105 + 9125）：SlotSelect::new 宽 148 ⇒ 126 / 160。
+    #[test]
+    fn equip_frame_x_follows_java_formula() {
+        let s = SlotSelect::new();
+        assert_eq!((SCREEN_W + s.content_w >> 1) - 68, WEAPON_X);
+        assert_eq!(WEAPON_X + 34, ARMOR_X);
+    }
+
+    /// 装备 = 0（a.java:9107-9115 / 9127-9135）：两框均白字“无”，无图标。
+    #[test]
+    fn equip_zero_draws_material_name() {
+        let icons = synthetic_sptarm();
+        let screen = render_frames(0, 0, &icons);
+        assert_frame_material_name(&screen, WEAPON_X, FRAME_Y, "武器=0");
+        assert_frame_material_name(&screen, ARMOR_X, FRAME_Y, "甲=0");
+    }
+
+    /// 装备 ≠ 0（a.java:9116-9123 / 9136-9143）：sptarm[v-33] 居中；框内无白字。
+    #[test]
+    fn equip_nonzero_draws_centered_sptarm_icon() {
+        let icons = synthetic_sptarm();
+        let screen = render_frames(34, 38, &icons);
+        assert_frame_icon(&screen, WEAPON_X, FRAME_Y, &icons, 1, "武器=34");
+        assert_frame_icon(&screen, ARMOR_X, FRAME_Y, &icons, 5, "甲=38");
+    }
+
+    /// 一框 0、一框非 0 互不串扰（场景存档后的典型态：无武器 + 80 甲）。
+    #[test]
+    fn equip_mixed_zero_and_icon() {
+        let icons = synthetic_sptarm();
+        let screen = render_frames(0, 80, &icons);
+        assert_frame_material_name(&screen, WEAPON_X, FRAME_Y, "武器=0");
+        assert_frame_icon(&screen, ARMOR_X, FRAME_Y, &icons, 9, "甲=80");
+        let screen = render_frames(79, 0, &icons);
+        assert_frame_icon(&screen, WEAPON_X, FRAME_Y, &icons, 8, "武器=79");
+        assert_frame_material_name(&screen, ARMOR_X, FRAME_Y, "甲=0");
+    }
+
+    /// 下标钳位（a.java:9117-9118 武器 `>7 ⇒ 8` / 9137-9138 甲 `>7 ⇒ 9`）。
+    /// 甲 41 是 `>7` 与旧 boot 误植 `>9` 唯一分歧值（i=8：`>7` ⇒ 9，`>9` ⇒ 8）；
+    /// 40（i=7）为边界不钳。
+    #[test]
+    fn equip_index_clamp_matches_java() {
+        let icons = synthetic_sptarm();
+        for (v, k) in [(33i8, 0usize), (36, 3), (40, 7), (41, 8), (42, 8), (79, 8), (80, 8), (127, 8)] {
+            let screen = render_frames(v, 0, &icons);
+            assert_frame_icon(&screen, WEAPON_X, FRAME_Y, &icons, k, &format!("武器={v}"));
+        }
+        for (v, k) in [(37i8, 4usize), (40, 7), (41, 9), (42, 9), (43, 9), (79, 9), (80, 9), (127, 9)] {
+            let screen = render_frames(0, v, &icons);
+            assert_frame_icon(&screen, ARMOR_X, FRAME_Y, &icons, k, &format!("甲={v}"));
+        }
+    }
+
+    /// v-33 < 0（v ∈ 1..=32 / 负值；Java AIOOBE，仅损坏存档可达）：只画空框、不 panic
+    /// ——含 -128（旧 boot 版 i8 减法在 overflow-checks 下 panic）。
+    #[test]
+    fn equip_negative_index_draws_frame_only() {
+        let icons = synthetic_sptarm();
+        for (w, a) in [(1i8, 32i8), (5, -1), (-128, -34)] {
+            let screen = render_frames(w, a, &icons);
+            assert_frame_empty(&screen, WEAPON_X, FRAME_Y, &format!("武器={w}"));
+            assert_frame_empty(&screen, ARMOR_X, FRAME_Y, &format!("甲={a}"));
+        }
+    }
+
+    /// 场景侧取图口径：SPTARM_ENTITY_TYPES 是 m_122 映射（map_entity_images）的逆——
+    /// entityTypeImage[SPTARM_ENTITY_TYPES[i]] 与 sptarm[i] 同图（a.java:9462-9464/9478-9479）。
+    #[test]
+    fn sptarm_entity_types_invert_m122_mapping() {
+        let icons = synthetic_sptarm();
+        let filler = |n: usize| -> Vec<ArgbImage> {
+            (0..n).map(|_| ArgbImage::from_rgb(&[0xFF101010; 4], 2, 2, true)).collect()
+        };
+        let entity =
+            crate::scene::SceneImages::map_entity_images(&filler(13), &filler(23), &icons, &filler(20), &filler(20));
+        for (i, &t) in SPTARM_ENTITY_TYPES.iter().enumerate() {
+            assert_eq!(entity[t].as_ref(), Some(&icons[i]), "entity[{t}] ≠ sptarm[{i}]");
+        }
+    }
+
+    /// boot 侧接线（SlotSelect::paint 全段，mode 8）：详情面板 vy 锚点 + 原容器取图。
+    #[test]
+    fn boot_slot_paint_wires_equipment_frames() {
+        let icons = synthetic_sptarm();
+        let ui: Vec<ArgbImage> =
+            (0..25).map(|_| ArgbImage::from_rgb(&vec![0xFF202020; 24 * 24], 24, 24, true)).collect();
+        let mut slot = SlotSelect::new();
+        slot.valid[0] = true;
+        slot.weapon[0] = 35;
+        slot.armor[0] = 41;
+        slot.valid[1] = true;
+        let paint = |slot: &SlotSelect| {
+            let mut screen = ArgbImage::create(SCREEN_W, SCREEN_H);
+            {
+                let mut g = SoftGraphics::new(&mut screen);
+                g.set_font(Some(crate::paint::paint_font()));
+                slot.paint(&mut g, &ui, &[3, 5], &icons, || 0);
+            }
+            screen
+        };
+        let screen = paint(&slot);
+        assert_frame_icon(&screen, WEAPON_X, FRAME_Y, &icons, 2, "boot 武器=35");
+        assert_frame_icon(&screen, ARMOR_X, FRAME_Y, &icons, 9, "boot 甲=41（>7 钳 9）");
+        slot.cursor_down(); // 槽 1：装备 0/0
+        let screen = paint(&slot);
+        assert_frame_material_name(&screen, WEAPON_X, FRAME_Y, "boot 武器=0");
+        assert_frame_material_name(&screen, ARMOR_X, FRAME_Y, "boot 甲=0");
+    }
+}
 
 /// mode 16 选项列表（addOption 登记产物）。
 pub struct OptionList {

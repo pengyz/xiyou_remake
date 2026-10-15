@@ -2725,8 +2725,10 @@ impl GameScene {
                     self.slot.keys_blue[cursor] = self.player.blue_keys as i16;
                     self.slot.keys_red[cursor] = self.player.red_keys as i16;
                     self.slot.gold[cursor] = self.player.gold;
-                    self.slot.weapon[cursor] = 0; // equippedWeaponType（装备批次）
-                    self.slot.armor[cursor] = 0; // equippedArmorType（装备批次）
+                    // a.java:9013-9014：f_byte_arr_25/26 = equippedWeaponType/ArmorType
+                    //（byte 字段；值域 equipTierTypes ⊂ i8）——装备框图标分支的数据源
+                    self.slot.weapon[cursor] = self.equipped_weapon as i8;
+                    self.slot.armor[cursor] = self.equipped_armor as i8;
                     self.show_overlay_message(0, "保存成功！", 0, 0);
                 }
             }
@@ -2796,35 +2798,28 @@ impl GameScene {
     /// titledBox segs[2]）+ 有效槽详情面板（层数/装备/金币/三围/三钥）。
     fn paint_slot_list(&mut self, g: &mut SoftGraphics<'_>) {
         self.paint_parallax(g, false);
-        let font = crate::paint::paint_font();
         let ui = &self.images.ui;
-        // 标题变体 2（存档）：titleBarSegments[2] = {4,5}；列表段/三围段与 boot
-        // 读档路径共用 SlotSelect 方法（原为逐字双拷贝）
+        // 标题变体 2（存档）：titleBarSegments[2] = {4,5}；列表段/装备框段/三围段与
+        // boot 读档路径共用 SlotSelect 方法（原为双拷贝）
         let (lx, ly) = self.slot.paint_list(g, ui, &[4, 5]);
         // 详情面板（a.java:9092-9147，slotValidFlags[cursor] 才画）
         let c = self.slot.cursor as usize;
         if self.slot.valid[c] {
-            let mut vx = lx + 6;
+            let vx = lx + 6;
             let vy = ly + 8;
             if self.slot.floor_num[c] < 51 {
                 paint_number(g, &ui[18], self.slot.floor_num[c] as i32, vx + 48, vy);
                 g.draw_image(&ui[8], vx + 50, vy + 8, 0);
             }
-            vx = (SCREEN_W + self.slot.content_w >> 1) - 68;
-            crate::menu_family::paint_mini_frame(g, vx, vy, 32, 32);
-            // 武器（f_byte_arr_25；装备批次恒 0 = “无”）。注：与 boot 侧
-            // SlotSelect::paint 不一致——此处恒画材质名，未移植 Java 非 0 时的
-            // sptarm 图标分支（a.java:9116-9123 武器 / 9136-9143 甲）；原状保留。
-            g.set_color(0xFFFFFF);
-            let m = EQUIPMENT_MATERIAL_NAMES[self.slot.weapon[c as usize].clamp(0, 8) as usize];
-            let mu: Vec<u16> = m.encode_utf16().collect();
-            g.draw_string(&mu, vx + ((32 - font.char_width('回' as u16)) >> 1), vy + ((32 - font.height) >> 1), 0);
-            vx += 34;
-            crate::menu_family::paint_mini_frame(g, vx, vy, 32, 32);
-            g.set_color(0xFFFFFF);
-            let a = EQUIPMENT_MATERIAL_NAMES[self.slot.armor[c as usize].clamp(0, 8) as usize];
-            let au: Vec<u16> = a.encode_utf16().collect();
-            g.draw_string(&au, vx + ((32 - font.char_width('回' as u16)) >> 1), vy + ((32 - font.height) >> 1), 0);
+            // 装备框段（a.java:9104-9143）：f_Image_arr2_00[6][i] 经 m_122 映射表
+            // 反查 entityTypeImage（同一位图，见 SPTARM_ENTITY_TYPES）
+            let entity = &self.images.entity;
+            self.slot.paint_equipment_frames(g, c, vy, |i| {
+                crate::menu_family::SPTARM_ENTITY_TYPES
+                    .get(i)
+                    .and_then(|&t| entity.get(t))
+                    .and_then(|o| o.as_ref())
+            });
             let (mut vx, vy) = self.slot.paint_detail_stats(g, ui, c, vy);
             self.paint_key_slot(g, 0, self.slot.keys_yellow[c] as i32, vx, vy);
             vx += 42;
@@ -5691,4 +5686,161 @@ fn m_003_clip5(g: &mut SoftGraphics<'_>, img: &ArgbImage, x: i32, y: i32, src_x:
     g.set_clip(x, y, MINIMAP_MARKER_PX, MINIMAP_MARKER_PX);
     g.draw_image(img, x - src_x, y, 0);
     g.set_clip(0, 0, SCREEN_W, SCREEN_H);
+}
+
+/// 场景存档槽表（mode 7）装备框接线：paint_slot_list 图标分支（entityTypeImage
+/// 反查 sptarm）+ markSlotEntry 装备拷贝（a.java:9013-9014）。像素判据见
+/// [`crate::menu_family::slot_equip_test_support`]。
+#[cfg(test)]
+mod slot_equip_scene_tests {
+    use super::*;
+    use crate::menu_family::slot_equip_test_support::*;
+
+    fn solid(w: i32, h: i32) -> ArgbImage {
+        ArgbImage::from_rgb(&vec![0xFF202020; (w * h) as usize], w, h, true)
+    }
+
+    fn many(n: usize) -> Vec<ArgbImage> {
+        (0..n).map(|_| solid(24, 24)).collect()
+    }
+
+    /// maplv1 夹具 + 合成图集（sptarm = synthetic_sptarm，经 m_122 映射进 entity）。
+    fn scene_with(icons: &[ArgbImage]) -> GameScene {
+        let width_table: Vec<i32> = include_str!("../tests/fixtures/type_width_px.txt")
+            .lines()
+            .filter_map(|l| l.trim().parse().ok())
+            .collect();
+        let walk: Vec<i32> = include_str!("../tests/fixtures/tile_walkability.txt")
+            .lines()
+            .filter_map(|l| l.trim().parse().ok())
+            .collect();
+        let images = SceneImages {
+            backdrop: solid(77, SCREEN_H),
+            shadow: solid(24, 24),
+            actor: solid(24, 24),
+            actor_face: solid(24, 24),
+            ui: many(25),
+            stair_icons: (solid(24, 24), solid(24, 24)),
+            open_anim: solid(24, 24),
+            opened_door: solid(24, 24),
+            entity: SceneImages::map_entity_images(&many(13), &many(23), icons, &many(20), &many(20)),
+            popup: crate::popup::PopupImages {
+                digit_strips: [solid(24, 24), solid(24, 24), solid(24, 24)],
+                icon_strip: solid(24, 24),
+                battle_digits: solid(24, 24),
+            },
+            spark_sheet: solid(24, 24),
+            corner_sprites: solid(24, 24),
+            map211: None,
+            map210: solid(24, 24),
+            menu_strip: solid(24, 24),
+            battle_icon: solid(24, 24),
+            battle_strip: solid(24, 24),
+            faces: many(12),
+            ending: solid(24, 24),
+            xtq: many(6),
+        };
+        GameScene::load_floor(
+            include_bytes!("../tests/fixtures/maplv1.bin"),
+            3 << 5,
+            10 << 5,
+            &[],
+            &width_table,
+            &walk,
+            images,
+            vec![None; 56],
+        )
+        .unwrap()
+    }
+
+    /// MOT_IF 6 槽表（loadSlotTable 读序 a.java:8974-8988）：`(槽, 武器, 甲)`。
+    fn mot_if(slots: &[(usize, i8, i8)]) -> Vec<u8> {
+        let mut o = Vec::new();
+        for k in 0..6 {
+            match slots.iter().find(|s| s.0 == k) {
+                Some(&(_, w, a)) => {
+                    o.extend_from_slice(&[1, 1, w as u8, a as u8]);
+                    for v in [500i32, 30, 30, 1, 0, 0, 100] {
+                        o.extend_from_slice(&v.to_be_bytes());
+                    }
+                }
+                None => o.push(0),
+            }
+        }
+        o
+    }
+
+    fn paint7(sc: &mut GameScene) -> ArgbImage {
+        let mut screen = ArgbImage::create(SCREEN_W, SCREEN_H);
+        {
+            let mut g = SoftGraphics::new(&mut screen);
+            g.set_font(Some(crate::paint::paint_font()));
+            sc.paint_slot_list(&mut g);
+        }
+        screen
+    }
+
+    fn enter7(sc: &mut GameScene) {
+        sc.menu_return_mode = 4;
+        sc.game_mode = 7;
+        sc.enter_menu7();
+    }
+
+    fn key7(sc: &mut GameScene, k: i32) {
+        sc.key_value = k;
+        sc.tick_menu7();
+        sc.key_value = 0;
+    }
+
+    /// 读入槽表的装备 ≠0 → 图标（经 entityTypeImage 反查同一位图）；=0 → “无”。
+    #[test]
+    fn scene_slot_list_draws_icon_or_material_name() {
+        let icons = synthetic_sptarm();
+        let mut sc = scene_with(&icons);
+        sc.preset_mot_if = Some(mot_if(&[(0, 34, 80), (1, 0, 0), (2, 79, 41)]));
+        enter7(&mut sc);
+        let s = paint7(&mut sc);
+        assert_frame_icon(&s, WEAPON_X, FRAME_Y, &icons, 1, "槽0 武器=34");
+        assert_frame_icon(&s, ARMOR_X, FRAME_Y, &icons, 9, "槽0 甲=80");
+        key7(&mut sc, -2);
+        let s = paint7(&mut sc);
+        assert_frame_material_name(&s, WEAPON_X, FRAME_Y, "槽1 武器=0");
+        assert_frame_material_name(&s, ARMOR_X, FRAME_Y, "槽1 甲=0");
+        key7(&mut sc, -2);
+        let s = paint7(&mut sc);
+        assert_frame_icon(&s, WEAPON_X, FRAME_Y, &icons, 8, "槽2 武器=79（>7 钳 8）");
+        assert_frame_icon(&s, ARMOR_X, FRAME_Y, &icons, 9, "槽2 甲=41（>7 钳 9）");
+    }
+
+    /// markSlotEntry（a.java:9013-9014）：存档写回当前 equippedWeaponType/ArmorType，
+    /// 详情面板随即按新值画（“保存成功！”浮层下的槽表帧）。
+    #[test]
+    fn scene_save_copies_equipment_into_slot_table() {
+        let icons = synthetic_sptarm();
+        let mut sc = scene_with(&icons);
+        sc.preset_mot_if = Some(mot_if(&[(0, 0, 0)]));
+        sc.equipped_weapon = 33;
+        sc.equipped_armor = 0;
+        enter7(&mut sc);
+        for _ in 0..4 {
+            key7(&mut sc, -2);
+        }
+        assert_eq!(sc.slot.cursor, 4);
+        assert!(!sc.slot.valid[4]);
+        key7(&mut sc, -5);
+        assert!(sc.slot.valid[4]);
+        assert_eq!((sc.slot.weapon[4], sc.slot.armor[4]), (33, 0));
+        let s = paint7(&mut sc);
+        assert_frame_icon(&s, WEAPON_X, FRAME_Y, &icons, 0, "存档后 武器=33");
+        assert_frame_material_name(&s, ARMOR_X, FRAME_Y, "存档后 甲=0");
+        // 再存一次（同槽覆写）：拾甲 80 后的装备态
+        sc.overlay_active = false;
+        sc.equipped_weapon = 0;
+        sc.equipped_armor = 80;
+        key7(&mut sc, -5);
+        assert_eq!((sc.slot.weapon[4], sc.slot.armor[4]), (0, 80));
+        let s = paint7(&mut sc);
+        assert_frame_material_name(&s, WEAPON_X, FRAME_Y, "覆写后 武器=0");
+        assert_frame_icon(&s, ARMOR_X, FRAME_Y, &icons, 9, "覆写后 甲=80");
+    }
 }

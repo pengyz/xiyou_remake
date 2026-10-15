@@ -1,0 +1,65 @@
+# ticks: 1040
+# preset: preset-save-equip.preset
+# cover: 存档槽装备框两分支（m_113 a.java:9104-9143，completeness 2026-10-15 新发现②）：
+#   boot mode8 槽表（MOT_IF 槽0 79/80 双钳位图标、槽1 0/0“无”、槽2 34/38 直取图标、
+#   槽3 0/41 合成值——甲 i=8 唯一区分 >7⇒9 与旧 >9⇒8、槽4 无效）下扫上扫 → 载入槽0
+#   floor43 (8,4) → 东 (9,4) 拾 80 甲 → -6 关描述 → 局内菜单 kind3 → mode7 同表下扫
+#   至空槽4 → -5 存档（markSlotEntry a.java:9013-9014 拷装备 0/80）→ 关浮层 → 上下
+#   复看槽4 → 两次 -7 回行走。
+# MOT_L0/SKY_WAR 逐字取自 reference/oracle/scenarios/preset-floor43.preset（装备 0/0）。
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+175 -2 press
+177 -2 release
+200 -2 press
+202 -2 release
+225 -2 press
+227 -2 release
+250 -2 press
+252 -2 release
+275 -1 press
+277 -1 release
+300 -1 press
+302 -1 release
+325 -1 press
+327 -1 release
+350 -1 press
+352 -1 release
+375 -5 press
+377 -5 release
+460 -4 press
+462 -4 release
+520 -6 press
+522 -6 release
+560 -7 press
+562 -7 release
+600 -1 press
+602 -1 release
+620 -2 press
+622 -2 release
+640 -5 press
+642 -5 release
+670 -2 press
+672 -2 release
+700 -2 press
+702 -2 release
+730 -2 press
+732 -2 release
+760 -2 press
+762 -2 release
+800 -5 press
+802 -5 release
+860 -6 press
+862 -6 release
+900 -1 press
+902 -1 release
+930 -2 press
+932 -2 release
+960 -7 press
+962 -7 release
+1000 -7 press
+1002 -7 release
