@@ -37,12 +37,12 @@ pub use png::{decode as decode_png, DecodedPng, PNG_SIGNATURE};
 pub use script::{is_known_opcode, lex_instr_stream, parse_guts_line, split_instr_token, GutsLine, Instr, OPCODES};
 pub use sprite::{extra_len, SpriteRecord, SpriteTable};
 
-/// 底层小端读取原语（对应 `reference/seed/a.java:4918-4919` 的
+/// 底层小端读取原语（对应 `reference/seed/a.java:4914-4916` 的
 /// `private static short a(InputStream)`：`read()&0xFF | read()<<8&0xFF00`，即 u16 LE）。
 pub(crate) mod read {
     use crate::error::Error;
 
-    /// 读 `u16 LE`（`a.java:4918-4919`）。
+    /// 读 `u16 LE`（`a.java:4914-4916`）。
     pub fn u16_le(data: &[u8], pos: usize) -> Result<u16, Error> {
         let bytes = take(data, pos, 2)?;
         Ok(u16::from_le_bytes([bytes[0], bytes[1]]))

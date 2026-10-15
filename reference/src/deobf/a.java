@@ -6946,7 +6946,7 @@ public final class a extends Canvas implements Runnable {
       }
    }
 
-   private static short readU16BE(InputStream var0) throws IOException {
+   private static short readShortLE(InputStream var0) throws IOException {
       return (short)(var0.read() & 0xFF | var0.read() << 8 & 0xFF00);
    }
 
@@ -9407,8 +9407,8 @@ public final class a extends Canvas implements Runnable {
       InputStream var14 = this.getClass().getResourceAsStream("maplv" + var3);
 
       try {
-         var2.mapCellsWide = readU16BE(var14) >> 1;
-         var2.mapCellsHigh = readU16BE(var14) >> 1;
+         var2.mapCellsWide = readShortLE(var14) >> 1;
+         var2.mapCellsHigh = readShortLE(var14) >> 1;
          System.out.println("Width:" + var2.mapCellsWide + ",Height:" + var2.mapCellsHigh);
          int var4 = var2.mapCellsWide * var2.mapCellsHigh << 2;
          var2.mapPixelWidth = var2.mapCellsWide << 5;
@@ -9491,12 +9491,12 @@ public final class a extends Canvas implements Runnable {
 
             try {
                InputStream var27 = var25;
-               var3 = readU16BE(var27) & '\uffff' | readU16BE(var27) << 16;
+               var3 = readShortLE(var27) & '\uffff' | readShortLE(var27) << 16;
 
                for (int var9 = 0; var9 < var3; var9++) {
                   var5 = var25.read();
-                  var6 = readU16BE(var25);
-                  short var7 = readU16BE(var25);
+                  var6 = readShortLE(var25);
+                  short var7 = readShortLE(var25);
                   switch (var5) {
                      case 4:
                         var8 = var25.read() + 1;

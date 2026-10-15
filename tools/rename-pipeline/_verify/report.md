@@ -539,7 +539,7 @@
 | 474 | q | advanceEntityFrames | 92 | 92 | ✓ |
 | 475 | a | drawParallaxBackdrop | 80 | 80 | ✓ |
 | 476 | r | buildMinimap | 290 | 290 | ✓ |
-| 477 | a | readU16BE | 13 | 13 | ✓ |
+| 477 | a | readShortLE | 13 | 13 | ✓ |
 | 478 | s | m_059 | 20 | 20 | ✓ |
 | 479 | b | isCellWalkable | 21 | 21 | ✓ |
 | 480 | t | rebuildWalkability | 60 | 60 | ✓ |
