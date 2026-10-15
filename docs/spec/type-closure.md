@@ -153,12 +153,12 @@ cat8 战斗 + cat16 商人）与 applyStepCellEffects（:5637-5715，case 1-8/76
 | SWD | ✅ | floor10 变换 + 型11 全场清除臂 |
 | END | ✅ | 序章 script40 入口 |
 | MOV | ✅ | dp3 脚本行走 ✅（【2026-10-15】玩家三参 MOV 的 advanceScriptWalk 臂 ✅ 夹具场景 fx-scriptwalk-floor3：floor3 script0 `MOV_0_5_11`）；dp2=m_106 五参实体路径缓动 ⬜（挂起账本）【2026-10-15 更正：△→✅】6a37155 移植 m_106 + m_108，mov_route_scene floor2（script1/2 型72）/ floor40（script12 伏击 13 战）全帧绿 |
-| GIN | ⬜ | 待普查触发层 |
-| LAY | ⬜ | 同上 |
-| RES | ⬜ | 同上 |
-| SEE | ⬜ | 同上 |
-| SMS | ⬜ | 同上 |
-| ADD | ⬜ | 同上 |
+| GIN | ⬜ | 【2026-10-15 晚 普查】语料 scripts26-29（嫦娥族：DES_84_×4 + GIN_x_y）；触发层=型84 所在层（出层普查同批）；**臂未移植**（executeScriptInstruction 无 GIN 分派，落 todo!()） |
+| LAY | ⬜ | 【2026-10-15 晚 普查】语料 script0（floor3）`LAY_2`；触发层=floor3 脚本链后段（fx-scriptwalk T1-700 窗口止于 LAY 之前=未触达实证）；**臂未移植**（无分派，落 todo!()） |
+| RES | ⬜ | 【2026-10-15 晚 普查】语料 script0（floor3）`RES_0`（LAY 同窗后段）；**臂未移植**（无分派，落 todo!()） |
+| SEE | ⬜ | 【2026-10-15 晚 普查】语料 scripts40-45 等 14 条（序章镜头族）；触发层=prologue/剧情层；臂已移植（scene.rs `op == "SEE"`，m_103 ease）；序章 T1-9800 含电影镜头推进=疑似覆盖，待帧锚/变异复核后转 ✅ |
+| SMS | ⬜ | 【2026-10-15 晚 普查】语料 script66（`SMS_0`，短信/付费时代残迹）；触发层=script66 门链待查；臂=两行桩（scene.rs `op == "SMS"`：读参跳行=外部副作用吸收型〔Java 侧平台短信调用，桌面不可复现〕，待 ☠️/吸收终裁） |
+| ADD | ⬜ | 【2026-10-15 晚 普查】语料 script7（`ADD_2_72_11_10`：生成型72@(11,10) 伏击）；触发层=floor8 脚本链后段；**臂未移植**（无分派，落 todo!()） |
 | MVS | ☠️ | 【2026-10-15 补登】死指令：68 条脚本（a.java:1124-1193）零出现且脚本文本源封闭（字节码 MVS 引理 L1-L5）——终裁 DC-2（[dead-code-rulings.md](dead-code-rulings.md)）；Rust 不移植（script.rs 已注） |
 
 ## 3. 模式面
