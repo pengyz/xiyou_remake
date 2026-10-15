@@ -14,7 +14,7 @@
 //! 输入语义 = Java Canvas 回调（docs/spec/p3-render.md R-2）：按下/抬起只改状态、
 //!       由下一逻辑拍消费；同拍多键覆盖式取末个；OS 键盘自动重复丢弃（a.class 未覆写
 //!       keyRepeated）——长按行走由 keyHeldCode 驱动（a.java:5308-5329）。
-//! 窗口：可缩放，整数倍缩放 + 信箱居中；失焦冻结逻辑与 BGM，回前台续跑（不追帧）。
+//! 窗口：可缩放，整数倍缩放 + 信箱居中（失焦暂停已按用户决策移除，2026-10-15）。
 //! BGM：game-core `bgm_request()` 驱动（docs/spec/audio.md）；产物由
 //!       `cargo run --release --manifest-path tools/audio/Cargo.toml` 生成，缺失则无声运行。
 //! 存档：./save/ 目录（MOT_L0-2 = 槽存档、MOT_IF = 槽表、SKY_WAR = boss 旗标），
@@ -704,19 +704,11 @@ fn run_window(shell: Shell) {
                         w.request_redraw();
                     }
                 }
-                WindowEvent::Focused(focused) => {
-                    // 失焦冻结：逻辑 tick 与 BGM 一并暂停；回前台从「现在 + 一拍」续跑。
-                    // 壳级行为（非 Java hideNotify 语义，见 docs/spec/audio.md §4）。
-                    let iv = self.shell.frame_interval();
-                    if self.pacer.set_paused(!focused, Instant::now(), iv) {
-                        self.shell.bgm.set_paused(!focused);
-                    }
-                }
                 WindowEvent::CursorMoved { position, .. } => {
                     self.mouse = Some((position.x, position.y));
                 }
                 WindowEvent::MouseInput { state: ElementState::Pressed, button, .. } => {
-                    if button != winit::event::MouseButton::Left || self.pacer.paused() {
+                    if button != winit::event::MouseButton::Left {
                         return;
                     }
                     let Some((mx, my)) = self.mouse else { return };
@@ -757,12 +749,8 @@ fn run_window(shell: Shell) {
                     w.request_redraw();
                 }
             }
-            // 必须设定时唤醒：winit 默认 ControlFlow::Wait 会睡到下一个事件（36d1a9d 实机根因）；
-            // 冻结期则一直睡到事件（不空转）。
-            el.set_control_flow(match self.pacer.wake_at() {
-                Some(t) => ControlFlow::WaitUntil(t),
-                None => ControlFlow::Wait,
-            });
+            // 必须设定时唤醒：winit 默认 ControlFlow::Wait 会睡到下一个事件（36d1a9d 实机根因）。
+            el.set_control_flow(ControlFlow::WaitUntil(self.pacer.wake_at()));
         }
     }
 

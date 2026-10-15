@@ -37,8 +37,6 @@ pub enum Cmd {
     /// 从头播放 `track`，幅度乘数 `gain`。
     Play { track: usize, gain: f32 },
     Stop,
-    /// 壳级暂停/恢复（失焦冻结；保持播放位置）。
-    Pause(bool),
 }
 
 /// 命令接收端（音频线程句柄 / 静音 / 测试录制）。
@@ -62,12 +60,11 @@ pub fn level_to_gain(level: i32) -> f32 {
 pub struct BgmController {
     sink: Box<dyn AudioSink>,
     last: BgmSnapshot,
-    paused: bool,
 }
 
 impl BgmController {
     pub fn new(sink: Box<dyn AudioSink>) -> BgmController {
-        BgmController { sink, last: BgmSnapshot::default(), paused: false }
+        BgmController { sink, last: BgmSnapshot::default() }
     }
 
     /// 每逻辑 tick 调用一次。
@@ -90,14 +87,6 @@ impl BgmController {
             }
         }
         self.last = snap;
-    }
-
-    /// 壳级冻结（失焦/回前台）。
-    pub fn set_paused(&mut self, paused: bool) {
-        if paused != self.paused {
-            self.paused = paused;
-            self.sink.send(Cmd::Pause(paused));
-        }
     }
 }
 
@@ -164,12 +153,11 @@ pub struct Mixer {
     current: Option<usize>,
     pos: usize,
     gain: f32,
-    paused: bool,
 }
 
 impl Mixer {
     pub fn new(store: TrackStore) -> Mixer {
-        Mixer { store, current: None, pos: 0, gain: 1.0, paused: false }
+        Mixer { store, current: None, pos: 0, gain: 1.0 }
     }
 
     pub fn apply(&mut self, cmd: Cmd) {
@@ -180,13 +168,12 @@ impl Mixer {
                 self.gain = gain;
             }
             Cmd::Stop => self.current = None,
-            Cmd::Pause(p) => self.paused = p,
         }
     }
 
-    /// 有声可出（有轨道请求且未暂停）。轨道尚未解码完时亦为 true（输出静音占位）。
+    /// 有声可出（有轨道请求）。轨道尚未解码完时亦为 true（输出静音占位）。
     pub fn active(&self) -> bool {
-        self.current.is_some() && !self.paused
+        self.current.is_some()
     }
 
     /// 当前播放位置（帧）。仅测试断言用（音频线程不读）。
@@ -198,7 +185,7 @@ impl Mixer {
     /// 填满 `out`（交错立体声）。轨道未就绪 ⇒ 静音且不推进位置（就绪后从头播）。
     pub fn render(&mut self, out: &mut [i16]) {
         let track = match self.current {
-            Some(t) if !self.paused => self.store.lock().unwrap().get(t).cloned().flatten(),
+            Some(t) => self.store.lock().unwrap().get(t).cloned().flatten(),
             _ => None,
         };
         let Some(track) = track else {
@@ -225,7 +212,7 @@ impl Mixer {
 pub trait PcmDevice: Send {
     /// 写满交错 i16（阻塞到设备收下）。Err = 不可恢复。
     fn write(&mut self, frames: &[i16]) -> Result<(), String>;
-    /// 停止并丢弃缓冲（空闲/暂停）。
+    /// 停止并丢弃缓冲（空闲）。
     fn idle(&mut self);
 }
 
@@ -240,7 +227,7 @@ mod alsa {
     const STREAM_PLAYBACK: c_int = 0;
     const ACCESS_RW_INTERLEAVED: c_int = 3;
     const FORMAT_S16_LE: c_int = 2;
-    /// 期望缓冲时延（µs）：决定切轨/暂停的最大滞后。
+    /// 期望缓冲时延（µs）：决定切轨的最大滞后。
     const LATENCY_US: c_uint = 100_000;
 
     type Pcm = c_void;
@@ -508,7 +495,7 @@ mod tests {
     }
 
     /// 请求变化 → 切轨：启动静音 → menu → game（重建）→ 关声 → 开声（同轨新 serial ⇒ 从头）
-    /// → 同一状态重复轮询不重发；暂停/恢复只在边沿发送。
+    /// → 同一状态重复轮询不重发。
     #[test]
     fn controller_translates_request_changes() {
         let log = Arc::new(Mutex::new(Vec::new()));
@@ -520,9 +507,6 @@ mod tests {
         c.update(snap(None, 0, 0));
         c.update(snap(None, 0, 0));
         c.update(snap(Some(3), 3, 60));
-        c.set_paused(true);
-        c.set_paused(true);
-        c.set_paused(false);
         let got = log.lock().unwrap().clone();
         assert_eq!(
             got,
@@ -531,8 +515,6 @@ mod tests {
                 Cmd::Play { track: 3, gain: 0.6 },
                 Cmd::Stop,
                 Cmd::Play { track: 3, gain: 0.6 },
-                Cmd::Pause(true),
-                Cmd::Pause(false),
             ]
         );
     }
@@ -552,7 +534,7 @@ mod tests {
         Arc::new(Mutex::new(v))
     }
 
-    /// 循环点：前奏放一次，之后在 [loop_start, loop_end) 无缝重复；Play 从头；Stop/暂停静音。
+    /// 循环点：前奏放一次，之后在 [loop_start, loop_end) 无缝重复；Play 从头；Stop 静音。
     #[test]
     fn mixer_loops_restarts_and_silences() {
         let mut m = Mixer::new(store_with(ramp_track(100, 30, 80), 3));
@@ -566,16 +548,10 @@ mod tests {
         assert_eq!(out[3], -1, "右声道独立");
         assert_eq!(m.position(), 80);
 
-        // 暂停保持位置、输出静音
-        m.apply(Cmd::Pause(true));
-        assert!(!m.active());
-        let mut s = vec![7i16; 8];
-        m.render(&mut s);
-        assert!(s.iter().all(|&v| v == 0));
-        m.apply(Cmd::Pause(false));
+        // 循环回绕：loop_end 后回 loop_start（80 = loop_end ⇒ 回 30）
         let mut one = vec![0i16; 2];
         m.render(&mut one);
-        assert_eq!(one[0], 30, "恢复后续接（80 = loop_end ⇒ 回 30）");
+        assert_eq!(one[0], 30, "loop_end 后回 loop_start");
 
         // 重新 Play ⇒ 从头；Stop ⇒ 不活跃
         m.apply(Cmd::Play { track: 3, gain: 1.0 });

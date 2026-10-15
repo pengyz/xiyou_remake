@@ -1,5 +1,5 @@
 //! 窗口呈现与节拍（纯计算，可单测）：整数倍缩放 + 信箱、鼠标坐标反映射、
-//! 固定步长节拍器（失焦冻结、无追帧）。
+//! 固定步长节拍器（无追帧）。
 
 use std::time::{Duration, Instant};
 
@@ -67,24 +67,18 @@ pub fn blit(dst: &mut [u32], vp: &Viewport, src: &[u32], src_w: u32, src_h: u32)
 
 /// 固定步长节拍器。语义取 Java run 循环（a.java:3249-3250 / 4279-4284）：每帧起点
 /// `t0`、截止 `t0 + f_int_02`，逻辑+重绘后忙等到截止——**落后不追帧**（一次唤醒只跑一拍）。
-/// 失焦冻结：不出拍；回前台从「现在 + 一拍」重新起算。
 pub struct Pacer {
     next: Instant,
-    paused: bool,
 }
 
 impl Pacer {
     pub fn new(now: Instant, interval: Duration) -> Pacer {
-        Pacer { next: now + interval, paused: false }
-    }
-
-    pub fn paused(&self) -> bool {
-        self.paused
+        Pacer { next: now + interval }
     }
 
     /// 是否该跑一拍。
     pub fn due(&self, now: Instant) -> bool {
-        !self.paused && now >= self.next
+        now >= self.next
     }
 
     /// 跑完一拍后排下一拍（`interval` 取逻辑后的帧间隔 f_int_02）。落后超过一拍 ⇒
@@ -96,21 +90,9 @@ impl Pacer {
         }
     }
 
-    /// 失焦/回前台。返回状态是否改变。
-    pub fn set_paused(&mut self, paused: bool, now: Instant, interval: Duration) -> bool {
-        if paused == self.paused {
-            return false;
-        }
-        self.paused = paused;
-        if !paused {
-            self.next = now + interval;
-        }
-        true
-    }
-
-    /// 事件循环下一次唤醒时刻（冻结中 ⇒ None = 一直睡到事件）。
-    pub fn wake_at(&self) -> Option<Instant> {
-        (!self.paused).then_some(self.next)
+    /// 事件循环下一次唤醒时刻。
+    pub fn wake_at(&self) -> Instant {
+        self.next
     }
 }
 
@@ -166,22 +148,12 @@ mod tests {
         assert!(p.due(t0 + iv));
         // 准点：下一拍 = 上一拍 + 75（不随唤醒抖动漂移）
         p.after_tick(t0 + Duration::from_millis(76), iv);
-        assert_eq!(p.wake_at(), Some(t0 + 2 * iv));
+        assert_eq!(p.wake_at(), t0 + 2 * iv);
         // 卡顿 1 s：只跑一拍，下一拍从现在 +75 起算（不追 13 帧）
         let late = t0 + Duration::from_millis(1150);
         assert!(p.due(late));
         p.after_tick(late, iv);
-        assert_eq!(p.wake_at(), Some(late + iv));
+        assert_eq!(p.wake_at(), late + iv);
         assert!(!p.due(late + Duration::from_millis(10)));
-        // 失焦冻结：永不出拍、不定时唤醒
-        assert!(p.set_paused(true, late, iv));
-        assert!(!p.set_paused(true, late, iv));
-        assert!(!p.due(late + Duration::from_secs(60)));
-        assert_eq!(p.wake_at(), None);
-        // 回前台：从现在 +一拍，无积压
-        let back = late + Duration::from_secs(60);
-        assert!(p.set_paused(false, back, iv));
-        assert_eq!(p.wake_at(), Some(back + iv));
-        assert!(!p.due(back));
     }
 }
