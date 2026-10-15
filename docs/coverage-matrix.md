@@ -5,12 +5,12 @@
 > **请勿手改本文件**——改判定请改 tools/cover_matrix.py 的 PORT_NOTES/TRIAGE/YELLOW_NOTES/ARM_GAPS（逐条带证据，脚本校验锚点）。
 > 判据文本见 [docs/spec/completeness.md](spec/completeness.md)「覆盖矩阵刷账（2026-10-15）」；白项 b 类死代码裁决书见 [docs/spec/dead-code-rulings.md](spec/dead-code-rulings.md)（`python3 tools/dead_code_ruling.py --check` 字节码机械复核）。
 
-## 汇总：绿 151 / 黄 1 / 白 11（共 163 方法）
+## 汇总：绿 152 / 黄 1 / 白 10（共 163 方法）
 
-- 白项分账（现白 11）：a 真未移植 1 / b 不触达 10（☠️ 已裁死 10 / 待裁 0） / 未分账 0
-- 刷账三分账（§4.1）：基线 23 白 = a 3（其后已移植 2）/ b 9 / c 11（c 已解决 → 现绿 11 / 黄 0）；v2.1 归属治理新暴露 9 项 = b 1 / c 8（c 经核验恢复移植账）
+- 白项分账（现白 10）：a 真未移植 0 / b 不触达 10（☠️ 已裁死 10 / 待裁 0） / 未分账 0
+- 刷账三分账（§4.1）：基线 23 白 = a 3（其后已移植 3）/ b 9 / c 11（c 已解决 → 现绿 11 / 黄 0）；v2.1 归属治理新暴露 9 项 = b 1 / c 8（c 经核验恢复移植账）
 - 黄项：1（被无对拍用例的场景触达 0 = 补用例即可转绿；无任何场景触达 1 = 带不触达论证 1 / 待论证 0——convergence-plan §0.1）
-- **判据①赤字**（convergence-plan §0.1：白项清零、黄项带论证）：白（非 ☠️）1 + 黄（无论证）0 = 1（白 = saveGlobalProgress）
+- **判据①赤字**（convergence-plan §0.1：白项清零、黄项带论证）：白（非 ☠️）0 + 黄（无论证）0 = 0
 - 口径复算（同一份 Rust 树）：v2 前任口径 绿 143 / 黄 3 / 白 17（差异见 §7）；v1 旧账（伪名口径，103 名）绿 44 / 黄 1 / 白 58（对照见 §6）
 
 三色判定（逐方法，机械）：**绿** = 有移植账 ∧ 被帧级对拍用例窗口内的 Java 执行触达；**黄** = 有移植账 ∧ 无帧级窗口触达；**白** = 无移植账。**Stage A 判据（convergence-plan §0.1）：白项清零、黄项带不触达论证**。方法级绿 ≠ 方法内每个分支已验——臂级缺口见 §5（Rust `todo!` 挡路点）与 type-closure.md；绿也 ≠ 副作用已验：帧 sha 不含 RMS/音频，此类方法的绿只证明 Java 执行落在已验窗口内。
@@ -18,8 +18,8 @@
 ## 0. 移植账归属规则与自检（v2.1）
 
 - 行锚方言：显式 `seed/a.java` 或 seed 方言文件（含显式 seed 锚的文件）的裸锚 → reference/seed/a.java；其余 → deobf。seed 与 deobf 以方法序数对齐（运行时校验 163 个、逐序参数类型一致）。
-- 名证锚：锚所在行点名 Java 方法（现名/台账别名/引用签名）⇒ 只归属被点名者，容差 ±20 行；稳健锚：未点名 ⇒ 锚外扩 20 行仍须落在 VF 时代 18 个 deobf 版本（996a29d 起 + 工作区）方法区间的交集内；字段初始化器行归 <clinit>/<init>（不外扩）。
-- 行锚精度自检（名证锚 454 条到被点名方法区间的最近距离）：0 行 327，1-5 行 15，6-10 行 6，11-20 行 8，21-50 行 5，>50 行 93——>20 行者多为「点名调用者、引用别处行」的语境锚，不予归属；v2 朴素口径（锚落区间即算）把漂移锚记给邻近小方法，§7 列出全部差异。
+- 名证锚：锚所在行点名 Java 方法（现名/台账别名/引用签名）⇒ 只归属被点名者，容差 ±20 行；稳健锚：未点名 ⇒ 锚外扩 20 行仍须落在 VF 时代 19 个 deobf 版本（996a29d 起 + 工作区）方法区间的交集内；字段初始化器行归 <clinit>/<init>（不外扩）。
+- 行锚精度自检（名证锚 462 条到被点名方法区间的最近距离）：0 行 331，1-5 行 15，6-10 行 6，11-20 行 8，21-50 行 5，>50 行 97——>20 行者多为「点名调用者、引用别处行」的语境锚，不予归属；v2 朴素口径（锚落区间即算）把漂移锚记给邻近小方法，§7 列出全部差异。
 - 移植扫描范围：crates/{game-core,game-data,game-platform,game-desktop}/src（game-oracle 为差分宿主，不计移植证据）。
 
 ## 1. 对拍用例 → 场景 → 窗口（crates/game-oracle/tests、crates/game-core/tests 机械解析，只认 git 已追踪文件）
@@ -35,6 +35,7 @@
 | `fixture_frames::fx_scriptwalk_floor3_frames_match` | fx-scriptwalk-floor3（夹具） | T1-700 | FRAME 一致（夹具帧链 = 实测） | 90 |
 | `fixture_frames::fx_knockback_floor43_frames_match` | fx-knockback-floor43（夹具） | T1-600 | FRAME 一致（夹具帧链 = 实测） | 81 |
 | `fixture_frames::fx_fan_floor13_frames_match` | fx-fan-floor13（夹具） | T1-830 | FRAME 一致（夹具帧链 = 实测） | 86 |
+| `fixture_frames::fx_firebump_floor13_frames_match` | fx-firebump-floor13（夹具） | T1-480 | FRAME 一致（夹具帧链 = 实测） | 77 |
 | `preset_cases::preset_load_menu_frames_match` | preset-load-menu | T1-800 | FRAME 一致 | 85 |
 | `preset_cases::preset_help_frames_match` | preset-help | T240-800 | FRAME 一致 | 35 |
 | `preset_cases::preset_item13_frames_match` | preset-item13 | T1-500 | FRAME 一致 | 75 |
@@ -46,7 +47,7 @@
 | `preset_cases::preset_floor2_frames_match` | preset-floor2 | T1-600 | FRAME 一致 | 82 |
 | `preset_cases::preset_merchant_frames_match` | preset-merchant | T1-600 | FRAME 一致 | 82 |
 | `preset_cases::floor_crossing_frames_match` | floor1-to-floor2 | T1-1500 | FRAME 一致 | 94 |
-| `preset_cases::prologue_frames_match` | prologue-dialog | T1-9800 | FRAME 一致 | 96 |
+| `preset_cases::prologue_frames_match` | prologue-dialog | T1-792 | FRAME 前缀一致（计至 T792） | 83 |
 | `preset_cases::floor51_menu_frames_match` | floor51-menu | T1-9800 | FRAME 一致 | 96 |
 | `preset_cases::gameplay_floor1_frames_match` | gameplay-floor1 | T1-3000 | FRAME 一致 | 87 |
 | `preset_cases::floor2_tour_frames_match` | floor2-tour | T1-2000 | FRAME 一致 | 101 |
@@ -54,19 +55,19 @@
 | `preset_cases::walk_pure_frames_match` | walk-pure | T1-4000 | FRAME 一致 | 91 |
 | `preset_cases::preset_save_frames_match` | preset-save | T1-700 | FRAME 一致 | 81 |
 | `preset_cases::preset_floor35_frames_match` | preset-floor35 | T1-1200 | FRAME 一致 | 100 |
-| `preset_cases::preset_floor10_frames_match` | preset-floor10 | T1-1410 | FRAME 一致 | 84 |
+| `preset_cases::preset_floor10_frames_match` | preset-floor10 | T1-1310 | FRAME 一致 | 84 |
 | `preset_cases::preset_floor46_frames_match` | preset-floor46 | T1-1700 | FRAME 一致 | 85 |
 | `preset_cases::preset_floor41_frames_match` | preset-floor41 | T1-1900 | FRAME 一致 | 102 |
 | `preset_cases::preset_floor44_frames_match` | preset-floor44 | T1-1600 | FRAME 一致 | 99 |
 | `preset_cases::preset_floor45_frames_match` | preset-floor45 | T1-1700 | FRAME 一致 | 97 |
-| `preset_cases::preset_floor48_frames_match` | preset-floor48 | T1-3600 | FRAME 一致 | 95 |
-| `preset_cases::preset_floor14_frames_match` | preset-floor14 | T1-4890 | FRAME 一致 | 85 |
-| `preset_cases::preset_floor38_frames_match` | preset-floor38 | T1-6150 | FRAME 一致 | 92 |
-| `preset_cases::preset_floor47_frames_match` | preset-floor47 | T1-1450 | FRAME 一致 | 85 |
-| `preset_cases::preset_floor34_frames_match` | preset-floor34 | T1-3130 | FRAME 一致 | 87 |
-| `preset_cases::preset_floor10_nw_frames_match` | preset-floor10 | T1-1410 | FRAME 一致 | 84 |
-| `preset_cases::preset_floor10b_frames_match` | preset-floor10b | T1-950 | FRAME 一致 | 84 |
-| `preset_cases::preset_floor17_frames_match` | preset-floor17 | T1-950 | FRAME 一致 | 86 |
+| `preset_cases::preset_floor48_frames_match` | preset-floor48 | T1-3440 | FRAME 一致 | 95 |
+| `preset_cases::preset_floor14_frames_match` | preset-floor14 | T1-4790 | FRAME 一致 | 85 |
+| `preset_cases::preset_floor38_frames_match` | preset-floor38 | T1-6050 | FRAME 一致 | 92 |
+| `preset_cases::preset_floor47_frames_match` | preset-floor47 | T1-1350 | FRAME 一致 | 85 |
+| `preset_cases::preset_floor34_frames_match` | preset-floor34 | T1-3030 | FRAME 一致 | 87 |
+| `preset_cases::preset_floor10_nw_frames_match` | preset-floor10 | T1-1310 | FRAME 一致 | 84 |
+| `preset_cases::preset_floor10b_frames_match` | preset-floor10b | T1-850 | FRAME 一致 | 84 |
+| `preset_cases::preset_floor17_frames_match` | preset-floor17 | T1-850 | FRAME 一致 | 86 |
 | `preset_cases::preset_floor42_frames_match` | preset-floor42 | T1-1700 | FRAME 一致 | 93 |
 | `preset_cases::preset_floor43_frames_match` | preset-floor43 | T1-1500 | FRAME 一致 | 92 |
 | `preset_cases::preset_alchemy_frames_match` | preset-alchemy | T1-700 | FRAME 一致 | 87 |
@@ -76,7 +77,6 @@
 
 非帧级用例（不计入验证；列出以示归属）：
 
-- `fixture_frames::fx_firebump_floor13_frames_match`（fixture_frames.rs:362）：ignored，夹具 fx-firebump-floor13
 - `gameplay_floor1::gameplay_floor1_t544_ops_prefix_match`（gameplay_floor1.rs:227）：trace-partial，读 A-gameplay-floor1
 - `gameplay_floor1::floor1_entity_draw_order_anchor`（gameplay_floor1.rs:290）：structural
 - `gameplay_floor1::dump_t544_pixels`（gameplay_floor1.rs:341）：ignored
@@ -98,29 +98,29 @@
 
 | 场景 | 帧数 | 结束 | 相位 | 触达方法数 | A-trace 对照 | 帧级用例 |
 |---|---|---|---|---|---|---|
-| boot-menu | 150 | reason=max-ticks ticks=150 | 1 | 39 | 无 A-trace | — |
+| boot-menu | 150 | reason=max-ticks ticks=150 | 1 | 39 | equal | — |
 | enter-game | 500 | reason=max-ticks ticks=500 | 1 | 82 | equal | ✓ |
 | floor1-to-floor2 | 1500 | reason=max-ticks ticks=1500 | 1 | 94 | equal | ✓ |
 | floor1-tour | 8000 | reason=max-ticks ticks=8000 | 1 | 92 | equal | ✓ |
 | floor2-tour | 2000 | reason=max-ticks ticks=2000 | 1 | 101 | equal | ✓ |
 | floor51-menu | 9800 | reason=max-ticks ticks=9800 | 1 | 96 | equal | ✓ |
 | fx-fan-floor13 | 830 | reason=max-ticks ticks=830 | 1 | 86 | equal（夹具） | ✓ |
-| fx-firebump-floor13 | 480 | reason=max-ticks ticks=480 | 1 | 77 | equal（夹具） | — |
+| fx-firebump-floor13 | 480 | reason=max-ticks ticks=480 | 1 | 77 | equal（夹具） | ✓ |
 | fx-knockback-floor43 | 600 | reason=max-ticks ticks=600 | 1 | 81 | equal（夹具） | ✓ |
 | fx-scriptwalk-floor3 | 700 | reason=max-ticks ticks=700 | 1 | 90 | equal（夹具） | ✓ |
 | gameplay-floor1 | 3000 | reason=max-ticks ticks=3000 | 1 | 87 | equal | ✓ |
 | menu-sweep | 1832 | reason=all-threads-exited ticks=1832 | 1 | 45 | equal | ✓ |
 | preset-alchemy | 700 | reason=max-ticks ticks=700 | 1 | 87 | equal | ✓ |
 | preset-ending | 1800 | reason=max-ticks ticks=1800 | 1 | 96 | equal | — |
-| preset-floor10 | 1410 | reason=max-ticks ticks=1410 | 1 | 84 | equal | ✓ |
-| preset-floor10b | 950 | reason=max-ticks ticks=950 | 1 | 84 | equal | ✓ |
-| preset-floor14 | 4890 | reason=max-ticks ticks=4890 | 1 | 85 | equal | ✓ |
-| preset-floor17 | 950 | reason=max-ticks ticks=950 | 1 | 86 | equal | ✓ |
+| preset-floor10 | 1310 | reason=max-ticks ticks=1310 | 1 | 84 | equal | ✓ |
+| preset-floor10b | 850 | reason=max-ticks ticks=850 | 1 | 84 | equal | ✓ |
+| preset-floor14 | 4790 | reason=max-ticks ticks=4790 | 1 | 85 | equal | ✓ |
+| preset-floor17 | 850 | reason=max-ticks ticks=850 | 1 | 86 | equal | ✓ |
 | preset-floor2 | 600 | reason=max-ticks ticks=600 | 1 | 82 | equal | ✓ |
 | preset-floor2-mov | 900 | reason=max-ticks ticks=900 | 1 | 95 | equal（夹具） | ✓ |
-| preset-floor34 | 3130 | reason=max-ticks ticks=3130 | 1 | 87 | equal | ✓ |
+| preset-floor34 | 3030 | reason=max-ticks ticks=3030 | 1 | 87 | equal | ✓ |
 | preset-floor35 | 1200 | reason=max-ticks ticks=1200 | 1 | 100 | equal | ✓ |
-| preset-floor38 | 6150 | reason=max-ticks ticks=6150 | 1 | 92 | equal | ✓ |
+| preset-floor38 | 6050 | reason=max-ticks ticks=6050 | 1 | 92 | equal | ✓ |
 | preset-floor40-mov | 1000 | reason=max-ticks ticks=1000 | 1 | 105 | equal（夹具） | ✓ |
 | preset-floor41 | 1900 | reason=max-ticks ticks=1900 | 1 | 102 | equal | ✓ |
 | preset-floor42 | 1700 | reason=max-ticks ticks=1700 | 1 | 93 | equal | ✓ |
@@ -128,13 +128,13 @@
 | preset-floor44 | 1600 | reason=max-ticks ticks=1600 | 1 | 99 | equal | ✓ |
 | preset-floor45 | 1700 | reason=max-ticks ticks=1700 | 1 | 97 | equal | ✓ |
 | preset-floor46 | 1700 | reason=max-ticks ticks=1700 | 1 | 85 | equal | ✓ |
-| preset-floor47 | 1450 | reason=max-ticks ticks=1450 | 1 | 85 | equal | ✓ |
-| preset-floor48 | 3600 | reason=max-ticks ticks=3600 | 1 | 95 | equal | ✓ |
+| preset-floor47 | 1350 | reason=max-ticks ticks=1350 | 1 | 85 | equal | ✓ |
+| preset-floor48 | 3440 | reason=max-ticks ticks=3440 | 1 | 95 | equal | ✓ |
 | preset-floor49 | 3400 | reason=max-ticks ticks=3400 | 1 | 93 | equal | ✓ |
 | preset-floor5 | 1200 | reason=max-ticks ticks=1200 | 1 | 89 | equal | ✓ |
 | preset-floor50 | 300 | reason=max-ticks ticks=300 | 1 | 69 | equal | — |
 | preset-floor51 | 600 | reason=max-ticks ticks=600 | 1 | 97 | equal | — |
-| preset-floor8 | 8710 | reason=max-ticks ticks=8710 | 1 | 96 | equal | — |
+| preset-floor8 | 8610 | reason=max-ticks ticks=8610 | 1 | 96 | equal | — |
 | preset-help | 800 | reason=max-ticks ticks=800 | 1,240 | 77 | equal | ✓ |
 | preset-item13 | 500 | reason=max-ticks ticks=500 | 1 | 75 | equal | ✓ |
 | preset-item21 | 900 | reason=max-ticks ticks=900 | 1 | 88 | equal | ✓ |
@@ -146,179 +146,179 @@
 | preset-merchant | 600 | reason=max-ticks ticks=600 | 1 | 82 | equal | ✓ |
 | preset-save | 700 | reason=max-ticks ticks=700 | 1 | 81 | equal | ✓ |
 | preset-save-equip | 1040 | reason=max-ticks ticks=1040 | 1 | 91 | equal（夹具） | ✓ |
-| prologue-dialog | 9800 | reason=max-ticks ticks=9800 | 1 | 96 | equal | ✓ |
+| prologue-dialog | 9800 | reason=max-ticks ticks=9800 | 1 | 96 | prefix | ✓ |
 | prologue-patient | 21000 | reason=max-ticks ticks=21000 | 1 | 96 | 无 A-trace | — |
 | walk-pure | 4000 | reason=max-ticks ticks=4000 | 1 | 91 | equal | ✓ |
 
-## 2. 绿：已移植 + 帧级对拍窗口触达（151）
+## 2. 绿：已移植 + 帧级对拍窗口触达（152）
 
 | 方法 | 区间 | 首个验证（用例 / 场景 @t_hit） | 验证用例数 | 移植证据 |
 |---|---|---|---|---|
-| <init> | a.java:436-2331 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T1 | 44 | 行锚×52〔seed稳3/字段3/稳46〕（crates/game-core/src/audio.rs:26） |
-| paint | a.java:2333-3227 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T1 | 45 | fn crates/game-core/src/intro.rs:203; crates/game-core/src/intro.rs:312 …；行锚×56〔名37/稳19〕（crates/game-core/src/intro.rs:1） |
-| run | a.java:3229-4290 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T1 | 44 | 行锚×110〔名51/稳59〕（crates/game-core/src/audio.rs:15） |
-| dispatchModeEntry | a.java:4292-4493 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T1 | 45 | 行锚×44〔名34/稳10〕（crates/game-core/src/audio.rs:14） |
-| showNotify | a.java:4495-4500 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T1 | 44 | fn crates/game-desktop/src/main.rs:538；行锚×3〔名3〕（crates/game-desktop/src/lifecycle.rs:6） |
-| readCountPrefix | a.java:4516-4549 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T33 | 45 | 行锚×1〔seed名1〕（crates/game-data/src/packed_png.rs:17） |
-| drawImageClipped | a.java:4551-4555 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T68 | 45 | fn crates/game-core/src/paint.rs:42；行锚×1〔名1〕（crates/game-core/src/paint.rs:40） |
-| blit5Clip | a.java:4557-4561 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T223 | 42 | fn crates/game-core/src/scene.rs:5890（fn m_003_clip5）；行锚×1〔名1〕（crates/game-core/src/scene.rs:5889） |
-| drawImageWithNokiaTransform | a.java:4563-4565 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T68 | 45 | fn crates/game-core/src/paint.rs:35；行锚×1〔名1〕（crates/game-core/src/paint.rs:34） |
-| drawEdgePatch | a.java:4567-4603 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T151 | 44 | fn crates/game-core/src/menu_family.rs:115；行锚×1〔名1〕（crates/game-core/src/menu_family.rs:112） |
-| createSolidImage | a.java:4605-4614 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T223 | 42 | 人工·吸收：静态纯函数（造 32×32 纯色 RGB 图，a.java:4606-4613）；仅有的两个调用点 loadFloorData a.java:9423-9424 结果被丢弃（javap：invokestatic createSolidImage 后紧跟 pop）⇒ 无可观测效应 |
-| dimImage | a.java:4616-4632 | `boot_replay::enter_game_frames_match_tick_by_tick` / enter-game @T102 | 43 | fn crates/game-core/src/intro.rs:32；行锚×1〔名1〕（crates/game-core/src/intro.rs:30） |
-| closeStreamsAndClear | a.java:4634-4661 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T33 | 45 | 人工·吸收：流关闭 + 三字段置 null（a.java:4635-4660）；javap 字段普查：f_InputStream_00/f_OutputStream_00/f_InputStream_01 读写者仅 readCountPrefix/closeStreamsAndClear/playBgm/m_148/m_151/<init>（I/O 方法）⇒ 无游戏态效应；Rust 以内存切片解码无流可关（crates/game-data/src/packed_png.rs `pub fn parse(data: &'a [u8], image_count: usize) -> Result<Self, Error>`） |
-| keyPressed | a.java:4663-4676 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T71 | 45 | 行锚×11〔名11〕（crates/game-core/src/audio.rs:65） |
-| keyReleased | a.java:4678-4680 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T73 | 45 | 行锚×4〔名4〕（crates/game-core/src/scene.rs:295） |
-| resetMenuLayout | a.java:4682-4694 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T71 | 45 | fn crates/game-core/src/scene.rs:2224；行锚×2〔名2〕（crates/game-core/src/scene.rs:2223） |
-| addMenuItem | a.java:4696-4712 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T71 | 45 | fn crates/game-core/src/scene.rs:2236；行锚×3〔名3〕（crates/game-core/src/scene.rs:445） |
-| releaseSceneImages | a.java:4714-4728 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T71 | 44 | 人工·吸收：图像容器/entityTypeImage 置 null 释放内存（a.java:4715-4727）；读者在读前经 readCountPrefix 判空重载（a.java:4519）或 initEntityTables 重建 entityTypeImage（javap：put 仅 initEntityTables/releaseSceneImages）；Rust 构造期全量装载不释放（crates/game-core/src/scene.rs `懒加载资源容器（Rust 构造期全量装载，等价 no-op）`） |
-| activateMenuItem | a.java:4730-4792 | `preset_cases::preset_load_menu_frames_match` / preset-load-menu @T301 | 4 | fn crates/game-core/src/scene.rs:2365；行锚×1〔名1〕（crates/game-core/src/scene.rs:2361） |
-| drawIconStrip | a.java:4794-4816 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T71 | 45 | 行锚×3〔名3〕（crates/game-core/src/title.rs:6） |
+| <init> | a.java:436-2331 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T1 | 45 | 行锚×53〔seed稳3/字段3/稳47〕（crates/game-core/src/audio.rs:26） |
+| paint | a.java:2333-3227 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T1 | 46 | fn crates/game-core/src/intro.rs:203; crates/game-core/src/intro.rs:312 …；行锚×56〔名37/稳19〕（crates/game-core/src/intro.rs:1） |
+| run | a.java:3229-4290 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T1 | 45 | 行锚×110〔名51/稳59〕（crates/game-core/src/audio.rs:15） |
+| dispatchModeEntry | a.java:4292-4493 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T1 | 46 | 行锚×44〔名34/稳10〕（crates/game-core/src/audio.rs:14） |
+| showNotify | a.java:4495-4500 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T1 | 45 | fn crates/game-desktop/src/main.rs:553；行锚×3〔名3〕（crates/game-desktop/src/lifecycle.rs:6） |
+| loadPackedImages | a.java:4516-4549 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T33 | 46 | 人工：打包图像容器装载器（a.java:4516-4549：resourceNames[i] 开流、按 resourceImageCounts[i] 循环读 u16 LE 长度 → Image.createImage）——crates/game-data/src/packed_png.rs `pub fn parse`/`pub fn parse_partial` 解析 N×[u16LE len][PNG]（L1 golden 守护）+ crates/game-desktop/src/main.rs `fn load_container` 消费 = 移植替换形态；名实更正 e772fef（N-0434）；c 类行号方言误判已由 v2.1 规则修复；行锚×1〔seed名1〕（crates/game-data/src/packed_png.rs:17） |
+| drawImageClipped | a.java:4551-4555 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T68 | 46 | fn crates/game-core/src/paint.rs:42；行锚×1〔名1〕（crates/game-core/src/paint.rs:40） |
+| blit5Clip | a.java:4557-4561 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T223 | 43 | fn crates/game-core/src/scene.rs:5971（fn m_003_clip5）；行锚×1〔名1〕（crates/game-core/src/scene.rs:5970） |
+| drawImageWithNokiaTransform | a.java:4563-4565 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T68 | 46 | fn crates/game-core/src/paint.rs:35；行锚×1〔名1〕（crates/game-core/src/paint.rs:34） |
+| drawEdgePatch | a.java:4567-4603 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T151 | 45 | fn crates/game-core/src/menu_family.rs:115；行锚×1〔名1〕（crates/game-core/src/menu_family.rs:112） |
+| createSolidImage | a.java:4605-4614 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T223 | 43 | 人工·吸收：静态纯函数（造 32×32 纯色 RGB 图，a.java:4606-4613）；仅有的两个调用点 loadFloorData a.java:9423-9424 结果被丢弃（javap：invokestatic createSolidImage 后紧跟 pop）⇒ 无可观测效应 |
+| dimImage | a.java:4616-4632 | `boot_replay::enter_game_frames_match_tick_by_tick` / enter-game @T102 | 44 | fn crates/game-core/src/intro.rs:32；行锚×1〔名1〕（crates/game-core/src/intro.rs:30） |
+| closeStreamsAndClear | a.java:4634-4661 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T33 | 46 | 人工·吸收：流关闭 + 三字段置 null（a.java:4635-4660）；javap 字段普查：f_InputStream_00/f_OutputStream_00/f_InputStream_01 读写者仅 readCountPrefix/closeStreamsAndClear/playBgm/m_148/m_151/<init>（I/O 方法）⇒ 无游戏态效应；Rust 以内存切片解码无流可关（crates/game-data/src/packed_png.rs `pub fn parse(data: &'a [u8], image_count: usize) -> Result<Self, Error>`） |
+| keyPressed | a.java:4663-4676 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T71 | 46 | 行锚×11〔名11〕（crates/game-core/src/audio.rs:65） |
+| keyReleased | a.java:4678-4680 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T73 | 46 | 行锚×4〔名4〕（crates/game-core/src/scene.rs:299） |
+| resetMenuLayout | a.java:4682-4694 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T71 | 46 | fn crates/game-core/src/scene.rs:2230；行锚×2〔名2〕（crates/game-core/src/scene.rs:2229） |
+| addMenuItem | a.java:4696-4712 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T71 | 46 | fn crates/game-core/src/scene.rs:2242；行锚×3〔名3〕（crates/game-core/src/scene.rs:449） |
+| releaseSceneImages | a.java:4714-4728 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T71 | 45 | 人工·吸收：图像容器/entityTypeImage 置 null 释放内存（a.java:4715-4727）；读者在读前经 readCountPrefix 判空重载（a.java:4519）或 initEntityTables 重建 entityTypeImage（javap：put 仅 initEntityTables/releaseSceneImages）；Rust 构造期全量装载不释放（crates/game-core/src/scene.rs `懒加载资源容器（Rust 构造期全量装载，等价 no-op）`） |
+| activateMenuItem | a.java:4730-4792 | `preset_cases::preset_load_menu_frames_match` / preset-load-menu @T301 | 4 | fn crates/game-core/src/scene.rs:2398；行锚×1〔名1〕（crates/game-core/src/scene.rs:2394） |
+| drawIconStrip | a.java:4794-4816 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T71 | 46 | 行锚×3〔名3〕（crates/game-core/src/title.rs:6） |
 | runIntroViewer | a.java:4818-4896 | `boot_replay::enter_game_frames_match_tick_by_tick` / enter-game @T102 | 3 | 行锚×3〔名3〕（crates/game-core/src/intro.rs:1） |
-| showOverlayMessage | a.java:4898-4923 | `preset_cases::preset_merchant_frames_match` / preset-merchant @T261 | 20 | fn crates/game-core/src/scene.rs:1120；行锚×2〔名2〕（crates/game-core/src/scene.rs:371） |
-| handleOverlayKey | a.java:4925-4938 | `preset_cases::preset_merchant_frames_match` / preset-merchant @T262 | 16 | 行锚×2〔名2〕（crates/game-core/src/scene.rs:3717） |
-| layoutFullText | a.java:4940-4942 | `boot_replay::enter_game_frames_match_tick_by_tick` / enter-game @T102 | 25 | fn crates/game-core/src/scene.rs:1153；行锚×1〔名1〕（crates/game-core/src/scene.rs:1147） |
-| layoutWrappedText | a.java:4944-5019 | `boot_replay::enter_game_frames_match_tick_by_tick` / enter-game @T102 | 29 | 行锚×4〔名2/稳2〕（crates/game-core/src/menu_family.rs:313） |
-| paintWrappedText | a.java:5021-5111 | `boot_replay::enter_game_frames_match_tick_by_tick` / enter-game @T102 | 29 | fn crates/game-core/src/scene.rs:1208；行锚×6〔名3/稳3〕（crates/game-core/src/menu_family.rs:449） |
-| flipOverlayPage | a.java:5113-5133 | `boot_replay::enter_game_frames_match_tick_by_tick` / enter-game @T165 | 13 | fn crates/game-core/src/scene.rs:1574；行锚×1〔名1〕（crates/game-core/src/scene.rs:1573） |
-| skipTextToLineEnd | a.java:5135-5157 | `mov_route_scene::preset_floor2_mov_frames_match` / preset-floor2-mov @T293 | 4 | fn crates/game-core/src/scene.rs:1617；行锚×1〔名1〕（crates/game-core/src/scene.rs:1616） |
+| showOverlayMessage | a.java:4898-4923 | `preset_cases::preset_merchant_frames_match` / preset-merchant @T261 | 21 | fn crates/game-core/src/scene.rs:1126；行锚×2〔名2〕（crates/game-core/src/scene.rs:375） |
+| handleOverlayKey | a.java:4925-4938 | `preset_cases::preset_merchant_frames_match` / preset-merchant @T262 | 17 | 行锚×2〔名2〕（crates/game-core/src/scene.rs:3750） |
+| layoutFullText | a.java:4940-4942 | `boot_replay::enter_game_frames_match_tick_by_tick` / enter-game @T102 | 26 | fn crates/game-core/src/scene.rs:1159；行锚×1〔名1〕（crates/game-core/src/scene.rs:1153） |
+| layoutWrappedText | a.java:4944-5019 | `boot_replay::enter_game_frames_match_tick_by_tick` / enter-game @T102 | 30 | 行锚×4〔名2/稳2〕（crates/game-core/src/menu_family.rs:313） |
+| paintWrappedText | a.java:5021-5111 | `boot_replay::enter_game_frames_match_tick_by_tick` / enter-game @T102 | 30 | fn crates/game-core/src/scene.rs:1214；行锚×6〔名3/稳3〕（crates/game-core/src/menu_family.rs:449） |
+| flipOverlayPage | a.java:5113-5133 | `boot_replay::enter_game_frames_match_tick_by_tick` / enter-game @T165 | 13 | fn crates/game-core/src/scene.rs:1580；行锚×1〔名1〕（crates/game-core/src/scene.rs:1579） |
+| skipTextToLineEnd | a.java:5135-5157 | `mov_route_scene::preset_floor2_mov_frames_match` / preset-floor2-mov @T293 | 4 | fn crates/game-core/src/scene.rs:1623；行锚×1〔名1〕（crates/game-core/src/scene.rs:1622） |
 | parseHexColor | a.java:5159-5170 | `mov_route_scene::preset_floor2_mov_frames_match` / preset-floor2-mov @T262 | 19 | fn crates/game-core/src/menu_family.rs:40；行锚×1〔名1〕（crates/game-core/src/menu_family.rs:33） |
-| applyHpDelta | a.java:5172-5191 | `preset_cases::preset_alchemy_frames_match` / preset-alchemy @T237 | 11 | fn crates/game-core/src/scene.rs:5008；行锚×1〔名1〕（crates/game-core/src/scene.rs:5007） |
-| placePlayerAtCell | a.java:5193-5199 | `preset_cases::preset_item21_frames_match` / preset-item21 @T405 | 5 | fn crates/game-core/src/scene.rs:1077（fn m_024）；行锚×1〔名1〕（crates/game-core/src/scene.rs:1076） |
-| m_025 | a.java:5201-5207 | `fixture_frames::preset_floor5_fixture_frames_match` / preset-floor5 @T262 | 33 | 行锚×1〔名1〕（crates/game-core/src/scene.rs:3930） |
-| easeAfterimages | a.java:5209-5263 | `preset_cases::floor1_tour_frames_match` / floor1-tour @T602 | 10 | fn crates/game-core/src/scene.rs:3996；行锚×1〔名1〕（crates/game-core/src/scene.rs:3994） |
-| handleFieldInput | a.java:5265-5331 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T237 | 43 | fn crates/game-core/src/scene.rs:4108；行锚×1〔名1〕（crates/game-core/src/scene.rs:4105） |
-| tryStep | a.java:5333-5361 | `fixture_frames::preset_floor5_fixture_frames_match` / preset-floor5 @T261 | 36 | fn crates/game-core/src/scene.rs:4158；行锚×1〔名1〕（crates/game-core/src/scene.rs:4157） |
-| interactWithCell | a.java:5363-5541 | `fixture_frames::preset_floor5_fixture_frames_match` / preset-floor5 @T261 | 37 | fn crates/game-core/src/scene.rs:4184；行锚×6〔名2/稳4〕（crates/game-core/src/scene.rs:4157） |
-| applyStepCellEffects | a.java:5543-5808 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T237 | 42 | fn crates/game-core/src/scene.rs:4620；行锚×9〔名1/稳8〕（crates/game-core/src/scene.rs:4609） |
-| stepOffStairs | a.java:5810-5823 | `preset_cases::preset_item21_frames_match` / preset-item21 @T405 | 3 | fn crates/game-core/src/scene.rs:1062（fn m_031）；行锚×1〔名1〕（crates/game-core/src/scene.rs:1061） |
-| advanceScriptWalk | a.java:5825-5842 | `fixture_frames::fx_scriptwalk_floor3_frames_match` / fx-scriptwalk-floor3 @T308 | 1 | fn crates/game-core/src/scene.rs:4824；行锚×1〔名1〕（crates/game-core/src/scene.rs:4822） |
-| paintPlayerSprite | a.java:5844-6007 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T237 | 43 | 行锚×2〔名1/稳1〕（crates/game-core/src/layout.rs:174） |
-| paintSoftkeyBar | a.java:6009-6019 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T68 | 45 | fn crates/game-core/src/paint.rs:50（fn m_034_softkeys）；行锚×7〔名7〕（crates/game-core/src/layout.rs:281） |
-| paintStatusBar | a.java:6021-6044 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T237 | 43 | fn crates/game-core/src/scene.rs:5840；行锚×1〔名1〕（crates/game-core/src/scene.rs:5839） |
-| paintKeySlot | a.java:6046-6053 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T151 | 43 | fn crates/game-core/src/scene.rs:5881；行锚×3〔名3〕（crates/game-core/src/menu_family.rs:720） |
-| paintHudPanel | a.java:6055-6115 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T237 | 43 | 行锚×1〔名1〕（crates/game-core/src/scene.rs:5537） |
-| paintTitledBox | a.java:6117-6135 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T151 | 41 | fn crates/game-core/src/menu_family.rs:197；行锚×1〔名1〕（crates/game-core/src/menu_family.rs:195） |
-| paintHudFrame | a.java:6137-6165 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T237 | 43 | fn crates/game-core/src/scene.rs:5509；行锚×1〔名1〕（crates/game-core/src/scene.rs:5508） |
+| applyHpDelta | a.java:5172-5191 | `preset_cases::preset_alchemy_frames_match` / preset-alchemy @T237 | 11 | fn crates/game-core/src/scene.rs:5089；行锚×1〔名1〕（crates/game-core/src/scene.rs:5088） |
+| placePlayerAtCell | a.java:5193-5199 | `preset_cases::preset_item21_frames_match` / preset-item21 @T405 | 5 | fn crates/game-core/src/scene.rs:1083（fn m_024）；行锚×1〔名1〕（crates/game-core/src/scene.rs:1082） |
+| m_025 | a.java:5201-5207 | `fixture_frames::preset_floor5_fixture_frames_match` / preset-floor5 @T262 | 33 | 行锚×1〔名1〕（crates/game-core/src/scene.rs:3963） |
+| easeAfterimages | a.java:5209-5263 | `preset_cases::floor1_tour_frames_match` / floor1-tour @T602 | 9 | fn crates/game-core/src/scene.rs:4029；行锚×1〔名1〕（crates/game-core/src/scene.rs:4027） |
+| handleFieldInput | a.java:5265-5331 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T237 | 43 | fn crates/game-core/src/scene.rs:4141；行锚×1〔名1〕（crates/game-core/src/scene.rs:4138） |
+| tryStep | a.java:5333-5361 | `fixture_frames::preset_floor5_fixture_frames_match` / preset-floor5 @T261 | 37 | fn crates/game-core/src/scene.rs:4191；行锚×1〔名1〕（crates/game-core/src/scene.rs:4190） |
+| interactWithCell | a.java:5363-5541 | `fixture_frames::preset_floor5_fixture_frames_match` / preset-floor5 @T261 | 38 | fn crates/game-core/src/scene.rs:4217；行锚×9〔名2/稳7〕（crates/game-core/src/scene.rs:4190） |
+| applyStepCellEffects | a.java:5543-5808 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T237 | 43 | fn crates/game-core/src/scene.rs:4701；行锚×9〔名1/稳8〕（crates/game-core/src/scene.rs:4690） |
+| stepOffStairs | a.java:5810-5823 | `preset_cases::preset_item21_frames_match` / preset-item21 @T405 | 3 | fn crates/game-core/src/scene.rs:1068（fn m_031）；行锚×1〔名1〕（crates/game-core/src/scene.rs:1067） |
+| advanceScriptWalk | a.java:5825-5842 | `fixture_frames::fx_scriptwalk_floor3_frames_match` / fx-scriptwalk-floor3 @T308 | 1 | fn crates/game-core/src/scene.rs:4905；行锚×1〔名1〕（crates/game-core/src/scene.rs:4903） |
+| paintPlayerSprite | a.java:5844-6007 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T237 | 44 | 行锚×2〔名1/稳1〕（crates/game-core/src/layout.rs:174） |
+| paintSoftkeyBar | a.java:6009-6019 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T68 | 46 | fn crates/game-core/src/paint.rs:50（fn m_034_softkeys）；行锚×7〔名7〕（crates/game-core/src/layout.rs:281） |
+| paintStatusBar | a.java:6021-6044 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T237 | 44 | fn crates/game-core/src/scene.rs:5921；行锚×1〔名1〕（crates/game-core/src/scene.rs:5920） |
+| paintKeySlot | a.java:6046-6053 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T151 | 44 | fn crates/game-core/src/scene.rs:5962；行锚×3〔名3〕（crates/game-core/src/menu_family.rs:720） |
+| paintHudPanel | a.java:6055-6115 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T237 | 44 | 行锚×1〔名1〕（crates/game-core/src/scene.rs:5618） |
+| paintTitledBox | a.java:6117-6135 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T151 | 42 | fn crates/game-core/src/menu_family.rs:197；行锚×1〔名1〕（crates/game-core/src/menu_family.rs:195） |
+| paintHudFrame | a.java:6137-6165 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T237 | 44 | fn crates/game-core/src/scene.rs:5590；行锚×1〔名1〕（crates/game-core/src/scene.rs:5589） |
 | paintBoxFrame | a.java:6167-6199 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T151 | 44 | fn crates/game-core/src/menu_family.rs:160；行锚×1〔名1〕（crates/game-core/src/menu_family.rs:159） |
-| paintMiniFrame | a.java:6201-6210 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T151 | 43 | fn crates/game-core/src/menu_family.rs:219；行锚×1〔名1〕（crates/game-core/src/menu_family.rs:218） |
-| paintNumber | a.java:6212-6241 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T151 | 43 | fn crates/game-core/src/menu_family.rs:232；行锚×1〔名1〕（crates/game-core/src/menu_family.rs:230） |
-| initEntityTables | a.java:6243-6298 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T213 | 42 | 行锚×2〔名2〕（crates/game-core/src/entity.rs:98） |
-| dispatchSpriteSize | a.java:6300-6325 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T223 | 42 | fn crates/game-core/src/entity.rs:147；行锚×2〔名2〕（crates/game-core/src/entity.rs:144） |
-| dispatchAnimFields | a.java:6327-6330 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T223 | 42 | 行锚×1〔名1〕（crates/game-core/src/entity.rs:172） |
+| paintMiniFrame | a.java:6201-6210 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T151 | 44 | fn crates/game-core/src/menu_family.rs:219；行锚×1〔名1〕（crates/game-core/src/menu_family.rs:218） |
+| paintNumber | a.java:6212-6241 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T151 | 44 | fn crates/game-core/src/menu_family.rs:232；行锚×1〔名1〕（crates/game-core/src/menu_family.rs:230） |
+| initEntityTables | a.java:6243-6298 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T213 | 43 | 行锚×2〔名2〕（crates/game-core/src/entity.rs:98） |
+| dispatchSpriteSize | a.java:6300-6325 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T223 | 43 | fn crates/game-core/src/entity.rs:147；行锚×2〔名2〕（crates/game-core/src/entity.rs:144） |
+| dispatchAnimFields | a.java:6327-6330 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T223 | 43 | 行锚×1〔名1〕（crates/game-core/src/entity.rs:172） |
 | markEntityDesRemoved | a.java:6332-6347 | `fixture_frames::fx_scriptwalk_floor3_frames_match` / fx-scriptwalk-floor3 @T302 | 6 | 行锚×1〔名1〕（crates/game-core/src/entity.rs:291） |
 | markEntityRemoved | a.java:6349-6387 | `preset_cases::preset_alchemy_frames_match` / preset-alchemy @T237 | 32 | 行锚×1〔名1〕（crates/game-core/src/entity.rs:249） |
-| spawnEntity | a.java:6389-6432 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T223 | 42 | fn crates/game-core/src/script.rs:145; crates/game-core/src/script.rs:531 |
+| spawnEntity | a.java:6389-6432 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T223 | 43 | fn crates/game-core/src/script.rs:145; crates/game-core/src/script.rs:531 |
 | removeGroupAtCellByType | a.java:6434-6449 | `fixture_frames::preset_floor49_fixture_frames_match` / preset-floor49 @T588 | 4 | fn crates/game-core/src/entity.rs:515；行锚×1〔名1〕（crates/game-core/src/entity.rs:513） |
-| removeSlotAt | a.java:6451-6463 | `preset_cases::preset_floor17_frames_match` / preset-floor17 @T312 | 6 | fn crates/game-core/src/scene.rs:1086；行锚×1〔名1〕（crates/game-core/src/scene.rs:1085） |
+| removeSlotAt | a.java:6451-6463 | `preset_cases::preset_floor17_frames_match` / preset-floor17 @T312 | 6 | fn crates/game-core/src/scene.rs:1092；行锚×1〔名1〕（crates/game-core/src/scene.rs:1091） |
 | pullEntityFromCell | a.java:6465-6481 | `preset_cases::preset_alchemy_frames_match` / preset-alchemy @T242 | 33 | 行锚×1〔名1〕（crates/game-core/src/entity.rs:439） |
-| advanceBobPhase | a.java:6483-6492 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T72 | 45 | 行锚×2〔名2〕（crates/game-core/src/entity.rs:489） |
-| paintEntityLayer | a.java:6494-6730 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T237 | 43 | 行锚×15〔名5/稳10〕（crates/game-core/src/render.rs:22） |
-| sortEntitiesByY | a.java:6732-6823 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T223 | 42 | 行锚×1〔名1〕（crates/game-core/src/entity.rs:306） |
-| advanceEntityFrames | a.java:6825-6851 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T238 | 43 | 行锚×1〔名1〕（crates/game-core/src/entity.rs:389） |
-| drawParallaxBackdrop | a.java:6853-6880 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T151 | 44 | 行锚×3〔名3〕（crates/game-core/src/menu_family.rs:53） |
-| buildMinimap | a.java:6882-6950 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T223 | 42 | fn crates/game-core/src/scene.rs:1907；行锚×1〔名1〕（crates/game-core/src/scene.rs:1905） |
-| readShortLE | a.java:6952-6954 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T223 | 42 | 行锚×1〔seed名1〕（crates/game-data/src/packed_png.rs:18） |
-| initCellGrid | a.java:6956-6961 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T223 | 42 | 人工：crates/game-core/src/entity.rs `pub fn new(cols: i32, rows: i32) -> Self`（CellGrid::new 四件初始化 = a.java:6957-6960；doc 点名「m_059 初始化」） |
-| isCellWalkable | a.java:6963-6965 | `fixture_frames::preset_floor5_fixture_frames_match` / preset-floor5 @T261 | 38 | fn crates/game-core/src/pathfind.rs:31 |
-| rebuildWalkability | a.java:6967-6986 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T223 | 42 | 行锚×3〔名3〕（crates/game-core/src/game_view.rs:9） |
-| m_062 | a.java:6988-6990 | `fixture_frames::fx_scriptwalk_floor3_frames_match` / fx-scriptwalk-floor3 @T303 | 6 | fn crates/game-core/src/pathfind.rs:39; crates/game-core/src/pathfind.rs:39（fn m_062） |
-| paintTileLayer | a.java:6992-7054 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T237 | 43 | 行锚×6〔名6〕（crates/game-core/src/game_view.rs:2） |
-| setCameraClamped | a.java:7056-7107 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T223 | 42 | 行锚×5〔名5〕（crates/game-core/src/camera.rs:58） |
-| findFloorGateEntity | a.java:7109-7127 | `preset_cases::preset_item21_frames_match` / preset-item21 @T405 | 3 | fn crates/game-core/src/scene.rs:1041；行锚×2〔名2〕（crates/game-core/src/scene.rs:1036） |
-| changeFloor | a.java:7129-7175 | `preset_cases::preset_item21_frames_match` / preset-item21 @T401 | 3 | fn crates/game-core/src/scene.rs:948；行锚×2〔名2〕（crates/game-core/src/scene.rs:330） |
+| advanceBobPhase | a.java:6483-6492 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T72 | 46 | 行锚×2〔名2〕（crates/game-core/src/entity.rs:489） |
+| paintEntityLayer | a.java:6494-6730 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T237 | 44 | 行锚×15〔名5/稳10〕（crates/game-core/src/render.rs:22） |
+| sortEntitiesByY | a.java:6732-6823 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T223 | 43 | 行锚×1〔名1〕（crates/game-core/src/entity.rs:306） |
+| advanceEntityFrames | a.java:6825-6851 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T238 | 44 | 行锚×1〔名1〕（crates/game-core/src/entity.rs:389） |
+| drawParallaxBackdrop | a.java:6853-6880 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T151 | 45 | 行锚×3〔名3〕（crates/game-core/src/menu_family.rs:53） |
+| buildMinimap | a.java:6882-6950 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T223 | 43 | fn crates/game-core/src/scene.rs:1913；行锚×1〔名1〕（crates/game-core/src/scene.rs:1911） |
+| readShortLE | a.java:6952-6954 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T223 | 43 | 行锚×1〔seed名1〕（crates/game-data/src/packed_png.rs:18） |
+| initCellGrid | a.java:6956-6961 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T223 | 43 | 人工：crates/game-core/src/entity.rs `pub fn new(cols: i32, rows: i32) -> Self`（CellGrid::new 四件初始化 = a.java:6957-6960；doc 点名「m_059 初始化」） |
+| isCellWalkable | a.java:6963-6965 | `fixture_frames::preset_floor5_fixture_frames_match` / preset-floor5 @T261 | 37 | fn crates/game-core/src/pathfind.rs:31 |
+| rebuildWalkability | a.java:6967-6986 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T223 | 43 | 行锚×3〔名3〕（crates/game-core/src/game_view.rs:9） |
+| m_062 | a.java:6988-6990 | `fixture_frames::fx_scriptwalk_floor3_frames_match` / fx-scriptwalk-floor3 @T303 | 5 | fn crates/game-core/src/pathfind.rs:39; crates/game-core/src/pathfind.rs:39（fn m_062） |
+| paintTileLayer | a.java:6992-7054 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T237 | 44 | 行锚×6〔名6〕（crates/game-core/src/game_view.rs:2） |
+| setCameraClamped | a.java:7056-7107 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T223 | 43 | 行锚×5〔名5〕（crates/game-core/src/camera.rs:58） |
+| findFloorGateEntity | a.java:7109-7127 | `preset_cases::preset_item21_frames_match` / preset-item21 @T405 | 3 | fn crates/game-core/src/scene.rs:1047；行锚×2〔名2〕（crates/game-core/src/scene.rs:1042） |
+| changeFloor | a.java:7129-7175 | `preset_cases::preset_item21_frames_match` / preset-item21 @T401 | 3 | fn crates/game-core/src/scene.rs:954；行锚×2〔名2〕（crates/game-core/src/scene.rs:334） |
 | startNewGameLoad | a.java:7177-7189 | `preset_cases::floor51_menu_frames_match` / floor51-menu @T541 | 2 | 行锚×2〔名2〕（crates/game-core/src/intro.rs:279） |
 | resetNewGameState | a.java:7191-7219 | `preset_cases::floor51_menu_frames_match` / floor51-menu @T570 | 2 | 人工：新游戏态复位分散移植：crates/game-desktop/src/main.rs `GameScene::load_floor(` 以 (32,352) 落点 = placePlayerAtCell(1,11)（a.java:7197 floor51 臂，新游戏 step8 已置 51 层）+ crates/game-core/src/scene.rs `difficulty_index: 0`（装备/跟随/金/道具栈/炼丹/难度构造默认 0 = a.java:7192-7193、7213-7217）+ crates/game-desktop/src/main.rs `scale_enemy_stats(&tables, 1)`（= a.java:7218 scaleEnemyStats(multipliers[0])） |
-| scaleEnemyStats | a.java:7221-7251 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T220 | 42 | fn crates/game-core/src/combat.rs:56；行锚×1〔名1〕（crates/game-core/src/combat.rs:48） |
-| scaledByFloorTier | a.java:7253-7257 | `preset_cases::preset_alchemy_frames_match` / preset-alchemy @T261 | 1 | fn crates/game-core/src/scene.rs:3278；行锚×2〔名2〕（crates/game-core/src/scene.rs:276） |
-| alchemyPriceFor | a.java:7259-7267 | `preset_cases::preset_alchemy_frames_match` / preset-alchemy @T261 | 1 | fn crates/game-core/src/scene.rs:3268；行锚×2〔名2〕（crates/game-core/src/scene.rs:274） |
+| scaleEnemyStats | a.java:7221-7251 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T220 | 43 | fn crates/game-core/src/combat.rs:56；行锚×1〔名1〕（crates/game-core/src/combat.rs:48） |
+| scaledByFloorTier | a.java:7253-7257 | `preset_cases::preset_alchemy_frames_match` / preset-alchemy @T261 | 1 | fn crates/game-core/src/scene.rs:3311；行锚×2〔名2〕（crates/game-core/src/scene.rs:280） |
+| alchemyPriceFor | a.java:7259-7267 | `preset_cases::preset_alchemy_frames_match` / preset-alchemy @T261 | 1 | fn crates/game-core/src/scene.rs:3301；行锚×2〔名2〕（crates/game-core/src/scene.rs:278） |
 | addOption | a.java:7269-7286 | `preset_cases::preset_load_menu_frames_match` / preset-load-menu @T501 | 2 | 人工：crates/game-core/src/menu_family.rs `fn add(&mut self, label_idx: usize, checked: bool)`（OptionList::add = addOption：stringWidth+80 定框宽、首项 32+行高 = a.java:7270-7280；原 28 条行锚系 game-data seed 方言锚误归属） |
-| tryOpenChest | a.java:7288-7308 | `preset_cases::preset_floor17_frames_match` / preset-floor17 @T312 | 5 | fn crates/game-core/src/scene.rs:1102；行锚×1〔名1〕（crates/game-core/src/scene.rs:1100） |
-| applyMerchantOffer | a.java:7310-7473 | `preset_cases::preset_merchant_frames_match` / preset-merchant @T321 | 3 | fn crates/game-core/src/scene.rs:3458；行锚×3〔名2/稳1〕（crates/game-core/src/scene.rs:285） |
-| pushOfferQueue | a.java:7475-7481 | `preset_cases::preset_floor46_frames_match` / preset-floor46 @T351 | 2 | 行锚×1〔名1〕（crates/game-core/src/scene.rs:3437） |
-| browseOfferQueue | a.java:7483-7508 | `fixture_frames::preset_floor5_fixture_frames_match` / preset-floor5 @T621 | 1 | 行锚×1〔名1〕（crates/game-core/src/scene.rs:5635） |
-| spendGold | a.java:7510-7519 | `preset_cases::preset_floor45_frames_match` / preset-floor45 @T501 | 1 | fn crates/game-core/src/scene.rs:3447 |
+| tryOpenChest | a.java:7288-7308 | `preset_cases::preset_floor17_frames_match` / preset-floor17 @T312 | 5 | fn crates/game-core/src/scene.rs:1108；行锚×1〔名1〕（crates/game-core/src/scene.rs:1106） |
+| applyMerchantOffer | a.java:7310-7473 | `preset_cases::preset_merchant_frames_match` / preset-merchant @T321 | 3 | fn crates/game-core/src/scene.rs:3491；行锚×3〔名2/稳1〕（crates/game-core/src/scene.rs:289） |
+| pushOfferQueue | a.java:7475-7481 | `preset_cases::preset_floor46_frames_match` / preset-floor46 @T351 | 2 | 行锚×1〔名1〕（crates/game-core/src/scene.rs:3470） |
+| browseOfferQueue | a.java:7483-7508 | `fixture_frames::preset_floor5_fixture_frames_match` / preset-floor5 @T621 | 1 | 行锚×1〔名1〕（crates/game-core/src/scene.rs:5716） |
+| spendGold | a.java:7510-7519 | `preset_cases::preset_floor45_frames_match` / preset-floor45 @T501 | 1 | fn crates/game-core/src/scene.rs:3480 |
 | gainGold | a.java:7521-7526 | `preset_cases::preset_floor10_frames_match` / preset-floor10 @T302 | 23 | fn crates/game-core/src/combat.rs:174；行锚×1〔名1〕（crates/game-core/src/combat.rs:172） |
-| pickupItemType | a.java:7528-7643 | `preset_cases::preset_alchemy_frames_match` / preset-alchemy @T237 | 12 | fn crates/game-core/src/scene.rs:4857；行锚×1〔名1〕（crates/game-core/src/scene.rs:4843） |
-| floorTier | a.java:7645-7656 | `preset_cases::preset_alchemy_frames_match` / preset-alchemy @T237 | 8 | fn crates/game-core/src/scene.rs:4846；行锚×1〔名1〕（crates/game-core/src/scene.rs:4845） |
-| findItemStackIndex | a.java:7658-7669 | `fixture_frames::preset_floor5_fixture_frames_match` / preset-floor5 @T265 | 27 | 人工：crates/game-core/src/combat.rs `pub fn find_item(&self, item_type: u8) -> i32`（doc「findItemStackIndex 忠实移植」，首个同型槽/无则 -1 = a.java:7659-7668；其 Rust 行锚 8485 陈旧，落入 executeScriptInstruction） |
-| tryEquip | a.java:7671-7691 | `slot_equip_scene::preset_save_equip_frames_match` / preset-save-equip @T465 | 3 | fn crates/game-core/src/scene.rs:1160; crates/game-core/src/script.rs:155（fn m_082_set_dialog_target） …；行锚×1〔名1〕（crates/game-core/src/scene.rs:1158） |
-| equipTierIndex | a.java:7693-7703 | `preset_cases::preset_alchemy_frames_match` / preset-alchemy @T237 | 12 | fn crates/game-core/src/scene.rs:1182（fn m_083_index）；行锚×2〔名2〕（crates/game-core/src/scene.rs:1181） |
+| pickupItemType | a.java:7528-7643 | `preset_cases::preset_alchemy_frames_match` / preset-alchemy @T237 | 12 | fn crates/game-core/src/scene.rs:4938；行锚×1〔名1〕（crates/game-core/src/scene.rs:4924） |
+| floorTier | a.java:7645-7656 | `preset_cases::preset_alchemy_frames_match` / preset-alchemy @T237 | 8 | fn crates/game-core/src/scene.rs:4927；行锚×1〔名1〕（crates/game-core/src/scene.rs:4926） |
+| findItemStackIndex | a.java:7658-7669 | `fixture_frames::preset_floor5_fixture_frames_match` / preset-floor5 @T265 | 26 | 人工：crates/game-core/src/combat.rs `pub fn find_item(&self, item_type: u8) -> i32`（doc「findItemStackIndex 忠实移植」，首个同型槽/无则 -1 = a.java:7659-7668；其 Rust 行锚 8485 陈旧，落入 executeScriptInstruction） |
+| tryEquip | a.java:7671-7691 | `slot_equip_scene::preset_save_equip_frames_match` / preset-save-equip @T465 | 3 | fn crates/game-core/src/scene.rs:1166; crates/game-core/src/script.rs:155（fn m_082_set_dialog_target） …；行锚×1〔名1〕（crates/game-core/src/scene.rs:1164） |
+| equipTierIndex | a.java:7693-7703 | `preset_cases::preset_alchemy_frames_match` / preset-alchemy @T237 | 12 | fn crates/game-core/src/scene.rs:1188（fn m_083_index）；行锚×2〔名2〕（crates/game-core/src/scene.rs:1187） |
 | itemTypeToStackIndex | a.java:7705-7719 | `fixture_frames::preset_floor5_fixture_frames_match` / preset-floor5 @T265 | 6 | 人工：crates/game-core/src/scene.rs `fn item_desc_index(&self, t: i32) -> usize`（85→20 / 86→21 / 其余 t-13 = a.java:7707-7716；add_item_to_stack 内联同式） |
-| addItemToItemStack | a.java:7721-7734 | `fixture_frames::preset_floor5_fixture_frames_match` / preset-floor5 @T265 | 1 | 人工：crates/game-core/src/scene.rs `fn add_item_to_stack(&mut self, t: i32)`（追加/叠加次数 + showOverlayMessage = a.java:7722-7731/7733；行锚 7702-7714 漂移落入 itemTypeToStackIndex）。未移植 itemUseTargetType 写（a.java:7732）——无可见效应：拾取路径调用前 已置 overlay_kind_item（crates/game-core/src/scene.rs `self.overlay_kind_item = t`），商人路径浮层同调用内被关闭/替换（2026-10-15 独立审计核）；行锚×2〔名2〕（crates/game-core/src/scene.rs:4925） |
+| addItemToItemStack | a.java:7721-7734 | `fixture_frames::preset_floor5_fixture_frames_match` / preset-floor5 @T265 | 1 | 人工：crates/game-core/src/scene.rs `fn add_item_to_stack(&mut self, t: i32)`（追加/叠加次数 + showOverlayMessage = a.java:7722-7731/7733；行锚 7702-7714 漂移落入 itemTypeToStackIndex）。未移植 itemUseTargetType 写（a.java:7732）——无可见效应：拾取路径调用前 已置 overlay_kind_item（crates/game-core/src/scene.rs `self.overlay_kind_item = t`），商人路径浮层同调用内被关闭/替换（2026-10-15 独立审计核）；行锚×2〔名2〕（crates/game-core/src/scene.rs:5006） |
 | consumeKeyForDoor | a.java:7736-7762 | `mov_route_scene::preset_floor40_mov_frames_match` / preset-floor40-mov @T261 | 12 | fn crates/game-core/src/combat.rs:153 |
-| useItemStack | a.java:7764-7782 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T381 | 4 | fn crates/game-core/src/scene.rs:2774；行锚×1〔名1〕（crates/game-core/src/scene.rs:2772） |
-| activateItem | a.java:7784-7893 | `preset_cases::preset_item13_frames_match` / preset-item13 @T351 | 6 | fn crates/game-core/src/scene.rs:2557；行锚×4〔名2/稳2〕（crates/game-core/src/scene.rs:2552） |
-| m_089 | a.java:7895-7924 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T381 | 1 | 行锚×1〔名1〕（crates/game-core/src/scene.rs:2735） |
-| killAdjacentAt | a.java:7926-7955 | `preset_cases::preset_itemcymbal_frames_match` / preset-itemcymbal @T401 | 1 | fn crates/game-core/src/scene.rs:2675；行锚×1〔名1〕（crates/game-core/src/scene.rs:2669） |
+| useItemStack | a.java:7764-7782 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T381 | 4 | fn crates/game-core/src/scene.rs:2807；行锚×1〔名1〕（crates/game-core/src/scene.rs:2805） |
+| activateItem | a.java:7784-7893 | `preset_cases::preset_item13_frames_match` / preset-item13 @T351 | 6 | fn crates/game-core/src/scene.rs:2590；行锚×4〔名2/稳2〕（crates/game-core/src/scene.rs:2585） |
+| m_089 | a.java:7895-7924 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T381 | 1 | 行锚×1〔名1〕（crates/game-core/src/scene.rs:2768） |
+| killAdjacentAt | a.java:7926-7955 | `preset_cases::preset_itemcymbal_frames_match` / preset-itemcymbal @T401 | 1 | fn crates/game-core/src/scene.rs:2708；行锚×1〔名1〕（crates/game-core/src/scene.rs:2702） |
 | m_091 | a.java:7957-8017 | `preset_cases::preset_item13_frames_match` / preset-item13 @T351 | 1 | 行锚×2〔名2〕（crates/game-core/src/layout.rs:326） |
-| m_092 | a.java:8019-8032 | `preset_cases::preset_item13_frames_match` / preset-item13 @T401 | 1 | 行锚×1〔名1〕（crates/game-core/src/scene.rs:3132） |
-| loadLevelScript | a.java:8038-8066 | `mov_route_scene::preset_floor2_mov_frames_match` / preset-floor2-mov @T261 | 9 | fn crates/game-core/src/scene.rs:1404; crates/game-core/src/script.rs:191；行锚×3〔名3〕（crates/game-core/src/scene.rs:1402） |
-| tryRunScene | a.java:8068-8224 | `mov_route_scene::preset_floor2_mov_frames_match` / preset-floor2-mov @T261 | 9 | fn crates/game-core/src/scene.rs:1304；行锚×5〔名1/稳4〕（crates/game-core/src/scene.rs:1302） |
-| openDialogPage | a.java:8226-8251 | `mov_route_scene::preset_floor2_mov_frames_match` / preset-floor2-mov @T262 | 8 | fn crates/game-core/src/scene.rs:1427; crates/game-core/src/script.rs:214；行锚×2〔名2〕（crates/game-core/src/scene.rs:1425） |
-| cameraAtTarget | a.java:8253-8255 | `preset_cases::preset_itemboss40_frames_match` / preset-itemboss40 @T503 | 8 | fn crates/game-core/src/scene.rs:3677 |
-| executeScriptInstruction | a.java:8257-8605 | `mov_route_scene::preset_floor2_mov_frames_match` / preset-floor2-mov @T262 | 9 | fn crates/game-core/src/scene.rs:1630; crates/game-core/src/script.rs:266；行锚×26〔名1/稳25〕（crates/game-core/src/enums.rs:152） |
-| parseScriptInt | a.java:8607-8613 | `mov_route_scene::preset_floor2_mov_frames_match` / preset-floor2-mov @T262 | 9 | fn crates/game-core/src/scene.rs:1419; crates/game-core/src/script.rs:258；行锚×1〔seed名1〕（crates/game-data/src/script.rs:10） |
-| findBlockingEntity | a.java:8615-8629 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T237 | 42 | 行锚×1〔名1〕（crates/game-core/src/scene.rs:5195） |
-| m_101 | a.java:8631-8638 | `fixture_frames::fx_knockback_floor43_frames_match` / fx-knockback-floor43 @T305 | 1 | fn crates/game-core/src/scene.rs:4577; crates/game-core/src/scene.rs:4577（fn m_101）；行锚×1〔名1〕（crates/game-core/src/scene.rs:4575） |
-| probeCrossFloorSnapshot | a.java:8640-8660 | `fixture_frames::preset_floor49_fixture_frames_match` / preset-floor49 @T951 | 1 | fn crates/game-core/src/scene.rs:1397（fn m_102_current_floor）；行锚×1〔名1〕（crates/game-core/src/scene.rs:1394） |
-| easeCameraToTarget | a.java:8662-8667 | `preset_cases::floor51_menu_frames_match` / floor51-menu @T902 | 2 | 人工：crates/game-core/src/scene.rs `// m_103：ease 相机目标 = 目标格`（SEE 臂）+ crates/game-core/src/scene.rs `// m_103：ease 目标 = SEE 目标格`（翻页臂）两处内联，四赋值 = a.java:8663-8666 |
-| lockCameraOn | a.java:8669-8708 | `mov_route_scene::preset_floor2_mov_frames_match` / preset-floor2-mov @T261 | 15 | fn crates/game-core/src/scene.rs:4048；行锚×2〔名2〕（crates/game-core/src/scene.rs:1449） |
-| stepCameraTowardTarget | a.java:8710-8736 | `mov_route_scene::preset_floor2_mov_frames_match` / preset-floor2-mov @T262 | 15 | fn crates/game-core/src/scene.rs:4076；行锚×1〔名1〕（crates/game-core/src/scene.rs:4074） |
+| m_092 | a.java:8019-8032 | `preset_cases::preset_item13_frames_match` / preset-item13 @T401 | 1 | 行锚×1〔名1〕（crates/game-core/src/scene.rs:3165） |
+| loadLevelScript | a.java:8038-8066 | `mov_route_scene::preset_floor2_mov_frames_match` / preset-floor2-mov @T261 | 9 | fn crates/game-core/src/scene.rs:1410; crates/game-core/src/script.rs:191；行锚×3〔名3〕（crates/game-core/src/scene.rs:1408） |
+| tryRunScene | a.java:8068-8224 | `mov_route_scene::preset_floor2_mov_frames_match` / preset-floor2-mov @T261 | 9 | fn crates/game-core/src/scene.rs:1310；行锚×5〔名1/稳4〕（crates/game-core/src/scene.rs:1308） |
+| openDialogPage | a.java:8226-8251 | `mov_route_scene::preset_floor2_mov_frames_match` / preset-floor2-mov @T262 | 8 | fn crates/game-core/src/scene.rs:1433; crates/game-core/src/script.rs:214；行锚×2〔名2〕（crates/game-core/src/scene.rs:1431） |
+| cameraAtTarget | a.java:8253-8255 | `preset_cases::preset_itemboss40_frames_match` / preset-itemboss40 @T503 | 7 | fn crates/game-core/src/scene.rs:3710 |
+| executeScriptInstruction | a.java:8257-8605 | `mov_route_scene::preset_floor2_mov_frames_match` / preset-floor2-mov @T262 | 9 | fn crates/game-core/src/scene.rs:1636; crates/game-core/src/script.rs:266；行锚×26〔名1/稳25〕（crates/game-core/src/enums.rs:152） |
+| parseScriptInt | a.java:8607-8613 | `mov_route_scene::preset_floor2_mov_frames_match` / preset-floor2-mov @T262 | 9 | fn crates/game-core/src/scene.rs:1425; crates/game-core/src/script.rs:258；行锚×1〔seed名1〕（crates/game-data/src/script.rs:10） |
+| findBlockingEntity | a.java:8615-8629 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T237 | 43 | 行锚×1〔名1〕（crates/game-core/src/scene.rs:5276） |
+| m_101 | a.java:8631-8638 | `fixture_frames::fx_knockback_floor43_frames_match` / fx-knockback-floor43 @T305 | 1 | fn crates/game-core/src/scene.rs:4658; crates/game-core/src/scene.rs:4658（fn m_101）；行锚×1〔名1〕（crates/game-core/src/scene.rs:4656） |
+| probeCrossFloorSnapshot | a.java:8640-8660 | `fixture_frames::preset_floor49_fixture_frames_match` / preset-floor49 @T951 | 1 | fn crates/game-core/src/scene.rs:1403（fn m_102_current_floor）；行锚×1〔名1〕（crates/game-core/src/scene.rs:1400） |
+| easeCameraToTarget | a.java:8662-8667 | `preset_cases::floor51_menu_frames_match` / floor51-menu @T902 | 1 | 人工：crates/game-core/src/scene.rs `// m_103：ease 相机目标 = 目标格`（SEE 臂）+ crates/game-core/src/scene.rs `// m_103：ease 目标 = SEE 目标格`（翻页臂）两处内联，四赋值 = a.java:8663-8666 |
+| lockCameraOn | a.java:8669-8708 | `mov_route_scene::preset_floor2_mov_frames_match` / preset-floor2-mov @T261 | 15 | fn crates/game-core/src/scene.rs:4081；行锚×2〔名2〕（crates/game-core/src/scene.rs:1455） |
+| stepCameraTowardTarget | a.java:8710-8736 | `mov_route_scene::preset_floor2_mov_frames_match` / preset-floor2-mov @T262 | 15 | fn crates/game-core/src/scene.rs:4109；行锚×1〔名1〕（crates/game-core/src/scene.rs:4107） |
 | m_106 | a.java:8738-8870 | `mov_route_scene::preset_floor40_mov_frames_match` / preset-floor40-mov @T411 | 2 | 行锚×9〔名4/稳5〕（crates/game-core/src/entity.rs:462） |
 | m_108 | a.java:8880-8904 | `mov_route_scene::preset_floor2_mov_frames_match` / preset-floor2-mov @T619 | 1 | 行锚×2〔名2〕（crates/game-core/src/entity.rs:457） |
-| spawnBossEvent | a.java:8906-8915 | `preset_cases::preset_itemboss40_frames_match` / preset-itemboss40 @T302 | 3 | fn crates/game-core/src/scene.rs:2756；行锚×1〔名1〕（crates/game-core/src/scene.rs:2753） |
-| loadSlotTable | a.java:8953-8999 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T151 | 41 | fn crates/game-core/src/menu_family.rs:615；行锚×1〔名1〕（crates/game-core/src/scene.rs:6037） |
-| markSlotEntry | a.java:9001-9053 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T151 | 4 | 行锚×2〔名2〕（crates/game-core/src/scene.rs:5897） |
-| paintSlotTable | a.java:9055-9179 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T151 | 41 | 行锚×8〔名4/稳4〕（crates/game-core/src/menu_family.rs:731） |
-| saveFloorState | a.java:9181-9245 | `preset_cases::preset_load_menu_frames_match` / preset-load-menu @T341 | 3 | fn crates/game-core/src/scene.rs:985；行锚×3〔名3〕（crates/game-core/src/save.rs:1） |
-| loadFloorSave | a.java:9247-9322 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T220 | 40 | 行锚×3〔名3〕（crates/game-core/src/save.rs:1） |
+| spawnBossEvent | a.java:8906-8915 | `preset_cases::preset_itemboss40_frames_match` / preset-itemboss40 @T302 | 3 | fn crates/game-core/src/scene.rs:2789；行锚×1〔名1〕（crates/game-core/src/scene.rs:2786） |
+| saveGlobalProgress | a.java:8917-8951 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T68 | 4 | 人工：b62d9db：save::GlobalSave 格式层（a.java:8931-8942 写/4463-4474 读）+ BootMachine/GameScene 同构 global 状态（`fn global_snapshot`/`fn note_max_floor`）+ 壳 SKY_WAR@1 轮询持久化（crates/game-desktop/src/main.rs `fn persist_global_if_dirty`）+ catch 语义回写（default_7 ⇒ [1]=true）；回标题触发点（4297-4299）随后续反向移交后置（账本裁定）；行锚×5〔名5〕（crates/game-core/src/paint.rs:165） |
+| loadSlotTable | a.java:8953-8999 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T151 | 42 | fn crates/game-core/src/menu_family.rs:615；行锚×1〔名1〕（crates/game-core/src/scene.rs:6132） |
+| markSlotEntry | a.java:9001-9053 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T151 | 4 | 行锚×2〔名2〕（crates/game-core/src/scene.rs:5978） |
+| paintSlotTable | a.java:9055-9179 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T151 | 42 | 行锚×8〔名4/稳4〕（crates/game-core/src/menu_family.rs:731） |
+| saveFloorState | a.java:9181-9245 | `preset_cases::preset_load_menu_frames_match` / preset-load-menu @T341 | 3 | fn crates/game-core/src/scene.rs:991；行锚×3〔名3〕（crates/game-core/src/save.rs:1） |
+| loadFloorSave | a.java:9247-9322 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T220 | 41 | 行锚×3〔名3〕（crates/game-core/src/save.rs:1） |
 | deleteRecordStoreQuietly | a.java:9324-9329 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T68 | 7 | 人工·吸收：删库后重建（a.java:9325-9328）；三调用点 a.java:4476（SKY_WAR 读失败→删→saveGlobalProgress 重建）/9021（MOT_IF）/9184（MOT_L{n}）均为删后即写；壳 RMS 以覆盖写吸收删+写（crates/game-desktop/src/main.rs `std::fs::write(&path, v).ok();`）；SKY_WAR 路径的持久化缺口归 saveGlobalProgress（a） |
-| closeRecordStoreAndGc | a.java:9331-9363 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T151 | 41 | 人工·吸收：RecordStore/流关闭 + 五字段置 null + gc（a.java:9332-9362）；f_byte_arr_27 读者（dispatchModeEntry/loadSlotTable/loadFloorSave）均先 getRecord 赋值再读（a.java:4459/8974/9256）⇒ 无可观测效应 |
-| initFloorStates | a.java:9365-9371 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T216 | 42 | 人工：crates/game-core/src/scene.rs `saved_floor_states: vec![None; 56]`（新游戏构造即 56 槽空 = a.java:9366-9370；读档路径 crates/game-core/src/scene.rs `scene.saved_floor_states = save.floor_states.clone()`） |
-| m_119 | a.java:9373-9400 | `preset_cases::preset_load_menu_frames_match` / preset-load-menu @T341 | 6 | 行锚×2〔名2〕（crates/game-core/src/scene.rs:958） |
-| m_120 | a.java:9402-9405 | `preset_cases::preset_load_menu_frames_match` / preset-load-menu @T341 | 6 | 人工：crates/game-core/src/scene.rs `fn save_floor_state(&mut self)`（u16 BE 写内联为 to_be_bytes = a.java:9403-9404）；行锚×1〔名1〕（crates/game-core/src/scene.rs:977） |
-| loadFloorData | a.java:9407-9447 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T223 | 42 | fn crates/game-core/src/scene.rs:857；行锚×4〔seed名1/名3〕（crates/game-core/src/game_view.rs:1） |
-| m_122 | a.java:9449-9677 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T223 | 42 | 行锚×54〔seed稳45/名7/稳2〕（crates/game-core/src/menu_family.rs:842） |
+| closeRecordStoreAndGc | a.java:9331-9363 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T151 | 42 | 人工·吸收：RecordStore/流关闭 + 五字段置 null + gc（a.java:9332-9362）；f_byte_arr_27 读者（dispatchModeEntry/loadSlotTable/loadFloorSave）均先 getRecord 赋值再读（a.java:4459/8974/9256）⇒ 无可观测效应 |
+| initFloorStates | a.java:9365-9371 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T216 | 43 | 人工：crates/game-core/src/scene.rs `saved_floor_states: vec![None; 56]`（新游戏构造即 56 槽空 = a.java:9366-9370；读档路径 crates/game-core/src/scene.rs `scene.saved_floor_states = save.floor_states.clone()`） |
+| m_119 | a.java:9373-9400 | `preset_cases::preset_load_menu_frames_match` / preset-load-menu @T341 | 6 | 行锚×2〔名2〕（crates/game-core/src/scene.rs:964） |
+| m_120 | a.java:9402-9405 | `preset_cases::preset_load_menu_frames_match` / preset-load-menu @T341 | 6 | 人工：crates/game-core/src/scene.rs `fn save_floor_state(&mut self)`（u16 BE 写内联为 to_be_bytes = a.java:9403-9404）；行锚×1〔名1〕（crates/game-core/src/scene.rs:983） |
+| loadFloorData | a.java:9407-9447 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T223 | 43 | fn crates/game-core/src/scene.rs:863；行锚×4〔seed名1/名3〕（crates/game-core/src/game_view.rs:1） |
+| m_122 | a.java:9449-9677 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T223 | 43 | 行锚×54〔seed稳45/名7/稳2〕（crates/game-core/src/menu_family.rs:842） |
 | restoreFloorState | a.java:9679-9681 | `preset_cases::floor2_tour_frames_match` / floor2-tour @T1357 | 1 | 人工：crates/game-core/src/scene.rs `u16::from_be_bytes([d[*p], d[*p + 1]])`（层存档恢复 read_u16 闭包 = a.java:9680，m_122 恢复臂 a.java:9626-9638 内联） |
 | spawnPopup | a.java:9691-9730 | `preset_cases::preset_alchemy_frames_match` / preset-alchemy @T237 | 27 | 行锚×4〔名4〕（crates/game-core/src/combat.rs:123） |
-| drawPopupLayer | a.java:9732-9791 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T237 | 43 | 行锚×3〔名3〕（crates/game-core/src/popup.rs:1） |
+| drawPopupLayer | a.java:9732-9791 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T237 | 44 | 行锚×3〔名3〕（crates/game-core/src/popup.rs:1） |
 | drawDigitStrip | a.java:9793-9819 | `preset_cases::preset_alchemy_frames_match` / preset-alchemy @T237 | 26 | fn crates/game-core/src/popup.rs:149；行锚×1〔名1〕（crates/game-core/src/popup.rs:145） |
-| initParticles | a.java:9821-9831 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T71 | 44 | 人工：crates/game-core/src/title.rs `pub fn new() -> Particles`（32 槽粒子数组清零 + 游标 0 = a.java:9822-9830） |
-| spawnParticle | a.java:9833-9845 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T73 | 44 | 行锚×1〔名1〕（crates/game-core/src/title.rs:79） |
-| updateAndDrawParticles | a.java:9847-9874 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T71 | 44 | 行锚×2〔名2〕（crates/game-core/src/title.rs:11） |
-| startLoadTask | a.java:9876-9886 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T201 | 42 | 人工：crates/game-core/src/intro.rs `pub fn new(target: i32, call_m000: bool, steps: &[i8]) -> LoadProgress`（loadTargetMode/loadCallInit/步表/计数复位 = a.java:9877-9884；readCountPrefix(15) 由构造期装载吸收）；行锚×1〔名1〕（crates/game-core/src/intro.rs:274） |
-| stepLoadTask | a.java:9888-9890 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T201 | 42 | 行锚×1〔名1〕（crates/game-core/src/intro.rs:274） |
-| findPath | a.java:9892-9957 | `fixture_frames::fx_scriptwalk_floor3_frames_match` / fx-scriptwalk-floor3 @T303 | 5 | fn crates/game-core/src/pathfind.rs:54; crates/game-core/src/scene.rs:1598 …；行锚×2〔名2〕（crates/game-core/src/pathfind.rs:3） |
-| m_134 | a.java:9959-9984 | `fixture_frames::fx_scriptwalk_floor3_frames_match` / fx-scriptwalk-floor3 @T303 | 5 | fn crates/game-core/src/pathfind.rs:151; crates/game-core/src/pathfind.rs:151（fn m_134） |
-| predictHpLossVsType | a.java:9986-9990 | `preset_cases::preset_floor10_frames_match` / preset-floor10 @T301 | 25 | fn crates/game-core/src/combat.rs:107；行锚×2〔名2〕（crates/game-core/src/combat.rs:106） |
-| effectiveAttackVsType | a.java:9992-10002 | `preset_cases::preset_floor10_frames_match` / preset-floor10 @T301 | 26 | fn crates/game-core/src/combat.rs:66；行锚×3〔名3〕（crates/game-core/src/combat.rs:64） |
-| predictBattleHpLoss | a.java:10004-10024 | `preset_cases::preset_floor10_frames_match` / preset-floor10 @T301 | 26 | fn crates/game-core/src/combat.rs:79；行锚×1〔名1〕（crates/game-core/src/combat.rs:77） |
-| tickBattle | a.java:10026-10159 | `preset_cases::preset_floor10_frames_match` / preset-floor10 @T302 | 22 | fn crates/game-core/src/scene.rs:4405；行锚×3〔名2/稳1〕（crates/game-core/src/scene.rs:309） |
-| playBgm | a.java:10161-10209 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T71 | 44 | 行锚×3〔名3〕（crates/game-core/src/audio.rs:3） |
-| closeAudioPlayer | a.java:10211-10218 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T68 | 44 | 行锚×4〔名4〕（crates/game-core/src/audio.rs:4） |
-| randomBelow | a.java:10220-10222 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T73 | 44 | fn crates/game-platform/src/lib.rs:77 |
-| drawOutlinedText | a.java:10224-10238 | `preset_cases::floor51_menu_frames_match` / floor51-menu @T577 | 3 | 行锚×1〔名1〕（crates/game-core/src/scene.rs:5683） |
-| runLogoAnimation | a.java:10240-10476 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T33 | 44 | 行锚×10〔名5/稳5〕（crates/game-core/src/logo_anim.rs:3） |
-| paintLogoAnimation | a.java:10478-10506 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T32 | 44 | 行锚×3〔名3〕（crates/game-core/src/logo_anim.rs:15） |
-| registerLogoItem | a.java:10508-10565 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T33 | 44 | 行锚×2〔名2〕（crates/game-core/src/logo_anim.rs:10） |
-| modifyLogoItem | a.java:10567-10591 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T42 | 44 | 行锚×1〔名1〕（crates/game-core/src/logo_anim.rs:193） |
-| removeLogoItem | a.java:10593-10608 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T37 | 44 | 行锚×3〔名3〕（crates/game-core/src/logo_anim.rs:3） |
-| <clinit> | a.java:10880-10882 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T1 | 44 | 行锚×1〔字段1〕（crates/game-core/src/render.rs:476） |
+| initParticles | a.java:9821-9831 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T71 | 45 | 人工：crates/game-core/src/title.rs `pub fn new() -> Particles`（32 槽粒子数组清零 + 游标 0 = a.java:9822-9830） |
+| spawnParticle | a.java:9833-9845 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T73 | 45 | 行锚×1〔名1〕（crates/game-core/src/title.rs:79） |
+| updateAndDrawParticles | a.java:9847-9874 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T71 | 45 | 行锚×2〔名2〕（crates/game-core/src/title.rs:11） |
+| startLoadTask | a.java:9876-9886 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T201 | 43 | 人工：crates/game-core/src/intro.rs `pub fn new(target: i32, call_m000: bool, steps: &[i8]) -> LoadProgress`（loadTargetMode/loadCallInit/步表/计数复位 = a.java:9877-9884；readCountPrefix(15) 由构造期装载吸收）；行锚×1〔名1〕（crates/game-core/src/intro.rs:274） |
+| stepLoadTask | a.java:9888-9890 | `fixture_frames::fx_fan_floor13_frames_match` / fx-fan-floor13 @T201 | 43 | 行锚×1〔名1〕（crates/game-core/src/intro.rs:274） |
+| findPath | a.java:9892-9957 | `fixture_frames::fx_scriptwalk_floor3_frames_match` / fx-scriptwalk-floor3 @T303 | 4 | fn crates/game-core/src/pathfind.rs:54; crates/game-core/src/scene.rs:1604 …；行锚×2〔名2〕（crates/game-core/src/pathfind.rs:3） |
+| m_134 | a.java:9959-9984 | `fixture_frames::fx_scriptwalk_floor3_frames_match` / fx-scriptwalk-floor3 @T303 | 4 | fn crates/game-core/src/pathfind.rs:151; crates/game-core/src/pathfind.rs:151（fn m_134） |
+| predictHpLossVsType | a.java:9986-9990 | `preset_cases::preset_floor10_frames_match` / preset-floor10 @T301 | 24 | fn crates/game-core/src/combat.rs:107；行锚×2〔名2〕（crates/game-core/src/combat.rs:106） |
+| effectiveAttackVsType | a.java:9992-10002 | `preset_cases::preset_floor10_frames_match` / preset-floor10 @T301 | 25 | fn crates/game-core/src/combat.rs:66；行锚×3〔名3〕（crates/game-core/src/combat.rs:64） |
+| predictBattleHpLoss | a.java:10004-10024 | `preset_cases::preset_floor10_frames_match` / preset-floor10 @T301 | 25 | fn crates/game-core/src/combat.rs:79；行锚×1〔名1〕（crates/game-core/src/combat.rs:77） |
+| tickBattle | a.java:10026-10159 | `preset_cases::preset_floor10_frames_match` / preset-floor10 @T302 | 22 | fn crates/game-core/src/scene.rs:4486；行锚×3〔名2/稳1〕（crates/game-core/src/scene.rs:313） |
+| playBgm | a.java:10161-10209 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T71 | 45 | 行锚×3〔名3〕（crates/game-core/src/audio.rs:3） |
+| closeAudioPlayer | a.java:10211-10218 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T68 | 45 | 行锚×4〔名4〕（crates/game-core/src/audio.rs:4） |
+| randomBelow | a.java:10220-10222 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T73 | 45 | fn crates/game-platform/src/lib.rs:77 |
+| drawOutlinedText | a.java:10224-10238 | `preset_cases::floor51_menu_frames_match` / floor51-menu @T577 | 3 | 行锚×1〔名1〕（crates/game-core/src/scene.rs:5764） |
+| runLogoAnimation | a.java:10240-10476 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T33 | 45 | 行锚×10〔名5/稳5〕（crates/game-core/src/logo_anim.rs:3） |
+| paintLogoAnimation | a.java:10478-10506 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T32 | 45 | 行锚×3〔名3〕（crates/game-core/src/logo_anim.rs:15） |
+| registerLogoItem | a.java:10508-10565 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T33 | 45 | 行锚×2〔名2〕（crates/game-core/src/logo_anim.rs:10） |
+| modifyLogoItem | a.java:10567-10591 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T42 | 45 | 行锚×1〔名1〕（crates/game-core/src/logo_anim.rs:193） |
+| removeLogoItem | a.java:10593-10608 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T37 | 45 | 行锚×3〔名3〕（crates/game-core/src/logo_anim.rs:3） |
+| <clinit> | a.java:10880-10882 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T1 | 45 | 行锚×1〔字段1〕（crates/game-core/src/render.rs:476） |
 
 ## 3. 黄：已移植 + 无帧级窗口触达（1）
 
 | 方法 | 区间 | 场景触达（无用例） | 移植证据 | 调用点（deobf） | 处置 |
 |---|---|---|---|---|---|
-| hideNotify | a.java:4502-4514 | **无场景触达** | fn crates/game-core/src/scene.rs:2261; crates/game-desktop/src/main.rs:503；行锚×7〔名7〕（crates/game-core/src/audio.rs:64） |  | 不触达论证（B，机械校验 ✓）：MIDP 生命周期回调（a.java:4502-4513）：类 a 内零调用点，字节码唯一调用者 CMidlet.pauseApp@4（invokevirtual a.hideNotify），另由平台在 Canvas 离屏时回调；oracle 宿主只反射调 startApp、场景脚本只有按键事件（Runner.loadScript `<tick> <keycode> <press|release>`），shim/宿主源码无任何 pauseApp/hideNotify 调用 ⇒ 任何场景（含夹具场景）不可达。**非死代码**（真机来电/切后台必达），属场景驱动面盲区（扩驱动面须改 reference/ 宿主）。语义由壳侧宿主测试覆盖（ab8368a）：crates/game-desktop/src/main.rs `fn in_game_hide_closes_bgm_and_first_key_resumes_game_track`、crates/game-desktop/src/main.rs `fn hide_in_game_menu_keeps_mode_4`、crates/game-desktop/src/main.rs `fn title_hide_resumes_menu_track_in_java_event_order`、crates/game-desktop/src/main.rs `fn hide_in_modes_0_and_21_clears_flag_without_resume`、crates/game-desktop/src/main.rs `fn hide_in_mode3_opens_in_game_menu`（gameMode 3→4 臂 a.java:4504-4507，47169cc 接通 crates/game-core/src/scene.rs `pub fn hide_notify(&mut self)` 后摘 #[ignore]） |
+| hideNotify | a.java:4502-4514 | **无场景触达** | fn crates/game-core/src/scene.rs:2267; crates/game-desktop/src/main.rs:518；行锚×7〔名7〕（crates/game-core/src/audio.rs:64） |  | 不触达论证（B，机械校验 ✓）：MIDP 生命周期回调（a.java:4502-4513）：类 a 内零调用点，字节码唯一调用者 CMidlet.pauseApp@4（invokevirtual a.hideNotify），另由平台在 Canvas 离屏时回调；oracle 宿主只反射调 startApp、场景脚本只有按键事件（Runner.loadScript `<tick> <keycode> <press|release>`），shim/宿主源码无任何 pauseApp/hideNotify 调用 ⇒ 任何场景（含夹具场景）不可达。**非死代码**（真机来电/切后台必达），属场景驱动面盲区（扩驱动面须改 reference/ 宿主）。语义由壳侧宿主测试覆盖（ab8368a）：crates/game-desktop/src/main.rs `fn in_game_hide_closes_bgm_and_first_key_resumes_game_track`、crates/game-desktop/src/main.rs `fn hide_in_game_menu_keeps_mode_4`、crates/game-desktop/src/main.rs `fn title_hide_resumes_menu_track_in_java_event_order`、crates/game-desktop/src/main.rs `fn hide_in_modes_0_and_21_clears_flag_without_resume`、crates/game-desktop/src/main.rs `fn hide_in_mode3_opens_in_game_menu`（gameMode 3→4 臂 a.java:4504-4507，47169cc 接通 crates/game-core/src/scene.rs `pub fn hide_notify(&mut self)` 后摘 #[ignore]） |
 
-## 4. 白：无移植账（11）
+## 4. 白：无移植账（10）
 
 | 方法 | 区间 | 分账 | 场景触达 | Rust 点名提及 | 论证 / 依据 |
 |---|---|---|---|---|---|
 | drawLeftTriangleArrow | a.java:8034-8036 | b ☠️ 已裁死 DC-1（字节码复核 ✓：调用点 2 处全不可达） | 无 | 0 | 左向三角箭头（a.java:8034-8036）：调用点 2 处（a.java:5980/5985）均在 paintPlayerSprite walkPhase case 3 道具轮盘臂；JAVAP 中 putfield walkPhase 共 23 处，前导常量 ∈{0,1,2,4,5}（无 3，亦无计算值写入）⇒ walkPhase 永不为 3，case 3 绘制臂与 run() `switch (walkPhase)`（a.java:3565）的 case 3 键处理臂（a.java:3647-3673）皆死代码；裁决 DC-1 |
 | m_107 | a.java:8872-8878 | b ☠️ 已裁死 DC-2（字节码复核 ✓：调用点 2 处全不可达） | 无 | 0 | 实体换格（a.java:8872-8878）：调用点 2 处（a.java:8567/8585）均在 executeScriptInstruction 的 MVS 臂（a.java:8519-8592，`!var3.equals("MVS")` 之 else，DSL 第 16 码）；levelScriptLines（a.java:1124-1193）68 条脚本 MVS 出现 0 次；executeScriptInstruction 三调用点均传 dialogScriptLine（a.java:4021/8302/8437）；JAVAP：dialogScriptLine 唯一写点 loadLevelScript（aaload levelScriptLines），levelScriptLines 仅 <init> 赋值且无元素写 ⇒ 脚本文本源封闭、MVS 死指令（crates/game-core/src/script.rs `数据域 68 条脚本零使用`）；裁决 DC-2 |
-| saveGlobalProgress | a.java:8917-8951 | a 真未移植 | boot-menu@T68; enter-game@T68; floor51-menu@T68 | 4（crates/game-core/src/audio.rs:200） | SKY_WAR 全局进度写（a.java:8917-8951：optionChecked×4 + f_int_arr_35 + f_int_152..154）；调用点 dispatchModeEntry a.java:4299/4478、run a.java:4169（选项切换后）。Rust：save.rs 对 SKY_WAR 既不编码也不解码（只有 parse_floor_save/parse_preset）；game-core 无 I/O（crates/game-core/src/scene.rs `saveGlobalProgress（RMS 侧，无像素效应；game-core 无 I/O）`），boot 恒走 SKY_WAR 读失败回退（crates/game-core/src/paint.rs `RMS "SKY_WAR" 读档失败路径`）；壳 Rms 只改写 MOT_L*/MOT_IF（crates/game-desktop/src/main.rs `stores.push(("MOT_IF@1".into(), mot_if.clone()));`）⇒ 选项/全局旗标跨会话不持久（读写双缺，读臂在 dispatchModeEntry case 21 a.java:4450-4479）——壳层赤字（会话内帧不可见，非铺层赤字） |
 | addSpark | a.java:9683-9689 | b ☠️ 已裁死 DC-4（字节码复核 ✓：调用点 4 处全不可达） | 无 | 0 | 火花登记（a.java:9683-9689）：调用点 4 处（a.java:3019-3031）均在 paint `switch (gameMode)` case 18（a.java:3003-3031）；gameMode 写点无 18（论证同 m_148 的 JAVAP 普查）⇒ 死代码（completeness 迭代 60 mode18 火花 ☠️）。v2 的唯一移植证据系漂移锚（combat.rs 注「spawnPopup kind 常量（…9679-9686…）」）；裁决 DC-4 |
 | m_148 | a.java:10610-10639 | b ☠️ 已裁死 DC-3（字节码复核 ✓：调用点 8 处全不可达） | 无 | 0 | 联网簇·连接关闭（a.java:10610-10639）：调用点 run mode99 臂 a.java:4261、m_151/m_153（簇内）。mode 99 不可达：JAVAP putfield gameMode 54 处，常量 ∈{0-5,7-12,14-17,19-22}，计算来源 menuReturnMode∈{1,4}/loadTargetMode∈{3}/inGameMenuReturnMode←gameMode ⇒ 无 99；另 master-plan §4 范围裁剪（HttpConnection 联网整体剔除）；裁决 DC-3 |
 | m_149 | a.java:10641-10643 | b ☠️ 已裁死 DC-3（字节码复核 ✓：调用点 3 处全不可达） | 无 | 0 | 联网簇·响应体 u16 读（a.java:10641-10643）：仅 m_150/m_153 调用（簇内）；簇不可达论证同 m_148；裁决 DC-3 |
@@ -336,7 +336,7 @@ c 类 = 白色系工具方法论所致（移植存在但漏判 / 无可观测效
 |---|---|---|---|---|---|---|
 | m_106 | a.java:8738-8870 | 基线23 | a 真未移植 → 已移植（现绿） | 绿 | preset-floor40-mov@T411; preset-floor2-mov@T607 | MOV 五参实体路径缓动（a.java:8738-8870）：run() dialogPhase 2 臂调用（a.java:4073）；dialogPhase=2 由 MOV 五参臂在 findBlockingEntity（原 m_100）命中实体时置（a.java:8288-8299）；levelScriptLines（a.java:1124-1193，68 条）含五参 MOV 36 处（脚本 1/2/4/5/7/8/10/12/19/30/57/61），其中 20 处起点（型,格）在 jar sprite{n} 初始布置中有对应实体（如脚本 1 `MOV_72_3_7_1_8` = sprite2 型 72@(3,7)；脚本 12 的 13 处全落 sprite40）⇒ 正常游玩可达。【2026-10-15 已移植】6a37155：crates/game-core/src/scene.rs `fn tick_entity_route(&mut self)`（doc 点名 m_106 a.java:8738-8870），帧级验证 = crates/game-core/tests/mov_route_scene.rs `fn preset_floor2_mov_frames_match` / crates/game-core/tests/mov_route_scene.rs `fn preset_floor40_mov_frames_match`（夹具场景 preset-floor2-mov / preset-floor40-mov）——即 convergence-plan P1 挂起项 dp2=m_106 已落地 |
 | m_108 | a.java:8880-8904 | 基线23 | a 真未移植 → 已移植（现绿） | 绿 | preset-floor2-mov@T619 | 实体跨格槽表重登记（a.java:8880-8904）：唯一调用者 m_106（a.java:8806/8848；javap 调用图同）⇒ 随 m_106 可达、随 m_106 一并移植。【2026-10-15 已移植】6a37155：crates/game-core/src/entity.rs `pub fn relocate_slot(grid: &mut CellGrid, table: &EntityTable, idx: usize, from_x: i32, from_y: i32)` |
-| saveGlobalProgress | a.java:8917-8951 | 基线23 | a 真未移植 | 白 | boot-menu@T68; enter-game@T68 | SKY_WAR 全局进度写（a.java:8917-8951：optionChecked×4 + f_int_arr_35 + f_int_152..154）；调用点 dispatchModeEntry a.java:4299/4478、run a.java:4169（选项切换后）。Rust：save.rs 对 SKY_WAR 既不编码也不解码（只有 parse_floor_save/parse_preset）；game-core 无 I/O（crates/game-core/src/scene.rs `saveGlobalProgress（RMS 侧，无像素效应；game-core 无 I/O）`），boot 恒走 SKY_WAR 读失败回退（crates/game-core/src/paint.rs `RMS "SKY_WAR" 读档失败路径`）；壳 Rms 只改写 MOT_L*/MOT_IF（crates/game-desktop/src/main.rs `stores.push(("MOT_IF@1".into(), mot_if.clone()));`）⇒ 选项/全局旗标跨会话不持久（读写双缺，读臂在 dispatchModeEntry case 21 a.java:4450-4479）——壳层赤字（会话内帧不可见，非铺层赤字） |
+| saveGlobalProgress | a.java:8917-8951 | 基线23 | a 真未移植 → 已移植（现绿） | 绿 | boot-menu@T68; enter-game@T68 | SKY_WAR 全局进度写（a.java:8917-8951：optionChecked×4 + f_int_arr_35 + f_int_152..154）；调用点 dispatchModeEntry a.java:4299/4478、run a.java:4169（选项切换后）。Rust：save.rs 对 SKY_WAR 既不编码也不解码（只有 parse_floor_save/parse_preset）；game-core 无 I/O（crates/game-core/src/scene.rs `saveGlobalProgress（RMS 侧，无像素效应；game-core 无 I/O）`），boot 恒走 SKY_WAR 读失败回退（crates/game-core/src/paint.rs `RMS "SKY_WAR" 读档失败路径`）；壳 Rms 只改写 MOT_L*/MOT_IF（crates/game-desktop/src/main.rs `stores.push(("MOT_IF@1".into(), mot_if.clone()));`）⇒ 选项/全局旗标跨会话不持久（读写双缺，读臂在 dispatchModeEntry case 21 a.java:4450-4479）——壳层赤字（会话内帧不可见，非铺层赤字）。【2026-10-15 已移植】b62d9db：读写双补 + 壳持久化（见 PORT_NOTES） |
 | drawLeftTriangleArrow | a.java:8034-8036 | 基线23 | b ☠️ 已裁死 DC-1（字节码复核 ✓：调用点 2 处全不可达） | 白 | 无 | 左向三角箭头（a.java:8034-8036）：调用点 2 处（a.java:5980/5985）均在 paintPlayerSprite walkPhase case 3 道具轮盘臂；JAVAP 中 putfield walkPhase 共 23 处，前导常量 ∈{0,1,2,4,5}（无 3，亦无计算值写入）⇒ walkPhase 永不为 3，case 3 绘制臂与 run() `switch (walkPhase)`（a.java:3565）的 case 3 键处理臂（a.java:3647-3673）皆死代码；裁决 DC-1 |
 | m_107 | a.java:8872-8878 | 基线23 | b ☠️ 已裁死 DC-2（字节码复核 ✓：调用点 2 处全不可达） | 白 | 无 | 实体换格（a.java:8872-8878）：调用点 2 处（a.java:8567/8585）均在 executeScriptInstruction 的 MVS 臂（a.java:8519-8592，`!var3.equals("MVS")` 之 else，DSL 第 16 码）；levelScriptLines（a.java:1124-1193）68 条脚本 MVS 出现 0 次；executeScriptInstruction 三调用点均传 dialogScriptLine（a.java:4021/8302/8437）；JAVAP：dialogScriptLine 唯一写点 loadLevelScript（aaload levelScriptLines），levelScriptLines 仅 <init> 赋值且无元素写 ⇒ 脚本文本源封闭、MVS 死指令（crates/game-core/src/script.rs `数据域 68 条脚本零使用`）；裁决 DC-2 |
 | m_148 | a.java:10610-10639 | 基线23 | b ☠️ 已裁死 DC-3（字节码复核 ✓：调用点 8 处全不可达） | 白 | 无 | 联网簇·连接关闭（a.java:10610-10639）：调用点 run mode99 臂 a.java:4261、m_151/m_153（簇内）。mode 99 不可达：JAVAP putfield gameMode 54 处，常量 ∈{0-5,7-12,14-17,19-22}，计算来源 menuReturnMode∈{1,4}/loadTargetMode∈{3}/inGameMenuReturnMode←gameMode ⇒ 无 99；另 master-plan §4 范围裁剪（HttpConnection 联网整体剔除）；裁决 DC-3 |
@@ -346,7 +346,7 @@ c 类 = 白色系工具方法论所致（移植存在但漏判 / 无可观测效
 | m_152 | a.java:10771-10782 | 基线23 | b ☠️ 已裁死 DC-3（字节码复核 ✓：调用点 3 处全不可达） | 白 | 无 | 联网簇·状态读（a.java:10771-10782）：调用点 run mode99 臂 a.java:4271 与 m_153；同 m_148；裁决 DC-3 |
 | m_153 | a.java:10784-10868 | 基线23 | b ☠️ 已裁死 DC-3（字节码复核 ✓：调用点 1 处全不可达） | 白 | 无 | 联网簇·轮询/重试状态机（a.java:10784-10868）：唯一调用点 run mode99 臂 a.java:4267，且该臂先要求 f_bool_31 已真（a.java:4258），而 f_bool_31 唯一置真点就在 m_153 内（自门控）⇒ 即便 mode99 可达也永不执行；同 m_148（2026-10-15 独立审计补强）；裁决 DC-3 |
 | m_154 | a.java:10870-10878 | 基线23 | b ☠️ 已裁死 DC-3（字节码复核 ✓：调用点 2 处全不可达） | 白 | 无 | 联网簇·hex 字符解码（a.java:10870-10878）：仅 m_151 调用（a.java:10730）；同 m_148；裁决 DC-3 |
-| readCountPrefix | a.java:4516-4549 | 基线23 | c 判定存疑（工具方法论） | 绿 | boot-menu@T33; enter-game@T33 | packed 容器解码（a.java:4516-4549）已移植于 game-data packed_png.rs：其 seed 方言锚 `reference/seed/a.java:2657-2676` = seed `private void a(int n)`（序数对齐 = 本方法，原 m_001），v2 按 deobf 行号读成 paint 区间。解决：v2.1 方言规则（无需人工条目）。注：dc470b2 命名 readCountPrefix（N-0434，B 级）疑名实不符——方法体为 packed 图像容器装载（resourceNames[i] 流内 u16 LE 长度前缀 + PNG 逐张 Image.createImage，a.java:4516-4549），非「读计数前缀」；data/naming 不在本任务写入范围，待命名批复核 |
+| loadPackedImages | a.java:4516-4549 | 基线23 | c 判定存疑（工具方法论） | 绿 | boot-menu@T33; enter-game@T33 | packed 容器解码（a.java:4516-4549）已移植于 game-data packed_png.rs：其 seed 方言锚 `reference/seed/a.java:2657-2676` = seed `private void a(int n)`（序数对齐 = 本方法，原 m_001），v2 按 deobf 行号读成 paint 区间。解决：v2.1 方言规则（无需人工条目）。注：dc470b2 原命名 readCountPrefix，e772fef 名实更正为 loadPackedImages（N-0434，方法体=打包图像容器装载器）疑名实不符——方法体为 packed 图像容器装载（resourceNames[i] 流内 u16 LE 长度前缀 + PNG 逐张 Image.createImage，a.java:4516-4549），非「读计数前缀」；data/naming 不在本任务写入范围，待命名批复核 |
 | closeStreamsAndClear | a.java:4634-4661 | 基线23 | c 判定存疑（工具方法论） | 绿 | boot-menu@T33; enter-game@T33 | I/O 清理无可观测效应（a.java:4634-4661；见 PORT_NOTES absorbed）：v2 无「吸收」口径 |
 | readShortLE | a.java:6952-6954 | 基线23 | c 判定存疑（工具方法论） | 绿 | fx-fan-floor13@T223; fx-firebump-floor13@T223 | u16 读原语（a.java:6952-6954）已移植于 game-data lib.rs read::u16_le：其 seed 锚引 `private static short a(InputStream)`（序数对齐 = 本方法）。解决：v2.1 方言 + CFR 签名点名规则。注：方法体为 LE（低字节先），原名 readU16BE 名实不符——【2026-10-15 更正】276ac96 已按 N-0268 名实更正改名 readShortLE（台账证据同步更正），本条随之改键 |
 | initCellGrid | a.java:6956-6961 | 基线23 | c 判定存疑（工具方法论） | 绿 | fx-fan-floor13@T223; fx-firebump-floor13@T223 | CellGrid::new 已移植（a.java:6956-6961；见 PORT_NOTES）：fn 异名且无行锚 |
@@ -369,16 +369,16 @@ c 类 = 白色系工具方法论所致（移植存在但漏判 / 无可观测效
 
 ## 5. 臂级缺口：Rust `todo!` 显式挡路点（方法级绿/黄内的未移植分支）
 
-- crates/game-core/src/scene.rs:951：changeFloor 已达层提示浮层（miscTexts[0/1]，交互批次）
-- crates/game-core/src/scene.rs:956：changeFloor 层界提示浮层（miscTexts[2/3]，交互批次）
-- crates/game-core/src/scene.rs:1321：tryRunScene case {idx} 的 m_102(23,12) 跨层探针
-- crates/game-core/src/scene.rs:1888：executeScriptInstruction 的 {op:?} @op_start={} entry_cursor={} line={line:?}（对应脚本对拍批实现）
-- crates/game-core/src/scene.rs:5312：paintEntityLayer case 8 的 67 多段拼装
-- crates/game-core/src/scene.rs:5369：paintEntityLayer 空图标签分支（objectTypeNames 文本，floor1 不可达）
+- crates/game-core/src/scene.rs:957：changeFloor 已达层提示浮层（miscTexts[0/1]，交互批次）
+- crates/game-core/src/scene.rs:962：changeFloor 层界提示浮层（miscTexts[2/3]，交互批次）
+- crates/game-core/src/scene.rs:1327：tryRunScene case {idx} 的 m_102(23,12) 跨层探针
+- crates/game-core/src/scene.rs:1894：executeScriptInstruction 的 {op:?} @op_start={} entry_cursor={} line={line:?}（对应脚本对拍批实现）
+- crates/game-core/src/scene.rs:5393：paintEntityLayer case 8 的 67 多段拼装
+- crates/game-core/src/scene.rs:5450：paintEntityLayer 空图标签分支（objectTypeNames 文本，floor1 不可达）
 
 ### 5.1 无 `todo!` 标记的臂级缺口（人工登记 ARM_GAPS，锚逐条校验；修复后锚失效即 ⚠ 提示销账）
 
-- interactWithCell（a.java:5363-5541，现色 绿）：型 10/11/12 撞击臂（a.java:5436-5456：型10 三昧真火/型11 墙〔currentFloor≠23〕提示浮层 + 阻挡；型12 隐形墙显形为 11 + 阻挡）未移植——crates/game-core/src/scene.rs `_ => {} // 11 / 76/82：后续批次` 吞掉（无 todo! 标记，此前无场景撞击故帧对拍恒绿）。型10 帧级实证：crates/game-oracle/tests/fixture_frames.rs `fn fx_firebump_floor13_frames_match`（#[ignore] BLOCKED，首分歧 T301）；11/12 同臂（代码阅读，B 级）
+- interactWithCell（a.java:5363-5541，现色 绿）：型 76/82 交互臂未移植——crates/game-core/src/scene.rs `_ => {} // 76/82：后续批次` 吞掉（无 todo! 标记，语义待考）。【2026-10-15 销账并改锚】原登记的型 10/11/12 撞击臂已移植（ee52191，a.java:5436-5456 逐值；fx_firebump_floor13_frames_match 解禁即绿，T301 钉点）——原锚 `_ => {} // 11 / 76/82` 失效即销账信号
 
 ## 6. 刷新前后对照（v1 伪名口径 → v2.1 逐方法）
 
@@ -430,7 +430,7 @@ v1 取名 bug：`l.split()[-1].split("(")[0]` ⇒ ≥2 参方法被吞成末参�
 | `loadSlotTable`（绿） | loadSlotTable→绿 |
 | `lockCameraOn`（绿） | lockCameraOn→绿 |
 | `m_000`（绿） | dispatchModeEntry→绿 |
-| `m_001`（绿） | readCountPrefix→绿 |
+| `m_001`（绿） | loadPackedImages→绿 |
 | `m_008`（白） | closeStreamsAndClear→绿 |
 | `m_025`（绿） | m_025→绿 |
 | `m_059`（绿） | initCellGrid→绿 |
@@ -475,7 +475,7 @@ v1 取名 bug：`l.split()[-1].split("(")[0]` ⇒ ≥2 参方法被吞成末参�
 | `run`（白） | run→绿 |
 | `runIntroViewer`（白） | runIntroViewer→绿 |
 | `saveFloorState`（白） | saveFloorState→绿 |
-| `saveGlobalProgress`（绿） | saveGlobalProgress→白 |
+| `saveGlobalProgress`（绿） | saveGlobalProgress→绿 |
 | `scaleEnemyStats`（绿） | scaleEnemyStats→绿 |
 | `showNotify`（白） | showNotify→绿 |
 | `skipTextToLineEnd`（绿） | skipTextToLineEnd→绿 |
@@ -491,7 +491,7 @@ v1 取名 bug：`l.split()[-1].split("(")[0]` ⇒ ≥2 参方法被吞成末参�
 | `useItemStack`（绿） | useItemStack→绿 |
 | `None`（未收） | <clinit>→绿 |
 
-逐方法迁移计数（v1 色 → 现色）：未收→绿 1，绿→绿 43，绿→白 1，白→绿 106，白→白 10，白→黄 1，黄→绿 1
+逐方法迁移计数（v1 色 → 现色）：未收→绿 1，绿→绿 44，白→绿 106，白→白 10，白→黄 1，黄→绿 1
 
 ### 6.1 v1 白项去向（逐真实方法）
 
@@ -499,13 +499,13 @@ v1 取名 bug：`l.split()[-1].split("(")[0]` ⇒ ≥2 参方法被吞成末参�
 - **账面滞后 → 黄 1**：hideNotify
 - **仍白 10**（分账见 §4/§4.1）：drawLeftTriangleArrow〔b〕, m_107〔b〕, addSpark〔b〕, m_148〔b〕, m_149〔b〕, m_150〔b〕, m_151〔b〕, m_152〔b〕, m_153〔b〕, m_154〔b〕
 
-v1 绿/黄 → 现色变色（v1 过账或口径差，逐条）：m_106（黄→绿）, saveGlobalProgress（绿→白）
+v1 绿/黄 → 现色变色（v1 过账或口径差，逐条）：m_106（黄→绿）
 
 ## 7. 前任 v2 口径 → v2.1 差异（同一份 Rust 树与触达快照复算）
 
 | 方法 | v2 色 | 现色 | v2 行锚（朴素归属） | v2.1 行锚 | 人工条目 |
 |---|---|---|---|---|---|
-| readCountPrefix | 白 | 绿 | 0 | 1 | — |
+| loadPackedImages | 白 | 绿 | 0 | 1 | ported |
 | createSolidImage | 绿 | 绿 | 2 | 0 | absorbed |
 | closeStreamsAndClear | 白 | 绿 | 0 | 0 | absorbed |
 | releaseSceneImages | 绿 | 绿 | 2 | 0 | absorbed |
@@ -521,7 +521,6 @@ v1 绿/黄 → 现色变色（v1 过账或口径差，逐条）：m_106（黄→
 | cameraAtTarget | 绿 | 绿 | 1 | 0 | — |
 | easeCameraToTarget | 白 | 绿 | 0 | 0 | ported |
 | m_107 | 黄 | 白 | 2 | 0 | — |
-| saveGlobalProgress | 绿 | 白 | 2 | 1 | not-ported |
 | deleteRecordStoreQuietly | 绿 | 绿 | 2 | 0 | absorbed |
 | closeRecordStoreAndGc | 绿 | 绿 | 2 | 0 | absorbed |
 | initFloorStates | 白 | 绿 | 0 | 0 | ported |

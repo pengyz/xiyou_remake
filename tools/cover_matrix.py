@@ -155,10 +155,18 @@ PORT_NOTES: dict[str, tuple[str, str]] = {
               "crates/game-core/src/title.rs `pub fn new() -> Particles`（32 槽粒子数组清零 + 游标 0 = "
               "a.java:9822-9830）"),
     # —— 压制假阳性：Rust 注释点名 + 行锚命中，但注释本身声明未移植 ——
-    "saveGlobalProgress": ("not-ported",
-                           "3d42310 起 save.rs 模块文档引写侧 `saveGlobalProgress a.java:8931-8942` 作 SKY_WAR 布局备忘"
-                           "（名证锚机械命中），同段明言 crates/game-core/src/save.rs "
-                           "`本模块对 SKY_WAR 既不编码也不解码` ⇒ 非移植证据；分账见 TRIAGE a"),
+    "loadPackedImages": ("ported",
+                         "打包图像容器装载器（a.java:4516-4549：resourceNames[i] 开流、按 "
+                         "resourceImageCounts[i] 循环读 u16 LE 长度 → Image.createImage）——"
+                         "crates/game-data/src/packed_png.rs `pub fn parse`/`pub fn parse_partial` 解析 "
+                         "N×[u16LE len][PNG]（L1 golden 守护）+ crates/game-desktop/src/main.rs "
+                         "`fn load_container` 消费 = 移植替换形态；名实更正 e772fef（N-0434）；"
+                         "c 类行号方言误判已由 v2.1 规则修复"),
+    "saveGlobalProgress": ("ported",
+                           "b62d9db：save::GlobalSave 格式层（a.java:8931-8942 写/4463-4474 读）+ "
+                           "BootMachine/GameScene 同构 global 状态（`fn global_snapshot`/`fn note_max_floor`）+ "
+                           "壳 SKY_WAR@1 轮询持久化（crates/game-desktop/src/main.rs `fn persist_global_if_dirty`）+ "
+                           "catch 语义回写（default_7 ⇒ [1]=true）；回标题触发点（4297-4299）随后续反向移交后置（账本裁定）"),
     # startLoadTask（原 m_131）：v2 唯一行锚（pathfind.rs findPath 注）系误归属；v2.1 另有合法名证锚（intro.rs:274
     # 「m_131(target, call_m000)」），机械仍判移植——此条只补记真实移植位置，不改色
     "startLoadTask": ("ported",
@@ -195,7 +203,8 @@ TRIAGE: dict[str, tuple[str, str, str]] = {
                            "boot 恒走 SKY_WAR 读失败回退（crates/game-core/src/paint.rs `RMS \"SKY_WAR\" 读档失败路径`）；"
                            "壳 Rms 只改写 MOT_L*/MOT_IF（crates/game-desktop/src/main.rs "
                            "`stores.push((\"MOT_IF@1\".into(), mot_if.clone()));`）⇒ 选项/全局旗标跨会话不持久"
-                           "（读写双缺，读臂在 dispatchModeEntry case 21 a.java:4450-4479）——壳层赤字（会话内帧不可见，非铺层赤字）"),
+                           "（读写双缺，读臂在 dispatchModeEntry case 21 a.java:4450-4479）——壳层赤字（会话内帧不可见，非铺层赤字）。"
+                           "【2026-10-15 已移植】b62d9db：读写双补 + 壳持久化（见 PORT_NOTES）"),
     # ---- b 不触达（死代码）：2026-10-15 终裁 ☠️——论证末尾的「裁决 DC-n」由渲染时机械复核
     #      （tools/dead_code_ruling.py 字节码不动点 + docs/spec/dead-code-rulings.md 裁决书锚校验），
     #      复核不成立即 ⚠ 且退回「待裁」 ----
@@ -235,10 +244,11 @@ TRIAGE: dict[str, tuple[str, str, str]] = {
                  "mode18 火花 ☠️）。v2 的唯一移植证据系漂移锚（combat.rs 注「spawnPopup kind 常量（…9679-9686…）」）；"
                  "裁决 DC-4"),
     # ---- c 判定存疑（工具方法论），解决方式见 PORT_NOTES / 归属规则 ----
-    "readCountPrefix": ("c", "基线23",
+    "loadPackedImages": ("c", "基线23",
               "packed 容器解码（a.java:4516-4549）已移植于 game-data packed_png.rs：其 seed 方言锚 "
               "`reference/seed/a.java:2657-2676` = seed `private void a(int n)`（序数对齐 = 本方法，原 m_001），v2 按 deobf "
-              "行号读成 paint 区间。解决：v2.1 方言规则（无需人工条目）。注：dc470b2 命名 readCountPrefix（N-0434，B 级）"
+              "行号读成 paint 区间。解决：v2.1 方言规则（无需人工条目）。注：dc470b2 原命名 readCountPrefix，"
+              "e772fef 名实更正为 loadPackedImages（N-0434，方法体=打包图像容器装载器）"
               "疑名实不符——方法体为 packed 图像容器装载（resourceNames[i] 流内 u16 LE 长度前缀 + PNG 逐张 "
               "Image.createImage，a.java:4516-4549），非「读计数前缀」；data/naming 不在本任务写入范围，待命名批复核"),
     "readShortLE": ("c", "基线23",
@@ -298,10 +308,9 @@ YELLOW_NOTES: dict[str, dict] = {
 # Rust 锚须存在——缺口被修复后锚失效 ⇒ ⚠ 提示销账）。§5 的 todo! 清单是机械扫描，本表补其盲区。
 ARM_GAPS: list[tuple[str, str]] = [
     ("interactWithCell",
-     "型 10/11/12 撞击臂（a.java:5436-5456：型10 三昧真火/型11 墙〔currentFloor≠23〕提示浮层 + 阻挡；型12 隐形墙"
-     "显形为 11 + 阻挡）未移植——crates/game-core/src/scene.rs `_ => {} // 11 / 76/82：后续批次` 吞掉（无 todo! 标记，"
-     "此前无场景撞击故帧对拍恒绿）。型10 帧级实证：crates/game-oracle/tests/fixture_frames.rs "
-     "`fn fx_firebump_floor13_frames_match`（#[ignore] BLOCKED，首分歧 T301）；11/12 同臂（代码阅读，B 级）"),
+     "型 76/82 交互臂未移植——crates/game-core/src/scene.rs `_ => {} // 76/82：后续批次` 吞掉（无 todo! 标记，语义待考）。"
+     "【2026-10-15 销账并改锚】原登记的型 10/11/12 撞击臂已移植（ee52191，a.java:5436-5456 逐值；"
+     "fx_firebump_floor13_frames_match 解禁即绿，T301 钉点）——原锚 `_ => {} // 11 / 76/82` 失效即销账信号"),
 ]
 
 # ---------------------------------------------------------------- v1 旧账（冻结，仅复算对照）
