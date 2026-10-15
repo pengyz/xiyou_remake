@@ -3,7 +3,8 @@
 //!
 //! - [`BgmController`]（主线程，每逻辑 tick 轮询 `bgm_request/bgm_serial/bgm_volume`）
 //!   把状态变化翻译为 [`Cmd`]：轨道或 serial 变 ⇒ `Play`（从头播放，= Java 关闭重建
-//!   a.java:10178-10199）；变 None ⇒ `Stop`（closeAudioPlayer）；失焦 ⇒ `Pause`（壳级冻结）。
+//!   a.java:10178-10199）；变 None ⇒ `Stop`（closeAudioPlayer——含 hideNotify 的关闭，
+//!   lifecycle.rs；失焦不产生任何命令）。
 //! - [`Mixer`]（音频线程）：按 OGG 的 `LOOPSTART/LOOPLENGTH` 无限循环（setLoopCount(-1)
 //!   a.java:10184），幅度 = VolumeControl 级别/100（JSR-135：级别线性刻度、乘数映射由
 //!   实现决定）。

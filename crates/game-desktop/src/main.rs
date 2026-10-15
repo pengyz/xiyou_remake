@@ -15,12 +15,16 @@
 //!       由下一逻辑拍消费；同拍多键覆盖式取末个；OS 键盘自动重复丢弃（a.class 未覆写
 //!       keyRepeated）——长按行走由 keyHeldCode 驱动（a.java:5308-5329）。
 //! 窗口：可缩放，整数倍缩放 + 信箱居中（失焦暂停已按用户决策移除，2026-10-15）。
+//! 可见性 = MIDP Canvas 生命周期（lifecycle.rs）：完全遮挡/最小化 ⇒ hideNotify（a.java:4502-4513：
+//!       关 BGM + anyKeyPlayed=true；隐藏期键/鼠标不投递）；恢复可见 ⇒ showNotify；其后首个游戏键
+//!       = keyPressed 续播边沿（a.java:4665-4674，game-core 内执行）。失焦不映射（失焦 ≠ 隐藏）。
 //! BGM：game-core `bgm_request()` 驱动（docs/spec/audio.md）；产物由
 //!       `cargo run --release --manifest-path tools/audio/Cargo.toml` 生成，缺失则无声运行。
 //! 存档：./save/ 目录（MOT_L0-2 = 槽存档、MOT_IF = 槽表、SKY_WAR = boss 旗标），
 //!       与 BootMachine 的 RMS 预置同格式——游戏内「保存游戏」即落盘。
 
 mod audio;
+mod lifecycle;
 mod view;
 
 use std::path::PathBuf;
@@ -376,6 +380,13 @@ struct Shell {
     persisted_blobs: [Option<Vec<u8>>; 6],
     /// BGM：每拍轮询 game-core 请求（audio.rs）
     bgm: audio::BgmController,
+    /// Canvas 可见性（f_bool_01 latch + 遮挡/最小化两路观测，lifecycle.rs）
+    visibility: lifecycle::Visibility,
+    /// 挂起的 BootMachine 键，其 keyPressed 音频半已由 hide_notify 按 Java 次序补做
+    /// ⇒ 下一拍 tick 入口的延迟调用须屏蔽（见 `hide_notify` / `step`）。
+    boot_key_audio_done: bool,
+    /// 上次同步时的 anyKeyPlayed（只用于记录续播边沿日志）
+    resume_armed: bool,
 }
 
 impl Shell {
@@ -420,6 +431,9 @@ impl Shell {
             frame_counter: 0,
             persisted_blobs: [None, None, None, None, None, None],
             bgm: audio::BgmController::new(sink),
+            visibility: lifecycle::Visibility::new(),
+            boot_key_audio_done: false,
+            resume_armed: false,
         }
     }
 
@@ -439,13 +453,116 @@ impl Shell {
     /// keyPressed / keyReleased 投递——Java Canvas 回调语义（a.java:4663-4680）：只改
     /// 状态、不推进逻辑，由下一逻辑拍消费；同拍多次按下覆盖式取末个（keyValue =
     /// keyHeldCode = code）；抬起只清 keyHeldCode（不论哪个键）。docs/spec/p3-render.md R-2。
+    ///
+    /// keyPressed 的音频半（anyKeyPlayed 续播边沿，a.java:4665-4674）**不在壳侧调用**——
+    /// game-core 已接：`GameScene::press_key` 按下即调、`BootMachine::tick` 入口对挂起键调
+    /// （`bgm.on_key_pressed`）；壳再调即重复计数。
     fn route_key(&mut self, code: i32, pressed: bool) {
+        // MIDP Canvas「Event Delivery」：key/pointer 回调只在 showNotify 之后、hideNotify
+        // 之前投递——隐藏期的键不得消费续播边沿（否则看不见窗口时音乐被键唤醒）
+        if !self.visibility.shown() {
+            return;
+        }
         match (self.state.as_mut(), pressed) {
             (Some(Screen::Game(sc)), true) => sc.press_key(code),
             (Some(Screen::Game(sc)), false) => sc.release_key(),
             // BootMachine 各模式只读 keyValue（无 keyHeldCode 消费者）⇒ 抬起无效果
-            (Some(Screen::Boot(_)), true) => self.pending_machine_key = code,
+            (Some(Screen::Boot(_)), true) => {
+                self.pending_machine_key = code;
+                self.boot_key_audio_done = false; // 新挂起键：音频半归 tick 入口
+            }
             _ => {}
+        }
+        // press_key 内的续播是同步 m_139（Java 在 keyPressed 回调当时 createPlayer）
+        self.sync_bgm();
+    }
+
+    /// `WindowEvent::Occluded` 的新值 → 可能的 show/hide 边沿。
+    fn set_occluded(&mut self, occluded: bool) {
+        let edge = self.visibility.set_occluded(occluded);
+        self.dispatch_notify(edge, "遮挡");
+    }
+
+    /// `Window::is_minimized()` 轮询值 → 可能的 show/hide 边沿。
+    fn set_minimized(&mut self, minimized: bool) {
+        let edge = self.visibility.set_minimized(minimized);
+        self.dispatch_notify(edge, "最小化");
+    }
+
+    fn dispatch_notify(&mut self, edge: Option<lifecycle::Notify>, cause: &str) {
+        match edge {
+            Some(lifecycle::Notify::Hide) => self.hide_notify(cause),
+            Some(lifecycle::Notify::Show) => self.show_notify(cause),
+            None => {}
+        }
+    }
+
+    /// hideNotify（a.java:4502-4513 / hideNotify@0-43）。外层 `if (f_bool_01)` 与末尾
+    /// `f_bool_01 = false`（4503/4511）由 `visibility` 的 latch 承担：本函数只在
+    /// shown→hidden 边沿调用一次。宿主只决定**何时**调用；状态转移全在 game-core。
+    fn hide_notify(&mut self, cause: &str) {
+        let before = self.bgm_snapshot().track;
+        let mode = self.game_mode();
+        // BootMachine 挂起键的 keyPressed 音频半在 tick 入口执行（延迟），Java 在按键回调
+        // 当时执行。键在先、hide 在后（同一拍间隙）时，Java 次序 = 音频半 → hide；照延迟
+        // 执行会颠倒为 hide → 音频半，把 hide 刚置的 anyKeyPlayed 当场消费掉（误续播）。
+        // 故先补做该键的音频半，并让 step 屏蔽 tick 入口的那次调用。
+        if let Some(Screen::Boot(m)) = self.state.as_mut() {
+            if self.pending_machine_key != 0 && !self.boot_key_audio_done {
+                m.bgm.on_key_pressed(m.mode);
+                self.boot_key_audio_done = true;
+            }
+        }
+        self.sync_bgm(); // 补做若续播 = Java 那次 createPlayer（随即被下面 close）
+        let menu_arm_unwired = match self.state.as_mut() {
+            Some(Screen::Game(sc)) => {
+                // 4504-4507 `if (gameMode == 3) { gameMode = 4; m_000(); }`：**未接**——
+                // game-core 无公开入口（m_000 case 4 = 私有 GameScene::enter_menu4）；
+                // 菜单弹出属 game-core 状态机，壳不复写（AGENTS §2）。入口就绪后在此调用。
+                // 4509-4510 closeAudioPlayer(); anyKeyPlayed = true;
+                sc.bgm.on_hide_notify();
+                sc.game_mode == 3
+            }
+            Some(Screen::Boot(m)) => {
+                // BootMachine 无 gameMode 3（读档/新游戏完成即交接 GameScene）⇒ 4504 恒假
+                m.bgm.on_hide_notify();
+                false
+            }
+            None => false,
+        };
+        // closeAudioPlayer 同步关闭（a.java:10208-10215）⇒ 立即下发 Stop，不等下一拍
+        self.sync_bgm();
+        eprintln!(
+            "[lifecycle] hideNotify（{cause}）gameMode={mode}：closeAudioPlayer（BGM {before:?}→None）+ anyKeyPlayed=true{}",
+            if menu_arm_unwired { "；gameMode 3→4 臂未接（game-core 无 hideNotify 入口）" } else { "" }
+        );
+    }
+
+    /// showNotify（a.java:4495-4500）：只置 f_bool_01（latch 承担），无游戏态副作用——
+    /// BGM 不在此恢复，等其后首个键（keyPressed 续播边沿）。
+    fn show_notify(&mut self, cause: &str) {
+        eprintln!(
+            "[lifecycle] showNotify（{cause}解除）gameMode={}：anyKeyPlayed={}（任意键续播）",
+            self.game_mode(),
+            self.any_key_played()
+        );
+    }
+
+    /// 当前 gameMode（日志用）。
+    fn game_mode(&self) -> i32 {
+        match &self.state {
+            Some(Screen::Boot(m)) => m.mode,
+            Some(Screen::Game(sc)) => sc.game_mode,
+            None => -1,
+        }
+    }
+
+    /// anyKeyPlayed（a.java:40）：hideNotify 置位、keyPressed 清零。
+    fn any_key_played(&self) -> bool {
+        match &self.state {
+            Some(Screen::Boot(m)) => m.bgm.any_key_played,
+            Some(Screen::Game(sc)) => sc.bgm.any_key_played,
+            None => false,
         }
     }
 
@@ -474,10 +591,26 @@ impl Shell {
         }
     }
 
-    /// 一逻辑拍（logic → paint，同 Java run 循环体），随后同步 BGM 请求。
+    /// 一逻辑拍（logic → paint，同 Java run 循环体），随后同步 BGM 请求。可见性不影响出拍：
+    /// Java run 线程在隐藏期照常循环（hideNotify 只改状态，不停线程）。
     fn logic_tick(&mut self) {
         self.step();
+        self.sync_bgm();
+    }
+
+    /// game-core BGM 请求 → 输出命令（只在变化时发送，audio.rs）。顺带观测 anyKeyPlayed
+    /// 落沿 = keyPressed 续播边沿（音频半在 game-core 内执行），记一行日志。
+    fn sync_bgm(&mut self) {
         let snap = self.bgm_snapshot();
+        let armed = self.any_key_played();
+        if self.resume_armed && !armed {
+            eprintln!(
+                "[lifecycle] keyPressed 续播边沿：anyKeyPlayed→false（gameMode={}，mode 0/21 不续播），BGM 请求 {:?}",
+                self.game_mode(),
+                snap.track
+            );
+        }
+        self.resume_armed = armed;
         self.bgm.update(snap);
     }
 
@@ -521,7 +654,18 @@ impl Shell {
                 self.state = Some(Screen::Game(sc));
             }
             Some(Screen::Boot(mut machine)) => {
-                machine.tick(std::mem::take(&mut self.pending_machine_key));
+                let key = std::mem::take(&mut self.pending_machine_key);
+                if std::mem::take(&mut self.boot_key_audio_done) {
+                    // 该键的 keyPressed 音频半已在 hide_notify 中按 Java 次序执行：屏蔽 tick
+                    // 入口的延迟调用（`if key != 0 { bgm.on_key_pressed(mode) }`）——否则 hide
+                    // 置的 anyKeyPlayed 被这个 hide 之前的键消费（误续播）。tick 内无其他读写者。
+                    let armed = machine.bgm.any_key_played;
+                    machine.bgm.any_key_played = false;
+                    machine.tick(key);
+                    machine.bgm.any_key_played = armed;
+                } else {
+                    machine.tick(key);
+                }
                 // 交接一：读档（槽载入动画完成 → mode 3）
                 if machine.mode == 3 {
                     if let Some(cursor) = machine.slot_loaded {
@@ -634,6 +778,17 @@ fn translate_key(physical: winit::keyboard::PhysicalKey, pressed: bool, repeat: 
     key_code(physical).map(|c| KeyAction::Game(c, pressed))
 }
 
+/// 窗口事件 → 遮挡观测（lifecycle.rs 的一路输入）。只有 `Occluded` 映射可见性；
+/// `Focused` **不**映射（用户决策 2026-10-15：失焦 ≠ 隐藏，失焦暂停已移除）；
+/// 最小化在 X11 无事件（iconify = unmap，winit 不转发），由 `about_to_wait` 轮询
+/// `Window::is_minimized()`。
+fn occlusion_signal(event: &winit::event::WindowEvent) -> Option<bool> {
+    match event {
+        winit::event::WindowEvent::Occluded(occluded) => Some(*occluded),
+        _ => None,
+    }
+}
+
 /// 鼠标左键（画面坐标）→ 软键码：底部 30% 左三分之一 = -6、右三分之一 = -7、其余 = -5。
 fn click_code(x: i32, y: i32) -> i32 {
     let (w, h) = (SCREEN_W, SCREEN_H);
@@ -696,6 +851,10 @@ fn run_window(shell: Shell) {
         }
 
         fn window_event(&mut self, el: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+            if let Some(occluded) = occlusion_signal(&event) {
+                self.shell.set_occluded(occluded); // 完全遮挡 ⇔ hideNotify / 解除 ⇔ showNotify
+                return;
+            }
             match event {
                 WindowEvent::CloseRequested => el.exit(),
                 WindowEvent::RedrawRequested => self.present(),
@@ -734,6 +893,8 @@ fn run_window(shell: Shell) {
                         None => {}
                     }
                 }
+                // 失焦/得焦：不映射 hideNotify/showNotify（见 occlusion_signal）
+                WindowEvent::Focused(_) => {}
                 _ => {}
             }
         }
@@ -742,6 +903,10 @@ fn run_window(shell: Shell) {
             let now = Instant::now();
             // 一次唤醒至多一拍（Java run 循环不补帧，view::Pacer）
             if self.pacer.due(now) {
+                // 最小化无窗口事件：每拍入口轮询（X11 读 _NET_WM_STATE_HIDDEN；Wayland 恒 None）
+                if let Some(minimized) = self.window.as_ref().and_then(|w| w.is_minimized()) {
+                    self.shell.set_minimized(minimized);
+                }
                 self.shell.logic_tick();
                 let iv = self.shell.frame_interval();
                 self.pacer.after_tick(now, iv);
@@ -913,6 +1078,237 @@ mod shell_tests {
                 _ => panic!("T{} 尚未进入场景", self.tick),
             }
         }
+
+        /// 跑到第 `t` 拍（含），沿途按脚本投递。
+        fn run_to(&mut self, t: u64, events: &[(u64, i32, bool)]) {
+            while self.tick < t {
+                self.run_tick(events);
+            }
+        }
+
+        /// 当前 game-core BGM 请求（宿主契约 bgm_request）。
+        fn bgm(&self) -> Option<usize> {
+            self.shell.bgm_snapshot().track
+        }
+
+        /// 已下发的播放命令（含拍号）。
+        fn commands(&self) -> Vec<(u64, audio::Cmd)> {
+            self.cmds.lock().unwrap().clone()
+        }
+
+        /// 标题菜单光标（BootMachine mode 1）。
+        fn title_cursor(&self) -> i32 {
+            match &self.shell.state {
+                Some(Screen::Boot(m)) => m.title.as_ref().unwrap().cursor,
+                _ => panic!("T{} 不在标题", self.tick),
+            }
+        }
+    }
+
+    /// 读档入 floor1 的输入（= hold-walk.txt 前 8 行）：T71 标题 + menu(2)；T237 mode 3 + game(3)。
+    const LOAD_FLOOR1: [(u64, i32, bool); 8] = [
+        (70, -6, true),
+        (72, -6, false),
+        (100, -2, true),
+        (102, -2, false),
+        (150, -5, true),
+        (152, -5, false),
+        (200, -5, true),
+        (202, -5, false),
+    ];
+
+    const PLAY_MENU: audio::Cmd = audio::Cmd::Play { track: 2, gain: 0.6 };
+    const PLAY_GAME: audio::Cmd = audio::Cmd::Play { track: 3, gain: 0.6 };
+
+    /// hideNotify 音频半 + 隐藏期门控 + keyPressed 续播（f_bool_28=true 分支 ⇒ game(3)），mode 3：
+    /// - 遮挡当拍同步 Stop；anyKeyPlayed=true；f_bool_28 不变（a.java:4509-4510）；
+    /// - 隐藏期键不投递（MIDP Event Delivery）：不消费续播边沿、不改 keyHeldCode；
+    /// - 叠加最小化不重复 hide（f_bool_01 门控 4503）；两路都解除才 showNotify，show 不恢复 BGM；
+    /// - 其后首键：m_139(3) 关闭后重建（a.java:4668-4670），按键当拍下发（Java keyPressed 同步
+    ///   createPlayer）；第二次按键无音频副作用（anyKeyPlayed 已清，4674）。
+    /// gameMode 3→4 臂见 `hide_in_mode3_opens_in_game_menu`（BLOCKED）。
+    #[test]
+    fn in_game_hide_closes_bgm_and_first_key_resumes_game_track() {
+        let mut h = Harness::new("preset-floor1.preset");
+        h.run_to(250, &LOAD_FLOOR1);
+        assert_eq!((h.scene().game_mode, h.bgm(), h.scene().bgm.in_game), (3, Some(3), true));
+        let serial = h.scene().bgm_serial();
+        let n = h.commands().len();
+
+        h.shell.set_occluded(true);
+        assert!(!h.shell.visibility.shown());
+        assert_eq!(h.bgm(), None, "closeAudioPlayer（a.java:4509）");
+        assert!(h.scene().bgm.any_key_played, "anyKeyPlayed=true（a.java:4510）");
+        assert!(h.scene().bgm.in_game, "f_bool_28 不受 hide 影响");
+        assert_eq!(h.commands()[n..], [(250, audio::Cmd::Stop)], "Stop 于 hide 当拍同步下发");
+
+        h.shell.route_key(-2, true);
+        assert_eq!(h.scene().key_held, 0, "隐藏期 keyPressed 不投递");
+        assert!(h.scene().bgm.any_key_played, "隐藏期按键不得消费续播边沿");
+        h.shell.route_key(-2, false);
+        h.shell.set_minimized(true); // 第二路来源：已隐藏 ⇒ 无第二次 hideNotify
+        for _ in 0..5 {
+            h.run_tick(&[]);
+        }
+        assert_eq!(h.bgm(), None, "隐藏期逻辑照跑，BGM 保持关闭");
+        h.shell.set_occluded(false);
+        assert!(!h.shell.visibility.shown(), "仍最小化 ⇒ 仍隐藏");
+        h.shell.set_minimized(false);
+        assert!(h.shell.visibility.shown());
+        assert_eq!(h.bgm(), None, "showNotify 不恢复 BGM（a.java:4495-4500 无音频调用）");
+        assert_eq!(h.commands().len(), n + 1, "隐藏期间无其他命令");
+
+        let t = h.tick;
+        h.shell.route_key(-5, true);
+        assert!(!h.scene().bgm.any_key_played, "anyKeyPlayed 清零（a.java:4674）");
+        assert_eq!(h.bgm(), Some(3), "f_bool_28=true ⇒ m_139(3)（a.java:4669-4670）");
+        assert_eq!(h.scene().bgm_serial(), serial + 1, "close 置 null ⇒ 重建（从头播放）");
+        h.shell.route_key(-5, false);
+        assert_eq!(h.commands()[n + 1..], [(t, PLAY_GAME)], "续播于按键当拍下发");
+        h.run_tick(&[]);
+        h.shell.route_key(-5, true);
+        h.shell.route_key(-5, false);
+        h.run_tick(&[]);
+        assert_eq!(h.scene().bgm_serial(), serial + 1, "第二次按键无音频副作用");
+        assert_eq!(h.commands().len(), n + 2);
+    }
+
+    /// 4504 只认 gameMode==3：游戏内菜单（mode 4，-7 打开，a.java:3555-3557）中隐藏 ⇒ 模式不变、
+    /// 只关 BGM；恢复后首键续播 game(3)，且该键照常被 run case 4 消费（-2 下移）。
+    #[test]
+    fn hide_in_game_menu_keeps_mode_4() {
+        let mut h = Harness::new("preset-floor1.preset");
+        let mut ev = LOAD_FLOOR1.to_vec();
+        ev.extend([(250, -7, true), (252, -7, false)]);
+        h.run_to(260, &ev);
+        assert_eq!((h.scene().game_mode, h.bgm()), (4, Some(3)));
+        let (cursor, count) = (h.scene().menu_cursor, h.scene().menu_item_count);
+        h.shell.set_minimized(true);
+        assert_eq!((h.scene().game_mode, h.bgm()), (4, None), "mode≠3 ⇒ gameMode 不变（a.java:4504）");
+        h.shell.route_key(-2, true);
+        h.shell.route_key(-2, false);
+        h.run_tick(&[]);
+        assert_eq!(h.scene().menu_cursor, cursor, "隐藏期键不投递");
+        h.shell.set_minimized(false);
+        h.shell.route_key(-2, true);
+        h.shell.route_key(-2, false);
+        assert_eq!(h.bgm(), Some(3), "首键续播 game(3)");
+        h.run_tick(&[]);
+        let expect = if cursor < count - 1 { cursor + 1 } else { 0 };
+        assert_eq!((h.scene().game_mode, h.scene().menu_cursor), (4, expect));
+    }
+
+    /// 标题（BootMachine，f_bool_28=false 分支 ⇒ 续播 menu(2)）+ 挂起键与 hide 的 Java 次序：
+    /// ① 最小化 → Stop；隐藏期键不投递；恢复后首键在被消费的那拍续播 menu(2)（BootMachine::tick
+    ///    入口的音频半）；
+    /// ② 键在先、hide 在后（同一拍间隙）：Java keyPressed 时 anyKeyPlayed=false ⇒ 不续播，hide 再置
+    ///    true ⇒ 该键被 tick 消费后仍静音、标志保持；
+    /// ③ 同上但按键前 anyKeyPlayed 已为 true：Java keyPressed 当场 createPlayer、hide 随即 close
+    ///    ⇒ Play+Stop 同拍，终态静音且标志为 true。
+    #[test]
+    fn title_hide_resumes_menu_track_in_java_event_order() {
+        use audio::Cmd::Stop;
+        let mut h = Harness::new("preset-floor1.preset");
+        h.run_to(99, &LOAD_FLOOR1[..2]);
+        assert_eq!((h.shell.game_mode(), h.bgm(), h.title_cursor()), (1, Some(2), 0));
+        let n = h.commands().len();
+        // ①
+        h.shell.set_minimized(true);
+        assert_eq!((h.bgm(), h.shell.any_key_played()), (None, true));
+        h.shell.route_key(-2, true);
+        h.run_tick(&[]);
+        assert_eq!(h.title_cursor(), 0, "隐藏期键不投递");
+        h.shell.set_minimized(false);
+        h.shell.route_key(-2, true);
+        assert_eq!(h.bgm(), None, "BootMachine 的音频半随挂起键在 tick 入口执行");
+        h.run_tick(&[]);
+        assert_eq!((h.bgm(), h.shell.any_key_played(), h.title_cursor()), (Some(2), false, 1));
+        let t1 = h.tick;
+        // ②
+        h.shell.route_key(-1, true);
+        h.shell.set_occluded(true);
+        let t2 = h.tick;
+        h.run_tick(&[]);
+        assert_eq!(
+            (h.bgm(), h.shell.any_key_played(), h.title_cursor()),
+            (None, true, 0),
+            "hide 之前的键照常被消费，但不得消费 hide 置的标志"
+        );
+        // ③
+        h.shell.set_occluded(false);
+        h.shell.route_key(-2, true);
+        h.shell.set_occluded(true);
+        let t3 = h.tick;
+        h.run_tick(&[]);
+        assert_eq!((h.bgm(), h.shell.any_key_played(), h.title_cursor()), (None, true, 1));
+        // 恢复后首键续播
+        h.shell.set_occluded(false);
+        h.shell.route_key(-1, true);
+        h.run_tick(&[]);
+        assert_eq!((h.bgm(), h.shell.any_key_played(), h.title_cursor()), (Some(2), false, 0));
+        let t4 = h.tick;
+        assert_eq!(
+            h.commands()[n..],
+            [(99, Stop), (t1, PLAY_MENU), (t2, Stop), (t3, PLAY_MENU), (t3, Stop), (t4, PLAY_MENU)],
+            "①hide/续播 ②hide ③keyPressed 续播+hide close 同拍 ④续播"
+        );
+    }
+
+    /// 续播的 gameMode 门控 `gameMode != 21 && gameMode != 0`（a.java:4666）：logo（mode 0）/
+    /// 声音询问（mode 21）中 hide → 恢复 → 按键：只清 anyKeyPlayed、不续播；BGM 时间线与不隐藏时
+    /// 相同（T71 menu(2) 为唯一命令——此时无播放器，close 不产生 Stop）。
+    #[test]
+    fn hide_in_modes_0_and_21_clears_flag_without_resume() {
+        let mut h = Harness::new("preset-floor1.preset");
+        h.run_to(10, &[]);
+        assert_eq!(h.shell.game_mode(), 0);
+        h.shell.set_occluded(true);
+        assert!(h.shell.any_key_played());
+        h.shell.set_occluded(false);
+        h.shell.route_key(-5, true);
+        h.run_tick(&[]);
+        assert_eq!(
+            (h.shell.game_mode(), h.bgm(), h.shell.any_key_played()),
+            (0, None, false),
+            "mode 0：清标志、不续播"
+        );
+        h.run_to(69, &[]);
+        assert_eq!(h.shell.game_mode(), 21);
+        h.shell.set_minimized(true);
+        h.shell.set_minimized(false);
+        assert!(h.shell.any_key_played());
+        h.run_to(72, &LOAD_FLOOR1[..2]);
+        assert_eq!((h.shell.game_mode(), h.bgm(), h.shell.any_key_played()), (1, Some(2), false));
+        assert_eq!(h.commands(), vec![(71, PLAY_MENU)], "mode 21 不续播；-6 照常开声");
+    }
+
+    /// hideNotify 的 gameMode 3→4 臂（a.java:4504-4507）：mode 3 隐藏 ⇒ gameMode=4 + m_000 case 4
+    /// （a.java:4326-4337：条目 [1,3,4,5,7]——floor≤50 无 17；软键 (1,3)）。
+    /// BLOCKED：game-core 无公开入口（m_000 case 4 = 私有 GameScene::enter_menu4）；菜单弹出属
+    /// game-core 状态机、壳不复写。入口就绪且 `Shell::hide_notify` 接线后摘除 #[ignore]。
+    #[test]
+    #[ignore = "BLOCKED：game-core 缺 hideNotify 的 mode3→4 入口（enter_menu4 私有）"]
+    fn hide_in_mode3_opens_in_game_menu() {
+        let mut h = Harness::new("preset-floor1.preset");
+        h.run_to(250, &LOAD_FLOOR1);
+        assert_eq!(h.scene().game_mode, 3);
+        h.shell.set_occluded(true);
+        let sc = h.scene();
+        assert_eq!(sc.game_mode, 4, "gameMode=4（a.java:4505）");
+        assert_eq!(sc.menu_kinds, vec![1, 3, 4, 5, 7], "m_000 case 4（a.java:4326-4337）");
+        assert_eq!(sc.softkeys, (1, 3));
+        assert_eq!((sc.bgm_request(), sc.bgm.any_key_played), (None, true));
+    }
+
+    /// 可见性只认遮挡：失焦/得焦不映射（用户决策 2026-10-15：失焦 ≠ 隐藏）。
+    #[test]
+    fn focus_is_not_visibility() {
+        use winit::event::WindowEvent;
+        assert_eq!(occlusion_signal(&WindowEvent::Occluded(true)), Some(true));
+        assert_eq!(occlusion_signal(&WindowEvent::Occluded(false)), Some(false));
+        assert_eq!(occlusion_signal(&WindowEvent::Focused(false)), None);
+        assert_eq!(occlusion_signal(&WindowEvent::Focused(true)), None);
+        assert_eq!(occlusion_signal(&WindowEvent::CloseRequested), None);
     }
 
     /// 长按连走 + BGM 切轨（Java EV-hold-walk 逐拍对照）：
