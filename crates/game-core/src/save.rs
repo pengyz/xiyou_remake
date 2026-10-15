@@ -1,5 +1,5 @@
 //! RMS 存档格式解析（`loadFloorSave` a.java:9244-9300 + `saveFloorState` 对偶）
-//! 与全局进度（`m_000` case 21 的 SKY_WAR 读档 a.java:4437-4474）。
+//! 与全局进度 SKY_WAR 的布局备忘（`dispatchModeEntry`（原 m_000）case 21 读档 a.java:4450-4485）。
 //!
 //! # MOT_L{n} 楼层存档字段序（DataInputStream 大端，a.java:9253-9287）
 //!
@@ -12,14 +12,19 @@
 //! | 16 | int | goldAmount |
 //! | 17 | short | alchemyUpgradeCount |
 //! | 18 | short | f_int_89（跟随对数）+ N×(byte,byte)（f_byte_arr_14/15） |
-//! | 19 | bool×scriptLineCount + skip 至 128 | scriptLineFlags |
+//! | 19 | bool×scriptLineCount + skip 至 128 | scriptLineFlags（a.java:9285-9291；`script_flags` 收 128 字节原样） |
 //! | 20 | byte | itemStackSize + N×(type,uses) |
 //! | 21 | 56×(short len + byte[len]) | 楼层触发状态 f_byte_arr2_05 |
 //!
-//! # SKY_WAR 全局进度（a.java:4449-4455）
+//! # SKY_WAR 全局进度（读 dispatchModeEntry case 21 a.java:4462-4474 / 写 saveGlobalProgress a.java:8931-8942）
 //!
-//! bool×4（optionChecked）+ int×N（f_int_arr_35）+ byte 计数 + N×int
-//! （f_int_arr_35 尾段）+ int×3（f_int_152/153/154）。
+//! bool×4（optionChecked）+ byte 计数 N + N×int（f_int_arr_35）+ int×3
+//! （f_int_152/153/154）。写侧计数取 `f_int_arr_34.length`、值取 f_int_arr_35
+//! （a.java:8934-8938，原版两数组混用）。preset 实例：`00010000 | 07 | 7×int | 3×int`
+//! = 45 字节。本模块对 SKY_WAR 既不编码也不解码（壳层赤字，completeness §3.4）。
+//!
+//! > 【2026-10-15 更正】原注"bool×4 + int×N + byte 计数 + N×int（尾段）+ int×3"
+//! > 证伪——计数 byte 紧随 4 个 bool，其后只有一段 N×int（读写两侧字节码一致）。
 //!
 //! oracle preset 注入（`oracle.preset` 属性 → RecordStore shim 预置，
 //! `reference/oracle/scenarios/preset-floor1.preset`）：`库名@recordId=hex`。
@@ -46,6 +51,10 @@ pub struct FloorSave {
     pub alchemy_upgrades: i16,
     /// mode12 日志（f_byte_arr_14/15 对，a.java:9207-9211 写 / 9278-9281 读）
     pub journal: Vec<(u8, u8)>,
+    /// scriptLineFlags 段原样（a.java:9285-9291 readBoolean = 字节≠0）：长度
+    /// max(script_line_count,128)。Java 只读前 scriptLineCount（=levelScriptLines
+    /// 行数 68）项、其余 skip——应用侧（load_floor_from_save）按此截取。
+    pub script_flags: Vec<bool>,
     /// 道具栈（itemStackSize + 类型/次数对）
     pub item_stack_size: u8,
     pub item_stack_types: Vec<u8>,
@@ -94,7 +103,9 @@ impl<'a> Cursor<'a> {
 
 /// 解析 MOT_L{n} 记录（`loadFloorSave` 的读序）。
 ///
-/// `script_line_count` = 当前脚本行数（skip 计算用；oracle 场景 0 即可）。
+/// `script_line_count` = 当前脚本行数：只决定旗标段的**字节跨度**
+/// （max(count,128)，与 Java 读 count + skip(128-count) 等长；0 即按 128 读）。
+/// 旗标值恒收进 [`FloorSave::script_flags`]（a.java:9285-9287）。
 pub fn parse_floor_save(data: &[u8], script_line_count: usize) -> Result<FloorSave, String> {
     let mut c = Cursor { data, pos: 0 };
     let mut s = FloorSave::default();
@@ -124,11 +135,11 @@ pub fn parse_floor_save(data: &[u8], script_line_count: usize) -> Result<FloorSa
     for _ in 0..n_follow {
         journal.push((c.u8(), c.u8()));
     }
-    // scriptLineFlags + skip 至 128 字节
-    c.skip(script_line_count);
-    if script_line_count < 128 {
-        c.skip(128 - script_line_count);
-    }
+    // scriptLineFlags（a.java:9285-9291）：Java 读 scriptLineCount 个 bool 再 skip 至
+    // 128——两段合计 max(count,128) 字节；值原样收进 script_flags（应用侧截前
+    // scriptLineCount 项，与 `script_line_count` 实参无关——调用方普遍传 0）
+    let flag_bytes = script_line_count.max(128);
+    s.script_flags = (0..flag_bytes).map(|_| c.u8() != 0).collect();
     // 道具栏
     let stack = c.u8() as usize;
     s.journal = journal;

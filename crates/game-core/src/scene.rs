@@ -461,9 +461,6 @@ pub struct GameScene {
     ///（run case16 label0 翻转，a.java:4157）。独立构造默认 = 「刚进 mode 3、声音开」；
     /// 宿主从 BootMachine 交接时整体覆盖（Java 为同一对象，状态连续）。
     pub bgm: crate::audio::BgmState,
-    /// f_byte_arr_14/15 + f_int_89：剧情物清单（m_075 维护；序章不可达恒空）
-    pub special_item_types: Vec<u8>,
-    pub special_item_uses: Vec<u8>,
     /// 虚拟 RMS：MOT_L{slot} 槽位 blob（saveFloorState 写侧；game-core 无 I/O）
     pub saved_slot_blobs: [Option<Vec<u8>>; 6],
     /// f_byte_25：商店条目彩虹色相位（paint 每 4 拍推进）
@@ -585,7 +582,11 @@ pub fn load_floor_from_save(
         scene.player.item_uses[k] = save.item_stack_uses[k];
     }
     scene.saved_floor_states = save.floor_states.clone();
+    // scriptLineFlags 读回（a.java:9285-9291：前 scriptLineCount 项 readBoolean，余
+    // skip）——须先于 step 10 loadFloorData（m_122 floor2 恢复特例读 flags[26]）
     scene.script_line_flags = vec![false; 128];
+    let line_count = scene.dialog_data.scripts.len().min(save.script_flags.len());
+    scene.script_line_flags[..line_count].copy_from_slice(&save.script_flags[..line_count]);
     // step 10 = loadFloorData（应用本层触发缓存）+ buildMinimap（a.java:3515-3517）
     scene.load_floor_data(maplv, px, py, records)?;
     scene.build_minimap();
@@ -806,8 +807,6 @@ impl GameScene {
             encyc_scroll_bottom: 0,
             options: None,
             bgm: crate::audio::BgmState::in_game_default(),
-            special_item_types: Vec::new(),
-            special_item_uses: Vec::new(),
             saved_slot_blobs: [None, None, None, None, None, None],
             rainbow_phase: 0,
             strip_frame: 0,
@@ -887,9 +886,15 @@ impl GameScene {
                 entities.visible[idx] = visible;
                 entities.removed[idx] = false; // m_122 else：恢复的实体 removed=false
             }
-            // floor2 重入特例（a.java:9645-9644）：scriptLineFlags[26] 未追踪
-            //（脚本批）——本窗口无脚本运行，按 false 处理
-            if self.floor == 2 && entity::cell_entity(&grid, &entities, 11, 4, 84) < 0 {
+            // m_122 恢复分支尾的层特例 switch(currentFloor)（a.java:9642-9669）：
+            // case 2（a.java:9643-9646）= `!scriptLineFlags[26] && findBlockingEntity(11,4,84) < 0`
+            // → spawnEntity(84, 352, 128, 0)（script26 未完成且 (11,4) 无活 84 时
+            // 补生）。Rust 的 self.floor = Java currentFloor（换层/读档两路径均先
+            // 写层号再调本函数，与 Java 同序）。case 12/39 两个特例未移植（另登记）。
+            if self.floor == 2
+                && !self.script_line_flags[26]
+                && entity::cell_entity(&grid, &entities, 11, 4, 84) < 0
+            {
                 let img_h = self.images.entity[84].as_ref().map(|i| i.height);
                 entity::spawn(&mut entities, &mut grid, 84, 352, 128, 0, &self.width_table, img_h);
             }
@@ -954,9 +959,19 @@ impl GameScene {
         true
     }
 
-    /// m_119（a.java:9370-9388）：层状态序列化。格式：u16 计数（BE，m_120）+
+    /// m_119（a.java:9373-9400）：层状态序列化。格式：u16 计数（BE，m_120）+
     /// 每存活实体 [type u8, x u16 BE, y u16 BE, visible u8, param u16 BE]。
+    ///
+    /// 槽先置 null（a.java:9383），**仅 entityCount > 0** 才分配写入（a.java:9384）
+    /// ——实体表全空的层存 None（重入时走 sprite{n} 权威数据），而"有实体但全
+    /// 死/已开"的层存 `[00 00]`（重入恢复 0 个）。注意判据是 entityCount（含已
+    /// 移除槽位），非存活数：故存档恢复出 0 实体的层再次离开时 entityCount==0
+    /// → None → 第三次进入从 sprite 重新生成全部实体（原版"清层复活"行为，保真）。
     fn save_floor_state(&mut self) {
+        if self.entities.count == 0 {
+            self.saved_floor_states[self.floor as usize] = None;
+            return;
+        }
         let mut body: Vec<u8> = Vec::new();
         let mut live = 0u16;
         for e in 0..self.entities.count {
@@ -2752,8 +2767,10 @@ impl GameScene {
         o.push(self.facing as u8);
         o.push(self.equipped_weapon as u8); // equippedWeaponType（a.java:9192 写真实值）
         o.push(self.equipped_armor as u8); // equippedArmorType（a.java:9193）
-        o.extend_from_slice(&(self.view.player_px >> 5).to_be_bytes()); // playerCellX
-        o.extend_from_slice(&(self.view.player_py >> 5).to_be_bytes()); // playerCellY
+        // writeShort(playerCellX/Y)（a.java:9197-9198）：**2 字节**——旧写法
+        // `(px>>5).to_be_bytes()` 是 i32 四字节，令其后全部字段错位 4 字节
+        o.extend_from_slice(&(self.player_cell_x as i16).to_be_bytes());
+        o.extend_from_slice(&(self.player_cell_y as i16).to_be_bytes());
         for v in [self.player.hp, self.player.atk, self.player.def] {
             o.extend_from_slice(&v.to_be_bytes());
         }
@@ -2765,12 +2782,14 @@ impl GameScene {
             o.extend_from_slice(&v.to_be_bytes());
         }
         o.extend_from_slice(&self.player.gold.to_be_bytes());
-        o.extend_from_slice(&0i16.to_be_bytes()); // alchemyUpgradeCount
-        // f_int_89 + f_byte_arr_14/15 跟随对（剧情物清单，序章恒空）
-        o.extend_from_slice(&(self.special_item_types.len() as i16).to_be_bytes());
-        for k in 0..self.special_item_types.len() {
-            o.push(self.special_item_types[k] as u8);
-            o.push(self.special_item_uses[k] as u8);
+        // writeShort(alchemyUpgradeCount)（a.java:9206；旧写法恒 0）
+        o.extend_from_slice(&(self.alchemy_upgrade_count as i16).to_be_bytes());
+        // writeShort(inventoryEntryCount，原 f_int_89) + f_byte_arr_14/15 对（a.java:9207-9212）= mode12 日志
+        //（读侧 a.java:9278-9283 → journal；旧写法取恒空的 special_item_types）
+        o.extend_from_slice(&(self.journal.len() as i16).to_be_bytes());
+        for &(kind, idx) in &self.journal {
+            o.push(kind as u8);
+            o.push(idx as u8);
         }
         // 128 字节脚本旗标（不足补 false）
         for k in 0..128 {
@@ -4722,8 +4741,8 @@ impl GameScene {
         }
     }
 
-    /// addItemToItemStack（a.java:7702-7714）：栈顶追加或叠加次数 +
-    /// showOverlayMessage(kind1, itemDescriptions[idx])。
+    /// addItemToItemStack（a.java:7721-7734）：栈顶追加或叠加次数 +
+    /// itemUseTargetType 写 + showOverlayMessage(kind1, itemDescriptions[idx])。
     fn add_item_to_stack(&mut self, t: i32) {
         let idx = if t == 85 {
             20
@@ -4745,6 +4764,9 @@ impl GameScene {
             let u = self.player.item_uses[existing as usize];
             self.player.item_uses[existing as usize] = (u as i32 + ITEM_USES[idx]) as u8;
         }
+        // itemUseTargetType = (byte)var1（a.java:7732）：kind1 浮层图标/名的数据源
+        // ——拾取路径调用方已先写同值，商人赠物路径（a.java:7333/7336）唯此一写
+        self.overlay_kind_item = t;
         let text = self.item_description(idx);
         self.show_overlay_message(1, &text, 0, 3);
     }
@@ -5792,6 +5814,45 @@ mod slot_equip_scene_tests {
         assert_eq!((sc2.equipped_weapon, sc2.equipped_armor), (79, 80), "load 恢复装备（a.java:9260-9261）");
     }
 
+    /// 写侧 blob 布局 = Java saveFloorState（a.java:9190-9236）：playerCellX/Y 为 short
+    /// （a.java:9197-9198）、alchemyUpgradeCount 实值（9206）、inventoryEntryCount（原 f_int_89）+
+    /// f_byte_arr_14/15 日志对（9207-9212，读侧 9278-9283 → journal）——parse → load 全字段往返。
+    #[test]
+    fn save_blob_layout_matches_java_and_roundtrips() {
+        let mut sc = scene_with(&synthetic_sptarm()); // floor1 (3,10)
+        sc.player.hp = 777;
+        sc.player.atk = 41;
+        sc.player.def = 42;
+        sc.player.yellow_keys = 3;
+        sc.player.blue_keys = 2;
+        sc.player.red_keys = 1;
+        sc.player.gold = 1234;
+        sc.alchemy_upgrade_count = 5;
+        sc.journal = vec![(0, 3), (1, 7)];
+        sc.script_line_flags[0] = true;
+        let blob = sc.serialize_slot_blob();
+        assert_eq!(&blob[7..11], &[0, 3, 0, 10], "writeShort(playerCellX/Y)");
+        assert_eq!(&blob[11..15], &777i32.to_be_bytes(), "hp 紧随两 short");
+        assert_eq!(&blob[29..33], &1234i32.to_be_bytes(), "gold");
+        assert_eq!(&blob[33..35], &5i16.to_be_bytes(), "writeShort(alchemyUpgradeCount)");
+        assert_eq!(&blob[35..41], &[0, 2, 0, 3, 1, 7], "inventoryEntryCount=2 + 日志对");
+        assert_eq!(blob[41], 1, "旗标段紧随日志对（flags[0]）");
+        assert_eq!(blob.len(), 37 + 2 * 2 + 128 + 1 + 56 * 2, "道具栈 0 + 56 层全 null(-1)");
+        let save = crate::save::parse_floor_save(&blob, 0).expect("blob 可解析");
+        assert_eq!((save.player_cell_x, save.player_cell_y), (3, 10));
+        assert_eq!((save.player_hp, save.player_atk, save.player_def), (777, 41, 42));
+        assert_eq!((save.yellow_keys, save.blue_keys, save.red_keys), (3, 2, 1));
+        assert_eq!((save.gold, save.alchemy_upgrades), (1234, 5));
+        assert_eq!(save.journal, vec![(0, 3), (1, 7)]);
+        assert!(save.floor_states.iter().all(|s| s.is_none()));
+        let sc2 = loaded_with(&synthetic_sptarm(), &save);
+        assert_eq!((sc2.player_cell_x, sc2.player_cell_y), (3, 10));
+        assert_eq!((sc2.player.hp, sc2.player.atk, sc2.player.def), (777, 41, 42));
+        assert_eq!((sc2.player.gold, sc2.alchemy_upgrade_count), (1234, 5));
+        assert_eq!(sc2.journal, vec![(0, 3), (1, 7)]);
+        assert!(sc2.script_line_flags[0]);
+    }
+
     /// MOT_IF 6 槽表（loadSlotTable 读序 a.java:8974-8988）：`(槽, 武器, 甲)`。
     fn mot_if(slots: &[(usize, i8, i8)]) -> Vec<u8> {
         let mut o = Vec::new();
@@ -5881,5 +5942,192 @@ mod slot_equip_scene_tests {
         let s = paint7(&mut sc);
         assert_frame_material_name(&s, WEAPON_X, FRAME_Y, "覆写后 武器=0");
         assert_frame_icon(&s, ARMOR_X, FRAME_Y, &icons, 9, "覆写后 甲=80");
+    }
+}
+
+/// 场景级单测的合成夹具（本文件 #[cfg(test)] 模块共用）：13×13 网格（走廊 y=ROW、
+/// x∈1..=11 地形可走，其余墙）+ 纯色合成图集 + 真实数值表夹具。
+#[cfg(test)]
+mod scene_test_support {
+    use super::*;
+
+    const W: i32 = 13;
+    pub(super) const ROW: i32 = 3;
+
+    fn solid(w: i32, h: i32) -> ArgbImage {
+        ArgbImage::from_rgb(&vec![0xFF202020; (w * h) as usize], w, h, true)
+    }
+
+    fn many(n: usize) -> Vec<ArgbImage> {
+        (0..n).map(|_| solid(24, 24)).collect()
+    }
+
+    pub(super) fn images() -> SceneImages {
+        SceneImages {
+            backdrop: solid(77, SCREEN_H),
+            shadow: solid(24, 24),
+            actor: solid(24, 24),
+            actor_face: solid(24, 24),
+            ui: many(25),
+            stair_icons: (solid(24, 24), solid(24, 24)),
+            open_anim: solid(24, 24),
+            opened_door: solid(24, 24),
+            entity: SceneImages::map_entity_images(&many(13), &many(23), &many(10), &many(20), &many(20)),
+            popup: crate::popup::PopupImages {
+                digit_strips: [solid(24, 24), solid(24, 24), solid(24, 24)],
+                icon_strip: solid(24, 24),
+                battle_digits: solid(24, 24),
+            },
+            spark_sheet: solid(24, 24),
+            corner_sprites: solid(24, 24),
+            map211: None,
+            map210: solid(24, 24),
+            menu_strip: solid(24, 24),
+            battle_icon: solid(24, 24),
+            battle_strip: solid(24, 24),
+            faces: many(12),
+            ending: solid(24, 24),
+            xtq: many(6),
+        }
+    }
+
+    pub(super) fn numbers(text: &str) -> Vec<i32> {
+        text.lines().filter_map(|l| l.trim().parse().ok()).collect()
+    }
+
+    /// 合成 maplv：头 u16 LE（格数×2），地形段在 rebuildWalkability 索引
+    /// （行距 wide·4、列距 2）置 tile 1（可走），其余 tile 0（墙）。
+    pub(super) fn maplv() -> Vec<u8> {
+        let mut v = Vec::new();
+        v.extend_from_slice(&((W * 2) as u16).to_le_bytes());
+        v.extend_from_slice(&((W * 2) as u16).to_le_bytes());
+        let n = (W * W * 4) as usize;
+        let mut terrain = vec![0u8; n];
+        for x in 1..=11 {
+            terrain[(ROW * W * 4 + x * 2) as usize] = 1;
+        }
+        v.extend_from_slice(&terrain);
+        v.extend_from_slice(&vec![0u8; n]);
+        v
+    }
+
+    /// 玩家格 + 实体 (type, cx, cy) 的场景；敌表 ×1 缩放 + 金币表。
+    pub(super) fn scene(player: (i32, i32), ents: &[(u8, i32, i32)]) -> GameScene {
+        let width_table = numbers(include_str!("../tests/fixtures/type_width_px.txt"));
+        let walk = numbers(include_str!("../tests/fixtures/tile_walkability.txt"));
+        assert_eq!((walk[0], walk[1]), (0, 1), "合成 tile 0=墙 1=可走");
+        let recs: Vec<(u8, u16, u16, i16, bool)> = ents
+            .iter()
+            .map(|&(t, x, y)| (t, (x << 5) as u16, (y << 5) as u16, 0, true))
+            .collect();
+        let mut sc = GameScene::load_floor(
+            &maplv(),
+            player.0 << 5,
+            player.1 << 5,
+            &recs,
+            &width_table,
+            &walk,
+            images(),
+            vec![None; 56],
+        )
+        .unwrap();
+        sc.floor = 2;
+        sc.current_floor = 2;
+        let tables = crate::combat::CombatTables {
+            enemy_base_hp: numbers(include_str!("../tests/fixtures/enemybasehp.txt")),
+            enemy_base_atk: numbers(include_str!("../tests/fixtures/enemybaseatk.txt")),
+            enemy_base_def: numbers(include_str!("../tests/fixtures/enemybasedef.txt")),
+            difficulty_multipliers: numbers(include_str!("../tests/fixtures/difficulty_multipliers.txt")),
+        };
+        sc.enemies = crate::combat::scale_enemy_stats(&tables, 1);
+        sc.enemy_base_hp = tables.enemy_base_hp.clone();
+        sc.enemy_base_gold = numbers(include_str!("../tests/fixtures/enemybasegold.txt"));
+        sc
+    }
+}
+
+/// 三处静默简化保真修复 + 读档旗标（completeness §3.4，2026-10-15）的单测
+/// （⑤ 存档 blob 布局见 slot_equip_scene_tests::save_blob_layout_matches_java_and_roundtrips）：
+/// ① addItemToItemStack 写 itemUseTargetType（a.java:7732）；② m_119 entityCount==0
+/// 存 null（a.java:9383-9384）；③ m_122 floor2 恢复特例读 scriptLineFlags[26]
+/// （a.java:9643-9646）；④ loadFloorSave 读回 scriptLineFlags 前 scriptLineCount 项
+/// （a.java:9285-9291）。
+#[cfg(test)]
+mod fidelity_fix_tests {
+    use super::scene_test_support::{images, maplv, numbers, scene};
+    use super::*;
+
+    /// ① 商人赠物路径（a.java:7333/7336 直调 addItemToItemStack，无前置写）：
+    /// itemUseTargetType 由本函数自写，kind1 浮层图标/名随之取型 19。
+    #[test]
+    fn add_item_to_stack_writes_item_use_target_type() {
+        let mut sc = scene((3, 3), &[]);
+        sc.overlay_kind_item = 0;
+        sc.add_item_to_stack(19);
+        assert_eq!(sc.overlay_kind_item, 19);
+        assert_eq!(sc.overlay_kind, 1);
+        assert_eq!(sc.overlay_item_name, sc.object_type_name(19), "浮层名取 itemUseTargetType");
+        assert_eq!(sc.player.item_types[0], 19);
+    }
+
+    /// ② m_119：槽先置 null，仅 entityCount>0 才写——空表 = None（覆盖旧值），
+    /// 有实体但全死 = Some([00 00])。
+    #[test]
+    fn save_floor_state_null_only_when_entity_table_empty() {
+        let mut sc = scene((3, 3), &[]);
+        assert_eq!(sc.entities.count, 0);
+        sc.saved_floor_states[2] = Some(vec![9, 9]);
+        sc.save_floor_state();
+        assert_eq!(sc.saved_floor_states[2], None, "entityCount==0 → null（a.java:9383-9384）");
+
+        let mut sc = scene((3, 3), &[(43, 5, 3)]);
+        let e = sc.entity_at_cell(5, 3, 43) as usize;
+        entity::remove(&mut sc.entities, e);
+        sc.save_floor_state();
+        assert_eq!(sc.saved_floor_states[2], Some(vec![0, 0]), "有实体全死 → 计数 0 的 2 字节块");
+    }
+
+    /// ③ floor2 恢复特例：`!flags[26] && findBlockingEntity(11,4,84) < 0` → spawnEntity(84,352,128,0)。
+    #[test]
+    fn floor2_restore_respawns_84_only_while_script26_pending() {
+        for (flag26, respawn) in [(false, true), (true, false)] {
+            let mut sc = scene((3, 3), &[]);
+            assert_eq!(sc.floor, 2);
+            sc.script_line_flags[26] = flag26;
+            sc.saved_floor_states[2] = Some(vec![0, 0]); // 恢复分支（0 实体）
+            sc.load_floor_data(&maplv(), 3 << 5, 3 << 5, &[]).unwrap();
+            assert_eq!(sc.entity_at_cell(11, 4, 84) >= 0, respawn, "flags[26]={flag26}");
+        }
+        // 非 2 层不补生
+        let mut sc = scene((3, 3), &[]);
+        sc.floor = 3;
+        sc.saved_floor_states[3] = Some(vec![0, 0]);
+        sc.load_floor_data(&maplv(), 3 << 5, 3 << 5, &[]).unwrap();
+        assert!(sc.entity_at_cell(11, 4, 84) < 0);
+    }
+
+    /// ④ 读档旗标：前 scriptLineCount（68）项读回；之后的字节 Java skip（不读）。
+    /// blob = preset-floor2-mov 的 MOT_L0（Java 侧同一预置实跑过，旗标段 [0]=1）。
+    #[test]
+    fn load_restores_script_flags_prefix_only() {
+        let stores = crate::save::parse_preset(include_str!("../tests/fixtures/preset-floor2-mov.preset"));
+        let mut blob = stores.iter().find(|(k, _)| k.starts_with("MOT_L0@")).unwrap().1.clone();
+        // 旗标段起点 = 37 + 2×日志对数（a.java:9258-9288 读序；本 blob 日志 0 对）
+        assert_eq!(i16::from_be_bytes([blob[35], blob[36]]), 0);
+        assert_eq!(blob[37], 1);
+        blob[37 + 67] = 1; // scriptLineCount-1：读
+        blob[37 + 100] = 1; // ≥ scriptLineCount：Java skip（a.java:9289-9291）
+        let save = crate::save::parse_floor_save(&blob, 0).unwrap();
+        assert_eq!(save.script_flags.len(), 128);
+        assert!(save.script_flags[0] && save.script_flags[67] && save.script_flags[100]);
+        let width_table = numbers(include_str!("../tests/fixtures/type_width_px.txt"));
+        let walk = numbers(include_str!("../tests/fixtures/tile_walkability.txt"));
+        let sc =
+            load_floor_from_save(&maplv(), &[], &width_table, &walk, images(), vec![None; 56], &save)
+                .unwrap();
+        assert_eq!(sc.dialog_data.scripts.len(), 68, "scriptLineCount = levelScriptLines.length");
+        assert!(sc.script_line_flags[0] && sc.script_line_flags[67]);
+        assert!(!sc.script_line_flags[100], "scriptLineCount 之后被 skip");
+        assert_eq!(sc.script_line_flags.iter().filter(|f| **f).count(), 2);
     }
 }
