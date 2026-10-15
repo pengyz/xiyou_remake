@@ -2,7 +2,7 @@
   "id": "VF-M113",
   "target": "a.java",
   "kind": "scoped",
-  "method": "   private void m_113(boolean var1) {",
+  "method": "   private void paintSlotTable(boolean var1) {",
   "replacements": [
     {
       "old": "var1 = var1 ? 2 : 1;",

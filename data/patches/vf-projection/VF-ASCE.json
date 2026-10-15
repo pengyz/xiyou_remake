@@ -40,8 +40,8 @@
       "count": 1
     },
     {
-      "old": "var7 = var41.m_100(",
-      "new": "var7n = var41.m_100(",
+      "old": "var7 = var41.findBlockingEntity(",
+      "new": "var7n = var41.findBlockingEntity(",
       "count": 5
     },
     {

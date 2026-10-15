@@ -4,8 +4,8 @@
   "kind": "global",
   "replacements": [
     {
-      "old": "var1 = this.m_100(var2 + 1, var3, var1);",
-      "new": "int var7 = this.m_100(var2 + 1, var3, var1);",
+      "old": "var1 = this.findBlockingEntity(var2 + 1, var3, var1);",
+      "new": "int var7 = this.findBlockingEntity(var2 + 1, var3, var1);",
       "count": 1
     },
     {

@@ -2327,7 +2327,7 @@ public final class a extends Canvas implements Runnable {
 
       this.f_bool_00 = true;
       this.gameMode = 0;
-      this.m_000();
+      this.dispatchModeEntry();
    }
 
    protected final void paint(Graphics var1) {
@@ -2678,12 +2678,12 @@ public final class a extends Canvas implements Runnable {
             break;
          case 7:
             this.drawParallaxBackdrop(false);
-            this.m_113(true);
+            this.paintSlotTable(true);
             this.paintSoftkeyBar();
             break;
          case 8:
             this.drawParallaxBackdrop(false);
-            this.m_113(false);
+            this.paintSlotTable(false);
             this.paintSoftkeyBar();
             break;
          case 9:
@@ -2904,7 +2904,7 @@ public final class a extends Canvas implements Runnable {
             this.drawParallaxBackdrop(false);
             a var24 = this;
             int var46 = 320 - var24.fontHeight - 4;
-            var24.m_142(var24.f_String_04, 120, var46 + 2, 17, var24.f_int_arr_36);
+            var24.drawOutlinedText(var24.f_String_04, 120, var46 + 2, 17, var24.f_int_arr_36);
             var46 += var24.fontHeight + 4 - 13 >> 1;
             if (var24.recordPage > 0) {
                var24.drawImageWithNokiaTransform(var24.f_Image_arr2_00[8][14], 60 - var24.animBobOffset, var46, 1);
@@ -3328,10 +3328,10 @@ public final class a extends Canvas implements Runnable {
                               var30.gameMode = 10;
                               break;
                            case -4:
-                              var30.m_076(var30.recordPage + 1);
+                              var30.browseOfferQueue(var30.recordPage + 1);
                               break;
                            case -3:
-                              var30.m_076(var30.recordPage - 1);
+                              var30.browseOfferQueue(var30.recordPage - 1);
                               break;
                            case -2:
                               var30.flipOverlayPage(var30.overlayPageTop + 1);
@@ -3376,7 +3376,7 @@ public final class a extends Canvas implements Runnable {
                            var15.closeAudioPlayer();
                            var15.f_int_02 = 75;
                            var15.gameMode = 21;
-                           var15.m_000();
+                           var15.dispatchModeEntry();
                         }
                         break;
                      case 1:
@@ -3394,31 +3394,31 @@ public final class a extends Canvas implements Runnable {
                                  case 0:
                                     var40.f_Image_arr2_00[10][0] = null;
                                     var40.gameMode = 14;
-                                    var40.m_000();
+                                    var40.dispatchModeEntry();
                                     break label534;
                                  case 1:
                                     var40.gameMode = 8;
                                     var40.menuReturnMode = 1;
-                                    var40.m_000();
+                                    var40.dispatchModeEntry();
                                     break label534;
                                  case 2:
                                     var40.gameMode = 16;
                                     var40.menuReturnMode = 1;
-                                    var40.m_000();
+                                    var40.dispatchModeEntry();
                                     break label534;
                                  case 3:
                                     var40.gameMode = 15;
                                     var40.menuReturnMode = 1;
-                                    var40.m_000();
+                                    var40.dispatchModeEntry();
                                     break label534;
                                  case 4:
                                     var40.gameMode = 17;
                                     var40.menuReturnMode = 1;
-                                    var40.m_000();
+                                    var40.dispatchModeEntry();
                                     break label534;
                                  case 5:
                                     var40.gameMode = 22;
-                                    var40.m_000();
+                                    var40.dispatchModeEntry();
                                  default:
                                     break label534;
                               }
@@ -3454,30 +3454,30 @@ public final class a extends Canvas implements Runnable {
                               a var37 = var28;
                               switch (var41) {
                                  case 0:
-                                    var37.m_001(8);
+                                    var37.readCountPrefix(8);
                                     break;
                                  case 1:
-                                    var37.m_001(10);
+                                    var37.readCountPrefix(10);
                                     break;
                                  case 2:
-                                    var37.m_001(2);
+                                    var37.readCountPrefix(2);
                                     break;
                                  case 3:
-                                    var37.m_001(1);
+                                    var37.readCountPrefix(1);
                                     break;
                                  case 4:
-                                    var37.m_001(3);
+                                    var37.readCountPrefix(3);
                                     break;
                                  case 5:
-                                    var37.m_001(6);
-                                    var37.m_001(4);
-                                    var37.m_001(5);
+                                    var37.readCountPrefix(6);
+                                    var37.readCountPrefix(4);
+                                    var37.readCountPrefix(5);
                                     break;
                                  case 6:
-                                    var37.m_001(12);
+                                    var37.readCountPrefix(12);
                                     break;
                                  case 7:
-                                    var37.m_128();
+                                    var37.initParticles();
                                     break;
                                  case 8:
                                     a var39;
@@ -3494,7 +3494,7 @@ public final class a extends Canvas implements Runnable {
                                     var39.f_bool_20 = false;
                                     break;
                                  case 9:
-                                    var37.m_118();
+                                    var37.initFloorStates();
                                     break;
                                  case 10:
                                     var37.loadFloorData(var37.currentFloor);
@@ -3502,7 +3502,7 @@ public final class a extends Canvas implements Runnable {
                                     break;
                                  case 11:
                                     a var38;
-                                    (var38 = var37).m_001(3);
+                                    (var38 = var37).readCountPrefix(3);
                                     var38.playerGhostSheet = var38.f_Image_arr2_00[3][0];
                                     var38.playerAnimSequence = var38.playerAnimTables[0];
                                     var38.playerAnimIndex = 0;
@@ -3512,24 +3512,24 @@ public final class a extends Canvas implements Runnable {
                                     );
                                     break;
                                  case 12:
-                                    var37.m_068();
+                                    var37.resetNewGameState();
                                     break;
                                  case 13:
-                                    var37.m_001(7);
-                                    var37.m_001(13);
+                                    var37.readCountPrefix(7);
+                                    var37.readCountPrefix(13);
                                     var37.initEntityTables();
                                     break;
                                  case 14:
-                                    var37.m_001(11);
+                                    var37.readCountPrefix(11);
                                     break;
                                  case 15:
-                                    var37.m_001(14);
+                                    var37.readCountPrefix(14);
                                     break;
                                  case 16:
                                     if (!var37.loadFloorSave(var37.slotCursor)) {
                                        var37.loadStepCount = 0;
                                        var37.gameMode = 8;
-                                       var37.m_000();
+                                       var37.dispatchModeEntry();
                                     }
                               }
 
@@ -3544,7 +3544,7 @@ public final class a extends Canvas implements Runnable {
                            var28.f_Image_arr2_00[15] = null;
                            var28.gameMode = var28.loadTargetMode;
                            if (var28.loadCallInit) {
-                              var28.m_000();
+                              var28.dispatchModeEntry();
                            }
                         }
                         break;
@@ -3554,11 +3554,11 @@ public final class a extends Canvas implements Runnable {
                            case -7:
                               var26.inGameMenuReturnMode = var26.gameMode;
                               var26.gameMode = 4;
-                              var26.m_000();
+                              var26.dispatchModeEntry();
                               break;
                            case -6:
                               var26.gameMode = 10;
-                              var26.m_000();
+                              var26.dispatchModeEntry();
                         }
 
                         var26 = var15;
@@ -3842,17 +3842,17 @@ public final class a extends Canvas implements Runnable {
                               } else if (var23.gameMode == 8 && var23.slotValidFlags[var23.slotCursor]) {
                                  var23.keyValue = var23.keyHeldCode = 0;
                                  var23.f_Image_arr2_00[10][0] = null;
-                                 var23.m_131((byte)3, true);
-                                 var23.m_132(6);
-                                 var23.m_132(8);
-                                 var23.m_132(5);
-                                 var23.m_132(13);
-                                 var23.m_132(9);
-                                 var23.m_132(16);
-                                 var23.m_132(10);
-                                 var23.m_132(2);
-                                 var23.m_132(3);
-                                 var23.m_132(11);
+                                 var23.startLoadTask((byte)3, true);
+                                 var23.stepLoadTask(6);
+                                 var23.stepLoadTask(8);
+                                 var23.stepLoadTask(5);
+                                 var23.stepLoadTask(13);
+                                 var23.stepLoadTask(9);
+                                 var23.stepLoadTask(16);
+                                 var23.stepLoadTask(10);
+                                 var23.stepLoadTask(2);
+                                 var23.stepLoadTask(3);
+                                 var23.stepLoadTask(11);
                               }
                            case -4:
                            case -3:
@@ -4063,7 +4063,7 @@ public final class a extends Canvas implements Runnable {
                                           var20.typewriterPos = 1;
                                           var20.openDialogPage(var20.dialogPage + 1);
                                           if (var20.dialogPhase == 6) {
-                                             var20.m_103(var20.dialogMoveX, var20.dialogMoveY);
+                                             var20.easeCameraToTarget(var20.dialogMoveX, var20.dialogMoveY);
                                           }
                                     }
                                  }
@@ -4158,9 +4158,9 @@ public final class a extends Canvas implements Runnable {
                                     if (var7.soundEnabled) {
                                        var7.volumeLevel = 60;
                                        if (!var7.f_bool_28) {
-                                          var7.m_139((byte)2, -1);
+                                          var7.playBgm((byte)2, -1);
                                        } else {
-                                          var7.m_139((byte)3, -1);
+                                          var7.playBgm((byte)3, -1);
                                        }
                                     } else {
                                        var7.closeAudioPlayer();
@@ -4194,7 +4194,7 @@ public final class a extends Canvas implements Runnable {
                         switch (var15.keyValue) {
                            case -7:
                               var18.gameMode = 4;
-                              var18.m_000();
+                              var18.dispatchModeEntry();
                            case -5:
                            case 53:
                            default:
@@ -4223,7 +4223,7 @@ public final class a extends Canvas implements Runnable {
                      case 20:
                         if (var15.f_bool_04 && var15.keyValue != 0) {
                            var15.gameMode = 1;
-                           var15.m_000();
+                           var15.dispatchModeEntry();
                         }
                         break;
                      case 21:
@@ -4233,7 +4233,7 @@ public final class a extends Canvas implements Runnable {
                               var6.soundEnabled = false;
                               var6.volumeLevel = 0;
                               var6.gameMode = 1;
-                              var6.m_000();
+                              var6.dispatchModeEntry();
                               break label534;
                            case -6:
                               var6.soundEnabled = true;
@@ -4242,7 +4242,7 @@ public final class a extends Canvas implements Runnable {
                               }
 
                               var6.gameMode = 1;
-                              var6.m_000();
+                              var6.dispatchModeEntry();
                            default:
                               break label534;
                         }
@@ -4289,7 +4289,7 @@ public final class a extends Canvas implements Runnable {
       }
    }
 
-   private void m_000() {
+   private void dispatchModeEntry() {
       switch (this.gameMode) {
          case 1:
             this.f_bool_28 = false;
@@ -4299,8 +4299,8 @@ public final class a extends Canvas implements Runnable {
                this.saveGlobalProgress();
             }
 
-            this.m_001(8);
-            this.m_001(10);
+            this.readCountPrefix(8);
+            this.readCountPrefix(10);
             this.resetMenuLayout();
             this.addMenuItem(0);
             this.addMenuItem(1);
@@ -4308,8 +4308,8 @@ public final class a extends Canvas implements Runnable {
             this.addMenuItem(3);
             this.addMenuItem(4);
             this.addMenuItem(5);
-            this.m_139((byte)2, -1);
-            this.m_128();
+            this.playBgm((byte)2, -1);
+            this.initParticles();
             this.particleColor = -1;
             return;
          case 3:
@@ -4318,7 +4318,7 @@ public final class a extends Canvas implements Runnable {
             this.softkeyRightKind = 3;
             this.overlayActive = false;
             this.applyStepCellEffects();
-            this.m_139((byte)3, -1);
+            this.playBgm((byte)3, -1);
             return;
          case 4:
             this.resetMenuLayout();
@@ -4342,9 +4342,9 @@ public final class a extends Canvas implements Runnable {
          case 7:
          case 8:
             if (this.menuReturnMode == 1) {
-               this.m_001(1);
-               this.m_001(8);
-               this.m_001(6);
+               this.readCountPrefix(1);
+               this.readCountPrefix(8);
+               this.readCountPrefix(6);
             }
 
             this.softkeyLeftKind = 1;
@@ -4384,7 +4384,7 @@ public final class a extends Canvas implements Runnable {
             this.softkeyRightKind = 3;
             return;
          case 12:
-            this.m_076(0);
+            this.browseOfferQueue(0);
             this.softkeyRightKind = 3;
             return;
          case 13:
@@ -4400,8 +4400,8 @@ public final class a extends Canvas implements Runnable {
             var6.introColorPhase = false;
             return;
          case 15:
-            this.m_001(8);
-            this.m_001(1);
+            this.readCountPrefix(8);
+            this.readCountPrefix(1);
             this.showOverlayMessage(
                (byte)0,
                "游戏描述：\n\\c99FFCC有人的地方就有江湖，有神仙的地方何尝不是江湖；百战百胜的本事，换不回女人的真心，兄弟的真义；齐天大圣又如何，没有真情实义，做神仙跟做咸鱼有什么区别？\n\n操作方式：按左软键调出物品栏，左右选择一件道具，按确定键使用。\n游戏操作：\n上方向键/2：向上行走\n下方向键/8：向下行走\n左方向键/4：向左行走\n右方向键/6：向右行走\n确定键/5:探索地图\n左软键：打开道具列表\n右软键：打开游戏中菜单\n\n代理发行：广州易诚计算机科技有限公司\n发行商网站：www.9266.net\n客服电话：4006509913\n客服信箱：kefu@9266.net",
@@ -4412,17 +4412,17 @@ public final class a extends Canvas implements Runnable {
             this.softkeyRightKind = 3;
             return;
          case 16:
-            this.m_001(8);
-            this.m_001(1);
+            this.readCountPrefix(8);
+            this.readCountPrefix(1);
             this.optionCount = 0;
-            this.m_072(0);
-            this.m_072(1);
+            this.addOption(0);
+            this.addOption(1);
             this.softkeyLeftKind = 0;
             this.softkeyRightKind = 3;
             return;
          case 17:
-            this.m_001(8);
-            this.m_001(1);
+            this.readCountPrefix(8);
+            this.readCountPrefix(1);
             this.showOverlayMessage(
                (byte)0,
                "版权所有：\n上海雪鲤鱼计算机科技有限公司\nwww.kgame.com.cn\n手机上网：\nwap.kgame.com.cn\n制作人：梁一\n编剧：王之浣\n策划：孙悦\n程序：杨政\n美术：梁一、王之浣、黄吉力\n测试：金鑫，王毅，计成毅\n版本：V1.0\n客服电话：4006305518",
@@ -4442,7 +4442,7 @@ public final class a extends Canvas implements Runnable {
             return;
          case 20:
             this.releaseSceneImages();
-            this.m_001(14);
+            this.readCountPrefix(14);
             this.overlayLayoutCache = this.dialogueTexts[260];
             this.typewriterPos = 1;
             this.layoutWrappedText(this.overlayText, 209, (this.textLineHeight << 1) + 12, this.typewriterPos);
@@ -4478,7 +4478,7 @@ public final class a extends Canvas implements Runnable {
                var1.saveGlobalProgress();
             }
 
-            this.m_001(8);
+            this.readCountPrefix(8);
             this.softkeyLeftKind = 1;
             this.softkeyRightKind = 2;
             this.soundEnabled = false;
@@ -4503,7 +4503,7 @@ public final class a extends Canvas implements Runnable {
       if (this.f_bool_01) {
          if (this.gameMode == 3) {
             this.gameMode = 4;
-            this.m_000();
+            this.dispatchModeEntry();
          }
 
          this.closeAudioPlayer();
@@ -4513,7 +4513,7 @@ public final class a extends Canvas implements Runnable {
       }
    }
 
-   private void m_001(int var1) {
+   private void readCountPrefix(int var1) {
       int var2 = this.resourceImageCounts[var1];
       int var3 = 0;
       if (this.f_Image_arr2_00[var1] == null) {
@@ -4544,7 +4544,7 @@ public final class a extends Canvas implements Runnable {
       } catch (Exception var8) {
          var8.printStackTrace();
       } finally {
-         this.m_008();
+         this.closeStreamsAndClear();
       }
    }
 
@@ -4602,7 +4602,7 @@ public final class a extends Canvas implements Runnable {
       this.f_Graphics_00.setClip(0, 0, 240, 320);
    }
 
-   private static Image m_006(int var0, int var1, int var2) {
+   private static Image createSolidImage(int var0, int var1, int var2) {
       int[] var3 = null;
       var1 = (var3 = new int[1024]).length;
 
@@ -4631,7 +4631,7 @@ public final class a extends Canvas implements Runnable {
       return Image.createRGBImage(var4, var2, var3, true);
    }
 
-   private void m_008() {
+   private void closeStreamsAndClear() {
       if (this.f_InputStream_00 != null) {
          try {
             this.f_InputStream_00.close();
@@ -4665,9 +4665,9 @@ public final class a extends Canvas implements Runnable {
       if (this.anyKeyPlayed) {
          if (this.gameMode != 21 && this.gameMode != 0) {
             if (!this.f_bool_28) {
-               this.m_139((byte)2, -1);
+               this.playBgm((byte)2, -1);
             } else {
-               this.m_139((byte)3, -1);
+               this.playBgm((byte)3, -1);
             }
          }
 
@@ -4737,22 +4737,22 @@ public final class a extends Canvas implements Runnable {
          case 2:
             this.gameMode = 8;
             this.menuReturnMode = 4;
-            this.m_000();
+            this.dispatchModeEntry();
             return;
          case 3:
             this.gameMode = 7;
             this.menuReturnMode = 4;
-            this.m_000();
+            this.dispatchModeEntry();
             return;
          case 4:
             this.gameMode = 16;
             this.menuReturnMode = 4;
-            this.m_000();
+            this.dispatchModeEntry();
             return;
          case 5:
             this.gameMode = 15;
             this.menuReturnMode = 4;
-            this.m_000();
+            this.dispatchModeEntry();
             return;
          case 7:
             this.releaseSceneImages();
@@ -4764,7 +4764,7 @@ public final class a extends Canvas implements Runnable {
             }
 
             this.gameMode = 1;
-            this.m_000();
+            this.dispatchModeEntry();
             this.menuCursorIndex = 0;
             return;
          case 9:
@@ -4773,7 +4773,7 @@ public final class a extends Canvas implements Runnable {
             return;
          case 11:
             this.gameMode = 19;
-            this.m_000();
+            this.dispatchModeEntry();
             return;
          case 17:
             this.changeFloor(1, false, false);
@@ -4830,18 +4830,18 @@ public final class a extends Canvas implements Runnable {
             this.introImage = null;
             switch (this.introPage) {
                case 0:
-                  this.m_001(11);
+                  this.readCountPrefix(11);
                   this.introImage = dimImage(this.f_Image_arr2_00[11][0], 34);
                   this.introText = this.miscTexts[4];
                   break;
                case 1:
-                  this.m_001(11);
+                  this.readCountPrefix(11);
                   this.introImage = dimImage(this.f_Image_arr2_00[11][1], 34);
                   this.introText = this.miscTexts[6];
                   break;
                case 2:
                   this.f_Image_arr2_00[11] = null;
-                  this.m_001(14);
+                  this.readCountPrefix(14);
                   this.introImage = dimImage(this.f_Image_arr2_00[14][0], 34);
                   this.introText = this.miscTexts[7];
             }
@@ -5430,7 +5430,7 @@ public final class a extends Canvas implements Runnable {
                               var16.alchemyGainHp = scaledByFloorTier(100, var5);
                               var16.f_int_78 = scaledByFloorTier(2, var5);
                               var16.f_int_79 = scaledByFloorTier(4, var5);
-                              this.m_000();
+                              this.dispatchModeEntry();
                            }
                            continue;
                         case 10:
@@ -5511,7 +5511,7 @@ public final class a extends Canvas implements Runnable {
                                  var12.showOverlayMessage((byte)4, var12.f_String_arr_08[var26], (byte)1, (byte)2);
                            }
                         } else {
-                           var12.m_075(var5, var26);
+                           var12.pushOfferQueue(var5, var26);
                            switch (var5) {
                               case 0:
                                  var12.showOverlayMessage((byte)4, var12.f_String_arr_06[var26], (byte)0, (byte)0);
@@ -5556,9 +5556,12 @@ public final class a extends Canvas implements Runnable {
          int var10 = var14.playerCellY;
          int var9 = var14.playerCellX;
          a var8 = var14;
-         if (var9 > 0 && var8.m_100(var9 - 1, var10, 61) >= 0 && var9 < var8.mapCellsWide - 1 && var8.m_100(var9 + 1, var10, 61) >= 0
+         if (var9 > 0 && var8.findBlockingEntity(var9 - 1, var10, 61) >= 0 && var9 < var8.mapCellsWide - 1 && var8.findBlockingEntity(var9 + 1, var10, 61) >= 0
             ? true
-            : var10 > 0 && var8.m_100(var9, var10 - 1, 61) >= 0 && var10 < var8.mapCellsHigh - 1 && var8.m_100(var9, var10 + 1, 61) >= 0) {
+            : var10 > 0
+               && var8.findBlockingEntity(var9, var10 - 1, 61) >= 0
+               && var10 < var8.mapCellsHigh - 1
+               && var8.findBlockingEntity(var9, var10 + 1, 61) >= 0) {
             var14.applyHpDelta(-(var14.playerHp >> 1));
          }
 
@@ -5567,19 +5570,19 @@ public final class a extends Canvas implements Runnable {
          var9 = var14.playerCellX;
          var8 = var14;
          int var12 = 0;
-         if (var9 > 0 && var8.m_100(var9 - 1, var10, 62) >= 0) {
+         if (var9 > 0 && var8.findBlockingEntity(var9 - 1, var10, 62) >= 0) {
             var12++;
          }
 
-         if (var9 < var8.mapCellsHigh - 1 && var8.m_100(var9 + 1, var10, 62) >= 0) {
+         if (var9 < var8.mapCellsHigh - 1 && var8.findBlockingEntity(var9 + 1, var10, 62) >= 0) {
             var12++;
          }
 
-         if (var10 > 0 && var8.m_100(var9, var10 - 1, 62) >= 0) {
+         if (var10 > 0 && var8.findBlockingEntity(var9, var10 - 1, 62) >= 0) {
             var12++;
          }
 
-         if (var10 < var8.mapCellsHigh - 1 && var8.m_100(var9, var10 + 1, 62) >= 0) {
+         if (var10 < var8.mapCellsHigh - 1 && var8.findBlockingEntity(var9, var10 + 1, 62) >= 0) {
             var12++;
          }
 
@@ -5595,28 +5598,28 @@ public final class a extends Canvas implements Runnable {
       int var54 = 0;
       int var7n = 0;
       if (!var52b) {
-         var7n = var41.m_100(var45 - 1, var49, 60);
+         var7n = var41.findBlockingEntity(var45 - 1, var49, 60);
          if (var45 > 0 && var7n >= 0) {
             var54++;
          }
 
-         var7n = var41.m_100(var45 + 1, var49, 60);
+         var7n = var41.findBlockingEntity(var45 + 1, var49, 60);
          if (var45 < var41.mapCellsHigh - 1 && var7n >= 0) {
             var54++;
          }
 
-         var7n = var41.m_100(var45, var49 - 1, 60);
+         var7n = var41.findBlockingEntity(var45, var49 - 1, 60);
          if (var49 > 0 && var7n >= 0) {
             var54++;
             var41.m_101(var45, var49 - 1, var7n);
          }
 
-         var7n = var41.m_100(var45, var49 + 1, 60);
+         var7n = var41.findBlockingEntity(var45, var49 + 1, 60);
          if (var49 < var41.mapCellsHigh - 1 && var7n >= 0) {
             var54++;
          }
       } else {
-         var7n = var41.m_100(var45, var49 - 1, 60);
+         var7n = var41.findBlockingEntity(var45, var49 - 1, 60);
          if (var49 > 0 && var7n >= 0) {
             var41.m_101(var45, var49 - 1, var7n);
          }
@@ -5974,12 +5977,12 @@ public final class a extends Canvas implements Runnable {
                this.f_Graphics_00.drawImage(this.entityTypeImage[var15], var1 - 16, var2 + 4, 0);
                if (this.f_int_96 > 0) {
                   this.f_Graphics_00.setColor(-1);
-                  this.m_093(var1 - 18 - (this.frameCounter & 1), var2 + 16, (byte)3);
+                  this.drawLeftTriangleArrow(var1 - 18 - (this.frameCounter & 1), var2 + 16, (byte)3);
                }
 
                if (this.f_int_96 < this.itemStackSize - 1) {
                   this.f_Graphics_00.setColor(-1);
-                  this.m_093(var1 + 18 + (this.frameCounter & 1), var2 + 16, (byte)3);
+                  this.drawLeftTriangleArrow(var1 + 18 + (this.frameCounter & 1), var2 + 16, (byte)3);
                }
 
                this.f_Graphics_00.setColor(-1);
@@ -6021,7 +6024,7 @@ public final class a extends Canvas implements Runnable {
       this.f_Graphics_00.drawImage(this.f_Image_arr2_00[8][3], 0, var1, 0);
       if (this.currentFloor > 50) {
          this.f_Graphics_00.setColor(-1);
-         this.m_142("引子", 32, var1 + 9 + (19 - this.fontHeight >> 1), 17, this.f_int_arr_36);
+         this.drawOutlinedText("引子", 32, var1 + 9 + (19 - this.fontHeight >> 1), 17, this.f_int_arr_36);
          var1 += 4;
       } else {
          var1 += 4;
@@ -6298,10 +6301,10 @@ public final class a extends Canvas implements Runnable {
       Image var3 = this.entityTypeImage[var1];
       switch (var1) {
          case 67:
-            this.m_001(9);
+            this.readCountPrefix(9);
             break;
          case 69:
-            this.m_001(9);
+            this.readCountPrefix(9);
             this.entitySpriteW[var2] = 96;
             this.entitySpriteH[var2] = 32;
             return;
@@ -6950,7 +6953,7 @@ public final class a extends Canvas implements Runnable {
       return (short)(var0.read() & 0xFF | var0.read() << 8 & 0xFF00);
    }
 
-   private void m_059() {
+   private void initCellGrid() {
       this.cellTypeGrid = new byte[this.mapCellsHigh][this.mapCellsWide];
       this.cellSlotCount = new byte[128];
       this.cellSlotTable = new byte[128][16];
@@ -7172,20 +7175,20 @@ public final class a extends Canvas implements Runnable {
    }
 
    private void startNewGameLoad() {
-      this.m_131((byte)3, true);
-      this.m_132(6);
-      this.m_132(8);
-      this.m_132(5);
-      this.m_132(13);
-      this.m_132(9);
-      this.m_132(10);
-      this.m_132(2);
-      this.m_132(3);
-      this.m_132(12);
-      this.m_132(11);
+      this.startLoadTask((byte)3, true);
+      this.stepLoadTask(6);
+      this.stepLoadTask(8);
+      this.stepLoadTask(5);
+      this.stepLoadTask(13);
+      this.stepLoadTask(9);
+      this.stepLoadTask(10);
+      this.stepLoadTask(2);
+      this.stepLoadTask(3);
+      this.stepLoadTask(12);
+      this.stepLoadTask(11);
    }
 
-   private void m_068() {
+   private void resetNewGameState() {
       this.equippedWeaponType = 0;
       this.equippedArmorType = 0;
       if (this.currentFloor == 1) {
@@ -7263,7 +7266,7 @@ public final class a extends Canvas implements Runnable {
       return var1;
    }
 
-   private void m_072(int var1) {
+   private void addOption(int var1) {
       int var2 = this.f_Font_00.stringWidth(this.optionLabels[var1]) + 80;
       this.optionLabelIdx[this.optionCount++] = (byte)var1;
       if (this.optionCount == 1) {
@@ -7438,7 +7441,7 @@ public final class a extends Canvas implements Runnable {
                if ((var3 & 4) == 0) {
                   this.entityParam[this.merchantEntity] = (short)(this.entityParam[this.merchantEntity] ^ 512);
                   if ((var3 & 1) != 0) {
-                     this.m_075(var4, var7 - 1);
+                     this.pushOfferQueue(var4, var7 - 1);
                      if (var4 == 0) {
                         this.showOverlayMessage((byte)4, this.f_String_arr_06[var7 - 1], (byte)0, (byte)0);
                      } else {
@@ -7469,7 +7472,7 @@ public final class a extends Canvas implements Runnable {
       return var6;
    }
 
-   private void m_075(int var1, int var2) {
+   private void pushOfferQueue(int var1, int var2) {
       if (this.inventoryEntryCount < this.offerQueueSrc) {
          this.f_byte_arr_14[this.inventoryEntryCount] = (byte)var1;
          this.f_byte_arr_15[this.inventoryEntryCount] = (byte)var2;
@@ -7477,7 +7480,7 @@ public final class a extends Canvas implements Runnable {
       }
    }
 
-   private void m_076(int var1) {
+   private void browseOfferQueue(int var1) {
       byte var2 = 0;
       byte var3 = 0;
       if (this.inventoryEntryCount > 0) {
@@ -7524,7 +7527,7 @@ public final class a extends Canvas implements Runnable {
 
    private void pickupItemType(int var1) {
       int var2 = 0;
-      var2 = this.m_083(var1, 0, 12);
+      var2 = this.equipTierIndex(var1, 0, 12);
       switch (var1) {
          case 15:
             this.tutorialSeen = true;
@@ -7669,14 +7672,14 @@ public final class a extends Canvas implements Runnable {
       boolean var3 = true;
       int var4 = 0;
       if (var1 < 6) {
-         if ((var4 = this.m_083(this.equippedWeaponType, 0, 6)) >= var1 && !var2) {
+         if ((var4 = this.equipTierIndex(this.equippedWeaponType, 0, 6)) >= var1 && !var2) {
             var3 = false;
          } else {
             this.playerAtk = this.playerAtk - this.equipTierBonuses[var4];
             this.playerAtk = this.playerAtk + this.equipTierBonuses[var1];
             this.equippedWeaponType = this.equipTierTypes[var1];
          }
-      } else if ((var4 = this.m_083(this.equippedArmorType, 6, 12)) >= var1 && !var2) {
+      } else if ((var4 = this.equipTierIndex(this.equippedArmorType, 6, 12)) >= var1 && !var2) {
          var3 = false;
       } else {
          this.playerDef = this.playerDef - this.equipTierBonuses[var4];
@@ -7687,7 +7690,7 @@ public final class a extends Canvas implements Runnable {
       return var3;
    }
 
-   private int m_083(int var1, int var2, int var3) {
+   private int equipTierIndex(int var1, int var2, int var3) {
       var3 = var3;
 
       while (--var3 >= var2) {
@@ -7784,11 +7787,11 @@ public final class a extends Canvas implements Runnable {
       switch (var1) {
          case 13:
             this.gameMode = 5;
-            this.m_000();
+            this.dispatchModeEntry();
             break;
          case 14:
             this.gameMode = 12;
-            this.m_000();
+            this.dispatchModeEntry();
          case 15:
          case 23:
          case 24:
@@ -7892,10 +7895,10 @@ public final class a extends Canvas implements Runnable {
    private boolean m_089(byte var1) {
       int var2 = this.playerPixelX >> 5;
       int var3 = this.playerPixelY >> 5;
-      int var4 = this.m_100(var2, var3 - 1, var1);
-      int var5 = this.m_100(var2, var3 + 1, var1);
-      int var6 = this.m_100(var2 - 1, var3, var1);
-      int var7 = this.m_100(var2 + 1, var3, var1);
+      int var4 = this.findBlockingEntity(var2, var3 - 1, var1);
+      int var5 = this.findBlockingEntity(var2, var3 + 1, var1);
+      int var6 = this.findBlockingEntity(var2 - 1, var3, var1);
+      int var7 = this.findBlockingEntity(var2 + 1, var3, var1);
       var2 = 0;
       if (var4 >= 0) {
          this.markEntityRemoved(var4);
@@ -8028,7 +8031,7 @@ public final class a extends Canvas implements Runnable {
       }
    }
 
-   private void m_093(int var1, int var2, byte var3) {
+   private void drawLeftTriangleArrow(int var1, int var2, byte var3) {
       this.f_Graphics_00.fillTriangle(var1, var2 - 6, var1, var2 + 6, var1 - 6, var2);
    }
 
@@ -8055,7 +8058,7 @@ public final class a extends Canvas implements Runnable {
             }
 
             this.m_119(24);
-            this.m_059();
+            this.initCellGrid();
             this.m_122(this.currentFloor);
          default:
             return false;
@@ -8118,7 +8121,7 @@ public final class a extends Canvas implements Runnable {
          default:
             break;
          case 7:
-            if (var3 &= var2 && !this.m_102(23, 12)) {
+            if (var3 &= var2 && !this.probeCrossFloorSnapshot(23, 12)) {
                this.scriptLineFlags[32] = true;
             }
             break;
@@ -8143,7 +8146,7 @@ public final class a extends Canvas implements Runnable {
             var3 &= var2;
             break;
          case 15:
-            if (this.m_102(this.currentFloor, 5)) {
+            if (this.probeCrossFloorSnapshot(this.currentFloor, 5)) {
                var3 = false;
             } else {
                var3 &= var2;
@@ -8155,14 +8158,14 @@ public final class a extends Canvas implements Runnable {
          case 18:
             if ((var3 &= var2)
                && (
-                  this.m_100(2, 2, 1) < 0
-                     || this.m_100(2, 4, 1) < 0
-                     || this.m_100(2, 6, 1) < 0
-                     || this.m_100(6, 2, 1) < 0
-                     || this.m_100(4, 6, 1) < 0
-                     || this.m_100(6, 6, 1) < 0
-                     || this.m_100(4, 2, 1) >= 0
-                     || this.m_100(6, 4, 1) >= 0
+                  this.findBlockingEntity(2, 2, 1) < 0
+                     || this.findBlockingEntity(2, 4, 1) < 0
+                     || this.findBlockingEntity(2, 6, 1) < 0
+                     || this.findBlockingEntity(6, 2, 1) < 0
+                     || this.findBlockingEntity(4, 6, 1) < 0
+                     || this.findBlockingEntity(6, 6, 1) < 0
+                     || this.findBlockingEntity(4, 2, 1) >= 0
+                     || this.findBlockingEntity(6, 4, 1) >= 0
                )) {
                var3 = false;
                this.scriptLineFlags[18] = true;
@@ -8174,10 +8177,10 @@ public final class a extends Canvas implements Runnable {
             }
             break;
          case 25:
-            var3 &= var2 & this.scriptLineFlags[13] & this.m_100(2, 2, 60) < 0 & this.m_100(10, 2, 60) < 0;
+            var3 &= var2 & this.scriptLineFlags[13] & this.findBlockingEntity(2, 2, 60) < 0 & this.findBlockingEntity(10, 2, 60) < 0;
             break;
          case 26:
-            if (this.m_100(11, 4, 84) < 0) {
+            if (this.findBlockingEntity(11, 4, 84) < 0) {
                var3 = false;
             }
             break;
@@ -8192,7 +8195,7 @@ public final class a extends Canvas implements Runnable {
             if (this.scriptLineFlags[7]) {
                var3 = false;
             } else {
-               var3 &= !var2 & this.m_102(23, 12);
+               var3 &= !var2 & this.probeCrossFloorSnapshot(23, 12);
             }
             break;
          case 33:
@@ -8283,7 +8286,7 @@ public final class a extends Canvas implements Runnable {
             this.dialogMoveY = this.parseScriptInt(var1, var2 + 1, " ");
             this.scriptCursor = this.lastDelimPos + 1;
             if (var55 > 0) {
-               this.f_int_127 = this.m_100(var5, var6, var55);
+               this.f_int_127 = this.findBlockingEntity(var5, var6, var55);
                if (this.f_int_127 >= 0) {
                   this.routePhase = 0;
                   a var19 = this;
@@ -8327,7 +8330,7 @@ public final class a extends Canvas implements Runnable {
                var2 = this.lastDelimPos;
                var6 = this.parseScriptInt(var1, var2 + 1, " ");
                int var54;
-               if ((var54 = this.m_100(var5, var6, var52)) >= 0) {
+               if ((var54 = this.findBlockingEntity(var5, var6, var52)) >= 0) {
                   this.markEntityRemoved(var54);
                }
             }
@@ -8456,7 +8459,7 @@ public final class a extends Canvas implements Runnable {
                var15.spawnEntity(var50, var5, var6, 0);
                var15.m_119(var4);
                if (var15.currentFloor != var4) {
-                  var15.m_059();
+                  var15.initCellGrid();
                   var15.m_122(var15.currentFloor);
                }
 
@@ -8502,12 +8505,12 @@ public final class a extends Canvas implements Runnable {
                   case 0:
                   default:
                      this.dialogPhase = 6;
-                     this.m_103(this.dialogMoveX, this.dialogMoveY);
+                     this.easeCameraToTarget(this.dialogMoveX, this.dialogMoveY);
                }
             } else if (var3.equals("END")) {
                this.parseScriptInt(var1, var2 + 1, " ");
                this.gameMode = 20;
-               this.m_000();
+               this.dispatchModeEntry();
                this.scriptCursor = this.lastDelimPos + 1;
             } else if (var3.equals("SMS")) {
                this.parseScriptInt(var1, var2 + 1, " ");
@@ -8609,7 +8612,7 @@ public final class a extends Canvas implements Runnable {
       return Integer.parseInt(var1);
    }
 
-   private int m_100(int var1, int var2, int var3) {
+   private int findBlockingEntity(int var1, int var2, int var3) {
       byte var6 = this.cellTypeGrid[var2][var1];
       byte var7 = this.cellSlotCount[var6];
       int var4 = 0;
@@ -8634,7 +8637,7 @@ public final class a extends Canvas implements Runnable {
       }
    }
 
-   private boolean m_102(int var1, int var2) {
+   private boolean probeCrossFloorSnapshot(int var1, int var2) {
       boolean var3 = false;
       if (this.currentFloor != var1) {
          this.m_119(this.currentFloor);
@@ -8649,14 +8652,14 @@ public final class a extends Canvas implements Runnable {
       }
 
       if (this.currentFloor != var1) {
-         this.m_059();
+         this.initCellGrid();
          this.m_122(this.currentFloor);
       }
 
       return var3;
    }
 
-   private void m_103(int var1, int var2) {
+   private void easeCameraToTarget(int var1, int var2) {
       this.cameraX = (this.viewWidthPx - 32 >> 1) - this.cameraPixelX;
       this.cameraY = (this.viewHeightPx - 32 >> 1) - this.cameraPixelY;
       this.cameraTargetX = var1 << 5;
@@ -8991,7 +8994,7 @@ public final class a extends Canvas implements Runnable {
       } catch (Exception var4) {
          this.markSlotEntry(-1);
       } finally {
-         this.m_117();
+         this.closeRecordStoreAndGc();
       }
    }
 
@@ -9045,11 +9048,11 @@ public final class a extends Canvas implements Runnable {
       } catch (Exception var4) {
          var4.printStackTrace();
       } finally {
-         this.m_117();
+         this.closeRecordStoreAndGc();
       }
    }
 
-   private void m_113(boolean var1) {
+   private void paintSlotTable(boolean var1) {
       int var1i = var1 ? 2 : 1;
       int var2 = 240 - this.slotListWidth - 22 >> 1;
       int var3 = 320 - this.slotListHeight >> 1;
@@ -9237,7 +9240,7 @@ public final class a extends Canvas implements Runnable {
       } catch (Exception var4) {
          var4.printStackTrace();
       } finally {
-         this.m_117();
+         this.closeRecordStoreAndGc();
       }
    }
 
@@ -9312,7 +9315,7 @@ public final class a extends Canvas implements Runnable {
          var6.printStackTrace();
          var2 = false;
       } finally {
-         this.m_117();
+         this.closeRecordStoreAndGc();
       }
 
       return var2;
@@ -9325,7 +9328,7 @@ public final class a extends Canvas implements Runnable {
       }
    }
 
-   private void m_117() {
+   private void closeRecordStoreAndGc() {
       if (this.f_RecordStore_00 != null) {
          try {
             this.f_RecordStore_00.closeRecordStore();
@@ -9359,7 +9362,7 @@ public final class a extends Canvas implements Runnable {
       System.gc();
    }
 
-   private void m_118() {
+   private void initFloorStates() {
       int var1 = 56;
 
       while (--var1 >= 0) {
@@ -9417,8 +9420,8 @@ public final class a extends Canvas implements Runnable {
          var2.mapTransformGrid = new byte[var4];
          var14.read(var2.mapTerrainGrid, 0, var4);
          var14.read(var2.mapTransformGrid, 0, var4);
-         m_006(32, 32, 1442775295);
-         m_006(32, 32, 1426128640);
+         createSolidImage(32, 32, 1442775295);
+         createSolidImage(32, 32, 1426128640);
       } catch (Exception var11) {
          var11.printStackTrace();
       } finally {
@@ -9432,7 +9435,7 @@ public final class a extends Canvas implements Runnable {
       var2.viewHeightPx = 252;
       var2.mapFitsWidth = var2.viewWidthPx >= var2.mapPixelWidth;
       var2.mapFitsHeight = var2.viewHeightPx >= var2.mapPixelHeight;
-      var2.m_059();
+      var2.initCellGrid();
       a var13;
       (var13 = var2).walkableGrid = new boolean[var13.mapCellsHigh][var13.mapCellsWide];
       var13.setCameraClamped(0, 0);
@@ -9623,14 +9626,14 @@ public final class a extends Canvas implements Runnable {
       } else {
          this.f_byte_arr_29 = this.f_byte_arr2_05[var1];
          this.f_int_138 = 0;
-         var2 = this.m_123();
+         var2 = this.restoreFloorState();
 
          for (int var48 = 0; var48 < var2; var48++) {
             byte var20 = this.f_byte_arr_29[this.f_int_138++];
-            int var26 = this.m_123();
-            int var33 = this.m_123();
+            int var26 = this.restoreFloorState();
+            int var33 = this.restoreFloorState();
             boolean var36 = this.f_byte_arr_29[this.f_int_138++] != 0;
-            var6 = this.m_123();
+            var6 = this.restoreFloorState();
             this.spawnEntity(var20, var26, var33, var6);
             this.entityVisible[var48] = var36;
             this.entityRemoved[var48] = false;
@@ -9638,28 +9641,28 @@ public final class a extends Canvas implements Runnable {
 
          switch (this.currentFloor) {
             case 2:
-               if (!this.scriptLineFlags[26] && this.m_100(11, 4, 84) < 0) {
+               if (!this.scriptLineFlags[26] && this.findBlockingEntity(11, 4, 84) < 0) {
                   this.spawnEntity(84, 352, 128, 0);
                }
                break;
             case 12:
-               if ((var2 = this.m_100(1, 1, 78)) >= 0) {
+               if ((var2 = this.findBlockingEntity(1, 1, 78)) >= 0) {
                   this.entityParam[var2] = (short)(6 | this.f_byte_arr_13[5] << 8);
                }
 
-               if ((var2 = this.m_100(11, 1, 78)) >= 0) {
+               if ((var2 = this.findBlockingEntity(11, 1, 78)) >= 0) {
                   this.entityParam[var2] = (short)(5 | this.f_byte_arr_13[4] << 8);
                }
             case 31:
             default:
                break;
             case 39:
-               if (this.m_100(11, 1, 7) >= 0) {
+               if (this.findBlockingEntity(11, 1, 7) >= 0) {
                   this.removeGroupAtCellByType(11, 1, 7);
                   this.spawnEntity(8, 11, 1, 38);
                }
 
-               if (this.m_100(11, 11, 8) >= 0) {
+               if (this.findBlockingEntity(11, 11, 8) >= 0) {
                   this.removeGroupAtCellByType(11, 11, 8);
                   this.spawnEntity(7, 11, 11, 40);
                }
@@ -9673,7 +9676,7 @@ public final class a extends Canvas implements Runnable {
       }
    }
 
-   private int m_123() {
+   private int restoreFloorState() {
       return (this.f_byte_arr_29[this.f_int_138++] & 0xFF) << 8 | this.f_byte_arr_29[this.f_int_138++] & 0xFF;
    }
 
@@ -9815,7 +9818,7 @@ public final class a extends Canvas implements Runnable {
       return var8 + 1;
    }
 
-   private void m_128() {
+   private void initParticles() {
       this.particleX = new short[32];
       this.particleY = new short[32];
       this.particleVelX = new byte[32];
@@ -9870,7 +9873,7 @@ public final class a extends Canvas implements Runnable {
       }
    }
 
-   private void m_131(byte var1, boolean var2) {
+   private void startLoadTask(byte var1, boolean var2) {
       this.loadTargetMode = 3;
       this.loadCallInit = true;
       if (this.loadSteps == null) {
@@ -9879,10 +9882,10 @@ public final class a extends Canvas implements Runnable {
 
       this.loadStepCount = this.loadStepIndex = 0;
       this.gameMode = 2;
-      this.m_001(15);
+      this.readCountPrefix(15);
    }
 
-   private void m_132(int var1) {
+   private void stepLoadTask(int var1) {
       this.loadSteps[this.loadStepCount++] = (byte)var1;
    }
 
@@ -10112,14 +10115,14 @@ public final class a extends Canvas implements Runnable {
             switch (var2) {
                case 61:
                   if (var5.currentFloor == 49
-                     && var5.m_100(6, 2, 61) < 0
-                     && var5.m_100(5, 3, 61) < 0
-                     && var5.m_100(7, 3, 61) < 0
-                     && var5.m_100(6, 4, 61) < 0
-                     && var5.m_100(5, 2, 61) >= 0
-                     && var5.m_100(7, 2, 61) >= 0
-                     && var5.m_100(5, 4, 61) >= 0
-                     && var5.m_100(7, 4, 61) >= 0) {
+                     && var5.findBlockingEntity(6, 2, 61) < 0
+                     && var5.findBlockingEntity(5, 3, 61) < 0
+                     && var5.findBlockingEntity(7, 3, 61) < 0
+                     && var5.findBlockingEntity(6, 4, 61) < 0
+                     && var5.findBlockingEntity(5, 2, 61) >= 0
+                     && var5.findBlockingEntity(7, 2, 61) >= 0
+                     && var5.findBlockingEntity(5, 4, 61) >= 0
+                     && var5.findBlockingEntity(7, 4, 61) >= 0) {
                      var5.removeGroupAtCellByType(6, 3, 70);
                      var5.spawnEntity(71, 192, 96, 0);
                   }
@@ -10155,7 +10158,7 @@ public final class a extends Canvas implements Runnable {
       }
    }
 
-   private void m_139(byte var1, int var2) {
+   private void playBgm(byte var1, int var2) {
       if (this.soundEnabled) {
          this.f_InputStream_00 = null;
 
@@ -10200,7 +10203,7 @@ public final class a extends Canvas implements Runnable {
          } catch (Exception var12) {
             var12.printStackTrace();
          } finally {
-            this.m_008();
+            this.closeStreamsAndClear();
          }
       }
    }
@@ -10218,7 +10221,7 @@ public final class a extends Canvas implements Runnable {
       return (this.gameRandom.nextInt() >>> 1) % var1;
    }
 
-   private void m_142(String var1, int var2, int var3, int var4, int[] var5) {
+   private void drawOutlinedText(String var1, int var2, int var3, int var4, int[] var5) {
       var2--;
       var3--;
       this.f_Graphics_00.setColor(var5[0]);
@@ -10237,7 +10240,7 @@ public final class a extends Canvas implements Runnable {
    private void runLogoAnimation(int var1, int var2) {
       if (!this.logoLayoutDone) {
          a var3 = this;
-         this.m_001(0);
+         this.readCountPrefix(0);
          int var4 = var3.logoSegmentHeights[0] + var3.logoSegmentHeights[1] + var3.logoSegmentHeights[2];
          var3.logoGap = Math.min(15, Math.abs(320 - var4 >> 2));
          var4 = 320 - var4 - (var3.logoGap << 1) >> 1;
