@@ -1656,6 +1656,84 @@ impl GameScene {
             self.script_cursor = e2 + 1; // f_int_122 + 1（a.java:8263）
             self.dialog_phase = 1;
             self.open_dialog_page(start);
+        } else if op == "LAY" {
+            // LAY_x（a.java:8355-8362）：脚本层跳转——m_119 存态 + 目标层 + 遮幅
+            // （dialogPhase=5）+ 清 overlay。changeFloor 的脚本化子集。
+            self.save_floor_state();
+            let (v, e) = Self::parse_script_int(&line, var2 + 1, ' ');
+            self.pending_floor = v;
+            var2 = e;
+            self.transitioning = true;
+            self.overlay_text = None;
+            self.dialog_phase = 5;
+            self.script_cursor = var2 + 1;
+        } else if op == "GIN" {
+            // GIN_a_b（a.java:8424-8437）：0=pickupItemType(b) / 1=gainGold(b)；
+            // 完后**尾递归**执行下一条（8435-8436）。
+            let (a, e1) = Self::parse_script_int(&line, var2 + 1, '_');
+            let (b, e2) = Self::parse_script_int(&line, e1 + 1, ' ');
+            match a {
+                0 => self.pickup_item_type(b),
+                1 => {
+                    crate::combat::gain_gold(&mut self.player, b);
+                }
+                _ => {}
+            }
+            self.script_cursor = e2 + 1;
+            self.execute_script_instruction();
+        } else if op == "RES" {
+            // RES_x（a.java:8470-8490）：easy（difficultyIndex==0）重置 run 统计
+            // （三钥/栈/金 4/炼丹 0/楼层 1-3/攻防 10/HP 400/剧情物清零）；非 easy 空转。
+            let (_v, e) = Self::parse_script_int(&line, var2 + 1, ' ');
+            if self.difficulty_index == 0 {
+                self.player.yellow_keys = 0;
+                self.player.red_keys = 0;
+                self.player.blue_keys = 0;
+                self.player.item_stack_size = 0;
+                self.player.gold = 4;
+                self.alchemy_upgrade_count = 0;
+                self.min_floor = 1;
+                self.max_floor = 3;
+                self.player.atk = 10;
+                self.player.def = 10;
+                self.player.hp = 400;
+                self.journal.clear();
+            }
+            self.script_cursor = e + 1;
+        } else if op == "ADD" {
+            // ADD_a_b_c_d（a.java:8438-8468）：跨层生成实体——目标层非当前时
+            // m_119 存当前→m_122 载目标→spawn→m_119 存目标→initCellGrid+m_122 还原
+            // （Rust 的 load_floor_data 重建 grid 与 initCellGrid 等价，8462-8464）。
+            let (a, e1) = Self::parse_script_int(&line, var2 + 1, '_');
+            let (b, e2) = Self::parse_script_int(&line, e1 + 1, '_');
+            let (c, e3) = Self::parse_script_int(&line, e2 + 1, '_');
+            let (d, e4) = Self::parse_script_int(&line, e3 + 1, ' ');
+            if self.floor != a {
+                self.save_floor_state();
+                if let Some(fa) = self.floor_assets.get(a as usize).cloned().flatten() {
+                    self.load_floor_data(&fa.maplv, c << 5, d << 5, &fa.records)
+                        .ok(); // Java m_122 无失败路径（资产在则必成）
+                }
+            }
+            entity::spawn(
+                &mut self.entities,
+                &mut self.grid,
+                b,
+                c << 5,
+                d << 5,
+                0,
+                &self.width_table,
+                None,
+            );
+            self.save_floor_state();
+            if self.floor != a {
+                if let Some(fa) = self.floor_assets.get(self.floor as usize).cloned().flatten() {
+                    let (px, py) = (self.view.player_px, self.view.player_py);
+                    self.load_floor_data(&fa.maplv, px, py, &fa.records)
+                        .ok();
+                }
+            }
+            self.script_cursor = e4 + 1;
         } else if op == "SEE" {
             let (tx, a) = Self::parse_script_int(&line, var2 + 1, '_');
             let (ty, b) = Self::parse_script_int(&line, a + 1, '_');
@@ -6075,6 +6153,78 @@ mod slot_equip_scene_tests {
         assert_eq!(sc.global_snapshot().max_floor_watermark, 50, "单调不回退");
     }
 
+    /// LAY_x（a.java:8355-8362）：脚本层跳转——m_119 存态 + 目标层 + 遮幅（dialogPhase=5）。
+    #[test]
+    fn script_lay_jumps_floor_with_wipe() {
+        let mut sc = scene_with(&synthetic_sptarm());
+        sc.overlay_text = Some("x".into());
+        sc.script_line = "LAY_7 ".to_string();
+        sc.script_cursor = 0;
+        sc.execute_script_instruction();
+        assert_eq!(sc.pending_floor, 7);
+        assert!(sc.transitioning);
+        assert_eq!(sc.dialog_phase, 5);
+        assert!(sc.overlay_text.is_none());
+    }
+
+    /// GIN_a_b（a.java:8424-8437）：1=得金 b；尾递归执行下一条（END→行尾收尾）。
+    #[test]
+    fn script_gin_gives_gold_and_recurses() {
+        let mut sc = scene_with(&synthetic_sptarm());
+        let g0 = sc.player.gold;
+        sc.script_line = "GIN_1_1000 ".to_string();
+        sc.script_cursor = 0;
+        sc.execute_script_instruction();
+        assert_eq!(sc.player.gold, g0 + 1000, "gainGold(1000)");
+        // 尾递归自证：GIN 后递归执行到行尾收尾分支（dialogPhase=4 + 置 flag）
+        assert_eq!(sc.dialog_phase, 4, "尾递归走到行尾收尾（a.java:8435-8436）");
+        assert!(sc.script_line_flags[sc.current_script_index]);
+    }
+
+    /// RES_x（a.java:8470-8490）：easy（difficulty==0）重置 run 统计；非 easy 空转。
+    #[test]
+    fn script_res_resets_run_stats_on_easy() {
+        let mut sc = scene_with(&synthetic_sptarm());
+        sc.difficulty_index = 0;
+        sc.player.hp = 999;
+        sc.player.gold = 777;
+        sc.player.yellow_keys = 5;
+        sc.player.atk = 50;
+        sc.min_floor = 9;
+        sc.max_floor = 40;
+        sc.journal.push((3, 1));
+        sc.script_line = "RES_0 ".to_string();
+        sc.script_cursor = 0;
+        sc.execute_script_instruction();
+        assert_eq!((sc.player.hp, sc.player.atk, sc.player.def), (400, 10, 10));
+        assert_eq!(sc.player.gold, 4);
+        assert_eq!((sc.min_floor, sc.max_floor), (1, 3));
+        assert_eq!((sc.player.yellow_keys, sc.player.red_keys, sc.player.blue_keys), (0, 0, 0));
+        assert_eq!(sc.alchemy_upgrade_count, 0);
+        assert!(sc.journal.is_empty(), "inventoryEntryCount 清零（f_int_89+跟随对）");
+        // 非 easy 不动
+        let mut sc2 = scene_with(&synthetic_sptarm());
+        sc2.difficulty_index = 1;
+        sc2.player.hp = 999;
+        sc2.script_line = "RES_0 ".to_string();
+        sc2.script_cursor = 0;
+        sc2.execute_script_instruction();
+        assert_eq!(sc2.player.hp, 999, "difficulty!=0 空转");
+    }
+
+    /// ADD_a_b_c_d（a.java:8438-8468）：同层生成路径（a==currentFloor 时免存/载切换）。
+    #[test]
+    fn script_add_spawns_entity_same_floor() {
+        let mut sc = scene_with(&synthetic_sptarm());
+        let f = sc.floor;
+        let n0 = sc.entities.count;
+        sc.script_line = format!("ADD_{}_72_11_10 ", f);
+        sc.script_cursor = 0;
+        sc.execute_script_instruction();
+        assert_eq!(sc.entities.count, n0 + 1);
+        assert_eq!(sc.entities.entity_type[n0], 72);
+        assert_eq!((sc.entities.pixel_x[n0], sc.entities.pixel_y[n0]), (11 << 5, 10 << 5));
+    }
     /// ①②装备往返：serialize 写真实值（a.java:9192-9193）、load 恢复（a.java:9260-9261）。
     #[test]
     fn save_roundtrip_restores_equipment() {
