@@ -4,7 +4,7 @@
     "boot_replay(test)": 2,
     "combat_golden(test)": 6,
     "entity_golden(test)": 7,
-    "game_core(lib)": 25,
+    "game_core(lib)": 26,
     "game_data(lib)": 23,
     "game_oracle(lib)": 0,
     "game_platform(lib)": 5,
@@ -12,7 +12,7 @@
     "golden(test)": 9,
     "l2_prologue(test)": 1,
     "png_golden(test)": 1,
-    "preset_cases(test)": 84,
+    "preset_cases(test)": 35,
     "probe_floor2(test)": 1,
     "render_golden(test)": 16,
     "script_golden(test)": 14,
@@ -20,5 +20,5 @@
     "walk_replay_floor1(test)": 2,
     "xiyou(bin)": 14
   },
-  "total": 219
+  "total": 171
 }

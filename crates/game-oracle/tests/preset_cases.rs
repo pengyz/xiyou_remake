@@ -4881,7 +4881,6 @@ fn preset_floor41_frames_match() {
 /// Java 锚（A-preset-floor44 stride=1）：T420 66#1 触发、T760 66#2、
 /// T900-1020 穿门、T1420+ 拾取链。
 #[test]
-#[test]
 fn preset_floor44_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(
@@ -5103,8 +5102,6 @@ fn preset_floor44_frames_match() {
 /// (11,6)/(11,7) → 西 (10,7)/(9,7) → 北撞 77 商人（extra 0x12）→ -5 → 收尾。
 /// Java 锚（A-preset-floor45 stride=1）：T302 78 对话、T650 受领、
 /// T1340 77 对话、T1540 受领。
-#[test]
-#[test]
 #[test]
 fn preset_floor45_frames_match() {
     let repo_path = repo();
@@ -5329,9 +5326,6 @@ fn preset_floor45_frames_match() {
 /// floor41/45/46 覆盖，本层让位口袋地形语义。
 /// Java 锚（A-preset-floor48 stride=1）：T420 62#1、T2100 (4,1) bump、
 /// T2660 黄门、T2860 62#2。
-#[test]
-#[test]
-#[test]
 #[test]
 fn preset_floor48_frames_match() {
     let repo_path = repo();
@@ -5558,10 +5552,6 @@ fn preset_floor48_frames_match() {
 /// 可走/键向）+ 存档参数按 preset_rms 布局逐字节核对（黄钥=b[23] 非
 /// b[13]——后者是 playerHp 字节，误写曾致 HP 1012 门钥不足连环漂移）。
 #[test]
-#[test]
-#[test]
-#[test]
-#[test]
 fn preset_floor14_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(
@@ -5785,11 +5775,6 @@ fn preset_floor14_frames_match() {
 /// Java 锚（A-preset-floor38 stride=1）：T302/1025/1605/2505/3545/4085/
 /// 4665/5445 击杀金币拍。
 #[test]
-#[test]
-#[test]
-#[test]
-#[test]
-#[test]
 fn preset_floor38_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(
@@ -6011,12 +5996,6 @@ fn preset_floor38_frames_match() {
 /// 路线：tools/route_gen.py（航点手拟 + BFS 走步填充 + 三重校验固化成工具）。
 /// Java 锚：T482 击杀拍。
 #[test]
-#[test]
-#[test]
-#[test]
-#[test]
-#[test]
-#[test]
 fn preset_floor47_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(
@@ -6235,13 +6214,6 @@ fn preset_floor47_frames_match() {
 /// 链：41@(5,4) → 42@(7,8) → 43@(11,8) 三战（金币 100→135→136→138 四段
 /// 帧证）。route_gen 生成。
 /// Java 锚：T422/965/1665/2485 金币拍。
-#[test]
-#[test]
-#[test]
-#[test]
-#[test]
-#[test]
-#[test]
 #[test]
 fn preset_floor34_frames_match() {
     let repo_path = repo();
@@ -6462,13 +6434,6 @@ fn preset_floor34_frames_match() {
 /// （金币 100→106→112→120 帧证）。45@(4,11) 在 floor10b。
 /// route_gen 生成。Java 锚：T302/705/765 金币拍。
 #[test]
-#[test]
-#[test]
-#[test]
-#[test]
-#[test]
-#[test]
-#[test]
 fn preset_floor10_nw_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(
@@ -6687,13 +6652,6 @@ fn preset_floor10_nw_frames_match() {
 /// 45@(4,11)（金币 100→105 帧证）——45 型收口。route_gen 生成。
 /// Java 锚：T302 金币拍。
 #[test]
-#[test]
-#[test]
-#[test]
-#[test]
-#[test]
-#[test]
-#[test]
 fn preset_floor10b_frames_match() {
     let repo_path = repo();
     let preset_text = std::fs::read_to_string(
@@ -6911,13 +6869,6 @@ fn preset_floor10b_frames_match() {
 /// preset-floor17 场景（出生 (1,9)），窗口 T1-850 全帧。链：N bump
 /// 48@(1,8)（金币 100→112 帧证）——48 型收口。route_gen 生成。
 /// Java 锚：T302 金币拍。
-#[test]
-#[test]
-#[test]
-#[test]
-#[test]
-#[test]
-#[test]
 #[test]
 fn preset_floor17_frames_match() {
     let repo_path = repo();
