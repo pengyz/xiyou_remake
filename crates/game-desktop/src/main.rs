@@ -1,28 +1,42 @@
-//! game-desktop —— 桌面壳（窗口/输入/存档落盘/呈现）。让 game-core 真正可玩。
+//! game-desktop —— 桌面壳（窗口/输入/存档落盘/呈现/BGM）。让 game-core 真正可玩。
 //!
 //! 分层（AGENTS §2）：本 crate 只做平台实现；游戏逻辑全在 game-core，
 //! 逐 tick 调用面与 oracle 差分 harness 完全同构（machine.tick/paint →
 //! scene.press_key/release_key/tick/paint），因此差分语义在壳下原样成立。
 //!
 //! 用法：
-//!   cargo run -p game-desktop                       # 资产取 ./assets/raw
+//!   cargo run -p game-desktop                       # 资产取 ./assets/raw，BGM 取 ./assets/audio
 //!   cargo run -p game-desktop -- --assets 路径      # 自定资产目录
+//!   选项：--save 目录 / --audio 目录 / --audio-device ALSA设备名（默认 default）/ --mute
 //! 键位：方向键/WASD = 行走与菜单；回车/空格 = 确认(-5)；
-//!       Q/F1 = 左软键(-6)；E/F2 = 右软键(-7)。
+//!       Q/F1 = 左软键(-6)；E/F2 = 右软键(-7)；F11 = 全屏切换。
+//!       鼠标左键：画面底部 30% 左三分之一 = -6、右三分之一 = -7、其余 = -5。
+//! 输入语义 = Java Canvas 回调（docs/spec/p3-render.md R-2）：按下/抬起只改状态、
+//!       由下一逻辑拍消费；同拍多键覆盖式取末个；OS 键盘自动重复丢弃（a.class 未覆写
+//!       keyRepeated）——长按行走由 keyHeldCode 驱动（a.java:5308-5329）。
+//! 窗口：可缩放，整数倍缩放 + 信箱居中；失焦冻结逻辑与 BGM，回前台续跑（不追帧）。
+//! BGM：game-core `bgm_request()` 驱动（docs/spec/audio.md）；产物由
+//!       `cargo run --release --manifest-path tools/audio/Cargo.toml` 生成，缺失则无声运行。
 //! 存档：./save/ 目录（MOT_L0-2 = 槽存档、MOT_IF = 槽表、SKY_WAR = boss 旗标），
 //!       与 BootMachine 的 RMS 预置同格式——游戏内「保存游戏」即落盘。
 
+mod audio;
+mod view;
+
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 use game_core::layout::{SCREEN_H, SCREEN_W};
 use game_core::paint::BootMachine;
 use game_core::render::{ArgbImage, SoftGraphics};
 use game_core::scene::{FloorAssets, GameScene};
 
+/// mode 21 起的帧间隔 f_int_02（a.java:27 初值 75 / a.java:3377 复位 75）；GameScene
+/// 阶段恒为此值（f_int_02 仅 a.java:3350/3377 两处写，均在 mode 0 内）。
 const TICK_MS: u64 = 75;
-const SCALE: usize = 2;
-const W_U: usize = SCREEN_W as usize;
-const H_U: usize = SCREEN_H as usize;
+/// 初始窗口倍数（逻辑像素）；之后随窗口尺寸自适应整数倍。
+const INITIAL_SCALE: u32 = 2;
+const WINDOW_TITLE: &str = "囧囧西游-大闹天宫";
 
 // ---------------------------------------------------------------- 资产装载
 
@@ -340,14 +354,60 @@ struct Shell {
     stores: Vec<(String, Vec<u8>)>,
     screen: ArgbImage,
     state: Option<Screen>,
-    /// machine 一次性键（按下沿，下一逻辑 tick 消费）
+    /// machine 一次性键（keyValue：按下覆盖式写入，下一逻辑 tick 消费）
     pending_machine_key: i32,
     frame_counter: u64,
     /// 已落盘的槽存档指纹（scene 侧保存检测）
     persisted_blobs: [Option<Vec<u8>>; 6],
+    /// BGM：每拍轮询 game-core 请求（audio.rs）
+    bgm: audio::BgmController,
 }
 
 impl Shell {
+    /// BootMachine 装配（与测试 harness 同参）。
+    fn new(
+        assets_dir: &PathBuf,
+        assets: std::sync::Arc<Assets>,
+        rms: Rms,
+        stores: Vec<(String, Vec<u8>)>,
+        sink: Box<dyn audio::AudioSink>,
+    ) -> Shell {
+        let mapbg = load_container(assets_dir, "mapbg", 1);
+        let png = |name: &str| {
+            ArgbImage::from_decoded_png(
+                game_data::decode_png(
+                    &std::fs::read(assets_dir.join(name))
+                        .unwrap_or_else(|e| panic!("缺 assets/raw/{name}（先跑 tools/extract-assets/extract.py）：{e}")),
+                )
+                .unwrap(),
+            )
+        };
+        let mut machine = BootMachine::new(
+            png("l0.png"),
+            png("l1.png"),
+            load_container(assets_dir, "sflogo", 8),
+            load_container(assets_dir, "ui", 25),
+            load_container(assets_dir, "menu", 2),
+            mapbg[0].clone(),
+            load_container(assets_dir, "intro", 2),
+            load_container(assets_dir, "end", 1),
+            load_container(assets_dir, "load", 2),
+        );
+        machine.preset_stores = stores.clone();
+        machine.sptarm = load_container(assets_dir, "sptarm", 10);
+        Shell {
+            assets,
+            rms,
+            stores,
+            screen: ArgbImage::create(SCREEN_W, SCREEN_H),
+            state: Some(Screen::Boot(machine)),
+            pending_machine_key: 0,
+            frame_counter: 0,
+            persisted_blobs: [None, None, None, None, None, None],
+            bgm: audio::BgmController::new(sink),
+        }
+    }
+
     fn combat_tables() -> game_core::combat::CombatTables {
         game_core::combat::CombatTables {
             enemy_base_hp: fixture!("enemybasehp.txt"),
@@ -357,7 +417,59 @@ impl Shell {
         }
     }
 
+    /// keyPressed / keyReleased 投递——Java Canvas 回调语义（a.java:4663-4680）：只改
+    /// 状态、不推进逻辑，由下一逻辑拍消费；同拍多次按下覆盖式取末个（keyValue =
+    /// keyHeldCode = code）；抬起只清 keyHeldCode（不论哪个键）。docs/spec/p3-render.md R-2。
+    fn route_key(&mut self, code: i32, pressed: bool) {
+        match (self.state.as_mut(), pressed) {
+            (Some(Screen::Game(sc)), true) => sc.press_key(code),
+            (Some(Screen::Game(sc)), false) => sc.release_key(),
+            // BootMachine 各模式只读 keyValue（无 keyHeldCode 消费者）⇒ 抬起无效果
+            (Some(Screen::Boot(_)), true) => self.pending_machine_key = code,
+            _ => {}
+        }
+    }
+
+    /// 下一拍的帧间隔 f_int_02：mode 0 每拍置 100（a.java:3350），切 mode 21 复位 75
+    /// （a.java:3377）；Java run 循环每帧起点读取（a.java:3250）。
+    fn frame_interval(&self) -> Duration {
+        match &self.state {
+            Some(Screen::Boot(m)) => Duration::from_millis(m.frame_interval_ms.max(1) as u64),
+            _ => Duration::from_millis(TICK_MS),
+        }
+    }
+
+    fn bgm_snapshot(&self) -> audio::BgmSnapshot {
+        match &self.state {
+            Some(Screen::Boot(m)) => audio::BgmSnapshot {
+                track: m.bgm_request(),
+                serial: m.bgm_serial(),
+                volume: m.bgm_volume().unwrap_or(0),
+            },
+            Some(Screen::Game(sc)) => audio::BgmSnapshot {
+                track: sc.bgm_request(),
+                serial: sc.bgm_serial(),
+                volume: sc.bgm_volume().unwrap_or(0),
+            },
+            None => audio::BgmSnapshot::default(),
+        }
+    }
+
+    /// 一逻辑拍（logic → paint，同 Java run 循环体），随后同步 BGM 请求。
     fn logic_tick(&mut self) {
+        self.step();
+        let snap = self.bgm_snapshot();
+        self.bgm.update(snap);
+    }
+
+    fn paint_scene(&mut self, sc: &mut GameScene) {
+        let mut g = SoftGraphics::new(&mut self.screen);
+        g.set_clip(0, 0, SCREEN_W, SCREEN_H);
+        g.set_font(Some(game_core::paint::paint_font()));
+        sc.paint(&mut g, &self.assets.tileset);
+    }
+
+    fn step(&mut self) {
         match self.state.take() {
             Some(Screen::Game(mut sc)) => {
                 // 存档落盘（游戏内「保存游戏」→ saved_slot_blobs/slot 变化即写穿）
@@ -380,12 +492,7 @@ impl Shell {
                 }
                 sc.tick(self.frame_counter as i64, &self.assets.width_table);
                 self.frame_counter += 1;
-                {
-                    let mut g = SoftGraphics::new(&mut self.screen);
-                    g.set_clip(0, 0, SCREEN_W, SCREEN_H);
-                    g.set_font(Some(game_core::paint::paint_font()));
-                    sc.paint(&mut g, &self.assets.tileset);
-                }
+                self.paint_scene(&mut sc);
                 self.state = Some(Screen::Game(sc));
             }
             Some(Screen::Boot(mut machine)) => {
@@ -427,7 +534,12 @@ impl Shell {
                                 sc.enemy_base_hp = tables.enemy_base_hp;
                                 sc.enemy_base_gold = fixture!("enemybasegold.txt");
                                 sc.rng = machine.rng.clone();
+                                // 音频状态续接（Java 同一对象：soundEnabled/f_byte_28/
+                                // f_Player_00 跨模式连续；m_000 case 3 已在 machine 侧执行）
+                                sc.bgm = machine.bgm.clone();
                                 self.persisted_blobs = sc.saved_slot_blobs.clone();
+                                // 交接拍即画场景（Java 本拍 paint 已是 mode 3；harness 同）
+                                self.paint_scene(&mut sc);
                                 self.state = Some(Screen::Game(Box::new(sc)));
                                 self.frame_counter += 1;
                                 return;
@@ -468,7 +580,9 @@ impl Shell {
                     sc.strip_frame = machine.strip_frame;
                     sc.backdrop_scroll = machine.backdrop.scroll();
                     sc.rng = machine.rng.clone();
+                    sc.bgm = machine.bgm.clone(); // 音频状态续接（同上）
                     sc.apply_entry_step_effects();
+                    self.paint_scene(&mut sc);
                     self.state = Some(Screen::Game(Box::new(sc)));
                     self.frame_counter += 1;
                     return;
@@ -487,44 +601,70 @@ impl Shell {
     }
 }
 
+/// 窗口键盘事件 → (键码, 按下?)。OS 自动重复 ⇒ None：MIDP 把重复交给 keyRepeated，
+/// a.class 只覆写 keyPressed/keyReleased（`javap -p` 原始 a.class，A 级）⇒ 重复无效果；
+/// 长按行走由 keyHeldCode 持续驱动（a.java:5308-5329，EV-hold-walk 实证）。
+fn translate_key(physical: winit::keyboard::PhysicalKey, pressed: bool, repeat: bool) -> Option<(i32, bool)> {
+    if repeat {
+        return None;
+    }
+    key_code(physical).map(|c| (c, pressed))
+}
+
+/// 鼠标左键（画面坐标）→ 软键码：底部 30% 左三分之一 = -6、右三分之一 = -7、其余 = -5。
+fn click_code(x: i32, y: i32) -> i32 {
+    let (w, h) = (SCREEN_W, SCREEN_H);
+    if y > h * 7 / 10 && x < w / 3 {
+        -6
+    } else if y > h * 7 / 10 && x > w * 2 / 3 {
+        -7
+    } else {
+        -5
+    }
+}
+
 // ---------------------------------------------------------------- 窗口循环
 
-fn run_window(mut shell: Shell) {
+fn run_window(shell: Shell) {
     use std::num::NonZeroU32;
     use winit::application::ApplicationHandler;
     use winit::event::{ElementState, WindowEvent};
-    use winit::event_loop::{ActiveEventLoop, EventLoop};
-    use winit::window::{Window, WindowId};
+    use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
+    use winit::keyboard::{KeyCode, PhysicalKey};
+    use winit::window::{Fullscreen, Window, WindowId};
 
     type W = std::rc::Rc<Window>;
 
-    struct Runner<'a> {
-        shell: &'a mut Shell,
+    struct Runner {
+        shell: Shell,
         window: Option<W>,
         context: Option<softbuffer::Context<W>>,
         surface: Option<softbuffer::Surface<W, W>>,
-        next_tick: std::time::Instant,
-        mouse: Option<(i32, i32)>,
+        pacer: view::Pacer,
+        mouse: Option<(f64, f64)>,
     }
 
-    impl ApplicationHandler for Runner<'_> {
+    impl ApplicationHandler for Runner {
         fn resumed(&mut self, el: &ActiveEventLoop) {
-            let win = std::rc::Rc::new(el
-                .create_window(
+            if self.window.is_some() {
+                return;
+            }
+            let win = std::rc::Rc::new(
+                el.create_window(
                     Window::default_attributes()
-                        // 窗口标题保持 ASCII——系统标题栏字体常缺 CJK，会渲染成方框
-                        .with_title("XiYou DX2 (Rust) | Arrows/WASD move, Enter ok, Q/E softkeys")
+                        // CJK 标题（X11 _NET_WM_NAME 为 UTF-8；字形由窗口管理器渲染）
+                        .with_title(WINDOW_TITLE)
                         .with_inner_size(winit::dpi::LogicalSize::new(
-                            (W_U * SCALE) as u32,
-                            (H_U * SCALE) as u32,
+                            SCREEN_W as u32 * INITIAL_SCALE,
+                            SCREEN_H as u32 * INITIAL_SCALE,
                         ))
-                        // 注：窗口 480×640 物理像素 1:1（xwininfo 实测）；若桌面启用
-                        // 分数缩放（如 1.31×），合成器会整窗平滑拉伸 ⇒ 观感模糊——
-                        // winit 0.30 无 per-window scale override，属 OS 层行为，
-                        // 缓解：桌面整数缩放，或后续 D2 缝按显示倍率原生渲染（见 backlog）。
-                        .with_resizable(false),
+                        .with_min_inner_size(winit::dpi::PhysicalSize::new(SCREEN_W as u32, SCREEN_H as u32))
+                        // 可缩放：画面取能放下的最大整数倍、信箱居中（view.rs），像素锐利；
+                        // 桌面分数缩放下合成器的整窗平滑拉伸由此规避（按物理像素重排）
+                        .with_resizable(true),
                 )
-                .unwrap());
+                .unwrap(),
+            );
             self.context = Some(softbuffer::Context::new(win.clone()).unwrap());
             let ctx = self.context.as_ref().unwrap();
             self.surface = Some(softbuffer::Surface::new(ctx, win.clone()).unwrap());
@@ -536,63 +676,49 @@ fn run_window(mut shell: Shell) {
             match event {
                 WindowEvent::CloseRequested => el.exit(),
                 WindowEvent::RedrawRequested => self.present(),
-                WindowEvent::CursorMoved { position, .. } => {
-                    self.mouse = Some((position.x as i32, position.y as i32));
-                }
-                WindowEvent::MouseInput { state: ElementState::Pressed, button, .. } => {
-                    if button != winit::event::MouseButton::Left {
-                        return;
-                    }
-                    // J2ME 触屏习惯：底部左角=左软键(-6)、底部右角=右软键(-7)、其余=确认(-5)
-                    let Some((mx, my)) = self.mouse else { return };
-                    let (w, h) = ((SCREEN_W as i32) * SCALE as i32, (SCREEN_H as i32) * SCALE as i32);
-                    let code = if my > h * 7 / 10 && mx < w / 3 {
-                        -6
-                    } else if my > h * 7 / 10 && mx > w * 2 / 3 {
-                        -7
-                    } else {
-                        -5
-                    };
-                    match self.shell.state.as_mut() {
-                        Some(Screen::Game(sc)) => {
-                            sc.press_key(code);
-                            sc.release_key();
-                        }
-                        Some(Screen::Boot(_)) => self.shell.pending_machine_key = code,
-                        None => {}
-                    }
-                    self.shell.logic_tick();
-                    self.next_tick =
-                        std::time::Instant::now() + std::time::Duration::from_millis(TICK_MS);
+                WindowEvent::Resized(_) => {
                     if let Some(w) = self.window.as_ref() {
                         w.request_redraw();
                     }
                 }
-                WindowEvent::KeyboardInput { event, .. } => {
-                    // 键盘自动重复（OS repeat）按 Java keyPressed 语义透传为多次
-                    // press——原实现吞掉 repeat 导致"按住方向键不连走"的操作卡顿感。
-                    let Some(code) = key_code(event.physical_key) else {
+                WindowEvent::Focused(focused) => {
+                    // 失焦冻结：逻辑 tick 与 BGM 一并暂停；回前台从「现在 + 一拍」续跑。
+                    // 壳级行为（非 Java hideNotify 语义，见 docs/spec/audio.md §4）。
+                    let iv = self.shell.frame_interval();
+                    if self.pacer.set_paused(!focused, Instant::now(), iv) {
+                        self.shell.bgm.set_paused(!focused);
+                    }
+                }
+                WindowEvent::CursorMoved { position, .. } => {
+                    self.mouse = Some((position.x, position.y));
+                }
+                WindowEvent::MouseInput { state: ElementState::Pressed, button, .. } => {
+                    if button != winit::event::MouseButton::Left || self.pacer.paused() {
                         return;
+                    }
+                    let Some((mx, my)) = self.mouse else { return };
+                    let Some(vp) = self.viewport() else { return };
+                    let Some((x, y)) = vp.to_screen(mx, my, SCREEN_W as u32, SCREEN_H as u32) else {
+                        return; // 信箱区
                     };
-                    match event.state {
-                        ElementState::Pressed => {
-                            match self.shell.state.as_mut() {
-                                Some(Screen::Game(sc)) => sc.press_key(code),
-                                Some(Screen::Boot(_)) => self.shell.pending_machine_key = code,
-                                None => {}
-                            }
-                            self.shell.logic_tick();
-                            self.next_tick =
-                                std::time::Instant::now() + std::time::Duration::from_millis(TICK_MS);
+                    let code = click_code(x, y);
+                    // 点按 = 一次 press + release（下一拍消费 keyValue；不即时推进逻辑）
+                    self.shell.route_key(code, true);
+                    self.shell.route_key(code, false);
+                }
+                WindowEvent::KeyboardInput { event, .. } => {
+                    let pressed = event.state == ElementState::Pressed;
+                    if event.physical_key == PhysicalKey::Code(KeyCode::F11) {
+                        if pressed && !event.repeat {
                             if let Some(w) = self.window.as_ref() {
-                                w.request_redraw();
+                                let fs = if w.fullscreen().is_some() { None } else { Some(Fullscreen::Borderless(None)) };
+                                w.set_fullscreen(fs);
                             }
                         }
-                        ElementState::Released => {
-                            if let Some(Screen::Game(sc)) = self.shell.state.as_mut() {
-                                sc.release_key();
-                            }
-                        }
+                        return;
+                    }
+                    if let Some((code, down)) = translate_key(event.physical_key, pressed, event.repeat) {
+                        self.shell.route_key(code, down);
                     }
                 }
                 _ => {}
@@ -600,46 +726,43 @@ fn run_window(mut shell: Shell) {
         }
 
         fn about_to_wait(&mut self, el: &ActiveEventLoop) {
-            let now = std::time::Instant::now();
-            let mut ran = false;
-            while now >= self.next_tick {
+            let now = Instant::now();
+            // 一次唤醒至多一拍（Java run 循环不补帧，view::Pacer）
+            if self.pacer.due(now) {
                 self.shell.logic_tick();
-                ran = true;
-                self.next_tick += std::time::Duration::from_millis(TICK_MS);
-            }
-            if ran {
+                let iv = self.shell.frame_interval();
+                self.pacer.after_tick(now, iv);
                 if let Some(w) = self.window.as_ref() {
                     w.request_redraw();
                 }
             }
-            // 必须设定时唤醒：winit 默认 ControlFlow::Wait 会睡到下一个事件，
-            // 动画/逻辑只在输入等事件到达时推进 ⇒ "动画卡住、按一下才动"（实机根因）。
-            el.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(self.next_tick));
+            // 必须设定时唤醒：winit 默认 ControlFlow::Wait 会睡到下一个事件（36d1a9d 实机根因）；
+            // 冻结期则一直睡到事件（不空转）。
+            el.set_control_flow(match self.pacer.wake_at() {
+                Some(t) => ControlFlow::WaitUntil(t),
+                None => ControlFlow::Wait,
+            });
         }
     }
 
-    impl Runner<'_> {
+    impl Runner {
+        fn viewport(&self) -> Option<view::Viewport> {
+            let size = self.window.as_ref()?.inner_size();
+            (size.width > 0 && size.height > 0)
+                .then(|| view::Viewport::fit(size.width, size.height, SCREEN_W as u32, SCREEN_H as u32))
+        }
+
         fn present(&mut self) {
-            if self.window.is_none() {
+            let Some(vp) = self.viewport() else { return }; // 最小化（0×0）不画
+            let Some(surface) = self.surface.as_mut() else { return };
+            if surface
+                .resize(NonZeroU32::new(vp.win_w).unwrap(), NonZeroU32::new(vp.win_h).unwrap())
+                .is_err()
+            {
                 return;
             }
-            let Some(surface) = self.surface.as_mut() else { return };
-            let w = (W_U * SCALE) as u32;
-            let h = (H_U * SCALE) as u32;
-            surface.resize(NonZeroU32::new(w).unwrap(), NonZeroU32::new(h).unwrap()).ok();
-            let mut buffer = surface.buffer_mut().unwrap();
-            let pixels: &mut [u32] = &mut buffer;
-            for y in 0..H_U {
-                for x in 0..W_U {
-                    let rgb = 0xFF00_0000u32 | (self.shell.screen.argb[y * W_U + x] & 0x00FF_FFFF);
-                    for sy in 0..SCALE {
-                        let row = (y * SCALE + sy) * w as usize;
-                        for sx in 0..SCALE {
-                            pixels[row + x * SCALE + sx] = rgb;
-                        }
-                    }
-                }
-            }
+            let Ok(mut buffer) = surface.buffer_mut() else { return };
+            view::blit(&mut buffer, &vp, &self.shell.screen.argb, SCREEN_W as u32, SCREEN_H as u32);
             let _ = buffer.present();
         }
     }
@@ -651,12 +774,13 @@ fn run_window(mut shell: Shell) {
     };
     #[cfg(not(target_os = "linux"))]
     let event_loop = EventLoop::new().unwrap();
+    let first = shell.frame_interval();
     let mut runner = Runner {
-        shell: &mut shell,
+        shell,
         window: None,
         context: None,
         surface: None,
-        next_tick: std::time::Instant::now() + std::time::Duration::from_millis(TICK_MS),
+        pacer: view::Pacer::new(Instant::now(), first),
         mouse: None,
     };
     event_loop.run_app(&mut runner).unwrap();
@@ -665,50 +789,205 @@ fn run_window(mut shell: Shell) {
 fn main() {
     let mut assets_dir = PathBuf::from("assets/raw");
     let mut save_dir = PathBuf::from("save");
+    let mut audio_dir = PathBuf::from("assets/audio");
+    let mut audio_device = String::from("default");
+    let mut mute = false;
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
-        if a == "--assets" {
-            assets_dir = PathBuf::from(args.next().unwrap_or_default());
-        } else if a == "--save" {
-            save_dir = PathBuf::from(args.next().unwrap_or_default());
+        match a.as_str() {
+            "--assets" => assets_dir = PathBuf::from(args.next().unwrap_or_default()),
+            "--save" => save_dir = PathBuf::from(args.next().unwrap_or_default()),
+            "--audio" => audio_dir = PathBuf::from(args.next().unwrap_or_default()),
+            "--audio-device" => audio_device = args.next().unwrap_or_else(|| "default".into()),
+            "--mute" => mute = true,
+            other => eprintln!("忽略未知参数 {other}"),
         }
     }
-    println!("资产目录 = {assets_dir:?}；存档目录 = {save_dir:?}");
+    println!("资产目录 = {assets_dir:?}；存档目录 = {save_dir:?}；BGM 目录 = {audio_dir:?}");
     font_inject::install();
     let assets = std::sync::Arc::new(load_assets(&assets_dir));
     let (rms, stores) = Rms::load(&save_dir);
-
-    // BootMachine 装配（与测试 harness 同参）
-    let mapbg = load_container(&assets_dir, "mapbg", 1);
-    let mut machine = BootMachine::new(
-        ArgbImage::from_decoded_png(
-            game_data::decode_png(&std::fs::read(assets_dir.join("l0.png")).expect("缺 assets/raw/l0.png"))
-                .unwrap(),
-        ),
-        ArgbImage::from_decoded_png(
-            game_data::decode_png(&std::fs::read(assets_dir.join("l1.png")).expect("缺 assets/raw/l1.png"))
-                .unwrap(),
-        ),
-        load_container(&assets_dir, "sflogo", 8),
-        load_container(&assets_dir, "ui", 25),
-        load_container(&assets_dir, "menu", 2),
-        mapbg[0].clone(),
-        load_container(&assets_dir, "intro", 2),
-        load_container(&assets_dir, "end", 1),
-        load_container(&assets_dir, "load", 2),
-    );
-    machine.preset_stores = stores.clone();
-    machine.sptarm = load_container(&assets_dir, "sptarm", 10);
-
-    let shell = Shell {
-        assets,
-        rms,
-        stores,
-        screen: ArgbImage::create(SCREEN_W, SCREEN_H),
-        state: Some(Screen::Boot(machine)),
-        pending_machine_key: 0,
-        frame_counter: 0,
-        persisted_blobs: [None, None, None, None, None, None],
+    let sink: Box<dyn audio::AudioSink> = if mute {
+        eprintln!("[audio] --mute：无声运行");
+        Box::new(audio::NullSink)
+    } else {
+        audio::start(&audio_dir, &audio_device)
     };
+    let shell = Shell::new(&assets_dir, assets, rms, stores, sink);
     run_window(shell);
+}
+
+#[cfg(test)]
+mod shell_tests {
+    //! 壳级集成测试：真 BootMachine → 读档交接 → GameScene，按 oracle 投递时序
+    //! （TICK n 的输入在第 n 拍逻辑+重绘之后投递，第 n+1 拍消费）驱动 `Shell`，
+    //! 与 Java 变体 A 的 EV-hold-walk trace 逐拍对照（期望值来源：
+    //! `python3 tools/audio/evidence.py --fields gameMode,playerPixelX,playerPixelY,keyHeldCode,walkPhase
+    //!   --script crates/game-desktop/tests/fixtures/hold-walk.txt`）。
+    use super::*;
+    use std::sync::{Arc, Mutex};
+
+    struct Recorder(Arc<Mutex<Vec<(u64, audio::Cmd)>>>, Arc<Mutex<u64>>);
+
+    impl audio::AudioSink for Recorder {
+        fn send(&mut self, cmd: audio::Cmd) {
+            let t = *self.1.lock().unwrap();
+            self.0.lock().unwrap().push((t, cmd));
+        }
+    }
+
+    fn repo() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
+    }
+
+    /// preset 文件（`KEY@1=hex`）→ RMS stores（与 oracle -Doracle.preset 同格式）。
+    fn preset_stores(name: &str) -> Vec<(String, Vec<u8>)> {
+        let text = std::fs::read_to_string(repo().join("reference/oracle/scenarios").join(name)).unwrap();
+        text.lines()
+            .filter_map(|l| l.split_once('='))
+            .map(|(k, hex)| {
+                let bytes = (0..hex.trim().len() / 2)
+                    .map(|i| u8::from_str_radix(&hex.trim()[2 * i..2 * i + 2], 16).unwrap())
+                    .collect();
+                (k.trim().to_string(), bytes)
+            })
+            .collect()
+    }
+
+    /// 输入脚本 → [(tick, code, pressed)]（oracle 格式 `<tick> <code> <press|release>`）。
+    fn script(path: &str) -> Vec<(u64, i32, bool)> {
+        std::fs::read_to_string(repo().join(path))
+            .unwrap()
+            .lines()
+            .filter_map(|l| {
+                let f: Vec<&str> = l.split('#').next()?.split_whitespace().collect();
+                (f.len() == 3).then(|| (f[0].parse().unwrap(), f[1].parse().unwrap(), f[2] == "press"))
+            })
+            .collect()
+    }
+
+    struct Harness {
+        shell: Shell,
+        cmds: Arc<Mutex<Vec<(u64, audio::Cmd)>>>,
+        now: Arc<Mutex<u64>>,
+        tick: u64,
+    }
+
+    impl Harness {
+        fn new(preset: &str) -> Harness {
+            let dir = repo().join("assets/raw");
+            let assets = std::sync::Arc::new(load_assets(&dir));
+            let save = std::env::temp_dir().join(format!("xiyou-shell-test-{}", std::process::id()));
+            let (rms, _) = Rms::load(&save);
+            let cmds = Arc::new(Mutex::new(Vec::new()));
+            let now = Arc::new(Mutex::new(0));
+            let sink = Box::new(Recorder(cmds.clone(), now.clone()));
+            let shell = Shell::new(&dir, assets, rms, preset_stores(preset), sink);
+            Harness { shell, cmds, now, tick: 0 }
+        }
+
+        /// 跑第 n 拍（logic+paint），然后投递脚本中 tick == n 的事件（preTick(n)）。
+        fn run_tick(&mut self, events: &[(u64, i32, bool)]) {
+            self.tick += 1;
+            *self.now.lock().unwrap() = self.tick;
+            self.shell.logic_tick();
+            for &(t, code, pressed) in events {
+                if t == self.tick {
+                    self.shell.route_key(code, pressed);
+                }
+            }
+        }
+
+        fn scene(&self) -> &GameScene {
+            match &self.shell.state {
+                Some(Screen::Game(sc)) => sc,
+                _ => panic!("T{} 尚未进入场景", self.tick),
+            }
+        }
+    }
+
+    /// 长按连走 + BGM 切轨（Java EV-hold-walk 逐拍对照）：
+    /// - 单次 press(-3) 长按 70 拍：战斗（walkPhase 5，T261-271）后连走两格
+    ///   96→32（T273-280，每拍 8px），之后被阻挡原地；press(-2) 同理一格 320→352（T376-379）；
+    /// - BGM：T71 menu（Java EVT createPlayer@T71）、T237 game（close+createPlayer@T237）。
+    #[test]
+    fn hold_walk_and_bgm_match_java_trace() {
+        let ev = script("crates/game-desktop/tests/fixtures/hold-walk.txt");
+        let mut h = Harness::new("preset-floor1.preset");
+        let mut xs = std::collections::BTreeMap::new();
+        let mut ys = std::collections::BTreeMap::new();
+        for _ in 0..430 {
+            h.run_tick(&ev);
+            if h.tick >= 237 {
+                let sc = h.scene();
+                xs.insert(h.tick, sc.view.player_px);
+                ys.insert(h.tick, sc.view.player_py);
+            }
+        }
+        let java_x: Vec<(u64, i32)> =
+            vec![(272, 96), (273, 88), (274, 80), (275, 72), (276, 64), (277, 56), (278, 48), (279, 40), (280, 32)];
+        for (t, x) in java_x {
+            assert_eq!(xs[&t], x, "T{t} playerPixelX");
+        }
+        assert!((280..=375).all(|t| xs[&t] == 32), "被阻挡后长按不再移动（Java T280-330 x=32）");
+        let java_y: Vec<(u64, i32)> = vec![(375, 320), (376, 328), (377, 336), (378, 344), (379, 352)];
+        for (t, y) in java_y {
+            assert_eq!(ys[&t], y, "T{t} playerPixelY");
+        }
+        assert!((237..=375).all(|t| ys[&t] == 320));
+        let cmds = h.cmds.lock().unwrap().clone();
+        assert_eq!(
+            cmds,
+            vec![
+                (71, audio::Cmd::Play { track: 2, gain: 0.6 }),
+                (237, audio::Cmd::Play { track: 3, gain: 0.6 }),
+            ],
+            "BGM 切轨拍与 Java EVT（createPlayer@T71 / close+createPlayer@T237）一致"
+        );
+    }
+
+    /// OS 自动重复无效果 + 同拍多键覆盖式取末个（R-2）：
+    /// - 标题菜单长按 -2 并注入每拍一次的重复事件：光标只移 1 格（重复被 translate_key 丢弃）；
+    /// - 同拍先按 -2 再按 -1：下一拍只消费末个（-1），光标回到 0。
+    #[test]
+    fn key_repeat_ignored_and_last_press_wins() {
+        let mut h = Harness::new("preset-floor1.preset");
+        let ev = vec![(70u64, -6, true), (72, -6, false)];
+        while h.tick < 99 {
+            h.run_tick(&ev);
+        }
+        let cursor = |h: &Harness| match &h.shell.state {
+            Some(Screen::Boot(m)) => m.title.as_ref().unwrap().cursor,
+            _ => panic!(),
+        };
+        assert_eq!(cursor(&h), 0);
+        let down = winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::ArrowDown);
+        let up = winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::ArrowUp);
+        // 按下 + 30 拍重复
+        let (c, p) = translate_key(down, true, false).unwrap();
+        h.shell.route_key(c, p);
+        for _ in 0..30 {
+            h.run_tick(&[]);
+            assert!(translate_key(down, true, true).is_none(), "重复事件必须丢弃");
+        }
+        let (c, p) = translate_key(down, false, false).unwrap();
+        h.shell.route_key(c, p);
+        h.run_tick(&[]);
+        assert_eq!(cursor(&h), 1, "长按只移一格（Java 无 keyRepeated）");
+        // 同拍两键：-2 后 -1 ⇒ 只消费 -1
+        let (c, _) = translate_key(down, true, false).unwrap();
+        h.shell.route_key(c, true);
+        let (c, _) = translate_key(up, true, false).unwrap();
+        h.shell.route_key(c, true);
+        h.run_tick(&[]);
+        assert_eq!(cursor(&h), 0, "同拍多键取末个（-1：1→0），非逐个处理（会是 2→1）");
+    }
+
+    #[test]
+    fn click_zones_in_screen_space() {
+        assert_eq!(click_code(10, 300), -6);
+        assert_eq!(click_code(230, 300), -7);
+        assert_eq!(click_code(120, 300), -5);
+        assert_eq!(click_code(10, 100), -5);
+    }
 }

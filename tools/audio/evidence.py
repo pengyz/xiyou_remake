@@ -13,6 +13,9 @@ volumeLevel/f_byte_28/f_bool_28/anyKeyPlayed 字段变更。
 用法：
   python3 tools/audio/evidence.py            # 全部取证脚本
   python3 tools/audio/evidence.py toggle-exit
+  python3 tools/audio/evidence.py --trace <trace.txt>…            # 只读既有 trace
+  python3 tools/audio/evidence.py --fields gameMode,playerPixelX --script <脚本>…
+                                             # 任意脚本 + 自选字段（壳输入语义取证复用）
 """
 from __future__ import annotations
 
@@ -99,7 +102,16 @@ def main(argv) -> int:
     oracle = load_oracle()
     fields = load_fields()
     fmap = {v: k for k, v in fields.build_map().items()}
-    idx_of = {name: fmap[name] for name in AUDIO_FIELDS}
+    wanted = AUDIO_FIELDS
+    if "--fields" in argv:
+        i = argv.index("--fields")
+        wanted = argv[i + 1].split(",")
+        argv = argv[:i] + argv[i + 2:]
+    unknown = [n for n in wanted if n not in fmap]
+    if unknown:
+        print(f"未知字段: {unknown}（见 python3 reference/oracle/fields.py）", file=sys.stderr)
+        return 2
+    idx_of = {name: fmap[name] for name in wanted}
 
     if argv[:1] == ["--trace"]:
         # 只读既有 trace（如 --scenarios 产出的 A-menu-sweep）；EVT 逐 tick 精确，
@@ -109,9 +121,13 @@ def main(argv) -> int:
             print_timeline(p, Path(p), idx_of)
         return 0
 
-    scripts = sorted(EVID.glob("*.txt"))
-    if argv:
-        scripts = [s for s in scripts if s.stem in argv]
+    if argv[:1] == ["--script"]:
+        # 任意输入脚本（如壳输入语义取证 crates/game-desktop/tests/fixtures/*.txt）
+        scripts = [Path(p).resolve() for p in argv[1:]]
+    else:
+        scripts = sorted(EVID.glob("*.txt"))
+        if argv:
+            scripts = [s for s in scripts if s.stem in argv]
     if not scripts:
         print("无取证脚本", file=sys.stderr)
         return 2

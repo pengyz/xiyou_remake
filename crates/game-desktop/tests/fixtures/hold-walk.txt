@@ -1,0 +1,18 @@
+# ticks: 460
+# preset: ../../../../reference/oracle/scenarios/preset-floor1.preset
+# cover: 壳输入语义取证（S2）——读档入 floor1 后**单次 press 长按**方向键（无任何重复事件），
+#   观察 Java 是否连续行走：行走由 keyHeldCode 驱动（handleFieldInput a.java:5308-5329），
+#   keyPressed 只在按下时调用一次；a.class 未覆写 keyRepeated（javap）⇒ OS 自动重复被丢弃。
+#   本脚本同时是 crates/game-desktop 长按连走测试的期望值来源（位置时间线）。
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+260 -3 press
+330 -3 release
+360 -2 press
+430 -2 release

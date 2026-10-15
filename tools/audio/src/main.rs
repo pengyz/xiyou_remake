@@ -233,6 +233,42 @@ fn verify(ogg: &[u8], src: &[f32], period: usize) -> Res<Verified> {
     Ok(Verified { frames, snr_db, loop_start: ls, loop_length: ll })
 }
 
+/// 桌面壳测试夹具：合成信号（非原版资产）——前奏 0.25 s（440 Hz）+ 循环体 0.5 s（660 Hz），
+/// LOOPSTART=11025、LOOPLENGTH=22050，q4。确定性：同输入两次运行逐字节一致。
+fn write_fixture(path: &Path) -> Res<()> {
+    const INTRO: usize = 11_025;
+    const BODY: usize = 22_050;
+    let total = INTRO + BODY;
+    let mut padded = vec![0f32; ENCODER_PRIMING * 2];
+    for i in 0..total {
+        let f = if i < INTRO { 440.0 } else { 660.0 };
+        let s = 0.5 * (2.0 * std::f64::consts::PI * f * i as f64 / SAMPLE_RATE as f64).sin() as f32;
+        padded.push(s);
+        padded.push(-s);
+    }
+    padded.extend(std::iter::repeat(0f32).take(TAIL_PAD * 2));
+    let mut enc = rusty_vorbis::VorbisEncoder::new(rusty_vorbis::VorbisEncoderConfig {
+        quality: rusty_vorbis::quality01_from_vorbis_q(4.0),
+        ..Default::default()
+    });
+    enc.push_pcm_f32(&padded, 2, SAMPLE_RATE).map_err(|e| format!("编码失败：{e:?}"))?;
+    enc.finish();
+    let mut packets = Vec::new();
+    loop {
+        match enc.next_packet() {
+            Ok(p) => packets.push(p),
+            Err(rusty_vorbis::Error::Eof) => break,
+            Err(e) => return Err(format!("编码失败：{e:?}")),
+        }
+    }
+    let (ls, ll) = (INTRO.to_string(), BODY.to_string());
+    let comments = [("TITLE", "loop-fixture"), ("LOOPSTART", ls.as_str()), ("LOOPLENGTH", ll.as_str())];
+    let ogg = mux(&packets, &comments, total as u64, 0x5859_00ff)?;
+    std::fs::write(path, &ogg).map_err(|e| format!("写 {} 失败：{e}", path.display()))?;
+    eprintln!("[midi2ogg] 夹具 → {}（{} B，sha256 {}）", path.display(), ogg.len(), sha256_hex(&ogg));
+    Ok(())
+}
+
 fn run(args: &[String]) -> Res<()> {
     let root = repo_root();
     let mut raw = root.join("assets/raw");
@@ -245,6 +281,7 @@ fn run(args: &[String]) -> Res<()> {
             "--raw" => raw = PathBuf::from(next()?),
             "--out" => out_dir = PathBuf::from(next()?),
             "--sf2" => sf2 = PathBuf::from(next()?),
+            "--fixture" => return write_fixture(&PathBuf::from(next()?)),
             other => return Err(format!("未知参数 {other}")),
         }
     }

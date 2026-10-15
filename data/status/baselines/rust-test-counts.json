@@ -4,7 +4,7 @@
     "boot_replay(test)": 2,
     "combat_golden(test)": 6,
     "entity_golden(test)": 7,
-    "game_core(lib)": 13,
+    "game_core(lib)": 25,
     "game_data(lib)": 23,
     "game_oracle(lib)": 0,
     "game_platform(lib)": 5,
@@ -18,7 +18,7 @@
     "script_golden(test)": 14,
     "walk_camera_golden(test)": 4,
     "walk_replay_floor1(test)": 2,
-    "xiyou(bin)": 1
+    "xiyou(bin)": 14
   },
-  "total": 194
+  "total": 219
 }
