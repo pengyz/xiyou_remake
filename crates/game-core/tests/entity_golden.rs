@@ -190,3 +190,41 @@ fn bug006_replay_with_sprite51_entities_full_chain() {
     // dialogPhase 6→4，孤儿化已武装行走）不变——见 script_golden see 向量。
     assert!(!r.found, "当前实体表下仍不可达；若变动需同步台账");
 }
+
+/// m_108（a.java:8880-8904）：起点格摘除首个 idx+1（后续前移）→ 当前像素格追加
+/// （格类型 0 时 ++nextCellTypeId）；二次调用摘除落空但追加照做（重复登记，原版行为）。
+#[test]
+fn relocate_slot_moves_registration_from_start_cell() {
+    let width_table = width_table();
+    let mut t = EntityTable::new(100);
+    let mut g = CellGrid::new(13, 13);
+    let a = entity::spawn(&mut t, &mut g, 72, 3 << 5, 7 << 5, 1, &width_table, None);
+    let b = entity::spawn(&mut t, &mut g, 83, 3 << 5, 7 << 5, 1, &width_table, None);
+    let c = entity::spawn(&mut t, &mut g, 83, 1 << 5, 8 << 5, 2, &width_table, None);
+    let slots = |g: &CellGrid, x: usize, y: usize| -> Vec<u8> {
+        let ct = g.cell_type[y][x] as usize;
+        g.slots[ct][..g.capacity[ct] as usize].to_vec()
+    };
+    assert_eq!(slots(&g, 3, 7), vec![a as u8 + 1, b as u8 + 1]);
+    let ct18 = g.cell_type[8][1];
+    // 实体走到 (1,8)（已有格类型）→ 迁移：(3,7) 摘 a、(1,8) 追加于 c 之后
+    t.pixel_x[a] = 1 << 5;
+    t.pixel_y[a] = 8 << 5;
+    entity::relocate_slot(&mut g, &t, a, 3, 7);
+    assert_eq!(slots(&g, 3, 7), vec![b as u8 + 1], "后续前移");
+    assert_eq!(g.cell_type[8][1], ct18, "已有格类型不重分配");
+    assert_eq!(slots(&g, 1, 8), vec![c as u8 + 1, a as u8 + 1]);
+    assert_eq!(entity::cell_entity(&g, &t, 1, 8, 72), a as i32);
+    assert_eq!(entity::cell_entity(&g, &t, 3, 7, 72), -1);
+    // 再走到 (1,10)（无格类型）→ 分配新类型 = 已分配数 + 1
+    let next = (0..13).flat_map(|y| (0..13).map(move |x| (x, y))).map(|(x, y)| g.cell_type[y][x]).max().unwrap();
+    t.pixel_y[a] = 10 << 5;
+    entity::relocate_slot(&mut g, &t, a, 1, 8);
+    assert_eq!(g.cell_type[10][1], next + 1, "++nextCellTypeId");
+    assert_eq!(slots(&g, 1, 10), vec![a as u8 + 1]);
+    assert_eq!(slots(&g, 1, 8), vec![c as u8 + 1]);
+    // 同起点二次调用：摘除落空（起点格已无 a），追加照做 ⇒ (1,10) 重复登记
+    entity::relocate_slot(&mut g, &t, a, 1, 8);
+    assert_eq!(slots(&g, 1, 8), vec![c as u8 + 1], "起点格未找到不动");
+    assert_eq!(slots(&g, 1, 10), vec![a as u8 + 1, a as u8 + 1]);
+}

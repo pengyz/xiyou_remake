@@ -341,10 +341,22 @@ pub struct GameScene {
     /// minFloorReached/maxFloorReached
     pub min_floor: i32,
     pub max_floor: i32,
-    /// f_int_127：脚本路线实体（case 32 型 72 的"追踪中"分支；默认 0）
+    /// f_int_127：dp2 路径缓动实体索引（MOV 五参 a.java:8289 写 findBlockingEntity（原 m_100）结果——
+    /// 未命中亦写 -1；m_106 收尾/战斗收尾写 -1）。paintEntityLayer case 32 型 72
+    /// "追踪中"分支（a.java:6660）读之。Java int 字段默认 0（首个 MOV 前恒 0）。
     pub route_entity: i32,
-    /// f_byte_19：型 72 形态号（脚本写；默认 0）
-    pub form_19: i32,
+    /// f_byte_19：dp2 当前步方向（m_106 case0 弹自 walkPathBuffer，a.java:8742：
+    /// 0 下/1 上/2 右/3 左）——兼作型 72 追踪帧行号（a.java:6663：==3 镜像）。
+    pub route_dir: i32,
+    /// routePhase（原 f_byte_18，台账 N-0303）：m_106 子相位（0 弹步 / 1 8px 步进 /
+    /// 5 途中战斗；MOV 五参置 0）
+    pub route_phase: i32,
+    /// routeProgress（原 f_int_128，台账 N-0306）：m_106 步内像素累计（8/拍，==32 归格；
+    /// 仅归格清零，MOV 不重置）
+    pub route_progress: i32,
+    /// f_int_129/f_int_130：路径起点格（MOV 五参 a.java:8297-8298 写；m_108 迁槽的
+    /// "旧格"——全程不随实体移动更新）
+    pub route_start: (i32, i32),
     pub current_floor: i32,
     /// 层资产表（按层号索引）
     pub floor_assets: Vec<Option<FloorAssets>>,
@@ -711,7 +723,10 @@ impl GameScene {
             min_floor: 1,
             max_floor: 1,
             route_entity: 0,
-            form_19: 0,
+            route_dir: 0,
+            route_phase: 0,
+            route_progress: 0,
+            route_start: (0, 0),
             current_floor: 1,
             floor_assets,
             saved_floor_states: vec![None; 56],
@@ -1575,19 +1590,27 @@ impl GameScene {
         }
     }
 
-    /// findPath(玩家格 → 目标格)：Walkability = 地形 walkable 克隆 + 实体槽判定
-    /// （格类型容量 > 0）。SEE flag=1 与 MOV type=0 两个脚本臂共用（原为逐字双拷贝）。
-    fn find_path_from_player(&self, tx: i32, ty: i32) -> crate::pathfind::PathResult {
-        let walk = crate::pathfind::Walkability {
-            terrain: self.walkable.clone(),
-            has_entity_slot: &|x, y| {
-                let ct = self.grid.cell_type[y as usize][x as usize] as usize;
-                self.grid.capacity[ct] > 0
-            },
-            cols: self.view.wide,
-            rows: self.view.high,
+    /// findPath（a.java:9892-9957）的场景外壳：Walkability = 地形 walkable 克隆 +
+    /// 实体槽判定 m_062（格类型容量 > 0）。**恒**重写 walkPathBuffer/walkStepCount
+    /// ——Java 头部 `walkPathBuffer = new byte[100]; walkStepCount = 0`（a.java:9894-9895），
+    /// 回溯逐步填充（回溯失败 `return false` 时保留已填前缀）——返回 found。
+    /// 调用方：SEE flag=1 / MOV 三参（玩家格起）/ MOV 五参（实体格起，返回值不判）。
+    fn find_path(&mut self, fx: i32, fy: i32, tx: i32, ty: i32) -> bool {
+        let result = {
+            let walk = crate::pathfind::Walkability {
+                terrain: self.walkable.clone(),
+                has_entity_slot: &|x, y| {
+                    let ct = self.grid.cell_type[y as usize][x as usize] as usize;
+                    self.grid.capacity[ct] > 0
+                },
+                cols: self.view.wide,
+                rows: self.view.high,
+            };
+            crate::pathfind::find_path(&walk, fx, fy, tx, ty)
         };
-        crate::pathfind::find_path(&walk, self.player_cell_x, self.player_cell_y, tx, ty)
+        self.walk_path_buffer = result.steps;
+        self.walk_step_count = self.walk_path_buffer.len() as i32;
+        result.found
     }
 
     /// skipTextToLineEnd（a.java:5135-5148）：打字机跳到当前行尾（累计长度）。
@@ -1643,13 +1666,10 @@ impl GameScene {
             if flag == 1 {
                 // findPath(player → target)：成功 → f_bool_26=true + walkPhase=0
                 //（a.java:8497-8501；Java switch case1 **无 break 落穿 default**：
-                //  路径成立时 m_103 与路径箭头两者都做）
-                let result = self.find_path_from_player(tx, ty);
-                if result.found {
+                //  路径成立时 easeCameraToTarget（原 m_103）与路径箭头两者都做）；缓冲恒重写（见 find_path）
+                if self.find_path(self.player_cell_x, self.player_cell_y, tx, ty) {
                     self.path_arrows_visible = true;
                     self.walk_phase = 0;
-                    self.walk_path_buffer = result.steps;
-                    self.walk_step_count = self.walk_path_buffer.len() as i32;
                 }
             }
             self.dialog_phase = 6;
@@ -1666,10 +1686,10 @@ impl GameScene {
             self.script_line_flags[cur] = true;
             self.load_level_script(n);
         } else if op == "MOV" {
-            // MOV（a.java:8271-8306）：type=0 → 玩家脚本行走（findPath 成功 →
+            // MOV（a.java:8274-8309）：首参 var55 > 0 → 五参实体路径缓动 dp2
+            // （m_106）；否则（≤0）→ 三参玩家脚本行走（findPath 成功 →
             // scriptWalkArmed + dp3 + walkPhase=0 + lockCameraOn(0)；失败则
-            // 无副作用，游标已前进）；type>0 → 实体路径缓动 dp2（m_106，
-            // 本窗口无 5 参实体 MOV——floor10 n[10] 不触发）。
+            // 无相位副作用，游标已前进）。
             let (target_type, mut v2) = Self::parse_script_int(&line, var2 + 1, '_');
             let (mut ent_x, mut ent_y) = (0, 0);
             if target_type > 0 {
@@ -1684,24 +1704,33 @@ impl GameScene {
             v2 = e;
             let (my, e) = Self::parse_script_int(&line, v2 + 1, ' ');
             self.dialog_target = (mx, my);
-            self.script_cursor = e + 1;
-            if target_type == 0 {
-                let result = self.find_path_from_player(mx, my);
-                if result.found {
-                    self.walk_path_buffer = result.steps;
-                    self.walk_step_count = self.walk_path_buffer.len() as i32;
-                    self.script_walk_armed = true;
-                    self.dialog_phase = 3;
-                    self.walk_phase = 0;
-                    self.lock_camera_on(0);
-                }
-            } else {
-                let idx = self.entity_at_cell(ent_x, ent_y, target_type);
-                if idx >= 0 {
+            self.script_cursor = e + 1; // a.java:8287 分支前推进
+            if target_type > 0 {
+                // a.java:8289：f_int_127 = findBlockingEntity(...)（原 m_100）——未命中也写入（-1）
+                self.route_entity = self.entity_at_cell(ent_x, ent_y, target_type);
+                if self.route_entity >= 0 {
+                    let ei = self.route_entity as usize;
+                    self.route_phase = 0; // routePhase = 0（a.java:8291）
+                    if self.entities.entity_type[ei] == 72 {
+                        self.entities.anim_idx[ei] = 1; // a.java:8293-8294
+                    }
+                    // f_int_129/130 = 实体起点格（a.java:8297-8298）
+                    self.route_start =
+                        (self.entities.pixel_x[ei] >> 5, self.entities.pixel_y[ei] >> 5);
+                    // findPath(起点格 → 目标格)：返回值不判（a.java:8299）——m_106
+                    // 只认 walkPathBuffer/walkStepCount（find_path 恒重写，含回溯
+                    // 失败的部分前缀）
+                    self.find_path(self.route_start.0, self.route_start.1, mx, my);
                     self.dialog_phase = 2;
+                } else {
+                    // 实体未找到 → 同拍尾递归执行下一条（a.java:8301-8302）
+                    self.execute_script_instruction();
                 }
-                // 实体未找到 → Java 尾递归下一条（a.java:8297-8300）；找到但
-                // m_106 未移植 ⇒ 本窗口不可达（无 5 参 MOV 触发）
+            } else if self.find_path(self.player_cell_x, self.player_cell_y, mx, my) {
+                self.script_walk_armed = true;
+                self.dialog_phase = 3;
+                self.walk_phase = 0;
+                self.lock_camera_on(0);
             }
         } else if op == "DES" {
             // DES（a.java:8311-8334）：type<0 → 全表批量移除（-type）；否则
@@ -1992,7 +2021,7 @@ impl GameScene {
                     }
                 }
             }
-            2 => todo!("m_106 实体路径缓动（MOV 对拍批）"),
+            2 => self.tick_entity_route(),
             3 => {
                 // dp3 脚本行走（a.java:4077-4114）：wp0 弹路径步 tryStep /
                 // 耗尽 → scriptWalkArmed=false + dp0；wp1 8px 步进（无边缘
@@ -2036,7 +2065,7 @@ impl GameScene {
                                 self.apply_step_cell_effects();
                             }
                         }
-                        5 => self.tick_battle(true),
+                        5 => self.tick_battle(self.battle_active),
                         _ => {}
                     }
                 }
@@ -2047,6 +2076,146 @@ impl GameScene {
                 }
             }
             5 => {} // f_bool_16 组合（LAY 批）
+            _ => {}
+        }
+    }
+
+    /// m_106（a.java:8738-8870）：dp2 实体路径缓动（MOV 五参后每拍一次，run case 11
+    /// dialogPhase 2 臂 a.java:4072-4073）。子相位 routePhase（[`Self::route_phase`]）：
+    ///
+    /// - **0 弹步**（8740-8810）：walkStepCount>0 → 弹顶步为 f_byte_19，预算下一格；
+    ///   routePhase=1；型≠72 且下一格 = 玩家格 → 可胜（predictHpLossVsType(t,false)
+    ///   ∈[0,hp)）开**途中战斗**（缩放表 HP、walkPhase=5、battleActiveFlag=false、
+    ///   battleTarget、state=5、routePhase=5、battlePredictGate=false、敌先手一击
+    ///   atk−def>0 扣血），不可胜 → walkPhase=1 + 朝向=步向（玩家此刻不动，mode 3 才
+    ///   消费）；随后下一格槽表**倒序**扫 cat1 型11（墙）→ markEntityRemoved（开墙）。
+    ///   步尽 → m_108 迁槽 + dialogPhase=0 + dispatchAnimFields（复位动画行）+ f_int_127=-1。
+    /// - **1 步进**（8811-8859）：实体 ±8px、相机目标 = 实体像素、routeProgress+=8、动画行
+    ///   >0 时帧 +1（表尾归 0）；满 32 → 归格（routeProgress=0、routePhase=0），实体落到
+    ///   玩家格且型≠72：可胜 → 玩家直扣预测损血 + m_108 + removeGroupAtCellByType
+    ///   （无死亡动画），不可胜 → scriptWalkArmed=false、**gameMode=3**、walkPhase=1、
+    ///   朝向=步向（dialogPhase 仍为 2——路径挂起）；最后**同拍递归** m_106()（弹下一步
+    ///   或收尾）。
+    /// - **5 战斗**（8861-8868）：tickBattle(battleActiveFlag)；非收尾中且实体已移除/
+    ///   state==1 → dialogPhase=0、routePhase=0、f_int_127=-1（路径余步丢弃，无 m_108）。
+    fn tick_entity_route(&mut self) {
+        match self.route_phase {
+            0 => {
+                let e = self.route_entity as usize;
+                if self.walk_step_count > 0 {
+                    self.walk_step_count -= 1;
+                    self.route_dir = self.walk_path_buffer[self.walk_step_count as usize] as i32;
+                    let mut nx = self.entities.pixel_x[e] >> 5;
+                    let mut ny = self.entities.pixel_y[e] >> 5;
+                    match self.route_dir {
+                        0 => ny += 1,
+                        1 => ny -= 1,
+                        2 => nx += 1,
+                        3 => nx -= 1,
+                        _ => {}
+                    }
+                    self.route_phase = 1;
+                    let t = self.entities.entity_type[e];
+                    if t != 72 && nx == self.player_cell_x && ny == self.player_cell_y {
+                        let loss = self.predict_hp_loss(t, false);
+                        if loss >= 0 && loss < self.player.hp {
+                            let ti = (t - 41) as usize;
+                            self.battle_enemy_hp = self.enemies.hp[ti]; // enemyHpScaled（a.java:8769）
+                            self.walk_phase = 5;
+                            self.battle_active = false;
+                            self.battle_target = self.route_entity;
+                            self.entities.solid[e] = 5;
+                            self.route_phase = 5;
+                            self.battle_no_counter = false;
+                            let strike = self.enemies.atk[ti] - self.player.def;
+                            if strike > 0 {
+                                self.player.hp -= strike;
+                            }
+                        } else {
+                            self.walk_phase = 1;
+                            self.facing = self.route_dir;
+                        }
+                    }
+                    // 下一格槽表倒序扫：cat1 型11 → markEntityRemoved（a.java:8786-8802；
+                    // 计数先取后扫，markEntityRemoved 不动槽表）
+                    let ct = self.grid.cell_type[ny as usize][nx as usize] as usize;
+                    let mut k = self.grid.capacity[ct] as i32;
+                    while k > 0 {
+                        k -= 1;
+                        let id = self.grid.slots[ct][k as usize] as usize - 1;
+                        let tt = self.entities.entity_type[id];
+                        if self.entity_category(tt) == 1 && tt == 11 && entity::remove(&mut self.entities, id) {
+                            self.build_minimap();
+                        }
+                    }
+                    return;
+                }
+                let (sx, sy) = self.route_start;
+                entity::relocate_slot(&mut self.grid, &self.entities, e, sx, sy);
+                self.dialog_phase = 0;
+                let t = self.entities.entity_type[e];
+                entity::dispatch_anim(t, e, &mut self.entities);
+                self.route_entity = -1;
+            }
+            1 => {
+                let e = self.route_entity as usize;
+                match self.route_dir {
+                    0 => self.entities.pixel_y[e] += 8,
+                    1 => self.entities.pixel_y[e] -= 8,
+                    2 => self.entities.pixel_x[e] += 8,
+                    3 => self.entities.pixel_x[e] -= 8,
+                    _ => {}
+                }
+                self.ease_target_x = self.entities.pixel_x[e];
+                self.ease_target_y = self.entities.pixel_y[e];
+                self.route_progress += 8;
+                let row = self.entities.anim_idx[e];
+                if row > 0 {
+                    if self.entities.frame[e] < ANIM_OFFSET_TABLE[row as usize].len() as i32 - 1 {
+                        self.entities.frame[e] += 1;
+                    } else {
+                        self.entities.frame[e] = 0;
+                    }
+                }
+                if self.route_progress == 32 {
+                    self.route_progress = 0;
+                    self.route_phase = 0;
+                    let cx = self.entities.pixel_x[e] >> 5;
+                    let cy = self.entities.pixel_y[e] >> 5;
+                    let t = self.entities.entity_type[e];
+                    if cx == self.player_cell_x && cy == self.player_cell_y && t != 72 {
+                        let loss = self.predict_hp_loss(t, false);
+                        if loss >= 0 && loss < self.player.hp {
+                            self.player.hp -= loss;
+                            let (sx, sy) = self.route_start;
+                            entity::relocate_slot(&mut self.grid, &self.entities, e, sx, sy);
+                            let t = self.entities.entity_type[e];
+                            entity::remove_group_at_cell_by_type(
+                                cx,
+                                cy,
+                                t,
+                                &mut self.entities,
+                                &mut self.grid,
+                            );
+                        } else {
+                            self.script_walk_armed = false;
+                            self.game_mode = 3;
+                            self.walk_phase = 1;
+                            self.facing = self.route_dir;
+                        }
+                    }
+                    self.tick_entity_route(); // a.java:8858 同拍递归
+                }
+            }
+            5 => {
+                self.tick_battle(self.battle_active);
+                let e = self.route_entity as usize;
+                if !self.battle_finishing && (self.entities.removed[e] || self.entities.solid[e] == 1) {
+                    self.dialog_phase = 0;
+                    self.route_phase = 0;
+                    self.route_entity = -1;
+                }
+            }
             _ => {}
         }
     }
@@ -5171,9 +5340,9 @@ impl GameScene {
                                     // 型 72 非追踪实体：静态（无 bob），y-(h-32)（a.java:6657-6652）
                                     draw_image_clipped(g, img, sx + cx_off, sy - (h - CELL_PX), frame_off, 0, w, h);
                                 } else {
-                                    // 追踪实体：形态号帧（f_byte_19；==3 时镜像，a.java:6660-6661）
-                                    let mut src_y = h * self.form_19;
-                                    if self.form_19 == 3 {
+                                    // 追踪实体：步方向帧行（f_byte_19；==3 时镜像，a.java:6663-6664）
+                                    let mut src_y = h * self.route_dir;
+                                    if self.route_dir == 3 {
                                         src_y -= h;
                                         crate::menu_family::draw_edge_patch(g, img, sx + cx_off, sy - (h - CELL_PX), frame_off, src_y, w, h, 1);
                                     } else {
@@ -6129,5 +6298,207 @@ mod fidelity_fix_tests {
         assert!(sc.script_line_flags[0] && sc.script_line_flags[67]);
         assert!(!sc.script_line_flags[100], "scriptLineCount 之后被 skip");
         assert_eq!(sc.script_line_flags.iter().filter(|f| **f).count(), 2);
+    }
+}
+
+/// m_106 / m_108（dp2 实体路径缓动，a.java:8738-8904）与 MOV 五参臂（a.java:8274-8309）
+/// 的逐拍单测：合成网格见 scene_test_support，直接驱动 execute_script_instruction /
+/// tick_entity_route，逐拍断言 Java 语义表的每一格。场景级全帧对拍见
+/// tests/mov_route_scene.rs（floor2 script1/2 + floor40 script12 伏击）。
+#[cfg(test)]
+mod entity_route_tests {
+    use super::scene_test_support::{scene, ROW};
+    use super::*;
+
+    /// 装载单行脚本并执行一条指令（dp0 一拍的 executeScriptInstruction）。
+    fn exec(sc: &mut GameScene, line: &str) {
+        sc.game_mode = 11;
+        sc.dialog_phase = 0;
+        sc.script_line = line.to_string();
+        sc.script_cursor = 0;
+        sc.execute_script_instruction();
+    }
+
+    fn slots(sc: &GameScene, x: i32, y: i32) -> Vec<usize> {
+        let ct = sc.grid.cell_type[y as usize][x as usize] as usize;
+        (0..sc.grid.capacity[ct] as usize).map(|s| sc.grid.slots[ct][s] as usize - 1).collect()
+    }
+
+    /// 型72 两步右行：MOV 臂字段（a.java:8289-8299）+ m_106 每拍
+    /// (routePhase, f_byte_19, 像素, routeProgress, 相机目标, 帧) 序列 + 步尽 m_108/收尾。
+    #[test]
+    fn route_72_tick_sequence() {
+        let mut sc = scene((9, ROW), &[(72, 3, ROW)]);
+        let e = sc.entity_at_cell(3, ROW, 72);
+        assert!(e >= 0);
+        let eu = e as usize;
+        sc.route_phase = 7; // 脏值：MOV 必须复位为 0（a.java:8291）
+        exec(&mut sc, "MOV_72_3_3_5_3 \u{1e}");
+        assert_eq!(sc.dialog_phase, 2);
+        assert_eq!(sc.route_entity, e);
+        assert_eq!(sc.route_phase, 0);
+        assert_eq!(sc.route_start, (3, ROW));
+        assert_eq!(sc.dialog_target, (5, ROW));
+        assert_eq!(sc.entities.anim_idx[eu], 1, "型72 置动画行 1（a.java:8293-8294）");
+        assert_eq!(sc.walk_path_buffer, vec![2, 2]);
+        assert_eq!(sc.walk_step_count, 2);
+        assert_eq!(sc.script_cursor, "MOV_72_3_3_5_3 ".len(), "游标越过空格分隔符");
+
+        // (routePhase, f_byte_19, px, routeProgress, cameraTargetX, frame, 余步) 逐拍
+        let expect = [
+            (1, 2, 96, 0, None, 0, 1),        // case0 弹第 1 步（不动）
+            (1, 2, 104, 8, Some(104), 1, 1),  // case1 ×4
+            (1, 2, 112, 16, Some(112), 2, 1),
+            (1, 2, 120, 24, Some(120), 3, 1),
+            (1, 2, 128, 0, Some(128), 0, 0),  // 满 32 归格 → 同拍递归弹第 2 步
+            (1, 2, 136, 8, Some(136), 1, 0),
+            (1, 2, 144, 16, Some(144), 2, 0),
+            (1, 2, 152, 24, Some(152), 3, 0),
+        ];
+        for (i, &(phase, dir, px, prog, tgt, frame, left)) in expect.iter().enumerate() {
+            sc.tick_entity_route();
+            assert_eq!(
+                (sc.route_phase, sc.route_dir, sc.entities.pixel_x[eu], sc.route_progress),
+                (phase, dir, px, prog),
+                "拍 {i}"
+            );
+            if let Some(t) = tgt {
+                assert_eq!((sc.ease_target_x, sc.ease_target_y), (t, ROW << 5), "拍 {i} 相机目标=实体像素");
+            }
+            assert_eq!(sc.entities.frame[eu], frame, "拍 {i} 动画行1帧（表长 4 归 0）");
+            assert_eq!(sc.walk_step_count, left, "拍 {i} 余步");
+            assert_eq!(sc.dialog_phase, 2);
+            assert_eq!(slots(&sc, 3, ROW), vec![eu], "途中槽表不动（只在收尾 m_108）");
+        }
+        // 第 2 步归格 → 递归 → 步尽：m_108 + dp0 + dispatchAnimFields + f_int_127=-1
+        sc.tick_entity_route();
+        assert_eq!(sc.entities.pixel_x[eu], 160);
+        assert_eq!((sc.dialog_phase, sc.route_phase, sc.route_entity), (0, 0, -1));
+        assert_eq!((sc.entities.anim_idx[eu], sc.entities.frame[eu]), (0, 0), "animRowByType[72]=0");
+        assert!(slots(&sc, 3, ROW).is_empty(), "m_108 自起点格摘除");
+        assert_eq!(slots(&sc, 5, ROW), vec![eu], "m_108 追加到当前格");
+        assert_eq!(sc.entity_at_cell(5, ROW, 72), e, "findBlockingEntity 可在新格命中（DES 依赖）");
+        // 行尾 → dp4（script 收尾门）
+        sc.execute_script_instruction();
+        assert_eq!(sc.dialog_phase, 4);
+    }
+
+    /// 途中战斗（a.java:8765-8779 + 8861-8868）：非 72 型下一格=玩家格且可胜 →
+    /// 战斗态字段 + 敌先手；case5 tickBattle(false) 击杀收尾 → dp0（不 restep，
+    /// walkPhase 留 5——Java 原样，待 mode3 tickBattle 复位）。
+    #[test]
+    fn route_enemy_battle_when_stepping_into_player() {
+        let t = 43u8;
+        let mut sc = scene((5, ROW), &[(t, 3, ROW)]);
+        let e = sc.entity_at_cell(3, ROW, t as i32);
+        let eu = e as usize;
+        sc.player.hp = 500;
+        sc.player.atk = 1000;
+        sc.player.def = 0;
+        let ti = (t - 41) as usize;
+        let loss = sc.predict_hp_loss(t as i32, false);
+        assert!(loss >= 0 && loss < 500, "夹具须可胜: {loss}");
+        exec(&mut sc, "MOV_43_3_3_7_3 \u{1e}");
+        assert_eq!(sc.walk_step_count, 4);
+        assert_eq!(sc.entities.anim_idx[eu], entity::ANIM_TABLE_IDX[t as usize] as i32, "非 72 不改动画行");
+        for _ in 0..5 {
+            sc.tick_entity_route(); // 弹第 1 步 + 4 拍步进（第 4 拍递归弹第 2 步 → 开战）
+        }
+        assert_eq!(sc.entities.pixel_x[eu], 4 << 5);
+        assert_eq!(sc.route_phase, 5);
+        assert_eq!(sc.walk_phase, 5);
+        assert!(!sc.battle_active, "battleActiveFlag=false（a.java:8771）");
+        assert_eq!(sc.battle_target, e);
+        assert_eq!(sc.entities.solid[eu], 5);
+        assert!(!sc.battle_no_counter);
+        assert_eq!(sc.battle_enemy_hp, sc.enemies.hp[ti], "缩放表 HP（a.java:8769，非 bump 战的基础表）");
+        let strike = (sc.enemies.atk[ti] - 0).max(0);
+        assert_eq!(sc.player.hp, 500 - strike, "敌先手一击");
+        assert_eq!(sc.walk_step_count, 2, "余步保留（战斗收尾不再消费）");
+        // case5：1 拍击杀 + 6 拍死亡动画
+        for k in 0..6 {
+            sc.tick_entity_route();
+            assert_eq!(sc.dialog_phase, 2, "收尾中不退 dp（拍 {k}）");
+        }
+        sc.tick_entity_route();
+        assert_eq!((sc.dialog_phase, sc.route_phase, sc.route_entity), (0, 0, -1));
+        assert_eq!(sc.entities.solid[eu], 1, "markEntityRemoved");
+        assert_eq!(sc.battle_target, -1);
+        assert_eq!(sc.walk_phase, 5, "无 restep（battleActiveFlag=false）——walkPhase 不复位");
+        assert_eq!(sc.player_cell_x, 5, "玩家未动");
+    }
+
+    /// 不可胜（a.java:8780-8783 + 8850-8854）：case0 置 walkPhase=1/朝向；实体照走进
+    /// 玩家格；归格复判仍不可胜 → scriptWalkArmed=false、gameMode=3、walkPhase=1、
+    /// 朝向=步向，递归继续弹下一步（dialogPhase 留 2，路径挂起）。
+    #[test]
+    fn route_enemy_unbeatable_hands_back_to_mode3() {
+        let t = 43u8;
+        let mut sc = scene((5, ROW), &[(t, 3, ROW)]);
+        let eu = sc.entity_at_cell(3, ROW, t as i32) as usize;
+        sc.player.atk = 1; // ≤ 敌防 ⇒ predictBattleHpLoss = -1
+        assert!(sc.predict_hp_loss(t as i32, false) < 0);
+        sc.facing = 0;
+        exec(&mut sc, "MOV_43_3_3_7_3 \u{1e}");
+        sc.script_walk_armed = true;
+        for _ in 0..5 {
+            sc.tick_entity_route();
+        }
+        // 第 2 步弹出（下一格 = 玩家格）：不可胜分支
+        assert_eq!((sc.route_phase, sc.walk_phase, sc.facing), (1, 1, 2));
+        assert_eq!(sc.game_mode, 11);
+        for _ in 0..4 {
+            sc.tick_entity_route();
+        }
+        assert_eq!(sc.entities.pixel_x[eu], 5 << 5, "实体走进玩家格");
+        assert!(!sc.script_walk_armed);
+        assert_eq!((sc.game_mode, sc.walk_phase, sc.facing), (3, 1, 2));
+        assert_eq!(sc.dialog_phase, 2, "dialogPhase 不变（路径挂起）");
+        assert_eq!((sc.route_phase, sc.walk_step_count), (1, 1), "同拍递归已弹第 3 步");
+        assert_eq!(sc.route_entity, eu as i32);
+    }
+
+    /// 下一格倒序扫 cat1 型11 → markEntityRemoved（a.java:8786-8802）；同为 cat1 的
+    /// 门（型1）不受影响。
+    #[test]
+    fn route_opens_wall_type11_only() {
+        let mut sc = scene((11, ROW), &[(72, 3, ROW), (11, 4, ROW), (1, 6, ROW)]);
+        let wall = sc.entity_at_cell(4, ROW, 11) as usize;
+        let door = sc.entity_at_cell(6, ROW, 1) as usize;
+        exec(&mut sc, "MOV_72_3_3_7_3 \u{1e}");
+        assert_eq!(sc.walk_step_count, 4, "路径穿实体格（m_062）");
+        sc.tick_entity_route(); // 弹第 1 步 → 下一格 (4,3) 有墙
+        assert_eq!(sc.entities.solid[wall], 1);
+        assert_eq!((sc.entities.sprite_w[wall], sc.entities.sprite_h[wall]), (45, 57));
+        assert_eq!((sc.entities.anim_idx[wall], sc.entities.frame[wall]), (2, 0));
+        for _ in 0..8 {
+            sc.tick_entity_route(); // 第 1/2 步步进；第 2 步归格弹第 3 步 → 下一格 (6,3)
+        }
+        assert_eq!(sc.walk_step_count, 1);
+        assert_eq!(sc.entities.solid[door], 0, "门不开");
+    }
+
+    /// 实体未命中：f_int_127 写 -1（a.java:8289）+ 同拍尾递归执行下一条（8301-8302）。
+    #[test]
+    fn mov_entity_missing_runs_next_instruction_same_tick() {
+        let mut sc = scene((9, ROW), &[]);
+        sc.route_entity = 0;
+        sc.facing = 0;
+        exec(&mut sc, "MOV_72_3_3_5_3 ROS_4_2 \u{1e}");
+        assert_eq!(sc.route_entity, -1);
+        assert_eq!(sc.facing, 2, "ROS_4_2 同拍已执行");
+        assert_eq!(sc.dialog_phase, 0);
+        assert_eq!(sc.script_cursor, "MOV_72_3_3_5_3 ROS_4_2 ".len());
+    }
+
+    /// 首参 ≤0 走三参玩家分支（a.java:8277/8288 `var55 > 0`）——负值不按五参解析。
+    #[test]
+    fn mov_nonpositive_first_param_is_player_walk() {
+        let mut sc = scene((3, ROW), &[]);
+        exec(&mut sc, "MOV_-1_5_3 \u{1e}");
+        assert_eq!(sc.dialog_target, (5, ROW));
+        assert_eq!(sc.dialog_phase, 3);
+        assert!(sc.script_walk_armed);
+        assert_eq!(sc.walk_path_buffer, vec![2, 2]);
     }
 }

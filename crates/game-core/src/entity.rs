@@ -454,6 +454,38 @@ pub fn detach_from_cell(grid: &mut CellGrid, table: &mut EntityTable, idx: usize
     }
 }
 
+/// m_108（a.java:8880-8904）：路径缓动实体的格槽迁移——从**起点格** (from_x,from_y)
+/// 的槽表摘除首个 `idx+1`（后续前移、容量−1；未找到则不动），再追加到实体**当前
+/// 像素所在格**（格类型为 0 时 `++nextCellTypeId` 分配新类型）。
+///
+/// 忠实点：起点格由调用方传入（MOV 五参写的 f_int_129/130，全程不随实体移动更新）
+/// ——同一实体重复调用（m_106 途中击杀后路径未尽再收尾，a.java:8848 + 8806）时，
+/// 首次已迁走 ⇒ 二次摘除落空，但**追加照做**（removed 实体重新登记入槽，原版行为）。
+pub fn relocate_slot(grid: &mut CellGrid, table: &EntityTable, idx: usize, from_x: i32, from_y: i32) {
+    let ct = grid.cell_type[from_y as usize][from_x as usize] as usize;
+    let cap = grid.capacity[ct] as usize;
+    for s in 0..cap {
+        if grid.slots[ct][s] as usize == idx + 1 {
+            for k in s..cap - 1 {
+                grid.slots[ct][k] = grid.slots[ct][k + 1];
+            }
+            grid.capacity[ct] -= 1;
+            break;
+        }
+    }
+    let cx = (table.pixel_x[idx] >> 5) as usize;
+    let cy = (table.pixel_y[idx] >> 5) as usize;
+    let mut nt = grid.cell_type[cy][cx];
+    if nt == 0 {
+        grid.next_cell_type += 1;
+        nt = grid.next_cell_type;
+        grid.cell_type[cy][cx] = nt;
+    }
+    let n = grid.capacity[nt as usize] as usize;
+    grid.slots[nt as usize][n] = (idx + 1) as u8;
+    grid.capacity[nt as usize] += 1;
+}
+
 /// advanceBobPhase（a.java:6480-6483）：bob 浮沉相位推进（每拍 ±1，域 [-2,2] 翻转）。
 pub fn advance_bob(offset: &mut i32, rising: &mut bool) {
     if *rising {

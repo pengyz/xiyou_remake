@@ -11,8 +11,10 @@ pub enum DialogPhase {
     ScriptStep,
     /// 1：打字机（文本未完）
     Typewriter,
-    /// 2：选项/分支（m_106）
-    Choice,
+    /// 2：实体路径缓动（MOV 五参 → m_106 每拍推进，a.java:4072-4073 / 8738-8870）。
+    /// 【2026-10-15 更正】原名 `Choice`（"选项/分支"）证伪：m_106 字节码 = 实体沿
+    /// walkPathBuffer 8px/拍步进 + m_108 迁槽，无任何选项语义。
+    EntityRoute,
     /// 3：行走执行（消费 walkPathBuffer）
     Walk,
     /// 4：等待相机到位（cameraAtTarget → 回地图；行尾收尾门亦落此相位）
@@ -30,7 +32,7 @@ impl DialogPhase {
         match v {
             0 => Self::ScriptStep,
             1 => Self::Typewriter,
-            2 => Self::Choice,
+            2 => Self::EntityRoute,
             3 => Self::Walk,
             4 => Self::AwaitCamera,
             5 => Self::LayCutscene,
@@ -43,7 +45,7 @@ impl DialogPhase {
         match self {
             Self::ScriptStep => 0,
             Self::Typewriter => 1,
-            Self::Choice => 2,
+            Self::EntityRoute => 2,
             Self::Walk => 3,
             Self::AwaitCamera => 4,
             Self::LayCutscene => 5,

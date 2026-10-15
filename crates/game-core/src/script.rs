@@ -314,7 +314,7 @@ impl<'d> ScriptEngine<'d> {
                     let (px, py) = host.entity_pixel(idx);
                     host.find_path(px >> 5, py >> 5, self.state.camera_anchor_x, self.state.camera_anchor_y);
                     // Java 无条件置 2（a.java:8284，findPath 结果不影响 phase）
-                    self.state.dialog_phase = DialogPhase::Choice;
+                    self.state.dialog_phase = DialogPhase::EntityRoute;
                 } else {
                     self.execute_script_instruction(host); // Java 尾递归（a.java:8287）
                 }

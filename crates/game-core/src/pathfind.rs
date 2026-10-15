@@ -119,13 +119,19 @@ pub fn find_path(walk: &Walkability, from_x: i32, from_y: i32, to_x: i32, to_y: 
         loop {
             let parent_idx = parent[cur_y as usize][cur_x as usize] as i32;
             let diff = parent_idx - cur_idx;
-            steps.push(match diff {
+            let dir = match diff {
                 -1 => DIR_RIGHT, // 父在左 ⇒ 行进向右
                 1 => DIR_LEFT,
                 d if d == -cols => DIR_DOWN,
                 d if d == cols => DIR_UP,
-                _ => return PathResult { found: false, steps: Vec::new() }, // Java: return false
-            });
+                // Java `return false`（a.java:9943-9944）：walkStepCount 已填的前缀
+                // **保留**（findPath 写的是成员缓冲）——MOV 五参不判返回值、m_106
+                // 照样消费前缀，故部分步序原样带出。可达性（B 级）：回溯只会在父
+                // 指针落到未入队格时失败，唯幻影队头 (0,0)；而 Java 弹出幻影后扩展
+                // m_134(-1,0) 先抛 AIOOBE（本移植 m_134 越界早退不崩）——Java 侧不可达
+                _ => return PathResult { found: false, steps },
+            };
+            steps.push(dir);
             cur_idx = parent_idx;
             cur_x = cur_idx % cols;
             cur_y = cur_idx / cols;
