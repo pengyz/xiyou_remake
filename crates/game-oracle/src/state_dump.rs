@@ -13,40 +13,39 @@
 use game_core::scene::GameScene;
 use game_platform::hash::sha256_hex;
 
-/// 一条导出项：语义名（= 改名类字段名，fields.py 可映射）+ Java 类型 + 值。
+/// 一条导出项：语义名（= 改名类字段名，fields.py 可映射）+ 值。Java 类型由构造函数区分
+/// （e_int=int / e_byte=byte / e_bool=boolean / e_int_arr=[I / e_short_arr=[S /
+/// e_byte_arr=[B / e_bool_arr=[Z），只决定值的格式化，不进导出行。
 struct Entry {
     name: &'static str,
-    jtype: &'static str,
     value: String,
 }
 
 fn e_int(name: &'static str, v: i32) -> Entry {
-    Entry { name, jtype: "int", value: v.to_string() }
+    Entry { name, value: v.to_string() }
 }
 fn e_byte(name: &'static str, v: i8) -> Entry {
-    Entry { name, jtype: "byte", value: v.to_string() }
+    Entry { name, value: v.to_string() }
 }
 fn e_bool(name: &'static str, v: bool) -> Entry {
-    Entry { name, jtype: "boolean", value: if v { "true" } else { "false" }.into() }
+    Entry { name, value: if v { "true" } else { "false" }.into() }
 }
 fn e_int_arr(name: &'static str, v: &[i32]) -> Entry {
-    Entry { name, jtype: "[I", value: arr_str(v.iter().map(|e| (*e as i64, e.to_string()))) }
+    Entry { name, value: arr_str(v.iter().map(|e| (*e as i64, e.to_string()))) }
 }
 fn e_short_arr(name: &'static str, v: &[i16]) -> Entry {
-    Entry { name, jtype: "[S", value: arr_str(v.iter().map(|e| (*e as i64, e.to_string()))) }
+    Entry { name, value: arr_str(v.iter().map(|e| (*e as i64, e.to_string()))) }
 }
 fn e_byte_arr(name: &'static str, v: &[u8]) -> Entry {
     // Java byte[] 元素经 Array.get → Byte（有符号）
     Entry {
         name,
-        jtype: "[B",
         value: arr_str(v.iter().map(|e| (*e as i8 as i64, (*e as i8).to_string()))),
     }
 }
 fn e_bool_arr(name: &'static str, v: &[bool]) -> Entry {
     Entry {
         name,
-        jtype: "[Z",
         value: arr_str(v.iter().map(|e| (*e as i64, if *e { "true" } else { "false" }.into()))),
     }
 }

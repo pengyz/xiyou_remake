@@ -33,15 +33,9 @@ AUDIO_FIELDS = ["gameMode", "soundEnabled", "volumeLevel", "f_byte_28", "f_bool_
                 "anyKeyPlayed"]
 
 
-def load_oracle():
-    spec = importlib.util.spec_from_file_location("oracle_run", ORACLE / "run.py")
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
-
-def load_fields():
-    spec = importlib.util.spec_from_file_location("oracle_fields", ORACLE / "fields.py")
+def load_module(name: str, path: Path):
+    """按文件路径加载 reference/oracle 下的脚本为模块（不修改 reference/）。"""
+    spec = importlib.util.spec_from_file_location(name, path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -62,18 +56,20 @@ def timeline(trace: Path, idx_of: dict) -> list:
     （TickHooks.postTick），事件发生于 logic#n 或 preTick(n) 的 keyPressed ⇒ 归属 tick n；
     FLD 转储在 `TICK n` 之后（同一 postTick），反映 logic#n + preTick(n) 投递后的状态。"""
     wanted = {v: k for k, v in idx_of.items()}
-    rows, cur, pending, last = [], None, [], {}
+    rows, pending, last = [], [], {}
+    # 当前 tick 行；cur_tick=None = 尚未见到首个 TICK（其前的 FLD 忽略、EVT 归入首个 tick）
+    cur_tick, cur_evts, cur_ch = None, [], {}
     for line in trace.read_text(encoding="utf-8").splitlines():
         if line.startswith("EVT "):
             ev = line[4:]
             if ev not in ("thread-start", "thread-exit"):
                 pending.append(ev)
         elif line.startswith("TICK "):
-            if cur and (cur[1] or cur[2]):
-                rows.append(cur)
-            cur = (int(line.split()[1]), pending, {})
+            if cur_evts or cur_ch:
+                rows.append((cur_tick, cur_evts, cur_ch))
+            cur_tick, cur_evts, cur_ch = int(line.split()[1]), pending, {}
             pending = []
-        elif line.startswith("  FLD ") and cur is not None:
+        elif line.startswith("  FLD ") and cur_tick is not None:
             # "  FLD 375 boolean true" → ['', '', 'FLD', '375', 'boolean', 'true']
             parts = line.split(" ", 5)
             try:
@@ -84,14 +80,14 @@ def timeline(trace: Path, idx_of: dict) -> list:
                 val = parts[5] if len(parts) > 5 else ""
                 name = wanted[idx]
                 if last.get(name) != val:
-                    cur[2][name] = val
+                    cur_ch[name] = val
                     last[name] = val
-    if cur and (cur[1] or cur[2]):
-        rows.append(cur)
+    if cur_evts or cur_ch:
+        rows.append((cur_tick, cur_evts, cur_ch))
     return rows
 
 
-def print_timeline(label: str, trace: Path, idx_of: dict):
+def print_timeline(trace: Path, idx_of: dict):
     for tick, evts, ch in timeline(trace, idx_of):
         kv = " ".join(f"{k}={v}" for k, v in ch.items())
         ev = ("  EVT[" + "; ".join(evts) + "]") if evts else ""
@@ -99,8 +95,8 @@ def print_timeline(label: str, trace: Path, idx_of: dict):
 
 
 def main(argv) -> int:
-    oracle = load_oracle()
-    fields = load_fields()
+    oracle = load_module("oracle_run", ORACLE / "run.py")
+    fields = load_module("oracle_fields", ORACLE / "fields.py")
     fmap = {v: k for k, v in fields.build_map().items()}
     wanted = AUDIO_FIELDS
     if "--fields" in argv:
@@ -118,7 +114,7 @@ def main(argv) -> int:
         # 字段变更受该 trace 的 dumpStride 采样粒度约束（默认 8 + 输入 tick）。
         for p in argv[1:]:
             print(f"== {p}")
-            print_timeline(p, Path(p), idx_of)
+            print_timeline(Path(p), idx_of)
         return 0
 
     if argv[:1] == ["--script"]:
@@ -147,7 +143,7 @@ def main(argv) -> int:
         print(f"== {label}（{ticks} ticks, rc={rc}, trace={trace.relative_to(ROOT)}）")
         if rc != 0:
             rc_all = 1
-        print_timeline(label, trace, idx_of)
+        print_timeline(trace, idx_of)
     return rc_all
 
 

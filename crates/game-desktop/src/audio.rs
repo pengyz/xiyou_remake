@@ -113,6 +113,8 @@ pub struct Track {
 }
 
 impl Track {
+    /// 帧数（每声道样本数）。仅测试断言用。
+    #[cfg(test)]
     pub fn frames(&self) -> usize {
         self.pcm.len() / CHANNELS
     }
@@ -187,6 +189,8 @@ impl Mixer {
         self.current.is_some() && !self.paused
     }
 
+    /// 当前播放位置（帧）。仅测试断言用（音频线程不读）。
+    #[cfg(test)]
     pub fn position(&self) -> usize {
         self.pos
     }

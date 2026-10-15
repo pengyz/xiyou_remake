@@ -3,7 +3,8 @@
 
 use std::time::{Duration, Instant};
 
-/// 240×320 画面在窗口里的放置：整数倍 `scale`、左上偏移 `(ox, oy)`（信箱居中）。
+/// 逻辑画面（`src_w`×`src_h`，Stage A = 240×320）在窗口里的放置：整数倍 `scale`、
+/// 左上偏移 `(ox, oy)`（信箱居中）。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Viewport {
     pub win_w: u32,

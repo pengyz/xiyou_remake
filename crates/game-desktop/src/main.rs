@@ -36,6 +36,10 @@ use game_core::scene::{FloorAssets, GameScene};
 const TICK_MS: u64 = 75;
 /// 初始窗口倍数（逻辑像素）；之后随窗口尺寸自适应整数倍。
 const INITIAL_SCALE: u32 = 2;
+/// 逻辑画布尺寸（u32 视图，= game_core::layout::SCREEN_W/SCREEN_H，Stage A 240×320）——
+/// 壳内呈现几何的唯一来源：窗口初始/最小尺寸、Viewport 适配、鼠标反映射、blit。
+const CANVAS_W: u32 = SCREEN_W as u32;
+const CANVAS_H: u32 = SCREEN_H as u32;
 const WINDOW_TITLE: &str = "囧囧西游-大闹天宫";
 
 // ---------------------------------------------------------------- 资产装载
@@ -299,8 +303,8 @@ mod font_inject {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use game_core::layout::{SCREEN_H, SCREEN_W, SOUND_PROMPT_TEXT};
-        use game_core::render::{anchor, ArgbImage, SoftGraphics};
+        use game_core::layout::{prompt_cx, prompt_cy, SCREEN_H, SCREEN_W, SOUND_PROMPT_TEXT};
+        use game_core::render::{anchor, ArgbImage};
 
         /// 真链路端到端：注入 hook 后，经 SoftGraphics::draw_string 画 mode 21
         /// 提示文本，统计真字形像素。这是 shell 里 mode 21 文字是否可见的最小复现。
@@ -308,17 +312,20 @@ mod font_inject {
         fn hook_renders_mode21_text_via_softgraphics() {
             install(); // 注入真字形（与 shell 启动同一路径）
             let mut img = ArgbImage::create(SCREEN_W, SCREEN_H);
+            // mode 21 实际锚点（paint_sound_prompt 同式：画面中心）
+            let (cx, cy) = (prompt_cx(), prompt_cy());
             {
-                let mut g = SoftGraphics::new(&mut img);
-                g.set_clip(0, 0, SCREEN_W, SCREEN_H);
-                g.set_font(Some(game_core::paint::paint_font()));
+                let mut g = crate::canvas_graphics(&mut img);
                 g.set_color(0x000000);
                 g.fill_rect(0, 0, SCREEN_W, SCREEN_H);
                 g.set_color(game_core::layout::WHITE);
-                g.draw_string(SOUND_PROMPT_TEXT, 120, 160, anchor::TOP | anchor::HCENTER);
+                g.draw_string(SOUND_PROMPT_TEXT, cx, cy, anchor::TOP | anchor::HCENTER);
             }
             // 区域断言（防假绿）：文本带必须有像素、原点邻域必须干净——
             // ab_glyph 局部坐标 bug 的特征签名 = 字形堆在 (0,0) 且文本带为空。
+            // 文本带 = 锚点 x−80..x+90 × y−10..y+25（240×320 下即 40..210 × 150..185）。
+            let band_x = (cx - 80) as usize..(cx + 90) as usize;
+            let band_y = (cy - 10) as usize..(cy + 25) as usize;
             let (mut band, mut origin) = (0usize, 0usize);
             let w = SCREEN_W as usize;
             for y in 0..SCREEN_H as usize {
@@ -326,7 +333,7 @@ mod font_inject {
                     if img.argb[y * w + x] & 0x00FF_FFFF == 0 {
                         continue;
                     }
-                    if (40..210).contains(&x) && (150..185).contains(&y) {
+                    if band_x.contains(&x) && band_y.contains(&y) {
                         band += 1;
                     }
                     if x < 32 && y < 32 {
@@ -342,6 +349,14 @@ mod font_inject {
 }
 
 // ---------------------------------------------------------------- 应用状态
+
+/// 逻辑画布上的绘制上下文：全屏裁剪 + 游戏字体（GameScene / BootMachine 绘制共用前置）。
+fn canvas_graphics(screen: &mut ArgbImage) -> SoftGraphics<'_> {
+    let mut g = SoftGraphics::new(screen);
+    g.set_clip(0, 0, SCREEN_W, SCREEN_H);
+    g.set_font(Some(game_core::paint::paint_font()));
+    g
+}
 
 enum Screen {
     Boot(BootMachine),
@@ -408,13 +423,17 @@ impl Shell {
         }
     }
 
-    fn combat_tables() -> game_core::combat::CombatTables {
-        game_core::combat::CombatTables {
+    /// 敌人数值表装配（读档 / 新游戏两路交接共用）：难度 1 缩放 + 基础 HP / 金币表。
+    fn install_combat_tables(sc: &mut GameScene) {
+        let tables = game_core::combat::CombatTables {
             enemy_base_hp: fixture!("enemybasehp.txt"),
             enemy_base_atk: fixture!("enemybaseatk.txt"),
             enemy_base_def: fixture!("enemybasedef.txt"),
             difficulty_multipliers: fixture!("difficulty_multipliers.txt"),
-        }
+        };
+        sc.enemies = game_core::combat::scale_enemy_stats(&tables, 1);
+        sc.enemy_base_hp = tables.enemy_base_hp;
+        sc.enemy_base_gold = fixture!("enemybasegold.txt");
     }
 
     /// keyPressed / keyReleased 投递——Java Canvas 回调语义（a.java:4663-4680）：只改
@@ -463,10 +482,16 @@ impl Shell {
     }
 
     fn paint_scene(&mut self, sc: &mut GameScene) {
-        let mut g = SoftGraphics::new(&mut self.screen);
-        g.set_clip(0, 0, SCREEN_W, SCREEN_H);
-        g.set_font(Some(game_core::paint::paint_font()));
+        let mut g = canvas_graphics(&mut self.screen);
         sc.paint(&mut g, &self.assets.tileset);
+    }
+
+    /// 交接拍收尾（读档 / 新游戏两路共用）：本拍即画场景（读档路 Java 本拍 paint 已是
+    /// mode 3；两路均与 harness 同构）并切入 GameScene。
+    fn enter_scene(&mut self, mut sc: GameScene) {
+        self.paint_scene(&mut sc);
+        self.state = Some(Screen::Game(Box::new(sc)));
+        self.frame_counter += 1;
     }
 
     fn step(&mut self) {
@@ -529,19 +554,13 @@ impl Shell {
                                     .iter()
                                     .find(|(k, _)| k.starts_with("MOT_IF@"))
                                     .map(|(_, v)| v.clone());
-                                let tables = Self::combat_tables();
-                                sc.enemies = game_core::combat::scale_enemy_stats(&tables, 1);
-                                sc.enemy_base_hp = tables.enemy_base_hp;
-                                sc.enemy_base_gold = fixture!("enemybasegold.txt");
+                                Self::install_combat_tables(&mut sc);
                                 sc.rng = machine.rng.clone();
                                 // 音频状态续接（Java 同一对象：soundEnabled/f_byte_28/
                                 // f_Player_00 跨模式连续；m_000 case 3 已在 machine 侧执行）
                                 sc.bgm = machine.bgm.clone();
                                 self.persisted_blobs = sc.saved_slot_blobs.clone();
-                                // 交接拍即画场景（Java 本拍 paint 已是 mode 3；harness 同）
-                                self.paint_scene(&mut sc);
-                                self.state = Some(Screen::Game(Box::new(sc)));
-                                self.frame_counter += 1;
+                                self.enter_scene(sc);
                                 return;
                             }
                         }
@@ -569,10 +588,7 @@ impl Shell {
                     sc.player.hp = 300;
                     sc.player.atk = 10;
                     sc.player.def = 10;
-                    let tables = Self::combat_tables();
-                    sc.enemies = game_core::combat::scale_enemy_stats(&tables, 1);
-                    sc.enemy_base_hp = tables.enemy_base_hp;
-                    sc.enemy_base_gold = fixture!("enemybasegold.txt");
+                    Self::install_combat_tables(&mut sc);
                     sc.build_minimap();
                     sc.enter_view();
                     sc.bob_offset = machine.bob_offset;
@@ -582,17 +598,10 @@ impl Shell {
                     sc.rng = machine.rng.clone();
                     sc.bgm = machine.bgm.clone(); // 音频状态续接（同上）
                     sc.apply_entry_step_effects();
-                    self.paint_scene(&mut sc);
-                    self.state = Some(Screen::Game(Box::new(sc)));
-                    self.frame_counter += 1;
+                    self.enter_scene(sc);
                     return;
                 }
-                {
-                    let mut g = SoftGraphics::new(&mut self.screen);
-                    g.set_clip(0, 0, SCREEN_W, SCREEN_H);
-                    g.set_font(Some(game_core::paint::paint_font()));
-                    machine.paint(&mut g);
-                }
+                machine.paint(&mut canvas_graphics(&mut self.screen));
                 self.state = Some(Screen::Boot(machine));
                 self.frame_counter += 1;
             }
@@ -601,22 +610,37 @@ impl Shell {
     }
 }
 
-/// 窗口键盘事件 → (键码, 按下?)。OS 自动重复 ⇒ None：MIDP 把重复交给 keyRepeated，
-/// a.class 只覆写 keyPressed/keyReleased（`javap -p` 原始 a.class，A 级）⇒ 重复无效果；
-/// 长按行走由 keyHeldCode 持续驱动（a.java:5308-5329，EV-hold-walk 实证）。
-fn translate_key(physical: winit::keyboard::PhysicalKey, pressed: bool, repeat: bool) -> Option<(i32, bool)> {
+/// 壳级键盘动作。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum KeyAction {
+    /// MIDP 键码 + 按下?（经 route_key 投递给游戏）
+    Game(i32, bool),
+    /// F11 按下沿：全屏切换（壳级，不进游戏输入）
+    ToggleFullscreen,
+}
+
+/// 窗口键盘事件 → 壳动作（OS 自动重复的**唯一**过滤点）。重复 ⇒ None：MIDP 把重复交给
+/// keyRepeated，a.class 只覆写 keyPressed/keyReleased（`javap -p` 原始 a.class，A 级）⇒
+/// 重复无效果；长按行走由 keyHeldCode 持续驱动（a.java:5308-5329，EV-hold-walk 实证）。
+/// F11 只取按下沿，其抬起同样不进游戏输入。
+fn translate_key(physical: winit::keyboard::PhysicalKey, pressed: bool, repeat: bool) -> Option<KeyAction> {
+    use winit::keyboard::{KeyCode, PhysicalKey};
     if repeat {
         return None;
     }
-    key_code(physical).map(|c| (c, pressed))
+    if physical == PhysicalKey::Code(KeyCode::F11) {
+        return pressed.then_some(KeyAction::ToggleFullscreen);
+    }
+    key_code(physical).map(|c| KeyAction::Game(c, pressed))
 }
 
 /// 鼠标左键（画面坐标）→ 软键码：底部 30% 左三分之一 = -6、右三分之一 = -7、其余 = -5。
 fn click_code(x: i32, y: i32) -> i32 {
     let (w, h) = (SCREEN_W, SCREEN_H);
-    if y > h * 7 / 10 && x < w / 3 {
+    let soft_bar = y > h * 7 / 10;
+    if soft_bar && x < w / 3 {
         -6
-    } else if y > h * 7 / 10 && x > w * 2 / 3 {
+    } else if soft_bar && x > w * 2 / 3 {
         -7
     } else {
         -5
@@ -630,7 +654,6 @@ fn run_window(shell: Shell) {
     use winit::application::ApplicationHandler;
     use winit::event::{ElementState, WindowEvent};
     use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-    use winit::keyboard::{KeyCode, PhysicalKey};
     use winit::window::{Fullscreen, Window, WindowId};
 
     type W = std::rc::Rc<Window>;
@@ -655,10 +678,10 @@ fn run_window(shell: Shell) {
                         // CJK 标题（X11 _NET_WM_NAME 为 UTF-8；字形由窗口管理器渲染）
                         .with_title(WINDOW_TITLE)
                         .with_inner_size(winit::dpi::LogicalSize::new(
-                            SCREEN_W as u32 * INITIAL_SCALE,
-                            SCREEN_H as u32 * INITIAL_SCALE,
+                            CANVAS_W * INITIAL_SCALE,
+                            CANVAS_H * INITIAL_SCALE,
                         ))
-                        .with_min_inner_size(winit::dpi::PhysicalSize::new(SCREEN_W as u32, SCREEN_H as u32))
+                        .with_min_inner_size(winit::dpi::PhysicalSize::new(CANVAS_W, CANVAS_H))
                         // 可缩放：画面取能放下的最大整数倍、信箱居中（view.rs），像素锐利；
                         // 桌面分数缩放下合成器的整窗平滑拉伸由此规避（按物理像素重排）
                         .with_resizable(true),
@@ -698,7 +721,7 @@ fn run_window(shell: Shell) {
                     }
                     let Some((mx, my)) = self.mouse else { return };
                     let Some(vp) = self.viewport() else { return };
-                    let Some((x, y)) = vp.to_screen(mx, my, SCREEN_W as u32, SCREEN_H as u32) else {
+                    let Some((x, y)) = vp.to_screen(mx, my, CANVAS_W, CANVAS_H) else {
                         return; // 信箱区
                     };
                     let code = click_code(x, y);
@@ -708,17 +731,15 @@ fn run_window(shell: Shell) {
                 }
                 WindowEvent::KeyboardInput { event, .. } => {
                     let pressed = event.state == ElementState::Pressed;
-                    if event.physical_key == PhysicalKey::Code(KeyCode::F11) {
-                        if pressed && !event.repeat {
+                    match translate_key(event.physical_key, pressed, event.repeat) {
+                        Some(KeyAction::Game(code, down)) => self.shell.route_key(code, down),
+                        Some(KeyAction::ToggleFullscreen) => {
                             if let Some(w) = self.window.as_ref() {
                                 let fs = if w.fullscreen().is_some() { None } else { Some(Fullscreen::Borderless(None)) };
                                 w.set_fullscreen(fs);
                             }
                         }
-                        return;
-                    }
-                    if let Some((code, down)) = translate_key(event.physical_key, pressed, event.repeat) {
-                        self.shell.route_key(code, down);
+                        None => {}
                     }
                 }
                 _ => {}
@@ -749,7 +770,7 @@ fn run_window(shell: Shell) {
         fn viewport(&self) -> Option<view::Viewport> {
             let size = self.window.as_ref()?.inner_size();
             (size.width > 0 && size.height > 0)
-                .then(|| view::Viewport::fit(size.width, size.height, SCREEN_W as u32, SCREEN_H as u32))
+                .then(|| view::Viewport::fit(size.width, size.height, CANVAS_W, CANVAS_H))
         }
 
         fn present(&mut self) {
@@ -762,7 +783,7 @@ fn run_window(shell: Shell) {
                 return;
             }
             let Ok(mut buffer) = surface.buffer_mut() else { return };
-            view::blit(&mut buffer, &vp, &self.shell.screen.argb, SCREEN_W as u32, SCREEN_H as u32);
+            view::blit(&mut buffer, &vp, &self.shell.screen.argb, CANVAS_W, CANVAS_H);
             let _ = buffer.present();
         }
     }
@@ -963,31 +984,45 @@ mod shell_tests {
         assert_eq!(cursor(&h), 0);
         let down = winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::ArrowDown);
         let up = winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::ArrowUp);
+        let game = |k, pressed| match translate_key(k, pressed, false) {
+            Some(KeyAction::Game(c, p)) => (c, p),
+            other => panic!("期望游戏键，实得 {other:?}"),
+        };
         // 按下 + 30 拍重复
-        let (c, p) = translate_key(down, true, false).unwrap();
+        let (c, p) = game(down, true);
         h.shell.route_key(c, p);
         for _ in 0..30 {
             h.run_tick(&[]);
             assert!(translate_key(down, true, true).is_none(), "重复事件必须丢弃");
         }
-        let (c, p) = translate_key(down, false, false).unwrap();
+        let (c, p) = game(down, false);
         h.shell.route_key(c, p);
         h.run_tick(&[]);
         assert_eq!(cursor(&h), 1, "长按只移一格（Java 无 keyRepeated）");
         // 同拍两键：-2 后 -1 ⇒ 只消费 -1
-        let (c, _) = translate_key(down, true, false).unwrap();
+        let (c, _) = game(down, true);
         h.shell.route_key(c, true);
-        let (c, _) = translate_key(up, true, false).unwrap();
+        let (c, _) = game(up, true);
         h.shell.route_key(c, true);
         h.run_tick(&[]);
         assert_eq!(cursor(&h), 0, "同拍多键取末个（-1：1→0），非逐个处理（会是 2→1）");
+        // F11：只取按下沿（重复/抬起均无动作），且从不进游戏输入
+        let f11 = winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::F11);
+        assert_eq!(translate_key(f11, true, false), Some(KeyAction::ToggleFullscreen));
+        assert_eq!(translate_key(f11, true, true), None);
+        assert_eq!(translate_key(f11, false, false), None);
     }
 
+    /// 点击分区（画面坐标，按 SCREEN_W/SCREEN_H 取点）：软键栏 = y > 高×7/10（边界行属
+    /// 确认区）；栏内左 1/3 = -6、右 1/3 = -7、中间 = -5。
     #[test]
     fn click_zones_in_screen_space() {
-        assert_eq!(click_code(10, 300), -6);
-        assert_eq!(click_code(230, 300), -7);
-        assert_eq!(click_code(120, 300), -5);
-        assert_eq!(click_code(10, 100), -5);
+        let (w, h) = (SCREEN_W, SCREEN_H);
+        let bar = h - 20; // 软键栏内一行（240×320 下 = 300）
+        assert_eq!(click_code(10, bar), -6);
+        assert_eq!(click_code(w - 10, bar), -7);
+        assert_eq!(click_code(w / 2, bar), -5);
+        assert_eq!(click_code(10, h * 7 / 10), -5, "边界行（严格 >）不属软键栏");
+        assert_eq!(click_code(10, h * 7 / 10 + 1), -6);
     }
 }

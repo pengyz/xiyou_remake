@@ -136,6 +136,29 @@ fn render(sf: &Arc<SoundFont>, name: &'static str, bytes: &[u8]) -> Res<Rendered
     })
 }
 
+/// 编码前后补零（[`ENCODER_PRIMING`] 前置 + [`TAIL_PAD`] 后置）→ rusty_vorbis 品质
+/// `vorbis_q`（`-q` 刻度）编码 → 全部包（含 3 个头包）。夹具与正式轨道共用。
+fn encode(src: &[f32], vorbis_q: f64) -> Res<Vec<rusty_vorbis::EncodedPacket>> {
+    let mut padded = vec![0f32; ENCODER_PRIMING * 2];
+    padded.extend_from_slice(src);
+    padded.extend(std::iter::repeat(0f32).take(TAIL_PAD * 2));
+    let mut enc = rusty_vorbis::VorbisEncoder::new(rusty_vorbis::VorbisEncoderConfig {
+        quality: rusty_vorbis::quality01_from_vorbis_q(vorbis_q),
+        ..Default::default()
+    });
+    enc.push_pcm_f32(&padded, 2, SAMPLE_RATE).map_err(|e| format!("编码失败：{e:?}"))?;
+    enc.finish();
+    let mut packets = Vec::new();
+    loop {
+        match enc.next_packet() {
+            Ok(p) => packets.push(p),
+            Err(rusty_vorbis::Error::Eof) => break,
+            Err(e) => return Err(format!("编码失败：{e:?}")),
+        }
+    }
+    Ok(packets)
+}
+
 /// Ogg Vorbis 封装。粒度（granule）= 解码累计帧数：首个音频包 0，其后每包 +1024
 /// （rusty_vorbis 全长块 n=2048、跳 1024）；末页粒度 = 有效帧数 `total`（支持按粒度
 /// 截尾的解码器得到精确长度）。超出 `total` 的尾包强制同页，保证页粒度单调。
@@ -239,28 +262,14 @@ fn write_fixture(path: &Path) -> Res<()> {
     const INTRO: usize = 11_025;
     const BODY: usize = 22_050;
     let total = INTRO + BODY;
-    let mut padded = vec![0f32; ENCODER_PRIMING * 2];
+    let mut src = Vec::with_capacity(total * 2);
     for i in 0..total {
         let f = if i < INTRO { 440.0 } else { 660.0 };
         let s = 0.5 * (2.0 * std::f64::consts::PI * f * i as f64 / SAMPLE_RATE as f64).sin() as f32;
-        padded.push(s);
-        padded.push(-s);
+        src.push(s);
+        src.push(-s);
     }
-    padded.extend(std::iter::repeat(0f32).take(TAIL_PAD * 2));
-    let mut enc = rusty_vorbis::VorbisEncoder::new(rusty_vorbis::VorbisEncoderConfig {
-        quality: rusty_vorbis::quality01_from_vorbis_q(4.0),
-        ..Default::default()
-    });
-    enc.push_pcm_f32(&padded, 2, SAMPLE_RATE).map_err(|e| format!("编码失败：{e:?}"))?;
-    enc.finish();
-    let mut packets = Vec::new();
-    loop {
-        match enc.next_packet() {
-            Ok(p) => packets.push(p),
-            Err(rusty_vorbis::Error::Eof) => break,
-            Err(e) => return Err(format!("编码失败：{e:?}")),
-        }
-    }
+    let packets = encode(&src, 4.0)?;
     let (ls, ll) = (INTRO.to_string(), BODY.to_string());
     let comments = [("TITLE", "loop-fixture"), ("LOOPSTART", ls.as_str()), ("LOOPLENGTH", ll.as_str())];
     let ogg = mux(&packets, &comments, total as u64, 0x5859_00ff)?;
@@ -329,23 +338,7 @@ fn run(args: &[String]) -> Res<()> {
         }
         let seam_rms = (e / t.seam_probe.len() as f64).sqrt();
 
-        let mut padded = vec![0f32; ENCODER_PRIMING * 2];
-        padded.extend_from_slice(&src);
-        padded.extend(std::iter::repeat(0f32).take(TAIL_PAD * 2));
-        let mut enc = rusty_vorbis::VorbisEncoder::new(rusty_vorbis::VorbisEncoderConfig {
-            quality: rusty_vorbis::quality01_from_vorbis_q(VORBIS_Q),
-            ..Default::default()
-        });
-        enc.push_pcm_f32(&padded, 2, SAMPLE_RATE).map_err(|e| format!("编码失败：{e:?}"))?;
-        enc.finish();
-        let mut packets = Vec::new();
-        loop {
-            match enc.next_packet() {
-                Ok(p) => packets.push(p),
-                Err(rusty_vorbis::Error::Eof) => break,
-                Err(e) => return Err(format!("编码失败：{e:?}")),
-            }
-        }
+        let packets = encode(&src, VORBIS_Q)?;
         let p = t.period.to_string();
         let src_tag = format!("{}:{}", t.name, &t.midi_sha[..16]);
         let sf_tag = format!("TimGM6mb.sf2:{}", &SF2_SHA256[..16]);
