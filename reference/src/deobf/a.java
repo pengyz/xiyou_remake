@@ -3454,27 +3454,27 @@ public final class a extends Canvas implements Runnable {
                               a var37 = var28;
                               switch (var41) {
                                  case 0:
-                                    var37.readCountPrefix(8);
+                                    var37.loadPackedImages(8);
                                     break;
                                  case 1:
-                                    var37.readCountPrefix(10);
+                                    var37.loadPackedImages(10);
                                     break;
                                  case 2:
-                                    var37.readCountPrefix(2);
+                                    var37.loadPackedImages(2);
                                     break;
                                  case 3:
-                                    var37.readCountPrefix(1);
+                                    var37.loadPackedImages(1);
                                     break;
                                  case 4:
-                                    var37.readCountPrefix(3);
+                                    var37.loadPackedImages(3);
                                     break;
                                  case 5:
-                                    var37.readCountPrefix(6);
-                                    var37.readCountPrefix(4);
-                                    var37.readCountPrefix(5);
+                                    var37.loadPackedImages(6);
+                                    var37.loadPackedImages(4);
+                                    var37.loadPackedImages(5);
                                     break;
                                  case 6:
-                                    var37.readCountPrefix(12);
+                                    var37.loadPackedImages(12);
                                     break;
                                  case 7:
                                     var37.initParticles();
@@ -3502,7 +3502,7 @@ public final class a extends Canvas implements Runnable {
                                     break;
                                  case 11:
                                     a var38;
-                                    (var38 = var37).readCountPrefix(3);
+                                    (var38 = var37).loadPackedImages(3);
                                     var38.playerGhostSheet = var38.f_Image_arr2_00[3][0];
                                     var38.playerAnimSequence = var38.playerAnimTables[0];
                                     var38.playerAnimIndex = 0;
@@ -3515,15 +3515,15 @@ public final class a extends Canvas implements Runnable {
                                     var37.resetNewGameState();
                                     break;
                                  case 13:
-                                    var37.readCountPrefix(7);
-                                    var37.readCountPrefix(13);
+                                    var37.loadPackedImages(7);
+                                    var37.loadPackedImages(13);
                                     var37.initEntityTables();
                                     break;
                                  case 14:
-                                    var37.readCountPrefix(11);
+                                    var37.loadPackedImages(11);
                                     break;
                                  case 15:
-                                    var37.readCountPrefix(14);
+                                    var37.loadPackedImages(14);
                                     break;
                                  case 16:
                                     if (!var37.loadFloorSave(var37.slotCursor)) {
@@ -4299,8 +4299,8 @@ public final class a extends Canvas implements Runnable {
                this.saveGlobalProgress();
             }
 
-            this.readCountPrefix(8);
-            this.readCountPrefix(10);
+            this.loadPackedImages(8);
+            this.loadPackedImages(10);
             this.resetMenuLayout();
             this.addMenuItem(0);
             this.addMenuItem(1);
@@ -4342,9 +4342,9 @@ public final class a extends Canvas implements Runnable {
          case 7:
          case 8:
             if (this.menuReturnMode == 1) {
-               this.readCountPrefix(1);
-               this.readCountPrefix(8);
-               this.readCountPrefix(6);
+               this.loadPackedImages(1);
+               this.loadPackedImages(8);
+               this.loadPackedImages(6);
             }
 
             this.softkeyLeftKind = 1;
@@ -4400,8 +4400,8 @@ public final class a extends Canvas implements Runnable {
             var6.introColorPhase = false;
             return;
          case 15:
-            this.readCountPrefix(8);
-            this.readCountPrefix(1);
+            this.loadPackedImages(8);
+            this.loadPackedImages(1);
             this.showOverlayMessage(
                (byte)0,
                "游戏描述：\n\\c99FFCC有人的地方就有江湖，有神仙的地方何尝不是江湖；百战百胜的本事，换不回女人的真心，兄弟的真义；齐天大圣又如何，没有真情实义，做神仙跟做咸鱼有什么区别？\n\n操作方式：按左软键调出物品栏，左右选择一件道具，按确定键使用。\n游戏操作：\n上方向键/2：向上行走\n下方向键/8：向下行走\n左方向键/4：向左行走\n右方向键/6：向右行走\n确定键/5:探索地图\n左软键：打开道具列表\n右软键：打开游戏中菜单\n\n代理发行：广州易诚计算机科技有限公司\n发行商网站：www.9266.net\n客服电话：4006509913\n客服信箱：kefu@9266.net",
@@ -4412,8 +4412,8 @@ public final class a extends Canvas implements Runnable {
             this.softkeyRightKind = 3;
             return;
          case 16:
-            this.readCountPrefix(8);
-            this.readCountPrefix(1);
+            this.loadPackedImages(8);
+            this.loadPackedImages(1);
             this.optionCount = 0;
             this.addOption(0);
             this.addOption(1);
@@ -4421,8 +4421,8 @@ public final class a extends Canvas implements Runnable {
             this.softkeyRightKind = 3;
             return;
          case 17:
-            this.readCountPrefix(8);
-            this.readCountPrefix(1);
+            this.loadPackedImages(8);
+            this.loadPackedImages(1);
             this.showOverlayMessage(
                (byte)0,
                "版权所有：\n上海雪鲤鱼计算机科技有限公司\nwww.kgame.com.cn\n手机上网：\nwap.kgame.com.cn\n制作人：梁一\n编剧：王之浣\n策划：孙悦\n程序：杨政\n美术：梁一、王之浣、黄吉力\n测试：金鑫，王毅，计成毅\n版本：V1.0\n客服电话：4006305518",
@@ -4442,7 +4442,7 @@ public final class a extends Canvas implements Runnable {
             return;
          case 20:
             this.releaseSceneImages();
-            this.readCountPrefix(14);
+            this.loadPackedImages(14);
             this.overlayLayoutCache = this.dialogueTexts[260];
             this.typewriterPos = 1;
             this.layoutWrappedText(this.overlayText, 209, (this.textLineHeight << 1) + 12, this.typewriterPos);
@@ -4478,7 +4478,7 @@ public final class a extends Canvas implements Runnable {
                var1.saveGlobalProgress();
             }
 
-            this.readCountPrefix(8);
+            this.loadPackedImages(8);
             this.softkeyLeftKind = 1;
             this.softkeyRightKind = 2;
             this.soundEnabled = false;
@@ -4513,7 +4513,7 @@ public final class a extends Canvas implements Runnable {
       }
    }
 
-   private void readCountPrefix(int var1) {
+   private void loadPackedImages(int var1) {
       int var2 = this.resourceImageCounts[var1];
       int var3 = 0;
       if (this.f_Image_arr2_00[var1] == null) {
@@ -4830,18 +4830,18 @@ public final class a extends Canvas implements Runnable {
             this.introImage = null;
             switch (this.introPage) {
                case 0:
-                  this.readCountPrefix(11);
+                  this.loadPackedImages(11);
                   this.introImage = dimImage(this.f_Image_arr2_00[11][0], 34);
                   this.introText = this.miscTexts[4];
                   break;
                case 1:
-                  this.readCountPrefix(11);
+                  this.loadPackedImages(11);
                   this.introImage = dimImage(this.f_Image_arr2_00[11][1], 34);
                   this.introText = this.miscTexts[6];
                   break;
                case 2:
                   this.f_Image_arr2_00[11] = null;
-                  this.readCountPrefix(14);
+                  this.loadPackedImages(14);
                   this.introImage = dimImage(this.f_Image_arr2_00[14][0], 34);
                   this.introText = this.miscTexts[7];
             }
@@ -6301,10 +6301,10 @@ public final class a extends Canvas implements Runnable {
       Image var3 = this.entityTypeImage[var1];
       switch (var1) {
          case 67:
-            this.readCountPrefix(9);
+            this.loadPackedImages(9);
             break;
          case 69:
-            this.readCountPrefix(9);
+            this.loadPackedImages(9);
             this.entitySpriteW[var2] = 96;
             this.entitySpriteH[var2] = 32;
             return;
@@ -9882,7 +9882,7 @@ public final class a extends Canvas implements Runnable {
 
       this.loadStepCount = this.loadStepIndex = 0;
       this.gameMode = 2;
-      this.readCountPrefix(15);
+      this.loadPackedImages(15);
    }
 
    private void stepLoadTask(int var1) {
@@ -10240,7 +10240,7 @@ public final class a extends Canvas implements Runnable {
    private void runLogoAnimation(int var1, int var2) {
       if (!this.logoLayoutDone) {
          a var3 = this;
-         this.readCountPrefix(0);
+         this.loadPackedImages(0);
          int var4 = var3.logoSegmentHeights[0] + var3.logoSegmentHeights[1] + var3.logoSegmentHeights[2];
          var3.logoGap = Math.min(15, Math.abs(320 - var4 >> 2));
          var4 = 320 - var4 - (var3.logoGap << 1) >> 1;
