@@ -5,7 +5,7 @@
 - 输入：`original/囧囧西游-大闹天宫.jar`（只读）→ `analysis/rename-pipeline/orig/*.class`
 - 对比对象：`analysis/rename-pipeline/orig/` vs `analysis/rename-pipeline/renamed/*.class`
 - 映射表：`data/naming/remap-table.json`（581 条符号，机械改名 569 条）
-- 语义叠加：`data/naming/ledger.jsonl`（applied 383 条，改写与验证均经两层符号还原：语义名→机械名→原始名）
+- 语义叠加：`data/naming/ledger.jsonl`（applied 398 条，改写与验证均经两层符号还原：语义名→机械名→原始名）
 
 ## 验证方法（为什么这能证明“仅符号名变化”）
 
@@ -186,7 +186,7 @@
 | 121 | U | animBobOffset | 0 | 0 | ✓ |
 | 122 | j | animBobRising | 0 | 0 | ✓ |
 | 123 | V | f_int_47 | 0 | 0 | ✓ |
-| 124 | W | f_int_48 | 0 | 0 | ✓ |
+| 124 | W | viewBottom | 0 | 0 | ✓ |
 | 125 | a | f_byte_arr2_00 | 0 | 0 | ✓ |
 | 126 | b | f_byte_arr2_01 | 0 | 0 | ✓ |
 | 127 | X | backdropScroll | 0 | 0 | ✓ |
@@ -203,8 +203,8 @@
 | 138 | d | cellSlotTable | 0 | 0 | ✓ |
 | 139 | p | nextCellTypeId | 0 | 0 | ✓ |
 | 140 | e | f_bool_arr_04 | 0 | 0 | ✓ |
-| 141 | ac | f_int_54 | 0 | 0 | ✓ |
-| 142 | ad | f_int_55 | 0 | 0 | ✓ |
+| 141 | ac | tileBob | 0 | 0 | ✓ |
+| 142 | ad | openAnimTick | 0 | 0 | ✓ |
 | 143 | ae | cameraPixelX | 0 | 0 | ✓ |
 | 144 | af | cameraPixelY | 0 | 0 | ✓ |
 | 145 | ag | viewWidthPx | 0 | 0 | ✓ |
@@ -228,10 +228,10 @@
 | 163 | aw | f_int_74 | 0 | 0 | ✓ |
 | 164 | ax | f_int_75 | 0 | 0 | ✓ |
 | 165 | ay | alchemyPrice | 0 | 0 | ✓ |
-| 166 | az | f_int_77 | 0 | 0 | ✓ |
+| 166 | az | alchemyGainHp | 0 | 0 | ✓ |
 | 167 | aA | f_int_78 | 0 | 0 | ✓ |
 | 168 | aB | f_int_79 | 0 | 0 | ✓ |
-| 169 | aC | f_int_80 | 0 | 0 | ✓ |
+| 169 | aC | alchemyCursor | 0 | 0 | ✓ |
 | 170 | f | optionLabels | 0 | 0 | ✓ |
 | 171 | aD | optionRowHeight | 0 | 0 | ✓ |
 | 172 | l | optionLabelIdx | 0 | 0 | ✓ |
@@ -250,12 +250,12 @@
 | 185 | i | f_String_arr_08 | 0 | 0 | ✓ |
 | 186 | j | f_String_arr_09 | 0 | 0 | ✓ |
 | 187 | n | f_byte_arr_13 | 0 | 0 | ✓ |
-| 188 | aJ | f_int_87 | 0 | 0 | ✓ |
-| 189 | aK | f_int_88 | 0 | 0 | ✓ |
+| 188 | aJ | merchantEntity | 0 | 0 | ✓ |
+| 189 | aK | offerQueueSrc | 0 | 0 | ✓ |
 | 190 | o | f_byte_arr_14 | 0 | 0 | ✓ |
 | 191 | p | f_byte_arr_15 | 0 | 0 | ✓ |
-| 192 | aL | f_int_89 | 0 | 0 | ✓ |
-| 193 | aM | f_int_90 | 0 | 0 | ✓ |
+| 192 | aL | inventoryEntryCount | 0 | 0 | ✓ |
+| 193 | aM | recordPage | 0 | 0 | ✓ |
 | 194 | e | f_String_04 | 0 | 0 | ✓ |
 | 195 | k | itemDescriptions | 0 | 0 | ✓ |
 | 196 | l | equipDescriptions | 0 | 0 | ✓ |
@@ -278,7 +278,7 @@
 | 213 | aY | itemPanelBoxH | 0 | 0 | ✓ |
 | 214 | aZ | itemPanelBoxW | 0 | 0 | ✓ |
 | 215 | ba | itemPanelCursor | 0 | 0 | ✓ |
-| 216 | m | f_bool_12 | 0 | 0 | ✓ |
+| 216 | m | tutorialSeen | 0 | 0 | ✓ |
 | 217 | n | f_bool_13 | 0 | 0 | ✓ |
 | 218 | m | objectTypeNames | 0 | 0 | ✓ |
 | 219 | p | enemyBaseHp | 0 | 0 | ✓ |
@@ -315,15 +315,15 @@
 | 250 | bp | dialogAnchorEntity | 0 | 0 | ✓ |
 | 251 | bq | dialogPageStart | 0 | 0 | ✓ |
 | 252 | br | dialogPageEnd | 0 | 0 | ✓ |
-| 253 | bs | f_int_122 | 0 | 0 | ✓ |
+| 253 | bs | lastDelimPos | 0 | 0 | ✓ |
 | 254 | bt | cameraX | 0 | 0 | ✓ |
 | 255 | bu | cameraY | 0 | 0 | ✓ |
 | 256 | bv | cameraTargetX | 0 | 0 | ✓ |
 | 257 | bw | cameraTargetY | 0 | 0 | ✓ |
 | 258 | bx | f_int_127 | 0 | 0 | ✓ |
-| 259 | s | f_byte_18 | 0 | 0 | ✓ |
+| 259 | s | routePhase | 0 | 0 | ✓ |
 | 260 | t | f_byte_19 | 0 | 0 | ✓ |
-| 261 | by | f_int_128 | 0 | 0 | ✓ |
+| 261 | by | routeProgress | 0 | 0 | ✓ |
 | 262 | bz | f_int_129 | 0 | 0 | ✓ |
 | 263 | bA | f_int_130 | 0 | 0 | ✓ |
 | 264 | o | battleActiveFlag | 0 | 0 | ✓ |
@@ -439,8 +439,8 @@
 | 374 | p | f_String_arr_15 | 0 | 0 | ✓ |
 | 375 | bZ | volumeLevel | 0 | 0 | ✓ |
 | 376 | D | soundEnabled | 0 | 0 | ✓ |
-| 377 | C | f_byte_28 | 0 | 0 | ✓ |
-| 378 | a | f_Player_00 | 0 | 0 | ✓ |
+| 377 | C | track | 0 | 0 | ✓ |
+| 378 | a | bgm | 0 | 0 | ✓ |
 | 379 | a | gameRandom | 0 | 0 | ✓ |
 | 380 | K | f_int_arr_36 | 0 | 0 | ✓ |
 | 381 | ca | bootPhaseCounter | 0 | 0 | ✓ |
