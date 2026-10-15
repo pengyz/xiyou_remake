@@ -514,27 +514,22 @@ impl Shell {
             }
         }
         self.sync_bgm(); // 补做若续播 = Java 那次 createPlayer（随即被下面 close）
-        let menu_arm_unwired = match self.state.as_mut() {
+        match self.state.as_mut() {
             Some(Screen::Game(sc)) => {
-                // 4504-4507 `if (gameMode == 3) { gameMode = 4; m_000(); }`：**未接**——
-                // game-core 无公开入口（m_000 case 4 = 私有 GameScene::enter_menu4）；
-                // 菜单弹出属 game-core 状态机，壳不复写（AGENTS §2）。入口就绪后在此调用。
-                // 4509-4510 closeAudioPlayer(); anyKeyPlayed = true;
-                sc.bgm.on_hide_notify();
-                sc.game_mode == 3
+                // 4504-4510 全臂已接（2026-10-15）：mode3→4 弹菜单 + closeAudioPlayer +
+                // anyKeyPlayed（GameScene::hide_notify；游戏态在 game-core，壳只决定何时调用）
+                sc.hide_notify();
             }
             Some(Screen::Boot(m)) => {
                 // BootMachine 无 gameMode 3（读档/新游戏完成即交接 GameScene）⇒ 4504 恒假
                 m.bgm.on_hide_notify();
-                false
             }
-            None => false,
+            None => {}
         };
         // closeAudioPlayer 同步关闭（a.java:10208-10215）⇒ 立即下发 Stop，不等下一拍
         self.sync_bgm();
         eprintln!(
-            "[lifecycle] hideNotify（{cause}）gameMode={mode}：closeAudioPlayer（BGM {before:?}→None）+ anyKeyPlayed=true{}",
-            if menu_arm_unwired { "；gameMode 3→4 臂未接（game-core 无 hideNotify 入口）" } else { "" }
+            "[lifecycle] hideNotify（{cause}）gameMode={mode}：mode3→4 弹菜单（若 3）+ closeAudioPlayer（BGM {before:?}→None）+ anyKeyPlayed=true",
         );
     }
 
@@ -1285,9 +1280,8 @@ mod shell_tests {
     /// hideNotify 的 gameMode 3→4 臂（a.java:4504-4507）：mode 3 隐藏 ⇒ gameMode=4 + m_000 case 4
     /// （a.java:4326-4337：条目 [1,3,4,5,7]——floor≤50 无 17；软键 (1,3)）。
     /// BLOCKED：game-core 无公开入口（m_000 case 4 = 私有 GameScene::enter_menu4）；菜单弹出属
-    /// game-core 状态机、壳不复写。入口就绪且 `Shell::hide_notify` 接线后摘除 #[ignore]。
+    /// game-core 状态机、壳不复写。
     #[test]
-    #[ignore = "BLOCKED：game-core 缺 hideNotify 的 mode3→4 入口（enter_menu4 私有）"]
     fn hide_in_mode3_opens_in_game_menu() {
         let mut h = Harness::new("preset-floor1.preset");
         h.run_to(250, &LOAD_FLOOR1);

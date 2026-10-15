@@ -825,7 +825,7 @@ impl GameScene {
             saved_slot_blobs: [None, None, None, None, None, None],
             rainbow_phase: 0,
             strip_frame: 0,
-            in_game_menu_return_mode: 3,
+            in_game_menu_return_mode: 0, // BUG-008：Java 无初值（默认 0）保真对齐；原值 3 属顺手修 bug 偏差
             item_cols: 4,
             item_rows_total: 8,
             item_rows_visible: 6,
@@ -2252,6 +2252,18 @@ impl GameScene {
             self.menu_list_height =
                 (self.menu_visible_bottom - self.menu_scroll_top) * self.menu_line_height;
         }
+    }
+
+    /// hideNotify 游戏态半（a.java:4502-4513；f_bool_01 latch 与触发判断由壳承担）：
+    /// 4504-4507 `if (gameMode==3){gameMode=4; m_000();}` = 切 mode 4 + 进游戏内菜单
+    /// （m_000 case 4 = enter_menu4）；4509-4510 closeAudioPlayer + anyKeyPlayed=true
+    /// 由 BgmState::on_hide_notify 承担。Java 顺序 = 菜单先、音频后。
+    pub fn hide_notify(&mut self) {
+        if self.game_mode == 3 {
+            self.game_mode = 4;
+            self.enter_menu4();
+        }
+        self.bgm.on_hide_notify();
     }
 
     /// m_000 case 4（a.java:4326-4337）：继续游戏（+floor>50 的跳过教程）/
