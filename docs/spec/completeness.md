@@ -650,7 +650,7 @@
 | 15 | 帮助浮层 | ✅ | L3 | scenario:`preset-help.txt` T450-700 |
 | 16 | 设置 | ✅ | L3 | scenario:`preset-load-menu.txt` |
 | 17 | 关于 | ✅ BootMachine | L3 | scenario:`menu-sweep.txt`（boot_replay 全量重放至 T1832） |
-| 18 | 粒子特效层 | ✅（title::Particles：32 槽环 + fillRect + velX 摆动/size 增长消亡，a.java:9830-9873） | L3 | scenario:`boot-menu.txt` T1-150（含 T72+ 菜单粒子窗全帧绿，boot_replay）+ case14 引子（prologue T1-9800）——台账原 ❌ 系陈旧误报（2026-10-13 更正） |
+| 18 | 粒子特效层 | ✅（title::Particles：32 槽环 + fillRect + velX 摆动/size 增长消亡，a.java:9830-9873） | L3 | scenario:`boot-menu.txt` T1-150（含 T72+ 菜单粒子窗全帧绿，boot_replay）+ case14 引子（prologue T1-9800）——台账原 ❌ 系陈旧误报（2026-10-13 更正）。【2026-10-15 更正】本行把 mode 1/14 的标题粒子（paint a.java:2374/2955 调 updateAndDrawParticles）与 paint case 18（a.java:3003-3038 火花层，唯一调 addSpark）混为一谈：javap 普查 putfield gameMode 54 处无 18（含计算来源）⇒ **mode 18 不可达、❌ 死内容**（同 13/99；type-closure §3 已记 ☠️）；粒子系统 L3 归 mode 1/14。证据见 §3.4 |
 | 19 | 商店 | ✅ enter/paint（Rust 侧） | ❌ 不可达死内容 | 原版 kind11（商店）从未加入任何菜单（a.java:4305-4333/4437-4441 全量 addMenuItem 核对，迭代 41）——activateMenuItem case11（a.java:4775）为死臂；Rust enter_menu19 同为死码保真 |
 | 20 | 结束/退出确认（结局卷轴） | ✅（迭代 57 实现：paint/tick/END 入口 + SceneImages.ending） | L3 | scenario:`preset-ending.txt`——迭代 58 起 Rust **T1-1800 全帧**（终局链：撞格83→script16 五页→GUT_37/GLV_1 冻结→型72 cat8 开战→case72→script65→END→mode20 打字机卷轴；L2\* 过渡态消灭） |
 | 21 | 音效询问 | ✅ BootMachine | L3 | 全部 preset 场景 T66-70 |
@@ -705,6 +705,119 @@ L2* = Java 三方对拍绿但 Rust 侧未建用例（覆盖声明的过渡态）
 ### 3.3 场景面（D 维）
 
 16 场景（tools/completeness.py 输出为准）。准入规则见 §4。
+
+### 3.4 覆盖矩阵刷账（2026-10-15）
+
+> 账面：[docs/coverage-matrix.md](../coverage-matrix.md)（`python3 tools/cover_matrix.py` v2.1 机器生成，
+> `--check` 校验账面一致）；触达快照 `tools/method_reach/snapshot.json`（`python3 tools/method_reach.py`，
+> JDI 实测）。本节只放判据与结论，逐方法明细与逐项论证只在矩阵（§4.1 三分账表）。
+
+**数字对照**（三种口径在同一 Rust 树 + 同一快照上复算，矩阵汇总行同时打印）：
+
+| 口径 | 绿 | 黄 | 白 | 计数对象 |
+|---|---|---|---|---|
+| v1（迭代 72，人工分组） | 44 | 1 | 58 | 103 伪名（v1 取名 bug：多参方法被吞成末参类型名） |
+| v2（前任刷账：JDI 触达 + 朴素行锚） | 133 | 7 | 23 | 163 方法（javap name+descriptor） |
+| **v2.1（本次：行锚归属治理 + 三分账）** | **143** | **7** | **13** | 同上；白 = a 3 / b 10 / 未分账 0 |
+
+44/1/58 → 133/7/23 主因"账面滞后"（v1 人工分组漏账 + 伪名 bug，v1 白中 102 个真实方法现为绿）；
+133/7/23 → 143/7/13 = c 类 11 项解决（10 绿 1 黄）+ addSpark 黄→白（唯一证据是漂移锚）。
+
+**判据（v2.1 方法论）**
+- 三色：绿 = 有移植账 ∧ Java 执行落在 Rust 全帧用例窗口内；黄 = 有移植账、无窗口触达；白 = 无移植账。
+- 触达（A 级）：`tools/method_reach/MethodReach.java` 在类 a 每个方法首位置下一次性 JDI 断点，记首次命中
+  t_hit = `Canvas.hooks.tick + 1`（shim `Canvas.serviceRepaints` 次序 paint → preTick(tick++) → 按键 → postTick
+  已核：tick=k 时的执行最早反映在 TICK k+1 的帧）；测得运行的 FRAME 链与 Rust 用例消费的 A-trace 逐帧对照
+  （42/44 equal；boot-menu / prologue-patient 无 A-trace，不计验证）。
+- 可复现：本次全量重测 44 场景，phases / t_hit / frame_chain 与前任快照逐字段一致（唯一差异 = 新增 ticks_run 字段）。
+- 窗口：由用例 `checked` 断言机械派生；多相位场景窗口内触达 = 各相位 ≥ 起点的并集取最小 t_hit。
+- 移植账 = fn 直证（同名/蛇形/m_NNN）∪ v2.1 行锚 ∪ PORT_NOTES（ported 须带 `crates/…rs` + 标识符锚，
+  absorbed 须带落在方法体内的 a.java 行锚，脚本逐条校验，失效即 ⚠）。
+- v2.1 行锚归属：方言（显式 seed 锚及 seed 方言文件 → reference/seed/a.java；与 deobf 按方法序数对齐，运行时校验
+  163 个、逐序参数类型一致）+ 名证锚（行内点名 Java 方法 ⇒ 只归被点名者，±20 行）+ 稳健锚（未点名 ⇒ 外扩 20 行
+  仍须落在 VF 时代 15 个 deobf 版本方法区间的交集内）+ 字段初始化器行归 `<clinit>`/`<init>`。容差取自矩阵 §0
+  自检：名证锚 430 条中 324 条精确重叠、22 条偏移 1-20 行。
+
+**前任 WIP 审阅结论**
+- 可靠：JDI 触达测量（A 级、确定性、FRAME 链自证"测到的就是被 Rust 验证的那次执行"）；用例窗口解析
+  （逐用例核过 checked 断言形态，preset_help T240-800 等）；v1 复算口径原样保留可复现 44/1/58。
+- 缺陷与修正（均在 tools/ 内）：
+  1. **误归绿（主缺陷）**：行锚"落入现行方法体即算移植"。game-data 全部按 seed（CFR 冻结件）写的锚被按
+     deobf 行号读（m_072 吃 28 条，实为 seed 的 sprite 读循环）；Rust 注释锚普遍漂移 1-20 行，漂进邻近小方法。
+     9 个方法的 v2 移植证据全是错归属锚（m_006、releaseSceneImages、m_068、m_072、itemTypeToStackIndex、
+     deleteRecordStoreQuietly、m_117、m_128、addSpark）——逐条核验后 8 个确有移植/吸收（补 PORT_NOTES），
+     addSpark 实为死代码（转白 b）。另 spawnEntity / consumeKeyForDoor / cameraAtTarget / m_134 的锚也错，
+     但有 fn 直证，色不变。
+  2. 相位 1 ≠ 全程（MethodReach 在下一相位起点删旧断点）：preset-help 的"场景触达"少计 7 方法；同一场景若同时
+     有 T1 与后起窗口用例会漏验（现无此组合，不致误归绿）→ 并集取最小 t_hit。
+  3. `--check` 逐字节比对：并行改 crates/ 只要动行号即失败 → 改归一化账面比对（严格逐字节另报）。
+  4. 无"吸收"口径、字段初始化器行不归属 static{}、移植扫描含 game-oracle/src（差分宿主）——已补 / 已排除。
+- 独立审计（同日，只读子代理复核 11 条论断）：全部成立；补强 1 处（m_153 自门控），纠正 1 处措辞（save.rs 对
+  SKY_WAR 是"既不编码也不解码"而非"只解析"）。PORT_NOTES 的机械校验只保证锚存在，语义等价靠人工 + 审计抽核
+  （7 条逐条对 a.java 方法体）：add_item_to_stack 漏 itemUseTargetType 写（a.java:7729），无可见效应（调用方
+  先置 overlay_kind_item；商人路径浮层同调用内被替换），已写进条目。
+- 剩余风险（未消除）：Rust 侧证据仍是静态的——"该 fn 在该用例里真被执行"未测。帧全等对有可见效应的方法是
+  强约束，对 RMS/音频等帧不可见副作用无约束（deleteRecordStoreQuietly、m_117、m_139、closeAudioPlayer 等的绿
+  只证明 Java 执行落在已验窗口内）。补法见下"遗留"①。
+
+**三分账汇总**（逐项论证与复现依据：矩阵 §4.1）
+- 基线 23 白：
+  - **a 3**：m_106 + m_108（MOV 五参实体路径缓动 dp2：levelScriptLines 五参 MOV 36 处，20 处起点在 jar 初始布置
+    中有实体，如脚本 1 = sprite2 型 72@(3,7)、脚本 12 的 13 处全落 sprite40）；saveGlobalProgress（SKY_WAR 读写双缺：
+    save.rs 对 SKY_WAR 无编解码、boot 恒走读失败回退（paint.rs mode21 注）、壳只改写 MOT_L*/MOT_IF ⇒ 选项/全局旗标
+    跨会话不持久——壳层赤字，非铺层赤字；读臂在 m_000 case 21 a.java:4450-4479，方法级已绿）。
+  - **b 9**：m_093（javap：walkPhase 写点常量 ∈{0,1,2,4,5}，永不为 3）；m_107（DSL 第 16 码 MVS，68 条脚本零使用，
+    脚本文本源封闭）；m_148-m_154 联网簇（gameMode 写点无 99；m_153 还自门控——mode99 臂先要求 f_bool_31 已真，
+    而其唯一置真点就在 m_153 内；且 master-plan §4 范围裁剪）。
+  - **c 11**：m_001 / readU16BE（seed 方言锚）与 `<clinit>`（VF 把 static{} 赋值投影成字段初始化器 a.java:44）——
+    归属规则修正后机械转绿；m_059 / findItemStackIndex / addItemToItemStack / m_103 / m_118 / m_120 / m_123
+    （移植存在，fn 异名 / 内联 / 锚陈旧）与 m_008（I/O 清理，吸收）——PORT_NOTES 逐条校验。解决后现绿 10 / 黄 1
+    （addItemToItemStack 仅 preset-floor5 触达，该场景无 Rust 帧用例）。
+- v2.1 新暴露 9：b 1（addSpark：paint case 18，gameMode 写点无 18）/ c 8（核验恢复，见上）。
+
+**判据①（convergence-plan §0.1）达成度**
+- 真未移植（a）只剩 **3 个方法、2 块工作**：dp2 实体路径缓动（m_106 + m_108，随首个触发五参 MOV 的层落地，
+  候选 floor2 script1 / floor40 script12）；壳层 SKY_WAR 读写（saveGlobalProgress + m_000 读臂）。
+- b 10 待终审：论证为 B 级（javap putfield 普查 + 脚本文本源封闭）；终审通过按 type-closure ☠️ 口径不计赤字。
+- 黄 7：3 项补帧用例即转绿（m_076、addItemToItemStack ← preset-floor5；m_102 ← preset-floor49，A-trace 均已存在）；
+  4 项无任何场景触达（hideNotify、advanceScriptWalk、m_089、m_101），需新场景或不触达论证。
+- ⇒ 判据①剩余 = a 3 + b 10 终审 + 黄 7（3 补用例 / 4 论证或新场景）。
+
+**更正与顺带发现**（B 级，待定级；不在本次写入范围者只登记）
+- §3.1 mode 18 行已原地更正：mode 18 不可达（javap 普查），粒子系统 L3 归 mode 1/14。mode 13/99 的"全量 grep
+  无入口"同法升级为 javap 普查——gameMode 写点常量 ∈{0-5,7-12,14-17,19-22}，计算来源 menuReturnMode∈{1,4}、
+  loadTargetMode∈{3}、inGameMenuReturnMode←gameMode（无 6/13/18/99）。
+- DSL 实有第 16 码 MVS（a.java:8351 `!var3.equals("MVS")` 的 else 臂：型 82 配对换格），68 条脚本零使用 ⇒ 死指令；
+  type-closure §2 只列 15 码，待补登。
+- readU16BE 名实不符：方法体读 u16 **LE**（低字节先，a.java:6950；有符号 i2s），名为 BE，台账 N-0268 证据
+  "read()<<8|read()" 与字节码相反——命名台账疑误，待命名批复核。
+- crates/game-core/src/save.rs 模块文档的 SKY_WAR 布局写错：实为 bool×4 + byte 计数 + 计数×int + int×3
+  （a.java:4463-4474 读 / 8928-8939 写）。
+- Rust 侧静默简化（无 todo! 标记）：① scene.rs 层存档恢复的 floor2 特例忽略 scriptLineFlags[26]（注"按 false
+  处理"）；② save_floor_state 恒写 Some，Java 在 entityCount==0 时留 null（m_119 a.java:9380-9381），决定该层重入
+  走存档还是 sprite 权威数据；③ add_item_to_stack 多一道容量守卫（Java 无守卫；可叠类型 ≤15 < 容量 16，实际不可触发）。
+
+**遗留**
+1. Rust 侧动态覆盖：按用例采 Rust fn 执行集（如 cargo llvm-cov），与 Java 触达集逐方法求交——把"静态移植证据"
+   升级为"同用例双侧执行"，消除上述剩余风险。
+2. b 10 终审（☠️ 化）+ type-closure §2 补 MVS 码。
+3. 黄 7：preset-floor5 / preset-floor49 补 Rust 帧用例；其余 4 项论证或新场景。
+4. `tools/method_reach.py --rev REV --only 场景` 已可用（历史版场景同预算重测 + 与现行快照逐方法对比，不入快照；
+   `--rev HEAD` 自测与快照逐方法一致）；尚未接入 cover_matrix（历史账面整表复算）。
+5. 验证源盲区：矩阵只认 `crates/game-oracle/tests` 里读 `_out/A-*` 的帧用例。同日新增的
+   `crates/game-core/tests/slot_equip_scene.rs`（夹具内嵌 Java 帧、场景脚本在 tests/fixtures/ 而非 scenarios/）对
+   method_reach / collect_tests 不可见——其覆盖的 m_113/markSlotEntry 已由他例转绿，色不受影响，但口径缺口应补
+   （并入 scenarios/，或让两工具识别夹具场景）。
+
+复现：
+```
+python3 tools/method_reach.py --check      # 快照与场景/预置/改名类一致
+python3 tools/cover_matrix.py --check      # 账面一致（Rust 行号/锚计数漂移归一化）
+J="javap -p -c analysis/rename-pipeline/renamed/a.class"
+$J | grep -B1 'putfield.*Field walkPhase:' | grep -v 'putfield\|^--' | sed -E 's/^ *[0-9]+: *//' | sort | uniq -c   # 无 iconst_3
+$J | grep -B1 'putfield.*Field gameMode:'  | grep -v 'putfield\|^--' | sed -E 's/^ *[0-9]+: *//' | sort | uniq -c   # 无 18/99
+$J | grep -B1 'putfield.*Field f_bool_31:' | grep -v 'putfield\|^--' | sed -E 's/^ *[0-9]+: *//' | sort | uniq -c   # 唯一 iconst_1（m_153）
+```
 
 ## 4. 防钝化规则（对"跑即绿"的三条约束）
 
