@@ -107,8 +107,14 @@ T0651 gameMode=1 f_bool_28=false f_byte_28=2         EVT[close(state=400); creat
 ## 4. 已知缝（非本批）
 
 - **hideNotify 整体**（a.java:4502-4513）：含非音频臂「mode 3 → 4 + m_000 case 4」。
-  桌面壳失焦采用**壳级冻结**（不推进逻辑 tick、暂停音频输出），不映射 hideNotify；
-  `BgmState::on_hide_notify/on_key_pressed` 已按 Java 移植并单测，但无宿主调用 ⇒
+  > 【2026-10-15 更正】原文"壳级冻结/无宿主调用"已过时：失焦冻结已按用户决策移除
+  > （失焦≠隐藏，触发与行为双重不忠实，见 604a9a0）；hideNotify 壳侧已接线（ab8368a）：
+  > 遮挡/最小化 → hide_notify（关 BGM + anyKeyPlayed 边沿），隐藏期按键门控（MIDP 不投递），
+  > 恢复后首键续播。**更正 ab8368a 提交信息两处过度声称**：mode3→4 弹菜单臂未接（game-core
+  > 无公开入口，enter_menu4 为私有）；其"+1 ignored"是被卡住的 3→4 测试而非冒烟。
+  > 3→4 臂与 inGameMenuReturnMode 初值（BUG-008）待 game-core 配合后接通。
+  桌面壳失焦不映射 hideNotify（用户决策 2026-10-15）；
+  `BgmState::on_hide_notify/on_key_pressed` 已按 Java 移植并单测 ⇒
   `anyKeyPlayed` 恒 false。若将来需要真机中断语义，须整体移植 hideNotify。
 - **游戏内菜单「退出」kind 7**（a.java:4757-4769）：GameScene `activate_menu_item` 尚未
   移植该臂（既有缝），故 EV-toggle-exit T651 在 Rust 侧不可复现；mode 20→1 已挂 m_000
