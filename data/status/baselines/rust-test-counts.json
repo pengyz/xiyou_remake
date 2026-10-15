@@ -5,7 +5,7 @@
     "combat_golden(test)": 6,
     "entity_golden(test)": 8,
     "fixture_frames(test)": 6,
-    "game_core(lib)": 51,
+    "game_core(lib)": 54,
     "game_data(lib)": 23,
     "game_oracle(lib)": 0,
     "game_platform(lib)": 5,
@@ -21,7 +21,7 @@
     "slot_equip_scene(test)": 2,
     "walk_camera_golden(test)": 4,
     "walk_replay_floor1(test)": 2,
-    "xiyou(bin)": 23
+    "xiyou(bin)": 25
   },
-  "total": 218
+  "total": 223
 }

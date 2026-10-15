@@ -43,7 +43,7 @@ cat8 战斗 + cat16 商人）与 applyStepCellEffects（:5637-5715，case 1-8/76
 | 7 | 上楼梯 | ✅ | floor_crossing 楼梯往返 |
 | 8 | 下楼梯 | ✅ | 同上 |
 | 9 | 炼丹炉 | ✅ | mode9 全流程（alchemy） |
-| 10 | 云雾(三昧真火) | ⬜ | bump case10 提示浮层；与 16 芭蕉扇联动——delta。【2026-10-15】移除臂（芭蕉扇 m_089 命中）✅ 夹具场景 fx-fan-floor13；**撞击臂 Rust 未移植**（a.java:5436-5440；scene.rs cat1 `_ => {} // 11 / 76/82：后续批次` 吞掉，无 todo!）——帧级复现 fixture_frames::fx_firebump_floor13_frames_match（#[ignore] BLOCKED，首分歧 T301），矩阵 §5.1 |
+| 10 | 云雾(三昧真火) | ✅ |【2026-10-15 晚销账】移除臂 ✅ fx-fan-floor13（芭蕉扇 m_089 命中）+ 撞击臂已移植（ee52191，a.java:5436-5440）+ 帧级 fixture_frames::fx_firebump_floor13_frames_match 解禁全预算绿（RED 钉 T301）。【史】 bump case10 提示浮层；与 16 芭蕉扇联动——delta。【2026-10-15】移除臂（芭蕉扇 m_089 命中）✅ 夹具场景 fx-fan-floor13；**撞击臂 Rust 未移植**（a.java:5436-5440；scene.rs cat1 `_ => {} // 11 / 76/82：后续批次` 吞掉，无 todo!）——帧级复现 fixture_frames::fx_firebump_floor13_frames_match（#[ignore] BLOCKED，首分歧 T301），矩阵 §5.1 |
 | 11 | 能挖的墙 | ⬜ | bump case11 + **currentFloor!=23 层条件**（§4）——delta。【2026-10-15】撞击臂同 10 被 `_ => {}` 吞（代码阅读 B 级，矩阵 §5.1） |
 | 12 | 隐形墙 | ⬜ | 图=型11 别名；bump case12 语义待查——delta。【2026-10-15】case12 = 显形为型11（state2/row9/visible）+ 阻挡（a.java:5449-5456）；Rust 同被 `_ => {}` 吞（B 级，矩阵 §5.1） |
 | 76 | 路点 | ✅ | floor35/42/46 wp4 组门踏板 |
@@ -56,15 +56,15 @@ cat8 战斗 + cat16 商人）与 applyStepCellEffects（:5637-5715，case 1-8/76
 | 型 | 名 | 状态 | 证据/注 |
 |---|---|---|---|
 | 13 | 火眼金睛 | ✅ | item13 用例 |
-| 14 | 生死簿 | ⬜ | delta |
+| 14 | 生死簿 | ✅ | preset_floor5_fixture_frames_match（道具14 全链 T1-1200：拾取→面板→使用→mode12 翻页/关闭） |
 | 15 | 筋斗云 | ⬜ | delta |
 | 16 | 芭蕉扇 | ✅ | 【2026-10-15】使用臂 m_089(10) 未命中提示 / 命中灭火两臂 ✅ 夹具场景 fx-fan-floor13（T1-830 全帧，preset 道具栏预置）；正常游玩来源 = 杨戬(69) 击杀 spawnBossEvent(4)（§5 更正） |
 | 17 | 金勺子 | ⬜ | 凿墙联动型11——delta。来源 = 啸天犬(67) 击杀 spawnBossEvent(3)（§5 更正） |
 | 18 | 玄明石 | ⬜ | 同上——delta。来源 = 天宫商人(78) 报价 13 → pickupItemType(18)（a.java:7432，§5 更正） |
 | 19 | 千年月桂露 | ⬜ | delta |
 | 20 | 相形变位 | ✅ | floor42 script14 ROS_4_1（脚本侧使用） |
-| 21 | 上行符 | ⬜ | delta |
-| 22 | 下行符 | ⬜ | delta。来源 = script25 `CES_22_6_6`（§5 更正） |
+| 21 | 上行符 | ✅ | preset_item21_frames_match / preset_item2122_frames_match（使用臂帧测） |
+| 22 | 下行符 | ✅ | preset_item2122_frames_match（21+22 配对使用臂帧测）；来源 script25 CES_22_6_6（§5 更正）；来源 script25 `CES_22_6_6`（§5 更正） |
 | 23 | 太公杖 | ⬜ | delta |
 | 24 | 捆仙绳 | ⬜ | delta。来源 = 玉皇大帝二阶段(71) 击杀 spawnBossEvent(5)（§5 更正） |
 | 25 | 幸运币 | ⬜ | delta |
@@ -76,7 +76,7 @@ cat8 战斗 + cat16 商人）与 applyStepCellEffects（:5637-5715，case 1-8/76
 | 31 | 回春丸 | ✅ | floor41/44 拾取 |
 | 32 | 长寿丹 | 🎨 | floor45/48 出现未拾 |
 | 85 | 黄金钥匙 | ✅ | floor46 85 臂（全场黄门） |
-| 86 | 日月无极钹 | ⬜ | B4 floor38——delta |
+| 86 | 日月无极钹 | ✅ | preset_itemcymbal_frames_match（钹使用臂帧测） |
 
 ### 1.3 cat4 装备（m_083/tryEquip 共享链）
 
@@ -120,9 +120,9 @@ cat8 战斗 + cat16 商人）与 applyStepCellEffects（:5637-5715，case 1-8/76
 | 59 | 伏魔韦驮 | ✅ | floor38 (10,10)/(10,7) 战×2（迭代 79） |
 | 67 | 啸天犬 | 🎨 | m_001(9) 多段拼装绘制臂已移植；战 ⬜——delta |
 | 68 | 太上老君 | ⬜ | boss 战+钩子——delta |
-| 69 | 杨戬 | 🎨 | floor35 对话 speaker（相机 +32 实证）；战 ⬜——delta |
+| 69 | 杨戬 | ✅ | preset-floor35「case69 击杀钩子首验」= 杨戬战实证（击杀钩子随战触发）+ floor35 T1-1200 全帧 |
 | 70 | 玉皇大帝 | ✅ | floor49 战 + floor42 DES 剧情消失（封印语义：m_102 守卫门控） |
-| 71 | 玉皇大帝(二阶段) | 🎨 | floor49 script35 出现；战 ⬜——delta |
+| 71 | 玉皇大帝(二阶段) | ✅ | preset-floor49「case70 击杀钩子 + 守卫宝箱 param 配对开门」= 玉帝链实证 + m_102 守卫门控（preset_floor49_fixture_frames_match T1-3400） |
 | 72 | 牛魔王 | ✅ | ending 开战（cat8/cat32 层相关 renderCategory ✅ 迭代 56） |
 | 73 | 天蓬元帅 | ✅ | floor42 DES 剧情移除 |
 | 74 | 巨灵神 | ⬜ | boss 战+钩子——delta |
