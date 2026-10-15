@@ -217,8 +217,8 @@ impl TitleMachine {
     pub fn tick(&mut self, key: i32, frame_counter: i32, rng: &mut JavaRandom) -> Option<i32> {
         if frame_counter & 3 == 0 {
             // a.java:3382：参数求值序 L2R——先 x=rb(240) 后 y=295-rb(150)
-            let x = rng.random_below(240);
-            let y = 320 - self.bar_height - rng.random_below(150);
+            let x = rng.random_below(crate::layout::SCREEN_W);
+            let y = crate::layout::SCREEN_H - self.bar_height - rng.random_below(150);
             self.particles.spawn(x, y);
         }
         self.tick_bob();
@@ -262,27 +262,28 @@ impl TitleMachine {
     /// `arrow`=ui[8][14]。
     pub fn paint(&mut self, g: &mut SoftGraphics<'_>, map_bg: &ArgbImage, strip: &ArgbImage, arrow: &ArgbImage) {
         let bar = self.bar_height;
+        let (sw, sh) = (crate::layout::SCREEN_W, crate::layout::SCREEN_H);
         // ① 顶部补条（a.java:2352-2355：间隙 >0 才画）
-        let top_gap = 320 - bar - map_bg.height;
+        let top_gap = sh - bar - map_bg.height;
         if top_gap > 0 {
             g.set_color(crate::layout::TITLE_TOP_GAP);
-            g.fill_rect(0, 0, 240, top_gap);
+            g.fill_rect(0, 0, sw, top_gap);
         }
         // ② 背景图（a.java:2357）
         g.draw_image(map_bg, 0, top_gap, 0);
         // ③ 底部条（a.java:2358-2359）
         g.set_color(crate::layout::DARK_BACKDROP);
-        g.fill_rect(0, 320 - bar, 240, bar);
+        g.fill_rect(0, sh - bar, sw, bar);
         // ④ 图标带（a.java:2360-2369 + drawIconStrip）
-        let strip_y = 320 - bar + (bar - 17 >> 1);
+        let strip_y = sh - bar + (bar - 17 >> 1);
         self.paint_icon_strip(g, strip, 86, strip_y, 17 * self.menu_kinds[self.cursor as usize] as i32);
         // ⑤ 双侧箭头（a.java:2370-2372）：左=镜像变换（表值 8192），右=原样
-        let arrow_y = 320 - bar + (bar - 13 >> 1);
+        let arrow_y = sh - bar + (bar - 13 >> 1);
         let t = crate::paint::NOKIA_TRANSFORM_TABLE[1];
-        g.draw_image_transformed(arrow, 60 - self.bob, arrow_y, 0, t);
-        g.draw_image(arrow, 160 + self.bob, arrow_y, 0);
+        g.draw_image_transformed(arrow, crate::layout::ARROW_PAIR_LEFT_X - self.bob, arrow_y, 0, t);
+        g.draw_image(arrow, crate::layout::ARROW_PAIR_RIGHT_X + self.bob, arrow_y, 0);
         // ⑥ 粒子层（clip 0..308，a.java:2373-2375）
-        g.set_clip(0, bar, 240, 320 - (bar >> 1));
+        g.set_clip(0, bar, sw, sh - (bar >> 1));
         self.particles.paint_and_update(g);
         g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
     }

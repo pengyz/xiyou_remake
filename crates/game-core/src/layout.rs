@@ -11,7 +11,10 @@
 //!
 //! - `SCREEN_*`：设备视口（240×320），未来可变；
 //! - 语义常量（软键栏 y、菜单柱 x 等）：**相对视口推导**的写成 `fn`（如
-//!   `softkey_y()`），保证视口变化时推导关系不破；
+//!   `softkey_y()`）或派生 `const`（`CENTER_X = SCREEN_W / 2`、`GAME_VIEW_W =
+//!   SCREEN_W`），保证视口变化时推导关系不破；
+//! - **设计常量**（240×320 设计稿内的布局魔数，如浮层文本 180×240、图鉴面板宽
+//!   208）：与 `SCREEN_*` 无维度推导关系，保留字面量但具名集中（文末专段）；
 //! - 与视口无关的纯数据（字符串、颜色码）保持 `const`。
 //!
 //! # 覆盖范围（对抗 review R-8）
@@ -19,6 +22,11 @@
 //! 本模块覆盖 **boot 渲染路径**（paint.rs / logo_anim.rs）+ **mode 3 游戏视图**
 //! （scene.rs / game_view.rs，P3.5 第八批收编）。camera.rs 的 walk 边缘阈值
 //! 106 等行为常量仍未收编（见下）。
+//!
+//! 2026-10-15 卫生批：game-core 全部 240/320/120/160/208 字面量（143 行）逐处
+//! 分类——屏幕派生类改写为 `SCREEN_*`/`CENTER_*` 公式；设计常量入文末专段；
+//! 语义不明的 2 处（intro 快进哨兵 `scroll_x = 240`、popup 金币弹字 x=240）
+//! 保留字面量并就地注明。
 //!
 //! mode 3 常量分两类（扩视口时的处理方式不同）：
 //! - **视口推导类**（写成 `fn`）：随 `SCREEN_*`/视图尺寸联动，扩视口时重推导；
@@ -29,6 +37,12 @@
 pub const SCREEN_W: i32 = 240;
 /// 设备视口高（原版硬编码，MIDP 机型 320）。
 pub const SCREEN_H: i32 = 320;
+
+/// 屏幕中心 x（原版内联 `120`：HCENTER 锚点、`120 - (w >> 1)` 居中式，如
+/// a.java:2433 菜单盒 / 2932 引子图）。派生 const：随 SCREEN_W 联动。
+pub const CENTER_X: i32 = SCREEN_W / 2;
+/// 屏幕中心 y（原版内联 `160`：`160 - (h >> 1)` 居中式，如 a.java:2434）。
+pub const CENTER_Y: i32 = SCREEN_H / 2;
 
 // =========================================================================
 // mode 3 游戏视图——几何（视口推导类）
@@ -42,8 +56,10 @@ pub fn view_top_y() -> i32 {
     STATUS_BAR_H + 2
 }
 
-/// 游戏视图宽（viewWidthPx，loadFloorData；屏裁右界）。
-pub const GAME_VIEW_W: i32 = 240;
+/// 游戏视图宽（viewWidthPx，loadFloorData `= 240`；屏裁右界）。视图横跨全屏宽
+///（HUD 大框 paintHudFrame(0, f_int_48, 240, 50)、状态栏 fillRect(65,0,175,18)
+/// 右缘 240 同宽互证）⇒ SCREEN_W 派生。对照：GAME_VIEW_H 是独立常量（下）。
+pub const GAME_VIEW_W: i32 = SCREEN_W;
 
 /// 游戏视图高（viewHeightPx；与 camera.rs 的 252 同源——独立游戏常量
 /// f_int_59，**非 SCREEN_H 派生**，扩视口需逐条考证）。
@@ -292,6 +308,28 @@ pub fn softkey_icon_right_x() -> i32 {
 pub const SOFTKEY_ICON_W: i32 = 12;
 pub const SOFTKEY_ICON_H: i32 = 10;
 
+// =========================================================================
+// 设计常量（240×320 设计稿；与 SCREEN_* **无**维度推导关系——扩视口时须逐条
+// 重新考证，**不可**随 SCREEN_* 机械缩放）
+// =========================================================================
+
+/// 提示浮层文本排版宽（showOverlayMessage → layoutFullText(_, 180, _)，
+/// a.java:4907/4913；paint 公共尾 paintWrappedText(_, _, _, 180, 240, true) a.java:3146）。
+pub const OVERLAY_TEXT_W: i32 = 180;
+/// 提示浮层文本页高上限（kind 0/2/4/5，a.java:4907/3146）。数值同 SCREEN_W
+/// 但语义是**高度预算**（maxLines = 240/textLineHeight），非屏宽派生。
+pub const OVERLAY_TEXT_MAX_H: i32 = 240;
+/// 带图标浮层（kind 1/3）文本页高上限（a.java:4913）。
+pub const OVERLAY_ICON_TEXT_MAX_H: i32 = 234;
+/// 存档槽列表高度预算：slotsPerPage = 208 / textLineHeight（m_000 case 8，a.java:4354）。
+pub const SLOT_LIST_MAX_H: i32 = 208;
+/// 图鉴面板宽 f_int_108（m_091 a.java:7959；paint case 5 居中于 a.java:2501）。
+pub const ENCYC_PANEL_W: i32 = 208;
+/// 左右翻页箭头对的 x（ui[8][14]；左 = 镜像 `60 - bob`、右 = `160 + bob`）：
+/// mode 1 标题条（a.java:2371-2372）与 mode 12 日志浏览（a.java:2910/2914）同用。
+pub const ARROW_PAIR_LEFT_X: i32 = 60;
+pub const ARROW_PAIR_RIGHT_X: i32 = 160;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -310,6 +348,18 @@ mod tests {
         assert_eq!(softkey_base_y(), 302);
         assert_eq!(softkey_right_x(), 222);
         assert_eq!(softkey_icon_y(), 307);
+        // 屏幕派生（A 类）：240×320 设计稿下必须逐值等于 Java 内联字面量
+        assert_eq!(CENTER_X, 120);
+        assert_eq!(CENTER_Y, 160);
+        assert_eq!(GAME_VIEW_W, 240, "viewWidthPx（a.java:9431）");
+    }
+
+    /// 设计常量（B 类）与 Java 字面量互证（防抄写错位）。
+    #[test]
+    fn design_constants_match_java_literals() {
+        assert_eq!((OVERLAY_TEXT_W, OVERLAY_TEXT_MAX_H, OVERLAY_ICON_TEXT_MAX_H), (180, 240, 234));
+        assert_eq!((SLOT_LIST_MAX_H, ENCYC_PANEL_W), (208, 208));
+        assert_eq!((ARROW_PAIR_LEFT_X, ARROW_PAIR_RIGHT_X), (60, 160));
     }
 
     /// mode 3 派生几何互证（扩视口时此测试红 = 推导关系被破坏，须重考证）。

@@ -611,12 +611,11 @@ impl GameScene {
             let by = (SCREEN_H - self.overlay_box_h) >> 1;
             crate::menu_family::paint_box_frame(g, &self.images.ui[0], bx, by, self.overlay_box_w, self.overlay_box_h);
             let font = crate::paint::paint_font();
-            let line_h = font.height + 4;
             let mut tx = bx + 16;
-            let mut ty = by + 16;
+            let ty = by + 16;
             if matches!(self.overlay_kind, 0 | 2 | 4 | 5) {
                 g.set_color(WHITE);
-                self.paint_wrapped_text(g, tx, ty, 180, 240, true);
+                self.paint_wrapped_text(g, tx, ty, OVERLAY_TEXT_W, OVERLAY_TEXT_MAX_H, true);
             } else {
                 paint_mini_frame(g, tx, ty, 32, 32);
                 // 图标 = entityTypeImage[overlayKindItem]（f_byte_07——拾取时记录）
@@ -629,7 +628,7 @@ impl GameScene {
                     g.draw_string(name, tx, ty + ((32 - font.height) >> 1), 0);
                 }
                 g.set_color(WHITE);
-                self.paint_wrapped_text(g, bx + 16, ty + 36, 180, self.overlay_box_h - 32 - 36, true);
+                self.paint_wrapped_text(g, bx + 16, ty + 36, OVERLAY_TEXT_W, self.overlay_box_h - 32 - 36, true);
             }
             let iy = by + self.overlay_box_h - 12 - 18;
             if self.overlay_left_icon != 0 {
@@ -787,7 +786,7 @@ impl GameScene {
             preset_mot_if: None,
             encyc_damage: Vec::new(),
             encyc_types: Vec::new(),
-            encyc_panel_w: 208,
+            encyc_panel_w: ENCYC_PANEL_W,
             alchemy_price: 0,
             alchemy_gain_hp: 0,
             alchemy_gain_atk: 0,
@@ -867,7 +866,7 @@ impl GameScene {
         // 已开门保持开）；无存档 → sprite{n} 权威数据 + 5/81/6/12/76/82/83 隐藏
         if let Some(data) = self.saved_floor_states[self.floor as usize].clone() {
             let mut pos = 0usize;
-            let mut read_u16 = |d: &[u8], p: &mut usize| -> u16 {
+            let read_u16 = |d: &[u8], p: &mut usize| -> u16 {
                 let v = u16::from_be_bytes([d[*p], d[*p + 1]]);
                 *p += 2;
                 v
@@ -1098,11 +1097,11 @@ impl GameScene {
         let font = crate::paint::paint_font();
         let line_h = font.height + 4;
         if matches!(kind, 0 | 2 | 4 | 5) {
-            self.layout_full_text(text, 180, 240);
+            self.layout_full_text(text, OVERLAY_TEXT_W, OVERLAY_TEXT_MAX_H);
             self.overlay_box_w = self.overlay_content_w + 32;
             self.overlay_box_h = 32 + (self.overlay_page_bottom - self.overlay_page_top) * line_h;
         } else {
-            self.layout_full_text(text, 180, 234);
+            self.layout_full_text(text, OVERLAY_TEXT_W, OVERLAY_ICON_TEXT_MAX_H);
             self.overlay_box_w = 212;
             self.overlay_box_h = 68 + (self.overlay_page_bottom - self.overlay_page_top) * line_h;
         }
@@ -1113,93 +1112,15 @@ impl GameScene {
         }
     }
 
-    /// layoutFullText → layoutWrappedText（a.java:4940-5036）：逐字换行
-    ///（'\\c' 六位色 / '\\r' 转义宽度跳过），页高 = maxLines/page。
+    /// layoutFullText（a.java:4940-4942）：Java 原文即
+    /// `layoutWrappedText(var1, var2, var3, var1.length())`——limit=全长 的特例，
+    /// 同构委托给单一实现 [`Self::layout_wrapped_text_limited`]（曾为两份拷贝，
+    /// 迭代 26→30 修一份漏一份；见 pattern_dual-copy-algorithms-sync-fix）。
+    /// 全长取 chars 计数：Java `length()` 是 UTF-16 码元数，game-core 全部文本源
+    /// （字面量 + include_str 夹具）均为 BMP 字符，二者逐值相等。
     pub fn layout_full_text(&mut self, text: &str, w: i32, max_h: i32) {
-        let font = crate::paint::paint_font();
-        let line_h = font.height + 4;
-        let chars: Vec<char> = text.chars().collect();
-        let mut lines: Vec<String> = Vec::new();
-        let mut cur = String::new();
-        let mut acc_w = 0i32;
-        let mut i = 0;
-        while i < chars.len() {
-            let c = chars[i];
-            if c == '\n' {
-                lines.push(std::mem::take(&mut cur));
-                acc_w = 0;
-                i += 1;
-                continue;
-            }
-            let cw;
-            if c == '\\' && i + 1 < chars.len() {
-                let nxt = chars[i + 1];
-                if nxt == 'c' {
-                    // \cXXXXXX：Java 条件 var12+6<len 且 parseHex 有效（a.java:4967）——
-                    // 有效 ⇒ 整段 8 字符吞入行、宽 0（var11+=7+底部++=8，var6=0）
-                    let hex: String = chars[i + 2..(i + 8).min(chars.len())].iter().collect();
-                    let valid = i + 7 < chars.len()
-                        && crate::menu_family::parse_hex_color_public(&hex).is_some();
-                    if valid {
-                        cur.push(c);
-                        for k in 1..=7 {
-                            cur.push(chars[i + k]);
-                        }
-                        i += 8;
-                        continue;
-                    } else {
-                        // 非法色：\c 两字符按正常宽度计入（a.java:4969-4971 var6=两宽）
-                        cw = font.char_width('\\' as u16) + font.char_width(nxt as u16);
-                        cur.push(c);
-                        cur.push(nxt);
-                        acc_w += cw;
-                        i += 2;
-                        continue;
-                    }
-                } else if nxt == 'r' {
-                    // \r：2 字符吞入、宽 0（a.java:4972-4975）
-                    cur.push(c);
-                    cur.push(nxt);
-                    i += 2;
-                    continue;
-                }
-                // 未知转义：反斜杠计宽，命令字符下轮当正文（近似；HELP_TEXT 不触发）
-                cw = font.char_width('\\' as u16);
-                cur.push(c);
-                acc_w += cw;
-                i += 1;
-                continue;
-            } else {
-                cw = font.char_width(c as u16);
-            }
-            if acc_w + cw > w {
-                lines.push(std::mem::take(&mut cur));
-                cur.push(c);
-                acc_w = cw;
-            } else {
-                cur.push(c);
-                acc_w += cw;
-            }
-            i += 1;
-        }
-        // java：仅当末行有字符时 push（limit=0 → 0 行，a.java:5010-5014）
-        if !cur.is_empty() {
-            lines.push(cur);
-        }
-        self.overlay_page_top = 0;
-        self.overlay_total_lines = lines.len() as i32;
-        self.overlay_lines_per_page = (max_h / line_h).min(self.overlay_total_lines);
-        self.overlay_page_bottom = if self.overlay_total_lines > self.overlay_lines_per_page {
-            self.overlay_lines_per_page
-        } else {
-            self.overlay_total_lines
-        };
-        self.overlay_content_w = if self.overlay_total_lines == 1 {
-            font.string_width(&text.encode_utf16().collect::<Vec<u16>>())
-        } else {
-            w
-        };
-        self.overlay_lines = lines;
+        let full_len = text.chars().count() as i32;
+        self.layout_wrapped_text_limited(text, w, max_h, full_len);
     }
 
     /// tryEquip（a.java:7668-7680）：武器（<6）/甲（≥6）分档；降级拒绝
@@ -1252,7 +1173,7 @@ impl GameScene {
     /// 语义 = 片段 drawString）+ 跨页起始色继承 + \\r 恢复 + 翻页三角。
     /// 忠实点：段起始 var12/游标 var16 的推进序、非法 hex 从反斜杠重画、
     /// 未知转义丢反斜杠、var15 每行清 0 的 `!= -1` 怪癖。
-    fn paint_wrapped_text(&mut self, g: &mut SoftGraphics<'_>, x: i32, y: i32, w: i32, max_h: i32, arrows: bool) {
+    fn paint_wrapped_text(&mut self, g: &mut SoftGraphics<'_>, x: i32, y: i32, w: i32, _max_h: i32, arrows: bool) {
         let font = crate::paint::paint_font();
         let line_h = font.height + 4;
         // 向上找最近 \\c 起始色（a.java:5064-5074；解析失败 setColor(-1)=白）
@@ -1452,7 +1373,7 @@ impl GameScene {
         self.script_walk_armed = false;
         self.game_mode = 11;
         self.dialog_page = 0;
-        self.lockCameraOn(0); // ease 相机初始化到玩家
+        self.lock_camera_on(0); // ease 相机初始化到玩家
         self.dialog_phase = 0;
         self.current_script_index = idx as usize;
         self.script_line = self.dialog_data.scripts[idx as usize].clone();
@@ -1481,7 +1402,7 @@ impl GameScene {
             };
             self.dialog_anchor = {
                 // lockCameraOn(speaker)：相机锚初始化 + 返回目标实体
-                self.lockCameraOn(self.dialog_speaker);
+                self.lock_camera_on(self.dialog_speaker);
                 if self.dialog_speaker != 0 && self.dialog_speaker != 87 {
                     let mut found = -1;
                     for e in (0..self.entities.count).rev() {
@@ -1525,8 +1446,10 @@ impl GameScene {
         }
     }
 
-    /// layoutWrappedText 带**字符上限**（Java 第 4 参 = 只排版前 limit 个字符——
-    /// 打字机逐步放行的机制）。layout_full_text 是 limit=全长 的特例。
+    /// layoutWrappedText（a.java:4944-5019）带**字符上限**（Java 第 4 参 = 只排版前
+    /// limit 个字符——打字机逐步放行的机制）：逐字换行（'\\c' 六位色 / '\\r' 转义
+    /// 宽度跳过），页高 = maxLines/page。**本函数是该算法唯一实现**；
+    /// [`Self::layout_full_text`] 即 limit=全长 的特例（与 Java 同构）。
     fn layout_wrapped_text_limited(&mut self, text: &str, w: i32, max_h: i32, limit: i32) {
         let font = crate::paint::paint_font();
         let line_h = font.height + 4;
@@ -1543,13 +1466,14 @@ impl GameScene {
                 i += 1;
                 continue;
             }
-            // 转义语义与 layout_full_text 同源（a.java:4962-4976）——迭代 26 修的是
-            // overlay 全量版，本打字机限量版漏改致同一处偏差复发（迭代 30 教训：
-            // 同一算法的两份拷贝必须同步修，或抽公共函数）。
+            // 转义语义（a.java:4962-4976）。史：迭代 26 只修了当时的 overlay 全量
+            // 拷贝，本打字机限量拷贝漏改致同一偏差复发（迭代 30）；现已合并为单一实现。
             let cw;
             if c == '\\' && i + 1 < chars.len() {
                 let nxt = chars[i + 1];
                 if nxt == 'c' {
+                    // \cXXXXXX：Java 条件 var12+6<len 且 parseHex 有效（a.java:4967）——
+                    // 有效 ⇒ 整段 8 字符吞入行、宽 0（var11+=7+底部++=8，var6=0）
                     let hex: String = chars[i + 2..(i + 8).min(chars.len())].iter().collect();
                     let valid = i + 7 < chars.len()
                         && crate::menu_family::parse_hex_color_public(&hex).is_some();
@@ -1561,6 +1485,7 @@ impl GameScene {
                         i += 8;
                         continue;
                     } else {
+                        // 非法色：\c 两字符按正常宽度计入（a.java:4969-4971 var6=两宽）
                         cw = font.char_width('\\' as u16) + font.char_width(nxt as u16);
                         cur.push(c);
                         cur.push(nxt);
@@ -1569,11 +1494,13 @@ impl GameScene {
                         continue;
                     }
                 } else if nxt == 'r' {
+                    // \r：2 字符吞入、宽 0（a.java:4972-4975）
                     cur.push(c);
                     cur.push(nxt);
                     i += 2;
                     continue;
                 }
+                // 未知转义：反斜杠计宽，命令字符下轮当正文（近似；HELP_TEXT 不触发）
                 cw = font.char_width('\\' as u16);
                 cur.push(c);
                 acc_w += cw;
@@ -1600,6 +1527,9 @@ impl GameScene {
         self.overlay_total_lines = lines.len() as i32;
         self.overlay_lines_per_page = (max_h / line_h).min(self.overlay_total_lines);
         self.overlay_page_bottom = self.overlay_total_lines.min(self.overlay_lines_per_page);
+        // 注：Java 此处量的是**整串** stringWidth(var1)（a.java:5013-5014），本实现量
+        // 截断串。不可观测：overlay_content_w 唯一读点在 show_overlay_message 紧随
+        // layout_full_text 之后（截断=全长）；打字机路径写入后无读点。保留原状不改。
         self.overlay_content_w = if self.overlay_total_lines == 1 {
             font.string_width(&text.chars().take(limit as usize).map(|c| c as u16).collect::<Vec<u16>>())
         } else {
@@ -1628,8 +1558,23 @@ impl GameScene {
         }
     }
 
+    /// findPath(玩家格 → 目标格)：Walkability = 地形 walkable 克隆 + 实体槽判定
+    /// （格类型容量 > 0）。SEE flag=1 与 MOV type=0 两个脚本臂共用（原为逐字双拷贝）。
+    fn find_path_from_player(&self, tx: i32, ty: i32) -> crate::pathfind::PathResult {
+        let walk = crate::pathfind::Walkability {
+            terrain: self.walkable.clone(),
+            has_entity_slot: &|x, y| {
+                let ct = self.grid.cell_type[y as usize][x as usize] as usize;
+                self.grid.capacity[ct] > 0
+            },
+            cols: self.view.wide,
+            rows: self.view.high,
+        };
+        crate::pathfind::find_path(&walk, self.player_cell_x, self.player_cell_y, tx, ty)
+    }
+
     /// skipTextToLineEnd（a.java:5135-5148）：打字机跳到当前行尾（累计长度）。
-    fn skip_text_to_line_end(&self, mut pos: i32) -> i32 {
+    fn skip_text_to_line_end(&self, pos: i32) -> i32 {
         let mut cum = 0i32;
         for line in &self.overlay_lines {
             cum += line.chars().count() as i32;
@@ -1652,7 +1597,7 @@ impl GameScene {
             if cur != 32 {
                 self.script_line_flags[cur] = true;
             }
-            self.lockCameraOn(0);
+            self.lock_camera_on(0);
             return;
         }
         let op = &line[var2..var2 + 3];
@@ -1682,22 +1627,7 @@ impl GameScene {
                 // findPath(player → target)：成功 → f_bool_26=true + walkPhase=0
                 //（a.java:8497-8501；Java switch case1 **无 break 落穿 default**：
                 //  路径成立时 m_103 与路径箭头两者都做）
-                let walk = crate::pathfind::Walkability {
-                    terrain: self.walkable.clone(),
-                    has_entity_slot: &|x, y| {
-                        let ct = self.grid.cell_type[y as usize][x as usize] as usize;
-                        self.grid.capacity[ct] > 0
-                    },
-                    cols: self.view.wide,
-                    rows: self.view.high,
-                };
-                let result = crate::pathfind::find_path(
-                    &walk,
-                    self.player_cell_x,
-                    self.player_cell_y,
-                    tx,
-                    ty,
-                );
+                let result = self.find_path_from_player(tx, ty);
                 if result.found {
                     self.path_arrows_visible = true;
                     self.walk_phase = 0;
@@ -1736,33 +1666,17 @@ impl GameScene {
             let (mx, e) = Self::parse_script_int(&line, v2 + 1, '_');
             v2 = e;
             let (my, e) = Self::parse_script_int(&line, v2 + 1, ' ');
-            v2 = e;
             self.dialog_target = (mx, my);
             self.script_cursor = e + 1;
             if target_type == 0 {
-                let walk = crate::pathfind::Walkability {
-                    terrain: self.walkable.clone(),
-                    has_entity_slot: &|x, y| {
-                        let ct = self.grid.cell_type[y as usize][x as usize] as usize;
-                        self.grid.capacity[ct] > 0
-                    },
-                    cols: self.view.wide,
-                    rows: self.view.high,
-                };
-                let result = crate::pathfind::find_path(
-                    &walk,
-                    self.player_cell_x,
-                    self.player_cell_y,
-                    mx,
-                    my,
-                );
+                let result = self.find_path_from_player(mx, my);
                 if result.found {
                     self.walk_path_buffer = result.steps;
                     self.walk_step_count = self.walk_path_buffer.len() as i32;
                     self.script_walk_armed = true;
                     self.dialog_phase = 3;
                     self.walk_phase = 0;
-                    self.lockCameraOn(0);
+                    self.lock_camera_on(0);
                 }
             } else {
                 let idx = self.entity_at_cell(ent_x, ent_y, target_type);
@@ -1775,7 +1689,7 @@ impl GameScene {
         } else if op == "DES" {
             // DES（a.java:8311-8334）：type<0 → 全表批量移除（-type）；否则
             // 格上首只该类型移除（m_100 + markEntityRemoved）。
-            let (t0, mut v2) = Self::parse_script_int(&line, var2 + 1, '_');
+            let (t0, v2) = Self::parse_script_int(&line, var2 + 1, '_');
             if t0 < 0 {
                 let (_, e) = Self::parse_script_int(&line, v2 + 1, ' ');
                 let want = -t0;
@@ -1826,7 +1740,7 @@ impl GameScene {
             // CES（a.java:8386-8420）：spawnEntity(type, cx<<5, cy<<5, 0) +
             // markEntityDesRemoved + 相机回中后缓向新实体 + scriptStepDelay
             // （cat 1/8/16=5、2/4=8、其余 0）。
-            let (t0, mut v2) = Self::parse_script_int(&line, var2 + 1, '_');
+            let (t0, v2) = Self::parse_script_int(&line, var2 + 1, '_');
             let (cx, e1) = Self::parse_script_int(&line, v2 + 1, '_');
             let (cy, e2) = Self::parse_script_int(&line, e1 + 1, ' ');
             let img_h = self
@@ -1849,10 +1763,9 @@ impl GameScene {
             entity::remove_des(&mut self.entities, idx);
             self.ease_cam_x = (self.view.view_w - 32 >> 1) - self.view.cam_x;
             self.ease_cam_y = (self.view.view_h - 32 >> 1) - self.view.cam_y;
-            if idx >= 0 {
-                self.ease_target_x = self.entities.pixel_x[idx as usize];
-                self.ease_target_y = self.entities.pixel_y[idx as usize];
-            }
+            // Java `if (var4 >= 0)` 守卫（a.java:8398）：spawn 返回 usize 恒非负 ⇒ 恒真
+            self.ease_target_x = self.entities.pixel_x[idx as usize];
+            self.ease_target_y = self.entities.pixel_y[idx as usize];
             self.script_delay = match self.entity_category(t0) {
                 1 | 8 | 16 => 5,
                 2 | 4 => 8,
@@ -1895,7 +1808,7 @@ impl GameScene {
                     let (py, e) = Self::parse_script_int(&line, v2 + 1, ' ');
                     v2 = e;
                     self.view.player_py = py << 5;
-                    self.lockCameraOn(0);
+                    self.lock_camera_on(0);
                 }
                 2 => {
                     let (tier, e) = Self::parse_script_int(&line, v2 + 1, ' ');
@@ -2299,8 +2212,8 @@ impl GameScene {
         let font = crate::paint::paint_font();
         let box_w = self.menu_box_width + 22;
         let box_h = self.menu_list_height + 32;
-        let mut bx = 120 - (self.menu_box_width + 22 >> 1);
-        let mut by = 160 - (self.menu_list_height + 32 >> 1);
+        let bx = CENTER_X - (self.menu_box_width + 22 >> 1);
+        let mut by = CENTER_Y - (self.menu_list_height + 32 >> 1);
         let pad = (self.menu_line_height - font.height) >> 1;
         crate::menu_family::paint_box_frame(g, &self.images.ui[0], bx, by, box_w, box_h);
         by += 16 + pad;
@@ -2309,7 +2222,7 @@ impl GameScene {
             let kind = self.menu_kinds[i as usize];
             if self.menu_cursor == i {
                 g.set_color(0);
-                g.fill_rect(120 - (self.menu_box_width >> 1), by - pad, self.menu_box_width, self.menu_line_height);
+                g.fill_rect(CENTER_X - (self.menu_box_width >> 1), by - pad, self.menu_box_width, self.menu_line_height);
                 g.set_color(16377897);
             } else if kind != 11 {
                 g.set_color(7574946);
@@ -2322,7 +2235,7 @@ impl GameScene {
                 let label = MENU_LABELS[kind as usize];
                 let n = RAINBOW_COLORS.len();
                 let label_u: Vec<u16> = label.encode_utf16().collect();
-                let mut cx = 120 - (font.string_width(&label_u) >> 1);
+                let mut cx = CENTER_X - (font.string_width(&label_u) >> 1);
                 let mut phase = self.rainbow_phase as usize;
                 for ch in label.chars() {
                     g.set_color(RAINBOW_COLORS[phase]);
@@ -2335,13 +2248,13 @@ impl GameScene {
                 }
             } else {
                 let label: Vec<u16> = MENU_LABELS[kind as usize].encode_utf16().collect();
-                g.draw_string(&label, 120, by, 17);
+                g.draw_string(&label, CENTER_X, by, 17);
             }
             by += self.menu_line_height;
             i += 1;
         }
-        let ax = 120 + (box_w >> 1) - 23;
-        let ay = 160 + (box_h >> 1) - 38;
+        let ax = CENTER_X + (box_w >> 1) - 23;
+        let ay = CENTER_Y + (box_h >> 1) - 38;
         if self.menu_scroll_top > 0 {
             draw_image_clipped(g, &self.images.ui[15], ax, ay, 0, 0, 7, 9);
         }
@@ -2698,14 +2611,17 @@ impl GameScene {
     /// 分隔线 + 4×N 格阵（选中框 [2][10] 双帧闪烁）+ 翻页箭头 + 软键栏。
     fn paint_item_panel(&mut self, g: &mut SoftGraphics<'_>) {
         let font = crate::paint::paint_font();
-        let mut v159 = 319i32;
+        // 斜线底纹（a.java:2725-2734）：Java 方法内留有未用局部 `short var141 = 320;
+        // short var122 = 240;`——源码以 H/W 局部常量书写、javac 常量折叠的残迹
+        //（B 级），故 319/318/239 = H-1/H-2/W-1 一并按屏幕派生书写。
+        let mut v159 = SCREEN_H - 1;
         while v159 >= 1 {
-            g.draw_line(-1, -1 + (320 - v159), -1 + v159 - 1, 318);
-            g.draw_line(239 - v159, -1, 239, -1 + v159);
+            g.draw_line(-1, -1 + (SCREEN_H - v159), -1 + v159 - 1, SCREEN_H - 2);
+            g.draw_line(SCREEN_W - 1 - v159, -1, SCREEN_W - 1, -1 + v159);
             v159 -= 2;
         }
-        let mut x = (240 - self.item_box_w) >> 1;
-        let mut y = (320 - self.item_box_h) >> 1;
+        let mut x = (SCREEN_W - self.item_box_w) >> 1;
+        let mut y = (SCREEN_H - self.item_box_h) >> 1;
         crate::menu_family::paint_box_frame(g, &self.images.ui[0], x, y, self.item_box_w, self.item_box_h);
         x += 20;
         y += 16;
@@ -2765,7 +2681,7 @@ impl GameScene {
             x = col_x0;
             y += 40;
         }
-        x = ((240 + self.item_box_w) >> 1) - 22;
+        x = ((SCREEN_W + self.item_box_w) >> 1) - 22;
         y -= (self.item_box_h - 32 - font.height - 4) >> 1;
         if self.item_scroll_top > 0 {
             draw_image_clipped(g, &self.images.ui[15], x, y - 15, 0, 0, 7, 9);
@@ -2882,60 +2798,23 @@ impl GameScene {
         self.paint_parallax(g, false);
         let font = crate::paint::paint_font();
         let ui = &self.images.ui;
-        let x = 240 - self.slot.content_w - 22 >> 1;
-        let mut y = 320 - self.slot.content_h >> 1;
-        // 标题变体 2（存档）：titleBarSegments[2] = {4,5}
-        crate::menu_family::paint_titled_box(g, &ui[0], &ui[13], &[4, 5], x, y, self.slot.content_w + 22, self.slot.content_h);
-        y += 16;
-        let mut row = self.slot.scroll_top;
-        while row < self.slot.scroll_bottom {
-            if row != self.slot.cursor {
-                g.set_color(crate::layout::SLOT_TEXT);
-            } else {
-                g.set_color(crate::layout::DARK_BACKDROP);
-                g.fill_rect(120 - (self.slot.content_w >> 1), y, self.slot.content_w, 10 + 4);
-                g.draw_image(&ui[14], 120 - (self.slot.content_w >> 1) + 10, y + (10 - 8 >> 1), 0);
-                let t = crate::paint::NOKIA_TRANSFORM_TABLE[1];
-                g.draw_image_transformed(&ui[14], 120 + (self.slot.content_w >> 1) - 30, y + (10 - 8 >> 1), 0, t);
-                g.set_color(crate::layout::SLOT_TEXT_ACTIVE);
-            }
-            if !self.slot.valid[row as usize] {
-                g.draw_string(&[0x2D, 0x2D, 0x2D], 120, y + 2, 17);
-            } else {
-                let mut label: Vec<u16> = "存档".encode_utf16().collect();
-                label.extend((row as u16).to_string().chars().map(|c| c as u16));
-                g.draw_string(&label, 120, y + 2, 17);
-            }
-            y += 14;
-            row += 1;
-        }
-        // 翻页箭头 + 分隔线（a.java:9078-9090）
-        let ax = 120 + ((self.slot.content_w >> 1) - 10);
-        if self.slot.scroll_top > 0 {
-            draw_image_clipped(g, &ui[15], ax, y - 20, 0, 0, 7, 9);
-        }
-        if self.slot.scroll_bottom < 6 {
-            draw_image_clipped(g, &ui[15], ax, y - 10, 7, 0, 7, 9);
-        }
-        y += 2;
-        let lx = ax - self.slot.content_w + 10;
-        g.set_color(crate::layout::SLOT_RULE_DARK);
-        g.draw_line(lx, y, lx + self.slot.content_w - 1, y);
-        y += 1;
-        g.set_color(crate::layout::SLOT_RULE_LIGHT);
-        g.draw_line(lx, y, lx + self.slot.content_w - 1, y);
+        // 标题变体 2（存档）：titleBarSegments[2] = {4,5}；列表段/三围段与 boot
+        // 读档路径共用 SlotSelect 方法（原为逐字双拷贝）
+        let (lx, ly) = self.slot.paint_list(g, ui, &[4, 5]);
         // 详情面板（a.java:9092-9147，slotValidFlags[cursor] 才画）
         let c = self.slot.cursor as usize;
         if self.slot.valid[c] {
             let mut vx = lx + 6;
-            let mut vy = y + 8;
+            let vy = ly + 8;
             if self.slot.floor_num[c] < 51 {
                 paint_number(g, &ui[18], self.slot.floor_num[c] as i32, vx + 48, vy);
                 g.draw_image(&ui[8], vx + 50, vy + 8, 0);
             }
-            vx = (240 + self.slot.content_w >> 1) - 68;
+            vx = (SCREEN_W + self.slot.content_w >> 1) - 68;
             crate::menu_family::paint_mini_frame(g, vx, vy, 32, 32);
-            // 武器（f_byte_arr_25；装备批次恒 0 = “无”）
+            // 武器（f_byte_arr_25；装备批次恒 0 = “无”）。注：与 boot 侧
+            // SlotSelect::paint 不一致——此处恒画材质名，未移植 Java 非 0 时的
+            // sptarm 图标分支（a.java:9116-9123 武器 / 9136-9143 甲）；原状保留。
             g.set_color(0xFFFFFF);
             let m = EQUIPMENT_MATERIAL_NAMES[self.slot.weapon[c as usize].clamp(0, 8) as usize];
             let mu: Vec<u16> = m.encode_utf16().collect();
@@ -2946,31 +2825,7 @@ impl GameScene {
             let a = EQUIPMENT_MATERIAL_NAMES[self.slot.armor[c as usize].clamp(0, 8) as usize];
             let au: Vec<u16> = a.encode_utf16().collect();
             g.draw_string(&au, vx + ((32 - font.char_width('回' as u16)) >> 1), vy + ((32 - font.height) >> 1), 0);
-            vx = (240 - self.slot.content_w + 10 >> 1);
-            vy += 20;
-            g.draw_image(&ui[1], vx, vy, 0);
-            vx += 60;
-            paint_number(g, &ui[2], self.slot.gold[c], vx, vy + 2);
-            vx -= 64;
-            vy += 16;
-            draw_image_clipped(g, &ui[7], vx, vy, 0, 2, 10, 10);
-            vx += 15;
-            crate::menu_family::paint_mini_frame(g, vx - 1, vy, 48, 12);
-            paint_number(g, &ui[2], self.slot.hp[c], vx + 45, vy + 2);
-            vx += 47;
-            draw_image_clipped(g, &ui[7], vx, vy, 10, 0, 10, 13);
-            vx += 11;
-            g.set_color(512);
-            crate::menu_family::paint_mini_frame(g, vx, vy, 30, 12);
-            paint_number(g, &ui[2], self.slot.atk[c], vx + 28, vy + 2);
-            vx += 32;
-            draw_image_clipped(g, &ui[7], vx, vy, 20, 2, 10, 10);
-            vx += 12;
-            g.set_color(512);
-            crate::menu_family::paint_mini_frame(g, vx, vy, 30, 12);
-            paint_number(g, &ui[2], self.slot.def[c], vx + 28, vy + 2);
-            vx = (240 - self.slot.content_w >> 1) + 6;
-            vy += 16;
+            let (mut vx, vy) = self.slot.paint_detail_stats(g, ui, c, vy);
             self.paint_key_slot(g, 0, self.slot.keys_yellow[c] as i32, vx, vy);
             vx += 42;
             self.paint_key_slot(g, 1, self.slot.keys_blue[c] as i32, vx, vy);
@@ -3032,7 +2887,7 @@ impl GameScene {
     fn build_encyclopedia(&mut self) {
         self.encyc_damage = vec![0; 128];
         self.encyc_types = vec![0; 128];
-        self.encyc_panel_w = 208;
+        self.encyc_panel_w = ENCYC_PANEL_W;
         self.encyc_count = 0;
         'outer: for e in 0..self.entities.count {
             if self.entities.removed[e] {
@@ -3123,13 +2978,12 @@ impl GameScene {
             if self.encyc_scroll_top > 0 {
                 draw_image_clipped(g, &self.images.ui[19], 112, by - 17 - (self.frame_counter & 1) as i32, 16, 0, 15, 17);
             }
-            let mut x = bx + 16;
             let mut y = by + 16;
             for row in self.encyc_scroll_top..self.encyc_scroll_bottom {
                 let c = row as usize;
                 let t = self.encyc_types[c] as usize;
                 let pred = self.encyc_damage[c];
-                x = bx + 16;
+                let mut x = bx + 16;
                 g.set_color(13097429);
                 let name: Vec<u16> = self.object_type_names[t].encode_utf16().collect();
                 g.draw_string(&name, x, y + 2, 0);
@@ -3271,11 +3125,11 @@ impl GameScene {
         let font = crate::paint::paint_font();
         let bw = 115i32; // f_int_75（a.java:810）
         let bh = font.height + 90; // f_int_74（a.java:809）
-        let bx = (240 - bw - 22) >> 1;
-        let by = (320 - bh) >> 1;
+        let bx = (SCREEN_W - bw - 22) >> 1;
+        let by = (SCREEN_H - bh) >> 1;
         crate::menu_family::paint_titled_box(g, &self.images.ui[0], &self.images.ui[13], &[0, 1, 2], bx, by, bw + 22, bh);
         let wide = font.char_width('回' as u16) << 1;
-        let mut x = (240 - (wide + 16 + 48)) >> 1;
+        let mut x = (SCREEN_W - (wide + 16 + 48)) >> 1;
         let mut y = by + 21;
         g.set_color(7575203);
         g.draw_string(&"花费".encode_utf16().collect::<Vec<u16>>(), x, y, 0);
@@ -3284,7 +3138,7 @@ impl GameScene {
         x += 60;
         paint_number(g, &self.images.ui[2], self.alchemy_price, x, y + 3 + ((font.height - 10) >> 1));
         y += font.height + 5;
-        x = (240 - bw) >> 1;
+        x = (SCREEN_W - bw) >> 1;
         g.set_color(549016);
         g.fill_rect(x, y + (self.alchemy_cursor << 4), bw, 16);
         g.draw_image(&self.images.ui[14], x + 10, y + 2 + (self.alchemy_cursor << 4), 0);
@@ -3390,21 +3244,6 @@ impl GameScene {
             self.offer_queue_src.push(src as u8);
             self.offer_queue_idx.push(idx as u8);
         }
-    }
-
-    /// m_076（a.java:7479-7495）：游标钳位导航。
-    fn offer_queue_seek(&mut self, cursor: i32) {
-        let n = self.offer_queue_src.len() as i32;
-        if n == 0 {
-            return;
-        }
-        self.offer_queue_cursor = if cursor < 0 {
-            n - 1
-        } else if cursor >= n {
-            0
-        } else {
-            cursor
-        };
     }
 
     /// spendGold：够则扣减返回 true（a.java:7702 邻接族，m_083）。
@@ -3907,7 +3746,7 @@ impl GameScene {
                 // walkPhase 2（a.java:3610-3642）：easeAfterimages 残影蛇缓动 +
                 // 未锁定时 keyHeld 相机平移 / keyValue -5 → 锁定 + lockCameraOn；
                 // 已锁定时 stepCameraTowardTarget 回到玩家
-                self.easeAfterimages();
+                self.ease_afterimages();
                 if !self.view_locked {
                     match self.key_held {
                         -4 | 54 => {
@@ -3934,7 +3773,7 @@ impl GameScene {
                     }
                     if self.key_value == -5 || self.key_value == 53 {
                         self.view_locked = true;
-                        self.lockCameraOn(0);
+                        self.lock_camera_on(0);
                     }
                 } else {
                     self.step_camera_toward_target();
@@ -3957,7 +3796,7 @@ impl GameScene {
 
     /// easeAfterimages（a.java:5209-5256）：残影蛇缓动。目标 = 未锁定时的
     /// 视口中心偏移（bob 耦合）或锁定后的玩家位；[3] 到位且锁定 → walkPhase=0。
-    fn easeAfterimages(&mut self) {
+    fn ease_afterimages(&mut self) {
         let (mut tx, mut ty) = if !self.view_locked {
             (
                 (self.view.view_w - 41 >> 1) - self.view.cam_x,
@@ -4009,7 +3848,7 @@ impl GameScene {
     }
 
     /// lockCameraOn（a.java:8666-8696）：缓动相机初始化。0 → 目标 = 玩家位。
-    fn lockCameraOn(&mut self, target: i32) {
+    fn lock_camera_on(&mut self, target: i32) {
         self.ease_cam_x = (self.view.view_w - 32 >> 1) - self.view.cam_x;
         self.ease_cam_y = (self.view.view_h - 32 >> 1) - self.view.cam_y;
         if target != 0 && target != 87 {
@@ -4044,7 +3883,7 @@ impl GameScene {
                 self.ease_cam_x = self.ease_target_x;
             }
         } else if self.ease_cam_x > self.ease_target_x {
-            self.ease_cam_x += ((self.ease_target_x - self.ease_cam_x >> 2) - 2);
+            self.ease_cam_x += (self.ease_target_x - self.ease_cam_x >> 2) - 2;
             if self.ease_cam_x < self.ease_target_x {
                 self.ease_cam_x = self.ease_target_x;
             }
@@ -4055,7 +3894,7 @@ impl GameScene {
                 self.ease_cam_y = self.ease_target_y;
             }
         } else if self.ease_cam_y > self.ease_target_y {
-            self.ease_cam_y += ((self.ease_target_y - self.ease_cam_y >> 2) - 2);
+            self.ease_cam_y += (self.ease_target_y - self.ease_cam_y >> 2) - 2;
             if self.ease_cam_y < self.ease_target_y {
                 self.ease_cam_y = self.ease_target_y;
             }
@@ -4943,7 +4782,7 @@ impl GameScene {
     }
 
     /// 装备拾取成功浮层（equipDescriptions[tier]；a.java:7633-7633）。
-    fn overlay_kind_pickup(&mut self, t: i32, tier: i32) {
+    fn overlay_kind_pickup(&mut self, _t: i32, tier: i32) {
         const D: [&str; 12] = [
             "",
             "\\cdddddd一根相当长的木制长棍,新手必备.有了它杀人越货不慌不愁.\n\\c00ff00装备: 攻击+10.\n\\cFFCC00\"看上去似乎会断掉。\".",
@@ -5215,23 +5054,23 @@ impl GameScene {
                                     sx += CELL_PX;
                                 }
                                 let img = if state == 1 { &self.images.opened_door } else { img };
-                                draw_image_clipped(g, img, (sx + cx_off), sy - (h - CELL_PX), frame_off, 0, w, h);
+                                draw_image_clipped(g, img, sx + cx_off, sy - (h - CELL_PX), frame_off, 0, w, h);
                             }
                             2 => {
                                 if state == 1 {
-                                    draw_image_clipped(g, &self.images.opened_door, (sx + cx_off), sy - (h - CELL_PX), frame_off, 0, w, h);
+                                    draw_image_clipped(g, &self.images.opened_door, sx + cx_off, sy - (h - CELL_PX), frame_off, 0, w, h);
                                 } else if state == 2 {
                                     draw_image_clipped(g, &self.images.open_anim, sx + OPEN_ANIM_DX, sy + OPEN_ANIM_DX - (frame * OPEN_ANIM_STEP), frame_off, 0, OPEN_ANIM_W, OPEN_ANIM_H);
                                 } else if t < SMALL_ITEM_MAX_TYPE {
                                     g.draw_image(&self.images.shadow, sx + SHADOW_DX, sy + SHADOW_DY, 0);
-                                    g.draw_image(img, (sx + cx_off), sy - (h - ANCHOR_MARGIN_24) + bob, 0);
+                                    g.draw_image(img, sx + cx_off, sy - (h - ANCHOR_MARGIN_24) + bob, 0);
                                 } else {
-                                    g.draw_image(img, (sx + cx_off), sy - (h - ANCHOR_MARGIN_30), 0);
+                                    g.draw_image(img, sx + cx_off, sy - (h - ANCHOR_MARGIN_30), 0);
                                 }
                             }
                             4 => {
                                 g.draw_image(&self.images.shadow, sx + SHADOW_DX, sy + SHADOW_DY, 0);
-                                draw_image_clipped(g, img, (sx + cx_off), sy - (h - ANCHOR_MARGIN_24) + bob, frame_off, 0, w, h);
+                                draw_image_clipped(g, img, sx + cx_off, sy - (h - ANCHOR_MARGIN_24) + bob, frame_off, 0, w, h);
                             }
                             8 => {
                                 if state == 3 {
@@ -5266,7 +5105,7 @@ impl GameScene {
                                 } else if t != 67 {
                                     g.draw_image(&self.images.shadow, sx + SHADOW_DX, sy + SHADOW_DY, 0);
                                     sy -= ENTITY_LIFT;
-                                    draw_image_clipped(g, img, (sx + cx_off), sy - (h - CELL_PX), frame_off, 0, w, h);
+                                    draw_image_clipped(g, img, sx + cx_off, sy - (h - CELL_PX), frame_off, 0, w, h);
                                 } else {
                                     // 67 多段拼装（f_byte_arr2_00/01 元数据）——
                                     // 实存层待考（floor1/5/12/35/40/50/51 无）
@@ -5298,7 +5137,7 @@ impl GameScene {
                                     if let Some(img15) = &self.images.entity[15] {
                                         g.draw_image(img15, sx + 1, sy + 8 + bob, 0);
                                     }
-                                    draw_image_clipped(g, img, (sx + cx_off), sy - (h - ANCHOR_MARGIN_24) + bob, frame_off, 0, w, h);
+                                    draw_image_clipped(g, img, sx + cx_off, sy - (h - ANCHOR_MARGIN_24) + bob, frame_off, 0, w, h);
                                 } else {
                                     draw_image_clipped(g, &self.images.open_anim, sx + OPEN_ANIM_DX, sy + OPEN_ANIM_DX - (frame * OPEN_ANIM_STEP), frame_off, 0, OPEN_ANIM_W, OPEN_ANIM_H);
                                 }
@@ -5308,10 +5147,10 @@ impl GameScene {
                                 if state == 1 || state == 2 {
                                     draw_image_clipped(g, &self.images.open_anim, sx + OPEN_ANIM_DX, sy + OPEN_ANIM_DX - (frame * OPEN_ANIM_STEP), frame_off, 0, OPEN_ANIM_W, OPEN_ANIM_H);
                                 } else if t != 72 {
-                                    draw_image_clipped(g, img, (sx + cx_off), sy - (h - ANCHOR_MARGIN_16) + bob, frame_off, 0, w, h);
+                                    draw_image_clipped(g, img, sx + cx_off, sy - (h - ANCHOR_MARGIN_16) + bob, frame_off, 0, w, h);
                                 } else if self.route_entity != e as i32 {
                                     // 型 72 非追踪实体：静态（无 bob），y-(h-32)（a.java:6657-6652）
-                                    draw_image_clipped(g, img, (sx + cx_off), sy - (h - CELL_PX), frame_off, 0, w, h);
+                                    draw_image_clipped(g, img, sx + cx_off, sy - (h - CELL_PX), frame_off, 0, w, h);
                                 } else {
                                     // 追踪实体：形态号帧（f_byte_19；==3 时镜像，a.java:6660-6661）
                                     let mut src_y = h * self.form_19;
@@ -5319,7 +5158,7 @@ impl GameScene {
                                         src_y -= h;
                                         crate::menu_family::draw_edge_patch(g, img, sx + cx_off, sy - (h - CELL_PX), frame_off, src_y, w, h, 1);
                                     } else {
-                                        draw_image_clipped(g, img, (sx + cx_off), sy - (h - CELL_PX), frame_off, src_y, w, h);
+                                        draw_image_clipped(g, img, sx + cx_off, sy - (h - CELL_PX), frame_off, src_y, w, h);
                                     }
                                 }
                             }
@@ -5626,15 +5465,15 @@ impl GameScene {
         self.paint_parallax(g, false);
         let var46 = SCREEN_H - crate::paint::paint_font().height - 4;
         let indicator = self.page_indicator.clone();
-        self.draw_shadow_text(g, &indicator, 120, var46 + 2, 4202520, 0xFFFF_FFFFu32 as i32);
+        self.draw_shadow_text(g, &indicator, CENTER_X, var46 + 2, 4202520, 0xFFFF_FFFFu32 as i32);
         let arrow_y = var46 + (crate::paint::paint_font().height + 4 - 13) >> 1;
         let arrow = self.images.ui[14].clone();
         let bob = self.bob_offset;
         if self.record_page > 0 {
-            g.draw_image_transformed(&arrow, 60 - bob, arrow_y, 0, 1);
+            g.draw_image_transformed(&arrow, ARROW_PAIR_LEFT_X - bob, arrow_y, 0, 1);
         }
         if self.record_page < self.journal.len() as i32 - 1 {
-            g.draw_image(&arrow, 160 + bob, arrow_y, 0);
+            g.draw_image(&arrow, ARROW_PAIR_RIGHT_X + bob, arrow_y, 0);
         }
         m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
         // 公共尾 overlay 框（paintOverlayBox）：日志文本 kind5 框在指示/箭头之上
@@ -5737,7 +5576,7 @@ impl GameScene {
                 if let Some(img) = &self.images.entity[self.dialog_speaker as usize] {
                     if self.dialog_speaker != 72 {
                         let fw = self.type_frame_width_for(self.dialog_speaker);
-                        draw_image_clipped(g, img, (80 - fw >> 1), SCREEN_H - img.height, 0, 0, fw, img.height);
+                        draw_image_clipped(g, img, 80 - fw >> 1, SCREEN_H - img.height, 0, 0, fw, img.height);
                     } else {
                         draw_image_clipped(g, img, 24, 275, 0, 0, 32, 45);
                     }

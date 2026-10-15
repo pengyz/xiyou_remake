@@ -483,8 +483,8 @@ impl BootMachine {
                 // run case 14（a.java:4137-4136）：runIntroViewer + 粒子雨 4 分频
                 let f = self.paints as i32;
                 if f & 3 == 0 {
-                    let x = self.rng.random_below(240);
-                    let y = 320 - 25 - self.rng.random_below(150);
+                    let x = self.rng.random_below(crate::layout::SCREEN_W);
+                    let y = crate::layout::SCREEN_H - 25 - self.rng.random_below(150);
                     if let Some(t) = self.title.as_mut() {
                         t.particles.spawn(x, y);
                     }
@@ -652,8 +652,8 @@ impl BootMachine {
         if !self.overlay_active {
             return;
         }
-        let x = 240 - self.overlay.box_w >> 1;
-        let y = 320 - self.overlay.box_h >> 1;
+        let x = crate::layout::SCREEN_W - self.overlay.box_w >> 1;
+        let y = crate::layout::SCREEN_H - self.overlay.box_h >> 1;
         crate::menu_family::paint_box_frame(g, &self.ui[0], x, y, self.overlay.box_w, self.overlay.box_h);
         g.set_color(crate::layout::WHITE);
         let text: Vec<u16> = if self.mode == 15 {
@@ -663,7 +663,8 @@ impl BootMachine {
         };
         let f = self.paints as i32 - 1;
         let font = paint_font();
-        self.overlay.paint(g, &text, x + 16, y + 16, 180, 240, true, f, &font);
+        let (tw, th) = (crate::layout::OVERLAY_TEXT_W, crate::layout::OVERLAY_TEXT_MAX_H);
+        self.overlay.paint(g, &text, x + 16, y + 16, tw, th, true, f, &font);
     }
 
     /// gameMode 0 的逻辑 tick（a.java:3349-3374）。
@@ -742,16 +743,6 @@ mod tests {
     fn decode(name: &str) -> ArgbImage {
         let bytes = std::fs::read(repo().join("assets/raw").join(name)).unwrap();
         ArgbImage::from_decoded_png(game_data::decode_png(&bytes).unwrap())
-    }
-
-    fn load_sflogo() -> Vec<ArgbImage> {
-        let data = std::fs::read(repo().join("assets/raw/sflogo")).unwrap();
-        game_data::PackedPng::parse(&data, 8)
-            .unwrap()
-            .images
-            .iter()
-            .map(|sub| ArgbImage::from_decoded_png(game_data::decode_png(sub.bytes).unwrap()))
-            .collect()
     }
 
     /// trace A-boot-menu 两相启动图与帧哈希逐一比对：

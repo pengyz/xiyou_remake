@@ -357,26 +357,29 @@ impl LogoAnim {
             if timeline > 52 && timeline < 63 {
                 let v = timeline - 52;
                 self.modify(v + 4, 3, 0, 4, -10, ay[2]);
-                self.modify(26 - v, 3, 0, 4, 240, ay[2]);
+                self.modify(26 - v, 3, 0, 4, crate::layout::SCREEN_W, ay[2]); // 右侧屏外终点 x=240
             }
             return;
         }
         // 时间线 switch（a.java:10336-10406；case 11+ 部分待对拍扩产）
         let ay = self.anchors_y;
         let bx = self.bar_x;
+        // x=120 均为屏幕中心（anchor 12/4 = 水平居中折算）⇒ CENTER_X；行 2 三件
+        // 90/120/150 关于中心 ±30 对称（同 kind/anchor 参数）⇒ CENTER_X∓30
+        let cx = crate::layout::CENTER_X;
         match timeline {
             1 => {
-                self.register(Some(sflogo[1].clone()), 120, 0, 1, 12, 4, 120, ay[0], 0, -1);
+                self.register(Some(sflogo[1].clone()), cx, 0, 1, 12, 4, cx, ay[0], 0, -1);
             }
             5 => {
                 self.remove(0);
-                self.register(Some(sflogo[0].clone()), 120, ay[0], 2, 12, 4, 4, 0, 0, -1);
+                self.register(Some(sflogo[0].clone()), cx, ay[0], 2, 12, 4, 4, 0, 0, -1);
             }
             8 => {
-                self.register(Some(sflogo[5].clone()), 120, ay[0] + 2, 0, 12, 0, 0, 0, 0, 0);
-                self.register(Some(sflogo[2].clone()), 90, ay[1], 2, 4, 4, 4, 0, 0, -1);
-                self.register(Some(sflogo[3].clone()), 120, ay[1], 2, 4, 4, 4, 0, 0, -1);
-                self.register(Some(sflogo[4].clone()), 150, ay[1], 2, 4, 4, 4, 0, 0, -1);
+                self.register(Some(sflogo[5].clone()), cx, ay[0] + 2, 0, 12, 0, 0, 0, 0, 0);
+                self.register(Some(sflogo[2].clone()), cx - 30, ay[1], 2, 4, 4, 4, 0, 0, -1);
+                self.register(Some(sflogo[3].clone()), cx, ay[1], 2, 4, 4, 4, 0, 0, -1);
+                self.register(Some(sflogo[4].clone()), cx + 30, ay[1], 2, 4, 4, 4, 0, 0, -1);
                 self.register(Some(sflogo[6].clone()), 15, ay[1], 1, 12, 3, bx, ay[2], 0, -1); // logoBarX（a.java:10394）
             }
             10 => {

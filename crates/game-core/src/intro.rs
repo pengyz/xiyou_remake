@@ -144,6 +144,9 @@ impl IntroSequence {
                     }
                     self.scroll_x += 4;
                     if key != 0 {
+                        // 按键快进（a.java:4868）。C 类·语义不明：introScrollX 无任何几何
+                        // 消费者（仅与 stringWidth+10 比较，a.java:4860），240 是 px 单位的
+                        // 计时哨兵（≥ 排版宽 220+10）而非屏宽——**不**派生 SCREEN_W。
                         self.scroll_x = 240;
                     }
                 } else {
@@ -206,12 +209,12 @@ impl IntroSequence {
     ) {
         if let Some(img) = &self.image {
             let ih = img.height;
-            let band_y = 320 - ih - (font.height + 4) * 3 >> 1;
+            let band_y = crate::layout::SCREEN_H - ih - (font.height + 4) * 3 >> 1;
             g.set_color(crate::layout::BLACK);
-            g.fill_rect(0, 0, 240, band_y);
+            g.fill_rect(0, 0, crate::layout::SCREEN_W, band_y);
             let below = band_y + ih;
-            g.fill_rect(0, below, 240, 320 - below);
-            g.draw_image(img, 120, band_y, 17);
+            g.fill_rect(0, below, crate::layout::SCREEN_W, crate::layout::SCREEN_H - below);
+            g.draw_image(img, crate::layout::CENTER_X, band_y, 17);
             if !self.color_phase {
                 g.set_color(crate::layout::WHITE);
             } else {
@@ -235,10 +238,15 @@ impl IntroSequence {
         }
         if self.page > 2 {
             g.set_color(crate::layout::WHITE);
-            g.draw_string(PRESS_ANY_KEY, 120, 320 - font.height - 2, 17);
+            g.draw_string(PRESS_ANY_KEY, crate::layout::CENTER_X, crate::layout::SCREEN_H - font.height - 2, 17);
         } else {
             g.set_color(crate::layout::WHITE);
-            g.draw_string(SKIP_LABEL, 240 - font.string_width(SKIP_LABEL) - 5, 320 - font.height - 2, 0);
+            g.draw_string(
+                SKIP_LABEL,
+                crate::layout::SCREEN_W - font.string_width(SKIP_LABEL) - 5,
+                crate::layout::SCREEN_H - font.height - 2,
+                0,
+            );
         }
         g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
         particles.paint_and_update(g);

@@ -76,8 +76,8 @@ impl GameView {
             high,
             terrain,
             transform,
-            view_w: 240,
-            view_h: 252,
+            view_w: crate::layout::GAME_VIEW_W, // viewWidthPx = 240（a.java:9431）
+            view_h: crate::layout::GAME_VIEW_H, // viewHeightPx = 252（a.java:9432）
             map_w_px: wide << 5,
             map_h_px: high << 5,
             fits_w: false,

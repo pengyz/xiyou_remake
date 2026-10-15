@@ -7,11 +7,11 @@
 //! trace 实证：m_105 每步 6px（Δ=16 时 (16>>2)+2），tick20002-20010 十步收敛。
 
 fn self_view_w() -> i32 {
-    240
+    crate::layout::GAME_VIEW_W // viewWidthPx = 240（a.java:9431）
 }
 
 fn self_view_h() -> i32 {
-    252 // f_int_59 唯一赋值（a.java:9413；复核 R2/R13：无 320）
+    crate::layout::GAME_VIEW_H // 252：f_int_59 唯一赋值（a.java:9413；复核 R2/R13：无 320）
 }
 
 pub struct Camera {
@@ -46,8 +46,8 @@ impl Camera {
             anchor_y: 0,
             target_x: 0,
             target_y: 0,
-            view_w: 240,
-            view_h: 252, // m_121: f_int_59 = 252
+            view_w: crate::layout::GAME_VIEW_W,
+            view_h: crate::layout::GAME_VIEW_H, // m_121: f_int_59 = 252
             map_px_w,
             map_px_h,
             map_fits_w: self_view_w() >= map_px_w,

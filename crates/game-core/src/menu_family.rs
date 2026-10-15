@@ -27,6 +27,7 @@
 //! `drawParallaxBackdrop` 的 backdropScroll 在 **paint 内** --1（<-154 重置 0，
 //! 周期 155）——与 Java 相同的副作用位置。
 
+use crate::layout::{CENTER_X, SCREEN_H, SCREEN_W};
 use crate::render::{ArgbImage, SoftGraphics};
 
 /// parseHexColor（a.java:5159-5163）：hex 颜色解析，失败 → PARSE_DEFAULT（永不 -1）。
@@ -381,7 +382,7 @@ impl OverlayEngine {
 
     /// `showOverlayMessage` case 0/2/4/5（a.java:5005-5006）：布局 + 盒尺寸。
     pub fn show_kind0(&mut self, text: &[u16], font: &crate::render::SoftFont, footer_icons: (i8, i8)) {
-        self.layout(text, 180, 240, font);
+        self.layout(text, crate::layout::OVERLAY_TEXT_W, crate::layout::OVERLAY_TEXT_MAX_H, font);
         self.box_w = self.content_width + 32;
         self.box_h = 32 + (self.page_bottom - self.page_top) * self.line_height;
         if footer_icons.0 != 0 || footer_icons.1 != 0 {
@@ -583,7 +584,7 @@ pub struct SlotSelect {
 
 impl SlotSelect {
     pub fn new() -> SlotSelect {
-        let per = 208 / (10 + 4); // fontHeight+4 = 14
+        let per = crate::layout::SLOT_LIST_MAX_H / (10 + 4); // 208 / (fontHeight+4 = 14)
         let per = if per > 6 { 6 } else { per };
         let w = (12 * 3 + 60).max(148); // wideCharWidth*3+60，钳 148
         let h = 112 + (10 + 4) * per;
@@ -702,57 +703,18 @@ impl SlotSelect {
         sptarm: &[ArgbImage],
         arrow_y: fn() -> i32,
     ) {
-        let x = 240 - self.content_w - 22 >> 1;
-        let mut y = 320 - self.content_h >> 1;
-        paint_titled_box(g, &ui[0], &ui[13], segs, x, y, self.content_w + 22, self.content_h);
-        y += 16;
-        for row in self.scroll_top..self.scroll_bottom {
-            if row != self.cursor {
-                g.set_color(crate::layout::SLOT_TEXT);
-            } else {
-                g.set_color(crate::layout::DARK_BACKDROP);
-                g.fill_rect(120 - (self.content_w >> 1), y, self.content_w, 10 + 4);
-                g.draw_image(&ui[14], 120 - (self.content_w >> 1) + 10, y + (10 - 8 >> 1), 0);
-                let t = crate::paint::NOKIA_TRANSFORM_TABLE[1];
-                g.draw_image_transformed(&ui[14], 120 + (self.content_w >> 1) - 30, y + (10 - 8 >> 1), 0, t);
-                g.set_color(crate::layout::SLOT_TEXT_ACTIVE);
-            }
-            if !self.valid[row as usize] {
-                g.draw_string(&DASH_LABEL, 120, y + 2, 17);
-            } else {
-                let mut label: Vec<u16> = SAVE_LABEL.to_vec();
-                label.extend((row as u16).to_string().chars().map(|c| c as u16));
-                g.draw_string(&label, 120, y + 2, 17);
-            }
-            y += 14;
-        }
-        // 翻页箭头（a.java:9078-9079）
-        let ax = 120 + ((self.content_w >> 1) - 10);
-        if self.scroll_top > 0 {
-            crate::paint::draw_image_clipped(g, &ui[15], ax, y - 20, 0, 0, 7, 9);
-        }
-        if self.scroll_bottom < 6 {
-            crate::paint::draw_image_clipped(g, &ui[15], ax, y - 10, 7, 0, 7, 9);
-        }
-        // 分隔线（a.java:9087-9087）
-        let mut ly = y + 2;
-        let lx = ax - self.content_w + 10;
-        g.set_color(crate::layout::SLOT_RULE_DARK);
-        g.draw_line(lx, ly, lx + self.content_w - 1, ly);
-        ly += 1;
-        g.set_color(crate::layout::SLOT_RULE_LIGHT);
-        g.draw_line(lx, ly, lx + self.content_w - 1, ly);
+        let (lx, ly) = self.paint_list(g, ui, segs);
         let _ = arrow_y;
         // 详情面板（a.java:9130-9150，slotValidFlags[cursor] 才画）
         if self.valid[self.cursor as usize] {
             let c = self.cursor as usize;
             let mut vx = lx + 6;
-            let mut vy = ly + 8;
+            let vy = ly + 8;
             if self.floor_num[c] < 51 {
                 paint_number(g, &ui[18], self.floor_num[c] as i32, vx + 48, vy);
                 g.draw_image(&ui[8], vx + 50, vy + 8, 0);
             }
-            vx = (240 + self.content_w >> 1) - 68;
+            vx = (SCREEN_W + self.content_w >> 1) - 68;
             paint_mini_frame(g, vx, vy, 32, 32);
             if self.weapon[c] == 0 {
                 g.set_color(-1i32 as u32);
@@ -780,31 +742,7 @@ impl SlotSelect {
                 let img = &sptarm[idx];
                 g.draw_image(img, vx + ((32 - img.width) >> 1), vy + ((32 - img.height) >> 1), 0);
             }
-            vx = (240 - self.content_w + 10 >> 1);
-            vy += 20;
-            g.draw_image(&ui[1], vx, vy, 0);
-            vx += 60;
-            paint_number(g, &ui[2], self.gold[c], vx, vy + 2);
-            vx -= 64;
-            vy += 16;
-            crate::paint::draw_image_clipped(g, &ui[7], vx, vy, 0, 2, 10, 10);
-            vx += 15;
-            paint_mini_frame(g, vx - 1, vy, 48, 12);
-            paint_number(g, &ui[2], self.hp[c], vx + 45, vy + 2);
-            vx += 47;
-            crate::paint::draw_image_clipped(g, &ui[7], vx, vy, 10, 0, 10, 13);
-            vx += 11;
-            g.set_color(512);
-            paint_mini_frame(g, vx, vy, 30, 12);
-            paint_number(g, &ui[2], self.atk[c], vx + 28, vy + 2);
-            vx += 32;
-            crate::paint::draw_image_clipped(g, &ui[7], vx, vy, 20, 2, 10, 10);
-            vx += 12;
-            g.set_color(512);
-            paint_mini_frame(g, vx, vy, 30, 12);
-            paint_number(g, &ui[2], self.def[c], vx + 28, vy + 2);
-            vx = (240 - self.content_w >> 1) + 6;
-            vy += 16;
+            let (mut vx, vy) = self.paint_detail_stats(g, ui, c, vy);
             // paintKeySlot（a.java:6046-6052）：ui[6] 槽位图 + ui[2] 数字（+40/+5）
             for (kind, count) in [(0, self.keys_yellow[c]), (1, self.keys_blue[c]), (2, self.keys_red[c])] {
                 g.set_clip(vx, vy, 18, 16);
@@ -814,6 +752,87 @@ impl SlotSelect {
                 vx += 42;
             }
         }
+    }
+
+    /// m_113 列表段（a.java:9052-9095）：标题盒（`segs` = titleBarSegments 变体）+
+    /// 可见行（选中高亮条/双箭头 + "---" 或 "存档N"）+ 翻页箭头 + 双色分隔线。
+    /// 返回第二条分隔线的 `(lx, ly)`（详情面板锚点）。
+    ///
+    /// m_113 有两条移植——boot 读档 [`Self::paint`] 与场景存档
+    /// `GameScene::paint_slot_list`——本段与 [`Self::paint_detail_stats`] 原为逐字
+    /// 双拷贝，现共用；两者的装备框段**不一致**（场景侧恒画材质名，未移植
+    /// a.java:9116-9123 / 9136-9143 的 sptarm 图标分支），保留各自原状。
+    pub fn paint_list(&self, g: &mut SoftGraphics<'_>, ui: &[ArgbImage], segs: &[i32]) -> (i32, i32) {
+        let x = SCREEN_W - self.content_w - 22 >> 1;
+        let mut y = SCREEN_H - self.content_h >> 1;
+        paint_titled_box(g, &ui[0], &ui[13], segs, x, y, self.content_w + 22, self.content_h);
+        y += 16;
+        for row in self.scroll_top..self.scroll_bottom {
+            if row != self.cursor {
+                g.set_color(crate::layout::SLOT_TEXT);
+            } else {
+                g.set_color(crate::layout::DARK_BACKDROP);
+                g.fill_rect(CENTER_X - (self.content_w >> 1), y, self.content_w, 10 + 4);
+                g.draw_image(&ui[14], CENTER_X - (self.content_w >> 1) + 10, y + (10 - 8 >> 1), 0);
+                let t = crate::paint::NOKIA_TRANSFORM_TABLE[1];
+                g.draw_image_transformed(&ui[14], CENTER_X + (self.content_w >> 1) - 30, y + (10 - 8 >> 1), 0, t);
+                g.set_color(crate::layout::SLOT_TEXT_ACTIVE);
+            }
+            if !self.valid[row as usize] {
+                g.draw_string(&DASH_LABEL, CENTER_X, y + 2, 17);
+            } else {
+                let mut label: Vec<u16> = SAVE_LABEL.to_vec();
+                label.extend((row as u16).to_string().chars().map(|c| c as u16));
+                g.draw_string(&label, CENTER_X, y + 2, 17);
+            }
+            y += 14;
+        }
+        // 翻页箭头（a.java:9080-9087）
+        let ax = CENTER_X + ((self.content_w >> 1) - 10);
+        if self.scroll_top > 0 {
+            crate::paint::draw_image_clipped(g, &ui[15], ax, y - 20, 0, 0, 7, 9);
+        }
+        if self.scroll_bottom < 6 {
+            crate::paint::draw_image_clipped(g, &ui[15], ax, y - 10, 7, 0, 7, 9);
+        }
+        // 分隔线（a.java:9089-9095）
+        let mut ly = y + 2;
+        let lx = ax - self.content_w + 10;
+        g.set_color(crate::layout::SLOT_RULE_DARK);
+        g.draw_line(lx, ly, lx + self.content_w - 1, ly);
+        ly += 1;
+        g.set_color(crate::layout::SLOT_RULE_LIGHT);
+        g.draw_line(lx, ly, lx + self.content_w - 1, ly);
+        (lx, ly)
+    }
+
+    /// m_113 详情面板中段（a.java:9145-9169）：金币行 + HP/攻/防 三围框（槽 `c`）。
+    /// `vy` = 装备框行 y；返回三钥行起点 `(vx, vy)`。两条移植共用（见 [`Self::paint_list`]）。
+    pub fn paint_detail_stats(&self, g: &mut SoftGraphics<'_>, ui: &[ArgbImage], c: usize, vy: i32) -> (i32, i32) {
+        let mut vx = SCREEN_W - self.content_w + 10 >> 1;
+        let mut vy = vy + 20;
+        g.draw_image(&ui[1], vx, vy, 0);
+        vx += 60;
+        paint_number(g, &ui[2], self.gold[c], vx, vy + 2);
+        vx -= 64;
+        vy += 16;
+        crate::paint::draw_image_clipped(g, &ui[7], vx, vy, 0, 2, 10, 10);
+        vx += 15;
+        paint_mini_frame(g, vx - 1, vy, 48, 12);
+        paint_number(g, &ui[2], self.hp[c], vx + 45, vy + 2);
+        vx += 47;
+        crate::paint::draw_image_clipped(g, &ui[7], vx, vy, 10, 0, 10, 13);
+        vx += 11;
+        g.set_color(512);
+        paint_mini_frame(g, vx, vy, 30, 12);
+        paint_number(g, &ui[2], self.atk[c], vx + 28, vy + 2);
+        vx += 32;
+        crate::paint::draw_image_clipped(g, &ui[7], vx, vy, 20, 2, 10, 10);
+        vx += 12;
+        g.set_color(512);
+        paint_mini_frame(g, vx, vy, 30, 12);
+        paint_number(g, &ui[2], self.def[c], vx + 28, vy + 2);
+        ((SCREEN_W - self.content_w >> 1) + 6, vy + 16)
     }
 }
 
@@ -897,8 +916,8 @@ impl OptionList {
 
     /// paint case 16（a.java:2959-2990）。
     pub fn paint(&self, g: &mut SoftGraphics<'_>, ui: &[ArgbImage], font: &crate::render::SoftFont) {
-        let x = 240 - self.box_w - 22 >> 1;
-        let mut y = 320 - self.box_h >> 1;
+        let x = SCREEN_W - self.box_w - 22 >> 1;
+        let mut y = SCREEN_H - self.box_h >> 1;
         paint_box_frame(g, &ui[0], x, y, self.box_w + 22, self.box_h);
         let content_x = x + 11;
         y += 16;
@@ -916,7 +935,7 @@ impl OptionList {
         );
         for i in 0..self.labels.len() {
             let label = OPTION_LABELS[self.labels[i]];
-            let mut lx = 240 - font.string_width(label) - 16 >> 1;
+            let mut lx = SCREEN_W - font.string_width(label) - 16 >> 1;
             g.set_color(crate::layout::WHITE);
             g.draw_string(label, lx, y + 4, 0);
             lx += 2 + font.string_width(label);

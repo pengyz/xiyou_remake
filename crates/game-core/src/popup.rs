@@ -48,7 +48,7 @@ pub struct PopupRing {
 impl PopupRing {
     /// spawnPopup（a.java:9688-9719）。`wx/wy` 为世界坐标（+cam 平移在此发生）；
     /// `digit_w` = map[2][3] 的数字格宽（宽/11）——kind 2/3/4 的 x 居中计算用。
-    pub fn spawn(&mut self, kind: i32, mut value: i32, wx: i32, wy: i32, cam_x: i32, cam_y: i32, digit_w: i32) {
+    pub fn spawn(&mut self, kind: i32, value: i32, wx: i32, wy: i32, cam_x: i32, cam_y: i32, digit_w: i32) {
         let sx = wx + cam_x;
         let sy = wy + cam_y;
         let w = self.write;
@@ -58,6 +58,9 @@ impl PopupRing {
         self.counter[w] = 0;
         self.y[w] = sy;
         if kind == 4 {
+            // a.java:9697-9698 金币弹字定位（draw_digit_strip 自 x 向左绘，故右缘对齐）。
+            // C 类·语义不明：x=240 是"屏右缘"还是"跟随状态栏金币位（STATUS_GOLD_NUM_X
+            // =237，设计常量）"无法判定——扩视口两者分叉，**不**派生 SCREEN_W。
             self.x[w] = 240;
             self.y[w] = 30;
         } else if (5..=7).contains(&kind) {
