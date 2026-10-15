@@ -18,6 +18,9 @@
 - [嵌套 #[test] 被静默跳过](gotcha_nested-test-silently-skipped.md) — 测试 fn 误嵌进上一函数体 ⇒ 编译过、libtest 不发现、假绿可存活多迭代；结论前先 `cargo test <name> -- --list` 核对
 - [场景预置必须带 # preset: 头](gotcha_scenario-preset-header-required.md) — 缺头 ⇒ --scenarios 静默无注入、A==B==C 仍绿但语义漂移；再生 trace 一律走头解析
 - [GameScene rng 必须续接 machine LCG](gotcha_gamescene-rng-must-continue-machine-lcg.md) — Java 单一 gameRandom 连续消费跨模式不重置；场景新建 seed 0 ⇒ 战斗抖动等首个场景消费者序列错位
+- [OS 键盘重复不是 keyPressed](gotcha_os-key-repeat-is-not-keypressed.md) — a.class 未覆写 keyRepeated，长按行走靠 keyHeldCode；壳透传重复 ⇒ 菜单长按连跳/对话连翻（36d1a9d→747ba65 回退）
+- [provision 只认 A-<场景> trace 标签](gotcha_provision-trace-labels-a-stem-only.md) — crates 里 join EV-* trace 路径会让 rust-tests 门禁在 CI 缺夹具时 FAIL；取证期望值嵌常量
+- [ALSA file: 捕获不节流](gotcha_alsa-file-pcm-unthrottled.md) — null 从设备无时钟，壳音频线程全速写 ~500 MB/s；捕获只宜秒级、通路冒烟用 null
 
 ## Patterns
 
@@ -35,6 +38,7 @@
 ## Decisions
 
 - [反编译引擎 CFR→Vineflower](decision_decompiler-cfr-to-vineflower.md) — 实测数据驱动切换；含 iinc-vs-i2b 累加器判定规则（编译零错≠行为一致）
+- [壳音频 dlopen ALSA 而非 rodio/cpal](decision_shell-audio-dlopen-alsa.md) — alsa-sys 构建期要 libasound2-dev，CI 缺包且违反不依赖系统包；运行时 dlopen 零构建依赖（代价：暂仅 Linux）
 
 ## Reference
 

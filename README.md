@@ -45,4 +45,6 @@ CI：`.github/workflows/gates.yml` 在 push/PR 到 `master` 时自动跑 `gates/
 - [~] P3 Rust 改写（game-data ✅；game-core/game-platform 深度进行中——2026-10-11 更正：
       菜单族 mode 4/5/7/8/10/15/16/19 + 场景/浮层/图鉴已复刻，preset 三用例全帧一致，
       oracle 差分 trace 门禁绿；战斗链/boss 链/桌面壳未启动）
+      > 【2026-10-15 更正】桌面壳已可玩（`cargo run -p game-desktop`）：可缩放窗口、Java 输入语义、
+      > BGM（`cargo run --release --manifest-path tools/audio/Cargo.toml` 生成音频产物）。
 - [ ] P4 差分验证全面铺开 → Stage A 完成

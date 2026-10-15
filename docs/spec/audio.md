@@ -122,3 +122,18 @@ T0651 gameMode=1 f_bool_28=false f_byte_28=2         EVT[close(state=400); creat
   （JSR-135 VolumeControl 文档）；壳取幅度乘数 `level/100`（60 ⇒ ×0.6）。
 - 循环：OGG 带 `LOOPSTART/LOOPLENGTH`（样本），壳在 `LOOPSTART+LOOPLENGTH` 处跳回
   `LOOPSTART`；serial 变化或轨道变化 ⇒ 从头播放，否则续播。
+- 输出（`crates/game-desktop/src/audio.rs`，747ba65）：`BgmController` 每逻辑拍轮询
+  `bgm_request/bgm_serial/bgm_volume`，仅在变化时发 `Play/Stop`；音频线程 `Mixer` 按循环
+  区间渲染、`level/100` 增益；Linux 运行时 dlopen `libasound.so.2`（ALSA PCM，S16_LE
+  44.1 kHz 立体声、100 ms 时延）——不用 rodio/cpal：其 alsa-sys 构建期依赖
+  libasound2-dev + pkg-config（违反 tools/README「不依赖系统包」，CI 镜像亦缺）。
+  缺产物/缺库/非 Linux ⇒ 打印原因与再生命令后无声运行（`--mute`、`--audio-device` 可选）。
+  读档/新游戏交接时 `sc.bgm = machine.bgm.clone()`（Java 为同一对象，状态连续）。
+- 失焦冻结：`view::Pacer` 停出拍 + `BgmController::set_paused`（音频线程 snd_pcm_drop，
+  保持播放位置；回前台续播）。
+- 端到端实证（A 级，2026-10-15）：Xvfb 下以 ALSA `file:` 插件捕获壳实际写出的 PCM，
+  前 2,000,000 样本（22.7 s）与 lewton 解码 track2 × 0.6 **逐样本一致（0 失配）**；失焦
+  1.5 s 内写出 0 字节且帧哈希不变、回焦恢复。注意：`file:`（null 从设备）**不节流**，
+  实测 ~500 MB/s 写盘，捕获只宜秒级（docs/knowledge/gotcha_alsa-file-pcm-unthrottled.md）。
+- 壳集成测试 `hold_walk_and_bgm_match_java_trace`：真 BootMachine→读档交接→GameScene，
+  BGM 命令拍 = Java EVT（menu@T71 createPlayer、game@T237 close+createPlayer）。
