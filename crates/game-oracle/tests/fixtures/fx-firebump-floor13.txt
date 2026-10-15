@@ -1,0 +1,22 @@
+# ticks: 480
+# preset: fx-firebump-floor13.preset
+# cover: 移植缺口复现（判据①收口 2026-10-15 副产物，BLOCKED）：槽载入 floor13 (6,7) 朝上（上邻
+#   (6,6) = 型10 三昧真火）→ -1 撞击 ⇒ interactWithCell case10（a.java:5436-5440）：提示浮层
+#   「障碍物：三昧真火\n必须用芭蕉扇才能熄灭它. 」+ 阻挡（var6=false）→ -5 关浮层 → -1 再撞 → 收尾。
+#   Rust：crates/game-core/src/scene.rs interact_with_cell cat1 `_ => {} // 11 / 76/82：后续批次`
+#   吞掉型 10/11/12 撞击臂（无 todo! 标记）⇒ T301 起帧分歧（2026-10-15 实测）。
+#   preset：python3 tools/frames_fixture.py preset floor=13 min=1 max=13 x=6 y=7 facing=1
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -1 press
+302 -1 release
+360 -5 press
+362 -5 release
+420 -1 press
+422 -1 release

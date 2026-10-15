@@ -43,9 +43,9 @@ cat8 战斗 + cat16 商人）与 applyStepCellEffects（:5637-5715，case 1-8/76
 | 7 | 上楼梯 | ✅ | floor_crossing 楼梯往返 |
 | 8 | 下楼梯 | ✅ | 同上 |
 | 9 | 炼丹炉 | ✅ | mode9 全流程（alchemy） |
-| 10 | 云雾(三昧真火) | ⬜ | bump case10 提示浮层；与 16 芭蕉扇联动——delta |
-| 11 | 能挖的墙 | ⬜ | bump case11 + **currentFloor!=23 层条件**（§4）——delta |
-| 12 | 隐形墙 | ⬜ | 图=型11 别名；bump case12 语义待查——delta |
+| 10 | 云雾(三昧真火) | ⬜ | bump case10 提示浮层；与 16 芭蕉扇联动——delta。【2026-10-15】移除臂（芭蕉扇 m_089 命中）✅ 夹具场景 fx-fan-floor13；**撞击臂 Rust 未移植**（a.java:5436-5440；scene.rs cat1 `_ => {} // 11 / 76/82：后续批次` 吞掉，无 todo!）——帧级复现 fixture_frames::fx_firebump_floor13_frames_match（#[ignore] BLOCKED，首分歧 T301），矩阵 §5.1 |
+| 11 | 能挖的墙 | ⬜ | bump case11 + **currentFloor!=23 层条件**（§4）——delta。【2026-10-15】撞击臂同 10 被 `_ => {}` 吞（代码阅读 B 级，矩阵 §5.1） |
+| 12 | 隐形墙 | ⬜ | 图=型11 别名；bump case12 语义待查——delta。【2026-10-15】case12 = 显形为型11（state2/row9/visible）+ 阻挡（a.java:5449-5456）；Rust 同被 `_ => {}` 吞（B 级，矩阵 §5.1） |
 | 76 | 路点 | ✅ | floor35/42/46 wp4 组门踏板 |
 | 81 | 封印门(隐形) | ✅ | floor10 隐形81 |
 | 82 | 传怪点 | ⬜ | case82 spawn+hidden；出层层待普查——delta |
@@ -58,15 +58,15 @@ cat8 战斗 + cat16 商人）与 applyStepCellEffects（:5637-5715，case 1-8/76
 | 13 | 火眼金睛 | ✅ | item13 用例 |
 | 14 | 生死簿 | ⬜ | delta |
 | 15 | 筋斗云 | ⬜ | delta |
-| 16 | 芭蕉扇 | ⬜ | 与型10 联动——delta |
-| 17 | 金勺子 | ⬜ | 凿墙联动型11——delta |
-| 18 | 玄明石 | ⬜ | 同上——delta |
+| 16 | 芭蕉扇 | ✅ | 【2026-10-15】使用臂 m_089(10) 未命中提示 / 命中灭火两臂 ✅ 夹具场景 fx-fan-floor13（T1-830 全帧，preset 道具栏预置）；正常游玩来源 = 杨戬(69) 击杀 spawnBossEvent(4)（§5 更正） |
+| 17 | 金勺子 | ⬜ | 凿墙联动型11——delta。来源 = 啸天犬(67) 击杀 spawnBossEvent(3)（§5 更正） |
+| 18 | 玄明石 | ⬜ | 同上——delta。来源 = 天宫商人(78) 报价 13 → pickupItemType(18)（a.java:7432，§5 更正） |
 | 19 | 千年月桂露 | ⬜ | delta |
 | 20 | 相形变位 | ✅ | floor42 script14 ROS_4_1（脚本侧使用） |
 | 21 | 上行符 | ⬜ | delta |
-| 22 | 下行符 | ⬜ | delta |
+| 22 | 下行符 | ⬜ | delta。来源 = script25 `CES_22_6_6`（§5 更正） |
 | 23 | 太公杖 | ⬜ | delta |
-| 24 | 捆仙绳 | ⬜ | delta |
+| 24 | 捆仙绳 | ⬜ | delta。来源 = 玉皇大帝二阶段(71) 击杀 spawnBossEvent(5)（§5 更正） |
 | 25 | 幸运币 | ⬜ | delta |
 | 26 | 黄钥匙 | ✅ | 拾取常见 |
 | 27 | 红钥匙 | ✅ | 拾取常见 |
@@ -94,7 +94,7 @@ cat8 战斗 + cat16 商人）与 applyStepCellEffects（:5637-5715，case 1-8/76
 
 | 型 | 名 | 状态 | 证据/注 |
 |---|---|---|---|
-| 60 | 兜率宫星君 | ✅ | floor41/44/46 战 |
+| 60 | 兜率宫星君 | ✅ | floor41/44/46 战；【2026-10-15】步邻效果臂（applyStepCellEffects 上邻击退 m_101 + 扣血 200，a.java:5600-5631）✅ 夹具场景 fx-knockback-floor43（可退 / 墙挡两臂，T1-600） |
 | 61 | 无量护法 | ✅ | floor42/45/49 战 |
 | 62 | 兜率宫老仙 | ✅ | floor41/44/48 战 |
 | 63 | 二郎执旗将 | ✅ | floor47 (11,6) 战（迭代 79；出生口袋唯一出口=楼梯的又一例） |
@@ -137,7 +137,10 @@ cat8 战斗 + cat16 商人）与 applyStepCellEffects（:5637-5715，case 1-8/76
 | 84 | 嫦娥 | ⬜ | 图 sptenemy2[18]；出层层待普查——delta |
 | 87 | 菩提老祖 | ⬜ | 图 sptenemy2[19]；出层层待普查——delta |
 
-## 2. 脚本 DSL 臂账本（15 码）
+## 2. 脚本 DSL 臂账本（16 码）
+
+> 【2026-10-15 更正】原题「15 码」漏列第 16 码 **MVS**（executeScriptInstruction a.java:8354
+> `!var3.equals("MVS")` 的 else 臂，型 82 传怪点配对换格 → m_107）——覆盖矩阵审计发现，补登于表末（☠️）。
 
 | 码 | 状态 | 证据/注 |
 |---|---|---|
@@ -149,18 +152,36 @@ cat8 战斗 + cat16 商人）与 applyStepCellEffects（:5637-5715，case 1-8/76
 | GLV | ✅ | 同上 |
 | SWD | ✅ | floor10 变换 + 型11 全场清除臂 |
 | END | ✅ | 序章 script40 入口 |
-| MOV | △ | dp3 脚本行走 ✅；dp2=m_106 五参实体路径缓动 ⬜（挂起账本） |
+| MOV | ✅ | dp3 脚本行走 ✅（【2026-10-15】玩家三参 MOV 的 advanceScriptWalk 臂 ✅ 夹具场景 fx-scriptwalk-floor3：floor3 script0 `MOV_0_5_11`）；dp2=m_106 五参实体路径缓动 ⬜（挂起账本）【2026-10-15 更正：△→✅】6a37155 移植 m_106 + m_108，mov_route_scene floor2（script1/2 型72）/ floor40（script12 伏击 13 战）全帧绿 |
 | GIN | ⬜ | 待普查触发层 |
 | LAY | ⬜ | 同上 |
 | RES | ⬜ | 同上 |
 | SEE | ⬜ | 同上 |
 | SMS | ⬜ | 同上 |
 | ADD | ⬜ | 同上 |
+| MVS | ☠️ | 【2026-10-15 补登】死指令：68 条脚本（a.java:1124-1193）零出现且脚本文本源封闭（字节码 MVS 引理 L1-L5）——终裁 DC-2（[dead-code-rulings.md](dead-code-rulings.md)）；Rust 不移植（script.rs 已注） |
 
 ## 3. 模式面
 
 引用 completeness.md §3.1 模式矩阵（B 维主表）。死内容终裁台账：mode13/99
 （☠️ 已裁死）、mode18 火花（☠️ 死代码 A 级）、mode19 商店场景（零覆盖待裁）。
+
+### 3.1 死代码终裁销账（覆盖矩阵白项 b 类，2026-10-15）
+
+裁决书：[dead-code-rulings.md](dead-code-rulings.md)（主张/证据/可复现命令/结论）；机械复核
+`python3 tools/dead_code_ruling.py --check`（字节码 CFG + 字段值域不动点：168 方法中证死恰为下表 10 个）；
+cover_matrix.py 渲染时三重校验（字节码证死 + 裁决书节锚 + JDI 51 场景零触达）后记 ☠️，不计判据①赤字。
+
+| 裁决 | 方法 | 关联面 | 状态 | 切断点（字节码） |
+|---|---|---|---|---|
+| DC-1 | m_093（现名 drawLeftTriangleArrow） | walkPhase 3 道具轮盘（绘制臂 + run 键处理臂） | ☠️ | V(walkPhase)={0,1,2,4,5}：paintPlayerSprite@815 tableswitch 键 3 死边 |
+| DC-2 | m_107 | DSL 第 16 码 MVS（§2） | ☠️ | MVS 引理：executeScriptInstruction@669 相等分支死（脚本文本源封闭、68 条零 MVS） |
+| DC-3 | m_148 / m_149 / m_150 / m_151 / m_152 / m_153 / m_154 | 联网簇 + mode 99 | ☠️ | V(gameMode)∌99：run@674 键 99 死边；V(f_bool_31)={0}：run@4 ifeq 恒跳（唯一置真点在 m_153 内，自锁） |
+| DC-4 | addSpark | mode 18 火花层 | ☠️ | V(gameMode)∌18：paint@30 键 18 死边 |
+
+> 销账口径：上表 10 方法自覆盖矩阵「白·b 不触达论证候选」转「白·b ☠️ 已裁死」（白项计数不变、判据①赤字扣除）；
+> mode 13/18/99 的「全量 grep 无入口」论证同步升级为字节码值域证明（gameMode 值域
+> {0-5,7-12,14-17,19-22}，计算来源 menuReturnMode∈{0,1,4} / loadTargetMode∈{0,3} / inGameMenuReturnMode←gameMode）。
 
 ## 4. 层条件分支账本（17 处 currentFloor + 层相关 renderCategory）
 
@@ -192,6 +213,13 @@ cat8 战斗 + cat16 商人）与 applyStepCellEffects（:5637-5715，case 1-8/76
   22 下行符、24 捆仙绳、25 幸运币、82 传怪点、87 菩提老祖——54 层实体表均无。
   注：82 在 m_122 隐藏列表（5/81/6/12/76/82/83）且 bump 臂存在 ⇒ 可能脚本
   显形而非死代码；16/17/18/22/24/25 疑脚本授予（GIN?）或死内容——逐个终裁。
+  > 【2026-10-15 更正】「零出现」只对 spriteN **初始布置**成立，不等于无来源——5 个已查到运行期来源，
+  > 均非死内容：16 ← 杨戬(69，floor35) 击杀、17 ← 啸天犬(67，floor15) 击杀、24 ← 玉皇大帝二阶段(71) 击杀
+  > （floor49：case61 钩子 a.java:10127 生成；floor53 的 71 因 currentFloor>50 不发事件）——tickBattle 击杀钩子
+  > a.java:10059-10068 按 bossTypeOrder {75,74,68,67,69,71}（:2198）调 spawnBossEvent(i)，bossEventSpawns[4]/[3]/[5]
+  > 分别为 16@(5,5)/17@(6,4)/24@(6,2)（:2041 表）；18 ← 天宫商人(78) 报价 13（applyMerchantOffer
+  > `pickupItemType(18)` a.java:7432）；22 ← script25 `CES_22_6_6`。余 25/82/87 在 CES/ADD 脚本、bossEventSpawns、
+  > 商人报价、GIN 四类来源中均未见（非穷举，仍为候选）；82 另有 MVS 臂引用但 MVS 已证死（DC-2）。
 - **boss 单点层**：68 太上老君 = floor25 独有；71+74 = floor53；84 嫦娥 =
   floor16/26/36；86 钹 = floor37 独有。
 - **最小道具层**：floor13 = [1,7,8,10,36]（云雾+道袍，4 层最小）；12 隐形墙 +
@@ -211,6 +239,8 @@ cat8 战斗 + cat16 商人）与 applyStepCellEffects（:5637-5715，case 1-8/76
 4. **B4 脚本臂批**：GIN/LAY/RES/SEE/SMS/ADD 普查→触发或终裁；零出现型
    16/17/18/22/24/25/82/87 逐个终裁（脚本授予 vs 死内容）；m_102 跨层快照、
    dp2=m_106 随触发层。
+   > 【2026-10-15】零出现型中 16/17/18/22/24 已查到运行期来源（非死内容，见上「零出现型」更正），终裁对象
+   > 缩为 25/82/87；DSL 第 16 码 MVS 已 ☠️ 终裁（§2、§3.1 DC-2）。
 5. 每批完成：账本翻格 + 证据回填；无人触达的 ⬜ 逐个 ☠️ 终裁或补用例。
 
 ## 6. 层普查派生覆盖规则

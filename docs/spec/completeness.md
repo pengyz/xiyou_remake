@@ -645,17 +645,17 @@
 | 10 | 道具面板 | ✅ | L3 | scenario:`preset-item13.txt` |
 | 11 | 对话/剧情层 | ✅（scene script/mode11 + BootMachine 新游戏链） | L3 | scenario:`prologue-dialog.txt`——迭代 37 起 Rust **全流程 T1-9800**（preset_cases::prologue，冷启动移交 + type83→script40 + 打字机/游标/翻页/电影镜头）；旧冷场景窗口版退役 |
 | 12 | 道具14 记录浏览器 | ✅（迭代 59：activate_item case14 + m_076 + paint case12 + m_142 描边文字 + 日志槽解析） | L3 | scenario:`preset-floor5.txt`——Rust **T1-1200 全帧**（拾取道具14@floor5(4,9)→面板→使用→mode12 翻页/关闭） |
-| 13 | 过渡（paint 仅视差，a.java:2881-2882） | ❌ 死内容 | — | 全量 grep 无 `gameMode = 13` 入口（2026-10-13）——不可达 |
+| 13 | 过渡（paint 仅视差，a.java:2881-2882） | ❌ 死内容 | — | 全量 grep 无 `gameMode = 13` 入口（2026-10-13）——不可达。【2026-10-15 升级】字节码值域证明：putfield gameMode 54 处值域 {0-5,7-12,14-17,19-22}（含计算来源闭包）∌ 13 ⇒ ☠️（[dead-code-rulings.md](dead-code-rulings.md) DC-3 值域；mode 13 无专属方法） |
 | 14 | 新游戏引子插画 | ✅ BootMachine | L3 | scenario:`enter-game.txt` |
 | 15 | 帮助浮层 | ✅ | L3 | scenario:`preset-help.txt` T450-700 |
 | 16 | 设置 | ✅ | L3 | scenario:`preset-load-menu.txt` |
 | 17 | 关于 | ✅ BootMachine | L3 | scenario:`menu-sweep.txt`（boot_replay 全量重放至 T1832） |
-| 18 | 粒子特效层 | ✅（title::Particles：32 槽环 + fillRect + velX 摆动/size 增长消亡，a.java:9830-9873） | L3 | scenario:`boot-menu.txt` T1-150（含 T72+ 菜单粒子窗全帧绿，boot_replay）+ case14 引子（prologue T1-9800）——台账原 ❌ 系陈旧误报（2026-10-13 更正）。【2026-10-15 更正】本行把 mode 1/14 的标题粒子（paint a.java:2374/2955 调 updateAndDrawParticles）与 paint case 18（a.java:3003-3038 火花层，唯一调 addSpark）混为一谈：javap 普查 putfield gameMode 54 处无 18（含计算来源）⇒ **mode 18 不可达、❌ 死内容**（同 13/99；type-closure §3 已记 ☠️）；粒子系统 L3 归 mode 1/14。证据见 §3.4 |
+| 18 | 粒子特效层 | ✅（title::Particles：32 槽环 + fillRect + velX 摆动/size 增长消亡，a.java:9830-9873） | L3 | scenario:`boot-menu.txt` T1-150（含 T72+ 菜单粒子窗全帧绿，boot_replay）+ case14 引子（prologue T1-9800）——台账原 ❌ 系陈旧误报（2026-10-13 更正）。【2026-10-15 更正】本行把 mode 1/14 的标题粒子（paint a.java:2374/2955 调 updateAndDrawParticles）与 paint case 18（a.java:3003-3038 火花层，唯一调 addSpark）混为一谈：javap 普查 putfield gameMode 54 处无 18（含计算来源）⇒ **mode 18 不可达、❌ 死内容**（同 13/99；type-closure §3 已记 ☠️）；粒子系统 L3 归 mode 1/14。证据见 §3.4。【2026-10-15 终裁】☠️ DC-4（addSpark，[dead-code-rulings.md](dead-code-rulings.md)） |
 | 19 | 商店 | ✅ enter/paint（Rust 侧） | ❌ 不可达死内容 | 原版 kind11（商店）从未加入任何菜单（a.java:4305-4333/4437-4441 全量 addMenuItem 核对，迭代 41）——activateMenuItem case11（a.java:4775）为死臂；Rust enter_menu19 同为死码保真 |
 | 20 | 结束/退出确认（结局卷轴） | ✅（迭代 57 实现：paint/tick/END 入口 + SceneImages.ending） | L3 | scenario:`preset-ending.txt`——迭代 58 起 Rust **T1-1800 全帧**（终局链：撞格83→script16 五页→GUT_37/GLV_1 冻结→型72 cat8 开战→case72→script65→END→mode20 打字机卷轴；L2\* 过渡态消灭） |
 | 21 | 音效询问 | ✅ BootMachine | L3 | 全部 preset 场景 T66-70 |
 | 22 | 退出淡出 70 帧 | ✅ BootMachine | L3 | scenario:`menu-sweep.txt` T1762-1832（boot_replay 终点断言） |
-| 99 | paint 特殊屏 | ❌ 死内容 | — | 全量 grep 无 `gameMode = 99` 入口（2026-10-13）——不可达 |
+| 99 | paint 特殊屏 | ❌ 死内容 | — | 全量 grep 无 `gameMode = 99` 入口（2026-10-13）——不可达。【2026-10-15 终裁】☠️ DC-3（字节码值域 ∌ 99 + f_bool_31 自锁；连带联网簇 m_148-m_154 七方法，[dead-code-rulings.md](dead-code-rulings.md)） |
 
 L2* = Java 三方对拍绿但 Rust 侧未建用例（覆盖声明的过渡态）。
 
@@ -664,6 +664,8 @@ L2* = Java 三方对拍绿但 Rust 侧未建用例（覆盖声明的过渡态）
 - DSL 15 码：TAK/CES/MOV/DES/GIN/LAY/ROS/RES/GUT/SEE/END/GLV/SMS/SWD/ADD。
   已在 Java 侧验证 trace 中出现（prologue/gameplay 系列）；**Rust 解释器覆盖
   以 game-core script 引擎对拍为准——逐码登记待迭代 29+ 细化**。
+  > 【2026-10-15 更正】实为 16 码：另有 **MVS**（a.java:8354 else 臂 → m_107），68 条脚本零使用、脚本文本源封闭
+  > ⇒ ☠️ 死指令（DC-2，[dead-code-rulings.md](dead-code-rulings.md)）；逐码账本已迁 type-closure §2（16 码）。
 - 楼层：**L3 对拍达成 11/55（floor1、2、5〔道具14/mode12，迭代 59〕、
   10〔哪吒+门卫环+SWD，迭代 65，T1-1200 全帧〕、12〔炼丹，迭代 31〕、
   42〔DES 剧情移除双 boss，迭代 69，T1-1700 全帧〕、
@@ -719,6 +721,7 @@ L2* = Java 三方对拍绿但 Rust 侧未建用例（覆盖声明的过渡态）
 | v1（迭代 72，人工分组） | 44 | 1 | 58 | 103 伪名（v1 取名 bug：多参方法被吞成末参类型名） |
 | v2（前任刷账：JDI 触达 + 朴素行锚） | 133 | 7 | 23 | 163 方法（javap name+descriptor） |
 | **v2.1（本次：行锚归属治理 + 三分账）** | **143** | **7** | **13** | 同上；白 = a 3 / b 10 / 未分账 0 |
+| **判据①收口（2026-10-15 二次刷账，见本节末）** | **151** | **1** | **11** | 同上；白 = a 1 / b ☠️ 10（终裁）；黄 1 带论证 ⇒ 判据①赤字 1 |
 
 44/1/58 → 133/7/23 主因"账面滞后"（v1 人工分组漏账 + 伪名 bug，v1 白中 102 个真实方法现为绿）；
 133/7/23 → 143/7/13 = c 类 11 项解决（10 绿 1 黄）+ addSpark 黄→白（唯一证据是漂移锚）。
@@ -782,15 +785,18 @@ L2* = Java 三方对拍绿但 Rust 侧未建用例（覆盖声明的过渡态）
 - 黄 7：3 项补帧用例即转绿（m_076、addItemToItemStack ← preset-floor5；m_102 ← preset-floor49，A-trace 均已存在）；
   4 项无任何场景触达（hideNotify、advanceScriptWalk、m_089、m_101），需新场景或不触达论证。
 - ⇒ 判据①剩余 = a 3 + b 10 终审 + 黄 7（3 补用例 / 4 论证或新场景）。
+  > 【2026-10-15 收口】b 10 已 ☠️ 终裁、黄 7 → 绿 6 + 论证 1；m_106 + m_108 已由 6a37155 移植并转绿 ⇒ 判据①剩余 =
+  > **a 1**（saveGlobalProgress，壳层 SKY_WAR；见本节末「判据①收口」）。
 
 **更正与顺带发现**（B 级，待定级；不在本次写入范围者只登记）
 - §3.1 mode 18 行已原地更正：mode 18 不可达（javap 普查），粒子系统 L3 归 mode 1/14。mode 13/99 的"全量 grep
   无入口"同法升级为 javap 普查——gameMode 写点常量 ∈{0-5,7-12,14-17,19-22}，计算来源 menuReturnMode∈{1,4}、
   loadTargetMode∈{3}、inGameMenuReturnMode←gameMode（无 6/13/18/99）。
 - DSL 实有第 16 码 MVS（a.java:8351 `!var3.equals("MVS")` 的 else 臂：型 82 配对换格），68 条脚本零使用 ⇒ 死指令；
-  type-closure §2 只列 15 码，待补登。
+  type-closure §2 只列 15 码，待补登。【2026-10-15 已补登】type-closure §2（16 码，MVS ☠️ DC-2）。
 - readU16BE 名实不符：方法体读 u16 **LE**（低字节先，a.java:6950；有符号 i2s），名为 BE，台账 N-0268 证据
-  "read()<<8|read()" 与字节码相反——命名台账疑误，待命名批复核。
+  "read()<<8|read()" 与字节码相反——命名台账疑误，待命名批复核。【2026-10-15 已更正】276ac96 改名 readShortLE
+  （N-0268 名实 + 证据更正）；矩阵 TRIAGE 随之改键。
 - crates/game-core/src/save.rs 模块文档的 SKY_WAR 布局写错：实为 bool×4 + byte 计数 + 计数×int + int×3
   （a.java:4463-4474 读 / 8928-8939 写）。
 - Rust 侧静默简化（无 todo! 标记）：① scene.rs 层存档恢复的 floor2 特例忽略 scriptLineFlags[26]（注"按 false
@@ -800,19 +806,61 @@ L2* = Java 三方对拍绿但 Rust 侧未建用例（覆盖声明的过渡态）
 **遗留**
 1. Rust 侧动态覆盖：按用例采 Rust fn 执行集（如 cargo llvm-cov），与 Java 触达集逐方法求交——把"静态移植证据"
    升级为"同用例双侧执行"，消除上述剩余风险。
-2. b 10 终审（☠️ 化）+ type-closure §2 补 MVS 码。
-3. 黄 7：preset-floor5 / preset-floor49 补 Rust 帧用例；其余 4 项论证或新场景。
+2. b 10 终审（☠️ 化）+ type-closure §2 补 MVS 码。【2026-10-15 销账】见下「判据①收口」①③。
+3. 黄 7：preset-floor5 / preset-floor49 补 Rust 帧用例；其余 4 项论证或新场景。【2026-10-15 销账】见下②。
 4. `tools/method_reach.py --rev REV --only 场景` 已可用（历史版场景同预算重测 + 与现行快照逐方法对比，不入快照；
    `--rev HEAD` 自测与快照逐方法一致）；尚未接入 cover_matrix（历史账面整表复算）。
 5. 验证源盲区：矩阵只认 `crates/game-oracle/tests` 里读 `_out/A-*` 的帧用例。同日新增的
    `crates/game-core/tests/slot_equip_scene.rs`（夹具内嵌 Java 帧、场景脚本在 tests/fixtures/ 而非 scenarios/）对
    method_reach / collect_tests 不可见——其覆盖的 m_113/markSlotEntry 已由他例转绿，色不受影响，但口径缺口应补
-   （并入 scenarios/，或让两工具识别夹具场景）。
+   （并入 scenarios/，或让两工具识别夹具场景）。【2026-10-15 销账】两工具已识别夹具场景/夹具帧用例（下④）。
+
+**判据①收口（2026-10-15 二次刷账，基线 47169cc）**——账面 151 / 1 / 11，白 = a 1 + b ☠️ 10，黄 1 带论证 ⇒ 判据①赤字 1
+
+① **b 10 死代码终裁 ☠️**：裁决书 [dead-code-rulings.md](dead-code-rulings.md)（DC-1 m_093 / DC-2 m_107 / DC-3 联网簇
+   m_148-m_154 / DC-4 addSpark，逐项主张/证据/可复现命令/结论）。证据从「javap putfield 普查」升级为机械证明：
+   `tools/dead_code_ruling.py`（两 class 的 CFG + 字段值域不动点 + MVS 字符串数据域引理，3 轮收敛）在 168 方法中证死
+   **恰为这 10 个**；JDI 49 场景零触达互证。cover_matrix 渲染时三重校验（字节码证死 + 裁决书节锚四段 + 零触达），
+   不成立即 ⚠ 退回待裁。type-closure §3.1 销账。
+② **黄 7 处置**：6 项转绿——m_076 / addItemToItemStack ← preset-floor5、m_102 ← preset-floor49（迭代 59/66 原用例在
+   35e779f / 308765f 改作他用后缺位，夹具化恢复：帧期望自 A-trace 抽取入 `crates/game-oracle/tests/fixtures/*.frames.txt`，
+   帧链 = 快照）；advanceScriptWalk ← fx-scriptwalk-floor3（floor3 script0 玩家三参 MOV 两步）、m_101 ←
+   fx-knockback-floor43（型60 上邻击退：可退 / 墙挡）、m_089 ← fx-fan-floor13（芭蕉扇未命中 / 命中两臂）——三个新夹具
+   场景，Java A/B/C 三方 trace 逐字节一致后抽帧（`tools/frames_fixture.py gen`，隔离工作区，不碰 `_out/`），Rust
+   `crates/game-oracle/tests/fixture_frames.rs` 全帧绿。1 项论证——hideNotify：字节码唯一调用者 CMidlet.pauseApp@4 +
+   平台离屏回调；oracle 驱动面只有按键事件（Runner/shim 无 pauseApp/hideNotify 调用，矩阵渲染时机械校验）⇒ 场景不可达
+   但**非死代码**；语义由 game-desktop 宿主测试覆盖（ab8368a；gameMode 3→4 臂 47169cc 接通后
+   `hide_in_mode3_opens_in_game_menu` 摘 #[ignore]）。
+③ **MVS 第 16 码入账**：type-closure §2 改 16 码（MVS ☠️ DC-2）；§3.2 原地更正。
+④ **工具口径**：cover_matrix 扫 game-oracle + game-core 两测试目录、识别夹具帧用例（`assert_eq!(sha, rec.sha…)` +
+   `<stem>.frames.txt`，夹具帧链须 = 实测帧链）、只认 git 已追踪文件（并行在制测试不进账面）；method_reach 测量夹具场景
+   （`crates/*/tests/fixtures/<stem>.txt` + 同名 `.frames.txt`，帧对照以夹具为准）；PORT_CRATES 删去不存在的 game-wasm；
+   新增 YELLOW_NOTES（黄项论证机械校验）与 ARM_GAPS（无 todo! 臂缺口登记，矩阵 §5.1）。夹具帧用例另认「规格常量式」
+   （mov_route_scene.rs：`const FLOOR2: Spec = Spec { frames: include_str!(…), ticks: N }` + 辅助函数内帧断言与
+   `checked == spec.ticks` ⇒ 窗口 [1, N]）。抗改名：人工条目键与裁决对象经台账旧名→现名映射；v1 伪名钉 2eed129、
+   v2 口径行号钉 a97d70e（dc470b2 批量改名 + deobf +3 行漂移后 v1 44/1/58 不变）。
+⑤ **新发现（A 级帧证，未修——game-core/src 不在本任务范围）**：interactWithCell 型 10/11/12 撞击臂未移植——
+   scene.rs cat1 `_ => {} // 11 / 76/82：后续批次` 吞掉（无 todo!，此前无场景撞击故全绿）；型10 帧级复现
+   `fixture_frames::fx_firebump_floor13_frames_match`（#[ignore] BLOCKED，首分歧 T301 = Java 提示浮层），11/12 同臂
+   （B 级）。补臂后摘 #[ignore] 即验收。
+⑥ **更正**：type-closure §5「零出现型 ☠️ 候选」中 16/17/18/22/24 有运行期来源（boss 击杀事件 / 商人报价 / CES 脚本），
+   非死内容，原地更正；余 25/82/87。
+⑦ 剩余赤字 a 1：saveGlobalProgress（壳层 SKY_WAR 读写，3d42310 起 save.rs 布局备忘引其行锚——名证锚机械命中但
+   注释明言「既不编码也不解码」，PORT_NOTES not-ported 压制）。m_106 + m_108 已由 6a37155 移植，经 mov_route_scene
+   夹具帧用例（规格常量式，本次口径扩展识别）转绿；dp2 挂起项落地。
+⑧ 名称口径：本节方法名为裁决/取证时名；dc470b2（语义命名第二批）后 m_093 = drawLeftTriangleArrow、m_076 =
+   browseOfferQueue、m_102 = probeCrossFloorSnapshot（矩阵按现名渲染，cover_matrix / dead_code_ruling 经台账自动映射
+   旧名，v1 复算伪名同样回溯，44/1/58 不变）。顺带发现（B 级，data/naming 不在本任务写入范围）：同批 N-0434 把 m_001
+   命名 **readCountPrefix** 疑名实不符——方法体是 packed 图像容器装载（resourceNames[i] 流内逐张 u16 LE 长度前缀 +
+   Image.createImage，a.java:4516-4549），非「读计数前缀」，待命名批复核。
 
 复现：
 ```
 python3 tools/method_reach.py --check      # 快照与场景/预置/改名类一致
 python3 tools/cover_matrix.py --check      # 账面一致（Rust 行号/锚计数漂移归一化）
+python3 tools/dead_code_ruling.py --check  # b 类 10 方法字节码证死（裁决书 dead-code-rulings.md）
+python3 tools/frames_fixture.py check crates/game-oracle/tests/fixtures/fx-fan-floor13.frames.txt \
+    --script crates/game-oracle/tests/fixtures/fx-fan-floor13.txt          # 夹具自洽（其余夹具同式）
 J="javap -p -c analysis/rename-pipeline/renamed/a.class"
 $J | grep -B1 'putfield.*Field walkPhase:' | grep -v 'putfield\|^--' | sed -E 's/^ *[0-9]+: *//' | sort | uniq -c   # 无 iconst_3
 $J | grep -B1 'putfield.*Field gameMode:'  | grep -v 'putfield\|^--' | sed -E 's/^ *[0-9]+: *//' | sort | uniq -c   # 无 18/99

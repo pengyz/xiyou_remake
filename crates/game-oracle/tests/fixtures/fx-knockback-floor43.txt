@@ -1,0 +1,20 @@
+# ticks: 600
+# preset: fx-knockback-floor43.preset
+# cover: 黄项 m_101 场景触达（判据①收口 2026-10-15）：槽载入 floor43 (3,5) 朝右 → -4 步入 (4,5)
+#   （正上方 (4,4) = 型60）→ applyStepCellEffects 60 邻接臂（a.java:5600-5620：未着 40 甲 ⇒ 四邻
+#   计数 + 上邻调 m_101）→ m_101(4,3,idx)（a.java:8631-8638：(4,3) 可走无实体 ⇒ pullEntityFromCell +
+#   spawnEntity(60,(4,3)) + markEntityDesRemoved）→ 计数>0 扣血 200（a.java:5628-5631）→ 等待
+#   DES 动画 → -1 步入 (4,4) 再触发 60 邻接臂 → 收尾静态。
+#   preset：python3 tools/frames_fixture.py preset floor=43 min=1 max=43 x=3 y=5 facing=2
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -4 press
+302 -4 release
+420 -1 press
+422 -1 release

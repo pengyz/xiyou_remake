@@ -8,6 +8,9 @@
 1. **覆盖矩阵无白项**：`tools/cover_matrix.py` 产出的 Java 方法×状态三色
    账（绿=移植+场景已验 / 黄=移植+未验证 / 白=未移植）无白项，黄项全部
    带不触达论证（tools/ 生成，本文 §3.1）。
+   > 【2026-10-15 进度】白项中死代码按 ☠️ 终裁口径不计赤字（裁决书 docs/spec/dead-code-rulings.md，
+   > `tools/dead_code_ruling.py` 机械复核）。现账 绿 151 / 黄 1 / 白 11：白 = a 1（saveGlobalProgress 壳层
+   > SKY_WAR；m_106 + m_108 已于 6a37155 移植转绿）+ b ☠️ 10；黄 1 = hideNotify（带不触达论证）⇒ **判据①赤字 1**。
 2. **状态差分零行为分歧**：全部已铺层场景的 A-trace ↔ Rust 状态向量
    逐 tick 逐字段比对（tools/statediff.py），白名单外零分歧（白名单条目
    逐条带理由，登记于 statediff.py SKIP+本文附录）。
@@ -23,7 +26,7 @@ Stage B（现代化）在 Stage A 四条达成后另行立项，不在本计划�
 
 | 支柱 | 工具 | 作用 |
 |---|---|---|
-| 覆盖矩阵（层次一） | tools/cover_matrix.py（待建，P0） | 静态账本：遗漏从运气变赤字 |
+| 覆盖矩阵（层次一） | tools/cover_matrix.py（待建，P0）【2026-10-15 更正：已建，v2.1 + ☠️ 终裁/夹具帧口径】 | 静态账本：遗漏从运气变赤字 |
 | 状态差分（层次二） | state_dump.rs + tools/statediff.py（已落地） | 潜差首 tick 按字段名暴露 |
 | 场景驱动 | 铺层 playbook（git show 基线派生测试块） | 驱动力；由矩阵赤字定向 |
 
@@ -51,6 +54,11 @@ Stage B（现代化）在 Stage A 四条达成后另行立项，不在本计划�
       摘挂 ✅**（paint_overlay_box 重排参数对齐 + 装备槽图标移植，T1-1700 绿）。
 - [ ] dp2=m_106 实体路径缓动（MOV 五参，随首个含 5 参 MOV 的层落地）。
 - [ ] m_102 跨层快照（tryRunScene case 7/32，同上）。
+      > 【2026-10-15】m_102（现名 probeCrossFloorSnapshot）方法级已绿（preset-floor49 case15 当前层门控，夹具化
+      > 用例）；case 7/32 的 m_102(23,12) 跨层探针臂仍为 todo!（矩阵 §5），本项不变。
+- [x] 判据①收口（2026-10-15）：白项 b 类 10 方法 ☠️ 终裁（DC-1..4）；黄 7 → 绿 6（preset-floor5/49 夹具化 +
+      fx-scriptwalk/knockback/fan 三新夹具场景）+ 论证 1（hideNotify）；MVS 第 16 码入 type-closure；矩阵识别夹具帧
+      用例（game-core/tests）；副产物：型 10/11/12 撞击臂未移植（BLOCKED 用例 fx_firebump_floor13，待 game-core 补臂）。
 - 完成判据：completeness 挂起段清零（死内容/mode13/99 等带证条目除外）。
   进度：帧级挂起已清零（迭代 77，24 绿 0 挂起）；余 dp2/m_102 两项随
   P2 铺层触发。

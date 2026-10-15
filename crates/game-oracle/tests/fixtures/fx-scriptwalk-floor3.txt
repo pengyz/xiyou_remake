@@ -1,0 +1,21 @@
+# ticks: 700
+# preset: fx-scriptwalk-floor3.preset
+# cover: 黄项 advanceScriptWalk 场景触达（判据①收口 2026-10-15）：槽载入 floor3 (3,11) 朝左 →
+#   -3 撞 (2,11) 型83(param 0) → tryRunScene case0（a.java:8076-8079，首访即真）→ script0
+#   `CES_84_6_11 MOV_0_5_11 TAK_8_9 …`：CES 生成嫦娥 (6,11) → MOV 三参（型 0 = 玩家）
+#   findPath (3,11)→(5,11) 两步 → dialogPhase 3 脚本行走（run a.java:4073-4115 逐步 tryStep +
+#   applyStepCellEffects → scriptWalkArmed 臂 advanceScriptWalk a.java:5737-5741）→ 到达 (5,11)
+#   型83(param 27) 踩踏（case27 需 scriptLineFlags[0] ⇒ 不触发）→ TAK_8_9 对话 → -5 翻页 → 收尾静态。
+#   preset：python3 tools/frames_fixture.py preset floor=3 min=1 max=3 x=3 y=11 facing=3
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -3 press
+302 -3 release
+500 -5 press
+502 -5 release

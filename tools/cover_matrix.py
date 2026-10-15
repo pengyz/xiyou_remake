@@ -12,13 +12,18 @@
   ② 触达（A 级）：tools/method_reach/snapshot.json —— tools/method_reach.py 以 JDI
      一次性断点实测每场景每方法首次命中 tick（t_hit），并把测得运行的 FRAME sha
      序列与 Rust 用例消费的 A-trace 逐 tick 对照（equal 才计入验证）
-  ③ 用例 → 场景 → 窗口：crates/game-oracle/tests/*.rs 机械解析（collect_tests；
-     帧级 = 含 `assert_eq!(&sha, expect…)` 且非 #[ignore]；窗口由 checked 断言派生）
+  ③ 用例 → 场景 → 窗口：TESTS_DIRS（crates/game-oracle/tests + crates/game-core/tests，只认 git 已追踪
+     文件）机械解析（collect_tests；帧级 = 非 #[ignore] 且 ① A-trace 用例 `assert_eq!(&sha, expect…)`
+     或 ② 夹具帧用例 `assert_eq!(sha, rec.sha…)` + `<stem>.frames.txt`〔夹具帧链须 = 快照实测帧链〕；
+     窗口由 checked 断言派生）
   ④ 移植账（只扫移植目标 crate：PORT_CRATES；game-oracle 是差分宿主不计）：
      Rust fn 直证（同名/蛇形/台账机械名 m_NNN）∪ Rust 注释 a.java 行锚（v2.1 归属规则，
      见下）∪ PORT_NOTES 人工条目（ported/absorbed/not-ported，逐条校验锚点）
-  ⑤ 白项分账：TRIAGE 人工条目（a/b/c + 论证 + a.java 行锚，逐条校验）；v1 旧账
-     （LEGACY_V1）原样保留只用于"刷新前后对照"复算（44/1/58 可复现）
+  ⑤ 白项分账：TRIAGE 人工条目（a/b/c + 论证 + a.java 行锚，逐条校验）；b 类带「裁决 DC-n」者经
+     tools/dead_code_ruling.py 字节码不动点证死 + docs/spec/dead-code-rulings.md 裁决书锚校验 + 全场景
+     零触达三重校验后记 ☠️（不计判据①赤字）；v1 旧账（LEGACY_V1）原样保留只用于"刷新前后对照"复算
+  ⑥ 黄项不触达论证：YELLOW_NOTES（调用者集合 / 驱动面缺席 / Rust 锚机械校验）；臂级缺口：§5 todo! 扫描
+     + ARM_GAPS 人工登记（无 todo! 标记或壳侧 BLOCKED 者）
 
 v2.1 行锚归属规则（2026-10-15 审阅发现 v2 的"行锚落入现行方法体区间即算移植"会误归绿：
 m_072 吃到 game-data 28 条 seed 方言锚、addSpark/m_006/m_128/m_131 等吃到漂移锚——
@@ -54,15 +59,24 @@ DEOBF = ROOT / "reference/src/deobf/a.java"
 DEOBF_REL = "reference/src/deobf/a.java"
 SEED = ROOT / "reference/seed/a.java"
 LEDGER = ROOT / "data/naming/ledger.jsonl"
-TESTS_DIR = ROOT / "crates/game-oracle/tests"
+# 帧级用例扫描目录：game-oracle（A-trace 用例 + 夹具帧用例）+ game-core（夹具帧用例，如
+# slot_equip_scene.rs；2026-10-15 补口径盲区——completeness §3.4 遗留⑤）
+TESTS_DIRS = (ROOT / "crates/game-oracle/tests", ROOT / "crates/game-core/tests")
 SNAPSHOT = ROOT / "tools/method_reach/snapshot.json"
 OUT = ROOT / "docs" / "coverage-matrix.md"
+# 白项 b 类死代码裁决书（主张/证据/可复现命令/结论；tools/dead_code_ruling.py 机械复核）
+RULINGS_DOC = ROOT / "docs/spec/dead-code-rulings.md"
 
-# 移植目标 crate（AGENTS.md §2：game-oracle 是差分宿主，不是移植目标）
-PORT_CRATES = ("game-core", "game-data", "game-platform", "game-desktop", "game-wasm")
+# 移植目标 crate（AGENTS.md §2：game-oracle 是差分宿主，不是移植目标）。
+# 【2026-10-15 更正】原列 game-wasm——该 crate 不存在（crates/ 无此目录，workspace members 亦无），删去。
+PORT_CRATES = ("game-core", "game-data", "game-platform", "game-desktop")
 # VF 时代起点（反编译引擎 CFR→Vineflower，deobf 行号体系自此稳定；game-core 首提
 # 41d8fce 晚于此，deobf 方言锚全部写于 VF 时代）
 VF_SINCE = "996a29d"
+# 前任 v2 刷账计算时的 deobf 版本（a97d70e 起至 b1b7ee7 行号体系不变）：v2 口径复算钉在此行号上
+V2_DEOBF_REV = "a97d70e"
+# v1 旧账（迭代 72）提交：v1 伪名按其时方法名复算
+V1_REV = "2eed129"
 NAMED_TOL = 20      # 名证锚：落在被点名方法区间 ±20 行内即归属
 ROBUST_MARGIN = 20  # 稳健锚：锚区间外扩 20 行仍须落在跨版本区间交集内
 
@@ -74,77 +88,82 @@ ROBUST_MARGIN = 20  # 稳健锚：锚区间外扩 20 行仍须落在跨版本区
 #   "not-ported" 机械信号命中但实为未移植（压制假阳性）
 PORT_NOTES: dict[str, tuple[str, str]] = {
     # —— 基线 23 白项之 c 类：移植存在但机械信号漏判（fn 异名 + 无/陈旧行锚）——
-    "m_059": ("ported",
+    "initCellGrid": ("ported",
               "crates/game-core/src/entity.rs `pub fn new(cols: i32, rows: i32) -> Self`"
-              "（CellGrid::new 四件初始化 = a.java:6954-6957；doc 点名「m_059 初始化」）"),
+              "（CellGrid::new 四件初始化 = a.java:6957-6960；doc 点名「m_059 初始化」）"),
     "findItemStackIndex": ("ported",
                            "crates/game-core/src/combat.rs `pub fn find_item(&self, item_type: u8) -> i32`"
-                           "（doc「findItemStackIndex 忠实移植」，首个同型槽/无则 -1 = a.java:7656-7665；"
+                           "（doc「findItemStackIndex 忠实移植」，首个同型槽/无则 -1 = a.java:7659-7668；"
                            "其 Rust 行锚 8485 陈旧，落入 executeScriptInstruction）"),
     "addItemToItemStack": ("ported",
                            "crates/game-core/src/scene.rs `fn add_item_to_stack(&mut self, t: i32)`"
-                           "（追加/叠加次数 + showOverlayMessage = a.java:7719-7728/7730；行锚 7702-7714 漂移落入 "
-                           "itemTypeToStackIndex）。未移植 itemUseTargetType 写（a.java:7729）——无可见效应：拾取路径调用前 "
+                           "（追加/叠加次数 + showOverlayMessage = a.java:7722-7731/7733；行锚 7702-7714 漂移落入 "
+                           "itemTypeToStackIndex）。未移植 itemUseTargetType 写（a.java:7732）——无可见效应：拾取路径调用前 "
                            "已置 overlay_kind_item（crates/game-core/src/scene.rs `self.overlay_kind_item = t`），"
                            "商人路径浮层同调用内被关闭/替换（2026-10-15 独立审计核）"),
-    "m_103": ("ported",
+    "easeCameraToTarget": ("ported",
               "crates/game-core/src/scene.rs `// m_103：ease 相机目标 = 目标格`（SEE 臂）+ "
               "crates/game-core/src/scene.rs `// m_103：ease 目标 = SEE 目标格`（翻页臂）两处内联，"
-              "四赋值 = a.java:8660-8663"),
-    "m_118": ("ported",
+              "四赋值 = a.java:8663-8666"),
+    "initFloorStates": ("ported",
               "crates/game-core/src/scene.rs `saved_floor_states: vec![None; 56]`（新游戏构造即 56 槽空 = "
-              "a.java:9363-9367；读档路径 crates/game-core/src/scene.rs "
+              "a.java:9366-9370；读档路径 crates/game-core/src/scene.rs "
               "`scene.saved_floor_states = save.floor_states.clone()`）"),
     "m_120": ("ported",
               "crates/game-core/src/scene.rs `fn save_floor_state(&mut self)`（u16 BE 写内联为 to_be_bytes = "
-              "a.java:9400-9401）"),
-    "m_123": ("ported",
+              "a.java:9403-9404）"),
+    "restoreFloorState": ("ported",
               "crates/game-core/src/scene.rs `u16::from_be_bytes([d[*p], d[*p + 1]])`（层存档恢复 read_u16 "
-              "闭包 = a.java:9677，m_122 恢复臂 a.java:9623-9635 内联）"),
-    "m_008": ("absorbed",
+              "闭包 = a.java:9680，m_122 恢复臂 a.java:9626-9638 内联）"),
+    "closeStreamsAndClear": ("absorbed",
               "流关闭 + 三字段置 null（a.java:4635-4660）；javap 字段普查：f_InputStream_00/"
-              "f_OutputStream_00/f_InputStream_01 读写者仅 m_001/m_008/m_139/m_148/m_151/<init>（I/O 方法）"
+              "f_OutputStream_00/f_InputStream_01 读写者仅 readCountPrefix/closeStreamsAndClear/playBgm/m_148/m_151/<init>（I/O 方法）"
               "⇒ 无游戏态效应；Rust 以内存切片解码无流可关（crates/game-data/src/packed_png.rs "
               "`pub fn parse(data: &'a [u8], image_count: usize) -> Result<Self, Error>`）"),
     # —— 方法论修正（v2.1 行锚归属）暴露、经核验确有移植/吸收者 ——
-    "m_006": ("absorbed",
+    "createSolidImage": ("absorbed",
               "静态纯函数（造 32×32 纯色 RGB 图，a.java:4606-4613）；仅有的两个调用点 loadFloorData "
-              "a.java:9420-9421 结果被丢弃（javap：invokestatic m_006 后紧跟 pop）⇒ 无可观测效应"),
+              "a.java:9423-9424 结果被丢弃（javap：invokestatic createSolidImage 后紧跟 pop）⇒ 无可观测效应"),
     "releaseSceneImages": ("absorbed",
                            "图像容器/entityTypeImage 置 null 释放内存（a.java:4715-4727）；读者在读前经 "
-                           "m_001 判空重载（a.java:4519）或 initEntityTables 重建 entityTypeImage（javap："
+                           "readCountPrefix 判空重载（a.java:4519）或 initEntityTables 重建 entityTypeImage（javap："
                            "put 仅 initEntityTables/releaseSceneImages）；Rust 构造期全量装载不释放"
                            "（crates/game-core/src/scene.rs `懒加载资源容器（Rust 构造期全量装载，等价 no-op）`）"),
-    "m_068": ("ported",
+    "resetNewGameState": ("ported",
               "新游戏态复位分散移植：crates/game-desktop/src/main.rs `GameScene::load_floor(` 以 (32,352) "
-              "落点 = placePlayerAtCell(1,11)（a.java:7194 floor51 臂，新游戏 step8 已置 51 层）+ "
+              "落点 = placePlayerAtCell(1,11)（a.java:7197 floor51 臂，新游戏 step8 已置 51 层）+ "
               "crates/game-core/src/scene.rs `difficulty_index: 0`（装备/跟随/金/道具栈/炼丹/难度构造默认 0 = "
-              "a.java:7189-7190、7210-7214）+ crates/game-desktop/src/main.rs `scale_enemy_stats(&tables, 1)`"
-              "（= a.java:7215 scaleEnemyStats(multipliers[0])）"),
-    "m_072": ("ported",
+              "a.java:7192-7193、7213-7217）+ crates/game-desktop/src/main.rs `scale_enemy_stats(&tables, 1)`"
+              "（= a.java:7218 scaleEnemyStats(multipliers[0])）"),
+    "addOption": ("ported",
               "crates/game-core/src/menu_family.rs `fn add(&mut self, label_idx: usize, checked: bool)`"
-              "（OptionList::add = addOption：stringWidth+80 定框宽、首项 32+行高 = a.java:7267-7277；"
+              "（OptionList::add = addOption：stringWidth+80 定框宽、首项 32+行高 = a.java:7270-7280；"
               "原 28 条行锚系 game-data seed 方言锚误归属）"),
     "itemTypeToStackIndex": ("ported",
                              "crates/game-core/src/scene.rs `fn item_desc_index(&self, t: i32) -> usize`"
-                             "（85→20 / 86→21 / 其余 t-13 = a.java:7704-7713；add_item_to_stack 内联同式）"),
+                             "（85→20 / 86→21 / 其余 t-13 = a.java:7707-7716；add_item_to_stack 内联同式）"),
     "deleteRecordStoreQuietly": ("absorbed",
-                                 "删库后重建（a.java:9322-9325）；三调用点 a.java:4476（SKY_WAR 读失败→删→"
-                                 "saveGlobalProgress 重建）/9018（MOT_IF）/9181（MOT_L{n}）均为删后即写；"
+                                 "删库后重建（a.java:9325-9328）；三调用点 a.java:4476（SKY_WAR 读失败→删→"
+                                 "saveGlobalProgress 重建）/9021（MOT_IF）/9184（MOT_L{n}）均为删后即写；"
                                  "壳 RMS 以覆盖写吸收删+写（crates/game-desktop/src/main.rs "
                                  "`std::fs::write(&path, v).ok();`）；SKY_WAR 路径的持久化缺口归 saveGlobalProgress（a）"),
-    "m_117": ("absorbed",
-              "RecordStore/流关闭 + 五字段置 null + gc（a.java:9329-9359）；f_byte_arr_27 读者"
-              "（m_000/loadSlotTable/loadFloorSave）均先 getRecord 赋值再读（a.java:4459/8971/9253）"
+    "closeRecordStoreAndGc": ("absorbed",
+              "RecordStore/流关闭 + 五字段置 null + gc（a.java:9332-9362）；f_byte_arr_27 读者"
+              "（dispatchModeEntry/loadSlotTable/loadFloorSave）均先 getRecord 赋值再读（a.java:4459/8974/9256）"
               "⇒ 无可观测效应"),
-    "m_128": ("ported",
+    "initParticles": ("ported",
               "crates/game-core/src/title.rs `pub fn new() -> Particles`（32 槽粒子数组清零 + 游标 0 = "
-              "a.java:9819-9827）"),
-    # m_131：v2 唯一行锚（pathfind.rs findPath 注）系误归属；v2.1 另有合法名证锚（intro.rs:274
+              "a.java:9822-9830）"),
+    # —— 压制假阳性：Rust 注释点名 + 行锚命中，但注释本身声明未移植 ——
+    "saveGlobalProgress": ("not-ported",
+                           "3d42310 起 save.rs 模块文档引写侧 `saveGlobalProgress a.java:8931-8942` 作 SKY_WAR 布局备忘"
+                           "（名证锚机械命中），同段明言 crates/game-core/src/save.rs "
+                           "`本模块对 SKY_WAR 既不编码也不解码` ⇒ 非移植证据；分账见 TRIAGE a"),
+    # startLoadTask（原 m_131）：v2 唯一行锚（pathfind.rs findPath 注）系误归属；v2.1 另有合法名证锚（intro.rs:274
     # 「m_131(target, call_m000)」），机械仍判移植——此条只补记真实移植位置，不改色
-    "m_131": ("ported",
+    "startLoadTask": ("ported",
               "crates/game-core/src/intro.rs `pub fn new(target: i32, call_m000: bool, steps: &[i8]) -> LoadProgress`"
-              "（loadTargetMode/loadCallInit/步表/计数复位 = a.java:9874-9881；m_001(15) 由构造期装载吸收）"),
+              "（loadTargetMode/loadCallInit/步表/计数复位 = a.java:9877-9884；readCountPrefix(15) 由构造期装载吸收）"),
 }
 
 # TRIAGE：白项三分账。值 = (类, 来源, 论证)。类：
@@ -155,87 +174,135 @@ PORT_NOTES: dict[str, tuple[str, str]] = {
 TRIAGE: dict[str, tuple[str, str, str]] = {
     # ---- a 真未移植 ----
     "m_106": ("a", "基线23",
-              "MOV 五参实体路径缓动（a.java:8735-8867）：run() dialogPhase 2 臂调用（a.java:4073）；dialogPhase=2 "
-              "由 MOV 五参臂在 m_100 命中实体时置（a.java:8285-8296）；levelScriptLines（a.java:1124-1193，68 条）"
+              "MOV 五参实体路径缓动（a.java:8738-8870）：run() dialogPhase 2 臂调用（a.java:4073）；dialogPhase=2 "
+              "由 MOV 五参臂在 findBlockingEntity（原 m_100）命中实体时置（a.java:8288-8299）；levelScriptLines（a.java:1124-1193，68 条）"
               "含五参 MOV 36 处（脚本 1/2/4/5/7/8/10/12/19/30/57/61），其中 20 处起点（型,格）在 jar sprite{n} "
               "初始布置中有对应实体（如脚本 1 `MOV_72_3_7_1_8` = sprite2 型 72@(3,7)；脚本 12 的 13 处全落 "
-              "sprite40）⇒ 正常游玩可达。Rust：crates/game-core/src/scene.rs "
-              "`todo!(\"m_106 实体路径缓动（MOV 对拍批）\")`；即 convergence-plan P1 挂起项 dp2=m_106"),
+              "sprite40）⇒ 正常游玩可达。【2026-10-15 已移植】6a37155：crates/game-core/src/scene.rs "
+              "`fn tick_entity_route(&mut self)`（doc 点名 m_106 a.java:8738-8870），帧级验证 = "
+              "crates/game-core/tests/mov_route_scene.rs `fn preset_floor2_mov_frames_match` / "
+              "crates/game-core/tests/mov_route_scene.rs `fn preset_floor40_mov_frames_match`（夹具场景 "
+              "preset-floor2-mov / preset-floor40-mov）——即 convergence-plan P1 挂起项 dp2=m_106 已落地"),
     "m_108": ("a", "基线23",
-              "实体跨格槽表重登记（a.java:8877-8901）：唯一调用者 m_106（a.java:8803/8845；javap 调用图同）"
-              "⇒ 随 m_106 可达、随 m_106 一并移植；Rust 无对应实现"),
+              "实体跨格槽表重登记（a.java:8880-8904）：唯一调用者 m_106（a.java:8806/8848；javap 调用图同）"
+              "⇒ 随 m_106 可达、随 m_106 一并移植。【2026-10-15 已移植】6a37155：crates/game-core/src/entity.rs "
+              "`pub fn relocate_slot(grid: &mut CellGrid, table: &EntityTable, idx: usize, from_x: i32, from_y: i32)`"),
     "saveGlobalProgress": ("a", "基线23",
-                           "SKY_WAR 全局进度写（a.java:8914-8948：optionChecked×4 + f_int_arr_35 + "
-                           "f_int_152..154）；调用点 m_000 a.java:4299/4478、run a.java:4169（选项切换后）。"
+                           "SKY_WAR 全局进度写（a.java:8917-8951：optionChecked×4 + f_int_arr_35 + "
+                           "f_int_152..154）；调用点 dispatchModeEntry a.java:4299/4478、run a.java:4169（选项切换后）。"
                            "Rust：save.rs 对 SKY_WAR 既不编码也不解码（只有 parse_floor_save/parse_preset）；game-core 无 I/O"
                            "（crates/game-core/src/scene.rs `saveGlobalProgress（RMS 侧，无像素效应；game-core 无 I/O）`），"
                            "boot 恒走 SKY_WAR 读失败回退（crates/game-core/src/paint.rs `RMS \"SKY_WAR\" 读档失败路径`）；"
                            "壳 Rms 只改写 MOT_L*/MOT_IF（crates/game-desktop/src/main.rs "
                            "`stores.push((\"MOT_IF@1\".into(), mot_if.clone()));`）⇒ 选项/全局旗标跨会话不持久"
-                           "（读写双缺，读臂在 m_000 case 21 a.java:4450-4479）——壳层赤字（会话内帧不可见，非铺层赤字）"),
-    # ---- b 不触达论证候选 ----
-    "m_093": ("b", "基线23",
-              "左向三角箭头（a.java:8031-8033）：唯一调用点 paintPlayerSprite walkPhase case 3 道具轮盘"
-              "（a.java:5977/5982）；JAVAP 中 putfield walkPhase 共 23 处，前导常量 ∈{0,1,2,4,5}（无 3，"
-              "亦无计算值写入）⇒ walkPhase 永不为 3，case 3 绘制臂与 run() `switch (walkPhase)`（a.java:3565）的 case 3 键处理臂（a.java:3647-3673）皆死代码"),
+                           "（读写双缺，读臂在 dispatchModeEntry case 21 a.java:4450-4479）——壳层赤字（会话内帧不可见，非铺层赤字）"),
+    # ---- b 不触达（死代码）：2026-10-15 终裁 ☠️——论证末尾的「裁决 DC-n」由渲染时机械复核
+    #      （tools/dead_code_ruling.py 字节码不动点 + docs/spec/dead-code-rulings.md 裁决书锚校验），
+    #      复核不成立即 ⚠ 且退回「待裁」 ----
+    "drawLeftTriangleArrow": ("b", "基线23",
+              "左向三角箭头（a.java:8034-8036）：调用点 2 处（a.java:5980/5985）均在 paintPlayerSprite walkPhase "
+              "case 3 道具轮盘臂；JAVAP 中 putfield walkPhase 共 23 处，前导常量 ∈{0,1,2,4,5}（无 3，"
+              "亦无计算值写入）⇒ walkPhase 永不为 3，case 3 绘制臂与 run() `switch (walkPhase)`（a.java:3565）的 "
+              "case 3 键处理臂（a.java:3647-3673）皆死代码；裁决 DC-1"),
     "m_107": ("b", "基线23",
-              "实体换格（a.java:8869-8875）：唯一调用点 executeScriptInstruction 的 MVS 臂（a.java:8516-8589，"
-              "`!var3.equals(\"MVS\")` 之 else）；levelScriptLines（a.java:1124-1193）68 条脚本 MVS 出现 0 次；"
-              "executeScriptInstruction 三调用点均传 dialogScriptLine（a.java:4021/8299/8434）；JAVAP：dialogScriptLine "
-              "唯一写点 loadLevelScript（aaload levelScriptLines），levelScriptLines 仅 <init> 赋值且无元素写 ⇒ "
-              "脚本文本源封闭、MVS 死指令（crates/game-core/src/script.rs `数据域 68 条脚本零使用`）"),
+              "实体换格（a.java:8872-8878）：调用点 2 处（a.java:8567/8585）均在 executeScriptInstruction 的 MVS 臂"
+              "（a.java:8519-8592，`!var3.equals(\"MVS\")` 之 else，DSL 第 16 码）；levelScriptLines（a.java:1124-1193）"
+              "68 条脚本 MVS 出现 0 次；executeScriptInstruction 三调用点均传 dialogScriptLine（a.java:4021/8302/8437）；"
+              "JAVAP：dialogScriptLine 唯一写点 loadLevelScript（aaload levelScriptLines），levelScriptLines 仅 <init> "
+              "赋值且无元素写 ⇒ 脚本文本源封闭、MVS 死指令（crates/game-core/src/script.rs `数据域 68 条脚本零使用`）；"
+              "裁决 DC-2"),
     "m_148": ("b", "基线23",
-              "联网簇·连接关闭（a.java:10607-10636）：调用点 run mode99 臂 a.java:4261、m_151/m_153（簇内）。"
+              "联网簇·连接关闭（a.java:10610-10639）：调用点 run mode99 臂 a.java:4261、m_151/m_153（簇内）。"
               "mode 99 不可达：JAVAP putfield gameMode 54 处，常量 ∈{0-5,7-12,14-17,19-22}，计算来源 "
               "menuReturnMode∈{1,4}/loadTargetMode∈{3}/inGameMenuReturnMode←gameMode ⇒ 无 99；"
-              "另 master-plan §4 范围裁剪（HttpConnection 联网整体剔除）"),
-    "m_149": ("b", "基线23", "联网簇·响应体 u16 读（a.java:10638-10640）：仅 m_150/m_153 调用（簇内）；簇不可达论证同 m_148"),
-    "m_150": ("b", "基线23", "联网簇·响应体 u32 读（a.java:10642-10644）：仅 m_153 调用（簇内）；同 m_148"),
+              "另 master-plan §4 范围裁剪（HttpConnection 联网整体剔除）；裁决 DC-3"),
+    "m_149": ("b", "基线23", "联网簇·响应体 u16 读（a.java:10641-10643）：仅 m_150/m_153 调用（簇内）；"
+                           "簇不可达论证同 m_148；裁决 DC-3"),
+    "m_150": ("b", "基线23", "联网簇·响应体 u32 读（a.java:10645-10647）：仅 m_153 调用（簇内）；同 m_148；裁决 DC-3"),
     "m_151": ("b", "基线23",
-              "联网簇·HTTP POST（a.java:10648-10766）：仅 run() f_bool_31 臂调用（a.java:3229-3242）；JAVAP "
-              "putfield f_bool_31：<init>/run×2 置 0、唯一置 1 者 m_153（mode99 内）⇒ 不可达；同 m_148"),
-    "m_152": ("b", "基线23", "联网簇·状态读（a.java:10768-10779）：调用点 run mode99 臂 a.java:4271 与 m_153；同 m_148"),
+              "联网簇·HTTP POST（a.java:10651-10769）：仅 run() f_bool_31 臂调用（a.java:3229-3242）；JAVAP "
+              "putfield f_bool_31：<init>/run×2 置 0、唯一置 1 者 m_153（mode99 内）⇒ 不可达；同 m_148；裁决 DC-3"),
+    "m_152": ("b", "基线23", "联网簇·状态读（a.java:10771-10782）：调用点 run mode99 臂 a.java:4271 与 m_153；"
+                           "同 m_148；裁决 DC-3"),
     "m_153": ("b", "基线23",
-              "联网簇·轮询/重试状态机（a.java:10781-10865）：唯一调用点 run mode99 臂 a.java:4267，且该臂先要求 "
+              "联网簇·轮询/重试状态机（a.java:10784-10868）：唯一调用点 run mode99 臂 a.java:4267，且该臂先要求 "
               "f_bool_31 已真（a.java:4258），而 f_bool_31 唯一置真点就在 m_153 内（自门控）⇒ 即便 mode99 可达也永不执行；"
-              "同 m_148（2026-10-15 独立审计补强）"),
-    "m_154": ("b", "基线23", "联网簇·hex 字符解码（a.java:10867-10875）：仅 m_151 调用（a.java:10727）；同 m_148"),
+              "同 m_148（2026-10-15 独立审计补强）；裁决 DC-3"),
+    "m_154": ("b", "基线23", "联网簇·hex 字符解码（a.java:10870-10878）：仅 m_151 调用（a.java:10730）；同 m_148；裁决 DC-3"),
     "addSpark": ("b", "修正暴露",
-                 "火花登记（a.java:9680-9686）：唯一调用点 paint `switch (gameMode)` case 18（a.java:3003-3031）；"
-                 "gameMode 写点无 18（论证同 m_148 的 JAVAP 普查）⇒ 死代码（completeness 迭代 60 mode18 火花 ☠️）。"
-                 "v2 的唯一移植证据系漂移锚（combat.rs 注「spawnPopup kind 常量（…9679-9686…）」）"),
+                 "火花登记（a.java:9683-9689）：调用点 4 处（a.java:3019-3031）均在 paint `switch (gameMode)` case 18"
+                 "（a.java:3003-3031）；gameMode 写点无 18（论证同 m_148 的 JAVAP 普查）⇒ 死代码（completeness 迭代 60 "
+                 "mode18 火花 ☠️）。v2 的唯一移植证据系漂移锚（combat.rs 注「spawnPopup kind 常量（…9679-9686…）」）；"
+                 "裁决 DC-4"),
     # ---- c 判定存疑（工具方法论），解决方式见 PORT_NOTES / 归属规则 ----
-    "m_001": ("c", "基线23",
+    "readCountPrefix": ("c", "基线23",
               "packed 容器解码（a.java:4516-4549）已移植于 game-data packed_png.rs：其 seed 方言锚 "
-              "`reference/seed/a.java:2657-2676` = seed `private void a(int n)`（序数对齐 = m_001），v2 按 deobf "
-              "行号读成 paint 区间。解决：v2.1 方言规则（无需人工条目）"),
-    "readU16BE": ("c", "基线23",
-                  "u16 读原语（a.java:6949-6951）已移植于 game-data lib.rs read::u16_le：其 seed 锚引 "
-                  "`private static short a(InputStream)`（序数对齐 = readU16BE）。解决：v2.1 方言 + CFR 签名点名规则。"
-                  "注：方法体为 LE（低字节先），名称 BE 不符——命名台账疑误（data/naming 不在本任务写入范围）"),
+              "`reference/seed/a.java:2657-2676` = seed `private void a(int n)`（序数对齐 = 本方法，原 m_001），v2 按 deobf "
+              "行号读成 paint 区间。解决：v2.1 方言规则（无需人工条目）。注：dc470b2 命名 readCountPrefix（N-0434，B 级）"
+              "疑名实不符——方法体为 packed 图像容器装载（resourceNames[i] 流内 u16 LE 长度前缀 + PNG 逐张 "
+              "Image.createImage，a.java:4516-4549），非「读计数前缀」；data/naming 不在本任务写入范围，待命名批复核"),
+    "readShortLE": ("c", "基线23",
+                    "u16 读原语（a.java:6952-6954）已移植于 game-data lib.rs read::u16_le：其 seed 锚引 "
+                    "`private static short a(InputStream)`（序数对齐 = 本方法）。解决：v2.1 方言 + CFR 签名点名规则。"
+                    "注：方法体为 LE（低字节先），原名 readU16BE 名实不符——【2026-10-15 更正】276ac96 已按 N-0268 "
+                    "名实更正改名 readShortLE（台账证据同步更正），本条随之改键"),
     "<clinit>": ("c", "基线23",
-                 "static{}（a.java:10877-10879）：JAVAP static{} 0-51 putstatic f_int_arr_01 = "
+                 "static{}（a.java:10880-10882）：JAVAP static{} 0-51 putstatic f_int_arr_01 = "
                  "{0,8192,16384,24576,8462,270,90,8282}，54-93 另造一个 int[8] 后丢弃（无 putstatic）；VF 将前者"
                  "投影为字段初始化器 a.java:44，v2 不把字段初始化器行归属 <clinit>。Rust："
                  "crates/game-core/src/paint.rs `pub const NOKIA_TRANSFORM_TABLE: [i32; 8] = [0, 8192, 16384, 24576, 8462, 270, 90, 8282];`。"
                  "解决：v2.1 字段初始化器归属规则"),
-    "m_059": ("c", "基线23", "CellGrid::new 已移植（a.java:6953-6958；见 PORT_NOTES）：fn 异名且无行锚"),
-    "findItemStackIndex": ("c", "基线23", "PlayerCombat::find_item 已移植（a.java:7655-7666；见 PORT_NOTES）：fn 异名 + 行锚陈旧"),
-    "addItemToItemStack": ("c", "基线23", "add_item_to_stack 已移植（a.java:7718-7731；见 PORT_NOTES）：fn 异名 + 行锚漂移"),
-    "m_103": ("c", "基线23", "两处内联已移植（a.java:8659-8664；见 PORT_NOTES）：无 fn、注释点名无行锚"),
-    "m_118": ("c", "基线23", "构造期吸收（a.java:9362-9368；见 PORT_NOTES）"),
-    "m_120": ("c", "基线23", "内联于 save_floor_state（a.java:9399-9402；见 PORT_NOTES）"),
-    "m_123": ("c", "基线23", "内联于层存档恢复（a.java:9676-9678；见 PORT_NOTES）"),
-    "m_008": ("c", "基线23", "I/O 清理无可观测效应（a.java:4634-4661；见 PORT_NOTES absorbed）：v2 无「吸收」口径"),
-    "m_006": ("c", "修正暴露", "结果被丢弃的纯函数（a.java:4605-4614；见 PORT_NOTES absorbed）；v2 证据系漂移锚"),
+    "initCellGrid": ("c", "基线23", "CellGrid::new 已移植（a.java:6956-6961；见 PORT_NOTES）：fn 异名且无行锚"),
+    "findItemStackIndex": ("c", "基线23", "PlayerCombat::find_item 已移植（a.java:7658-7669；见 PORT_NOTES）：fn 异名 + 行锚陈旧"),
+    "addItemToItemStack": ("c", "基线23", "add_item_to_stack 已移植（a.java:7721-7734；见 PORT_NOTES）：fn 异名 + 行锚漂移"),
+    "easeCameraToTarget": ("c", "基线23", "两处内联已移植（a.java:8662-8667；见 PORT_NOTES）：无 fn、注释点名无行锚"),
+    "initFloorStates": ("c", "基线23", "构造期吸收（a.java:9365-9371；见 PORT_NOTES）"),
+    "m_120": ("c", "基线23", "内联于 save_floor_state（a.java:9402-9405；见 PORT_NOTES）"),
+    "restoreFloorState": ("c", "基线23", "内联于层存档恢复（a.java:9679-9681；见 PORT_NOTES）"),
+    "closeStreamsAndClear": ("c", "基线23", "I/O 清理无可观测效应（a.java:4634-4661；见 PORT_NOTES absorbed）：v2 无「吸收」口径"),
+    "createSolidImage": ("c", "修正暴露", "结果被丢弃的纯函数（a.java:4605-4614；见 PORT_NOTES absorbed）；v2 证据系漂移锚"),
     "releaseSceneImages": ("c", "修正暴露", "内存释放被构造期装载吸收（a.java:4714-4728；见 PORT_NOTES）；v2 证据系漂移锚"),
-    "m_068": ("c", "修正暴露", "新游戏复位分散移植（a.java:7188-7216；见 PORT_NOTES）；v2 证据系漂移锚 + seed 误读"),
-    "m_072": ("c", "修正暴露", "OptionList::add 已移植（a.java:7266-7283；见 PORT_NOTES）；v2 证据系 28 条 seed 误读"),
-    "itemTypeToStackIndex": ("c", "修正暴露", "item_desc_index 已移植（a.java:7702-7716；见 PORT_NOTES）；v2 证据系漂移锚"),
-    "deleteRecordStoreQuietly": ("c", "修正暴露", "删后即写被壳覆盖写吸收（a.java:9321-9326；见 PORT_NOTES）；v2 证据系漂移锚"),
-    "m_117": ("c", "修正暴露", "RMS 清理无可观测效应（a.java:9328-9360；见 PORT_NOTES）；v2 证据系漂移锚"),
-    "m_128": ("c", "修正暴露", "Particles::new 已移植（a.java:9818-9828；见 PORT_NOTES）；v2 证据系漂移锚"),
+    "resetNewGameState": ("c", "修正暴露", "新游戏复位分散移植（a.java:7191-7219；见 PORT_NOTES）；v2 证据系漂移锚 + seed 误读"),
+    "addOption": ("c", "修正暴露", "OptionList::add 已移植（a.java:7269-7286；见 PORT_NOTES）；v2 证据系 28 条 seed 误读"),
+    "itemTypeToStackIndex": ("c", "修正暴露", "item_desc_index 已移植（a.java:7705-7719；见 PORT_NOTES）；v2 证据系漂移锚"),
+    "deleteRecordStoreQuietly": ("c", "修正暴露", "删后即写被壳覆盖写吸收（a.java:9324-9329；见 PORT_NOTES）；v2 证据系漂移锚"),
+    "closeRecordStoreAndGc": ("c", "修正暴露", "RMS 清理无可观测效应（a.java:9331-9363；见 PORT_NOTES）；v2 证据系漂移锚"),
+    "initParticles": ("c", "修正暴露", "Particles::new 已移植（a.java:9821-9831；见 PORT_NOTES）；v2 证据系漂移锚"),
 }
+
+# YELLOW_NOTES：黄项不触达论证（convergence-plan §0.1「黄项全部带不触达论证」）。逐条机械校验：
+#   arg 中 a.java 行锚须落在该方法体内、Rust 锚（crates/…rs `标识符`）须存在；
+#   only_callers ⇒ 两个 class 的字节码调用图中，该方法的调用者集合恰为所列（tools/dead_code_ruling.py 调用图）；
+#   absent ⇒ (glob, 正则)：匹配文件的非注释行不得出现该模式（证明驱动面不含该事件）。
+YELLOW_NOTES: dict[str, dict] = {
+    "hideNotify": {
+        "arg": ("MIDP 生命周期回调（a.java:4502-4513）：类 a 内零调用点，字节码唯一调用者 CMidlet.pauseApp@4"
+                "（invokevirtual a.hideNotify），另由平台在 Canvas 离屏时回调；oracle 宿主只反射调 startApp、场景脚本"
+                "只有按键事件（Runner.loadScript `<tick> <keycode> <press|release>`），shim/宿主源码无任何 "
+                "pauseApp/hideNotify 调用 ⇒ 任何场景（含夹具场景）不可达。**非死代码**（真机来电/切后台必达），属"
+                "场景驱动面盲区（扩驱动面须改 reference/ 宿主）。语义由壳侧宿主测试覆盖（ab8368a）："
+                "crates/game-desktop/src/main.rs `fn in_game_hide_closes_bgm_and_first_key_resumes_game_track`、"
+                "crates/game-desktop/src/main.rs `fn hide_in_game_menu_keeps_mode_4`、"
+                "crates/game-desktop/src/main.rs `fn title_hide_resumes_menu_track_in_java_event_order`、"
+                "crates/game-desktop/src/main.rs `fn hide_in_modes_0_and_21_clears_flag_without_resume`、"
+                "crates/game-desktop/src/main.rs `fn hide_in_mode3_opens_in_game_menu`（gameMode 3→4 臂 a.java:4504-4507，"
+                "47169cc 接通 crates/game-core/src/scene.rs `pub fn hide_notify(&mut self)` 后摘 #[ignore]）"),
+        "only_callers": ["CMidlet.pauseApp"],
+        "absent": [("reference/oracle/src/**/*.java", r'"(?:pauseApp|hideNotify)"'),
+                   ("reference/oracle/src/**/*.java", r"(?<!void )\b(?:pauseApp|hideNotify)\s*\("),
+                   ("reference/shim/src/**/*.java", r"(?<!void )\b(?:pauseApp|hideNotify)\s*\(")],
+    },
+}
+
+# ARM_GAPS：方法级绿/黄内的**无 todo! 标记**或壳侧 BLOCKED 的臂级缺口（人工登记；a.java 行锚须落在方法体内、
+# Rust 锚须存在——缺口被修复后锚失效 ⇒ ⚠ 提示销账）。§5 的 todo! 清单是机械扫描，本表补其盲区。
+ARM_GAPS: list[tuple[str, str]] = [
+    ("interactWithCell",
+     "型 10/11/12 撞击臂（a.java:5436-5456：型10 三昧真火/型11 墙〔currentFloor≠23〕提示浮层 + 阻挡；型12 隐形墙"
+     "显形为 11 + 阻挡）未移植——crates/game-core/src/scene.rs `_ => {} // 11 / 76/82：后续批次` 吞掉（无 todo! 标记，"
+     "此前无场景撞击故帧对拍恒绿）。型10 帧级实证：crates/game-oracle/tests/fixture_frames.rs "
+     "`fn fx_firebump_floor13_frames_match`（#[ignore] BLOCKED，首分歧 T301）；11/12 同臂（代码阅读，B 级）"),
+]
 
 # ---------------------------------------------------------------- v1 旧账（冻结，仅复算对照）
 # 迭代 72（2eed129）原表逐字保留：v1 的 methods() 用 `l.split()[-1].split("(")[0]` 取名，
@@ -277,6 +344,38 @@ LEGACY_V1: dict[str, tuple[str, list[str]]] = {
 def git(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
                           errors="replace")
+
+
+def ledger_renames() -> dict[str, str]:
+    """台账 method 记录（applied）：旧引用名（ref 末段，如 `a.m_093` → m_093）→ 现名。"""
+    out = {}
+    for l in LEDGER.read_text(encoding="utf-8").splitlines():
+        if not l.strip():
+            continue
+        d = json.loads(l)
+        if d.get("kind") == "method" and d.get("status") == "applied":
+            tail = d.get("ref", "").split(".")[-1]
+            if tail and tail != d.get("new"):
+                out[tail] = d["new"]
+    return out
+
+
+def resolve_config(names: set[str]) -> list[str]:
+    """人工条目的键若已被改名批次改掉（方法表里不存在、台账有 旧名→现名 且现名存在），就地改键
+    （幂等）。返回改键说明——渲染进 §0 提示把条目键更新为现名；不再因改名批次 KeyError 崩溃
+    （2026-10-15 readU16BE→readShortLE 前车）。"""
+    al = ledger_renames()
+    moved = []
+    for table in (PORT_NOTES, TRIAGE, YELLOW_NOTES):
+        for k in list(table):
+            if k not in names and al.get(k) in names and al[k] not in table:
+                table[al[k]] = table.pop(k)
+                moved.append(f"{k}→{al[k]}")
+    for i, (n, ev) in enumerate(ARM_GAPS):
+        if n not in names and al.get(n) in names:
+            ARM_GAPS[i] = (al[n], ev)
+            moved.append(f"{n}→{al[n]}")
+    return moved
 
 
 # ---------------------------------------------------------------- ① 方法清单
@@ -443,9 +542,19 @@ def java_model() -> dict:
     cur_field: dict[str, list[tuple[int, int]]] = defaultdict(list)
     for is_static, s, e in cur["fields"]:
         cur_field["<clinit>" if is_static else "<init>"].append((s, e))
+    # v2 口径复算（§7 对照 +「修正暴露」一致性校验）钉在前任 v2 计算时的 deobf 行号体系：其后 deobf 行号漂移
+    # （如 dc470b2 applyStepCellEffects +3 行）不得改变「前任口径」本身。按方法序数对齐到现名。
+    v2_rng = cur_rng
+    r = git("show", f"{V2_DEOBF_REV}:{DEOBF_REL}")
+    if r.returncode == 0:
+        p = parse_java(r.stdout)
+        if aligned(p):
+            v2_rng = {names[k]: (d["start"], d["end"]) for k, d in enumerate(p["decls"])}
+        else:
+            warn.append(f"deobf@{V2_DEOBF_REV} 与现行方法序数不对齐——v2 口径退回现行行号")
     return {"names": names, "cur": cur_rng, "cur_field": cur_field, "robust": robust,
             "field_robust": field_robust, "seed": seed_rng, "seed_field": seed_field,
-            "seed_by_sig": seed_by_sig,
+            "seed_by_sig": seed_by_sig, "v2": v2_rng,
             "cur_by_sig": {(d["ret"], d["name"], d["types"]): d["name"] for d in cur["decls"]},
             "seed_lines": seed["n_lines"], "n_versions": len(versions), "warn": warn}
 
@@ -501,58 +610,129 @@ def javap_callers() -> dict[str, set[str]]:
 
 # ---------------------------------------------------------------- ③ 用例 → 场景 → 窗口
 
+def tracked_files() -> set[str] | None:
+    """git 索引中的 crates/ 文件（含已暂存未提交者）；git 不可用 ⇒ None（不过滤）。
+    并行任务的在制（未入库）测试不进账面——账面 = 入库树的函数（与 method_reach 夹具场景同口径）。"""
+    r = git("ls-files", "--", "crates")
+    return set(r.stdout.split()) if r.returncode == 0 else None
+
+
+FRAME_FIX_RE = re.compile(r"assert_eq!\(\s*&?sha,\s*&?rec\.sha\b")
+FRAMES_INC_RE = re.compile(r'include_str!\("([^"]+\.frames\.txt)"\)')
+
+
+def read_frames_fixture(p: Path) -> dict:
+    """tools/frames_fixture.py 夹具：注释头 `A-<stem>/trace.txt` 认领场景；帧链口径同 method_reach。"""
+    stem, shas = None, []
+    for line in p.read_text(encoding="utf-8").splitlines():
+        if line.startswith("#"):
+            m = re.search(r"A-([\w-]+)/trace\.txt", line)
+            stem = stem or (m.group(1) if m else None)
+        elif line.strip():
+            shas.append(line.split()[1])
+    import hashlib
+    return {"stem": stem, "frames": len(shas), "chain": hashlib.sha256("\n".join(shas).encode()).hexdigest()}
+
+
 def collect_tests() -> list[dict]:
-    """crates/game-oracle/tests/*.rs 机械解析。帧级用例 = 非 #[ignore] + 读 _out/A-*/trace.txt
-    + `assert_eq!(&sha, expect…)`；窗口：
-      `assert_eq!(checked, records.len())`          → [1, A-trace 帧数]（full）
-      `if rec.tick >= S` + `assert_eq!(checked, C)` → [S, S+C-1]
-      `assert_eq!(checked, C)`                      → [1, C]
-      `assert!(checked >= C)`                       → [1, C]（保守下界）"""
+    """TESTS_DIRS 下 *.rs（只认 git 已追踪者）机械解析。两类帧级用例：
+    ① A-trace 用例（game-oracle 传统式）= 非 #[ignore] + 读 _out/A-*/trace.txt + `assert_eq!(&sha, expect…)`；
+    ② 夹具帧用例（fixture-frames，2026-10-15 起）= 非 #[ignore] + 引用 `<stem>.frames.txt`（体内
+       include_str!，或文件内唯一的该类 include 经辅助函数读入）+ 帧断言 `assert_eq!(sha, rec.sha…)`
+       在体内或在体内调用的同文件辅助函数里；场景 = 夹具注释头的 `A-<stem>`。
+    窗口：`assert_eq!(checked, records.len())` → [1, 帧数]（full）；`if rec.tick >= S` +
+    `assert_eq!(checked, C)` → [S, S+C-1]；`assert_eq!(checked, C)` → [1, C]；
+    `assert!(checked >= C)` → [1, C]（保守下界）。"""
+    tracked = tracked_files()
     tests = []
-    for f in sorted(TESTS_DIR.glob("*.rs")):
-        text = f.read_text(encoding="utf-8")
-        # 属性块允许夹 /// 文档注释（preset_floor35/10/46/42/43 的 #[test] 与 fn 间有文档）；
-        # 只认以 `#[` 起首的行为属性（文档正文里出现 "#[ignore]" 字样不算）
-        heads = list(re.finditer(r"((?:^[ \t]*(?:#\[[^\n]*\]|//[^\n]*)[ \t]*\n)+)[ \t]*fn (\w+)\(",
-                                 text, re.M))
-        for i, m in enumerate(heads):
-            attrs = [l.strip() for l in m.group(1).splitlines() if l.strip().startswith("#[")]
-            name = m.group(2)
-            if "#[test]" not in attrs:
+    for d in TESTS_DIRS:
+        for f in sorted(d.glob("*.rs")):
+            rel = str(f.relative_to(ROOT))
+            if tracked is not None and rel not in tracked:
                 continue
-            body = text[m.end():heads[i + 1].start() if i + 1 < len(heads) else len(text)]
-            t = {"file": f.name, "fn": name, "line": text[:m.start(2)].count("\n") + 1,
-                 "ignored": any(x.startswith("#[ignore") for x in attrs),
-                 "trace_stem": None, "kind": None, "window": None}
-            tr = re.search(r"_out/A-([\w-]+)/trace\.txt", body)
-            if tr:
-                t["trace_stem"] = tr.group(1)
-            frame = bool(re.search(r"assert_eq!\(\s*&sha,\s*expect", body))
-            if t["ignored"]:
-                t["kind"] = "ignored"
-            elif tr and frame:
-                t["kind"] = "frame"
-                g = re.search(r"if rec\.tick >= (\d+)", body)
-                c = re.search(r"assert_eq!\(\s*checked,\s*(\d+)", body)
-                c2 = re.search(r"assert!\(\s*checked\s*>=\s*(\d+)", body)
-                if re.search(r"assert_eq!\(\s*checked,\s*records\.len\(\)", body):
-                    t["window"] = (1, None)
-                elif g and c:
-                    t["window"] = (int(g.group(1)), int(g.group(1)) + int(c.group(1)) - 1)
-                elif c:
-                    t["window"] = (1, int(c.group(1)))
-                elif c2:
-                    t["window"] = (1, int(c2.group(1)))
-                else:
-                    t["kind"] = "frame-unbounded"  # 帧断言但无 checked 计数：不计入验证
-            elif tr:
-                t["kind"] = "trace-partial"   # 读 A-trace 但非逐帧（ops 前缀/锚点）
-            elif "include_str!(\"fixtures/" in body:
-                t["kind"] = "fixture"
-            else:
-                t["kind"] = "structural"
-            tests.append(t)
+            tests += _collect_file(f, rel)
     return tests
+
+
+def _collect_file(f: Path, rel: str) -> list[dict]:
+    text = f.read_text(encoding="utf-8")
+    # 属性块允许夹 /// 文档注释（preset_floor35/10/46/42/43 的 #[test] 与 fn 间有文档）；
+    # 只认以 `#[` 起首的行为属性（文档正文里出现 "#[ignore]" 字样不算）
+    heads = list(re.finditer(r"((?:^[ \t]*(?:#\[[^\n]*\]|//[^\n]*)[ \t]*\n)+)[ \t]*fn (\w+)\(",
+                             text, re.M))
+    # 同文件辅助函数（任意顶层 fn）中含夹具帧断言者；及其 checked 窗口断言（`assert_eq!(checked, X.ticks…)`）
+    fn_heads = list(re.finditer(r"^(?:pub )?fn (\w+)\(", text, re.M))
+    frame_helpers, helper_ticks = set(), set()
+    for i, m in enumerate(fn_heads):
+        body = text[m.end():fn_heads[i + 1].start() if i + 1 < len(fn_heads) else len(text)]
+        if FRAME_FIX_RE.search(body):
+            frame_helpers.add(m.group(1))
+            if re.search(r"assert_eq!\(\s*checked,\s*\w+\.ticks\b", body):
+                helper_ticks.add(m.group(1))
+    # 夹具规格常量（mov_route_scene.rs 式）：`const NAME: T = T { … frames: include_str!("…frames.txt"), …
+    # ticks: N, … };` ⇒ NAME → (frames 路径, N)
+    spec_consts = {}
+    for m in re.finditer(r"^(?:pub )?(?:const|static) (\w+)\s*:[^=]*=\s*\w+\s*\{(.*?)^\};", text, re.M | re.S):
+        inc = FRAMES_INC_RE.findall(m.group(2))
+        tk = re.search(r"\bticks:\s*(\d+)", m.group(2))
+        if len(inc) == 1:
+            spec_consts[m.group(1)] = (inc[0], int(tk.group(1)) if tk else None)
+    file_frames = sorted(set(FRAMES_INC_RE.findall(text)))
+    out = []
+    for i, m in enumerate(heads):
+        attrs = [l.strip() for l in m.group(1).splitlines() if l.strip().startswith("#[")]
+        name = m.group(2)
+        if "#[test]" not in attrs:
+            continue
+        body = text[m.end():heads[i + 1].start() if i + 1 < len(heads) else len(text)]
+        t = {"file": f.name, "path": rel, "fn": name, "line": text[:m.start(2)].count("\n") + 1,
+             "ignored": any(x.startswith("#[ignore") for x in attrs),
+             "trace_stem": None, "kind": None, "window": None, "fixture": None}
+        tr = re.search(r"_out/A-([\w-]+)/trace\.txt", body)
+        if tr:
+            t["trace_stem"] = tr.group(1)
+        frame = bool(re.search(r"assert_eq!\(\s*&sha,\s*expect", body))
+        used_consts = [c for c in spec_consts if re.search(rf"(?<![\w$]){re.escape(c)}(?![\w$])", body)]
+        inc = FRAMES_INC_RE.findall(body) or (
+            [spec_consts[used_consts[0]][0]] if len(used_consts) == 1 else
+            (file_frames if len(file_frames) == 1 else []))
+        called = [h for h in frame_helpers if re.search(rf"\b{h}\(", body)]
+        fx_frame = bool(FRAME_FIX_RE.search(body) or called)
+        if inc and not tr:
+            fp = (f.parent / inc[0]).resolve()
+            if fp.exists():
+                fx = read_frames_fixture(fp)
+                t["fixture"] = {"path": str(fp.relative_to(ROOT)), **fx}
+                t["trace_stem"] = fx["stem"]
+        if t["ignored"]:
+            t["kind"] = "ignored"
+        elif (tr and frame) or (t["fixture"] and t["fixture"]["stem"] and fx_frame):
+            t["kind"] = "frame"
+            g = re.search(r"if rec\.tick >= (\d+)", body)
+            c = re.search(r"assert_eq!\(\s*checked,\s*(\d+)", body)
+            c2 = re.search(r"assert!\(\s*checked\s*>=\s*(\d+)", body)
+            if re.search(r"assert_eq!\(\s*checked,\s*records\.len\(\)", body):
+                t["window"] = (1, None)
+            elif g and c:
+                t["window"] = (int(g.group(1)), int(g.group(1)) + int(c.group(1)) - 1)
+            elif c:
+                t["window"] = (1, int(c.group(1)))
+            elif c2:
+                t["window"] = (1, int(c2.group(1)))
+            elif (t["fixture"] and len(used_consts) == 1 and spec_consts[used_consts[0]][1]
+                  and any(h in helper_ticks for h in called)):
+                # 辅助函数断言 checked == 规格 ticks（逐帧循环遍历夹具全部记录）⇒ [1, ticks]
+                t["window"] = (1, spec_consts[used_consts[0]][1])
+            else:
+                t["kind"] = "frame-unbounded"  # 帧断言但无 checked 计数：不计入验证
+        elif tr:
+            t["kind"] = "trace-partial"   # 读 A-trace 但非逐帧（ops 前缀/锚点）
+        elif "include_str!(\"fixtures/" in body or inc:
+            t["kind"] = "fixture"
+        else:
+            t["kind"] = "structural"
+        out.append(t)
+    return out
 
 
 # ---------------------------------------------------------------- ④ 移植信号
@@ -637,7 +817,7 @@ def rust_signals(jm: dict) -> tuple[dict, list]:
                 a = int(m.group(2))
                 b = max(a, int(m.group(3))) if m.group(3) else a
                 if b - a <= 400:
-                    for n, (s, e) in jm["cur"].items():
+                    for n, (s, e) in jm["v2"].items():
                         if a <= e and b >= s:
                             naive[n].append(loc)
             if not is_port:
@@ -759,6 +939,125 @@ def check_notes(rng: dict, n_lines: int) -> list[str]:
     return bad
 
 
+RULING_PARTS = ("主张", "证据", "可复现命令", "结论")
+
+
+def ruling_sections() -> dict[str, str]:
+    """裁决书 `## DC-n …` 节 → 节正文（至下一个同级/更高级标题）。"""
+    if not RULINGS_DOC.exists():
+        return {}
+    text = RULINGS_DOC.read_text(encoding="utf-8")
+    heads = list(re.finditer(r"^(#{2,3}) (DC-\d+)\b.*$", text, re.M))
+    out = {}
+    for i, m in enumerate(heads):
+        lvl = len(m.group(1))
+        end = len(text)
+        for n in re.finditer(r"^(#{1,%d}) " % lvl, text[m.end():], re.M):
+            end = m.end() + n.start()
+            break
+        out[m.group(2)] = text[m.start():end]
+    return out
+
+
+def check_rulings(drs: dict, hits: dict) -> tuple[dict, list[str]]:
+    """TRIAGE b 条目的「裁决 DC-n」三重校验：① tools/dead_code_ruling.py 字节码不动点证死该方法；
+    ② 裁决书含 DC-n 节且点名该方法、四段（主张/证据/可复现命令/结论）俱全；③ 动态一致：全部场景
+    （JDI 实测）零触达。全过 ⇒ ☠️ 已裁死；否则 ⚠ 并退回「待裁」。返回 ({方法: DC-n}, 告警)。"""
+    secs = ruling_sections()
+    ruled, bad = {}, []
+    for n, (cls, _, ev) in TRIAGE.items():
+        if cls != "b":
+            continue
+        m = re.search(r"裁决 (DC-\d+)", ev)
+        if not m:
+            continue
+        rid = m.group(1)
+        tag = f"TRIAGE[{n}] 裁决 {rid}"
+        r = drs.get(rid)
+        ok = True
+        if r is None or n not in r["methods"]:
+            bad.append(f"{tag}：dead_code_ruling.RULINGS 无此裁决对象")
+            ok = False
+        elif not r["methods"][n].get("dead"):
+            bad.append(f"{tag}：字节码复核未证死（{r['methods'][n].get('error', '有可达调用点')}）")
+            ok = False
+        sec = secs.get(rid)
+        if sec is None:
+            bad.append(f"{tag}：裁决书 {RULINGS_DOC.relative_to(ROOT)} 缺「## {rid}」节")
+            ok = False
+        else:
+            # 裁决书以裁决时名字成文；改名批次落地后亦认台账旧名（不要求改写已定案文书）
+            olds = {o for o, cur in ledger_renames().items() if cur == n}
+            if not any(re.search(rf"(?<![\w$]){re.escape(x)}(?![\w$])", sec) for x in {n} | olds):
+                bad.append(f"{tag}：裁决书 {rid} 节未点名 {n}")
+                ok = False
+            miss = [p for p in RULING_PARTS if p not in sec]
+            if miss:
+                bad.append(f"{tag}：裁决书 {rid} 节缺 {'/'.join(miss)}")
+                ok = False
+        if hits.get(n):
+            bad.append(f"{tag}：与动态证据矛盾——场景触达 {hits[n][:2]}")
+            ok = False
+        if ok:
+            ruled[n] = rid
+    return ruled, bad
+
+
+def _absent_violations(glob_pat: str, pattern: str) -> list[str]:
+    rx = re.compile(pattern)
+    out = []
+    for p in sorted(ROOT.glob(glob_pat)):
+        for ln, line in enumerate(p.read_text(encoding="utf-8", errors="replace").split("\n"), 1):
+            s = line.strip()
+            if s.startswith(("*", "/*", "//")):
+                continue
+            if rx.search(line):
+                out.append(f"{p.relative_to(ROOT)}:{ln}")
+    return out
+
+
+def _bad_body_anchor(tag: str, ev: str, rng: dict, n: str) -> list[str]:
+    s, e = rng[n]
+    if not any(s <= int(x) <= e for x in re.findall(r"a\.java:(\d+)", ev)):
+        return [f"{tag} 缺落在方法体 a.java:{s}-{e} 内的行锚"]
+    return []
+
+
+def check_yellow(rng: dict, an: dict) -> tuple[set, list[str]]:
+    """YELLOW_NOTES 机械校验。返回 (论证成立的方法集, 告警)。"""
+    import dead_code_ruling as dcr
+    ok, bad = set(), []
+    for n, note in YELLOW_NOTES.items():
+        tag = f"YELLOW_NOTES[{n}]"
+        if n not in rng:
+            bad.append(f"{tag} 方法不存在")
+            continue
+        b = _bad_body_anchor(tag, note["arg"], rng, n) + _bad_rust_pairs(tag, note["arg"])
+        if "only_callers" in note:
+            got = sorted({c for c, _ in dcr.callers_of(an, n)})
+            if got != sorted(note["only_callers"]):
+                b.append(f"{tag} 字节码调用者 {got} ≠ 声明 {note['only_callers']}")
+        for g, pat in note.get("absent", []):
+            v = _absent_violations(g, pat)
+            if v:
+                b.append(f"{tag} 驱动面出现 /{pat}/：{', '.join(v[:3])}")
+        bad += b
+        if not b:
+            ok.add(n)
+    return ok, bad
+
+
+def check_gaps(rng: dict) -> list[str]:
+    bad = []
+    for n, ev in ARM_GAPS:
+        tag = f"ARM_GAPS[{n}]"
+        if n not in rng:
+            bad.append(f"{tag} 方法不存在")
+            continue
+        bad += _bad_body_anchor(tag, ev, rng, n) + _bad_rust_pairs(tag, ev)
+    return bad
+
+
 # ---------------------------------------------------------------- ② 触达
 
 def load_snapshot() -> dict:
@@ -784,16 +1083,27 @@ def verified_hits(tests: list[dict], snap: dict) -> tuple[dict, list[dict]]:
             continue
         at = s.get("a_trace")
         start, end = t["window"]
-        if end is None:
-            end = at["frames"] if at else s["frames"]
-        row["window_resolved"] = (start, end)
-        # equal：测得运行 = 用例消费的 A-trace（逐帧）；prefix：一侧为另一侧前缀——只在
-        # 公共前缀内计触达（保守：前缀外的首次命中不入账）
-        ok = at is not None and at["match"] in ("equal", "prefix")
-        eff_end = min(end, s["frames"], at["frames"]) if ok else end
-        row["status"] = ("FRAME 一致" if ok and at["match"] == "equal" else
-                         f"FRAME 前缀一致（计至 T{eff_end}）" if ok else
-                         f"FRAME 失配（{at['match'] if at else '无 A-trace'}）")
+        fx = t.get("fixture")
+        if fx is not None:
+            # 夹具帧用例：Rust 比对的期望帧 = 夹具；须与 JDI 实测运行的 FRAME 链逐字节相同
+            # （帧数 + 链 sha256），测到的触达才是被 Rust 全帧验证的那次执行
+            if end is None:
+                end = fx["frames"]
+            row["window_resolved"] = (start, end)
+            ok = fx["frames"] == s["frames"] and fx["chain"] == s["frame_chain"]
+            eff_end = min(end, s["frames"])
+            row["status"] = "FRAME 一致（夹具帧链 = 实测）" if ok else "FRAME 失配（夹具帧链 ≠ 实测）"
+        else:
+            if end is None:
+                end = at["frames"] if at else s["frames"]
+            row["window_resolved"] = (start, end)
+            # equal：测得运行 = 用例消费的 A-trace（逐帧）；prefix：一侧为另一侧前缀——只在
+            # 公共前缀内计触达（保守：前缀外的首次命中不入账）
+            ok = at is not None and at["match"] in ("equal", "prefix")
+            eff_end = min(end, s["frames"], at["frames"]) if ok else end
+            row["status"] = ("FRAME 一致" if ok and at["match"] == "equal" else
+                             f"FRAME 前缀一致（计至 T{eff_end}）" if ok else
+                             f"FRAME 失配（{at['match'] if at else '无 A-trace'}）")
         rows.append(row)
         if not ok:
             continue
@@ -848,6 +1158,22 @@ def legacy_status(pseudo: str | None) -> tuple[str, str]:
     return "white", "未入账"
 
 
+def v1_era_names(jm: dict) -> dict[str, str]:
+    """现名 → v1 时（迭代 72，V1_REV）的方法名：按方法序数对齐 V1_REV 的 deobf（逐序参数类型须一致）。
+    v1 伪名对 ≤1 参方法 = 方法名本身，随后续改名批次漂移；钉回 v1 时名字才能保证 v1 复算 44/1/58 不变
+    （2026-10-15 dc470b2 批量改名前车；台账回溯不可行——部分改名早于 v1，回溯会越过 v1 时点）。"""
+    r = git("show", f"{V1_REV}:{DEOBF_REL}")
+    if r.returncode != 0:
+        jm["warn"].append(f"取不到 {V1_REV}:{DEOBF_REL}——v1 伪名按现名计（v1 复算可能漂移）")
+        return {}
+    old = parse_java(r.stdout)["decls"]
+    cur = parse_java(DEOBF.read_text(encoding="utf-8"))["decls"]
+    if len(old) != len(cur) or any(a["types"] != b["types"] for a, b in zip(cur, old)):
+        jm["warn"].append(f"deobf@{V1_REV} 与现行方法序数不对齐——v1 伪名按现名计")
+        return {}
+    return {a["name"]: b["name"] for a, b in zip(cur, old)}
+
+
 # ---------------------------------------------------------------- 渲染
 
 SYM = {"green": "绿", "yellow": "黄", "white": "白", "absent": "未收"}
@@ -865,8 +1191,13 @@ def classify(inv, sig, mech, vhits, v2: bool = False) -> dict[str, str]:
 def render() -> tuple[str, dict]:
     inv = inventory()
     jm = java_model()
+    v1n = v1_era_names(jm)
+    for m in inv:  # ≤1 参方法的 v1 伪名 = 方法名 ⇒ 钉回 v1 时名字
+        if m["legacy"] == m["name"]:
+            m["legacy"] = v1n.get(m["name"], m["name"])
     rng = jm["cur"]
     names = [m["name"] for m in inv]
+    moved = resolve_config(set(names))
     missing_rng = [n for n in names if n not in rng]
     sites = call_sites(rng, names)
     jcallers = javap_callers()
@@ -902,9 +1233,12 @@ def render() -> tuple[str, dict]:
             bad_notes.append(f"TRIAGE[{r['name']}] 判 c 但仍白——解决手段（PORT_NOTES/归属规则）未生效")
     v2c = classify(inv, sig, mech, vhits, v2=True)
     v2cnt = Counter(v2c.values())
-    # 「修正暴露」= v2 口径有移植账、v2.1 机械信号（fn/行锚）全空者——须与 TRIAGE 登记一致
+    # 「修正暴露」= v2 口径有移植账、v2.1 机械信号（fn/行锚）全空者——须与 TRIAGE 登记一致。基线 23 白项按定义
+    # 在 v2 口径下为白（来源即「基线23」），后续 Rust 注释的宽区间锚即便令 v2 朴素口径改判，也不属「修正暴露」
+    # （2026-10-15 6a37155 `m_106 / m_108（a.java:8738-8904）` 区间锚覆盖 m_107 前车）
+    base23 = {n for n, (_, o, _) in TRIAGE.items() if o == "基线23"}
     exposed = {r["name"] for r in rows if v2c[r["name"]] != "white"
-               and not (r["port"]["fn"] or r["port"]["refs"])}
+               and not (r["port"]["fn"] or r["port"]["refs"])} - base23
     declared = {n for n, (_, o, _) in TRIAGE.items() if o == "修正暴露"}
     if exposed != declared:
         bad_notes.append(f"TRIAGE「修正暴露」与机械复算不符：漏登 {sorted(exposed - declared)}；"
@@ -918,7 +1252,24 @@ def render() -> tuple[str, dict]:
 
     wcls = Counter(r["triage"][0] if r["triage"] else "none" for r in by["white"])
     tri = Counter((o, c) for (c, o, _) in TRIAGE.values())
-    base_now = Counter(color_of[n] for n, (c, o, _) in TRIAGE.items() if o == "基线23" and c == "c")
+    base_now = Counter(color_of[n] for n, (c, o, _) in TRIAGE.items()
+                       if o == "基线23" and c == "c" and n in color_of)
+
+    # 死代码裁决（☠️）/ 黄项不触达论证 / 臂级缺口：逐条机械复核
+    import dead_code_ruling as dcr
+    an = dcr.analyze()
+    drs = dcr.rulings(an)
+    hits_by_name = {r["name"]: r["hits"] for r in rows}
+    ruled, bad_r = check_rulings(drs, hits_by_name)
+    argued, bad_y = check_yellow(rng, an)
+    bad_notes += bad_r + bad_y + check_gaps(rng)
+    b_white = [r for r in by["white"] if r["triage"] and r["triage"][0] == "b"]
+    n_ruled = sum(1 for r in b_white if r["name"] in ruled)
+    y_hit = [r for r in by["yellow"] if r["hits"]]
+    y_nohit = [r for r in by["yellow"] if not r["hits"]]
+    y_arg = [r for r in y_nohit if r["name"] in argued]
+    deficit_w = cnt["white"] - n_ruled
+    deficit_y = cnt["yellow"] - len(y_arg)
 
     L: list[str] = []
     a = L.append
@@ -926,21 +1277,29 @@ def render() -> tuple[str, dict]:
     a("")
     a("> 生成：`python3 tools/cover_matrix.py`（v2.1，2026-10-15 刷账：v2 重写 + v2.1 行锚归属治理；v1 = 迭代 72）。")
     a("> 触达数据：`python3 tools/method_reach.py` → `tools/method_reach/snapshot.json`。")
-    a("> **请勿手改本文件**——改判定请改 tools/cover_matrix.py 的 PORT_NOTES/TRIAGE（逐条带证据，脚本校验锚点）。")
-    a("> 判据文本见 [docs/spec/completeness.md](spec/completeness.md)「覆盖矩阵刷账（2026-10-15）」。")
+    a("> **请勿手改本文件**——改判定请改 tools/cover_matrix.py 的 PORT_NOTES/TRIAGE/YELLOW_NOTES/ARM_GAPS"
+      "（逐条带证据，脚本校验锚点）。")
+    a("> 判据文本见 [docs/spec/completeness.md](spec/completeness.md)「覆盖矩阵刷账（2026-10-15）」；"
+      "白项 b 类死代码裁决书见 [docs/spec/dead-code-rulings.md](spec/dead-code-rulings.md)"
+      "（`python3 tools/dead_code_ruling.py --check` 字节码机械复核）。")
     a("")
     a(f"## 汇总：绿 {cnt['green']} / 黄 {cnt['yellow']} / 白 {cnt['white']}（共 {len(rows)} 方法）")
     a("")
-    a(f"- 白项分账（现白 {cnt['white']}）：{CLS['a']} {wcls['a']} / {CLS['b']} {wcls['b']}"
+    a(f"- 白项分账（现白 {cnt['white']}）：{CLS['a']} {wcls['a']} / b 不触达 {wcls['b']}"
+      f"（☠️ 已裁死 {n_ruled} / 待裁 {wcls['b'] - n_ruled}）"
       + (f" / c 未解决 {wcls['c']}" if wcls["c"] else "")
       + (f" / **未分账 {wcls['none']}**" if wcls["none"] else " / 未分账 0"))
-    a(f"- 刷账三分账（§4.1）：基线 23 白 = a {tri[('基线23', 'a')]} / b {tri[('基线23', 'b')]} / "
+    a_done = sum(1 for n, (c, o, _) in TRIAGE.items() if o == "基线23" and c == "a" and color_of.get(n) != "white")
+    a(f"- 刷账三分账（§4.1）：基线 23 白 = a {tri[('基线23', 'a')]}（其后已移植 {a_done}）/ b {tri[('基线23', 'b')]} / "
       f"c {tri[('基线23', 'c')]}（c 已解决 → 现绿 {base_now['green']} / 黄 {base_now['yellow']}）；"
       f"v2.1 归属治理新暴露 {sum(v for (o, _), v in tri.items() if o == '修正暴露')} 项 = "
       f"b {tri[('修正暴露', 'b')]} / c {tri[('修正暴露', 'c')]}（c 经核验恢复移植账）")
-    yr = sum(1 for r in by["yellow"] if r["hits"])
-    a(f"- 黄项：{cnt['yellow']}（其中 {yr} 项被无对拍用例的场景触达 = 补用例即可转绿；"
-      f"{cnt['yellow'] - yr} 项无任何场景触达，待不触达论证——convergence-plan §0.1）")
+    a(f"- 黄项：{cnt['yellow']}（被无对拍用例的场景触达 {len(y_hit)} = 补用例即可转绿；无任何场景触达 "
+      f"{len(y_nohit)} = 带不触达论证 {len(y_arg)} / 待论证 {len(y_nohit) - len(y_arg)}——convergence-plan §0.1）")
+    a(f"- **判据①赤字**（convergence-plan §0.1：白项清零、黄项带论证）：白（非 ☠️）{deficit_w} + "
+      f"黄（无论证）{deficit_y} = {deficit_w + deficit_y}"
+      + ("（白 = " + ", ".join(r["name"] for r in by["white"] if r["name"] not in ruled) + "）"
+         if deficit_w else ""))
     a(f"- 口径复算（同一份 Rust 树）：v2 前任口径 绿 {v2cnt['green']} / 黄 {v2cnt['yellow']} / 白 {v2cnt['white']}"
       f"（差异见 §7）；v1 旧账（伪名口径，{len(leg_names)} 名）绿 {leg_cnt['green']} / 黄 {leg_cnt['yellow']} / "
       f"白 {leg_cnt['white']}（对照见 §6）")
@@ -948,6 +1307,8 @@ def render() -> tuple[str, dict]:
         a(f"- ⚠ deobf 区间缺失：{', '.join(missing_rng)}")
     for w in jm["warn"]:
         a(f"- ⚠ {w}")
+    if moved:
+        a(f"- ⚠ 人工条目键随台账改名就地映射（请把 tools/cover_matrix.py 条目键改为现名）：{', '.join(moved)}")
     if sig["amb"]:
         a(f"- ⚠ 歧义别名（不用于点名）：{', '.join(sorted(sig['amb']))}")
     for b in bad_notes:
@@ -978,7 +1339,11 @@ def render() -> tuple[str, dict]:
     a("")
 
     # §1 用例映射
-    a("## 1. 对拍用例 → 场景 → 窗口（crates/game-oracle/tests 机械解析）")
+    dirs = "、".join(str(d.relative_to(ROOT)) for d in TESTS_DIRS)
+    a(f"## 1. 对拍用例 → 场景 → 窗口（{dirs} 机械解析，只认 git 已追踪文件）")
+    a("")
+    a("帧级用例两类：A-trace 用例（运行期读 `_out/A-<场景>/trace.txt`）与夹具帧用例（期望帧嵌入 "
+      "`<场景>.frames.txt`，tools/frames_fixture.py 产出；夹具帧链须 = JDI 实测运行的帧链才计入验证）。")
     a("")
     a("| 用例 | 场景（A-trace） | 窗口 | FRAME 对照 | 验证触达方法数 |")
     a("|---|---|---|---|---|")
@@ -989,15 +1354,26 @@ def render() -> tuple[str, dict]:
     for t in trows:
         tid = f"{Path(t['file']).stem}::{t['fn']}"
         w = t.get("window_resolved") or t["window"]
-        a(f"| `{tid}` | {t['trace_stem']} | T{w[0]}-{w[1]} | {t['status']} | {vcount.get(tid, 0)} |")
+        stem = t["trace_stem"] + ("（夹具）" if t.get("fixture") else "")
+        a(f"| `{tid}` | {stem} | T{w[0]}-{w[1]} | {t['status']} | {vcount.get(tid, 0)} |")
     a("")
     others = [t for t in tests if t["kind"] != "frame"]
     if others:
         a("非帧级用例（不计入验证；列出以示归属）：")
         a("")
+        oracle_dir = TESTS_DIRS[0]
         for t in others:
-            a(f"- `{Path(t['file']).stem}::{t['fn']}`（{t['file']}:{t['line']}）：{t['kind']}"
-              + (f"，读 A-{t['trace_stem']}" if t["trace_stem"] else ""))
+            if not t["path"].startswith(str(oracle_dir.relative_to(ROOT))):
+                continue
+            src = (f"，夹具 {t['trace_stem']}" if t.get("fixture") else
+                   f"，读 A-{t['trace_stem']}" if t["trace_stem"] else "")
+            a(f"- `{Path(t['file']).stem}::{t['fn']}`（{t['file']}:{t['line']}）：{t['kind']}{src}")
+        per = defaultdict(Counter)
+        for t in others:
+            if not t["path"].startswith(str(oracle_dir.relative_to(ROOT))):
+                per[t["path"]][t["kind"]] += 1
+        for p, c in sorted(per.items()):
+            a(f"- {p}：{sum(c.values())} 个（" + " / ".join(f"{k} {v}" for k, v in sorted(c.items())) + "）")
         a("")
     tested = {t["trace_stem"] for t in tests if t["kind"] == "frame"}
     a("场景触达（JDI 实测，全程 = 各相位并集取最小 t_hit；相位起点 = 1 ∪ 用例窗口起点）：")
@@ -1007,8 +1383,9 @@ def render() -> tuple[str, dict]:
     for stem, s in snap["scenarios"].items():
         at = s.get("a_trace")
         ph = ",".join(sorted(s.get("phases", {}), key=int))
+        src = "（夹具）" if at and at.get("source") == "fixture" else ""
         a(f"| {stem} | {s.get('frames')} | {s.get('end', '').replace('END ', '')} | {ph} | "
-          f"{len(full_run_hits(s))} | {at['match'] if at else '无 A-trace'} | "
+          f"{len(full_run_hits(s))} | {at['match'] + src if at else '无 A-trace'} | "
           f"{'✓' if stem in tested else '—'} |")
     a("")
 
@@ -1043,13 +1420,32 @@ def render() -> tuple[str, dict]:
     # §3 黄
     a(f"## 3. 黄：已移植 + 无帧级窗口触达（{cnt['yellow']}）")
     a("")
-    a("| 方法 | 区间 | 场景触达（无用例） | 移植证据 | 调用点（deobf） |")
-    a("|---|---|---|---|---|")
+    a("| 方法 | 区间 | 场景触达（无用例） | 移植证据 | 调用点（deobf） | 处置 |")
+    a("|---|---|---|---|---|---|")
     for r in sorted(by["yellow"], key=lambda r: r["range"] or (0, 0)):
         h = "; ".join(f"{s}@T{t}" for s, t in r["hits"][:3]) or "**无场景触达**"
         cs = ", ".join(f"{c}:{ln}" for ln, c in r["callers_src"][:4])
-        a(f"| {r['name']} | {anchor(r)} | {h} | {port_str(r)} | {cs} |")
+        if r["hits"]:
+            disp = "补帧级用例即转绿"
+        elif r["name"] in argued:
+            disp = "不触达论证（B，机械校验 ✓）：" + YELLOW_NOTES[r["name"]]["arg"]
+        else:
+            disp = "**待论证或新场景**"
+        a(f"| {r['name']} | {anchor(r)} | {h} | {port_str(r)} | {cs} | {disp} |")
     a("")
+
+    def cls_str(n: str, tr) -> str:
+        if not tr:
+            return "**未分账**"
+        if tr[0] == "b":
+            rid = ruled.get(n)
+            if rid:
+                v = drs[rid]["methods"][n]
+                return f"b ☠️ 已裁死 {rid}（字节码复核 ✓：调用点 {len(v['sites'])} 处全不可达）"
+            return "b 不触达（**待裁**）"
+        if tr[0] == "a" and color_of.get(n) not in (None, "white"):
+            return f"a 真未移植 → 已移植（现{SYM[color_of[n]]}）"
+        return CLS.get(tr[0], tr[0])
 
     # §4 白
     a(f"## 4. 白：无移植账（{cnt['white']}）")
@@ -1058,25 +1454,26 @@ def render() -> tuple[str, dict]:
     a("|---|---|---|---|---|---|")
     for r in sorted(by["white"], key=lambda r: r["range"] or (0, 0)):
         tr = r["triage"]
-        cls = CLS.get(tr[0], tr[0]) if tr else "**未分账**"
         h = "; ".join(f"{s}@T{t}" for s, t in r["hits"][:3]) or "无"
         mn = f"{len(r['mentions'])}（{r['mentions'][0]}）" if r["mentions"] else "0"
-        a(f"| {r['name']} | {anchor(r)} | {cls} | {h} | {mn} | {tr[2] if tr else '—'} |")
+        a(f"| {r['name']} | {anchor(r)} | {cls_str(r['name'], tr)} | {h} | {mn} | {tr[2] if tr else '—'} |")
     a("")
     a("### 4.1 刷账三分账（2026-10-15：基线 23 白 + v2.1 归属治理新暴露）")
     a("")
     a("c 类 = 白色系工具方法论所致（移植存在但漏判 / 无可观测效应无「吸收」口径）；解决手段为"
-      "归属规则修正或 PORT_NOTES 人工条目（逐条校验 Rust 锚），解决后现色随之变化。")
+      "归属规则修正或 PORT_NOTES 人工条目（逐条校验 Rust 锚），解决后现色随之变化。"
+      "b 类 ☠️ = 死代码终裁（裁决书 + 字节码机械复核 + 全场景零触达三重校验；不计判据①赤字）。")
     a("")
     a("| 方法 | 区间 | 来源 | 分账 | 现色 | 场景触达 | 论证 / 依据 |")
     a("|---|---|---|---|---|---|---|")
     order = {"a": 0, "b": 1, "c": 2}
     by_name = {r["name"]: r for r in rows}
-    for n, (c, o, ev) in sorted(TRIAGE.items(), key=lambda kv: (kv[1][1] != "基线23", order[kv[1][0]],
-                                                                 (by_name[kv[0]]["range"] or (0, 0)))):
+    known = {n: v for n, v in TRIAGE.items() if n in by_name}  # 未知键已由 check_notes 报 ⚠
+    for n, (c, o, ev) in sorted(known.items(), key=lambda kv: (kv[1][1] != "基线23", order[kv[1][0]],
+                                                               (by_name[kv[0]]["range"] or (0, 0)))):
         r = by_name[n]
         h = "; ".join(f"{s}@T{t}" for s, t in r["hits"][:2]) or "无"
-        a(f"| {n} | {anchor(r)} | {o} | {CLS[c]} | {SYM[r['color']]} | {h} | {ev} |")
+        a(f"| {n} | {anchor(r)} | {o} | {cls_str(n, (c, o, ev))} | {SYM[r['color']]} | {h} | {ev} |")
     a("")
 
     # §5 todo
@@ -1084,6 +1481,12 @@ def render() -> tuple[str, dict]:
     a("")
     for t in todos:
         a(f"- {t['at']}：{t['msg']}")
+    a("")
+    a("### 5.1 无 `todo!` 标记的臂级缺口（人工登记 ARM_GAPS，锚逐条校验；修复后锚失效即 ⚠ 提示销账）")
+    a("")
+    for n, ev in ARM_GAPS:
+        r = by_name.get(n)
+        a(f"- {n}（{anchor(r) if r else 'a.java:?'}，现色 {SYM[r['color']] if r else '?'}）：{ev}")
     a("")
 
     # §6 v1 对照
@@ -1140,7 +1543,7 @@ def render() -> tuple[str, dict]:
     a("")
     text = "\n".join(L) + "\n"
     return text, {"counts": cnt, "legacy": dict(leg_cnt), "v2": dict(v2cnt), "white_cls": dict(wcls),
-                  "bad": bad_notes}
+                  "bad": bad_notes, "ruled": n_ruled, "deficit": deficit_w + deficit_y}
 
 
 def normalize(text: str) -> str:
@@ -1169,7 +1572,8 @@ def main() -> int:
     OUT.write_text(text, encoding="utf-8")
     c, w = info["counts"], info["white_cls"]
     print(f"覆盖矩阵 → {OUT.relative_to(ROOT)}（绿 {c['green']} / 黄 {c['yellow']} / 白 {c['white']}；"
-          f"白分账 a {w.get('a', 0)} / b {w.get('b', 0)} / c {w.get('c', 0)} / 未分账 {w.get('none', 0)}；"
+          f"白分账 a {w.get('a', 0)} / b {w.get('b', 0)}（☠️ {info['ruled']}）/ c {w.get('c', 0)} / "
+          f"未分账 {w.get('none', 0)}；判据①赤字 {info['deficit']}；"
           f"v2 口径复算 {info['v2'].get('green', 0)}/{info['v2'].get('yellow', 0)}/{info['v2'].get('white', 0)}；"
           f"v1 复算 {info['legacy'].get('green', 0)}/{info['legacy'].get('yellow', 0)}/{info['legacy'].get('white', 0)}"
           + (f"；⚠ {len(info['bad'])} 条校验告警" if info["bad"] else "") + "）")

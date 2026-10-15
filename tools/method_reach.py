@@ -21,6 +21,11 @@ MethodReach.java 头注释）。断点只观测不改写；本工具再把测得
 相位：相位起点 = 1 ∪ 使用该场景 trace 的对拍用例窗口起点；相位 p 只记到下一相位起点
 前 ⇒ 全程首次命中 = 各相位并集取最小 t_hit（full_run_hits）。
 
+夹具场景（2026-10-15 起）：crates/*/tests/fixtures/<stem>.txt（带 `# ticks:`/`# preset:` 头）且有
+同名 `<stem>.frames.txt`（tools/frames_fixture.py 产出的 Java 参照帧 = Rust 帧夹具用例的期望值）
+⇒ 同样测量；FRAME 对照改与夹具帧比（快照 a_trace.source=fixture，不读 _out/）。只认已入 git 索引的
+夹具（并行任务的在制夹具不进全量/--check；可 --only 点名测量）。
+
 用法：
   python3 tools/method_reach.py                    # 全部场景（并行 --jobs，缺省 4）
   python3 tools/method_reach.py --only a b         # 只测指定场景 stem，合并入既有快照
@@ -88,6 +93,39 @@ def frame_shas(trace: Path) -> list[str]:
     return out
 
 
+def fixture_scenarios(tracked_only: bool = False) -> dict[str, Path]:
+    """夹具场景（2026-10-15 起）：crates/*/tests/fixtures/<stem>.txt 带 `# ticks:` 头且有同名
+    `<stem>.frames.txt`（tools/frames_fixture.py 产出的 Java 参照帧）。帧对照改以夹具帧为准
+    （= Rust 用例实际比对的期望值），不读 _out/。stem 不得与 scenarios/ 重名。
+    tracked_only：只认已入 git 索引的夹具（并行任务未入库的在制夹具不进快照/校验——
+    快照与入库树一一对应；在制夹具可用 --only 显式点名测量）。"""
+    tracked = None
+    if tracked_only:
+        r = subprocess.run(["git", "ls-files", "--", "crates"], capture_output=True, text=True, cwd=str(ROOT))
+        tracked = set(r.stdout.split()) if r.returncode == 0 else None
+    out = {}
+    for f in sorted(ROOT.glob("crates/*/tests/fixtures/*.txt")):
+        if f.name.endswith(".frames.txt") or not f.with_suffix(".frames.txt").exists():
+            continue
+        if not any(re.match(r"#\s*ticks:\s*\d+", l) for l in f.read_text(encoding="utf-8").splitlines()[:40]):
+            continue
+        if tracked is not None and str(f.relative_to(ROOT)) not in tracked:
+            continue
+        if (SCEN / f.name).exists() or f.stem in out:
+            raise SystemExit(f"夹具场景 stem 冲突：{f.relative_to(ROOT)}")
+        out[f.stem] = f
+    return out
+
+
+def fixture_frames(f: Path) -> list[str]:
+    """`<stem>.frames.txt` 的 FRAME sha 列（逐 TICK，注释行跳过）。"""
+    out = []
+    for line in f.read_text(encoding="utf-8").splitlines():
+        if line.strip() and not line.startswith("#"):
+            out.append(line.split()[1])
+    return out
+
+
 def end_line(trace: Path) -> str:
     last = ""
     with trace.open(encoding="utf-8", errors="replace") as fh:
@@ -151,10 +189,12 @@ def a_trace_budget(stem: str) -> int | None:
 
 
 def measure(stem: str, env: dict, arms: list[int], script: Path | None = None,
-            a_trace: Path | None = None, run_tag: str = "run", ticks: int | None = None) -> dict:
+            a_trace: Path | None = None, run_tag: str = "run", ticks: int | None = None,
+            expect: Path | None = None) -> dict:
     """测一个场景。缺省 = 现行 scenarios/<stem>.txt + 其 A-trace；`script`/`a_trace` 显式
     给出时用于测历史版本（--rev：git show 导出到 WORK 的旧脚本/预置，不入快照）；
-    `ticks` 显式给出时覆盖 tick 预算（--rev 取现行快照同预算，保证对比同窗）。"""
+    `ticks` 显式给出时覆盖 tick 预算（--rev 取现行快照同预算，保证对比同窗）。
+    `expect` = 夹具场景的 `<stem>.frames.txt`：帧对照以夹具帧为准（a_trace.source=fixture）。"""
     f = script if script is not None else SCEN / f"{stem}.txt"
     ticks_header, preset = scenario_header(f)
     if a_trace is None and script is None:
@@ -212,18 +252,21 @@ def measure(stem: str, env: dict, arms: list[int], script: Path | None = None,
         "phases": {k: dict(sorted(v.items())) for k, v in sorted(phases.items(), key=lambda kv: int(kv[0]))},
     }
     a_trace_ok = a_trace is not None and a_trace.exists()
-    if a_trace_ok:
-        theirs = frame_shas(a_trace)
+    if expect is not None or a_trace_ok:
+        theirs = fixture_frames(expect) if expect is not None else frame_shas(a_trace)
         n = min(len(mine), len(theirs))
         first_diff = next((i + 1 for i in range(n) if mine[i] != theirs[i]), None)
         res["a_trace"] = {
-            "path": str(a_trace.relative_to(ROOT)),
+            "path": str((expect if expect is not None else a_trace).relative_to(ROOT)),
             "frames": len(theirs),
             "frame_chain": sha256_bytes("\n".join(theirs).encode()),
             # 一致 = 前缀全同且长度相等；prefix = 较短一侧全同（A-trace 预算与脚本头不一致时）
             "match": "equal" if (first_diff is None and len(mine) == len(theirs))
                      else ("prefix" if first_diff is None else f"diverge@T{first_diff}"),
         }
+        if expect is not None:
+            res["a_trace"]["source"] = "fixture"
+            res["script"] = str(f.relative_to(ROOT))
     else:
         res["a_trace"] = None
     # 产物瘦身：trace 只用于 FRAME 对照，测完即删（场景 trace 动辄百 MB）
@@ -258,8 +301,16 @@ def renamed_meta() -> dict:
 def main() -> int:
     args = sys.argv[1:]
     jobs = int(args[args.index("--jobs") + 1]) if "--jobs" in args else 4
-    stems_all = sorted(p.stem for p in SCEN.glob("*.txt"))
+    fx_all = fixture_scenarios()
+    fx = fixture_scenarios(tracked_only=True)
+    untracked = sorted(set(fx_all) - set(fx))
+    if untracked:
+        log(f"未入库夹具场景（不进全量/校验，可 --only 点名测量）：{', '.join(untracked)}")
+    stems_all = sorted([p.stem for p in SCEN.glob("*.txt")] + list(fx))
     snap = json.loads(SNAPSHOT.read_text(encoding="utf-8")) if SNAPSHOT.exists() else {}
+
+    def script_of(stem: str) -> Path:
+        return fx_all.get(stem, SCEN / f"{stem}.txt")
 
     if "--check" in args:
         bad = []
@@ -270,11 +321,15 @@ def main() -> int:
             if s is None:
                 bad.append(f"{stem}: 快照缺失")
                 continue
-            ticks, preset = scenario_header(SCEN / f"{stem}.txt")
-            if s["script_sha256"] != sha256_file(SCEN / f"{stem}.txt"):
+            ticks, preset = scenario_header(script_of(stem))
+            if s["script_sha256"] != sha256_file(script_of(stem)):
                 bad.append(f"{stem}: 场景脚本已变")
             if (s["preset_sha256"] or None) != (sha256_file(preset) if preset else None):
                 bad.append(f"{stem}: 预置已变")
+            if stem in fx:
+                exp = fixture_frames(fx[stem].with_suffix(".frames.txt"))
+                if (s.get("a_trace") or {}).get("frame_chain") != sha256_bytes("\n".join(exp).encode()):
+                    bad.append(f"{stem}: 夹具帧已变")
         for b in bad:
             log("STALE " + b)
         log("快照一致" if not bad else f"快照陈旧 {len(bad)} 项")
@@ -358,7 +413,10 @@ def main() -> int:
     log(f"测量 {len(stems)} 场景（jobs={jobs}）…")
     results: dict[str, dict] = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as ex:
-        futs = {ex.submit(measure, s, env, arms_for(s)): s for s in stems}
+        futs = {ex.submit(measure, s, env, arms_for(s),
+                          script=fx_all.get(s),
+                          expect=fx_all[s].with_suffix(".frames.txt") if s in fx_all else None): s
+                for s in stems}
         for fu in concurrent.futures.as_completed(futs):
             s = futs[fu]
             res = fu.result()
