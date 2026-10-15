@@ -247,6 +247,10 @@ pub struct GameScene {
     pub minimap: Option<ArgbImage>,
     /// optionChecked[1]：小地图开关（RMS 读档失败 catch 默认 true，a.java:4475-4471）
     pub minimap_enabled: bool,
+    /// SKY_WAR 全局存档（saveGlobalProgress a.java:8917-8942；两机同构拷贝）。
+    pub global: crate::save::GlobalSave,
+    /// 全局态脏位（壳轮询持久化）。
+    pub global_dirty: bool,
     /// frameCounter（run 循环变量，TICK n 拍 = n-1）
     pub frame_counter: i64,
     /// advanceBobPhase 浮沉相位（paint 内推进）
@@ -666,6 +670,8 @@ impl GameScene {
         floor_assets: Vec<Option<FloorAssets>>,
     ) -> Result<GameScene, String> {
         let mut scene = GameScene {
+            global: crate::save::GlobalSave::default_7(),
+            global_dirty: false,
             view: GameView::from_maplv(maplv, player_px, player_py)?,
             entities: EntityTable::new(100),
             grid: CellGrid::new(1, 1),
@@ -967,7 +973,7 @@ impl GameScene {
             self.min_floor = target;
         } else if target > self.max_floor {
             self.max_floor = target;
-            // f_int_154 全局进度（RMS）不追踪
+            self.note_max_floor(target); // f_int_154 水位（a.java:7163-7164）
         }
         self.pending_floor = target;
         self.went_down = down;
@@ -2264,6 +2270,33 @@ impl GameScene {
             self.enter_menu4();
         }
         self.bgm.on_hide_notify();
+    }
+
+    /// SKY_WAR 快照（[0]=soundEnabled 镜像 a.java:7284；[1]=minimap_enabled）。
+    pub fn global_snapshot(&self) -> crate::save::GlobalSave {
+        let mut g = self.global.clone();
+        g.option_checked[0] = self.bgm.sound_enabled;
+        g.option_checked[1] = self.minimap_enabled;
+        g
+    }
+
+    /// 消费脏位。
+    pub fn take_global_dirty(&mut self) -> bool {
+        std::mem::take(&mut self.global_dirty)
+    }
+
+    /// 装载/交接灌入（不置脏）。
+    pub fn apply_global(&mut self, g: crate::save::GlobalSave) {
+        self.global = g;
+        self.global_dirty = false;
+    }
+
+    /// 水位抬升（a.java:7163-7164：`floor<51 && floor>水位`）。
+    pub fn note_max_floor(&mut self, floor: i32) {
+        if floor < 51 && floor > self.global.max_floor_watermark {
+            self.global.max_floor_watermark = floor;
+            self.global_dirty = true;
+        }
     }
 
     /// m_000 case 4（a.java:4326-4337）：继续游戏（+floor>50 的跳过教程）/
@@ -5978,6 +6011,20 @@ mod slot_equip_scene_tests {
             save,
         )
         .unwrap()
+    }
+
+    /// 换层水位（a.java:7163-7164）：50 抬升+脏；51 结局层不计；单调不回退。
+    #[test]
+    fn scene_watermark_bump_marks_dirty() {
+        let mut sc = scene_with(&synthetic_sptarm());
+        sc.note_max_floor(50);
+        assert!(sc.take_global_dirty(), "水位抬升 ⇒ dirty");
+        assert_eq!(sc.global_snapshot().max_floor_watermark, 50);
+        sc.note_max_floor(51);
+        assert!(!sc.take_global_dirty(), "51 不计入");
+        assert_eq!(sc.global_snapshot().max_floor_watermark, 50);
+        sc.note_max_floor(30);
+        assert_eq!(sc.global_snapshot().max_floor_watermark, 50, "单调不回退");
     }
 
     /// ①②装备往返：serialize 写真实值（a.java:9192-9193）、load 恢复（a.java:9260-9261）。

@@ -219,3 +219,120 @@ mod tests {
         assert_eq!(s.alchemy_upgrades, 0);
     }
 }
+
+/// SKY_WAR 全局存档（saveGlobalProgress a.java:8917-8942 写 / loadGlobalProgress 4458-4478 读）。
+/// 布局：bool×4（optionChecked：[0]=声音 [1]=小地图 [2][3] 死槽）+ byte 计数 N
+/// + N×i32（f_int_arr_35 死值表，上限表 arr_34={4,2,2,2,2,2,2}）+ i32×3
+/// （f_int_152/153 死值、f_int_154 跨周目最高到达层水位）。
+#[derive(Clone, Debug, PartialEq)]
+pub struct GlobalSave {
+    /// optionChecked[0..4]（a.java:4463-4466）。
+    pub option_checked: [bool; 4],
+    /// f_int_arr_35（死值表，长度 = 计数字节）。
+    pub table: Vec<i32>,
+    /// f_int_152（只存不用，保真保留）。
+    pub reserved_152: i32,
+    /// f_int_153（只存不用，保真保留）。
+    pub reserved_153: i32,
+    /// f_int_154：跨周目最高到达层水位（a.java:4297-4299/7163-7164 两处抬升）。
+    pub max_floor_watermark: i32,
+}
+
+impl GlobalSave {
+    /// 默认 = Java 读档异常分支语义（a.java:4475-4478）：仅 [1]=true；[0] 声音行是
+    /// soundEnabled 镜像（a.java:7284 列表构建/快照时刷新，不由本函数决定）。
+    /// 死值表 7 项 0（a.java:2237-2238 arr_34.length=7）。
+    pub fn default_7() -> GlobalSave {
+        GlobalSave {
+            option_checked: [false, true, false, false],
+            table: vec![0; 7],
+            reserved_152: 0,
+            reserved_153: 0,
+            max_floor_watermark: 0,
+        }
+    }
+}
+
+/// `loadGlobalProgress` 解析（a.java:4463-4474）。截断/过短 ⇒ Err（Java 侧走
+/// deleteRecordStoreQuietly + optionChecked[1]=true 重置分支，a.java:4475-4478）。
+pub fn parse_global_save(data: &[u8]) -> Result<GlobalSave, String> {
+    if data.len() < 5 {
+        return Err(format!("SKY_WAR 过短: {} 字节", data.len()));
+    }
+    let n = data[4] as usize;
+    let need = 5 + 4 * n + 12;
+    if data.len() < need {
+        return Err(format!("SKY_WAR 长度不足: {} < {}", data.len(), need));
+    }
+    let mut c = Cursor { data, pos: 0 };
+    let mut option_checked = [false; 4];
+    for b in option_checked.iter_mut() {
+        *b = c.u8() != 0;
+    }
+    let n = c.u8() as usize;
+    let mut table = Vec::with_capacity(n);
+    for _ in 0..n {
+        table.push(c.i32());
+    }
+    Ok(GlobalSave {
+        option_checked,
+        table,
+        reserved_152: c.i32(),
+        reserved_153: c.i32(),
+        max_floor_watermark: c.i32(),
+    })
+}
+
+/// `saveGlobalProgress` 序列化（a.java:8931-8942）。
+pub fn serialize_global_save(s: &GlobalSave) -> Vec<u8> {
+    let mut o = Vec::new();
+    for b in s.option_checked {
+        o.push(b as u8);
+    }
+    o.push(s.table.len() as u8);
+    for v in &s.table {
+        o.extend_from_slice(&v.to_be_bytes());
+    }
+    o.extend_from_slice(&s.reserved_152.to_be_bytes());
+    o.extend_from_slice(&s.reserved_153.to_be_bytes());
+    o.extend_from_slice(&s.max_floor_watermark.to_be_bytes());
+    o
+}
+
+#[cfg(test)]
+mod global_save_tests {
+    use super::*;
+
+    /// 往返：默认 7 项表 + 水位 + 死值（布局 a.java:8931-8942/4463-4474）。
+    #[test]
+    fn global_save_roundtrip() {
+        let mut g = GlobalSave::default_7();
+        g.option_checked = [true, false, false, false];
+        g.reserved_152 = 5;
+        g.reserved_153 = -1;
+        g.max_floor_watermark = 40;
+        g.table[3] = 2;
+        let bytes = serialize_global_save(&g);
+        assert_eq!(bytes.len(), 5 + 28 + 12, "4+1+7×4+3×4");
+        assert_eq!(parse_global_save(&bytes).unwrap(), g);
+    }
+
+    /// 截断拒绝（对应 Java catch→重置分支）。
+    #[test]
+    fn global_save_rejects_truncated() {
+        let g = GlobalSave::default_7();
+        let bytes = serialize_global_save(&g);
+        assert!(parse_global_save(&bytes[..10]).is_err());
+        assert!(parse_global_save(&[]).is_err());
+    }
+
+    /// 计数字节决定表长（写侧随 len，读侧随计数——a.java:8936/4468 不对称点）。
+    #[test]
+    fn table_len_follows_count_byte() {
+        let mut g = GlobalSave::default_7();
+        g.table = vec![1, 2, 3];
+        let bytes = serialize_global_save(&g);
+        assert_eq!(bytes[4], 3);
+        assert_eq!(parse_global_save(&bytes).unwrap().table, vec![1, 2, 3]);
+    }
+}

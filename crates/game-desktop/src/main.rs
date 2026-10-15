@@ -420,6 +420,21 @@ impl Shell {
             load_container(assets_dir, "load", 2),
         );
         machine.preset_stores = stores.clone();
+        // SKY_WAR 装载（saveGlobalProgress 对偶，a.java:4458-4478）：损坏/缺失 ⇒
+        // catch 语义（default_7 ⇒ [1]=true）+ 置脏回写（4477-4478）。
+        match stores.iter().find(|(k, _)| k.starts_with("SKY_WAR@")) {
+            Some((_, blob)) => match game_core::save::parse_global_save(blob) {
+                Ok(g) => machine.apply_global(g),
+                Err(_) => {
+                    machine.apply_global(game_core::save::GlobalSave::default_7());
+                    machine.global_dirty = true;
+                }
+            },
+            None => {
+                machine.apply_global(game_core::save::GlobalSave::default_7());
+                machine.global_dirty = true;
+            }
+        }
         machine.sptarm = load_container(assets_dir, "sptarm", 10);
         Shell {
             assets,
@@ -591,6 +606,7 @@ impl Shell {
     fn logic_tick(&mut self) {
         self.step();
         self.sync_bgm();
+        self.persist_global_if_dirty();
     }
 
     /// game-core BGM 请求 → 输出命令（只在变化时发送，audio.rs）。顺带观测 anyKeyPlayed
@@ -617,9 +633,32 @@ impl Shell {
     /// 交接拍收尾（读档 / 新游戏两路共用）：本拍即画场景（读档路 Java 本拍 paint 已是
     /// mode 3；两路均与 harness 同构）并切入 GameScene。
     fn enter_scene(&mut self, mut sc: GameScene) {
+        // SKY_WAR 交接拷贝（Boot→GameScene）：不拷则场景水位从 0 起步会把持久水位写回退
+        if let Some(Screen::Boot(m)) = self.state.as_ref() {
+            let g = m.global_snapshot();
+            sc.apply_global(g);
+        }
         self.paint_scene(&mut sc);
         self.state = Some(Screen::Game(Box::new(sc)));
         self.frame_counter += 1;
+    }
+
+    /// SKY_WAR 持久化轮询（saveGlobalProgress 触发收口）：活动屏任一脏 ⇒ 落盘。
+    fn persist_global_if_dirty(&mut self) {
+        let (g, dirty) = match self.state.as_mut() {
+            Some(Screen::Boot(m)) => (m.global_snapshot(), m.take_global_dirty()),
+            Some(Screen::Game(sc)) => (sc.global_snapshot(), sc.take_global_dirty()),
+            None => return,
+        };
+        if !dirty {
+            return;
+        }
+        let blob = game_core::save::serialize_global_save(&g);
+        let mut stores = std::mem::take(&mut self.stores);
+        stores.retain(|(k, _)| !k.starts_with("SKY_WAR@"));
+        stores.push(("SKY_WAR@1".into(), blob));
+        self.rms.persist(&stores);
+        self.stores = stores;
     }
 
     fn step(&mut self) {
@@ -1074,6 +1113,9 @@ mod shell_tests {
             }
         }
 
+
+    /// SKY_WAR 损坏 ⇒ catch 语义（default_7 ⇒ [1]=true）并回写合法值（a.java:4475-4478）。
+
         /// 跑到第 `t` 拍（含），沿途按脚本投递。
         fn run_to(&mut self, t: u64, events: &[(u64, i32, bool)]) {
             while self.tick < t {
@@ -1348,6 +1390,65 @@ mod shell_tests {
     /// OS 自动重复无效果 + 同拍多键覆盖式取末个（R-2）：
     /// - 标题菜单长按 -2 并注入每拍一次的重复事件：光标只移 1 格（重复被 translate_key 丢弃）；
     /// - 同拍先按 -2 再按 -1：下一拍只消费末个（-1），光标回到 0。
+    fn skywar_dir(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("xiyou-skywar-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn shell_at(dir: &PathBuf) -> Shell {
+        let raw = repo().join("assets/raw");
+        let assets = std::sync::Arc::new(load_assets(&raw));
+        let (rms, stores) = Rms::load(dir);
+        let cmds = Arc::new(Mutex::new(Vec::new()));
+        let now = Arc::new(Mutex::new(0));
+        Shell::new(&raw, assets, rms, stores, Box::new(Recorder(cmds, now)))
+    }
+
+    /// SKY_WAR 端到端：水位抬升 ⇒ 落盘；重开同目录 ⇒ 状态恢复（saveGlobalProgress）。
+    #[test]
+    fn skywar_persists_across_restart() {
+        let dir = skywar_dir("a");
+        let mut shell = shell_at(&dir);
+        if let Some(Screen::Boot(m)) = shell.state.as_mut() {
+            m.note_max_floor(50);
+        }
+        shell.logic_tick();
+        let blob = std::fs::read(dir.join("SKY_WAR.bin")).expect("SKY_WAR 落盘");
+        assert_eq!(
+            game_core::save::parse_global_save(&blob).unwrap().max_floor_watermark,
+            50
+        );
+        let mut shell2 = shell_at(&dir);
+        shell2.logic_tick();
+        match shell2.state.as_ref() {
+            Some(Screen::Boot(m)) => {
+                assert_eq!(m.global_snapshot().max_floor_watermark, 50, "重启恢复水位")
+            }
+            _ => panic!("二代壳应在 Boot"),
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// SKY_WAR 损坏 ⇒ catch 语义（default_7 ⇒ [1]=true）并回写合法值（a.java:4475-4478）。
+    #[test]
+    fn skywar_corrupt_resets_default() {
+        let dir = skywar_dir("b");
+        std::fs::write(dir.join("SKY_WAR.bin"), [0xFFu8; 3]).unwrap();
+        let mut shell = shell_at(&dir);
+        shell.logic_tick();
+        match shell.state.as_ref() {
+            Some(Screen::Boot(m)) => {
+                assert_eq!(m.global_snapshot().option_checked[1], true, "catch 分支 [1]=true")
+            }
+            _ => panic!("应在 Boot"),
+        }
+        let blob = std::fs::read(dir.join("SKY_WAR.bin")).unwrap();
+        assert!(game_core::save::parse_global_save(&blob).is_ok(), "已回写合法值");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn key_repeat_ignored_and_last_press_wins() {
         let mut h = Harness::new("preset-floor1.preset");

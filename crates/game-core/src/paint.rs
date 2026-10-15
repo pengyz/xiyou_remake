@@ -162,6 +162,10 @@ pub struct BootMachine {
     pub softkeys: (i8, i8),
     /// mode 1 标题菜单（gameMode=1 起接管 tick/paint）。
     pub title: Option<crate::title::TitleMachine>,
+    /// SKY_WAR 全局存档（saveGlobalProgress a.java:8917-8942；两机同构拷贝）。
+    pub global: crate::save::GlobalSave,
+    /// 全局态脏位（壳轮询持久化；取走即清）。
+    pub global_dirty: bool,
     /// menu 容器 2 张（m_001(10)：资源名表第 10 项 "menu"，mode 1 背景/图标带）。
     menu: Vec<ArgbImage>,
     /// gameRandom（构造时 setSeed(VTime=0)；JavaRandom LCG）。
@@ -248,6 +252,8 @@ impl BootMachine {
             ui,
             softkeys: (0, 0),
             title: None,
+            global: crate::save::GlobalSave::default_7(),
+            global_dirty: false,
             menu: menu,
             mapbg: mapbg,
             backdrop: crate::menu_family::ParallaxBackdrop::new(),
@@ -352,6 +358,38 @@ impl BootMachine {
     ///
     /// - mode 0：a.java:3349-3374（加载轮播/logo 时间线/清理切换）
     /// - mode 21：a.java:4229-4242（-6 确认 / -7 否定 → gameMode=1）
+    /// SKY_WAR 快照（a.java:7284 语义：[0] 声音行 = soundEnabled 镜像；[1] 取勾选表
+    /// 现值，无表则保持存档值；[2][3] 死槽原样）。
+    pub fn global_snapshot(&self) -> crate::save::GlobalSave {
+        let mut g = self.global.clone();
+        g.option_checked[0] = self.bgm.sound_enabled;
+        if let Some(opts) = self.options.as_ref() {
+            if let Some(v) = opts.checked.get(1) {
+                g.option_checked[1] = *v;
+            }
+        }
+        g
+    }
+
+    /// 消费脏位（壳每 tick 轮询；true ⇒ 需落盘）。
+    pub fn take_global_dirty(&mut self) -> bool {
+        std::mem::take(&mut self.global_dirty)
+    }
+
+    /// 装载 SKY_WAR（壳启动时；不置脏）。
+    pub fn apply_global(&mut self, g: crate::save::GlobalSave) {
+        self.global = g;
+        self.global_dirty = false;
+    }
+
+    /// 水位抬升（a.java:4297-4299/7163-7164 共用条件：`floor<51 && floor>水位`）。
+    pub fn note_max_floor(&mut self, floor: i32) {
+        if floor < 51 && floor > self.global.max_floor_watermark {
+            self.global.max_floor_watermark = floor;
+            self.global_dirty = true;
+        }
+    }
+
     pub fn tick(&mut self, key: i32) {
         // keyPressed 的音频半（a.java:4665-4674）：投递发生在上一拍 paint 之后、本拍
         // logic 之前（preTick），故用本拍入口的 gameMode。仅 anyKeyPlayed 时生效。
@@ -457,6 +495,12 @@ impl BootMachine {
                                 // volumeLevel=60 + m_139(f_bool_28?3:2)，关则 closeAudioPlayer
                                 self.bgm.toggle_sound();
                             }
+                            // saveGlobalProgress（a.java:4169）：勾选同步进 SKY_WAR 并置脏
+                            self.global.option_checked[0] =
+                                opts.checked.first().copied().unwrap_or(false);
+                            self.global.option_checked[1] =
+                                opts.checked.get(1).copied().unwrap_or(false);
+                            self.global_dirty = true;
                         }
                     }
                     -2 => {
@@ -734,6 +778,52 @@ mod tests {
     /// 与 TickHooks 同流的截断帧哈希（FRAME sha= 前 32 hex）。
     fn frame_sha(screen: &ArgbImage) -> String {
         sha256_hex(&screen.hash_stream())[..32].to_string()
+    }
+
+    fn synth(w: i32, h: i32) -> ArgbImage {
+        ArgbImage::create(w, h)
+    }
+
+    fn boot_state() -> BootMachine {
+        BootMachine::new(
+            synth(164, 117),
+            synth(176, 138),
+            vec![synth(24, 24); 8],
+            vec![synth(24, 24); 25],
+            vec![synth(24, 24); 2],
+            synth(77, 320),
+            vec![],
+            vec![],
+            vec![],
+        )
+    }
+
+    /// 设置勾选翻转 ⇒ SKY_WAR dirty（a.java:4154 翻转 + 4169 saveGlobalProgress）。
+    #[test]
+    fn settings_toggle_marks_dirty() {
+        let mut m = boot_state();
+        m.mode = 16;
+        m.options = Some(crate::menu_family::OptionList::new(true, true));
+        let before = m.global_snapshot();
+        m.tick(-5);
+        assert!(m.take_global_dirty(), "设置翻转 ⇒ dirty（4169 触发）");
+        let g = m.global_snapshot();
+        assert_eq!(g.option_checked[0], !before.option_checked[0], "声音行随翻转");
+        assert!(!m.take_global_dirty(), "dirty 一次性消费");
+    }
+
+    /// 水位助手条件（a.java:4297/7163 共用）：50 抬升；51 结局层不计；不回退。
+    #[test]
+    fn watermark_bump_conditions() {
+        let mut m = boot_state();
+        m.note_max_floor(50);
+        assert!(m.take_global_dirty(), "水位抬升 ⇒ dirty");
+        assert_eq!(m.global_snapshot().max_floor_watermark, 50);
+        m.note_max_floor(51);
+        assert!(!m.take_global_dirty(), "51 不计入（maxFloor<51）");
+        assert_eq!(m.global_snapshot().max_floor_watermark, 50);
+        m.note_max_floor(30);
+        assert_eq!(m.global_snapshot().max_floor_watermark, 50, "单调不回退");
     }
 
     fn repo() -> PathBuf {
