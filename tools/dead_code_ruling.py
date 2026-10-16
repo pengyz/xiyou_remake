@@ -47,6 +47,47 @@ ROOT = Path(__file__).resolve().parent.parent
 RENAMED = ROOT / "analysis/rename-pipeline/renamed"
 CLASSES = ("a", "CMidlet")
 
+# Rust 移植侧死码裁定表（docs/spec/dead-code-rulings.md DC-6..DC-12，2026-10-16 批）。
+# 复核语义 = 零调用保持（全仓除定义行零词边界出现）。任一 ☠️ 函数被接线（引用计数 > 0）
+# ⇒ 裁定前提失效，--check 失败告警强制复核，不得静默沿用旧裁定。
+# (dc, 相对路径, 函数名, 状态)；状态："dead"=☠️ 裁定、"pending"=⏳ 待 lead 裁（DC-11）
+RUST_DEAD: list[tuple[str, str, str, str]] = [
+    ("DC-6", "crates/game-core/src/menu_family.rs", "set_scroll", "dead"),
+    ("DC-7", "crates/game-core/src/menu_family.rs", "needs_layout", "dead"),
+    ("DC-8", "crates/game-core/src/intro.rs", "new_game_stats", "dead"),
+    ("DC-9", "crates/game-core/src/combat.rs", "predict_hp_loss_vs_type", "dead"),
+    ("DC-10", "crates/game-core/src/camera.rs", "snap_anchor_to_player", "dead"),
+    ("DC-11", "crates/game-core/src/paint.rs", "set_rng_seed", "pending"),
+    ("DC-12", "crates/game-core/src/walk.rs", "tick_stepping", "dead"),
+]
+
+
+def rust_dead_check() -> tuple[list[str], list[str]]:
+    """RUST_DEAD 逐函数零调用复核。返回 (bad, notes)：
+    bad = ☠️ 裁定但已被接线的 DC（前提失效，须复核翻案）；
+    notes = 复核明细（含 DC-11 待裁项的接线提示）。"""
+    import glob as _glob
+    bad: list[str] = []
+    notes: list[str] = []
+    hits: dict[str, int] = {name: 0 for _, _, name, _ in RUST_DEAD}
+    for f in _glob.glob(str(ROOT / "crates/*/src/*.rs")):
+        for line in open(f, encoding="utf-8"):
+            for name in list(hits):
+                if re.search(rf"\b{re.escape(name)}\b", line):
+                    hits[name] += 1
+    for dc, _path, name, status in RUST_DEAD:
+        used = hits[name] - 1  # 减定义行自身
+        if used > 0:
+            if status == "dead":
+                bad.append(dc)
+                notes.append(f"{dc} {name}(): 已被接线（引用 {used} 处）⇒ ☠️ 前提失效，须复核翻案")
+            else:
+                notes.append(f"{dc} {name}(): 已被接线（引用 {used} 处）⇒ ⏳ 待裁项可销账")
+        else:
+            notes.append(f"{dc} {name}(): 零调用保持 ✓（{status}）")
+    return bad, notes
+
+
 # 裁决对象（docs/spec/dead-code-rulings.md 的 DC-n；cover_matrix TRIAGE b 类逐条引用）
 RULINGS: dict[str, dict] = {
     "DC-1": {"title": "道具轮盘左右箭头（walkPhase 3 臂）", "methods": ["drawLeftTriangleArrow"]},  # 裁决时名 m_093（dc470b2 N-0443 改名）
@@ -991,9 +1032,14 @@ def main() -> int:
     bad = [rid for rid, r in rs.items() if not r["ok"]]
     if not proof["ok"]:
         bad.append("DC-5")
+    rbad, rnotes = rust_dead_check()  # DC-6..DC-12 Rust 侧零调用复核
     if "--check" in sys.argv:
         print("死代码裁决复核：" + ("全部成立 " + "/".join(list(rs) + ["DC-5"]) if not bad
                                 else f"不成立 {bad}"))
+        for n in rnotes:
+            print("  " + n)
+        print("Rust 侧死码复核（DC-6..DC-12）：" + ("全部成立" if not rbad else f"须复核 {rbad}"))
+    bad += rbad
     return 1 if bad else 0
 
 

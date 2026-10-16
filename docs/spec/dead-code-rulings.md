@@ -272,3 +272,148 @@ grep -o 'GUT_[0-9]*' reference/src/deobf/a.java | sort | uniq -c   # GUT 目标�
 证明 = 存档往返引理 L1-L5 + 路径证明 P1-P3（上列工具输出）；`--check` 已含 DC-5，随
 tools/dead_code_ruling.py 机械复核长期生效（引理任一步失效即复核失败告警，不得静默销账）。
 初版「工具无法证明」作废（见顶部更正）。scene67 不需补用例；type-closure 出层列可据此销账。
+
+---
+
+## DC-6..DC-12 Rust 侧死码裁定批（2026-10-16，架构评估 task-22 附带产出）
+
+> 背景：task-22 架构评估冗余扫描产出 7 个真死候选（`crates/*/src` 非 `#[test]` 且全仓
+> 除定义行零出现）。本批按 MVS/82 先例（机械校验 + 语义等价锚）逐个三裁一：
+> ☠️ 死码 / 🔒 保真保留（shim 表面积）/ ✅ 有活调用（假阳性更正）。
+> **全部只裁定不删除**（AGENTS 保真期行为只增不减；删除另行派工）。
+> 与 DC-1..5 不同：那些是 Java 字节码侧证死（`tools/dead_code_ruling.py` CFG 不动点）；
+> 本批是 **Rust 移植侧零调用 + 语义由内联实现等值持有** 的机械证明，复核命令随附。
+
+**统一机械校验（引用计数口径）**：`grep -rw '<name>' crates --include='*.rs' | wc -l` == 1（仅定义行）。
+7 个候选在裁定时点全部满足；接入 `tools/dead_code_ruling.py --check` 的 Rust 侧复核表
+（`RUST_DEAD`），任一函数被接线（计数 > 1）即告警复核，不得静默沿用旧裁定。
+
+### DC-6 `ParallaxBackdrop::set_scroll`（menu_family.rs:72）☠️
+
+**主张**：backdropScroll 字段在 Java 侧的**唯一写点**是 drawParallaxBackdrop 内自减回绕
+（a.java:6862-6863：`if (--this.backdropScroll < -154) this.backdropScroll = 0;`），
+无任何外部写入点。Rust 拆分出的写桥 `set_scroll`（"场景接管"方向）无 Java 对应语义。
+
+**机械校验**：
+- 零调用 ✓（统一口径）
+- Java 写点清点 ✓：`grep -n 'backdropScroll' reference/src/deobf/a.java` = 字段声明:150、
+  自减写:6862、清零写:6863、读:6873 —— 除构造缺省外无外部 putfield
+- 读桥 `scroll()` 为活（40+ 处拆分同步：`sc.backdrop_scroll = m.backdrop.scroll()`），
+  写方向在拆分架构下无源可传（scene 不回写 backdrop）
+
+**裁定**：**☠️ 死码**（拆分后的单向同步桥，写方向无消费者；自减语义由 ParallaxBackdrop::paint
+内联持有——menu_family.rs:86 `self.scroll -= 1;` + 回绕判定）。
+
+### DC-7 `OverlayEngine::needs_layout`（menu_family.rs:405）☠️
+
+**主张**：布局失效判定 `cached_text.as_deref() != Some(text)`（:406）已被 paint() 内联持有
+（menu_family.rs:463 同表达式），提取方法无调用方。
+
+**机械校验**：零调用 ✓；内联等价锚 ✓（:406 定义式 == :463 paint 内判定，逐字同构）。
+
+**裁定**：**☠️ 死码**（冗余提取，语义内联持有）。
+
+### DC-8 `LoadProgress::new_game_stats`（intro.rs:307）☠️
+
+**主张**：返回 `(300, 10, 10, 51)`（a.java:3482-3489 步骤 8 新游戏初始状态）的数据函数零调用；
+其数据已由调用方**内联等值**落实。
+
+**机械校验**：
+- 零调用 ✓
+- 内联等价锚 ✓：game-desktop/main.rs:766-771 `sc.floor = 51; sc.min_floor = 51;
+  sc.max_floor = 51; sc.player.hp = 300; sc.player.atk = 10; sc.player.def = 10;`
+  （+ preset_cases.rs:2600/2810 `sc.player.hp = 300;`）——四元组 (300,10,10,51) 全数对上
+
+**裁定**：**☠️ 死码**（数据已内联落实，值一致无行为缺口）。**附带卫生建议**（不阻塞裁定）：
+Stage B 可将两处硬编码接线为 `new_game_stats()` 单一真相源，防未来漂移。
+
+### DC-9 `combat::predict_hp_loss_vs_type`（combat.rs:107）☠️（附缺陷注记）
+
+**主张**：predictHpLossVsType 参数桥，零调用。**且桥公式不忠实**：
+
+| | atk 来源 | 依据 |
+|---|---|---|
+| Java `predictHpLossVsType`（a.java:9992-9995） | `effectiveAttackVsType(var1)`（含道具 23/24 二倍攻击加成，a.java:9997-10004） | 字节码语义 |
+| Rust 桥 `predict_hp_loss_vs_type` | `player.atk`（裸攻击，**缺道具加成**） | combat.rs:117 |
+| Rust 忠实实现 `GameScene::predict_hp_loss`（scene.rs:4813，**有活调用**） | `effective_attack_vs_type(&self.player, self.trait_flags(t))` | scene.rs:4816-4825 |
+
+**机械校验**：
+- 零调用 ✓
+- Java 侧 predictHpLossVsType 活调用 7 处（a.java:5288/5476/8212/8774/8852/10048 + 定义9992）
+  ⇒ Java 语义可达；Rust 对应行为由 scene.rs:4813 持有（公式与 a.java:9992-9995 逐项对上）
+- 桥与忠实实现的差异仅在 atk 来源（桥缺 effectiveAttack 的 `*2` 道具加成）
+
+**裁定**：**☠️ 死码（带缺陷的冗余桥）**——幸零调用，缺陷未传播；忠实语义已由 scene.rs:4813
+`predict_hp_loss` 持有。**删除时不得"顺手修桥再接线"**：若未来遇敌预演 UI（a.java:8774/8852 臂）
+需要此桥，应改用 effective_attack 公式（以本节对照表为准）。
+
+### DC-10 `Camera::snap_anchor_to_player`（camera.rs:90）☠️
+
+**主张**：lockCameraOn(0) 头部锚点公式 `anchor = ((view - 32) >> 1) - offset`（camera.rs:91-92）
+零调用；同公式已由生产实现内联持有。
+
+**机械校验**：
+- 零调用 ✓（含 harness 测试亦无）
+- 内联等价锚 ✓：scene.rs:4400-4401 `ease_cam_x = ((self.view.view_w - 32) >> 1) - self.view.cam_x;`
+  （lock_camera_on 头部，a.java:8662-8663 语义）——与 camera.rs:91-92 逐字同构（字段名映射
+  anchor_x↔ease_cam_x、offset_x↔cam_x）
+- 附注：函数体 `let _ = (player_px, player_py);` 丢弃形参（Java 语义本不依赖玩家坐标，
+  参数系移植痕迹）
+
+**裁定**：**☠️ 死码**（语义由 scene.rs:4400-4401 内联持有；camera.rs 本身系对拍 harness 面，
+walk_camera_golden/walk_replay_floor1 直驱其构件，本方法连 harness 都未使用）。
+
+### DC-11 `BootMachine::set_rng_seed`（paint.rs:610）⏳ 三裁一外第四态——报 lead 裁
+
+**主张**：Java `setSeed(VTime)`（a.java:2325）是 **a() 构造期活语义**——VTime 取值随前置行为
+变化（preset 场景实测 11813，T73 粒子暴力反推；非 preset 场景 0）。Rust 侧：
+- 构造固定 `JavaRandom::new_seeded(0)`（paint.rs:277）——与非 preset（VTime=0）**等价**；
+- `set_rng_seed` 零调用 ⇒ **preset 路径的 11813 种子未落实**。
+
+**为什么当前不可观测**：rng 唯一消费者 = mode14 runIntroViewer 粒子雨 4 分频
+（paint.rs:528-532，a.java:4137-4136）；44 个 oracle 场景中 preset 系全部槽载入直入 mode3，
+**不经过 mode14** ⇒ 11813 种子差异不产生帧差 ⇒ 44/44 对拍绿与本缺口并存不矛盾。
+
+**机械校验**：
+- 零调用 ✓
+- rng 写点清点 ✓：`grep -n 'rng' crates/game-core/src/paint.rs` = 构造:277、消费:531-532、
+  set_rng_seed:611-612 —— 无其他写点
+- Java 对照 ✓：a.java:2325 `this.setSeed(VTime);`（构造期调用）
+
+**裁定**：**⏳ 待裁（三裁一外）**——非死码（Java 语义活）、非 shim 表面积、非假阳性。
+属**条件性行为缺口**：preset 路径若未来触达 mode14 或 rng 消费面扩展，粒子序列将与
+Java 分叉。**请 lead 裁**：(a) 接线（preset 装载点调 `set_rng_seed(11813)`，VTime 来源
+需考证常驻化）；(b) 登记已知偏差（docs/bug-ledger.md，BUG-xxx）；(c) 维持现状附本节注记。
+
+### DC-12 `walk::tick_stepping`（walk.rs:90）☠️
+
+**主张**：完整步进编排（camera_edge_follow + step_progress += 8 + 32px 归格 +
+apply_step_effects hook，a.java:3561-3593）零调用；组成语义由两路分别持有。
+
+**机械校验**：
+- 零调用 ✓（scene 与 harness 测试均不经此编排）
+- 内联等价锚 ✓：scene.rs:2371/2379-2380 `self.step_progress += 8; … >= 32 … = 0;`
+  （生产步进内联）；`camera_edge_follow` 为活（walk.rs:53，walk_camera_golden/
+  walk_replay_floor1 直驱对拍）
+- 结构判定：walk.rs 模块整体系**对拍 harness 面**（golden 测试分件直驱构件与 Java trace
+  对照），tick_stepping 是其上的编排便利层——连 harness 都未接线
+
+**裁定**：**☠️ 死码**（编排冗余：语义由 scene.rs:2371-2380 内联 + camera_edge_follow（活）
+分件持有）。
+
+---
+
+### 本批汇总
+
+| DC | 函数 | 裁定 | 一句话依据 |
+|---|---|---|---|
+| DC-6 | ParallaxBackdrop::set_scroll | ☠️ | Java backdropScroll 无外部写点，写桥无消费者 |
+| DC-7 | OverlayEngine::needs_layout | ☠️ | 判定式由 paint() 内联持有（:463） |
+| DC-8 | LoadProgress::new_game_stats | ☠️ | 数据由 main.rs:766-771 内联等值落实 |
+| DC-9 | combat::predict_hp_loss_vs_type | ☠️ | 零调用 + **桥公式缺道具加成（带缺陷）**，忠实实现=scene.rs:4813 |
+| DC-10 | Camera::snap_anchor_to_player | ☠️ | 公式由 scene.rs:4400-4401 内联持有 |
+| DC-11 | BootMachine::set_rng_seed | **⏳ 待裁** | Java setSeed(VTime) 活语义；preset 种子 11813 未落实（当前不可观测）——**报 lead** |
+| DC-12 | walk::tick_stepping | ☠️ | 编排冗余，scene 内联 + 构件分件持有 |
+
+**复核命令**：`python3 tools/dead_code_ruling.py --check`（含 RUST_DEAD 表零调用复核；
+任一函数被接线即告警）。6 个 ☠️ 不需补用例；DC-11 等 lead 裁后另行销账。
