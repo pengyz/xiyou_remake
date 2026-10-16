@@ -183,6 +183,13 @@ fn all_floors() -> Vec<Option<FloorAssets>> {
 /// 比对。驱动时序与 preset_cases 同构（INPUT 在 paint 后投递 ⇒ 下一拍逻辑消费）。
 /// 返回 (比对帧数, 终态场景)。
 fn replay(preset_text: &str, records: &[FrameRec]) -> (usize, GameScene) {
+    let (checked, scene) = replay_opt(preset_text, records);
+    (checked, scene.expect("应已交场景（槽载入完成 ⇒ gameMode 3）"))
+}
+
+/// 同 `replay`，但交场景前截止的夹具（FX-BUG-AIOOBE：Java 于 T237 dispatch 崩溃、
+/// 夹具止于 T236）场景可缺席。
+fn replay_opt(preset_text: &str, records: &[FrameRec]) -> (usize, Option<GameScene>) {
     let stores = parse_preset(preset_text);
     let mot_l0 = &stores.iter().find(|(k, _)| k.starts_with("MOT_L0@")).expect("MOT_L0").1;
     let save = parse_floor_save(mot_l0, 0).unwrap();
@@ -290,7 +297,7 @@ fn replay(preset_text: &str, records: &[FrameRec]) -> (usize, GameScene) {
         assert_eq!(sha, rec.sha, "TICK {} 帧不符（mode={}）", rec.tick, mode);
         checked += 1;
     }
-    (checked, scene.expect("应已交场景（槽载入完成 ⇒ gameMode 3）"))
+    (checked, scene)
 }
 
 /// mode12 记录浏览器（迭代 59 原 preset_floor5 用例，35e779f 起改作他用后缺位——此处夹具化恢复）：
@@ -364,4 +371,51 @@ fn fx_firebump_floor13_frames_match() {
     let (checked, sc) = replay(include_str!("fixtures/fx-firebump-floor13.preset"), &records);
     assert_eq!(checked, records.len(), "T1-480 全帧必须比对");
     assert_eq!((sc.view.player_px >> 5, sc.view.player_py >> 5), (6, 7), "型10 阻挡（var6=false）");
+}
+
+/// FX-INT-6A：型6 首碰显形三元组 + 幂等 + 地形豁免（evidence-interact-types R-INT-6）。
+/// floor5 (10,11) 左撞 (9,11) 型6 ⇒ 显形三元组 visible→state=2→animRow=9（a.java:5413-5415
+/// 写序）→ 放行进（var7++ 地形豁免，该格地形不可走）→ advanceEntityFrames state=2 过渡完成
+/// （a.java:6838-6843：dispatchSpriteSize+dispatchAnimFields+state=0）→ (10,11) 回退 →
+/// 二次进入幂等（仅 var7++，三字段不改写）。T1-560。出生点不得钉边界格（BUG 见
+/// fx_bug_aioobe_border_frames_match）。
+#[test]
+fn fx_int6a_reveal_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-int6a.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-int6a.txt"));
+    let (checked, sc) = replay(include_str!("fixtures/fx-int6a.preset"), &records);
+    assert_eq!(checked, records.len(), "T1-560 全帧必须比对");
+    assert_eq!(sc.floor, 5);
+    assert_eq!(
+        (sc.view.player_px >> 5, sc.view.player_py >> 5),
+        (9, 11),
+        "终态站上 (9,11)——型6 地形豁免放行（var7>0 跳过 isCellWalkable 终审）"
+    );
+    let e = (0..sc.entities.count)
+        .find(|&i| sc.entities.entity_type[i] == 6)
+        .expect("型6 实体在表");
+    assert!(sc.entities.visible[e], "显形后 visible 恒真（a.java:5413）");
+    assert_eq!(sc.entities.solid[e], 0, "state=2 过渡完成后归零（a.java:6842）");
+    assert!(sc.player_bob_applied, "落格 f_bool_07=true（a.java:5650-5652）");
+}
+
+/// FX-BUG-AIOOBE：边界出生崩溃钉死（原版 bug 复现夹具，D4 保真不修——bug-ledger 待 lead 编号）。
+/// floor5 (9,12) = 底边界格 ⇒ mode3 进场 applyStepCellEffects 型60 四邻扫描先调后判
+/// （a.java:5596-5616 `findBlockingEntity(var45, var49+1, 60)` 于 y=12 取 cellTypeGrid[13]）
+/// ⇒ Java T236 AIOOBE 主线程退出（trace 尾 EVT thread-exit；C 变体可读栈
+/// findBlockingEntity a.java:8616 ← applyStepCellEffects a.java:5617 ← dispatchModeEntry
+/// a.java:4320）。A/B/C 三变体同 tick 同点同因崩溃（三方 trace sha256 含崩溃尾一致）。
+/// 夹具帧 1..236 = Java 可观测前缀；Rust cell_entity 越界返 -1（entity.rs）⇒ 存活续跑，
+/// T237 起无 Java 参照帧（存活差异已记 bug 条目）。可达性 A 级：全 55 层边界格不可走
+/// （tile_walkability 复算）⇒ 正常游玩不可达，仅 preset/存档直钉可复现。
+#[test]
+fn fx_bug_aioobe_border_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-bug-aioobe-border.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-bug-aioobe-border.txt"));
+    let (checked, scene) = replay_opt(include_str!("fixtures/fx-bug-aioobe-border.preset"), &records);
+    assert_eq!(checked, records.len(), "T1-236 = Java 崩溃前可观测前缀全帧对拍");
+    assert!(
+        scene.is_none(),
+        "T236 截止时 Rust 尚未交场景——交场景在 T237，恰为 Java dispatchModeEntry 崩溃拍（同点对应）"
+    );
 }

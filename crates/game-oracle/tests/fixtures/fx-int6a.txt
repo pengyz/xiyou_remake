@@ -1,0 +1,30 @@
+# ticks: 560
+# preset: fx-int6a.preset
+# cover: FX-INT-6A 型6 首碰显形三元组 + 幂等 + 地形豁免（evidence-interact-types R-INT-6）：
+#   boot 70/-6 100/-2 150/-5 200/-5（标题菜单光标下移=读档→选槽→载入，同 preset-floor5 体例）
+#   → 槽载入 floor5 (10,11) → 280 -3 左撞 (9,11) 型6 ⇒ interactWithCell case6
+#   （a.java:5410-5417）var7++ 恒执行 + 首碰显形三元组 visible=true→entityState=2→
+#   animRow=9（写序固定）→ 放行进 (9,11)（var7>0 地形豁免——该格地形不可走，型6 即
+#   「隐形路径」桥）→ applyStepCellEffects case6 f_bool_07=true（bob，a.java:5650-5652）→
+#   400 -4 回 (10,11) → 480 -3 二次进入（幂等：三字段不再改写，仅 var7++）→ 收尾静态。
+#   键位（A 级实证）：-1=上/-2=下/-3=左/-4=右（键码 50/56/52/54 = 键盘 2/8/4/6，
+#   a.java keyHeldCode 分派 facing 1/0/3/2）。
+#   出生点注记（BUG 见 fx-bug-aioobe-border）：不得钉边界格（x/y=0|12）——
+#   applyStepCellEffects 型60 四邻扫描先查后判（a.java:5596-5616）⇒ T236 AIOOBE；
+#   本场景出生 (10,11)（tile 24 可走）为绕行改设计，A 级理由 = 全 55 层边界格均不可走
+#   （tile_walkability 复算，边界格仅 preset/存档直钉可达）。
+#   preset：python3 tools/frames_fixture.py preset floor=5 x=10 y=11 facing=2 hp=500 atk=200 def=30 sky=5
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+280 -3 press
+282 -3 release
+400 -4 press
+402 -4 release
+480 -3 press
+482 -3 release

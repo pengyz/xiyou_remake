@@ -1,0 +1,25 @@
+# ticks: 236
+# preset: fx-bug-aioobe-border.preset
+# cover: FX-BUG-AIOOBE 边界出生崩溃钉死（原版 bug 复现夹具，D4 保真不修）：
+#   boot 70/-6 100/-2 150/-5 200/-5 → 槽载入 floor5 **(9,12) = 底边界格**（y=mapCellsHigh-1）
+#   → mode3 进场 dispatchModeEntry case3（a.java:4320）→ applyStepCellEffects
+#   型60 四邻扫描（a.java:5596-5616）**先调 findBlockingEntity 后判边界**：
+#   `findBlockingEntity(var45, var49 + 1, 60)` 于 y=12 取 cellTypeGrid[13][9] ⇒
+#   **T236 AIOOBE: Index 13 out of bounds for length 13**（13 行网格越界），主线程退出
+#   （trace 尾 EVT thread-exit / END reason=all-threads-exited ticks=236）。
+#   崩溃链（C 变体可读栈）：findBlockingEntity(a.java:8616) ← applyStepCellEffects
+#   (a.java:5617) ← dispatchModeEntry(a.java:4320)。A/B/C 三变体同 tick 同点同因崩溃
+#   （三方 trace sha256 含崩溃尾逐字节一致）——崩溃即忠实性证据。
+#   可达性（A 级）：全 55 层 maplv 边界格（x/y=0|12）tile_walkability 均不可走 ⇒
+#   正常游玩不可达，仅 preset/存档直钉边界出生可复现（bug-ledger 复现链 = 本夹具）。
+#   Rust 侧 cell_entity 越界返 -1（crates/game-core/src/entity.rs）⇒ 不崩；夹具帧 1..236
+#   为 Java 可观测前缀对拍（T237 起 Java 已死，无参照帧——见 BUG 条目"Rust 存活差异"）。
+#   preset：python3 tools/frames_fixture.py preset floor=5 x=9 y=12 facing=0 hp=500 atk=200 def=30 sky=5
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
