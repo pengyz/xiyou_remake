@@ -153,12 +153,12 @@ cat8 战斗 + cat16 商人）与 applyStepCellEffects（:5637-5715，case 1-8/76
 | SWD | ✅ | floor10 变换 + 型11 全场清除臂 |
 | END | ✅ | 序章 script40 入口 |
 | MOV | ✅ | dp3 脚本行走 ✅（【2026-10-15】玩家三参 MOV 的 advanceScriptWalk 臂 ✅ 夹具场景 fx-scriptwalk-floor3：floor3 script0 `MOV_0_5_11`）；dp2=m_106 五参实体路径缓动 ⬜（挂起账本）【2026-10-15 更正：△→✅】6a37155 移植 m_106 + m_108，mov_route_scene floor2（script1/2 型72）/ floor40（script12 伏击 13 战）全帧绿 |
-| GIN | ⬜ | 【2026-10-15 晚 普查】语料 scripts26-29（嫦娥族：DES_84_×4 + GIN_x_y）；触发层=型84 所在层（出层普查同批）；**臂未移植**（executeScriptInstruction 无 GIN 分派，落 todo!()） |
-| LAY | ⬜ | 【2026-10-15 晚 普查】语料 script0（floor3）`LAY_2`；触发层=floor3 脚本链后段（fx-scriptwalk T1-700 窗口止于 LAY 之前=未触达实证）；**臂未移植**（无分派，落 todo!()） |
-| RES | ⬜ | 【2026-10-15 晚 普查】语料 script0（floor3）`RES_0`（LAY 同窗后段）；**臂未移植**（无分派，落 todo!()） |
-| SEE | ⬜ | 【2026-10-15 晚 普查】语料 scripts40-45 等 14 条（序章镜头族）；触发层=prologue/剧情层；臂已移植（scene.rs `op == "SEE"`，m_103 ease）；序章 T1-9800 含电影镜头推进=疑似覆盖，待帧锚/变异复核后转 ✅ |
-| SMS | ⬜ | 【2026-10-15 晚 普查】语料 script66（`SMS_0`，短信/付费时代残迹）；触发层=script66 门链待查；臂=两行桩（scene.rs `op == "SMS"`：读参跳行=外部副作用吸收型〔Java 侧平台短信调用，桌面不可复现〕，待 ☠️/吸收终裁） |
-| ADD | ⬜ | 【2026-10-15 晚 普查】语料 script7（`ADD_2_72_11_10`：生成型72@(11,10) 伏击）；触发层=floor8 脚本链后段；**臂未移植**（无分派，落 todo!()） |
+| GIN | ✅ | 【2026-10-15 晚 普查】语料 scripts26-29（嫦娥族：DES_84_×4 + GIN_x_y）；触发层=型84 所在层（出层普查同批）；**臂未移植**（executeScriptInstruction 无 GIN 分派，落 todo!()）【2026-10-16 更正】臂已移植（7934035，a.java:8355-8490 逐值对照，4 单测 script_gin_gives_gold_and_recurses〔含尾递归断言〕全绿）——原文"臂未移植"系移植前普查 |
+| LAY | ✅ | 【2026-10-15 晚 普查】语料 script0（floor3）`LAY_2`；触发层=floor3 脚本链后段（fx-scriptwalk T1-700 窗口止于 LAY 之前=未触达实证）；**臂未移植**（无分派，落 todo!()）【2026-10-16 更正】臂已移植（7934035，a.java:8355-8490 逐值对照，4 单测 script_lay_jumps_floor_with_wipe 全绿）——原文"臂未移植"系移植前普查 |
+| RES | ✅ | 【2026-10-15 晚 普查】语料 script0（floor3）`RES_0`（LAY 同窗后段）；**臂未移植**（无分派，落 todo!()）【2026-10-16 更正】臂已移植（7934035，a.java:8355-8490 逐值对照，4 单测 script_res_resets_run_stats_on_easy〔easy/非 easy 双分支〕全绿）——原文"臂未移植"系移植前普查 |
+| SEE | ✅ | 【2026-10-15 晚 普查】语料 scripts40-45 等 14 条（序章镜头族）；触发层=prologue/剧情层；臂已移植（scene.rs `op == "SEE"`，m_103 ease）；序章 T1-9800 含电影镜头推进=疑似覆盖，待帧锚/变异复核后转 ✅【2026-10-16 更正：⬜→✅ 帧锚复核完成】A-prologue-dialog 状态倾印逐 tick 锚定：T0584 phase=1/cursor=12（TAK_255_259）→T0782 cursor=24（TAK_165_165）→**T0902 phase=6/cursor=43 = SEE_3_10_166_166_1 执行**→T0962 phase=4（行尾收尾门 a.java:8568 覆写，BUG-006 冻结态）；prologue_frames_match T1-9800 逐 tick 9800 FRAME 全帧比对绿（2026-10-16 实跑 460s）=SEE 及其后 8898 拍全被帧哈希锚定；双分支单测 see_bug006_replay_cursor_advances_walk_not_armed / see_path_found_arms_walk（script_golden，a.java:8466-8481）。变异复核未做（scene.rs 不在本任务写域）——判据=帧锚+双分支单测；若日后变异复核证伪按更正文化翻回 |
+| SMS | ☠️ | 【2026-10-15 晚 普查】语料 script66（`SMS_0`，短信/付费时代残迹）；触发层=script66 门链待查；臂=两行桩（scene.rs `op == "SMS"`：读参跳行=外部副作用吸收型〔Java 侧平台短信调用，桌面不可复现〕，待 ☠️/吸收终裁）【2026-10-16 终裁 ☠️】吸收型空转桩：两端皆无语义可移植——Java 臂本身即读参跳行（a.java:8515-8518：`parseScriptInt` + `scriptCursor=lastDelimPos+1`，**无任何平台/短信调用**），Rust 桩（scene.rs:2053-2056）与之逐字等价；语料仅 script66 `SMS_0` 一处（a.java:1191）。> 【2026-10-16 更正】原文"Java 侧平台短信调用，桌面不可复现"系 mnemonic 推测（C 级），反编译投影中不存在该调用——"外部副作用吸收"实际成立的只是**语义空转**这一层（付费短信时代残迹被上游剥除或本就是桩）。触发链（script66 门链）查否不影响裁决（臂无副作用）；若字节码级复核（javap）发现投影吞掉的调用，按更正文化翻回 |
+| ADD | ✅ | 【2026-10-15 晚 普查】语料 script7（`ADD_2_72_11_10`：生成型72@(11,10) 伏击）；触发层=floor8 脚本链后段；**臂未移植**（无分派，落 todo!()）【2026-10-16 更正】臂已移植（7934035，a.java:8355-8490 逐值对照，4 单测 script_add_spawns_entity_same_floor 全绿）——原文"臂未移植"系移植前普查 |
 | MVS | ☠️ | 【2026-10-15 补登】死指令：68 条脚本（a.java:1124-1193）零出现且脚本文本源封闭（字节码 MVS 引理 L1-L5）——终裁 DC-2（[dead-code-rulings.md](dead-code-rulings.md)）；Rust 不移植（script.rs 已注） |
 
 ## 3. 模式面
@@ -197,7 +197,7 @@ cover_matrix.py 渲染时三重校验（字节码证死 + 裁决书节锚 + JDI 
 | :7557/7565 | 炼丹 <=10 | ✅ | mode9 floor5 |
 | :7644 | 难度 (floor-1)/10 | ✅ | 全战斗用例 |
 | :7648 | >50 战斗 UI | ✅ | ending 战 |
-| :7833 | ==40 | ⬜ | 待查语义（case40）——delta |
+| :7833 | ==40 | ⬜ | 待查语义（case40）——delta【2026-10-16 语义销账】= `activateItem(byte)` switch（a.java:7784 方法，switch :7787）**case 20「对角瞬移」道具臂**内 `currentFloor==40`（现 a.java:7836，账本行号漂移 -3）→ 40 层禁瞬移提示"本层不能直接瞬移。"（:7836-7838），else 镜像格 `interactWithCell` 放行才传送（:7839-7850）——**与 boss 无关**，勿与另一处 ==40（a.java:10074 击杀钩子 case73 spawnBossEvent(6)）混记：那处已由 preset-itemboss40 覆盖。Rust 已移植（scene.rs:2877-2881，注引 a.java:7832-7850）。**保留 ⬜ 的 A 级理由**：40 层禁用**真臂**零差分夹具——场景语料穷举（reference/oracle/scenarios/ 全量）无 floor40+item20 激活：preset-item2122 只触 floor1 **假臂**（镜像格拦截分支），preset-itemboss40/preset-floor40-mov 不经 activateItem；grep "本层不能直接瞬移" 全仓仅实现行 scene.rs:2881（零测试触达）。禁用臂夹具（floor40+item20 场景）落地前不翻 ✅ |
 | :7855/7860 | 楼梯 ±1 | ✅ | 楼梯往返 |
 | renderCategory[72] | floor50 特判 | ✅ | 迭代 56 |
 
@@ -236,6 +236,8 @@ cover_matrix.py 渲染时三重校验（字节码证死 + 裁决书节锚 + JDI 
    （6 隐形路径+2 红门——51 已有用例，route 增量）。
 3. **B3 boss 批**：floor53（71 二阶段玉皇+74 巨灵神+6）、floor20（74 备选）、
    a.java:7833 ==40 语义查证。
+   > 【2026-10-16 更正】7833 ==40 语义已查证（§4 行内销账）：activateItem case20 对角瞬移 40 层禁用，
+   > **非 boss 关联**，自 B3 移出；余项 = floor40+item20 禁用臂差分夹具（随 item20 delta 批补）。
 4. **B4 脚本臂批**：GIN/LAY/RES/SEE/SMS/ADD 普查→触发或终裁；零出现型
    16/17/18/22/24/25/82/87 逐个终裁（脚本授予 vs 死内容）；m_102 跨层快照、
    dp2=m_106 随触发层。
