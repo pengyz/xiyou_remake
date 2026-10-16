@@ -123,7 +123,7 @@ cat8 战斗 + cat16 商人）与 applyStepCellEffects（:5637-5715，case 1-8/76
 | 58 | 护丹老道 | ✅ | floor38 (11,9) 战（迭代 79；78 天宫商人同层 (5,2) 北半另窗） |
 | 59 | 伏魔韦驮 | ✅ | floor38 (10,10)/(10,7) 战×2（迭代 79） |
 | 67 | 啸天犬 | ✅ | m_001(9) 多段拼装绘制臂已移植；战 ⬜——delta【2026-10-16 战 ⬜→✅】FX-BOSS-67A（4f2fc30）：fx_boss67a_kill_spawn_frames_match（floor15 bump 战一击毙 ⇒ bossTypeOrder[3]=67 ⇒ spawnBossEvent(3) ⇒ bossEventSpawns[3] 刷金勺子(17)@(6,4) DES 态 a.java:2143/6333-6345/6838-6843 + 金 100→200，T1-560 全帧 + 掉落格/状态/anim 断言）；帧链 **A==B 双变体一致**——**C 腿断系 deobf 投影缺陷**（a.java:6592 型67 拼装臂 byte[]→Object[] 强转 CCE，bug-draft-paint67 投影稿），**非移植问题**，不阻本格 |
-| 68 | 太上老君 | ⬜ | boss 战+钩子——delta |
+| 68 | 太上老君 | ✅ | boss 战+钩子——delta【2026-10-16 翻 ✅】FX-BOSS-68A 主窗（491243d）：fx_boss68a_kill_spawn_frames_match（floor25 (6,7) 北撞 (6,6) 型68 ⇒ 预测过门→bump 战（battleEnemyHp=enemyBaseHp[27]=4500 不吃缩放；walkPhase5 每 4 tick 一击 ×7，dmg=1000-310=690 逐击序列 4500→…→-330 由帧链伤害弹窗钉死，反击 0）⇒ 击杀拍 spawnBossEvent(2)（a.java:2142）刷红钥匙(27)×4 @(6,5)(5,6)(7,6)(6,7) + 金 0→1000（enemyBaseGold[27]）⇒ case68 双 switch default（无脚本钩子，对照 74）⇒ restep 进 (6,6) 走位拾 2 把，T1-760 全帧 + 四钥格/金断言）。fixture-plan-boss 余 8 窗 = 二波扩展候选（lead 2026-10-16 收敛裁决：2 主窗销行 + 8 窗转二波，不随本格销） |
 | 69 | 杨戬 | ✅ | preset-floor35「case69 击杀钩子首验」= 杨戬战实证（击杀钩子随战触发）+ floor35 T1-1200 全帧 |
 | 70 | 玉皇大帝 | ✅ | floor49 战 + floor42 DES 剧情消失（封印语义：m_102 守卫门控） |
 | 71 | 玉皇大帝(二阶段) | ✅ | preset-floor49「case70 击杀钩子 + 守卫宝箱 param 配对开门」= 玉帝链实证 + m_102 守卫门控（preset_floor49_fixture_frames_match T1-3400） |
@@ -158,8 +158,8 @@ cat8 战斗 + cat16 商人）与 applyStepCellEffects（:5637-5715，case 1-8/76
 | END | ✅ | 序章 script40 入口 |
 | MOV | ✅ | dp3 脚本行走 ✅（【2026-10-15】玩家三参 MOV 的 advanceScriptWalk 臂 ✅ 夹具场景 fx-scriptwalk-floor3：floor3 script0 `MOV_0_5_11`）；dp2=m_106 五参实体路径缓动 ⬜（挂起账本）【2026-10-15 更正：△→✅】6a37155 移植 m_106 + m_108，mov_route_scene floor2（script1/2 型72）/ floor40（script12 伏击 13 战）全帧绿 |
 | GIN | ✅ | 【2026-10-15 晚 普查】语料 scripts26-29（嫦娥族：DES_84_×4 + GIN_x_y）；触发层=型84 所在层（出层普查同批）；**臂未移植**（executeScriptInstruction 无 GIN 分派，落 todo!()）【2026-10-16 更正】臂已移植（7934035，a.java:8355-8490 逐值对照，4 单测 script_gin_gives_gold_and_recurses〔含尾递归断言〕全绿）——原文"臂未移植"系移植前普查 |
-| LAY | ✅ | 【2026-10-15 晚 普查】语料 script0（floor3）`LAY_2`；触发层=floor3 脚本链后段（fx-scriptwalk T1-700 窗口止于 LAY 之前=未触达实证）；**臂未移植**（无分派，落 todo!()）【2026-10-16 更正】臂已移植（7934035，a.java:8355-8490 逐值对照，4 单测 script_lay_jumps_floor_with_wipe 全绿）——原文"臂未移植"系移植前普查 |
-| RES | ✅ | 【2026-10-15 晚 普查】语料 script0（floor3）`RES_0`（LAY 同窗后段）；**臂未移植**（无分派，落 todo!()）【2026-10-16 更正】臂已移植（7934035，a.java:8355-8490 逐值对照，4 单测 script_res_resets_run_stats_on_easy〔easy/非 easy 双分支〕全绿）——原文"臂未移植"系移植前普查 |
+| LAY | ✅ | 【2026-10-15 晚 普查】语料 script0（floor3）`LAY_2`；触发层=floor3 脚本链后段（fx-scriptwalk T1-700 窗口止于 LAY 之前=未触达实证）；**臂未移植**（无分派，落 todo!()）【2026-10-16 更正】臂已移植（7934035，a.java:8355-8490 逐值对照，4 单测 script_lay_jumps_floor_with_wipe 全绿）——原文"臂未移植"系移植前普查【2026-10-16 同步·BUG-012】Java 侧 CES_70 崩溃断链：script0 对话推进至 `CES_70_5_8` ⇒ T350 AIOOBE（spawnEntity a.java:6418 槽登记，A/B/C 三变体同点同因；bug-draft-script0-ces70-slot 移交）——`LAY_2` 语料点位于 CES_70 之后 ⇒ **Java 侧不可达，Rust 单测为唯一验证面（同 MVS 先例）**；原版行为由 FX-BUG-CES70-SLOT 崩溃前缀夹具钉（BUG-009 体例，BUG-012） |
+| RES | ✅ | 【2026-10-15 晚 普查】语料 script0（floor3）`RES_0`（LAY 同窗后段）；**臂未移植**（无分派，落 todo!()）【2026-10-16 更正】臂已移植（7934035，a.java:8355-8490 逐值对照，4 单测 script_res_resets_run_stats_on_easy〔easy/非 easy 双分支〕全绿）——原文"臂未移植"系移植前普查【2026-10-16 同步·BUG-012】同 LAY 行：CES_70 崩溃断链（T350 AIOOBE，a.java:6418）致 `RES_0` 语料点 Java 不可达——**Rust 单测为唯一验证面（同 MVS 先例）**；崩溃前缀 FX-BUG-CES70-SLOT 钉原版行为（BUG-012） |
 | SEE | ✅ | 【2026-10-15 晚 普查】语料 scripts40-45 等 14 条（序章镜头族）；触发层=prologue/剧情层；臂已移植（scene.rs `op == "SEE"`，m_103 ease）；序章 T1-9800 含电影镜头推进=疑似覆盖，待帧锚/变异复核后转 ✅【2026-10-16 更正：⬜→✅ 帧锚复核完成】A-prologue-dialog 状态倾印逐 tick 锚定：T0584 phase=1/cursor=12（TAK_255_259）→T0782 cursor=24（TAK_165_165）→**T0902 phase=6/cursor=43 = SEE_3_10_166_166_1 执行**→T0962 phase=4（行尾收尾门 a.java:8568 覆写，BUG-006 冻结态）；prologue_frames_match T1-9800 逐 tick 9800 FRAME 全帧比对绿（2026-10-16 实跑 460s）=SEE 及其后 8898 拍全被帧哈希锚定；双分支单测 see_bug006_replay_cursor_advances_walk_not_armed / see_path_found_arms_walk（script_golden，a.java:8466-8481）。变异复核未做（scene.rs 不在本任务写域）——判据=帧锚+双分支单测；若日后变异复核证伪按更正文化翻回 |
 | SMS | ☠️ | 【2026-10-15 晚 普查】语料 script66（`SMS_0`，短信/付费时代残迹）；触发层=script66 门链待查；臂=两行桩（scene.rs `op == "SMS"`：读参跳行=外部副作用吸收型〔Java 侧平台短信调用，桌面不可复现〕，待 ☠️/吸收终裁）【2026-10-16 终裁 ☠️】吸收型空转桩：两端皆无语义可移植——Java 臂本身即读参跳行（a.java:8515-8518：`parseScriptInt` + `scriptCursor=lastDelimPos+1`，**无任何平台/短信调用**），Rust 桩（scene.rs:2053-2056）与之逐字等价；语料仅 script66 `SMS_0` 一处（a.java:1191）。> 【2026-10-16 更正】原文"Java 侧平台短信调用，桌面不可复现"系 mnemonic 推测（C 级），反编译投影中不存在该调用——"外部副作用吸收"实际成立的只是**语义空转**这一层（付费短信时代残迹被上游剥除或本就是桩）。触发链（script66 门链）查否不影响裁决（臂无副作用）；若字节码级复核（javap）发现投影吞掉的调用，按更正文化翻回 |
 | ADD | ✅ | 【2026-10-15 晚 普查】语料 script7（`ADD_2_72_11_10`：生成型72@(11,10) 伏击）；触发层=floor8 脚本链后段；**臂未移植**（无分派，落 todo!()）【2026-10-16 更正】臂已移植（7934035，a.java:8355-8490 逐值对照，4 单测 script_add_spawns_entity_same_floor 全绿）——原文"臂未移植"系移植前普查 |
@@ -273,6 +273,8 @@ cover_matrix.py 渲染时三重校验（字节码证死 + 裁决书节锚 + JDI 
 > 【三批】条目 3（:5442）已随 9908f10 落行翻 ✅（N23 真臂 + F23 假臂成对，双分支真齐）；
 > 余条目 5/6（68/84）等主窗批（FX-BOSS-68A/FX-LAY-2A）。
 > 【挂】-5/53 同型第三处已裁"修"（porter 在做，lead 2026-10-16）——落地后 15 行 break 语义段顺带同步。
+> 【四批】条目 5（68）已随 491243d 落行翻 ✅（FX-BOSS-68A 主窗 T1-760）；条目 6（84）前提变更
+> （FX-LAY-2A 受阻 BUG-012）已改写——待 items-evidence 按 82 口径自裁后回填翻格；LAY/RES 行已同步断链注。
 
 1. **15 筋斗云 ⬜→✅**（待 porter 修 scene.rs:4476-4477 `key_value`/`up` 求值顺序）：
    【2026-10-⟨日⟩ 翻 ✅】49/55 臂方向分歧已修（⟨fix commit⟩，⟨回归测试名⟩——修后 49=findFloorGateEntity(true)
@@ -293,10 +295,15 @@ cover_matrix.py 渲染时三重校验（字节码证死 + 裁决书节锚 + JDI 
    【2026-10-⟨日⟩ 翻 ✅】FX-BOSS-68A（⟨commit⟩）⟨测试名⟩：floor25 战 68（HP4500/Atk560/Def310 a.java:1072）
    ⇒ 击杀 spawnBossEvent(2) ⇒ bossEventSpawns[2] 红钥匙×4 十字（a.java:2142）⟨帧窗+四钥格断言⟩。
    fixture-plan-boss 余 8 窗 = 二波扩展候选（注文明列不随本格销）。
-6. **84 嫦娥 ⬜→✅**（待 FX-LAY-2A 主窗）：
-   【2026-10-⟨日⟩ 翻 ✅】FX-LAY-2A（⟨commit⟩）⟨测试名⟩：script0 链 ⇒ `LAY_2` 出层（a.java:8355-8362）
-   ⇒ `RES_0` easy 重置（:8470-8490）⇒ `GUT_1` 交接停扫 ⟨帧窗⟩——销 84 行核心出层语义；
-   登场三出生源/scene26-31 门控余窗 = 二波扩展候选（注文明列）。
+6. **84 嫦娥**（**前提变更 2026-10-16·lead CES_70 裁决**：FX-LAY-2A **受阻**——script0 对话推进至
+   `CES_70_5_8` ⇒ T350 AIOOBE 原版崩溃（BUG-012，spawnEntity a.java:6418 槽登记，三变体同点同因），
+   LAY_2/RES_0 语料点 Java 不可达；处置=**钉崩溃前缀 FX-BUG-CES70-SLOT**（BUG-009 体例）
+   + **82 定例口径组合**）：
+   【2026-10-⟨日⟩ 翻 ⟨✅ 或 ⬜ 附 A 级理由——items-evidence 自裁后回填⟩】可选口径：
+   (a) 可达部分已钉（出层链可达段帧锚 ⟨占位⟩）+ evidence-boss 84 出层链考证（三出生源/scene26-31
+   门控）组合销 ⇒ ✅，注明"Java CES_70 崩溃断链，Rust 单测/可达段帧锚为验证面（同 MVS 先例）"；
+   (b) 或留 ⬜ 附 A 级理由。LAY/RES 臂本体已 ✅（7934035 单测，行内已同步 BUG-012 断链注）；
+   登场三出生源/scene26-31 门控余窗 = 二波扩展候选（不随本格销）。
 
 > 收敛口径（lead 2026-10-16 拍板）：fixture-plan-boss 10 窗不全做——2 主窗销行 + 8 窗转二波扩展候选；
 > 执行序 items-evidence（F23/item20）→ 68/84 主窗（同人串行，tests/ 域不并行）→ 本节六行连翻。
