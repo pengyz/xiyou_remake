@@ -7668,4 +7668,72 @@ mod entity_route_tests {
         assert!(sc.script_walk_armed);
         assert_eq!(sc.walk_path_buffer, vec![2, 2]);
     }
+    /// 2.3（refactor-behavior-matrix §2）：**MOV-miss 尾递归**（a.java:8301-8302）——
+    /// 五参 MOV 实体未命中 ⇒ 同拍尾递归执行下一条；MOV段游标**分支前推进**
+    /// （a.java:8268），递归自下一条起（游标位移断言钉）。
+    #[test]
+    fn mov_miss_tail_recurses_into_next_instruction() {
+        let line = "MOV_43_1_1_2_2 TAK_5_6 ";
+        // miss 路径：(1,1) 无 type43 ⇒ 尾递归同拍执行 TAK_5_6
+        let mut sc = scene((5, ROW), &[]);
+        exec(&mut sc, line);
+        assert_eq!(sc.dialog_page, 5, "尾递归同拍执行 TAK（page=5）");
+        assert_eq!(sc.dialog_page_end, 6);
+        assert_eq!(sc.script_cursor, line.len(), "游标越过 MOV段与 TAK 段（TAK 尾 +1 落行末）");
+        // 命中对照：不递归——游标只到 TAK 前、相位=2（实体路线）
+        let mut sc2 = scene((5, ROW), &[(43, 1, 1)]);
+        exec(&mut sc2, line);
+        assert_eq!(sc2.dialog_phase, 2, "命中 ⇒ 实体路线相位（不递归）");
+        assert_eq!(sc2.script_cursor, "MOV_43_1_1_2_2 ".len(), "游标停在 TAK 前");
+        assert_eq!(sc2.dialog_page, 0, "TAK 未执行");
+    }
+
+    /// 5.x（refactor-behavior-matrix §5）：**双面漂移防线**（DC-9 桥漏道具加成
+    /// 前科同机制）——16 op 两面分派对照：harness（script.rs ScriptEngine）与
+    /// 生产（execute_script_instruction）喂同一行后**游标推进必须一致**；未知
+    /// 3 字母 op 两面同停摆（R-TODO-1b）。只比分派/游标（效果面由 fx 夹具+金样
+    /// 钉生产面、script_golden 钉 harness 面——双面分列不混谈）。
+    #[test]
+    fn script_surfaces_op_dispatch_cursor_parity() {
+        use super::scene_test_support::scene as mk_scene;
+        use crate::script::{DialogueTable, NoopHost, ScriptEngine};
+        let table = DialogueTable {
+            scripts: vec!["TAK_9_9 ".into(), "TAK_9_9 ".into()],
+            texts: vec!["x".into(); 256], // 对话页取 texts[page]（TAK 翻页越界防护）
+            speakers: vec![0; 256],
+            type_names: vec!["x".into(); 256],
+            type_categories: vec![0; 96],
+        };
+        let cases: &[(&str, &str)] = &[
+            ("TAK", "TAK_8_9 "), ("LAY", "LAY_2 "), ("GIN", "GIN_1_1000 "),
+            ("RES", "RES_0 "), ("ADD", "ADD_1_2_3_4 "), ("SEE", "SEE_4_10_168_168_0 "),
+            ("GUT", "GUT_1 "), ("MOV", "MOV_0_5_11 "), ("DES", "DES_70_5_8 "),
+            ("SWD", "SWD "), ("CES", "CES_84_6_11 "), ("GLV", "GLV_0 "),
+            ("END", "END_0 "), ("SMS", "SMS_0 "), ("ROS", "ROS_4_1 "), ("MVS", "MVS "),
+        ];
+        for &(op, line) in cases {
+            let mut sc = mk_scene((5, ROW), &[]);
+            exec(&mut sc, line);
+            let prod = sc.script_cursor;
+            let mut eng = ScriptEngine::new(&table, 0);
+            eng.set_script_line_for_test(line);
+            eng.state.script_cursor = 0;
+            let mut host = NoopHost;
+            eng.execute_script_instruction(&mut host);
+            assert_eq!(eng.state.script_cursor, prod, "op {op} 两面游标推进一致（line={line:?}）");
+        }
+        // 未知 op 两面同停摆（R-TODO-1b）
+        for line in ["ZZZ_0 ", "QQ "] {
+            let mut sc = mk_scene((5, ROW), &[]);
+            exec(&mut sc, line);
+            assert_eq!(sc.script_cursor, 0, "生产面未知 op 停摆（{line:?}）");
+            let mut eng = ScriptEngine::new(&table, 0);
+            eng.set_script_line_for_test(line);
+            eng.state.script_cursor = 0;
+            let mut host = NoopHost;
+            eng.execute_script_instruction(&mut host);
+            assert_eq!(eng.state.script_cursor, 0, "harness 面未知 op 停摆（{line:?}）");
+        }
+    }
+
 }

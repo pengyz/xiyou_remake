@@ -356,7 +356,7 @@ impl<'d> ScriptEngine<'d> {
             host.swd_convert_type81();
             // Java：var2 在 substring 后无条件 +3（a.java:8244-8239），
             // SWD 分支 scriptCursor = var2 + 1 ⇒ 原始 cursor + 4（复核 R1）
-            self.state.script_cursor = var2p4 + 1;
+            self.state.script_cursor = var2p4; // 【2026-10-17 修复】Java `var2+1`（a.java:8359，var2=substring 后 =orig+3）⇒ orig+4 = var2p4——原 `var2p4 + 1` = orig+5 多跳一格（注释写 +4 代码算 +5 的自相矛盾），5.x 两面对照测揪出
         } else if var3 != "MVS" {
             if var3 == "LAY" {
                 host.reload_floor_entities(self.state.current_floor); // m_119
@@ -496,8 +496,12 @@ impl<'d> ScriptEngine<'d> {
                 self.state.script_cursor = self.state.last_delim_pos + 1;
             }
         } else {
-            // MVS：P3.2 边界（数据域 68 条脚本零使用）——委托 hook，由实现方决定
+            // MVS：P3.2 边界（数据域 68 条脚本零使用）——效果委托 hook（由实现方
+            // 决定），**分派/游标语义两面一致**（生产 a.java:8589 `var2+1` = orig+4
+            // = var2p4；【2026-10-17 补】原缺游标写致 harness 停摆 vs 生产推进
+            // ——5.x 两面对照测揪出）。
             host.mvs_exchange();
+            self.state.script_cursor = var2p4;
         }
 
         // 尾部收尾门（a.java:8574-8580）：行被消费完 ⇒ phase=4 + 旗标 + 相机
