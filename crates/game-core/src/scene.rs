@@ -169,6 +169,19 @@ const BLOCKS_PLAYER_INSERT: [bool; 13] = {
 };
 
 /// 对白数据集（构造期从夹具装载；game-core 无 I/O——include_str 编译期）。
+/// miscTexts（a.java:438-445 初始化器逐字）：[0-3]=changeFloor 提示浮层，
+/// [4-7]=序章卷轴文本（[5]=装备丢弃提示）。
+pub const MISC_TEXTS: [&str; 8] = [
+    "无法再下一层了，这是你达到的最底层",
+    "无法再上一层了，这是你达到的最高层",
+    "无法再下去了。",
+    "无法再上去了。",
+    "俺，当世神界第一斗者，孙!悟!空! 自从受封为齐天大圣，掌管蟠桃园以来，一直逍遥快活，无拘束……",
+    "你拥有更强力的装备，因此将捡到的丢弃了。",
+    "直到那一天，遇到了她，在筋斗云上的我，竟然第一次心潮起伏，有了晕机的感觉……",
+    "神仙动了感情，往往会万劫不复，\n这一次，让我付出了五百年的时间去忘记她……\n五指山脚下的沙子，掠过我的脸庞。\n沙子，跟时间一样，同样随风流逝；同样掩埋过去；\n多少次伸手想抓住，却从指隙溜走……\n看夜空，半梦半醒间，往事历历上心头……",
+];
+
 pub struct DialogData {
     /// levelScriptLines（68 行 DSL）
     pub scripts: Vec<String>,
@@ -604,7 +617,7 @@ pub fn load_floor_from_save(
     let line_count = scene.dialog_data.scripts.len().min(save.script_flags.len());
     scene.script_line_flags[..line_count].copy_from_slice(&save.script_flags[..line_count]);
     // step 10 = loadFloorData（应用本层触发缓存）+ buildMinimap（a.java:3515-3517）
-    scene.load_floor_data(maplv, px, py, records)?;
+    scene.load_floor_data(maplv, px, py, records, scene.floor)?;
     scene.build_minimap();
     // step 11 相机（a.java:3523-3525）+ m_000 case 3（a.java:4312-4318）
     scene.enter_view();
@@ -854,7 +867,7 @@ impl GameScene {
             ease_target_x: 0,
             ease_target_y: 0,
         };
-        scene.load_floor_data(maplv, player_px, player_py, records)?;
+        scene.load_floor_data(maplv, player_px, player_py, records, scene.floor)?;
         Ok(scene)
     }
 
@@ -866,6 +879,7 @@ impl GameScene {
         player_px: i32,
         player_py: i32,
         records: &[(u8, u16, u16, i16, bool)],
+        floor: i32,
     ) -> Result<(), String> {
         let view = GameView::from_maplv(maplv, player_px, player_py)?;
         let cols = view.wide as usize;
@@ -886,7 +900,9 @@ impl GameScene {
         let mut grid = CellGrid::new(view.wide, view.high);
         // m_122 双分支（a.java:9465+）：有层存档 → 从存档恢复（**死怪不复活**、
         // 已开门保持开）；无存档 → sprite{n} 权威数据 + 5/81/6/12/76/82/83 隐藏
-        if let Some(data) = self.saved_floor_states[self.floor as usize].clone() {
+        // 存档态按**目标层**取键（a.java:9465+ f_byte_arr2_05[var1]）——跨层装载
+        // （probe/ADD）时不得取当前层（潜伏缺陷 2026-10-15 修）
+        if let Some(data) = self.saved_floor_states[floor as usize].clone() {
             let mut pos = 0usize;
             let read_u16 = |d: &[u8], p: &mut usize| -> u16 {
                 let v = u16::from_be_bytes([d[*p], d[*p + 1]]);
@@ -953,13 +969,24 @@ impl GameScene {
     /// 越界提示浮层（miscTexts 0-3）属交互批次——todo 守卫。
     pub fn change_floor(&mut self, target: i32, down: bool, strict: bool) -> bool {
         if strict {
-            if target < self.min_floor || target > self.max_floor {
-                todo!("changeFloor 已达层提示浮层（miscTexts[0/1]，交互批次）")
+            // 已达层界提示（a.java:7133-7144）：下界 miscTexts[0]、上界 [1]
+            if target < self.min_floor {
+                self.show_overlay_message(0, MISC_TEXTS[0], 0, 0);
+                return false;
+            }
+            if target > self.max_floor {
+                self.show_overlay_message(0, MISC_TEXTS[1], 0, 0);
+                return false;
             }
         }
-        if target < 0 || target > 55 {
-            // f_int_68=55（a.java:808）；miscTexts[2/3]
-            todo!("changeFloor 层界提示浮层（miscTexts[2/3]，交互批次）")
+        // 层界提示（a.java:7150-7156）：负层 [2]、超 f_int_68=55 [3]（a.java:808）
+        if target < 0 {
+            self.show_overlay_message(0, MISC_TEXTS[2], 0, 0);
+            return false;
+        }
+        if target > 55 {
+            self.show_overlay_message(0, MISC_TEXTS[3], 0, 0);
+            return false;
         }
         // m_119(currentFloor)（a.java:9370-9388）：序列化**存活**实体
         // （removed/state==1 跳过）——死怪/已开门跨层持久
@@ -1021,7 +1048,7 @@ impl GameScene {
             .expect("层资产未提供");
         let px = self.view.player_px;
         let py = self.view.player_py;
-        self.load_floor_data(&fa.maplv, px, py, &fa.records)
+        self.load_floor_data(&fa.maplv, px, py, &fa.records, self.floor)
             .expect("层资产重载失败");
         if self.floor == 0 {
             self.m_024(1, 2);
@@ -1305,6 +1332,88 @@ impl GameScene {
         }
     }
 
+    /// m_122（a.java:9465-9680）：**纯实体表装载**（≠loadFloorData——后者含视图/
+    /// 行走表/小地图）。存档态优先（替换语义 + removed=false），否则 sprite 记录
+    /// （5/81/6/12/76/82/83 生成置不可见）；尾部层特例 + type72 renderCategory 随层。
+    /// probe/ADD 的 m_119/m_122 往返用本函数（用 load_floor_data 会清小地图/重建
+    /// 视图——实测 T281 帧差元凶）。格恒 13×13 ⇒ 网格重建无涉视图。
+    pub fn reload_floor_entities(&mut self, floor: i32) {
+        let mut entities = entity::EntityTable::new(100);
+        let mut grid = entity::CellGrid::new(self.view.wide, self.view.high);
+        if let Some(data) = self.saved_floor_states[floor as usize].clone() {
+            let mut pos = 0usize;
+            let read_u16 = |d: &[u8], p: &mut usize| -> u16 {
+                let v = u16::from_be_bytes([d[*p], d[*p + 1]]);
+                *p += 2;
+                v
+            };
+            let count = read_u16(&data, &mut pos) as usize;
+            for _ in 0..count {
+                let t = data[pos] as i32;
+                pos += 1;
+                let x = read_u16(&data, &mut pos) as i32;
+                let y = read_u16(&data, &mut pos) as i32;
+                let visible = data[pos] != 0;
+                pos += 1;
+                let param = read_u16(&data, &mut pos) as i16;
+                let img_h = self.images.entity.get(t as usize).cloned().flatten().map(|im| im.height);
+                let idx = entity::spawn(&mut entities, &mut grid, t, x, y, param, &self.width_table, img_h);
+                entities.visible[idx] = visible;
+                entities.removed[idx] = false;
+            }
+            if self.floor == 2
+                && !self.script_line_flags[26]
+                && entity::cell_entity(&grid, &entities, 11, 4, 84) < 0
+            {
+                let img_h = self.images.entity[84].as_ref().map(|i| i.height);
+                entity::spawn(&mut entities, &mut grid, 84, 352, 128, 0, &self.width_table, img_h);
+            }
+        } else if let Some(fa) = self.floor_assets.get(floor as usize).cloned().flatten() {
+            for &(type_code, x, y, param, visible) in &fa.records {
+                let img_h = self.images.entity[type_code as usize].as_ref().map(|i| i.height);
+                let idx = entity::spawn(
+                    &mut entities,
+                    &mut grid,
+                    type_code as i32,
+                    x as i32,
+                    y as i32,
+                    param,
+                    &self.width_table,
+                    img_h,
+                );
+                if !visible {
+                    entities.visible[idx] = false;
+                }
+            }
+        }
+        entity::sort_by_y(&mut entities, &mut grid);
+        self.entities = entities;
+        self.grid = grid;
+    }
+
+    /// probeCrossFloorSnapshot（a.java:8640-8659）：跨层探存活实体——忠实往返：
+    /// m_119 存当前 → m_122（reload_floor_entities）载目标 → 扫 → 还原（不存目标层）。
+    /// 结果以真装载后的实体表为准（floor23 存档态无型12 ⇒ false，与参照跑
+    /// T281 mode=3 吻合）。
+    pub fn probe_cross_floor_snapshot(&mut self, floor: i32, type_id: i32) -> bool {
+        let foreign = self.floor != floor;
+        if foreign {
+            self.save_floor_state();
+            self.reload_floor_entities(floor);
+        }
+        let mut found = false;
+        for e in 0..self.entities.count {
+            if !self.entities.removed[e] && self.entities.entity_type[e] == type_id {
+                found = true;
+                break;
+            }
+        }
+        if foreign {
+            self.reload_floor_entities(self.floor);
+        }
+        found
+    }
+
     /// tryRunScene（a.java:8065-8139）：脚本行门控（scriptLineFlags + 场景参数
     /// var2=fromWalk）。case 40 落 5..40 直通组（var3 原样 = !flags[40]）。
     pub fn try_run_scene(&mut self, idx: i32, from_walk: bool) -> bool {
@@ -1324,7 +1433,32 @@ impl GameScene {
             4 => gate &= self.script_line_flags[3] && from_walk,
             // 7/32 需 m_102(23,12) 跨层快照探针（f_byte_arr2_05 层序列化语义）——
             // 未移植，显式挡路（覆盖窗不可达）。
-            7 | 32 => todo!("tryRunScene case {idx} 的 m_102(23,12) 跨层探针"),
+            // tryRunScene case 7（a.java:8123-8127）：gate = from_walk ∧ 跨层无存活
+            // 型12（floor23）；过门即置 flags[32]（32 号脚本视为已跑）
+            7 => {
+                gate &= from_walk && !self.probe_cross_floor_snapshot(23, 12);
+                if gate {
+                    self.script_line_flags[32] = true;
+                }
+            }
+            // tryRunScene 到达臂（a.java:8128-8146）：case 8/9/11/12/19/30/41-45/
+            // 48-50/52/53/55/56 同体 `var3 &= var2`——**from_walk=true（到达）才过**。
+            // 【2026-10-16 更正】此前误并入 case 32 探针臂（"共臂"注释错），导致
+            // bump 即触发 script12，早于 Java 真身 7 拍（mov_route floor40 T281 实证）。
+            // cover"进 (6,7) 型83(param12) 到达触发"= applyStepCellEffects 路径。
+            8 | 9 | 11 | 12 | 19 | 30 | 41 | 42 | 43 | 44 | 45 | 48 | 49 | 50 | 52
+            | 53 | 55 | 56 => {
+                gate &= from_walk;
+            }
+            // tryRunScene 探针臂（a.java:8193-8201）：case 32 独占——
+            // flags[7] 已跑 ⇒ 挡；否则 gate &= !from_walk ∧ floor23 有存活型12
+            32 => {
+                if self.script_line_flags[7] {
+                    gate = false;
+                } else {
+                    gate &= !from_walk && self.probe_cross_floor_snapshot(23, 12);
+                }
+            }
             // 15（a.java:8119-8126）：当前层有活型5（门卫/宝箱守卫）→ false；
             // 否则 &= from_walk（bump 不触发、到达才触发——floor49 伏击门）。
             15 => {
@@ -1711,8 +1845,7 @@ impl GameScene {
             if self.floor != a {
                 self.save_floor_state();
                 if let Some(fa) = self.floor_assets.get(a as usize).cloned().flatten() {
-                    self.load_floor_data(&fa.maplv, c << 5, d << 5, &fa.records)
-                        .ok(); // Java m_122 无失败路径（资产在则必成）
+                    self.reload_floor_entities(a);
                 }
             }
             entity::spawn(
@@ -1729,8 +1862,7 @@ impl GameScene {
             if self.floor != a {
                 if let Some(fa) = self.floor_assets.get(self.floor as usize).cloned().flatten() {
                     let (px, py) = (self.view.player_px, self.view.player_py);
-                    self.load_floor_data(&fa.maplv, px, py, &fa.records)
-                        .ok();
+                    self.reload_floor_entities(self.floor);
                 }
             }
             self.script_cursor = e4 + 1;
@@ -6153,6 +6285,58 @@ mod slot_equip_scene_tests {
         assert_eq!(sc.global_snapshot().max_floor_watermark, 50, "单调不回退");
     }
 
+    /// probeCrossFloorSnapshot 同层路径（a.java:8640-8655）：存活目标型 ⇒ true；removed 跳过。
+    #[test]
+    fn probe_finds_live_entities_same_floor() {
+        let mut sc = scene_with(&synthetic_sptarm());
+        let f = sc.floor;
+        entity::spawn(&mut sc.entities, &mut sc.grid, 12, 3 << 5, 3 << 5, 0, &sc.width_table, None);
+        assert!(sc.probe_cross_floor_snapshot(f, 12), "存活型12 ⇒ true");
+        assert!(!sc.probe_cross_floor_snapshot(f, 99), "无此型 ⇒ false");
+        let e = sc.entities.count - 1;
+        sc.entities.removed[e] = true;
+        assert!(!sc.probe_cross_floor_snapshot(f, 12), "removed 不计");
+    }
+
+    /// tryRunScene 共臂门控（a.java:8193-8201）：flags[7] 挡；否则需 floor23 有存活型12。
+    #[test]
+    fn try_run_scene_shared_probe_gate() {
+        let mut sc = scene_with(&synthetic_sptarm());
+        sc.floor = 23; // 同层化：probe(23,12) 免跨层资产
+        assert!(!sc.try_run_scene(32, false), "无型12 ⇒ 挡");
+        entity::spawn(&mut sc.entities, &mut sc.grid, 12, 3 << 5, 3 << 5, 0, &sc.width_table, None);
+        assert!(sc.try_run_scene(32, false), "有型12 ⇒ 过");
+        assert!(!sc.try_run_scene(32, true), "from_walk ⇒ 挡（!var2）");
+        sc.script_line_flags[7] = true;
+        assert!(!sc.try_run_scene(32, false), "flags[7] ⇒ 挡");
+    }
+
+    /// tryRunScene case 7（a.java:8123-8127）：from_walk ∧ 无型12 ⇒ 过 + 置 flags[32]。
+    #[test]
+    fn try_run_scene_case7_sets_flag32() {
+        let mut sc = scene_with(&synthetic_sptarm());
+        sc.floor = 23;
+        assert!(!sc.try_run_scene(7, false), "非 from_walk ⇒ 挡");
+        assert!(sc.try_run_scene(7, true), "from_walk ∧ 无型12 ⇒ 过");
+        assert!(sc.script_line_flags[32], "过门置 flags[32]");
+    }
+
+    /// changeFloor 四提示浮层（a.java:7135/7142/7153/7156）：strict 下/上界 + 负层/超 55。
+    #[test]
+    fn change_floor_prompt_texts() {
+        let mut sc = scene_with(&synthetic_sptarm());
+        sc.min_floor = 2;
+        sc.max_floor = 10;
+        assert!(!sc.change_floor(1, false, true), "strict 低于 min ⇒ false");
+        assert_eq!(sc.overlay_text.as_deref(), Some(MISC_TEXTS[0]));
+        assert!(!sc.change_floor(11, false, true), "strict 高于 max ⇒ false");
+        assert_eq!(sc.overlay_text.as_deref(), Some(MISC_TEXTS[1]));
+        assert!(!sc.change_floor(-1, false, false), "负层 ⇒ false");
+        assert_eq!(sc.overlay_text.as_deref(), Some(MISC_TEXTS[2]));
+        assert!(!sc.change_floor(56, false, false), "超 55 ⇒ false");
+        assert_eq!(sc.overlay_text.as_deref(), Some(MISC_TEXTS[3]));
+    }
+
     /// LAY_x（a.java:8355-8362）：脚本层跳转——m_119 存态 + 目标层 + 遮幅（dialogPhase=5）。
     #[test]
     fn script_lay_jumps_floor_with_wipe() {
@@ -6521,14 +6705,14 @@ mod fidelity_fix_tests {
             assert_eq!(sc.floor, 2);
             sc.script_line_flags[26] = flag26;
             sc.saved_floor_states[2] = Some(vec![0, 0]); // 恢复分支（0 实体）
-            sc.load_floor_data(&maplv(), 3 << 5, 3 << 5, &[]).unwrap();
+            sc.load_floor_data(&maplv(), 3 << 5, 3 << 5, &[], sc.floor).unwrap();
             assert_eq!(sc.entity_at_cell(11, 4, 84) >= 0, respawn, "flags[26]={flag26}");
         }
         // 非 2 层不补生
         let mut sc = scene((3, 3), &[]);
         sc.floor = 3;
         sc.saved_floor_states[3] = Some(vec![0, 0]);
-        sc.load_floor_data(&maplv(), 3 << 5, 3 << 5, &[]).unwrap();
+        sc.load_floor_data(&maplv(), 3 << 5, 3 << 5, &[], sc.floor).unwrap();
         assert!(sc.entity_at_cell(11, 4, 84) < 0);
     }
 

@@ -241,6 +241,19 @@ fn run_scene(spec: &Spec, mut observe: impl FnMut(u32, &GameScene)) -> GameScene
     };
     let mut floor_assets: Vec<Option<FloorAssets>> = vec![None; 56];
     floor_assets[spec.floor] = Some(FloorAssets { maplv: maplv.clone(), records: floor_records.clone() });
+    // 门控探针跨层真数据（probeCrossFloorSnapshot(23,12)，a.java:8640-8659）：
+    // tryRunScene 7/8/9/11/12/19/32 共臂以全资产为前提（Java 语境），测试须补 floor23
+    // （型12=隐形墙，floor23 墙谜层）。
+    let sp23 = SpriteTable::parse(&raw("sprite23")).unwrap();
+    let rec23: Vec<(u8, u16, u16, i16, bool)> = sp23
+        .records
+        .iter()
+        .map(|rec| {
+            let (param, hide) = spawn_param_and_visibility(rec.type_code, &rec.extra, &doors);
+            (rec.type_code, rec.x, rec.y, param, !hide)
+        })
+        .collect();
+    floor_assets[23] = Some(FloorAssets { maplv: raw("maplv23"), records: rec23 });
 
     let mot_l0 = &stores.iter().find(|(k, _)| k.starts_with("MOT_L0@")).expect("MOT_L0").1;
     let save = parse_floor_save(mot_l0, 0).unwrap();
