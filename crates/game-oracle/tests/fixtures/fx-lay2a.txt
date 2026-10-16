@@ -1,0 +1,52 @@
+# ticks: 1100
+# preset: fx-lay2a.preset
+# cover: PROBE FX-LAY-2A script0 出层链最小窗（fixture-plan-boss §2 FX-LAY-2A）——
+#   探路稿：boot 70/-6 100/-2 150/-5 200/-5 → 槽载入 floor3 (2,10) 朝上（预置 hp/atk/def
+#   999 gold777 keys1/1/1 items=16:1——非默认值钉 RES_0 重置断言）→ 300 -1 南步 (2,11)
+#   ⇒ case83(param0) 到达触发 script0：CES_84/70 登场 + MOV_0_5_11 自走 + TAK_8_21
+#   14 页对话 → DES_70_5_8 → LAY_2 出层（3→2 wipe）→ ROS_1_4_7 落 (4,7) → RES_0
+#   全字段重置（hp→400/atk→10/def→10/gold→4/keys→0/items→0/min→1/max→3/alchemy→0）
+#   → GUT_1（flags[0]=1 + 转 script1）→ script1 TAK_22 首页即窗止。
+#   48 探路节拍：340 起每 40 拍一击推进对话/页面（15 连发），实测定稿后裁剪。
+#   preset：python3 tools/frames_fixture.py preset floor=3 x=2 y=10 facing=1 hp=999 atk=999
+#   def=999 gold=777 yk=1 bk=1 rk=1 sky=5 items=16:1
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -2 press
+302 -2 release
+340 48 press
+342 48 release
+380 48 press
+382 48 release
+420 48 press
+422 48 release
+460 48 press
+462 48 release
+500 48 press
+502 48 release
+540 48 press
+542 48 release
+580 48 press
+582 48 release
+620 48 press
+622 48 release
+660 48 press
+662 48 release
+700 48 press
+702 48 release
+740 48 press
+742 48 release
+780 48 press
+782 48 release
+820 48 press
+822 48 release
+860 48 press
+862 48 release
+900 48 press
+902 48 release
