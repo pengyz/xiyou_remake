@@ -88,6 +88,71 @@ pub struct CellGrid {
 }
 
 impl CellGrid {
+    /// 槽登记追加：row[cap] = id（**1-based** 实体号），cap++。
+    /// 【六写点收口】spawn / m_108 追加面（a.java:6412-6420 / 6808-6809 同构）。
+    pub fn slot_push(&mut self, ct: usize, id: usize) {
+        let cap = self.capacity[ct] as usize;
+        self.slots[ct][cap] = id as u8;
+        self.capacity[ct] += 1;
+    }
+
+    /// 摘除首个 id：续前移、cap-1、**序保持**（pullEntityFromCell 语义）。
+    /// 【六写点收口】detach / m_108 摘除面（a.java:6770-6771/8880-8904）。
+    pub fn slot_remove_first(&mut self, ct: usize, id: usize) -> bool {
+        let cap = self.capacity[ct] as usize;
+        for s in 0..cap {
+            if self.slots[ct][s] as usize == id {
+                for k in s..cap - 1 {
+                    self.slots[ct][k] = self.slots[ct][k + 1];
+                }
+                self.capacity[ct] -= 1;
+                return true;
+            }
+        }
+        false
+    }
+
+    /// 按下标摘除（killAdjacentAt 的 removeSlotAt 面，a.java:7938+）：同压缩语义。
+    pub fn slot_remove_at(&mut self, ct: usize, at: usize) {
+        let cap = self.capacity[ct] as usize;
+        for k in at..cap - 1 {
+            self.slots[ct][k] = self.slots[ct][k + 1];
+        }
+        self.capacity[ct] -= 1;
+    }
+
+    /// 改写首个 from→to（sortEntitiesByY 槽修复①②面，a.java:6770-6771/6808-6809）。
+    pub fn slot_replace_first(&mut self, ct: usize, from: u8, to: u8) {
+        let cap = self.capacity[ct] as usize;
+        for s in 0..cap {
+            if self.slots[ct][s] == from {
+                self.slots[ct][s] = to;
+                return;
+            }
+        }
+    }
+
+    /// 过滤摘除（removeGroupAtCellByType 面，a.java:6434-6449）：drop(id)=true 者
+    /// 摘除并回传 id 列表（调用方标 removed），余者序保持压实。返回=被摘 id 序。
+    pub fn slot_remove_if(&mut self, ct: usize, drop: &mut dyn FnMut(u8) -> bool) -> Vec<u8> {
+        let cap = self.capacity[ct] as usize;
+        let mut kept: Vec<u8> = Vec::new();
+        let mut dropped: Vec<u8> = Vec::new();
+        for s in 0..cap {
+            let id = self.slots[ct][s];
+            if drop(id) {
+                dropped.push(id);
+            } else {
+                kept.push(id);
+            }
+        }
+        for (s, v) in kept.iter().enumerate() {
+            self.slots[ct][s] = *v;
+        }
+        self.capacity[ct] = kept.len() as u8;
+        dropped
+    }
+
     pub fn new(cols: i32, rows: i32) -> Self {
         Self {
             cols,
@@ -234,9 +299,7 @@ pub fn spawn(
             ct = grid.next_cell_type;
             grid.cell_type[cell_y as usize][cx] = ct;
         }
-        let cap = grid.capacity[ct as usize];
-        grid.slots[ct as usize][cap as usize] = (idx + 1) as u8;
-        grid.capacity[ct as usize] += 1;
+        grid.slot_push(ct as usize, idx + 1);
     }
 
     if type_id == crate::enums::entity_kind::STAIR_UP {
@@ -396,12 +459,7 @@ fn fix_slot(grid: &mut CellGrid, px: i32, py: i32, sprite_w: i32, id_from: usize
     let cx = (px >> 5) as usize;
     for d in 0..width {
         let ct = grid.cell_type[cy][cx + d as usize] as usize;
-        for s in 0..grid.capacity[ct] as usize {
-            if grid.slots[ct][s] == (id_from + 1) as u8 {
-                grid.slots[ct][s] = (id_to + 1) as u8;
-                break;
-            }
-        }
+        grid.slot_replace_first(ct, (id_from + 1) as u8, (id_to + 1) as u8);
     }
 }
 
@@ -461,16 +519,7 @@ pub fn detach_from_cell(grid: &mut CellGrid, table: &mut EntityTable, idx: usize
     let cy = (table.items[idx].py >> 5) as usize;
     let cx = (table.items[idx].px >> 5) as usize;
     let ct = grid.cell_type[cy][cx] as usize;
-    let cap = grid.capacity[ct] as usize;
-    for s in 0..cap {
-        if grid.slots[ct][s] as usize == idx + 1 && s < cap {
-            for k in s..cap - 1 {
-                grid.slots[ct][k] = grid.slots[ct][k + 1];
-            }
-            grid.capacity[ct] -= 1;
-            return;
-        }
-    }
+    grid.slot_remove_first(ct, idx + 1);
 }
 
 /// m_108（a.java:8880-8904）：路径缓动实体的格槽迁移——从**起点格** (from_x,from_y)
@@ -481,17 +530,9 @@ pub fn detach_from_cell(grid: &mut CellGrid, table: &mut EntityTable, idx: usize
 /// ——同一实体重复调用（m_106 途中击杀后路径未尽再收尾，a.java:8848 + 8806）时，
 /// 首次已迁走 ⇒ 二次摘除落空，但**追加照做**（removed 实体重新登记入槽，原版行为）。
 pub fn relocate_slot(grid: &mut CellGrid, table: &EntityTable, idx: usize, from_x: i32, from_y: i32) {
+    // 【六写点收口】摘除面 slot_remove_first + 追加面 slot_push（语义同原手写环）
     let ct = grid.cell_type[from_y as usize][from_x as usize] as usize;
-    let cap = grid.capacity[ct] as usize;
-    for s in 0..cap {
-        if grid.slots[ct][s] as usize == idx + 1 {
-            for k in s..cap - 1 {
-                grid.slots[ct][k] = grid.slots[ct][k + 1];
-            }
-            grid.capacity[ct] -= 1;
-            break;
-        }
-    }
+    grid.slot_remove_first(ct, idx + 1);
     let cx = (table.items[idx].px >> 5) as usize;
     let cy = (table.items[idx].py >> 5) as usize;
     let mut nt = grid.cell_type[cy][cx];
@@ -500,9 +541,7 @@ pub fn relocate_slot(grid: &mut CellGrid, table: &EntityTable, idx: usize, from_
         nt = grid.next_cell_type;
         grid.cell_type[cy][cx] = nt;
     }
-    let n = grid.capacity[nt as usize] as usize;
-    grid.slots[nt as usize][n] = (idx + 1) as u8;
-    grid.capacity[nt as usize] += 1;
+    grid.slot_push(nt as usize, idx + 1);
 }
 
 /// advanceBobPhase（a.java:6483-6491）：bob 浮沉相位推进（每拍 ±1，域 [-2,2] 翻转）。
@@ -533,21 +572,12 @@ pub fn remove_all_of_type(table: &mut EntityTable, type_id: i32) {
 /// 按类型筛除（removed=true + 槽压缩）。
 pub fn remove_group_at_cell_by_type(cx: i32, cy: i32, type_id: i32, table: &mut EntityTable, grid: &mut CellGrid) {
     let ct = grid.cell_type[cy as usize][cx as usize] as usize;
-    let cap = grid.capacity[ct] as usize;
-    if cap == 0 {
+    if grid.capacity[ct] == 0 {
         return;
     }
-    let mut kept: Vec<u8> = Vec::new();
-    for s in 0..cap {
-        let id = grid.slots[ct][s] as usize - 1;
-        if table.items[id].type_ != type_id {
-            kept.push(grid.slots[ct][s]);
-        } else {
-            table.items[id].removed = true;
-        }
+    // 【六写点收口】过滤摘除面 slot_remove_if（序保持压实 + 摘除 id 回传标 removed）
+    let dropped = grid.slot_remove_if(ct, &mut |id| table.items[id as usize - 1].type_ == type_id);
+    for id in dropped {
+        table.items[id as usize - 1].removed = true;
     }
-    for (s, v) in kept.iter().enumerate() {
-        grid.slots[ct][s] = *v;
-    }
-    grid.capacity[ct] = kept.len() as u8;
 }

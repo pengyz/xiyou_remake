@@ -1123,10 +1123,8 @@ impl GameScene {
         }
         let idx = self.grid.slots[ct][slot as usize] as usize - 1;
         self.entities.items[idx].removed = true;
-        for k in slot as usize..cap - 1 {
-            self.grid.slots[ct][k] = self.grid.slots[ct][k + 1];
-        }
-        self.grid.capacity[ct] -= 1;
+        // 【六写点收口】按下标摘除面 slot_remove_at（压缩语义同原手写环）
+        self.grid.slot_remove_at(ct, slot as usize);
     }
 
     /// m_073 tryOpenChest（a.java:7285-7299）：全图收集同 param 型 4（未移除、
