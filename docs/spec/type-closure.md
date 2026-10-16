@@ -35,17 +35,17 @@ cat8 战斗 + cat16 商人）与 applyStepCellEffects（:5637-5715，case 1-8/76
 | 型 | 名 | 状态 | 证据/注 |
 |---|---|---|---|
 | 1 | 黄门 | ✅ | floor45 (11,5)/floor48 (4,6) 开门；consumeKeyForDoor 26 |
-| 2 | 红门 | ⬜ | 开门臂（code 27）未见交互——delta |
+| 2 | 红门 | ✅ | 开门臂（code 27）未见交互——delta【2026-10-16 翻 ✅】FX-DOOR-2A/2B 双臂帧夹具（f3506cc，fixture_frames 16/16）：fx_door2a_open_frames_match（floor40 (6,9) 北撞 ⇒ consumeKeyForDoor(27) a.java:7746-7752 popup→redKeyCount 1→0→markEntityRemoved state=1（:6355-6361）→放行进门格，T1-520 全帧）+ fx_door2b_nokey_frames_match（无钥匙负例：双撞恒挡「你没有红钥匙」a.java:5392-5395，门 state 恒 0）——原文"未见交互"销 |
 | 3 | 蓝门 | ✅ | floor_crossing 蓝门重复弹关周期（迭代 36） |
 | 4 | 封印门 | ✅ | floor42/49/44/48 wp4 组开门 |
 | 5 | 门卫(宝箱) | ✅ | floor42/49 守卫-宝箱配对；floor44/45 双配对 |
-| 6 | 隐形路径 | ⬜ | bump case6 显形臂（visible+state2+row9）未见——delta |
+| 6 | 隐形路径 | ✅ | bump case6 显形臂（visible+state2+row9）未见——delta【2026-10-16 翻 ✅】FX-INT-6A 三方（903dc95，fixture_frames 16/16）：fx_int6a_reveal_frames_match（floor5 (10,11) 左撞 (9,11) ⇒ 显形三元组 visible→state=2→animRow=9 写序 a.java:5413-5415 → 地形豁免放行 → 过渡归零 a.java:6838-6843 → 二次进入幂等，T1-560 全帧+终态断言）——原文"显形臂未见"销 |
 | 7 | 上楼梯 | ✅ | floor_crossing 楼梯往返 |
 | 8 | 下楼梯 | ✅ | 同上 |
 | 9 | 炼丹炉 | ✅ | mode9 全流程（alchemy） |
 | 10 | 云雾(三昧真火) | ✅ |【2026-10-15 晚销账】移除臂 ✅ fx-fan-floor13（芭蕉扇 m_089 命中）+ 撞击臂已移植（ee52191，a.java:5436-5440）+ 帧级 fixture_frames::fx_firebump_floor13_frames_match 解禁全预算绿（RED 钉 T301）。【史】 bump case10 提示浮层；与 16 芭蕉扇联动——delta。【2026-10-15】移除臂（芭蕉扇 m_089 命中）✅ 夹具场景 fx-fan-floor13；**撞击臂 Rust 未移植**（a.java:5436-5440；scene.rs cat1 `_ => {} // 11 / 76/82：后续批次` 吞掉，无 todo!）——帧级复现 fixture_frames::fx_firebump_floor13_frames_match（#[ignore] BLOCKED，首分歧 T301），矩阵 §5.1 |
-| 11 | 能挖的墙 | ⬜ | bump case11 + **currentFloor!=23 层条件**（§4）——delta。【2026-10-15】撞击臂同 10 被 `_ => {}` 吞（代码阅读 B 级，矩阵 §5.1）【2026-10-16 同步】撞击臂已随主行（型10）移植（ee52191，a.java:5436-5456 逐值：型11 = **23 层静默、其余提示 + 阻挡 + 停扫**）——原文"被 `_ => {}` 吞"系移植前状态，已过时（保留历史）。状态仍 ⬜：行为面待夹具（23 层静默负例 FX-INT-11-F23 列 fixture-plan §3 扩展候选；非 23 层提示臂随型10夹具族） |
-| 12 | 隐形墙 | ⬜ | 图=型11 别名；bump case12 语义待查——delta。【2026-10-15】case12 = 显形为型11（state2/row9/visible）+ 阻挡（a.java:5449-5456）；Rust 同被 `_ => {}` 吞（B 级，矩阵 §5.1）【2026-10-16 同步】撞击臂已随主行（型10）移植（ee52191，a.java:5449-5456 逐值：变形为型11 + dispatch_sprite_size/anim 重派 + state2/animRow9/visible + 阻挡**续扫**〔Java 无停扫〕）——原文"Rust 同被 `_ => {}` 吞"系移植前状态，已过时（保留历史）。状态仍 ⬜：变形臂差分夹具未列（建议并入 FX-INT-11-F23 批） |
+| 11 | 能挖的墙 | ✅ | bump case11 + **currentFloor!=23 层条件**（§4）——delta。【2026-10-15】撞击臂同 10 被 `_ => {}` 吞（代码阅读 B 级，矩阵 §5.1）【2026-10-16 同步】撞击臂已随主行（型10）移植（ee52191，a.java:5436-5456 逐值：型11 = **23 层静默、其余提示 + 阻挡 + 停扫**）——原文"被 `_ => {}` 吞"系移植前状态，已过时（保留历史）。【2026-10-16 翻 ✅（已交互口径）】交互臂三面帧锚：fx_item17a（凿开 (8,3) 穿行，2d802fd）/fx_item18a（36 堵全清）/floor2-mov（m_106 途经 (2,8) 开墙）；bump 提示臂已移植（ee52191）但**无独立帧夹具**（fx_item17a 输入走面板 300-380 未撞墙）——残余两缺口挂 §4 :5442 行与 FX-INT-11-F23 扩展候选（23 层静默负例 + 非 23 层提示臂），不随本格销 |
+| 12 | 隐形墙 | ⬜ | 图=型11 别名；bump case12 语义待查——delta。【2026-10-15】case12 = 显形为型11（state2/row9/visible）+ 阻挡（a.java:5449-5456）；Rust 同被 `_ => {}` 吞（B 级，矩阵 §5.1）【2026-10-16 同步】撞击臂已随主行（型10）移植（ee52191，a.java:5449-5456 逐值：变形为型11 + dispatch_sprite_size/anim 重派 + state2/animRow9/visible + 阻挡**续扫**〔Java 无停扫〕）——原文"Rust 同被 `_ => {}` 吞"系移植前状态，已过时（保留历史）。【2026-10-16 驳回翻 ✅ 依据】"floor40-mov 逐帧"不成立——sprite40 字节级解析 29 记录 **0×型11、0×型12**（consumed==filesize，A 级），floor40 无此二型可触；case12 变形臂全夹具语料**零触达**（floor23 sprite 仅 probe 快照装载，mov_route_scene.rs:245-246 自注"测试须补 floor23"）⇒ 保守留 ⬜（防虚报）。夹具建议：FX-INT-11-F23 一并钉 floor23 型12 bump 变形 + 型11 静默双臂 |
 | 76 | 路点 | ✅ | floor35/42/46 wp4 组门踏板 |
 | 81 | 封印门(隐形) | ✅ | floor10 隐形81 |
 | 82 | 传怪点 | ⬜ | case82 spawn+hidden；出层层待普查——delta |
@@ -59,9 +59,9 @@ cat8 战斗 + cat16 商人）与 applyStepCellEffects（:5637-5715，case 1-8/76
 | 14 | 生死簿 | ✅ | preset_floor5_fixture_frames_match（道具14 全链 T1-1200：拾取→面板→使用→mode12 翻页/关闭） |
 | 15 | 筋斗云 | ⬜ | delta【2026-10-16 复核留 ⬜（预翻 📦 被驳回）】使用臂空操作=原版语义（a.java:7795-7800）✓；被动授予侧已核（拾取置 tutorial_seen=f_bool_12 scene.rs:5272/409，f_bool_13=stair_hint 楼梯指示门控 scene.rs:411）✓；**但消费侧 49/55 快捷键臂存在 A 级分歧**：scene.rs:4476-4477 先 `key_value=0` 后 `let up = key_value == 49` ⇒ `up` 恒 false，49 上行臂被并入 55 下行臂——a.java:5295/5301 为**分立 case**（49→findFloorGateEntity(true)+changeFloor(…,false,…)、55→false+true）。“被动效果移植已核”对本型不成立 ⇒ 保守不翻 📦（防虚报）；待分歧裁定（BUG 候选，建议 bug-ledger 登记 + 49/55 双向夹具）后翻 |
 | 16 | 芭蕉扇 | ✅ | 【2026-10-15】使用臂 m_089(10) 未命中提示 / 命中灭火两臂 ✅ 夹具场景 fx-fan-floor13（T1-830 全帧，preset 道具栏预置）；正常游玩来源 = 杨戬(69) 击杀 spawnBossEvent(4)（§5 更正） |
-| 17 | 金勺子 | ⬜ | 凿墙联动型11——delta。来源 = 啸天犬(67) 击杀 spawnBossEvent(3)（§5 更正） |
-| 18 | 玄明石 | ⬜ | 同上——delta。来源 = 天宫商人(78) 报价 13 → pickupItemType(18)（a.java:7432，§5 更正） |
-| 19 | 千年月桂露 | ⬜ | delta |
+| 17 | 金勺子 | ✅ | 凿墙联动型11——delta。来源 = 啸天犬(67) 击杀 spawnBossEvent(3)（§5 更正）【2026-10-16 翻 ✅】FX-ITEM-17A/17B 双臂（2d802fd，fixture_frames 16/16）：fx_item17a_chisel_wall_frames_match（floor29 (8,3) 型11 ⇒ m_089(11) 四邻命中 markEntityRemoved a.java:7895-7919 + uses 1→0 出栈 + T520 端到端通行，T1-620 全帧）+ fx_item17b_fail_no_consume_frames_match（失败不消耗负例：case17 返 false a.java:7809-7816 ⇒ useItemStack 短路 a.java:7766，栈 uses 恒 1） |
+| 18 | 玄明石 | ✅ | 同上——delta。来源 = 天宫商人(78) 报价 13 → pickupItemType(18)（a.java:7432，§5 更正）【2026-10-16 翻 ✅】FX-ITEM-18A（2d802fd）：fx_item18a_clear_all_walls_frames_match（floor37 型11×36 同拍全 markEntityRemoved a.java:7817-7828 全表扫描 + uses 1→0 出栈，T1-560 全帧 + 36 堵全 state=1 断言）——原文"同上"系误并 17 语义，实际效果=**震开当前层全部墙**（evidence-items §2.3） |
+| 19 | 千年月桂露 | ✅ | delta【2026-10-16 翻 ✅】FX-ITEM-19A 精确值（2d802fd）：fx_item19a_heal_exact_frames_match（atk105+def203 ⇒ (105+203)*74/10=2279 先乘后除整数截断钉死 a.java:7830 → hp 500+2779→2779 + uses 1→0 出栈 a.java:7766-7775，T1-560 全帧） |
 | 20 | 相形变位 | ✅ | floor42 script14 ROS_4_1（脚本侧使用） |
 | 21 | 上行符 | ✅ | preset_item21_frames_match / preset_item2122_frames_match（使用臂帧测） |
 | 22 | 下行符 | ✅ | preset_item2122_frames_match（21+22 配对使用臂帧测）；来源 script25 CES_22_6_6（§5 更正）；来源 script25 `CES_22_6_6`（§5 更正） |
@@ -118,14 +118,14 @@ cat8 战斗 + cat16 商人）与 applyStepCellEffects（:5637-5715，case 1-8/76
 | 56 | 护庭神将 | ✅ | floor38 (5,11) 战（迭代 79） |
 | 58 | 护丹老道 | ✅ | floor38 (11,9) 战（迭代 79；78 天宫商人同层 (5,2) 北半另窗） |
 | 59 | 伏魔韦驮 | ✅ | floor38 (10,10)/(10,7) 战×2（迭代 79） |
-| 67 | 啸天犬 | 🎨 | m_001(9) 多段拼装绘制臂已移植；战 ⬜——delta |
+| 67 | 啸天犬 | ✅ | m_001(9) 多段拼装绘制臂已移植；战 ⬜——delta【2026-10-16 战 ⬜→✅】FX-BOSS-67A（4f2fc30）：fx_boss67a_kill_spawn_frames_match（floor15 bump 战一击毙 ⇒ bossTypeOrder[3]=67 ⇒ spawnBossEvent(3) ⇒ bossEventSpawns[3] 刷金勺子(17)@(6,4) DES 态 a.java:2143/6333-6345/6838-6843 + 金 100→200，T1-560 全帧 + 掉落格/状态/anim 断言）；帧链 **A==B 双变体一致**——**C 腿断系 deobf 投影缺陷**（a.java:6592 型67 拼装臂 byte[]→Object[] 强转 CCE，bug-draft-paint67 投影稿），**非移植问题**，不阻本格 |
 | 68 | 太上老君 | ⬜ | boss 战+钩子——delta |
 | 69 | 杨戬 | ✅ | preset-floor35「case69 击杀钩子首验」= 杨戬战实证（击杀钩子随战触发）+ floor35 T1-1200 全帧 |
 | 70 | 玉皇大帝 | ✅ | floor49 战 + floor42 DES 剧情消失（封印语义：m_102 守卫门控） |
 | 71 | 玉皇大帝(二阶段) | ✅ | preset-floor49「case70 击杀钩子 + 守卫宝箱 param 配对开门」= 玉帝链实证 + m_102 守卫门控（preset_floor49_fixture_frames_match T1-3400） |
 | 72 | 牛魔王 | ✅ | ending 开战（cat8/cat32 层相关 renderCategory ✅ 迭代 56） |
 | 73 | 天蓬元帅 | ✅ | floor42 DES 剧情移除 |
-| 74 | 巨灵神 | ⬜ | boss 战+钩子——delta |
+| 74 | 巨灵神 | ✅ | boss 战+钩子——delta【2026-10-16 翻 ✅】FX-BOSS-74A 三方（4f2fc30）：fx_boss74a_kill_hooks_frames_match（floor20 击杀 ⇒ 双钩子：① spawnBossEvent(1) 12 件掉落 a.java:2092-2141 逐格断言〔29×3/26×3/30×3/32×3〕② loadLevelScript(21) 遗言 TAK_59_59 无 tryRunScene 门控 ⇒ script_line_flags[21] 收尾置位 a.java:8600，T1-600 全帧） |
 | 75 | 哪吒 | ✅ | floor10 boss |
 
 ### 1.5 cat16 商人 / cat32 特殊
@@ -190,7 +190,7 @@ cover_matrix.py 渲染时三重校验（字节码证死 + 裁决书节锚 + JDI 
 | a.java:3189/3192/3195 | ==0 / ==50 / ==1&&wentDown | ✅/✅/✅ | boot/prologue/floor50/floor1 引子旗 |
 | :4326 | >50 引子 UI | ✅ | floor51_menu/prologue |
 | :5428 | 炼丹价 scaledByFloorTier | ✅ | mode9（<=10 段） |
-| :5442 | 型11 墙文案 !=23 | ⬜ | **随型11 delta 一并覆盖** |
+| :5442 | 型11 墙文案 !=23 | ⬜ | **随型11 delta 一并覆盖**【2026-10-16 驳回翻 ✅ 依据】"floor40-mov 逐帧"不成立（sprite40 29 记录 0×型11/0×型12，字节级解析 A 级）；!=23 **真臂**无帧夹具（fx_item17a 输入走面板 300-380 未撞墙、fx_item18a 面板路径、floor40 无型11），**假臂**（23 层静默 a.java:5442-5444）=FX-INT-11-F23 扩展候选——两分支均未触达，保守留 ⬜ 待夹具 |
 | :6022 | >50 状态栏 | ✅ | floor50/51 |
 | :7165 | m_119(currentFloor) 层缓存 | ✅ | 换层链（floor2/floor_crossing） |
 | :7191/7193/7195 | 换层钳制 ==1/51/50 | ✅ | floor2/51/50 |
