@@ -372,13 +372,13 @@ c 类 = 白色系工具方法论所致（移植存在但漏判 / 无可观测效
 - crates/game-core/src/scene.rs:957：changeFloor 已达层提示浮层（miscTexts[0/1]，交互批次）
 - crates/game-core/src/scene.rs:962：changeFloor 层界提示浮层（miscTexts[2/3]，交互批次）
 - crates/game-core/src/scene.rs:1327：tryRunScene case {idx} 的 m_102(23,12) 跨层探针
-- crates/game-core/src/scene.rs:1894：executeScriptInstruction 的 {op:?} @op_start={} entry_cursor={} line={line:?}（对应脚本对拍批实现）
-- crates/game-core/src/scene.rs:5393：paintEntityLayer case 8 的 67 多段拼装
-- crates/game-core/src/scene.rs:5450：paintEntityLayer 空图标签分支（objectTypeNames 文本，floor1 不可达）
+- crates/game-core/src/scene.rs:2104：executeScriptInstruction 的 {op:?} @op_start={} entry_cursor={} line={line:?}（对应脚本对拍批实现）
+- crates/game-core/src/scene.rs:5603：paintEntityLayer case 8 的 67 多段拼装
+- crates/game-core/src/scene.rs:5660：paintEntityLayer 空图标签分支（objectTypeNames 文本，floor1 不可达）
 
 ### 5.1 无 `todo!` 标记的臂级缺口（人工登记 ARM_GAPS，锚逐条校验；修复后锚失效即 ⚠ 提示销账）
 
-- interactWithCell（a.java:5363-5541，现色 绿）：型 76/82 交互臂未移植——crates/game-core/src/scene.rs `_ => {} // 76/82：后续批次` 吞掉（无 todo! 标记，语义待考）。【2026-10-15 销账并改锚】原登记的型 10/11/12 撞击臂已移植（ee52191，a.java:5436-5456 逐值；fx_firebump_floor13_frames_match 解禁即绿，T301 钉点）——原锚 `_ => {} // 11 / 76/82` 失效即销账信号
+- interactWithCell（a.java:5363-5541，现色 绿）：型 76/82 交互臂未移植——crates/game-core/src/scene.rs `_ => {} // 76/82：后续批次` 吞掉（无 todo! 标记，语义待考）。【2026-10-15 销账并改锚】原登记的型 10/11/12 撞击臂已移植（ee52191，a.java:5436-5456 逐值；fx_firebump_floor13_frames_match 解禁即绿，T301 钉点）——原锚 `_ => {} // 11 / 76/82` 失效即销账信号。【2026-10-16 更正】Java interactWithCell 无 case 76/82（default: continue=bump 放行），Rust `_ => {}` 已忠实——原"ARM_GAPS 在账"按 evidence-todos.md T-1 附带登记销账
 
 ## 6. 刷新前后对照（v1 伪名口径 → v2.1 逐方法）
 
