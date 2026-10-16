@@ -48,7 +48,7 @@ cat8 战斗 + cat16 商人）与 applyStepCellEffects（:5637-5715，case 1-8/76
 | 12 | 隐形墙 | ⬜ | 图=型11 别名；bump case12 语义待查——delta。【2026-10-15】case12 = 显形为型11（state2/row9/visible）+ 阻挡（a.java:5449-5456）；Rust 同被 `_ => {}` 吞（B 级，矩阵 §5.1）【2026-10-16 同步】撞击臂已随主行（型10）移植（ee52191，a.java:5449-5456 逐值：变形为型11 + dispatch_sprite_size/anim 重派 + state2/animRow9/visible + 阻挡**续扫**〔Java 无停扫〕）——原文"Rust 同被 `_ => {}` 吞"系移植前状态，已过时（保留历史）。【2026-10-16 驳回翻 ✅ 依据】"floor40-mov 逐帧"不成立——sprite40 字节级解析 29 记录 **0×型11、0×型12**（consumed==filesize，A 级），floor40 无此二型可触；case12 变形臂全夹具语料**零触达**（floor23 sprite 仅 probe 快照装载，mov_route_scene.rs:245-246 自注"测试须补 floor23"）⇒ 保守留 ⬜（防虚报）。夹具建议：FX-INT-11-F23 一并钉 floor23 型12 bump 变形 + 型11 静默双臂 |
 | 76 | 路点 | ✅ | floor35/42/46 wp4 组门踏板 |
 | 81 | 封印门(隐形) | ✅ | floor10 隐形81 |
-| 82 | 传怪点 | ⬜ | case82 spawn+hidden；出层层待普查——delta |
+| 82 | 传怪点 | ✅ | case82 spawn+hidden；出层层待普查——delta【2026-10-16 终裁 ✅ 死码臂忠实实现】裁决口径=**有臂可验且已验 ⇒ ✅（用例名覆盖）+ 死码实证入注**（与 87「无臂可验 ⇒ ☠️」区分）：① 载入臂 spawn+hidden ✅（scene.rs:951-953 m_122 特例隐藏表含 82）；② MVS 传怪臂 ✅（scene.rs:2103-2191 + m_107 :2195，a.java:8519-8592 逐值；单测 mvs_pairs_by_param_low_byte_transfers_and_consumes〔scene.rs:6784〕+ bd735f6 三钉 quirk）；③ **实机不可达（双重死码 A 级）**：语料 297 条指令 0 条 MVS + 全 55 层 sprite 型82=0（evidence-todos T-1，型83 有 52 个对照）——夹具永远打不到，单测是唯一验证面。出层普查同步销：82 无任何出生源（CES/ADD/GIN/bossEventSpawns/商人五类均无） |
 | 83 | 剧情点 | ✅ | floor10/41/42/46/48（case15/14/13/38 门控族） |
 
 ### 1.2 cat2 道具（拾取共享臂 + 每型使用效果）
@@ -159,7 +159,7 @@ cat8 战斗 + cat16 商人）与 applyStepCellEffects（:5637-5715，case 1-8/76
 | SEE | ✅ | 【2026-10-15 晚 普查】语料 scripts40-45 等 14 条（序章镜头族）；触发层=prologue/剧情层；臂已移植（scene.rs `op == "SEE"`，m_103 ease）；序章 T1-9800 含电影镜头推进=疑似覆盖，待帧锚/变异复核后转 ✅【2026-10-16 更正：⬜→✅ 帧锚复核完成】A-prologue-dialog 状态倾印逐 tick 锚定：T0584 phase=1/cursor=12（TAK_255_259）→T0782 cursor=24（TAK_165_165）→**T0902 phase=6/cursor=43 = SEE_3_10_166_166_1 执行**→T0962 phase=4（行尾收尾门 a.java:8568 覆写，BUG-006 冻结态）；prologue_frames_match T1-9800 逐 tick 9800 FRAME 全帧比对绿（2026-10-16 实跑 460s）=SEE 及其后 8898 拍全被帧哈希锚定；双分支单测 see_bug006_replay_cursor_advances_walk_not_armed / see_path_found_arms_walk（script_golden，a.java:8466-8481）。变异复核未做（scene.rs 不在本任务写域）——判据=帧锚+双分支单测；若日后变异复核证伪按更正文化翻回 |
 | SMS | ☠️ | 【2026-10-15 晚 普查】语料 script66（`SMS_0`，短信/付费时代残迹）；触发层=script66 门链待查；臂=两行桩（scene.rs `op == "SMS"`：读参跳行=外部副作用吸收型〔Java 侧平台短信调用，桌面不可复现〕，待 ☠️/吸收终裁）【2026-10-16 终裁 ☠️】吸收型空转桩：两端皆无语义可移植——Java 臂本身即读参跳行（a.java:8515-8518：`parseScriptInt` + `scriptCursor=lastDelimPos+1`，**无任何平台/短信调用**），Rust 桩（scene.rs:2053-2056）与之逐字等价；语料仅 script66 `SMS_0` 一处（a.java:1191）。> 【2026-10-16 更正】原文"Java 侧平台短信调用，桌面不可复现"系 mnemonic 推测（C 级），反编译投影中不存在该调用——"外部副作用吸收"实际成立的只是**语义空转**这一层（付费短信时代残迹被上游剥除或本就是桩）。触发链（script66 门链）查否不影响裁决（臂无副作用）；若字节码级复核（javap）发现投影吞掉的调用，按更正文化翻回 |
 | ADD | ✅ | 【2026-10-15 晚 普查】语料 script7（`ADD_2_72_11_10`：生成型72@(11,10) 伏击）；触发层=floor8 脚本链后段；**臂未移植**（无分派，落 todo!()）【2026-10-16 更正】臂已移植（7934035，a.java:8355-8490 逐值对照，4 单测 script_add_spawns_entity_same_floor 全绿）——原文"臂未移植"系移植前普查 |
-| MVS | ☠️ | 【2026-10-15 补登】死指令：68 条脚本（a.java:1124-1193）零出现且脚本文本源封闭（字节码 MVS 引理 L1-L5）——终裁 DC-2（[dead-code-rulings.md](dead-code-rulings.md)）；Rust 不移植（script.rs 已注） |
+| MVS | ☠️ | 【2026-10-15 补登】死指令：68 条脚本（a.java:1124-1193）零出现且脚本文本源封闭（字节码 MVS 引理 L1-L5）——终裁 DC-2（[dead-code-rulings.md](dead-code-rulings.md)）；Rust 不移植（script.rs 已注）【2026-10-16 更正】"Rust 不移植"仅对 script.rs P3.1 解释器成立（mvs_is_p32_boundary panic 边界）——scene.rs **已实现** MVS 臂作保真死码臂（a.java:8519-8592 逐值，三钉单测 bd735f6，型82 配对互传 m_107）；☠️ 死指令裁定本身不变（语料 0 + 型82 出层 0 双重死码） |
 
 ## 3. 模式面
 
