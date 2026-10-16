@@ -1,0 +1,26 @@
+# ticks: 400
+# preset: fx-int11n23.preset
+# cover: FX-INT-11-N23 非23层型11 撞墙真臂（evidence-interact-types R-INT-11 真臂半 +
+#   :5442 销账真臂钉；closure-typist 三次驳回销账路径——独立场景，不改 fx-item17a 输入
+#   （保护其 560 帧链 sha 历史引用））：
+#   boot 70/-6 100/-2 150/-5 200/-5 → 槽载入 floor29 (8,4) 朝上（(8,3) 型11「能挖的墙」，
+#   与 fx-item17a 同面墙、本场无道具）→ 300 -1 北撞 (8,3) ⇒ interactWithCell case11
+#   （a.java:5441-5448）**真臂**：currentFloor!=23 ⇒ 文案「障碍物：墙\n只有金勺子、玄明石
+#   可以凿开。或者剧情打开！」+ var6=false 恒阻挡 + var8=0 停扫 → 二撞 340 -1 复现 →
+#   收尾静态。
+#   断言：overlay_text 含「障碍物：墙」、玩家恒 (8,4)、(8,3) 型11 state 恒 0（未开墙）。
+#   与 FX-INT-11-F23（假臂：23 层静默）成对 ⇒ :5442 双分支齐。
+#   preset：python3 tools/frames_fixture.py preset floor=29 x=8 y=4 facing=1 hp=500
+#   atk=200 def=30 sky=5
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -1 press
+302 -1 release
+340 -1 press
+342 -1 release

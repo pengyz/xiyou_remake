@@ -645,3 +645,32 @@ fn fx_item20a_no_teleport_floor40_frames_match() {
     assert!(i < sc.player.item_stack_size as usize, "相形变位仍在栈");
     assert_eq!(sc.player.item_uses[i], 3, "两次使用零消耗（uses 恒 3，a.java:7766 短路）");
 }
+
+/// FX-INT-11-N23：非23层型11 撞墙真臂（evidence-interact-types R-INT-11 真臂半 + :5442
+/// 销账真臂钉，closure-typist 三次驳回销账路径）。floor29 (8,3) 型11 双撞 ⇒ case11
+/// （a.java:5441-5448）currentFloor!=23 ⇒ 「障碍物：墙\n只有金勺子、玄明石可以凿开。
+/// 或者剧情打开！」+ 恒阻挡（var6=false）+ var8=0 停扫。与 FX-INT-11-F23 假臂（23 层
+/// 静默）成对 ⇒ :5442 双分支齐。独立场景（不动 fx-item17a 输入，护其帧链 sha 引用）。
+/// T1-400。
+#[test]
+fn fx_int11_n23_wall_message_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-int11n23.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-int11n23.txt"));
+    let (checked, sc) = replay(include_str!("fixtures/fx-int11n23.preset"), &records);
+    assert_eq!(checked, records.len(), "T1-400 全帧必须比对");
+    assert_eq!(sc.floor, 29);
+    assert_eq!(
+        (sc.view.player_px >> 5, sc.view.player_py >> 5),
+        (8, 4),
+        "双撞恒阻挡（var6=false）"
+    );
+    assert_eq!(
+        sc.overlay_text.as_deref().unwrap_or(""),
+        "障碍物：墙\n只有金勺子、玄明石可以凿开。或者剧情打开！",
+        "case11 真臂文案逐字（a.java:5443，floor!=23）"
+    );
+    let w = (0..sc.entities.count)
+        .find(|&i| sc.entities.entity_type[i] == 11)
+        .expect("型11 墙在表");
+    assert_eq!(sc.entities.solid[w], 0, "墙未开（state 恒 0）");
+}
