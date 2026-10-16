@@ -1771,7 +1771,7 @@ impl GameScene {
         let line = self.script_line.clone();
         let mut var2 = self.script_cursor;
         if var2 + 3 > line.len() {
-            // 行尾收尾（a.java:8574-8580）：phase=4 等相机 + 置 flag + 相机回玩家
+            // 行尾收尾（a.java:8597-8604）：phase=4 等相机 + 置 flag + 相机回玩家
             self.dialog_phase = 4;
             let cur = self.current_script_index;
             if cur != 32 {
@@ -6983,6 +6983,112 @@ mod slot_equip_scene_tests {
                 actual.argb, expected.argb,
                 "帧 {f}（裸帧偏移 {}）拼装逐像素一致",
                 ROW3[f as usize]
+            );
+        }
+    }
+
+    /// MVS 多对配对扫描序（a.java:8528-8542 + 8546-8558）：逆序首扫的 82 进
+    /// buf[偶]，同键后扫的进 buf[奇]；配对循环按 buf 序处理。本例两对
+    /// （键 3 / 键 7）各自互传——键 3 对的怪物落 buf[0]=82p1b 格 (5,5)、
+    /// 键 7 对的落 buf[0]=82p2b 格 (11,11)。错配/串对都会改写目的地。
+    #[test]
+    fn mvs_multi_pair_pinning_scans_and_targets_each_pair_cell() {
+        let mut sc = scene_with(&synthetic_sptarm());
+        // 对 1（键 3）：82p1a (2,2) / 82p1b (5,5)；对 2（键 7）：82p2a (8,8) / 82p2b (11,11)
+        entity::spawn(&mut sc.entities, &mut sc.grid, 82, 2 << 5, 2 << 5, 3, &sc.width_table, None);
+        let ep1a = sc.entities.count - 1;
+        entity::spawn(&mut sc.entities, &mut sc.grid, 82, 5 << 5, 5 << 5, 3, &sc.width_table, None);
+        let ep1b = sc.entities.count - 1;
+        entity::spawn(&mut sc.entities, &mut sc.grid, 82, 8 << 5, 8 << 5, 7, &sc.width_table, None);
+        let ep2a = sc.entities.count - 1;
+        entity::spawn(&mut sc.entities, &mut sc.grid, 82, 11 << 5, 11 << 5, 7, &sc.width_table, None);
+        let ep2b = sc.entities.count - 1;
+        entity::spawn(&mut sc.entities, &mut sc.grid, 41, 2 << 5, 2 << 5, 0, &sc.width_table, None);
+        let m1 = sc.entities.count - 1;
+        entity::spawn(&mut sc.entities, &mut sc.grid, 42, 8 << 5, 8 << 5, 0, &sc.width_table, None);
+        let m2 = sc.entities.count - 1;
+        for e in [ep1a, ep1b, ep2a, ep2b] {
+            sc.entities.visible[e] = false;
+        }
+
+        sc.script_line = "MVS ".to_string();
+        sc.script_cursor = 0;
+        sc.execute_script_instruction();
+
+        // 四点位全消耗、两原地怪物摘除
+        for e in [ep1a, ep1b, ep2a, ep2b, m1, m2] {
+            assert!(sc.entities.removed[e], "原地实体 {e} 摘除");
+        }
+        // 互传目的地按各对 buf[0] 实体格：键 3 对 → (5,5)，键 7 对 → (11,11)
+        let mut dest: Vec<(i32, i32, i32)> = (0..sc.entities.count)
+            .filter(|&i| !sc.entities.removed[i] && sc.entities.entity_type[i] >= 41)
+            .map(|i| (sc.entities.entity_type[i], sc.entities.pixel_x[i], sc.entities.pixel_y[i]))
+            .collect();
+        dest.sort_unstable();
+        assert_eq!(
+            dest,
+            vec![(41, 5 << 5, 5 << 5), (42, 11 << 5, 11 << 5)],
+            "两对各归各的 buf[0] 82 格（扫描序/配对键钉死）"
+        );
+    }
+
+    /// MVS 无怪纯配对（a.java:8564-8568）：82 消耗（removeGroupAtCellByType(…,82)）
+    /// 是 cat8 搬运分支**内部的副作用**——扫描格无怪物时该分支不触发 ⇒ 配对成立
+    /// 也**不消耗**点位、无 spawn。补遗 #4"一次性消耗两点位"的精确条件由此钉死。
+    #[test]
+    fn mvs_pair_without_monsters_leaves_82_points() {
+        let mut sc = scene_with(&synthetic_sptarm());
+        entity::spawn(&mut sc.entities, &mut sc.grid, 82, 2 << 5, 2 << 5, 3, &sc.width_table, None);
+        let e82a = sc.entities.count - 1;
+        entity::spawn(&mut sc.entities, &mut sc.grid, 82, 5 << 5, 5 << 5, 3, &sc.width_table, None);
+        let e82b = sc.entities.count - 1;
+        sc.entities.visible[e82a] = false;
+        sc.entities.visible[e82b] = false;
+        let count_before = sc.entities.count;
+
+        sc.script_line = "MVS ".to_string();
+        sc.script_cursor = 0;
+        sc.execute_script_instruction();
+
+        assert!(!sc.entities.removed[e82a] && !sc.entities.removed[e82b], "无怪 ⇒ 82 不消耗");
+        assert_eq!(sc.entities.count, count_before, "无怪 ⇒ 无 spawn");
+    }
+
+    /// m_107 旧格同型一并消失 + stale 尾复活（a.java:8872-8878 + 6434-6449 +
+    /// 8561-8568 循环体）：同格双 41 时，M1 的 m_107 清旧格把 M2 **一并带走**
+    /// （removeGroupAtCellByType 按型全清，非搬移）；随后槽组循环的容量快照
+    /// 不变、压缩不清尾 ⇒ M2 经 stale 尾重触发再被复制到目标格。净终态 =
+    /// 双 41 副本堆聚 (5,5)、原地全灭、实体数 +2（两次 m_107 spawn）。
+    #[test]
+    fn m_107_old_cell_same_type_sweep_with_stale_revival() {
+        let mut sc = scene_with(&synthetic_sptarm());
+        entity::spawn(&mut sc.entities, &mut sc.grid, 82, 2 << 5, 2 << 5, 3, &sc.width_table, None);
+        let e82a = sc.entities.count - 1;
+        entity::spawn(&mut sc.entities, &mut sc.grid, 82, 5 << 5, 5 << 5, 3, &sc.width_table, None);
+        let e82b = sc.entities.count - 1;
+        entity::spawn(&mut sc.entities, &mut sc.grid, 41, 2 << 5, 2 << 5, 0, &sc.width_table, None);
+        let m1 = sc.entities.count - 1;
+        entity::spawn(&mut sc.entities, &mut sc.grid, 41, 2 << 5, 2 << 5, 0, &sc.width_table, None);
+        let m2 = sc.entities.count - 1;
+        sc.entities.visible[e82a] = false;
+        sc.entities.visible[e82b] = false;
+
+        sc.script_line = "MVS ".to_string();
+        sc.script_cursor = 0;
+        sc.execute_script_instruction();
+
+        for e in [e82a, e82b, m1, m2] {
+            assert!(sc.entities.removed[e], "原地实体 {e} 摘除（含同型一并带走）");
+        }
+        assert_eq!(sc.entities.count, m2 + 3, "两次 m_107 spawn（stale 尾复活）");
+        let alive: Vec<usize> = (0..sc.entities.count).filter(|&i| !sc.entities.removed[i]).collect();
+        assert_eq!(alive.len(), 2, "双 41 副本存活");
+        for i in alive {
+            assert_eq!(sc.entities.entity_type[i], 41);
+            assert_eq!(
+                (sc.entities.pixel_x[i], sc.entities.pixel_y[i]),
+                (5 << 5, 5 << 5),
+                "副本堆聚目标格 (5,5)"
             );
         }
     }
