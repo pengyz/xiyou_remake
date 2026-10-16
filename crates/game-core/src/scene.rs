@@ -4512,7 +4512,21 @@ impl GameScene {
                                         // switch 无 5）→ bump 放行；开启臂在
                                         // applyStepCellEffects case5（宝箱）。
                                         // **不可写 `_`**——会吞掉其后的 83/9/77 臂。
-                                6 | 7 | 8 => stair_count += 1,
+                                6 => {
+                                    // 型 6 隐形实体 bump 显形（a.java:5410-5417）：
+                                    // var7++ **恒执行**于显形判定之前（a.java:5411）；
+                                    // 显形三元组一次性，写序固定 visible=true →
+                                    // entityState=2 → entityAnimRow=9（a.java:5413/
+                                    // 5414/5415 逐字）；continue 不改 allowed、
+                                    // 不置 var8=0（续扫同格后继槽）。
+                                    stair_count += 1;
+                                    if !self.entities.visible[e] {
+                                        self.entities.visible[e] = true; // a.java:5413
+                                        self.entities.solid[e] = 2; // a.java:5414
+                                        self.entities.anim_idx[e] = 9; // a.java:5415
+                                    }
+                                }
+                                7 | 8 => stair_count += 1,
                                 83 => {
                                 // 场景门（a.java:5508-5510）：tryRunScene 门控 →
                                 // loadLevelScript(mode 11)。命中即 var8=0 停扫
@@ -6552,6 +6566,42 @@ mod slot_equip_scene_tests {
         let s = paint7(&mut sc);
         assert_frame_material_name(&s, WEAPON_X, FRAME_Y, "覆写后 武器=0");
         assert_frame_icon(&s, ARMOR_X, FRAME_Y, &icons, 9, "覆写后 甲=80");
+    }
+
+    /// 型 6 隐形实体 bump 显形（a.java:5410-5417）：`var7++` **恒执行**于显形判定前；
+    /// 显形三元组写序钉死 visible→entityState(solid)=2→entityAnimRow(anim_idx)=9
+    /// （a.java:5413/5414/5415 逐字，本测试以行号注释锚定写序契约）；已显形再 bump
+    /// 仅 var7++、三字段**不重写**（a.java:5412 条件）；`continue` 续扫同格后继槽
+    /// （同格双型 6 一次 bump 全显形）；var7>0 豁免地形终审（a.java:5533-5534）。
+    #[test]
+    fn type6_bump_reveal_triple_write_order() {
+        let mut sc = scene_with(&synthetic_sptarm());
+        entity::spawn(&mut sc.entities, &mut sc.grid, 6, 2 << 5, 2 << 5, 0, &sc.width_table, None);
+        let e1 = sc.entities.count - 1;
+        entity::spawn(&mut sc.entities, &mut sc.grid, 6, 2 << 5, 2 << 5, 0, &sc.width_table, None);
+        let e2 = sc.entities.count - 1;
+        // m_122 载入语义：型 6 生成后覆盖 visible=false（a.java:9514-9517）
+        sc.entities.visible[e1] = false;
+        sc.entities.visible[e2] = false;
+        // 不可走地形：bump 放行只能靠 var7++ 豁免（a.java:5533）
+        sc.walkable[2][2] = false;
+
+        assert!(
+            sc.interact_with_cell(2, 2),
+            "型 6 bump 放行（var7++ 豁免地形终审，a.java:5533）"
+        );
+        for e in [e1, e2] {
+            assert!(sc.entities.visible[e], "显形 1/3 visible=true（a.java:5413）");
+            assert_eq!(sc.entities.solid[e], 2, "显形 2/3 entityState=2（a.java:5414）");
+            assert_eq!(sc.entities.anim_idx[e], 9, "显形 3/3 entityAnimRow=9（a.java:5415）");
+        }
+
+        // 二次 bump：已显形仅 var7++，三元组不再重写（a.java:5412 `if (!entityVisible)`）
+        sc.entities.anim_idx[e1] = 42;
+        assert!(sc.interact_with_cell(2, 2), "已显形再 bump 仍放行（var7++ 恒执行）");
+        assert_eq!(sc.entities.anim_idx[e1], 42, "一次性显形：anim 不重写");
+        assert!(sc.entities.visible[e1], "一次性显形：visible 不重写");
+        assert_eq!(sc.entities.solid[e1], 2, "一次性显形：solid 不重写");
     }
 }
 
