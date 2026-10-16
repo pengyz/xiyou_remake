@@ -1516,10 +1516,6 @@ impl GameScene {
                     gate &= loss < 0 || loss >= self.player.hp;
                 }
             }
-            // from_walk 族（a.java:8098-8117 簇）：8/9/11/12/19/30/41-45/48/49/
-            // 50/52/53/55/56 —— bump 不触发。
-            8 | 9 | 11 | 12 | 19 | 30 | 41 | 42 | 43 | 44 | 45 | 48 | 49 | 50
-            | 52 | 53 | 55 | 56 => gate &= from_walk,
             // 5/6/10/13/14/17/20/21/22/23/28/29/35/36/37/38/39/40/51/54/57-65：
             // 直通（无门控，a.java:8098-8108 簇 default: break）
             46 => gate &= from_walk && !self.script_line_flags[47],
@@ -1857,7 +1853,7 @@ impl GameScene {
             let (d, e4) = Self::parse_script_int(&line, e3 + 1, ' ');
             if self.floor != a {
                 self.save_floor_state();
-                if let Some(fa) = self.floor_assets.get(a as usize).cloned().flatten() {
+                if self.floor_assets.get(a as usize).cloned().flatten().is_some() {
                     self.reload_floor_entities(a);
                 }
             }
@@ -1873,8 +1869,7 @@ impl GameScene {
             );
             self.save_floor_state();
             if self.floor != a {
-                if let Some(fa) = self.floor_assets.get(self.floor as usize).cloned().flatten() {
-                    let (px, py) = (self.view.player_px, self.view.player_py);
+                if self.floor_assets.get(self.floor as usize).cloned().flatten().is_some() {
                     self.reload_floor_entities(self.floor);
                 }
             }
