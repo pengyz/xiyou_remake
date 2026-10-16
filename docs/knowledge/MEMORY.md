@@ -21,6 +21,9 @@
 - [OS 键盘重复不是 keyPressed](gotcha_os-key-repeat-is-not-keypressed.md) — a.class 未覆写 keyRepeated，长按行走靠 keyHeldCode；壳透传重复 ⇒ 菜单长按连跳/对话连翻（36d1a9d→747ba65 回退）
 - [provision 只认 A-<场景> trace 标签](gotcha_provision-trace-labels-a-stem-only.md) — crates 里 join EV-* trace 路径会让 rust-tests 门禁在 CI 缺夹具时 FAIL；取证期望值嵌常量
 - [ALSA file: 捕获不节流](gotcha_alsa-file-pcm-unthrottled.md) — null 从设备无时钟，壳音频线程全速写 ~500 MB/s；捕获只宜秒级、通路冒烟用 null
+- [tryRunScene 臂归属误读](gotcha_tryrunscene-fallthrough-arms-misread.md) — case 12 属 `var3 &= var2` 到达臂、probe(23,12) 探针臂系 case 32 独占（"12"是实体类型非脚本号）；误合并致 bump 早 7 拍触发（8f41e6c）——fallthrough 归属只能沿 case 标签列读 + trace 时序窗口实证
+- [loadFloorData ≠ m_122](gotcha_loadfloordata-vs-m122.md) — probe/ADD 跨层往返的载层/还原必须用 reload_floor_entities（m_122 纯实体装载）；load_floor_data 清小地图/重建视图致帧差（8f41e6c 连带修复）
+- [mnemonic 推测混入结论](gotcha_c-level-mnemonic-speculation-in-ledger.md) — SMS="平台短信调用"系望文生义 C 级（真臂仅 parseScriptInt+游标空转，a.java:8515-8518）；副作用断言必须指认调用行，指认不出不入账
 
 ## Patterns
 
@@ -39,6 +42,7 @@
 
 - [反编译引擎 CFR→Vineflower](decision_decompiler-cfr-to-vineflower.md) — 实测数据驱动切换；含 iinc-vs-i2b 累加器判定规则（编译零错≠行为一致）
 - [壳音频 dlopen ALSA 而非 rodio/cpal](decision_shell-audio-dlopen-alsa.md) — alsa-sys 构建期要 libasound2-dev，CI 缺包且违反不依赖系统包；运行时 dlopen 零构建依赖（代价：暂仅 Linux）
+- [生成物禁手改，改配置源重生成](decision_generated-docs-edit-via-config-source.md) — coverage-matrix 等判定/销账改 tools/cover_matrix.py ARM_GAPS 后重生成；手改仅限显式声明过渡态（6467342，lead 同 commit 自纠）
 
 ## Reference
 

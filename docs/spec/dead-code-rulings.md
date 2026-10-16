@@ -164,3 +164,86 @@ python3 tools/dead_code_ruling.py | sed -n '/^## DC-4/,/^## 守卫/p'
   只是 oracle 场景驱动面不含生命周期事件 ⇒ 场景不可达。矩阵按黄项「不触达论证」处置（§3，宿主测试覆盖），不入本裁决书。
 - **mode 13**：gameMode 值域同样不含 13（DC-3 值域），paint case 13 仅视差背景、无专属方法——随 mode 99/18 一并 ☠️
   （completeness §3.1）。
+
+## DC-5（候选·**未裁定**）scene67 混沌引子 TAK_264_268 不可达 —— ✗ 工具无法证明，留待人工
+
+> 【2026-10-16】本节为 task-7 取证。**结论 = 工具无法证明，不裁定 ☠️**（按纪律禁止口头终裁）；
+> 按"待人工"挂账，不得计入死码销账。背景见 [evidence-boss.md](evidence-boss.md) §4.2。
+
+**主张**：tryRunScene case67 门控 `var3 &= this.difficultyIndex > 0`（deobf a.java:8219-8220）任何
+正常执行恒 false ⇒ 型83(param67) 触发不成立 ⇒ `loadLevelScript(67)` 不可达 ⇒ script67
+`"TAK_264_268 "`（a.java:1192；对话 264-268 = 混沌世界引子，speaker 87 菩提老祖，a.java:1459-1463）
+永不执行。
+
+**工具结论**：`python3 tools/dead_code_ruling.py` 引擎实测 **两条证明链各差 1 处模型闭合点**：
+
+### 链 1：tryRunScene(67) ≡ false —— 被 difficultyIndex 值域 ⊤ 阻断（A 级工具输出）
+
+- 字段值域（`field_evidence` 原文）：
+  `difficultyIndex：putfield 3 处 = iconst_0×2，invokevirtual #1374×1 ⇒ 值域 ⊤（含缺省 0）`
+- 写点明细（引擎 `an['writes']` 原文）：
+  - `<init>@14117`：prev=`iconst_0` src=0 counted=True
+  - `resetNewGameState@142`：prev=`iconst_0` src=0 counted=True
+  - `loadFloorSave@99`：prev=`invokevirtual #1374`（= DataInputStream.readByte，deobf a.java:9258）
+    src=('top', 'invokevirtual #1374') counted=True
+- 机制：引擎 putfield 产生指令只认「常量 / getfield 拷贝」两形态（`const_of` / `field_writes`），
+  readByte 调用形态 ⇒ 值域 ⊤ ⇒ `dead_edges` 对 difficultyIndex 守卫全部不剪（与 DC-1/DC-3 的
+  walkPhase/gameMode 常量写点不同，本字段多一个**非常量写点**）。
+- tryRunScene 死边清单（引擎 `an['dead']` 原文）= **空**；可达偏移 **373/373**（全可达）⇒
+  case67 段（@885 fall 边）未被剪。
+- case67 守卫字节码（javap，tryRunScene@880-894）：
+
+```
+880: iload_3
+881: aload_0
+882: getfield      #795   // Field difficultyIndex:B
+885: ifle          892
+888: iconst_1
+889: goto          893
+892: iconst_0
+893: iand
+894: istore_3
+```
+
+  ⇒ 若值域能收敛 {0}，引擎将把 @885 fall 边（→888 iconst_1）剪为死边、case67 恒 false——
+  **只差链 1 的闭合引理**（对照 case16 守卫 @857-871 `getfield; ifne` 同因不剪）。
+
+### 链 2：loadLevelScript(67) 无其它入口 —— 被动态参数阻断（A 级）
+
+loadLevelScript 调用点实参形态（javap）：
+- 2 处 `getfield entityParam; saload`（bump 臂 a.java:5469 / 到达臂 a.java:5712，参数 = **关卡数据**，
+  静态无界）；
+- GUT 臂 `iload`（a.java:8313，实参 = 脚本文本解析值）；
+- 常量实参 `bipush` = {20, 21, 22, 35, 36, 65}（tickBattle 族，a.java:10073-10152）——**不含 67** ✓。
+- GUT 目标语料（A 级，grep `GUT_[0-9]*` 7 处）= {1, 12, 37, 57, 61, 62, 63}——**不含 67** ✓。
+- ⇒ 唯一潜在入口 = entityParam 动态路径，其成立性恰由链 1（tryRunScene(67) 恒 false）封死；
+  GUT 语料边界属 MVS 引理 L5 同型论证（工具仅有 bespoke 的 MVS 引理，无通用数据域引理）。
+
+### 缺口清单（闭合本裁定需要什么）
+
+1. **存档往返归纳引理**：difficultyIndex 写点 = {iconst_0×2, readByte×1}；readByte 的值源 =
+   record store，而存档写点（loadFloorSave 的对偶 saveFloorSave，deobf a.java:9190）写回同一字段
+   旧值 ⇒ 归纳恒 0。需类似 MVS 的 L1-L5 逐步机械校验（save/load 配对 + 无第三方写入 + 初值 0）。
+   **tools/dead_code_ruling.py 现无此引理** ⇒ 需扩工具（本任务写权限仅限本文件，未动工具）。
+2. GUT 实参语料边界（L5 同型）与 entityParam 关卡数据普查——链 2 的收尾材料。
+
+**可复现命令**
+
+```bash
+python3 tools/dead_code_ruling.py --check    # 基线不受影响：全部成立 DC-1/DC-2/DC-3/DC-4
+python3 - <<'EOF'                            # 链 1 证据（引擎只读查询）
+import sys; sys.path.insert(0, 'tools')
+import dead_code_ruling as d
+an = d.analyze()
+print(d.field_evidence(an, 'a.difficultyIndex'))
+for w in an['writes']['a.difficultyIndex']: print(w)
+tr = [k for k in an['methods'] if k[1] == 'tryRunScene'][0]
+print('dead edges:', len(an['dead'][tr]),
+      'reachable:', len(an['reach'][tr]), '/', len(an['methods'][tr].ins))
+EOF
+$J | grep -n 'difficultyIndex'                    # 写点 3 处 + getfield 若干
+grep -o 'GUT_[0-9]*' reference/src/deobf/a.java | sort | uniq -c   # GUT 目标无 67
+```
+
+**结论**：**✗ 工具无法证明 ⇒ 本节不裁定**（scene67 保持「待人工」，禁止按 ☠️ 记账或销 type-closure
+出层列）。链 1 差「存档往返」引理，引理落地 + `--check` 复核通过后方可终裁。
