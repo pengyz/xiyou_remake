@@ -3134,7 +3134,7 @@ impl GameScene {
         }
     }
 
-    /// itemTypeToStackIndex（a.java:899-905 语义：85/86 特判，其余 -13）。
+    /// itemTypeToStackIndex（a.java:7705-7719 语义：85/86 特判，其余 -13）。
     fn item_desc_index(&self, t: i32) -> usize {
         if t == 85 {
             20
@@ -4540,9 +4540,14 @@ impl GameScene {
                             1 => match t {
                                 1 | 2 | 3 => {
                                     // 门（a.java:5391-5411）：耗钥（consumeKeyForDoor
-                                    // 内部 spawnPopup kind1 图标 a.java:7733-7749）→
+                                    // 内部 spawnPopup kind1 图标 a.java:7746-7752）→
                                     // markEntityRemoved + 重建小地图；无钥 → 阻挡 +
-                                    // walkStepCount=0（提示浮层属交互批次）
+                                    // walkStepCount=0（提示浮层属交互批次）。
+                                    // 【2026-10-16 裁定】popup 时机差异：Java 在
+                                    // consumeKeyForDoor 内部先 popup 后减数，Rust 在
+                                    // consumed 后外层发 popup——tick 内变更序不可观测
+                                    // （oracle trace 无 tick 内序观测面；popup 只读玩家
+                                    // 像素坐标不读 keyCount，B 级），登记良性差异不改。
                                     let door = match t {
                                         1 => crate::combat::door_code::YELLOW,
                                         2 => crate::combat::door_code::RED,
@@ -5257,7 +5262,7 @@ impl GameScene {
     }
 
     fn pickup_item_type(&mut self, t: i32) {
-        // a.java:7596 附近拾取链：f_byte_07 = 道具类型（描述 overlay 的图标/名）
+        // a.java:7528 起 pickupItemType 拾取链：f_byte_07 = 道具类型（描述 overlay 的图标/名）
         self.overlay_kind_item = t;
         // 描述表（itemDescriptions a.java:906 / equipDescriptions a.java:930——
         // 全量入库 reference；此处取用句柄）

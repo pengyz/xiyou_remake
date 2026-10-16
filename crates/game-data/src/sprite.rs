@@ -4,30 +4,30 @@
 //!
 //! | 偏移 | 类型 | 含义 | 证据 |
 //! |---|---|---|---|
-//! | +0 | u16 LE | 条目计数低 16 位 | `docs/findings/resource-formats.md:258`；`a.java:7274` |
-//! | +2 | u16 LE | 条目计数高 16 位（本语料实测恒为 0） | `docs/findings/resource-formats.md:259`；`a.java:7274` |
-//! | 每条记录 +0 | u8 | 实体/对象类型码（索引 `this.m[code]` 得中文名，88 项） | `docs/findings/resource-formats.md:260`；`a.java:7276`；`a.java:545` |
-//! | 每条记录 +1 | u16 LE | x 坐标（像素） | `docs/findings/resource-formats.md:261`；`a.java:7277` |
-//! | 每条记录 +3 | u16 LE | y 坐标 | `docs/findings/resource-formats.md:262`；`a.java:7278` |
-//! | 每条记录 +5 | 0/1/2 字节（由类型码决定） | 附加参数原始字节 | `docs/findings/resource-formats.md:263`；`a.java:7279-7345` |
+//! | +0 | u16 LE | 条目计数低 16 位 | `docs/findings/resource-formats.md:258`；`a.java:9497` |
+//! | +2 | u16 LE | 条目计数高 16 位（本语料实测恒为 0） | `docs/findings/resource-formats.md:259`；`a.java:9497` |
+//! | 每条记录 +0 | u8 | 实体/对象类型码（索引 `this.m[code]` 得中文名，88 项） | `docs/findings/resource-formats.md:260`；`a.java:9500`；`a.java:954` |
+//! | 每条记录 +1 | u16 LE | x 坐标（像素） | `docs/findings/resource-formats.md:261`；`a.java:9501` |
+//! | 每条记录 +3 | u16 LE | y 坐标 | `docs/findings/resource-formats.md:262`；`a.java:9502` |
+//! | 每条记录 +5 | 0/1/2 字节（由类型码决定） | 附加参数原始字节 | `docs/findings/resource-formats.md:263`；`a.java:9503-9618` |
 //!
 //! # 附加参数字节数表（`extra_len`，逐类型码来自 switch 分支）
 //!
-//! Evidence: `reference/seed/a.java:7279` `switch (n7)` 的各 case（已逐行核对）：
+//! Evidence: `reference/src/deobf/a.java:9503` `switch (var5)` 的各 case（已逐行核对）：
 //!
 //! | 字节数 | 类型码 | 代码分支 |
 //! |---|---|---|
-//! | 2 | `7` `8` | `a.java:7309-7314` `read() \| read()<<8`（LE u16） |
-//! | 2 | `76` `82` | `a.java:7337-7342` `read() \| (read()+1)<<8` |
-//! | 1 | `9` | `a.java:7286-7290` |
-//! | 1 | `4` | `a.java:7291-7295`（`read()+1`） |
-//! | 1 | `5` `81` | `a.java:7296-7302`（`read()+1`） |
-//! | 1 | `83` | `a.java:7303-7308` |
-//! | 1 | `57` `59` `70` `71` `72` `73` | `a.java:7315-7324`（`read()+1`） |
-//! | 1 | `77` | `a.java:7325-7330`（`read()` 后与 `this.m[]` 表拼高字节） |
-//! | 1 | `78` | `a.java:7331-7336`（`read()` 后与 `this.n[]` 表拼高字节） |
-//! | 0 | `6` `12` | `a.java:7280-7285` |
-//! | 0 | 其余（`default`） | `a.java:7344-7347` |
+//! | 2 | `7` `8` | `a.java:9519-9523` `read() \| read()<<8`（LE u16） |
+//! | 2 | `76` `82` | `a.java:9601-9605` `read() \| (read()+1)<<8` |
+//! | 1 | `9` | `a.java:9524-9527` |
+//! | 1 | `4` | `a.java:9504-9507`（`read()+1`） |
+//! | 1 | `5` `81` | `a.java:9508-9513`（`read()+1`） |
+//! | 1 | `83` | `a.java:9615-9618` |
+//! | 1 | `57` `59` `70` `71` `72` `73` | `a.java:9592-9598`（`read()+1`） |
+//! | 1 | `77` | `a.java:9607-9610`（`read()` 后与 `this.m[]` 表拼高字节） |
+//! | 1 | `78` | `a.java:9611-9614`（`read()` 后与 `this.n[]` 表拼高字节） |
+//! | 0 | `6` `12` | `a.java:9514-9518` |
+//! | 0 | 其余（`default`） | `a.java:9589-9591` |
 //!
 //! 注意：本解析器只还原**原始字节**，switch 里的值后处理（`+1`、与 `this.m[]`/`this.n[]` 拼接、
 //! `case 76/82` 高字节 `+1`）是解释器层语义，不在解析层发明
@@ -35,8 +35,14 @@
 //!
 //! # 证据（A 级）
 //!
-//! - 读取循环：`reference/seed/a.java:7268-7346`——`a.java:7274` 两个 LE16 拼 32 位计数、
-//!   `a.java:7275` 循环计数次、`a.java:7276-7278` 类型码 + 2×u16 坐标、`a.java:7279-7345` 变长 switch。
+//! - **行号锚定（2026-10-16 更正）**：本文裸 `a.java:NNNN` 一律指
+//!   `reference/src/deobf/a.java`（renamed 反混淆版）。旧注释行号来自
+//!   `reference/seed/a.java` 且已整体漂移（如 7337-7342/7309-7314/7276
+//!   在 deobf 实为道具效果 switch 区）；已全部更正为 deobf 实证行号
+//!   （76/82 编码读点 :9603、7/8 编码读点 :9521，grep `read() + 1 << 8`
+//!   全文件唯一命中）。
+//! - 读取循环：`reference/src/deobf/a.java:9495-9618`——`a.java:9497` 两个 LE16 拼 32 位计数、
+//!   `a.java:9499` 循环计数次、`a.java:9500-9502` 类型码 + 2×u16 坐标、`a.java:9503-9618` 变长 switch。
 //! - 字节复现（55/55 文件 `consumed==filesize`）：`docs/findings/resource-formats.md:220-249`。
 //! - 类型码取值域（≤ 86，落在 `this.m` 88 项内）：`docs/findings/resource-formats.md:250-252`。
 
@@ -44,18 +50,21 @@ use crate::error::Error;
 use crate::read;
 
 /// 按类型码决定的附加参数字节数（0/1/2）。
-/// Evidence: `reference/seed/a.java:7279-7345` switch 分支（表见模块文档）。
+/// Evidence: `reference/src/deobf/a.java:9503-9618` switch 分支（表见模块文档）。
 pub fn extra_len(type_code: u8) -> usize {
     match type_code {
-        // 2 字节：a.java:7309-7314（7/8）、a.java:7337-7342（76/82）
+        // 2 字节：a.java:9519-9523（7/8）、a.java:9601-9605（76/82）
         7 | 8 | 76 | 82 => 2,
-        // 1 字节：a.java:7286-7290（9）、7287-7291（4）、7292-7298（5/81）、7299-7304（83）、
-        //         7311-7320（57/59/70/71/72/73）、7321-7331（77/78）。
-        // 77/78 的 seed 双字节读（a.java:7321-7331）在**文件布局上不成立**：
+        // 1 字节：a.java:9524-9527（9）、7287-7291（4）、7292-7298（5/81）、7299-7304（83）、
+        //         9592-9598（57/59/70/71/72/73）、9607-9614（77/78）。
+        // 77/78 的 seed 双字节读（旧 seed 修订观察）在**文件布局上不成立**：
         // sprite2 152/152 仅 ver1 干净（其 78 记录 [0x4e] 后即 7 号楼梯），
         // 运行时 m_122 case 77 亦单读（a.java:9608-9612）。迭代 67 曾误改 2。
+        // 【2026-10-16 更正】现行 reference/seed/a.java:7321-7332 case 77/78
+        // 亦为单读+表拼高字节（与 deobf 一致）；「双字节读」系旧 seed 修订的
+        // 历史观察，1 字节结论不变。
         4 | 5 | 9 | 57 | 59 | 70 | 71 | 72 | 73 | 77 | 78 | 81 | 83 => 1,
-        // 0 字节：a.java:7280-7285（6/12）与 a.java:7344-7347（default）
+        // 0 字节：a.java:9514-9518（6/12）与 a.java:9589-9591（default）
         _ => 0,
     }
 }
@@ -64,31 +73,31 @@ pub fn extra_len(type_code: u8) -> usize {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpriteRecord {
     /// 实体/对象类型码（索引 `this.m[code]` 得中文名）。
-    /// Evidence: `docs/findings/resource-formats.md:260`；`a.java:7276`；类型名表 `a.java:545`。
+    /// Evidence: `docs/findings/resource-formats.md:260`；`a.java:9500`；类型名表 `a.java:954`。
     pub type_code: u8,
-    /// x 坐标（u16 LE，像素；32px 网格对齐是游戏层语义，见 `a.java:4413-4422`）。
-    /// Evidence: `docs/findings/resource-formats.md:261`；`a.java:7277`。
+    /// x 坐标（u16 LE，像素；32px 网格对齐是游戏层语义，见 `a.java:6389-6395`）。
+    /// Evidence: `docs/findings/resource-formats.md:261`；`a.java:9501`。
     pub x: u16,
-    /// y 坐标（u16 LE，像素）。Evidence: `docs/findings/resource-formats.md:262`；`a.java:7278`。
+    /// y 坐标（u16 LE，像素）。Evidence: `docs/findings/resource-formats.md:262`；`a.java:9502`。
     pub y: u16,
     /// 附加参数**原始字节**（长度 = [`extra_len`]，0/1/2 字节）。
-    /// Evidence: `docs/findings/resource-formats.md:263`；`a.java:7279-7345`。
+    /// Evidence: `docs/findings/resource-formats.md:263`；`a.java:9503-9618`。
     pub extra: Vec<u8>,
 }
 
 /// sprite 对象表（整个 `sprite{n}` 资源）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpriteTable {
-    /// +0：计数低 16 位。Evidence: `docs/findings/resource-formats.md:258`；`a.java:7274`。
+    /// +0：计数低 16 位。Evidence: `docs/findings/resource-formats.md:258`；`a.java:9497`。
     pub count_lo: u16,
-    /// +2：计数高 16 位（本语料实测恒为 0）。Evidence: `docs/findings/resource-formats.md:259`；`a.java:7274`。
+    /// +2：计数高 16 位（本语料实测恒为 0）。Evidence: `docs/findings/resource-formats.md:259`；`a.java:9497`。
     pub count_hi: u16,
     /// 记录表（长度 = [`Self::count`]）。
     pub records: Vec<SpriteRecord>,
 }
 
 impl SpriteTable {
-    /// 条目计数 = `count_lo | count_hi << 16`（`a.java:7274`
+    /// 条目计数 = `count_lo | count_hi << 16`（`a.java:9497`
     /// `a.a(inputStream2) & 0xFFFF | a.a(inputStream2) << 16`）。
     pub fn count(&self) -> u32 {
         (self.count_lo as u32) | ((self.count_hi as u32) << 16)
@@ -96,22 +105,22 @@ impl SpriteTable {
 
     /// 解析前缀，返回（结果，消费字节数）。
     pub fn parse_partial(data: &[u8]) -> Result<(Self, usize), Error> {
-        // +0 / +2：两个 u16 LE 拼 u32 计数（a.java:7274；docs/findings/resource-formats.md:258-259）
+        // +0 / +2：两个 u16 LE 拼 u32 计数（a.java:9497；docs/findings/resource-formats.md:258-259）
         let count_lo = read::u16_le(data, 0)?;
         let count_hi = read::u16_le(data, 2)?;
         let count = ((count_lo as u32) | ((count_hi as u32) << 16)) as usize;
         let mut pos = 4usize;
         let mut records = Vec::with_capacity(count.min(4096));
         for _ in 0..count {
-            // +0：类型码 1 字节（a.java:7276）
+            // +0：类型码 1 字节（a.java:9500）
             let type_code = read::take(data, pos, 1)?[0];
             pos += 1;
-            // +1 / +3：x、y 各 u16 LE（a.java:7277-7278）
+            // +1 / +3：x、y 各 u16 LE（a.java:9501-9502）
             let x = read::u16_le(data, pos)?;
             pos += 2;
             let y = read::u16_le(data, pos)?;
             pos += 2;
-            // +5：附加参数 0/1/2 字节，长度由类型码决定（a.java:7279-7345）
+            // +5：附加参数 0/1/2 字节，长度由类型码决定（a.java:9503-9618）
             let extra = read::take(data, pos, extra_len(type_code))?.to_vec();
             pos += extra.len();
             records.push(SpriteRecord { type_code, x, y, extra });
@@ -160,13 +169,13 @@ mod tests {
     /// 对应类型码 7/83/其余——`docs/findings/resource-formats.md:222-223` 的 184B 复现锚点）。
     #[test]
     fn mixed_record_lengths_consume_exactly() {
-        let mut data = vec![35, 0, 0, 0]; // lo=35, hi=0（a.java:7274）
-        data.extend(record(7, 1, 2, &[0x34, 0x12])); // 2 字节附加（a.java:7309-7314）
+        let mut data = vec![35, 0, 0, 0]; // lo=35, hi=0（a.java:9497）
+        data.extend(record(7, 1, 2, &[0x34, 0x12])); // 2 字节附加（a.java:9519-9523）
         for _ in 0..31 {
-            data.extend(record(6, 1, 2, &[])); // 0 字节附加（a.java:7280-7285）
+            data.extend(record(6, 1, 2, &[])); // 0 字节附加（a.java:9514-9518）
         }
         for _ in 0..3 {
-            data.extend(record(83, 1, 2, &[7])); // 1 字节附加（a.java:7303-7308）
+            data.extend(record(83, 1, 2, &[7])); // 1 字节附加（a.java:9615-9618）
         }
         assert_eq!(data.len(), 184);
         let table = SpriteTable::parse(&data).unwrap();

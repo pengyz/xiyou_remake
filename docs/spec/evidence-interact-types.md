@@ -369,6 +369,7 @@ interactWithCell 内层 `switch (var5)` case 11，**原文**：
 ## 补遗（2026-10-16 lead 审校补录，来源 = 取证 agent 报告消息）
 
 1. **型 2 popup 时机差**：Java 的 spawnPopup(1,1) 在 consumeKeyForDoor **内部**（a.java:7746-7752，redKeyCount-- 同段）；Rust 在外层调用。移植体在 scene.rs:4444-4483（door_code::RED=27，combat.rs:138）——task-5 核对时机对拍差异。
+   > 【2026-10-16 裁定】tick 内序不可观测（oracle trace 记录面 FRAME/FLD/SFLD/OPS/EVT 均为 tick 末或绘制面，无 tick 内变更序观测面）⇒ 登记为良性差异，**不改代码**。不可观测前提（B 级推断）：spawnPopup 只读玩家像素坐标（a.java:7748 入参 playerPixelX/Y）、不读 keyCount，两序 tick 末状态与帧渲染完全相同。
 2. **型 6 Rust 缺口**：scene.rs:4515 现为 `6 | 7 | 8 => stair_count += 1,`——需拆出 6 臂加显形三元组（visible=true → solid/state=2 → anim_idx=9，写序固定，a.java:5410-5417）。
 3. **sprite.rs 注释行号失效**：game-data/src/sprite.rs 注释指 a.java:7337-7342/7309-7314/7276 已失效（该区现为道具效果 switch）；实证行号 = a.java:9603（76/82 编码 `read() | (read()+1)<<8`）与 a.java:9521（7/8 编码）。grep 全文件唯一命中。→ 待 task-5 或独立小 commit 更正注释。
 4. **MVS 未移植**：型 82 传怪动作 = 脚本指令 MVS（分派 a.java:8354、处理 8519-8591）：倒序扫 type82 按 param&255 两两配对，怪物（cat8）双向 m_107 互传（a.java:8872-8878）+ removeGroupAtCellByType 消耗两 82 点位（a.java:6434-6449）。Rust opcode 链尾 else 是 todo!（scene.rs:2103-2105）——task-5 在其前插 `op == "MVS"` 臂。
