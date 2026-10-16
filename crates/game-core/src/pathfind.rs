@@ -53,7 +53,7 @@ pub struct PathResult {
 
 pub fn find_path(walk: &Walkability, from_x: i32, from_y: i32, to_x: i32, to_y: i32) -> PathResult {
     let cols = walk.cols;
-    let start_idx = (from_x + from_y * cols) as i32;
+    let start_idx = from_x + from_y * cols;
     let src_x = from_x as i16;
     let src_y = from_y as i16;
     let dst_x = to_x as i16;
@@ -174,10 +174,10 @@ fn m_134(
     {
         visited[dy16 as usize][dx16 as usize] = 1;
         parent[dy16 as usize][dx16 as usize] = came_from as i16;
-        let cost = ((dx16 - dst_x).abs()
+        let cost = (dx16 - dst_x).abs()
             + (dy16 - dst_y).abs()
             + (dx16 - src_x).abs()
-            + (dy16 - src_y).abs()) as i16;
+            + (dy16 - src_y).abs();
         let mut var3 = *open_count;
 
         loop {
@@ -194,7 +194,7 @@ fn m_134(
                 }
                 var3 += 1;
                 prio[var3 as usize] = cost;
-                queue[var3 as usize] = (dx16 + dy16 * cols as i16) as i16;
+                queue[var3 as usize] = dx16 + dy16 * cols as i16;
                 break;
             }
         }

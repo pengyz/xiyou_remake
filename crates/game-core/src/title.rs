@@ -275,10 +275,10 @@ impl TitleMachine {
         g.set_color(crate::layout::DARK_BACKDROP);
         g.fill_rect(0, sh - bar, sw, bar);
         // ④ 图标带（a.java:2360-2369 + drawIconStrip）
-        let strip_y = sh - bar + (bar - 17 >> 1);
+        let strip_y = sh - bar + ((bar - 17) >> 1);
         self.paint_icon_strip(g, strip, 86, strip_y, 17 * self.menu_kinds[self.cursor as usize] as i32);
         // ⑤ 双侧箭头（a.java:2370-2372）：左=镜像变换（表值 8192），右=原样
-        let arrow_y = sh - bar + (bar - 13 >> 1);
+        let arrow_y = sh - bar + ((bar - 13) >> 1);
         let t = crate::paint::NOKIA_TRANSFORM_TABLE[1];
         g.draw_image_transformed(arrow, crate::layout::ARROW_PAIR_LEFT_X - self.bob, arrow_y, 0, t);
         g.draw_image(arrow, crate::layout::ARROW_PAIR_RIGHT_X + self.bob, arrow_y, 0);

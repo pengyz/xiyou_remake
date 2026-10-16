@@ -65,7 +65,7 @@ impl GameView {
         // readU16BE 读后 >>1 得格数 13×13——a.java:9411-9406）
         let wide = u16::from_le_bytes([data[0], data[1]]) as i32 >> 1;
         let high = u16::from_le_bytes([data[2], data[3]]) as i32 >> 1;
-        let grid_len = (wide * high << 2) as usize;
+        let grid_len = ((wide * high) << 2) as usize;
         if data.len() < 4 + grid_len * 2 {
             return Err(format!("maplv grid truncated: {} < {}", data.len(), 4 + grid_len * 2));
         }
@@ -100,7 +100,7 @@ impl GameView {
     /// `setCameraClamped(x, y)`（a.java:7037-7079）：钳制 + 窗口派生。
     pub fn set_camera(&mut self, mut x: i32, mut y: i32) {
         if !self.fits_w {
-            let min = -((self.wide + 2 << 5) - self.view_w);
+            let min = -(((self.wide + 2) << 5) - self.view_w);
             if x > 64 {
                 x = 64;
             } else if x < min {
@@ -112,18 +112,18 @@ impl GameView {
                 self.col_end = self.col_start + (self.view_w >> 4) + 1;
             } else {
                 self.col_start = 0;
-                self.col_end = (self.view_w - x >> 4) + 1;
+                self.col_end = ((self.view_w - x) >> 4) + 1;
             }
             if self.col_end > self.wide << 1 {
                 self.col_end = self.wide << 1;
             }
         } else {
-            self.cam_x = self.view_w - self.map_w_px >> 1;
+            self.cam_x = (self.view_w - self.map_w_px) >> 1;
             self.col_start = 0;
             self.col_end = self.wide << 1;
         }
         if !self.fits_h {
-            let min = -((self.high + 2 << 5) - self.view_h);
+            let min = -(((self.high + 2) << 5) - self.view_h);
             if y > 64 {
                 y = 64;
             } else if y < min {
@@ -135,13 +135,13 @@ impl GameView {
                 self.row_end = self.row_start + (self.view_h >> 4) + 2;
             } else {
                 self.row_start = 0;
-                self.row_end = (self.view_h - y >> 4) + 1;
+                self.row_end = ((self.view_h - y) >> 4) + 1;
             }
             if self.row_end > self.high << 1 {
                 self.row_end = self.high << 1;
             }
         } else {
-            self.cam_y = self.view_h - self.map_h_px >> 1;
+            self.cam_y = (self.view_h - self.map_h_px) >> 1;
             self.row_start = 0;
             self.row_end = self.high << 1;
         }
@@ -194,7 +194,7 @@ impl GameView {
 
     /// 加载步 11 的居中相机（a.java:3508：`setCameraClamped((view_w-32>>1)-px, (view_h-32>>1)-py)`）。
     pub fn center_on_player(&mut self) {
-        self.set_camera((self.view_w - 32 >> 1) - self.player_px, (self.view_h - 32 >> 1) - self.player_py);
+        self.set_camera(((self.view_w - 32) >> 1) - self.player_px, ((self.view_h - 32) >> 1) - self.player_py);
     }
 }
 

@@ -209,7 +209,7 @@ impl IntroSequence {
     ) {
         if let Some(img) = &self.image {
             let ih = img.height;
-            let band_y = crate::layout::SCREEN_H - ih - (font.height + 4) * 3 >> 1;
+            let band_y = (crate::layout::SCREEN_H - ih - (font.height + 4) * 3) >> 1;
             g.set_color(crate::layout::BLACK);
             g.fill_rect(0, 0, crate::layout::SCREEN_W, band_y);
             let below = band_y + ih;

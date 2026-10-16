@@ -107,8 +107,8 @@ impl SoftFont {
     /// `substringWidth(str, offset, len)`：逐字符累加（`Font.java:87-96`）。
     pub fn substring_width(&self, s: &[u16], offset: usize, len: usize) -> i32 {
         let mut w = 0;
-        for i in offset..offset + len {
-            w += self.char_width(s[i]);
+        for &ch in &s[offset..offset + len] {
+            w += self.char_width(ch);
         }
         w
     }
@@ -281,7 +281,7 @@ impl<'a> SoftGraphics<'a> {
         }
         let dst = self.target.argb[idx];
         let ia = 255 - a;
-        let blend = |s: u32, d: u32| ((s * a + d * ia) / 255) as u32;
+        let blend = |s: u32, d: u32| (s * a + d * ia) / 255;
         let r = blend((argb >> 16) & 0xFF, (dst >> 16) & 0xFF);
         let g = blend((argb >> 8) & 0xFF, (dst >> 8) & 0xFF);
         let b = blend(argb & 0xFF, dst & 0xFF);

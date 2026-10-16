@@ -198,7 +198,7 @@ impl BgmState {
 
     /// run case 16 label 0（a.java:4157-4167）：翻转 soundEnabled；开 ⇒ volumeLevel=60
     /// + m_139(f_bool_28?3:2)；关 ⇒ closeAudioPlayer。（其后 saveGlobalProgress 为
-    /// RMS 写，非音频，a.java:4169。）
+    ///   RMS 写，非音频，a.java:4169。）
     pub fn toggle_sound(&mut self) {
         self.sound_enabled = !self.sound_enabled;
         if self.sound_enabled {

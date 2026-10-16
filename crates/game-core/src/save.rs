@@ -223,7 +223,7 @@ mod tests {
 /// SKY_WAR 全局存档（saveGlobalProgress a.java:8917-8942 写 / loadGlobalProgress 4458-4478 读）。
 /// 布局：bool×4（optionChecked：[0]=声音 [1]=小地图 [2][3] 死槽）+ byte 计数 N
 /// + N×i32（f_int_arr_35 死值表，上限表 arr_34={4,2,2,2,2,2,2}）+ i32×3
-/// （f_int_152/153 死值、f_int_154 跨周目最高到达层水位）。
+///   （f_int_152/153 死值、f_int_154 跨周目最高到达层水位）。
 #[derive(Clone, Debug, PartialEq)]
 pub struct GlobalSave {
     /// optionChecked[0..4]（a.java:4463-4466）。

@@ -126,7 +126,7 @@ fn load_assets(dir: &PathBuf) -> Assets {
             .collect(),
     };
     let mut floors: Vec<Option<FloorAssets>> = vec![None; 56];
-    for n in 1..=54usize {
+    for (n, slot) in floors.iter_mut().enumerate().skip(1).take(54) {
         let maplv = std::fs::read(dir.join(format!("maplv{n}")))
             .unwrap_or_else(|e| panic!("缺资产 maplv{n}：{e}"));
         let sp = game_data::SpriteTable::parse(
@@ -144,7 +144,7 @@ fn load_assets(dir: &PathBuf) -> Assets {
                 (rec.type_code, rec.x, rec.y, param, !hide)
             })
             .collect();
-        floors[n] = Some(FloorAssets { maplv, records });
+        *slot = Some(FloorAssets { maplv, records });
     }
     Assets {
         tileset: map[0].clone(),
@@ -1114,8 +1114,6 @@ mod shell_tests {
         }
 
 
-    /// SKY_WAR 损坏 ⇒ catch 语义（default_7 ⇒ [1]=true）并回写合法值（a.java:4475-4478）。
-
         /// 跑到第 `t` 拍（含），沿途按脚本投递。
         fn run_to(&mut self, t: u64, events: &[(u64, i32, bool)]) {
             while self.tick < t {
@@ -1163,6 +1161,7 @@ mod shell_tests {
     /// - 叠加最小化不重复 hide（f_bool_01 门控 4503）；两路都解除才 showNotify，show 不恢复 BGM；
     /// - 其后首键：m_139(3) 关闭后重建（a.java:4668-4670），按键当拍下发（Java keyPressed 同步
     ///   createPlayer）；第二次按键无音频副作用（anyKeyPlayed 已清，4674）。
+    ///
     /// gameMode 3→4 臂见 `hide_in_mode3_opens_in_game_menu`（BLOCKED）。
     #[test]
     fn in_game_hide_closes_bgm_and_first_key_resumes_game_track() {

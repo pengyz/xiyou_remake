@@ -93,20 +93,20 @@ impl SceneImages {
     ) -> Vec<Option<ArgbImage>> {
         let mut out: Vec<Option<ArgbImage>> = vec![None; 89];
         let at = |c: &[ArgbImage], i: usize| -> Option<ArgbImage> { c.get(i).cloned() };
-        for t in 1..=12 {
-            out[t] = at(sptmap, t - 1);
+        for (t, slot) in out.iter_mut().enumerate().skip(1).take(12) {
+            *slot = at(sptmap, t - 1);
         }
-        for t in 13..=32 {
-            out[t] = at(sptprop, t - 12);
+        for (t, slot) in out.iter_mut().enumerate().skip(13).take(20) {
+            *slot = at(sptprop, t - 12);
         }
-        for t in 33..=40 {
-            out[t] = at(sptarm, t - 33);
+        for (t, slot) in out.iter_mut().enumerate().skip(33).take(8) {
+            *slot = at(sptarm, t - 33);
         }
-        for t in 41..=60 {
-            out[t] = at(sptenemy1, t - 41);
+        for (t, slot) in out.iter_mut().enumerate().skip(41).take(20) {
+            *slot = at(sptenemy1, t - 41);
         }
-        for t in 61..=78 {
-            out[t] = at(sptenemy2, t - 61);
+        for (t, slot) in out.iter_mut().enumerate().skip(61).take(18) {
+            *slot = at(sptenemy2, t - 61);
         }
         out[84] = at(sptenemy2, 18);
         out[87] = at(sptenemy2, 19);
@@ -123,8 +123,6 @@ impl SceneImages {
 
 /// 玩家帧表 playerAnimTables[0]（a.java:477：{0,1,0,2}）。
 const PLAYER_FRAME_TABLE: [i32; 4] = [0, 1, 0, 2];
-
-/// 战斗星光帧号表（Java sparkFrames，a.java:766-773：8 拍循环，0 = 不画）。
 
 /// bossTypeOrder（a.java:2198）：boss 型 → bossEventSpawns 事件序（击杀钩子）。
 const BOSS_TYPE_ORDER: [i32; 6] = [75, 74, 68, 67, 69, 71];
@@ -150,6 +148,7 @@ const BOSS_EVENT_SPAWNS: [&[i32]; 8] = [
         32, 4, 4, 0, 32, 5, 4, 0, 32, 6, 4, 0,
     ],
 ];
+/// 战斗星光帧号表（Java sparkFrames，a.java:766-773：8 拍循环，0 = 不画）。
 const SPARK_FRAME: [i32; 8] = [1, 2, 0, 3, 4, 1, 2, 0];
 /// 星光四联组 (sx,sy,w,h)×4（Java sparkQuads，a.java:748-764）。
 const SPARK_QUADS: [i32; 16] = [29, 31, 39, 15, 0, 31, 29, 10, 0, 0, 37, 31, 36, 0, 32, 29];
@@ -885,15 +884,15 @@ impl GameScene {
         let cols = view.wide as usize;
         let rows = view.high as usize;
         let mut walkable = vec![vec![false; cols]; rows];
-        for y in 0..rows {
-            for x in 0..cols {
+        for (y, row) in walkable.iter_mut().enumerate() {
+            for (x, cell) in row.iter_mut().enumerate() {
                 // rebuildWalkability（a.java:6964-6976）的索引：**行距 wide·4、
                 // 列距 2**（var1 行尾 +=wide<<1 叠加列循环的 ×2）——与 paintTileLayer
                 // 的行距 wide·2、列距 1 是同一数组的两套读法（原版共存）。
                 // A 级：oracle FLD 134（walkableGrid）13×13 逐格复算匹配。
                 let idx = (y * cols * 4 + x * 2) as i32;
                 let tile = view.terrain_at(0, idx) as usize;
-                walkable[y][x] = tile < self.tile_walk.len() && self.tile_walk[tile] == 1;
+                *cell = tile < self.tile_walk.len() && self.tile_walk[tile] == 1;
             }
         }
         let mut entities = EntityTable::new(100);
@@ -1531,7 +1530,7 @@ impl GameScene {
     /// 扫当前实体表是否存在活的目标类型。跨层探针（case 7/32 的
     /// m_102(23,12)）需层序列化快照，未移植（见上 todo）。
     fn m_102_current_floor(&self, type_id: i32) -> bool {
-        (0..self.entities.count as usize)
+        (0..self.entities.count)
             .any(|i| !self.entities.removed[i] && self.entities.entity_type[i] == type_id)
     }
 
@@ -1898,8 +1897,8 @@ impl GameScene {
             }
             self.dialog_phase = 6;
             // m_103：ease 相机目标 = 目标格
-            self.ease_cam_x = (self.view.view_w - 32 >> 1) - self.view.cam_x;
-            self.ease_cam_y = (self.view.view_h - 32 >> 1) - self.view.cam_y;
+            self.ease_cam_x = ((self.view.view_w - 32) >> 1) - self.view.cam_x;
+            self.ease_cam_y = ((self.view.view_h - 32) >> 1) - self.view.cam_y;
             self.ease_target_x = tx << 5;
             self.ease_target_y = ty << 5;
         } else if op == "GUT" {
@@ -1963,7 +1962,7 @@ impl GameScene {
             if t0 < 0 {
                 let (_, e) = Self::parse_script_int(&line, v2 + 1, ' ');
                 let want = -t0;
-                for i in (0..self.entities.count as usize).rev() {
+                for i in (0..self.entities.count).rev() {
                     if self.entities.entity_type[i] == want
                         && entity::remove(&mut self.entities, i)
                     {
@@ -1983,7 +1982,7 @@ impl GameScene {
         } else if op == "SWD" {
             // SWD（a.java:8336-8352）：全表扫 81 → 显形 + 改型 4 + DES 状态
             // 动画（state=2 行 8——advance_frames 帧尽自解为常态）。
-            for i in (0..self.entities.count as usize).rev() {
+            for i in (0..self.entities.count).rev() {
                 if !self.entities.removed[i] && self.entities.entity_type[i] == 81 {
                     self.entities.visible[i] = true;
                     self.entities.entity_type[i] = 4;
@@ -2031,11 +2030,11 @@ impl GameScene {
                 img_h,
             );
             entity::remove_des(&mut self.entities, idx);
-            self.ease_cam_x = (self.view.view_w - 32 >> 1) - self.view.cam_x;
-            self.ease_cam_y = (self.view.view_h - 32 >> 1) - self.view.cam_y;
+            self.ease_cam_x = ((self.view.view_w - 32) >> 1) - self.view.cam_x;
+            self.ease_cam_y = ((self.view.view_h - 32) >> 1) - self.view.cam_y;
             // Java `if (var4 >= 0)` 守卫（a.java:8398）：spawn 返回 usize 恒非负 ⇒ 恒真
-            self.ease_target_x = self.entities.pixel_x[idx as usize];
-            self.ease_target_y = self.entities.pixel_y[idx as usize];
+            self.ease_target_x = self.entities.pixel_x[idx];
+            self.ease_target_y = self.entities.pixel_y[idx];
             self.script_delay = match self.entity_category(t0) {
                 1 | 8 | 16 => 5,
                 2 | 4 => 8,
@@ -2332,8 +2331,8 @@ impl GameScene {
                                 self.open_dialog_page(self.dialog_page + 1);
                                 if self.dialog_phase == 6 {
                                     // m_103：ease 目标 = SEE 目标格
-                                    self.ease_cam_x = (self.view.view_w - 32 >> 1) - self.view.cam_x;
-                                    self.ease_cam_y = (self.view.view_h - 32 >> 1) - self.view.cam_y;
+                                    self.ease_cam_x = ((self.view.view_w - 32) >> 1) - self.view.cam_x;
+                                    self.ease_cam_y = ((self.view.view_h - 32) >> 1) - self.view.cam_y;
                                     self.ease_target_x = self.dialog_target.0 << 5;
                                     self.ease_target_y = self.dialog_target.1 << 5;
                                 }
@@ -2413,10 +2412,10 @@ impl GameScene {
     ///   步尽 → m_108 迁槽 + dialogPhase=0 + dispatchAnimFields（复位动画行）+ f_int_127=-1。
     /// - **1 步进**（8811-8859）：实体 ±8px、相机目标 = 实体像素、routeProgress+=8、动画行
     ///   >0 时帧 +1（表尾归 0）；满 32 → 归格（routeProgress=0、routePhase=0），实体落到
-    ///   玩家格且型≠72：可胜 → 玩家直扣预测损血 + m_108 + removeGroupAtCellByType
-    ///   （无死亡动画），不可胜 → scriptWalkArmed=false、**gameMode=3**、walkPhase=1、
-    ///   朝向=步向（dialogPhase 仍为 2——路径挂起）；最后**同拍递归** m_106()（弹下一步
-    ///   或收尾）。
+    ///   > 玩家格且型≠72：可胜 → 玩家直扣预测损血 + m_108 + removeGroupAtCellByType
+    ///   > （无死亡动画），不可胜 → scriptWalkArmed=false、**gameMode=3**、walkPhase=1、
+    ///   > 朝向=步向（dialogPhase 仍为 2——路径挂起）；最后**同拍递归** m_106()（弹下一步
+    ///   > 或收尾）。
     /// - **5 战斗**（8861-8868）：tickBattle(battleActiveFlag)；非收尾中且实体已移除/
     ///   state==1 → dialogPhase=0、routePhase=0、f_int_127=-1（路径余步丢弃，无 m_108）。
     fn tick_entity_route(&mut self) {
@@ -2758,8 +2757,8 @@ impl GameScene {
         let font = crate::paint::paint_font();
         let box_w = self.menu_box_width + 22;
         let box_h = self.menu_list_height + 32;
-        let bx = CENTER_X - (self.menu_box_width + 22 >> 1);
-        let mut by = CENTER_Y - (self.menu_list_height + 32 >> 1);
+        let bx = CENTER_X - ((self.menu_box_width + 22) >> 1);
+        let mut by = CENTER_Y - ((self.menu_list_height + 32) >> 1);
         let pad = (self.menu_line_height - font.height) >> 1;
         crate::menu_family::paint_box_frame(g, &self.images.ui[0], bx, by, box_w, box_h);
         by += 16 + pad;
@@ -2992,8 +2991,8 @@ impl GameScene {
                     if pass {
                         self.m_024(tx, ty);
                         self.view.set_camera(
-                            (self.view.view_w - 32 >> 1) - self.view.player_px,
-                            (self.view.view_h - 32 >> 1) - self.view.player_py,
+                            ((self.view.view_w - 32) >> 1) - self.view.player_px,
+                            ((self.view.view_h - 32) >> 1) - self.view.player_py,
                         );
                         self.apply_step_cell_effects();
                         self.game_mode = 3;
@@ -3438,7 +3437,7 @@ impl GameScene {
             if self.entities.removed[e] {
                 continue;
             }
-            let t = self.entities.entity_type[e] as i32;
+            let t = self.entities.entity_type[e];
             if self.entity_category(t) != 8 || t < 41 {
                 continue;
             }
@@ -3532,7 +3531,7 @@ impl GameScene {
                 g.set_color(13097429);
                 let name: Vec<u16> = self.object_type_names[t].encode_utf16().collect();
                 g.draw_string(&name, x, y + 2, 0);
-                let dmg_x = (SCREEN_W + self.encyc_panel_w >> 1) - 75;
+                let dmg_x = ((SCREEN_W + self.encyc_panel_w) >> 1) - 75;
                 let name_dy = (font.height - 19) >> 1;
                 y += name_dy;
                 if pred < 0 {
@@ -4348,7 +4347,7 @@ impl GameScene {
     fn ease_afterimages(&mut self) {
         let (mut tx, mut ty) = if !self.view_locked {
             (
-                (self.view.view_w - 41 >> 1) - self.view.cam_x,
+                ((self.view.view_w - 41) >> 1) - self.view.cam_x,
                 (self.view.view_h >> 1) - self.view.cam_y + self.bob_offset,
             )
         } else {
@@ -4398,8 +4397,8 @@ impl GameScene {
 
     /// lockCameraOn（a.java:8666-8696）：缓动相机初始化。0 → 目标 = 玩家位。
     fn lock_camera_on(&mut self, target: i32) {
-        self.ease_cam_x = (self.view.view_w - 32 >> 1) - self.view.cam_x;
-        self.ease_cam_y = (self.view.view_h - 32 >> 1) - self.view.cam_y;
+        self.ease_cam_x = ((self.view.view_w - 32) >> 1) - self.view.cam_x;
+        self.ease_cam_y = ((self.view.view_h - 32) >> 1) - self.view.cam_y;
         if target != 0 && target != 87 {
             // 目标类型查实体（倒序首个）——战后视点本窗口只用 0（玩家）
             let mut found = -1;
@@ -4427,30 +4426,30 @@ impl GameScene {
     /// 反演回 cameraPixel（(中心) - ease 坐标）。
     fn step_camera_toward_target(&mut self) {
         if self.ease_cam_x < self.ease_target_x {
-            self.ease_cam_x += (self.ease_target_x - self.ease_cam_x >> 2) + 2;
+            self.ease_cam_x += ((self.ease_target_x - self.ease_cam_x) >> 2) + 2;
             if self.ease_cam_x > self.ease_target_x {
                 self.ease_cam_x = self.ease_target_x;
             }
         } else if self.ease_cam_x > self.ease_target_x {
-            self.ease_cam_x += (self.ease_target_x - self.ease_cam_x >> 2) - 2;
+            self.ease_cam_x += ((self.ease_target_x - self.ease_cam_x) >> 2) - 2;
             if self.ease_cam_x < self.ease_target_x {
                 self.ease_cam_x = self.ease_target_x;
             }
         }
         if self.ease_cam_y < self.ease_target_y {
-            self.ease_cam_y += (self.ease_target_y - self.ease_cam_y >> 2) + 2;
+            self.ease_cam_y += ((self.ease_target_y - self.ease_cam_y) >> 2) + 2;
             if self.ease_cam_y > self.ease_target_y {
                 self.ease_cam_y = self.ease_target_y;
             }
         } else if self.ease_cam_y > self.ease_target_y {
-            self.ease_cam_y += (self.ease_target_y - self.ease_cam_y >> 2) - 2;
+            self.ease_cam_y += ((self.ease_target_y - self.ease_cam_y) >> 2) - 2;
             if self.ease_cam_y < self.ease_target_y {
                 self.ease_cam_y = self.ease_target_y;
             }
         }
         self.view.set_camera(
-            (self.view.view_w - 32 >> 1) - self.ease_cam_x,
-            (self.view.view_h - 32 >> 1) - self.ease_cam_y,
+            ((self.view.view_w - 32) >> 1) - self.ease_cam_x,
+            ((self.view.view_h - 32) >> 1) - self.ease_cam_y,
         );
     }
 
@@ -5038,8 +5037,6 @@ impl GameScene {
             }
         }
 
-        /// applyStepCellEffects（a.java:5543-5729，floor1 可达子集）：
-
         /// m_000 case 3 尾（a.java:4315 applyStepCellEffects）：进图瞬间出生格
         /// 触发（type83 → try_run_scene/loadLevelScript，序章 script 40 入口）。
         /// 槽载入链在 load_floor_from_save 尾内联；新游戏冷启动链（宿主构造
@@ -5047,7 +5044,8 @@ impl GameScene {
         pub fn apply_entry_step_effects(&mut self) {
             self.apply_step_cell_effects();
         }
-        /// 玩家格坐标刷新 + 格内实体效果（拾取 cat2/4；楼梯 7/8 → 换层批次）+
+        /// applyStepCellEffects（a.java:5543-5729，floor1 可达子集）：玩家格坐标
+        /// 刷新 + 格内实体效果（拾取 cat2/4；楼梯 7/8 → 换层批次）+
         /// walkPhase=0 + handleFieldInput（按住连走）。
         fn apply_step_cell_effects(&mut self) {
             self.player_cell_x = self.view.player_px >> 5;
@@ -6166,7 +6164,7 @@ impl GameScene {
         let var46 = SCREEN_H - crate::paint::paint_font().height - 4;
         let indicator = self.page_indicator.clone();
         self.draw_shadow_text(g, &indicator, CENTER_X, var46 + 2, 4202520, 0xFFFF_FFFFu32 as i32);
-        let arrow_y = var46 + (crate::paint::paint_font().height + 4 - 13) >> 1;
+        let arrow_y = (var46 + (crate::paint::paint_font().height + 4 - 13)) >> 1;
         let arrow = self.images.ui[14].clone();
         let bob = self.bob_offset;
         if self.record_page > 0 {
@@ -6276,7 +6274,7 @@ impl GameScene {
                 if let Some(img) = &self.images.entity[self.dialog_speaker as usize] {
                     if self.dialog_speaker != 72 {
                         let fw = self.type_frame_width_for(self.dialog_speaker);
-                        draw_image_clipped(g, img, 80 - fw >> 1, SCREEN_H - img.height, 0, 0, fw, img.height);
+                        draw_image_clipped(g, img, (80 - fw) >> 1, SCREEN_H - img.height, 0, 0, fw, img.height);
                     } else {
                         draw_image_clipped(g, img, 24, 275, 0, 0, 32, 45);
                     }
@@ -6287,7 +6285,7 @@ impl GameScene {
             } else {
                 g.set_color(WHITE);
                 let q: Vec<u16> = "?".encode_utf16().collect();
-                g.draw_string(&q, 40, var120 + (var91 - font.height >> 1), 17);
+                g.draw_string(&q, 40, var120 + ((var91 - font.height) >> 1), 17);
             }
             g.set_color(10473684);
             self.paint_wrapped_text(g, 85, var120 + 12, 129, var91 - 12, false);

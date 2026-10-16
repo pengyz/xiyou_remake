@@ -113,8 +113,8 @@ pub fn paint_boot(g: &mut SoftGraphics<'_>, boot: &BootPaintState) {
         g.set_color(crate::layout::WHITE);
         g.fill_rect(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
         if let Some(img) = &boot.image {
-            let x = crate::layout::SCREEN_W - img.width >> 1;
-            let y = crate::layout::SCREEN_H - img.height >> 1;
+            let x = (crate::layout::SCREEN_W - img.width) >> 1;
+            let y = (crate::layout::SCREEN_H - img.height) >> 1;
             g.draw_image(img, x, y, 0);
         }
     } else {
@@ -254,8 +254,8 @@ impl BootMachine {
             title: None,
             global: crate::save::GlobalSave::default_7(),
             global_dirty: false,
-            menu: menu,
-            mapbg: mapbg,
+            menu,
+            mapbg,
             backdrop: crate::menu_family::ParallaxBackdrop::new(),
             overlay: crate::menu_family::OverlayEngine::new(),
             overlay_active: false,
@@ -269,9 +269,9 @@ impl BootMachine {
             bgm: crate::audio::BgmState::new(),
             bob_offset: 0,
             bob_rising: false,
-            intro_imgs: intro_imgs,
-            end_imgs: end_imgs,
-            load_imgs: load_imgs,
+            intro_imgs,
+            end_imgs,
+            load_imgs,
             intro: None,
             loading: None,
             rng: game_platform::JavaRandom::new_seeded(0),
@@ -358,6 +358,7 @@ impl BootMachine {
     ///
     /// - mode 0：a.java:3349-3374（加载轮播/logo 时间线/清理切换）
     /// - mode 21：a.java:4229-4242（-6 确认 / -7 否定 → gameMode=1）
+    ///
     /// SKY_WAR 快照（a.java:7284 语义：[0] 声音行 = soundEnabled 镜像；[1] 取勾选表
     /// 现值，无表则保持存档值；[2][3] 死槽原样）。
     pub fn global_snapshot(&self) -> crate::save::GlobalSave {
@@ -696,8 +697,8 @@ impl BootMachine {
         if !self.overlay_active {
             return;
         }
-        let x = crate::layout::SCREEN_W - self.overlay.box_w >> 1;
-        let y = crate::layout::SCREEN_H - self.overlay.box_h >> 1;
+        let x = (crate::layout::SCREEN_W - self.overlay.box_w) >> 1;
+        let y = (crate::layout::SCREEN_H - self.overlay.box_h) >> 1;
         crate::menu_family::paint_box_frame(g, &self.ui[0], x, y, self.overlay.box_w, self.overlay.box_h);
         g.set_color(crate::layout::WHITE);
         let text: Vec<u16> = if self.mode == 15 {
@@ -838,6 +839,7 @@ mod tests {
     /// trace A-boot-menu 两相启动图与帧哈希逐一比对：
     /// - l0.png（164x117@38,101）→ TICK 8 帧 `57173976…`
     /// - l1.png（176x138@32,91）→ TICK 24 帧 `6a8aa7a0…`
+    ///
     /// 证据：`reference/oracle/_out/A-boot-menu/trace.txt` T8/T24 的 OPS 行
     /// （白底 + drawImage）与 FRAME sha（`(240-w)>>1, (320-h)>>1` 居中算式）。
     #[test]

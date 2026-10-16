@@ -98,12 +98,12 @@ impl LogoAnim {
             return;
         }
         let sum: i32 = SEGMENT_HEIGHTS.iter().sum();
-        let gap = 15.min((crate::layout::SCREEN_H - sum >> 2).abs()); // a.java:10239
-        let base = crate::layout::SCREEN_H - sum - (gap << 1) >> 1; // a.java:10240
+        let gap = 15.min(((crate::layout::SCREEN_H - sum) >> 2).abs()); // a.java:10239
+        let base = (crate::layout::SCREEN_H - sum - (gap << 1)) >> 1; // a.java:10240
         self.anchors_y[0] = base + (SEGMENT_HEIGHTS[0] >> 1);
         self.anchors_y[1] = base + SEGMENT_HEIGHTS[0] + gap;
         self.anchors_y[2] = self.anchors_y[1] + SEGMENT_HEIGHTS[1] + gap;
-        self.bar_x = crate::layout::SCREEN_W - sflogo7_width >> 1; // a.java:10243
+        self.bar_x = (crate::layout::SCREEN_W - sflogo7_width) >> 1; // a.java:10243
         self.initialized = true;
     }
 

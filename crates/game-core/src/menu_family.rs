@@ -739,8 +739,8 @@ impl SlotSelect {
     /// a.java:9116-9123 / 9136-9143 图标分支；boot 侧甲胄钳位误作 `>9`），
     /// 已合并为 [`Self::paint_equipment_frames`] 单源。
     pub fn paint_list(&self, g: &mut SoftGraphics<'_>, ui: &[ArgbImage], segs: &[i32]) -> (i32, i32) {
-        let x = SCREEN_W - self.content_w - 22 >> 1;
-        let mut y = SCREEN_H - self.content_h >> 1;
+        let x = (SCREEN_W - self.content_w - 22) >> 1;
+        let mut y = (SCREEN_H - self.content_h) >> 1;
         paint_titled_box(g, &ui[0], &ui[13], segs, x, y, self.content_w + 22, self.content_h);
         y += 16;
         for row in self.scroll_top..self.scroll_bottom {
@@ -749,9 +749,9 @@ impl SlotSelect {
             } else {
                 g.set_color(crate::layout::DARK_BACKDROP);
                 g.fill_rect(CENTER_X - (self.content_w >> 1), y, self.content_w, 10 + 4);
-                g.draw_image(&ui[14], CENTER_X - (self.content_w >> 1) + 10, y + (10 - 8 >> 1), 0);
+                g.draw_image(&ui[14], CENTER_X - (self.content_w >> 1) + 10, y + ((10 - 8) >> 1), 0);
                 let t = crate::paint::NOKIA_TRANSFORM_TABLE[1];
-                g.draw_image_transformed(&ui[14], CENTER_X + (self.content_w >> 1) - 30, y + (10 - 8 >> 1), 0, t);
+                g.draw_image_transformed(&ui[14], CENTER_X + (self.content_w >> 1) - 30, y + ((10 - 8) >> 1), 0, t);
                 g.set_color(crate::layout::SLOT_TEXT_ACTIVE);
             }
             if !self.valid[row as usize] {
@@ -795,7 +795,7 @@ impl SlotSelect {
         sptarm: impl Fn(usize) -> Option<&'a ArgbImage>,
     ) {
         // a.java:9104-9105：var2 = 240 + slotListWidth >> 1; var2 -= 68
-        let vx = (SCREEN_W + self.content_w >> 1) - 68;
+        let vx = ((SCREEN_W + self.content_w) >> 1) - 68;
         // 武器 f_byte_arr_25（a.java:9106-9123）：v-33 > 7 ⇒ 钳 8
         paint_equipment_frame(g, vx, vy, self.weapon[c], 8, &sptarm);
         // 甲 f_byte_arr_26（a.java:9125-9143）：var2 += 34；v-33 > 7 ⇒ 钳 9
@@ -805,7 +805,7 @@ impl SlotSelect {
     /// m_113 详情面板中段（a.java:9145-9169）：金币行 + HP/攻/防 三围框（槽 `c`）。
     /// `vy` = 装备框行 y；返回三钥行起点 `(vx, vy)`。两条移植共用（见 [`Self::paint_list`]）。
     pub fn paint_detail_stats(&self, g: &mut SoftGraphics<'_>, ui: &[ArgbImage], c: usize, vy: i32) -> (i32, i32) {
-        let mut vx = SCREEN_W - self.content_w + 10 >> 1;
+        let mut vx = (SCREEN_W - self.content_w + 10) >> 1;
         let mut vy = vy + 20;
         g.draw_image(&ui[1], vx, vy, 0);
         vx += 60;
@@ -828,7 +828,7 @@ impl SlotSelect {
         g.set_color(512);
         paint_mini_frame(g, vx, vy, 30, 12);
         paint_number(g, &ui[2], self.def[c], vx + 28, vy + 2);
-        ((SCREEN_W - self.content_w >> 1) + 6, vy + 16)
+        (((SCREEN_W - self.content_w) >> 1) + 6, vy + 16)
     }
 }
 
@@ -993,7 +993,7 @@ mod slot_equip_tests {
     #[test]
     fn equip_frame_x_follows_java_formula() {
         let s = SlotSelect::new();
-        assert_eq!((SCREEN_W + s.content_w >> 1) - 68, WEAPON_X);
+        assert_eq!(((SCREEN_W + s.content_w) >> 1) - 68, WEAPON_X);
         assert_eq!(WEAPON_X + 34, ARMOR_X);
     }
 
@@ -1123,7 +1123,7 @@ mod option_tests {
         for (idx, expect_lx, expect_cx) in [(0usize, 100i32, 126i32), (1, 94, 132)] {
             let label = OPTION_LABELS[idx];
             let w = font.string_width(label);
-            let lx = 240 - w - 16 >> 1;
+            let lx = (240 - w - 16) >> 1;
             let cx = lx + 2 + w;
             assert_eq!((lx, cx), (expect_lx, expect_cx), "label[{idx}] w={w}");
         }
@@ -1173,32 +1173,32 @@ impl OptionList {
 
     /// paint case 16（a.java:2959-2990）。
     pub fn paint(&self, g: &mut SoftGraphics<'_>, ui: &[ArgbImage], font: &crate::render::SoftFont) {
-        let x = SCREEN_W - self.box_w - 22 >> 1;
-        let mut y = SCREEN_H - self.box_h >> 1;
+        let x = (SCREEN_W - self.box_w - 22) >> 1;
+        let mut y = (SCREEN_H - self.box_h) >> 1;
         paint_box_frame(g, &ui[0], x, y, self.box_w + 22, self.box_h);
         let content_x = x + 11;
         y += 16;
         let hl = (font.height + 8) * self.highlight;
         g.set_color(crate::layout::OPTION_HIGHLIGHT);
         g.fill_rect(content_x, y + hl, self.box_w, font.height + 8);
-        g.draw_image(&ui[14], content_x + 10, y + 2 + hl + (font.height - 5 >> 1), 0);
+        g.draw_image(&ui[14], content_x + 10, y + 2 + hl + ((font.height - 5) >> 1), 0);
         let t = crate::paint::NOKIA_TRANSFORM_TABLE[1];
         g.draw_image_transformed(
             &ui[14],
             content_x + self.box_w - 30,
-            y + 2 + hl + (font.height - 5 >> 1),
+            y + 2 + hl + ((font.height - 5) >> 1),
             0,
             t,
         );
         for i in 0..self.labels.len() {
             let label = OPTION_LABELS[self.labels[i]];
-            let mut lx = SCREEN_W - font.string_width(label) - 16 >> 1;
+            let mut lx = (SCREEN_W - font.string_width(label) - 16) >> 1;
             g.set_color(crate::layout::WHITE);
             g.draw_string(label, lx, y + 4, 0);
             lx += 2 + font.string_width(label);
             // 勾选框：未选中 sy=12、选中 sy=0（a.java:2987-2987 分支方向）
             let sy = if !self.checked[i] { 12 } else { 0 };
-            crate::paint::draw_image_clipped(g, &ui[11], lx, y + (font.height - 2 >> 1), sy, 0, 12, 10);
+            crate::paint::draw_image_clipped(g, &ui[11], lx, y + ((font.height - 2) >> 1), sy, 0, 12, 10);
             y += font.height + 8;
         }
     }

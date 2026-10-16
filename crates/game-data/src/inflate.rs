@@ -149,9 +149,9 @@ impl Huffman {
         count[0] = 0;
         // 过订阅检查（puff）：每种码长可用码位数不得为负
         let mut left = 1i32;
-        for len in 1..=15 {
+        for (len, &c) in count.iter().enumerate().skip(1).take(15) {
             left <<= 1;
-            left -= count[len] as i32;
+            left -= c as i32;
             if left < 0 {
                 return Err(Error::BadToken { token: format!("len={len} left={left}"), reason: "deflate: Huffman 码过订阅" });
             }

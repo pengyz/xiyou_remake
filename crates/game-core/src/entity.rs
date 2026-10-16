@@ -311,6 +311,7 @@ pub fn remove_des(table: &mut EntityTable, idx: usize) {
 /// 每次交换（var2=var4-1 ↔ var5=var4）伴随：
 /// - 槽修复①（var2 **旧**格，a.java:6770-6771）：var2+1 → var5+1（var2 的记录迁去 var5）
 /// - 槽修复②（var2 **新**格 = var5 旧位，a.java:6808-6809）：var5+1 → var2+1
+///
 /// 两段合成完整双向修复；交换后双向 dispatchAnimFields 重置动画字段。
 /// A 级验证：排序后槽表与 oracle FLD 137（cellSlotTable）逐格一致。
 pub fn sort_by_y(table: &mut EntityTable, grid: &mut CellGrid) {
