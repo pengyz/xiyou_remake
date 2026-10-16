@@ -143,13 +143,13 @@ PORT_NOTES: dict[str, tuple[str, str]] = {
                              "crates/game-core/src/scene.rs `fn item_desc_index(&self, t: i32) -> usize`"
                              "（85→20 / 86→21 / 其余 t-13 = a.java:7707-7716；add_item_to_stack 内联同式）"),
     "deleteRecordStoreQuietly": ("absorbed",
-                                 "删库后重建（a.java:9325-9328）；三调用点 a.java:4476（SKY_WAR 读失败→删→"
-                                 "saveGlobalProgress 重建）/9021（MOT_IF）/9184（MOT_L{n}）均为删后即写；"
+                                 "删库后重建（a.java:9331-9334）；三调用点 a.java:4476（SKY_WAR 读失败→删→"
+                                 "saveGlobalProgress 重建）/9027（MOT_IF）/9190（MOT_L{n}）均为删后即写；"
                                  "壳 RMS 以覆盖写吸收删+写（crates/game-desktop/src/main.rs "
                                  "`std::fs::write(&path, v).ok();`）；SKY_WAR 路径的持久化缺口归 saveGlobalProgress（a）"),
     "closeRecordStoreAndGc": ("absorbed",
-              "RecordStore/流关闭 + 五字段置 null + gc（a.java:9332-9362）；f_byte_arr_27 读者"
-              "（dispatchModeEntry/loadSlotTable/loadFloorSave）均先 getRecord 赋值再读（a.java:4459/8974/9256）"
+              "RecordStore/流关闭 + 五字段置 null + gc（a.java:9338-9368）；f_byte_arr_27 读者"
+              "（dispatchModeEntry/loadSlotTable/loadFloorSave）均先 getRecord 赋值再读（a.java:4459/8980/9262）"
               "⇒ 无可观测效应"),
     "initParticles": ("ported",
               "crates/game-core/src/title.rs `pub fn new() -> Particles`（32 槽粒子数组清零 + 游标 0 = "
@@ -314,6 +314,27 @@ YELLOW_NOTES: dict[str, dict] = {
         "absent": [("reference/oracle/src/**/*.java", r'"(?:pauseApp|hideNotify)"'),
                    ("reference/oracle/src/**/*.java", r"(?<!void )\b(?:pauseApp|hideNotify)\s*\("),
                    ("reference/shim/src/**/*.java", r"(?<!void )\b(?:pauseApp|hideNotify)\s*\(")],
+    },
+    "m_107": {
+        "arg": ("实体换格（a.java:8878-8884；MVS 臂唯一被调者）：Java 侧**任何场景（含夹具）不可达**——"
+                "MVS 引理（docs/spec/dead-code-rulings.md DC-2，L1-L5 字节码机械复核 ✓）证 "
+                "executeScriptInstruction 的 `ldc \"MVS\"; String.equals` 相等分支死（68 条脚本语料 "
+                "`MVS` 子串 0 处），m_107 的 2 个调用点（executeScriptInstruction@1001/@1160，均在该臂内）"
+                "全不可达 ⇒ 驱动面（oracle 场景脚本只有 `<tick> <keycode> <press|release>` 键事件，"
+                "Runner.loadScript 无脚本注入面）无法驱进。**非移植缺口**：Rust 侧移植账在位"
+                "（crates/game-core/src/scene.rs `fn m_107`，保真保留死分支）。"
+                "语义由合成单测覆盖（FX-MVS-A 口径，fixture-plan §0 #10）："
+                "crates/game-core/src/scene.rs `mvs_pairs_by_param_low_byte_transfers_and_consumes`"
+                "（配对+互传+消耗，钉 &255 掩码）、"
+                "crates/game-core/src/scene.rs `mvs_mismatched_pair_key_leaves_world_untouched`（错配负例）、"
+                "crates/game-core/src/scene.rs `mvs_two_way_transfer_piles_monsters_at_first_slot_cell`"
+                "（双向互传，a.java:8561-8590）——语义等价断言齐；边界哨兵 "
+                "crates/game-core/tests/script_golden.rs `mvs_is_p32_boundary`（should_panic 指引）。"
+                "【2026-10-16 登记】按 convergence-plan §0.1「黄项带不触达论证」收口，与 hideNotify "
+                "同口径（场景驱动面盲区，非死代码判断）"),
+        "only_callers": ["executeScriptInstruction"],
+        "absent": [("reference/oracle/scenarios/*.txt", r"\bMVS\b"),
+                   ("crates/game-core/tests/fixtures/*.txt", r"\bMVS\b")],
     },
 }
 
@@ -687,12 +708,26 @@ def _collect_file(f: Path, rel: str) -> list[dict]:
     # 同文件辅助函数（任意顶层 fn）中含夹具帧断言者；及其 checked 窗口断言（`assert_eq!(checked, X.ticks…)`）
     fn_heads = list(re.finditer(r"^(?:pub )?fn (\w+)\(", text, re.M))
     frame_helpers, helper_ticks = set(), set()
+    fn_body = {}
     for i, m in enumerate(fn_heads):
         body = text[m.end():fn_heads[i + 1].start() if i + 1 < len(fn_heads) else len(text)]
+        fn_body[m.group(1)] = body
         if FRAME_FIX_RE.search(body):
             frame_helpers.add(m.group(1))
             if re.search(r"assert_eq!\(\s*checked,\s*\w+\.ticks\b", body):
                 helper_ticks.add(m.group(1))
+    # 帧断言可被同文件辅助函数**转发**（replay → replay_opt 内 assert_eq!(sha, rec.sha)）——
+    # 按调用闭包扩展 frame_helpers（doc②「体内调用的辅助函数」含传递层）；否则转发层用例
+    # 被判无帧断言、整批夹具触达漏计（2026-10-16 修：21 个 `*_frames_match` 曾落 fixture 桶）
+    grew = True
+    while grew:
+        grew = False
+        for _n, _b in fn_body.items():
+            if _n in frame_helpers:
+                continue
+            if any(re.search(rf"\b{re.escape(h)}\(", _b) for h in tuple(frame_helpers)):
+                frame_helpers.add(_n)
+                grew = True
     # 夹具规格常量（mov_route_scene.rs 式）：`const NAME: T = T { … frames: include_str!("…frames.txt"), …
     # ticks: N, … };` ⇒ NAME → (frames 路径, N)
     spec_consts = {}
