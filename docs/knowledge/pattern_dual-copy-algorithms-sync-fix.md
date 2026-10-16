@@ -20,6 +20,10 @@ paintWrappedText 双拷贝 `\r` 恢复色范围一为行内一为跨 paint；lay
 **何时使用：** ① 修文本布局/转义类 bug 时，`grep -n "fn layout" crates/game-core/src/scene.rs`
 先盘点全部拷贝；② 长期解 = 抽公共函数（limit 作参数），遗留重构项记在
 docs/spec/completeness.md；③ code review 涉及布局函数时强制检查姊妹函数。
-> 【2026-10-15 更新】长期解已落地：m_113 / paintWrappedText / layoutWrappedText 三族
-> 单源化（menu_family 单源核 + scene/paint 宿主适配器，恢复 Java 单方法结构）。
-> 新代码禁止再复制算法体；合并时以 Java 原文逐语义裁决分叉（缺陷原样保真）。
+> 【2026-10-15 更新 · 2026-10-17 合并整合后修订】长期解大半落地：m_113 族
+> （`SlotSelect::paint_list`/`paint_equipment_frames`/`paint_detail_stats` 双宿主共用）
+> 与 layoutWrappedText 族（`layout_wrapped_text_limited` 唯一实现 + `layout_full_text`
+> 委托）已单源化——两族各有并行会话与本会话殊途同归的两版实现，2026-10-17 rebase
+> 整合取并行会话落地版。**遗留：paintWrappedText 绘制双拷贝**
+> （`OverlayEngine::paint` / `scene::paint_wrapped_text`）尚未合一，修一处必须查姊妹。
+> 新代码禁止再复制算法体；合并语义分叉以 Java 原文逐条裁决（缺陷原样保真）。

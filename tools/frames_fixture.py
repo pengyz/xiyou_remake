@@ -28,6 +28,7 @@ frame_chain 逐字节比对——一致才把该用例的窗口计入验证。
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import shutil
 import subprocess
@@ -112,7 +113,7 @@ def write_fixture(recs, out: Path, stem: str, trace: Path, note: str, variants: 
     word = {1: "单方", 2: "双方", 3: "三方"}.get(len(variants.split("/")), "多方")
     lines = [
         f"# {stem} Java 参照帧：{word}（{variants}）trace 逐 TICK 抽取（列 = tick FRAME-sha [INPUT]）。",
-        f"# 源 trace：{trace.relative_to(ROOT)} sha256={sha256_file(trace)}",
+        f"# 源 trace：{trace.relative_to(ROOT).as_posix()} sha256={sha256_file(trace)}",
         f"# 帧数 {len(recs)}；帧链 sha256={frame_chain(shas)}（= tools/method_reach 快照 frame_chain 口径）",
         f"# {note}",
     ]
@@ -167,8 +168,9 @@ def build() -> dict:
     classes.mkdir()
     sources = sorted(str(p) for p in list((ROOT / "reference/shim/src").rglob("*.java"))
                      + list((ROOT / "reference/oracle/src").rglob("*.java")))
-    r = subprocess.run(["javac", "-encoding", "UTF-8", "-nowarn", "-d", str(classes)] + sources,
-                       capture_output=True, text=True)
+    r = subprocess.run(["javac", "-J-Dfile.encoding=UTF-8", "-J-Dsun.stdout.encoding=UTF-8",
+                        "-encoding", "UTF-8", "-nowarn", "-d", str(classes)] + sources,
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
     if r.returncode != 0:
         raise SystemExit("shim/host javac 失败:\n" + r.stderr[-3000:])
     srcs = {"A": None, "B": RENAMED}
@@ -202,7 +204,10 @@ def gen(script: Path, frames: str) -> int:
         if out.exists():
             shutil.rmtree(out)
         out.mkdir(parents=True)
-        cmd = ["java", "-Djava.awt.headless=true", "-cp", f"{env['classes']}:{vdir}:{JAR}",
+        cmd = ["java", "-Djava.awt.headless=true",
+               "-Dfile.encoding=UTF-8", "-Dsun.stdout.encoding=UTF-8", "-Dsun.stderr.encoding=UTF-8",
+               "-Dline.separator=\n",
+               "-cp", os.pathsep.join([str(env["classes"]), str(vdir), str(JAR)]),
                f"-Doracle.out={out}", f"-Doracle.max={ticks}", f"-Doracle.script={script}",
                f"-Doracle.label={v}-{stem}", f"-Doracle.watchdog={max(300000, ticks * 75)}",
                f"-Doracle.frames={frames if v == 'A' else 'off'}", "-Doracle.dumpStride=8"]
@@ -216,7 +221,7 @@ def gen(script: Path, frames: str) -> int:
         rc = p.wait()
         tr = out / "trace.txt"
         if rc != 0 or not tr.exists():
-            log(f"变体 {v} rc={rc}：{(out / 'stderr.txt').read_text()[-600:]}")
+            log(f"变体 {v} rc={rc}：{(out / 'stderr.txt').read_text(encoding='utf-8', errors='replace')[-600:]}")
             return 1
         shas[v] = sha256_file(tr)
     log("三方 trace sha256：" + "，".join(f"{v}={s[:12]}…" for v, s in shas.items()))

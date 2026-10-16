@@ -892,7 +892,8 @@ fn paint_equipment_frame<'a>(
 /// 判据全部由 Java 公式直接推出（a.java:9104-9143），不经被测函数：
 /// 框 = paintMiniFrame(32×32) 的填充区 `[fx+1, fx+31) × [fy, fy+31)`；
 /// 图标 = sptarm[k] 左上 `(fx + (32-w>>1), fy + (32-h>>1))`；
-/// 材质名 = 白字“无”@`(fx + (32-12>>1), fy + (32-10>>1))`（wideCharWidth=12、fontHeight=10）。
+/// 材质名 = 白字“无”@`(fx + (32-wideCharWidth>>1), fy + (32-fontHeight>>1))`
+/// （wideCharWidth=12、fontHeight=14——2026-10-15 字高更正后 32-14>>1=9）。
 #[cfg(test)]
 pub(crate) mod slot_equip_test_support {
     use crate::layout::{MINIFRAME_FILL, SCREEN_H, SCREEN_W};
@@ -905,8 +906,9 @@ pub(crate) mod slot_equip_test_support {
     ];
     pub const FILL: u32 = 0xFF000000 | MINIFRAME_FILL;
     pub const WHITE: u32 = 0xFFFFFFFF;
-    /// 装备框行 y（SlotSelect::new 布局：paint_list 返回 ly=165，+8）。
-    pub const FRAME_Y: i32 = 173;
+    /// 装备框行 y（SlotSelect::new 布局：box_y=(320-content_h)>>1、+16+per*lh、
+    /// 分隔线 +3、+8；content_h=112+lh*per，lh=fontHeight+4=18、per=6 ⇒ 185）。
+    pub const FRAME_Y: i32 = 185;
     /// 武器框 x：(240 + slotListWidth(148) >> 1) - 68 = 126；甲框 +34 = 160。
     pub const WEAPON_X: i32 = 126;
     pub const ARMOR_X: i32 = 160;
@@ -945,11 +947,13 @@ pub(crate) mod slot_equip_test_support {
     pub fn assert_frame_material_name(screen: &ArgbImage, fx: i32, fy: i32, what: &str) {
         let mut reference = ArgbImage::create(SCREEN_W, SCREEN_H);
         {
+            let font = crate::paint::paint_font();
             let mut g = SoftGraphics::new(&mut reference);
-            g.set_font(Some(crate::paint::paint_font()));
+            g.set_font(Some(font));
             crate::menu_family::paint_mini_frame(&mut g, fx, fy, 32, 32);
             g.set_color(0xFFFFFF);
-            g.draw_string(&[0x65E0], fx + 10, fy + 11, 0); // “无”
+            let wide = font.char_width('国' as u16);
+            g.draw_string(&[0x65E0], fx + ((32 - wide) >> 1), fy + ((32 - font.height) >> 1), 0); // “无”
         }
         let mut white = 0;
         for y in fy..fy + 31 {
