@@ -44,8 +44,8 @@ cat8 战斗 + cat16 商人）与 applyStepCellEffects（:5637-5715，case 1-8/76
 | 8 | 下楼梯 | ✅ | 同上 |
 | 9 | 炼丹炉 | ✅ | mode9 全流程（alchemy） |
 | 10 | 云雾(三昧真火) | ✅ |【2026-10-15 晚销账】移除臂 ✅ fx-fan-floor13（芭蕉扇 m_089 命中）+ 撞击臂已移植（ee52191，a.java:5436-5440）+ 帧级 fixture_frames::fx_firebump_floor13_frames_match 解禁全预算绿（RED 钉 T301）。【史】 bump case10 提示浮层；与 16 芭蕉扇联动——delta。【2026-10-15】移除臂（芭蕉扇 m_089 命中）✅ 夹具场景 fx-fan-floor13；**撞击臂 Rust 未移植**（a.java:5436-5440；scene.rs cat1 `_ => {} // 11 / 76/82：后续批次` 吞掉，无 todo!）——帧级复现 fixture_frames::fx_firebump_floor13_frames_match（#[ignore] BLOCKED，首分歧 T301），矩阵 §5.1 |
-| 11 | 能挖的墙 | ⬜ | bump case11 + **currentFloor!=23 层条件**（§4）——delta。【2026-10-15】撞击臂同 10 被 `_ => {}` 吞（代码阅读 B 级，矩阵 §5.1） |
-| 12 | 隐形墙 | ⬜ | 图=型11 别名；bump case12 语义待查——delta。【2026-10-15】case12 = 显形为型11（state2/row9/visible）+ 阻挡（a.java:5449-5456）；Rust 同被 `_ => {}` 吞（B 级，矩阵 §5.1） |
+| 11 | 能挖的墙 | ⬜ | bump case11 + **currentFloor!=23 层条件**（§4）——delta。【2026-10-15】撞击臂同 10 被 `_ => {}` 吞（代码阅读 B 级，矩阵 §5.1）【2026-10-16 同步】撞击臂已随主行（型10）移植（ee52191，a.java:5436-5456 逐值：型11 = **23 层静默、其余提示 + 阻挡 + 停扫**）——原文"被 `_ => {}` 吞"系移植前状态，已过时（保留历史）。状态仍 ⬜：行为面待夹具（23 层静默负例 FX-INT-11-F23 列 fixture-plan §3 扩展候选；非 23 层提示臂随型10夹具族） |
+| 12 | 隐形墙 | ⬜ | 图=型11 别名；bump case12 语义待查——delta。【2026-10-15】case12 = 显形为型11（state2/row9/visible）+ 阻挡（a.java:5449-5456）；Rust 同被 `_ => {}` 吞（B 级，矩阵 §5.1）【2026-10-16 同步】撞击臂已随主行（型10）移植（ee52191，a.java:5449-5456 逐值：变形为型11 + dispatch_sprite_size/anim 重派 + state2/animRow9/visible + 阻挡**续扫**〔Java 无停扫〕）——原文"Rust 同被 `_ => {}` 吞"系移植前状态，已过时（保留历史）。状态仍 ⬜：变形臂差分夹具未列（建议并入 FX-INT-11-F23 批） |
 | 76 | 路点 | ✅ | floor35/42/46 wp4 组门踏板 |
 | 81 | 封印门(隐形) | ✅ | floor10 隐形81 |
 | 82 | 传怪点 | ⬜ | case82 spawn+hidden；出层层待普查——delta |
@@ -57,7 +57,7 @@ cat8 战斗 + cat16 商人）与 applyStepCellEffects（:5637-5715，case 1-8/76
 |---|---|---|---|
 | 13 | 火眼金睛 | ✅ | item13 用例 |
 | 14 | 生死簿 | ✅ | preset_floor5_fixture_frames_match（道具14 全链 T1-1200：拾取→面板→使用→mode12 翻页/关闭） |
-| 15 | 筋斗云 | ⬜ | delta |
+| 15 | 筋斗云 | ⬜ | delta【2026-10-16 复核留 ⬜（预翻 📦 被驳回）】使用臂空操作=原版语义（a.java:7795-7800）✓；被动授予侧已核（拾取置 tutorial_seen=f_bool_12 scene.rs:5272/409，f_bool_13=stair_hint 楼梯指示门控 scene.rs:411）✓；**但消费侧 49/55 快捷键臂存在 A 级分歧**：scene.rs:4476-4477 先 `key_value=0` 后 `let up = key_value == 49` ⇒ `up` 恒 false，49 上行臂被并入 55 下行臂——a.java:5295/5301 为**分立 case**（49→findFloorGateEntity(true)+changeFloor(…,false,…)、55→false+true）。“被动效果移植已核”对本型不成立 ⇒ 保守不翻 📦（防虚报）；待分歧裁定（BUG 候选，建议 bug-ledger 登记 + 49/55 双向夹具）后翻 |
 | 16 | 芭蕉扇 | ✅ | 【2026-10-15】使用臂 m_089(10) 未命中提示 / 命中灭火两臂 ✅ 夹具场景 fx-fan-floor13（T1-830 全帧，preset 道具栏预置）；正常游玩来源 = 杨戬(69) 击杀 spawnBossEvent(4)（§5 更正） |
 | 17 | 金勺子 | ⬜ | 凿墙联动型11——delta。来源 = 啸天犬(67) 击杀 spawnBossEvent(3)（§5 更正） |
 | 18 | 玄明石 | ⬜ | 同上——delta。来源 = 天宫商人(78) 报价 13 → pickupItemType(18)（a.java:7432，§5 更正） |
@@ -65,9 +65,9 @@ cat8 战斗 + cat16 商人）与 applyStepCellEffects（:5637-5715，case 1-8/76
 | 20 | 相形变位 | ✅ | floor42 script14 ROS_4_1（脚本侧使用） |
 | 21 | 上行符 | ✅ | preset_item21_frames_match / preset_item2122_frames_match（使用臂帧测） |
 | 22 | 下行符 | ✅ | preset_item2122_frames_match（21+22 配对使用臂帧测）；来源 script25 CES_22_6_6（§5 更正）；来源 script25 `CES_22_6_6`（§5 更正） |
-| 23 | 太公杖 | ⬜ | delta |
-| 24 | 捆仙绳 | ⬜ | delta。来源 = 玉皇大帝二阶段(71) 击杀 spawnBossEvent(5)（§5 更正） |
-| 25 | 幸运币 | ⬜ | delta |
+| 23 | 太公杖 | 📦 | delta【2026-10-16 预翻 📦 被动派生】使用臂空操作系原版语义（a.java:7795-7800 fall-through `default: break`，返回 false 不消耗，uses=-1 永久）；被动效果移植已核 = effective_attack_vs_type（combat.rs:66-72，a.java:9992-10002：特性位 &1 且背包有 23 ⇒ 攻击 ×2），单测 combat_golden（"无 23 号不翻倍"/"23 号 + &1 ⇒ ×2"） |
+| 24 | 捆仙绳 | 📦 | delta。来源 = 玉皇大帝二阶段(71) 击杀 spawnBossEvent(5)（§5 更正）【2026-10-16 预翻 📦 被动派生】使用臂空操作系原版语义（a.java:7795-7800 fall-through，uses=-1 永久）；被动效果移植已核 = effective_attack_vs_type（combat.rs:66-72：特性位 &2 且背包有 24 ⇒ 攻击 ×2），单测 combat_golden（"&2 需要 24 号"⇒ ×2） |
+| 25 | 幸运币 | 📦 | delta【2026-10-16 预翻 📦 被动派生】使用臂空操作系原版语义（a.java:7795-7800 fall-through，uses=-1 永久）；被动效果移植已核 = 金翻倍**两掉落点**（scene.rs:3036-3039 战杀 + 4855-4856 killAdjacentAt，`find_item(25)>=0 ⇒ enemyBaseGold<<1`，a.java:10046-10052/7944-7948）；帧夹具 FX-ITEM-25A 列扩展候选（fixture-plan §3） |
 | 26 | 黄钥匙 | ✅ | 拾取常见 |
 | 27 | 红钥匙 | ✅ | 拾取常见 |
 | 28 | 蓝钥匙 | ✅ | floor48 T480 帧证拾取 |
@@ -135,7 +135,7 @@ cat8 战斗 + cat16 商人）与 applyStepCellEffects（:5637-5715，case 1-8/76
 | 77 | 太白金星 | ✅ | floor46 商人全链（报价/受领/消耗白烟，迭代 77 七臂语义） |
 | 78 | 天宫商人 | ✅ | floor45（f_byte_arr_13 表 + 37px 宽变体 + atk 报价） |
 | 84 | 嫦娥 | ⬜ | 图 sptenemy2[18]；出层层待普查——delta |
-| 87 | 菩提老祖 | ⬜ | 图 sptenemy2[19]；出层层待普查——delta |
+| 87 | 菩提老祖 | ☠️ | 图 sptenemy2[19]；出层层待普查——delta【2026-10-16 终裁 ☠️ 实体面死】（evidence-boss §4.2 存证，本次独立复跑一致）：全语料 `spawnEntity(87|CES_87|ADD_*_87)` **0 命中**，`\b87\b` 全扫仅对话发言者表（a.java:1358 起）/logo/gameMode default 簇/renderCategory[87]=32（:6294）/entityTypeImage（:9478）/lockCameraOn 显式跳过（:8672）；enemyBaseHp n=35（:1044-1080 表长 A 级）⇒ 数值上不可参战；击杀/收尾 switch 无 case87（:10070-10086/:10115-10154）。**对话面非死**：87 = 序章对话发言者（dialogueSpeakerType）+ `lockCameraOn(87)` 跳过锚定——文本面数据派生，序章对话用例（prologue_frames_match T1-9800）已覆盖。出层链 = 序章 script40-53 教学 + script67 混沌引子（case67 已移植 scene.rs:1528）——"出层层待普查"由 evidence-boss §4 普查销 |
 
 ## 2. 脚本 DSL 臂账本（16 码）
 
@@ -197,7 +197,7 @@ cover_matrix.py 渲染时三重校验（字节码证死 + 裁决书节锚 + JDI 
 | :7557/7565 | 炼丹 <=10 | ✅ | mode9 floor5 |
 | :7644 | 难度 (floor-1)/10 | ✅ | 全战斗用例 |
 | :7648 | >50 战斗 UI | ✅ | ending 战 |
-| :7833 | ==40 | ⬜ | 待查语义（case40）——delta【2026-10-16 语义销账】= `activateItem(byte)` switch（a.java:7784 方法，switch :7787）**case 20「对角瞬移」道具臂**内 `currentFloor==40`（现 a.java:7836，账本行号漂移 -3）→ 40 层禁瞬移提示"本层不能直接瞬移。"（:7836-7838），else 镜像格 `interactWithCell` 放行才传送（:7839-7850）——**与 boss 无关**，勿与另一处 ==40（a.java:10074 击杀钩子 case73 spawnBossEvent(6)）混记：那处已由 preset-itemboss40 覆盖。Rust 已移植（scene.rs:2877-2881，注引 a.java:7832-7850）。**保留 ⬜ 的 A 级理由**：40 层禁用**真臂**零差分夹具——场景语料穷举（reference/oracle/scenarios/ 全量）无 floor40+item20 激活：preset-item2122 只触 floor1 **假臂**（镜像格拦截分支），preset-itemboss40/preset-floor40-mov 不经 activateItem；grep "本层不能直接瞬移" 全仓仅实现行 scene.rs:2881（零测试触达）。禁用臂夹具（floor40+item20 场景）落地前不翻 ✅ |
+| :7833 | ==40 | ⬜ | 待查语义（case40）——delta【2026-10-16 语义销账】= `activateItem(byte)` switch（a.java:7784 方法，switch :7787）**case 20「对角瞬移」道具臂**内 `currentFloor==40`（现 a.java:7836，账本行号漂移 -3）→ 40 层禁瞬移提示"本层不能直接瞬移。"（:7836-7838），else 镜像格 `interactWithCell` 放行才传送（:7839-7850）——**与 boss 无关**，勿与另一处 ==40（a.java:10074 击杀钩子 case73 spawnBossEvent(6)）混记：那处已由 preset-itemboss40 覆盖。Rust 已移植（scene.rs:2877-2881，注引 a.java:7832-7850）。**保留 ⬜ 的 A 级理由**：40 层禁用**真臂**零差分夹具——场景语料穷举（reference/oracle/scenarios/ 全量）无 floor40+item20 激活：preset-item2122 只触 floor1 **假臂**（镜像格拦截分支），preset-itemboss40/preset-floor40-mov 不经 activateItem；grep "本层不能直接瞬移" 全仓仅实现行 scene.rs:2881（零测试触达）。禁用臂夹具（floor40+item20 场景）落地前不翻 ✅【2026-10-16 复核·按 AGENTS 死码/不可达判定标准】☠️ **证不出**⇒保持 ⬜：型20 有脚本出生源 `CES_20_4_4`（a.java:1143，`DES_1_4_4` 同格换生成）⇒ 可拾取持有，楼梯 ±1（:7855/7860）可携至 40 层 ⇒ 禁用**真臂可达**，不满足死码判定所需的值域/CFG 级不可达证明。夹具现状：floor40+item20 禁用臂场景既不在本批亦不在扩展候选（fixture-plan §3）——建议补列扩展候选 FX-ITEM-20A（floor40 栈含 20 → 使用 → 「本层不能直接瞬移。」且不消耗） |
 | :7855/7860 | 楼梯 ±1 | ✅ | 楼梯往返 |
 | renderCategory[72] | floor50 特判 | ✅ | 迭代 56 |
 
