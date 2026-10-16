@@ -1711,6 +1711,19 @@ impl GameScene {
     }
 
     /// flipOverlayPage（a.java:5129-5140）：页顶/页底钳制。
+    /// handleOverlayKey（a.java:4925-4934）：-2/-1 = flipOverlayPage(top∓**1**)、
+    /// 0 空、其余键关层。kind1/3/4/兜底 的非专用键统一走此口。
+    /// 【2026-10-16 修正】原 kind3/4/兜底 误用 ±lines_per_page——翻页距只有
+    /// kind0(15/17) 是 ±lines、kind5 与本口是 ±1（BUG-002 活码核查连带发现）。
+    fn handle_overlay_key(&mut self) {
+        match self.key_value {
+            -2 => self.flip_overlay_page(self.overlay_page_top + 1),
+            -1 => self.flip_overlay_page(self.overlay_page_top - 1),
+            0 => {}
+            _ => self.overlay_active = false,
+        }
+    }
+
     fn flip_overlay_page(&mut self, page: i32) {
         let mut top = page;
         if top >= 0 {
@@ -4058,19 +4071,13 @@ impl GameScene {
         // 非翻页键关层）。**walkPhase 状态机与 m_055 冻结**。
         if self.overlay_active {
             if self.overlay_kind == 4 {
-                // 商人/告示牌（overlay 分派 case4，a.java:3305-3320）：-6/-5=
-                // applyMerchantOffer(true)，-7=(false)，-2/-1 翻页，其余关闭
+                // 商人/告示牌（overlay 分派 case4，deobf 3311-3320）：-6/-5=
+                // applyMerchantOffer(true)，-7=(false)，其余 handleOverlayKey
+                // （±**1** 翻页——【2026-10-16 修】原误用 ±lines_per_page）
                 match self.key_value {
                     -7 => self.overlay_active = self.apply_merchant_offer(false),
                     -6 | -5 => self.overlay_active = self.apply_merchant_offer(true),
-                    -2 => {
-                        self.flip_overlay_page(self.overlay_page_top + self.overlay_lines_per_page)
-                    }
-                    -1 => {
-                        self.flip_overlay_page(self.overlay_page_top - self.overlay_lines_per_page)
-                    }
-                    0 => {}
-                    _ => self.overlay_active = false,
+                    _ => self.handle_overlay_key(),
                 }
             } else if self.overlay_kind == 5 {
                 // mode12 日志浏览（overlay 分派 case5，a.java:3325-3344）：
@@ -4114,20 +4121,30 @@ impl GameScene {
                         self.overlay_active = false;
                         self.use_item_stack(self.item_cursor as usize);
                     }
-                    -2 => self.flip_overlay_page(self.overlay_page_top + self.overlay_lines_per_page),
-                    -1 => self.flip_overlay_page(self.overlay_page_top - self.overlay_lines_per_page),
-                    0 => {}
-                    _ => self.overlay_active = false,
+                    _ => self.handle_overlay_key(),
                 }
+            } else if self.overlay_kind == 1 {
+                // case1 图标支路（javap run() 336-441；deobf ~3245-3290）：
+                // 无图标 → handleOverlayKey；right 为 2/3 → key0 吞、-2/-1
+                // handleOverlayKey、其余关；right 非 2/3 → 全吞键（441 →
+                // goto 654）。【2026-10-16 补】原缺臂（并入兜底）。
+                if self.overlay_right_icon == 0 && self.overlay_left_icon == 0 {
+                    self.handle_overlay_key();
+                } else if self.overlay_right_icon == 2 || self.overlay_right_icon == 3 {
+                    match self.key_value {
+                        0 => {}
+                        -2 | -1 => self.handle_overlay_key(),
+                        _ => self.overlay_active = false,
+                    }
+                }
+            } else if self.overlay_kind == 2 {
+                // case2（deobf 3290-3291 `case 2: default: break;`）：全吞键。
+                // 调用面 0 命中（Java 亦无生产者）——死码臂为忠实而保
+                // （MVS 先例），不得并入兜底关层。
             } else {
-                // handleOverlayKey（a.java:4923-4931）：±2 翻页（flipOverlayPage
-                // 钳制 a.java:5129-5140）、其余键关闭
-                match self.key_value {
-                    -2 => self.flip_overlay_page(self.overlay_page_top + self.overlay_lines_per_page),
-                    -1 => self.flip_overlay_page(self.overlay_page_top - self.overlay_lines_per_page),
-                    0 => {}
-                    _ => self.overlay_active = false, // 任意其他键关闭
-                }
+                // 兜底 = handleOverlayKey（含 kind0 非 15/17 的 else 路，
+                // deobf 3288-3289 `case 2: default: break` 之外的收口）
+                self.handle_overlay_key();
             }
             // label510 块尾双清（a.java:3345）：keyValue 与 **keyHeldCode 同清**——
             // held 残留会让关层后首拍误触发 tryStep（floor2-tour T1238 实证）
@@ -7238,6 +7255,66 @@ mod slot_equip_scene_tests {
         sc.key_held = -3;
         sc.handle_field_input();
         assert_eq!(sc.facing, 3, "53 臂后 keyHeld switch 照跑（-3=左 → facing=3）");
+    }
+
+    /// overlayKind 六臂分派（run() tableswitch 0-5：javap renamed dump 95-663 +
+    /// deobf 3252-3345）BUG-002 活码核查补移植钉①：kind4/3/兜底的 -2/-1 翻页
+    /// = handleOverlayKey 的 top∓**1**（a.java:4925-4934）——原实现误用
+    /// ±lines_per_page（kind0(15/17) 的 ±lines 与 kind5 的 ±1 是对的，勿动）。
+    #[test]
+    fn overlay_paging_keys_are_single_line_for_kind4_and_default() {
+        let mut sc = scene_with(&synthetic_sptarm());
+        let long = "一二三四五六七八九十甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥"
+            .repeat(12);
+        sc.show_overlay_message(4, &long, 0, 0);
+        assert!(
+            sc.overlay_total_lines > sc.overlay_lines_per_page + 1,
+            "总行数须超出单页才可翻页 total={} lpp={}",
+            sc.overlay_total_lines,
+            sc.overlay_lines_per_page
+        );
+        sc.overlay_page_top = 0;
+        sc.key_value = -2;
+        sc.tick(0, &[]);
+        assert_eq!(sc.overlay_page_top, 1, "kind4 -2 = top+1（handleOverlayKey ±1）");
+
+        sc.show_overlay_message(3, &long, 0, 3);
+        sc.overlay_page_top = 0;
+        sc.key_value = -2;
+        sc.tick(0, &[]);
+        assert_eq!(sc.overlay_page_top, 1, "kind3 default → handleOverlayKey ±1");
+    }
+
+    /// 钉②：kind2 全吞键（Java `case 2: default: break;`，deobf 3290-3291）——
+    /// 调用面 0 命中（Java 亦无生产者），死码臂为忠实而保（同 MVS 先例）。
+    #[test]
+    fn overlay_kind2_swallows_all_keys() {
+        let mut sc = scene_with(&synthetic_sptarm());
+        sc.show_overlay_message(2, "占位", 0, 0);
+        for k in [-7, -6, -1, 1] {
+            sc.key_value = k;
+            sc.tick(0, &[]);
+            assert!(sc.overlay_active, "kind2 全吞键（key={k}）");
+        }
+    }
+
+    /// 钉③：kind1 图标支路（javap run() 336-441）：right∉{2,3} 全吞键；
+    /// right∈{2,3}：0 吞、-2/-1 走 handleOverlayKey、其余关。
+    #[test]
+    fn overlay_kind1_icon_dispatch() {
+        let mut sc = scene_with(&synthetic_sptarm());
+        sc.show_overlay_message(1, "占位", 0, 1); // right=1（钥匙图标类）
+        sc.key_value = -7;
+        sc.tick(0, &[]);
+        assert!(sc.overlay_active, "right 非 2/3：全吞键");
+
+        sc.show_overlay_message(1, "占位", 0, 3); // right=3（拾取浮层实况）
+        sc.key_value = 0;
+        sc.tick(0, &[]);
+        assert!(sc.overlay_active, "right 为 2/3 + key0 吞");
+        sc.key_value = -7;
+        sc.tick(0, &[]);
+        assert!(!sc.overlay_active, "right 为 2/3 + 非翻页键关闭");
     }
 }
 
