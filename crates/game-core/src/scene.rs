@@ -4469,19 +4469,29 @@ impl GameScene {
             self.show_battle_digits = self.player.find_item(13) >= 0;
             return;
         }
-        if self.key_value == 49 || self.key_value == 55 {
-            // 49/55（a.java:5293-5306）：暗道换乘键——f_bool_13（楼梯指示）
-            // 点亮且存在无高层位的型7/8 门格（param>>9==0）→ changeFloor
-            // （目标层 = param & 255）
+        if self.key_value == 49 {
+            // 49=上行（a.java:5295-5299 **分立 case**）：清零键值 → f_bool_13
+            // 且存在型 7 门（param>>9==0）→ changeFloor(param&255, false, true)。
+            // 【2026-10-16 修复】Rust 移植 bug（非原版 bug，不属 D4）：原实现
+            // 先清零 key_value 再判 up ⇒ 恒 false、49 臂被并入 55；且臂末
+            // return 吞掉 Java break 后续走的 keyHeldCode switch（5308 起）。
             self.key_value = 0;
-            let up = self.key_value == 49;
             if self.stair_hint {
-                if let Some(e) = self.find_floor_gate_entity(up) {
+                if let Some(e) = self.find_floor_gate_entity(true) {
                     let target = self.entities.param[e] as i32 & 255;
-                    self.change_floor(target, !up, true);
+                    self.change_floor(target, false, true);
                 }
             }
-            return;
+        } else if self.key_value == 55 {
+            // 55=下行（a.java:5300-5305 **分立 case**）：清零键值 → f_bool_13
+            // 且存在型 8 门（param>>9==0）→ changeFloor(param&255, true, true)。
+            self.key_value = 0;
+            if self.stair_hint {
+                if let Some(e) = self.find_floor_gate_entity(false) {
+                    let target = self.entities.param[e] as i32 & 255;
+                    self.change_floor(target, true, true);
+                }
+            }
         }
         let facing = match self.key_held {
             -4 | 54 => 2,
@@ -7135,6 +7145,64 @@ mod slot_equip_scene_tests {
         sc.execute_script_instruction();
         assert_eq!(sc.entities.count, count_before);
         assert!(!sc.entities.removed[e82]);
+    }
+
+    /// 暗道换乘键 49/55 **分立臂**（a.java:5295-5306）：49=上行 →
+    /// findFloorGateEntity(true)（型 7 门）+ changeFloor(param&255, false, true)；
+    /// 55=下行 → findFloorGateEntity(false)（型 8 门）+ changeFloor(…, true, true)。
+    /// 回归钉（Rust 移植 bug 修复，非原版 bug、不属 D4 保真）：①曾先清零
+    /// key_value 再判 up ⇒ up 恒 false、49 臂被并入 55；②Java case break 后
+    /// 续走 keyHeldCode switch（a.java:5308 起），臂末 return 曾吞同拍方向步进。
+    #[test]
+    fn field_input_keys_49_55_split_up_down_gates() {
+        let mut sc = scene_with(&synthetic_sptarm());
+        sc.stair_hint = true; // f_bool_13（a.java:5297/5303 门控）
+        sc.min_floor = 1;
+        sc.max_floor = 55;
+        // 双门并存：型 7（上行）目标层 10、型 8（下行）目标层 20（param>>9==0）
+        entity::spawn(&mut sc.entities, &mut sc.grid, 7, 2 << 5, 2 << 5, 10, &sc.width_table, None);
+        entity::spawn(&mut sc.entities, &mut sc.grid, 8, 5 << 5, 5 << 5, 20, &sc.width_table, None);
+
+        // 49 = 上行：只认型 7 门；changeFloor 第二参 false
+        sc.key_value = 49;
+        sc.handle_field_input();
+        assert_eq!(sc.key_value, 0, "键值清零（a.java:5296）");
+        assert_eq!(
+            sc.pending_floor, 10,
+            "49 走型 7 门 findFloorGateEntity(true)（a.java:5297）"
+        );
+        assert!(!sc.went_down, "49 → changeFloor(…, false, true)（a.java:5297）");
+
+        // 55 = 下行：只认型 8 门；changeFloor 第二参 true
+        sc.key_value = 55;
+        sc.handle_field_input();
+        assert_eq!(sc.key_value, 0, "键值清零（a.java:5302）");
+        assert_eq!(
+            sc.pending_floor, 20,
+            "55 走型 8 门 findFloorGateEntity(false)（a.java:5303）"
+        );
+        assert!(sc.went_down, "55 → changeFloor(…, true, true)（a.java:5303）");
+
+        // break 语义：臂末不 return，同拍 keyHeldCode switch 照跑（a.java:5308 起）
+        sc.key_value = 49;
+        sc.key_held = -1;
+        sc.handle_field_input();
+        assert_eq!(sc.facing, 1, "49 臂后 keyHeld switch 照跑（-1=上 → facing=1）");
+    }
+
+    /// 49/55 门控：f_bool_13（stair_hint）未亮则双键均不动（a.java:5297/5303）。
+    #[test]
+    fn field_input_keys_49_55_gated_by_stair_hint() {
+        let mut sc = scene_with(&synthetic_sptarm());
+        sc.stair_hint = false;
+        entity::spawn(&mut sc.entities, &mut sc.grid, 7, 2 << 5, 2 << 5, 10, &sc.width_table, None);
+        entity::spawn(&mut sc.entities, &mut sc.grid, 8, 5 << 5, 5 << 5, 20, &sc.width_table, None);
+        sc.pending_floor = -1;
+        for k in [49, 55] {
+            sc.key_value = k;
+            sc.handle_field_input();
+        }
+        assert_eq!(sc.pending_floor, -1, "stair_hint 未亮 ⇒ 不换层");
     }
 }
 
