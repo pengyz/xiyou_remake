@@ -2100,9 +2100,106 @@ impl GameScene {
                 _ => {}
             }
             self.script_cursor = v2 + 1;
+        } else if op == "MVS" {
+            // MVS（a.java:8519-8592）：型 82 传怪点成对互传。**双重死码**
+            // （语料 297 条指令 0 条 MVS + 全 55 层 sprite 型 82=0，
+            // evidence-todos.md T-1）——语料不可达，为忠实而保。
+            // 倒序扫 type==82 按 param&255 两两配对进 16 对短缓存
+            // （f_short_arr_04 等价，Java 每次 MVS 重建，a.java:8521-8522）；
+            // 每对两向（8571-8573 交换重复）：扫描格槽组内 renderCategory==8
+            // 怪物 → 双向 removeGroupAtCellByType(两格, 82)（82 点位消耗）
+            // → m_107 搬到对端。槽组循环 var8 为**循环前**容量快照、槽表
+            // 就地压缩不清尾（a.java:6440-6443）⇒ stale 尾重触发 quirk 保真。
+            let mut buf = [0i16; 32];
+            for v6 in (0..self.entities.count as i32).rev() {
+                if self.entities.entity_type[v6 as usize] == 82 {
+                    let key = self.entities.param[v6 as usize] as i32 & 255;
+                    let mut v7 = 0;
+                    while v7 < 32 {
+                        let v70 = buf[v7] as i32 - 1;
+                        if v70 <= 0 {
+                            buf[v7] = (v6 + 1) as i16;
+                            break;
+                        }
+                        if key == (self.entities.param[v70 as usize] as i32 & 255) {
+                            buf[v7 + 1] = (v6 + 1) as i16;
+                            break;
+                        }
+                        v7 += 2;
+                    }
+                }
+            }
+            let mut v11 = 0;
+            while v11 < 32 {
+                let mut v70 = buf[v11] as i32;
+                let mut v9 = buf[v11 + 1] as i32;
+                if v70 <= 0 {
+                    break;
+                }
+                if v9 > 0 {
+                    v70 -= 1;
+                    v9 -= 1;
+                    let mut cx86 = self.entities.pixel_x[v70 as usize] >> 5;
+                    let mut cy6 = self.entities.pixel_y[v70 as usize] >> 5;
+                    let ct44 = self.grid.cell_type[cy6 as usize][cx86 as usize] as usize;
+                    let n8 = self.grid.capacity[ct44] as usize;
+                    let mut v12 = 0;
+                    while v12 < n8 {
+                        let v10 = self.grid.slots[ct44][v12] as usize - 1;
+                        let t56 = self.entities.entity_type[v10];
+                        if entity::render_category(t56) == 8 {
+                            let tx = self.entities.pixel_x[v9 as usize] >> 5;
+                            let ty = self.entities.pixel_y[v9 as usize] >> 5;
+                            entity::remove_group_at_cell_by_type(tx, ty, 82, &mut self.entities, &mut self.grid);
+                            entity::remove_group_at_cell_by_type(cx86, cy6, 82, &mut self.entities, &mut self.grid);
+                            self.m_107(v10, tx, ty);
+                        }
+                        v12 += 1;
+                    }
+                    // A/B 交换（a.java:8571-8573）后重复反向
+                    core::mem::swap(&mut v70, &mut v9);
+                    cx86 = self.entities.pixel_x[v70 as usize] >> 5;
+                    cy6 = self.entities.pixel_y[v70 as usize] >> 5;
+                    let ct46 = self.grid.cell_type[cy6 as usize][cx86 as usize] as usize;
+                    let n8b = self.grid.capacity[ct46] as usize;
+                    let mut v93 = 0;
+                    while v93 < n8b {
+                        let v92 = self.grid.slots[ct46][v93] as usize - 1;
+                        let t56 = self.entities.entity_type[v92];
+                        if entity::render_category(t56) == 8 {
+                            let tx = self.entities.pixel_x[v9 as usize] >> 5;
+                            let ty = self.entities.pixel_y[v9 as usize] >> 5;
+                            entity::remove_group_at_cell_by_type(tx, ty, 82, &mut self.entities, &mut self.grid);
+                            entity::remove_group_at_cell_by_type(cx86, cy6, 82, &mut self.entities, &mut self.grid);
+                            self.m_107(v92, tx, ty);
+                        }
+                        v93 += 1;
+                    }
+                }
+                v11 += 2;
+            }
+            self.script_cursor = var2 + 1;
         } else {
-            todo!("executeScriptInstruction 的 {op:?} @op_start={} entry_cursor={} line={line:?}（对应脚本对拍批实现）", var2 - 3, self.script_cursor)
+            // 真未知 op（16 标签外）：Java 静默停摆（a.java:8594-8595 原地
+            // return：所有 else-if 落空无臂写 scriptCursor ⇒ 下一拍重解析
+            // 同一 token）。禁止 3+N 跳字节续行。语义见
+            // docs/spec/evidence-todos.md T-1 R-TODO-1b。
+            return;
         }
+    }
+
+    /// m_107（a.java:8872-8878）：怪物搬运原语——同型同 param 在目标格
+    /// spawnEntity（入参格坐标，Java 内部 <<5 转像素）+ 对**旧格全部同型**
+    /// 实体 removeGroupAtCellByType 摘槽（"复制-删除" quirk：旧格同型多只
+    /// 一并消失，Stage A 保真）。
+    fn m_107(&mut self, idx: usize, cx: i32, cy: i32) {
+        let ox = self.entities.pixel_x[idx];
+        let oy = self.entities.pixel_y[idx];
+        let t = self.entities.entity_type[idx];
+        let p = self.entities.param[idx];
+        let img_h = self.images.entity.get(t as usize).cloned().flatten().map(|im| im.height);
+        entity::spawn(&mut self.entities, &mut self.grid, t, cx << 5, cy << 5, p, &self.width_table, img_h);
+        entity::remove_group_at_cell_by_type(ox >> 5, oy >> 5, t, &mut self.entities, &mut self.grid);
     }
 
     fn walkable_at(&self, x: i32, y: i32) -> bool {
@@ -6602,6 +6699,132 @@ mod slot_equip_scene_tests {
         assert_eq!(sc.entities.anim_idx[e1], 42, "一次性显形：anim 不重写");
         assert!(sc.entities.visible[e1], "一次性显形：visible 不重写");
         assert_eq!(sc.entities.solid[e1], 2, "一次性显形：solid 不重写");
+    }
+
+    /// MVS 型 82 配对传送（a.java:8519-8592）三断言之【配对+互传+消耗】：
+    /// 倒序扫 type==82 按 `param&255` 两两配对（本例 3 与 0x0103=259 低字节
+    /// 同键 ⇒ 配对成立，钉 &255 掩码）；cat8 怪物经 m_107（a.java:8872-8878）
+    /// 搬到对端格（同型同 param spawn + 旧格全同型摘槽）；两 82 点位被
+    /// removeGroupAtCellByType(…, 82)（a.java:6434-6449）消耗（removed=true）；
+    /// 无参指令游标 = 标签后 1 字符位（a.java:8591 `scriptCursor = var2 + 1`）。
+    #[test]
+    fn mvs_pairs_by_param_low_byte_transfers_and_consumes() {
+        let mut sc = scene_with(&synthetic_sptarm());
+        entity::spawn(&mut sc.entities, &mut sc.grid, 82, 2 << 5, 2 << 5, 3, &sc.width_table, None);
+        let e82a = sc.entities.count - 1;
+        entity::spawn(&mut sc.entities, &mut sc.grid, 82, 5 << 5, 5 << 5, 0x0103, &sc.width_table, None);
+        let e82b = sc.entities.count - 1;
+        entity::spawn(&mut sc.entities, &mut sc.grid, 41, 2 << 5, 2 << 5, 0, &sc.width_table, None);
+        let ema = sc.entities.count - 1;
+        // m_122 载入语义：型 82 生成后覆盖 visible=false（a.java:9601-9605）
+        sc.entities.visible[e82a] = false;
+        sc.entities.visible[e82b] = false;
+
+        sc.script_line = "MVS ".to_string();
+        sc.script_cursor = 0;
+        sc.execute_script_instruction();
+
+        assert!(sc.entities.removed[e82a] && sc.entities.removed[e82b], "消耗：两 82 点位摘槽");
+        assert!(sc.entities.removed[ema], "原地怪物被 m_107 旧格全同型摘除");
+        assert_eq!(sc.entities.count, ema + 2, "m_107 复制-删除：目标格新增 1 只");
+        let moved = ema + 1;
+        assert_eq!(sc.entities.entity_type[moved], 41, "互传：同型复制");
+        assert!(!sc.entities.removed[moved], "互传：副本存活");
+        assert_eq!(
+            (sc.entities.pixel_x[moved], sc.entities.pixel_y[moved]),
+            (5 << 5, 5 << 5),
+            "互传：落到对端格（82B 格）"
+        );
+        assert_eq!(sc.script_cursor, 4, "无参 op 游标=标签后 1 位（a.java:8591）");
+    }
+
+    /// MVS 配对负例（a.java:8532-8542）：`param&255` 不同键 ⇒ 半对（buf 只存
+    /// 首元素）⇒ 配对循环 `var9 > 0` 不成立 ⇒ 全程无事发生——82 不消耗、
+    /// 怪物不搬、实体数不变。
+    #[test]
+    fn mvs_mismatched_pair_key_leaves_world_untouched() {
+        let mut sc = scene_with(&synthetic_sptarm());
+        entity::spawn(&mut sc.entities, &mut sc.grid, 82, 2 << 5, 2 << 5, 3, &sc.width_table, None);
+        let e82a = sc.entities.count - 1;
+        entity::spawn(&mut sc.entities, &mut sc.grid, 82, 5 << 5, 5 << 5, 4, &sc.width_table, None);
+        let e82b = sc.entities.count - 1;
+        entity::spawn(&mut sc.entities, &mut sc.grid, 41, 2 << 5, 2 << 5, 0, &sc.width_table, None);
+        let ema = sc.entities.count - 1;
+        sc.entities.visible[e82a] = false;
+        sc.entities.visible[e82b] = false;
+        let count_before = sc.entities.count;
+
+        sc.script_line = "MVS ".to_string();
+        sc.script_cursor = 0;
+        sc.execute_script_instruction();
+
+        assert!(!sc.entities.removed[e82a] && !sc.entities.removed[e82b], "错配 ⇒ 82 不消耗");
+        assert!(!sc.entities.removed[ema], "错配 ⇒ 怪物不搬");
+        assert_eq!(sc.entities.count, count_before, "错配 ⇒ 无 spawn");
+    }
+
+    /// MVS 双向互传（a.java:8561-8590 两向 + 8571-8573 交换）：B 格怪物→A 格、
+    /// A 格怪物→B 格；方向 2 会重搬方向 1 落进扫描格的**到达怪物**（含槽压缩后
+    /// stale 尾重触发 quirk，a.java:6440-6443 就地压缩不清尾）⇒ 合成双怪场景
+    /// 终态 = 双怪堆聚于 buf[0]（逆序首扫 82）实体格。Stage A 保真钉住。
+    #[test]
+    fn mvs_two_way_transfer_piles_monsters_at_first_slot_cell() {
+        let mut sc = scene_with(&synthetic_sptarm());
+        entity::spawn(&mut sc.entities, &mut sc.grid, 82, 2 << 5, 2 << 5, 3, &sc.width_table, None);
+        let e82a = sc.entities.count - 1;
+        entity::spawn(&mut sc.entities, &mut sc.grid, 82, 5 << 5, 5 << 5, 3, &sc.width_table, None);
+        let e82b = sc.entities.count - 1;
+        entity::spawn(&mut sc.entities, &mut sc.grid, 41, 2 << 5, 2 << 5, 0, &sc.width_table, None);
+        let ema = sc.entities.count - 1;
+        entity::spawn(&mut sc.entities, &mut sc.grid, 42, 5 << 5, 5 << 5, 0, &sc.width_table, None);
+        let emb = sc.entities.count - 1;
+        sc.entities.visible[e82a] = false;
+        sc.entities.visible[e82b] = false;
+
+        sc.script_line = "MVS ".to_string();
+        sc.script_cursor = 0;
+        sc.execute_script_instruction();
+
+        // 原始 4 只全部摘除（41/42 旧格全同型删除 quirk 一并带走过路副本）
+        for e in [e82a, e82b, ema, emb] {
+            assert!(sc.entities.removed[e], "原地实体 {e} 摘除");
+        }
+        // 存活终态：双怪副本堆聚 (5,5)（buf[0]=82B 逆序首扫实体格）
+        let mut alive: Vec<i32> = (0..sc.entities.count)
+            .filter(|&i| !sc.entities.removed[i] && sc.entities.entity_type[i] >= 41)
+            .map(|i| sc.entities.entity_type[i])
+            .collect();
+        alive.sort_unstable();
+        assert_eq!(alive, vec![41, 42], "双怪副本均存活且各型一只");
+        for i in 0..sc.entities.count {
+            if !sc.entities.removed[i] && sc.entities.entity_type[i] >= 41 {
+                assert_eq!(
+                    (sc.entities.pixel_x[i], sc.entities.pixel_y[i]),
+                    (5 << 5, 5 << 5),
+                    "副本堆聚 (5,5)"
+                );
+            }
+        }
+    }
+
+    /// 真未知 op（16 标签外）忠实行为 = 静默停摆（a.java:8594-8595 原地
+    /// return：无臂写 scriptCursor ⇒ 下一拍重解析同一 token）；不推游标、
+    /// 不改 dialogPhase。禁止 3+N 跳字节续行（Java 无此行为）。
+    /// 语义见 docs/spec/evidence-todos.md T-1 R-TODO-1b。
+    #[test]
+    fn unknown_op_silently_stalls_cursor() {
+        let mut sc = scene_with(&synthetic_sptarm());
+        sc.script_line = "XYZ ".to_string();
+        sc.script_cursor = 0;
+        sc.dialog_phase = 3;
+
+        sc.execute_script_instruction();
+        assert_eq!(sc.script_cursor, 0, "未知 op 不推游标（原地 return）");
+        assert_eq!(sc.dialog_phase, 3, "未知 op 不改 dialogPhase");
+
+        sc.execute_script_instruction(); // 下一拍重解析同一 token
+        assert_eq!(sc.script_cursor, 0, "下一拍原地重解析（停摆持续）");
+        assert_eq!(sc.dialog_phase, 3, "停摆期间 dialogPhase 不变");
     }
 }
 
