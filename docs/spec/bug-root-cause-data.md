@@ -162,7 +162,7 @@ Stage B 修菜单的前置考证（真机行为）不变。
 ### 3.2 BUG-002 "输入模式字段恒 0"（**② 伪像，证伪**）
 
 - seed 事实：`switch (var5_3.i)`（seed a.java:1384）= run() 的 overlay 分派；同一 seed 内
-  **a.java:3037 `this.i = by;`**（`a(byte by, String string, byte by2, byte by3)` =
+  **a.java:3036 `this.i = by;`**（`a(byte by, String string, byte by2, byte by3)` =
   showOverlayMessage 开头）——赋值点本就在 seed 文本中，"全文 grep 无赋值点"系漏检。
 - 签名歧义：raw seed 单字母字段同名不同签名并存——台账 N-0223 `i:B`→overlayKind、
   N-0189 `i:I`→menuBoxWidth；state-machine.md 误把该 switch 的 `i` 认成 **int** 版
@@ -183,7 +183,7 @@ Stage B 修菜单的前置考证（真机行为）不变。
   **写点存在**（dump 19767 `7: putfield #1096 overlayKind:B`，即 showOverlayMessage 的
   `this.i = by`）⇒ 非恒 0、非死分支。
 - **判定**：② 伪像（raw 投影的同名异签歧义 + grep 漏检）；③ 的"疑似死代码"主张**证伪**。
-  **台账建议**：BUG-002 移入"考证更正"（现象=假阳性；行号指针 seed:1384/3037 + javap
+  **台账建议**：BUG-002 移入"考证更正"（现象=假阳性；行号指针 seed:1384/3036/3038 + javap
   dump 15455-15466/19767），不再作为原版 bug 计数。
 
 ### 3.3 BUG-005 难度倍率表不可达（③ 确认）
