@@ -26,10 +26,10 @@ Entity/TraceState 迁移**适配其序，禁按 FLD 序重排**；FLD 行=Java �
 | # | 行为面 | 钉住测试 | 状态 |
 |---|---|---|---|
 | 1.1 | 槽编码 **1-based u8**（`entity.rs` spawn `(idx+1)` 语义；槽表存 idx+1） | `entity_golden::spawn_registers_cell_slot_and_stair_anchor`、`entity_golden::relocate_slot_moves_registration_from_start_cell` | ✅ |
-| 1.2 | **槽位永不复用**（entityCount 单调 append-only 至换层重建；swap_remove/重编号=静默坏槽） | `entity_golden::remove_marks_solid_and_lookup_skips`（removed 留置形态）、`fixture_frames::fx_bug_ces70_slot_frames_match`（重复登记留置实证） | ⚠️ **缺口**：无"remove 后 entityCount 不回退/槽不复用"的显式断言——第 1 步动布局前补 RED 测 |
-| 1.3 | **六写点一致性收口**（spawn/removeGroup/fix_slot/detach/relocate/m_108 → 双写点同一收口函数） | `spawn_registers_cell_slot_and_stair_anchor`（spawn）、`remove_all_of_type_matches_des_negative`（removeGroup 族）、`relocate_slot_moves_registration_from_start_cell`（m_108） | ⚠️ **缺口**：fix_slot/detach 两写点无独立测（现由帧对拍间接覆盖）——收口重构前补 |
+| 1.2 | **槽位永不复用**（entityCount 单调 append-only 至换层重建；swap_remove/重编号=静默坏槽） | **`entity_golden::spawn_indices_are_append_only_across_removals`**（三移除面后新 idx 续增+留置形态+1-based 槽）+ `remove_marks_solid_and_lookup_skips` + `fx_bug_ces70_slot_frames_match` | ✅ 2026-10-16 补齐（变异咬合证：remove 回退 count ⇒ 本测红） |
+| 1.3 | **六写点一致性收口**（spawn/removeGroup/fix_slot/detach/relocate/m_108 → 双写点同一收口函数） | `spawn_registers_cell_slot_and_stair_anchor`（spawn）、`remove_all_of_type_matches_des_negative`（removeGroup 族）、`relocate_slot_moves_registration_from_start_cell`（m_108）+ **`sort_by_y_swap_fixes_slot_entries_across_all_width_cells`**（fix_slot 双格修复）+ **`detach_from_cell_compacts_slot_row_in_order`**（detach 摘除压缩序保持） | ✅ 2026-10-16 补齐（变异咬合证：fix_slot 写错/detach 不压缩 ⇒ 对应测红） |
 | 1.4 | 恢复臂 **entityVisible 按循环下标回填 quirk**（a.java:9638，struct 化禁顺手修正） | `fixture_frames::fx_bug_ces70_slot_frames_match`（恢复路径槽序钉） | ✅（帧级）；⚠️ 下标语义无字段级断言 |
-| 1.5 | **sort_by_y 平局序**（严格小于 ⇒ 等值保序；禁 unstable sort） | 无（仅帧对拍间接覆盖；`entity::sort_by_y` 无任何直接测） | ❌ **缺口**：补"5 实体同 y 保序"RED 测后方可动排序实现 |
+| 1.5 | **sort_by_y 平局序**（严格小于 ⇒ 等值保序；禁 unstable sort） | **`entity_golden::sort_by_y_tie_order_is_stable`**（5 实体 y=[10,5,10,5,10] 同 y 组保序+升序） | ✅ 2026-10-16 补齐（变异咬合证：`<` 改 `<=`（等价 unstable）⇒ 本测红） |
 
 ## 2. 条件取参清单（游标契约，refactor-plan 条件 4）
 
@@ -70,9 +70,9 @@ Entity/TraceState 迁移**适配其序，禁按 FLD 序重排**；FLD 行=Java �
 
 ## 6. 缺口汇总（第 1/2 步动布局前必补 RED 测）
 
-1. **1.2 槽不复用显式断言**（remove 后 entityCount 单调 + removed 槽留置形态字段级）
-2. **1.3 fix_slot/detach 独立测**（收口重构的对照源）
-3. **1.5 sort_by_y 平局保序**（5 实体同 y 序列）
+1. ~~**1.2 槽不复用显式断言**~~ ✅ 2026-10-16 补齐（spawn_indices_are_append_only_across_removals）
+2. ~~**1.3 fix_slot/detach 独立测**~~ ✅ 2026-10-16 补齐（sort_by_y_swap_fixes…/detach_from_cell_compacts…）
+3. ~~**1.5 sort_by_y 平局保序**~~ ✅ 2026-10-16 补齐（sort_by_y_tie_order_is_stable）
 4. **2.3 MOV-miss 尾递归**（游标位移断言）
 5. **4.3 恢复特例路径独立测**（floor2 scriptLineFlags[26]）
 6. **5.x 双面同脚本一致测**（DC-9 类漂移防线）

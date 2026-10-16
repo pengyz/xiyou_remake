@@ -240,3 +240,105 @@ fn relocate_slot_moves_registration_from_start_cell() {
     assert_eq!(slots(&g, 1, 8), vec![c as u8 + 1], "起点格未找到不动");
     assert_eq!(slots(&g, 1, 10), vec![a as u8 + 1, a as u8 + 1]);
 }
+
+/// 槽三禁令②（refactor-behavior-matrix 1.2，Entity 迁移最高危红线）：
+/// **槽位永不复用**——entityCount 单调 append-only 至换层重建（a.java spawnEntity
+/// 尾 `entityCount++` 唯一增点；removeGroup/detach/markRemoved 均不回退计数）。
+/// swap_remove/重编号 = 静默坏槽（帧哈希对内部序不敏感，全绿漂移前科）。
+#[test]
+fn spawn_indices_are_append_only_across_removals() {
+    let wt = width_table();
+    let mut t = EntityTable::new(100);
+    let mut g = CellGrid::new(13, 13);
+    let a = entity::spawn(&mut t, &mut g, 43, 0, 0, 10, &wt, None);
+    let b = entity::spawn(&mut t, &mut g, 43, 32, 0, 20, &wt, None);
+    let c = entity::spawn(&mut t, &mut g, 43, 64, 0, 30, &wt, None);
+    assert_eq!((a, b, c), (0, 1, 2));
+    // 三种移除面全走一遍：markEntityRemoved（solid=1）/ DES 变体（solid=2）/ detach（摘槽）
+    entity::remove(&mut t, 1);
+    entity::remove_des(&mut t, 2);
+    entity::detach_from_cell(&mut g, &mut t, 0);
+    assert_eq!(t.count, 3, "移除不回退 entityCount（append-only）");
+    // 再生成：索引续增（3），**不得复用** 0/1/2
+    let d = entity::spawn(&mut t, &mut g, 43, 96, 0, 40, &wt, None);
+    assert_eq!(d, 3, "新实体索引=旧 count，槽位永不复用");
+    assert_eq!(t.count, 4);
+    // 留置形态：被移除实体记录本体不动（下标语义稳定）
+    assert_eq!(t.entity_type[1], 43);
+    assert_eq!(t.param[1], 20);
+    assert_eq!(t.entity_type[2], 43);
+    assert!(t.removed[0], "detach 标记留置");
+    // 新槽登记 = idx+1 = 4（1-based 编码不变）
+    let ct = g.cell_type[0][3] as usize;
+    assert_eq!(&g.slots[ct][..g.capacity[ct] as usize], &[4]);
+}
+
+/// 六写点收口对照（refactor-behavior-matrix 1.3a）：**fix_slot 双格修复**——
+/// sortEntitiesByY 交换伴随槽修复①②（a.java:6770-6771/6808-6809），宽实体
+/// （型 69 宽 78 ⇒ 2 格）跨格槽表两行同步改写。
+#[test]
+fn sort_by_y_swap_fixes_slot_entries_across_all_width_cells() {
+    let wt = width_table();
+    let mut t = EntityTable::new(100);
+    let mut g = CellGrid::new(13, 13);
+    // A（型 69 双格）格 (0,10)-(1,10) param=1；B（型 43 单格）格 (5,5) param=2
+    let a = entity::spawn(&mut t, &mut g, 69, 0, 10 << 5, 1, &wt, None);
+    let b = entity::spawn(&mut t, &mut g, 43, 5 << 5, 5 << 5, 2, &wt, None);
+    assert_eq!((a, b), (0, 1));
+    let row = |g: &CellGrid, x: usize, y: usize| -> Vec<u8> {
+        let ct = g.cell_type[y][x] as usize;
+        g.slots[ct][..g.capacity[ct] as usize].to_vec()
+    };
+    assert_eq!(row(&g, 0, 10), vec![1], "前置：A 左格");
+    assert_eq!(row(&g, 1, 10), vec![1], "前置：A 右格");
+    assert_eq!(row(&g, 5, 5), vec![2], "前置：B 格");
+    entity::sort_by_y(&mut t, &mut g);
+    // 交换后：idx0=B 记录（y 小在前），idx1=A 记录
+    assert_eq!(t.param[0], 2, "B 记录前移");
+    assert_eq!(t.param[1], 1, "A 记录后落");
+    // 槽修复①（A 旧格两行 1→2）+②（B 旧格 2→1）——双格两行全同步
+    assert_eq!(row(&g, 0, 10), vec![2], "宽体左格同步修复");
+    assert_eq!(row(&g, 1, 10), vec![2], "宽体右格同步修复");
+    assert_eq!(row(&g, 5, 5), vec![1], "B 格回写");
+}
+
+/// 六写点收口对照（refactor-behavior-matrix 1.3b）：**detach_from_cell**——
+/// removed=true + 槽行压缩（a.java pullEntityFromCell：摘 idx+1 后续前移、
+/// 容量-1、**序保持**）。
+#[test]
+fn detach_from_cell_compacts_slot_row_in_order() {
+    let wt = width_table();
+    let mut t = EntityTable::new(100);
+    let mut g = CellGrid::new(13, 13);
+    for i in 0..3 {
+        entity::spawn(&mut t, &mut g, 43, 3 << 5, 7 << 5, i as i16, &wt, None);
+    }
+    let ct = g.cell_type[7][3] as usize;
+    assert_eq!(&g.slots[ct][..g.capacity[ct] as usize], &[1, 2, 3]);
+    entity::detach_from_cell(&mut g, &mut t, 1);
+    assert!(t.removed[1]);
+    assert_eq!(&g.slots[ct][..g.capacity[ct] as usize], &[1, 3], "摘除后续前移、序保持");
+    assert_eq!(g.capacity[ct], 2);
+    // 留置形态：被摘实体记录本体不动（swap_remove/重编号禁令对照面）
+    assert_eq!(t.entity_type[1], 43);
+    assert_eq!(t.param[1], 1);
+}
+
+/// 槽三禁令③配套（refactor-behavior-matrix 1.5）：**sort_by_y 平局序**——
+/// 严格小于 ⇒ 等值保序（a.java:6732-6822 冒泡 `pixelY[var4] < var1`）。
+/// **禁 unstable sort**（等值实体交换序变 ⇒ 无帧锚场景静默漂移，A1 反例）。
+#[test]
+fn sort_by_y_tie_order_is_stable() {
+    let wt = width_table();
+    let mut t = EntityTable::new(100);
+    let mut g = CellGrid::new(13, 13);
+    // y=[10,5,10,5,10]，param=身份 0..4，各占独立格
+    for (i, y) in [10, 5, 10, 5, 10].iter().enumerate() {
+        entity::spawn(&mut t, &mut g, 43, (i as i32) << 5, y << 5, i as i16, &wt, None);
+    }
+    entity::sort_by_y(&mut t, &mut g);
+    let order: Vec<i16> = (0..5).map(|i| t.param[i]).collect();
+    assert_eq!(order, vec![1, 3, 0, 2, 4], "同 y 组内相对序不变（y=5 组 1,3；y=10 组 0,2,4）");
+    let sorted_ys: Vec<i32> = (0..5).map(|i| t.pixel_y[i]).collect();
+    assert_eq!(sorted_ys, vec![160, 160, 320, 320, 320], "y 升序");
+}
