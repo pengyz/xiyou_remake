@@ -1,0 +1,44 @@
+# ticks: 1500
+# cover: BUG-006 走位实验（task-20 一锤定音判据）——序章对话推进至 SEE_3_10_166_166_1
+#   冻结态（T962 行尾收尾门 phase 6→4 → gameMode 3），随后**按设计走位**：
+#   (1,11) → (1,10) [y-] → (2,10) [x+] → (3,10) [x+] 踩中剧情点（sprite51 rec9
+#   type83 param=41，格 (3,10)）。触发链预期：step 臂 applyStepCellEffects case83
+#   （a.java:5710 tryRunScene(param,true)）→ tryRunScene 门 case 41 到达臂
+#   （a.java:8128-8147 `var3 &= var2`，step 传 true）→ loadLevelScript(41) →
+#   script41 = "TAK_167_167 SEE_4_10_168_168_0 ROS_4_1 …" → 对话页 167 现。
+#   观测判据：currentScriptIndex 40→41、scriptCursor 归 0 起步、dialogPage 167。
+#   键位（a.java:5308-5330 + fx-lay2a 实证）：-2=y+/-1=y-/-4=x+/-3=x-；
+#   每步 press 2 拍（8px×4=32px/格，walkPhase 机自行走完），步距 20 拍。
+#   对照：剧情点 (3,10) 的 bump 臂 tryRunScene(41,false) 被 from_walk 门挡掉
+#   （case 41 `var3 &= var2`）——bump 不触发、放行入格、step 踩点才触发（BUG-006
+#   重审结论的可判定验证）。走位路径避开其余剧情点（(1,11)/(6,11)/(7,10)…）。
+70 -6 press
+72 -6 release
+100 -5 press
+102 -5 release
+600 -5 press
+602 -5 release
+630 -5 press
+632 -5 release
+660 -5 press
+662 -5 release
+690 -5 press
+692 -5 release
+720 -5 press
+722 -5 release
+750 -5 press
+752 -5 release
+780 -5 press
+782 -5 release
+1000 -1 press
+1002 -1 release
+1020 -4 press
+1022 -4 release
+1100 -5 press
+1102 -5 release
+1200 -1 press
+1202 -1 release
+1220 -4 press
+1222 -4 release
+1240 -4 press
+1242 -4 release

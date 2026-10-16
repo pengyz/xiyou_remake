@@ -19,6 +19,18 @@ public final class StateDump {
     private static final int MAX_STRINGS = 64;
     private static final int MAX_ARRAY_ELEMS = 32;
 
+    /**
+     * 探针开关（2026-10-16 task-20）：-Doracle.dumpFull=true 时数组<b>全量</b>转储
+     * （primitive head 与对象数组元素均不截断）。默认（false）行为逐字节不变，
+     * A/B/C 对拍基线不受影响。
+     *
+     * 动机：cellSlotCount byte[128] 的 head=16、cellSlotTable byte[128][16] 的
+     * 32 行截断曾致 BUG-012 "槽计数全行≤1 与满 16 矛盾"误读——row 16..127 从未
+     * 打印（docs/bug-ledger.md BUG-012 重审段）。全量转储用于钉死 m_108 槽迁移
+     * 重复追加的累积行。
+     */
+    private static final boolean FULL_DUMP = Boolean.getBoolean("oracle.dumpFull");
+
     private StateDump() {
     }
 
@@ -111,7 +123,7 @@ public final class StateDump {
                 sb.append(" sha=#").append(primitiveHash(v));
             }
             sb.append(" head=");
-            int n = Math.min(len, 16);
+            int n = FULL_DUMP ? len : Math.min(len, 16);
             for (int i = 0; i < n; i++) {
                 if (i > 0) {
                     sb.append(',');
@@ -122,7 +134,7 @@ public final class StateDump {
         }
         // 对象数组：有限递归
         sb.append('{');
-        int n = Math.min(len, MAX_ARRAY_ELEMS);
+        int n = FULL_DUMP ? len : Math.min(len, MAX_ARRAY_ELEMS);
         for (int i = 0; i < n; i++) {
             if (i > 0) {
                 sb.append(',');
