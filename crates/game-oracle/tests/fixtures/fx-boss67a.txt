@@ -1,0 +1,25 @@
+# ticks: 560
+# preset: fx-boss67a.preset
+# cover: FX-BOSS-67A 啸天犬击杀钩子 spawnBossEvent(3) → 金勺子掉落（evidence-boss §2.2/
+#   R-boss-2/3）：boot 70/-6 100/-2 150/-5 200/-5 → 槽载入 floor15 (6,6) 朝上（(6,5) 同格
+#   叠 型5 门卫 + 型67 啸天犬——门卫无 interact 臂（case 清单 1/2/3/4/6/7/8/9/10/11/12/81/83
+#   无 5 ⇒ default:continue 透明），槽序无关）→ 300 -1 北撞 (6,5) ⇒ interactWithCell cat8
+#   战臂（a.java:5475-5491）：predictHpLossVsType(67)=0 < hp2000 ⇒ 开战（walkPhase=5、
+#   state=3、battleActiveFlag=true）→ walkPhase5 每 tick tickBattle(true)（a.java:3678，
+#   `f_int_151&3==0` 每 4 拍一击）→ 攻 2000-防20=1980 ≥ HP1200 一击毙 + 6 拍死亡动画 →
+#   击杀拍 bossTypeOrder[3]=67 ⇒ spawnBossEvent(3)（a.java:2198/10063-10067）→
+#   bossEventSpawns[3]={17,6,4,0}（a.java:2143）刷 **金勺子(17)@(6,4)** DES 态 +
+#   金币 +100（enemyBaseGold[26]，a.java:1121-1123）→ 收尾 switch 落 default（无脚本）。
+#   断言：型17 @(6,4) DES(solid=2)、gold=100+100、型67 移除。
+#   preset：python3 tools/frames_fixture.py preset floor=15 x=6 y=6 facing=1 hp=2000
+#   atk=2000 def=300 sky=5
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -1 press
+302 -1 release

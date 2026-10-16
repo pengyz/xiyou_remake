@@ -1,0 +1,32 @@
+# ticks: 600
+# preset: fx-boss74a.preset
+# cover: FX-BOSS-74A 巨灵神双钩子 + 遗言（evidence-boss §3.2/R-boss-2）：boot 70/-6 100/-2
+#   150/-5 200/-5 → 槽载入 floor20 (6,7) 朝上（(6,6) 同格叠 型5 门卫+型74 巨灵神+型83
+#   param6；preset flags=6 = scriptLineFlags[6]⇒ tryRunScene 首跑门关（a.java:8068-8224
+#   `!flags[6]` false）跳过 script6 登场戏 TAK_53_58）→ 300 -1 北撞 (6,6) ⇒ cat8 战臂
+#   开战 → tickBattle 自动逐拍（walkPhase5）→ 攻 2000-防66 一击毙（HP444）+ 6 拍死亡动画 →
+#   击杀拍双钩子（a.java:10063-10067 + 10078-10080）：① bossTypeOrder[1]=74 ⇒
+#   spawnBossEvent(1) 12 件掉落（a.java:2092-2141：威力丹29@(4,4)(4,5)(5,4)、
+#   黄钥匙26@(7,4)(8,4)(8,5)、金刚丹30@(4,7)(4,8)(5,8)、长寿丹32@(8,8)(7,8)(8,7)）；
+#   ② loadLevelScript(21) 遗言（a.java:1146 `TAK_59_59 `，文本 a.java:1827「啊~~~天王，
+#   巨玲儿不能陪伴你了……」speaker 74）⇒ mode11 对话 → 400/440 48 推进 → mode3。
+#   **无 tryRunScene 门控**：每次击杀都重放遗言（flags[21] 只在收尾置位不回挡 load，
+#   a.java:8600——单次击杀夹具无法二杀复现，该合同由 evidence-boss §3.2 钉 + 后补合成测）。
+#   断言：12 掉落全在（型29×3/26×3/30×3/32×3 DES 态）、currentScriptIndex=21 曾入、
+#   终态 mode3、gold += 144（enemyBaseGold[33]）。
+#   preset：python3 tools/frames_fixture.py preset floor=20 x=6 y=7 facing=1 hp=2000
+#   atk=2000 def=300 sky=5 flags=6
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -1 press
+302 -1 release
+400 48 press
+402 48 release
+440 48 press
+442 48 release

@@ -532,3 +532,64 @@ fn fx_item18a_clear_all_walls_frames_match() {
     assert_eq!(sc.player.find_item(18), -1, "成功消耗 1 次出栈");
     assert_eq!((sc.view.player_px >> 5, sc.view.player_py >> 5), (6, 6), "全程不移动");
 }
+
+/// FX-BOSS-67A：啸天犬击杀钩子 spawnBossEvent(3) → 金勺子掉落（evidence-boss §2.2/
+/// R-boss-2/3）。floor15 (6,5) 型67（与型5 门卫同格——门卫无 interact 臂透明）bump 战
+/// 一击毙 ⇒ bossTypeOrder[3]=67 ⇒ spawnBossEvent(3) ⇒ bossEventSpawns[3]={17,6,4,0}
+/// 刷金勺子(17)@(6,4) DES 态（a.java:2143）+ 金 +100。夹具帧链 A==B 双变体一致——
+/// C 变体因 deobf 投影 a.java:6592 型67 拼装臂 byte[]→Object[] 强转 ClassCastException
+/// 不可参与三方（A 级记录，见 reference/oracle/scenarios/bug-draft-aioobe-border.md
+/// 附记 / lead 追踪项）。T1-560。
+#[test]
+fn fx_boss67a_kill_spawn_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-boss67a.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-boss67a.txt"));
+    let (checked, sc) = replay(include_str!("fixtures/fx-boss67a.preset"), &records);
+    assert_eq!(checked, records.len(), "T1-560 全帧必须比对");
+    assert_eq!(sc.floor, 15);
+    assert_eq!(sc.player.gold, 200, "预置 100 + enemyBaseGold[26]=100");
+    let drop = (0..sc.entities.count)
+        .find(|&i| sc.entities.entity_type[i] == 17)
+        .expect("spawnBossEvent(3) 刷金勺子(17)");
+    assert_eq!(
+        (sc.entities.pixel_x[drop] >> 5, sc.entities.pixel_y[drop] >> 5),
+        (6, 4),
+        "bossEventSpawns[3]={{17,6,4,0}} @格(6,4)"
+    );
+    assert_eq!(sc.entities.solid[drop], 0, "DES 态=过渡（a.java:6333-6345 置 state=2+animRow=8）\
+        完成后 dispatchSpriteSize/AnimFields+state=0（a.java:6838-6843）——终态 0 即合同");
+    assert_eq!(sc.entities.anim_idx[drop], 0, "dispatchAnimFields 归位 animRowByType[17]=0");
+    let boss = (0..sc.entities.count)
+        .find(|&i| sc.entities.entity_type[i] == 67)
+        .expect("型67 在表");
+    assert!(sc.entities.removed[boss], "啸天犬死亡动画后 pullEntityFromCell");
+}
+
+/// FX-BOSS-74A：巨灵神双钩子（evidence-boss §3.2/R-boss-2）：击杀 74 ⇒ ① spawnBossEvent(1)
+/// 12 件掉落（a.java:2092-2141）② loadLevelScript(21) 遗言 TAK_59_59（无 tryRunScene
+/// 门控）⇒ script_line_flags[21] 收尾置位。preset flags=6 跳过 script6 登场戏。T1-600。
+#[test]
+fn fx_boss74a_kill_hooks_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-boss74a.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-boss74a.txt"));
+    let (checked, sc) = replay(include_str!("fixtures/fx-boss74a.preset"), &records);
+    assert_eq!(checked, records.len(), "T1-600 全帧必须比对");
+    assert_eq!(sc.floor, 20);
+    assert_eq!(sc.player.gold, 244, "预置 100 + enemyBaseGold[33]=144");
+    assert!(sc.script_line_flags[21], "script21 遗言已跑完（收尾置位 a.java:8600）");
+    // flags=6 预置即 scriptLineFlags[6]=true（登场戏门关，script6 全程未跑——断言
+    // 该旗标恒真无意义，登场戏缺席由帧链与 script21 独占 currentScriptIndex 佐证）。
+    // 12 件掉落（型:格）：29×3、26×3、30×3、32×3（a.java:2092-2141）
+    let drops = [(29, 4, 4), (29, 4, 5), (29, 5, 4), (26, 7, 4), (26, 8, 4), (26, 8, 5),
+                 (30, 4, 7), (30, 4, 8), (30, 5, 8), (32, 8, 8), (32, 7, 8), (32, 8, 7)];
+    for (t, cx, cy) in drops {
+        assert!(
+            (0..sc.entities.count).any(|i| {
+                sc.entities.entity_type[i] == t
+                    && sc.entities.pixel_x[i] >> 5 == cx
+                    && sc.entities.pixel_y[i] >> 5 == cy
+            }),
+            "掉落 型{t} @({cx},{cy}) 缺失"
+        );
+    }
+}
