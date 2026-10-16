@@ -372,6 +372,7 @@ fn dump_frame_pixels() {
     let map = load_container("map", 12);
     let tileset = map[0].clone();
     let mut screen = ArgbImage::create(game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
+    let mut out_state: Vec<String> = Vec::new();
     let mut pending_press = 0i32;
     let mut pending_release = false;
     for rec in &records {
@@ -379,6 +380,13 @@ fn dump_frame_pixels() {
         if pending_press != 0 { scene.press_key(pending_press); pending_press = 0; }
         if pending_release { scene.release_key(); pending_release = false; }
         if rec.tick > 537 { scene.tick(rec.tick as i64 - 1, &width_table()); }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            out_state.push(format!("TICK {}", rec.tick));
+            out_state.extend(dump_scene(&scene));
+            let _ = std::fs::create_dir_all(&d);
+            std::fs::write(format!("{d}/gameplay-floor1.state.txt"), out_state.join("\n")).unwrap();
+        }
         if let Some(inp) = &rec.input {
             if let Some(rest) = inp.strip_prefix("press(") {
                 if let Some(c) = rest.strip_suffix(')').and_then(|k| k.parse::<i32>().ok()) { pending_press = c; }

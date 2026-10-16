@@ -201,6 +201,7 @@ fn preset_load_menu_frames_match() {
     let mut pending_key = 0i32;
     let mut pending_press = 0i32;
     let mut pending_release = false;
+    let mut out_state: Vec<String> = Vec::new();
     for rec in &records {
         let key = pending_key;
         pending_key = input_key(&rec.input);
@@ -265,6 +266,15 @@ fn preset_load_menu_frames_match() {
         if rec.tick == 73 {
             if let Some(t) = &machine.title {
                 eprintln!("title particles: {:?}", t.particles.dump_first());
+            }
+        }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/preset-load-menu.state.txt"), out_state.join("\n")).unwrap();
             }
         }
         let sha;
@@ -392,6 +402,7 @@ fn preset_help_frames_match() {
     let mut pending_key = 0i32;
     let mut pending_press = 0i32;
     let mut pending_release = false;
+    let mut out_state: Vec<String> = Vec::new();
     for rec in &records {
         let key = pending_key;
         pending_key = input_key(&rec.input);
@@ -450,6 +461,15 @@ fn preset_help_frames_match() {
                     }
                     scene = Some(sc);
                 }
+            }
+        }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/preset-help.state.txt"), out_state.join("\n")).unwrap();
             }
         }
         let sha;
@@ -583,6 +603,7 @@ fn preset_item13_frames_match() {
     let mut pending_key = 0i32;
     let mut pending_press = 0i32;
     let mut pending_release = false;
+    let mut out_state: Vec<String> = Vec::new();
     for rec in &records {
         let key = pending_key;
         pending_key = input_key(&rec.input);
@@ -653,6 +674,15 @@ fn preset_item13_frames_match() {
                     pending_key = 0;
                 }
                 scene = Some(sc);
+            }
+        }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/preset-item13.state.txt"), out_state.join("\n")).unwrap();
             }
         }
         let sha;
@@ -785,6 +815,7 @@ fn preset_itemstack_frames_match() {
     let mut pending_key = 0i32;
     let mut pending_press = 0i32;
     let mut pending_release = false;
+    let mut out_state: Vec<String> = Vec::new();
     for rec in &records {
         let key = pending_key;
         pending_key = input_key(&rec.input);
@@ -855,6 +886,15 @@ fn preset_itemstack_frames_match() {
                     pending_key = 0;
                 }
                 scene = Some(sc);
+            }
+        }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/preset-itemstack.state.txt"), out_state.join("\n")).unwrap();
             }
         }
         let sha;
@@ -1006,6 +1046,7 @@ fn preset_item2122_frames_match() {
     let mut pending_key = 0i32;
     let mut pending_press = 0i32;
     let mut pending_release = false;
+    let mut out_state: Vec<String> = Vec::new();
     for rec in &records {
         let key = pending_key;
         pending_key = input_key(&rec.input);
@@ -1076,6 +1117,15 @@ fn preset_item2122_frames_match() {
                     pending_key = 0;
                 }
                 scene = Some(sc);
+            }
+        }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/preset-item2122.state.txt"), out_state.join("\n")).unwrap();
             }
         }
         let sha;
@@ -1230,6 +1280,7 @@ fn preset_item21_frames_match() {
     let mut pending_key = 0i32;
     let mut pending_press = 0i32;
     let mut pending_release = false;
+    let mut out_state: Vec<String> = Vec::new();
     for rec in &records {
         let key = pending_key;
         pending_key = input_key(&rec.input);
@@ -1300,6 +1351,15 @@ fn preset_item21_frames_match() {
                     pending_key = 0;
                 }
                 scene = Some(sc);
+            }
+        }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/preset-item21.state.txt"), out_state.join("\n")).unwrap();
             }
         }
         let sha;
@@ -1433,6 +1493,7 @@ fn preset_itemcymbal_frames_match() {
     let mut pending_key = 0i32;
     let mut pending_press = 0i32;
     let mut pending_release = false;
+    let mut out_state: Vec<String> = Vec::new();
     for rec in &records {
         let key = pending_key;
         pending_key = input_key(&rec.input);
@@ -1503,6 +1564,15 @@ fn preset_itemcymbal_frames_match() {
                     pending_key = 0;
                 }
                 scene = Some(sc);
+            }
+        }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/preset-itemcymbal.state.txt"), out_state.join("\n")).unwrap();
             }
         }
         let sha;
@@ -1673,6 +1743,7 @@ fn preset_itemboss40_frames_match() {
     let mut pending_key = 0i32;
     let mut pending_press = 0i32;
     let mut pending_release = false;
+    let mut out_state: Vec<String> = Vec::new();
     for rec in &records {
         let key = pending_key;
         pending_key = input_key(&rec.input);
@@ -1745,6 +1816,15 @@ fn preset_itemboss40_frames_match() {
                     }
                     scene = Some(sc);
                 }
+            }
+        }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/preset-itemboss40.state.txt"), out_state.join("\n")).unwrap();
             }
         }
         let sha;
@@ -1899,6 +1979,7 @@ fn preset_floor2_frames_match() {
     let mut pending_key = 0i32;
     let mut pending_press = 0i32;
     let mut pending_release = false;
+    let mut out_state: Vec<String> = Vec::new();
     for rec in &records {
         let key = pending_key;
         pending_key = input_key(&rec.input);
@@ -1971,6 +2052,15 @@ fn preset_floor2_frames_match() {
                     }
                     scene = Some(sc);
                 }
+            }
+        }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/preset-floor2.state.txt"), out_state.join("\n")).unwrap();
             }
         }
         let sha;
@@ -2124,6 +2214,7 @@ fn preset_merchant_frames_match() {
     let mut pending_key = 0i32;
     let mut pending_press = 0i32;
     let mut pending_release = false;
+    let mut out_state: Vec<String> = Vec::new();
     for rec in &records {
         let key = pending_key;
         pending_key = input_key(&rec.input);
@@ -2196,6 +2287,15 @@ fn preset_merchant_frames_match() {
                     }
                     scene = Some(sc);
                 }
+            }
+        }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/preset-merchant.state.txt"), out_state.join("\n")).unwrap();
             }
         }
         let sha;
@@ -2341,6 +2441,7 @@ fn floor_crossing_frames_match() {
     let mut pending_key = 0i32;
     let mut pending_press = 0i32;
     let mut pending_release = false;
+    let mut out_state: Vec<String> = Vec::new();
     for rec in &records {
         let key = pending_key;
         pending_key = input_key(&rec.input);
@@ -2413,6 +2514,15 @@ fn floor_crossing_frames_match() {
                     }
                     scene = Some(sc);
                 }
+            }
+        }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/floor-crossing.state.txt"), out_state.join("\n")).unwrap();
             }
         }
         let sha;
@@ -2554,6 +2664,7 @@ fn prologue_frames_match() {
     let mut pending_key = 0i32;
     let mut pending_press = 0i32;
     let mut pending_release = false;
+    let mut out_state: Vec<String> = Vec::new();
     for rec in &records {
         let key = pending_key;
         pending_key = input_key(&rec.input);
@@ -2626,6 +2737,15 @@ fn prologue_frames_match() {
                     pending_key = 0;
                 }
                 scene = Some(sc);
+            }
+        }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/prologue.state.txt"), out_state.join("\n")).unwrap();
             }
         }
         let sha;
@@ -2764,6 +2884,7 @@ fn floor51_menu_frames_match() {
     let mut pending_key = 0i32;
     let mut pending_press = 0i32;
     let mut pending_release = false;
+    let mut out_state: Vec<String> = Vec::new();
     for rec in &records {
         let key = pending_key;
         pending_key = input_key(&rec.input);
@@ -2836,6 +2957,15 @@ fn floor51_menu_frames_match() {
                     pending_key = 0;
                 }
                 scene = Some(sc);
+            }
+        }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/floor51-menu.state.txt"), out_state.join("\n")).unwrap();
             }
         }
         let sha;
@@ -2981,6 +3111,7 @@ fn gameplay_floor1_frames_match() {
     let mut pending_key = 0i32;
     let mut pending_press = 0i32;
     let mut pending_release = false;
+    let mut out_state: Vec<String> = Vec::new();
     for rec in &records {
         let key = pending_key;
         pending_key = input_key(&rec.input);
@@ -3053,6 +3184,15 @@ fn gameplay_floor1_frames_match() {
                     }
                     scene = Some(sc);
                 }
+            }
+        }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/gameplay-floor1.state.txt"), out_state.join("\n")).unwrap();
             }
         }
         let sha;
@@ -3199,6 +3339,7 @@ fn floor2_tour_frames_match() {
     let mut pending_key = 0i32;
     let mut pending_press = 0i32;
     let mut pending_release = false;
+    let mut out_state: Vec<String> = Vec::new();
     for rec in &records {
         let key = pending_key;
         pending_key = input_key(&rec.input);
@@ -3271,6 +3412,15 @@ fn floor2_tour_frames_match() {
                     }
                     scene = Some(sc);
                 }
+            }
+        }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/floor2-tour.state.txt"), out_state.join("\n")).unwrap();
             }
         }
         let sha;
@@ -3415,6 +3565,7 @@ fn floor1_tour_frames_match() {
     let mut pending_key = 0i32;
     let mut pending_press = 0i32;
     let mut pending_release = false;
+    let mut out_state: Vec<String> = Vec::new();
     for rec in &records {
         let key = pending_key;
         pending_key = input_key(&rec.input);
@@ -3487,6 +3638,15 @@ fn floor1_tour_frames_match() {
                     }
                     scene = Some(sc);
                 }
+            }
+        }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/floor1-tour.state.txt"), out_state.join("\n")).unwrap();
             }
         }
         let sha;
@@ -3631,6 +3791,7 @@ fn walk_pure_frames_match() {
     let mut pending_key = 0i32;
     let mut pending_press = 0i32;
     let mut pending_release = false;
+    let mut out_state: Vec<String> = Vec::new();
     for rec in &records {
         let key = pending_key;
         pending_key = input_key(&rec.input);
@@ -3703,6 +3864,15 @@ fn walk_pure_frames_match() {
                     }
                     scene = Some(sc);
                 }
+            }
+        }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/walk-pure.state.txt"), out_state.join("\n")).unwrap();
             }
         }
         let sha;
@@ -3838,6 +4008,7 @@ fn preset_save_frames_match() {
     let mut pending_key = 0i32;
     let mut pending_press = 0i32;
     let mut pending_release = false;
+    let mut out_state: Vec<String> = Vec::new();
     for rec in &records {
         let key = pending_key;
         pending_key = input_key(&rec.input);
@@ -3910,6 +4081,15 @@ fn preset_save_frames_match() {
                     }
                     scene = Some(sc);
                 }
+            }
+        }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/preset-save.state.txt"), out_state.join("\n")).unwrap();
             }
         }
         let sha;
@@ -4067,6 +4247,7 @@ fn preset_floor35_frames_match() {
     let mut pending_key = 0i32;
     let mut pending_press = 0i32;
     let mut pending_release = false;
+    let mut out_state: Vec<String> = Vec::new();
     for rec in &records {
         let key = pending_key;
         pending_key = input_key(&rec.input);
@@ -4139,6 +4320,15 @@ fn preset_floor35_frames_match() {
                     }
                     scene = Some(sc);
                 }
+            }
+        }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/preset-floor35.state.txt"), out_state.join("\n")).unwrap();
             }
         }
         let sha;
@@ -4295,6 +4485,7 @@ fn preset_floor10_frames_match() {
     let mut pending_key = 0i32;
     let mut pending_press = 0i32;
     let mut pending_release = false;
+    let mut out_state: Vec<String> = Vec::new();
     for rec in &records {
         let key = pending_key;
         pending_key = input_key(&rec.input);
@@ -4367,6 +4558,15 @@ fn preset_floor10_frames_match() {
                     }
                     scene = Some(sc);
                 }
+            }
+        }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/preset-floor10.state.txt"), out_state.join("\n")).unwrap();
             }
         }
         let sha;
@@ -4615,6 +4815,15 @@ fn preset_floor46_frames_match() {
                 }
             }
         }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/preset-floor46.state.txt"), out_state.join("\n")).unwrap();
+            }
+        }
         let sha;
         {
             let mut g = SoftGraphics::new(&mut screen);
@@ -4846,6 +5055,15 @@ fn preset_floor41_frames_match() {
                 }
             }
         }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/preset-floor41.state.txt"), out_state.join("\n")).unwrap();
+            }
+        }
         let sha;
         {
             let mut g = SoftGraphics::new(&mut screen);
@@ -5066,6 +5284,15 @@ fn preset_floor44_frames_match() {
                     }
                     scene = Some(sc);
                 }
+            }
+        }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/preset-floor44.state.txt"), out_state.join("\n")).unwrap();
             }
         }
         let sha;
@@ -5290,6 +5517,15 @@ fn preset_floor45_frames_match() {
                 }
             }
         }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/preset-floor45.state.txt"), out_state.join("\n")).unwrap();
+            }
+        }
         let sha;
         {
             let mut g = SoftGraphics::new(&mut screen);
@@ -5512,6 +5748,15 @@ fn preset_floor48_frames_match() {
                     }
                     scene = Some(sc);
                 }
+            }
+        }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/preset-floor48.state.txt"), out_state.join("\n")).unwrap();
             }
         }
         let sha;
@@ -5739,6 +5984,15 @@ fn preset_floor14_frames_match() {
                 }
             }
         }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/preset-floor14.state.txt"), out_state.join("\n")).unwrap();
+            }
+        }
         let sha;
         {
             let mut g = SoftGraphics::new(&mut screen);
@@ -5962,6 +6216,15 @@ fn preset_floor38_frames_match() {
                 }
             }
         }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/preset-floor38.state.txt"), out_state.join("\n")).unwrap();
+            }
+        }
         let sha;
         {
             let mut g = SoftGraphics::new(&mut screen);
@@ -6183,6 +6446,15 @@ fn preset_floor47_frames_match() {
                 }
             }
         }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/preset-floor47.state.txt"), out_state.join("\n")).unwrap();
+            }
+        }
         let sha;
         {
             let mut g = SoftGraphics::new(&mut screen);
@@ -6400,6 +6672,15 @@ fn preset_floor34_frames_match() {
                     }
                     scene = Some(sc);
                 }
+            }
+        }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/preset-floor34.state.txt"), out_state.join("\n")).unwrap();
             }
         }
         let sha;
@@ -6621,6 +6902,15 @@ fn preset_floor10_nw_frames_match() {
                 }
             }
         }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/preset-floor10-nw.state.txt"), out_state.join("\n")).unwrap();
+            }
+        }
         let sha;
         {
             let mut g = SoftGraphics::new(&mut screen);
@@ -6837,6 +7127,15 @@ fn preset_floor10b_frames_match() {
                     }
                     scene = Some(sc);
                 }
+            }
+        }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/preset-floor10b.state.txt"), out_state.join("\n")).unwrap();
             }
         }
         let sha;
@@ -7057,6 +7356,15 @@ fn preset_floor17_frames_match() {
                 }
             }
         }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/preset-floor17.state.txt"), out_state.join("\n")).unwrap();
+            }
+        }
         let sha;
         {
             let mut g = SoftGraphics::new(&mut screen);
@@ -7213,6 +7521,7 @@ fn preset_floor42_frames_match() {
     let mut pending_key = 0i32;
     let mut pending_press = 0i32;
     let mut pending_release = false;
+    let mut out_state: Vec<String> = Vec::new();
     for rec in &records {
         let key = pending_key;
         pending_key = input_key(&rec.input);
@@ -7285,6 +7594,15 @@ fn preset_floor42_frames_match() {
                     }
                     scene = Some(sc);
                 }
+            }
+        }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/preset-floor42.state.txt"), out_state.join("\n")).unwrap();
             }
         }
         let sha;
@@ -7514,16 +7832,14 @@ fn preset_floor43_frames_match() {
                 }
             }
         }
-        if std::env::var("STATE_OUT").is_ok() {
+        if let Ok(d) = std::env::var("STATE_OUT") {
             use game_oracle::state_dump::dump_scene;
             if let Some(sc) = &scene {
                 out_state.push(format!("TICK {}", rec.tick));
-                for line in dump_scene(sc) {
-                    out_state.push(line);
-                }
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/preset-floor43.state.txt"), out_state.join("\n")).unwrap();
             }
-            // 逐 tick 落盘：断言 panic 时状态已持久化（floor43 挂起期取证）
-            std::fs::write("/tmp/f43-state.txt", out_state.join("\n")).unwrap();
         }
         let sha;
         {
@@ -7673,6 +7989,7 @@ fn preset_alchemy_frames_match() {
     let mut pending_key = 0i32;
     let mut pending_press = 0i32;
     let mut pending_release = false;
+    let mut out_state: Vec<String> = Vec::new();
     for rec in &records {
         let key = pending_key;
         pending_key = input_key(&rec.input);
@@ -7745,6 +8062,15 @@ fn preset_alchemy_frames_match() {
                     }
                     scene = Some(sc);
                 }
+            }
+        }
+        if let Ok(d) = std::env::var("STATE_OUT") {
+            use game_oracle::state_dump::dump_scene;
+            if let Some(sc) = &scene {
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/preset-alchemy.state.txt"), out_state.join("\n")).unwrap();
             }
         }
         let sha;

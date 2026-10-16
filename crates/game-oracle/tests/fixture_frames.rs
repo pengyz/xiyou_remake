@@ -182,14 +182,17 @@ fn all_floors() -> Vec<Option<FloorAssets>> {
 /// 逐拍重放：boot（标题→读档菜单→槽0）→ mode3 交 GameScene → 场景输入；每拍 paint 后与夹具帧
 /// 比对。驱动时序与 preset_cases 同构（INPUT 在 paint 后投递 ⇒ 下一拍逻辑消费）。
 /// 返回 (比对帧数, 终态场景)。
-fn replay(preset_text: &str, records: &[FrameRec]) -> (usize, GameScene) {
-    let (checked, scene) = replay_opt(preset_text, records);
+fn replay(label: &str, preset_text: &str, records: &[FrameRec]) -> (usize, GameScene) {
+    let (checked, scene) = replay_opt(label, preset_text, records);
     (checked, scene.expect("应已交场景（槽载入完成 ⇒ gameMode 3）"))
 }
 
 /// 同 `replay`，但交场景前截止的夹具（FX-BUG-AIOOBE：Java 于 T237 dispatch 崩溃、
 /// 夹具止于 T236）场景可缺席。
-fn replay_opt(preset_text: &str, records: &[FrameRec]) -> (usize, Option<GameScene>) {
+/// STATE_OUT=<dir> 时逐拍导出 state_dump 金样（refactor-plan §7 条件 1/2 实施前置）：
+/// 每场景一份 `<dir>/<label>.state.txt`（TICK 块 + dump_scene 行）。行序=state_dump.rs
+/// dump_scene push 序（A2 冻结声明：金样字节序以此为准，禁按 FLD 序重排）。
+fn replay_opt(label: &str, preset_text: &str, records: &[FrameRec]) -> (usize, Option<GameScene>) {
     let stores = parse_preset(preset_text);
     let mot_l0 = &stores.iter().find(|(k, _)| k.starts_with("MOT_L0@")).expect("MOT_L0").1;
     let save = parse_floor_save(mot_l0, 0).unwrap();
@@ -225,6 +228,7 @@ fn replay_opt(preset_text: &str, records: &[FrameRec]) -> (usize, Option<GameSce
     let mut scene: Option<GameScene> = None;
     let mut pending_key = 0i32;
     let mut pending_press = 0i32;
+    let mut out_state: Vec<String> = Vec::new();
     let mut pending_release = false;
     for rec in records {
         let key = pending_key;
@@ -239,6 +243,13 @@ fn replay_opt(preset_text: &str, records: &[FrameRec]) -> (usize, Option<GameSce
                 pending_release = false;
             }
             sc.tick(rec.tick as i64 - 1, &width_table);
+            if let Ok(d) = std::env::var("STATE_OUT") {
+                use game_oracle::state_dump::dump_scene;
+                out_state.push(format!("TICK {}", rec.tick));
+                out_state.extend(dump_scene(sc));
+                let _ = std::fs::create_dir_all(&d);
+                std::fs::write(format!("{d}/{label}.state.txt"), out_state.join("\n")).unwrap();
+            }
             match rec.input.as_deref() {
                 Some(i) if i.starts_with("press(") => pending_press = press_code(&rec.input),
                 Some(i) if i.starts_with("release(") => pending_release = true,
@@ -307,7 +318,7 @@ fn replay_opt(preset_text: &str, records: &[FrameRec]) -> (usize, Option<GameSce
 fn preset_floor5_fixture_frames_match() {
     let records = frame_records(include_str!("fixtures/preset-floor5.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("../../../reference/oracle/scenarios/preset-floor5.txt"));
-    let (checked, sc) = replay(include_str!("../../../reference/oracle/scenarios/preset-floor5.preset"), &records);
+    let (checked, sc) = replay("preset-floor5", include_str!("../../../reference/oracle/scenarios/preset-floor5.preset"), &records);
     assert_eq!(checked, records.len(), "T1-1200 全帧必须比对");
     assert_eq!(sc.floor, 5);
     assert!(sc.player.find_item(14) >= 0, "道具14 已入栈（addItemToItemStack）");
@@ -320,7 +331,7 @@ fn preset_floor5_fixture_frames_match() {
 fn preset_floor49_fixture_frames_match() {
     let records = frame_records(include_str!("fixtures/preset-floor49.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("../../../reference/oracle/scenarios/preset-floor49.txt"));
-    let (checked, sc) = replay(include_str!("../../../reference/oracle/scenarios/preset-floor49.preset"), &records);
+    let (checked, sc) = replay("preset-floor49", include_str!("../../../reference/oracle/scenarios/preset-floor49.preset"), &records);
     assert_eq!(checked, records.len(), "T1-3400 全帧必须比对");
     assert_eq!(sc.floor, 49);
 }
@@ -331,7 +342,7 @@ fn preset_floor49_fixture_frames_match() {
 fn fx_scriptwalk_floor3_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-scriptwalk-floor3.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-scriptwalk-floor3.txt"));
-    let (checked, sc) = replay(include_str!("fixtures/fx-scriptwalk-floor3.preset"), &records);
+    let (checked, sc) = replay("fx-scriptwalk-floor3", include_str!("fixtures/fx-scriptwalk-floor3.preset"), &records);
     assert_eq!(checked, records.len(), "T1-700 全帧必须比对");
     assert_eq!((sc.view.player_px >> 5, sc.view.player_py >> 5), (5, 11), "MOV_0_5_11 终点");
 }
@@ -342,7 +353,7 @@ fn fx_scriptwalk_floor3_frames_match() {
 fn fx_knockback_floor43_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-knockback-floor43.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-knockback-floor43.txt"));
-    let (checked, sc) = replay(include_str!("fixtures/fx-knockback-floor43.preset"), &records);
+    let (checked, sc) = replay("fx-knockback-floor43", include_str!("fixtures/fx-knockback-floor43.preset"), &records);
     assert_eq!(checked, records.len(), "T1-600 全帧必须比对");
     assert_eq!(sc.player.hp, 100, "500 − 200 × 2（a.java:5628-5631）");
 }
@@ -353,7 +364,7 @@ fn fx_knockback_floor43_frames_match() {
 fn fx_fan_floor13_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-fan-floor13.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-fan-floor13.txt"));
-    let (checked, sc) = replay(include_str!("fixtures/fx-fan-floor13.preset"), &records);
+    let (checked, sc) = replay("fx-fan-floor13", include_str!("fixtures/fx-fan-floor13.preset"), &records);
     assert_eq!(checked, records.len(), "T1-830 全帧必须比对");
     let i = sc.player.find_item(16);
     assert!(i >= 0 && sc.player.item_uses[i as usize] == 2, "命中一次消耗 1（a.java:7766）");
@@ -368,7 +379,7 @@ fn fx_fan_floor13_frames_match() {
 fn fx_firebump_floor13_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-firebump-floor13.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-firebump-floor13.txt"));
-    let (checked, sc) = replay(include_str!("fixtures/fx-firebump-floor13.preset"), &records);
+    let (checked, sc) = replay("fx-firebump-floor13", include_str!("fixtures/fx-firebump-floor13.preset"), &records);
     assert_eq!(checked, records.len(), "T1-480 全帧必须比对");
     assert_eq!((sc.view.player_px >> 5, sc.view.player_py >> 5), (6, 7), "型10 阻挡（var6=false）");
 }
@@ -383,7 +394,7 @@ fn fx_firebump_floor13_frames_match() {
 fn fx_int6a_reveal_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-int6a.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-int6a.txt"));
-    let (checked, sc) = replay(include_str!("fixtures/fx-int6a.preset"), &records);
+    let (checked, sc) = replay("fx-int6a", include_str!("fixtures/fx-int6a.preset"), &records);
     assert_eq!(checked, records.len(), "T1-560 全帧必须比对");
     assert_eq!(sc.floor, 5);
     assert_eq!(
@@ -412,7 +423,7 @@ fn fx_int6a_reveal_frames_match() {
 fn fx_bug_aioobe_border_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-bug-aioobe-border.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-bug-aioobe-border.txt"));
-    let (checked, scene) = replay_opt(include_str!("fixtures/fx-bug-aioobe-border.preset"), &records);
+    let (checked, scene) = replay_opt("fx-bug-aioobe-border", include_str!("fixtures/fx-bug-aioobe-border.preset"), &records);
     assert_eq!(checked, records.len(), "T1-236 = Java 崩溃前可观测前缀全帧对拍");
     assert!(
         scene.is_none(),
@@ -428,7 +439,7 @@ fn fx_bug_aioobe_border_frames_match() {
 fn fx_door2a_open_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-door2a.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-door2a.txt"));
-    let (checked, sc) = replay(include_str!("fixtures/fx-door2a.preset"), &records);
+    let (checked, sc) = replay("fx-door2a", include_str!("fixtures/fx-door2a.preset"), &records);
     assert_eq!(checked, records.len(), "T1-520 全帧必须比对");
     assert_eq!(sc.floor, 40);
     assert_eq!(
@@ -449,7 +460,7 @@ fn fx_door2a_open_frames_match() {
 fn fx_door2b_nokey_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-door2b.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-door2b.txt"));
-    let (checked, sc) = replay(include_str!("fixtures/fx-door2b.preset"), &records);
+    let (checked, sc) = replay("fx-door2b", include_str!("fixtures/fx-door2b.preset"), &records);
     assert_eq!(checked, records.len(), "T1-520 全帧必须比对");
     assert_eq!(sc.floor, 40);
     assert_eq!(
@@ -471,7 +482,7 @@ fn fx_door2b_nokey_frames_match() {
 fn fx_item17b_fail_no_consume_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-item17b.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-item17b.txt"));
-    let (checked, sc) = replay(include_str!("fixtures/fx-item17b.preset"), &records);
+    let (checked, sc) = replay("fx-item17b", include_str!("fixtures/fx-item17b.preset"), &records);
     assert_eq!(checked, records.len(), "T1-560 全帧必须比对");
     assert_eq!(sc.floor, 13);
     assert_eq!((sc.view.player_px >> 5, sc.view.player_py >> 5), (6, 8), "全程不移动");
@@ -486,7 +497,7 @@ fn fx_item17b_fail_no_consume_frames_match() {
 fn fx_item19a_heal_exact_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-item19a.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-item19a.txt"));
-    let (checked, sc) = replay(include_str!("fixtures/fx-item19a.preset"), &records);
+    let (checked, sc) = replay("fx-item19a", include_str!("fixtures/fx-item19a.preset"), &records);
     assert_eq!(checked, records.len(), "T1-560 全帧必须比对");
     assert_eq!(sc.floor, 13);
     assert_eq!(sc.player.hp, 2779, "500 + (105+203)*74/10 = 500+2279（整数截断钉死）");
@@ -501,7 +512,7 @@ fn fx_item19a_heal_exact_frames_match() {
 fn fx_item17a_chisel_wall_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-item17a.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-item17a.txt"));
-    let (checked, sc) = replay(include_str!("fixtures/fx-item17a.preset"), &records);
+    let (checked, sc) = replay("fx-item17a", include_str!("fixtures/fx-item17a.preset"), &records);
     assert_eq!(checked, records.len(), "T1-620 全帧必须比对");
     assert_eq!(sc.floor, 29);
     assert_eq!((sc.view.player_px >> 5, sc.view.player_py >> 5), (8, 3), "凿墙后走入原墙格");
@@ -518,7 +529,7 @@ fn fx_item17a_chisel_wall_frames_match() {
 fn fx_item18a_clear_all_walls_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-item18a.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-item18a.txt"));
-    let (checked, sc) = replay(include_str!("fixtures/fx-item18a.preset"), &records);
+    let (checked, sc) = replay("fx-item18a", include_str!("fixtures/fx-item18a.preset"), &records);
     assert_eq!(checked, records.len(), "T1-560 全帧必须比对");
     assert_eq!(sc.floor, 37);
     let walls: Vec<usize> = (0..sc.entities.count)
@@ -544,7 +555,7 @@ fn fx_item18a_clear_all_walls_frames_match() {
 fn fx_boss67a_kill_spawn_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-boss67a.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-boss67a.txt"));
-    let (checked, sc) = replay(include_str!("fixtures/fx-boss67a.preset"), &records);
+    let (checked, sc) = replay("fx-boss67a", include_str!("fixtures/fx-boss67a.preset"), &records);
     assert_eq!(checked, records.len(), "T1-560 全帧必须比对");
     assert_eq!(sc.floor, 15);
     assert_eq!(sc.player.gold, 200, "预置 100 + enemyBaseGold[26]=100");
@@ -572,7 +583,7 @@ fn fx_boss67a_kill_spawn_frames_match() {
 fn fx_boss74a_kill_hooks_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-boss74a.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-boss74a.txt"));
-    let (checked, sc) = replay(include_str!("fixtures/fx-boss74a.preset"), &records);
+    let (checked, sc) = replay("fx-boss74a", include_str!("fixtures/fx-boss74a.preset"), &records);
     assert_eq!(checked, records.len(), "T1-600 全帧必须比对");
     assert_eq!(sc.floor, 20);
     assert_eq!(sc.player.gold, 244, "预置 100 + enemyBaseGold[33]=144");
@@ -604,7 +615,7 @@ fn fx_boss74a_kill_hooks_frames_match() {
 fn fx_int11_f23_transform_silent_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-int11f23.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-int11f23.txt"));
-    let (checked, sc) = replay(include_str!("fixtures/fx-int11f23.preset"), &records);
+    let (checked, sc) = replay("fx-int11f23", include_str!("fixtures/fx-int11f23.preset"), &records);
     assert_eq!(checked, records.len(), "T1-560 全帧必须比对");
     assert_eq!(sc.floor, 23);
     assert_eq!(
@@ -633,7 +644,7 @@ fn fx_int11_f23_transform_silent_frames_match() {
 fn fx_item20a_no_teleport_floor40_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-item20a.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-item20a.txt"));
-    let (checked, sc) = replay(include_str!("fixtures/fx-item20a.preset"), &records);
+    let (checked, sc) = replay("fx-item20a", include_str!("fixtures/fx-item20a.preset"), &records);
     assert_eq!(checked, records.len(), "T1-680 全帧必须比对");
     assert_eq!(sc.floor, 40);
     assert_eq!(
@@ -656,7 +667,7 @@ fn fx_item20a_no_teleport_floor40_frames_match() {
 fn fx_int11_n23_wall_message_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-int11n23.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-int11n23.txt"));
-    let (checked, sc) = replay(include_str!("fixtures/fx-int11n23.preset"), &records);
+    let (checked, sc) = replay("fx-int11n23", include_str!("fixtures/fx-int11n23.preset"), &records);
     assert_eq!(checked, records.len(), "T1-400 全帧必须比对");
     assert_eq!(sc.floor, 29);
     assert_eq!(
@@ -686,7 +697,7 @@ fn fx_int11_n23_wall_message_frames_match() {
 fn fx_boss68a_kill_spawn_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-boss68a.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-boss68a.txt"));
-    let (checked, sc) = replay(include_str!("fixtures/fx-boss68a.preset"), &records);
+    let (checked, sc) = replay("fx-boss68a", include_str!("fixtures/fx-boss68a.preset"), &records);
     assert_eq!(checked, records.len(), "T1-760 全帧必须比对");
     assert_eq!(sc.floor, 25);
     assert_eq!(sc.player.gold, 1000, "enemyBaseGold[27]=1000（预置 gold=0）");
@@ -733,7 +744,7 @@ fn fx_bug_ces70_slot_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-bug-ces70-slot.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-bug-ces70-slot.txt"));
     let preset = include_str!("fixtures/fx-bug-ces70-slot.preset").to_string();
-    let outcome = catch_unwind(AssertUnwindSafe(|| replay_opt(&preset, &records)));
+    let outcome = catch_unwind(AssertUnwindSafe(|| replay_opt("fx-bug-ces70-slot", &preset, &records)));
     match outcome {
         Ok((checked, scene)) => {
             assert_eq!(checked, records.len(), "T1-349 = Java 崩溃前可观测前缀全帧对拍");

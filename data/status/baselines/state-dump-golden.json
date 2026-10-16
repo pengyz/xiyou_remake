@@ -1,0 +1,283 @@
+{
+ "schema": "state-dump-golden-1",
+ "purpose": "重构前 HEAD 基线（refactor-plan §7 条件 1）：第 1/2 步逐字节对照面",
+ "line_order_freeze": "dump_scene 现行 push 序为金样字节序（A2）：TraceState/Entity 迁移适配其序，禁按 FLD 序重排；FLD 行=Java 反射序两机制分列不混谈。",
+ "probe": "python3 tools/state_baseline.py --check",
+ "scenarios": {
+  "floor-crossing.state": {
+   "sha256": "5e6f2abd54b0f21435a2254d25240f40a4b2482870842fb63482c59c7703f4ff",
+   "bytes": 1692450,
+   "ticks": 964
+  },
+  "floor1-tour.state": {
+   "sha256": "ded6436b1a3eab6b489dc79e807ee5b6d57d1c97f6de0a0619833f5670bca98c",
+   "bytes": 13120072,
+   "ticks": 7464
+  },
+  "floor2-tour.state": {
+   "sha256": "733df405902c1f4d8df0fcbf69510d547b17b427c3b2aeb1f448b47816513c28",
+   "bytes": 2571240,
+   "ticks": 1464
+  },
+  "floor51-menu.state": {
+   "sha256": "fe03b1cb73a7629280756a7467576728d9aa27afb198510d9101e1239eec2046",
+   "bytes": 16417037,
+   "ticks": 9224
+  },
+  "fx-boss67a.state": {
+   "sha256": "4fa67a673d0c32bfeeae91ed0ff261e2a4a1b151cc787f11239e905d48739b15",
+   "bytes": 566782,
+   "ticks": 323
+  },
+  "fx-boss68a.state": {
+   "sha256": "1a865f4b3d967ca282d2046501b7788a08f14b93f8699a5e0d154ab0d1a7a5a4",
+   "bytes": 918398,
+   "ticks": 523
+  },
+  "fx-boss74a.state": {
+   "sha256": "be5fb62a6841f671f0761f76093e0097ad4f99c48802130592e7228a4581536d",
+   "bytes": 641937,
+   "ticks": 363
+  },
+  "fx-bug-ces70-slot.state": {
+   "sha256": "6689b1f1999ba963a4c5d25d7fee9295a9bc1df026dfecf9abaa6e713798b4c7",
+   "bytes": 196586,
+   "ticks": 112
+  },
+  "fx-door2a.state": {
+   "sha256": "25cc255ac01a999d54c490d22eb48ec0269eee6ada1a68368c2a09a4fa5b58c1",
+   "bytes": 499271,
+   "ticks": 283
+  },
+  "fx-door2b.state": {
+   "sha256": "c086698639df430bb8d2ad9def12f6cd9d47a9f64f02848fe2ef686970cec408",
+   "bytes": 499255,
+   "ticks": 283
+  },
+  "fx-fan-floor13.state": {
+   "sha256": "e916ec9509ae3527cfc82ac93b54c93f2d4b62ced187028a058f8ac71edb8a87",
+   "bytes": 1025179,
+   "ticks": 593
+  },
+  "fx-firebump-floor13.state": {
+   "sha256": "eef14e1f9e369bd2289fe0afa118ed8993cd19929dc141004f66b9331ebd8092",
+   "bytes": 420028,
+   "ticks": 243
+  },
+  "fx-int11f23.state": {
+   "sha256": "b9299a09730f260690715b047830a97bf6c2da5c266097440ec873cf2f92d496",
+   "bytes": 575006,
+   "ticks": 323
+  },
+  "fx-int11n23.state": {
+   "sha256": "84578bede27b34b2044b7c05d56e437e714e026f3795fee1aee392195cb9561c",
+   "bytes": 280423,
+   "ticks": 163
+  },
+  "fx-int6a.state": {
+   "sha256": "d8a27b981adcb655788494e48b19fb8a083a18fcec04c105ae5fb5423a88aeac",
+   "bytes": 567003,
+   "ticks": 323
+  },
+  "fx-item17a.state": {
+   "sha256": "0b6d34a7b89a1dc02a5a3f77ef044408d3211b907f7112b48fbbebc99d5d5440",
+   "bytes": 658762,
+   "ticks": 383
+  },
+  "fx-item17b.state": {
+   "sha256": "9fc6801d930407072de469856dbf3125ae3c433e0508513b94491e1934d79cd6",
+   "bytes": 557905,
+   "ticks": 323
+  },
+  "fx-item18a.state": {
+   "sha256": "1067ef60f81c74cc068ebeff3cd997efd443bd7be658c397c580005833d53626",
+   "bytes": 564888,
+   "ticks": 323
+  },
+  "fx-item19a.state": {
+   "sha256": "d089dbaefff1f107e2c76212ec87198abb77df65912aa1833d93c5cf27b064bb",
+   "bytes": 558408,
+   "ticks": 323
+  },
+  "fx-item20a.state": {
+   "sha256": "267ea03ff3bdf0ab5e8490ea1dc983df7b5b1d50e316d03d5b5c13dbdee1ab06",
+   "bytes": 782062,
+   "ticks": 443
+  },
+  "fx-knockback-floor43.state": {
+   "sha256": "a879413285e3baaa88731f3cce242864e5ded3fd55567bd98ff6daea051750b0",
+   "bytes": 636216,
+   "ticks": 363
+  },
+  "fx-scriptwalk-floor3.state": {
+   "sha256": "763d13807c5625208b46e84dc2bdc409a66a4370b9da08fe26c8717aba386759",
+   "bytes": 813958,
+   "ticks": 463
+  },
+  "gameplay-floor1.state": {
+   "sha256": "d992913c3e7926d9def0aa290cba003b43357b5c8bce08994f7f7f98d90d1e44",
+   "bytes": 4329296,
+   "ticks": 2464
+  },
+  "preset-alchemy.state": {
+   "sha256": "fed5645e1034be6690e77bcf08c11d56824ccf5359f0204ab82adaa77046d2f4",
+   "bytes": 816674,
+   "ticks": 464
+  },
+  "preset-floor10-nw.state": {
+   "sha256": "2062b38411a5e879b2a66bafea9fa2a49f565c6980d725fbe0cb04322d0bdb7e",
+   "bytes": 1888416,
+   "ticks": 1074
+  },
+  "preset-floor10.state": {
+   "sha256": "2062b38411a5e879b2a66bafea9fa2a49f565c6980d725fbe0cb04322d0bdb7e",
+   "bytes": 1888416,
+   "ticks": 1074
+  },
+  "preset-floor10b.state": {
+   "sha256": "e64fea07ed8f7477d36d35ec1259f238fff23913c14c066a38f106f65480ad1b",
+   "bytes": 1083775,
+   "ticks": 614
+  },
+  "preset-floor14.state": {
+   "sha256": "78998a4617133d3ed7f6693a47dbda3ded3d3d9b40b3dc9fc673f6d07d06efa0",
+   "bytes": 7994242,
+   "ticks": 4554
+  },
+  "preset-floor17.state": {
+   "sha256": "b9e21ec3e954fe2b3c1781c1121ec39970263d695c90b180c0a48f152c3f5678",
+   "bytes": 1079477,
+   "ticks": 614
+  },
+  "preset-floor2.state": {
+   "sha256": "2292d2e5e75293f385e27c92ede2421d30b929b150a917537bd7621bf22dd2a4",
+   "bytes": 640547,
+   "ticks": 364
+  },
+  "preset-floor34.state": {
+   "sha256": "fa255249d0afb3406077e97ff518722d2b0576a7c49557c9a89927b9e4254671",
+   "bytes": 4914888,
+   "ticks": 2794
+  },
+  "preset-floor35.state": {
+   "sha256": "967002f4bca6f76503627a466f01254234bc183814a86562819fe17d8b4adb7f",
+   "bytes": 1709113,
+   "ticks": 964
+  },
+  "preset-floor38.state": {
+   "sha256": "c077b6b9d3311cef42dbae96935cc71f7ddffff3f960d020414faae21c3e0feb",
+   "bytes": 10259395,
+   "ticks": 5814
+  },
+  "preset-floor41.state": {
+   "sha256": "1d7e8f979a001bfb8a2ad4fc2f9dd574a0d117a62966408a86f71ccfd95985fd",
+   "bytes": 2921017,
+   "ticks": 1664
+  },
+  "preset-floor42.state": {
+   "sha256": "698c20abb54136f879e286cdace61f0b99e7152687e45177ac8180d395343ad3",
+   "bytes": 2587132,
+   "ticks": 1464
+  },
+  "preset-floor43.state": {
+   "sha256": "4b47618aa7055c41e4db5043ea6747832cbd5aa4de7cfe32c468daf6b8cdc94a",
+   "bytes": 2215190,
+   "ticks": 1264
+  },
+  "preset-floor44.state": {
+   "sha256": "e0e78f78f5e0242437142c378909f4fda9d642019b884a8888404289eaaf32bd",
+   "bytes": 2389285,
+   "ticks": 1364
+  },
+  "preset-floor45.state": {
+   "sha256": "a0a6dcfe1b37c829af8e5af6071a187c433ae666fa009730f8ee940bff209736",
+   "bytes": 2577678,
+   "ticks": 1464
+  },
+  "preset-floor46.state": {
+   "sha256": "e39cd1b79de26fb73f65139cd9280df8ba99e818bda92dea13de4cf31049d6a6",
+   "bytes": 2571566,
+   "ticks": 1464
+  },
+  "preset-floor47.state": {
+   "sha256": "f245097025ec8e5e36d7c684afb5e8997c55e455495eb36c065d0db7a6a1196d",
+   "bytes": 1965139,
+   "ticks": 1114
+  },
+  "preset-floor48.state": {
+   "sha256": "a4fd8b81b1f46fb6ff866388fca7ab0982262c948a7c37de838ac5165b8d018d",
+   "bytes": 5637675,
+   "ticks": 3204
+  },
+  "preset-floor49.state": {
+   "sha256": "cf4f357491035158cddde08f17072df82e9e53ff25d17fee13e6b8e96b8f9880",
+   "bytes": 5557410,
+   "ticks": 3163
+  },
+  "preset-floor5.state": {
+   "sha256": "42483e653d02811744942624d3d42dfa04a02c7ce8c5b590e743bb9839b4bfcd",
+   "bytes": 1690766,
+   "ticks": 963
+  },
+  "preset-help.state": {
+   "sha256": "3d60642be6b162ebadcad56dc703b3a8c6e7bb5137d5f8f2575ca4c87e94cb38",
+   "bytes": 966700,
+   "ticks": 564
+  },
+  "preset-item13.state": {
+   "sha256": "29cbbb8ec3e55a2d5910c722d4fec055aa15883e945649474e10d02781e7af10",
+   "bytes": 463639,
+   "ticks": 264
+  },
+  "preset-item21.state": {
+   "sha256": "cf1a531e13b4d86a750aa4f542cf0bb9bb97608a67ce159d7085e95e29d0b555",
+   "bytes": 1165543,
+   "ticks": 664
+  },
+  "preset-item2122.state": {
+   "sha256": "59eb678c4cff53bdb5235dd75dec65ee98f0048468ff39ed9b9926ae17920311",
+   "bytes": 1166085,
+   "ticks": 664
+  },
+  "preset-itemboss40.state": {
+   "sha256": "86729b03d3a1088693fcbfa7d291ebe5fc527ae4c4ea3874c813c7aa1aa39aa1",
+   "bytes": 818922,
+   "ticks": 464
+  },
+  "preset-itemcymbal.state": {
+   "sha256": "d532f19f6a0ce1a86a33a8f0f32361c356f3e817d6f37905bf8e69e1a81cf624",
+   "bytes": 639390,
+   "ticks": 364
+  },
+  "preset-itemstack.state": {
+   "sha256": "d7848fb450972d8712cc3e76d1e665cc9f7dbdd86aba979dc38065acd4f524d4",
+   "bytes": 463686,
+   "ticks": 264
+  },
+  "preset-load-menu.state": {
+   "sha256": "c5c071b739c718596e2b37f2ac5b61bb295119ead8b11f6072d1e5235d8dbd37",
+   "bytes": 966716,
+   "ticks": 564
+  },
+  "preset-merchant.state": {
+   "sha256": "c27b6ba213d37657485018d9ba2a9375713a1571f90673a7d59869a20dfa5b25",
+   "bytes": 640479,
+   "ticks": 364
+  },
+  "preset-save.state": {
+   "sha256": "e58433e0800370f8c983db917d4af58ac2b961034028353a1ff1fbd92a69e1cd",
+   "bytes": 814734,
+   "ticks": 464
+  },
+  "prologue.state": {
+   "sha256": "fe03b1cb73a7629280756a7467576728d9aa27afb198510d9101e1239eec2046",
+   "bytes": 16417037,
+   "ticks": 9224
+  },
+  "walk-pure.state": {
+   "sha256": "c6ec23544f3e041a5db76ce1d138ebf6d664a0b6d31a0d13a2fe6c8fe67b70f5",
+   "bytes": 6088682,
+   "ticks": 3464
+  }
+ }
+}
