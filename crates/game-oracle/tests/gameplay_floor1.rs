@@ -292,10 +292,10 @@ fn floor1_entity_draw_order_anchor() {
     // 可见实体（visible 且未 removed）按序前几个（sprite1 spawn 序 + 排序）：
     // Y=32 行（idx0 type7 stair、idx1 41、idx2 42、idx3 41 —— 屏外但序内）
     let t: Vec<i32> = (0..scene.entities.count)
-        .map(|i| scene.entities.entity_type[i])
+        .map(|i| scene.entities.items[i].type_)
         .collect();
     let y: Vec<i32> = (0..scene.entities.count)
-        .map(|i| scene.entities.pixel_y[i])
+        .map(|i| scene.entities.items[i].py)
         .collect();
     assert_eq!(y, {
         let mut s = y.clone();
@@ -307,10 +307,10 @@ fn floor1_entity_draw_order_anchor() {
     // 玩家插入锚：首个"玩家正下方 32px 邻域"实体 = (96,352) 的 type41
     let mut insert_at = None;
     for i in 0..scene.entities.count {
-        let ex = scene.entities.pixel_x[i];
-        let ey = scene.entities.pixel_y[i];
-        if !scene.entities.removed[i]
-            && scene.entities.visible[i]
+        let ex = scene.entities.items[i].px;
+        let ey = scene.entities.items[i].py;
+        if !scene.entities.items[i].removed
+            && scene.entities.items[i].visible
             && 96 > ex - 32
             && 96 < ex + 32
             && 320 >= ey - 32
@@ -321,10 +321,10 @@ fn floor1_entity_draw_order_anchor() {
         }
     }
     let i = insert_at.expect("玩家南侧实体存在");
-    assert_eq!((scene.entities.pixel_x[i], scene.entities.pixel_y[i]), (96, 352));
+    assert_eq!((scene.entities.items[i].px, scene.entities.items[i].py), (96, 352));
     // type 83 三实体隐藏（m_122 case 83 → entityVisible=false）
     let hidden_83: usize = (0..scene.entities.count)
-        .filter(|&i| scene.entities.entity_type[i] == 83 && !scene.entities.visible[i])
+        .filter(|&i| scene.entities.items[i].type_ == 83 && !scene.entities.items[i].visible)
         .count();
     assert_eq!(hidden_83, 3);
     // 类别覆盖表锚（特例优先）

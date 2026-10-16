@@ -111,16 +111,30 @@ pub fn dump_scene(sc: &GameScene) -> Vec<String> {
     push(e_bool("scriptWalkArmed", sc.script_walk_armed));
     push(e_bool("battleActiveFlag", sc.battle_active));
 
-    // 实体数组（前 count 项有效；Java 恒 100 槽，尾部 0 填充在两侧等价）
-    push(e_int_arr("entityType", &sc.entities.entity_type));
-    push(e_int_arr("entityPixelX", &sc.entities.pixel_x));
-    push(e_int_arr("entityPixelY", &sc.entities.pixel_y));
-    push(e_int_arr("entityAnimRow", &sc.entities.anim_idx));
-    push(e_int_arr("entityAnimFrame", &sc.entities.frame));
-    push(e_short_arr("entityParam", &sc.entities.param));
-    push(e_byte_arr("entityState", &sc.entities.solid));
-    push(e_bool_arr("entityVisible", &sc.entities.visible));
-    push(e_bool_arr("entityRemoved", &sc.entities.removed));
+    // 实体数组（前 count 项有效；Java 恒 100 槽，尾部 0 填充在两侧等价）。
+    // SoA→AoS（第 1 步）后按 items 映射重建整表引用：**push 序/值序/尾默认逐字节
+    // 保持**（A2 行序冻结；Entity::default=旧 Vec 预填值 ⇒ 金样不变）。
+    let ea_i32 = |f: fn(&game_core::entity::Entity) -> i32| -> Vec<i32> {
+        sc.entities.items.iter().map(|e| f(e)).collect()
+    };
+    let ea_i16 = |f: fn(&game_core::entity::Entity) -> i16| -> Vec<i16> {
+        sc.entities.items.iter().map(|e| f(e)).collect()
+    };
+    let ea_u8 = |f: fn(&game_core::entity::Entity) -> u8| -> Vec<u8> {
+        sc.entities.items.iter().map(|e| f(e)).collect()
+    };
+    let ea_bool = |f: fn(&game_core::entity::Entity) -> bool| -> Vec<bool> {
+        sc.entities.items.iter().map(|e| f(e)).collect()
+    };
+    push(e_int_arr("entityType", &ea_i32(|e| e.type_)));
+    push(e_int_arr("entityPixelX", &ea_i32(|e| e.px)));
+    push(e_int_arr("entityPixelY", &ea_i32(|e| e.py)));
+    push(e_int_arr("entityAnimRow", &ea_i32(|e| e.anim_row)));
+    push(e_int_arr("entityAnimFrame", &ea_i32(|e| e.anim_frame)));
+    push(e_short_arr("entityParam", &ea_i16(|e| e.param)));
+    push(e_byte_arr("entityState", &ea_u8(|e| e.state)));
+    push(e_bool_arr("entityVisible", &ea_bool(|e| e.visible)));
+    push(e_bool_arr("entityRemoved", &ea_bool(|e| e.removed)));
     push(e_int_arr("enemyBaseGold", &sc.enemy_base_gold));
     push(e_byte_arr("walkPathBuffer", &sc.walk_path_buffer));
 

@@ -919,8 +919,8 @@ impl GameScene {
                 let param = read_u16(&data, &mut pos) as i16;
                 let img_h = self.images.entity.get(t as usize).cloned().flatten().map(|im| im.height);
                 let idx = entity::spawn(&mut entities, &mut grid, t, x, y, param, &self.width_table, img_h);
-                entities.visible[idx] = visible;
-                entities.removed[idx] = false; // m_122 else：恢复的实体 removed=false
+                entities.items[idx].visible = visible;
+                entities.items[idx].removed = false; // m_122 else：恢复的实体 removed=false
             }
             // m_122 恢复分支尾的层特例 switch(currentFloor)（a.java:9642-9669）：
             // case 2（a.java:9643-9646）= `!scriptLineFlags[26] && findBlockingEntity(11,4,84) < 0`
@@ -948,7 +948,7 @@ impl GameScene {
                     img_h,
                 );
                 if !visible {
-                    entities.visible[idx] = false; // m_122 特例分支（5/81/6/12/76/82/83）
+                    entities.items[idx].visible = false; // m_122 特例分支（5/81/6/12/76/82/83）
                 }
             }
         }
@@ -1022,13 +1022,13 @@ impl GameScene {
         let mut body: Vec<u8> = Vec::new();
         let mut live = 0u16;
         for e in 0..self.entities.count {
-            if !self.entities.removed[e] && self.entities.solid[e] != 1 {
+            if !self.entities.items[e].removed && self.entities.items[e].state != 1 {
                 live += 1;
-                body.push(self.entities.entity_type[e] as u8);
-                body.extend_from_slice(&(self.entities.pixel_x[e] as u16).to_be_bytes());
-                body.extend_from_slice(&(self.entities.pixel_y[e] as u16).to_be_bytes());
-                body.push(self.entities.visible[e] as u8);
-                body.extend_from_slice(&(self.entities.param[e] as u16).to_be_bytes());
+                body.push(self.entities.items[e].type_ as u8);
+                body.extend_from_slice(&(self.entities.items[e].px as u16).to_be_bytes());
+                body.extend_from_slice(&(self.entities.items[e].py as u16).to_be_bytes());
+                body.push(self.entities.items[e].visible as u8);
+                body.extend_from_slice(&(self.entities.items[e].param as u16).to_be_bytes());
             }
         }
         let mut data = Vec::with_capacity(body.len() + 2);
@@ -1073,7 +1073,7 @@ impl GameScene {
     fn find_floor_gate_entity(&self, up: bool) -> Option<usize> {
         let want = if up { 7 } else { 8 };
         for e in 0..self.entities.count {
-            if self.entities.entity_type[e] == want && (self.entities.param[e] >> 9) == 0 {
+            if self.entities.items[e].type_ == want && (self.entities.items[e].param >> 9) == 0 {
                 return Some(e);
             }
         }
@@ -1083,8 +1083,8 @@ impl GameScene {
     fn find_floor_gate(&self, up: bool) -> Option<(i32, i32)> {
         let want = if up { 7 } else { 8 };
         for e in 0..self.entities.count {
-            if self.entities.entity_type[e] == want && (self.entities.param[e] >> 9) == 0 {
-                return Some((self.entities.pixel_x[e] >> 5, self.entities.pixel_y[e] >> 5));
+            if self.entities.items[e].type_ == want && (self.entities.items[e].param >> 9) == 0 {
+                return Some((self.entities.items[e].px >> 5, self.entities.items[e].py >> 5));
             }
         }
         None
@@ -1122,7 +1122,7 @@ impl GameScene {
             return;
         }
         let idx = self.grid.slots[ct][slot as usize] as usize - 1;
-        self.entities.removed[idx] = true;
+        self.entities.items[idx].removed = true;
         for k in slot as usize..cap - 1 {
             self.grid.slots[ct][k] = self.grid.slots[ct][k + 1];
         }
@@ -1134,8 +1134,8 @@ impl GameScene {
     pub fn try_open_chest(&mut self, chest_param: i16) -> bool {
         self.open_group.clear();
         for k in 0..self.entities.count {
-            if !self.entities.removed[k] && chest_param == self.entities.param[k] {
-                let tk = self.entities.entity_type[k];
+            if !self.entities.items[k].removed && chest_param == self.entities.items[k].param {
+                let tk = self.entities.items[k].type_;
                 if tk == 5 {
                     return false; // 未开的另一宝箱挡路
                 }
@@ -1357,8 +1357,8 @@ impl GameScene {
                 let param = read_u16(&data, &mut pos) as i16;
                 let img_h = self.images.entity.get(t as usize).cloned().flatten().map(|im| im.height);
                 let idx = entity::spawn(&mut entities, &mut grid, t, x, y, param, &self.width_table, img_h);
-                entities.visible[idx] = visible;
-                entities.removed[idx] = false;
+                entities.items[idx].visible = visible;
+                entities.items[idx].removed = false;
             }
             if self.floor == 2
                 && !self.script_line_flags[26]
@@ -1381,7 +1381,7 @@ impl GameScene {
                     img_h,
                 );
                 if !visible {
-                    entities.visible[idx] = false;
+                    entities.items[idx].visible = false;
                 }
             }
         }
@@ -1402,7 +1402,7 @@ impl GameScene {
         }
         let mut found = false;
         for e in 0..self.entities.count {
-            if !self.entities.removed[e] && self.entities.entity_type[e] == type_id {
+            if !self.entities.items[e].removed && self.entities.items[e].type_ == type_id {
                 found = true;
                 break;
             }
@@ -1531,7 +1531,7 @@ impl GameScene {
     /// m_102(23,12)）需层序列化快照，未移植（见上 todo）。
     fn m_102_current_floor(&self, type_id: i32) -> bool {
         (0..self.entities.count)
-            .any(|i| !self.entities.removed[i] && self.entities.entity_type[i] == type_id)
+            .any(|i| !self.entities.items[i].removed && self.entities.items[i].type_ == type_id)
     }
 
     /// loadLevelScript（a.java:8035-8052）：mode 11 + 脚本行装载。
@@ -1573,14 +1573,14 @@ impl GameScene {
                 if self.dialog_speaker != 0 && self.dialog_speaker != 87 {
                     let mut found = -1;
                     for e in (0..self.entities.count).rev() {
-                        if self.entities.entity_type[e] == self.dialog_speaker {
+                        if self.entities.items[e].type_ == self.dialog_speaker {
                             found = e as i32;
                             break;
                         }
                     }
                     if found >= 0 {
-                        self.ease_target_x = self.entities.pixel_x[found as usize];
-                        self.ease_target_y = self.entities.pixel_y[found as usize];
+                        self.ease_target_x = self.entities.items[found as usize].px;
+                        self.ease_target_y = self.entities.items[found as usize].py;
                         // a.java:8667-8668（lockCameraOn 内）：型69 目标 X += 32
                         if self.dialog_speaker == 69 {
                             self.ease_target_x += 32;
@@ -1934,12 +1934,12 @@ impl GameScene {
                 if self.route_entity >= 0 {
                     let ei = self.route_entity as usize;
                     self.route_phase = 0; // routePhase = 0（a.java:8291）
-                    if self.entities.entity_type[ei] == 72 {
-                        self.entities.anim_idx[ei] = 1; // a.java:8293-8294
+                    if self.entities.items[ei].type_ == 72 {
+                        self.entities.items[ei].anim_row = 1; // a.java:8293-8294
                     }
                     // f_int_129/130 = 实体起点格（a.java:8297-8298）
                     self.route_start =
-                        (self.entities.pixel_x[ei] >> 5, self.entities.pixel_y[ei] >> 5);
+                        (self.entities.items[ei].px >> 5, self.entities.items[ei].py >> 5);
                     // findPath(起点格 → 目标格)：返回值不判（a.java:8299）——m_106
                     // 只认 walkPathBuffer/walkStepCount（find_path 恒重写，含回溯
                     // 失败的部分前缀）
@@ -1963,7 +1963,7 @@ impl GameScene {
                 let (_, e) = Self::parse_script_int(&line, v2 + 1, ' ');
                 let want = -t0;
                 for i in (0..self.entities.count).rev() {
-                    if self.entities.entity_type[i] == want
+                    if self.entities.items[i].type_ == want
                         && entity::remove(&mut self.entities, i)
                     {
                         self.build_minimap();
@@ -1983,9 +1983,9 @@ impl GameScene {
             // SWD（a.java:8336-8352）：全表扫 81 → 显形 + 改型 4 + DES 状态
             // 动画（state=2 行 8——advance_frames 帧尽自解为常态）。
             for i in (0..self.entities.count).rev() {
-                if !self.entities.removed[i] && self.entities.entity_type[i] == 81 {
-                    self.entities.visible[i] = true;
-                    self.entities.entity_type[i] = 4;
+                if !self.entities.items[i].removed && self.entities.items[i].type_ == 81 {
+                    self.entities.items[i].visible = true;
+                    self.entities.items[i].type_ = 4;
                     let img_h = self
                         .images
                         .entity
@@ -2000,8 +2000,8 @@ impl GameScene {
                         &self.width_table,
                         img_h,
                     );
-                    self.entities.solid[i] = 2;
-                    self.entities.anim_idx[i] = 8;
+                    self.entities.items[i].state = 2;
+                    self.entities.items[i].anim_row = 8;
                 }
             }
             self.script_cursor = var2 + 1;
@@ -2033,8 +2033,8 @@ impl GameScene {
             self.ease_cam_x = ((self.view.view_w - 32) >> 1) - self.view.cam_x;
             self.ease_cam_y = ((self.view.view_h - 32) >> 1) - self.view.cam_y;
             // Java `if (var4 >= 0)` 守卫（a.java:8398）：spawn 返回 usize 恒非负 ⇒ 恒真
-            self.ease_target_x = self.entities.pixel_x[idx];
-            self.ease_target_y = self.entities.pixel_y[idx];
+            self.ease_target_x = self.entities.items[idx].px;
+            self.ease_target_y = self.entities.items[idx].py;
             self.script_delay = match self.entity_category(t0) {
                 1 | 8 | 16 => 5,
                 2 | 4 => 8,
@@ -2119,8 +2119,8 @@ impl GameScene {
             // 就地压缩不清尾（a.java:6440-6443）⇒ stale 尾重触发 quirk 保真。
             let mut buf = [0i16; 32];
             for v6 in (0..self.entities.count as i32).rev() {
-                if self.entities.entity_type[v6 as usize] == 82 {
-                    let key = self.entities.param[v6 as usize] as i32 & 255;
+                if self.entities.items[v6 as usize].type_ == 82 {
+                    let key = self.entities.items[v6 as usize].param as i32 & 255;
                     let mut v7 = 0;
                     while v7 < 32 {
                         let v70 = buf[v7] as i32 - 1;
@@ -2128,7 +2128,7 @@ impl GameScene {
                             buf[v7] = (v6 + 1) as i16;
                             break;
                         }
-                        if key == (self.entities.param[v70 as usize] as i32 & 255) {
+                        if key == (self.entities.items[v70 as usize].param as i32 & 255) {
                             buf[v7 + 1] = (v6 + 1) as i16;
                             break;
                         }
@@ -2146,17 +2146,17 @@ impl GameScene {
                 if v9 > 0 {
                     v70 -= 1;
                     v9 -= 1;
-                    let mut cx86 = self.entities.pixel_x[v70 as usize] >> 5;
-                    let mut cy6 = self.entities.pixel_y[v70 as usize] >> 5;
+                    let mut cx86 = self.entities.items[v70 as usize].px >> 5;
+                    let mut cy6 = self.entities.items[v70 as usize].py >> 5;
                     let ct44 = self.grid.cell_type[cy6 as usize][cx86 as usize] as usize;
                     let n8 = self.grid.capacity[ct44] as usize;
                     let mut v12 = 0;
                     while v12 < n8 {
                         let v10 = self.grid.slots[ct44][v12] as usize - 1;
-                        let t56 = self.entities.entity_type[v10];
+                        let t56 = self.entities.items[v10].type_;
                         if entity::render_category(t56) == 8 {
-                            let tx = self.entities.pixel_x[v9 as usize] >> 5;
-                            let ty = self.entities.pixel_y[v9 as usize] >> 5;
+                            let tx = self.entities.items[v9 as usize].px >> 5;
+                            let ty = self.entities.items[v9 as usize].py >> 5;
                             entity::remove_group_at_cell_by_type(tx, ty, 82, &mut self.entities, &mut self.grid);
                             entity::remove_group_at_cell_by_type(cx86, cy6, 82, &mut self.entities, &mut self.grid);
                             self.m_107(v10, tx, ty);
@@ -2165,17 +2165,17 @@ impl GameScene {
                     }
                     // A/B 交换（a.java:8571-8573）后重复反向
                     core::mem::swap(&mut v70, &mut v9);
-                    cx86 = self.entities.pixel_x[v70 as usize] >> 5;
-                    cy6 = self.entities.pixel_y[v70 as usize] >> 5;
+                    cx86 = self.entities.items[v70 as usize].px >> 5;
+                    cy6 = self.entities.items[v70 as usize].py >> 5;
                     let ct46 = self.grid.cell_type[cy6 as usize][cx86 as usize] as usize;
                     let n8b = self.grid.capacity[ct46] as usize;
                     let mut v93 = 0;
                     while v93 < n8b {
                         let v92 = self.grid.slots[ct46][v93] as usize - 1;
-                        let t56 = self.entities.entity_type[v92];
+                        let t56 = self.entities.items[v92].type_;
                         if entity::render_category(t56) == 8 {
-                            let tx = self.entities.pixel_x[v9 as usize] >> 5;
-                            let ty = self.entities.pixel_y[v9 as usize] >> 5;
+                            let tx = self.entities.items[v9 as usize].px >> 5;
+                            let ty = self.entities.items[v9 as usize].py >> 5;
                             entity::remove_group_at_cell_by_type(tx, ty, 82, &mut self.entities, &mut self.grid);
                             entity::remove_group_at_cell_by_type(cx86, cy6, 82, &mut self.entities, &mut self.grid);
                             self.m_107(v92, tx, ty);
@@ -2200,10 +2200,10 @@ impl GameScene {
     /// 实体 removeGroupAtCellByType 摘槽（"复制-删除" quirk：旧格同型多只
     /// 一并消失，Stage A 保真）。
     fn m_107(&mut self, idx: usize, cx: i32, cy: i32) {
-        let ox = self.entities.pixel_x[idx];
-        let oy = self.entities.pixel_y[idx];
-        let t = self.entities.entity_type[idx];
-        let p = self.entities.param[idx];
+        let ox = self.entities.items[idx].px;
+        let oy = self.entities.items[idx].py;
+        let t = self.entities.items[idx].type_;
+        let p = self.entities.items[idx].param;
         let img_h = self.images.entity.get(t as usize).cloned().flatten().map(|im| im.height);
         entity::spawn(&mut self.entities, &mut self.grid, t, cx << 5, cy << 5, p, &self.width_table, img_h);
         entity::remove_group_at_cell_by_type(ox >> 5, oy >> 5, t, &mut self.entities, &mut self.grid);
@@ -2247,8 +2247,8 @@ impl GameScene {
                     let ct = self.grid.cell_type[y][x] as usize;
                     if ct > 0 && self.grid.capacity[ct] > 0 {
                         let first = self.grid.slots[ct][0] as usize - 1;
-                        if !self.entities.removed[first] && self.entities.solid[first] != 1 {
-                            match self.entities.entity_type[first] {
+                        if !self.entities.items[first].removed && self.entities.items[first].state != 1 {
+                            match self.entities.items[first].type_ {
                                 1 => {
                                     g.set_color(MINIMAP_DOOR);
                                     g.fill_rect(px, py, 3, 3);
@@ -2425,8 +2425,8 @@ impl GameScene {
                 if self.walk_step_count > 0 {
                     self.walk_step_count -= 1;
                     self.route_dir = self.walk_path_buffer[self.walk_step_count as usize] as i32;
-                    let mut nx = self.entities.pixel_x[e] >> 5;
-                    let mut ny = self.entities.pixel_y[e] >> 5;
+                    let mut nx = self.entities.items[e].px >> 5;
+                    let mut ny = self.entities.items[e].py >> 5;
                     match self.route_dir {
                         0 => ny += 1,
                         1 => ny -= 1,
@@ -2435,7 +2435,7 @@ impl GameScene {
                         _ => {}
                     }
                     self.route_phase = 1;
-                    let t = self.entities.entity_type[e];
+                    let t = self.entities.items[e].type_;
                     if t != 72 && nx == self.player_cell_x && ny == self.player_cell_y {
                         let loss = self.predict_hp_loss(t, false);
                         if loss >= 0 && loss < self.player.hp {
@@ -2444,7 +2444,7 @@ impl GameScene {
                             self.walk_phase = 5;
                             self.battle_active = false;
                             self.battle_target = self.route_entity;
-                            self.entities.solid[e] = 5;
+                            self.entities.items[e].state = 5;
                             self.route_phase = 5;
                             self.battle_no_counter = false;
                             let strike = self.enemies.atk[ti] - self.player.def;
@@ -2463,7 +2463,7 @@ impl GameScene {
                     while k > 0 {
                         k -= 1;
                         let id = self.grid.slots[ct][k as usize] as usize - 1;
-                        let tt = self.entities.entity_type[id];
+                        let tt = self.entities.items[id].type_;
                         if self.entity_category(tt) == 1 && tt == 11 && entity::remove(&mut self.entities, id) {
                             self.build_minimap();
                         }
@@ -2473,43 +2473,43 @@ impl GameScene {
                 let (sx, sy) = self.route_start;
                 entity::relocate_slot(&mut self.grid, &self.entities, e, sx, sy);
                 self.dialog_phase = 0;
-                let t = self.entities.entity_type[e];
+                let t = self.entities.items[e].type_;
                 entity::dispatch_anim(t, e, &mut self.entities);
                 self.route_entity = -1;
             }
             1 => {
                 let e = self.route_entity as usize;
                 match self.route_dir {
-                    0 => self.entities.pixel_y[e] += 8,
-                    1 => self.entities.pixel_y[e] -= 8,
-                    2 => self.entities.pixel_x[e] += 8,
-                    3 => self.entities.pixel_x[e] -= 8,
+                    0 => self.entities.items[e].py += 8,
+                    1 => self.entities.items[e].py -= 8,
+                    2 => self.entities.items[e].px += 8,
+                    3 => self.entities.items[e].px -= 8,
                     _ => {}
                 }
-                self.ease_target_x = self.entities.pixel_x[e];
-                self.ease_target_y = self.entities.pixel_y[e];
+                self.ease_target_x = self.entities.items[e].px;
+                self.ease_target_y = self.entities.items[e].py;
                 self.route_progress += 8;
-                let row = self.entities.anim_idx[e];
+                let row = self.entities.items[e].anim_row;
                 if row > 0 {
-                    if self.entities.frame[e] < ANIM_OFFSET_TABLE[row as usize].len() as i32 - 1 {
-                        self.entities.frame[e] += 1;
+                    if self.entities.items[e].anim_frame < ANIM_OFFSET_TABLE[row as usize].len() as i32 - 1 {
+                        self.entities.items[e].anim_frame += 1;
                     } else {
-                        self.entities.frame[e] = 0;
+                        self.entities.items[e].anim_frame = 0;
                     }
                 }
                 if self.route_progress == 32 {
                     self.route_progress = 0;
                     self.route_phase = 0;
-                    let cx = self.entities.pixel_x[e] >> 5;
-                    let cy = self.entities.pixel_y[e] >> 5;
-                    let t = self.entities.entity_type[e];
+                    let cx = self.entities.items[e].px >> 5;
+                    let cy = self.entities.items[e].py >> 5;
+                    let t = self.entities.items[e].type_;
                     if cx == self.player_cell_x && cy == self.player_cell_y && t != 72 {
                         let loss = self.predict_hp_loss(t, false);
                         if loss >= 0 && loss < self.player.hp {
                             self.player.hp -= loss;
                             let (sx, sy) = self.route_start;
                             entity::relocate_slot(&mut self.grid, &self.entities, e, sx, sy);
-                            let t = self.entities.entity_type[e];
+                            let t = self.entities.items[e].type_;
                             entity::remove_group_at_cell_by_type(
                                 cx,
                                 cy,
@@ -2530,7 +2530,7 @@ impl GameScene {
             5 => {
                 self.tick_battle(self.battle_active);
                 let e = self.route_entity as usize;
-                if !self.battle_finishing && (self.entities.removed[e] || self.entities.solid[e] == 1) {
+                if !self.battle_finishing && (self.entities.items[e].removed || self.entities.items[e].state == 1) {
                     self.dialog_phase = 0;
                     self.route_phase = 0;
                     self.route_entity = -1;
@@ -2938,7 +2938,7 @@ impl GameScene {
                 let mut e = self.entities.count;
                 while e > 0 {
                     e -= 1;
-                    if self.entities.entity_type[e] == 11
+                    if self.entities.items[e].type_ == 11
                         && entity::remove(&mut self.entities, e)
                     {
                         self.build_minimap();
@@ -2959,7 +2959,7 @@ impl GameScene {
                 let mut e = self.entities.count;
                 while e > 0 {
                     e -= 1;
-                    if self.entities.entity_type[e] == 1 && entity::remove(&mut self.entities, e) {
+                    if self.entities.items[e].type_ == 1 && entity::remove(&mut self.entities, e) {
                         self.build_minimap();
                     }
                 }
@@ -3028,16 +3028,16 @@ impl GameScene {
         let mut slot = 0i32;
         while slot < cap {
             let e = self.grid.slots[ct][slot as usize] as usize - 1;
-            let t = self.entities.entity_type[e];
+            let t = self.entities.items[e].type_;
             if t == 5 {
-                let param = self.entities.param[e];
+                let param = self.entities.items[e].param;
                 self.remove_slot_at(cx, cy, slot);
                 if self.try_open_chest(param) {
                     self.walk_phase = 4;
                 }
             } else if t < 67
                 && self.entity_category(t) == 8
-                && self.entities.solid[e] != 1
+                && self.entities.items[e].state != 1
             {
                 entity::remove(&mut self.entities, e);
                 let gold = if self.player.find_item(25) >= 0 {
@@ -3072,7 +3072,7 @@ impl GameScene {
         let cap = self.grid.capacity[ct] as usize;
         for s in 0..cap {
             let e = self.grid.slots[ct][s] as usize - 1;
-            if self.entities.entity_type[e] == target && self.entities.solid[e] != 1 {
+            if self.entities.items[e].type_ == target && self.entities.items[e].state != 1 {
                 return e as i32;
             }
         }
@@ -3434,10 +3434,10 @@ impl GameScene {
         self.encyc_panel_w = ENCYC_PANEL_W;
         self.encyc_count = 0;
         'outer: for e in 0..self.entities.count {
-            if self.entities.removed[e] {
+            if self.entities.items[e].removed {
                 continue;
             }
-            let t = self.entities.entity_type[e];
+            let t = self.entities.items[e].type_;
             if self.entity_category(t) != 8 || t < 41 {
                 continue;
             }
@@ -3803,10 +3803,10 @@ impl GameScene {
     /// applyMerchantOffer（a.java:7307-7370）：buy=true 购买/false 拒绝。
     /// 返回 overlayActive 新值（true=浮层停留，false=关闭）。
     fn apply_merchant_offer(&mut self, buy: bool) -> bool {
-        let param = self.entities.param[self.merchant_entity as usize] as i32;
+        let param = self.entities.items[self.merchant_entity as usize].param as i32;
         let flags = (param >> 8) as i8;
         let idx = param as i8;
-        let src = if self.entities.entity_type[self.merchant_entity as usize] == 77 {
+        let src = if self.entities.items[self.merchant_entity as usize].type_ == 77 {
             0
         } else {
             1
@@ -3927,7 +3927,7 @@ impl GameScene {
                 // （floor46 T451 7868px 实证）。
                 if purchase_ok {
                     if flags & 4 == 0 {
-                        self.entities.param[self.merchant_entity as usize] ^= 512;
+                        self.entities.items[self.merchant_entity as usize].param ^= 512;
                         if flags & 1 != 0 {
                             self.offer_queue_push(src, (idx - 1) as i32);
                             let text = if src == 0 {
@@ -3954,14 +3954,14 @@ impl GameScene {
                 // flags&4 防护则 markEntityRemoved（cat16 → 27×29 row6 白烟）。
                 // floor46 T450 实证：-5 购买后 Java 商人消失（白云残置），
                 // Rust 曾缺此臂致老者滞留（413px 单点根因，迭代 77）。
-                self.entities.param[self.merchant_entity as usize] ^= 256;
+                self.entities.items[self.merchant_entity as usize].param ^= 256;
                 if flags & 4 == 0 {
                     entity::remove(&mut self.entities, self.merchant_entity as usize);
                 }
             }
         } else if flags & 2 == 0 && flags & 1 != 0 {
             // 拒绝路径（a.java:7462-7466）：^256（非 ^512）+ 非一次性则移除
-            self.entities.param[self.merchant_entity as usize] ^= 256;
+            self.entities.items[self.merchant_entity as usize].param ^= 256;
             if flags & 4 == 0 {
                 entity::remove(&mut self.entities, self.merchant_entity as usize);
             }
@@ -4403,14 +4403,14 @@ impl GameScene {
             // 目标类型查实体（倒序首个）——战后视点本窗口只用 0（玩家）
             let mut found = -1;
             for e in (0..self.entities.count).rev() {
-                if self.entities.entity_type[e] == target {
+                if self.entities.items[e].type_ == target {
                     found = e as i32;
                     break;
                 }
             }
             if found >= 0 {
-                self.ease_target_x = self.entities.pixel_x[found as usize];
-                self.ease_target_y = self.entities.pixel_y[found as usize];
+                self.ease_target_x = self.entities.items[found as usize].px;
+                self.ease_target_y = self.entities.items[found as usize].py;
                 // a.java:8667-8668：型69 目标 X += 32（取景右偏，全调用方共用）
                 if target == 69 {
                     self.ease_target_x += 32;
@@ -4471,8 +4471,8 @@ impl GameScene {
             }
             self.view_locked = false;
             for e in 0..self.entities.count {
-                let t = self.entities.entity_type[e];
-                if !self.entities.removed[e] && self.entity_category(t) == 8 {
+                let t = self.entities.items[e].type_;
+                if !self.entities.items[e].removed && self.entity_category(t) == 8 {
                     self.battle_digit_by_type[t as usize] = self.predict_hp_loss(t, true);
                 }
             }
@@ -4492,7 +4492,7 @@ impl GameScene {
             self.key_value = 0;
             if self.stair_hint {
                 if let Some(e) = self.find_floor_gate_entity(true) {
-                    let target = self.entities.param[e] as i32 & 255;
+                    let target = self.entities.items[e].param as i32 & 255;
                     self.change_floor(target, false, true);
                 }
             }
@@ -4502,7 +4502,7 @@ impl GameScene {
             self.key_value = 0;
             if self.stair_hint {
                 if let Some(e) = self.find_floor_gate_entity(false) {
-                    let target = self.entities.param[e] as i32 & 255;
+                    let target = self.entities.items[e].param as i32 & 255;
                     self.change_floor(target, true, true);
                 }
             }
@@ -4558,8 +4558,8 @@ impl GameScene {
             let mut s = cap as i32 - 1;
             while s >= 0 {
                     let e = self.grid.slots[ct][s as usize] as usize - 1;
-                    let t = self.entities.entity_type[e];
-                    if self.entities.solid[e] != 1 {
+                    let t = self.entities.items[e].type_;
+                    if self.entities.items[e].state != 1 {
                         match self.entity_category(t) {
                             1 => match t {
                                 1 | 2 | 3 => {
@@ -4623,7 +4623,7 @@ impl GameScene {
                                     // 封印门81（a.java:5458-5465）：**仅可见时**拦截
                                     // + 同文案 + 停扫；隐形期 continue 放行（floor10
                                     // 南北隐形封印门可穿，迭代 65 差分实证）
-                                    if self.entities.visible[e] {
+                                    if self.entities.items[e].visible {
                                         self.show_overlay_message(
                                             0,
                                             "障碍物：封印门\n需要消灭指定的怪物才能打开的门！",
@@ -4646,10 +4646,10 @@ impl GameScene {
                                     // 5414/5415 逐字）；continue 不改 allowed、
                                     // 不置 var8=0（续扫同格后继槽）。
                                     stair_count += 1;
-                                    if !self.entities.visible[e] {
-                                        self.entities.visible[e] = true; // a.java:5413
-                                        self.entities.solid[e] = 2; // a.java:5414
-                                        self.entities.anim_idx[e] = 9; // a.java:5415
+                                    if !self.entities.items[e].visible {
+                                        self.entities.items[e].visible = true; // a.java:5413
+                                        self.entities.items[e].state = 2; // a.java:5414
+                                        self.entities.items[e].anim_row = 9; // a.java:5415
                                     }
                                 }
                                 7 | 8 => stair_count += 1,
@@ -4663,10 +4663,10 @@ impl GameScene {
                                 // from_walk` 门控使 bump 不触发、到达才触发
                                 // （floor10 T401 实证：Java -1 撞 (6,6) 先行走、
                                 // applyStep 到达才开 script3 对话）。
-                                if self.try_run_scene(self.entities.param[e] as i32, false) {
+                                if self.try_run_scene(self.entities.items[e].param as i32, false) {
                                     self.overlay_active = false;
                                     self.overlay_text = None;
-                                    let idx = self.entities.param[e] as i32;
+                                    let idx = self.entities.items[e].param as i32;
                                     self.load_level_script(idx);
                                     s = -1;
                                     // a.java:5509 `var6 = loadLevelScript(...)`：声明
@@ -4720,7 +4720,7 @@ impl GameScene {
                             12 => {
                                 // 撞击墙（a.java:5449-5456）：变形为型 11（墙）+ 精灵/动画
                                 // 重派 + 置可见（state=2 行 9）；阻挡但**续扫**（无 var8=0）
-                                self.entities.entity_type[e] = 11;
+                                self.entities.items[e].type_ = 11;
                                 let img_h = self
                                     .images
                                     .entity
@@ -4736,9 +4736,9 @@ impl GameScene {
                                     img_h,
                                 );
                                 entity::dispatch_anim(11, e, &mut self.entities);
-                                self.entities.solid[e] = 2;
-                                self.entities.anim_idx[e] = 9;
-                                self.entities.visible[e] = true;
+                                self.entities.items[e].state = 2;
+                                self.entities.items[e].anim_row = 9;
+                                self.entities.items[e].visible = true;
                                 allowed = false;
                             }
                             _ => {} // 76/82：后续批次
@@ -4749,7 +4749,7 @@ impl GameScene {
                                 allowed = false;
                                 if loss >= 0 && loss < self.player.hp {
                                     self.walk_phase = 5;
-                                    self.entities.solid[e] = 3;
+                                    self.entities.items[e].state = 3;
                                     self.battle_target = e as i32;
                                     // battleEnemyHp = enemyBaseHp[type-41]（**基础表**非缩放表）
                                     self.battle_enemy_hp = self.enemy_base_hp[(t - 41) as usize];
@@ -4766,7 +4766,7 @@ impl GameScene {
                                 // 低字节=报价序号（1 基）；type77=文本源 0，其余=源 1；
                                 // 触发即阻挡（var6=false）+ kind4 报价浮层开。
                                 self.merchant_entity = e as i32;
-                                let var6p = self.entities.param[e] as i32;
+                                let var6p = self.entities.items[e].param as i32;
                                 let flags = (var6p >> 8) as i8;
                                 let mut offer = var6p as i8;
                                 let src = if t == 77 { 0 } else { 1 };
@@ -4839,14 +4839,14 @@ impl GameScene {
                     self.walk_phase = 0;
                 } else {
                     let e = self.battle_target as usize;
-                    let t = self.entities.entity_type[e];
+                    let t = self.entities.items[e].type_;
                     let idx = (t - 41) as usize;
                     let dmg = crate::combat::effective_attack_vs_type(&self.player, self.trait_flags(t))
                         - self.enemies.def[idx];
                     if dmg > 0 {
                         if (self.battle_tick & 3) == 0 {
                             self.battle_enemy_hp -= dmg;
-                            let (ex, ey) = (self.entities.pixel_x[e], self.entities.pixel_y[e]);
+                            let (ex, ey) = (self.entities.items[e].px, self.entities.items[e].py);
                             self.popups.spawn(
                                 5 + self.battle_tick % 3,
                                 dmg,
@@ -4881,7 +4881,7 @@ impl GameScene {
                                 } else {
                                     self.enemy_base_gold[idx]
                                 };
-                                let (gx, gy) = (self.entities.pixel_x[e], self.entities.pixel_y[e]);
+                                let (gx, gy) = (self.entities.items[e].px, self.entities.items[e].py);
                                 self.player.gold += gold;
                                 if gold > 0 {
                                     self.popups.spawn(
@@ -4947,7 +4947,7 @@ impl GameScene {
                     // 胜利后类型特判（a.java:10110-10145）：类型在 battle_target
                     // 清空**前**读取（restep 可能开新战斗改写 target，Java 同序）。
                     // 69/70/71/72 = 层绑定剧情钩子；61 = 49 层封印门 puzzle。
-                    let vt = self.entities.entity_type[self.battle_target as usize];
+                    let vt = self.entities.items[self.battle_target as usize].type_;
                     match vt {
                         61 => {
                             if self.floor == 49
@@ -5121,29 +5121,29 @@ impl GameScene {
                 let mut s = cap as i32 - 1;
                 while s >= 0 {
                 let e = self.grid.slots[ct][s as usize] as usize - 1;
-                let t = self.entities.entity_type[e];
+                let t = self.entities.items[e].type_;
                 match self.entity_category(t) {
                     1 => match t {
                         6 => self.player_bob_applied = true, // f_bool_07（喷泉浮沉）
                         83 => {
                             // 出生/踩格触发（a.java:5708-5709）：序章 script 40 入口
-                            if self.try_run_scene(self.entities.param[e] as i32, true) {
+                            if self.try_run_scene(self.entities.items[e].param as i32, true) {
                                 self.overlay_active = false;
                                 self.overlay_text = None;
-                                let idx = self.entities.param[e] as i32;
+                                let idx = self.entities.items[e].param as i32;
                                 self.load_level_script(idx);
                                 step_triggered = true; // a.java:5712 var4=true
                             }
                         }
                         7 => {
                             // 上楼梯（a.java:5660-5659）：changeFloor(param, false, false)
-                            let target = (self.entities.param[e] & 0xff) as i32;
+                            let target = (self.entities.items[e].param & 0xff) as i32;
                             self.change_floor(target, false, false);
                             self.key_held = 0;
                         }
                         8 => {
                             // 下楼梯（a.java:5666-5665）：changeFloor(param, true, false)
-                            let target = (self.entities.param[e] & 0xff) as i32;
+                            let target = (self.entities.items[e].param & 0xff) as i32;
                             self.change_floor(target, true, false);
                             self.key_held = 0;
                         }
@@ -5164,10 +5164,10 @@ impl GameScene {
             let mut s2 = cap2 as i32 - 1;
             while s2 >= 0 {
                 let e = self.grid.slots[ct2][s2 as usize] as usize - 1;
-                let t = self.entities.entity_type[e];
+                let t = self.entities.items[e].type_;
                 if t == 5 {
                     // 宝箱（a.java:5641-5640）：removeSlotAt + tryOpenChest(param)
-                    let chest_param = self.entities.param[e];
+                    let chest_param = self.entities.items[e].param;
                     self.remove_slot_at(self.player_cell_x, self.player_cell_y, s2);
                     if self.try_open_chest(chest_param) {
                         self.walk_phase = 4;
@@ -5175,29 +5175,29 @@ impl GameScene {
                 } else if t == 76 {
                     // 76 组门（a.java:5655-5705）：param&0xff + 1 为组号；摘槽 + 全图
                     // 收集同组型 4（开锁动画）+ 清组内 76 槽
-                    let group = ((self.entities.param[e] & 0xff) as i32) + 1;
+                    let group = ((self.entities.items[e].param & 0xff) as i32) + 1;
                     self.remove_slot_at(self.player_cell_x, self.player_cell_y, s2);
                     self.open_group.clear();
                     let mut slots_to_clear: Vec<(usize, u8)> = Vec::new();
                     for k in 0..self.entities.count {
-                        if self.entities.removed[k] {
+                        if self.entities.items[k].removed {
                             continue;
                         }
-                        let p = self.entities.param[k] & 0xff;
-                        let tk = self.entities.entity_type[k];
+                        let p = self.entities.items[k].param & 0xff;
+                        let tk = self.entities.items[k].type_;
                         if tk != 76 {
                             if tk == 4 && p as i32 == group {
                                 self.open_group.push(k);
                             }
                         } else if (p as i32) + 1 == group {
-                            let gx = self.entities.pixel_x[k] >> 5;
-                            let gy = self.entities.pixel_y[k] >> 5;
+                            let gx = self.entities.items[k].px >> 5;
+                            let gy = self.entities.items[k].py >> 5;
                             let ctk = self.grid.cell_type[gy as usize][gx as usize] as usize;
                             slots_to_clear.push((ctk, 0));
                             let cap3 = self.grid.capacity[ctk] as usize;
                             for q in 0..cap3 {
                                 let id = self.grid.slots[ctk][q] as usize - 1;
-                                self.entities.removed[id] = true;
+                                self.entities.items[id].removed = true;
                             }
                             self.grid.capacity[ctk] = 0;
                         }
@@ -5669,13 +5669,13 @@ impl GameScene {
         let cull_bottom = view_top_y() + self.view.view_h;
 
         for e in 0..self.entities.count {
-            if !self.entities.removed[e] && self.entities.visible[e] {
-                let ex = self.entities.pixel_x[e];
-                let ey = self.entities.pixel_y[e];
-                let w = self.entities.sprite_w[e];
-                let h = self.entities.sprite_h[e];
-                let state = self.entities.solid[e];
-                let t = self.entities.entity_type[e];
+            if !self.entities.items[e].removed && self.entities.items[e].visible {
+                let ex = self.entities.items[e].px;
+                let ey = self.entities.items[e].py;
+                let w = self.entities.items[e].sprite_w;
+                let h = self.entities.items[e].sprite_h;
+                let state = self.entities.items[e].state;
+                let t = self.entities.items[e].type_;
                 let mut sx = cam_x + ex;
                 let mut sy = cam_y + ey;
                 if sx >= -w && sx <= self.view.view_w && sy >= ENTITY_CULL_TOP && sy <= cull_bottom {
@@ -5692,8 +5692,8 @@ impl GameScene {
                             self.paint_player(g, cam_x, cam_y);
                             player_drawn = true;
                         }
-                        let anim = self.entities.anim_idx[e] as usize;
-                        let frame = self.entities.frame[e];
+                        let anim = self.entities.items[e].anim_row as usize;
+                        let frame = self.entities.items[e].anim_frame;
                         // 帧偏移 = 帧宽 × animOffsetTable[行][帧]（Java var5 算式）
                         let frame_off = w * ANIM_OFFSET_TABLE[anim][frame as usize];
                         // 注：横向居中 (32-w)>>1 在**各臂内**取 sx 现值计算——
@@ -5880,8 +5880,8 @@ impl GameScene {
             let e = self.battle_target as usize;
             // a.java:6692-6687：星光坐标用**裸 cameraPixelX/Y**（非 m_053 入参
             // 的 cameraPixelY+view_top——尾段直接读字段）
-            let x = self.view.cam_x + self.entities.pixel_x[e] + 16;
-            let y = self.view.cam_y + self.entities.pixel_y[e] + 32;
+            let x = self.view.cam_x + self.entities.items[e].px + 16;
+            let y = self.view.cam_y + self.entities.items[e].py + 32;
             let phase = (self.battle_tick & 7) as usize;
             let frame = SPARK_FRAME[phase];
             if frame > 0 {
@@ -6213,14 +6213,14 @@ impl GameScene {
             if self.open_anim_tick == 18 {
                 let group = self.open_group.clone();
                 for e in group {
-                    self.entities.anim_idx[e] = 6;
-                    self.entities.solid[e] = 1;
+                    self.entities.items[e].anim_row = 6;
+                    self.entities.items[e].state = 1;
                 }
             } else if self.open_anim_tick >= 24 {
                 let group = std::mem::take(&mut self.open_group);
                 for e in group {
-                    let gx = self.entities.pixel_x[e] >> 5;
-                    let gy = self.entities.pixel_y[e] >> 5;
+                    let gx = self.entities.items[e].px >> 5;
+                    let gy = self.entities.items[e].py >> 5;
                     entity::remove_group_at_cell_by_type(gx, gy, 4, &mut self.entities, &mut self.grid);
                 }
                 self.open_anim_tick = 0;
@@ -6303,7 +6303,7 @@ impl GameScene {
                 if bubble >= 0 {
                     let (bx, by) = if self.dialog_anchor >= 0 {
                         let e = self.dialog_anchor as usize;
-                        (self.entities.pixel_x[e] + 16, self.entities.pixel_y[e] - 30)
+                        (self.entities.items[e].px + 16, self.entities.items[e].py - 30)
                     } else {
                         (self.view.player_px + 16, self.view.player_py - 30)
                     };
@@ -6501,7 +6501,7 @@ mod slot_equip_scene_tests {
         assert!(sc.probe_cross_floor_snapshot(f, 12), "存活型12 ⇒ true");
         assert!(!sc.probe_cross_floor_snapshot(f, 99), "无此型 ⇒ false");
         let e = sc.entities.count - 1;
-        sc.entities.removed[e] = true;
+        sc.entities.items[e].removed = true;
         assert!(!sc.probe_cross_floor_snapshot(f, 12), "removed 不计");
     }
 
@@ -6613,8 +6613,8 @@ mod slot_equip_scene_tests {
         sc.script_cursor = 0;
         sc.execute_script_instruction();
         assert_eq!(sc.entities.count, n0 + 1);
-        assert_eq!(sc.entities.entity_type[n0], 72);
-        assert_eq!((sc.entities.pixel_x[n0], sc.entities.pixel_y[n0]), (11 << 5, 10 << 5));
+        assert_eq!(sc.entities.items[n0].type_, 72);
+        assert_eq!((sc.entities.items[n0].px, sc.entities.items[n0].py), (11 << 5, 10 << 5));
     }
     /// ①②装备往返：serialize 写真实值（a.java:9192-9193）、load 恢复（a.java:9260-9261）。
     #[test]
@@ -6774,8 +6774,8 @@ mod slot_equip_scene_tests {
         entity::spawn(&mut sc.entities, &mut sc.grid, 6, 2 << 5, 2 << 5, 0, &sc.width_table, None);
         let e2 = sc.entities.count - 1;
         // m_122 载入语义：型 6 生成后覆盖 visible=false（a.java:9514-9517）
-        sc.entities.visible[e1] = false;
-        sc.entities.visible[e2] = false;
+        sc.entities.items[e1].visible = false;
+        sc.entities.items[e2].visible = false;
         // 不可走地形：bump 放行只能靠 var7++ 豁免（a.java:5533）
         sc.walkable[2][2] = false;
 
@@ -6784,17 +6784,17 @@ mod slot_equip_scene_tests {
             "型 6 bump 放行（var7++ 豁免地形终审，a.java:5533）"
         );
         for e in [e1, e2] {
-            assert!(sc.entities.visible[e], "显形 1/3 visible=true（a.java:5413）");
-            assert_eq!(sc.entities.solid[e], 2, "显形 2/3 entityState=2（a.java:5414）");
-            assert_eq!(sc.entities.anim_idx[e], 9, "显形 3/3 entityAnimRow=9（a.java:5415）");
+            assert!(sc.entities.items[e].visible, "显形 1/3 visible=true（a.java:5413）");
+            assert_eq!(sc.entities.items[e].state, 2, "显形 2/3 entityState=2（a.java:5414）");
+            assert_eq!(sc.entities.items[e].anim_row, 9, "显形 3/3 entityAnimRow=9（a.java:5415）");
         }
 
         // 二次 bump：已显形仅 var7++，三元组不再重写（a.java:5412 `if (!entityVisible)`）
-        sc.entities.anim_idx[e1] = 42;
+        sc.entities.items[e1].anim_row = 42;
         assert!(sc.interact_with_cell(2, 2), "已显形再 bump 仍放行（var7++ 恒执行）");
-        assert_eq!(sc.entities.anim_idx[e1], 42, "一次性显形：anim 不重写");
-        assert!(sc.entities.visible[e1], "一次性显形：visible 不重写");
-        assert_eq!(sc.entities.solid[e1], 2, "一次性显形：solid 不重写");
+        assert_eq!(sc.entities.items[e1].anim_row, 42, "一次性显形：anim 不重写");
+        assert!(sc.entities.items[e1].visible, "一次性显形：visible 不重写");
+        assert_eq!(sc.entities.items[e1].state, 2, "一次性显形：solid 不重写");
     }
 
     /// MVS 型 82 配对传送（a.java:8519-8592）三断言之【配对+互传+消耗】：
@@ -6813,21 +6813,21 @@ mod slot_equip_scene_tests {
         entity::spawn(&mut sc.entities, &mut sc.grid, 41, 2 << 5, 2 << 5, 0, &sc.width_table, None);
         let ema = sc.entities.count - 1;
         // m_122 载入语义：型 82 生成后覆盖 visible=false（a.java:9601-9605）
-        sc.entities.visible[e82a] = false;
-        sc.entities.visible[e82b] = false;
+        sc.entities.items[e82a].visible = false;
+        sc.entities.items[e82b].visible = false;
 
         sc.script_line = "MVS ".to_string();
         sc.script_cursor = 0;
         sc.execute_script_instruction();
 
-        assert!(sc.entities.removed[e82a] && sc.entities.removed[e82b], "消耗：两 82 点位摘槽");
-        assert!(sc.entities.removed[ema], "原地怪物被 m_107 旧格全同型摘除");
+        assert!(sc.entities.items[e82a].removed && sc.entities.items[e82b].removed, "消耗：两 82 点位摘槽");
+        assert!(sc.entities.items[ema].removed, "原地怪物被 m_107 旧格全同型摘除");
         assert_eq!(sc.entities.count, ema + 2, "m_107 复制-删除：目标格新增 1 只");
         let moved = ema + 1;
-        assert_eq!(sc.entities.entity_type[moved], 41, "互传：同型复制");
-        assert!(!sc.entities.removed[moved], "互传：副本存活");
+        assert_eq!(sc.entities.items[moved].type_, 41, "互传：同型复制");
+        assert!(!sc.entities.items[moved].removed, "互传：副本存活");
         assert_eq!(
-            (sc.entities.pixel_x[moved], sc.entities.pixel_y[moved]),
+            (sc.entities.items[moved].px, sc.entities.items[moved].py),
             (5 << 5, 5 << 5),
             "互传：落到对端格（82B 格）"
         );
@@ -6846,16 +6846,16 @@ mod slot_equip_scene_tests {
         let e82b = sc.entities.count - 1;
         entity::spawn(&mut sc.entities, &mut sc.grid, 41, 2 << 5, 2 << 5, 0, &sc.width_table, None);
         let ema = sc.entities.count - 1;
-        sc.entities.visible[e82a] = false;
-        sc.entities.visible[e82b] = false;
+        sc.entities.items[e82a].visible = false;
+        sc.entities.items[e82b].visible = false;
         let count_before = sc.entities.count;
 
         sc.script_line = "MVS ".to_string();
         sc.script_cursor = 0;
         sc.execute_script_instruction();
 
-        assert!(!sc.entities.removed[e82a] && !sc.entities.removed[e82b], "错配 ⇒ 82 不消耗");
-        assert!(!sc.entities.removed[ema], "错配 ⇒ 怪物不搬");
+        assert!(!sc.entities.items[e82a].removed && !sc.entities.items[e82b].removed, "错配 ⇒ 82 不消耗");
+        assert!(!sc.entities.items[ema].removed, "错配 ⇒ 怪物不搬");
         assert_eq!(sc.entities.count, count_before, "错配 ⇒ 无 spawn");
     }
 
@@ -6874,8 +6874,8 @@ mod slot_equip_scene_tests {
         let ema = sc.entities.count - 1;
         entity::spawn(&mut sc.entities, &mut sc.grid, 42, 5 << 5, 5 << 5, 0, &sc.width_table, None);
         let emb = sc.entities.count - 1;
-        sc.entities.visible[e82a] = false;
-        sc.entities.visible[e82b] = false;
+        sc.entities.items[e82a].visible = false;
+        sc.entities.items[e82b].visible = false;
 
         sc.script_line = "MVS ".to_string();
         sc.script_cursor = 0;
@@ -6883,19 +6883,19 @@ mod slot_equip_scene_tests {
 
         // 原始 4 只全部摘除（41/42 旧格全同型删除 quirk 一并带走过路副本）
         for e in [e82a, e82b, ema, emb] {
-            assert!(sc.entities.removed[e], "原地实体 {e} 摘除");
+            assert!(sc.entities.items[e].removed, "原地实体 {e} 摘除");
         }
         // 存活终态：双怪副本堆聚 (5,5)（buf[0]=82B 逆序首扫实体格）
         let mut alive: Vec<i32> = (0..sc.entities.count)
-            .filter(|&i| !sc.entities.removed[i] && sc.entities.entity_type[i] >= 41)
-            .map(|i| sc.entities.entity_type[i])
+            .filter(|&i| !sc.entities.items[i].removed && sc.entities.items[i].type_ >= 41)
+            .map(|i| sc.entities.items[i].type_)
             .collect();
         alive.sort_unstable();
         assert_eq!(alive, vec![41, 42], "双怪副本均存活且各型一只");
         for i in 0..sc.entities.count {
-            if !sc.entities.removed[i] && sc.entities.entity_type[i] >= 41 {
+            if !sc.entities.items[i].removed && sc.entities.items[i].type_ >= 41 {
                 assert_eq!(
-                    (sc.entities.pixel_x[i], sc.entities.pixel_y[i]),
+                    (sc.entities.items[i].px, sc.entities.items[i].py),
                     (5 << 5, 5 << 5),
                     "副本堆聚 (5,5)"
                 );
@@ -6965,7 +6965,7 @@ mod slot_equip_scene_tests {
         let mut sc = scene_with(&synthetic_sptarm());
         entity::spawn(&mut sc.entities, &mut sc.grid, 67, 64, 96, 0, &sc.width_table, None);
         let e = sc.entities.count - 1;
-        sc.entities.anim_idx[e] = 3; // animRowByType[67]=3（a.java:498 数组）
+        sc.entities.items[e].anim_row = 3; // animRowByType[67]=3（a.java:498 数组）
         const PIECES: [(i32, i32, i32, i32, i32); 9] = [
             (0, 0, 0, 33, 56),
             (0, 33, 0, 33, 56),
@@ -6985,7 +6985,7 @@ mod slot_equip_scene_tests {
         const ROW3: [usize; 4] = [0, 1, 2, 1]; // animOffsetTable[3]（a.java:485-497）
 
         for f in 0..4i32 {
-            sc.entities.frame[e] = f;
+            sc.entities.items[e].anim_frame = f;
             let mut actual = ArgbImage::create(SCREEN_W, SCREEN_H);
             {
                 let mut g = SoftGraphics::new(&mut actual);
@@ -7040,7 +7040,7 @@ mod slot_equip_scene_tests {
         entity::spawn(&mut sc.entities, &mut sc.grid, 42, 8 << 5, 8 << 5, 0, &sc.width_table, None);
         let m2 = sc.entities.count - 1;
         for e in [ep1a, ep1b, ep2a, ep2b] {
-            sc.entities.visible[e] = false;
+            sc.entities.items[e].visible = false;
         }
 
         sc.script_line = "MVS ".to_string();
@@ -7049,12 +7049,12 @@ mod slot_equip_scene_tests {
 
         // 四点位全消耗、两原地怪物摘除
         for e in [ep1a, ep1b, ep2a, ep2b, m1, m2] {
-            assert!(sc.entities.removed[e], "原地实体 {e} 摘除");
+            assert!(sc.entities.items[e].removed, "原地实体 {e} 摘除");
         }
         // 互传目的地按各对 buf[0] 实体格：键 3 对 → (5,5)，键 7 对 → (11,11)
         let mut dest: Vec<(i32, i32, i32)> = (0..sc.entities.count)
-            .filter(|&i| !sc.entities.removed[i] && sc.entities.entity_type[i] >= 41)
-            .map(|i| (sc.entities.entity_type[i], sc.entities.pixel_x[i], sc.entities.pixel_y[i]))
+            .filter(|&i| !sc.entities.items[i].removed && sc.entities.items[i].type_ >= 41)
+            .map(|i| (sc.entities.items[i].type_, sc.entities.items[i].px, sc.entities.items[i].py))
             .collect();
         dest.sort_unstable();
         assert_eq!(
@@ -7074,15 +7074,15 @@ mod slot_equip_scene_tests {
         let e82a = sc.entities.count - 1;
         entity::spawn(&mut sc.entities, &mut sc.grid, 82, 5 << 5, 5 << 5, 3, &sc.width_table, None);
         let e82b = sc.entities.count - 1;
-        sc.entities.visible[e82a] = false;
-        sc.entities.visible[e82b] = false;
+        sc.entities.items[e82a].visible = false;
+        sc.entities.items[e82b].visible = false;
         let count_before = sc.entities.count;
 
         sc.script_line = "MVS ".to_string();
         sc.script_cursor = 0;
         sc.execute_script_instruction();
 
-        assert!(!sc.entities.removed[e82a] && !sc.entities.removed[e82b], "无怪 ⇒ 82 不消耗");
+        assert!(!sc.entities.items[e82a].removed && !sc.entities.items[e82b].removed, "无怪 ⇒ 82 不消耗");
         assert_eq!(sc.entities.count, count_before, "无怪 ⇒ 无 spawn");
         assert_eq!(sc.script_cursor, 4, "无参 op 游标照常 = 标签后 1 位（a.java:8591）");
     }
@@ -7103,23 +7103,23 @@ mod slot_equip_scene_tests {
         let m1 = sc.entities.count - 1;
         entity::spawn(&mut sc.entities, &mut sc.grid, 41, 2 << 5, 2 << 5, 0, &sc.width_table, None);
         let m2 = sc.entities.count - 1;
-        sc.entities.visible[e82a] = false;
-        sc.entities.visible[e82b] = false;
+        sc.entities.items[e82a].visible = false;
+        sc.entities.items[e82b].visible = false;
 
         sc.script_line = "MVS ".to_string();
         sc.script_cursor = 0;
         sc.execute_script_instruction();
 
         for e in [e82a, e82b, m1, m2] {
-            assert!(sc.entities.removed[e], "原地实体 {e} 摘除（含同型一并带走）");
+            assert!(sc.entities.items[e].removed, "原地实体 {e} 摘除（含同型一并带走）");
         }
         assert_eq!(sc.entities.count, m2 + 3, "两次 m_107 spawn（stale 尾复活）");
-        let alive: Vec<usize> = (0..sc.entities.count).filter(|&i| !sc.entities.removed[i]).collect();
+        let alive: Vec<usize> = (0..sc.entities.count).filter(|&i| !sc.entities.items[i].removed).collect();
         assert_eq!(alive.len(), 2, "双 41 副本存活");
         for i in alive {
-            assert_eq!(sc.entities.entity_type[i], 41);
+            assert_eq!(sc.entities.items[i].type_, 41);
             assert_eq!(
-                (sc.entities.pixel_x[i], sc.entities.pixel_y[i]),
+                (sc.entities.items[i].px, sc.entities.items[i].py),
                 (5 << 5, 5 << 5),
                 "副本堆聚目标格 (5,5)"
             );
@@ -7135,7 +7135,7 @@ mod slot_equip_scene_tests {
         let mut sc = scene_with(&synthetic_sptarm());
         entity::spawn(&mut sc.entities, &mut sc.grid, 82, 2 << 5, 2 << 5, 3, &sc.width_table, None);
         let e82 = sc.entities.count - 1;
-        sc.entities.visible[e82] = false;
+        sc.entities.items[e82].visible = false;
         let count_before = sc.entities.count;
 
         sc.script_line = "MVS ".to_string();
@@ -7143,12 +7143,12 @@ mod slot_equip_scene_tests {
         sc.execute_script_instruction();
 
         // 全表无变化：不消耗、无 spawn、字段不动
-        assert!(!sc.entities.removed[e82], "孤只 82 不消耗");
+        assert!(!sc.entities.items[e82].removed, "孤只 82 不消耗");
         assert_eq!(sc.entities.count, count_before, "孤只 82 无 spawn");
-        assert_eq!(sc.entities.entity_type[e82], 82);
-        assert_eq!(sc.entities.param[e82], 3);
-        assert!(!sc.entities.visible[e82], "hidden 状态不被改写");
-        assert_eq!(sc.entities.solid[e82], 0);
+        assert_eq!(sc.entities.items[e82].type_, 82);
+        assert_eq!(sc.entities.items[e82].param, 3);
+        assert!(!sc.entities.items[e82].visible, "hidden 状态不被改写");
+        assert_eq!(sc.entities.items[e82].state, 0);
         // 游标照常推进（空转 ≠ 停摆；停摆语义属未知 op，见 unknown_op 测试）
         assert_eq!(sc.script_cursor, 4, "无参 op 游标 = 标签后 1 位（a.java:8591）");
 
@@ -7157,7 +7157,7 @@ mod slot_equip_scene_tests {
         sc.script_cursor = 0;
         sc.execute_script_instruction();
         assert_eq!(sc.entities.count, count_before);
-        assert!(!sc.entities.removed[e82]);
+        assert!(!sc.entities.items[e82].removed);
     }
 
     /// 暗道换乘键 49/55 **分立臂**（a.java:5295-5306）：49=上行 →
@@ -7536,7 +7536,7 @@ mod entity_route_tests {
         assert_eq!(sc.route_phase, 0);
         assert_eq!(sc.route_start, (3, ROW));
         assert_eq!(sc.dialog_target, (5, ROW));
-        assert_eq!(sc.entities.anim_idx[eu], 1, "型72 置动画行 1（a.java:8293-8294）");
+        assert_eq!(sc.entities.items[eu].anim_row, 1, "型72 置动画行 1（a.java:8293-8294）");
         assert_eq!(sc.walk_path_buffer, vec![2, 2]);
         assert_eq!(sc.walk_step_count, 2);
         assert_eq!(sc.script_cursor, "MOV_72_3_3_5_3 ".len(), "游标越过空格分隔符");
@@ -7555,23 +7555,23 @@ mod entity_route_tests {
         for (i, &(phase, dir, px, prog, tgt, frame, left)) in expect.iter().enumerate() {
             sc.tick_entity_route();
             assert_eq!(
-                (sc.route_phase, sc.route_dir, sc.entities.pixel_x[eu], sc.route_progress),
+                (sc.route_phase, sc.route_dir, sc.entities.items[eu].px, sc.route_progress),
                 (phase, dir, px, prog),
                 "拍 {i}"
             );
             if let Some(t) = tgt {
                 assert_eq!((sc.ease_target_x, sc.ease_target_y), (t, ROW << 5), "拍 {i} 相机目标=实体像素");
             }
-            assert_eq!(sc.entities.frame[eu], frame, "拍 {i} 动画行1帧（表长 4 归 0）");
+            assert_eq!(sc.entities.items[eu].anim_frame, frame, "拍 {i} 动画行1帧（表长 4 归 0）");
             assert_eq!(sc.walk_step_count, left, "拍 {i} 余步");
             assert_eq!(sc.dialog_phase, 2);
             assert_eq!(slots(&sc, 3, ROW), vec![eu], "途中槽表不动（只在收尾 m_108）");
         }
         // 第 2 步归格 → 递归 → 步尽：m_108 + dp0 + dispatchAnimFields + f_int_127=-1
         sc.tick_entity_route();
-        assert_eq!(sc.entities.pixel_x[eu], 160);
+        assert_eq!(sc.entities.items[eu].px, 160);
         assert_eq!((sc.dialog_phase, sc.route_phase, sc.route_entity), (0, 0, -1));
-        assert_eq!((sc.entities.anim_idx[eu], sc.entities.frame[eu]), (0, 0), "animRowByType[72]=0");
+        assert_eq!((sc.entities.items[eu].anim_row, sc.entities.items[eu].anim_frame), (0, 0), "animRowByType[72]=0");
         assert!(slots(&sc, 3, ROW).is_empty(), "m_108 自起点格摘除");
         assert_eq!(slots(&sc, 5, ROW), vec![eu], "m_108 追加到当前格");
         assert_eq!(sc.entity_at_cell(5, ROW, 72), e, "findBlockingEntity 可在新格命中（DES 依赖）");
@@ -7597,16 +7597,16 @@ mod entity_route_tests {
         assert!(loss >= 0 && loss < 500, "夹具须可胜: {loss}");
         exec(&mut sc, "MOV_43_3_3_7_3 \u{1e}");
         assert_eq!(sc.walk_step_count, 4);
-        assert_eq!(sc.entities.anim_idx[eu], entity::ANIM_TABLE_IDX[t as usize] as i32, "非 72 不改动画行");
+        assert_eq!(sc.entities.items[eu].anim_row, entity::ANIM_TABLE_IDX[t as usize] as i32, "非 72 不改动画行");
         for _ in 0..5 {
             sc.tick_entity_route(); // 弹第 1 步 + 4 拍步进（第 4 拍递归弹第 2 步 → 开战）
         }
-        assert_eq!(sc.entities.pixel_x[eu], 4 << 5);
+        assert_eq!(sc.entities.items[eu].px, 4 << 5);
         assert_eq!(sc.route_phase, 5);
         assert_eq!(sc.walk_phase, 5);
         assert!(!sc.battle_active, "battleActiveFlag=false（a.java:8771）");
         assert_eq!(sc.battle_target, e);
-        assert_eq!(sc.entities.solid[eu], 5);
+        assert_eq!(sc.entities.items[eu].state, 5);
         assert!(!sc.battle_no_counter);
         assert_eq!(sc.battle_enemy_hp, sc.enemies.hp[ti], "缩放表 HP（a.java:8769，非 bump 战的基础表）");
         let strike = (sc.enemies.atk[ti] - 0).max(0);
@@ -7619,7 +7619,7 @@ mod entity_route_tests {
         }
         sc.tick_entity_route();
         assert_eq!((sc.dialog_phase, sc.route_phase, sc.route_entity), (0, 0, -1));
-        assert_eq!(sc.entities.solid[eu], 1, "markEntityRemoved");
+        assert_eq!(sc.entities.items[eu].state, 1, "markEntityRemoved");
         assert_eq!(sc.battle_target, -1);
         assert_eq!(sc.walk_phase, 5, "无 restep（battleActiveFlag=false）——walkPhase 不复位");
         assert_eq!(sc.player_cell_x, 5, "玩家未动");
@@ -7647,7 +7647,7 @@ mod entity_route_tests {
         for _ in 0..4 {
             sc.tick_entity_route();
         }
-        assert_eq!(sc.entities.pixel_x[eu], 5 << 5, "实体走进玩家格");
+        assert_eq!(sc.entities.items[eu].px, 5 << 5, "实体走进玩家格");
         assert!(!sc.script_walk_armed);
         assert_eq!((sc.game_mode, sc.walk_phase, sc.facing), (3, 1, 2));
         assert_eq!(sc.dialog_phase, 2, "dialogPhase 不变（路径挂起）");
@@ -7665,14 +7665,14 @@ mod entity_route_tests {
         exec(&mut sc, "MOV_72_3_3_7_3 \u{1e}");
         assert_eq!(sc.walk_step_count, 4, "路径穿实体格（m_062）");
         sc.tick_entity_route(); // 弹第 1 步 → 下一格 (4,3) 有墙
-        assert_eq!(sc.entities.solid[wall], 1);
-        assert_eq!((sc.entities.sprite_w[wall], sc.entities.sprite_h[wall]), (45, 57));
-        assert_eq!((sc.entities.anim_idx[wall], sc.entities.frame[wall]), (2, 0));
+        assert_eq!(sc.entities.items[wall].state, 1);
+        assert_eq!((sc.entities.items[wall].sprite_w, sc.entities.items[wall].sprite_h), (45, 57));
+        assert_eq!((sc.entities.items[wall].anim_row, sc.entities.items[wall].anim_frame), (2, 0));
         for _ in 0..8 {
             sc.tick_entity_route(); // 第 1/2 步步进；第 2 步归格弹第 3 步 → 下一格 (6,3)
         }
         assert_eq!(sc.walk_step_count, 1);
-        assert_eq!(sc.entities.solid[door], 0, "门不开");
+        assert_eq!(sc.entities.items[door].state, 0, "门不开");
     }
 
     /// 实体未命中：f_int_127 写 -1（a.java:8289）+ 同拍尾递归执行下一条（8301-8302）。

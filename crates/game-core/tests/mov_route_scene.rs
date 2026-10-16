@@ -371,7 +371,7 @@ fn at(sc: &GameScene, x: i32, y: i32, t: i32) -> Vec<usize> {
     let ct = sc.grid.cell_type[y as usize][x as usize] as usize;
     (0..sc.grid.capacity[ct] as usize)
         .map(|s| sc.grid.slots[ct][s] as usize - 1)
-        .filter(|&id| sc.entities.entity_type[id] == t)
+        .filter(|&id| sc.entities.items[id].type_ == t)
         .collect()
 }
 
@@ -392,7 +392,7 @@ fn preset_floor2_mov_frames_match() {
         if sc.game_mode == 11 && sc.dialog_phase == 2 {
             dp2_ticks[sc.current_script_index.min(2)] += 1;
             let e = sc.route_entity;
-            if e >= 0 && sc.entities.entity_type[e as usize] == 72 {
+            if e >= 0 && sc.entities.items[e as usize].type_ == 72 {
                 if sc.route_dir == 3 {
                     mirrored += 1;
                 } else {
@@ -400,13 +400,13 @@ fn preset_floor2_mov_frames_match() {
                 }
             }
         }
-        if wall_opened_at.is_none() && at(sc, 2, 8, 11).iter().any(|&id| sc.entities.solid[id] == 1) {
+        if wall_opened_at.is_none() && at(sc, 2, 8, 11).iter().any(|&id| sc.entities.items[id].state == 1) {
             wall_opened_at = Some(tick);
         }
         if relocated_18_at.is_none() && !at(sc, 1, 8, 72).is_empty() {
             relocated_18_at = Some(tick);
         }
-        if des_hit_at.is_none() && at(sc, 1, 10, 72).iter().any(|&id| sc.entities.solid[id] == 1) {
+        if des_hit_at.is_none() && at(sc, 1, 10, 72).iter().any(|&id| sc.entities.items[id].state == 1) {
             des_hit_at = Some(tick);
         }
     });
@@ -437,7 +437,7 @@ fn preset_floor40_mov_frames_match() {
             if sc.route_phase == 5 && prev_phase != 5 {
                 starts.push(tick);
                 battle_flag_false_in_dp2 &= !sc.battle_active && sc.walk_phase == 5;
-                route_types.push(sc.entities.entity_type[sc.route_entity as usize]);
+                route_types.push(sc.entities.items[sc.route_entity as usize].type_);
             }
             prev_phase = sc.route_phase;
         } else {

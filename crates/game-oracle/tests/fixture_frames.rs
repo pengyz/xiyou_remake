@@ -403,10 +403,10 @@ fn fx_int6a_reveal_frames_match() {
         "终态站上 (9,11)——型6 地形豁免放行（var7>0 跳过 isCellWalkable 终审）"
     );
     let e = (0..sc.entities.count)
-        .find(|&i| sc.entities.entity_type[i] == 6)
+        .find(|&i| sc.entities.items[i].type_ == 6)
         .expect("型6 实体在表");
-    assert!(sc.entities.visible[e], "显形后 visible 恒真（a.java:5413）");
-    assert_eq!(sc.entities.solid[e], 0, "state=2 过渡完成后归零（a.java:6842）");
+    assert!(sc.entities.items[e].visible, "显形后 visible 恒真（a.java:5413）");
+    assert_eq!(sc.entities.items[e].state, 0, "state=2 过渡完成后归零（a.java:6842）");
     assert!(sc.player_bob_applied, "落格 f_bool_07=true（a.java:5650-5652）");
 }
 
@@ -449,9 +449,9 @@ fn fx_door2a_open_frames_match() {
     );
     assert_eq!(sc.player.red_keys, 0, "redKeyCount 1→0（a.java:7749）");
     let d = (0..sc.entities.count)
-        .find(|&i| sc.entities.entity_type[i] == 2)
+        .find(|&i| sc.entities.items[i].type_ == 2)
         .expect("型2 红门在表");
-    assert_eq!(sc.entities.solid[d], 1, "markEntityRemoved state=1（a.java:6350）");
+    assert_eq!(sc.entities.items[d].state, 1, "markEntityRemoved state=1（a.java:6350）");
 }
 
 /// FX-DOOR-2B：型2 无钥匙阻挡（负例，R-INT-2 无钥匙半）。红钥 0 ⇒ 双次北撞均
@@ -470,9 +470,9 @@ fn fx_door2b_nokey_frames_match() {
     );
     assert_eq!(sc.player.red_keys, 0, "无钥匙无从消耗");
     let d = (0..sc.entities.count)
-        .find(|&i| sc.entities.entity_type[i] == 2)
+        .find(|&i| sc.entities.items[i].type_ == 2)
         .expect("型2 红门在表");
-    assert_eq!(sc.entities.solid[d], 0, "门保持关闭（state 恒 0）");
+    assert_eq!(sc.entities.items[d].state, 0, "门保持关闭（state 恒 0）");
 }
 
 /// FX-ITEM-17B：金勺子失败不消耗（负例，evidence-items §3.1/§2.2 失败分支）。floor13 无
@@ -518,9 +518,9 @@ fn fx_item17a_chisel_wall_frames_match() {
     assert_eq!((sc.view.player_px >> 5, sc.view.player_py >> 5), (8, 3), "凿墙后走入原墙格");
     assert_eq!(sc.player.find_item(17), -1, "成功消耗 1 次出栈");
     let w = (0..sc.entities.count)
-        .find(|&i| sc.entities.entity_type[i] == 11)
+        .find(|&i| sc.entities.items[i].type_ == 11)
         .expect("型11 墙在表");
-    assert_eq!(sc.entities.solid[w], 1, "markEntityRemoved state=1（墙开）");
+    assert_eq!(sc.entities.items[w].state, 1, "markEntityRemoved state=1（墙开）");
 }
 
 /// FX-ITEM-18A：玄明石全清当前层墙（evidence-items §2.3/§3.4）。floor37 型11 ×8 同拍
@@ -533,11 +533,11 @@ fn fx_item18a_clear_all_walls_frames_match() {
     assert_eq!(checked, records.len(), "T1-560 全帧必须比对");
     assert_eq!(sc.floor, 37);
     let walls: Vec<usize> = (0..sc.entities.count)
-        .filter(|&i| sc.entities.entity_type[i] == 11)
+        .filter(|&i| sc.entities.items[i].type_ == 11)
         .collect();
     assert_eq!(walls.len(), 36, "sprite37 型11 原生 36 堵（字节级解析 A 级：82 记录中 36×型11）");
     assert!(
-        walls.iter().all(|&w| sc.entities.solid[w] == 1),
+        walls.iter().all(|&w| sc.entities.items[w].state == 1),
         "36 堵全 state=1（全层清墙，a.java:7820-7824）"
     );
     assert_eq!(sc.player.find_item(18), -1, "成功消耗 1 次出栈");
@@ -560,20 +560,20 @@ fn fx_boss67a_kill_spawn_frames_match() {
     assert_eq!(sc.floor, 15);
     assert_eq!(sc.player.gold, 200, "预置 100 + enemyBaseGold[26]=100");
     let drop = (0..sc.entities.count)
-        .find(|&i| sc.entities.entity_type[i] == 17)
+        .find(|&i| sc.entities.items[i].type_ == 17)
         .expect("spawnBossEvent(3) 刷金勺子(17)");
     assert_eq!(
-        (sc.entities.pixel_x[drop] >> 5, sc.entities.pixel_y[drop] >> 5),
+        (sc.entities.items[drop].px >> 5, sc.entities.items[drop].py >> 5),
         (6, 4),
         "bossEventSpawns[3]={{17,6,4,0}} @格(6,4)"
     );
-    assert_eq!(sc.entities.solid[drop], 0, "DES 态=过渡（a.java:6333-6345 置 state=2+animRow=8）\
+    assert_eq!(sc.entities.items[drop].state, 0, "DES 态=过渡（a.java:6333-6345 置 state=2+animRow=8）\
         完成后 dispatchSpriteSize/AnimFields+state=0（a.java:6838-6843）——终态 0 即合同");
-    assert_eq!(sc.entities.anim_idx[drop], 0, "dispatchAnimFields 归位 animRowByType[17]=0");
+    assert_eq!(sc.entities.items[drop].anim_row, 0, "dispatchAnimFields 归位 animRowByType[17]=0");
     let boss = (0..sc.entities.count)
-        .find(|&i| sc.entities.entity_type[i] == 67)
+        .find(|&i| sc.entities.items[i].type_ == 67)
         .expect("型67 在表");
-    assert!(sc.entities.removed[boss], "啸天犬死亡动画后 pullEntityFromCell");
+    assert!(sc.entities.items[boss].removed, "啸天犬死亡动画后 pullEntityFromCell");
 }
 
 /// FX-BOSS-74A：巨灵神双钩子（evidence-boss §3.2/R-boss-2）：击杀 74 ⇒ ① spawnBossEvent(1)
@@ -596,9 +596,9 @@ fn fx_boss74a_kill_hooks_frames_match() {
     for (t, cx, cy) in drops {
         assert!(
             (0..sc.entities.count).any(|i| {
-                sc.entities.entity_type[i] == t
-                    && sc.entities.pixel_x[i] >> 5 == cx
-                    && sc.entities.pixel_y[i] >> 5 == cy
+                sc.entities.items[i].type_ == t
+                    && sc.entities.items[i].px >> 5 == cx
+                    && sc.entities.items[i].py >> 5 == cy
             }),
             "掉落 型{t} @({cx},{cy}) 缺失"
         );
@@ -624,12 +624,12 @@ fn fx_int11_f23_transform_silent_frames_match() {
         "双撞均阻挡（case12 var6=false / case11 var6=false）"
     );
     let w = (0..sc.entities.count)
-        .find(|&i| sc.entities.pixel_x[i] >> 5 == 2 && sc.entities.pixel_y[i] >> 5 == 4)
+        .find(|&i| sc.entities.items[i].px >> 5 == 2 && sc.entities.items[i].py >> 5 == 4)
         .expect("(2,4) 实体在表");
-    assert_eq!(sc.entities.entity_type[w], 11, "case12 变形：type 12→11（a.java:5450）");
-    assert!(sc.entities.visible[w], "变形臂 visible=true（a.java:5455）");
-    assert_eq!(sc.entities.solid[w], 0, "state=2 过渡完成后归零（a.java:6842）");
-    assert_eq!(sc.entities.anim_idx[w], 0, "dispatchAnimFields(11) 归位 animRowByType[11]=0");
+    assert_eq!(sc.entities.items[w].type_, 11, "case12 变形：type 12→11（a.java:5450）");
+    assert!(sc.entities.items[w].visible, "变形臂 visible=true（a.java:5455）");
+    assert_eq!(sc.entities.items[w].state, 0, "state=2 过渡完成后归零（a.java:6842）");
+    assert_eq!(sc.entities.items[w].anim_row, 0, "dispatchAnimFields(11) 归位 animRowByType[11]=0");
     assert!(
         !sc.overlay_text.as_deref().unwrap_or("").contains("障碍物"),
         "case11 静默臂：floor==23 不显「障碍物：墙」文案（a.java:5442 条件假臂）"
@@ -681,9 +681,9 @@ fn fx_int11_n23_wall_message_frames_match() {
         "case11 真臂文案逐字（a.java:5443，floor!=23）"
     );
     let w = (0..sc.entities.count)
-        .find(|&i| sc.entities.entity_type[i] == 11)
+        .find(|&i| sc.entities.items[i].type_ == 11)
         .expect("型11 墙在表");
-    assert_eq!(sc.entities.solid[w], 0, "墙未开（state 恒 0）");
+    assert_eq!(sc.entities.items[w].state, 0, "墙未开（state 恒 0）");
 }
 
 /// FX-BOSS-68A：太上老君 bump 战 + spawnBossEvent(2) 四红钥匙（fixture-plan-boss §2
@@ -709,16 +709,16 @@ fn fx_boss68a_kill_spawn_frames_match() {
         "收尾 restep (6,6) → 下 (6,7) → 回 (6,6) → 左 (5,6)"
     );
     let boss = (0..sc.entities.count)
-        .find(|&i| sc.entities.entity_type[i] == 68)
+        .find(|&i| sc.entities.items[i].type_ == 68)
         .expect("型68 在表");
-    assert!(sc.entities.removed[boss], "死亡动画后 pullEntityFromCell");
+    assert!(sc.entities.items[boss].removed, "死亡动画后 pullEntityFromCell");
     // spawnBossEvent(2) 四红钥匙：(6,5)(7,6) 留存、(5,6)(6,7) 已拾（a.java:2142）
     for (cx, cy, picked) in [(6, 5, false), (7, 6, false), (5, 6, true), (6, 7, true)] {
         let present = (0..sc.entities.count).any(|i| {
-            sc.entities.entity_type[i] == 27
-                && !sc.entities.removed[i]
-                && sc.entities.pixel_x[i] >> 5 == cx
-                && sc.entities.pixel_y[i] >> 5 == cy
+            sc.entities.items[i].type_ == 27
+                && !sc.entities.items[i].removed
+                && sc.entities.items[i].px >> 5 == cx
+                && sc.entities.items[i].py >> 5 == cy
         });
         assert_eq!(!present, picked, "红钥匙 @({cx},{cy}) picked={picked}");
     }

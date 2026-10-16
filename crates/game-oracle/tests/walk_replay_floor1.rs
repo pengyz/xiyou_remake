@@ -116,7 +116,7 @@ impl HostCtx for Floor1Host {
     }
     fn swd_convert_type81(&mut self) {}
     fn entity_pixel(&self, idx: i32) -> (i32, i32) {
-        (self.table.pixel_x[idx as usize], self.table.pixel_y[idx as usize])
+        (self.table.items[idx as usize].px, self.table.items[idx as usize].py)
     }
     fn give_gold(&mut self, amount: i32) {
         let _ = game_core::combat::gain_gold(&mut self.player, amount);
@@ -136,7 +136,7 @@ impl HostCtx for Floor1Host {
     fn m_082_set_dialog_target(&mut self, _: i32) {}
     fn set_entity_route_flag(&mut self, _: i32) {}
     fn entity_type(&self, idx: i32) -> i32 {
-        self.table.entity_type.get(idx as usize).copied().unwrap_or(-1)
+        self.table.items.get(idx as usize).map(|e| e.type_).unwrap_or(-1)
     }
     fn snap_camera_after_ros1(&mut self, _px: i32, _py: i32) {}
 }
@@ -159,10 +159,10 @@ impl Floor1Host {
             entity_ids.push(self.grid.slots[ct][s] as i32 - 1);
         }
         for &eid in &entity_ids {
-            if self.table.solid[eid as usize] == 1 {
+            if self.table.items[eid as usize].state == 1 {
                 continue;
             }
-            let etype = self.table.entity_type[eid as usize];
+            let etype = self.table.items[eid as usize].type_;
             let category = category_of(etype);
             match category {
                 1 => match etype {

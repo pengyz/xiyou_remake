@@ -119,13 +119,13 @@ fn probe_floor2_type78() {
     .unwrap();
 
     for e in 0..scene.entities.count {
-        let t = scene.entities.entity_type[e];
+        let t = scene.entities.items[e].type_;
         if t == 78 || t == 77 {
             println!(
                 "spawned type{} idx={} px=({},{}) removed={} solid={}",
                 t, e,
-                scene.entities.pixel_x[e], scene.entities.pixel_y[e],
-                scene.entities.removed[e], scene.entities.solid[e]
+                scene.entities.items[e].px, scene.entities.items[e].py,
+                scene.entities.items[e].removed, scene.entities.items[e].state
             );
         }
     }

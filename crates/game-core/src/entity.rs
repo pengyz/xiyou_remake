@@ -12,28 +12,52 @@
 
 use crate::render::ArgbImage;
 
-/// 实体表（100 槽，Java god class 的实体数组族）。
+/// 实体记录（SoA→AoS，refactor-plan §2 第 1 步）：字段对照 a.java 声明序（行号锚
+/// 随字段）；**行为逻辑零改动**——仅存储布局。默认值=旧 Vec 预填值（可见 true、
+/// 其余 0/false）——state_dump 金样整表引用含 100 槽尾部，尾默认必须逐字段对齐。
+#[derive(Clone, Copy)]
+pub struct Entity {
+    /// entityType（a.java:129）
+    pub type_: i32,
+    /// entityParam（a.java:135）
+    pub param: i16,
+    /// entityPixelX（a.java:123）
+    pub px: i32,
+    /// entityPixelY（a.java:124）
+    pub py: i32,
+    /// entityState（a.java:137）：0=常态；1=markEntityRemoved 移除态〔开格动画〕；2=markEntityDesRemoved DES 态
+    pub state: u8,
+    /// entityVisible（a.java:132）：spawnEntity 默认 true；m_122 的 5/81/6/12/76/82/83 生成分支置 false
+    pub visible: bool,
+    /// entityRemoved（a.java:133）：DES/GUT/pullEntityFromCell 消耗用；sortEntitiesByY 排序跳过、paintEntityLayer 不画
+    pub removed: bool,
+    /// entitySpriteW（a.java:125）：精灵条带帧宽 px（dispatchSpriteSize 分派）
+    pub sprite_w: i32,
+    /// entitySpriteH（a.java:126）：精灵条带高 px（dispatchSpriteSize 分派）
+    pub sprite_h: i32,
+    /// entityAnimRow（a.java:130）：动画偏移表行号（dispatchAnimFields = animRowByType[type]）
+    pub anim_row: i32,
+    /// entityAnimFrame（a.java:127）：动画帧下标（advanceEntityFrames 推进）
+    pub anim_frame: i32,
+}
+
+impl Default for Entity {
+    fn default() -> Self {
+        Self {
+            type_: 0, param: 0, px: 0, py: 0, state: 0,
+            visible: true, // 旧 Vec 预填 true（金样尾部对齐）
+            removed: false,
+            sprite_w: 0, sprite_h: 0, anim_row: 0, anim_frame: 0,
+        }
+    }
+}
+
+/// 实体表（100 槽，Java god class 的实体数组族）：Vec<Entity> cap100 +
+/// count=entityCount（a.java:131）语义——**append-only**（槽三禁令②，四测钉死）。
 pub struct EntityTable {
-    pub entity_type: Vec<i32>,
-    pub param: Vec<i16>,
-    pub pixel_x: Vec<i32>,
-    pub pixel_y: Vec<i32>,
-    /// entityState：实体状态（0=常态；1=markEntityRemoved 移除态〔开格动画〕；2=markEntityDesRemoved DES 态）
-    pub solid: Vec<u8>,
-    /// entityVisible：可见标志（spawnEntity 默认 true；m_122 的 5/81/6/12/76/82/83 生成分支置 false）
-    pub visible: Vec<bool>,
-    /// entityRemoved：移除标志（DES/GUT/pullEntityFromCell 消耗用；sortEntitiesByY 排序跳过、paintEntityLayer 不画）
-    pub removed: Vec<bool>,
-    /// entitySpriteW：精灵条带帧宽 px（dispatchSpriteSize 分派）
-    pub sprite_w: Vec<i32>,
-    /// entitySpriteH：精灵条带高 px（dispatchSpriteSize 分派）
-    pub sprite_h: Vec<i32>,
-    /// entityAnimRow：动画偏移表行号（dispatchAnimFields = animRowByType[type]）
-    pub anim_idx: Vec<i32>,
-    /// entityAnimFrame：动画帧下标（advanceEntityFrames 推进）
-    pub frame: Vec<i32>,
+    pub items: Vec<Entity>,
     pub count: usize,
-    /// 楼梯锚点（spawnEntity：type 7→stairUpMarkerX/72，type 8→stairDownMarkerX/73）
+    /// 楼梯锚点（a.java:182-185 stairUp/DownMarkerX/Y；单体标量非实体数组）
     pub stair_up: Option<(i32, i32)>,
     pub stair_down: Option<(i32, i32)>,
 }
@@ -41,17 +65,7 @@ pub struct EntityTable {
 impl EntityTable {
     pub fn new(capacity: usize) -> Self {
         Self {
-            entity_type: vec![0; capacity],
-            param: vec![0; capacity],
-            pixel_x: vec![0; capacity],
-            pixel_y: vec![0; capacity],
-            solid: vec![0; capacity],
-            visible: vec![true; capacity],
-            removed: vec![false; capacity],
-            sprite_w: vec![0; capacity],
-            sprite_h: vec![0; capacity],
-            anim_idx: vec![0; capacity],
-            frame: vec![0; capacity],
+            items: vec![Entity::default(); capacity],
             count: 0,
             stair_up: None,
             stair_down: None,
@@ -151,32 +165,32 @@ pub const ANIM_OFFSET_TABLE: [&[i32]; 11] = [
 pub fn dispatch_sprite_size(type_id: i32, idx: usize, table: &mut EntityTable, width_table: &[i32], img_h: Option<i32>) {
     match type_id {
         69 => {
-            table.sprite_w[idx] = 96;
-            table.sprite_h[idx] = 32;
+            table.items[idx].sprite_w = 96;
+            table.items[idx].sprite_h = 32;
             return;
         }
         72 => {
-            table.sprite_w[idx] = 32;
-            table.sprite_h[idx] = 45;
+            table.items[idx].sprite_w = 32;
+            table.items[idx].sprite_h = 45;
             return;
         }
         67 => {}
         _ => {
             if let Some(h) = img_h {
-                table.sprite_w[idx] = *width_table.get(type_id as usize).unwrap_or(&32);
-                table.sprite_h[idx] = h;
+                table.items[idx].sprite_w = *width_table.get(type_id as usize).unwrap_or(&32);
+                table.items[idx].sprite_h = h;
                 return;
             }
         }
     }
-    table.sprite_w[idx] = 32;
-    table.sprite_h[idx] = 32;
+    table.items[idx].sprite_w = 32;
+    table.items[idx].sprite_h = 32;
 }
 
 /// dispatchAnimFields（a.java:6327-6330）：动画字段初始化（行号 = animRowByType[type]，帧 0）。
 pub fn dispatch_anim(type_id: i32, idx: usize, table: &mut EntityTable) {
-    table.anim_idx[idx] = ANIM_TABLE_IDX[type_id as usize] as i32;
-    table.frame[idx] = 0;
+    table.items[idx].anim_row = ANIM_TABLE_IDX[type_id as usize] as i32;
+    table.items[idx].anim_frame = 0;
 }
 
 /// spawnEntity 忠实移植：像素取整到格、实体字段初始化、格槽登记（按类型宽度
@@ -201,13 +215,13 @@ pub fn spawn(
 
     dispatch_sprite_size(type_id, idx, table, width_table, img_h);
     dispatch_anim(type_id, idx, table);
-    table.entity_type[idx] = type_id;
-    table.pixel_x[idx] = snapped_x;
-    table.pixel_y[idx] = snapped_y;
-    table.removed[idx] = false;
-    table.visible[idx] = true; // spawnEntity 默认可见（m_122 特例分支随后置 false）
-    table.param[idx] = param;
-    table.solid[idx] = 0;
+    table.items[idx].type_ = type_id;
+    table.items[idx].px = snapped_x;
+    table.items[idx].py = snapped_y;
+    table.items[idx].removed = false;
+    table.items[idx].visible = true; // spawnEntity 默认可见（m_122 特例分支随后置 false）
+    table.items[idx].param = param;
+    table.items[idx].state = 0;
     table.count += 1;
 
     // 格槽登记（Java var5 = dispatchSpriteSize 写入的 entitySpriteW>>5，≤0 取 1；a.java:6392-6400，槽登记 6412-6420）
@@ -243,7 +257,7 @@ pub fn cell_entity(grid: &CellGrid, table: &EntityTable, x: i32, y: i32, type_id
     let mut found;
     for slot in 0..cap {
         found = grid.slots[ct][slot] as i32 - 1;
-        if table.entity_type[found as usize] == type_id && table.solid[found as usize] != 1 {
+        if table.items[found as usize].type_ == type_id && table.items[found as usize].state != 1 {
             return found;
         }
     }
@@ -257,35 +271,35 @@ pub fn cell_entity(grid: &CellGrid, table: &EntityTable, x: i32, y: i32, type_id
 /// - 类目 2/4 → (45,56) 行 10
 /// - 类目 8/16/32 → (27,29) 行 6
 pub fn remove(table: &mut EntityTable, idx: usize) -> bool {
-    table.solid[idx] = 1;
-    let t = table.entity_type[idx];
+    table.items[idx].state = 1;
+    let t = table.items[idx].type_;
     match render_category(t) {
         1 => match t {
             1 | 2 | 3 => {
-                table.sprite_w[idx] = 45;
-                table.sprite_h[idx] = 56;
-                table.anim_idx[idx] = 6;
-                table.frame[idx] = 0;
+                table.items[idx].sprite_w = 45;
+                table.items[idx].sprite_h = 56;
+                table.items[idx].anim_row = 6;
+                table.items[idx].anim_frame = 0;
             }
             11 => {
-                table.sprite_w[idx] = 45;
-                table.sprite_h[idx] = 57;
-                table.anim_idx[idx] = 2;
-                table.frame[idx] = 0;
+                table.items[idx].sprite_w = 45;
+                table.items[idx].sprite_h = 57;
+                table.items[idx].anim_row = 2;
+                table.items[idx].anim_frame = 0;
             }
             _ => {}
         },
         2 | 4 => {
-            table.sprite_w[idx] = 45;
-            table.sprite_h[idx] = 56;
-            table.anim_idx[idx] = 10;
-            table.frame[idx] = 0;
+            table.items[idx].sprite_w = 45;
+            table.items[idx].sprite_h = 56;
+            table.items[idx].anim_row = 10;
+            table.items[idx].anim_frame = 0;
         }
         8 | 16 | 32 => {
-            table.sprite_w[idx] = 27;
-            table.sprite_h[idx] = 29;
-            table.anim_idx[idx] = 6;
-            table.frame[idx] = 0;
+            table.items[idx].sprite_w = 27;
+            table.items[idx].sprite_h = 29;
+            table.items[idx].anim_row = 6;
+            table.items[idx].anim_frame = 0;
         }
         _ => {}
     }
@@ -294,15 +308,15 @@ pub fn remove(table: &mut EntityTable, idx: usize) -> bool {
 
 /// markEntityDesRemoved（a.java:6332-6347）：DES 变体——solid=2 + 类目 2/8/16/32 → (27,29) 行 8。
 pub fn remove_des(table: &mut EntityTable, idx: usize) {
-    table.solid[idx] = 2;
-    let t = table.entity_type[idx];
+    table.items[idx].state = 2;
+    let t = table.items[idx].type_;
     match render_category(t) {
         1 => {}
         _ => {
-            table.sprite_w[idx] = 27;
-            table.sprite_h[idx] = 29;
-            table.anim_idx[idx] = 8;
-            table.frame[idx] = 0;
+            table.items[idx].sprite_w = 27;
+            table.items[idx].sprite_h = 29;
+            table.items[idx].anim_row = 8;
+            table.items[idx].anim_frame = 0;
         }
     }
 }
@@ -320,51 +334,51 @@ pub fn sort_by_y(table: &mut EntityTable, grid: &mut CellGrid) {
     }
     let mut var3 = table.count as i32;
     while var3 >= 1 {
-        let mut var1 = table.pixel_y[0];
+        let mut var1 = table.items[0].py;
         for var4 in 1..var3 {
-            if !table.removed[var4 as usize] {
-                if table.pixel_y[var4 as usize] < var1 {
+            if !table.items[var4 as usize].removed {
+                if table.items[var4 as usize].py < var1 {
                     let a = (var4 - 1) as usize;
                     let b = var4 as usize;
                     let bak = (
-                        table.entity_type[a],
-                        table.pixel_x[a],
-                        table.pixel_y[a],
-                        table.sprite_w[a],
-                        table.sprite_h[a],
-                        table.solid[a],
-                        table.removed[a],
-                        table.visible[a],
-                        table.param[a],
+                        table.items[a].type_,
+                        table.items[a].px,
+                        table.items[a].py,
+                        table.items[a].sprite_w,
+                        table.items[a].sprite_h,
+                        table.items[a].state,
+                        table.items[a].removed,
+                        table.items[a].visible,
+                        table.items[a].param,
                     );
                     // 槽修复①：var2 旧格上 var2+1 → var5+1
                     fix_slot(grid, bak.1, bak.2, bak.3, a, b);
                     // var5 记录前移到 var2
-                    table.entity_type[a] = table.entity_type[b];
-                    table.pixel_x[a] = table.pixel_x[b];
-                    table.pixel_y[a] = table.pixel_y[b];
-                    table.sprite_w[a] = table.sprite_w[b];
-                    table.sprite_h[a] = table.sprite_h[b];
-                    table.solid[a] = table.solid[b];
-                    table.removed[a] = table.removed[b];
-                    table.visible[a] = table.visible[b];
-                    table.param[a] = table.param[b];
-                    dispatch_anim(table.entity_type[a], a, table);
+                    table.items[a].type_ = table.items[b].type_;
+                    table.items[a].px = table.items[b].px;
+                    table.items[a].py = table.items[b].py;
+                    table.items[a].sprite_w = table.items[b].sprite_w;
+                    table.items[a].sprite_h = table.items[b].sprite_h;
+                    table.items[a].state = table.items[b].state;
+                    table.items[a].removed = table.items[b].removed;
+                    table.items[a].visible = table.items[b].visible;
+                    table.items[a].param = table.items[b].param;
+                    dispatch_anim(table.items[a].type_, a, table);
                     // 备份记录落到 var5
-                    table.entity_type[b] = bak.0;
-                    table.pixel_x[b] = bak.1;
-                    table.pixel_y[b] = bak.2;
-                    table.sprite_w[b] = bak.3;
-                    table.sprite_h[b] = bak.4;
-                    table.solid[b] = bak.5;
-                    table.removed[b] = bak.6;
-                    table.visible[b] = bak.7;
-                    table.param[b] = bak.8;
-                    dispatch_anim(table.entity_type[b], b, table);
+                    table.items[b].type_ = bak.0;
+                    table.items[b].px = bak.1;
+                    table.items[b].py = bak.2;
+                    table.items[b].sprite_w = bak.3;
+                    table.items[b].sprite_h = bak.4;
+                    table.items[b].state = bak.5;
+                    table.items[b].removed = bak.6;
+                    table.items[b].visible = bak.7;
+                    table.items[b].param = bak.8;
+                    dispatch_anim(table.items[b].type_, b, table);
                     // 槽修复②：var2 新格（= var5 旧位）上 var5+1 → var2+1
-                    fix_slot(grid, table.pixel_x[a], table.pixel_y[a], table.sprite_w[a], b, a);
+                    fix_slot(grid, table.items[a].px, table.items[a].py, table.items[a].sprite_w, b, a);
                 }
-                var1 = table.pixel_y[var4 as usize];
+                var1 = table.items[var4 as usize].py;
             }
         }
         var3 -= 1;
@@ -409,13 +423,13 @@ pub fn advance_frames(
     let mut e = table.count as i32 - 1;
     while e >= 0 {
         let i = e as usize;
-        if !table.removed[i] && table.visible[i] && table.anim_idx[i] > 0 {
-            let row = table.anim_idx[i] as usize;
-            let frame = table.frame[i];
+        if !table.items[i].removed && table.items[i].visible && table.items[i].anim_row > 0 {
+            let row = table.items[i].anim_row as usize;
+            let frame = table.items[i].anim_frame;
             if frame < ANIM_OFFSET_TABLE[row].len() as i32 - 1 {
-                table.frame[i] += 1;
+                table.items[i].anim_frame += 1;
             } else {
-                match table.solid[i] {
+                match table.items[i].state {
                     1 => {
                         detach.push(i);
                         detach_from_cell(grid, table, i);
@@ -423,16 +437,16 @@ pub fn advance_frames(
                     2 => {
                         // a.java:6300 dispatchSpriteSize(type)：高度 = 类型图自身高
                         //（无 Some(h) 直通——DES 高度 29 不得驻留，迭代 49）
-                        let t = table.entity_type[i];
+                        let t = table.items[i].type_;
                         let img_h = entity_imgs
                             .get(t as usize)
                             .and_then(|im| im.as_ref())
                             .map(|im| im.height);
                         dispatch_sprite_size(t, i, table, width_table, img_h);
                         dispatch_anim(t, i, table);
-                        table.solid[i] = 0;
+                        table.items[i].state = 0;
                     }
-                    _ => table.frame[i] = 0,
+                    _ => table.items[i].anim_frame = 0,
                 }
             }
         }
@@ -443,9 +457,9 @@ pub fn advance_frames(
 
 /// pullEntityFromCell（a.java:6465-6481）：实体从所属格槽摘除 + removed=true。
 pub fn detach_from_cell(grid: &mut CellGrid, table: &mut EntityTable, idx: usize) {
-    table.removed[idx] = true;
-    let cy = (table.pixel_y[idx] >> 5) as usize;
-    let cx = (table.pixel_x[idx] >> 5) as usize;
+    table.items[idx].removed = true;
+    let cy = (table.items[idx].py >> 5) as usize;
+    let cx = (table.items[idx].px >> 5) as usize;
     let ct = grid.cell_type[cy][cx] as usize;
     let cap = grid.capacity[ct] as usize;
     for s in 0..cap {
@@ -478,8 +492,8 @@ pub fn relocate_slot(grid: &mut CellGrid, table: &EntityTable, idx: usize, from_
             break;
         }
     }
-    let cx = (table.pixel_x[idx] >> 5) as usize;
-    let cy = (table.pixel_y[idx] >> 5) as usize;
+    let cx = (table.items[idx].px >> 5) as usize;
+    let cy = (table.items[idx].py >> 5) as usize;
     let mut nt = grid.cell_type[cy][cx];
     if nt == 0 {
         grid.next_cell_type += 1;
@@ -509,8 +523,8 @@ pub fn advance_bob(offset: &mut i32, rising: &mut bool) {
 /// DES 负参变体：按类型批量移除（executeScriptInstruction DES 分支语义）。
 pub fn remove_all_of_type(table: &mut EntityTable, type_id: i32) {
     for i in 0..table.count {
-        if table.entity_type[i] == type_id {
-            table.solid[i] = 1;
+        if table.items[i].type_ == type_id {
+            table.items[i].state = 1;
         }
     }
 }
@@ -526,10 +540,10 @@ pub fn remove_group_at_cell_by_type(cx: i32, cy: i32, type_id: i32, table: &mut 
     let mut kept: Vec<u8> = Vec::new();
     for s in 0..cap {
         let id = grid.slots[ct][s] as usize - 1;
-        if table.entity_type[id] != type_id {
+        if table.items[id].type_ != type_id {
             kept.push(grid.slots[ct][s]);
         } else {
-            table.removed[id] = true;
+            table.items[id].removed = true;
         }
     }
     for (s, v) in kept.iter().enumerate() {

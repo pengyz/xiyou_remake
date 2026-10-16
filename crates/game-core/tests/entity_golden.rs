@@ -49,10 +49,10 @@ fn spawn_registers_cell_slot_and_stair_anchor() {
     // type 7（上楼梯）在像素 (96, 320) → 格 (3, 10)
     let idx = entity::spawn(&mut t, &mut g, 7, 96, 320, 0, &width_table, None);
     assert_eq!(idx, 0);
-    assert_eq!(t.pixel_x[0], 96);
-    assert_eq!(t.pixel_y[0], 320);
-    assert_eq!(t.entity_type[0], 7);
-    assert!(t.visible[0], "m_048 默认 visible=true");
+    assert_eq!(t.items[0].px, 96);
+    assert_eq!(t.items[0].py, 320);
+    assert_eq!(t.items[0].type_, 7);
+    assert!(t.items[0].visible, "m_048 默认 visible=true");
     assert_eq!(t.stair_up, Some((96, 320)));
     // m_100 查询：格 (3,10) 上 type 7 → idx 0
     assert_eq!(entity::cell_entity(&g, &t, 3, 10, 7), 0);
@@ -69,7 +69,7 @@ fn remove_marks_solid_and_lookup_skips() {
     let b = entity::spawn(&mut t, &mut g, 26, 128, 320, 0, &width_table, None); // 同类型另一扇
     assert_eq!(entity::cell_entity(&g, &t, 3, 10, 26), a as i32);
     entity::remove(&mut t, a as usize);
-    assert_eq!(t.solid[a as usize], 1);
+    assert_eq!(t.items[a as usize].state, 1);
     assert_eq!(entity::cell_entity(&g, &t, 3, 10, 26), -1, "已移除不再命中");
     assert_eq!(entity::cell_entity(&g, &t, 4, 10, 26), b as i32, "其余实体不受影响");
 }
@@ -85,7 +85,7 @@ fn remove_all_of_type_matches_des_negative() {
     entity::spawn(&mut t, &mut g, 45, 96, 32, 0, &width_table, None);
     entity::remove_all_of_type(&mut t, 44);
     assert_eq!(entity::cell_entity(&g, &t, 1, 1, 44), -1);
-    assert!(t.solid[0] == 1 && t.solid[1] == 1);
+    assert!(t.items[0].state == 1 && t.items[1].state == 1);
     assert_eq!(entity::cell_entity(&g, &t, 3, 1, 45), 2, "异类型不受影响");
 }
 
@@ -220,8 +220,8 @@ fn relocate_slot_moves_registration_from_start_cell() {
     assert_eq!(slots(&g, 3, 7), vec![a as u8 + 1, b as u8 + 1]);
     let ct18 = g.cell_type[8][1];
     // 实体走到 (1,8)（已有格类型）→ 迁移：(3,7) 摘 a、(1,8) 追加于 c 之后
-    t.pixel_x[a] = 1 << 5;
-    t.pixel_y[a] = 8 << 5;
+    t.items[a].px = 1 << 5;
+    t.items[a].py = 8 << 5;
     entity::relocate_slot(&mut g, &t, a, 3, 7);
     assert_eq!(slots(&g, 3, 7), vec![b as u8 + 1], "后续前移");
     assert_eq!(g.cell_type[8][1], ct18, "已有格类型不重分配");
@@ -230,7 +230,7 @@ fn relocate_slot_moves_registration_from_start_cell() {
     assert_eq!(entity::cell_entity(&g, &t, 3, 7, 72), -1);
     // 再走到 (1,10)（无格类型）→ 分配新类型 = 已分配数 + 1
     let next = (0..13).flat_map(|y| (0..13).map(move |x| (x, y))).map(|(x, y)| g.cell_type[y][x]).max().unwrap();
-    t.pixel_y[a] = 10 << 5;
+    t.items[a].py = 10 << 5;
     entity::relocate_slot(&mut g, &t, a, 1, 8);
     assert_eq!(g.cell_type[10][1], next + 1, "++nextCellTypeId");
     assert_eq!(slots(&g, 1, 10), vec![a as u8 + 1]);
@@ -264,10 +264,10 @@ fn spawn_indices_are_append_only_across_removals() {
     assert_eq!(d, 3, "新实体索引=旧 count，槽位永不复用");
     assert_eq!(t.count, 4);
     // 留置形态：被移除实体记录本体不动（下标语义稳定）
-    assert_eq!(t.entity_type[1], 43);
-    assert_eq!(t.param[1], 20);
-    assert_eq!(t.entity_type[2], 43);
-    assert!(t.removed[0], "detach 标记留置");
+    assert_eq!(t.items[1].type_, 43);
+    assert_eq!(t.items[1].param, 20);
+    assert_eq!(t.items[2].type_, 43);
+    assert!(t.items[0].removed, "detach 标记留置");
     // 新槽登记 = idx+1 = 4（1-based 编码不变）
     let ct = g.cell_type[0][3] as usize;
     assert_eq!(&g.slots[ct][..g.capacity[ct] as usize], &[4]);
@@ -294,8 +294,8 @@ fn sort_by_y_swap_fixes_slot_entries_across_all_width_cells() {
     assert_eq!(row(&g, 5, 5), vec![2], "前置：B 格");
     entity::sort_by_y(&mut t, &mut g);
     // 交换后：idx0=B 记录（y 小在前），idx1=A 记录
-    assert_eq!(t.param[0], 2, "B 记录前移");
-    assert_eq!(t.param[1], 1, "A 记录后落");
+    assert_eq!(t.items[0].param, 2, "B 记录前移");
+    assert_eq!(t.items[1].param, 1, "A 记录后落");
     // 槽修复①（A 旧格两行 1→2）+②（B 旧格 2→1）——双格两行全同步
     assert_eq!(row(&g, 0, 10), vec![2], "宽体左格同步修复");
     assert_eq!(row(&g, 1, 10), vec![2], "宽体右格同步修复");
@@ -316,12 +316,12 @@ fn detach_from_cell_compacts_slot_row_in_order() {
     let ct = g.cell_type[7][3] as usize;
     assert_eq!(&g.slots[ct][..g.capacity[ct] as usize], &[1, 2, 3]);
     entity::detach_from_cell(&mut g, &mut t, 1);
-    assert!(t.removed[1]);
+    assert!(t.items[1].removed);
     assert_eq!(&g.slots[ct][..g.capacity[ct] as usize], &[1, 3], "摘除后续前移、序保持");
     assert_eq!(g.capacity[ct], 2);
     // 留置形态：被摘实体记录本体不动（swap_remove/重编号禁令对照面）
-    assert_eq!(t.entity_type[1], 43);
-    assert_eq!(t.param[1], 1);
+    assert_eq!(t.items[1].type_, 43);
+    assert_eq!(t.items[1].param, 1);
 }
 
 /// 槽三禁令③配套（refactor-behavior-matrix 1.5）：**sort_by_y 平局序**——
@@ -337,8 +337,8 @@ fn sort_by_y_tie_order_is_stable() {
         entity::spawn(&mut t, &mut g, 43, (i as i32) << 5, y << 5, i as i16, &wt, None);
     }
     entity::sort_by_y(&mut t, &mut g);
-    let order: Vec<i16> = (0..5).map(|i| t.param[i]).collect();
+    let order: Vec<i16> = (0..5).map(|i| t.items[i].param).collect();
     assert_eq!(order, vec![1, 3, 0, 2, 4], "同 y 组内相对序不变（y=5 组 1,3；y=10 组 0,2,4）");
-    let sorted_ys: Vec<i32> = (0..5).map(|i| t.pixel_y[i]).collect();
+    let sorted_ys: Vec<i32> = (0..5).map(|i| t.items[i].py).collect();
     assert_eq!(sorted_ys, vec![160, 160, 320, 320, 320], "y 升序");
 }
