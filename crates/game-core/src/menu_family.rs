@@ -292,6 +292,205 @@ impl Default for OverlayEngine {
     }
 }
 
+/// `layoutWrappedText` 单源核心（a.java:4940-5020；`layoutFullText` = limit=全长的
+/// 委托，a.java:4940-4942）。2026-10-17 双拷贝单源化：消费方 =
+/// `OverlayEngine::layout`（u16 行）与 `scene::layout_wrapped_text_limited`
+/// （打字机限量）。语义锚 Java 原样（缺陷保真）：① 非法 `\c` 两字符仅记 1 行位
+/// （var11++ 原样）；② 单行 contentWidth 测**全文**宽（a.java:5013-5014；scene
+/// 旧拷贝测截断宽——经考证不可观测，见其原注，切换安全）；③ 尾行仅 line_len>0
+/// 时 push。
+pub struct WrappedLayout {
+    pub lines: Vec<Vec<u16>>,
+    pub total_lines: i32,
+    pub lines_per_page: i32,
+    pub page_height: i32,
+    pub content_w: i32,
+    pub line_height: i32,
+}
+
+pub fn layout_wrapped_text(
+    text: &[u16],
+    max_w: i32,
+    max_h: i32,
+    limit: usize,
+    font: &crate::render::SoftFont,
+) -> WrappedLayout {
+    let line_height = font.height + 4;
+    let mut lines: Vec<Vec<u16>> = Vec::new();
+    let mut cur_w = 0i32; // var8
+    let mut line_start = 0usize; // var10
+    let mut line_len = 0usize; // var11
+    let n = limit.min(text.len());
+    let mut i = 0usize; // var12
+    while i < n {
+        let ch = text[i];
+        let mut cw = font.char_width(ch);
+        if ch == b'\n' as u16 {
+            lines.push(text[line_start..line_start + line_len].to_vec());
+            line_start = i + 1;
+            cur_w = 0;
+            line_len = 0;
+        } else {
+            if ch == b'\\' as u16 {
+                i += 1;
+                if i < n {
+                    let c2 = text[i];
+                    if c2 == b'c' as u16 {
+                        if i + 6 < n && hex_color_valid(&text[i + 1..i + 7]) {
+                            i += 6;
+                            line_len += 7;
+                            cw = 0;
+                        } else {
+                            cw = font.char_width(b'\\' as u16) + font.char_width(c2);
+                        }
+                    } else if c2 == b'r' as u16 {
+                        line_len += 1;
+                        cw = 0;
+                    }
+                } else {
+                    cw = font.char_width(b'\\' as u16);
+                    i -= 1; // 溢出保护：var12--
+                }
+            }
+            cur_w += cw;
+            if cur_w > max_w {
+                lines.push(text[line_start..line_start + line_len].to_vec());
+                cur_w = cw;
+                line_start = i;
+                line_len = 1;
+            } else {
+                line_len += 1;
+            }
+        }
+        i += 1;
+    }
+    if line_len > 0 {
+        lines.push(text[line_start..line_start + line_len].to_vec());
+    }
+    let total_lines = lines.len() as i32;
+    let mut lines_per_page = max_h / line_height;
+    if total_lines < lines_per_page {
+        lines_per_page = total_lines;
+    }
+    let page_height = line_height * lines_per_page;
+    let content_w = if total_lines == 1 { font.string_width(text) } else { max_w };
+    WrappedLayout {
+        lines,
+        total_lines,
+        lines_per_page,
+        page_height,
+        content_w,
+        line_height,
+    }
+}
+
+/// `paintWrappedText` 单源核心（a.java:5021-5119）：页首前 `\c` 色回溯 + 行内转义
+/// 绘制（\c 着色 / \r 复原）+ 翻页三角。2026-10-17 双拷贝单源化：消费方 =
+/// `OverlayEngine::paint` / `scene::paint_wrapped_text`。语义锚 Java 原样：
+/// ① overlaySavedColor 开场置 `getColor()`、每次 `\c` 刷新、**跨行持久**
+/// （engine 旧拷贝行内局部、scene 旧拷贝跨 paint 持久，皆偏离）；
+/// ② 尾段 `\c` 长度不足时 parsed 保持行内初值 0（a.java:5063，缺陷保真）。
+/// 返回末态 overlaySavedColor。
+#[allow(clippy::too_many_arguments)]
+pub fn paint_wrapped_lines(
+    g: &mut SoftGraphics<'_>,
+    lines: &[Vec<u16>],
+    page_top: i32,
+    page_bottom: i32,
+    total_lines: i32,
+    page_height: i32,
+    line_height: i32,
+    x: i32,
+    y: i32,
+    w: i32,
+    arrows: bool,
+    frame_counter: i32,
+    font: &crate::render::SoftFont,
+) -> u32 {
+    let mut saved_color = g.get_color();
+    let mut dy = y + 2;
+    // 页首行之前最近的颜色标记（a.java:5043-5047，倒序扫 --var8 >= 0）
+    let mut probe = page_top;
+    loop {
+        probe -= 1;
+        if probe < 0 {
+            break;
+        }
+        let line = &lines[probe as usize];
+        if let Some(pos) = line.iter().rposition(|&c| c == b'\\' as u16) {
+            if line.get(pos + 1) == Some(&(b'c' as u16)) && pos + 8 <= line.len() {
+                let color = parse_hex_color(&line[pos + 2..pos + 8]);
+                g.set_color(color as u32);
+                break;
+            }
+        }
+    }
+    // 行绘制（a.java:5055-5076）
+    let mut row = page_top;
+    while row < page_bottom {
+        let line = &lines[row as usize];
+        let len = line.len();
+        let mut seg_start = 0usize;
+        let mut px = x;
+        let mut parsed: i32 = 0;
+        let mut j = 0usize;
+        while j < len {
+            if line[j] == b'\\' as u16 {
+                if j > 0 {
+                    g.draw_substring(line, seg_start as i32, (j - seg_start) as i32, px, dy, 0);
+                    px += font.substring_width(line, seg_start, j - seg_start);
+                }
+                j += 1;
+                if j < len {
+                    let c2 = line[j];
+                    if c2 == b'c' as u16 {
+                        if j + 6 < len {
+                            parsed = parse_hex_color(&line[j + 1..j + 7]);
+                        }
+                        if parsed != -1 {
+                            saved_color = g.get_color();
+                            g.set_color(parsed as u32);
+                            j += 6;
+                            seg_start = j + 1;
+                        } else {
+                            seg_start = j - 1;
+                        }
+                    } else if c2 == b'r' as u16 {
+                        g.set_color(saved_color);
+                        seg_start = j + 1;
+                    } else {
+                        seg_start = j;
+                    }
+                }
+            }
+            j += 1;
+        }
+        if seg_start != 0 {
+            if seg_start < len {
+                g.draw_substring(line, seg_start as i32, (len - seg_start) as i32, px, dy, 0);
+            }
+        } else {
+            g.draw_string(line, x, dy, 0);
+        }
+        dy += line_height;
+        row += 1;
+    }
+    // 翻页箭头（a.java:5083-5092）
+    let cx = x + (w >> 1);
+    if arrows {
+        g.set_color(crate::layout::WHITE);
+        if page_top > 0 {
+            let ay = y - 8 + (frame_counter & 1);
+            g.fill_triangle(cx, ay, cx - 7, ay + 7, cx + 7, ay + 7);
+        }
+        if page_bottom < total_lines {
+            let ay = y + page_height + 3 - (frame_counter & 1);
+            g.fill_triangle(cx, ay, cx - 6, ay - 6, cx + 6, ay - 6);
+        }
+    }
+    saved_color
+}
+
 impl OverlayEngine {
     pub fn new() -> OverlayEngine {
         OverlayEngine {
@@ -313,71 +512,15 @@ impl OverlayEngine {
     /// `layoutWrappedText`（a.java:4998-5013 区）：切行布局。`(max_w, max_h)` =
     /// showOverlayMessage case 0 的 (180, 240)。
     fn layout(&mut self, text: &[u16], max_w: i32, max_h: i32, font: &crate::render::SoftFont) {
-        self.lines.clear();
-        let mut cur_w = 0i32; // var8
-        let mut line_start = 0usize; // var10
-        let mut line_len = 0usize; // var11
-        let n = text.len();
-        let mut i = 0usize; // var12
-        while i < n {
-            let ch = text[i];
-            let mut cw = font.char_width(ch);
-            if ch == b'\n' as u16 {
-                self.lines.push(text[line_start..line_start + line_len].to_vec());
-                line_start = i + 1;
-                cur_w = 0;
-                line_len = 0;
-            } else {
-                if ch == b'\\' as u16 {
-                    i += 1;
-                    if i < n {
-                        let c2 = text[i];
-                        if c2 == b'c' as u16 {
-                            if i + 6 < n && hex_color_valid(&text[i + 1..i + 7]) {
-                                i += 6;
-                                line_len += 7;
-                                cw = 0;
-                            } else {
-                                cw = font.char_width(b'\\' as u16) + font.char_width(c2);
-                            }
-                        } else if c2 == b'r' as u16 {
-                            line_len += 1;
-                            cw = 0;
-                        }
-                    } else {
-                        cw = font.char_width(b'\\' as u16);
-                        i -= 1; // 溢出保护：var12--
-                    }
-                }
-                cur_w += cw;
-                if cur_w > max_w {
-                    self.lines.push(text[line_start..line_start + line_len].to_vec());
-                    cur_w = cw;
-                    line_start = i;
-                    line_len = 1;
-                } else {
-                    line_len += 1;
-                }
-            }
-            i += 1;
-        }
-        if line_len > 0 {
-            self.lines.push(text[line_start..line_start + line_len].to_vec());
-        }
+        let r = layout_wrapped_text(text, max_w, max_h, text.len(), font);
+        self.lines = r.lines;
+        self.total_lines = r.total_lines;
+        self.lines_per_page = r.lines_per_page;
+        self.page_height = r.page_height;
+        self.content_width = r.content_w;
+        self.line_height = r.line_height;
         self.page_top = 0;
-        self.total_lines = self.lines.len() as i32;
-        let mut per = max_h / self.line_height;
-        if self.total_lines < per {
-            per = self.total_lines;
-        }
-        self.lines_per_page = per;
-        self.page_height = self.line_height * per;
-        self.page_bottom = if self.total_lines > per { per } else { self.total_lines };
-        self.content_width = if self.total_lines == 1 {
-            font.string_width(text)
-        } else {
-            max_w
-        };
+        self.page_bottom = r.total_lines.min(r.lines_per_page);
     }
 
     /// `showOverlayMessage` case 0/2/4/5（a.java:5005-5006）：布局 + 盒尺寸。
@@ -461,93 +604,25 @@ impl OverlayEngine {
         font: &crate::render::SoftFont,
     ) {
         if self.cached_text.as_deref() != Some(text) {
-            // paintWrappedText 缓存失效 ⇒ layoutFullText(text, w, h)（a.java:5029-5026）——
-            // 布局参数来自调用方（overlay=180/240 预排、引子字幕=220/28）
+            // paintWrappedText 缓存失效 ⇒ layoutFullText(text, w, h)（a.java:5024-5026）
             self.layout(text, w, h, font);
             self.cached_text = Some(text.to_vec());
         }
-        let mut dy = y + 2;
-        self.saved_color = g.get_color();
-        // 页首行之前最近的颜色标记（a.java:5043-5047，倒序扫 --var8 >= 0）
-        let mut probe = self.page_top;
-        loop {
-            probe -= 1;
-            if probe < 0 {
-                break;
-            }
-            let line = &self.lines[probe as usize];
-            if let Some(pos) = line.iter().rposition(|&c| c == b'\\' as u16) {
-                if line.get(pos + 1) == Some(&(b'c' as u16)) && pos + 8 <= line.len() {
-                    let color = parse_hex_color(&line[pos + 2..pos + 8]);
-                    g.set_color(color as u32);
-                    break;
-                }
-            }
-        }
-        // 行绘制（a.java:5055-5076）
-        let mut row = self.page_top;
-        while row < self.page_bottom {
-            let line = &self.lines[row as usize].clone();
-            let len = line.len();
-            let mut seg_start = 0usize;
-            let mut px = x;
-            let mut color_tmp: i32 = 0;
-            let mut j = 0usize;
-            while j < len {
-                if line[j] == b'\\' as u16 {
-                    if j > 0 {
-                        g.draw_substring(line, seg_start as i32, (j - seg_start) as i32, px, dy, 0);
-                        px += font.substring_width(line, seg_start, j - seg_start);
-                    }
-                    j += 1;
-                    if j < len {
-                        let c2 = line[j];
-                        if c2 == b'c' as u16 {
-                            let mut parsed: i32 = 0;
-                            if j + 6 < len {
-                                parsed = parse_hex_color(&line[j + 1..j + 7]);
-                            }
-                            if parsed != -1 {
-                                color_tmp = g.get_color() as i32;
-                                g.set_color(parsed as u32);
-                                j += 6;
-                                seg_start = j + 1;
-                            } else {
-                                seg_start = j - 1;
-                            }
-                        } else if c2 == b'r' as u16 {
-                            g.set_color(color_tmp as u32);
-                            seg_start = j + 1;
-                        } else {
-                            seg_start = j;
-                        }
-                    }
-                }
-                j += 1;
-            }
-            if seg_start != 0 {
-                if seg_start < len {
-                    g.draw_substring(line, seg_start as i32, (len - seg_start) as i32, px, dy, 0);
-                }
-            } else {
-                g.draw_string(line, x, dy, 0);
-            }
-            dy += self.line_height;
-            row += 1;
-        }
-        // 翻页箭头（a.java:5083-5092）
-        let cx = x + (w >> 1);
-        if arrows {
-            g.set_color(crate::layout::WHITE);
-            if self.page_top > 0 {
-                let ay = y - 8 + (frame_counter & 1);
-                g.fill_triangle(cx, ay, cx - 7, ay + 7, cx + 7, ay + 7);
-            }
-            if self.page_bottom < self.total_lines {
-                let ay = y + self.page_height + 3 - (frame_counter & 1);
-                g.fill_triangle(cx, ay, cx - 6, ay - 6, cx + 6, ay - 6);
-            }
-        }
+        self.saved_color = paint_wrapped_lines(
+            g,
+            &self.lines,
+            self.page_top,
+            self.page_bottom,
+            self.total_lines,
+            self.page_height,
+            self.line_height,
+            x,
+            y,
+            w,
+            arrows,
+            frame_counter,
+            font,
+        );
     }
 }
 

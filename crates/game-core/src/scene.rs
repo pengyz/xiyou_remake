@@ -1348,98 +1348,32 @@ impl GameScene {
     /// 语义 = 片段 drawString）+ 跨页起始色继承 + \\r 恢复 + 翻页三角。
     /// 忠实点：段起始 var12/游标 var16 的推进序、非法 hex 从反斜杠重画、
     /// 未知转义丢反斜杠、var15 每行清 0 的 `!= -1` 怪癖。
+    /// paintWrappedText（a.java:5021-5119）：2026-10-17 单源适配——绘制本体 =
+    /// `menu_family::paint_wrapped_lines`（边缘语义以 Java 为准：overlaySavedColor
+    /// 开场置 `getColor()`、每次 `\c` 刷新、跨行持久；旧拷贝行内/跨 paint 两向偏离）。
     fn paint_wrapped_text(&mut self, g: &mut SoftGraphics<'_>, x: i32, y: i32, w: i32, _max_h: i32, arrows: bool) {
         let font = crate::paint::paint_font();
         let line_h = font.height + 4;
-        // 向上找最近 \\c 起始色（a.java:5064-5074；解析失败 setColor(-1)=白）
-        for i in (0..self.overlay_page_top as usize).rev() {
-            if let Some(line) = self.overlay_lines.get(i) {
-                if let Some(pos) = line.rfind('\\') {
-                    if line[pos + 1..].starts_with('c') {
-                        let hex = &line[(pos + 2).min(line.len())..(pos + 8).min(line.len())];
-                        let c = crate::menu_family::parse_hex_color_public(hex)
-                            .map(|v| v as i32)
-                            .unwrap_or(-1);
-                        g.set_color(c as u32);
-                        break;
-                    }
-                }
-            }
-        }
-        let mut ty = y + 2;
-        for li in self.overlay_page_top as usize..self.overlay_page_bottom as usize {
-            if let Some(line) = self.overlay_lines.get(li).cloned() {
-                let codes: Vec<u16> = line.encode_utf16().collect();
-                let n = codes.len() as i32;
-                let mut seg_start = 0i32; // var12
-                let mut cx = x; // var13
-                let mut var15 = 0i32; // 每行清 0（a.java:5053）
-                let mut i = 0i32;
-                while i < n {
-                    if codes[i as usize] == '\\' as u16 {
-                        if i > 0 {
-                            // flush [seg_start, i)（Java drawSubstring(var25,var12,var16-var12)）
-                            let len = i - seg_start;
-                            let seg: Vec<u16> =
-                                codes[seg_start as usize..i as usize].to_vec();
-                            g.draw_substring(&codes, seg_start, len, cx, ty, 0);
-                            cx += seg.iter().map(|c| font.char_width(*c)).sum::<i32>();
-                        }
-                        i += 1;
-                        if i < n {
-                            let cmd = codes[i as usize];
-                            if cmd == 'c' as u16 {
-                                if i + 6 < n {
-                                    let hex: String = codes[i as usize + 1..i as usize + 7]
-                                        .iter()
-                                        .map(|c| *c as u8 as char)
-                                        .collect();
-                                    var15 = crate::menu_family::parse_hex_color_public(&hex)
-                                        .map(|v| v as i32)
-                                        .unwrap_or(-1);
-                                }
-                                if var15 != -1 {
-                                    self.overlay_saved_color = g.get_color() as i32;
-                                    g.set_color(var15 as u32);
-                                    i += 6;
-                                    seg_start = i + 1;
-                                } else {
-                                    seg_start = i - 1; // 非法 hex：从反斜杠起当文本
-                                }
-                            } else if cmd == 'r' as u16 {
-                                g.set_color(self.overlay_saved_color as u32);
-                                seg_start = i + 1;
-                            } else {
-                                seg_start = i; // 未知转义：丢反斜杠画命令字符
-                            }
-                        }
-                    }
-                    i += 1;
-                }
-                if seg_start != 0 {
-                    if seg_start < n {
-                        g.draw_substring(&codes, seg_start, n - seg_start, cx, ty, 0);
-                    }
-                } else {
-                    g.draw_string(&codes, x, ty, 0);
-                }
-            }
-            ty += line_h;
-        }
-        // 翻页三角（a.java:5110-5119）
-        if !arrows {
-            return;
-        }
-        g.set_color(WHITE);
-        let ax = x + (w >> 1);
-        if self.overlay_page_top > 0 {
-            let ay = y - 8 + ((self.frame_counter & 1) as i32);
-            g.fill_triangle(ax, ay, ax - 7, ay + 7, ax + 7, ay + 7);
-        }
-        if self.overlay_page_bottom < self.overlay_total_lines {
-            let ay = y + self.overlay_lines_per_page * line_h + 3 - ((self.frame_counter & 1) as i32);
-            g.fill_triangle(ax, ay, ax - 6, ay - 6, ax + 6, ay - 6);
-        }
+        let lines: Vec<Vec<u16>> = self
+            .overlay_lines
+            .iter()
+            .map(|l| l.encode_utf16().collect())
+            .collect();
+        self.overlay_saved_color = crate::menu_family::paint_wrapped_lines(
+            g,
+            &lines,
+            self.overlay_page_top,
+            self.overlay_page_bottom,
+            self.overlay_total_lines,
+            line_h * self.overlay_lines_per_page,
+            line_h,
+            x,
+            y,
+            w,
+            arrows,
+            self.frame_counter as i32,
+            &font,
+        ) as i32;
     }
 
     /// m_122（a.java:9465-9680）：**纯实体表装载**（≠loadFloorData——后者含视图/
@@ -1768,92 +1702,24 @@ impl GameScene {
     /// limit 个字符——打字机逐步放行的机制）：逐字换行（'\\c' 六位色 / '\\r' 转义
     /// 宽度跳过），页高 = maxLines/page。**本函数是该算法唯一实现**；
     /// [`Self::layout_full_text`] 即 limit=全长 的特例（与 Java 同构）。
+    /// layoutWrappedText 打字机限量版（a.java:4944，limit=已打字符数）：
+    /// 2026-10-17 单源适配——布局核 = `menu_family::layout_wrapped_text`
+    ///（非法 `\c` 记账/单行内容宽等边缘语义以 Java 为准，见核心文档）。
     fn layout_wrapped_text_limited(&mut self, text: &str, w: i32, max_h: i32, limit: i32) {
+        let t: Vec<u16> = text.encode_utf16().collect();
+        self.apply_wrapped_layout(&t, w, max_h, limit.max(0) as usize);
+    }
+
+    /// 布局核适配（GameScene overlay 状态落盘口；行存 String 以保既有字段形状）。
+    fn apply_wrapped_layout(&mut self, text: &[u16], w: i32, max_h: i32, limit: usize) {
         let font = crate::paint::paint_font();
-        let line_h = font.height + 4;
-        let chars: Vec<char> = text.chars().take(limit as usize).collect();
-        let mut lines: Vec<String> = Vec::new();
-        let mut cur = String::new();
-        let mut acc_w = 0i32;
-        let mut i = 0;
-        while i < chars.len() {
-            let c = chars[i];
-            if c == '\n' {
-                lines.push(std::mem::take(&mut cur));
-                acc_w = 0;
-                i += 1;
-                continue;
-            }
-            // 转义语义（a.java:4962-4976）。史：迭代 26 只修了当时的 overlay 全量
-            // 拷贝，本打字机限量拷贝漏改致同一偏差复发（迭代 30）；现已合并为单一实现。
-            let cw;
-            if c == '\\' && i + 1 < chars.len() {
-                let nxt = chars[i + 1];
-                if nxt == 'c' {
-                    // \cXXXXXX：Java 条件 var12+6<len 且 parseHex 有效（a.java:4967）——
-                    // 有效 ⇒ 整段 8 字符吞入行、宽 0（var11+=7+底部++=8，var6=0）
-                    let hex: String = chars[i + 2..(i + 8).min(chars.len())].iter().collect();
-                    let valid = i + 7 < chars.len()
-                        && crate::menu_family::parse_hex_color_public(&hex).is_some();
-                    if valid {
-                        cur.push(c);
-                        for k in 1..=7 {
-                            cur.push(chars[i + k]);
-                        }
-                        i += 8;
-                        continue;
-                    } else {
-                        // 非法色：\c 两字符按正常宽度计入（a.java:4969-4971 var6=两宽）
-                        cw = font.char_width('\\' as u16) + font.char_width(nxt as u16);
-                        cur.push(c);
-                        cur.push(nxt);
-                        acc_w += cw;
-                        i += 2;
-                        continue;
-                    }
-                } else if nxt == 'r' {
-                    // \r：2 字符吞入、宽 0（a.java:4972-4975）
-                    cur.push(c);
-                    cur.push(nxt);
-                    i += 2;
-                    continue;
-                }
-                // 未知转义：反斜杠计宽，命令字符下轮当正文（近似；HELP_TEXT 不触发）
-                cw = font.char_width('\\' as u16);
-                cur.push(c);
-                acc_w += cw;
-                i += 1;
-                continue;
-            } else {
-                cw = font.char_width(c as u16);
-            }
-            if acc_w + cw > w {
-                lines.push(std::mem::take(&mut cur));
-                cur.push(c);
-                acc_w = cw;
-            } else {
-                cur.push(c);
-                acc_w += cw;
-            }
-            i += 1;
-        }
-        // java：仅当末行有字符时 push（limit=0 → 0 行，a.java:5010-5014）
-        if !cur.is_empty() {
-            lines.push(cur);
-        }
+        let r = crate::menu_family::layout_wrapped_text(text, w, max_h, limit, &font);
         self.overlay_page_top = 0;
-        self.overlay_total_lines = lines.len() as i32;
-        self.overlay_lines_per_page = (max_h / line_h).min(self.overlay_total_lines);
-        self.overlay_page_bottom = self.overlay_total_lines.min(self.overlay_lines_per_page);
-        // 注：Java 此处量的是**整串** stringWidth(var1)（a.java:5013-5014），本实现量
-        // 截断串。不可观测：overlay_content_w 唯一读点在 show_overlay_message 紧随
-        // layout_full_text 之后（截断=全长）；打字机路径写入后无读点。保留原状不改。
-        self.overlay_content_w = if self.overlay_total_lines == 1 {
-            font.string_width(&text.chars().take(limit as usize).map(|c| c as u16).collect::<Vec<u16>>())
-        } else {
-            w
-        };
-        self.overlay_lines = lines;
+        self.overlay_total_lines = r.total_lines;
+        self.overlay_lines_per_page = r.lines_per_page;
+        self.overlay_page_bottom = r.total_lines.min(r.lines_per_page);
+        self.overlay_content_w = r.content_w;
+        self.overlay_lines = r.lines.iter().map(|l| String::from_utf16_lossy(l)).collect();
     }
 
     /// flipOverlayPage（a.java:5129-5140）：页顶/页底钳制。

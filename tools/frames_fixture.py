@@ -148,11 +148,14 @@ def check(frames: Path, script: Path | None) -> list[str]:
     if script is not None:
         ev = script_events(script)
         got = [f"{t} {i}" for t, _, i in recs if i]
-        if ev != got:
+        # 崩溃前缀夹具（BUG-012 体例）：运行在预算内触发原版崩溃/线程退出 ⇒ 帧链
+        # 截断到崩溃前缀——INPUT 只需是脚本事件的**前缀**（tick+事件逐项一致），
+        # 事件多出/乱序/替换仍判不一致。
+        if got != ev[:len(got)]:
             bad.append(f"INPUT 列与脚本事件不一致（脚本 {len(ev)} / 夹具 {len(got)}）")
         ticks, _ = scenario_header(script)
-        if ticks != len(recs):
-            bad.append(f"帧数 {len(recs)} ≠ 脚本 # ticks: {ticks}")
+        if len(recs) > ticks:
+            bad.append(f"帧数 {len(recs)} > 脚本 # ticks: {ticks}（超出预算=夹具污染）")
     return bad
 
 
