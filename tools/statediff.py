@@ -70,19 +70,41 @@ def main() -> int:
     a = parse_trace(args[0], F.build_map())
     r = parse_rust(args[1])
 
-    # 只比较两侧共有的 tick 与字段名；值文本完全一致才算一致。
-    common = sorted(set(a) & set(r))
+    # 【2026-10-16 修复·静默绿】原 `common = set(a) & set(r)` 交集口径 + 单侧缺字段
+    # `continue` ⇒ 漏字段静默缩小对拍面、工具自身不红（refactor-plan-review A1）。
+    # 现改**名集相等断言**：任一 tick 两侧名集不等即红（unmatched 全量列出）；
+    # tick 集不等同样显式报红（单侧 tick 原"也计数"承诺一并兑现）。
+    a_ticks, r_ticks = set(a), set(r)
+    tick_mismatch = False
+    if a_ticks != r_ticks:
+        tick_mismatch = True
+        only_a = sorted(a_ticks - r_ticks)
+        only_r = sorted(r_ticks - a_ticks)
+        print(f"[RED] tick 集不等：A-only={len(only_a)} {only_a[:20]}  R-only={len(only_r)} {only_r[:20]}")
+    common = sorted(a_ticks & r_ticks)
     if start:
         common = [t for t in common if t >= start]
+
+    name_mismatch: dict[int, tuple] = {}
+    for t in common:
+        names_a = set(a[t]) - SKIP
+        names_r = set(r[t]) - SKIP
+        if names_a != names_r:
+            name_mismatch[t] = (sorted(names_a - names_r), sorted(names_r - names_a))
+    if name_mismatch:
+        for t in sorted(name_mismatch)[:5]:
+            only_a, only_r = name_mismatch[t]
+            print(f"[RED] T{t} 名集不等：A-only={only_a}  R-only={only_r}")
+        print(f"[RED] 名集不等 tick 数={len(name_mismatch)}（漏字段=红，名集相等断言）")
+
     first_div: dict[str, tuple] = {}
     div_ticks: set[int] = set()
     checked = 0
     for t in common:
-        names = set(a[t]) | set(r[t]) - set(SKIP)
-        for n in sorted(names - SKIP):
+        for n in sorted((set(a[t]) | set(r[t])) - SKIP):
             va, vr = a[t].get(n), r[t].get(n)
             if va is None or vr is None:
-                continue  # 单侧缺失（对齐/容量语义），跳过
+                continue  # 名集相等已断言——此处只兜底
             checked += 1
             if va != vr and n not in first_div:
                 first_div[n] = (t, va[:80], vr[:80])
@@ -92,7 +114,7 @@ def main() -> int:
         print(f"  {n}: 首分歧 T{t}  A={va}  R={vr}")
     if div_ticks:
         print("分歧 tick:", sorted(div_ticks)[:40])
-    return 0 if not first_div else 1
+    return 0 if not (first_div or name_mismatch or tick_mismatch) else 1
 
 
 if __name__ == "__main__":

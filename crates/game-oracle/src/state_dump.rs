@@ -102,8 +102,8 @@ pub fn dump_scene(sc: &GameScene) -> Vec<String> {
     push(e_int("yellowKeyCount", sc.player.yellow_keys));
     push(e_int("blueKeyCount", sc.player.blue_keys));
     push(e_int("redKeyCount", sc.player.red_keys));
-    push(e_int("f_int_54", sc.tile_bob));
-    push(e_int("f_int_55", sc.open_anim_tick));
+    push(e_int("tileBob", sc.tile_bob));
+    push(e_int("openAnimTick", sc.open_anim_tick));
     push(e_int("currentScriptIndex", sc.current_script_index as i32));
     push(e_int("dialogPage", sc.dialog_page));
     push(e_byte("dialogPhase", sc.dialog_phase as i8));

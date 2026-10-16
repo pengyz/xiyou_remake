@@ -1,0 +1,2361 @@
+{
+ "schema": "TraceState-contract-1",
+ "generated_from": {
+  "fields": "javap -p analysis/rename-pipeline/renamed/a.class（字段声明序）",
+  "dump_order": "crates/game-oracle/src/state_dump.rs dump_scene push 序"
+ },
+ "line_order_freeze": "dump_scene 现行 push 序为金样字节序冻结面（refactor-plan §7 条件 2 / review A2）：TraceState 适配此序，禁按 FLD 序重排；FLD 行=Java 反射序，布局迁移天然不影响，两机制分列不混谈。",
+ "slots": [
+  {
+   "idx": 0,
+   "name": "f_Font_00",
+   "java_type": "javax.microedition.lcdui.Font"
+  },
+  {
+   "idx": 1,
+   "name": "wideCharWidth",
+   "java_type": "int"
+  },
+  {
+   "idx": 2,
+   "name": "fontHeight",
+   "java_type": "int"
+  },
+  {
+   "idx": 3,
+   "name": "f_int_02",
+   "java_type": "int"
+  },
+  {
+   "idx": 4,
+   "name": "f_String_00",
+   "java_type": "java.lang.String"
+  },
+  {
+   "idx": 5,
+   "name": "miscTexts",
+   "java_type": "java.lang.String[]"
+  },
+  {
+   "idx": 6,
+   "name": "f_bool_00",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 7,
+   "name": "f_Graphics_00",
+   "java_type": "javax.microedition.lcdui.Graphics"
+  },
+  {
+   "idx": 8,
+   "name": "f_bool_01",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 9,
+   "name": "frameCounter",
+   "java_type": "int"
+  },
+  {
+   "idx": 10,
+   "name": "gameMode",
+   "java_type": "byte"
+  },
+  {
+   "idx": 11,
+   "name": "menuReturnMode",
+   "java_type": "byte"
+  },
+  {
+   "idx": 12,
+   "name": "inGameMenuReturnMode",
+   "java_type": "byte"
+  },
+  {
+   "idx": 13,
+   "name": "f_DirectGraphics_00",
+   "java_type": "com.nokia.mid.ui.DirectGraphics"
+  },
+  {
+   "idx": 14,
+   "name": "bootLoadPhase",
+   "java_type": "int"
+  },
+  {
+   "idx": 15,
+   "name": "f_Image_00",
+   "java_type": "javax.microedition.lcdui.Image"
+  },
+  {
+   "idx": 16,
+   "name": "anyKeyPlayed",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 17,
+   "name": "resourceNames",
+   "java_type": "java.lang.String[]"
+  },
+  {
+   "idx": 18,
+   "name": "resourceImageCounts",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 19,
+   "name": "f_Image_arr2_00",
+   "java_type": "javax.microedition.lcdui.Image[][]"
+  },
+  {
+   "idx": 20,
+   "name": "f_int_arr_01",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 21,
+   "name": "titleBarSegments",
+   "java_type": "int[][]"
+  },
+  {
+   "idx": 22,
+   "name": "f_InputStream_00",
+   "java_type": "java.io.InputStream"
+  },
+  {
+   "idx": 23,
+   "name": "f_OutputStream_00",
+   "java_type": "java.io.OutputStream"
+  },
+  {
+   "idx": 24,
+   "name": "f_InputStream_01",
+   "java_type": "java.io.InputStream"
+  },
+  {
+   "idx": 25,
+   "name": "keyValue",
+   "java_type": "int"
+  },
+  {
+   "idx": 26,
+   "name": "keyHeldCode",
+   "java_type": "int"
+  },
+  {
+   "idx": 27,
+   "name": "menuLabels",
+   "java_type": "java.lang.String[]"
+  },
+  {
+   "idx": 28,
+   "name": "menuItemCount",
+   "java_type": "int"
+  },
+  {
+   "idx": 29,
+   "name": "menuBoxWidth",
+   "java_type": "int"
+  },
+  {
+   "idx": 30,
+   "name": "menuTotalHeight",
+   "java_type": "int"
+  },
+  {
+   "idx": 31,
+   "name": "menuItemKinds",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 32,
+   "name": "menuCursorIndex",
+   "java_type": "int"
+  },
+  {
+   "idx": 33,
+   "name": "menuScrollTop",
+   "java_type": "int"
+  },
+  {
+   "idx": 34,
+   "name": "menuVisibleBottom",
+   "java_type": "int"
+  },
+  {
+   "idx": 35,
+   "name": "menuVisibleRows",
+   "java_type": "int"
+  },
+  {
+   "idx": 36,
+   "name": "menuListHeight",
+   "java_type": "int"
+  },
+  {
+   "idx": 37,
+   "name": "menuLineHeight",
+   "java_type": "int"
+  },
+  {
+   "idx": 38,
+   "name": "statusBarHeight",
+   "java_type": "int"
+  },
+  {
+   "idx": 39,
+   "name": "iconStripDx",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 40,
+   "name": "iconStripDy",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 41,
+   "name": "iconStripFrame",
+   "java_type": "byte"
+  },
+  {
+   "idx": 42,
+   "name": "introImageHeight",
+   "java_type": "int"
+  },
+  {
+   "idx": 43,
+   "name": "introBandY",
+   "java_type": "int"
+  },
+  {
+   "idx": 44,
+   "name": "introImage",
+   "java_type": "javax.microedition.lcdui.Image"
+  },
+  {
+   "idx": 45,
+   "name": "introPage",
+   "java_type": "int"
+  },
+  {
+   "idx": 46,
+   "name": "introPageTick",
+   "java_type": "int"
+  },
+  {
+   "idx": 47,
+   "name": "introText",
+   "java_type": "java.lang.String"
+  },
+  {
+   "idx": 48,
+   "name": "introScrollX",
+   "java_type": "int"
+  },
+  {
+   "idx": 49,
+   "name": "introColorPhase",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 50,
+   "name": "introColorIdx",
+   "java_type": "byte"
+  },
+  {
+   "idx": 51,
+   "name": "introColors",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 52,
+   "name": "f_int_22",
+   "java_type": "int"
+  },
+  {
+   "idx": 53,
+   "name": "f_int_23",
+   "java_type": "int"
+  },
+  {
+   "idx": 54,
+   "name": "f_bool_04",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 55,
+   "name": "overlayActive",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 56,
+   "name": "overlayLeftIcon",
+   "java_type": "byte"
+  },
+  {
+   "idx": 57,
+   "name": "overlayRightIcon",
+   "java_type": "byte"
+  },
+  {
+   "idx": 58,
+   "name": "itemUseTargetType",
+   "java_type": "byte"
+  },
+  {
+   "idx": 59,
+   "name": "overlayKind",
+   "java_type": "byte"
+  },
+  {
+   "idx": 60,
+   "name": "overlayBoxWidth",
+   "java_type": "int"
+  },
+  {
+   "idx": 61,
+   "name": "overlayBoxHeight",
+   "java_type": "int"
+  },
+  {
+   "idx": 62,
+   "name": "overlayText",
+   "java_type": "java.lang.String"
+  },
+  {
+   "idx": 63,
+   "name": "overlayLayoutCache",
+   "java_type": "java.lang.String"
+  },
+  {
+   "idx": 64,
+   "name": "wrappedLines",
+   "java_type": "java.lang.String[]"
+  },
+  {
+   "idx": 65,
+   "name": "overlayPageTop",
+   "java_type": "int"
+  },
+  {
+   "idx": 66,
+   "name": "overlayPageBottom",
+   "java_type": "int"
+  },
+  {
+   "idx": 67,
+   "name": "overlayTotalLines",
+   "java_type": "int"
+  },
+  {
+   "idx": 68,
+   "name": "overlayContentWidth",
+   "java_type": "int"
+  },
+  {
+   "idx": 69,
+   "name": "overlayLinesPerPage",
+   "java_type": "int"
+  },
+  {
+   "idx": 70,
+   "name": "overlayPageHeight",
+   "java_type": "int"
+  },
+  {
+   "idx": 71,
+   "name": "overlaySavedColor",
+   "java_type": "int"
+  },
+  {
+   "idx": 72,
+   "name": "typewriterPos",
+   "java_type": "int"
+  },
+  {
+   "idx": 73,
+   "name": "textLineHeight",
+   "java_type": "int"
+  },
+  {
+   "idx": 74,
+   "name": "playerHp",
+   "java_type": "int"
+  },
+  {
+   "idx": 75,
+   "name": "playerAtk",
+   "java_type": "int"
+  },
+  {
+   "idx": 76,
+   "name": "playerDef",
+   "java_type": "int"
+  },
+  {
+   "idx": 77,
+   "name": "equippedWeaponType",
+   "java_type": "byte"
+  },
+  {
+   "idx": 78,
+   "name": "equippedArmorType",
+   "java_type": "byte"
+  },
+  {
+   "idx": 79,
+   "name": "playerAnimTables",
+   "java_type": "int[][]"
+  },
+  {
+   "idx": 80,
+   "name": "playerAnimSequence",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 81,
+   "name": "playerAnimIndex",
+   "java_type": "int"
+  },
+  {
+   "idx": 82,
+   "name": "walkPhase",
+   "java_type": "byte"
+  },
+  {
+   "idx": 83,
+   "name": "playerPixelX",
+   "java_type": "int"
+  },
+  {
+   "idx": 84,
+   "name": "playerPixelY",
+   "java_type": "int"
+  },
+  {
+   "idx": 85,
+   "name": "playerCellX",
+   "java_type": "int"
+  },
+  {
+   "idx": 86,
+   "name": "playerCellY",
+   "java_type": "int"
+  },
+  {
+   "idx": 87,
+   "name": "facingDirection",
+   "java_type": "byte"
+  },
+  {
+   "idx": 88,
+   "name": "stepProgressPx",
+   "java_type": "int"
+  },
+  {
+   "idx": 89,
+   "name": "battleTargetEntity",
+   "java_type": "int"
+  },
+  {
+   "idx": 90,
+   "name": "playerGhostSheet",
+   "java_type": "javax.microedition.lcdui.Image"
+  },
+  {
+   "idx": 91,
+   "name": "afterimageX",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 92,
+   "name": "afterimageY",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 93,
+   "name": "cameraLockedOnPlayer",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 94,
+   "name": "f_bool_07",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 95,
+   "name": "showBattleDigits",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 96,
+   "name": "softkeyLeftKind",
+   "java_type": "byte"
+  },
+  {
+   "idx": 97,
+   "name": "softkeyRightKind",
+   "java_type": "byte"
+  },
+  {
+   "idx": 98,
+   "name": "equipmentMaterialNames",
+   "java_type": "java.lang.String[]"
+  },
+  {
+   "idx": 99,
+   "name": "entityPixelX",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 100,
+   "name": "entityPixelY",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 101,
+   "name": "entitySpriteW",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 102,
+   "name": "entitySpriteH",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 103,
+   "name": "entityAnimFrame",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 104,
+   "name": "entityTypeImage",
+   "java_type": "javax.microedition.lcdui.Image[]"
+  },
+  {
+   "idx": 105,
+   "name": "entityType",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 106,
+   "name": "entityAnimRow",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 107,
+   "name": "entityCount",
+   "java_type": "int"
+  },
+  {
+   "idx": 108,
+   "name": "entityVisible",
+   "java_type": "boolean[]"
+  },
+  {
+   "idx": 109,
+   "name": "entityRemoved",
+   "java_type": "boolean[]"
+  },
+  {
+   "idx": 110,
+   "name": "renderCategoryByType",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 111,
+   "name": "entityParam",
+   "java_type": "short[]"
+  },
+  {
+   "idx": 112,
+   "name": "blocksPlayerInsert",
+   "java_type": "boolean[]"
+  },
+  {
+   "idx": 113,
+   "name": "entityState",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 114,
+   "name": "traitFlagsByType",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 115,
+   "name": "battleDigitByType",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 116,
+   "name": "animOffsetTable",
+   "java_type": "int[][]"
+  },
+  {
+   "idx": 117,
+   "name": "animRowByType",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 118,
+   "name": "typeFrameWidth",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 119,
+   "name": "noInsertTypeFlags",
+   "java_type": "boolean[]"
+  },
+  {
+   "idx": 120,
+   "name": "animBobOffset",
+   "java_type": "int"
+  },
+  {
+   "idx": 121,
+   "name": "animBobRising",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 122,
+   "name": "f_int_47",
+   "java_type": "int"
+  },
+  {
+   "idx": 123,
+   "name": "viewBottom",
+   "java_type": "int"
+  },
+  {
+   "idx": 124,
+   "name": "f_byte_arr2_00",
+   "java_type": "byte[][]"
+  },
+  {
+   "idx": 125,
+   "name": "f_byte_arr2_01",
+   "java_type": "byte[][]"
+  },
+  {
+   "idx": 126,
+   "name": "backdropScroll",
+   "java_type": "int"
+  },
+  {
+   "idx": 127,
+   "name": "minimapImage",
+   "java_type": "javax.microedition.lcdui.Image"
+  },
+  {
+   "idx": 128,
+   "name": "mapCellsWide",
+   "java_type": "int"
+  },
+  {
+   "idx": 129,
+   "name": "mapCellsHigh",
+   "java_type": "int"
+  },
+  {
+   "idx": 130,
+   "name": "mapPixelWidth",
+   "java_type": "int"
+  },
+  {
+   "idx": 131,
+   "name": "mapPixelHeight",
+   "java_type": "int"
+  },
+  {
+   "idx": 132,
+   "name": "mapTerrainGrid",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 133,
+   "name": "mapTransformGrid",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 134,
+   "name": "walkableGrid",
+   "java_type": "boolean[][]"
+  },
+  {
+   "idx": 135,
+   "name": "cellTypeGrid",
+   "java_type": "byte[][]"
+  },
+  {
+   "idx": 136,
+   "name": "cellSlotCount",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 137,
+   "name": "cellSlotTable",
+   "java_type": "byte[][]"
+  },
+  {
+   "idx": 138,
+   "name": "nextCellTypeId",
+   "java_type": "byte"
+  },
+  {
+   "idx": 139,
+   "name": "f_bool_arr_04",
+   "java_type": "boolean[]"
+  },
+  {
+   "idx": 140,
+   "name": "tileBob",
+   "java_type": "int"
+  },
+  {
+   "idx": 141,
+   "name": "openAnimTick",
+   "java_type": "int"
+  },
+  {
+   "idx": 142,
+   "name": "cameraPixelX",
+   "java_type": "int"
+  },
+  {
+   "idx": 143,
+   "name": "cameraPixelY",
+   "java_type": "int"
+  },
+  {
+   "idx": 144,
+   "name": "viewWidthPx",
+   "java_type": "int"
+  },
+  {
+   "idx": 145,
+   "name": "viewHeightPx",
+   "java_type": "int"
+  },
+  {
+   "idx": 146,
+   "name": "tileColStart",
+   "java_type": "int"
+  },
+  {
+   "idx": 147,
+   "name": "tileColEnd",
+   "java_type": "int"
+  },
+  {
+   "idx": 148,
+   "name": "tileRowStart",
+   "java_type": "int"
+  },
+  {
+   "idx": 149,
+   "name": "tileRowEnd",
+   "java_type": "int"
+  },
+  {
+   "idx": 150,
+   "name": "mapFitsWidth",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 151,
+   "name": "mapFitsHeight",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 152,
+   "name": "currentFloor",
+   "java_type": "int"
+  },
+  {
+   "idx": 153,
+   "name": "minFloorReached",
+   "java_type": "int"
+  },
+  {
+   "idx": 154,
+   "name": "maxFloorReached",
+   "java_type": "int"
+  },
+  {
+   "idx": 155,
+   "name": "f_int_67",
+   "java_type": "int"
+  },
+  {
+   "idx": 156,
+   "name": "floorCountMax",
+   "java_type": "int"
+  },
+  {
+   "idx": 157,
+   "name": "alchemyUpgradeCount",
+   "java_type": "int"
+  },
+  {
+   "idx": 158,
+   "name": "stairUpMarkerX",
+   "java_type": "int"
+  },
+  {
+   "idx": 159,
+   "name": "stairDownMarkerX",
+   "java_type": "int"
+  },
+  {
+   "idx": 160,
+   "name": "stairUpMarkerY",
+   "java_type": "int"
+  },
+  {
+   "idx": 161,
+   "name": "stairDownMarkerY",
+   "java_type": "int"
+  },
+  {
+   "idx": 162,
+   "name": "f_int_74",
+   "java_type": "int"
+  },
+  {
+   "idx": 163,
+   "name": "f_int_75",
+   "java_type": "int"
+  },
+  {
+   "idx": 164,
+   "name": "alchemyPrice",
+   "java_type": "int"
+  },
+  {
+   "idx": 165,
+   "name": "alchemyGainHp",
+   "java_type": "int"
+  },
+  {
+   "idx": 166,
+   "name": "f_int_78",
+   "java_type": "int"
+  },
+  {
+   "idx": 167,
+   "name": "f_int_79",
+   "java_type": "int"
+  },
+  {
+   "idx": 168,
+   "name": "alchemyCursor",
+   "java_type": "int"
+  },
+  {
+   "idx": 169,
+   "name": "optionLabels",
+   "java_type": "java.lang.String[]"
+  },
+  {
+   "idx": 170,
+   "name": "optionRowHeight",
+   "java_type": "int"
+  },
+  {
+   "idx": 171,
+   "name": "optionLabelIdx",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 172,
+   "name": "optionChecked",
+   "java_type": "boolean[]"
+  },
+  {
+   "idx": 173,
+   "name": "optionCursor",
+   "java_type": "int"
+  },
+  {
+   "idx": 174,
+   "name": "optionCount",
+   "java_type": "int"
+  },
+  {
+   "idx": 175,
+   "name": "optionBoxWidth",
+   "java_type": "int"
+  },
+  {
+   "idx": 176,
+   "name": "optionBoxHeight",
+   "java_type": "int"
+  },
+  {
+   "idx": 177,
+   "name": "f_short_arr_01",
+   "java_type": "short[]"
+  },
+  {
+   "idx": 178,
+   "name": "f_short_arr_02",
+   "java_type": "short[]"
+  },
+  {
+   "idx": 179,
+   "name": "f_short_arr_03",
+   "java_type": "short[]"
+  },
+  {
+   "idx": 180,
+   "name": "f_int_86",
+   "java_type": "int"
+  },
+  {
+   "idx": 181,
+   "name": "f_String_arr_06",
+   "java_type": "java.lang.String[]"
+  },
+  {
+   "idx": 182,
+   "name": "f_String_arr_07",
+   "java_type": "java.lang.String[]"
+  },
+  {
+   "idx": 183,
+   "name": "f_byte_arr_12",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 184,
+   "name": "f_String_arr_08",
+   "java_type": "java.lang.String[]"
+  },
+  {
+   "idx": 185,
+   "name": "f_String_arr_09",
+   "java_type": "java.lang.String[]"
+  },
+  {
+   "idx": 186,
+   "name": "f_byte_arr_13",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 187,
+   "name": "merchantEntity",
+   "java_type": "int"
+  },
+  {
+   "idx": 188,
+   "name": "offerQueueSrc",
+   "java_type": "int"
+  },
+  {
+   "idx": 189,
+   "name": "f_byte_arr_14",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 190,
+   "name": "f_byte_arr_15",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 191,
+   "name": "inventoryEntryCount",
+   "java_type": "int"
+  },
+  {
+   "idx": 192,
+   "name": "recordPage",
+   "java_type": "int"
+  },
+  {
+   "idx": 193,
+   "name": "f_String_04",
+   "java_type": "java.lang.String"
+  },
+  {
+   "idx": 194,
+   "name": "itemDescriptions",
+   "java_type": "java.lang.String[]"
+  },
+  {
+   "idx": 195,
+   "name": "equipDescriptions",
+   "java_type": "java.lang.String[]"
+  },
+  {
+   "idx": 196,
+   "name": "itemUseCounts",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 197,
+   "name": "yellowKeyCount",
+   "java_type": "int"
+  },
+  {
+   "idx": 198,
+   "name": "blueKeyCount",
+   "java_type": "int"
+  },
+  {
+   "idx": 199,
+   "name": "redKeyCount",
+   "java_type": "int"
+  },
+  {
+   "idx": 200,
+   "name": "goldAmount",
+   "java_type": "int"
+  },
+  {
+   "idx": 201,
+   "name": "itemStackSize",
+   "java_type": "int"
+  },
+  {
+   "idx": 202,
+   "name": "itemStackTypes",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 203,
+   "name": "itemStackUses",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 204,
+   "name": "f_int_96",
+   "java_type": "int"
+  },
+  {
+   "idx": 205,
+   "name": "equipTierBonuses",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 206,
+   "name": "equipTierTypes",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 207,
+   "name": "itemPanelCols",
+   "java_type": "int"
+  },
+  {
+   "idx": 208,
+   "name": "itemPanelScrollTop",
+   "java_type": "int"
+  },
+  {
+   "idx": 209,
+   "name": "itemPanelScrollBottom",
+   "java_type": "int"
+  },
+  {
+   "idx": 210,
+   "name": "itemPanelRowsVisible",
+   "java_type": "int"
+  },
+  {
+   "idx": 211,
+   "name": "itemPanelRowsTotal",
+   "java_type": "int"
+  },
+  {
+   "idx": 212,
+   "name": "itemPanelBoxH",
+   "java_type": "int"
+  },
+  {
+   "idx": 213,
+   "name": "itemPanelBoxW",
+   "java_type": "int"
+  },
+  {
+   "idx": 214,
+   "name": "itemPanelCursor",
+   "java_type": "int"
+  },
+  {
+   "idx": 215,
+   "name": "tutorialSeen",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 216,
+   "name": "f_bool_13",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 217,
+   "name": "objectTypeNames",
+   "java_type": "java.lang.String[]"
+  },
+  {
+   "idx": 218,
+   "name": "enemyBaseHp",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 219,
+   "name": "enemyBaseAtk",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 220,
+   "name": "enemyBaseDef",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 221,
+   "name": "enemyBaseGold",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 222,
+   "name": "enemyAtkScaled",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 223,
+   "name": "enemyDefScaled",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 224,
+   "name": "enemyHpScaled",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 225,
+   "name": "f_int_105",
+   "java_type": "int"
+  },
+  {
+   "idx": 226,
+   "name": "f_int_106",
+   "java_type": "int"
+  },
+  {
+   "idx": 227,
+   "name": "f_int_107",
+   "java_type": "int"
+  },
+  {
+   "idx": 228,
+   "name": "f_int_108",
+   "java_type": "int"
+  },
+  {
+   "idx": 229,
+   "name": "f_int_109",
+   "java_type": "int"
+  },
+  {
+   "idx": 230,
+   "name": "f_int_110",
+   "java_type": "int"
+  },
+  {
+   "idx": 231,
+   "name": "f_int_arr_22",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 232,
+   "name": "f_byte_arr_20",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 233,
+   "name": "currentScriptIndex",
+   "java_type": "int"
+  },
+  {
+   "idx": 234,
+   "name": "levelScriptLines",
+   "java_type": "java.lang.String[]"
+  },
+  {
+   "idx": 235,
+   "name": "dialogueSpeakerType",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 236,
+   "name": "f_byte_arr_22",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 237,
+   "name": "dialogueTexts",
+   "java_type": "java.lang.String[]"
+  },
+  {
+   "idx": 238,
+   "name": "dialogPage",
+   "java_type": "int"
+  },
+  {
+   "idx": 239,
+   "name": "scriptLineCount",
+   "java_type": "int"
+  },
+  {
+   "idx": 240,
+   "name": "scriptLineFlags",
+   "java_type": "boolean[]"
+  },
+  {
+   "idx": 241,
+   "name": "dialogMoveX",
+   "java_type": "int"
+  },
+  {
+   "idx": 242,
+   "name": "dialogMoveY",
+   "java_type": "int"
+  },
+  {
+   "idx": 243,
+   "name": "dialogPhase",
+   "java_type": "byte"
+  },
+  {
+   "idx": 244,
+   "name": "dialogScriptLine",
+   "java_type": "java.lang.String"
+  },
+  {
+   "idx": 245,
+   "name": "scriptCursor",
+   "java_type": "int"
+  },
+  {
+   "idx": 246,
+   "name": "seeModeFlag",
+   "java_type": "int"
+  },
+  {
+   "idx": 247,
+   "name": "scriptStepDelay",
+   "java_type": "int"
+  },
+  {
+   "idx": 248,
+   "name": "dialogSpeakerType",
+   "java_type": "byte"
+  },
+  {
+   "idx": 249,
+   "name": "dialogAnchorEntity",
+   "java_type": "int"
+  },
+  {
+   "idx": 250,
+   "name": "dialogPageStart",
+   "java_type": "int"
+  },
+  {
+   "idx": 251,
+   "name": "dialogPageEnd",
+   "java_type": "int"
+  },
+  {
+   "idx": 252,
+   "name": "lastDelimPos",
+   "java_type": "int"
+  },
+  {
+   "idx": 253,
+   "name": "cameraX",
+   "java_type": "int"
+  },
+  {
+   "idx": 254,
+   "name": "cameraY",
+   "java_type": "int"
+  },
+  {
+   "idx": 255,
+   "name": "cameraTargetX",
+   "java_type": "int"
+  },
+  {
+   "idx": 256,
+   "name": "cameraTargetY",
+   "java_type": "int"
+  },
+  {
+   "idx": 257,
+   "name": "f_int_127",
+   "java_type": "int"
+  },
+  {
+   "idx": 258,
+   "name": "routePhase",
+   "java_type": "byte"
+  },
+  {
+   "idx": 259,
+   "name": "f_byte_19",
+   "java_type": "byte"
+  },
+  {
+   "idx": 260,
+   "name": "routeProgress",
+   "java_type": "int"
+  },
+  {
+   "idx": 261,
+   "name": "f_int_129",
+   "java_type": "int"
+  },
+  {
+   "idx": 262,
+   "name": "f_int_130",
+   "java_type": "int"
+  },
+  {
+   "idx": 263,
+   "name": "battleActiveFlag",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 264,
+   "name": "f_short_arr_04",
+   "java_type": "short[]"
+  },
+  {
+   "idx": 265,
+   "name": "bossEventSpawns",
+   "java_type": "byte[][]"
+  },
+  {
+   "idx": 266,
+   "name": "bossTypeOrder",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 267,
+   "name": "f_bool_15",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 268,
+   "name": "slotValidFlags",
+   "java_type": "boolean[]"
+  },
+  {
+   "idx": 269,
+   "name": "slotFloorNumbers",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 270,
+   "name": "f_int_arr_23",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 271,
+   "name": "f_int_arr_24",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 272,
+   "name": "f_int_arr_25",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 273,
+   "name": "f_int_arr_26",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 274,
+   "name": "f_int_arr_27",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 275,
+   "name": "f_int_arr_28",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 276,
+   "name": "f_int_arr_29",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 277,
+   "name": "f_byte_arr_25",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 278,
+   "name": "f_byte_arr_26",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 279,
+   "name": "slotListHeight",
+   "java_type": "int"
+  },
+  {
+   "idx": 280,
+   "name": "slotScrollTop",
+   "java_type": "int"
+  },
+  {
+   "idx": 281,
+   "name": "slotScrollBottom",
+   "java_type": "int"
+  },
+  {
+   "idx": 282,
+   "name": "slotCursor",
+   "java_type": "int"
+  },
+  {
+   "idx": 283,
+   "name": "slotListWidth",
+   "java_type": "int"
+  },
+  {
+   "idx": 284,
+   "name": "slotsPerPage",
+   "java_type": "int"
+  },
+  {
+   "idx": 285,
+   "name": "f_RecordStore_00",
+   "java_type": "javax.microedition.rms.RecordStore"
+  },
+  {
+   "idx": 286,
+   "name": "f_RecordEnumeration_00",
+   "java_type": "javax.microedition.rms.RecordEnumeration"
+  },
+  {
+   "idx": 287,
+   "name": "f_ByteArrayOutputStream_00",
+   "java_type": "java.io.ByteArrayOutputStream"
+  },
+  {
+   "idx": 288,
+   "name": "f_DataOutputStream_00",
+   "java_type": "java.io.DataOutputStream"
+  },
+  {
+   "idx": 289,
+   "name": "f_DataInputStream_00",
+   "java_type": "java.io.DataInputStream"
+  },
+  {
+   "idx": 290,
+   "name": "f_byte_arr_27",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 291,
+   "name": "f_byte_arr2_05",
+   "java_type": "byte[][]"
+  },
+  {
+   "idx": 292,
+   "name": "f_int_137",
+   "java_type": "int"
+  },
+  {
+   "idx": 293,
+   "name": "f_byte_arr_28",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 294,
+   "name": "f_int_138",
+   "java_type": "int"
+  },
+  {
+   "idx": 295,
+   "name": "f_byte_arr_29",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 296,
+   "name": "f_short_arr_05",
+   "java_type": "short[]"
+  },
+  {
+   "idx": 297,
+   "name": "f_short_arr_06",
+   "java_type": "short[]"
+  },
+  {
+   "idx": 298,
+   "name": "f_short_arr_07",
+   "java_type": "short[]"
+  },
+  {
+   "idx": 299,
+   "name": "f_short_arr_08",
+   "java_type": "short[]"
+  },
+  {
+   "idx": 300,
+   "name": "f_byte_20",
+   "java_type": "byte"
+  },
+  {
+   "idx": 301,
+   "name": "sparkCount",
+   "java_type": "byte"
+  },
+  {
+   "idx": 302,
+   "name": "popupKind",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 303,
+   "name": "popupValue",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 304,
+   "name": "popupX",
+   "java_type": "short[]"
+  },
+  {
+   "idx": 305,
+   "name": "popupY",
+   "java_type": "short[]"
+  },
+  {
+   "idx": 306,
+   "name": "popupRiseCounter",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 307,
+   "name": "popupRetireCursor",
+   "java_type": "int"
+  },
+  {
+   "idx": 308,
+   "name": "popupWriteCursor",
+   "java_type": "int"
+  },
+  {
+   "idx": 309,
+   "name": "popupRetired",
+   "java_type": "boolean[]"
+  },
+  {
+   "idx": 310,
+   "name": "scatterXKind5",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 311,
+   "name": "scatterYKind5",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 312,
+   "name": "scatterXKind6",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 313,
+   "name": "scatterYKind6",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 314,
+   "name": "scatterXKind7",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 315,
+   "name": "scatterYKind7",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 316,
+   "name": "particleX",
+   "java_type": "short[]"
+  },
+  {
+   "idx": 317,
+   "name": "particleY",
+   "java_type": "short[]"
+  },
+  {
+   "idx": 318,
+   "name": "particleVelX",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 319,
+   "name": "particleVelY",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 320,
+   "name": "particleSize",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 321,
+   "name": "particleCursor",
+   "java_type": "byte"
+  },
+  {
+   "idx": 322,
+   "name": "f_int_arr_31",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 323,
+   "name": "particleActive",
+   "java_type": "boolean[]"
+  },
+  {
+   "idx": 324,
+   "name": "particleVelXWaxing",
+   "java_type": "boolean[]"
+  },
+  {
+   "idx": 325,
+   "name": "particleColor",
+   "java_type": "int"
+  },
+  {
+   "idx": 326,
+   "name": "floorTransitioning",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 327,
+   "name": "wipeClosing",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 328,
+   "name": "wipePhase",
+   "java_type": "int"
+  },
+  {
+   "idx": 329,
+   "name": "pendingFloor",
+   "java_type": "byte"
+  },
+  {
+   "idx": 330,
+   "name": "wentDown",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 331,
+   "name": "loadSteps",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 332,
+   "name": "loadProgress",
+   "java_type": "int"
+  },
+  {
+   "idx": 333,
+   "name": "loadStepCount",
+   "java_type": "int"
+  },
+  {
+   "idx": 334,
+   "name": "loadStepIndex",
+   "java_type": "int"
+  },
+  {
+   "idx": 335,
+   "name": "loadTargetMode",
+   "java_type": "byte"
+  },
+  {
+   "idx": 336,
+   "name": "loadCallInit",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 337,
+   "name": "loadProgressTarget",
+   "java_type": "int"
+  },
+  {
+   "idx": 338,
+   "name": "f_int_147",
+   "java_type": "int"
+  },
+  {
+   "idx": 339,
+   "name": "shopRainbowColors",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 340,
+   "name": "shopRainbowPhase",
+   "java_type": "byte"
+  },
+  {
+   "idx": 341,
+   "name": "walkPathBuffer",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 342,
+   "name": "walkStepCount",
+   "java_type": "int"
+  },
+  {
+   "idx": 343,
+   "name": "f_byte_arr2_06",
+   "java_type": "byte[][]"
+  },
+  {
+   "idx": 344,
+   "name": "f_short_arr2_00",
+   "java_type": "short[][]"
+  },
+  {
+   "idx": 345,
+   "name": "f_short_00",
+   "java_type": "short"
+  },
+  {
+   "idx": 346,
+   "name": "f_short_01",
+   "java_type": "short"
+  },
+  {
+   "idx": 347,
+   "name": "f_short_02",
+   "java_type": "short"
+  },
+  {
+   "idx": 348,
+   "name": "f_short_03",
+   "java_type": "short"
+  },
+  {
+   "idx": 349,
+   "name": "f_short_arr_13",
+   "java_type": "short[]"
+  },
+  {
+   "idx": 350,
+   "name": "f_short_arr_14",
+   "java_type": "short[]"
+  },
+  {
+   "idx": 351,
+   "name": "f_int_149",
+   "java_type": "int"
+  },
+  {
+   "idx": 352,
+   "name": "f_bool_20",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 353,
+   "name": "f_bool_21",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 354,
+   "name": "f_bool_22",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 355,
+   "name": "difficultyIndex",
+   "java_type": "byte"
+  },
+  {
+   "idx": 356,
+   "name": "difficultyMultipliers",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 357,
+   "name": "battleEnemyHp",
+   "java_type": "int"
+  },
+  {
+   "idx": 358,
+   "name": "f_int_151",
+   "java_type": "int"
+  },
+  {
+   "idx": 359,
+   "name": "battleFinishing",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 360,
+   "name": "battleAnimTick",
+   "java_type": "byte"
+  },
+  {
+   "idx": 361,
+   "name": "battleSceneRerun",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 362,
+   "name": "battlePredictGate",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 363,
+   "name": "sparkQuads",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 364,
+   "name": "sparkFrames",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 365,
+   "name": "pathArrowsVisible",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 366,
+   "name": "scriptWalkArmed",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 367,
+   "name": "f_int_arr_34",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 368,
+   "name": "f_int_arr_35",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 369,
+   "name": "f_int_152",
+   "java_type": "int"
+  },
+  {
+   "idx": 370,
+   "name": "f_int_153",
+   "java_type": "int"
+  },
+  {
+   "idx": 371,
+   "name": "f_int_154",
+   "java_type": "int"
+  },
+  {
+   "idx": 372,
+   "name": "f_bool_28",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 373,
+   "name": "f_String_arr_15",
+   "java_type": "java.lang.String[]"
+  },
+  {
+   "idx": 374,
+   "name": "volumeLevel",
+   "java_type": "int"
+  },
+  {
+   "idx": 375,
+   "name": "soundEnabled",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 376,
+   "name": "track",
+   "java_type": "byte"
+  },
+  {
+   "idx": 377,
+   "name": "bgm",
+   "java_type": "javax.microedition.media.Player"
+  },
+  {
+   "idx": 378,
+   "name": "gameRandom",
+   "java_type": "java.util.Random"
+  },
+  {
+   "idx": 379,
+   "name": "f_int_arr_36",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 380,
+   "name": "bootPhaseCounter",
+   "java_type": "int"
+  },
+  {
+   "idx": 381,
+   "name": "logoSegmentHeights",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 382,
+   "name": "logoGap",
+   "java_type": "int"
+  },
+  {
+   "idx": 383,
+   "name": "logoBarX",
+   "java_type": "int"
+  },
+  {
+   "idx": 384,
+   "name": "logoAnchorY",
+   "java_type": "int[]"
+  },
+  {
+   "idx": 385,
+   "name": "logoLayoutDone",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 386,
+   "name": "logoGlyphMetrics",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 387,
+   "name": "logoItemCount",
+   "java_type": "byte"
+  },
+  {
+   "idx": 388,
+   "name": "logoItemMeta",
+   "java_type": "int[][]"
+  },
+  {
+   "idx": 389,
+   "name": "logoItemImages",
+   "java_type": "javax.microedition.lcdui.Image[]"
+  },
+  {
+   "idx": 390,
+   "name": "f_String_arr_16",
+   "java_type": "java.lang.String[]"
+  },
+  {
+   "idx": 391,
+   "name": "f_String_arr_17",
+   "java_type": "java.lang.String[]"
+  },
+  {
+   "idx": 392,
+   "name": "f_String_06",
+   "java_type": "java.lang.String"
+  },
+  {
+   "idx": 393,
+   "name": "f_int_159",
+   "java_type": "int"
+  },
+  {
+   "idx": 394,
+   "name": "f_byte_arr_47",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 395,
+   "name": "f_int_160",
+   "java_type": "int"
+  },
+  {
+   "idx": 396,
+   "name": "f_Object_00",
+   "java_type": "java.lang.Object"
+  },
+  {
+   "idx": 397,
+   "name": "f_int_161",
+   "java_type": "int"
+  },
+  {
+   "idx": 398,
+   "name": "f_bool_31",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 399,
+   "name": "f_bool_32",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 400,
+   "name": "f_String_07",
+   "java_type": "java.lang.String"
+  },
+  {
+   "idx": 401,
+   "name": "f_int_162",
+   "java_type": "int"
+  },
+  {
+   "idx": 402,
+   "name": "f_long_00",
+   "java_type": "long"
+  },
+  {
+   "idx": 403,
+   "name": "f_long_01",
+   "java_type": "long"
+  },
+  {
+   "idx": 404,
+   "name": "f_int_163",
+   "java_type": "int"
+  },
+  {
+   "idx": 405,
+   "name": "f_int_164",
+   "java_type": "int"
+  },
+  {
+   "idx": 406,
+   "name": "f_HttpConnection_00",
+   "java_type": "javax.microedition.io.HttpConnection"
+  },
+  {
+   "idx": 407,
+   "name": "f_bool_33",
+   "java_type": "boolean"
+  },
+  {
+   "idx": 408,
+   "name": "f_byte_arr_48",
+   "java_type": "byte[]"
+  },
+  {
+   "idx": 409,
+   "name": "f_int_165",
+   "java_type": "int"
+  },
+  {
+   "idx": 410,
+   "name": "f_int_166",
+   "java_type": "int"
+  }
+ ],
+ "dump_order": [
+  {
+   "seq": 0,
+   "name": "frameCounter",
+   "kind": "e_int",
+   "slot_idx": 9
+  },
+  {
+   "seq": 1,
+   "name": "gameMode",
+   "kind": "e_byte",
+   "slot_idx": 10
+  },
+  {
+   "seq": 2,
+   "name": "keyValue",
+   "kind": "e_int",
+   "slot_idx": 25
+  },
+  {
+   "seq": 3,
+   "name": "keyHeldCode",
+   "kind": "e_int",
+   "slot_idx": 26
+  },
+  {
+   "seq": 4,
+   "name": "overlayActive",
+   "kind": "e_bool",
+   "slot_idx": 55
+  },
+  {
+   "seq": 5,
+   "name": "overlayKind",
+   "kind": "e_byte",
+   "slot_idx": 59
+  },
+  {
+   "seq": 6,
+   "name": "playerHp",
+   "kind": "e_int",
+   "slot_idx": 74
+  },
+  {
+   "seq": 7,
+   "name": "playerAtk",
+   "kind": "e_int",
+   "slot_idx": 75
+  },
+  {
+   "seq": 8,
+   "name": "playerDef",
+   "kind": "e_int",
+   "slot_idx": 76
+  },
+  {
+   "seq": 9,
+   "name": "goldAmount",
+   "kind": "e_int",
+   "slot_idx": 200
+  },
+  {
+   "seq": 10,
+   "name": "equippedWeaponType",
+   "kind": "e_int",
+   "slot_idx": 77
+  },
+  {
+   "seq": 11,
+   "name": "equippedArmorType",
+   "kind": "e_int",
+   "slot_idx": 78
+  },
+  {
+   "seq": 12,
+   "name": "walkPhase",
+   "kind": "e_byte",
+   "slot_idx": 82
+  },
+  {
+   "seq": 13,
+   "name": "playerPixelX",
+   "kind": "e_int",
+   "slot_idx": 83
+  },
+  {
+   "seq": 14,
+   "name": "playerPixelY",
+   "kind": "e_int",
+   "slot_idx": 84
+  },
+  {
+   "seq": 15,
+   "name": "playerCellX",
+   "kind": "e_int",
+   "slot_idx": 85
+  },
+  {
+   "seq": 16,
+   "name": "playerCellY",
+   "kind": "e_int",
+   "slot_idx": 86
+  },
+  {
+   "seq": 17,
+   "name": "facingDirection",
+   "kind": "e_byte",
+   "slot_idx": 87
+  },
+  {
+   "seq": 18,
+   "name": "stepProgressPx",
+   "kind": "e_int",
+   "slot_idx": 88
+  },
+  {
+   "seq": 19,
+   "name": "cameraPixelX",
+   "kind": "e_int",
+   "slot_idx": 142
+  },
+  {
+   "seq": 20,
+   "name": "cameraPixelY",
+   "kind": "e_int",
+   "slot_idx": 143
+  },
+  {
+   "seq": 21,
+   "name": "viewWidthPx",
+   "kind": "e_int",
+   "slot_idx": 144
+  },
+  {
+   "seq": 22,
+   "name": "viewHeightPx",
+   "kind": "e_int",
+   "slot_idx": 145
+  },
+  {
+   "seq": 23,
+   "name": "mapCellsWide",
+   "kind": "e_int",
+   "slot_idx": 128
+  },
+  {
+   "seq": 24,
+   "name": "mapCellsHigh",
+   "kind": "e_int",
+   "slot_idx": 129
+  },
+  {
+   "seq": 25,
+   "name": "currentFloor",
+   "kind": "e_int",
+   "slot_idx": 152
+  },
+  {
+   "seq": 26,
+   "name": "entityCount",
+   "kind": "e_int",
+   "slot_idx": 107
+  },
+  {
+   "seq": 27,
+   "name": "yellowKeyCount",
+   "kind": "e_int",
+   "slot_idx": 197
+  },
+  {
+   "seq": 28,
+   "name": "blueKeyCount",
+   "kind": "e_int",
+   "slot_idx": 198
+  },
+  {
+   "seq": 29,
+   "name": "redKeyCount",
+   "kind": "e_int",
+   "slot_idx": 199
+  },
+  {
+   "seq": 30,
+   "name": "tileBob",
+   "kind": "e_int",
+   "slot_idx": 140
+  },
+  {
+   "seq": 31,
+   "name": "openAnimTick",
+   "kind": "e_int",
+   "slot_idx": 141
+  },
+  {
+   "seq": 32,
+   "name": "currentScriptIndex",
+   "kind": "e_int",
+   "slot_idx": 233
+  },
+  {
+   "seq": 33,
+   "name": "dialogPage",
+   "kind": "e_int",
+   "slot_idx": 238
+  },
+  {
+   "seq": 34,
+   "name": "dialogPhase",
+   "kind": "e_byte",
+   "slot_idx": 243
+  },
+  {
+   "seq": 35,
+   "name": "walkStepCount",
+   "kind": "e_int",
+   "slot_idx": 342
+  },
+  {
+   "seq": 36,
+   "name": "scriptWalkArmed",
+   "kind": "e_bool",
+   "slot_idx": 366
+  },
+  {
+   "seq": 37,
+   "name": "battleActiveFlag",
+   "kind": "e_bool",
+   "slot_idx": 263
+  },
+  {
+   "seq": 38,
+   "name": "entityType",
+   "kind": "e_int_arr",
+   "slot_idx": 105
+  },
+  {
+   "seq": 39,
+   "name": "entityPixelX",
+   "kind": "e_int_arr",
+   "slot_idx": 99
+  },
+  {
+   "seq": 40,
+   "name": "entityPixelY",
+   "kind": "e_int_arr",
+   "slot_idx": 100
+  },
+  {
+   "seq": 41,
+   "name": "entityAnimRow",
+   "kind": "e_int_arr",
+   "slot_idx": 106
+  },
+  {
+   "seq": 42,
+   "name": "entityAnimFrame",
+   "kind": "e_int_arr",
+   "slot_idx": 103
+  },
+  {
+   "seq": 43,
+   "name": "entityParam",
+   "kind": "e_short_arr",
+   "slot_idx": 111
+  },
+  {
+   "seq": 44,
+   "name": "entityState",
+   "kind": "e_byte_arr",
+   "slot_idx": 113
+  },
+  {
+   "seq": 45,
+   "name": "entityVisible",
+   "kind": "e_bool_arr",
+   "slot_idx": 108
+  },
+  {
+   "seq": 46,
+   "name": "entityRemoved",
+   "kind": "e_bool_arr",
+   "slot_idx": 109
+  },
+  {
+   "seq": 47,
+   "name": "enemyBaseGold",
+   "kind": "e_int_arr",
+   "slot_idx": 221
+  },
+  {
+   "seq": 48,
+   "name": "walkPathBuffer",
+   "kind": "e_byte_arr",
+   "slot_idx": 341
+  }
+ ]
+}

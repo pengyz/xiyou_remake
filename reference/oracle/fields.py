@@ -40,6 +40,33 @@ def field_names() -> list:
     return names
 
 
+def field_entries() -> list:
+    """[(name, java_type)]——按 class 字段声明序（javap -p 行：`private <type> <name>;`）。
+    对象型槽（FLD 000=f_Font_00 等）在内（refactor-plan-review A2：413 槽含对象型）。"""
+    out = subprocess.run(["javap", "-p", str(RENAMED)], capture_output=True, text=True).stdout
+    entries = []
+    for line in out.splitlines():
+        l = line.strip()
+        if not l or "(" in l or l.startswith(("Compiled from", "public final class", "class ")):
+            continue
+        toks = l.rstrip(";").split()
+        if len(toks) < 3:
+            continue  # "}" 等非字段行
+        entries.append((toks[-1], toks[-2]))
+    return entries
+
+
+def dump_order() -> list:
+    """state_dump.rs dump_scene 的 push(e_*(name,…)) 序 = **行序冻结对象**（A2）：
+    金样逐字节比对的行序即此序；TraceState 适配其序而非 FLD 序（两机制分列不混谈）。"""
+    src = (ROOT / "crates/game-oracle/src/state_dump.rs").read_text(encoding="utf-8")
+    body = src.split("pub fn dump_scene", 1)[1]
+    out = []
+    for m in re.finditer(r'push\((e_\w+)\("([A-Za-z0-9_]+)"', body):
+        out.append({"kind": m.group(1), "name": m.group(2)})
+    return out
+
+
 def build_map() -> dict:
     names = field_names()
     return {i: n for i, n in enumerate(names)}
@@ -86,6 +113,32 @@ def main() -> int:
         inv = {v: k for k, v in m.items()}
         for idx in args[1:]:
             print(f"FLD {int(idx):03d} = {m.get(int(idx), '?')}")
+        return 0
+    if args[0] == "--contract":
+        # 生成式 TraceState 契约（refactor-plan 条件 2：契约源=fields.py 413 槽，
+        # 非手抄残表；行序=state_dump.rs dump_scene push 序，A2 冻结声明）。
+        import json
+        entries = field_entries()
+        names = [n for n, _ in entries]
+        inv = {n: i for i, n in enumerate(names)}
+        contract = {
+            "schema": "TraceState-contract-1",
+            "generated_from": {
+                "fields": "javap -p analysis/rename-pipeline/renamed/a.class（字段声明序）",
+                "dump_order": "crates/game-oracle/src/state_dump.rs dump_scene push 序",
+            },
+            "line_order_freeze": (
+                "dump_scene 现行 push 序为金样字节序冻结面（refactor-plan §7 条件 2 / "
+                "review A2）：TraceState 适配此序，禁按 FLD 序重排；FLD 行=Java 反射序，"
+                "布局迁移天然不影响，两机制分列不混谈。"
+            ),
+            "slots": [{"idx": i, "name": n, "java_type": t} for i, (n, t) in enumerate(entries)],
+            "dump_order": [
+                {"seq": i, "name": d["name"], "kind": d["kind"], "slot_idx": inv.get(d["name"])}
+                for i, d in enumerate(dump_order())
+            ],
+        }
+        print(json.dumps(contract, ensure_ascii=False, indent=1))
         return 0
     if args[0] == "--timeline":
         if len(args) < 2:
