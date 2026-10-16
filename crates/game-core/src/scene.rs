@@ -4467,7 +4467,10 @@ impl GameScene {
             }
             self.walk_phase = 2;
             self.show_battle_digits = self.player.find_item(13) >= 0;
-            return;
+            // Java case -5/53 尾 break（a.java:5294）⇒ 出 keyValue switch 后
+            // **续走** keyHeldCode switch（a.java:5308 起）——不 return，
+            // 同拍方向键照常 facing+tryStep。【2026-10-16 修复】原臂末
+            // return 吞同拍步进（与型 15 break 语义 bug 同型，lead 裁定修）。
         }
         if self.key_value == 49 {
             // 49=上行（a.java:5295-5299 **分立 case**）：清零键值 → f_bool_13
@@ -7203,6 +7206,38 @@ mod slot_equip_scene_tests {
             sc.handle_field_input();
         }
         assert_eq!(sc.pending_floor, -1, "stair_hint 未亮 ⇒ 不换层");
+    }
+
+    /// -5/53 战况屏臂 break 语义（a.java:5271-5294 case -5/53 共臂尾 break）：
+    /// Java break 出 keyValue switch 后**续走** keyHeldCode switch（5308 起）
+    /// ——与方向键同拍时同拍 facing+tryStep。原实现臂末 return 吞掉（与型 15
+    /// 同型移植缺陷；2026-10-16 lead 裁定修，非 D4 保真对象）。
+    #[test]
+    fn field_input_key_minus5_falls_through_to_key_held() {
+        let mut sc = scene_with(&synthetic_sptarm());
+        // 臂效（无方向键，keyHeld switch 落 default）：战况屏态 + 相机解锁
+        sc.key_value = -5;
+        sc.handle_field_input();
+        assert_eq!(sc.walk_phase, 2, "战况屏态照设（a.java:5292）");
+        assert!(!sc.view_locked, "cameraLockedOnPlayer=false（a.java:5280）");
+        // break 语义：同拍方向键照跑 keyHeldCode switch（a.java:5308 起）
+        sc.key_value = -5;
+        sc.key_held = -1;
+        sc.handle_field_input();
+        assert_eq!(sc.facing, 1, "-5 臂后 keyHeld switch 照跑（-1=上 → facing=1）");
+    }
+
+    /// 53 同臂（a.java:5272 case 53 与 -5 共体）：break 语义同上。
+    #[test]
+    fn field_input_key_53_falls_through_to_key_held() {
+        let mut sc = scene_with(&synthetic_sptarm());
+        sc.key_value = 53;
+        sc.handle_field_input();
+        assert_eq!(sc.walk_phase, 2, "战况屏态照设（a.java:5292）");
+        sc.key_value = 53;
+        sc.key_held = -3;
+        sc.handle_field_input();
+        assert_eq!(sc.facing, 3, "53 臂后 keyHeld switch 照跑（-3=左 → facing=3）");
     }
 }
 
