@@ -5,7 +5,7 @@
 - 输入：`original/囧囧西游-大闹天宫.jar`（只读）→ `analysis/rename-pipeline/orig/*.class`
 - 对比对象：`analysis/rename-pipeline/orig/` vs `analysis/rename-pipeline/renamed/*.class`
 - 映射表：`data/naming/remap-table.json`（581 条符号，机械改名 569 条）
-- 语义叠加：`data/naming/ledger.jsonl`（applied 398 条，改写与验证均经两层符号还原：语义名→机械名→原始名）
+- 语义叠加：`data/naming/ledger.jsonl`（applied 421 条，改写与验证均经两层符号还原：语义名→机械名→原始名）
 
 ## 验证方法（为什么这能证明“仅符号名变化”）
 
@@ -477,17 +477,17 @@
 | 412 | a | a | 10277 | 10277 | ✓ |
 | 413 | paint | paint | 3870 | 3870 | ✓ |
 | 414 | run | run | 2443 | 2443 | ✓ |
-| 415 | a | m_000 | 534 | 534 | ✓ |
+| 415 | a | dispatchModeEntry | 534 | 534 | ✓ |
 | 416 | showNotify | showNotify | 10 | 10 | ✓ |
 | 417 | hideNotify | hideNotify | 24 | 24 | ✓ |
-| 418 | a | m_001 | 111 | 111 | ✓ |
+| 418 | a | loadPackedImages | 111 | 111 | ✓ |
 | 419 | a | drawImageClipped | 26 | 26 | ✓ |
 | 420 | a | blit5Clip | 21 | 21 | ✓ |
 | 421 | a | drawImageWithNokiaTransform | 11 | 11 | ✓ |
 | 422 | a | drawEdgePatch | 180 | 180 | ✓ |
-| 423 | a | m_006 | 24 | 24 | ✓ |
+| 423 | a | createSolidImage | 24 | 24 | ✓ |
 | 424 | a | dimImage | 59 | 59 | ✓ |
-| 425 | b | m_008 | 34 | 34 | ✓ |
+| 425 | b | closeStreamsAndClear | 34 | 34 | ✓ |
 | 426 | keyPressed | keyPressed | 32 | 32 | ✓ |
 | 427 | keyReleased | keyReleased | 4 | 4 | ✓ |
 | 428 | c | resetMenuLayout | 42 | 42 | ✓ |
@@ -540,7 +540,7 @@
 | 475 | a | drawParallaxBackdrop | 80 | 80 | ✓ |
 | 476 | r | buildMinimap | 290 | 290 | ✓ |
 | 477 | a | readShortLE | 13 | 13 | ✓ |
-| 478 | s | m_059 | 20 | 20 | ✓ |
+| 478 | s | initCellGrid | 20 | 20 | ✓ |
 | 479 | b | isCellWalkable | 21 | 21 | ✓ |
 | 480 | t | rebuildWalkability | 60 | 60 | ✓ |
 | 481 | c | m_062 | 28 | 28 | ✓ |
@@ -549,22 +549,22 @@
 | 484 | a | findFloorGateEntity | 55 | 55 | ✓ |
 | 485 | a | changeFloor | 114 | 114 | ✓ |
 | 486 | u | startNewGameLoad | 35 | 35 | ✓ |
-| 487 | v | m_068 | 88 | 88 | ✓ |
+| 487 | v | resetNewGameState | 88 | 88 | ✓ |
 | 488 | g | scaleEnemyStats | 82 | 82 | ✓ |
 | 489 | a | scaledByFloorTier | 10 | 10 | ✓ |
 | 490 | b | alchemyPriceFor | 17 | 17 | ✓ |
-| 491 | h | m_072 | 62 | 62 | ✓ |
+| 491 | h | addOption | 62 | 62 | ✓ |
 | 492 | b | tryOpenChest | 78 | 78 | ✓ |
 | 493 | a | applyMerchantOffer | 441 | 441 | ✓ |
-| 494 | j | m_075 | 24 | 24 | ✓ |
-| 495 | i | m_076 | 89 | 89 | ✓ |
+| 494 | j | pushOfferQueue | 24 | 24 | ✓ |
+| 495 | i | browseOfferQueue | 89 | 89 | ✓ |
 | 496 | c | spendGold | 17 | 17 | ✓ |
 | 497 | c | gainGold | 15 | 15 | ✓ |
 | 498 | j | pickupItemType | 197 | 197 | ✓ |
 | 499 | a | floorTier | 23 | 23 | ✓ |
 | 500 | c | findItemStackIndex | 21 | 21 | ✓ |
 | 501 | a | tryEquip | 88 | 88 | ✓ |
-| 502 | a | m_083 | 16 | 16 | ✓ |
+| 502 | a | equipTierIndex | 16 | 16 | ✓ |
 | 503 | d | itemTypeToStackIndex | 18 | 18 | ✓ |
 | 504 | k | addItemToItemStack | 56 | 56 | ✓ |
 | 505 | b | consumeKeyForDoor | 68 | 68 | ✓ |
@@ -574,17 +574,17 @@
 | 509 | k | killAdjacentAt | 112 | 112 | ✓ |
 | 510 | w | m_091 | 241 | 241 | ✓ |
 | 511 | m | m_092 | 35 | 35 | ✓ |
-| 512 | a | m_093 | 16 | 16 | ✓ |
+| 512 | a | drawLeftTriangleArrow | 16 | 16 | ✓ |
 | 513 | d | loadLevelScript | 71 | 71 | ✓ |
 | 514 | b | tryRunScene | 441 | 441 | ✓ |
 | 515 | n | openDialogPage | 107 | 107 | ✓ |
 | 516 | a | cameraAtTarget | 14 | 14 | ✓ |
 | 517 | a | executeScriptInstruction | 1347 | 1347 | ✓ |
 | 518 | a | parseScriptInt | 20 | 20 | ✓ |
-| 519 | b | m_100 | 48 | 48 | ✓ |
+| 519 | b | findBlockingEntity | 48 | 48 | ✓ |
 | 520 | d | m_101 | 37 | 37 | ✓ |
-| 521 | d | m_102 | 47 | 47 | ✓ |
-| 522 | l | m_103 | 33 | 33 | ✓ |
+| 521 | d | probeCrossFloorSnapshot | 47 | 47 | ✓ |
+| 522 | l | easeCameraToTarget | 33 | 33 | ✓ |
 | 523 | e | lockCameraOn | 82 | 82 | ✓ |
 | 524 | x | stepCameraTowardTarget | 135 | 135 | ✓ |
 | 525 | y | m_106 | 457 | 457 | ✓ |
@@ -594,36 +594,36 @@
 | 529 | z | saveGlobalProgress | 106 | 106 | ✓ |
 | 530 | A | loadSlotTable | 193 | 193 | ✓ |
 | 531 | p | markSlotEntry | 212 | 212 | ✓ |
-| 532 | b | m_113 | 707 | 707 | ✓ |
+| 532 | b | paintSlotTable | 707 | 707 | ✓ |
 | 533 | q | saveFloorState | 256 | 256 | ✓ |
 | 534 | e | loadFloorSave | 300 | 300 | ✓ |
 | 535 | a | deleteRecordStoreQuietly | 5 | 5 | ✓ |
-| 536 | B | m_117 | 47 | 47 | ✓ |
-| 537 | C | m_118 | 12 | 12 | ✓ |
+| 536 | B | closeRecordStoreAndGc | 47 | 47 | ✓ |
+| 537 | C | initFloorStates | 12 | 12 | ✓ |
 | 538 | r | m_119 | 125 | 125 | ✓ |
 | 539 | a | m_120 | 27 | 27 | ✓ |
 | 540 | s | loadFloorData | 180 | 180 | ✓ |
 | 541 | t | m_122 | 717 | 717 | ✓ |
-| 542 | b | m_123 | 28 | 28 | ✓ |
+| 542 | b | restoreFloorState | 28 | 28 | ✓ |
 | 543 | m | addSpark | 24 | 24 | ✓ |
 | 544 | a | spawnPopup | 139 | 139 | ✓ |
 | 545 | D | drawPopupLayer | 275 | 275 | ✓ |
 | 546 | b | drawDigitStrip | 96 | 96 | ✓ |
-| 547 | E | m_128 | 36 | 36 | ✓ |
+| 547 | E | initParticles | 36 | 36 | ✓ |
 | 548 | e | spawnParticle | 62 | 62 | ✓ |
 | 549 | F | updateAndDrawParticles | 125 | 125 | ✓ |
-| 550 | a | m_131 | 26 | 26 | ✓ |
-| 551 | u | m_132 | 12 | 12 | ✓ |
+| 550 | a | startLoadTask | 26 | 26 | ✓ |
+| 551 | u | stepLoadTask | 12 | 12 | ✓ |
 | 552 | a | findPath | 247 | 247 | ✓ |
 | 553 | g | m_134 | 125 | 125 | ✓ |
 | 554 | a | predictHpLossVsType | 23 | 23 | ✓ |
 | 555 | f | effectiveAttackVsType | 33 | 33 | ✓ |
 | 556 | a | predictBattleHpLoss | 51 | 51 | ✓ |
 | 557 | c | tickBattle | 382 | 382 | ✓ |
-| 558 | a | m_139 | 120 | 120 | ✓ |
+| 558 | a | playBgm | 120 | 120 | ✓ |
 | 559 | G | closeAudioPlayer | 10 | 10 | ✓ |
 | 560 | g | randomBelow | 8 | 8 | ✓ |
-| 561 | a | m_142 | 101 | 101 | ✓ |
+| 561 | a | drawOutlinedText | 101 | 101 | ✓ |
 | 562 | n | runLogoAnimation | 1059 | 1059 | ✓ |
 | 563 | H | paintLogoAnimation | 168 | 168 | ✓ |
 | 564 | a | registerLogoItem | 185 | 185 | ✓ |
