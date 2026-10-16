@@ -73,6 +73,62 @@ impl EntityTable {
     }
 }
 
+/// 层存档实体段序列化（m_119 核，a.java:9379+）：u16 存活数 + 每实体
+/// type:u8/px:u16be/py:u16be/visible:u8/param:u16be。**仅活体**（removed 或
+/// state==1 不入档）。count==0 由调用方写 null（a.java:9383-9384）。
+/// 【第 1 步文件合流】表操作入 entity.rs；scene.rs 留状态机与存储索引。
+pub fn serialize_floor_state(table: &EntityTable) -> Vec<u8> {
+    let mut body: Vec<u8> = Vec::new();
+    let mut live = 0u16;
+    for e in 0..table.count {
+        if !table.items[e].removed && table.items[e].state != 1 {
+            live += 1;
+            body.push(table.items[e].type_ as u8);
+            body.extend_from_slice(&(table.items[e].px as u16).to_be_bytes());
+            body.extend_from_slice(&(table.items[e].py as u16).to_be_bytes());
+            body.push(table.items[e].visible as u8);
+            body.extend_from_slice(&(table.items[e].param as u16).to_be_bytes());
+        }
+    }
+    let mut data = Vec::with_capacity(body.len() + 2);
+    data.extend_from_slice(&live.to_be_bytes());
+    data.extend_from_slice(&body);
+    data
+}
+
+/// 层存档实体段回填（m_122 存档分支核，a.java:9643+）：解 blob → 逐实体 spawn
+/// 后回填 visible/removed（**恢复臂 index quirk 显式保留**：按循环下标回填，
+/// a.java:9638 entityVisible[var48]——struct 化禁顺手修正）。
+/// img_h 回调=按型取精灵高（dispatchSpriteSize 输入）。
+/// 【第 1 步文件合流】表操作入 entity.rs；floor2 特例/资产回落留 scene.rs。
+pub fn restore_floor_state(
+    table: &mut EntityTable,
+    grid: &mut CellGrid,
+    data: &[u8],
+    width_table: &[i32],
+    img_h: &dyn Fn(i32) -> Option<i32>,
+) {
+    let mut pos = 0usize;
+    let read_u16 = |d: &[u8], p: &mut usize| -> u16 {
+        let v = u16::from_be_bytes([d[*p], d[*p + 1]]);
+        *p += 2;
+        v
+    };
+    let count = read_u16(data, &mut pos) as usize;
+    for _ in 0..count {
+        let t = data[pos] as i32;
+        pos += 1;
+        let x = read_u16(data, &mut pos) as i32;
+        let y = read_u16(data, &mut pos) as i32;
+        let visible = data[pos] != 0;
+        pos += 1;
+        let param = read_u16(data, &mut pos) as i16;
+        let idx = spawn(table, grid, t, x, y, param, width_table, img_h(t));
+        table.items[idx].visible = visible;
+        table.items[idx].removed = false;
+    }
+}
+
 /// 格子索引（m_059 初始化 + spawnEntity 增量登记）。
 pub struct CellGrid {
     pub cols: i32,

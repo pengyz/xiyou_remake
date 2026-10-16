@@ -1015,25 +1015,13 @@ impl GameScene {
     /// 移除槽位），非存活数：故存档恢复出 0 实体的层再次离开时 entityCount==0
     /// → None → 第三次进入从 sprite 重新生成全部实体（原版"清层复活"行为，保真）。
     fn save_floor_state(&mut self) {
+        // m_119：表操作核=entity::serialize_floor_state（第 1 步文件合流）；
+        // count==0 ⇒ 存 null（a.java:9383-9384）留本层。
         if self.entities.count == 0 {
             self.saved_floor_states[self.floor as usize] = None;
             return;
         }
-        let mut body: Vec<u8> = Vec::new();
-        let mut live = 0u16;
-        for e in 0..self.entities.count {
-            if !self.entities.items[e].removed && self.entities.items[e].state != 1 {
-                live += 1;
-                body.push(self.entities.items[e].type_ as u8);
-                body.extend_from_slice(&(self.entities.items[e].px as u16).to_be_bytes());
-                body.extend_from_slice(&(self.entities.items[e].py as u16).to_be_bytes());
-                body.push(self.entities.items[e].visible as u8);
-                body.extend_from_slice(&(self.entities.items[e].param as u16).to_be_bytes());
-            }
-        }
-        let mut data = Vec::with_capacity(body.len() + 2);
-        data.extend_from_slice(&live.to_be_bytes());
-        data.extend_from_slice(&body);
+        let data = entity::serialize_floor_state(&self.entities);
         self.saved_floor_states[self.floor as usize] = Some(data);
     }
 
@@ -1338,26 +1326,10 @@ impl GameScene {
         let mut entities = entity::EntityTable::new(100);
         let mut grid = entity::CellGrid::new(self.view.wide, self.view.high);
         if let Some(data) = self.saved_floor_states[floor as usize].clone() {
-            let mut pos = 0usize;
-            let read_u16 = |d: &[u8], p: &mut usize| -> u16 {
-                let v = u16::from_be_bytes([d[*p], d[*p + 1]]);
-                *p += 2;
-                v
-            };
-            let count = read_u16(&data, &mut pos) as usize;
-            for _ in 0..count {
-                let t = data[pos] as i32;
-                pos += 1;
-                let x = read_u16(&data, &mut pos) as i32;
-                let y = read_u16(&data, &mut pos) as i32;
-                let visible = data[pos] != 0;
-                pos += 1;
-                let param = read_u16(&data, &mut pos) as i16;
-                let img_h = self.images.entity.get(t as usize).cloned().flatten().map(|im| im.height);
-                let idx = entity::spawn(&mut entities, &mut grid, t, x, y, param, &self.width_table, img_h);
-                entities.items[idx].visible = visible;
-                entities.items[idx].removed = false;
-            }
+            // m_122 存档分支核=entity::restore_floor_state（第 1 步文件合流）；
+            // 恢复臂 index quirk（按循环下标回填 visible/removed，a.java:9638）随核保留。
+            let img_h_of = |t: i32| self.images.entity.get(t as usize).cloned().flatten().map(|im| im.height);
+            entity::restore_floor_state(&mut entities, &mut grid, &data, &self.width_table, &img_h_of);
             if self.floor == 2
                 && !self.script_line_flags[26]
                 && entity::cell_entity(&grid, &entities, 11, 4, 84) < 0
