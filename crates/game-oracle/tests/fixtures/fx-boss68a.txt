@@ -1,0 +1,26 @@
+# ticks: 760
+# preset: fx-boss68a.preset
+# cover: PROBE FX-BOSS-68A 太上老君 bump 战 + spawnBossEvent(2)（fixture-plan-boss §2
+#   FX-BOSS-68A + §1.2 数学表）——探路稿：boot 70/-6 100/-2 150/-5 200/-5 → 槽载入
+#   floor25 (6,7) 朝上 → 300 -1 北撞 (6,6) 型68 开战（预测过门）→ 7 击 ×4tick ≈ T340 内
+#   击杀 + 6 拍死亡动画 + 收尾 restep 进 (6,6) → 400 -2 下移 (6,7) 拾红钥匙 →
+#   500 -1 回 (6,6) → 600 -3 左移 (5,6) 拾第二把 → 收尾。
+#   预算（§1.2）：atk1000-防310=690/击 ×7 击（4500→…→-330），反击 0（def1000>atk560），
+#   金 +1000（enemyBaseGold[27]）。preset：python3 tools/frames_fixture.py preset floor=25
+#   x=6 y=7 facing=1 hp=1000 atk=1000 def=1000 gold=0 yk=0 bk=0 rk=0 sky=5
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -1 press
+302 -1 release
+400 -2 press
+402 -2 release
+500 -1 press
+502 -1 release
+600 -3 press
+602 -3 release

@@ -674,3 +674,45 @@ fn fx_int11_n23_wall_message_frames_match() {
         .expect("型11 墙在表");
     assert_eq!(sc.entities.solid[w], 0, "墙未开（state 恒 0）");
 }
+
+/// FX-BOSS-68A：太上老君 bump 战 + spawnBossEvent(2) 四红钥匙（fixture-plan-boss §2
+/// FX-BOSS-68A + §1.2 数学表；销 evidence-boss §0 68 行）。floor25 (6,7) 北撞 (6,6)
+/// 型68 ⇒ 预测过门 → 开战（battleEnemyHp=enemyBaseHp[27]=4500 不吃缩放）→ walkPhase5
+/// 每 4 tick 一击 ×7（dmg=1000-310=690 序列 4500→…→-330，反击 0——逐击序列由帧链
+/// 伤害弹窗 690×7 钉死）→ 击杀拍 spawnBossEvent(2)（a.java:2142）刷红钥匙(27)×4
+/// @(6,5)(5,6)(7,6)(6,7) + 金 0→1000（enemyBaseGold[27]）→ case68 双 switch default
+/// （无脚本钩子，对照 74）→ 收尾 restep 进 (6,6) → 走位拾 2 把。T1-760。
+#[test]
+fn fx_boss68a_kill_spawn_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-boss68a.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-boss68a.txt"));
+    let (checked, sc) = replay(include_str!("fixtures/fx-boss68a.preset"), &records);
+    assert_eq!(checked, records.len(), "T1-760 全帧必须比对");
+    assert_eq!(sc.floor, 25);
+    assert_eq!(sc.player.gold, 1000, "enemyBaseGold[27]=1000（预置 gold=0）");
+    assert_eq!(sc.player.hp, 1000, "反击 0（def1000>atk560），hp 恒 1000");
+    assert_eq!(sc.player.red_keys, 2, "走位拾 (6,7)+(5,6) 两把（cat2 拾取臂）");
+    assert_eq!(
+        (sc.view.player_px >> 5, sc.view.player_py >> 5),
+        (5, 6),
+        "收尾 restep (6,6) → 下 (6,7) → 回 (6,6) → 左 (5,6)"
+    );
+    let boss = (0..sc.entities.count)
+        .find(|&i| sc.entities.entity_type[i] == 68)
+        .expect("型68 在表");
+    assert!(sc.entities.removed[boss], "死亡动画后 pullEntityFromCell");
+    // spawnBossEvent(2) 四红钥匙：(6,5)(7,6) 留存、(5,6)(6,7) 已拾（a.java:2142）
+    for (cx, cy, picked) in [(6, 5, false), (7, 6, false), (5, 6, true), (6, 7, true)] {
+        let present = (0..sc.entities.count).any(|i| {
+            sc.entities.entity_type[i] == 27
+                && !sc.entities.removed[i]
+                && sc.entities.pixel_x[i] >> 5 == cx
+                && sc.entities.pixel_y[i] >> 5 == cy
+        });
+        assert_eq!(!present, picked, "红钥匙 @({cx},{cy}) picked={picked}");
+    }
+    assert!(
+        sc.script_line_flags.iter().all(|&f| !f),
+        "case68 双 switch default：无脚本钩子（对照 74 的 loadLevelScript(21)）"
+    );
+}
