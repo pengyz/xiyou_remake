@@ -310,7 +310,9 @@ ARM_GAPS: list[tuple[str, str]] = [
     ("interactWithCell",
      "型 76/82 交互臂未移植——crates/game-core/src/scene.rs `_ => {} // 76/82：后续批次` 吞掉（无 todo! 标记，语义待考）。"
      "【2026-10-15 销账并改锚】原登记的型 10/11/12 撞击臂已移植（ee52191，a.java:5436-5456 逐值；"
-     "fx_firebump_floor13_frames_match 解禁即绿，T301 钉点）——原锚 `_ => {} // 11 / 76/82` 失效即销账信号"),
+     "fx_firebump_floor13_frames_match 解禁即绿，T301 钉点）——原锚 `_ => {} // 11 / 76/82` 失效即销账信号。"
+     "【2026-10-16 更正】Java interactWithCell 无 case 76/82（default: continue=bump 放行），"
+     "Rust `_ => {}` 已忠实——原“ARM_GAPS 在账”按 evidence-todos.md T-1 附带登记销账"),
 ]
 
 # ---------------------------------------------------------------- v1 旧账（冻结，仅复算对照）
@@ -873,8 +875,17 @@ def rust_signals(jm: dict) -> tuple[dict, list]:
                     if any(s <= a and b <= e for s, e in rs):
                         refs[n].append(f"{loc}〔{tag}字段〕")
             if re.search(r"\b(todo|unimplemented)!\(", line):
+                code = line.split("//", 1)[0]
+                if not re.search(r"\b(todo|unimplemented)!\(", code):
+                    continue  # 注释散文提及（如"todo!() 作死码哨兵"）不是挡路点
                 msg = re.search(r"(?:todo|unimplemented)!\(\s*\"([^\"]*)", line)
-                todos.append({"at": loc, "msg": msg.group(1) if msg else line.strip()})
+                if not msg:
+                    for ahead in text.split("\n")[ln:ln + 2]:  # 多行调用 todo!(\n "…"
+                        am = re.match(r"\s*\"([^\"]*)", ahead)
+                        if am:
+                            msg = am
+                            break
+                todos.append({"at": loc, "msg": msg.group(1) if msg else code.strip()})
     return {"fns": fns, "refs": refs, "naive": naive, "mentions": mentions, "prec": prec,
             "amb": amb}, todos
 

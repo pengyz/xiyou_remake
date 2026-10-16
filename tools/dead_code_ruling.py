@@ -241,8 +241,9 @@ def const_of(x: Ins) -> int | None:
 TOP = None  # 值域未知（⊤）
 
 
-def field_writes(methods: dict, reach: dict, live: set) -> dict:
-    """字段 → [(方法标签, 偏移, 产生指令描述, 常量|('copy',G)|('top',描述), 是否计入)]。"""
+def field_writes(methods: dict, reach: dict, live: set, rt: dict | None = None) -> dict:
+    """字段 → [(方法标签, 偏移, 产生指令描述, 常量|('copy',G)|('top',描述), 是否计入)]。
+    rt：save_roundtrip_lemma 成立时把其 site 写点改判为 ('copy', F) 自拷贝。"""
     w = defaultdict(list)
     for k, m in methods.items():
         for j, x in enumerate(m.ins):
@@ -264,6 +265,9 @@ def field_writes(methods: dict, reach: dict, live: set) -> dict:
                     desc = f"{prev.op} {field_of(prev, m.cls).split('.')[-1]}"
                 else:
                     src = ("top", desc)
+            if rt and rt.get("ok") and rt.get("site") == (m.label, x.off):
+                src = ("copy", rt["field"])
+                desc = "readByte←writeByte(getfield difficultyIndex)〔存档往返引理 L3-L4 自拷贝〕"
             w[f].append((m.label, x.off, desc, src, counted))
     return w
 
@@ -512,6 +516,261 @@ def mvs_lemma(methods: dict) -> dict:
     return res
 
 
+# ---------------------------------------------------------------- 存档往返归纳引理（DC-5 数据域前提）
+
+ROUNDTRIP_FIELD = "a.difficultyIndex"
+
+
+def save_roundtrip_lemma(methods: dict) -> dict:
+    """difficultyIndex 的存档往返归纳引理（MVS 引理同型 L 系机械校验）：
+
+      L1 putfield F 全写点清点：恒定形态×2（均 0）+ 非恒定恰 1 处，产生链 =
+         `getfield f_DataInputStream_00; invokevirtual DataInputStream.readByte()B`。
+      L2 readByte 接收流的血统：f_DataInputStream_00 的非空 putfield 全部 =
+         `new ByteArrayInputStream(getfield f_byte_arr_27); new DataInputStream(...)`；
+         f_byte_arr_27 的非空 putfield 全部 = `RecordStore.getRecord(...)`。
+      L3 槽 1 配对 + 自拷贝：loadFloorSave 中**最早**的流读恰落进 putfield F；对偶
+         saveFloorState（同 "MOT_L" 库）中**最早**的流写 = `writeByte(getfield F)`。
+      L4 记录库写口封闭：store 名 "MOT_L" 的唯一写者 = saveFloorState（其余写口
+         MOT_IF / SKY_WAR 与 loadFloorSave 的 getRecord 不同库）。
+      L5 归纳：F 全写点 = {0, 0, 自拷贝} ⇒ 读回值 ∈ F 历史值集；初值 0（JVM 缺省 +
+         <init> 写 0）⇒ F ≡ 0（跨会话持久由同一归纳覆盖：存档里存过的任何值都是
+         某次存档时刻的字段值）。
+
+    成立 ⇒ 非恒定写点按 ('copy', F) 计入 value_sets，得 {0}。"""
+    res = {"ok": False, "steps": [], "site": None, "field": ROUNDTRIP_FIELD}
+    F = ROUNDTRIP_FIELD
+
+    # ---- L1 putfield 写点清点
+    sites = []
+    for k, m in methods.items():
+        for j, x in enumerate(m.ins):
+            if x.op == "putfield" and field_of(x, m.cls) == F:
+                sites.append((m, j, x, m.ins[j - 1] if j else None))
+    consts = [(m, x, const_of(prev)) for m, j, x, prev in sites
+              if prev is not None and const_of(prev) is not None]
+    nonconst = [(m, j, x, prev) for m, j, x, prev in sites
+                if prev is None or const_of(prev) is None]
+    ok1 = (len(sites) == 3 and len(consts) == 2 and all(c == 0 for _, _, c in consts)
+           and len(nonconst) == 1)
+    site_desc = []
+    if ok1:
+        m, j, x, prev = nonconst[0]
+        p2 = m.ins[j - 2] if j >= 2 else None
+        ok1 = (prev is not None and prev.op == "invokevirtual"
+               and "DataInputStream.readByte" in prev.cmt
+               and p2 is not None and p2.op == "getfield"
+               and field_of(p2, m.cls) == "a.f_DataInputStream_00"
+               and x.off not in m.jt and prev.off not in m.jt and p2.off not in m.jt)
+        res["site"] = (m.label, x.off)
+        site_desc = [f"{m.label}@{x.off}"]
+    res["steps"].append(
+        f"L1 {'✓' if ok1 else '✗'} putfield {F} 共 {len(sites)} 处 = 恒定 {len(consts)} 处"
+        f"（{', '.join(f'{m.label}@{x.off}={c}' for m, x, c in consts) or '无'}）+ 非恒定 {len(nonconst)} 处"
+        f"（{', '.join(site_desc) or '异常'}：`getfield f_DataInputStream_00; invokevirtual readByte()B` 且链内无跳转目标）")
+
+    # ---- L2 流血统
+    ok2 = True
+    d2 = []
+    for m in methods.values():
+        for j, x in enumerate(m.ins):
+            if x.op != "putfield":
+                continue
+            f = field_of(x, m.cls)
+            if f == "a.f_DataInputStream_00":
+                w = m.ins[max(0, j - 7):j]
+                if w and w[-1].op == "aconst_null":
+                    continue
+                good = (any(y.op == "new" for y in w) and any(y.op == "dup" for y in w)
+                        and any(y.op == "getfield" and field_of(y, m.cls) == "a.f_byte_arr_27" for y in w)
+                        and any(y.op == "invokespecial" and "DataInputStream.\"" in y.cmt for y in w))
+                ok2 &= good
+                d2.append(f"{m.label}@{x.off}{'✓' if good else '✗'}")
+            elif f == "a.f_byte_arr_27":
+                w = m.ins[max(0, j - 4):j]
+                if w and w[-1].op == "aconst_null":
+                    continue
+                good = any(y.op == "invokevirtual" and "RecordStore.getRecord" in y.cmt for y in w)
+                ok2 &= good
+                d2.append(f"{m.label}@{x.off}{'✓' if good else '✗'}")
+    res["steps"].append(
+        f"L2 {'✓' if ok2 and d2 else '✗'} 流血统：f_DataInputStream_00 / f_byte_arr_27 非空 putfield "
+        f"{len(d2)} 处均为 `new ByteArrayInputStream(getfield f_byte_arr_27)` / `RecordStore.getRecord` 形态"
+        f"（{', '.join(d2)}）")
+
+    # ---- L3 槽 1 配对 + 自拷贝；L4 写口封闭
+    ok3 = ok4 = False
+    d3 = d4 = ""
+    if ok1 and res["site"]:
+        site_lbl, site_off = res["site"]
+        load_m = next(m for m in methods.values() if m.label == site_lbl)
+        stream_read = re.compile(r"DataInputStream\.read(Byte|Short|Int|Boolean|)\:")
+        read_idx = [j for j, y in enumerate(load_m.ins)
+                    if y.op == "invokevirtual" and stream_read.search(y.cmt)]
+        putf_idx = [y.off for y in load_m.ins].index(site_off)
+        first_read = min(read_idx, default=-1)
+        ok3 = (first_read >= 0 and putf_idx >= 1
+               and load_m.ins[first_read].off == load_m.ins[putf_idx - 1].off)
+        d3 = (f"loadFloorSave 首流读@{load_m.ins[first_read].off if first_read >= 0 else '?'}"
+              f" → putfield {F.split('.')[-1]}@{site_off}")
+        # 对偶 save 方法：store 名 MOT_L 且写记录
+        def motl_writers() -> list:
+            out = []
+            for m2 in methods.values():
+                names2 = {y.cmt.split("String ", 1)[1] for y in m2.ins
+                          if y.op in ("ldc", "ldc_w") and y.cmt.startswith("String ")}
+                if any(n.startswith("MOT_L") for n in names2) and any(
+                        y.op == "invokevirtual" and ("RecordStore.addRecord" in y.cmt
+                                                     or "RecordStore.setRecord" in y.cmt)
+                        for y in m2.ins):
+                    out.append(m2)
+            return out
+
+        wms = motl_writers()
+        ok4 = len(wms) == 1
+        if wms:
+            save_m = wms[0]
+            write_idx = [j for j, y in enumerate(save_m.ins)
+                         if y.op == "invokevirtual" and "DataOutputStream.write" in y.cmt]
+            fw = min(write_idx, default=-1)
+            if fw >= 0:
+                wwin = save_m.ins[max(0, fw - 4):fw]
+                self_copy = (any(y.op == "getfield" and field_of(y, save_m.cls) == F for y in wwin)
+                             and "writeByte" in save_m.ins[fw].cmt)
+                ok3 &= self_copy
+                d3 += f"；{save_m.label} 首流写@{save_m.ins[fw].off} = writeByte(getfield {F.split('.')[-1]})"
+                d3 += " 自拷贝" if self_copy else " ✗非自拷贝"
+            d4 = f"MOT_L 库写者 = {[m2.label for m2 in wms]}（唯一）；其余写口 MOT_IF / SKY_WAR 不同库"
+    res["steps"].append(f"L3 {'✓' if ok3 else '✗'} 槽 1 配对 + 自拷贝：{d3}")
+    res["steps"].append(f"L4 {'✓' if ok4 else '✗'} 记录库写口封闭：{d4}")
+
+    ok5 = ok1 and ok2 and ok3 and ok4
+    res["steps"].append(
+        f"L5 {'✓' if ok5 else '✗'} 归纳：{F.split('.')[-1]} 全写点 = {{0, 0, 自拷贝}} ⇒ 读回值 ∈ "
+        f"字段历史值集；初值 0（<init> 写 0 + JVM 缺省）⇒ ≡ 0（跨会话持久同归纳：存档值 = "
+        f"某次存档时刻的字段值）⇒ 非恒定写点按 ('copy', {F}) 计")
+    res["ok"] = ok5
+    return res
+
+
+def script_corpus(methods: dict) -> list[str]:
+    """levelScriptLines 语料（MVS 引理 L4 同型回溯）：anewarray String + N×ldc 串。"""
+    out: list[str] = []
+    for m in methods.values():
+        for jj, x in enumerate(m.ins):
+            if x.op != "putfield" or field_of(x, m.cls) != "a.levelScriptLines":
+                continue
+            k = jj - 1
+            strs = []
+            while k >= 0:
+                y = m.ins[k]
+                if y.op == "anewarray":
+                    break
+                if y.op in ("ldc", "ldc_w") and y.cmt.startswith("String"):
+                    strs.append(y.cmt[len("String "):] if y.cmt != "String" else "")
+                k -= 1
+            out = list(reversed(strs))
+    return out
+
+
+def scene67_proof(an: dict) -> dict:
+    """DC-5 路径级证明：scene67（TAK_264_268）不可达。
+
+      P1 值域（依赖存档往返引理）：值域(a.difficultyIndex) = {0}。
+      P2 tryRunScene 的 tableswitch 键 67 段 = `… getfield difficultyIndex; ifle L;
+         iconst_1; goto L2; L: iconst_0; L2: iand; istore_3`，且 ifle 的 fall 边
+         （→iconst_1）在死边表 ⇒ 该段恒 iand(_,0)=0 ⇒ tryRunScene(67,·) 恒返回 0。
+      P3 loadLevelScript 全调用点清点：常量实参集 ∌ 67；动态实参（entityParam）各点
+         均被同参 tryRunScene 的 ifeq 守卫跳过（目标 > 调用点）；解析实参（GUT 臂）
+         语料目标集 ∌ 67。
+      ⇒ loadLevelScript(67) 无可达调用点 ⇒ script67 永不装入 ⇒ TAK_264_268 死。"""
+    res = {"ok": False, "steps": []}
+    F = ROUNDTRIP_FIELD
+    methods = an["methods"]
+
+    # ---- P1
+    V = vals_of(an["vals"], F)
+    p1 = V == frozenset({0})
+    res["steps"].append(f"P1 {'✓' if p1 else '✗'} 值域({F}) = "
+                        + ("{0}（存档往返引理生效）" if p1 else f"{V if V is not TOP else '⊤'}（引理未生效）"))
+
+    # ---- P2
+    p2 = False
+    d2 = "未找到"
+    trk = [k for k in methods if k[1] == "tryRunScene"]
+    if len(trk) == 1:
+        m = methods[trk[0]]
+        sw = next((x for x in m.ins if x.op in SWITCH and 67 in x.cases), None)
+        hit = None
+        for x in m.ins:
+            if x.op == "ifle" and guard(m, m.idx[x.off]) == ("fld", F):
+                hit = x  # case67 = `> 0` 编译形态 ifle（case16 的 `== 0` 为 ifne）
+        if sw is not None and hit is not None:
+            fi = m.idx[hit.off] + 1
+            fall_ins = m.ins[fi]
+            jump_ins = m.ins[m.idx[int(hit.arg)]]
+            fall_edge = (hit.off, fall_ins.off, ("fall",))
+            in_dead = fall_edge in an["dead"][trk[0]]
+            p2 = (fall_ins.op == "iconst_1" and jump_ins.op == "iconst_0" and in_dead)
+            d2 = (f"tableswitch 键 67→@{sw.cases[67]}；ifle@{hit.off} fall→{fall_ins.op}@{fall_ins.off} "
+                  f"{'∈' if in_dead else '∉'}死边表，jump→{jump_ins.op}@{jump_ins.off}"
+                  f"（恒 0 ⇒ iand ⇒ var3=0 ⇒ ireturn 0）")
+    res["steps"].append(f"P2 {'✓' if p2 else '✗'} tryRunScene(67) 恒 false：{d2}")
+
+    # ---- P3 loadLevelScript 调用点清点
+    p3 = True
+    d3 = []
+    consts: set = set()
+    corpus_gut: set = set()
+    for s in script_corpus(methods):
+        corpus_gut |= {int(g) for g in re.findall(r"GUT_(-?\d+)", s)}
+    dynamic_ok = 0
+    for k, m in methods.items():
+        for j, x in enumerate(m.ins):
+            if x.op not in INVOKE or callee_of(x, m.cls) != ("a", "loadLevelScript", "(I)Z"):
+                continue
+            prev = m.ins[j - 1]
+            c = const_of(prev)
+            if c is not None:
+                consts.add(c)
+                continue
+            w = m.ins[max(0, j - 4):j]
+            if (len(w) >= 3 and w[-1].op == "saload" and w[-2].op.startswith("iload")
+                    and w[-3].op == "getfield" and field_of(w[-3], m.cls) == "a.entityParam"):
+                guarded = False
+                for q in range(j - 1, max(-1, j - 30), -1):
+                    y = m.ins[q]
+                    if y.op in INVOKE and callee_of(y, m.cls) == ("a", "tryRunScene", "(IZ)Z"):
+                        wn = m.ins[q + 1] if q + 1 < len(m.ins) else None
+                        if wn is not None and wn.op in ("ifeq", "ifne") and int(wn.arg) > x.off:
+                            guarded = True
+                        break
+                p3 &= guarded
+                dynamic_ok += 1 if guarded else 0
+                d3.append(f"{m.label}@{x.off} 动态(entityParam) "
+                          f"{'✓同参 tryRunScene 守卫' if guarded else '✗无守卫'}")
+                continue
+            if m.name == "executeScriptInstruction":
+                win = m.ins[max(0, j - 12):j]
+                gut_shape = (any(y.op == "bastore" for y in win)
+                             and any(y.op == "invokespecial" and "parseScriptInt" in y.cmt
+                                     for y in m.ins))
+                okc = gut_shape and 67 not in corpus_gut
+                p3 &= okc
+                d3.append(f"{m.label}@{x.off} 解析(GUT) {'✓' if okc else '✗'} "
+                          f"语料 GUT 目标={sorted(corpus_gut)}")
+                continue
+            p3 = False
+            d3.append(f"{m.label}@{x.off} ✗ 未知实参形态 `{prev.op}`")
+    p3 = p3 and 67 not in consts and dynamic_ok == 2
+    res["steps"].append(
+        f"P3 {'✓' if p3 else '✗'} loadLevelScript 实参清点：常量={sorted(consts)}（∌67）；"
+        f"动态点 {dynamic_ok}/2 受同参 tryRunScene 守卫；GUT 语料目标={sorted(corpus_gut)}（∌67）")
+    res["steps"].append("     " + "；".join(d3))
+    res["ok"] = p1 and p2 and p3
+    return res
+
+
 # ---------------------------------------------------------------- 不动点
 
 def analyze() -> dict:
@@ -523,13 +782,14 @@ def analyze() -> dict:
         shas[c] = sha256(RENAMED / f"{c}.class")
     entries = {k for k, m in methods.items() if m.cls != "a" or not m.private}
     lemma = mvs_lemma(methods)
+    rt = save_roundtrip_lemma(methods)  # DC-5 数据域前提（difficultyIndex 存档往返）
     extra = defaultdict(dict)
     if lemma["ok"]:
         mk, e, why = lemma["edge"]
         extra[mk][e] = why
     live = set(methods)
     reach = {k: {x.off for x in m.ins} for k, m in methods.items()}
-    vals = value_sets(field_writes(methods, reach, live))
+    vals = value_sets(field_writes(methods, reach, live, rt))
     for it in range(1, 100):
         dead = {k: dead_edges(m, vals, extra.get(k, {})) for k, m in methods.items()}
         reach = {k: reachable(m, dead[k]) for k, m in methods.items()}
@@ -545,13 +805,13 @@ def analyze() -> dict:
                     c = callee_of(x, m.cls)
                     if c in methods and c not in new_live:
                         q.append(c)
-        writes = field_writes(methods, reach, new_live)
+        writes = field_writes(methods, reach, new_live, rt)
         new_vals = value_sets(writes)
         if new_live == live and new_vals == vals:
             break
         live, vals = new_live, new_vals
     return {"methods": methods, "entries": entries, "live": live, "vals": vals, "dead": dead,
-            "reach": reach, "writes": writes, "lemma": lemma, "iterations": it, "sha": shas}
+            "reach": reach, "writes": writes, "lemma": lemma, "rt": rt, "iterations": it, "sha": shas}
 
 
 def callers_of(an: dict, name: str, cls: str = "a") -> list[tuple[str, int]]:
@@ -651,7 +911,8 @@ def field_evidence(an: dict, f: str) -> str:
     return f"{f.split('.')[-1]}：putfield {len(ws)} 处 = " + "，".join(parts) + f" ⇒ 值域 {vs}（含缺省 0）"
 
 
-def report(an: dict, rs: dict) -> str:
+def report(an: dict, rs: dict, proof: dict | None = None) -> str:
+    proof = proof or {"ok": False, "steps": ["（未计算）"]}
     L = []
     a = L.append
     a("# 白项 b 类死代码裁决：字节码机械复核报告（tools/dead_code_ruling.py）")
@@ -700,21 +961,39 @@ def report(an: dict, rs: dict) -> str:
     for s in an["lemma"]["steps"]:
         a(f"- {s}")
     a("")
+    a("## 存档往返归纳引理（DC-5 的数据域前提）")
+    a("")
+    a(f"- 结论：{'✓ 非恒定写点改判自拷贝 ⇒ 值域(difficultyIndex) = {0}' if an['rt']['ok'] else '✗ 不成立（值域 ⊤，DC-5 不可证）'}")
+    for s in an["rt"]["steps"]:
+        a(f"- {s}")
+    a(f"- 值域落点：{field_evidence(an, ROUNDTRIP_FIELD)}")
+    a("")
+    a("## DC-5 scene67 路径证明（混沌引子 TAK_264_268 不可达）")
+    a("")
+    a(f"- 结论：{'✓ 证死' if proof['ok'] else '✗ 未证死'}")
+    for s in proof["steps"]:
+        a(f"- {s}")
+    a("")
     return "\n".join(L) + "\n"
 
 
 def main() -> int:
     an = analyze()
     rs = rulings(an)
+    proof = scene67_proof(an)  # DC-5 路径级证明（依赖存档往返引理）
     if "--json" in sys.argv:
         print(json.dumps({"sha": an["sha"], "iterations": an["iterations"], "rulings": rs,
+                          "roundtrip": an["rt"], "scene67": proof,
                           "lemma": {k: v for k, v in an["lemma"].items() if k != "edge"}},
                          ensure_ascii=False, indent=1, default=str))
     elif "--check" not in sys.argv:
-        print(report(an, rs), end="")
+        print(report(an, rs, proof), end="")
     bad = [rid for rid, r in rs.items() if not r["ok"]]
+    if not proof["ok"]:
+        bad.append("DC-5")
     if "--check" in sys.argv:
-        print("死代码裁决复核：" + ("全部成立 " + "/".join(rs) if not bad else f"不成立 {bad}"))
+        print("死代码裁决复核：" + ("全部成立 " + "/".join(list(rs) + ["DC-5"]) if not bad
+                                else f"不成立 {bad}"))
     return 1 if bad else 0
 
 

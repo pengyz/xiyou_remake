@@ -165,17 +165,48 @@ python3 tools/dead_code_ruling.py | sed -n '/^## DC-4/,/^## 守卫/p'
 - **mode 13**：gameMode 值域同样不含 13（DC-3 值域），paint case 13 仅视差背景、无专属方法——随 mode 99/18 一并 ☠️
   （completeness §3.1）。
 
-## DC-5（候选·**未裁定**）scene67 混沌引子 TAK_264_268 不可达 —— ✗ 工具无法证明，留待人工
+## DC-5 scene67 混沌引子 TAK_264_268 不可达 ☠️（2026-10-16 终裁）
 
-> 【2026-10-16】本节为 task-7 取证。**结论 = 工具无法证明，不裁定 ☠️**（按纪律禁止口头终裁）；
-> 按"待人工"挂账，不得计入死码销账。背景见 [evidence-boss.md](evidence-boss.md) §4.2。
+> 【2026-10-16 更正】本节初版（task-7，当日上午）判「✗ 工具无法证明，留待人工」——当时
+> tools/dead_code_ruling.py 无存档往返引理，difficultyIndex 值域收敛 ⊤。当日补「**存档往返
+> 归纳引理**」（L1-L5 机械校验）+ **DC-5 路径证明**（P1-P3）后全过 ⇒ **终裁 ☠️**。初版主张与
+> 缺口清单原样保留在 §史（不删历史）。背景见 [evidence-boss.md](evidence-boss.md) §4.2。
 
 **主张**：tryRunScene case67 门控 `var3 &= this.difficultyIndex > 0`（deobf a.java:8219-8220）任何
 正常执行恒 false ⇒ 型83(param67) 触发不成立 ⇒ `loadLevelScript(67)` 不可达 ⇒ script67
 `"TAK_264_268 "`（a.java:1192；对话 264-268 = 混沌世界引子，speaker 87 菩提老祖，a.java:1459-1463）
 永不执行。
 
-**工具结论**：`python3 tools/dead_code_ruling.py` 引擎实测 **两条证明链各差 1 处模型闭合点**：
+**终裁证明（2026-10-16，扩引理后工具输出逐字）**：☠️ 证死。`python3 tools/dead_code_ruling.py
+--check` → `死代码裁决复核：全部成立 DC-1/DC-2/DC-3/DC-4/DC-5`（exit 0）。
+
+**存档往返归纳引理（L 系，MVS 引理同型机械校验）**：
+
+- L1 ✓ putfield a.difficultyIndex 共 3 处 = 恒定 2 处（<init>@14117=0, resetNewGameState@142=0）+
+  非恒定 1 处（loadFloorSave@99：`getfield f_DataInputStream_00; invokevirtual readByte()B` 且链内无跳转目标）
+- L2 ✓ 流血统：f_DataInputStream_00 / f_byte_arr_27 非空 putfield 6 处均为
+  `new ByteArrayInputStream(getfield f_byte_arr_27)` / `RecordStore.getRecord` 形态
+  （dispatchModeEntry@157✓, @179✓, loadSlotTable@145✓, @167✓, loadFloorSave@66✓, @88✓）
+- L3 ✓ 槽 1 配对 + 自拷贝：loadFloorSave 首流读@96 → putfield difficultyIndex@99；
+  saveFloorState 首流写@72 = `writeByte(getfield difficultyIndex)` 自拷贝
+- L4 ✓ 记录库写口封闭：MOT_L 库写者 = ['saveFloorState']（唯一）；其余写口 MOT_IF / SKY_WAR 不同库
+- L5 ✓ 归纳：difficultyIndex 全写点 = {0, 0, 自拷贝} ⇒ 读回值 ∈ 字段历史值集；初值 0（<init> 写 0
+  + JVM 缺省）⇒ ≡ 0（跨会话持久同归纳：存档值 = 某次存档时刻的字段值）
+  ⇒ 非恒定写点按 ('copy', a.difficultyIndex) 计 ⇒ **值域 {0}**（含缺省 0）
+
+**DC-5 路径证明（P 系）**：
+
+- P1 ✓ 值域(a.difficultyIndex) = {0}（存档往返引理生效）
+- P2 ✓ tryRunScene(67) 恒 false：tableswitch 键 67→@880；ifle@885 fall→iconst_1@888 ∈死边表，
+  jump→iconst_0@892（恒 0 ⇒ iand ⇒ var3=0 ⇒ ireturn 0）
+- P3 ✓ loadLevelScript 实参清点：常量=[20, 21, 22, 35, 36, 65]（∌67）；动态点 2/2 受同参
+  tryRunScene 守卫（interactWithCell@631、applyStepCellEffects@778）；GUT 语料目标=
+  [1, 12, 37, 57, 61, 62, 63]（∌67，executeScriptInstruction@421 解析臂）
+- ⇒ loadLevelScript(67) 无可达调用点 ⇒ script67 永不装入 ⇒ TAK_264_268 死。
+
+### 史：初版缺口清单（task-7 当日上午所记，已被上列引理/证明闭合，留档不删）
+
+**工具结论**（初版）：`python3 tools/dead_code_ruling.py` 引擎实测 **两条证明链各差 1 处模型闭合点**：
 
 ### 链 1：tryRunScene(67) ≡ false —— 被 difficultyIndex 值域 ⊤ 阻断（A 级工具输出）
 
@@ -219,31 +250,25 @@ loadLevelScript 调用点实参形态（javap）：
 - ⇒ 唯一潜在入口 = entityParam 动态路径，其成立性恰由链 1（tryRunScene(67) 恒 false）封死；
   GUT 语料边界属 MVS 引理 L5 同型论证（工具仅有 bespoke 的 MVS 引理，无通用数据域引理）。
 
-### 缺口清单（闭合本裁定需要什么）
+### 缺口清单（初版所列；2026-10-16 已全部闭合）
 
-1. **存档往返归纳引理**：difficultyIndex 写点 = {iconst_0×2, readByte×1}；readByte 的值源 =
-   record store，而存档写点（loadFloorSave 的对偶 saveFloorSave，deobf a.java:9190）写回同一字段
-   旧值 ⇒ 归纳恒 0。需类似 MVS 的 L1-L5 逐步机械校验（save/load 配对 + 无第三方写入 + 初值 0）。
-   **tools/dead_code_ruling.py 现无此引理** ⇒ 需扩工具（本任务写权限仅限本文件，未动工具）。
+1. **存档往返归纳引理**（已闭合 ✓）：difficultyIndex 写点 = {iconst_0×2, readByte×1}；readByte 的值源 =
+   record store，而存档写点（loadFloorSave 的对偶 saveFloorState，deobf a.java:9181/9190）写回同一字段
+   旧值 ⇒ 归纳恒 0。→ **已实现**：tools/dead_code_ruling.py `save_roundtrip_lemma`（L1-L5 机械校验，
+   `--check` 纳入 DC-5）。
 2. GUT 实参语料边界（L5 同型）与 entityParam 关卡数据普查——链 2 的收尾材料。
+   （已闭合 ✓：P3 的 GUT 语料目标清点 + 2 个动态点同参 tryRunScene 守卫形状校验，均为机械检查。）
 
 **可复现命令**
 
 ```bash
-python3 tools/dead_code_ruling.py --check    # 基线不受影响：全部成立 DC-1/DC-2/DC-3/DC-4
-python3 - <<'EOF'                            # 链 1 证据（引擎只读查询）
-import sys; sys.path.insert(0, 'tools')
-import dead_code_ruling as d
-an = d.analyze()
-print(d.field_evidence(an, 'a.difficultyIndex'))
-for w in an['writes']['a.difficultyIndex']: print(w)
-tr = [k for k in an['methods'] if k[1] == 'tryRunScene'][0]
-print('dead edges:', len(an['dead'][tr]),
-      'reachable:', len(an['reach'][tr]), '/', len(an['methods'][tr].ins))
-EOF
+python3 tools/dead_code_ruling.py --check    # 含 DC-5：全部成立 DC-1/DC-2/DC-3/DC-4/DC-5
+python3 tools/dead_code_ruling.py | sed -n '/^## 存档往返归纳引理/,$p'   # L1-L5 + P1-P3 工具输出
 $J | grep -n 'difficultyIndex'                    # 写点 3 处 + getfield 若干
 grep -o 'GUT_[0-9]*' reference/src/deobf/a.java | sort | uniq -c   # GUT 目标无 67
 ```
 
-**结论**：**✗ 工具无法证明 ⇒ 本节不裁定**（scene67 保持「待人工」，禁止按 ☠️ 记账或销 type-closure
-出层列）。链 1 差「存档往返」引理，引理落地 + `--check` 复核通过后方可终裁。
+**结论**：**☠️ 死代码（scene67 / TAK_264_268 永不执行；型 87 菩提老祖混沌引子 = 死内容）**。
+证明 = 存档往返引理 L1-L5 + 路径证明 P1-P3（上列工具输出）；`--check` 已含 DC-5，随
+tools/dead_code_ruling.py 机械复核长期生效（引理任一步失效即复核失败告警，不得静默销账）。
+初版「工具无法证明」作废（见顶部更正）。scene67 不需补用例；type-closure 出层列可据此销账。
