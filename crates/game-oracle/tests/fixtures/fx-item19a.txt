@@ -1,0 +1,30 @@
+# ticks: 560
+# preset: fx-item19a.preset
+# cover: FX-ITEM-19A 千年月桂露回血精确值 + 取整 + 出栈（evidence-items §2.4/§3.6）：
+#   boot 70/-6 100/-2 150/-5 200/-5 → 槽载入 floor13 (6,8)，道具栏 [月桂露19 ×1]（uses=1），
+#   atk=105 def=203 hp=500（取非 10 倍数钉整数取整）→ 300 -6 面板 → 340 -6 选中 ⇒
+#   kind3 说明浮层（a.java:3955-3965）→ 380 -6 确认 → activateItem case19（a.java:7829-7834）：
+#   hp += (atk+def)*74/10 = 308*74/10 = **2279**（先乘后除整数截断，a.java:7830）→
+#   浮层「增加了2279血量」→ uses 1→0 出栈（a.java:7766-7775）→ 440 -5 关浮层 →
+#   480 -7 回场 → 收尾静态。
+#   断言：hp = 500+2279 = **2779**（精确值）、find_item(19) == -1（出栈）。
+#   preset：python3 tools/frames_fixture.py preset floor=13 x=6 y=8 facing=1 hp=500
+#   atk=105 def=203 sky=5 items=19:1
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -6 press
+302 -6 release
+340 -6 press
+342 -6 release
+380 -6 press
+382 -6 release
+440 -5 press
+442 -5 release
+480 -7 press
+482 -7 release

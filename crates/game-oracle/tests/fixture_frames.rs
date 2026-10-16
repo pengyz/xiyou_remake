@@ -463,3 +463,72 @@ fn fx_door2b_nokey_frames_match() {
         .expect("型2 红门在表");
     assert_eq!(sc.entities.solid[d], 0, "门保持关闭（state 恒 0）");
 }
+
+/// FX-ITEM-17B：金勺子失败不消耗（负例，evidence-items §3.1/§2.2 失败分支）。floor13 无
+/// 邻型11 ⇒ activateItem case17 返 false（a.java:7809-7816）⇒ useItemStack 短路不减次
+/// （a.java:7766）⇒ 栈原封不动 +「你必须面对一堵墙使用」浮层。T1-560。
+#[test]
+fn fx_item17b_fail_no_consume_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-item17b.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-item17b.txt"));
+    let (checked, sc) = replay(include_str!("fixtures/fx-item17b.preset"), &records);
+    assert_eq!(checked, records.len(), "T1-560 全帧必须比对");
+    assert_eq!(sc.floor, 13);
+    assert_eq!((sc.view.player_px >> 5, sc.view.player_py >> 5), (6, 8), "全程不移动");
+    let i = sc.player.find_item(17) as usize;
+    assert!(i < sc.player.item_stack_size as usize, "金勺子仍在栈（失败不出栈）");
+    assert_eq!(sc.player.item_uses[i], 1, "uses 恒 1（失败不消耗，a.java:7766 短路）");
+}
+
+/// FX-ITEM-19A：千年月桂露回血精确值（evidence-items §2.4/§3.6）。atk=105 def=203 ⇒
+/// (105+203)*74/10 = 2279（先乘后除整数截断，a.java:7830）→ hp 500+2279=2779 + 出栈。T1-560。
+#[test]
+fn fx_item19a_heal_exact_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-item19a.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-item19a.txt"));
+    let (checked, sc) = replay(include_str!("fixtures/fx-item19a.preset"), &records);
+    assert_eq!(checked, records.len(), "T1-560 全帧必须比对");
+    assert_eq!(sc.floor, 13);
+    assert_eq!(sc.player.hp, 2779, "500 + (105+203)*74/10 = 500+2279（整数截断钉死）");
+    assert_eq!(sc.player.find_item(19), -1, "uses 1→0 出栈（a.java:7766-7775）");
+    assert_eq!(sc.player.item_stack_size, 0, "栈清空");
+}
+
+/// FX-ITEM-17A：金勺子凿墙成功臂（evidence-items §2.2/§3.4/§3.5）。floor29 (8,3) 型11
+/// 「能挖的墙」⇒ m_089(11) 四邻命中 markEntityRemoved（a.java:7895-7919）+ 出栈 +
+/// gameMode=3 ⇒ T520 北进 (8,3) 端到端通行。quirk 保真：提示语「面对」实为四邻全删。T1-620。
+#[test]
+fn fx_item17a_chisel_wall_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-item17a.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-item17a.txt"));
+    let (checked, sc) = replay(include_str!("fixtures/fx-item17a.preset"), &records);
+    assert_eq!(checked, records.len(), "T1-620 全帧必须比对");
+    assert_eq!(sc.floor, 29);
+    assert_eq!((sc.view.player_px >> 5, sc.view.player_py >> 5), (8, 3), "凿墙后走入原墙格");
+    assert_eq!(sc.player.find_item(17), -1, "成功消耗 1 次出栈");
+    let w = (0..sc.entities.count)
+        .find(|&i| sc.entities.entity_type[i] == 11)
+        .expect("型11 墙在表");
+    assert_eq!(sc.entities.solid[w], 1, "markEntityRemoved state=1（墙开）");
+}
+
+/// FX-ITEM-18A：玄明石全清当前层墙（evidence-items §2.3/§3.4）。floor37 型11 ×8 同拍
+/// 全 markEntityRemoved（a.java:7817-7828 全表扫描）+ 出栈。T1-560。
+#[test]
+fn fx_item18a_clear_all_walls_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-item18a.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-item18a.txt"));
+    let (checked, sc) = replay(include_str!("fixtures/fx-item18a.preset"), &records);
+    assert_eq!(checked, records.len(), "T1-560 全帧必须比对");
+    assert_eq!(sc.floor, 37);
+    let walls: Vec<usize> = (0..sc.entities.count)
+        .filter(|&i| sc.entities.entity_type[i] == 11)
+        .collect();
+    assert_eq!(walls.len(), 36, "sprite37 型11 原生 36 堵（字节级解析 A 级：82 记录中 36×型11）");
+    assert!(
+        walls.iter().all(|&w| sc.entities.solid[w] == 1),
+        "36 堵全 state=1（全层清墙，a.java:7820-7824）"
+    );
+    assert_eq!(sc.player.find_item(18), -1, "成功消耗 1 次出栈");
+    assert_eq!((sc.view.player_px >> 5, sc.view.player_py >> 5), (6, 6), "全程不移动");
+}

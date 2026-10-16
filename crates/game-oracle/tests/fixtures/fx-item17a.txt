@@ -1,0 +1,28 @@
+# ticks: 620
+# preset: fx-item17a.preset
+# cover: FX-ITEM-17A 金勺子凿墙成功臂 + 出栈 + 端到端通行（evidence-items §2.2/§3.4/§3.5）：
+#   boot 70/-6 100/-2 150/-5 200/-5 → 槽载入 floor29 (8,4) 朝上（(8,3) 型11「能挖的墙」
+#   sprite29 原生，墙格地形 tile24 可走=实体阻挡）→ 300 -6 面板 → 340 -6 选中 ⇒ kind3
+#   浮层 → 380 -6 确认 → activateItem case17（a.java:7809-7816）⇒ m_089(11)（a.java:7895-7919）
+#   四邻命中 (8,3) ⇒ markEntityRemoved（state=1）+ gameMode=3 + uses 1→0 出栈 →
+#   520 -1 北进 (8,3)（凿墙放行端到端证明）→ 收尾静态。
+#   quirk 注记（保真）：提示语「面对一堵墙」而实测为四邻全删（evidence-items §3.5）。
+#   断言：型11 solid=1、find_item(17)==-1、终态玩家 (8,3)。
+#   preset：python3 tools/frames_fixture.py preset floor=29 x=8 y=4 facing=1 hp=500
+#   atk=200 def=30 sky=5 items=17:1
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -6 press
+302 -6 release
+340 -6 press
+342 -6 release
+380 -6 press
+382 -6 release
+520 -1 press
+522 -1 release

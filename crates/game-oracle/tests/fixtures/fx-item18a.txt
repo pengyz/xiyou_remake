@@ -1,0 +1,26 @@
+# ticks: 560
+# preset: fx-item18a.preset
+# cover: FX-ITEM-18A 玄明石全清当前层墙 + 出栈（evidence-items §2.3/§3.4）：
+#   boot 70/-6 100/-2 150/-5 200/-5 → 槽载入 floor37 (6,6)（sprite37 型11 ×36（82 记录字节级解析 A 级）：
+#   36 格环形包围「能挖的墙」（字节级解析：82 记录中 36×型11，cell 环 (2,3)-(10,9)）；a.java:838 文案
+#   「用玄明石取出37楼仓库内的所有宝物」呼应层）→ 道具栏 [玄明石18 ×1]（uses=1）→
+#   300 -6 面板 → 340 -6 选中 ⇒ kind3 浮层 → 380 -6 确认 → activateItem case18
+#   （a.java:7817-7828）：entityCount 全表扫描 entityType==11 全部 markEntityRemoved
+#   + gameMode=3 + uses 1→0 出栈（36 堵同拍全消失）→ 收尾静态。
+#   断言：型11 实体 36 个全 solid=1、find_item(18)==-1、玩家恒 (6,6)。
+#   preset：python3 tools/frames_fixture.py preset floor=37 x=6 y=6 facing=1 hp=500
+#   atk=200 def=30 sky=5 items=18:1
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -6 press
+302 -6 release
+340 -6 press
+342 -6 release
+380 -6 press
+382 -6 release

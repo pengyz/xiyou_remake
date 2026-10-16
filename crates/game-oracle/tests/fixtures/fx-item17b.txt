@@ -1,0 +1,31 @@
+# ticks: 560
+# preset: fx-item17b.preset
+# cover: FX-ITEM-17B 金勺子失败不消耗（负例，evidence-items §3.1/§2.2 失败分支）：
+#   boot 70/-6 100/-2 150/-5 200/-5 → 槽载入 floor13 (6,8)（fx-fan 同位；floor13 无型11
+#   邻格——sprite12 类型直方无 11），道具栏 [金勺子17 ×1]（uses=1）→
+#   300 -6 道具面板（mode10）→ 340 -6 选中 ⇒ 确认浮层 kind3（a.java:3955-3965）→
+#   380 -6 确认 useItemStack（a.java:3300-3303）→ activateItem case17（a.java:7809-7816）
+#   四邻无型11 ⇒ m_089(11) 返 false ⇒ 浮层「你必须面对一堵墙使用」+ **不消耗**
+#   （a.java:7766 短路）→ 440 -5 关浮层 → 480 -7 回场（mode3）→ 收尾静态。
+#   断言：find_item(17) 仍在栈、uses 恒 1、stack_size 恒 1、玩家恒 (6,8)。
+#   键位（A 级）：-6=面板/选中/确认、-5=关浮层、-7=回场。
+#   preset：python3 tools/frames_fixture.py preset floor=13 x=6 y=8 facing=1 hp=500
+#   atk=200 def=30 sky=5 items=17:1
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -6 press
+302 -6 release
+340 -6 press
+342 -6 release
+380 -6 press
+382 -6 release
+440 -5 press
+442 -5 release
+480 -7 press
+482 -7 release
