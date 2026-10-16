@@ -27,7 +27,13 @@ fn grid51() -> (i32, i32, Vec<Vec<bool>>) {
     let mut terrain = vec![vec![false; cols as usize]; rows as usize];
     for y in 0..rows as usize {
         for x in 0..cols as usize {
-            let tile = body[(y * cols as usize + x) * 2] as usize; // m_061 stride 2
+            // [2026-10-16 更正] rebuildWalkability（a.java:6964-6976）读法 =
+            // **行距 wide·4、列距 2**（行尾 `var1 += var3 << 1` 叠加列循环 ×2）
+            // ——与 scene.rs 载层 walkable 构建同式（其 A 级注：oracle FLD 134
+            // 13×13 逐格复算匹配）。原 `(y*cols+x)*2` 步距 2W 仅行 0 吻合，
+            // 行 ≥1 整体错位 ⇒ floor51 (1,11)→(3,10) 走廊被误判封死，是
+            // "Rust find_path !found ≠ Java findPath found"分歧的真正根因。
+            let tile = body[y * cols as usize * 4 + x * 2] as usize;
             terrain[y][x] = tile < walk.len() && walk[tile] == 1;
         }
     }
@@ -136,11 +142,11 @@ fn path_not_found_without_entity_slots_floor51() {
         rows,
     };
     let r = find_path(&walk, 1, 11, 3, 10);
-    // [2026-10-10 Rust 重实现实证] findPath(1,11→3,10) 在地形网格上不可达——
-    // 之前假设"路径存在"是错的（m_062 实体槽本测试未启用）。见下一测试。
+    // [2026-10-16 注] 步距修正后此测仍 !found——**结论未变但理由归正**：
+    // 走廊 (1,11)→(3,10) 依赖 sprite51 实体槽（m_062）搭桥，纯地形网格
+    // 不可达（对照下一测试：带槽 = found/3 步）。原"步距错位下的不可达"
+    // 结论碰巧同向，理由以本注为准。
     assert!(!r.found);
-    // 3 步路径：沿 y8/y10 走廊（(1,11)→(1,10)→…→(3,10) 的最短路）
-    // 具体方向序列由 best-first 决定；此处锚定步数与可达性
 }
 
 #[test]
@@ -184,11 +190,17 @@ fn bug006_replay_with_sprite51_entities_full_chain() {
         rows,
     };
     let r = find_path(&walk, 1, 11, 3, 10);
-    // [诊断保持诚实] sprite51 实体槽（门/NPC）仍不足以打通 (1,11)→(3,10)——
-    // walkStepCount=3 的来源需在 P3.3 行走模块考证（可能来自玩家进入脚本 40
-    // 触发前的最后一次成功寻路残留）。BUG-006 冻结机制（行尾收尾门覆写
-    // dialogPhase 6→4，孤儿化已武装行走）不变——见 script_golden see 向量。
-    assert!(!r.found, "当前实体表下仍不可达；若变动需同步台账");
+    // [2026-10-16 更正] 分歧根因 = grid51() 地形索引错位（见 grid51 注），**非**
+    // find_path 语义——m_134/m_062（可通行 = isCellWalkable || 槽占用，
+    // a.java:9967/6994）移植本已逐行忠实。步距修正后与 oracle 逐项吻合：
+    // found + 3 步（f_bool_26=true + walkStepCount=3，BUG-006 证据链 D）。
+    // 原"仍不可达/待 P3.3 考证"主张随步距修正撤销（原主张留档 git 历史）。
+    assert!(r.found, "修正步距后应可达（oracle f_bool_26=true）");
+    assert_eq!(r.steps.len(), 3, "walkStepCount=3（oracle f_int_148）");
+    // 缓冲序 = 目标端优先（walk 自末端消费）：[2,2,1] ⇒ 行走序 up,right,right
+    // = (1,11)→(1,10)→(2,10)→(3,10)——与 best-first 幻影头怪癖的平局序一致，
+    // 此序列钉 m_134 插入/弹出怪癖的确定性。
+    assert_eq!(r.steps, vec![2, 2, 1], "缓冲序 [2,2,1]");
 }
 
 /// m_108（a.java:8880-8904）：起点格摘除首个 idx+1（后续前移）→ 当前像素格追加
