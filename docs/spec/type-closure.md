@@ -45,7 +45,7 @@ cat8 战斗 + cat16 商人）与 applyStepCellEffects（:5637-5715，case 1-8/76
 | 9 | 炼丹炉 | ✅ | mode9 全流程（alchemy） |
 | 10 | 云雾(三昧真火) | ✅ |【2026-10-15 晚销账】移除臂 ✅ fx-fan-floor13（芭蕉扇 m_089 命中）+ 撞击臂已移植（ee52191，a.java:5436-5440）+ 帧级 fixture_frames::fx_firebump_floor13_frames_match 解禁全预算绿（RED 钉 T301）。【史】 bump case10 提示浮层；与 16 芭蕉扇联动——delta。【2026-10-15】移除臂（芭蕉扇 m_089 命中）✅ 夹具场景 fx-fan-floor13；**撞击臂 Rust 未移植**（a.java:5436-5440；scene.rs cat1 `_ => {} // 11 / 76/82：后续批次` 吞掉，无 todo!）——帧级复现 fixture_frames::fx_firebump_floor13_frames_match（#[ignore] BLOCKED，首分歧 T301），矩阵 §5.1 |
 | 11 | 能挖的墙 | ✅ | bump case11 + **currentFloor!=23 层条件**（§4）——delta。【2026-10-15】撞击臂同 10 被 `_ => {}` 吞（代码阅读 B 级，矩阵 §5.1）【2026-10-16 同步】撞击臂已随主行（型10）移植（ee52191，a.java:5436-5456 逐值：型11 = **23 层静默、其余提示 + 阻挡 + 停扫**）——原文"被 `_ => {}` 吞"系移植前状态，已过时（保留历史）。【2026-10-16 翻 ✅（已交互口径）】交互臂三面帧锚：fx_item17a（凿开 (8,3) 穿行，2d802fd）/fx_item18a（36 堵全清）/floor2-mov（m_106 途经 (2,8) 开墙）；bump 提示臂已移植（ee52191）但**无独立帧夹具**（fx_item17a 输入走面板 300-380 未撞墙）——残余两缺口挂 §4 :5442 行与 FX-INT-11-F23 扩展候选（23 层静默负例 + 非 23 层提示臂），不随本格销 |
-| 12 | 隐形墙 | ⬜ | 图=型11 别名；bump case12 语义待查——delta。【2026-10-15】case12 = 显形为型11（state2/row9/visible）+ 阻挡（a.java:5449-5456）；Rust 同被 `_ => {}` 吞（B 级，矩阵 §5.1）【2026-10-16 同步】撞击臂已随主行（型10）移植（ee52191，a.java:5449-5456 逐值：变形为型11 + dispatch_sprite_size/anim 重派 + state2/animRow9/visible + 阻挡**续扫**〔Java 无停扫〕）——原文"Rust 同被 `_ => {}` 吞"系移植前状态，已过时（保留历史）。【2026-10-16 驳回翻 ✅ 依据】"floor40-mov 逐帧"不成立——sprite40 字节级解析 29 记录 **0×型11、0×型12**（consumed==filesize，A 级），floor40 无此二型可触；case12 变形臂全夹具语料**零触达**（floor23 sprite 仅 probe 快照装载，mov_route_scene.rs:245-246 自注"测试须补 floor23"）⇒ 保守留 ⬜（防虚报）。夹具建议：FX-INT-11-F23 一并钉 floor23 型12 bump 变形 + 型11 静默双臂 |
+| 12 | 隐形墙 | ⬜ | 图=型11 别名；bump case12 语义待查——delta。【2026-10-15】case12 = 显形为型11（state2/row9/visible）+ 阻挡（a.java:5449-5456）；Rust 同被 `_ => {}` 吞（B 级，矩阵 §5.1）【2026-10-16 同步】撞击臂已随主行（型10）移植（ee52191，a.java:5449-5456 逐值：变形为型11 + dispatch_sprite_size/anim 重派 + state2/animRow9/visible + 阻挡**续扫**〔Java 无停扫〕）——原文"Rust 同被 `_ => {}` 吞"系移植前状态，已过时（保留历史）。【2026-10-16 驳回翻 ✅ 依据】"floor40-mov 逐帧"不成立——sprite40 字节级解析 29 记录 **0×型11、0×型12**（consumed==filesize，A 级），floor40 无此二型可触；case12 变形臂全夹具语料**零触达**（floor23 sprite 仅 probe 快照装载，mov_route_scene.rs:245-246 自注"测试须补 floor23"）⇒ 保守留 ⬜（防虚报）。夹具建议：FX-INT-11-F23 一并钉 floor23 型12 bump 变形 + 型11 静默双臂【2026-10-16 翻 ✅】建议即落地（ec6fb55，A/B/C 三方逐字节一致，fixture_frames 18/18）：fx_int11_f23_transform_silent_frames_match（floor23 (2,4) 型12 右撞 ⇒ case12 变形写序全钉 type12→11 + dispatchSpriteSize/AnimFields(11) + state2 + animRow9 + visible（a.java:5449-5456）⇒ 过渡归零（:6838-6843）；T1-560 全帧 + FLD type sha T302 跳变（12→11）/T402 归零实证） |
 | 76 | 路点 | ✅ | floor35/42/46 wp4 组门踏板 |
 | 81 | 封印门(隐形) | ✅ | floor10 隐形81 |
 | 82 | 传怪点 | ✅ | case82 spawn+hidden；出层层待普查——delta【2026-10-16 终裁 ✅ 死码臂忠实实现】裁决口径=**有臂可验且已验 ⇒ ✅（用例名覆盖）+ 死码实证入注**（与 87「无臂可验 ⇒ ☠️」区分）：① 载入臂 spawn+hidden ✅（scene.rs:951-953 m_122 特例隐藏表含 82）；② MVS 传怪臂 ✅（scene.rs:2103-2191 + m_107 :2195，a.java:8519-8592 逐值；单测 mvs_pairs_by_param_low_byte_transfers_and_consumes〔scene.rs:6784〕+ bd735f6 三钉 quirk）；③ **实机不可达（双重死码 A 级）**：语料 297 条指令 0 条 MVS + 全 55 层 sprite 型82=0（evidence-todos T-1，型83 有 52 个对照）——夹具永远打不到，单测是唯一验证面。出层普查同步销：82 无任何出生源（CES/ADD/GIN/bossEventSpawns/商人五类均无） |
@@ -190,14 +190,14 @@ cover_matrix.py 渲染时三重校验（字节码证死 + 裁决书节锚 + JDI 
 | a.java:3189/3192/3195 | ==0 / ==50 / ==1&&wentDown | ✅/✅/✅ | boot/prologue/floor50/floor1 引子旗 |
 | :4326 | >50 引子 UI | ✅ | floor51_menu/prologue |
 | :5428 | 炼丹价 scaledByFloorTier | ✅ | mode9（<=10 段） |
-| :5442 | 型11 墙文案 !=23 | ⬜ | **随型11 delta 一并覆盖**【2026-10-16 驳回翻 ✅ 依据】"floor40-mov 逐帧"不成立（sprite40 29 记录 0×型11/0×型12，字节级解析 A 级）；!=23 **真臂**无帧夹具（fx_item17a 输入走面板 300-380 未撞墙、fx_item18a 面板路径、floor40 无型11），**假臂**（23 层静默 a.java:5442-5444）=FX-INT-11-F23 扩展候选——两分支均未触达，保守留 ⬜ 待夹具 |
+| :5442 | 型11 墙文案 !=23 | ⬜ | **随型11 delta 一并覆盖**【2026-10-16 驳回翻 ✅ 依据】"floor40-mov 逐帧"不成立（sprite40 29 记录 0×型11/0×型12，字节级解析 A 级）；!=23 **真臂**无帧夹具（fx_item17a 输入走面板 300-380 未撞墙、fx_item18a 面板路径、floor40 无型11），**假臂**（23 层静默 a.java:5442-5444）=FX-INT-11-F23 扩展候选——两分支均未触达，保守留 ⬜ 待夹具【2026-10-16 增量复核（ec6fb55 后）】**假臂已钉**：FX-INT-11-F23 二撞 case11 floor==23 跳文案恒阻挡（fx_int11_f23_transform_silent_frames_match 显式断言 overlay 无「障碍物」= a.java:5442 条件假臂 + FLD overlayText 全程零变化）⇒条件**判定方向**已钉（Rust 若 `!=23` 写反必红）。**真臂仍缺独立帧锚——更正"item17a/18a 真臂帧锚"说法**：两夹具走面板路径（300-380 -6）不撞墙，case11 臂根本未执行、条件未求值（A 级：输入脚本 + 断言清单）；真臂文案=a.java:5443 源引 + ee52191 逐值移植，提示机制帧锚于 case10 同型 prompt（fx_firebump_floor13，floor13≠23，showOverlayMessage 同路径，B 级推导）。**销账路径（一次输入即闭）**：fx-item17a.txt 在 T250 加 `-1 撞 (8,3)` 一次（面板流程前）⇒ 真臂文案帧锚落地即翻 ✅。按 82 行定例口径（有臂可验**且已验** ⇒ ✅）真臂未验 ⇒ 本格保守留 ⬜ |
 | :6022 | >50 状态栏 | ✅ | floor50/51 |
 | :7165 | m_119(currentFloor) 层缓存 | ✅ | 换层链（floor2/floor_crossing） |
 | :7191/7193/7195 | 换层钳制 ==1/51/50 | ✅ | floor2/51/50 |
 | :7557/7565 | 炼丹 <=10 | ✅ | mode9 floor5 |
 | :7644 | 难度 (floor-1)/10 | ✅ | 全战斗用例 |
 | :7648 | >50 战斗 UI | ✅ | ending 战 |
-| :7833 | ==40 | ⬜ | 待查语义（case40）——delta【2026-10-16 语义销账】= `activateItem(byte)` switch（a.java:7784 方法，switch :7787）**case 20「对角瞬移」道具臂**内 `currentFloor==40`（现 a.java:7836，账本行号漂移 -3）→ 40 层禁瞬移提示"本层不能直接瞬移。"（:7836-7838），else 镜像格 `interactWithCell` 放行才传送（:7839-7850）——**与 boss 无关**，勿与另一处 ==40（a.java:10074 击杀钩子 case73 spawnBossEvent(6)）混记：那处已由 preset-itemboss40 覆盖。Rust 已移植（scene.rs:2877-2881，注引 a.java:7832-7850）。**保留 ⬜ 的 A 级理由**：40 层禁用**真臂**零差分夹具——场景语料穷举（reference/oracle/scenarios/ 全量）无 floor40+item20 激活：preset-item2122 只触 floor1 **假臂**（镜像格拦截分支），preset-itemboss40/preset-floor40-mov 不经 activateItem；grep "本层不能直接瞬移" 全仓仅实现行 scene.rs:2881（零测试触达）。禁用臂夹具（floor40+item20 场景）落地前不翻 ✅【2026-10-16 复核·按 AGENTS 死码/不可达判定标准】☠️ **证不出**⇒保持 ⬜：型20 有脚本出生源 `CES_20_4_4`（a.java:1143，`DES_1_4_4` 同格换生成）⇒ 可拾取持有，楼梯 ±1（:7855/7860）可携至 40 层 ⇒ 禁用**真臂可达**，不满足死码判定所需的值域/CFG 级不可达证明。夹具现状：floor40+item20 禁用臂场景既不在本批亦不在扩展候选（fixture-plan §3）——建议补列扩展候选 FX-ITEM-20A（floor40 栈含 20 → 使用 → 「本层不能直接瞬移。」且不消耗） |
+| :7833 | ==40 | ⬜ | 待查语义（case40）——delta【2026-10-16 语义销账】= `activateItem(byte)` switch（a.java:7784 方法，switch :7787）**case 20「对角瞬移」道具臂**内 `currentFloor==40`（现 a.java:7836，账本行号漂移 -3）→ 40 层禁瞬移提示"本层不能直接瞬移。"（:7836-7838），else 镜像格 `interactWithCell` 放行才传送（:7839-7850）——**与 boss 无关**，勿与另一处 ==40（a.java:10074 击杀钩子 case73 spawnBossEvent(6)）混记：那处已由 preset-itemboss40 覆盖。Rust 已移植（scene.rs:2877-2881，注引 a.java:7832-7850）。**保留 ⬜ 的 A 级理由**：40 层禁用**真臂**零差分夹具——场景语料穷举（reference/oracle/scenarios/ 全量）无 floor40+item20 激活：preset-item2122 只触 floor1 **假臂**（镜像格拦截分支），preset-itemboss40/preset-floor40-mov 不经 activateItem；grep "本层不能直接瞬移" 全仓仅实现行 scene.rs:2881（零测试触达）。禁用臂夹具（floor40+item20 场景）落地前不翻 ✅【2026-10-16 复核·按 AGENTS 死码/不可达判定标准】☠️ **证不出**⇒保持 ⬜：型20 有脚本出生源 `CES_20_4_4`（a.java:1143，`DES_1_4_4` 同格换生成）⇒ 可拾取持有，楼梯 ±1（:7855/7860）可携至 40 层 ⇒ 禁用**真臂可达**，不满足死码判定所需的值域/CFG 级不可达证明。夹具现状：floor40+item20 禁用臂场景既不在本批亦不在扩展候选（fixture-plan §3）——建议补列扩展候选 FX-ITEM-20A（floor40 栈含 20 → 使用 → 「本层不能直接瞬移。」且不消耗）【2026-10-16 翻 ✅】建议即落地（ec6fb55，A/B/C 三方逐字节一致）：fx_item20a_no_teleport_floor40_frames_match（floor40 uses=3 **两次使用** ⇒ case20 禁用真臂命中「本层不能直接瞬移。」不瞬移不消耗幂等（a.java:7835-7838，var2 恒 false ⇒ useItemStack :7766 短路），T1-680 全帧 + uses 恒 3 断言）；假臂（镜像格拦截分支）=preset-item2122 既有帧锚——**双分支齐**，行销 |
 | :7855/7860 | 楼梯 ±1 | ✅ | 楼梯往返 |
 | renderCategory[72] | floor50 特判 | ✅ | 迭代 56 |
 
@@ -250,3 +250,44 @@ cover_matrix.py 渲染时三重校验（字节码证死 + 裁决书节锚 + JDI 
 对未跑层 N：`spriteN` 记录的类型集 ⊆ 账本 ✅/📦 集合，且无 §4 未覆盖层条件、
 无 §2 未覆盖脚本码引用 ⇒ 记一行「N 派生覆盖（类型普查 = {...}，无增量）」。
 普查脚本待工具化（tools/type_census.py，读 original/ jar 内 spriteN）。
+
+## 7. 最后翻格批·注文骨架（2026-10-16 预写；证据指针占位，落地后回填并移入各行）
+
+> **本节为预写草稿**：未落格、未翻状态、**禁止作为结论引用**（各行状态此刻仍 ⬜）。
+> 用途 = 夹具（FX-INT-11-F23 / FX-ITEM-20A / FX-BOSS-68A / FX-LAY-2A）与 15 号修复落地后，
+> 机械回填 `⟨…⟩` 占位即完成翻格。消费后本节转「已消费」标记（不删历史）。
+>
+> **裁决口径范式（82 行定例，随批推广）**：有臂可验且已验 ⇒ **✅**（trace 锚点或用例名）；
+> 无臂可验 ⇒ **☠️**（死码/不可达 A 级实证入注）；被动/表数据派生 ⇒ **📦**。
+> 体例照旧：日期更正 + 历史主张原地保留 + 每处翻格带证据指针（commit hash 或 a.java 行号）。
+>
+> 【2026-10-16 消费进度】条目 2（型12）、4（:7833）已随 ec6fb55 落行翻 ✅；
+> 条目 3（:5442）假臂已钉、**真臂缺独立帧锚**（"item17a/18a 真臂锚"说法被输入脚本反证）留 ⬜
+> ——销账=fx-item17a.txt 加 T250 一撞（见行内增量复核）；条目 1/5/6 待命（15 等 porter 修复、68/84 等主窗批）。
+
+1. **15 筋斗云 ⬜→✅**（待 porter 修 scene.rs:4476-4477 `key_value`/`up` 求值顺序）：
+   【2026-10-⟨日⟩ 翻 ✅】49/55 臂方向分歧已修（⟨fix commit⟩，⟨回归测试名⟩——修后 49=findFloorGateEntity(true)
+   对应 a.java:5295、55=false 对应 :5301 分立 case）；被动链全核 = 拾取置位 tutorial_seen（scene.rs:5272，
+   f_bool_12）+ 贴梯门控 stair_hint（:411，f_bool_13）+ 快捷键臂（⟨修复后行号⟩，a.java:5293-5306）；
+   使用臂空操作系原版语义（a.java:7795-7800）。原文"📦 被驳回/留 ⬜"复核记录保留。
+2. **型12 隐形墙 ⬜→✅**（待 FX-INT-11-F23）：
+   【2026-10-⟨日⟩ 翻 ✅】FX-INT-11-F23（⟨commit⟩）⟨测试名⟩：floor23 撞型12 ⇒ 变形为型11（state2/row9/visible
+   + dispatch 重派 + 阻挡续扫，a.java:5449-5456）——case12 变形臂帧锚 ⟨帧窗⟩。历史"驳回翻格依据"更正保留。
+3. **:5442 型11 墙文案 !=23 ⬜→✅**（同批）：
+   【2026-10-⟨日⟩ 翻 ✅】!=23 两分支同钉：假臂=23 层静默仍阻挡（a.java:5442-5444，⟨F23 帧窗⟩）；
+   真臂=非 23 层提示（a.java:5443 文案，⟨fx_item17a 前置撞墙阶段 或 F23 非 23 参照窗——待落地形态⟩）。
+4. **:7833 ==40 ⬜→✅**（待 FX-ITEM-20A）：
+   【2026-10-⟨日⟩ 翻 ✅】FX-ITEM-20A（⟨commit⟩）⟨测试名⟩：floor40 栈含 20 ⇒ activateItem case20 命中
+   `currentFloor==40` 禁用臂（a.java:7836-7838「本层不能直接瞬移。」+ 不消耗）；对照放行臂
+   = preset-item2122 floor1 镜像格拦截分支（假臂）。语义考证史（activateItem case20 对角瞬移，2026-10-16）保留。
+5. **68 太上老君 ⬜→✅**（待 FX-BOSS-68A 主窗）：
+   【2026-10-⟨日⟩ 翻 ✅】FX-BOSS-68A（⟨commit⟩）⟨测试名⟩：floor25 战 68（HP4500/Atk560/Def310 a.java:1072）
+   ⇒ 击杀 spawnBossEvent(2) ⇒ bossEventSpawns[2] 红钥匙×4 十字（a.java:2142）⟨帧窗+四钥格断言⟩。
+   fixture-plan-boss 余 8 窗 = 二波扩展候选（注文明列不随本格销）。
+6. **84 嫦娥 ⬜→✅**（待 FX-LAY-2A 主窗）：
+   【2026-10-⟨日⟩ 翻 ✅】FX-LAY-2A（⟨commit⟩）⟨测试名⟩：script0 链 ⇒ `LAY_2` 出层（a.java:8355-8362）
+   ⇒ `RES_0` easy 重置（:8470-8490）⇒ `GUT_1` 交接停扫 ⟨帧窗⟩——销 84 行核心出层语义；
+   登场三出生源/scene26-31 门控余窗 = 二波扩展候选（注文明列）。
+
+> 收敛口径（lead 2026-10-16 拍板）：fixture-plan-boss 10 窗不全做——2 主窗销行 + 8 窗转二波扩展候选；
+> 执行序 items-evidence（F23/item20）→ 68/84 主窗（同人串行，tests/ 域不并行）→ 本节六行连翻。
