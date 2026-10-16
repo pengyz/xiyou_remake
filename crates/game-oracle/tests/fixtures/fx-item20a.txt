@@ -1,0 +1,40 @@
+# ticks: 680
+# preset: fx-item20a.preset
+# cover: FX-ITEM-20A 相形变位对角瞬移的 40 层禁瞬移臂（closure :7833 销账行；
+#   evidence-items §1.5 公共机制 + activateItem case20 a.java:7835-7860）：
+#   boot 70/-6 100/-2 150/-5 200/-5 → 槽载入 floor40 (6,9)，道具栏 [相形变位20 ×3]（uses=3）→
+#   300 -6 面板 → 340 -6 选中 ⇒ kind3 说明浮层（a.java:3962-3965 组）→ 380 -6 确认
+#   useItemStack → activateItem case20（a.java:7835-7838）`currentFloor == 40` 命中
+#   ⇒ 浮层「本层不能直接瞬移。」**不瞬移不消耗**（var2 恒 false ⇒ a.java:7766 短路）→
+#   440 -5 关浮层 → 480 -7 回场 → 520/560/600 -6×3 二次使用（幂等：uses 恒 3）→
+#   640 -5 关浮层 → 收尾静态。
+#   断言：玩家恒 (6,9)（未瞬移）、item_uses[0]==3（两次使用零消耗）、find_item(20) 在栈。
+#   键位（A 级）：-6=面板/选中/确认、-5=关浮层、-7=回场。
+#   preset：python3 tools/frames_fixture.py preset floor=40 x=6 y=9 facing=1 hp=500
+#   atk=200 def=30 sky=5 items=20:3
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -6 press
+302 -6 release
+340 -6 press
+342 -6 release
+380 -6 press
+382 -6 release
+440 -5 press
+442 -5 release
+480 -7 press
+482 -7 release
+520 -6 press
+522 -6 release
+560 -6 press
+562 -6 release
+600 -6 press
+602 -6 release
+640 -5 press
+642 -5 release

@@ -1,0 +1,28 @@
+# ticks: 560
+# preset: fx-int11f23.preset
+# cover: FX-INT-11-F23 型12 变形臂 + 型11 静默臂 双臂钉死（evidence-interact-types
+#   R-INT-11 + 补遗/型12 行；closure-typist 建议升级场景）：
+#   boot 70/-6 100/-2 150/-5 200/-5 → 槽载入 floor23 (1,4) 朝右（sprite23 原生实体表：
+#   型12 隐形墙 ×24，(2,4) 为其一；本层无原生型11）→
+#   300 -4 右撞 (2,4) 型12 ⇒ interactWithCell case12（a.java:5449-5456）**变形臂**：
+#   entityType 12→11 + dispatchSpriteSize(11)+dispatchAnimFields(11) + state=2 +
+#   animRow=9 + visible=true（写序固定）→ var6=false 阻挡（**不置 var8=0**，与 case11 异）→
+#   advanceEntityFrames 过渡完成（animRow9 行尽 ⇒ dispatchSpriteSize/AnimFields+state=0，
+#   a.java:6838-6843）→
+#   400 -4 再撞（此时为型11）⇒ case11（a.java:5441-5448）**静默臂**：floor==23 跳过
+#   文案（!=23 假臂）但 var6=false 恒阻挡 + var8=0 停扫 ⇒ 全程无「障碍物：墙」浮层。
+#   断言：(2,4) 实体 type=11/visible/solid=0；玩家恒 (1,4)；overlay_text 无「障碍物」。
+#   preset：python3 tools/frames_fixture.py preset floor=23 x=1 y=4 facing=2 hp=500
+#   atk=200 def=30 sky=5
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -4 press
+302 -4 release
+400 -4 press
+402 -4 release

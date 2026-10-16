@@ -593,3 +593,55 @@ fn fx_boss74a_kill_hooks_frames_match() {
         );
     }
 }
+
+/// FX-INT-11-F23：型12 变形臂 + 型11 静默臂双臂钉死（evidence-interact-types R-INT-11 +
+/// 型12 行；closure-typist 建议升级场景）。floor23 (2,4) 型12 隐形墙（sprite23 原生 ×24）
+/// 右撞 ⇒ case12（a.java:5449-5456）变形：type 12→11 + dispatchSpriteSize/AnimFields(11)
+/// + state=2 + animRow=9 + visible=true（写序固定）⇒ 过渡完成归零（a.java:6838-6843）；
+/// 二撞 ⇒ case11（a.java:5441-5448）floor==23 跳过文案但恒阻挡（var6=false+var8=0）。
+/// T1-560。
+#[test]
+fn fx_int11_f23_transform_silent_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-int11f23.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-int11f23.txt"));
+    let (checked, sc) = replay(include_str!("fixtures/fx-int11f23.preset"), &records);
+    assert_eq!(checked, records.len(), "T1-560 全帧必须比对");
+    assert_eq!(sc.floor, 23);
+    assert_eq!(
+        (sc.view.player_px >> 5, sc.view.player_py >> 5),
+        (1, 4),
+        "双撞均阻挡（case12 var6=false / case11 var6=false）"
+    );
+    let w = (0..sc.entities.count)
+        .find(|&i| sc.entities.pixel_x[i] >> 5 == 2 && sc.entities.pixel_y[i] >> 5 == 4)
+        .expect("(2,4) 实体在表");
+    assert_eq!(sc.entities.entity_type[w], 11, "case12 变形：type 12→11（a.java:5450）");
+    assert!(sc.entities.visible[w], "变形臂 visible=true（a.java:5455）");
+    assert_eq!(sc.entities.solid[w], 0, "state=2 过渡完成后归零（a.java:6842）");
+    assert_eq!(sc.entities.anim_idx[w], 0, "dispatchAnimFields(11) 归位 animRowByType[11]=0");
+    assert!(
+        !sc.overlay_text.as_deref().unwrap_or("").contains("障碍物"),
+        "case11 静默臂：floor==23 不显「障碍物：墙」文案（a.java:5442 条件假臂）"
+    );
+}
+
+/// FX-ITEM-20A：相形变位对角瞬移的 40 层禁瞬移臂（closure :7833 销账行；
+/// activateItem case20 a.java:7835-7838）。floor40 使用 ⇒ 「本层不能直接瞬移。」
+/// 不瞬移不消耗（var2 恒 false ⇒ useItemStack a.java:7766 短路），两次使用幂等。
+/// T1-680。
+#[test]
+fn fx_item20a_no_teleport_floor40_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-item20a.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-item20a.txt"));
+    let (checked, sc) = replay(include_str!("fixtures/fx-item20a.preset"), &records);
+    assert_eq!(checked, records.len(), "T1-680 全帧必须比对");
+    assert_eq!(sc.floor, 40);
+    assert_eq!(
+        (sc.view.player_px >> 5, sc.view.player_py >> 5),
+        (6, 9),
+        "未瞬移（40 层禁瞬移臂）"
+    );
+    let i = sc.player.find_item(20) as usize;
+    assert!(i < sc.player.item_stack_size as usize, "相形变位仍在栈");
+    assert_eq!(sc.player.item_uses[i], 3, "两次使用零消耗（uses 恒 3，a.java:7766 短路）");
+}
