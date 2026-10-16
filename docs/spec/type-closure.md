@@ -61,7 +61,7 @@ cat8 战斗 + cat16 商人）与 applyStepCellEffects（:5637-5715，case 1-8/76
 |---|---|---|---|
 | 13 | 火眼金睛 | ✅ | item13 用例 |
 | 14 | 生死簿 | ✅ | preset_floor5_fixture_frames_match（道具14 全链 T1-1200：拾取→面板→使用→mode12 翻页/关闭） |
-| 15 | 筋斗云 | ⬜ | delta【2026-10-16 复核留 ⬜（预翻 📦 被驳回）】使用臂空操作=原版语义（a.java:7795-7800）✓；被动授予侧已核（拾取置 tutorial_seen=f_bool_12 scene.rs:5272/409，f_bool_13=stair_hint 楼梯指示门控 scene.rs:411）✓；**但消费侧 49/55 快捷键臂存在 A 级分歧**：scene.rs:4476-4477 先 `key_value=0` 后 `let up = key_value == 49` ⇒ `up` 恒 false，49 上行臂被并入 55 下行臂——a.java:5295/5301 为**分立 case**（49→findFloorGateEntity(true)+changeFloor(…,false,…)、55→false+true）。“被动效果移植已核”对本型不成立 ⇒ 保守不翻 📦（防虚报）；待分歧裁定（BUG 候选，建议 bug-ledger 登记 + 49/55 双向夹具）后翻 |
+| 15 | 筋斗云 | ✅ | delta【2026-10-16 复核留 ⬜（预翻 📦 被驳回）】使用臂空操作=原版语义（a.java:7795-7800）✓；被动授予侧已核（拾取置 tutorial_seen=f_bool_12 scene.rs:5272/409，f_bool_13=stair_hint 楼梯指示门控 scene.rs:411）✓；**但消费侧 49/55 快捷键臂存在 A 级分歧**：scene.rs:4476-4477 先 `key_value=0` 后 `let up = key_value == 49` ⇒ `up` 恒 false，49 上行臂被并入 55 下行臂——a.java:5295/5301 为**分立 case**（49→findFloorGateEntity(true)+changeFloor(…,false,…)、55→false+true）。“被动效果移植已核”对本型不成立 ⇒ 保守不翻 📦（防虚报）；待分歧裁定（BUG 候选，建议 bug-ledger 登记 + 49/55 双向夹具）后翻【2026-10-16 翻 ✅】分歧已修（163f328 fix(core)：scene.rs handle_field_input 按 a.java:5295-5306 拆 49/55 **分立双臂**——①顺序 bug〔先清零 key_value 再判 up 恒 false ⇒ 49 并入 55〕已修；②break 语义〔臂末 return 曾吞 Java break 后 keyHeldCode switch 同拍方向步进〕一并修，臂位 scene.rs:4472/4485）；TDD 双测 GREEN（2026-10-16 实跑）：field_input_keys_49_55_split_up_down_gates（49→型7 门/went_down=false、55→型8 门/went_down=true + break 语义 facing 断言，scene.rs:7157）+ field_input_keys_49_55_gated_by_stair_hint（f_bool_13 门控，:7195）。被动链全核 = 拾取置位 tutorial_seen/f_bool_12（scene.rs:5272）+ 贴梯门控 stair_hint/f_bool_13（:411）+ 快捷键双臂（a.java:5293-5306 分立 case 对应）；使用臂空操作系原版语义（a.java:7795-7800）。定性=移植 bug 非原版 bug，按应修处置未入 bug-ledger（porter 核准）。原文"📦 被驳回/保守留 ⬜"复核记录保留 |
 | 16 | 芭蕉扇 | ✅ | 【2026-10-15】使用臂 m_089(10) 未命中提示 / 命中灭火两臂 ✅ 夹具场景 fx-fan-floor13（T1-830 全帧，preset 道具栏预置）；正常游玩来源 = 杨戬(69) 击杀 spawnBossEvent(4)（§5 更正） |
 | 17 | 金勺子 | ✅ | 凿墙联动型11——delta。来源 = 啸天犬(67) 击杀 spawnBossEvent(3)（§5 更正）【2026-10-16 翻 ✅】FX-ITEM-17A/17B 双臂（2d802fd，fixture_frames 16/16）：fx_item17a_chisel_wall_frames_match（floor29 (8,3) 型11 ⇒ m_089(11) 四邻命中 markEntityRemoved a.java:7895-7919 + uses 1→0 出栈 + T520 端到端通行，T1-620 全帧）+ fx_item17b_fail_no_consume_frames_match（失败不消耗负例：case17 返 false a.java:7809-7816 ⇒ useItemStack 短路 a.java:7766，栈 uses 恒 1） |
 | 18 | 玄明石 | ✅ | 同上——delta。来源 = 天宫商人(78) 报价 13 → pickupItemType(18)（a.java:7432，§5 更正）【2026-10-16 翻 ✅】FX-ITEM-18A（2d802fd）：fx_item18a_clear_all_walls_frames_match（floor37 型11×36 同拍全 markEntityRemoved a.java:7817-7828 全表扫描 + uses 1→0 出栈，T1-560 全帧 + 36 堵全 state=1 断言）——原文"同上"系误并 17 语义，实际效果=**震开当前层全部墙**（evidence-items §2.3） |
@@ -269,7 +269,8 @@ cover_matrix.py 渲染时三重校验（字节码证死 + 裁决书节锚 + JDI 
 > 条目 3（:5442）假臂已钉、**真臂缺独立帧锚**（"item17a/18a 真臂锚"说法被输入脚本反证）留 ⬜
 > ——销账=**FX-INT-11-N23 独立小场景**（floor29 撞 (8,3) 型11 真臂文案帧锚，items-evidence）；
 > 原拟"改 fx-item17a.txt 加 T250 一撞"被 lead 否决（重生成 560 帧链会断历史 commit 帧链 sha 引用）；
-> 条目 1/5/6 待命（15 等 porter 修复、68/84 等主窗批）。
+> 【二批】条目 1（15）已随 163f328 落行翻 ✅（49/55 分立双臂 + break 语义双修，双测 GREEN 实跑）；
+> 余条目 5/6（68/84）等主窗批（FX-BOSS-68A/FX-LAY-2A）。
 
 1. **15 筋斗云 ⬜→✅**（待 porter 修 scene.rs:4476-4477 `key_value`/`up` 求值顺序）：
    【2026-10-⟨日⟩ 翻 ✅】49/55 臂方向分歧已修（⟨fix commit⟩，⟨回归测试名⟩——修后 49=findFloorGateEntity(true)
