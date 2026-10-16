@@ -7,7 +7,7 @@
 //! - m_100（obf a.b(III)I，deobf renamed = findBlockingEntity）:8615 起
 //!   （格类型→容量→槽位表查实体，跳过 solid==1）
 //! - markEntityRemoved :6349-6387（solid=1 + 类目分派视觉字段）
-//! - 宽度表 typeFrameWidth :589（88 项）+ dispatchSpriteSize 特例 :6303-6315
+//! - 宽度表 typeFrameWidth :589（88 项）+ dispatchSpriteSize 特例 :6306-6314
 //!   （69→96px、72→32px）
 
 use crate::render::ArgbImage;
@@ -145,7 +145,7 @@ pub const ANIM_OFFSET_TABLE: [&[i32]; 11] = [
     &[2, 3, 4],
 ];
 
-/// dispatchSpriteSize（a.java:6300-6322）：实体精灵尺寸分派。
+/// dispatchSpriteSize（a.java:6300-6325）：实体精灵尺寸分派。
 /// type 69 → (96,32)；type 72 → (32,45)；type 67 → (32,32)（m_001(9) 换容器后走尾部）；
 /// 图存在 → (typeFrameWidth[type], 图高)；图空 → (32,32)。
 pub fn dispatch_sprite_size(type_id: i32, idx: usize, table: &mut EntityTable, width_table: &[i32], img_h: Option<i32>) {

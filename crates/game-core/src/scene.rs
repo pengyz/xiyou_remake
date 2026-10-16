@@ -5746,6 +5746,15 @@ impl GameScene {
                                     // 裸帧偏移 = ANIM_OFFSET_TABLE[anim][frame]
                                     // **不乘精灵宽**（a.java:6578，对照通用臂
                                     // 6528 乘宽）。型 67 精灵盒 32×32（6323-6324）。
+                                    // 【2026-10-16 注】deobf:6592 将片件表元素
+                                    // 强转 (Object[]) 与 :682 的 byte[][] 声明
+                                    // 矛盾——C 变体（deobf 重编译）画 67 即
+                                    // ClassCastException，系投影伪影非原字节码
+                                    // 语义；Rust 侧以 (sheet,srcX,srcY,w,h) 元组
+                                    // 建模规避，与 A 变体 fx-boss67a 逐帧像素
+                                    // 等价。类型语义合同移交
+                                    // reference/oracle/scenarios/
+                                    // bug-draft-paint67-deobf-cast.md（lead 入库）。
                                     g.draw_image(&self.images.shadow, sx + 8, sy + 22, 0);
                                     let base_x = sx + 16;
                                     let base_y = sy + 16;
@@ -7052,6 +7061,7 @@ mod slot_equip_scene_tests {
 
         assert!(!sc.entities.removed[e82a] && !sc.entities.removed[e82b], "无怪 ⇒ 82 不消耗");
         assert_eq!(sc.entities.count, count_before, "无怪 ⇒ 无 spawn");
+        assert_eq!(sc.script_cursor, 4, "无参 op 游标照常 = 标签后 1 位（a.java:8591）");
     }
 
     /// m_107 旧格同型一并消失 + stale 尾复活（a.java:8872-8878 + 6434-6449 +
@@ -7091,6 +7101,40 @@ mod slot_equip_scene_tests {
                 "副本堆聚目标格 (5,5)"
             );
         }
+    }
+
+    /// MVS 不成对单只 82 空转（a.java:8528-8542 配对槽判空 buf[v]-1<=0 存首元素、
+    /// 8546-8558 配对循环 `var9 > 0` 才进搬运分支）：孤只 82 只占半对（buf[偶]）
+    /// ⇒ 搬运分支不触发 ⇒ 全表无变化（不消耗、无 spawn）；无参指令游标仍照常
+    /// 推进 = 标签后 1 字符位（a.java:8591）。fixture-plan §2 FX-MVS-A 断言点补口。
+    #[test]
+    fn mvs_unpaired_single_82_is_noop_but_advances_cursor() {
+        let mut sc = scene_with(&synthetic_sptarm());
+        entity::spawn(&mut sc.entities, &mut sc.grid, 82, 2 << 5, 2 << 5, 3, &sc.width_table, None);
+        let e82 = sc.entities.count - 1;
+        sc.entities.visible[e82] = false;
+        let count_before = sc.entities.count;
+
+        sc.script_line = "MVS ".to_string();
+        sc.script_cursor = 0;
+        sc.execute_script_instruction();
+
+        // 全表无变化：不消耗、无 spawn、字段不动
+        assert!(!sc.entities.removed[e82], "孤只 82 不消耗");
+        assert_eq!(sc.entities.count, count_before, "孤只 82 无 spawn");
+        assert_eq!(sc.entities.entity_type[e82], 82);
+        assert_eq!(sc.entities.param[e82], 3);
+        assert!(!sc.entities.visible[e82], "hidden 状态不被改写");
+        assert_eq!(sc.entities.solid[e82], 0);
+        // 游标照常推进（空转 ≠ 停摆；停摆语义属未知 op，见 unknown_op 测试）
+        assert_eq!(sc.script_cursor, 4, "无参 op 游标 = 标签后 1 位（a.java:8591）");
+
+        // 幂等：游标拨回重解析同一 token，MVS 臂本身仍空转
+        // （注意不拨游标的第二次调用会走行尾收尾 a.java:8597-8604，非重解析）
+        sc.script_cursor = 0;
+        sc.execute_script_instruction();
+        assert_eq!(sc.entities.count, count_before);
+        assert!(!sc.entities.removed[e82]);
     }
 }
 
