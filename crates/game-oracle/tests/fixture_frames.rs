@@ -419,3 +419,47 @@ fn fx_bug_aioobe_border_frames_match() {
         "T236 截止时 Rust 尚未交场景——交场景在 T237，恰为 Java dispatchModeEntry 崩溃拍（同点对应）"
     );
 }
+
+/// FX-DOOR-2A：型2 红门开门（有钥匙）（evidence-interact-types R-INT-2 有钥匙半）。
+/// floor40 (6,9) 北撞 (6,8) 红门 ⇒ consumeKeyForDoor(27)（a.java:7746-7752）popup→
+/// redKeyCount-- → markEntityRemoved（state=1+开门动画，a.java:6355-6361）→ 放行进门格。
+/// (6,7) 是型83(param12) 伏击点，本场景止步 (6,8)。T1-520。
+#[test]
+fn fx_door2a_open_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-door2a.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-door2a.txt"));
+    let (checked, sc) = replay(include_str!("fixtures/fx-door2a.preset"), &records);
+    assert_eq!(checked, records.len(), "T1-520 全帧必须比对");
+    assert_eq!(sc.floor, 40);
+    assert_eq!(
+        (sc.view.player_px >> 5, sc.view.player_py >> 5),
+        (6, 9),
+        "T280 撞门→进门格 (6,8)（帧窗 T288-T400）→ T400 南移回 (6,9)（终态）"
+    );
+    assert_eq!(sc.player.red_keys, 0, "redKeyCount 1→0（a.java:7749）");
+    let d = (0..sc.entities.count)
+        .find(|&i| sc.entities.entity_type[i] == 2)
+        .expect("型2 红门在表");
+    assert_eq!(sc.entities.solid[d], 1, "markEntityRemoved state=1（a.java:6350）");
+}
+
+/// FX-DOOR-2B：型2 无钥匙阻挡（负例，R-INT-2 无钥匙半）。红钥 0 ⇒ 双次北撞均
+/// walkStepCount=0 +「你没有红钥匙」浮层（a.java:5392-5395）+ var6=false，门不消耗不开启。
+#[test]
+fn fx_door2b_nokey_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-door2b.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-door2b.txt"));
+    let (checked, sc) = replay(include_str!("fixtures/fx-door2b.preset"), &records);
+    assert_eq!(checked, records.len(), "T1-520 全帧必须比对");
+    assert_eq!(sc.floor, 40);
+    assert_eq!(
+        (sc.view.player_px >> 5, sc.view.player_py >> 5),
+        (6, 9),
+        "无钥匙恒阻挡，玩家不动（var6=false）"
+    );
+    assert_eq!(sc.player.red_keys, 0, "无钥匙无从消耗");
+    let d = (0..sc.entities.count)
+        .find(|&i| sc.entities.entity_type[i] == 2)
+        .expect("型2 红门在表");
+    assert_eq!(sc.entities.solid[d], 0, "门保持关闭（state 恒 0）");
+}

@@ -1,0 +1,21 @@
+# ticks: 520
+# preset: fx-door2b.preset
+# cover: FX-DOOR-2B 型2 红门无钥匙阻挡（负例，evidence-interact-types R-INT-2 无钥匙半）：
+#   boot 70/-6 100/-2 150/-5 200/-5 → 槽载入 floor40 (6,9) 朝上、红钥 0 →
+#   280 -1 北撞 (6,8) 型2 ⇒ consumeKeyForDoor(27) 失败分支（a.java:5392-5395）：
+#   walkStepCount=0 → 浮层「你没有红钥匙」→ var6=false 阻挡 → 400 -1 二次撞（持续阻挡，
+#   门 state 恒 0、玩家恒 (6,9)）→ 收尾静态。键位（A 级）：-1=上。
+#   preset：python3 tools/frames_fixture.py preset floor=40 x=6 y=9 facing=1 hp=500 atk=200
+#   def=30 rk=0 sky=5
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+280 -1 press
+282 -1 release
+400 -1 press
+402 -1 release

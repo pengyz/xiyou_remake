@@ -1,0 +1,23 @@
+# ticks: 520
+# preset: fx-door2a.preset
+# cover: FX-DOOR-2A 型2 红门开门（有钥匙）+ popup 时机（evidence-interact-types R-INT-2 有钥匙半）：
+#   boot 70/-6 100/-2 150/-5 200/-5 → 槽载入 floor40 (6,9) 朝上、红钥 1 →
+#   280 -1 北撞 (6,8) 型2 红门 ⇒ interactWithCell case2（a.java:5389-5396）
+#   consumeKeyForDoor(27)（a.java:7746-7752）：popup(kind1,icon1) 先于 redKeyCount--（补遗#1
+#   时机对拍点）→ markEntityRemoved（state=1 + 开门动画 45×56 行6 帧0 + buildMinimap，
+#   a.java:6355-6361）→ 放行进 (6,8)（门格）→ 400 -2 回 (6,9) → 收尾静态。
+#   注意：(6,7) 为型83(param12) 伏击点（script12），本场景止步 (6,8) 不再北进。
+#   键位（A 级）：-1=上/-2=下。preset：python3 tools/frames_fixture.py preset floor=40
+#   x=6 y=9 facing=1 hp=500 atk=200 def=30 rk=1 sky=5
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+280 -1 press
+282 -1 release
+400 -2 press
+402 -2 release
