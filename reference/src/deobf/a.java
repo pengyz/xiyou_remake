@@ -6586,18 +6586,24 @@ public final class a extends Canvas implements Runnable {
                                  var5 = var10001;
                                  a var23 = var22;
                                  byte[] var42 = var22.f_byte_arr2_01[var7];
-                                 Object var45 = null;
+                                 // 【2026-10-16 更正】原投影 (Object[]) 强转系反编译
+                                 // 类型失真（重编译画型 67 即 CCE [B→[Ljava.lang.Object;）；
+                                 // javap 实证 f_byte_arr2_00=[[B 取行 aaload、元素 [0]..[4]
+                                 // 全 baload、无 checkcast ⇒ byte[][] 逐字节读。原投影
+                                 // 文本留档于本补丁 old 字段（补丁即数据）。
+                                 byte[] var45 = null;
 
-                                 for (byte var59 = 0; var59 < var42.length; var59 += 4) {
-                                    var12 = (byte)((Object[])(var45 = var23.f_byte_arr2_00[var42[var59]]))[0];
+                                 for (int var59 = 0; var59 < var42.length; var59 += 4) {
+                                    var45 = var23.f_byte_arr2_00[var42[var59]];
+                                    var12 = var45[0];
                                     var23.drawImageClipped(
                                        var23.f_Image_arr2_00[9][var12],
                                        var5 + var42[var59 + 1],
                                        var31 + var42[var59 + 2],
-                                       (int)((Object[])var45)[1],
-                                       (int)((Object[])var45)[2],
-                                       (int)((Object[])var45)[3],
-                                       (int)((Object[])var45)[4]
+                                       var45[1],
+                                       var45[2],
+                                       var45[3],
+                                       var45[4]
                                     );
                                  }
                                  break;

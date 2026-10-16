@@ -1,0 +1,15 @@
+{
+ "id": "VF-ACC-PAINT67",
+ "target": "a.java",
+ "kind": "scoped",
+ "method": "   private void paintEntityLayer(int var1, int var2, boolean var3) {",
+ "replacements": [
+  {
+   "old": "                                 Object var45 = null;\n\n                                 for (byte var59 = 0; var59 < var42.length; var59 += 4) {\n                                    var12 = (byte)((Object[])(var45 = var23.f_byte_arr2_00[var42[var59]]))[0];\n                                    var23.drawImageClipped(\n                                       var23.f_Image_arr2_00[9][var12],\n                                       var5 + var42[var59 + 1],\n                                       var31 + var42[var59 + 2],\n                                       (int)((Object[])var45)[1],\n                                       (int)((Object[])var45)[2],\n                                       (int)((Object[])var45)[3],\n                                       (int)((Object[])var45)[4]\n                                    );\n                                 }\n",
+   "new": "                                 // 【2026-10-16 更正】原投影 (Object[]) 强转系反编译\n                                 // 类型失真（重编译画型 67 即 CCE [B→[Ljava.lang.Object;）；\n                                 // javap 实证 f_byte_arr2_00=[[B 取行 aaload、元素 [0]..[4]\n                                 // 全 baload、无 checkcast ⇒ byte[][] 逐字节读。原投影\n                                 // 文本留档于本补丁 old 字段（补丁即数据）。\n                                 byte[] var45 = null;\n\n                                 for (int var59 = 0; var59 < var42.length; var59 += 4) {\n                                    var45 = var23.f_byte_arr2_00[var42[var59]];\n                                    var12 = var45[0];\n                                    var23.drawImageClipped(\n                                       var23.f_Image_arr2_00[9][var12],\n                                       var5 + var42[var59 + 1],\n                                       var31 + var42[var59 + 2],\n                                       var45[1],\n                                       var45[2],\n                                       var45[3],\n                                       var45[4]\n                                    );\n                                 }\n",
+   "count": 1
+  }
+ ],
+ "evidence": "javap 偏移 1153-1220（analysis/rename-pipeline/verify/a.before.javap.txt）实证：f_byte_arr2_00=[[B 取行 aaload、元素 [0]..[4] 全 baload、无 checkcast/无元素级 aaload ⇒ byte[][] 逐字节读；C 变体 CCE 实录（[B cannot be cast to [Ljava.lang.Object;，paintEntityLayer）。var59 循环槽 istore/iinc 整型（byte 投影同案提升 int）。",
+ "confidence": 95
+}

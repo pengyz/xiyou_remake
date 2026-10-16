@@ -1,10 +1,10 @@
 {
   "data/naming/remap-table.json": "dd7ccfdb30f989d68b01bff1056f0e55666911583a01ba4ace9df92c68f93042",
   "reference/src/deobf/CMidlet.java": "46e54a340d3bdb521eaaafd3b385f1e712156a7b0ac2dda9d0d045a28feead45",
-  "reference/src/deobf/a.java": "0266946c61f0b55205f0c10aea32bd418adff7576c947e37179fcf916ba0a884",
+  "reference/src/deobf/a.java": "565b5b04b2f4db1c29aaec0cf4f9fd7b9db9664b247103fe468a307679af7f72",
   "tools/rename-pipeline/_verify/diff-CMidlet.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "tools/rename-pipeline/_verify/diff-a.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "tools/rename-pipeline/_verify/report.md": "3db227ff30e7af7f35d7dbd781f60ea64c4df0ca474be67c4b30671411a26879",
+  "tools/rename-pipeline/_verify/report.md": "442e1ce869d233c3fa5f0328ef18e2f5e773431eae32b9abdb50e2803b0870c3",
   "analysis/rename-pipeline/verify/CMidlet.after.javap.txt": "158d5856666dd585f2e84434f8d5d7b13da8f1f347f02d0e64fe414c3e5b98e6",
   "analysis/rename-pipeline/verify/CMidlet.after.norm.txt": "03ccbe9a904f7c909328efdae183b02c39ac6ef455a5bcd6d415d9aeadb246b4",
   "analysis/rename-pipeline/verify/CMidlet.before.javap.txt": "3e5da0be23c49d886999438019ec40ae66085a35a4942804e3ad521ef370effd",

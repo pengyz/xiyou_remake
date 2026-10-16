@@ -1,7 +1,7 @@
-# fx-boss67a Java 参照帧：A 变体 trace 逐 TICK 抽取（列 = tick FRAME-sha [INPUT]）。
+# fx-boss67a Java 参照帧：三方（A/B/C）trace 逐 TICK 抽取（列 = tick FRAME-sha [INPUT]）。
 # 源 trace：analysis/frames-fixture/runs/A-fx-boss67a/trace.txt sha256=f9e024c48237825b27e1980de083fb44eb6a73e949aaa0de6deb5b12f0c26629
 # 帧数 560；帧链 sha256=2bdb0e9ea93d5428f433be1998509bd1ee7728506f02c3bf21f267925ab7630c（= tools/method_reach 快照 frame_chain 口径）
-# 三方（A/B）trace 逐字节一致；frames=off dumpStride=8；再生：python3 tools/frames_fixture.py gen crates/game-oracle/tests/fixtures/fx-boss67a.txt
+# 三方（A/B/C）trace 逐字节一致；frames=off dumpStride=8；再生：python3 tools/frames_fixture.py gen crates/game-oracle/tests/fixtures/fx-boss67a.txt
 0001 57173976f11eeae0aed2c0029b6d5dd6
 0002 57173976f11eeae0aed2c0029b6d5dd6
 0003 57173976f11eeae0aed2c0029b6d5dd6

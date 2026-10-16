@@ -93,16 +93,25 @@ def trace_frames(trace: Path) -> list[tuple[int, str, str | None]]:
     return [tuple(r) for r in recs]
 
 
+def word_of(variants: str) -> str:
+    """对拍集合的口径词（单方/双方/三方/多方）——头注记用（2026-10-16）。"""
+    return {1: "单方", 2: "双方", 3: "三方"}.get(len(variants.split("/")), "多方")
+
+
 def frame_chain(shas: list[str]) -> str:
     """与 tools/method_reach.py 快照 frame_chain 同式。"""
     return hashlib.sha256("\n".join(shas).encode()).hexdigest()
 
 
-def write_fixture(recs, out: Path, stem: str, trace: Path, note: str) -> None:
-    """注释头第 2 行 = 源 trace 实际路径（含 `A-<stem>/trace.txt`——cover_matrix 据此认领场景）。"""
+def write_fixture(recs, out: Path, stem: str, trace: Path, note: str, variants: str = "A") -> None:
+    """注释头第 2 行 = 源 trace 实际路径（含 `A-<stem>/trace.txt`——cover_matrix 据此认领场景）。
+
+    头行变体口径随对拍集合（单/双/三方）——2026-10-16 起不再硬编码"A 变体"单方言。
+    """
     shas = [s for _, s, _ in recs]
+    word = {1: "单方", 2: "双方", 3: "三方"}.get(len(variants.split("/")), "多方")
     lines = [
-        f"# {stem} Java 参照帧：A 变体 trace 逐 TICK 抽取（列 = tick FRAME-sha [INPUT]）。",
+        f"# {stem} Java 参照帧：{word}（{variants}）trace 逐 TICK 抽取（列 = tick FRAME-sha [INPUT]）。",
         f"# 源 trace：{trace.relative_to(ROOT)} sha256={sha256_file(trace)}",
         f"# 帧数 {len(recs)}；帧链 sha256={frame_chain(shas)}（= tools/method_reach 快照 frame_chain 口径）",
         f"# {note}",
@@ -216,9 +225,10 @@ def gen(script: Path, frames: str) -> int:
         return 1
     a_trace = procs["A"][1] / "trace.txt"
     recs = trace_frames(a_trace)
-    note = (f"三方（{'/'.join(shas)}）trace 逐字节一致；frames=off dumpStride=8；"
+    variants = "/".join(shas)
+    note = (f"{word_of(variants)}（{variants}）trace 逐字节一致；frames=off dumpStride=8；"
             f"再生：python3 tools/frames_fixture.py gen {script.relative_to(ROOT)}")
-    write_fixture(recs, script.with_suffix(".frames.txt"), stem, a_trace, note)
+    write_fixture(recs, script.with_suffix(".frames.txt"), stem, a_trace, note, variants)
     bad = check(script.with_suffix(".frames.txt"), script)
     for b in bad:
         log("✗ " + b)

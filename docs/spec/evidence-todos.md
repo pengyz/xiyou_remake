@@ -216,6 +216,21 @@ case 8（renderCategory=8 怪物/Boss）分支头——抖动、开门动画、�
 6603:                                 break;
 ```
 
+> 【2026-10-16 更正】上引逐字块存在**类型投影失真**：片件表行被投影为
+> `Object[]` 强转取 [0]..[4]（`(Object[])(var45 = …f_byte_arr2_00[…])`），
+> 重编译 C 变体画型 67 即 `ClassCastException: [B cannot be cast to
+> [Ljava.lang.Object;`（BUG-011）。javap 字节码实证（原 jar class a，
+> `analysis/rename-pipeline/verify/a.before.javap.txt` 方法偏移 1153-1220）：
+> `f_byte_arr2_00=[[B` 取行 **aaload**、元素 [0]..[4] 全为 **baload**、
+> 无 checkcast/无元素级 aaload ⇒ 片件表真实取值语义 = `byte[][]` **逐字节读**；
+> 循环槽 var59 为 istore/iinc 整型（`byte var59` 同为投影噪声）。本节表值
+> （682-697）与画序语义**不变**，取值**类型**语义以字节码为准。已按
+> "补丁即数据"正规化登记 `data/patches/vf-projection/VF-ACC-PAINT67.json`
+> （原投影文本留档于补丁 old 字段），run.py 重生成 + javac 零错重建 C 变体后
+> fx-boss67a 三方回归 **A==B==C**（trace sha256=f9e024c48237…，560 帧
+> 逐帧对拍）。Rust 侧（adbdee0）以 (sheet,srcX,srcY,w,h) 元组建模 = 字节码
+> 语义，无需改动。
+
 元数据表**逐字**（a.java:682-697）——`f_byte_arr2_00` 片件表 9 行
 `(sheetIdx, srcX, srcY, w, h)`，`f_byte_arr2_01` 帧拼装表 3 行 × 5 段 × 4 字节
 `(pieceId, dx, dy, 第4字节)`：
