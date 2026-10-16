@@ -22,6 +22,19 @@
 
 | BUG-010 | `logostart.mid`/`logoquit.mid` 两条 BGM 是**死资源**：轨道表 `f_String_arr_15`（a.java:2239）下标 0/1 无任何播放入口——全部 6 处 `m_139` 调用实参只有 2（menu）/3（game）；mode 0 启动 logo 与 mode 22 退出动画反而各调 `closeAudioPlayer`（a.java:3376/4487） | 字节码：`javap -c -p analysis/rename-pipeline/renamed/a.class` 中 m_139 前驱指令全为 `iconst_2`/`iconst_3`（run@6271/6281、m_000@410/560、keyPressed@41/50）；运行时：EV-toggle-exit/EV-ending-title/A-menu-sweep trace 的 `f_byte_28` 只取 -1/2/3（`python3 tools/audio/evidence.py`，见 `docs/spec/audio.md`） | 确定性不可达（A 级）；原意推测（C 级）：logostart 配 mode 0 logo、logoquit 配 mode 22「退出 logo」动画，收尾时改为静音 | 无（玩家听不到这两首；JAR 多带 17KB） | 保真保留：game-core 不播放，`audio::TRACKS` 保留表项；转换工具照常产出 track0/1（备 Stage B） | 待定（若补播需先考证真机行为） | open |
 
+> 【2026-10-16 更正/补强·BUG-009】根因已定位（A 级）：**applyStepCellEffects 型60 四邻扫描
+> 「先调 findBlockingEntity 后判边界」**（a.java:5596-5616；型62 块 x-1 同病 a.java:5575-5590）——
+> 双子例均可达：y=0/x=0 → `cellTypeGrid[y][-1]` ⇒ Index **-1**（原现象，preset-alchemy floor4 (5,0)）；
+> y=12/x=12 → `cellTypeGrid[13][…]` ⇒ Index **13**（新复现，floor5 (9,12) 底边界格）。崩溃点逐字：
+> `findBlockingEntity`（a.java:8616 `cellTypeGrid[var2][var1]` 越界读）← `applyStepCellEffects`
+> （a.java:5617）← `dispatchModeEntry`（a.java:4320 case 3）——mode3 进场即执行 ⇒ T236 载入完成
+> 首 tick 崩、主线程退出。对照：型61/62 块**先判后调**，同方法三种写法并存，型60 块唯一全四向
+> 先调后判。Rust 侧差异：`entity::cell_entity` 越界返 -1 **不崩**（T1-236 可观测前缀对拍一致，
+> T237 起 Java 已死无参照）。Stage A **保留原行为**（D4）；Stage B 修复 = 四向调用挪到边界判定后
+> （对齐型61/62 写法）或 cellTypeGrid 访问钳制。一键复现：fx-bug-aioobe-border 夹具
+> （crates/game-oracle/tests/fixtures/，`python3 tools/frames_fixture.py gen …` 重生成，A/B/C
+> 三方同点崩溃含崩溃尾逐字节一致 = 忠实性证据）；"疑似不可达"论断升级：全 55 层边界格
+> tile_walkability 复算为空 ⇒ **正常游玩不可达**（A 级），测试装置触发成立。
 > 【2026-10-09 更正·非反编译引入】应质疑复查，四级证据证明该错位是**原版 JAR 字节码的真实行为**，非反编译/投影引入：
 > ① 字节码静态：`javap` 原始 `<init>` 的 menuLabels 逐项 aastore 序列（@427-481：[0]新游戏 [1]继续游戏 [2]载入进度 [3]保存游戏 [4]设置 [5]帮助 [6]关于 [7]退出）与反编译源码逐字一致；
 > ② run() 内 6 个 gameMode(a:B) 写点（@19763-21295，等距 ~327B/case 臂）写入 14/8/16/15/17/22 且各带 f_byte_01=1——与源码 a.java 分派一致；

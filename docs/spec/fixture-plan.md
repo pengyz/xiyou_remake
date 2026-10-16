@@ -44,11 +44,17 @@ FX-E2E-67-SPOON-WALL（杀 67→拾勺→凿墙整合链）、FX-RENDER-67（T-2
 
 `# cover:` 头必须写：场景目标、证据指针（a.java 行号）、逐阶段节拍说明——照抄 preset-floor40-mov.txt 的叙事密度。
 
-### 1.2 输入码表（B 级：取自现有夹具用法与 a.java 键分派，task-6 以实测校准）
+### 1.2 输入码表（方向行 A 级实证；其余 B 级）
+
+> 【2026-10-16 更正】方向键位原表**上/下写反**（原 B 级依 facing 编号推断）。A 级实证：
+> **-1=上 / -2=下 / -3=左 / -4=右**（同义键码 50/56/52/54 = 键盘 2/8/4/6，keyHeldCode 分派
+> `case -1/50 facing 1`=上）。佐证：preset-floor40-mov 真夹具北撞即用 `-1`。原表主张保留如下：
+> "（B 级）-2/-1/-4/-3 = 上/下/左/右（a.java keyHeldCode 分派 `case -2/56 facing 0 …`）"——
+> facing 编号 ≠ 屏幕方向，系推断失误。本设计书各场景草图的方向用键已按实证互换。
 
 | 码 | 语义 | 依据 |
 |---|---|---|
-| `-2 / -1 / -4 / -3` | 上/下/左/右（keyHeldCode，走格） | a.java keyHeldCode 分派 `case -2/56 facing 0 …`（tryStep 前置） |
+| `-1 / -2 / -3 / -4` | 上/下/左/右（keyHeldCode，走格；50/56/52/54 同义） | A 级实证（floor40-mov 北撞 `-1` + 键码 2/8/4/6 对照） |
 | `48` | 对话推进（'0' 键） | preset-floor40-mov cover"对话推进键 48" |
 | `-5` | 确定/探索（'5' 键等价） | 游戏文案"确定键/5:探索地图"（a.java:442 附近） |
 | `-6` | 左软键：开道具面板 / overlay 确认 | a.java:3937-3938 面板 `case -6: case -5:`、a.java:3300-3303 overlay 确认 `useItemStack` |
@@ -134,10 +140,10 @@ itemStackTypes[] (byte×N) + itemStackUses[] (byte×N)`。
 - **目标层/预置**：floor5，玩家 (9,12)（型 6 在 (9,11)，北邻一格），hp/atk/def 默认即可。
 - **输入脚本草图**：
   ```
-  T010 -2 press / T012 -2 release     # 北迈步 bump (9,11) → 首碰显形
-  T060 -2 press / T062 -2 release     # 再 bump (9,11) → 幂等（仅 stair_count++）
-  T110 -2 press / T112 -2 release     # 放行走入 (9,11) → 落格 f_bool_07（bob）
-  T160 -1 press / T162 -1 release     # 离开
+  T010 -1 press / T012 -1 release     # 北迈步 bump (9,11) → 首碰显形
+  T060 -1 press / T062 -1 release     # 再 bump (9,11) → 幂等（仅 stair_count++）
+  T110 -1 press / T112 -1 release     # 放行走入 (9,11) → 落格 f_bool_07（bob）
+  T160 -2 press / T162 -2 release     # 离开（南返）
   ```
 - **断言点**：
   - 状态：T020 快照 (9,11) 实体 `{visible: 0→1, solid(state): 0→2, anim_idx: →9}`（写序断言：三字段同拍全变，anim 恒 9）；
@@ -155,8 +161,8 @@ itemStackTypes[] (byte×N) + itemStackUses[] (byte×N)`。
   仅缩短输入；sprite40 的 (6,8) 红门原生存在）。
 - **输入脚本草图**：
   ```
-  T010 -2 press / T012 -2 release     # 北 bump (6,8) 红门 → 开门
-  T060 -2 press / T062 -2 release     # 走入 (6,8)
+  T010 -1 press / T012 -1 release     # 北 bump (6,8) 红门 → 开门
+  T060 -1 press / T062 -1 release     # 走入 (6,8)
   ```
 - **断言点**：
   - 状态：T020 `redKeyCount` 1→0；(6,8) 门实体 `entityState` 0→1 + `entitySpriteW/H` 45/56 + `entityAnimRow` 6（markEntityRemoved 换开门动画，a.java:6355-6361）；popup 事件（kind=1 icon=1）记录序：**popup 先于计数减一**（trace 序断言，补遗#1 的对拍点）；
@@ -186,7 +192,7 @@ itemStackTypes[] (byte×N) + itemStackUses[] (byte×N)`。
   T010 -6 press / T012 -6 release     # 开道具面板（gameMode=10）
   T040 -5 press / T042 -5 release     # 选中 17 → kind-3 说明 overlay（a.java:3955-3965）
   T080 -6 press / T082 -6 release     # overlay 确认 → useItemStack（a.java:3300-3303）
-  T140 -2 press / T142 -2 release     # 断言后走入原墙格 (8,3)（墙已删应放行）
+  T140 -1 press / T142 -1 release     # 断言后走入原墙格 (8,3)（墙已删应放行）
   ```
 - **断言点**：
   - 状态：T090 (8,3) 墙 `entityState` 0→1（markEntityRemoved）；`itemStackUses[0]` 1→0 且 `itemStackSize` 1→0（出栈压紧，a.java:7768-7775）；`gameMode` 回 3；
@@ -243,7 +249,7 @@ itemStackTypes[] (byte×N) + itemStackUses[] (byte×N)`。
   本场景改为先处理门卫再 bump（或预置把玩家挪到 (5,5) 侧向 bump）。**task-6 落地时先跑一次探路再定键序**。
 - **输入脚本草图**：
   ```
-  T010 -2 press / T012 -2 release     # bump (6,5) 开战（R-boss-1）
+  T010 -1 press / T012 -1 release     # bump (6,5) 开战（R-boss-1）
   T020-T200 …（tickBattle 节拍，按实测；确定键推进攻击）
   T210 -5 press（拾取 (6,4) 金勺子，落格 pickupItemType(17)，a.java:7548）
   ```
@@ -268,7 +274,7 @@ itemStackTypes[] (byte×N) + itemStackUses[] (byte×N)`。
   键序变体，或预置 `scriptLineFlags[6]=true` 跳过登场戏（更短，推荐）。
 - **输入脚本草图**（flags[6]=true 变体）：
   ```
-  T010 -2 press / T012 -2 release     # bump (6,6) 开战
+  T010 -1 press / T012 -1 release     # bump (6,6) 开战
   …战斗节拍…（击杀）
   T220-T400 48 × N                     # 推进遗言 dialog（script21 = TAK_59_59）
   …第二轮：再次击杀 74（预置再刷一只或 respawn）→ 再次遗言 → 证明无门控重放
