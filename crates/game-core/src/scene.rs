@@ -627,6 +627,72 @@ pub fn load_floor_from_save(
 }
 
 
+// ===== restore_rules（refactor-plan §4 特例批）：m_122 恢复分支尾的层特例 =====
+// switch(currentFloor)（a.java:9648-9673）配置化。**恢复臂 index quirk 显式保留**
+// （entity::restore_floor_state 核内，a.java:9638）；**flags[26] 双重角色**（boss-
+// evidence 复核点）= script 26 完成旗标兼 floor2 补生守卫——表的 SpawnIfAbsent.flag
+// 原样引用，禁顺手"修正"。
+
+/// f_byte_arr_13 高字节表（a.java:902 `new byte[]{2,3,3,3,6,3,3,6,3,3,3,3,3}`）——
+/// 型 78 参数高字节同源（game-data door13 表同值，表驱动单测对账两源）。
+pub const DOOR13_HI: [u8; 13] = [2, 3, 3, 3, 6, 3, 3, 6, 3, 3, 3, 3, 3];
+
+/// 恢复特例动作（m_122 层特例 switch 的三个 case）。
+pub enum RestoreAction {
+    /// case 2（a.java:9650-9652）：`!flags[flag] && find(find) < 0` → spawn（像素坐标）。
+    SpawnIfAbsent {
+        flag: usize,
+        find: (i32, i32, i32),
+        spawn: (i32, i32, i32, i16),
+    },
+    /// case 12（a.java:9653-9661）：find 命中 → param = lo | DOOR13_HI[hi_idx] << 8
+    ///（原式 6|f_byte_arr_13[5]<<8 与 5|f_byte_arr_13[4]<<8）。
+    ParamRewrite {
+        find: (i32, i32, i32),
+        lo: i16,
+        hi_idx: usize,
+    },
+    /// case 39（a.java:9664-9671）：find 命中 → removeGroup(find) + spawn。
+    /// **像素字面量保真**：Java `spawnEntity(8, 11, 1, 38)` 字节码常量即像素 (11,1)
+    /// ⇒ 落 cell(0,0)（javap 1446-1454/1483-1492 逐字）——原版实况，D4 不"修正"。
+    SwapSpawn {
+        find: (i32, i32, i32),
+        spawn: (i32, i32, i32, i16),
+    },
+}
+
+/// 层恢复特例规则（floor → 动作表）。
+pub struct RestoreRule {
+    pub floor: i32,
+    pub actions: &'static [RestoreAction],
+}
+
+/// m_122 恢复特例表（a.java:9648-9673 switch(currentFloor) 逐 case）。
+pub static RESTORE_RULES: &[RestoreRule] = &[
+    RestoreRule {
+        floor: 2,
+        actions: &[RestoreAction::SpawnIfAbsent {
+            flag: 26,
+            find: (11, 4, 84),
+            spawn: (84, 352, 128, 0),
+        }],
+    },
+    RestoreRule {
+        floor: 12,
+        actions: &[
+            RestoreAction::ParamRewrite { find: (1, 1, 78), lo: 6, hi_idx: 5 },
+            RestoreAction::ParamRewrite { find: (11, 1, 78), lo: 5, hi_idx: 4 },
+        ],
+    },
+    RestoreRule {
+        floor: 39,
+        actions: &[
+            RestoreAction::SwapSpawn { find: (11, 1, 7), spawn: (8, 11, 1, 38) },
+            RestoreAction::SwapSpawn { find: (11, 11, 8), spawn: (7, 11, 11, 40) },
+        ],
+    },
+];
+
 /// 命令模式（refactor-plan §3 第 2 步）：16 op 枚举。变体载荷=各 op 条件取参
 /// 结果 + **推进后游标**（游标契约，条件 4）；解析与执行分离但游标语义逐字节
 /// 等价（scriptCursor/lastDelimPos 口径 gotcha 级，两面对照测钉）。
@@ -986,38 +1052,13 @@ impl GameScene {
         // 存档态按**目标层**取键（a.java:9465+ f_byte_arr2_05[var1]）——跨层装载
         // （probe/ADD）时不得取当前层（潜伏缺陷 2026-10-15 修）
         if let Some(data) = self.saved_floor_states[floor as usize].clone() {
-            let mut pos = 0usize;
-            let read_u16 = |d: &[u8], p: &mut usize| -> u16 {
-                let v = u16::from_be_bytes([d[*p], d[*p + 1]]);
-                *p += 2;
-                v
-            };
-            let count = read_u16(&data, &mut pos) as usize;
-            for _ in 0..count {
-                let t = data[pos] as i32;
-                pos += 1;
-                let x = read_u16(&data, &mut pos) as i32;
-                let y = read_u16(&data, &mut pos) as i32;
-                let visible = data[pos] != 0;
-                pos += 1;
-                let param = read_u16(&data, &mut pos) as i16;
-                let img_h = self.images.entity.get(t as usize).cloned().flatten().map(|im| im.height);
-                let idx = entity::spawn(&mut entities, &mut grid, t, x, y, param, &self.width_table, img_h);
-                entities.items[idx].visible = visible;
-                entities.items[idx].removed = false; // m_122 else：恢复的实体 removed=false
-            }
-            // m_122 恢复分支尾的层特例 switch(currentFloor)（a.java:9642-9669）：
-            // case 2（a.java:9643-9646）= `!scriptLineFlags[26] && findBlockingEntity(11,4,84) < 0`
-            // → spawnEntity(84, 352, 128, 0)（script26 未完成且 (11,4) 无活 84 时
-            // 补生）。Rust 的 self.floor = Java currentFloor（换层/读档两路径均先
-            // 写层号再调本函数，与 Java 同序）。case 12/39 两个特例未移植（另登记）。
-            if self.floor == 2
-                && !self.script_line_flags[26]
-                && entity::cell_entity(&grid, &entities, 11, 4, 84) < 0
-            {
-                let img_h = self.images.entity[84].as_ref().map(|i| i.height);
-                entity::spawn(&mut entities, &mut grid, 84, 352, 128, 0, &self.width_table, img_h);
-            }
+            // m_122 存档分支核=entity::restore_floor_state（第 1 步文件合流）；
+            // 恢复臂 index quirk（a.java:9638）随核保留。
+            let img_h_of = |t: i32| self.images.entity.get(t as usize).cloned().flatten().map(|im| im.height);
+            entity::restore_floor_state(&mut entities, &mut grid, &data, &self.width_table, &img_h_of);
+            // 层特例 switch(currentFloor)（a.java:9648-9673）= RESTORE_RULES 表驱动
+            //（第 4 步特例批配置化；case 12/39 一并入表——原"未移植"欠账清偿）。
+            self.apply_restore_rules(&mut entities, &mut grid);
         } else {
             for &(type_code, x, y, param, visible) in records {
                 let img_h = self.images.entity[type_code as usize].as_ref().map(|i| i.height);
@@ -1406,6 +1447,68 @@ impl GameScene {
     /// （5/81/6/12/76/82/83 生成置不可见）；尾部层特例 + type72 renderCategory 随层。
     /// probe/ADD 的 m_119/m_122 往返用本函数（用 load_floor_data 会清小地图/重建
     /// 视图——实测 T281 帧差元凶）。格恒 13×13 ⇒ 网格重建无涉视图。
+    /// 应用层恢复特例（m_122 尾 switch(currentFloor)，a.java:9648-9673）——
+    /// RESTORE_RULES 表驱动；flags[26] 双重角色与 case 39 像素字面量 quirk 随表保留。
+    fn apply_restore_rules(
+        &self,
+        entities: &mut EntityTable,
+        grid: &mut CellGrid,
+    ) {
+        let Some(rule) = RESTORE_RULES.iter().find(|r| r.floor == self.floor) else {
+            return;
+        };
+        for action in rule.actions {
+            match *action {
+                RestoreAction::SpawnIfAbsent { flag, find, spawn } => {
+                    // flags[26] 双重角色：守卫=旗标关 + 目标格无活同型（a.java:9650-9652）
+                    if self.script_line_flags[flag] {
+                        continue;
+                    }
+                    if entity::cell_entity(grid, entities, find.0, find.1, find.2) >= 0 {
+                        continue;
+                    }
+                    let img_h = self.images.entity[spawn.0 as usize].as_ref().map(|i| i.height);
+                    entity::spawn(
+                        entities,
+                        grid,
+                        spawn.0,
+                        spawn.1,
+                        spawn.2,
+                        spawn.3,
+                        &self.width_table,
+                        img_h,
+                    );
+                }
+                RestoreAction::ParamRewrite { find, lo, hi_idx } => {
+                    // a.java:9653-9661：find 命中 → param = lo | f_byte_arr_13[hi_idx] << 8
+                    let idx = entity::cell_entity(grid, entities, find.0, find.1, find.2);
+                    if idx >= 0 {
+                        entities.items[idx as usize].param =
+                            lo | ((DOOR13_HI[hi_idx] as i16) << 8);
+                    }
+                }
+                RestoreAction::SwapSpawn { find, spawn } => {
+                    // a.java:9664-9671：find 命中 → removeGroup + spawn（像素字面量保真）
+                    if entity::cell_entity(grid, entities, find.0, find.1, find.2) < 0 {
+                        continue;
+                    }
+                    entity::remove_group_at_cell_by_type(find.0, find.1, find.2, entities, grid);
+                    let img_h = self.images.entity[spawn.0 as usize].as_ref().map(|i| i.height);
+                    entity::spawn(
+                        entities,
+                        grid,
+                        spawn.0,
+                        spawn.1,
+                        spawn.2,
+                        spawn.3,
+                        &self.width_table,
+                        img_h,
+                    );
+                }
+            }
+        }
+    }
+
     pub fn reload_floor_entities(&mut self, floor: i32) {
         let mut entities = entity::EntityTable::new(100);
         let mut grid = entity::CellGrid::new(self.view.wide, self.view.high);
@@ -1414,13 +1517,7 @@ impl GameScene {
             // 恢复臂 index quirk（按循环下标回填 visible/removed，a.java:9638）随核保留。
             let img_h_of = |t: i32| self.images.entity.get(t as usize).cloned().flatten().map(|im| im.height);
             entity::restore_floor_state(&mut entities, &mut grid, &data, &self.width_table, &img_h_of);
-            if self.floor == 2
-                && !self.script_line_flags[26]
-                && entity::cell_entity(&grid, &entities, 11, 4, 84) < 0
-            {
-                let img_h = self.images.entity[84].as_ref().map(|i| i.height);
-                entity::spawn(&mut entities, &mut grid, 84, 352, 128, 0, &self.width_table, img_h);
-            }
+            self.apply_restore_rules(&mut entities, &mut grid);
         } else if let Some(fa) = self.floor_assets.get(floor as usize).cloned().flatten() {
             for &(type_code, x, y, param, visible) in &fa.records {
                 let img_h = self.images.entity[type_code as usize].as_ref().map(|i| i.height);
@@ -7648,6 +7745,93 @@ mod fidelity_fix_tests {
         sc.saved_floor_states[3] = Some(vec![0, 0]);
         sc.load_floor_data(&maplv(), 3 << 5, 3 << 5, &[], sc.floor).unwrap();
         assert!(sc.entity_at_cell(11, 4, 84) < 0);
+    }
+
+    /// ③b floor12 恢复特例（a.java:9653-9661）：型 78 两处 param 改写
+    /// `lo | f_byte_arr_13[hi]<<8`（6|door13[5]<<8=1542、5|door13[4]<<8=773）。
+    #[test]
+    fn floor12_restore_rewrites_type78_params() {
+        fn blob(recs: &[(u8, i32, i32, i16)]) -> Vec<u8> {
+            let mut v = (recs.len() as u16).to_be_bytes().to_vec();
+            for &(t, px, py, param) in recs {
+                v.push(t);
+                v.extend_from_slice(&(px as u16).to_be_bytes());
+                v.extend_from_slice(&(py as u16).to_be_bytes());
+                v.push(1);
+                v.extend_from_slice(&(param as u16).to_be_bytes());
+            }
+            v
+        }
+        let mut sc = scene((3, 3), &[]);
+        sc.floor = 12;
+        sc.saved_floor_states[12] = Some(blob(&[
+            (78, 1 << 5, 1 << 5, 9),
+            (78, 11 << 5, 1 << 5, 9),
+            (78, 5 << 5, 5 << 5, 9),
+        ]));
+        sc.load_floor_data(&maplv(), 3 << 5, 3 << 5, &[], 12).unwrap();
+        let a = sc.entity_at_cell(1, 1, 78) as usize;
+        let b = sc.entity_at_cell(11, 1, 78) as usize;
+        let c = sc.entity_at_cell(5, 5, 78) as usize;
+        // 值=按表索引现算（f_byte_arr_13[5]=3、[4]=6——a.java:902 表序逐字）
+        assert_eq!(
+            sc.entities.items[a].param,
+            6 | ((DOOR13_HI[5] as i16) << 8),
+            "(1,1) → 6|f_byte_arr_13[5]<<8（=774）"
+        );
+        assert_eq!(
+            sc.entities.items[b].param,
+            5 | ((DOOR13_HI[4] as i16) << 8),
+            "(11,1) → 5|f_byte_arr_13[4]<<8（=1541）"
+        );
+        assert_eq!(sc.entities.items[c].param, 9, "无特例格的 78 参数不动");
+    }
+
+    /// ③c floor39 恢复特例（a.java:9664-9671）：型7@(11,1) → removeGroup +
+    /// spawn(8,11,1,38)、型8@(11,11) → removeGroup + spawn(7,11,11,40)。
+    /// **像素字面量保真**：spawn 实参=像素 ⇒ 两补生均落 cell(0,0)（javap 1446-1454/
+    /// 1483-1492 常量逐字）——原版实况，D4 不"修正"。
+    #[test]
+    fn floor39_restore_swaps_types_with_pixel_literal_spawns() {
+        fn blob(recs: &[(u8, i32, i32, i16)]) -> Vec<u8> {
+            let mut v = (recs.len() as u16).to_be_bytes().to_vec();
+            for &(t, px, py, param) in recs {
+                v.push(t);
+                v.extend_from_slice(&(px as u16).to_be_bytes());
+                v.extend_from_slice(&(py as u16).to_be_bytes());
+                v.push(1);
+                v.extend_from_slice(&(param as u16).to_be_bytes());
+            }
+            v
+        }
+        let mut sc = scene((3, 3), &[]);
+        sc.floor = 39;
+        sc.saved_floor_states[39] = Some(blob(&[
+            (7, 11 << 5, 1 << 5, 0),
+            (8, 11 << 5, 11 << 5, 0),
+            (43, 5 << 5, 5 << 5, 0),
+        ]));
+        sc.load_floor_data(&maplv(), 3 << 5, 3 << 5, &[], 39).unwrap();
+        assert!(sc.entity_at_cell(11, 1, 7) < 0, "(11,1) 型7 已摘");
+        assert!(sc.entity_at_cell(11, 11, 8) < 0, "(11,11) 型8 已摘");
+        let p = sc.entity_at_cell(0, 0, 8);
+        assert!(p >= 0, "补生 8 落 cell(0,0)（像素 11,1 原版实况）");
+        assert_eq!(sc.entities.items[p as usize].param, 38);
+        let q = sc.entity_at_cell(0, 0, 7);
+        assert!(q >= 0, "补生 7 落 cell(0,0)（像素 11,11 原版实况）");
+        assert_eq!(sc.entities.items[q as usize].param, 40);
+        assert!(sc.entity_at_cell(5, 5, 43) >= 0, "无关实体不动");
+    }
+
+    /// ③d DOOR13_HI 与 game-data door13 表同值（两源对账——f_byte_arr_13
+    /// a.java:902 `new byte[]{2,3,3,3,6,3,3,6,3,3,3,3,3}`）。
+    #[test]
+    fn door13_hi_table_matches_fixture() {
+        let fixture: Vec<i32> = numbers(include_str!("../tests/fixtures/door13.txt"));
+        assert_eq!(DOOR13_HI.len(), fixture.len(), "表长一致");
+        for (i, &v) in fixture.iter().enumerate() {
+            assert_eq!(DOOR13_HI[i] as i32, v, "door13[{i}] 两源一致");
+        }
     }
 
     /// ④ 读档旗标：前 scriptLineCount（68）项读回；之后的字节 Java skip（不读）。

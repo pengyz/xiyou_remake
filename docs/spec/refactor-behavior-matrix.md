@@ -56,7 +56,7 @@ Entity/TraceState 迁移**适配其序，禁按 FLD 序重排**；FLD 行=Java �
 |---|---|---|---|
 | 4.1 | save blob 布局逐字节（bool×4 + N + N×i32 + i32×3 头） | `scene.rs::save_blob_layout_matches_java_and_roundtrips` | ✅ |
 | 4.2 | entityCount==0 ⇒ 存 null（a.java:9383-9384） | `scene.rs::save_floor_state_null_only_when_entity_table_empty` | ✅ |
-| 4.3 | 读档 scriptLineFlags 前 scriptLineCount 项 + floor2 特例（a.java:9285-9291/9643-9646） | `scene.rs::save_roundtrip_restores_equipment`（装备面）+ `fixture_frames::fx-bug-ces70-slot` | ⚠️ 特例路径无独立测（帧级间接） |
+| 4.3 | 读档 scriptLineFlags 前 scriptLineCount 项 + 层特例 floor2/12/39（a.java:9285-9291/9648-9673） | `load_restores_script_flags_prefix_only` + **`floor2_restore_respawns_84_only_while_script26_pending`** + **`floor12_restore_rewrites_type78_params`** + **`floor39_restore_swaps_types_with_pixel_literal_spawns`** + **`door13_hi_table_matches_fixture`**（两源对账）+ `fx-bug-ces70-slot` | ✅ 2026-10-17 特例批补齐（restore_rules 表驱动；case 39 像素字面量 quirk 钉死） |
 | 4.4 | addItemToItemStack 写 itemUseTargetType（a.java:7732） | `scene.rs::add_item_to_stack_writes_item_use_target_type` | ✅ |
 | 4.5 | 槽表 1-based 回读/实体可见性下标回填 | 见 1.1/1.4 | ⚠️ 同上 |
 
@@ -74,7 +74,7 @@ Entity/TraceState 迁移**适配其序，禁按 FLD 序重排**；FLD 行=Java �
 2. ~~**1.3 fix_slot/detach 独立测**~~ ✅ 2026-10-16 补齐（sort_by_y_swap_fixes…/detach_from_cell_compacts…）
 3. ~~**1.5 sort_by_y 平局保序**~~ ✅ 2026-10-16 补齐（sort_by_y_tie_order_is_stable）
 4. **2.3 MOV-miss 尾递归**（游标位移断言）
-5. **4.3 恢复特例路径独立测**（floor2 scriptLineFlags[26]）
+5. ~~**4.3 恢复特例路径独立测**~~ ✅ 2026-10-17 特例批补齐（floor2/12/39 表驱动 4 测）
 6. **5.x 双面同脚本一致测**（DC-9 类漂移防线）
 
 > 补测优先级按重构步序：第 1 步（Entity 迁移）前补 1.2/1.3/1.5；第 2 步（命令模式）

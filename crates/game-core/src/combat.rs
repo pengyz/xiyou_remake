@@ -103,22 +103,12 @@ pub fn predict_battle_hp_loss(
     result
 }
 
-/// predictHpLossVsType 参数桥接（a.java:9966-9962）。
-pub fn predict_hp_loss_vs_type(
-    player: &PlayerCombat,
-    scaled: &ScaledEnemies,
-    type_idx_base: usize,
-    armor_gate: bool,
-) -> i32 {
-    predict_battle_hp_loss(
-        player.atk,
-        player.def,
-        scaled.hp[type_idx_base],
-        scaled.atk[type_idx_base],
-        scaled.def[type_idx_base],
-        armor_gate,
-    )
-}
+// 【2026-10-17 删除·DC-9 ☠️】predictHpLossVsType 参数桥（原 combat.rs:107-122）
+// 已按 docs/spec/dead-code-rulings.md DC-9 裁定移除：零调用 + **桥公式缺道具
+// 23/24 二倍攻击加成**（用 player.atk 而非 effectiveAttackVsType，a.java:9997-10004）
+// ——带缺陷的冗余桥，幸缺陷未传播。忠实语义由 scene.rs GameScene::predict_hp_loss
+// 持有（与 a.java:9992-9995 逐项对上）。**不得"顺手修桥再接线"**：若未来遇敌预演
+// UI（a.java:8774/8852 臂）需要此桥，按 DC-9 对照表改用 effective_attack 公式。
 
 /// spawnPopup kind 常量（a.java:9679-9686 分支语义 + tickBattle 写点）。
 pub mod popup_kind {
