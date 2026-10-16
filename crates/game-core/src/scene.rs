@@ -5611,6 +5611,29 @@ impl GameScene {
         }
     }
 
+    /// 型 67 片件表（a.java:682-692 f_byte_arr2_00 逐值）：(sheet, srcX, srcY, w, h) 9 件。
+    /// sheet 索引指向 xtq 图集 f_Image_arr2_00[9][0..5]（a.java:6303-6305 + 450-453）。
+    const SEG67_PIECES: [(i32, i32, i32, i32, i32); 9] = [
+        (0, 0, 0, 33, 56),
+        (0, 33, 0, 33, 56),
+        (0, 66, 0, 33, 56),
+        (2, 0, 0, 18, 26),
+        (3, 0, 0, 18, 34),
+        (1, 0, 0, 55, 61),
+        (4, 0, 0, 14, 26),
+        (4, 14, 0, 14, 26),
+        (4, 28, 0, 24, 26),
+    ];
+
+    /// 型 67 帧拼装表（a.java:693-697 f_byte_arr2_01 逐值）：3 帧 × 5 段 ×
+    /// (pieceId, dx, dy, 第4字节)。第 4 字节三行恒 0 且绘制循环不读
+    /// （6591-6601 只读 +0/+1/+2）——保真占位，语义未知。
+    const SEG67_FRAMES: [[(i32, i32, i32, i32); 5]; 3] = [
+        [(6, -1, -79, 0), (3, -26, -5, 0), (4, 11, 6, 0), (5, -25, -53, 0), (0, -16, -27, 0)],
+        [(7, -1, -80, 0), (3, -26, -5, 0), (4, 11, 6, 0), (5, -25, -54, 0), (2, -16, -26, 0)],
+        [(8, -1, -81, 0), (3, -26, -5, 0), (4, 11, 6, 0), (5, -25, -55, 0), (1, -16, -25, 0)],
+    ];
+
     pub fn paint_entities(&mut self, g: &mut SoftGraphics<'_>, cam_x: i32, cam_y: i32) {
         entity::advance_bob(&mut self.bob_offset, &mut self.bob_rising);
         let bob = self.bob_offset;
@@ -5709,9 +5732,33 @@ impl GameScene {
                                     sy -= ENTITY_LIFT;
                                     draw_image_clipped(g, img, sx + cx_off, sy - (h - CELL_PX), frame_off, 0, w, h);
                                 } else {
-                                    // 67 多段拼装（f_byte_arr2_00/01 元数据）——
-                                    // 实存层待考（floor1/5/12/35/40/50/51 无）
-                                    todo!("paintEntityLayer case 8 的 67 多段拼装")
+                                    // 型 67 多段拼装（a.java:6580-6603 逐字）：
+                                    // 影子 @ (x+8, y+22)（6581）→ 基点 (x+16,
+                                    // y+16)（6582-6586 倒手）→ SEG67_FRAMES[
+                                    // 裸帧偏移] 5 段，每段片件 SEG67_PIECES[
+                                    // seg[0]] 画 xtq[seg.sheet] @ (基点+dx,
+                                    // 基点+dy) 源 (srcX, srcY) w×h（6591-6601）。
+                                    // 裸帧偏移 = ANIM_OFFSET_TABLE[anim][frame]
+                                    // **不乘精灵宽**（a.java:6578，对照通用臂
+                                    // 6528 乘宽）。型 67 精灵盒 32×32（6323-6324）。
+                                    g.draw_image(&self.images.shadow, sx + 8, sy + 22, 0);
+                                    let base_x = sx + 16;
+                                    let base_y = sy + 16;
+                                    let seg_frame = ANIM_OFFSET_TABLE[anim][frame as usize] as usize;
+                                    for seg in Self::SEG67_FRAMES[seg_frame] {
+                                        let (sheet, src_x, src_y, w, h) =
+                                            Self::SEG67_PIECES[seg.0 as usize];
+                                        draw_image_clipped(
+                                            g,
+                                            &self.images.xtq[sheet as usize],
+                                            base_x + seg.1,
+                                            base_y + seg.2,
+                                            src_x,
+                                            src_y,
+                                            w,
+                                            h,
+                                        );
+                                    }
                                 }
                                 // walkPhase==2 战后数字条（a.java:6617-6638）：
                                 // showBattleDigits 开关 + iconStrip 波动 + 预测伤害 drawDigitStrip
@@ -5767,8 +5814,20 @@ impl GameScene {
                             _ => {}
                         }
                     } else {
-                        // 空图文字标签（objectTypeNames 圆底标签；type 83 走此径但 m_122 置 entityVisible=false）
-                        todo!("paintEntityLayer 空图标签分支（objectTypeNames 文本，floor1 不可达）")
+                        // 空图文字标签分支（a.java:6672-6683）：**全语料不可达
+                        // 死码**——A 级证明链：空图类型仅 82/83（m_122 图表
+                        // 9456-9485 二者恒 null）；82/83 出层即 hidden
+                        // （a.java:9605/9618）；entityVisible 置 true 写点清单
+                        // （6407/5413/5455/8345/9638）无一覆盖 82/83；语料
+                        // CES/ADD 类型参数不含 82/83；全 55 层 sprite 型 82=0、
+                        // 83=52 全隐藏 ⇒ 循环门 entityVisible 恒 false ⇒ 分支
+                        // 不可达（evidence-todos.md T-3 裁定 B 升 A 且更强=全
+                        // 语料域）。保真期**不删分支**：todo!() 作死码哨兵；
+                        // 分支几何公式已取证（6673-6682），若未来语料以
+                        // CES/ADD 生成 82/83 或 SWD 改型 83 则按公式实现。
+                        todo!(
+                            "paintEntityLayer 空图标签分支：全语料不可达死码（evidence-todos.md T-3）"
+                        )
                     }
                 }
             }
@@ -6825,6 +6884,102 @@ mod slot_equip_scene_tests {
         sc.execute_script_instruction(); // 下一拍重解析同一 token
         assert_eq!(sc.script_cursor, 0, "下一拍原地重解析（停摆持续）");
         assert_eq!(sc.dialog_phase, 3, "停摆期间 dialogPhase 不变");
+    }
+
+    /// 型 67 多段拼装元数据（a.java:682-697 f_byte_arr2_00/01 逐值）：9 片件
+    /// (sheet, srcX, srcY, w, h) + 3 帧 × 5 段 (pieceId, dx, dy, 第4字节)。
+    /// 第 4 字节三行恒 0 且绘制循环不读（保真占位，语义未知，C 级不入结论）。
+    #[test]
+    fn seg67_tables_match_java_metadata() {
+        assert_eq!(
+            GameScene::SEG67_PIECES,
+            [
+                (0, 0, 0, 33, 56),
+                (0, 33, 0, 33, 56),
+                (0, 66, 0, 33, 56),
+                (2, 0, 0, 18, 26),
+                (3, 0, 0, 18, 34),
+                (1, 0, 0, 55, 61),
+                (4, 0, 0, 14, 26),
+                (4, 14, 0, 14, 26),
+                (4, 28, 0, 24, 26),
+            ],
+            "片件表（a.java:682-692）"
+        );
+        assert_eq!(
+            GameScene::SEG67_FRAMES,
+            [
+                [(6, -1, -79, 0), (3, -26, -5, 0), (4, 11, 6, 0), (5, -25, -53, 0), (0, -16, -27, 0)],
+                [(7, -1, -80, 0), (3, -26, -5, 0), (4, 11, 6, 0), (5, -25, -54, 0), (2, -16, -26, 0)],
+                [(8, -1, -81, 0), (3, -26, -5, 0), (4, 11, 6, 0), (5, -25, -55, 0), (1, -16, -25, 0)],
+            ],
+            "帧拼装表（a.java:693-697）"
+        );
+    }
+
+    /// 型 67 多段拼装渲染（a.java:6580-6603）：影子 (x+8, y+22)（6581）→
+    /// 基点 (x+16, y+16)（6582-6586）→ SEG67_FRAMES[裸帧偏移] 5 段，每段
+    /// 片件 SEG67_PIECES[seg[0]] 画 xtq[seg.sheet] @ (基点+dx, 基点+dy)，
+    /// 源 (srcX, srcY) 尺寸 w×h（6591-6601）。**裸帧偏移不乘精灵宽**
+    /// （a.java:6578，对照通用臂 6528 乘宽）。逐像素对拍独立转写的参考帧；
+    /// 帧行 3 偏移序列 {0,1,2,1} 来自 animOffsetTable[3]（a.java:485-497）。
+    #[test]
+    fn paint_type67_assembles_five_segments_like_java() {
+        let mut sc = scene_with(&synthetic_sptarm());
+        entity::spawn(&mut sc.entities, &mut sc.grid, 67, 64, 96, 0, &sc.width_table, None);
+        let e = sc.entities.count - 1;
+        sc.entities.anim_idx[e] = 3; // animRowByType[67]=3（a.java:498 数组）
+        const PIECES: [(i32, i32, i32, i32, i32); 9] = [
+            (0, 0, 0, 33, 56),
+            (0, 33, 0, 33, 56),
+            (0, 66, 0, 33, 56),
+            (2, 0, 0, 18, 26),
+            (3, 0, 0, 18, 34),
+            (1, 0, 0, 55, 61),
+            (4, 0, 0, 14, 26),
+            (4, 14, 0, 14, 26),
+            (4, 28, 0, 24, 26),
+        ];
+        const FRAMES: [[(i32, i32, i32, i32); 5]; 3] = [
+            [(6, -1, -79, 0), (3, -26, -5, 0), (4, 11, 6, 0), (5, -25, -53, 0), (0, -16, -27, 0)],
+            [(7, -1, -80, 0), (3, -26, -5, 0), (4, 11, 6, 0), (5, -25, -54, 0), (2, -16, -26, 0)],
+            [(8, -1, -81, 0), (3, -26, -5, 0), (4, 11, 6, 0), (5, -25, -55, 0), (1, -16, -25, 0)],
+        ];
+        const ROW3: [usize; 4] = [0, 1, 2, 1]; // animOffsetTable[3]（a.java:485-497）
+
+        for f in 0..4i32 {
+            sc.entities.frame[e] = f;
+            let mut actual = ArgbImage::create(SCREEN_W, SCREEN_H);
+            {
+                let mut g = SoftGraphics::new(&mut actual);
+                sc.paint_entities(&mut g, 0, 0);
+            }
+            let mut expected = ArgbImage::create(SCREEN_W, SCREEN_H);
+            {
+                let mut g2 = SoftGraphics::new(&mut expected);
+                g2.draw_image(&sc.images.shadow, 64 + 8, 96 + 22, 0); // 影子（6581）
+                for &(piece, dx, dy, _pad) in &FRAMES[ROW3[f as usize]] {
+                    let (sheet, src_x, src_y, w, h) = PIECES[piece as usize];
+                    draw_image_clipped(
+                        &mut g2,
+                        &sc.images.xtq[sheet as usize],
+                        64 + 16 + dx,
+                        96 + 16 + dy,
+                        src_x,
+                        src_y,
+                        w,
+                        h,
+                    );
+                }
+                // 玩家尾绘（paint_entities 尾段同源，非本测试标的）
+                sc.paint_player(&mut g2, 0, 0);
+            }
+            assert_eq!(
+                actual.argb, expected.argb,
+                "帧 {f}（裸帧偏移 {}）拼装逐像素一致",
+                ROW3[f as usize]
+            );
+        }
     }
 }
 
