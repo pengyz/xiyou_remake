@@ -716,3 +716,41 @@ fn fx_boss68a_kill_spawn_frames_match() {
         "case68 双 switch default：无脚本钩子（对照 74 的 loadLevelScript(21)）"
     );
 }
+
+/// FX-BUG-CES70-SLOT：script0 CES_70 出生崩溃钉死（原版 bug 复现夹具，D4 保真不修；
+/// bug-ledger 稿 = reference/oracle/scenarios/bug-draft-script0-ces70-slot.md）。
+/// floor3 (2,11) 触发 script0 → TAK_8_9 对话推进 → T350 CES_70_5_8 ⇒ Java
+/// AIOOBE: Index 16 of length 16 @ spawnEntity 槽登记（a.java:6418，cellSlotTable
+/// byte[128][16]）——A/B/C 三变体同 tick 同点同因。夹具帧 1..349 = 可观测前缀。
+/// Rust 侧 cell_entity/槽表同构（slots=vec![vec![0u8;16];128]，entity.rs）——本测以
+/// catch_unwind 容纳同点 panic（同点 panic = 语义忠实）或存活（前缀对拍已足），
+/// 2026-10-16 实测：**Rust 存活（scene=true）**——同构槽表未溢出，Java 独有崩溃状态
+/// 根因待深挖（bug 稿"未解反常"节）。LAY_2/RES_0 位于 CES_70 之后 Java 不可达（其 Rust 行为
+/// 锚 = scene.rs 单测 script_lay_jumps_floor_with_wipe / script_res_resets_run_stats_on_easy）。
+#[test]
+fn fx_bug_ces70_slot_frames_match() {
+    use std::panic::{catch_unwind, AssertUnwindSafe};
+    let records = frame_records(include_str!("fixtures/fx-bug-ces70-slot.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-bug-ces70-slot.txt"));
+    let preset = include_str!("fixtures/fx-bug-ces70-slot.preset").to_string();
+    let outcome = catch_unwind(AssertUnwindSafe(|| replay_opt(&preset, &records)));
+    match outcome {
+        Ok((checked, scene)) => {
+            assert_eq!(checked, records.len(), "T1-349 = Java 崩溃前可观测前缀全帧对拍");
+            eprintln!("CES70-DIAG: Rust survived, scene={}", scene.is_some());
+            assert!(scene.is_some(), "Rust 存活续跑（前缀对拍已足；差异记 bug 稿）");
+        }
+        Err(e) => {
+            let msg = e
+                .downcast_ref::<String>()
+                .map(String::as_str)
+                .or_else(|| e.downcast_ref::<&str>().copied())
+                .unwrap_or("");
+            eprintln!("CES70-DIAG: Rust panicked: {msg}");
+            assert!(
+                msg.contains("index out of bounds") && msg.contains("16"),
+                "Rust 同点 panic（槽表 16 满）才算忠实同点崩溃，实得: {msg}"
+            );
+        }
+    }
+}
