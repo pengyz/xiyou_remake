@@ -177,7 +177,10 @@ PORT_NOTES: dict[str, tuple[str, str]] = {
 # TRIAGE：白项三分账。值 = (类, 来源, 论证)。类：
 #   "a" 真未移植（后续铺层/壳层赤字）；"b" 不触达论证候选（死内容/冷路径，B 级以上论证）；
 #   "c" 判定存疑（工具方法论问题；须有 PORT_NOTES 或归属规则修正作为解决，现色随之变化）。
-# 来源："基线23" = 前任 v2 刷账输出的 23 白项；"修正暴露" = v2.1 行锚归属治理后新暴露者。
+# 来源："基线23" = 前任 v2 刷账输出的 23 白项；"修正暴露" = v2.1 行锚归属治理后新暴露者
+#       （定义：v2 有移植账 ∧ v2.1 机械信号〔fn/行锚〕全空——机械复算为真值源，不随登记改）；
+#       "v2.1 锚已落地" / "v2 误读证据消散" = 2026-10-16 lead 裁决（**改登记不改定义**）新增如实
+#       状态：被定义排除后 origin 随之改写，历史考证原地保留（论证内日期更正）。
 # 复现命令约定：JAVAP = `javap -p -c analysis/rename-pipeline/renamed/a.class`
 TRIAGE: dict[str, tuple[str, str, str]] = {
     # ---- a 真未移植 ----
@@ -273,8 +276,18 @@ TRIAGE: dict[str, tuple[str, str, str]] = {
     "createSolidImage": ("c", "修正暴露", "结果被丢弃的纯函数（a.java:4605-4614；见 PORT_NOTES absorbed）；v2 证据系漂移锚"),
     "releaseSceneImages": ("c", "修正暴露", "内存释放被构造期装载吸收（a.java:4714-4728；见 PORT_NOTES）；v2 证据系漂移锚"),
     "resetNewGameState": ("c", "修正暴露", "新游戏复位分散移植（a.java:7191-7219；见 PORT_NOTES）；v2 证据系漂移锚 + seed 误读"),
-    "addOption": ("c", "修正暴露", "OptionList::add 已移植（a.java:7269-7286；见 PORT_NOTES）；v2 证据系 28 条 seed 误读"),
-    "itemTypeToStackIndex": ("c", "修正暴露", "item_desc_index 已移植（a.java:7705-7719；见 PORT_NOTES）；v2 证据系漂移锚"),
+    "addOption": ("c", "v2 误读证据消散",
+                  "OptionList::add 已移植（a.java:7269-7286；见 PORT_NOTES）；v2 证据系 28 条 seed 误读。"
+                  "【2026-10-16 更正】origin 修正暴露→v2 误读证据消散（lead 裁决：改登记不改定义，机械复算为真值源）："
+                  "现机械复算 v2=白（28 条 seed 误读已不复算）、v2.1 信号空（fn/refs 皆无）⇒ 已不满足"
+                  "『修正暴露 = v2 非白 ∧ v2.1 空』定义；移植账 = PORT_NOTES 人工（OptionList::add）。"
+                  "附记：menu_family.rs:1157 的 addOption 注释引 a.java:9911-9926 系漂移锚（真身 a.java:7269-7286），"
+                  "不构成 v2.1 信号，待校正"),
+    "itemTypeToStackIndex": ("c", "v2.1 锚已落地",
+                            "item_desc_index 已移植（a.java:7705-7719；见 PORT_NOTES）；v2 证据系漂移锚。"
+                            "【2026-10-16 更正】origin 修正暴露→v2.1 锚已落地（lead 裁决：改登记不改定义）："
+                            "v2.1 名锚 crates/game-core/src/scene.rs `itemTypeToStackIndex`（a.java:7705-7719 语义，"
+                            "scene.rs:3137）注册（refs=〔名〕非空）⇒ 定义排除正确，机械复算为准"),
     "deleteRecordStoreQuietly": ("c", "修正暴露", "删后即写被壳覆盖写吸收（a.java:9324-9329；见 PORT_NOTES）；v2 证据系漂移锚"),
     "closeRecordStoreAndGc": ("c", "修正暴露", "RMS 清理无可观测效应（a.java:9331-9363；见 PORT_NOTES）；v2 证据系漂移锚"),
     "initParticles": ("c", "修正暴露", "Particles::new 已移植（a.java:9821-9831；见 PORT_NOTES）；v2 证据系漂移锚"),
@@ -948,7 +961,8 @@ def check_notes(rng: dict, n_lines: int) -> list[str]:
         if n not in rng:
             bad.append(f"{tag} 方法不存在")
             continue
-        if cls not in ("a", "b", "c") or origin not in ("基线23", "修正暴露"):
+        # origin 词表随登记扩展（2026-10-16 lead 裁决：改登记不改定义——"修正暴露"语义不变）
+        if cls not in ("a", "b", "c") or origin not in ("基线23", "修正暴露", "v2.1 锚已落地", "v2 误读证据消散"):
             bad.append(f"{tag} 类/来源非法 {cls}/{origin}")
         ptrs = [int(x) for x in re.findall(r"a\.java:(\d+)", ev)]
         if not ptrs:
