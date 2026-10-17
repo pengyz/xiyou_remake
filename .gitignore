@@ -24,3 +24,5 @@ node_modules/
 .claude/settings.local.json
 *.swp
 .agent-teams/
+
+save/
