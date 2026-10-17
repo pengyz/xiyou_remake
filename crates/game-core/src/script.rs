@@ -39,6 +39,10 @@ pub struct ScriptState {
     pub camera_anchor_y: i32,
     pub scene_delay: i32,
     pub game_mode: GameMode,
+    /// 转移计数（件 A' 收口观测，harness 面）
+    pub transition_count: u32,
+    /// 转移日志（件 A' 收口观测，harness 面）
+    pub last_transition: Option<(GameMode, GameMode)>,
     pub script_walk_armed: bool,
     pub walk_request_flag: bool,
     pub walk_phase: WalkPhase,
@@ -88,6 +92,8 @@ impl Default for ScriptState {
             camera_anchor_y: 0,
             scene_delay: 0,
             game_mode: GameMode::Boot,
+            transition_count: 0,
+            last_transition: None,
             script_walk_armed: false,
             walk_request_flag: false,
             walk_phase: WalkPhase::Idle,
@@ -177,6 +183,15 @@ impl<'d> ScriptEngine<'d> {
     }
 
     /// 测试/调试辅助：覆盖脚本行文本（正常数据流经 DialogueTable）。
+    /// 模式转移收口（件 A'，harness 面）：ScriptState.game_mode 唯一写点——
+    /// 与 GameScene::transition_to 同口径（转移计数/日志观测字段）。
+    fn state_transition(&mut self, mode: GameMode) {
+        let from = self.state.game_mode;
+        self.state.transition_count += 1;
+        self.state.last_transition = Some((from, mode));
+        self.state.game_mode = mode;
+    }
+
     pub fn set_script_line_for_test(&mut self, text: &str) {
         self.script_line_override = Some(text.to_string());
     }
@@ -191,7 +206,7 @@ impl<'d> ScriptEngine<'d> {
     /// GUT_ 目标装载 = Java loadLevelScript（a.java:8020-8029）。
     pub fn load_level_script(&mut self, host: &mut impl HostCtx, idx: usize) {
         self.state.script_walk_armed = false;
-        self.state.game_mode = GameMode::Dialog;
+        self.state_transition(GameMode::Dialog);
         self.state.current_script_index = idx;
         self.state.dialog_page = 0;
         host.snap_camera_to_player(); // lockCameraOn(0)
@@ -489,7 +504,7 @@ impl<'d> ScriptEngine<'d> {
                 );
             } else if var3 == "END" {
                 self.parse_script_int(&line, var2p4, ' ');
-                self.state.game_mode = crate::enums::GameMode::Ending;
+                self.state_transition(crate::enums::GameMode::Ending);
                 host.exit_application();
                 self.state.script_cursor = self.state.last_delim_pos + 1;
             } else if var3 == "SMS" {

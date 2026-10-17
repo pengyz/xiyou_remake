@@ -414,6 +414,10 @@ pub struct GameScene {
 
     // —— mode 11 对话（gameMode 3=世界 / 11=对话；a.java:4011-4068 相位机）——
     pub game_mode: GameMode,
+    /// 转移计数（件 A' 收口观测：transition_to 调用次数）
+    pub transition_count: u32,
+    /// 转移日志（件 A' 收口观测：最后一次 (from, to)）——观测字段，不进金样 dump
+    pub last_transition: Option<(GameMode, GameMode)>,
     /// dialogPhase：0 脚本步进 / 1 TAK 打字 / 2 实体路径 / 3 脚本行走 / 4 等相机 / 6 SEE 打字
     pub dialog_phase: i32,
     /// mode12 日志浏览（f_int_90 页 + f_String_04 页码指示 + 日志对）
@@ -694,6 +698,56 @@ pub static RESTORE_RULES: &[RestoreRule] = &[
     },
 ];
 
+/// 模式转移边集（state-machine-survey §2 35 边逐条；件 A' 校验挂点读本表）。
+/// `to: None` = **动态目标**（menu_return_mode/in_game_menu_return_mode/target_mode
+/// 变量直写——Java 原样，边表记录"允许动态"）。from/to 值=映射表 case 号（GameMode doc）。
+pub static TRANSFER_EDGES: &[(GameMode, Option<GameMode>)] = &[
+    // 1-3：boot 链（进程→0→21→1）
+    (GameMode::Unknown(-1), Some(GameMode::Boot)),
+    (GameMode::Boot, Some(GameMode::SoundAsk)),
+    (GameMode::SoundAsk, Some(GameMode::MainMenu)),
+    // 4-7：主菜单四项
+    (GameMode::MainMenu, Some(GameMode::Loading)),
+    (GameMode::MainMenu, Some(GameMode::Map)),
+    (GameMode::MainMenu, Some(GameMode::InGameMenu)),
+    (GameMode::MainMenu, Some(GameMode::Ending)),
+    // 8-10：载入完成/过场链（8 target_mode=动态；10 自环）
+    (GameMode::Loading, None),
+    (GameMode::IntroCutscene, Some(GameMode::Loading)),
+    (GameMode::IntroCutscene, Some(GameMode::IntroCutscene)),
+    // 11-15：hub（Map）出口
+    (GameMode::Map, Some(GameMode::InGameMenu)),
+    (GameMode::Map, Some(GameMode::ItemPanel)),
+    (GameMode::Map, Some(GameMode::Dialog)),
+    (GameMode::Map, Some(GameMode::Alchemy)),
+    (GameMode::Map, Some(GameMode::Ending)),
+    // 16-22：游戏内菜单出口（16 return_mode=动态）
+    (GameMode::InGameMenu, None),
+    (GameMode::InGameMenu, Some(GameMode::SaveSlot)),
+    (GameMode::InGameMenu, Some(GameMode::About)),
+    (GameMode::InGameMenu, Some(GameMode::Help)),
+    (GameMode::InGameMenu, Some(GameMode::Shop)),
+    (GameMode::InGameMenu, Some(GameMode::Map)),
+    (GameMode::InGameMenu, Some(GameMode::EnemyInfo)),
+    // 23：EnemyInfo 返回
+    (GameMode::EnemyInfo, Some(GameMode::Map)),
+    // 24：7/8 存档槽（return_mode=动态）
+    (GameMode::SaveSlot, None),
+    (GameMode::EquipDetail, None),
+    // 25-29：炼丹/道具面板出口
+    (GameMode::Alchemy, Some(GameMode::Map)),
+    (GameMode::ItemPanel, Some(GameMode::Map)),
+    (GameMode::ItemPanel, Some(GameMode::EnemyInfo)),
+    (GameMode::ItemPanel, Some(GameMode::RecordBrowser)),
+    // 30-31：对话收尾（行尾门→相位 4 非模式转移；相机收敛→Map）
+    (GameMode::Dialog, Some(GameMode::Map)),
+    // 32-35：Help/About/Shop/Ending 出口（32/33 return_mode=动态）
+    (GameMode::Help, None),
+    (GameMode::About, None),
+    (GameMode::Shop, Some(GameMode::InGameMenu)),
+    (GameMode::Ending, Some(GameMode::MainMenu)),
+];
+
 /// 命令模式（refactor-plan §3 第 2 步）：16 op 枚举。变体载荷=各 op 条件取参
 /// 结果 + **推进后游标**（游标契约，条件 4）；解析与执行分离但游标语义逐字节
 /// 等价（scriptCursor/lastDelimPos 口径 gotcha 级，两面对照测钉）。
@@ -929,6 +983,8 @@ impl GameScene {
             overlay_icon: None,
             overlay_item_name: None,
             game_mode: GameMode::Map,
+            transition_count: 0,
+            last_transition: None,
             dialog_phase: 0,
             record_page: 0,
             record_text_a: include_str!("../tests/fixtures/record_texts_a.txt")
@@ -1120,7 +1176,7 @@ impl GameScene {
         // a.java 台账实证（迭代 46，A-preset-item21 T402）：changeFloor 起
         // 遮幅即回 mode 3（行走世界 + 遮幅点阵渐显）——面板内道具触发路径
         // 的 gameMode 不再停留 mode 10
-        self.game_mode = GameMode::Map;
+        self.transition_to(GameMode::Map);
         if target < self.min_floor {
             self.min_floor = target;
         } else if target > self.max_floor {
@@ -1382,6 +1438,23 @@ impl GameScene {
     /// （5/81/6/12/76/82/83 生成置不可见）；尾部层特例 + type72 renderCategory 随层。
     /// probe/ADD 的 m_119/m_122 往返用本函数（用 load_floor_data 会清小地图/重建
     /// 视图——实测 T281 帧差元凶）。格恒 13×13 ⇒ 网格重建无涉视图。
+    /// 模式转移收口（件 A'）：**game_mode 唯一写点**。散点归零——加新转移=改
+    /// 本函数调用点 + TRANSFER_EDGES 边表（件 D 维护文档）。
+    /// **边集机械校验挂点**：debug_assert 对边表（release 不触发——金样零漂移）；
+    /// 转移计数/日志=观测字段（不进 dump，无行为影响）。
+    pub fn transition_to(&mut self, mode: GameMode) {
+        let from = self.game_mode;
+        debug_assert!(
+            TRANSFER_EDGES.iter().any(|(f, t)| *f == from && (*t == Some(mode) || t.is_none())),
+            "未登记转移边：{:?} -> {:?}（TRANSFER_EDGES 表，件 D 维护）",
+            from,
+            mode
+        );
+        self.transition_count += 1;
+        self.last_transition = Some((from, mode));
+        self.game_mode = mode;
+    }
+
     /// 应用层恢复特例（m_122 尾 switch(currentFloor)，a.java:9648-9673）——
     /// RESTORE_RULES 表驱动；flags[26] 双重角色与 case 39 像素字面量 quirk 随表保留。
     fn apply_restore_rules(
@@ -1624,7 +1697,7 @@ impl GameScene {
     /// case 31 层重排特例（a.java:8028-8028）未达（script 40 不涉），todo 守卫。
     pub fn load_level_script(&mut self, idx: i32) {
         self.script_walk_armed = false;
-        self.game_mode = GameMode::Dialog;
+        self.transition_to(GameMode::Dialog);
         self.dialog_page = 0;
         self.lock_camera_on(0); // ease 相机初始化到玩家
         self.dialog_phase = 0;
@@ -2210,7 +2283,7 @@ impl GameScene {
     /// 可观测部分：typewriterPos=1 + 初次 layout（对象 = **当时 overlayText 残页**，
     /// Java 原样）；f_int_22/23/f_bool_04 不重置。
     fn op_end(&mut self) {
-        self.game_mode = GameMode::Ending;
+        self.transition_to(GameMode::Ending);
         self.dialog_char = 1;
         if let Some(t) = self.overlay_text.clone() {
             let line_h = crate::paint::paint_font().height + 4;
@@ -2534,7 +2607,7 @@ impl GameScene {
             }
             4 => {
                 if self.camera_at_target() {
-                    self.game_mode = GameMode::Map;
+                    self.transition_to(GameMode::Map);
                 }
             }
             5 => {} // f_bool_16 组合（LAY 批）
@@ -2661,7 +2734,7 @@ impl GameScene {
                             );
                         } else {
                             self.script_walk_armed = false;
-                            self.game_mode = GameMode::Map;
+                            self.transition_to(GameMode::Map);
                             self.walk_phase = 1;
                             self.facing = self.route_dir;
                         }
@@ -2722,7 +2795,7 @@ impl GameScene {
     /// 由 BgmState::on_hide_notify 承担。Java 顺序 = 菜单先、音频后。
     pub fn hide_notify(&mut self) {
         if self.game_mode == GameMode::Map {
-            self.game_mode = GameMode::InGameMenu;
+            self.transition_to(GameMode::InGameMenu);
             self.enter_menu4();
         }
         self.bgm.on_hide_notify();
@@ -2781,7 +2854,7 @@ impl GameScene {
     /// run case 4（a.java:3686-3731）：-7 返回、-6/-5 激活、-2/-4 下移、-1/-3 上移。
     fn tick_menu4(&mut self) {
         match self.key_value {
-            -7 => self.game_mode = self.in_game_menu_return_mode,
+            -7 => self.transition_to(self.in_game_menu_return_mode),
             -6 | -5 => self.activate_menu_item(),
             -2 => {
                 // 仅 -2 下移（a.java:3699）：-4/-3 落 default 无操作
@@ -2826,7 +2899,7 @@ impl GameScene {
     fn tick_menu19(&mut self) {
         match self.key_value {
             -7 => {
-                self.game_mode = GameMode::InGameMenu;
+                self.transition_to(GameMode::InGameMenu);
                 self.enter_menu4();
             }
             -4 | -2 | 54 | 56 => {
@@ -2853,32 +2926,32 @@ impl GameScene {
     /// 为跨机模式移交，桌面宿主批次接线——本批对拍面不激活。
     fn activate_menu_item(&mut self) {
         match self.menu_kinds[self.menu_cursor as usize] {
-            1 => self.game_mode = GameMode::Map,
+            1 => self.transition_to(GameMode::Map),
             3 => {
                 // a.java:4776-4780：gameMode=7 + menuReturnMode=4 + m_000
                 self.menu_return_mode = GameMode::InGameMenu;
-                self.game_mode = GameMode::SaveSlot;
+                self.transition_to(GameMode::SaveSlot);
                 self.enter_menu7();
             }
             4 => {
                 // a.java:4781-4785：gameMode=16 + menuReturnMode=4 + m_000
                 self.menu_return_mode = GameMode::InGameMenu;
-                self.game_mode = GameMode::About;
+                self.transition_to(GameMode::About);
                 self.enter_menu16();
             }
             5 => {
                 // a.java:4786-4790：gameMode=15 + menuReturnMode=4 + m_000
                 self.menu_return_mode = GameMode::InGameMenu;
-                self.game_mode = GameMode::Help;
+                self.transition_to(GameMode::Help);
                 self.enter_menu15();
             }
             11 => {
-                self.game_mode = GameMode::Shop;
+                self.transition_to(GameMode::Shop);
                 self.enter_menu19();
             }
             17 => {
                 self.change_floor(1, false, false);
-                self.game_mode = GameMode::Map;
+                self.transition_to(GameMode::Map);
                 self.player.hp = 1000;
                 self.player.atk = 710;
                 self.player.def = 710;
@@ -2972,7 +3045,7 @@ impl GameScene {
     /// -4/-3 行内环绕、-2/-1 翻行+滚动窗跟随。
     fn tick_item_panel(&mut self) {
         match self.key_value {
-            -7 => self.game_mode = GameMode::Map,
+            -7 => self.transition_to(GameMode::Map),
             -6 | -5 => {
                 if self.item_cursor < self.player.item_stack_size {
                     let t = self.player.item_types[self.item_cursor as usize] as i32;
@@ -2980,7 +3053,7 @@ impl GameScene {
                     self.overlay_kind_item = t;
                     match t {
                         13 | 14 => {
-                            self.game_mode = GameMode::Map;
+                            self.transition_to(GameMode::Map);
                             self.activate_item(t);
                         }
                         15 | 23 | 24 | 25 => {
@@ -3047,14 +3120,14 @@ impl GameScene {
         match t {
             13 => {
                 // a.java:7786-7788：gameMode=5 + m_000 case5（m_091+软键）
-                self.game_mode = GameMode::EnemyInfo;
+                self.transition_to(GameMode::EnemyInfo);
                 self.enter_menu5();
                 false
             }
             14 => {
                 // a.java:7789-7791：gameMode=12 + m_000 case12（a.java:4386-4388：
                 // m_076(0) + softkeyRightKind=3）
-                self.game_mode = GameMode::RecordBrowser;
+                self.transition_to(GameMode::RecordBrowser);
                 self.open_record_page(0);
                 self.softkeys.1 = 3;
                 false
@@ -3068,7 +3141,7 @@ impl GameScene {
                     (11, "你必须面对一堵墙使用")
                 };
                 if self.remove_adjacent_entity_of_type(target) {
-                    self.game_mode = GameMode::Map;
+                    self.transition_to(GameMode::Map);
                     true
                 } else {
                     self.show_overlay_message(0, msg, 0, 0);
@@ -3086,7 +3159,7 @@ impl GameScene {
                         self.build_minimap();
                     }
                 }
-                self.game_mode = GameMode::Map;
+                self.transition_to(GameMode::Map);
                 true
             }
             19 => {
@@ -3105,7 +3178,7 @@ impl GameScene {
                         self.build_minimap();
                     }
                 }
-                self.game_mode = GameMode::Map;
+                self.transition_to(GameMode::Map);
                 true
             }
             86 => {
@@ -3116,7 +3189,7 @@ impl GameScene {
                 self.kill_adjacent_at(cx, cy + 1);
                 self.kill_adjacent_at(cx - 1, cy);
                 self.kill_adjacent_at(cx + 1, cy);
-                self.game_mode = GameMode::Map;
+                self.transition_to(GameMode::Map);
                 true
             }
             20 => {
@@ -3137,7 +3210,7 @@ impl GameScene {
                             ((self.view.view_h - 32) >> 1) - self.view.player_py,
                         );
                         self.apply_step_cell_effects();
-                        self.game_mode = GameMode::Map;
+                        self.transition_to(GameMode::Map);
                         true
                     } else {
                         if !self.overlay_active {
@@ -3395,7 +3468,7 @@ impl GameScene {
     /// -2/-1 槽光标滚动。
     fn tick_menu7(&mut self) {
         match self.key_value {
-            -7 => self.game_mode = self.menu_return_mode,
+            -7 => self.transition_to(self.menu_return_mode),
             -6 | -5 => {
                 if self.game_mode == GameMode::SaveSlot {
                     self.save_floor_state();
@@ -3543,7 +3616,7 @@ impl GameScene {
             match self.key_value {
                 -7 => {
                     self.overlay_active = false;
-                    self.game_mode = self.menu_return_mode;
+                    self.transition_to(self.menu_return_mode);
                 }
                 -2 => self.flip_overlay_page(self.overlay_page_top + self.overlay_lines_per_page),
                 -1 => self.flip_overlay_page(self.overlay_page_top - self.overlay_lines_per_page),
@@ -3639,7 +3712,7 @@ impl GameScene {
     /// run case 5（a.java:3737-3755）：-7/-6 回 mode 3；-2 下一页、-1 上一页。
     fn tick_menu5(&mut self) {
         match self.key_value {
-            -7 | -6 => self.game_mode = GameMode::Map,
+            -7 | -6 => self.transition_to(GameMode::Map),
             -2 => {
                 let p = self.encyc_scroll_top + 1;
                 self.encyclopedia_set_page(p);
@@ -3772,7 +3845,7 @@ impl GameScene {
     /// 并推进计数/价格，否则「没有足够的金钱」浮层；-2/-1 光标三行环绕。
     fn tick_menu9(&mut self) {
         match self.key_value {
-            -7 => self.game_mode = GameMode::Map,
+            -7 => self.transition_to(GameMode::Map),
             -6 | -5 => {
                 if self.player.gold >= self.alchemy_price {
                     self.player.gold -= self.alchemy_price;
@@ -4125,7 +4198,7 @@ impl GameScene {
     fn tick_menu16(&mut self) {
         let Some(opt) = &mut self.options else { return };
         match self.key_value {
-            -7 | -6 => self.game_mode = self.menu_return_mode,
+            -7 | -6 => self.transition_to(self.menu_return_mode),
             -5 | -4 | -3 => {
                 let cur = opt.highlight as usize;
                 opt.checked[cur] = !opt.checked[cur];
@@ -4223,7 +4296,7 @@ impl GameScene {
                 match self.key_value {
                     -7 | -6 | -5 => {
                         self.overlay_active = false;
-                        self.game_mode = GameMode::ItemPanel;
+                        self.transition_to(GameMode::ItemPanel);
                     }
                     -4 => self.open_record_page(self.record_page + 1),
                     -3 => self.open_record_page(self.record_page - 1),
@@ -4235,7 +4308,7 @@ impl GameScene {
                 match self.key_value {
                     -7 => {
                         self.overlay_active = false;
-                        self.game_mode = self.menu_return_mode;
+                        self.transition_to(self.menu_return_mode);
                     }
                     -2 => {
                         self.flip_overlay_page(self.overlay_page_top + self.overlay_lines_per_page)
@@ -4250,7 +4323,7 @@ impl GameScene {
                 // -7 回面板、-6 关层 + useItemStack、其余 handleOverlayKey
                 match self.key_value {
                     -7 => {
-                        self.game_mode = GameMode::ItemPanel;
+                        self.transition_to(GameMode::ItemPanel);
                         self.overlay_active = false;
                     }
                     -6 => {
@@ -4360,7 +4433,7 @@ impl GameScene {
             // （gameMode=1 + m_000——场景→BootMachine 反向移交为已知缝，
             // 对拍窗口不触键）。f_bool_04 未到 → 任意键仍清零。
             if self.ending_done && self.key_value != 0 {
-                self.game_mode = GameMode::MainMenu;
+                self.transition_to(GameMode::MainMenu);
                 // m_000 case 1 音频半：f_bool_28=false + m_139(2)：game→menu 重建
                 //（a.java:4295/4311；EV-ending-title T1301）。非音频半（标题菜单
                 // 重建/反向移交 BootMachine）仍为已知缝。
@@ -4375,11 +4448,11 @@ impl GameScene {
             -7 => {
                 // a.java:3559-3561：f_byte_02=gameMode → gameMode=4 + m_000
                 self.in_game_menu_return_mode = self.game_mode;
-                self.game_mode = GameMode::InGameMenu;
+                self.transition_to(GameMode::InGameMenu);
                 self.enter_menu4();
             }
             -6 => {
-                self.game_mode = GameMode::ItemPanel;
+                self.transition_to(GameMode::ItemPanel);
                 self.enter_item_panel();
             }
             _ => {}
@@ -4826,7 +4899,7 @@ impl GameScene {
                                 // 朝上（facingDirection==1）触发 mode 9 + 价格/增量初始化
                                 allowed = false;
                                 if self.facing == 1 {
-                                    self.game_mode = GameMode::Alchemy;
+                                    self.transition_to(GameMode::Alchemy);
                                     self.alchemy_price =
                                         Self::alchemy_price_for(self.alchemy_upgrade_count + 1);
                                     self.alchemy_gain_hp = Self::scaled_by_floor_tier(100, self.floor);
@@ -6295,7 +6368,7 @@ impl GameScene {
             self.page_indicator = format!("{} / {}", self.record_page + 1, total);
         } else {
             self.show_overlay_message(0, "没有记录", 0, 3);
-            self.game_mode = GameMode::ItemPanel;
+            self.transition_to(GameMode::ItemPanel);
         }
     }
 
