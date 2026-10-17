@@ -167,7 +167,11 @@ struct Rms {
 impl Rms {
     fn load(dir: &PathBuf) -> (Rms, Vec<(String, Vec<u8>)>) {
         let mut stores = Vec::new();
-        for name in ["MOT_L0", "MOT_L1", "MOT_L2", "MOT_IF", "SKY_WAR"] {
+        // 【2026-10-17 BUG-018】原只载 MOT_L0-2 三键——槽 3-5 的保存永不落盘（丢失）。
+        // 槽表 6 槽（menu_family::SlotSelect），键域须全 6 槽。
+        for name in [
+            "MOT_L0", "MOT_L1", "MOT_L2", "MOT_L3", "MOT_L4", "MOT_L5", "MOT_IF", "SKY_WAR",
+        ] {
             if let Ok(data) = std::fs::read(dir.join(format!("{name}.bin"))) {
                 stores.push((format!("{name}@1"), data));
             }
@@ -317,7 +321,51 @@ mod font_inject {
     }
 
     #[cfg(test)]
-    mod tests {
+    /// BUG-018 回归（2026-10-17 用户实机："保存存档后，加载存档，无法看到已保存的存档"）：
+/// ①Rms 六槽全键域落盘/回读（原只载 MOT_L0-2 ⇒ 槽 3-5 保存丢失）；
+/// ②MOT_IF 槽表序列化对偶（serialize_slot_if ↔ load_slot_table）。
+/// 壳层接线（保存块 upsert + sc.preset_mot_if 回写 + BootMachine stores 同步）
+/// 由 Shell::step 存档块承载，本测锁 Rms 层键域与格式对偶。
+#[cfg(test)]
+mod rms_save_roundtrip {
+    use crate::{serialize_slot_if, Rms};
+
+    #[test]
+    fn rms_roundtrips_all_six_slots_and_mot_if() {
+        let dir = std::env::temp_dir().join(format!("dsh-rms-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let (rms, loaded0) = Rms::load(&dir);
+        assert!(loaded0.is_empty(), "空目录无 store");
+        let mut stores: Vec<(String, Vec<u8>)> = Vec::new();
+        for idx in 0..6 {
+            stores.push((format!("MOT_L{idx}@1"), vec![0xA0 + idx as u8; 8]));
+        }
+        let mut slot = game_core::menu_family::SlotSelect::new();
+        for k in 0..6 {
+            slot.valid[k] = true;
+            slot.floor_num[k] = (k + 1) as i8;
+        }
+        stores.push(("MOT_IF@1".into(), serialize_slot_if(&slot)));
+        stores.push(("SKY_WAR@1".into(), vec![7, 7, 7]));
+        rms.persist(&stores);
+        let (_, loaded) = Rms::load(&dir);
+        for idx in 0..6 {
+            let key = format!("MOT_L{idx}@1");
+            assert_eq!(
+                loaded.iter().find(|(k, _)| *k == key).map(|(_, v)| v.len()),
+                Some(8),
+                "{key} 落盘回读"
+            );
+        }
+        let mot_if = loaded.iter().find(|(k, _)| k.starts_with("MOT_IF@")).unwrap();
+        let mut sl2 = game_core::menu_family::SlotSelect::new();
+        sl2.load_slot_table(Some(&mot_if.1));
+        assert!(sl2.valid.iter().all(|&v| v), "槽表六槽回读有效");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+mod tests {
         use super::*;
         use game_core::layout::{prompt_cx, prompt_cy, SCREEN_H, SCREEN_W, SOUND_PROMPT_TEXT};
         use game_core::render::{anchor, ArgbImage};
@@ -702,11 +750,15 @@ impl Shell {
                 // 存档落盘（游戏内「保存游戏」→ saved_slot_blobs/slot 变化即写穿）
                 if sc.saved_slot_blobs != self.persisted_blobs {
                     let mut stores = std::mem::take(&mut self.stores);
-                    for (k, v) in stores.iter_mut() {
-                        if let Some(r) = k.strip_prefix("MOT_L") {
-                            let idx: usize = r.trim_end_matches("@1").parse().unwrap();
-                            if let Some(blob) = &sc.saved_slot_blobs[idx] {
-                                *v = blob.clone();
+                    // 【2026-10-17 BUG-018】原只改写已存在键——新键（空存档目录/槽3-5）
+                    // 会被整体丢弃；改 upsert。保存后回写 sc.preset_mot_if（mode7/8
+                    // 每次进入的重读源）——原缺此环 ⇒ 会话内加载列表看不到新存档。
+                    for idx in 0..6 {
+                        if let Some(blob) = &sc.saved_slot_blobs[idx] {
+                            let key = format!("MOT_L{idx}@1");
+                            match stores.iter_mut().find(|(k, _)| *k == key) {
+                                Some((_, v)) => *v = blob.clone(),
+                                None => stores.push((key, blob.clone())),
                             }
                         }
                     }
@@ -716,6 +768,7 @@ impl Shell {
                     self.rms.persist(&stores);
                     self.stores = stores;
                     self.persisted_blobs = sc.saved_slot_blobs.clone();
+                    sc.preset_mot_if = Some(mot_if);
                 }
                 // P0-2 壳层统一（bug-012-softlock-report.md §3）：game-core 崩溃
                 // （如 T350 槽登记越界 = Java AIOOBE 同点同因）在此捕获 → 崩溃终止屏。
@@ -748,6 +801,9 @@ impl Shell {
                 self.paint_crashed();
             }
             Some(Screen::Boot(mut machine)) => {
+                // 【2026-10-17 BUG-018】主菜单读档列表同步：machine.preset_stores 原为
+                // 开机快照——会话中保存后返回主菜单，读档屏看不到新存档。每步同步真源。
+                machine.preset_stores = self.stores.clone();
                 let key = std::mem::take(&mut self.pending_machine_key);
                 if std::mem::take(&mut self.boot_key_audio_done) {
                     // 该键的 keyPressed 音频半已在 hide_notify 中按 Java 次序执行：屏蔽 tick
