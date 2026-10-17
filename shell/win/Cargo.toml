@@ -16,8 +16,6 @@ game-shell-common = { path = "../common" }
 winit = "0.30"
 softbuffer = "0.4"
 ab_glyph = "0.2"
-# BGM：OGG Vorbis 解码（纯 Rust；与 tools/audio 自检同一解码器）
-lewton = "=0.10.2"
 
 # BGM 输出：运行时 dlopen libasound.so.2（无构建期系统依赖——cpal/rodio 经 alsa-sys
 # 需 libasound2-dev + pkg-config）。版本与 winit 依赖树已锁定的 0.8.9 一致（零新增下载）。

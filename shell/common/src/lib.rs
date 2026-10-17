@@ -7,7 +7,8 @@
 //! 范围：
 //! - [`rms`]：RMS 文件语义核心（[`rms::FileRms`]，实现 `game_platform::Storage`）
 //!   + MOT_IF 槽表序列化（[`rms::serialize_slot_if`]）。
-//! - [`audio`]（下一 commit 迁入）：BGM/PCM 共享面——纯字节、**零 `std::fs`/路径**。
+//! - [`audio`]：BGM/PCM 共享面——纯字节、**零 `std::fs`/路径**（BgmController/Track/
+//!   decode_ogg/Mixer/audio_loop，设备实现留各壳）。
 //!
 //! **已知第五缝不入本 crate**（docs/spec/platform-contract.md §0/§4.2，B2 登记）：
 //! BGM 轨迹装载 `start()`/`track_path`/`REGEN_CMD` 是路径型装载（`--audio` 注入）=
@@ -17,6 +18,7 @@
 //! Android ext4 区分）——大小写杂散名的命中差异**不是 bug**（契约 §5 脚注；
 //! 判据锚 `behavior_anchors::storage_lookup_follows_fs_case_rules_key_stays_canonical`）。
 
+pub mod audio;
 pub mod rms;
 
 #[cfg(test)]

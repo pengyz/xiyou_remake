@@ -8,3 +8,6 @@ edition = "2021"
 [dependencies]
 game-core = { path = "../../crates/game-core" }
 game-platform = { path = "../../crates/game-platform" }
+# BGM：OGG Vorbis 解码（纯 Rust；与 tools/audio 自检同一解码器；随 decode_ogg 自
+# shell/win 迁入，版本与那边原锁一致）
+lewton = "=0.10.2"
