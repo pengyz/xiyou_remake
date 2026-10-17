@@ -143,6 +143,23 @@ pub trait Storage {
     fn persist(&self, records: &[(String, Vec<u8>)]);
 }
 
+// ---------------------------------------------------------------- ProcessControl 契约
+
+/// 退出执行接缝（docs/spec/platform-contract.md §2）：**游戏层只发信号**
+/// （`BootMachine::finished`：game-core `paint.rs:221/585`，mode 22 退场 70 拍后置位
+/// = CMidlet.m_000；脚本侧 `game-core/src/script.rs:157-158` 的 `exit_application`
+/// 同为信号），**执行归 shell**（消费链 shell/win `Shell::finished` →
+/// `about_to_wait` 消费点）。`finished` 判定**不入 trait**——那属 game-core 信号语义。
+pub trait ProcessControl {
+    /// 请求平台终止应用。**正常返回**（置退出标志/退事件循环标志，进程可在随后的
+    /// 壳收尾中结束；调用方不得假设进程立即消失）。幂等；不得 panic。
+    /// 桌面 = 退出事件循环（进程随 main 返回而结束）；Android = Activity.finish() /
+    /// ANativeActivity_finish（**不杀进程**）。
+    /// 无 `'static`/Send 约束：winit 的 `el.exit()` 只能在事件循环回调内调用，
+    /// 实现可为作用域薄适配器或 exit-flag 信箱（spec §2.2）。
+    fn request_exit(&mut self);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
