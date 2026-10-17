@@ -4,50 +4,51 @@
 
 | 场景 | ticks | 预置 | A==B==C | trace sha256（三方） |
 |---|---|---|---|---|
-| boot-menu.txt | 150 | ✓ | **PASS** | `e2b078b180b6f21b…` |
-| enter-game.txt | 500 | ✓ | **PASS** | `c3435dcb5a68a5d8…` |
-| floor1-to-floor2.txt | 1500 | ✓ | **PASS** | `b9f803c6420976ea…` |
-| floor1-tour.txt | 8000 | ✓ | **PASS** | `af49685275f2dfc6…` |
-| floor2-tour.txt | 2000 | ✓ | **PASS** | `07fd0dcfa5c1e091…` |
-| floor51-menu.txt | 9800 | ✓ | **PASS** | `769371ea7d0d6961…` |
-| gameplay-floor1.txt | 3000 | ✓ | **PASS** | `5340a2a2b39098f1…` |
-| menu-sweep.txt | 2200 | ✓ | **PASS** | `5a1ba54d6bcee844…` |
-| preset-alchemy.txt | 700 | ✓ | **PASS** | `157383654b1bd8a4…` |
-| preset-ending.txt | 1800 | ✓ | **PASS** | `5ab3519bd97cf64b…` |
-| preset-floor10.txt | 1310 | ✓ | **PASS** | `813eadabd68bbd2b…` |
-| preset-floor10b.txt | 850 | ✓ | **PASS** | `7e6ea2333757af23…` |
-| preset-floor14.txt | 4790 | ✓ | **PASS** | `5aa7bdac2ba48375…` |
-| preset-floor17.txt | 850 | ✓ | **PASS** | `25d43bd03f61e3fd…` |
-| preset-floor2.txt | 600 | ✓ | **PASS** | `3bcf810ce5adecad…` |
-| preset-floor34.txt | 3030 | ✓ | **PASS** | `8a12164400e1c39d…` |
-| preset-floor35.txt | 1200 | ✓ | **PASS** | `cf31ca2f698cde25…` |
-| preset-floor38.txt | 6050 | ✓ | **PASS** | `157c6c72775cd92e…` |
-| preset-floor41.txt | 1900 | ✓ | **PASS** | `4349f10077de317d…` |
-| preset-floor42.txt | 1700 | ✓ | **PASS** | `599d1a4ee57f5ab2…` |
-| preset-floor43.txt | 1500 | ✓ | **PASS** | `d8776bdcf0872ab7…` |
-| preset-floor44.txt | 1600 | ✓ | **PASS** | `ff9037de6274335f…` |
-| preset-floor45.txt | 1700 | ✓ | **PASS** | `6d59caaf4e62d0d5…` |
-| preset-floor46.txt | 1700 | ✓ | **PASS** | `b5e705f37a129307…` |
-| preset-floor47.txt | 1350 | ✓ | **PASS** | `63b66dd68b0fa458…` |
-| preset-floor48.txt | 3440 | ✓ | **PASS** | `b037927222ee8a8e…` |
-| preset-floor49.txt | 3400 | ✓ | **PASS** | `de0d85d80a8f952e…` |
-| preset-floor5.txt | 1200 | ✓ | **PASS** | `eae4ce5333808269…` |
-| preset-floor50.txt | 300 | ✓ | **PASS** | `0022cd35c0b810f0…` |
-| preset-floor51.txt | 600 | ✓ | **PASS** | `bc4d56ce67ca0372…` |
-| preset-floor8.txt | 8610 | ✓ | **PASS** | `d407976f80616ad0…` |
-| preset-help.txt | 800 | ✓ | **PASS** | `3d16590bf3e0c4b9…` |
-| preset-item13.txt | 500 | ✓ | **PASS** | `ead3df6b9ebf0b67…` |
-| preset-item21.txt | 900 | ✓ | **PASS** | `4412d85171d1f9aa…` |
-| preset-item2122.txt | 900 | ✓ | **PASS** | `6416973edc39475c…` |
-| preset-itemboss40.txt | 700 | ✓ | **PASS** | `61ba06c134720cca…` |
-| preset-itemcymbal.txt | 600 | ✓ | **PASS** | `adc35691b300efd4…` |
-| preset-itemstack.txt | 500 | ✓ | **PASS** | `65011e552aef0d7f…` |
-| preset-load-menu.txt | 800 | ✓ | **PASS** | `5e402046b8a2e28f…` |
-| preset-merchant.txt | 600 | ✓ | **PASS** | `99d29b6a846ff597…` |
-| preset-save.txt | 700 | ✓ | **PASS** | `44eb4c0946bdc637…` |
-| prologue-dialog.txt | 9800 | ✓ | **PASS** | `293188d298fea872…` |
-| prologue-patient.txt | 21000 | ✓ | **PASS** | `148f14ce0d287aa3…` |
-| walk-pure.txt | 4000 | ✓ | **PASS** | `650e5db856b0fe45…` |
+| boot-menu.txt | 150 | ✓ | **PASS** | `eec4428d2172fd15…` |
+| enter-game.txt | 500 | ✓ | **PASS** | `a2c7769d5d1d4f06…` |
+| floor1-to-floor2.txt | 1500 | ✓ | **PASS** | `c7d8ba21b44f5e3c…` |
+| floor1-tour.txt | 8000 | ✓ | **PASS** | `2ddbccac558656af…` |
+| floor2-tour.txt | 2000 | ✓ | **PASS** | `ef320b45f4ebed38…` |
+| floor51-menu.txt | 9800 | ✓ | **PASS** | `b441b91d3c6df283…` |
+| gameplay-floor1.txt | 3000 | ✓ | **PASS** | `cceb91defd67b2ac…` |
+| menu-sweep.txt | 2200 | ✓ | **PASS** | `aee5eab7ca5243f7…` |
+| preset-alchemy.txt | 700 | ✓ | **PASS** | `e22bff045507f340…` |
+| preset-ending.txt | 1800 | ✓ | **PASS** | `db95a28a7e58b219…` |
+| preset-floor10.txt | 1310 | ✓ | **PASS** | `8d22ed4ea05a1808…` |
+| preset-floor10b.txt | 850 | ✓ | **PASS** | `a264e9c7c74661bb…` |
+| preset-floor14.txt | 4790 | ✓ | **PASS** | `a59b4fa487c6a6ab…` |
+| preset-floor17.txt | 850 | ✓ | **PASS** | `ddf9d7607e36f80b…` |
+| preset-floor2.txt | 600 | ✓ | **PASS** | `b761a90f0f600c63…` |
+| preset-floor34.txt | 3030 | ✓ | **PASS** | `7c146538cf1274fb…` |
+| preset-floor35.txt | 1200 | ✓ | **PASS** | `4cf082d4922e218b…` |
+| preset-floor38.txt | 6050 | ✓ | **PASS** | `0396776e22ce0075…` |
+| preset-floor41.txt | 1900 | ✓ | **PASS** | `6ec1769c11a43833…` |
+| preset-floor42.txt | 1700 | ✓ | **PASS** | `656e376de4db86eb…` |
+| preset-floor43.txt | 1500 | ✓ | **PASS** | `5efa6b32d891d5e6…` |
+| preset-floor44.txt | 1600 | ✓ | **PASS** | `f33e8ca45e12e936…` |
+| preset-floor45.txt | 1700 | ✓ | **PASS** | `4cf5275b9d771f31…` |
+| preset-floor46.txt | 1700 | ✓ | **PASS** | `f34f5f66663dad65…` |
+| preset-floor47.txt | 1350 | ✓ | **PASS** | `55c1510a168a25c9…` |
+| preset-floor48.txt | 3440 | ✓ | **PASS** | `1f8cfe1aba222ded…` |
+| preset-floor49.txt | 3400 | ✓ | **PASS** | `e9e16326ad108cfe…` |
+| preset-floor5.txt | 1200 | ✓ | **PASS** | `b0c925e6363b57d1…` |
+| preset-floor50.txt | 300 | ✓ | **PASS** | `34c530b689893cc3…` |
+| preset-floor51.txt | 600 | ✓ | **PASS** | `2b947310894fd9f2…` |
+| preset-floor8.txt | 8610 | ✓ | **PASS** | `ef5f61e3fd95ed11…` |
+| preset-help.txt | 800 | ✓ | **PASS** | `6ac09bcf0c78895b…` |
+| preset-item13.txt | 500 | ✓ | **PASS** | `c9b0291f9241b213…` |
+| preset-item21.txt | 900 | ✓ | **PASS** | `c0b15b7f8e9b61c7…` |
+| preset-item2122.txt | 900 | ✓ | **PASS** | `7651571d8050c3a4…` |
+| preset-itemboss40.txt | 700 | ✓ | **PASS** | `679356cb79653316…` |
+| preset-itemcymbal.txt | 600 | ✓ | **PASS** | `9838307ba6132220…` |
+| preset-itemstack.txt | 500 | ✓ | **PASS** | `c8a966708ab4f20b…` |
+| preset-load-menu.txt | 800 | ✓ | **PASS** | `038a1ef425fd01e4…` |
+| preset-merchant.txt | 600 | ✓ | **PASS** | `1d187095753922ed…` |
+| preset-save.txt | 700 | ✓ | **PASS** | `829b9bc90aaa32f1…` |
+| prologue-dialog.txt | 9800 | ✓ | **PASS** | `50f9c399fe9f37ca…` |
+| prologue-patient.txt | 21000 | ✓ | **PASS** | `2449a089659fecab…` |
+| prologue-walk-storypoint.txt | 1500 | ✓ | **PASS** | `d273e5d9b34bf1ab…` |
+| walk-pure.txt | 4000 | ✓ | **PASS** | `3ad6ef6ad65b0ce0…` |
 
 ## 覆盖面说明（脚本 `# cover:` 声明）
 
@@ -94,5 +95,6 @@
 - **preset-save.txt**：preset 槽载入 → mode4 菜单 → kind3 保存（mode7 存档槽 → -5 确认写回
 - **prologue-dialog.txt**：序章 6 句对话推进（菩提老祖/悟空）→SEE_3_10_166_166_1 电影镜头等待态→mode10 大地图 UI 开关（-6/-7 实测生效）
 - **prologue-patient.txt**：序章耐心版——对话后全程静默让 SEE_ 电影镜头自走（试验场景）
+- **prologue-walk-storypoint.txt**：BUG-006 走位实验（task-20 一锤定音判据）——序章对话推进至 SEE_3_10_166_166_1
 - **walk-pure.txt**：纯行走对拍轨迹（预设第 1 层，避开实体格）——Rust ReplayHost vs Java
 
