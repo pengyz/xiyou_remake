@@ -3478,13 +3478,13 @@ impl GameScene {
     }
 
     /// m_000 case 7（a.java:4342-4364，case7/8 共享）：软键 (1,3) + loadSlotTable
-    /// （oracle 冷态 RMS 恒空 ⇒ 六槽全无效）+ 槽表布局（6 行/宽 148/高 196）。
+    /// （每次进入重读 RMS 槽表）+ 槽表布局（6 行/宽 148/高 196）。
+    /// 【2026-10-18 BUG-021】入口只复位布局/光标（a.java:4354-4366），**不动数据
+    /// 数组**（Java 数组跨进入复用）；读失败（缺店/空/截断）留半解析旧值 +
+    /// parse_dirty（markSlotEntry(-1) 落盘触发器，壳消费回写 MOT_IF）。
     fn enter_menu7(&mut self) {
-        self.slot = crate::menu_family::SlotSelect::new();
-        // loadSlotTable（a.java:9313-9346）：每次进入重读 RMS 槽表
-        if let Some(mot_if) = &self.preset_mot_if {
-            self.slot.load_slot_table(Some(mot_if));
-        }
+        self.slot.reset_entry_layout();
+        self.slot.load_slot_table(self.preset_mot_if.as_deref());
         self.softkeys = (1, 3);
     }
 

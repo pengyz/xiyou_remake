@@ -655,25 +655,39 @@ pub struct SlotSelect {
     pub gold: [i32; 6],
     pub weapon: [i8; 6],
     pub armor: [i8; 6],
+    /// 读失败落盘触发器（BUG-021）：`load_slot_table` 失败（缺店/空/截断）置位 =
+    /// Java markSlotEntry(-1) 的 delete+addRecord 整表落盘（a.java:9000-9001→9026-9052）；
+    /// 壳消费 [`SlotSelect::take_parse_dirty`] 回写 MOT_IF。
+    pub parse_dirty: bool,
 }
 
 impl SlotSelect {
-    pub fn new() -> SlotSelect {
+    /// case 7/8 入口布局（a.java:4354-4366）：度量随入口重算 + 光标/滚动复位。
+    /// **不动数据数组**——Java 数组仅 `!f_bool_15` 首次分配（8961-8974）、跨进入
+    /// 复用 ⇒ 半截解析的"旧值"即上次表值（BUG-021 保真面；旧实现 `SlotSelect::new()`
+    /// 全量重建把旧值清零 = 保真偏差，2026-10-18 修复）。
+    pub fn reset_entry_layout(&mut self) {
         // 度量全部由 fontHeight 派生（a.java:4354-4364；(10+4)/12 字面量在字高 10
         // 时同值、字高 14 后与 Java 分叉——BUG-008 根因修复面）
         let font = crate::paint::paint_font();
         let lh = font.height + 4;
         let per = crate::layout::SLOT_LIST_MAX_H / lh;
-        let per = if per > 6 { 6 } else { per };
-        let w = (font.char_width('国' as u16) * 3 + 60).max(148); // wideCharWidth*3+60，钳 148
-        let h = 112 + lh * per;
-        SlotSelect {
+        self.rows_per_page = if per > 6 { 6 } else { per };
+        self.content_w = (font.char_width('国' as u16) * 3 + 60).max(148); // wideCharWidth*3+60，钳 148
+        self.content_h = 112 + lh * self.rows_per_page;
+        self.cursor = 0; // slotScrollTop = slotCursor = 0（a.java:4365）
+        self.scroll_top = 0;
+        self.scroll_bottom = self.rows_per_page; // slotScrollBottom = slotsPerPage（4366）
+    }
+
+    pub fn new() -> SlotSelect {
+        let mut s = SlotSelect {
             cursor: 0,
             scroll_top: 0,
-            scroll_bottom: per,
-            rows_per_page: per,
-            content_w: w,
-            content_h: h,
+            scroll_bottom: 0,
+            rows_per_page: 0,
+            content_w: 0,
+            content_h: 0,
             valid: [false; 6],
             floor_num: [0; 6],
             hp: [0; 6],
@@ -685,60 +699,86 @@ impl SlotSelect {
             gold: [0; 6],
             weapon: [0; 6],
             armor: [0; 6],
-        }
+            parse_dirty: false,
+        };
+        s.reset_entry_layout();
+        s
     }
 
-    /// loadSlotTable（a.java:9313-9346）：MOT_IF 槽表解析（6 槽，有效槽
-    /// 11 字段：valid/floor/weapon/armor/hp/atk/def/钥×3/gold）；无记录/
-    /// 解析失败 → markSlotEntry(-1)（全无效冷态）。
-    pub fn load_slot_table(&mut self, mot_if: Option<&[u8]>) {
-        let data = match mot_if {
-            Some(d) if !d.is_empty() => d,
-            _ => {
-                *self = SlotSelect::new();
-                return;
-            }
+    /// 消费 parse_dirty（markSlotEntry(-1) 落盘触发器）：壳据此把当前槽表整表
+    /// 回写 MOT_IF（BUG-021 ②c 对偶）。
+    pub fn take_parse_dirty(&mut self) -> bool {
+        std::mem::take(&mut self.parse_dirty)
+    }
+
+    /// loadSlotTable（a.java:8959-9005；失败臂 = markSlotEntry(-1) 9000-9001→9007-9059）：
+    /// MOT_IF 槽表解析（6 槽；有效槽 10 字段：floor/weapon/armor/hp/atk/def/钥×3/gold）。
+    ///
+    /// 【2026-10-18 更正】原注释"解析失败 → markSlotEntry(-1)（全无效冷态）"**证伪**：
+    /// Java 渐进写数组、EOFException 的 RHS 先求值不赋值（该字段留**旧值**）、catch
+    /// 只调 markSlotEntry(-1)——**不清数组**（9007-9024）且**整表落盘**（9026-9052）。
+    /// 仅"空店/首字节即失败"才等价冷态（BUG-021，考证
+    /// docs/findings/reviews/2026-10-17-mot-if-truncation-fidelity.md）。
+    ///
+    /// 字段级粒度（Java 同字节停）：每字段**整段在界内才提交**（readInt 读到 1-3 字节
+    /// 抛 ⇒ 整字段不写），否则该字段及其后全部留旧值。返回 true=完整解析；
+    /// false=读失败（缺店/空/截断）⇒ 置 [`Self::parse_dirty`]。
+    pub fn load_slot_table(&mut self, mot_if: Option<&[u8]>) -> bool {
+        // 缺店/空记录：openRecordStore/getRecord 抛 ⇒ markSlotEntry(-1)（不动数组）
+        let Some(data) = mot_if.filter(|d| !d.is_empty()) else {
+            self.parse_dirty = true;
+            return false;
         };
         let mut pos = 0usize;
-        let read_u8 = |p: &mut usize| {
-            let v = data[*p];
-            *p += 1;
-            v
-        };
-        let read_i32 = |p: &mut usize| {
-            let v = i32::from_be_bytes(data[*p..*p + 4].try_into().unwrap());
-            *p += 4;
-            v
-        };
-        self.valid = [false; 6];
         let mut ok = true;
-        for k in 0..6 {
+        'parse: for k in 0..6 {
+            // valid 字节（a.java:8984）：RHS 先求值，读失败 ⇒ 保留旧值、停在同一字节
             if pos >= data.len() {
                 ok = false;
                 break;
             }
-            let valid = read_u8(&mut pos) != 0;
+            let valid = data[pos] != 0;
+            pos += 1;
             self.valid[k] = valid;
-            if valid {
-                if pos + 2 + 28 > data.len() {
-                    ok = false;
-                    break;
-                }
-                self.floor_num[k] = read_u8(&mut pos) as i8;
-                self.weapon[k] = read_u8(&mut pos) as i8;
-                self.armor[k] = read_u8(&mut pos) as i8;
-                self.hp[k] = read_i32(&mut pos);
-                self.atk[k] = read_i32(&mut pos);
-                self.def[k] = read_i32(&mut pos);
-                self.keys_yellow[k] = read_i32(&mut pos) as i16;
-                self.keys_blue[k] = read_i32(&mut pos) as i16;
-                self.keys_red[k] = read_i32(&mut pos) as i16;
-                self.gold[k] = read_i32(&mut pos);
+            if !valid {
+                continue;
             }
+            // 有效槽 10 字段逐赋值（a.java:8986-8995）
+            macro_rules! read_u8_to {
+                ($arr:ident) => {
+                    if pos >= data.len() {
+                        ok = false;
+                        break 'parse;
+                    }
+                    self.$arr[k] = data[pos] as i8;
+                    pos += 1;
+                };
+            }
+            macro_rules! read_i32_to {
+                ($arr:ident, $ty:ty) => {
+                    if pos + 4 > data.len() {
+                        ok = false;
+                        break 'parse;
+                    }
+                    self.$arr[k] = i32::from_be_bytes(data[pos..pos + 4].try_into().unwrap()) as $ty;
+                    pos += 4;
+                };
+            }
+            read_u8_to!(floor_num);
+            read_u8_to!(weapon);
+            read_u8_to!(armor);
+            read_i32_to!(hp, i32);
+            read_i32_to!(atk, i32);
+            read_i32_to!(def, i32);
+            read_i32_to!(keys_yellow, i16);
+            read_i32_to!(keys_blue, i16);
+            read_i32_to!(keys_red, i16);
+            read_i32_to!(gold, i32);
         }
         if !ok {
-            *self = SlotSelect::new();
+            self.parse_dirty = true;
         }
+        ok
     }
 
     /// run case 8 的 -2（a.java:3859-3862）。

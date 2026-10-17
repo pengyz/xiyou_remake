@@ -631,24 +631,25 @@ impl BootMachine {
         match self.mode {
             GameMode::EquipDetail => {
                 // case 8（a.java:4360-4379）：槽表（loadSlotTable 读 MOT_IF）
-                // + 布局常量 + 软键 (1,3)
+                // + 布局常量 + 软键 (1,3)。【2026-10-18 BUG-021】入口复用已有
+                // 槽表对象、只复位布局/光标（a.java:4354-4366 不动数据数组）；
+                // 读失败留半解析旧值 + parse_dirty（壳消费回写 MOT_IF）。
                 let mot_if = self
                     .preset_stores
                     .iter()
                     .find(|(k, _)| k.starts_with("MOT_IF@"))
                     .map(|(_, v)| v.clone());
-                let slots = crate::menu_family::SlotSelect::new();
-                self.slots = Some(match mot_if {
-                    Some(d) => {
-                        let mut sl = slots;
-                        sl.load_slot_table(Some(&d));
-                        if std::env::var("PROBE_SLOTS").is_ok() {
-                            eprintln!("MOT_IF len={} valid0={}", d.len(), sl.valid[0]);
-                        }
-                        sl
-                    }
-                    None => slots,
-                });
+                let mut sl = self.slots.take().unwrap_or_else(crate::menu_family::SlotSelect::new);
+                sl.reset_entry_layout();
+                sl.load_slot_table(mot_if.as_deref());
+                if std::env::var("PROBE_SLOTS").is_ok() {
+                    eprintln!(
+                        "MOT_IF len={} valid0={}",
+                        mot_if.as_ref().map(|d| d.len()).unwrap_or(0),
+                        sl.valid[0]
+                    );
+                }
+                self.slots = Some(sl);
                 self.softkeys = (1, 3);
             }
             GameMode::Help => {
