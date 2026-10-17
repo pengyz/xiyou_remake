@@ -657,7 +657,10 @@ impl Shell {
         g.set_color(0xFF_FF_FF);
         g.set_font(Some(game_core::paint::paint_font()));
         let l1: Vec<u16> = "游戏已终止".encode_utf16().collect();
-        let l2: Vec<u16> = "（原版崩溃语义等价终止）".encode_utf16().collect();
+        // 【2026-10-17 BUG-017 口径更正】原"（原版崩溃语义等价终止）"为**未经逐案
+        // 核实的声称**——census assert（transition_to 未登记边）等 Rust 自造断言
+        // panic 并非原版崩溃（用户实机被误导）。等价性须逐案以 Java 锚核实后另记。
+        let l2: Vec<u16> = "（崩溃详情见控制台 GAME-CRASH 行）".encode_utf16().collect();
         g.draw_string(&l1, SCREEN_W / 2, SCREEN_H / 2 - 12, 17);
         g.draw_string(&l2, SCREEN_W / 2, SCREEN_H / 2 + 8, 17);
     }
@@ -734,7 +737,7 @@ impl Shell {
                             .map(String::as_str)
                             .or_else(|| e.downcast_ref::<&str>().copied())
                             .unwrap_or("");
-                        eprintln!("GAME-CRASH（原版崩溃语义等价终止）: {msg}");
+                        eprintln!("GAME-CRASH: {msg}"); // 等价性逐案核实（BUG-017 口径）
                         self.paint_crashed();
                         self.state = Some(Screen::Crashed);
                     }

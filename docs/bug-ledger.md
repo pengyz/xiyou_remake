@@ -115,6 +115,31 @@
   需要本续跑缝——其 step() 只跑 ScriptStep、其余相位归宿主驱动；接线迁移时
   必须带上 case5 语义，否则本 bug 在新弥擎复活。
 
+## BUG-017 TRANSFER_EDGES census 缺边 → 道具 13 使用 panic 且误标"原版等价终止"（已修复）
+
+> 【2026-10-17 用户实机："物品栏使用火眼金睛，弹出游戏已终止——请确认真的符合原版吗？"】
+
+- **结论先行：不是原版行为，是我们引入的**（用户预判"a.java/class 语义错位或 shim
+  引入"方向正确——实为状态机重构自造断言）。Java 双跳 mode10→3→5（a.java:3939-
+  3945 先置 gameMode=3、activateItem 7786-7788 内置 gameMode=5）无任何检查；
+  Rust 忠实镜像双跳，但 `transition_to` 的 **TRANSFER_EDGES census assert**
+  （303ca46 引入）缺 (Map→EnemyInfo) 边 ⇒ panic ⇒ catch_unwind ⇒ 终止屏。
+- **连带发现**：终止屏文案"（原版崩溃语义等价终止）"为未经逐案核实的声称
+  （P0-2 引入）——对 Rust 自造断言类 panic 是**错误声称**（本次误导用户）。
+  已改为"（崩溃详情见控制台 GAME-CRASH 行）"；等价性须逐案以 Java 锚核实。
+- **census 缺口台账**：521aada P0-1 自述"35 边漏登 ≥5"——本次为第三缺口实锤
+  （一：Dialog→Dialog 自环等 5 条补于 P0-1；二：Map→RecordBrowser 由 preset_floor5
+  暴露；三：Map→EnemyInfo 由本 bug 暴露）。**残余风险**：census 未系统补扫前，
+  其余未登记边仍会以同形态 panic 暴露（现屏显已可自诊断）。
+- **回归**：`item13_use_regression`（面板使用型13→EnemyInfo / 型14→RecordBrowser
+  双测，含空日志回退分支注记）。
+
+Evidence: ①Java a.java:3939-3945/7786-7788 双跳逐字（A 级）；②TRANSFER_EDGES 表
+缺边实查 + transition_to assert 文本（scene.rs:1457-1461，A 级）；③修复前后回归
+红绿对照（A 级）；④main.rs:722 catch_unwind 仅包 sc.tick、paint 在捕获外
+（终止屏=tick 路径 panic，排除绘制侧，A 级）。
+Confidence: 95
+
 ## 记录规范
 - **现象**：玩家可见的行为描述，含层号/坐标/道具条件
 - **复现**：确定性复现输入序列（trace id 或按键脚本）

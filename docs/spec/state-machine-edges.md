@@ -57,6 +57,7 @@
 | 37 | Dialog(11) | 【END 指令】 | Ending(20) | 结局 | P0-1 补登 |
 | 38 | Map(3) | 【换层/restore】 | Map(3) | 自环 | P0-1 补登 |
 | 39 | RecordBrowser(12) | 【mode12 关】 | ItemPanel(10) | 回道具面板 | P0-1 补登 |
+| 40 | Map(3) | 【键/道具 13】tick_item_panel 13 臂（Java 双跳 mode10→3→5，a.java:3939-3945+7786-7788） | EnemyInfo(5) | 火眼金睛→图鉴 | BUG-017 补登（2026-10-17） |
 
 ## 2. 维护义务（PR 判据）
 

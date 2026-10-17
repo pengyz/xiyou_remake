@@ -745,6 +745,11 @@ pub static TRANSFER_EDGES: &[(GameMode, Option<GameMode>)] = &[
     // 29b：Map→RecordBrowser——道具 14（生死簿）使用臂直开记录浏览器（mode 12）。
     // 巡查 35 边表漏登（2026-10-17 P0-1 同类第二缺口，preset_floor5 实测暴露）。
     (GameMode::Map, Some(GameMode::RecordBrowser)),
+    // 29d：Map→EnemyInfo——道具 13（火眼金睛）使用臂：Java mode10 确认先置
+    // gameMode=3、activateItem 内置 gameMode=5（a.java:3939-3945 + 7786-7788
+    // 双跳原样）；巡查表漏登此边 ⇒ census assert panic 误报"原版崩溃等价终止"
+    // （用户实机 BUG-017，2026-10-17 P0-1 同类第三缺口）。
+    (GameMode::Map, Some(GameMode::EnemyInfo)),
     // 30-31：对话收尾（行尾门→相位 4 非模式转移；相机收敛→Map）
     (GameMode::Dialog, Some(GameMode::Map)),
     // 30c：Dialog→Ending——END 脚本指令（a.java:8510-8514 gameMode=20）。
@@ -7648,6 +7653,43 @@ mod scene_test_support {
         sc.enemy_base_hp = tables.enemy_base_hp.clone();
         sc.enemy_base_gold = numbers(include_str!("../tests/fixtures/enemybasegold.txt"));
         sc
+    }
+}
+
+/// BUG-017 回归（2026-10-17 用户实机："物品栏使用火眼金睛 → 游戏已终止"）：
+/// 道具面板确认型 13 = Java 双跳 mode10→3→5（a.java:3939-3945 + 7786-7788）。
+/// 曾因 TRANSFER_EDGES 缺 Map→EnemyInfo 边触发 census assert panic——
+/// **该 panic 属 Rust 自造断言，非原版崩溃**（"原版等价终止"声称误报）。
+#[cfg(test)]
+mod item13_use_regression {
+    use super::scene_test_support::scene;
+    use crate::enums::GameMode;
+
+    #[test]
+    fn item13_use_from_panel_reaches_enemyinfo() {
+        let mut sc = scene((2, 2), &[(43, 5, 5), (78, 6, 6)]);
+        sc.player.item_types[0] = 13;
+        sc.player.item_uses[0] = 1;
+        sc.player.item_stack_size = 1;
+        sc.item_cursor = 0;
+        sc.game_mode = GameMode::ItemPanel;
+        sc.key_value = -5;
+        sc.tick_item_panel(); // 型13：transition_to(Map) + activate_item(13)→EnemyInfo
+        assert_eq!(sc.game_mode, GameMode::EnemyInfo, "型13 使用后应进图鉴（mode5）");
+    }
+
+    #[test]
+    fn item14_use_from_panel_reaches_recordbrowser() {
+        let mut sc = scene((2, 2), &[(43, 5, 5)]);
+        sc.player.item_types[0] = 14;
+        sc.player.item_uses[0] = 1;
+        sc.player.item_stack_size = 1;
+        sc.item_cursor = 0;
+        sc.journal.push((0, 0)); // 非空日志（空日志回退=“没有记录”回面板，另一分支）
+        sc.game_mode = GameMode::ItemPanel;
+        sc.key_value = -5;
+        sc.tick_item_panel();
+        assert_eq!(sc.game_mode, GameMode::RecordBrowser, "型14 使用后应进记录浏览器（mode12）");
     }
 }
 
