@@ -295,6 +295,7 @@ fn replay_opt(label: &str, preset_text: &str, records: &[FrameRec]) -> (usize, O
             }
         }
         let sha;
+        let ops_dump: Vec<String>;
         {
             let mut g = SoftGraphics::new(&mut screen);
             g.set_clip(0, 0, game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
@@ -303,7 +304,32 @@ fn replay_opt(label: &str, preset_text: &str, records: &[FrameRec]) -> (usize, O
                 Some(sc) => sc.paint(&mut g, &tileset),
                 None => machine.paint(&mut g),
             }
+            ops_dump = g.ops.clone();
             sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
+        }
+        // 像素取证缝（与 STATE_OUT 同型，2026-10-17）：FRAME_OUT=<dir> + 可选
+        // FRAME_TICKS=a-b 范围 ⇒ 落盘 raw RGBA（0xAARRGGBB 大端 = PIL RGBA 字节序）
+        // 与同拍 op 流（OPS 文本）供逐指令对拍。
+        if let Ok(d) = std::env::var("FRAME_OUT") {
+            let want = std::env::var("FRAME_TICKS").ok();
+            let hit = match want {
+                Some(spec) => spec.split(',').any(|r| match r.split_once('-') {
+                    Some((a, b)) => (a.parse::<u32>().unwrap_or(0)..=b.parse::<u32>().unwrap_or(u32::MAX))
+                        .contains(&rec.tick),
+                    None => r.parse::<u32>().map(|t| t == rec.tick).unwrap_or(false),
+                }),
+                None => true,
+            };
+            if hit {
+                let _ = std::fs::create_dir_all(&d);
+                let bytes: Vec<u8> = screen.argb.iter().flat_map(|p| p.to_be_bytes()).collect();
+                std::fs::write(format!("{d}/{label}-{:04}.rgba", rec.tick), bytes).unwrap();
+                std::fs::write(
+                    format!("{d}/{label}-{:04}.ops.txt", rec.tick),
+                    format!("OPS count={}\n{}\n", ops_dump.len(), ops_dump.join("\n")),
+                )
+                .unwrap();
+            }
         }
         let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
         assert_eq!(sha, rec.sha, "TICK {} 帧不符（mode={}）", rec.tick, mode);
@@ -335,6 +361,29 @@ fn preset_floor49_fixture_frames_match() {
     let (checked, sc) = replay("preset-floor49", include_str!("../../../reference/oracle/scenarios/preset-floor49.preset"), &records);
     assert_eq!(checked, records.len(), "T1-3400 全帧必须比对");
     assert_eq!(sc.floor, 49);
+}
+
+/// 用户实机录跑复刻（2026-10-17 指令"录跑一遍交互，跳过教程，跑通全程看看卡不卡"，
+/// 按验证不打扰纪律走逻辑级 harness）：跳过教程态（千级属性直入）→ 2 层踩点自走
+/// （T312 mode11）→ 牛魔王剧情对话全程 32 页（dpage 0→32）→ T2832 对话闭合回
+/// mode3 → 探索行走到 T4000。Java 锚录跑（analysis/frames-fixture/runs/A-story-fullrun）：
+/// A==B==C 三方一致、1194 次状态变化、END reason=max-ticks（无冻结无崩溃）。
+///
+/// **BUG-015（2026-10-17 录跑发现，调查中）**：replay_opt 驱动下 T309 起步一拍偏移
+/// （Java/repro 于 T309 步入 (2,11) 开对话，本 harness T310 才起步），相机钳制把偏差
+/// 屏蔽至 T1429 才显形（帧分歧区 26×43 气泡位）。同构的 bug012_replay 驱动同一
+/// game-core 与 Java 锚逐拍吻合 ⇒ 嫌疑在 replay_opt 驱动管线（machine 相位 paint/
+/// 移交拍 paint 的时机差），game-core 无辜性待收尾实证。收敛前本测 ignore（已知
+/// 偏差登记，AGENTS.md §6 口径）；夹具/取证缝（FRAME_OUT/STATE_OUT）保留供续查。
+#[ignore = "BUG-015 调查中：replay_opt 驱动管线一拍偏移（见 docs/bug-ledger.md）"]
+#[test]
+fn story_fullrun_fixture_frames_match() {
+    let records = frame_records(include_str!("fixtures/story-fullrun.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/story-fullrun.txt"));
+    let (checked, sc) = replay("story-fullrun", include_str!("fixtures/story-fullrun.preset"), &records);
+    assert_eq!(checked, records.len(), "T1-4000 全帧必须比对（全程逐 tick 同构）");
+    assert_eq!(sc.floor, 2, "剧情链后仍处 2 层（天牢）");
+    assert_eq!(sc.dialog_page, 32, "牛魔王对话 32 页全程推进完毕（不卡判据）");
 }
 
 /// advanceScriptWalk：floor3 (3,11) -3 撞 (2,11) 型83(param 0) ⇒ script0；`MOV_0_5_11` 玩家
