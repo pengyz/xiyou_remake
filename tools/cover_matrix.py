@@ -130,10 +130,10 @@ PORT_NOTES: dict[str, tuple[str, str]] = {
                            "put 仅 initEntityTables/releaseSceneImages）；Rust 构造期全量装载不释放"
                            "（crates/game-core/src/scene.rs `懒加载资源容器（Rust 构造期全量装载，等价 no-op）`）"),
     "resetNewGameState": ("ported",
-              "新游戏态复位分散移植：crates/game-desktop/src/main.rs `GameScene::load_floor(` 以 (32,352) "
+              "新游戏态复位分散移植：shell/win/src/main.rs `GameScene::load_floor(` 以 (32,352) "
               "落点 = placePlayerAtCell(1,11)（a.java:7197 floor51 臂，新游戏 step8 已置 51 层）+ "
               "crates/game-core/src/scene.rs `difficulty_index: 0`（装备/跟随/金/道具栈/炼丹/难度构造默认 0 = "
-              "a.java:7192-7193、7213-7217）+ crates/game-desktop/src/main.rs `scale_enemy_stats(&tables, 1)`"
+              "a.java:7192-7193、7213-7217）+ shell/win/src/main.rs `scale_enemy_stats(&tables, 1)`"
               "（= a.java:7218 scaleEnemyStats(multipliers[0])）"),
     "addOption": ("ported",
               "crates/game-core/src/menu_family.rs `fn add(&mut self, label_idx: usize, checked: bool)`"
@@ -145,7 +145,7 @@ PORT_NOTES: dict[str, tuple[str, str]] = {
     "deleteRecordStoreQuietly": ("absorbed",
                                  "删库后重建（a.java:9331-9334）；三调用点 a.java:4476（SKY_WAR 读失败→删→"
                                  "saveGlobalProgress 重建）/9027（MOT_IF）/9190（MOT_L{n}）均为删后即写；"
-                                 "壳 RMS 以覆盖写吸收删+写（crates/game-desktop/src/main.rs "
+                                 "壳 RMS 以覆盖写吸收删+写（shell/win/src/main.rs "
                                  "`std::fs::write(&path, v).ok();`）；SKY_WAR 路径的持久化缺口归 saveGlobalProgress（a）"),
     "closeRecordStoreAndGc": ("absorbed",
               "RecordStore/流关闭 + 五字段置 null + gc（a.java:9338-9368）；f_byte_arr_27 读者"
@@ -159,13 +159,13 @@ PORT_NOTES: dict[str, tuple[str, str]] = {
                          "打包图像容器装载器（a.java:4516-4549：resourceNames[i] 开流、按 "
                          "resourceImageCounts[i] 循环读 u16 LE 长度 → Image.createImage）——"
                          "crates/game-data/src/packed_png.rs `pub fn parse`/`pub fn parse_partial` 解析 "
-                         "N×[u16LE len][PNG]（L1 golden 守护）+ crates/game-desktop/src/main.rs "
+                         "N×[u16LE len][PNG]（L1 golden 守护）+ shell/win/src/main.rs "
                          "`fn load_container` 消费 = 移植替换形态；名实更正 e772fef（N-0434）；"
                          "c 类行号方言误判已由 v2.1 规则修复"),
     "saveGlobalProgress": ("ported",
                            "b62d9db：save::GlobalSave 格式层（a.java:8931-8942 写/4463-4474 读）+ "
                            "BootMachine/GameScene 同构 global 状态（`fn global_snapshot`/`fn note_max_floor`）+ "
-                           "壳 SKY_WAR@1 轮询持久化（crates/game-desktop/src/main.rs `fn persist_global_if_dirty`）+ "
+                           "壳 SKY_WAR@1 轮询持久化（shell/win/src/main.rs `fn persist_global_if_dirty`）+ "
                            "catch 语义回写（default_7 ⇒ [1]=true）；回标题触发点（4297-4299）随后续反向移交后置（账本裁定）"),
     # startLoadTask（原 m_131）：v2 唯一行锚（pathfind.rs findPath 注）系误归属；v2.1 另有合法名证锚（intro.rs:274
     # 「m_131(target, call_m000)」），机械仍判移植——此条只补记真实移植位置，不改色
@@ -204,7 +204,7 @@ TRIAGE: dict[str, tuple[str, str, str]] = {
                            "Rust：save.rs 对 SKY_WAR 既不编码也不解码（只有 parse_floor_save/parse_preset）；game-core 无 I/O"
                            "（crates/game-core/src/scene.rs `saveGlobalProgress（RMS 侧，无像素效应；game-core 无 I/O）`），"
                            "boot 恒走 SKY_WAR 读失败回退（crates/game-core/src/paint.rs `RMS \"SKY_WAR\" 读档失败路径`）；"
-                           "壳 Rms 只改写 MOT_L*/MOT_IF（crates/game-desktop/src/main.rs "
+                           "壳 Rms 只改写 MOT_L*/MOT_IF（shell/win/src/main.rs "
                            "`stores.push((\"MOT_IF@1\".into(), mot_if.clone()));`）⇒ 选项/全局旗标跨会话不持久"
                            "（读写双缺，读臂在 dispatchModeEntry case 21 a.java:4450-4479）——壳层赤字（会话内帧不可见，非铺层赤字）。"
                            "【2026-10-15 已移植】b62d9db：读写双补 + 壳持久化（见 PORT_NOTES）"),
@@ -304,11 +304,11 @@ YELLOW_NOTES: dict[str, dict] = {
                 "只有按键事件（Runner.loadScript `<tick> <keycode> <press|release>`），shim/宿主源码无任何 "
                 "pauseApp/hideNotify 调用 ⇒ 任何场景（含夹具场景）不可达。**非死代码**（真机来电/切后台必达），属"
                 "场景驱动面盲区（扩驱动面须改 reference/ 宿主）。语义由壳侧宿主测试覆盖（ab8368a）："
-                "crates/game-desktop/src/main.rs `fn in_game_hide_closes_bgm_and_first_key_resumes_game_track`、"
-                "crates/game-desktop/src/main.rs `fn hide_in_game_menu_keeps_mode_4`、"
-                "crates/game-desktop/src/main.rs `fn title_hide_resumes_menu_track_in_java_event_order`、"
-                "crates/game-desktop/src/main.rs `fn hide_in_modes_0_and_21_clears_flag_without_resume`、"
-                "crates/game-desktop/src/main.rs `fn hide_in_mode3_opens_in_game_menu`（gameMode 3→4 臂 a.java:4504-4507，"
+                "shell/win/src/main.rs `fn in_game_hide_closes_bgm_and_first_key_resumes_game_track`、"
+                "shell/win/src/main.rs `fn hide_in_game_menu_keeps_mode_4`、"
+                "shell/win/src/main.rs `fn title_hide_resumes_menu_track_in_java_event_order`、"
+                "shell/win/src/main.rs `fn hide_in_modes_0_and_21_clears_flag_without_resume`、"
+                "shell/win/src/main.rs `fn hide_in_mode3_opens_in_game_menu`（gameMode 3→4 臂 a.java:4504-4507，"
                 "47169cc 接通 crates/game-core/src/scene.rs `pub fn hide_notify(&mut self)` 后摘 #[ignore]）"),
         "only_callers": ["CMidlet.pauseApp"],
         "absent": [("reference/oracle/src/**/*.java", r'"(?:pauseApp|hideNotify)"'),

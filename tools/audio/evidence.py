@@ -118,7 +118,7 @@ def main(argv) -> int:
         return 0
 
     if argv[:1] == ["--script"]:
-        # 任意输入脚本（如壳输入语义取证 crates/game-desktop/tests/fixtures/*.txt）
+        # 任意输入脚本（如壳输入语义取证 shell/win/tests/fixtures/*.txt）
         scripts = [Path(p).resolve() for p in argv[1:]]
     else:
         scripts = sorted(EVID.glob("*.txt"))

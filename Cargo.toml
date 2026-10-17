@@ -4,11 +4,13 @@
 # （cargo 只从当前目录向上查找 manifest），故 workspace 根必须落在仓库根；
 # crates/ 下不再放第二个 workspace manifest（原 crates/Cargo.toml 双根结构已删除）。
 #
-# members 用 glob `crates/*`：crates/ 下每个子目录必须是一个含 Cargo.toml 的 crate
-# （cargo 对 glob 命中的目录按 workspace 成员加载，缺 manifest 即报错）——
-# 禁止在 crates/ 下放非 crate 目录（构建产物一律走仓库根 target/，勿在 crates/ 内建 target）。
+# members 用 glob `crates/*` + `shell/*`：两目录下每个子目录必须是一个含 Cargo.toml
+# 的 crate（cargo 对 glob 命中的目录按 workspace 成员加载，缺 manifest 即报错）——
+# 禁止放非 crate 目录（构建产物一律走仓库根 target/）。
+# 【2026-10-17 结构决策】平台 shell 归 shell/（shell/win=Windows 壳、shell/android=
+# Android 壳），game-desktop 已迁 shell/win；平台契约 trait 归 crates/game-platform。
 [workspace]
-members = ["crates/*"]
+members = ["crates/*", "shell/*"]
 resolver = "2"
 
 # 门禁/差分工作统一走 release（gates/cli.py check 的 cargo test 同档）；

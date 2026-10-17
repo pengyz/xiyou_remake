@@ -128,7 +128,7 @@ T0651 gameMode=1 f_bool_28=false f_byte_28=2         EVT[close(state=400); creat
   （JSR-135 VolumeControl 文档）；壳取幅度乘数 `level/100`（60 ⇒ ×0.6）。
 - 循环：OGG 带 `LOOPSTART/LOOPLENGTH`（样本），壳在 `LOOPSTART+LOOPLENGTH` 处跳回
   `LOOPSTART`；serial 变化或轨道变化 ⇒ 从头播放，否则续播。
-- 输出（`crates/game-desktop/src/audio.rs`，747ba65）：`BgmController` 每逻辑拍轮询
+- 输出（`shell/win/src/audio.rs`，747ba65）：`BgmController` 每逻辑拍轮询
   `bgm_request/bgm_serial/bgm_volume`，仅在变化时发 `Play/Stop`；音频线程 `Mixer` 按循环
   区间渲染、`level/100` 增益；Linux 运行时 dlopen `libasound.so.2`（ALSA PCM，S16_LE
   44.1 kHz 立体声、100 ms 时延）——不用 rodio/cpal：其 alsa-sys 构建期依赖

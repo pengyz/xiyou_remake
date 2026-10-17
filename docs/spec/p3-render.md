@@ -38,7 +38,7 @@ logic#(n+1) 消费（延迟一拍；trace T70 press(-6) → T71 帧切换实证�
 
 - R-1 回放画布每 tick 新建，依赖"每帧全屏覆盖"不变量（boot 三分支成立；
   非全覆盖分支端口时需改持久画布）。
-  > 【2026-10-15 补注·桌面壳】`crates/game-desktop` 用持久画布（`Shell.screen` 跨拍保留，
+  > 【2026-10-15 补注·桌面壳】`shell/win` 用持久画布（`Shell.screen` 跨拍保留，
   > = Java Canvas 语义），读档/新游戏交接拍即画场景（与 preset harness 同构；747ba65 起）。
 - R-2 同 tick 多键：回放取首个 press，Java keyPressed 覆盖式取末个
   （现 trace 每 tick 至多一键）。
@@ -52,7 +52,7 @@ logic#(n+1) 消费（延迟一拍；trace T70 press(-6) → T71 帧切换实证�
   >   `preset_cases.rs`（36 处）/`gameplay_floor1.rs`/`l2_prologue.rs` 按**整行**解析 INPUT——
   >   多事件行（如 `press(-1) press(-2)`）整行丢弃，`release(..) press(..)` 行只剩 release。
   > - **前提成立 ⇒ 当前零行为差异（A 级计数，2026-10-15）**：44 个场景脚本 + script-default +
-  >   取证脚本（tools/audio/evidence、crates/game-desktop/tests/fixtures）共 48 份 3004 个事件、
+  >   取证脚本（tools/audio/evidence、shell/win/tests/fixtures）共 48 份 3004 个事件、
   >   `reference/oracle/_out/` 现存 57 份 trace 的 3022 行 INPUT，**每 tick 均 ≤1 事件**（复现：
   >   脚本按 tick 计数事件、trace 统计字段数 >2 的 `INPUT` 行，两者均为 0；计数随新增场景变化）。
   > - **约束**：新增任何同 tick 多事件的场景前，必须先把上述 harness 改为「逐事件按序投递」
@@ -62,7 +62,7 @@ logic#(n+1) 消费（延迟一拍；trace T70 press(-6) → T71 帧切换实证�
   >   `javap -p` 只覆写 keyPressed/keyReleased，MIDP 把重复交给未覆写的 keyRepeated ⇒
   >   无效果；长按行走由 keyHeldCode 驱动 a.java:5308-5329）——回退 36d1a9d 的「重复透传为
   >   press」（会让菜单长按连跳、对话长按连翻）。实证：变体 A 取证 EV-hold-walk（单次 press
-  >   长按 70 拍连走两格，`python3 tools/audio/evidence.py --fields gameMode,playerPixelX,playerPixelY,keyHeldCode,walkPhase --script crates/game-desktop/tests/fixtures/hold-walk.txt`），
+  >   长按 70 拍连走两格，`python3 tools/audio/evidence.py --fields gameMode,playerPixelX,playerPixelY,keyHeldCode,walkPhase --script shell/win/tests/fixtures/hold-walk.txt`），
   >   壳集成测试 `hold_walk_and_bgm_match_java_trace` 逐拍对照、`key_repeat_ignored_and_last_press_wins`
   >   覆盖重复丢弃与末键优先（两条均做过变异验证：恢复即时 tick / 重复透传即失败）。
 - R-3 `LogoAnim::tick` 只实现 runLogoAnimation 的 var1==0 分支；mode 22 走 runLogoAnimation(1,…)

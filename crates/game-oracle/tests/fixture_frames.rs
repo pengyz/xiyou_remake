@@ -23,7 +23,7 @@
 //! python3 tools/frames_fixture.py gen crates/game-oracle/tests/fixtures/fx-fan-floor13.txt
 //! ```
 //! 资产：assets/raw（门禁 provision 自供给，tools/extract-assets 由 original/ 再生）；55 层全量
-//! 装载（与壳 crates/game-desktop 同构——换层/跨层脚本可用任意层数据）。
+//! 装载（与壳 shell/win 同构——换层/跨层脚本可用任意层数据）。
 
 use game_core::enums::GameMode;
 use game_core::paint::BootMachine;

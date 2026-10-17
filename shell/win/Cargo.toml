@@ -8,9 +8,9 @@ name = "xiyou"
 path = "src/main.rs"
 
 [dependencies]
-game-core = { path = "../game-core" }
-game-data = { path = "../game-data" }
-game-platform = { path = "../game-platform" }
+game-core = { path = "../../crates/game-core" }
+game-data = { path = "../../crates/game-data" }
+game-platform = { path = "../../crates/game-platform" }
 winit = "0.30"
 softbuffer = "0.4"
 ab_glyph = "0.2"

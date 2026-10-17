@@ -51,7 +51,7 @@ const WINDOW_TITLE: &str = "囧囧西游-大闹天宫";
 
 macro_rules! fixture {
     ($t:literal) => {
-        include_str!(concat!("../../game-core/tests/fixtures/", $t))
+        include_str!(concat!("../../../crates/game-core/tests/fixtures/", $t))
             .lines()
             .filter_map(|l| l.trim().parse().ok())
             .collect::<Vec<i32>>()
@@ -117,11 +117,11 @@ fn load_assets(dir: &PathBuf) -> Assets {
     };
     // 55 层全量装载（楼梯换层即时可用；maplv+sprite 每层 <2KB）
     let door_tables = game_core::sprite_spawn::DoorTables {
-        door12: include_str!("../../game-core/tests/fixtures/door12.txt")
+        door12: include_str!("../../../crates/game-core/tests/fixtures/door12.txt")
             .lines()
             .filter_map(|l| l.trim().parse().ok())
             .collect(),
-        door13: include_str!("../../game-core/tests/fixtures/door13.txt")
+        door13: include_str!("../../../crates/game-core/tests/fixtures/door13.txt")
             .lines()
             .filter_map(|l| l.trim().parse().ok())
             .collect(),
@@ -1173,7 +1173,7 @@ mod shell_tests {
     //! （TICK n 的输入在第 n 拍逻辑+重绘之后投递，第 n+1 拍消费）驱动 `Shell`，
     //! 与 Java 变体 A 的 EV-hold-walk trace 逐拍对照（期望值来源：
     //! `python3 tools/audio/evidence.py --fields gameMode,playerPixelX,playerPixelY,keyHeldCode,walkPhase
-    //!   --script crates/game-desktop/tests/fixtures/hold-walk.txt`）。
+    //!   --script shell/win/tests/fixtures/hold-walk.txt`）。
     use super::*;
     use std::sync::{Arc, Mutex};
 
@@ -1494,7 +1494,7 @@ mod shell_tests {
     /// - BGM：T71 menu（Java EVT createPlayer@T71）、T237 game（close+createPlayer@T237）。
     #[test]
     fn hold_walk_and_bgm_match_java_trace() {
-        let ev = script("crates/game-desktop/tests/fixtures/hold-walk.txt");
+        let ev = script("shell/win/tests/fixtures/hold-walk.txt");
         let mut h = Harness::new("preset-floor1.preset");
         let mut xs = std::collections::BTreeMap::new();
         let mut ys = std::collections::BTreeMap::new();
