@@ -20,6 +20,12 @@ sources: ["2026-10-17 用户问（退出无反应 BUG-020 连带架构确认）"
 
 ## 平台接缝清单（shell 必须实现/注入）
 
+> 【2026-10-18 实现落位】契约 trait 已实装于 `crates/game-platform`（spec：
+> docs/spec/platform-contract.md v1.0）：#2=Storage、#3=ProcessControl、#4=AudioOut、
+> #1=AssetSource；#5/#6/#8 为 shell 事件面契约（键码/呈现/生命周期）。
+> **双壳已实现**：shell/win（5 commit，四缝 trait 化、行为零漂移）+ shell/android
+> （8 commit，四 trait Android 版、45/45 测、验证矩阵见其 README）。
+
 | # | 接缝 | 契约 | game-desktop 现实现 |
 |---|---|---|---|
 | 1 | **资产路径** | 注入 `--assets`（Android 宿主传应用资源目录） | `load_assets(dir)` |
@@ -42,6 +48,20 @@ sources: ["2026-10-17 用户问（退出无反应 BUG-020 连带架构确认）"
 
 **演进规则**：第二个平台（Android）落地时把其真实需求抽上来（rule of three 的平台版）；
 在此之前接缝以本文清单 + `--xxx` 注入缝为准，game-core 零改动即可接新壳。
+
+## 补充登记（2026-10-18 双壳收口）
+
+- **第五缝（BGM 轨道装载）**：`start()/track_path()/REGEN_CMD` = Windows 专用
+  路径型装载（留 shell/win）；Android 轨道走 `AssetSource::read("track{i}.ogg")`
+  （单元 5 已落，B2 处置）。音频共享面（Mixer/Track/decode/audio_loop）=
+  `shell/common`（game-shell-common）单源，双壳消费。
+- **接缝 7（字体）**：android 侧未覆盖 = **已知缺口**（native TODO 域，随呈现
+  骨架任务补；README §8 同向登记）——裁定 5-3。
+- **已知边界**：跨阶段数组持久 corner²（BUG-021 补注，取方案 (b) 不修，升级
+  触发条件=差分真发现反例）；BACK 等四项待实机升 A（README 验证矩阵 ⏳ 行）。
+- **纪律沉淀**：TDD 红证据三件套+temp-archive 取证法（pattern_tdd-red-evidence-
+  with-gates）；共享树随时绿+红相不入树+pathspec 提交（gotcha_shared-workspace-
+  bare-commit-sweeps-index）。
 
 ## 自检：新壳最小验收
 

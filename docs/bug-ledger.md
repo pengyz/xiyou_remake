@@ -140,6 +140,101 @@ Evidence: ①Java a.java:3939-3945/7786-7788 双跳逐字（A 级）；②TRANSF
 （终止屏=tick 路径 panic，排除绘制侧，A 级）。
 Confidence: 95
 
+## BUG-018 保存存档后加载列表不可见——壳层存档环三断点（用户实机，已修复）
+> 【2026-10-18 补册】台账是 bug 唯一索引；原文在修复 commit 48520b9 正文，此处补登。
+- **现象**：游戏内"保存游戏"后，mode7/8 读档列表看不到新档；返回主菜单读档屏同样不可见
+  （用户实机："保存存档后，加载存档，无法看到已保存的存档"）。
+- **复现**（修复前）：游戏内保存槽 N → 进读档列表 / 返回主菜单读档屏，会话内恒不可见。
+  回归锁：`rms_roundtrips_all_six_slots_and_mot_if`（shell/win/src/main.rs）。
+- **根因**（移植缺口，非原版 bug，D4 不适用）：game-core 零 I/O ⇒ 落盘/回读全靠壳接线，
+  三断点——①Rms::load 键域只载 MOT_L0-2 ⇒ 槽 3-5 保存**永不落盘**（保存块只改写已存在
+  键，新键整体丢弃）；②sc.preset_mot_if 仅开机交接赋值一次 ⇒ mode7/8"每次进入重读槽表"
+  （Java loadSlotTable 每次进入重读语义，scene.rs:3484-3486）读到开机空槽表；③
+  BootMachine.preset_stores 为开机快照不随保存同步 ⇒ 主菜单读档屏陈旧。
+- **影响**：存档环（保存→列表→读档）断裂：槽 3-5 数据丢失 + 全槽会话内不可见。
+- **Stage A 处理**：已修复（48520b9）：①键域全 6 槽；②保存块 upsert 六槽 + 落盘后回写
+  sc.preset_mot_if；③Boot 每步同步 machine.preset_stores。
+- **Stage B 修复方案**：—（移植缺口，Stage A 即修类）。
+Evidence: 修复 commit 48520b9 正文三断点代码定位（A 级）+ rms_save_roundtrip 回归绿
+（A 级）。Confidence: 93
+
+## BUG-019 Windows 音频严重拖慢+杂音——winmm 单缓冲同步写欠载/拖拍（用户实机，已修复）
+> 【2026-10-18 补册】原文在修复 commit 39ea26a 正文，此处补登。
+- **现象**：Windows 实机 BGM"严重拖慢、杂音"（两症状一因）。
+- **复现**（修复前）：Windows 运行带 BGM（winmm waveOut 后端，43c7a57）即现。
+- **根因**（移植缺陷，非原版 bug，D4 不适用）：write = Prepare+Write **单缓冲** → 忙等
+  WHDR_DONE（2ms 轮询）→ Unprepare 返回。①杂音 = 块间设备排空空窗（underrun click）
+  + 每块 Prepare/Unprepare 抖动；②拖慢 = Windows 定时器粒度 ~15ms 使 2ms 轮询实际
+  15ms+ > 块长（1024 帧≈23ms）⇒ 输出速率低于实时、持续欠载拖拍。
+- **影响**：Windows 壳音频体验损伤（Linux ALSA 路径无此症）。
+- **Stage A 处理**：已修复（39ea26a）：waveOut 多缓冲环 QUEUE_DEPTH=4（audio.rs:422，
+  ≈92ms 常驻队列）——write 只等最老槽 Done、恒 3 块在途；Prepare/Unprepare 收敛槽回收；
+  Drop 逐头收尾；超时判据改"整队列无槽释放"。
+- **Stage B 修复方案**：—（同上）；WASAPI 升级缝留待实机反馈。
+Evidence: 修复 commit 39ea26a 正文（write 单缓冲定位 A 级、欠载/定时器机理 B 级）+
+cargo test -p game-desktop 26/26 绿（A 级）。Confidence: 90
+
+## BUG-020 主菜单"退出"无反应——CMidlet.m_000 退出信号缺 shell 消费者（用户实机，已修复）
+> 【2026-10-18 补册】原文在修复 commit 80efab7 正文 + docs/knowledge/architecture_shell-contract.md。
+- **现象**：主菜单"退出"→ 退场动画（mode 22，70 拍）走完后无反应，进程不退。
+- **复现**（修复前）：主菜单选"退出"确认（title.rs:181 menu_kinds kind 5→LogoAnim，
+  title.rs:235）→ 等 70 拍退场。
+- **根因**（移植缺口，非原版 bug，D4 不适用）：game-core 退出链正确
+  （BootMachine::finished 置位 paint.rs:585 = CMidlet.m_000 语义），shell **无任何消费者**
+  （只处理窗口 X CloseRequested）⇒ 信号无人执行——平台职责缺口。
+- **影响**：退出功能完全不可用（用户实机）。
+- **Stage A 处理**：已修复（80efab7）：Shell::finished() 取信号 + about_to_wait 每拍
+  消费 → el.exit()（shell/win/src/main.rs:1071-1074）；契约定性"游戏层只发信号、退出执行
+  归 shell"入 docs/knowledge/architecture_shell-contract.md。
+- **Stage B 修复方案**：—（同上）。
+Evidence: 修复 commit 80efab7 正文（退出链逐环 A 级）+ oracle boot_replay"进程退出"
+断言证 game-core 侧正确（A 级）。Confidence: 94
+
+## BUG-021 MOT_IF 截断读失败：Java 半解析保留 vs Rust 冷态归零（+ Rust 守卫差 1 panic 窗）（已修复，2026-10-18）
+> 【2026-10-17 adversary 考证·spec §9 假设 #4 升 A】platform-contract 移交疑点，逐行锚证实。
+- **现象**：MOT_IF 截断/损坏读失败时两侧行为分叉——Java 保留**半解析槽表**并落盘（损坏字节
+  派生的槽值出现在读档列表且可载入），Rust 归零冷态（读档列表全空）；另 Rust 在特定截断
+  长度可**直接 panic**（Java 优雅降级从不崩）。
+- **复现**：构造截断 MOT_IF（preset `MOT_IF@1=<hex>` 截尾，或 save/MOT_IF.bin 截断）→ 进读档
+  UI。Java 链：loadSlotTable 渐进写数组（a.java:8983-8997）→ catch → markSlotEntry(-1)
+  （9000-9001）不清数组（9007-9024）→ delete+addRecord 半解析落盘（9027-9052）。Rust：
+  menu_family.rs:739-741 归零。panic 窗：valid 槽 31 字节尾恰剩 30 字节——守卫
+  `pos+2+28`（menu_family.rs:723）差 1 vs 实读 31（727-736）⇒ 末 read_i32 切片越界。
+  trace 指针：待补（修复任务钉截断夹具时回填；现复现不依赖 oracle，单测级）。
+- **根因**：原版 quirk（半解析保留+持久化，D4 保真对象）+ Rust 两处移植偏差（冷态归零
+  ≠半解析；守卫算术差 1）。连带 menu_family.rs:693 注释"markSlotEntry(-1)（全无效冷态）"
+  仅首字节失败成立，需原地更正。
+- **影响**：损坏存档后游戏态分叉（槽表 UI/可载入槽/后续落盘内容）；Rust 特定截断可硬崩
+  （preset_mot_if 灌入在 shell catch_unwind 包裹外，main.rs:722 只包 sc.tick）。可达面=
+  用户实机损坏存档/外部改写/Android 应用数据部分清理（B 级推断，无真实样本）。
+- **Stage A 处理**：保真对齐——Rust 复刻半解析语义（含落盘）**按字段级粒度**（RHS 先求值、
+  在 Java 抛出的同一字节停；守卫 ≥31 仅作安全不变量，不得当整槽解析预检——口径见
+  考证记录 §7 放大件 1）+ 四复位面全集（scene.rs:3483 / paint.rs:640 含 BootMachine 侧 /
+  menu_family.rs:698 / :740）+ 截断回归夹具逐长度全网格（A 级升格）。
+  修复任务 = task-7（platform-contract）。
+- **Stage B 修复方案**：损坏读失败规范化为"合法冷态"（修原版 quirk）或维持原版语义——
+  届时产品裁定。
+Evidence: ①a.java:8959-9005/9007-9059/4353 逐行（A 级）；②menu_family.rs:694-742 逐行
+（A 级）；③守卫算术 30 vs 31（B 级静态字节计数，A 升格归修复夹具）；④考证记录
+docs/findings/reviews/2026-10-17-mot-if-truncation-fidelity.md。
+Confidence: 90
+
+> 【2026-10-18 状态·已修复】修复 commit **b587d11**（game-core：①字段级粒度解析——同字节停、
+> readInt 读 1-3 字节抛整字段不写；②半解析保留 + 四复位面全集 + parse_dirty 触发器；
+> tests/mot_if_truncation.rs 6 测 = 0..=68 全截断网格 × 零基/marker 双基态 + L=31 panic
+> 窗命名回归）+ **78ac8cf**（shell：②c 回写环——take_parse_dirty → serialize_slot_if
+> 整表回写 MOT_IF@1 + stores/preset_mot_if 重读源同步 + 一次性触发）。adversary 复审
+> **通过**（docs/findings/reviews/2026-10-18-bug-021-fix-review.md：三硬门逐条 + RED
+> 独立复现 E0308/E0599/E0600 + GREEN 双路复现 game-core 153/153 与 game-desktop 27/27）。
+>
+> 【2026-10-18 补注·放大件 3 登记为已知边界】跨阶段数组持久 corner²：Java 槽表数组在
+> 单一 `a` 实例跨 boot→game 交接存活，Rust BootMachine::slots/GameScene::slot 交接丢弃
+> ——损坏 MOT_IF + 先有旧表时，boot 读档屏（半截留旧表尾）与游戏内读档屏（尾槽冷零）
+> 尾槽对照分叉（corner²：损坏存档 × 交接 × 尾槽对照）。**处置 = 方案 (b) 登记已知边界**
+> **不修**；**升级触发条件**：差分测试或实机观测到上述尾槽对照分叉（即有人真看见两屏
+> 不一致）⇒ 升级方案 (a) 交接携带 slot 数据（BgmState"交接时以 BootMachine 状态整体
+> 覆盖"先例），届时另立任务。
+
 ## 记录规范
 - **现象**：玩家可见的行为描述，含层号/坐标/道具条件
 - **复现**：确定性复现输入序列（trace id 或按键脚本）
