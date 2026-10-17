@@ -58,8 +58,28 @@ macro_rules! fixture {
     };
 }
 
-fn load_container(dir: &PathBuf, name: &str, count: usize) -> Vec<ArgbImage> {
-    let data = std::fs::read(dir.join(name))
+/// 目录型资产源（`--assets` 注入，Windows 侧 std::fs）。接缝④ =
+/// `game_platform::AssetSource`（Android = AAssetManager 实现，shell/android）。
+/// rel 约定：纯文件名/`/` 分隔相对路径（契约 §4）。
+struct DirAssets {
+    root: PathBuf,
+}
+
+impl DirAssets {
+    fn new(root: &PathBuf) -> DirAssets {
+        DirAssets { root: root.clone() }
+    }
+}
+
+impl game_platform::AssetSource for DirAssets {
+    fn read(&self, rel: &str) -> Result<Vec<u8>, String> {
+        std::fs::read(self.root.join(rel)).map_err(|e| e.to_string())
+    }
+}
+
+fn load_container(src: &dyn game_platform::AssetSource, name: &str, count: usize) -> Vec<ArgbImage> {
+    let data = src
+        .read(name)
         .unwrap_or_else(|e| panic!("缺资产 {name}（先跑 tools/extract-assets/extract.py）：{e}"));
     game_data::PackedPng::parse(&data, count)
         .unwrap_or_else(|e| panic!("容器 {name} 解析失败：{e}"))
@@ -77,16 +97,16 @@ struct Assets {
     tile_walk: Vec<i32>,
 }
 
-fn load_assets(dir: &PathBuf) -> Assets {
-    let mapbg = load_container(dir, "mapbg", 1);
-    let map = load_container(dir, "map", 12);
-    let actor_c = load_container(dir, "actor", 4);
-    let sptmap = load_container(dir, "sptmap", 13);
-    let sptprop = load_container(dir, "sptprop", 23);
-    let sptarm = load_container(dir, "sptarm", 10);
-    let sptenemy1 = load_container(dir, "sptenemy1", 20);
-    let sptenemy2 = load_container(dir, "sptenemy2", 20);
-    let ui = load_container(dir, "ui", 25);
+fn load_assets(src: &dyn game_platform::AssetSource) -> Assets {
+    let mapbg = load_container(src, "mapbg", 1);
+    let map = load_container(src, "map", 12);
+    let actor_c = load_container(src, "actor", 4);
+    let sptmap = load_container(src, "sptmap", 13);
+    let sptprop = load_container(src, "sptprop", 23);
+    let sptarm = load_container(src, "sptarm", 10);
+    let sptenemy1 = load_container(src, "sptenemy1", 20);
+    let sptenemy2 = load_container(src, "sptenemy2", 20);
+    let ui = load_container(src, "ui", 25);
     let images = game_core::scene::SceneImages {
         backdrop: mapbg[0].clone(),
         shadow: sptprop[0].clone(),
@@ -107,13 +127,13 @@ fn load_assets(dir: &PathBuf) -> Assets {
         corner_sprites: ui[23].clone(),
         map211: Some(map[11].clone()),
         map210: map[10].clone(),
-        menu_strip: load_container(dir, "menu", 2)[1].clone(),
+        menu_strip: load_container(src, "menu", 2)[1].clone(),
         battle_icon: map[8].clone(),
         battle_strip: map[7].clone(),
         ui: ui.clone(),
-        faces: load_container(dir, "face", 12),
-        ending: load_container(dir, "end", 1)[0].clone(),
-        xtq: load_container(dir, "xtq", 6),
+        faces: load_container(src, "face", 12),
+        ending: load_container(src, "end", 1)[0].clone(),
+        xtq: load_container(src, "xtq", 6),
     };
     // 55 层全量装载（楼梯换层即时可用；maplv+sprite 每层 <2KB）
     let door_tables = game_core::sprite_spawn::DoorTables {
@@ -128,10 +148,11 @@ fn load_assets(dir: &PathBuf) -> Assets {
     };
     let mut floors: Vec<Option<FloorAssets>> = vec![None; 56];
     for (n, slot) in floors.iter_mut().enumerate().skip(1).take(54) {
-        let maplv = std::fs::read(dir.join(format!("maplv{n}")))
+        let maplv = src
+            .read(&format!("maplv{n}"))
             .unwrap_or_else(|e| panic!("缺资产 maplv{n}：{e}"));
         let sp = game_data::SpriteTable::parse(
-            &std::fs::read(dir.join(format!("sprite{n}")))
+            &src.read(&format!("sprite{n}"))
                 .unwrap_or_else(|e| panic!("缺资产 sprite{n}：{e}")),
         )
         .unwrap_or_else(|e| panic!("sprite{n} 解析失败：{e}"));
@@ -403,17 +424,17 @@ struct Shell {
 impl Shell {
     /// BootMachine 装配（与测试 harness 同参）。
     fn new(
-        assets_dir: &PathBuf,
+        src: &dyn game_platform::AssetSource,
         assets: std::sync::Arc<Assets>,
         rms: Box<dyn game_platform::Storage>,
         stores: Vec<(String, Vec<u8>)>,
         sink: Box<dyn audio::AudioSink>,
     ) -> Shell {
-        let mapbg = load_container(assets_dir, "mapbg", 1);
+        let mapbg = load_container(src, "mapbg", 1);
         let png = |name: &str| {
             ArgbImage::from_decoded_png(
                 game_data::decode_png(
-                    &std::fs::read(assets_dir.join(name))
+                    &src.read(name)
                         .unwrap_or_else(|e| panic!("缺 assets/raw/{name}（先跑 tools/extract-assets/extract.py）：{e}")),
                 )
                 .unwrap(),
@@ -422,13 +443,13 @@ impl Shell {
         let mut machine = BootMachine::new(
             png("l0.png"),
             png("l1.png"),
-            load_container(assets_dir, "sflogo", 8),
-            load_container(assets_dir, "ui", 25),
-            load_container(assets_dir, "menu", 2),
+            load_container(src, "sflogo", 8),
+            load_container(src, "ui", 25),
+            load_container(src, "menu", 2),
             mapbg[0].clone(),
-            load_container(assets_dir, "intro", 2),
-            load_container(assets_dir, "end", 1),
-            load_container(assets_dir, "load", 2),
+            load_container(src, "intro", 2),
+            load_container(src, "end", 1),
+            load_container(src, "load", 2),
         );
         machine.preset_stores = stores.clone();
         // SKY_WAR 装载（saveGlobalProgress 对偶，a.java:4458-4478）：损坏/缺失 ⇒
@@ -446,7 +467,7 @@ impl Shell {
                 machine.global_dirty = true;
             }
         }
-        machine.sptarm = load_container(assets_dir, "sptarm", 10);
+        machine.sptarm = load_container(src, "sptarm", 10);
         Shell {
             assets,
             rms,
@@ -1155,7 +1176,8 @@ fn main() {
     }
     println!("资产目录 = {assets_dir:?}；存档目录 = {save_dir:?}；BGM 目录 = {audio_dir:?}");
     font_inject::install();
-    let assets = std::sync::Arc::new(load_assets(&assets_dir));
+    let src = DirAssets::new(&assets_dir);
+    let assets = std::sync::Arc::new(load_assets(&src));
     let (rms, stores) = Rms::load(&save_dir);
     let sink: Box<dyn audio::AudioSink> = if mute {
         eprintln!("[audio] --mute：无声运行");
@@ -1163,7 +1185,7 @@ fn main() {
     } else {
         audio::start(&audio_dir, &audio_device)
     };
-    let shell = Shell::new(&assets_dir, assets, Box::new(rms), stores, sink);
+    let shell = Shell::new(&src, assets, Box::new(rms), stores, sink);
     run_window(shell);
 }
 
@@ -1226,13 +1248,14 @@ mod shell_tests {
     impl Harness {
         fn new(preset: &str) -> Harness {
             let dir = repo().join("assets/raw");
-            let assets = std::sync::Arc::new(load_assets(&dir));
+            let src = DirAssets::new(&dir);
+            let assets = std::sync::Arc::new(load_assets(&src));
             let save = std::env::temp_dir().join(format!("xiyou-shell-test-{}", std::process::id()));
             let (rms, _) = Rms::load(&save);
             let cmds = Arc::new(Mutex::new(Vec::new()));
             let now = Arc::new(Mutex::new(0));
             let sink = Box::new(Recorder(cmds.clone(), now.clone()));
-            let shell = Shell::new(&dir, assets, Box::new(rms), preset_stores(preset), sink);
+            let shell = Shell::new(&src, assets, Box::new(rms), preset_stores(preset), sink);
             Harness { shell, cmds, now, tick: 0 }
         }
 
@@ -1540,11 +1563,12 @@ mod shell_tests {
 
     fn shell_at(dir: &PathBuf) -> Shell {
         let raw = repo().join("assets/raw");
-        let assets = std::sync::Arc::new(load_assets(&raw));
+        let src = DirAssets::new(&raw);
+        let assets = std::sync::Arc::new(load_assets(&src));
         let (rms, stores) = Rms::load(dir);
         let cmds = Arc::new(Mutex::new(Vec::new()));
         let now = Arc::new(Mutex::new(0));
-        Shell::new(&raw, assets, Box::new(rms), stores, Box::new(Recorder(cmds, now)))
+        Shell::new(&src, assets, Box::new(rms), stores, Box::new(Recorder(cmds, now)))
     }
 
     /// SKY_WAR 端到端：水位抬升 ⇒ 落盘；重开同目录 ⇒ 状态恢复（saveGlobalProgress）。
@@ -1830,7 +1854,7 @@ mod behavior_anchors {
         let dir = tmp("panic1");
         let d = dir.clone();
         let msg = panic_payload(move || {
-            let _ = load_container(&d, "mapbg", 1);
+            let _ = load_container(&DirAssets::new(&d), "mapbg", 1);
         });
         assert!(
             msg.starts_with("缺资产 mapbg（先跑 tools/extract-assets/extract.py）："),
@@ -1839,7 +1863,7 @@ mod behavior_anchors {
         std::fs::write(dir.join("mapbg"), b"garbage").unwrap();
         let d = dir.clone();
         let msg = panic_payload(move || {
-            let _ = load_container(&d, "mapbg", 1);
+            let _ = load_container(&DirAssets::new(&d), "mapbg", 1);
         });
         assert!(msg.starts_with("容器 mapbg 解析失败："), "解析失败文案（逐字保留）：{msg}");
         let _ = std::fs::remove_dir_all(&dir);
@@ -1858,14 +1882,14 @@ mod behavior_anchors {
         }
         let d = dir.clone();
         let msg = panic_payload(move || {
-            let _ = load_assets(&d);
+            let _ = load_assets(&DirAssets::new(&d));
         });
         assert!(msg.starts_with("缺资产 maplv3："), "缺 maplv 文案（逐字保留）：{msg}");
         std::fs::copy(raw.join("maplv3"), dir.join("maplv3")).unwrap();
         std::fs::write(dir.join("sprite2"), b"garbage").unwrap();
         let d = dir.clone();
         let msg = panic_payload(move || {
-            let _ = load_assets(&d);
+            let _ = load_assets(&DirAssets::new(&d));
         });
         assert!(msg.starts_with("sprite2 解析失败："), "sprite 解析文案（逐字保留）：{msg}");
         let _ = std::fs::remove_dir_all(&dir);
@@ -1878,11 +1902,11 @@ mod behavior_anchors {
         let raw = repo().join("assets/raw");
         let dir = tmp("panic3");
         std::fs::copy(raw.join("mapbg"), dir.join("mapbg")).unwrap();
-        let assets = std::sync::Arc::new(load_assets(&raw));
+        let assets = std::sync::Arc::new(load_assets(&DirAssets::new(&raw)));
         let (rms, stores) = Rms::load(&dir.join("save"));
         let d = dir.clone();
         let msg = panic_payload(move || {
-            let _ = Shell::new(&d, assets, Box::new(rms), stores, Box::new(audio::NullSink));
+            let _ = Shell::new(&DirAssets::new(&d), assets, Box::new(rms), stores, Box::new(audio::NullSink));
         });
         assert!(
             msg.starts_with("缺 assets/raw/l0.png（先跑 tools/extract-assets/extract.py）："),
@@ -1896,7 +1920,7 @@ mod behavior_anchors {
     /// 口径与既有 shell_tests 相同（依赖 repo assets/raw）。
     #[test]
     fn assets_loading_matches_baseline_digest() {
-        let a = load_assets(&repo().join("assets/raw"));
+        let a = load_assets(&DirAssets::new(&repo().join("assets/raw")));
         // 【采集模式】迁移前基线采集（2026-10-17，基线 ba14d4e）
         eprintln!("CAP tileset = {:?}", img_sig(&a.tileset));
         eprintln!("CAP backdrop = {:?}", img_sig(&a.images.backdrop));
@@ -1986,5 +2010,22 @@ mod behavior_anchors {
             (104, 5917174173154521492),
             "tile_walk 摘要"
         );
+    }
+
+    /// 接缝④ 判据（B4 缝测）：资产读取经 `game_platform::AssetSource` trait——
+    /// DirAssets 经 dyn 读与 std::fs::read 逐字节一致；缺文件 ⇒ Err 不 panic
+    /// （panic 归壳侧，文案由 panic_text_* 三类锚逐字锁）。
+    #[test]
+    fn asset_reads_go_through_assetsource_trait() {
+        use game_platform::AssetSource;
+        let raw = repo().join("assets/raw");
+        let src = DirAssets::new(&raw);
+        let via_trait: &dyn AssetSource = &src;
+        for rel in ["mapbg", "maplv1", "sprite1", "l0.png"] {
+            let via = via_trait.read(rel).unwrap();
+            let direct = std::fs::read(raw.join(rel)).unwrap();
+            assert_eq!(via, direct, "{rel} 经 dyn AssetSource 读 == std::fs::read 逐字节");
+        }
+        assert!(via_trait.read("no_such_asset").is_err(), "缺文件 ⇒ Err（不 panic）");
     }
 }
