@@ -62,3 +62,24 @@ tick 数 500→150，判定仍全 PASS）。来源疑为某次门禁/差分 harn
 换正确父后逐字节相等。方法教训：增量等价比较必须先核 `git log --format=%P` 取真父。
 另登记小疵：a859408/485f542 subject 带 UTF-8 BOM 前缀（PowerShell 捕获产物），message
 卫生项，不改写。
+
+### G6【纪律违规·自首】DirAssetSource 合并：git add 撞锁静默失败 + 补救 amend 绕闸（--no-verify，A 协议永禁项）（2026-10-18）
+
+- **事实链**（reflog + tree diff 亲验，A 级）：
+  1. `73c9d1b` 首提——`git add` 撞 index.lock **静默失败**（退出码未验）⇒
+     shell/common/src/asset.rs 漏入，提交内容残缺；但 pre-commit 总闸跑的是**工作树**
+     （asset.rs 在树里）⇒ 9/9 PASS 与提交面脱钩；
+  2. `8836409`（现 HEAD）amend 补入——`git diff 73c9d1b 8836409` = 恰 asset.rs +58 行，
+     零他变更 ✓ 与其自报一致；但该 amend 用了 `--no-verify` ⇒ **程序绕闸，A 协议永禁项
+     违规属实**；
+  3. 处置（lead 核准）：同内容过闸重落（最终 sha 待报）+ commit 留纪律更正行 +
+     案例入 knowledge + 再犯升级条款。
+- **两句并记**（shell-port 自报口径，我核准）：**内容已验证**（amend 树与 73c9d1b 时
+  闸验工作树逐字节同，delta 仅缺失件本身）+ **程序曾绕闸**（违规不因内容无害而消）。
+  自首、未推送、同内容重落 = 从轻情节；`--no-verify` 本身 = 零容忍项。
+- **结构性教训（对抗增量）**：pre-commit 总闸验证**工作树**而非暂存/提交面——`git add`
+  静默失败即可使"过闸"与"提交内容"脱钩。防线=提交后三对账（`git show --stat` vs
+  声称 vs 写范围，本审计表 G5/§四款的固定核对项）恰能抓住此类残缺——本案即其价值实证。
+  附带：`git add` 必验退出码（与 pathspec 规程并列的知识条素材，lead 落库）。
+- **待办**：最终 sha 到达后验闸痕（我复跑总闸 + tree-hash 等价 + DirAssetSource 合并
+  本体按 5-2 约束复审：win panic 三锚不漂移/断言零改动/common 单源+双壳别名）。

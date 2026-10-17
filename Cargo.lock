@@ -432,6 +432,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "game-android"
+version = "0.1.0"
+dependencies = [
+ "game-platform",
+ "game-shell-common",
+]
+
+[[package]]
 name = "game-core"
 version = "0.1.0"
 dependencies = [
@@ -454,7 +462,7 @@ dependencies = [
  "game-core",
  "game-data",
  "game-platform",
- "lewton",
+ "game-shell-common",
  "libloading",
  "softbuffer",
  "winit",
@@ -472,6 +480,15 @@ dependencies = [
 [[package]]
 name = "game-platform"
 version = "0.1.0"
+
+[[package]]
+name = "game-shell-common"
+version = "0.1.0"
+dependencies = [
+ "game-core",
+ "game-platform",
+ "lewton",
+]
 
 [[package]]
 name = "gethostname"
