@@ -1110,9 +1110,21 @@ fn run_window(shell: Shell) {
     event_loop.run_app(&mut runner).unwrap();
 }
 
+/// 平台默认存档目录（**注入契约**，2026-10-17 决策）：存档/读档路径由外部 shell
+/// 传入（`--save` / 未来宿主 API），game-core 保持无 I/O；平台路径规范各异——
+/// Windows = exe 目录\save（便携、抗 cwd 变化），Android = 应用私有目录（宿主
+/// 启动时注入）。默认仅在未显式传入时生效。
+fn default_save_dir() -> PathBuf {
+    std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("save")
+}
+
 fn main() {
     let mut assets_dir = PathBuf::from("assets/raw");
-    let mut save_dir = PathBuf::from("save");
+    let mut save_dir = default_save_dir();
     let mut audio_dir = PathBuf::from("assets/audio");
     let mut audio_device = String::from("default");
     let mut mute = false;

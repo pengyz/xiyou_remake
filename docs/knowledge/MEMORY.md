@@ -46,6 +46,7 @@
 - [反编译引擎 CFR→Vineflower](decision_decompiler-cfr-to-vineflower.md) — 实测数据驱动切换；含 iinc-vs-i2b 累加器判定规则（编译零错≠行为一致）
 - [壳音频 dlopen ALSA 而非 rodio/cpal](decision_shell-audio-dlopen-alsa.md) — alsa-sys 构建期要 libasound2-dev，CI 缺包且违反不依赖系统包；运行时 dlopen 零构建依赖（代价：暂仅 Linux）
 - [生成物禁手改，改配置源重生成](decision_generated-docs-edit-via-config-source.md) — coverage-matrix 等判定/销账改 tools/cover_matrix.py ARM_GAPS 后重生成；手改仅限显式声明过渡态（6467342，lead 同 commit 自纠）
+- [存档/读档路径由外部 shell 注入](decision_save-path-shell-injection.md) — 平台路径规范各异（Windows exe 目录\save vs Android 应用私有目录宿主注入）；game-core 零 I/O，`--save` 注入缝 + 平台默认（2026-10-17，BUG-018 连带架构决策）
 
 ## Reference
 
