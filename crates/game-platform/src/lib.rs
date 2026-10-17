@@ -103,6 +103,46 @@ impl GameRng for SplitMix64 {
     }
 }
 
+// ---------------------------------------------------------------- RMS 记录模型（Storage 契约）
+
+/// RMS 记录键格式 `<store>@<record_id>` 的记录号：本游戏每店单记录恒 1（docs/spec/
+/// platform-contract.md §1.3）。Java 读取恒取**首条枚举记录**、从不按记录号读
+/// （a.java:4457-4459 / 8978-8980 / 9260-9262）⇒ 记录号语义惰性，收敛为常量。
+pub const RMS_RECORD_ID: u32 = 1;
+
+/// 游戏 RMS 记录域（Java 原版硬编码店名：a.java:4452 "SKY_WAR"、8960 "MOT_IF"、
+/// 9190 "MOT_L"+槽号 0..=5）。键域进契约而非各壳自抄，防双移植面漂移。
+pub const RMS_STORES: [&str; 8] =
+    ["MOT_L0", "MOT_L1", "MOT_L2", "MOT_L3", "MOT_L4", "MOT_L5", "MOT_IF", "SKY_WAR"];
+
+/// store 名 → 记录键（`rms_key("MOT_L0") == "MOT_L0@1"`）。
+pub fn rms_key(store: &str) -> String {
+    format!("{store}@{RMS_RECORD_ID}")
+}
+
+/// 记录键 → store 名：取首个 `@` 之前的部分；键无 `@` 原样返回；空串入空串出。
+/// 全输入域不 panic（与 shell/win `k.split('@').next().unwrap()` 同构——split 恒返回首段）。
+pub fn rms_store_name(key: &str) -> &str {
+    key.split('@').next().unwrap_or(key)
+}
+
+/// RMS 持久接缝：具名 store 的字节记录（docs/spec/platform-contract.md §1）。
+/// 实现只在壳层（shell/win 文件版 RMS、shell/android 私有目录版）——本 crate
+/// 只放 trait 与类型（AGENTS §2 红线）。与 Java RMS 的等价性论证见 spec §1.3
+/// （读=首条枚举记录、写=整店替换 ⇒ 观测上"具名 store 单 blob 覆写"）。
+pub trait Storage {
+    /// 载入记录域内**已持久**的全部记录（缺失 store 静默缺席）。
+    /// 只返回 [`RMS_STORES`] 域内记录、键 = [`rms_key`]；平台上的外来数据
+    /// （如 save/ 下杂散 .bin）**不得**出现在结果里。
+    fn load_all(&self) -> Vec<(String, Vec<u8>)>;
+
+    /// 持久化一批记录：同键覆盖、新键创建（upsert）；未提及的键不动。
+    /// 传入域外键 = 契约违约 ⇒ 该键丢弃 + 可记日志，**不 panic**。
+    /// 任何失败 best-effort 吞掉（实现可自记日志），与 Java `catch {}` 同口径
+    /// （a.java:8955-8956）；任何输入都不得 panic。
+    fn persist(&self, records: &[(String, Vec<u8>)]);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
