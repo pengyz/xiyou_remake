@@ -80,26 +80,36 @@
 - **Stage A 处理**：`保留但登记偏差`——原版行为=落 mode 0；Rust 现将该字段初值设为 3（scene.rs:826）
   等于顺手修了 bug，属移植偏差，应改回 0 对齐（3→4 臂接通时一并处理，见 master-plan §7）。
 
-## BUG-015 replay_opt 驱动管线一拍偏移 → 剧情自走链 T309 起步分歧（调查中，疑 harness 非 game-core）
+## BUG-015 replay_opt 驱动管线一拍偏移 → 剧情自走链 T309 起步分歧（已收敛，见更正）
 
-> 【2026-10-17 录跑发现（用户指令"录跑一遍交互，跳过教程，跑通全程看看卡不卡"）】
+> 【2026-10-17 更正·本条被 BUG-016 根因吸收】续查证伪"replay_opt 驱动管线一拍偏移"
+> 定性：T1429 帧分歧真根因 = tick_dialog **相位 5 空臂桩**（LAY 续跑缺口，见下方
+> BUG-016）——op_lay 停表于 phase 5，Java a.java:4123-4127 在 floorTransitioning ∧
+> !wipeClosing（遮幅开启相）归 0 续跑脚本，Rust 空臂永停。补 Java 真值后
+> story_fullrun 夹具 4000/4000 逐 tick 同构全绿（含 T309 段）——曾记的"T309 状态
+> 偏移"系状态对照脚本的采样口径假象（Java FLD 每 8 拍采样 vs Rust 逐拍行对齐错位）。
+> 原记载保留：录跑对拍 T1-1428 同构、T1429 分歧（op 流逐指令对拍坐标偏 (96,160)）、
+> 状态回溯见 T309 差、bug012_replay 同参驱动吻合、预置逐字节排除（CRLF/LF 3B）。
 
-- **现象**：story-fullrun 夹具（天牢→2 层→牛魔王对话 32 页→探索，Java 锚 A==B==C
-  4000 tick 无冻结）经 `replay_opt` 逐 tick 对拍：T1-1428 帧全同构，T1429 起分歧
-  （分歧区 (72,87)-(98,130) 26×43 = 气泡位）。状态向量回溯：**T309** 首现玩家坐标
-  分歧（Java (64,352) 步入 (2,11) 开对话；replay_opt 留 (1,11)、T310 才起步）——
-  相机边缘钳制把偏差像素级屏蔽至 T1429 才显形。
-- **取证链（A 级）**：①逐指令对拍 T1429 op 流——同组绘制指令坐标整体偏 (96,160)
-  （=3,5 格）；②STATE_OUT 状态向量逐拍回溯定位 T309；③`bug012_replay` 同脚本同
-  预置驱动同一 game-core 与 Java 锚逐拍吻合（T0309 步入 (2,11)/ent 26→35/T314-
-  326 自走全对）；④预置逐字节对照排除数据差（仅 CRLF/LF 行尾 3B，parse_preset
-  对 \r 免疫）。
-- **定性（B 级，待收尾实证）**：两 harness 循环体逐段对照仅余两处时序差——
-  machine 相位 paint（replay_opt 每拍 paint、bug012 移交拍不 paint）与移交拍 paint
-  时机。game-core 无辜性由 ③ 支撑；**禁止试错式修改**，收敛方向=先做 wipe/
-  transitioning 逐拍对照钉注入点，再动 harness。
-- **状态**：`story_fullrun_fixture_frames_match` 已按 §6"已知偏差"口径 `#[ignore]`
-  （夹具与 FRAME_OUT/STATE_OUT 取证缝保留供续查）；收敛后解除。
+## BUG-016 tick_dialog 相位 5 空臂桩 → LAY 剧情切层后脚本永停（用户实机 bug 真身，已修复）
+
+> 【2026-10-17 用户实机报告 + 录跑定位】"嫦娥剧情过完、被玉帝打下天牢、3 层自动
+> 切 2 层后应触发牛魔王对话脚本，但没有，卡死、输入无反应"。
+
+- **机制链（A 级）**：script0 尾 `… TAK_20_21 → LAY_2 → ROS_1_4_7 → RES_0 → GUT_1`
+  （level_scripts.txt:1）——`LAY_2` = 剧情切层指令（ScriptOp::Lay{floor} → op_lay），
+  op_lay 置 `transitioning=true + dialog_phase=5` 并**停表**（无尾递归）；
+  tick_dialog 相位机 **case 5 = 空臂桩**（scene.rs 原 `5 => {} // f_bool_16 组合
+  （LAY 批）`）⇒ 遮幅走完 swap_floor 后脚本永不续跑 ⇒ ROS_1_4_7 落位 (4,7)、
+  GUT_1 → script1（TAK_22"打下天牢" + 72 号实体=牛魔王走位）永不起 ⇒
+  mode 停留 Dialog(11) 输入被吞 = "卡死、输入无反应"。
+- **Java 真值（A 级，a.java:4123-4127）**：`case 5: if (floorTransitioning &&
+  !wipeClosing) dialogPhase = 0;` ——遮幅开启相（换层已过）归 0 = 相位 0 臂
+  `executeScriptInstruction` 续跑。
+- **修复**：空臂补 Java 原语义（scene.rs tick_dialog case 5）；回归 =
+  story_fullrun 夹具（录跑全链 4000 tick 逐帧同构，修复前 T1429 起分歧）。
+- **触发形态表补登**：剧情切层（LAY）= 第四种到达形态，与"切层踩点/撞/踩入雷区"
+  三形态并列；LAY 形态的续跑依赖本缝。
 
 ## 记录规范
 - **现象**：玩家可见的行为描述，含层号/坐标/道具条件

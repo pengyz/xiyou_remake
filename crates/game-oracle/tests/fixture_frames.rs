@@ -365,17 +365,14 @@ fn preset_floor49_fixture_frames_match() {
 
 /// 用户实机录跑复刻（2026-10-17 指令"录跑一遍交互，跳过教程，跑通全程看看卡不卡"，
 /// 按验证不打扰纪律走逻辑级 harness）：跳过教程态（千级属性直入）→ 2 层踩点自走
-/// （T312 mode11）→ 牛魔王剧情对话全程 32 页（dpage 0→32）→ T2832 对话闭合回
-/// mode3 → 探索行走到 T4000。Java 锚录跑（analysis/frames-fixture/runs/A-story-fullrun）：
-/// A==B==C 三方一致、1194 次状态变化、END reason=max-ticks（无冻结无崩溃）。
+/// → 3 层嫦娥剧情 32 页 → LAY_2 剧情切层（天牢）→ 牛魔王链（ROS_1_4_7 落位 +
+/// script1/2 走位）→ T2832 后探索到 T4000。Java 锚录跑：A==B==C 三方一致、
+/// 1194 次状态变化、END reason=max-ticks（无冻结无崩溃）。
 ///
-/// **BUG-015（2026-10-17 录跑发现，调查中）**：replay_opt 驱动下 T309 起步一拍偏移
-/// （Java/repro 于 T309 步入 (2,11) 开对话，本 harness T310 才起步），相机钳制把偏差
-/// 屏蔽至 T1429 才显形（帧分歧区 26×43 气泡位）。同构的 bug012_replay 驱动同一
-/// game-core 与 Java 锚逐拍吻合 ⇒ 嫌疑在 replay_opt 驱动管线（machine 相位 paint/
-/// 移交拍 paint 的时机差），game-core 无辜性待收尾实证。收敛前本测 ignore（已知
-/// 偏差登记，AGENTS.md §6 口径）；夹具/取证缝（FRAME_OUT/STATE_OUT）保留供续查。
-#[ignore = "BUG-015 调查中：replay_opt 驱动管线一拍偏移（见 docs/bug-ledger.md）"]
+/// 【2026-10-17 已收敛】初跑 T1429 分歧曾记 BUG-015（"replay_opt 一拍偏移"）——
+/// 真根因 = tick_dialog 相位 5 空臂桩（LAY 续跑缺口，BUG-016）：op_lay 停表于
+/// phase 5，Java（a.java:4123-4127）在遮幅开启相归 0 续跑、Rust 空臂永停 ⇒ 帧分歧
+/// 自 T1429 起。补上 Java 真值后本测 4000/4000 逐 tick 同构全绿（含 T309 段）。
 #[test]
 fn story_fullrun_fixture_frames_match() {
     let records = frame_records(include_str!("fixtures/story-fullrun.frames.txt"));

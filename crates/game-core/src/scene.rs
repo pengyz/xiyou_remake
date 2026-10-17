@@ -2622,7 +2622,15 @@ impl GameScene {
                     self.transition_to(GameMode::Map);
                 }
             }
-            5 => {} // f_bool_16 组合（LAY 批）
+            5 => {
+                // LAY 批续跑缝（a.java:4123-4127）：floorTransitioning ∧ !wipeClosing
+                // （换层已过、遮幅开启中）⇒ 相位归 0 续跑脚本。op_lay 停表于此；
+                // 2026-10-17 前为空臂桩（"f_bool_16 组合（LAY 批）"未译）⇒ 剧情链
+                // 永停（用户实机 BUG-016：3→2 天牢切层后牛魔王对话不触发 + 输入假死）。
+                if self.transitioning && !self.wipe_closing {
+                    self.dialog_phase = 0;
+                }
+            }
             _ => {}
         }
     }
