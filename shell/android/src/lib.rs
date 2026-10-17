@@ -25,3 +25,4 @@
 //! （契约四 trait 的 Android 实现与宿主桩）。
 
 pub mod input;
+pub mod lifecycle;
