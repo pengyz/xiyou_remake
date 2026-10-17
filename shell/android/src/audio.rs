@@ -16,7 +16,9 @@
 //!   minSdk 统一 26。共享混音/解码/命令翻译消费 `game-shell-common::audio`
 //!   （Mixer/Track/decode_ogg/audio_loop/BgmController——不落拷贝，F-4 裁决）。
 
-use game_platform::{AudioOut, CHANNELS};
+use game_platform::{AssetSource, AudioOut, CHANNELS};
+use game_shell_common::audio::{decode_ogg, Track, TrackStore};
+use std::sync::{Arc, Mutex};
 
 /// 宿主桩 PCM 设备：记录契约语义（不触硬件）。
 ///
@@ -58,6 +60,32 @@ impl AudioOut for CountingPcm {
     fn idle(&mut self) {
         self.idle_calls += 1;
     }
+}
+
+/// 音频轨装载（**B2 第五缝 Android 口径**：轨道字节走 [`AssetSource`]，不得沿用
+/// 路径注入——契约 §0/§4.2 登记；Windows 仍走 `--audio` 目录 = win 专用）。
+///
+/// `wanted` = 要装载的轨道下标（可达轨道：`game_core::audio::TRACK_MENU`/`TRACK_GAME`；
+/// BUG-010 死资源不解码，同 shell/win `start()` 预取顺序）；`slots` = 轨道表总格数
+/// （`game_core::audio::TRACKS.len()`）。缺失/解码失败 ⇒ 该格 `None` 且日志
+/// （静音降级，同 shell/win 口径），**不 panic**。解码/循环点/混音语义单源在
+/// `game-shell-common::audio`（消费不拷贝，F-4 裁决）。
+pub fn load_tracks_from_assets(
+    source: &dyn AssetSource,
+    wanted: &[usize],
+    slots: usize,
+) -> TrackStore {
+    let mut store: Vec<Option<Arc<Track>>> = vec![None; slots];
+    for &i in wanted {
+        if i >= slots {
+            continue; // 越界防御：忽略
+        }
+        match source.read(&format!("track{i}.ogg")).and_then(|b| decode_ogg(&b)) {
+            Ok(t) => store[i] = Some(Arc::new(t)),
+            Err(e) => eprintln!("[audio] track{i}.ogg 不可用（{e}）——该轨静音"),
+        }
+    }
+    Arc::new(Mutex::new(store))
 }
 
 /// Android AAudio 输出（`#[cfg(target_os = "android")]` 门控；宿主编译走 [`CountingPcm`]）。
