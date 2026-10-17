@@ -4,6 +4,8 @@
 
 ## Architecture
 
+- [Shell 契约：实现一个平台壳要做什么](architecture_shell-contract.md) — 三层架构（game-core 零 I/O / game-platform trait / shell 全平台依赖）+ 八接缝清单（资产/存档/退出/音频/输入/呈现/字体/生命周期）+ 新壳最小验收（2026-10-17，BUG-020 连带）
+
 ## Gotchas
 
 - [全局替换命中刚插入的方法体](gotcha_global-replace-hits-newly-added-method.md) — 先插后换使新方法委托变自递归，尾位置 TCO 成 100% CPU 静默死循环；替换前逐处核对命中上下文

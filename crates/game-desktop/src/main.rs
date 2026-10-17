@@ -665,6 +665,16 @@ impl Shell {
         }
     }
 
+    /// `CMidlet.m_000` 退出信号（BootMachine::finished，mode 22 退场动画 70 拍后置位；
+    /// game-core 只发信号不碰进程——退出是平台接口，shell 消费执行）。
+    /// 【2026-10-17 BUG-020】原缺此消费者 ⇒ 主菜单"退出"退场动画走完后无人退出。
+    fn finished(&self) -> bool {
+        match self.state.as_ref() {
+            Some(Screen::Boot(m)) => m.finished,
+            Some(Screen::Game(_)) | Some(Screen::Crashed) | None => false,
+        }
+    }
+
     /// 一逻辑拍（logic → paint，同 Java run 循环体），随后同步 BGM 请求。可见性不影响出拍：
     /// Java run 线程在隐藏期照常循环（hideNotify 只改状态，不停线程）。
     fn logic_tick(&mut self) {
@@ -1058,6 +1068,10 @@ fn run_window(shell: Shell) {
                     self.shell.set_minimized(minimized);
                 }
                 self.shell.logic_tick();
+                // CMidlet.m_000 退出信号消费点（BUG-020）：game-core 发信号、shell 退出进程
+                if self.shell.finished() {
+                    el.exit();
+                }
                 let iv = self.shell.frame_interval();
                 self.pacer.after_tick(now, iv);
                 if let Some(w) = self.window.as_ref() {
