@@ -1,0 +1,19 @@
+# Android 壳（game-android）——平台壳归 shell/（2026-10-17 结构决策，根 Cargo.toml
+# members=["crates/*","shell/*"] glob 自动纳入，本目录必须是含 Cargo.toml 的 crate）。
+#
+# crate-type 双型：cdylib = Android 装载所需（NativeActivity/宿主 .so）；
+# rlib = cargo test/宿主构建走它（cdylib 对 host 无害，只多构建一个动态产物）。
+#
+# 依赖纪律（对抗审查 F-4/F-5）：实现不落拷贝——共享音频/存储语义消费 shell/common
+# （game-shell-common）；签名唯一裁决 = docs/spec/platform-contract.md（game-platform）。
+[package]
+name = "game-android"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "game_android"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+game-platform = { path = "../../crates/game-platform" }
