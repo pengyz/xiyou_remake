@@ -25,8 +25,10 @@ Renderer/Font/Input/可见性——尚无第二实现的真实需求，落地时
 **已知第五缝（B2 登记）**：音频轨资产供给（`--audio` 注入目录 + `track{i}.ogg`，
 `shell/win/src/audio.rs:617-620`、`:626-638`）是平台相关接缝但**不在本版 trait 集**
 （消费者形态 = exists 预检 + 异步装载，与 AssetSource 同步读不同形态）。
-**Android 落地必须并入 [`AssetSource`](#4-assetsource) 或单列 trait，不得沿用路径注入**
-（APK assets 无 `std::fs` 路径语义）——android-shell v1 已因此踩坑。
+Windows 侧口径（shell-port 2026-10-18 确认）：`start()/track_path/REGEN_CMD` 留 win 壳、
+不入共享。**Android 落地必须并入 [`AssetSource`](#4-assetsource) 或单列 trait，不得沿用路径注入**
+（APK assets 无 `std::fs` 路径语义）——android-shell v1 已因此踩坑；Android 侧轨道读取走
+`AssetSource::read("track{i}.ogg")`。
 
 ## 1. Storage
 
@@ -214,8 +216,15 @@ pub trait AssetSource {
 | AudioOut | winmm waveOut 裸 FFI（4 深常驻队列，BUG-019）/ Linux ALSA dlopen；缺库 ⇒ NullSink 无声降级 | AAudio 阻塞 write（AudioTrack 兜底或无声降级） |
 | AssetSource | `std::fs::read(--assets 根 / rel)` | `AAssetManager_open` + 全量读（APK assets 不可 `std::fs`） |
 
-注（B2）：音频轨资产供给在 Windows = `--audio` 路径注入；Android **不得**沿用路径注入，
-须并入 AssetSource 或单列 trait（§0 已知第五缝）。
+注（B2）：音频轨资产供给在 Windows = `--audio` 路径注入（`start()/track_path/REGEN_CMD`
+留 win 壳）；Android **不得**沿用路径注入，轨道走 `AssetSource::read("track{i}.ogg")`
+或单列 trait（§0 已知第五缝）。
+
+注（文件名大小写，shell-port 2026-10-18）：存档文件名大小写跟随宿主 FS **原生语义**——
+Windows 不区分（`MOT_L0.bin` 查找会命中 `mot_l0.bin`）、Android ext4 区分（不命中）。
+契约不强行归一（行为锚：`storage_lookup_follows_fs_case_rules`，shell/win 锁现状）；
+[`rms_key`](#1-storage) 产出的 store 名恒为大写原名（Java 原版字面），杂散大小写变体
+属"外来数据"按 §1.1 处理。
 
 ## 6. 签名决策速览（shell-port/lead 四点问询的成文答案）
 
@@ -247,10 +256,13 @@ pub trait AssetSource {
 
 | 单元 | RED 输出（逐字） | RED 复现指令 | GREEN | commit |
 |---|---|---|---|---|
-| Storage（键模型+trait） | 待填 | 待填 | 待填 | 待填 |
-| ProcessControl | 待填 | 待填 | 待填 | 待填 |
-| AudioOut | 待填 | 待填 | 待填 | 待填 |
-| AssetSource | 待填 | 待填 | 待填 | 待填 |
+| Storage（键模型+trait） | `error[E0432]: unresolved imports game_platform::{rms_key, rms_store_name, Storage, RMS_RECORD_ID, RMS_STORES}`（tests/storage_contract.rs:12:21） | 仅把 `tests/storage_contract.rs` 应用到父树 41b5c93，跑 `cargo test -p game-platform --test storage_contract` | 7 测过（cargo-exit=0） | `a859408` |
+| ProcessControl | `error[E0432]: unresolved import game_platform::ProcessControl`（tests/process_control_contract.rs:12:5） | 仅把 `tests/process_control_contract.rs` 应用到父树 a859408，跑 `cargo test -p game-platform --test process_control_contract`（等价指令 `git checkout a859408 -- crates/game-platform/src/lib.rs` 后跑同命令，已在 commit message 实跑存证） | 5 测过 | `485f542` |
+| AudioOut | `error[E0432]: unresolved imports game_platform::{AudioOut, CHANNELS, SAMPLE_RATE}`（tests/audio_out_contract.rs:12:21） | 仅把 `tests/audio_out_contract.rs` 应用到父树 485f542，跑 `cargo test -p game-platform --test audio_out_contract` | 6 测过 | `cb86eb2` |
+| AssetSource | `error[E0432]: unresolved import game_platform::AssetSource`（tests/asset_source_contract.rs:12:5） | 仅把 `tests/asset_source_contract.rs` 应用到父树 cb86eb2，跑 `cargo test -p game-platform --test asset_source_contract` | 4 测过 | `efb29bb` |
+
+最终面：`cargo test -p game-platform` = lib 5 + 四契约 22 = **27 全绿**（cargo-exit=0、无警告）；
+`cargo build --workspace` 零错。四项 (ii) 声明（"RED 测试代码与本 commit 逐字一致"）见各 commit message。
 
 ## 8. 对抗性审查记录
 
@@ -272,6 +284,11 @@ pub trait AssetSource {
   渐进写→不清数组→序列化残留）；措辞修正 = edge d MOT_IF 行"收敛为同一合法槽表"过强，
   已改为"各自收敛为合法表；内容分叉随 §9 #4 持续至对应槽被重新保存覆盖"。
   实现启动后 adversary 按 §7 (iii) 抽查 RED 复现。
+- 入库备注：本文件 v1.0 全文经并发提交 `41b5c93`（"G1 对抗审计修正"）卷入入库——
+  该 commit 的 message 未含本文件的 Evidence/Confidence（并发 `git add` 竞态）；
+  证据字段由后续 TDD 单元 commit 与 §7 记录 commit 补记，内容以本文件为准。
+- 实现落地（2026-10-18）：四单元 TDD 全绿（§7 表），实现复审交 adversary 按
+  §7 (iii) 抽查 RED 复现——结论待回填。
 
 ## 9. 遗留假设清单
 
