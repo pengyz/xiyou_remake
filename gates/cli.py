@@ -395,11 +395,51 @@ def cmd_status():
     return 1 if FAIL in statuses else 0
 
 
+def gate_state_machine_anchors():
+    """状态机锚校验（件 C/D 挂点）：key-code-contract §5 锚表 + 边数对照
+    （TRANSFER_EDGES vs state-machine-edges.md 表）——防行号/注释漂移（前科两次）。"""
+    deobf = ROOT / "reference" / "src" / "deobf" / "a.java"
+    if not deobf.exists():
+        return report("state-machine-anchors", SKIP, "deobf a.java 缺失（跳过锚校验）")
+    lines = deobf.read_text(encoding="utf-8", errors="replace").splitlines()
+    # 锚表：(行号, 期望 token)——key-code-contract.md §5
+    anchors = [
+        (4276, "keyValue = 0"),   # 尾清锚（run 内）
+        (5296, "keyValue = 0"),   # 尾清锚（BootMachine 侧）
+        (5302, "keyValue = 0"),   # 尾清锚（BootMachine 侧）
+        (3415, "gameMode = 17"),  # 菜单激活写点（mode 17 入口）
+        (3420, "gameMode = 22"),  # 菜单激活写点（mode 22 入口）
+        (902, "2, 3, 3, 3, 6, 3, 3, 6"),  # f_byte_arr_13 表常量
+    ]
+    bad = []
+    for lineno, tok in anchors:
+        lo, hi = max(0, lineno - 3), min(len(lines), lineno + 2)
+        window = "\n".join(lines[lo:hi])
+        if tok not in window:
+            bad.append(f"a.java:{lineno} 期望 {tok!r} 未命中（±2 邻域）")
+    # 边数对照：scene.rs TRANSFER_EDGES vs edges 文档表
+    scene = ROOT / "crates" / "game-core" / "src" / "scene.rs"
+    edges_doc = ROOT / "docs" / "spec" / "state-machine-edges.md"
+    if scene.exists() and edges_doc.exists():
+        code_edges = scene.read_text(encoding="utf-8").count("(GameMode::")
+        doc_rows = sum(1 for l in edges_doc.read_text(encoding="utf-8").splitlines()
+                       if l.startswith("| ") and l[2:3].isdigit())
+        # TRANSFER_EDGES 常量内的 (GameMode:: 计数（表外也有——取常量段）
+        seg = scene.read_text(encoding="utf-8")
+        i = seg.find("pub static TRANSFER_EDGES")
+        j = seg.find("];", i)
+        code_edges = sum(1 for l in seg[i:j].splitlines() if l.strip().startswith("(GameMode::")) if i >= 0 else -1
+        if code_edges != doc_rows:
+            bad.append(f"边数不一致：TRANSFER_EDGES {code_edges} vs edges 文档 {doc_rows}（件 D 维护义务）")
+    return report("state-machine-anchors", FAIL if bad else PASS,
+                  f"锚 {len(anchors)} + 边数对照；" + ("；".join(bad) if bad else "全命中"))
+
+
 def cmd_check():
     print("== 总闸 gates/cli.py check ==")
     statuses = [gate_original(), gate_assets_manifest(), gate_reference_seed_integrity(),
                 gate_knowledge_format(), gate_docs_links(), gate_naming_ledger(), gate_rust_tests(),
-                gate_test_ratchet()]
+                gate_test_ratchet(), gate_state_machine_anchors()]
     # SKIP 项必须显式出现在输出（上面已打印），不得静默
     print("== 汇总 ==")
     print(f"PASS={statuses.count(PASS)} FAIL={statuses.count(FAIL)} SKIP={statuses.count(SKIP)}")
