@@ -629,6 +629,7 @@ impl Shell {
         self.step();
         self.sync_bgm();
         self.persist_global_if_dirty();
+        self.persist_slot_if_if_dirty();
     }
 
     /// game-core BGM 请求 → 输出命令（只在变化时发送，audio.rs）。顺带观测 anyKeyPlayed
@@ -700,6 +701,31 @@ impl Shell {
         stores.push(("SKY_WAR@1".into(), blob));
         self.rms.persist(&stores);
         self.stores = stores;
+    }
+
+    /// MOT_IF 读失败回写（markSlotEntry(-1) 对偶，BUG-021 ②c）：槽表 parse_dirty
+    /// （game-core `load_slot_table` 失败触发器 = Java catch 9000-9001）⇒ 当前槽表
+    /// **整表落盘**（Java delete+addRecord 同终态，a.java:9026-9052）。回写后
+    /// stores 同步（Boot 侧读档列表重读源）/ preset_mot_if 回写（Game 侧 mode7/8
+    /// 重读源）⇒ 重复进入收敛（Java 写后可解析同收敛）。
+    fn persist_slot_if_if_dirty(&mut self) {
+        let dirty_slot = match self.state.as_mut() {
+            Some(Screen::Game(sc)) => sc.slot.take_parse_dirty().then(|| sc.slot.clone()),
+            Some(Screen::Boot(m)) => {
+                m.slots.as_mut().and_then(|s| s.take_parse_dirty().then(|| s.clone()))
+            }
+            Some(Screen::Crashed) | None => None,
+        };
+        let Some(slot) = dirty_slot else { return };
+        let mot_if = serialize_slot_if(&slot);
+        let mut stores = std::mem::take(&mut self.stores);
+        stores.retain(|(k, _)| !k.starts_with("MOT_IF@"));
+        stores.push(("MOT_IF@1".into(), mot_if.clone()));
+        self.rms.persist(&stores);
+        self.stores = stores;
+        if let Some(Screen::Game(sc)) = self.state.as_mut() {
+            sc.preset_mot_if = Some(mot_if); // 重读源同步（BUG-018 环）
+        }
     }
 
     fn step(&mut self) {
@@ -1535,6 +1561,45 @@ mod shell_tests {
         }
         let blob = std::fs::read(dir.join("SKY_WAR.bin")).unwrap();
         assert!(game_core::save::parse_global_save(&blob).is_ok(), "已回写合法值");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// BUG-021 ②c 落盘对偶环（markSlotEntry(-1) delete+addRecord，a.java:9000-9001
+    /// →9026-9052）：槽表 parse_dirty（game-core 读失败触发器）⇒ MOT_IF@1 整表回写
+    /// + stores 同步（Boot 侧读档列表重读源）；触发器一次性消费（重复拍不重写）。
+    #[test]
+    fn slot_if_parse_dirty_triggers_mot_if_writeback() {
+        use crate::serialize_slot_if;
+        let dir = skywar_dir("motif");
+        let mut shell = shell_at(&dir);
+        // 模拟"读失败已发生"的 game-core 侧状态：半解析表在内存 + 触发器置位
+        let mut slot = game_core::menu_family::SlotSelect::new();
+        slot.valid[0] = true;
+        slot.hp[0] = 1234;
+        slot.floor_num[0] = 7;
+        slot.parse_dirty = true;
+        if let Some(Screen::Boot(m)) = shell.state.as_mut() {
+            m.slots = Some(slot.clone());
+        }
+        shell.logic_tick();
+        let blob = std::fs::read(dir.join("MOT_IF.bin")).expect("MOT_IF 回写落盘");
+        assert_eq!(
+            blob,
+            serialize_slot_if(&slot),
+            "整表落盘 = markSlotEntry(-1) delete+addRecord 对偶（半解析表原样持久）"
+        );
+        assert!(
+            shell.stores.iter().any(|(k, v)| k == "MOT_IF@1" && *v == blob),
+            "stores 同步（BUG-018 读档列表重读源）"
+        );
+        // 触发器一次性：第二拍不重写
+        let mtime = std::fs::metadata(dir.join("MOT_IF.bin")).unwrap().modified().unwrap();
+        shell.logic_tick();
+        assert_eq!(
+            std::fs::metadata(dir.join("MOT_IF.bin")).unwrap().modified().unwrap(),
+            mtime,
+            "parse_dirty 一次性消费，重复拍不重写"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
