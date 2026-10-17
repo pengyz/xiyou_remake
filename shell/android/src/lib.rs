@@ -23,3 +23,5 @@
 //! 模块（各单元 TDD 红→绿逐一落地）：`input`（触控/硬件键→键码映射）、
 //! `lifecycle`（Activity 生命周期→hideNotify/showNotify）、`process`/`audio`/`asset`
 //! （契约四 trait 的 Android 实现与宿主桩）。
+
+pub mod input;
