@@ -58,24 +58,11 @@ macro_rules! fixture {
     };
 }
 
-/// 目录型资产源（`--assets` 注入，Windows 侧 std::fs）。接缝④ =
-/// `game_platform::AssetSource`（Android = AAssetManager 实现，shell/android）。
-/// rel 约定：纯文件名/`/` 分隔相对路径（契约 §4）。
-struct DirAssets {
-    root: PathBuf,
-}
-
-impl DirAssets {
-    fn new(root: &PathBuf) -> DirAssets {
-        DirAssets { root: root.clone() }
-    }
-}
-
-impl game_platform::AssetSource for DirAssets {
-    fn read(&self, rel: &str) -> Result<Vec<u8>, String> {
-        std::fs::read(self.root.join(rel)).map_err(|e| e.to_string())
-    }
-}
+/// 目录型资产源（接缝④）已抽 `game-shell-common::asset::DirAssetSource`（task-5
+/// 双壳总审裁定 2026-10-18：DirAssetSource/DirAssets 生产面小重复 → 并入共享单源，
+/// 防双壳拷贝漂移）。本地别名保既有调用面与测试（`DirAssets::new(&…)`）零改动
+/// （adversary 裁定 A：机械接线）。
+use game_shell_common::asset::DirAssetSource as DirAssets;
 
 fn load_container(src: &dyn game_platform::AssetSource, name: &str, count: usize) -> Vec<ArgbImage> {
     let data = src
@@ -2010,22 +1997,5 @@ mod behavior_anchors {
             (104, 5917174173154521492),
             "tile_walk 摘要"
         );
-    }
-
-    /// 接缝④ 判据（B4 缝测）：资产读取经 `game_platform::AssetSource` trait——
-    /// DirAssets 经 dyn 读与 std::fs::read 逐字节一致；缺文件 ⇒ Err 不 panic
-    /// （panic 归壳侧，文案由 panic_text_* 三类锚逐字锁）。
-    #[test]
-    fn asset_reads_go_through_assetsource_trait() {
-        use game_platform::AssetSource;
-        let raw = repo().join("assets/raw");
-        let src = DirAssets::new(&raw);
-        let via_trait: &dyn AssetSource = &src;
-        for rel in ["mapbg", "maplv1", "sprite1", "l0.png"] {
-            let via = via_trait.read(rel).unwrap();
-            let direct = std::fs::read(raw.join(rel)).unwrap();
-            assert_eq!(via, direct, "{rel} 经 dyn AssetSource 读 == std::fs::read 逐字节");
-        }
-        assert!(via_trait.read("no_such_asset").is_err(), "缺文件 ⇒ Err（不 panic）");
     }
 }

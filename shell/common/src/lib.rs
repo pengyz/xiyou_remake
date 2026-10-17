@@ -18,16 +18,22 @@
 //! Android ext4 区分）——大小写杂散名的命中差异**不是 bug**（契约 §5 脚注；
 //! 判据锚 `behavior_anchors::storage_lookup_follows_fs_case_rules_key_stays_canonical`）。
 
+pub mod asset;
 pub mod audio;
 pub mod rms;
 
 #[cfg(test)]
 mod behavior_anchors {
-    //! 行为锚（自 shell/win 迁入，断言零字节改动）：RMS 文件语义锁现状，
+    //! 行为锚（自 shell/win 迁入，断言零字节改动）：RMS 文件语义与资产读取锁现状，
     //! 迁移前后游戏行为零漂移的判据。纪律：断言文本与期望值**不许改**。
+    use crate::asset::DirAssetSource as DirAssets;
     use crate::rms::FileRms as Rms;
     use std::path::PathBuf;
     use std::time::Duration;
+
+    fn repo() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
+    }
 
     fn tmp(tag: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("xiyou-anchor-{tag}-{}", std::process::id()));
@@ -188,5 +194,23 @@ mod behavior_anchors {
             );
         }
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 接缝④ 判据（B4 缝测，自 shell/win 随迁断言零字节改动）：资产读取经
+    /// `game_platform::AssetSource` trait——DirAssets 经 dyn 读与 std::fs::read
+    /// 逐字节一致；缺文件 ⇒ Err 不 panic（panic 归壳侧，文案由壳侧 panic_text_*
+    /// 三类锚逐字锁）。
+    #[test]
+    fn asset_reads_go_through_assetsource_trait() {
+        use game_platform::AssetSource;
+        let raw = repo().join("assets/raw");
+        let src = DirAssets::new(&raw);
+        let via_trait: &dyn AssetSource = &src;
+        for rel in ["mapbg", "maplv1", "sprite1", "l0.png"] {
+            let via = via_trait.read(rel).unwrap();
+            let direct = std::fs::read(raw.join(rel)).unwrap();
+            assert_eq!(via, direct, "{rel} 经 dyn AssetSource 读 == std::fs::read 逐字节");
+        }
+        assert!(via_trait.read("no_such_asset").is_err(), "缺文件 ⇒ Err（不 panic）");
     }
 }
