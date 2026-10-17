@@ -377,6 +377,9 @@ fn canvas_graphics(screen: &mut ArgbImage) -> SoftGraphics<'_> {
 enum Screen {
     Boot(BootMachine),
     Game(Box<GameScene>),
+    /// 崩溃终止屏（P0-2 壳层统一：game-core panic 被壳捕获后转入——
+    /// 全宿主一致呈现"崩溃终止"，消除桌面闪退/wasm 假死的观感分裂）。
+    Crashed,
 }
 
 struct Shell {
@@ -551,7 +554,7 @@ impl Shell {
                 // BootMachine 无 gameMode 3（读档/新游戏完成即交接 GameScene）⇒ 4504 恒假
                 m.bgm.on_hide_notify();
             }
-            None => {}
+            Some(Screen::Crashed) | None => {}
         };
         // closeAudioPlayer 同步关闭（a.java:10208-10215）⇒ 立即下发 Stop，不等下一拍
         self.sync_bgm();
@@ -575,8 +578,8 @@ impl Shell {
         match &self.state {
             Some(Screen::Boot(m)) => m.mode,
             Some(Screen::Game(sc)) => sc.game_mode,
-            // -1=无屏哨兵（原 i32 口径保真，非真实模式）
-            None => GameMode::Unknown(-1),
+            // -1=无屏哨兵（原 i32 口径保真，非真实模式）；崩溃终止屏同哨兵
+            Some(Screen::Crashed) | None => GameMode::Unknown(-1),
         }
     }
 
@@ -585,7 +588,7 @@ impl Shell {
         match &self.state {
             Some(Screen::Boot(m)) => m.bgm.any_key_played,
             Some(Screen::Game(sc)) => sc.bgm.any_key_played,
-            None => false,
+            Some(Screen::Crashed) | None => false,
         }
     }
 
@@ -610,7 +613,7 @@ impl Shell {
                 serial: sc.bgm_serial(),
                 volume: sc.bgm_volume().unwrap_or(0),
             },
-            None => audio::BgmSnapshot::default(),
+            Some(Screen::Crashed) | None => audio::BgmSnapshot::default(),
         }
     }
 
@@ -643,6 +646,22 @@ impl Shell {
         sc.paint(&mut g, &self.assets.tileset);
     }
 
+    /// 崩溃终止屏（P0-2 壳层统一）：game-core panic 的全宿主一致呈现。
+    /// 纯壳层画面，不进 game-core 渲染语义（保真面零侵入）。
+    fn paint_crashed(&mut self) {
+        use game_core::layout::{SCREEN_H, SCREEN_W};
+        let mut g = canvas_graphics(&mut self.screen);
+        g.set_clip(0, 0, SCREEN_W, SCREEN_H);
+        g.set_color(0x20_00_00);
+        g.fill_rect(0, 0, SCREEN_W, SCREEN_H);
+        g.set_color(0xFF_FF_FF);
+        g.set_font(Some(game_core::paint::paint_font()));
+        let l1: Vec<u16> = "游戏已终止".encode_utf16().collect();
+        let l2: Vec<u16> = "（原版崩溃语义等价终止）".encode_utf16().collect();
+        g.draw_string(&l1, SCREEN_W / 2, SCREEN_H / 2 - 12, 17);
+        g.draw_string(&l2, SCREEN_W / 2, SCREEN_H / 2 + 8, 17);
+    }
+
     /// 交接拍收尾（读档 / 新游戏两路共用）：本拍即画场景（读档路 Java 本拍 paint 已是
     /// mode 3；两路均与 harness 同构）并切入 GameScene。
     fn enter_scene(&mut self, mut sc: GameScene) {
@@ -661,7 +680,7 @@ impl Shell {
         let (g, dirty) = match self.state.as_mut() {
             Some(Screen::Boot(m)) => (m.global_snapshot(), m.take_global_dirty()),
             Some(Screen::Game(sc)) => (sc.global_snapshot(), sc.take_global_dirty()),
-            None => return,
+            Some(Screen::Crashed) | None => return,
         };
         if !dirty {
             return;
@@ -695,10 +714,35 @@ impl Shell {
                     self.stores = stores;
                     self.persisted_blobs = sc.saved_slot_blobs.clone();
                 }
-                sc.tick(self.frame_counter as i64, &self.assets.width_table);
-                self.frame_counter += 1;
-                self.paint_scene(&mut sc);
-                self.state = Some(Screen::Game(sc));
+                // P0-2 壳层统一（bug-012-softlock-report.md §3）：game-core 崩溃
+                // （如 T350 槽登记越界 = Java AIOOBE 同点同因）在此捕获 → 崩溃终止屏。
+                // game-core 语义不动（保真零侵入）；终止呈现归宿主层。
+                let fc = self.frame_counter as i64;
+                let wt = self.assets.width_table.clone();
+                let tick = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    sc.tick(fc, &wt);
+                }));
+                match tick {
+                    Ok(()) => {
+                        self.frame_counter += 1;
+                        self.paint_scene(&mut sc);
+                        self.state = Some(Screen::Game(sc));
+                    }
+                    Err(e) => {
+                        let msg = e
+                            .downcast_ref::<String>()
+                            .map(String::as_str)
+                            .or_else(|| e.downcast_ref::<&str>().copied())
+                            .unwrap_or("");
+                        eprintln!("GAME-CRASH（原版崩溃语义等价终止）: {msg}");
+                        self.paint_crashed();
+                        self.state = Some(Screen::Crashed);
+                    }
+                }
+            }
+            Some(Screen::Crashed) => {
+                // 崩溃后保持终止屏（不再 tick game-core）
+                self.paint_crashed();
             }
             Some(Screen::Boot(mut machine)) => {
                 let key = std::mem::take(&mut self.pending_machine_key);

@@ -737,8 +737,14 @@ fn fx_boss68a_kill_spawn_frames_match() {
 /// Rust 侧 cell_entity/槽表同构（slots=vec![vec![0u8;16];128]，entity.rs）——本测以
 /// catch_unwind 容纳同点 panic（同点 panic = 语义忠实）或存活（前缀对拍已足），
 /// 2026-10-16 实测：**Rust 存活（scene=true）**——同构槽表未溢出，Java 独有崩溃状态
-/// 根因待深挖（bug 稿"未解反常"节）。LAY_2/RES_0 位于 CES_70 之后 Java 不可达（其 Rust 行为
-/// 锚 = scene.rs 单测 script_lay_jumps_floor_with_wipe / script_res_resets_run_stats_on_easy）。
+/// 根因待深挖（bug 稿"未解反常"节）。
+/// 【2026-10-17 证伪更正】"Rust 存活续跑=Java 独有崩溃"系 **T349 采样假象**——本夹具止于
+/// 崩点前一拍（"夹具帧 1..349 = Java 可观测前缀"），存活断言恰在末端取样；release 实测
+/// **T350 entity.rs:151 slot_push [36][16] panic = 与 Java AIOOBE 同拍同点同因**（见
+/// docs/spec/bug-012-softlock-report.md §1）。机制=script0 三拍重入循环 × CES_84 逐圈注册
+/// （oracle/scenarios/bug-012-fulldump-accumulation.md），崩溃指令非 CES_70。
+/// LAY_2/RES_0 位于 CES_70 之后 Java 不可达（其 Rust 行为锚 = scene.rs 单测
+/// script_lay_jumps_floor_with_wipe / script_res_resets_run_stats_on_easy）。
 #[test]
 fn fx_bug_ces70_slot_frames_match() {
     use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -765,4 +771,319 @@ fn fx_bug_ces70_slot_frames_match() {
             );
         }
     }
+}
+
+// ===== BUG-012 用户实机软死锁复现（2026-10-17 P0，interact-evidence）=====
+// 目的：跑过夹具末端（fx-bug-ces70-slot T349+ / fx-lay2a T1100+）观察 Rust 侧
+// T350 等价点行为——同点 panic（=Java 崩溃忠实）还是存活续跑（=软死锁保真缺口）。
+// 纯逻辑驱动（无帧断言），驱动时序与 replay_opt 逐拍同构。
+
+/// 输入脚本解析：`<tick> <key> <press|release>` → 按拍索引的事件表。
+fn bug012_events(script_text: &str) -> std::collections::BTreeMap<u32, Vec<(i32, bool)>> {
+    let mut ev: std::collections::BTreeMap<u32, Vec<(i32, bool)>> = Default::default();
+    for line in script_text.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let p: Vec<&str> = line.split_whitespace().collect();
+        let tick: u32 = p[0].parse().unwrap();
+        let key: i32 = p[1].parse().unwrap();
+        ev.entry(tick).or_default().push((key, p[2] == "press"));
+    }
+    ev
+}
+
+/// 与 replay_opt 同构的纯逻辑驱动（去掉 paint/sha），跑到 end_tick，
+/// 返回逐拍状态日志（变化拍 + [win_start,win_end] 窗口内逐拍）。
+fn bug012_replay(
+    label: &str,
+    preset_text: &str,
+    script_text: &str,
+    end_tick: u32,
+    win: (u32, u32),
+) -> Vec<String> {
+    let events = bug012_events(script_text);
+    let stores = parse_preset(preset_text);
+    let mot_l0 = &stores.iter().find(|(k, _)| k.starts_with("MOT_L0@")).expect("MOT_L0").1;
+    let save = parse_floor_save(mot_l0, 0).unwrap();
+    let floors = all_floors();
+    let cur = floors[save.current_floor as usize].clone().expect("存档层资产");
+    let width_table: Vec<i32> = numbers(include_str!("../../game-core/tests/fixtures/type_width_px.txt"));
+    let walkability: Vec<i32> = numbers(include_str!("../../game-core/tests/fixtures/tile_walkability.txt"));
+    let combat_tables = game_core::combat::CombatTables {
+        enemy_base_hp: numbers(include_str!("../../game-core/tests/fixtures/enemybasehp.txt")),
+        enemy_base_atk: numbers(include_str!("../../game-core/tests/fixtures/enemybaseatk.txt")),
+        enemy_base_def: numbers(include_str!("../../game-core/tests/fixtures/enemybasedef.txt")),
+        difficulty_multipliers: numbers(include_str!("../../game-core/tests/fixtures/difficulty_multipliers.txt")),
+    };
+    let images = scene_images();
+    let ui = load_container("ui", 25);
+    let mut machine = BootMachine::new(
+        decode_png(&raw("l0.png")),
+        decode_png(&raw("l1.png")),
+        load_container("sflogo", 8),
+        ui,
+        load_container("menu", 2),
+        load_container("mapbg", 1)[0].clone(),
+        load_container("intro", 2),
+        load_container("end", 1),
+        load_container("load", 2),
+    );
+    machine.preset_stores = stores.clone();
+    machine.sptarm = load_container("sptarm", 10);
+
+    let tileset = load_container("map", 12)[0].clone();
+    let mut screen = ArgbImage::create(game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
+    let mut scene: Option<GameScene> = None;
+    let mut pending_key = 0i32;
+    let mut pending_press = 0i32;
+    let mut pending_release = false;
+    let mut log: Vec<String> = Vec::new();
+    let mut last = String::new();
+    for t in 1..=end_tick {
+        let key = pending_key;
+        pending_key = 0;
+        if let Some(evs) = events.get(&t) {
+            for &(k, is_press) in evs {
+                if is_press {
+                    pending_key = k;
+                }
+            }
+        }
+        if let Some(sc) = scene.as_mut() {
+            if pending_press != 0 {
+                sc.press_key(pending_press);
+                pending_press = 0;
+            }
+            if pending_release {
+                sc.release_key();
+                pending_release = false;
+            }
+            sc.tick(t as i64 - 1, &width_table);
+            // 绘制不可省：换层遮幅推进与 swap_floor 挂 paint 公共尾（paint_wipe_tail，
+            // a.java:3177-3215 同构）——纯逻辑驱动会让过场永远不完（2026-10-17 误报教训）。
+            {
+                let mut g = SoftGraphics::new(&mut screen);
+                g.set_clip(0, 0, game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
+                g.set_font(Some(game_core::paint::paint_font()));
+                sc.paint(&mut g, &tileset);
+            }
+            if let Some(evs) = events.get(&t) {
+                for &(k, is_press) in evs {
+                    if is_press {
+                        pending_press = k;
+                    } else {
+                        pending_release = true;
+                    }
+                }
+            }
+            let row = format!(
+                "T{:04} mode={:?} script={} cursor={} dphase={} wp={} wsc={} pcell=({},{}) ent={} tr={} wipe={} wc={}",
+                t,
+                sc.game_mode,
+                sc.current_script_index,
+                sc.script_cursor,
+                sc.dialog_phase,
+                sc.walk_phase,
+                sc.walk_step_count,
+                sc.view.player_px >> 5,
+                sc.view.player_py >> 5,
+                sc.entities.count,
+                sc.transitioning,
+                sc.wipe,
+                sc.wipe_closing,
+            );
+            if (t >= win.0 && t <= win.1) || row[7..] != last {
+                eprintln!("{}-REPRO {}", label, row);
+                log.push(row.clone());
+            }
+            last = row[7..].to_string();
+        } else {
+            machine.tick(key);
+            if machine.mode == GameMode::Map && machine.slot_loaded.is_some() {
+                let m = &machine;
+                let mut sc = game_core::scene::load_floor_from_save(
+                    &cur.maplv,
+                    &cur.records,
+                    &width_table,
+                    &walkability,
+                    images.clone(),
+                    floors.clone(),
+                    &save,
+                )
+                .unwrap();
+                sc.backdrop_scroll = m.backdrop.scroll();
+                if let Some(t) = &m.title {
+                    sc.menu_cursor = t.cursor;
+                    sc.bob_offset = t.bob;
+                    sc.bob_rising = t.bob_rising;
+                }
+                sc.strip_frame = m.strip_frame;
+                sc.preset_mot_if = m
+                    .preset_stores
+                    .iter()
+                    .find(|(k, _)| k.starts_with("MOT_IF@"))
+                    .map(|(_, v)| v.clone());
+                sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
+                sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
+                sc.enemy_base_gold = numbers(include_str!("../../game-core/tests/fixtures/enemybasegold.txt"));
+                sc.rng = m.rng.clone();
+                if pending_key != 0 {
+                    sc.press_key(pending_key);
+                    pending_key = 0;
+                }
+                log.push(format!("T{:04} == 场景移交（floor={}）==", t, sc.floor));
+                scene = Some(sc);
+            }
+        }
+    }
+    log.push(format!("T{:04} == END {} scene_alive={} ==", end_tick, label, scene.is_some()));
+    log
+}
+
+/// 正式回归（2026-10-17 P0-1/P0-3 收编）：跑过夹具末端断言 **T350 同点崩溃=忠实**
+/// （"index out of bounds"+"16" = Java AIOOBE 同拍同点同因）；存活=偏离 Java 崩溃语义。
+#[test]
+fn bug012_ces70_same_point_crash_regression() {
+    let log = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        bug012_replay(
+            "ces70",
+            include_str!("fixtures/fx-bug-ces70-slot.preset"),
+            include_str!("fixtures/fx-bug-ces70-slot.txt"),
+            460,
+            (295, 380),
+        )
+    }));
+    match log {
+        Ok(lines) => {
+            for l in &lines {
+                eprintln!("CES70-REPRO {l}");
+            }
+            panic!("未在 T350 同点崩溃——偏离 Java 崩溃语义（应 slot_push [36][16] panic）");
+        }
+        Err(e) => {
+            let msg = e
+                .downcast_ref::<String>()
+                .map(String::as_str)
+                .or_else(|| e.downcast_ref::<&str>().copied())
+                .unwrap_or("");
+            eprintln!("CES70-REPRO 同点崩溃（忠实）: {msg}");
+            assert!(
+                msg.contains("index out of bounds") && msg.contains("16"),
+                "同点 panic（槽表 16 满）才算忠实同点崩溃，实得: {msg}"
+            );
+        }
+    }
+}
+
+/// 同上（fx-lay2a 完整追逐链场景）。
+#[test]
+fn bug012_lay2a_same_point_crash_regression() {
+    let log = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        bug012_replay(
+            "lay2a",
+            include_str!("fixtures/fx-lay2a.preset"),
+            include_str!("fixtures/fx-lay2a.txt"),
+            1300,
+            (295, 380),
+        )
+    }));
+    match log {
+        Ok(lines) => {
+            for l in &lines {
+                eprintln!("LAY2A-REPRO {l}");
+            }
+            panic!("未在 T350 同点崩溃——偏离 Java 崩溃语义（应 slot_push [36][16] panic）");
+        }
+        Err(e) => {
+            let msg = e
+                .downcast_ref::<String>()
+                .map(String::as_str)
+                .or_else(|| e.downcast_ref::<&str>().copied())
+                .unwrap_or("");
+            eprintln!("LAY2A-REPRO 同点崩溃（忠实）: {msg}");
+            assert!(
+                msg.contains("index out of bounds") && msg.contains("16"),
+                "同点 panic（槽表 16 满）才算忠实同点崩溃，实得: {msg}"
+            );
+        }
+    }
+}
+
+/// BUG-012b 真实切层链（2026-10-17 用户精确证词 P0）：floor2 (1,10) 下步入 (1,11)
+/// 上梯 → changeFloor(3) → swap_floor 落点 m_031 首可走邻格 = floor3 (2,11) 剧情点
+/// → applyStepCellEffects case83 step 臂 → script0（CES_84 嫦娥 + MOV_0_5_11 自走
+/// + TAK_8_9 剧情对话）。**Java 基线（oracle floor2-stair2 实测）**：
+/// T305 踩梯 → T309 切层落 (2,11) → T310 cursor 12（CES）→ T311 dphase=3/wsc=3（MOV
+/// 自走武装）→ T318/322/326 三步自动走到 (5,11) → T328 dialogPage=8（TAK 对话）。
+/// 本测断言 Rust 逐拍同构（Java 走 = 移植缺口应修 / 不走 = 原版行为——此处以 Java 为锚）。
+fn bug012b_floor2_stair_preset() -> String {
+    // 同 Python 复现口径：preset-floor2-mov.preset 改玩家格 (1,10) + 清 scriptLineFlags
+    let text = include_str!("../../game-core/tests/fixtures/preset-floor2-mov.preset");
+    let mut out = Vec::new();
+    for line in text.lines() {
+        if let Some((k, hexs)) = line.split_once('=') {
+            if k.starts_with("MOT_L0@") {
+                let mut b: Vec<u8> = (0..hexs.len() / 2)
+                    .map(|i| u8::from_str_radix(&hexs[2 * i..2 * i + 2], 16).unwrap())
+                    .collect();
+                b[1] = 2;
+                b[4] = 0;
+                b[7..9].copy_from_slice(&1u16.to_be_bytes());
+                b[9..11].copy_from_slice(&10u16.to_be_bytes());
+                let n_follow = u16::from_be_bytes([b[35], b[36]]) as usize;
+                let flags_off = 37 + n_follow * 2;
+                for i in 0..128 {
+                    b[flags_off + i] = 0;
+                }
+                let hex: String = b.iter().map(|x| format!("{x:02x}")).collect();
+                out.push(format!("{k}={hex}"));
+                continue;
+            }
+        }
+        out.push(line.to_string());
+    }
+    out.join("\n") + "\n"
+}
+
+#[test]
+fn bug012b_floor2_stair_transition_repro() {
+    let script = "70 -6 press\n72 -6 release\n100 -2 press\n102 -2 release\n150 -5 press\n152 -5 release\n200 -5 press\n202 -5 release\n300 -2 press\n302 -2 release\n";
+    let log = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        bug012_replay("floor2-stair", &bug012b_floor2_stair_preset(), script, 700, (295, 380))
+    }));
+    let lines = match log {
+        Ok(lines) => lines,
+        Err(e) => {
+            let msg = e
+                .downcast_ref::<String>()
+                .map(String::as_str)
+                .or_else(|| e.downcast_ref::<&str>().copied())
+                .unwrap_or("");
+            panic!("STAIR-REPRO panic: {msg}");
+        }
+    };
+    for l in &lines {
+        eprintln!("STAIR-REPRO {l}");
+    }
+    // Java 锚（oracle floor2-stair2 实测）逐拍断言：切层→自走→剧情对话全链。
+    // 2026-17 修复前断点 = paint 分派模式臂 return 跳过换层遮幅公共尾（paint_wipe_tail）
+    // ⇒ transitioning 永真 ⇒ dp3 行走被 !transitioning 门永久挡住（wsc 恒 3 不弹）。
+    let get = |t: &str| {
+        lines
+            .iter()
+            .find(|l| l.starts_with(t))
+            .unwrap_or_else(|| panic!("缺拍 {t}"))
+            .clone()
+    };
+    assert!(get("T0314").contains("wsc=2"), "T314 首步弹出（Java wsc=2）: {}", get("T0314"));
+    assert!(get("T0318").contains("pcell=(3,11)"), "T318 自走 (3,11): {}", get("T0318"));
+    assert!(get("T0322").contains("pcell=(4,11)"), "T322 自走 (4,11): {}", get("T0322"));
+    assert!(get("T0326").contains("pcell=(5,11)"), "T326 自走到位 (5,11): {}", get("T0326"));
+    let t328 = get("T0328");
+    assert!(
+        t328.contains("dphase=1") && t328.contains("cursor=31"),
+        "T328 TAK_8_9 剧情对话开启（Java dialogPage=8/phase1/cursor31）: {t328}"
+    );
 }

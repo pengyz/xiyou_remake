@@ -716,6 +716,7 @@ pub static TRANSFER_EDGES: &[(GameMode, Option<GameMode>)] = &[
     (GameMode::IntroCutscene, Some(GameMode::Loading)),
     (GameMode::IntroCutscene, Some(GameMode::IntroCutscene)),
     // 11-15：hub（Map）出口
+    (GameMode::Map, Some(GameMode::Map)),
     (GameMode::Map, Some(GameMode::InGameMenu)),
     (GameMode::Map, Some(GameMode::ItemPanel)),
     (GameMode::Map, Some(GameMode::Dialog)),
@@ -739,8 +740,19 @@ pub static TRANSFER_EDGES: &[(GameMode, Option<GameMode>)] = &[
     (GameMode::ItemPanel, Some(GameMode::Map)),
     (GameMode::ItemPanel, Some(GameMode::EnemyInfo)),
     (GameMode::ItemPanel, Some(GameMode::RecordBrowser)),
+    // 29c：RecordBrowser→ItemPanel——mode12 -5/-6/-7 关回 mode10（a.java run case 12 头注）。
+    (GameMode::RecordBrowser, Some(GameMode::ItemPanel)),
+    // 29b：Map→RecordBrowser——道具 14（生死簿）使用臂直开记录浏览器（mode 12）。
+    // 巡查 35 边表漏登（2026-10-17 P0-1 同类第二缺口，preset_floor5 实测暴露）。
+    (GameMode::Map, Some(GameMode::RecordBrowser)),
     // 30-31：对话收尾（行尾门→相位 4 非模式转移；相机收敛→Map）
     (GameMode::Dialog, Some(GameMode::Map)),
+    // 30c：Dialog→Ending——END 脚本指令（a.java:8510-8514 gameMode=20）。
+    (GameMode::Dialog, Some(GameMode::Ending)),
+    // 30b：Dialog 自环——脚本重入（loadLevelScript 在 mode 11 内重跑剧本、scriptCursor
+    // 归 0；BUG-012 三拍循环实证，a.java:8053/8519 同构）；与边 10（IntroCutscene 自环）
+    // 同款。缺此边时 debug_assert 于合法重入处误杀（2026-10-17 P0-1）。
+    (GameMode::Dialog, Some(GameMode::Dialog)),
     // 32-35：Help/About/Shop/Ending 出口（32/33 return_mode=动态）
     (GameMode::Help, None),
     (GameMode::About, None),
@@ -5684,7 +5696,7 @@ impl GameScene {
     pub fn paint(&mut self, g: &mut SoftGraphics<'_>, tileset: &ArgbImage) {
         if self.game_mode == GameMode::EnemyInfo {
             self.paint_menu5(g);
-            return;
+            return self.paint_wipe_tail(g);
         }
         if self.game_mode == GameMode::About {
             // paint case 16（a.java:2963-2990）：parallax(false) + 图标条 +
@@ -5698,24 +5710,24 @@ impl GameScene {
                 opt.paint(g, &self.images.ui, &font);
             }
             m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
-            return;
+            return self.paint_wipe_tail(g);
         }
         if self.game_mode == GameMode::SaveSlot {
             // paint case 7（a.java:2679-2682）：m_113(true) 存档变体
             self.paint_slot_list(g);
             self.paint_overlay_box(g);
-            return;
+            return self.paint_wipe_tail(g);
         }
         if self.game_mode == GameMode::Help {
             // paint case 15（a.java:2958-2962）
             self.paint_menu15(g);
-            return;
+            return self.paint_wipe_tail(g);
         }
         if self.game_mode == GameMode::InGameMenu || self.game_mode == GameMode::Shop {
             // paint case 4/19 共享（a.java:2427-2490）
             self.paint_menu_list(g);
             self.paint_overlay_box(g);
-            return;
+            return self.paint_wipe_tail(g);
         }
         if self.game_mode == GameMode::ItemPanel {
             self.paint_item_panel(g);
@@ -5726,7 +5738,7 @@ impl GameScene {
         }
         if self.game_mode == GameMode::Ending {
             self.paint_ending(g);
-            return;
+            return self.paint_wipe_tail(g);
         }
         if self.game_mode == GameMode::RecordBrowser {
             self.paint_mode12(g);
@@ -5734,12 +5746,12 @@ impl GameScene {
         }
         if self.game_mode == GameMode::Dialog {
             self.paint_dialog(g, tileset);
-            return;
+            return self.paint_wipe_tail(g);
         }
         if self.game_mode == GameMode::Alchemy {
             // paint case 9（a.java:2690-2740）
             self.paint_menu9(g, tileset);
-            return;
+            return self.paint_wipe_tail(g);
         }
         self.paint_parallax(g, true);
         let tile_off = view_top_y() + self.advance_open_group_paint();

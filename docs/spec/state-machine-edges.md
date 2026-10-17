@@ -1,9 +1,9 @@
-# 状态机转移边集（35 边维护文档）——状态机件 D
+# 状态机转移边集（39 边维护文档）——状态机件 D
 
 > 2026-10-17 建档（state-machine-refactor-plan 件 D）。**维护义务**：PR 改
 > `game_mode` 转移写点（transition_to 调用点）须**同步本表 + scene.rs
 > `TRANSFER_EDGES`**，gates `state-machine-anchors` 机械对照两表行数/值一致。
-> 数据源：state-machine-survey §2（40 写点→35 边逐条）。
+> 数据源：state-machine-survey §2（40 写点→39 边逐条；【2026-10-17 P0-1 补登】5 边=Dialog→Dialog 自环/Map→RecordBrowser/Dialog→Ending/Map→Map 自环/RecordBrowser→ItemPanel——census 缺口，件 D 系统补扫待办）。
 
 ## 1. 边表（TRANSFER_EDGES 单一代码源=scene.rs；本表=可读镜像+维护说明）
 
@@ -42,7 +42,7 @@
 | 27 | ItemPanel(10) | 【内部】道具用完 | Map(3) | 出栈回图 | activate_item（:3204-3273 五处） |
 | 28 | ItemPanel(10) | 【键】使用 13 | EnemyInfo(5) | 敌情页 | activate_item 13（:3183） |
 | 29 | ItemPanel(10) | 【键】使用 14 | RecordBrowser(12) | 记录浏览器 | activate_item 14（:3190） |
-| 30 | Dialog(11) | 【收尾】行尾收尾门 | （非模式转移：dialog_phase=4） | 相机回玩家 | :1934（a.java:8597-8604） |
+> 注（非边，不计数）：Dialog(11) 行尾收尾门=dialog_phase=4 相机回玩家（:1934，a.java:8597-8604）——非模式转移。
 | 31 | Dialog(11) | 【收尾】相机收敛 | Map(3) | 回图 | tick_dialog（:2670/:2797） |
 | 32 | Help(15) | 【键】-7 | **动态**（menu_return_mode） | — | :3679 |
 | 33 | About(16) | 【键】-7/-6 | **动态**（menu_return_mode） | — | run case 16（:4261） |
@@ -51,6 +51,12 @@
 
 （script.rs harness 面独立：→Dialog（:193）/→Ending（:491）；测试合成点不计。
  RECORD-browser(12) 出口=overlay 关→ItemPanel(10)（overlay case5，:3325-3344）。）
+
+| 35 | Dialog(11) | 【脚本重入】cursor 归 0 | Dialog(11) | 自环=BUG-012 循环（D4） | P0-1 补登 |
+| 36 | Map(3) | 【键/道具 14】tick_item_panel 13|14 臂 | RecordBrowser(12) | 图鉴 | P0-1 补登 |
+| 37 | Dialog(11) | 【END 指令】 | Ending(20) | 结局 | P0-1 补登 |
+| 38 | Map(3) | 【换层/restore】 | Map(3) | 自环 | P0-1 补登 |
+| 39 | RecordBrowser(12) | 【mode12 关】 | ItemPanel(10) | 回道具面板 | P0-1 补登 |
 
 ## 2. 维护义务（PR 判据）
 
