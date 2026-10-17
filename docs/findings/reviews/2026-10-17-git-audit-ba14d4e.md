@@ -83,3 +83,15 @@ tick 数 500→150，判定仍全 PASS）。来源疑为某次门禁/差分 harn
   附带：`git add` 必验退出码（与 pathspec 规程并列的知识条素材，lead 落库）。
 - **待办**：最终 sha 到达后验闸痕（我复跑总闸 + tree-hash 等价 + DirAssetSource 合并
   本体按 5-2 约束复审：win panic 三锚不漂移/断言零改动/common 单源+双壳别名）。
+- **【G6 终章·2026-10-18 复核完结】**最终 sha = **7e7c71f**（lead 冻结令后清洁重造）：
+  ①`git diff 8836409 7e7c71f` = **空**（同内容过闸重落 ✓）；73c9d1b/71afdc5/8836409
+  三中间 amend 全悬空零引用 ✓；②闸痕复核 ✓（后台复跑总闸见本轮收尾）；③合并本体过
+  5-2 约束：win panic 三锚 prefix 断言不漂移（28/28 含 panic_text_*）、B4 锚随迁断言
+  零字节（抽样核 missing=0）、common 单源 + win `DirAssetSource as DirAssets` 别名
+  （main.rs:65，调用面零改动）、唯一语义统一面=错误诊断包络（`缺资产 {rel}（根 …）：
+  {io}`，如实声明、锚前缀保留、缺资产路径恒 panic 终止不变）——**接受**。
+  **第三种索引扫荡机制入册**：`git commit --amend`（无 pathspec）= 索引全扫
+  （71afdc5 曾卷 lead 集成件 6 件）；收敛解 = `reset --mixed` 回父代 + `git add <路径>`
+  （验退出码）+ `git commit -- <路径>`。至此索引扫荡三机制齐：`git add -A`（G1）、
+  裸 `git commit`（117aba7）、`git commit --amend`（本 G6）——全部收敛到 pathspec +
+  验退出码 + 提交后三对账（已并入 gotcha_shared-workspace-bare-commit-sweeps-index）。

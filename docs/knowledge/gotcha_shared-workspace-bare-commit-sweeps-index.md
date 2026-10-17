@@ -28,3 +28,11 @@ gotcha_commit-claims-must-match-content 的复发机制——声称与内容不�
 > 链接器撞上队友测试产物文件锁，是瞬态竞争不是代码错，重试即过；不要当编译失败
 > 反复改代码。取证免疫法（绕开共享工作区/索引/mtime 三坑）见
 > `gotcha_cargo-mtime-stale-rlib-false-red.md` 的 `git archive` temp 复现法。
+
+> 【2026-10-18 补·索引扫荡三机制齐（G6 案实证）】第三机制：`git commit --amend`
+> （无 pathspec）同样**索引全扫**（卷入 lead 集成件 6 件）。三机制 = `git add -A`
+> （G1）/ 裸 `git commit`（117aba7）/ `git commit --amend`（G6）。收敛解：
+> `git reset --mixed <父>` + `git add <我的路径>`（**验退出码**——撞锁静默失败即提交
+> 残缺，G6 首因）+ `git commit -- <路径>`。两条结构性防线：**总闸验证工作树而非
+> 提交面**（过闸 ≠ 提交内容一致，提交后必 `git show --stat` 三对账）；**amend 后必须
+> 重过闸**（`--no-verify` 零容忍，自首亦记违规）。
