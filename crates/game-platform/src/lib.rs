@@ -181,6 +181,22 @@ pub trait AudioOut: Send {
     fn idle(&mut self);
 }
 
+// ---------------------------------------------------------------- AssetSource 契约
+
+/// 资产来源接缝（docs/spec/platform-contract.md §4）：rel 路径读字节。
+/// Windows = 目录注入（`--assets`，默认 assets/raw，`std::fs::read`）；
+/// Android = APK assets（`AAssetManager`，不可 `std::fs`）。实现在壳层，
+/// 本 crate 只放 trait 与类型（AGENTS §2 红线）。
+pub trait AssetSource {
+    /// 读取 rel 路径资产。rel 约定：`/` 分隔、无前导 `/`、无 `..`（现状调用值均
+    /// 为纯文件名："mapbg"/"maplv{n}"/"sprite{n}" 等，`shell/win/src/main.rs:61-70`
+    /// / `:131-137` / `:464-484`）；根 = 平台注入的资产根。
+    /// 失败 ⇒ Err(人话诊断)、**不 panic**——panic 归壳侧且消息逐字保留
+    /// （"缺资产 {name}（先跑 tools/extract-assets/extract.py）：{e}"）。
+    /// 音频产物暂不走本 trait（已知第五缝，spec §0/§4.2）。
+    fn read(&self, rel: &str) -> Result<Vec<u8>, String>;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
