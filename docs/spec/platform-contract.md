@@ -1,6 +1,7 @@
 # game-platform 平台契约层（platform-contract）
 
-> 状态：**v1.0 已过对抗性审查**（2026-10-17 adversary 通过，§8；TDD 实测记录随实现补入 §7）。
+> 状态：**v1.0 终稿**（2026-10-17 adversary 方案通过 + 2026-10-18 adversary 实现复审通过，
+> §8；TDD 实测记录 §7 已全录）。
 > 范围：trait 与类型居 `crates/game-platform`（AGENTS §2 红线：只放 trait 与类型）；
 > 实现只在平台壳 `shell/win`（Windows）/ `shell/android`（Android）。
 > 证据指针口径：`路径:行`；可判定性：本文件的签名/语义由 `cargo test -p game-platform`
@@ -289,6 +290,14 @@ Windows 不区分（`MOT_L0.bin` 查找会命中 `mot_l0.bin`）、Android ext4 
   证据字段由后续 TDD 单元 commit 与 §7 记录 commit 补记，内容以本文件为准。
 - 实现落地（2026-10-18）：四单元 TDD 全绿（§7 表），实现复审交 adversary 按
   §7 (iii) 抽查 RED 复现——结论待回填。
+- **2026-10-18 adversary 实现复审：通过**（审查记录：
+  `docs/findings/reviews/2026-10-18-platform-contract-implementation-review.md`）：
+  ①(iii) RED 独立复现成功——`git archive a859408` 父树导出 temp + 仅叠
+  485f542 的 tests/process_control_contract.rs ⇒ `E0432 … :12:5` 与 commit message
+  逐字吻合；②GREEN 终面独立复跑 = 27/27（5+7+5+6+4）EXIT=0；③四点实现面逐行
+  亲验（签名逐字一致/负形状锁非放宽/RMS_STORES 无越权/替身语义一致）；
+  ④三对账干净（内容/声称/写范围）。备忘三条（BOM 卫生/两操作坑落库/§7§8 回填）
+  已随本次落文清账。
 
 ## 9. 遗留假设清单
 

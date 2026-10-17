@@ -29,12 +29,15 @@
 - [双移植面并存漂移](gotcha_dual-porting-surfaces-drift.md) — executeScriptInstruction 有 scene.rs 生产体与 script.rs HostCtx harness 面两套（camera.rs 第二套相机状态同病）；改任一面必须对照另一面、禁造第三面，DC-9 桥漏道具加成=漂移实例（e951c65）
 - [Windows 五坑：POSIX 假设落地即炸](gotcha_windows-posix-assumptions.md) — python3 占位符/GBK 解码/classpath 冒号/line.separator/CRLF 检出；三层钉死模板（JVM UTF-8 + Python encoding + .gitattributes LF）
 - [共享 shim 假设自我印证](gotcha_shared-shim-assumption-self-confirming.md) — 对拍全绿≠真机真值：双端共享模拟器参数时四层证据互相印证同一错误前提；BUG-008"缺底边"= shim 字高 10 裁半饰条，真值考据分工 javap 管反编译、设计反证/真机管参数
+- [共享工作区裸 commit 卷队友暂存](gotcha_shared-workspace-bare-commit-sweeps-index.md) — 裸 git commit 提交整个索引（含队友 git add 的文件）⇒ 声称/内容/写范围三不符（117aba7、ba14d4e 两起）；pathspec 提交强制（`git commit -- <路径>`，禁裸 commit/add -A），提交前 `git diff --cached --stat` 三对账
+- [cargo mtime 旧指纹假红](gotcha_cargo-mtime-stale-rlib-false-red.md) — Copy-Item/git checkout 还原带回旧 mtime ⇒ cargo 跳过 lib 重编链旧 rlib，报"no X in the root"假红（build 却 Finished）；touch 时间戳 / cargo clean / git archive temp 复现法三防
 
 ## Patterns
 
 - [引用锚定小节而非裸行号](pattern_cite-section-anchor-not-raw-line.md) — 文档互引写「#小节标题（行 N）」双锚；纯行号在追加后必漂移（实测 +19/+73）
 - [双拷贝算法修复必须同步](pattern_dual-copy-algorithms-sync-fix.md) — layout_full_text/layout_wrapped_text_limited 同算法两份拷贝，修一份漏一份 = 偏差换入口复发（迭代 26→30 实证）；review 布局函数强制查姊妹
 - [接任务先盘点仓库最新状态](pattern_survey-repo-state-before-research.md) — 多会话推进项目，几百提交可让"待调研问题"早已定案（decision 条目为证）；先 git log + knowledge 再动手
+- [门禁总闸下 TDD 红证据三件](pattern_tdd-red-evidence-with-gates.md) — pre-commit 跑 gates check（含 cargo test）⇒ 红提交过不了总闸；每单元 commit 携 RED 逐字输出+一致性声明+复现指令（测试部分单独应用到父树即得红），禁 --no-verify、禁死文件假先行
 
 ## Debug
 
