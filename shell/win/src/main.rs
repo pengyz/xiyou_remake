@@ -623,6 +623,20 @@ impl Shell {
         }
     }
 
+    /// 退出链消费点（BUG-020 执行半，接缝③）：粘滞信号**每 tick 轮询**（现状口径，
+    /// 无"消费一次"语义——el.exit() 实际只执行一次是"循环先退"的巧合；adversary F4
+    /// 裁定 (a)照实声明），经 `ProcessControl::request_exit`（幂等）执行。返回
+    /// true = 本次发出了退出请求（测试断言面）。信号消费归 shell：finished 判定
+    /// 全在本方法（game-core 只置位）。
+    fn consume_exit(&mut self, ctl: &mut dyn game_platform::ProcessControl) -> bool {
+        if self.finished() {
+            ctl.request_exit();
+            true
+        } else {
+            false
+        }
+    }
+
     /// 一逻辑拍（logic → paint，同 Java run 循环体），随后同步 BGM 请求。可见性不影响出拍：
     /// Java run 线程在隐藏期照常循环（hideNotify 只改状态，不停线程）。
     fn logic_tick(&mut self) {
@@ -944,8 +958,21 @@ fn run_window(shell: Shell) {
     use winit::event::{ElementState, WindowEvent};
     use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
     use winit::window::{Fullscreen, Window, WindowId};
+    use game_platform::ProcessControl; // 接缝③：request_exit 方法解析
 
     type W = std::rc::Rc<Window>;
+
+    /// 接缝③：winit 退出执行适配器（`el.exit()` 幂等；只能在事件循环回调内调用 ⇒
+    /// 作用域薄适配器，契约 platform-contract §2.2 方案①）。
+    struct WinitExit<'e> {
+        el: &'e ActiveEventLoop,
+    }
+
+    impl ProcessControl for WinitExit<'_> {
+        fn request_exit(&mut self) {
+            self.el.exit();
+        }
+    }
 
     struct Runner {
         shell: Shell,
@@ -990,7 +1017,7 @@ fn run_window(shell: Shell) {
                 return;
             }
             match event {
-                WindowEvent::CloseRequested => el.exit(),
+                WindowEvent::CloseRequested => WinitExit { el }.request_exit(),
                 WindowEvent::RedrawRequested => self.present(),
                 WindowEvent::Resized(_) => {
                     if let Some(w) = self.window.as_ref() {
@@ -1042,10 +1069,9 @@ fn run_window(shell: Shell) {
                     self.shell.set_minimized(minimized);
                 }
                 self.shell.logic_tick();
-                // CMidlet.m_000 退出信号消费点（BUG-020）：game-core 发信号、shell 退出进程
-                if self.shell.finished() {
-                    el.exit();
-                }
+                // CMidlet.m_000 退出信号消费点（BUG-020，接缝③）：game-core 发信号、
+                // shell 经 ProcessControl 执行退出（粘滞轮询、幂等——consume_exit）
+                self.shell.consume_exit(&mut WinitExit { el });
                 let iv = self.shell.frame_interval();
                 self.pacer.after_tick(now, iv);
                 if let Some(w) = self.window.as_ref() {
@@ -1704,6 +1730,48 @@ mod shell_tests {
         assert!(h.shell.finished(), "退出信号粘滞（现状 = 每 tick 轮询）");
         h.run_tick(&[]);
         assert!(h.shell.finished(), "退出信号粘滞（重复轮询仍为 true）");
+    }
+
+    /// 接缝③ 判据（B3 缝测）：退出执行经 `game_platform::ProcessControl` trait 发出
+    /// ——finished 前零请求；置位后**每轮轮询恰一次**（粘滞口径 = 现状 `if finished()`
+    /// 每 tick 轮询；一次性由 el.exit() 幂等 + 循环终止保证，壳不加消费位）。
+    #[test]
+    fn exit_chain_goes_through_process_control_trait() {
+        struct Probe(Arc<Mutex<usize>>);
+        impl game_platform::ProcessControl for Probe {
+            fn request_exit(&mut self) {
+                *self.0.lock().unwrap() += 1;
+            }
+        }
+        let mut h = Harness::new("preset-floor1.preset");
+        let mut ev: Vec<(u64, i32, bool)> = LOAD_FLOOR1[..2].to_vec();
+        for i in 0..5u64 {
+            ev.push((75 + 2 * i, -2, true));
+            ev.push((76 + 2 * i, -2, false));
+        }
+        ev.push((87, -5, true));
+        ev.push((88, -5, false));
+        h.run_to(90, &ev);
+        assert_eq!(h.shell.game_mode(), GameMode::LogoAnim, "kind 5 → mode 22");
+        let calls = Arc::new(Mutex::new(0usize));
+        let mut probe = Probe(calls.clone());
+        // 动画期：每轮 consume_exit 均 false、零请求；置位轮：true + 恰一次
+        let mut flip = None;
+        for _ in 0..90 {
+            let requested = h.shell.consume_exit(&mut probe);
+            if requested {
+                flip = Some(h.tick);
+                break;
+            }
+            assert_eq!(*calls.lock().unwrap(), 0, "退场动画期不得发出退出请求");
+            h.run_tick(&[]);
+        }
+        let t = flip.expect("finished 置位后 consume_exit 应发出请求");
+        assert_eq!(*calls.lock().unwrap(), 1, "置位后首个轮询恰一次请求");
+        assert!(h.shell.consume_exit(&mut probe), "粘滞信号：轮询即请求");
+        assert!(h.shell.consume_exit(&mut probe), "粘滞信号：重复轮询仍请求");
+        assert_eq!(*calls.lock().unwrap(), 3, "每轮轮询一次（F4 口径 a，无消费位）");
+        eprintln!("退出请求链起点 T{t}");
     }
 }
 
