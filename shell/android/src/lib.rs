@@ -24,5 +24,8 @@
 //! `lifecycle`（Activity 生命周期→hideNotify/showNotify）、`process`/`audio`/`asset`
 //! （契约四 trait 的 Android 实现与宿主桩）。
 
+pub mod asset;
+pub mod audio;
 pub mod input;
 pub mod lifecycle;
+pub mod process;
