@@ -25,6 +25,7 @@
 
 /// 轨道表 `f_String_arr_15`（a.java:2239）。下标即 [`BgmState::request`] 的值。
 /// BUG-010：下标 0/1 无调用点（死资源），保真保留表项。
+use crate::enums::GameMode;
 pub const TRACKS: [&str; 4] = ["logostart.mid", "logoquit.mid", "menu.mid", "game.mid"];
 /// 标题/菜单曲（m_000 case 1 a.java:4311）。
 pub const TRACK_MENU: u8 = 2;
@@ -220,9 +221,9 @@ impl BgmState {
 
     /// keyPressed 的音频半（a.java:4665-4674）：anyKeyPlayed 时，gameMode ∉ {21, 0}
     /// 才恢复播放 m_139(f_bool_28?3:2)；无论是否恢复都清 anyKeyPlayed。
-    pub fn on_key_pressed(&mut self, game_mode: i32) {
+    pub fn on_key_pressed(&mut self, game_mode: GameMode) {
         if self.any_key_played {
-            if game_mode != 21 && game_mode != 0 {
+            if game_mode != GameMode::SoundAsk && game_mode != GameMode::Boot {
                 let t = self.resume_track();
                 self.play(t);
             }
@@ -358,16 +359,16 @@ mod tests {
         let mut b = BgmState::in_game_default();
         b.on_hide_notify();
         assert_eq!((b.request(), b.any_key_played), (None, true));
-        b.on_key_pressed(21);
+        b.on_key_pressed(GameMode::SoundAsk);
         assert_eq!((b.request(), b.any_key_played), (None, false));
 
         b.on_hide_notify();
-        b.on_key_pressed(4);
+        b.on_key_pressed(GameMode::InGameMenu);
         assert_eq!((b.request(), b.any_key_played), (Some(3), false));
 
         // 未 hide 时按键无音频副作用
         let s = b.serial();
-        b.on_key_pressed(3);
+        b.on_key_pressed(GameMode::Map);
         assert_eq!(b.serial(), s);
     }
 
@@ -382,7 +383,7 @@ mod tests {
                 2 => b.toggle_sound(),
                 3 => b.close(),
                 4 => b.on_hide_notify(),
-                5 => b.on_key_pressed(3),
+                5 => b.on_key_pressed(GameMode::Map),
                 _ => unreachable!(),
             }
         }

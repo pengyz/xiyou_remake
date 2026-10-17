@@ -25,6 +25,7 @@
 //! Rust 侧资源已全预载——步骤只落实**状态效果**（步骤 8 的新游戏初始值），
 //! 其余步骤的地图/实体装载属 mode 3 范围（本模块只推进度与目标模式）。
 
+use crate::enums::GameMode;
 use crate::render::{ArgbImage, SoftGraphics};
 
 /// `dimImage`（a.java:4614-4630）：压暗变换——白色像素(-1)跳过，其余非透明
@@ -265,25 +266,25 @@ pub struct LoadProgress {
     /// loadProgressTarget：进度追赶目标。
     bar_max: i32,
     /// loadTargetMode：目标模式。
-    pub target_mode: i32,
+    pub target_mode: GameMode,
     /// loadCallInit：完成时是否调 m_000。
     call_m000: bool,
 }
 
 impl LoadProgress {
     /// `m_131(target, call_m000)` + `m_132(...)`（a.java:9885-9893 区）。
-    pub fn new(target: i32, call_m000: bool, steps: &[i8]) -> LoadProgress {
+    pub fn new(target: GameMode, call_m000: bool, steps: &[i8]) -> LoadProgress {
         LoadProgress { steps: steps.to_vec(), step_idx: 0, progress: 0, bar_max: 0, target_mode: target, call_m000 }
     }
 
     /// `startNewGameLoad`（a.java:7172-7179）：新游戏加载链。
     pub fn new_game() -> LoadProgress {
-        LoadProgress::new(3, true, &[6, 8, 5, 13, 9, 10, 2, 3, 12, 11])
+        LoadProgress::new(GameMode::Map, true, &[6, 8, 5, 13, 9, 10, 2, 3, 12, 11])
     }
 
     /// run case 2 一次 tick（a.java:3449-3541）。返回 `Some(target_mode)`
     /// 当进度 ≥100（加载完成；`call_m000` 供调用方决定初始化）。
-    pub fn tick(&mut self) -> Option<(i32, bool)> {
+    pub fn tick(&mut self) -> Option<(GameMode, bool)> {
         if self.progress < 100 {
             if self.progress < self.bar_max {
                 self.progress += 4;

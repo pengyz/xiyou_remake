@@ -23,6 +23,7 @@
 //! 存档：./save/ 目录（MOT_L0-2 = 槽存档、MOT_IF = 槽表、SKY_WAR = boss 旗标），
 //!       与 BootMachine 的 RMS 预置同格式——游戏内「保存游戏」即落盘。
 
+use game_core::enums::GameMode;
 mod audio;
 mod lifecycle;
 mod view;
@@ -570,11 +571,12 @@ impl Shell {
     }
 
     /// 当前 gameMode（日志用）。
-    fn game_mode(&self) -> i32 {
+    fn game_mode(&self) -> GameMode {
         match &self.state {
             Some(Screen::Boot(m)) => m.mode,
             Some(Screen::Game(sc)) => sc.game_mode,
-            None => -1,
+            // -1=无屏哨兵（原 i32 口径保真，非真实模式）
+            None => GameMode::Unknown(-1),
         }
     }
 
@@ -712,7 +714,7 @@ impl Shell {
                     machine.tick(key);
                 }
                 // 交接一：读档（槽载入动画完成 → mode 3）
-                if machine.mode == 3 {
+                if machine.mode == GameMode::Map {
                     if let Some(cursor) = machine.slot_loaded {
                         let key = format!("MOT_L{cursor}@1");
                         if let Some((_, blob)) = self.stores.iter().find(|(k, _)| *k == key) {
@@ -1178,7 +1180,7 @@ mod shell_tests {
     fn in_game_hide_closes_bgm_and_first_key_resumes_game_track() {
         let mut h = Harness::new("preset-floor1.preset");
         h.run_to(250, &LOAD_FLOOR1);
-        assert_eq!((h.scene().game_mode, h.bgm(), h.scene().bgm.in_game), (3, Some(3), true));
+        assert_eq!((h.scene().game_mode, h.bgm(), h.scene().bgm.in_game), (GameMode::Map, Some(3), true));
         let serial = h.scene().bgm_serial();
         let n = h.commands().len();
 
@@ -1228,10 +1230,10 @@ mod shell_tests {
         let mut ev = LOAD_FLOOR1.to_vec();
         ev.extend([(250, -7, true), (252, -7, false)]);
         h.run_to(260, &ev);
-        assert_eq!((h.scene().game_mode, h.bgm()), (4, Some(3)));
+        assert_eq!((h.scene().game_mode, h.bgm()), (GameMode::InGameMenu, Some(3)));
         let (cursor, count) = (h.scene().menu_cursor, h.scene().menu_item_count);
         h.shell.set_minimized(true);
-        assert_eq!((h.scene().game_mode, h.bgm()), (4, None), "mode≠3 ⇒ gameMode 不变（a.java:4504）");
+        assert_eq!((h.scene().game_mode, h.bgm()), (GameMode::InGameMenu, None), "mode≠3 ⇒ gameMode 不变（a.java:4504）");
         h.shell.route_key(-2, true);
         h.shell.route_key(-2, false);
         h.run_tick(&[]);
@@ -1242,7 +1244,7 @@ mod shell_tests {
         assert_eq!(h.bgm(), Some(3), "首键续播 game(3)");
         h.run_tick(&[]);
         let expect = if cursor < count - 1 { cursor + 1 } else { 0 };
-        assert_eq!((h.scene().game_mode, h.scene().menu_cursor), (4, expect));
+        assert_eq!((h.scene().game_mode, h.scene().menu_cursor), (GameMode::InGameMenu, expect));
     }
 
     /// 标题（BootMachine，f_bool_28=false 分支 ⇒ 续播 menu(2)）+ 挂起键与 hide 的 Java 次序：
@@ -1257,7 +1259,7 @@ mod shell_tests {
         use audio::Cmd::Stop;
         let mut h = Harness::new("preset-floor1.preset");
         h.run_to(99, &LOAD_FLOOR1[..2]);
-        assert_eq!((h.shell.game_mode(), h.bgm(), h.title_cursor()), (1, Some(2), 0));
+        assert_eq!((h.shell.game_mode(), h.bgm(), h.title_cursor()), (GameMode::MainMenu, Some(2), 0));
         let n = h.commands().len();
         // ①
         h.shell.set_minimized(true);
@@ -1308,7 +1310,7 @@ mod shell_tests {
     fn hide_in_modes_0_and_21_clears_flag_without_resume() {
         let mut h = Harness::new("preset-floor1.preset");
         h.run_to(10, &[]);
-        assert_eq!(h.shell.game_mode(), 0);
+        assert_eq!(h.shell.game_mode(), GameMode::Boot);
         h.shell.set_occluded(true);
         assert!(h.shell.any_key_played());
         h.shell.set_occluded(false);
@@ -1316,16 +1318,16 @@ mod shell_tests {
         h.run_tick(&[]);
         assert_eq!(
             (h.shell.game_mode(), h.bgm(), h.shell.any_key_played()),
-            (0, None, false),
+            (GameMode::Boot, None, false),
             "mode 0：清标志、不续播"
         );
         h.run_to(69, &[]);
-        assert_eq!(h.shell.game_mode(), 21);
+        assert_eq!(h.shell.game_mode(), GameMode::SoundAsk);
         h.shell.set_minimized(true);
         h.shell.set_minimized(false);
         assert!(h.shell.any_key_played());
         h.run_to(72, &LOAD_FLOOR1[..2]);
-        assert_eq!((h.shell.game_mode(), h.bgm(), h.shell.any_key_played()), (1, Some(2), false));
+        assert_eq!((h.shell.game_mode(), h.bgm(), h.shell.any_key_played()), (GameMode::MainMenu, Some(2), false));
         assert_eq!(h.commands(), vec![(71, PLAY_MENU)], "mode 21 不续播；-6 照常开声");
     }
 
@@ -1337,10 +1339,10 @@ mod shell_tests {
     fn hide_in_mode3_opens_in_game_menu() {
         let mut h = Harness::new("preset-floor1.preset");
         h.run_to(250, &LOAD_FLOOR1);
-        assert_eq!(h.scene().game_mode, 3);
+        assert_eq!(h.scene().game_mode, GameMode::Map);
         h.shell.set_occluded(true);
         let sc = h.scene();
-        assert_eq!(sc.game_mode, 4, "gameMode=4（a.java:4505）");
+        assert_eq!(sc.game_mode, GameMode::InGameMenu, "gameMode=4（a.java:4505）");
         assert_eq!(sc.menu_kinds, vec![1, 3, 4, 5, 7], "m_000 case 4（a.java:4326-4337）");
         assert_eq!(sc.softkeys, (1, 3));
         assert_eq!((sc.bgm_request(), sc.bgm.any_key_played), (None, true));

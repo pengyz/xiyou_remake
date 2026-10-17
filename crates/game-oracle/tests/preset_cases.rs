@@ -18,6 +18,7 @@
 //! preset：`preset-floor1.preset`（MOT_L0 = floor1 (3,10) hp500/atk30/def30
 //! 钥 1/0/0 金 100；MOT_IF = 槽表 slot0 有效）。
 
+use game_core::enums::GameMode;
 use game_core::menu_family::SlotSelect;
 use game_core::render::{ArgbImage, SoftGraphics};
 use game_core::scene::{GameScene, SceneImages};
@@ -230,7 +231,7 @@ fn preset_load_menu_frames_match() {
         } else {
             machine.tick(key);
             // 槽载入完成（run case2 完成分支 → mode3）：交接 GameScene
-            if machine.mode == 3 {
+            if machine.mode == GameMode::Map {
                 if let Some(_cursor) = machine.slot_loaded {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
@@ -292,7 +293,7 @@ fn preset_load_menu_frames_match() {
             let mode = if let Some(sc) = &scene {
                 sc.game_mode
             } else {
-                machine.mode as i32
+                machine.mode
             };
             assert_eq!(
                 &sha, expect,
@@ -430,7 +431,7 @@ fn preset_help_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 {
+            if machine.mode == GameMode::Map {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
@@ -485,7 +486,7 @@ fn preset_help_frames_match() {
         }
         if rec.tick >= 240 {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",
@@ -631,7 +632,7 @@ fn preset_item13_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 && machine.slot_loaded.is_some() {
+            if machine.mode == GameMode::Map && machine.slot_loaded.is_some() {
                 let m = &machine;
                 let mut sc = game_core::scene::load_floor_from_save(
                     &maplv1,
@@ -700,7 +701,7 @@ fn preset_item13_frames_match() {
             let mode = if let Some(sc) = &scene {
                 sc.game_mode
             } else {
-                machine.mode as i32
+                machine.mode
             };
             assert_eq!(
                 &sha, expect,
@@ -843,7 +844,7 @@ fn preset_itemstack_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 && machine.slot_loaded.is_some() {
+            if machine.mode == GameMode::Map && machine.slot_loaded.is_some() {
                 let m = &machine;
                 let mut sc = game_core::scene::load_floor_from_save(
                     &maplv1,
@@ -912,7 +913,7 @@ fn preset_itemstack_frames_match() {
             let mode = if let Some(sc) = &scene {
                 sc.game_mode
             } else {
-                machine.mode as i32
+                machine.mode
             };
             assert_eq!(
                 &sha, expect,
@@ -1074,7 +1075,7 @@ fn preset_item2122_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 && machine.slot_loaded.is_some() {
+            if machine.mode == GameMode::Map && machine.slot_loaded.is_some() {
                 let m = &machine;
                 let mut sc = game_core::scene::load_floor_from_save(
                     &maplv1,
@@ -1143,7 +1144,7 @@ fn preset_item2122_frames_match() {
             let mode = if let Some(sc) = &scene {
                 sc.game_mode
             } else {
-                machine.mode as i32
+                machine.mode
             };
             assert_eq!(
                 &sha, expect,
@@ -1308,7 +1309,7 @@ fn preset_item21_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 && machine.slot_loaded.is_some() {
+            if machine.mode == GameMode::Map && machine.slot_loaded.is_some() {
                 let m = &machine;
                 let mut sc = game_core::scene::load_floor_from_save(
                     &maplv1,
@@ -1377,7 +1378,7 @@ fn preset_item21_frames_match() {
             let mode = if let Some(sc) = &scene {
                 sc.game_mode
             } else {
-                machine.mode as i32
+                machine.mode
             };
             assert_eq!(
                 &sha, expect,
@@ -1521,7 +1522,7 @@ fn preset_itemcymbal_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 && machine.slot_loaded.is_some() {
+            if machine.mode == GameMode::Map && machine.slot_loaded.is_some() {
                 let m = &machine;
                 let mut sc = game_core::scene::load_floor_from_save(
                     &maplv1,
@@ -1590,7 +1591,7 @@ fn preset_itemcymbal_frames_match() {
             let mode = if let Some(sc) = &scene {
                 sc.game_mode
             } else {
-                machine.mode as i32
+                machine.mode
             };
             assert_eq!(
                 &sha, expect,
@@ -1771,7 +1772,7 @@ fn preset_itemboss40_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 {
+            if machine.mode == GameMode::Map {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
@@ -1840,12 +1841,12 @@ fn preset_itemboss40_frames_match() {
         }
         {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",
                     rec.tick,
-                    scene.as_ref().map(|s| s.game_mode).unwrap_or(-1)
+                    scene.as_ref().map(|s| s.game_mode).unwrap_or(GameMode::Unknown(-1))
                 );
                 checked += 1;
             }
@@ -2007,7 +2008,7 @@ fn preset_floor2_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 {
+            if machine.mode == GameMode::Map {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
@@ -2076,7 +2077,7 @@ fn preset_floor2_frames_match() {
         }
         {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",
@@ -2242,7 +2243,7 @@ fn preset_merchant_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 {
+            if machine.mode == GameMode::Map {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
@@ -2311,7 +2312,7 @@ fn preset_merchant_frames_match() {
         }
         {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",
@@ -2469,7 +2470,7 @@ fn floor_crossing_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 {
+            if machine.mode == GameMode::Map {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
@@ -2538,7 +2539,7 @@ fn floor_crossing_frames_match() {
         }
         {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",
@@ -2761,7 +2762,7 @@ fn prologue_frames_match() {
         }
         {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",
@@ -2981,7 +2982,7 @@ fn floor51_menu_frames_match() {
         }
         {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",
@@ -3139,7 +3140,7 @@ fn gameplay_floor1_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 {
+            if machine.mode == GameMode::Map {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
@@ -3208,7 +3209,7 @@ fn gameplay_floor1_frames_match() {
         }
         {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",
@@ -3367,7 +3368,7 @@ fn floor2_tour_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 {
+            if machine.mode == GameMode::Map {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
@@ -3436,7 +3437,7 @@ fn floor2_tour_frames_match() {
         }
         {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",
@@ -3593,7 +3594,7 @@ fn floor1_tour_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 {
+            if machine.mode == GameMode::Map {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
@@ -3662,7 +3663,7 @@ fn floor1_tour_frames_match() {
         }
         {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",
@@ -3819,7 +3820,7 @@ fn walk_pure_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 {
+            if machine.mode == GameMode::Map {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
@@ -3888,7 +3889,7 @@ fn walk_pure_frames_match() {
         }
         {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",
@@ -4036,7 +4037,7 @@ fn preset_save_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 {
+            if machine.mode == GameMode::Map {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
@@ -4105,7 +4106,7 @@ fn preset_save_frames_match() {
         }
         {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",
@@ -4275,7 +4276,7 @@ fn preset_floor35_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 {
+            if machine.mode == GameMode::Map {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
@@ -4344,7 +4345,7 @@ fn preset_floor35_frames_match() {
         }
         {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",
@@ -4513,7 +4514,7 @@ fn preset_floor10_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 {
+            if machine.mode == GameMode::Map {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
@@ -4582,7 +4583,7 @@ fn preset_floor10_frames_match() {
         }
         {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",
@@ -4768,7 +4769,7 @@ fn preset_floor46_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 {
+            if machine.mode == GameMode::Map {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
@@ -4837,7 +4838,7 @@ fn preset_floor46_frames_match() {
         }
         {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",
@@ -5008,7 +5009,7 @@ fn preset_floor41_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 {
+            if machine.mode == GameMode::Map {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
@@ -5077,7 +5078,7 @@ fn preset_floor41_frames_match() {
         }
         {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",
@@ -5239,7 +5240,7 @@ fn preset_floor44_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 {
+            if machine.mode == GameMode::Map {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
@@ -5308,7 +5309,7 @@ fn preset_floor44_frames_match() {
         }
         {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",
@@ -5470,7 +5471,7 @@ fn preset_floor45_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 {
+            if machine.mode == GameMode::Map {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
@@ -5539,7 +5540,7 @@ fn preset_floor45_frames_match() {
         }
         {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",
@@ -5703,7 +5704,7 @@ fn preset_floor48_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 {
+            if machine.mode == GameMode::Map {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
@@ -5772,7 +5773,7 @@ fn preset_floor48_frames_match() {
         }
         {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",
@@ -5937,7 +5938,7 @@ fn preset_floor14_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 {
+            if machine.mode == GameMode::Map {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
@@ -6006,7 +6007,7 @@ fn preset_floor14_frames_match() {
         }
         {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",
@@ -6169,7 +6170,7 @@ fn preset_floor38_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 {
+            if machine.mode == GameMode::Map {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
@@ -6238,7 +6239,7 @@ fn preset_floor38_frames_match() {
         }
         {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",
@@ -6399,7 +6400,7 @@ fn preset_floor47_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 {
+            if machine.mode == GameMode::Map {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
@@ -6468,7 +6469,7 @@ fn preset_floor47_frames_match() {
         }
         {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",
@@ -6627,7 +6628,7 @@ fn preset_floor34_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 {
+            if machine.mode == GameMode::Map {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
@@ -6696,7 +6697,7 @@ fn preset_floor34_frames_match() {
         }
         {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",
@@ -6855,7 +6856,7 @@ fn preset_floor10_nw_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 {
+            if machine.mode == GameMode::Map {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
@@ -6924,7 +6925,7 @@ fn preset_floor10_nw_frames_match() {
         }
         {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",
@@ -7082,7 +7083,7 @@ fn preset_floor10b_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 {
+            if machine.mode == GameMode::Map {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
@@ -7151,7 +7152,7 @@ fn preset_floor10b_frames_match() {
         }
         {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",
@@ -7309,7 +7310,7 @@ fn preset_floor17_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 {
+            if machine.mode == GameMode::Map {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
@@ -7378,7 +7379,7 @@ fn preset_floor17_frames_match() {
         }
         {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",
@@ -7549,7 +7550,7 @@ fn preset_floor42_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 {
+            if machine.mode == GameMode::Map {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
@@ -7618,7 +7619,7 @@ fn preset_floor42_frames_match() {
         }
         {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",
@@ -7785,7 +7786,7 @@ fn preset_floor43_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 {
+            if machine.mode == GameMode::Map {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
@@ -7853,7 +7854,7 @@ fn preset_floor43_frames_match() {
             sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
             }
         if let Some(expect) = &rec.frame_sha {
-            let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+            let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
             assert_eq!(
                 &sha, expect,
                 "TICK {} 帧不符（mode={}）",
@@ -8017,7 +8018,7 @@ fn preset_alchemy_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 {
+            if machine.mode == GameMode::Map {
                 if machine.slot_loaded.is_some() {
                     let m = &machine;
                     let mut sc = game_core::scene::load_floor_from_save(
@@ -8102,7 +8103,7 @@ fn preset_alchemy_frames_match() {
         }
         {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",

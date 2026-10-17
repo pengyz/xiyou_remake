@@ -35,6 +35,7 @@
 //!
 //! 资产：assets/raw（门禁 provision 自供给，tools/extract-assets 由 original/ 再生）。
 
+use game_core::enums::GameMode;
 use game_core::paint::BootMachine;
 use game_core::render::{ArgbImage, SoftGraphics};
 use game_core::save::{parse_floor_save, parse_preset};
@@ -241,7 +242,7 @@ fn preset_save_equip_frames_match() {
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 && machine.slot_loaded.is_some() {
+            if machine.mode == GameMode::Map && machine.slot_loaded.is_some() {
                 let m = &machine;
                 let mut sc = game_core::scene::load_floor_from_save(
                     &maplv43,
@@ -279,9 +280,9 @@ fn preset_save_equip_frames_match() {
         }
         // 覆盖登记：本拍将画的详情面板装备框分支（a.java:9107/9127 条件）
         let panel = match scene.as_ref() {
-            Some(sc) if sc.game_mode == 7 => Some((2usize, &sc.slot)),
+            Some(sc) if sc.game_mode == GameMode::SaveSlot => Some((2usize, &sc.slot)),
             Some(_) => None,
-            None if machine.mode == 8 => machine.slots.as_ref().map(|s| (0usize, s)),
+            None if machine.mode == GameMode::EquipDetail => machine.slots.as_ref().map(|s| (0usize, s)),
             None => None,
         };
         if let Some((base, s)) = panel {
@@ -303,7 +304,7 @@ fn preset_save_equip_frames_match() {
             }
             sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
         }
-        let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+        let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
         assert_eq!(sha, rec.sha, "TICK {} 帧不符（mode={}）", rec.tick, mode);
         checked += 1;
     }
@@ -315,7 +316,7 @@ fn preset_save_equip_frames_match() {
     );
     // 存档写回终态（Java T801 = press@T800 次拍 markSlotEntry(4)：f_byte_arr_25/26[4] = 0/80）
     let sc = scene.expect("≤T416 应已交场景（Java gameMode=3 首见 T416 采样）");
-    assert_eq!(sc.game_mode, 3);
+    assert_eq!(sc.game_mode, GameMode::Map);
     assert_eq!((sc.equipped_weapon, sc.equipped_armor), (0, 80));
     assert!(sc.slot.valid[4]);
     assert_eq!((sc.slot.weapon[4], sc.slot.armor[4]), (0, 80));

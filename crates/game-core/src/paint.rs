@@ -19,6 +19,7 @@
 //! - [x] mode 0 tick 逻辑：加载轮播 + logo 时间线（a.java:3349-3374）
 //! - [ ] mode 21（logo 后过渡）、mode 4/19 主菜单、mode 1/2 加载、其余分支
 
+use crate::enums::GameMode;
 use crate::render::{ArgbImage, SoftFont, SoftGraphics, font_size, font_style};
 
 /// paint 入口持有的常量字体（a.java:24：`f_Font_00 = Font.getFont(0, 0, 8)`）。
@@ -141,7 +142,7 @@ pub fn paint_boot(g: &mut SoftGraphics<'_>, boot: &BootPaintState) {
 /// logic#2 起拍——l0 显示 TICK 1-16（16 帧）、l1 显示 TICK 17-31（15 帧）。
 pub struct BootMachine {
     /// gameMode（0=启动屏, 21=声音询问；1=title 菜单未端口）。
-    pub mode: i32,
+    pub mode: GameMode,
     /// keyValue（keyPressed 设置、tick 末清零，a.java:4664/4251）。
     pub key_value: i32,
     /// bootLoadPhase：加载相位（0=l0, 1=l1, 2+=logo 时间线）。
@@ -179,7 +180,7 @@ pub struct BootMachine {
     /// overlayActive：overlay 激活。
     pub overlay_active: bool,
     /// menuReturnMode：overlay/菜单的「返回模式」。
-    pub return_mode: i32,
+    pub return_mode: GameMode,
     /// animBobOffset/animBobRising（a.java:144-145）：mode 1 每 tick 推进
     ///（run case 1 头 a.java:3387）；进游戏后由 paintEntityLayer 接力
     ///（a.java:6499）。跨 mode 单一状态，统一流交接给 GameScene。
@@ -241,7 +242,7 @@ impl BootMachine {
         assert_eq!(ui.len(), 25, "ui 容器 25 张（a.java:453 resourceImageCounts 计数表）");
         assert_eq!(menu.len(), 2, "menu 容器 2 张（a.java:453 resourceImageCounts 计数表第 10 项）");
         BootMachine {
-            mode: 0,
+            mode: GameMode::Boot,
             key_value: 0,
             phase: 0,
             counter: 0,
@@ -259,7 +260,7 @@ impl BootMachine {
             backdrop: crate::menu_family::ParallaxBackdrop::new(),
             overlay: crate::menu_family::OverlayEngine::new(),
             overlay_active: false,
-            return_mode: 0,
+            return_mode: GameMode::Boot,
             slots: None,
             options: None,
             strip_frame: 0,
@@ -286,8 +287,8 @@ impl BootMachine {
     pub fn paint(&mut self, g: &mut SoftGraphics<'_>) {
         self.paints += 1;
         match self.mode {
-            21 => paint_sound_prompt(g, &self.ui[10], &self.ui[11], self.softkeys),
-            1 => {
+            GameMode::SoundAsk => paint_sound_prompt(g, &self.ui[10], &self.ui[11], self.softkeys),
+            GameMode::MainMenu => {
                 let mut t = self.title.take().unwrap();
                 let sf = self.strip_frame;
                 t.set_strip_frame(sf);
@@ -295,7 +296,7 @@ impl BootMachine {
                 self.strip_frame = t.strip_frame_value();
                 self.title = Some(t);
             }
-            8 => {
+            GameMode::EquipDetail => {
                 self.backdrop.paint(g, &self.mapbg, false, 0);
                 let segs = [3, 5]; // titleBarSegments[1]
                 if let Some(slots) = &self.slots {
@@ -304,16 +305,16 @@ impl BootMachine {
                 }
                 m_034_softkeys(g, &self.ui[10], &self.ui[11], self.softkeys.0, self.softkeys.1);
             }
-            15 | 17 => {
+            GameMode::Help | GameMode::IconView => {
                 self.backdrop.paint(g, &self.mapbg, false, 0);
-                let sy = if self.mode == 15 { 51 } else { 68 };
+                let sy = if self.mode == GameMode::Help { 51 } else { 68 };
                 let mut f = self.strip_frame;
                 crate::title::paint_icon_strip_at(g, &self.menu[1], 86, 10, sy, 68, &mut f);
                 self.strip_frame = f;
                 m_034_softkeys(g, &self.ui[10], &self.ui[11], self.softkeys.0, self.softkeys.1);
                 self.paint_overlay_tail(g);
             }
-            16 => {
+            GameMode::About => {
                 self.backdrop.paint(g, &self.mapbg, false, 0);
                 let mut f = self.strip_frame;
                 crate::title::paint_icon_strip_at(g, &self.menu[1], 86, 10, 34, 68, &mut f);
@@ -323,12 +324,12 @@ impl BootMachine {
                 }
                 m_034_softkeys(g, &self.ui[10], &self.ui[11], self.softkeys.0, self.softkeys.1);
             }
-            22 => {
+            GameMode::LogoAnim => {
                 let logo = self.logo.as_ref().unwrap();
                 let sf7 = self.sflogo[7].clone();
                 logo.paint(g, &sf7);
             }
-            14 => {
+            GameMode::IntroCutscene => {
                 let intro = self.intro.as_mut().unwrap();
                 let mut particles = self.title.as_mut().map(|t| std::mem::replace(&mut t.particles, crate::title::Particles::new()));
                 if let Some(p) = particles.as_mut() {
@@ -339,7 +340,7 @@ impl BootMachine {
                     if let Some(p) = particles { t.particles = p; }
                 }
             }
-            2 => {
+            GameMode::Loading => {
                 self.loading.as_ref().unwrap().paint(g, &self.load_imgs);
             }
             _ => {
@@ -398,14 +399,14 @@ impl BootMachine {
             self.bgm.on_key_pressed(self.mode);
         }
         match self.mode {
-            21 => {
+            GameMode::SoundAsk => {
                 // a.java:4231-4242：switch (keyValue)
                 match key {
                     -7 | -6 => {
                         // -7: soundEnabled=false + volumeLevel=0；-6: true（音量 0→60）
                         //（a.java:4232-4241）。两者都 gameMode=1 + m_000()
                         self.bgm.answer_sound_prompt(key == -6);
-                        self.mode = 1;
+                        self.mode = GameMode::MainMenu;
                         self.title = Some(crate::title::TitleMachine::new());
                         // m_000 case 1 音频半：f_bool_28=false + m_139(2)（a.java:4295/4311）
                         self.bgm.enter_title();
@@ -414,7 +415,7 @@ impl BootMachine {
                 }
                 self.key_value = 0;
             }
-            1 => {
+            GameMode::MainMenu => {
                 // a.java:3391-3440。frame_counter：迭代 N 拍用 f=N-1
                 //（for 自增在体后）；paints 在 tick 时 = 已 paint 数 = N-1。
                 // case 1 头部（a.java:3387）：advanceBobPhase 每 tick。
@@ -432,13 +433,13 @@ impl BootMachine {
                     // menuReturnMode：kind 1/2/3/4 → 1（a.java:3401/3397/3402）；
                     // kind 0(14)/5(22) 不设
                     if (1..=4).contains(&self.title_kind()) {
-                        self.return_mode = 1;
+                        self.return_mode = GameMode::MainMenu;
                     }
                     self.enter_menu_mode();
                 }
                 self.key_value = 0;
             }
-            8 => {
+            GameMode::EquipDetail => {
                 // run case 8（a.java:3829-3878）
                 match key {
                     -7 => self.mode = self.return_mode,
@@ -451,18 +452,18 @@ impl BootMachine {
                         if self.slots.as_ref().unwrap().valid[cursor] {
                             self.slot_loaded = Some(cursor); // 信号位：完成时置 Some
                             self.loading = Some(crate::intro::LoadProgress::new(
-                                3,
+                                GameMode::Map,
                                 true,
                                 &[6, 8, 5, 13, 9, 16, 10, 2, 3, 11],
                             ));
-                            self.mode = 2;
+                            self.mode = GameMode::Loading;
                         }
                     }
                     _ => {}
                 }
                 self.key_value = 0;
             }
-            15 | 17 => {
+            GameMode::Help | GameMode::IconView => {
                 // overlay 层 case 0 的 15/17 分支（a.java:3258-3265）
                 match key {
                     -7 => {
@@ -483,7 +484,7 @@ impl BootMachine {
                 }
                 self.key_value = 0;
             }
-            16 => {
+            GameMode::About => {
                 // run case 16（a.java:4143-4185）
                 match key {
                     -7 | -6 => self.mode = self.return_mode,
@@ -524,7 +525,7 @@ impl BootMachine {
                 }
                 self.key_value = 0;
             }
-            14 => {
+            GameMode::IntroCutscene => {
                 // run case 14（a.java:4137-4136）：runIntroViewer + 粒子雨 4 分频
                 let f = self.paints as i32;
                 if f & 3 == 0 {
@@ -542,11 +543,11 @@ impl BootMachine {
                 if done {
                     // startNewGameLoad（a.java:7174-7181）：新游戏加载链
                     self.loading = Some(crate::intro::LoadProgress::new_game());
-                    self.mode = 2;
+                    self.mode = GameMode::Loading;
                 }
                 self.key_value = 0;
             }
-            2 => {
+            GameMode::Loading => {
                 // run case 2（a.java:3449-3544）：进度追赶模型
                 if let Some((target, call_m000)) = self.loading.as_mut().unwrap().tick() {
                     self.loading = None;
@@ -572,7 +573,7 @@ impl BootMachine {
                 }
                 self.key_value = 0;
             }
-            22 => {
+            GameMode::LogoAnim => {
                 // run case 22（a.java:4249-4252）：++bootPhaseCounter ≤ 70 →
                 // runLogoAnimation(1, t)；否则退出进程
                 self.counter += 1;
@@ -628,7 +629,7 @@ impl BootMachine {
     /// m_000 的菜单族 case（a.java:4360/4386-4425）：进入模式时初始化。
     fn enter_menu_mode(&mut self) {
         match self.mode {
-            8 => {
+            GameMode::EquipDetail => {
                 // case 8（a.java:4360-4379）：槽表（loadSlotTable 读 MOT_IF）
                 // + 布局常量 + 软键 (1,3)
                 let mot_if = self
@@ -650,7 +651,7 @@ impl BootMachine {
                 });
                 self.softkeys = (1, 3);
             }
-            15 => {
+            GameMode::Help => {
                 // case 15（a.java:4402-4406）：帮助 overlay + 软键 (0,3)
                 let text = HELP_TEXT.encode_utf16().collect::<Vec<u16>>();
                 let font = paint_font();
@@ -658,7 +659,7 @@ impl BootMachine {
                 self.overlay_active = true;
                 self.softkeys = (0, 3);
             }
-            17 => {
+            GameMode::IconView => {
                 // case 17（a.java:4423-4435）：关于 overlay + 软键 (0,3)
                 let text = ABOUT_TEXT.encode_utf16().collect::<Vec<u16>>();
                 let font = paint_font();
@@ -666,7 +667,7 @@ impl BootMachine {
                 self.overlay_active = true;
                 self.softkeys = (0, 3);
             }
-            16 => {
+            GameMode::About => {
                 // case 16（a.java:4414-4416）：选项表 + 软键 (0,3)。
                 // optionChecked[1]=true：mode 21 的 RMS 失败 catch（a.java:4467）
                 self.options = Some(crate::menu_family::OptionList::new(
@@ -675,12 +676,12 @@ impl BootMachine {
                 ));
                 self.softkeys = (0, 3);
             }
-            14 => {
+            GameMode::IntroCutscene => {
                 // case 14（a.java:4386-4388 区）：intro/end 容器 + 引子状态机
                 //（粒子表沿用 title 的 Particles——Java 全局唯一）
                 self.intro = Some(crate::intro::IntroSequence::new());
             }
-            22 => {
+            GameMode::LogoAnim => {
                 // case 22（a.java:4487）：closeAudioPlayer（A-menu-sweep T1761
                 // close(state=400)）；bootPhaseCounter 已为 0（mode 0→21 清理）
                 self.bgm.close();
@@ -701,7 +702,7 @@ impl BootMachine {
         let y = (crate::layout::SCREEN_H - self.overlay.box_h) >> 1;
         crate::menu_family::paint_box_frame(g, &self.ui[0], x, y, self.overlay.box_w, self.overlay.box_h);
         g.set_color(crate::layout::WHITE);
-        let text: Vec<u16> = if self.mode == 15 {
+        let text: Vec<u16> = if self.mode == GameMode::Help {
             HELP_TEXT.encode_utf16().collect()
         } else {
             ABOUT_TEXT.encode_utf16().collect()
@@ -744,7 +745,7 @@ impl BootMachine {
                 self.image = None;
                 self.counter = 0;
                 self.bgm.close(); // closeAudioPlayer（a.java:3376，此时无播放器）
-                self.mode = 21;
+                self.mode = GameMode::SoundAsk;
                 self.frame_interval_ms = 75; // f_int_02=75（a.java:3377）
                 // m_000 case 21（a.java:4482-4478）：软键 (1,2)；soundEnabled=false
                 //（a.java:4484）；RMS "SKY_WAR" 读档失败路径（oracle 内存库恒空 ⇒ catch 删库重置）
@@ -803,7 +804,7 @@ mod tests {
     #[test]
     fn settings_toggle_marks_dirty() {
         let mut m = boot_state();
-        m.mode = 16;
+        m.mode = GameMode::About;
         m.options = Some(crate::menu_family::OptionList::new(true, true));
         let before = m.global_snapshot();
         m.tick(-5);

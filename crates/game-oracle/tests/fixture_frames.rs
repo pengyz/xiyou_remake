@@ -25,6 +25,7 @@
 //! 资产：assets/raw（门禁 provision 自供给，tools/extract-assets 由 original/ 再生）；55 层全量
 //! 装载（与壳 crates/game-desktop 同构——换层/跨层脚本可用任意层数据）。
 
+use game_core::enums::GameMode;
 use game_core::paint::BootMachine;
 use game_core::render::{ArgbImage, SoftGraphics};
 use game_core::save::{parse_floor_save, parse_preset};
@@ -257,7 +258,7 @@ fn replay_opt(label: &str, preset_text: &str, records: &[FrameRec]) -> (usize, O
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 && machine.slot_loaded.is_some() {
+            if machine.mode == GameMode::Map && machine.slot_loaded.is_some() {
                 let m = &machine;
                 let mut sc = game_core::scene::load_floor_from_save(
                     &cur.maplv,

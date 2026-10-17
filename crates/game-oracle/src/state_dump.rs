@@ -73,7 +73,7 @@ pub fn dump_scene(sc: &GameScene) -> Vec<String> {
     let mut push = |e: Entry| out.push(format!("{} = {}", e.name, e.value));
 
     push(e_int("frameCounter", sc.frame_counter as i32));
-    push(e_byte("gameMode", sc.game_mode as i8));
+    push(e_byte("gameMode", sc.game_mode.raw() as i8)); // 序列化边界 raw()（件 A 边界契约）
     push(e_int("keyValue", sc.key_value));
     push(e_int("keyHeldCode", sc.key_held));
     push(e_bool("overlayActive", sc.overlay_active));

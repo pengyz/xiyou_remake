@@ -21,6 +21,7 @@
 //! mode 切换拍（如 logic#71 消费 -6）只跑 mode 21 的分支体（break 跳出），
 //! mode 1 的首个完整 tick 是**下一拍**（logic#72：bob 0→-1、T72 帧箭头 61）。
 
+use crate::enums::GameMode;
 use crate::render::{ArgbImage, SoftGraphics};
 use game_platform::JavaRandom;
 
@@ -214,7 +215,7 @@ impl TitleMachine {
     ///
     /// `frame_counter` = 本拍的 frameCounter 值（迭代 N 拍 = N-1）。
     /// 返回 `Some(new_mode)` 当确认键切模式（调用方负责后续状态机移交）。
-    pub fn tick(&mut self, key: i32, frame_counter: i32, rng: &mut JavaRandom) -> Option<i32> {
+    pub fn tick(&mut self, key: i32, frame_counter: i32, rng: &mut JavaRandom) -> Option<GameMode> {
         if frame_counter & 3 == 0 {
             // a.java:3382：参数求值序 L2R——先 x=rb(240) 后 y=295-rb(150)
             let x = rng.random_below(crate::layout::SCREEN_W);
@@ -226,15 +227,16 @@ impl TitleMachine {
             // 确认（a.java:3388-3415）：按 menuItemKinds[cursor] 切模式
             -5 | 53 => {
                 let next = match self.menu_kinds[self.cursor as usize] {
-                    0 => 14,
-                    1 => 8,
-                    2 => 16,
-                    3 => 15,
-                    4 => 17,
-                    5 => 22,
-                    other => other,
+                    0 => GameMode::IntroCutscene,
+                    1 => GameMode::EquipDetail,
+                    2 => GameMode::About,
+                    3 => GameMode::Help,
+                    4 => GameMode::IconView,
+                    5 => GameMode::LogoAnim,
+                    // default：kind 直接即 mode（a.java:3388-3415 quirk 保真）
+                    other => GameMode::from_raw(other as i32),
                 };
-                Some(next as i32)
+                Some(next)
             }
             // 下移（a.java:3414-3417）
             -4 | -2 | 54 | 56 => {

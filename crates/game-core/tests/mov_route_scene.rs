@@ -53,6 +53,7 @@
 //!
 //! 资产：assets/raw（门禁 provision 自供给，tools/extract-assets 由 original/ 再生）。
 
+use game_core::enums::GameMode;
 use game_core::paint::BootMachine;
 use game_core::render::{ArgbImage, SoftGraphics};
 use game_core::save::{parse_floor_save, parse_preset};
@@ -307,7 +308,7 @@ fn run_scene(spec: &Spec, mut observe: impl FnMut(u32, &GameScene)) -> GameScene
             }
         } else {
             machine.tick(key);
-            if machine.mode == 3 && machine.slot_loaded.is_some() {
+            if machine.mode == GameMode::Map && machine.slot_loaded.is_some() {
                 let m = &machine;
                 let mut sc = game_core::scene::load_floor_from_save(
                     &maplv,
@@ -357,7 +358,7 @@ fn run_scene(spec: &Spec, mut observe: impl FnMut(u32, &GameScene)) -> GameScene
             }
             sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
         }
-        let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode as i32);
+        let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
         let dp = scene.as_ref().map(|s| s.dialog_phase).unwrap_or(-1);
         assert_eq!(sha, rec.sha, "TICK {} 帧不符（mode={mode} dp={dp}）", rec.tick);
         checked += 1;
@@ -389,7 +390,7 @@ fn preset_floor2_mov_frames_match() {
     let mut flags_loaded = false;
     let sc = run_scene(&FLOOR2, |tick, sc| {
         flags_loaded |= sc.script_line_flags[0];
-        if sc.game_mode == 11 && sc.dialog_phase == 2 {
+        if sc.game_mode == GameMode::Dialog && sc.dialog_phase == 2 {
             dp2_ticks[sc.current_script_index.min(2)] += 1;
             let e = sc.route_entity;
             if e >= 0 && sc.entities.items[e as usize].type_ == 72 {
@@ -417,7 +418,7 @@ fn preset_floor2_mov_frames_match() {
     assert_eq!(wall_opened_at, Some(611), "m_106 case0 开墙拍（弹第 2 步 → 下一格 (2,8)）");
     assert_eq!(relocated_18_at, Some(619), "m_108 迁槽拍（步尽收尾）");
     assert_eq!(des_hit_at, Some(862), "DES_72_1_10 命中拍（依赖第二次 m_108）");
-    assert_eq!(sc.game_mode, 3);
+    assert_eq!(sc.game_mode, GameMode::Map);
     assert_eq!(sc.route_entity, -1, "f_int_127 收尾 = -1");
     assert!(sc.script_line_flags[1] && sc.script_line_flags[2], "script1/2 行尾旗标");
 }
@@ -433,7 +434,7 @@ fn preset_floor40_mov_frames_match() {
     let mut boss_hook_at = None;
     let mut route_types = Vec::new();
     let sc = run_scene(&FLOOR40, |tick, sc| {
-        if sc.game_mode == 11 && sc.dialog_phase == 2 {
+        if sc.game_mode == GameMode::Dialog && sc.dialog_phase == 2 {
             if sc.route_phase == 5 && prev_phase != 5 {
                 starts.push(tick);
                 battle_flag_false_in_dp2 &= !sc.battle_active && sc.walk_phase == 5;
@@ -451,7 +452,7 @@ fn preset_floor40_mov_frames_match() {
     assert!(battle_flag_false_in_dp2, "途中战 battleActiveFlag=false + walkPhase=5");
     assert_eq!(route_types, [58, 58, 58, 57, 57, 57, 56, 56, 56, 59, 59, 59, 73], "MOV 顺序 = 脚本序");
     assert_eq!(boss_hook_at, Some(911), "型73 击杀钩子 loadLevelScript(22)（a.java:10071-10073）");
-    assert_eq!(sc.game_mode, 3);
+    assert_eq!(sc.game_mode, GameMode::Map);
     assert_eq!((sc.player_cell_x, sc.player_cell_y), (6, 6), "mode3 tickBattle(true) 收尾 restep 北移");
     assert!(sc.script_line_flags[12], "script12 旗标（case73 钩子置当前脚本）");
 }

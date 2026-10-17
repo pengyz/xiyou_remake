@@ -6,6 +6,7 @@
 //! title 菜单（T71-151：图标带动画、bob 箭头、粒子系统、光标移动 T90 -2、
 //! T150 -5 确认「继续游戏」→ gameMode=8 后为读档链，属下一批范围）。
 
+use game_core::enums::GameMode;
 use game_core::paint::BootMachine;
 use game_core::render::{ArgbImage, SoftGraphics};
 use game_oracle::trace;
@@ -73,7 +74,7 @@ fn boot_menu_frames_match_tick_by_tick() {
             // menu-sweep 终点：T1760 press(-5) → kinds[5]=5「帮助」（BUG-007 实为
             // 退出）→ mode 22 → runLogoAnimation(1,·) 70 拍 → T1831 后进程退出
             assert_eq!(rec.tick, 1832, "menu-sweep 终点 = mode 22 动画 70 拍耗尽（T1762+70）");
-            assert_eq!(machine.mode, 22, "终点模式");
+            assert_eq!(machine.mode, GameMode::LogoAnim, "终点模式");
             break;
         }
         let sha;

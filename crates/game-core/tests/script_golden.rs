@@ -4,6 +4,7 @@
 //! oracle trace 实测（prologue-dialog 场景）。数据来自编译期嵌入的 Java 提取夹具。
 //! 证据索引见 docs/spec/p3-script-interpreter.md §3-4。
 
+use game_core::enums::GameMode;
 use game_core::enums::{DialogPhase, WalkPhase};
 use game_core::script::{DialogueTable, HostCtx, ScriptEngine};
 
@@ -206,7 +207,7 @@ fn gut_flags_and_jumps() {
     assert!(eng.state.script_line_flags[gut_entry]);
     assert_eq!(eng.state.current_script_index, 37);
     assert_eq!(eng.state.script_cursor, 0);
-    assert_eq!(eng.state.game_mode, 11);
+    assert_eq!(eng.state.game_mode, GameMode::Dialog);
     assert_eq!(eng.state.dialog_phase, DialogPhase::ScriptStep);
     assert_eq!(eng.state.overlay_text, None);
 }
@@ -278,7 +279,7 @@ fn end_requests_exit() {
     let mut eng = ScriptEngine::new(&t, 0);
     eng.set_script_line_for_test("END_0 ");
     eng.step(&mut host);
-    assert_eq!(eng.state.game_mode, 20);
+    assert_eq!(eng.state.game_mode, GameMode::Ending);
     assert!(host.exit_called);
 }
 

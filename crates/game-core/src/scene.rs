@@ -16,6 +16,7 @@
 //! P3.5 对拍窗口：gameplay-floor1 T537-599 稳态（无输入）——popup 环形队列、
 //! walkPhase 1 步进、lockCameraOn 交互为后续批次（spec p3-render §3.6 待办）。
 
+use crate::enums::GameMode;
 use crate::entity::{self, CellGrid, EntityTable, ANIM_OFFSET_TABLE};
 use crate::game_view::GameView;
 use crate::layout::*;
@@ -412,7 +413,7 @@ pub struct GameScene {
     pub stair_hint: bool,
 
     // —— mode 11 对话（gameMode 3=世界 / 11=对话；a.java:4011-4068 相位机）——
-    pub game_mode: i32,
+    pub game_mode: GameMode,
     /// dialogPhase：0 脚本步进 / 1 TAK 打字 / 2 实体路径 / 3 脚本行走 / 4 等相机 / 6 SEE 打字
     pub dialog_phase: i32,
     /// mode12 日志浏览（f_int_90 页 + f_String_04 页码指示 + 日志对）
@@ -469,7 +470,7 @@ pub struct GameScene {
     pub menu_visible_bottom: i32,
     pub menu_cursor: i32,
     /// f_byte_01（N-0240 menuReturnMode）：mode7/8 -7 的返回目标
-    pub menu_return_mode: i32,
+    pub menu_return_mode: GameMode,
     /// mode 7 存档槽状态（m_000 case7 布局 + loadSlotTable 冷态）
     pub slot: crate::menu_family::SlotSelect,
     /// MOT_IF 槽表 blob（preset 虚拟 RMS；loadSlotTable 每次进 mode7 重读）
@@ -496,7 +497,7 @@ pub struct GameScene {
     /// iconStripFrame（a.java:464 全局；mode16 图标条动画帧）
     pub strip_frame: usize,
     /// f_byte_02：菜单返回目标（run case3 -7 时存 gameMode）
-    pub in_game_menu_return_mode: i32,
+    pub in_game_menu_return_mode: GameMode,
     /// mode 10 道具面板布局（m_000 case10 a.java:4370-4380：f_int_97..104）
     pub item_cols: i32,
     pub item_rows_total: i32,
@@ -927,7 +928,7 @@ impl GameScene {
             overlay_kind_item: 0,
             overlay_icon: None,
             overlay_item_name: None,
-            game_mode: 3,
+            game_mode: GameMode::Map,
             dialog_phase: 0,
             record_page: 0,
             record_text_a: include_str!("../tests/fixtures/record_texts_a.txt")
@@ -967,7 +968,7 @@ impl GameScene {
             menu_scroll_top: 0,
             menu_visible_bottom: 0,
             menu_cursor: 0,
-            menu_return_mode: 1,
+            menu_return_mode: GameMode::MainMenu,
             slot: crate::menu_family::SlotSelect::new(),
             preset_mot_if: None,
             encyc_damage: Vec::new(),
@@ -993,7 +994,7 @@ impl GameScene {
             saved_slot_blobs: [None, None, None, None, None, None],
             rainbow_phase: 0,
             strip_frame: 0,
-            in_game_menu_return_mode: 0, // BUG-008：Java 无初值（默认 0）保真对齐；原值 3 属顺手修 bug 偏差
+            in_game_menu_return_mode: GameMode::Boot, // BUG-008：Java 无初值（默认 0）保真对齐；原值 3 属顺手修 bug 偏差
             item_cols: 4,
             item_rows_total: 8,
             item_rows_visible: 6,
@@ -1119,7 +1120,7 @@ impl GameScene {
         // a.java 台账实证（迭代 46，A-preset-item21 T402）：changeFloor 起
         // 遮幅即回 mode 3（行走世界 + 遮幅点阵渐显）——面板内道具触发路径
         // 的 gameMode 不再停留 mode 10
-        self.game_mode = 3;
+        self.game_mode = GameMode::Map;
         if target < self.min_floor {
             self.min_floor = target;
         } else if target > self.max_floor {
@@ -1623,7 +1624,7 @@ impl GameScene {
     /// case 31 层重排特例（a.java:8028-8028）未达（script 40 不涉），todo 守卫。
     pub fn load_level_script(&mut self, idx: i32) {
         self.script_walk_armed = false;
-        self.game_mode = 11;
+        self.game_mode = GameMode::Dialog;
         self.dialog_page = 0;
         self.lock_camera_on(0); // ease 相机初始化到玩家
         self.dialog_phase = 0;
@@ -2209,7 +2210,7 @@ impl GameScene {
     /// 可观测部分：typewriterPos=1 + 初次 layout（对象 = **当时 overlayText 残页**，
     /// Java 原样）；f_int_22/23/f_bool_04 不重置。
     fn op_end(&mut self) {
-        self.game_mode = 20;
+        self.game_mode = GameMode::Ending;
         self.dialog_char = 1;
         if let Some(t) = self.overlay_text.clone() {
             let line_h = crate::paint::paint_font().height + 4;
@@ -2533,7 +2534,7 @@ impl GameScene {
             }
             4 => {
                 if self.camera_at_target() {
-                    self.game_mode = 3;
+                    self.game_mode = GameMode::Map;
                 }
             }
             5 => {} // f_bool_16 组合（LAY 批）
@@ -2660,7 +2661,7 @@ impl GameScene {
                             );
                         } else {
                             self.script_walk_armed = false;
-                            self.game_mode = 3;
+                            self.game_mode = GameMode::Map;
                             self.walk_phase = 1;
                             self.facing = self.route_dir;
                         }
@@ -2720,8 +2721,8 @@ impl GameScene {
     /// （m_000 case 4 = enter_menu4）；4509-4510 closeAudioPlayer + anyKeyPlayed=true
     /// 由 BgmState::on_hide_notify 承担。Java 顺序 = 菜单先、音频后。
     pub fn hide_notify(&mut self) {
-        if self.game_mode == 3 {
-            self.game_mode = 4;
+        if self.game_mode == GameMode::Map {
+            self.game_mode = GameMode::InGameMenu;
             self.enter_menu4();
         }
         self.bgm.on_hide_notify();
@@ -2825,7 +2826,7 @@ impl GameScene {
     fn tick_menu19(&mut self) {
         match self.key_value {
             -7 => {
-                self.game_mode = 4;
+                self.game_mode = GameMode::InGameMenu;
                 self.enter_menu4();
             }
             -4 | -2 | 54 | 56 => {
@@ -2852,32 +2853,32 @@ impl GameScene {
     /// 为跨机模式移交，桌面宿主批次接线——本批对拍面不激活。
     fn activate_menu_item(&mut self) {
         match self.menu_kinds[self.menu_cursor as usize] {
-            1 => self.game_mode = 3,
+            1 => self.game_mode = GameMode::Map,
             3 => {
                 // a.java:4776-4780：gameMode=7 + menuReturnMode=4 + m_000
-                self.menu_return_mode = 4;
-                self.game_mode = 7;
+                self.menu_return_mode = GameMode::InGameMenu;
+                self.game_mode = GameMode::SaveSlot;
                 self.enter_menu7();
             }
             4 => {
                 // a.java:4781-4785：gameMode=16 + menuReturnMode=4 + m_000
-                self.menu_return_mode = 4;
-                self.game_mode = 16;
+                self.menu_return_mode = GameMode::InGameMenu;
+                self.game_mode = GameMode::About;
                 self.enter_menu16();
             }
             5 => {
                 // a.java:4786-4790：gameMode=15 + menuReturnMode=4 + m_000
-                self.menu_return_mode = 4;
-                self.game_mode = 15;
+                self.menu_return_mode = GameMode::InGameMenu;
+                self.game_mode = GameMode::Help;
                 self.enter_menu15();
             }
             11 => {
-                self.game_mode = 19;
+                self.game_mode = GameMode::Shop;
                 self.enter_menu19();
             }
             17 => {
                 self.change_floor(1, false, false);
-                self.game_mode = 3;
+                self.game_mode = GameMode::Map;
                 self.player.hp = 1000;
                 self.player.atk = 710;
                 self.player.def = 710;
@@ -2971,7 +2972,7 @@ impl GameScene {
     /// -4/-3 行内环绕、-2/-1 翻行+滚动窗跟随。
     fn tick_item_panel(&mut self) {
         match self.key_value {
-            -7 => self.game_mode = 3,
+            -7 => self.game_mode = GameMode::Map,
             -6 | -5 => {
                 if self.item_cursor < self.player.item_stack_size {
                     let t = self.player.item_types[self.item_cursor as usize] as i32;
@@ -2979,7 +2980,7 @@ impl GameScene {
                     self.overlay_kind_item = t;
                     match t {
                         13 | 14 => {
-                            self.game_mode = 3;
+                            self.game_mode = GameMode::Map;
                             self.activate_item(t);
                         }
                         15 | 23 | 24 | 25 => {
@@ -3046,14 +3047,14 @@ impl GameScene {
         match t {
             13 => {
                 // a.java:7786-7788：gameMode=5 + m_000 case5（m_091+软键）
-                self.game_mode = 5;
+                self.game_mode = GameMode::EnemyInfo;
                 self.enter_menu5();
                 false
             }
             14 => {
                 // a.java:7789-7791：gameMode=12 + m_000 case12（a.java:4386-4388：
                 // m_076(0) + softkeyRightKind=3）
-                self.game_mode = 12;
+                self.game_mode = GameMode::RecordBrowser;
                 self.open_record_page(0);
                 self.softkeys.1 = 3;
                 false
@@ -3067,7 +3068,7 @@ impl GameScene {
                     (11, "你必须面对一堵墙使用")
                 };
                 if self.remove_adjacent_entity_of_type(target) {
-                    self.game_mode = 3;
+                    self.game_mode = GameMode::Map;
                     true
                 } else {
                     self.show_overlay_message(0, msg, 0, 0);
@@ -3085,7 +3086,7 @@ impl GameScene {
                         self.build_minimap();
                     }
                 }
-                self.game_mode = 3;
+                self.game_mode = GameMode::Map;
                 true
             }
             19 => {
@@ -3104,7 +3105,7 @@ impl GameScene {
                         self.build_minimap();
                     }
                 }
-                self.game_mode = 3;
+                self.game_mode = GameMode::Map;
                 true
             }
             86 => {
@@ -3115,7 +3116,7 @@ impl GameScene {
                 self.kill_adjacent_at(cx, cy + 1);
                 self.kill_adjacent_at(cx - 1, cy);
                 self.kill_adjacent_at(cx + 1, cy);
-                self.game_mode = 3;
+                self.game_mode = GameMode::Map;
                 true
             }
             20 => {
@@ -3136,7 +3137,7 @@ impl GameScene {
                             ((self.view.view_h - 32) >> 1) - self.view.player_py,
                         );
                         self.apply_step_cell_effects();
-                        self.game_mode = 3;
+                        self.game_mode = GameMode::Map;
                         true
                     } else {
                         if !self.overlay_active {
@@ -3396,7 +3397,7 @@ impl GameScene {
         match self.key_value {
             -7 => self.game_mode = self.menu_return_mode,
             -6 | -5 => {
-                if self.game_mode == 7 {
+                if self.game_mode == GameMode::SaveSlot {
                     self.save_floor_state();
                     let cursor = self.slot.cursor as usize;
                     let blob = self.serialize_slot_blob();
@@ -3638,7 +3639,7 @@ impl GameScene {
     /// run case 5（a.java:3737-3755）：-7/-6 回 mode 3；-2 下一页、-1 上一页。
     fn tick_menu5(&mut self) {
         match self.key_value {
-            -7 | -6 => self.game_mode = 3,
+            -7 | -6 => self.game_mode = GameMode::Map,
             -2 => {
                 let p = self.encyc_scroll_top + 1;
                 self.encyclopedia_set_page(p);
@@ -3771,7 +3772,7 @@ impl GameScene {
     /// 并推进计数/价格，否则「没有足够的金钱」浮层；-2/-1 光标三行环绕。
     fn tick_menu9(&mut self) {
         match self.key_value {
-            -7 => self.game_mode = 3,
+            -7 => self.game_mode = GameMode::Map,
             -6 | -5 => {
                 if self.player.gold >= self.alchemy_price {
                     self.player.gold -= self.alchemy_price;
@@ -4138,7 +4139,7 @@ impl GameScene {
                     1 => {
                         if !opt.checked[1] {
                             self.minimap = None;
-                        } else if self.menu_return_mode == 4 {
+                        } else if self.menu_return_mode == GameMode::InGameMenu {
                             self.build_minimap();
                         }
                     }
@@ -4222,7 +4223,7 @@ impl GameScene {
                 match self.key_value {
                     -7 | -6 | -5 => {
                         self.overlay_active = false;
-                        self.game_mode = 10;
+                        self.game_mode = GameMode::ItemPanel;
                     }
                     -4 => self.open_record_page(self.record_page + 1),
                     -3 => self.open_record_page(self.record_page - 1),
@@ -4230,7 +4231,7 @@ impl GameScene {
                     -1 => self.flip_overlay_page(self.overlay_page_top - 1),
                     _ => {}
                 }
-            } else if self.overlay_kind == 0 && (self.game_mode == 15 || self.game_mode == 17) {
+            } else if self.overlay_kind == 0 && (self.game_mode == GameMode::Help || self.game_mode == GameMode::IconView) {
                 match self.key_value {
                     -7 => {
                         self.overlay_active = false;
@@ -4249,7 +4250,7 @@ impl GameScene {
                 // -7 回面板、-6 关层 + useItemStack、其余 handleOverlayKey
                 match self.key_value {
                     -7 => {
-                        self.game_mode = 10;
+                        self.game_mode = GameMode::ItemPanel;
                         self.overlay_active = false;
                     }
                     -6 => {
@@ -4287,57 +4288,57 @@ impl GameScene {
             self.key_held = 0;
             return;
         }
-        if self.game_mode == 15 {
+        if self.game_mode == GameMode::Help {
             // run case 15（fallthrough no-op）；浮层支路在 run 头消费键
             self.tick_menu15();
-            if self.game_mode == 15 {
+            if self.game_mode == GameMode::Help {
                 self.key_value = 0;
             }
             return;
         }
-        if self.game_mode == 5 {
+        if self.game_mode == GameMode::EnemyInfo {
             // run case 5（a.java:3737-3755）
             self.tick_menu5();
             self.key_value = 0;
             return;
         }
-        if self.game_mode == 16 {
+        if self.game_mode == GameMode::About {
             // run case 16（a.java:4143-4188）
             self.tick_menu16();
             self.key_value = 0;
             return;
         }
-        if self.game_mode == 7 {
+        if self.game_mode == GameMode::SaveSlot {
             // run case 7（a.java:3829-3878）
             self.tick_menu7();
             self.key_value = 0;
             return;
         }
-        if self.game_mode == 9 {
+        if self.game_mode == GameMode::Alchemy {
             // run case 9（a.java:3885-3940）
             self.tick_menu9();
             self.key_value = 0;
             return;
         }
-        if self.game_mode == 4 {
+        if self.game_mode == GameMode::InGameMenu {
             // run case 4（a.java:3690-3735），尾清 keyValue（a.java:4270）
             self.tick_menu4();
             self.key_value = 0;
             return;
         }
-        if self.game_mode == 19 {
+        if self.game_mode == GameMode::Shop {
             // run case 19（a.java:4200-4226）
             self.tick_menu19();
             self.key_value = 0;
             return;
         }
-        if self.game_mode == 10 {
+        if self.game_mode == GameMode::ItemPanel {
             // run case 10（a.java:3931-4009）：键位导航，尾清 keyValue（a.java:4270）
             self.tick_item_panel();
             self.key_value = 0;
             return;
         }
-        if self.game_mode == 11 {
+        if self.game_mode == GameMode::Dialog {
             // run case 11 顺序（a.java:4009-4011）：advanceEntityFrames →
             // stepCameraTowardTarget → switch(dialogPhase)。**无 case 12 落穿**：
             // dialogPhase 各分支 break 的是外层 label534（a.java:3340），
@@ -4354,12 +4355,12 @@ impl GameScene {
             self.key_value = 0;
             return;
         }
-        if self.game_mode == 20 {
+        if self.game_mode == GameMode::Ending {
             // run case 20（a.java:4223-4228）：f_bool_04 后任意键回主菜单
             // （gameMode=1 + m_000——场景→BootMachine 反向移交为已知缝，
             // 对拍窗口不触键）。f_bool_04 未到 → 任意键仍清零。
             if self.ending_done && self.key_value != 0 {
-                self.game_mode = 1;
+                self.game_mode = GameMode::MainMenu;
                 // m_000 case 1 音频半：f_bool_28=false + m_139(2)：game→menu 重建
                 //（a.java:4295/4311；EV-ending-title T1301）。非音频半（标题菜单
                 // 重建/反向移交 BootMachine）仍为已知缝。
@@ -4374,11 +4375,11 @@ impl GameScene {
             -7 => {
                 // a.java:3559-3561：f_byte_02=gameMode → gameMode=4 + m_000
                 self.in_game_menu_return_mode = self.game_mode;
-                self.game_mode = 4;
+                self.game_mode = GameMode::InGameMenu;
                 self.enter_menu4();
             }
             -6 => {
-                self.game_mode = 10;
+                self.game_mode = GameMode::ItemPanel;
                 self.enter_item_panel();
             }
             _ => {}
@@ -4598,7 +4599,7 @@ impl GameScene {
     /// 49/55 楼梯换乘——本窗口无）+ keyHeld 移动（Nokia 映射：
     /// -1=上 -2=下 -3=左 -4=右）。
     fn handle_field_input(&mut self) {
-        if self.game_mode == 11 {
+        if self.game_mode == GameMode::Dialog {
             // mode 11 委托（a.java:5267-5269）：场输入在对话模式=脚本行走推进
             self.advance_script_walk();
             return;
@@ -4825,7 +4826,7 @@ impl GameScene {
                                 // 朝上（facingDirection==1）触发 mode 9 + 价格/增量初始化
                                 allowed = false;
                                 if self.facing == 1 {
-                                    self.game_mode = 9;
+                                    self.game_mode = GameMode::Alchemy;
                                     self.alchemy_price =
                                         Self::alchemy_price_for(self.alchemy_upgrade_count + 1);
                                     self.alchemy_gain_hp = Self::scaled_by_floor_tier(100, self.floor);
@@ -5608,11 +5609,11 @@ impl GameScene {
 
     /// paint case 3（a.java:2385-2422）。
     pub fn paint(&mut self, g: &mut SoftGraphics<'_>, tileset: &ArgbImage) {
-        if self.game_mode == 5 {
+        if self.game_mode == GameMode::EnemyInfo {
             self.paint_menu5(g);
             return;
         }
-        if self.game_mode == 16 {
+        if self.game_mode == GameMode::About {
             // paint case 16（a.java:2963-2990）：parallax(false) + 图标条 +
             // paintBoxFrame + 选项行（OptionList::paint）
             self.paint_parallax(g, false);
@@ -5626,43 +5627,43 @@ impl GameScene {
             m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
             return;
         }
-        if self.game_mode == 7 {
+        if self.game_mode == GameMode::SaveSlot {
             // paint case 7（a.java:2679-2682）：m_113(true) 存档变体
             self.paint_slot_list(g);
             self.paint_overlay_box(g);
             return;
         }
-        if self.game_mode == 15 {
+        if self.game_mode == GameMode::Help {
             // paint case 15（a.java:2958-2962）
             self.paint_menu15(g);
             return;
         }
-        if self.game_mode == 4 || self.game_mode == 19 {
+        if self.game_mode == GameMode::InGameMenu || self.game_mode == GameMode::Shop {
             // paint case 4/19 共享（a.java:2427-2490）
             self.paint_menu_list(g);
             self.paint_overlay_box(g);
             return;
         }
-        if self.game_mode == 10 {
+        if self.game_mode == GameMode::ItemPanel {
             self.paint_item_panel(g);
             self.paint_overlay_box(g);
             // 面板内道具触发 changeFloor：遮幅公共尾同样共跑（a.java:3177-3215）
             self.paint_wipe_tail(g);
             return;
         }
-        if self.game_mode == 20 {
+        if self.game_mode == GameMode::Ending {
             self.paint_ending(g);
             return;
         }
-        if self.game_mode == 12 {
+        if self.game_mode == GameMode::RecordBrowser {
             self.paint_mode12(g);
             return;
         }
-        if self.game_mode == 11 {
+        if self.game_mode == GameMode::Dialog {
             self.paint_dialog(g, tileset);
             return;
         }
-        if self.game_mode == 9 {
+        if self.game_mode == GameMode::Alchemy {
             // paint case 9（a.java:2690-2740）
             self.paint_menu9(g, tileset);
             return;
@@ -6294,7 +6295,7 @@ impl GameScene {
             self.page_indicator = format!("{} / {}", self.record_page + 1, total);
         } else {
             self.show_overlay_message(0, "没有记录", 0, 3);
-            self.game_mode = 10;
+            self.game_mode = GameMode::ItemPanel;
         }
     }
 
@@ -6839,8 +6840,8 @@ mod slot_equip_scene_tests {
     }
 
     fn enter7(sc: &mut GameScene) {
-        sc.menu_return_mode = 4;
-        sc.game_mode = 7;
+        sc.menu_return_mode = GameMode::InGameMenu;
+        sc.game_mode = GameMode::SaveSlot;
         sc.enter_menu7();
     }
 
@@ -7737,7 +7738,7 @@ mod entity_route_tests {
 
     /// 装载单行脚本并执行一条指令（dp0 一拍的 executeScriptInstruction）。
     fn exec(sc: &mut GameScene, line: &str) {
-        sc.game_mode = 11;
+        sc.game_mode = GameMode::Dialog;
         sc.dialog_phase = 0;
         sc.script_line = line.to_string();
         sc.script_cursor = 0;
@@ -7871,13 +7872,13 @@ mod entity_route_tests {
         }
         // 第 2 步弹出（下一格 = 玩家格）：不可胜分支
         assert_eq!((sc.route_phase, sc.walk_phase, sc.facing), (1, 1, 2));
-        assert_eq!(sc.game_mode, 11);
+        assert_eq!(sc.game_mode, GameMode::Dialog);
         for _ in 0..4 {
             sc.tick_entity_route();
         }
         assert_eq!(sc.entities.items[eu].px, 5 << 5, "实体走进玩家格");
         assert!(!sc.script_walk_armed);
-        assert_eq!((sc.game_mode, sc.walk_phase, sc.facing), (3, 1, 2));
+        assert_eq!((sc.game_mode, sc.walk_phase, sc.facing), (GameMode::Map, 1, 2));
         assert_eq!(sc.dialog_phase, 2, "dialogPhase 不变（路径挂起）");
         assert_eq!((sc.route_phase, sc.walk_step_count), (1, 1), "同拍递归已弹第 3 步");
         assert_eq!(sc.route_entity, eu as i32);

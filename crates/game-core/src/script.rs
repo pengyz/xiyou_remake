@@ -20,6 +20,7 @@ pub struct DialogueTable {
 /// 脚本层可写字段的状态集（Java god class 中被 executeScriptInstruction /
 /// openDialogPage / loadLevelScript 触碰的字段子集；命名对齐台账）。
 use crate::enums::DialogPhase;
+use crate::enums::GameMode;
 use crate::enums::WalkPhase;
 
 pub struct ScriptState {
@@ -37,7 +38,7 @@ pub struct ScriptState {
     pub camera_anchor_x: i32,
     pub camera_anchor_y: i32,
     pub scene_delay: i32,
-    pub game_mode: i32,
+    pub game_mode: GameMode,
     pub script_walk_armed: bool,
     pub walk_request_flag: bool,
     pub walk_phase: WalkPhase,
@@ -86,7 +87,7 @@ impl Default for ScriptState {
             camera_anchor_x: 0,
             camera_anchor_y: 0,
             scene_delay: 0,
-            game_mode: 0,
+            game_mode: GameMode::Boot,
             script_walk_armed: false,
             walk_request_flag: false,
             walk_phase: WalkPhase::Idle,
@@ -190,7 +191,7 @@ impl<'d> ScriptEngine<'d> {
     /// GUT_ 目标装载 = Java loadLevelScript（a.java:8020-8029）。
     pub fn load_level_script(&mut self, host: &mut impl HostCtx, idx: usize) {
         self.state.script_walk_armed = false;
-        self.state.game_mode = 11;
+        self.state.game_mode = GameMode::Dialog;
         self.state.current_script_index = idx;
         self.state.dialog_page = 0;
         host.snap_camera_to_player(); // lockCameraOn(0)
@@ -488,7 +489,7 @@ impl<'d> ScriptEngine<'d> {
                 );
             } else if var3 == "END" {
                 self.parse_script_int(&line, var2p4, ' ');
-                self.state.game_mode = crate::enums::GameMode::Ending.raw();
+                self.state.game_mode = crate::enums::GameMode::Ending;
                 host.exit_application();
                 self.state.script_cursor = self.state.last_delim_pos + 1;
             } else if var3 == "SMS" {
