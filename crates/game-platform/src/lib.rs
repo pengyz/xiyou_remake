@@ -160,6 +160,27 @@ pub trait ProcessControl {
     fn request_exit(&mut self);
 }
 
+// ---------------------------------------------------------------- AudioOut 契约
+
+/// PCM 帧线上格式（`write` 的帧语义 + 开设备参数）：44.1 kHz 交错立体声 i16
+/// （shell/win `audio.rs:20-21` 同值；winmm/ALSA/AAudio open 均用之）。
+pub const SAMPLE_RATE: u32 = 44_100;
+pub const CHANNELS: usize = 2;
+
+/// 阻塞式 PCM 输出接缝（docs/spec/platform-contract.md §3；自 shell/win
+/// `audio.rs:214-219` 的 `PcmDevice` 迁入更名）。**阻塞 write = 节拍**：音频线程
+/// 以 write 返回速度推进（`audio_loop`，每块 CHUNK_FRAMES=1024 帧 ≈23ms），
+/// write 必须阻塞到设备收下、不得无限缓冲（BUG-019：winmm 单缓冲同步写拖慢+
+/// 杂音 → 4 深常驻队列）。实现在壳层（winmm waveOut / ALSA dlopen / AAudio），
+/// 本 crate 只放 trait 与类型（AGENTS §2 红线）。
+pub trait AudioOut: Send {
+    /// 写满交错 i16（`SAMPLE_RATE` × `CHANNELS`）。阻塞到设备收下。
+    /// Err = **不可恢复**（调用方转无声降级，`audio.rs:603-611`）；不得 panic。
+    fn write(&mut self, frames: &[i16]) -> Result<(), String>;
+    /// 停止并丢弃缓冲（空闲）。混音器无活跃轨道时调用（`audio.rs:586-587`）。
+    fn idle(&mut self);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
