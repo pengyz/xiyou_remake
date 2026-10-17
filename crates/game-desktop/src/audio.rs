@@ -416,8 +416,21 @@ mod winmm {
         fn waveOutReset(hwo: Handle) -> u32;
     }
 
+    /// 在途缓冲深度（2026-10-17 BUG-019）：4 × chunk(1024 帧 ≈ 23ms) ≈ 92ms 排队。
+    /// 单缓冲"写一块等一块"的两病根由此消除：①块间设备空窗=欠载杂音；②Windows
+    /// 定时器粒度下 2ms 轮询严重超时 ⇒ 每块都拖拍。队列恒保 3 块在途吸收轮询抖动。
+    const QUEUE_DEPTH: usize = 4;
+
+    struct Slot {
+        data: Vec<i16>,
+        hdr: WaveHdr,
+        submitted: bool,
+    }
+
     pub struct WinMmPcm {
         hwo: Handle,
+        slots: Vec<Slot>,
+        next: usize,
     }
 
     // SAFETY：设备句柄只在音频线程使用（构造后整体 move 进线程，无共享）——与 AlsaPcm 同。
@@ -443,7 +456,15 @@ mod winmm {
                 if r != MMSYSERR_NOERROR || hwo.is_null() {
                     return Err(format!("waveOutOpen 失败（winmm MMRESULT {r}）"));
                 }
-                Ok(WinMmPcm { hwo })
+                let slots = (0..QUEUE_DEPTH)
+                    .map(|_| Slot {
+                        data: Vec::new(),
+                        // SAFETY：WaveHdr 为 repr(C) POD，全零 = 未提交态。
+                        hdr: unsafe { std::mem::zeroed() },
+                        submitted: false,
+                    })
+                    .collect();
+                Ok(WinMmPcm { hwo, slots, next: 0 })
             }
         }
     }
@@ -453,48 +474,58 @@ mod winmm {
             if frames.is_empty() {
                 return Ok(());
             }
-            // WAVEHDR 生命周期 = 本调用内（waveOutWrite 异步读、Done 后同步收回）；
-            // lp_data 直接借调用方缓冲（audio_loop 的栈上 buf，写阻塞期间必然存活）。
-            let mut hdr = WaveHdr {
-                lp_data: frames.as_ptr() as *mut c_char,
-                dw_buffer_length: (frames.len() * 2) as u32,
-                dw_bytes_recorded: 0,
-                dw_user: 0,
-                dw_flags: 0,
-                dw_loops: 0,
-                lp_next: std::ptr::null_mut(),
-                reserved: 0,
-            };
             let cbwh = std::mem::size_of::<WaveHdr>() as u32;
-            // SAFETY：hdr 与 frames 借用均存活至 Done；句柄有效；失败路径均 Unprepare 收尾。
+            // 取空闲槽（未提交 / 已 Done）——**不等刚提交的本块**：设备恒有
+            // QUEUE_DEPTH-1 块在途（单缓冲同步写的块间空窗由此消除，BUG-019）。
+            let t0 = Instant::now();
+            let idx = loop {
+                let mut found = None;
+                for k in 0..self.slots.len() {
+                    let i = (self.next + k) % self.slots.len();
+                    let s = &self.slots[i];
+                    if !s.submitted || (s.hdr.dw_flags & WHDR_DONE) != 0 {
+                        found = Some(i);
+                        break;
+                    }
+                }
+                if let Some(i) = found {
+                    break i;
+                }
+                if t0.elapsed() > WRITE_TIMEOUT {
+                    return Err("waveOut 队列超时（设备失联）".to_string());
+                }
+                std::thread::sleep(Duration::from_millis(2));
+            };
+            self.next = (idx + 1) % self.slots.len();
+            let slot = &mut self.slots[idx];
+            // SAFETY：slot 未在途（未提交或已 Done ⇒ 设备不再读其头/数据）——
+            // 回收旧头、改写 data（仅此处可 realloc，安全）后重新 Prepare+Write。
             unsafe {
-                let r = waveOutPrepareHeader(self.hwo, &mut hdr, cbwh);
+                if slot.submitted {
+                    let _ = waveOutUnprepareHeader(self.hwo, &mut slot.hdr, cbwh);
+                    slot.submitted = false;
+                }
+                slot.data.clear();
+                slot.data.extend_from_slice(frames);
+                slot.hdr = std::mem::zeroed();
+                slot.hdr.lp_data = slot.data.as_ptr() as *mut c_char;
+                slot.hdr.dw_buffer_length = (frames.len() * 2) as u32;
+                let r = waveOutPrepareHeader(self.hwo, &mut slot.hdr, cbwh);
                 if r != MMSYSERR_NOERROR {
                     return Err(format!("waveOutPrepareHeader 失败（MMRESULT {r}）"));
                 }
-                let r = waveOutWrite(self.hwo, &mut hdr, cbwh);
+                let r = waveOutWrite(self.hwo, &mut slot.hdr, cbwh);
                 if r != MMSYSERR_NOERROR {
-                    let _ = waveOutUnprepareHeader(self.hwo, &mut hdr, cbwh);
+                    let _ = waveOutUnprepareHeader(self.hwo, &mut slot.hdr, cbwh);
                     return Err(format!("waveOutWrite 失败（MMRESULT {r}）"));
                 }
-                let t0 = Instant::now();
-                while hdr.dw_flags & WHDR_DONE == 0 {
-                    if t0.elapsed() > WRITE_TIMEOUT {
-                        let _ = waveOutUnprepareHeader(self.hwo, &mut hdr, cbwh);
-                        return Err("waveOutWrite 超时（设备失联）".to_string());
-                    }
-                    std::thread::sleep(Duration::from_millis(2));
-                }
-                let r = waveOutUnprepareHeader(self.hwo, &mut hdr, cbwh);
-                if r != MMSYSERR_NOERROR {
-                    return Err(format!("waveOutUnprepareHeader 失败（MMRESULT {r}）"));
-                }
+                slot.submitted = true;
             }
             Ok(())
         }
 
         fn idle(&mut self) {
-            // SAFETY：句柄有效；Reset 丢弃排队缓冲（当前无在途写，幂等）。
+            // SAFETY：句柄有效；Reset 丢弃排队缓冲并把各头标 Done（回收在 write 环节）。
             unsafe {
                 let _ = waveOutReset(self.hwo);
             }
@@ -503,9 +534,16 @@ mod winmm {
 
     impl Drop for WinMmPcm {
         fn drop(&mut self) {
-            // SAFETY：句柄仅在此关闭一次（Reset 唤醒可能的 Done 等待后再关）。
+            // SAFETY：句柄仅在此关闭一次（Reset 唤醒在途头后逐个 Unprepare 再关）。
             unsafe {
                 let _ = waveOutReset(self.hwo);
+                let cbwh = std::mem::size_of::<WaveHdr>() as u32;
+                for s in &mut self.slots {
+                    if s.submitted {
+                        let _ = waveOutUnprepareHeader(self.hwo, &mut s.hdr, cbwh);
+                        s.submitted = false;
+                    }
+                }
                 let _ = waveOutClose(self.hwo);
             }
         }
