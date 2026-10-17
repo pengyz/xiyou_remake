@@ -78,8 +78,10 @@ fn counting_pcm_moves_into_audio_thread() {
 
 // ---------------------------------------------------------------- AssetSource
 
-fn tmp_root() -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("ga-asset-test-{}", std::process::id()));
+/// 每用例独立临时目录（tag 区分）：cargo test 并行线程互不干扰
+/// （修复：原三用例共用 ga-asset-test-{pid} 互删 flaky 竞态——2026-10-18 闸上偶红）。
+fn tmp_root(tag: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join(format!("ga-asset-{tag}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(dir.join("sub")).unwrap();
     std::fs::write(dir.join("mapbg"), b"BG").unwrap();
@@ -90,7 +92,7 @@ fn tmp_root() -> std::path::PathBuf {
 /// 目录注入 + rel 读字节（宿主桩；Android 对偶 = APK assets）。
 #[test]
 fn dir_asset_reads_root_relative() {
-    let root = tmp_root();
+    let root = tmp_root("read");
     let s = DirAssetSource::new(&root);
     assert_eq!(s.read("mapbg").unwrap(), b"BG");
     assert_eq!(s.read("sub/sprite1").unwrap(), b"SP", "rel 子路径（`/` 分隔）");
@@ -100,7 +102,7 @@ fn dir_asset_reads_root_relative() {
 /// 缺资产 ⇒ Err 含人话诊断（rel 名 + 原因），不 panic（契约 §4：panic 归壳侧）。
 #[test]
 fn dir_asset_missing_gives_diagnostic() {
-    let root = tmp_root();
+    let root = tmp_root("missing");
     let s = DirAssetSource::new(&root);
     let e = s.read("maplv99").unwrap_err();
     assert!(e.contains("maplv99"), "诊断含 rel 名：{e}");
@@ -111,7 +113,7 @@ fn dir_asset_missing_gives_diagnostic() {
 /// rel 契约：`/` 分隔、无前导 `/`、无 `..`/`.`/空段/`\`——非法 rel ⇒ Err 不 panic。
 #[test]
 fn dir_asset_rejects_illegal_rel() {
-    let root = tmp_root();
+    let root = tmp_root("reject");
     let s = DirAssetSource::new(&root);
     for bad in ["", "/etc/passwd", "a/../b", "../x", "a\\b", "a//b", "./x"] {
         assert!(s.read(bad).is_err(), "{bad:?} 应拒绝");
