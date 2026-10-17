@@ -820,4 +820,106 @@ mod tests {
         let mut s = start(Path::new("/nonexistent/xiyou-audio"), "null");
         s.send(Cmd::Play { track: 2, gain: 1.0 }); // no-op
     }
+
+    /// PcmDevice 契约面（audio_loop 驱动行为，接缝②行为锚，2026-10-17 迁移前基线）：
+    /// 空闲起手先 `idle()`；活跃期每轮 `write` 一块（CHUNK_FRAMES×CHANNELS 样本）；
+    /// Stop ⇒ 回到 `idle()` 后阻塞等命令。迁移后此面由 game_platform::AudioOut 承载
+    /// （trait 本体迁出、本地只留实现），**事件序不得变**（断言零改动纪律）。
+    #[test]
+    fn audio_loop_device_contract_idle_write_sequence() {
+        use super::{Msg, PcmDevice};
+        use std::sync::mpsc::channel;
+
+        #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+        enum Ev {
+            Idle,
+            Write(usize),
+        }
+
+        struct MockDev {
+            log: Arc<Mutex<Vec<Ev>>>,
+            fail: bool,
+        }
+
+        impl PcmDevice for MockDev {
+            fn write(&mut self, frames: &[i16]) -> Result<(), String> {
+                self.log.lock().unwrap().push(Ev::Write(frames.len()));
+                if self.fail {
+                    Err("注入故障".into())
+                } else {
+                    Ok(())
+                }
+            }
+            fn idle(&mut self) {
+                self.log.lock().unwrap().push(Ev::Idle);
+            }
+        }
+
+        let log: Arc<Mutex<Vec<Ev>>> = Arc::new(Mutex::new(Vec::new()));
+        let (tx, rx) = channel();
+        let dev = Box::new(MockDev { log: log.clone(), fail: false });
+        let mixer = Mixer::new(store_with(ramp_track(100, 0, 100), 2));
+        let handle = std::thread::spawn(move || audio_loop(rx, dev, mixer));
+
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        tx.send(Msg::Cmd(Cmd::Play { track: 2, gain: 1.0 })).unwrap();
+        while !log.lock().unwrap().iter().any(|e| matches!(e, Ev::Write(_))) {
+            assert!(std::time::Instant::now() < deadline, "5s 内未见 write");
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        tx.send(Msg::Cmd(Cmd::Stop)).unwrap();
+        while *log.lock().unwrap().last().unwrap() != Ev::Idle {
+            assert!(std::time::Instant::now() < deadline, "5s 内未见 Stop 后 idle");
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        tx.send(Msg::Quit).unwrap();
+        handle.join().unwrap();
+
+        let events = log.lock().unwrap().clone();
+        assert_eq!(events.first(), Some(&Ev::Idle), "空闲起手先 idle()（audio.rs 空闲分支）");
+        assert_eq!(events.last(), Some(&Ev::Idle), "Stop 后回到 idle() 阻塞等命令");
+        let writes = events[1..events.len() - 1].to_vec();
+        assert!(!writes.is_empty(), "活跃期应有 write");
+        assert!(
+            writes.iter().all(|e| *e == Ev::Write(CHUNK_FRAMES * CHANNELS)),
+            "write 块长恒为 CHUNK_FRAMES×CHANNELS = {}，实得 {writes:?}",
+            CHUNK_FRAMES * CHANNELS
+        );
+    }
+
+    /// write 不可恢复 Err ⇒ audio_loop 转无声（不再 write），收 Quit 后线程正常退出
+    /// （不 panic）。与 `start` 的降级口径一致（audio.rs:603-611）。
+    #[test]
+    fn audio_loop_write_error_degrades_silently() {
+        use super::{Msg, PcmDevice};
+        use std::sync::mpsc::channel;
+
+        struct FailingDev {
+            writes: Arc<Mutex<usize>>,
+        }
+
+        impl PcmDevice for FailingDev {
+            fn write(&mut self, _frames: &[i16]) -> Result<(), String> {
+                *self.writes.lock().unwrap() += 1;
+                Err("注入故障".into())
+            }
+            fn idle(&mut self) {}
+        }
+
+        let writes = Arc::new(Mutex::new(0usize));
+        let (tx, rx) = channel();
+        let dev = Box::new(FailingDev { writes: writes.clone() });
+        let mixer = Mixer::new(store_with(ramp_track(100, 0, 100), 2));
+        let handle = std::thread::spawn(move || audio_loop(rx, dev, mixer));
+
+        tx.send(Msg::Cmd(Cmd::Play { track: 2, gain: 1.0 })).unwrap();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while *writes.lock().unwrap() == 0 {
+            assert!(std::time::Instant::now() < deadline, "5s 内未见 write");
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        tx.send(Msg::Quit).unwrap();
+        handle.join().unwrap();
+        assert_eq!(*writes.lock().unwrap(), 1, "故障后转无声：不再 write");
+    }
 }

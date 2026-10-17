@@ -1645,4 +1645,419 @@ mod shell_tests {
         assert_eq!(click_code(10, h * 7 / 10), -5, "边界行（严格 >）不属软键栏");
         assert_eq!(click_code(10, h * 7 / 10 + 1), -6);
     }
+
+    /// mode 22 退出信号（CMidlet.m_000 信号半，BUG-020 消费链的信号源）：标题"退出"
+    /// （kind 5，title.rs:181 menu_kinds=[0..5]）→ 退场动画 70 拍 → finished 置位、之后粘滞。
+    /// Java 锚（A 级）：run case 22（a.java:4249-4252）`++bootPhaseCounter ≤ 70 →
+    /// runLogoAnimation(1,t)`，否则退出进程 ⇒ counter 1..=70 为动画、71 置位。
+    /// 现状消费口径 = **粘滞信号每 tick 轮询**（main.rs about_to_wait 内 `if finished()`）：
+    /// 本测锁信号半的时序与粘滞；执行半（el.exit()）语义 = 幂等请求、循环自然终止。
+    #[test]
+    fn exit_signal_flips_after_mode22_animation_and_sticks() {
+        let mut h = Harness::new("preset-floor1.preset");
+        let mut ev: Vec<(u64, i32, bool)> = LOAD_FLOOR1[..2].to_vec();
+        // 标题菜单光标 0 → 5（kind 5 = 退出）：每拍一键（同拍多键取末个，R-2）
+        for i in 0..5u64 {
+            ev.push((75 + 2 * i, -2, true));
+            ev.push((76 + 2 * i, -2, false));
+        }
+        ev.push((87, -5, true));
+        ev.push((88, -5, false));
+        h.run_to(90, &ev);
+        assert_eq!(
+            (h.shell.game_mode(), h.shell.finished()),
+            (GameMode::LogoAnim, false),
+            "kind 5 确认 ⇒ mode 22 退场动画（title.rs:235）"
+        );
+        // 逐拍推进：动画期 counter ≤ 70 且 finished=false；counter=71 置位；之后粘滞
+        let mut flip: Option<(u64, i32)> = None;
+        for _ in 0..90 {
+            h.run_tick(&[]);
+            let Some(Screen::Boot(m)) = h.shell.state.as_ref() else {
+                panic!("mode 22 期间应保持 Boot");
+            };
+            assert_eq!(h.shell.finished(), m.finished, "Shell::finished 即 BootMachine::finished");
+            if m.finished {
+                flip = Some((h.tick, m.counter));
+                break;
+            }
+            assert!(m.counter <= 70, "动画期 counter ≤ 70（a.java:4249-4252），实得 {}", m.counter);
+        }
+        let (t, counter) = flip.expect("70 拍退场动画后 finished 应置位（BUG-020 信号半）");
+        assert_eq!(counter, 71, "++bootPhaseCounter=71 ⇒ 越过 ≤70 ⇒ finished（a.java:4249-4252）");
+        eprintln!("finished 置位于 T{t}（mode 22 第 {counter} 拍）");
+        // 粘滞：置位后每轮轮询都读到 true（消费半幂等，无"消费一次"语义）
+        h.run_tick(&[]);
+        assert!(h.shell.finished(), "退出信号粘滞（现状 = 每 tick 轮询）");
+        h.run_tick(&[]);
+        assert!(h.shell.finished(), "退出信号粘滞（重复轮询仍为 true）");
+    }
+}
+
+// ---------------------------------------------------------------- 行为锚（迁移前基线）
+//
+// 【2026-10-17 迁移准备】四接缝 trait 化（Rms→Storage / PcmDevice→AudioOut /
+// 退出链→ProcessControl / 资产→AssetSource）的**行为保持判据测试**：锁现状语义，
+// 迁移后必须仍绿。纪律（adversary 裁定 2026-10-17）：本模块断言文本与期望值即
+// "行为零漂移"判据——**不许改**；迁移期只许机械换被测物（Rms→FileRms 等）。
+// 证据锚：docs/findings/reviews/2026-10-17-shell-win-migration-plan-review.md F3/F4/F5。
+
+#[cfg(test)]
+mod behavior_anchors {
+    use super::*;
+
+    fn repo() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
+    }
+
+    fn tmp(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("xiyou-anchor-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn hex(v: &[u8]) -> String {
+        v.iter().map(|b| format!("{b:02X}")).collect()
+    }
+
+    fn fnv1a(data: &[u8]) -> u64 {
+        let mut h = 0xcbf2_9ce4_8422_2325u64;
+        for &b in data {
+            h ^= b as u64;
+            h = h.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+        h
+    }
+
+    fn img_sig(img: &ArgbImage) -> (i32, i32, u64) {
+        let bytes: Vec<u8> = img.argb.iter().flat_map(|p| p.to_le_bytes()).collect();
+        (img.width, img.height, fnv1a(&bytes))
+    }
+
+    /// catch_unwind 取 panic 文案（文案逐字保留判据用）。
+    fn panic_payload(f: impl FnOnce() + std::panic::UnwindSafe) -> String {
+        let e = match std::panic::catch_unwind(f) {
+            Ok(_) => panic!("应 panic 而未 panic"),
+            Err(e) => e,
+        };
+        e.downcast_ref::<String>()
+            .cloned()
+            .or_else(|| e.downcast_ref::<&str>().map(|s| s.to_string()))
+            .unwrap_or_default()
+    }
+
+    /// 文件只读位（跨平台注入 IO 失败：Windows 属性位 / POSIX 0444）。
+    fn set_readonly(p: &std::path::Path, ro: bool) {
+        let mut perms = std::fs::metadata(p).unwrap().permissions();
+        perms.set_readonly(ro);
+        std::fs::set_permissions(p, perms).unwrap();
+    }
+
+    /// Rms 键域 = 固定 8 键白名单（main.rs `Rms::load`）；save/ 下杂散文件**不得**进
+    /// stores（契约 platform-contract §1.1 同语义：load_all 只返回域内记录）。
+    #[test]
+    fn storage_loads_exact_whitelist_and_ignores_strays() {
+        let dir = tmp("keys");
+        for name in [
+            "MOT_L0", "MOT_L1", "MOT_L2", "MOT_L3", "MOT_L4", "MOT_L5", "MOT_IF", "SKY_WAR",
+        ] {
+            std::fs::write(dir.join(format!("{name}.bin")), [0xABu8]).unwrap();
+        }
+        std::fs::write(dir.join("FOO.bin"), [0xDEu8, 0xAD]).unwrap();
+        std::fs::write(dir.join("readme.txt"), "杂散文本".as_bytes()).unwrap();
+        let (_, loaded) = Rms::load(&dir);
+        let keys: Vec<&str> = loaded.iter().map(|(k, _)| k.as_str()).collect();
+        assert_eq!(
+            keys,
+            [
+                "MOT_L0@1", "MOT_L1@1", "MOT_L2@1", "MOT_L3@1", "MOT_L4@1", "MOT_L5@1",
+                "MOT_IF@1", "SKY_WAR@1"
+            ],
+            "键域 8 键、键名 = 店名@1、白名单序；FOO.bin / readme.txt 不得出现"
+        );
+        assert!(
+            loaded.iter().all(|(_, v)| *v == vec![0xABu8]),
+            "8 键值与文件字节逐字节一致（文件→load_all 半环；persist 半环见 golden 基线），实际：{loaded:?}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 大小写：查找跟随**平台文件系统**语义（Windows 不区分 / Android ext4 区分），
+    /// 但返回键恒为白名单**规范名**（game-core 消费者按 `MOT_L{n}@1` 字面匹配）。
+    #[test]
+    fn storage_lookup_follows_fs_case_rules_key_stays_canonical() {
+        let dir = tmp("case");
+        std::fs::write(dir.join("mot_l0.bin"), [0x11u8]).unwrap(); // 小写杂散名
+        std::fs::write(dir.join("MOT_L1.bin"), [0x22u8]).unwrap(); // 规范名
+        let (_, loaded) = Rms::load(&dir);
+        let l0 = loaded.iter().find(|(k, _)| k == "MOT_L0@1");
+        #[cfg(windows)]
+        assert_eq!(
+            l0.map(|(_, v)| v.clone()),
+            Some(vec![0x11]),
+            "Windows FS 不区分大小写：mot_l0.bin 被 MOT_L0.bin 查找命中（现状语义）"
+        );
+        #[cfg(not(windows))]
+        assert!(l0.is_none(), "Android/Linux FS 区分大小写：mot_l0.bin 不命中（现状语义）");
+        assert!(
+            loaded.iter().all(|(k, _)| k.ends_with("@1") && !k.contains("mot_")),
+            "返回键恒为白名单规范名，实际：{loaded:?}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// persist 格式对偶（键 MOT_x@1 ↔ 文件 MOT_x.bin）+ 写-if-changed 幂等：
+    /// 同内容二次 persist 不重写（mtime 不变）且内容逐字节不变；异内容写穿。
+    #[test]
+    fn storage_persist_is_write_if_changed_and_content_exact() {
+        let dir = tmp("persist");
+        let (rms, _) = Rms::load(&dir);
+        rms.persist(&[("MOT_L0@1".into(), b"abc".to_vec())]);
+        let p = dir.join("MOT_L0.bin");
+        assert_eq!(std::fs::read(&p).unwrap(), b"abc", "键 MOT_L0@1 ↔ 文件 MOT_L0.bin 逐字节");
+        let m1 = std::fs::metadata(&p).unwrap().modified().unwrap();
+        std::thread::sleep(Duration::from_millis(30));
+        rms.persist(&[("MOT_L0@1".into(), b"abc".to_vec())]);
+        assert_eq!(std::fs::read(&p).unwrap(), b"abc", "同内容内容不变（内容 hash 判据）");
+        assert_eq!(
+            std::fs::metadata(&p).unwrap().modified().unwrap(),
+            m1,
+            "同内容不重写（mtime 不变 = write-if-changed 幂等）"
+        );
+        rms.persist(&[("MOT_L0@1".into(), b"abd".to_vec())]);
+        assert_eq!(std::fs::read(&p).unwrap(), b"abd", "异内容写穿");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// persist 错误吞掉不 panic（`.ok()` 语义，Java `catch {}` 同口径）：
+    /// 只读文件写失败被吞、旧内容保留，其余键照常 best-effort 落盘；
+    /// 存档目录不可创建（父路径是文件）亦不 panic。
+    #[test]
+    fn storage_persist_swallows_io_errors_without_panic() {
+        let dir = tmp("ioerr");
+        let (rms, _) = Rms::load(&dir);
+        rms.persist(&[("MOT_L0@1".into(), b"old".to_vec())]);
+        set_readonly(&dir.join("MOT_L0.bin"), true);
+        rms.persist(&[("MOT_L0@1".into(), b"new".to_vec()), ("MOT_L1@1".into(), vec![0x77])]);
+        assert_eq!(
+            std::fs::read(dir.join("MOT_L0.bin")).unwrap(),
+            b"old",
+            "写失败被吞、旧内容保留"
+        );
+        assert_eq!(
+            std::fs::read(dir.join("MOT_L1.bin")).unwrap(),
+            vec![0x77],
+            "逐键独立 best-effort：其余键照常落盘"
+        );
+        set_readonly(&dir.join("MOT_L0.bin"), false);
+        // 不可创建目录（父路径是文件）：不 panic
+        std::fs::write(dir.join("not_a_dir"), b"x").unwrap();
+        let (rms2, _) = Rms::load(&dir.join("not_a_dir").join("save"));
+        rms2.persist(&[("MOT_IF@1".into(), vec![1, 2, 3])]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 字节级基线（F4 销账：旧实现删除后仍可测）：固定目录布局 → 期望 hex。
+    /// 采集：2026-10-17 迁移前 Rms（基线 ba14d4e）实跑确认；迁移后 FileRms 必须
+    /// 逐字节复现本表。
+    #[test]
+    fn storage_golden_layout_baseline() {
+        let dir = tmp("golden");
+        std::fs::write(dir.join("MOT_L0.bin"), [0x00, 0x11, 0x22, 0x33]).unwrap();
+        std::fs::write(dir.join("MOT_IF.bin"), [0x01, 0x02, 0x03, 0x04, 0x05]).unwrap();
+        std::fs::write(dir.join("SKY_WAR.bin"), [0xFF]).unwrap();
+        std::fs::write(dir.join("FOO.bin"), [0xDE, 0xAD]).unwrap();
+        let (rms, loaded) = Rms::load(&dir);
+        let got: Vec<(String, String)> =
+            loaded.iter().map(|(k, v)| (k.clone(), hex(v))).collect();
+        assert_eq!(
+            got,
+            [
+                ("MOT_L0@1".to_string(), "00112233".to_string()),
+                ("MOT_IF@1".to_string(), "0102030405".to_string()),
+                ("SKY_WAR@1".to_string(), "FF".to_string()),
+            ],
+            "load 基线：域内缺失键缺席、键序 = 白名单序"
+        );
+        rms.persist(&[("MOT_L1@1".into(), vec![0xAA, 0xBB]), ("MOT_IF@1".into(), vec![0x09, 0x08, 0x07])]);
+        for (name, want) in [
+            ("MOT_L0.bin", "00112233"), // 未提及 ⇒ 不动
+            ("MOT_L1.bin", "AABB"),     // 新键 ⇒ 创建
+            ("MOT_IF.bin", "090807"),   // 同键 ⇒ 覆盖
+            ("SKY_WAR.bin", "FF"),      // 未提及 ⇒ 不动
+            ("FOO.bin", "DEAD"),        // 域外文件 ⇒ 不触碰
+        ] {
+            assert_eq!(
+                hex(&std::fs::read(dir.join(name)).unwrap()),
+                want,
+                "persist 基线：{name}"
+            );
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// panic 文案类 1（load_container）：缺容器 / 容器解析失败（文案逐字保留，F5）。
+    #[test]
+    fn panic_text_load_container_is_stable() {
+        let dir = tmp("panic1");
+        let d = dir.clone();
+        let msg = panic_payload(move || {
+            let _ = load_container(&d, "mapbg", 1);
+        });
+        assert!(
+            msg.starts_with("缺资产 mapbg（先跑 tools/extract-assets/extract.py）："),
+            "缺资产文案（逐字保留）：{msg}"
+        );
+        std::fs::write(dir.join("mapbg"), b"garbage").unwrap();
+        let d = dir.clone();
+        let msg = panic_payload(move || {
+            let _ = load_container(&d, "mapbg", 1);
+        });
+        assert!(msg.starts_with("容器 mapbg 解析失败："), "解析失败文案（逐字保留）：{msg}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// panic 文案类 2（load_assets 内联）：缺 maplv{n} / sprite{n} 解析失败（逐字保留，F5）。
+    #[test]
+    fn panic_text_maplv_sprite_is_stable() {
+        let raw = repo().join("assets/raw");
+        let dir = tmp("panic2");
+        for name in [
+            "mapbg", "map", "actor", "sptmap", "sptprop", "sptarm", "sptenemy1", "sptenemy2",
+            "ui", "menu", "face", "end", "xtq", "maplv1", "sprite1", "maplv2", "sprite2",
+        ] {
+            std::fs::copy(raw.join(name), dir.join(name)).unwrap();
+        }
+        let d = dir.clone();
+        let msg = panic_payload(move || {
+            let _ = load_assets(&d);
+        });
+        assert!(msg.starts_with("缺资产 maplv3："), "缺 maplv 文案（逐字保留）：{msg}");
+        std::fs::copy(raw.join("maplv3"), dir.join("maplv3")).unwrap();
+        std::fs::write(dir.join("sprite2"), b"garbage").unwrap();
+        let d = dir.clone();
+        let msg = panic_payload(move || {
+            let _ = load_assets(&d);
+        });
+        assert!(msg.starts_with("sprite2 解析失败："), "sprite 解析文案（逐字保留）：{msg}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// panic 文案类 3（Shell::new 的 png()）：**保留现状 quirk**——前缀写死
+    /// "assets/raw"（与 --assets 实际值无关），逐字锚定防"顺手修正"漂移（F5）。
+    #[test]
+    fn panic_text_boot_png_missing_is_stable() {
+        let raw = repo().join("assets/raw");
+        let dir = tmp("panic3");
+        std::fs::copy(raw.join("mapbg"), dir.join("mapbg")).unwrap();
+        let assets = std::sync::Arc::new(load_assets(&raw));
+        let (rms, stores) = Rms::load(&dir.join("save"));
+        let d = dir.clone();
+        let msg = panic_payload(move || {
+            let _ = Shell::new(&d, assets, rms, stores, Box::new(audio::NullSink));
+        });
+        assert!(
+            msg.starts_with("缺 assets/raw/l0.png（先跑 tools/extract-assets/extract.py）："),
+            "Boot 装配文案（逐字保留，含写死前缀 quirk）：{msg}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 资产摘要基线（A4/F4）：load_assets 全链（容器解码 + maplv/sprite 解析 + 表装配）
+    /// 的内容摘要。采集：2026-10-17 迁移前实跑（基线 ba14d4e），迁移后必须原值。
+    /// 口径与既有 shell_tests 相同（依赖 repo assets/raw）。
+    #[test]
+    fn assets_loading_matches_baseline_digest() {
+        let a = load_assets(&repo().join("assets/raw"));
+        // 【采集模式】迁移前基线采集（2026-10-17，基线 ba14d4e）
+        eprintln!("CAP tileset = {:?}", img_sig(&a.tileset));
+        eprintln!("CAP backdrop = {:?}", img_sig(&a.images.backdrop));
+        eprintln!("CAP actor = {:?}", img_sig(&a.images.actor));
+        eprintln!("CAP menu_strip = {:?}", img_sig(&a.images.menu_strip));
+        eprintln!("CAP ending = {:?}", img_sig(&a.images.ending));
+        eprintln!(
+            "CAP counts = {:?}",
+            (a.images.faces.len(), a.images.ui.len(), a.images.xtq.len())
+        );
+        eprintln!(
+            "CAP floors_shape = {:?}",
+            (a.floors.len(), a.floors[0].is_none(), a.floors[55].is_none())
+        );
+        let f1 = a.floors[1].as_ref().unwrap();
+        let f51 = a.floors[51].as_ref().unwrap();
+        let f54 = a.floors[54].as_ref().unwrap();
+        eprintln!(
+            "CAP floors = {:?}",
+            (
+                fnv1a(&f1.maplv),
+                f1.records.len(),
+                fnv1a(&f51.maplv),
+                f51.records.len(),
+                fnv1a(&f54.maplv),
+                f54.records.len()
+            )
+        );
+        eprintln!(
+            "CAP width_table = {:?}",
+            (
+                a.width_table.len(),
+                fnv1a(&a.width_table.iter().flat_map(|v| v.to_le_bytes()).collect::<Vec<u8>>())
+            )
+        );
+        eprintln!(
+            "CAP tile_walk = {:?}",
+            (
+                a.tile_walk.len(),
+                fnv1a(&a.tile_walk.iter().flat_map(|v| v.to_le_bytes()).collect::<Vec<u8>>())
+            )
+        );
+        // 基线常量（采集输出原样冻结，迁移后必须逐值一致）
+        assert_eq!(img_sig(&a.tileset), (128, 208, 6176440970670976425), "tileset 摘要");
+        assert_eq!(img_sig(&a.images.backdrop), (77, 320, 2071193407069312118), "backdrop 摘要");
+        assert_eq!(img_sig(&a.images.actor), (123, 138, 3341378134956609564), "actor 摘要");
+        assert_eq!(img_sig(&a.images.menu_strip), (68, 102, 10121320654456436141), "menu_strip 摘要");
+        assert_eq!(img_sig(&a.images.ending), (240, 145, 17415109984890522671), "ending 摘要");
+        assert_eq!(
+            (a.images.faces.len(), a.images.ui.len(), a.images.xtq.len()),
+            (12, 25, 6),
+            "容器计数"
+        );
+        assert_eq!(
+            (a.floors.len(), a.floors[0].is_none(), a.floors[55].is_none()),
+            (56, true, true),
+            "楼层槽形"
+        );
+        let f1 = a.floors[1].as_ref().unwrap();
+        let f51 = a.floors[51].as_ref().unwrap();
+        let f54 = a.floors[54].as_ref().unwrap();
+        assert_eq!(
+            (
+                fnv1a(&f1.maplv),
+                f1.records.len(),
+                fnv1a(&f51.maplv),
+                f51.records.len(),
+                fnv1a(&f54.maplv),
+                f54.records.len()
+            ),
+            (3356879460706134156, 35, 8737405491698357268, 26, 11509423688834281314, 37),
+            "楼层资产摘要"
+        );
+        assert_eq!(
+            (
+                a.width_table.len(),
+                fnv1a(&a.width_table.iter().flat_map(|v| v.to_le_bytes()).collect::<Vec<u8>>())
+            ),
+            (88, 7539032330958311365),
+            "width_table 摘要"
+        );
+        assert_eq!(
+            (
+                a.tile_walk.len(),
+                fnv1a(&a.tile_walk.iter().flat_map(|v| v.to_le_bytes()).collect::<Vec<u8>>())
+            ),
+            (104, 5917174173154521492),
+            "tile_walk 摘要"
+        );
+    }
 }
