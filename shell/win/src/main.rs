@@ -156,66 +156,13 @@ fn load_assets(dir: &PathBuf) -> Assets {
     }
 }
 
-// ---------------------------------------------------------------- RMS 落盘
+// ---------------------------------------------------------------- RMS 落盘（共享实现）
 
-/// 文件版 RecordStore：save/ 下每 store 一文件。与 BootMachine.preset_stores
-/// 同键名（MOT_L0-2 / MOT_IF / SKY_WAR）。
-struct Rms {
-    dir: PathBuf,
-}
-
-impl Rms {
-    fn load(dir: &PathBuf) -> (Rms, Vec<(String, Vec<u8>)>) {
-        let mut stores = Vec::new();
-        // 【2026-10-17 BUG-018】原只载 MOT_L0-2 三键——槽 3-5 的保存永不落盘（丢失）。
-        // 槽表 6 槽（menu_family::SlotSelect），键域须全 6 槽。
-        for name in [
-            "MOT_L0", "MOT_L1", "MOT_L2", "MOT_L3", "MOT_L4", "MOT_L5", "MOT_IF", "SKY_WAR",
-        ] {
-            if let Ok(data) = std::fs::read(dir.join(format!("{name}.bin"))) {
-                stores.push((format!("{name}@1"), data));
-            }
-        }
-        (Rms { dir: dir.clone() }, stores)
-    }
-
-    fn persist(&self, stores: &[(String, Vec<u8>)]) {
-        std::fs::create_dir_all(&self.dir).ok();
-        for (k, v) in stores {
-            let name = k.split('@').next().unwrap();
-            let path = self.dir.join(format!("{name}.bin"));
-            if std::fs::read(&path).ok().as_deref() != Some(v.as_slice()) {
-                std::fs::write(&path, v).ok();
-            }
-        }
-    }
-}
-
-/// scene.slot → MOT_IF 序列化（SlotSelect::load_slot_table 读序的镜像：
-/// 6 × (valid u8; valid 时 floor/weapon/armor u8 + hp/atk/def/三钥/金 7×i32 BE)）。
-fn serialize_slot_if(slot: &game_core::menu_family::SlotSelect) -> Vec<u8> {
-    let mut o = Vec::new();
-    for k in 0..6 {
-        o.push(slot.valid[k] as u8);
-        if slot.valid[k] {
-            o.push(slot.floor_num[k] as u8);
-            o.push(slot.weapon[k] as u8);
-            o.push(slot.armor[k] as u8);
-            for v in [
-                slot.hp[k],
-                slot.atk[k],
-                slot.def[k],
-                slot.keys_yellow[k] as i32,
-                slot.keys_blue[k] as i32,
-                slot.keys_red[k] as i32,
-                slot.gold[k],
-            ] {
-                o.extend_from_slice(&v.to_be_bytes());
-            }
-        }
-    }
-    o
-}
+/// 文件版 RecordStore 语义核心已抽 `game-shell-common::rms`（lead F-4 裁决 2026-10-17，
+/// 防双壳拷贝漂移）：`FileRms` 实现 `game_platform::Storage`（接缝①；键域/键名走契约
+/// `RMS_STORES`/`rms_key`/`rms_store_name`）。本地别名保既有调用面与测试
+/// （`crate::Rms`/`crate::serialize_slot_if`）零改动（adversary 裁定 A：机械接线）。
+use game_shell_common::rms::{serialize_slot_if, FileRms as Rms};
 
 // ---------------------------------------------------------------- 键位
 
@@ -432,7 +379,8 @@ enum Screen {
 
 struct Shell {
     assets: std::sync::Arc<Assets>,
-    rms: Rms,
+    /// 接缝①：存档持久经 `game_platform::Storage` trait（实现 = game-shell-common::FileRms）
+    rms: Box<dyn game_platform::Storage>,
     stores: Vec<(String, Vec<u8>)>,
     screen: ArgbImage,
     state: Option<Screen>,
@@ -457,7 +405,7 @@ impl Shell {
     fn new(
         assets_dir: &PathBuf,
         assets: std::sync::Arc<Assets>,
-        rms: Rms,
+        rms: Box<dyn game_platform::Storage>,
         stores: Vec<(String, Vec<u8>)>,
         sink: Box<dyn audio::AudioSink>,
     ) -> Shell {
@@ -1163,7 +1111,7 @@ fn main() {
     } else {
         audio::start(&audio_dir, &audio_device)
     };
-    let shell = Shell::new(&assets_dir, assets, rms, stores, sink);
+    let shell = Shell::new(&assets_dir, assets, Box::new(rms), stores, sink);
     run_window(shell);
 }
 
@@ -1232,7 +1180,7 @@ mod shell_tests {
             let cmds = Arc::new(Mutex::new(Vec::new()));
             let now = Arc::new(Mutex::new(0));
             let sink = Box::new(Recorder(cmds.clone(), now.clone()));
-            let shell = Shell::new(&dir, assets, rms, preset_stores(preset), sink);
+            let shell = Shell::new(&dir, assets, Box::new(rms), preset_stores(preset), sink);
             Harness { shell, cmds, now, tick: 0 }
         }
 
@@ -1544,7 +1492,7 @@ mod shell_tests {
         let (rms, stores) = Rms::load(dir);
         let cmds = Arc::new(Mutex::new(Vec::new()));
         let now = Arc::new(Mutex::new(0));
-        Shell::new(&raw, assets, rms, stores, Box::new(Recorder(cmds, now)))
+        Shell::new(&raw, assets, Box::new(rms), stores, Box::new(Recorder(cmds, now)))
     }
 
     /// SKY_WAR 端到端：水位抬升 ⇒ 落盘；重开同目录 ⇒ 状态恢复（saveGlobalProgress）。
@@ -1717,10 +1665,6 @@ mod behavior_anchors {
         dir
     }
 
-    fn hex(v: &[u8]) -> String {
-        v.iter().map(|b| format!("{b:02X}")).collect()
-    }
-
     fn fnv1a(data: &[u8]) -> u64 {
         let mut h = 0xcbf2_9ce4_8422_2325u64;
         for &b in data {
@@ -1745,156 +1689,6 @@ mod behavior_anchors {
             .cloned()
             .or_else(|| e.downcast_ref::<&str>().map(|s| s.to_string()))
             .unwrap_or_default()
-    }
-
-    /// 文件只读位（跨平台注入 IO 失败：Windows 属性位 / POSIX 0444）。
-    fn set_readonly(p: &std::path::Path, ro: bool) {
-        let mut perms = std::fs::metadata(p).unwrap().permissions();
-        perms.set_readonly(ro);
-        std::fs::set_permissions(p, perms).unwrap();
-    }
-
-    /// Rms 键域 = 固定 8 键白名单（main.rs `Rms::load`）；save/ 下杂散文件**不得**进
-    /// stores（契约 platform-contract §1.1 同语义：load_all 只返回域内记录）。
-    #[test]
-    fn storage_loads_exact_whitelist_and_ignores_strays() {
-        let dir = tmp("keys");
-        for name in [
-            "MOT_L0", "MOT_L1", "MOT_L2", "MOT_L3", "MOT_L4", "MOT_L5", "MOT_IF", "SKY_WAR",
-        ] {
-            std::fs::write(dir.join(format!("{name}.bin")), [0xABu8]).unwrap();
-        }
-        std::fs::write(dir.join("FOO.bin"), [0xDEu8, 0xAD]).unwrap();
-        std::fs::write(dir.join("readme.txt"), "杂散文本".as_bytes()).unwrap();
-        let (_, loaded) = Rms::load(&dir);
-        let keys: Vec<&str> = loaded.iter().map(|(k, _)| k.as_str()).collect();
-        assert_eq!(
-            keys,
-            [
-                "MOT_L0@1", "MOT_L1@1", "MOT_L2@1", "MOT_L3@1", "MOT_L4@1", "MOT_L5@1",
-                "MOT_IF@1", "SKY_WAR@1"
-            ],
-            "键域 8 键、键名 = 店名@1、白名单序；FOO.bin / readme.txt 不得出现"
-        );
-        assert!(
-            loaded.iter().all(|(_, v)| *v == vec![0xABu8]),
-            "8 键值与文件字节逐字节一致（文件→load_all 半环；persist 半环见 golden 基线），实际：{loaded:?}"
-        );
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    /// 大小写：查找跟随**平台文件系统**语义（Windows 不区分 / Android ext4 区分），
-    /// 但返回键恒为白名单**规范名**（game-core 消费者按 `MOT_L{n}@1` 字面匹配）。
-    #[test]
-    fn storage_lookup_follows_fs_case_rules_key_stays_canonical() {
-        let dir = tmp("case");
-        std::fs::write(dir.join("mot_l0.bin"), [0x11u8]).unwrap(); // 小写杂散名
-        std::fs::write(dir.join("MOT_L1.bin"), [0x22u8]).unwrap(); // 规范名
-        let (_, loaded) = Rms::load(&dir);
-        let l0 = loaded.iter().find(|(k, _)| k == "MOT_L0@1");
-        #[cfg(windows)]
-        assert_eq!(
-            l0.map(|(_, v)| v.clone()),
-            Some(vec![0x11]),
-            "Windows FS 不区分大小写：mot_l0.bin 被 MOT_L0.bin 查找命中（现状语义）"
-        );
-        #[cfg(not(windows))]
-        assert!(l0.is_none(), "Android/Linux FS 区分大小写：mot_l0.bin 不命中（现状语义）");
-        assert!(
-            loaded.iter().all(|(k, _)| k.ends_with("@1") && !k.contains("mot_")),
-            "返回键恒为白名单规范名，实际：{loaded:?}"
-        );
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    /// persist 格式对偶（键 MOT_x@1 ↔ 文件 MOT_x.bin）+ 写-if-changed 幂等：
-    /// 同内容二次 persist 不重写（mtime 不变）且内容逐字节不变；异内容写穿。
-    #[test]
-    fn storage_persist_is_write_if_changed_and_content_exact() {
-        let dir = tmp("persist");
-        let (rms, _) = Rms::load(&dir);
-        rms.persist(&[("MOT_L0@1".into(), b"abc".to_vec())]);
-        let p = dir.join("MOT_L0.bin");
-        assert_eq!(std::fs::read(&p).unwrap(), b"abc", "键 MOT_L0@1 ↔ 文件 MOT_L0.bin 逐字节");
-        let m1 = std::fs::metadata(&p).unwrap().modified().unwrap();
-        std::thread::sleep(Duration::from_millis(30));
-        rms.persist(&[("MOT_L0@1".into(), b"abc".to_vec())]);
-        assert_eq!(std::fs::read(&p).unwrap(), b"abc", "同内容内容不变（内容 hash 判据）");
-        assert_eq!(
-            std::fs::metadata(&p).unwrap().modified().unwrap(),
-            m1,
-            "同内容不重写（mtime 不变 = write-if-changed 幂等）"
-        );
-        rms.persist(&[("MOT_L0@1".into(), b"abd".to_vec())]);
-        assert_eq!(std::fs::read(&p).unwrap(), b"abd", "异内容写穿");
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    /// persist 错误吞掉不 panic（`.ok()` 语义，Java `catch {}` 同口径）：
-    /// 只读文件写失败被吞、旧内容保留，其余键照常 best-effort 落盘；
-    /// 存档目录不可创建（父路径是文件）亦不 panic。
-    #[test]
-    fn storage_persist_swallows_io_errors_without_panic() {
-        let dir = tmp("ioerr");
-        let (rms, _) = Rms::load(&dir);
-        rms.persist(&[("MOT_L0@1".into(), b"old".to_vec())]);
-        set_readonly(&dir.join("MOT_L0.bin"), true);
-        rms.persist(&[("MOT_L0@1".into(), b"new".to_vec()), ("MOT_L1@1".into(), vec![0x77])]);
-        assert_eq!(
-            std::fs::read(dir.join("MOT_L0.bin")).unwrap(),
-            b"old",
-            "写失败被吞、旧内容保留"
-        );
-        assert_eq!(
-            std::fs::read(dir.join("MOT_L1.bin")).unwrap(),
-            vec![0x77],
-            "逐键独立 best-effort：其余键照常落盘"
-        );
-        set_readonly(&dir.join("MOT_L0.bin"), false);
-        // 不可创建目录（父路径是文件）：不 panic
-        std::fs::write(dir.join("not_a_dir"), b"x").unwrap();
-        let (rms2, _) = Rms::load(&dir.join("not_a_dir").join("save"));
-        rms2.persist(&[("MOT_IF@1".into(), vec![1, 2, 3])]);
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    /// 字节级基线（F4 销账：旧实现删除后仍可测）：固定目录布局 → 期望 hex。
-    /// 采集：2026-10-17 迁移前 Rms（基线 ba14d4e）实跑确认；迁移后 FileRms 必须
-    /// 逐字节复现本表。
-    #[test]
-    fn storage_golden_layout_baseline() {
-        let dir = tmp("golden");
-        std::fs::write(dir.join("MOT_L0.bin"), [0x00, 0x11, 0x22, 0x33]).unwrap();
-        std::fs::write(dir.join("MOT_IF.bin"), [0x01, 0x02, 0x03, 0x04, 0x05]).unwrap();
-        std::fs::write(dir.join("SKY_WAR.bin"), [0xFF]).unwrap();
-        std::fs::write(dir.join("FOO.bin"), [0xDE, 0xAD]).unwrap();
-        let (rms, loaded) = Rms::load(&dir);
-        let got: Vec<(String, String)> =
-            loaded.iter().map(|(k, v)| (k.clone(), hex(v))).collect();
-        assert_eq!(
-            got,
-            [
-                ("MOT_L0@1".to_string(), "00112233".to_string()),
-                ("MOT_IF@1".to_string(), "0102030405".to_string()),
-                ("SKY_WAR@1".to_string(), "FF".to_string()),
-            ],
-            "load 基线：域内缺失键缺席、键序 = 白名单序"
-        );
-        rms.persist(&[("MOT_L1@1".into(), vec![0xAA, 0xBB]), ("MOT_IF@1".into(), vec![0x09, 0x08, 0x07])]);
-        for (name, want) in [
-            ("MOT_L0.bin", "00112233"), // 未提及 ⇒ 不动
-            ("MOT_L1.bin", "AABB"),     // 新键 ⇒ 创建
-            ("MOT_IF.bin", "090807"),   // 同键 ⇒ 覆盖
-            ("SKY_WAR.bin", "FF"),      // 未提及 ⇒ 不动
-            ("FOO.bin", "DEAD"),        // 域外文件 ⇒ 不触碰
-        ] {
-            assert_eq!(
-                hex(&std::fs::read(dir.join(name)).unwrap()),
-                want,
-                "persist 基线：{name}"
-            );
-        }
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// panic 文案类 1（load_container）：缺容器 / 容器解析失败（文案逐字保留，F5）。
@@ -1955,7 +1749,7 @@ mod behavior_anchors {
         let (rms, stores) = Rms::load(&dir.join("save"));
         let d = dir.clone();
         let msg = panic_payload(move || {
-            let _ = Shell::new(&d, assets, rms, stores, Box::new(audio::NullSink));
+            let _ = Shell::new(&d, assets, Box::new(rms), stores, Box::new(audio::NullSink));
         });
         assert!(
             msg.starts_with("缺 assets/raw/l0.png（先跑 tools/extract-assets/extract.py）："),

@@ -11,6 +11,8 @@ path = "src/main.rs"
 game-core = { path = "../../crates/game-core" }
 game-data = { path = "../../crates/game-data" }
 game-platform = { path = "../../crates/game-platform" }
+# 壳间共享实现（FileRms/audio 共享面——lead F-4 裁决 2026-10-17，防双壳拷贝漂移）
+game-shell-common = { path = "../common" }
 winit = "0.30"
 softbuffer = "0.4"
 ab_glyph = "0.2"

@@ -1,0 +1,10 @@
+[package]
+name = "game-shell-common"
+version = "0.1.0"
+edition = "2021"
+
+# 壳间共享实现（lead F-4 裁决 2026-10-17）：game-platform 只放 trait 与类型，
+# 可复用实现收敛于此，防双壳拷贝漂移。依赖面最小化：无 winit（Android 壳可直用）。
+[dependencies]
+game-core = { path = "../../crates/game-core" }
+game-platform = { path = "../../crates/game-platform" }
