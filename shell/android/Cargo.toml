@@ -17,3 +17,5 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 game-platform = { path = "../../crates/game-platform" }
+# 共享壳实现（FileRms/音频共享面）：消费不拷贝（对抗审查 F-4 裁决）。
+game-shell-common = { path = "../common" }

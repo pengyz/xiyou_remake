@@ -29,3 +29,4 @@ pub mod audio;
 pub mod input;
 pub mod lifecycle;
 pub mod process;
+pub mod storage;
