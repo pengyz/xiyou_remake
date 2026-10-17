@@ -4976,7 +4976,9 @@ impl GameScene {
                                 self.entities.items[e].visible = true;
                                 allowed = false;
                             }
-                            _ => {} // 76/82：后续批次
+                            _ => {} // 76/82：Java bump switch（a.java:5391-5530）无此
+                                    // 二 case，default=continue 放行续扫——空臂等价
+                                    // （2026-10-17 排查核销；原"后续批次"注记过时）
                             },
                             8 => {
                                 // 怪物（a.java:5470-5490）：可胜 → 场上战斗；否则阻挡
@@ -5382,7 +5384,9 @@ impl GameScene {
                             self.change_floor(target, true, false);
                             self.key_held = 0;
                         }
-                        _ => {} // 5 宝箱/76/83 场景门：后续批次
+                        _ => {} // 5 宝箱/76 组门在下方 cat1 特例块（a.java:5641-5705）完整
+                        // 实现；83 在上方臂——本兜底为其余型（2026-10-17 排查更正
+                        // "后续批次"过时注记）
                     },
                     2 | 4 => {
                         self.pickup_item_type(t);
