@@ -10,6 +10,7 @@
 //!   实现决定）。
 //! - 输出：Linux 运行时 dlopen `libasound.so.2`（ALSA PCM，无构建期系统依赖——cpal/rodio
 //!   需 libasound2-dev 头文件 + pkg-config，违反 tools/README 不依赖系统包约定且 CI 缺包）；
+//!   Windows = `winmm.dll` waveOut 裸 FFI（mmsystem.h 直绑、同款零构建依赖，[`winmm`]）；
 //!   其他平台/缺库/缺产物 ⇒ [`NullSink`] 静默降级，打印原因与再生命令，绝不 panic。
 
 use std::path::{Path, PathBuf};
@@ -350,6 +351,167 @@ mod alsa {
 
 // ---------------------------------------------------------------- 音频线程
 
+// ---------------------------------------------------------------- Windows 输出（winmm waveOut）
+
+#[cfg(target_os = "windows")]
+mod winmm {
+    //! winmm.dll `waveOut`（WAVE_MAPPER 默认输出设备，44.1 kHz 立体声 16-bit PCM 原样直出，
+    //! 重采样由驱动侧完成）。签名与常量取自 mmsystem.h / Windows SDK（`WAVEFORMATEX`、
+    //! `WAVEHDR`、`waveOutOpen/Close/PrepareHeader/UnprepareHeader/Write/Reset`、
+    //! WAVE_MAPPER=0xFFFFFFFF、WAVE_FORMAT_PCM=1、WHDR_DONE=1、MMSYSERR_NOERROR=0）。
+    //!
+    //! 与 [`super::alsa`] 同款**头文件直绑**姿态：零新增 crate（windows-rs/cpal 均可作
+    //! 升级缝，WASAPI/IAudioClient 留待实机反馈后再议）——target 侧仅 `#[link(winmm)]`
+    //! 导入库（Windows SDK / mingw 自带），Linux 构建与运行零变化。
+    //!
+    //! **Windows 实机验收待用户**（验证不打扰铁律：本环境仅 `cargo check
+    //! --target x86_64-pc-windows-msvc` 交叉编译验证，不代跑实机）。
+    use super::PcmDevice;
+    use std::os::raw::{c_char, c_void};
+    use std::time::{Duration, Instant};
+
+    const WAVE_MAPPER: u32 = 0xFFFF_FFFF; // mmsystem.h
+    const WAVE_FORMAT_PCM: u16 = 0x0001;
+    const WHDR_DONE: u32 = 0x0000_0001;
+    const CALLBACK_NULL: usize = 0; // dwCallback 无回调 ⇒ 用 WHDR_DONE 轮询判完成
+    const MMSYSERR_NOERROR: u32 = 0;
+    /// 单块写入等待上限（远超 CHUNK_FRAMES≈23 ms 正常耗时）；超限=设备失联 ⇒
+    /// 不可恢复 Err（audio_loop 按既有语义转无声运行）。
+    const WRITE_TIMEOUT: Duration = Duration::from_secs(5);
+
+    /// WAVEFORMATEX（mmsystem.h；repr(C) 逐字段同布局）。
+    #[repr(C)]
+    struct WaveFormatEx {
+        w_format_tag: u16,
+        n_channels: u16,
+        n_samples_per_sec: u32,
+        n_avg_bytes_per_sec: u32,
+        n_block_align: u16,
+        w_bits_per_sample: u16,
+        cb_size: u16,
+    }
+
+    /// WAVEHDR（mmsystem.h；x64 下 48 字节，DWORD_PTR=usize）。
+    #[repr(C)]
+    struct WaveHdr {
+        lp_data: *mut c_char,
+        dw_buffer_length: u32,
+        dw_bytes_recorded: u32,
+        dw_user: usize,
+        dw_flags: u32,
+        dw_loops: u32,
+        lp_next: *mut WaveHdr,
+        reserved: usize,
+    }
+
+    type Handle = *mut c_void; // HWAVEOUT = HANDLE
+
+    #[link(name = "winmm")]
+    extern "system" {
+        fn waveOutOpen(lphwo: *mut Handle, u_device_id: u32, pwfx: *const WaveFormatEx, dw_callback: usize, dw_instance: usize, fdw_open: u32) -> u32;
+        fn waveOutClose(hwo: Handle) -> u32;
+        fn waveOutPrepareHeader(hwo: Handle, pwh: *mut WaveHdr, cbwh: u32) -> u32;
+        fn waveOutUnprepareHeader(hwo: Handle, pwh: *mut WaveHdr, cbwh: u32) -> u32;
+        fn waveOutWrite(hwo: Handle, pwh: *mut WaveHdr, cbwh: u32) -> u32;
+        fn waveOutReset(hwo: Handle) -> u32;
+    }
+
+    pub struct WinMmPcm {
+        hwo: Handle,
+    }
+
+    // SAFETY：设备句柄只在音频线程使用（构造后整体 move 进线程，无共享）——与 AlsaPcm 同。
+    unsafe impl Send for WinMmPcm {}
+
+    impl WinMmPcm {
+        pub fn open(device: &str, rate: u32, channels: u32) -> Result<WinMmPcm, String> {
+            let _ = device; // WAVE_MAPPER = 系统默认输出；设备选择暂不在本层（与 ALSA "default" 同约定）
+            let block_align = (channels * 2) as u16; // 16-bit/样本
+            let fmt = WaveFormatEx {
+                w_format_tag: WAVE_FORMAT_PCM,
+                n_channels: channels as u16,
+                n_samples_per_sec: rate,
+                n_avg_bytes_per_sec: rate * channels * 2,
+                n_block_align: block_align,
+                w_bits_per_sample: 16,
+                cb_size: 0,
+            };
+            // SAFETY：fmt 为 repr(C) WAVEFORMATEX；句柄出参有效；dwCallback=NULL 无回调。
+            unsafe {
+                let mut hwo: Handle = std::ptr::null_mut();
+                let r = waveOutOpen(&mut hwo, WAVE_MAPPER, &fmt, CALLBACK_NULL, 0, 0);
+                if r != MMSYSERR_NOERROR || hwo.is_null() {
+                    return Err(format!("waveOutOpen 失败（winmm MMRESULT {r}）"));
+                }
+                Ok(WinMmPcm { hwo })
+            }
+        }
+    }
+
+    impl PcmDevice for WinMmPcm {
+        fn write(&mut self, frames: &[i16]) -> Result<(), String> {
+            if frames.is_empty() {
+                return Ok(());
+            }
+            // WAVEHDR 生命周期 = 本调用内（waveOutWrite 异步读、Done 后同步收回）；
+            // lp_data 直接借调用方缓冲（audio_loop 的栈上 buf，写阻塞期间必然存活）。
+            let mut hdr = WaveHdr {
+                lp_data: frames.as_ptr() as *mut c_char,
+                dw_buffer_length: (frames.len() * 2) as u32,
+                dw_bytes_recorded: 0,
+                dw_user: 0,
+                dw_flags: 0,
+                dw_loops: 0,
+                lp_next: std::ptr::null_mut(),
+                reserved: 0,
+            };
+            let cbwh = std::mem::size_of::<WaveHdr>() as u32;
+            // SAFETY：hdr 与 frames 借用均存活至 Done；句柄有效；失败路径均 Unprepare 收尾。
+            unsafe {
+                let r = waveOutPrepareHeader(self.hwo, &mut hdr, cbwh);
+                if r != MMSYSERR_NOERROR {
+                    return Err(format!("waveOutPrepareHeader 失败（MMRESULT {r}）"));
+                }
+                let r = waveOutWrite(self.hwo, &mut hdr, cbwh);
+                if r != MMSYSERR_NOERROR {
+                    let _ = waveOutUnprepareHeader(self.hwo, &mut hdr, cbwh);
+                    return Err(format!("waveOutWrite 失败（MMRESULT {r}）"));
+                }
+                let t0 = Instant::now();
+                while hdr.dw_flags & WHDR_DONE == 0 {
+                    if t0.elapsed() > WRITE_TIMEOUT {
+                        let _ = waveOutUnprepareHeader(self.hwo, &mut hdr, cbwh);
+                        return Err("waveOutWrite 超时（设备失联）".to_string());
+                    }
+                    std::thread::sleep(Duration::from_millis(2));
+                }
+                let r = waveOutUnprepareHeader(self.hwo, &mut hdr, cbwh);
+                if r != MMSYSERR_NOERROR {
+                    return Err(format!("waveOutUnprepareHeader 失败（MMRESULT {r}）"));
+                }
+            }
+            Ok(())
+        }
+
+        fn idle(&mut self) {
+            // SAFETY：句柄有效；Reset 丢弃排队缓冲（当前无在途写，幂等）。
+            unsafe {
+                let _ = waveOutReset(self.hwo);
+            }
+        }
+    }
+
+    impl Drop for WinMmPcm {
+        fn drop(&mut self) {
+            // SAFETY：句柄仅在此关闭一次（Reset 唤醒可能的 Done 等待后再关）。
+            unsafe {
+                let _ = waveOutReset(self.hwo);
+                let _ = waveOutClose(self.hwo);
+            }
+        }
+    }
+}
+
 enum Msg {
     Cmd(Cmd),
     Quit,
@@ -437,20 +599,23 @@ pub fn start(audio_dir: &Path, device: &str) -> Box<dyn AudioSink> {
         return Box::new(NullSink);
     }
     #[cfg(target_os = "linux")]
-    let dev: Box<dyn PcmDevice> = match alsa::AlsaPcm::open(device, SAMPLE_RATE, CHANNELS as u32) {
-        Ok(d) => Box::new(d),
+    let opened: Result<Box<dyn PcmDevice>, String> =
+        alsa::AlsaPcm::open(device, SAMPLE_RATE, CHANNELS as u32).map(|d| Box::new(d) as Box<dyn PcmDevice>);
+    #[cfg(target_os = "windows")]
+    let opened: Result<Box<dyn PcmDevice>, String> =
+        winmm::WinMmPcm::open(device, SAMPLE_RATE, CHANNELS as u32).map(|d| Box::new(d) as Box<dyn PcmDevice>);
+    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+    let opened: Result<Box<dyn PcmDevice>, String> = {
+        let _ = device;
+        Err("本平台暂无音频后端（已实现：Linux ALSA / Windows winmm waveOut）".to_string())
+    };
+    let dev: Box<dyn PcmDevice> = match opened {
+        Ok(d) => d,
         Err(e) => {
             eprintln!("[audio] {e}——本次无声运行");
             return Box::new(NullSink);
         }
     };
-    #[cfg(not(target_os = "linux"))]
-    {
-        let _ = device;
-        eprintln!("[audio] 本平台暂无音频后端（已实现：Linux ALSA）——本次无声运行");
-        return Box::new(NullSink);
-    }
-    #[cfg(target_os = "linux")]
     {
         let store: TrackStore = Arc::new(Mutex::new(vec![None; TRACKS.len()]));
         let loader_store = store.clone();
@@ -473,7 +638,7 @@ pub fn start(audio_dir: &Path, device: &str) -> Box<dyn AudioSink> {
             .name("bgm-out".into())
             .spawn(move || audio_loop(rx, dev, mixer))
             .ok();
-        eprintln!("[audio] BGM 输出：ALSA 设备 {device}（{}）", audio_dir.display());
+        eprintln!("[audio] BGM 输出：{device}（{}）", audio_dir.display());
         Box::new(AudioThread { tx, handle })
     }
 }
