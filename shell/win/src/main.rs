@@ -423,8 +423,11 @@ mod tests {
 
 /// 逻辑画布上的绘制上下文：全屏裁剪 + 游戏字体（GameScene / BootMachine 绘制共用前置）。
 fn canvas_graphics(screen: &mut ArgbImage) -> SoftGraphics<'_> {
+    // 画布裁剪随画布尺寸（STAGE-B-002 返修三轮：常量 240×320 会把最先绘制的视差
+    // 裁在经典区内 ⇒ 区外留黑矩形——黑区根因）；classic 画布 240×320 原值零变化。
+    let (w, h) = (screen.width, screen.height);
     let mut g = SoftGraphics::new(screen);
-    g.set_clip(0, 0, SCREEN_W, SCREEN_H);
+    g.set_clip(0, 0, w, h);
     g.set_font(Some(game_core::paint::paint_font()));
     g
 }
@@ -799,11 +802,10 @@ impl Shell {
     /// 崩溃终止屏（P0-2 壳层统一）：game-core panic 的全宿主一致呈现。
     /// 纯壳层画面，不进 game-core 渲染语义（保真面零侵入）。
     fn paint_crashed(&mut self) {
-        use game_core::layout::{SCREEN_H, SCREEN_W};
+        let (w, h) = (self.screen.width, self.screen.height);
         let mut g = canvas_graphics(&mut self.screen);
-        g.set_clip(0, 0, SCREEN_W, SCREEN_H);
         g.set_color(0x20_00_00);
-        g.fill_rect(0, 0, SCREEN_W, SCREEN_H);
+        g.fill_rect(0, 0, w, h);
         g.set_color(0xFF_FF_FF);
         g.set_font(Some(game_core::paint::paint_font()));
         let l1: Vec<u16> = "游戏已终止".encode_utf16().collect();

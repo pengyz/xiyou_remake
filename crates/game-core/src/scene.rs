@@ -6904,6 +6904,47 @@ mod slot_equip_scene_tests {
         }
     }
 
+    /// 残项清账判据（lead 派单 2026-10-18，探针三选一结论入册）：
+    /// - mapbg 77×320 **全不透明**（探针实证）⇒ 排除"透明透出画布黑"；
+    /// - 黑区像素 **alpha=0（0x00000000 未绘制面）**（自验图解码实证）⇒ 排除"黑瓦片/画出来的黑"；
+    /// - 故来源=**未绘制面**（mode 3 链在地图下缘悬垂带没垫任何层）。
+    /// 本判据钉"无未解释黑区"：modern 全链后视口带内未绘制像素 = 0。
+    #[test]
+    fn modern_render_no_unexplained_black() {
+        let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let packed = std::fs::read(repo.join("assets/raw/mapbg")).unwrap();
+        let bg = game_data::PackedPng::parse(&packed, 1)
+            .unwrap()
+            .images
+            .iter()
+            .map(|s| ArgbImage::from_decoded_png(game_data::decode_png(s.bytes).unwrap()))
+            .next()
+            .unwrap();
+        // mapbg 无透明（来源分类断言①：排除透出候选）
+        assert!(
+            bg.argb.iter().all(|p| p >> 24 == 0xFF),
+            "mapbg 须全不透明（若有透明则黑区另有透出路径）"
+        );
+        let mut sc = scene_with(&synthetic_sptarm());
+        sc.images.backdrop = bg;
+        sc.apply_layout(crate::layout::Layout::modern(13, 13));
+        let mut img = ArgbImage::create(416, 416);
+        {
+            let mut g = SoftGraphics::new(&mut img);
+            sc.paint(&mut g, &solid(64, 64));
+        }
+        // 无未解释黑区（来源分类断言②：alpha=0 未绘制面须为 0）——视口带 [20,366)
+        let mut undrawn = 0usize;
+        for y in 20..366 {
+            for x in 0..416 {
+                if img.argb[y * 416 + x] == 0 {
+                    undrawn += 1;
+                }
+            }
+        }
+        assert_eq!(undrawn, 0, "modern 视口带内未绘制像素数（黑区根因面）");
+    }
+
     /// op 坐标抽取（宽表感知版）：取参数中**前两个可解析整数**为 (x, y)——
     /// 跳过 "77x320" 尺寸记号与 '#rrggbb' 色参（drawImage/drawImageTransformed 可用）。
     fn op_xy(o: &str) -> Option<(i32, i32)> {
