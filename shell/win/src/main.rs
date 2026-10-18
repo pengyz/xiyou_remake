@@ -30,6 +30,7 @@
 use game_core::enums::GameMode;
 mod audio;
 mod lifecycle;
+mod headless_shot;
 mod view;
 
 use std::path::PathBuf;
@@ -785,6 +786,11 @@ impl Shell {
         self.bgm.update(snap);
     }
 
+    /// 画布像素导出（headless 截图用）。
+    fn canvas_snapshot(&self) -> (i32, i32, Vec<u32>) {
+        (self.screen.width, self.screen.height, self.screen.argb.clone())
+    }
+
     fn paint_scene(&mut self, sc: &mut GameScene) {
         let mut g = canvas_graphics(&mut self.screen);
         sc.paint(&mut g, &self.assets.tileset);
@@ -812,7 +818,9 @@ impl Shell {
     /// 交接拍收尾（读档 / 新游戏两路共用）：本拍即画场景（读档路 Java 本拍 paint 已是
     /// mode 3；两路均与 harness 同构）并切入 GameScene。
     fn enter_scene(&mut self, mut sc: GameScene, machine: game_core::paint::BootMachine) {
-        sc.layout = self.layout.clone(); // STAGE-B-002①：preset 写入 game-core 布局面
+        // STAGE-B-002①：preset 写入 game-core 布局面——**经 apply_layout 换轨**
+        //（直赋 layout 字段绕过视口/相机/绘制坐标系同步 = 返修二轮破绽根因）。
+        sc.apply_layout(self.layout.clone());
         // SKY_WAR 交接拷贝（Boot→GameScene）：不拷则场景水位从 0 起步会把持久水位写回退
         // 【2026-10-18 整改】machine 经参数收储——调用链 step 已 take 走 state，
         // 此处再 take 只得 None（stash 恒空 ⇒ 换机静默无动作，用户实报）。
@@ -1396,6 +1404,10 @@ fn main() {
     let mut mute = false;
     let mut preset_name = String::from("classic");
     let mut grid: Option<(i32, i32)> = None;
+    // headless 截图（自验工具 2026-10-18）：无窗口跑 N 拍 → dump PNG
+    let mut headless_shot: Option<PathBuf> = None;
+    let mut headless_frames: u64 = 120;
+    let mut headless_newgame = false;
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         match a.as_str() {
@@ -1405,6 +1417,9 @@ fn main() {
             "--audio-device" => audio_device = args.next().unwrap_or_else(|| "default".into()),
             "--mute" => mute = true,
             "--preset" => preset_name = args.next().unwrap_or_else(|| "classic".into()),
+            "--headless-shot" => headless_shot = Some(PathBuf::from(args.next().unwrap_or_default())),
+            "--frames" => headless_frames = args.next().and_then(|v| v.parse().ok()).unwrap_or(120),
+            "--headless-newgame" => headless_newgame = true,
             "--grid" => {
                 let g = args.next().unwrap_or_default();
                 let mut it = g.split(',');
@@ -1436,7 +1451,47 @@ fn main() {
         shell.settings_path = Some(settings_path);
         shell.apply_loaded_settings(s);
     }
+    if let Some(out) = headless_shot {
+        headless_run(shell, out, headless_frames, headless_newgame);
+        return;
+    }
     run_window(shell);
+}
+
+/// headless 截图跑法（自验工具）：无窗口 N 拍 → 画布 dump PNG。
+/// `newgame`=boot 后在标题按确认进游戏（验证 mode 3 视图面用）。
+fn headless_run(mut shell: Shell, out: PathBuf, frames: u64, newgame: bool) {
+    let mut pressed_at: Vec<(u64, i32)> = Vec::new();
+    if newgame {
+        // 标题确认（-5）在 boot 完成后投递——保守按拍轮询 title 就绪再按
+        // 时序：boot→标题（~150 拍）→确认新游戏→序章→跳过→游戏视图
+        for k in (150..230).step_by(20) {
+            pressed_at.push((k, -5)); // 标题确认（新游戏）
+        }
+        for k in (230..340).step_by(10) {
+            pressed_at.push((k, -6)); // 跳过序章过场
+        }
+    }
+    for tick in 1..=frames {
+        for &(t, code) in &pressed_at {
+            if t == tick {
+                shell.route_key(code, true);
+                shell.route_key(code, false);
+            }
+        }
+        shell.logic_tick();
+    }
+    // 画布 dump（Shell.screen = ArgbImage）
+    let (w, h, px) = shell.canvas_snapshot();
+    let png = headless_shot::encode_png(w, h, &px);
+    let ok = std::fs::write(&out, &png).is_ok();
+    eprintln!(
+        "[headless-shot] {frames} 拍后 dump {}×{} → {}（{}）",
+        w,
+        h,
+        out.display(),
+        if ok { "OK" } else { "写失败" }
+    );
 }
 
 #[cfg(test)]

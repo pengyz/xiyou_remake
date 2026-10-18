@@ -5912,25 +5912,28 @@ impl GameScene {
     }
 
     /// drawParallaxBackdrop（a.java:6850-6871）：滚动 -1/拍（PARALLAX_WRAP 回绕），
-    /// PARALLAX_COL_STEP 列步进、SCREEN_H 行步进、列内交替镜像。
+    /// PARALLAX_COL_STEP 列步进、屏高行步进、列内交替镜像。
+    /// 【STAGE-B-002 返修②】列/行界与基线随 Layout 铺满画布（classic 240×320
+    /// 代入=原值零变化：base=270-320+6=-44、列界 240、行界 -320）。
     fn paint_parallax(&mut self, g: &mut SoftGraphics<'_>, game_view: bool) {
         self.backdrop_scroll -= 1;
         if self.backdrop_scroll < PARALLAX_WRAP {
             self.backdrop_scroll = 0;
         }
-        let base_y = if game_view { parallax_game_base_y() } else { 0 };
+        let bh = self.images.backdrop.height;
+        let base_y = if game_view { self.layout.view_bottom_y - bh + 6 } else { 0 };
         let mut col_x = self.backdrop_scroll;
-        while col_x < SCREEN_W {
+        while col_x < self.layout.screen_w {
             let mut mirrored = false;
             let mut y = base_y;
-            while y > -SCREEN_H {
+            while y > -self.layout.screen_h {
                 if mirrored {
                     g.draw_image_transformed(&self.images.backdrop, col_x, y, 0, 2);
                 } else {
                     g.draw_image(&self.images.backdrop, col_x, y, 0);
                 }
                 mirrored = !mirrored;
-                y -= SCREEN_H;
+                y -= bh;
             }
             col_x += PARALLAX_COL_STEP;
         }
@@ -6354,7 +6357,7 @@ impl GameScene {
     pub fn paint_hud(&mut self, g: &mut SoftGraphics<'_>) {
         let font = crate::paint::paint_font();
         let base_y = self.view_bottom;
-        self.paint_hud_frame(g, 0, base_y, SCREEN_W, HUD_FRAME_H);
+        self.paint_hud_frame(g, 0, base_y, self.layout.screen_w, HUD_FRAME_H);
         let face = &self.images.actor_face;
         g.draw_image(face, self.layout.hud_face_ax - (face.width >> 1), base_y + HUD_FRAME_H - face.height, 0);
         let icon_x = self.layout.hud_icon_x;
@@ -6577,9 +6580,11 @@ impl GameScene {
             }
             g.set_clip(0, 0, SCREEN_W, SCREEN_H);
             // a.java:2828：edge patch 用 draw_y=dialog_block_y0（+=16 之前）
-            crate::menu_family::draw_edge_patch(g, &self.images.ui[0], 214, dialog_block_y0, 0, 0, 26, 16, 1);
+            // 【STAGE-B-002 返修③】对话框随屏宽（classic 代入化回原值：
+            // 右缘 240-26=214、填充 240-91=149、文本宽 240-111=129）
+            crate::menu_family::draw_edge_patch(g, &self.images.ui[0], self.layout.screen_w - 26, dialog_block_y0, 0, 0, 26, 16, 1);
             g.set_color(HUD_FILL);
-            g.fill_rect(80, dialog_block_y0 + 16, 149, dialog_block_h - 16);
+            g.fill_rect(80, dialog_block_y0 + 16, self.layout.screen_w - 91, dialog_block_h - 16);
             // a.java:2832-2836：右条带循环 (229, draw_y) 画 ui[8][0]@176——
             // draw_y 从 dialog_block_y0+16 步进 16 直到 var158+var11（320）
             let mut draw_y = dialog_block_y0 + 16;
@@ -6607,7 +6612,7 @@ impl GameScene {
                 g.draw_string(&q, 40, dialog_block_y0 + ((dialog_block_h - font.height) >> 1), 17);
             }
             g.set_color(10473684);
-            self.paint_wrapped_text(g, 85, dialog_block_y0 + 12, 129, dialog_block_h - 12, false);
+            self.paint_wrapped_text(g, 85, dialog_block_y0 + 12, self.layout.screen_w - 111, dialog_block_h - 12, false);
             if self.overlay_page_top > 0 {
                 draw_image_clipped(g, &self.images.ui[15], 220, self.layout.screen_h - line_h - 10, 0, 0, 7, 9);
             }
@@ -6897,6 +6902,118 @@ mod slot_equip_scene_tests {
                 }
             }
         }
+    }
+
+    /// op 坐标抽取（宽表感知版）：取参数中**前两个可解析整数**为 (x, y)——
+    /// 跳过 "77x320" 尺寸记号与 '#rrggbb' 色参（drawImage/drawImageTransformed 可用）。
+    fn op_xy(o: &str) -> Option<(i32, i32)> {
+        let args = o.split('(').nth(1)?.split(')').next()?;
+        let mut nums = args
+            .split(',')
+            .filter_map(|t| t.trim().trim_start_matches('#').parse::<i32>().ok());
+        Some((nums.next()?, nums.next()?))
+    }
+
+    /// 第二轮返修判据（用户复验三破绽 2026-10-18）：
+    /// ②背景铺满：视差列/行须盖满画布（现状=只盖左上固定区，右侧/下方大片黑）；
+    /// ③HUD 内容组水平居中偏移 ≤ 12px；
+    /// ④瓦片"右缘止"判定：绘制数 == 窗口内 v>0 格数（=数据边界则合法、
+    ///   相机窗口缺格则断言破——区分二选一）。
+    #[test]
+    fn modern_render_background_fill_and_hud_center() {
+        let icons = synthetic_sptarm();
+        let mut sc = scene_with(&icons);
+        sc.apply_layout(crate::layout::Layout::modern(13, 13));
+        let mut img = ArgbImage::create(416, 416);
+        let ops;
+        {
+            let mut g = SoftGraphics::new(&mut img);
+            sc.paint(&mut g, &solid(64, 64));
+            ops = g.ops.clone();
+        }
+        if std::env::var("PROBE_FILLS").is_ok() {
+            for o in &ops {
+                if o.starts_with("fillRect") || o.contains("Transformed") {
+                    eprintln!("PROBE {o}");
+                }
+            }
+        }
+        // ② 背景覆盖：视差绘制（backdrop 77×320）x 跨度盖满 [0,416)、上下两行堆叠
+        let bg: Vec<(i32, i32)> = ops
+            .iter()
+            .filter(|o| o.contains("77x320") || o.contains("drawImageTransformed"))
+            .filter_map(|o| op_xy(o))
+            .collect();
+        let bg_max_x = bg.iter().map(|c| c.0).max().unwrap_or(-999);
+        let bg_min_x = bg.iter().map(|c| c.0).min().unwrap_or(999);
+        assert!(
+            bg_max_x + 77 >= 416 && bg_min_x <= 0,
+            "背景须铺满画布宽（现列起点 [{bg_min_x},{bg_max_x}]，末列+77 须 ≥416）"
+        );
+        assert!(bg.len() >= 12, "背景列×行须盖满画布（现 {} 片）", bg.len());
+        // ③ HUD 内容组居中（底带**内容**x 跨度中心 vs 屏心，偏移 ≤12；
+        //    框体=全宽设计（fill 宽≥200 / 边条 x<20 或 ≥400）不计入内容组）
+        let hud: Vec<(i32, i32)> = ops
+            .iter()
+            .filter(|o| op_xy(o).map(|c| c.1 > 368 && c.1 < 412).unwrap_or(false))
+            .filter(|o| {
+                let w = o
+                    .split('(')
+                    .nth(1)
+                    .and_then(|s| s.split(')').next())
+                    .map(|a| {
+                        a.split(',')
+                            .filter_map(|t| t.trim().trim_start_matches('#').parse::<i32>().ok())
+                            .nth(2)
+                            .unwrap_or(0)
+                    })
+                    .unwrap_or(0);
+                w < 200
+            })
+            .filter_map(|o| op_xy(o))
+            // 内容组域：排除框角件（角宽 26）与框右缘侧条区（≥330）——框体=全宽设计
+            .filter(|c| (26..330).contains(&c.0))
+            .collect();
+        let (hmin, hmax) = (
+            hud.iter().map(|c| c.0).min().unwrap_or(0),
+            hud.iter().map(|c| c.0).max().unwrap_or(0),
+        );
+        let center = (hmin + hmax) / 2;
+        assert!(
+            (center - 208).abs() <= 12,
+            "HUD 内容组水平居中（现 center={center} vs 屏心 208，跨度 [{hmin},{hmax}]，明细 {hud:?}）"
+        );
+        // ④ 瓦片右缘判定（二选一定位）：绘制数 ≤ 数据 v>0 格数 且
+        //    tile_max_x == 数据右缘（=数据边界则两者相等=合法；窗口缺格则绘制右缘<数据右缘=bug）
+        let (v0_total, data_right) = {
+            let v = &sc.view;
+            let (mut n, mut right) = (0usize, 0i32);
+            for r in 0..(v.high as usize) * 2 {
+                for c in 0..(v.wide as usize) * 2 {
+                    if v.terrain_at(r as i32, c as i32) > 0 {
+                        n += 1;
+                        right = right.max((c as i32) * 16);
+                    }
+                }
+            }
+            (n, right)
+        };
+        let tiles_x: Vec<i32> = ops
+            .iter()
+            .filter(|o| o.starts_with("setClip(") && o.ends_with(",16,16)"))
+            .filter_map(|o| op_xy(o))
+            .map(|c| c.0)
+            .collect();
+        let tile_max_x = tiles_x.iter().copied().max().unwrap_or(0);
+        assert!(
+            tiles_x.len() <= v0_total,
+            "绘制瓦片数 {} 不得超数据 v>0 格数 {v0_total}（右缘止=数据边界即合法）",
+            tiles_x.len()
+        );
+        assert_eq!(
+            tile_max_x, data_right,
+            "瓦片右缘判定：tile_max_x={tile_max_x} vs 数据右缘={data_right}（相等=数据边界合法；小于=相机窗口缺格 bug）"
+        );
     }
 
     fn loaded_with(icons: &[ArgbImage], save: &crate::save::FloorSave) -> GameScene {
