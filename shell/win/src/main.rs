@@ -219,9 +219,8 @@ fn click_key(x: i32, y: i32, mode: game_core::enums::GameMode, right: bool) -> O
     if right {
         return Some(-7);
     }
-    let (w, h) = (SCREEN_W, SCREEN_H);
-    if y > h * 7 / 10 && (x < w / 3 || x > w * 2 / 3) {
-        return Some(click_code(x, y)); // 软键区（-6/-7）
+    if let Some(code) = softkey_code(x, y) {
+        return Some(code); // 软键区（-6/-7）——判区单源
     }
     if mode == M::Map {
         return None;
@@ -685,6 +684,31 @@ impl Shell {
         }
     }
 
+    /// WIN-OP③ hover（2026-10-18）：命中行 → 光标跟随（选中高亮）。只动光标（零副作用）。
+    fn pointer_hover(&mut self, x: i32, y: i32) {
+        if let Some(Screen::Game(sc)) = self.state.as_mut() {
+            if let game_core::scene::PointerHit::Row { index, .. } = sc.pointer_hit(x, y) {
+                sc.select_row(index);
+            }
+        }
+    }
+
+    /// WIN-OP③ 点击：命中行 → 对位 + 返回该态确认键（shell 合成 press+release，
+    /// 与 click_code 同款点按语义）；未命中 → click_key 基线（软键区/右键/确认）。
+    fn pointer_click(&mut self, x: i32, y: i32, right: bool) -> Option<i32> {
+        if !right {
+            if let Some(Screen::Game(sc)) = self.state.as_mut() {
+                if let game_core::scene::PointerHit::Row { index, confirm_key } =
+                    sc.pointer_hit(x, y)
+                {
+                    sc.select_row(index);
+                    return Some(confirm_key);
+                }
+            }
+        }
+        click_key(x, y, self.game_mode(), right)
+    }
+
     /// 一逻辑拍（logic → paint，同 Java run 循环体），随后同步 BGM 请求。可见性不影响出拍：
     /// Java run 线程在隐藏期照常循环（hideNotify 只改状态，不停线程）。
     fn logic_tick(&mut self) {
@@ -1003,17 +1027,25 @@ fn occlusion_signal(event: &winit::event::WindowEvent) -> Option<bool> {
     }
 }
 
+/// 软键判区单源（WIN-OP③ 硬化：click_key 与合成共用此判区，禁双份谓词）：
+/// 底部 30% 左三分之一 = -6、右三分之一 = -7；其余 None（=非软键区）。
+fn softkey_code(x: i32, y: i32) -> Option<i32> {
+    let (w, h) = (SCREEN_W, SCREEN_H);
+    if y <= h * 7 / 10 {
+        return None;
+    }
+    if x < w / 3 {
+        Some(-6)
+    } else if x > w * 2 / 3 {
+        Some(-7)
+    } else {
+        None
+    }
+}
+
 /// 鼠标左键（画面坐标）→ 软键码：底部 30% 左三分之一 = -6、右三分之一 = -7、其余 = -5。
 fn click_code(x: i32, y: i32) -> i32 {
-    let (w, h) = (SCREEN_W, SCREEN_H);
-    let soft_bar = y > h * 7 / 10;
-    if soft_bar && x < w / 3 {
-        -6
-    } else if soft_bar && x > w * 2 / 3 {
-        -7
-    } else {
-        -5
-    }
+    softkey_code(x, y).unwrap_or(-5)
 }
 
 // ---------------------------------------------------------------- 窗口循环
@@ -1092,6 +1124,12 @@ fn run_window(shell: Shell) {
                 }
                 WindowEvent::CursorMoved { position, .. } => {
                     self.mouse = Some((position.x, position.y));
+                    // WIN-OP③ hover：命中行 → 光标跟随（菜单/背包选中高亮）
+                    if let Some(vp) = self.viewport() {
+                        if let Some((x, y)) = vp.to_screen(position.x, position.y, CANVAS_W, CANVAS_H) {
+                            self.shell.pointer_hover(x, y);
+                        }
+                    }
                 }
                 WindowEvent::MouseInput { state: ElementState::Pressed, button, .. } => {
                     let Some((mx, my)) = self.mouse else { return };
@@ -1103,8 +1141,8 @@ fn run_window(shell: Shell) {
                     if !right && button != winit::event::MouseButton::Left {
                         return;
                     }
-                    // WIN-OP③：软键区/右键/确认 合成键码（态门控见 click_key）
-                    let Some(code) = click_key(x, y, self.shell.game_mode(), right) else {
+                    // WIN-OP③：命中行→对位+确认键；未命中→基线（软键/右键/确认，态门控）
+                    let Some(code) = self.shell.pointer_click(x, y, right) else {
                         return;
                     };
                     // 点按 = 一次 press + release（下一拍消费 keyValue；不即时推进逻辑）

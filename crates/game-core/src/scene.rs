@@ -7693,6 +7693,200 @@ mod item13_use_regression {
     }
 }
 
+/// 指针命中（WIN-OP③，Stage B 加法——decision_pointer-menu-stage-b；
+/// 实现微调经 adversary 批准 2026-10-18：命中→Row{index, confirm_key}+select_row
+/// 只动光标，确认走 shell route_key 合成键=唯一键路，零新游戏语义）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PointerHit {
+    None,
+    /// index = 绝对行/格索引（③-2 定义）；confirm_key = 该态确认键（③-3 逐态）。
+    Row { index: i32, confirm_key: i32 },
+}
+
+impl GameScene {
+    /// 菜单行带几何（③-1 单源：与 paint_menu_list 逐项同式——居中盒、行首 16+pad、
+    /// 行距 menu_line_height；pad=(line_height-font.height)>>1）。返回 (行y, 行高)。
+    fn menu_row_band(&self, visible: i32) -> (i32, i32) {
+        let font = crate::paint::paint_font();
+        let pad = (self.menu_line_height - font.height) >> 1;
+        let by = CENTER_Y - ((self.menu_list_height + 32) >> 1) + 16 + pad
+            + visible * self.menu_line_height;
+        (by - pad, self.menu_line_height)
+    }
+
+    /// 背包栅格原点（③-1 单源：与 paint_item_panel 同式——box 居中、
+    /// x=box_x+20、y=box_y+32+font.height；格步进 40、格体 32）。
+    fn item_cell_origin(&self) -> (i32, i32) {
+        let font = crate::paint::paint_font();
+        (
+            (SCREEN_W - self.item_box_w) / 2 + 20,
+            (SCREEN_H - self.item_box_h) / 2 + 32 + font.height,
+        )
+    }
+
+    /// 指针命中：游戏内菜单/商店（行带）与背包（栅格）。对话/玩法态恒 None
+    /// （不点走剧情、不在行走态误触）。confirm_key 逐态（③-3）：菜单族激活=-6、
+    /// 道具使用=-6（键码契约 §4 同码不同动作——标题确认另有 -5/53）。
+    pub fn pointer_hit(&self, x: i32, y: i32) -> PointerHit {
+        match self.game_mode {
+            GameMode::InGameMenu | GameMode::Shop => {
+                let vis_n = self.menu_visible_bottom - self.menu_scroll_top;
+                for vis in 0..vis_n.max(0) {
+                    let (ry, rh) = self.menu_row_band(vis);
+                    if y >= ry && y < ry + rh {
+                        let index = self.menu_scroll_top + vis;
+                        if index >= 0 && index < self.menu_item_count {
+                            return PointerHit::Row { index, confirm_key: -6 };
+                        }
+                    }
+                }
+                PointerHit::None
+            }
+            GameMode::ItemPanel => {
+                let (ox, oy) = self.item_cell_origin();
+                if x >= ox && y >= oy {
+                    let c = (x - ox) / 40;
+                    let r = (y - oy) / 40;
+                    if c >= 0 && c < self.item_cols && r >= 0
+                        && r < self.item_scroll_bottom - self.item_scroll_top
+                    {
+                        let index = (self.item_scroll_top + r) * self.item_cols + c;
+                        return PointerHit::Row { index, confirm_key: -6 };
+                    }
+                }
+                PointerHit::None
+            }
+            _ => PointerHit::None,
+        }
+    }
+
+    /// 指针选行（hover 高亮/点击对位）：只动光标+滚窗同步，无其他状态变化（③-2/b）。
+    pub fn select_row(&mut self, index: i32) {
+        match self.game_mode {
+            GameMode::InGameMenu | GameMode::Shop => {
+                if index >= 0 && index < self.menu_item_count {
+                    self.menu_cursor = index;
+                    let n = self.menu_visible_bottom - self.menu_scroll_top;
+                    if self.menu_cursor >= self.menu_visible_bottom {
+                        self.menu_visible_bottom = self.menu_cursor + 1;
+                        self.menu_scroll_top = self.menu_visible_bottom - n;
+                    } else if self.menu_cursor < self.menu_scroll_top {
+                        self.menu_scroll_top = self.menu_cursor;
+                        self.menu_visible_bottom = self.menu_scroll_top + n;
+                    }
+                }
+            }
+            GameMode::ItemPanel => {
+                let total = self.item_cols * self.item_rows_total;
+                if index >= 0 && index < total {
+                    self.item_cursor = index;
+                    let n = self.item_scroll_bottom - self.item_scroll_top;
+                    let row = self.item_cursor / self.item_cols;
+                    if row >= self.item_scroll_bottom {
+                        self.item_scroll_bottom = row + 1;
+                        self.item_scroll_top = self.item_scroll_bottom - n;
+                    } else if row < self.item_scroll_top {
+                        self.item_scroll_top = row;
+                        self.item_scroll_bottom = self.item_scroll_top + n;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// WIN-OP③ 指针缝测试（adversary 4 条件：(a) confirm_key 逐态 (b) select_row 只动
+/// 光标+滚窗 (c) 合成=press+release 同拍（壳侧同款点按，见 shell 测试）(d) 几何单源）
+#[cfg(test)]
+mod pointer_seam_tests {
+    use super::scene_test_support::scene;
+    use super::{GameMode, PointerHit};
+
+    fn menu_scene() -> super::GameScene {
+        let mut sc = scene((2, 2), &[(43, 5, 5)]);
+        sc.game_mode = GameMode::InGameMenu;
+        sc.menu_kinds = vec![0, 1, 2, 3, 4, 5];
+        sc.menu_item_count = 6;
+        sc.menu_scroll_top = 0;
+        sc.menu_visible_bottom = 6;
+        sc.menu_line_height = 18;
+        sc.menu_box_width = 148;
+        sc.menu_list_height = 112;
+        sc.menu_cursor = 0;
+        sc
+    }
+
+    /// (d)+(a)：行带几何与 paint_menu_list 同式逐行锚 + 命中带定死 + confirm_key=-6
+    #[test]
+    fn menu_pointer_hit_geometry_boundaries_and_confirm_key() {
+        let sc = menu_scene();
+        let (y0, h) = sc.menu_row_band(0);
+        assert_eq!(sc.pointer_hit(120, y0 + h / 2), PointerHit::Row { index: 0, confirm_key: -6 });
+        let (y2, h2) = sc.menu_row_band(2);
+        assert_eq!(sc.pointer_hit(120, y2 + h2 / 2), PointerHit::Row { index: 2, confirm_key: -6 });
+        // 命中带边界（③-2/c）：行尾-1 归本行、下一像素归下行
+        assert_eq!(sc.pointer_hit(120, y0 + h - 1), PointerHit::Row { index: 0, confirm_key: -6 });
+        assert_eq!(sc.pointer_hit(120, y0 + h), PointerHit::Row { index: 1, confirm_key: -6 });
+        // 盒外/空洞 = None
+        assert_eq!(sc.pointer_hit(120, y0 - 3), PointerHit::None);
+        // 行几何 = paint 同式（居中盒 16+pad、行距 18）
+        assert_eq!(y0, 160 - ((112 + 32) >> 1) + 16, "行带 y 与 paint_menu_list 同式锚（pad 相消）");
+        // 玩法/对话态恒 None（不误触）
+        let mut s2 = menu_scene();
+        s2.game_mode = GameMode::Map;
+        assert_eq!(s2.pointer_hit(120, y0 + 5), PointerHit::None);
+    }
+
+    /// (b)：select_row 只动光标+滚窗同步，其他状态零变化
+    #[test]
+    fn select_row_only_cursor_and_scroll() {
+        let mut sc = menu_scene();
+        let hp = sc.player.hp;
+        let gold = sc.player.gold;
+        sc.select_row(2);
+        assert_eq!(sc.menu_cursor, 2);
+        assert_eq!(sc.menu_scroll_top, 0, "可视窗内不滚");
+        assert_eq!(sc.player.hp, hp);
+        assert_eq!(sc.player.gold, gold);
+        sc.menu_scroll_top = 0;
+        sc.menu_visible_bottom = 4;
+        sc.select_row(5);
+        assert_eq!(sc.menu_cursor, 5);
+        assert_eq!(sc.menu_visible_bottom, 6, "滚窗跟随下缘");
+        assert_eq!(sc.menu_scroll_top, 2);
+        sc.select_row(0);
+        assert_eq!(sc.menu_scroll_top, 0, "滚窗跟随上缘");
+        assert_eq!(sc.menu_visible_bottom, 4);
+    }
+
+    /// 背包栅格：几何单源 + 命中 + (a) confirm_key=-6 + select_row
+    #[test]
+    fn item_grid_pointer_hit_and_select() {
+        let mut sc = scene((2, 2), &[]);
+        sc.game_mode = GameMode::ItemPanel;
+        sc.item_cols = 4;
+        sc.item_rows_total = 3;
+        sc.item_scroll_top = 0;
+        sc.item_scroll_bottom = 3;
+        sc.item_cursor = 0;
+        let (ox, oy) = sc.item_cell_origin();
+        assert_eq!(sc.pointer_hit(ox + 16, oy + 16), PointerHit::Row { index: 0, confirm_key: -6 });
+        assert_eq!(
+            sc.pointer_hit(ox + 40 + 16, oy + 40 + 16),
+            PointerHit::Row { index: 5, confirm_key: -6 }
+        );
+        assert_eq!(sc.pointer_hit(ox - 5, oy + 16), PointerHit::None);
+        sc.select_row(5);
+        assert_eq!(sc.item_cursor, 5);
+        assert_eq!(sc.item_scroll_top, 0);
+        // 越窗行 → 滚窗同步
+        sc.select_row(11);
+        assert_eq!(sc.item_cursor, 11);
+        assert_eq!(sc.item_scroll_bottom, 3, "末行仍全窗");
+    }
+}
+
 /// 三处静默简化保真修复 + 读档旗标（completeness §3.4，2026-10-15）的单测
 /// （⑤ 存档 blob 布局见 slot_equip_scene_tests::save_blob_layout_matches_java_and_roundtrips）：
 /// ① addItemToItemStack 写 itemUseTargetType（a.java:7732）；② m_119 entityCount==0
