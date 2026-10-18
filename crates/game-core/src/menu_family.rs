@@ -1296,6 +1296,31 @@ impl OptionList {
         }
     }
 
+    /// 选项数（指针命中遍历用）。
+    pub fn len(&self) -> usize {
+        self.labels.len()
+    }
+
+    /// 当前高亮（指针选行断言用）。
+    pub fn highlight_index(&self) -> usize {
+        self.highlight as usize
+    }
+
+    /// 设高亮（指针选行；只动光标语义）。
+    pub fn set_highlight(&mut self, i: usize) {
+        if i < self.labels.len() {
+            self.highlight = i as _;
+        }
+    }
+
+    /// 行带几何（③-1 单源：paint 与 pointer_hit 共调）：行高 = optionRowHeight
+    /// = font.height+8（a.java:812）；行首 = 盒顶+16。返回 (行y, 行高)。
+    pub fn row_band(&self, i: usize) -> (i32, i32) {
+        let font = crate::paint::paint_font();
+        let y = (SCREEN_H - self.box_h) / 2 + 16;
+        (y + (font.height + 8) * i as i32, font.height + 8)
+    }
+
     /// paint case 16（a.java:2959-2990）。
     pub fn paint(&self, g: &mut SoftGraphics<'_>, ui: &[ArgbImage], font: &crate::render::SoftFont) {
         let x = (SCREEN_W - self.box_w - 22) >> 1;

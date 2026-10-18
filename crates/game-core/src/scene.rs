@@ -7744,6 +7744,19 @@ impl GameScene {
                 }
                 PointerHit::None
             }
+            GameMode::About => {
+                // 设置面板（OptionList）：行带单源 row_band；confirm=-5（run case 16
+                // 翻转键，a.java:4143-4188）
+                if let Some(list) = self.options.as_ref() {
+                    for i in 0..list.len() {
+                        let (ry, rh) = list.row_band(i);
+                        if y >= ry && y < ry + rh {
+                            return PointerHit::Row { index: i as i32, confirm_key: -5 };
+                        }
+                    }
+                }
+                PointerHit::None
+            }
             GameMode::ItemPanel => {
                 let (ox, oy) = self.item_cell_origin();
                 if x >= ox && y >= oy {
@@ -7775,6 +7788,13 @@ impl GameScene {
                     } else if self.menu_cursor < self.menu_scroll_top {
                         self.menu_scroll_top = self.menu_cursor;
                         self.menu_visible_bottom = self.menu_scroll_top + n;
+                    }
+                }
+            }
+            GameMode::About => {
+                if let Some(list) = self.options.as_mut() {
+                    if index >= 0 && (index as usize) < list.len() {
+                        list.set_highlight(index as usize); // 只动高亮（光标语义），零其他状态
                     }
                 }
             }
@@ -7861,6 +7881,43 @@ mod pointer_seam_tests {
         sc.select_row(0);
         assert_eq!(sc.menu_scroll_top, 0, "滚窗跟随上缘");
         assert_eq!(sc.menu_visible_bottom, 4);
+    }
+
+    /// 设置面板（OptionList，2026-10-18 用户反馈面）：行带单源 + 命中 ±1px +
+    /// confirm_key=-5（run case 16 翻转键）+ select_row 只动高亮
+    #[test]
+    fn options_panel_pointer_hit_and_select() {
+        let mut sc = scene((2, 2), &[]);
+        sc.game_mode = GameMode::About;
+        let list = crate::menu_family::OptionList::new(true, false);
+        sc.options = Some(list);
+        let font = crate::paint::paint_font();
+        let row_h = font.height + 8;
+        // 期望=字面常量锚（F-1 口径：禁被测自身作期望）——OptionList::add 累加式：
+        // box_h=32+2*row_h（a.java:9911-9926）；行首=盒顶+16（paint case 16）
+        let box_h = 32 + 2 * row_h;
+        let y0 = (SCREEN_H - box_h) / 2 + 16;
+        let x = SCREEN_W / 2; // 盒内任一 x（行带命中与 x 无关，盒外另测）
+        assert_eq!(
+            sc.pointer_hit(x, y0 + 1),
+            PointerHit::Row { index: 0, confirm_key: -5 },
+            "行0 顶像素归本行"
+        );
+        assert_eq!(sc.pointer_hit(x, y0 - 1), PointerHit::None, "行0 顶-1 不命中");
+        assert_eq!(
+            sc.pointer_hit(x, y0 + row_h),
+            PointerHit::Row { index: 1, confirm_key: -5 },
+            "行界像素归下行"
+        );
+        // select_row 只动高亮
+        let hp = sc.player.hp;
+        sc.select_row(1);
+        if let Some(l) = sc.options.as_ref() {
+            assert_eq!(l.highlight_index(), 1);
+        } else {
+            panic!();
+        }
+        assert_eq!(sc.player.hp, hp, "他态零变化");
     }
 
     /// 背包栅格：几何单源 + 命中 + (a) confirm_key=-6 + select_row
