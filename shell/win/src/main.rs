@@ -810,6 +810,10 @@ impl Shell {
         if need {
             if let Some(mut m) = self.stashed_boot.take() {
                 m.mode = game_core::enums::GameMode::MainMenu;
+                // m_000 case 1 音频半（a.java:4295/4311）：f_bool_28=false + m_139(2)
+                //——2026-10-18 用户实报：换机后音乐未切回标题曲（stash 机器带着
+                // enter_game 的 f_bool_28=true 状态，须按 Java case 1 语义复位）
+                m.bgm.enter_title();
                 self.state = Some(Screen::Boot(m));
             }
         }
@@ -1483,6 +1487,9 @@ mod shell_tests {
             matches!(h.shell.state, Some(Screen::Boot(_))),
             "kind7 退出后须换回 BootMachine（标题画面）"
         );
+        // BGM 随换机（2026-10-18 用户实报）：换机后须回标题曲
+        h.run_tick(&[]);
+        assert_eq!(h.bgm(), Some(2), "换机后 BGM 须切回标题曲 track2（实得 {:?}）", h.bgm());
     }
 
     /// hideNotify 音频半 + 隐藏期门控 + keyPressed 续播（f_bool_28=true 分支 ⇒ game(3)），mode 3：
