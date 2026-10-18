@@ -330,6 +330,85 @@ pub const ENCYC_PANEL_W: i32 = 208;
 pub const ARROW_PAIR_LEFT_X: i32 = 60;
 pub const ARROW_PAIR_RIGHT_X: i32 = 160;
 
+// =========================================================================
+// STAGE-B-002：动态逻辑分辨率双预设——Layout 运行时形态（classic 恒等 / modern 派生）
+// =========================================================================
+
+/// 布局预设。`Classic` = 原版 240×320（Legacy 等价命门：全部字段逐值 = 现行常量，
+/// walk_camera_golden / game_view (8,-210) / ease 序列一字不改仍绿）；
+/// `Modern` = 公式派生（逻辑分辨率 = 任意格数、UI 自适配、最小 = 原分辨率）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Preset {
+    Classic,
+    Modern,
+}
+
+/// 布局面（视口推导类 + 设计常量的运行时形态）。消费方经此取几何；
+/// 常量面原样保留 = Legacy 锚（classic 下两者逐值互证，见 tests）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Layout {
+    pub preset: Preset,
+    // —— 视口推导类 ——
+    pub screen_w: i32,
+    pub screen_h: i32,
+    pub center_x: i32,
+    pub center_y: i32,
+    pub status_bar_h: i32,
+    pub view_top_y: i32,
+    pub game_view_w: i32,
+    pub game_view_h: i32,
+    pub view_bottom_y: i32,
+    pub hud_frame_h: i32,
+    pub hud_base_y: i32,
+    pub prompt_cx: i32,
+    pub prompt_cy: i32,
+    pub softkey_base_y: i32,
+    pub softkey_right_x: i32,
+    pub softkey_icon_y: i32,
+    pub softkey_icon_right_x: i32,
+    // —— 设计常量（文末专段的运行时形态；classic = 原值）——
+    pub overlay_text_w: i32,
+    pub overlay_text_max_h: i32,
+    pub overlay_icon_text_max_h: i32,
+    pub slot_list_max_h: i32,
+    pub encyc_panel_w: i32,
+    pub arrow_pair_left_x: i32,
+    pub arrow_pair_right_x: i32,
+}
+
+impl Layout {
+    /// classic 预设：逐值 = 现行常量面（Legacy 等价命门判据本体）。
+    pub fn classic() -> Layout {
+        Layout {
+            preset: Preset::Classic,
+            screen_w: SCREEN_W,
+            screen_h: SCREEN_H,
+            center_x: CENTER_X,
+            center_y: CENTER_Y,
+            status_bar_h: STATUS_BAR_H,
+            view_top_y: view_top_y(),
+            game_view_w: GAME_VIEW_W,
+            game_view_h: GAME_VIEW_H,
+            view_bottom_y: view_bottom_y(),
+            hud_frame_h: HUD_FRAME_H,
+            hud_base_y: hud_base_y(),
+            prompt_cx: prompt_cx(),
+            prompt_cy: prompt_cy(),
+            softkey_base_y: softkey_base_y(),
+            softkey_right_x: softkey_right_x(),
+            softkey_icon_y: softkey_icon_y(),
+            softkey_icon_right_x: softkey_icon_right_x(),
+            overlay_text_w: OVERLAY_TEXT_W,
+            overlay_text_max_h: OVERLAY_TEXT_MAX_H,
+            overlay_icon_text_max_h: OVERLAY_ICON_TEXT_MAX_H,
+            slot_list_max_h: SLOT_LIST_MAX_H,
+            encyc_panel_w: ENCYC_PANEL_W,
+            arrow_pair_left_x: ARROW_PAIR_LEFT_X,
+            arrow_pair_right_x: ARROW_PAIR_RIGHT_X,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -399,5 +478,38 @@ mod tests {
         assert_eq!(OPTION_HIGHLIGHT, 549016);
         assert_eq!(PARSE_DEFAULT, 2829099);
         assert_eq!(SUBTITLE_COLORS, [16316664, 11184810, 8947848, 4473924, 1118481]);
+    }
+
+    /// STAGE-B-002 **Legacy 等价命门（判据本体）**：classic 预设逐值 = 现行常量面
+    /// （视口推导类 + 设计常量段），且 Java 字面量互证不变。本套件与
+    /// walk_camera_golden 4 测 / game_view (8,-210) 钳制 / ease 收敛序列共同构成
+    /// "一字不改仍绿"的 Legacy 判据面。
+    #[test]
+    fn layout_classic_equals_constant_surface() {
+        let l = Layout::classic();
+        assert_eq!(l.preset, Preset::Classic);
+        // 视口推导类逐值恒等
+        assert_eq!((l.screen_w, l.screen_h), (SCREEN_W, SCREEN_H));
+        assert_eq!((l.center_x, l.center_y), (CENTER_X, CENTER_Y));
+        assert_eq!((l.status_bar_h, l.view_top_y), (STATUS_BAR_H, view_top_y()));
+        assert_eq!((l.game_view_w, l.game_view_h), (GAME_VIEW_W, GAME_VIEW_H));
+        assert_eq!(
+            (l.view_bottom_y, l.hud_frame_h, l.hud_base_y),
+            (view_bottom_y(), HUD_FRAME_H, hud_base_y())
+        );
+        assert_eq!((l.prompt_cx, l.prompt_cy), (prompt_cx(), prompt_cy()));
+        assert_eq!((l.softkey_base_y, l.softkey_right_x), (softkey_base_y(), softkey_right_x()));
+        assert_eq!((l.softkey_icon_y, l.softkey_icon_right_x), (softkey_icon_y(), softkey_icon_right_x()));
+        // 设计常量段（layout.rs 文末专段）逐值恒等（⑤）
+        assert_eq!(
+            (l.overlay_text_w, l.overlay_text_max_h, l.overlay_icon_text_max_h),
+            (OVERLAY_TEXT_W, OVERLAY_TEXT_MAX_H, OVERLAY_ICON_TEXT_MAX_H)
+        );
+        assert_eq!((l.slot_list_max_h, l.encyc_panel_w), (SLOT_LIST_MAX_H, ENCYC_PANEL_W));
+        assert_eq!((l.arrow_pair_left_x, l.arrow_pair_right_x), (ARROW_PAIR_LEFT_X, ARROW_PAIR_RIGHT_X));
+        // Java 字面量互证（240×320 设计稿锚，防常量面自身漂移）
+        assert_eq!((l.screen_w, l.screen_h), (240, 320));
+        assert_eq!((l.view_top_y, l.game_view_h, l.view_bottom_y), (20, 252, 270));
+        assert_eq!((l.overlay_text_w, l.overlay_text_max_h, l.slot_list_max_h), (180, 240, 208));
     }
 }
