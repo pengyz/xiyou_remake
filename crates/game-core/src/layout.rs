@@ -407,6 +407,36 @@ impl Layout {
             arrow_pair_right_x: ARROW_PAIR_RIGHT_X,
         }
     }
+
+    /// modern 预设：逻辑分辨率 = **任意格数**（`grid_w × grid_h` 格 × [`CELL_PX`]），
+    /// 最小 = 原分辨率（240×320，即 classic）；视口推导类全字段公式自适配：
+    /// - 视图宽 = 屏宽；视图高 = 屏高 − 状态栏 − HUD 框（classic 代入 320-18-50=252）；
+    /// - 视口底 = 状态栏 + 视图高 = 屏高 − HUD 框（HUD 贴底，两式互证）；
+    /// - 提示居中式 = 屏心；软键贴底/贴右 = `屏 − 边距`。
+    ///
+    /// 设计常量段（overlay/slot_list/encyc/arrow_pair）暂随 classic 值——
+    /// modern 新值的逐条考证归 STAGE-B-002 ⑤（见登记册）。
+    pub fn modern(grid_w: i32, grid_h: i32) -> Layout {
+        let screen_w = (grid_w * CELL_PX).max(SCREEN_W);
+        let screen_h = (grid_h * CELL_PX).max(SCREEN_H);
+        let mut l = Layout::classic();
+        l.preset = Preset::Modern;
+        l.screen_w = screen_w;
+        l.screen_h = screen_h;
+        l.center_x = screen_w / 2;
+        l.center_y = screen_h / 2;
+        l.game_view_w = screen_w;
+        l.game_view_h = screen_h - STATUS_BAR_H - HUD_FRAME_H;
+        l.view_bottom_y = STATUS_BAR_H + l.game_view_h;
+        l.hud_base_y = screen_h - HUD_FRAME_H;
+        l.prompt_cx = screen_w / 2;
+        l.prompt_cy = screen_h / 2;
+        l.softkey_base_y = screen_h - 18;
+        l.softkey_right_x = screen_w - 18;
+        l.softkey_icon_y = screen_h - 13;
+        l.softkey_icon_right_x = screen_w - 14;
+        l
+    }
 }
 
 #[cfg(test)]
@@ -511,5 +541,48 @@ mod tests {
         assert_eq!((l.screen_w, l.screen_h), (240, 320));
         assert_eq!((l.view_top_y, l.game_view_h, l.view_bottom_y), (20, 252, 270));
         assert_eq!((l.overlay_text_w, l.overlay_text_max_h, l.slot_list_max_h), (180, 240, 208));
+    }
+
+    /// modern 预设公式（②UI 自适配的几何面）：
+    /// - 逻辑分辨率 = 任意格数（grid×CELL_PX），**最小 = 原分辨率**（240×320）；
+    /// - 视口推导类全字段随公式派生，且格数最小值时**逐值 = classic**（最小=原分辨率锚）；
+    /// - 派生一致性不变量：view_bottom = status_bar_h + game_view_h = hud_base_y。
+    #[test]
+    fn layout_modern_formula_derivation() {
+        // 最小格数（≤7×10）⇒ 钳到原分辨率 ⇒ 视口推导类逐值 = classic
+        let min = Layout::modern(4, 4);
+        let classic = Layout::classic();
+        assert_eq!((min.screen_w, min.screen_h), (240, 320), "最小 = 原分辨率");
+        assert_eq!(
+            (
+                min.center_x, min.center_y, min.view_top_y, min.game_view_w, min.game_view_h,
+                min.view_bottom_y, min.hud_base_y, min.prompt_cx, min.prompt_cy
+            ),
+            (
+                classic.center_x, classic.center_y, classic.view_top_y, classic.game_view_w,
+                classic.game_view_h, classic.view_bottom_y, classic.hud_base_y, classic.prompt_cx,
+                classic.prompt_cy
+            ),
+            "最小分辨率下视口推导类逐值 = classic"
+        );
+        // 任意格数（13×13 = 416×416）
+        let big = Layout::modern(13, 13);
+        assert_eq!((big.screen_w, big.screen_h), (416, 416), "格数×32");
+        assert_eq!(big.game_view_w, 416);
+        assert_eq!(big.game_view_h, 416 - big.status_bar_h - big.hud_frame_h);
+        assert_eq!(big.view_bottom_y, big.status_bar_h + big.game_view_h);
+        assert_eq!(big.hud_base_y, big.screen_h - big.hud_frame_h);
+        assert_eq!(big.view_bottom_y, big.hud_base_y, "视口底 = HUD 基线（不变量）");
+        assert_eq!((big.prompt_cx, big.prompt_cy), (208, 208), "居中式随屏派生");
+        assert_eq!(big.softkey_base_y, 416 - 18, "软键贴底公式");
+        assert_eq!(big.softkey_right_x, 416 - 18, "软键贴右公式");
+        // 宽扁/高窄任意格数同样满足不变量（UI 自适配面）
+        for (w, h) in [(20, 8), (8, 20), (7, 10), (9, 12)] {
+            let l = Layout::modern(w, h);
+            assert_eq!((l.screen_w, l.screen_h), ((w * 32).max(240), (h * 32).max(320)));
+            assert_eq!(l.view_bottom_y, l.status_bar_h + l.game_view_h);
+            assert_eq!(l.view_bottom_y, l.hud_base_y);
+            assert_eq!(l.game_view_w, l.screen_w);
+        }
     }
 }
