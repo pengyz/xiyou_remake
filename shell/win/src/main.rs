@@ -47,8 +47,20 @@ const TICK_MS: u64 = 75;
 const INITIAL_SCALE: u32 = 2;
 /// 逻辑画布尺寸（u32 视图，= game_core::layout::SCREEN_W/SCREEN_H，Stage A 240×320）——
 /// 壳内呈现几何的唯一来源：窗口初始/最小尺寸、Viewport 适配、鼠标反映射、blit。
-const CANVAS_W: u32 = SCREEN_W as u32;
-const CANVAS_H: u32 = SCREEN_H as u32;
+/// 【STAGE-B-002】随 `Shell.layout` 动态（classic = 240×320 原值零变化；
+/// 原 CANVAS_W/H 常量已收编为 layout 派生）。
+
+/// preset 解析（STAGE-B-002 ①）：`classic`（默认，原版恒等）/ `modern`（逻辑分辨率=
+/// 任意格数，`grid` 缺省 13×13 = 416×416；最小钳位 240×320 由 Layout::modern 保证）。
+fn parse_preset(name: &str, grid: Option<(i32, i32)>) -> game_core::layout::Layout {
+    match name {
+        "modern" => {
+            let (w, h) = grid.unwrap_or((13, 13));
+            game_core::layout::Layout::modern(w, h)
+        }
+        _ => game_core::layout::Layout::classic(),
+    }
+}
 const WINDOW_TITLE: &str = "囧囧西游-大闹天宫";
 
 // ---------------------------------------------------------------- 资产装载
@@ -214,12 +226,12 @@ fn wheel_key(dy: f64, mode: game_core::enums::GameMode) -> Option<i32> {
 /// WIN-OP③（2026-10-18）：鼠标点击 → 游戏键。软键区优先（全态，HUD 语义）；
 /// 右键 = -7 返回/菜单（全态）；非软键区左键 = 确认（-5），但 Map 行走态禁
 /// （防误触玩法键）——行点击（直接选行）另经 game-core handle_pointer（Stage B）。
-fn click_key(x: i32, y: i32, mode: game_core::enums::GameMode, right: bool) -> Option<i32> {
+fn click_key(x: i32, y: i32, w: i32, h: i32, mode: game_core::enums::GameMode, right: bool) -> Option<i32> {
     use game_core::enums::GameMode as M;
     if right {
         return Some(-7);
     }
-    if let Some(code) = softkey_code(x, y) {
+    if let Some(code) = softkey_code(x, y, w, h) {
         return Some(code); // 软键区（-6/-7）——判区单源
     }
     if mode == M::Map {
@@ -430,6 +442,8 @@ struct Shell {
     rms: Box<dyn game_platform::Storage>,
     stores: Vec<(String, Vec<u8>)>,
     screen: ArgbImage,
+    /// 布局面（STAGE-B-002）：画布/视口/鼠标反映射的尺寸源（classic=240×320 零变化）。
+    layout: game_core::layout::Layout,
     state: Option<Screen>,
     /// machine 一次性键（keyValue：按下覆盖式写入，下一逻辑 tick 消费）
     pending_machine_key: i32,
@@ -462,6 +476,7 @@ impl Shell {
         rms: Box<dyn game_platform::Storage>,
         stores: Vec<(String, Vec<u8>)>,
         sink: Box<dyn audio::AudioSink>,
+        layout: game_core::layout::Layout,
     ) -> Shell {
         let mapbg = load_container(src, "mapbg", 1);
         let png = |name: &str| {
@@ -505,7 +520,8 @@ impl Shell {
             assets,
             rms,
             stores,
-            screen: ArgbImage::create(SCREEN_W, SCREEN_H),
+            screen: ArgbImage::create(layout.screen_w, layout.screen_h),
+            layout,
             state: Some(Screen::Boot(machine)),
             pending_machine_key: 0,
             frame_counter: 0,
@@ -737,7 +753,7 @@ impl Shell {
                 _ => {}
             }
         }
-        click_key(x, y, self.game_mode(), right)
+        click_key(x, y, self.layout.screen_w, self.layout.screen_h, self.game_mode(), right)
     }
 
     /// 一逻辑拍（logic → paint，同 Java run 循环体），随后同步 BGM 请求。可见性不影响出拍：
@@ -796,6 +812,7 @@ impl Shell {
     /// 交接拍收尾（读档 / 新游戏两路共用）：本拍即画场景（读档路 Java 本拍 paint 已是
     /// mode 3；两路均与 harness 同构）并切入 GameScene。
     fn enter_scene(&mut self, mut sc: GameScene, machine: game_core::paint::BootMachine) {
+        sc.layout = self.layout.clone(); // STAGE-B-002①：preset 写入 game-core 布局面
         // SKY_WAR 交接拷贝（Boot→GameScene）：不拷则场景水位从 0 起步会把持久水位写回退
         // 【2026-10-18 整改】machine 经参数收储——调用链 step 已 take 走 state，
         // 此处再 take 只得 None（stash 恒空 ⇒ 换机静默无动作，用户实报）。
@@ -1122,8 +1139,8 @@ fn occlusion_signal(event: &winit::event::WindowEvent) -> Option<bool> {
 
 /// 软键判区单源（WIN-OP③ 硬化：click_key 与合成共用此判区，禁双份谓词）：
 /// 底部 30% 左三分之一 = -6、右三分之一 = -7；其余 None（=非软键区）。
-fn softkey_code(x: i32, y: i32) -> Option<i32> {
-    let (w, h) = (SCREEN_W, SCREEN_H);
+/// `w`/`h` = 画布逻辑尺寸（随 Layout；classic 240×320 原值零变化）。
+fn softkey_code(x: i32, y: i32, w: i32, h: i32) -> Option<i32> {
     if y <= h * 7 / 10 {
         return None;
     }
@@ -1137,8 +1154,8 @@ fn softkey_code(x: i32, y: i32) -> Option<i32> {
 }
 
 /// 鼠标左键（画面坐标）→ 软键码：底部 30% 左三分之一 = -6、右三分之一 = -7、其余 = -5。
-fn click_code(x: i32, y: i32) -> i32 {
-    softkey_code(x, y).unwrap_or(-5)
+fn click_code(x: i32, y: i32, w: i32, h: i32) -> i32 {
+    softkey_code(x, y, w, h).unwrap_or(-5)
 }
 
 // ---------------------------------------------------------------- 窗口循环
@@ -1185,10 +1202,13 @@ fn run_window(shell: Shell) {
                         // CJK 标题（X11 _NET_WM_NAME 为 UTF-8；字形由窗口管理器渲染）
                         .with_title(WINDOW_TITLE)
                         .with_inner_size(winit::dpi::LogicalSize::new(
-                            CANVAS_W * INITIAL_SCALE,
-                            CANVAS_H * INITIAL_SCALE,
+                            self.shell.layout.screen_w as u32 * INITIAL_SCALE,
+                            self.shell.layout.screen_h as u32 * INITIAL_SCALE,
                         ))
-                        .with_min_inner_size(winit::dpi::PhysicalSize::new(CANVAS_W, CANVAS_H))
+                        .with_min_inner_size(winit::dpi::PhysicalSize::new(
+                            self.shell.layout.screen_w as u32,
+                            self.shell.layout.screen_h as u32,
+                        ))
                         // 可缩放：画面取能放下的最大整数倍、信箱居中（view.rs），像素锐利；
                         // 桌面分数缩放下合成器的整窗平滑拉伸由此规避（按物理像素重排）
                         .with_resizable(true),
@@ -1219,7 +1239,12 @@ fn run_window(shell: Shell) {
                     self.mouse = Some((position.x, position.y));
                     // WIN-OP③ hover：命中行 → 光标跟随（菜单/背包选中高亮）
                     if let Some(vp) = self.viewport() {
-                        if let Some((x, y)) = vp.to_screen(position.x, position.y, CANVAS_W, CANVAS_H) {
+                        if let Some((x, y)) = vp.to_screen(
+                            position.x,
+                            position.y,
+                            self.shell.layout.screen_w as u32,
+                            self.shell.layout.screen_h as u32,
+                        ) {
                             self.shell.pointer_hover(x, y);
                         }
                     }
@@ -1227,7 +1252,12 @@ fn run_window(shell: Shell) {
                 WindowEvent::MouseInput { state: ElementState::Pressed, button, .. } => {
                     let Some((mx, my)) = self.mouse else { return };
                     let Some(vp) = self.viewport() else { return };
-                    let Some((x, y)) = vp.to_screen(mx, my, CANVAS_W, CANVAS_H) else {
+                    let Some((x, y)) = vp.to_screen(
+                        mx,
+                        my,
+                        self.shell.layout.screen_w as u32,
+                        self.shell.layout.screen_h as u32,
+                    ) else {
                         return; // 信箱区
                     };
                     let right = button == winit::event::MouseButton::Right;
@@ -1299,7 +1329,13 @@ fn run_window(shell: Shell) {
         fn viewport(&self) -> Option<view::Viewport> {
             let size = self.window.as_ref()?.inner_size();
             (size.width > 0 && size.height > 0)
-                .then(|| view::Viewport::fit(size.width, size.height, CANVAS_W, CANVAS_H))
+                .then(|| {
+                    let (cw, ch) = (
+                        self.shell.layout.screen_w as u32,
+                        self.shell.layout.screen_h as u32,
+                    );
+                    view::Viewport::fit(size.width, size.height, cw, ch)
+                })
         }
 
         fn present(&mut self) {
@@ -1312,7 +1348,11 @@ fn run_window(shell: Shell) {
                 return;
             }
             let Ok(mut buffer) = surface.buffer_mut() else { return };
-            view::blit(&mut buffer, &vp, &self.shell.screen.argb, CANVAS_W, CANVAS_H);
+            let (cw, ch) = (
+                self.shell.layout.screen_w as u32,
+                self.shell.layout.screen_h as u32,
+            );
+            view::blit(&mut buffer, &vp, &self.shell.screen.argb, cw, ch);
             let _ = buffer.present();
         }
     }
@@ -1354,6 +1394,8 @@ fn main() {
     let mut audio_dir = PathBuf::from("assets/audio");
     let mut audio_device = String::from("default");
     let mut mute = false;
+    let mut preset_name = String::from("classic");
+    let mut grid: Option<(i32, i32)> = None;
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         match a.as_str() {
@@ -1362,6 +1404,15 @@ fn main() {
             "--audio" => audio_dir = PathBuf::from(args.next().unwrap_or_default()),
             "--audio-device" => audio_device = args.next().unwrap_or_else(|| "default".into()),
             "--mute" => mute = true,
+            "--preset" => preset_name = args.next().unwrap_or_else(|| "classic".into()),
+            "--grid" => {
+                let g = args.next().unwrap_or_default();
+                let mut it = g.split(',');
+                grid = Some((
+                    it.next().and_then(|v| v.parse().ok()).unwrap_or(13),
+                    it.next().and_then(|v| v.parse().ok()).unwrap_or(13),
+                ));
+            }
             other => eprintln!("忽略未知参数 {other}"),
         }
     }
@@ -1376,7 +1427,8 @@ fn main() {
     } else {
         audio::start(&audio_dir, &audio_device)
     };
-    let mut shell = Shell::new(&src, assets, Box::new(rms), stores, sink);
+    let layout = parse_preset(&preset_name, grid);
+    let mut shell = Shell::new(&src, assets, Box::new(rms), stores, sink, layout);
     // STAGE-B-001：全局声音设置装载（save 目录旁 app_settings.cfg）——不入游戏存档
     {
         let settings_path = default_save_dir().join("app_settings.cfg");
@@ -1453,7 +1505,14 @@ mod shell_tests {
             let cmds = Arc::new(Mutex::new(Vec::new()));
             let now = Arc::new(Mutex::new(0));
             let sink = Box::new(Recorder(cmds.clone(), now.clone()));
-            let shell = Shell::new(&src, assets, Box::new(rms), preset_stores(preset), sink);
+            let shell = Shell::new(
+                &src,
+                assets,
+                Box::new(rms),
+                preset_stores(preset),
+                sink,
+                game_core::layout::Layout::classic(),
+            );
             Harness { shell, cmds, now, tick: 0 }
         }
 
@@ -1817,13 +1876,17 @@ mod shell_tests {
     }
 
     fn shell_at(dir: &PathBuf) -> Shell {
+        shell_with_layout(dir, game_core::layout::Layout::classic())
+    }
+
+    fn shell_with_layout(dir: &PathBuf, layout: game_core::layout::Layout) -> Shell {
         let raw = repo().join("assets/raw");
         let src = DirAssets::new(&raw);
         let assets = std::sync::Arc::new(load_assets(&src));
         let (rms, stores) = Rms::load(dir);
         let cmds = Arc::new(Mutex::new(Vec::new()));
         let now = Arc::new(Mutex::new(0));
-        Shell::new(&src, assets, Box::new(rms), stores, Box::new(Recorder(cmds, now)))
+        Shell::new(&src, assets, Box::new(rms), stores, Box::new(Recorder(cmds, now)), layout)
     }
 
     /// SKY_WAR 端到端：水位抬升 ⇒ 落盘；重开同目录 ⇒ 状态恢复（saveGlobalProgress）。
@@ -1848,6 +1911,28 @@ mod shell_tests {
             }
             _ => panic!("二代壳应在 Boot"),
         }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// STAGE-B-002 ⑤①②：preset 解析 + 画布随 Layout（classic 零变化=化回原值断言）。
+    #[test]
+    fn preset_selects_layout_and_canvas_follows() {
+        let l = parse_preset("classic", None);
+        assert_eq!((l.screen_w, l.screen_h), (240, 320), "classic 零变化");
+        assert_eq!(
+            (l.screen_w as u32 * INITIAL_SCALE, l.screen_h as u32 * INITIAL_SCALE),
+            (480, 640),
+            "窗口初值化回原值"
+        );
+        let m = parse_preset("modern", Some((13, 13)));
+        assert_eq!((m.screen_w, m.screen_h), (416, 416), "modern 13×13 格");
+        assert_eq!(parse_preset("modern", None).screen_w, 416, "modern 默认 13×13");
+        // 画布随 Layout：壳屏缓冲 = layout 尺寸
+        let dir = skywar_dir("preset");
+        let shell = shell_with_layout(&dir, parse_preset("modern", Some((13, 13))));
+        assert_eq!((shell.screen.width, shell.screen.height), (416, 416), "画布随 Layout");
+        let shell = shell_with_layout(&dir, parse_preset("classic", None));
+        assert_eq!((shell.screen.width, shell.screen.height), (240, 320), "classic 画布原值");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -1974,10 +2059,10 @@ mod shell_tests {
         assert_eq!(wheel_key(0.0, GameMode::MainMenu), None, "零位移无动作");
         // ③ 点击基线：软键区优先全态；右键=-7 全态；非软键区左键=确认但 Map 态禁
         let (w, h) = (SCREEN_W, SCREEN_H);
-        assert_eq!(click_key(5, h - 5, GameMode::Map, false), Some(-6), "软键区全态生效");
-        assert_eq!(click_key(5, 5, GameMode::Map, true), Some(-7), "右键=返回全态");
-        assert_eq!(click_key(5, 5, GameMode::Map, false), None, "Map 态点击不误触");
-        assert_eq!(click_key(5, 5, GameMode::InGameMenu, false), Some(-5), "菜单态点击=确认");
+        assert_eq!(click_key(5, h - 5, SCREEN_W, SCREEN_H, GameMode::Map, false), Some(-6), "软键区全态生效");
+        assert_eq!(click_key(5, 5, SCREEN_W, SCREEN_H, GameMode::Map, true), Some(-7), "右键=返回全态");
+        assert_eq!(click_key(5, 5, SCREEN_W, SCREEN_H, GameMode::Map, false), None, "Map 态点击不误触");
+        assert_eq!(click_key(5, 5, SCREEN_W, SCREEN_H, GameMode::InGameMenu, false), Some(-5), "菜单态点击=确认");
         assert_eq!(w > 0, true); // 占位消未用告警
     }
 
@@ -1987,11 +2072,11 @@ mod shell_tests {
     fn click_zones_in_screen_space() {
         let (w, h) = (SCREEN_W, SCREEN_H);
         let bar = h - 20; // 软键栏内一行（240×320 下 = 300）
-        assert_eq!(click_code(10, bar), -6);
-        assert_eq!(click_code(w - 10, bar), -7);
-        assert_eq!(click_code(w / 2, bar), -5);
-        assert_eq!(click_code(10, h * 7 / 10), -5, "边界行（严格 >）不属软键栏");
-        assert_eq!(click_code(10, h * 7 / 10 + 1), -6);
+        assert_eq!(click_code(10, bar, w, h), -6);
+        assert_eq!(click_code(w - 10, bar, w, h), -7);
+        assert_eq!(click_code(w / 2, bar, w, h), -5);
+        assert_eq!(click_code(10, h * 7 / 10, w, h), -5, "边界行（严格 >）不属软键栏");
+        assert_eq!(click_code(10, h * 7 / 10 + 1, w, h), -6);
     }
 
     /// mode 22 退出信号（CMidlet.dispatchModeEntry 信号半，BUG-020 消费链的信号源）：标题"退出"
@@ -2191,7 +2276,14 @@ mod behavior_anchors {
         let (rms, stores) = Rms::load(&dir.join("save"));
         let d = dir.clone();
         let msg = panic_payload(move || {
-            let _ = Shell::new(&DirAssets::new(&d), assets, Box::new(rms), stores, Box::new(audio::NullSink));
+            let _ = Shell::new(
+                &DirAssets::new(&d),
+                assets,
+                Box::new(rms),
+                stores,
+                Box::new(audio::NullSink),
+                game_core::layout::Layout::classic(),
+            );
         });
         assert!(
             msg.starts_with("缺 assets/raw/l0.png（先跑 tools/extract-assets/extract.py）："),
