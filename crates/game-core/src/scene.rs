@@ -7987,6 +7987,9 @@ mod pointer_seam_tests {
             GameMode::MainMenu,
             "kind7 退出须置 MainMenu（跨机信号→shell 换回 BootMachine）"
         );
+        // 信号持久性：后续拍不得洗掉换机信号（2026-10-18 用户实报追查）
+        sc.tick(1, &[]);
+        assert_eq!(sc.game_mode, GameMode::MainMenu, "换机信号须持久");
     }
 
     /// 退出链无头复现（BUG-020 复发追查 2026-10-18）：标题→退出项→确认→

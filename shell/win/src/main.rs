@@ -738,6 +738,9 @@ impl Shell {
     /// Java run 线程在隐藏期照常循环（hideNotify 只改状态，不停线程）。
     fn logic_tick(&mut self) {
         self.step();
+        // 跨机换机检查（kind7 退出→回标题）：step 后信号已置，本拍内换机
+        //（2026-10-18 整改：原挂 about_to_wait——壳级测试与 tick 语义的盲区）
+        self.swap_back_to_boot_if_requested();
         self.sync_bgm();
         self.persist_global_if_dirty();
         self.persist_slot_if_if_dirty();
@@ -785,13 +788,13 @@ impl Shell {
 
     /// 交接拍收尾（读档 / 新游戏两路共用）：本拍即画场景（读档路 Java 本拍 paint 已是
     /// mode 3；两路均与 harness 同构）并切入 GameScene。
-    fn enter_scene(&mut self, mut sc: GameScene) {
+    fn enter_scene(&mut self, mut sc: GameScene, machine: game_core::paint::BootMachine) {
         // SKY_WAR 交接拷贝（Boot→GameScene）：不拷则场景水位从 0 起步会把持久水位写回退
-        if let Some(Screen::Boot(m)) = self.state.take() {
-            let g = m.global_snapshot();
-            sc.apply_global(g);
-            self.stashed_boot = Some(m); // 跨机储备（kind7 退出回标题用）
-        }
+        // 【2026-10-18 整改】machine 经参数收储——调用链 step 已 take 走 state，
+        // 此处再 take 只得 None（stash 恒空 ⇒ 换机静默无动作，用户实报）。
+        let g = machine.global_snapshot();
+        sc.apply_global(g);
+        self.stashed_boot = Some(machine); // 跨机储备（kind7 退出回标题用）
         self.paint_scene(&mut sc);
         self.state = Some(Screen::Game(Box::new(sc)));
         self.frame_counter += 1;
@@ -983,7 +986,7 @@ impl Shell {
                                 // f_Player_00 跨模式连续；m_000 case 3 已在 machine 侧执行）
                                 sc.bgm = machine.bgm.clone();
                                 self.persisted_blobs = sc.saved_slot_blobs.clone();
-                                self.enter_scene(sc);
+                                self.enter_scene(sc, machine);
                                 return;
                             }
                         }
@@ -1021,7 +1024,7 @@ impl Shell {
                     sc.rng = machine.rng.clone();
                     sc.bgm = machine.bgm.clone(); // 音频状态续接（同上）
                     sc.apply_entry_step_effects();
-                    self.enter_scene(sc);
+                    self.enter_scene(sc, machine);
                     return;
                 }
                 machine.paint(&mut canvas_graphics(&mut self.screen));
@@ -1231,7 +1234,6 @@ fn run_window(shell: Shell) {
                 self.shell.logic_tick();
                 // CMidlet.m_000 退出信号消费点（BUG-020，接缝③）：game-core 发信号、
                 // shell 经 ProcessControl 执行退出（粘滞轮询、幂等——consume_exit）
-                self.shell.swap_back_to_boot_if_requested();
                 self.shell.consume_exit(&mut WinitExit { el });
                 let iv = self.shell.frame_interval();
                 self.pacer.after_tick(now, iv);
@@ -1459,6 +1461,29 @@ mod shell_tests {
 
     const PLAY_MENU: audio::Cmd = audio::Cmd::Play { track: 2, gain: 0.6 };
     const PLAY_GAME: audio::Cmd = audio::Cmd::Play { track: 3, gain: 0.6 };
+
+    /// kind7 退出→换机回标题（2026-10-18 用户实报修复的壳级回归）：scene 置
+    /// MainMenu 信号 → swap_back_to_boot_if_requested 换回 stashed BootMachine。
+    /// **本测试即首版缺失面**——若有它，"stash 收储时 state 已被 take 走"当场红。
+    #[test]
+    fn kind7_exit_swaps_back_to_boot() {
+        let mut h = Harness::new("preset-floor1.preset");
+        h.run_to(250, &LOAD_FLOOR1);
+        assert!(matches!(h.shell.state, Some(Screen::Game(_))), "前置：在场景中");
+        // 注入游戏内菜单 kind7（退出）确认——模拟用户操作
+        if let Some(Screen::Game(sc)) = h.shell.state.as_mut() {
+            sc.game_mode = GameMode::InGameMenu;
+            sc.menu_kinds = vec![7];
+            sc.menu_item_count = 1;
+            sc.menu_cursor = 0;
+            sc.key_value = -6;
+        }
+        h.run_tick(&[]);
+        assert!(
+            matches!(h.shell.state, Some(Screen::Boot(_))),
+            "kind7 退出后须换回 BootMachine（标题画面）"
+        );
+    }
 
     /// hideNotify 音频半 + 隐藏期门控 + keyPressed 续播（f_bool_28=true 分支 ⇒ game(3)），mode 3：
     /// - 遮挡当拍同步 Stop；anyKeyPlayed=true；f_bool_28 不变（a.java:4509-4510）；
