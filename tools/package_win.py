@@ -58,27 +58,45 @@ def stage(out: Path, exe: Path) -> Path:
     name = "xiyou-win"
     stage_dir = out / name
     if stage_dir.exists():
-        shutil.rmtree(stage_dir)
-    stage_dir.mkdir(parents=True)
+        # 暂存目录可能被资源管理器/杀软短暂占用（WinError 32）——换名自适应，
+        # 不让打包因锁崩溃（2026-10-18 实测）。
+        try:
+            shutil.rmtree(stage_dir)
+        except PermissionError:
+            for i in range(2, 50):
+                cand = out / f"{name}.staging{i}"
+                if not cand.exists():
+                    stage_dir = cand
+                    break
+            else:
+                sys.exit("[package] 暂存目录全被占用，清理 dist/ 后重试")
+    stage_dir.mkdir(parents=True, exist_ok=True)
 
     shutil.copy2(exe, stage_dir / BIN)
 
-    # 分发红线：*.class/*.MF（原版字节码与 JAR 清单）绝不入包——运行时零读取，
-    # 仅供 reference/oracle 工具链（2026-10-18 用户指正 a.class 起）。
-    EXCLUDE = {".class", ".mf"}
+    # 分发红线：原版字节码/工程面绝不入包——`*.class`（a.class/CMidlet.class）、
+    # **META-INF/ 整目录**（JAR 清单/签名，2026-10-18 用户指正：目录本身即剔除）。
+    # 运行时零读取；assets/raw 内保留仅供 reference/oracle 工具链。
+    EXCLUDE_SUFFIX = {".class", ".mf"}
+    EXCLUDE_DIRS = {"META-INF"}
 
     for sub in ("assets/raw", "assets/audio"):
         src = ROOT / sub
         if not src.is_dir():
             sys.exit(f"[package] 缺 {sub}（先跑 tools/extract-assets/extract.py）")
         dst = stage_dir / sub
-        shutil.copytree(src, dst, ignore=shutil.ignore_patterns("*.class", "*.MF", "*.mf"))
-        for bad in dst.rglob("*"):
-            if bad.is_file() and bad.suffix.lower() in EXCLUDE:
+        shutil.copytree(src, dst,
+                        ignore=shutil.ignore_patterns("*.class", "*.MF", "*.mf", *EXCLUDE_DIRS))
+        for bad in list(dst.rglob("*")):
+            if bad.is_dir() and bad.name.upper() in EXCLUDE_DIRS:
+                shutil.rmtree(bad)
+            elif bad.is_file() and bad.suffix.lower() in EXCLUDE_SUFFIX:
                 bad.unlink()
 
-    # 把关自检：包内出现 class/MF = 直接失败（防黑名单被绕过）
-    leaked = [p for p in stage_dir.rglob("*") if p.is_file() and p.suffix.lower() in EXCLUDE]
+    # 把关自检：包内出现 class/MF/META-INF = 直接失败（防黑名单被绕过）
+    leaked = [p for p in stage_dir.rglob("*")
+              if p.is_file() and (p.suffix.lower() in EXCLUDE_SUFFIX
+                                  or any(part.upper() in EXCLUDE_DIRS for part in p.parts))]
     if leaked:
         sys.exit(f"[package] 分发红线泄漏：{[str(p) for p in leaked]}")
 
