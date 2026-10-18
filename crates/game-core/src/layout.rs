@@ -379,6 +379,17 @@ pub struct Layout {
     pub edge_margin: i32,
     /// setCameraClamped 偏移上界（game_view.rs `x > 64` / camera.rs 同源）。
     pub camera_clamp_max: i32,
+    // —— UI 公式锚（②：顶栏楼层贴左/钥匙金币贴右/中间填充；HUD 贴底居中）——
+    /// 三钥格 x（贴右：`screen_w - 175 + 42i`，右块 = 三钥槽 126 + 金币区 49）。
+    pub status_key_x: [i32; 3],
+    /// 金币图标/数值右锚 x（贴右：`screen_w - 49` / `screen_w - 3`）。
+    pub status_gold_icon_x: i32,
+    pub status_gold_num_x: i32,
+    /// 顶栏中间填充左界 = 左块宽（楼层贴左，固定 65）。
+    pub status_fill_x: i32,
+    /// HUD 面孔锚 x / 属性图标列 x（贴底居中：`center_x - 80` / `center_x - 37`）。
+    pub hud_face_ax: i32,
+    pub hud_icon_x: i32,
     // —— 设计常量（文末专段的运行时形态；classic = 原值）——
     pub overlay_text_w: i32,
     pub overlay_text_max_h: i32,
@@ -413,6 +424,12 @@ impl Layout {
             softkey_icon_right_x: softkey_icon_right_x(),
             edge_margin: EDGE_MARGIN,
             camera_clamp_max: CAMERA_CLAMP_MAX,
+            status_key_x: STATUS_KEY_X,
+            status_gold_icon_x: STATUS_GOLD_ICON_X,
+            status_gold_num_x: STATUS_GOLD_NUM_X,
+            status_fill_x: STATUS_KEY_X[0],
+            hud_face_ax: HUD_FACE_AX,
+            hud_icon_x: HUD_ICON_X,
             overlay_text_w: OVERLAY_TEXT_W,
             overlay_text_max_h: OVERLAY_TEXT_MAX_H,
             overlay_icon_text_max_h: OVERLAY_ICON_TEXT_MAX_H,
@@ -450,6 +467,13 @@ impl Layout {
         l.softkey_right_x = screen_w - 18;
         l.softkey_icon_y = screen_h - 13;
         l.softkey_icon_right_x = screen_w - 14;
+        // ② UI 公式锚：楼层贴左（左块宽固定）、钥匙金币**贴右**（右块 175px =
+        // 三钥槽 126 + 金币区 49，从右缘起）、HUD **贴底居中**（屏心 ± 偏置）
+        l.status_key_x = [screen_w - 175, screen_w - 133, screen_w - 91];
+        l.status_gold_icon_x = screen_w - 49;
+        l.status_gold_num_x = screen_w - 3;
+        l.hud_face_ax = screen_w / 2 - 80;
+        l.hud_icon_x = screen_w / 2 - 37;
         l
     }
 }
@@ -612,5 +636,27 @@ mod tests {
         assert_eq!((l.edge_margin, l.camera_clamp_max), (106, 64), "classic 化回原值");
         assert_eq!(Layout::modern(13, 13).edge_margin, 106, "行为常量两预设同值");
         assert_eq!(Layout::modern(13, 13).camera_clamp_max, 64);
+    }
+
+    /// ② UI 公式锚：顶栏**楼层贴左 / 钥匙金币贴右 / 中间填充**、HUD **贴底居中**。
+    /// classic 代入化回原值（240 下 [65,107,149]/191/237/65、40/83）；modern 右钉/中钉
+    /// 公式（右块 = 三钥槽 + 金币区 = 175px 从右缘起；HUD 面孔/图标列 = 屏心 ± 偏置）。
+    #[test]
+    fn ui_anchor_formulas_classic_identity_and_modern_pin() {
+        let l = Layout::classic();
+        assert_eq!(l.status_key_x, [65, 107, 149], "classic 化回原值");
+        assert_eq!((l.status_gold_icon_x, l.status_gold_num_x), (191, 237));
+        assert_eq!(l.status_fill_x, 65, "中间填充左界 = 左块宽");
+        assert_eq!((l.hud_face_ax, l.hud_icon_x), (40, 83));
+        // modern：贴右/贴中公式（416 宽：右块 175 起 = 241，金币 367/413）
+        let big = Layout::modern(13, 13);
+        assert_eq!(big.status_key_x, [241, 283, 325], "钥匙贴右 = 屏宽-175+42i");
+        assert_eq!(
+            (big.status_gold_icon_x, big.status_gold_num_x),
+            (367, 413),
+            "金币贴右 = 屏宽-49 / 屏宽-3"
+        );
+        assert_eq!(big.status_fill_x, 65, "左块宽固定（楼层贴左）");
+        assert_eq!((big.hud_face_ax, big.hud_icon_x), (128, 171), "HUD 中钉 = 屏心-80 / 屏心-37");
     }
 }
