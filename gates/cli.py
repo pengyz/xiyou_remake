@@ -376,6 +376,17 @@ def gate_visual():
 
 # ---------- 入口 ----------
 
+def gate_asset_manifest():
+    """真相源哈希清单（STAGE-B-003 硬4 禁第三态，task-10 挂接）：
+    tools/asset_manifest.py verify——源 jar sha256+条目偏移+产物哈希 三态核；
+    decode-equivalence 等价门禁由 gate_rust_tests（cargo test --workspace）承载。
+    挂接自测与基线影响说明见 task-10 commit（AGENTS §5）。"""
+    r = subprocess.run([sys.executable, str(ROOT / "tools" / "asset_manifest.py"), "verify"],
+                       cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    out = ((r.stdout or "") + (r.stderr or "")).strip()
+    return report("asset-truth-manifest", PASS if r.returncode == 0 else FAIL, out[-300:])
+
+
 def cmd_status():
     print("== 门禁状态预检（只读）==")
     print(f"ROOT: {ROOT}")
@@ -387,7 +398,7 @@ def cmd_status():
     # 场景套件（gate_scenarios）不进 status：重跑动辄数十分钟，只在 all/子命令执行
     statuses = [gate_original(), gate_assets_manifest(), gate_reference_seed_integrity(),
                 gate_knowledge_format(), gate_docs_links(), gate_naming_ledger(), gate_rust_tests(),
-                gate_test_ratchet(),
+                gate_test_ratchet(), gate_asset_manifest(),
                 gate_reference(), gate_trace(), gate_visual()]
     print("== 汇总 ==")
     print(f"PASS={statuses.count(PASS)} FAIL={statuses.count(FAIL)} "
@@ -439,7 +450,7 @@ def cmd_check():
     print("== 总闸 gates/cli.py check ==")
     statuses = [gate_original(), gate_assets_manifest(), gate_reference_seed_integrity(),
                 gate_knowledge_format(), gate_docs_links(), gate_naming_ledger(), gate_rust_tests(),
-                gate_test_ratchet(), gate_state_machine_anchors()]
+                gate_test_ratchet(), gate_state_machine_anchors(), gate_asset_manifest()]
     # SKIP 项必须显式出现在输出（上面已打印），不得静默
     print("== 汇总 ==")
     print(f"PASS={statuses.count(PASS)} FAIL={statuses.count(FAIL)} SKIP={statuses.count(SKIP)}")
@@ -450,7 +461,7 @@ def cmd_all():
     print("== 全量门禁 ==")
     statuses = [gate_original(), gate_assets_manifest(), gate_reference_seed_integrity(),
                 gate_knowledge_format(), gate_docs_links(), gate_naming_ledger(), gate_rust_tests(),
-                gate_test_ratchet(),
+                gate_test_ratchet(), gate_asset_manifest(),
                 gate_reference(), gate_scenarios(), gate_trace(), gate_visual()]
     print(f"PASS={statuses.count(PASS)} FAIL={statuses.count(FAIL)} SKIP={statuses.count(SKIP)}")
     return 1 if FAIL in statuses else 0
@@ -468,6 +479,7 @@ COMMANDS = {
     "visual": lambda: 1 if gate_visual() == FAIL else 0,
     "ratchet": lambda: 1 if gate_test_ratchet() == FAIL else 0,
     "ratchet-update": cmd_ratchet_update,
+    "asset-manifest": lambda: 1 if gate_asset_manifest() == FAIL else 0,
 }
 
 if __name__ == "__main__":

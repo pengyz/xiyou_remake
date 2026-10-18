@@ -26,16 +26,28 @@
 //!
 //! 1. `count_assertion_family_binary_side_must_not_vanish`：16 容器全量张数锚
 //!    （`RESOURCE_IMAGE_COUNTS`，源 `reference/seed/a.java:465-466`）+ 零余字节
-//!    + 子图 PNG 魔数——JSON 半侧落地后在此逐项对照，锚永不消失；
+//!    + 子图 PNG 魔数——JSON 半侧对照见正式半侧，锚永不消失；
 //! 2. `binary_side_container_pixel_inventory`：容器逐图 (w,h,像素 fnv) 清单 =
 //!    等价对照的**被对侧基线**（回归棘轮；等价判定本身用两面 live 对照，不靠常量）。
 //!
-//! 【task-8 落地后补】（红→绿，A 协议）：`decode(json+png) == parse(binary)`
-//! 逐资产对照 + 元数据逐字段对照 + JSON count 对照。
+//! # 正式半侧（2026-10-18，task-8 C1-C3 落地后入树，红→绿 A 协议）
+//!
+//! `decode_json_png_equals_parse_binary_all_assets`：逐资产 `decode(json+png) ==
+//! parse(binary)`——像素逐位（首差异像素偏移定位）+ 元数据逐字段（信封/帧名序/
+//! maplv raw+两网格/sprite 记录逐字段）+ JSON count 半侧（== 常量表，锚不许消失）。
+//! 红证据（temp-archive 法）：本文件应用到 9c10af3（asset_pipeline 缺席的父树）⇒
+//! E0432/E0433 编译红；红输出存档随 commit 正文（复现指令见 message）。
+//!
+//! # 夹具口径（CI 首跑注明，审查员建议 2026-10-18）
+//!
+//! 夹具 = `assets/raw`（由 `tools/extract-assets/extract.py` 从 `original/` 再生，
+//! AGENTS §2 唯一真相源）；CI 首跑由 gates `provision_tests.py` 自供给；可用
+//! `XIYOU_ASSETS_RAW` 环境变量改指（与 tests/golden.rs 同口径）。
 
 use std::path::PathBuf;
 
-use game_data::{decode_png, image_count, PackedPng, RESOURCE_IMAGE_COUNTS};
+use game_data::asset_pipeline::{self, Json, parse_json};
+use game_data::{decode_png, image_count, Maplv, PackedPng, SpriteTable, RESOURCE_IMAGE_COUNTS};
 
 fn repo() -> PathBuf {
     // CARGO_MANIFEST_DIR = <root>/crates/game-data ⇒ nth(2) = 仓库根
@@ -142,6 +154,194 @@ fn binary_side_container_pixel_inventory() {
     }
 }
 
-// TODO(task-8 红→绿)：decode(json+png) == parse(binary) 逐资产对照——
-// 像素逐位（img_sig 全量相等）+ 元数据逐字段（tileset 切片坐标 / 帧宽表 /
-// glyph 度量 / JSON count == RESOURCE_IMAGE_COUNTS）。
+/// 首差异像素下标（审查员建议 2026-10-18：失败清单带首差异偏移）。
+fn first_pixel_diff(a: &[u32], b: &[u32], w: usize) -> String {
+    match a.iter().zip(b.iter()).position(|(x, y)| x != y) {
+        Some(i) => format!("首差异像素 #{i}（x={} y={}）: {:08X} vs {:08X}", i % w, i / w, a[i], b[i]),
+        None => format!("长度差异 {} vs {}", a.len(), b.len()),
+    }
+}
+
+/// 数组首差异下标（元数据逐字段失败带首差异偏移）。
+fn first_elem_diff<T: PartialEq + std::fmt::Debug>(a: &[T], b: &[T]) -> String {
+    match a.iter().zip(b.iter()).position(|(x, y)| x != y) {
+        Some(i) => format!("首差异元素 [{i}]: {:?} vs {:?}", a[i], b[i]),
+        None => format!("长度差异 {} vs {}", a.len(), b.len()),
+    }
+}
+
+/// 信封字段对照（version/format/name）。
+fn envelope_check(failures: &mut Vec<String>, j: &Json, format: &str, name: &str) {
+    if j.get("version").and_then(|v| v.as_int()) != Some(1) {
+        failures.push(format!("{name}: 信封 version ≠ 1"));
+    }
+    if j.get("format").and_then(|v| v.as_str()) != Some(format) {
+        failures.push(format!("{name}: 信封 format ≠ {format}"));
+    }
+    if j.get("name").and_then(|v| v.as_str()) != Some(name) {
+        failures.push(format!("{name}: 信封 name 不符"));
+    }
+}
+
+/// 正式半侧（2026-10-18，task-8 C1-C3 落地后入树）：逐资产
+/// `decode(json+png) == parse(binary)`——像素逐位 + 元数据逐字段 + JSON count 半侧。
+/// 任一项破坏 ⇒ 全清单失败（失败带首差异偏移）。
+#[test]
+fn decode_json_png_equals_parse_binary_all_assets() {
+    let dir = raw_dir();
+    let mut failures: Vec<String> = Vec::new();
+
+    // ---- packed_png 族（16 容器）：像素逐位 + 帧名序 + 信封 + JSON count 半侧 ----
+    for (name, count) in RESOURCE_IMAGE_COUNTS {
+        let data = std::fs::read(dir.join(name)).unwrap();
+        let packed = PackedPng::parse(&data, count as usize).unwrap();
+        let mid = asset_pipeline::unpack(name, &data)
+            .unwrap_or_else(|e| panic!("{name} unpack 失败：{e}"));
+
+        // JSON count 半侧（硬2：计数锚升格对照——旧锚不许消失）
+        if mid.images.len() != count as usize {
+            failures.push(format!("{name}: JSON images 数 {} ≠ 常量表 {count}", mid.images.len()));
+        }
+        if mid.images.len() != packed.images.len() {
+            failures.push(format!(
+                "{name}: JSON images 数 {} ≠ 二进制解析 {}",
+                mid.images.len(),
+                packed.images.len()
+            ));
+        }
+
+        let j = parse_json(&mid.json).unwrap_or_else(|e| panic!("{name} json 解析失败：{e}"));
+        envelope_check(&mut failures, &j, "packed_png", name);
+        // 帧名序：json images[] == Mid.images 名 == {name}_{i:02}.png（canonical 两位零填）
+        let want_names: Vec<String> = (0..count as usize).map(|i| format!("{name}_{i:02}.png")).collect();
+        let json_names: Vec<String> = match j.get("images") {
+            Some(Json::Arr(a)) => a.iter().filter_map(|v| v.as_str().map(String::from)).collect(),
+            _ => Vec::new(),
+        };
+        if json_names != want_names {
+            failures.push(format!("{name}: json images[] 帧名序 {}", first_elem_diff(&json_names, &want_names)));
+        }
+        let mid_names: Vec<String> = mid.images.iter().map(|(n, _)| n.clone()).collect();
+        if mid_names != want_names {
+            failures.push(format!("{name}: Mid.images 帧名序 {}", first_elem_diff(&mid_names, &want_names)));
+        }
+
+        // 像素逐位（PNG 字节即容器内原字节 → 解码后 ARGB 逐 u32 相等）
+        for (i, img) in packed.images.iter().enumerate() {
+            let Some((_fname, png)) = mid.images.get(i) else {
+                failures.push(format!("{name}[{i}]: Mid 缺图"));
+                continue;
+            };
+            let bin = decode_png(img.bytes)
+                .unwrap_or_else(|e| panic!("{name}[{i}] 二进制面解码失败：{e}"));
+            let dec = decode_png(png)
+                .unwrap_or_else(|e| panic!("{name}[{i}] 中间态面解码失败：{e}"));
+            if (bin.width, bin.height) != (dec.width, dec.height) {
+                failures.push(format!(
+                    "{name}[{i}]: 尺寸不符 {}×{} vs {}×{}",
+                    bin.width, bin.height, dec.width, dec.height
+                ));
+                continue;
+            }
+            if bin.argb != dec.argb {
+                failures.push(format!(
+                    "{name}[{i}]: 像素逐位破坏（{}）",
+                    first_pixel_diff(&bin.argb, &dec.argb, bin.width as usize)
+                ));
+            }
+        }
+    }
+
+    // ---- maplv 族（55，maplv0..=54）：元数据逐字段 raw_width/raw_height + 两网格 ----
+    for i in 0..55 {
+        let name = format!("maplv{i}");
+        let data = std::fs::read(dir.join(&name)).unwrap();
+        let m = Maplv::parse(&data).unwrap_or_else(|e| panic!("{name} 二进制解析失败：{e}"));
+        let mid = asset_pipeline::unpack(&name, &data)
+            .unwrap_or_else(|e| panic!("{name} unpack 失败：{e}"));
+        assert!(mid.images.is_empty(), "{name}: maplv 族恒无图");
+        let j = parse_json(&mid.json).unwrap_or_else(|e| panic!("{name} json 解析失败：{e}"));
+        envelope_check(&mut failures, &j, "maplv", &name);
+        // raw 值 = u16 原始值（24/26·26/26 那层，非 >>1 网格值）
+        for (key, want) in [("raw_width", m.raw_width as i64), ("raw_height", m.raw_height as i64)] {
+            if j.get(key).and_then(|v| v.as_int()) != Some(want) {
+                failures.push(format!("{name}: {key} ≠ {want}（raw 原始值语义）"));
+            }
+        }
+        for key in ["terrain", "flip"] {
+            let want: Vec<i64> = if key == "terrain" {
+                m.terrain.iter().map(|&v| v as i64).collect()
+            } else {
+                m.flip.iter().map(|&v| v as i64).collect()
+            };
+            let got: Vec<i64> = match j.get(key) {
+                Some(Json::Arr(a)) => a.iter().filter_map(|v| v.as_int()).collect(),
+                _ => Vec::new(),
+            };
+            if got != want {
+                failures.push(format!("{name}: {key}[] {}", first_elem_diff(&got, &want)));
+            }
+        }
+    }
+
+    // ---- sprite 族（55，sprite0..=54）：count_lo/count_hi + 记录逐字段 ----
+    for i in 0..55 {
+        let name = format!("sprite{i}");
+        let data = std::fs::read(dir.join(&name)).unwrap();
+        let t = SpriteTable::parse(&data).unwrap_or_else(|e| panic!("{name} 二进制解析失败：{e}"));
+        let mid = asset_pipeline::unpack(&name, &data)
+            .unwrap_or_else(|e| panic!("{name} unpack 失败：{e}"));
+        assert!(mid.images.is_empty(), "{name}: sprite 族恒无图");
+        let j = parse_json(&mid.json).unwrap_or_else(|e| panic!("{name} json 解析失败：{e}"));
+        envelope_check(&mut failures, &j, "sprite", &name);
+        if j.get("count_lo").and_then(|v| v.as_int()) != Some(t.records.len() as i64) {
+            failures.push(format!("{name}: count_lo ≠ 记录数 {}", t.records.len()));
+        }
+        if j.get("count_hi").and_then(|v| v.as_int()) != Some(t.count_hi as i64) {
+            failures.push(format!("{name}: count_hi ≠ {}", t.count_hi));
+        }
+        let recs: Vec<&Json> = match j.get("records") {
+            Some(Json::Arr(a)) => a.iter().collect(),
+            _ => Vec::new(),
+        };
+        if recs.len() != t.records.len() {
+            failures.push(format!(
+                "{name}: records 数 {} vs {}",
+                recs.len(),
+                t.records.len()
+            ));
+        }
+        for (idx, (want, got)) in t.records.iter().zip(recs.iter()).enumerate() {
+            let field = |k: &str| got.get(k).and_then(|v| v.as_int());
+            if field("type_code") != Some(want.type_code as i64)
+                || field("x") != Some(want.x as i64)
+                || field("y") != Some(want.y as i64)
+            {
+                failures.push(format!(
+                    "{name}: record[{idx}] 标量破坏（type_code/x/y：{} vs {}）",
+                    format!("{:?}", (want.type_code, want.x, want.y)),
+                    format!("{:?} {:?} {:?}",
+                        field("type_code"), field("x"), field("y"))
+                ));
+            }
+            let extra: Vec<i64> = match got.get("extra") {
+                Some(Json::Arr(a)) => a.iter().filter_map(|v| v.as_int()).collect(),
+                _ => Vec::new(),
+            };
+            let want_extra: Vec<i64> = want.extra.iter().map(|&v| v as i64).collect();
+            if extra != want_extra {
+                failures.push(format!(
+                    "{name}: record[{idx}] extra[] {}",
+                    first_elem_diff(&extra, &want_extra)
+                ));
+            }
+        }
+    }
+
+    assert!(
+        failures.is_empty(),
+        "STAGE-B-003 硬2 decode-equivalence 破坏 {} 项（首差异偏移见各条）：\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}
