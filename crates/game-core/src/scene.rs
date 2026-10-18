@@ -2524,8 +2524,8 @@ impl GameScene {
                                     g.draw_line(px + 3, py, px + 3, py + 3);
                                     g.draw_line(px, py + 3, px + 3, py + 3);
                                 }
-                                7 => m_003_clip5(&mut g, &self.images.ui[12], px - 1, py - 1, 5),
-                                8 => m_003_clip5(&mut g, &self.images.ui[12], px - 1, py - 1, 0),
+                                7 => m_003_clip5(&mut g, &self.images.ui[12], px - 1, py - 1, 5, w, h),
+                                8 => m_003_clip5(&mut g, &self.images.ui[12], px - 1, py - 1, 0, w, h),
                                 _ => {}
                             }
                         }
@@ -6191,7 +6191,7 @@ impl GameScene {
             }
         }
 
-        g.set_clip(0, 0, SCREEN_W, SCREEN_H);
+        g.set_clip(0, 0, self.layout.screen_w, self.layout.screen_h);
         if !player_drawn {
             self.paint_player(g, cam_x, cam_y);
         }
@@ -6265,7 +6265,7 @@ impl GameScene {
         if self.walk_phase == 2 && self.facing == 1 {
             self.paint_afterimages(g, cam_x, cam_y, frame_x);
         }
-        g.set_clip(0, 0, SCREEN_W, SCREEN_H);
+        g.set_clip(0, 0, self.layout.screen_w, self.layout.screen_h);
         // pathArrowsVisible 路径箭头（a.java:5929-5956）：自玩家格沿 walkPathBuffer 逐格外扩，
         // buffer 顶 = 玩家侧第一步；[8][22] 三联贴片 21×22（0 下/1 上裁剪源、2 右镜像、3 左），
         // 0/1 的 bob 加在 y、2/3 加在 x（Java 原样）；setColor(136) 每步重设。
@@ -6337,7 +6337,7 @@ impl GameScene {
             g.draw_image(img, cx - corner, y, 0);
             cx += mid;
         }
-        g.set_clip(0, 0, SCREEN_W, SCREEN_H);
+        g.set_clip(0, 0, self.layout.screen_w, self.layout.screen_h);
         crate::menu_family::draw_edge_patch(g, img, x + w - corner, y, 0, 0, corner, strip, 1);
         g.set_color(HUD_FILL);
         g.fill_rect(x + side, y + strip, w - side * 2, h - strip);
@@ -6350,7 +6350,7 @@ impl GameScene {
             g.draw_image(img, right - BORDER_SIDE_SRC_R, cy, 0);
             cy += strip;
         }
-        g.set_clip(0, 0, SCREEN_W, SCREEN_H);
+        g.set_clip(0, 0, self.layout.screen_w, self.layout.screen_h);
     }
 
     /// paintHudPanel（a.java:6052-6106）：HUD（头像/HP/攻/防/武器/甲）。
@@ -6366,7 +6366,7 @@ impl GameScene {
         // HP 行：图标 HUD_ICON_CLIP 见方 + 条框 + 数值
         g.set_clip(icon_x, y, HUD_ICON_CLIP, HUD_ICON_CLIP);
         g.draw_image(&self.images.ui[7], icon_x, y + HUD_ICON_LIFT, 0);
-        g.set_clip(0, 0, SCREEN_W, SCREEN_H);
+        g.set_clip(0, 0, self.layout.screen_w, self.layout.screen_h);
         paint_mini_frame(g, bar_x, y + 1, HUD_BAR_W, HUD_BAR_H);
         paint_number(g, &self.images.ui[2], self.player.hp, bar_x + HUD_NUM_DX, y + 2);
         // 攻行：图标条带片 (10,0,10,13)
@@ -6446,7 +6446,7 @@ impl GameScene {
         g.set_color(3156024);
         g.fill_rect(0, 0, SCREEN_W, img_y0);
         g.fill_rect(0, self.layout.screen_h - img_y0, self.layout.screen_w, img_y0);
-        g.set_clip(0, 0, SCREEN_W, SCREEN_H);
+        g.set_clip(0, 0, self.layout.screen_w, self.layout.screen_h);
         g.draw_image(&img, -self.ending_scroll, img_y0, 0);
         g.set_color(0xFFFF_FFFF);
         self.paint_wrapped_text(g, 15, self.layout.screen_h - font.height - 10, 210, font.height + 10, false);
@@ -6578,7 +6578,7 @@ impl GameScene {
                 g.draw_image(&self.images.ui[0], cx - 26, dialog_block_y0, 0);
                 cx += 16;
             }
-            g.set_clip(0, 0, SCREEN_W, SCREEN_H);
+            g.set_clip(0, 0, self.layout.screen_w, self.layout.screen_h);
             // a.java:2828：edge patch 用 draw_y=dialog_block_y0（+=16 之前）
             // 【STAGE-B-002 返修③】对话框随屏宽（classic 代入化回原值：
             // 右缘 240-26=214、填充 240-91=149、文本宽 240-111=129）
@@ -6593,7 +6593,7 @@ impl GameScene {
                 g.draw_image(&self.images.ui[0], 176, draw_y, 0);
                 draw_y += 16;
             }
-            g.set_clip(0, 0, SCREEN_W, SCREEN_H);
+            g.set_clip(0, 0, self.layout.screen_w, self.layout.screen_h);
             if self.dialog_speaker > 0 {
                 if let Some(img) = &self.images.entity[self.dialog_speaker as usize] {
                     if self.dialog_speaker != 72 {
@@ -6705,16 +6705,16 @@ impl GameScene {
     fn paint_key_slot(&self, g: &mut SoftGraphics<'_>, kind: i32, count: i32, x: i32, y: i32) {
         g.set_clip(x, y, KEY_SLOT_W, KEY_SLOT_H);
         g.draw_image(&self.images.ui[6], x - kind * KEY_SLOT_W, y, 0);
-        g.set_clip(0, 0, SCREEN_W, SCREEN_H);
+        g.set_clip(0, 0, self.layout.screen_w, self.layout.screen_h);
         paint_number(g, &self.images.ui[2], count, x + KEY_NUM_DX, y + KEY_NUM_DY);
     }
 }
 
 /// blit5Clip（a.java:4557-4556）：MINIMAP_MARKER_PX 定尺寸裁剪贴图（小地图标记）。
-fn m_003_clip5(g: &mut SoftGraphics<'_>, img: &ArgbImage, x: i32, y: i32, src_x: i32) {
+fn m_003_clip5(g: &mut SoftGraphics<'_>, img: &ArgbImage, x: i32, y: i32, src_x: i32, reset_w: i32, reset_h: i32) {
     g.set_clip(x, y, MINIMAP_MARKER_PX, MINIMAP_MARKER_PX);
     g.draw_image(img, x - src_x, y, 0);
-    g.set_clip(0, 0, SCREEN_W, SCREEN_H);
+    g.set_clip(0, 0, reset_w, reset_h);
 }
 
 /// 场景存档槽表（mode 7）装备框接线：paint_slot_list 图标分支（entityTypeImage
@@ -6945,7 +6945,45 @@ mod slot_equip_scene_tests {
         assert_eq!(undrawn, 0, "modern 视口带内未绘制像素数（黑区根因面）");
     }
 
-    /// op 坐标抽取（宽表感知版）：取参数中**前两个可解析整数**为 (x, y)——
+    /// modern 双缺陷判据（lead classic 对照定案 2026-10-18）：
+    /// ① 顶栏金币图标必须绘出（像素级：图标位≠状态栏底色——裁剪复位常量化会把
+    ///    绘制裁掉但 ops 仍在，故必须像素判）；② 对话文本必须绘出（drawString 在场）。
+    #[test]
+    fn modern_topbar_gold_icon_and_dialog_text_drawn() {
+        let icons = synthetic_sptarm();
+        // ① 金币图标像素判（modern 状态栏：图标位 (gold_icon_x+8, 8) ≠ STATUS_FILL）
+        let mut sc = scene_with(&icons);
+        sc.apply_layout(crate::layout::Layout::modern(13, 13));
+        let mut img = ArgbImage::create(416, 416);
+        {
+            let mut g = SoftGraphics::new(&mut img);
+            sc.paint(&mut g, &solid(64, 64));
+        }
+        let gx = sc.layout.status_gold_icon_x as usize;
+        let icon_px = img.argb[8 * 416 + gx + 8];
+        assert_ne!(
+            icon_px, STATUS_FILL,
+            "金币图标须绘出（现像素={icon_px:#x} = 底色 ⇒ 被裁剪复位裁掉）"
+        );
+        // ② 对话文本在场（对话态绘制含 drawString）
+        let mut sc = scene_with(&icons);
+        sc.apply_layout(crate::layout::Layout::modern(13, 13));
+        sc.game_mode = GameMode::Dialog;
+        sc.open_dialog_page(0);
+        let mut img = ArgbImage::create(416, 416);
+        let ops;
+        {
+            let mut g = SoftGraphics::new(&mut img);
+            sc.paint(&mut g, &solid(64, 64));
+            ops = g.ops.clone();
+        }
+        assert!(
+            ops.iter().any(|o| o.starts_with("drawString") || o.starts_with("drawSubstring")),
+            "对话文本须绘出（drawString/drawSubstring 在场）：{:?}",
+            ops.iter().filter(|o| o.contains("tring")).collect::<Vec<_>>()
+        );
+    }
+
     /// 跳过 "77x320" 尺寸记号与 '#rrggbb' 色参（drawImage/drawImageTransformed 可用）。
     fn op_xy(o: &str) -> Option<(i32, i32)> {
         let args = o.split('(').nth(1)?.split(')').next()?;
