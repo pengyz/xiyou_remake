@@ -226,6 +226,34 @@ pub struct BootMachine {
 }
 
 impl BootMachine {
+    /// WIN-OP③（C-2 补面 2026-10-18）：标题侧设置面板（GameMode::About）指针命中——
+    /// OptionList::row_band 单源（与 GameScene 侧共用几何）；confirm=-5（翻转键同款）。
+    pub fn pointer_hit(&self, x: i32, y: i32) -> crate::scene::PointerHit {
+        if self.mode == GameMode::About {
+            if let Some(list) = self.options.as_ref() {
+                for i in 0..list.len() {
+                    let (ry, rh) = list.row_band(i);
+                    if y >= ry && y < ry + rh {
+                        return crate::scene::PointerHit::Row { index: i as i32, confirm_key: -5 };
+                    }
+                }
+            }
+        }
+        crate::scene::PointerHit::None
+    }
+
+    /// 指针选行（只动高亮，零其他状态）。
+    pub fn select_row(&mut self, index: i32) {
+        if self.mode == GameMode::About {
+            if let Some(list) = self.options.as_mut() {
+                if index >= 0 {
+                    list.set_highlight(index as usize);
+                }
+            }
+        }
+    }
+
+
     /// 构造：预解码全部依赖资源（解码耗时与 tick 语义无关）。
     pub fn new(
         l0: ArgbImage,

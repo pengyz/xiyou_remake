@@ -7920,6 +7920,44 @@ mod pointer_seam_tests {
         assert_eq!(sc.player.hp, hp, "他态零变化");
     }
 
+    /// 标题侧设置面板（BootMachine::About，C-2 补面）：命中 + confirm=-5 + 只动高亮
+    #[test]
+    fn boot_options_pointer_hit_and_select() {
+        use crate::paint::BootMachine;
+        let mut m = BootMachine::new(
+            crate::render::ArgbImage::create(1, 1),
+            crate::render::ArgbImage::create(1, 1),
+            (0..8).map(|_| crate::render::ArgbImage::create(1, 1)).collect(),
+            (0..25).map(|_| crate::render::ArgbImage::create(1, 1)).collect(),
+            (0..2).map(|_| crate::render::ArgbImage::create(1, 1)).collect(),
+            crate::render::ArgbImage::create(1, 1),
+            vec![crate::render::ArgbImage::create(1, 1)],
+            vec![crate::render::ArgbImage::create(1, 1)],
+            vec![crate::render::ArgbImage::create(1, 1)],
+        );
+        m.mode = GameMode::About;
+        let list = crate::menu_family::OptionList::new(true, false);
+        m.options = Some(list);
+        let font = crate::paint::paint_font();
+        let row_h = font.height + 8;
+        let y0 = (SCREEN_H - (32 + 2 * row_h)) / 2 + 16; // 字面锚（禁自证）
+        assert_eq!(
+            m.pointer_hit(SCREEN_W / 2, y0 + 2),
+            PointerHit::Row { index: 0, confirm_key: -5 }
+        );
+        assert_eq!(
+            m.pointer_hit(SCREEN_W / 2, y0 + row_h + 2),
+            PointerHit::Row { index: 1, confirm_key: -5 }
+        );
+        assert_eq!(m.pointer_hit(SCREEN_W / 2, y0 - 1), PointerHit::None);
+        m.select_row(1);
+        if let Some(l) = m.options.as_ref() {
+            assert_eq!(l.highlight_index(), 1, "标题侧选行=只动高亮");
+        } else {
+            panic!();
+        }
+    }
+
     /// 背包栅格：几何单源 + 命中 + (a) confirm_key=-6 + select_row
     #[test]
     fn item_grid_pointer_hit_and_select() {

@@ -1327,29 +1327,30 @@ impl OptionList {
         let mut y = (SCREEN_H - self.box_h) >> 1;
         paint_box_frame(g, &ui[0], x, y, self.box_w + 22, self.box_h);
         let content_x = x + 11;
-        y += 16;
-        let hl = (font.height + 8) * self.highlight;
+        // 行几何 = row_band 单源（C-1 整改：paint 真调，根除公式双份）
+        let (y0, row_h) = self.row_band(0);
+        let hl = row_h * self.highlight;
         g.set_color(crate::layout::OPTION_HIGHLIGHT);
-        g.fill_rect(content_x, y + hl, self.box_w, font.height + 8);
-        g.draw_image(&ui[14], content_x + 10, y + 2 + hl + ((font.height - 5) >> 1), 0);
+        g.fill_rect(content_x, y0 + hl, self.box_w, row_h);
+        g.draw_image(&ui[14], content_x + 10, y0 + 2 + hl + ((font.height - 5) >> 1), 0);
         let t = crate::paint::NOKIA_TRANSFORM_TABLE[1];
         g.draw_image_transformed(
             &ui[14],
             content_x + self.box_w - 30,
-            y + 2 + hl + ((font.height - 5) >> 1),
+            y0 + 2 + hl + ((font.height - 5) >> 1),
             0,
             t,
         );
         for i in 0..self.labels.len() {
             let label = OPTION_LABELS[self.labels[i]];
             let mut lx = (SCREEN_W - font.string_width(label) - 16) >> 1;
+            let (ry, _) = self.row_band(i); // C-1：行 y 单源
             g.set_color(crate::layout::WHITE);
-            g.draw_string(label, lx, y + 4, 0);
+            g.draw_string(label, lx, ry + 4, 0);
             lx += 2 + font.string_width(label);
             // 勾选框：未选中 sy=12、选中 sy=0（a.java:2987-2987 分支方向）
             let sy = if !self.checked[i] { 12 } else { 0 };
-            crate::paint::draw_image_clipped(g, &ui[11], lx, y + ((font.height - 2) >> 1), sy, 0, 12, 10);
-            y += font.height + 8;
+            crate::paint::draw_image_clipped(g, &ui[11], lx, ry + ((font.height - 2) >> 1), sy, 0, 12, 10);
         }
     }
 }

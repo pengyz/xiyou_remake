@@ -686,10 +686,19 @@ impl Shell {
 
     /// WIN-OP③ hover（2026-10-18）：命中行 → 光标跟随（选中高亮）。只动光标（零副作用）。
     fn pointer_hover(&mut self, x: i32, y: i32) {
-        if let Some(Screen::Game(sc)) = self.state.as_mut() {
-            if let game_core::scene::PointerHit::Row { index, .. } = sc.pointer_hit(x, y) {
-                sc.select_row(index);
+        match self.state.as_mut() {
+            Some(Screen::Game(sc)) => {
+                if let game_core::scene::PointerHit::Row { index, .. } = sc.pointer_hit(x, y) {
+                    sc.select_row(index);
+                }
             }
+            // C-2（2026-10-18）：标题侧设置面板（BootMachine::About）同享指针
+            Some(Screen::Boot(m)) => {
+                if let game_core::scene::PointerHit::Row { index, .. } = m.pointer_hit(x, y) {
+                    m.select_row(index);
+                }
+            }
+            _ => {}
         }
     }
 
@@ -697,13 +706,25 @@ impl Shell {
     /// 与 click_code 同款点按语义）；未命中 → click_key 基线（软键区/右键/确认）。
     fn pointer_click(&mut self, x: i32, y: i32, right: bool) -> Option<i32> {
         if !right {
-            if let Some(Screen::Game(sc)) = self.state.as_mut() {
-                if let game_core::scene::PointerHit::Row { index, confirm_key } =
-                    sc.pointer_hit(x, y)
-                {
-                    sc.select_row(index);
-                    return Some(confirm_key);
+            match self.state.as_mut() {
+                Some(Screen::Game(sc)) => {
+                    if let game_core::scene::PointerHit::Row { index, confirm_key } =
+                        sc.pointer_hit(x, y)
+                    {
+                        sc.select_row(index);
+                        return Some(confirm_key);
+                    }
                 }
+                // C-2：标题侧设置面板同享（confirm=-5 翻转键同款）
+                Some(Screen::Boot(m)) => {
+                    if let game_core::scene::PointerHit::Row { index, confirm_key } =
+                        m.pointer_hit(x, y)
+                    {
+                        m.select_row(index);
+                        return Some(confirm_key);
+                    }
+                }
+                _ => {}
             }
         }
         click_key(x, y, self.game_mode(), right)
