@@ -5942,6 +5942,22 @@ impl GameScene {
                 mirrored = !mirrored;
                 y -= bh;
             }
+            // 【v5 返修①】向下补铺至画布底——面板居中后两侧露背景（非黑边）。
+            // **仅当画布高于背景图**（modern）才补铺：classic 320==bh 无此行 ⇒
+            // ops 面与 Java 参照零偏离（oracle t544 ops 前缀对拍护航），像素亦零变化。
+            if self.layout.screen_h > bh {
+                let mut y = base_y + bh;
+                let mut mirrored = true;
+                while y < self.layout.screen_h {
+                    if mirrored {
+                        g.draw_image_transformed(&self.images.backdrop, col_x, y, 0, 2);
+                    } else {
+                        g.draw_image(&self.images.backdrop, col_x, y, 0);
+                    }
+                    mirrored = !mirrored;
+                    y += bh;
+                }
+            }
             col_x += PARALLAX_COL_STEP;
         }
     }
@@ -7099,9 +7115,9 @@ mod slot_equip_scene_tests {
         }
     }
 
-    /// 底部区组合关系判据（lead"组合关系整体钉死"）：同一状态 classic vs modern
-    /// 的绘制坐标集在**去平移后逐点相等**（modern_x−dx == classic_x、
-    /// modern_y−(screen_h−320) == classic_y）——任何漏加 dx/错位元素即红。
+    /// 底部区组合关系判据（lead"组合关系整体钉死"，v5 扩展：**层序也是组合关系**）：
+    /// 同状态 classic vs modern 的底部带绘制**序列**（op 名+去平移坐标，保序）
+    /// 逐项相等——坐标多重集之外再钉绘制顺序（谁盖谁）。
     #[test]
     fn bottom_composition_is_translate_only() {
         let icons = synthetic_sptarm();
@@ -7124,22 +7140,27 @@ mod slot_equip_scene_tests {
             }
             let dx = sc.bottom_panel_dx();
             let dy = h as i32 - 320;
-            let mut v: Vec<(i32, i32)> = ops
+            // 保序序列：(op 名, x−dx, y−dy)——层序也入判据（v5）；
+            // 背景层（drawImageT 镜像行/画布自适应列）不计——组合关系指面板构图
+            ops
                 .iter()
-                .filter_map(|o| op_xy(o))
-                .filter(|c| c.1 >= h as i32 - 45) // 底部带
-                .map(|(x, y)| (x - dx, y - dy))
-                .collect();
-            v.sort();
-            v
+                .filter(|o| !o.starts_with("drawImageT"))
+                .filter_map(|o| {
+                    let (x, y) = op_xy(o)?;
+                    (y >= h as i32 - 45).then(|| {
+                        let name = o.split('(').next().unwrap_or("").to_string();
+                        (name, x - dx, y - dy)
+                    })
+                })
+                .collect::<Vec<_>>()
         };
-        // speaker>0（立绘分支）与 speaker==0（面孔分支）两路都钉
+        // speaker>0（立绘分支）与 speaker==0（面孔分支）两路都钉（坐标+层序）
         for speaker in [0, 1] {
             let classic = coords(crate::layout::Layout::classic(), speaker);
             let modern = coords(crate::layout::Layout::modern(13, 13), speaker);
             assert_eq!(
                 modern, classic,
-                "底部区组合关系须纯平移（speaker={speaker}）：modern 去平移后与 classic 逐点相等"
+                "底部区组合关系须纯平移且层序不变（speaker={speaker}）"
             );
         }
     }
@@ -7184,6 +7205,16 @@ mod slot_equip_scene_tests {
             .filter(|o| o.contains("77x320") || o.contains("drawImageTransformed"))
             .filter_map(|o| op_xy(o))
             .collect();
+        // 【v5 判据扩展①】全画布未绘制像素=0（含底部带——面板两侧露背景非黑边）
+        let mut undrawn_all = 0usize;
+        for y in 0..416 {
+            for x in 0..416 {
+                if img.argb[y * 416 + x] == 0 {
+                    undrawn_all += 1;
+                }
+            }
+        }
+        assert_eq!(undrawn_all, 0, "modern 全画布未绘制像素（底部带黑边=视差未铺满高）");
         let bg_max_x = bg.iter().map(|c| c.0).max().unwrap_or(-999);
         let bg_min_x = bg.iter().map(|c| c.0).min().unwrap_or(999);
         assert!(
@@ -7195,6 +7226,7 @@ mod slot_equip_scene_tests {
         //    框体=全宽设计（fill 宽≥200 / 边条 x<20 或 ≥400）不计入内容组）
         let hud: Vec<(i32, i32)> = ops
             .iter()
+            .filter(|o| !o.starts_with("drawImageT")) // 背景层（画布自适应）不计
             .filter(|o| op_xy(o).map(|c| c.1 > 368 && c.1 < 412).unwrap_or(false))
             .filter(|o| {
                 let w = o
