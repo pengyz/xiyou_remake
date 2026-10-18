@@ -20,6 +20,7 @@
 
 pub mod asset;
 pub mod audio;
+pub mod settings;
 pub mod rms;
 
 #[cfg(test)]

@@ -7971,6 +7971,41 @@ mod pointer_seam_tests {
         assert_eq!(sc.player.hp, hp, "他态零变化");
     }
 
+    /// STAGE-B-001（2026-10-18 用户裁定）：boot 不再进 SoundAsk（mode 21），
+    /// 直入 MainMenu；默认开声；标题 BGM 请求=track2（防"直入标题带出无声屏"新 bug）。
+    #[test]
+    fn stage_b001_boot_skips_sound_ask() {
+        use crate::paint::BootMachine;
+        let mut m = BootMachine::new(
+            crate::render::ArgbImage::create(1, 1),
+            crate::render::ArgbImage::create(1, 1),
+            (0..8).map(|_| crate::render::ArgbImage::create(1, 1)).collect(),
+            (0..25).map(|_| crate::render::ArgbImage::create(1, 1)).collect(),
+            (0..2).map(|_| crate::render::ArgbImage::create(1, 1)).collect(),
+            crate::render::ArgbImage::create(1, 1),
+            vec![crate::render::ArgbImage::create(1, 1)],
+            vec![crate::render::ArgbImage::create(1, 1)],
+            vec![crate::render::ArgbImage::create(1, 1)],
+        );
+        // logo 相位推进（paint 侧计数——直接驱动 logo 尾转出）
+        for _ in 0..400 {
+            m.tick(0);
+            if m.mode != GameMode::Boot {
+                break;
+            }
+            m.paints = m.paints.wrapping_add(1); // paint 计数推进（boot-replay 同构）
+        }
+        assert_eq!(
+            m.mode,
+            GameMode::MainMenu,
+            "STAGE-B-001：boot 直入 MainMenu（不得停留 SoundAsk）"
+        );
+        // 默认开声（BgmState::new=true）
+        assert!(m.bgm.sound_enabled, "STAGE-B-001：默认开声");
+        // 标题 BGM 请求（硬要求 3：防无声标题屏）
+        assert_eq!(m.bgm_request(), Some(2), "STAGE-B-001：标题 BGM=track2");
+    }
+
     /// 游戏内菜单"退出"（kind7）→ 回标题（Java gameMode=1 跨机语义）——
     /// 2026-10-18 用户实报修复：原 other 臂空转＝退出无反应。
     #[test]

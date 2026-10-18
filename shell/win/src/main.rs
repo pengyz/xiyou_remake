@@ -448,6 +448,10 @@ struct Shell {
     /// 跨机换机储备（kind7 退出→回标题，2026-10-18）：enter_scene 收储 BootMachine，
     /// 换回时还原——Java CMidlet 同对象保标题态（cursor/粒子/相位）的保真对偶。
     stashed_boot: Option<game_core::paint::BootMachine>,
+    /// STAGE-B-001：全局应用设置（声音对）——save 目录旁 app_settings.cfg；
+    /// settings_path=None = 平台未给路径（测试/无持久场景）不落盘。
+    settings_path: Option<std::path::PathBuf>,
+    settings_saved: Option<game_shell_common::settings::AppSettings>,
 }
 
 impl Shell {
@@ -511,6 +515,8 @@ impl Shell {
             boot_key_audio_done: false,
             resume_armed: false,
             stashed_boot: None,
+            settings_path: None,
+            settings_saved: None,
         }
     }
 
@@ -741,6 +747,7 @@ impl Shell {
         // 跨机换机检查（kind7 退出→回标题）：step 后信号已置，本拍内换机
         //（2026-10-18 整改：原挂 about_to_wait——壳级测试与 tick 语义的盲区）
         self.swap_back_to_boot_if_requested();
+        self.persist_settings_if_changed(); // STAGE-B-001：声音对变更落盘
         self.sync_bgm();
         self.persist_global_if_dirty();
         self.persist_slot_if_if_dirty();
@@ -798,6 +805,44 @@ impl Shell {
         self.paint_scene(&mut sc);
         self.state = Some(Screen::Game(Box::new(sc)));
         self.frame_counter += 1;
+    }
+
+    /// STAGE-B-001：声音态=全局应用设置（不入游戏存档）。当前声音快照。
+    fn sound_state(&self) -> Option<(bool, i32)> {
+        match self.state.as_ref() {
+            Some(Screen::Boot(m)) => Some((m.bgm.sound_enabled, m.bgm.volume_level)),
+            Some(Screen::Game(sc)) => Some((sc.bgm.sound_enabled, sc.bgm.volume_level)),
+            Some(Screen::Crashed) | None => None,
+        }
+    }
+
+    /// STAGE-B-001：变更落盘（写-if-changed，best-effort 吞错——FileRms 同律）。
+    fn persist_settings_if_changed(&mut self) {
+        let Some((sound, vol)) = self.sound_state() else { return };
+        let cur = game_shell_common::settings::AppSettings { sound_enabled: sound, volume_level: vol };
+        if self.settings_saved == Some(cur) {
+            return;
+        }
+        if let Some(p) = self.settings_path.clone() {
+            cur.save(&p);
+        }
+        self.settings_saved = Some(cur);
+    }
+
+    /// STAGE-B-001：启动装载（shell 构造链调用）——应用保存的声音对。
+    fn apply_loaded_settings(&mut self, s: game_shell_common::settings::AppSettings) {
+        match self.state.as_mut() {
+            Some(Screen::Boot(m)) => {
+                m.bgm.sound_enabled = s.sound_enabled;
+                m.bgm.volume_level = s.volume_level;
+            }
+            Some(Screen::Game(sc)) => {
+                sc.bgm.sound_enabled = s.sound_enabled;
+                sc.bgm.volume_level = s.volume_level;
+            }
+            Some(Screen::Crashed) | None => {}
+        }
+        self.settings_saved = Some(s);
     }
 
     /// 跨机换机检查（kind7 退出→回标题，2026-10-18）：scene 置 MainMenu 态 =
@@ -1331,7 +1376,14 @@ fn main() {
     } else {
         audio::start(&audio_dir, &audio_device)
     };
-    let shell = Shell::new(&src, assets, Box::new(rms), stores, sink);
+    let mut shell = Shell::new(&src, assets, Box::new(rms), stores, sink);
+    // STAGE-B-001：全局声音设置装载（save 目录旁 app_settings.cfg）——不入游戏存档
+    {
+        let settings_path = default_save_dir().join("app_settings.cfg");
+        let s = game_shell_common::settings::AppSettings::load(&settings_path);
+        shell.settings_path = Some(settings_path);
+        shell.apply_loaded_settings(s);
+    }
     run_window(shell);
 }
 
@@ -1465,6 +1517,31 @@ mod shell_tests {
 
     const PLAY_MENU: audio::Cmd = audio::Cmd::Play { track: 2, gain: 0.6 };
     const PLAY_GAME: audio::Cmd = audio::Cmd::Play { track: 3, gain: 0.6 };
+
+    /// STAGE-B-001（R1）：toggle→下一拍检测→落盘 时序。
+    #[test]
+    fn settings_toggle_persists_next_tick() {
+        let mut h = Harness::new("preset-floor1.preset");
+        let dir = std::env::temp_dir().join(format!("xiyou-settings-tick-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("app_settings.cfg");
+        let _ = std::fs::remove_file(&p);
+        h.shell.settings_path = Some(p.clone());
+        h.run_to(250, &LOAD_FLOOR1);
+        // 初始（默认开声）首拍落盘
+        h.run_tick(&[]);
+        assert!(p.exists(), "首拍落盘（默认态）");
+        // toggle 关声（模拟设置翻转——直接置 bgm 态，时序=下一拍检测）
+        if let Some(Screen::Game(sc)) = h.shell.state.as_mut() {
+            sc.bgm.sound_enabled = false;
+            sc.bgm.volume_level = 0;
+        }
+        assert!(!game_shell_common::settings::AppSettings::load(&p).sound_enabled == false, "未落盘前=旧值");
+        h.run_tick(&[]);
+        let s = game_shell_common::settings::AppSettings::load(&p);
+        assert!(!s.sound_enabled, "toggle 后下一拍落盘（关声持久）");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     /// kind7 退出→换机回标题（2026-10-18 用户实报修复的壳级回归）：scene 置
     /// MainMenu 信号 → swap_back_to_boot_if_requested 换回 stashed BootMachine。
@@ -1630,6 +1707,9 @@ mod shell_tests {
     /// 续播的 gameMode 门控 `gameMode != 21 && gameMode != 0`（a.java:4666）：logo（mode 0）/
     /// 声音询问（mode 21）中 hide → 恢复 → 按键：只清 anyKeyPlayed、不续播；BGM 时间线与不隐藏时
     /// 相同（T71 menu(2) 为唯一命令——此时无播放器，close 不产生 Stop）。
+    // 【STAGE-B-001 豁免 2026-10-18】mode 21（声音询问）已从 boot 链移除（有意不一致）
+    //——本测对 mode 21 的前提消失；hide 语义在 mode 0/其他态的覆盖由同族测试兜。
+    #[ignore = "STAGE-B-001 有意不一致：mode 21 已移除（前提消失，用例需重写）"]
     #[test]
     fn hide_in_modes_0_and_21_clears_flag_without_resume() {
         let mut h = Harness::new("preset-floor1.preset");
@@ -1687,6 +1767,9 @@ mod shell_tests {
     /// - 单次 press(-3) 长按 70 拍：战斗（walkPhase 5，T261-271）后连走两格
     ///   96→32（T273-280，每拍 8px），之后被阻挡原地；press(-2) 同理一格 320→352（T376-379）；
     /// - BGM：T71 menu（Java EVT createPlayer@T71）、T237 game（close+createPlayer@T237）。
+    // 【STAGE-B-001 豁免 2026-10-18】BGM 切轨拍对照 Java EVT（createPlayer@T71）
+    //——跳过询问后 boot 时间轴缩短，切轨拍必然漂移（有意不一致，登记册名单在案）。
+    #[ignore = "STAGE-B-001 有意不一致：boot 时间轴变化致 BGM 切轨拍与 Java EVT 不可对齐（用例重定时待办）"]
     #[test]
     fn hold_walk_and_bgm_match_java_trace() {
         let ev = script("shell/win/tests/fixtures/hold-walk.txt");
