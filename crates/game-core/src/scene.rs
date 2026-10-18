@@ -7744,6 +7744,18 @@ impl GameScene {
                 }
                 PointerHit::None
             }
+            GameMode::SaveSlot | GameMode::EquipDetail => {
+                // 存档槽列表（SlotSelect，7/8 共享 m_000 case7）：行带单源；
+                // confirm=-5（run case 7：-6/-5 同义确认——mode7 存档/mode8 读档）
+                for vis in 0..(self.slot.scroll_bottom - self.slot.scroll_top).max(0) {
+                    let (ry, rh) = self.slot.row_band(vis);
+                    if y >= ry && y < ry + rh {
+                        let index = self.slot.scroll_top + vis;
+                        return PointerHit::Row { index, confirm_key: -5 };
+                    }
+                }
+                PointerHit::None
+            }
             GameMode::About => {
                 // 设置面板（OptionList）：行带单源 row_band；confirm=-5（run case 16
                 // 翻转键，a.java:4143-4188）
@@ -7778,6 +7790,9 @@ impl GameScene {
     /// 指针选行（hover 高亮/点击对位）：只动光标+滚窗同步，无其他状态变化（③-2/b）。
     pub fn select_row(&mut self, index: i32) {
         match self.game_mode {
+            GameMode::SaveSlot | GameMode::EquipDetail => {
+                self.slot.set_cursor(index); // 只动光标+滚窗
+            }
             GameMode::InGameMenu | GameMode::Shop => {
                 if index >= 0 && index < self.menu_item_count {
                     self.menu_cursor = index;
@@ -7917,6 +7932,33 @@ mod pointer_seam_tests {
         } else {
             panic!();
         }
+        assert_eq!(sc.player.hp, hp, "他态零变化");
+    }
+
+    /// 存档槽列表（SlotSelect 面，2026-10-18 用户反馈）：行带单源 + 命中 ±1px +
+    /// confirm=-5（run case 7：-6/-5 同义）+ set_cursor 只动光标+滚窗
+    #[test]
+    fn slot_list_pointer_hit_and_select() {
+        let mut sc = scene((2, 2), &[]);
+        sc.game_mode = GameMode::SaveSlot;
+        let font = crate::paint::paint_font();
+        let lh = font.height + 4;
+        let y0 = (SCREEN_H - sc.slot.content_h) / 2 + 16; // 字面锚：行首=盒顶+16
+        let x = SCREEN_W / 2;
+        assert_eq!(
+            sc.pointer_hit(x, y0 + 1),
+            PointerHit::Row { index: 0, confirm_key: -5 },
+            "槽0 顶像素归本行"
+        );
+        assert_eq!(sc.pointer_hit(x, y0 - 1), PointerHit::None, "槽0 顶-1 不命中");
+        assert_eq!(
+            sc.pointer_hit(x, y0 + lh),
+            PointerHit::Row { index: 1, confirm_key: -5 },
+            "行界像素归下槽"
+        );
+        let hp = sc.player.hp;
+        sc.select_row(1);
+        assert_eq!(sc.slot.cursor, 1);
         assert_eq!(sc.player.hp, hp, "他态零变化");
     }
 

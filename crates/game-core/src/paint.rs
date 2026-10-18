@@ -229,6 +229,19 @@ impl BootMachine {
     /// WIN-OP③（C-2 补面 2026-10-18）：标题侧设置面板（GameMode::About）指针命中——
     /// OptionList::row_band 单源（与 GameScene 侧共用几何）；confirm=-5（翻转键同款）。
     pub fn pointer_hit(&self, x: i32, y: i32) -> crate::scene::PointerHit {
+        if self.mode == GameMode::EquipDetail {
+            // 标题侧读档槽列表（paint case 8）：SlotSelect 行带单源
+            if let Some(slots) = self.slots.as_ref() {
+                for vis in 0..(slots.scroll_bottom - slots.scroll_top).max(0) {
+                    let (ry, rh) = slots.row_band(vis);
+                    if y >= ry && y < ry + rh {
+                        let index = slots.scroll_top + vis;
+                        return crate::scene::PointerHit::Row { index, confirm_key: -5 };
+                    }
+                }
+            }
+            return crate::scene::PointerHit::None;
+        }
         if self.mode == GameMode::About {
             if let Some(list) = self.options.as_ref() {
                 for i in 0..list.len() {
@@ -244,6 +257,12 @@ impl BootMachine {
 
     /// 指针选行（只动高亮，零其他状态）。
     pub fn select_row(&mut self, index: i32) {
+        if self.mode == GameMode::EquipDetail {
+            if let Some(slots) = self.slots.as_mut() {
+                slots.set_cursor(index);
+            }
+            return;
+        }
         if self.mode == GameMode::About {
             if let Some(list) = self.options.as_mut() {
                 if index >= 0 {

@@ -782,6 +782,29 @@ impl SlotSelect {
     }
 
     /// run case 8 的 -2（a.java:3859-3862）。
+    /// 行带几何（③-1 单源：paint_list 与 pointer 共调）：行首 = 盒顶+16、
+    /// 行高 = textLineHeight = font.height+4（a.java:471 字高派生）。返回 (行y, 行高)。
+    pub fn row_band(&self, visible: i32) -> (i32, i32) {
+        let font = crate::paint::paint_font();
+        let y = (SCREEN_H - self.content_h) / 2 + 16;
+        (y + visible * (font.height + 4), font.height + 4)
+    }
+
+    /// 指针选行（只动光标+滚窗，镜像 cursor_down/up 内蕴；零其他状态）。
+    pub fn set_cursor(&mut self, index: i32) {
+        if index < 0 || index > 5 {
+            return;
+        }
+        self.cursor = index;
+        if self.cursor >= self.scroll_bottom {
+            self.scroll_bottom = self.cursor + 1;
+            self.scroll_top = self.scroll_bottom - self.rows_per_page;
+        } else if self.cursor < self.scroll_top {
+            self.scroll_top = self.cursor;
+            self.scroll_bottom = self.scroll_top + self.rows_per_page;
+        }
+    }
+
     pub fn cursor_down(&mut self) {
         if self.cursor < 5 {
             self.cursor += 1;
@@ -859,12 +882,13 @@ impl SlotSelect {
     /// 已合并为 [`Self::paint_equipment_frames`] 单源。
     pub fn paint_list(&self, g: &mut SoftGraphics<'_>, ui: &[ArgbImage], segs: &[i32]) -> (i32, i32) {
         let font = crate::paint::paint_font();
-        let lh = font.height + 4; // textLineHeight（a.java:471，fontHeight 派生）
+        let _lh = font.height + 4; // textLineHeight（a.java:471；行高现由 row_band 提供）
         let x = (SCREEN_W - self.content_w - 22) >> 1;
-        let mut y = (SCREEN_H - self.content_h) >> 1;
+        let y = (SCREEN_H - self.content_h) >> 1;
         paint_titled_box(g, &ui[0], &ui[13], segs, x, y, self.content_w + 22, self.content_h);
-        y += 16;
         for row in self.scroll_top..self.scroll_bottom {
+            // 行几何 = row_band 单源（C-1 口径：paint 真调，与 pointer 共调）
+            let (y, lh) = self.row_band(row - self.scroll_top);
             if row != self.cursor {
                 g.set_color(crate::layout::SLOT_TEXT);
             } else {
@@ -882,8 +906,11 @@ impl SlotSelect {
                 label.extend((row as u16).to_string().chars().map(|c| c as u16));
                 g.draw_string(&label, CENTER_X, y + 2, 17);
             }
-            y += lh;
+            // 行 y 由 row_band 逐行定位（原 y += lh 累加已删）
         }
+        // 行后锚 = row_band(行数).0（原 y 累计终点——箭头/分隔线/详情段锚定于此；
+        // 2026-10-18 整改：单源派生，恢复下游链）
+        let y = self.row_band(self.scroll_bottom - self.scroll_top).0;
         // 翻页箭头（a.java:9080-9087）
         let ax = CENTER_X + ((self.content_w >> 1) - 10);
         if self.scroll_top > 0 {
