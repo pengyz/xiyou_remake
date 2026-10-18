@@ -132,6 +132,7 @@ reference/         参考版 Java + 自研 MIDP/Nokia shim + 追踪钩子（D3 �
   > 闭包清零后贴（执行账本 .superpowers/sdd/ 有裁决记录）。收官批提交：
   > b62d9db/ee52191/3ea4a49 + 本表。
 - M5 现代化改造（Stage B，含 bug 台账清偿）
+  - 【2026-10-18 用户裁定】鼠标菜单操作（指针行点击）= Stage B 纯加法放行（decision_pointer-menu-stage-b；ESC/滚轮/点击合成键码=平台输入映射属 Stage A）
 
 ## 7. 下一批次待办（P1 收官登记，2026-10-09）
 

@@ -189,8 +189,44 @@ fn key_code(physical: winit::keyboard::PhysicalKey) -> Option<i32> {
         Code(K::Enter) | Code(K::Space) => -5,
         Code(K::KeyQ) | Code(K::F1) => -6,
         Code(K::KeyE) | Code(K::F2) => -7,
+        // WIN-OP①（2026-10-18）：ESC = 右软键 -7 语义（mode3 开菜单；菜单/面板/对话
+        // 态 = 关闭/返回/翻页——键码契约 §4 全态已核 C-b 无副作用）
+        Code(K::Escape) => -7,
         _ => return None,
     })
+}
+
+/// WIN-OP②（2026-10-18，C-a 态门控）：滚轮 → 行导航键。Map（行走态）禁止合成
+/// （-1/-2 的 keyValue 臂空转但 press 置 key_held ⇒ 落拍误走一步）；其余态合成：
+/// 菜单/面板 = 光标上/下移，对话态 = 翻页/滚动（handleOverlayKey 语义，自然）。
+fn wheel_key(dy: f64, mode: game_core::enums::GameMode) -> Option<i32> {
+    use game_core::enums::GameMode as M;
+    if mode == M::Map || dy == 0.0 {
+        return None;
+    }
+    if dy > 0.0 {
+        Some(-1)
+    } else {
+        Some(-2)
+    }
+}
+
+/// WIN-OP③（2026-10-18）：鼠标点击 → 游戏键。软键区优先（全态，HUD 语义）；
+/// 右键 = -7 返回/菜单（全态）；非软键区左键 = 确认（-5），但 Map 行走态禁
+/// （防误触玩法键）——行点击（直接选行）另经 game-core handle_pointer（Stage B）。
+fn click_key(x: i32, y: i32, mode: game_core::enums::GameMode, right: bool) -> Option<i32> {
+    use game_core::enums::GameMode as M;
+    if right {
+        return Some(-7);
+    }
+    let (w, h) = (SCREEN_W, SCREEN_H);
+    if y > h * 7 / 10 && (x < w / 3 || x > w * 2 / 3) {
+        return Some(click_code(x, y)); // 软键区（-6/-7）
+    }
+    if mode == M::Map {
+        return None;
+    }
+    Some(-5)
 }
 
 // ---------------------------------------------------------------- 真字形注入（D2 字体缝）
@@ -1058,18 +1094,33 @@ fn run_window(shell: Shell) {
                     self.mouse = Some((position.x, position.y));
                 }
                 WindowEvent::MouseInput { state: ElementState::Pressed, button, .. } => {
-                    if button != winit::event::MouseButton::Left {
-                        return;
-                    }
                     let Some((mx, my)) = self.mouse else { return };
                     let Some(vp) = self.viewport() else { return };
                     let Some((x, y)) = vp.to_screen(mx, my, CANVAS_W, CANVAS_H) else {
                         return; // 信箱区
                     };
-                    let code = click_code(x, y);
+                    let right = button == winit::event::MouseButton::Right;
+                    if !right && button != winit::event::MouseButton::Left {
+                        return;
+                    }
+                    // WIN-OP③：软键区/右键/确认 合成键码（态门控见 click_key）
+                    let Some(code) = click_key(x, y, self.shell.game_mode(), right) else {
+                        return;
+                    };
                     // 点按 = 一次 press + release（下一拍消费 keyValue；不即时推进逻辑）
                     self.shell.route_key(code, true);
                     self.shell.route_key(code, false);
+                }
+                WindowEvent::MouseWheel { delta, .. } => {
+                    // WIN-OP②：滚轮 → 行导航（C-a 态门控：Map 行走态不合成）
+                    let dy = match delta {
+                        winit::event::MouseScrollDelta::LineDelta(_, y) => y as f64,
+                        winit::event::MouseScrollDelta::PixelDelta(p) => p.y / 40.0,
+                    };
+                    if let Some(code) = wheel_key(dy, self.shell.game_mode()) {
+                        self.shell.route_key(code, true);
+                        self.shell.route_key(code, false);
+                    }
                 }
                 WindowEvent::KeyboardInput { event, .. } => {
                     let pressed = event.state == ElementState::Pressed;
@@ -1703,6 +1754,36 @@ mod shell_tests {
         assert_eq!(translate_key(f11, true, false), Some(KeyAction::ToggleFullscreen));
         assert_eq!(translate_key(f11, true, true), None);
         assert_eq!(translate_key(f11, false, false), None);
+    }
+
+    /// WIN-OP 三件（2026-10-18 用户需求）：①ESC→-7（mode3 开菜单/面板=关闭返回，
+    /// 键码契约右软键语义）②鼠标基线：滚轮/点击合成键码且**态门控**（C-a：Map 行走态
+    /// 不合成 -1/-2，防 key_held 窜步；对话态滚轮=翻页保留）③右键→-7 全态。
+    #[test]
+    fn win_op_esc_and_mouse_baseline() {
+        use winit::keyboard::{KeyCode, PhysicalKey};
+        // ① ESC → -7（按下/抬起都路由；重复事件另有测试钉）
+        let esc = PhysicalKey::Code(KeyCode::Escape);
+        match translate_key(esc, true, false) {
+            Some(KeyAction::Game(c, p)) => {
+                assert_eq!(c, -7, "ESC 必须映射右软键 -7（mode3=开菜单/面板=关闭）");
+                assert!(p);
+            }
+            other => panic!("ESC 未映射成游戏键：{other:?}"),
+        }
+        // ② 滚轮态门控（C-a）：Map=不合成；菜单/对话态=合成 -1/-2
+        assert_eq!(wheel_key(1.0, GameMode::Map), None, "Map 态滚轮禁止（防窜步）");
+        assert_eq!(wheel_key(-1.0, GameMode::Map), None);
+        assert_eq!(wheel_key(1.0, GameMode::InGameMenu), Some(-1), "菜单态滚轮=上移");
+        assert_eq!(wheel_key(-1.0, GameMode::Dialog), Some(-2), "对话态滚轮=下移/翻页（自然）");
+        assert_eq!(wheel_key(0.0, GameMode::MainMenu), None, "零位移无动作");
+        // ③ 点击基线：软键区优先全态；右键=-7 全态；非软键区左键=确认但 Map 态禁
+        let (w, h) = (SCREEN_W, SCREEN_H);
+        assert_eq!(click_key(5, h - 5, GameMode::Map, false), Some(-6), "软键区全态生效");
+        assert_eq!(click_key(5, 5, GameMode::Map, true), Some(-7), "右键=返回全态");
+        assert_eq!(click_key(5, 5, GameMode::Map, false), None, "Map 态点击不误触");
+        assert_eq!(click_key(5, 5, GameMode::InGameMenu, false), Some(-5), "菜单态点击=确认");
+        assert_eq!(w > 0, true); // 占位消未用告警
     }
 
     /// 点击分区（画面坐标，按 SCREEN_W/SCREEN_H 取点）：软键栏 = y > 高×7/10（边界行属

@@ -32,7 +32,7 @@ sources: ["2026-10-17 用户问（退出无反应 BUG-020 连带架构确认）"
 | 2 | **存档路径 + 持久** | 注入 `--save`（见 decision_save-path-shell-injection）；消费 `saved_slot_blobs`/`slot` 变化写穿、回写 `preset_mot_if` | `Rms`（save/ 文件版 RecordStore）+ Shell::step 存档块 |
 | 3 | **退出进程** | game-core 发 `CMidlet.m_000` 信号（`BootMachine::finished`），**shell 消费并退出**——游戏层永不 `process::exit` | `Shell::finished()` → `el.exit()`（BUG-020 补） |
 | 4 | **音频输出** | 实现 `PcmDevice`（`write(frames) -> Result`，阻塞=节拍；`idle()`）；BGM 目录注入 `--audio` | `audio.rs`：winmm waveOut / ALSA |
-| 5 | **输入映射** | 平台键/触控 → 游戏键码（-7..-6 软键 / -5 确认 / -4..-1 方向；键码契约见 key-code-contract） | winit 事件 → `press_key/release_key` |
+| 5 | **输入映射** | 平台键/触控/**指针** → 游戏键码（-7..-6 软键 / -5 确认 / -4..-1 方向；键码契约见 key-code-contract）；指针行点击=Stage B 加法（decision_pointer-menu-stage-b：pointer_hit/handle_pointer 零新语义） | winit 事件 → press_key/release_key + handle_pointer |
 | 6 | **窗口/呈现** | 逻辑拍节奏（`frame_interval`）+ 画布呈现（240×320 等比适配） | winit + `view::Pacer/Viewport` |
 | 7 | **字体** | 真机字体度量注入（shim Font 度量为保真基准；桌面 CJK 候选发现） | `font_inject::install()` |
 | 8 | **可见性/生命周期** | hide/show 语义（`set_minimized` → hideNotify 语义） | `about_to_wait` 轮询 |
