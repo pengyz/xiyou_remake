@@ -24,3 +24,11 @@ git 侧 `.gitattributes` `* text=auto eol=lf`。Windows 换算表：classpath �
 ②Windows 跑门禁前先确认解释器真实可用（gates/hooks/pre-commit 已带 python3→python 探活回退，
 install-hooks.sh 在无符号链接特权时退化为副本）；③诊断 classpath/编码/行尾类崩溃时，
 先对照 reference/oracle/run.py 的 `JVM_UTF8`/`JVM_TOOL_FLAGS` 模板查缺哪层。
+
+> 【2026-10-18 补·第 6 坑：PS 管道改码】**禁止用 PowerShell 管道改写 UTF-8 源码**
+> （`Get-Content | ... | Set-Content`/`Out-File` 类）——管道按控制台编码(GBK)转码，
+> UTF-8 中文源码直接损坏（task-8 实发：改 json.rs 致损，当场发现整文重建，损坏态未入树）。
+> 涉中文的**编辑**一律用 read/write 工具或 `python -c`（utf-8 显式）；涉中文的**取证**
+> （字符串比对/断言清单）同理——adversary 两起测量伪差（断言包含比对 76"缺失"假报警、
+> python print GBK traceback）即此坑变体：命令行内嵌中文串经 PS 传递亦会毁码，比较逻辑
+> 放 python 脚本内部、命令体保持纯 ASCII。
