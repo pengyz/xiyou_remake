@@ -5929,33 +5929,33 @@ impl GameScene {
         }
         let bh = self.images.backdrop.height;
         let base_y = if game_view { self.layout.view_bottom_y - bh + 6 } else { 0 };
+        let bw = self.images.backdrop.width as usize;
         let mut col_x = self.backdrop_scroll;
         while col_x < self.layout.screen_w {
-            let mut mirrored = false;
-            let mut y = base_y;
-            while y > -self.layout.screen_h {
-                if mirrored {
-                    g.draw_image_transformed(&self.images.backdrop, col_x, y, 0, 2);
-                } else {
-                    g.draw_image(&self.images.backdrop, col_x, y, 0);
-                }
-                mirrored = !mirrored;
-                y -= bh;
-            }
-            // 【v5 返修①】向下补铺至画布底——面板居中后两侧露背景（非黑边）。
-            // **仅当画布高于背景图**（modern）才补铺：classic 320==bh 无此行 ⇒
-            // ops 面与 Java 参照零偏离（oracle t544 ops 前缀对拍护航），像素亦零变化。
             if self.layout.screen_h > bh {
-                let mut y = base_y + bh;
-                let mut mirrored = true;
-                while y < self.layout.screen_h {
+                // 【v6 返修】画布高于背景图 ⇒ 边缘**钳制延展**（顶带=图顶行色、
+                // 底带=图底行色）+ 仅画基行——镜像铺贴会把渐变反射（沙地翻上屏顶/
+                // 天空翻下底带）=用户"颜色奇怪/过渡不自然"根因（v5 镜像补铺同病）；
+                // classic 画布=图高 ⇒ 走下方原式原样。
+                let top = self.images.backdrop.argb[0];
+                let bottom = self.images.backdrop.argb[(bh as usize - 1) * bw];
+                g.set_color(top & 0x00FF_FFFF | 0xFF00_0000);
+                g.fill_rect(col_x, 0, bw as i32, base_y);
+                g.set_color(bottom & 0x00FF_FFFF | 0xFF00_0000);
+                g.fill_rect(col_x, base_y + bh, bw as i32, self.layout.screen_h - (base_y + bh));
+                g.draw_image(&self.images.backdrop, col_x, base_y, 0);
+            } else {
+                // classic 原式（a.java:6850-6871）：行内交替镜像，一行可见=原样零变化
+                let mut mirrored = false;
+                let mut y = base_y;
+                while y > -self.layout.screen_h {
                     if mirrored {
                         g.draw_image_transformed(&self.images.backdrop, col_x, y, 0, 2);
                     } else {
                         g.draw_image(&self.images.backdrop, col_x, y, 0);
                     }
                     mirrored = !mirrored;
-                    y += bh;
+                    y -= bh;
                 }
             }
             col_x += PARALLAX_COL_STEP;
@@ -6970,6 +6970,37 @@ mod slot_equip_scene_tests {
         assert_eq!(undrawn, 0, "modern 视口带内未绘制像素数（黑区根因面）");
     }
 
+    /// v6 判据（用户"背景颜色很奇怪/过渡不自然"）：真背景图**边缘钳制延展**——
+    /// 顶带像素=图顶行色、底带=图底行色；镜像反转（沙地翻上屏顶/天空翻下底带）即红。
+    #[test]
+    fn modern_backdrop_edge_clamp_no_mirror_flip() {
+        let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let packed = std::fs::read(repo.join("assets/raw/mapbg")).unwrap();
+        let bg = game_data::PackedPng::parse(&packed, 1)
+            .unwrap()
+            .images
+            .iter()
+            .map(|s| ArgbImage::from_decoded_png(game_data::decode_png(s.bytes).unwrap()))
+            .next()
+            .unwrap();
+        let bw = bg.width as usize;
+        let bh = bg.height as usize;
+        let (top_row, bottom_row) = (bg.argb[0], bg.argb[(bh - 1) * bw]);
+        let mut sc = scene_with(&synthetic_sptarm());
+        sc.images.backdrop = bg;
+        sc.apply_layout(crate::layout::Layout::modern(13, 13));
+        sc.backdrop_scroll = -1;
+        let mut img = ArgbImage::create(416, 416);
+        {
+            let mut g = SoftGraphics::new(&mut img);
+            sc.paint_parallax(&mut g, true);
+        }
+        let top_px = img.argb[4 * 416 + 40]; // 顶带采样
+        let bottom_px = img.argb[411 * 416 + 40]; // 底带采样
+        assert_eq!(top_px, top_row & 0x00FF_FFFF | 0xFF00_0000, "顶带=图顶行色（钳制延展）");
+        assert_eq!(bottom_px, bottom_row & 0x00FF_FFFF | 0xFF00_0000, "底带=图底行色（钳制延展）");
+    }
+
     /// modern 双缺陷判据（lead classic 对照定案 2026-10-18）：
     /// ① 顶栏金币图标必须绘出（像素级：图标位≠状态栏底色——裁剪复位常量化会把
     ///    绘制裁掉但 ops 仍在，故必须像素判）；② 对话文本必须绘出（drawString 在场）。
@@ -7141,10 +7172,12 @@ mod slot_equip_scene_tests {
             let dx = sc.bottom_panel_dx();
             let dy = h as i32 - 320;
             // 保序序列：(op 名, x−dx, y−dy)——层序也入判据（v5）；
-            // 背景层（drawImageT 镜像行/画布自适应列）不计——组合关系指面板构图
+            // 背景层（drawImageT 镜像行 / 列宽 77 边缘填充 / 画布自适应列）不计
+            // ——组合关系指面板构图
             ops
                 .iter()
                 .filter(|o| !o.starts_with("drawImageT"))
+                .filter(|o| !(o.starts_with("fillRect(") && o.contains(",77,")))
                 .filter_map(|o| {
                     let (x, y) = op_xy(o)?;
                     (y >= h as i32 - 45).then(|| {
@@ -7221,12 +7254,13 @@ mod slot_equip_scene_tests {
             bg_max_x + 77 >= 416 && bg_min_x <= 0,
             "背景须铺满画布宽（现列起点 [{bg_min_x},{bg_max_x}]，末列+77 须 ≥416）"
         );
-        assert!(bg.len() >= 12, "背景列×行须盖满画布（现 {} 片）", bg.len());
+        assert!(bg.len() >= 5, "背景列须覆盖画布宽（每列一条基行；现 {} 条）", bg.len());
         // ③ HUD 内容组居中（底带**内容**x 跨度中心 vs 屏心，偏移 ≤12；
         //    框体=全宽设计（fill 宽≥200 / 边条 x<20 或 ≥400）不计入内容组）
         let hud: Vec<(i32, i32)> = ops
             .iter()
             .filter(|o| !o.starts_with("drawImageT")) // 背景层（画布自适应）不计
+            .filter(|o| !(o.starts_with("fillRect(") && o.contains(",77,"))) // 背景边缘填充不计
             .filter(|o| op_xy(o).map(|c| c.1 > 368 && c.1 < 412).unwrap_or(false))
             .filter(|o| {
                 let w = o
