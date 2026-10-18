@@ -311,6 +311,20 @@ pub const SOFTKEY_ICON_H: i32 = 10;
 // =========================================================================
 // 设计常量（240×320 设计稿；与 SCREEN_* **无**维度推导关系——扩视口时须逐条
 // 重新考证，**不可**随 SCREEN_* 机械缩放）
+//
+// 【STAGE-B-002 ⑤ 逐条考证登记】modern 公式（classic 代入全部化回原值，
+// tests::design_constants_modern_values_substitute_back 钉住）：
+// | 常量 | classic | modern 公式 | 理由 |
+// |---|---|---|---|
+// | OVERLAY_TEXT_W | 180 | screen_w−60 | 文本列宽 = 屏宽 − 两侧各 30px 边距（240−60=180） |
+// | OVERLAY_TEXT_MAX_H | 240 | screen_h−80 | 页高预算随屏高，上下各 40px 留白（320−80=240） |
+// | OVERLAY_ICON_TEXT_MAX_H | 234 | overlay_text_max_h−6 | kind 1/3 带图标多占 6px（240−6=234） |
+// | SLOT_LIST_MAX_H | 208 | screen_h−112 | 槽表可用高 = 屏高 − 标题/软键框占位 112（320−112=208） |
+// | ENCYC_PANEL_W | 208 | screen_w−32 | 图鉴面板 = 屏宽 − 两侧各 16px 边距（240−32=208） |
+// | ARROW_PAIR_LEFT_X | 60 | center_x−60 | 箭头对以屏心为基准保持原偏置（120−60） |
+// | ARROW_PAIR_RIGHT_X | 160 | center_x+40 | 同上右臂（120+40；偏置不对称=原版字面） |
+// 待并册登记项：`game_view.rs` set_camera clamp 64 内联（本任务写域外，收编待其
+// 写域开放）；`walk.rs:16` EDGE_MARGIN 已收编为 layout::EDGE_MARGIN 单源（本单）。
 // =========================================================================
 
 /// 提示浮层文本排版宽（showOverlayMessage → layoutFullText(_, 180, _)，
@@ -472,8 +486,17 @@ impl Layout {
         l.status_key_x = [screen_w - 175, screen_w - 133, screen_w - 91];
         l.status_gold_icon_x = screen_w - 49;
         l.status_gold_num_x = screen_w - 3;
+        l.status_fill_x = 65; // 左块宽固定（楼层贴左）——与 classic 同值
         l.hud_face_ax = screen_w / 2 - 80;
         l.hud_icon_x = screen_w / 2 - 37;
+        // ⑤ 设计常量段 modern 公式（逐条考证表见设计常量段文档；classic 代入全化回原值）
+        l.overlay_text_w = screen_w - 60;
+        l.overlay_text_max_h = screen_h - 80;
+        l.overlay_icon_text_max_h = l.overlay_text_max_h - 6;
+        l.slot_list_max_h = screen_h - 112;
+        l.encyc_panel_w = screen_w - 32;
+        l.arrow_pair_left_x = screen_w / 2 - 60;
+        l.arrow_pair_right_x = screen_w / 2 + 40;
         l
     }
 }
@@ -658,5 +681,31 @@ mod tests {
         );
         assert_eq!(big.status_fill_x, 65, "左块宽固定（楼层贴左）");
         assert_eq!((big.hud_face_ax, big.hud_icon_x), (128, 171), "HUD 中钉 = 屏心-80 / 屏心-37");
+    }
+
+    /// ⑤ 设计常量段逐条考证：modern 新值 = 公式派生（classic 代入**化回原值**），
+    /// 逐条理由见模块文档考证表（遵设计常量段明文"扩视口须逐条考证，不可机械缩放"）。
+    #[test]
+    fn design_constants_modern_values_substitute_back() {
+        // 最小分辨率（=classic 240×320）：公式代入全部化回原值
+        let min = Layout::modern(4, 4);
+        assert_eq!(
+            (min.overlay_text_w, min.overlay_text_max_h, min.overlay_icon_text_max_h),
+            (OVERLAY_TEXT_W, OVERLAY_TEXT_MAX_H, OVERLAY_ICON_TEXT_MAX_H)
+        );
+        assert_eq!((min.slot_list_max_h, min.encyc_panel_w), (SLOT_LIST_MAX_H, ENCYC_PANEL_W));
+        assert_eq!((min.arrow_pair_left_x, min.arrow_pair_right_x), (ARROW_PAIR_LEFT_X, ARROW_PAIR_RIGHT_X));
+        // modern 新值（416×416）
+        let big = Layout::modern(13, 13);
+        assert_eq!(big.overlay_text_w, 416 - 60, "文本列宽 = 屏宽-60（两侧 30 边距）");
+        assert_eq!(big.overlay_text_max_h, 416 - 80, "页高预算 = 屏高-80（上下 40 留白）");
+        assert_eq!(big.overlay_icon_text_max_h, big.overlay_text_max_h - 6, "带图标浮层多占 6px");
+        assert_eq!(big.slot_list_max_h, 416 - 112, "槽表预算 = 屏高-112（标题/软框占位）");
+        assert_eq!(big.encyc_panel_w, 416 - 32, "图鉴面板 = 屏宽-32（两侧 16 边距）");
+        assert_eq!(
+            (big.arrow_pair_left_x, big.arrow_pair_right_x),
+            (208 - 60, 208 + 40),
+            "箭头对以屏心为基准保持原偏置"
+        );
     }
 }

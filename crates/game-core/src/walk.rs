@@ -11,9 +11,11 @@ use crate::camera::Camera;
 use crate::enums::Dir;
 
 pub const STEP_PX: i32 = 8;
-pub const CELL_PX: i32 = 32;
-/// 屏幕边缘跟随阈值（a.java:3562 等：106 = 240-... 的布局常量）
-pub const EDGE_MARGIN: i32 = 106;
+/// 与 `layout::CELL_PX` 同值同义（双源登记：值锚 layout 单源，收编为别名防漂移）。
+pub const CELL_PX: i32 = crate::layout::CELL_PX;
+/// 屏幕边缘跟随阈值（a.java:3562 等）。单源 = `layout::EDGE_MARGIN`（STAGE-B-002
+/// ⑤ 登记项收编：原 106 双源，值锚 layout，防 gotcha_dual-porting-surfaces-drift）。
+pub const EDGE_MARGIN: i32 = crate::layout::EDGE_MARGIN;
 
 pub struct WalkState {
     /// facing / walkPathBuffer 方向码（0 下 1 上 2 右 3 左）
