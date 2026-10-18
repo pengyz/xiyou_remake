@@ -31,6 +31,12 @@
 //! - 字节复现（55/55 自洽，含 `maplv51` 非方阵 12×13/1252B）：`docs/findings/resource-formats.md:120-148`、`291-296`。
 //! - 网格 2 翻转码语义：`a.java:2708-2744` 7 参数绘制方法的 `switch(n7){case 1..7}` 镜像/旋转分支，
 //!   `a.java:5004` 把 `this.j[n2]` 传入该参数（`docs/findings/resource-formats.md:163-168`）。
+//!
+//! 【2026-10-18 更正】上段裸 `a.java:NNNN` 行号来自 `reference/seed/a.java`（旧锚，
+//! 整体漂移——与 sprite.rs 2026-10-16 更正同族，本文件当时漏改）。真锚（deobf 机械
+//! grep 校，双锚格式）：头读=`loadFloorData`（行 9419-9420）`readShortLE(var14) >> 1`；
+//! 瓦片取材=`paintTileLayer`（行 7045-7046）`(v&7)<<4`/`v>>3<<4`；7 参变换=
+//! `drawEdgePatch`（行 4567）。上段行号保留为历史主张不删（证伪更正文化）。
 
 use crate::error::Error;
 use crate::read;
@@ -123,14 +129,15 @@ impl Maplv {
         self.flip.get(row * self.cell_cols() + col).copied()
     }
 
-    /// tile-id → 图集列（`id&7`，×16px）。Evidence: `a.java:5002` `int n9 = (n4 & 7) << 4`；
+    /// tile-id → 图集列（`id&7`，×16px）。Evidence: `paintTileLayer`（行 7045）
+    /// `int var5 = (var18 & 7) << 4`（reference/src/deobf/a.java，机械 grep 校）；
     /// `docs/findings/resource-formats.md:179`。
     pub fn tile_atlas_col(id: u8) -> u8 {
         id & 7
     }
 
-    /// tile-id → 图集行（`id>>3`，×16px）。Evidence: `a.java:5003` `n4 = n4 >> 3 << 4`；
-    /// `docs/findings/resource-formats.md:179`。
+    /// tile-id → 图集行（`id>>3`，×16px）。Evidence: `paintTileLayer`（行 7046）
+    /// `var18 = var18 >> 3 << 4`（同上）；`docs/findings/resource-formats.md:179`。
     pub fn tile_atlas_row(id: u8) -> u8 {
         id >> 3
     }
