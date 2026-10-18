@@ -35,6 +35,9 @@ pub struct GameView {
     /// viewWidthPx/viewHeightPx：视口像素宽高（240/252）。
     pub view_w: i32,
     pub view_h: i32,
+    /// 画布裁剪尺寸（paint_tiles 尾 set_clip 的宽高；随 Layout，classic=240×320）。
+    pub clip_w: i32,
+    pub clip_h: i32,
     /// mapPixelWidth/mapPixelHeight：地图像素宽高（wide<<5 / high<<5）。
     map_w_px: i32,
     map_h_px: i32,
@@ -57,6 +60,7 @@ pub struct GameView {
 impl GameView {
     /// `loadFloorData(floor)`（a.java:9404-9430）：maplv 头 + 双 grid 读取 + 相机 0。
     /// `m_122/sortEntitiesByY`（实体装载）在 game_view 之外（Floor1Host 侧）。
+    /// 视口/画布尺寸默认 classic（240/252）——modern 换轨经 [`GameView::set_layout_dims`]。
     pub fn from_maplv(data: &[u8], player_px: i32, player_py: i32) -> Result<GameView, String> {
         if data.len() < 4 {
             return Err("maplv too short".into());
@@ -78,6 +82,8 @@ impl GameView {
             transform,
             view_w: crate::layout::GAME_VIEW_W, // viewWidthPx = 240（a.java:9431）
             view_h: crate::layout::GAME_VIEW_H, // viewHeightPx = 252（a.java:9432）
+            clip_w: crate::layout::SCREEN_W,
+            clip_h: crate::layout::SCREEN_H,
             map_w_px: wide << 5,
             map_h_px: high << 5,
             fits_w: false,
@@ -95,6 +101,18 @@ impl GameView {
         v.fits_h = v.view_h >= v.map_h_px;
         v.set_camera(0, 0); // loadFloorData 尾的 setCameraClamped(0,0)
         Ok(v)
+    }
+
+    /// 布局面换轨（STAGE-B-002 返修）：视口/画布尺寸随 Layout（classic 原值零变化）
+    /// 并重钳相机窗口——002 首版画布大了但 tile 层/相机仍按旧视口消费（破绽①）。
+    pub fn set_layout_dims(&mut self, view_w: i32, view_h: i32, clip_w: i32, clip_h: i32) {
+        self.view_w = view_w;
+        self.view_h = view_h;
+        self.clip_w = clip_w;
+        self.clip_h = clip_h;
+        self.fits_w = self.view_w >= self.map_w_px;
+        self.fits_h = self.view_h >= self.map_h_px;
+        self.center_on_player();
     }
 
     /// `setCameraClamped(x, y)`（a.java:7037-7079）：钳制 + 窗口派生。
@@ -189,7 +207,7 @@ impl GameView {
             row += 1;
             py += 16;
         }
-        g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
+        g.set_clip(0, 0, self.clip_w, self.clip_h);
     }
 
     /// 加载步 11 的居中相机（a.java:3508：`setCameraClamped((view_w-32>>1)-px, (view_h-32>>1)-py)`）。

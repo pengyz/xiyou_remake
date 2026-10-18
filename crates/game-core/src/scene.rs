@@ -865,8 +865,8 @@ impl GameScene {
         // 提示浮层（paint 公共尾 a.java:3129-3168，!floorTransitioning && overlayActive）：
         // 盒框 + kind 0/2/4/5 纯文本 / kind 1/3 图标+文本 + 软键图标
         if !self.transitioning && self.overlay_active {
-            let bx = (SCREEN_W - self.overlay_box_w) >> 1;
-            let by = (SCREEN_H - self.overlay_box_h) >> 1;
+            let bx = (self.layout.screen_w - self.overlay_box_w) >> 1;
+            let by = (self.layout.screen_h - self.overlay_box_h) >> 1;
             crate::menu_family::paint_box_frame(g, &self.images.ui[0], bx, by, self.overlay_box_w, self.overlay_box_h);
             let font = crate::paint::paint_font();
             let mut tx = bx + 16;
@@ -2460,6 +2460,20 @@ impl GameScene {
         self.view.center_on_player();
     }
 
+    /// 布局面换轨（STAGE-B-002 返修）：写入 layout 并同步**绘制坐标系**消费点
+    /// （视口/画布尺寸+相机重钳+视口底线）——002 首版只连公式值未连绘制落点，
+    /// 用户实机三破绽（地图只画左上块/属性浮屏中/元素各自为政）的根因面。
+    pub fn apply_layout(&mut self, layout: crate::layout::Layout) {
+        self.view.set_layout_dims(
+            layout.game_view_w,
+            layout.game_view_h,
+            layout.screen_w,
+            layout.screen_h,
+        );
+        self.view_bottom = layout.view_bottom_y;
+        self.layout = layout;
+    }
+
     /// buildMinimap（a.java:6879-6941）：小地图生成
     /// （wide×MINIMAP_PX_PER_CELL 见方，dim MINIMAP_DIM_ALPHA）。
     pub fn build_minimap(&mut self) {
@@ -3451,14 +3465,14 @@ impl GameScene {
         // 斜线底纹（a.java:2725-2734）：Java 方法内留有未用局部 `short var141 = 320;
         // short var122 = 240;`——源码以 H/W 局部常量书写、javac 常量折叠的残迹
         //（B 级），故 319/318/239 = H-1/H-2/W-1 一并按屏幕派生书写。
-        let mut v159 = SCREEN_H - 1;
+        let mut v159 = self.layout.screen_h - 1;
         while v159 >= 1 {
-            g.draw_line(-1, -1 + (SCREEN_H - v159), -1 + v159 - 1, SCREEN_H - 2);
-            g.draw_line(SCREEN_W - 1 - v159, -1, SCREEN_W - 1, -1 + v159);
+            g.draw_line(-1, -1 + (self.layout.screen_h - v159), -1 + v159 - 1, self.layout.screen_h - 2);
+            g.draw_line(self.layout.screen_w - 1 - v159, -1, self.layout.screen_w - 1, -1 + v159);
             v159 -= 2;
         }
-        let mut x = (SCREEN_W - self.item_box_w) >> 1;
-        let mut y = (SCREEN_H - self.item_box_h) >> 1;
+        let mut x = (self.layout.screen_w - self.item_box_w) >> 1;
+        let mut y = (self.layout.screen_h - self.item_box_h) >> 1;
         crate::menu_family::paint_box_frame(g, &self.images.ui[0], x, y, self.item_box_w, self.item_box_h);
         x += 20;
         y += 16;
@@ -3808,8 +3822,8 @@ impl GameScene {
     fn paint_menu5(&mut self, g: &mut SoftGraphics<'_>) {
         self.paint_parallax(g, false);
         let font = crate::paint::paint_font();
-        let bx = (SCREEN_W - self.encyc_panel_w) >> 1;
-        let by = (SCREEN_H - self.encyc_panel_h) >> 1;
+        let bx = (self.layout.screen_w - self.encyc_panel_w) >> 1;
+        let by = (self.layout.screen_h - self.encyc_panel_h) >> 1;
         if self.encyc_scroll_bottom - self.encyc_scroll_top > 0 {
             crate::menu_family::paint_box_frame(g, &self.images.ui[0], bx, by, self.encyc_panel_w, self.encyc_panel_h);
             if self.encyc_scroll_top > 0 {
@@ -3952,9 +3966,9 @@ impl GameScene {
     ///（paintTitledBox(0,·)）+ 花费行 + 三行属性（光标高亮 + 双柱图标 + 数字）。
     fn paint_menu9(&mut self, g: &mut SoftGraphics<'_>, tileset: &ArgbImage) {
         self.paint_parallax(g, true);
-        let tile_off = view_top_y() + self.advance_open_group_paint();
+        let tile_off = self.layout.view_top_y + self.advance_open_group_paint();
         self.view.paint_tiles(g, tileset, tile_off);
-        self.paint_entities(g, self.view.cam_x, self.view.cam_y + view_top_y());
+        self.paint_entities(g, self.view.cam_x, self.view.cam_y + self.layout.view_top_y);
         self.paint_hud(g);
         self.paint_status_bar(g);
         m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
@@ -3962,11 +3976,11 @@ impl GameScene {
         let font = crate::paint::paint_font();
         let bw = 115i32; // f_int_75（a.java:810）
         let bh = font.height + 90; // f_int_74（a.java:809）
-        let bx = (SCREEN_W - bw - 22) >> 1;
-        let by = (SCREEN_H - bh) >> 1;
+        let bx = (self.layout.screen_w - bw - 22) >> 1;
+        let by = (self.layout.screen_h - bh) >> 1;
         crate::menu_family::paint_titled_box(g, &self.images.ui[0], &self.images.ui[13], &[0, 1, 2], bx, by, bw + 22, bh);
         let wide = font.char_width('回' as u16) << 1;
-        let mut x = (SCREEN_W - (wide + 16 + 48)) >> 1;
+        let mut x = (self.layout.screen_w - (wide + 16 + 48)) >> 1;
         let mut y = by + 21;
         g.set_color(7575203);
         g.draw_string(&"花费".encode_utf16().collect::<Vec<u16>>(), x, y, 0);
@@ -3975,7 +3989,7 @@ impl GameScene {
         x += 60;
         paint_number(g, &self.images.ui[2], self.alchemy_price, x, y + 3 + ((font.height - 10) >> 1));
         y += font.height + 5;
-        x = (SCREEN_W - bw) >> 1;
+        x = (self.layout.screen_w - bw) >> 1;
         g.set_color(549016);
         g.fill_rect(x, y + (self.alchemy_cursor << 4), bw, 16);
         g.draw_image(&self.images.ui[14], x + 10, y + 2 + (self.alchemy_cursor << 4), 0);
@@ -5828,23 +5842,23 @@ impl GameScene {
             return self.paint_wipe_tail(g);
         }
         self.paint_parallax(g, true);
-        let tile_off = view_top_y() + self.advance_open_group_paint();
+        let tile_off = self.layout.view_top_y + self.advance_open_group_paint();
         self.view.paint_tiles(g, tileset, tile_off);
-        self.paint_entities(g, self.view.cam_x, self.view.cam_y + view_top_y());
+        self.paint_entities(g, self.view.cam_x, self.view.cam_y + self.layout.view_top_y);
         // 小地图（optionChecked[1] && minimapImage）：右上角，玩家点
         if self.minimap_enabled {
             if let Some(mm) = &self.minimap {
                 let ppc = self.layout.minimap_px_per_cell;
                 let dot = self.layout.minimap_dot_px;
                 let off = (ppc - dot) / 2; // 点居格中（classic 4/4 ⇒ 0，零偏离）
-                let x = SCREEN_W - ((self.view.wide + 1) * ppc);
-                g.draw_image(mm, x, view_top_y(), 0);
+                let x = self.layout.screen_w - ((self.view.wide + 1) * ppc);
+                g.draw_image(mm, x, self.layout.view_top_y, 0);
                 g.set_color(MINIMAP_PLAYER_DOT);
                 // a.java:2397-2398：点 = playerCellX/Y（**格坐标**——步进中
                 // 与像素 >>5 不同，上/左行时像素已进目标格而格坐标未更新）
                 g.fill_rect(
                     x + self.player_cell_x * ppc + off,
-                    view_top_y() + self.player_cell_y * ppc + off,
+                    self.layout.view_top_y + self.player_cell_y * ppc + off,
                     dot,
                     dot,
                 );
@@ -5970,7 +5984,7 @@ impl GameScene {
         entity::advance_bob(&mut self.bob_offset, &mut self.bob_rising);
         let bob = self.bob_offset;
         let mut player_drawn = false;
-        let cull_bottom = view_top_y() + self.view.view_h;
+        let cull_bottom = self.layout.view_top_y + self.view.view_h;
 
         for e in 0..self.entities.count {
             if !self.entities.items[e].removed && self.entities.items[e].visible {
@@ -6410,7 +6424,7 @@ impl GameScene {
         let img = self.images.ending.clone();
         let text = self.dialog_data.texts[260].clone();
         let font = crate::paint::paint_font();
-        let img_y0 = (SCREEN_H - img.height) >> 1;
+        let img_y0 = (self.layout.screen_h - img.height) >> 1;
         self.ending_anim += 2;
         if !self.ending_done && (self.frame_counter & 1) != 0 {
             self.ending_scroll += 1;
@@ -6428,11 +6442,11 @@ impl GameScene {
         }
         g.set_color(3156024);
         g.fill_rect(0, 0, SCREEN_W, img_y0);
-        g.fill_rect(0, SCREEN_H - img_y0, SCREEN_W, img_y0);
+        g.fill_rect(0, self.layout.screen_h - img_y0, self.layout.screen_w, img_y0);
         g.set_clip(0, 0, SCREEN_W, SCREEN_H);
         g.draw_image(&img, -self.ending_scroll, img_y0, 0);
         g.set_color(0xFFFF_FFFF);
-        self.paint_wrapped_text(g, 15, SCREEN_H - font.height - 10, 210, font.height + 10, false);
+        self.paint_wrapped_text(g, 15, self.layout.screen_h - font.height - 10, 210, font.height + 10, false);
     }
 
     /// browseOfferQueue（a.java:7480-7503）：日志页钳位翻转 + kind 选表 + 页码指示。
@@ -6466,7 +6480,7 @@ impl GameScene {
     /// （左 transform 镜像 60−bob / 右 160+bob）+ 软键条。
     fn paint_mode12(&mut self, g: &mut SoftGraphics<'_>) {
         self.paint_parallax(g, false);
-        let text_bottom_y = SCREEN_H - crate::paint::paint_font().height - 4;
+        let text_bottom_y = self.layout.screen_h - crate::paint::paint_font().height - 4;
         let indicator = self.page_indicator.clone();
         self.draw_shadow_text(g, &indicator, CENTER_X, text_bottom_y + 2, 4202520, 0xFFFF_FFFFu32 as i32);
         let arrow_y = (text_bottom_y + (crate::paint::paint_font().height + 4 - 13)) >> 1;
@@ -6543,9 +6557,9 @@ impl GameScene {
 
     fn paint_dialog(&mut self, g: &mut SoftGraphics<'_>, tileset: &ArgbImage) {
         self.paint_parallax(g, true);
-        let tile_off = view_top_y() + self.advance_open_group_paint();
+        let tile_off = self.layout.view_top_y + self.advance_open_group_paint();
         self.view.paint_tiles(g, tileset, tile_off);
-        self.paint_entities(g, self.view.cam_x, self.view.cam_y + view_top_y());
+        self.paint_entities(g, self.view.cam_x, self.view.cam_y + self.layout.view_top_y);
         self.popups.draw(g, &self.images.popup);
         self.paint_status_bar(g);
         let show_box = self.overlay_text.is_some() && !self.overlay_active && self.dialog_phase != 4;
@@ -6553,7 +6567,7 @@ impl GameScene {
             let font = crate::paint::paint_font();
             let line_h = font.height + 4;
             let dialog_block_h = (line_h << 1) + 12;
-            let dialog_block_y0 = SCREEN_H - dialog_block_h;
+            let dialog_block_y0 = self.layout.screen_h - dialog_block_h;
             self.paint_hud_frame(g, 0, dialog_block_y0, 80, dialog_block_h);
             let mut cx = 80;
             while cx < 214 {
@@ -6579,14 +6593,14 @@ impl GameScene {
                 if let Some(img) = &self.images.entity[self.dialog_speaker as usize] {
                     if self.dialog_speaker != 72 {
                         let fw = self.type_frame_width_for(self.dialog_speaker);
-                        draw_image_clipped(g, img, (80 - fw) >> 1, SCREEN_H - img.height, 0, 0, fw, img.height);
+                        draw_image_clipped(g, img, (80 - fw) >> 1, self.layout.screen_h - img.height, 0, 0, fw, img.height);
                     } else {
                         draw_image_clipped(g, img, 24, 275, 0, 0, 32, 45);
                     }
                 }
             } else if self.dialog_speaker == 0 {
                 let face = &self.images.actor_face;
-                g.draw_image(face, 40 - (face.width >> 1), SCREEN_H - face.height, 0);
+                g.draw_image(face, 40 - (face.width >> 1), self.layout.screen_h - face.height, 0);
             } else {
                 g.set_color(WHITE);
                 let q: Vec<u16> = "?".encode_utf16().collect();
@@ -6595,10 +6609,10 @@ impl GameScene {
             g.set_color(10473684);
             self.paint_wrapped_text(g, 85, dialog_block_y0 + 12, 129, dialog_block_h - 12, false);
             if self.overlay_page_top > 0 {
-                draw_image_clipped(g, &self.images.ui[15], 220, SCREEN_H - line_h - 10, 0, 0, 7, 9);
+                draw_image_clipped(g, &self.images.ui[15], 220, self.layout.screen_h - line_h - 10, 0, 0, 7, 9);
             }
             if self.overlay_page_bottom < self.overlay_total_lines {
-                draw_image_clipped(g, &self.images.ui[15], 220, SCREEN_H - line_h + 1, 7, 0, 7, 9);
+                draw_image_clipped(g, &self.images.ui[15], 220, self.layout.screen_h - line_h + 1, 7, 0, 7, 9);
             }
             if (self.dialog_phase == 6 || self.dialog_phase == 1)
                 && self.dialog_page >= 0
@@ -6805,6 +6819,83 @@ mod slot_equip_scene_tests {
                 ops.iter().any(|o| o.contains("setClip(241,0,18,16)")),
                 "modern 钥匙首槽贴右 x=241：{ops:?}"
             );
+        }
+    }
+
+    /// 返修判据（用户实机三破绽 2026-10-18）：modern 渲染**分布**——瓦片绘制占
+    /// [view_top, view_bottom) 全宽、HUD/软键落底带。钉"绘制坐标系整体换轨"
+    /// （002 首版只连了 Layout 字段值、draw 落点仍是旧坐标系 ⇒ 地图只画左上角块、
+    /// 属性浮屏中、钥/对话框各自为政）。
+    #[test]
+    fn modern_render_distribution_spans_full_canvas() {
+        let icons = synthetic_sptarm();
+        let mut sc = scene_with(&icons);
+        sc.apply_layout(crate::layout::Layout::modern(13, 13));
+        let mut img = ArgbImage::create(416, 416);
+        let ops;
+        {
+            let mut g = SoftGraphics::new(&mut img);
+            sc.paint(&mut g, &solid(64, 64));
+            ops = g.ops.clone();
+        }
+        // op 坐标抽取（"name(x,y,…)" → (x,y)）
+        let coords: Vec<(i32, i32)> = ops
+            .iter()
+            .filter_map(|o| {
+                let args = o.split('(').nth(1)?.split(')').next()?;
+                let mut it = args.split(',');
+                let x: i32 = it.next()?.trim().parse().ok()?;
+                let y: i32 = it.next()?.trim().parse().ok()?;
+                Some((x, y))
+            })
+            .collect();
+        // ① 地图瓦片（clip 16×16 专属模式）横跨全宽且填满可视窗：
+        //    破绽现状=旧视口 15 列×~16 行 ≈240 片、max_x≈224；换轨后 26 列 ≥380 片、max_x≥400
+        let tiles: Vec<(i32, i32)> = ops
+            .iter()
+            .filter(|o| o.starts_with("setClip(") && o.ends_with(",16,16)"))
+            .filter_map(|o| {
+                let args = o.split('(').nth(1)?.split(')').next()?;
+                let mut it = args.split(',');
+                let x: i32 = it.next()?.trim().parse().ok()?;
+                let y: i32 = it.next()?.trim().parse().ok()?;
+                Some((x, y))
+            })
+            .collect();
+        let tile_max_x = tiles.iter().map(|t| t.0).max().unwrap_or(0);
+        assert!(tile_max_x >= 380, "modern 瓦片须横跨画布全宽（现 tile_max_x={tile_max_x}）");
+        assert!(
+            tiles.len() >= 380,
+            "modern 瓦片须填满可视窗（现 {} 片，旧视口窗≈240）",
+            tiles.len()
+        );
+        // ② HUD 落底带（≥366）：现破绽=属性浮屏中（旧 hud_base=270）
+        let bottom_max_y = coords.iter().map(|c| c.1).max().unwrap_or(0);
+        assert!(bottom_max_y >= 366, "modern HUD/软键须落底带（现 bottom_max_y={bottom_max_y}）");
+    }
+
+    /// 返修判据补：modern 画布绘制零大幅越界（坐标系整体换轨后无旧系残留出框）。
+    #[test]
+    fn modern_render_no_draw_outside_canvas() {
+        let icons = synthetic_sptarm();
+        let mut sc = scene_with(&icons);
+        sc.apply_layout(crate::layout::Layout::modern(13, 13));
+        let mut img = ArgbImage::create(416, 416);
+        {
+            let mut g = SoftGraphics::new(&mut img);
+            sc.paint(&mut g, &solid(64, 64));
+            for o in &g.ops {
+                let Some(args) = o.split('(').nth(1).and_then(|s| s.split(')').next()) else {
+                    continue;
+                };
+                let nums: Vec<i32> = args
+                    .split(',')
+                    .filter_map(|t| t.trim().trim_start_matches('#').parse().ok())
+                    .collect();
+                if let (Some(&x), Some(&y)) = (nums.first(), nums.get(1)) {
+                    assert!(x < 416 + 64 && y < 416 + 64, "越界绘制 {o}（坐标系残留）");
+                }
+            }
         }
     }
 
