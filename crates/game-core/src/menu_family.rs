@@ -153,7 +153,7 @@ pub fn draw_edge_patch(
         let t = crate::paint::NOKIA_TRANSFORM_TABLE[kind as usize];
         g.draw_image_transformed(img, dx, dy, 0, t);
     }
-    g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
+    g.reset_clip();
 }
 
 /// `paintBoxFrame`（a.java:6119-6153）：标准盒框（ui[8][0] 角片 26×16 / 边片 16×16）。
@@ -172,7 +172,7 @@ pub fn paint_box_frame(g: &mut SoftGraphics<'_>, ui0: &ArgbImage, x: i32, y: i32
         draw_edge_patch(g, ui0, vx, y + h - BORDER_STRIP_H, BORDER_CORNER_W, 0, BORDER_MID_W, BORDER_STRIP_H, 2);
         vx += BORDER_MID_W;
     }
-    g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
+    g.reset_clip();
     draw_edge_patch(g, ui0, x + w - BORDER_CORNER_W, y, 0, 0, BORDER_CORNER_W, BORDER_STRIP_H, 1);
     // 内衬
     g.set_color(crate::layout::HUD_FILL);
@@ -189,7 +189,7 @@ pub fn paint_box_frame(g: &mut SoftGraphics<'_>, ui0: &ArgbImage, x: i32, y: i32
     }
     draw_edge_patch(g, ui0, x, y + h - BORDER_STRIP_H, 0, 0, BORDER_CORNER_W, BORDER_STRIP_H, 2);
     draw_edge_patch(g, ui0, x + w - BORDER_CORNER_W, y + h - BORDER_STRIP_H, 0, 0, BORDER_CORNER_W, BORDER_STRIP_H, 3);
-    g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
+    g.reset_clip();
 }
 
 /// `paintTitledBox`（a.java:6112-6125）：盒框 + 顶部标题条（ui[8][13] 按 `segs`
@@ -212,7 +212,7 @@ pub fn paint_titled_box(
         g.draw_image(ui13, tx - seg * 14, ty, 0);
         tx += 14;
     }
-    g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
+    g.reset_clip();
 }
 
 /// `paintMiniFrame`（a.java:6196-6199）：小框（32×32 图标框底）。
@@ -247,7 +247,7 @@ pub fn paint_number(g: &mut SoftGraphics<'_>, digits: &ArgbImage, value: i32, x:
             break;
         }
     }
-    g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
+    g.reset_clip();
     if negative {
         g.set_color(crate::layout::NUMBER_NEGATIVE);
         g.draw_line(cx - dw + 1, y + 3, cx - 1, y + 3);
@@ -863,7 +863,7 @@ impl SlotSelect {
             for (kind, count) in [(0, self.keys_yellow[c]), (1, self.keys_blue[c]), (2, self.keys_red[c])] {
                 g.set_clip(vx, vy, 18, 16);
                 g.draw_image(&ui[6], vx - kind * 18, vy, 0);
-                g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
+                g.reset_clip();
                 paint_number(g, &ui[2], count as i32, vx + 40, vy + 5);
                 vx += 42;
             }

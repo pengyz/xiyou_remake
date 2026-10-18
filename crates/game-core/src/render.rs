@@ -249,6 +249,15 @@ impl<'a> SoftGraphics<'a> {
         self.op(format!("setClip({x},{y},{w},{h})"));
     }
 
+    /// 复位剪裁区=**整幅画布**（"取景后复位"类绘制用；禁 SCREEN 常量——
+    /// 画布可为任意尺寸，常量复位在 modern 会把后续绘制裁掉，2026-10-18 用户
+    /// 实报"对话框底色被背景覆盖"根因）。classic 画布=240×320 ⇒ op 文本与
+    /// 常量复位逐字同（oracle ops 对拍零偏离）。
+    pub fn reset_clip(&mut self) {
+        let (w, h) = (self.target.width, self.target.height);
+        self.set_clip(0, 0, w, h);
+    }
+
     /// `clipRect`：与当前剪裁区取交（`Graphics.java:133-143`）。
     pub fn clip_rect(&mut self, x: i32, y: i32, w: i32, h: i32) {
         let x2 = (self.clip_x + self.clip_w).min(x + w);

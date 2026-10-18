@@ -249,9 +249,9 @@ impl IntroSequence {
                 0,
             );
         }
-        g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
+        g.reset_clip();
         particles.paint_and_update(g);
-        g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
+        g.reset_clip();
     }
 }
 

@@ -7038,6 +7038,10 @@ mod slot_equip_scene_tests {
             "对话文本须绘出（drawString/drawSubstring 在场）：{:?}",
             ops.iter().filter(|o| o.contains("tring")).collect::<Vec<_>>()
         );
+        // 【v7 判据】对话框体底色=HUD_FILL（用户实报"框底色被背景覆盖"——
+        // 裁剪复位常量漏网把 body 填充裁掉、露背景）
+        let body = img.argb[404 * 416 + 260];
+        assert_eq!(body, HUD_FILL | 0xFF00_0000, "对话框体底色须=HUD_FILL（现={body:#010x}=背景色透出）");
     }
 
     /// 底部区口径修正判据（lead 设计口径级修正 2026-10-18：**经典尺寸固定+整体居中**，
@@ -7113,15 +7117,24 @@ mod slot_equip_scene_tests {
             );
         }
         // 真图实测：解码两预设自验图，量底部带逐行内容列段（非底色像素游程）
+        // +【v7】对话框体打点：body/顶条/左面板三点采样——框内应=框底色，
+        // 若=沙色即"对话框底色被背景覆盖/透印"实证（用户 2026-10-18 质询）
         let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         for (label, file) in [
-            ("classic", "analysis/b002-classic-t500-v2.png"),
-            ("modern", "analysis/b002-modern-t500-v2.png"),
+            ("classic", "analysis/b002-classic-v7.png"),
+            ("modern", "analysis/b002-modern-v7.png"),
         ] {
             let bytes = std::fs::read(repo.join(file)).unwrap();
             let dec = game_data::decode_png(&bytes).unwrap();
             let (w, h) = (dec.width as usize, dec.height as usize);
-            eprintln!("PROBE shot-{label} {w}x{h}");
+            let px = |x: usize, y: usize| dec.argb[y * w + x];
+            eprintln!(
+                "PROBE shot-{label} {w}x{h} 框体打点 body({},{})={:#010x} topstrip({},{})={:#010x} leftpanel({},{})={:#010x}（HUD_FILL={:#010x}）",
+                w * 5 / 8, h - 12, px(w * 5 / 8, h - 12),
+                w / 2, h - 34, px(w / 2, h - 34),
+                w / 6, h - 12, px(w / 6, h - 12),
+                HUD_FILL | 0xFF00_0000
+            );
             for y in (h - 50)..h {
                 let mut runs: Vec<(usize, usize)> = Vec::new();
                 let mut start = usize::MAX;

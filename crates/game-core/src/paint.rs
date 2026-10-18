@@ -43,7 +43,7 @@ fn draw_image_with_nokia_transform(g: &mut SoftGraphics<'_>, img: &ArgbImage, x:
 pub fn draw_image_clipped(g: &mut SoftGraphics<'_>, img: &ArgbImage, x: i32, y: i32, sx: i32, sy: i32, w: i32, h: i32) {
     g.set_clip(x, y, w, h);
     g.draw_image(img, x - sx, y - sy, 0);
-    g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
+    g.reset_clip();
 }
 
 /// `paintSoftkeyBar`（a.java:6006-6010）：软键栏。`left`/`right` = softkeyLeftKind/softkeyRightKind

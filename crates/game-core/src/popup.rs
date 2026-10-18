@@ -170,6 +170,6 @@ pub fn draw_digit_strip(g: &mut SoftGraphics<'_>, strip: &ArgbImage, mut value: 
     cx -= digit_w + 1;
     g.set_clip(cx, y, digit_w, h);
     g.draw_image(strip, cx - (strip.width - digit_w), y, 0);
-    g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
+    g.reset_clip();
     count + 1
 }

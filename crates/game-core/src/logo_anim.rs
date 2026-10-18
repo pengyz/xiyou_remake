@@ -463,7 +463,7 @@ impl LogoAnim {
             } else if let Some(img) = &self.images[i] {
                 g.draw_image(img, x, y, 0);
             }
-            g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
+            g.reset_clip();
         }
     }
 }
@@ -508,7 +508,7 @@ mod tests {
 
         let mut screen = ArgbImage::create(crate::layout::SCREEN_W, crate::layout::SCREEN_H);
         let mut g = crate::render::SoftGraphics::new(&mut screen);
-        g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H); // serviceRepaints 入口（Canvas.java:71）
+        g.reset_clip(); // serviceRepaints 入口（Canvas.java:71）
         g.set_font(Some(crate::paint::paint_font())); // paint 入口 a.java:2336
         anim.paint(&mut g, &sflogo[7]);
 
@@ -555,7 +555,7 @@ mod tests {
         let mut screen = ArgbImage::create(crate::layout::SCREEN_W, crate::layout::SCREEN_H);
         {
             let mut g = crate::render::SoftGraphics::new(&mut screen);
-            g.set_clip(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
+            g.reset_clip();
             g.set_font(Some(crate::paint::paint_font()));
             anim.paint(&mut g, &sflogo[7]);
         }
