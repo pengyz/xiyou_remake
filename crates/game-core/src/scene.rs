@@ -6263,9 +6263,24 @@ impl GameScene {
     /// （PLAYER_ANCHORS 的 (dx,dy,行)；case 3 为镜像——drawEdgePatch transform 1）；
     /// walkPhase==2 残影（afterimageX/Y）战斗批次。
     pub fn paint_player(&self, g: &mut SoftGraphics<'_>, cam_x: i32, cam_y: i32) {
-        let px = cam_x + self.view.player_px;
-        let mut py = cam_y + self.view.player_py;
-        if self.player_bob_applied {
+        // 【STAGE-B-002 偏离点·观察形态(a)（lead 裁决 2026-10-19，用户批准）】
+        // 空格观察形态（walkPhase==2 未锁定）modern：**角色恒居中**（与残影蛇
+        // 收敛点同锚=视口中心 easeAfterimages 目标），地图随相机滑动=以角色
+        // 为中心环视；classic 保持原机制（cam+player）零偏离。
+        let soul_view = self.walk_phase == 2
+            && !self.view_locked
+            && self.layout.preset == crate::layout::Preset::Modern;
+        let (px, mut py) = if soul_view {
+            // 与残影蛇收敛点严格同点（easeAfterimages 目标换屏坐标=视口中心）：
+            // cam_y 含 view_top 分量（paint_entities 传参），故回补之
+            (
+                (self.view.view_w - 41) >> 1,
+                (cam_y - self.view.cam_y) + (self.view.view_h >> 1) + self.bob_offset,
+            )
+        } else {
+            (cam_x + self.view.player_px, cam_y + self.view.player_py)
+        };
+        if !soul_view && self.player_bob_applied {
             py -= self.bob_offset;
         }
         g.draw_image(&self.images.shadow, px + SHADOW_DX, py + SHADOW_DY, 0);
@@ -7208,6 +7223,65 @@ mod slot_equip_scene_tests {
                 modern, classic,
                 "底部区组合关系须纯平移且层序不变（speaker={speaker}）"
             );
+        }
+    }
+
+    /// 观察形态判据（lead 裁决 (a) 2026-10-19 用户批准，STAGE-B-002 偏离点）：
+    /// 空格观察形态（walkPhase==2 未锁定）modern **角色恒居中**（视口中心成像
+    /// 出现角色=与基帧不同）；classic 保持原机制（角色留 cam+player 位、
+    /// 视口中心与基帧同）——classic 零偏离。
+    #[test]
+    fn soul_view_character_pinned_center_modern_only() {
+        let icons = synthetic_sptarm();
+        let shot = |layout: crate::layout::Layout, walk: i32| {
+            let mut sc = scene_with(&icons);
+            sc.apply_layout(layout);
+            sc.view.player_px = 32;
+            sc.view.player_py = 32;
+            for i in 0..4 {
+                sc.afterimage_x[i] = 32;
+                sc.afterimage_y[i] = 32;
+            }
+            sc.walk_phase = walk;
+            sc.view_locked = false;
+            let (cx, cy) = (
+                ((sc.layout.game_view_w - 41) >> 1) as usize,
+                (sc.layout.view_top_y + sc.layout.game_view_h / 2) as usize,
+            );
+            let (w, h) = (sc.layout.screen_w as usize, sc.layout.screen_h as usize);
+            let mut img = ArgbImage::create(w as i32, h as i32);
+            let ops;
+            {
+                // 直驱 paint_player（cam 传参=真实调用方口径：view.cam+view_top）
+                let mut g = SoftGraphics::new(&mut img);
+                sc.paint_player(&mut g, sc.view.cam_x, sc.view.cam_y + sc.layout.view_top_y);
+                ops = g.ops.clone();
+            }
+            if std::env::var("PROBE_SOUL").is_ok() {
+                eprintln!("PROBE walk={walk} ops: {:?}", ops);
+            }
+            (img, cx, cy)
+        };
+        for (label, layout, expect_pin) in [
+            ("classic", crate::layout::Layout::classic(), false),
+            ("modern", crate::layout::Layout::modern(13, 13), true),
+        ] {
+            let (base, cx, cy) = shot(layout.clone(), 0);
+            let (soul, _, _) = shot(layout, 2);
+            let bw = base.width as usize;
+            let mut diff = 0usize;
+            for y in cy..cy + 30 {
+                for x in cx..cx + 30 {
+                    if base.argb[y * bw + x] != soul.argb[y * bw + x] {
+                        diff += 1;
+                    }
+                }
+            }
+            if expect_pin {
+                assert!(diff > 40, "{label}：观察态角色须钉视口中心（中心窗 diff={diff}）");
+            } else {
+                assert_eq!(diff, 0, "{label}：观察态原机制（角色留 cam+player 位，中心窗须与基帧同）");
+            }
         }
     }
 
