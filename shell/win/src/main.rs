@@ -445,6 +445,9 @@ struct Shell {
     boot_key_audio_done: bool,
     /// 上次同步时的 anyKeyPlayed（只用于记录续播边沿日志）
     resume_armed: bool,
+    /// 跨机换机储备（kind7 退出→回标题，2026-10-18）：enter_scene 收储 BootMachine，
+    /// 换回时还原——Java CMidlet 同对象保标题态（cursor/粒子/相位）的保真对偶。
+    stashed_boot: Option<game_core::paint::BootMachine>,
 }
 
 impl Shell {
@@ -507,6 +510,7 @@ impl Shell {
             visibility: lifecycle::Visibility::new(),
             boot_key_audio_done: false,
             resume_armed: false,
+            stashed_boot: None,
         }
     }
 
@@ -783,13 +787,29 @@ impl Shell {
     /// mode 3；两路均与 harness 同构）并切入 GameScene。
     fn enter_scene(&mut self, mut sc: GameScene) {
         // SKY_WAR 交接拷贝（Boot→GameScene）：不拷则场景水位从 0 起步会把持久水位写回退
-        if let Some(Screen::Boot(m)) = self.state.as_ref() {
+        if let Some(Screen::Boot(m)) = self.state.take() {
             let g = m.global_snapshot();
             sc.apply_global(g);
+            self.stashed_boot = Some(m); // 跨机储备（kind7 退出回标题用）
         }
         self.paint_scene(&mut sc);
         self.state = Some(Screen::Game(Box::new(sc)));
         self.frame_counter += 1;
+    }
+
+    /// 跨机换机检查（kind7 退出→回标题，2026-10-18）：scene 置 MainMenu 态 =
+    /// 换机请求（Java gameMode=1 语义），换回 stashed BootMachine（标题态保真）。
+    fn swap_back_to_boot_if_requested(&mut self) {
+        let need = match self.state.as_ref() {
+            Some(Screen::Game(sc)) => sc.game_mode == game_core::enums::GameMode::MainMenu,
+            _ => false,
+        };
+        if need {
+            if let Some(mut m) = self.stashed_boot.take() {
+                m.mode = game_core::enums::GameMode::MainMenu;
+                self.state = Some(Screen::Boot(m));
+            }
+        }
     }
 
     /// SKY_WAR 持久化轮询（saveGlobalProgress 触发收口）：活动屏任一脏 ⇒ 落盘。
@@ -1211,6 +1231,7 @@ fn run_window(shell: Shell) {
                 self.shell.logic_tick();
                 // CMidlet.m_000 退出信号消费点（BUG-020，接缝③）：game-core 发信号、
                 // shell 经 ProcessControl 执行退出（粘滞轮询、幂等——consume_exit）
+                self.shell.swap_back_to_boot_if_requested();
                 self.shell.consume_exit(&mut WinitExit { el });
                 let iv = self.shell.frame_interval();
                 self.pacer.after_tick(now, iv);

@@ -730,6 +730,8 @@ pub static TRANSFER_EDGES: &[(GameMode, Option<GameMode>)] = &[
     (GameMode::InGameMenu, Some(GameMode::Shop)),
     (GameMode::InGameMenu, Some(GameMode::Map)),
     (GameMode::InGameMenu, Some(GameMode::EnemyInfo)),
+            // 退出→回标题（kind7→gameMode=1，a.java:4776-4790 区；2026-10-18 补登）
+            (GameMode::InGameMenu, Some(GameMode::MainMenu)),
     // 23：EnemyInfo 返回
     (GameMode::EnemyInfo, Some(GameMode::Map)),
     // 24：7/8 存档槽（return_mode=动态）
@@ -2981,8 +2983,15 @@ impl GameScene {
                 self.player.atk = 710;
                 self.player.def = 710;
             }
+            7 => {
+                // 退出→回标题（Java gameMode=1，run case 4 家族 a.java:4776-4790 区
+                // "7→mode1（退出标题）"）：跨机信号——game_mode=MainMenu 即换机请求，
+                // shell 换回 BootMachine（stash 保标题态，CMidlet 同对象语义）。
+                // 2026-10-18 用户实报：原落 other 臂空转（"待跨机模式批次"）＝退出无反应。
+                self.transition_to(GameMode::MainMenu);
+            }
             other => {
-                let _ = other; // 3/4/5/7：待跨机模式批次
+                let _ = other; // 其余 kind：待跨机模式批次
             }
         }
     }
@@ -7960,6 +7969,64 @@ mod pointer_seam_tests {
         sc.select_row(1);
         assert_eq!(sc.slot.cursor, 1);
         assert_eq!(sc.player.hp, hp, "他态零变化");
+    }
+
+    /// 游戏内菜单"退出"（kind7）→ 回标题（Java gameMode=1 跨机语义）——
+    /// 2026-10-18 用户实报修复：原 other 臂空转＝退出无反应。
+    #[test]
+    fn ingame_menu_exit_returns_to_title() {
+        let mut sc = scene((2, 2), &[]);
+        sc.game_mode = GameMode::InGameMenu;
+        sc.menu_kinds = vec![7]; // 退出项
+        sc.menu_item_count = 1;
+        sc.menu_cursor = 0;
+        sc.key_value = -6; // 确认（菜单族激活键）
+        sc.tick(0, &[]);
+        assert_eq!(
+            sc.game_mode,
+            GameMode::MainMenu,
+            "kind7 退出须置 MainMenu（跨机信号→shell 换回 BootMachine）"
+        );
+    }
+
+    /// 退出链无头复现（BUG-020 复发追查 2026-10-18）：标题→退出项→确认→
+    /// LogoAnim 退场动画→counter>70→finished。断在哪段一测即知。
+    #[test]
+    fn boot_exit_chain_reaches_finished() {
+        use crate::paint::BootMachine;
+        let mut m = BootMachine::new(
+            crate::render::ArgbImage::create(1, 1),
+            crate::render::ArgbImage::create(1, 1),
+            (0..8).map(|_| crate::render::ArgbImage::create(1, 1)).collect(),
+            (0..25).map(|_| crate::render::ArgbImage::create(1, 1)).collect(),
+            (0..2).map(|_| crate::render::ArgbImage::create(1, 1)).collect(),
+            crate::render::ArgbImage::create(1, 1),
+            vec![crate::render::ArgbImage::create(1, 1)],
+            vec![crate::render::ArgbImage::create(1, 1)],
+            vec![crate::render::ArgbImage::create(1, 1)],
+        );
+        // 开机相位推进在 paint 侧（boot-replay 口径）——探针直置 MainMenu 态验退出链本体
+        m.mode = GameMode::MainMenu;
+        m.title = Some(crate::title::TitleMachine::new());
+        // 退出项 = cursor 末位（menu_kinds 尾 kind5）；下移键=-2
+        for _ in 0..10 {
+            m.tick(-2);
+        }
+        // 光标推到末位（kind5=LogoAnim=退出）
+        let n = if let Some(t2) = m.title.as_ref() { t2.menu_kinds.len() } else { 0 };
+        if let Some(t2) = m.title.as_mut() {
+            t2.cursor = n as i32 - 1;
+        }
+        m.tick(-5);
+        println!("确认后 mode={:?}", m.mode);
+        for i in 0..80 {
+            m.tick(0);
+            if m.finished {
+                println!("第 {i} 拍 finished=true");
+                break;
+            }
+        }
+        assert!(m.finished, "退出链断裂：80 拍后 finished 仍为 false（mode={:?}）", m.mode);
     }
 
     /// 标题侧设置面板（BootMachine::About，C-2 补面）：命中 + confirm=-5 + 只动高亮
