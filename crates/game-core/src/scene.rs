@@ -6339,24 +6339,25 @@ impl GameScene {
         let base_y = self.view_bottom;
         self.paint_hud_frame(g, 0, base_y, SCREEN_W, HUD_FRAME_H);
         let face = &self.images.actor_face;
-        g.draw_image(face, HUD_FACE_AX - (face.width >> 1), base_y + HUD_FRAME_H - face.height, 0);
-        let bar_x = HUD_ICON_X + HUD_BAR_DX;
+        g.draw_image(face, self.layout.hud_face_ax - (face.width >> 1), base_y + HUD_FRAME_H - face.height, 0);
+        let icon_x = self.layout.hud_icon_x;
+        let bar_x = icon_x + HUD_BAR_DX;
         let mut y = base_y + HUD_STAT_Y0;
         // HP 行：图标 HUD_ICON_CLIP 见方 + 条框 + 数值
-        g.set_clip(HUD_ICON_X, y, HUD_ICON_CLIP, HUD_ICON_CLIP);
-        g.draw_image(&self.images.ui[7], HUD_ICON_X, y + HUD_ICON_LIFT, 0);
+        g.set_clip(icon_x, y, HUD_ICON_CLIP, HUD_ICON_CLIP);
+        g.draw_image(&self.images.ui[7], icon_x, y + HUD_ICON_LIFT, 0);
         g.set_clip(0, 0, SCREEN_W, SCREEN_H);
         paint_mini_frame(g, bar_x, y + 1, HUD_BAR_W, HUD_BAR_H);
         paint_number(g, &self.images.ui[2], self.player.hp, bar_x + HUD_NUM_DX, y + 2);
         // 攻行：图标条带片 (10,0,10,13)
         y += HUD_ROW_STEP;
-        draw_image_clipped(g, &self.images.ui[7], HUD_ICON_X, y, 10, 0, HUD_ICON_CLIP, HUD_ICON_STRIP_H);
+        draw_image_clipped(g, &self.images.ui[7], icon_x, y, 10, 0, HUD_ICON_CLIP, HUD_ICON_STRIP_H);
         g.set_color(HUD_ROW_ACCENT);
         paint_mini_frame(g, bar_x, y + 1, HUD_BAR_W, HUD_BAR_H);
         paint_number(g, &self.images.ui[2], self.player.atk, bar_x + HUD_NUM_DX, y + 2);
         // 防行：图标条带片 (20,0,10,13)
         y += HUD_ROW_STEP;
-        draw_image_clipped(g, &self.images.ui[7], HUD_ICON_X, y, 20, 0, HUD_ICON_CLIP, HUD_ICON_STRIP_H);
+        draw_image_clipped(g, &self.images.ui[7], icon_x, y, 20, 0, HUD_ICON_CLIP, HUD_ICON_STRIP_H);
         g.set_color(HUD_ROW_ACCENT);
         paint_mini_frame(g, bar_x, y + 1, HUD_BAR_W, HUD_BAR_H);
         paint_number(g, &self.images.ui[2], self.player.def, bar_x + HUD_NUM_DX, y + 2);
@@ -6636,10 +6637,11 @@ impl GameScene {
     }
 
     /// paintStatusBar（a.java:6018-6035）：顶部状态栏（层数/三钥/金币）+ paintKeySlot。
+    /// 锚位随 `self.layout`（STAGE-B-002 ②：楼层贴左/钥匙金币贴右/中间填充界）。
     pub fn paint_status_bar(&mut self, g: &mut SoftGraphics<'_>) {
         let base_y = 0;
         let font = crate::paint::paint_font();
-        g.set_clip(0, 0, SCREEN_W, SCREEN_H);
+        g.set_clip(0, 0, self.layout.screen_w, self.layout.screen_h);
         g.draw_image(&self.images.ui[3], 0, base_y, 0);
         if self.floor > 50 {
             // "引子" outline 文本（drawOutlinedText a.java:4487-4495）：anchor 17 =
@@ -6667,13 +6669,14 @@ impl GameScene {
             g.draw_image(&self.images.ui[8], STATUS_TIER_ICON_X, base_y + 4 + 10, 0);
         }
         g.set_color(STATUS_FILL);
-        g.fill_rect(STATUS_KEY_X[0], base_y, SCREEN_W - STATUS_KEY_X[0], STATUS_BAR_H);
-        self.paint_key_slot(g, 0, self.player.yellow_keys, STATUS_KEY_X[0], base_y);
-        self.paint_key_slot(g, 1, self.player.blue_keys, STATUS_KEY_X[1], base_y);
-        self.paint_key_slot(g, 2, self.player.red_keys, STATUS_KEY_X[2], base_y);
+        let fill_x = self.layout.status_fill_x;
+        g.fill_rect(fill_x, base_y, self.layout.screen_w - fill_x, STATUS_BAR_H);
+        self.paint_key_slot(g, 0, self.player.yellow_keys, self.layout.status_key_x[0], base_y);
+        self.paint_key_slot(g, 1, self.player.blue_keys, self.layout.status_key_x[1], base_y);
+        self.paint_key_slot(g, 2, self.player.red_keys, self.layout.status_key_x[2], base_y);
         let y = base_y + 3;
-        g.draw_image(&self.images.ui[1], STATUS_GOLD_ICON_X, y, 0);
-        paint_number(g, &self.images.ui[2], self.player.gold, STATUS_GOLD_NUM_X, y + 2);
+        g.draw_image(&self.images.ui[1], self.layout.status_gold_icon_x, y, 0);
+        paint_number(g, &self.images.ui[2], self.player.gold, self.layout.status_gold_num_x, y + 2);
     }
 
     /// paintKeySlot（a.java:6043-6044）：钥匙格（ui[8][6] KEY_SLOT_W 三联图 + 数量）。
@@ -6763,6 +6766,43 @@ mod slot_equip_scene_tests {
             vec![None; 56],
         )
         .unwrap()
+    }
+
+    /// STAGE-B-002 ② 消费面：paint_status_bar 锚位随 `self.layout`（modern 贴右/
+    /// 黑填充界），classic 零偏离（既有像素/ops 测全绿护航）。
+    #[test]
+    fn status_bar_anchors_follow_layout() {
+        let icons = synthetic_sptarm();
+        let norm = |o: &String| o.replace(", ", ",");
+        // classic：填充 (65,0,175,18)——240-65=175，原值
+        let mut sc = scene_with(&icons);
+        let mut img = ArgbImage::create(crate::layout::SCREEN_W, crate::layout::SCREEN_H);
+        {
+            let mut g = SoftGraphics::new(&mut img);
+            sc.paint_status_bar(&mut g);
+            let ops: Vec<String> = g.ops.iter().map(norm).collect();
+            assert!(
+                ops.iter().any(|o| o.contains("fillRect(65,0,175,18,")),
+                "classic 原值填充：{ops:?}"
+            );
+        }
+        // modern(13,13)=416：填充 (65,0,351,18)——416-65=351；钥匙首槽 clip x=241（贴右）
+        let mut sc = scene_with(&icons);
+        sc.layout = crate::layout::Layout::modern(13, 13);
+        let mut img = ArgbImage::create(416, 416);
+        {
+            let mut g = SoftGraphics::new(&mut img);
+            sc.paint_status_bar(&mut g);
+            let ops: Vec<String> = g.ops.iter().map(norm).collect();
+            assert!(
+                ops.iter().any(|o| o.contains("fillRect(65,0,351,18,")),
+                "modern 贴右填充宽随屏：{ops:?}"
+            );
+            assert!(
+                ops.iter().any(|o| o.contains("setClip(241,0,18,16)")),
+                "modern 钥匙首槽贴右 x=241：{ops:?}"
+            );
+        }
     }
 
     fn loaded_with(icons: &[ArgbImage], save: &crate::save::FloorSave) -> GameScene {
