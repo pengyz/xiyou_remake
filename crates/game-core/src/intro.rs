@@ -1,5 +1,5 @@
 //! mode 14 新游戏引子（runIntroViewer a.java:4826-4891 + paint case 14 a.java:2923-2950）
-//! 与 mode 2 加载链（run case 2 a.java:3447-3542 + startNewGameLoad/m_131/m_132）。
+//! 与 mode 2 加载链（run case 2 a.java:3447-3542 + startNewGameLoad/startLoadTask/stepLoadTask）。
 //!
 //! # mode 14 引子（三页图文 + 字幕滚动机）
 //!
@@ -16,11 +16,11 @@
 //!
 //! # mode 2 加载链（进度追赶模型）
 //!
-//! `m_131(target, call_m000)`：steps 表 loadSteps[16]、loadStepCount=步数、
-//! m_001(15)（load 容器进度条图）。tick：`loadProgress < loadProgressTarget` 时进度
+//! `startLoadTask(target, call_m000)`：steps 表 loadSteps[16]、loadStepCount=步数、
+//! loadPackedImages(15)（load 容器进度条图）。tick：`loadProgress < loadProgressTarget` 时进度
 //! +4/tick；否则执行 steps[loadStepIndex] 并 `loadProgressTarget = 步idx*100/步数`（≤
 //! 进度则 = 进度+1）。进度 ≥100 → 重置 + gameMode=loadTargetMode（loadCallInit 则
-//! m_000）。**42 tick/次**（enter-game T382-423 实证）。
+//! dispatchModeEntry）。**42 tick/次**（enter-game T382-423 实证）。
 //!
 //! Rust 侧资源已全预载——步骤只落实**状态效果**（步骤 8 的新游戏初始值），
 //! 其余步骤的地图/实体装载属 mode 3 范围（本模块只推进度与目标模式）。
@@ -255,9 +255,9 @@ impl IntroSequence {
     }
 }
 
-/// mode 2 加载链状态（m_131/m_132 + run case 2 的进度追赶）。
+/// mode 2 加载链状态（startLoadTask/stepLoadTask + run case 2 的进度追赶）。
 pub struct LoadProgress {
-    /// steps：loadSteps 有效前缀（m_132 登记序）。
+    /// steps：loadSteps 有效前缀（stepLoadTask 登记序）。
     steps: Vec<i8>,
     /// loadStepIndex：步指针。
     step_idx: i32,
@@ -267,12 +267,12 @@ pub struct LoadProgress {
     bar_max: i32,
     /// loadTargetMode：目标模式。
     pub target_mode: GameMode,
-    /// loadCallInit：完成时是否调 m_000。
+    /// loadCallInit：完成时是否调 dispatchModeEntry。
     call_m000: bool,
 }
 
 impl LoadProgress {
-    /// `m_131(target, call_m000)` + `m_132(...)`（a.java:9885-9893 区）。
+    /// `startLoadTask(target, call_m000)` + `stepLoadTask(...)`（a.java:9885-9893 区）。
     pub fn new(target: GameMode, call_m000: bool, steps: &[i8]) -> LoadProgress {
         LoadProgress { steps: steps.to_vec(), step_idx: 0, progress: 0, bar_max: 0, target_mode: target, call_m000 }
     }

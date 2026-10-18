@@ -5,7 +5,7 @@
 //! ```text
 //! showNotify()  a.java:4495-4500 / @0-17   if (!f_bool_01) { f_bool_01 = true; }
 //! hideNotify()  a.java:4502-4513 / @0-43   if (f_bool_01) {
-//!                                             if (gameMode == 3) { gameMode = 4; m_000(); }
+//!                                             if (gameMode == 3) { gameMode = 4; dispatchModeEntry(); }
 //!                                             closeAudioPlayer(); anyKeyPlayed = true;
 //!                                             f_bool_01 = false; }
 //! ```

@@ -5,7 +5,7 @@
 //! ```text
 //! showNotify()  a.java:4495-4500 / @0-17   if (!f_bool_01) { f_bool_01 = true; }
 //! hideNotify()  a.java:4502-4513 / @0-43   if (f_bool_01) {
-//!                                             if (gameMode == 3) { gameMode = 4; m_000(); }
+//!                                             if (gameMode == 3) { gameMode = 4; dispatchModeEntry(); }
 //!                                             closeAudioPlayer(); anyKeyPlayed = true;
 //!                                             f_bool_01 = false; }
 //! ```
@@ -25,7 +25,7 @@
 //! | 画中画（可见非遮挡） | onPause(in_pip=true) | **不发** Hide | 按「完全遮挡才 hide」锚（S1 裁定） |
 //!
 //! **音频焦点不处理**（对抗审查 F-6 砍除）：原版 J2ME 无音频焦点概念（a.java 音频入口
-//! 仅 m_139/closeAudioPlayer，:10158-10215）；焦点被抢期间的发声属平台近似边界，
+//! 仅 playBgm/closeAudioPlayer，:10158-10215）；焦点被抢期间的发声属平台近似边界，
 //! 不得引入原版没有的可听行为（AGENTS §1）。如日后需要 opt-in，须 decision 登记 +
 //! 用户确认（另立任务）。
 //!

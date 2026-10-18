@@ -10,7 +10,7 @@
 //!   （release_key 只清 key_held=0，不认键）。按住方向盘(-1)再按软键(-5)⇒折叠为
 //!   key_value=key_held=-5（行走即停）；松任一**持键**触点 ⇒ key_held=0 且
 //!   **行走不自动恢复**（"松开软键恢复行走"= 发明行为 = 禁）。
-//! - BACK 键吞默认（BUG-020 退出链：退出只经 m_000 信号 → shell 消费；
+//! - BACK 键吞默认（BUG-020 退出链：退出只经 dispatchModeEntry 信号 → shell 消费；
 //!   BACK 不消费 ⇒ 系统 finish Activity ⇒ 绕过退出链）。
 //! - 隐藏期输入不投递（MIDP Canvas「Event Delivery」；shell/win lifecycle.rs:26-28）。
 //! - OS 键重复丢弃（docs/knowledge/gotcha_os-key-repeat-is-not-keypressed.md）。

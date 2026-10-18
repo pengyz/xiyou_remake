@@ -11,7 +11,7 @@
 //!   2=逐列展开（p3=总列数、p4=已展开数、p6=列宽）；3=字形槽（slot=p9 索引
 //!   logoGlyphMetrics 度量表）；4=方形环绕步进
 //! - **runLogoAnimation 推进**（a.java:10233）：每 tick 倒序遍历注册表按 kind 推进，
-//!   然后按时间线 `var2` 登记/删除/改型（case 1..35）
+//!   然后按时间线 `script_cursor0` 登记/删除/改型（case 1..35）
 //! - **paintLogoAnimation 绘制**（a.java:10471）：白底 → 遍历注册表（kind 3/4 走字形槽
 //!   clip+sflogo#7；kind 2 走展开列 clip；其余直接画）
 //! - **度量布局**（runLogoAnimation 首次，a.java:10236-10237）：三段高度 {87,18,9}
@@ -91,8 +91,8 @@ impl LogoAnim {
 
     /// logoLayoutDone 布局初始化（a.java:10235-10238）。
     ///
-    /// `logoGap = min(15, |320-Σh|>>2)`；`var4 = (320-Σh-2·logoGap)>>1`；
-    /// anchors = [var4+87/2, var4+87+15, 190+18+15]；bar_x = (240-w_sflogo7)>>1。
+    /// `logoGap = min(15, |320-Σh|>>2)`；`sort_i = (320-Σh-2·logoGap)>>1`；
+    /// anchors = [sort_i+87/2, sort_i+87+15, 190+18+15]；bar_x = (240-w_sflogo7)>>1。
     fn ensure_layout(&mut self, sflogo7_width: i32) {
         if self.initialized {
             return;
@@ -236,7 +236,7 @@ impl LogoAnim {
         }
     }
 
-    /// `runLogoAnimation(0, var2)`：推进 + 时间线（a.java:10233-10463）。
+    /// `runLogoAnimation(0, script_cursor0)`：推进 + 时间线（a.java:10233-10463）。
     ///
     /// `sflogo` 为容器 8 张子图（a.java:10372 等引用 `[0][k]`）；
     /// `timeline` 为 bootPhaseCounter（1..35，a.java:3366-3361）。
@@ -244,13 +244,13 @@ impl LogoAnim {
         self.tick_variant(sflogo, timeline, false);
     }
 
-    /// `runLogoAnimation(1, var2)`：帮助退出动画（mode 22，a.java:4256-4251，
-    /// 时间线 1..70）。var1=1 分支（a.java:10326-10368）。
+    /// `runLogoAnimation(1, script_cursor0)`：帮助退出动画（mode 22，a.java:4256-4251，
+    /// 时间线 1..70）。py_key=1 分支（a.java:10326-10368）。
     pub fn tick_help(&mut self, sflogo: &[ArgbImage], timeline: i32) {
         self.tick_variant(sflogo, timeline, true);
     }
 
-    /// var1 维度统一入口（对抗 review R-3 补齐：原实现只有 var1==0）。
+    /// py_key 维度统一入口（对抗 review R-3 补齐：原实现只有 py_key==0）。
     fn tick_variant(&mut self, sflogo: &[ArgbImage], timeline: i32, help: bool) {
         self.ensure_layout(sflogo[7].width);
         // 推进循环（倒序，a.java:10249-10312）
@@ -333,8 +333,8 @@ impl LogoAnim {
             }
         }
 
-        // var1!=0 且 t>=18 的帮助分支（a.java:10326-10368）；t<18 落到下方
-        // 启动时间线重放（else 分支与 var1==0 共享——menu-sweep T1762-1779 实证）
+        // py_key!=0 且 t>=18 的帮助分支（a.java:10326-10368）；t<18 落到下方
+        // 启动时间线重放（else 分支与 py_key==0 共享——menu-sweep T1762-1779 实证）
         if help && timeline >= 18 {
             let ay = self.anchors_y;
             let bx = self.bar_x;
@@ -490,7 +490,7 @@ mod tests {
             .collect()
     }
 
-    /// trace A-boot-menu TICK 40 的 20-op 序列（var2=9 的 paint 先于本拍推进）。
+    /// trace A-boot-menu TICK 40 的 20-op 序列（script_cursor0=9 的 paint 先于本拍推进）。
     /// 证据：reference/oracle/_out/A-boot-menu/trace.txt TICK 0024..0040 区段。
     #[test]
     fn paint_logo_at_timeline8_matches_trace_t40_ops() {
@@ -499,7 +499,7 @@ mod tests {
         for t in 1..=9 {
             anim.tick(&sflogo, t);
         }
-        // var2=9 推进后绘制的是"推进后"状态，而 T40 帧是 var2=9 推进**前**——
+        // script_cursor0=9 推进后绘制的是"推进后"状态，而 T40 帧是 script_cursor0=9 推进**前**——
         // 按时序合同（paint 先于逻辑），重放到 8 再画：
         let mut anim = LogoAnim::new();
         for t in 1..=8 {

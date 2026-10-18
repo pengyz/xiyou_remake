@@ -3,7 +3,7 @@
 //! 证据：reference/src/deobf/a.java
 //! - tryStep :3543-3553（interact 通过 → walkPhase=1；弹窗打断 → 取消清零）
 //! - run walkPhase-1 分支 :3546-3593（方向 ±8px；相机边缘跟随 ±8；32px 归格）
-//! - dialogPhase-3 消费（:4062 区域）：`f_byte_12 = walkPathBuffer[--walkStepCount]`
+//! - dialogPhase-3 消费（:4062 区域）：`facingDirection = walkPathBuffer[--walkStepCount]`
 //!   → tryStep；耗尽 → script_walk_armed=false + dialogPhase=0
 //! - 步进 trace 实证：gameplay-floor1 tick1513-1516 玩家 y 328→336→344→352（4×8px）
 
@@ -23,9 +23,9 @@ pub struct WalkState {
     pub cell_x: i32,
     pub cell_y: i32,
     pub step_progress_px: i32,
-    /// f_byte_arr_42（100 步上限）
+    /// walkPathBuffer（100 步上限）
     pub walk_path_buffer: Vec<u8>,
-    /// f_int_148（消费自末端：--count 取方向）
+    /// walkStepCount（消费自末端：--count 取方向）
     pub walk_step_count: usize,
     pub script_walk_armed: bool,
     pub walk_request_flag: bool,

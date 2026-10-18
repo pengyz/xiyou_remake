@@ -79,7 +79,7 @@ pub fn m_034_softkeys(g: &mut SoftGraphics<'_>, ui10: &ArgbImage, ui11: &ArgbIma
 
 /// mode 21（声音询问）绘制：a.java:3066-3067 + paintSoftkeyBar 软键栏。
 ///
-/// 软键 (1,2) 由 m_000 case 21 设置（a.java:4482-4477）。
+/// 软键 (1,2) 由 dispatchModeEntry case 21 设置（a.java:4482-4477）。
 pub fn paint_sound_prompt(g: &mut SoftGraphics<'_>, ui10: &ArgbImage, ui11: &ArgbImage, softkeys: (i8, i8)) {
     g.set_color(crate::layout::BLACK);
     g.fill_rect(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
@@ -155,9 +155,9 @@ pub struct BootMachine {
     pub logo: Option<crate::logo_anim::LogoAnim>,
     /// l0/l1 预解码件（a.java:3354 的 `/l{n}.png`）。
     boot_images: Vec<ArgbImage>,
-    /// sflogo 容器 8 张（m_001(0) 首次进 logo 相位时加载）。
+    /// sflogo 容器 8 张（loadPackedImages(0) 首次进 logo 相位时加载）。
     sflogo: Vec<ArgbImage>,
-    /// ui 容器 25 张（m_001(8)，m_000 case 21 a.java:4481 加载）。
+    /// ui 容器 25 张（loadPackedImages(8)，dispatchModeEntry case 21 a.java:4481 加载）。
     ui: Vec<ArgbImage>,
     /// softkeyLeftKind/softkeyRightKind 软键栏状态（paintSoftkeyBar 绘制输入）。
     pub softkeys: (i8, i8),
@@ -167,11 +167,11 @@ pub struct BootMachine {
     pub global: crate::save::GlobalSave,
     /// 全局态脏位（壳轮询持久化；取走即清）。
     pub global_dirty: bool,
-    /// menu 容器 2 张（m_001(10)：资源名表第 10 项 "menu"，mode 1 背景/图标带）。
+    /// menu 容器 2 张（loadPackedImages(10)：资源名表第 10 项 "menu"，mode 1 背景/图标带）。
     menu: Vec<ArgbImage>,
     /// gameRandom（构造时 setSeed(VTime=0)；JavaRandom LCG）。
     pub rng: game_platform::JavaRandom,
-    /// mapbg 容器 1 张（m_001(1)：资源名表第 1 项，parallax 平铺 77x320）。
+    /// mapbg 容器 1 张（loadPackedImages(1)：资源名表第 1 项，parallax 平铺 77x320）。
     mapbg: ArgbImage,
     /// 视差背景滚动（paint 内推进）。
     pub backdrop: crate::menu_family::ParallaxBackdrop,
@@ -199,14 +199,14 @@ pub struct BootMachine {
     /// 槽载入完成信号（run case8 -5 → mode2 链走完 → mode3）：
     /// Some(slot_cursor) = 应构建 GameScene 并接管
     pub slot_loaded: Option<usize>,
-    /// 音频语义（soundEnabled/volumeLevel/f_byte_28/f_bool_28/anyKeyPlayed/
-    /// f_Player_00，crate::audio；docs/spec/audio.md）。soundEnabled 的唯一真相源。
+    /// 音频语义（soundEnabled/volumeLevel/track/f_bool_28/anyKeyPlayed/
+    /// bgm，crate::audio；docs/spec/audio.md）。soundEnabled 的唯一真相源。
     pub bgm: crate::audio::BgmState,
-    /// intro 容器 2 张（m_001(11)，引子页 0/1 图）。
+    /// intro 容器 2 张（loadPackedImages(11)，引子页 0/1 图）。
     intro_imgs: Vec<ArgbImage>,
-    /// end 容器 1 张（m_001(14)，引子页 2 图）。
+    /// end 容器 1 张（loadPackedImages(14)，引子页 2 图）。
     end_imgs: Vec<ArgbImage>,
-    /// load 容器 2 张（m_001(15)，进度条图）。
+    /// load 容器 2 张（loadPackedImages(15)，进度条图）。
     load_imgs: Vec<ArgbImage>,
     /// mode 14 引子状态。
     pub intro: Option<crate::intro::IntroSequence>,
@@ -219,7 +219,7 @@ pub struct BootMachine {
     pub paints: u32,
     /// mode 0 结束标志（logo 时间线 35 耗尽，a.java:3370-3373 切 gameMode=21）。
     pub finished: bool,
-    /// 新游戏链完成（mode 2 装载进度 ≥100 且非槽载入，m_000 case 3）：
+    /// 新游戏链完成（mode 2 装载进度 ≥100 且非槽载入，dispatchModeEntry case 3）：
     /// 宿主据此构造冷启动场景（step8 统计 floor51/hp300/atk10/def10，
     /// a.java:3496-3506）并接管 mode 3。与 `finished`（mode 0/退出语义）分离。
     pub new_game_ready: bool,
@@ -451,11 +451,11 @@ impl BootMachine {
                 match key {
                     -7 | -6 => {
                         // -7: soundEnabled=false + volumeLevel=0；-6: true（音量 0→60）
-                        //（a.java:4232-4241）。两者都 gameMode=1 + m_000()
+                        //（a.java:4232-4241）。两者都 gameMode=1 + dispatchModeEntry()
                         self.bgm.answer_sound_prompt(key == -6);
                         self.mode = GameMode::MainMenu;
                         self.title = Some(crate::title::TitleMachine::new());
-                        // m_000 case 1 音频半：f_bool_28=false + m_139(2)（a.java:4295/4311）
+                        // dispatchModeEntry case 1 音频半：f_bool_28=false + playBgm(2)（a.java:4295/4311）
                         self.bgm.enter_title();
                     }
                     _ => {}
@@ -492,8 +492,8 @@ impl BootMachine {
                     -7 => self.mode = self.return_mode,
                     -2 => self.slots.as_mut().unwrap().cursor_down(),
                     -1 => self.slots.as_mut().unwrap().cursor_up(),
-                    // -6/-5：槽有效才读档（a.java:3844-3845）→ m_131(3,true)
-                    // + m_132 步序列 → mode 2 步进机（a.java:3845-3857）
+                    // -6/-5：槽有效才读档（a.java:3844-3845）→ startLoadTask(3,true)
+                    // + stepLoadTask 步序列 → mode 2 步进机（a.java:3845-3857）
                     -6 | -5 => {
                         let cursor = self.slots.as_ref().unwrap().cursor as usize;
                         if self.slots.as_ref().unwrap().valid[cursor] {
@@ -541,7 +541,7 @@ impl BootMachine {
                             opts.checked[i] = !opts.checked[i];
                             if opts.labels[i] == 0 {
                                 // case 0：声音联动（a.java:4156-4167）：翻转 + 开则
-                                // volumeLevel=60 + m_139(f_bool_28?3:2)，关则 closeAudioPlayer
+                                // volumeLevel=60 + playBgm(f_bool_28?3:2)，关则 closeAudioPlayer
                                 self.bgm.toggle_sound();
                             }
                             // saveGlobalProgress（a.java:4169）：勾选同步进 SKY_WAR 并置脏
@@ -600,16 +600,16 @@ impl BootMachine {
                     self.loading = None;
                     self.mode = target;
                     if call_m000 {
-                        // m_000 case 3 音频半（两支同一入口）：f_bool_28=true + m_139(3)
+                        // dispatchModeEntry case 3 音频半（两支同一入口）：f_bool_28=true + playBgm(3)
                         //（a.java:4316/4321；A-enter-game T417 / EV-toggle-exit T397）
                         self.bgm.enter_game();
                         if self.slot_loaded.is_some() {
-                            // 槽载入完成：m_000 case 3 的软键/清理由宿主在
+                            // 槽载入完成：dispatchModeEntry case 3 的软键/清理由宿主在
                             // 场景构建时落实（mode 3 交 GameScene 接管）
                             self.softkeys = (1, 3);
                             self.overlay_active = false;
                         } else {
-                            // 新游戏链完成（m_000 case 3，a.java:4312-4318 同款软键/
+                            // 新游戏链完成（dispatchModeEntry case 3，a.java:4312-4318 同款软键/
                             // 浮层清位；冷启动场景由宿主按 step8 统计构造——
                             // floor51/hp300/atk10/def10，a.java:3496-3506）
                             self.softkeys = (1, 3);
@@ -629,7 +629,7 @@ impl BootMachine {
                         .get_or_insert_with(crate::logo_anim::LogoAnim::new)
                         .tick_help(&self.sflogo, self.counter);
                 } else {
-                    self.finished = true; // CMidlet.m_000()（进程退出）
+                    self.finished = true; // CMidlet.dispatchModeEntry()（进程退出）
                 }
                 self.key_value = 0;
             }
@@ -638,7 +638,7 @@ impl BootMachine {
     }
 
     /// BGM 宿主契约：应当在放的轨道（`audio::TRACKS` 下标），None = 停止/无声。
-    /// 语义 = Java `f_Player_00 != null ? f_byte_28 : 无`（docs/spec/audio.md）。
+    /// 语义 = Java `bgm != null ? track : 无`（docs/spec/audio.md）。
     pub fn bgm_request(&self) -> Option<usize> {
         self.bgm.request()
     }
@@ -673,7 +673,7 @@ impl BootMachine {
             .unwrap_or(-1)
     }
 
-    /// m_000 的菜单族 case（a.java:4360/4386-4425）：进入模式时初始化。
+    /// dispatchModeEntry 的菜单族 case（a.java:4360/4386-4425）：进入模式时初始化。
     fn enter_menu_mode(&mut self) {
         match self.mode {
             GameMode::EquipDetail => {
@@ -741,7 +741,7 @@ impl BootMachine {
         }
     }
 
-    /// paint 公共尾 overlay（a.java:3129-3171，overlayActive && !f_bool_16）。
+    /// paint 公共尾 overlay（a.java:3129-3171，overlayActive && !floorTransitioning）。
     fn paint_overlay_tail(&mut self, g: &mut SoftGraphics<'_>) {
         if !self.overlay_active {
             return;
@@ -787,7 +787,7 @@ impl BootMachine {
                 self.logo.get_or_insert_with(crate::logo_anim::LogoAnim::new)
                     .tick(&self.sflogo, self.counter);
             } else {
-                // a.java:3371-3373：清理 + gameMode=21 + m_000()
+                // a.java:3371-3373：清理 + gameMode=21 + dispatchModeEntry()
                 self.logo.as_mut().unwrap().clear_all(); // removeLogoItem(-1)
                 self.logo.as_mut().unwrap().reset_layout_flag(); // logoLayoutDone=false（a.java:3372）
                 self.image = None;
@@ -795,7 +795,7 @@ impl BootMachine {
                 self.bgm.close(); // closeAudioPlayer（a.java:3376，此时无播放器）
                 self.mode = GameMode::SoundAsk;
                 self.frame_interval_ms = 75; // f_int_02=75（a.java:3377）
-                // m_000 case 21（a.java:4482-4478）：软键 (1,2)；soundEnabled=false
+                // dispatchModeEntry case 21（a.java:4482-4478）：软键 (1,2)；soundEnabled=false
                 //（a.java:4484）；RMS "SKY_WAR" 读档失败路径（oracle 内存库恒空 ⇒ catch 删库重置）
                 self.softkeys = (1, 2);
                 self.bgm.enter_sound_prompt();

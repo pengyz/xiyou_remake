@@ -1,6 +1,6 @@
 //! P3.3 行走/相机 golden vectors（TDD）。
 //! 证据：gameplay-floor1 trace（tick1513-1516 玩家 y 4×8px 步进 + 金+1）、
-//! m_105 easing trace（tick20002-20010 十步收敛）、a.java:3546-3593/:8669-8700。
+//! stepCameraTowardTarget easing trace（tick20002-20010 十步收敛）、a.java:3546-3593/:8669-8700。
 
 use game_core::camera::Camera;
 use game_core::enums::Dir;
@@ -31,7 +31,7 @@ fn stepping_y_direction_4_ticks_to_cross_cell() {
 fn camera_edge_follow_shifts_by_8() {
     // a.java:3570-3572：向右走、玩家屏幕位越过 240-106 ⇒ camX -= 8
     let mut cam = Camera::new(416, 416);
-    cam.offset_x = 40; // 行走态相机偏移恒 ≤ 64（m_064 夹取）
+    cam.offset_x = 40; // 行走态相机偏移恒 ≤ 64（setCameraClamped 夹取）
     let mut px = 128i32; // 128 + 40 + 16 = 184 > 240 - 106 = 134 ✓ 触发
     let mut py = 0i32;
     camera_edge_follow(&mut cam, Dir::Right, &mut px, &mut py);
@@ -59,7 +59,7 @@ fn m_105_easing_converges_6px_per_tick() {
 fn script_walk_consumes_buffer_from_tail() {
     // dialogPhase-3 消费（a.java:4066）：--walkStepCount ⇒ 从缓冲末端取方向
     let mut walk = WalkState::default();
-    walk.walk_path_buffer = vec![3, 2, 2]; // m_133 缓冲序（目标端优先）
+    walk.walk_path_buffer = vec![3, 2, 2]; // findPath 缓冲序（目标端优先）
     walk.walk_step_count = 3;
     walk.script_walk_armed = true;
 

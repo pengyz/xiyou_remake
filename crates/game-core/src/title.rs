@@ -43,7 +43,7 @@ pub struct Particles {
     active: [bool; PARTICLE_SLOTS],
     waxing: [bool; PARTICLE_SLOTS],
     cursor: usize,
-    /// particleColor：粒子颜色（m_000 case 1 设 -1 = 白）。
+    /// particleColor：粒子颜色（dispatchModeEntry case 1 设 -1 = 白）。
     pub color: u32,
 }
 
@@ -159,7 +159,7 @@ pub fn paint_icon_strip_at(
 pub struct TitleMachine {
     /// menuCursorIndex：菜单光标（0..menu_item_count-1 环绕）。
     pub cursor: i32,
-    /// menuItemKinds 的条目（m_000 case 1 经 addMenuItem(0..5) 登记为 0..5）。
+    /// menuItemKinds 的条目（dispatchModeEntry case 1 经 addMenuItem(0..5) 登记为 0..5）。
     pub menu_kinds: Vec<i8>,
     /// animBobOffset：bob 摆动偏移（advanceBobPhase 演化）。
     pub bob: i32,
@@ -177,7 +177,7 @@ impl TitleMachine {
     pub fn new() -> TitleMachine {
         TitleMachine {
             cursor: 0,
-            // m_000 case 1：resetMenuLayout 重置后 addMenuItem(0..5)（a.java:4291-4291）
+            // dispatchModeEntry case 1：resetMenuLayout 重置后 addMenuItem(0..5)（a.java:4291-4291）
             menu_kinds: vec![0, 1, 2, 3, 4, 5],
             bob: 0,
             bob_rising: false,

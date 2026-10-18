@@ -95,12 +95,12 @@ impl HostCtx for StubHost {
     fn snap_camera_after_ros1(&mut self, _px: i32, _py: i32) {}
 }
 
-/// 序章脚本 = 第 40 项（trace 实证 f_String_05，deobf a.java:1124 起第 41 项）。
+/// 序章脚本 = 第 40 项（trace 实证 dialogScriptLine，deobf a.java:1124 起第 41 项）。
 const PROLOGUE: usize = 40;
 
 #[test]
 fn tak_opens_page255_cursor0_to_12() {
-    // deobf a.java:8244-8250（TAK 分支）+ m_096:8185-8210；
+    // deobf a.java:8244-8250（TAK 分支）+ openDialogPage:8185-8210；
     // trace 实证：tick578 scriptCursor=12、dialogPhase=1、overlayText="菩提老祖: \cF8F8F8悟空…"
     let t = table();
     let mut host = StubHost::default();
@@ -126,7 +126,7 @@ fn tak_opens_page255_cursor0_to_12() {
 
 #[test]
 fn tak_page_advance_and_exhaust_resumes_script() {
-    // m_096 else 分支（a.java:8223-8227）：page > range_end ⇒ phase=0；
+    // openDialogPage else 分支（a.java:8223-8227）：page > range_end ⇒ phase=0；
     // phase=0 后下一次 step 执行下一条指令（trace t1002：cursor=24，第 6 句对白 text[165]）
     let t = table();
     let mut host = StubHost::default();
@@ -160,7 +160,7 @@ fn drive_to_see(eng: &mut ScriptEngine, host: &mut StubHost) {
 #[test]
 fn see_bug006_replay_cursor_advances_walk_not_armed() {
     // BUG-006 回归锚：SEE_3_10_166_166_1 在 find_path=false 下 cursor 仍推进 43
-    // （trace t1202），walk 不武装（script_walk_armed=false，f_int_148 死写）。
+    // （trace t1202），walk 不武装（script_walk_armed=false，walkStepCount 死写）。
     // SEE 分支 deobf a.java:8466-8481：先 openDialogPage(c)，cursor 推进，phase=6。
     let t = table();
     let mut host = StubHost::default();
@@ -273,7 +273,7 @@ fn gin_tail_recurses_into_next_instruction() {
 
 #[test]
 fn end_requests_exit() {
-    // END 分支 a.java:8496-8500：gameMode=20 + m_000（exit hook）
+    // END 分支 a.java:8496-8500：gameMode=20 + dispatchModeEntry（exit hook）
     let t = table();
     let mut host = StubHost::default();
     let mut eng = ScriptEngine::new(&t, 0);

@@ -57,20 +57,20 @@ pub fn view_top_y() -> i32 {
 }
 
 /// 游戏视图宽（viewWidthPx，loadFloorData `= 240`；屏裁右界）。视图横跨全屏宽
-///（HUD 大框 paintHudFrame(0, f_int_48, 240, 50)、状态栏 fillRect(65,0,175,18)
+///（HUD 大框 paintHudFrame(0, viewBottom, 240, 50)、状态栏 fillRect(65,0,175,18)
 /// 右缘 240 同宽互证）⇒ SCREEN_W 派生。对照：GAME_VIEW_H 是独立常量（下）。
 pub const GAME_VIEW_W: i32 = SCREEN_W;
 
 /// 游戏视图高（viewHeightPx；与 camera.rs 的 252 同源——独立游戏常量
-/// f_int_59，**非 SCREEN_H 派生**，扩视口需逐条考证）。
+/// viewHeightPx，**非 SCREEN_H 派生**，扩视口需逐条考证）。
 pub const GAME_VIEW_H: i32 = 252;
 
-/// 视口底 y（f_int_48=270 = 状态栏 18 + 视图 252；HUD 大框顶）。
+/// 视口底 y（viewBottom=270 = 状态栏 18 + 视图 252；HUD 大框顶）。
 pub fn view_bottom_y() -> i32 {
     STATUS_BAR_H + GAME_VIEW_H
 }
 
-/// HUD 大框高（paintHudPanel 的 paintHudFrame(0, f_int_48, 240, 50)）。
+/// HUD 大框高（paintHudPanel 的 paintHudFrame(0, viewBottom, 240, 50)）。
 pub const HUD_FRAME_H: i32 = 50;
 
 /// HUD 大框顶 y = 视口底（SCREEN_H - 50 = 270，与 view_bottom_y 数值互证）。
@@ -114,7 +114,7 @@ pub const PLAYER_INSERT_WINDOW: i32 = 32;
 pub const PARALLAX_COL_STEP: i32 = 77;
 /// 滚动回绕：`--scroll < -154 → 0`（周期 155）。
 pub const PARALLAX_WRAP: i32 = -154;
-/// 游戏视图基线 y = view_bottom - 320 + 6（f_int_48-314）。
+/// 游戏视图基线 y = view_bottom - 320 + 6（viewBottom-314）。
 pub fn parallax_game_base_y() -> i32 {
     view_bottom_y() - SCREEN_H + 6
 }
@@ -122,13 +122,13 @@ pub fn parallax_game_base_y() -> i32 {
 // —— HUD（paintHudPanel/paintHudFrame/paintKeySlot）——
 /// 属性图标列 x（HP/攻/防图标与条框的锚列）。
 pub const HUD_ICON_X: i32 = 83;
-/// 图标列 → 条框/槽的 x 间距（Java var3 += 16 / var11 += 16）。
+/// 图标列 → 条框/槽的 x 间距（Java table_count += 16 / var11 += 16）。
 pub const HUD_BAR_DX: i32 = 16;
 /// 头像锚 x（paintHudPanel `40 - w>>1`）。
 pub const HUD_FACE_AX: i32 = 40;
-/// 首个属性行相对 HUD 基线的 y 偏移（Java var2 += 13）。
+/// 首个属性行相对 HUD 基线的 y 偏移（Java script_cursor0 += 13）。
 pub const HUD_STAT_Y0: i32 = 13;
-/// 装备槽相对 HUD 基线的 y 偏移（Java var4 = var2+2，var2 已 +13）。
+/// 装备槽相对 HUD 基线的 y 偏移（Java sort_i = script_cursor0+2，script_cursor0 已 +13）。
 pub const HUD_SLOT_DY: i32 = 15;
 /// 属性行距（HP→攻→防逐行 +12）。
 pub const HUD_ROW_STEP: i32 = 12;
@@ -321,7 +321,7 @@ pub const OVERLAY_TEXT_W: i32 = 180;
 pub const OVERLAY_TEXT_MAX_H: i32 = 240;
 /// 带图标浮层（kind 1/3）文本页高上限（a.java:4913）。
 pub const OVERLAY_ICON_TEXT_MAX_H: i32 = 234;
-/// 存档槽列表高度预算：slotsPerPage = 208 / textLineHeight（m_000 case 8，a.java:4354）。
+/// 存档槽列表高度预算：slotsPerPage = 208 / textLineHeight（dispatchModeEntry case 8，a.java:4354）。
 pub const SLOT_LIST_MAX_H: i32 = 208;
 /// 图鉴面板宽 f_int_108（m_091 a.java:7959；paint case 5 居中于 a.java:2501）。
 pub const ENCYC_PANEL_W: i32 = 208;
@@ -366,7 +366,7 @@ mod tests {
     #[test]
     fn game_view_derived_geometry_matches_java() {
         assert_eq!(view_top_y(), 20, "瓦片/实体层 y 偏移");
-        assert_eq!(view_bottom_y(), 270, "f_int_48");
+        assert_eq!(view_bottom_y(), 270, "viewBottom");
         assert_eq!(hud_base_y(), 270, "SCREEN_H-50 与 view_bottom 互证");
         assert_eq!(parallax_game_base_y(), -44, "T544 首列 y 实证");
     }

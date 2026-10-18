@@ -63,14 +63,14 @@ pub struct ScriptState {
     pub min_floor_reached: i32,
     pub max_floor_reached: i32,
     pub facing_direction: i32,
-    /// f_bool_16（语义待考证：LAY_ 置位 + 对白行走门控共用，机械名保留）
+    /// floorTransitioning（语义待考证：LAY_ 置位 + 对白行走门控共用，机械名保留）
     pub flag_bool_16: bool,
     /// 玩家像素坐标（ROS_1 直写；行走模块 P3.2 接管）
     pub player_pixel_x: i32,
     pub player_pixel_y: i32,
-    /// f_int_89：背包条目数（m_114 存档按其写条目对）
+    /// inventoryEntryCount：背包条目数（saveFloorState 存档按其写条目对）
     pub inventory_entry_count: i32,
-    /// 解析终位（Java `f_int_122` 同构物：分隔符所在下标）。
+    /// 解析终位（Java `lastDelimPos` 同构物：分隔符所在下标）。
     pub last_delim_pos: usize,
 }
 
@@ -127,7 +127,7 @@ impl Default for ScriptState {
 /// 实体/相机/系统副作用边界（P3.2 由实体模块提供真实实现；测试用确定性桩）。
 pub trait HostCtx {
     fn find_path(&mut self, from_x: i32, from_y: i32, to_x: i32, to_y: i32) -> bool;
-    /// m_100：格 (x,y) 上 type_id 类型的实体索引（无则 -1）。
+    /// findBlockingEntity：格 (x,y) 上 type_id 类型的实体索引（无则 -1）。
     fn cell_entity(&self, x: i32, y: i32, type_id: i32) -> i32;
     /// 实体类型读取（entityType[idx]）。
     fn entity_type(&self, idx: i32) -> i32;
@@ -144,7 +144,7 @@ pub trait HostCtx {
     fn snap_camera_to_player(&mut self);
     /// lockCameraOn 说话人实体定位 → dialogAnchorEntity。
     fn locate_speaker_entity(&mut self, speaker: i32) -> i32;
-    /// m_018：打字机装填。
+    /// layoutWrappedText：打字机装填。
     fn set_typewriter(&mut self, text: &str, y: i32, pos: i32);
     /// m_119/m_122：层实体表重载。
     fn reload_floor_entities(&mut self, floor: i32);
@@ -152,13 +152,13 @@ pub trait HostCtx {
     fn spawn_entity(&mut self, type_id: i32, px: i32, py: i32) -> i32;
     /// CES 尾部：相机 = 玩家屏幕位；若实体存在则 target = 实体像素位。
     fn ces_camera(&mut self, entity_idx: i32);
-    /// m_103：SEE 的相机目标设置。
+    /// easeCameraToTarget：SEE 的相机目标设置。
     fn set_camera_anchor_target(&mut self, x: i32, y: i32);
-    /// CMidlet.m_000：退出应用。
+    /// CMidlet.dispatchModeEntry：退出应用。
     fn exit_application(&mut self);
     /// MVS（P3.2：deobf a.java:8513-8581；数据域 68 条脚本零使用）。
     fn mvs_exchange(&mut self);
-    /// ROS_2：m_082（对白目标设置，实体域）。
+    /// ROS_2：tryEquip（对白目标设置，实体域）。
     fn m_082_set_dialog_target(&mut self, v: i32);
     /// MOV 5 参分支：实体 72 的路线标志写（entityAnimRow[idx]=1，a.java:8275-8271）。
     fn set_entity_route_flag(&mut self, idx: i32);
@@ -220,7 +220,7 @@ impl<'d> ScriptEngine<'d> {
         }
     }
 
-    /// 对白页推进（玩家按键语义的引擎侧入口）= Java m_096(page+1)。
+    /// 对白页推进（玩家按键语义的引擎侧入口）= Java openDialogPage(page+1)。
     pub fn advance_dialog_page(&mut self, host: &mut impl HostCtx) {
         let next = self.state.dialog_page + 1;
         self.open_dialog_page(host, next);
@@ -270,7 +270,7 @@ impl<'d> ScriptEngine<'d> {
     }
 
     /// parseScriptInt 忠实移植（a.java:8583-8584）：
-    /// 从 from 起找 delim，值 = substring，解析终位（Java f_int_122）= 分隔符位。
+    /// 从 from 起找 delim，值 = substring，解析终位（Java lastDelimPos）= 分隔符位。
     fn parse_script_int(&mut self, line: &str, from: usize, delim: char) -> i32 {
         let rel = line[from..].find(delim).expect("脚本整数的分隔符缺失");
         let d = from + rel;
@@ -281,8 +281,8 @@ impl<'d> ScriptEngine<'d> {
     /// executeScriptInstruction 忠实移植（a.java:8239-8581）。
     pub fn execute_script_instruction(&mut self, host: &mut impl HostCtx) {
         let line = self.line();
-        let var2 = self.state.script_cursor;
-        let has_opcode = var2 + 3 <= line.len();
+        let script_cursor0 = self.state.script_cursor;
+        let has_opcode = script_cursor0 + 3 <= line.len();
         if !has_opcode {
             // 行尾收尾门（a.java:8574-8580）：序章 cursor=43 冻结 phase=4 实证
             self.state.dialog_phase = DialogPhase::AwaitCamera;
@@ -293,10 +293,10 @@ impl<'d> ScriptEngine<'d> {
             host.snap_camera_to_player();
             return;
         }
-        let var3 = &line[var2..var2 + 3];
-        let var2p4 = var2 + 4;
+        let table_count = &line[script_cursor0..script_cursor0 + 3];
+        let var2p4 = script_cursor0 + 4;
 
-        if var3 == "TAK" {
+        if table_count == "TAK" {
             self.state.tak_page_start = self.parse_script_int(&line, var2p4, '_');
             let p = self.state.last_delim_pos;
             self.state.tak_page_end = self.parse_script_int(&line, p + 1, ' ');
@@ -304,7 +304,7 @@ impl<'d> ScriptEngine<'d> {
             self.state.dialog_phase = DialogPhase::Typewriter;
             let page = self.state.tak_page_start;
             self.open_dialog_page(host, page);
-        } else if var3 == "MOV" {
+        } else if table_count == "MOV" {
             let mut p = var2p4;
             let target_type = self.parse_script_int(&line, p, '_');
             p = self.state.last_delim_pos;
@@ -346,12 +346,12 @@ impl<'d> ScriptEngine<'d> {
                 self.state.walk_phase = crate::enums::WalkPhase::Idle;
                 host.snap_camera_to_player(); // lockCameraOn(0)
             }
-        } else if var3 == "GUT" {
+        } else if table_count == "GUT" {
             let n = self.parse_script_int(&line, var2p4, ' ');
             let cur = self.state.current_script_index;
             self.state.script_line_flags[cur] = true;
             self.load_level_script(host, n as usize);
-        } else if var3 == "DES" {
+        } else if table_count == "DES" {
             let mut p = var2p4;
             let t = self.parse_script_int(&line, p, '_');
             p = self.state.last_delim_pos;
@@ -368,20 +368,20 @@ impl<'d> ScriptEngine<'d> {
                 }
             }
             self.state.script_cursor = self.state.last_delim_pos + 1;
-        } else if var3 == "SWD" {
+        } else if table_count == "SWD" {
             host.swd_convert_type81();
-            // Java：var2 在 substring 后无条件 +3（a.java:8244-8239），
-            // SWD 分支 scriptCursor = var2 + 1 ⇒ 原始 cursor + 4（复核 R1）
-            self.state.script_cursor = var2p4; // 【2026-10-17 修复】Java `var2+1`（a.java:8359，var2=substring 后 =orig+3）⇒ orig+4 = var2p4——原 `var2p4 + 1` = orig+5 多跳一格（注释写 +4 代码算 +5 的自相矛盾），5.x 两面对照测揪出
-        } else if var3 != "MVS" {
-            if var3 == "LAY" {
+            // Java：script_cursor0 在 substring 后无条件 +3（a.java:8244-8239），
+            // SWD 分支 scriptCursor = script_cursor0 + 1 ⇒ 原始 cursor + 4（复核 R1）
+            self.state.script_cursor = var2p4; // 【2026-10-17 修复】Java `script_cursor0+1`（a.java:8359，script_cursor0=substring 后 =orig+3）⇒ orig+4 = var2p4——原 `var2p4 + 1` = orig+5 多跳一格（注释写 +4 代码算 +5 的自相矛盾），5.x 两面对照测揪出
+        } else if table_count != "MVS" {
+            if table_count == "LAY" {
                 host.reload_floor_entities(self.state.current_floor); // m_119
                 self.state.layer_byte = self.parse_script_int(&line, var2p4, ' ');
                 self.state.script_cursor = self.state.last_delim_pos + 1;
                 self.state.flag_bool_16 = true; // a.java:8340（复核 R7）
                 self.state.overlay_text = None;
                 self.state.dialog_phase = DialogPhase::LayCutscene;
-            } else if var3 == "ROS" {
+            } else if table_count == "ROS" {
                 let sub = self.parse_script_int(&line, var2p4, '_');
                 let p = self.state.last_delim_pos;
                 match sub {
@@ -405,7 +405,7 @@ impl<'d> ScriptEngine<'d> {
                     _ => {}
                 }
                 self.state.script_cursor = self.state.last_delim_pos + 1;
-            } else if var3 == "CES" {
+            } else if table_count == "CES" {
                 let mut p = var2p4;
                 let t = self.parse_script_int(&line, p, '_');
                 p = self.state.last_delim_pos;
@@ -421,7 +421,7 @@ impl<'d> ScriptEngine<'d> {
                 )
                 .scene_delay();
                 self.state.script_cursor = self.state.last_delim_pos + 1;
-            } else if var3 == "GIN" {
+            } else if table_count == "GIN" {
                 let k = self.parse_script_int(&line, var2p4, '_');
                 let p = self.state.last_delim_pos;
                 let v = self.parse_script_int(&line, p + 1, ' ');
@@ -432,7 +432,7 @@ impl<'d> ScriptEngine<'d> {
                 }
                 self.state.script_cursor = self.state.last_delim_pos + 1;
                 self.execute_script_instruction(host); // 唯一显式尾递归（a.java:8420）
-            } else if var3 == "ADD" {
+            } else if table_count == "ADD" {
                 let mut p = var2p4;
                 let floor = self.parse_script_int(&line, p, '_');
                 p = self.state.last_delim_pos;
@@ -451,10 +451,10 @@ impl<'d> ScriptEngine<'d> {
                     host.reload_floor_entities(self.state.current_floor);
                 }
                 self.state.script_cursor = self.state.last_delim_pos + 1;
-            } else if var3 == "GLV" {
+            } else if table_count == "GLV" {
                 self.parse_script_int(&line, var2p4, ' ');
                 self.state.script_cursor = self.state.last_delim_pos + 1;
-            } else if var3 == "RES" {
+            } else if table_count == "RES" {
                 self.parse_script_int(&line, var2p4, ' ');
                 if self.state.difficulty_index == 0 {
                     self.state.yellow_keys = 0;
@@ -468,10 +468,10 @@ impl<'d> ScriptEngine<'d> {
                     self.state.player_atk = 10;
                     self.state.player_def = 10;
                     self.state.player_hp = 400;
-                    self.state.inventory_entry_count = 0; // f_int_89=0（a.java:8465，复核 R6）
+                    self.state.inventory_entry_count = 0; // inventoryEntryCount=0（a.java:8465，复核 R6）
                 }
                 self.state.script_cursor = self.state.last_delim_pos + 1;
-            } else if var3 == "SEE" {
+            } else if table_count == "SEE" {
                 let mut p = var2p4;
                 self.state.camera_anchor_x = self.parse_script_int(&line, p, '_');
                 p = self.state.last_delim_pos;
@@ -502,18 +502,18 @@ impl<'d> ScriptEngine<'d> {
                     self.state.camera_anchor_x,
                     self.state.camera_anchor_y,
                 );
-            } else if var3 == "END" {
+            } else if table_count == "END" {
                 self.parse_script_int(&line, var2p4, ' ');
                 self.state_transition(crate::enums::GameMode::Ending);
                 host.exit_application();
                 self.state.script_cursor = self.state.last_delim_pos + 1;
-            } else if var3 == "SMS" {
+            } else if table_count == "SMS" {
                 self.parse_script_int(&line, var2p4, ' ');
                 self.state.script_cursor = self.state.last_delim_pos + 1;
             }
         } else {
             // MVS：P3.2 边界（数据域 68 条脚本零使用）——效果委托 hook（由实现方
-            // 决定），**分派/游标语义两面一致**（生产 a.java:8589 `var2+1` = orig+4
+            // 决定），**分派/游标语义两面一致**（生产 a.java:8589 `script_cursor0+1` = orig+4
             // = var2p4；【2026-10-17 补】原缺游标写致 harness 停摆 vs 生产推进
             // ——5.x 两面对照测揪出）。
             host.mvs_exchange();

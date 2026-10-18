@@ -131,7 +131,7 @@ fn enter_game_frames_match_tick_by_tick() {
         pending_key = input_key(&rec.input);
         machine.tick(key);
         if machine.new_game_ready {
-            // mode 2 完成 → m_000 case 3（游戏态初始化）——mode 3 游戏画面下批
+            // mode 2 完成 → dispatchModeEntry case 3（游戏态初始化）——mode 3 游戏画面下批
             //（迭代 37：新游戏链改用专用 new_game_ready 信号，finished 回归
             //  mode 0/退出语义）
             assert!(rec.tick >= 380 && rec.tick <= 430, "mode 3 边界应在 T382-430 区（加载 42 tick），实际 T{}", rec.tick);

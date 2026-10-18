@@ -13,7 +13,7 @@ use crate::menu_family::paint_number;
 use crate::paint::draw_image_clipped;
 use crate::render::{ArgbImage, SoftGraphics};
 
-/// 伤害数字散射偏移表 ×6（Java f_byte_arr_32..37，a.java:705-747 构造常量）；
+/// 伤害数字散射偏移表 ×6（Java scatterXKind5..37，a.java:705-747 构造常量）；
 /// 索引 = 上升计数器 0..=8。
 const RISE_X5: [i32; 9] = [10, 6, -14, -26, -36, -38, -39, -41, -43];
 const RISE_Y5: [i32; 9] = [16, 4, -10, 0, 14, 12, 14, 11, 13];
@@ -144,7 +144,7 @@ impl PopupRing {
 }
 
 /// drawDigitStrip（a.java:9790-9811）：11 分格数字带右对齐逐位绘制 +
-/// **第 11 格装饰字形无条件绘制**（a.java:9810-9807：负值标志 var5 是死变量，
+/// **第 11 格装饰字形无条件绘制**（a.java:9810-9807：负值标志 open_n 是死变量，
 /// 取反只影响逐位数字，尾部装饰格恒画——T1506 全量 ops 实证）。
 /// 返回绘制位数+1（宽度推进用）。
 pub fn draw_digit_strip(g: &mut SoftGraphics<'_>, strip: &ArgbImage, mut value: i32, x: i32, y: i32) -> i32 {

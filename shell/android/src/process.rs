@@ -4,7 +4,7 @@
 //!
 //! `request_exit(&mut self)`：幂等、不得 panic、**正常返回**（置退出请求，进程可随后
 //! 在壳收尾中结束）。游戏层只发信号（`BootMachine::finished`：game-core paint.rs:221/585
-//! = `CMidlet.m_000`；BUG-020 消费链），执行归壳。
+//! = `CMidlet.dispatchModeEntry`；BUG-020 消费链），执行归壳。
 //!
 //! # 平台映射
 //!

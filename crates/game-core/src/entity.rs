@@ -1,10 +1,10 @@
-//! 实体表与格子索引 —— Java spawnEntity（生成）/ m_100（格查）/ markEntityRemoved（移除）的忠实移植。
+//! 实体表与格子索引 —— Java spawnEntity（生成）/ findBlockingEntity（格查）/ markEntityRemoved（移除）的忠实移植。
 //!
 //! 证据：reference/src/deobf/a.java（**行号锚定基准文件**：本文件裸
 //! `a.java:NNNN` 一律指 deobf renamed 版；2026-10-16 逐行亲验更正旧行号）
 //! - spawnEntity :6389-6428（像素取整 6394-6395、双数组登记 6403-6410、
 //!   nextCellTypeId 格类型分配 + 槽登记 6412-6420、楼梯锚点 6423-6428）
-//! - m_100（obf a.b(III)I，deobf renamed = findBlockingEntity）:8615 起
+//! - findBlockingEntity（obf a.b(III)I，deobf renamed = findBlockingEntity）:8615 起
 //!   （格类型→容量→槽位表查实体，跳过 solid==1）
 //! - markEntityRemoved :6349-6387（solid=1 + 类目分派视觉字段）
 //! - 宽度表 typeFrameWidth :589（88 项）+ dispatchSpriteSize 特例 :6306-6314
@@ -98,7 +98,7 @@ pub fn serialize_floor_state(table: &EntityTable) -> Vec<u8> {
 
 /// 层存档实体段回填（m_122 存档分支核，a.java:9643+）：解 blob → 逐实体 spawn
 /// 后回填 visible/removed（**恢复臂 index quirk 显式保留**：按循环下标回填，
-/// a.java:9638 entityVisible[var48]——struct 化禁顺手修正）。
+/// a.java:9638 entityVisible[draw_y]——struct 化禁顺手修正）。
 /// img_h 回调=按型取精灵高（dispatchSpriteSize 输入）。
 /// 【第 1 步文件合流】表操作入 entity.rs；floor2 特例/资产回落留 scene.rs。
 pub fn restore_floor_state(
@@ -129,7 +129,7 @@ pub fn restore_floor_state(
     }
 }
 
-/// 格子索引（m_059 初始化 + spawnEntity 增量登记）。
+/// 格子索引（initCellGrid 初始化 + spawnEntity 增量登记）。
 pub struct CellGrid {
     pub cols: i32,
     pub rows: i32,
@@ -145,7 +145,7 @@ pub struct CellGrid {
 
 impl CellGrid {
     /// 槽登记追加：row[cap] = id（**1-based** 实体号），cap++。
-    /// 【六写点收口】spawn / m_108 追加面（a.java:6412-6420 / 6808-6809 同构）。
+    /// 【六写点收口】spawn / relocateSlotsAtRouteEnd 追加面（a.java:6412-6420 / 6808-6809 同构）。
     pub fn slot_push(&mut self, ct: usize, id: usize) {
         let cap = self.capacity[ct] as usize;
         self.slots[ct][cap] = id as u8;
@@ -153,7 +153,7 @@ impl CellGrid {
     }
 
     /// 摘除首个 id：续前移、cap-1、**序保持**（pullEntityFromCell 语义）。
-    /// 【六写点收口】detach / m_108 摘除面（a.java:6770-6771/8880-8904）。
+    /// 【六写点收口】detach / relocateSlotsAtRouteEnd 摘除面（a.java:6770-6771/8880-8904）。
     pub fn slot_remove_first(&mut self, ct: usize, id: usize) -> bool {
         let cap = self.capacity[ct] as usize;
         for s in 0..cap {
@@ -281,7 +281,7 @@ pub const ANIM_OFFSET_TABLE: [&[i32]; 11] = [
 ];
 
 /// dispatchSpriteSize（a.java:6300-6325）：实体精灵尺寸分派。
-/// type 69 → (96,32)；type 72 → (32,45)；type 67 → (32,32)（m_001(9) 换容器后走尾部）；
+/// type 69 → (96,32)；type 72 → (32,45)；type 67 → (32,32)（loadPackedImages(9) 换容器后走尾部）；
 /// 图存在 → (typeFrameWidth[type], 图高)；图空 → (32,32)。
 pub fn dispatch_sprite_size(type_id: i32, idx: usize, table: &mut EntityTable, width_table: &[i32], img_h: Option<i32>) {
     match type_id {
@@ -345,7 +345,7 @@ pub fn spawn(
     table.items[idx].state = 0;
     table.count += 1;
 
-    // 格槽登记（Java var5 = dispatchSpriteSize 写入的 entitySpriteW>>5，≤0 取 1；a.java:6392-6400，槽登记 6412-6420）
+    // 格槽登记（Java open_n = dispatchSpriteSize 写入的 entitySpriteW>>5，≤0 取 1；a.java:6392-6400，槽登记 6412-6420）
     let width = width_cells(type_id, width_table);
     for dx in 0..width {
         let cx = (cell_x + dx) as usize;
@@ -366,7 +366,7 @@ pub fn spawn(
     idx
 }
 
-/// m_100 忠实移植：格类型→容量→槽位查实体；跳过 solid==1（已移除）。
+/// findBlockingEntity 忠实移植：格类型→容量→槽位查实体；跳过 solid==1（已移除）。
 pub fn cell_entity(grid: &CellGrid, table: &EntityTable, x: i32, y: i32, type_id: i32) -> i32 {
     if x < 0 || y < 0 || x >= grid.cols || y >= grid.rows {
         return -1;
@@ -441,9 +441,9 @@ pub fn remove_des(table: &mut EntityTable, idx: usize) {
 }
 
 /// sortEntitiesByY（a.java:6732-6822）：实体按 pixelY 升序的冒泡排序（严格小于 ⇒ 等值保序）。
-/// 每次交换（var2=var4-1 ↔ var5=var4）伴随：
-/// - 槽修复①（var2 **旧**格，a.java:6770-6771）：var2+1 → var5+1（var2 的记录迁去 var5）
-/// - 槽修复②（var2 **新**格 = var5 旧位，a.java:6808-6809）：var5+1 → var2+1
+/// 每次交换（script_cursor0=sort_i-1 ↔ open_n=sort_i）伴随：
+/// - 槽修复①（script_cursor0 **旧**格，a.java:6770-6771）：script_cursor0+1 → open_n+1（script_cursor0 的记录迁去 open_n）
+/// - 槽修复②（script_cursor0 **新**格 = open_n 旧位，a.java:6808-6809）：open_n+1 → script_cursor0+1
 ///
 /// 两段合成完整双向修复；交换后双向 dispatchAnimFields 重置动画字段。
 /// A 级验证：排序后槽表与 oracle FLD 137（cellSlotTable）逐格一致。
@@ -451,14 +451,14 @@ pub fn sort_by_y(table: &mut EntityTable, grid: &mut CellGrid) {
     if table.count == 0 {
         return;
     }
-    let mut var3 = table.count as i32;
-    while var3 >= 1 {
-        let mut var1 = table.items[0].py;
-        for var4 in 1..var3 {
-            if !table.items[var4 as usize].removed {
-                if table.items[var4 as usize].py < var1 {
-                    let a = (var4 - 1) as usize;
-                    let b = var4 as usize;
+    let mut table_count = table.count as i32;
+    while table_count >= 1 {
+        let mut py_key = table.items[0].py;
+        for sort_i in 1..table_count {
+            if !table.items[sort_i as usize].removed {
+                if table.items[sort_i as usize].py < py_key {
+                    let a = (sort_i - 1) as usize;
+                    let b = sort_i as usize;
                     let bak = (
                         table.items[a].type_,
                         table.items[a].px,
@@ -470,9 +470,9 @@ pub fn sort_by_y(table: &mut EntityTable, grid: &mut CellGrid) {
                         table.items[a].visible,
                         table.items[a].param,
                     );
-                    // 槽修复①：var2 旧格上 var2+1 → var5+1
+                    // 槽修复①：script_cursor0 旧格上 script_cursor0+1 → open_n+1
                     fix_slot(grid, bak.1, bak.2, bak.3, a, b);
-                    // var5 记录前移到 var2
+                    // open_n 记录前移到 script_cursor0
                     table.items[a].type_ = table.items[b].type_;
                     table.items[a].px = table.items[b].px;
                     table.items[a].py = table.items[b].py;
@@ -483,7 +483,7 @@ pub fn sort_by_y(table: &mut EntityTable, grid: &mut CellGrid) {
                     table.items[a].visible = table.items[b].visible;
                     table.items[a].param = table.items[b].param;
                     dispatch_anim(table.items[a].type_, a, table);
-                    // 备份记录落到 var5
+                    // 备份记录落到 open_n
                     table.items[b].type_ = bak.0;
                     table.items[b].px = bak.1;
                     table.items[b].py = bak.2;
@@ -494,13 +494,13 @@ pub fn sort_by_y(table: &mut EntityTable, grid: &mut CellGrid) {
                     table.items[b].visible = bak.7;
                     table.items[b].param = bak.8;
                     dispatch_anim(table.items[b].type_, b, table);
-                    // 槽修复②：var2 新格（= var5 旧位）上 var5+1 → var2+1
+                    // 槽修复②：script_cursor0 新格（= open_n 旧位）上 open_n+1 → script_cursor0+1
                     fix_slot(grid, table.items[a].px, table.items[a].py, table.items[a].sprite_w, b, a);
                 }
-                var1 = table.items[var4 as usize].py;
+                py_key = table.items[sort_i as usize].py;
             }
         }
-        var3 -= 1;
+        table_count -= 1;
     }
 }
 
@@ -578,12 +578,12 @@ pub fn detach_from_cell(grid: &mut CellGrid, table: &mut EntityTable, idx: usize
     grid.slot_remove_first(ct, idx + 1);
 }
 
-/// m_108（a.java:8880-8904）：路径缓动实体的格槽迁移——从**起点格** (from_x,from_y)
+/// relocateSlotsAtRouteEnd（a.java:8880-8904）：路径缓动实体的格槽迁移——从**起点格** (from_x,from_y)
 /// 的槽表摘除首个 `idx+1`（后续前移、容量−1；未找到则不动），再追加到实体**当前
 /// 像素所在格**（格类型为 0 时 `++nextCellTypeId` 分配新类型）。
 ///
 /// 忠实点：起点格由调用方传入（MOV 五参写的 f_int_129/130，全程不随实体移动更新）
-/// ——同一实体重复调用（m_106 途中击杀后路径未尽再收尾，a.java:8848 + 8806）时，
+/// ——同一实体重复调用（openWallOnRoute 途中击杀后路径未尽再收尾，a.java:8848 + 8806）时，
 /// 首次已迁走 ⇒ 二次摘除落空，但**追加照做**（removed 实体重新登记入槽，原版行为）。
 pub fn relocate_slot(grid: &mut CellGrid, table: &EntityTable, idx: usize, from_x: i32, from_y: i32) {
     // 【六写点收口】摘除面 slot_remove_first + 追加面 slot_push（语义同原手写环）
@@ -624,7 +624,7 @@ pub fn remove_all_of_type(table: &mut EntityTable, type_id: i32) {
     }
 }
 
-/// m_049 removeGroupAtCellByType（a.java:6434-6449）：格 (cx,cy) 的槽组内
+/// removeGroupAtCellByType removeGroupAtCellByType（a.java:6434-6449）：格 (cx,cy) 的槽组内
 /// 按类型筛除（removed=true + 槽压缩）。
 pub fn remove_group_at_cell_by_type(cx: i32, cy: i32, type_id: i32, table: &mut EntityTable, grid: &mut CellGrid) {
     let ct = grid.cell_type[cy as usize][cx as usize] as usize;

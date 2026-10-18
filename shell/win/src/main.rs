@@ -550,7 +550,7 @@ impl Shell {
             }
             _ => {}
         }
-        // press_key 内的续播是同步 m_139（Java 在 keyPressed 回调当时 createPlayer）
+        // press_key 内的续播是同步 playBgm（Java 在 keyPressed 回调当时 createPlayer）
         self.sync_bgm();
     }
 
@@ -664,7 +664,7 @@ impl Shell {
         }
     }
 
-    /// `CMidlet.m_000` 退出信号（BootMachine::finished，mode 22 退场动画 70 拍后置位；
+    /// `CMidlet.dispatchModeEntry` 退出信号（BootMachine::finished，mode 22 退场动画 70 拍后置位；
     /// game-core 只发信号不碰进程——退出是平台接口，shell 消费执行）。
     /// 【2026-10-17 BUG-020】原缺此消费者 ⇒ 主菜单"退出"退场动画走完后无人退出。
     fn finished(&self) -> bool {
@@ -810,7 +810,7 @@ impl Shell {
         if need {
             if let Some(mut m) = self.stashed_boot.take() {
                 m.mode = game_core::enums::GameMode::MainMenu;
-                // m_000 case 1 音频半（a.java:4295/4311）：f_bool_28=false + m_139(2)
+                // dispatchModeEntry case 1 音频半（a.java:4295/4311）：f_bool_28=false + playBgm(2)
                 //——2026-10-18 用户实报：换机后音乐未切回标题曲（stash 机器带着
                 // enter_game 的 f_bool_28=true 状态，须按 Java case 1 语义复位）
                 m.bgm.enter_title();
@@ -986,8 +986,8 @@ impl Shell {
                                     .map(|(_, v)| v.clone());
                                 Self::install_combat_tables(&mut sc);
                                 sc.rng = machine.rng.clone();
-                                // 音频状态续接（Java 同一对象：soundEnabled/f_byte_28/
-                                // f_Player_00 跨模式连续；m_000 case 3 已在 machine 侧执行）
+                                // 音频状态续接（Java 同一对象：soundEnabled/track/
+                                // bgm 跨模式连续；dispatchModeEntry case 3 已在 machine 侧执行）
                                 sc.bgm = machine.bgm.clone();
                                 self.persisted_blobs = sc.saved_slot_blobs.clone();
                                 self.enter_scene(sc, machine);
@@ -1236,7 +1236,7 @@ fn run_window(shell: Shell) {
                     self.shell.set_minimized(minimized);
                 }
                 self.shell.logic_tick();
-                // CMidlet.m_000 退出信号消费点（BUG-020，接缝③）：game-core 发信号、
+                // CMidlet.dispatchModeEntry 退出信号消费点（BUG-020，接缝③）：game-core 发信号、
                 // shell 经 ProcessControl 执行退出（粘滞轮询、幂等——consume_exit）
                 self.shell.consume_exit(&mut WinitExit { el });
                 let iv = self.shell.frame_interval();
@@ -1496,7 +1496,7 @@ mod shell_tests {
     /// - 遮挡当拍同步 Stop；anyKeyPlayed=true；f_bool_28 不变（a.java:4509-4510）；
     /// - 隐藏期键不投递（MIDP Event Delivery）：不消费续播边沿、不改 keyHeldCode；
     /// - 叠加最小化不重复 hide（f_bool_01 门控 4503）；两路都解除才 showNotify，show 不恢复 BGM；
-    /// - 其后首键：m_139(3) 关闭后重建（a.java:4668-4670），按键当拍下发（Java keyPressed 同步
+    /// - 其后首键：playBgm(3) 关闭后重建（a.java:4668-4670），按键当拍下发（Java keyPressed 同步
     ///   createPlayer）；第二次按键无音频副作用（anyKeyPlayed 已清，4674）。
     ///
     /// gameMode 3→4 臂见 `hide_in_mode3_opens_in_game_menu`（BLOCKED）。
@@ -1655,9 +1655,9 @@ mod shell_tests {
         assert_eq!(h.commands(), vec![(71, PLAY_MENU)], "mode 21 不续播；-6 照常开声");
     }
 
-    /// hideNotify 的 gameMode 3→4 臂（a.java:4504-4507）：mode 3 隐藏 ⇒ gameMode=4 + m_000 case 4
+    /// hideNotify 的 gameMode 3→4 臂（a.java:4504-4507）：mode 3 隐藏 ⇒ gameMode=4 + dispatchModeEntry case 4
     /// （a.java:4326-4337：条目 [1,3,4,5,7]——floor≤50 无 17；软键 (1,3)）。
-    /// BLOCKED：game-core 无公开入口（m_000 case 4 = 私有 GameScene::enter_menu4）；菜单弹出属
+    /// BLOCKED：game-core 无公开入口（dispatchModeEntry case 4 = 私有 GameScene::enter_menu4）；菜单弹出属
     /// game-core 状态机、壳不复写。
     #[test]
     fn hide_in_mode3_opens_in_game_menu() {
@@ -1911,7 +1911,7 @@ mod shell_tests {
         assert_eq!(click_code(10, h * 7 / 10 + 1), -6);
     }
 
-    /// mode 22 退出信号（CMidlet.m_000 信号半，BUG-020 消费链的信号源）：标题"退出"
+    /// mode 22 退出信号（CMidlet.dispatchModeEntry 信号半，BUG-020 消费链的信号源）：标题"退出"
     /// （kind 5，title.rs:181 menu_kinds=[0..5]）→ 退场动画 70 拍 → finished 置位、之后粘滞。
     /// Java 锚（A 级）：run case 22（a.java:4249-4252）`++bootPhaseCounter ≤ 70 →
     /// runLogoAnimation(1,t)`，否则退出进程 ⇒ counter 1..=70 为动画、71 置位。

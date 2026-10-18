@@ -13,7 +13,7 @@
 //!
 //! # 附加参数字节数表（`extra_len`，逐类型码来自 switch 分支）
 //!
-//! Evidence: `reference/src/deobf/a.java:9503` `switch (var5)` 的各 case（已逐行核对）：
+//! Evidence: `reference/src/deobf/a.java:9503` `switch (open_n)` 的各 case（已逐行核对）：
 //!
 //! | 字节数 | 类型码 | 代码分支 |
 //! |---|---|---|

@@ -4,12 +4,12 @@
 //!
 //! 覆盖矩阵（docs/coverage-matrix.md §3 黄项）——tools/cover_matrix.py 以夹具注释头的 `A-<stem>`
 //! 认领场景，且夹具帧链 sha256 = tools/method_reach 快照该场景 frame_chain 才把窗口计入验证：
-//! - `preset-floor5`（scenarios/，迭代 59 原用例的夹具化）：m_076（现名 browseOfferQueue，mode12 记录翻页）、
+//! - `preset-floor5`（scenarios/，迭代 59 原用例的夹具化）：browseOfferQueue（现名 browseOfferQueue，mode12 记录翻页）、
 //!   addItemToItemStack（拾取道具14）；
-//! - `preset-floor49`（scenarios/，迭代 66 原用例的夹具化）：m_102（现名 probeCrossFloorSnapshot，tryRunScene
+//! - `preset-floor49`（scenarios/，迭代 66 原用例的夹具化）：probeCrossFloorSnapshot（现名 probeCrossFloorSnapshot，tryRunScene
 //!   case15 守卫门控）；
 //! - `fx-scriptwalk-floor3`（夹具场景）：advanceScriptWalk（script0 玩家三参 MOV 两步行走）；
-//! - `fx-knockback-floor43`（夹具场景）：m_101（型60 上邻击退：可退 / 墙挡两臂）；
+//! - `fx-knockback-floor43`（夹具场景）：fireTrapClimbUp（型60 上邻击退：可退 / 墙挡两臂）；
 //! - `fx-fan-floor13`（夹具场景）：m_089（芭蕉扇未命中提示 / 命中灭火两臂）+ 型10 撞击提示。
 //!
 //! 夹具（crates/game-oracle/tests/fixtures/）与再生命令（无头；不触碰 _out/ 的写入只发生在
@@ -340,7 +340,7 @@ fn replay_opt(label: &str, preset_text: &str, records: &[FrameRec]) -> (usize, O
 
 /// mode12 记录浏览器（迭代 59 原 preset_floor5 用例，35e779f 起改作他用后缺位——此处夹具化恢复）：
 /// 槽载入 (4,8) → -2 步入 (4,9) 拾取道具14（addItemToItemStack 首拾描述浮层 kind1）→ -6 面板 →
-/// -6 使用 → mode12（m_076(0) + paint case12）→ -4/-3 m_076 钳位翻页 → -6 关回 mode10。T1-1200。
+/// -6 使用 → mode12（browseOfferQueue(0) + paint case12）→ -4/-3 browseOfferQueue 钳位翻页 → -6 关回 mode10。T1-1200。
 #[test]
 fn preset_floor5_fixture_frames_match() {
     let records = frame_records(include_str!("fixtures/preset-floor5.frames.txt"));
@@ -352,7 +352,7 @@ fn preset_floor5_fixture_frames_match() {
 }
 
 /// 按层铺 floor49（迭代 66 原用例，308765f 起改作他用后缺位——此处夹具化恢复）：门卫/守卫宝箱配对
-/// + (6,8) 型83 首访 inert（tryRunScene case15：m_102(当前层,5) 守卫在场 ⇒ false）→ 二访伏击
+/// + (6,8) 型83 首访 inert（tryRunScene case15：probeCrossFloorSnapshot(当前层,5) 守卫在场 ⇒ false）→ 二访伏击
 /// script15 → 61/70 战 → case70 → script35。T1-3400。
 #[test]
 fn preset_floor49_fixture_frames_match() {
@@ -394,7 +394,7 @@ fn fx_scriptwalk_floor3_frames_match() {
     assert_eq!((sc.view.player_px >> 5, sc.view.player_py >> 5), (5, 11), "MOV_0_5_11 终点");
 }
 
-/// m_101：floor43 (3,5) -4 步入 (4,5)（上邻 (4,4) 型60）⇒ 击退至 (4,3) + 扣血 200；-1 步入 (4,4)
+/// fireTrapClimbUp：floor43 (3,5) -4 步入 (4,5)（上邻 (4,4) 型60）⇒ 击退至 (4,3) + 扣血 200；-1 步入 (4,4)
 /// ⇒ 上邻 (4,3) 型60、其上 (4,2) 为墙 ⇒ 不退 + 再扣 200。T1-600。
 #[test]
 fn fx_knockback_floor43_frames_match() {
@@ -428,14 +428,14 @@ fn fx_firebump_floor13_frames_match() {
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-firebump-floor13.txt"));
     let (checked, sc) = replay("fx-firebump-floor13", include_str!("fixtures/fx-firebump-floor13.preset"), &records);
     assert_eq!(checked, records.len(), "T1-480 全帧必须比对");
-    assert_eq!((sc.view.player_px >> 5, sc.view.player_py >> 5), (6, 7), "型10 阻挡（var6=false）");
+    assert_eq!((sc.view.player_px >> 5, sc.view.player_py >> 5), (6, 7), "型10 阻挡（cur_x=false）");
 }
 
 /// FX-INT-6A：型6 首碰显形三元组 + 幂等 + 地形豁免（evidence-interact-types R-INT-6）。
 /// floor5 (10,11) 左撞 (9,11) 型6 ⇒ 显形三元组 visible→state=2→animRow=9（a.java:5413-5415
-/// 写序）→ 放行进（var7++ 地形豁免，该格地形不可走）→ advanceEntityFrames state=2 过渡完成
+/// 写序）→ 放行进（cur_y++ 地形豁免，该格地形不可走）→ advanceEntityFrames state=2 过渡完成
 /// （a.java:6838-6843：dispatchSpriteSize+dispatchAnimFields+state=0）→ (10,11) 回退 →
-/// 二次进入幂等（仅 var7++，三字段不改写）。T1-560。出生点不得钉边界格（BUG 见
+/// 二次进入幂等（仅 cur_y++，三字段不改写）。T1-560。出生点不得钉边界格（BUG 见
 /// fx_bug_aioobe_border_frames_match）。
 #[test]
 fn fx_int6a_reveal_frames_match() {
@@ -447,14 +447,14 @@ fn fx_int6a_reveal_frames_match() {
     assert_eq!(
         (sc.view.player_px >> 5, sc.view.player_py >> 5),
         (9, 11),
-        "终态站上 (9,11)——型6 地形豁免放行（var7>0 跳过 isCellWalkable 终审）"
+        "终态站上 (9,11)——型6 地形豁免放行（cur_y>0 跳过 isCellWalkable 终审）"
     );
     let e = (0..sc.entities.count)
         .find(|&i| sc.entities.items[i].type_ == 6)
         .expect("型6 实体在表");
     assert!(sc.entities.items[e].visible, "显形后 visible 恒真（a.java:5413）");
     assert_eq!(sc.entities.items[e].state, 0, "state=2 过渡完成后归零（a.java:6842）");
-    assert!(sc.player_bob_applied, "落格 f_bool_07=true（a.java:5650-5652）");
+    assert!(sc.player_bob_applied, "落格 player_bob_applied=true（a.java:5650-5652）");
 }
 
 /// FX-BUG-AIOOBE：边界出生崩溃钉死（原版 bug 复现夹具，D4 保真不修——bug-ledger 待 lead 编号）。
@@ -502,7 +502,7 @@ fn fx_door2a_open_frames_match() {
 }
 
 /// FX-DOOR-2B：型2 无钥匙阻挡（负例，R-INT-2 无钥匙半）。红钥 0 ⇒ 双次北撞均
-/// walkStepCount=0 +「你没有红钥匙」浮层（a.java:5392-5395）+ var6=false，门不消耗不开启。
+/// walkStepCount=0 +「你没有红钥匙」浮层（a.java:5392-5395）+ cur_x=false，门不消耗不开启。
 #[test]
 fn fx_door2b_nokey_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-door2b.frames.txt"));
@@ -513,7 +513,7 @@ fn fx_door2b_nokey_frames_match() {
     assert_eq!(
         (sc.view.player_px >> 5, sc.view.player_py >> 5),
         (6, 9),
-        "无钥匙恒阻挡，玩家不动（var6=false）"
+        "无钥匙恒阻挡，玩家不动（cur_x=false）"
     );
     assert_eq!(sc.player.red_keys, 0, "无钥匙无从消耗");
     let d = (0..sc.entities.count)
@@ -656,7 +656,7 @@ fn fx_boss74a_kill_hooks_frames_match() {
 /// 型12 行；closure-typist 建议升级场景）。floor23 (2,4) 型12 隐形墙（sprite23 原生 ×24）
 /// 右撞 ⇒ case12（a.java:5449-5456）变形：type 12→11 + dispatchSpriteSize/AnimFields(11)
 /// + state=2 + animRow=9 + visible=true（写序固定）⇒ 过渡完成归零（a.java:6838-6843）；
-/// 二撞 ⇒ case11（a.java:5441-5448）floor==23 跳过文案但恒阻挡（var6=false+var8=0）。
+/// 二撞 ⇒ case11（a.java:5441-5448）floor==23 跳过文案但恒阻挡（cur_x=false+var8=0）。
 /// T1-560。
 #[test]
 fn fx_int11_f23_transform_silent_frames_match() {
@@ -668,7 +668,7 @@ fn fx_int11_f23_transform_silent_frames_match() {
     assert_eq!(
         (sc.view.player_px >> 5, sc.view.player_py >> 5),
         (1, 4),
-        "双撞均阻挡（case12 var6=false / case11 var6=false）"
+        "双撞均阻挡（case12 cur_x=false / case11 cur_x=false）"
     );
     let w = (0..sc.entities.count)
         .find(|&i| sc.entities.items[i].px >> 5 == 2 && sc.entities.items[i].py >> 5 == 4)
@@ -685,7 +685,7 @@ fn fx_int11_f23_transform_silent_frames_match() {
 
 /// FX-ITEM-20A：相形变位对角瞬移的 40 层禁瞬移臂（closure :7833 销账行；
 /// activateItem case20 a.java:7835-7838）。floor40 使用 ⇒ 「本层不能直接瞬移。」
-/// 不瞬移不消耗（var2 恒 false ⇒ useItemStack a.java:7766 短路），两次使用幂等。
+/// 不瞬移不消耗（script_cursor0 恒 false ⇒ useItemStack a.java:7766 短路），两次使用幂等。
 /// T1-680。
 #[test]
 fn fx_item20a_no_teleport_floor40_frames_match() {
@@ -707,7 +707,7 @@ fn fx_item20a_no_teleport_floor40_frames_match() {
 /// FX-INT-11-N23：非23层型11 撞墙真臂（evidence-interact-types R-INT-11 真臂半 + :5442
 /// 销账真臂钉，closure-typist 三次驳回销账路径）。floor29 (8,3) 型11 双撞 ⇒ case11
 /// （a.java:5441-5448）currentFloor!=23 ⇒ 「障碍物：墙\n只有金勺子、玄明石可以凿开。
-/// 或者剧情打开！」+ 恒阻挡（var6=false）+ var8=0 停扫。与 FX-INT-11-F23 假臂（23 层
+/// 或者剧情打开！」+ 恒阻挡（cur_x=false）+ var8=0 停扫。与 FX-INT-11-F23 假臂（23 层
 /// 静默）成对 ⇒ :5442 双分支齐。独立场景（不动 fx-item17a 输入，护其帧链 sha 引用）。
 /// T1-400。
 #[test]
@@ -720,7 +720,7 @@ fn fx_int11_n23_wall_message_frames_match() {
     assert_eq!(
         (sc.view.player_px >> 5, sc.view.player_py >> 5),
         (8, 4),
-        "双撞恒阻挡（var6=false）"
+        "双撞恒阻挡（cur_x=false）"
     );
     assert_eq!(
         sc.overlay_text.as_deref().unwrap_or(""),
@@ -1058,7 +1058,7 @@ fn bug012_lay2a_same_point_crash_regression() {
 }
 
 /// BUG-012b 真实切层链（2026-10-17 用户精确证词 P0）：floor2 (1,10) 下步入 (1,11)
-/// 上梯 → changeFloor(3) → swap_floor 落点 m_031 首可走邻格 = floor3 (2,11) 剧情点
+/// 上梯 → changeFloor(3) → swap_floor 落点 stepOffStairs 首可走邻格 = floor3 (2,11) 剧情点
 /// → applyStepCellEffects case83 step 臂 → script0（CES_84 嫦娥 + MOV_0_5_11 自走
 /// + TAK_8_9 剧情对话）。**Java 基线（oracle floor2-stair2 实测）**：
 /// T305 踩梯 → T309 切层落 (2,11) → T310 cursor 12（CES）→ T311 dphase=3/wsc=3（MOV

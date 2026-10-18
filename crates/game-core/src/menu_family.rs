@@ -3,20 +3,20 @@
 //!
 //! # 结构（A 级证据）
 //!
-//! - **mode 8**（paint a.java:2684-2688 / run a.java:3827-3876 / m_000 case 8
+//! - **mode 8**（paint a.java:2684-2688 / run a.java:3827-3876 / dispatchModeEntry case 8
 //!   a.java:4358-4377）：parallax 背景 + paintSlotList 槽位列表 + 软键 (1,3)。
 //!   -2/-1 移动槽光标（slotCursor，窗口 slotScrollTop/slotScrollBottom）；-7 → menuReturnMode；
 //!   槽无效（oracle RMS 恒空）时 -5 无操作。
 //! - **mode 15/17**（BUG-007：标签「保存游戏/设置」实为帮助/关于）：
 //!   paint case 15/17 = parallax + iconStrip(y0=10, sy=51/68) + 软键 (0,3)；
-//!   m_000 经 showOverlayMessage(0, 大文本) 置 overlayActive——**overlay 层**
+//!   dispatchModeEntry 经 showOverlayMessage(0, 大文本) 置 overlayActive——**overlay 层**
 //!   （run a.java:3252-3266 case 0 的 15/17 分支）处理 -7（退出→menuReturnMode）
 //!   与 -2/-1（翻页）。
 //! - **mode 16**（选项列表）：paint case 16（paintBoxFrame 盒 + 高亮行 + 勾选框）；
 //!   run case 16（a.java:4141-4183）：-2/-1 移动 optionCursor、-5/-4/-3 翻转
 //!   optionChecked[高亮]；-7/-6 → menuReturnMode。
 //! - **mode 22**（帮助→退出）：run case 22（a.java:4247-4250）++bootPhaseCounter≤70
-//!   ⇒ runLogoAnimation(1, t)（var1=1 分支 a.java:10322-10364：t=18..30 逐字
+//!   ⇒ runLogoAnimation(1, t)（py_key=1 分支 a.java:10322-10364：t=18..30 逐字
 //!   上滑注册、t=50/51/52/58/63 修改项）；paint case 22 = paintLogoAnimation。
 //!   70 拍后 f_bool_00=false（进程退出）。
 //! - **overlay 绘制**（paint 公共尾 a.java:3129-3171）：paintBoxFrame 居中盒 +
@@ -275,7 +275,7 @@ pub struct OverlayEngine {
     lines_per_page: i32,
     /// overlayPageHeight：页高（行高×每页行数）。
     page_height: i32,
-    /// overlayContentWidth：内容宽（单行 = 整串宽，多行 = 布局宽 var2）。
+    /// overlayContentWidth：内容宽（单行 = 整串宽，多行 = 布局宽 script_cursor0）。
     content_width: i32,
     /// overlayBoxWidth/overlayBoxHeight：overlay 盒尺寸。
     pub box_w: i32,
@@ -534,13 +534,13 @@ impl OverlayEngine {
         self.cached_text = Some(text.to_vec());
     }
 
-    /// 引子字幕布局（m_014 依赖行宽/总行数；布局参数与 paint 调用一致 220/28）。
+    /// 引子字幕布局（runIntroViewer 依赖行宽/总行数；布局参数与 paint 调用一致 220/28）。
     pub fn layout_for_intro(&mut self, text: &[u16], font: &crate::render::SoftFont) {
         self.layout(text, 220, (font.height + 4) << 1, font); // max_h = textLineHeight<<1（a.java:2941）
         self.cached_text = Some(text.to_vec());
     }
 
-    /// f_String_03 != null（上次 paint 布局锚存在——m_014 滚动机门槛）。
+    /// overlayLayoutCache != null（上次 paint 布局锚存在——runIntroViewer 滚动机门槛）。
     pub fn layout_done(&self) -> bool {
         self.cached_text.is_some()
     }
@@ -636,7 +636,7 @@ pub struct SlotSelect {
     /// slotScrollTop/slotScrollBottom：可见窗口。
     pub scroll_top: i32,
     pub scroll_bottom: i32,
-    /// slotsPerPage：每页行数（m_000 case 8 = min(6, 208/14) = 6）。
+    /// slotsPerPage：每页行数（dispatchModeEntry case 8 = min(6, 208/14) = 6）。
     pub rows_per_page: i32,
     /// slotListWidth：内容宽（max(148, wideCharWidth*3+60) = 148）。
     pub content_w: i32,
@@ -835,7 +835,7 @@ impl SlotSelect {
     }
 
     /// `paintSlotList(false)`（a.java:9050-9087）：列表 + 有效槽详情面板
-    ///（m_113 var2+=6 起全段：层数/装备框/金币/三围/三钥）。
+    ///（paintSlotTable script_cursor0+=6 起全段：层数/装备框/金币/三围/三钥）。
     /// `sptarm` = f_Image_arr2_00[6]（武器/防具位图）；paintKeySlot 语义内联。
     pub fn paint(
         &self,
@@ -870,11 +870,11 @@ impl SlotSelect {
         }
     }
 
-    /// m_113 列表段（a.java:9052-9095）：标题盒（`segs` = titleBarSegments 变体）+
+    /// paintSlotTable 列表段（a.java:9052-9095）：标题盒（`segs` = titleBarSegments 变体）+
     /// 可见行（选中高亮条/双箭头 + "---" 或 "存档N"）+ 翻页箭头 + 双色分隔线。
     /// 返回第二条分隔线的 `(lx, ly)`（详情面板锚点）。
     ///
-    /// m_113 有两条移植——boot 读档 [`Self::paint`] 与场景存档
+    /// paintSlotTable 有两条移植——boot 读档 [`Self::paint`] 与场景存档
     /// `GameScene::paint_slot_list`——本段、[`Self::paint_equipment_frames`] 与
     /// [`Self::paint_detail_stats`] 原为逐字双拷贝，现共用。
     /// 【2026-10-15 更正】装备框段曾两份**不一致**（场景侧恒画材质名、未移植
@@ -930,7 +930,7 @@ impl SlotSelect {
         (lx, ly)
     }
 
-    /// m_113 装备框段（a.java:9104-9143）：槽 `c` 的武器框 + 甲框（`vy` = 装备框行 y）。
+    /// paintSlotTable 装备框段（a.java:9104-9143）：槽 `c` 的武器框 + 甲框（`vy` = 装备框行 y）。
     /// 两条移植共用（见 [`Self::paint_list`]）。
     ///
     /// `sptarm(i)` = `f_Image_arr2_00[6][i]`（boot 侧传原容器；场景侧经
@@ -942,15 +942,15 @@ impl SlotSelect {
         vy: i32,
         sptarm: impl Fn(usize) -> Option<&'a ArgbImage>,
     ) {
-        // a.java:9104-9105：var2 = 240 + slotListWidth >> 1; var2 -= 68
+        // a.java:9104-9105：script_cursor0 = 240 + slotListWidth >> 1; script_cursor0 -= 68
         let vx = ((SCREEN_W + self.content_w) >> 1) - 68;
         // 武器 f_byte_arr_25（a.java:9106-9123）：v-33 > 7 ⇒ 钳 8
         paint_equipment_frame(g, vx, vy, self.weapon[c], 8, &sptarm);
-        // 甲 f_byte_arr_26（a.java:9125-9143）：var2 += 34；v-33 > 7 ⇒ 钳 9
+        // 甲 f_byte_arr_26（a.java:9125-9143）：script_cursor0 += 34；v-33 > 7 ⇒ 钳 9
         paint_equipment_frame(g, vx + 34, vy, self.armor[c], 9, &sptarm);
     }
 
-    /// m_113 详情面板中段（a.java:9145-9169）：金币行 + HP/攻/防 三围框（槽 `c`）。
+    /// paintSlotTable 详情面板中段（a.java:9145-9169）：金币行 + HP/攻/防 三围框（槽 `c`）。
     /// `vy` = 装备框行 y；返回三钥行起点 `(vx, vy)`。两条移植共用（见 [`Self::paint_list`]）。
     pub fn paint_detail_stats(&self, g: &mut SoftGraphics<'_>, ui: &[ArgbImage], c: usize, vy: i32) -> (i32, i32) {
         let mut vx = (SCREEN_W - self.content_w + 10) >> 1;
@@ -991,7 +991,7 @@ const SAVE_LABEL: &[u16] = &[0x5B58, 0x6863];
 /// 即该映射产物（`map_entity_images`），按本表反查即得 sptarm 原图。
 pub const SPTARM_ENTITY_TYPES: [usize; 10] = [33, 34, 35, 36, 37, 38, 39, 40, 79, 80];
 
-/// m_113 单个装备框（a.java:9106-9123 武器 / 9126-9143 甲）：`paintMiniFrame(32×32)`
+/// paintSlotTable 单个装备框（a.java:9106-9123 武器 / 9126-9143 甲）：`paintMiniFrame(32×32)`
 /// 后按槽值 `v` 二分——
 /// - `v == 0`：`setColor(-1)` + `drawString(equipmentMaterialNames[v])`（本支恒 [0]
 ///   =“无”），偏移 `(32-wideCharWidth>>1, 32-fontHeight>>1)`（a.java:9107-9115）；
@@ -1289,10 +1289,10 @@ pub const OPTION_LABELS: [&[u16]; 2] = [
 ];
 
 impl OptionList {
-    /// m_000 case 16（a.java:4412-4414）：optionCount=0 后 addOption(0)/addOption(1)。
+    /// dispatchModeEntry case 16（a.java:4412-4414）：optionCount=0 后 addOption(0)/addOption(1)。
     ///
     /// `minimap_checked`：optionChecked[1]——oracle RMS 恒空 ⇒ mode 21 的
-    /// m_000 case 21 catch 分支设 true（a.java:4475-4471）。
+    /// dispatchModeEntry case 21 catch 分支设 true（a.java:4475-4471）。
     pub fn new(sound_enabled: bool, minimap_checked: bool) -> OptionList {
         let mut list = OptionList {
             labels: Vec::new(),

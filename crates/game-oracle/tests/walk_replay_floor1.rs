@@ -146,7 +146,7 @@ impl HostCtx for Floor1Host {
 // 空格/物品格 → 地形可通行判定。
 impl Floor1Host {
     fn interact_allows_walk(&mut self, x: i32, y: i32) -> bool {
-        // Java：var6 初始 true；遍历实体处理；末段地形判定
+        // Java：cur_x 初始 true；遍历实体处理；末段地形判定
         let mut can_walk = true;
         let ct = if x >= 0 && y >= 0 && (x as usize) < 13 && (y as usize) < 13 {
             self.grid.cell_type[y as usize][x as usize] as usize
@@ -229,7 +229,7 @@ fn dir_from_key(key: i32) -> Option<Dir> {
 ///   旧测试靠错误网格的"向上可走"假绿。
 /// - Java 真实行为（fixture FLD 083/084 实证）：T744-1248 玩家恒 (96,320)
 ///   ——上格 (3,9) 不可走、三次 -1 全被阻挡；T1240 -2 触发场上战斗
-///   （walkPhase=5，cat 8 var6=false 不放行），T1256 胜利后跳入怪格 (96,352)
+///   （walkPhase=5，cat 8 cur_x=false 不放行），T1256 胜利后跳入怪格 (96,352)
 ///   ——战斗/胜利跳格语义属战斗批次，本测试只锚战前段。
 #[test]
 fn walk_pure_replay_pixel_timeline_matches_java() {
@@ -309,7 +309,7 @@ fn walk_pure_replay_pixel_timeline_matches_java() {
     }
     // Java 实证锚（FLD 083/084）：T744-1248 恒 (96,320)——上格 (3,9) 不可走
     // （权威网格）+ 三次 -1 均被阻挡；-2（T1240）踩怪格 (3,11) 亦不放行
-    // （cat 8 → 战斗，var6=false）⇒ 战前段零像素位移
+    // （cat 8 → 战斗，cur_x=false）⇒ 战前段零像素位移
     assert!(pixel_transitions.is_empty(),
         "战前段不应有位移（实测 {:?}）——上格不可走 + 怪格阻挡", pixel_transitions);
     assert_eq!((px, py), (96, 320), "玩家保持出生位");

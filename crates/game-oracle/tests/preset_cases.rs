@@ -2326,8 +2326,8 @@ fn preset_merchant_frames_match() {
 }
 /// floor1→floor2 换层全链（迭代 35，harness 统一）：floor1-to-floor2 场景
 /// （preset-floor1 槽载入 (3,10)），T1-1500 全帧。覆盖：floor1 真实行走
-/// （4 战）→ 踩型7楼梯(11,1) → changeFloor 遮幅 → floor2 落地 m_031 (1,2)
-/// → 踩型8楼梯返回 → floor1 m_031 (10,1)。主层资产 = floor1；
+/// （4 战）→ 踩型7楼梯(11,1) → changeFloor 遮幅 → floor2 落地 stepOffStairs (1,2)
+/// → 踩型8楼梯返回 → floor1 stepOffStairs (10,1)。主层资产 = floor1；
 /// floor_assets[1]/[2] 双层装配（换层互通）。战斗流首次纳入全帧对拍。
 #[test]
 fn floor_crossing_frames_match() {
@@ -2555,7 +2555,7 @@ fn floor_crossing_frames_match() {
 /// 序章全流程（迭代 37，mode 11 Rust L3 全流程化）：prologue-dialog 场景
 /// （boot 型，无 preset），T1-9800 全帧。覆盖：boot logo→声音询问→标题→
 /// 新游戏引子（mode14 插画）→装载链（mode2）→ **新游戏冷启动移交**
-/// （m_000 case 3：step8 统计 floor51/hp300/atk10/def10，a.java:3496-3506）
+/// （dispatchModeEntry case 3：step8 统计 floor51/hp300/atk10/def10，a.java:3496-3506）
 /// → 出生格 type83 触发 script 40 → mode 11 对话层（打字机/游标/翻页/
 /// 电影镜头）至 T9800。取代旧冷场景版（gameplay_floor1.rs
 /// prologue_dialog_frames_match T577-9800 手调初值窗口）。
@@ -2694,7 +2694,7 @@ fn prologue_frames_match() {
         } else {
             machine.tick(key);
             if machine.new_game_ready {
-                // 冷启动场景（a.java:3496-3506 step8 统计 + m_001(3)/相机 step11）
+                // 冷启动场景（a.java:3496-3506 step8 统计 + loadPackedImages(3)/相机 step11）
                 let mut sc = game_core::scene::GameScene::load_floor(
                     &maplv51,
                     32,
@@ -2731,7 +2731,7 @@ fn prologue_frames_match() {
                 sc.strip_frame = machine.strip_frame;
                 sc.backdrop_scroll = machine.backdrop.scroll();
                 sc.rng = machine.rng.clone();
-                // m_000 case 3 尾（a.java:4312-4318）：出生格 type83 → script 40
+                // dispatchModeEntry case 3 尾（a.java:4312-4318）：出生格 type83 → script 40
                 sc.apply_entry_step_effects();
                 if pending_key != 0 {
                     sc.press_key(pending_key);
@@ -2914,7 +2914,7 @@ fn floor51_menu_frames_match() {
         } else {
             machine.tick(key);
             if machine.new_game_ready {
-                // 冷启动场景（a.java:3496-3506 step8 统计 + m_001(3)/相机 step11）
+                // 冷启动场景（a.java:3496-3506 step8 统计 + loadPackedImages(3)/相机 step11）
                 let mut sc = game_core::scene::GameScene::load_floor(
                     &maplv51,
                     32,
@@ -2951,7 +2951,7 @@ fn floor51_menu_frames_match() {
                 sc.strip_frame = machine.strip_frame;
                 sc.backdrop_scroll = machine.backdrop.scroll();
                 sc.rng = machine.rng.clone();
-                // m_000 case 3 尾（a.java:4312-4318）：出生格 type83 → script 40
+                // dispatchModeEntry case 3 尾（a.java:4312-4318）：出生格 type83 → script 40
                 sc.apply_entry_step_effects();
                 if pending_key != 0 {
                     sc.press_key(pending_key);
@@ -5325,7 +5325,7 @@ fn preset_floor44_frames_match() {
 /// 按层铺 floor45（P2 B1 三层，迭代 78）：
 /// preset-floor45 场景（MOT_L0 current_floor=45，出生 (10,3)），窗口 T1-1700 全帧。
 /// 链：-2 光标 → -5 载入 (10,3) → 西撞 78 商人（extra 0x0c → param=
-/// f_byte_arr_13[11]<<8|0x0c，37px 宽变体 typeFrameWidth[78]）→ -5 受领
+/// door13_hi[11]<<8|0x0c，37px 宽变体 typeFrameWidth[78]）→ -5 受领
 /// （atk 30→300 帧证）→ 东 (11,3) → 南 (11,4) → (11,5) 开黄门 →
 /// (11,6)/(11,7) → 西 (10,7)/(9,7) → 北撞 77 商人（extra 0x12）→ -5 → 收尾。
 /// Java 锚（A-preset-floor45 stride=1）：T302 78 对话、T650 受领、
@@ -7643,7 +7643,7 @@ fn preset_floor42_frames_match() {
 /// T904 关闭静态。
 #[test]
 // 迭代 76 摘挂 ✅ 楼层 L3 12/55：D 表重建（\n 换行转义逐字粘贴）+
-// m_083 先减后比 + 装备槽图标/双参盒全部落地后 T1-1700 全帧绿。
+// equipTierIndex 先减后比 + 装备槽图标/双参盒全部落地后 T1-1700 全帧绿。
 // 挂起历史：甲槽图标"颜色不对"（sptarm[9] 解码 PIL 对照无误，真因 =
 // 槽未移植）；extra_len(77/78) 勘误回滚（sprite2 实证 1 字节）。
 fn preset_floor43_frames_match() {

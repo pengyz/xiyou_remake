@@ -24,7 +24,7 @@ impl ProcessControl for ExitRecorder {
 }
 
 /// 退出执行归 shell：trait 只承接"执行退出"这一半，游戏层信号
-/// （BootMachine::finished / CMidlet.m_000）不入 trait（spec §2.2）。
+/// （BootMachine::finished / CMidlet.dispatchModeEntry）不入 trait（spec §2.2）。
 #[test]
 fn request_exit_runs_the_shell_side_effect() {
     let mut p = ExitRecorder::default();

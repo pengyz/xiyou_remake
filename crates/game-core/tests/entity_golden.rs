@@ -1,7 +1,7 @@
 //! P3.2 实体模块 golden vectors（TDD）。
 //!
-//! 证据：deobf m_048（spawn）/ m_100（cell_entity）/ m_047（remove）/
-//! m_133+m_134（findPath best-first，:9840-9936）/ m_061（地形可行走）。
+//! 证据：deobf spawnEntity（spawn）/ findBlockingEntity（cell_entity）/ markEntityRemoved（remove）/
+//! findPath+relaxPathNeighbors（findPath best-first，:9840-9936）/ rebuildWalkability（地形可行走）。
 //! BUG-006 重放向量使用真实 maplv51（原 jar 提取，fixtures/maplv51.bin）。
 
 use game_core::entity::{self, CellGrid, EntityTable};
@@ -15,7 +15,7 @@ fn width_table() -> Vec<i32> {
 }
 
 fn grid51() -> (i32, i32, Vec<Vec<bool>>) {
-    // m_121 + m_061：maplv51 → 13×13 地形可行走网格
+    // loadFloorData + rebuildWalkability：maplv51 → 13×13 地形可行走网格
     let data = include_bytes!("fixtures/maplv51.bin");
     let cols = 13i32;
     let rows = 13i32;
@@ -28,7 +28,7 @@ fn grid51() -> (i32, i32, Vec<Vec<bool>>) {
     for y in 0..rows as usize {
         for x in 0..cols as usize {
             // [2026-10-16 更正] rebuildWalkability（a.java:6964-6976）读法 =
-            // **行距 wide·4、列距 2**（行尾 `var1 += var3 << 1` 叠加列循环 ×2）
+            // **行距 wide·4、列距 2**（行尾 `py_key += table_count << 1` 叠加列循环 ×2）
             // ——与 scene.rs 载层 walkable 构建同式（其 A 级注：oracle FLD 134
             // 13×13 逐格复算匹配）。原 `(y*cols+x)*2` 步距 2W 仅行 0 吻合，
             // 行 ≥1 整体错位 ⇒ floor51 (1,11)→(3,10) 走廊被误判封死，是
@@ -42,7 +42,7 @@ fn grid51() -> (i32, i32, Vec<Vec<bool>>) {
 
 #[test]
 fn spawn_registers_cell_slot_and_stair_anchor() {
-    // m_048（a.java:9664 区域）：像素取整、槽位登记、楼梯锚点
+    // spawnEntity（a.java:9664 区域）：像素取整、槽位登记、楼梯锚点
     let width_table = width_table();
     let mut t = EntityTable::new(100);
     let mut g = CellGrid::new(13, 13);
@@ -52,16 +52,16 @@ fn spawn_registers_cell_slot_and_stair_anchor() {
     assert_eq!(t.items[0].px, 96);
     assert_eq!(t.items[0].py, 320);
     assert_eq!(t.items[0].type_, 7);
-    assert!(t.items[0].visible, "m_048 默认 visible=true");
+    assert!(t.items[0].visible, "spawnEntity 默认 visible=true");
     assert_eq!(t.stair_up, Some((96, 320)));
-    // m_100 查询：格 (3,10) 上 type 7 → idx 0
+    // findBlockingEntity 查询：格 (3,10) 上 type 7 → idx 0
     assert_eq!(entity::cell_entity(&g, &t, 3, 10, 7), 0);
     assert_eq!(entity::cell_entity(&g, &t, 3, 10, 8), -1);
 }
 
 #[test]
 fn remove_marks_solid_and_lookup_skips() {
-    // m_047（a.java:6325：solid=1）+ m_100 跳过 solid==1
+    // markEntityRemoved（a.java:6325：solid=1）+ findBlockingEntity 跳过 solid==1
     let width_table = width_table();
     let mut t = EntityTable::new(100);
     let mut g = CellGrid::new(13, 13);
@@ -100,7 +100,7 @@ fn find_path_straight_line_on_open_grid() {
     };
     let r = find_path(&walk, 1, 1, 5, 1);
     assert!(r.found);
-    // 回溯方向映射（m_133）：父在左 ⇒ 行进向右（2）；4 步全 2
+    // 回溯方向映射（findPath）：父在左 ⇒ 行进向右（2）；4 步全 2
     assert_eq!(r.steps, vec![2, 2, 2, 2]);
 }
 
@@ -120,15 +120,15 @@ fn find_path_respects_terrain() {
     let r = find_path(&walk, 0, 1, 2, 0);
     // (0,1)→(1,1)→(2,1)→(2,0)：3 步（绕过 (1,0) 墙）
     assert!(r.found);
-    // m_133 缓冲序 = 目标端优先：首 push 为目标侧末腿（up），消费走 --walkStepCount
+    // findPath 缓冲序 = 目标端优先：首 push 为目标侧末腿（up），消费走 --walkStepCount
     // 自末端（= 行走首段 right,right）——方向码 Up=1
     assert_eq!(r.steps, vec![1, 2, 2]);
 }
 
 /// BUG-006 重放：真实第 51 层网格上 (1,11) → (3,10)。
 ///
-/// [证据链] oracle trace：playerCell(1,11)、SEE_3_10_166_166_1、f_int_148(walkStepCount)=3、
-/// f_bool_26(walk_request_flag)=true（findPath 成功写点）。本测试用 Rust 重实现验证
+/// [证据链] oracle trace：playerCell(1,11)、SEE_3_10_166_166_1、walkStepCount(walkStepCount)=3、
+/// pathArrowsVisible(walk_request_flag)=true（findPath 成功写点）。本测试用 Rust 重实现验证
 /// Java 侧行为，并**更正 BUG-006 台账的根因**：原登记"寻路失败"——实为寻路成功
 /// （3 步路径存在），冻结来自行尾收尾门（a.java:8568）覆写 dialogPhase 6→4、
 /// 使已武装的行走永远不被执行。
@@ -143,7 +143,7 @@ fn path_not_found_without_entity_slots_floor51() {
     };
     let r = find_path(&walk, 1, 11, 3, 10);
     // [2026-10-16 注] 步距修正后此测仍 !found——**结论未变但理由归正**：
-    // 走廊 (1,11)→(3,10) 依赖 sprite51 实体槽（m_062）搭桥，纯地形网格
+    // 走廊 (1,11)→(3,10) 依赖 sprite51 实体槽（canPathThroughEntity）搭桥，纯地形网格
     // 不可达（对照下一测试：带槽 = found/3 步）。原"步距错位下的不可达"
     // 结论碰巧同向，理由以本注为准。
     assert!(!r.found);
@@ -152,7 +152,7 @@ fn path_not_found_without_entity_slots_floor51() {
 #[test]
 fn bug006_replay_with_sprite51_entities_full_chain() {
     // m_122 全链：sprite51 解析 → 类型码 switch 生成（含隐藏位与门参数表）
-    // → findPath（m_134 可通行 = 地形 || m_062 实体槽）→ trace 实测 walkStepCount=3
+    // → findPath（relaxPathNeighbors 可通行 = 地形 || canPathThroughEntity 实体槽）→ trace 实测 walkStepCount=3
     use game_core::sprite_spawn::{spawn_param_and_visibility, DoorTables};
 
     let (cols, rows, terrain) = grid51();
@@ -179,7 +179,7 @@ fn bug006_replay_with_sprite51_entities_full_chain() {
     }
     assert_eq!(t.count, sp.records.len(), "全部记录生成");
 
-    // m_134 可通行判定：地形 || m_062（格有实体槽）
+    // relaxPathNeighbors 可通行判定：地形 || canPathThroughEntity（格有实体槽）
     let walk = Walkability {
         terrain,
         has_entity_slot: &|x, y| {
@@ -191,19 +191,19 @@ fn bug006_replay_with_sprite51_entities_full_chain() {
     };
     let r = find_path(&walk, 1, 11, 3, 10);
     // [2026-10-16 更正] 分歧根因 = grid51() 地形索引错位（见 grid51 注），**非**
-    // find_path 语义——m_134/m_062（可通行 = isCellWalkable || 槽占用，
+    // find_path 语义——relaxPathNeighbors/canPathThroughEntity（可通行 = isCellWalkable || 槽占用，
     // a.java:9967/6994）移植本已逐行忠实。步距修正后与 oracle 逐项吻合：
-    // found + 3 步（f_bool_26=true + walkStepCount=3，BUG-006 证据链 D）。
+    // found + 3 步（pathArrowsVisible=true + walkStepCount=3，BUG-006 证据链 D）。
     // 原"仍不可达/待 P3.3 考证"主张随步距修正撤销（原主张留档 git 历史）。
-    assert!(r.found, "修正步距后应可达（oracle f_bool_26=true）");
-    assert_eq!(r.steps.len(), 3, "walkStepCount=3（oracle f_int_148）");
+    assert!(r.found, "修正步距后应可达（oracle pathArrowsVisible=true）");
+    assert_eq!(r.steps.len(), 3, "walkStepCount=3（oracle walkStepCount）");
     // 缓冲序 = 目标端优先（walk 自末端消费）：[2,2,1] ⇒ 行走序 up,right,right
     // = (1,11)→(1,10)→(2,10)→(3,10)——与 best-first 幻影头怪癖的平局序一致，
-    // 此序列钉 m_134 插入/弹出怪癖的确定性。
+    // 此序列钉 relaxPathNeighbors 插入/弹出怪癖的确定性。
     assert_eq!(r.steps, vec![2, 2, 1], "缓冲序 [2,2,1]");
 }
 
-/// m_108（a.java:8880-8904）：起点格摘除首个 idx+1（后续前移）→ 当前像素格追加
+/// relocateSlotsAtRouteEnd（a.java:8880-8904）：起点格摘除首个 idx+1（后续前移）→ 当前像素格追加
 /// （格类型 0 时 ++nextCellTypeId）；二次调用摘除落空但追加照做（重复登记，原版行为）。
 #[test]
 fn relocate_slot_moves_registration_from_start_cell() {
@@ -325,7 +325,7 @@ fn detach_from_cell_compacts_slot_row_in_order() {
 }
 
 /// 槽三禁令③配套（refactor-behavior-matrix 1.5）：**sort_by_y 平局序**——
-/// 严格小于 ⇒ 等值保序（a.java:6732-6822 冒泡 `pixelY[var4] < var1`）。
+/// 严格小于 ⇒ 等值保序（a.java:6732-6822 冒泡 `pixelY[sort_i] < py_key`）。
 /// **禁 unstable sort**（等值实体交换序变 ⇒ 无帧锚场景静默漂移，A1 反例）。
 #[test]
 fn sort_by_y_tie_order_is_stable() {

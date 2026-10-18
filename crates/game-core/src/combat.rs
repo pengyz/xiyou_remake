@@ -27,7 +27,7 @@ pub struct PlayerCombat {
     pub blue_keys: i32,
     pub red_keys: i32,
     pub gold: i32,
-    /// itemStackTypes（物品栈类型，容量 = f_int_88）
+    /// itemStackTypes（物品栈类型，容量 = offerQueueSrc）
     pub item_types: Vec<u8>,
     pub item_uses: Vec<u8>,
     pub item_stack_size: i32,

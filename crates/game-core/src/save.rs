@@ -1,5 +1,5 @@
 //! RMS 存档格式解析（`loadFloorSave` a.java:9244-9300 + `saveFloorState` 对偶）
-//! 与全局进度 SKY_WAR 的布局备忘（`dispatchModeEntry`（原 m_000）case 21 读档 a.java:4450-4485）。
+//! 与全局进度 SKY_WAR 的布局备忘（`dispatchModeEntry`（原 dispatchModeEntry）case 21 读档 a.java:4450-4485）。
 //!
 //! # MOT_L{n} 楼层存档字段序（DataInputStream 大端，a.java:9253-9287）
 //!
@@ -11,7 +11,7 @@
 //! | 13-15 | short×3 | yellowKeyCount / blueKeyCount / redKeyCount |
 //! | 16 | int | goldAmount |
 //! | 17 | short | alchemyUpgradeCount |
-//! | 18 | short | f_int_89（跟随对数）+ N×(byte,byte)（f_byte_arr_14/15） |
+//! | 18 | short | inventoryEntryCount（跟随对数）+ N×(byte,byte)（f_byte_arr_14/15） |
 //! | 19 | bool×scriptLineCount + skip 至 128 | scriptLineFlags（a.java:9285-9291；`script_flags` 收 128 字节原样） |
 //! | 20 | byte | itemStackSize + N×(type,uses) |
 //! | 21 | 56×(short len + byte[len]) | 楼层触发状态 f_byte_arr2_05 |
@@ -126,7 +126,7 @@ pub fn parse_floor_save(data: &[u8], script_line_count: usize) -> Result<FloorSa
     s.red_keys = c.i16();
     s.gold = c.i32();
     s.alchemy_upgrades = c.i16();
-    // f_int_89 跟随对 = mode12 日志（kind, idx）
+    // inventoryEntryCount 跟随对 = mode12 日志（kind, idx）
     let n_follow = c.i16();
     if n_follow < 0 {
         return Err("negative follow count".into());

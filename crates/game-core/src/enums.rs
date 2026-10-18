@@ -3,7 +3,7 @@
 //! 每个枚举的取值域与语义都有 A 级证据（deobf 行号 / oracle trace）：
 //! 未证语义的值保留机械命名变体（`Phase4` 等），证伪更正时改名不改值。
 
-/// 对白相位（Java `dialogPhase`，f_byte_16）。
+/// 对白相位（Java `dialogPhase`，dialogPhase）。
 /// 证据：docs/findings/runtime-semantics.md §5 相位表。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DialogPhase {
@@ -11,9 +11,9 @@ pub enum DialogPhase {
     ScriptStep,
     /// 1：打字机（文本未完）
     Typewriter,
-    /// 2：实体路径缓动（MOV 五参 → m_106 每拍推进，a.java:4072-4073 / 8738-8870）。
-    /// 【2026-10-15 更正】原名 `Choice`（"选项/分支"）证伪：m_106 字节码 = 实体沿
-    /// walkPathBuffer 8px/拍步进 + m_108 迁槽，无任何选项语义。
+    /// 2：实体路径缓动（MOV 五参 → openWallOnRoute 每拍推进，a.java:4072-4073 / 8738-8870）。
+    /// 【2026-10-15 更正】原名 `Choice`（"选项/分支"）证伪：openWallOnRoute 字节码 = 实体沿
+    /// walkPathBuffer 8px/拍步进 + relocateSlotsAtRouteEnd 迁槽，无任何选项语义。
     EntityRoute,
     /// 3：行走执行（消费 walkPathBuffer）
     Walk,
@@ -55,7 +55,7 @@ impl DialogPhase {
     }
 }
 
-/// 行走相位（Java `walkPhase`，f_byte_11）。
+/// 行走相位（Java `walkPhase`，walkPhase）。
 /// 证据：runtime-semantics §5。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WalkPhase {
@@ -67,7 +67,7 @@ pub enum WalkPhase {
     ExploreConfirm,
     /// 3：脚本寻路行走（消费 walkPathBuffer）
     ScriptWalk,
-    /// 4：m_063 使用点（语义待考证，机械名保留）
+    /// 4：paintTileLayer 使用点（语义待考证，机械名保留）
     Phase4,
     /// 5：战斗（tickBattle）
     Battle,
@@ -100,7 +100,7 @@ impl WalkPhase {
     }
 }
 
-/// 行走方向码（walkPathBuffer / tryStep 语义，m_133 回溯映射）。
+/// 行走方向码（walkPathBuffer / tryStep 语义，findPath 回溯映射）。
 /// 证据：deobf a.java:9916-9922（差分 → 方向码映射）+ walkPhase 1 步进 switch。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Dir {
@@ -180,29 +180,29 @@ pub mod entity_kind {
 /// 游戏模式（Java `gameMode`，FLD010；state-machine-survey §1.1 全表）。
 ///
 /// **变体↔a.java case 号映射表**（件 A 验证三件之②——近形变体防张冠李戴，
-/// BUG-007 同型反例；a.java 锚=run/m_000/paint 三 case 树）：
+/// BUG-007 同型反例；a.java 锚=run/dispatchModeEntry/paint 三 case 树）：
 ///
 /// | 变体 | case | 语义 | a.java 锚 |
 /// |---|---|---|---|
 /// | Boot | 0 | 启动画面 | paint/run case 0 |
-/// | MainMenu | 1 | 主菜单 | m_000 case 1 |
+/// | MainMenu | 1 | 主菜单 | dispatchModeEntry case 1 |
 /// | Loading | 2 | 资源载入进度 | run case 2（:3449-3541） |
 /// | Map | 3 | 地图主玩法 hub | run case 3（:3551-3679）/paint case 3（:2385-2422） |
-/// | InGameMenu | 4 | 游戏内菜单 | m_000 case 4（:4326-4337）/run case 4（:3686-3735） |
+/// | InGameMenu | 4 | 游戏内菜单 | dispatchModeEntry case 4（:4326-4337）/run case 4（:3686-3735） |
 /// | **EnemyInfo** | **5** | 敌人信息/帮助页 | run case 5（:3737-3755）/paint case 5（:2497-2560） |
-/// | SaveSlot | 7 | 存档槽（7/8 共享） | m_000 case 7（:4342-4364）/run case 7（:3829-3878） |
+/// | SaveSlot | 7 | 存档槽（7/8 共享） | dispatchModeEntry case 7（:4342-4364）/run case 7（:3829-3878） |
 /// | EquipDetail | 8 | 装备详情（7/8 共享） | 同 7 |
 /// | Alchemy | 9 | 炼丹 | run case 9（:3885-3940）/paint case 9（:2690-2740） |
-/// | ItemPanel | 10 | 道具面板 | m_000 case 10（:4370-4380）/run case 10（:3931-4009） |
+/// | ItemPanel | 10 | 道具面板 | dispatchModeEntry case 10（:4370-4380）/run case 10（:3931-4009） |
 /// | Dialog | 11 | 对白/剧情（脚本模式） | paint case 11（:2798-2896） |
 /// | RecordBrowser | 12 | 记录浏览器 | overlay case5（:3325-3344）/paint_mode12 |
 /// | IntroCutscene | 14 | 读条过场（新游戏） | run case 14（:4137） |
-/// | **Help** | **15** | 帮助全文浮层 | m_000 case 15（:4402-4413）/paint case 15（:2958-2962） |
+/// | **Help** | **15** | 帮助全文浮层 | dispatchModeEntry case 15（:4402-4413）/paint case 15（:2958-2962） |
 /// | About | 16 | 关于（图标条） | run case 16（:4143-4188）/paint case 16（:2963-2990） |
 /// | IconView | 17 | 图标查看屏（floor>50 菜单项；视差背+68×68 图标条+kind0 浮层） | paint case 17（:2998-3002）/run 激活（:3415） |
-/// | Shop | 19 | 商店（5 条目） | m_000 case 19（:4439-4448）/run case 19（:4196-4226） |
-/// | Ending | 20 | END 结局过场 | m_000 case 20（:4443-4450）/run case 20（:4223-4228） |
-/// | LogoAnim | 22 | logo 动画收尾（70 帧后 CMidlet.m_000 软复位） | paint case 22（:3074）/run case 22（:4249） |
+/// | Shop | 19 | 商店（5 条目） | dispatchModeEntry case 19（:4439-4448）/run case 19（:4196-4226） |
+/// | Ending | 20 | END 结局过场 | dispatchModeEntry case 20（:4443-4450）/run case 20（:4223-4228） |
+/// | LogoAnim | 22 | logo 动画收尾（70 帧后 CMidlet.dispatchModeEntry 软复位） | paint case 22（:3074）/run case 22（:4249） |
 /// | SoundAsk | 21 | 音效询问 | boot 序列 |
 /// | NetWait | 99 | 联网等待（**DC-3 裁死**悬空态，枚举项保留作对照） | — |
 /// | Unknown(i32) | — | 未观测值（D4 不发明） | — |
@@ -248,7 +248,7 @@ pub enum GameMode {
     Shop,
     /// 20：END 结束过场（70 帧后销毁）
     Ending,
-    /// 22：logo 动画收尾（70 帧后 CMidlet.m_000 软复位）
+    /// 22：logo 动画收尾（70 帧后 CMidlet.dispatchModeEntry 软复位）
     LogoAnim,
     /// 21：音效询问
     SoundAsk,

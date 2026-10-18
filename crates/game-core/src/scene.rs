@@ -72,7 +72,7 @@ pub struct SceneImages {
     /// **不是** entityTypeImage——迭代 55 根因：entity[bubble] 误用致 245×39
     /// 条带上屏（T303 op 流 872 条唯一分歧 op 实证）。
     pub faces: Vec<ArgbImage>,
-    /// f_Image_arr2_00[14][0]：end 包结局卷轴（240×145，m_001(14) 迭代 57）
+    /// f_Image_arr2_00[14][0]：end 包结局卷轴（240×145，loadPackedImages(14) 迭代 57）
     pub ending: ArgbImage,
     /// f_Image_arr2_00[9][*]：xtq 包（6 张；[5] = 型69 拼装效果帧条 26×13）
     pub xtq: Vec<ArgbImage>,
@@ -154,7 +154,7 @@ const SPARK_FRAME: [i32; 8] = [1, 2, 0, 3, 4, 1, 2, 0];
 /// 星光四联组 (sx,sy,w,h)×4（Java sparkQuads，a.java:748-764）。
 const SPARK_QUADS: [i32; 16] = [29, 31, 39, 15, 0, 31, 29, 10, 0, 0, 37, 31, 36, 0, 32, 29];
 
-/// blocksPlayerInsert（initEntityTables 从构造字面量 f_bool_arr_03 拷贝，a.java:679/
+/// blocksPlayerInsert（initEntityTables 从构造字面量 noInsertTypeFlags 拷贝，a.java:679/
 /// 6237）：true 的类型（0/5/6/7/8/10）占据插入窗口时**不**在其前插画玩家
 /// （paintEntityLayer 插入条件的 `!blocksPlayerInsert[type]` 项，a.java:6520）。
 const BLOCKS_PLAYER_INSERT: [bool; 13] = {
@@ -271,13 +271,13 @@ pub struct GameScene {
     pub bob_rising: bool,
     /// drawParallaxBackdrop 的滚动相位（每 paint -1，PARALLAX_WRAP 回绕）
     pub backdrop_scroll: i32,
-    /// f_int_48：视口底（HUD 顶）——初始化后与 layout::view_bottom_y() 一致
+    /// viewBottom：视口底（HUD 顶）——初始化后与 layout::view_bottom_y() 一致
     pub view_bottom: i32,
     /// 玩家态（paintPlayerSprite 输入）
     pub facing: i32,
     pub walk_phase: i32,
     pub player_frame: i32,
-    pub player_bob_applied: bool, // f_bool_07
+    pub player_bob_applied: bool, // player_bob_applied
     /// HUD 数值源（paintHudPanel/paintStatusBar 读；战斗/拾取写）
     pub floor: i32,
     /// 玩家战斗面（HP/攻/防/三钥/金/物品栈——tickBattle 与拾取的读写集）
@@ -290,23 +290,23 @@ pub struct GameScene {
     /// —— mode 9 炼丹（run case 9 a.java:3885-3940 / paint case 9 a.java:2690-2740）——
     /// alchemyPrice：当前升级价（alchemyPriceFor(upgrades+1)，a.java:7256）
     pub alchemy_price: i32,
-    /// f_int_77/78/79：本次升级 HP/ATK/DEF 增量（scaledByFloorTier，a.java:7250）
+    /// alchemyGainHp/78/79：本次升级 HP/ATK/DEF 增量（scaledByFloorTier，a.java:7250）
     pub alchemy_gain_hp: i32,
     pub alchemy_gain_atk: i32,
     pub alchemy_gain_def: i32,
-    /// f_int_80：三行选择光标（0=HP 1=ATK 2=DEF）
+    /// alchemyCursor：三行选择光标（0=HP 1=ATK 2=DEF）
     pub alchemy_cursor: i32,
     /// alchemyUpgradeCount：运行时升级计数（存档 alchemy_upgrades 装入）
     pub alchemy_upgrade_count: i32,
     /// —— 商人/告示牌链（interact case16 a.java:5494-5517 + overlay 分派
     ///     case4/5 a.java:3300-3334 + applyMerchantOffer a.java:7307-7370）——
-    /// f_int_87：最近 interact 命中的实体下标
+    /// merchantEntity：最近 interact 命中的实体下标
     pub merchant_entity: i32,
-    /// 报价队列（m_075/m_076，f_byte_arr_14/15 + f_int_88/89/90）：(文本源, 报价序号)
+    /// 报价队列（pushOfferQueue/browseOfferQueue，f_byte_arr_14/15 + offerQueueSrc/89/90）：(文本源, 报价序号)
     pub offer_queue_src: Vec<u8>,
     pub offer_queue_idx: Vec<u8>,
     pub offer_queue_cursor: i32,
-    /// 软键（m_000 case 3：1/3）
+    /// 软键（dispatchModeEntry case 3：1/3）
     pub softkeys: (i8, i8),
 
     // —— 输入（keyPressed/keyReleased a.java:4663-4675）——
@@ -320,7 +320,7 @@ pub struct GameScene {
     pub player_cell_y: i32,
     /// stepProgressPx：步内像素累计（32 = 一步）
     pub step_progress: i32,
-    /// walkStepCount（f_bool_26 路径步数，行走扩展批次）
+    /// walkStepCount（pathArrowsVisible 路径步数，行走扩展批次）
     pub walk_step_count: i32,
 
     // —— 场上战斗（walkPhase 5；tickBattle a.java:10023-10149）——
@@ -345,33 +345,33 @@ pub struct GameScene {
     pub popups: crate::popup::PopupRing,
 
     // —— 换层（changeFloor a.java:7126-7164 + paint 遮幅 a.java:3177-3215）——
-    /// f_bool_16：遮幅进行中
+    /// floorTransitioning：遮幅进行中
     pub transitioning: bool,
-    /// f_bool_17：闭合相位（构造 true；全黑后翻 false 开启）
+    /// wipeClosing：闭合相位（构造 true；全黑后翻 false 开启）
     pub wipe_closing: bool,
-    /// f_int_142：遮幅计数 0..=4
+    /// wipePhase：遮幅计数 0..=4
     pub wipe: i32,
-    /// f_byte_23：目标层
+    /// pendingFloor：目标层
     pub pending_floor: i32,
-    /// f_bool_18：下楼标记（型7 上楼传 false）
+    /// wentDown：下楼标记（型7 上楼传 false）
     pub went_down: bool,
     /// minFloorReached/maxFloorReached
     pub min_floor: i32,
     pub max_floor: i32,
-    /// f_int_127：dp2 路径缓动实体索引（MOV 五参 a.java:8289 写 findBlockingEntity（原 m_100）结果——
-    /// 未命中亦写 -1；m_106 收尾/战斗收尾写 -1）。paintEntityLayer case 32 型 72
+    /// route_entity：dp2 路径缓动实体索引（MOV 五参 a.java:8289 写 findBlockingEntity（原 findBlockingEntity）结果——
+    /// 未命中亦写 -1；openWallOnRoute 收尾/战斗收尾写 -1）。paintEntityLayer case 32 型 72
     /// "追踪中"分支（a.java:6660）读之。Java int 字段默认 0（首个 MOV 前恒 0）。
     pub route_entity: i32,
-    /// f_byte_19：dp2 当前步方向（m_106 case0 弹自 walkPathBuffer，a.java:8742：
+    /// f_byte_19：dp2 当前步方向（openWallOnRoute case0 弹自 walkPathBuffer，a.java:8742：
     /// 0 下/1 上/2 右/3 左）——兼作型 72 追踪帧行号（a.java:6663：==3 镜像）。
     pub route_dir: i32,
-    /// routePhase（原 f_byte_18，台账 N-0303）：m_106 子相位（0 弹步 / 1 8px 步进 /
+    /// routePhase（原 routePhase，台账 N-0303）：openWallOnRoute 子相位（0 弹步 / 1 8px 步进 /
     /// 5 途中战斗；MOV 五参置 0）
     pub route_phase: i32,
-    /// routeProgress（原 f_int_128，台账 N-0306）：m_106 步内像素累计（8/拍，==32 归格；
+    /// routeProgress（原 routeProgress，台账 N-0306）：openWallOnRoute 步内像素累计（8/拍，==32 归格；
     /// 仅归格清零，MOV 不重置）
     pub route_progress: i32,
-    /// f_int_129/f_int_130：路径起点格（MOV 五参 a.java:8297-8298 写；m_108 迁槽的
+    /// f_int_129/f_int_130：路径起点格（MOV 五参 a.java:8297-8298 写；relocateSlotsAtRouteEnd 迁槽的
     /// "旧格"——全程不随实体移动更新）
     pub route_start: (i32, i32),
     pub current_floor: i32,
@@ -379,7 +379,7 @@ pub struct GameScene {
     pub floor_assets: Vec<Option<FloorAssets>>,
     /// f_byte_arr2_05：层状态存档（m_119 写/m_122 读；索引=层号）
     pub saved_floor_states: Vec<Option<Vec<u8>>>,
-    /// equippedWeaponType/ArmorType（m_068 重置；tryEquip 更新；HUD 槽显示）
+    /// equippedWeaponType/ArmorType（resetNewGameState 重置；tryEquip 更新；HUD 槽显示）
     pub equipped_weapon: i32,
     pub equipped_armor: i32,
     /// equipTierBonuses/Types（a.java:977-991 构造常量）
@@ -402,11 +402,11 @@ pub struct GameScene {
     pub overlay_content_w: i32,
     /// 组开门动画数组（tryOpenChest 填充；paintTileLayer walkPhase4 消耗）
     pub open_group: Vec<usize>,
-    /// f_int_55：组开门动画计数（18 置 removed 动画、24 收尾）
+    /// openAnimTick：组开门动画计数（18 置 removed 动画、24 收尾）
     pub open_anim_tick: i32,
-    /// f_int_54：遮幅纵向抖动（±2 交替）
+    /// tileBob：遮幅纵向抖动（±2 交替）
     pub tile_bob: i32,
-    /// f_bool_12：教程标记（型 15 拾取置 true——f_bool_13 楼梯指示的门控）
+    /// tutorialSeen：教程标记（型 15 拾取置 true——f_bool_13 楼梯指示的门控）
     pub tutorial_seen: bool,
     /// f_bool_13：楼梯指示（49/55 暗道换乘键门控；proximity 更新——
     /// lockCameraOn/行走批次——未移植，稳态 false 与 Java 稳态一致）
@@ -420,14 +420,14 @@ pub struct GameScene {
     pub last_transition: Option<(GameMode, GameMode)>,
     /// dialogPhase：0 脚本步进 / 1 TAK 打字 / 2 实体路径 / 3 脚本行走 / 4 等相机 / 6 SEE 打字
     pub dialog_phase: i32,
-    /// mode12 日志浏览（f_int_90 页 + f_String_04 页码指示 + 日志对）
+    /// mode12 日志浏览（recordPage 页 + f_String_04 页码指示 + 日志对）
     pub record_page: i32,
     /// f_String_arr_06/09（a.java:823/887 init 常量；fixtures 迭代 59）
     pub record_text_a: Vec<String>,
     pub record_text_b: Vec<String>,
     pub page_indicator: String,
     pub journal: Vec<(i32, i32)>,
-    /// mode20 结局卷轴状态（Java f_int_22/f_int_23/f_bool_04——m_000 case20
+    /// mode20 结局卷轴状态（Java f_int_22/f_int_23/f_bool_04——dispatchModeEntry case20
     /// **不重置**，场景构造期零值即 Java 新运行初值）。
     pub ending_scroll: i32,
     pub ending_anim: i32,
@@ -473,9 +473,9 @@ pub struct GameScene {
     pub menu_scroll_top: i32,
     pub menu_visible_bottom: i32,
     pub menu_cursor: i32,
-    /// f_byte_01（N-0240 menuReturnMode）：mode7/8 -7 的返回目标
+    /// menuReturnMode（N-0240 menuReturnMode）：mode7/8 -7 的返回目标
     pub menu_return_mode: GameMode,
-    /// mode 7 存档槽状态（m_000 case7 布局 + loadSlotTable 冷态）
+    /// mode 7 存档槽状态（dispatchModeEntry case7 布局 + loadSlotTable 冷态）
     pub slot: crate::menu_family::SlotSelect,
     /// MOT_IF 槽表 blob（preset 虚拟 RMS；loadSlotTable 每次进 mode7 重读）
     pub preset_mot_if: Option<Vec<u8>>,
@@ -496,13 +496,13 @@ pub struct GameScene {
     pub bgm: crate::audio::BgmState,
     /// 虚拟 RMS：MOT_L{slot} 槽位 blob（saveFloorState 写侧；game-core 无 I/O）
     pub saved_slot_blobs: [Option<Vec<u8>>; 6],
-    /// f_byte_25：商店条目彩虹色相位（paint 每 4 拍推进）
+    /// shopRainbowPhase：商店条目彩虹色相位（paint 每 4 拍推进）
     pub rainbow_phase: i32,
     /// iconStripFrame（a.java:464 全局；mode16 图标条动画帧）
     pub strip_frame: usize,
-    /// f_byte_02：菜单返回目标（run case3 -7 时存 gameMode）
+    /// inGameMenuReturnMode：菜单返回目标（run case3 -7 时存 gameMode）
     pub in_game_menu_return_mode: GameMode,
-    /// mode 10 道具面板布局（m_000 case10 a.java:4370-4380：f_int_97..104）
+    /// mode 10 道具面板布局（dispatchModeEntry case10 a.java:4370-4380：itemPanelCols..104）
     pub item_cols: i32,
     pub item_rows_total: i32,
     pub item_rows_visible: i32,
@@ -511,15 +511,15 @@ pub struct GameScene {
     pub item_box_w: i32,
     pub item_box_h: i32,
     pub item_cursor: i32,
-    /// f_bool_26：路径箭头可见（SEE flag=1 且 findPath 成功）
+    /// pathArrowsVisible：路径箭头可见（SEE flag=1 且 findPath 成功）
     pub path_arrows_visible: bool,
     /// walkPathBuffer（findPath 步序，目标端优先）
     pub walk_path_buffer: Vec<u8>,
-    /// f_byte_07：最近拾取/装备的类型号（浮层图标 + 商店显示）
+    /// itemUseTargetType：最近拾取/装备的类型号（浮层图标 + 商店显示）
     pub overlay_kind_item: i32,
-    /// 浮层图标图（kind1/3：entityTypeImage[f_byte_07] 的克隆——paint 免借用冲突）
+    /// 浮层图标图（kind1/3：entityTypeImage[itemUseTargetType] 的克隆——paint 免借用冲突）
     pub overlay_icon: Option<ArgbImage>,
-    /// 浮层标题（objectTypeNames[f_byte_07]）
+    /// 浮层标题（objectTypeNames[itemUseTargetType]）
     pub overlay_item_name: Option<Vec<u16>>,
     /// objectTypeNames（89 项；夹具同源 a.java:954-1041）
     pub object_type_names: Vec<String>,
@@ -559,7 +559,7 @@ pub const MENU_LABELS: [&str; 18] = [
     "返回菜单", "回放", "停止回放", "商店", "十全大补包", "攻防神油", "开门天天乐",
     "天庭消费券", "印度神血油", "跳过教程",
 ];
-/// f_int_arr_32（a.java:2229）：商店条目逐字彩虹色环（7 色随 f_byte_25 相位）。
+/// shopRainbowColors（a.java:2229）：商店条目逐字彩虹色环（7 色随 shopRainbowPhase 相位）。
 pub const RAINBOW_COLORS: [u32; 7] = [
     16711680, 16748544, 16776194, 1244928, 65478, 26367, 14156031,
 ];
@@ -569,7 +569,7 @@ pub const EQUIPMENT_MATERIAL_NAMES: [&str; 9] =
     ["无", "木", "铁", "银", "金", "布", "皮", "锁", "金"];
 
 /// GameScene 的存档载入构造（run case8 → mode2 链 → step16 loadFloorSave +
-/// step10 loadFloorData/buildMinimap + step11 相机/朝向 + m_000 case3）。
+/// step10 loadFloorData/buildMinimap + step11 相机/朝向 + dispatchModeEntry case3）。
 #[allow(clippy::too_many_arguments)]
 pub fn load_floor_from_save(
     maplv: &[u8],
@@ -623,7 +623,7 @@ pub fn load_floor_from_save(
     // step 10 = loadFloorData（应用本层触发缓存）+ buildMinimap（a.java:3515-3517）
     scene.load_floor_data(maplv, px, py, records, scene.floor)?;
     scene.build_minimap();
-    // step 11 相机（a.java:3523-3525）+ m_000 case 3（a.java:4312-4318）
+    // step 11 相机（a.java:3523-3525）+ dispatchModeEntry case 3（a.java:4312-4318）
     scene.enter_view();
     scene.softkeys = (1, 3);
     scene.overlay_active = false;
@@ -638,7 +638,7 @@ pub fn load_floor_from_save(
 // evidence 复核点）= script 26 完成旗标兼 floor2 补生守卫——表的 SpawnIfAbsent.flag
 // 原样引用，禁顺手"修正"。
 
-/// f_byte_arr_13 高字节表（a.java:902 `new byte[]{2,3,3,3,6,3,3,6,3,3,3,3,3}`）——
+/// door13_hi 高字节表（a.java:902 `new byte[]{2,3,3,3,6,3,3,6,3,3,3,3,3}`）——
 /// 型 78 参数高字节同源（game-data door13 表同值，表驱动单测对账两源）。
 pub const DOOR13_HI: [u8; 13] = [2, 3, 3, 3, 6, 3, 3, 6, 3, 3, 3, 3, 3];
 
@@ -651,7 +651,7 @@ pub enum RestoreAction {
         spawn: (i32, i32, i32, i16),
     },
     /// case 12（a.java:9653-9661）：find 命中 → param = lo | DOOR13_HI[hi_idx] << 8
-    ///（原式 6|f_byte_arr_13[5]<<8 与 5|f_byte_arr_13[4]<<8）。
+    ///（原式 6|door13_hi[5]<<8 与 5|door13_hi[4]<<8）。
     ParamRewrite {
         find: (i32, i32, i32),
         lo: i16,
@@ -852,14 +852,14 @@ impl ScriptOp {
 
 
 impl GameScene {
-    /// loadFloorData（a.java:9404-9438）：maplv 装载 + m_059 格索引重建 +
+    /// loadFloorData（a.java:9404-9438）：maplv 装载 + initCellGrid 格索引重建 +
     /// 可行走重建 + m_122 实体生成 + sortEntitiesByY 排序。
     /// `floor_assets`：按层号索引的换层资产（索引缺省 = 该层不可达）。
     #[allow(clippy::too_many_arguments)]
     /// 浮层框绘制（paint 公共尾 a.java:3129-3168）：盒框 + kind 分派内容 +
     /// 左右软键图标。mode 3/4/7/10/16/19 各 paint 共用。
     fn paint_overlay_box(&mut self, g: &mut SoftGraphics<'_>) {
-        // 提示浮层（paint 公共尾 a.java:3129-3168，!f_bool_16 && overlayActive）：
+        // 提示浮层（paint 公共尾 a.java:3129-3168，!floorTransitioning && overlayActive）：
         // 盒框 + kind 0/2/4/5 纯文本 / kind 1/3 图标+文本 + 软键图标
         if !self.transitioning && self.overlay_active {
             let bx = (SCREEN_W - self.overlay_box_w) >> 1;
@@ -873,7 +873,7 @@ impl GameScene {
                 self.paint_wrapped_text(g, tx, ty, OVERLAY_TEXT_W, OVERLAY_TEXT_MAX_H, true);
             } else {
                 paint_mini_frame(g, tx, ty, 32, 32);
-                // 图标 = entityTypeImage[overlayKindItem]（f_byte_07——拾取时记录）
+                // 图标 = entityTypeImage[overlayKindItem]（itemUseTargetType——拾取时记录）
                 if let Some(img) = &self.overlay_icon {
                     g.draw_image(img, tx + ((32 - img.width) >> 1), ty + ((32 - img.height) >> 1), 0);
                 }
@@ -1113,7 +1113,7 @@ impl GameScene {
         for (y, row) in walkable.iter_mut().enumerate() {
             for (x, cell) in row.iter_mut().enumerate() {
                 // rebuildWalkability（a.java:6964-6976）的索引：**行距 wide·4、
-                // 列距 2**（var1 行尾 +=wide<<1 叠加列循环的 ×2）——与 paintTileLayer
+                // 列距 2**（py_key 行尾 +=wide<<1 叠加列循环的 ×2）——与 paintTileLayer
                 // 的行距 wide·2、列距 1 是同一数组的两套读法（原版共存）。
                 // A 级：oracle FLD 134（walkableGrid）13×13 逐格复算匹配。
                 let idx = (y * cols * 4 + x * 2) as i32;
@@ -1125,7 +1125,7 @@ impl GameScene {
         let mut grid = CellGrid::new(view.wide, view.high);
         // m_122 双分支（a.java:9465+）：有层存档 → 从存档恢复（**死怪不复活**、
         // 已开门保持开）；无存档 → sprite{n} 权威数据 + 5/81/6/12/76/82/83 隐藏
-        // 存档态按**目标层**取键（a.java:9465+ f_byte_arr2_05[var1]）——跨层装载
+        // 存档态按**目标层**取键（a.java:9465+ f_byte_arr2_05[py_key]）——跨层装载
         // （probe/ADD）时不得取当前层（潜伏缺陷 2026-10-15 修）
         if let Some(data) = self.saved_floor_states[floor as usize].clone() {
             // m_122 存档分支核=entity::restore_floor_state（第 1 步文件合流）；
@@ -1179,7 +1179,7 @@ impl GameScene {
                 return false;
             }
         }
-        // 层界提示（a.java:7150-7156）：负层 [2]、超 f_int_68=55 [3]（a.java:808）
+        // 层界提示（a.java:7150-7156）：负层 [2]、超 floorCountMax=55 [3]（a.java:808）
         if target < 0 {
             self.show_overlay_message(0, MISC_TEXTS[2], 0, 0);
             return false;
@@ -1227,7 +1227,7 @@ impl GameScene {
     }
 
     /// 遮幅中段换层（a.java:3186-3206）：loadFloorData + 落点特例
-    /// （0/50/1-上行 m_024；其余 findFloorGateEntity → m_031）+ 小地图 + 步效果。
+    /// （0/50/1-上行 placePlayerAtCell；其余 findFloorGateEntity → stepOffStairs）+ 小地图 + 步效果。
     fn swap_floor(&mut self) {
         self.floor = self.pending_floor;
         self.current_floor = self.pending_floor;
@@ -1239,23 +1239,23 @@ impl GameScene {
         self.load_floor_data(&fa.maplv, px, py, &fa.records, self.floor)
             .expect("层资产重载失败");
         if self.floor == 0 {
-            self.m_024(1, 2);
+            self.placePlayerAtCell(1, 2);
             self.view.center_on_player();
         } else if self.floor == 50 {
-            self.m_024(6, 7);
+            self.placePlayerAtCell(6, 7);
             self.view.center_on_player();
         } else if self.floor == 1 && !self.went_down {
-            self.m_024(6, 11);
+            self.placePlayerAtCell(6, 11);
             self.view.center_on_player();
         } else if let Some((gx, gy)) = self.find_floor_gate(self.went_down) {
-            self.m_031(gx, gy);
+            self.stepOffStairs(gx, gy);
         }
         self.build_minimap();
         self.apply_step_cell_effects();
     }
 
     /// findFloorGateEntity（a.java:7106-7118）：up=true 找型 7、false 找型 8；
-/// 换层落点直传 f_bool_18（false=上楼抵达→机型 8 下楼梯），
+/// 换层落点直传 wentDown（false=上楼抵达→机型 8 下楼梯），
     /// param>>9==0（低 9 位无高字节——目标层 ≤255 的常规门）。
     /// findFloorGateEntity（a.java:7106-7122）：首个 param>>9==0 的型7/8
     /// 门格实体下标（暗道换乘目标——param 低 8 位 = 目标层）。
@@ -1279,8 +1279,8 @@ impl GameScene {
         None
     }
 
-    /// m_031（a.java:5807-5814）：楼梯落点 = 首个可行走邻格（上/下/左/右序）。
-    fn m_031(&mut self, mut gx: i32, mut gy: i32) {
+    /// stepOffStairs（a.java:5807-5814）：楼梯落点 = 首个可行走邻格（上/下/左/右序）。
+    fn stepOffStairs(&mut self, mut gx: i32, mut gy: i32) {
         if self.walkable_at(gx, gy - 1) {
             gy -= 1;
         } else if self.walkable_at(gx, gy + 1) {
@@ -1290,12 +1290,12 @@ impl GameScene {
         } else if self.walkable_at(gx + 1, gy) {
             gx += 1;
         }
-        self.m_024(gx, gy);
+        self.placePlayerAtCell(gx, gy);
         self.view.center_on_player();
     }
 
-    /// m_024（a.java:5193-5193）：格坐标直置 + 步进度清零。
-    fn m_024(&mut self, cx: i32, cy: i32) {
+    /// placePlayerAtCell（a.java:5193-5193）：格坐标直置 + 步进度清零。
+    fn placePlayerAtCell(&mut self, cx: i32, cy: i32) {
         self.player_cell_x = cx;
         self.player_cell_y = cy;
         self.view.player_px = cx << 5;
@@ -1303,7 +1303,7 @@ impl GameScene {
         self.step_progress = 0;
     }
 
-    /// m_050 removeSlotAt（a.java:6435-6441）：槽位摘除 + 前移。
+    /// removeSlotAt removeSlotAt（a.java:6435-6441）：槽位摘除 + 前移。
     pub fn remove_slot_at(&mut self, cx: i32, cy: i32, slot: i32) {
         let ct = self.grid.cell_type[cy as usize][cx as usize] as usize;
         let cap = self.grid.capacity[ct] as usize;
@@ -1316,7 +1316,7 @@ impl GameScene {
         self.grid.slot_remove_at(ct, slot as usize);
     }
 
-    /// m_073 tryOpenChest（a.java:7285-7299）：全图收集同 param 型 4（未移除、
+    /// tryOpenChest tryOpenChest（a.java:7285-7299）：全图收集同 param 型 4（未移除、
     /// 非 5）；open_group 非空 = 有锁可开（walkPhase 4 动画）。
     pub fn try_open_chest(&mut self, chest_param: i16) -> bool {
         self.open_group.clear();
@@ -1364,7 +1364,7 @@ impl GameScene {
     }
 
     /// layoutFullText（a.java:4940-4942）：Java 原文即
-    /// `layoutWrappedText(var1, var2, var3, var1.length())`——limit=全长 的特例，
+    /// `layoutWrappedText(py_key, script_cursor0, table_count, py_key.length())`——limit=全长 的特例，
     /// 同构委托给单一实现 [`Self::layout_wrapped_text_limited`]（曾为两份拷贝，
     /// 迭代 26→30 修一份漏一份；见 pattern_dual-copy-algorithms-sync-fix）。
     /// 全长取 chars 计数：Java `length()` 是 UTF-16 码元数，game-core 全部文本源
@@ -1397,9 +1397,9 @@ impl GameScene {
         true
     }
 
-    /// m_083（a.java:7688-7694）：档位区间倒序查当前装备所在档。
+    /// equipTierIndex（a.java:7688-7694）：档位区间倒序查当前装备所在档。
     fn m_083_index(&self, equipped: i32, lo: i32, hi: i32) -> i32 {
-        // a.java:7693 `while (--var3 >= var2)`：**先减后比**——扫描区间 =
+        // a.java:7693 `while (--table_count >= script_cursor0)`：**先减后比**——扫描区间 =
         // [lo, hi-1]，索引 hi 永不触达（equip_types 12 项、hi=12 不越界）。
         // 迭代 70 floor43 80 甲拾取越界实为此处误译（后减结构触达 hi）。
         let mut t = hi;
@@ -1507,7 +1507,7 @@ impl GameScene {
                     );
                 }
                 RestoreAction::ParamRewrite { find, lo, hi_idx } => {
-                    // a.java:9653-9661：find 命中 → param = lo | f_byte_arr_13[hi_idx] << 8
+                    // a.java:9653-9661：find 命中 → param = lo | door13_hi[hi_idx] << 8
                     let idx = entity::cell_entity(grid, entities, find.0, find.1, find.2);
                     if idx >= 0 {
                         entities.items[idx as usize].param =
@@ -1592,7 +1592,7 @@ impl GameScene {
     }
 
     /// tryRunScene（a.java:8065-8139）：脚本行门控（scriptLineFlags + 场景参数
-    /// var2=fromWalk）。case 40 落 5..40 直通组（var3 原样 = !flags[40]）。
+    /// script_cursor0=fromWalk）。case 40 落 5..40 直通组（table_count 原样 = !flags[40]）。
     pub fn try_run_scene(&mut self, idx: i32, from_walk: bool) -> bool {
         if idx >= self.dialog_data.scripts.len() as i32 {
             return false;
@@ -1608,7 +1608,7 @@ impl GameScene {
             2 => gate &= self.script_line_flags[1] && !from_walk,
             3 => gate &= from_walk,
             4 => gate &= self.script_line_flags[3] && from_walk,
-            // 7/32 需 m_102(23,12) 跨层快照探针（f_byte_arr2_05 层序列化语义）——
+            // 7/32 需 probeCrossFloorSnapshot(23,12) 跨层快照探针（f_byte_arr2_05 层序列化语义）——
             // 未移植，显式挡路（覆盖窗不可达）。
             // tryRunScene case 7（a.java:8123-8127）：gate = from_walk ∧ 跨层无存活
             // 型12（floor23）；过门即置 flags[32]（32 号脚本视为已跑）
@@ -1619,7 +1619,7 @@ impl GameScene {
                 }
             }
             // tryRunScene 到达臂（a.java:8128-8146）：case 8/9/11/12/19/30/41-45/
-            // 48-50/52/53/55/56 同体 `var3 &= var2`——**from_walk=true（到达）才过**。
+            // 48-50/52/53/55/56 同体 `table_count &= script_cursor0`——**from_walk=true（到达）才过**。
             // 【2026-10-16 更正】此前误并入 case 32 探针臂（"共臂"注释错），导致
             // bump 即触发 script12，早于 Java 真身 7 拍（mov_route floor40 T281 实证）。
             // cover"进 (6,7) 型83(param12) 到达触发"= applyStepCellEffects 路径。
@@ -1704,9 +1704,9 @@ impl GameScene {
         gate
     }
 
-    /// m_102(currentFloor, type) 的同层路径（a.java:8637-8657 无换层分支）：
+    /// probeCrossFloorSnapshot(currentFloor, type) 的同层路径（a.java:8637-8657 无换层分支）：
     /// 扫当前实体表是否存在活的目标类型。跨层探针（case 7/32 的
-    /// m_102(23,12)）需层序列化快照，未移植（见上 todo）。
+    /// probeCrossFloorSnapshot(23,12)）需层序列化快照，未移植（见上 todo）。
     fn m_102_current_floor(&self, type_id: i32) -> bool {
         (0..self.entities.count)
             .any(|i| !self.entities.items[i].removed && self.entities.items[i].type_ == type_id)
@@ -1849,7 +1849,7 @@ impl GameScene {
     }
 
     /// findPath（a.java:9892-9957）的场景外壳：Walkability = 地形 walkable 克隆 +
-    /// 实体槽判定 m_062（格类型容量 > 0）。**恒**重写 walkPathBuffer/walkStepCount
+    /// 实体槽判定 canPathThroughEntity（格类型容量 > 0）。**恒**重写 walkPathBuffer/walkStepCount
     /// ——Java 头部 `walkPathBuffer = new byte[100]; walkStepCount = 0`（a.java:9894-9895），
     /// 回溯逐步填充（回溯失败 `return false` 时保留已填前缀）——返回 found。
     /// 调用方：SEE flag=1 / MOV 三参（玩家格起）/ MOV 五参（实体格起，返回值不判）。
@@ -1887,8 +1887,8 @@ impl GameScene {
     /// 其余 opcode（MOV/DES/CES/GUT/LAY/ROS/RES/ADD/MVS）在对应脚本对拍批实现。
     fn execute_script_instruction(&mut self) {
         let line = self.script_line.clone();
-        let var2 = self.script_cursor;
-        if var2 + 3 > line.len() {
+        let script_cursor0 = self.script_cursor;
+        if script_cursor0 + 3 > line.len() {
             // 行尾收尾（a.java:8597-8604）：phase=4 等相机 + 置 flag + 相机回玩家
             self.dialog_phase = 4;
             let cur = self.current_script_index;
@@ -1900,7 +1900,7 @@ impl GameScene {
         }
         // 命令模式（refactor-plan §3 第 2 步）：parse_op 纯解析（条件取参逐字节
         // 等价）→ execute_op 执行（逐 op 独立函数）。UNKNOWN ⇒ None ⇒ 停摆。
-        let Some(op) = Self::parse_op(&line, var2) else {
+        let Some(op) = Self::parse_op(&line, script_cursor0) else {
             // 真未知 op（16 标签外）：Java 静默停摆（a.java:8594-8595 原地 return：
             // 无臂写 scriptCursor ⇒ 下一拍重解析同一 token）。禁止 3+N 跳字节续行。
             // 语义见 docs/spec/evidence-todos.md T-1 R-TODO-1b。
@@ -1913,12 +1913,12 @@ impl GameScene {
     /// MOV var55>0 续取 3 参（五参）/ DES 负参分支 / ROS 子码条件取参 /
     /// GUT 无游标（load 重置）。每变体自带**推进后游标**（各 op 的 +1 口径
     /// 逐 op 锚注释）；16 标签外 ⇒ None（R-TODO-1b 停摆）。
-    fn parse_op(line: &str, var2: usize) -> Option<ScriptOp> {
-        let op = &line[var2..var2 + 3];
-        // 与旧臂同口径：substring 后 var2 无条件 +3（a.java:8244-8239）——
-        // 首参基址 = var2+1；SWD/MVS 游标 = var2+1
-        let var2 = var2 + 3;
-        let base = var2 + 1;
+    fn parse_op(line: &str, script_cursor0: usize) -> Option<ScriptOp> {
+        let op = &line[script_cursor0..script_cursor0 + 3];
+        // 与旧臂同口径：substring 后 script_cursor0 无条件 +3（a.java:8244-8239）——
+        // 首参基址 = script_cursor0+1；SWD/MVS 游标 = script_cursor0+1
+        let script_cursor0 = script_cursor0 + 3;
+        let base = script_cursor0 + 1;
         Some(match op {
             // TAK_a_b（a.java:8257-8263）：游标 = 尾分隔位 + 1
             "TAK" => {
@@ -1993,8 +1993,8 @@ impl GameScene {
                     ScriptOp::DesAt { ty: t0, cx, cy, cursor: e2 + 1 }
                 }
             }
-            // SWD（a.java:8336-8352）：无参，游标 = var2+1
-            "SWD" => ScriptOp::Swd { cursor: var2 + 1 },
+            // SWD（a.java:8336-8352）：无参，游标 = script_cursor0+1
+            "SWD" => ScriptOp::Swd { cursor: script_cursor0 + 1 },
             // CES_t_cx_cy（a.java:8386-8420）
             "CES" => {
                 let (ty, v2) = Self::parse_script_int(line, base, '_');
@@ -2057,8 +2057,8 @@ impl GameScene {
                     _ => ScriptOp::RosNoop { cursor: v2 + 1 },
                 }
             }
-            // MVS（a.java:8519-8592）：无参，游标 = var2+1
-            "MVS" => ScriptOp::Mvs { cursor: var2 + 1 },
+            // MVS（a.java:8519-8592）：无参，游标 = script_cursor0+1
+            "MVS" => ScriptOp::Mvs { cursor: script_cursor0 + 1 },
             _ => return None,
         })
     }
@@ -2175,7 +2175,7 @@ impl GameScene {
     /// SEE_a_b_c_d_e（a.java:8487-8510）：pageStart/End 先解析入字段再开页
     ///（8487-8495）；flag==1 ⇒ findPath 成功 → 路径箭头 + walkPhase=0（8497-8501，
     /// case1 **无 break 落穿 default**：easeCameraToTarget 与箭头两者都做）；
-    /// 收尾 phase=6 + m_103 ease 相机目标 = 目标格。
+    /// 收尾 phase=6 + easeCameraToTarget ease 相机目标 = 目标格。
     fn op_see(&mut self, tx: i32, ty: i32, page: i32, page_end: i32, flag: i32) {
         self.dialog_target = (tx, ty);
         self.dialog_page = page;
@@ -2200,7 +2200,7 @@ impl GameScene {
         self.load_level_script(target);
     }
 
-    /// MOV（a.java:8274-8309）：var55>0 ⇒ 五参实体路线（dp2/m_106）；否则三参
+    /// MOV（a.java:8274-8309）：var55>0 ⇒ 五参实体路线（dp2/openWallOnRoute）；否则三参
     /// 玩家脚本行走（findPath 成功 → scriptWalkArmed+dp3+walkPhase=0+lockCameraOn(0)；
     /// 失败无相位副作用）。**miss 尾递归**（8301-8302）：同拍执行下一条。
     fn op_mov(&mut self, target_type: i32, cell: Option<(i32, i32)>, dst: (i32, i32)) {
@@ -2208,7 +2208,7 @@ impl GameScene {
         self.dialog_target = (mx, my);
         if target_type > 0 {
             let (ent_x, ent_y) = cell.expect("五参已解析");
-            // a.java:8289：f_int_127 = findBlockingEntity(...)（原 m_100）——未命中也写入（-1）
+            // a.java:8289：route_entity = findBlockingEntity(...)（原 findBlockingEntity）——未命中也写入（-1）
             self.route_entity = self.entity_at_cell(ent_x, ent_y, target_type);
             if self.route_entity >= 0 {
                 let ei = self.route_entity as usize;
@@ -2218,7 +2218,7 @@ impl GameScene {
                 }
                 // f_int_129/130 = 实体起点格（a.java:8297-8298）
                 self.route_start = (self.entities.items[ei].px >> 5, self.entities.items[ei].py >> 5);
-                // findPath(起点格 → 目标格)：返回值不判（a.java:8299）——m_106
+                // findPath(起点格 → 目标格)：返回值不判（a.java:8299）——openWallOnRoute
                 // 只认 walkPathBuffer/walkStepCount（find_path 恒重写，含回溯
                 // 失败的部分前缀）
                 self.find_path(self.route_start.0, self.route_start.1, mx, my);
@@ -2244,7 +2244,7 @@ impl GameScene {
         }
     }
 
-    /// DES 正参（a.java:8321-8334）：格上首只该类型移除（m_100 + markEntityRemoved）。
+    /// DES 正参（a.java:8321-8334）：格上首只该类型移除（findBlockingEntity + markEntityRemoved）。
     fn op_des_at(&mut self, ty: i32, cx: i32, cy: i32) {
         let idx = self.entity_at_cell(cx, cy, ty);
         if idx >= 0 && entity::remove(&mut self.entities, idx as usize) {
@@ -2285,7 +2285,7 @@ impl GameScene {
         entity::remove_des(&mut self.entities, idx);
         self.ease_cam_x = ((self.view.view_w - 32) >> 1) - self.view.cam_x;
         self.ease_cam_y = ((self.view.view_h - 32) >> 1) - self.view.cam_y;
-        // Java `if (var4 >= 0)` 守卫（a.java:8398）：spawn 返回 usize 恒非负 ⇒ 恒真
+        // Java `if (sort_i >= 0)` 守卫（a.java:8398）：spawn 返回 usize 恒非负 ⇒ 恒真
         self.ease_target_x = self.entities.items[idx].px;
         self.ease_target_y = self.entities.items[idx].py;
         self.script_delay = match self.entity_category(ty) {
@@ -2298,7 +2298,7 @@ impl GameScene {
     /// GLV_n（a.java:8464-8466）：纯解析推进（无副作用）。
     fn op_glv(&mut self) {}
 
-    /// END_n（a.java:8445-8463 区）：进结局态——m_000 case 20（a.java:4443-4450）
+    /// END_n（a.java:8445-8463 区）：进结局态——dispatchModeEntry case 20（a.java:4443-4450）
     /// 可观测部分：typewriterPos=1 + 初次 layout（对象 = **当时 overlayText 残页**，
     /// Java 原样）；f_int_22/23/f_bool_04 不重置。
     fn op_end(&mut self) {
@@ -2357,7 +2357,7 @@ impl GameScene {
         // （f_short_arr_04 等价，Java 每次 MVS 重建，a.java:8521-8522）；
         // 每对两向（8571-8573 交换重复）：扫描格槽组内 renderCategory==8
         // 怪物 → 双向 removeGroupAtCellByType(两格, 82)（82 点位消耗）
-        // → m_107 搬到对端。槽组循环 var8 为**循环前**容量快照、槽表
+        // → carryMonstersTo 搬到对端。槽组循环 var8 为**循环前**容量快照、槽表
         // 就地压缩不清尾（a.java:6440-6443）⇒ stale 尾重触发 quirk 保真。
         let mut buf = [0i16; 32];
         for v6 in (0..self.entities.count as i32).rev() {
@@ -2401,7 +2401,7 @@ impl GameScene {
                         let ty = self.entities.items[v9 as usize].py >> 5;
                         entity::remove_group_at_cell_by_type(tx, ty, 82, &mut self.entities, &mut self.grid);
                         entity::remove_group_at_cell_by_type(cx86, cy6, 82, &mut self.entities, &mut self.grid);
-                        self.m_107(v10, tx, ty);
+                        self.carryMonstersTo(v10, tx, ty);
                     }
                     v12 += 1;
                 }
@@ -2420,7 +2420,7 @@ impl GameScene {
                         let ty = self.entities.items[v9 as usize].py >> 5;
                         entity::remove_group_at_cell_by_type(tx, ty, 82, &mut self.entities, &mut self.grid);
                         entity::remove_group_at_cell_by_type(cx86, cy6, 82, &mut self.entities, &mut self.grid);
-                        self.m_107(v92, tx, ty);
+                        self.carryMonstersTo(v92, tx, ty);
                     }
                     v93 += 1;
                 }
@@ -2429,11 +2429,11 @@ impl GameScene {
         }
     }
 
-    /// m_107（a.java:8872-8878）：怪物搬运原语——同型同 param 在目标格
+    /// carryMonstersTo（a.java:8872-8878）：怪物搬运原语——同型同 param 在目标格
     /// spawnEntity（入参格坐标，Java 内部 <<5 转像素）+ 对**旧格全部同型**
     /// 实体 removeGroupAtCellByType 摘槽（"复制-删除" quirk：旧格同型多只
     /// 一并消失，Stage A 保真）。
-    fn m_107(&mut self, idx: usize, cx: i32, cy: i32) {
+    fn carryMonstersTo(&mut self, idx: usize, cx: i32, cy: i32) {
         let ox = self.entities.items[idx].px;
         let oy = self.entities.items[idx].py;
         let t = self.entities.items[idx].type_;
@@ -2517,7 +2517,7 @@ impl GameScene {
         self.minimap = Some(crate::intro::dim_image(&img, MINIMAP_DIM_ALPHA));
     }
 
-    /// run case 11 相位机（a.java:4011-4068）。m_055 由调用方公共段跑。
+    /// run case 11 相位机（a.java:4011-4068）。advanceEntityFrames 由调用方公共段跑。
     fn tick_dialog(&mut self) {
         self.step_camera_toward_target();
         match self.dialog_phase {
@@ -2564,7 +2564,7 @@ impl GameScene {
                                 self.dialog_char = 1;
                                 self.open_dialog_page(self.dialog_page + 1);
                                 if self.dialog_phase == 6 {
-                                    // m_103：ease 目标 = SEE 目标格
+                                    // easeCameraToTarget：ease 目标 = SEE 目标格
                                     self.ease_cam_x = ((self.view.view_w - 32) >> 1) - self.view.cam_x;
                                     self.ease_cam_y = ((self.view.view_h - 32) >> 1) - self.view.cam_y;
                                     self.ease_target_x = self.dialog_target.0 << 5;
@@ -2632,7 +2632,7 @@ impl GameScene {
             5 => {
                 // LAY 批续跑缝（a.java:4123-4127）：floorTransitioning ∧ !wipeClosing
                 // （换层已过、遮幅开启中）⇒ 相位归 0 续跑脚本。op_lay 停表于此；
-                // 2026-10-17 前为空臂桩（"f_bool_16 组合（LAY 批）"未译）⇒ 剧情链
+                // 2026-10-17 前为空臂桩（"floorTransitioning 组合（LAY 批）"未译）⇒ 剧情链
                 // 永停（用户实机 BUG-016：3→2 天牢切层后牛魔王对话不触发 + 输入假死）。
                 if self.transitioning && !self.wipe_closing {
                     self.dialog_phase = 0;
@@ -2642,7 +2642,7 @@ impl GameScene {
         }
     }
 
-    /// m_106（a.java:8738-8870）：dp2 实体路径缓动（MOV 五参后每拍一次，run case 11
+    /// openWallOnRoute（a.java:8738-8870）：dp2 实体路径缓动（MOV 五参后每拍一次，run case 11
     /// dialogPhase 2 臂 a.java:4072-4073）。子相位 routePhase（[`Self::route_phase`]）：
     ///
     /// - **0 弹步**（8740-8810）：walkStepCount>0 → 弹顶步为 f_byte_19，预算下一格；
@@ -2651,15 +2651,15 @@ impl GameScene {
     ///   battleTarget、state=5、routePhase=5、battlePredictGate=false、敌先手一击
     ///   atk−def>0 扣血），不可胜 → walkPhase=1 + 朝向=步向（玩家此刻不动，mode 3 才
     ///   消费）；随后下一格槽表**倒序**扫 cat1 型11（墙）→ markEntityRemoved（开墙）。
-    ///   步尽 → m_108 迁槽 + dialogPhase=0 + dispatchAnimFields（复位动画行）+ f_int_127=-1。
+    ///   步尽 → relocateSlotsAtRouteEnd 迁槽 + dialogPhase=0 + dispatchAnimFields（复位动画行）+ route_entity=-1。
     /// - **1 步进**（8811-8859）：实体 ±8px、相机目标 = 实体像素、routeProgress+=8、动画行
     ///   >0 时帧 +1（表尾归 0）；满 32 → 归格（routeProgress=0、routePhase=0），实体落到
-    ///   > 玩家格且型≠72：可胜 → 玩家直扣预测损血 + m_108 + removeGroupAtCellByType
+    ///   > 玩家格且型≠72：可胜 → 玩家直扣预测损血 + relocateSlotsAtRouteEnd + removeGroupAtCellByType
     ///   > （无死亡动画），不可胜 → scriptWalkArmed=false、**gameMode=3**、walkPhase=1、
-    ///   > 朝向=步向（dialogPhase 仍为 2——路径挂起）；最后**同拍递归** m_106()（弹下一步
+    ///   > 朝向=步向（dialogPhase 仍为 2——路径挂起）；最后**同拍递归** openWallOnRoute()（弹下一步
     ///   > 或收尾）。
     /// - **5 战斗**（8861-8868）：tickBattle(battleActiveFlag)；非收尾中且实体已移除/
-    ///   state==1 → dialogPhase=0、routePhase=0、f_int_127=-1（路径余步丢弃，无 m_108）。
+    ///   state==1 → dialogPhase=0、routePhase=0、route_entity=-1（路径余步丢弃，无 relocateSlotsAtRouteEnd）。
     fn tick_entity_route(&mut self) {
         match self.route_phase {
             0 => {
@@ -2817,8 +2817,8 @@ impl GameScene {
     }
 
     /// hideNotify 游戏态半（a.java:4502-4513；f_bool_01 latch 与触发判断由壳承担）：
-    /// 4504-4507 `if (gameMode==3){gameMode=4; m_000();}` = 切 mode 4 + 进游戏内菜单
-    /// （m_000 case 4 = enter_menu4）；4509-4510 closeAudioPlayer + anyKeyPlayed=true
+    /// 4504-4507 `if (gameMode==3){gameMode=4; dispatchModeEntry();}` = 切 mode 4 + 进游戏内菜单
+    /// （dispatchModeEntry case 4 = enter_menu4）；4509-4510 closeAudioPlayer + anyKeyPlayed=true
     /// 由 BgmState::on_hide_notify 承担。Java 顺序 = 菜单先、音频后。
     pub fn hide_notify(&mut self) {
         if self.game_mode == GameMode::Map {
@@ -2855,7 +2855,7 @@ impl GameScene {
         }
     }
 
-    /// m_000 case 4（a.java:4326-4337）：继续游戏（+floor>50 的跳过教程）/
+    /// dispatchModeEntry case 4（a.java:4326-4337）：继续游戏（+floor>50 的跳过教程）/
     /// 保存/设置/帮助/退出；软键 (1,3)。
     fn enter_menu4(&mut self) {
         self.reset_menu_layout();
@@ -2870,7 +2870,7 @@ impl GameScene {
         self.softkeys = (1, 3);
     }
 
-    /// m_000 case 19（a.java:4439-4448）：商店 5 条目。
+    /// dispatchModeEntry case 19（a.java:4439-4448）：商店 5 条目。
     fn enter_menu19(&mut self) {
         self.reset_menu_layout();
         for k in 12..=16 {
@@ -2955,19 +2955,19 @@ impl GameScene {
         match self.menu_kinds[self.menu_cursor as usize] {
             1 => self.transition_to(GameMode::Map),
             3 => {
-                // a.java:4776-4780：gameMode=7 + menuReturnMode=4 + m_000
+                // a.java:4776-4780：gameMode=7 + menuReturnMode=4 + dispatchModeEntry
                 self.menu_return_mode = GameMode::InGameMenu;
                 self.transition_to(GameMode::SaveSlot);
                 self.enter_menu7();
             }
             4 => {
-                // a.java:4781-4785：gameMode=16 + menuReturnMode=4 + m_000
+                // a.java:4781-4785：gameMode=16 + menuReturnMode=4 + dispatchModeEntry
                 self.menu_return_mode = GameMode::InGameMenu;
                 self.transition_to(GameMode::About);
                 self.enter_menu16();
             }
             5 => {
-                // a.java:4786-4790：gameMode=15 + menuReturnMode=4 + m_000
+                // a.java:4786-4790：gameMode=15 + menuReturnMode=4 + dispatchModeEntry
                 self.menu_return_mode = GameMode::InGameMenu;
                 self.transition_to(GameMode::Help);
                 self.enter_menu15();
@@ -3024,7 +3024,7 @@ impl GameScene {
                 g.set_color(16751103);
             }
             if kind > 11 && kind < 17 {
-                // 商店条目：逐字彩虹（f_int_arr_32[f_byte_25 起步环绕]），
+                // 商店条目：逐字彩虹（shopRainbowColors[shopRainbowPhase 起步环绕]），
                 // 相位在 paint 尾按 fc&3 推进（a.java:2476-2479）
                 let label = MENU_LABELS[kind as usize];
                 let n = RAINBOW_COLORS.len();
@@ -3058,7 +3058,7 @@ impl GameScene {
         m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
     }
 
-    /// m_000 case 10（a.java:4370-4380）：道具面板布局初始化。
+    /// dispatchModeEntry case 10（a.java:4370-4380）：道具面板布局初始化。
     fn enter_item_panel(&mut self) {
         let font = crate::paint::paint_font();
         self.item_cols = 4;
@@ -3146,21 +3146,21 @@ impl GameScene {
     }
 
     /// activateItem（a.java:7781-7874+）的 mode10 头：13 → gameMode=5、
-    /// 14 → gameMode=12（m_000 布局侧效果随对应模式批次）。16-25 的效果
+    /// 14 → gameMode=12（dispatchModeEntry 布局侧效果随对应模式批次）。16-25 的效果
     /// 分支（破墙/回血/瞬移等）为道具批次待办——序章背包恒空不可达。
-    /// activateItem（a.java:7795-7860）：返回是否**消耗**（var2——true 时
+    /// activateItem（a.java:7795-7860）：返回是否**消耗**（script_cursor0——true 时
     /// useItemStack 递减次数并在 0 时压实栈）。
     fn activate_item(&mut self, t: i32) -> bool {
         match t {
             13 => {
-                // a.java:7786-7788：gameMode=5 + m_000 case5（m_091+软键）
+                // a.java:7786-7788：gameMode=5 + dispatchModeEntry case5（m_091+软键）
                 self.transition_to(GameMode::EnemyInfo);
                 self.enter_menu5();
                 false
             }
             14 => {
-                // a.java:7789-7791：gameMode=12 + m_000 case12（a.java:4386-4388：
-                // m_076(0) + softkeyRightKind=3）
+                // a.java:7789-7791：gameMode=12 + dispatchModeEntry case12（a.java:4386-4388：
+                // browseOfferQueue(0) + softkeyRightKind=3）
                 self.transition_to(GameMode::RecordBrowser);
                 self.open_record_page(0);
                 self.softkeys.1 = 3;
@@ -3238,7 +3238,7 @@ impl GameScene {
                     let ty = self.view.high - 1 - (self.view.player_py >> 5);
                     let pass = self.interact_with_cell(tx, ty);
                     if pass {
-                        self.m_024(tx, ty);
+                        self.placePlayerAtCell(tx, ty);
                         self.view.set_camera(
                             ((self.view.view_w - 32) >> 1) - self.view.player_px,
                             ((self.view.view_h - 32) >> 1) - self.view.player_py,
@@ -3311,7 +3311,7 @@ impl GameScene {
         }
     }
 
-    /// m_100 语义（a.java:cellSlotTable 查找）：格 (cx,cy) 上首个型 target
+    /// findBlockingEntity 语义（a.java:cellSlotTable 查找）：格 (cx,cy) 上首个型 target
     /// 且 state!=1 的实体下标，无则 -1。
     fn find_entity_of_type_at(&self, cx: i32, cy: i32, target: i32) -> i32 {
         if cx < 0 || cy < 0 || cx >= self.view.wide || cy >= self.view.high {
@@ -3487,7 +3487,7 @@ impl GameScene {
         m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
     }
 
-    /// m_000 case 7（a.java:4342-4364，case7/8 共享）：软键 (1,3) + loadSlotTable
+    /// dispatchModeEntry case 7（a.java:4342-4364，case7/8 共享）：软键 (1,3) + loadSlotTable
     /// （每次进入重读 RMS 槽表）+ 槽表布局（6 行/宽 148/高 196）。
     /// 【2026-10-18 BUG-021】入口只复位布局/光标（a.java:4354-4366），**不动数据
     /// 数组**（Java 数组跨进入复用）；读失败（缺店/空/截断）留半解析旧值 +
@@ -3562,7 +3562,7 @@ impl GameScene {
         o.extend_from_slice(&self.player.gold.to_be_bytes());
         // writeShort(alchemyUpgradeCount)（a.java:9206；旧写法恒 0）
         o.extend_from_slice(&(self.alchemy_upgrade_count as i16).to_be_bytes());
-        // writeShort(inventoryEntryCount，原 f_int_89) + f_byte_arr_14/15 对（a.java:9207-9212）= mode12 日志
+        // writeShort(inventoryEntryCount，原 inventoryEntryCount) + f_byte_arr_14/15 对（a.java:9207-9212）= mode12 日志
         //（读侧 a.java:9278-9283 → journal；旧写法取恒空的 special_item_types）
         o.extend_from_slice(&(self.journal.len() as i16).to_be_bytes());
         for &(kind, idx) in &self.journal {
@@ -3593,7 +3593,7 @@ impl GameScene {
         o
     }
 
-    /// m_113(true)（a.java:2679-2682 + 9046-9215）：mode 7 槽表（存档标题变体
+    /// paintSlotTable(true)（a.java:2679-2682 + 9046-9215）：mode 7 槽表（存档标题变体
     /// titledBox segs[2]）+ 有效槽详情面板（层数/装备/金币/三围/三钥）。
     fn paint_slot_list(&mut self, g: &mut SoftGraphics<'_>) {
         self.paint_parallax(g, false);
@@ -3629,12 +3629,12 @@ impl GameScene {
         m_034_softkeys(g, &ui[10], &ui[11], self.softkeys.0, self.softkeys.1);
     }
 
-    /// mode 15 帮助全文（m_000 case 15 a.java:4407-4411，showOverlayMessage
+    /// mode 15 帮助全文（dispatchModeEntry case 15 a.java:4407-4411，showOverlayMessage
     /// kind 0 逐字原文：99FFCC 色段 + 换行转义）。
     pub const HELP_TEXT: &str = "游戏描述：\n\\c99FFCC有人的地方就有江湖，有神仙的地方何尝不是江湖；百战百胜的本事，换不回女人的真心，兄弟的真义；齐天大圣又如何，没有真情实义，做神仙跟做咸鱼有什么区别？\n\n操作方式：按左软键调出物品栏，左右选择一件道具，按确定键使用。\n游戏操作：\n上方向键/2：向上行走\n下方向键/8：向下行走\n左方向键/4：向左行走\n右方向键/6：向右行走\n确定键/5:探索地图\n左软键：打开道具列表\n右软键：打开游戏中菜单\n\n代理发行：广州易诚计算机科技有限公司\n发行商网站：www.9266.net\n客服电话：4006509913\n客服信箱：kefu@9266.net";
 
-    /// m_000 case 15（a.java:4402-4413）：帮助全文浮层（kind 0）+ 软键 (0,3)。
-    /// m_001(8)/m_001(1) = 懒加载资源容器（Rust 构造期全量装载，等价 no-op）。
+    /// dispatchModeEntry case 15（a.java:4402-4413）：帮助全文浮层（kind 0）+ 软键 (0,3)。
+    /// loadPackedImages(8)/loadPackedImages(1) = 懒加载资源容器（Rust 构造期全量装载，等价 no-op）。
     /// 迭代 26：改走 showOverlayMessage 完整口（原内联排版漏 overlayActive=true，
     /// 浮层整体不画——preset_help 嵌套假绿掩盖至今）。
     fn enter_menu15(&mut self) {
@@ -3738,7 +3738,7 @@ impl GameScene {
         }
     }
 
-    /// m_000 case 5：m_091 + 软键 (0,3)。
+    /// dispatchModeEntry case 5：m_091 + 软键 (0,3)。
     fn enter_menu5(&mut self) {
         self.build_encyclopedia();
         self.softkeys = (0, 3);
@@ -3865,7 +3865,7 @@ impl GameScene {
     fn alchemy_price_for(k: i32) -> i32 {
         let mut price = 20;
         for i in 1..k {
-            // Java: for (var2 = 1; var2 < var0; var2++)（a.java:7259）——上界含 k-1
+            // Java: for (script_cursor0 = 1; script_cursor0 < var0; script_cursor0++)（a.java:7259）——上界含 k-1
             price += 20 * i;
         }
         price
@@ -4031,7 +4031,7 @@ impl GameScene {
             "如果要打败杨戬你需要“乌金棍”、“银缕锁甲”、“捆仙绳”或更高等级的宝物。",
     ];
 
-    /// m_075（a.java:7472-7477）：报价入队。
+    /// pushOfferQueue（a.java:7472-7477）：报价入队。
     fn offer_queue_push(&mut self, src: i32, idx: i32) {
         let cap = (Self::OFFER_TEXTS_A.len() + Self::SIGN_TEXTS_B.len()) as i32;
         if (self.offer_queue_src.len() as i32) < cap {
@@ -4040,7 +4040,7 @@ impl GameScene {
         }
     }
 
-    /// spendGold：够则扣减返回 true（a.java:7702 邻接族，m_083）。
+    /// spendGold：够则扣减返回 true（a.java:7702 邻接族，equipTierIndex）。
     fn spend_gold(&mut self, amount: i32) -> bool {
         if self.player.gold >= amount {
             self.player.gold -= amount;
@@ -4061,8 +4061,8 @@ impl GameScene {
         } else {
             1
         };
-        let mut purchase_ok = true; // var5：购买/执行是否成功
-        let mut follow_up = false; // var6：后续挂起（报价队列/失败提示浮层）
+        let mut purchase_ok = true; // open_n：购买/执行是否成功
+        let mut follow_up = false; // cur_x：后续挂起（报价队列/失败提示浮层）
         if idx <= 0 {
             return false;
         }
@@ -4239,7 +4239,7 @@ impl GameScene {
                 opt.checked[cur] = !opt.checked[cur];
                 match opt.labels[cur] {
                     0 => {
-                        // 开 ⇒ volumeLevel=60 + m_139(f_bool_28?3:2)，关 ⇒ closeAudioPlayer
+                        // 开 ⇒ volumeLevel=60 + playBgm(f_bool_28?3:2)，关 ⇒ closeAudioPlayer
                         //（a.java:4157-4167；EV-toggle-exit T521/T561）。
                         self.bgm.toggle_sound();
                         // saveGlobalProgress（RMS 侧，无像素效应；game-core 无 I/O）
@@ -4289,7 +4289,7 @@ impl GameScene {
     }
 
     /// BGM 宿主契约：应当在放的轨道（`audio::TRACKS` 下标），None = 停止/无声。
-    /// 语义 = Java `f_Player_00 != null ? f_byte_28 : 无`（docs/spec/audio.md）。
+    /// 语义 = Java `bgm != null ? track : 无`（docs/spec/audio.md）。
     pub fn bgm_request(&self) -> Option<usize> {
         self.bgm.request()
     }
@@ -4312,7 +4312,7 @@ impl GameScene {
         // overlay 显示期（run 的 label510 分支 a.java:3252）：kind0 且
         // gameMode∈{15,17} 走 -7 专用支路（仅 -7 关层+回 menuReturnMode，
         // 其余键吞掉）；其余情况 handleOverlayKey（a.java:4923-4931：任意
-        // 非翻页键关层）。**walkPhase 状态机与 m_055 冻结**。
+        // 非翻页键关层）。**walkPhase 状态机与 advanceEntityFrames 冻结**。
         if self.overlay_active {
             if self.overlay_kind == 4 {
                 // 商人/告示牌（overlay 分派 case4，deobf 3311-3320）：-6/-5=
@@ -4325,7 +4325,7 @@ impl GameScene {
                 }
             } else if self.overlay_kind == 5 {
                 // mode12 日志浏览（overlay 分派 case5，a.java:3325-3344）：
-                // -3/-4 = m_076 翻页、-2/-1 = 长文滚动、-5/-6/-7 关回 mode10。
+                // -3/-4 = browseOfferQueue 翻页、-2/-1 = 长文滚动、-5/-6/-7 关回 mode10。
                 // （迭代 59 纠偏：本臂曾被误挂商人报价 seek——商人 quote 实为
                 // kind4（a.java:7442），merchant 场景亦无 -3/-4 按键。）
                 match self.key_value {
@@ -4465,11 +4465,11 @@ impl GameScene {
         }
         if self.game_mode == GameMode::Ending {
             // run case 20（a.java:4223-4228）：f_bool_04 后任意键回主菜单
-            // （gameMode=1 + m_000——场景→BootMachine 反向移交为已知缝，
+            // （gameMode=1 + dispatchModeEntry——场景→BootMachine 反向移交为已知缝，
             // 对拍窗口不触键）。f_bool_04 未到 → 任意键仍清零。
             if self.ending_done && self.key_value != 0 {
                 self.transition_to(GameMode::MainMenu);
-                // m_000 case 1 音频半：f_bool_28=false + m_139(2)：game→menu 重建
+                // dispatchModeEntry case 1 音频半：f_bool_28=false + playBgm(2)：game→menu 重建
                 //（a.java:4295/4311；EV-ending-title T1301）。非音频半（标题菜单
                 // 重建/反向移交 BootMachine）仍为已知缝。
                 self.bgm.enter_title();
@@ -4478,10 +4478,10 @@ impl GameScene {
             return;
         }
         // run case 3 头（a.java:3552-3562）：keyValue 开关。-7 → gameMode=4
-        // （存档菜单，mode 4 批次待办）；-6 → gameMode=10 + m_000。
+        // （存档菜单，mode 4 批次待办）；-6 → gameMode=10 + dispatchModeEntry。
         match self.key_value {
             -7 => {
-                // a.java:3559-3561：f_byte_02=gameMode → gameMode=4 + m_000
+                // a.java:3559-3561：inGameMenuReturnMode=gameMode → gameMode=4 + dispatchModeEntry
                 self.in_game_menu_return_mode = self.game_mode;
                 self.transition_to(GameMode::InGameMenu);
                 self.enter_menu4();
@@ -4611,7 +4611,7 @@ impl GameScene {
             self.afterimage_x[0] = tx;
             self.afterimage_y[0] = ty;
             for i in 1..4 {
-                let mut v3 = 4 - i as i32; // Java var4==0 的 +5 分支不可达（循环从 1 起）
+                let mut v3 = 4 - i as i32; // Java sort_i==0 的 +5 分支不可达（循环从 1 起）
                 if i == 0 {
                     v3 += 5;
                 }
@@ -4794,7 +4794,7 @@ impl GameScene {
     }
 
     /// interactWithCell（a.java:5363-5531）：格槽**倒序**遍历 + 类目交互 +
-    /// 地形终审（var7 楼梯/喷泉计数 >0 时豁免地形）。
+    /// 地形终审（cur_y 楼梯/喷泉计数 >0 时豁免地形）。
     fn interact_with_cell(&mut self, x: i32, y: i32) -> bool {
         let mut allowed = true;
         let mut stair_count = 0;
@@ -4890,7 +4890,7 @@ impl GameScene {
                                         // **不可写 `_`**——会吞掉其后的 83/9/77 臂。
                                 6 => {
                                     // 型 6 隐形实体 bump 显形（a.java:5410-5417）：
-                                    // var7++ **恒执行**于显形判定之前（a.java:5411）；
+                                    // cur_y++ **恒执行**于显形判定之前（a.java:5411）；
                                     // 显形三元组一次性，写序固定 visible=true →
                                     // entityState=2 → entityAnimRow=9（a.java:5413/
                                     // 5414/5415 逐字）；continue 不改 allowed、
@@ -4919,10 +4919,10 @@ impl GameScene {
                                     let idx = self.entities.items[e].param as i32;
                                     self.load_level_script(idx);
                                     s = -1;
-                                    // a.java:5509 `var6 = loadLevelScript(...)`：声明
+                                    // a.java:5509 `cur_x = loadLevelScript(...)`：声明
                                     // boolean 但 **default 恒 return false**（a.java:8075）
-                                    // ⇒ var6=false，tryStep 不置 wp=1。**仅在命中分支**：
-                                    // seen 跳过时 var6 保持 true——击杀后重步
+                                    // ⇒ cur_x=false，tryStep 不置 wp=1。**仅在命中分支**：
+                                    // seen 跳过时 cur_x 保持 true——击杀后重步
                                     // （tick_battle → try_step，T768）必须放行置 wp=1，
                                     // 驱动对话关闭后的 (4,6) 行走与 wp4 组开门链
                                     // （迭代 65 T904 实证）。
@@ -4940,7 +4940,7 @@ impl GameScene {
                                     self.alchemy_gain_hp = Self::scaled_by_floor_tier(100, self.floor);
                                     self.alchemy_gain_atk = Self::scaled_by_floor_tier(2, self.floor);
                                     self.alchemy_gain_def = Self::scaled_by_floor_tier(4, self.floor);
-                                    // m_000()：mode 9 run 臂对无键进入无动作（a.java:3885 default）
+                                    // dispatchModeEntry()：mode 9 run 臂对无键进入无动作（a.java:3885 default）
                                 }
                             }
                             10 => {
@@ -5016,7 +5016,7 @@ impl GameScene {
                                 // 告示牌/商人（a.java:5494-5517）：param 打包交互——
                                 // 高字节=标志（&1=open 入队、&2=效果表、&4=一次性），
                                 // 低字节=报价序号（1 基）；type77=文本源 0，其余=源 1；
-                                // 触发即阻挡（var6=false）+ kind4 报价浮层开。
+                                // 触发即阻挡（cur_x=false）+ kind4 报价浮层开。
                                 self.merchant_entity = e as i32;
                                 let var6p = self.entities.items[e].param as i32;
                                 let flags = (var6p >> 8) as i8;
@@ -5074,7 +5074,7 @@ impl GameScene {
             )
         }
 
-        /// f_byte_arr_05 特性位（initEntityTables a.java:6266-6262：49/53/74=1、69=2）。
+        /// traitFlagsByType 特性位（initEntityTables a.java:6266-6262：49/53/74=1、69=2）。
         fn trait_flags(&self, t: i32) -> u8 {
             match t {
                 49 | 53 | 74 => 1,
@@ -5255,9 +5255,9 @@ impl GameScene {
             }
         }
 
-        /// m_101（a.java:8628-8636）：火焰陷阱上爬——上格可走/无槽/非玩家格
+        /// fireTrapClimbUp（a.java:8628-8636）：火焰陷阱上爬——上格可走/无槽/非玩家格
         /// 时拉起旧 60（removed+脱槽）并在上格重生 DES 态新 60。
-        fn m_101(&mut self, x: i32, y: i32, idx: i32) {
+        fn fireTrapClimbUp(&mut self, x: i32, y: i32, idx: i32) {
             let ty = y - 1;
             let walkable = self.walkable_at(x, ty);
             let has_slot = if x >= 0 && ty >= 0 && x < self.view.wide && ty < self.view.high {
@@ -5289,7 +5289,7 @@ impl GameScene {
             }
         }
 
-        /// m_000 case 3 尾（a.java:4315 applyStepCellEffects）：进图瞬间出生格
+        /// dispatchModeEntry case 3 尾（a.java:4315 applyStepCellEffects）：进图瞬间出生格
         /// 触发（type83 → try_run_scene/loadLevelScript，序章 script 40 入口）。
         /// 槽载入链在 load_floor_from_save 尾内联；新游戏冷启动链（宿主构造
         /// 场景后）经此入口。
@@ -5302,9 +5302,9 @@ impl GameScene {
         fn apply_step_cell_effects(&mut self) {
             self.player_cell_x = self.view.player_px >> 5;
             self.player_cell_y = self.view.player_py >> 5;
-            self.player_bob_applied = false; // f_bool_07 每步清零（a.java:5550），踩喷泉再置
+            self.player_bob_applied = false; // player_bob_applied 每步清零（a.java:5550），踩喷泉再置
             // 陷阱扣血臂（a.java:5549-5645）：61 夹击 → -HP/2；62 邻接 → -100；
-            // 60 邻接 → -200 + var4 短路 handleFieldInput；60 上邻 → m_101
+            // 60 邻接 → -200 + sort_i 短路 handleFieldInput；60 上邻 → fireTrapClimbUp
             // 火焰上爬（拉旧格 + 上格重生 DES 态）。armor 40（火浣衣）免疫
             // 61/62 与 60 计数，但仍执行上爬。（floor49 陷阱层 T305 实证缺口）
             let (pcx, pcy) = (self.player_cell_x, self.player_cell_y);
@@ -5351,7 +5351,7 @@ impl GameScene {
                     let idx = self.entity_at_cell(pcx, pcy - 1, 60);
                     if idx >= 0 {
                         n60 += 1;
-                        self.m_101(pcx, pcy - 1, idx);
+                        self.fireTrapClimbUp(pcx, pcy - 1, idx);
                     }
                 }
                 if pcy < self.view.high - 1 && self.entity_at_cell(pcx, pcy + 1, 60) >= 0 {
@@ -5360,7 +5360,7 @@ impl GameScene {
             } else if pcy > 0 {
                 let idx = self.entity_at_cell(pcx, pcy - 1, 60);
                 if idx >= 0 {
-                    self.m_101(pcx, pcy - 1, idx);
+                    self.fireTrapClimbUp(pcx, pcy - 1, idx);
                 }
             }
             if n60 > 0 {
@@ -5376,7 +5376,7 @@ impl GameScene {
                 let t = self.entities.items[e].type_;
                 match self.entity_category(t) {
                     1 => match t {
-                        6 => self.player_bob_applied = true, // f_bool_07（喷泉浮沉）
+                        6 => self.player_bob_applied = true, // player_bob_applied（喷泉浮沉）
                         83 => {
                             // 出生/踩格触发（a.java:5708-5709）：序章 script 40 入口
                             if self.try_run_scene(self.entities.items[e].param as i32, true) {
@@ -5384,7 +5384,7 @@ impl GameScene {
                                 self.overlay_text = None;
                                 let idx = self.entities.items[e].param as i32;
                                 self.load_level_script(idx);
-                                step_triggered = true; // a.java:5712 var4=true
+                                step_triggered = true; // a.java:5712 sort_i=true
                             }
                         }
                         7 => {
@@ -5466,13 +5466,13 @@ impl GameScene {
             if self.walk_phase != 4 {
                 self.walk_phase = 0;
                 if !step_triggered {
-                    // a.java:5645 var4：83 触发/陷阱踩伤短路场输入
+                    // a.java:5645 sort_i：83 触发/陷阱踩伤短路场输入
                     self.handle_field_input();
                 }
             }
         } else if self.script_walk_armed {
             // 分支 2（a.java:5742-5746）：脚本行走武装 → advanceScriptWalk
-            //（var4 踩伤 → 短路行走置 wp=0）
+            //（sort_i 踩伤 → 短路行走置 wp=0）
             if !step_triggered {
                 self.advance_script_walk();
             } else {
@@ -5480,7 +5480,7 @@ impl GameScene {
             }
         } else {
             // 分支 3（a.java:5747-5751）：空格 → 复位相位 + 场输入
-            //（var4 踩伤短路 a.java:5645——陷阱臂迭代 66 已移植）
+            //（sort_i 踩伤短路 a.java:5645——陷阱臂迭代 66 已移植）
             self.walk_phase = 0;
             if !step_triggered {
                 self.handle_field_input();
@@ -5539,14 +5539,14 @@ impl GameScene {
     }
 
     fn pickup_item_type(&mut self, t: i32) {
-        // a.java:7528 起 pickupItemType 拾取链：f_byte_07 = 道具类型（描述 overlay 的图标/名）
+        // a.java:7528 起 pickupItemType 拾取链：itemUseTargetType = 道具类型（描述 overlay 的图标/名）
         self.overlay_kind_item = t;
         // 描述表（itemDescriptions a.java:906 / equipDescriptions a.java:930——
         // 全量入库 reference；此处取用句柄）
         match t {
             13..=25 | 85 | 86 => {
                 if t == 15 {
-                    self.tutorial_seen = true; // f_bool_12
+                    self.tutorial_seen = true; // tutorialSeen
                 }
                 self.add_item_to_stack(t);
             }
@@ -5566,7 +5566,7 @@ impl GameScene {
             31 => self.apply_hp_delta(50 * self.floor_tier()),
             32 => self.apply_hp_delta(200 * self.floor_tier()),
             33..=36 | 79 => {
-                // 武器档（equip_types 1..5 槽）——m_083 档位 = 表下标
+                // 武器档（equip_types 1..5 槽）——equipTierIndex 档位 = 表下标
                 let tier = match t {
                     33 => 1,
                     34 => 2,
@@ -5594,7 +5594,7 @@ impl GameScene {
                     _ => 11, // 40
                 };
                 if self.try_equip(tier, false) {
-                    // a.java:7595 `equipDescriptions[var2]`：var2 = m_083 的
+                    // a.java:7595 `equipDescriptions[script_cursor0]`：script_cursor0 = equipTierIndex 的
                     // tier（10）——**非物品类型**，D 表按 tier 索引（迭代 70
                     // floor43 80 甲实证：传类型 80 = D 表越界错帧）。
                     self.overlay_kind_pickup(t, tier);
@@ -5629,7 +5629,7 @@ impl GameScene {
             let u = self.player.item_uses[existing as usize];
             self.player.item_uses[existing as usize] = (u as i32 + ITEM_USES[idx]) as u8;
         }
-        // itemUseTargetType = (byte)var1（a.java:7732）：kind1 浮层图标/名的数据源
+        // itemUseTargetType = (byte)py_key（a.java:7732）：kind1 浮层图标/名的数据源
         // ——拾取路径调用方已先写同值，商人赠物路径（a.java:7333/7336）唯此一写
         self.overlay_kind_item = t;
         let text = self.item_description(idx);
@@ -5681,8 +5681,8 @@ impl GameScene {
             "\\cdddddd华丽的装饰，就是有点旧。\n\\c00ff00装备: 防御+120.\n\\cFFCC00\"别人穿过的极品。\".",
             "\\cdddddd东海龙鳞编织而成，限量版，天上天下，只此一款。\n\\c00ff00装备: 防御+220.\n\\cFFCC00\"更轻薄，更透气，更多防护，更多安心\"."
         ];
-        // a.java:7595-7597：图标 itemUseTargetType=var1（物品类型）、文本
-        // equipDescriptions[var2]（m_083 的 tier）——双参分列。tier 由调用
+        // a.java:7595-7597：图标 itemUseTargetType=py_key（物品类型）、文本
+        // equipDescriptions[script_cursor0]（equipTierIndex 的 tier）——双参分列。tier 由调用
         // 点传入，此处**不可按 t 重算**（80 的 tier=10 经 t<37 分支会误落
         // _=>5 武器文案——迭代 70 floor43 T451 白烟盒文本错误实证）。
         self.show_overlay_message(1, D[tier as usize], 0, 3);
@@ -5740,7 +5740,7 @@ impl GameScene {
             return self.paint_wipe_tail(g);
         }
         if self.game_mode == GameMode::SaveSlot {
-            // paint case 7（a.java:2679-2682）：m_113(true) 存档变体
+            // paint case 7（a.java:2679-2682）：paintSlotTable(true) 存档变体
             self.paint_slot_list(g);
             self.paint_overlay_box(g);
             return self.paint_wipe_tail(g);
@@ -5808,7 +5808,7 @@ impl GameScene {
         // softkey 落回 mode 3 时由 paint 复位（Java 字段赋值语义）
         self.softkeys = (1, 3);
         m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
-        // 提示浮层（paint 公共尾 a.java:3129-3168，!f_bool_16 && overlayActive）
+        // 提示浮层（paint 公共尾 a.java:3129-3168，!floorTransitioning && overlayActive）
         if !self.transitioning && self.overlay_active {
             self.paint_overlay_box(g);
         }
@@ -5876,7 +5876,7 @@ impl GameScene {
     /// （paint case 3：cameraPixelX / cameraPixelY+view_top）。
     /// floor1 类别覆盖 1/2/8 + 空图文字标签；16/32/67/69 拼装 todo（floor1
     /// 实体清单无这些类型，spec p3-render §3.5）。
-    /// m_100（a.java:8610-8625）：格上首个指定类型的未移除实体索引（-1 = 无）。
+    /// findBlockingEntity（a.java:8610-8625）：格上首个指定类型的未移除实体索引（-1 = 无）。
     fn entity_at_cell(&self, x: i32, y: i32, type_id: i32) -> i32 {
         entity::cell_entity(&self.grid, &self.entities, x, y, type_id)
     }
@@ -5948,10 +5948,10 @@ impl GameScene {
                         }
                         let anim = self.entities.items[e].anim_row as usize;
                         let frame = self.entities.items[e].anim_frame;
-                        // 帧偏移 = 帧宽 × animOffsetTable[行][帧]（Java var5 算式）
+                        // 帧偏移 = 帧宽 × animOffsetTable[行][帧]（Java open_n 算式）
                         let frame_off = w * ANIM_OFFSET_TABLE[anim][frame as usize];
                         // 注：横向居中 (32-w)>>1 在**各臂内**取 sx 现值计算——
-                        // case 8 抖动 / case 1 的 6/9 特例先改 sx 再用（Java var9 语义）
+                        // case 8 抖动 / case 1 的 6/9 特例先改 sx 再用（Java cur_idx 语义）
                         let cx_off = (CELL_PX - w) >> 1;
                         match self.entity_category(t) {
                             1 => {
@@ -6132,7 +6132,7 @@ impl GameScene {
         // 帧号×4 取 sparkQuads 四联组（sx,sy,w,h）
         if self.walk_phase == 5 && self.battle_target >= 0 {
             let e = self.battle_target as usize;
-            // a.java:6692-6687：星光坐标用**裸 cameraPixelX/Y**（非 m_053 入参
+            // a.java:6692-6687：星光坐标用**裸 cameraPixelX/Y**（非 paintEntityLayer 入参
             // 的 cameraPixelY+view_top——尾段直接读字段）
             let x = self.view.cam_x + self.entities.items[e].px + 16;
             let y = self.view.cam_y + self.entities.items[e].py + 32;
@@ -6199,7 +6199,7 @@ impl GameScene {
             self.paint_afterimages(g, cam_x, cam_y, frame_x);
         }
         g.set_clip(0, 0, SCREEN_W, SCREEN_H);
-        // f_bool_26 路径箭头（a.java:5929-5956）：自玩家格沿 walkPathBuffer 逐格外扩，
+        // pathArrowsVisible 路径箭头（a.java:5929-5956）：自玩家格沿 walkPathBuffer 逐格外扩，
         // buffer 顶 = 玩家侧第一步；[8][22] 三联贴片 21×22（0 下/1 上裁剪源、2 右镜像、3 左），
         // 0/1 的 bob 加在 y、2/3 加在 x（Java 原样）；setColor(136) 每步重设。
         if self.path_arrows_visible {
@@ -6353,13 +6353,13 @@ impl GameScene {
     /// paint case 20（a.java:3039-3067）：结局卷轴。状态推进在 paint 内
     /// （Java 原样）：滚动 f_int_22 奇数拍 ++（>w-240 → f_bool_04），
     /// 打字机 (fc&3)>>1 门控推进并重排 209 宽限版；信箱 3156024 上下
-    /// 各 var37 高；卷轴画 (−f_int_22, var37)；底栏 paintWrappedText
+    /// 各 img_y0 高；卷轴画 (−f_int_22, img_y0)；底栏 paintWrappedText
     /// (texts[260], 15, 320−fontHeight−10, 210, fontHeight+10)。
     fn paint_ending(&mut self, g: &mut SoftGraphics<'_>) {
         let img = self.images.ending.clone();
         let text = self.dialog_data.texts[260].clone();
         let font = crate::paint::paint_font();
-        let var37 = (SCREEN_H - img.height) >> 1;
+        let img_y0 = (SCREEN_H - img.height) >> 1;
         self.ending_anim += 2;
         if !self.ending_done && (self.frame_counter & 1) != 0 {
             self.ending_scroll += 1;
@@ -6376,15 +6376,15 @@ impl GameScene {
             self.overlay_page_bottom = self.overlay_total_lines;
         }
         g.set_color(3156024);
-        g.fill_rect(0, 0, SCREEN_W, var37);
-        g.fill_rect(0, SCREEN_H - var37, SCREEN_W, var37);
+        g.fill_rect(0, 0, SCREEN_W, img_y0);
+        g.fill_rect(0, SCREEN_H - img_y0, SCREEN_W, img_y0);
         g.set_clip(0, 0, SCREEN_W, SCREEN_H);
-        g.draw_image(&img, -self.ending_scroll, var37, 0);
+        g.draw_image(&img, -self.ending_scroll, img_y0, 0);
         g.set_color(0xFFFF_FFFF);
         self.paint_wrapped_text(g, 15, SCREEN_H - font.height - 10, 210, font.height + 10, false);
     }
 
-    /// m_076（a.java:7480-7503）：日志页钳位翻转 + kind 选表 + 页码指示。
+    /// browseOfferQueue（a.java:7480-7503）：日志页钳位翻转 + kind 选表 + 页码指示。
     /// kind=0 → f_String_arr_06，其余 → f_String_arr_09；总条数 0 →
     /// "没有记录" 回 mode10。
     fn open_record_page(&mut self, page: i32) {
@@ -6415,10 +6415,10 @@ impl GameScene {
     /// （左 transform 镜像 60−bob / 右 160+bob）+ 软键条。
     fn paint_mode12(&mut self, g: &mut SoftGraphics<'_>) {
         self.paint_parallax(g, false);
-        let var46 = SCREEN_H - crate::paint::paint_font().height - 4;
+        let text_bottom_y = SCREEN_H - crate::paint::paint_font().height - 4;
         let indicator = self.page_indicator.clone();
-        self.draw_shadow_text(g, &indicator, CENTER_X, var46 + 2, 4202520, 0xFFFF_FFFFu32 as i32);
-        let arrow_y = (var46 + (crate::paint::paint_font().height + 4 - 13)) >> 1;
+        self.draw_shadow_text(g, &indicator, CENTER_X, text_bottom_y + 2, 4202520, 0xFFFF_FFFFu32 as i32);
+        let arrow_y = (text_bottom_y + (crate::paint::paint_font().height + 4 - 13)) >> 1;
         let arrow = self.images.ui[14].clone();
         let bob = self.bob_offset;
         if self.record_page > 0 {
@@ -6432,14 +6432,14 @@ impl GameScene {
         self.paint_overlay_box(g);
     }
 
-    /// m_142（a.java:10221-10236）：8 向 ±1 暗色描边 + 主色居中
+    /// drawOutlinedText（a.java:10221-10236）：8 向 ±1 暗色描边 + 主色居中
     /// （anchor 17 = HCENTER|BASELINE；坐标按反编译的绕圈次序）。
     fn draw_shadow_text(&mut self, g: &mut SoftGraphics<'_>, text: &str, cx: i32, cy: i32, shadow: i32, main: i32) {
         let codes: Vec<u16> = text.encode_utf16().collect();
         let mut x = cx - 1;
         let mut y = cy - 1;
         g.set_color(shadow as u32);
-        // 初始点 (cx-1, cy-1) 先画（Java var2--/var3-- 后立即首画），
+        // 初始点 (cx-1, cy-1) 先画（Java script_cursor0--/table_count-- 后立即首画），
         // 再按反编译绕圈次序走完 8 邻域
         g.draw_string(&codes, x, y, 17);
         // Java 序：右移画、右移画、**下移画**（(cx+1,cy-1) 与 (cx+1,cy)
@@ -6449,7 +6449,7 @@ impl GameScene {
             y += dy;
             g.draw_string(&codes, x, y, 17);
         }
-        // 末次 var2++（a.java:10233）：主色落位 = 居中点 (cx, cy)
+        // 末次 script_cursor0++（a.java:10233）：主色落位 = 居中点 (cx, cy)
         x += 1;
         g.set_color(main as u32);
         g.draw_string(&codes, x, y, 17);
@@ -6457,7 +6457,7 @@ impl GameScene {
 
     /// paintTileLayer 头段（a.java:6990-7014）：wp=4 组开门动画 **每 paint 推进**——
     /// 计数 18 置 row6/state1（开门画切换）、24 removeGroupAtCellByType(4) 收尾
-    /// wp=0；f_int_54 ±2 交替供 tile 层 Y 偏移（20±2）。必须在 **paint 时点**推进
+    /// wp=0；tileBob ±2 交替供 tile 层 Y 偏移（20±2）。必须在 **paint 时点**推进
     /// （Java 本就在 paintTileLayer 内）：若放 tick 内先推进，同拍 advance_frames
     /// 会立刻多推一帧——迭代 64 T924 实证（Rust src=45 vs Java src=0）。
     /// paint case 3/9/11 三处 paintTileLayer(0,20) 调用点均须先跑本函数。
@@ -6481,10 +6481,10 @@ impl GameScene {
                 self.tile_bob = 0;
                 self.walk_phase = 0;
             }
-            // f_int_54 ±2 交替（a.java:7016-7014）
+            // tileBob ±2 交替（a.java:7016-7014）
             self.tile_bob = if self.tile_bob == -2 { 2 } else { -2 };
-            // a.java:7015 `var2 = 20 + f_int_54`：**重置拍（cnt24）也取 bob**
-            //（wp 已清 0 但 var2 在块内计算）——迭代 64 T930 一像素差实证
+            // a.java:7015 `script_cursor0 = 20 + tileBob`：**重置拍（cnt24）也取 bob**
+            //（wp 已清 0 但 script_cursor0 在块内计算）——迭代 64 T930 一像素差实证
             return self.tile_bob;
         }
         0
@@ -6501,27 +6501,27 @@ impl GameScene {
         if show_box {
             let font = crate::paint::paint_font();
             let line_h = font.height + 4;
-            let var91 = (line_h << 1) + 12;
-            let var120 = SCREEN_H - var91;
-            self.paint_hud_frame(g, 0, var120, 80, var91);
+            let dialog_block_h = (line_h << 1) + 12;
+            let dialog_block_y0 = SCREEN_H - dialog_block_h;
+            self.paint_hud_frame(g, 0, dialog_block_y0, 80, dialog_block_h);
             let mut cx = 80;
             while cx < 214 {
-                g.set_clip(cx, var120, 16, 16);
-                g.draw_image(&self.images.ui[0], cx - 26, var120, 0);
+                g.set_clip(cx, dialog_block_y0, 16, 16);
+                g.draw_image(&self.images.ui[0], cx - 26, dialog_block_y0, 0);
                 cx += 16;
             }
             g.set_clip(0, 0, SCREEN_W, SCREEN_H);
-            // a.java:2828：edge patch 用 var48=var120（+=16 之前）
-            crate::menu_family::draw_edge_patch(g, &self.images.ui[0], 214, var120, 0, 0, 26, 16, 1);
+            // a.java:2828：edge patch 用 draw_y=dialog_block_y0（+=16 之前）
+            crate::menu_family::draw_edge_patch(g, &self.images.ui[0], 214, dialog_block_y0, 0, 0, 26, 16, 1);
             g.set_color(HUD_FILL);
-            g.fill_rect(80, var120 + 16, 149, var91 - 16);
-            // a.java:2832-2836：右条带循环 (229, var48) 画 ui[8][0]@176——
-            // var48 从 var120+16 步进 16 直到 var158+var11（320）
-            let mut var48 = var120 + 16;
-            while var48 < var120 + var91 {
-                g.set_clip(229, var48, 11, 16);
-                g.draw_image(&self.images.ui[0], 176, var48, 0);
-                var48 += 16;
+            g.fill_rect(80, dialog_block_y0 + 16, 149, dialog_block_h - 16);
+            // a.java:2832-2836：右条带循环 (229, draw_y) 画 ui[8][0]@176——
+            // draw_y 从 dialog_block_y0+16 步进 16 直到 var158+var11（320）
+            let mut draw_y = dialog_block_y0 + 16;
+            while draw_y < dialog_block_y0 + dialog_block_h {
+                g.set_clip(229, draw_y, 11, 16);
+                g.draw_image(&self.images.ui[0], 176, draw_y, 0);
+                draw_y += 16;
             }
             g.set_clip(0, 0, SCREEN_W, SCREEN_H);
             if self.dialog_speaker > 0 {
@@ -6539,10 +6539,10 @@ impl GameScene {
             } else {
                 g.set_color(WHITE);
                 let q: Vec<u16> = "?".encode_utf16().collect();
-                g.draw_string(&q, 40, var120 + ((var91 - font.height) >> 1), 17);
+                g.draw_string(&q, 40, dialog_block_y0 + ((dialog_block_h - font.height) >> 1), 17);
             }
             g.set_color(10473684);
-            self.paint_wrapped_text(g, 85, var120 + 12, 129, var91 - 12, false);
+            self.paint_wrapped_text(g, 85, dialog_block_y0 + 12, 129, dialog_block_h - 12, false);
             if self.overlay_page_top > 0 {
                 draw_image_clipped(g, &self.images.ui[15], 220, SCREEN_H - line_h - 10, 0, 0, 7, 9);
             }
@@ -6595,7 +6595,7 @@ impl GameScene {
         g.set_clip(0, 0, SCREEN_W, SCREEN_H);
         g.draw_image(&self.images.ui[3], 0, base_y, 0);
         if self.floor > 50 {
-            // "引子" outline 文本（m_142 a.java:4487-4495）：anchor 17 =
+            // "引子" outline 文本（drawOutlinedText a.java:4487-4495）：anchor 17 =
             // TOP(16)|HCENTER(1) 顶部居中——8 向偏移点各画一次全串（色[0]）+
             // 中心 fill（色[1]）。shim 常量：VCENTER=2 非 16！
             let text: Vec<u16> = "引子".encode_utf16().collect();
@@ -6610,7 +6610,7 @@ impl GameScene {
                 y += dy;
                 pts.push((x, y));
             }
-            pts.push((x0 + 1, y0 + 1)); // 中心 fill（var2++→32、var3 循环回 y0+1）
+            pts.push((x0 + 1, y0 + 1)); // 中心 fill（script_cursor0++→32、table_count 循环回 y0+1）
             for (i, (px, py)) in pts.iter().enumerate() {
                 g.set_color(if i == 8 { outline[1] } else { outline[0] });
                 g.draw_string(&text, *px, *py, 17);
@@ -6767,7 +6767,7 @@ mod slot_equip_scene_tests {
         assert!(!sc.try_run_scene(32, false), "无型12 ⇒ 挡");
         entity::spawn(&mut sc.entities, &mut sc.grid, 12, 3 << 5, 3 << 5, 0, &sc.width_table, None);
         assert!(sc.try_run_scene(32, false), "有型12 ⇒ 过");
-        assert!(!sc.try_run_scene(32, true), "from_walk ⇒ 挡（!var2）");
+        assert!(!sc.try_run_scene(32, true), "from_walk ⇒ 挡（!script_cursor0）");
         sc.script_line_flags[7] = true;
         assert!(!sc.try_run_scene(32, false), "flags[7] ⇒ 挡");
     }
@@ -6846,7 +6846,7 @@ mod slot_equip_scene_tests {
         assert_eq!((sc.min_floor, sc.max_floor), (1, 3));
         assert_eq!((sc.player.yellow_keys, sc.player.red_keys, sc.player.blue_keys), (0, 0, 0));
         assert_eq!(sc.alchemy_upgrade_count, 0);
-        assert!(sc.journal.is_empty(), "inventoryEntryCount 清零（f_int_89+跟随对）");
+        assert!(sc.journal.is_empty(), "inventoryEntryCount 清零（inventoryEntryCount+跟随对）");
         // 非 easy 不动
         let mut sc2 = scene_with(&synthetic_sptarm());
         sc2.difficulty_index = 1;
@@ -6886,7 +6886,7 @@ mod slot_equip_scene_tests {
     }
 
     /// 写侧 blob 布局 = Java saveFloorState（a.java:9190-9236）：playerCellX/Y 为 short
-    /// （a.java:9197-9198）、alchemyUpgradeCount 实值（9206）、inventoryEntryCount（原 f_int_89）+
+    /// （a.java:9197-9198）、alchemyUpgradeCount 实值（9206）、inventoryEntryCount（原 inventoryEntryCount）+
     /// f_byte_arr_14/15 日志对（9207-9212，读侧 9278-9283 → journal）——parse → load 全字段往返。
     #[test]
     fn save_blob_layout_matches_java_and_roundtrips() {
@@ -7015,11 +7015,11 @@ mod slot_equip_scene_tests {
         assert_frame_icon(&s, ARMOR_X, FRAME_Y, &icons, 9, "覆写后 甲=80");
     }
 
-    /// 型 6 隐形实体 bump 显形（a.java:5410-5417）：`var7++` **恒执行**于显形判定前；
+    /// 型 6 隐形实体 bump 显形（a.java:5410-5417）：`cur_y++` **恒执行**于显形判定前；
     /// 显形三元组写序钉死 visible→entityState(solid)=2→entityAnimRow(anim_idx)=9
     /// （a.java:5413/5414/5415 逐字，本测试以行号注释锚定写序契约）；已显形再 bump
-    /// 仅 var7++、三字段**不重写**（a.java:5412 条件）；`continue` 续扫同格后继槽
-    /// （同格双型 6 一次 bump 全显形）；var7>0 豁免地形终审（a.java:5533-5534）。
+    /// 仅 cur_y++、三字段**不重写**（a.java:5412 条件）；`continue` 续扫同格后继槽
+    /// （同格双型 6 一次 bump 全显形）；cur_y>0 豁免地形终审（a.java:5533-5534）。
     #[test]
     fn type6_bump_reveal_triple_write_order() {
         let mut sc = scene_with(&synthetic_sptarm());
@@ -7030,12 +7030,12 @@ mod slot_equip_scene_tests {
         // m_122 载入语义：型 6 生成后覆盖 visible=false（a.java:9514-9517）
         sc.entities.items[e1].visible = false;
         sc.entities.items[e2].visible = false;
-        // 不可走地形：bump 放行只能靠 var7++ 豁免（a.java:5533）
+        // 不可走地形：bump 放行只能靠 cur_y++ 豁免（a.java:5533）
         sc.walkable[2][2] = false;
 
         assert!(
             sc.interact_with_cell(2, 2),
-            "型 6 bump 放行（var7++ 豁免地形终审，a.java:5533）"
+            "型 6 bump 放行（cur_y++ 豁免地形终审，a.java:5533）"
         );
         for e in [e1, e2] {
             assert!(sc.entities.items[e].visible, "显形 1/3 visible=true（a.java:5413）");
@@ -7043,9 +7043,9 @@ mod slot_equip_scene_tests {
             assert_eq!(sc.entities.items[e].anim_row, 9, "显形 3/3 entityAnimRow=9（a.java:5415）");
         }
 
-        // 二次 bump：已显形仅 var7++，三元组不再重写（a.java:5412 `if (!entityVisible)`）
+        // 二次 bump：已显形仅 cur_y++，三元组不再重写（a.java:5412 `if (!entityVisible)`）
         sc.entities.items[e1].anim_row = 42;
-        assert!(sc.interact_with_cell(2, 2), "已显形再 bump 仍放行（var7++ 恒执行）");
+        assert!(sc.interact_with_cell(2, 2), "已显形再 bump 仍放行（cur_y++ 恒执行）");
         assert_eq!(sc.entities.items[e1].anim_row, 42, "一次性显形：anim 不重写");
         assert!(sc.entities.items[e1].visible, "一次性显形：visible 不重写");
         assert_eq!(sc.entities.items[e1].state, 2, "一次性显形：solid 不重写");
@@ -7053,10 +7053,10 @@ mod slot_equip_scene_tests {
 
     /// MVS 型 82 配对传送（a.java:8519-8592）三断言之【配对+互传+消耗】：
     /// 倒序扫 type==82 按 `param&255` 两两配对（本例 3 与 0x0103=259 低字节
-    /// 同键 ⇒ 配对成立，钉 &255 掩码）；cat8 怪物经 m_107（a.java:8872-8878）
+    /// 同键 ⇒ 配对成立，钉 &255 掩码）；cat8 怪物经 carryMonstersTo（a.java:8872-8878）
     /// 搬到对端格（同型同 param spawn + 旧格全同型摘槽）；两 82 点位被
     /// removeGroupAtCellByType(…, 82)（a.java:6434-6449）消耗（removed=true）；
-    /// 无参指令游标 = 标签后 1 字符位（a.java:8591 `scriptCursor = var2 + 1`）。
+    /// 无参指令游标 = 标签后 1 字符位（a.java:8591 `scriptCursor = script_cursor0 + 1`）。
     #[test]
     fn mvs_pairs_by_param_low_byte_transfers_and_consumes() {
         let mut sc = scene_with(&synthetic_sptarm());
@@ -7075,8 +7075,8 @@ mod slot_equip_scene_tests {
         sc.execute_script_instruction();
 
         assert!(sc.entities.items[e82a].removed && sc.entities.items[e82b].removed, "消耗：两 82 点位摘槽");
-        assert!(sc.entities.items[ema].removed, "原地怪物被 m_107 旧格全同型摘除");
-        assert_eq!(sc.entities.count, ema + 2, "m_107 复制-删除：目标格新增 1 只");
+        assert!(sc.entities.items[ema].removed, "原地怪物被 carryMonstersTo 旧格全同型摘除");
+        assert_eq!(sc.entities.count, ema + 2, "carryMonstersTo 复制-删除：目标格新增 1 只");
         let moved = ema + 1;
         assert_eq!(sc.entities.items[moved].type_, 41, "互传：同型复制");
         assert!(!sc.entities.items[moved].removed, "互传：副本存活");
@@ -7089,7 +7089,7 @@ mod slot_equip_scene_tests {
     }
 
     /// MVS 配对负例（a.java:8532-8542）：`param&255` 不同键 ⇒ 半对（buf 只存
-    /// 首元素）⇒ 配对循环 `var9 > 0` 不成立 ⇒ 全程无事发生——82 不消耗、
+    /// 首元素）⇒ 配对循环 `cur_idx > 0` 不成立 ⇒ 全程无事发生——82 不消耗、
     /// 怪物不搬、实体数不变。
     #[test]
     fn mvs_mismatched_pair_key_leaves_world_untouched() {
@@ -7341,11 +7341,11 @@ mod slot_equip_scene_tests {
         assert_eq!(sc.script_cursor, 4, "无参 op 游标照常 = 标签后 1 位（a.java:8591）");
     }
 
-    /// m_107 旧格同型一并消失 + stale 尾复活（a.java:8872-8878 + 6434-6449 +
-    /// 8561-8568 循环体）：同格双 41 时，M1 的 m_107 清旧格把 M2 **一并带走**
+    /// carryMonstersTo 旧格同型一并消失 + stale 尾复活（a.java:8872-8878 + 6434-6449 +
+    /// 8561-8568 循环体）：同格双 41 时，M1 的 carryMonstersTo 清旧格把 M2 **一并带走**
     /// （removeGroupAtCellByType 按型全清，非搬移）；随后槽组循环的容量快照
     /// 不变、压缩不清尾 ⇒ M2 经 stale 尾重触发再被复制到目标格。净终态 =
-    /// 双 41 副本堆聚 (5,5)、原地全灭、实体数 +2（两次 m_107 spawn）。
+    /// 双 41 副本堆聚 (5,5)、原地全灭、实体数 +2（两次 carryMonstersTo spawn）。
     #[test]
     fn m_107_old_cell_same_type_sweep_with_stale_revival() {
         let mut sc = scene_with(&synthetic_sptarm());
@@ -7367,7 +7367,7 @@ mod slot_equip_scene_tests {
         for e in [e82a, e82b, m1, m2] {
             assert!(sc.entities.items[e].removed, "原地实体 {e} 摘除（含同型一并带走）");
         }
-        assert_eq!(sc.entities.count, m2 + 3, "两次 m_107 spawn（stale 尾复活）");
+        assert_eq!(sc.entities.count, m2 + 3, "两次 carryMonstersTo spawn（stale 尾复活）");
         let alive: Vec<usize> = (0..sc.entities.count).filter(|&i| !sc.entities.items[i].removed).collect();
         assert_eq!(alive.len(), 2, "双 41 副本存活");
         for i in alive {
@@ -7381,7 +7381,7 @@ mod slot_equip_scene_tests {
     }
 
     /// MVS 不成对单只 82 空转（a.java:8528-8542 配对槽判空 buf[v]-1<=0 存首元素、
-    /// 8546-8558 配对循环 `var9 > 0` 才进搬运分支）：孤只 82 只占半对（buf[偶]）
+    /// 8546-8558 配对循环 `cur_idx > 0` 才进搬运分支）：孤只 82 只占半对（buf[偶]）
     /// ⇒ 搬运分支不触发 ⇒ 全表无变化（不消耗、无 spawn）；无参指令游标仍照常
     /// 推进 = 标签后 1 字符位（a.java:8591）。fixture-plan §2 FX-MVS-A 断言点补口。
     #[test]
@@ -7754,7 +7754,7 @@ impl GameScene {
                 PointerHit::None
             }
             GameMode::SaveSlot | GameMode::EquipDetail => {
-                // 存档槽列表（SlotSelect，7/8 共享 m_000 case7）：行带单源；
+                // 存档槽列表（SlotSelect，7/8 共享 dispatchModeEntry case7）：行带单源；
                 // confirm=-5（run case 7：-6/-5 同义确认——mode7 存档/mode8 读档）
                 for vis in 0..(self.slot.scroll_bottom - self.slot.scroll_top).max(0) {
                     let (ry, rh) = self.slot.row_band(vis);
@@ -8165,7 +8165,7 @@ mod fidelity_fix_tests {
     }
 
     /// ③b floor12 恢复特例（a.java:9653-9661）：型 78 两处 param 改写
-    /// `lo | f_byte_arr_13[hi]<<8`（6|door13[5]<<8=1542、5|door13[4]<<8=773）。
+    /// `lo | door13_hi[hi]<<8`（6|door13[5]<<8=1542、5|door13[4]<<8=773）。
     #[test]
     fn floor12_restore_rewrites_type78_params() {
         fn blob(recs: &[(u8, i32, i32, i16)]) -> Vec<u8> {
@@ -8190,16 +8190,16 @@ mod fidelity_fix_tests {
         let a = sc.entity_at_cell(1, 1, 78) as usize;
         let b = sc.entity_at_cell(11, 1, 78) as usize;
         let c = sc.entity_at_cell(5, 5, 78) as usize;
-        // 值=按表索引现算（f_byte_arr_13[5]=3、[4]=6——a.java:902 表序逐字）
+        // 值=按表索引现算（door13_hi[5]=3、[4]=6——a.java:902 表序逐字）
         assert_eq!(
             sc.entities.items[a].param,
             6 | ((DOOR13_HI[5] as i16) << 8),
-            "(1,1) → 6|f_byte_arr_13[5]<<8（=774）"
+            "(1,1) → 6|door13_hi[5]<<8（=774）"
         );
         assert_eq!(
             sc.entities.items[b].param,
             5 | ((DOOR13_HI[4] as i16) << 8),
-            "(11,1) → 5|f_byte_arr_13[4]<<8（=1541）"
+            "(11,1) → 5|door13_hi[4]<<8（=1541）"
         );
         assert_eq!(sc.entities.items[c].param, 9, "无特例格的 78 参数不动");
     }
@@ -8240,7 +8240,7 @@ mod fidelity_fix_tests {
         assert!(sc.entity_at_cell(5, 5, 43) >= 0, "无关实体不动");
     }
 
-    /// ③d DOOR13_HI 与 game-data door13 表同值（两源对账——f_byte_arr_13
+    /// ③d DOOR13_HI 与 game-data door13 表同值（两源对账——door13_hi
     /// a.java:902 `new byte[]{2,3,3,3,6,3,3,6,3,3,3,3,3}`）。
     #[test]
     fn door13_hi_table_matches_fixture() {
@@ -8277,7 +8277,7 @@ mod fidelity_fix_tests {
     }
 }
 
-/// m_106 / m_108（dp2 实体路径缓动，a.java:8738-8904）与 MOV 五参臂（a.java:8274-8309）
+/// openWallOnRoute / relocateSlotsAtRouteEnd（dp2 实体路径缓动，a.java:8738-8904）与 MOV 五参臂（a.java:8274-8309）
 /// 的逐拍单测：合成网格见 scene_test_support，直接驱动 execute_script_instruction /
 /// tick_entity_route，逐拍断言 Java 语义表的每一格。场景级全帧对拍见
 /// tests/mov_route_scene.rs（floor2 script1/2 + floor40 script12 伏击）。
@@ -8300,8 +8300,8 @@ mod entity_route_tests {
         (0..sc.grid.capacity[ct] as usize).map(|s| sc.grid.slots[ct][s] as usize - 1).collect()
     }
 
-    /// 型72 两步右行：MOV 臂字段（a.java:8289-8299）+ m_106 每拍
-    /// (routePhase, f_byte_19, 像素, routeProgress, 相机目标, 帧) 序列 + 步尽 m_108/收尾。
+    /// 型72 两步右行：MOV 臂字段（a.java:8289-8299）+ openWallOnRoute 每拍
+    /// (routePhase, f_byte_19, 像素, routeProgress, 相机目标, 帧) 序列 + 步尽 relocateSlotsAtRouteEnd/收尾。
     #[test]
     fn route_72_tick_sequence() {
         let mut sc = scene((9, ROW), &[(72, 3, ROW)]);
@@ -8344,15 +8344,15 @@ mod entity_route_tests {
             assert_eq!(sc.entities.items[eu].anim_frame, frame, "拍 {i} 动画行1帧（表长 4 归 0）");
             assert_eq!(sc.walk_step_count, left, "拍 {i} 余步");
             assert_eq!(sc.dialog_phase, 2);
-            assert_eq!(slots(&sc, 3, ROW), vec![eu], "途中槽表不动（只在收尾 m_108）");
+            assert_eq!(slots(&sc, 3, ROW), vec![eu], "途中槽表不动（只在收尾 relocateSlotsAtRouteEnd）");
         }
-        // 第 2 步归格 → 递归 → 步尽：m_108 + dp0 + dispatchAnimFields + f_int_127=-1
+        // 第 2 步归格 → 递归 → 步尽：relocateSlotsAtRouteEnd + dp0 + dispatchAnimFields + route_entity=-1
         sc.tick_entity_route();
         assert_eq!(sc.entities.items[eu].px, 160);
         assert_eq!((sc.dialog_phase, sc.route_phase, sc.route_entity), (0, 0, -1));
         assert_eq!((sc.entities.items[eu].anim_row, sc.entities.items[eu].anim_frame), (0, 0), "animRowByType[72]=0");
-        assert!(slots(&sc, 3, ROW).is_empty(), "m_108 自起点格摘除");
-        assert_eq!(slots(&sc, 5, ROW), vec![eu], "m_108 追加到当前格");
+        assert!(slots(&sc, 3, ROW).is_empty(), "relocateSlotsAtRouteEnd 自起点格摘除");
+        assert_eq!(slots(&sc, 5, ROW), vec![eu], "relocateSlotsAtRouteEnd 追加到当前格");
         assert_eq!(sc.entity_at_cell(5, ROW, 72), e, "findBlockingEntity 可在新格命中（DES 依赖）");
         // 行尾 → dp4（script 收尾门）
         sc.execute_script_instruction();
@@ -8442,7 +8442,7 @@ mod entity_route_tests {
         let wall = sc.entity_at_cell(4, ROW, 11) as usize;
         let door = sc.entity_at_cell(6, ROW, 1) as usize;
         exec(&mut sc, "MOV_72_3_3_7_3 \u{1e}");
-        assert_eq!(sc.walk_step_count, 4, "路径穿实体格（m_062）");
+        assert_eq!(sc.walk_step_count, 4, "路径穿实体格（canPathThroughEntity）");
         sc.tick_entity_route(); // 弹第 1 步 → 下一格 (4,3) 有墙
         assert_eq!(sc.entities.items[wall].state, 1);
         assert_eq!((sc.entities.items[wall].sprite_w, sc.entities.items[wall].sprite_h), (45, 57));
@@ -8454,7 +8454,7 @@ mod entity_route_tests {
         assert_eq!(sc.entities.items[door].state, 0, "门不开");
     }
 
-    /// 实体未命中：f_int_127 写 -1（a.java:8289）+ 同拍尾递归执行下一条（8301-8302）。
+    /// 实体未命中：route_entity 写 -1（a.java:8289）+ 同拍尾递归执行下一条（8301-8302）。
     #[test]
     fn mov_entity_missing_runs_next_instruction_same_tick() {
         let mut sc = scene((9, ROW), &[]);

@@ -1,16 +1,16 @@
-//! MOV 五参实体路径缓动（dp2 = m_106 + m_108）场景级对拍：Rust 全帧 vs Java A 变体帧。
+//! MOV 五参实体路径缓动（dp2 = openWallOnRoute + relocateSlotsAtRouteEnd）场景级对拍：Rust 全帧 vs Java A 变体帧。
 //!
-//! 覆盖（completeness §3.4 判据① a 类 m_106/m_108，a.java:8274-8309 / 8738-8904）：
-//! - floor2 script1 `MOV_72_3_7_1_8`：型72 自 (3,7) 经 下/左/左 到 (1,8)——m_106 case0
+//! 覆盖（completeness §3.4 判据① a 类 openWallOnRoute/relocateSlotsAtRouteEnd，a.java:8274-8309 / 8738-8904）：
+//! - floor2 script1 `MOV_72_3_7_1_8`：型72 自 (3,7) 经 下/左/左 到 (1,8)——openWallOnRoute case0
 //!   弹步 + 途经 (2,8) 型11 墙 markEntityRemoved（开墙）、case1 8px 步进 + 相机目标追
-//!   实体 + 动画行 1 帧推进、同拍递归弹下一步、步尽 m_108 迁槽 + dispatchAnimFields；
+//!   实体 + 动画行 1 帧推进、同拍递归弹下一步、步尽 relocateSlotsAtRouteEnd 迁槽 + dispatchAnimFields；
 //!   paintEntityLayer case32 型72 追踪分支（f_byte_19 帧行，左 = 镜像 drawEdgePatch）。
-//! - floor2 script2 `MOV_72_1_8_1_10` + `DES_72_1_10`：撞 (1,8) 的触发依赖 m_108 已把型72
-//!   迁入 (1,8)；DES 命中 (1,10) 依赖第二次 m_108 迁槽——槽表语义的端到端证据。
+//! - floor2 script2 `MOV_72_1_8_1_10` + `DES_72_1_10`：撞 (1,8) 的触发依赖 relocateSlotsAtRouteEnd 已把型72
+//!   迁入 (1,8)；DES 命中 (1,10) 依赖第二次 relocateSlotsAtRouteEnd 迁槽——槽表语义的端到端证据。
 //! - 读档旗标：MOT_L0 scriptLineFlags[0]=1（script1 门控 a.java:8081-8082 `flags[0] & !walk`）
 //!   ——load_floor_from_save 读回旗标（a.java:9285-9287）才可能触发 script1。
 //! - floor40 script12 伏击（12 条非 72 型 MOV + `MOV_73`）：每只怪的路径经 x=6 列下行，
-//!   下一格 = 玩家格 (6,7) ⇒ m_106 case0 途中开战（缩放表 HP、walkPhase=5、
+//!   下一格 = 玩家格 (6,7) ⇒ openWallOnRoute case0 途中开战（缩放表 HP、walkPhase=5、
 //!   battleActiveFlag=false、state=5、routePhase=5、敌先手）→ case5 tickBattle(false)
 //!   击杀收尾 → dp0（余步丢弃）；battleTick 跨战连续 ⇒ 13 场开战→击杀间隔不齐；
 //!   型73 途中战击杀 → case73 钩子 loadLevelScript(22)（dp2 被脚本装载截断）→ script22
@@ -41,11 +41,11 @@
 //! （floor40 同法，stem 换 `preset-floor40-mov`。）三方 trace sha256 须一致；再按 TICK 抽
 //! `FRAME sha=` 与 `INPUT` 行写回 frames 夹具。
 //!
-//! Java 侧锚点（A 变体 dumpStride=1 取证 trace，FLD 243 dialogPhase / 257 f_int_127 /
-//! 258 routePhase（原 f_byte_18）/ 259 f_byte_19 / 342 walkStepCount / 082 walkPhase /
+//! Java 侧锚点（A 变体 dumpStride=1 取证 trace，FLD 243 dialogPhase / 257 route_entity /
+//! 258 routePhase（原 routePhase）/ 259 f_byte_19 / 342 walkStepCount / 082 walkPhase /
 //! 263 battleActiveFlag）：
-//! - floor2：T606 MOV（f_int_127=12、步数 3）→ T607-T619 缓动（每步 4 拍）→ T619 收尾
-//!   f_int_127=-1 → T620 dp4 → T630 mode3；T711 script2 → T852 MOV（步数 2）→ T861 收尾
+//! - floor2：T606 MOV（route_entity=12、步数 3）→ T607-T619 缓动（每步 4 拍）→ T619 收尾
+//!   route_entity=-1 → T620 dp4 → T630 mode3；T711 script2 → T852 MOV（步数 2）→ T861 收尾
 //!   → T862 DES → T863 dp4 → T870 mode3。
 //! - floor40：T285 script12 → T410 首条 MOV → routePhase=5 开战拍 423/448/480/504/532/564/
 //!   600/640/684/720/760/804/907（walkPhase T423 起恒 5、battleActiveFlag 恒 false）→
@@ -415,11 +415,11 @@ fn preset_floor2_mov_frames_match() {
     // Java 锚：script1 dp2 = T606-T618（13 拍）、script2 dp2 = T852-T860（9 拍）
     assert_eq!(dp2_ticks, [0, 13, 9], "dp2 拍数（脚本 0/1/2）");
     assert!(mirrored > 0 && unmirrored > 0, "左行镜像/非镜像帧行均须绘制: {mirrored}/{unmirrored}");
-    assert_eq!(wall_opened_at, Some(611), "m_106 case0 开墙拍（弹第 2 步 → 下一格 (2,8)）");
-    assert_eq!(relocated_18_at, Some(619), "m_108 迁槽拍（步尽收尾）");
-    assert_eq!(des_hit_at, Some(862), "DES_72_1_10 命中拍（依赖第二次 m_108）");
+    assert_eq!(wall_opened_at, Some(611), "openWallOnRoute case0 开墙拍（弹第 2 步 → 下一格 (2,8)）");
+    assert_eq!(relocated_18_at, Some(619), "relocateSlotsAtRouteEnd 迁槽拍（步尽收尾）");
+    assert_eq!(des_hit_at, Some(862), "DES_72_1_10 命中拍（依赖第二次 relocateSlotsAtRouteEnd）");
     assert_eq!(sc.game_mode, GameMode::Map);
-    assert_eq!(sc.route_entity, -1, "f_int_127 收尾 = -1");
+    assert_eq!(sc.route_entity, -1, "route_entity 收尾 = -1");
     assert!(sc.script_line_flags[1] && sc.script_line_flags[2], "script1/2 行尾旗标");
 }
 
