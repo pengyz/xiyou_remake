@@ -102,10 +102,24 @@ def stage(out: Path, exe: Path) -> Path:
 
     n_raw = sum(1 for _ in (stage_dir / "assets/raw").rglob("*") if _.is_file())
     n_au = sum(1 for _ in (stage_dir / "assets/audio").rglob("*") if _.is_file())
+
+    # 一键解锁（去 MOTW 下载标记——SmartScreen 硬拦截的主因；2026-10-18 实机反馈）
+    (stage_dir / "解除锁定.bat").write_bytes((
+        "@echo off\r\n"
+        "cd /d %~dp0\r\n"
+        "echo 正在解除下载标记（Microsoft Defender SmartScreen 拦截主因）...\r\n"
+        "powershell -NoProfile -Command \"Get-ChildItem -Recurse -File | Unblock-File\"\r\n"
+        "echo 完成！现在双击 xiyou.exe 启动（如仍见提示，点【更多信息】→【仍要运行】）。\r\n"
+        "pause\r\n").encode("gbk", errors="replace")
+    )
+
     (stage_dir / "README.txt").write_text(
         "《囧囧西游-大闹天宫》重制版（Windows）\n"
         "========================================\n\n"
-        "运行：双击 xiyou.exe（请保持 assets 文件夹与 exe 同级、勿移动）。\n\n"
+        "运行：双击 xiyou.exe（请保持 assets 文件夹与 exe 同级、勿移动）。\n"
+        "首次启动若弹【Windows 已保护你的电脑】：点【更多信息】→【仍要运行】即可；\n"
+        "点过一两次后系统记住选择，之后不再提示（无签名程序的正常流程）。\n"
+        "（若整个文件夹是网上下载的，可先双击【解除锁定.bat】去掉下载标记。）\n\n"
         "操作：方向键=移动 / -5(Enter)=确认 / -6、-7=软键（左右菜单键）。\n"
         "存档：自动存于 exe 同级 save\\ 文件夹（可整体拷走续档）。\n"
         "音频：BGM 取自 assets\\audio；无声或嫌吵可用参数 --mute 启动。\n"
