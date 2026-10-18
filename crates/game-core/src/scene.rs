@@ -2530,6 +2530,9 @@ impl GameScene {
                     if e.removed || e.state == 1 || !e.visible {
                         continue;
                     }
+                    if crate::layout::minimap_dot_suppressed(e.type_) {
+                        continue; // 门/楼梯：基底层已可视化，不重复标注（用户裁定 2026-10-18）
+                    }
                     let (cx, cy) = (e.px >> 5, e.py >> 5);
                     if cx < 0 || cy < 0 || cx >= self.view.wide || cy >= self.view.high {
                         continue;

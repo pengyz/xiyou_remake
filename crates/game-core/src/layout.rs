@@ -228,14 +228,21 @@ pub const MINIMAP_DOOR3_EDGE: u32 = 0x086098;
 pub const MINIMAP_PLAYER_DOT: u32 = 0x10F808;
 
 /// 小地图实体色点（R6 类型→视觉映射表，STAGE-B-002 ④ 登记，粒度=格内 3-4px 点）：
-/// 玩家=白/亮绿（既有 [`MINIMAP_PLAYER_DOT`]，最高优先级绘制覆盖）；
-/// cat8 直立怪=红（实体表无威胁分级字段 ⇒ **暂不分级**统一红）；
-/// cat2 物品=黄、cat4 宝物药水=绿（大类级分色；细类 type 级考证待续）；
-/// cat1/16/32 机关=青。同格取高优先级：玩家 > 怪物 > 物品 > 机关 > 地形底层。
-pub const MINIMAP_DOT_ENEMY: u32 = 0xE02020;
-pub const MINIMAP_DOT_ITEM: u32 = 0xF0D040;
-pub const MINIMAP_DOT_TREASURE: u32 = 0x40D060;
-pub const MINIMAP_DOT_MECH: u32 = 0x40C0E0;
+/// 玩家=既有亮绿点（[`MINIMAP_PLAYER_DOT`]，最高优先级绘制覆盖）；
+/// cat8 直立怪=**品红**、cat2 物品=白、cat4 宝物药水=紫、cat1/16·32 机关=炭黑。
+/// 同格取高优先级：玩家 > 怪物 > 物品 > 机关 > 地形底层。
+///
+/// 【2026-10-18 歧义修正（用户裁定）】原稿怪物红 0xE02020 / 物品黄 0xF0D040 /
+/// 机关青 0x40C0E0 与既有门色**三连撞**（MINIMAP_DOOR2 红 0xF85048 hue 3°、
+/// DOOR 黄 0xEBEB4E hue 53°、DOOR3 蓝 0x48C0F0 hue 197°）——小地图上红/蓝/黄已被
+/// 门与楼梯占用，新增表达必须零歧义。改用**色相空白色相**（品红 326°/紫 267°/
+/// 白·炭黑无色），hue 距全部 ≥25°（tests::minimap_dots_disambiguated_from_base_palette
+/// 防撞门钉住）；语义偏离（怪物红系→品红、物品黄系→白）以"无歧义优先"入册。
+/// 细类（钥匙/药水分色、怪物威胁分级）= type 级考证待续。
+pub const MINIMAP_DOT_ENEMY: u32 = 0xE00080;
+pub const MINIMAP_DOT_ITEM: u32 = 0xFFFFFF;
+pub const MINIMAP_DOT_TREASURE: u32 = 0x8030E0;
+pub const MINIMAP_DOT_MECH: u32 = 0x202028;
 
 /// 大类（`entity::render_category`）→ 色点映射（**定死**）；cat0/未登记 = 0 不上图。
 pub fn minimap_dot_color(render_category: u8) -> u32 {
@@ -257,6 +264,13 @@ pub fn minimap_dot_priority(render_category: u8) -> u8 {
         1 | 16 | 32 => 1,  // 机关
         _ => 0,
     }
+}
+
+/// 基底层已可视化型**排除**出色点层（用户裁定 2026-10-18：不与既有门/楼梯标记
+/// 重复标注或覆盖）：门 1/2/3（MINIMAP_DOOR 系色块+描边）与楼梯 7/8
+/// （ui[12] 浮标图标）在 buildMinimap 底层已画，色点层不得再标。
+pub fn minimap_dot_suppressed(type_: i32) -> bool {
+    matches!(type_, 1 | 2 | 3 | 7 | 8)
 }
 
 /// HUD 大框内衬（Java 2699825）。
@@ -753,8 +767,9 @@ mod tests {
 
     /// ④ 小地图放大 + 怪物/物品上图（R6 类型→色点映射表定死）：
     /// - 缩放参数 classic（4px 格/4px 点）零偏离 / modern（8px 格/4px 点居格中）；
-    /// - 映射表：玩家=白（最高优先级，绘制面覆盖）/cat8 怪物=红/cat2 物品=黄/
-    ///   cat4 宝物药水=绿/cat1·16·32 机关=青；同格取高优先级。
+    /// - 映射表：玩家=亮绿点（既有，最高优先级）/cat8 怪物=品红/cat2 物品=白/
+    ///   cat4 宝物药水=紫/cat1·16·32 机关=炭黑（色相避门色，见防撞门测试）；
+    ///   同格取高优先级。
     #[test]
     fn minimap_zoom_params_and_dot_mapping() {
         let l = Layout::classic();
@@ -774,5 +789,75 @@ mod tests {
         assert!(minimap_dot_priority(2) == minimap_dot_priority(4), "物品/宝物同层");
         assert!(minimap_dot_priority(4) > minimap_dot_priority(1));
         assert_eq!(minimap_dot_priority(0), 0);
+    }
+
+    /// R6 歧义防线（用户裁定 2026-10-18）：色点与既有门/楼梯/玩家/地形色**不得混淆**——
+    /// ①精确互异 ②色相分离（同为彩色者 hue 距 ≥ 25°；低饱和视为无色豁免）
+    /// ③基底层已可视化型（门 1/2/3、楼梯 7/8）不出色点。
+    #[test]
+    fn minimap_dots_disambiguated_from_base_palette() {
+        let base = [
+            MINIMAP_BG, MINIMAP_WALKABLE, MINIMAP_DOOR, MINIMAP_DOOR_EDGE, MINIMAP_DOOR2,
+            MINIMAP_DOOR2_EDGE, MINIMAP_DOOR3, MINIMAP_DOOR3_EDGE, MINIMAP_PLAYER_DOT,
+        ];
+        let dots = [MINIMAP_DOT_ENEMY, MINIMAP_DOT_ITEM, MINIMAP_DOT_TREASURE, MINIMAP_DOT_MECH];
+        for (i, &d) in dots.iter().enumerate() {
+            assert!(!base.contains(&d), "色点 {d:#x} 与底层色精确冲突");
+            for &b in dots[..i].iter() {
+                assert_ne!(d, b, "色点互异");
+            }
+        }
+        // 色相分离（hue 距 ≥ 25°；低饱和 < 0.12 视为无色豁免）
+        fn hue(c: u32) -> Option<f32> {
+            let (r, g, b) = (
+                (c >> 16) as f32 / 255.0,
+                ((c >> 8) & 0xff) as f32 / 255.0,
+                (c & 0xff) as f32 / 255.0,
+            );
+            let (max, min) = (r.max(g).max(b), r.min(g).min(b));
+            let d = max - min;
+            if d < 0.12 {
+                return None;
+            }
+            let h = if max == r {
+                60.0 * (((g - b) / d) % 6.0)
+            } else if max == g {
+                60.0 * ((b - r) / d + 2.0)
+            } else {
+                60.0 * ((r - g) / d + 4.0)
+            };
+            Some(if h < 0.0 { h + 360.0 } else { h })
+        }
+        let mut dot_ch: Vec<(u32, f32)> = Vec::new();
+        let mut base_ch: Vec<(u32, f32)> = Vec::new();
+        for &c in dots.iter() {
+            if let Some(h) = hue(c) {
+                dot_ch.push((c, h));
+            }
+        }
+        for &c in base.iter() {
+            if let Some(h) = hue(c) {
+                base_ch.push((c, h));
+            }
+        }
+        let sep = |c1: u32, h1: f32, c2: u32, h2: f32| {
+            let raw = (h1 - h2).abs();
+            let dist = raw.min(360.0 - raw);
+            assert!(dist >= 25.0, "色相混淆：{c1:#x}({h1:.0}°) vs {c2:#x}({h2:.0}°) 距 {dist:.0}°");
+        };
+        // 点×点 + 点×底层（底层自配对不查：门块与自家描边本就同族）
+        for i in 0..dot_ch.len() {
+            for j in i + 1..dot_ch.len() {
+                sep(dot_ch[i].0, dot_ch[i].1, dot_ch[j].0, dot_ch[j].1);
+            }
+            for &(c2, h2) in &base_ch {
+                sep(dot_ch[i].0, dot_ch[i].1, c2, h2);
+            }
+        }
+        // 基底层已可视化型不出色点
+        for t in [1, 2, 3, 7, 8] {
+            assert!(minimap_dot_suppressed(t), "型 {t} 基底层已有标记");
+        }
+        assert!(!minimap_dot_suppressed(4), "宝箱走色点层");
     }
 }
