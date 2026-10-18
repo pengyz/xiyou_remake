@@ -22,6 +22,7 @@
 //!   全量解析且零余字节，夹具从 `assets/raw` 读取或由 `tools/extract-assets/extract.py` 解包生成，
 //!   路径可用环境变量 `XIYOU_ASSETS_RAW` 配置）。
 
+pub mod asset_pipeline;
 pub mod error;
 pub mod inflate;
 pub mod maplv;
