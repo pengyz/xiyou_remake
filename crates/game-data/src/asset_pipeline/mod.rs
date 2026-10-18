@@ -61,6 +61,7 @@
 
 mod json;
 mod maplv;
+mod packed_png;
 mod sprite;
 
 pub use json::{parse as parse_json, Json};
@@ -110,7 +111,7 @@ pub fn unpack(name: &str, bytes: &[u8]) -> Result<Mid, Error> {
     } else if name.starts_with("sprite") {
         sprite::unpack(name, bytes)
     } else if crate::packed_png::image_count(name).is_some() {
-        Err(Error::msg(format!("{name}: packed_png 族尚未实现")))
+        packed_png::unpack(name, bytes)
     } else {
         Err(Error::msg(format!("{name}: 未知资源族")))
     }
@@ -127,7 +128,7 @@ pub fn repack(mid: &Mid) -> Result<Vec<u8>, Error> {
     match format {
         "maplv" => maplv::repack(&doc),
         "sprite" => sprite::repack(&doc),
-        "packed_png" => Err(Error::msg("packed_png 族尚未实现")),
+        "packed_png" => packed_png::repack(&doc, &mid.images),
         other => Err(Error::msg(format!("format 不识别：{other}"))),
     }
 }
