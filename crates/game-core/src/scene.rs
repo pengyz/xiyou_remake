@@ -6599,7 +6599,7 @@ impl GameScene {
             let mut draw_y = dialog_block_y0 + 16;
             while draw_y < dialog_block_y0 + dialog_block_h {
                 g.set_clip(229 + dx, draw_y, 11, 16);
-                g.draw_image(&self.images.ui[0], 176, draw_y, 0);
+                g.draw_image(&self.images.ui[0], 176 + dx, draw_y, 0);
                 draw_y += 16;
             }
             g.set_clip(0, 0, self.layout.screen_w, self.layout.screen_h);
@@ -6607,7 +6607,7 @@ impl GameScene {
                 if let Some(img) = &self.images.entity[self.dialog_speaker as usize] {
                     if self.dialog_speaker != 72 {
                         let fw = self.type_frame_width_for(self.dialog_speaker);
-                        draw_image_clipped(g, img, (80 - fw) >> 1, self.layout.screen_h - img.height, 0, 0, fw, img.height);
+                        draw_image_clipped(g, img, ((80 - fw) >> 1) + dx, self.layout.screen_h - img.height, 0, 0, fw, img.height);
                     } else {
                         draw_image_clipped(g, img, 24 + dx, 275, 0, 0, 32, 45);
                     }
@@ -7023,6 +7023,125 @@ mod slot_equip_scene_tests {
         let mut sc2 = scene_with(&icons);
         assert_eq!(sc2.bottom_panel_dx(), 0, "classic 面板偏移回代原值 0（零偏离）");
         let _ = &mut sc2;
+    }
+
+    /// 底部区像素体检（用户复验 2026-10-18"渲染还是不对"）：量对话文本包围盒的
+    /// **实测数**，classic vs modern 对照——文本字号/位置/框体关系拿数说话。
+    #[test]
+    fn probe_bottom_region_pixel_metrics() {
+        let icons = synthetic_sptarm();
+        for (label, layout) in [
+            ("classic", crate::layout::Layout::classic()),
+            ("modern", crate::layout::Layout::modern(13, 13)),
+        ] {
+            let mut sc = scene_with(&icons);
+            sc.apply_layout(layout);
+            sc.game_mode = GameMode::Dialog;
+            sc.open_dialog_page(0);
+            let (w, h) = (sc.layout.screen_w as usize, sc.layout.screen_h as usize);
+            let mut img = ArgbImage::create(w as i32, h as i32);
+            {
+                let mut g = SoftGraphics::new(&mut img);
+                sc.paint(&mut g, &solid(64, 64));
+            }
+            let dx = sc.bottom_panel_dx();
+            // 文本行带（block_h=40 ⇒ y0=h-40+12 起）内非底色像素包围盒
+            let band_y0 = h as i32 - 40 + 12;
+            let (mut x_min, mut x_max, mut y_min, mut y_max) = (i32::MAX, i32::MIN, i32::MAX, i32::MIN);
+            for y in band_y0..(h as i32 - 2) {
+                for x in 0..w as i32 {
+                    let p = img.argb[(y as usize) * w + x as usize];
+                    if p != 0 && p != HUD_FILL && p != STATUS_FILL {
+                        x_min = x_min.min(x);
+                        x_max = x_max.max(x);
+                        y_min = y_min.min(y);
+                        y_max = y_max.max(y);
+                    }
+                }
+            }
+            eprintln!(
+                "PROBE {label} dx={dx} 文本带包围盒 x[{x_min},{x_max}] y[{y_min},{y_max}] 宽={} 高={}",
+                x_max - x_min + 1,
+                y_max - y_min + 1
+            );
+        }
+        // 真图实测：解码两预设自验图，量底部带逐行内容列段（非底色像素游程）
+        let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        for (label, file) in [
+            ("classic", "analysis/b002-classic-t500-v2.png"),
+            ("modern", "analysis/b002-modern-t500-v2.png"),
+        ] {
+            let bytes = std::fs::read(repo.join(file)).unwrap();
+            let dec = game_data::decode_png(&bytes).unwrap();
+            let (w, h) = (dec.width as usize, dec.height as usize);
+            eprintln!("PROBE shot-{label} {w}x{h}");
+            for y in (h - 50)..h {
+                let mut runs: Vec<(usize, usize)> = Vec::new();
+                let mut start = usize::MAX;
+                for x in 0..w {
+                    let p = dec.argb[y * w + x];
+                    let bg = p == 0 || p == HUD_FILL || p == STATUS_FILL;
+                    if !bg && start == usize::MAX {
+                        start = x;
+                    }
+                    if bg && start != usize::MAX {
+                        runs.push((start, x - 1));
+                        start = usize::MAX;
+                    }
+                }
+                if start != usize::MAX {
+                    runs.push((start, w - 1));
+                }
+                if !runs.is_empty() && y % 2 == 0 {
+                    eprintln!("PROBE shot-{label} y={y} runs={runs:?}");
+                }
+            }
+        }
+    }
+
+    /// 底部区组合关系判据（lead"组合关系整体钉死"）：同一状态 classic vs modern
+    /// 的绘制坐标集在**去平移后逐点相等**（modern_x−dx == classic_x、
+    /// modern_y−(screen_h−320) == classic_y）——任何漏加 dx/错位元素即红。
+    #[test]
+    fn bottom_composition_is_translate_only() {
+        let icons = synthetic_sptarm();
+        let mut coords = |layout: crate::layout::Layout, speaker: i32| {
+            let mut sc = scene_with(&icons);
+            sc.apply_layout(layout);
+            sc.game_mode = GameMode::Dialog;
+            sc.open_dialog_page(0);
+            sc.dialog_speaker = speaker; // open_dialog_page 会置 speaker——须在其后覆盖
+            if speaker > 0 {
+                sc.images.entity[speaker as usize] = Some(solid(36, 40)); // 立绘播种（分支必画）
+            }
+            let (w, h) = (sc.layout.screen_w as usize, sc.layout.screen_h as usize);
+            let mut img = ArgbImage::create(w as i32, h as i32);
+            let ops;
+            {
+                let mut g = SoftGraphics::new(&mut img);
+                sc.paint(&mut g, &solid(64, 64));
+                ops = g.ops.clone();
+            }
+            let dx = sc.bottom_panel_dx();
+            let dy = h as i32 - 320;
+            let mut v: Vec<(i32, i32)> = ops
+                .iter()
+                .filter_map(|o| op_xy(o))
+                .filter(|c| c.1 >= h as i32 - 45) // 底部带
+                .map(|(x, y)| (x - dx, y - dy))
+                .collect();
+            v.sort();
+            v
+        };
+        // speaker>0（立绘分支）与 speaker==0（面孔分支）两路都钉
+        for speaker in [0, 1] {
+            let classic = coords(crate::layout::Layout::classic(), speaker);
+            let modern = coords(crate::layout::Layout::modern(13, 13), speaker);
+            assert_eq!(
+                modern, classic,
+                "底部区组合关系须纯平移（speaker={speaker}）：modern 去平移后与 classic 逐点相等"
+            );
+        }
     }
 
     /// 跳过 "77x320" 尺寸记号与 '#rrggbb' 色参（drawImage/drawImageTransformed 可用）。
