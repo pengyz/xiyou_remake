@@ -9,6 +9,11 @@
     README.txt           # 运行/操作/存档说明（本脚本生成）
   → dist/xiyou-win-<git短sha或日期>.zip（deflate）
 
+**分发红线（2026-10-18 用户指正）**：原版字节码与清单不得入包——`*.class`
+（a.class/CMidlet.class）与 `*.MF` 是代码/工程面、运行时零读取；包内只留
+运行时媒体（容器/图/MID）。assets/raw 内保留它们仅供 reference/oracle
+工具链，打包步骤黑名单剔除 + 把关自检（出现即打包失败）。
+
 原理：游戏运行时默认取 **cwd 相对** `assets/raw` 与 `assets/audio`（main.rs 参数区），
 存档默认 `exe目录\save`（decision_save-path-shell-injection）——故包内保持
 exe 与 assets/ 同级，双击即跑，零配置。朋友机器需 Windows（winmm 系统自带）；
@@ -58,12 +63,24 @@ def stage(out: Path, exe: Path) -> Path:
 
     shutil.copy2(exe, stage_dir / BIN)
 
+    # 分发红线：*.class/*.MF（原版字节码与 JAR 清单）绝不入包——运行时零读取，
+    # 仅供 reference/oracle 工具链（2026-10-18 用户指正 a.class 起）。
+    EXCLUDE = {".class", ".mf"}
+
     for sub in ("assets/raw", "assets/audio"):
         src = ROOT / sub
         if not src.is_dir():
             sys.exit(f"[package] 缺 {sub}（先跑 tools/extract-assets/extract.py）")
         dst = stage_dir / sub
-        shutil.copytree(src, dst)
+        shutil.copytree(src, dst, ignore=shutil.ignore_patterns("*.class", "*.MF", "*.mf"))
+        for bad in dst.rglob("*"):
+            if bad.is_file() and bad.suffix.lower() in EXCLUDE:
+                bad.unlink()
+
+    # 把关自检：包内出现 class/MF = 直接失败（防黑名单被绕过）
+    leaked = [p for p in stage_dir.rglob("*") if p.is_file() and p.suffix.lower() in EXCLUDE]
+    if leaked:
+        sys.exit(f"[package] 分发红线泄漏：{[str(p) for p in leaked]}")
 
     n_raw = sum(1 for _ in (stage_dir / "assets/raw").rglob("*") if _.is_file())
     n_au = sum(1 for _ in (stage_dir / "assets/audio").rglob("*") if _.is_file())

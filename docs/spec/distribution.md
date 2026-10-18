@@ -19,6 +19,10 @@ xiyou-win-<git短sha>.zip
 1. **exe 与 assets/ 同级**——游戏运行时默认取 cwd 相对 `assets/raw`、`assets/audio`
    （main.rs 参数区），存档默认 `exe目录\save`（决策：decision_save-path-shell-injection）
    ⇒ 双击即跑、零配置、存档随目录可拷走续档。
+2. **分发红线（2026-10-18 用户指正）**：`*.class`（a.class/CMidlet.class）与
+   `*.MF`（JAR 清单）**绝不入包**——原版字节码=代码面、运行时零读取；assets/raw
+   内保留仅供 reference/oracle 工具链。打包步骤黑名单剔除 + 把关自检（包内出现
+   即打包失败）。
 2. **不捆绑字体**——中文字体走 `%WINDIR%\Fonts` 系统字体（font_inject 发现）；
    winmm/winit/softbuffer 均系统或静态链接，无红依赖。
 3. **资产源自原版 JAR**——README 内含"仅供私人分享试玩"声明；分发物不含
