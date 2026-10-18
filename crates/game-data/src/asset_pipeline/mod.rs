@@ -61,6 +61,9 @@
 
 mod json;
 mod maplv;
+mod sprite;
+
+pub use json::{parse as parse_json, Json};
 
 /// 中间态：JSON + 图片清单（PNG 字节逐字保留）。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -105,7 +108,7 @@ pub fn unpack(name: &str, bytes: &[u8]) -> Result<Mid, Error> {
     if name.starts_with("maplv") {
         maplv::unpack(name, bytes)
     } else if name.starts_with("sprite") {
-        Err(Error::msg(format!("{name}: sprite 族尚未实现")))
+        sprite::unpack(name, bytes)
     } else if crate::packed_png::image_count(name).is_some() {
         Err(Error::msg(format!("{name}: packed_png 族尚未实现")))
     } else {
@@ -123,7 +126,7 @@ pub fn repack(mid: &Mid) -> Result<Vec<u8>, Error> {
     let format = doc.need_str("format").map_err(Error::msg)?;
     match format {
         "maplv" => maplv::repack(&doc),
-        "sprite" => Err(Error::msg("sprite 族尚未实现")),
+        "sprite" => sprite::repack(&doc),
         "packed_png" => Err(Error::msg("packed_png 族尚未实现")),
         other => Err(Error::msg(format!("format 不识别：{other}"))),
     }

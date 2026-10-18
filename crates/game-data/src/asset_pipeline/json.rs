@@ -1,13 +1,16 @@
 //! 中间态 JSON 的最小型读写（零依赖：game-data 红线保持无第三方依赖、无 I/O）。
 //!
 //! 分工：**写出 = canonical**（排版/键序/数字格式全固定，见 `super` 模块文档的
-//! schema 节；[`super::mod` 文档]）；**读取 = 宽松**（空白不敏感、未知字段忽略、
-//! 重复键报错、仅支持整数）。写出恒 canonical ⇒ 字节稳定、git diff 可读（复核硬 5）。
+//! schema 节）；**读取 = 宽松**（空白不敏感、未知字段忽略、重复键报错、仅支持
+//! 整数）。写出恒 canonical ⇒ 字节稳定、git diff 可读（复核硬 5）。
+//!
+//! 公开面（`[`super::Json`]`/`[`super::parse_json`]` 重导出）供集成测试/对照半侧
+//! 读中间态字段（decode-equivalence 等）。
 
 /// 最小 JSON 值（中间态 schema 用整数/字符串/数组/对象；Bool/Null 仅为
 /// **未知字段前向兼容**而解析——写出端永不产生）。
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum Json {
+pub enum Json {
     Int(i64),
     Str(String),
     Arr(Vec<Json>),
@@ -18,28 +21,28 @@ pub(crate) enum Json {
 
 impl Json {
     /// 对象取键（非对象 ⇒ None）。
-    pub(crate) fn get(&self, key: &str) -> Option<&Json> {
+    pub fn get(&self, key: &str) -> Option<&Json> {
         match self {
             Json::Obj(members) => members.iter().find(|(k, _)| k == key).map(|(_, v)| v),
             _ => None,
         }
     }
 
-    pub(crate) fn as_int(&self) -> Option<i64> {
+    pub fn as_int(&self) -> Option<i64> {
         match self {
             Json::Int(v) => Some(*v),
             _ => None,
         }
     }
 
-    pub(crate) fn as_str(&self) -> Option<&str> {
+    pub fn as_str(&self) -> Option<&str> {
         match self {
             Json::Str(s) => Some(s),
             _ => None,
         }
     }
 
-    pub(crate) fn as_arr(&self) -> Option<&[Json]> {
+    pub fn as_arr(&self) -> Option<&[Json]> {
         match self {
             Json::Arr(items) => Some(items),
             _ => None,
@@ -47,21 +50,21 @@ impl Json {
     }
 
     /// 必填整数字段（缺失/类型不符 ⇒ Err）。
-    pub(crate) fn need_int(&self, key: &str) -> Result<i64, String> {
+    pub fn need_int(&self, key: &str) -> Result<i64, String> {
         self.get(key)
             .and_then(Json::as_int)
             .ok_or_else(|| format!("字段 {key} 缺失或非整数"))
     }
 
     /// 必填字符串字段。
-    pub(crate) fn need_str(&self, key: &str) -> Result<&str, String> {
+    pub fn need_str(&self, key: &str) -> Result<&str, String> {
         self.get(key)
             .and_then(Json::as_str)
             .ok_or_else(|| format!("字段 {key} 缺失或非字符串"))
     }
 
     /// 必填数组字段。
-    pub(crate) fn need_arr(&self, key: &str) -> Result<&[Json], String> {
+    pub fn need_arr(&self, key: &str) -> Result<&[Json], String> {
         self.get(key)
             .and_then(Json::as_arr)
             .ok_or_else(|| format!("字段 {key} 缺失或非数组"))
@@ -88,7 +91,7 @@ pub(crate) fn quote(s: &str) -> String {
 }
 
 /// canonical：顶层字段的整数/字符串数组——元素 ≤16/行（行首缩进 4，元素间 `, `）。
-/// 空数组内联 `[]`。`values` 已是渲染好的元素文本（整数或 [`quote`]）。
+/// 空数组内联 `[]`。`elems` 已是渲染好的元素文本（整数或 [`quote`]）。
 pub(crate) fn push_wrapped_arr(out: &mut String, key: &str, elems: &[String], comma: bool) {
     if elems.is_empty() {
         out.push_str(&format!("  \"{key}\": []"));
@@ -126,7 +129,7 @@ pub(crate) fn push_str_arr(out: &mut String, key: &str, vals: &[String], comma: 
 // ---------------------------------------------------------------- 读取端（宽松）
 
 /// 宽松解析：空白不敏感、未知字段忽略（由上层字段提取器体现）、重复键报错。
-pub(crate) fn parse(input: &str) -> Result<Json, String> {
+pub fn parse(input: &str) -> Result<Json, String> {
     let mut p = Parser { b: input.as_bytes(), i: 0 };
     p.ws();
     let v = p.value()?;
@@ -335,7 +338,9 @@ mod tests {
             "{\n  \"version\": 1,\n  \"cells\": [\n    1, 2, 3\n  ],\n  \"name\": \"x\"\n}\n"
         );
         // 宽松读取：任意空白 + 未知字段（含 bool/null 值）忽略 + 重复键报错
-        let v = parse("{ \"a\": [1, 2], \"b\": \"s\", \"unknown\": [9, 9], \"u2\": true, \"u3\": null }").unwrap();
+        let v =
+            parse("{ \"a\": [1, 2], \"b\": \"s\", \"unknown\": [9, 9], \"u2\": true, \"u3\": null }")
+                .unwrap();
         assert_eq!(v.get("a").unwrap().as_arr().unwrap().len(), 2);
         assert_eq!(v.get("b").unwrap().as_str(), Some("s"));
         assert!(v.get("c").is_none(), "未知字段不导出到已知字段面（读取端忽略）");
