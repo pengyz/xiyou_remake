@@ -2474,6 +2474,13 @@ impl GameScene {
         self.layout = layout;
     }
 
+    /// 底部面板水平偏移（lead 设计口径 2026-10-18：**经典尺寸固定+整体居中**）：
+    /// 面板宽=经典全幅 240（左框 0..80/顶条 80..214/右缘 214..240 实测全幅），
+    /// `dx=(screen_w−240)/2`——classic dx=0 回代原值（零偏离），modern 居中。
+    fn bottom_panel_dx(&self) -> i32 {
+        (self.layout.screen_w - crate::layout::SCREEN_W) / 2
+    }
+
     /// buildMinimap（a.java:6879-6941）：小地图生成
     /// （wide×MINIMAP_PX_PER_CELL 见方，dim MINIMAP_DIM_ALPHA）。
     pub fn build_minimap(&mut self) {
@@ -6357,7 +6364,7 @@ impl GameScene {
     pub fn paint_hud(&mut self, g: &mut SoftGraphics<'_>) {
         let font = crate::paint::paint_font();
         let base_y = self.view_bottom;
-        self.paint_hud_frame(g, 0, base_y, self.layout.screen_w, HUD_FRAME_H);
+        self.paint_hud_frame(g, self.bottom_panel_dx(), base_y, crate::layout::SCREEN_W, HUD_FRAME_H);
         let face = &self.images.actor_face;
         g.draw_image(face, self.layout.hud_face_ax - (face.width >> 1), base_y + HUD_FRAME_H - face.height, 0);
         let icon_x = self.layout.hud_icon_x;
@@ -6571,25 +6578,27 @@ impl GameScene {
             let line_h = font.height + 4;
             let dialog_block_h = (line_h << 1) + 12;
             let dialog_block_y0 = self.layout.screen_h - dialog_block_h;
-            self.paint_hud_frame(g, 0, dialog_block_y0, 80, dialog_block_h);
-            let mut cx = 80;
-            while cx < 214 {
+            // 【STAGE-B-002 口径修正 2026-18-18】底部面板=**经典尺寸固定+整体居中**
+            //（非随屏拉伸——二轮返修走偏）：面板内相对布局 classic 同构（常量回代），
+            // 面板整体平移 dx；classic dx=0 零偏离。
+            let dx = self.bottom_panel_dx();
+            self.paint_hud_frame(g, dx, dialog_block_y0, 80, dialog_block_h);
+            let mut cx = 80 + dx;
+            while cx < 214 + dx {
                 g.set_clip(cx, dialog_block_y0, 16, 16);
                 g.draw_image(&self.images.ui[0], cx - 26, dialog_block_y0, 0);
                 cx += 16;
             }
             g.set_clip(0, 0, self.layout.screen_w, self.layout.screen_h);
             // a.java:2828：edge patch 用 draw_y=dialog_block_y0（+=16 之前）
-            // 【STAGE-B-002 返修③】对话框随屏宽（classic 代入化回原值：
-            // 右缘 240-26=214、填充 240-91=149、文本宽 240-111=129）
-            crate::menu_family::draw_edge_patch(g, &self.images.ui[0], self.layout.screen_w - 26, dialog_block_y0, 0, 0, 26, 16, 1);
+            crate::menu_family::draw_edge_patch(g, &self.images.ui[0], 214 + dx, dialog_block_y0, 0, 0, 26, 16, 1);
             g.set_color(HUD_FILL);
-            g.fill_rect(80, dialog_block_y0 + 16, self.layout.screen_w - 91, dialog_block_h - 16);
+            g.fill_rect(80 + dx, dialog_block_y0 + 16, 149, dialog_block_h - 16);
             // a.java:2832-2836：右条带循环 (229, draw_y) 画 ui[8][0]@176——
             // draw_y 从 dialog_block_y0+16 步进 16 直到 var158+var11（320）
             let mut draw_y = dialog_block_y0 + 16;
             while draw_y < dialog_block_y0 + dialog_block_h {
-                g.set_clip(229, draw_y, 11, 16);
+                g.set_clip(229 + dx, draw_y, 11, 16);
                 g.draw_image(&self.images.ui[0], 176, draw_y, 0);
                 draw_y += 16;
             }
@@ -6600,24 +6609,24 @@ impl GameScene {
                         let fw = self.type_frame_width_for(self.dialog_speaker);
                         draw_image_clipped(g, img, (80 - fw) >> 1, self.layout.screen_h - img.height, 0, 0, fw, img.height);
                     } else {
-                        draw_image_clipped(g, img, 24, 275, 0, 0, 32, 45);
+                        draw_image_clipped(g, img, 24 + dx, 275, 0, 0, 32, 45);
                     }
                 }
             } else if self.dialog_speaker == 0 {
                 let face = &self.images.actor_face;
-                g.draw_image(face, 40 - (face.width >> 1), self.layout.screen_h - face.height, 0);
+                g.draw_image(face, 40 - (face.width >> 1) + dx, self.layout.screen_h - face.height, 0);
             } else {
                 g.set_color(WHITE);
                 let q: Vec<u16> = "?".encode_utf16().collect();
-                g.draw_string(&q, 40, dialog_block_y0 + ((dialog_block_h - font.height) >> 1), 17);
+                g.draw_string(&q, 40 + dx, dialog_block_y0 + ((dialog_block_h - font.height) >> 1), 17);
             }
             g.set_color(10473684);
-            self.paint_wrapped_text(g, 85, dialog_block_y0 + 12, self.layout.screen_w - 111, dialog_block_h - 12, false);
+            self.paint_wrapped_text(g, 85 + dx, dialog_block_y0 + 12, 129, dialog_block_h - 12, false);
             if self.overlay_page_top > 0 {
-                draw_image_clipped(g, &self.images.ui[15], 220, self.layout.screen_h - line_h - 10, 0, 0, 7, 9);
+                draw_image_clipped(g, &self.images.ui[15], 220 + dx, self.layout.screen_h - line_h - 10, 0, 0, 7, 9);
             }
             if self.overlay_page_bottom < self.overlay_total_lines {
-                draw_image_clipped(g, &self.images.ui[15], 220, self.layout.screen_h - line_h + 1, 7, 0, 7, 9);
+                draw_image_clipped(g, &self.images.ui[15], 220 + dx, self.layout.screen_h - line_h + 1, 7, 0, 7, 9);
             }
             if (self.dialog_phase == 6 || self.dialog_phase == 1)
                 && self.dialog_page >= 0
@@ -6984,6 +6993,38 @@ mod slot_equip_scene_tests {
         );
     }
 
+    /// 底部区口径修正判据（lead 设计口径级修正 2026-10-18：**经典尺寸固定+整体居中**，
+    /// 非随屏拉伸）：面板宽 == 经典常量、居中偏移 = (screen_w−经典面板宽)/2、
+    /// classic 下偏移回代原值（0）。
+    #[test]
+    fn bottom_panel_classic_size_centered() {
+        let icons = synthetic_sptarm();
+        let mut sc = scene_with(&icons);
+        sc.apply_layout(crate::layout::Layout::modern(13, 13));
+        let dx = sc.bottom_panel_dx();
+        assert_eq!(dx, (416 - 240) / 2, "modern 面板居中偏移 =（屏宽−经典面板宽 240）/2");
+        sc.game_mode = GameMode::Dialog;
+        sc.open_dialog_page(0);
+        let mut img = ArgbImage::create(416, 416);
+        let ops;
+        {
+            let mut g = SoftGraphics::new(&mut img);
+            sc.paint(&mut g, &solid(64, 64));
+            ops = g.ops.clone();
+        }
+        // 对话框填充宽 == 经典常量 149、起点 == 80+dx（面板内相对布局=classic 同构）
+        assert!(
+            ops.iter()
+                .any(|o| o.contains(&format!("fillRect({},", 80 + dx)) && o.contains(",149,")),
+            "对话框填充宽须为经典常量 149（拉伸=违口径）：{:?}",
+            ops.iter().filter(|o| o.contains("149") || o.contains("fillRect(80")).collect::<Vec<_>>()
+        );
+        // classic 回代：偏移 0（240 宽面板在 240 屏=原值）
+        let mut sc2 = scene_with(&icons);
+        assert_eq!(sc2.bottom_panel_dx(), 0, "classic 面板偏移回代原值 0（零偏离）");
+        let _ = &mut sc2;
+    }
+
     /// 跳过 "77x320" 尺寸记号与 '#rrggbb' 色参（drawImage/drawImageTransformed 可用）。
     fn op_xy(o: &str) -> Option<(i32, i32)> {
         let args = o.split('(').nth(1)?.split(')').next()?;
@@ -7003,6 +7044,7 @@ mod slot_equip_scene_tests {
         let icons = synthetic_sptarm();
         let mut sc = scene_with(&icons);
         sc.apply_layout(crate::layout::Layout::modern(13, 13));
+        let dx = sc.bottom_panel_dx();
         let mut img = ArgbImage::create(416, 416);
         let ops;
         {
@@ -7050,8 +7092,11 @@ mod slot_equip_scene_tests {
                 w < 200
             })
             .filter_map(|o| op_xy(o))
-            // 内容组域：排除框角件（角宽 26）与框右缘侧条区（≥330）——框体=全宽设计
-            .filter(|c| (26..330).contains(&c.0))
+            // 内容组域：排除框体四柱列（dx-42/dx/dx+176/dx+229 = 框角/框缘/右缘/右条
+            // ——框体=面板构件非内容）与域外 x
+            .filter(|c| {
+                (26..330).contains(&c.0) && ![dx - 42, dx, dx + 176, dx + 229].contains(&c.0)
+            })
             .collect();
         let (hmin, hmax) = (
             hud.iter().map(|c| c.0).min().unwrap_or(0),
