@@ -260,6 +260,9 @@ pub struct GameScene {
     pub minimap: Option<ArgbImage>,
     /// optionChecked[1]：小地图开关（RMS 读档失败 catch 默认 true，a.java:4475-4471）
     pub minimap_enabled: bool,
+    /// 布局面（STAGE-B-002）：classic=原版恒等（默认）；modern=公式派生能力面。
+    /// 消费方（shell 缩放适配）在交接时按预设改写。
+    pub layout: crate::layout::Layout,
     /// SKY_WAR 全局存档（saveGlobalProgress a.java:8917-8942；两机同构拷贝）。
     pub global: crate::save::GlobalSave,
     /// 全局态脏位（壳轮询持久化）。
@@ -915,6 +918,7 @@ impl GameScene {
             walkable: Vec::new(),
             minimap: None,
             minimap_enabled: true,
+            layout: crate::layout::Layout::classic(),
             frame_counter: 0,
             bob_offset: 0,
             bob_rising: false,
@@ -2463,8 +2467,9 @@ impl GameScene {
         if !self.minimap_enabled {
             return;
         }
-        let w = self.view.wide * MINIMAP_PX_PER_CELL;
-        let h = self.view.high * MINIMAP_PX_PER_CELL;
+        let ppc = self.layout.minimap_px_per_cell;
+        let w = self.view.wide * ppc;
+        let h = self.view.high * ppc;
         let mut img = ArgbImage::create(w, h);
         {
             let mut g = SoftGraphics::new(&mut img);
@@ -2472,11 +2477,11 @@ impl GameScene {
             g.fill_rect(0, 0, w, h);
             for y in 0..self.view.high as usize {
                 for x in 0..self.view.wide as usize {
-                    let px = (x as i32) * MINIMAP_PX_PER_CELL;
-                    let py = (y as i32) * MINIMAP_PX_PER_CELL;
+                    let px = (x as i32) * ppc;
+                    let py = (y as i32) * ppc;
                     if self.walkable[y][x] {
                         g.set_color(MINIMAP_WALKABLE);
-                        g.fill_rect(px, py, MINIMAP_PX_PER_CELL, MINIMAP_PX_PER_CELL);
+                        g.fill_rect(px, py, ppc, ppc);
                     }
                     let ct = self.grid.cell_type[y][x] as usize;
                     if ct > 0 && self.grid.capacity[ct] > 0 {
@@ -2510,6 +2515,41 @@ impl GameScene {
                                 _ => {}
                             }
                         }
+                    }
+                }
+            }
+            // ④ R6 实体色点层（**modern 能力**，classic 零偏离不出图）：
+            // 类型→色点映射（layout::minimap_dot_color）+ 同格高优先级胜
+            //（玩家点在绘制面覆盖=最高层）。粒度 = 格内居中 minimap_dot_px 点。
+            if self.layout.preset == crate::layout::Preset::Modern {
+                let dot = self.layout.minimap_dot_px;
+                let off = (ppc - dot) / 2;
+                let cells = (self.view.wide * self.view.high) as usize;
+                let mut best = vec![(0u8, 0u32); cells]; // (优先级, 色)
+                for e in self.entities.items.iter() {
+                    if e.removed || e.state == 1 || !e.visible {
+                        continue;
+                    }
+                    let (cx, cy) = (e.px >> 5, e.py >> 5);
+                    if cx < 0 || cy < 0 || cx >= self.view.wide || cy >= self.view.high {
+                        continue;
+                    }
+                    let cat = crate::entity::render_category(e.type_);
+                    let color = crate::layout::minimap_dot_color(cat);
+                    let pri = crate::layout::minimap_dot_priority(cat);
+                    if pri == 0 {
+                        continue;
+                    }
+                    let cell = &mut best[(cy * self.view.wide + cx) as usize];
+                    if pri > cell.0 {
+                        *cell = (pri, color);
+                    }
+                }
+                for (i, &(_, color)) in best.iter().enumerate() {
+                    if color != 0 {
+                        let (cx, cy) = ((i as i32) % self.view.wide, (i as i32) / self.view.wide);
+                        g.set_color(color);
+                        g.fill_rect(cx * ppc + off, cy * ppc + off, dot, dot);
                     }
                 }
             }
@@ -5791,16 +5831,19 @@ impl GameScene {
         // 小地图（optionChecked[1] && minimapImage）：右上角，玩家点
         if self.minimap_enabled {
             if let Some(mm) = &self.minimap {
-                let x = SCREEN_W - ((self.view.wide + 1) * MINIMAP_PX_PER_CELL);
+                let ppc = self.layout.minimap_px_per_cell;
+                let dot = self.layout.minimap_dot_px;
+                let off = (ppc - dot) / 2; // 点居格中（classic 4/4 ⇒ 0，零偏离）
+                let x = SCREEN_W - ((self.view.wide + 1) * ppc);
                 g.draw_image(mm, x, view_top_y(), 0);
                 g.set_color(MINIMAP_PLAYER_DOT);
                 // a.java:2397-2398：点 = playerCellX/Y（**格坐标**——步进中
                 // 与像素 >>5 不同，上/左行时像素已进目标格而格坐标未更新）
                 g.fill_rect(
-                    x + self.player_cell_x * MINIMAP_PX_PER_CELL,
-                    view_top_y() + self.player_cell_y * MINIMAP_PX_PER_CELL,
-                    MINIMAP_DOT_PX,
-                    MINIMAP_DOT_PX,
+                    x + self.player_cell_x * ppc + off,
+                    view_top_y() + self.player_cell_y * ppc + off,
+                    dot,
+                    dot,
                 );
             }
         }

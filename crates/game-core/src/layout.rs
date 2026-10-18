@@ -227,6 +227,38 @@ pub const MINIMAP_DOOR3_EDGE: u32 = 0x086098;
 /// 小地图玩家点（Java 1112072）。
 pub const MINIMAP_PLAYER_DOT: u32 = 0x10F808;
 
+/// 小地图实体色点（R6 类型→视觉映射表，STAGE-B-002 ④ 登记，粒度=格内 3-4px 点）：
+/// 玩家=白/亮绿（既有 [`MINIMAP_PLAYER_DOT`]，最高优先级绘制覆盖）；
+/// cat8 直立怪=红（实体表无威胁分级字段 ⇒ **暂不分级**统一红）；
+/// cat2 物品=黄、cat4 宝物药水=绿（大类级分色；细类 type 级考证待续）；
+/// cat1/16/32 机关=青。同格取高优先级：玩家 > 怪物 > 物品 > 机关 > 地形底层。
+pub const MINIMAP_DOT_ENEMY: u32 = 0xE02020;
+pub const MINIMAP_DOT_ITEM: u32 = 0xF0D040;
+pub const MINIMAP_DOT_TREASURE: u32 = 0x40D060;
+pub const MINIMAP_DOT_MECH: u32 = 0x40C0E0;
+
+/// 大类（`entity::render_category`）→ 色点映射（**定死**）；cat0/未登记 = 0 不上图。
+pub fn minimap_dot_color(render_category: u8) -> u32 {
+    match render_category {
+        8 => MINIMAP_DOT_ENEMY,
+        2 => MINIMAP_DOT_ITEM,
+        4 => MINIMAP_DOT_TREASURE,
+        1 | 16 | 32 => MINIMAP_DOT_MECH,
+        _ => 0,
+    }
+}
+
+/// 同格色点优先级（R6：玩家 > 怪物 > 物品 > 机关 > 地形底层；玩家点由绘制面覆盖）。
+/// 值大者胜；cat0/未登记 = 0（不上图）。
+pub fn minimap_dot_priority(render_category: u8) -> u8 {
+    match render_category {
+        8 => 3,            // 怪物
+        2 | 4 => 2,        // 物品/宝物药水
+        1 | 16 | 32 => 1,  // 机关
+        _ => 0,
+    }
+}
+
 /// HUD 大框内衬（Java 2699825）。
 pub const HUD_FILL: u32 = 0x293231;
 /// 状态栏分隔底（Java 2435368）。
@@ -404,6 +436,11 @@ pub struct Layout {
     /// HUD 面孔锚 x / 属性图标列 x（贴底居中：`center_x - 80` / `center_x - 37`）。
     pub hud_face_ax: i32,
     pub hud_icon_x: i32,
+    // —— 小地图（④ R6：格粒缩放 + 色点粒度）——
+    /// 小地图格粒 px（classic 4 = 原值零偏离；modern 8 = 放大）。
+    pub minimap_px_per_cell: i32,
+    /// 实体色点边长（居格中；两预设 4px）。
+    pub minimap_dot_px: i32,
     // —— 设计常量（文末专段的运行时形态；classic = 原值）——
     pub overlay_text_w: i32,
     pub overlay_text_max_h: i32,
@@ -444,6 +481,8 @@ impl Layout {
             status_fill_x: STATUS_KEY_X[0],
             hud_face_ax: HUD_FACE_AX,
             hud_icon_x: HUD_ICON_X,
+            minimap_px_per_cell: MINIMAP_PX_PER_CELL,
+            minimap_dot_px: MINIMAP_DOT_PX,
             overlay_text_w: OVERLAY_TEXT_W,
             overlay_text_max_h: OVERLAY_TEXT_MAX_H,
             overlay_icon_text_max_h: OVERLAY_ICON_TEXT_MAX_H,
@@ -497,6 +536,9 @@ impl Layout {
         l.encyc_panel_w = screen_w - 32;
         l.arrow_pair_left_x = screen_w / 2 - 60;
         l.arrow_pair_right_x = screen_w / 2 + 40;
+        // ④ R6 小地图：modern 放大格粒（8px），色点 4px 居格中
+        l.minimap_px_per_cell = 8;
+        l.minimap_dot_px = 4;
         l
     }
 }
@@ -707,5 +749,30 @@ mod tests {
             (208 - 60, 208 + 40),
             "箭头对以屏心为基准保持原偏置"
         );
+    }
+
+    /// ④ 小地图放大 + 怪物/物品上图（R6 类型→色点映射表定死）：
+    /// - 缩放参数 classic（4px 格/4px 点）零偏离 / modern（8px 格/4px 点居格中）；
+    /// - 映射表：玩家=白（最高优先级，绘制面覆盖）/cat8 怪物=红/cat2 物品=黄/
+    ///   cat4 宝物药水=绿/cat1·16·32 机关=青；同格取高优先级。
+    #[test]
+    fn minimap_zoom_params_and_dot_mapping() {
+        let l = Layout::classic();
+        assert_eq!((l.minimap_px_per_cell, l.minimap_dot_px), (4, 4), "classic 零偏离");
+        let big = Layout::modern(13, 13);
+        assert_eq!((big.minimap_px_per_cell, big.minimap_dot_px), (8, 4), "modern 放大格粒 + 4px 点居格中");
+        // 映射表定死（大类→色号，登记见 MINIMAP_DOT_BY_CATEGORY）
+        assert_eq!(minimap_dot_color(8), MINIMAP_DOT_ENEMY, "cat8 直立怪=红");
+        assert_eq!(minimap_dot_color(2), MINIMAP_DOT_ITEM, "cat2 物品=黄");
+        assert_eq!(minimap_dot_color(4), MINIMAP_DOT_TREASURE, "cat4 宝物药水=绿");
+        assert_eq!(minimap_dot_color(1), MINIMAP_DOT_MECH, "cat1 机关=青");
+        assert_eq!(minimap_dot_color(16), MINIMAP_DOT_MECH, "cat16 机关=青");
+        assert_eq!(minimap_dot_color(32), MINIMAP_DOT_MECH, "cat32 机关=青");
+        assert_eq!(minimap_dot_color(0), 0, "cat0（无效型）不上图");
+        // 优先级链：怪物 > 物品/宝物 > 机关（玩家=绘制面覆盖最高层）
+        assert!(minimap_dot_priority(8) > minimap_dot_priority(2));
+        assert!(minimap_dot_priority(2) == minimap_dot_priority(4), "物品/宝物同层");
+        assert!(minimap_dot_priority(4) > minimap_dot_priority(1));
+        assert_eq!(minimap_dot_priority(0), 0);
     }
 }
