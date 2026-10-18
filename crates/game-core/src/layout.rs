@@ -334,6 +334,14 @@ pub const ARROW_PAIR_RIGHT_X: i32 = 160;
 // STAGE-B-002：动态逻辑分辨率双预设——Layout 运行时形态（classic 恒等 / modern 派生）
 // =========================================================================
 
+/// 屏幕边缘跟随阈值 106（a.java:3562 面：下 `view_h-106` / 上 `106` / 右
+/// `view_w-106` / 左 `106`）。与 `walk.rs:16 EDGE_MARGIN` 同值同义（双源登记，
+/// walk.rs 收编待其写域开放）。
+pub const EDGE_MARGIN: i32 = 106;
+
+/// 相机偏移 clamp 上界 64（`game_view.rs` setCameraClamped `x > 64` / camera.rs 同源）。
+pub const CAMERA_CLAMP_MAX: i32 = 64;
+
 /// 布局预设。`Classic` = 原版 240×320（Legacy 等价命门：全部字段逐值 = 现行常量，
 /// walk_camera_golden / game_view (8,-210) / ease 序列一字不改仍绿）；
 /// `Modern` = 公式派生（逻辑分辨率 = 任意格数、UI 自适配、最小 = 原分辨率）。
@@ -366,6 +374,11 @@ pub struct Layout {
     pub softkey_right_x: i32,
     pub softkey_icon_y: i32,
     pub softkey_icon_right_x: i32,
+    // —— 相机参数（③：行为常量的 Layout 形态，classic 代入化回原值）——
+    /// 屏幕边缘跟随阈值（a.java:3562 面；scene.rs 步进四处 / walk.rs EDGE_MARGIN 同值）。
+    pub edge_margin: i32,
+    /// setCameraClamped 偏移上界（game_view.rs `x > 64` / camera.rs 同源）。
+    pub camera_clamp_max: i32,
     // —— 设计常量（文末专段的运行时形态；classic = 原值）——
     pub overlay_text_w: i32,
     pub overlay_text_max_h: i32,
@@ -398,6 +411,8 @@ impl Layout {
             softkey_right_x: softkey_right_x(),
             softkey_icon_y: softkey_icon_y(),
             softkey_icon_right_x: softkey_icon_right_x(),
+            edge_margin: EDGE_MARGIN,
+            camera_clamp_max: CAMERA_CLAMP_MAX,
             overlay_text_w: OVERLAY_TEXT_W,
             overlay_text_max_h: OVERLAY_TEXT_MAX_H,
             overlay_icon_text_max_h: OVERLAY_ICON_TEXT_MAX_H,
@@ -584,5 +599,18 @@ mod tests {
             assert_eq!(l.view_bottom_y, l.hud_base_y);
             assert_eq!(l.game_view_w, l.screen_w);
         }
+    }
+
+    /// ③ 相机参数入 Layout（classic 下代入**化回原值断言**）：边缘跟随阈值 106
+    /// （a.java:3562 面：scene.rs 步进四处内联 + walk.rs EDGE_MARGIN 同值）与
+    /// 相机 clamp 64（setCameraClamped 上界）。两参数=行为常量（无维度推导关系，
+    /// 与 240×320 设计稿无关）⇒ modern 同值（考证结论：阈值语义是玩家跟随
+    /// 舒适带宽，不随分辨率缩放）。
+    #[test]
+    fn camera_params_classic_substitution_is_identity() {
+        let l = Layout::classic();
+        assert_eq!((l.edge_margin, l.camera_clamp_max), (106, 64), "classic 化回原值");
+        assert_eq!(Layout::modern(13, 13).edge_margin, 106, "行为常量两预设同值");
+        assert_eq!(Layout::modern(13, 13).camera_clamp_max, 64);
     }
 }

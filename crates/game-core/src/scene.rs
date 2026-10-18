@@ -4499,28 +4499,32 @@ impl GameScene {
                 match self.facing {
                     0 => {
                         self.view.player_py += 8;
-                        if self.view.player_py + self.view.cam_y + 16 > self.view.view_h - 106 {
+                        if self.view.player_py + self.view.cam_y + 16
+                            > self.view.view_h - crate::layout::EDGE_MARGIN
+                        {
                             let cy = self.view.cam_y - 8;
                             self.view.set_camera(self.view.cam_x, cy);
                         }
                     }
                     1 => {
                         self.view.player_py -= 8;
-                        if self.view.player_py + self.view.cam_y + 16 < 106 {
+                        if self.view.player_py + self.view.cam_y + 16 < crate::layout::EDGE_MARGIN {
                             let cy = self.view.cam_y + 8;
                             self.view.set_camera(self.view.cam_x, cy);
                         }
                     }
                     2 => {
                         self.view.player_px += 8;
-                        if self.view.player_px + self.view.cam_x + 16 > self.view.view_w - 106 {
+                        if self.view.player_px + self.view.cam_x + 16
+                            > self.view.view_w - crate::layout::EDGE_MARGIN
+                        {
                             let cx = self.view.cam_x - 8;
                             self.view.set_camera(cx, self.view.cam_y);
                         }
                     }
                     3 => {
                         self.view.player_px -= 8;
-                        if self.view.player_px + self.view.cam_x + 16 < 106 {
+                        if self.view.player_px + self.view.cam_x + 16 < crate::layout::EDGE_MARGIN {
                             let cx = self.view.cam_x + 8;
                             self.view.set_camera(cx, self.view.cam_y);
                         }
