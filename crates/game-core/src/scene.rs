@@ -3424,9 +3424,10 @@ impl GameScene {
         y += 1;
         g.set_color(3564144);
         g.draw_line(x, y, x + self.item_box_w - 23, y);
-        y += 10;
-        x += 9;
-        let col_x0 = x;
+        // 格阵原点 = 共享 fn（③-1 单源：与 pointer_hit 共调 item_cell_origin）
+        let (col_x0, grid_y0) = self.item_cell_origin();
+        let mut x = col_x0;
+        let mut y = grid_y0;
         let mut grid = self.item_cols * self.item_scroll_top;
         let mut row = self.item_scroll_top;
         while row < self.item_scroll_bottom {
@@ -7714,13 +7715,14 @@ impl GameScene {
         (by - pad, self.menu_line_height)
     }
 
-    /// 背包栅格原点（③-1 单源：与 paint_item_panel 同式——box 居中、
-    /// x=box_x+20、y=box_y+32+font.height；格步进 40、格体 32）。
-    fn item_cell_origin(&self) -> (i32, i32) {
+    /// 背包栅格原点（③-1 单源）：**paint_item_panel 与 pointer_hit 共调本 fn**。
+    /// y = 盒顶+31+font.height——paint 累积式（:3412 +16、:3420 +fh+4、:3424 +1、
+    /// :3427 +10）逐项同式；2026-10-18 F-1 整改：原写 32 差 1px + 测试自证，已修。
+    pub fn item_cell_origin(&self) -> (i32, i32) {
         let font = crate::paint::paint_font();
         (
             (SCREEN_W - self.item_box_w) / 2 + 20,
-            (SCREEN_H - self.item_box_h) / 2 + 32 + font.height,
+            (SCREEN_H - self.item_box_h) / 2 + 31 + font.height,
         )
     }
 
@@ -7802,6 +7804,7 @@ impl GameScene {
 mod pointer_seam_tests {
     use super::scene_test_support::scene;
     use super::{GameMode, PointerHit};
+    use crate::layout::{SCREEN_H, SCREEN_W};
 
     fn menu_scene() -> super::GameScene {
         let mut sc = scene((2, 2), &[(43, 5, 5)]);
@@ -7870,7 +7873,14 @@ mod pointer_seam_tests {
         sc.item_scroll_top = 0;
         sc.item_scroll_bottom = 3;
         sc.item_cursor = 0;
-        let (ox, oy) = sc.item_cell_origin();
+        // 期望取字面常量（F-1：禁被测自身作期望）——锚 paint_item_panel 累积式
+        //（盒顶+16+fh+4+1+10 = 盒顶+31+fh；(320-盒高)/2=…+31+14）
+        let ox = (SCREEN_W - sc.item_box_w) / 2 + 20;
+        let oy = (SCREEN_H - sc.item_box_h) / 2 + 31 + crate::paint::paint_font().height;
+        assert_eq!(sc.item_cell_origin(), (ox, oy), "格原点与 paint 累积式同式");
+        // 顶像素 ±1px 归属锚（栅格版，照菜单侧规格）
+        assert_eq!(sc.pointer_hit(ox + 16, oy), PointerHit::Row { index: 0, confirm_key: -6 }, "格顶像素归本格");
+        assert_eq!(sc.pointer_hit(ox + 16, oy - 1), PointerHit::None, "格顶-1 不命中");
         assert_eq!(sc.pointer_hit(ox + 16, oy + 16), PointerHit::Row { index: 0, confirm_key: -6 });
         assert_eq!(
             sc.pointer_hit(ox + 40 + 16, oy + 40 + 16),

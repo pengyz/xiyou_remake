@@ -10,7 +10,7 @@ sources: ["2026-10-18 用户需求（Windows 操作适配三件）", "adversary 
 
 - **定性**：原版 a.java 无 pointerPressed/Released/Dragged（deobf 全目录 grep 零命中，
   A 级）⇒ 指针输入非移植保真项。ESC→-7 与滚轮/点击合成键码属**平台输入映射**
-  （与 android 触控同类，Stage A 可容）；**直接点行选择**属 **Stage B 行为加法**
+  （与 android 触控同类，Stage A 可容）；**直接点行选择 + hover 选中高亮**属 **Stage B 行为加法**
   （与音频焦点案 F-6 同类），因**用户明确需求**（产品裁定先例）+ 纯加法入口放行。
 - **边界（实现三硬条件，adversary 裁定）**：
   ① 几何单源：pointer_hit 行几何复用 paint 布局同一来源（SlotSelect content_*/行距、
