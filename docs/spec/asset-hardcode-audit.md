@@ -63,19 +63,19 @@ P3/P4 的"混合"处理：机械清单不漏扫，但处置表**逐条只列尺�
 
 | # | file:line | 内容 | 处置 | 理由/约束 |
 |---|---|---|---|---|
-| A1 | crates/game-data/src/maplv.rs:126-130 | `tile_atlas_col(id)=id&7`（a.java:5002 `(n4&7)<<4`） | **改 JSON**（图集列数） | 陷阱①：改读 JSON **断言 legacy 8**；`<<4` 的 16=瓦片 px（A3） |
-| A2 | crates/game-data/src/maplv.rs:132-136 | `tile_atlas_row(id)=id>>3`（a.java:5003） | **改 JSON**（图集列数） | 同上，`>>3` 模数=列数 8，断言 legacy 8 |
-| A3 | crates/game-data/src/maplv.rs:18 | 每步 16px（a.java:5006 `n5+=16`）注记 | **公式化**（引 TILE_PX） | 注记行，实值消费在 game_view（A5） |
+| A1 | crates/game-data/src/maplv.rs:126-130 | `tile_atlas_col(id)=id&7`（~~a.java:5002~~【2026-10-18 更正：错位；真锚 paintTileLayer（a.java:7045）`int var5=(var18&7)<<4`】 | **改 JSON**（图集列数） | 陷阱①：改读 JSON **断言 legacy 8**；`<<4` 的 16=瓦片 px（A3） |
+| A2 | crates/game-data/src/maplv.rs:132-136 | `tile_atlas_row(id)=id>>3`（~~a.java:5003~~【2026-10-18 更正：错位；真锚 paintTileLayer（a.java:7046）`var18=var18>>3<<4`】 | **改 JSON**（图集列数） | 同上，`>>3` 模数=列数 8，断言 legacy 8 |
+| A3 | crates/game-data/src/maplv.rs:18 | 每步 16px 注记（~~a.java:5006 `n5+=16`~~【2026-10-18 更正：:5006=overlayPageHeight；真锚 paintTileLayer（a.java:7043/7055）列/行步进 `var6+=16`/`var7+=16`】） | **公式化**（引 TILE_PX） | 注记行，实值消费在 game_view（A5） |
 | A4 | crates/game-core/src/layout.rs:86,89 | `CELL_PX=32`、`TILE_PX=16`（具名中枢） | **保留+理由** | 已公式化中枢（2026-10-15 卫生批 layout.rs:26）；值=数据域格距，不属素材精细化 |
 | A5 | crates/game-core/src/game_view.rs:179-180 | `sx=((v&7)<<4)`、`sy=((v>>3)<<4)`（tileset 128×208 的格→像素） | **公式化**（×TILE_PX）+ 8 列断言 | 陷阱①核心命中：`&7`/`>>3`=索引语义；改 JSON 须断言列数 8 |
-| A6 | crates/game-core/src/game_view.rs:111-138 | `>>4` 视口瓦片范围（col/row_start/end） | **公式化**（/TILE_PX） | 像素→格换算，a.java:5002-5013 同式 |
+| A6 | crates/game-core/src/game_view.rs:111-138 | `>>4` 视口瓦片范围（col/row_start/end） | **公式化**（/TILE_PX） | 像素→格换算，消费面 paintTileLayer 索引式（a.java:7040-7042 tileColStart/RowStart）同源 |
 | A7 | crates/game-core/src/game_view.rs:165-166 | `<<4` 格→像素反投影（col_start<<4） | **公式化**（×TILE_PX） | 同上 |
 | A8 | crates/game-core/src/game_view.rs:182-190 | 绘制步进 `px+=16`、`py+=16`、edge patch 16×16 | **公式化**（×TILE_PX） | 瓦片步进 |
 | A9 | crates/game-core/src/game_view.rs:261-266 | 测试锚 `((v&7)<<4,(v>>3)<<4)==(32,0)`、`==128` | **保留+理由** | legacy 断言面（改 JSON 后正是断言 legacy 8/16 的锚） |
-| A10 | crates/game-core/src/camera.rs:32,60-77 | `cells<<5`/`>>5` 地图像素尺寸与夹取 | **公式化**（×CELL_PX） | a.java:mapPixelWidth 同式 |
+| A10 | crates/game-core/src/camera.rs:32,60-77 | `cells<<5`/`>>5` 地图像素尺寸与夹取 | **公式化**（×CELL_PX） | loadFloorData（a.java:9423-9424）`mapPixelWidth=mapCellsWide<<5` + setCameraClamped（a.java:7062）夹取同式 |
 | A11 | crates/game-core/src/game_view.rs:38,81-82,103,126 | `wide<<5`/`high<<5` mapPx、夹取 `(n+2)<<5` | **公式化**（×CELL_PX） | 同上 |
 | A12 | crates/game-core/src/entity.rs:332-335 | `(px+16)>>5` 格吸附 | **公式化**（CELL_PX 半格偏移） | +16=半格（CELL_PX/2） |
-| A13 | crates/game-core/src/entity.rs:348,510 | `sprite_w>>5` 格槽宽登记 | **保留+理由** | 数据域：Java open_n 槽登记语义（a.java:6392-6420），`>>5`=类目步进非素材尺寸 |
+| A13 | crates/game-core/src/entity.rs:348,510 | `sprite_w>>5` 格槽宽登记 | **保留+理由** | 数据域：槽登记语义 = spawnEntity（a.java:6389）段内（:6392-6420；game-core 侧旧名"open_n"），`>>5`=类目步进非素材尺寸 |
 | A14 | crates/game-core/src/script.rs:393-394,415,448 | `x<<5`/`cx<<5` 脚本格→像素 | **公式化**（×CELL_PX） | save.rs:9 同式注记 |
 | A15 | crates/game-core/src/save.rs:9 | `pixel=cell<<5` 注记 | **保留+理由** | 文档注记（存档格式说明） |
 | A16 | crates/game-core/src/scene.rs:583-584,1301-1302,2161-2162,2191-2192,2279-2280,2318-2319,2442,2570-2571,3358-3359,5282-5283,6206-6207,6575-6576 | `<<5` 格→像素（12 生产点） | **公式化**（×CELL_PX） | 同 A14；测试面 `<<5`（scene.rs:6710-8464 约 55 处）随式替换或**保留+理由**（测试字面锚，"禁自证"注释见 scene.rs:8090） |
@@ -99,39 +99,39 @@ P3/P4 的"混合"处理：机械清单不漏扫，但处置表**逐条只列尺�
 
 | # | file:line | 内容 | 处置 | 理由/约束 |
 |---|---|---|---|---|
-| C1 | crates/game-core/src/entity.rs:224 + tests/fixtures/type_width_px.txt | typeFrameWidth 88 项（a.java:589） | **改 JSON**（task-8 中间态字段） | 数据域：变更=行为面（格槽宽/绘制宽）；改 JSON 须逐项 legacy 断言（task-10） |
-| C2 | crates/game-core/src/entity.rs:267 | animOffsetTable 11 行（a.java:485-497） | **改 JSON**（同上） | 数据域；scene.rs:7239 ROW3=[0,1,2,1] 消费锚 |
-| C3 | crates/game-core/src/entity.rs:285-307 | dispatchSpriteSize 特例 sprite_w=96/32/45/27（a.java:6306-6314） | **保留+理由** | 数据域**分派语义**（Java switch 特例），非素材尺寸读值 |
+| C1 | crates/game-core/src/entity.rs:224 + tests/fixtures/type_width_px.txt | typeFrameWidth 88 项（构造器 a()（a.java:436）表头（a.java:589）） | **改 JSON**（task-8 中间态字段） | 数据域：变更=行为面（格槽宽/绘制宽）；改 JSON 须逐项 legacy 断言（task-10） |
+| C2 | crates/game-core/src/entity.rs:267 | animOffsetTable 11 行（构造器 a()（a.java:485-497）） | **改 JSON**（同上） | 数据域；scene.rs:7239 ROW3=[0,1,2,1] 消费锚 |
+| C3 | crates/game-core/src/entity.rs:285-307 | dispatchSpriteSize 特例 sprite_w=96/32/45/27（dispatchSpriteSize（a.java:6300-6323）） | **保留+理由** | 数据域**分派语义**（Java switch 特例），非素材尺寸读值 |
 | C4 | crates/game-core/src/entity.rs:231,301 + scene.rs:6586-6588 | `width_table.get(..).unwrap_or(32)` 兜底 32 | **保留+理由** | 越界兜底=防御语义（Java 越界行为另考）；32=格距非帧宽 |
-| C5 | crates/game-core/src/entity.rs:226,239-244 | width_cells 类目→宽度（1/2/8/16/32→27 等） | **保留+理由** | 数据域类目分派（a.java:6306 同型） |
-| C6 | crates/game-core/src/entity.rs:10,34 | entitySpriteW（a.java:125）注记 | **保留+理由** | 文档注记 |
+| C5 | crates/game-core/src/entity.rs:226,239-244 | width_cells 类目→宽度（1/2/8/16/32→27 等） | **保留+理由** | 数据域类目分派（dispatchSpriteSize（a.java:6300）同型） |
+| C6 | crates/game-core/src/entity.rs:10,34 | entitySpriteW（字段声明（a.java:125））注记 | **保留+理由** | 文档注记 |
 | C7 | crates/game-core/src/scene.rs:5951,7212-7237 | 帧偏移=帧宽×animOffset（open_n 算式）消费点 | **公式化** | 随 C1/C2 改 JSON 后走表值 |
 
 ### D 类：字体派生量——陷阱②（BUG-008 面）
 
 | # | file:line | 内容 | 处置 | 理由/约束 |
 |---|---|---|---|---|
-| D1 | crates/game-core/src/render.rs:87-90 | 度量常量 SMALL(6,14,11)/MEDIUM(8,14,11)/LARGE(12,20,16)、BOLD+1（:92-94） | **保留+理由** | shim `Font.java:47-62` **双拷贝同步面**（render.rs:69 注，pattern_dual-copy-algorithms-sync-fix）；glyph 改源须逐项恒等（陷阱②） |
-| D2 | crates/game-core/src/render.rs:98-106 | is_wide 区段（0x2E80.. 等，Font.java:99-106） | **保留+理由** | 同 D1 |
-| D3 | crates/game-core/src/menu_family.rs:318,508,786 | `line_height=font.height+4`（a.java:471 textLineHeight） | **公式化**（已公式化）✓ | 派生式具 Java 锚 |
+| D1 | crates/game-core/src/render.rs:87-90 | 度量常量 SMALL(6,14,11)/MEDIUM(8,14,11)/LARGE(12,20,16)、BOLD+1（:92-94） | **保留+理由** | shim Font 构造/度量（reference/shim/src/javax/microedition/lcdui/Font.java:32-62）**双拷贝同步面**（render.rs:69 注，pattern_dual-copy-algorithms-sync-fix）；glyph 改源须逐项恒等（陷阱②） |
+| D2 | crates/game-core/src/render.rs:98-106 | is_wide 区段（0x2E80.. 等，Font.isWide（Font.java:99-106）） | **保留+理由** | 同 D1 |
+| D3 | crates/game-core/src/menu_family.rs:318,508,786 | `line_height=font.height+4`（构造器 a()（a.java:471）`textLineHeight=fontHeight+4`） | **公式化**（已公式化）✓ | 派生式具 Java 锚 |
 | D4 | crates/game-core/src/scene.rs:1349,1432,1786,2308,2535,6373,6503 | `line_h=font.height+4`（7 生产点） | **公式化**（抽 `text_line_height()` 单源） | 与 D3 同式多点——公式化收益=防行距分叉 |
-| D5 | crates/game-core/src/scene.rs:2788-2789 | `menu_line_height=font.height+6`、`menu_visible_rows=238/lh` | **保留+理由** | 已公式化（+6=行内 padding 语义 a.java:812） |
+| D5 | crates/game-core/src/scene.rs:2788-2789 | `menu_line_height=font.height+6`、`menu_visible_rows=238/lh` | **保留+理由** | 已公式化；真锚 resetMenuLayout（a.java:4682）`menuLineHeight=fontHeight+6`（:4683）（~~a.java:812~~【2026-10-18 更正：:812=optionRowHeight=fontHeight+8，张冠李戴】） |
 | D6 | crates/game-core/src/scene.rs:3011,7721 | `pad=(menu_line_height-font.height)>>1` | **公式化**（已公式化）✓ | 居中 pad |
 | D7 | crates/game-core/src/menu_family.rs:670-671 | "度量全部由 fontHeight 派生；(10+4)/12 字面量在字高 10 时同值、字高 14 后分叉"注 | **保留+理由** | BUG-008 根因修复面自注 |
-| D8 | crates/game-core/src/menu_family.rs:1038 | wideCharWidth=12、fontHeight=14 注记 | **保留+理由** | 注记（值=D1 派生） |
-| D9 | crates/game-core/src/menu_family.rs:639 | `slotsPerPage=min(6,208/14)`（a.java:4354-4364） | **公式化**（208→SLOT_LIST_MAX_H、14→font.height） | 陷阱②：改派生须与 legacy 值 6 恒等（mot_if_truncation.rs:207 同式锚） |
-| D10 | crates/game-core/src/layout.rs:324-327 | `SLOT_LIST_MAX_H=208`、`ENCYC_PANEL_W=208` | **保留+理由** | 已具名；=a.java:4354 布局字面（数据域 UI 布局） |
+| D8 | crates/game-core/src/menu_family.rs:1038 | wideCharWidth=12、fontHeight=14 注记 | **保留+理由** | 注记（值=D1 派生；Java 侧字段派生式 wideCharWidth/fontHeight（a.java:25-26）） |
+| D9 | crates/game-core/src/menu_family.rs:639 | `slotsPerPage=min(6,208/14)`（dispatchModeEntry（a.java:4292）slotsPerPage/slotListHeight（a.java:4354-4364）） | **公式化**（208→SLOT_LIST_MAX_H、14→font.height） | 陷阱②：改派生须与 legacy 值 6 恒等（mot_if_truncation.rs:207 同式锚） |
+| D10 | crates/game-core/src/layout.rs:324-327 | `SLOT_LIST_MAX_H=208`、`ENCYC_PANEL_W=208` | **保留+理由** | 已具名；=dispatchModeEntry 布局字面（a.java:4354-4364，数据域 UI 布局） |
 | D11 | crates/game-core/src/scene.rs:1787,2309,2539,2554,6374,6504 | 对话框两行块高 `(line_h<<1)+12`（6 生产点） | **公式化**（抽 `dialog_block_h()`） | 2 行+12 padding=Java 布局式；陷阱②联动（框高 48=16×3 与 B8 耦合） |
 
 ### E 类：容器计数（ui=25 断言族）——**素材域**
 
 | # | file:line | 内容 | 处置 | 理由/约束 |
 |---|---|---|---|---|
-| E1 | crates/game-data/src/packed_png.rs:33-50 | `RESOURCE_IMAGE_COUNTS` 16 容器（a.java:465-466） | **改 JSON**（素材元数据清单） | 计数断言族锚随迁 task-10 decode-equivalence（"不许消失"） |
+| E1 | crates/game-data/src/packed_png.rs:33-50 | `RESOURCE_IMAGE_COUNTS` 16 容器（构造器 a()：resourceNames/resourceImageCounts（a.java:450-453）） | **改 JSON**（素材元数据清单） | 计数断言族锚随迁 task-10 decode-equivalence（"不许消失"） |
 | E2 | crates/game-data/src/packed_png.rs:4,79 | "文件内不存张数"注记 | **保留+理由** | 格式事实（资源格式 doc 表 :83-94） |
 | E3 | crates/game-data/src/packed_png.rs:123、tests/golden.rs:213、tests/png_golden.rs:121 | 计数断言（"{name} 子图张数"） | **保留+理由** | legacy 断言面=task-10 硬2 挂点（改 JSON 后断言 JSON 值==legacy 值） |
 | E4 | shell/win/src/main.rs:62-157 | load_container(name, count) 16 组字面计数（生产装载） | **公式化**（读 image_count()/JSON） | 生产面 16 处重复表；改 JSON 后单一来源 |
-| E5 | crates/game-core/src/scene.rs:28 | `CONTAINER_NAMES` 16 名序（a.java:451） | **保留+理由** | 顺序=数据语义（f_Image_arr2_00 槽序），非计数 |
+| E5 | crates/game-core/src/scene.rs:28 | `CONTAINER_NAMES` 16 名序（构造器 a()：resourceNames（a.java:450-451）） | **保留+理由** | 顺序=数据语义（f_Image_arr2_00 槽序），非计数 |
 | E6 | 测试复制面：crates/game-core/tests/slot_equip_scene.rs:65,158-214、mov_route_scene.rs:83,208-278、crates/game-oracle/tests/probe_floor2.rs:8,73-106、fixture_frames.rs:55,124-226,911-926、gameplay_floor1.rs:30,93-126,263-419、boot_replay.rs:23,34-129、preset_cases.rs:42,131-1287 | load_container 辅助+计数（约 120 行复制） | **保留+理由**（过渡） | 测试夹具复制；task-10 decode-equivalence 落地后统一由元数据驱动，届时销账 |
 | E7 | crates/game-data/src/lib.rs:21 | "55 maplv + 55 sprite + 16 packed PNG"注记 | **保留+理由** | 文档注记（55=文件数非装载数，装载 1..=54 见审计 C 级出入记录） |
 
@@ -158,30 +158,36 @@ P3/P4 的"混合"处理：机械清单不漏扫，但处置表**逐条只列尺�
 | hex/位运算基数 | menu_family.rs:36-48（from_str_radix 16）、png.rs:185-233（`<<24\|<<16`） | ~15 | 算法常量（ARGB 打包/解析基数） |
 | UTF-16 计数 | scene.rs:1370、script.rs:246 | ~5 | 文本语义（Java length=码元数） |
 | 算法掩码/表 | game-platform/src/lib.rs:56（LCG `<<48`）、inflate.rs:139-227 | ~10 | 算法面（P1 的 `<<4` 误中即此类） |
-| 存档字段长 | save.rs:15,55,107,139-141（128 字节 script_flags）、entity.rs:217-218（128 槽） | P5 全部 | **数据域**存档格式语义（a.java:9285-9291），保留 |
+| 存档字段长 | save.rs:15,55,107,139-141（128 字节 script_flags）、entity.rs:217-218（128 槽） | P5 全部 | **数据域**存档格式语义（loadFloorSave（a.java:9253）script_flags 读段（:9291-9296）），保留 |
 | 战斗/脚本字面 | paint.rs:504、popup.rs 表、scene.rs:142,155 | ~30 | 行为面数值（非素材），Stage A 保真对象 |
 
 ## 3. 陷阱①专节：`(v&7)<<4` 的 8 = 图集列数索引语义
 
-- **事实锚**：`crates/game-data/src/maplv.rs:126-136`（`id&7`/`id>>3`，a.java:5002-5003
-  `int n9 = (n4 & 7) << 4`、`n4 = n4 >> 3 << 4`）；消费点 `crates/game-core/src/game_view.rs:179-180`。
+- **事实锚**：`crates/game-data/src/maplv.rs:126-136`（`id&7`/`id>>3`）；Java 真锚 =
+  **paintTileLayer（a.java:7045-7046）** `int var5=(var18&7)<<4`、`var18=var18>>3<<4`
+  （~~a.java:5002-5003~~【2026-10-18 更正：错位，该处=overlay 行/页计算】）；
+  消费点 `crates/game-core/src/game_view.rs:179-180`。
+  **机械校验**（防再漂）：`grep "& 7\) << 4|>> 3 << 4" reference/src/deobf/a.java`
+  ⇒ 全文件唯一命中 7045-7046 即真锚（行号漂移时以命中行为准，方法名 paintTileLayer 定位）。
 - **语义**：tile-id 是图集**格坐标编码**（低 3 位列、高位行）；`8`（=7+1、>>3 的模数）
   是**图集列数**，`16` 是瓦片像素。二者性质不同：16 是尺寸（可随素材变），
   8 是**索引基数**——列数变化会重排全部 tile-id→格 的映射（地图静默全花，
   trace 只在 L4 视觉层暴露）。
 - **处置约束**：A1/A2 改读 JSON（图集列数/瓦片 px 元数据）时必须：
   ①断言 legacy 值 `8`（及 `16`）；②decode-equivalence（task-10）逐 tile-id
-  比对 col/row 不变；③行锚注释保留（a.java:5002-5003）。
+  比对 col/row 不变；③行锚注释保留（真锚 paintTileLayer（a.java:7045-7046））。
 - **相关测试锚**：game_view.rs:261-266（`((v&7)<<4,(v>>3)<<4)==(32,0)`/`==128`）、
   maplv.rs:145-154（13×13 头 26×26）。改后这些断言=legacy 恒等判据，不许删。
 
 ## 4. 陷阱②专节：字体派生量（BUG-008 教训面）
 
 - **事实锚**：`crates/game-core/src/render.rs:64-96`（度量三元组与 size 码，
-  shim `Font.java:47-62` **双拷贝同步**）；BUG-008 根因注 render.rs:66-69
+  shim Font（reference/shim/src/javax/microedition/lcdui/Font.java:32-62）**双拷贝同步**）；
+  BUG-008 根因注 render.rs:66-69
   （SMALL 高 10→14 更正：框体填充 2h+4 须为 16 整倍，对话框 48=16×3）。
-- **派生链清单**（本表 D3-D11）：`textLineHeight=height+4`（a.java:471）、
-  `menu_line_height=height+6`（a.java:812）、`slotsPerPage=min(6,208/height)`（a.java:4354-4364）、
+- **派生链清单**（本表 D3-D11）：`textLineHeight=height+4`（构造器 a()（a.java:471））、
+  `menu_line_height=height+6`（resetMenuLayout（a.java:4683））、
+  `slotsPerPage=min(6,208/height)`（dispatchModeEntry（a.java:4354-4364））、
   dialog 块 `(line_h<<1)+12`、`pad=(lh-fh)>>1`。
 - **处置约束**：glyph 改源（如换真字体渲染）时——
   ①度量三元组**逐项恒等**（6/14/11、8/14/11、12/20/16、BOLD+1）；
@@ -206,7 +212,7 @@ P3/P4 的"混合"处理：机械清单不漏扫，但处置表**逐条只列尺�
 | R7 | 字体点阵/glyph 源 | **素材域** | 像素面（visual）；但度量=行为面（R8） | android-shell 2026-10-18 |
 | R8 | 字体度量（SoftFont 三元组+派生链） | **行为面（双拷同步面）** | shim Font.java 同构；变更=布局行为（BUG-008 面），**不入素材精细化叙事** | android-shell 2026-10-18 |
 | R9 | UI 布局常量（layout.rs 102 项） | **数据域**（行为面） | Layout 消费，变更=差分行为；改 JSON 须逐常量 legacy 断言 | android-shell 2026-10-18 |
-| R10 | 容器计数表 RESOURCE_IMAGE_COUNTS | **素材域**（清单属性） | 资产清单元数据（a.java:465-466 两数组）；断言族随 task-10 | android-shell 2026-10-18 |
+| R10 | 容器计数表 RESOURCE_IMAGE_COUNTS | **素材域**（清单属性） | 资产清单元数据（构造器 a()：resourceNames/resourceImageCounts（a.java:450-453）两数组）；断言族随 task-10 | android-shell 2026-10-18 |
 | R11 | 存档字段长/实体槽容量（128 族） | **数据域** | 存档格式语义（save.rs 字段表），非素材 | android-shell 2026-10-18 |
 
 **归域对处置的影响**：数据域件改 JSON 后**走数据门禁**（差分 L1-L3 回归必须全绿，
