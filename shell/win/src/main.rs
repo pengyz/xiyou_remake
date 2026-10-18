@@ -1,3 +1,7 @@
+// 发行版隐藏控制台框（2026-10-18 用户指正"双击启动弹 cmd 框"——cargo 默认
+// console 子系统）；debug 构建保留控制台便于开发期日志。无控制台 ⇒ GAME-CRASH
+// 行同步写 exe 目录 xiyou-crash.log（见 paint_crashed 消费点），诊断不断档。
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 //! game-desktop —— 桌面壳（窗口/输入/存档落盘/呈现/BGM）。让 game-core 真正可玩。
 //!
 //! 分层（AGENTS §2）：本 crate 只做平台实现；游戏逻辑全在 game-core，
@@ -689,7 +693,7 @@ impl Shell {
         // 【2026-10-17 BUG-017 口径更正】原"（原版崩溃语义等价终止）"为**未经逐案
         // 核实的声称**——census assert（transition_to 未登记边）等 Rust 自造断言
         // panic 并非原版崩溃（用户实机被误导）。等价性须逐案以 Java 锚核实后另记。
-        let l2: Vec<u16> = "（崩溃详情见控制台 GAME-CRASH 行）".encode_utf16().collect();
+        let l2: Vec<u16> = "（崩溃详情见游戏目录 xiyou-crash.log）".encode_utf16().collect();
         g.draw_string(&l1, SCREEN_W / 2, SCREEN_H / 2 - 12, 17);
         g.draw_string(&l2, SCREEN_W / 2, SCREEN_H / 2 + 8, 17);
     }
@@ -797,6 +801,24 @@ impl Shell {
                             .or_else(|| e.downcast_ref::<&str>().copied())
                             .unwrap_or("");
                         eprintln!("GAME-CRASH: {msg}"); // 等价性逐案核实（BUG-017 口径）
+                        // 发行版无控制台（windows_subsystem=windows）⇒ 同步落 exe 目录
+                        // xiyou-crash.log，诊断不断档（2026-10-18 控制台框修复配套）。
+                        if let Ok(exe) = std::env::current_exe() {
+                            if let Some(dir) = exe.parent() {
+                                let _ = std::fs::OpenOptions::new()
+                                    .create(true)
+                                    .append(true)
+                                    .open(dir.join("xiyou-crash.log"))
+                                    .and_then(|mut f| {
+                                        use std::io::Write;
+                                        let secs = std::time::SystemTime::now()
+                                            .duration_since(std::time::UNIX_EPOCH)
+                                            .map(|d| d.as_secs())
+                                            .unwrap_or(0);
+                                        writeln!(f, "[{secs}] GAME-CRASH: {msg}")
+                                    });
+                            }
+                        }
                         self.paint_crashed();
                         self.state = Some(Screen::Crashed);
                     }
