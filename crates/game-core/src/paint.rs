@@ -102,7 +102,7 @@ pub fn paint_sound_prompt(
     g.fill_rect(0, 0, layout.screen_w, layout.screen_h);
     g.set_color(crate::layout::WHITE);
     g.draw_string(
-        &crate::layout::SOUND_PROMPT_TEXT,
+        crate::layout::SOUND_PROMPT_TEXT,
         layout.prompt_cx,
         layout.prompt_cy,
         anchor_top_hcenter(),
@@ -1061,7 +1061,6 @@ mod tests {
             let mut g = SoftGraphics::new(&mut img);
             t.paint(&mut g, &bg, &strip, &arrow, &layout);
         }
-        let img_x = ((layout.screen_w - 240) / 2) as usize;
         let w = layout.screen_w as usize;
         let sample_y = 200usize; // 图中带行
         let left_px = img.argb[sample_y * w + 5];

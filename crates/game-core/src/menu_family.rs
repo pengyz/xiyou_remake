@@ -314,7 +314,7 @@ pub fn layout_wrapped_text(
     max_w: i32,
     max_h: i32,
     limit: usize,
-    font: &crate::render::SoftFont,
+    font: &dyn crate::render::FontMetrics,
 ) -> WrappedLayout {
     let line_height = font.height() + 4;
     let mut lines: Vec<Vec<u16>> = Vec::new();
@@ -406,7 +406,7 @@ pub fn paint_wrapped_lines(
     w: i32,
     arrows: bool,
     frame_counter: i32,
-    font: &crate::render::SoftFont,
+    font: &dyn crate::render::FontMetrics,
 ) -> u32 {
     let mut saved_color = g.get_color();
     let mut dy = y + 2;
@@ -512,7 +512,7 @@ impl OverlayEngine {
 
     /// `layoutWrappedText`（a.java:4998-5013 区）：切行布局。`(max_w, max_h)` =
     /// showOverlayMessage case 0 的 (180, 240)。
-    fn layout(&mut self, text: &[u16], max_w: i32, max_h: i32, font: &crate::render::SoftFont) {
+    fn layout(&mut self, text: &[u16], max_w: i32, max_h: i32, font: &dyn crate::render::FontMetrics) {
         let r = layout_wrapped_text(text, max_w, max_h, text.len(), font);
         self.lines = r.lines;
         self.total_lines = r.total_lines;
@@ -525,7 +525,7 @@ impl OverlayEngine {
     }
 
     /// `showOverlayMessage` case 0/2/4/5（a.java:5005-5006）：布局 + 盒尺寸。
-    pub fn show_kind0(&mut self, text: &[u16], font: &crate::render::SoftFont, footer_icons: (i8, i8)) {
+    pub fn show_kind0(&mut self, text: &[u16], font: &dyn crate::render::FontMetrics, footer_icons: (i8, i8)) {
         self.layout(text, crate::layout::OVERLAY_TEXT_W, crate::layout::OVERLAY_TEXT_MAX_H, font);
         self.box_w = self.content_width + 32;
         self.box_h = 32 + (self.page_bottom - self.page_top) * self.line_height;
@@ -536,7 +536,7 @@ impl OverlayEngine {
     }
 
     /// 引子字幕布局（runIntroViewer 依赖行宽/总行数；布局参数与 paint 调用一致 220/28）。
-    pub fn layout_for_intro(&mut self, text: &[u16], font: &crate::render::SoftFont) {
+    pub fn layout_for_intro(&mut self, text: &[u16], font: &dyn crate::render::FontMetrics) {
         self.layout(text, 220, (font.height() + 4) << 1, font); // max_h = textLineHeight<<1（a.java:2941）
         self.cached_text = Some(text.to_vec());
     }
@@ -602,7 +602,7 @@ impl OverlayEngine {
         h: i32,
         arrows: bool,
         frame_counter: i32,
-        font: &crate::render::SoftFont,
+        font: &dyn crate::render::FontMetrics,
     ) {
         if self.cached_text.as_deref() != Some(text) {
             // paintWrappedText 缓存失效 ⇒ layoutFullText(text, w, h)（a.java:5024-5026）
@@ -1353,7 +1353,7 @@ impl OptionList {
     }
 
     /// paint case 16（a.java:2959-2990）。
-    pub fn paint(&self, g: &mut SoftGraphics<'_>, ui: &[ArgbImage], font: &crate::render::SoftFont) {
+    pub fn paint(&self, g: &mut SoftGraphics<'_>, ui: &[ArgbImage], font: &dyn crate::render::FontMetrics) {
         let x = (SCREEN_W - self.box_w - 22) >> 1;
         let y = (SCREEN_H - self.box_h) >> 1;
         paint_box_frame(g, &ui[0], x, y, self.box_w + 22, self.box_h);

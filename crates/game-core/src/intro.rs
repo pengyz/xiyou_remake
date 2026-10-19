@@ -121,7 +121,7 @@ impl IntroSequence {
         intro: &[ArgbImage],
         end: &[ArgbImage],
         overlay: &mut crate::menu_family::OverlayEngine,
-        font: &crate::render::SoftFont,
+        font: &dyn crate::render::FontMetrics,
     ) -> bool {
         if key == -7 {
             self.reset();
@@ -212,7 +212,7 @@ impl IntroSequence {
         g: &mut SoftGraphics<'_>,
         overlay: &mut crate::menu_family::OverlayEngine,
         particles: &mut crate::title::Particles,
-        font: &crate::render::SoftFont,
+        font: &dyn crate::render::FontMetrics,
         layout: &crate::layout::Layout,
     ) {
         if let Some(img) = &self.image {
