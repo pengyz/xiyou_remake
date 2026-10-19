@@ -1410,6 +1410,7 @@ fn main() {
     let mut headless_shot: Option<PathBuf> = None;
     let mut headless_frames: u64 = 120;
     let mut headless_newgame = false;
+    let mut inject_spec: Option<String> = None;
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         match a.as_str() {
@@ -1422,6 +1423,7 @@ fn main() {
             "--headless-shot" => headless_shot = Some(PathBuf::from(args.next().unwrap_or_default())),
             "--frames" => headless_frames = args.next().and_then(|v| v.parse().ok()).unwrap_or(120),
             "--headless-newgame" => headless_newgame = true,
+            "--inject" => inject_spec = Some(args.next().unwrap_or_default()),
             "--grid" => {
                 let g = args.next().unwrap_or_default();
                 let mut it = g.split(',');
@@ -1454,7 +1456,7 @@ fn main() {
         shell.apply_loaded_settings(s);
     }
     if let Some(out) = headless_shot {
-        headless_run(shell, out, headless_frames, headless_newgame);
+        headless_run(shell, out, headless_frames, headless_newgame, inject_spec.as_deref());
         return;
     }
     run_window(shell);
@@ -1462,8 +1464,18 @@ fn main() {
 
 /// headless 截图跑法（自验工具）：无窗口 N 拍 → 画布 dump PNG。
 /// `newgame`=boot 后在标题按确认进游戏（验证 mode 3 视图面用）。
-fn headless_run(mut shell: Shell, out: PathBuf, frames: u64, newgame: bool) {
+fn headless_run(mut shell: Shell, out: PathBuf, frames: u64, newgame: bool, inject: Option<&str>) {
     let mut pressed_at: Vec<(u64, i32)> = Vec::new();
+    // --inject "tick:key,tick:key"（2026-10-19 自验通道扩展：任意键序列注入）
+    if let Some(spec) = inject {
+        for pair in spec.split(',') {
+            if let Some((t, k)) = pair.split_once(':') {
+                if let (Ok(t), Ok(k)) = (t.trim().parse(), k.trim().parse()) {
+                    pressed_at.push((t, k));
+                }
+            }
+        }
+    }
     if newgame {
         // 标题确认（-5）在 boot 完成后投递——保守按拍轮询 title 就绪再按
         // 时序：boot→标题（~150 拍）→确认新游戏→序章→跳过→游戏视图

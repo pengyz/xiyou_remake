@@ -7094,6 +7094,10 @@ mod slot_equip_scene_tests {
     /// 底部区像素体检（用户复验 2026-10-18"渲染还是不对"）：量对话文本包围盒的
     /// **实测数**，classic vs modern 对照——文本字号/位置/框体关系拿数说话。
     #[test]
+    // 【2026-10-19】依赖 analysis/b002-*-v7.png（可再生工作区不入库）——
+    // clean 树/CI 必红（STAGE-B-002 v7 实验探针污染正式测试）。标 ignore
+    // 待自包含化（生成 PNG 再探）或移实验区。lead 处置。
+    #[ignore = "实验探针：依赖 analysis/ 探针 PNG（可再生工作区），自包含化后转正"]
     fn probe_bottom_region_pixel_metrics() {
         let icons = synthetic_sptarm();
         for (label, layout) in [
