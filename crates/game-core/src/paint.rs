@@ -125,14 +125,17 @@ pub fn anchor_top_hcenter() -> i32 {
 ///
 /// 相位 <2：整屏白 + 启动图几何居中（Java `-` 优先于 `>>` ⇒ `(240-w)>>1`）；
 /// 相位 >=2：`paintLogoAnimation` logo 动画层（[`crate::logo_anim::LogoAnim::paint`]）。
-pub fn paint_boot(g: &mut SoftGraphics<'_>, boot: &BootPaintState) {
+pub fn paint_boot(g: &mut SoftGraphics<'_>, boot: &BootPaintState, layout: &crate::layout::Layout) {
     if boot.phase < 2 {
         // setColor(-1)：Java int -1 位模式 & 0xFFFFFF = 0xFFFFFF
+        // 【追加件 2026-10-19】boot logo（mode 0）分级适配同款：白底**满画布**
+        //（黑边根因=固定 SCREEN_* 常量）+ logo 原尺寸居中；延展带纯色=白（同底色）。
+        // classic 代入同值零偏离。
         g.set_color(crate::layout::WHITE);
-        g.fill_rect(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
+        g.fill_rect(0, 0, layout.screen_w, layout.screen_h);
         if let Some(img) = &boot.image {
-            let x = (crate::layout::SCREEN_W - img.width) >> 1;
-            let y = (crate::layout::SCREEN_H - img.height) >> 1;
+            let x = (layout.screen_w - img.width) >> 1;
+            let y = (layout.screen_h - img.height) >> 1;
             g.draw_image(img, x, y, 0);
         }
     } else {
@@ -424,7 +427,7 @@ impl BootMachine {
                     logo: self.logo.clone(),
                     sflogo7: Some(self.sflogo[7].clone()),
                 };
-                paint_boot(g, &state);
+                paint_boot(g, &state, &self.layout);
             }
         }
     }
@@ -945,6 +948,93 @@ mod tests {
         }
     }
 
+    /// 追加件判据（2026-10-19 boss 004b 验证发现）：boot logo（mode 0 开机屏黑边）
+    /// ——白底须**满画布**（黑边=固定 SCREEN_* 常量致右/下未铺）；logo 原尺寸居中。
+    #[test]
+    fn modern_boot_white_background_fills_canvas() {
+        let layout = crate::layout::Layout::modern(13, 13);
+        let mut img = ArgbImage::create(layout.screen_w, layout.screen_h);
+        let mut logo = synth(164, 117);
+        logo.argb.fill(0xFF884422);
+        let boot = crate::paint::BootPaintState {
+            phase: 0,
+            image: Some(logo),
+            logo: None,
+            sflogo7: None,
+        };
+        {
+            let mut g = SoftGraphics::new(&mut img);
+            crate::paint::paint_boot(&mut g, &boot, &layout);
+        }
+        let w = layout.screen_w as usize;
+        let h = layout.screen_h as usize;
+        for (x, y) in [(5, 5), (w - 6, 5), (5, h - 6), (w - 6, h - 6)] {
+            let p = img.argb[y * w + x];
+            assert_eq!(p, 0xFFFF_FFFF, "四角须白底满幅（{x},{y} 现={p:#010x}）——黑边 artifact");
+        }
+    }
+
+    /// 用户验收修正判据（2026-10-19）：标题左右延展带=**顶带同款纯蓝**（天空连续感，
+    /// 无渐变无波浪纹）——取图中缘像素（云纹边缘）即红。
+    #[test]
+    fn modern_title_side_bands_match_top_pure_color() {
+        let layout = crate::layout::Layout::modern(13, 13);
+        let mut t = crate::title::TitleMachine::new();
+        // 标题图：上缘纯蓝 + 中缘云纹（波浪纹源）
+        let mut bg = synth(240, 320);
+        let sky: u32 = 0xFF3388CC;
+        let wavy: u32 = 0xFF7799AA;
+        for y in 0..320 {
+            for x in 0..240 {
+                bg.argb[y * 240 + x] = if y < 4 { sky } else if x % 37 == 0 { wavy } else { sky };
+            }
+        }
+        let strip = synth(60, 17);
+        let arrow = synth(7, 13);
+        let mut img = ArgbImage::create(layout.screen_w, layout.screen_h);
+        {
+            let mut g = SoftGraphics::new(&mut img);
+            t.paint(&mut g, &bg, &strip, &arrow, &layout);
+        }
+        let img_x = ((layout.screen_w - 240) / 2) as usize;
+        let w = layout.screen_w as usize;
+        let sample_y = 200usize; // 图中带行
+        let left_px = img.argb[sample_y * w + 5];
+        let right_px = img.argb[sample_y * w + (w - 6)];
+        assert_eq!(left_px, sky, "左带=顶带同款纯蓝（现={left_px:#010x}）");
+        assert_eq!(right_px, sky, "右带=顶带同款纯蓝（现={right_px:#010x}）");
+    }
+
+    /// 用户验收修正判据（2026-10-19）：序章立绘两侧延展带=**素材边缘色纯色带**
+    ///（云雾色，自然过渡）——留黑/取中缘波浪纹即红。
+    #[test]
+    fn modern_intro_side_bands_use_asset_edge_color() {
+        
+        let layout = crate::layout::Layout::modern(13, 13);
+        let mut iv = crate::intro::IntroSequence::new();
+        let mist: u32 = 0xFFCCDDEE;
+        let mut portrait = synth(120, 200);
+        for y in 0..200 {
+            for x in 0..120 {
+                portrait.argb[y * 120 + x] = if x == 0 || y == 0 { mist } else { 0xFFAA8866 };
+            }
+        }
+        // 直接测绘制：构造最小 paint 输入（image 字段注入）
+        let mut img = ArgbImage::create(layout.screen_w, layout.screen_h);
+        {
+            let mut g = SoftGraphics::new(&mut img);
+            let mut ov = crate::menu_family::OverlayEngine::new();
+            let mut parts = crate::title::Particles::new();
+            let font = crate::paint::paint_font();
+            iv.set_image_for_test(portrait);
+            iv.paint(&mut g, &mut ov, &mut parts, &font, &layout);
+        }
+        let w = layout.screen_w as usize;
+        let band_y = ((layout.screen_h - 200 - (12 + 4) * 3) >> 1) as usize;
+        let left_px = img.argb[(band_y + 100) * w + 5];
+        assert_eq!(left_px, mist, "左带=素材边缘色纯色（现={left_px:#010x}）");
+    }
+
     /// 设置勾选翻转 ⇒ SKY_WAR dirty（a.java:4154 翻转 + 4169 saveGlobalProgress）。
     #[test]
     fn settings_toggle_marks_dirty() {
@@ -1008,7 +1098,7 @@ mod tests {
                     logo: None,
                     sflogo7: None,
                 };
-                paint_boot(&mut g, &boot);
+                paint_boot(&mut g, &boot, &crate::layout::Layout::classic());
                 ops = g.ops.clone();
             }
             assert_eq!(
@@ -1037,7 +1127,7 @@ mod tests {
             let mut g = SoftGraphics::new(&mut screen);
             g.set_font(Some(paint_font()));
             let boot = BootPaintState { phase: 0, image: None, logo: None, sflogo7: None };
-            paint_boot(&mut g, &boot);
+            paint_boot(&mut g, &boot, &crate::layout::Layout::classic());
         }
         // TICK 32 帧哈希 = 纯白画布（与 L1b blank_white golden 同值，交叉验证）
         assert_eq!(frame_sha(&screen), "a682fa570213181c0f6fd50f7da5ef6f");

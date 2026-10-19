@@ -82,6 +82,11 @@ impl Default for IntroSequence {
 }
 
 impl IntroSequence {
+    /// 测试注入口（STAGE-B-004a 判据用）：直设立绘。
+    pub fn set_image_for_test(&mut self, img: ArgbImage) {
+        self.image = Some(img);
+    }
+
     pub fn new() -> IntroSequence {
         IntroSequence { page: 0, page_tick: 0, scroll_x: 0, color_phase: false, color_idx: 0, image: None, text: None }
     }
@@ -219,6 +224,17 @@ impl IntroSequence {
             g.fill_rect(0, 0, layout.screen_w, band_y);
             let below = band_y + ih;
             g.fill_rect(0, below, layout.screen_w, layout.screen_h - below);
+            // 【用户验收修正 2026-10-19】立绘两侧延展带=**素材边缘色纯色带**（云雾色，
+            // 自然过渡无波浪纹）——延展带配色与素材边缘协调（立绘边缘=云雾色）。
+            // classic 无侧带（图满幅）零偏离。
+            let bw = img.width as usize;
+            let edge_px = img.argb[0] & 0x00FF_FFFF | 0xFF00_0000;
+            let img_x = layout.center_x - (img.width >> 1);
+            if img_x > 0 {
+                g.set_color(edge_px);
+                g.fill_rect(0, band_y, img_x, ih);
+                g.fill_rect(layout.center_x + ((img.width + 1) >> 1), band_y, layout.screen_w - (img_x + img.width), ih);
+            }
             g.draw_image(img, layout.center_x, band_y, 17);
             if !self.color_phase {
                 g.set_color(crate::layout::WHITE);

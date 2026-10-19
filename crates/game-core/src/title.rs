@@ -285,23 +285,24 @@ impl TitleMachine {
         // 【STAGE-B-004a ②】分级适配（用户裁定：手绘素材=原尺寸居中+边缘延展
         // **不放大**；可重排 UI=锚位公式化）。classic 画布=原式原样（零偏离）。
         if sw > crate::layout::SCREEN_W || sh > crate::layout::SCREEN_H {
-            // —— modern：标题图 240×320 原尺寸**居中**（禁放大）+ 边缘钳制延展补满
+            // —— modern：标题图 240×320 原尺寸（**横=居中，纵=底对齐贴底栏**；禁放大）
+            // + 边缘平色延展带补满（2026-10-19 措辞勘误：纵非居中=底对齐；带=平色）
             // （v6 同法：四带=边角色）——右半黑/左贴边 artifact 根因。
             let img_x = (sw - map_bg.width) / 2;
             let img_y = (sh - bar - map_bg.height).max(0);
             let bw = map_bg.width as usize;
             let bh = map_bg.height as usize;
+            // 【用户验收修正 2026-10-19】左右延展带=**顶带同款纯蓝**（天空连续感，
+            // 无渐变无波浪纹）——旧取图中缘像素（云纹/渐变边缘=波浪纹 artifact）；
+            // 底带=图底缘色（黑带）。延展带配色与素材边缘协调（标题图边缘=天空蓝/黑带）。
             let top_px = map_bg.argb[0] & 0x00FF_FFFF | 0xFF00_0000;
             let bottom_px = map_bg.argb[(bh - 1) * bw] & 0x00FF_FFFF | 0xFF00_0000;
-            let left_px = map_bg.argb[(bh / 2) * bw] & 0x00FF_FFFF | 0xFF00_0000;
-            let right_px = map_bg.argb[(bh / 2) * bw + bw - 1] & 0x00FF_FFFF | 0xFF00_0000;
             g.set_color(top_px);
             g.fill_rect(0, 0, sw, img_y);
             g.set_color(bottom_px);
             g.fill_rect(0, img_y + map_bg.height, sw, sh - (img_y + map_bg.height));
-            g.set_color(left_px);
+            g.set_color(top_px); // 左右带=纯蓝（顶带同款）
             g.fill_rect(0, img_y, img_x, map_bg.height);
-            g.set_color(right_px);
             g.fill_rect(img_x + map_bg.width, img_y, sw - (img_x + map_bg.width), map_bg.height);
             g.draw_image(map_bg, img_x, img_y, 0);
             // 底部条/图标带/双箭头=锚位公式化（屏心 ± 原偏置；ARROW 对原偏置
