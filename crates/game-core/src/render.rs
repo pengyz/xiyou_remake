@@ -125,6 +125,83 @@ impl SoftFont {
     }
 }
 
+/// 字体度量抽象（task-25 ①，font-metrics-dependency-survey §3）：几何派生/渲染
+/// 步进/逻辑 wrap 三层消费统一入口。**classic=SoftFont 现值恒等**（零偏离断言）
+/// ；modern=TTF 实测变宽（壳侧注入，core 零依赖——GlyphHook 同模式）。
+pub trait FontMetrics {
+    /// 字形高（classic：SMALL/MEDIUM=14、LARGE=20）。
+    fn height(&self) -> i32;
+    /// 字符步进宽（变宽实测通道；classic=定宽 + is_wide 2×）。
+    fn char_advance(&self, ch: u16) -> i32;
+    /// 文本测量 (w, h)——换行/居中统一入口（h=line_height）。
+    fn measure(&self, s: &[u16]) -> (i32, i32);
+    /// 行距（classic=height+4，a.java:471 锚；BUG-008 教训=度量全链联动）。
+    fn line_height(&self) -> i32;
+    /// 基线距顶（classic：SMALL/MEDIUM=11、LARGE=16）。
+    fn baseline(&self) -> i32;
+
+    /// 派生便捷：charWidth 同构（classic=char_advance 同值——68 处消费面零形状迁移）。
+    fn char_width(&self, ch: u16) -> i32 {
+        self.char_advance(ch)
+    }
+
+    /// 派生便捷：substringWidth 同构（逐字符步进累加，Font.java:87-96）。
+    fn substring_width(&self, s: &[u16], offset: usize, len: usize) -> i32 {
+        let mut w = 0;
+        for &ch in &s[offset..offset + len] {
+            w += self.char_advance(ch);
+        }
+        w
+    }
+
+    /// 派生便捷：stringWidth 同构。
+    fn string_width(&self, s: &[u16]) -> i32 {
+        self.substring_width(s, 0, s.len())
+    }
+}
+
+impl FontMetrics for SoftFont {
+    fn height(&self) -> i32 {
+        self.height
+    }
+    fn char_advance(&self, ch: u16) -> i32 {
+        self.char_width(ch)
+    }
+    fn measure(&self, s: &[u16]) -> (i32, i32) {
+        (self.string_width(s), self.height + 4)
+    }
+    fn line_height(&self) -> i32 {
+        self.height + 4
+    }
+    fn baseline(&self) -> i32 {
+        self.baseline
+    }
+}
+
+/// classic 度量包装（task-25 ①）：SoftFont 现值——**恒等断言零偏离**（TDD 钉：
+/// 6/14/11、8/14/11、12/20/16、BOLD aw+1、is_wide 2×、line_height=height+4）。
+pub struct ClassicMetrics {
+    pub font: SoftFont,
+}
+
+impl FontMetrics for ClassicMetrics {
+    fn height(&self) -> i32 {
+        self.font.height
+    }
+    fn char_advance(&self, ch: u16) -> i32 {
+        self.font.char_width(ch)
+    }
+    fn measure(&self, s: &[u16]) -> (i32, i32) {
+        (self.font.string_width(s), self.font.height + 4)
+    }
+    fn line_height(&self) -> i32 {
+        self.font.height + 4
+    }
+    fn baseline(&self) -> i32 {
+        self.font.baseline
+    }
+}
+
 /// 画布/离屏图：width×height 的非预乘 ARGB 位模式（0xAARRGGBB）。
 ///
 /// 对应 shim `Image`（`int[] argb`）。初始全 0（Java `new int[..]` 语义）。
@@ -693,4 +770,53 @@ pub fn set_glyph_hook(h: Option<GlyphHook>) {
 
 fn glyph_hook() -> Option<GlyphHook> {
     unsafe { GLYPH_HOOK }
+}
+
+#[cfg(test)]
+mod font_metrics_tests {
+    use super::*;
+
+    /// task-25 ① 恒等断言（font-metrics-dependency-survey §3 legacy 恒等面）：
+    /// classic 度量逐项=SoftFont 现值零偏离（6/14/11、8/14/11、12/20/16、
+    /// BOLD aw+1、is_wide 2×、line_height=height+4）——度量换轨的钉死基准。
+    #[test]
+    fn classic_metrics_identity_matches_softfont_values() {
+        let cases = [
+            (font_size::SMALL, font_style::PLAIN, 6, 14, 11),
+            (font_size::MEDIUM, font_style::PLAIN, 8, 14, 11),
+            (font_size::LARGE, font_style::PLAIN, 12, 20, 16),
+            (font_size::SMALL, font_style::BOLD, 7, 14, 11),
+            (font_size::MEDIUM, font_style::BOLD, 9, 14, 11),
+            (font_size::LARGE, font_style::BOLD, 13, 20, 16),
+        ];
+        for (size, style, aw, h, bl) in cases {
+            let f = SoftFont::get_font(0, style, size);
+            let m = ClassicMetrics { font: f };
+            assert_eq!(m.height(), h, "size={size} style={style} height");
+            assert_eq!(m.baseline(), bl, "size={size} style={style} baseline");
+            assert_eq!(m.line_height(), h + 4, "行距=height+4（a.java:471）");
+            assert_eq!(f.ascii_width, aw, "BOLD aw+1 步进");
+            // is_wide 2×：ASCII=aw、CJK=2aw
+            assert_eq!(m.char_advance(b'A' as u16), aw, "ASCII 定宽步进");
+            assert_eq!(m.char_advance(0x4E2D), aw * 2, "CJK 2× 步进（is_wide）");
+            // measure=(串宽, 行距)
+            let s: Vec<u16> = "A中".encode_utf16().collect();
+            assert_eq!(m.measure(&s), (aw + aw * 2, h + 4), "measure=(步进累加, 行距)");
+        }
+    }
+
+    /// task-25 ① 双实现恒等：SoftFont 直装 trait 与 ClassicMetrics 包装逐值同
+    ///（68 处消费面两路接入的等价性基准）。
+    #[test]
+    fn softfont_trait_impl_matches_classic_wrapper() {
+        let f = SoftFont::get_font(0, font_style::PLAIN, font_size::MEDIUM);
+        let m = ClassicMetrics { font: f };
+        for ch in [b'A' as u16, 0x4E2D, 0x3042] {
+            assert_eq!(f.char_advance(ch), m.char_advance(ch), "char_advance 双实现同值");
+        }
+        let s: Vec<u16> = "测试ABC".encode_utf16().collect();
+        assert_eq!(f.measure(&s), m.measure(&s), "measure 双实现同值");
+        assert_eq!(f.line_height(), m.line_height());
+        assert_eq!(f.baseline(), m.baseline());
+    }
 }

@@ -28,6 +28,7 @@
 //! 周期 155）——与 Java 相同的副作用位置。
 
 use crate::layout::{CENTER_X, SCREEN_H, SCREEN_W};
+use crate::render::FontMetrics;
 use crate::render::{ArgbImage, SoftGraphics};
 
 /// parseHexColor（a.java:5159-5163）：hex 颜色解析，失败 → PARSE_DEFAULT（永不 -1）。
@@ -315,7 +316,7 @@ pub fn layout_wrapped_text(
     limit: usize,
     font: &crate::render::SoftFont,
 ) -> WrappedLayout {
-    let line_height = font.height + 4;
+    let line_height = font.height() + 4;
     let mut lines: Vec<Vec<u16>> = Vec::new();
     let mut cur_w = 0i32; // var8
     let mut line_start = 0usize; // var10
@@ -536,7 +537,7 @@ impl OverlayEngine {
 
     /// 引子字幕布局（runIntroViewer 依赖行宽/总行数；布局参数与 paint 调用一致 220/28）。
     pub fn layout_for_intro(&mut self, text: &[u16], font: &crate::render::SoftFont) {
-        self.layout(text, 220, (font.height + 4) << 1, font); // max_h = textLineHeight<<1（a.java:2941）
+        self.layout(text, 220, (font.height() + 4) << 1, font); // max_h = textLineHeight<<1（a.java:2941）
         self.cached_text = Some(text.to_vec());
     }
 
@@ -670,7 +671,7 @@ impl SlotSelect {
         // 度量全部由 fontHeight 派生（a.java:4354-4364；(10+4)/12 字面量在字高 10
         // 时同值、字高 14 后与 Java 分叉——BUG-008 根因修复面）
         let font = crate::paint::paint_font();
-        let lh = font.height + 4;
+        let lh = font.height() + 4;
         let per = crate::layout::SLOT_LIST_MAX_H / lh;
         self.rows_per_page = if per > 6 { 6 } else { per };
         self.content_w = (font.char_width('国' as u16) * 3 + 60).max(148); // wideCharWidth*3+60，钳 148
@@ -783,11 +784,11 @@ impl SlotSelect {
 
     /// run case 8 的 -2（a.java:3859-3862）。
     /// 行带几何（③-1 单源：paint_list 与 pointer 共调）：行首 = 盒顶+16、
-    /// 行高 = textLineHeight = font.height+4（a.java:471 字高派生）。返回 (行y, 行高)。
+    /// 行高 = textLineHeight = font.height()+4（a.java:471 字高派生）。返回 (行y, 行高)。
     pub fn row_band(&self, visible: i32) -> (i32, i32) {
         let font = crate::paint::paint_font();
         let y = (SCREEN_H - self.content_h) / 2 + 16;
-        (y + visible * (font.height + 4), font.height + 4)
+        (y + visible * (font.height() + 4), font.height() + 4)
     }
 
     /// 指针选行（只动光标+滚窗，镜像 cursor_down/up 内蕴；零其他状态）。
@@ -882,7 +883,7 @@ impl SlotSelect {
     /// 已合并为 [`Self::paint_equipment_frames`] 单源。
     pub fn paint_list(&self, g: &mut SoftGraphics<'_>, ui: &[ArgbImage], segs: &[i32]) -> (i32, i32) {
         let font = crate::paint::paint_font();
-        let _lh = font.height + 4; // textLineHeight（a.java:471；行高现由 row_band 提供）
+        let _lh = font.height() + 4; // textLineHeight（a.java:471；行高现由 row_band 提供）
         let x = (SCREEN_W - self.content_w - 22) >> 1;
         let y = (SCREEN_H - self.content_h) >> 1;
         paint_titled_box(g, &ui[0], &ui[13], segs, x, y, self.content_w + 22, self.content_h);
@@ -894,9 +895,9 @@ impl SlotSelect {
             } else {
                 g.set_color(crate::layout::DARK_BACKDROP);
                 g.fill_rect(CENTER_X - (self.content_w >> 1), y, self.content_w, lh);
-                g.draw_image(&ui[14], CENTER_X - (self.content_w >> 1) + 10, y + ((font.height - 8) >> 1), 0);
+                g.draw_image(&ui[14], CENTER_X - (self.content_w >> 1) + 10, y + ((font.height() - 8) >> 1), 0);
                 let t = crate::paint::NOKIA_TRANSFORM_TABLE[1];
-                g.draw_image_transformed(&ui[14], CENTER_X + (self.content_w >> 1) - 30, y + ((font.height - 8) >> 1), 0, t);
+                g.draw_image_transformed(&ui[14], CENTER_X + (self.content_w >> 1) - 30, y + ((font.height() - 8) >> 1), 0, t);
                 g.set_color(crate::layout::SLOT_TEXT_ACTIVE);
             }
             if !self.valid[row as usize] {
@@ -1015,7 +1016,7 @@ fn paint_equipment_frame<'a>(
         let wide = font.char_width('国' as u16); // wideCharWidth（a.java:25）
         g.set_color(-1i32 as u32);
         let name: Vec<u16> = crate::scene::EQUIPMENT_MATERIAL_NAMES[v as usize].encode_utf16().collect();
-        g.draw_string(&name, vx + ((32 - wide) >> 1), vy + ((32 - font.height) >> 1), 0);
+        g.draw_string(&name, vx + ((32 - wide) >> 1), vy + ((32 - font.height()) >> 1), 0);
     } else {
         let mut i = v as i32 - 33;
         if i > 7 {
@@ -1087,6 +1088,7 @@ pub(crate) mod slot_equip_test_support {
     /// drawString(“无”, fx+(32-12>>1), fy+(32-10>>1), 0)——与被测画面的框区逐像素相等；
     /// 另断言白字确实落笔且框内无任何图标色。
     pub fn assert_frame_material_name(screen: &ArgbImage, fx: i32, fy: i32, what: &str) {
+        use crate::render::FontMetrics;
         let mut reference = ArgbImage::create(SCREEN_W, SCREEN_H);
         {
             let font = crate::paint::paint_font();
@@ -1095,7 +1097,7 @@ pub(crate) mod slot_equip_test_support {
             crate::menu_family::paint_mini_frame(&mut g, fx, fy, 32, 32);
             g.set_color(0xFFFFFF);
             let wide = font.char_width('国' as u16);
-            g.draw_string(&[0x65E0], fx + ((32 - wide) >> 1), fy + ((32 - font.height) >> 1), 0); // “无”
+            g.draw_string(&[0x65E0], fx + ((32 - wide) >> 1), fy + ((32 - font.height()) >> 1), 0); // “无”
         }
         let mut white = 0;
         for y in fy..fy + 31 {
@@ -1123,6 +1125,7 @@ pub(crate) mod slot_equip_test_support {
 
 #[cfg(test)]
 mod slot_equip_tests {
+    use crate::render::FontMetrics;
     use super::slot_equip_test_support::*;
     use super::*;
 
@@ -1267,6 +1270,7 @@ pub struct OptionList {
 
 #[cfg(test)]
 mod option_tests {
+    use crate::render::FontMetrics;
     use super::*;
 
     #[test]
@@ -1313,10 +1317,10 @@ impl OptionList {
         self.labels.push(label_idx);
         self.checked.push(checked);
         if self.labels.len() == 1 {
-            self.box_h = 32 + (font.height + 8); // optionRowHeight = fontHeight+8（a.java:812）
+            self.box_h = 32 + (font.height() + 8); // optionRowHeight = fontHeight+8（a.java:812）
             self.box_w = w;
         } else {
-            self.box_h += font.height + 8;
+            self.box_h += font.height() + 8;
             if self.box_w < w {
                 self.box_w = w;
             }
@@ -1341,11 +1345,11 @@ impl OptionList {
     }
 
     /// 行带几何（③-1 单源：paint 与 pointer_hit 共调）：行高 = optionRowHeight
-    /// = font.height+8（a.java:812）；行首 = 盒顶+16。返回 (行y, 行高)。
+    /// = font.height()+8（a.java:812）；行首 = 盒顶+16。返回 (行y, 行高)。
     pub fn row_band(&self, i: usize) -> (i32, i32) {
         let font = crate::paint::paint_font();
         let y = (SCREEN_H - self.box_h) / 2 + 16;
-        (y + (font.height + 8) * i as i32, font.height + 8)
+        (y + (font.height() + 8) * i as i32, font.height() + 8)
     }
 
     /// paint case 16（a.java:2959-2990）。
@@ -1359,12 +1363,12 @@ impl OptionList {
         let hl = row_h * self.highlight;
         g.set_color(crate::layout::OPTION_HIGHLIGHT);
         g.fill_rect(content_x, y0 + hl, self.box_w, row_h);
-        g.draw_image(&ui[14], content_x + 10, y0 + 2 + hl + ((font.height - 5) >> 1), 0);
+        g.draw_image(&ui[14], content_x + 10, y0 + 2 + hl + ((font.height() - 5) >> 1), 0);
         let t = crate::paint::NOKIA_TRANSFORM_TABLE[1];
         g.draw_image_transformed(
             &ui[14],
             content_x + self.box_w - 30,
-            y0 + 2 + hl + ((font.height - 5) >> 1),
+            y0 + 2 + hl + ((font.height() - 5) >> 1),
             0,
             t,
         );
@@ -1377,7 +1381,7 @@ impl OptionList {
             lx += 2 + font.string_width(label);
             // 勾选框：未选中 sy=12、选中 sy=0（a.java:2987-2987 分支方向）
             let sy = if !self.checked[i] { 12 } else { 0 };
-            crate::paint::draw_image_clipped(g, &ui[11], lx, ry + ((font.height - 2) >> 1), sy, 0, 12, 10);
+            crate::paint::draw_image_clipped(g, &ui[11], lx, ry + ((font.height() - 2) >> 1), sy, 0, 12, 10);
         }
     }
 }
@@ -1476,6 +1480,7 @@ pub fn hud_panel_anchor(screen_w: i32, view_bottom: i32, frame_h: i32) -> HudPan
 
 #[cfg(test)]
 mod stage_b_004b_menu_anchor_tests {
+    use crate::render::FontMetrics;
     use super::{hud_panel_anchor, in_game_menu_box};
 
     /// classic 代入化回 a.java:2431-2444 原值（零偏离命门）。

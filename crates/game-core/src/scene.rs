@@ -22,6 +22,7 @@ use crate::game_view::GameView;
 use crate::layout::*;
 use crate::menu_family::{paint_mini_frame, paint_number};
 use crate::paint::{draw_image_clipped, m_034_softkeys};
+use crate::render::FontMetrics;
 use crate::render::{ArgbImage, SoftGraphics};
 
 /// f_Image_arr2_00 的 16 容器名序（a.java:451）。本场景常驻引用见 [`SceneImages`]。
@@ -883,7 +884,7 @@ impl GameScene {
                 tx += 42;
                 g.set_color(16770173);
                 if let Some(name) = &self.overlay_item_name {
-                    g.draw_string(name, tx, ty + ((32 - font.height) >> 1), 0);
+                    g.draw_string(name, tx, ty + ((32 - font.height()) >> 1), 0);
                 }
                 g.set_color(WHITE);
                 self.paint_wrapped_text(g, bx + 16, ty + 36, OVERLAY_TEXT_W, self.overlay_box_h - 32 - 36, true);
@@ -1352,7 +1353,7 @@ impl GameScene {
             self.overlay_item_name = self.object_type_name(t);
         }
         let font = crate::paint::paint_font();
-        let line_h = font.height + 4;
+        let line_h = font.height() + 4;
         if matches!(kind, 0 | 2 | 4 | 5) {
             self.layout_full_text(text, OVERLAY_TEXT_W, OVERLAY_TEXT_MAX_H);
             self.overlay_box_w = self.overlay_content_w + 32;
@@ -1435,7 +1436,7 @@ impl GameScene {
     /// 开场置 `getColor()`、每次 `\c` 刷新、跨行持久；旧拷贝行内/跨 paint 两向偏离）。
     fn paint_wrapped_text(&mut self, g: &mut SoftGraphics<'_>, x: i32, y: i32, w: i32, _max_h: i32, arrows: bool) {
         let font = crate::paint::paint_font();
-        let line_h = font.height + 4;
+        let line_h = font.height() + 4;
         let lines: Vec<Vec<u16>> = self
             .overlay_lines
             .iter()
@@ -2852,7 +2853,7 @@ impl GameScene {
     /// resetMenuLayout（a.java:4690-4702）。
     fn reset_menu_layout(&mut self) {
         let font = crate::paint::paint_font();
-        self.menu_line_height = font.height + 6;
+        self.menu_line_height = font.height() + 6;
         self.menu_visible_rows = 238 / self.menu_line_height;
         self.menu_list_height = self.menu_line_height * self.menu_visible_rows;
         self.menu_box_width = font.char_width('回' as u16) << 1; // wideCharWidth（全宽字符宽）
@@ -3080,7 +3081,7 @@ impl GameScene {
             self.menu_box_width,
             self.menu_list_height,
             self.menu_line_height,
-            font.height,
+            font.height(),
         );
         let (box_w, box_h) = (mb.box_w, mb.box_h);
         crate::menu_family::paint_box_frame(g, &self.images.ui[0], mb.bx, mb.by, box_w, box_h);
@@ -3137,14 +3138,14 @@ impl GameScene {
         let font = crate::paint::paint_font();
         self.item_cols = 4;
         self.item_rows_total = 32 / self.item_cols;
-        self.item_rows_visible = (268 - font.height - 10) / 40;
+        self.item_rows_visible = (268 - font.height() - 10) / 40;
         if self.item_rows_visible > self.item_rows_total {
             self.item_rows_visible = self.item_rows_total;
         }
         self.item_scroll_top = 0;
         self.item_scroll_bottom = self.item_rows_visible;
         self.item_box_w = 42 + 40 * self.item_cols;
-        self.item_box_h = 34 + font.height + 10 + 40 * self.item_rows_visible;
+        self.item_box_h = 34 + font.height() + 10 + 40 * self.item_rows_visible;
         self.softkeys = (1, 3);
     }
 
@@ -3500,7 +3501,7 @@ impl GameScene {
                 .collect::<Vec<u16>>();
             g.draw_string(&name, x, y + 2, 0);
         }
-        y += font.height + 4;
+        y += font.height() + 4;
         x -= 9;
         g.set_color(6178);
         g.draw_line(x, y, x + self.item_box_w - 23, y);
@@ -3551,7 +3552,7 @@ impl GameScene {
             y += 40;
         }
         x = ((SCREEN_W + self.item_box_w) >> 1) - 22;
-        y -= (self.item_box_h - 32 - font.height - 4) >> 1;
+        y -= (self.item_box_h - 32 - font.height() - 4) >> 1;
         if self.item_scroll_top > 0 {
             draw_image_clipped(g, &self.images.ui[15], x, y - 15, 0, 0, 7, 9);
         }
@@ -3790,7 +3791,7 @@ impl GameScene {
             }
         }
         let font = crate::paint::paint_font();
-        let row_h = font.height + 4 + 36;
+        let row_h = font.height() + 4 + 36;
         self.encyc_rows_visible = 258 / row_h;
         if self.encyc_rows_visible > self.encyc_count {
             self.encyc_rows_visible = self.encyc_count;
@@ -3856,7 +3857,7 @@ impl GameScene {
                 let name: Vec<u16> = self.object_type_names[t].encode_utf16().collect();
                 g.draw_string(&name, x, y + 2, 0);
                 let dmg_x = ((SCREEN_W + self.encyc_panel_w) >> 1) - 75;
-                let name_dy = (font.height - 19) >> 1;
+                let name_dy = (font.height() - 19) >> 1;
                 y += name_dy;
                 if pred < 0 {
                     g.draw_image(&self.images.ui[17], dmg_x - 4, y + 2, 0);
@@ -3992,7 +3993,7 @@ impl GameScene {
 
         let font = crate::paint::paint_font();
         let bw = 115i32; // f_int_75（a.java:810）
-        let bh = font.height + 90; // f_int_74（a.java:809）
+        let bh = font.height() + 90; // f_int_74（a.java:809）
         let bx = (self.layout.screen_w - bw - 22) >> 1;
         let by = (self.layout.screen_h - bh) >> 1;
         crate::menu_family::paint_titled_box(g, &self.images.ui[0], &self.images.ui[13], &[0, 1, 2], bx, by, bw + 22, bh);
@@ -4002,10 +4003,10 @@ impl GameScene {
         g.set_color(7575203);
         g.draw_string(&"花费".encode_utf16().collect::<Vec<u16>>(), x, y, 0);
         x += wide + 4;
-        g.draw_image(&self.images.ui[1], x, y + ((font.height - 10) >> 1), 0);
+        g.draw_image(&self.images.ui[1], x, y + ((font.height() - 10) >> 1), 0);
         x += 60;
-        paint_number(g, &self.images.ui[2], self.alchemy_price, x, y + 3 + ((font.height - 10) >> 1));
-        y += font.height + 5;
+        paint_number(g, &self.images.ui[2], self.alchemy_price, x, y + 3 + ((font.height() - 10) >> 1));
+        y += font.height() + 5;
         x = (self.layout.screen_w - bw) >> 1;
         g.set_color(549016);
         g.fill_rect(x, y + (self.alchemy_cursor << 4), bw, 16);
@@ -6449,7 +6450,7 @@ impl GameScene {
                 g.draw_string(
                     &none,
                     slot_x + ((HUD_SLOT_SIZE - cw) >> 1),
-                    slot_y + ((HUD_SLOT_SIZE - font.height) >> 1),
+                    slot_y + ((HUD_SLOT_SIZE - font.height()) >> 1),
                     0,
                 );
             } else if let Some(img) = self
@@ -6491,7 +6492,7 @@ impl GameScene {
         let text_len = text.chars().count() as i32;
         if (self.frame_counter & 3) >> 1 != 0 && self.dialog_char < text_len {
             self.dialog_char += 1;
-            let line_h = font.height + 4;
+            let line_h = font.height() + 4;
             self.layout_wrapped_text_limited(&text, 209, (line_h << 1) + 12, self.dialog_char);
             self.overlay_page_top = (self.overlay_total_lines - 1).max(0);
             self.overlay_page_bottom = self.overlay_total_lines;
@@ -6502,7 +6503,7 @@ impl GameScene {
         g.set_clip(0, 0, self.layout.screen_w, self.layout.screen_h);
         g.draw_image(&img, -self.ending_scroll, img_y0, 0);
         g.set_color(0xFFFF_FFFF);
-        self.paint_wrapped_text(g, 15, self.layout.screen_h - font.height - 10, 210, font.height + 10, false);
+        self.paint_wrapped_text(g, 15, self.layout.screen_h - font.height() - 10, 210, font.height() + 10, false);
     }
 
     /// browseOfferQueue（a.java:7480-7503）：日志页钳位翻转 + kind 选表 + 页码指示。
@@ -6621,7 +6622,7 @@ impl GameScene {
         let show_box = self.overlay_text.is_some() && !self.overlay_active && self.dialog_phase != 4;
         if show_box {
             let font = crate::paint::paint_font();
-            let line_h = font.height + 4;
+            let line_h = font.height() + 4;
             let dialog_block_h = (line_h << 1) + 12;
             let dialog_block_y0 = self.layout.screen_h - dialog_block_h;
             // 【STAGE-B-002 口径修正 2026-18-18】底部面板=**经典尺寸固定+整体居中**
@@ -6664,7 +6665,7 @@ impl GameScene {
             } else {
                 g.set_color(WHITE);
                 let q: Vec<u16> = "?".encode_utf16().collect();
-                g.draw_string(&q, 40 + dx, dialog_block_y0 + ((dialog_block_h - font.height) >> 1), 17);
+                g.draw_string(&q, 40 + dx, dialog_block_y0 + ((dialog_block_h - font.height()) >> 1), 17);
             }
             g.set_color(10473684);
             self.paint_wrapped_text(g, 85 + dx, dialog_block_y0 + 12, 129, dialog_block_h - 12, false);
@@ -6726,7 +6727,7 @@ impl GameScene {
             // 中心 fill（色[1]）。shim 常量：VCENTER=2 非 16！
             let text: Vec<u16> = "引子".encode_utf16().collect();
             let x0 = 32 - 1;
-            let y0 = base_y + 9 + ((19 - font.height) >> 1) - 1;
+            let y0 = base_y + 9 + ((19 - font.height()) >> 1) - 1;
             let outline = [4202520u32, WHITE];
             let deltas = [(1i32, 0i32), (1, 0), (0, 1), (0, 1), (-1, 0), (-1, 0), (0, -1), (0, -1)];
             let mut pts = Vec::new();
@@ -6777,6 +6778,7 @@ fn m_003_clip5(g: &mut SoftGraphics<'_>, img: &ArgbImage, x: i32, y: i32, src_x:
 /// [`crate::menu_family::slot_equip_test_support`]。
 #[cfg(test)]
 mod slot_equip_scene_tests {
+    use crate::render::FontMetrics;
     use super::*;
     use crate::menu_family::slot_equip_test_support::*;
 
@@ -8305,6 +8307,7 @@ mod slot_equip_scene_tests {
 /// x∈1..=11 地形可走，其余墙）+ 纯色合成图集 + 真实数值表夹具。
 #[cfg(test)]
 mod scene_test_support {
+    use crate::render::FontMetrics;
     use super::*;
 
     const W: i32 = 13;
@@ -8451,23 +8454,23 @@ pub enum PointerHit {
 
 impl GameScene {
     /// 菜单行带几何（③-1 单源：与 paint_menu_list 逐项同式——居中盒、行首 16+pad、
-    /// 行距 menu_line_height；pad=(line_height-font.height)>>1）。返回 (行y, 行高)。
+    /// 行距 menu_line_height；pad=(line_height-font.height())>>1）。返回 (行y, 行高)。
     fn menu_row_band(&self, visible: i32) -> (i32, i32) {
         let font = crate::paint::paint_font();
-        let pad = (self.menu_line_height - font.height) >> 1;
+        let pad = (self.menu_line_height - font.height()) >> 1;
         let by = CENTER_Y - ((self.menu_list_height + 32) >> 1) + 16 + pad
             + visible * self.menu_line_height;
         (by - pad, self.menu_line_height)
     }
 
     /// 背包栅格原点（③-1 单源）：**paint_item_panel 与 pointer_hit 共调本 fn**。
-    /// y = 盒顶+31+font.height——paint 累积式（:3412 +16、:3420 +fh+4、:3424 +1、
+    /// y = 盒顶+31+font.height()——paint 累积式（:3412 +16、:3420 +fh+4、:3424 +1、
     /// :3427 +10）逐项同式；2026-10-18 F-1 整改：原写 32 差 1px + 测试自证，已修。
     pub fn item_cell_origin(&self) -> (i32, i32) {
         let font = crate::paint::paint_font();
         (
             (SCREEN_W - self.item_box_w) / 2 + 20,
-            (SCREEN_H - self.item_box_h) / 2 + 31 + font.height,
+            (SCREEN_H - self.item_box_h) / 2 + 31 + font.height(),
         )
     }
 
@@ -8582,6 +8585,7 @@ impl GameScene {
 /// 光标+滚窗 (c) 合成=press+release 同拍（壳侧同款点按，见 shell 测试）(d) 几何单源）
 #[cfg(test)]
 mod pointer_seam_tests {
+    use crate::render::FontMetrics;
     use super::scene_test_support::scene;
     use super::{GameMode, PointerHit};
     use crate::layout::{SCREEN_H, SCREEN_W};
@@ -8652,7 +8656,7 @@ mod pointer_seam_tests {
         let list = crate::menu_family::OptionList::new(true, false);
         sc.options = Some(list);
         let font = crate::paint::paint_font();
-        let row_h = font.height + 8;
+        let row_h = font.height() + 8;
         // 期望=字面常量锚（F-1 口径：禁被测自身作期望）——OptionList::add 累加式：
         // box_h=32+2*row_h（a.java:9911-9926）；行首=盒顶+16（paint case 16）
         let box_h = 32 + 2 * row_h;
@@ -8687,7 +8691,7 @@ mod pointer_seam_tests {
         let mut sc = scene((2, 2), &[]);
         sc.game_mode = GameMode::SaveSlot;
         let font = crate::paint::paint_font();
-        let lh = font.height + 4;
+        let lh = font.height() + 4;
         let y0 = (SCREEN_H - sc.slot.content_h) / 2 + 16; // 字面锚：行首=盒顶+16
         let x = SCREEN_W / 2;
         assert_eq!(
@@ -8860,7 +8864,7 @@ mod pointer_seam_tests {
         let list = crate::menu_family::OptionList::new(true, false);
         m.options = Some(list);
         let font = crate::paint::paint_font();
-        let row_h = font.height + 8;
+        let row_h = font.height() + 8;
         let y0 = (SCREEN_H - (32 + 2 * row_h)) / 2 + 16; // 字面锚（禁自证）
         assert_eq!(
             m.pointer_hit(SCREEN_W / 2, y0 + 2),
@@ -8921,6 +8925,7 @@ mod pointer_seam_tests {
 /// （a.java:9285-9291）。
 #[cfg(test)]
 mod fidelity_fix_tests {
+    use crate::render::FontMetrics;
     use super::scene_test_support::{images, maplv, numbers, scene};
     use super::*;
 
@@ -9092,6 +9097,7 @@ mod fidelity_fix_tests {
 /// tests/mov_route_scene.rs（floor2 script1/2 + floor40 script12 伏击）。
 #[cfg(test)]
 mod entity_route_tests {
+    use crate::render::FontMetrics;
     use super::scene_test_support::{scene, ROW};
     use super::*;
 

@@ -26,6 +26,7 @@
 //! 其余步骤的地图/实体装载属 mode 3 范围（本模块只推进度与目标模式）。
 
 use crate::enums::GameMode;
+use crate::render::FontMetrics;
 use crate::render::{ArgbImage, SoftGraphics};
 
 /// `dimImage`（a.java:4614-4630）：压暗变换——白色像素(-1)跳过，其余非透明
@@ -219,7 +220,7 @@ impl IntroSequence {
             // 画布延展（原设计黑带语义保持）；字幕框=锚位公式化（classic 10/220
             // 居中同构回代零偏离）；「跳过/请按任意键」=贴右/居中公式随 layout。
             let ih = img.height;
-            let band_y = (layout.screen_h - ih - (font.height + 4) * 3) >> 1;
+            let band_y = (layout.screen_h - ih - (font.height() + 4) * 3) >> 1;
             g.set_color(crate::layout::BLACK);
             g.fill_rect(0, 0, layout.screen_w, band_y);
             let below = band_y + ih;
@@ -249,9 +250,9 @@ impl IntroSequence {
                         g,
                         text,
                         sub_x,
-                        band_y + ih + font.height,
+                        band_y + ih + font.height(),
                         sub_w,
-                        (font.height + 4) << 1,
+                        (font.height() + 4) << 1,
                         false,
                         0,
                         font,
@@ -261,13 +262,13 @@ impl IntroSequence {
         }
         if self.page > 2 {
             g.set_color(crate::layout::WHITE);
-            g.draw_string(PRESS_ANY_KEY, layout.center_x, layout.screen_h - font.height - 2, 17);
+            g.draw_string(PRESS_ANY_KEY, layout.center_x, layout.screen_h - font.height() - 2, 17);
         } else {
             g.set_color(crate::layout::WHITE);
             g.draw_string(
                 SKIP_LABEL,
                 layout.screen_w - font.string_width(SKIP_LABEL) - 5,
-                layout.screen_h - font.height - 2,
+                layout.screen_h - font.height() - 2,
                 0,
             );
         }
