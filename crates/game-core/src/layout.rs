@@ -439,6 +439,11 @@ pub struct Layout {
     pub edge_margin: i32,
     /// setCameraClamped 偏移上界（game_view.rs `x > 64` / camera.rs 同源）。
     pub camera_clamp_max: i32,
+    // —— 行为常量（③同款：classic 代入化回原值）——
+    /// boot 尾是否进声音询问（mode 21 SoundAsk）。classic=true = 原版时间轴
+    /// （a.java:3371-3373 → SoundAsk，64 枚帧夹具的 Java 参照面）；modern=false =
+    /// STAGE-B-001 门控面（跳过询问直入 MainMenu，docs/spec/stage-b-deviations.md）。
+    pub boot_sound_prompt: bool,
     // —— UI 公式锚（②：顶栏楼层贴左/钥匙金币贴右/中间填充；HUD 贴底居中）——
     /// 三钥格 x（贴右：`screen_w - 175 + 42i`，右块 = 三钥槽 126 + 金币区 49）。
     pub status_key_x: [i32; 3],
@@ -489,6 +494,7 @@ impl Layout {
             softkey_icon_right_x: softkey_icon_right_x(),
             edge_margin: EDGE_MARGIN,
             camera_clamp_max: CAMERA_CLAMP_MAX,
+            boot_sound_prompt: true,
             status_key_x: STATUS_KEY_X,
             status_gold_icon_x: STATUS_GOLD_ICON_X,
             status_gold_num_x: STATUS_GOLD_NUM_X,
@@ -520,6 +526,8 @@ impl Layout {
         let screen_h = (grid_h * CELL_PX).max(SCREEN_H);
         let mut l = Layout::classic();
         l.preset = Preset::Modern;
+        // STAGE-B-001 门控面：modern 跳过开机声音询问（classic 保留原版时间轴）
+        l.boot_sound_prompt = false;
         l.screen_w = screen_w;
         l.screen_h = screen_h;
         l.center_x = screen_w / 2;

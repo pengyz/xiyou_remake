@@ -8692,8 +8692,10 @@ mod pointer_seam_tests {
         assert_eq!(sc.player.hp, hp, "他态零变化");
     }
 
-    /// STAGE-B-001（2026-10-18 用户裁定）：boot 不再进 SoundAsk（mode 21），
-    /// 直入 MainMenu；默认开声；标题 BGM 请求=track2（防"直入标题带出无声屏"新 bug）。
+    /// STAGE-B-001（2026-10-18 用户裁定）**modern 预设面**：boot 不再进 SoundAsk
+    /// （mode 21），直入 MainMenu；默认开声；标题 BGM 请求=track2（防无声标题屏）。
+    /// 2026-10-19 门控化（lead 裁定）：001 行为只在 modern 生效，classic 走原版时间轴
+    /// （对测见 stage_b001_classic_keeps_sound_ask）。
     #[test]
     fn stage_b001_boot_skips_sound_ask() {
         use crate::paint::BootMachine;
@@ -8708,6 +8710,8 @@ mod pointer_seam_tests {
             vec![crate::render::ArgbImage::create(1, 1)],
             vec![crate::render::ArgbImage::create(1, 1)],
         );
+        // 001 门控面 = modern 预设（classic 预设保留开机询问）
+        m.layout = crate::layout::Layout::modern(13, 13);
         // logo 相位推进（paint 侧计数——直接驱动 logo 尾转出）
         for _ in 0..400 {
             m.tick(0);
@@ -8719,12 +8723,46 @@ mod pointer_seam_tests {
         assert_eq!(
             m.mode,
             GameMode::MainMenu,
-            "STAGE-B-001：boot 直入 MainMenu（不得停留 SoundAsk）"
+            "STAGE-B-001（modern）：boot 直入 MainMenu（不得停留 SoundAsk）"
         );
         // 默认开声（BgmState::new=true）
-        assert!(m.bgm.sound_enabled, "STAGE-B-001：默认开声");
+        assert!(m.bgm.sound_enabled, "STAGE-B-001（modern）：默认开声");
         // 标题 BGM 请求（硬要求 3：防无声标题屏）
-        assert_eq!(m.bgm_request(), Some(2), "STAGE-B-001：标题 BGM=track2");
+        assert_eq!(m.bgm_request(), Some(2), "STAGE-B-001（modern）：标题 BGM=track2");
+    }
+
+    /// STAGE-B-001 门控化对测（2026-10-19）：classic 预设保留开机声音询问 = 原版
+    /// 时间轴（a.java:3371-3373 → SoundAsk + case21 入场 soundEnabled=false a.java:4484）
+    /// ——64 枚帧夹具 Java 参照面零偏离的命门回归。
+    #[test]
+    fn stage_b001_classic_keeps_sound_ask() {
+        use crate::paint::BootMachine;
+        let mut m = BootMachine::new(
+            crate::render::ArgbImage::create(1, 1),
+            crate::render::ArgbImage::create(1, 1),
+            (0..8).map(|_| crate::render::ArgbImage::create(1, 1)).collect(),
+            (0..25).map(|_| crate::render::ArgbImage::create(1, 1)).collect(),
+            (0..2).map(|_| crate::render::ArgbImage::create(1, 1)).collect(),
+            crate::render::ArgbImage::create(1, 1),
+            vec![crate::render::ArgbImage::create(1, 1)],
+            vec![crate::render::ArgbImage::create(1, 1)],
+            vec![crate::render::ArgbImage::create(1, 1)],
+        );
+        // 默认布局 = classic（BootMachine::new 内建）——不再覆写
+        for _ in 0..400 {
+            m.tick(0);
+            if m.mode != GameMode::Boot {
+                break;
+            }
+            m.paints = m.paints.wrapping_add(1);
+        }
+        assert_eq!(
+            m.mode,
+            GameMode::SoundAsk,
+            "classic 预设：boot 进 SoundAsk（原版时间轴，a.java:3371-3373）"
+        );
+        assert_eq!(m.softkeys, (1, 2), "case21 入场软键 (1,2)（a.java:4482-4478）");
+        assert!(!m.bgm.sound_enabled, "case21 入场 soundEnabled=false（a.java:4484）");
     }
 
     /// 游戏内菜单"退出"（kind7）→ 回标题（Java gameMode=1 跨机语义）——

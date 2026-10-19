@@ -823,19 +823,32 @@ impl BootMachine {
                 self.image = None;
                 self.counter = 0;
                 self.bgm.close(); // closeAudioPlayer（a.java:3376，此时无播放器）
-                // STAGE-B-001（2026-10-18 用户裁定，docs/spec/stage-b-deviations.md）：
-                // 跳过 mode 21 声音询问（原 a.java:3371-3373 → SoundAsk + case21 入场
-                // soundEnabled=false（:4484））——直入标题，默认开声。偏离点 1/2。
-                self.mode = GameMode::MainMenu;
-                // mode1 入场半：建 TitleMachine（照 SoundAsk 回答臂的 gameMode=1 语义
-                // a.java:4232-4241 同款）——跳过询问不跳过初始化（首版漏此致 title=None panic）
-                self.title = Some(crate::title::TitleMachine::new());
                 self.frame_interval_ms = 75; // f_int_02=75（a.java:3377）
-                self.bgm.enter_title(); // m_000 case 1 音频半（a.java:4295/4311）——
-                // 标题 BGM=track2（STAGE-B-001 硬要求 3：防直入标题带出无声屏）
-                self.finished = false;
-                // SKY_WAR 读档失败路径（oracle 内存库恒空 ⇒ catch 删库重置）——
-                // 原在 case21 入场（a.java:4450-4479）；Rust 侧构造链独立（shell boot）
+                if self.layout.boot_sound_prompt {
+                    // classic 原版时间轴（a.java:3371-3373 → SoundAsk + case21 入场）——
+                    // STAGE-B-001 门控化（2026-10-19 lead 裁定）：001 行为只在 modern
+                    // 预设生效；classic 预设保留开机声音询问 = 原版时间轴，64 枚帧夹具
+                    // Java 参照面零偏离（docs/spec/stage-b-deviations.md 001 节更正）。
+                    self.mode = GameMode::SoundAsk;
+                    // dispatchModeEntry case 21（a.java:4482-4478）：软键 (1,2)；
+                    // soundEnabled=false（a.java:4484）；RMS "SKY_WAR" 读档失败路径
+                    //（oracle 内存库恒空 ⇒ catch 删库重置）
+                    self.softkeys = (1, 2);
+                    self.bgm.enter_sound_prompt();
+                    self.finished = false; // mode 21 属对拍范围
+                } else {
+                    // STAGE-B-001（modern 预设面，docs/spec/stage-b-deviations.md）：
+                    // 跳过 mode 21 声音询问——直入标题，默认开声。偏离点 1/2。
+                    self.mode = GameMode::MainMenu;
+                    // mode1 入场半：建 TitleMachine（照 SoundAsk 回答臂的 gameMode=1 语义
+                    // a.java:4232-4241 同款）——跳过询问不跳过初始化（首版漏此致 title=None panic）
+                    self.title = Some(crate::title::TitleMachine::new());
+                    self.bgm.enter_title(); // m_000 case 1 音频半（a.java:4295/4311）——
+                    // 标题 BGM=track2（STAGE-B-001 硬要求 3：防直入标题带出无声屏）
+                    self.finished = false;
+                    // SKY_WAR 读档失败路径（oracle 内存库恒空 ⇒ catch 删库重置）——
+                    // 原在 case21 入场（a.java:4450-4479）；Rust 侧构造链独立（shell boot）
+                }
             }
         }
         self.key_value = 0; // a.java:4276（tick 末 keyValue=0）
