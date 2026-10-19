@@ -520,6 +520,9 @@ impl Shell {
             }
         }
         machine.sptarm = load_container(src, "sptarm", 10);
+        // 【STAGE-B-004a】BootMachine 布局换轨（与 GameScene::apply_layout 同口径）
+        // ——不换轨则 modern 画布下标题/序章仍走 classic 分支（同 sha 实证）。
+        machine.apply_layout(layout.clone());
         Shell {
             assets,
             rms,

@@ -207,15 +207,19 @@ impl IntroSequence {
         overlay: &mut crate::menu_family::OverlayEngine,
         particles: &mut crate::title::Particles,
         font: &crate::render::SoftFont,
+        layout: &crate::layout::Layout,
     ) {
         if let Some(img) = &self.image {
+            // 【STAGE-B-004a ③】立绘=**原尺寸居中**（禁放大，分级策略）+ 黑带随
+            // 画布延展（原设计黑带语义保持）；字幕框=锚位公式化（classic 10/220
+            // 居中同构回代零偏离）；「跳过/请按任意键」=贴右/居中公式随 layout。
             let ih = img.height;
-            let band_y = (crate::layout::SCREEN_H - ih - (font.height + 4) * 3) >> 1;
+            let band_y = (layout.screen_h - ih - (font.height + 4) * 3) >> 1;
             g.set_color(crate::layout::BLACK);
-            g.fill_rect(0, 0, crate::layout::SCREEN_W, band_y);
+            g.fill_rect(0, 0, layout.screen_w, band_y);
             let below = band_y + ih;
-            g.fill_rect(0, below, crate::layout::SCREEN_W, crate::layout::SCREEN_H - below);
-            g.draw_image(img, crate::layout::CENTER_X, band_y, 17);
+            g.fill_rect(0, below, layout.screen_w, layout.screen_h - below);
+            g.draw_image(img, layout.center_x, band_y, 17);
             if !self.color_phase {
                 g.set_color(crate::layout::WHITE);
             } else {
@@ -223,12 +227,15 @@ impl IntroSequence {
             }
             if self.page < 3 {
                 if let Some(text) = &self.text {
+                    // 字幕框宽=画布宽-20、水平居中（classic=220@10 同构回代）
+                    let sub_w = layout.screen_w - 20;
+                    let sub_x = (layout.screen_w - sub_w) >> 1;
                     overlay.paint(
                         g,
                         text,
-                        10,
+                        sub_x,
                         band_y + ih + font.height,
-                        220,
+                        sub_w,
                         (font.height + 4) << 1,
                         false,
                         0,
@@ -239,13 +246,13 @@ impl IntroSequence {
         }
         if self.page > 2 {
             g.set_color(crate::layout::WHITE);
-            g.draw_string(PRESS_ANY_KEY, crate::layout::CENTER_X, crate::layout::SCREEN_H - font.height - 2, 17);
+            g.draw_string(PRESS_ANY_KEY, layout.center_x, layout.screen_h - font.height - 2, 17);
         } else {
             g.set_color(crate::layout::WHITE);
             g.draw_string(
                 SKIP_LABEL,
-                crate::layout::SCREEN_W - font.string_width(SKIP_LABEL) - 5,
-                crate::layout::SCREEN_H - font.height - 2,
+                layout.screen_w - font.string_width(SKIP_LABEL) - 5,
+                layout.screen_h - font.height - 2,
                 0,
             );
         }

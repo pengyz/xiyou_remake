@@ -3119,7 +3119,7 @@ impl GameScene {
         if self.menu_visible_bottom < self.menu_item_count {
             draw_image_clipped(g, &self.images.ui[15], ax, ay + 9, 7, 0, 7, 9);
         }
-        m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
+        m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
     }
 
     /// dispatchModeEntry case 10（a.java:4370-4380）：道具面板布局初始化。
@@ -3548,7 +3548,7 @@ impl GameScene {
         if self.item_scroll_bottom < self.item_rows_total {
             draw_image_clipped(g, &self.images.ui[15], x, y + 5, 7, 0, 7, 9);
         }
-        m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
+        m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
     }
 
     /// dispatchModeEntry case 7（a.java:4342-4364，case7/8 共享）：软键 (1,3) + loadSlotTable
@@ -3690,7 +3690,7 @@ impl GameScene {
             vx += 42;
             self.paint_key_slot(g, 2, self.slot.keys_red[c] as i32, vx, vy);
         }
-        m_034_softkeys(g, &ui[10], &ui[11], self.softkeys.0, self.softkeys.1);
+        m_034_softkeys(g, &ui[10], &ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
     }
 
     /// mode 15 帮助全文（dispatchModeEntry case 15 a.java:4407-4411，showOverlayMessage
@@ -3732,7 +3732,7 @@ impl GameScene {
         let mut f = self.strip_frame;
         crate::title::paint_icon_strip_at(g, &self.images.menu_strip, 86, 10, 51, 68, &mut f);
         self.strip_frame = f;
-        m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
+        m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
         if !self.transitioning && self.overlay_active {
             self.paint_overlay_box(g);
         }
@@ -3922,7 +3922,7 @@ impl GameScene {
                 draw_image_clipped(g, &self.images.ui[19], 112, y + (self.frame_counter & 1) as i32, 16, 17, 15, 17);
             }
         }
-        m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
+        m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
     }
 
     /// alchemyPriceFor（a.java:7256-7262）：第 k 次升级价 = 20 + Σ20i (i=1..k-2)
@@ -3978,7 +3978,7 @@ impl GameScene {
         self.paint_entities(g, self.view.cam_x, self.view.cam_y + self.layout.view_top_y);
         self.paint_hud(g);
         self.paint_status_bar(g);
-        m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
+        m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
 
         let font = crate::paint::paint_font();
         let bw = 115i32; // f_int_75（a.java:810）
@@ -5804,7 +5804,7 @@ impl GameScene {
                 let font = crate::paint::paint_font();
                 opt.paint(g, &self.images.ui, &font);
             }
-            m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
+            m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
             return self.paint_wipe_tail(g);
         }
         if self.game_mode == GameMode::SaveSlot {
@@ -5878,7 +5878,7 @@ impl GameScene {
         // paint case 3 内断言软键 (1,3)（a.java:2421-2422）——菜单族改写的
         // softkey 落回 mode 3 时由 paint 复位（Java 字段赋值语义）
         self.softkeys = (1, 3);
-        m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
+        m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
         // 提示浮层（paint 公共尾 a.java:3129-3168，!floorTransitioning && overlayActive）
         if !self.transitioning && self.overlay_active {
             self.paint_overlay_box(g);
@@ -6533,7 +6533,7 @@ impl GameScene {
         if self.record_page < self.journal.len() as i32 - 1 {
             g.draw_image(&arrow, ARROW_PAIR_RIGHT_X + bob, arrow_y, 0);
         }
-        m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1);
+        m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
         // 公共尾 overlay 框（paintOverlayBox）：日志文本 kind5 框在指示/箭头之上
         self.paint_overlay_box(g);
     }
@@ -7057,6 +7057,29 @@ mod slot_equip_scene_tests {
         // 裁剪复位常量漏网把 body 填充裁掉、露背景）
         let body = img.argb[404 * 416 + 260];
         assert_eq!(body, HUD_FILL | 0xFF00_0000, "对话框体底色须=HUD_FILL（现={body:#010x}=背景色透出）");
+    }
+
+    /// STAGE-B-004a ①c 判据（对话框底边距=游戏视图底黑边）：modern 无对话态下
+    /// 底行面板两侧不得留黑——背景带须补铺到底（黑边=未补铺 artifact）。
+    #[test]
+    fn modern_bottom_band_sides_never_black() {
+        let icons = synthetic_sptarm();
+        let mut sc = scene_with(&icons);
+        sc.apply_layout(crate::layout::Layout::modern(13, 13));
+        let mut img = ArgbImage::create(416, 416);
+        {
+            let mut g = SoftGraphics::new(&mut img);
+            sc.paint(&mut g, &solid(64, 64));
+        }
+        let w = 416usize;
+        for (x, y) in [(5, 415), (410, 415), (5, 400), (410, 400)] {
+            let p = img.argb[y * w + x];
+            assert_ne!(
+                p & 0x00FF_FFFF,
+                0,
+                "({x},{y}) 不得黑（游戏视图底黑边 artifact，现={p:#010x}）"
+            );
+        }
     }
 
     /// 底部区口径修正判据（lead 设计口径级修正 2026-10-18：**经典尺寸固定+整体居中**，

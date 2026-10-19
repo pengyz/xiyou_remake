@@ -34,14 +34,54 @@ MANIFEST = ROOT / "data/status/baselines/state-dump-golden.json"
 TARGETS = ["fixture_frames", "preset_cases", "gameplay_floor1"]
 
 
-def run_dumps(out_dir: Path) -> int:
+def ignored_tests() -> set:
+    """豁免红清单：源码 #[ignore] 标记的测试名（STAGE-B-001 夹具重定时待办 64 枚记录在案）。"""
+    import re
+    out = set()
+    for t in TARGETS:
+        src = (ROOT / f"crates/game-oracle/tests/{t}.rs").read_text(encoding="utf-8")
+        for m in re.finditer(
+            r'\#\[ignore[^\]]*\]\s*\n(?:\#\[[^\]]*\]\s*\n)*(?:pub )?fn (\w+)', src
+        ):
+            out.add(m.group(1))
+    return out
+
+
+def parse_failures(stdout: str) -> list:
+    """cargo test 输出的 failures: 名单——取**末段**名单（首段为 stdout 详情块）。"""
+    out = []
+    in_f = False
+    for ln in stdout.splitlines():
+        st = ln.strip()
+        if st == "failures:":
+            out = []
+            in_f = True
+            continue
+        if in_f:
+            if st.startswith("test result"):
+                break
+            if st.startswith("---- "):
+                in_f = False  # 详情块=首段, 丢弃重等名单
+                continue
+            if st.startswith("test ") and st.endswith("..."):
+                out.append(st[5:-3].strip())
+            elif st and " " not in st and st.isidentifier():
+                out.append(st)
+    return out
+
+
+def run_dumps(out_dir: Path):
+    """跑三挂点面产 dump。返回 (rc, failed_names, stdout)。
+    【修挂点盲区非放宽判据】--include-ignored：STAGE-B-001 后 64 枚 #[ignore] 把
+    STATE_OUT 产出也静默跳了（dump 产出在断言前）——恢复挂点产出；判据不放宽。"""
     env = dict(**__import__("os").environ, STATE_OUT=str(out_dir))
-    cmd = ["cargo", "test", "--release", "-p", "game-oracle"]
+    cmd = ["cargo", "test", "--release", "--no-fail-fast", "-p", "game-oracle"]
     for t in TARGETS:
         cmd += ["--test", t]
+    cmd += ["--", "--include-ignored"]
     r = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True)
     sys.stderr.write(r.stderr[-2000:])
-    return r.returncode
+    return r.returncode, parse_failures(r.stdout), r.stdout
 
 
 def collect(out_dir: Path) -> dict:
@@ -61,9 +101,18 @@ def main() -> int:
     check = "--check" in sys.argv
     with tempfile.TemporaryDirectory(prefix="state-golden-") as td:
         out_dir = Path(td)
-        rc = run_dumps(out_dir)
-        if rc != 0:
-            print(f"[RED] 重放面未全绿 rc={rc}——基线拒绝固化", file=sys.stderr)
+        rc, failed, _ = run_dumps(out_dir)
+        # 【修挂点盲区非放宽判据】豁免红/新红区分：仅容 #[ignore] 测试红
+        #（64 枚记录在案=夹具重定时待办）；**新红=必须基线拒绝**；dump sha 逐字节判据不放宽。
+        exempt = ignored_tests()
+        new_reds = [f for f in failed if f not in exempt]
+        if new_reds:
+            print(f"[RED] 新红 {len(new_reds)}（非 #[ignore] 豁免）——基线拒绝固化：{new_reds[:10]}", file=sys.stderr)
+            return 1
+        if failed:
+            print(f"[TOLERATED] 豁免红 {len(failed)}/{len(exempt)}（#[ignore]=STAGE-B-001 夹具重定时待办）", file=sys.stderr)
+        if rc != 0 and not failed:
+            print(f"[RED] 重放面异常 rc={rc}（无失败名解析）——基线拒绝固化", file=sys.stderr)
             return 1
         entries = collect(out_dir)
     if not entries:

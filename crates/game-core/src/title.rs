@@ -54,6 +54,15 @@ impl Particles {
             .find(|&k| self.active[k])
             .map(|k| (self.x[k], self.y[k]))
     }
+
+    /// 诊断探针（STAGE-B-004a ①a）：活跃粒子最大 x（生成域判据用）。
+    pub fn max_active_x(&self) -> i32 {
+        (0..PARTICLE_SLOTS)
+            .filter(|&k| self.active[k])
+            .map(|k| self.x[k])
+            .max()
+            .unwrap_or(-1)
+    }
 }
 
 impl Default for Particles {
@@ -215,11 +224,12 @@ impl TitleMachine {
     ///
     /// `frame_counter` = 本拍的 frameCounter 值（迭代 N 拍 = N-1）。
     /// 返回 `Some(new_mode)` 当确认键切模式（调用方负责后续状态机移交）。
-    pub fn tick(&mut self, key: i32, frame_counter: i32, rng: &mut JavaRandom) -> Option<GameMode> {
+    pub fn tick(&mut self, key: i32, frame_counter: i32, rng: &mut JavaRandom, layout: &crate::layout::Layout) -> Option<GameMode> {
         if frame_counter & 3 == 0 {
             // a.java:3382：参数求值序 L2R——先 x=rb(240) 后 y=295-rb(150)
-            let x = rng.random_below(crate::layout::SCREEN_W);
-            let y = crate::layout::SCREEN_H - self.bar_height - rng.random_below(150);
+            // 【STAGE-B-004a ①a】粒子生成域随画布（与 intro 雨同口径；classic 同值零偏离）
+            let x = rng.random_below(layout.screen_w);
+            let y = layout.screen_h - self.bar_height - rng.random_below(150);
             self.particles.spawn(x, y);
         }
         self.tick_bob();
@@ -262,9 +272,56 @@ impl TitleMachine {
 
     /// paint case 1（a.java:2349-2376）。`map_bg`=map 容器 [0]、`strip`=map[1]、
     /// `arrow`=ui[8][14]。
-    pub fn paint(&mut self, g: &mut SoftGraphics<'_>, map_bg: &ArgbImage, strip: &ArgbImage, arrow: &ArgbImage) {
+    pub fn paint(
+        &mut self,
+        g: &mut SoftGraphics<'_>,
+        map_bg: &ArgbImage,
+        strip: &ArgbImage,
+        arrow: &ArgbImage,
+        layout: &crate::layout::Layout,
+    ) {
         let bar = self.bar_height;
-        let (sw, sh) = (crate::layout::SCREEN_W, crate::layout::SCREEN_H);
+        let (sw, sh) = (layout.screen_w, layout.screen_h);
+        // 【STAGE-B-004a ②】分级适配（用户裁定：手绘素材=原尺寸居中+边缘延展
+        // **不放大**；可重排 UI=锚位公式化）。classic 画布=原式原样（零偏离）。
+        if sw > crate::layout::SCREEN_W || sh > crate::layout::SCREEN_H {
+            // —— modern：标题图 240×320 原尺寸**居中**（禁放大）+ 边缘钳制延展补满
+            // （v6 同法：四带=边角色）——右半黑/左贴边 artifact 根因。
+            let img_x = (sw - map_bg.width) / 2;
+            let img_y = (sh - bar - map_bg.height).max(0);
+            let bw = map_bg.width as usize;
+            let bh = map_bg.height as usize;
+            let top_px = map_bg.argb[0] & 0x00FF_FFFF | 0xFF00_0000;
+            let bottom_px = map_bg.argb[(bh - 1) * bw] & 0x00FF_FFFF | 0xFF00_0000;
+            let left_px = map_bg.argb[(bh / 2) * bw] & 0x00FF_FFFF | 0xFF00_0000;
+            let right_px = map_bg.argb[(bh / 2) * bw + bw - 1] & 0x00FF_FFFF | 0xFF00_0000;
+            g.set_color(top_px);
+            g.fill_rect(0, 0, sw, img_y);
+            g.set_color(bottom_px);
+            g.fill_rect(0, img_y + map_bg.height, sw, sh - (img_y + map_bg.height));
+            g.set_color(left_px);
+            g.fill_rect(0, img_y, img_x, map_bg.height);
+            g.set_color(right_px);
+            g.fill_rect(img_x + map_bg.width, img_y, sw - (img_x + map_bg.width), map_bg.height);
+            g.draw_image(map_bg, img_x, img_y, 0);
+            // 底部条/图标带/双箭头=锚位公式化（屏心 ± 原偏置；ARROW 对原偏置
+            // 不对称=原版字面，layout.rs:370-371 公式表）
+            g.set_color(crate::layout::DARK_BACKDROP);
+            g.fill_rect(0, sh - bar, sw, bar);
+            let strip_x = layout.center_x - 34; // 经典 86 = 120-34（屏心偏置）
+            let strip_y = sh - bar + ((bar - 17) >> 1);
+            self.paint_icon_strip(g, strip, strip_x, strip_y, 17 * self.menu_kinds[self.cursor as usize] as i32);
+            let arrow_y = sh - bar + ((bar - 13) >> 1);
+            let t = crate::paint::NOKIA_TRANSFORM_TABLE[1];
+            g.draw_image_transformed(arrow, layout.center_x - 60 - self.bob, arrow_y, 0, t);
+            g.draw_image(arrow, layout.center_x + 40 + self.bob, arrow_y, 0);
+            // 粒子层（modern clip=满画布；生成域判据见 ①a 测）
+            g.set_clip(0, bar, sw, sh - (bar >> 1));
+            self.particles.paint_and_update(g);
+            g.reset_clip();
+            return;
+        }
+        // —— classic 原式（a.java:2349-2376 逐字，零偏离）——
         // ① 顶部补条（a.java:2352-2355：间隙 >0 才画）
         let top_gap = sh - bar - map_bg.height;
         if top_gap > 0 {

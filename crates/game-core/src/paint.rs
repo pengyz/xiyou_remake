@@ -48,14 +48,23 @@ pub fn draw_image_clipped(g: &mut SoftGraphics<'_>, img: &ArgbImage, x: i32, y: 
 
 /// `paintSoftkeyBar`（a.java:6006-6010）：软键栏。`left`/`right` = softkeyLeftKind/softkeyRightKind
 /// （0 = 不绘制；kind 1..n 选 ui[11] 精灵条的第 n 个 12×10 图标）。
-pub fn m_034_softkeys(g: &mut SoftGraphics<'_>, ui10: &ArgbImage, ui11: &ArgbImage, left: i8, right: i8) {
+pub fn m_034_softkeys(
+    g: &mut SoftGraphics<'_>,
+    ui10: &ArgbImage,
+    ui11: &ArgbImage,
+    left: i8,
+    right: i8,
+    layout: &crate::layout::Layout,
+) {
+    // 【STAGE-B-004a ①b】软键图标悬空锚修复：锚随 layout（modern 贴屏底/右缘）——
+    // classic 代入=原值零偏离；旧版用 classic 自由函数致 modern 下图标悬空。
     if left != 0 {
-        g.draw_image(ui10, 0, crate::layout::softkey_base_y(), 0);
+        g.draw_image(ui10, 0, layout.softkey_base_y, 0);
         draw_image_clipped(
             g,
             ui11,
             crate::layout::SOFTKEY_ICON_LEFT_X,
-            crate::layout::softkey_icon_y(),
+            layout.softkey_icon_y,
             (left as i32 - 1) * crate::layout::SOFTKEY_ICON_W,
             0,
             crate::layout::SOFTKEY_ICON_W,
@@ -63,12 +72,12 @@ pub fn m_034_softkeys(g: &mut SoftGraphics<'_>, ui10: &ArgbImage, ui11: &ArgbIma
         );
     }
     if right != 0 {
-        draw_image_with_nokia_transform(g, ui10, crate::layout::softkey_right_x(), crate::layout::softkey_base_y(), 1);
+        draw_image_with_nokia_transform(g, ui10, layout.softkey_right_x, layout.softkey_base_y, 1);
         draw_image_clipped(
             g,
             ui11,
-            crate::layout::softkey_icon_right_x(),
-            crate::layout::softkey_icon_y(),
+            layout.softkey_icon_right_x,
+            layout.softkey_icon_y,
             (right as i32 - 1) * crate::layout::SOFTKEY_ICON_W,
             0,
             crate::layout::SOFTKEY_ICON_W,
@@ -80,17 +89,25 @@ pub fn m_034_softkeys(g: &mut SoftGraphics<'_>, ui10: &ArgbImage, ui11: &ArgbIma
 /// mode 21（声音询问）绘制：a.java:3066-3067 + paintSoftkeyBar 软键栏。
 ///
 /// 软键 (1,2) 由 dispatchModeEntry case 21 设置（a.java:4482-4477）。
-pub fn paint_sound_prompt(g: &mut SoftGraphics<'_>, ui10: &ArgbImage, ui11: &ArgbImage, softkeys: (i8, i8)) {
+pub fn paint_sound_prompt(
+    g: &mut SoftGraphics<'_>,
+    ui10: &ArgbImage,
+    ui11: &ArgbImage,
+    softkeys: (i8, i8),
+    layout: &crate::layout::Layout,
+) {
+    // 【STAGE-B-004a】锚位公式化：黑底满画布 + 提示居中 + 软键随 layout——
+    // classic 代入=原值（SCREEN_*/prompt_cx/cy 同式）零偏离。
     g.set_color(crate::layout::BLACK);
-    g.fill_rect(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
+    g.fill_rect(0, 0, layout.screen_w, layout.screen_h);
     g.set_color(crate::layout::WHITE);
     g.draw_string(
         &crate::layout::SOUND_PROMPT_TEXT,
-        crate::layout::prompt_cx(),
-        crate::layout::prompt_cy(),
+        layout.prompt_cx,
+        layout.prompt_cy,
         anchor_top_hcenter(),
     );
-    m_034_softkeys(g, ui10, ui11, softkeys.0, softkeys.1);
+    m_034_softkeys(g, ui10, ui11, softkeys.0, softkeys.1, layout);
 }
 
 /// mode 15 帮助 overlay 文本（a.java:4405-4405，逐字）。
@@ -171,6 +188,9 @@ pub struct BootMachine {
     menu: Vec<ArgbImage>,
     /// gameRandom（构造时 setSeed(VTime=0)；JavaRandom LCG）。
     pub rng: game_platform::JavaRandom,
+    /// 布局面（STAGE-B-004a）：modern 画布尺寸/锚位源——classic=原值零偏离。
+    /// 壳经 apply_layout 换轨（与 GameScene::apply_layout 同口径）。
+    pub layout: crate::layout::Layout,
     /// mapbg 容器 1 张（loadPackedImages(1)：资源名表第 1 项，parallax 平铺 77x320）。
     mapbg: ArgbImage,
     /// 视差背景滚动（paint 内推进）。
@@ -226,6 +246,12 @@ pub struct BootMachine {
 }
 
 impl BootMachine {
+    /// 布局换轨（STAGE-B-004a）：modern 画布/锚位生效点——与 GameScene 同口径，
+    /// classic 传回原值零偏离。
+    pub fn apply_layout(&mut self, layout: crate::layout::Layout) {
+        self.layout = layout;
+    }
+
     /// WIN-OP③（C-2 补面 2026-10-18）：标题侧设置面板（GameMode::About）指针命中——
     /// OptionList::row_band 单源（与 GameScene 侧共用几何）；confirm=-5（翻转键同款）。
     pub fn pointer_hit(&self, x: i32, y: i32) -> crate::scene::PointerHit {
@@ -302,6 +328,7 @@ impl BootMachine {
             title: None,
             global: crate::save::GlobalSave::default_7(),
             global_dirty: false,
+            layout: crate::layout::Layout::classic(),
             menu,
             mapbg,
             backdrop: crate::menu_family::ParallaxBackdrop::new(),
@@ -334,12 +361,12 @@ impl BootMachine {
     pub fn paint(&mut self, g: &mut SoftGraphics<'_>) {
         self.paints += 1;
         match self.mode {
-            GameMode::SoundAsk => paint_sound_prompt(g, &self.ui[10], &self.ui[11], self.softkeys),
+            GameMode::SoundAsk => paint_sound_prompt(g, &self.ui[10], &self.ui[11], self.softkeys, &self.layout),
             GameMode::MainMenu => {
                 let mut t = self.title.take().unwrap();
                 let sf = self.strip_frame;
                 t.set_strip_frame(sf);
-                t.paint(g, &self.menu[0], &self.menu[1], &self.ui[14]);
+                t.paint(g, &self.menu[0], &self.menu[1], &self.ui[14], &self.layout);
                 self.strip_frame = t.strip_frame_value();
                 self.title = Some(t);
             }
@@ -350,7 +377,7 @@ impl BootMachine {
                     let sptarm = self.sptarm_for_slots();
                     slots.paint(g, &self.ui, &segs, &sptarm, || 0);
                 }
-                m_034_softkeys(g, &self.ui[10], &self.ui[11], self.softkeys.0, self.softkeys.1);
+                m_034_softkeys(g, &self.ui[10], &self.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
             }
             GameMode::Help | GameMode::IconView => {
                 self.backdrop.paint(g, &self.mapbg, false, 0);
@@ -358,7 +385,7 @@ impl BootMachine {
                 let mut f = self.strip_frame;
                 crate::title::paint_icon_strip_at(g, &self.menu[1], 86, 10, sy, 68, &mut f);
                 self.strip_frame = f;
-                m_034_softkeys(g, &self.ui[10], &self.ui[11], self.softkeys.0, self.softkeys.1);
+                m_034_softkeys(g, &self.ui[10], &self.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
                 self.paint_overlay_tail(g);
             }
             GameMode::About => {
@@ -369,7 +396,7 @@ impl BootMachine {
                 if let Some(opts) = &self.options {
                     opts.paint(g, &self.ui, &crate::paint::paint_font());
                 }
-                m_034_softkeys(g, &self.ui[10], &self.ui[11], self.softkeys.0, self.softkeys.1);
+                m_034_softkeys(g, &self.ui[10], &self.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
             }
             GameMode::LogoAnim => {
                 let logo = self.logo.as_ref().unwrap();
@@ -381,7 +408,7 @@ impl BootMachine {
                 let mut particles = self.title.as_mut().map(|t| std::mem::replace(&mut t.particles, crate::title::Particles::new()));
                 if let Some(p) = particles.as_mut() {
                     let font = paint_font();
-                    intro.paint(g, &mut self.overlay, p, &font);
+                    intro.paint(g, &mut self.overlay, p, &font, &self.layout);
                 }
                 if let Some(t) = self.title.as_mut() {
                     if let Some(p) = particles { t.particles = p; }
@@ -472,7 +499,7 @@ impl BootMachine {
                 if let Some(t) = self.title.as_mut() {
                     let sf = self.strip_frame;
                     t.set_strip_frame(sf);
-                    next = t.tick(key, f, &mut self.rng);
+                    next = t.tick(key, f, &mut self.rng, &self.layout);
                     self.strip_frame = t.strip_frame_value();
                 }
                 if let Some(mode) = next {
@@ -576,8 +603,11 @@ impl BootMachine {
                 // run case 14（a.java:4137-4136）：runIntroViewer + 粒子雨 4 分频
                 let f = self.paints as i32;
                 if f & 3 == 0 {
-                    let x = self.rng.random_below(crate::layout::SCREEN_W);
-                    let y = crate::layout::SCREEN_H - 25 - self.rng.random_below(150);
+                    // 【STAGE-B-004a ①a】粒子生成域**随画布**（序章白点散射根因）：
+                    // 旧 randomBelow(240/SCREEN_H) 固定经典域——modern 画布下白点只
+                    // 散布左 240px 带。随 layout 域后 classic=同值零偏离。
+                    let x = self.rng.random_below(self.layout.screen_w);
+                    let y = self.layout.screen_h - 25 - self.rng.random_below(150);
                     if let Some(t) = self.title.as_mut() {
                         t.particles.spawn(x, y);
                     }
@@ -852,6 +882,54 @@ mod tests {
             vec![],
             vec![],
         )
+    }
+
+    /// STAGE-B-004a ①a 判据（序章白点散射根因，viewport 复核 V2 点名项）：
+    /// 粒子生成域**随画布**——modern 画布（416 宽）下粒子须散布全宽；旧
+    /// randomBelow(240) 固定经典域 ⇒ x≥240 带永不落点（白点只散左带=症状）。
+    #[test]
+    fn modern_particle_spawn_domain_spans_canvas() {
+        use game_platform::JavaRandom;
+        let layout = crate::layout::Layout::modern(13, 13); // 416×416
+        assert!(layout.screen_w > 240, "前置：modern 画布宽 > 240");
+        let mut t = crate::title::TitleMachine::new();
+        let mut rng = JavaRandom::new_seeded(20261019);
+        for f in 0..240 {
+            t.tick(0, f, &mut rng, &layout);
+        }
+        let max_x = t.particles.max_active_x();
+        assert!(
+            max_x > 240,
+            "modern 生成域须越 240（实测最大 x={max_x}——旧固定域恒 ≤239 即红）"
+        );
+    }
+
+    /// STAGE-B-004a ①b 判据（软键图标悬空锚）：modern 画布下软键图标须贴
+    /// layout 锚（屏底 13px/右缘 14px）；旧 classic 自由函数致图标悬空在
+    /// 经典坐标（y=307）而画布 416 高=浮在半空。
+    #[test]
+    fn modern_softkey_icons_anchor_to_layout() {
+        use crate::paint::m_034_softkeys;
+        let layout = crate::layout::Layout::modern(13, 13);
+        let mut ui10 = synth(26, 18);
+        ui10.argb.fill(0xFFFF_FFFF); // 实心白（空白图绘制=零像素不可检）
+        let mut ui11 = synth(120, 10);
+        ui11.argb.fill(0xFFFF_FFFF);
+        let mut img = ArgbImage::create(layout.screen_w, layout.screen_h);
+        {
+            let mut g = SoftGraphics::new(&mut img);
+            m_034_softkeys(&mut g, &ui10, &ui11, 1, 1, &layout);
+        }
+        // modern 锚行（layout.softkey_icon_y）须有图标像素；经典锚行（320-13=307）
+        // 不得再出现图标（悬空=红）。
+        let iy = layout.softkey_icon_y as usize;
+        let classic_iy = (crate::layout::SCREEN_H - 13) as usize;
+        let w = layout.screen_w as usize;
+        let has_icon = |row: usize| (0..w).any(|x| img.argb[row * w + x] != 0);
+        assert!(has_icon(iy), "modern 锚行 y={iy} 须有软键图标像素");
+        if iy != classic_iy {
+            assert!(!has_icon(classic_iy), "经典锚行 y={classic_iy} 不得残留（悬空 artifact）");
+        }
     }
 
     /// 设置勾选翻转 ⇒ SKY_WAR dirty（a.java:4154 翻转 + 4169 saveGlobalProgress）。
