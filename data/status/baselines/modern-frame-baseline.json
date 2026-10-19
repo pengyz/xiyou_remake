@@ -1,0 +1,27 @@
+{
+ "schema": "modern-frame-baseline-1",
+ "purpose": "task-25 ⑤ modern 帧自证基线（font-metrics §5 夹具协议）：modern 期望仅源自 modern 预设运行——禁从 classic 期望派生（防洗期望）；自证冻结非差分等价。",
+ "probe": "python3 tools/modern_frame_baseline.py --check",
+ "states": {
+  "boot": {
+   "sha256": "efc83614355702388239d24d19077ce11305055340400e04a9852f447ddb0427",
+   "bytes": 692758
+  },
+  "title": {
+   "sha256": "edc7e791c29a6b76150675197a8309e88a3ef769377f1ece366f155d5f063a67",
+   "bytes": 692758
+  },
+  "intro": {
+   "sha256": "18382cf76f4ae30aa780394df77441d6319415b026fbc5bad1fdebfdaa3dae63",
+   "bytes": 692758
+  },
+  "game": {
+   "sha256": "0c52bdda4d73851d8386577c53467273e575c0712bc06a9c17c68d79fe113dcc",
+   "bytes": 692758
+  },
+  "menu": {
+   "sha256": "f8ae7fad451210eb6be3b951b842e92247cda6ffccfad574588310180cc4cccc",
+   "bytes": 692758
+  }
+ }
+}
