@@ -274,6 +274,11 @@
    "bytes": 16417037,
    "ticks": 9224
   },
+  "story-fullrun.state": {
+   "sha256": "cbfde47cf995322fbbf18c75c9133fcbd95a1d20cb583ab41dd2f7305c543fc7",
+   "bytes": 6634097,
+   "ticks": 3763
+  },
   "walk-pure.state": {
    "sha256": "c6ec23544f3e041a5db76ce1d138ebf6d664a0b6d31a0d13a2fe6c8fe67b70f5",
    "bytes": 6088682,
