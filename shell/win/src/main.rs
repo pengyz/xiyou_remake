@@ -285,17 +285,8 @@ mod font_inject {
 
     /// game_core::render::set_glyph_hook 的注入实现：系统 TTF 真 CJK 字形。
     /// 布局仍用 SoftFont 的格宽/格高（与差分验证过的排版一致），仅字形换真。
-    static DISPLAY_SCALE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
-
-    /// 视口显示倍率注入（task-25 ④）：shell paint 前 set（Viewport.scale）。
-    pub fn set_display_scale(s: u32) {
-        DISPLAY_SCALE.store(s.max(1), std::sync::atomic::Ordering::Relaxed);
-    }
-
-    fn display_scale() -> u32 {
-        DISPLAY_SCALE.load(std::sync::atomic::Ordering::Relaxed)
-    }
-
+    /// 【task-13 ②】倍率由图形层经 GlyphHook 签名传入（单源真相）——旧
+    /// DISPLAY_SCALE 注入面已清（钩子不再读）。
     pub fn install() {
         let font = load();
         let has_font = font.is_some();
@@ -315,91 +306,73 @@ mod font_inject {
         chh: i32,
         color: u32,
         put: &mut dyn FnMut(i32, i32, u32),
+        scale: i32,
     ) {
         let Some(font) = FONT.get().and_then(|f| f.as_ref()) else { return };
-        // 【task-25 ④】TTF 光栅化分辨率随视口（模糊真根因=低分辨率渲染后放大）：
-        // SSAA 超采样——以 最终显示倍率×格高 光栅化（2x 窗口=28px），降采样回逻辑
-        // 格（矢量清晰度释放）。classic 倍率 1=原样零偏离。
-        let ss = display_scale().max(1);
-        let scale = PxScale {
-            x: (chh * ss as i32) as f32,
-            y: (chh * ss as i32) as f32,
+        // 【task-13 ②】字形按**物理尺寸光栅化**（替换降采样）：scale 由图形层为
+        // 真相源传入，字形以 scale×格高光栅化、笔画直落物理像素=真 TTF 锐度
+        // （2× 笔画占真 2×2 像素，非 1× 落点放大色块）；scale=1 ⇒ 与原 1× 分支
+        // 逐像素同（classic 零偏离）。
+        let ss = scale.max(1);
+        let s = PxScale {
+            x: (chh * ss) as f32,
+            y: (chh * ss) as f32,
         };
-        // 基线放格底上方 1px（CJK 无下伸部，格内视觉居中）——超采样坐标同乘 ss
+        // 基线放格底上方 1px（CJK 无下伸部，格内视觉居中）——物理坐标同乘 ss
         let glyph = font
             .glyph_id(char::from_u32(ch as u32).unwrap_or(' '))
-            .with_scale_and_position(
-                scale,
-                point(px as f32 * ss as f32, ((py + chh - 1) * ss as i32) as f32),
-            );
+            .with_scale_and_position(s, point((px * ss) as f32, ((py + chh - 1) * ss) as f32));
         if let Some(outline) = font.outline_glyph(glyph) {
             // ab_glyph 回调坐标是 px_bounds **局部**坐标（outlined.rs draw() 文档：
             // "pixel coordinate inside the bounds"），必须平移 bbox 最小角才是画布
             // 绝对坐标——否则全部字形像素堆在 (0,0)，文本落点为空（mode21 文字不可见 bug）。
             let bb = outline.px_bounds();
             let (ox, oy) = (bb.min.x.round() as i32, bb.min.y.round() as i32);
-            if ss == 1 {
-                outline.draw(|gx, gy, a| {
-                    if a > 0.25 {
-                        put(ox + gx as i32, oy + gy as i32, color);
-                    }
-                });
-            } else {
-                // SSAA 降采样：ss×ss 块均值（alpha 覆盖率平均）→ 逻辑像素
-                //（计量实现收敛到 ssaa_dots_to_logical——窗口路径判据同源）
-                let mut dots: Vec<(i32, i32, f32)> = Vec::new();
-                outline.draw(|gx, gy, a| dots.push((gx as i32, gy as i32, a)));
-                for (lx, ly) in ssaa_dots_to_logical(&dots, ss as i32, ox, oy) {
-                    put(lx, ly, color);
-                }
+            let mut dots: Vec<(i32, i32, f32)> = Vec::new();
+            outline.draw(|gx, gy, a| dots.push((gx as i32, gy as i32, a)));
+            for (x, y) in dots_to_physical(&dots, ox, oy) {
+                put(x, y, color);
             }
         }
         let _ = cw;
     }
 
-    /// SSAA 降采样（task-25 ④ 窗口路径光栅化核心）：超采样点
-    /// (gx,gy,alpha∈[0,1]) → 逻辑像素集。**窗口呈现路径文本存在性判据挂此**。
-    /// alpha 须 ×255 计量（0-255 均值 vs 0.25×255 阈，与 ss==1 分支 a>0.25 同语义）
-    /// ——曾误 `a as u32` 截断（<1 恒 0）⇒ scale≥2 零输出=窗口层文本整体消失
-    /// （2026-10-19 用户实报，lead 急修）。
-    pub(crate) fn ssaa_dots_to_logical(dots: &[(i32, i32, f32)], ss: i32, ox: i32, oy: i32) -> Vec<(i32, i32)> {
-        let mut acc: std::collections::HashMap<(i32, i32), (u32, u32)> = Default::default();
-        for &(gx, gy, a) in dots {
-            let lx = (ox + gx).div_euclid(ss);
-            let ly = (oy + gy).div_euclid(ss);
-            let e = acc.entry((lx, ly)).or_insert((0, 0));
-            e.0 += (a * 255.0).round() as u32;
-            e.1 += 1;
-        }
-        let mut out: Vec<(i32, i32)> = acc
-            .into_iter()
-            .filter(|(_, (sum, cnt))| (*sum / (*cnt).max(1)) as f32 > 0.25 * 255.0)
-            .map(|((lx, ly), _)| (lx, ly))
+    /// 字形笔画 → 物理像素（task-13 ②）：alpha>0.25 阈（与原 1× 分支同语义）
+    /// 直落物理坐标（局部坐标 + bbox 最小角平移）。**窗口呈现路径文本存在性
+    /// 判据挂此**（2× 笔画=真 2×2 物理像素、逐像素可控）。
+    pub(crate) fn dots_to_physical(dots: &[(i32, i32, f32)], ox: i32, oy: i32) -> Vec<(i32, i32)> {
+        let mut out: Vec<(i32, i32)> = dots
+            .iter()
+            .filter(|(_, _, a)| *a > 0.25)
+            .map(|&(gx, gy, _)| (ox + gx, oy + gy))
             .collect();
         out.sort();
         out
     }
 
     #[cfg(test)]
-    /// 窗口呈现路径文本存在性判据（lead 急修 2026-10-19"窗口层文本整体消失"）：
-    /// SSAA 降采样=窗口路径（display_scale≥2）光栅化核心——半透明笔画（a=0.5）
-    /// 必须产出逻辑像素；此前 alpha 截断误算致 scale≥2 零输出（文本整体消失）。
+    /// 窗口呈现路径文本存在性判据（task-13 ② 物理落点）：2× 笔画占真 2×2
+    /// 物理像素（逐像素可控=非放大色块）；阈下笔画不产出（与 1× 阈同语义）。
     mod window_text_raster {
-        use super::ssaa_dots_to_logical;
+        use super::dots_to_physical;
 
         #[test]
-        fn ssaa_half_alpha_stroke_emits_pixels() {
-            // 2×2 超采样块内 4 点 a=0.5（半透明笔画典型值）——须降采样出 1 逻辑像素
+        fn stroke_2x2_is_real_physical_pixels() {
+            // 2×2 笔画四点 a=0.5——四物理像素各自可控（非 1× 落点放大色块）
             let dots = [(0, 0, 0.5f32), (1, 0, 0.5), (0, 1, 0.5), (1, 1, 0.5)];
-            let out = ssaa_dots_to_logical(&dots, 2, 0, 0);
-            assert_eq!(out, vec![(0, 0)], "半透明笔画须产出像素（窗口层文本存在性）");
+            let out = dots_to_physical(&dots, 100, 200);
+            assert_eq!(
+                out,
+                vec![(100, 200), (100, 201), (101, 200), (101, 201)],
+                "2× 笔画=真 2×2 物理像素直落（非 1× 落点放大色块）"
+            );
         }
 
         #[test]
-        fn ssaa_below_threshold_stroke_drops() {
-            let dots = [(0, 0, 0.1f32), (1, 0, 0.1), (0, 1, 0.1), (1, 1, 0.1)];
-            let out = ssaa_dots_to_logical(&dots, 2, 0, 0);
-            assert!(out.is_empty(), "低于阈笔画不产出（与 ss==1 分支 a>0.25 同语义）");
+        fn below_threshold_dots_drop() {
+            let dots = [(0, 0, 0.1f32), (1, 1, 0.2)];
+            let out = dots_to_physical(&dots, 0, 0);
+            assert!(out.is_empty(), "低于阈笔画不产出（与 1× 阈 a>0.25 同语义）");
         }
     }
 
@@ -463,7 +436,7 @@ mod tests {
             // mode 21 实际锚点（paint_sound_prompt 同式：画面中心）
             let (cx, cy) = (prompt_cx(), prompt_cy());
             {
-                let mut g = crate::canvas_graphics(&mut img);
+                let mut g = crate::canvas_graphics(&mut img, 1);
                 g.set_color(0x000000);
                 g.fill_rect(0, 0, SCREEN_W, SCREEN_H);
                 g.set_color(game_core::layout::WHITE);
@@ -498,13 +471,16 @@ mod tests {
 
 // ---------------------------------------------------------------- 应用状态
 
-/// 逻辑画布上的绘制上下文：全屏裁剪 + 游戏字体（GameScene / BootMachine 绘制共用前置）。
-fn canvas_graphics(screen: &mut ArgbImage) -> SoftGraphics<'_> {
+/// 画布上的绘制上下文：全屏裁剪 + 游戏字体 + **光栅层倍率**（GameScene / BootMachine
+/// 绘制共用前置）。`scale` = 物理/逻辑比（task-13 ②：背板=逻辑×scale 物理像素，
+/// 光栅原语按物理换算/字形物理直落；scale=1 全链逐像素恒等）。
+fn canvas_graphics(screen: &mut ArgbImage, scale: u32) -> SoftGraphics<'_> {
     // 画布裁剪随画布尺寸（STAGE-B-002 返修三轮：常量 240×320 会把最先绘制的视差
     // 裁在经典区内 ⇒ 区外留黑矩形——黑区根因）；classic 画布 240×320 原值零变化。
     let (w, h) = (screen.width, screen.height);
     let mut g = SoftGraphics::new(screen);
     g.set_clip(0, 0, w, h);
+    g.set_scale(scale as i32);
     g.set_font(Some(game_core::paint::paint_font()));
     g
 }
@@ -523,6 +499,9 @@ struct Shell {
     rms: Box<dyn game_platform::Storage>,
     stores: Vec<(String, Vec<u8>)>,
     screen: ArgbImage,
+    /// 显示倍率（物理/逻辑比，task-A ①②）：screen 背板 = 布局×scale 物理像素；
+    /// 变化（resize）⇒ `set_scale` 重建背板 + 重绘。
+    scale: u32,
     /// 布局面（STAGE-B-002）：画布/视口/鼠标反映射的尺寸源（classic=240×320 零变化）。
     layout: game_core::layout::Layout,
     state: Option<Screen>,
@@ -605,6 +584,7 @@ impl Shell {
             rms,
             stores,
             screen: ArgbImage::create(layout.screen_w, layout.screen_h),
+            scale: 1,
             layout,
             state: Some(Screen::Boot(machine)),
             pending_machine_key: 0,
@@ -874,8 +854,44 @@ impl Shell {
         (self.screen.width, self.screen.height, self.screen.argb.clone())
     }
 
+    /// 仅重绘、不推进状态（task-A 窗口侧 ③：headless 全倍率出图的同状态前提——
+    /// 换字形倍率重画同一帧；字形光栅化只影响像素不影响游戏态）。
+    /// scale 因子管理（task-A ①）：物理/逻辑比变化（resize）⇒ 背板重建 + 重绘。
+    /// 逻辑坐标不变（game-core 只见布局坐标），背板 = 布局×scale 物理像素
+    ///（task-13 ② 光栅层×倍率消费）；scale=1 ⇒ 与经典路径逐像素恒等。
+    fn set_scale(&mut self, s: u32) {
+        let s = s.max(1);
+        if self.scale == s {
+            return;
+        }
+        self.scale = s;
+        self.screen = ArgbImage::create(
+            self.layout.screen_w * s as i32,
+            self.layout.screen_h * s as i32,
+        );
+        self.repaint();
+    }
+
+    fn repaint(&mut self) {
+        match self.state.take() {
+            Some(Screen::Game(mut sc)) => {
+                self.paint_scene(&mut sc);
+                self.state = Some(Screen::Game(sc));
+            }
+            Some(Screen::Boot(mut m)) => {
+                m.paint(&mut canvas_graphics(&mut self.screen, self.scale));
+                self.state = Some(Screen::Boot(m));
+            }
+            Some(Screen::Crashed) => {
+                self.paint_crashed();
+                self.state = Some(Screen::Crashed);
+            }
+            None => {}
+        }
+    }
+
     fn paint_scene(&mut self, sc: &mut GameScene) {
-        let mut g = canvas_graphics(&mut self.screen);
+        let mut g = canvas_graphics(&mut self.screen, self.scale);
         sc.paint(&mut g, &self.assets.tileset);
     }
 
@@ -883,7 +899,7 @@ impl Shell {
     /// 纯壳层画面，不进 game-core 渲染语义（保真面零侵入）。
     fn paint_crashed(&mut self) {
         let (w, h) = (self.screen.width, self.screen.height);
-        let mut g = canvas_graphics(&mut self.screen);
+        let mut g = canvas_graphics(&mut self.screen, self.scale);
         g.set_color(0x20_00_00);
         g.fill_rect(0, 0, w, h);
         g.set_color(0xFF_FF_FF);
@@ -1183,7 +1199,7 @@ impl Shell {
                     self.enter_scene(sc, machine);
                     return;
                 }
-                machine.paint(&mut canvas_graphics(&mut self.screen));
+                machine.paint(&mut canvas_graphics(&mut self.screen, self.scale));
                 self.state = Some(Screen::Boot(machine));
                 self.frame_counter += 1;
             }
@@ -1434,9 +1450,6 @@ fn run_window(shell: Shell) {
 
         fn present(&mut self) {
             let Some(vp) = self.viewport() else { return }; // 最小化（0×0）不画
-            // 【task-25 ④】字形光栅化倍率注入（SSAA 超采样用）——下一拍 paint 生效
-            //（视口倍率稳定，resize 一拍滞后可接受）。
-            font_inject::set_display_scale(vp.scale);
             let Some(surface) = self.surface.as_mut() else { return };
             if surface
                 .resize(NonZeroU32::new(vp.win_w).unwrap(), NonZeroU32::new(vp.win_h).unwrap())
@@ -1445,11 +1458,12 @@ fn run_window(shell: Shell) {
                 return;
             }
             let Ok(mut buffer) = surface.buffer_mut() else { return };
-            let (cw, ch) = (
-                self.shell.layout.screen_w as u32,
-                self.shell.layout.screen_h as u32,
-            );
-            view::blit(&mut buffer, &vp, &self.shell.screen.argb, cw, ch);
+            // 【task-A 窗口侧 ①②】物理背板（布局×vp.scale）+ 1:1 直贴（零缩放零插值）：
+            // scale 因子管理（resize ⇒ set_scale 重建背板+重绘）；光栅层×倍率已由
+            // task-13 `set_scale` 承接（字形物理直落/像素素材最近邻块写）。
+            self.shell.set_scale(vp.scale);
+            let (bw, bh) = (self.shell.screen.width as u32, self.shell.screen.height as u32);
+            view::blit_1to1(&mut buffer, &vp, &self.shell.screen.argb, bw, bh);
             let _ = buffer.present();
         }
     }
@@ -1551,12 +1565,19 @@ fn main() {
 
 /// headless 截图跑法（自验工具）：无窗口 N 拍 → 画布 dump PNG。
 /// `newgame`=boot 后在标题按确认进游戏（验证 mode 3 视图面用）。
+///
+/// 【task-A 窗口侧 ③】全倍率出图：`DSH_FONT_SSAA=all` ⇒ 拍后同状态逐倍率重绘出图
+/// （`{stem}_{s}x.png` 族，s ∈ [`HEADLESS_SCALES`]）。task-13 光栅层×倍率落地后
+/// 各倍率转物理背板尺寸出图（逻辑×scale）。
+const HEADLESS_SCALES: [u32; 4] = [1, 2, 3, 4];
+
 fn headless_run(mut shell: Shell, out: PathBuf, frames: u64, newgame: bool, inject: Option<&str>) {
-    // 窗口面自验通道（lead 急修 2026-10-19）：DSH_FONT_SSAA=N ⇒ 以窗口倍率
-    // 光栅化字形（task-25 ④ SSAA 路径）——同状态双面出图（逻辑面=默认 1×）。
-    if let Ok(v) = std::env::var("DSH_FONT_SSAA") {
+    // 窗口面自验通道（lead 急修 2026-10-19；task-A ③ 扩展）：DSH_FONT_SSAA=N ⇒
+    // 以倍率 N 光栅化出图（物理背板=布局×N，task-13 ②）；`=all` ⇒ 拍后全倍率出图。
+    let ssaa_mode = std::env::var("DSH_FONT_SSAA").ok();
+    if let Some(v) = &ssaa_mode {
         if let Ok(n) = v.parse::<u32>() {
-            font_inject::set_display_scale(n);
+            shell.set_scale(n);
         }
     }
     let mut pressed_at: Vec<(u64, i32)> = Vec::new();
@@ -1588,6 +1609,29 @@ fn headless_run(mut shell: Shell, out: PathBuf, frames: u64, newgame: bool, inje
             }
         }
         shell.logic_tick();
+    }
+    if ssaa_mode.as_deref() == Some("all") {
+        // 【task-A 窗口侧 ③】全倍率出图：同状态逐倍率重绘（repaint 不推进状态）。
+        let stem = out
+            .file_stem()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_else(|| "shot".to_string());
+        for s in HEADLESS_SCALES {
+            shell.set_scale(s);
+            shell.repaint();
+            let (w, h, px) = shell.canvas_snapshot();
+            let p = out.with_file_name(format!("{stem}_{s}x.png"));
+            let png = headless_shot::encode_png(w, h, &px);
+            let ok = std::fs::write(&p, &png).is_ok();
+            eprintln!(
+                "[headless-shot] 全倍率 {s}x：dump {}×{} → {}（{}）",
+                w,
+                h,
+                p.display(),
+                if ok { "OK" } else { "写失败" }
+            );
+        }
+        return;
     }
     // 画布 dump（Shell.screen = ArgbImage）
     let (w, h, px) = shell.canvas_snapshot();
@@ -2112,6 +2156,46 @@ mod shell_tests {
         }
         let blob = std::fs::read(dir.join("SKY_WAR.bin")).unwrap();
         assert!(game_core::save::parse_global_save(&blob).is_ok(), "已回写合法值");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// task-A 窗口侧 ③：repaint 无状态推进（headless 全倍率出图的同状态前提——
+    /// 换字形倍率重画同一帧，游戏态/帧计数/画面全不动）。
+    #[test]
+    fn repaint_is_state_neutral() {
+        let dir = skywar_dir("repaint");
+        let mut shell = shell_at(&dir);
+        shell.logic_tick();
+        let before = shell.canvas_snapshot();
+        let fc = shell.frame_counter;
+        shell.repaint();
+        shell.repaint();
+        assert_eq!(shell.canvas_snapshot(), before, "重绘不改画面（同状态同像素）");
+        assert_eq!(shell.frame_counter, fc, "重绘不推进帧计数");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// task-A 窗口侧 ①②：scale 因子管理——背板（screen）= 布局×scale 物理像素；
+    /// scale 变化（resize）⇒ 重建 + 重绘；同 scale 不重建（画面保持）。
+    #[test]
+    fn set_scale_rebuilds_canvas_at_physical_size() {
+        let dir = skywar_dir("scale");
+        let mut shell = shell_at(&dir);
+        shell.logic_tick();
+        let (lw, lh) = (shell.layout.screen_w, shell.layout.screen_h);
+        assert_eq!((shell.scale, shell.screen.width, shell.screen.height), (1, lw, lh), "1× 初态=布局尺寸");
+        shell.set_scale(2);
+        assert_eq!(
+            (shell.scale, shell.screen.width, shell.screen.height),
+            (2, lw * 2, lh * 2),
+            "2× 背板 = 布局×2 物理像素"
+        );
+        let at2 = shell.canvas_snapshot();
+        assert_eq!((at2.0, at2.1), (lw * 2, lh * 2), "快照尺寸=物理背板");
+        shell.set_scale(2); // 同 scale 不重建（重绘后画面保持）
+        assert_eq!(shell.canvas_snapshot(), at2, "同 scale 不重建不改画");
+        shell.set_scale(1);
+        assert_eq!((shell.screen.width, shell.screen.height), (lw, lh), "回 1× 重建=布局尺寸");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

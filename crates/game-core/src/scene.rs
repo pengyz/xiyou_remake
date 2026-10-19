@@ -5802,12 +5802,15 @@ impl GameScene {
     /// paint case 3（a.java:2385-2422）。
     pub fn paint(&mut self, g: &mut SoftGraphics<'_>, tileset: &ArgbImage) {
         if self.game_mode == GameMode::EnemyInfo {
+            g.set_origin(self.bottom_panel_dx());
             self.paint_menu5(g);
             return self.paint_wipe_tail(g);
         }
         if self.game_mode == GameMode::About {
             // paint case 16（a.java:2963-2990）：parallax(false) + 图标条 +
-            // paintBoxFrame + 选项行（OptionList::paint）
+            // paintBoxFrame + 选项行（OptionList::paint）【task-14：内容居中；
+            // 视差=全幅层自豁免】
+            g.set_origin(self.bottom_panel_dx());
             self.paint_parallax(g, false);
             let mut f = self.strip_frame;
             crate::title::paint_icon_strip_at(g, &self.images.menu_strip, 86, 10, 34, 68, &mut f);
@@ -5821,22 +5824,26 @@ impl GameScene {
         }
         if self.game_mode == GameMode::SaveSlot {
             // paint case 7（a.java:2679-2682）：paintSlotTable(true) 存档变体
+            g.set_origin(self.bottom_panel_dx());
             self.paint_slot_list(g);
             self.paint_overlay_box(g);
             return self.paint_wipe_tail(g);
         }
         if self.game_mode == GameMode::Help {
             // paint case 15（a.java:2958-2962）
+            g.set_origin(self.bottom_panel_dx());
             self.paint_menu15(g);
             return self.paint_wipe_tail(g);
         }
         if self.game_mode == GameMode::InGameMenu || self.game_mode == GameMode::Shop {
             // paint case 4/19 共享（a.java:2427-2490）
+            g.set_origin(self.bottom_panel_dx());
             self.paint_menu_list(g);
             self.paint_overlay_box(g);
             return self.paint_wipe_tail(g);
         }
         if self.game_mode == GameMode::ItemPanel {
+            g.set_origin(self.bottom_panel_dx());
             self.paint_item_panel(g);
             self.paint_overlay_box(g);
             // 面板内道具触发 changeFloor：遮幅公共尾同样共跑（a.java:3177-3215）
@@ -5844,10 +5851,12 @@ impl GameScene {
             return;
         }
         if self.game_mode == GameMode::Ending {
+            g.set_origin(self.bottom_panel_dx());
             self.paint_ending(g);
             return self.paint_wipe_tail(g);
         }
         if self.game_mode == GameMode::RecordBrowser {
+            g.set_origin(self.bottom_panel_dx());
             self.paint_mode12(g);
             return;
         }
@@ -5857,6 +5866,7 @@ impl GameScene {
         }
         if self.game_mode == GameMode::Alchemy {
             // paint case 9（a.java:2690-2740）
+            g.set_origin(self.bottom_panel_dx());
             self.paint_menu9(g, tileset);
             return self.paint_wipe_tail(g);
         }
@@ -5903,6 +5913,8 @@ impl GameScene {
     /// 全黑 → 中段换层（swap_floor）→ 开启 4..=0。mode10 面板内道具触发
     /// changeFloor 同样经过此尾（迭代 45 T401 实证缺口）。
     fn paint_wipe_tail(&mut self, g: &mut SoftGraphics<'_>) {
+        // 【task-14】遮幅尾=全画布层——归零平移（各臂内容居中后统一复位点）
+        g.set_origin(0);
         if self.transitioning {
             if self.wipe_closing {
                 self.wipe += 1;
@@ -5935,6 +5947,10 @@ impl GameScene {
     /// 【STAGE-B-002 返修②】列/行界与基线随 Layout 铺满画布（classic 240×320
     /// 代入=原值零变化：base=270-320+6=-44、列界 240、行界 -320）。
     fn paint_parallax(&mut self, g: &mut SoftGraphics<'_>, game_view: bool) {
+        // 【task-14 豁免】背景=全幅层（铺满画布）——不随 origin 平移（否则左缘
+        // 露空）；绘后恢复调用方平移（ops 面不受影响=origin 隐式）。
+        let saved_origin = g.origin();
+        g.set_origin(0);
         self.backdrop_scroll -= 1;
         if self.backdrop_scroll < PARALLAX_WRAP {
             self.backdrop_scroll = 0;
@@ -5972,6 +5988,7 @@ impl GameScene {
             }
             col_x += PARALLAX_COL_STEP;
         }
+        g.set_origin(saved_origin);
     }
 
     /// paintEntityLayer（a.java:6491-6717）：实体层。`cam_x/cam_y` 为调用参数
@@ -7213,6 +7230,38 @@ mod slot_equip_scene_tests {
                 }
                 if !runs.is_empty() && y % 2 == 0 {
                     eprintln!("PROBE shot-{label} y={y} runs={runs:?}");
+                }
+            }
+        }
+        // 标题"大闹天宫"屏对齐实测（用户 2026-10-19"还是没有对齐"）：
+        // classic vs modern 内容块边界对照
+        for (label, file) in [
+            ("title-classic", "analysis/loading-280.png"),
+            ("title-modern", "analysis/title-modern.png"),
+        ] {
+            let bytes = std::fs::read(repo.join(file)).unwrap();
+            let dec = game_data::decode_png(&bytes).unwrap();
+            let (w, h) = (dec.width as usize, dec.height as usize);
+            for y in (0..h).step_by(16) {
+                let mut runs: Vec<(usize, usize)> = Vec::new();
+                let mut start = usize::MAX;
+                for x in 0..w {
+                    let p = dec.argb[y * w + x];
+                    let (r, g, b) = ((p >> 16) & 0xFF, (p >> 8) & 0xFF, p & 0xFF);
+                    let bg = p == 0 || (b > 150 && r < 120 && g < 130); // 蓝底/透明=背景
+                    if !bg && start == usize::MAX {
+                        start = x;
+                    }
+                    if bg && start != usize::MAX {
+                        runs.push((start, x - 1));
+                        start = usize::MAX;
+                    }
+                }
+                if start != usize::MAX {
+                    runs.push((start, w - 1));
+                }
+                if !runs.is_empty() {
+                    eprintln!("PROBE {label} y={y} runs={runs:?}");
                 }
             }
         }

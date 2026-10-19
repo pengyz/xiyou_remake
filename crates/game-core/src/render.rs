@@ -313,6 +313,13 @@ pub struct SoftGraphics<'a> {
     clip_y: i32,
     clip_w: i32,
     clip_h: i32,
+    /// 【task-13 显示分辨率画布】光栅倍率：逻辑坐标进、**物理坐标光栅**（原语
+    /// ×倍率精确换算；像素素材最近邻块写）。classic/逻辑面 =1 ⇒ 逐像素恒等。
+    scale: i32,
+    /// 【task-14 origin 平移层】逻辑 x 平移（开场/菜单经典构图整体居中）：
+    /// 物理 = (逻辑 + origin_x) × scale——**平移先于缩放**（可交换性判据锚）。
+    /// classic =0 ⇒ 恒等；ops 串记录调用方**原始逻辑坐标**（oracle ops 字节恒等）。
+    origin_x: i32,
     /// OPS 流（shim `Graphics.flushOps` 的对应物；不带 "OPS count=" 头）。
     pub ops: Vec<String>,
 }
@@ -329,7 +336,44 @@ impl<'a> SoftGraphics<'a> {
             clip_y: 0,
             clip_w: w,
             clip_h: h,
+            scale: 1,
+            origin_x: 0,
             ops: Vec::new(),
+        }
+    }
+
+    /// 【task-13】光栅倍率（画布=逻辑×scale；壳层建物理背板后设此）。
+    /// 默认 1（classic/逻辑面恒等）。
+    pub fn set_scale(&mut self, s: i32) {
+        self.scale = s.max(1);
+    }
+
+    /// 【task-14】逻辑 x 平移（0=恒等）。
+    pub fn set_origin(&mut self, x: i32) {
+        self.origin_x = x;
+    }
+
+    /// 当前逻辑 x 平移（全幅层豁免存取用）。
+    pub fn origin(&self) -> i32 {
+        self.origin_x
+    }
+
+    /// 逻辑 → 物理（平移先于缩放）。
+    fn phys_x(&self, x: i32) -> i32 {
+        (x + self.origin_x) * self.scale
+    }
+
+    fn phys_y(&self, y: i32) -> i32 {
+        y * self.scale
+    }
+
+    /// 最近邻块写（像素素材/占位字形用）：1 逻辑像素 = scale×scale 物理块。
+    fn set_pixel_block(&mut self, x: i32, y: i32, argb: u32) {
+        let s = self.scale;
+        for dy in 0..s {
+            for dx in 0..s {
+                self.set_pixel(x + dx, y + dy, argb);
+            }
         }
     }
 
@@ -364,7 +408,10 @@ impl<'a> SoftGraphics<'a> {
     }
 
     /// `setClip`：与画布取绝对交集并**替换**当前剪裁区（`Graphics.java:120-131`）。
+    /// 逻辑坐标进（origin 平移 + scale 换算后与物理画布求交）。
     pub fn set_clip(&mut self, x: i32, y: i32, w: i32, h: i32) {
+        self.op(format!("setClip({x},{y},{w},{h})"));
+        let (x, y, w, h) = (self.phys_x(x), self.phys_y(y), w * self.scale, h * self.scale);
         let nx = x.max(0);
         let ny = y.max(0);
         let nx2 = (x + w).min(self.target.width);
@@ -373,20 +420,22 @@ impl<'a> SoftGraphics<'a> {
         self.clip_y = ny;
         self.clip_w = (nx2 - nx).max(0);
         self.clip_h = (ny2 - ny).max(0);
-        self.op(format!("setClip({x},{y},{w},{h})"));
     }
 
-    /// 复位剪裁区=**整幅画布**（"取景后复位"类绘制用；禁 SCREEN 常量——
-    /// 画布可为任意尺寸，常量复位在 modern 会把后续绘制裁掉，2026-10-18 用户
-    /// 实报"对话框底色被背景覆盖"根因）。classic 画布=240×320 ⇒ op 文本与
-    /// 常量复位逐字同（oracle ops 对拍零偏离）。
+    /// 复位剪裁区=**整幅物理画布**（"取景后复位"类绘制用；禁 SCREEN 常量）。
+    /// classic 画布=240×320 ⇒ op 文本与常量复位逐字同（oracle ops 对拍零偏离）。
     pub fn reset_clip(&mut self) {
         let (w, h) = (self.target.width, self.target.height);
-        self.set_clip(0, 0, w, h);
+        self.op(format!("setClip(0,0,{w},{h})"));
+        self.clip_x = 0;
+        self.clip_y = 0;
+        self.clip_w = w;
+        self.clip_h = h;
     }
 
     /// `clipRect`：与当前剪裁区取交（`Graphics.java:133-143`）。
     pub fn clip_rect(&mut self, x: i32, y: i32, w: i32, h: i32) {
+        let (x, y, w, h) = (self.phys_x(x), self.phys_y(y), w * self.scale, h * self.scale);
         let x2 = (self.clip_x + self.clip_w).min(x + w);
         let y2 = (self.clip_y + self.clip_h).min(y + h);
         let nx = self.clip_x.max(x);
@@ -435,10 +484,12 @@ impl<'a> SoftGraphics<'a> {
         0xFF000000 | self.color
     }
 
-    /// `fillRect`（`Graphics.java:187-195`）。
+    /// `fillRect`（`Graphics.java:187-195`）。逻辑坐标进；scale 后=精确物理矩形。
     pub fn fill_rect(&mut self, x: i32, y: i32, w: i32, h: i32) {
         self.op(format!("fillRect({x},{y},{w},{h},#{:06x})", self.color));
         let c = self.opaque_color();
+        let (x, y) = (self.phys_x(x), self.phys_y(y));
+        let (w, h) = (w * self.scale, h * self.scale);
         for yy in y..y + h {
             for xx in x..x + w {
                 self.set_pixel(xx, yy, c);
@@ -447,18 +498,34 @@ impl<'a> SoftGraphics<'a> {
     }
 
     /// `drawRect`：四条 `drawLine`（`Graphics.java:197-203`）。
+    /// 【task-13】经 line_raw（物理）防双倍换算；op 流=drawRect+4×drawLine 逐字同。
     pub fn draw_rect(&mut self, x: i32, y: i32, w: i32, h: i32) {
         self.op(format!("drawRect({x},{y},{w},{h},#{:06x})", self.color));
-        self.draw_line(x, y, x + w - 1, y);
-        self.draw_line(x, y + h - 1, x + w - 1, y + h - 1);
-        self.draw_line(x, y, x, y + h - 1);
-        self.draw_line(x + w - 1, y, x + w - 1, y + h - 1);
+        let c = self.opaque_color();
+        let (px, py) = (self.phys_x(x), self.phys_y(y));
+        let (pw, ph) = (w * self.scale, h * self.scale);
+        for (x1, y1, x2, y2) in [
+            (px, py, px + pw - 1, py),
+            (px, py + ph - 1, px + pw - 1, py + ph - 1),
+            (px, py, px, py + ph - 1),
+            (px + pw - 1, py, px + pw - 1, py + ph - 1),
+        ] {
+            self.op(format!("drawLine({x1},{y1},{x2},{y2},#{:06x})", self.color));
+            self.line_raw(x1, y1, x2, y2, c);
+        }
     }
 
-    /// `drawLine`：Bresenham（`Graphics.java:205-227`）。
+    /// `drawLine`：Bresenham（`Graphics.java:205-227`）。逻辑坐标进。
     pub fn draw_line(&mut self, x1: i32, y1: i32, x2: i32, y2: i32) {
         self.op(format!("drawLine({x1},{y1},{x2},{y2},#{:06x})", self.color));
         let c = self.opaque_color();
+        let (x1, y1) = (self.phys_x(x1), self.phys_y(y1));
+        let (x2, y2) = (self.phys_x(x2), self.phys_y(y2));
+        self.line_raw(x1, y1, x2, y2, c);
+    }
+
+    /// 物理坐标 Bresenham（pub 面已换算；drawRect 内部复用防双倍平移/缩放）。
+    fn line_raw(&mut self, x1: i32, y1: i32, x2: i32, y2: i32, c: u32) {
         let (dx, dy) = ((x2 - x1).abs(), (y2 - y1).abs());
         let (sx, sy) = (if x1 < x2 { 1 } else { -1 }, if y1 < y2 { 1 } else { -1 });
         let mut err = dx - dy;
@@ -481,12 +548,21 @@ impl<'a> SoftGraphics<'a> {
     }
 
     /// `fillTriangle`：顶点按 y 稳定冒泡排序 + double 边缘插值（`Graphics.java:229-259`）。
+    /// 逻辑坐标进；scale 后顶点=物理。
     pub fn fill_triangle(&mut self, x1: i32, y1: i32, x2: i32, y2: i32, x3: i32, y3: i32) {
         self.op(format!(
             "fillTriangle({x1},{y1},{x2},{y2},{x3},{y3},#{:06x})",
             self.color
         ));
         let c = self.opaque_color();
+        let (x1, y1, x2, y2, x3, y3) = (
+            self.phys_x(x1),
+            self.phys_y(y1),
+            self.phys_x(x2),
+            self.phys_y(y2),
+            self.phys_x(x3),
+            self.phys_y(y3),
+        );
         let (mut x1, mut y1, mut x2, mut y2, mut x3, mut y3) = (x1, y1, x2, y2, x3, y3);
         // 顶点排序（确定性）：与 shim 相同的三次比较交换（x/y 同步换）
         if y1 > y2 {
@@ -584,10 +660,13 @@ impl<'a> SoftGraphics<'a> {
     // ---------------- 图像 ----------------
 
     /// `drawImage(img, x, y, anchor)`（`Graphics.java:336-340`）。
+    /// 逻辑坐标进；像素素材**最近邻 ×scale**（硬边保像素味——task-13 ④）。
     pub fn draw_image(&mut self, img: &ArgbImage, x: i32, y: i32, anchor: i32) {
         self.op(format!("drawImage({}x{},{x},{y},{anchor})", img.width, img.height));
-        let adj = anchor_adjust(anchor, img.width, img.height);
-        self.blit(img, x - adj[0], y - adj[1]);
+        let s = self.scale;
+        let adj = anchor_adjust(anchor, img.width * s, img.height * s);
+        let (ox, oy) = (self.phys_x(x) - adj[0], self.phys_y(y) - adj[1]);
+        self.blit(img, ox, oy);
     }
 
     /// Nokia `DirectGraphics.drawImage(img, x, y, anchor, transform)`
@@ -597,12 +676,13 @@ impl<'a> SoftGraphics<'a> {
             "drawImageT({}x{},{x},{y},{anchor},{transform})",
             img.width, img.height
         ));
+        let s = self.scale;
         let swap = (4..=7).contains(&transform);
         let bw = if swap { img.height } else { img.width };
         let bh = if swap { img.width } else { img.height };
-        let adj = anchor_adjust(anchor, bw, bh);
-        let ox = x - adj[0];
-        let oy = y - adj[1];
+        let adj = anchor_adjust(anchor, bw * s, bh * s);
+        let ox = self.phys_x(x) - adj[0];
+        let oy = self.phys_y(y) - adj[1];
         let (w, h) = (img.width, img.height);
         for sy in 0..h {
             for sx in 0..w {
@@ -631,20 +711,22 @@ impl<'a> SoftGraphics<'a> {
                     24576 => (w - 1 - sx, h - 1 - sy),
                     _ => (sx, sy),
                 };
-                self.set_pixel(ox + dx, oy + dy, p);
+                self.set_pixel_block(ox + dx * s, oy + dy * s, p);
             }
         }
     }
 
     /// `Graphics.blit`（非 transpose 形态即 drawImage 内部路径，`Graphics.java:378-390`）。
+    /// 最近邻 ×scale：1 源像素 = scale×scale 物理块。
     fn blit(&mut self, img: &ArgbImage, x: i32, y: i32) {
+        let s = self.scale;
         for sy in 0..img.height {
             for sx in 0..img.width {
                 let p = img.argb[(sy * img.width + sx) as usize];
                 if (p >> 24) & 0xFF == 0 {
                     continue;
                 }
-                self.set_pixel(x + sx, y + sy, p);
+                self.set_pixel_block(x + sx * s, y + sy * s, p);
             }
         }
     }
@@ -709,24 +791,34 @@ impl<'a> SoftGraphics<'a> {
         if anchor & anchor::BASELINE != 0 {
             adj[1] = font.baseline;
         }
-        let px = x - adj[0];
+        // 逻辑坐标（含 origin）——度量三元组/行高派生链不动（task-13 判据②）。
+        let px = x + self.origin_x - adj[0];
         let py = y - adj[1];
         let c = self.opaque_color();
         // D2 字体缝：平台真字形钩子（game-desktop 注入系统 TTF 渲染）。
+        // 【task-13 ②】钩子契约：入参=逻辑（含 origin）；put=**物理坐标**
+        // （字形按物理尺寸光栅化=真 TTF 锐度；降采样路径由钩子侧撤除）。
         // None = 差分占位字形（下方哈希块——与 Java shim 同构，差分逐像素可比）。
         if let Some(h) = glyph_hook() {
+            let s = self.scale;
             let mut put = |gx: i32, gy: i32, col: u32| self.set_pixel(gx, gy, col);
-            h(ch, px, py, cw, chh, c, &mut put);
+            h(ch, px, py, cw, chh, c, &mut put, s);
             return;
         }
         let gw = (cw * 4 / 5).max(2);
         let gh = (chh * 3 / 5).max(3);
         let hash = ((ch as i64).wrapping_mul(2654435761)) as i32 as u32;
+        let s = self.scale;
+        let (bx, by) = (self.phys_x(x - adj[0]), py * s);
         for gy in 0..gh {
             for gx in 0..gw {
                 let bit = (hash >> ((gx + gy * 5) % 29)) & 1;
                 if bit != 0 {
-                    self.set_pixel(px + (cw - gw) / 2 + gx, py + (chh - gh) / 2 + gy, c);
+                    self.set_pixel_block(
+                        bx + ((cw - gw) / 2 + gx) * s,
+                        by + ((chh - gh) / 2 + gy) * s,
+                        c,
+                    );
                 }
             }
         }
@@ -807,7 +899,10 @@ fn quote_utf16(s: &[u16]) -> String {
 /// None（默认）= 差分占位字形（哈希块，与 Java shim 同构——oracle 差分逐像素
 /// 可比的锚，84 用例全绿基于此）；Some = 平台真字体（game-desktop 注入
 /// 系统 TTF；差分测试不受影响——测试进程从不注入）。
-pub type GlyphHook = fn(u16, i32, i32, i32, i32, u32, &mut dyn FnMut(i32, i32, u32));
+/// 真字形钩子：(ch, px, py, cw, chh, color, put, scale)——入参逻辑坐标（含
+/// origin）；put=**物理坐标**（scale 由图形层为真相源传入，钩子按 scale 光栅化
+/// 直落物理=真 TTF 锐度；task-13 ② 替换降采样）。
+pub type GlyphHook = fn(u16, i32, i32, i32, i32, u32, &mut dyn FnMut(i32, i32, u32), i32);
 
 static mut GLYPH_HOOK: Option<GlyphHook> = None;
 
@@ -820,6 +915,97 @@ pub fn set_glyph_hook(h: Option<GlyphHook>) {
 
 fn glyph_hook() -> Option<GlyphHook> {
     unsafe { GLYPH_HOOK }
+}
+
+#[cfg(test)]
+/// task-13/14 判据（adversary 三面）：③平移×缩放可交换、④像素素材最近邻块写、
+/// ②字形物理落点（占位面=块写；钩子面=shell font_inject 物理落点判据）。
+/// classic 1×/origin=0 恒等=全既有套件+oracle ops 字节级（gate 护航）。
+mod scale_origin_tests {
+    use super::*;
+
+    /// 【adversary③】平移×缩放可交换：origin 平移绘制的**像素** == 显式平移
+    /// 参数绘制（同 scale）；ops 记调用方逻辑坐标（origin 隐式不改 ops 面）。
+    #[test]
+    fn translate_scale_commute() {
+        let mut a = ArgbImage::create(80, 80);
+        {
+            let mut g = SoftGraphics::new(&mut a);
+            g.set_scale(2);
+            g.set_origin(10);
+            g.set_color(0xFF0000);
+            g.fill_rect(5, 5, 4, 3);
+            assert_eq!(
+                g.ops.last().map(String::as_str),
+                Some("fillRect(5,5,4,3,#ff0000)"),
+                "ops 记逻辑坐标（origin 隐式）"
+            );
+        }
+        let mut b = ArgbImage::create(80, 80);
+        {
+            let mut g = SoftGraphics::new(&mut b);
+            g.set_scale(2);
+            g.set_color(0xFF0000);
+            g.fill_rect(15, 5, 4, 3);
+        }
+        assert_eq!(a.argb, b.argb, "平移×缩放可交换（origin 平移 == 显式平移参数）");
+    }
+
+    /// 【task-13④】像素素材最近邻 ×scale：1 源像素 = scale×scale 硬边块。
+    #[test]
+    fn sprite_nearest_neighbor_blocks() {
+        let mut img = ArgbImage::create(2, 1);
+        img.argb[0] = 0xFF112233;
+        img.argb[1] = 0xFF445566;
+        let mut dst = ArgbImage::create(8, 4);
+        {
+            let mut g = SoftGraphics::new(&mut dst);
+            g.set_scale(2);
+            g.draw_image(&img, 0, 0, 0);
+        }
+        // 源 (0,0) → 物理 (0..2,0..2) 块；源 (1,0) → (2..4,0..2)
+        assert_eq!(dst.argb[0], 0xFF112233);
+        assert_eq!(dst.argb[1], 0xFF112233);
+        assert_eq!(dst.argb[2], 0xFF445566);
+        assert_eq!(dst.argb[1 * 8 + 1], 0xFF112233, "块写=垂直同色（最近邻非插值）");
+    }
+
+    /// 【task-13②·占位面】字形物理落点：scale=2 占位字形每点=2×2 硬边块
+    /// （度量三元组/行高派生链不动——font_metrics_tests 钉）。
+    #[test]
+    fn placeholder_glyph_blocks_at_scale2() {
+        let mut dst = ArgbImage::create(40, 20);
+        {
+            let mut g = SoftGraphics::new(&mut dst);
+            g.set_scale(2);
+            g.set_color(0xFFFFFFFF);
+            g.draw_char('A' as u16, 0, 0, 0);
+        }
+        let s = 2;
+        // 找一个已绘物理像素，断言其 2×2 块完整（块写语义）
+        let mut found = None;
+        for y in 0..20 {
+            for x in 0..40 {
+                if dst.argb[y * 40 + x] == 0xFFFFFFFF {
+                    found = Some((x - x % s, y - y % s));
+                    break;
+                }
+            }
+            if found.is_some() {
+                break;
+            }
+        }
+        let (bx, by) = found.expect("占位字形须有笔画像素");
+        for dy in 0..s {
+            for dx in 0..s {
+                assert_eq!(
+                    dst.argb[((by + dy) * 40 + (bx + dx)) as usize],
+                    0xFFFFFFFF,
+                    "2×2 硬边块（{bx},{by}）"
+                );
+            }
+        }
+    }
 }
 
 #[cfg(test)]
