@@ -34,9 +34,40 @@ impl Viewport {
     }
 }
 
-/// 把 `src`（ARGB，`src_w`×`src_h`）按 `vp` 写入窗口缓冲 `dst`（0RGB，`vp.win_w` 行宽）；
-/// 信箱填黑。
-pub fn blit(dst: &mut [u32], vp: &Viewport, src: &[u32], src_w: u32, src_h: u32) {
+/// 把背板（物理像素，`src_w`×`src_h` = 逻辑×scale）**1:1 直贴**进窗口缓冲
+/// `dst`（0RGB，`vp.win_w` 行宽）；信箱填黑。**零缩放零插值**——缩放已前移到
+/// 光栅层（game-core 光栅层×倍率，task-13）；本函数只做窗口合成（task-A 窗口侧 ①）。
+pub fn blit_1to1(dst: &mut [u32], vp: &Viewport, src: &[u32], src_w: u32, src_h: u32) {
+    let (ww, wh) = (vp.win_w as usize, vp.win_h as usize);
+    debug_assert_eq!(dst.len(), ww * wh);
+    let (ox, oy) = (vp.ox as usize, vp.oy as usize);
+    let (sw, sh) = (src_w as usize, src_h as usize);
+    debug_assert_eq!(src.len(), sw * sh);
+    for wy in 0..wh {
+        let row = &mut dst[wy * ww..(wy + 1) * ww];
+        if wy < oy || wy >= oy + sh {
+            row.fill(0);
+            continue;
+        }
+        let sy = wy - oy;
+        row[..ox.min(ww)].fill(0);
+        let copy_w = sw.min(ww.saturating_sub(ox));
+        // 与 legacy_blit 同款 alpha 归一（0RGB 窗口缓冲口径）——对拍逐字节等
+        for (d, &p) in row[ox..ox + copy_w].iter_mut().zip(&src[sy * sw..sy * sw + copy_w]) {
+            *d = 0xFF00_0000 | (p & 0x00FF_FFFF);
+        }
+        if ox + copy_w < ww {
+            row[ox + copy_w..].fill(0);
+        }
+    }
+}
+
+/// A 案迁移前的窗口 blit（NN 放大 + 信箱）——**保留为对拍 oracle**（task-A 窗口侧：
+/// classic 1× 时新管线 blit_1to1 必须与本函数逐字节相同；scale≥2 两路按设计分化
+/// ——物理光栅 vs 逻辑 NN 放大，视觉差分登记在 task-13 复核面）。
+/// 仅测试可达；生产路径已改 1:1 直贴。
+#[cfg(test)]
+pub fn legacy_blit(dst: &mut [u32], vp: &Viewport, src: &[u32], src_w: u32, src_h: u32) {
     let (ww, wh) = (vp.win_w as usize, vp.win_h as usize);
     debug_assert_eq!(dst.len(), ww * wh);
     let s = vp.scale as usize;
@@ -126,17 +157,57 @@ mod tests {
     #[test]
     fn blit_scales_pixels_and_blacks_out_bars() {
         // 2×1 源、窗口 7×4：scale = min(7/2, 4/1) = 3 → 画面 6×3，ox=0（余 1 列右侧黑）、oy=0（余 1 行黑）
+        // 【task-A 窗口侧】被测物转 legacy_blit（对拍 oracle），断言零改动。
         let src = [0xAA11_2233u32, 0x0044_5566];
         let vp = Viewport::fit(7, 4, 2, 1);
         assert_eq!((vp.scale, vp.ox, vp.oy), (3, 0, 0));
         let mut dst = vec![0xDEAD_BEEFu32; 7 * 4];
-        blit(&mut dst, &vp, &src, 2, 1);
+        legacy_blit(&mut dst, &vp, &src, 2, 1);
         let a = 0xFF11_2233;
         let b = 0xFF44_5566;
         for y in 0..3 {
             assert_eq!(&dst[y * 7..y * 7 + 7], &[a, a, a, b, b, b, 0], "行 {y}");
         }
         assert!(dst[21..].iter().all(|&p| p == 0), "下信箱");
+    }
+
+    /// task-A 窗口侧 ①：背板 1:1 直贴 + 信箱（零缩放）。
+    #[test]
+    fn blit_1to1_pastes_backing_and_blacks_out_bars() {
+        // 6×3 背板（=逻辑 2×1 × scale 3）、窗口 7×4：ox=0/oy=0，右 1 列下 1 行黑
+        let src = [
+            0xAA11_2233u32, 0xAA11_2233, 0xAA11_2233, 0x0044_5566, 0x0044_5566, 0x0044_5566,
+            0xAA11_2233, 0xAA11_2233, 0xAA11_2233, 0x0044_5566, 0x0044_5566, 0x0044_5566,
+            0xAA11_2233, 0xAA11_2233, 0xAA11_2233, 0x0044_5566, 0x0044_5566, 0x0044_5566,
+        ];
+        let vp = Viewport::fit(7, 4, 2, 1);
+        let mut dst = vec![0xDEAD_BEEFu32; 7 * 4];
+        blit_1to1(&mut dst, &vp, &src, 6, 3);
+        let a = 0xFF11_2233;
+        let b = 0xFF44_5566;
+        for y in 0..3 {
+            assert_eq!(&dst[y * 7..y * 7 + 7], &[a, a, a, b, b, b, 0], "行 {y} 1:1 直贴");
+        }
+        assert!(dst[21..].iter().all(|&p| p == 0), "下信箱");
+    }
+
+    /// 对拍判据（task-A 窗口侧）：classic 1× 时 blit_1to1 == legacy_blit **逐字节**
+    ///（含信箱/alpha 归一）——迁移零回归的机器判据。scale≥2 两路按 A 案设计分化
+    /// （物理光栅 vs 逻辑 NN 放大），视觉差分归 task-13 复核面登记。
+    #[test]
+    fn classic_1x_blit_identity() {
+        // 非对称测试图（含 alpha 变化 + 奇偶色）覆盖归一/边界
+        let (sw, sh) = (5u32, 3u32);
+        let src: Vec<u32> = (0..sw * sh).map(|i| 0x0100_0000 * (i + 1) + 0x80).collect();
+        // 窗口 = 画布 + 1 列/1 行余量 ⇒ vp.scale=1 且两侧有信箱
+        let vp = Viewport::fit(sw + 1, sh + 1, sw, sh);
+        assert_eq!(vp.scale, 1);
+        let (ww, wh) = (vp.win_w as usize, vp.win_h as usize);
+        let mut new_out = vec![0xDEAD_BEEFu32; ww * wh];
+        blit_1to1(&mut new_out, &vp, &src, sw, sh);
+        let mut old_out = vec![0xDEAD_BEEFu32; ww * wh];
+        legacy_blit(&mut old_out, &vp, &src, sw, sh);
+        assert_eq!(new_out, old_out, "classic 1× 全链逐字节恒等（blit 面，含信箱）");
     }
 
     #[test]
