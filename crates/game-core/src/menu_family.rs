@@ -1351,7 +1351,7 @@ impl OptionList {
     /// paint case 16（a.java:2959-2990）。
     pub fn paint(&self, g: &mut SoftGraphics<'_>, ui: &[ArgbImage], font: &crate::render::SoftFont) {
         let x = (SCREEN_W - self.box_w - 22) >> 1;
-        let mut y = (SCREEN_H - self.box_h) >> 1;
+        let y = (SCREEN_H - self.box_h) >> 1;
         paint_box_frame(g, &ui[0], x, y, self.box_w + 22, self.box_h);
         let content_x = x + 11;
         // 行几何 = row_band 单源（C-1 整改：paint 真调，根除公式双份）

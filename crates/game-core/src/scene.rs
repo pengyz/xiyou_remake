@@ -1231,7 +1231,7 @@ impl GameScene {
     }
 
     /// 遮幅中段换层（a.java:3186-3206）：loadFloorData + 落点特例
-    /// （0/50/1-上行 placePlayerAtCell；其余 findFloorGateEntity → stepOffStairs）+ 小地图 + 步效果。
+    /// （0/50/1-上行 place_player_at_cell；其余 findFloorGateEntity → step_off_stairs）+ 小地图 + 步效果。
     fn swap_floor(&mut self) {
         self.floor = self.pending_floor;
         self.current_floor = self.pending_floor;
@@ -1243,16 +1243,16 @@ impl GameScene {
         self.load_floor_data(&fa.maplv, px, py, &fa.records, self.floor)
             .expect("层资产重载失败");
         if self.floor == 0 {
-            self.placePlayerAtCell(1, 2);
+            self.place_player_at_cell(1, 2);
             self.view.center_on_player();
         } else if self.floor == 50 {
-            self.placePlayerAtCell(6, 7);
+            self.place_player_at_cell(6, 7);
             self.view.center_on_player();
         } else if self.floor == 1 && !self.went_down {
-            self.placePlayerAtCell(6, 11);
+            self.place_player_at_cell(6, 11);
             self.view.center_on_player();
         } else if let Some((gx, gy)) = self.find_floor_gate(self.went_down) {
-            self.stepOffStairs(gx, gy);
+            self.step_off_stairs(gx, gy);
         }
         self.build_minimap();
         self.apply_step_cell_effects();
@@ -1283,8 +1283,9 @@ impl GameScene {
         None
     }
 
-    /// stepOffStairs（a.java:5807-5814）：楼梯落点 = 首个可行走邻格（上/下/左/右序）。
-    fn stepOffStairs(&mut self, mut gx: i32, mut gy: i32) {
+    /// step_off_stairs（a.java:5807-5814）：楼梯落点 = 首个可行走邻格（上/下/左/右序）。
+    /// Java 反混淆原名 `stepOffStairs`（对照性锚——P0 命名批 2026-10-19 机械改名，语义不变）。
+    fn step_off_stairs(&mut self, mut gx: i32, mut gy: i32) {
         if self.walkable_at(gx, gy - 1) {
             gy -= 1;
         } else if self.walkable_at(gx, gy + 1) {
@@ -1294,12 +1295,13 @@ impl GameScene {
         } else if self.walkable_at(gx + 1, gy) {
             gx += 1;
         }
-        self.placePlayerAtCell(gx, gy);
+        self.place_player_at_cell(gx, gy);
         self.view.center_on_player();
     }
 
-    /// placePlayerAtCell（a.java:5193-5193）：格坐标直置 + 步进度清零。
-    fn placePlayerAtCell(&mut self, cx: i32, cy: i32) {
+    /// place_player_at_cell（a.java:5193-5193）：格坐标直置 + 步进度清零。
+    /// Java 反混淆原名 `placePlayerAtCell`（对照性锚——P0 命名批 2026-10-19 机械改名，语义不变）。
+    fn place_player_at_cell(&mut self, cx: i32, cy: i32) {
         self.player_cell_x = cx;
         self.player_cell_y = cy;
         self.view.player_px = cx << 5;
@@ -2361,7 +2363,7 @@ impl GameScene {
         // （f_short_arr_04 等价，Java 每次 MVS 重建，a.java:8521-8522）；
         // 每对两向（8571-8573 交换重复）：扫描格槽组内 renderCategory==8
         // 怪物 → 双向 removeGroupAtCellByType(两格, 82)（82 点位消耗）
-        // → carryMonstersTo 搬到对端。槽组循环 var8 为**循环前**容量快照、槽表
+        // → carry_monsters_to 搬到对端。槽组循环 var8 为**循环前**容量快照、槽表
         // 就地压缩不清尾（a.java:6440-6443）⇒ stale 尾重触发 quirk 保真。
         let mut buf = [0i16; 32];
         for v6 in (0..self.entities.count as i32).rev() {
@@ -2405,7 +2407,7 @@ impl GameScene {
                         let ty = self.entities.items[v9 as usize].py >> 5;
                         entity::remove_group_at_cell_by_type(tx, ty, 82, &mut self.entities, &mut self.grid);
                         entity::remove_group_at_cell_by_type(cx86, cy6, 82, &mut self.entities, &mut self.grid);
-                        self.carryMonstersTo(v10, tx, ty);
+                        self.carry_monsters_to(v10, tx, ty);
                     }
                     v12 += 1;
                 }
@@ -2424,7 +2426,7 @@ impl GameScene {
                         let ty = self.entities.items[v9 as usize].py >> 5;
                         entity::remove_group_at_cell_by_type(tx, ty, 82, &mut self.entities, &mut self.grid);
                         entity::remove_group_at_cell_by_type(cx86, cy6, 82, &mut self.entities, &mut self.grid);
-                        self.carryMonstersTo(v92, tx, ty);
+                        self.carry_monsters_to(v92, tx, ty);
                     }
                     v93 += 1;
                 }
@@ -2433,11 +2435,12 @@ impl GameScene {
         }
     }
 
-    /// carryMonstersTo（a.java:8872-8878）：怪物搬运原语——同型同 param 在目标格
+    /// carry_monsters_to（a.java:8872-8878）：怪物搬运原语——同型同 param 在目标格
     /// spawnEntity（入参格坐标，Java 内部 <<5 转像素）+ 对**旧格全部同型**
     /// 实体 removeGroupAtCellByType 摘槽（"复制-删除" quirk：旧格同型多只
     /// 一并消失，Stage A 保真）。
-    fn carryMonstersTo(&mut self, idx: usize, cx: i32, cy: i32) {
+    /// Java 反混淆原名 `carryMonstersTo`（对照性锚——P0 命名批 2026-10-19 机械改名，语义不变）。
+    fn carry_monsters_to(&mut self, idx: usize, cx: i32, cy: i32) {
         let ox = self.entities.items[idx].px;
         let oy = self.entities.items[idx].py;
         let t = self.entities.items[idx].type_;
@@ -3299,7 +3302,7 @@ impl GameScene {
             }
             20 => {
                 // a.java:7832-7850：对角瞬移——40 层禁用；镜像格 interact 放行
-                // → placePlayerAtCell + 相机居中 + applyStepCellEffects + 消耗；
+                // → place_player_at_cell + 相机居中 + applyStepCellEffects + 消耗；
                 // 拦截且无浮层 → 「无法移动到该位置」不消耗
                 if self.floor == 40 {
                     self.show_overlay_message(0, "本层不能直接瞬移。", 0, 0);
@@ -3309,7 +3312,7 @@ impl GameScene {
                     let ty = self.view.high - 1 - (self.view.player_py >> 5);
                     let pass = self.interact_with_cell(tx, ty);
                     if pass {
-                        self.placePlayerAtCell(tx, ty);
+                        self.place_player_at_cell(tx, ty);
                         self.view.set_camera(
                             ((self.view.view_w - 32) >> 1) - self.view.player_px,
                             ((self.view.view_h - 32) >> 1) - self.view.player_py,
@@ -5330,9 +5333,10 @@ impl GameScene {
             }
         }
 
-        /// fireTrapClimbUp（a.java:8628-8636）：火焰陷阱上爬——上格可走/无槽/非玩家格
+        /// fire_trap_climb_up（a.java:8628-8636）：火焰陷阱上爬——上格可走/无槽/非玩家格
         /// 时拉起旧 60（removed+脱槽）并在上格重生 DES 态新 60。
-        fn fireTrapClimbUp(&mut self, x: i32, y: i32, idx: i32) {
+    /// Java 反混淆原名 `fireTrapClimbUp`（对照性锚——P0 命名批 2026-10-19 机械改名，语义不变）。
+        fn fire_trap_climb_up(&mut self, x: i32, y: i32, idx: i32) {
             let ty = y - 1;
             let walkable = self.walkable_at(x, ty);
             let has_slot = if x >= 0 && ty >= 0 && x < self.view.wide && ty < self.view.high {
@@ -5379,7 +5383,7 @@ impl GameScene {
             self.player_cell_y = self.view.player_py >> 5;
             self.player_bob_applied = false; // player_bob_applied 每步清零（a.java:5550），踩喷泉再置
             // 陷阱扣血臂（a.java:5549-5645）：61 夹击 → -HP/2；62 邻接 → -100；
-            // 60 邻接 → -200 + sort_i 短路 handleFieldInput；60 上邻 → fireTrapClimbUp
+            // 60 邻接 → -200 + sort_i 短路 handleFieldInput；60 上邻 → fire_trap_climb_up
             // 火焰上爬（拉旧格 + 上格重生 DES 态）。armor 40（火浣衣）免疫
             // 61/62 与 60 计数，但仍执行上爬。（floor49 陷阱层 T305 实证缺口）
             let (pcx, pcy) = (self.player_cell_x, self.player_cell_y);
@@ -5426,7 +5430,7 @@ impl GameScene {
                     let idx = self.entity_at_cell(pcx, pcy - 1, 60);
                     if idx >= 0 {
                         n60 += 1;
-                        self.fireTrapClimbUp(pcx, pcy - 1, idx);
+                        self.fire_trap_climb_up(pcx, pcy - 1, idx);
                     }
                 }
                 if pcy < self.view.high - 1 && self.entity_at_cell(pcx, pcy + 1, 60) >= 0 {
@@ -5435,7 +5439,7 @@ impl GameScene {
             } else if pcy > 0 {
                 let idx = self.entity_at_cell(pcx, pcy - 1, 60);
                 if idx >= 0 {
-                    self.fireTrapClimbUp(pcx, pcy - 1, idx);
+                    self.fire_trap_climb_up(pcx, pcy - 1, idx);
                 }
             }
             if n60 > 0 {
@@ -7785,7 +7789,7 @@ mod slot_equip_scene_tests {
 
     /// MVS 型 82 配对传送（a.java:8519-8592）三断言之【配对+互传+消耗】：
     /// 倒序扫 type==82 按 `param&255` 两两配对（本例 3 与 0x0103=259 低字节
-    /// 同键 ⇒ 配对成立，钉 &255 掩码）；cat8 怪物经 carryMonstersTo（a.java:8872-8878）
+    /// 同键 ⇒ 配对成立，钉 &255 掩码）；cat8 怪物经 carry_monsters_to（a.java:8872-8878）
     /// 搬到对端格（同型同 param spawn + 旧格全同型摘槽）；两 82 点位被
     /// removeGroupAtCellByType(…, 82)（a.java:6434-6449）消耗（removed=true）；
     /// 无参指令游标 = 标签后 1 字符位（a.java:8591 `scriptCursor = script_cursor0 + 1`）。
@@ -7807,8 +7811,8 @@ mod slot_equip_scene_tests {
         sc.execute_script_instruction();
 
         assert!(sc.entities.items[e82a].removed && sc.entities.items[e82b].removed, "消耗：两 82 点位摘槽");
-        assert!(sc.entities.items[ema].removed, "原地怪物被 carryMonstersTo 旧格全同型摘除");
-        assert_eq!(sc.entities.count, ema + 2, "carryMonstersTo 复制-删除：目标格新增 1 只");
+        assert!(sc.entities.items[ema].removed, "原地怪物被 carry_monsters_to 旧格全同型摘除");
+        assert_eq!(sc.entities.count, ema + 2, "carry_monsters_to 复制-删除：目标格新增 1 只");
         let moved = ema + 1;
         assert_eq!(sc.entities.items[moved].type_, 41, "互传：同型复制");
         assert!(!sc.entities.items[moved].removed, "互传：副本存活");
@@ -8073,11 +8077,11 @@ mod slot_equip_scene_tests {
         assert_eq!(sc.script_cursor, 4, "无参 op 游标照常 = 标签后 1 位（a.java:8591）");
     }
 
-    /// carryMonstersTo 旧格同型一并消失 + stale 尾复活（a.java:8872-8878 + 6434-6449 +
-    /// 8561-8568 循环体）：同格双 41 时，M1 的 carryMonstersTo 清旧格把 M2 **一并带走**
+    /// carry_monsters_to 旧格同型一并消失 + stale 尾复活（a.java:8872-8878 + 6434-6449 +
+    /// 8561-8568 循环体）：同格双 41 时，M1 的 carry_monsters_to 清旧格把 M2 **一并带走**
     /// （removeGroupAtCellByType 按型全清，非搬移）；随后槽组循环的容量快照
     /// 不变、压缩不清尾 ⇒ M2 经 stale 尾重触发再被复制到目标格。净终态 =
-    /// 双 41 副本堆聚 (5,5)、原地全灭、实体数 +2（两次 carryMonstersTo spawn）。
+    /// 双 41 副本堆聚 (5,5)、原地全灭、实体数 +2（两次 carry_monsters_to spawn）。
     #[test]
     fn m_107_old_cell_same_type_sweep_with_stale_revival() {
         let mut sc = scene_with(&synthetic_sptarm());
@@ -8099,7 +8103,7 @@ mod slot_equip_scene_tests {
         for e in [e82a, e82b, m1, m2] {
             assert!(sc.entities.items[e].removed, "原地实体 {e} 摘除（含同型一并带走）");
         }
-        assert_eq!(sc.entities.count, m2 + 3, "两次 carryMonstersTo spawn（stale 尾复活）");
+        assert_eq!(sc.entities.count, m2 + 3, "两次 carry_monsters_to spawn（stale 尾复活）");
         let alive: Vec<usize> = (0..sc.entities.count).filter(|&i| !sc.entities.items[i].removed).collect();
         assert_eq!(alive.len(), 2, "双 41 副本存活");
         for i in alive {

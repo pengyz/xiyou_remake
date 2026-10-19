@@ -1,7 +1,7 @@
 //! P3.2 实体模块 golden vectors（TDD）。
 //!
 //! 证据：deobf spawnEntity（spawn）/ findBlockingEntity（cell_entity）/ markEntityRemoved（remove）/
-//! findPath+relaxPathNeighbors（findPath best-first，:9840-9936）/ rebuildWalkability（地形可行走）。
+//! findPath+relax_path_neighbors（findPath best-first，:9840-9936）/ rebuildWalkability（地形可行走）。
 //! BUG-006 重放向量使用真实 maplv51（原 jar 提取，fixtures/maplv51.bin）。
 
 use game_core::entity::{self, CellGrid, EntityTable};
@@ -143,7 +143,7 @@ fn path_not_found_without_entity_slots_floor51() {
     };
     let r = find_path(&walk, 1, 11, 3, 10);
     // [2026-10-16 注] 步距修正后此测仍 !found——**结论未变但理由归正**：
-    // 走廊 (1,11)→(3,10) 依赖 sprite51 实体槽（canPathThroughEntity）搭桥，纯地形网格
+    // 走廊 (1,11)→(3,10) 依赖 sprite51 实体槽（can_path_through_entity）搭桥，纯地形网格
     // 不可达（对照下一测试：带槽 = found/3 步）。原"步距错位下的不可达"
     // 结论碰巧同向，理由以本注为准。
     assert!(!r.found);
@@ -152,7 +152,7 @@ fn path_not_found_without_entity_slots_floor51() {
 #[test]
 fn bug006_replay_with_sprite51_entities_full_chain() {
     // m_122 全链：sprite51 解析 → 类型码 switch 生成（含隐藏位与门参数表）
-    // → findPath（relaxPathNeighbors 可通行 = 地形 || canPathThroughEntity 实体槽）→ trace 实测 walkStepCount=3
+    // → findPath（relax_path_neighbors 可通行 = 地形 || can_path_through_entity 实体槽）→ trace 实测 walkStepCount=3
     use game_core::sprite_spawn::{spawn_param_and_visibility, DoorTables};
 
     let (cols, rows, terrain) = grid51();
@@ -179,7 +179,7 @@ fn bug006_replay_with_sprite51_entities_full_chain() {
     }
     assert_eq!(t.count, sp.records.len(), "全部记录生成");
 
-    // relaxPathNeighbors 可通行判定：地形 || canPathThroughEntity（格有实体槽）
+    // relax_path_neighbors 可通行判定：地形 || can_path_through_entity（格有实体槽）
     let walk = Walkability {
         terrain,
         has_entity_slot: &|x, y| {
@@ -191,7 +191,7 @@ fn bug006_replay_with_sprite51_entities_full_chain() {
     };
     let r = find_path(&walk, 1, 11, 3, 10);
     // [2026-10-16 更正] 分歧根因 = grid51() 地形索引错位（见 grid51 注），**非**
-    // find_path 语义——relaxPathNeighbors/canPathThroughEntity（可通行 = isCellWalkable || 槽占用，
+    // find_path 语义——relax_path_neighbors/can_path_through_entity（可通行 = isCellWalkable || 槽占用，
     // a.java:9967/6994）移植本已逐行忠实。步距修正后与 oracle 逐项吻合：
     // found + 3 步（pathArrowsVisible=true + walkStepCount=3，BUG-006 证据链 D）。
     // 原"仍不可达/待 P3.3 考证"主张随步距修正撤销（原主张留档 git 历史）。
@@ -199,7 +199,7 @@ fn bug006_replay_with_sprite51_entities_full_chain() {
     assert_eq!(r.steps.len(), 3, "walkStepCount=3（oracle walkStepCount）");
     // 缓冲序 = 目标端优先（walk 自末端消费）：[2,2,1] ⇒ 行走序 up,right,right
     // = (1,11)→(1,10)→(2,10)→(3,10)——与 best-first 幻影头怪癖的平局序一致，
-    // 此序列钉 relaxPathNeighbors 插入/弹出怪癖的确定性。
+    // 此序列钉 relax_path_neighbors 插入/弹出怪癖的确定性。
     assert_eq!(r.steps, vec![2, 2, 1], "缓冲序 [2,2,1]");
 }
 

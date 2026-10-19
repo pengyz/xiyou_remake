@@ -227,7 +227,6 @@ impl IntroSequence {
             // 【用户验收修正 2026-10-19】立绘两侧延展带=**素材边缘色纯色带**（云雾色，
             // 自然过渡无波浪纹）——延展带配色与素材边缘协调（立绘边缘=云雾色）。
             // classic 无侧带（图满幅）零偏离。
-            let bw = img.width as usize;
             let edge_px = img.argb[0] & 0x00FF_FFFF | 0xFF00_0000;
             let img_x = layout.center_x - (img.width >> 1);
             if img_x > 0 {

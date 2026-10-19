@@ -372,6 +372,7 @@ mod rms_save_roundtrip {
     }
 }
 
+#[cfg(test)]
 mod tests {
         use super::*;
         use game_core::layout::{prompt_cx, prompt_cy, SCREEN_H, SCREEN_W, SOUND_PROMPT_TEXT};
@@ -1167,6 +1168,10 @@ fn softkey_code(x: i32, y: i32, w: i32, h: i32) -> Option<i32> {
 }
 
 /// 鼠标左键（画面坐标）→ 软键码：底部 30% 左三分之一 = -6、右三分之一 = -7、其余 = -5。
+/// 【预留·安卓触控缝】WIN-OP 触控映射（点按语义单一源）——生产点击链现走
+/// pointer_hit/click_key（行命中优先/基线兜底），本函数为点按区语义的独立单源
+/// （测试面消费）；安卓触控缝接线时作映射源（2026-10-19 P0 死码批有据标注）。
+#[allow(dead_code)]
 fn click_code(x: i32, y: i32, w: i32, h: i32) -> i32 {
     softkey_code(x, y, w, h).unwrap_or(-5)
 }

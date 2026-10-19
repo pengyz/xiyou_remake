@@ -257,7 +257,7 @@ impl BootMachine {
 
     /// WIN-OP③（C-2 补面 2026-10-18）：标题侧设置面板（GameMode::About）指针命中——
     /// OptionList::row_band 单源（与 GameScene 侧共用几何）；confirm=-5（翻转键同款）。
-    pub fn pointer_hit(&self, x: i32, y: i32) -> crate::scene::PointerHit {
+    pub fn pointer_hit(&self, _x: i32, y: i32) -> crate::scene::PointerHit {
         if self.mode == GameMode::EquipDetail {
             // 标题侧读档槽列表（paint case 8）：SlotSelect 行带单源
             if let Some(slots) = self.slots.as_ref() {

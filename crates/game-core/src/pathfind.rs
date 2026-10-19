@@ -1,6 +1,6 @@
 //! findPath findPath 忠实移植 —— best-first 搜索 + 父指针回溯。
 //!
-//! 证据：reference/src/deobf/a.java:9869-9928（findPath）+ relaxPathNeighbors（:9908-9936）。
+//! 证据：reference/src/deobf/a.java:9869-9928（findPath）+ relax_path_neighbors（:9908-9936）。
 //! 忠实点（含原版怪癖）：
 //! - 优先值 cost = |x-dst| + |y-dst| + |x-src| + |y-src|；
 //! - 插入循环 `while (--table_count >= 0) { if cost < arr[table_count] || table_count == 0 {…break} }`
@@ -8,7 +8,7 @@
 //! - 扩展上限 `++table_count < 100`；
 //! - 回溯方向映射（由父指针差分，目标→起点反向行走）：dx=-1→2 / dx=+1→3 /
 //!   dy=-w→0 / dy=+w→1；
-//! - 可通行判定 = isCellWalkable(terrain) || canPathThroughEntity(格有实体槽)。
+//! - 可通行判定 = isCellWalkable(terrain) || can_path_through_entity(格有实体槽)。
 
 use crate::enums::Dir;
 
@@ -21,7 +21,7 @@ pub const DIR_LEFT: u8 = Dir::Left as u8;
 pub struct Walkability<'g> {
     /// walkableGrid[y][x]：地形可通行（rebuildWalkability 由 maplv tile 表构建）
     pub terrain: Vec<Vec<bool>>,
-    /// canPathThroughEntity：格有实体槽（容量 > 0）亦可通行
+    /// can_path_through_entity：格有实体槽（容量 > 0）亦可通行
     pub has_entity_slot: &'g dyn Fn(i32, i32) -> bool,
     pub cols: i32,
     pub rows: i32,
@@ -36,7 +36,8 @@ impl Walkability<'_> {
         }
     }
 
-    fn canPathThroughEntity(&self, x: i32, y: i32) -> bool {
+    /// Java 反混淆原名 `canPathThroughEntity`（对照性锚——P0 命名批 2026-10-19 机械改名，语义不变）。
+    fn can_path_through_entity(&self, x: i32, y: i32) -> bool {
         if x >= 0 && x < self.cols && y >= 0 && y < self.rows {
             (self.has_entity_slot)(x, y)
         } else {
@@ -80,14 +81,14 @@ pub fn find_path(walk: &Walkability, from_x: i32, from_y: i32, to_x: i32, to_y: 
     let mut expansions = 0i32;
 
     loop {
-        // relaxPathNeighbors × 4（左、右、上、下——Java 顺序）
-        relaxPathNeighbors(walk, &mut visited, &mut parent, &mut prio, &mut queue, &mut open_count,
+        // relax_path_neighbors × 4（左、右、上、下——Java 顺序）
+        relax_path_neighbors(walk, &mut visited, &mut parent, &mut prio, &mut queue, &mut open_count,
             cur_x - 1, cur_y, cur_idx, dst_x, dst_y, src_x, src_y, cols);
-        relaxPathNeighbors(walk, &mut visited, &mut parent, &mut prio, &mut queue, &mut open_count,
+        relax_path_neighbors(walk, &mut visited, &mut parent, &mut prio, &mut queue, &mut open_count,
             cur_x + 1, cur_y, cur_idx, dst_x, dst_y, src_x, src_y, cols);
-        relaxPathNeighbors(walk, &mut visited, &mut parent, &mut prio, &mut queue, &mut open_count,
+        relax_path_neighbors(walk, &mut visited, &mut parent, &mut prio, &mut queue, &mut open_count,
             cur_x, cur_y - 1, cur_idx, dst_x, dst_y, src_x, src_y, cols);
-        relaxPathNeighbors(walk, &mut visited, &mut parent, &mut prio, &mut queue, &mut open_count,
+        relax_path_neighbors(walk, &mut visited, &mut parent, &mut prio, &mut queue, &mut open_count,
             cur_x, cur_y + 1, cur_idx, dst_x, dst_y, src_x, src_y, cols);
 
         if open_count <= 0 {
@@ -128,7 +129,7 @@ pub fn find_path(walk: &Walkability, from_x: i32, from_y: i32, to_x: i32, to_y: 
                 // **保留**（findPath 写的是成员缓冲）——MOV 五参不判返回值、openWallOnRoute
                 // 照样消费前缀，故部分步序原样带出。可达性（B 级）：回溯只会在父
                 // 指针落到未入队格时失败，唯幻影队头 (0,0)；而 Java 弹出幻影后扩展
-                // relaxPathNeighbors(-1,0) 先抛 AIOOBE（本移植 relaxPathNeighbors 越界早退不崩）——Java 侧不可达
+                // relax_path_neighbors(-1,0) 先抛 AIOOBE（本移植 relax_path_neighbors 越界早退不崩）——Java 侧不可达
                 _ => return PathResult { found: false, steps },
             };
             steps.push(dir);
@@ -146,9 +147,9 @@ pub fn find_path(walk: &Walkability, from_x: i32, from_y: i32, to_x: i32, to_y: 
     PathResult { found, steps }
 }
 
-/// relaxPathNeighbors 忠实移植：邻格入开放队列（优先插入，含"未插入也计数"怪癖）。
+/// relax_path_neighbors 忠实移植：邻格入开放队列（优先插入，含"未插入也计数"怪癖）。
 #[allow(clippy::too_many_arguments)]
-fn relaxPathNeighbors(
+fn relax_path_neighbors(
     walk: &Walkability,
     visited: &mut [Vec<u8>],
     parent: &mut [Vec<i16>],
@@ -165,12 +166,12 @@ fn relaxPathNeighbors(
     cols: i32,
 ) {
     if x < 0 || y < 0 || x >= cols || y >= walk.rows {
-        return; // Java 数组访问越界在此场景被行列界内保证（relaxPathNeighbors 调用点邻格）
+        return; // Java 数组访问越界在此场景被行列界内保证（relax_path_neighbors 调用点邻格）
     }
     let dx16 = x as i16;
     let dy16 = y as i16;
     if visited[dy16 as usize][dx16 as usize] == 0
-        && (walk.is_cell_walkable(dx16 as i32, dy16 as i32) || walk.canPathThroughEntity(dx16 as i32, dy16 as i32))
+        && (walk.is_cell_walkable(dx16 as i32, dy16 as i32) || walk.can_path_through_entity(dx16 as i32, dy16 as i32))
     {
         visited[dy16 as usize][dx16 as usize] = 1;
         parent[dy16 as usize][dx16 as usize] = came_from as i16;

@@ -9,7 +9,7 @@
 //! - `preset-floor49`（scenarios/，迭代 66 原用例的夹具化）：probeCrossFloorSnapshot（现名 probeCrossFloorSnapshot，tryRunScene
 //!   case15 守卫门控）；
 //! - `fx-scriptwalk-floor3`（夹具场景）：advanceScriptWalk（script0 玩家三参 MOV 两步行走）；
-//! - `fx-knockback-floor43`（夹具场景）：fireTrapClimbUp（型60 上邻击退：可退 / 墙挡两臂）；
+//! - `fx-knockback-floor43`（夹具场景）：fire_trap_climb_up（型60 上邻击退：可退 / 墙挡两臂）；
 //! - `fx-fan-floor13`（夹具场景）：m_089（芭蕉扇未命中提示 / 命中灭火两臂）+ 型10 撞击提示。
 //!
 //! 夹具（crates/game-oracle/tests/fixtures/）与再生命令（无头；不触碰 _out/ 的写入只发生在
@@ -398,7 +398,7 @@ fn fx_scriptwalk_floor3_frames_match() {
     assert_eq!((sc.view.player_px >> 5, sc.view.player_py >> 5), (5, 11), "MOV_0_5_11 终点");
 }
 
-/// fireTrapClimbUp：floor43 (3,5) -4 步入 (4,5)（上邻 (4,4) 型60）⇒ 击退至 (4,3) + 扣血 200；-1 步入 (4,4)
+/// fire_trap_climb_up：floor43 (3,5) -4 步入 (4,5)（上邻 (4,4) 型60）⇒ 击退至 (4,3) + 扣血 200；-1 步入 (4,4)
 /// ⇒ 上邻 (4,3) 型60、其上 (4,2) 为墙 ⇒ 不退 + 再扣 200。T1-600。
 #[test]
 // 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案） 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
@@ -1080,7 +1080,7 @@ fn bug012_lay2a_same_point_crash_regression() {
 }
 
 /// BUG-012b 真实切层链（2026-10-17 用户精确证词 P0）：floor2 (1,10) 下步入 (1,11)
-/// 上梯 → changeFloor(3) → swap_floor 落点 stepOffStairs 首可走邻格 = floor3 (2,11) 剧情点
+/// 上梯 → changeFloor(3) → swap_floor 落点 step_off_stairs 首可走邻格 = floor3 (2,11) 剧情点
 /// → applyStepCellEffects case83 step 臂 → script0（CES_84 嫦娥 + MOV_0_5_11 自走
 /// + TAK_8_9 剧情对话）。**Java 基线（oracle floor2-stair2 实测）**：
 /// T305 踩梯 → T309 切层落 (2,11) → T310 cursor 12（CES）→ T311 dphase=3/wsc=3（MOV

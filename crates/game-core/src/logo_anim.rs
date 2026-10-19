@@ -377,7 +377,7 @@ impl LogoAnim {
         let bx = self.bar_x;
         // x=120 均为屏幕中心（anchor 12/4 = 水平居中折算）⇒ CENTER_X；行 2 三件
         // 90/120/150 关于中心 ±30 对称（同 kind/anchor 参数）⇒ CENTER_X∓30
-        let cx = (self.sw / 2);
+        let cx = self.sw / 2;
         match timeline {
             1 => {
                 self.register(Some(sflogo[1].clone()), cx, 0, 1, 12, 4, cx, ay[0], 0, -1);

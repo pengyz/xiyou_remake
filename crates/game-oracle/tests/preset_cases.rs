@@ -2336,8 +2336,8 @@ fn preset_merchant_frames_match() {
 }
 /// floor1→floor2 换层全链（迭代 35，harness 统一）：floor1-to-floor2 场景
 /// （preset-floor1 槽载入 (3,10)），T1-1500 全帧。覆盖：floor1 真实行走
-/// （4 战）→ 踩型7楼梯(11,1) → changeFloor 遮幅 → floor2 落地 stepOffStairs (1,2)
-/// → 踩型8楼梯返回 → floor1 stepOffStairs (10,1)。主层资产 = floor1；
+/// （4 战）→ 踩型7楼梯(11,1) → changeFloor 遮幅 → floor2 落地 step_off_stairs (1,2)
+/// → 踩型8楼梯返回 → floor1 step_off_stairs (10,1)。主层资产 = floor1；
 /// floor_assets[1]/[2] 双层装配（换层互通）。战斗流首次纳入全帧对拍。
 #[test]
 // 【STAGE-B-001 豁免】boot 时间轴变化（有意不一致，登记册名单在案） 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
