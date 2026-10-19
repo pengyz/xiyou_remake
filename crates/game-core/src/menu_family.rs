@@ -1381,3 +1381,141 @@ impl OptionList {
         }
     }
 }
+
+// ==================== STAGE-B-004b：游戏内菜单分级适配（menu 线）====================
+// 分级策略（用户认可）：框体=可重排 UI 锚位公式化；悟空立绘=素材居中不放大。
+// classic 代入逐值化回 a.java:2423-2497（paint case 4/19）原公式 = 零偏离命门。
+
+/// 游戏内菜单框布局锚（①框体重排 + ③高亮/排布随框）。
+///
+/// - ① 框体：内容尺寸**居中**于 (center_x, center_y)（modern 随 layout.center 重排）；
+///   框体不拉伸（拉伸语义如需按 STAGE-B-002 v5 判据改本函数一处）。
+/// - ③ 选中高亮矩形（hl_x/hl_w）与滚动箭头随框派生——高亮宽 = 条目宽
+///   `menu_box_w`（非框宽，Java a.java:2444 原样）。
+///
+/// 公式逐字对照 a.java:2431-2444/2486-2487：`var128 = menuBoxWidth+22`、
+/// `var163 = 120-(var128>>1)`、`var172 = 160-(var146>>1)`、
+/// `var180 = menuLineHeight-fontHeight>>1`、高亮 `120-(menuBoxWidth>>1)`、
+/// 箭头 `(120+(var128>>1)-23, 160+(var146>>1)-38)`。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InGameMenuBox {
+    /// 框左上。
+    pub bx: i32,
+    pub by: i32,
+    pub box_w: i32,
+    pub box_h: i32,
+    /// 首条目文字 y（框顶 +16 边带 + 行距余量 pad）。
+    pub first_row_y: i32,
+    pub line_h: i32,
+    /// 行距余量（line_h - font_h）>>1。
+    pub pad: i32,
+    /// 条目文本居中锚 x（draw_string anchor 17 = TOP|HCENTER）。
+    pub item_cx: i32,
+    /// ③ 选中高亮矩形（x/宽 = 条目宽）。
+    pub hl_x: i32,
+    pub hl_w: i32,
+    /// ③ 滚动箭头锚（框右下内侧）。
+    pub arrow_x: i32,
+    pub arrow_y: i32,
+}
+
+/// ①③ 锚位公式化：classic 代入（center 120/160）化回原值；modern 随 center 重排。
+pub fn in_game_menu_box(
+    center_x: i32,
+    center_y: i32,
+    menu_box_w: i32,
+    list_h: i32,
+    line_h: i32,
+    font_h: i32,
+) -> InGameMenuBox {
+    let box_w = menu_box_w + 22;
+    let box_h = list_h + 32;
+    let bx = center_x - (box_w >> 1);
+    let by = center_y - (box_h >> 1);
+    let pad = (line_h - font_h) >> 1;
+    InGameMenuBox {
+        bx,
+        by,
+        box_w,
+        box_h,
+        first_row_y: by + 16 + pad,
+        line_h,
+        pad,
+        item_cx: center_x,
+        hl_x: center_x - (menu_box_w >> 1),
+        hl_w: menu_box_w,
+        arrow_x: center_x + (box_w >> 1) - 23,
+        arrow_y: center_y + (box_h >> 1) - 38,
+    }
+}
+
+/// 底部 HUD 信息栏（悟空立绘+属性条）锚（②）——**贴底随宽**。
+///
+/// 拉伸语义 = STAGE-B-002 v5 底部带背景同款判据（画布宽 > 经典 240 ⇒ 铺满）；
+/// 与顶栏状态栏（status_fill 全宽）同 HUD 系两套锚的一致性 = 都随屏宽铺满。
+/// classic 代入 = (0, view_bottom, 240, frame_h)——与现行
+/// `bottom_panel_dx()=0 + SCREEN_W` 形态逐值同（零偏离）。立绘/属性条内容锚
+/// 仍走 Layout（hud_face_ax/hud_icon_x 贴底居中），立绘素材居中不放大。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HudPanelAnchor {
+    pub x: i32,
+    pub y: i32,
+    pub w: i32,
+    pub h: i32,
+}
+
+/// ② 贴底随宽锚位公式。
+pub fn hud_panel_anchor(screen_w: i32, view_bottom: i32, frame_h: i32) -> HudPanelAnchor {
+    HudPanelAnchor {
+        x: 0,
+        y: view_bottom,
+        w: screen_w,
+        h: frame_h,
+    }
+}
+
+#[cfg(test)]
+mod stage_b_004b_menu_anchor_tests {
+    use super::{hud_panel_anchor, in_game_menu_box};
+
+    /// classic 代入化回 a.java:2431-2444 原值（零偏离命门）。
+    #[test]
+    fn in_game_menu_box_classic_substitutes_to_java_literals() {
+        // center 120/160 = classic；menuBoxW=80/listH=238/lineH=22/fontH=16 取样值
+        let b = in_game_menu_box(120, 160, 80, 238, 22, 16);
+        assert_eq!(b.box_w, 80 + 22);
+        assert_eq!(b.box_h, 238 + 32);
+        assert_eq!(b.bx, 120 - ((80 + 22) >> 1), "a.java:2433 var163");
+        assert_eq!(b.by, 160 - ((238 + 32) >> 1), "a.java:2434 var172");
+        assert_eq!(b.pad, (22 - 16) >> 1, "a.java:2435 var180");
+        assert_eq!(b.first_row_y, b.by + 16 + b.pad, "a.java:2438 首行");
+        assert_eq!(b.hl_x, 120 - (80 >> 1), "a.java:2444 高亮 x");
+        assert_eq!(b.hl_w, 80, "高亮宽 = 条目宽（非框宽）");
+        assert_eq!(b.arrow_x, 120 + ((80 + 22) >> 1) - 23, "a.java:2486");
+        assert_eq!(b.arrow_y, 160 + ((238 + 32) >> 1) - 38, "a.java:2487");
+        assert_eq!(b.item_cx, 120);
+        assert_eq!(b.line_h, 22);
+    }
+
+    /// ①③ modern 重排：框心 = layout center，高亮随框居中。
+    #[test]
+    fn in_game_menu_box_centers_on_layout_modern() {
+        let (cx, cy) = (224, 208); // modern(14,13) 448×416 的 center
+        let b = in_game_menu_box(cx, cy, 80, 238, 22, 16);
+        assert_eq!(b.bx + (b.box_w >> 1), cx, "框水平居中于 layout center");
+        assert_eq!(b.by + (b.box_h >> 1), cy, "框垂直居中于 layout center");
+        assert_eq!(b.hl_x + (b.hl_w >> 1), cx, "③ 高亮随框居中");
+        assert_eq!(b.item_cx, cx, "③ 文本排布随框");
+        assert_eq!(b.arrow_x, cx + (b.box_w >> 1) - 23, "③ 箭头随框");
+    }
+
+    /// ② classic 零偏离 + modern 贴底随宽（v5 同款拉伸判据）。
+    #[test]
+    fn hud_panel_anchor_classic_zero_deviation_modern_full_width() {
+        let c = hud_panel_anchor(240, 252, 50);
+        assert_eq!((c.x, c.y, c.w, c.h), (0, 252, 240, 50), "classic = 现行 bottom_panel_dx()+240 形态");
+        let m = hud_panel_anchor(448, 276, 50);
+        assert_eq!((m.x, m.y, m.w, m.h), (0, 276, 448, 50), "modern 贴底随宽");
+        assert_eq!(m.x + m.w, 448, "随宽铺满（顶栏 status_fill 同款全宽锚）");
+    }
+}

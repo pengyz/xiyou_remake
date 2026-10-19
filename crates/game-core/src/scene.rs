@@ -3068,19 +3068,27 @@ impl GameScene {
         self.paint_hud(g);
         self.paint_status_bar(g);
         let font = crate::paint::paint_font();
-        let box_w = self.menu_box_width + 22;
-        let box_h = self.menu_list_height + 32;
-        let bx = CENTER_X - ((self.menu_box_width + 22) >> 1);
-        let mut by = CENTER_Y - ((self.menu_list_height + 32) >> 1);
-        let pad = (self.menu_line_height - font.height) >> 1;
-        crate::menu_family::paint_box_frame(g, &self.images.ui[0], bx, by, box_w, box_h);
-        by += 16 + pad;
+        // STAGE-B-004b ①③：菜单框锚位公式化（menu_family::in_game_menu_box）——
+        // classic 代入（center=SCREEN 系 120/160）逐值化回 a.java:2431-2444 原值；
+        // modern 随 layout.center 重排，高亮/箭头随框派生。
+        let mb = crate::menu_family::in_game_menu_box(
+            self.layout.center_x,
+            self.layout.center_y,
+            self.menu_box_width,
+            self.menu_list_height,
+            self.menu_line_height,
+            font.height,
+        );
+        let (box_w, box_h) = (mb.box_w, mb.box_h);
+        crate::menu_family::paint_box_frame(g, &self.images.ui[0], mb.bx, mb.by, box_w, box_h);
+        let pad = mb.pad;
+        let mut by = mb.first_row_y;
         let mut i = self.menu_scroll_top;
         while i < self.menu_visible_bottom {
             let kind = self.menu_kinds[i as usize];
             if self.menu_cursor == i {
                 g.set_color(0);
-                g.fill_rect(CENTER_X - (self.menu_box_width >> 1), by - pad, self.menu_box_width, self.menu_line_height);
+                g.fill_rect(mb.hl_x, by - pad, mb.hl_w, self.menu_line_height);
                 g.set_color(16377897);
             } else if kind != 11 {
                 g.set_color(7574946);
@@ -3093,7 +3101,7 @@ impl GameScene {
                 let label = MENU_LABELS[kind as usize];
                 let n = RAINBOW_COLORS.len();
                 let label_u: Vec<u16> = label.encode_utf16().collect();
-                let mut cx = CENTER_X - (font.string_width(&label_u) >> 1);
+                let mut cx = mb.item_cx - (font.string_width(&label_u) >> 1);
                 let mut phase = self.rainbow_phase as usize;
                 for ch in label.chars() {
                     g.set_color(RAINBOW_COLORS[phase]);
@@ -3106,13 +3114,12 @@ impl GameScene {
                 }
             } else {
                 let label: Vec<u16> = MENU_LABELS[kind as usize].encode_utf16().collect();
-                g.draw_string(&label, CENTER_X, by, 17);
+                g.draw_string(&label, mb.item_cx, by, 17);
             }
             by += self.menu_line_height;
             i += 1;
         }
-        let ax = CENTER_X + (box_w >> 1) - 23;
-        let ay = CENTER_Y + (box_h >> 1) - 38;
+        let (ax, ay) = (mb.arrow_x, mb.arrow_y);
         if self.menu_scroll_top > 0 {
             draw_image_clipped(g, &self.images.ui[15], ax, ay, 0, 0, 7, 9);
         }
@@ -6394,8 +6401,12 @@ impl GameScene {
     /// paintHudPanel（a.java:6052-6106）：HUD（头像/HP/攻/防/武器/甲）。
     pub fn paint_hud(&mut self, g: &mut SoftGraphics<'_>) {
         let font = crate::paint::paint_font();
-        let base_y = self.view_bottom;
-        self.paint_hud_frame(g, self.bottom_panel_dx(), base_y, crate::layout::SCREEN_W, HUD_FRAME_H);
+        // STAGE-B-004b ②：底部 HUD 信息栏锚位公式化（menu_family::hud_panel_anchor
+        // 贴底随宽，v5 底部带背景同款拉伸判据；classic 代入化回 bottom_panel_dx()+240
+        // 原值）。立绘/属性条内容锚仍走 Layout（hud_face_ax/hud_icon_x 居中不放大）。
+        let anchor = crate::menu_family::hud_panel_anchor(self.layout.screen_w, self.view_bottom, self.layout.hud_frame_h);
+        let base_y = anchor.y;
+        self.paint_hud_frame(g, anchor.x, base_y, anchor.w, anchor.h);
         let face = &self.images.actor_face;
         g.draw_image(face, self.layout.hud_face_ax - (face.width >> 1), base_y + HUD_FRAME_H - face.height, 0);
         let icon_x = self.layout.hud_icon_x;
