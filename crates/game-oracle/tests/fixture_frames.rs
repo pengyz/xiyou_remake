@@ -342,8 +342,7 @@ fn replay_opt(label: &str, preset_text: &str, records: &[FrameRec]) -> (usize, O
 /// 槽载入 (4,8) → -2 步入 (4,9) 拾取道具14（addItemToItemStack 首拾描述浮层 kind1）→ -6 面板 →
 /// -6 使用 → mode12（browseOfferQueue(0) + paint case12）→ -4/-3 browseOfferQueue 钳位翻页 → -6 关回 mode10。T1-1200。
 #[test]
-// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案）
-#[ignore = "STAGE-B-001 有意不一致：boot 时间轴变化（夹具重定时待办）"]
+// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案） 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
 fn preset_floor5_fixture_frames_match() {
     let records = frame_records(include_str!("fixtures/preset-floor5.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("../../../reference/oracle/scenarios/preset-floor5.txt"));
@@ -357,8 +356,7 @@ fn preset_floor5_fixture_frames_match() {
 /// + (6,8) 型83 首访 inert（tryRunScene case15：probeCrossFloorSnapshot(当前层,5) 守卫在场 ⇒ false）→ 二访伏击
 /// script15 → 61/70 战 → case70 → script35。T1-3400。
 #[test]
-// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案）
-#[ignore = "STAGE-B-001 有意不一致：boot 时间轴变化（夹具重定时待办）"]
+// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案） 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
 fn preset_floor49_fixture_frames_match() {
     let records = frame_records(include_str!("fixtures/preset-floor49.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("../../../reference/oracle/scenarios/preset-floor49.txt"));
@@ -378,8 +376,7 @@ fn preset_floor49_fixture_frames_match() {
 /// phase 5，Java（a.java:4123-4127）在遮幅开启相归 0 续跑、Rust 空臂永停 ⇒ 帧分歧
 /// 自 T1429 起。补上 Java 真值后本测 4000/4000 逐 tick 同构全绿（含 T309 段）。
 #[test]
-// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案）
-#[ignore = "STAGE-B-001 有意不一致：boot 时间轴变化（夹具重定时待办）"]
+// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案） 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
 fn story_fullrun_fixture_frames_match() {
     let records = frame_records(include_str!("fixtures/story-fullrun.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/story-fullrun.txt"));
@@ -392,8 +389,7 @@ fn story_fullrun_fixture_frames_match() {
 /// advanceScriptWalk：floor3 (3,11) -3 撞 (2,11) 型83(param 0) ⇒ script0；`MOV_0_5_11` 玩家
 /// 两步脚本行走（dialogPhase 3 + 每步 applyStepCellEffects → advanceScriptWalk）→ TAK_8_9。T1-700。
 #[test]
-// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案）
-#[ignore = "STAGE-B-001 有意不一致：boot 时间轴变化（夹具重定时待办）"]
+// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案） 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
 fn fx_scriptwalk_floor3_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-scriptwalk-floor3.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-scriptwalk-floor3.txt"));
@@ -405,8 +401,7 @@ fn fx_scriptwalk_floor3_frames_match() {
 /// fireTrapClimbUp：floor43 (3,5) -4 步入 (4,5)（上邻 (4,4) 型60）⇒ 击退至 (4,3) + 扣血 200；-1 步入 (4,4)
 /// ⇒ 上邻 (4,3) 型60、其上 (4,2) 为墙 ⇒ 不退 + 再扣 200。T1-600。
 #[test]
-// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案）
-#[ignore = "STAGE-B-001 有意不一致：boot 时间轴变化（夹具重定时待办）"]
+// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案） 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
 fn fx_knockback_floor43_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-knockback-floor43.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-knockback-floor43.txt"));
@@ -418,8 +413,7 @@ fn fx_knockback_floor43_frames_match() {
 /// m_089：floor13 (6,8) 芭蕉扇×3：未命中（四邻无型10）⇒ 提示浮层；上移 (6,7) 再用 ⇒ 命中灭
 /// (6,6) 三昧真火（次数 3→2）→ 上移 (6,6)。T1-830。
 #[test]
-// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案）
-#[ignore = "STAGE-B-001 有意不一致：boot 时间轴变化（夹具重定时待办）"]
+// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案） 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
 fn fx_fan_floor13_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-fan-floor13.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-fan-floor13.txt"));
@@ -435,8 +429,7 @@ fn fx_fan_floor13_frames_match() {
 /// 吞掉型 10/11/12 撞击臂（无 todo! 标记，此前无场景触达故帧对拍恒绿）。T1-480，首分歧 T301。
 /// game-core 补臂后摘除 #[ignore]（本用例即其帧级验收）。
 #[test]
-// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案）
-#[ignore = "STAGE-B-001 有意不一致：boot 时间轴变化（夹具重定时待办）"]
+// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案） 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
 fn fx_firebump_floor13_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-firebump-floor13.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-firebump-floor13.txt"));
@@ -452,8 +445,7 @@ fn fx_firebump_floor13_frames_match() {
 /// 二次进入幂等（仅 cur_y++，三字段不改写）。T1-560。出生点不得钉边界格（BUG 见
 /// fx_bug_aioobe_border_frames_match）。
 #[test]
-// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案）
-#[ignore = "STAGE-B-001 有意不一致：boot 时间轴变化（夹具重定时待办）"]
+// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案） 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
 fn fx_int6a_reveal_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-int6a.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-int6a.txt"));
@@ -483,8 +475,7 @@ fn fx_int6a_reveal_frames_match() {
 /// T237 起无 Java 参照帧（存活差异已记 bug 条目）。可达性 A 级：全 55 层边界格不可走
 /// （tile_walkability 复算）⇒ 正常游玩不可达，仅 preset/存档直钉可复现。
 #[test]
-// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案）
-#[ignore = "STAGE-B-001 有意不一致：boot 时间轴变化（夹具重定时待办）"]
+// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案） 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
 fn fx_bug_aioobe_border_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-bug-aioobe-border.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-bug-aioobe-border.txt"));
@@ -501,8 +492,7 @@ fn fx_bug_aioobe_border_frames_match() {
 /// redKeyCount-- → markEntityRemoved（state=1+开门动画，a.java:6355-6361）→ 放行进门格。
 /// (6,7) 是型83(param12) 伏击点，本场景止步 (6,8)。T1-520。
 #[test]
-// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案）
-#[ignore = "STAGE-B-001 有意不一致：boot 时间轴变化（夹具重定时待办）"]
+// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案） 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
 fn fx_door2a_open_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-door2a.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-door2a.txt"));
@@ -524,8 +514,7 @@ fn fx_door2a_open_frames_match() {
 /// FX-DOOR-2B：型2 无钥匙阻挡（负例，R-INT-2 无钥匙半）。红钥 0 ⇒ 双次北撞均
 /// walkStepCount=0 +「你没有红钥匙」浮层（a.java:5392-5395）+ cur_x=false，门不消耗不开启。
 #[test]
-// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案）
-#[ignore = "STAGE-B-001 有意不一致：boot 时间轴变化（夹具重定时待办）"]
+// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案） 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
 fn fx_door2b_nokey_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-door2b.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-door2b.txt"));
@@ -548,8 +537,7 @@ fn fx_door2b_nokey_frames_match() {
 /// 邻型11 ⇒ activateItem case17 返 false（a.java:7809-7816）⇒ useItemStack 短路不减次
 /// （a.java:7766）⇒ 栈原封不动 +「你必须面对一堵墙使用」浮层。T1-560。
 #[test]
-// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案）
-#[ignore = "STAGE-B-001 有意不一致：boot 时间轴变化（夹具重定时待办）"]
+// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案） 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
 fn fx_item17b_fail_no_consume_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-item17b.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-item17b.txt"));
@@ -565,8 +553,7 @@ fn fx_item17b_fail_no_consume_frames_match() {
 /// FX-ITEM-19A：千年月桂露回血精确值（evidence-items §2.4/§3.6）。atk=105 def=203 ⇒
 /// (105+203)*74/10 = 2279（先乘后除整数截断，a.java:7830）→ hp 500+2279=2779 + 出栈。T1-560。
 #[test]
-// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案）
-#[ignore = "STAGE-B-001 有意不一致：boot 时间轴变化（夹具重定时待办）"]
+// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案） 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
 fn fx_item19a_heal_exact_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-item19a.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-item19a.txt"));
@@ -582,8 +569,7 @@ fn fx_item19a_heal_exact_frames_match() {
 /// 「能挖的墙」⇒ m_089(11) 四邻命中 markEntityRemoved（a.java:7895-7919）+ 出栈 +
 /// gameMode=3 ⇒ T520 北进 (8,3) 端到端通行。quirk 保真：提示语「面对」实为四邻全删。T1-620。
 #[test]
-// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案）
-#[ignore = "STAGE-B-001 有意不一致：boot 时间轴变化（夹具重定时待办）"]
+// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案） 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
 fn fx_item17a_chisel_wall_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-item17a.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-item17a.txt"));
@@ -601,8 +587,7 @@ fn fx_item17a_chisel_wall_frames_match() {
 /// FX-ITEM-18A：玄明石全清当前层墙（evidence-items §2.3/§3.4）。floor37 型11 ×8 同拍
 /// 全 markEntityRemoved（a.java:7817-7828 全表扫描）+ 出栈。T1-560。
 #[test]
-// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案）
-#[ignore = "STAGE-B-001 有意不一致：boot 时间轴变化（夹具重定时待办）"]
+// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案） 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
 fn fx_item18a_clear_all_walls_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-item18a.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-item18a.txt"));
@@ -629,8 +614,7 @@ fn fx_item18a_clear_all_walls_frames_match() {
 /// 不可参与三方（A 级记录，见 reference/oracle/scenarios/bug-draft-aioobe-border.md
 /// 附记 / lead 追踪项）。T1-560。
 #[test]
-// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案）
-#[ignore = "STAGE-B-001 有意不一致：boot 时间轴变化（夹具重定时待办）"]
+// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案） 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
 fn fx_boss67a_kill_spawn_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-boss67a.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-boss67a.txt"));
@@ -659,8 +643,7 @@ fn fx_boss67a_kill_spawn_frames_match() {
 /// 12 件掉落（a.java:2092-2141）② loadLevelScript(21) 遗言 TAK_59_59（无 tryRunScene
 /// 门控）⇒ script_line_flags[21] 收尾置位。preset flags=6 跳过 script6 登场戏。T1-600。
 #[test]
-// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案）
-#[ignore = "STAGE-B-001 有意不一致：boot 时间轴变化（夹具重定时待办）"]
+// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案） 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
 fn fx_boss74a_kill_hooks_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-boss74a.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-boss74a.txt"));
@@ -693,8 +676,7 @@ fn fx_boss74a_kill_hooks_frames_match() {
 /// 二撞 ⇒ case11（a.java:5441-5448）floor==23 跳过文案但恒阻挡（cur_x=false+var8=0）。
 /// T1-560。
 #[test]
-// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案）
-#[ignore = "STAGE-B-001 有意不一致：boot 时间轴变化（夹具重定时待办）"]
+// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案） 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
 fn fx_int11_f23_transform_silent_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-int11f23.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-int11f23.txt"));
@@ -724,8 +706,7 @@ fn fx_int11_f23_transform_silent_frames_match() {
 /// 不瞬移不消耗（script_cursor0 恒 false ⇒ useItemStack a.java:7766 短路），两次使用幂等。
 /// T1-680。
 #[test]
-// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案）
-#[ignore = "STAGE-B-001 有意不一致：boot 时间轴变化（夹具重定时待办）"]
+// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案） 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
 fn fx_item20a_no_teleport_floor40_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-item20a.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-item20a.txt"));
@@ -749,8 +730,7 @@ fn fx_item20a_no_teleport_floor40_frames_match() {
 /// 静默）成对 ⇒ :5442 双分支齐。独立场景（不动 fx-item17a 输入，护其帧链 sha 引用）。
 /// T1-400。
 #[test]
-// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案）
-#[ignore = "STAGE-B-001 有意不一致：boot 时间轴变化（夹具重定时待办）"]
+// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案） 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
 fn fx_int11_n23_wall_message_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-int11n23.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-int11n23.txt"));
@@ -781,8 +761,7 @@ fn fx_int11_n23_wall_message_frames_match() {
 /// @(6,5)(5,6)(7,6)(6,7) + 金 0→1000（enemyBaseGold[27]）→ case68 双 switch default
 /// （无脚本钩子，对照 74）→ 收尾 restep 进 (6,6) → 走位拾 2 把。T1-760。
 #[test]
-// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案）
-#[ignore = "STAGE-B-001 有意不一致：boot 时间轴变化（夹具重定时待办）"]
+// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案） 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
 fn fx_boss68a_kill_spawn_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-boss68a.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-boss68a.txt"));
@@ -834,8 +813,7 @@ fn fx_boss68a_kill_spawn_frames_match() {
 /// LAY_2/RES_0 位于 CES_70 之后 Java 不可达（其 Rust 行为锚 = scene.rs 单测
 /// script_lay_jumps_floor_with_wipe / script_res_resets_run_stats_on_easy）。
 #[test]
-// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案）
-#[ignore = "STAGE-B-001 有意不一致：boot 时间轴变化（夹具重定时待办）"]
+// 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案） 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
 fn fx_bug_ces70_slot_frames_match() {
     use std::panic::{catch_unwind, AssertUnwindSafe};
     let records = frame_records(include_str!("fixtures/fx-bug-ces70-slot.frames.txt"));

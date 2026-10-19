@@ -128,10 +128,9 @@ fn preset_save_equip_fixture_inputs_match_script() {
 }
 
 /// T1-1040 全帧一致 + 两移植 × 两分支均实际进入比对（覆盖计数断言）。
-// 【STAGE-B-001 豁免 2026-10-18】frames.txt=Java 参照帧（A/B/C trace），原版含
+// 【STAGE-B-001 豁免 2026-10-18】frames.txt=Java 参照帧（A/B/C trace），原版含 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
 // 声音询问屏而 Rust 跳过（有意不一致）⇒ boot 窗口起帧链漂移为预期且不可调和；
 // 夹具脚本重定时+新金样基线=登记的后续工程（stage-b-deviations.md STAGE-B-001）。
-#[ignore = "STAGE-B-001 有意不一致：Java 参照帧与跳过询问后的时间轴不可调和（夹具重制待办）"]
 #[test]
 fn preset_save_equip_frames_match() {
     let preset_text = include_str!("fixtures/preset-save-equip.preset");

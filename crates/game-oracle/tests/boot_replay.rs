@@ -35,9 +35,8 @@ fn load_sflogo() -> Vec<ArgbImage> {
 }
 
 /// 逐 tick 重放：每 tick paint → 比对 FRAME sha → tick 逻辑。/// 逐 tick 重放：每 tick paint → 比对 FRAME sha → tick 逻辑。
-// 【STAGE-B-001 豁免 2026-10-18】boot 帧哈希对照 Java 参照——跳过询问后
+// 【STAGE-B-001 豁免 2026-10-18】boot 帧哈希对照 Java 参照——跳过询问后 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
 // boot 时间轴缩短（TICK 68 起漂移），有意不一致（登记册名单在案）。
-#[ignore = "STAGE-B-001 有意不一致：boot 时间轴变化（夹具重定时待办）"]
 #[test]
 fn boot_menu_frames_match_tick_by_tick() {
     let trace_text = std::fs::read_to_string(
@@ -103,9 +102,8 @@ fn boot_menu_frames_match_tick_by_tick() {
 
 /// enter-game 场景：0→21→1→14（引子）→2（加载）→ mode 3 边界。
 /// 覆盖引子滚动机/调色循环/快进、加载链 42 tick、mode 2→3 切换拍。
-// 【STAGE-B-001 豁免 2026-10-18】boot 帧哈希对照 Java 参照——跳过询问后
+// 【STAGE-B-001 豁免 2026-10-18】boot 帧哈希对照 Java 参照——跳过询问后 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
 // boot 时间轴缩短（TICK 68 起漂移），有意不一致（登记册名单在案）。
-#[ignore = "STAGE-B-001 有意不一致：boot 时间轴变化（夹具重定时待办）"]
 #[test]
 fn enter_game_frames_match_tick_by_tick() {
     let trace_text = std::fs::read_to_string(

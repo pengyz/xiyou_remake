@@ -1838,9 +1838,8 @@ mod shell_tests {
     /// 续播的 gameMode 门控 `gameMode != 21 && gameMode != 0`（a.java:4666）：logo（mode 0）/
     /// 声音询问（mode 21）中 hide → 恢复 → 按键：只清 anyKeyPlayed、不续播；BGM 时间线与不隐藏时
     /// 相同（T71 menu(2) 为唯一命令——此时无播放器，close 不产生 Stop）。
-    // 【STAGE-B-001 豁免 2026-10-18】mode 21（声音询问）已从 boot 链移除（有意不一致）
+    // 【STAGE-B-001 豁免 2026-10-18】mode 21（声音询问）已从 boot 链移除（有意不一致） 【2026-10-19 解禁：classic 预设门控恢复 mode 21/原版时间轴，本测复绿】
     //——本测对 mode 21 的前提消失；hide 语义在 mode 0/其他态的覆盖由同族测试兜。
-    #[ignore = "STAGE-B-001 有意不一致：mode 21 已移除（前提消失，用例需重写）"]
     #[test]
     fn hide_in_modes_0_and_21_clears_flag_without_resume() {
         let mut h = Harness::new("preset-floor1.preset");
@@ -1898,9 +1897,8 @@ mod shell_tests {
     /// - 单次 press(-3) 长按 70 拍：战斗（walkPhase 5，T261-271）后连走两格
     ///   96→32（T273-280，每拍 8px），之后被阻挡原地；press(-2) 同理一格 320→352（T376-379）；
     /// - BGM：T71 menu（Java EVT createPlayer@T71）、T237 game（close+createPlayer@T237）。
-    // 【STAGE-B-001 豁免 2026-10-18】BGM 切轨拍对照 Java EVT（createPlayer@T71）
+    // 【STAGE-B-001 豁免 2026-10-18】BGM 切轨拍对照 Java EVT（createPlayer@T71） 【2026-10-19 解禁：classic 预设门控恢复 mode 21/原版时间轴，本测复绿】
     //——跳过询问后 boot 时间轴缩短，切轨拍必然漂移（有意不一致，登记册名单在案）。
-    #[ignore = "STAGE-B-001 有意不一致：boot 时间轴变化致 BGM 切轨拍与 Java EVT 不可对齐（用例重定时待办）"]
     #[test]
     fn hold_walk_and_bgm_match_java_trace() {
         let ev = script("shell/win/tests/fixtures/hold-walk.txt");
