@@ -45,6 +45,9 @@ const CAPACITY: usize = 26;
 /// logo 动画层状态。
 #[derive(Clone)]
 pub struct LogoAnim {
+    /// 画布尺寸（STAGE-B-004a：modern 随 layout——classic 默认 240×320 零偏离）。
+    sw: i32,
+    sh: i32,
     /// 注册表元数据（a.java:2253 `int[26][7]`，初始全 0）。测试探针需要快照/还原。
     registry: Vec<[i32; 7]>,
     /// 注册表平行图列表（a.java:10503，首次登记时分配；removeLogoItem(-1) 置回 None）。
@@ -66,8 +69,16 @@ impl Default for LogoAnim {
 }
 
 impl LogoAnim {
+    /// 画布换轨（STAGE-B-004a boot 元素锚位公式化）：modern 传 layout 尺寸。
+    pub fn set_canvas(&mut self, w: i32, h: i32) {
+        self.sw = w;
+        self.sh = h;
+    }
+
     pub fn new() -> LogoAnim {
         LogoAnim {
+            sw: crate::layout::SCREEN_W,
+            sh: crate::layout::SCREEN_H,
             registry: vec![[0; 7]; CAPACITY],
             images: vec![None; CAPACITY],
             count: 0,
@@ -98,12 +109,12 @@ impl LogoAnim {
             return;
         }
         let sum: i32 = SEGMENT_HEIGHTS.iter().sum();
-        let gap = 15.min(((crate::layout::SCREEN_H - sum) >> 2).abs()); // a.java:10239
-        let base = (crate::layout::SCREEN_H - sum - (gap << 1)) >> 1; // a.java:10240
+        let gap = 15.min(((self.sh - sum) >> 2).abs()); // a.java:10239
+        let base = (self.sh - sum - (gap << 1)) >> 1; // a.java:10240
         self.anchors_y[0] = base + (SEGMENT_HEIGHTS[0] >> 1);
         self.anchors_y[1] = base + SEGMENT_HEIGHTS[0] + gap;
         self.anchors_y[2] = self.anchors_y[1] + SEGMENT_HEIGHTS[1] + gap;
-        self.bar_x = (crate::layout::SCREEN_W - sflogo7_width) >> 1; // a.java:10243
+        self.bar_x = (self.sw - sflogo7_width) >> 1; // a.java:10243
         self.initialized = true;
     }
 
@@ -341,7 +352,7 @@ impl LogoAnim {
             if (18..31).contains(&timeline) {
                 let idx = timeline - 10;
                 let x = bx + GLYPH_METRICS[idx as usize * 2] as i32;
-                self.register(None, x, crate::layout::SCREEN_H, 3, 0, 4, x, ay[2], idx, -1);
+                self.register(None, x, self.sh, 3, 0, 4, x, ay[2], idx, -1);
             }
             match timeline {
                 50 => self.modify(2, 2, 4, 4, 4, 1),
@@ -357,7 +368,7 @@ impl LogoAnim {
             if timeline > 52 && timeline < 63 {
                 let v = timeline - 52;
                 self.modify(v + 4, 3, 0, 4, -10, ay[2]);
-                self.modify(26 - v, 3, 0, 4, crate::layout::SCREEN_W, ay[2]); // 右侧屏外终点 x=240
+                self.modify(26 - v, 3, 0, 4, self.sw, ay[2]); // 右侧屏外终点 x=240
             }
             return;
         }
@@ -366,7 +377,7 @@ impl LogoAnim {
         let bx = self.bar_x;
         // x=120 均为屏幕中心（anchor 12/4 = 水平居中折算）⇒ CENTER_X；行 2 三件
         // 90/120/150 关于中心 ±30 对称（同 kind/anchor 参数）⇒ CENTER_X∓30
-        let cx = crate::layout::CENTER_X;
+        let cx = (self.sw / 2);
         match timeline {
             1 => {
                 self.register(Some(sflogo[1].clone()), cx, 0, 1, 12, 4, cx, ay[0], 0, -1);
@@ -410,13 +421,13 @@ impl LogoAnim {
             // a.java:10406：x 参数恒 240（屏外起点），y 参数 = ay[2]；目标 x 在 [4]
             let idx = timeline - 9;
             let target = bx + GLYPH_METRICS[idx as usize * 2] as i32;
-            self.register(None, crate::layout::SCREEN_W, ay[2], 3, 0, 4, target, ay[2], idx, -1); // x=240 屏外起点
+            self.register(None, self.sw, ay[2], 3, 0, 4, target, ay[2], idx, -1); // x=240 屏外起点
             return;
         }
         if (14..=17).contains(&timeline) {
             let idx = timeline - 10;
             let x = bx + GLYPH_METRICS[idx as usize * 2] as i32;
-            self.register(None, x, crate::layout::SCREEN_H, 3, 0, 4, x, ay[2], idx, -1); // y=320 屏外起点
+            self.register(None, x, self.sh, 3, 0, 4, x, ay[2], idx, -1); // y=320 屏外起点
             return;
         }
         if (25..=31).contains(&timeline) {
@@ -436,7 +447,7 @@ impl LogoAnim {
     /// 每项绘制后 `setClip(0,0,240,320)` 复位。
     pub fn paint(&self, g: &mut SoftGraphics<'_>, sflogo7: &ArgbImage) {
         g.set_color(crate::layout::WHITE);
-        g.fill_rect(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
+        g.fill_rect(0, 0, self.sw, self.sh);
         for i in 0..self.count as usize {
             let m = self.registry[i];
             let mut x = m[0];
@@ -447,7 +458,7 @@ impl LogoAnim {
                     x + GLYPH_METRICS[m[6] as usize * 2] as i32,
                     y,
                     GLYPH_METRICS[m[6] as usize * 2 + 1] as i32,
-                    crate::layout::SCREEN_H,
+                    self.sh,
                 );
                 g.draw_image(sflogo7, x, y, 0);
             } else if m[2] == 2 {
@@ -456,7 +467,7 @@ impl LogoAnim {
                     progress = m[3] - progress - 2;
                 }
                 x -= m[6] * progress;
-                g.set_clip(x + m[6] * progress, y, m[6], crate::layout::SCREEN_H);
+                g.set_clip(x + m[6] * progress, y, m[6], self.sh);
                 if let Some(img) = &self.images[i] {
                     g.draw_image(img, x, y, 0);
                 }

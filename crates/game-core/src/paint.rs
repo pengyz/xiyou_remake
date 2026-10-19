@@ -658,9 +658,11 @@ impl BootMachine {
                 // runLogoAnimation(1, t)；否则退出进程
                 self.counter += 1;
                 if self.counter <= 70 {
-                    self.logo
-                        .get_or_insert_with(crate::logo_anim::LogoAnim::new)
-                        .tick_help(&self.sflogo, self.counter);
+                    let lg = self
+                        .logo
+                        .get_or_insert_with(crate::logo_anim::LogoAnim::new);
+                    lg.set_canvas(self.layout.screen_w, self.layout.screen_h);
+                    lg.tick_help(&self.sflogo, self.counter);
                 } else {
                     self.finished = true; // CMidlet.dispatchModeEntry()（进程退出）
                 }
@@ -817,8 +819,11 @@ impl BootMachine {
         } else {
             self.counter += 1; // a.java:3368
             if self.counter <= 35 {
-                self.logo.get_or_insert_with(crate::logo_anim::LogoAnim::new)
-                    .tick(&self.sflogo, self.counter);
+                let lg = self
+                    .logo
+                    .get_or_insert_with(crate::logo_anim::LogoAnim::new);
+                lg.set_canvas(self.layout.screen_w, self.layout.screen_h);
+                lg.tick(&self.sflogo, self.counter);
             } else {
                 // a.java:3371-3373：清理 + gameMode=21 + dispatchModeEntry()
                 self.logo.as_mut().unwrap().clear_all(); // removeLogoItem(-1)
@@ -946,6 +951,66 @@ mod tests {
         if iy != classic_iy {
             assert!(!has_icon(classic_iy), "经典锚行 y={classic_iy} 不得残留（悬空 artifact）");
         }
+    }
+
+    /// 用户验收补修判据（2026-10-19 boot 错位）：logo 组元素锚位公式化——
+    /// 绘出内容 bbox 水平中心=画布中心 ±1（旧 classic 坐标直画 modern 画布=偏左上
+    /// 即红）；署名（底缘元素）y 须在画布下缘区域（底部居中布局）。
+    #[test]
+    fn modern_boot_logo_elements_centered() {
+        let layout = crate::layout::Layout::modern(13, 13);
+        let mut la = crate::logo_anim::LogoAnim::new();
+        la.set_canvas(layout.screen_w, layout.screen_h);
+        // 真 sflogo 素材（glyph 度量系真图尺寸——合成图构图碎，v6 同法载真）
+        let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let packed = std::fs::read(repo.join("assets/raw/sflogo")).unwrap();
+        let sflogo: Vec<ArgbImage> = game_data::PackedPng::parse(&packed, 8)
+            .unwrap()
+            .images
+            .iter()
+            .map(|s| ArgbImage::from_decoded_png(game_data::decode_png(s.bytes).unwrap()))
+            .collect();
+        let solid = sflogo[7].clone();
+        // timeline 28=经典实测态（boot-classic.png 帧 60=动画 28 拍，构图就位基准）
+        for t in 1..=28 {
+            la.tick(&sflogo, t);
+        }
+        let sflogo7 = solid;
+        let mut img = ArgbImage::create(layout.screen_w, layout.screen_h);
+        {
+            let mut g = SoftGraphics::new(&mut img);
+            la.paint(&mut g, &sflogo7);
+        }
+        let w = layout.screen_w as usize;
+        let h = layout.screen_h as usize;
+        let (mut min_x, mut max_x, mut min_y, mut max_y) = (w, 0usize, h, 0usize);
+        // 内容像素=非白且非未铺黑画布（黑=白底外的漏铺区，计入会假过居中断言）
+        for y in 0..h {
+            for x in 0..w {
+                let p = img.argb[y * w + x];
+                if p != 0xFFFF_FFFF && p != 0x0000_0000 {
+                    min_x = min_x.min(x);
+                    max_x = max_x.max(x);
+                    min_y = min_y.min(y);
+                    max_y = max_y.max(y);
+                }
+            }
+        }
+        assert!(max_x > min_x, "内容须绘出 bbox x[{min_x},{max_x}] y[{min_y},{max_y}]");
+        // 经典基准（boot-classic.png bbox 实测 x[76,164] y[91,231] 心 120,161≈画布心
+        // 120,160）：整组居中（logo 组+署名同组；署名=组内底部成员）。
+        let cx = (min_x + max_x) / 2;
+        let cy = (min_y + max_y) / 2;
+        let expect_cx = (layout.screen_w / 2) as usize;
+        let expect_cy = (layout.screen_h / 2) as usize;
+        assert!(
+            cx.abs_diff(expect_cx) <= 1,
+            "logo 组 bbox 水平中心=画布中心±1（现={cx} vs {expect_cx}）——偏左上 artifact"
+        );
+        assert!(
+            cy.abs_diff(expect_cy) <= 1,
+            "logo 组 bbox 垂直中心=画布中心±1（现={cy} vs {expect_cy}）bbox x[{min_x},{max_x}] y[{min_y},{max_y}]"
+        );
     }
 
     /// 追加件判据（2026-10-19 boss 004b 验证发现）：boot logo（mode 0 开机屏黑边）
