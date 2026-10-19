@@ -7374,22 +7374,25 @@ mod slot_equip_scene_tests {
 
     /// 【task-14 场景级·布局纪律】菜单臂二属性分类判据：逐臂须满足其一——
     /// (A) 纯平移（内容 ops classic/modern 逐项恒等=origin 隐式平移）或
-    /// (B) 公式居中（内容 bbox 中心=屏心 ≤2px，STAGE-B-004a 锚位公式化）。
-    /// 双破=错位元素（违布局纪律）。全幅层（视差/满幅）=画布自适应不计。
+    /// (B) 相对布局保持（屏心偏移双预设同值，公式锚语义）。
+    /// 双破=错位元素（违布局纪律）——37b53a4 双移回归即此判据揪出。
+    /// 【分类表 2026-10-20】InGameMenu=公式锚(B)；EnemyInfo/ItemPanel 随测落定。
     #[test]
     fn menu_arms_layout_discipline() {
         let icons = synthetic_sptarm();
-        let arms: &[(GameMode, fn(&mut GameScene))] = &[
-            (GameMode::EnemyInfo, |sc| sc.enter_menu5()),
-            (GameMode::InGameMenu, |sc| sc.enter_menu4()),
-        ];
-        let _ = arms;
-        // InGameMenu=公式锚样例（enter_menu4）；分类框架随臂扩充
-        let ops_of = |layout: crate::layout::Layout| {
-            let mut sc = scene_with(&icons);
-            sc.apply_layout(layout);
+        /// 【分类表 2026-10-20】InGameMenu=公式锚(B) 已定；
+        /// **EnemyInfo(paint_menu5)=混装**（c=94 m=-8）、**ItemPanel=混装**
+        /// （c=-41 m=-2）——modern 侧近居中（-8/-2）但相对布局漂移=双属性皆破，
+        /// 分类未定前不接线，列入收口余项（逐元素锚对账后定 A/B）。
+        type Setup = fn(&mut GameScene);
+        let arms: &[(&str, Setup)] = &[("InGameMenu", |sc| {
             sc.game_mode = GameMode::InGameMenu;
             sc.enter_menu4();
+        })];
+        let ops_of = |layout: crate::layout::Layout, setup: Setup| {
+            let mut sc = scene_with(&icons);
+            sc.apply_layout(layout);
+            setup(&mut sc);
             let (w, h) = (sc.layout.screen_w as usize, sc.layout.screen_h as usize);
             let mut img = ArgbImage::create(w as i32, h as i32);
             let ops;
@@ -7398,7 +7401,7 @@ mod slot_equip_scene_tests {
                 sc.paint(&mut g, &solid(64, 64));
                 ops = g.ops.clone();
             }
-            (ops, w, h)
+            (ops, w)
         };
         let content = |ops: Vec<String>| -> Vec<String> {
             ops.into_iter()
@@ -7425,11 +7428,6 @@ mod slot_equip_scene_tests {
                 })
                 .collect()
         };
-        let (c_ops, c_w, _c_h) = ops_of(crate::layout::Layout::classic());
-        let (m_ops, m_w, _m_h) = ops_of(crate::layout::Layout::modern(13, 13));
-        let (c, m) = (content(c_ops), content(m_ops));
-        let pure_translate = m == c;
-        // (B) 公式居中：内容 x 跨度中心=屏心 ≤2px（两预设各自成立）
         let center_of = |ops: &Vec<String>, w: i32| -> i32 {
             let (mut lo, mut hi) = (i32::MAX, i32::MIN);
             for o in ops {
@@ -7440,12 +7438,76 @@ mod slot_equip_scene_tests {
             }
             (lo + hi) / 2 - w / 2
         };
-        let centered = center_of(&c, c_w as i32) == center_of(&m, m_w as i32);
+        for (name, setup) in arms {
+            let (c_ops, c_w) = ops_of(crate::layout::Layout::classic(), *setup);
+            let (m_ops, m_w) = ops_of(crate::layout::Layout::modern(13, 13), *setup);
+            let (c, m) = (content(c_ops), content(m_ops));
+            let pure_translate = m == c;
+            let (co, mo) = (center_of(&c, c_w as i32), center_of(&m, m_w as i32));
+            assert!(
+                pure_translate || co == mo,
+                "{name} 须过布局纪律：纯平移（ops 恒等）或相对布局保持（屏心偏移同值 c={co} m={mo}）"
+            );
+        }
+    }
+
+    /// 【lead 数据vs渲染二面 2026-10-20·③】tile 层**逐层全扫**（55 maplv）：
+    /// 画布内的数据格（v>0）必有对应绘制（setClip(x,y,16,16)）——数据有格未画
+    /// =渲染面缺格（同族漏网）；数据真无格=该层设计如此（判据自动静默=合法）。
+    /// 破缺层报 (层号, 缺格数) ⇒ ①数据面/②渲染面二选一定位。
+    #[test]
+    fn tiles_draw_all_data_cells_in_canvas_all_layers() {
+        let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let mut bad: Vec<(u32, usize)> = Vec::new();
+        for n in 0..55u32 {
+            let Ok(bytes) = std::fs::read(repo.join(format!("assets/raw/maplv{n}"))) else {
+                continue;
+            };
+            let Ok(mut v) = crate::game_view::GameView::from_maplv(&bytes, 0, 0) else {
+                continue;
+            };
+            v.set_layout_dims(416, 348, 416, 416);
+            let mut img = ArgbImage::create(416, 416);
+            let ops;
+            {
+                let mut g = SoftGraphics::new(&mut img);
+                v.paint_tiles(&mut g, &solid(64, 64), 20);
+                ops = g.ops.clone();
+            }
+            let drawn: std::collections::HashSet<(i32, i32)> = ops
+                .iter()
+                .filter(|o| o.starts_with("setClip(") && o.ends_with(",16,16)"))
+                .filter_map(|o| op_xy(o))
+                .collect();
+            let mut miss = 0usize;
+            for r in 0..(v.high as i32) * 2 {
+                for c in 0..(v.wide as i32) * 2 {
+                    if v.terrain_at(r, c) > 0 {
+                        let (x, y) = (v.cam_x + c * 16, 20 + v.cam_y + r * 16);
+                        if (0..416).contains(&x) && (20..366).contains(&y) && !drawn.contains(&(x, y)) {
+                            miss += 1;
+                        }
+                    }
+                }
+            }
+            if miss > 0 {
+                bad.push((n, miss));
+            }
+            if std::env::var("PROBE_DATA_RIGHT").is_ok() {
+                let (mut right, mut map_w) = (0i32, (v.wide as i32) * 32);
+                for r in 0..(v.high as i32) * 2 {
+                    for c in 0..(v.wide as i32) * 2 {
+                        if v.terrain_at(r, c) > 0 {
+                            right = right.max(c * 16 + 16);
+                        }
+                    }
+                }
+                eprintln!("PROBE maplv{n} 数据右缘={right}px 地图宽={map_w}px（右缘<地图宽=①数据边界）");
+            }
+        }
         assert!(
-            pure_translate || centered,
-            "InGameMenu 须过布局纪律：纯平移（ops 恒等）或相对布局保持（屏心偏移同值 c={} m={}）",
-            center_of(&c, c_w as i32),
-            center_of(&m, m_w as i32)
+            bad.is_empty(),
+            "②渲染面缺格层（数据有格未画=同族漏网）: {bad:?}；空表=①数据边界合法"
         );
     }
 
