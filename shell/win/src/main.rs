@@ -285,6 +285,17 @@ mod font_inject {
 
     /// game_core::render::set_glyph_hook 的注入实现：系统 TTF 真 CJK 字形。
     /// 布局仍用 SoftFont 的格宽/格高（与差分验证过的排版一致），仅字形换真。
+    static DISPLAY_SCALE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
+
+    /// 视口显示倍率注入（task-25 ④）：shell paint 前 set（Viewport.scale）。
+    pub fn set_display_scale(s: u32) {
+        DISPLAY_SCALE.store(s.max(1), std::sync::atomic::Ordering::Relaxed);
+    }
+
+    fn display_scale() -> u32 {
+        DISPLAY_SCALE.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
     pub fn install() {
         let font = load();
         let has_font = font.is_some();
@@ -306,22 +317,50 @@ mod font_inject {
         put: &mut dyn FnMut(i32, i32, u32),
     ) {
         let Some(font) = FONT.get().and_then(|f| f.as_ref()) else { return };
-        let scale = PxScale { x: chh as f32, y: chh as f32 };
-        // 基线放格底上方 1px（CJK 无下伸部，格内视觉居中）
+        // 【task-25 ④】TTF 光栅化分辨率随视口（模糊真根因=低分辨率渲染后放大）：
+        // SSAA 超采样——以 最终显示倍率×格高 光栅化（2x 窗口=28px），降采样回逻辑
+        // 格（矢量清晰度释放）。classic 倍率 1=原样零偏离。
+        let ss = display_scale().max(1);
+        let scale = PxScale {
+            x: (chh * ss as i32) as f32,
+            y: (chh * ss as i32) as f32,
+        };
+        // 基线放格底上方 1px（CJK 无下伸部，格内视觉居中）——超采样坐标同乘 ss
         let glyph = font
             .glyph_id(char::from_u32(ch as u32).unwrap_or(' '))
-            .with_scale_and_position(scale, point(px as f32, (py + chh - 1) as f32));
+            .with_scale_and_position(
+                scale,
+                point(px as f32 * ss as f32, ((py + chh - 1) * ss as i32) as f32),
+            );
         if let Some(outline) = font.outline_glyph(glyph) {
             // ab_glyph 回调坐标是 px_bounds **局部**坐标（outlined.rs draw() 文档：
             // "pixel coordinate inside the bounds"），必须平移 bbox 最小角才是画布
             // 绝对坐标——否则全部字形像素堆在 (0,0)，文本落点为空（mode21 文字不可见 bug）。
             let bb = outline.px_bounds();
             let (ox, oy) = (bb.min.x.round() as i32, bb.min.y.round() as i32);
-            outline.draw(|gx, gy, a| {
-                if a > 0.25 {
-                    put(ox + gx as i32, oy + gy as i32, color);
+            if ss == 1 {
+                outline.draw(|gx, gy, a| {
+                    if a > 0.25 {
+                        put(ox + gx as i32, oy + gy as i32, color);
+                    }
+                });
+            } else {
+                // SSAA 降采样：ss×ss 块均值（alpha 覆盖率平均）→ 逻辑像素
+                let mut acc: std::collections::HashMap<(i32, i32), (u32, u32)> = Default::default();
+                outline.draw(|gx, gy, a| {
+                    let lx = (ox + gx as i32).div_euclid(ss as i32);
+                    let ly = (oy + gy as i32).div_euclid(ss as i32);
+                    let e = acc.entry((lx, ly)).or_insert((0, 0));
+                    e.0 += a as u32;
+                    e.1 += 1;
+                });
+                for ((lx, ly), (sum, cnt)) in acc {
+                    let avg = sum / cnt.max(1);
+                    if avg as f32 > 0.25 * 255.0 {
+                        put(lx, ly, color);
+                    }
                 }
-            });
+            }
         }
         let _ = cw;
     }
@@ -1357,6 +1396,9 @@ fn run_window(shell: Shell) {
 
         fn present(&mut self) {
             let Some(vp) = self.viewport() else { return }; // 最小化（0×0）不画
+            // 【task-25 ④】字形光栅化倍率注入（SSAA 超采样用）——下一拍 paint 生效
+            //（视口倍率稳定，resize 一拍滞后可接受）。
+            font_inject::set_display_scale(vp.scale);
             let Some(surface) = self.surface.as_mut() else { return };
             if surface
                 .resize(NonZeroU32::new(vp.win_w).unwrap(), NonZeroU32::new(vp.win_h).unwrap())

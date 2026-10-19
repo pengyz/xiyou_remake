@@ -178,6 +178,56 @@ impl FontMetrics for SoftFont {
     }
 }
 
+/// 变宽步进测量 hook（task-25 ③）：壳侧 TTF 实测注入（GlyphHook 同模式）。
+/// `(size, ch) -> 步进宽 px`；未注入 ⇒ ModernMetrics 回退 classic 定宽步进。
+pub type AdvanceHook = fn(i32, u16) -> i32;
+
+static mut ADVANCE_HOOK: Option<AdvanceHook> = None;
+
+/// 注入变宽步进实测通道（壳侧 TTF 度量；core 零依赖红线保持）。
+pub fn set_advance_hook(h: Option<AdvanceHook>) {
+    unsafe { ADVANCE_HOOK = h }
+}
+
+fn advance_hook() -> Option<AdvanceHook> {
+    unsafe { ADVANCE_HOOK }
+}
+
+/// modern 度量（task-25 ③）：**变宽**步进=TTF 实测（hook 注入）；height/baseline
+/// 族=classic 同值（度量高族不动——BUG-008 教训：度量高改=全链联动，帧布局面
+/// 分级稳定）。未注入 hook ⇒ 回退 classic 定宽（is_wide 2×）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ModernMetrics {
+    /// MIDP size 码（SMALL=8/MEDIUM=16/LARGE=32）——步进 hook 实测参数。
+    pub size: i32,
+    pub style: i32,
+}
+
+impl FontMetrics for ModernMetrics {
+    fn height(&self) -> i32 {
+        SoftFont::get_font(0, self.style, self.size).height
+    }
+    fn char_advance(&self, ch: u16) -> i32 {
+        match advance_hook() {
+            Some(h) => h(self.size, ch),
+            None => SoftFont::get_font(0, self.style, self.size).char_width(ch),
+        }
+    }
+    fn measure(&self, s: &[u16]) -> (i32, i32) {
+        let mut w = 0;
+        for &ch in s {
+            w += self.char_advance(ch);
+        }
+        (w, self.height() + 4)
+    }
+    fn line_height(&self) -> i32 {
+        self.height() + 4
+    }
+    fn baseline(&self) -> i32 {
+        SoftFont::get_font(0, self.style, self.size).baseline
+    }
+}
+
 /// classic 度量包装（task-25 ①）：SoftFont 现值——**恒等断言零偏离**（TDD 钉：
 /// 6/14/11、8/14/11、12/20/16、BOLD aw+1、is_wide 2×、line_height=height+4）。
 pub struct ClassicMetrics {
@@ -803,6 +853,30 @@ mod font_metrics_tests {
             let s: Vec<u16> = "A中".encode_utf16().collect();
             assert_eq!(m.measure(&s), (aw + aw * 2, h + 4), "measure=(步进累加, 行距)");
         }
+    }
+
+    /// task-25 ③ 判据：变宽通道——hook 注入实测步进生效（ASCII/CJK 各自实测值
+    /// 而非定宽 2×）；未注入回退 classic 定宽（零偏离）。
+    #[test]
+    fn modern_metrics_variable_advance_via_hook() {
+        // 未注入 ⇒ 回退 classic 定宽（is_wide 2×）
+        let m = ModernMetrics { size: font_size::MEDIUM, style: font_style::PLAIN };
+        assert_eq!(m.char_advance(b'A' as u16), 8, "回退 classic ASCII 定宽");
+        assert_eq!(m.char_advance(0x4E2D), 16, "回退 classic CJK 2×");
+        // 注入实测步进（变宽：A=5 中=12——TTF 实测形）
+        fn fake_advance(_size: i32, ch: u16) -> i32 {
+            if ch == b'A' as u16 { 5 } else { 12 }
+        }
+        set_advance_hook(Some(fake_advance));
+        assert_eq!(m.char_advance(b'A' as u16), 5, "实测 ASCII 变宽步进");
+        assert_eq!(m.char_advance(0x4E2D), 12, "实测 CJK 变宽步进（非 2×）");
+        let s: Vec<u16> = "A中".encode_utf16().collect();
+        assert_eq!(m.measure(&s), (17, 18), "measure=实测步进累加（5+12），行距=height+4");
+        // height/baseline 族=classic 同值（度量高族不动）
+        assert_eq!(m.height(), 14);
+        assert_eq!(m.line_height(), 18);
+        assert_eq!(m.baseline(), 11);
+        set_advance_hook(None);
     }
 
     /// task-25 ① 双实现恒等：SoftFont 直装 trait 与 ClassicMetrics 包装逐值同
