@@ -84,16 +84,21 @@ impl ParallaxBackdrop {
     /// `paint_parallax` 同一 Java 方法——列步进/回绕/行步进共用 layout 常量）。
     /// `game_view=true` 时纵向平铺带翻转（mode 3/4/19 用），菜单族恒 false。
     pub fn paint(&mut self, g: &mut SoftGraphics<'_>, tile: &ArgbImage, game_view: bool, view_bottom: i32) {
+        // 【task-14 豁免+界随画布】背景=全幅层（不随 origin；铺界=画布逻辑尺寸
+        // 禁 SCREEN 常量——modern 菜单背景只盖经典区=黑边根因同族）。
+        let saved_origin = g.origin();
+        g.set_origin(0);
+        let (canvas_w, canvas_h) = g.canvas_logical();
         self.scroll -= 1;
         if self.scroll < crate::layout::PARALLAX_WRAP {
             self.scroll = 0;
         }
         let base_y = if game_view { view_bottom - crate::layout::SCREEN_H + 6 } else { 0 };
         let mut x = self.scroll;
-        while x < crate::layout::SCREEN_W {
+        while x < canvas_w {
             let mut y = base_y;
             let mut flipped = false;
-            while y > -crate::layout::SCREEN_H {
+            while y > -canvas_h {
                 if flipped {
                     let t = crate::paint::NOKIA_TRANSFORM_TABLE[2];
                     g.draw_image_transformed(tile, x, y, 0, t);
@@ -101,10 +106,11 @@ impl ParallaxBackdrop {
                     g.draw_image(tile, x, y, 0);
                 }
                 flipped = !flipped;
-                y -= crate::layout::SCREEN_H;
+                y -= tile.height;
             }
             x += crate::layout::PARALLAX_COL_STEP;
         }
+        g.set_origin(saved_origin);
     }
 }
 

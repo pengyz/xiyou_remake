@@ -333,18 +333,68 @@ impl LoadProgress {
     }
 
     /// paint case 2（a.java:2377-2384）：全屏底色 + 双段进度条（load 容器图）。
-    pub fn paint(&self, g: &mut SoftGraphics<'_>, load: &[ArgbImage]) {
+    pub fn paint(&self, g: &mut SoftGraphics<'_>, load: &[ArgbImage], layout: &crate::layout::Layout) {
+        // 【task-14 开场链】背景满幅（layout 尺寸，禁 SCREEN 常量——modern 下
+        // 常量=经典块浮画布"没对齐"根因）+ 进度条按公式居中（classic 代入
+        // (240-24)>>1=108、(320-148)>>1=86 ⇒ 原值零偏离）。
         g.set_color(crate::layout::DARK_BACKDROP);
-        g.fill_rect(0, 0, crate::layout::SCREEN_W, crate::layout::SCREEN_H);
+        g.fill_rect(0, 0, layout.screen_w, layout.screen_h);
         let shown = 148 * self.progress / 100;
-        crate::paint::draw_image_clipped(g, &load[0], 108, 86, 0, 0, 24, shown);
-        crate::paint::draw_image_clipped(g, &load[1], 108, 86 + shown, 0, shown, 24, 148 - shown);
+        let x = (layout.screen_w - 24) >> 1;
+        let y = (layout.screen_h - 148) >> 1;
+        crate::paint::draw_image_clipped(g, &load[0], x, y, 0, 0, 24, shown);
+        crate::paint::draw_image_clipped(g, &load[1], x, y + shown, 0, shown, 24, 148 - shown);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 【task-14 开场链】加载屏对齐判据（用户"大闹天宫加载界面没对齐"）：
+    /// modern 背景满幅（零未绘制像素）+ 进度条带居中（内容 x 中心=屏心）。
+    /// RED 复现：paint 还原常量界（SCREEN_W/H+108/86）⇒ 满幅断言破即红。
+    #[test]
+    fn loading_screen_fills_and_centers_modern() {
+        let layout = crate::layout::Layout::modern(13, 13);
+        let lp = LoadProgress::new_game();
+        let mut bar0 = ArgbImage::create(24, 148);
+        for p in bar0.argb.iter_mut() {
+            *p = 0xFFFF0000;
+        }
+        let mut bar1 = ArgbImage::create(24, 148);
+        for p in bar1.argb.iter_mut() {
+            *p = 0xFF00FF00;
+        }
+        let load = [bar0, bar1];
+        let mut img = ArgbImage::create(layout.screen_w, layout.screen_h);
+        {
+            let mut g = SoftGraphics::new(&mut img);
+            lp.paint(&mut g, &load, &layout);
+        }
+        let (w, h) = (layout.screen_w as usize, layout.screen_h as usize);
+        let mut undrawn = 0usize;
+        let (mut x_min, mut x_max) = (i32::MAX, i32::MIN);
+        for y in 0..h {
+            for x in 0..w {
+                let p = img.argb[y * w + x];
+                if p == 0 {
+                    undrawn += 1;
+                }
+                if p == 0xFF00FF00 || p == 0xFFFF0000 {
+                    x_min = x_min.min(x as i32);
+                    x_max = x_max.max(x as i32);
+                }
+            }
+        }
+        assert_eq!(undrawn, 0, "加载屏背景须满幅（常量界=经典块浮画布'没对齐'根因）");
+        let center = (x_min + x_max) / 2;
+        assert!(
+            (center - layout.screen_w / 2).abs() <= 1,
+            "进度条带须居中（现中心 {center} vs 屏心 {}，容差 1px）",
+            layout.screen_w / 2
+        );
+    }
 
     #[test]
     fn intro_layout_two_lines_per_page() {

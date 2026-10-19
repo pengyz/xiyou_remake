@@ -358,6 +358,11 @@ impl<'a> SoftGraphics<'a> {
         self.origin_x
     }
 
+    /// 画布**逻辑**尺寸（=物理背板/scale；全幅层铺界用——禁 SCREEN 常量）。
+    pub fn canvas_logical(&self) -> (i32, i32) {
+        (self.target.width / self.scale, self.target.height / self.scale)
+    }
+
     /// 逻辑 → 物理（平移先于缩放）。
     fn phys_x(&self, x: i32) -> i32 {
         (x + self.origin_x) * self.scale

@@ -361,6 +361,12 @@ impl BootMachine {
     }
 
     /// 一次 paint（serviceRepaints → a.paint）。按 [`Self::mode`] 分发。
+    /// 【task-14】内容居中平移（开场链经典构图整体平移）：
+    /// dx=(screen_w−经典宽)/2（classic dx=0 恒等）。
+    fn content_dx(&self) -> i32 {
+        (self.layout.screen_w - crate::layout::SCREEN_W) / 2
+    }
+
     pub fn paint(&mut self, g: &mut SoftGraphics<'_>) {
         self.paints += 1;
         match self.mode {
@@ -374,6 +380,7 @@ impl BootMachine {
                 self.title = Some(t);
             }
             GameMode::EquipDetail => {
+                g.set_origin(self.content_dx());
                 self.backdrop.paint(g, &self.mapbg, false, 0);
                 let segs = [3, 5]; // titleBarSegments[1]
                 if let Some(slots) = &self.slots {
@@ -383,6 +390,7 @@ impl BootMachine {
                 m_034_softkeys(g, &self.ui[10], &self.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
             }
             GameMode::Help | GameMode::IconView => {
+                g.set_origin(self.content_dx());
                 self.backdrop.paint(g, &self.mapbg, false, 0);
                 let sy = if self.mode == GameMode::Help { 51 } else { 68 };
                 let mut f = self.strip_frame;
@@ -392,6 +400,7 @@ impl BootMachine {
                 self.paint_overlay_tail(g);
             }
             GameMode::About => {
+                g.set_origin(self.content_dx());
                 self.backdrop.paint(g, &self.mapbg, false, 0);
                 let mut f = self.strip_frame;
                 crate::title::paint_icon_strip_at(g, &self.menu[1], 86, 10, 34, 68, &mut f);
@@ -402,11 +411,14 @@ impl BootMachine {
                 m_034_softkeys(g, &self.ui[10], &self.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
             }
             GameMode::LogoAnim => {
+                g.set_origin(self.content_dx());
                 let logo = self.logo.as_ref().unwrap();
                 let sf7 = self.sflogo[7].clone();
                 logo.paint(g, &sf7);
             }
             GameMode::IntroCutscene => {
+                // 【task-14】intro 已全体公式化（center_x 锚/字幕框居中/跳过贴右）
+                // ⇒ 不加臂平移（双移=左露底带 artifact 实证 2026-10-20）
                 let intro = self.intro.as_mut().unwrap();
                 let mut particles = self.title.as_mut().map(|t| std::mem::replace(&mut t.particles, crate::title::Particles::new()));
                 if let Some(p) = particles.as_mut() {
@@ -418,7 +430,7 @@ impl BootMachine {
                 }
             }
             GameMode::Loading => {
-                self.loading.as_ref().unwrap().paint(g, &self.load_imgs);
+                self.loading.as_ref().unwrap().paint(g, &self.load_imgs, &self.layout);
             }
             _ => {
                 let state = BootPaintState {
