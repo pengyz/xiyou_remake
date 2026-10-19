@@ -380,7 +380,6 @@ impl BootMachine {
                 self.title = Some(t);
             }
             GameMode::EquipDetail => {
-                g.set_origin(self.content_dx());
                 self.backdrop.paint(g, &self.mapbg, false, 0);
                 let segs = [3, 5]; // titleBarSegments[1]
                 if let Some(slots) = &self.slots {
@@ -390,7 +389,6 @@ impl BootMachine {
                 m_034_softkeys(g, &self.ui[10], &self.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
             }
             GameMode::Help | GameMode::IconView => {
-                g.set_origin(self.content_dx());
                 self.backdrop.paint(g, &self.mapbg, false, 0);
                 let sy = if self.mode == GameMode::Help { 51 } else { 68 };
                 let mut f = self.strip_frame;
@@ -400,7 +398,6 @@ impl BootMachine {
                 self.paint_overlay_tail(g);
             }
             GameMode::About => {
-                g.set_origin(self.content_dx());
                 self.backdrop.paint(g, &self.mapbg, false, 0);
                 let mut f = self.strip_frame;
                 crate::title::paint_icon_strip_at(g, &self.menu[1], 86, 10, 34, 68, &mut f);
@@ -411,7 +408,6 @@ impl BootMachine {
                 m_034_softkeys(g, &self.ui[10], &self.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
             }
             GameMode::LogoAnim => {
-                g.set_origin(self.content_dx());
                 let logo = self.logo.as_ref().unwrap();
                 let sf7 = self.sflogo[7].clone();
                 logo.paint(g, &sf7);

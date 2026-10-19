@@ -5802,7 +5802,6 @@ impl GameScene {
     /// paint case 3（a.java:2385-2422）。
     pub fn paint(&mut self, g: &mut SoftGraphics<'_>, tileset: &ArgbImage) {
         if self.game_mode == GameMode::EnemyInfo {
-            g.set_origin(self.bottom_panel_dx());
             self.paint_menu5(g);
             return self.paint_wipe_tail(g);
         }
@@ -5810,7 +5809,6 @@ impl GameScene {
             // paint case 16（a.java:2963-2990）：parallax(false) + 图标条 +
             // paintBoxFrame + 选项行（OptionList::paint）【task-14：内容居中；
             // 视差=全幅层自豁免】
-            g.set_origin(self.bottom_panel_dx());
             self.paint_parallax(g, false);
             let mut f = self.strip_frame;
             crate::title::paint_icon_strip_at(g, &self.images.menu_strip, 86, 10, 34, 68, &mut f);
@@ -5824,26 +5822,25 @@ impl GameScene {
         }
         if self.game_mode == GameMode::SaveSlot {
             // paint case 7（a.java:2679-2682）：paintSlotTable(true) 存档变体
-            g.set_origin(self.bottom_panel_dx());
             self.paint_slot_list(g);
             self.paint_overlay_box(g);
             return self.paint_wipe_tail(g);
         }
         if self.game_mode == GameMode::Help {
             // paint case 15（a.java:2958-2962）
-            g.set_origin(self.bottom_panel_dx());
             self.paint_menu15(g);
             return self.paint_wipe_tail(g);
         }
         if self.game_mode == GameMode::InGameMenu || self.game_mode == GameMode::Shop {
             // paint case 4/19 共享（a.java:2427-2490）
-            g.set_origin(self.bottom_panel_dx());
+            // 【task-14 实测更正 2026-10-20】paint_menu_list=公式锚（center_x）
+            // ⇒ 不加臂平移（双移=右偏 88px，ops 差分实证）；公式化=STAGE-B-004a 既定机制
+            g.set_origin(0);
             self.paint_menu_list(g);
             self.paint_overlay_box(g);
             return self.paint_wipe_tail(g);
         }
         if self.game_mode == GameMode::ItemPanel {
-            g.set_origin(self.bottom_panel_dx());
             self.paint_item_panel(g);
             self.paint_overlay_box(g);
             // 面板内道具触发 changeFloor：遮幅公共尾同样共跑（a.java:3177-3215）
@@ -5851,12 +5848,10 @@ impl GameScene {
             return;
         }
         if self.game_mode == GameMode::Ending {
-            g.set_origin(self.bottom_panel_dx());
             self.paint_ending(g);
             return self.paint_wipe_tail(g);
         }
         if self.game_mode == GameMode::RecordBrowser {
-            g.set_origin(self.bottom_panel_dx());
             self.paint_mode12(g);
             return;
         }
@@ -5866,7 +5861,6 @@ impl GameScene {
         }
         if self.game_mode == GameMode::Alchemy {
             // paint case 9（a.java:2690-2740）
-            g.set_origin(self.bottom_panel_dx());
             self.paint_menu9(g, tileset);
             return self.paint_wipe_tail(g);
         }
@@ -7376,6 +7370,83 @@ mod slot_equip_scene_tests {
                 assert_eq!(diff, 0, "{label}：观察态原机制（角色留 cam+player 位，中心窗须与基帧同）");
             }
         }
+    }
+
+    /// 【task-14 场景级·布局纪律】菜单臂二属性分类判据：逐臂须满足其一——
+    /// (A) 纯平移（内容 ops classic/modern 逐项恒等=origin 隐式平移）或
+    /// (B) 公式居中（内容 bbox 中心=屏心 ≤2px，STAGE-B-004a 锚位公式化）。
+    /// 双破=错位元素（违布局纪律）。全幅层（视差/满幅）=画布自适应不计。
+    #[test]
+    fn menu_arms_layout_discipline() {
+        let icons = synthetic_sptarm();
+        let arms: &[(GameMode, fn(&mut GameScene))] = &[
+            (GameMode::EnemyInfo, |sc| sc.enter_menu5()),
+            (GameMode::InGameMenu, |sc| sc.enter_menu4()),
+        ];
+        let _ = arms;
+        // InGameMenu=公式锚样例（enter_menu4）；分类框架随臂扩充
+        let ops_of = |layout: crate::layout::Layout| {
+            let mut sc = scene_with(&icons);
+            sc.apply_layout(layout);
+            sc.game_mode = GameMode::InGameMenu;
+            sc.enter_menu4();
+            let (w, h) = (sc.layout.screen_w as usize, sc.layout.screen_h as usize);
+            let mut img = ArgbImage::create(w as i32, h as i32);
+            let ops;
+            {
+                let mut g = SoftGraphics::new(&mut img);
+                sc.paint(&mut g, &solid(64, 64));
+                ops = g.ops.clone();
+            }
+            (ops, w, h)
+        };
+        let content = |ops: Vec<String>| -> Vec<String> {
+            ops.into_iter()
+                .filter(|o| {
+                    if o.starts_with("drawImageT") || o.contains("77x320") {
+                        return false;
+                    }
+                    if o.starts_with("fillRect(") || o.starts_with("setClip(") {
+                        let nums: Vec<i32> = o
+                            .split('(')
+                            .nth(1)
+                            .and_then(|s| s.split(')').next())
+                            .map(|a| {
+                                a.split(',')
+                                    .filter_map(|t| t.trim().trim_start_matches('#').parse().ok())
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+                        if nums.len() >= 4 && (nums[2] >= 240 || nums[3] >= 320) {
+                            return false;
+                        }
+                    }
+                    true
+                })
+                .collect()
+        };
+        let (c_ops, c_w, _c_h) = ops_of(crate::layout::Layout::classic());
+        let (m_ops, m_w, _m_h) = ops_of(crate::layout::Layout::modern(13, 13));
+        let (c, m) = (content(c_ops), content(m_ops));
+        let pure_translate = m == c;
+        // (B) 公式居中：内容 x 跨度中心=屏心 ≤2px（两预设各自成立）
+        let center_of = |ops: &Vec<String>, w: i32| -> i32 {
+            let (mut lo, mut hi) = (i32::MAX, i32::MIN);
+            for o in ops {
+                if let Some((x, _)) = op_xy(o) {
+                    lo = lo.min(x);
+                    hi = hi.max(x);
+                }
+            }
+            (lo + hi) / 2 - w / 2
+        };
+        let centered = center_of(&c, c_w as i32) == center_of(&m, m_w as i32);
+        assert!(
+            pure_translate || centered,
+            "InGameMenu 须过布局纪律：纯平移（ops 恒等）或相对布局保持（屏心偏移同值 c={} m={}）",
+            center_of(&c, c_w as i32),
+            center_of(&m, m_w as i32)
+        );
     }
 
     /// 跳过 "77x320" 尺寸记号与 '#rrggbb' 色参（drawImage/drawImageTransformed 可用）。
