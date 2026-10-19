@@ -2,8 +2,8 @@
 //!
 //! 真值锚：docs/spec/platform-contract.md §1（Storage 契约）+ §1.3（Java RMS 等价性）
 //! + decision_save-path-shell-injection（根路径宿主注入：Android = 应用私有目录
-//! internalDataPath）。文件语义主测试单源在 game-shell-common（对抗审查 F-4/抽取面
-//! 审查判据）——本文件只锁**包装接线面**：根路径注入、域过滤委托、对象安全、六槽+全 8 键域。
+//!   internalDataPath）。文件语义主测试单源在 game-shell-common（对抗审查 F-4/抽取面
+//!   审查判据）——本文件只锁**包装接线面**：根路径注入、域过滤委托、对象安全、六槽+全 8 键域。
 
 use game_android::storage::AndroidStorage;
 use game_platform::{rms_key, Storage, RMS_STORES};

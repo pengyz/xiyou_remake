@@ -156,7 +156,7 @@ mod tests {
         assert_eq!(repack(&mid).unwrap(), bin, "恒等");
 
         // 前向兼容：未知字段忽略（旧 repack 读新 schema）
-        let with_unknown = format!("{{\n  \"version\": 1,\n  \"format\": \"maplv\",\n  \"name\": \"maplvX\",\n  \"future\": {{\"k\": 1}},\n  \"flag\": true\n}}\n");
+        let with_unknown = "{\n  \"version\": 1,\n  \"format\": \"maplv\",\n  \"name\": \"maplvX\",\n  \"future\": {\"k\": 1},\n  \"flag\": true\n}\n".to_string();
         // （直接替换 json 会缺族字段 ⇒ 报错；此处只验解析层容忍，字段缺失仍拒绝）
         let mid2 = Mid { json: with_unknown, images: vec![] };
         assert!(repack(&mid2).is_err(), "缺族字段必须拒绝");

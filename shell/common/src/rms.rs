@@ -126,7 +126,7 @@ mod slot_if_duality {
         let mut back = SlotSelect::new();
         back.load_slot_table(Some(&bytes));
         for k in 0..6 {
-            assert_eq!(back.valid[k], true, "slot{k}.valid 回读");
+            assert!(back.valid[k], "slot{k}.valid 回读");
             assert_eq!(back.floor_num[k], slot.floor_num[k], "slot{k}.floor_num");
             assert_eq!(back.weapon[k], slot.weapon[k], "slot{k}.weapon");
             assert_eq!(back.armor[k], slot.armor[k], "slot{k}.armor");

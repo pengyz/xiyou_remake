@@ -354,7 +354,7 @@ fn preset_floor5_fixture_frames_match() {
 
 /// 按层铺 floor49（迭代 66 原用例，308765f 起改作他用后缺位——此处夹具化恢复）：门卫/守卫宝箱配对
 /// + (6,8) 型83 首访 inert（tryRunScene case15：probeCrossFloorSnapshot(当前层,5) 守卫在场 ⇒ false）→ 二访伏击
-/// script15 → 61/70 战 → case70 → script35。T1-3400。
+///   script15 → 61/70 战 → case70 → script35。T1-3400。
 #[test]
 // 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案） 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
 fn preset_floor49_fixture_frames_match() {
@@ -673,8 +673,8 @@ fn fx_boss74a_kill_hooks_frames_match() {
 /// 型12 行；closure-typist 建议升级场景）。floor23 (2,4) 型12 隐形墙（sprite23 原生 ×24）
 /// 右撞 ⇒ case12（a.java:5449-5456）变形：type 12→11 + dispatchSpriteSize/AnimFields(11)
 /// + state=2 + animRow=9 + visible=true（写序固定）⇒ 过渡完成归零（a.java:6838-6843）；
-/// 二撞 ⇒ case11（a.java:5441-5448）floor==23 跳过文案但恒阻挡（cur_x=false+var8=0）。
-/// T1-560。
+///   二撞 ⇒ case11（a.java:5441-5448）floor==23 跳过文案但恒阻挡（cur_x=false+var8=0）。
+///   T1-560。
 #[test]
 // 【STAGE-B-001 豁免】boot 时间轴变化（登记册名单在案） 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
 fn fx_int11_f23_transform_silent_frames_match() {
@@ -1083,9 +1083,9 @@ fn bug012_lay2a_same_point_crash_regression() {
 /// 上梯 → changeFloor(3) → swap_floor 落点 step_off_stairs 首可走邻格 = floor3 (2,11) 剧情点
 /// → applyStepCellEffects case83 step 臂 → script0（CES_84 嫦娥 + MOV_0_5_11 自走
 /// + TAK_8_9 剧情对话）。**Java 基线（oracle floor2-stair2 实测）**：
-/// T305 踩梯 → T309 切层落 (2,11) → T310 cursor 12（CES）→ T311 dphase=3/wsc=3（MOV
-/// 自走武装）→ T318/322/326 三步自动走到 (5,11) → T328 dialogPage=8（TAK 对话）。
-/// 本测断言 Rust 逐拍同构（Java 走 = 移植缺口应修 / 不走 = 原版行为——此处以 Java 为锚）。
+///   T305 踩梯 → T309 切层落 (2,11) → T310 cursor 12（CES）→ T311 dphase=3/wsc=3（MOV
+///   自走武装）→ T318/322/326 三步自动走到 (5,11) → T328 dialogPage=8（TAK 对话）。
+///   本测断言 Rust 逐拍同构（Java 走 = 移植缺口应修 / 不走 = 原版行为——此处以 Java 为锚）。
 fn bug012b_floor2_stair_preset() -> String {
     // 同 Python 复现口径：preset-floor2-mov.preset 改玩家格 (1,10) + 清 scriptLineFlags
     let text = include_str!("../../game-core/tests/fixtures/preset-floor2-mov.preset");

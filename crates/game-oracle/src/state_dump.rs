@@ -115,16 +115,16 @@ pub fn dump_scene(sc: &GameScene) -> Vec<String> {
     // SoA→AoS（第 1 步）后按 items 映射重建整表引用：**push 序/值序/尾默认逐字节
     // 保持**（A2 行序冻结；Entity::default=旧 Vec 预填值 ⇒ 金样不变）。
     let ea_i32 = |f: fn(&game_core::entity::Entity) -> i32| -> Vec<i32> {
-        sc.entities.items.iter().map(|e| f(e)).collect()
+        sc.entities.items.iter().map(f).collect()
     };
     let ea_i16 = |f: fn(&game_core::entity::Entity) -> i16| -> Vec<i16> {
-        sc.entities.items.iter().map(|e| f(e)).collect()
+        sc.entities.items.iter().map(f).collect()
     };
     let ea_u8 = |f: fn(&game_core::entity::Entity) -> u8| -> Vec<u8> {
-        sc.entities.items.iter().map(|e| f(e)).collect()
+        sc.entities.items.iter().map(f).collect()
     };
     let ea_bool = |f: fn(&game_core::entity::Entity) -> bool| -> Vec<bool> {
-        sc.entities.items.iter().map(|e| f(e)).collect()
+        sc.entities.items.iter().map(f).collect()
     };
     push(e_int_arr("entityType", &ea_i32(|e| e.type_)));
     push(e_int_arr("entityPixelX", &ea_i32(|e| e.px)));

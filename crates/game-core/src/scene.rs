@@ -1693,7 +1693,7 @@ impl GameScene {
             }
             33 => gate &= self.script_line_flags[7],
             34 => {
-                gate &= from_walk && self.script_line_flags[10] == false;
+                gate &= from_walk && !self.script_line_flags[10];
                 if gate {
                     let loss = self.predict_hp_loss(69, true);
                     gate &= loss < 0 || loss >= self.player.hp;
@@ -1838,7 +1838,7 @@ impl GameScene {
     fn flip_overlay_page(&mut self, page: i32) {
         let mut top = page;
         if top >= 0 {
-            if top >= self.overlay_total_lines - self.overlay_lines_per_page + 1 {
+            if top > self.overlay_total_lines - self.overlay_lines_per_page {
                 top = self.overlay_total_lines - self.overlay_lines_per_page;
             }
         } else {
@@ -6963,7 +6963,7 @@ mod slot_equip_scene_tests {
     /// - mapbg 77×320 **全不透明**（探针实证）⇒ 排除"透明透出画布黑"；
     /// - 黑区像素 **alpha=0（0x00000000 未绘制面）**（自验图解码实证）⇒ 排除"黑瓦片/画出来的黑"；
     /// - 故来源=**未绘制面**（mode 3 链在地图下缘悬垂带没垫任何层）。
-    /// 本判据钉"无未解释黑区"：modern 全链后视口带内未绘制像素 = 0。
+    ///   本判据钉"无未解释黑区"：modern 全链后视口带内未绘制像素 = 0。
     #[test]
     fn modern_render_no_unexplained_black() {
         let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -7222,7 +7222,7 @@ mod slot_equip_scene_tests {
     #[test]
     fn bottom_composition_is_translate_only() {
         let icons = synthetic_sptarm();
-        let mut coords = |layout: crate::layout::Layout, speaker: i32| {
+        let coords = |layout: crate::layout::Layout, speaker: i32| {
             let mut sc = scene_with(&icons);
             sc.apply_layout(layout);
             sc.game_mode = GameMode::Dialog;
@@ -9197,7 +9197,7 @@ mod entity_route_tests {
         assert_eq!(sc.entities.items[eu].state, 5);
         assert!(!sc.battle_no_counter);
         assert_eq!(sc.battle_enemy_hp, sc.enemies.hp[ti], "缩放表 HP（a.java:8769，非 bump 战的基础表）");
-        let strike = (sc.enemies.atk[ti] - 0).max(0);
+        let strike = sc.enemies.atk[ti].max(0);
         assert_eq!(sc.player.hp, 500 - strike, "敌先手一击");
         assert_eq!(sc.walk_step_count, 2, "余步保留（战斗收尾不再消费）");
         // case5：1 拍击杀 + 6 拍死亡动画

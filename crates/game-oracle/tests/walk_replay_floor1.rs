@@ -7,9 +7,8 @@ use game_core::combat::{consume_key_for_door, door_code};
 use game_core::sprite_spawn::{spawn_param_and_visibility, DoorTables};
 use game_core::entity::{self, CellGrid, EntityTable};
 use game_core::enums::Dir;
-use game_core::script::{HostCtx, ScriptState};
-use game_core::walk::{camera_edge_follow, WalkState};
-use game_data::sprite::SpriteTable;
+use game_core::script::HostCtx;
+use game_core::walk::WalkState;
 use game_oracle::trace::parse;
 
 /// maplv1 地形可行走网格（rebuildWalkability a.java:6964-6976 语义：

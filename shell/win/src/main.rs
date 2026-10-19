@@ -50,7 +50,6 @@ const INITIAL_SCALE: u32 = 2;
 /// 壳内呈现几何的唯一来源：窗口初始/最小尺寸、Viewport 适配、鼠标反映射、blit。
 /// 【STAGE-B-002】随 `Shell.layout` 动态（classic = 240×320 原值零变化；
 /// 原 CANVAS_W/H 常量已收编为 layout 派生）。
-
 /// preset 解析（STAGE-B-002 ①）：`classic`（默认，原版恒等）/ `modern`（逻辑分辨率=
 /// 任意格数，`grid` 缺省 13×13 = 416×416；最小钳位 240×320 由 Layout::modern 保证）。
 fn parse_preset(name: &str, grid: Option<(i32, i32)>) -> game_core::layout::Layout {
@@ -1672,7 +1671,7 @@ mod shell_tests {
             sc.bgm.sound_enabled = false;
             sc.bgm.volume_level = 0;
         }
-        assert!(!game_shell_common::settings::AppSettings::load(&p).sound_enabled == false, "未落盘前=旧值");
+        assert!(game_shell_common::settings::AppSettings::load(&p).sound_enabled, "未落盘前=旧值");
         h.run_tick(&[]);
         let s = game_shell_common::settings::AppSettings::load(&p);
         assert!(!s.sound_enabled, "toggle 后下一拍落盘（关声持久）");
@@ -2020,7 +2019,7 @@ mod shell_tests {
         shell.logic_tick();
         match shell.state.as_ref() {
             Some(Screen::Boot(m)) => {
-                assert_eq!(m.global_snapshot().option_checked[1], true, "catch 分支 [1]=true")
+                assert!(m.global_snapshot().option_checked[1], "catch 分支 [1]=true")
             }
             _ => panic!("应在 Boot"),
         }
@@ -2138,7 +2137,7 @@ mod shell_tests {
         assert_eq!(click_key(5, 5, SCREEN_W, SCREEN_H, GameMode::Map, true), Some(-7), "右键=返回全态");
         assert_eq!(click_key(5, 5, SCREEN_W, SCREEN_H, GameMode::Map, false), None, "Map 态点击不误触");
         assert_eq!(click_key(5, 5, SCREEN_W, SCREEN_H, GameMode::InGameMenu, false), Some(-5), "菜单态点击=确认");
-        assert_eq!(w > 0, true); // 占位消未用告警
+        assert!(w > 0); // 占位消未用告警
     }
 
     /// 点击分区（画面坐标，按 SCREEN_W/SCREEN_H 取点）：软键栏 = y > 高×7/10（边界行属

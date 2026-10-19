@@ -19,7 +19,6 @@
 //! 钥 1/0/0 金 100；MOT_IF = 槽表 slot0 有效）。
 
 use game_core::enums::GameMode;
-use game_core::menu_family::SlotSelect;
 use game_core::render::{ArgbImage, SoftGraphics};
 use game_core::scene::{GameScene, SceneImages};
 use game_core::save::{parse_floor_save, parse_preset};
@@ -4881,7 +4880,6 @@ fn preset_floor46_frames_match() {
 /// → 北上 (6,4)/(6,3) 61/70 战 → case70(floor49) → script35 TAK_161。
 /// Java 锚：T402/552/1252/1402 守卫战、T568/1416 wp4、T1560 script15。
 /// T904 关闭静态。
-
 /// 按层铺 floor41（P2 B1 敌表族首层，迭代 78）：
 /// preset-floor41 场景（MOT_L0 current_floor=41，出生 (7,11)），窗口 T1-1900 全帧。
 /// 链：-2 光标 → -5 载入 (7,11) → 东 (8,11)/(9,11) → 北 (9,10)/(9,9) → 西

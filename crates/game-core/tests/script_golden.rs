@@ -170,7 +170,7 @@ fn see_bug006_replay_cursor_advances_walk_not_armed() {
     drive_to_see(&mut eng, &mut host);
     eng.step(&mut host); // SEE_3_10_166_166_1
     assert_eq!(eng.state.script_cursor, 43, "trace t1202");
-    assert_eq!(eng.state.script_walk_armed, false);
+    assert!(!eng.state.script_walk_armed);
     // SEE 置 phase=6，随后行尾收尾门（a.java:8568）覆写为 4——BUG-006 冻结态实证
     assert_eq!(eng.state.dialog_phase, DialogPhase::AwaitCamera);
     assert_eq!(eng.state.dialog_page, 166);
@@ -293,7 +293,7 @@ fn mov_player_path_gates_walk_phase() {
     eng.set_script_line_for_test("MOV_0_5_11 GLV_0 ");
     eng.step(&mut host);
     assert_eq!(eng.state.dialog_phase, DialogPhase::Walk);
-    assert_eq!(eng.state.script_walk_armed, true, "a.java:8282 三写点（复核 R2）");
+    assert!(eng.state.script_walk_armed, "a.java:8282 三写点（复核 R2）");
     assert_eq!(eng.state.walk_phase, WalkPhase::Idle);
     assert!(host.camera_snaps > 0);
     assert_eq!(host.find_path_calls, vec![(1, 11, 5, 11)]); // playerCell(1,11)（gameplay-floor1 实测起点）

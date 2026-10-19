@@ -38,7 +38,7 @@ fn process_control_is_object_safe() {
 #[test]
 fn counting_pcm_write_counts_frames() {
     let mut d = CountingPcm::new();
-    assert_eq!(d.write(&vec![0i16; 2048]), Ok(()));
+    assert_eq!(d.write(&[0i16; 2048]), Ok(()));
     assert_eq!(d.frames_written, 1024);
     assert_eq!(d.write(&[]), Ok(()), "空写无害");
     assert_eq!(d.frames_written, 1024);
@@ -57,8 +57,8 @@ fn counting_pcm_idle_counts() {
 #[test]
 fn counting_pcm_failure_is_unrecoverable() {
     let mut d = CountingPcm::failing_at(0);
-    assert!(d.write(&vec![0i16; 2048]).is_err(), "首写即超限 ⇒ Err");
-    assert!(d.write(&vec![0i16; 2]).is_err(), "不可恢复");
+    assert!(d.write(&[0i16; 2048]).is_err(), "首写即超限 ⇒ Err");
+    assert!(d.write(&[0i16; 2]).is_err(), "不可恢复");
     assert_eq!(d.frames_written, 0, "失败写不计入");
 }
 
@@ -66,10 +66,10 @@ fn counting_pcm_failure_is_unrecoverable() {
 #[test]
 fn counting_pcm_moves_into_audio_thread() {
     let mut d = CountingPcm::new();
-    d.write(&vec![0i16; 4]).unwrap();
+    d.write(&[0i16; 4]).unwrap();
     let h = std::thread::spawn(move || {
         let mut d = d;
-        d.write(&vec![0i16; 8]).unwrap();
+        d.write(&[0i16; 8]).unwrap();
         d
     });
     let d = h.join().unwrap();

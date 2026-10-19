@@ -573,7 +573,7 @@ impl OverlayEngine {
     pub fn flip_page(&mut self, page: i32) {
         let mut p = page;
         if p >= 0 {
-            if p >= self.total_lines - self.lines_per_page + 1 {
+            if p > self.total_lines - self.lines_per_page {
                 p = self.total_lines - self.lines_per_page;
             }
         } else {
@@ -900,7 +900,7 @@ impl SlotSelect {
                 g.set_color(crate::layout::SLOT_TEXT_ACTIVE);
             }
             if !self.valid[row as usize] {
-                g.draw_string(&DASH_LABEL, CENTER_X, y + 2, 17);
+                g.draw_string(DASH_LABEL, CENTER_X, y + 2, 17);
             } else {
                 let mut label: Vec<u16> = SAVE_LABEL.to_vec();
                 label.extend((row as u16).to_string().chars().map(|c| c as u16));
@@ -1021,7 +1021,7 @@ fn paint_equipment_frame<'a>(
         if i > 7 {
             i = clamp_to;
         }
-        if let Some(img) = usize::try_from(i).ok().and_then(|i| sptarm(i)) {
+        if let Some(img) = usize::try_from(i).ok().and_then(sptarm) {
             g.draw_image(img, vx + ((32 - img.width) >> 1), vy + ((32 - img.height) >> 1), 0);
         }
     }
