@@ -346,23 +346,61 @@ mod font_inject {
                 });
             } else {
                 // SSAA 降采样：ss×ss 块均值（alpha 覆盖率平均）→ 逻辑像素
-                let mut acc: std::collections::HashMap<(i32, i32), (u32, u32)> = Default::default();
-                outline.draw(|gx, gy, a| {
-                    let lx = (ox + gx as i32).div_euclid(ss as i32);
-                    let ly = (oy + gy as i32).div_euclid(ss as i32);
-                    let e = acc.entry((lx, ly)).or_insert((0, 0));
-                    e.0 += a as u32;
-                    e.1 += 1;
-                });
-                for ((lx, ly), (sum, cnt)) in acc {
-                    let avg = sum / cnt.max(1);
-                    if avg as f32 > 0.25 * 255.0 {
-                        put(lx, ly, color);
-                    }
+                //（计量实现收敛到 ssaa_dots_to_logical——窗口路径判据同源）
+                let mut dots: Vec<(i32, i32, f32)> = Vec::new();
+                outline.draw(|gx, gy, a| dots.push((gx as i32, gy as i32, a)));
+                for (lx, ly) in ssaa_dots_to_logical(&dots, ss as i32, ox, oy) {
+                    put(lx, ly, color);
                 }
             }
         }
         let _ = cw;
+    }
+
+    /// SSAA 降采样（task-25 ④ 窗口路径光栅化核心）：超采样点
+    /// (gx,gy,alpha∈[0,1]) → 逻辑像素集。**窗口呈现路径文本存在性判据挂此**。
+    /// alpha 须 ×255 计量（0-255 均值 vs 0.25×255 阈，与 ss==1 分支 a>0.25 同语义）
+    /// ——曾误 `a as u32` 截断（<1 恒 0）⇒ scale≥2 零输出=窗口层文本整体消失
+    /// （2026-10-19 用户实报，lead 急修）。
+    pub(crate) fn ssaa_dots_to_logical(dots: &[(i32, i32, f32)], ss: i32, ox: i32, oy: i32) -> Vec<(i32, i32)> {
+        let mut acc: std::collections::HashMap<(i32, i32), (u32, u32)> = Default::default();
+        for &(gx, gy, a) in dots {
+            let lx = (ox + gx).div_euclid(ss);
+            let ly = (oy + gy).div_euclid(ss);
+            let e = acc.entry((lx, ly)).or_insert((0, 0));
+            e.0 += (a * 255.0).round() as u32;
+            e.1 += 1;
+        }
+        let mut out: Vec<(i32, i32)> = acc
+            .into_iter()
+            .filter(|(_, (sum, cnt))| (*sum / (*cnt).max(1)) as f32 > 0.25 * 255.0)
+            .map(|((lx, ly), _)| (lx, ly))
+            .collect();
+        out.sort();
+        out
+    }
+
+    #[cfg(test)]
+    /// 窗口呈现路径文本存在性判据（lead 急修 2026-10-19"窗口层文本整体消失"）：
+    /// SSAA 降采样=窗口路径（display_scale≥2）光栅化核心——半透明笔画（a=0.5）
+    /// 必须产出逻辑像素；此前 alpha 截断误算致 scale≥2 零输出（文本整体消失）。
+    mod window_text_raster {
+        use super::ssaa_dots_to_logical;
+
+        #[test]
+        fn ssaa_half_alpha_stroke_emits_pixels() {
+            // 2×2 超采样块内 4 点 a=0.5（半透明笔画典型值）——须降采样出 1 逻辑像素
+            let dots = [(0, 0, 0.5f32), (1, 0, 0.5), (0, 1, 0.5), (1, 1, 0.5)];
+            let out = ssaa_dots_to_logical(&dots, 2, 0, 0);
+            assert_eq!(out, vec![(0, 0)], "半透明笔画须产出像素（窗口层文本存在性）");
+        }
+
+        #[test]
+        fn ssaa_below_threshold_stroke_drops() {
+            let dots = [(0, 0, 0.1f32), (1, 0, 0.1), (0, 1, 0.1), (1, 1, 0.1)];
+            let out = ssaa_dots_to_logical(&dots, 2, 0, 0);
+            assert!(out.is_empty(), "低于阈笔画不产出（与 ss==1 分支 a>0.25 同语义）");
+        }
     }
 
     #[cfg(test)]
@@ -1514,6 +1552,13 @@ fn main() {
 /// headless 截图跑法（自验工具）：无窗口 N 拍 → 画布 dump PNG。
 /// `newgame`=boot 后在标题按确认进游戏（验证 mode 3 视图面用）。
 fn headless_run(mut shell: Shell, out: PathBuf, frames: u64, newgame: bool, inject: Option<&str>) {
+    // 窗口面自验通道（lead 急修 2026-10-19）：DSH_FONT_SSAA=N ⇒ 以窗口倍率
+    // 光栅化字形（task-25 ④ SSAA 路径）——同状态双面出图（逻辑面=默认 1×）。
+    if let Ok(v) = std::env::var("DSH_FONT_SSAA") {
+        if let Ok(n) = v.parse::<u32>() {
+            font_inject::set_display_scale(n);
+        }
+    }
     let mut pressed_at: Vec<(u64, i32)> = Vec::new();
     // --inject "tick:key,tick:key"（2026-10-19 自验通道扩展：任意键序列注入）
     if let Some(spec) = inject {
