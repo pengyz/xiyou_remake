@@ -1848,7 +1848,7 @@ fn preset_itemboss40_frames_match() {
         }
         {
             if let Some(expect) = &rec.frame_sha {
-                let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
+                let _mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
                 assert_eq!(
                     &sha, expect,
                     "TICK {} 帧不符（mode={}）",
@@ -1899,7 +1899,7 @@ fn preset_floor2_frames_match() {
             (rec.type_code, rec.x, rec.y, param, !hide)
         })
         .collect();
-    let records1: Vec<(u8, u16, u16, i16, bool)> = {
+    let _records1: Vec<(u8, u16, u16, i16, bool)> = {
         let sp1 = SpriteTable::parse(&sprite1).unwrap();
         sp1.records
             .iter()
@@ -2135,7 +2135,7 @@ fn preset_merchant_frames_match() {
             (rec.type_code, rec.x, rec.y, param, !hide)
         })
         .collect();
-    let records1: Vec<(u8, u16, u16, i16, bool)> = {
+    let _records1: Vec<(u8, u16, u16, i16, bool)> = {
         let sp1 = SpriteTable::parse(&sprite1).unwrap();
         sp1.records
             .iter()
@@ -3943,7 +3943,7 @@ fn preset_save_frames_match() {
         std::fs::read(repo_path.join("crates/game-oracle/tests/fixtures/sprite1.bin")).unwrap();
     let sp = SpriteTable::parse(&sprite1).unwrap();
     let doors = door_tables();
-    let records1: Vec<(u8, u16, u16, i16, bool)> = sp
+    let _records1: Vec<(u8, u16, u16, i16, bool)> = sp
         .records
         .iter()
         .map(|rec| {
@@ -7934,7 +7934,7 @@ fn preset_alchemy_frames_match() {
             (rec.type_code, rec.x, rec.y, param, !hide)
         })
         .collect();
-    let records1: Vec<(u8, u16, u16, i16, bool)> = {
+    let _records1: Vec<(u8, u16, u16, i16, bool)> = {
         let sp1 = SpriteTable::parse(&sprite1).unwrap();
         sp1.records
             .iter()
