@@ -1111,7 +1111,17 @@ impl GameScene {
         records: &[(u8, u16, u16, i16, bool)],
         floor: i32,
     ) -> Result<(), String> {
-        let view = GameView::from_maplv(maplv, player_px, player_py)?;
+        let mut view = GameView::from_maplv(maplv, player_px, player_py)?;
+        // 【P0 回归修复 2026-10-20】换层重建视图后**强制布局换轨**：from_maplv 初始
+        // =classic 常量（240/252），apply_layout 只在初始化跑一次——换层新视图
+        // 残留 240-era col/row 范围=modern 地形半绘根因（floor1 正常=初始已换轨、
+        // 切层后半绘=新视图未换轨实证）。
+        view.set_layout_dims(
+            self.layout.game_view_w,
+            self.layout.game_view_h,
+            self.layout.screen_w,
+            self.layout.screen_h,
+        );
         let cols = view.wide as usize;
         let rows = view.high as usize;
         let mut walkable = vec![vec![false; cols]; rows];
@@ -7085,6 +7095,46 @@ mod slot_equip_scene_tests {
         // 裁剪复位常量漏网把 body 填充裁掉、露背景）
         let body = img.argb[404 * 416 + 260];
         assert_eq!(body, HUD_FILL | 0xFF00_0000, "对话框体底色须=HUD_FILL（现={body:#010x}=背景色透出）");
+    }
+
+    /// P0 回归判据（2026-10-20 modern 地形半绘·真修点路径）：modern 换层加载
+    /// 26 格宽楼层后 tile 层须绘满视口（右半空白=半绘 artifact）——走
+    /// load_floor_data 重建视图路径（from_maplv classic 初始+布局换轨修复点）。
+    #[test]
+    fn modern_floor_switch_tiles_cover_full_view() {
+        // 26 格宽合成 maplv（头 u16LE=52；tile 全 1=可见地形）
+        let (wide, high) = (26i32, 26i32);
+        let mut maplv = Vec::new();
+        maplv.extend_from_slice(&((wide * 2) as u16).to_le_bytes());
+        maplv.extend_from_slice(&((high * 2) as u16).to_le_bytes());
+        let gl = (wide * high * 4) as usize;
+        // 地形段全置 tile 1（绘制索引=行距 wide·2、列距 1——全段覆盖免索引形错）
+        maplv.extend_from_slice(&vec![1u8; gl]);
+        maplv.extend_from_slice(&vec![0u8; gl]);
+        let icons = synthetic_sptarm();
+        let mut sc = scene_with(&icons);
+        sc.apply_layout(crate::layout::Layout::modern(13, 13));
+        sc.load_floor_data(&maplv, 10 << 5, 10 << 5, &[], 3).unwrap();
+        // tileset=专色绿（tile 专色判据——背板/其他层误计防）
+        let mut tileset = ArgbImage::create(64, 64);
+        tileset.argb.fill(0xFF00_FF00);
+        let mut img = ArgbImage::create(416, 416);
+        {
+            let mut g = SoftGraphics::new(&mut img);
+            sc.paint(&mut g, &tileset);
+        }
+        // 右半视口（x=300..410）中带行（y=200）须有 tile 专色像素
+        let w = 416usize;
+        let mut right_tiles = 0;
+        for x in 300..410 {
+            if img.argb[200 * w + x] == 0xFF00_FF00 {
+                right_tiles += 1;
+            }
+        }
+        assert!(
+            right_tiles > 20,
+            "modern 换层后右半须绘出 tile（现 {right_tiles}/110 专色）——半绘 artifact"
+        );
     }
 
     /// STAGE-B-004a ①c 判据（对话框底边距=游戏视图底黑边）：modern 无对话态下

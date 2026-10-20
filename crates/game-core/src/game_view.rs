@@ -220,6 +220,41 @@ impl GameView {
 mod tests {
     use super::*;
 
+    /// P0 回归判据（2026-10-20 modern 地形半绘）：换层重建视图后布局换轨——
+    /// modern view_w=416 下 col 范围须覆盖全视口 27 格（432px ≥ 416）；旧 240-era
+    /// 范围=16 格（256px）=半绘根因（floor1 正常=初始已换轨、切层后半绘实证）。
+    #[test]
+    fn modern_layout_range_covers_full_view() {
+        // 26 格宽合成 maplv（头 u16LE=52 ⇒ wide=26；grid 26×26×4 双段）
+        let wide = 26i32;
+        let high = 26i32;
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&((wide * 2) as u16).to_le_bytes());
+        bytes.extend_from_slice(&((high * 2) as u16).to_le_bytes());
+        let gl = (wide * high * 4) as usize;
+        bytes.extend_from_slice(&vec![0u8; gl]);
+        bytes.extend_from_slice(&vec![0u8; gl]);
+        let mut v = GameView::from_maplv(&bytes, 0, 0).unwrap();
+        // 换层重建后布局换轨（修复点=load_floor_data 补 set_layout_dims）
+        v.set_layout_dims(416, 371, 416, 416);
+        assert!(!v.fits_w, "26 格地图 832px > 416 视口（clamp 分支）");
+        assert_eq!(v.col_start, 0);
+        // 覆盖式=相机相对（x0=cam_x+col<<4 起绘到 col_end）——须盖住画布宽 416
+        assert!(
+            v.cam_x + (v.col_end << 4) >= 416,
+            "col 范围须覆盖全视口（现 cam={}+col_end={}×16={}）——240-era 范围=半绘",
+            v.cam_x,
+            v.col_end,
+            v.cam_x + (v.col_end << 4)
+        );
+        assert!(
+            v.cam_y + (v.row_end << 4) >= 371,
+            "row 范围同理（现 cam={}+row_end={}）",
+            v.cam_y,
+            v.row_end
+        );
+    }
+
     fn maplv_bytes() -> Vec<u8> {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../assets/raw/maplv1");
