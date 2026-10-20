@@ -95,3 +95,20 @@ tick 数 500→150，判定仍全 PASS）。来源疑为某次门禁/差分 harn
   （验退出码）+ `git commit -- <路径>`。至此索引扫荡三机制齐：`git add -A`（G1）、
   裸 `git commit`（117aba7）、`git commit --amend`（本 G6）——全部收敛到 pathspec +
   验退出码 + 提交后三对账（已并入 gotcha_shared-workspace-bare-commit-sweeps-index）。
+
+### G7【第四扫荡变体·被卷方】对方 commit 卷走我方在飞工作树面（2026-10-20，37b53a4 案）
+
+- **事实链**（be4fee8 message 更正声明 + git show 亲验，A 级）：shell-port 在飞的
+  main.rs 集成面（task-A ②接线/③通道/Shell::set_scale/repaint + hook_fn 适配）被
+  **task-13 的 37b53a4 整体卷入**（其 commit 时工作树全绿态被带走，message 未含这些面）；
+  shell-port 首提 29ae84f 的 message 声称了不在其内的 main.rs 内容 ⇒ 声称≠内容。
+  处置：未推送 pathspec amend（内容不变）→ be4fee8 message 前向更正 + **分域清单**
+  （view.rs=be4fee8 / main.rs 面=37b53a4，两 commit 合观=完整交付）。我核：37b53a4
+  的 main.rs diff 含 canvas_graphics(scale)/Shell::set_scale/repaint/blit_1to1 接线/
+  headless all 全符号 ✓ 零丢失；be4fee8 树=view.rs 75+/4− 干净 ✓；29ae84f 悬空 ✓。
+- **机制归类**：前三机制（add -A / 裸 commit / amend 索引扫）都是**己方扫人**；本变体
+  是**被扫**——pathspec 只防自己卷人，防不了他人全树提交带走你的在飞面（提交单位是
+  索引/树的对称推论）。
+- **防线**：在飞面**占位 commit 或知会制**——跨任务共享树并行时，长时在飞集成面先落
+  占位 commit（可后续 amend）或显式知会队友；三对账时 `git show --stat` 出现
+  **非己方域文件**即停（被卷/卷人的第一信号）。
