@@ -235,6 +235,29 @@ Confidence: 90
 > 不一致）⇒ 升级方案 (a) 交接携带 slot 数据（BgmState"交接时以 BootMachine 状态整体
 > 覆盖"先例），届时另立任务。
 
+## BUG-022 扩大分辨率后切屏遮幅只盖 240×320——paint_wipe_tail 网格界写死 40×30（用户实机，已修复）
+> 【2026-10-20】用户报障原文："当扩大分辨率后，切屏时，切换动画是按传统分辨率绘制的，没有覆盖全屏"。
+- **现象**：modern 分辨率（如 `--preset modern --grid 13,13` = 416×416）下换层（切屏），
+  遮幅切换动画只作用于左上 240×320 传统分辨率区域——全黑帧右缘 x≥240 / 下缘 y≥320
+  仍露场景；中段点阵（wipe=2）末格止步 (234,314)，右下角格永不落点。
+- **复现**（修复前）：modern 画布 416×416 → 触发换层（changeFloor / LAY 道具）→ 遮幅
+  闭合相位全黑帧（wipe=4）像素 (240,0) 以右非黑。回归锁：
+  `wipe_full_black_covers_whole_canvas` + `modern_wipe_dither_spans_whole_canvas`（scene.rs）。
+- **根因**（modern 适配缺口，非原版 bug，D4 不适用——原版固定 240×320，40×30 格恰满屏
+  无此问题）：paint_wipe_tail 遮幅网格循环界写死 `for row in 0..40`/`for col in 0..30`
+  （= 320/8 × 240/8 传统格数，照搬 deobf a.java:3217-3222 `var176<40`/`var181<30`），
+  未随 Layout 视口推导（STAGE-B-002 扩屏后网格不铺满画布）。
+- **影响**：modern 分辨率下换层切换动画不覆盖全屏（用户实机可见）。
+- **Stage A 处理**：**已修复**（本条目所在 commit）：格数改随 `self.layout.screen_w/screen_h`
+  推导（ceil(屏/WIPE_CELL_PX)）；WIPE_CELL_PX=8 收编 layout.rs 设计常量（格距=动画外观，
+  不随视口缩放）。classic 240/8=30、320/8=40 代入=原值——循环序（行主序）与填格参数
+  逐项恒等，oracle 帧比对 35/35 全同（release 档）零漂移。
+- **Stage B 修复方案**：—（扩展缝适配缺口，Stage A 即修类）。
+Evidence: A 级——deobf a.java:3217-3222 循环界 40/30 + scene.rs paint_wipe_tail 旧
+5939-5942 同款硬编码 + 全黑帧像素判据红绿（RED `[modern] 遮幅全黑帧像素 240 未覆盖`
+→ GREEN 双臂全过，classic 臂恒过=零漂移锚）+ `cargo test --workspace --release` 全绿
+（含 game-oracle 35/35）。Confidence: 95
+
 ## 记录规范
 - **现象**：玩家可见的行为描述，含层号/坐标/道具条件
 - **复现**：确定性复现输入序列（trace id 或按键脚本）

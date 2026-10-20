@@ -5936,10 +5936,18 @@ impl GameScene {
             let size = self.wipe * 2;
             let off = 4 - self.wipe;
             g.set_color(BLACK);
-            for row in 0..40 {
-                let y = off + row * 8;
-                for col in 0..30 {
-                    g.fill_rect(off + col * 8, y, size, size);
+            // 【BUG-022 修复·STAGE-B-002 铺满】网格界随 Layout 铺满画布——
+            // Java 写死 40 行×30 列（=传统 240×320 全覆盖，deobf a.java:3217-3222
+            // `var176<40`/`var181<30`），扩屏后只盖左上 240×320（切屏动画不覆盖
+            // 全屏）。格数=ceil(屏/格距)：classic 240/8=30 列、320/8=40 行 代入
+            // =原值零变化（格距 WIPE_CELL_PX=8 见 layout）。
+            let cell = WIPE_CELL_PX;
+            let cols = (self.layout.screen_w + cell - 1) / cell;
+            let rows = (self.layout.screen_h + cell - 1) / cell;
+            for row in 0..rows {
+                let y = off + row * cell;
+                for col in 0..cols {
+                    g.fill_rect(off + col * cell, y, size, size);
                 }
             }
         }
@@ -7182,6 +7190,61 @@ mod slot_equip_scene_tests {
         assert!(
             right_tiles > 20,
             "modern 换层后右半须绘出 tile（现 {right_tiles}/110 专色）——半绘 artifact"
+        );
+    }
+
+    /// BUG-022 判据（用户实机 2026-10-20"扩大分辨率后，切屏时，切换动画是按
+    /// 传统分辨率绘制的，没有覆盖全屏"）：换层遮幅**全黑帧**（wipe=4，格 8px
+    /// 无缝）须覆盖整个画布——旧硬编码 40 行×30 列（=240×320 传统分辨率）只盖
+    /// 左上角。双臂：modern 416×416=主判据；classic 240×320=零漂移锚（同判据
+    /// 恒过=网格仍为 30×40 原值）。
+    #[test]
+    fn wipe_full_black_covers_whole_canvas() {
+        for (tag, layout, w, h) in [
+            ("classic", crate::layout::Layout::classic(), 240i32, 320i32),
+            ("modern", crate::layout::Layout::modern(13, 13), 416, 416),
+        ] {
+            let icons = synthetic_sptarm();
+            let mut sc = scene_with(&icons);
+            sc.apply_layout(layout);
+            // 全黑帧：closing 相位推进 3→4（size=8/off=0 无缝格）；
+            // wipe=4 不触 swap_floor（仅 wipe>4 才换层）。
+            sc.transitioning = true;
+            sc.wipe_closing = true;
+            sc.wipe = 3;
+            let mut img = ArgbImage::create(w, h);
+            {
+                let mut g = SoftGraphics::new(&mut img);
+                sc.paint(&mut g, &solid(64, 64));
+            }
+            for (i, p) in img.argb.iter().enumerate() {
+                assert_eq!(
+                    *p, 0xFF00_0000,
+                    "[{tag}] 遮幅全黑帧像素 {i} 未覆盖（旧网格止步 240×320）"
+                );
+            }
+        }
+    }
+
+    /// BUG-022 连带判据：遮幅点阵**中段相位**（wipe=2，格 4px/off=2）同样须铺满
+    /// 画布右下角——旧网格点阵末格止步 (234,314)，右下角格永不落点。
+    #[test]
+    fn modern_wipe_dither_spans_whole_canvas() {
+        let icons = synthetic_sptarm();
+        let mut sc = scene_with(&icons);
+        sc.apply_layout(crate::layout::Layout::modern(13, 13));
+        sc.transitioning = true;
+        sc.wipe_closing = true;
+        sc.wipe = 1; // closing 相位 1→2（size=4/off=2）
+        let mut img = ArgbImage::create(416, 416);
+        {
+            let mut g = SoftGraphics::new(&mut img);
+            sc.paint_wipe_tail(&mut g);
+        }
+        // 末格 (51,51) 起点 off+51*8=410，覆盖 410..414（中段相位右下角格）
+        assert_eq!(
+            img.argb[412 * 416 + 412], 0xFF00_0000,
+            "modern 中段点阵右下角格未落点（旧网格止步 240×320）"
         );
     }
 

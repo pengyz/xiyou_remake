@@ -109,6 +109,13 @@ pub const MARKER_CULL_MARGIN: i32 = -32;
 /// 玩家插入邻域（±32 的 x 窗口 / y 高差判定）。
 pub const PLAYER_INSERT_WINDOW: i32 = 32;
 
+// —— 换层遮幅（paint 公共尾 paint_wipe_tail 的点阵阵距）——
+/// 遮幅点阵格距 8px（Java `n38 += 8`/`n39 += 8` 步进，deobf a.java:3217-3222）。
+/// **设计常量**（点阵疏密是动画外观，不随视口缩放）；格数=视口派生
+/// （ceil(screen_w/格距)、ceil(screen_h/格距)），classic 代入 240/8=30 列、
+/// 320/8=40 行 = Java 写死值（BUG-022 修复面：写死 40×30 只盖传统分辨率）。
+pub const WIPE_CELL_PX: i32 = 8;
+
 // —— 视差背景（drawParallaxBackdrop）——
 /// 列步进 77px（mapbg 瓦宽）。
 pub const PARALLAX_COL_STEP: i32 = 77;
