@@ -57,11 +57,43 @@ pub struct GameView {
     pub player_py: i32,
 }
 
+/// 视口维度组（P0 收口 2026-10-20）：from_maplv **显式入参**——凡新建 GameView
+/// 必走 set_layout_dims（编译强制=漏网-proof；存档加载入口实证：各入口补=漏网面）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ViewDims {
+    pub view_w: i32,
+    pub view_h: i32,
+    pub clip_w: i32,
+    pub clip_h: i32,
+}
+
+impl ViewDims {
+    /// classic 常量组（240/252/240/320——a.java:9431-9432 原值；classic 零偏离）。
+    pub fn classic() -> ViewDims {
+        ViewDims {
+            view_w: crate::layout::GAME_VIEW_W,
+            view_h: crate::layout::GAME_VIEW_H,
+            clip_w: crate::layout::SCREEN_W,
+            clip_h: crate::layout::SCREEN_H,
+        }
+    }
+
+    /// 从 Layout 取（modern 换轨）。
+    pub fn from_layout(l: &crate::layout::Layout) -> ViewDims {
+        ViewDims {
+            view_w: l.game_view_w,
+            view_h: l.game_view_h,
+            clip_w: l.screen_w,
+            clip_h: l.screen_h,
+        }
+    }
+}
+
 impl GameView {
     /// `loadFloorData(floor)`（a.java:9404-9430）：maplv 头 + 双 grid 读取 + 相机 0。
     /// `m_122/sortEntitiesByY`（实体装载）在 game_view 之外（Floor1Host 侧）。
     /// 视口/画布尺寸默认 classic（240/252）——modern 换轨经 [`GameView::set_layout_dims`]。
-    pub fn from_maplv(data: &[u8], player_px: i32, player_py: i32) -> Result<GameView, String> {
+    pub fn from_maplv(data: &[u8], player_px: i32, player_py: i32, dims: ViewDims) -> Result<GameView, String> {
         if data.len() < 4 {
             return Err("maplv too short".into());
         }
@@ -80,10 +112,10 @@ impl GameView {
             high,
             terrain,
             transform,
-            view_w: crate::layout::GAME_VIEW_W, // viewWidthPx = 240（a.java:9431）
-            view_h: crate::layout::GAME_VIEW_H, // viewHeightPx = 252（a.java:9432）
-            clip_w: crate::layout::SCREEN_W,
-            clip_h: crate::layout::SCREEN_H,
+            view_w: dims.view_w, // classic=240（a.java:9431）；modern=layout 值（收口）
+            view_h: dims.view_h, // classic=252（a.java:9432）
+            clip_w: dims.clip_w,
+            clip_h: dims.clip_h,
             map_w_px: wide << 5,
             map_h_px: high << 5,
             fits_w: false,
@@ -234,7 +266,7 @@ mod tests {
         let gl = (wide * high * 4) as usize;
         bytes.extend_from_slice(&vec![0u8; gl]);
         bytes.extend_from_slice(&vec![0u8; gl]);
-        let mut v = GameView::from_maplv(&bytes, 0, 0).unwrap();
+        let mut v = GameView::from_maplv(&bytes, 0, 0, ViewDims::classic()).unwrap();
         // 换层重建后布局换轨（修复点=load_floor_data 补 set_layout_dims）
         v.set_layout_dims(416, 371, 416, 416);
         assert!(!v.fits_w, "26 格地图 832px > 416 视口（clamp 分支）");
@@ -266,7 +298,7 @@ mod tests {
     /// setClip/draw/drawImageT 全集）逐条一致。
     #[test]
     fn t544_tile_layer_ops_match() {
-        let mut v = GameView::from_maplv(&maplv_bytes(), 96, 320).unwrap();
+        let mut v = GameView::from_maplv(&maplv_bytes(), 96, 320, ViewDims::classic()).unwrap();
         v.center_on_player();
         // tileset = map 容器 [2][0]（128x208）
         let packed = std::fs::read(
@@ -305,7 +337,7 @@ mod tests {
     /// 格(13,2) v=64 → `clip(40,18)+draw(40,−110)`（trace 第 2 瓦片）。
     #[test]
     fn t544_first_tiles_anchor() {
-        let mut v = GameView::from_maplv(&maplv_bytes(), 96, 320).unwrap();
+        let mut v = GameView::from_maplv(&maplv_bytes(), 96, 320, ViewDims::classic()).unwrap();
         v.center_on_player();
         assert_eq!((v.cam_x, v.cam_y), (8, -210), "居中相机钳制值");
         assert_eq!(v.terrain_at(v.row_start, v.col_start), 0, "首格 v=0（跳过）");

@@ -912,7 +912,7 @@ impl GameScene {
         let mut scene = GameScene {
             global: crate::save::GlobalSave::default_7(),
             global_dirty: false,
-            view: GameView::from_maplv(maplv, player_px, player_py)?,
+            view: GameView::from_maplv(maplv, player_px, player_py, crate::game_view::ViewDims::classic())?,
             entities: EntityTable::new(100),
             grid: CellGrid::new(1, 1),
             images,
@@ -1111,17 +1111,16 @@ impl GameScene {
         records: &[(u8, u16, u16, i16, bool)],
         floor: i32,
     ) -> Result<(), String> {
-        let mut view = GameView::from_maplv(maplv, player_px, player_py)?;
-        // 【P0 回归修复 2026-10-20】换层重建视图后**强制布局换轨**：from_maplv 初始
-        // =classic 常量（240/252），apply_layout 只在初始化跑一次——换层新视图
-        // 残留 240-era col/row 范围=modern 地形半绘根因（floor1 正常=初始已换轨、
-        // 切层后半绘=新视图未换轨实证）。
-        view.set_layout_dims(
-            self.layout.game_view_w,
-            self.layout.game_view_h,
-            self.layout.screen_w,
-            self.layout.screen_h,
-        );
+        // 【P0 回归修复 2026-10-20】换层重建视图**布局换轨收口**：from_maplv 显式
+        // 带 ViewDims（编译强制=漏网-proof）——旧 classic 常量初始致换层残留
+        // 240-era col/row 范围=modern 地形半绘根因（floor1 正常=初始已换轨、
+        // 切层后半绘实证）。
+        let view = GameView::from_maplv(
+            maplv,
+            player_px,
+            player_py,
+            crate::game_view::ViewDims::from_layout(&self.layout),
+        )?;
         let cols = view.wide as usize;
         let rows = view.high as usize;
         let mut walkable = vec![vec![false; cols]; rows];
@@ -7097,6 +7096,55 @@ mod slot_equip_scene_tests {
         assert_eq!(body, HUD_FILL | 0xFF00_0000, "对话框体底色须=HUD_FILL（现={body:#010x}=背景色透出）");
     }
 
+    /// P0 补修判据（2026-10-20 存档入口漏网）：loadFloorSave 直入 26 格楼层——
+    /// tile 专色全绘（半绘=视图重建残留 240-era 范围）。真修点=load_floor_from_save
+    /// 路径（loadSlotTable→loadFloorSave→视图重建）。
+    #[test]
+    fn modern_save_load_tiles_cover_full_view() {
+        let (wide, high) = (26i32, 26i32);
+        let mut maplv = Vec::new();
+        maplv.extend_from_slice(&((wide * 2) as u16).to_le_bytes());
+        maplv.extend_from_slice(&((high * 2) as u16).to_le_bytes());
+        let gl = (wide * high * 4) as usize;
+        maplv.extend_from_slice(&vec![1u8; gl]);
+        maplv.extend_from_slice(&vec![0u8; gl]);
+        // FloorSave：preset-floor2-mov 的 MOT_L0 真 blob（save 形状=Java loadFloorSave 布局）
+        let stores = crate::save::parse_preset(include_str!("../tests/fixtures/preset-floor2-mov.preset"));
+        let blob = stores.iter().find(|(k, _)| k.starts_with("MOT_L0@")).unwrap().1.clone();
+        let save = crate::save::parse_floor_save(&blob, 0).unwrap();
+        let icons = synthetic_sptarm();
+        let (wt, walk) = fixtures();
+        let mut sc = load_floor_from_save(
+            &maplv,
+            &[],
+            &wt,
+            &walk,
+            synth_images(&icons),
+            vec![None; 56],
+            &save,
+        )
+        .unwrap();
+        sc.apply_layout(crate::layout::Layout::modern(13, 13));
+        let mut tileset = ArgbImage::create(64, 64);
+        tileset.argb.fill(0xFF00_FF00);
+        let mut img = ArgbImage::create(416, 416);
+        {
+            let mut g = SoftGraphics::new(&mut img);
+            sc.paint(&mut g, &tileset);
+        }
+        let w = 416usize;
+        let mut right_tiles = 0;
+        for x in 300..410 {
+            if img.argb[200 * w + x] == 0xFF00_FF00 {
+                right_tiles += 1;
+            }
+        }
+        assert!(
+            right_tiles > 20,
+            "存档直入后右半须绘出 tile（现 {right_tiles}/110 专色）——半绘 artifact"
+        );
+    }
+
     /// P0 回归判据（2026-10-20 modern 地形半绘·真修点路径）：modern 换层加载
     /// 26 格宽楼层后 tile 层须绘满视口（右半空白=半绘 artifact）——走
     /// load_floor_data 重建视图路径（from_maplv classic 初始+布局换轨修复点）。
@@ -7513,7 +7561,7 @@ mod slot_equip_scene_tests {
             let Ok(bytes) = std::fs::read(repo.join(format!("assets/raw/maplv{n}"))) else {
                 continue;
             };
-            let Ok(mut v) = crate::game_view::GameView::from_maplv(&bytes, 0, 0) else {
+            let Ok(mut v) = crate::game_view::GameView::from_maplv(&bytes, 0, 0, crate::game_view::ViewDims::classic()) else {
                 continue;
             };
             v.set_layout_dims(416, 348, 416, 416);
