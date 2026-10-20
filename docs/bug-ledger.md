@@ -258,6 +258,29 @@ Evidence: A 级——deobf a.java:3217-3222 循环界 40/30 + scene.rs paint_wip
 → GREEN 双臂全过，classic 臂恒过=零漂移锚）+ `cargo test --workspace --release` 全绿
 （含 game-oracle 35/35）。Confidence: 95
 
+## BUG-023 diff-trace 门禁恒红：ItemPanel→ItemPanel 自环边 census 缺登记（debug 误杀，已修复）
+> 【2026-10-20】会话状态预检 `gates/cli.py status` 发现 diff-trace FAIL（preset_itemstack_frames_match），
+> 非用户报障；按门禁纪律修复根因后红→绿。同 BUG-012 Dialog→Dialog、BUG-017 Map→EnemyInfo
+> census 缺边误杀第三例。
+- **现象**：`cargo test -p game-oracle --test preset_cases preset_itemstack_frames_match`
+  （debug 档）panic：`未登记转移边：ItemPanel -> ItemPanel`（scene.rs transition_to 的
+  debug_assert）；release 档（rust-tests 门禁）不触发——debug_assert 不编译，故仅 diff-trace 面暴露。
+- **复现**（修复前）：preset-itemstack 场景 T? 面板确认浮层（kind3）按 -7"回面板" →
+  scene.rs:4445 `overlay_kind == 3` -7 臂在 **ItemPanel 态**调 `transition_to(ItemPanel)`。
+  回归锁：`itempanel_self_edge_regression::confirm_overlay_cancel_returns_to_panel`
+  + `::itempanel_self_edge_registered`（scene.rs）。
+- **根因**（Rust 自造 census 断言缺登记，非原版 bug，D4 不适用）：Java 原版该臂 =
+  `gameMode = 10` **自赋值**（deobf a.java:3297 `var15.gameMode = 10;`——gameMode 本就 10，
+  no-op）；transition_to 收口后 census debug_assert 要求边在册，TRANSFER_EDGES 缺
+  ItemPanel→ItemPanel 自环边 ⇒ 合法自赋值处误杀。
+- **影响**：L1-L3 差分门禁（debug 档）恒红；无游戏态影响（release 行为与 Java 同）。
+- **Stage A 处理**：**已修复**（本条目所在 commit）：TRANSFER_EDGES 补登自环边
+  （29e）+ state-machine-edges.md 补行 42（代码表/文档表 42=42 机械对照成立）。
+- **Stage B 修复方案**：—。
+Evidence: A 级——deobf a.java:3297 自赋值原文 + panic backtrace（scene.rs:4445 →
+transition_to:1482）+ 红绿复现（RED 2 测同 panic → GREEN 2 测过 + oracle
+preset_itemstack_frames_match 红→绿）。Confidence: 93
+
 ## 记录规范
 - **现象**：玩家可见的行为描述，含层号/坐标/道具条件
 - **复现**：确定性复现输入序列（trace id 或按键脚本）

@@ -746,6 +746,10 @@ pub static TRANSFER_EDGES: &[(GameMode, Option<GameMode>)] = &[
     (GameMode::ItemPanel, Some(GameMode::Map)),
     (GameMode::ItemPanel, Some(GameMode::EnemyInfo)),
     (GameMode::ItemPanel, Some(GameMode::RecordBrowser)),
+    // 29e：ItemPanel→ItemPanel 自环——kind3 确认浮层 -7"回面板"臂（Java 自赋值
+    // `gameMode = 10`，deobf a.java:3297）；缺此边时 census debug_assert 于合法
+    // 自赋值处误杀（2026-10-20 P0-3 同类第三例，BUG-023）。
+    (GameMode::ItemPanel, Some(GameMode::ItemPanel)),
     // 29c：RecordBrowser→ItemPanel——mode12 -5/-6/-7 关回 mode10（a.java run case 12 头注）。
     (GameMode::RecordBrowser, Some(GameMode::ItemPanel)),
     // 29b：Map→RecordBrowser——道具 14（生死簿）使用臂直开记录浏览器（mode 12）。
@@ -8782,6 +8786,40 @@ mod item13_use_regression {
         sc.key_value = -5;
         sc.tick_item_panel();
         assert_eq!(sc.game_mode, GameMode::RecordBrowser, "型14 使用后应进记录浏览器（mode12）");
+    }
+}
+
+/// BUG-023 回归（diff-trace 既有红，2026-10-20 根因定位）：道具确认浮层（kind3）
+/// `-7`"回面板"臂在 **ItemPanel 态**调 `transition_to(ItemPanel)`——Java 原版 =
+/// `gameMode = 10` **自赋值**（deobf a.java:3297 `var15.gameMode = 10;`）。TRANSFER_EDGES
+/// 缺 ItemPanel→ItemPanel 自环边 ⇒ census debug_assert 误杀（BUG-012 Dialog→Dialog、
+/// BUG-017 Map→EnemyInfo 同类第三例）；debug 档 `cargo test -p game-oracle` 因此
+/// preset_itemstack_frames_match panic（release 档 debug_assert 不编译故 rust-tests 不现）。
+#[cfg(test)]
+mod itempanel_self_edge_regression {
+    use super::scene_test_support::scene;
+    use crate::enums::GameMode;
+
+    #[test]
+    fn confirm_overlay_cancel_returns_to_panel() {
+        let mut sc = scene((2, 2), &[]);
+        sc.game_mode = GameMode::ItemPanel;
+        sc.overlay_active = true;
+        sc.overlay_kind = 3;
+        sc.key_value = -7;
+        sc.tick(0, &[]); // debug 档：缺自环边 ⇒ census assert panic（RED）
+        assert_eq!(sc.game_mode, GameMode::ItemPanel, "回面板=自环（Java gameMode=10 自赋值）");
+        assert!(!sc.overlay_active, "kind3 -7 关层");
+    }
+
+    /// 边表机械对照（state-machine-anchors 同源判据）：自环边在册。
+    #[test]
+    fn itempanel_self_edge_registered() {
+        assert!(
+            crate::scene::TRANSFER_EDGES
+                .contains(&(GameMode::ItemPanel, Some(GameMode::ItemPanel))),
+            "ItemPanel→ItemPanel 自环边须在 TRANSFER_EDGES（件 D 维护义务）"
+        );
     }
 }
 

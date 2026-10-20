@@ -59,6 +59,7 @@
 | 39 | RecordBrowser(12) | 【mode12 关】 | ItemPanel(10) | 回道具面板 | P0-1 补登 |
 | 40 | Map(3) | 【键/道具 13】tick_item_panel 13 臂（Java 双跳 mode10→3→5，a.java:3939-3945+7786-7788） | EnemyInfo(5) | 火眼金睛→图鉴 | BUG-017 补登（2026-10-17） |
 | 41 | InGameMenu(4) | 【键】项=退出（kind7）confirm | MainMenu(1) | 跨机信号（shell 换回 BootMachine，stash 保标题态） | run case 4 家族 a.java:4776-4790 区'7→mode1（退出标题）'；2026-10-18 补登（用户实报） |
+| 42 | ItemPanel(10) | 【键】确认浮层 kind3 -7（回面板） | ItemPanel(10) | 自环=Java gameMode=10 自赋值 | deobf a.java:3297；2026-10-20 补登（BUG-023 census 误杀） |
 
 ## 2. 维护义务（PR 判据）
 
