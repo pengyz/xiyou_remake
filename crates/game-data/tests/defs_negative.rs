@@ -65,6 +65,36 @@ fn reject_class5_unknown_field_nested() {
     assert_located(&err);
 }
 
+// ---------------------------------------------------------------- 第 3 类：域溢出拒载（型号域 0..=88）
+
+#[test]
+fn reject_class3_domain_overflow() {
+    let src = fixture("domain_overflow/sprite_defs.json");
+    let err = defs::parse_sprite_defs(&src).expect_err("型号域溢出必须拒载");
+    assert!(
+        matches!(err, Reject::DomainOverflow { value: 89, .. }),
+        "期望 DomainOverflow(89)，实际 {err:?}"
+    );
+    assert_located(&err);
+}
+
+/// 边界保真：域端点 0 与 88 均合法（0..=88 共 89 型，对应 ANIM_TABLE_IDX 89 项）。
+#[test]
+fn accept_domain_endpoints_0_and_88() {
+    for type_id in [0, 88] {
+        let src = format!(
+            r#"{{ "schema_version": 2, "sprite_defs": [ {{
+              "type_id": {type_id}, "sheet": "sptenemy1", "sheet_index": 0,
+              "frame_w": 16, "frame_h": 16, "render_category": 1,
+              "anim_profile": "walk_3frame", "assembly_profile": null,
+              "insert_block": false, "floor_category_override": [],
+              "transition_overrides": [], "evidence": [] }} ] }}"#
+        );
+        defs::parse_sprite_defs(&src)
+            .unwrap_or_else(|e| panic!("type_id={type_id} 应在域内：{e}"));
+    }
+}
+
 // ---------------------------------------------------------------- 第 1 类：坏 JSON 拒载
 
 #[test]

@@ -355,6 +355,14 @@ fn parse_sprite_def(rec: &Json, path: &str) -> Result<SpriteDef, Reject> {
     }
     check_keys(rec, path, SPRITE_KEYS)?;
     let type_id = need_int(rec, path, "type_id")?;
+    // 第 3 类：域溢出拒载——型号域 0..=88（§2.3；ANIM_TABLE_IDX 89 项）
+    if !(TYPE_ID_MIN..=TYPE_ID_MAX).contains(&type_id) {
+        return Err(Reject::DomainOverflow {
+            path: format!("{path}.type_id"),
+            value: type_id,
+            domain: "0..=88",
+        });
+    }
     let sheet = need_str(rec, path, "sheet")?.to_string();
     let sheet_index = need_int(rec, path, "sheet_index")?;
     let frame_w = need_int(rec, path, "frame_w")?;

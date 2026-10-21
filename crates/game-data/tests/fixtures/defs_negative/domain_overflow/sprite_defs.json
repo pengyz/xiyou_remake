@@ -1,0 +1,15 @@
+{ "schema_version": 2,
+  "sprite_defs": [
+    { "type_id": 89,
+      "sheet": "sptenemy1", "sheet_index": 3,
+      "frame_w": 32, "frame_h": 45,
+      "render_category": 32,
+      "anim_profile": "walk_3frame",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "transition_overrides": [],
+      "evidence": []
+    }
+  ]
+}
