@@ -180,6 +180,23 @@ fn load_assets(src: &dyn game_platform::AssetSource) -> Assets {
     }
 }
 
+/// 【R-8 可选·实机试玩】`--hd-assets`：demo 弃件② 图集（assets/hd-demo/map_00_3x.png，
+/// density=3）替换 tileset（map 容器帧 00），其余素材一律不动（对照变量唯一同款）。
+/// **试玩反馈≠验证成果**（R-8）：验证本体 = crates/game-core/tests/hd_visual.rs
+/// 机器判据 + 用户人工判读对照说明，实机观感只作体验输入。
+fn apply_hd_demo_tileset(assets: &mut Assets, assets_dir: &std::path::Path) {
+    let p = assets_dir.join("../hd-demo/map_00_3x.png");
+    let bytes = std::fs::read(&p)
+        .unwrap_or_else(|e| panic!("缺 {p:?}（先跑 python3 tools/hd-demo/gen_hd_demo.py）：{e}"));
+    let png = game_data::decode_png(&bytes).unwrap_or_else(|e| panic!("{p:?} 解码失败：{e}"));
+    let img = ArgbImage::from_decoded_png(png).with_density(3);
+    eprintln!(
+        "[hd-assets] demo 弃件图集接入：tileset {}×{} d={}（R-8：试玩反馈≠验证成果）",
+        img.width, img.height, img.density
+    );
+    assets.tileset = img;
+}
+
 // ---------------------------------------------------------------- RMS 落盘（共享实现）
 
 /// 文件版 RecordStore 语义核心已抽 `game-shell-common::rms`（lead F-4 裁决 2026-10-17，
@@ -1512,6 +1529,8 @@ fn main() {
     let mut headless_frames: u64 = 120;
     let mut headless_newgame = false;
     let mut inject_spec: Option<String> = None;
+    // 【R-8 可选】--hd-assets：demo 弃件② 图集实机试玩开关（试玩反馈≠验证成果）
+    let mut hd_assets = false;
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         match a.as_str() {
@@ -1525,6 +1544,7 @@ fn main() {
             "--frames" => headless_frames = args.next().and_then(|v| v.parse().ok()).unwrap_or(120),
             "--headless-newgame" => headless_newgame = true,
             "--inject" => inject_spec = Some(args.next().unwrap_or_default()),
+            "--hd-assets" => hd_assets = true,
             "--grid" => {
                 let g = args.next().unwrap_or_default();
                 let mut it = g.split(',');
@@ -1539,7 +1559,11 @@ fn main() {
     println!("资产目录 = {assets_dir:?}；存档目录 = {save_dir:?}；BGM 目录 = {audio_dir:?}");
     font_inject::install();
     let src = DirAssets::new(&assets_dir);
-    let assets = std::sync::Arc::new(load_assets(&src));
+    let mut assets = load_assets(&src);
+    if hd_assets {
+        apply_hd_demo_tileset(&mut assets, &assets_dir);
+    }
+    let assets = std::sync::Arc::new(assets);
     let (rms, stores) = Rms::load(&save_dir);
     let sink: Box<dyn audio::AudioSink> = if mute {
         eprintln!("[audio] --mute：无声运行");
