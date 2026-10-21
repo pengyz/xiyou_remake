@@ -95,6 +95,144 @@ fn accept_domain_endpoints_0_and_88() {
     }
 }
 
+// ---------------------------------------------------------------- 第 2 类：坏外键拒载
+
+fn load_fk_bundle(assembly_ids: &[&str]) -> Result<defs::DefBundle, Reject> {
+    defs::DefBundle::load(
+        &fixture("bad_foreign_key/sprite_defs.json"),
+        &fixture("bad_foreign_key/anim_defs.json"),
+        &fixture("bad_foreign_key/sheet_index.json"),
+        assembly_ids,
+    )
+}
+
+#[test]
+fn reject_class2_bad_foreign_key_anim_profile() {
+    let err = load_fk_bundle(&[]).expect_err("anim_profile 孤儿必须拒载");
+    assert!(
+        matches!(err, Reject::BadForeignKey { .. }),
+        "期望 BadForeignKey，实际 {err:?}"
+    );
+    assert_located(&err);
+    assert!(
+        err.to_string().contains("no_such_anim"),
+        "错误信息必须点名悬空外键值：{err}"
+    );
+}
+
+#[test]
+fn reject_class2_bad_foreign_key_assembly_profile() {
+    let sprite = r#"{ "schema_version": 2, "sprite_defs": [ {
+      "type_id": 72, "sheet": "sptenemy1", "sheet_index": 0,
+      "frame_w": 32, "frame_h": 45, "render_category": 32,
+      "anim_profile": "walk_3frame", "assembly_profile": "seg67_pieces",
+      "insert_block": false, "floor_category_override": [],
+      "transition_overrides": [], "evidence": [] } ] }"#;
+    let err = defs::DefBundle::load(
+        sprite,
+        &fixture("bad_foreign_key/anim_defs.json"),
+        &fixture("bad_foreign_key/sheet_index.json"),
+        &[], // SEG 片件表为空 ⇒ assembly_profile 跨表悬空
+    )
+    .expect_err("assembly_profile 跨表悬空必须拒载");
+    assert!(
+        matches!(err, Reject::BadForeignKey { .. }),
+        "期望 BadForeignKey，实际 {err:?}"
+    );
+    assert!(err.to_string().contains("seg67_pieces"), "错误信息必须点名悬空外键值：{err}");
+}
+
+#[test]
+fn reject_class2_bad_foreign_key_sheet() {
+    let sprite = r#"{ "schema_version": 2, "sprite_defs": [ {
+      "type_id": 72, "sheet": "no_such_sheet", "sheet_index": 0,
+      "frame_w": 32, "frame_h": 45, "render_category": 32,
+      "anim_profile": "walk_3frame", "assembly_profile": null,
+      "insert_block": false, "floor_category_override": [],
+      "transition_overrides": [], "evidence": [] } ] }"#;
+    let err = defs::DefBundle::load(
+        sprite,
+        &fixture("bad_foreign_key/anim_defs.json"),
+        &fixture("bad_foreign_key/sheet_index.json"),
+        &[],
+    )
+    .expect_err("sheet 图集容器悬空必须拒载");
+    assert!(
+        matches!(err, Reject::BadForeignKey { .. }),
+        "期望 BadForeignKey，实际 {err:?}"
+    );
+    assert_located(&err);
+}
+
+/// sprite_ref 指空=拒载（§2.3 孤儿政策；enemy_defs.sprite_ref 单字段引用的装载前校验面）。
+#[test]
+fn reject_class2_sprite_ref_dangling() {
+    let sprite = r#"{ "schema_version": 2, "sprite_defs": [ {
+      "type_id": 72, "sheet": "sptenemy1", "sheet_index": 0,
+      "frame_w": 32, "frame_h": 45, "render_category": 32,
+      "anim_profile": "walk_3frame", "assembly_profile": null,
+      "insert_block": false, "floor_category_override": [],
+      "transition_overrides": [], "evidence": [] } ] }"#;
+    let bundle = defs::DefBundle::load(
+        sprite,
+        &fixture("bad_foreign_key/anim_defs.json"),
+        &fixture("bad_foreign_key/sheet_index.json"),
+        &[],
+    )
+    .expect("最小合法 bundle 应加载成功");
+    let err = bundle.validate_sprite_ref(None).expect_err("sprite_ref 指空必须拒载");
+    assert!(matches!(err, Reject::BadForeignKey { .. }), "期望 BadForeignKey，实际 {err:?}");
+    assert_located(&err);
+    let err = bundle
+        .validate_sprite_ref(Some(999))
+        .expect_err("sprite_ref 悬空必须拒载");
+    assert!(matches!(err, Reject::BadForeignKey { .. }), "期望 BadForeignKey，实际 {err:?}");
+}
+
+/// id 稳定性（§2.3）：保真 id 冻结 ⇒ type_id 重复=拒载。
+#[test]
+fn reject_duplicate_type_id() {
+    let sprite = r#"{ "schema_version": 2, "sprite_defs": [ {
+      "type_id": 72, "sheet": "sptenemy1", "sheet_index": 0,
+      "frame_w": 32, "frame_h": 45, "render_category": 32,
+      "anim_profile": "walk_3frame", "assembly_profile": null,
+      "insert_block": false, "floor_category_override": [],
+      "transition_overrides": [], "evidence": [] },
+      { "type_id": 72, "sheet": "sptenemy1", "sheet_index": 1,
+      "frame_w": 32, "frame_h": 45, "render_category": 32,
+      "anim_profile": "walk_3frame", "assembly_profile": null,
+      "insert_block": false, "floor_category_override": [],
+      "transition_overrides": [], "evidence": [] } ] }"#;
+    let err = defs::DefBundle::load(
+        sprite,
+        &fixture("bad_foreign_key/anim_defs.json"),
+        &fixture("bad_foreign_key/sheet_index.json"),
+        &[],
+    )
+    .expect_err("type_id 重复必须拒载（id 稳定性冻结）");
+    assert_located(&err);
+}
+
+/// 级联政策（§2.3）：删 sprite_defs 行前校验引用——引用清单查询面。
+#[test]
+fn cascade_reference_listing() {
+    let sprite = r#"{ "schema_version": 2, "sprite_defs": [ {
+      "type_id": 72, "sheet": "sptenemy1", "sheet_index": 0,
+      "frame_w": 32, "frame_h": 45, "render_category": 32,
+      "anim_profile": "walk_3frame", "assembly_profile": null,
+      "insert_block": false, "floor_category_override": [],
+      "transition_overrides": [], "evidence": [] } ] }"#;
+    let bundle = defs::DefBundle::load(
+        sprite,
+        &fixture("bad_foreign_key/anim_defs.json"),
+        &fixture("bad_foreign_key/sheet_index.json"),
+        &[],
+    )
+    .expect("最小合法 bundle 应加载成功");
+    assert_eq!(bundle.referencing_type_ids("walk_3frame"), vec![72]);
+    assert!(bundle.referencing_type_ids("no_such_anim").is_empty());
+}
+
 // ---------------------------------------------------------------- 第 1 类：坏 JSON 拒载
 
 #[test]

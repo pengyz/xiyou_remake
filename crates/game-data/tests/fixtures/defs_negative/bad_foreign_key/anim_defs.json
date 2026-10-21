@@ -1,0 +1,6 @@
+{ "schema_version": 2,
+  "anim_defs": [
+    { "id": "walk_3frame", "frames": [0, 1, 2, 1], "step_ticks": 4,
+      "loop_mode": "cycle", "evidence": [] }
+  ]
+}

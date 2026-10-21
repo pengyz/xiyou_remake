@@ -518,6 +518,115 @@ fn parse_anchor(rec: &Json, path: &str) -> Result<EvidenceAnchor, Reject> {
     Ok(EvidenceAnchor { index, value, src })
 }
 
+// ---------------------------------------------------------------- 联合加载（跨表校验层）
+
+/// 三表联合加载结果（§2.3 外键政策 + 加载层失败语义的跨表校验层）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DefBundle {
+    /// 型→精灵属性表
+    pub sprite_defs: Vec<SpriteDef>,
+    /// 动画档表
+    pub anim_defs: Vec<AnimDef>,
+    /// 图集索引
+    pub sheet_index: SheetIndex,
+}
+
+impl DefBundle {
+    /// 三表联合加载：单表解析 + 跨表校验（id 稳定性/外键/帧序域）。
+    ///
+    /// `assembly_ids`：SEG 片件表（`assembly_profile` 外键目标，SEG67_PIECES/SEG67_FRAMES 族）
+    /// 的 id 清单——该表在资源侧，由调用方提供（§2.3 跨表引用校验）。
+    pub fn load(
+        sprite_src: &str,
+        anim_src: &str,
+        sheet_src: &str,
+        assembly_ids: &[&str],
+    ) -> Result<DefBundle, Reject> {
+        let sprite_defs = parse_sprite_defs(sprite_src)?;
+        let anim_defs = parse_anim_defs(anim_src)?;
+        let sheet_index = parse_sheet_index(sheet_src)?;
+        if sheet_index.containers.len() != sheet_index.container_counts.len() {
+            return Err(schema(
+                "sheet_index.containers/container_counts",
+                "containers 与 container_counts 长度不一致",
+            ));
+        }
+        // id 稳定性（§2.3）：保真 id 冻结 ⇒ 重复 id 拒载
+        for (i, s) in sprite_defs.iter().enumerate() {
+            if sprite_defs[..i].iter().any(|p| p.type_id == s.type_id) {
+                return Err(schema(
+                    format!("sprite_defs[{i}].type_id"),
+                    format!("type_id {} 重复（id 稳定性冻结）", s.type_id),
+                ));
+            }
+        }
+        for (i, a) in anim_defs.iter().enumerate() {
+            if anim_defs[..i].iter().any(|p| p.id == a.id) {
+                return Err(schema(
+                    format!("anim_defs[{i}].id"),
+                    format!("anim id {:?} 重复（id 稳定性冻结）", a.id),
+                ));
+            }
+        }
+        // 第 2 类：坏外键拒载（§2.3 孤儿/跨表引用校验）
+        for (i, s) in sprite_defs.iter().enumerate() {
+            if !anim_defs.iter().any(|a| a.id == s.anim_profile) {
+                return Err(Reject::BadForeignKey {
+                    path: format!("sprite_defs[{i}].anim_profile"),
+                    detail: format!(
+                        "anim_profile {:?} 在 anim_defs 中不存在（孤儿拒载）",
+                        s.anim_profile
+                    ),
+                });
+            }
+            if let Some(asm) = &s.assembly_profile {
+                if !assembly_ids.contains(&asm.as_str()) {
+                    return Err(Reject::BadForeignKey {
+                        path: format!("sprite_defs[{i}].assembly_profile"),
+                        detail: format!(
+                            "assembly_profile {asm:?} 在 SEG 片件表中不存在（跨表悬空拒载）"
+                        ),
+                    });
+                }
+            }
+            if !sheet_index.containers.contains(&s.sheet) {
+                return Err(Reject::BadForeignKey {
+                    path: format!("sprite_defs[{i}].sheet"),
+                    detail: format!(
+                        "sheet {:?} 在 sheet_index.containers 中不存在（跨表悬空拒载）",
+                        s.sheet
+                    ),
+                });
+            }
+        }
+        Ok(DefBundle { sprite_defs, anim_defs, sheet_index })
+    }
+
+    /// `sprite_ref` 指空=拒载（§2.3 孤儿政策）；指向未知 id 同拒。
+    pub fn validate_sprite_ref(&self, sprite_ref: Option<i64>) -> Result<(), Reject> {
+        match sprite_ref {
+            None => Err(Reject::BadForeignKey {
+                path: "sprite_ref".to_string(),
+                detail: "sprite_ref 指空=拒载（§2.3 孤儿政策）".to_string(),
+            }),
+            Some(id) if self.sprite_defs.iter().any(|s| s.type_id == id) => Ok(()),
+            Some(id) => Err(Reject::BadForeignKey {
+                path: "sprite_ref".to_string(),
+                detail: format!("sprite_ref {id} 在 sprite_defs 中不存在（孤儿拒载）"),
+            }),
+        }
+    }
+
+    /// 级联政策（§2.3）：删 `sprite_defs` 行/`anim_defs` 行前校验引用——返回引用 `anim_id` 的型号清单。
+    pub fn referencing_type_ids(&self, anim_id: &str) -> Vec<i64> {
+        self.sprite_defs
+            .iter()
+            .filter(|s| s.anim_profile == anim_id)
+            .map(|s| s.type_id)
+            .collect()
+    }
+}
+
 // ---------------------------------------------------------------- 小工具
 
 /// unknown-field=拒载（第 5 类，防拼写静默）：对象键名必须全在 `allowed` 内。
