@@ -715,6 +715,10 @@ impl<'a> SoftGraphics<'a> {
     /// Nokia `DirectGraphics.drawImage(img, x, y, anchor, transform)`
     /// （`Graphics.drawImageTransformed`，`Graphics.java:346-376`）。
     /// 【R-2 换算收敛】op 记录与 anchor bbox（swap 后）一律**逻辑尺寸**。
+    /// 【R-3】逻辑格网循环 + 块内相位采样：8 变换表**逻辑域不动**（表一行不改，
+    /// 仅坐标单位改逻辑格），落笔块 s×s——d==s 时=物理域精确几何变换（③矩阵
+    /// 逐像素实证），d=1 时=set_pixel_block 块写（①双侧恒等）。
+    /// 【3/3 C1 未闭环】d>1 且 d≠s 的块内相位面待真素材复验。
     pub fn draw_image_transformed(&mut self, img: &ArgbImage, x: i32, y: i32, anchor: i32, transform: i32) {
         self.op(format!(
             "drawImageT({}x{},{x},{y},{anchor},{transform})",
@@ -722,6 +726,7 @@ impl<'a> SoftGraphics<'a> {
             img.logical_height()
         ));
         let s = self.scale;
+        let d = img.density;
         let swap = (4..=7).contains(&transform);
         let (lw, lh) = (img.logical_width(), img.logical_height());
         let bw = if swap { lh } else { lw };
@@ -729,13 +734,9 @@ impl<'a> SoftGraphics<'a> {
         let adj = anchor_adjust(anchor, bw * s, bh * s);
         let ox = self.phys_x(x) - adj[0];
         let oy = self.phys_y(y) - adj[1];
-        let (w, h) = (img.width, img.height);
-        for sy in 0..h {
-            for sx in 0..w {
-                let p = img.argb[(sy * w + sx) as usize];
-                if (p >> 24) & 0xFF == 0 {
-                    continue;
-                }
+        let w = img.width;
+        for ly in 0..lh {
+            for lx in 0..lw {
                 // 变换码表 = shim DirectGraphics 自定义 1..=7（Graphics.java:346-376
                 // 权威分派，与 MIDP 旋转族同名不同义）：
                 //   1=MIRROR_ROT180(垂直翻转) 2=MIRROR(水平翻转) 3=ROT180
@@ -744,20 +745,32 @@ impl<'a> SoftGraphics<'a> {
                 // a.java:44 f_int_arr_01 值域）。迭代 34：框体角件/底边翻转
                 // 此前两侧均未实现（shim default 恒等 + Rust 无臂）= 锚点与
                 // 真机观感分歧的根因，现两侧同步翻转。
+                // 【R-3】表语义/行文不动，坐标单位 = 逻辑格（(w,h)→(lw,lh)）。
                 let (dx, dy) = match transform {
-                    1 => (sx, h - 1 - sy),
-                    2 => (w - 1 - sx, sy),
-                    3 => (w - 1 - sx, h - 1 - sy),
-                    4 => (sy, sx),
-                    5 => (h - 1 - sy, sx),
-                    6 => (sy, w - 1 - sx),
-                    7 => (h - 1 - sy, w - 1 - sx),
-                    8192 => (w - 1 - sx, sy),
-                    16384 => (sx, h - 1 - sy),
-                    24576 => (w - 1 - sx, h - 1 - sy),
-                    _ => (sx, sy),
+                    1 => (lx, lh - 1 - ly),
+                    2 => (lw - 1 - lx, ly),
+                    3 => (lw - 1 - lx, lh - 1 - ly),
+                    4 => (ly, lx),
+                    5 => (lh - 1 - ly, lx),
+                    6 => (ly, lw - 1 - lx),
+                    7 => (lh - 1 - ly, lw - 1 - lx),
+                    8192 => (lw - 1 - lx, ly),
+                    16384 => (lx, lh - 1 - ly),
+                    24576 => (lw - 1 - lx, lh - 1 - ly),
+                    _ => (lx, ly),
                 };
-                self.set_pixel_block(ox + dx * s, oy + dy * s, p);
+                // 落笔块 s×s：目的子像素 NN 采源子像素（相位 src=l*d/s），
+                // 块内镜像/转置与码表同构（d==s 双射=物理域精确变换）。
+                for iy in 0..s {
+                    for ix in 0..s {
+                        let (a, b) = in_cell_src_sub(transform, ix, iy, d, s);
+                        let p = img.argb[((ly * d + b) * w + (lx * d + a)) as usize];
+                        if (p >> 24) & 0xFF == 0 {
+                            continue;
+                        }
+                        self.set_pixel(ox + dx * s + ix, oy + dy * s + iy, p);
+                    }
+                }
             }
         }
     }
@@ -988,6 +1001,25 @@ fn anchor_adjust(anchor: i32, w: i32, h: i32) -> [i32; 2] {
         ay = h;
     }
     [ax, ay]
+}
+
+/// 【R-3】transformed 落笔块内采样：目的子像素 (ix,iy)∈s² → 源子像素 (a,b)∈d²。
+///
+/// NN 相位 `p = i*d/s`（整数）按变换码做块内镜像/转置，与 [`transform`] 码表
+/// 同构（同轴反演）——d==s 时双射 = 物理域精确正交变换；d=1 时恒 (0,0) =
+/// `set_pixel_block` 块写（①恒等）；d≠s 的块内相位面【3/3 C1 未闭环】。
+fn in_cell_src_sub(transform: i32, ix: i32, iy: i32, d: i32, s: i32) -> (i32, i32) {
+    let (px, py) = (ix * d / s, iy * d / s);
+    match transform {
+        1 | 16384 => (px, d - 1 - py),
+        2 | 8192 => (d - 1 - px, py),
+        3 | 24576 => (d - 1 - px, d - 1 - py),
+        4 => (py, px),
+        5 => (py, d - 1 - px),
+        6 => (d - 1 - py, px),
+        7 => (d - 1 - py, d - 1 - px),
+        _ => (px, py),
+    }
 }
 
 /// OPS 文本里的字符串转义（shim `Graphics.q`，`Graphics.java:75-94`）。

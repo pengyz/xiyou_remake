@@ -403,3 +403,154 @@ fn perf_resample_within_3x_of_legacy_blit() {
         );
     }
 }
+
+// ---------------- ③ transformed × anchor 矩阵（R-3：8 变换表逻辑域不动） ----------------
+
+/// 独立参照：正交变换的**物理域**逆映射——dest (u,v) ← src T⁻¹(u,v)。
+/// d==s 时与"逻辑格网变换 + 块内相位"逐像素一致（R-3 判据）；d=1 退化块写恒等。
+fn inv_transform_px(t: i32, u: i32, v: i32, lw_px: i32, lh_px: i32) -> (i32, i32) {
+    match t {
+        1 | 16384 => (u, lh_px - 1 - v),
+        2 | 8192 => (lw_px - 1 - u, v),
+        3 | 24576 => (lw_px - 1 - u, lh_px - 1 - v),
+        4 => (v, u),
+        5 => (v, lh_px - 1 - u),
+        6 => (lw_px - 1 - v, u),
+        7 => (lw_px - 1 - v, lh_px - 1 - u),
+        _ => (u, v),
+    }
+}
+
+/// anchor → 角点偏移（Graphics.anchorAdjust 语义：w/2、w、h/2、h）。
+fn anchor_adj(a: i32, w: i32, h: i32) -> (i32, i32) {
+    use game_core::render::anchor::*;
+    let ax = if a & HCENTER != 0 { w / 2 } else if a & RIGHT != 0 { w } else { 0 };
+    let ay = if a & VCENTER != 0 { h / 2 } else if a & BOTTOM != 0 { h } else { 0 };
+    (ax, ay)
+}
+
+/// 【③】8 变换 × 8 锚全矩阵 @d==s：逐像素 = 物理域精确几何变换，
+/// 角点 = 逻辑 bbox×scale（R-2/R-3）。d==s 直采下变换=正交同构零失真。
+#[test]
+fn transformed_anchor_matrix_d_eq_s_exact() {
+    let (lw, lh, d, s) = (3, 2, 2, 2);
+    let src = distinct(lw, lh, d); // 6×4 像素
+    let anchors = [
+        anchor::TOP | anchor::LEFT,
+        anchor::TOP | anchor::HCENTER,
+        anchor::TOP | anchor::RIGHT,
+        anchor::VCENTER | anchor::HCENTER,
+        anchor::VCENTER | anchor::RIGHT,
+        anchor::BOTTOM | anchor::LEFT,
+        anchor::BOTTOM | anchor::HCENTER,
+        anchor::BOTTOM | anchor::RIGHT,
+    ];
+    for t in 0..=7i32 {
+        for &a in &anchors {
+            let mut screen = ArgbImage::create(64, 48);
+            {
+                let mut g = SoftGraphics::new(&mut screen);
+                g.set_scale(s);
+                g.draw_image_transformed(&src, 10, 9, a, t);
+            }
+            let swap = (4..=7).contains(&t);
+            let (bw, bh) = (if swap { lh } else { lw }, if swap { lw } else { lh });
+            let (adj_x, adj_y) = anchor_adj(a, bw * s, bh * s);
+            let (ox, oy) = (10 * s - adj_x, 9 * s - adj_y);
+            for v in 0..bh * s {
+                for u in 0..bw * s {
+                    let (sx, sy) = inv_transform_px(t, u, v, lw * d, lh * d);
+                    let want = src.argb[(sy * lw * d + sx) as usize];
+                    assert_eq!(
+                        screen.argb[((oy + v) * 64 + (ox + u)) as usize],
+                        want,
+                        "t={t} anchor={a} dest({u},{v}) @({},{})",
+                        ox + u,
+                        oy + v
+                    );
+                }
+            }
+            // bbox 外不落笔（角点错位旧病灶点）
+            assert_eq!(
+                screen.argb[((oy - 1) * 64 + ox) as usize],
+                0,
+                "t={t} anchor={a} bbox 上沿外须空"
+            );
+            assert_eq!(
+                screen.argb[(oy * 64 + ox - 1) as usize],
+                0,
+                "t={t} anchor={a} bbox 左沿外须空"
+            );
+        }
+    }
+}
+
+/// 【③】诺基亚 FLIP 常量（8192/16384/24576）与 2/1/3 同像（shim 同步实现，
+/// a.java:44 f_int_arr_01 值域）。
+#[test]
+fn transformed_flip_constants_d_eq_s_exact() {
+    let (lw, lh, d, s) = (3, 2, 2, 2);
+    let src = distinct(lw, lh, d);
+    for t in [8192i32, 16384, 24576] {
+        let mut screen = ArgbImage::create(64, 48);
+        {
+            let mut g = SoftGraphics::new(&mut screen);
+            g.set_scale(s);
+            g.draw_image_transformed(&src, 0, 0, anchor::TOP | anchor::LEFT, t);
+        }
+        for v in 0..lh * s {
+            for u in 0..lw * s {
+                let (sx, sy) = inv_transform_px(t, u, v, lw * d, lh * d);
+                assert_eq!(
+                    screen.argb[(v * 64 + u) as usize],
+                    src.argb[(sy * lw * d + sx) as usize],
+                    "FLIP t={t} dest({u},{v})"
+                );
+            }
+        }
+    }
+}
+
+/// 【③·未闭环 3/3 C1】d≠s transformed：落笔块内像素必须来自正确的源格
+/// d×d 像素集（合法性覆盖，不钉块内相位——块内相位属未闭环面，待真素材复验）。
+#[test]
+fn transformed_density_validity_d_ne_s() {
+    let (lw, lh, d, s) = (2, 3, 3, 2); // d>s；逻辑 2×3 ⇒ 源 6×9、落笔 4×6
+    let src = distinct(lw, lh, d);
+    for t in 0..=7i32 {
+        let mut screen = ArgbImage::create(64, 48);
+        {
+            let mut g = SoftGraphics::new(&mut screen);
+            g.set_scale(s);
+            g.draw_image_transformed(&src, 0, 0, anchor::TOP | anchor::LEFT, t);
+        }
+        let swap = (4..=7).contains(&t);
+        let (bw, bh) = (if swap { lh } else { lw }, if swap { lw } else { lh });
+        for v in 0..bh * s {
+            for u in 0..bw * s {
+                let got = screen.argb[(v * 64 + u) as usize];
+                // 该目的格反查源格（逻辑域表），像素须落在该源格 d×d 集合内
+                let (dx, dy) = (u / s, v / s);
+                let (lx, ly) = match t {
+                    1 | 16384 => (dx, lh - 1 - dy),
+                    2 | 8192 => (lw - 1 - dx, dy),
+                    3 | 24576 => (lw - 1 - dx, lh - 1 - dy),
+                    4 => (dy, dx),
+                    5 => (dy, lh - 1 - dx),
+                    6 => (lw - 1 - dy, dx),
+                    7 => (lw - 1 - dy, lh - 1 - dx),
+                    _ => (dx, dy),
+                };
+                let mut ok = false;
+                for b in 0..d {
+                    for a in 0..d {
+                        if src.argb[((ly * d + b) * lw * d + lx * d + a) as usize] == got {
+                            ok = true;
+                        }
+                    }
+                }
+                assert!(ok, "t={t} dest({u},{v}) 落笔像素必须来自源格({lx},{ly}) 的 d×d 集合（未闭环面只验合法性）");
+            }
+        }
+    }
+}
