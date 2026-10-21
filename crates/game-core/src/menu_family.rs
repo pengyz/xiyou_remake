@@ -134,7 +134,9 @@ pub fn draw_edge_patch(
     if kind == 0 {
         g.draw_image(img, x - sx, y - sy, 0);
     } else {
-        let (iw, ih) = (img.width, img.height);
+        // 【R-2 换算收敛】iw/ih = 图集**逻辑**宽高（=w/d）：镜像偏移在逻辑域推导；
+        // 像素边界 ×d 由 draw_image 内部密度采样器承担（R-4 只对像素边界 ×d）。
+        let (iw, ih) = (img.logical_width(), img.logical_height());
         let (dx, dy) = match kind {
             1 => (x - (iw - sx - w), y - sy),
             2 => (x - sx, y - (ih - sy - h)),

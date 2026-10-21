@@ -882,8 +882,14 @@ impl GameScene {
             } else {
                 paint_mini_frame(g, tx, ty, 32, 32);
                 // 图标 = entityTypeImage[overlayKindItem]（itemUseTargetType——拾取时记录）
+                // 【R-2 换算收敛】居中式 (32-img.width)>>1：宽高用**逻辑**尺寸（=w/d）。
                 if let Some(img) = &self.overlay_icon {
-                    g.draw_image(img, tx + ((32 - img.width) >> 1), ty + ((32 - img.height) >> 1), 0);
+                    g.draw_image(
+                        img,
+                        tx + ((32 - img.logical_width()) >> 1),
+                        ty + ((32 - img.logical_height()) >> 1),
+                        0,
+                    );
                 }
                 tx += 42;
                 g.set_color(16770173);
@@ -3545,7 +3551,13 @@ impl GameScene {
                 if grid < self.player.item_stack_size {
                     let t = self.player.item_types[grid as usize] as usize;
                     if let Some(Some(img)) = self.images.entity.get(t) {
-                        g.draw_image(img, x + ((32 - img.width) >> 1), y + ((32 - img.height) >> 1), 0);
+                        // 【R-2 换算收敛】居中式宽高用**逻辑**尺寸（=w/d）。
+                        g.draw_image(
+                            img,
+                            x + ((32 - img.logical_width()) >> 1),
+                            y + ((32 - img.logical_height()) >> 1),
+                            0,
+                        );
                     }
                     if (self.player.item_uses[grid as usize] as i8) > 0 {
                         crate::menu_family::paint_number(
@@ -3898,7 +3910,13 @@ impl GameScene {
                 } else {
                     g.set_clip(x, y, 32, 32);
                     if let Some(Some(img)) = self.images.entity.get(t) {
-                        g.draw_image(img, x + ((32 - img.width) >> 1), y + ((32 - img.height) >> 1), 0);
+                        // 【R-2 换算收敛】居中式宽高用**逻辑**尺寸（=w/d）。
+                        g.draw_image(
+                            img,
+                            x + ((32 - img.logical_width()) >> 1),
+                            y + ((32 - img.logical_height()) >> 1),
+                            0,
+                        );
                     }
                     g.set_clip(x, y, SCREEN_W, SCREEN_H);
                 }

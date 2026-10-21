@@ -260,26 +260,58 @@ pub struct ArgbImage {
     pub width: i32,
     pub height: i32,
     pub argb: Vec<u32>,
+    /// 【HD 素材探针·R-5 载体】素材像素密度（A 档）：**像素尺寸 = 逻辑尺寸 × density**。
+    /// classic 默认 1（= 现行为逐字节恒等）。绘图/anchor/op 消费面一律走
+    /// [`Self::logical_width`] / [`Self::logical_height`]（=w/d），像素缓冲索引才用
+    /// `width/height`（物理域）。离屏/合成图（[`Self::create`] / [`Self::from_rgb`] /
+    /// `dim_image` 派生）强制 d=1：画布本身是物理像素网格，不携带密度。
+    pub density: i32,
 }
 
 impl ArgbImage {
-    /// `Image.createImage(w, h)`。
+    /// `Image.createImage(w, h)`。离屏画布 ⇒ 强制 density=1（R-5）。
     pub fn create(width: i32, height: i32) -> ArgbImage {
-        ArgbImage { width, height, argb: vec![0; (width * height) as usize] }
+        ArgbImage { width, height, argb: vec![0; (width * height) as usize], density: 1 }
     }
 
-    /// 资源解码产物 → 可绘制图（位模式直通，无转换）。
+    /// 资源解码产物 → 可绘制图（位模式直通，无转换）。classic 素材 d=1；
+    /// HD 素材经 [`Self::with_density`] 声明密度。
     pub fn from_decoded_png(png: game_data::DecodedPng) -> ArgbImage {
-        ArgbImage { width: png.width, height: png.height, argb: png.argb }
+        ArgbImage { width: png.width, height: png.height, argb: png.argb, density: 1 }
     }
 
     /// `Image.createRGBImage(rgb, w, h, processAlpha)`（`Image.java:59-66`）。
+    /// 合成图 ⇒ 强制 density=1（R-5）。
     pub fn from_rgb(rgb: &[u32], width: i32, height: i32, process_alpha: bool) -> ArgbImage {
         let argb = rgb
             .iter()
             .map(|&v| if process_alpha { v } else { v | 0xFF000000 })
             .collect();
-        ArgbImage { width, height, argb }
+        ArgbImage { width, height, argb, density: 1 }
+    }
+
+    /// 【R-5】声明素材像素密度：像素尺寸 = 逻辑尺寸 × density。
+    /// `width%d==0` / `height%d==0` 断言（不许静默截断）；d≥1。
+    pub fn with_density(mut self, density: i32) -> ArgbImage {
+        assert!(density >= 1, "density 必须 ≥1（实际 {density}）");
+        assert!(
+            self.width % density == 0 && self.height % density == 0,
+            "width/height 必须被 density 整除（{}x{}，d={density}）",
+            self.width,
+            self.height
+        );
+        self.density = density;
+        self
+    }
+
+    /// 【R-2/R-5】逻辑宽 = 像素宽/density（消费面统一出口；d=1 ⇒ =width 恒等）。
+    pub fn logical_width(&self) -> i32 {
+        self.width / self.density
+    }
+
+    /// 【R-2/R-5】逻辑高 = 像素高/density。
+    pub fn logical_height(&self) -> i32 {
+        self.height / self.density
     }
 
     /// `Image.getRGB(rgbData, offset, scanlength, x, y, w, h)`（`Image.java:80-86`）。
@@ -666,25 +698,34 @@ impl<'a> SoftGraphics<'a> {
 
     /// `drawImage(img, x, y, anchor)`（`Graphics.java:336-340`）。
     /// 逻辑坐标进；像素素材**最近邻 ×scale**（硬边保像素味——task-13 ④）。
+    /// 【R-2 换算收敛】op 记录与 anchor 一律用**逻辑尺寸**（=w/d，与 density 无关；
+    /// R-6 ops 流隔离）。d=1 ⇒ 逻辑=像素，逐字节恒等。
     pub fn draw_image(&mut self, img: &ArgbImage, x: i32, y: i32, anchor: i32) {
-        self.op(format!("drawImage({}x{},{x},{y},{anchor})", img.width, img.height));
+        self.op(format!(
+            "drawImage({}x{},{x},{y},{anchor})",
+            img.logical_width(),
+            img.logical_height()
+        ));
         let s = self.scale;
-        let adj = anchor_adjust(anchor, img.width * s, img.height * s);
+        let adj = anchor_adjust(anchor, img.logical_width() * s, img.logical_height() * s);
         let (ox, oy) = (self.phys_x(x) - adj[0], self.phys_y(y) - adj[1]);
         self.blit(img, ox, oy);
     }
 
     /// Nokia `DirectGraphics.drawImage(img, x, y, anchor, transform)`
     /// （`Graphics.drawImageTransformed`，`Graphics.java:346-376`）。
+    /// 【R-2 换算收敛】op 记录与 anchor bbox（swap 后）一律**逻辑尺寸**。
     pub fn draw_image_transformed(&mut self, img: &ArgbImage, x: i32, y: i32, anchor: i32, transform: i32) {
         self.op(format!(
             "drawImageT({}x{},{x},{y},{anchor},{transform})",
-            img.width, img.height
+            img.logical_width(),
+            img.logical_height()
         ));
         let s = self.scale;
         let swap = (4..=7).contains(&transform);
-        let bw = if swap { img.height } else { img.width };
-        let bh = if swap { img.width } else { img.height };
+        let (lw, lh) = (img.logical_width(), img.logical_height());
+        let bw = if swap { lh } else { lw };
+        let bh = if swap { lw } else { lh };
         let adj = anchor_adjust(anchor, bw * s, bh * s);
         let ox = self.phys_x(x) - adj[0];
         let oy = self.phys_y(y) - adj[1];
