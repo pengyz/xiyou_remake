@@ -198,3 +198,208 @@ fn d1_identity_pin_frame_and_ops() {
         assert_eq!(ops, want_ops, "d=1 scale={scale} op 串（旧↔新双侧）");
     }
 }
+
+// ---------------- ② 采样矩阵（R-0 裁定 NN；R-1 整数相位 src=l*d/s） ----------------
+
+/// 物理像素两两可辨的源（含透明槽位）：像素 (x,y) 唯一色。
+fn distinct(lw: i32, lh: i32, d: i32) -> ArgbImage {
+    let (w, h) = (lw * d, lh * d);
+    let mut px = vec![0u32; (w * h) as usize];
+    for y in 0..h {
+        for x in 0..w {
+            px[(y * w + x) as usize] = if (x + y) % 7 == 3 {
+                0
+            } else {
+                0xFF00_0000 | ((x * 17 + 3) << 16) as u32 | ((y * 29 + 5) << 8) as u32 | (x * y + 11) as u32
+            };
+        }
+    }
+    ArgbImage::from_rgb(&px, w, h, true).with_density(d)
+}
+
+/// 【②】d==s：1:1 直采零重采样——物理格逐格对齐，逐像素恒等。
+#[test]
+fn sampling_matrix_direct_copy_d_eq_s() {
+    // 逻辑 2×2 @d=2（4×4 像素），scale=2 ⇒ 物理 4×4，源 4×4 直采
+    let src = distinct(2, 2, 2);
+    let mut screen = ArgbImage::create(32, 24);
+    {
+        let mut g = SoftGraphics::new(&mut screen);
+        g.set_scale(2);
+        g.draw_image(&src, 0, 0, anchor::TOP | anchor::LEFT);
+    }
+    for y in 0..4 {
+        for x in 0..4 {
+            assert_eq!(screen.argb[y * 32 + x], src.argb[y * 4 + x], "d==s 直采像素({x},{y})");
+        }
+    }
+}
+
+/// 【②】d>s 降采样：NN `src=l*d/s`（整数相位）。逻辑 2×1 @d=3（6×3 像素）、scale=2
+/// ⇒ 物理 4×2；dest x∈0..4 → src x = x*3/2 = {0,1,3,4}（源列 2 不被采——R-0 NN
+/// 裁定已登记的相位丢点，box 备选见设计件 R-0）。
+#[test]
+fn sampling_matrix_downsample_d_gt_s() {
+    let src = distinct(2, 1, 3);
+    let mut screen = ArgbImage::create(32, 24);
+    {
+        let mut g = SoftGraphics::new(&mut screen);
+        g.set_scale(2);
+        g.draw_image(&src, 0, 0, anchor::TOP | anchor::LEFT);
+    }
+    for (dx, sx) in [(0, 0), (1, 1), (2, 3), (3, 4)] {
+        for dy in 0..2 {
+            let sy = dy * 3 / 2; // 0..2 → {0,1}
+            assert_eq!(
+                screen.argb[dy * 32 + dx],
+                src.argb[sy * 6 + sx],
+                "d=3>s=2 降采样 dest({dx},{dy}) ← src({sx},{sy})"
+            );
+        }
+    }
+    // 空白区不落笔
+    assert_eq!(screen.argb[4], 0, "画布 x≥4 无落笔");
+}
+
+/// 【②】d<s 升采样：NN 复制。逻辑 1×1 @d=2（2×2 像素）、scale=3 ⇒ 物理 3×3；
+/// dest l∈0..3 → src l*2/3 = {0,0,1}（每轴）。
+#[test]
+fn sampling_matrix_upsample_d_lt_s() {
+    let src = distinct(1, 1, 2);
+    let mut screen = ArgbImage::create(32, 24);
+    {
+        let mut g = SoftGraphics::new(&mut screen);
+        g.set_scale(3);
+        g.draw_image(&src, 0, 0, anchor::TOP | anchor::LEFT);
+    }
+    let phase = |l: i32| (l * 2 / 3) as usize; // src=l*d/s
+    for dy in 0..3i32 {
+        for dx in 0..3i32 {
+            assert_eq!(
+                screen.argb[(dy * 32 + dx) as usize],
+                src.argb[phase(dy) * 2 + phase(dx)],
+                "d=2<s=3 升采样 dest({dx},{dy})"
+            );
+        }
+    }
+}
+
+/// 【① 采样级】d=1 退化恒等 = `set_pixel_block ×scale`（旧 blit 语义参照实现，
+/// 不透明/全透明像素域；半透明混合由 d1_identity_pin 帧哈希钉）。
+#[test]
+fn d1_degenerates_to_set_pixel_block() {
+    for s in [1, 2, 3] {
+        let src = distinct(5, 4, 1);
+        let mut screen = ArgbImage::create(64 * s, 48 * s);
+        {
+            let mut g = SoftGraphics::new(&mut screen);
+            g.set_scale(s);
+            g.draw_image(&src, 0, 0, anchor::TOP | anchor::LEFT);
+        }
+        // 旧 blit 参照：逐源像素 s×s 块（set_pixel_block 语义）
+        let mut expect = vec![0u32; (64 * s * 48 * s) as usize];
+        for sy in 0..4i32 {
+            for sx in 0..5i32 {
+                let p = src.argb[(sy * 5 + sx) as usize];
+                if (p >> 24) & 0xFF == 0 {
+                    continue;
+                }
+                for dy in 0..s {
+                    for dx in 0..s {
+                        expect[((sy * s + dy) * 64 * s + (sx * s + dx)) as usize] = p;
+                    }
+                }
+            }
+        }
+        assert_eq!(screen.argb, expect, "d=1 ⇒ set_pixel_block ×scale 逐字节恒等（scale={s}）");
+    }
+}
+
+// ---------------- R-1 性能门槛（条件 6：全屏重采样 ≤3× 现 blit） ----------------
+
+use std::time::Instant;
+
+/// 旧 blit + set_pixel **逐字节算法参照**（render.rs 改造前路径的测试内复刻）：
+/// 逐源像素 s×s set_pixel_block；每物理像素 clip 判断 + alpha 0/255/混合三态
+/// ——与新路径同口径的纯像素工作量（含 clip/alpha 阶梯，不偷跑）。
+fn legacy_blit_ref(buf: &mut [u32], bw: i32, bh: i32, img: &ArgbImage, x: i32, y: i32, s: i32) {
+    for sy in 0..img.height {
+        for sx in 0..img.width {
+            let p = img.argb[(sy * img.width + sx) as usize];
+            if (p >> 24) & 0xFF == 0 {
+                continue;
+            }
+            for dy in 0..s {
+                for dx in 0..s {
+                    let (px, py) = (x + sx * s + dx, y + sy * s + dy);
+                    if px < 0 || py < 0 || px >= bw || py >= bh {
+                        continue;
+                    }
+                    let a = (p >> 24) & 0xFF;
+                    if a == 0 {
+                        continue;
+                    }
+                    let idx = (py * bw + px) as usize;
+                    if a == 255 {
+                        buf[idx] = p;
+                        continue;
+                    }
+                    let dst = buf[idx];
+                    let ia = 255 - a;
+                    let blend = |c1: u32, c2: u32| (c1 * a + c2 * ia) / 255;
+                    let r = blend((p >> 16) & 0xFF, (dst >> 16) & 0xFF);
+                    let g = blend((p >> 8) & 0xFF, (dst >> 8) & 0xFF);
+                    let b = blend(p & 0xFF, dst & 0xFF);
+                    let da = (((dst >> 24) & 0xFF) * ia) / 255 + a;
+                    buf[idx] = (da << 24) | (r << 16) | (g << 8) | b;
+                }
+            }
+        }
+    }
+}
+
+fn bench(reps: usize, mut f: impl FnMut()) -> f64 {
+    let mut best = f64::MAX;
+    for _ in 0..reps {
+        let t = Instant::now();
+        f();
+        best = best.min(t.elapsed().as_secs_f64());
+    }
+    best
+}
+
+/// 【R-1/条件 6】三段路径全屏耗时 ≤3× 现 blit（同落笔量 480×360 物理像素）：
+/// d==s 直采（demo 主场景）/ d>s 降采样 / d<s 升采样；d=1 块写路径=零回退（≤2×）。
+/// min-of-N 抗调度噪声；debug 放宽（未优化构建比值失真），release（`--release`
+/// 必跑口径）严判。NN 目标 1×（实测见 commit 正文）。
+#[test]
+fn perf_resample_within_3x_of_legacy_blit() {
+    let (lw, lh, s) = (160, 120, 3);
+    let (pw, ph) = (lw * s, lh * s);
+    let mut screen = ArgbImage::create(pw, ph);
+    let mut buf = vec![0u32; (pw * ph) as usize];
+    let legacy_t = bench(7, || {
+        legacy_blit_ref(&mut buf, pw, ph, &distinct(lw, lh, 1), 0, 0, s)
+    });
+    for (d, what, bound) in [
+        (1, "d=1 块写（classic 零回退）", if cfg!(debug_assertions) { 4.0 } else { 2.0 }),
+        (3, "d==s=3 直采", if cfg!(debug_assertions) { 8.0 } else { 3.0 }),
+        (2, "d=2<s=3 升采样", if cfg!(debug_assertions) { 8.0 } else { 3.0 }),
+        (5, "d=5>s=3 降采样", if cfg!(debug_assertions) { 8.0 } else { 3.0 }),
+    ] {
+        let src = distinct(lw, lh, d);
+        let t = bench(7, || {
+            let mut g = SoftGraphics::new(&mut screen);
+            g.set_scale(s);
+            g.draw_image(&src, 0, 0, anchor::TOP | anchor::LEFT);
+        });
+        let ratio = t / legacy_t;
+        eprintln!("[perf] {what}: {:.3}ms vs legacy {:.3}ms = {ratio:.2}x", t * 1e3, legacy_t * 1e3);
+        assert!(
+            ratio <= bound,
+            "{what}: 重采样/现 blit = {ratio:.2}×（上限 {bound}×；{:.3}ms vs {:.3}ms）",
+            t * 1e3,
+            legacy_t * 1e3
+        );
+    }
+}

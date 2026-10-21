@@ -763,16 +763,86 @@ impl<'a> SoftGraphics<'a> {
     }
 
     /// `Graphics.blit`（非 transpose 形态即 drawImage 内部路径，`Graphics.java:378-390`）。
-    /// 最近邻 ×scale：1 源像素 = scale×scale 物理块。
+    ///
+    /// 【R-1 密度感知最近邻采样器】一次映射（spec §1.2 禁"缩回逻辑再放大"）：
+    /// 目标物理格 = 逻辑格×scale、源 = 逻辑格×density，NN 整数相位 **`src = l*d/s`**。
+    /// 三段路径（条件 6 性能门槛 ≤3× 现 blit）：
+    /// - **d=1**：原 `set_pixel_block ×scale` 块写逐字节恒等（classic 热路径零开销；
+    ///   = 新采样在 d=1 的退化情形，判据① 双侧钉）；
+    /// - **d==s**：`src=l` 行拷直采（1:1 零相位运算零重采样；原始 `copy_from_slice`
+    ///   会绕过 set_pixel 的 clip/alpha 语义，故经 1:1 索引逐像素直采落笔）；
+    /// - **d≠s 且 d>1**：增量式相位累加（纯整数、禁浮点、零分配；相位序列与
+    ///   `l*d/s` 逐项相等）。
+    /// alpha==0 跳过 / 255 直写 / 其他 src-over 与旧 blit 同（set_pixel 不变）。
+    /// 【3/3 C1 未闭环】d>1 且 d≠s 分支待真素材复验（量产素材到货时重跑 d≠s 采样
+    /// 矩阵 + 画质人工四问，R-1/R-8）。
     fn blit(&mut self, img: &ArgbImage, x: i32, y: i32) {
         let s = self.scale;
-        for sy in 0..img.height {
-            for sx in 0..img.width {
-                let p = img.argb[(sy * img.width + sx) as usize];
-                if (p >> 24) & 0xFF == 0 {
-                    continue;
+        let d = img.density;
+        let w = img.width;
+        let (lw, lh) = (img.logical_width(), img.logical_height());
+        if d == 1 {
+            // d=1 退化 = 旧 blit 原算法（1 源像素 = s×s 物理块）。
+            for sy in 0..img.height {
+                for sx in 0..img.width {
+                    let p = img.argb[(sy * w + sx) as usize];
+                    if (p >> 24) & 0xFF == 0 {
+                        continue;
+                    }
+                    self.set_pixel_block(x + sx * s, y + sy * s, p);
                 }
-                self.set_pixel_block(x + sx * s, y + sy * s, p);
+            }
+            return;
+        }
+        if d == s {
+            // d==s 行拷直采：src = l（1:1）。
+            for ly in 0..lh {
+                for iy in 0..s {
+                    let row = ((ly * d + iy) * w) as usize;
+                    let py = y + ly * s + iy;
+                    for dx in 0..lw * s {
+                        let p = img.argb[row + dx as usize];
+                        if (p >> 24) & 0xFF == 0 {
+                            continue;
+                        }
+                        self.set_pixel(x + dx, py, p);
+                    }
+                }
+            }
+            return;
+        }
+        // d>1 且 d≠s：NN 整数相位 src = l*d/s（增量式相位，禁浮点）。
+        for ly in 0..lh {
+            // 行相位：sy = ly*d + iy*d/s（每逻辑格重置，与全局 l*d/s 同序列）
+            let mut sy = ly * d;
+            let mut y_acc = 0;
+            for iy in 0..s {
+                if iy > 0 {
+                    y_acc += d;
+                    while y_acc >= s {
+                        sy += 1;
+                        y_acc -= s;
+                    }
+                }
+                let row = (sy * w) as usize;
+                let py = y + ly * s + iy;
+                // 列相位：sx = dx*d/s（全局增量式 == 逐格 lx*d + ix*d/s）
+                let mut sx = 0;
+                let mut x_acc = 0;
+                for dx in 0..lw * s {
+                    if dx > 0 {
+                        x_acc += d;
+                        while x_acc >= s {
+                            sx += 1;
+                            x_acc -= s;
+                        }
+                    }
+                    let p = img.argb[row + sx as usize];
+                    if (p >> 24) & 0xFF == 0 {
+                        continue;
+                    }
+                    self.set_pixel(x + dx, py, p);
+                }
             }
         }
     }
