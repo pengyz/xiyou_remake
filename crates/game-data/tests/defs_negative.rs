@@ -30,6 +30,41 @@ fn assert_located(err: &Reject) {
     );
 }
 
+// ---------------------------------------------------------------- 第 5 类：unknown-field=拒载
+
+#[test]
+fn reject_class5_unknown_field_record() {
+    let src = fixture("unknown_field/sprite_defs.json");
+    let err = defs::parse_sprite_defs(&src).expect_err("记录级未知字段必须拒载");
+    assert!(
+        matches!(&err, Reject::UnknownField { field, .. } if field == "anim_profil"),
+        "期望 UnknownField(anim_profil)，实际 {err:?}"
+    );
+    assert_located(&err);
+}
+
+#[test]
+fn reject_class5_unknown_field_envelope() {
+    let src = fixture("unknown_field/sprite_defs_envelope.json");
+    let err = defs::parse_sprite_defs(&src).expect_err("封套级未知字段必须拒载");
+    assert!(
+        matches!(&err, Reject::UnknownField { field, .. } if field == "sprite_defs_tpyo"),
+        "期望 UnknownField(sprite_defs_tpyo)，实际 {err:?}"
+    );
+    assert_located(&err);
+}
+
+#[test]
+fn reject_class5_unknown_field_nested() {
+    let src = fixture("unknown_field/sprite_defs_nested.json");
+    let err = defs::parse_sprite_defs(&src).expect_err("嵌套条目未知字段必须拒载");
+    assert!(
+        matches!(&err, Reject::UnknownField { field, .. } if field == "categry"),
+        "期望 UnknownField(categry)，实际 {err:?}"
+    );
+    assert_located(&err);
+}
+
 // ---------------------------------------------------------------- 第 1 类：坏 JSON 拒载
 
 #[test]

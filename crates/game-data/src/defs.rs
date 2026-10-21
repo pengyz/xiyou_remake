@@ -48,6 +48,42 @@ pub const TYPE_ID_MIN: i64 = 0;
 /// （survey §0.1）；溢出=拒载（§2.3 域溢出）。
 pub const TYPE_ID_MAX: i64 = 88;
 
+// ---------------------------------------------------------------- 严格键集（第 5 类 unknown-field=拒载）
+
+/// `sprite_defs.json` 封套键（`quirks_in_code`=§2.1 quirks 留痕，可选，条目原样保留）。
+const ENVELOPE_SPRITE_KEYS: &[&str] = &["schema_version", "sprite_defs", "quirks_in_code"];
+/// `anim_defs.json` 封套键。
+const ENVELOPE_ANIM_KEYS: &[&str] = &["schema_version", "anim_defs"];
+/// `sheet_index.json` 封套键（§2.1 扁平形）。
+const ENVELOPE_SHEET_KEYS: &[&str] =
+    &["schema_version", "containers", "container_counts", "slots", "evidence"];
+/// `sprite_defs` 记录键（§2.1 schema 主件逐字段）。
+const SPRITE_KEYS: &[&str] = &[
+    "type_id",
+    "sheet",
+    "sheet_index",
+    "frame_w",
+    "frame_h",
+    "render_category",
+    "anim_profile",
+    "assembly_profile",
+    "insert_block",
+    "floor_category_override",
+    "transition_overrides",
+    "density",
+    "evidence",
+];
+/// `floor_category_override` 条目键。
+const FLOOR_KEYS: &[&str] = &["floor", "category"];
+/// `transition_overrides` 条目键。
+const TRANSITION_KEYS: &[&str] = &["on", "by_category", "evidence"];
+/// `transition_overrides.by_category` 值键。
+const CATEGORY_KEYS: &[&str] = &["anim_row", "sprite_h"];
+/// `anim_defs` 记录键。
+const ANIM_KEYS: &[&str] = &["id", "frames", "step_ticks", "loop_mode", "evidence"];
+/// 逐值锚三元组键（{index, value, src}）。
+const ANCHOR_KEYS: &[&str] = &["index", "value", "src"];
+
 /// 加载层拒载错误（§2.3 五类 + schema 版本/形态违例）。**每条信息含定位**（JSON 路径或字节偏移）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Reject {
@@ -239,7 +275,7 @@ pub struct SheetIndex {
 
 /// 解析 `sprite_defs.json` → [`SpriteDef`] 列表（单表层：schema 版本+字段形态）。
 pub fn parse_sprite_defs(src: &str) -> Result<Vec<SpriteDef>, Reject> {
-    let doc = parse_envelope(src, "sprite_defs")?;
+    let doc = parse_envelope(src, ENVELOPE_SPRITE_KEYS)?;
     let items = expect_arr(&doc, "sprite_defs", "sprite_defs")?;
     items
         .iter()
@@ -250,7 +286,7 @@ pub fn parse_sprite_defs(src: &str) -> Result<Vec<SpriteDef>, Reject> {
 
 /// 解析 `anim_defs.json` → [`AnimDef`] 列表。
 pub fn parse_anim_defs(src: &str) -> Result<Vec<AnimDef>, Reject> {
-    let doc = parse_envelope(src, "anim_defs")?;
+    let doc = parse_envelope(src, ENVELOPE_ANIM_KEYS)?;
     let items = expect_arr(&doc, "anim_defs", "anim_defs")?;
     items
         .iter()
@@ -261,7 +297,7 @@ pub fn parse_anim_defs(src: &str) -> Result<Vec<AnimDef>, Reject> {
 
 /// 解析 `sheet_index.json` → [`SheetIndex`]。
 pub fn parse_sheet_index(src: &str) -> Result<SheetIndex, Reject> {
-    let doc = parse_envelope(src, "sheet_index")?;
+    let doc = parse_envelope(src, ENVELOPE_SHEET_KEYS)?;
     let containers_j = expect_arr(&doc, "containers", "sheet_index")?;
     let containers = containers_j
         .iter()
@@ -298,9 +334,10 @@ pub fn parse_sheet_index(src: &str) -> Result<SheetIndex, Reject> {
     Ok(SheetIndex { containers, container_counts, slots, evidence })
 }
 
-/// 语法解析 + 封套 schema 版本校验（§2.3）。
-fn parse_envelope(src: &str, _table: &str) -> Result<Json, Reject> {
+/// 语法解析 + 封套 unknown-field 拒载（第 5 类）+ schema 版本校验（§2.3）。
+fn parse_envelope(src: &str, allowed_keys: &[&str]) -> Result<Json, Reject> {
     let doc = parse_json(src).map_err(|detail| Reject::BadJson { detail })?;
+    check_keys(&doc, "<root>", allowed_keys)?;
     match doc.get("schema_version").map(Json::as_int) {
         Some(Some(v)) if v == SCHEMA_VERSION => {}
         Some(Some(v)) => {
@@ -316,6 +353,7 @@ fn parse_sprite_def(rec: &Json, path: &str) -> Result<SpriteDef, Reject> {
     if !matches!(rec, Json::Obj(_)) {
         return Err(schema(path, "非对象"));
     }
+    check_keys(rec, path, SPRITE_KEYS)?;
     let type_id = need_int(rec, path, "type_id")?;
     let sheet = need_str(rec, path, "sheet")?.to_string();
     let sheet_index = need_int(rec, path, "sheet_index")?;
@@ -341,8 +379,9 @@ fn parse_sprite_def(rec: &Json, path: &str) -> Result<SpriteDef, Reject> {
             .map(|(i, a)| {
                 let p = format!("{path}.floor_category_override[{i}]");
                 if !matches!(a, Json::Obj(_)) {
-                    return Err(schema(p, "非对象"));
+                    return Err(schema(&p, "非对象"));
                 }
+                check_keys(a, &p, FLOOR_KEYS)?;
                 Ok(FloorCategoryOverride {
                     floor: need_int(a, &p, "floor")?,
                     category: need_int(a, &p, "category")?,
@@ -395,6 +434,7 @@ fn parse_transition_override(rec: &Json, path: &str) -> Result<TransitionOverrid
     if !matches!(rec, Json::Obj(_)) {
         return Err(schema(path, "非对象"));
     }
+    check_keys(rec, path, TRANSITION_KEYS)?;
     let on = need_str(rec, path, "on")?.to_string();
     let by_category_j = rec
         .get("by_category")
@@ -404,8 +444,9 @@ fn parse_transition_override(rec: &Json, path: &str) -> Result<TransitionOverrid
     for (k, v) in by_category_j {
         let p = format!("{path}.by_category.{k}");
         if !matches!(v, Json::Obj(_)) {
-            return Err(schema(p, "非对象"));
+            return Err(schema(&p, "非对象"));
         }
+        check_keys(v, &p, CATEGORY_KEYS)?;
         let anim_row = match v.get("anim_row") {
             None => None,
             Some(Json::Int(n)) => Some(*n),
@@ -430,6 +471,7 @@ fn parse_anim_def(rec: &Json, path: &str) -> Result<AnimDef, Reject> {
     if !matches!(rec, Json::Obj(_)) {
         return Err(schema(path, "非对象"));
     }
+    check_keys(rec, path, ANIM_KEYS)?;
     let id = need_str(rec, path, "id")?.to_string();
     let frames_j = expect_arr(rec, "frames", path)?;
     let frames = frames_j
@@ -458,6 +500,7 @@ fn parse_anchor(rec: &Json, path: &str) -> Result<EvidenceAnchor, Reject> {
     if !matches!(rec, Json::Obj(_)) {
         return Err(schema(path, "非对象"));
     }
+    check_keys(rec, path, ANCHOR_KEYS)?;
     let index = need_int(rec, path, "index")?;
     let value = rec
         .get("value")
@@ -468,6 +511,21 @@ fn parse_anchor(rec: &Json, path: &str) -> Result<EvidenceAnchor, Reject> {
 }
 
 // ---------------------------------------------------------------- 小工具
+
+/// unknown-field=拒载（第 5 类，防拼写静默）：对象键名必须全在 `allowed` 内。
+/// `slots` 内部除外（§2.1 字段定义为对象、内部结构 schema 未定，不发明语义）。
+fn check_keys(rec: &Json, path: &str, allowed: &[&str]) -> Result<(), Reject> {
+    let members = match rec {
+        Json::Obj(members) => members,
+        _ => return Ok(()), // 形态错误由各 need_* 报 Schema
+    };
+    for (k, _) in members {
+        if !allowed.contains(&k.as_str()) {
+            return Err(Reject::UnknownField { path: path.to_string(), field: k.clone() });
+        }
+    }
+    Ok(())
+}
 
 fn schema(path: impl Into<String>, reason: impl Into<String>) -> Reject {
     Reject::Schema { path: path.into(), reason: reason.into() }
