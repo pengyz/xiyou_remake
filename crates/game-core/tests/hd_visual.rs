@@ -44,6 +44,10 @@ const COL1: i32 = 25;
 const ROW0: i32 = 1;
 const ROW1: i32 = 18;
 /// demo 弃件② 精绘帧（tools/hd-demo/gen_hd_demo.py EXPECTED_HAND_IDS，A 级锚）。
+/// 【2026-10-21 帧哈希同步】hd-demo-atlas 16 帧细节补强（勾缝线/焰心/纹理）后
+/// frame-hashes.txt 全量更新；本文件判据为结构断言（NN 帧==源帧 NN×3、restyle≠NN、
+/// alpha 掩码槽位同构），无哈希钉——已复跑全绿对齐新帧哈希；素材区差异基线随之
+/// 211,668 → **350,622 px**（细节密度佐证，非断言）。
 const HAND_IDS: [u8; 16] = [1, 22, 17, 10, 24, 46, 47, 2, 30, 15, 9, 45, 49, 38, 39, 44];
 
 // ---------------- 素材装载 ----------------
@@ -701,4 +705,150 @@ fn hd_annotated_replacement_scope_products() {
     eprintln!(
         "[hd-visual·标注] 绿框（restyle 重绘）{g1} 格 / 黄框（NN 仅放大）{y1} 格；无框=未替换（d=1 HUD/精灵/文字 + 底色区）"
     );
+}
+
+// ---------------- 放大细部对比条（lead 追加·用户反馈"对比图体感不明显"） ----------------
+//
+// 全帧图 3px 阶梯在 GUI 预览被缩没 ⇒ 出 **7× 最近邻整数倍放大**特写条（禁平滑
+// 插值）与 **1:1 原生裁剪对**。标注语义沿用（绿=restyle/黄=NN/无框=未替换），
+// 特写条框**外扩不压 1px 内容边**。机器判据不受影响（同为产物后处理）。
+
+const ZOOM: usize = 7; // 6-8× 区间整数倍数字放大（48px 格 → 336px）
+
+/// 最近邻整数倍放大（保像素边界，禁平滑插值）。
+fn nn_upscale(src: &[u32], w: usize, h: usize, f: usize) -> (Vec<u32>, usize) {
+    let mut out = vec![0u32; (w * f) * (h * f)];
+    for y in 0..h * f {
+        for x in 0..w * f {
+            out[y * (w * f) + x] = src[(y / f) * w + x / f];
+        }
+    }
+    (out, w * f)
+}
+
+fn crop_from(buf: &[u32], w: usize, x0: usize, y0: usize, cw: usize, ch: usize) -> (Vec<u32>, usize) {
+    let mut out = vec![0u32; cw * ch];
+    for y in 0..ch {
+        out[y * cw..(y + 1) * cw].copy_from_slice(&buf[(y0 + y) * w + x0..(y0 + y) * w + x0 + cw]);
+    }
+    (out, cw)
+}
+
+fn blit_into(dst: &mut [u32], dw: usize, dh: usize, src: &[u32], sw: usize, x0: i32, y0: i32) {
+    for y in 0..src.len() / sw {
+        for x in 0..sw {
+            put_px(dst, dw, dh, x0 + x as i32, y0 + y as i32, src[y * sw + x]);
+        }
+    }
+}
+
+/// 特写条：一格 7× 放大「classic | HD」并排 + 分隔线 + 外扩框 + 2 行说明。
+fn compose_zoom_strip(
+    a: &[u32],
+    b: &[u32],
+    w: usize,
+    cell: (usize, usize, usize, usize),
+    color: u32,
+    l1: &str,
+    l2: &str,
+) -> (Vec<u32>, usize, usize) {
+    let margin = 12i32; // 框外扩（约半格视觉外扩量）：不压内容 1px 边
+    let cs = 48 * ZOOM;
+    let block = cs + 2 * margin as usize;
+    let cap_h = 44usize;
+    let (sw, sh) = (block * 2 + 8, block + cap_h);
+    let mut out = vec![0xF010_1820u32; sw * sh];
+    for (i, src) in [&a, &b].into_iter().enumerate() {
+        let bx = (i * (block + 8)) as i32;
+        border_px(&mut out, sw, sh, bx, 0, block as i32, block as i32, color, 2);
+        let (cx, cy, cw, ch) = cell;
+        let (c, _) = crop_from(src, w, cx, cy, cw, ch);
+        let (z, zw) = nn_upscale(&c, cw, ch, ZOOM);
+        blit_into(&mut out, sw, sh, &z, zw, bx + margin, margin);
+    }
+    text_px(&mut out, sw, sh, 8, block as i32 + 8, l1, 2, 0xFFFF_FFFF);
+    text_px(&mut out, sw, sh, 8, block as i32 + 26, l2, 2, 0xFFB0_C0D0);
+    (out, sw, sh)
+}
+
+/// 1:1 原生裁剪对（不缩放；内容取自带标注画布=绿/黄框语义沿用）。
+fn compose_native_pair(
+    ac: &[u32],
+    bc: &[u32],
+    w: usize,
+    x0: usize,
+    y0: usize,
+    cw: usize,
+    ch: usize,
+    l1: &str,
+    l2: &str,
+) -> (Vec<u32>, usize, usize) {
+    let cap_h = 44usize;
+    let (sw, sh) = (cw * 2 + 8, ch + cap_h);
+    let mut out = vec![0xF010_1820u32; sw * sh];
+    for (i, src) in [&ac, &bc].into_iter().enumerate() {
+        let (c, _) = crop_from(src, w, x0, y0, cw, ch);
+        blit_into(&mut out, sw, sh, &c, cw, (i * (cw + 8)) as i32, 0);
+    }
+    text_px(&mut out, sw, sh, 8, ch as i32 + 8, l1, 2, 0xFFFF_FFFF);
+    text_px(&mut out, sw, sh, 8, ch as i32 + 26, l2, 2, 0xFFB0_C0D0);
+    (out, sw, sh)
+}
+
+/// 【lead 追加·用户反馈"对比图体感不明显"】放大细部对比条：4 个代表性格
+/// （石砖螺旋纹/火把/勾缝砖/白花窗 NN 对照）7× 放大「classic | HD」并排特写 +
+/// 240×240 1:1 原生裁剪对。产出 `assets/hd-demo/compare/zoom/`。机器判据不受
+/// 影响（产物后处理；两图同格断言仍由 hd_compare_per_cell_* 承担）。
+#[test]
+fn hd_zoom_detail_strips_products() {
+    let frames = map_frames();
+    let classic = classic_tileset(&frames);
+    let demo = demo_tileset();
+    let img = load_overlays(&frames);
+    let view = build_view();
+    let (a, _) = render_scene(&view, &classic, &img);
+    let (b, _) = render_scene(&view, &demo, &img);
+    let (ac, _, _) = annotate_replacement_scope(&view, &a);
+    let (bc, _, _) = annotate_replacement_scope(&view, &b);
+    let w = a.width as usize;
+
+    // 特写格（v 场景锚断言钉）：①石砖螺旋纹 ②火把 ③勾缝砖 ④白花窗 NN 对照
+    let specs: [(i32, i32, u8, &str, &str); 4] = [
+        (13, 9, 1, "stone_spiral", "STONE SPIRAL"),
+        (11, 15, 46, "torch", "TORCH"),
+        (14, 15, 44, "seam_brick", "SEAM BRICK"),
+        (12, 22, 40, "rosette_nn", "ROSETTE NN"),
+    ];
+    let dir = repo("assets/hd-demo/compare/zoom");
+    for (r, c, v, fname, label) in specs {
+        assert_eq!(view.terrain_at(r, c), v, "特写格锚 (r{r},c{c}) v={v}");
+        let restyle = HAND_IDS.contains(&v);
+        let color = if restyle { BOX_GREEN } else { BOX_YELLOW };
+        let boxname = if restyle { "GREEN=RESTYLE" } else { "YELLOW=NN" };
+        let l1 = format!("R{r}C{c} TILE={v} {label} {boxname}");
+        let l2 = format!("{ZOOM}X NN ZOOM LEFT=CLASSIC RIGHT=HD MAPLV5 SCALE3");
+        let (strip, sw, sh) =
+            compose_zoom_strip(&a.argb, &b.argb, w, cell_rect(&view, r, c), color, &l1, &l2);
+        write_png(&dir, &format!("zoom_{fname}_r{r:02}c{c:02}.png"), sw as i32, sh as i32, &strip);
+    }
+
+    // 1:1 原生裁剪对（240×240 不缩放；火把/勾缝段 + 白花窗段）
+    for (name, x0, y0, l1) in [
+        ("native_torch_seam", 216usize, 468usize, "NATIVE CROP X216 Y468 240X240 NO ZOOM"),
+        ("native_rosette", 480, 520, "NATIVE CROP X480 Y520 240X240 NO ZOOM"),
+    ] {
+        let (pair, pw, ph) = compose_native_pair(
+            &ac,
+            &bc,
+            w,
+            x0,
+            y0,
+            240,
+            240,
+            l1,
+            "LEFT=CLASSIC RIGHT=HD GREEN=RESTYLE YELLOW=NN",
+        );
+        write_png(&dir, &format!("{name}.png"), pw as i32, ph as i32, &pair);
+    }
+    eprintln!("[hd-visual·放大] 7X 特写条 4 条 + 1:1 原生裁剪对 2 条 → {}", dir.display());
 }

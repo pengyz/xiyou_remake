@@ -80,11 +80,24 @@ wall=id 10/46/47/2/30/9/45/49/44（本窗为宫殿内景，草/水类帧不在�
 图例（每张标注图角落/并排图底部）：三色框含义 + 场景/相机/scale
 （MAPLV5 CAM-144,-16 SCALE3，LEFT=CLASSIC RIGHT=HD）。
 
+### 3.1 放大细部（lead 追加·用户反馈"对比图体感不明显"）→ `assets/hd-demo/compare/zoom/`
+
+全帧图 3px 阶梯在 GUI 预览被缩没 ⇒ 7× 最近邻整数倍放大特写条（禁平滑插值）+
+1:1 原生裁剪对（240×240 不缩放）。框外扩不压内容 1px 边；看什么：
+
+| 特写条 | 格 | 框 | 看什么差异 |
+|---|---|---|---|
+| `zoom_stone_spiral_r13c09.png` | (r13,c9) v=1 石砖螺旋纹 | 绿 | **对角阶梯**：classic 3px 晕染锯齿 vs HD 硬边直线回纹 |
+| `zoom_torch_r11c15.png` | (r11,c15) v=46 火把 | 绿 | **焰心**：classic 糊团 vs HD 平面色+暗色描线 |
+| `zoom_seam_brick_r14c15.png` | (r14,c15) v=44 勾缝砖 | 绿 | **勾缝线**：classic 1px 缝被放大吃掉 vs HD 缝线成型 |
+| `zoom_rosette_nn_r12c22.png` | (r12,c22) v=40 白花窗 | 黄 | **NN 对照**：两版逐像素恒等（验证放大管线不造假差） |
+| `native_torch_seam.png` / `native_rosette.png` | 240×240 原生裁剪 | 沿用 | 不缩放原生细节（GUI 预览不过度压缩） |
+
 ## 4. 复现与边界
 
 ```bash
 python3 tools/hd-demo/gen_hd_demo.py        # 生成弃件② 图集（若 assets/hd-demo 缺失）
-cargo test -p game-core --test hd_visual    # 机器判据 + 双 PNG + 标注版产出
+cargo test -p game-core --test hd_visual    # 机器判据 + 双 PNG + 标注版 + 放大细部产出
 cargo test -p game-core                     # 全量（含 density_draw/task-1 既有判据）
 ```
 
