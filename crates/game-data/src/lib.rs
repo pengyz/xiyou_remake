@@ -23,6 +23,7 @@
 //!   路径可用环境变量 `XIYOU_ASSETS_RAW` 配置）。
 
 pub mod asset_pipeline;
+pub mod defs;
 pub mod error;
 pub mod inflate;
 pub mod maplv;
