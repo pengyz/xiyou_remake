@@ -98,6 +98,13 @@ a.java 锚, 状态迁移三拍 RED 测 id}`——**禁静默留码**；消费替
 **查表初始化（dispatchAnimFields a.java:6327-6330）→ 状态迁移覆写（transition_overrides）**
 （顺序反了 quirk 静默失效——R3 反例 2）。
 
+> 【2026-10-21 注·HD 探针 R-5 回写】量产批本 schema 预留 **`density` 字段**（素材像素尺寸 =
+> 逻辑尺寸×density，A 档决策=同逻辑尺寸+高像素密度）；运行时载体已裁定 = `ArgbImage`
+> 字段（默认 1）+ `logical_width()/logical_height()` 访问器 + `width%d==0` 断言（渲染层
+> 已落地 e4bdbd2）。**探针期零持久化 schema**（demo 图集不进任何配置表）——本字段注记
+> 只锁未来归属，不改 v2 表设计。详见
+> [hd-asset-probe-design.md](../superpowers/specs/2026-10-21-hd-asset-probe-design.md) v1.1 R-5。
+
 ### 2.2 两份制四规则写死（2/3 R4）
 
 1. **mod 禁覆盖保真 id**（id 命名空间隔离：mod 型号 ≥ 1000 或前缀）；
@@ -156,6 +163,10 @@ schema 版本字段 + **负例 golden**（五类各一 fixture 进 L1 门禁）�
 **【v2 更正 3/3②-1】估算依据**：每步明细+机器墙钟（金样 460s/闸 2-5min）+风险余量；
 **编辑点合并账本**（与表设计 v2 去重——dispatch_sprite_size 特例/render_category/floor
 特例归属本调研消费替换步，表设计 v2 的 hook/battle_kind 归属其批，禁双计）。
+
+> 【2026-10-21 注·HD 探针 C3 回写】A5（game_view.rs paint_tiles 断言，本账本登记项）：
+> HD 探针**未改 A5 生产行**，仅图集断言换算 `width/(16*d)==8`（commit 099ed71，陷阱①
+> 列数 8 索引语义锚不动）——A5 归属仍归本调研消费替换步，探针不重计工时、不并账。
 
 | 步 | 内容 | 工时 | 依据 |
 |---|---|---|---|
