@@ -554,3 +554,125 @@ fn transformed_density_validity_d_ne_s() {
         }
     }
 }
+
+// ---------------- ④ 图集切片消费面（R-4：索引语义逻辑域不动，仅像素边界 ×d） ----------------
+
+use game_core::game_view::{GameView, ViewDims};
+use game_core::menu_family::draw_edge_patch;
+
+/// 逻辑 256×256 大图集（d=2 ⇒ 512×512 像素）：kind 5-7 的 (ih-sy-h)/(iw-sx-w)
+/// 偏移在界内（128 宽 map 图集上 kind5 X 偏移 176 越界=shim 原样绘制既有形态）。
+fn big_atlas(d: i32) -> ArgbImage {
+    distinct(256, 256, d)
+}
+
+/// 【④】draw_edge_patch kind 0..7 @d==s：切片偏移逻辑域（(v&7)<<4 格距不动）、
+/// 只对像素边界 ×d——窗口 16×16 逻辑（32×32 物理）逐像素 = 图集对应区域
+/// （kind 1-3 = FLIP 码 8192/16384/24576 镜像；kind 4-7 = shim 原样绘制、
+/// 仅坐标公式生效——转置偏移取 (sy,sx)/(ih-sy-h)/(iw-sx-w) 起点）。
+#[test]
+fn atlas_slice_edge_patch_kinds_d_eq_s() {
+    let (d, s) = (2, 2);
+    let ts = big_atlas(d);
+    // (sx,sy) = (v&7)<<4, (v>>3)<<4 —— v=10 ⇒ (32,16)（陷阱①索引语义）
+    let (sx, sy, w, h) = (32, 16, 16, 16);
+    let (iw, ih) = (256, 256);
+    for kind in 0..=7i32 {
+        let mut screen = ArgbImage::create(128, 128);
+        {
+            let mut g = SoftGraphics::new(&mut screen);
+            g.set_scale(s);
+            draw_edge_patch(&mut g, &ts, 10, 10, sx, sy, w, h, kind);
+        }
+        // 各 kind 的窗口物理 (u,v) ← 图集物理坐标（手推自 a.java:4577-4620 坐标式；
+        // d==s ⇒ 1:1 直采零相位失真）
+        for v in 0..h * s {
+            for u in 0..w * s {
+                let (ax, ay) = match kind {
+                    1 => (64 + 31 - u, 32 + v),
+                    2 => (64 + u, 32 + 31 - v),
+                    3 => (64 + 31 - u, 32 + 31 - v),
+                    4 => (32 + u, 64 + v),
+                    5 => (448 + u, 64 + v),
+                    6 => (32 + u, 416 + v),
+                    7 => (448 + u, 416 + v),
+                    _ => (64 + u, 32 + v),
+                };
+                assert_eq!(
+                    screen.argb[((20 + v) * 128 + (20 + u)) as usize],
+                    ts.argb[(ay * 512 + ax) as usize],
+                    "kind={kind} 窗口({u},{v}) ← 图集物理({ax},{ay})"
+                );
+            }
+        }
+        // clip 外不落笔（切片=clip+整图偏移，密度只影响像素边界）
+        assert_eq!(screen.argb[(19 * 128 + 20) as usize], 0, "kind={kind} clip 上沿外");
+        assert_eq!(screen.argb[(20 * 128 + 19) as usize], 0, "kind={kind} clip 左沿外");
+    }
+}
+
+/// 【④】paint_tiles 全链（(v&7)<<4 / (v>>3)<<4 切片 → draw_edge_patch → 密度
+/// 直采）@d==s：可见瓦片逐像素 = 图集对应区域，v=0 跳过，transform=1 走 FLIP。
+#[test]
+fn atlas_paint_tiles_hd_tileset_pixel_exact() {
+    // 4×4 格合成 maplv（头 u16LE=8 ⇒ wide=high=4；grid 64+64）
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(&8u16.to_le_bytes());
+    bytes.extend_from_slice(&8u16.to_le_bytes());
+    let gl = (4 * 4 * 4) as usize;
+    let mut terrain = vec![0u8; gl];
+    let mut transform = vec![0u8; gl];
+    terrain[0 * 8 + 0] = 2; // (r0,c0) v=2 ⇒ sx=32, sy=0
+    terrain[0 * 8 + 1] = 9; // (r0,c1) v=9 ⇒ sx=16, sy=16
+    terrain[1 * 8 + 0] = 0; // v=0 跳过
+    terrain[1 * 8 + 1] = 3; // (r1,c1) v=3 ⇒ sx=48, sy=0；transform=1（FLIP）
+    transform[1 * 8 + 1] = 1;
+    bytes.extend_from_slice(&terrain);
+    bytes.extend_from_slice(&transform);
+    let v = GameView::from_maplv(&bytes, 0, 0, ViewDims::classic()).unwrap();
+
+    let (d, s) = (2, 2);
+    let ts = distinct(8 * 16, 13 * 16, d); // 逻辑 128×208 图集
+    let mut screen = ArgbImage::create(240 * s, 252 * s);
+    let (cam_x, cam_y) = {
+        let mut g = SoftGraphics::new(&mut screen);
+        g.set_scale(s);
+        v.paint_tiles(&mut g, &ts, 0);
+        (v.cam_x, v.cam_y)
+    };
+    for (r, c, v_tile, flipped) in [(0, 0, 2, false), (0, 1, 9, false), (1, 1, 3, true)] {
+        let (tile_x, tile_y) = (cam_x + c * 16, cam_y + r * 16);
+        let (sx, sy) = (((v_tile & 7) << 4) * d, ((v_tile >> 3) << 4) * d); // 像素边界 ×d
+        for u in 0..16 * s {
+            for w2 in 0..16 * s {
+                let (ax, ay) = if flipped {
+                    (sx + 31 - u, sy + w2) // transform=1（MIRROR_ROT180=垂直翻转）
+                } else {
+                    (sx + u, sy + w2)
+                };
+                assert_eq!(
+                    screen.argb[((tile_y * s + w2) * 240 * s + (tile_x * s + u)) as usize],
+                    ts.argb[(ay * 256 + ax) as usize],
+                    "瓦片(r{r},c{c}) v={v_tile} 像素({u},{w2})"
+                );
+            }
+        }
+    }
+    // v=0 格（r1,c0）不落笔（画布初值 0）
+    assert_eq!(screen.argb[(((cam_y + 16) * s) * 240 * s + cam_x * s) as usize], 0, "v=0 格须空");
+}
+
+/// 【④/陷阱①】宽度型断言换算 width/(16*d)==8：列数 8 = (v&7) 索引语义，
+/// 不随 d 缩放（列数 8 断言保持 legacy 语义）；只对像素边界 ×d。
+#[test]
+fn atlas_column8_index_semantics_unscaled() {
+    for d in [1, 2, 3] {
+        let ts = distinct(8 * 16, 13 * 16, d);
+        assert_eq!(ts.width, 8 * 16 * d, "像素宽=8×16×d（边界 ×d）");
+        assert_eq!(ts.width / (16 * ts.density), 8, "列数 8 锚（width/(16*d)==8）");
+        assert_eq!(ts.height / (16 * ts.density), 13, "行数 13");
+        // 陷阱①断言锚不动：索引语义 = 逻辑域常量
+        let v = 2u8;
+        assert_eq!(((v & 7) << 4, (v >> 3) << 4), (32, 0), "sx/sy 不随 d 缩放");
+    }
+}

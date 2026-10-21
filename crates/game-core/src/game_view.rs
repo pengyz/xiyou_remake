@@ -311,7 +311,14 @@ mod tests {
             .iter()
             .map(|sub| ArgbImage::from_decoded_png(game_data::decode_png(sub.bytes).unwrap()))
             .collect::<Vec<_>>();
-        assert_eq!((tiles[0].width, tiles[0].height), (128, 208));
+        // 【R-4 换算】宽度型断言：列数 8 = (v&7) 索引语义（陷阱①锚，不随 d 缩放）、
+        // 只对像素边界 ×d ⇒ 断言换算 width/(16*d)==8（d=1 ⇒ legacy 128/208 同值；
+        // 旧形态 width==128 在 HD 图集（d=3 ⇒ 384）先于索引语义坏掉——攻4 反例）。
+        assert_eq!(
+            (tiles[0].width / (16 * tiles[0].density), tiles[0].height / (16 * tiles[0].density)),
+            (8, 13),
+            "图集列数 8/行数 13（(v&7)/(v>>3) 索引语义锚，R-4）"
+        );
 
         let mut screen = ArgbImage::create(crate::layout::SCREEN_W, crate::layout::SCREEN_H);
         let mut g = SoftGraphics::new(&mut screen);
