@@ -599,6 +599,35 @@ impl DefBundle {
                 });
             }
         }
+        // 第 4 类：帧序越界拒载（§2.3：frames 下标超表长=所引图集容器张数 container_counts）
+        for (i, s) in sprite_defs.iter().enumerate() {
+            let cpos = sheet_index
+                .containers
+                .iter()
+                .position(|c| *c == s.sheet)
+                .expect("FK 已校验 sheet 存在");
+            let raw_len = sheet_index.container_counts[cpos];
+            if raw_len < 0 {
+                return Err(schema(
+                    format!("sheet_index.container_counts[{cpos}]"),
+                    "张数为负",
+                ));
+            }
+            let table_len = raw_len as usize;
+            let apos = anim_defs
+                .iter()
+                .position(|a| a.id == s.anim_profile)
+                .expect("FK 已校验 anim_profile 存在");
+            for (j, &f) in anim_defs[apos].frames.iter().enumerate() {
+                if f < 0 || f as usize >= table_len {
+                    return Err(Reject::FrameIndexOutOfBounds {
+                        path: format!("anim_defs[{apos}].frames[{j}]（引用方 sprite_defs[{i}]）"),
+                        index: f,
+                        table_len,
+                    });
+                }
+            }
+        }
         Ok(DefBundle { sprite_defs, anim_defs, sheet_index })
     }
 

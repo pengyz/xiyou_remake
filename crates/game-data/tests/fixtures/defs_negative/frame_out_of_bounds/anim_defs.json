@@ -1,0 +1,6 @@
+{ "schema_version": 2,
+  "anim_defs": [
+    { "id": "bad_frames", "frames": [0, 1, 5], "step_ticks": 4,
+      "loop_mode": "cycle", "evidence": [] }
+  ]
+}

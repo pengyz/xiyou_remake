@@ -233,6 +233,39 @@ fn cascade_reference_listing() {
     assert!(bundle.referencing_type_ids("no_such_anim").is_empty());
 }
 
+// ---------------------------------------------------------------- 第 4 类：帧序越界拒载（frames 下标超表长）
+
+#[test]
+fn reject_class4_frame_index_out_of_bounds() {
+    let err = defs::DefBundle::load(
+        &fixture("frame_out_of_bounds/sprite_defs.json"),
+        &fixture("frame_out_of_bounds/anim_defs.json"),
+        &fixture("frame_out_of_bounds/sheet_index.json"),
+        &[],
+    )
+    .expect_err("frames 下标超表长必须拒载");
+    assert!(
+        matches!(err, Reject::FrameIndexOutOfBounds { index: 5, table_len: 4, .. }),
+        "期望 FrameIndexOutOfBounds(index=5, table_len=4)，实际 {err:?}"
+    );
+    assert_located(&err);
+}
+
+/// 边界保真：末槽下标（==表长-1）合法。
+#[test]
+fn accept_frame_index_at_last_slot() {
+    let anim = r#"{ "schema_version": 2, "anim_defs": [ {
+      "id": "walk_3frame", "frames": [0, 3], "step_ticks": 4,
+      "loop_mode": "cycle", "evidence": [] } ] }"#;
+    defs::DefBundle::load(
+        &fixture("bad_foreign_key/sprite_defs.json").replace("no_such_anim", "walk_3frame"),
+        anim,
+        &fixture("bad_foreign_key/sheet_index.json"), // container_counts=[4] ⇒ 表长 4
+        &[],
+    )
+    .expect("frames=[0,3] 表长 4 应加载成功");
+}
+
 // ---------------------------------------------------------------- 第 1 类：坏 JSON 拒载
 
 #[test]
