@@ -1,0 +1,5105 @@
+{
+  "schema_version": 2,
+  "sprite_defs": [
+    {
+      "type_id": 0,
+      "sheet": null,
+      "sheet_index": null,
+      "frame_w": 32,
+      "frame_h": 32,
+      "render_category": 0,
+      "anim_row": 0,
+      "type_frame_width": 32,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": true,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 0,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:499"
+        },
+        {
+          "index": 0,
+          "value": {
+            "type_frame_width": 32
+          },
+          "src": "a.java:590"
+        },
+        {
+          "index": 0,
+          "value": {
+            "render_category": 0
+          },
+          "src": "a.java:6245 (byte[] 默认 0)"
+        },
+        {
+          "index": 0,
+          "value": {
+            "insert_block": true
+          },
+          "src": "a.java:679"
+        }
+      ]
+    },
+    {
+      "type_id": 1,
+      "sheet": "sptmap",
+      "sheet_index": 0,
+      "frame_w": 32,
+      "frame_h": null,
+      "render_category": 1,
+      "anim_row": 0,
+      "type_frame_width": 32,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 1,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:500"
+        },
+        {
+          "index": 1,
+          "value": {
+            "type_frame_width": 32
+          },
+          "src": "a.java:591"
+        },
+        {
+          "index": 1,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 4,
+              "slot": 0
+            }
+          },
+          "src": "a.java:9464"
+        },
+        {
+          "index": 1,
+          "value": {
+            "render_category": 1
+          },
+          "src": "a.java:6270"
+        },
+        {
+          "index": 1,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:679"
+        }
+      ]
+    },
+    {
+      "type_id": 2,
+      "sheet": "sptmap",
+      "sheet_index": 1,
+      "frame_w": 32,
+      "frame_h": null,
+      "render_category": 1,
+      "anim_row": 0,
+      "type_frame_width": 32,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 2,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:501"
+        },
+        {
+          "index": 2,
+          "value": {
+            "type_frame_width": 32
+          },
+          "src": "a.java:592"
+        },
+        {
+          "index": 2,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 4,
+              "slot": 1
+            }
+          },
+          "src": "a.java:9464"
+        },
+        {
+          "index": 2,
+          "value": {
+            "render_category": 1
+          },
+          "src": "a.java:6270"
+        },
+        {
+          "index": 2,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:679"
+        }
+      ]
+    },
+    {
+      "type_id": 3,
+      "sheet": "sptmap",
+      "sheet_index": 2,
+      "frame_w": 32,
+      "frame_h": null,
+      "render_category": 1,
+      "anim_row": 0,
+      "type_frame_width": 32,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 3,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:502"
+        },
+        {
+          "index": 3,
+          "value": {
+            "type_frame_width": 32
+          },
+          "src": "a.java:593"
+        },
+        {
+          "index": 3,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 4,
+              "slot": 2
+            }
+          },
+          "src": "a.java:9464"
+        },
+        {
+          "index": 3,
+          "value": {
+            "render_category": 1
+          },
+          "src": "a.java:6270"
+        },
+        {
+          "index": 3,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:679"
+        }
+      ]
+    },
+    {
+      "type_id": 4,
+      "sheet": "sptmap",
+      "sheet_index": 3,
+      "frame_w": 45,
+      "frame_h": null,
+      "render_category": 1,
+      "anim_row": 0,
+      "type_frame_width": 45,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 4,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:503"
+        },
+        {
+          "index": 4,
+          "value": {
+            "type_frame_width": 45
+          },
+          "src": "a.java:594"
+        },
+        {
+          "index": 4,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 4,
+              "slot": 3
+            }
+          },
+          "src": "a.java:9464"
+        },
+        {
+          "index": 4,
+          "value": {
+            "render_category": 1
+          },
+          "src": "a.java:6270"
+        },
+        {
+          "index": 4,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:679"
+        }
+      ]
+    },
+    {
+      "type_id": 5,
+      "sheet": "sptmap",
+      "sheet_index": 4,
+      "frame_w": 32,
+      "frame_h": null,
+      "render_category": 1,
+      "anim_row": 0,
+      "type_frame_width": 32,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": true,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 5,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:504"
+        },
+        {
+          "index": 5,
+          "value": {
+            "type_frame_width": 32
+          },
+          "src": "a.java:595"
+        },
+        {
+          "index": 5,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 4,
+              "slot": 4
+            }
+          },
+          "src": "a.java:9464"
+        },
+        {
+          "index": 5,
+          "value": {
+            "render_category": 1
+          },
+          "src": "a.java:6270"
+        },
+        {
+          "index": 5,
+          "value": {
+            "insert_block": true
+          },
+          "src": "a.java:679"
+        }
+      ]
+    },
+    {
+      "type_id": 6,
+      "sheet": "sptmap",
+      "sheet_index": 5,
+      "frame_w": 32,
+      "frame_h": null,
+      "render_category": 1,
+      "anim_row": 0,
+      "type_frame_width": 32,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": true,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 6,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:505"
+        },
+        {
+          "index": 6,
+          "value": {
+            "type_frame_width": 32
+          },
+          "src": "a.java:596"
+        },
+        {
+          "index": 6,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 4,
+              "slot": 5
+            }
+          },
+          "src": "a.java:9464"
+        },
+        {
+          "index": 6,
+          "value": {
+            "render_category": 1
+          },
+          "src": "a.java:6270"
+        },
+        {
+          "index": 6,
+          "value": {
+            "insert_block": true
+          },
+          "src": "a.java:679"
+        }
+      ]
+    },
+    {
+      "type_id": 7,
+      "sheet": "sptmap",
+      "sheet_index": 6,
+      "frame_w": 32,
+      "frame_h": null,
+      "render_category": 1,
+      "anim_row": 0,
+      "type_frame_width": 32,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": true,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 7,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:506"
+        },
+        {
+          "index": 7,
+          "value": {
+            "type_frame_width": 32
+          },
+          "src": "a.java:597"
+        },
+        {
+          "index": 7,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 4,
+              "slot": 6
+            }
+          },
+          "src": "a.java:9464"
+        },
+        {
+          "index": 7,
+          "value": {
+            "render_category": 1
+          },
+          "src": "a.java:6270"
+        },
+        {
+          "index": 7,
+          "value": {
+            "insert_block": true
+          },
+          "src": "a.java:679"
+        }
+      ]
+    },
+    {
+      "type_id": 8,
+      "sheet": "sptmap",
+      "sheet_index": 7,
+      "frame_w": 32,
+      "frame_h": null,
+      "render_category": 1,
+      "anim_row": 0,
+      "type_frame_width": 32,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": true,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 8,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:507"
+        },
+        {
+          "index": 8,
+          "value": {
+            "type_frame_width": 32
+          },
+          "src": "a.java:598"
+        },
+        {
+          "index": 8,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 4,
+              "slot": 7
+            }
+          },
+          "src": "a.java:9464"
+        },
+        {
+          "index": 8,
+          "value": {
+            "render_category": 1
+          },
+          "src": "a.java:6270"
+        },
+        {
+          "index": 8,
+          "value": {
+            "insert_block": true
+          },
+          "src": "a.java:679"
+        }
+      ]
+    },
+    {
+      "type_id": 9,
+      "sheet": "sptmap",
+      "sheet_index": 8,
+      "frame_w": 104,
+      "frame_h": null,
+      "render_category": 1,
+      "anim_row": 0,
+      "type_frame_width": 104,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 9,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:508"
+        },
+        {
+          "index": 9,
+          "value": {
+            "type_frame_width": 104
+          },
+          "src": "a.java:599"
+        },
+        {
+          "index": 9,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 4,
+              "slot": 8
+            }
+          },
+          "src": "a.java:9464"
+        },
+        {
+          "index": 9,
+          "value": {
+            "render_category": 1
+          },
+          "src": "a.java:6270"
+        },
+        {
+          "index": 9,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:679"
+        }
+      ]
+    },
+    {
+      "type_id": 10,
+      "sheet": "sptmap",
+      "sheet_index": 9,
+      "frame_w": 35,
+      "frame_h": null,
+      "render_category": 1,
+      "anim_row": 2,
+      "type_frame_width": 35,
+      "anim_profile": "anim_row_2",
+      "assembly_profile": null,
+      "insert_block": true,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 10,
+          "value": {
+            "anim_row": 2
+          },
+          "src": "a.java:509"
+        },
+        {
+          "index": 10,
+          "value": {
+            "type_frame_width": 35
+          },
+          "src": "a.java:600"
+        },
+        {
+          "index": 10,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 4,
+              "slot": 9
+            }
+          },
+          "src": "a.java:9464"
+        },
+        {
+          "index": 10,
+          "value": {
+            "render_category": 1
+          },
+          "src": "a.java:6270"
+        },
+        {
+          "index": 10,
+          "value": {
+            "insert_block": true
+          },
+          "src": "a.java:679"
+        }
+      ]
+    },
+    {
+      "type_id": 11,
+      "sheet": "sptmap",
+      "sheet_index": 10,
+      "frame_w": 45,
+      "frame_h": null,
+      "render_category": 1,
+      "anim_row": 0,
+      "type_frame_width": 45,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 11,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:510"
+        },
+        {
+          "index": 11,
+          "value": {
+            "type_frame_width": 45
+          },
+          "src": "a.java:601"
+        },
+        {
+          "index": 11,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 4,
+              "slot": 10
+            }
+          },
+          "src": "a.java:9464"
+        },
+        {
+          "index": 11,
+          "value": {
+            "render_category": 1
+          },
+          "src": "a.java:6270"
+        },
+        {
+          "index": 11,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:679"
+        }
+      ]
+    },
+    {
+      "type_id": 12,
+      "sheet": "sptmap",
+      "sheet_index": 10,
+      "frame_w": 30,
+      "frame_h": null,
+      "render_category": 1,
+      "anim_row": 0,
+      "type_frame_width": 30,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 12,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:511"
+        },
+        {
+          "index": 12,
+          "value": {
+            "type_frame_width": 30
+          },
+          "src": "a.java:602"
+        },
+        {
+          "index": 12,
+          "value": {
+            "sheet_ref": {
+              "via": "alias",
+              "alias_of": 11
+            }
+          },
+          "src": "a.java:9489"
+        },
+        {
+          "index": 12,
+          "value": {
+            "render_category": 1
+          },
+          "src": "a.java:6270"
+        },
+        {
+          "index": 12,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:679"
+        }
+      ]
+    },
+    {
+      "type_id": 13,
+      "sheet": "sptprop",
+      "sheet_index": 1,
+      "frame_w": 32,
+      "frame_h": null,
+      "render_category": 2,
+      "anim_row": 0,
+      "type_frame_width": 32,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 13,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:512"
+        },
+        {
+          "index": 13,
+          "value": {
+            "type_frame_width": 32
+          },
+          "src": "a.java:603"
+        },
+        {
+          "index": 13,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 5,
+              "slot": 1
+            }
+          },
+          "src": "a.java:9468"
+        },
+        {
+          "index": 13,
+          "value": {
+            "render_category": 2
+          },
+          "src": "a.java:6274"
+        },
+        {
+          "index": 13,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 14,
+      "sheet": "sptprop",
+      "sheet_index": 2,
+      "frame_w": 32,
+      "frame_h": null,
+      "render_category": 2,
+      "anim_row": 0,
+      "type_frame_width": 32,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 14,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:513"
+        },
+        {
+          "index": 14,
+          "value": {
+            "type_frame_width": 32
+          },
+          "src": "a.java:604"
+        },
+        {
+          "index": 14,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 5,
+              "slot": 2
+            }
+          },
+          "src": "a.java:9468"
+        },
+        {
+          "index": 14,
+          "value": {
+            "render_category": 2
+          },
+          "src": "a.java:6274"
+        },
+        {
+          "index": 14,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 15,
+      "sheet": "sptprop",
+      "sheet_index": 3,
+      "frame_w": 30,
+      "frame_h": null,
+      "render_category": 2,
+      "anim_row": 0,
+      "type_frame_width": 30,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 15,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:514"
+        },
+        {
+          "index": 15,
+          "value": {
+            "type_frame_width": 30
+          },
+          "src": "a.java:605"
+        },
+        {
+          "index": 15,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 5,
+              "slot": 3
+            }
+          },
+          "src": "a.java:9468"
+        },
+        {
+          "index": 15,
+          "value": {
+            "render_category": 2
+          },
+          "src": "a.java:6274"
+        },
+        {
+          "index": 15,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 16,
+      "sheet": "sptprop",
+      "sheet_index": 4,
+      "frame_w": 30,
+      "frame_h": null,
+      "render_category": 2,
+      "anim_row": 0,
+      "type_frame_width": 30,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 16,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:515"
+        },
+        {
+          "index": 16,
+          "value": {
+            "type_frame_width": 30
+          },
+          "src": "a.java:606"
+        },
+        {
+          "index": 16,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 5,
+              "slot": 4
+            }
+          },
+          "src": "a.java:9468"
+        },
+        {
+          "index": 16,
+          "value": {
+            "render_category": 2
+          },
+          "src": "a.java:6274"
+        },
+        {
+          "index": 16,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 17,
+      "sheet": "sptprop",
+      "sheet_index": 5,
+      "frame_w": 24,
+      "frame_h": null,
+      "render_category": 2,
+      "anim_row": 0,
+      "type_frame_width": 24,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 17,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:516"
+        },
+        {
+          "index": 17,
+          "value": {
+            "type_frame_width": 24
+          },
+          "src": "a.java:607"
+        },
+        {
+          "index": 17,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 5,
+              "slot": 5
+            }
+          },
+          "src": "a.java:9468"
+        },
+        {
+          "index": 17,
+          "value": {
+            "render_category": 2
+          },
+          "src": "a.java:6274"
+        },
+        {
+          "index": 17,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 18,
+      "sheet": "sptprop",
+      "sheet_index": 6,
+      "frame_w": 25,
+      "frame_h": null,
+      "render_category": 2,
+      "anim_row": 0,
+      "type_frame_width": 25,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 18,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:517"
+        },
+        {
+          "index": 18,
+          "value": {
+            "type_frame_width": 25
+          },
+          "src": "a.java:608"
+        },
+        {
+          "index": 18,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 5,
+              "slot": 6
+            }
+          },
+          "src": "a.java:9468"
+        },
+        {
+          "index": 18,
+          "value": {
+            "render_category": 2
+          },
+          "src": "a.java:6274"
+        },
+        {
+          "index": 18,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 19,
+      "sheet": "sptprop",
+      "sheet_index": 7,
+      "frame_w": 21,
+      "frame_h": null,
+      "render_category": 2,
+      "anim_row": 0,
+      "type_frame_width": 21,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 19,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:518"
+        },
+        {
+          "index": 19,
+          "value": {
+            "type_frame_width": 21
+          },
+          "src": "a.java:609"
+        },
+        {
+          "index": 19,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 5,
+              "slot": 7
+            }
+          },
+          "src": "a.java:9468"
+        },
+        {
+          "index": 19,
+          "value": {
+            "render_category": 2
+          },
+          "src": "a.java:6274"
+        },
+        {
+          "index": 19,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 20,
+      "sheet": "sptprop",
+      "sheet_index": 8,
+      "frame_w": 32,
+      "frame_h": null,
+      "render_category": 2,
+      "anim_row": 0,
+      "type_frame_width": 32,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 20,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:519"
+        },
+        {
+          "index": 20,
+          "value": {
+            "type_frame_width": 32
+          },
+          "src": "a.java:610"
+        },
+        {
+          "index": 20,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 5,
+              "slot": 8
+            }
+          },
+          "src": "a.java:9468"
+        },
+        {
+          "index": 20,
+          "value": {
+            "render_category": 2
+          },
+          "src": "a.java:6274"
+        },
+        {
+          "index": 20,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 21,
+      "sheet": "sptprop",
+      "sheet_index": 9,
+      "frame_w": 25,
+      "frame_h": null,
+      "render_category": 2,
+      "anim_row": 0,
+      "type_frame_width": 25,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 21,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:520"
+        },
+        {
+          "index": 21,
+          "value": {
+            "type_frame_width": 25
+          },
+          "src": "a.java:611"
+        },
+        {
+          "index": 21,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 5,
+              "slot": 9
+            }
+          },
+          "src": "a.java:9468"
+        },
+        {
+          "index": 21,
+          "value": {
+            "render_category": 2
+          },
+          "src": "a.java:6274"
+        },
+        {
+          "index": 21,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 22,
+      "sheet": "sptprop",
+      "sheet_index": 10,
+      "frame_w": 25,
+      "frame_h": null,
+      "render_category": 2,
+      "anim_row": 0,
+      "type_frame_width": 25,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 22,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:521"
+        },
+        {
+          "index": 22,
+          "value": {
+            "type_frame_width": 25
+          },
+          "src": "a.java:612"
+        },
+        {
+          "index": 22,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 5,
+              "slot": 10
+            }
+          },
+          "src": "a.java:9468"
+        },
+        {
+          "index": 22,
+          "value": {
+            "render_category": 2
+          },
+          "src": "a.java:6274"
+        },
+        {
+          "index": 22,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 23,
+      "sheet": "sptprop",
+      "sheet_index": 11,
+      "frame_w": 27,
+      "frame_h": null,
+      "render_category": 2,
+      "anim_row": 0,
+      "type_frame_width": 27,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 23,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:522"
+        },
+        {
+          "index": 23,
+          "value": {
+            "type_frame_width": 27
+          },
+          "src": "a.java:613"
+        },
+        {
+          "index": 23,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 5,
+              "slot": 11
+            }
+          },
+          "src": "a.java:9468"
+        },
+        {
+          "index": 23,
+          "value": {
+            "render_category": 2
+          },
+          "src": "a.java:6274"
+        },
+        {
+          "index": 23,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 24,
+      "sheet": "sptprop",
+      "sheet_index": 12,
+      "frame_w": 31,
+      "frame_h": null,
+      "render_category": 2,
+      "anim_row": 0,
+      "type_frame_width": 31,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 24,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:523"
+        },
+        {
+          "index": 24,
+          "value": {
+            "type_frame_width": 31
+          },
+          "src": "a.java:614"
+        },
+        {
+          "index": 24,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 5,
+              "slot": 12
+            }
+          },
+          "src": "a.java:9468"
+        },
+        {
+          "index": 24,
+          "value": {
+            "render_category": 2
+          },
+          "src": "a.java:6274"
+        },
+        {
+          "index": 24,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 25,
+      "sheet": "sptprop",
+      "sheet_index": 13,
+      "frame_w": 27,
+      "frame_h": null,
+      "render_category": 2,
+      "anim_row": 0,
+      "type_frame_width": 27,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 25,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:524"
+        },
+        {
+          "index": 25,
+          "value": {
+            "type_frame_width": 27
+          },
+          "src": "a.java:615"
+        },
+        {
+          "index": 25,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 5,
+              "slot": 13
+            }
+          },
+          "src": "a.java:9468"
+        },
+        {
+          "index": 25,
+          "value": {
+            "render_category": 2
+          },
+          "src": "a.java:6274"
+        },
+        {
+          "index": 25,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 26,
+      "sheet": "sptprop",
+      "sheet_index": 14,
+      "frame_w": 23,
+      "frame_h": null,
+      "render_category": 2,
+      "anim_row": 0,
+      "type_frame_width": 23,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 26,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:525"
+        },
+        {
+          "index": 26,
+          "value": {
+            "type_frame_width": 23
+          },
+          "src": "a.java:616"
+        },
+        {
+          "index": 26,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 5,
+              "slot": 14
+            }
+          },
+          "src": "a.java:9468"
+        },
+        {
+          "index": 26,
+          "value": {
+            "render_category": 2
+          },
+          "src": "a.java:6274"
+        },
+        {
+          "index": 26,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 27,
+      "sheet": "sptprop",
+      "sheet_index": 15,
+      "frame_w": 23,
+      "frame_h": null,
+      "render_category": 2,
+      "anim_row": 0,
+      "type_frame_width": 23,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 27,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:526"
+        },
+        {
+          "index": 27,
+          "value": {
+            "type_frame_width": 23
+          },
+          "src": "a.java:617"
+        },
+        {
+          "index": 27,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 5,
+              "slot": 15
+            }
+          },
+          "src": "a.java:9468"
+        },
+        {
+          "index": 27,
+          "value": {
+            "render_category": 2
+          },
+          "src": "a.java:6274"
+        },
+        {
+          "index": 27,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 28,
+      "sheet": "sptprop",
+      "sheet_index": 16,
+      "frame_w": 23,
+      "frame_h": null,
+      "render_category": 2,
+      "anim_row": 0,
+      "type_frame_width": 23,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 28,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:527"
+        },
+        {
+          "index": 28,
+          "value": {
+            "type_frame_width": 23
+          },
+          "src": "a.java:618"
+        },
+        {
+          "index": 28,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 5,
+              "slot": 16
+            }
+          },
+          "src": "a.java:9468"
+        },
+        {
+          "index": 28,
+          "value": {
+            "render_category": 2
+          },
+          "src": "a.java:6274"
+        },
+        {
+          "index": 28,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 29,
+      "sheet": "sptprop",
+      "sheet_index": 17,
+      "frame_w": 32,
+      "frame_h": null,
+      "render_category": 2,
+      "anim_row": 0,
+      "type_frame_width": 32,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 29,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:528"
+        },
+        {
+          "index": 29,
+          "value": {
+            "type_frame_width": 32
+          },
+          "src": "a.java:619"
+        },
+        {
+          "index": 29,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 5,
+              "slot": 17
+            }
+          },
+          "src": "a.java:9468"
+        },
+        {
+          "index": 29,
+          "value": {
+            "render_category": 2
+          },
+          "src": "a.java:6274"
+        },
+        {
+          "index": 29,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 30,
+      "sheet": "sptprop",
+      "sheet_index": 18,
+      "frame_w": 32,
+      "frame_h": null,
+      "render_category": 2,
+      "anim_row": 0,
+      "type_frame_width": 32,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 30,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:529"
+        },
+        {
+          "index": 30,
+          "value": {
+            "type_frame_width": 32
+          },
+          "src": "a.java:620"
+        },
+        {
+          "index": 30,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 5,
+              "slot": 18
+            }
+          },
+          "src": "a.java:9468"
+        },
+        {
+          "index": 30,
+          "value": {
+            "render_category": 2
+          },
+          "src": "a.java:6274"
+        },
+        {
+          "index": 30,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 31,
+      "sheet": "sptprop",
+      "sheet_index": 19,
+      "frame_w": 32,
+      "frame_h": null,
+      "render_category": 2,
+      "anim_row": 0,
+      "type_frame_width": 32,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 31,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:530"
+        },
+        {
+          "index": 31,
+          "value": {
+            "type_frame_width": 32
+          },
+          "src": "a.java:621"
+        },
+        {
+          "index": 31,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 5,
+              "slot": 19
+            }
+          },
+          "src": "a.java:9468"
+        },
+        {
+          "index": 31,
+          "value": {
+            "render_category": 2
+          },
+          "src": "a.java:6274"
+        },
+        {
+          "index": 31,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 32,
+      "sheet": "sptprop",
+      "sheet_index": 20,
+      "frame_w": 32,
+      "frame_h": null,
+      "render_category": 2,
+      "anim_row": 0,
+      "type_frame_width": 32,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 32,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:531"
+        },
+        {
+          "index": 32,
+          "value": {
+            "type_frame_width": 32
+          },
+          "src": "a.java:622"
+        },
+        {
+          "index": 32,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 5,
+              "slot": 20
+            }
+          },
+          "src": "a.java:9468"
+        },
+        {
+          "index": 32,
+          "value": {
+            "render_category": 2
+          },
+          "src": "a.java:6274"
+        },
+        {
+          "index": 32,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 33,
+      "sheet": "sptarm",
+      "sheet_index": 0,
+      "frame_w": 27,
+      "frame_h": null,
+      "render_category": 4,
+      "anim_row": 0,
+      "type_frame_width": 27,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 33,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:532"
+        },
+        {
+          "index": 33,
+          "value": {
+            "type_frame_width": 27
+          },
+          "src": "a.java:623"
+        },
+        {
+          "index": 33,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 6,
+              "slot": 0
+            }
+          },
+          "src": "a.java:9472"
+        },
+        {
+          "index": 33,
+          "value": {
+            "render_category": 4
+          },
+          "src": "a.java:6278"
+        },
+        {
+          "index": 33,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 34,
+      "sheet": "sptarm",
+      "sheet_index": 1,
+      "frame_w": 27,
+      "frame_h": null,
+      "render_category": 4,
+      "anim_row": 0,
+      "type_frame_width": 27,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 34,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:533"
+        },
+        {
+          "index": 34,
+          "value": {
+            "type_frame_width": 27
+          },
+          "src": "a.java:624"
+        },
+        {
+          "index": 34,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 6,
+              "slot": 1
+            }
+          },
+          "src": "a.java:9472"
+        },
+        {
+          "index": 34,
+          "value": {
+            "render_category": 4
+          },
+          "src": "a.java:6278"
+        },
+        {
+          "index": 34,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 35,
+      "sheet": "sptarm",
+      "sheet_index": 2,
+      "frame_w": 27,
+      "frame_h": null,
+      "render_category": 4,
+      "anim_row": 0,
+      "type_frame_width": 27,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 35,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:534"
+        },
+        {
+          "index": 35,
+          "value": {
+            "type_frame_width": 27
+          },
+          "src": "a.java:625"
+        },
+        {
+          "index": 35,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 6,
+              "slot": 2
+            }
+          },
+          "src": "a.java:9472"
+        },
+        {
+          "index": 35,
+          "value": {
+            "render_category": 4
+          },
+          "src": "a.java:6278"
+        },
+        {
+          "index": 35,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 36,
+      "sheet": "sptarm",
+      "sheet_index": 3,
+      "frame_w": 27,
+      "frame_h": null,
+      "render_category": 4,
+      "anim_row": 0,
+      "type_frame_width": 27,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 36,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:535"
+        },
+        {
+          "index": 36,
+          "value": {
+            "type_frame_width": 27
+          },
+          "src": "a.java:626"
+        },
+        {
+          "index": 36,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 6,
+              "slot": 3
+            }
+          },
+          "src": "a.java:9472"
+        },
+        {
+          "index": 36,
+          "value": {
+            "render_category": 4
+          },
+          "src": "a.java:6278"
+        },
+        {
+          "index": 36,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 37,
+      "sheet": "sptarm",
+      "sheet_index": 4,
+      "frame_w": 22,
+      "frame_h": null,
+      "render_category": 4,
+      "anim_row": 0,
+      "type_frame_width": 22,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 37,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:536"
+        },
+        {
+          "index": 37,
+          "value": {
+            "type_frame_width": 22
+          },
+          "src": "a.java:627"
+        },
+        {
+          "index": 37,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 6,
+              "slot": 4
+            }
+          },
+          "src": "a.java:9472"
+        },
+        {
+          "index": 37,
+          "value": {
+            "render_category": 4
+          },
+          "src": "a.java:6278"
+        },
+        {
+          "index": 37,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 38,
+      "sheet": "sptarm",
+      "sheet_index": 5,
+      "frame_w": 22,
+      "frame_h": null,
+      "render_category": 4,
+      "anim_row": 0,
+      "type_frame_width": 22,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 38,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:537"
+        },
+        {
+          "index": 38,
+          "value": {
+            "type_frame_width": 22
+          },
+          "src": "a.java:628"
+        },
+        {
+          "index": 38,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 6,
+              "slot": 5
+            }
+          },
+          "src": "a.java:9472"
+        },
+        {
+          "index": 38,
+          "value": {
+            "render_category": 4
+          },
+          "src": "a.java:6278"
+        },
+        {
+          "index": 38,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 39,
+      "sheet": "sptarm",
+      "sheet_index": 6,
+      "frame_w": 16,
+      "frame_h": null,
+      "render_category": 4,
+      "anim_row": 0,
+      "type_frame_width": 16,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 39,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:538"
+        },
+        {
+          "index": 39,
+          "value": {
+            "type_frame_width": 16
+          },
+          "src": "a.java:629"
+        },
+        {
+          "index": 39,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 6,
+              "slot": 6
+            }
+          },
+          "src": "a.java:9472"
+        },
+        {
+          "index": 39,
+          "value": {
+            "render_category": 4
+          },
+          "src": "a.java:6278"
+        },
+        {
+          "index": 39,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 40,
+      "sheet": "sptarm",
+      "sheet_index": 7,
+      "frame_w": 25,
+      "frame_h": null,
+      "render_category": 4,
+      "anim_row": 0,
+      "type_frame_width": 25,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 40,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:539"
+        },
+        {
+          "index": 40,
+          "value": {
+            "type_frame_width": 25
+          },
+          "src": "a.java:630"
+        },
+        {
+          "index": 40,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 6,
+              "slot": 7
+            }
+          },
+          "src": "a.java:9472"
+        },
+        {
+          "index": 40,
+          "value": {
+            "render_category": 4
+          },
+          "src": "a.java:6278"
+        },
+        {
+          "index": 40,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 41,
+      "sheet": "sptenemy1",
+      "sheet_index": 0,
+      "frame_w": 15,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 3,
+      "type_frame_width": 15,
+      "anim_profile": "anim_row_3",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 41,
+          "value": {
+            "anim_row": 3
+          },
+          "src": "a.java:540"
+        },
+        {
+          "index": 41,
+          "value": {
+            "type_frame_width": 15
+          },
+          "src": "a.java:631"
+        },
+        {
+          "index": 41,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 7,
+              "slot": 0
+            }
+          },
+          "src": "a.java:9476"
+        },
+        {
+          "index": 41,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 41,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 42,
+      "sheet": "sptenemy1",
+      "sheet_index": 1,
+      "frame_w": 20,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 3,
+      "type_frame_width": 20,
+      "anim_profile": "anim_row_3",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 42,
+          "value": {
+            "anim_row": 3
+          },
+          "src": "a.java:541"
+        },
+        {
+          "index": 42,
+          "value": {
+            "type_frame_width": 20
+          },
+          "src": "a.java:632"
+        },
+        {
+          "index": 42,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 7,
+              "slot": 1
+            }
+          },
+          "src": "a.java:9476"
+        },
+        {
+          "index": 42,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 42,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 43,
+      "sheet": "sptenemy1",
+      "sheet_index": 2,
+      "frame_w": 28,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 3,
+      "type_frame_width": 28,
+      "anim_profile": "anim_row_3",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 43,
+          "value": {
+            "anim_row": 3
+          },
+          "src": "a.java:542"
+        },
+        {
+          "index": 43,
+          "value": {
+            "type_frame_width": 28
+          },
+          "src": "a.java:633"
+        },
+        {
+          "index": 43,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 7,
+              "slot": 2
+            }
+          },
+          "src": "a.java:9476"
+        },
+        {
+          "index": 43,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 43,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 44,
+      "sheet": "sptenemy1",
+      "sheet_index": 3,
+      "frame_w": 26,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 4,
+      "type_frame_width": 26,
+      "anim_profile": "anim_row_4",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 44,
+          "value": {
+            "anim_row": 4
+          },
+          "src": "a.java:543"
+        },
+        {
+          "index": 44,
+          "value": {
+            "type_frame_width": 26
+          },
+          "src": "a.java:634"
+        },
+        {
+          "index": 44,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 7,
+              "slot": 3
+            }
+          },
+          "src": "a.java:9476"
+        },
+        {
+          "index": 44,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 44,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 45,
+      "sheet": "sptenemy1",
+      "sheet_index": 4,
+      "frame_w": 23,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 2,
+      "type_frame_width": 23,
+      "anim_profile": "anim_row_2",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 45,
+          "value": {
+            "anim_row": 2
+          },
+          "src": "a.java:544"
+        },
+        {
+          "index": 45,
+          "value": {
+            "type_frame_width": 23
+          },
+          "src": "a.java:635"
+        },
+        {
+          "index": 45,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 7,
+              "slot": 4
+            }
+          },
+          "src": "a.java:9476"
+        },
+        {
+          "index": 45,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 45,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 46,
+      "sheet": "sptenemy1",
+      "sheet_index": 5,
+      "frame_w": 34,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 3,
+      "type_frame_width": 34,
+      "anim_profile": "anim_row_3",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 46,
+          "value": {
+            "anim_row": 3
+          },
+          "src": "a.java:545"
+        },
+        {
+          "index": 46,
+          "value": {
+            "type_frame_width": 34
+          },
+          "src": "a.java:636"
+        },
+        {
+          "index": 46,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 7,
+              "slot": 5
+            }
+          },
+          "src": "a.java:9476"
+        },
+        {
+          "index": 46,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 46,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 47,
+      "sheet": "sptenemy1",
+      "sheet_index": 6,
+      "frame_w": 35,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 3,
+      "type_frame_width": 35,
+      "anim_profile": "anim_row_3",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 47,
+          "value": {
+            "anim_row": 3
+          },
+          "src": "a.java:546"
+        },
+        {
+          "index": 47,
+          "value": {
+            "type_frame_width": 35
+          },
+          "src": "a.java:637"
+        },
+        {
+          "index": 47,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 7,
+              "slot": 6
+            }
+          },
+          "src": "a.java:9476"
+        },
+        {
+          "index": 47,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 47,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 48,
+      "sheet": "sptenemy1",
+      "sheet_index": 7,
+      "frame_w": 24,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 3,
+      "type_frame_width": 24,
+      "anim_profile": "anim_row_3",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 48,
+          "value": {
+            "anim_row": 3
+          },
+          "src": "a.java:547"
+        },
+        {
+          "index": 48,
+          "value": {
+            "type_frame_width": 24
+          },
+          "src": "a.java:638"
+        },
+        {
+          "index": 48,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 7,
+              "slot": 7
+            }
+          },
+          "src": "a.java:9476"
+        },
+        {
+          "index": 48,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 48,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 49,
+      "sheet": "sptenemy1",
+      "sheet_index": 8,
+      "frame_w": 33,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 3,
+      "type_frame_width": 33,
+      "anim_profile": "anim_row_3",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 49,
+          "value": {
+            "anim_row": 3
+          },
+          "src": "a.java:548"
+        },
+        {
+          "index": 49,
+          "value": {
+            "type_frame_width": 33
+          },
+          "src": "a.java:639"
+        },
+        {
+          "index": 49,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 7,
+              "slot": 8
+            }
+          },
+          "src": "a.java:9476"
+        },
+        {
+          "index": 49,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 49,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 50,
+      "sheet": "sptenemy1",
+      "sheet_index": 9,
+      "frame_w": 22,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 3,
+      "type_frame_width": 22,
+      "anim_profile": "anim_row_3",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 50,
+          "value": {
+            "anim_row": 3
+          },
+          "src": "a.java:549"
+        },
+        {
+          "index": 50,
+          "value": {
+            "type_frame_width": 22
+          },
+          "src": "a.java:640"
+        },
+        {
+          "index": 50,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 7,
+              "slot": 9
+            }
+          },
+          "src": "a.java:9476"
+        },
+        {
+          "index": 50,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 50,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 51,
+      "sheet": "sptenemy1",
+      "sheet_index": 10,
+      "frame_w": 22,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 3,
+      "type_frame_width": 22,
+      "anim_profile": "anim_row_3",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 51,
+          "value": {
+            "anim_row": 3
+          },
+          "src": "a.java:550"
+        },
+        {
+          "index": 51,
+          "value": {
+            "type_frame_width": 22
+          },
+          "src": "a.java:641"
+        },
+        {
+          "index": 51,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 7,
+              "slot": 10
+            }
+          },
+          "src": "a.java:9476"
+        },
+        {
+          "index": 51,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 51,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 52,
+      "sheet": "sptenemy1",
+      "sheet_index": 11,
+      "frame_w": 28,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 2,
+      "type_frame_width": 28,
+      "anim_profile": "anim_row_2",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 52,
+          "value": {
+            "anim_row": 2
+          },
+          "src": "a.java:551"
+        },
+        {
+          "index": 52,
+          "value": {
+            "type_frame_width": 28
+          },
+          "src": "a.java:642"
+        },
+        {
+          "index": 52,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 7,
+              "slot": 11
+            }
+          },
+          "src": "a.java:9476"
+        },
+        {
+          "index": 52,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 52,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 53,
+      "sheet": "sptenemy1",
+      "sheet_index": 12,
+      "frame_w": 36,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 3,
+      "type_frame_width": 36,
+      "anim_profile": "anim_row_3",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 53,
+          "value": {
+            "anim_row": 3
+          },
+          "src": "a.java:552"
+        },
+        {
+          "index": 53,
+          "value": {
+            "type_frame_width": 36
+          },
+          "src": "a.java:643"
+        },
+        {
+          "index": 53,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 7,
+              "slot": 12
+            }
+          },
+          "src": "a.java:9476"
+        },
+        {
+          "index": 53,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 53,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 54,
+      "sheet": "sptenemy1",
+      "sheet_index": 13,
+      "frame_w": 38,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 2,
+      "type_frame_width": 38,
+      "anim_profile": "anim_row_2",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 54,
+          "value": {
+            "anim_row": 2
+          },
+          "src": "a.java:553"
+        },
+        {
+          "index": 54,
+          "value": {
+            "type_frame_width": 38
+          },
+          "src": "a.java:644"
+        },
+        {
+          "index": 54,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 7,
+              "slot": 13
+            }
+          },
+          "src": "a.java:9476"
+        },
+        {
+          "index": 54,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 54,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 55,
+      "sheet": "sptenemy1",
+      "sheet_index": 14,
+      "frame_w": 29,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 2,
+      "type_frame_width": 29,
+      "anim_profile": "anim_row_2",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 55,
+          "value": {
+            "anim_row": 2
+          },
+          "src": "a.java:554"
+        },
+        {
+          "index": 55,
+          "value": {
+            "type_frame_width": 29
+          },
+          "src": "a.java:645"
+        },
+        {
+          "index": 55,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 7,
+              "slot": 14
+            }
+          },
+          "src": "a.java:9476"
+        },
+        {
+          "index": 55,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 55,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 56,
+      "sheet": "sptenemy1",
+      "sheet_index": 15,
+      "frame_w": 34,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 2,
+      "type_frame_width": 34,
+      "anim_profile": "anim_row_2",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 56,
+          "value": {
+            "anim_row": 2
+          },
+          "src": "a.java:555"
+        },
+        {
+          "index": 56,
+          "value": {
+            "type_frame_width": 34
+          },
+          "src": "a.java:646"
+        },
+        {
+          "index": 56,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 7,
+              "slot": 15
+            }
+          },
+          "src": "a.java:9476"
+        },
+        {
+          "index": 56,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 56,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 57,
+      "sheet": "sptenemy1",
+      "sheet_index": 16,
+      "frame_w": 29,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 3,
+      "type_frame_width": 29,
+      "anim_profile": "anim_row_3",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 57,
+          "value": {
+            "anim_row": 3
+          },
+          "src": "a.java:556"
+        },
+        {
+          "index": 57,
+          "value": {
+            "type_frame_width": 29
+          },
+          "src": "a.java:647"
+        },
+        {
+          "index": 57,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 7,
+              "slot": 16
+            }
+          },
+          "src": "a.java:9476"
+        },
+        {
+          "index": 57,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 57,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 58,
+      "sheet": "sptenemy1",
+      "sheet_index": 17,
+      "frame_w": 30,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 2,
+      "type_frame_width": 30,
+      "anim_profile": "anim_row_2",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 58,
+          "value": {
+            "anim_row": 2
+          },
+          "src": "a.java:557"
+        },
+        {
+          "index": 58,
+          "value": {
+            "type_frame_width": 30
+          },
+          "src": "a.java:648"
+        },
+        {
+          "index": 58,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 7,
+              "slot": 17
+            }
+          },
+          "src": "a.java:9476"
+        },
+        {
+          "index": 58,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 58,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 59,
+      "sheet": "sptenemy1",
+      "sheet_index": 18,
+      "frame_w": 31,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 3,
+      "type_frame_width": 31,
+      "anim_profile": "anim_row_3",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 59,
+          "value": {
+            "anim_row": 3
+          },
+          "src": "a.java:558"
+        },
+        {
+          "index": 59,
+          "value": {
+            "type_frame_width": 31
+          },
+          "src": "a.java:649"
+        },
+        {
+          "index": 59,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 7,
+              "slot": 18
+            }
+          },
+          "src": "a.java:9476"
+        },
+        {
+          "index": 59,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 59,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 60,
+      "sheet": "sptenemy1",
+      "sheet_index": 19,
+      "frame_w": 33,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 3,
+      "type_frame_width": 33,
+      "anim_profile": "anim_row_3",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 60,
+          "value": {
+            "anim_row": 3
+          },
+          "src": "a.java:559"
+        },
+        {
+          "index": 60,
+          "value": {
+            "type_frame_width": 33
+          },
+          "src": "a.java:650"
+        },
+        {
+          "index": 60,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 7,
+              "slot": 19
+            }
+          },
+          "src": "a.java:9476"
+        },
+        {
+          "index": 60,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 60,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 61,
+      "sheet": "sptenemy2",
+      "sheet_index": 0,
+      "frame_w": 26,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 3,
+      "type_frame_width": 26,
+      "anim_profile": "anim_row_3",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 61,
+          "value": {
+            "anim_row": 3
+          },
+          "src": "a.java:560"
+        },
+        {
+          "index": 61,
+          "value": {
+            "type_frame_width": 26
+          },
+          "src": "a.java:651"
+        },
+        {
+          "index": 61,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 13,
+              "slot": 0
+            }
+          },
+          "src": "a.java:9480"
+        },
+        {
+          "index": 61,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 61,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 62,
+      "sheet": "sptenemy2",
+      "sheet_index": 1,
+      "frame_w": 30,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 2,
+      "type_frame_width": 30,
+      "anim_profile": "anim_row_2",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 62,
+          "value": {
+            "anim_row": 2
+          },
+          "src": "a.java:561"
+        },
+        {
+          "index": 62,
+          "value": {
+            "type_frame_width": 30
+          },
+          "src": "a.java:652"
+        },
+        {
+          "index": 62,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 13,
+              "slot": 1
+            }
+          },
+          "src": "a.java:9480"
+        },
+        {
+          "index": 62,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 62,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 63,
+      "sheet": "sptenemy2",
+      "sheet_index": 2,
+      "frame_w": 36,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 3,
+      "type_frame_width": 36,
+      "anim_profile": "anim_row_3",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 63,
+          "value": {
+            "anim_row": 3
+          },
+          "src": "a.java:562"
+        },
+        {
+          "index": 63,
+          "value": {
+            "type_frame_width": 36
+          },
+          "src": "a.java:653"
+        },
+        {
+          "index": 63,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 13,
+              "slot": 2
+            }
+          },
+          "src": "a.java:9480"
+        },
+        {
+          "index": 63,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 63,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 64,
+      "sheet": "sptenemy2",
+      "sheet_index": 3,
+      "frame_w": 23,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 5,
+      "type_frame_width": 23,
+      "anim_profile": "anim_row_5",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 64,
+          "value": {
+            "anim_row": 5
+          },
+          "src": "a.java:563"
+        },
+        {
+          "index": 64,
+          "value": {
+            "type_frame_width": 23
+          },
+          "src": "a.java:654"
+        },
+        {
+          "index": 64,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 13,
+              "slot": 3
+            }
+          },
+          "src": "a.java:9480"
+        },
+        {
+          "index": 64,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 64,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 65,
+      "sheet": "sptenemy2",
+      "sheet_index": 4,
+      "frame_w": 38,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 3,
+      "type_frame_width": 38,
+      "anim_profile": "anim_row_3",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 65,
+          "value": {
+            "anim_row": 3
+          },
+          "src": "a.java:564"
+        },
+        {
+          "index": 65,
+          "value": {
+            "type_frame_width": 38
+          },
+          "src": "a.java:655"
+        },
+        {
+          "index": 65,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 13,
+              "slot": 4
+            }
+          },
+          "src": "a.java:9480"
+        },
+        {
+          "index": 65,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 65,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 66,
+      "sheet": "sptenemy2",
+      "sheet_index": 5,
+      "frame_w": 33,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 3,
+      "type_frame_width": 33,
+      "anim_profile": "anim_row_3",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 66,
+          "value": {
+            "anim_row": 3
+          },
+          "src": "a.java:565"
+        },
+        {
+          "index": 66,
+          "value": {
+            "type_frame_width": 33
+          },
+          "src": "a.java:656"
+        },
+        {
+          "index": 66,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 13,
+              "slot": 5
+            }
+          },
+          "src": "a.java:9480"
+        },
+        {
+          "index": 66,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 66,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 67,
+      "sheet": "sptenemy2",
+      "sheet_index": 6,
+      "frame_w": 32,
+      "frame_h": 32,
+      "render_category": 8,
+      "anim_row": 3,
+      "type_frame_width": 42,
+      "anim_profile": "anim_row_3",
+      "assembly_profile": "seg67",
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 67,
+          "value": {
+            "anim_row": 3
+          },
+          "src": "a.java:566"
+        },
+        {
+          "index": 67,
+          "value": {
+            "type_frame_width": 42
+          },
+          "src": "a.java:657"
+        },
+        {
+          "index": 67,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 13,
+              "slot": 6
+            }
+          },
+          "src": "a.java:9480"
+        },
+        {
+          "index": 67,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 67,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 68,
+      "sheet": "sptenemy2",
+      "sheet_index": 7,
+      "frame_w": 32,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 3,
+      "type_frame_width": 32,
+      "anim_profile": "anim_row_3",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 68,
+          "value": {
+            "anim_row": 3
+          },
+          "src": "a.java:567"
+        },
+        {
+          "index": 68,
+          "value": {
+            "type_frame_width": 32
+          },
+          "src": "a.java:658"
+        },
+        {
+          "index": 68,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 13,
+              "slot": 7
+            }
+          },
+          "src": "a.java:9480"
+        },
+        {
+          "index": 68,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 68,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 69,
+      "sheet": "sptenemy2",
+      "sheet_index": 8,
+      "frame_w": 96,
+      "frame_h": 32,
+      "render_category": 8,
+      "anim_row": 3,
+      "type_frame_width": 78,
+      "anim_profile": "anim_row_3",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 69,
+          "value": {
+            "anim_row": 3
+          },
+          "src": "a.java:568"
+        },
+        {
+          "index": 69,
+          "value": {
+            "type_frame_width": 78
+          },
+          "src": "a.java:659"
+        },
+        {
+          "index": 69,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 13,
+              "slot": 8
+            }
+          },
+          "src": "a.java:9480"
+        },
+        {
+          "index": 69,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 69,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 70,
+      "sheet": "sptenemy2",
+      "sheet_index": 9,
+      "frame_w": 38,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 3,
+      "type_frame_width": 38,
+      "anim_profile": "anim_row_3",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 70,
+          "value": {
+            "anim_row": 3
+          },
+          "src": "a.java:569"
+        },
+        {
+          "index": 70,
+          "value": {
+            "type_frame_width": 38
+          },
+          "src": "a.java:660"
+        },
+        {
+          "index": 70,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 13,
+              "slot": 9
+            }
+          },
+          "src": "a.java:9480"
+        },
+        {
+          "index": 70,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 70,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 71,
+      "sheet": "sptenemy2",
+      "sheet_index": 9,
+      "frame_w": 36,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 0,
+      "type_frame_width": 36,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 71,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:570"
+        },
+        {
+          "index": 71,
+          "value": {
+            "type_frame_width": 36
+          },
+          "src": "a.java:661"
+        },
+        {
+          "index": 71,
+          "value": {
+            "sheet_ref": {
+              "via": "alias",
+              "alias_of": 70
+            }
+          },
+          "src": "a.java:9491"
+        },
+        {
+          "index": 71,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 71,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 72,
+      "sheet": "sptenemy2",
+      "sheet_index": 11,
+      "frame_w": 32,
+      "frame_h": 45,
+      "render_category": 32,
+      "anim_row": 0,
+      "type_frame_width": 32,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [
+        {
+          "floor": 50,
+          "category": 8
+        }
+      ],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 72,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:571"
+        },
+        {
+          "index": 72,
+          "value": {
+            "type_frame_width": 32
+          },
+          "src": "a.java:662"
+        },
+        {
+          "index": 72,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 13,
+              "slot": 11
+            }
+          },
+          "src": "a.java:9480"
+        },
+        {
+          "index": 72,
+          "value": {
+            "render_category": 32
+          },
+          "src": "a.java:6292"
+        },
+        {
+          "index": 72,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        },
+        {
+          "index": 72,
+          "value": {
+            "floor_category_override": {
+              "floor": 50,
+              "category": 8,
+              "default_category": 32
+            }
+          },
+          "src": "a.java:9681"
+        }
+      ]
+    },
+    {
+      "type_id": 73,
+      "sheet": "sptenemy2",
+      "sheet_index": 12,
+      "frame_w": 39,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 0,
+      "type_frame_width": 39,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 73,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:572"
+        },
+        {
+          "index": 73,
+          "value": {
+            "type_frame_width": 39
+          },
+          "src": "a.java:663"
+        },
+        {
+          "index": 73,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 13,
+              "slot": 12
+            }
+          },
+          "src": "a.java:9480"
+        },
+        {
+          "index": 73,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 73,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 74,
+      "sheet": "sptenemy2",
+      "sheet_index": 13,
+      "frame_w": 59,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 2,
+      "type_frame_width": 59,
+      "anim_profile": "anim_row_2",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 74,
+          "value": {
+            "anim_row": 2
+          },
+          "src": "a.java:573"
+        },
+        {
+          "index": 74,
+          "value": {
+            "type_frame_width": 59
+          },
+          "src": "a.java:664"
+        },
+        {
+          "index": 74,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 13,
+              "slot": 13
+            }
+          },
+          "src": "a.java:9480"
+        },
+        {
+          "index": 74,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 74,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 75,
+      "sheet": "sptenemy2",
+      "sheet_index": 14,
+      "frame_w": 36,
+      "frame_h": null,
+      "render_category": 8,
+      "anim_row": 2,
+      "type_frame_width": 36,
+      "anim_profile": "anim_row_2",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 75,
+          "value": {
+            "anim_row": 2
+          },
+          "src": "a.java:574"
+        },
+        {
+          "index": 75,
+          "value": {
+            "type_frame_width": 36
+          },
+          "src": "a.java:665"
+        },
+        {
+          "index": 75,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 13,
+              "slot": 14
+            }
+          },
+          "src": "a.java:9480"
+        },
+        {
+          "index": 75,
+          "value": {
+            "render_category": 8
+          },
+          "src": "a.java:6282"
+        },
+        {
+          "index": 75,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 76,
+      "sheet": "sptenemy2",
+      "sheet_index": 15,
+      "frame_w": 32,
+      "frame_h": null,
+      "render_category": 1,
+      "anim_row": 0,
+      "type_frame_width": 32,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 76,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:575"
+        },
+        {
+          "index": 76,
+          "value": {
+            "type_frame_width": 32
+          },
+          "src": "a.java:666"
+        },
+        {
+          "index": 76,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 13,
+              "slot": 15
+            }
+          },
+          "src": "a.java:9480"
+        },
+        {
+          "index": 76,
+          "value": {
+            "render_category": 1
+          },
+          "src": "a.java:6285"
+        },
+        {
+          "index": 76,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 77,
+      "sheet": "sptenemy2",
+      "sheet_index": 16,
+      "frame_w": 29,
+      "frame_h": null,
+      "render_category": 16,
+      "anim_row": 0,
+      "type_frame_width": 29,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 77,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:576"
+        },
+        {
+          "index": 77,
+          "value": {
+            "type_frame_width": 29
+          },
+          "src": "a.java:667"
+        },
+        {
+          "index": 77,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 13,
+              "slot": 16
+            }
+          },
+          "src": "a.java:9480"
+        },
+        {
+          "index": 77,
+          "value": {
+            "render_category": 16
+          },
+          "src": "a.java:6286"
+        },
+        {
+          "index": 77,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 78,
+      "sheet": "sptenemy2",
+      "sheet_index": 17,
+      "frame_w": 37,
+      "frame_h": null,
+      "render_category": 16,
+      "anim_row": 0,
+      "type_frame_width": 37,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 78,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:577"
+        },
+        {
+          "index": 78,
+          "value": {
+            "type_frame_width": 37
+          },
+          "src": "a.java:668"
+        },
+        {
+          "index": 78,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 13,
+              "slot": 17
+            }
+          },
+          "src": "a.java:9480"
+        },
+        {
+          "index": 78,
+          "value": {
+            "render_category": 16
+          },
+          "src": "a.java:6287"
+        },
+        {
+          "index": 78,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 79,
+      "sheet": "sptarm",
+      "sheet_index": 8,
+      "frame_w": 27,
+      "frame_h": null,
+      "render_category": 4,
+      "anim_row": 0,
+      "type_frame_width": 27,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 79,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:578"
+        },
+        {
+          "index": 79,
+          "value": {
+            "type_frame_width": 27
+          },
+          "src": "a.java:669"
+        },
+        {
+          "index": 79,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 6,
+              "slot": 8
+            }
+          },
+          "src": "a.java:9487"
+        },
+        {
+          "index": 79,
+          "value": {
+            "render_category": 4
+          },
+          "src": "a.java:6288"
+        },
+        {
+          "index": 79,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 80,
+      "sheet": "sptarm",
+      "sheet_index": 9,
+      "frame_w": 17,
+      "frame_h": null,
+      "render_category": 4,
+      "anim_row": 0,
+      "type_frame_width": 17,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 80,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:579"
+        },
+        {
+          "index": 80,
+          "value": {
+            "type_frame_width": 17
+          },
+          "src": "a.java:670"
+        },
+        {
+          "index": 80,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 6,
+              "slot": 9
+            }
+          },
+          "src": "a.java:9488"
+        },
+        {
+          "index": 80,
+          "value": {
+            "render_category": 4
+          },
+          "src": "a.java:6289"
+        },
+        {
+          "index": 80,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 81,
+      "sheet": "sptmap",
+      "sheet_index": 3,
+      "frame_w": 32,
+      "frame_h": null,
+      "render_category": 1,
+      "anim_row": 0,
+      "type_frame_width": 32,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 81,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:580"
+        },
+        {
+          "index": 81,
+          "value": {
+            "type_frame_width": 32
+          },
+          "src": "a.java:671"
+        },
+        {
+          "index": 81,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 4,
+              "slot": 3
+            }
+          },
+          "src": "a.java:9490"
+        },
+        {
+          "index": 81,
+          "value": {
+            "render_category": 1
+          },
+          "src": "a.java:6290"
+        },
+        {
+          "index": 81,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 82,
+      "sheet": null,
+      "sheet_index": null,
+      "frame_w": 32,
+      "frame_h": 32,
+      "render_category": 1,
+      "anim_row": 0,
+      "type_frame_width": 32,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 82,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:581"
+        },
+        {
+          "index": 82,
+          "value": {
+            "type_frame_width": 32
+          },
+          "src": "a.java:672"
+        },
+        {
+          "index": 82,
+          "value": {
+            "render_category": 1
+          },
+          "src": "a.java:6297"
+        },
+        {
+          "index": 82,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 83,
+      "sheet": null,
+      "sheet_index": null,
+      "frame_w": 32,
+      "frame_h": 32,
+      "render_category": 1,
+      "anim_row": 0,
+      "type_frame_width": 32,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 83,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:582"
+        },
+        {
+          "index": 83,
+          "value": {
+            "type_frame_width": 32
+          },
+          "src": "a.java:673"
+        },
+        {
+          "index": 83,
+          "value": {
+            "render_category": 1
+          },
+          "src": "a.java:6291"
+        },
+        {
+          "index": 83,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 84,
+      "sheet": "sptenemy2",
+      "sheet_index": 18,
+      "frame_w": 29,
+      "frame_h": null,
+      "render_category": 32,
+      "anim_row": 2,
+      "type_frame_width": 29,
+      "anim_profile": "anim_row_2",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 84,
+          "value": {
+            "anim_row": 2
+          },
+          "src": "a.java:583"
+        },
+        {
+          "index": 84,
+          "value": {
+            "type_frame_width": 29
+          },
+          "src": "a.java:674"
+        },
+        {
+          "index": 84,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 13,
+              "slot": 18
+            }
+          },
+          "src": "a.java:9483"
+        },
+        {
+          "index": 84,
+          "value": {
+            "render_category": 32
+          },
+          "src": "a.java:6293"
+        },
+        {
+          "index": 84,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 85,
+      "sheet": "sptprop",
+      "sheet_index": 21,
+      "frame_w": 27,
+      "frame_h": null,
+      "render_category": 2,
+      "anim_row": 0,
+      "type_frame_width": 27,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 85,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:584"
+        },
+        {
+          "index": 85,
+          "value": {
+            "type_frame_width": 27
+          },
+          "src": "a.java:675"
+        },
+        {
+          "index": 85,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 5,
+              "slot": 21
+            }
+          },
+          "src": "a.java:9485"
+        },
+        {
+          "index": 85,
+          "value": {
+            "render_category": 2
+          },
+          "src": "a.java:6295"
+        },
+        {
+          "index": 85,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 86,
+      "sheet": "sptprop",
+      "sheet_index": 22,
+      "frame_w": 32,
+      "frame_h": null,
+      "render_category": 2,
+      "anim_row": 0,
+      "type_frame_width": 32,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 86,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:585"
+        },
+        {
+          "index": 86,
+          "value": {
+            "type_frame_width": 32
+          },
+          "src": "a.java:676"
+        },
+        {
+          "index": 86,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 5,
+              "slot": 22
+            }
+          },
+          "src": "a.java:9486"
+        },
+        {
+          "index": 86,
+          "value": {
+            "render_category": 2
+          },
+          "src": "a.java:6296"
+        },
+        {
+          "index": 86,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 87,
+      "sheet": "sptenemy2",
+      "sheet_index": 19,
+      "frame_w": 36,
+      "frame_h": null,
+      "render_category": 32,
+      "anim_row": 0,
+      "type_frame_width": 36,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 87,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:586"
+        },
+        {
+          "index": 87,
+          "value": {
+            "type_frame_width": 36
+          },
+          "src": "a.java:677"
+        },
+        {
+          "index": 87,
+          "value": {
+            "sheet_ref": {
+              "via": "direct",
+              "container_index": 13,
+              "slot": 19
+            }
+          },
+          "src": "a.java:9484"
+        },
+        {
+          "index": 87,
+          "value": {
+            "render_category": 32
+          },
+          "src": "a.java:6294"
+        },
+        {
+          "index": 87,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    },
+    {
+      "type_id": 88,
+      "sheet": null,
+      "sheet_index": null,
+      "frame_w": 32,
+      "frame_h": 32,
+      "render_category": 0,
+      "anim_row": 0,
+      "type_frame_width": null,
+      "anim_profile": "anim_row_0",
+      "assembly_profile": null,
+      "insert_block": false,
+      "floor_category_override": [],
+      "density": 1,
+      "evidence": [
+        {
+          "index": 88,
+          "value": {
+            "anim_row": 0
+          },
+          "src": "a.java:587"
+        },
+        {
+          "index": 88,
+          "value": {
+            "render_category": 0
+          },
+          "src": "a.java:6245 (byte[] 默认 0)"
+        },
+        {
+          "index": 88,
+          "value": {
+            "insert_block": false
+          },
+          "src": "a.java:6246 (blocksPlayerInsert 默认 false)"
+        }
+      ]
+    }
+  ],
+  "transition_overrides": [
+    {
+      "on": "mark_removed",
+      "state": 1,
+      "by_category": {
+        "1": {
+          "by_type": {
+            "1|2|3": {
+              "sprite_w": 45,
+              "sprite_h": 56,
+              "anim_row": 6,
+              "anim_frame": 0
+            },
+            "11": {
+              "sprite_w": 45,
+              "sprite_h": 57,
+              "anim_row": 2,
+              "anim_frame": 0
+            }
+          },
+          "otherwise": {
+            "noop": true
+          },
+          "build_minimap": true
+        },
+        "2|4": {
+          "sprite_w": 45,
+          "sprite_h": 56,
+          "anim_row": 10,
+          "anim_frame": 0
+        },
+        "8|16|32": {
+          "sprite_w": 27,
+          "sprite_h": 29,
+          "anim_row": 6,
+          "anim_frame": 0
+        }
+      },
+      "otherwise": {
+        "noop": true
+      },
+      "evidence": "a.java:6349-6387 (markEntityRemoved); entity.rs:392-426 (remove)"
+    },
+    {
+      "on": "mark_des_removed",
+      "state": 2,
+      "by_category": {
+        "1": {
+          "noop": true,
+          "returns": true
+        },
+        "2|8|16|32": {
+          "sprite_w": 27,
+          "sprite_h": 29,
+          "anim_row": 8,
+          "anim_frame": 0
+        }
+      },
+      "otherwise": {
+        "noop": true
+      },
+      "evidence": "a.java:6332-6347 (markEntityDesRemoved); entity.rs:428-437 (remove_des)"
+    },
+    {
+      "on": "bump_reveal",
+      "by_type": {
+        "6": {
+          "visible": true,
+          "state": 2,
+          "anim_row": 9,
+          "src": "a.java:5413-5417"
+        },
+        "12": {
+          "type_id": 11,
+          "state": 2,
+          "anim_row": 9,
+          "visible": true,
+          "redispatch": [
+            "dispatchSpriteSize",
+            "dispatchAnimFields"
+          ],
+          "block_step": true,
+          "src": "a.java:5450-5457"
+        }
+      },
+      "evidence": "a.java:5410-5417 (型6 显形) / 5449-5457 (型12 变形); scene.rs:5001-5103"
+    }
+  ],
+  "size_dispatch": {
+    "default": {
+      "frame_w_from": "type_frame_width",
+      "frame_h_from": "image_height",
+      "src": "a.java:6316-6319"
+    },
+    "fallback": {
+      "frame_w": 32,
+      "frame_h": 32,
+      "when": "image == null（default 臂 var3==null 落空）或 break 臂",
+      "src": "a.java:6323-6324"
+    },
+    "by_type": {
+      "67": {
+        "frame_w": 32,
+        "frame_h": 32,
+        "via": "break_to_fallback",
+        "load_packed_images": 9,
+        "src": "a.java:6304-6305"
+      },
+      "69": {
+        "frame_w": 96,
+        "frame_h": 32,
+        "load_packed_images": 9,
+        "src": "a.java:6307-6310"
+      },
+      "72": {
+        "frame_w": 32,
+        "frame_h": 45,
+        "src": "a.java:6312-6314"
+      }
+    }
+  },
+  "quirks_in_code": [
+    {
+      "quirk_id": "Q-001",
+      "reason": "型 12 撞击墙 bump 变形：type→11 后须按**运行时图高**重派尺寸（dispatchSpriteSize(11)）——图高是运行时事实，纯表规则装不下，保留代码路径",
+      "src": "a.java:5449-5457",
+      "red_test_id": "task7-three-beat-t12-morph"
+    },
+    {
+      "quirk_id": "Q-002",
+      "reason": "dispatchSpriteSize case 67/69 附带 loadPackedImages(9) 加载副作用（非尺寸语义，规则形只承载尺寸值）",
+      "src": "a.java:6304-6307",
+      "red_test_id": "task7-size-dispatch-load-side-effect"
+    },
+    {
+      "quirk_id": "Q-003",
+      "reason": "typeFrameWidth 仅 88 项（型 0..87）而型号域 0..88：型 88 无表项且无图，走 dispatchSpriteSize fallback 32×32（不读表）",
+      "src": "a.java:589-678 / 6322-6324",
+      "red_test_id": "task7-type88-fallback"
+    },
+    {
+      "quirk_id": "Q-004",
+      "reason": "显形行 9 的型 12 臂含 `var6=false`（bump 阻挡）+ `continue`（续扫）控制流，规则形以 block_step 标志承载阻挡，续扫语义留在消费侧代码",
+      "src": "a.java:5456-5457",
+      "red_test_id": "task7-three-beat-t12-morph"
+    },
+    {
+      "quirk_id": "Q-005",
+      "reason": "anim_defs.step_ticks=2（全局节拍 a.java:6833 frameCounter&1）与 loop_mode=cycle（a.java:6850-6851 default 臂归零）**非行级表**——按行回填会发明原版没有的行级语义，schema 字段保留但取全局机械值",
+      "src": "a.java:6831-6857 (advanceEntityFrames)",
+      "red_test_id": "task7-anim-step-ticks-global"
+    }
+  ]
+}

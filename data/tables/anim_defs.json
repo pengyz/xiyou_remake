@@ -1,0 +1,280 @@
+{
+  "schema_version": 2,
+  "anim_defs": [
+    {
+      "id": "anim_row_0",
+      "frames": [
+        0
+      ],
+      "step_ticks": 2,
+      "loop_mode": "cycle",
+      "evidence": [
+        {
+          "index": 0,
+          "value": {
+            "frames": [
+              0
+            ]
+          },
+          "src": "a.java:486"
+        }
+      ]
+    },
+    {
+      "id": "anim_row_1",
+      "frames": [
+        0,
+        1,
+        0,
+        2
+      ],
+      "step_ticks": 2,
+      "loop_mode": "cycle",
+      "evidence": [
+        {
+          "index": 1,
+          "value": {
+            "frames": [
+              0,
+              1,
+              0,
+              2
+            ]
+          },
+          "src": "a.java:487"
+        }
+      ]
+    },
+    {
+      "id": "anim_row_2",
+      "frames": [
+        0,
+        1,
+        2
+      ],
+      "step_ticks": 2,
+      "loop_mode": "cycle",
+      "evidence": [
+        {
+          "index": 2,
+          "value": {
+            "frames": [
+              0,
+              1,
+              2
+            ]
+          },
+          "src": "a.java:488"
+        }
+      ]
+    },
+    {
+      "id": "anim_row_3",
+      "frames": [
+        0,
+        1,
+        2,
+        1
+      ],
+      "step_ticks": 2,
+      "loop_mode": "cycle",
+      "evidence": [
+        {
+          "index": 3,
+          "value": {
+            "frames": [
+              0,
+              1,
+              2,
+              1
+            ]
+          },
+          "src": "a.java:489"
+        }
+      ]
+    },
+    {
+      "id": "anim_row_4",
+      "frames": [
+        0,
+        1,
+        2,
+        2,
+        1,
+        0
+      ],
+      "step_ticks": 2,
+      "loop_mode": "cycle",
+      "evidence": [
+        {
+          "index": 4,
+          "value": {
+            "frames": [
+              0,
+              1,
+              2,
+              2,
+              1,
+              0
+            ]
+          },
+          "src": "a.java:490"
+        }
+      ]
+    },
+    {
+      "id": "anim_row_5",
+      "frames": [
+        0,
+        1,
+        2,
+        3,
+        2,
+        1
+      ],
+      "step_ticks": 2,
+      "loop_mode": "cycle",
+      "evidence": [
+        {
+          "index": 5,
+          "value": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              2,
+              1
+            ]
+          },
+          "src": "a.java:491"
+        }
+      ]
+    },
+    {
+      "id": "anim_row_6",
+      "frames": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "step_ticks": 2,
+      "loop_mode": "cycle",
+      "evidence": [
+        {
+          "index": 6,
+          "value": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ]
+          },
+          "src": "a.java:492"
+        }
+      ]
+    },
+    {
+      "id": "anim_row_7",
+      "frames": [
+        3,
+        4,
+        5,
+        6
+      ],
+      "step_ticks": 2,
+      "loop_mode": "cycle",
+      "evidence": [
+        {
+          "index": 7,
+          "value": {
+            "frames": [
+              3,
+              4,
+              5,
+              6
+            ]
+          },
+          "src": "a.java:493"
+        }
+      ]
+    },
+    {
+      "id": "anim_row_8",
+      "frames": [
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      "step_ticks": 2,
+      "loop_mode": "cycle",
+      "evidence": [
+        {
+          "index": 8,
+          "value": {
+            "frames": [
+              4,
+              3,
+              2,
+              1,
+              0
+            ]
+          },
+          "src": "a.java:494"
+        }
+      ]
+    },
+    {
+      "id": "anim_row_9",
+      "frames": [
+        2,
+        1,
+        0
+      ],
+      "step_ticks": 2,
+      "loop_mode": "cycle",
+      "evidence": [
+        {
+          "index": 9,
+          "value": {
+            "frames": [
+              2,
+              1,
+              0
+            ]
+          },
+          "src": "a.java:495"
+        }
+      ]
+    },
+    {
+      "id": "anim_row_10",
+      "frames": [
+        2,
+        3,
+        4
+      ],
+      "step_ticks": 2,
+      "loop_mode": "cycle",
+      "evidence": [
+        {
+          "index": 10,
+          "value": {
+            "frames": [
+              2,
+              3,
+              4
+            ]
+          },
+          "src": "a.java:496"
+        }
+      ]
+    }
+  ]
+}
