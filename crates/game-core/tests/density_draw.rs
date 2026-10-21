@@ -358,48 +358,86 @@ fn legacy_blit_ref(buf: &mut [u32], bw: i32, bh: i32, img: &ArgbImage, x: i32, y
     }
 }
 
-fn bench(reps: usize, mut f: impl FnMut()) -> f64 {
-    let mut best = f64::MAX;
-    for _ in 0..reps {
-        let t = Instant::now();
-        f();
-        best = best.min(t.elapsed().as_secs_f64());
+/// 基准测度（2026-10-21 更正后口径）：**预热 2 轮 + N 轮逐对交替、每侧 3 连测
+/// 取 min、对比率取中位数**。原实现=两段分离 min-of-7 wall-clock——并发负载下
+/// 段间偏置抖动（集成闸实测 d=1 2.19× 红、67 负载下 d=5 尖峰 3.5-7× 复现）；
+/// 3 连测 min 吞单次抢占、中位数吞坏轮、交替对计时共享负载条件。
+fn median_ratio(rounds: usize, mut legacy: impl FnMut(), mut hd: impl FnMut()) -> (f64, f64, f64) {
+    // 每轮每侧 3 次连测取 min（吞掉单次调度抢占），轮间交替（共享负载）。
+    let triple = |f: &mut dyn FnMut()| {
+        let mut best = f64::MAX;
+        for _ in 0..3 {
+            let t = Instant::now();
+            f();
+            best = best.min(t.elapsed().as_secs_f64().max(1e-12));
+        }
+        best
+    };
+    for _ in 0..2 {
+        triple(&mut legacy);
+        triple(&mut hd);
     }
-    best
+    let (mut ratios, mut ls, mut hs) = (Vec::new(), Vec::new(), Vec::new());
+    for _ in 0..rounds {
+        let lt = triple(&mut legacy);
+        let ht = triple(&mut hd);
+        ratios.push(ht / lt);
+        ls.push(lt);
+        hs.push(ht);
+    }
+    let mid = |v: &mut Vec<f64>| {
+        v.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        v[v.len() / 2]
+    };
+    (mid(&mut ratios), mid(&mut ls), mid(&mut hs))
 }
 
-/// 【R-1/条件 6】三段路径全屏耗时 ≤3× 现 blit（同落笔量 480×360 物理像素）：
-/// d==s 直采（demo 主场景）/ d>s 降采样 / d<s 升采样；d=1 块写路径=零回退（≤2×）。
-/// min-of-N 抗调度噪声；debug 放宽（未优化构建比值失真），release（`--release`
-/// 必跑口径）严判。NN 目标 1×（实测见 commit 正文）。
+/// 【R-1/条件 6】分臂性能判据（同落笔量 480×360 物理像素）：
+/// - **d=1 臂 ≤2×**：走旧 set_pixel_block 块写**原码**（R-1 明文保留），
+///   与旧 blit 同码 ⇒ 稳态恒 1×，2× 为宽裕噪声带——R-1 判据① 恒等锚的
+///   **性能投影**（classic 热路径零回退锐度；若放宽到 3× 则 d=1 退化 2 倍
+///   都能过 = 判据失明）；
+/// - **采样臂（d==s/d>s/d<s）≤3×**：2/3 条件 6/R-1 原文「性能门槛：全屏
+///   重采样实测 ≤3× 现 blit（NN 目标 1×）」——该口径只属全屏重采样。
+///
+/// 【2026-10-21 判据勘误留痕·历史主张原地保留不删】①初版 d=1 臂 2×/其余
+/// 3× 曾于集成闸并发负载下判红（实测 2.19×；非产品回退——d=1 与旧 blit
+/// 同码恒等）；②lead 派工一度误用 3× 口径于 d=1 臂（统一 ≤3× 版本），
+/// verifier 阶段二拦截更正回**分臂口径**（本注记=更正后措辞）。
+/// 测量方法修正保留：预热 2 轮 + 11 轮逐对交替、每侧 3 连测取 min、
+/// 对比率取中位数（治 flaky 根因）。
 #[test]
 fn perf_resample_within_3x_of_legacy_blit() {
     let (lw, lh, s) = (160, 120, 3);
     let (pw, ph) = (lw * s, lh * s);
     let mut screen = ArgbImage::create(pw, ph);
     let mut buf = vec![0u32; (pw * ph) as usize];
-    let legacy_t = bench(7, || {
-        legacy_blit_ref(&mut buf, pw, ph, &distinct(lw, lh, 1), 0, 0, s)
-    });
     for (d, what, bound) in [
-        (1, "d=1 块写（classic 零回退）", if cfg!(debug_assertions) { 4.0 } else { 2.0 }),
-        (3, "d==s=3 直采", if cfg!(debug_assertions) { 8.0 } else { 3.0 }),
-        (2, "d=2<s=3 升采样", if cfg!(debug_assertions) { 8.0 } else { 3.0 }),
-        (5, "d=5>s=3 降采样", if cfg!(debug_assertions) { 8.0 } else { 3.0 }),
+        // d=1 臂 ≤2×：判据①恒等锚的性能投影（零回退锐度）
+        (1, "d=1 块写（classic 路径）", 2.0),
+        // 采样臂 ≤3×：2/3 条件 6（全屏重采样口径）
+        (3, "d==s=3 直采", 3.0),
+        (2, "d=2<s=3 升采样", 3.0),
+        (5, "d=5>s=3 降采样", 3.0),
     ] {
         let src = distinct(lw, lh, d);
-        let t = bench(7, || {
-            let mut g = SoftGraphics::new(&mut screen);
-            g.set_scale(s);
-            g.draw_image(&src, 0, 0, anchor::TOP | anchor::LEFT);
-        });
-        let ratio = t / legacy_t;
-        eprintln!("[perf] {what}: {:.3}ms vs legacy {:.3}ms = {ratio:.2}x", t * 1e3, legacy_t * 1e3);
+        let (ratio, lt, ht) = median_ratio(
+            11,
+            || legacy_blit_ref(&mut buf, pw, ph, &distinct(lw, lh, 1), 0, 0, s),
+            || {
+                let mut g = SoftGraphics::new(&mut screen);
+                g.set_scale(s);
+                g.draw_image(&src, 0, 0, anchor::TOP | anchor::LEFT);
+            },
+        );
+        eprintln!(
+            "[perf] {what}: 中位数 {ratio:.2}x（hd {:.3}ms / legacy {:.3}ms，11 轮中位）",
+            ht * 1e3,
+            lt * 1e3
+        );
         assert!(
             ratio <= bound,
-            "{what}: 重采样/现 blit = {ratio:.2}×（上限 {bound}×；{:.3}ms vs {:.3}ms）",
-            t * 1e3,
-            legacy_t * 1e3
+            "{what}: 重采样/现 blit 中位数 = {ratio:.2}×（分臂上限 {bound}×）"
         );
     }
 }
