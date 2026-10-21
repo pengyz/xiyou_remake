@@ -471,3 +471,234 @@ fn demo_atlas_direct_copy_d_eq_s() {
     // bbox 外不落笔
     assert_eq!(screen.argb[(demo.height * screen.width) as usize], 0, "下沿外须空");
 }
+
+// ---------------- 标注版产物后处理（lead 追加 2026-10-21） ----------------
+//
+// 替换范围标注（用户诉求"把高清资源标注出来"）：按瓦片格画细亮色框——
+//   **绿框 = 重绘高清帧**（16 个 restyle 精绘 tile，真正换画的资源）
+//   **黄框 = 仅放大帧**（88 个 NN 垫底 tile：高清分辨率、像素内容为原图放大）
+//   **无框 = 未替换**（d=1 精灵/挂幡/宝箱/HUD/文字 + 底色区——原素材）
+// 纪律：**标注只画在产物副本上**——机器判据仍对拍无标注原图（上列测试零改动），
+// 对照变量唯一原则不受标注破坏（两图框位置严格同格，见断言）。
+
+const BOX_GREEN: u32 = 0xFF00_E050; // 亮绿（灰白石砖主色外）
+const BOX_YELLOW: u32 = 0xFFFF_C400; // 琥珀黄
+const BOX_THICK: i32 = 2; // scale=3 下每格 48px 物理、框 2px
+
+fn put_px(buf: &mut [u32], w: usize, h: usize, x: i32, y: i32, c: u32) {
+    if x >= 0 && y >= 0 && (x as usize) < w && (y as usize) < h {
+        buf[y as usize * w + x as usize] = c;
+    }
+}
+
+fn fill_px(buf: &mut [u32], w: usize, h: usize, x: i32, y: i32, rw: i32, rh: i32, c: u32) {
+    for dy in 0..rh {
+        for dx in 0..rw {
+            put_px(buf, w, h, x + dx, y + dy, c);
+        }
+    }
+}
+
+/// 矩形边框（t px 粗，四边）。
+fn border_px(buf: &mut [u32], w: usize, h: usize, x: i32, y: i32, bw: i32, bh: i32, c: u32, t: i32) {
+    fill_px(buf, w, h, x, y, bw, t, c);
+    fill_px(buf, w, h, x, y + bh - t, bw, t, c);
+    fill_px(buf, w, h, x, y, t, bh, c);
+    fill_px(buf, w, h, x + bw - t, y, t, bh, c);
+}
+
+/// 3×5 点阵大写字模（测试自含，仅图例用；每行 3 bit，bit2=左列）。
+fn glyph_rows(ch: char) -> [u8; 5] {
+    match ch {
+        'A' => [0b010, 0b101, 0b111, 0b101, 0b101],
+        'B' => [0b110, 0b101, 0b110, 0b101, 0b110],
+        'C' => [0b011, 0b100, 0b100, 0b100, 0b011],
+        'D' => [0b110, 0b101, 0b101, 0b101, 0b110],
+        'E' => [0b111, 0b100, 0b110, 0b100, 0b111],
+        'F' => [0b111, 0b100, 0b110, 0b100, 0b100],
+        'G' => [0b011, 0b100, 0b101, 0b101, 0b011],
+        'H' => [0b101, 0b101, 0b111, 0b101, 0b101],
+        'I' => [0b111, 0b010, 0b010, 0b010, 0b111],
+        'J' => [0b001, 0b001, 0b001, 0b101, 0b010],
+        'K' => [0b101, 0b101, 0b110, 0b101, 0b101],
+        'L' => [0b100, 0b100, 0b100, 0b100, 0b111],
+        'M' => [0b101, 0b111, 0b111, 0b101, 0b101],
+        'N' => [0b110, 0b101, 0b101, 0b101, 0b101],
+        'O' => [0b010, 0b101, 0b101, 0b101, 0b010],
+        'P' => [0b110, 0b101, 0b110, 0b100, 0b100],
+        'Q' => [0b010, 0b101, 0b101, 0b111, 0b011],
+        'R' => [0b110, 0b101, 0b110, 0b101, 0b101],
+        'S' => [0b011, 0b100, 0b010, 0b001, 0b110],
+        'T' => [0b111, 0b010, 0b010, 0b010, 0b010],
+        'U' => [0b101, 0b101, 0b101, 0b101, 0b011],
+        'V' => [0b101, 0b101, 0b101, 0b101, 0b010],
+        'W' => [0b101, 0b101, 0b111, 0b111, 0b101],
+        'X' => [0b101, 0b101, 0b010, 0b101, 0b101],
+        'Y' => [0b101, 0b101, 0b010, 0b010, 0b010],
+        'Z' => [0b111, 0b001, 0b010, 0b100, 0b111],
+        '0' => [0b111, 0b101, 0b101, 0b101, 0b111],
+        '1' => [0b010, 0b110, 0b010, 0b010, 0b111],
+        '2' => [0b110, 0b001, 0b010, 0b100, 0b111],
+        '3' => [0b111, 0b001, 0b011, 0b001, 0b111],
+        '4' => [0b101, 0b101, 0b111, 0b001, 0b001],
+        '5' => [0b111, 0b100, 0b111, 0b001, 0b111],
+        '6' => [0b011, 0b100, 0b111, 0b101, 0b111],
+        '7' => [0b111, 0b001, 0b010, 0b010, 0b010],
+        '8' => [0b111, 0b101, 0b111, 0b101, 0b111],
+        '9' => [0b111, 0b101, 0b111, 0b001, 0b110],
+        '=' => [0b000, 0b111, 0b000, 0b111, 0b000],
+        '-' => [0b000, 0b000, 0b111, 0b000, 0b000],
+        ',' => [0b000, 0b000, 0b000, 0b010, 0b100],
+        _ => [0, 0, 0, 0, 0],
+    }
+}
+
+fn text_px(buf: &mut [u32], w: usize, h: usize, x: i32, y: i32, s: &str, fs: i32, c: u32) {
+    let mut cx = x;
+    for ch in s.chars() {
+        for (gy, row) in glyph_rows(ch).iter().enumerate() {
+            for gx in 0..3 {
+                if row & (0b100 >> gx) != 0 {
+                    fill_px(buf, w, h, cx + gx as i32 * fs, y + gy as i32 * fs, fs, fs, c);
+                }
+            }
+        }
+        cx += 4 * fs;
+    }
+}
+
+/// 角落小图例（三色框含义 + 场景/相机/scale 说明）。
+fn legend_px(buf: &mut [u32], w: usize, h: usize) {
+    let fs = 2;
+    let lines: [(Option<u32>, &str); 4] = [
+        (Some(BOX_GREEN), "GREEN=HD REDRAWN"),
+        (Some(BOX_YELLOW), "YELLOW=NN UPSCALED"),
+        (None, "NOBOX=ORIG D1"),
+        (None, "MAPLV5 CAM-144,-16 S3"),
+    ];
+    let pw = 24 + 22 * 4 * fs;
+    let ph = 6 + 4 * (5 * fs + 3) + 2;
+    let (x0, y0) = (w as i32 - pw - 8, h as i32 - ph - 8);
+    fill_px(buf, w, h, x0, y0, pw, ph, 0xF010_1820);
+    border_px(buf, w, h, x0, y0, pw, ph, 0xFF60_7080, 1);
+    for (i, (sample, txt)) in lines.iter().enumerate() {
+        let ty = y0 + 6 + i as i32 * (5 * fs + 3);
+        if let Some(c) = sample {
+            fill_px(buf, w, h, x0 + 6, ty + 1, 10, 10, *c);
+        }
+        text_px(buf, w, h, x0 + 22, ty, txt, fs, 0xFFFF_FFFF);
+    }
+}
+
+/// 按瓦片格标注替换范围（返回 (标注副本, 绿格数, 黄格数)）。
+fn annotate_replacement_scope(view: &GameView, base: &ArgbImage) -> (Vec<u32>, usize, usize) {
+    let (w, h) = (base.width as usize, base.height as usize);
+    let mut buf = base.argb.clone();
+    let (mut green_cells, mut yellow_cells) = (0usize, 0usize);
+    for r in ROW0..ROW1 {
+        for c in COL0..COL1 {
+            let v = view.terrain_at(r, c);
+            if v == 0 {
+                continue; // 无框：v=0 不落笔（底色区）
+            }
+            let (x, y, cw, ch) = cell_rect(view, r, c);
+            if x >= w {
+                continue; // 右缘裁切格（c=24）整格在画布外
+            }
+            let color = if HAND_IDS.contains(&v) {
+                green_cells += 1;
+                BOX_GREEN
+            } else {
+                yellow_cells += 1;
+                BOX_YELLOW
+            };
+            border_px(&mut buf, w, h, x as i32, y as i32, cw as i32, ch as i32, color, BOX_THICK);
+        }
+    }
+    (buf, green_cells, yellow_cells)
+}
+
+/// 并排裁剪 + 底部图例条（交付首选图）：左 classic | 右 HD，下方图例。
+fn compose_pair_with_legend(
+    a: &[u32],
+    b: &[u32],
+    w: usize,
+    x0: usize,
+    y0: usize,
+    cw: usize,
+    ch: usize,
+) -> (Vec<u32>, i32) {
+    let strip_h = 56i32;
+    let pw = cw * 2;
+    let ph = ch + strip_h as usize;
+    let mut out = vec![0u32; pw * ph];
+    for y in 0..ch {
+        for x in 0..cw {
+            out[y * pw + x] = a[(y0 + y) * w + x0 + x];
+            out[y * pw + cw + x] = b[(y0 + y) * w + x0 + x];
+        }
+    }
+    // 图例条（fs=2）：三色框含义 + 左右说明 + 场景/相机/scale
+    fill_px(&mut out, pw, ph, 0, ch as i32, pw as i32, strip_h, 0xF010_1820);
+    let fs = 2;
+    for (sx, sample, txt) in [
+        (8, Some(BOX_GREEN), "GREEN=HD REDRAWN"),
+        (170, Some(BOX_YELLOW), "YELLOW=NN UPSCALED"),
+        (346, None, "NOBOX=ORIG D1"),
+    ] {
+        let ty = ch as i32 + 8;
+        if let Some(c) = sample {
+            fill_px(&mut out, pw, ph, sx, ty, 10, 10, c);
+        }
+        text_px(&mut out, pw, ph, sx + 14, ty, txt, fs, 0xFFFF_FFFF);
+    }
+    text_px(
+        &mut out,
+        pw,
+        ph,
+        8,
+        ch as i32 + 32,
+        "LEFT=CLASSIC RIGHT=HD MAPLV5 CAM-144,-16 SCALE3",
+        fs,
+        0xFFFF_FFFF,
+    );
+    (out, strip_h)
+}
+
+/// 【lead 追加·用户诉求】标注版对照图：替换范围一眼可见（绿=restyle 重绘 /
+/// 黄=NN 仅放大 / 无框=未替换 d=1 素材）。产出 `assets/hd-demo/compare/annotated/`
+/// 双图 + 并排裁剪（交付首选）。**标注仅画在产物副本**：机器判据仍对拍无标注
+/// 原图，断言语义零改动；两图框位置严格同格（断言钉）。
+#[test]
+fn hd_annotated_replacement_scope_products() {
+    let frames = map_frames();
+    let classic = classic_tileset(&frames);
+    let demo = demo_tileset();
+    let img = load_overlays(&frames);
+    let view = build_view();
+    let (a, _) = render_scene(&view, &classic, &img);
+    let (b, _) = render_scene(&view, &demo, &img);
+    let (w, h) = (a.width, a.height);
+
+    let (mut ac, g1, y1) = annotate_replacement_scope(&view, &a);
+    let (mut bc, g2, y2) = annotate_replacement_scope(&view, &b);
+    assert_eq!((g1, y1), (g2, y2), "两图框位置严格同格（标注不破坏对照变量唯一）");
+    // 场景锚：可见窗 255 格 = 绿 219（restyle）+ 黄 36（NN）
+    assert_eq!((g1, y1), (219, 36), "标注格数锚（maplv5 可见窗）：绿 {g1} / 黄 {y1}");
+    legend_px(&mut ac, w as usize, h as usize);
+    legend_px(&mut bc, w as usize, h as usize);
+
+    let dir = repo("assets/hd-demo/compare/annotated");
+    write_png(&dir, "classic_scale3_annotated.png", w, h, &ac);
+    write_png(&dir, "hd_scale3_annotated.png", w, h, &bc);
+    for (name, x0, y0, cw, ch) in [
+        ("pair_torch_stone_annotated.png", 0, 300, 360, 360),
+        ("pair_floor_mixed_annotated.png", 300, 540, 360, 360),
+    ] {
+        let (pair, strip_h) = compose_pair_with_legend(&ac, &bc, w as usize, x0, y0, cw, ch);
+        write_png(&dir, name, (cw * 2) as i32, ch as i32 + strip_h, &pair);
+    }
+    eprintln!(
+        "[hd-visual·标注] 绿框（restyle 重绘）{g1} 格 / 黄框（NN 仅放大）{y1} 格；无框=未替换（d=1 HUD/精灵/文字 + 底色区）"
+    );
+}

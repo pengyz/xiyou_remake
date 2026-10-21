@@ -23,7 +23,7 @@
 restyle 帧类别（gen_hd_demo `_classify` 同启发式，C 级）：stone=id 1/22/17/24/15/38/39、
 wall=id 10/46/47/2/30/9/45/49/44（本窗为宫殿内景，草/水类帧不在窗内）。
 
-## 1. 机器判据（A 级——`cargo test -p game-core --test hd_visual` 4/4 绿）
+## 1. 机器判据（A 级——`cargo test -p game-core --test hd_visual` 5/5 绿（4 机器判据 + 1 标注产物））
 
 | # | 判据（R-8） | 结果 |
 |---|---|---|
@@ -39,25 +39,52 @@ wall=id 10/46/47/2/30/9/45/49/44（本窗为宫殿内景，草/水类帧不在�
 ## 2. 人工判读四问（C 级——画质/观感不作证据）
 
 材料：`classic_scale3.png` / `hd_scale3.png` / `diff_scale3.png`（全帧 720×960）
-+ 并排裁剪 `pair_torch_stone.png`（左 classic | 右 HD）、`pair_floor_mixed.png`（同）。
++ 并排裁剪 `pair_torch_stone.png`（左 classic | 右 HD）、`pair_floor_mixed.png`（同）
++ **标注版（交付首选）** `annotated/`（见 §3）。
 
-1. **高清 tile 边缘是否清晰**：是。火把金饰（wall 精绘帧）从 NN 糊团变硬边平面色+
-   暗色描线；石地砖回纹/花窗（stone 精绘帧）线稿锐利、色块平直；墙缘暗线成型
-   （classic 侧为 16px 源图 ×3 的晕染糊边）。
+1. **高清 tile 边缘是否清晰**：是（仅绿框格）。火把金饰（wall 精绘帧）从 NN 糊团
+   变硬边平面色+暗色描线；灰石回纹砖（stone 精绘帧）线稿锐利、色块平直；墙缘暗线
+   成型（classic 侧为 16px 源图 ×3 的晕染糊边）。黄框格（白花窗/深色槽等 NN 垫底）
+   两图目视恒等——正是判据②"NN 格零漂移"的视觉复述。
+   > 【2026-10-21 更正】初版把"白花窗"误记为 stone 精绘帧；标注版证明白花窗是
+   > NN 垫底帧（黄框、两图恒等），清晰度收益落点以绿框格为准（判据② A 级）。
 2. **混密度交界表现**：交界无错位/无闪烁（逐格判据②已证 NN 格恒等、帧序不串位）；
    目视上精绘格（平色硬边）与 NN 垫底格（糊）相邻时画风跳变明显——这是弃件②
-   "混合质量=量产分批换素材预演"的预期表现，非管线缺陷。
+   "混合质量=量产分批换素材预演"的预期表现，非管线缺陷。标注版中交界=绿框与
+   黄框相邻处，替换范围一眼可见。
 3. **非素材区无变化**：是。HUD 带/面板/数字条/文字/精灵（金箱、白烟）两图目视
    逐像素一致——与机器判据①（103,833 px 恒等）互证。
 4. **整体观感**：管线对（机器判据全绿 ⇒ R-8 "demo 画丑但管线对"分支成立）；
    demo 程序化精绘的画质上限（调色板压平偏平偏亮）如实呈现，画质不作证据、
    不据此判断管线。
 
-## 3. 复现与边界
+## 3. 标注版对照图（lead 追加·用户诉求"把高清资源标注出来"）
+
+产物 `assets/hd-demo/compare/annotated/`（测试 `hd_annotated_replacement_scope_products`
+产出；**标注只画在产物副本**——机器判据仍对拍无标注原图，断言语义零改动；两图
+框位置严格同格，断言钉）：
+
+| 文件 | 说明 |
+|---|---|
+| `classic_scale3_annotated.png` / `hd_scale3_annotated.png` | 全帧 720×960 + 角落图例 |
+| `pair_torch_stone_annotated.png` / `pair_floor_mixed_annotated.png` | **交付首选**：并排裁剪（左 classic \| 右 HD）+ 底部图例条 |
+
+框语义（scale=3 每格 48px 物理、框 2px；绿/黄取亮色避开灰白石砖主色）：
+
+| 框 | 含义 | 格数（maplv5 可见窗 255 格） |
+|---|---|---|
+| 绿框 | **重绘高清帧**（restyle 精绘，真正换画的资源） | 219 格（16 帧） |
+| 黄框 | **仅放大帧**（NN 垫底：高清分辨率、像素内容=原图放大） | 36 格（24 帧） |
+| 无框 | **未替换**（d=1 精灵/挂幡/宝箱/HUD/文字） | 非素材区 103,833 px + 底色区（v=0 格/顶底缘） |
+
+图例（每张标注图角落/并排图底部）：三色框含义 + 场景/相机/scale
+（MAPLV5 CAM-144,-16 SCALE3，LEFT=CLASSIC RIGHT=HD）。
+
+## 4. 复现与边界
 
 ```bash
 python3 tools/hd-demo/gen_hd_demo.py        # 生成弃件② 图集（若 assets/hd-demo 缺失）
-cargo test -p game-core --test hd_visual    # 机器判据 + 双 PNG 产出
+cargo test -p game-core --test hd_visual    # 机器判据 + 双 PNG + 标注版产出
 cargo test -p game-core                     # 全量（含 density_draw/task-1 既有判据）
 ```
 
