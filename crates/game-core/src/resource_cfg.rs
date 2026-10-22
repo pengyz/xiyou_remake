@@ -200,6 +200,8 @@ pub struct ResourceCfg {
     #[allow(dead_code)]
     quirks: Vec<Quirk>,
     seg67: Seg67,
+    /// m_122 型→(容器,槽)（sheet_index.slots.claims 82 条覆盖 85 型；0/82/83/88 无槽）
+    entity_slots: Vec<Option<(String, usize)>>,
 }
 
 /// bump_reveal 覆写结果（控制流语义回交消费侧——Q-004 续扫留在 scene 代码）。
@@ -242,7 +244,8 @@ impl ResourceCfg {
             _ => return Err(schema("quirks_in_code", "缺失或非数组")),
         };
         let seg67 = parse_seg67(&sheet_doc)?;
-        Ok(ResourceCfg { bundle, transitions, size_dispatch, quirks, seg67 })
+        let entity_slots = parse_entity_slots(&sheet_doc, &bundle)?;
+        Ok(ResourceCfg { bundle, transitions, size_dispatch, quirks, seg67, entity_slots })
     }
 
     /// 嵌入保真表（`data/tables/*.json`，include_str! 编译期取数——无 I/O、确定性）。
@@ -260,6 +263,20 @@ impl ResourceCfg {
     /// SEG67 片件表（表中表）。
     pub fn seg67(&self) -> &Seg67 {
         &self.seg67
+    }
+
+    /// 16 容器名序（a.java:451 名序值行；张数表锚勘误=a.java:453 非 451）。
+    pub fn container_names(&self) -> &[String] {
+        &self.bundle.sheet_index.containers
+    }
+
+    /// m_122 型→(容器,槽) 查表（sheet_index.slots.claims）。
+    /// None = 无图型/无臂型（0/82/83/88）。
+    pub fn entity_sprite_slot(&self, type_id: i32) -> Option<(&str, usize)> {
+        self.entity_slots
+            .get(type_id as usize)
+            .and_then(|e| e.as_ref())
+            .map(|(c, s)| (c.as_str(), *s))
     }
 
     /// quirks_in_code 留痕（Q-001..Q-005）。
@@ -646,6 +663,62 @@ fn parse_quirk(rec: &Json, path: &str) -> Result<Quirk, Reject> {
         src: get("src")?,
         red_test_id: get("red_test_id")?,
     })
+}
+
+/// sheet_index.slots.claims → 型→(容器,槽) 映射（含容器名序交叉校验+槽位域校验）。
+fn parse_entity_slots(sheet_doc: &Json, bundle: &DefBundle) -> Result<Vec<Option<(String, usize)>>, Reject> {
+    let mut entity_slots: Vec<Option<(String, usize)>> = vec![None; 89];
+    let claims = match sheet_doc.get("slots").and_then(|s| s.get("claims")) {
+        Some(Json::Arr(items)) => items.as_slice(),
+        _ => return Err(schema("sheet_index.slots.claims", "缺失或非数组")),
+    };
+    for (i, c) in claims.iter().enumerate() {
+        let path = format!("sheet_index.slots.claims[{i}]");
+        let container = c
+            .get("container")
+            .and_then(Json::as_str)
+            .ok_or_else(|| schema(format!("{path}.container"), "缺失或非字符串"))?
+            .to_string();
+        let container_index = int(c, &path, "container_index")? as usize;
+        // 名序交叉校验（containers=claims 容器索引的宿主）
+        if bundle.sheet_index.containers.get(container_index).map(|s| s.as_str())
+            != Some(container.as_str())
+        {
+            return Err(schema(
+                format!("{path}.container_index"),
+                "与 sheet_index.containers 名序不一致",
+            ));
+        }
+        let slot = int(c, &path, "slot")? as usize;
+        // 槽位域校验（container_counts=槽位上界宿主，张数表锚 a.java:453）
+        if bundle.sheet_index.container_counts.get(container_index).copied().unwrap_or(-1) < slot as i64 + 1 {
+            return Err(schema(
+                format!("{path}.slot"),
+                format!("槽位 {slot} 越界 container_counts[{container_index}]"),
+            ));
+        }
+        let types = c
+            .get("used_by_types")
+            .and_then(Json::as_arr)
+            .ok_or_else(|| schema(format!("{path}.used_by_types"), "缺失或非数组"))?;
+        for (j, ty) in types.iter().enumerate() {
+            let t = int_val(ty, &path, "used_by_types")? as usize;
+            if t >= 89 {
+                return Err(schema(
+                    format!("{path}.used_by_types[{j}]"),
+                    "型号域 0..=88（map_entity_images 89 槽）",
+                ));
+            }
+            if entity_slots[t].is_some() {
+                return Err(schema(
+                    format!("{path}.used_by_types[{j}]"),
+                    format!("型 {t} 重复占用（id 稳定性冻结）"),
+                ));
+            }
+            entity_slots[t] = Some((container.clone(), slot));
+        }
+    }
+    Ok(entity_slots)
 }
 
 fn parse_seg67(sheet_doc: &Json) -> Result<Seg67, Reject> {

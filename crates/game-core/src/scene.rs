@@ -25,12 +25,9 @@ use crate::paint::{draw_image_clipped, m_034_softkeys};
 use crate::render::FontMetrics;
 use crate::render::{ArgbImage, SoftGraphics};
 
-/// f_Image_arr2_00 的 16 容器名序（a.java:451）。本场景常驻引用见 [`SceneImages`]。
-pub const CONTAINER_NAMES: [&str; 16] = [
-    "sflogo", "mapbg", "map", "actor", "sptmap", "sptprop", "sptarm", "sptenemy1", "ui", "xtq",
-    "menu", "intro", "face", "sptenemy2", "end", "load",
-];
-
+/// f_Image_arr2_00 的 16 容器名序已迁 `sheet_index.containers`（a.java:451 名序值行；
+/// 张数表锚勘误=a.java:453 非 451）——查表入口 `resource_cfg::ResourceCfg::container_names`。
+/// 本场景常驻引用见 [`SceneImages`]。
 /// 场景图像集（按需装载的容器子集 + m_122 实体类型→精灵条带映射产物）。
 #[derive(Clone)]
 pub struct SceneImages {
@@ -80,12 +77,11 @@ pub struct SceneImages {
 }
 
 impl SceneImages {
-    /// m_122 头部的类型→容器映射（a.java:9448-9470）：
-    /// 1..12→[4][t-1]，13..32→[5][t-12]，33..40→[6][t-33]，41..60→[7][t-41]，
-    /// 61..78→[13][t-61]，84→[13][18]，87→[13][19]，85→[5][21]，86→[5][22]，
-    /// 79→[6][8]，80→[6][9]，12→=11，81→[4][3]，71→=70。
-    /// 容器计数来自 oracle FLD 018（T500 实测）：sptmap=13、sptprop=23、
-    /// sptarm=10、sptenemy1=20、sptenemy2=20。
+    /// m_122 头部的类型→容器映射（a.java:9448-9470）。
+    /// 【V2-P2 消费替换】图集数字（容器/槽下标）改查 `sheet_index.slots.claims`
+    /// （82 条 claim 覆盖 85 型；0/82/83/88 无臂=无图）——旧体 5 区间+9 特例
+    /// +2 别名（12=11、71=70）逐值等价，冻结副本对拍见
+    /// tests/sheet_index_table_driven.rs::task7_map_entity_images_matches_legacy_oracle。
     pub fn map_entity_images(
         sptmap: &[ArgbImage],
         sptprop: &[ArgbImage],
@@ -93,32 +89,22 @@ impl SceneImages {
         sptenemy1: &[ArgbImage],
         sptenemy2: &[ArgbImage],
     ) -> Vec<Option<ArgbImage>> {
+        let cfg = crate::resource_cfg::global();
         let mut out: Vec<Option<ArgbImage>> = vec![None; 89];
-        let at = |c: &[ArgbImage], i: usize| -> Option<ArgbImage> { c.get(i).cloned() };
-        for (t, slot) in out.iter_mut().enumerate().skip(1).take(12) {
-            *slot = at(sptmap, t - 1);
+        for (t, slot) in out.iter_mut().enumerate() {
+            let Some((container, si)) = cfg.entity_sprite_slot(t as i32) else {
+                continue;
+            };
+            let src: &[ArgbImage] = match container {
+                "sptmap" => sptmap,
+                "sptprop" => sptprop,
+                "sptarm" => sptarm,
+                "sptenemy1" => sptenemy1,
+                "sptenemy2" => sptenemy2,
+                other => panic!("m_122 实体容器域外：{other:?}"),
+            };
+            *slot = src.get(si).cloned();
         }
-        for (t, slot) in out.iter_mut().enumerate().skip(13).take(20) {
-            *slot = at(sptprop, t - 12);
-        }
-        for (t, slot) in out.iter_mut().enumerate().skip(33).take(8) {
-            *slot = at(sptarm, t - 33);
-        }
-        for (t, slot) in out.iter_mut().enumerate().skip(41).take(20) {
-            *slot = at(sptenemy1, t - 41);
-        }
-        for (t, slot) in out.iter_mut().enumerate().skip(61).take(18) {
-            *slot = at(sptenemy2, t - 61);
-        }
-        out[84] = at(sptenemy2, 18);
-        out[87] = at(sptenemy2, 19);
-        out[85] = at(sptprop, 21);
-        out[86] = at(sptprop, 22);
-        out[79] = at(sptarm, 8);
-        out[80] = at(sptarm, 9);
-        out[12] = out[11].clone();
-        out[81] = at(sptmap, 3);
-        out[71] = out[70].clone();
         out
     }
 }
@@ -6056,28 +6042,10 @@ impl GameScene {
         }
     }
 
-    /// 型 67 片件表（a.java:682-692 f_byte_arr2_00 逐值）：(sheet, srcX, srcY, w, h) 9 件。
-    /// sheet 索引指向 xtq 图集 f_Image_arr2_00[9][0..5]（a.java:6303-6305 + 450-453）。
-    const SEG67_PIECES: [(i32, i32, i32, i32, i32); 9] = [
-        (0, 0, 0, 33, 56),
-        (0, 33, 0, 33, 56),
-        (0, 66, 0, 33, 56),
-        (2, 0, 0, 18, 26),
-        (3, 0, 0, 18, 34),
-        (1, 0, 0, 55, 61),
-        (4, 0, 0, 14, 26),
-        (4, 14, 0, 14, 26),
-        (4, 28, 0, 24, 26),
-    ];
-
-    /// 型 67 帧拼装表（a.java:693-697 f_byte_arr2_01 逐值）：3 帧 × 5 段 ×
-    /// (pieceId, dx, dy, 第4字节)。第 4 字节三行恒 0 且绘制循环不读
-    /// （6591-6601 只读 +0/+1/+2）——保真占位，语义未知。
-    const SEG67_FRAMES: [[(i32, i32, i32, i32); 5]; 3] = [
-        [(6, -1, -79, 0), (3, -26, -5, 0), (4, 11, 6, 0), (5, -25, -53, 0), (0, -16, -27, 0)],
-        [(7, -1, -80, 0), (3, -26, -5, 0), (4, 11, 6, 0), (5, -25, -54, 0), (2, -16, -26, 0)],
-        [(8, -1, -81, 0), (3, -26, -5, 0), (4, 11, 6, 0), (5, -25, -55, 0), (1, -16, -25, 0)],
-    ];
+    /// 型 67 片件表（a.java:682-697 f_byte_arr2_00/01 逐值）已迁
+    /// `sheet_index.assembly_profiles.seg67` 表中表（9 片件 xywh + 3×5 段帧）——
+    /// 查表入口 `resource_cfg::ResourceCfg::seg67`；绘制臂消费见 paint_entities
+    /// 型 67 分支（tests/sheet_index_table_driven.rs::task7_seg67_follows_table 对账）。
 
     pub fn paint_entities(&mut self, g: &mut SoftGraphics<'_>, cam_x: i32, cam_y: i32) {
         entity::advance_bob(&mut self.bob_offset, &mut self.bob_rising);
@@ -6199,9 +6167,10 @@ impl GameScene {
                                     let base_x = sx + 16;
                                     let base_y = sy + 16;
                                     let seg_frame = ANIM_OFFSET_TABLE[anim][frame as usize] as usize;
-                                    for seg in Self::SEG67_FRAMES[seg_frame] {
+                                    let seg67 = crate::resource_cfg::global().seg67();
+                                    for seg in seg67.frames[seg_frame].clone() {
                                         let (sheet, src_x, src_y, w, h) =
-                                            Self::SEG67_PIECES[seg.0 as usize];
+                                            seg67.pieces[seg.0 as usize];
                                         draw_image_clipped(
                                             g,
                                             &self.images.xtq[sheet as usize],
@@ -8296,8 +8265,9 @@ mod slot_equip_scene_tests {
     /// 第 4 字节三行恒 0 且绘制循环不读（保真占位，语义未知，C 级不入结论）。
     #[test]
     fn seg67_tables_match_java_metadata() {
+        let seg = crate::resource_cfg::global().seg67();
         assert_eq!(
-            GameScene::SEG67_PIECES,
+            seg.pieces.as_slice(),
             [
                 (0, 0, 0, 33, 56),
                 (0, 33, 0, 33, 56),
@@ -8312,12 +8282,14 @@ mod slot_equip_scene_tests {
             "片件表（a.java:682-692）"
         );
         assert_eq!(
-            GameScene::SEG67_FRAMES,
+            seg.frames,
             [
                 [(6, -1, -79, 0), (3, -26, -5, 0), (4, 11, 6, 0), (5, -25, -53, 0), (0, -16, -27, 0)],
                 [(7, -1, -80, 0), (3, -26, -5, 0), (4, 11, 6, 0), (5, -25, -54, 0), (2, -16, -26, 0)],
                 [(8, -1, -81, 0), (3, -26, -5, 0), (4, 11, 6, 0), (5, -25, -55, 0), (1, -16, -25, 0)],
-            ],
+            ]
+            .map(|row: [(i32, i32, i32, i32); 5]| row.to_vec())
+            .to_vec(),
             "帧拼装表（a.java:693-697）"
         );
     }
