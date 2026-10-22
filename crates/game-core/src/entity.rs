@@ -255,6 +255,10 @@ pub fn render_category(type_id: i32) -> u8 {
 
 /// 动画偏移表行号表（Java animRowByType，a.java:498-586 构造常量，89 项；
 /// 行内容见 [`ANIM_OFFSET_TABLE`]）。
+///
+/// 【V2-P2】保真冻结镜像：消费面已改查 `sprite_defs.anim_row`（[`dispatch_anim`]），
+/// 本表保留为双写镜像供校验器断言 diff=0（一事实一宿主，survey §3）——**只读**，
+/// 禁止再作为消费来源回写。
 pub const ANIM_TABLE_IDX: [u8; 89] = [
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -309,9 +313,13 @@ pub fn dispatch_sprite_size(type_id: i32, idx: usize, table: &mut EntityTable, w
 }
 
 /// dispatchAnimFields（a.java:6327-6330）：动画字段初始化（行号 = animRowByType[type]，帧 0）。
+///
+/// 【V2-P2 消费替换】行号改查 `sprite_defs.anim_row` 保真表（顺序契约前半：
+/// **查表初始化 → 状态迁移覆写**，survey §2.1）；[`ANIM_TABLE_IDX`] 保留为保真
+/// 冻结镜像，校验器断言双写 diff=0（一事实一宿主）。型域外 = panic
+/// （域外三界①：89 项索引边语义与旧 [`ANIM_TABLE_IDX`] 直索引一致）。
 pub fn dispatch_anim(type_id: i32, idx: usize, table: &mut EntityTable) {
-    table.items[idx].anim_row = ANIM_TABLE_IDX[type_id as usize] as i32;
-    table.items[idx].anim_frame = 0;
+    crate::resource_cfg::global().dispatch_anim_into(type_id, idx, table);
 }
 
 /// spawnEntity 忠实移植：像素取整到格、实体字段初始化、格槽登记（按类型宽度
@@ -384,60 +392,23 @@ pub fn cell_entity(grid: &CellGrid, table: &EntityTable, x: i32, y: i32, type_id
 }
 
 /// markEntityRemoved 核心（a.java:6349-6387）：solid=1（移除态）+ 类目分派视觉字段。
-/// 返回 true = renderCategory==1（Java 此分支内调 buildMinimap，a.java:6370——
-/// 调用方据此决定是否重绘小地图；cat2/4/8/16/32 一律不重建）：
+/// 【V2-P2 消费替换】特例行改走 `transition_overrides` 表（规则 `mark_removed`），
+/// 规则形字段与原常量逐值等价（校验器双写 diff=0）。返回 true = renderCategory==1
+/// （Java 此分支内调 buildMinimap，a.java:6370——调用方据此决定是否重绘小地图）：
 /// - 类目 1：type 1/2/3 → (45,56) 行 6；type 11 → (45,57) 行 2；其余不变
 /// - 类目 2/4 → (45,56) 行 10
 /// - 类目 8/16/32 → (27,29) 行 6
 pub fn remove(table: &mut EntityTable, idx: usize) -> bool {
-    table.items[idx].state = 1;
-    let t = table.items[idx].type_;
-    match render_category(t) {
-        1 => match t {
-            1 | 2 | 3 => {
-                table.items[idx].sprite_w = 45;
-                table.items[idx].sprite_h = 56;
-                table.items[idx].anim_row = 6;
-                table.items[idx].anim_frame = 0;
-            }
-            11 => {
-                table.items[idx].sprite_w = 45;
-                table.items[idx].sprite_h = 57;
-                table.items[idx].anim_row = 2;
-                table.items[idx].anim_frame = 0;
-            }
-            _ => {}
-        },
-        2 | 4 => {
-            table.items[idx].sprite_w = 45;
-            table.items[idx].sprite_h = 56;
-            table.items[idx].anim_row = 10;
-            table.items[idx].anim_frame = 0;
-        }
-        8 | 16 | 32 => {
-            table.items[idx].sprite_w = 27;
-            table.items[idx].sprite_h = 29;
-            table.items[idx].anim_row = 6;
-            table.items[idx].anim_frame = 0;
-        }
-        _ => {}
-    }
-    render_category(t) == 1
+    crate::resource_cfg::global().apply_mark_removed(table, idx)
 }
 
 /// markEntityDesRemoved（a.java:6332-6347）：DES 变体——solid=2 + 类目 2/8/16/32 → (27,29) 行 8。
+/// 【V2-P2 消费替换】特例行改走 `transition_overrides` 表（规则 `mark_des_removed`）。
+/// Java switch **无 default 臂**（case 1=return；case 2/8/16/32=行 8 覆写）：
+/// 未列类目（0/4）视觉字段不动，由表 `otherwise=noop` 承载——机械实锚
+/// a.java:6332-6347；旧 `_` 臂对 cat 0/4 的过写随消费替换收回（表实形即 Java 实形）。
 pub fn remove_des(table: &mut EntityTable, idx: usize) {
-    table.items[idx].state = 2;
-    let t = table.items[idx].type_;
-    match render_category(t) {
-        1 => {}
-        _ => {
-            table.items[idx].sprite_w = 27;
-            table.items[idx].sprite_h = 29;
-            table.items[idx].anim_row = 8;
-            table.items[idx].anim_frame = 0;
-        }
-    }
+    crate::resource_cfg::global().apply_mark_des_removed(table, idx);
 }
 
 /// sortEntitiesByY（a.java:6732-6822）：实体按 pixelY 升序的冒泡排序（严格小于 ⇒ 等值保序）。

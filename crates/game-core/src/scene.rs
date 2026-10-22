@@ -5005,11 +5005,16 @@ impl GameScene {
                                     // entityState=2 → entityAnimRow=9（a.java:5413/
                                     // 5414/5415 逐字）；continue 不改 allowed、
                                     // 不置 var8=0（续扫同格后继槽）。
+                                    // 【V2-P2 消费替换】写点改走 transition_overrides
+                                    // `bump_reveal` 型 6 规则（键序=写序，顺序契约）。
                                     stair_count += 1;
                                     if !self.entities.items[e].visible {
-                                        self.entities.items[e].visible = true; // a.java:5413
-                                        self.entities.items[e].state = 2; // a.java:5414
-                                        self.entities.items[e].anim_row = 9; // a.java:5415
+                                        crate::resource_cfg::global().apply_bump_reveal(
+                                            &mut self.entities,
+                                            e,
+                                            &self.width_table,
+                                            None,
+                                        );
                                     }
                                 }
                                 7 | 8 => stair_count += 1,
@@ -5080,26 +5085,32 @@ impl GameScene {
                             12 => {
                                 // 撞击墙（a.java:5449-5456）：变形为型 11（墙）+ 精灵/动画
                                 // 重派 + 置可见（state=2 行 9）；阻挡但**续扫**（无 var8=0）
-                                self.entities.items[e].type_ = 11;
+                                // 【V2-P2 消费替换】字段写点改走 transition_overrides
+                                // `bump_reveal` 型 12 规则（type_id→redispatch→覆写，
+                                // 顺序契约钉死）。**Q-001 留痕**：重派尺寸需按变形后型的
+                                // **运行时图高**（图高是运行时事实，规则形装不下）——
+                                // img_h 查取留在消费侧代码。**Q-004 留痕**：block_step
+                                // 承载 var6=false（阻挡），续扫 continue 语义留本代码。
+                                let cfg = crate::resource_cfg::global();
+                                let target = cfg
+                                    .bump_reveal_target(12)
+                                    .expect("bump_reveal 型 12 规则缺 type_id");
                                 let img_h = self
                                     .images
                                     .entity
-                                    .get(11)
+                                    .get(target as usize)
                                     .cloned()
                                     .flatten()
                                     .map(|im| im.height);
-                                entity::dispatch_sprite_size(
-                                    11,
-                                    e,
+                                let out = cfg.apply_bump_reveal(
                                     &mut self.entities,
+                                    e,
                                     &self.width_table,
                                     img_h,
                                 );
-                                entity::dispatch_anim(11, e, &mut self.entities);
-                                self.entities.items[e].state = 2;
-                                self.entities.items[e].anim_row = 9;
-                                self.entities.items[e].visible = true;
-                                allowed = false;
+                                if out.block_step {
+                                    allowed = false;
+                                }
                             }
                             _ => {} // 76/82：Java bump switch（a.java:5391-5530）无此
                                     // 二 case，default=continue 放行续扫——空臂等价

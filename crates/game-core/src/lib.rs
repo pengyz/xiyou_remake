@@ -16,6 +16,7 @@ pub mod paint;
 pub mod popup;
 pub mod pathfind;
 pub mod render;
+pub mod resource_cfg;
 pub mod save;
 pub mod scene;
 pub mod title;
