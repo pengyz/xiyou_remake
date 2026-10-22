@@ -238,7 +238,17 @@ pub fn width_cells(type_id: i32, width_table: &[i32]) -> i32 {
 /// 区间 1..12→1、13..32→2、33..40→4、41..78→8，**特例覆盖优先**：
 /// 76/81/82/83→1、77/78→16、79/80→4、72/84/87→32、85/86→2。
 /// type 0 / ≥88 → 0。
+///
+/// 【V2-P2 消费替换】10 臂 match 改查 `sprite_defs.render_category` 保真表；
+/// 旧体收编为保真冻结镜像 [`legacy_render_category_mirror`]（校验器断言双写
+/// diff=0，一事实一宿主 survey §3）——镜像只读，禁止再作消费来源。
 pub fn render_category(type_id: i32) -> u8 {
+    crate::resource_cfg::global().render_category(type_id)
+}
+
+/// renderCategoryByType **保真冻结镜像**（10 臂原语义逐字，a.java:6268-6298）：
+/// 供校验器对拍表值（双写 diff=0，survey §3 硬条件）——**只读**，禁消费。
+pub fn legacy_render_category_mirror(type_id: i32) -> u8 {
     match type_id {
         76 | 81 | 82 | 83 => 1,
         77 | 78 => 16,

@@ -6035,11 +6035,11 @@ impl GameScene {
     /// entity::render_category 只覆盖非 50 层语义（迭代 56：floor50 boss
     /// 走 cat32 臂缺 4px lift，T237 op 唯一分歧实证）。
     fn entity_category(&self, t: i32) -> u8 {
-        if t == 72 && self.floor == 50 {
-            8
-        } else {
-            entity::render_category(t)
-        }
+        // 【V2-P2 消费替换】floor50 类目覆写改查 sprite_defs.floor_category_override
+        // （表驱动；旧特例 `t==72 && floor==50 → 8` 与表逐值等价）。
+        crate::resource_cfg::global()
+            .floor_category(t, self.floor)
+            .unwrap_or_else(|| entity::render_category(t))
     }
 
     /// 型 67 片件表（a.java:682-697 f_byte_arr2_00/01 逐值）已迁
