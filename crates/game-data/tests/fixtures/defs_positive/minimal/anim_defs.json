@@ -1,0 +1,9 @@
+{ "schema_version": 2,
+  "anim_defs": [
+    { "id": "walk_3frame", "frames": [0, 1, 2, 1], "step_ticks": 4,
+      "loop_mode": "cycle",
+      "evidence": [ { "index": 3, "value": [0, 1, 2, 1], "src": "a.java:485-497" } ] },
+    { "id": "still_1frame", "frames": [0], "step_ticks": 2,
+      "loop_mode": "cycle", "evidence": [] }
+  ]
+}

@@ -1,0 +1,7 @@
+{ "schema_version": 2,
+  "containers": ["sflogo", "sptenemy1"],
+  "container_counts": [8, 4],
+  "slots": { "claims": [] },
+  "assembly_profiles": { "seg67": {} },
+  "evidence": [ { "index": 1, "value": { "name": "sptenemy1", "count": 4 }, "src": "a.java:450-453" } ]
+}

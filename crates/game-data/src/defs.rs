@@ -50,13 +50,23 @@ pub const TYPE_ID_MAX: i64 = 88;
 
 // ---------------------------------------------------------------- 严格键集（第 5 类 unknown-field=拒载）
 
-/// `sprite_defs.json` 封套键（`quirks_in_code`=§2.1 quirks 留痕，可选，条目原样保留）。
-const ENVELOPE_SPRITE_KEYS: &[&str] = &["schema_version", "sprite_defs", "quirks_in_code"];
+/// `sprite_defs.json` 封套键（task-5 真表实形，commit a284203）：
+/// `transition_overrides`（规则形移至顶层）/`size_dispatch`（dispatch_sprite_size 特例表）/
+/// `quirks_in_code`（§2.1 quirks 留痕）三 blob **原样保留**（内部结构由消费替换步 task-7 读取，
+/// 本层只验容器形态，防拼写静默由封套键集承担）。
+const ENVELOPE_SPRITE_KEYS: &[&str] =
+    &["schema_version", "sprite_defs", "transition_overrides", "size_dispatch", "quirks_in_code"];
 /// `anim_defs.json` 封套键。
 const ENVELOPE_ANIM_KEYS: &[&str] = &["schema_version", "anim_defs"];
-/// `sheet_index.json` 封套键（§2.1 扁平形）。
-const ENVELOPE_SHEET_KEYS: &[&str] =
-    &["schema_version", "containers", "container_counts", "slots", "evidence"];
+/// `sheet_index.json` 封套键（§2.1 扁平形 + task-5 `assembly_profiles`：SEG 片件表 id 目录）。
+const ENVELOPE_SHEET_KEYS: &[&str] = &[
+    "schema_version",
+    "containers",
+    "container_counts",
+    "slots",
+    "assembly_profiles",
+    "evidence",
+];
 /// `sprite_defs` 记录键（§2.1 schema 主件逐字段）。
 const SPRITE_KEYS: &[&str] = &[
     "type_id",
@@ -65,6 +75,8 @@ const SPRITE_KEYS: &[&str] = &[
     "frame_w",
     "frame_h",
     "render_category",
+    "anim_row",
+    "type_frame_width",
     "anim_profile",
     "assembly_profile",
     "insert_block",
@@ -217,16 +229,20 @@ pub struct TransitionOverride {
 pub struct SpriteDef {
     /// 型号 id（域 0..=88，保真 id 冻结）
     pub type_id: i64,
-    /// 图集容器名（外键 → `sheet_index.containers`）
-    pub sheet: String,
-    /// 图集内槽位下标
-    pub sheet_index: i64,
+    /// 图集容器名（外键 → `sheet_index.containers`；可空=无图型，如 type 0）
+    pub sheet: Option<String>,
+    /// 图集内槽位下标（与 `sheet` 同生共死）
+    pub sheet_index: Option<i64>,
     /// 逻辑帧宽
     pub frame_w: i64,
-    /// 逻辑帧高
-    pub frame_h: i64,
+    /// 逻辑帧高（可空=型高由运行时定，真表 82/89 为 null——task-5 表实形）
+    pub frame_h: Option<i64>,
     /// 渲染分类
     pub render_category: i64,
+    /// 动画面行（`ANIM_TABLE_IDX`/animRowByType 逐型行，task-5 表实形）
+    pub anim_row: Option<i64>,
+    /// 型宽（`type_width_px` 88 项迁入值，task-5 表实形；evidence 补录在表侧）
+    pub type_frame_width: Option<i64>,
     /// 动画档外键（→ `anim_defs.id`）
     pub anim_profile: String,
     /// SEG67 片件表引用（表中表外键，可空）
@@ -263,10 +279,12 @@ pub struct AnimDef {
 pub struct SheetIndex {
     /// 16 容器名序（a.java:450）
     pub containers: Vec<String>,
-    /// 16 容器张数表（a.java:451 `resourceImageCounts`）
+    /// 16 容器张数表（a.java:453 `resourceImageCounts`（2026-10-22 task-5 勘误：非 451））
     pub container_counts: Vec<i64>,
     /// 槽位表（§2.1 字段定义为对象，内部结构 schema 未定——原样保留，不发明语义）
     pub slots: Json,
+    /// SEG 片件表 id 目录（task-5 表实形：`assembly_profiles` 对象的键集）
+    pub assembly_profiles: Vec<String>,
     /// 逐值锚
     pub evidence: Vec<EvidenceAnchor>,
 }
@@ -276,6 +294,22 @@ pub struct SheetIndex {
 /// 解析 `sprite_defs.json` → [`SpriteDef`] 列表（单表层：schema 版本+字段形态）。
 pub fn parse_sprite_defs(src: &str) -> Result<Vec<SpriteDef>, Reject> {
     let doc = parse_envelope(src, ENVELOPE_SPRITE_KEYS)?;
+    // 顶层三 blob（task-5 表实形）只验容器形态：数组/对象/数组
+    if let Some(v) = doc.get("transition_overrides") {
+        if !matches!(v, Json::Arr(_)) {
+            return Err(schema("<root>.transition_overrides", "非数组"));
+        }
+    }
+    if let Some(v) = doc.get("size_dispatch") {
+        if !matches!(v, Json::Obj(_)) {
+            return Err(schema("<root>.size_dispatch", "非对象"));
+        }
+    }
+    if let Some(v) = doc.get("quirks_in_code") {
+        if !matches!(v, Json::Arr(_)) {
+            return Err(schema("<root>.quirks_in_code", "非数组"));
+        }
+    }
     let items = expect_arr(&doc, "sprite_defs", "sprite_defs")?;
     items
         .iter()
@@ -322,6 +356,11 @@ pub fn parse_sheet_index(src: &str) -> Result<SheetIndex, Reject> {
         .filter(|v| matches!(v, Json::Obj(_)))
         .ok_or_else(|| schema("sheet_index.slots", "缺失或非对象"))?
         .clone();
+    let assembly_profiles = match doc.get("assembly_profiles") {
+        None => Vec::new(),
+        Some(Json::Obj(members)) => members.iter().map(|(k, _)| k.clone()).collect(),
+        Some(_) => return Err(schema("sheet_index.assembly_profiles", "非对象")),
+    };
     let evidence = match doc.get("evidence") {
         None => Vec::new(),
         Some(Json::Arr(items)) => items
@@ -331,7 +370,7 @@ pub fn parse_sheet_index(src: &str) -> Result<SheetIndex, Reject> {
             .collect::<Result<Vec<_>, _>>()?,
         Some(_) => return Err(schema("sheet_index.evidence", "非数组")),
     };
-    Ok(SheetIndex { containers, container_counts, slots, evidence })
+    Ok(SheetIndex { containers, container_counts, slots, assembly_profiles, evidence })
 }
 
 /// 语法解析 + 封套 unknown-field 拒载（第 5 类）+ schema 版本校验（§2.3）。
@@ -363,10 +402,33 @@ fn parse_sprite_def(rec: &Json, path: &str) -> Result<SpriteDef, Reject> {
             domain: "0..=88",
         });
     }
-    let sheet = need_str(rec, path, "sheet")?.to_string();
-    let sheet_index = need_int(rec, path, "sheet_index")?;
+    // sheet/sheet_index 可空（无图型，如 type 0；task-5 真表实形）
+    let sheet = match rec.get("sheet") {
+        None | Some(Json::Null) => None,
+        Some(Json::Str(s)) => Some(s.clone()),
+        Some(_) => return Err(schema(format!("{path}.sheet"), "非字符串/非 null")),
+    };
+    let sheet_index = match rec.get("sheet_index") {
+        None | Some(Json::Null) => None,
+        Some(Json::Int(v)) => Some(*v),
+        Some(_) => return Err(schema(format!("{path}.sheet_index"), "非整数/非 null")),
+    };
+    let anim_row = match rec.get("anim_row") {
+        None | Some(Json::Null) => None,
+        Some(Json::Int(v)) => Some(*v),
+        Some(_) => return Err(schema(format!("{path}.anim_row"), "非整数")),
+    };
+    let type_frame_width = match rec.get("type_frame_width") {
+        None | Some(Json::Null) => None,
+        Some(Json::Int(v)) => Some(*v),
+        Some(_) => return Err(schema(format!("{path}.type_frame_width"), "非整数")),
+    };
     let frame_w = need_int(rec, path, "frame_w")?;
-    let frame_h = need_int(rec, path, "frame_h")?;
+    let frame_h = match rec.get("frame_h") {
+        None | Some(Json::Null) => None,
+        Some(Json::Int(v)) => Some(*v),
+        Some(_) => return Err(schema(format!("{path}.frame_h"), "非整数/非 null")),
+    };
     let render_category = need_int(rec, path, "render_category")?;
     let anim_profile = need_str(rec, path, "anim_profile")?.to_string();
     let assembly_profile = match rec.get("assembly_profile") {
@@ -428,6 +490,8 @@ fn parse_sprite_def(rec: &Json, path: &str) -> Result<SpriteDef, Reject> {
         frame_w,
         frame_h,
         render_category,
+        anim_row,
+        type_frame_width,
         anim_profile,
         assembly_profile,
         insert_block,
@@ -580,7 +644,9 @@ impl DefBundle {
                 });
             }
             if let Some(asm) = &s.assembly_profile {
-                if !assembly_ids.contains(&asm.as_str()) {
+                let known = assembly_ids.contains(&asm.as_str())
+                    || sheet_index.assembly_profiles.iter().any(|a| a == asm);
+                if !known {
                     return Err(Reject::BadForeignKey {
                         path: format!("sprite_defs[{i}].assembly_profile"),
                         detail: format!(
@@ -589,22 +655,25 @@ impl DefBundle {
                     });
                 }
             }
-            if !sheet_index.containers.contains(&s.sheet) {
-                return Err(Reject::BadForeignKey {
-                    path: format!("sprite_defs[{i}].sheet"),
-                    detail: format!(
-                        "sheet {:?} 在 sheet_index.containers 中不存在（跨表悬空拒载）",
-                        s.sheet
-                    ),
-                });
+            if let Some(sheet) = &s.sheet {
+                if !sheet_index.containers.contains(sheet) {
+                    return Err(Reject::BadForeignKey {
+                        path: format!("sprite_defs[{i}].sheet"),
+                        detail: format!(
+                            "sheet {sheet:?} 在 sheet_index.containers 中不存在（跨表悬空拒载）"
+                        ),
+                    });
+                }
             }
         }
-        // 第 4 类：帧序越界拒载（§2.3：frames 下标超表长=所引图集容器张数 container_counts）
+        // 第 4 类：帧序越界拒载（§2.3：frames 下标超表长=所引图集容器张数 container_counts；
+        // 无图型 sheet=None 无帧表可越，跳过）
         for (i, s) in sprite_defs.iter().enumerate() {
+            let Some(sheet) = &s.sheet else { continue };
             let cpos = sheet_index
                 .containers
                 .iter()
-                .position(|c| *c == s.sheet)
+                .position(|c| c == sheet)
                 .expect("FK 已校验 sheet 存在");
             let raw_len = sheet_index.container_counts[cpos];
             if raw_len < 0 {
