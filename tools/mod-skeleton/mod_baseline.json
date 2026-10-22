@@ -1,0 +1,4 @@
+{
+  "comment": "mod 独立基线（两份制规则 4，survey §2.2）：mod 表哈希单独立账，不进金样闸、不进保真表内容哈希闸（gates/table_content_hash.json 只记保真三表）。当前无量产 mod 表（骨架期空账）。",
+  "mod_tables": {}
+}
