@@ -45,7 +45,8 @@
 禁双计）。
 
 **【v2 补 R1】schema 漏收已清点数据三件**：
-① `resourceImageCounts`（a.java:451，16 容器张数表）——v1 schema 无张数 ⇒ 槽位合法性/
+① `resourceImageCounts`（a.java:453【2026-10-22 更正：P1 生成式提取实锚=453，原写 451】，
+   16 容器张数表）——v1 schema 无张数 ⇒ 槽位合法性/
 图集裁切边界无所依（ui[8][*]=25 张的裁切循环边界靠什么定？）；
 ② `SEG67_PIECES/SEG67_FRAMES`（表中表：9 片件 xywh + 3×5 段帧）——v1 override 字段装不下
 片件数组 ⇒ 补 `assembly_profile` 字段（§2.1）；
@@ -88,9 +89,9 @@
 
 // sheet_index.json
 { "containers": [...],                            // ★R1 锚修正：a.java:450（非 451）
-  "container_counts": [8,1,12,4,13,23,10,20,25,6,2,2,12,20,1,2],   // ★R1 补：a.java:451 张数表
+  "container_counts": [8,1,12,4,13,23,10,20,25,6,2,2,12,20,1,2],   // ★R1 补：a.java:453 张数表【2026-10-22 更正：实锚 453，原写 451】
   "slots": {...},
-  "evidence": [ {"index": 8, "value": {"name":"ui","count":25}, "src": "a.java:450-451"} ] }
+  "evidence": [ {"index": 8, "value": {"name":"ui","count":25}, "src": "name a.java:450 / count a.java:453"} ] }
 ```
 
 **quirks_in_code 留痕**：装不下规则形的残余特例（若有）显式登记 `{quirk_id, reason,

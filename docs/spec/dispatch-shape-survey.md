@@ -135,6 +135,15 @@
 
 ### 4.1 EnemyDef（B1 补全字段）
 
+> 【2026-10-22 v2 回写注记·resource-config-survey 1/3 条件 4】enemy_defs 瘦身 =
+> **sprite_ref 单字段引用**（sprite_sheet/anim_row 等资源属性列迁出——真值宿主 =
+> `sprite_defs.render_category` 等资源表字段，一事实一宿主）；**双写 diff=0** 由
+> game-core `one_fact_one_host` 校验器承接（本批 V2 P1-P3 已落，6 测绿）；enemy_defs
+> 落地（表设计批）时在其加载侧加一条断言。**本批不动 enemy_defs**（下方字段表为
+> 表设计批蓝图，届时按瘦身修订）。依据：[resource-config-survey.md](resource-config-survey.md)
+> §2.2/§3。
+
+
 ```rust
 pub struct EnemyDef {
     pub type_id: i32,
