@@ -1,0 +1,8 @@
+{
+  "comment": "保真表内容哈希闸基线（survey §2.2 规则 3，非荣誉制）：data/tables 三表 sha256。变更仅允许勘误流程——逐值锚证据更新+金样重过后由 python3 gates/cli.py table-content-hash-update 重建，且更新单独 commit 写明原因（AGENTS.md §2）。mod 表不进本基线（mod 独立基线： tools/mod-skeleton/mod_baseline.json）。",
+  "tables": {
+    "sprite_defs.json": "7f5e2e80e146c264f47c6ab162cd68b6c5f2ef0933ae89d76acb167e48ab2eea",
+    "anim_defs.json": "99a92f78e59fe530855fcfdbbd39f7ce684513f8c1f85e2f3cdccac8fc463a4d",
+    "sheet_index.json": "a19c815acb131d26c6b62ce2523223c2077346fc3da524171143f0b76241cf44"
+  }
+}

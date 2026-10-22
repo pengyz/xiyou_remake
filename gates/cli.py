@@ -17,6 +17,10 @@
   python3 gates/cli.py all         # 全量
   python3 gates/cli.py ratchet         # 测试计数 ratchet 校验（只许增不许减）
   python3 gates/cli.py ratchet-update  # 重建测试计数基线（commit 须写明原因）
+  python3 gates/cli.py table-content-hash   # 保真表内容哈希闸（survey §2.2 规则 3）
+  python3 gates/cli.py table-content-hash-update  # 哈希基线重建（勘误流程末步）
+  python3 gates/cli.py table-evidence   # 机械对照器：提取值==表值第二侧（§4 R2.1）
+  python3 gates/cli.py zero-code-drill  # 零改码链演练实跑（survey §3 步 5=验收闸）
 """
 import hashlib
 import json
@@ -387,6 +391,109 @@ def gate_asset_manifest():
     return report("asset-truth-manifest", PASS if r.returncode == 0 else FAIL, out[-300:])
 
 
+# ---------- V2·P3 验收闸（resource-config-v2 plan §Phase 3） ----------
+
+# 保真表内容哈希闸基线（survey §2.2 规则 3：哈希入 gates——非荣誉制）。
+# 基线只记保真三表；mod 表走 mod 独立基线（tools/mod-skeleton/mod_baseline.json，不进金样闸）。
+TABLE_HASH_BASELINE = ROOT / "gates" / "table_content_hash.json"
+FIDELITY_TABLES = ("sprite_defs.json", "anim_defs.json", "sheet_index.json")
+
+
+def gate_table_content_hash():
+    """保真表内容哈希闸（survey §2.2 规则 3 / §4 R2.3——非荣誉制）：
+    data/tables 三表 sha256 对照闸基线 gates/table_content_hash.json。
+    变更仅允许勘误流程：逐值锚证据更新（tools/table-evidence 生成式）+ 金样重过
+    （gate table-evidence + trace）+ `python3 gates/cli.py table-content-hash-update`
+    基线更新**单独 commit** 写明原因（AGENTS.md §2 gates 红线）。
+    手改表不重锚证据=本闸直接红（220 逐值锚宿主防漂移）。"""
+    base = ROOT / "data" / "tables"
+    if not TABLE_HASH_BASELINE.exists():
+        return report("table-content-hash", FAIL,
+                      f"闸基线缺失 {TABLE_HASH_BASELINE.name}"
+                      f"（python3 gates/cli.py table-content-hash-update 生成）")
+    try:
+        expected = json.loads(TABLE_HASH_BASELINE.read_text(encoding="utf-8")).get("tables", {})
+    except json.JSONDecodeError as e:
+        return report("table-content-hash", FAIL, f"闸基线 JSON 无效：{e}")
+    bad = []
+    seen = set()
+    for name in FIDELITY_TABLES:
+        p = base / name
+        if not p.exists():
+            bad.append(f"{name} 缺失")
+            continue
+        seen.add(name)
+        got = sha256(p)
+        want = expected.get(name)
+        if want is None:
+            bad.append(f"{name} 未入闸基线")
+        elif got != want:
+            bad.append(f"{name} sha256 不匹配 期望={want[:12]}… 实际={got[:12]}…")
+    extra = sorted(set(expected) - seen - set(FIDELITY_TABLES))
+    if extra:
+        bad.append(f"闸基线含非保真条目（mod 表须走 mod 独立基线）：{extra}")
+    if bad:
+        return report("table-content-hash", FAIL,
+                      "；".join(bad) + "——保真表变更=勘误流程+金样重过（非荣誉制），"
+                      "禁手改表不重锚证据")
+    return report("table-content-hash", PASS,
+                  f"保真三表 sha256 对照基线通过（逐值锚 220 宿主；基线 {TABLE_HASH_BASELINE.name}）")
+
+
+def gate_table_evidence():
+    """机械对照器进闸（survey §4 R2.1）：javap/deobf 提取值==表值**第二侧**比对
+    （tools/table-evidence/cli.py check = 逐值等值比对 + 确定性复跑同哈希），
+    防手抄互证同源错误（R2 反例"转录错同源复制"）。
+    P1 机械对照器复用，不重写第二套扫描逻辑（gates/README 设计原则）。"""
+    tool = ROOT / "tools" / "table-evidence" / "cli.py"
+    if not tool.exists():
+        return report("table-evidence", FAIL, "机械对照器缺失 tools/table-evidence/cli.py")
+    r = subprocess.run([sys.executable, str(tool), "check"], cwd=ROOT,
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    out = ((r.stdout or "") + (r.stderr or "")).strip()
+    return report("table-evidence", PASS if r.returncode == 0 else FAIL, out[-300:])
+
+
+def gate_zero_code_drill():
+    """零改码链演练实跑（survey §3 步 5=验收闸）：加假想新敌人=纯表+资源行，
+    断言零 Rust 改动（git diff crates/ 为空）+ 失败面三类各一（域外型/坏外键/quirk 型）。
+    验收级（含真解析器 harness 编译）——不进 cmd_check 热路径，进 cmd_all 全量。"""
+    drill = ROOT / "tools" / "zero-code-drill" / "drill.py"
+    if not drill.exists():
+        return report("zero-code-drill", FAIL, "演练脚本缺失 tools/zero-code-drill/drill.py")
+    r = subprocess.run([sys.executable, str(drill)], cwd=ROOT,
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    out = ((r.stdout or "") + (r.stderr or "")).strip()
+    tail = out.splitlines()[-1] if out else ""
+    return report("zero-code-drill", PASS if r.returncode == 0 else FAIL,
+                  tail if r.returncode == 0 else out[-300:])
+
+
+def cmd_table_hash_update():
+    """保真表内容哈希闸基线更新（勘误流程末步——非荣誉制）。
+    前置必须已完成：逐值锚证据更新（tools/table-evidence generate/compare）+
+    金样重过（table-evidence check + gates trace）。更新须**单独 commit** 并写明原因。"""
+    base = ROOT / "data" / "tables"
+    missing = [n for n in FIDELITY_TABLES if not (base / n).exists()]
+    if missing:
+        print(f"表缺失：{missing}")
+        return 1
+    payload = {
+        "comment": "保真表内容哈希闸基线（survey §2.2 规则 3，非荣誉制）：data/tables 三表"
+                   " sha256。变更仅允许勘误流程——逐值锚证据更新+金样重过后由"
+                   " python3 gates/cli.py table-content-hash-update 重建，且更新单独"
+                   " commit 写明原因（AGENTS.md §2）。mod 表不进本基线（mod 独立基线："
+                   " tools/mod-skeleton/mod_baseline.json）。",
+        "tables": {n: sha256(base / n) for n in FIDELITY_TABLES},
+    }
+    TABLE_HASH_BASELINE.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    for n, h in payload["tables"].items():
+        print(f"[table-content-hash] {h}  data/tables/{n}")
+    print("基线已更新——commit 须写明勘误原因与金样重过证据（AGENTS.md §2 gates 红线）")
+    return 0
+
+
 def cmd_status():
     print("== 门禁状态预检（只读）==")
     print(f"ROOT: {ROOT}")
@@ -396,9 +503,11 @@ def cmd_status():
     else:
         print("基线: 缺失")
     # 场景套件（gate_scenarios）不进 status：重跑动辄数十分钟，只在 all/子命令执行
+    # zero-code-drill 同理（验收级，含真解析器 harness 编译）——只进 all/子命令
     statuses = [gate_original(), gate_assets_manifest(), gate_reference_seed_integrity(),
                 gate_knowledge_format(), gate_docs_links(), gate_naming_ledger(), gate_rust_tests(),
-                gate_test_ratchet(), gate_asset_manifest(),
+                gate_test_ratchet(), gate_table_content_hash(), gate_table_evidence(),
+                gate_asset_manifest(),
                 gate_reference(), gate_trace(), gate_visual()]
     print("== 汇总 ==")
     print(f"PASS={statuses.count(PASS)} FAIL={statuses.count(FAIL)} "
@@ -450,7 +559,8 @@ def cmd_check():
     print("== 总闸 gates/cli.py check ==")
     statuses = [gate_original(), gate_assets_manifest(), gate_reference_seed_integrity(),
                 gate_knowledge_format(), gate_docs_links(), gate_naming_ledger(), gate_rust_tests(),
-                gate_test_ratchet(), gate_state_machine_anchors(), gate_asset_manifest()]
+                gate_test_ratchet(), gate_table_content_hash(), gate_table_evidence(),
+                gate_state_machine_anchors(), gate_asset_manifest()]
     # SKIP 项必须显式出现在输出（上面已打印），不得静默
     print("== 汇总 ==")
     print(f"PASS={statuses.count(PASS)} FAIL={statuses.count(FAIL)} SKIP={statuses.count(SKIP)}")
@@ -461,8 +571,10 @@ def cmd_all():
     print("== 全量门禁 ==")
     statuses = [gate_original(), gate_assets_manifest(), gate_reference_seed_integrity(),
                 gate_knowledge_format(), gate_docs_links(), gate_naming_ledger(), gate_rust_tests(),
-                gate_test_ratchet(), gate_asset_manifest(),
-                gate_reference(), gate_scenarios(), gate_trace(), gate_visual()]
+                gate_test_ratchet(), gate_table_content_hash(), gate_table_evidence(),
+                gate_asset_manifest(),
+                gate_reference(), gate_scenarios(), gate_trace(), gate_visual(),
+                gate_zero_code_drill()]
     print(f"PASS={statuses.count(PASS)} FAIL={statuses.count(FAIL)} SKIP={statuses.count(SKIP)}")
     return 1 if FAIL in statuses else 0
 
@@ -480,6 +592,10 @@ COMMANDS = {
     "ratchet": lambda: 1 if gate_test_ratchet() == FAIL else 0,
     "ratchet-update": cmd_ratchet_update,
     "asset-manifest": lambda: 1 if gate_asset_manifest() == FAIL else 0,
+    "table-content-hash": lambda: 1 if gate_table_content_hash() == FAIL else 0,
+    "table-content-hash-update": cmd_table_hash_update,
+    "table-evidence": lambda: 1 if gate_table_evidence() == FAIL else 0,
+    "zero-code-drill": lambda: 1 if gate_zero_code_drill() == FAIL else 0,
 }
 
 if __name__ == "__main__":
