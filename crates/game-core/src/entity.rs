@@ -284,32 +284,13 @@ pub const ANIM_OFFSET_TABLE: [&[i32]; 11] = [
     &[2, 3, 4],
 ];
 
-/// dispatchSpriteSize（a.java:6300-6325）：实体精灵尺寸分派。
-/// type 69 → (96,32)；type 72 → (32,45)；type 67 → (32,32)（loadPackedImages(9) 换容器后走尾部）；
-/// 图存在 → (typeFrameWidth[type], 图高)；图空 → (32,32)。
+/// dispatchSpriteSize（a.java:6300-6325）：实体精灵尺寸分派（size_dispatch 表驱动）。
+/// type 69 → (96,32)；type 72 → (32,45)；type 67 → (32,32)（loadPackedImages(9) 换容器后走尾部，
+/// Q-002 留码：加载副作用不属尺寸语义）；图存在 → (typeFrameWidth[type], 图高)；图空 → (32,32)。
 pub fn dispatch_sprite_size(type_id: i32, idx: usize, table: &mut EntityTable, width_table: &[i32], img_h: Option<i32>) {
-    match type_id {
-        69 => {
-            table.items[idx].sprite_w = 96;
-            table.items[idx].sprite_h = 32;
-            return;
-        }
-        72 => {
-            table.items[idx].sprite_w = 32;
-            table.items[idx].sprite_h = 45;
-            return;
-        }
-        67 => {}
-        _ => {
-            if let Some(h) = img_h {
-                table.items[idx].sprite_w = *width_table.get(type_id as usize).unwrap_or(&32);
-                table.items[idx].sprite_h = h;
-                return;
-            }
-        }
-    }
-    table.items[idx].sprite_w = 32;
-    table.items[idx].sprite_h = 32;
+    // 【V2-P2 消费替换】特例 69→96×32 / 72→32×45 / 67→break 落 fallback 改走
+    // `size_dispatch` 表（规则形逐值等价，校验器双写 diff=0）。
+    crate::resource_cfg::global().dispatch_sprite_size_into(type_id, idx, table, width_table, img_h);
 }
 
 /// dispatchAnimFields（a.java:6327-6330）：动画字段初始化（行号 = animRowByType[type]，帧 0）。

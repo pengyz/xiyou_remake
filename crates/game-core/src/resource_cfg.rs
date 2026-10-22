@@ -137,19 +137,37 @@ impl TransitionRule {
     }
 }
 
+/// `size_dispatch.by_type` 一条（dispatchSpriteSize 特例臂）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SizeRule {
+    pub frame_w: i32,
+    pub frame_h: i32,
+    /// case 67（a.java:6304-6305）：loadPackedImages(9) 后 `break` 落 fallback 臂——
+    /// 表值即 fallback 值，语义走 fallback 而非字面（表改 fallback 时 67 随动）
+    pub via_break_to_fallback: bool,
+    /// Q-002 加载副作用锚（loadPackedImages(9)）——只留痕不消费
+    /// （game-core 无 I/O；Rust 侧装载在 shell 构造期全量完成）
+    pub load_packed_images: Option<i64>,
+}
+
 /// `size_dispatch`（dispatchSpriteSize a.java:6300-6325 的表形）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SizeDispatch {
     /// fallback 臂（32×32：default 臂图空落空 / case 67 break 落底）
     pub fallback: (i32, i32),
-    /// 特例（67→32×32 break_to_fallback、69→96×32、72→32×45）
-    pub by_type: Vec<(i32, (i32, i32))>,
+    /// 特例（67→break_to_fallback、69→96×32、72→32×45）
+    pub by_type: Vec<(i32, SizeRule)>,
 }
 
 impl SizeDispatch {
     /// by_type 特例尺寸；None = default 臂（type_frame_width + 运行时图高）。
     pub fn special(&self, type_id: i32) -> Option<(i32, i32)> {
-        self.by_type.iter().find(|(t, _)| *t == type_id).map(|(_, wh)| *wh)
+        self.rule(type_id).map(|r| (r.frame_w, r.frame_h))
+    }
+
+    /// by_type 特例规则。
+    pub fn rule(&self, type_id: i32) -> Option<&SizeRule> {
+        self.by_type.iter().find(|(t, _)| *t == type_id).map(|(_, r)| r)
     }
 }
 
@@ -287,6 +305,43 @@ impl ResourceCfg {
     /// dispatchSpriteSize 特例尺寸（size_dispatch.by_type）；None = default 臂。
     pub fn size_special(&self, type_id: i32) -> Option<(i32, i32)> {
         self.size_dispatch.special(type_id)
+    }
+
+    /// dispatchSpriteSize 特例规则（size_dispatch.by_type）。
+    pub fn size_rule(&self, type_id: i32) -> Option<&SizeRule> {
+        self.size_dispatch.rule(type_id)
+    }
+
+    /// dispatchSpriteSize（a.java:6300-6325）：实体精灵尺寸分派（size_dispatch 表驱动）。
+    /// 特例臂→表值；case 67（via=break_to_fallback）→fallback 臂；default 臂→
+    /// type_frame_width 表宽×运行时图高；图空→fallback（Q-002：67/69 的
+    /// loadPackedImages(9) 加载副作用留码，不属尺寸语义）。
+    pub fn dispatch_sprite_size_into(
+        &self,
+        type_id: i32,
+        idx: usize,
+        table: &mut EntityTable,
+        width_table: &[i32],
+        img_h: Option<i32>,
+    ) {
+        if let Some(rule) = self.size_rule(type_id) {
+            let (w, h) = if rule.via_break_to_fallback {
+                self.size_fallback()
+            } else {
+                (rule.frame_w, rule.frame_h)
+            };
+            table.items[idx].sprite_w = w;
+            table.items[idx].sprite_h = h;
+            return;
+        }
+        if let Some(h) = img_h {
+            table.items[idx].sprite_w = *width_table.get(type_id as usize).unwrap_or(&32);
+            table.items[idx].sprite_h = h;
+            return;
+        }
+        let (w, h) = self.size_fallback();
+        table.items[idx].sprite_w = w;
+        table.items[idx].sprite_h = h;
     }
 
     /// fallback 尺寸（32×32）。
@@ -558,7 +613,22 @@ fn parse_size_dispatch(rec: &Json) -> Result<SizeDispatch, Reject> {
         let t: i32 = k
             .parse()
             .map_err(|_| schema(format!("{path}.by_type"), format!("型键 {k:?} 非整数")))?;
-        by_type.push((t, (int(v, path, "frame_w")? as i32, int(v, path, "frame_h")? as i32)));
+        let rule_path = format!("{path}.by_type.{k}");
+        let via_break_to_fallback = match v.get("via") {
+            None | Some(Json::Null) => false,
+            Some(Json::Str(s)) if s == "break_to_fallback" => true,
+            Some(_) => return Err(schema(format!("{rule_path}.via"), "未知 via 值")),
+        };
+        let load_packed_images = match v.get("load_packed_images") {
+            None | Some(Json::Null) => None,
+            Some(j) => Some(int_val(j, &rule_path, "load_packed_images")?),
+        };
+        by_type.push((t, SizeRule {
+            frame_w: int(v, &rule_path, "frame_w")? as i32,
+            frame_h: int(v, &rule_path, "frame_h")? as i32,
+            via_break_to_fallback,
+            load_packed_images,
+        }));
     }
     Ok(SizeDispatch { fallback, by_type })
 }
