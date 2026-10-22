@@ -251,8 +251,13 @@ impl ResourceCfg {
     /// 嵌入保真表（`data/tables/*.json`，include_str! 编译期取数——无 I/O、确定性）。
     /// 表坏 = 装载失败（panic），与"保真表变更=勘误流程+金样重过"纪律配套。
     pub fn from_embedded() -> ResourceCfg {
-        ResourceCfg::parse(SPRITE_SRC, ANIM_SRC, SHEET_SRC)
-            .expect("保真表装载失败（data/tables/*.json 坏——走勘误流程）")
+        let cfg = ResourceCfg::parse(SPRITE_SRC, ANIM_SRC, SHEET_SRC)
+            .expect("保真表装载失败（data/tables/*.json 坏——走勘误流程）");
+        // 一事实一宿主校验（非荣誉制）：双写 diff=0——漂移=装载失败，
+        // 处置=勘误流程+金样重过（survey §3 硬条件 / R2 保真红线）。
+        cfg.validate_one_fact_one_host()
+            .expect("一事实一宿主双写漂移（保真表 vs 冻结镜像）——走勘误流程+金样重过");
+        cfg
     }
 
     /// 三表联合面（外键/帧序域校验产物；一事实一宿主校验器读面）。
@@ -451,6 +456,70 @@ impl ResourceCfg {
     /// bump_reveal 变形目标型（Q-001 消费侧取运行时图高用；无变形规则 ⇒ None）。
     pub fn bump_reveal_target(&self, type_id: i32) -> Option<i32> {
         self.transition("bump_reveal").type_write(type_id).and_then(|w| w.type_id)
+    }
+
+    /// 一事实一宿主校验器（survey §3 硬条件）：四宿主双写 diff=0。
+    ///
+    /// 1. render_category：表宿主 vs [`crate::entity::legacy_render_category_mirror`]
+    ///    （代码宿主=enemy_defs.sprite_ref 解引用值的今日仓形等价面；enemy_defs 属
+    ///    表设计批，落地后其 sprite_ref 解引用侧直接加入本对拍）；
+    /// 2. anim_row：表宿主 vs [`crate::entity::ANIM_TABLE_IDX`] 冻结镜像；
+    /// 3. sprite_ref 解引用：sprite_defs.sheet/sheet_index vs
+    ///    sheet_index.slots.claims 型→(容器,槽)（表间双写）；
+    /// 4. size_dispatch 特例 vs 旧常量冻结值（69/72/67——width_cells 格数同源）。
+    ///
+    /// 返回 "OK" 或逐条漂移报告（全部收集，非首个即断）。
+    pub fn validate_one_fact_one_host(&self) -> Result<String, String> {
+        let mut diffs: Vec<String> = Vec::new();
+        for t in 0i32..=88 {
+            // 1. render_category 双写
+            let table_rc = self.render_category(t);
+            let mirror_rc = entity::legacy_render_category_mirror(t);
+            if table_rc != mirror_rc {
+                diffs.push(format!(
+                    "render_category 型 {t}：表 {table_rc} != 冻结镜像 {mirror_rc}"
+                ));
+            }
+            // 2. anim_row 双写
+            let table_row = self.anim_row(t);
+            let mirror_row = crate::entity::ANIM_TABLE_IDX[t as usize] as i32;
+            if table_row != mirror_row {
+                diffs.push(format!(
+                    "anim_row 型 {t}：表 {table_row} != ANIM_TABLE_IDX 镜像 {mirror_row}"
+                ));
+            }
+            // 3. sprite_ref 解引用双写（sprite_defs vs claims）
+            let def = self.sprite_def(t).expect("型号域 0..=88（sprite_defs 89 项）");
+            let table_slot = (def.sheet.as_deref(), def.sheet_index);
+            let claim_slot = self.entity_sprite_slot(t).map(|(c, s)| (Some(c), Some(s as i64)));
+            let claim_slot = match claim_slot {
+                Some((c, s)) => (c, s),
+                None => (None, None),
+            };
+            if table_slot != claim_slot {
+                diffs.push(format!(
+                    "sprite_ref 型 {t}：sprite_defs {table_slot:?} != claims 解引用 {claim_slot:?}"
+                ));
+            }
+        }
+        // 4. size_dispatch 特例双写（旧常量冻结值：a.java:6304-6314）
+        for (t, want) in [(67i32, (32, 32)), (69, (96, 32)), (72, (32, 45))] {
+            match self.size_special(t) {
+                Some(got) if got == want => {}
+                other => diffs.push(format!("size_dispatch 型 {t}：表 {other:?} != 冻结常量 {want:?}")),
+            }
+        }
+        if self.size_fallback() != (32, 32) {
+            diffs.push(format!(
+                "size_dispatch fallback：表 {:?} != 冻结常量 (32, 32)",
+                self.size_fallback()
+            ));
+        }
+        if diffs.is_empty() {
+            Ok("OK".to_string())
+        } else {
+            Err(diffs.join("\n"))
+        }
     }
 
     /// dispatchAnimFields 查表初始化（行号=animRowByType[type]，帧 0）。
