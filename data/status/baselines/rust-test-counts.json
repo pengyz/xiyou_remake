@@ -13,6 +13,7 @@
     "density_draw(test)": 16,
     "entity_golden(test)": 12,
     "fixture_frames(test)": 25,
+    "game_android(lib)": 5,
     "game_core(lib)": 146,
     "game_data(lib)": 35,
     "game_oracle(lib)": 0,
@@ -26,6 +27,7 @@
     "lifecycle(test)": 9,
     "mot_if_truncation(test)": 6,
     "mov_route_scene(test)": 4,
+    "native_parse(test)": 21,
     "one_fact_one_host(test)": 6,
     "png_golden(test)": 1,
     "preset_cases(test)": 35,
@@ -49,5 +51,5 @@
     "walk_route(test)": 11,
     "xiyou(bin)": 40
   },
-  "total": 564
+  "total": 590
 }

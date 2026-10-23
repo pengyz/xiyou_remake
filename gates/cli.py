@@ -277,7 +277,14 @@ def collect_test_counts():
             continue
         exe = msg.get("executable")
         target = msg.get("target", {})
-        kinds = [k for k in target.get("kind", []) if k in ("lib", "bin", "test")]
+        # 【复核C 黄1·盲区修复】kind 过滤旧限 lib/bin/test ⇒ cdylib/rlib 双型
+        # crate（game-android）的 lib 测试不入账（删了不红=门禁漏洞）——
+        # 纳入 cdylib/rlib 且标签归一 "lib"（基线影响见本修复 commit 说明）。
+        kinds = [
+            "lib" if k in ("cdylib", "rlib", "lib") else k
+            for k in target.get("kind", [])
+            if k in ("lib", "bin", "test", "cdylib", "rlib")
+        ]
         if not exe or not kinds:
             continue
         seen[f"{target.get('name', '?')}({kinds[0]})"] = exe
