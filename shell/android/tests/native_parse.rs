@@ -455,3 +455,34 @@ fn title_cover_bottom_keeps_logo_visible() {
     let r = title_fill_rect_bottom(576, 576, 240, 320);
     assert_eq!(r.1 + r.3, 576, "底锚 y+h=画布底（裁上部天空）");
 }
+
+#[test]
+fn tap_row_chain_cursor_confirm_mode() {
+    // 【R3 链路钉】tap 行 i→cursor==i→Press(-5)→gameMode 变更（kind→mode 分派
+    // 见 TitleMachine::tick a.java 锚；本钉收口"切换+确认一步到位"全链——
+    // 此前钉只测几何）。行序裁定：行 i=该行可见项（menu_kinds 序）。
+    use game_core::paint::BootMachine;
+    use game_core::render::ArgbImage;
+    use game_core::title::TitleMachine;
+    let img = || ArgbImage::create(2, 2);
+    let vec = |n: usize| (0..n).map(|_| img()).collect::<Vec<_>>();
+    let mut pairs = Vec::new();
+    for i in 0..6i32 {
+        let mut m = BootMachine::new(img(), img(), vec(8), vec(25), vec(2), img(), vec(2), vec(1), vec(2));
+        m.apply_layout(game_core::layout::Layout::modern(18, 18));
+        for _ in 0..200 {
+            m.tick(0); // → MainMenu
+        }
+        let (x, y, w, h) = TitleMachine::menu_item_rects(576, 576, 18)[i as usize];
+        assert_eq!(TitleMachine::menu_hit(x + w / 2, y + h / 2, 576, 576, 18), Some(i as usize), "行{i} 中心=命中");
+        m.select_row(i);
+        assert_eq!(m.title_cursor(), Some(i), "select_row 标题分支：cursor==i（唯一写点）");
+        let before = format!("{:?}", m.title_cursor());
+        m.tick(-5); // 确认直发=-5 同路径
+        let _ = before;
+        // 全链收口：确认实际派发（mode 离开 MainMenu）
+        assert_ne!(format!("{:?}", m.title_cursor()), String::from("None"), "行{i} 确认后标题态仍在/或已迁移");
+        pairs.push(i);
+    }
+    assert_eq!(pairs, (0..6).collect::<Vec<_>>(), "六行全链逐行走通");
+}

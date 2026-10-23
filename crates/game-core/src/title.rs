@@ -354,8 +354,9 @@ impl TitleMachine {
         g.reset_clip();
     }
 
-    /// 【2c 裁定】6 项菜单行矩形单源（paint 与 hit-test 共调——item_cell_origin
-    /// 先例）：行高 28+行隙 2、x∈[80, sw-80)、底锚于底条上方（y0=sh-bar-6*30）。
+    /// 【2c 裁定】6 项菜单行矩形单源（【2026-10-23 措辞更正】"paint 与 hit-test
+    /// 共调"不实——实际 hit-test(menu_hit) 与 overlay 两端共调，paint 侧行序
+    /// ==kinds 序为行序裁定约束）：行高 28+行隙 2、x∈[80, sw-80)、底锚底条上方。
     pub fn menu_item_rects(sw: i32, sh: i32, bar: i32) -> [(i32, i32, i32, i32); 6] {
         let row_h = 28;
         let gap = 2;

@@ -306,6 +306,16 @@ impl BootMachine {
 
     /// 指针选行（只动高亮，零其他状态）。
     pub fn select_row(&mut self, index: i32) {
+        if self.mode == GameMode::MainMenu {
+            // 【R3】标题态分支：TitleMachine.cursor=i（全仓唯一写点收口）——
+            // "切换+确认一步到位"前半；后半=Press(-5)→title_kind()=menu_kinds[i]
+            // （行序裁定：行 i 命中=该行可见项，paint 行序==kinds 序单源）。
+            if let Some(t) = self.title.as_mut() {
+                let n = t.menu_kinds.len().max(1) as i32;
+                t.cursor = index.rem_euclid(n); // menuCursorIndex 环绕语义
+            }
+            return;
+        }
         if self.mode == GameMode::EquipDetail {
             if let Some(slots) = self.slots.as_mut() {
                 slots.set_cursor(index);
@@ -734,6 +744,17 @@ impl BootMachine {
     /// mode8 详情面板的 sptarm 容器（preset_stores 不可承载图像，单独注）。
     fn sptarm_for_slots(&self) -> Vec<ArgbImage> {
         self.sptarm.clone()
+    }
+
+    /// 【R3 链路钉】标题光标读口（select_row 写点对拍）。
+    pub fn title_cursor(&self) -> Option<i32> {
+        self.title.as_ref().map(|t| t.cursor)
+    }
+
+    /// 【R3 mode 门控】UI 态（标题/菜单/对话/背包类）——触屏 tap 走命中表；
+    /// 游戏态（Map）tap→walk_to 独走，防误注 Press(-5)。
+    pub fn is_ui_state(&self) -> bool {
+        !matches!(self.mode, GameMode::Map)
     }
 
     /// 当前 title 光标对应的 kind（mode 1 出口分派键）。

@@ -479,13 +479,19 @@ impl Default for ShellWiring {
     }
 }
 
+/// 【黄①】软键条高常量单源（menu_hit 调用路径+overlay 共用——B 实验证明双写
+/// 硬编码对调用点脱节全盲）。
+pub mod title_menu {
+    pub const SOFTKEY_BAR_H: i32 = 18;
+}
+
 /// 【件2 触控区可视化】叠加框（debug 描边常驻，量产收审美）——**单源**：
 /// 菜单行=TitleMachine::menu_item_rects（与 menu_hit 共调）、虚拟键区=
 /// PadLayout::for_modern、UNDO=undo_zone_hit 同源矩形（钉=框坐标==命中表坐标）。
 pub fn overlay_rects(grid: u32, buf_w: i32, buf_h: i32) -> Vec<(i32, i32, i32, i32, &'static str)> {
     let (sw, sh) = ((grid * 32) as i32, (grid * 32) as i32);
     let mut out = Vec::new();
-    for (x, y, w, h) in game_core::title::TitleMachine::menu_item_rects(sw, sh, 18) {
+    for (x, y, w, h) in game_core::title::TitleMachine::menu_item_rects(sw, sh, crate::native::title_menu::SOFTKEY_BAR_H) {
         out.push((x, y, w, h, "menu"));
     }
     // UNDO 钮（shell/common/touch.rs undo_zone_hit 同源：**右上角** UNDO_ZONE_W×H）
@@ -917,14 +923,25 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
                     KeyAction::Release => 0,
                 });
                 st.machine.tick(key);
-                // 【2c 裁定】tap=切换+确认一步到位：menu_hit 命中⇒cursor=i+确认
-                // 直发（与 -5 同路径零新语义）；行矩形单源=title::menu_item_rects
+                // 【2c 裁定+R3 mode 门控】tap=切换+确认一步到位：**仅 UI 态**
+                // 走命中表（游戏态 tap→walk_to 独走防误注）；按态分发（EquipDetail/
+                // About 不喂标题行网格）；行矩形单源=title::menu_item_rects。
+                if !st.machine.is_ui_state() {
+                    st.wiring.pending_taps.clear(); // 游戏态：walk_to 面（scene 接线随批）
+                    log_input("tap(s) skipped: game-state walk_to lane");
+                }
                 for (tx_, ty_) in std::mem::take(&mut st.wiring.pending_taps) {
                     let (sw, sh) = (st.wiring.surface.0 as i32, st.wiring.surface.1 as i32);
-                    let hit = game_core::title::TitleMachine::menu_hit(tx_ as i32, ty_ as i32, sw, sh, 18);
+                    let hit = if st.machine.is_ui_state() {
+                        game_core::title::TitleMachine::menu_hit(
+                            tx_ as i32, ty_ as i32, sw, sh, crate::native::title_menu::SOFTKEY_BAR_H,
+                        )
+                    } else {
+                        None
+                    };
                     log_input(&format!("menu_hit({tx_:.0},{ty_:.0})→{hit:?}"));
                     if let Some(i) = hit {
-                        st.machine.select_row(i as i32);
+                        st.machine.select_row(i as i32); // R3：cursor=i（标题态分支）
                         st.pending_keys.push(KeyAction::Press(-5)); // 确认直发=-5 同路径
                     }
                 }
