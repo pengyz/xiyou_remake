@@ -12,6 +12,7 @@ use game_android::native::{
     AMOTION_EVENT_ACTION_POINTER_UP, AMOTION_EVENT_ACTION_UP,
 };
 use game_android::input::{HwKey, KeyAction, TouchPhase};
+use game_android::native::{CANVAS_H, CANVAS_W};
 use game_android::lifecycle::{Notify, Visibility};
 
 // ───────────────────────────────────────── MotionEvent 解析
@@ -143,4 +144,24 @@ fn blit_rect_reported_for_painter() {
     let argb = vec![0xFF000000u32; 9];
     let r = blit_argb_rgba(&mut dst, 3, 3, &argb, 3, 3);
     assert_eq!(r, (0, 0, 3, 3));
+}
+
+// ───────────────────────────────────────── 窗口未就绪 No-op 钉（实机 SIGSEGV 回派）
+
+#[test]
+fn present_null_window_noop() {
+    // 实机崩因钉（SIGSEGV setBuffersGeometry 空窗口）：window=NULL ⇒ present 必须
+    // No-op（不触 FFI），返回未呈现。
+    let mut w = game_android::native::ShellWiring::new();
+    let argb = vec![0u32; CANVAS_W as usize * CANVAS_H as usize];
+    let null_win: *mut game_android::native::ANativeWindow = std::ptr::null_mut();
+    assert!(!w.present(null_win, &argb), "window 未就绪=No-op 且报告未呈现");
+}
+
+#[test]
+fn surface_negotiate_null_window_noop() {
+    // 几何协商同判：APP_CMD_INIT_WINDOW 处理里也只在 window 非空时协商
+    let mut w = game_android::native::ShellWiring::new();
+    let null_win: *mut game_android::native::ANativeWindow = std::ptr::null_mut();
+    assert!(!w.ensure_surface(null_win), "NULL window 不协商（不调 setBuffersGeometry）");
 }

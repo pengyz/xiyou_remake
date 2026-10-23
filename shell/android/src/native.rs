@@ -287,14 +287,41 @@ impl ShellWiring {
         lifecycle_notify(&mut self.visibility, cmd, in_pip)
     }
 
-    /// 呈现：ArgbImage → ANativeWindow 缓冲（RGBA8888 格式协商 + 等比信箱 blit，
-    /// SoftGraphics ARGB 直拷——setBuffersGeometry(240×320) 后 1:1 直拷路径）。
-    /// 20 拍/秒呈现节拍由 android_main 主循环控制（逻辑拍 frame_interval_ms）。
-    pub fn present(&mut self, window: *mut ANativeWindow, argb: &[u32]) {
+    /// 窗口就绪判定+格式协商（APP_CMD_INIT_WINDOW 处理内调用）：
+    /// **window=NULL ⇒ No-op**（实机 SIGSEGV 回派根因：android_main 进入时
+    /// app->window 未就绪——glue 在 INIT_WINDOW 后才非空、TERM_WINDOW 即置 NULL
+    /// （native_app_glue.c:105/145），未就绪/竞态一律不得触 FFI）。
+    /// 返回 true=已协商（setBuffersGeometry 240×320 RGBA8888）。
+    pub fn ensure_surface(&mut self, window: *mut ANativeWindow) -> bool {
+        if window.is_null() {
+            return false;
+        }
         #[cfg(target_os = "android")]
         unsafe {
             const WINDOW_FORMAT_RGBA_8888: i32 = 1;
-            // 格式协商：画布 240×320 RGBA8888（协商失败=按窗口原尺寸信箱 blit）
+            ffi::ANativeWindow_setBuffersGeometry(
+                window,
+                CANVAS_W as i32,
+                CANVAS_H as i32,
+                WINDOW_FORMAT_RGBA_8888,
+            );
+        }
+        self.surface = (CANVAS_W, CANVAS_H);
+        true
+    }
+
+    /// 呈现：ArgbImage → ANativeWindow 缓冲（RGBA8888 格式协商 + 等比信箱 blit，
+    /// SoftGraphics ARGB 直拷——setBuffersGeometry(240×320) 后 1:1 直拷路径）。
+    /// 20 拍/秒呈现节拍由 android_main 主循环控制（逻辑拍 frame_interval_ms）。
+    /// **window=NULL ⇒ No-op 返回 false**（TERM_WINDOW 竞态挡——每帧前判非空）。
+    pub fn present(&mut self, window: *mut ANativeWindow, argb: &[u32]) -> bool {
+        if window.is_null() {
+            return false;
+        }
+        #[cfg(target_os = "android")]
+        unsafe {
+            const WINDOW_FORMAT_RGBA_8888: i32 = 1;
+            // 格式协商幂等（INIT_WINDOW 已协商则同参无害；非空窗口才到此）
             ffi::ANativeWindow_setBuffersGeometry(
                 window,
                 CANVAS_W as i32,
@@ -309,21 +336,22 @@ impl ShellWiring {
                 bits: std::ptr::null_mut(),
             };
             if ffi::ANativeWindow_lock(window, &mut buf, std::ptr::null_mut()) != 0 {
-                return;
+                return false;
             }
             let (bw, bh) = (buf.width.max(0) as u32, buf.height.max(0) as u32);
             if !buf.bits.is_null() && bw > 0 && bh > 0 {
                 let stride = buf.stride.max(0) as u32;
                 let total = (stride as usize) * (bh as usize) * 4;
                 let dst = std::slice::from_raw_parts_mut(buf.bits as *mut u8, total);
-                let (_, _, _, _) = blit_argb_rgba(dst, stride, bh, argb, CANVAS_W, CANVAS_H);
+                blit_argb_rgba(dst, stride, bh, argb, CANVAS_W, CANVAS_H);
             }
             ffi::ANativeWindow_unlockAndPost(window);
         }
         #[cfg(not(target_os = "android"))]
         {
-            let _ = (window, argb);
+            let _ = argb;
         }
+        true
     }
 }
 
@@ -477,13 +505,14 @@ extern "C" fn handle_cmd(app: *mut AndroidApp, cmd: i32) {
         let st = &mut *((*app).user_data as *mut HostState);
         match cmd {
             APP_CMD_INIT_WINDOW => {
-                if !(*app).window.is_null() {
-                    // 窗口就绪：格式协商在 present() 内（setBuffersGeometry 240×320）
-                    st.surface = (CANVAS_W, CANVAS_H);
-                    st.wiring.surface = st.surface;
-                }
+                // 【实机 SIGSEGV 回派修复①】窗口就绪才协商（setBuffersGeometry 移入）
+                let ok = st.wiring.ensure_surface((*app).window);
+                st.surface = st.wiring.surface;
+                let _ = ok;
             }
-            APP_CMD_TERM_WINDOW => {}
+            APP_CMD_TERM_WINDOW => {
+                // glue 随后置 app->window=NULL（native_app_glue.c:145）——呈现侧每帧判空
+            }
             _ => {}
         }
         let in_pip = false; // PiP 判定（isInPictureInPictureMode）走 JNI；默认非 PiP
@@ -638,13 +667,14 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
                     }
                 }
             }
-            // 呈现（20 拍/秒）
-            {
+            // 呈现（20 拍/秒）——【回派修复②】每帧前判 window 非空
+            // （TERM_WINDOW→window=NULL 竞态挡；未就绪期跳过渲染呈现）
+            if !(*app).window.is_null() {
                 let mut g = SoftGraphics::new(&mut st.canvas);
                 st.machine.paint(&mut g);
+                let argb = st.canvas.argb.clone();
+                st.wiring.present((*app).window, &argb);
             }
-            let argb = st.canvas.argb.clone();
-            st.wiring.present((*app).window, &argb);
             std::thread::sleep(present_budget / 4);
         }
         (*app).user_data = std::ptr::null_mut();
