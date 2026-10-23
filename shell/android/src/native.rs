@@ -476,7 +476,14 @@ impl Default for ShellWiring {
 pub fn log_input(msg: &str) {
     #[cfg(target_os = "android")]
     unsafe {
-        ffi::__android_log_print(3, b"jjxy-input\0".as_ptr() as *const _, b"%s\0".as_ptr() as *const _, msg.as_ptr() as *const std::os::raw::c_char);
+        // NUL 结尾（Rust &str 非 NUL 串——%s 直读会拖尾垃圾）
+        let c = std::ffi::CString::new(msg.replace('\0', " ")).unwrap_or_default();
+        ffi::__android_log_print(
+            3,
+            b"jjxy-input\0".as_ptr() as *const _,
+            b"%s\0".as_ptr() as *const _,
+            c.as_ptr(),
+        );
     }
     #[cfg(not(target_os = "android"))]
     {
@@ -602,6 +609,9 @@ mod ffi {
             format: i32,
         ) -> i32;
         pub fn __android_log_print(prio: i32, tag: *const std::os::raw::c_char, fmt: *const std::os::raw::c_char, ...) -> i32;
+        pub fn AInputQueue_getEvent(queue: *mut std::ffi::c_void, out_event: *mut *mut AInputEvent) -> i32;
+        pub fn AInputQueue_preDispatchEvent(queue: *mut std::ffi::c_void, event: *mut AInputEvent) -> i32;
+        pub fn AInputQueue_finishEvent(queue: *mut std::ffi::c_void, event: *mut AInputEvent, handled: i32) -> i32;
         pub fn ANativeWindow_getWidth(window: *mut ANativeWindow) -> i32;
         pub fn ANativeWindow_getHeight(window: *mut ANativeWindow) -> i32;
         pub fn ALooper_pollAll(
@@ -777,6 +787,23 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
                 }
                 if (*app).destroy_requested != 0 {
                     break;
+                }
+            }
+            // 【层1修复·修法1】显式排水输入队列（glue process_input 同式：
+            // getEvent→preDispatch(IME)→on_input_ex→finishEvent）——实机定位
+            // LOOPER_ID_INPUT 轮询断层（onInputEvent 从未触发）；无条件排水绕开
+            // ident 判定歧义（空队列 getEvent 立返 -1，代价可忽略）。
+            if !(*app).input_queue.is_null() {
+                loop {
+                    let mut ev: *mut AInputEvent = std::ptr::null_mut();
+                    if ffi::AInputQueue_getEvent((*app).input_queue, &mut ev) < 0 {
+                        break;
+                    }
+                    if ffi::AInputQueue_preDispatchEvent((*app).input_queue, ev) != 0 {
+                        continue; // IME 预分派消费
+                    }
+                    let handled = handle_input(app, ev);
+                    ffi::AInputQueue_finishEvent((*app).input_queue, ev, handled);
                 }
             }
             // 逻辑拍（frame_interval_ms 节奏）：键流折叠单键（覆盖式取末键）
