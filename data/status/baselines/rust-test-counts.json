@@ -27,7 +27,7 @@
     "lifecycle(test)": 9,
     "mot_if_truncation(test)": 6,
     "mov_route_scene(test)": 4,
-    "native_parse(test)": 21,
+    "native_parse(test)": 29,
     "one_fact_one_host(test)": 6,
     "png_golden(test)": 1,
     "preset_cases(test)": 35,
@@ -51,5 +51,5 @@
     "walk_route(test)": 11,
     "xiyou(bin)": 40
   },
-  "total": 590
+  "total": 598
 }
