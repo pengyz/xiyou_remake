@@ -364,7 +364,7 @@ impl ShellWiring {
     /// **window=NULL ⇒ No-op**（实机 SIGSEGV 回派根因：android_main 进入时
     /// app->window 未就绪——glue 在 INIT_WINDOW 后才非空、TERM_WINDOW 即置 NULL
     /// （native_app_glue.c:105/145），未就绪/竞态一律不得触 FFI）。
-    /// 返回 true=已协商（setBuffersGeometry 240×320 RGBA8888）。
+    /// 返回 true=已协商（格式 RGBA8888、几何 (0,0)=buffer 留显示原生比例）。
     pub fn ensure_surface(&mut self, window: *mut ANativeWindow) -> bool {
         if window.is_null() {
             return false;
@@ -372,8 +372,8 @@ impl ShellWiring {
         #[cfg(target_os = "android")]
         unsafe {
             const WINDOW_FORMAT_RGBA_8888: i32 = 1;
-            // 【Bug2 根治】只协商**格式**（0,0=buffer 留显示原生尺寸比例）——
-            // setBuffersGeometry(240,320) 会让 SurfaceFlinger 全屏硬拉压扁。
+            // 【Bug2 根治】只协商**格式**（几何 (0,0)=buffer 留显示原生尺寸比例）——
+            // 几何设 240×320 会让 SurfaceFlinger 全屏硬拉压扁。
             ffi::ANativeWindow_setBuffersGeometry(window, 0, 0, WINDOW_FORMAT_RGBA_8888);
         }
         // 【#2】runtime 选择：按 buffer/显示尺寸三步算（测试注入 resolution 不覆盖）
@@ -395,8 +395,8 @@ impl ShellWiring {
         true
     }
 
-    /// 呈现：ArgbImage → ANativeWindow 缓冲（RGBA8888 格式协商 + 等比信箱 blit，
-    /// SoftGraphics ARGB 直拷——setBuffersGeometry(240×320) 后 1:1 直拷路径）。
+    /// 呈现：ArgbImage → ANativeWindow 缓冲（等比信箱 blit——buffer=显示原生
+    /// 尺寸比例，fit_rect 居中信箱+NN 缩放；SoftGraphics ARGB 直拷换算）。
     /// 20 拍/秒呈现节拍由 android_main 主循环控制（逻辑拍 frame_interval_ms）。
     /// **window=NULL ⇒ No-op 返回 false**（TERM_WINDOW 竞态挡——每帧前判非空）。
     pub fn present(&mut self, window: *mut ANativeWindow, argb: &[u32]) -> bool {
@@ -405,14 +405,9 @@ impl ShellWiring {
         }
         #[cfg(target_os = "android")]
         unsafe {
-            const WINDOW_FORMAT_RGBA_8888: i32 = 1;
-            // 格式协商幂等（INIT_WINDOW 已协商则同参无害；非空窗口才到此）
-            ffi::ANativeWindow_setBuffersGeometry(
-                window,
-                CANVAS_W as i32,
-                CANVAS_H as i32,
-                WINDOW_FORMAT_RGBA_8888,
-            );
+            // 【复核A 红-1】此处**不得**再调几何协商——每帧 (240,320) 会覆盖
+            // ensure_surface 的 (0,0) 原生比例协商 ⇒ 信箱不可达=Bug2 回归。
+            // 协商唯一写点=ensure_surface（APP_CMD_INIT_WINDOW，(0,0)=只定格式）。
             let mut buf = ANativeWindowBuffer {
                 width: 0,
                 height: 0,
@@ -593,7 +588,7 @@ extern "C" fn handle_cmd(app: *mut AndroidApp, cmd: i32) {
         let st = &mut *((*app).user_data as *mut HostState);
         match cmd {
             APP_CMD_INIT_WINDOW => {
-                // 【实机 SIGSEGV 回派修复①】窗口就绪才协商（setBuffersGeometry 移入）
+                // 【实机 SIGSEGV 回派修复①】窗口就绪才协商（几何协商唯一写点）
                 let ok = st.wiring.ensure_surface((*app).window);
                 st.surface = st.wiring.surface;
                 // 【#2】策略选定分辨率 → 画布/Modern 布局重解析（任意格数×32 公式）
