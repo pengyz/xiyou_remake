@@ -5979,6 +5979,13 @@ impl GameScene {
 
     /// paint case 3（a.java:2385-2422）。
     pub fn paint(&mut self, g: &mut SoftGraphics<'_>, tileset: &ArgbImage) {
+        // 【A 黄2·2026-10-23】Modern 对称清屏（照 BootMachine 先例）——
+        // 升格钉当场红实证残留（局部绘制态留底，旧靠 paint_parallax 连带覆盖
+        // ="暂不残留"非保障）；classic 路径零动（零漂移）。
+        if self.layout.preset == crate::layout::Preset::Modern {
+            g.set_color(crate::layout::WHITE);
+            g.fill_rect(0, 0, self.layout.screen_w, self.layout.screen_h);
+        }
         if self.game_mode == GameMode::EnemyInfo {
             self.paint_menu5(g);
             return self.paint_wipe_tail(g);
@@ -6678,7 +6685,10 @@ impl GameScene {
             self.overlay_page_bottom = self.overlay_total_lines;
         }
         g.set_color(3156024);
-        g.fill_rect(0, 0, SCREEN_W, img_y0);
+        // 【A 黄2·2026-10-23】顶带几何源改 layout（旧 classic 常量 SCREEN_W ⇒
+        // Modern 576 下右 336px 不铺+横滚图右缘露底——与下带相邻行对照实锤；
+        // 根因=classic 常量泄漏非缺清屏，三问选根修不动帧面清屏语义）
+        g.fill_rect(0, 0, self.layout.screen_w, img_y0);
         g.fill_rect(0, self.layout.screen_h - img_y0, self.layout.screen_w, img_y0);
         g.set_clip(0, 0, self.layout.screen_w, self.layout.screen_h);
         g.draw_image(&img, -self.ending_scroll, img_y0, 0);
@@ -8869,6 +8879,61 @@ mod scene_test_support {
     }
 
     /// 玩家格 + 实体 (type, cx, cy) 的场景；敌表 ×1 缩放 + 金币表。
+    #[test]
+    fn modern_paint_no_residual_across_states() {
+        // 【A 黄2·DEADBEEF 钉升格】迁移链 dirty-canvas 零残留
+        // （title→存档→游戏→游戏；原钉仅罩 BootMachine 单点=破坏态零旁证）。
+        use crate::layout::Layout;
+        use crate::paint::BootMachine;
+        use crate::render::{ArgbImage, SoftGraphics};
+        let img = || ArgbImage::create(2, 2);
+        let vec = |n: usize| (0..n).map(|_| img()).collect::<Vec<_>>();
+        let mut m = BootMachine::new(img(), img(), vec(8), vec(25), vec(2), img(), vec(2), vec(1), vec(2));
+        m.apply_layout(Layout::modern(18, 18));
+        for _ in 0..200 {
+            m.tick(0); // → MainMenu（title/存档族态）
+        }
+        let mut canvas = ArgbImage::create(576, 576);
+        for px in canvas.argb.iter_mut() {
+            *px = 0xDEADBEEF;
+        }
+        {
+            let mut g = SoftGraphics::new(&mut canvas);
+            m.paint(&mut g);
+        }
+        assert_eq!(
+            canvas.argb.iter().filter(|p| **p == 0xDEADBEEF).count(),
+            0,
+            "title/menu 态零残留"
+        );
+        // 游戏态（GameScene::paint 入口面——A 黄2 点名 scene.rs:5981）
+        let mut sc = scene((2, 2), &[]);
+        sc.apply_layout(crate::layout::Layout::modern(18, 18)); // Modern 面（清屏门控域）
+        let mut canvas2 = ArgbImage::create(240, 320);
+        for px in canvas2.argb.iter_mut() {
+            *px = 0xDEADBEEF;
+        }
+        {
+            let mut g = SoftGraphics::new(&mut canvas2);
+            sc.paint(&mut g, &img());
+        }
+        assert_eq!(
+            canvas2.argb.iter().filter(|p| **p == 0xDEADBEEF).count(),
+            0,
+            "游戏态零残留（paint 入口全幅自铺）"
+        );
+        // 再迁移（对话/再游戏帧序）：同画布复绘零残留
+        {
+            let mut g = SoftGraphics::new(&mut canvas2);
+            sc.paint(&mut g, &img());
+        }
+        assert_eq!(
+            canvas2.argb.iter().filter(|p| **p == 0xDEADBEEF).count(),
+            0,
+            "迁移后复绘零残留"
+        );
+    }
+
     pub(super) fn scene(player: (i32, i32), ents: &[(u8, i32, i32)]) -> GameScene {
         let width_table = numbers(include_str!("../tests/fixtures/type_width_px.txt"));
         let walk = numbers(include_str!("../tests/fixtures/tile_walkability.txt"));
@@ -8954,6 +9019,7 @@ mod itempanel_self_edge_regression {
     #[test]
     fn confirm_overlay_cancel_returns_to_panel() {
         let mut sc = scene((2, 2), &[]);
+        sc.apply_layout(crate::layout::Layout::modern(18, 18)); // Modern 面（清屏门控域）
         sc.game_mode = GameMode::ItemPanel;
         sc.overlay_active = true;
         sc.overlay_kind = 3;
@@ -9184,6 +9250,7 @@ mod pointer_seam_tests {
     #[test]
     fn options_panel_pointer_hit_and_select() {
         let mut sc = scene((2, 2), &[]);
+        sc.apply_layout(crate::layout::Layout::modern(18, 18)); // Modern 面（清屏门控域）
         sc.game_mode = GameMode::About;
         let list = crate::menu_family::OptionList::new(true, false);
         sc.options = Some(list);
@@ -9221,6 +9288,7 @@ mod pointer_seam_tests {
     #[test]
     fn slot_list_pointer_hit_and_select() {
         let mut sc = scene((2, 2), &[]);
+        sc.apply_layout(crate::layout::Layout::modern(18, 18)); // Modern 面（清屏门控域）
         sc.game_mode = GameMode::SaveSlot;
         let font = crate::paint::paint_font();
         let lh = font.height() + 4;
@@ -9321,6 +9389,7 @@ mod pointer_seam_tests {
     #[test]
     fn ingame_menu_exit_returns_to_title() {
         let mut sc = scene((2, 2), &[]);
+        sc.apply_layout(crate::layout::Layout::modern(18, 18)); // Modern 面（清屏门控域）
         sc.game_mode = GameMode::InGameMenu;
         sc.menu_kinds = vec![7]; // 退出项
         sc.menu_item_count = 1;
@@ -9419,6 +9488,7 @@ mod pointer_seam_tests {
     #[test]
     fn item_grid_pointer_hit_and_select() {
         let mut sc = scene((2, 2), &[]);
+        sc.apply_layout(crate::layout::Layout::modern(18, 18)); // Modern 面（清屏门控域）
         sc.game_mode = GameMode::ItemPanel;
         sc.item_cols = 4;
         sc.item_rows_total = 3;
