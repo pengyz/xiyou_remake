@@ -40,11 +40,12 @@
     "storage_contract(test)": 7,
     "storage_wiring(test)": 4,
     "stubs_contract(test)": 11,
+    "style_sample(test)": 1,
     "track_loading(test)": 4,
     "transition_table_driven(test)": 10,
     "walk_camera_golden(test)": 4,
     "walk_replay_floor1(test)": 2,
     "xiyou(bin)": 39
   },
-  "total": 526
+  "total": 527
 }
