@@ -105,7 +105,7 @@ fn blit_argb_to_rgba8888_byte_order() {
     // 240×320 画布直拷进等大窗口：逐像素 [R,G,B,A]（WINDOW_FORMAT_RGBA_8888）
     let argb = [0xFF112233u32, 0x80445566]; // 0xAARRGGBB
     let mut dst = vec![0u8; 2 * 4];
-    let r = blit_argb_rgba(&mut dst, 2, 1, &argb, 2, 1);
+    let r = blit_argb_rgba(&mut dst, 2, 1, 2, &argb, 2, 1, 1);
     assert_eq!(r, (0, 0, 2, 1), "1:1 直拷无信箱");
     assert_eq!(&dst[0..4], &[0x11, 0x22, 0x33, 0xFF], "R,G,B,A 序");
     assert_eq!(&dst[4..8], &[0x44, 0x55, 0x66, 0x80], "alpha 保真");
@@ -116,7 +116,7 @@ fn blit_letterbox_on_larger_surface() {
     // 4×2 窗口装 2×2 画布：居中信箱（宽 2 高 2 ⇒ 左右各补 1 列 0）
     let argb = [0xFFFFFFFFu32, 0xFF000000, 0xFF00FF00, 0xFFFF0000];
     let mut dst = vec![0xAAu8; 4 * 2 * 4];
-    let r = blit_argb_rgba(&mut dst, 4, 2, &argb, 2, 2);
+    let r = blit_argb_rgba(&mut dst, 4, 2, 4, &argb, 2, 2, 1);
     assert_eq!(r, (1, 0, 2, 2), "居中信箱 rect（x=1,w=2）");
     // 左补列=0（dst 先清）
     assert_eq!(&dst[0..4], &[0, 0, 0, 0], "信箱区清零");
@@ -128,7 +128,7 @@ fn blit_scales_up_by_nearest_when_window_larger_in_both_axes() {
     // 4×4 窗口装 2×2 画布：等比放大 ×2（信箱消隐）——像素块复制
     let argb = [0xFF112233u32, 0xFF445566, 0xFF778899, 0xFFAABBCC];
     let mut dst = vec![0u8; 4 * 4 * 4];
-    let r = blit_argb_rgba(&mut dst, 4, 4, &argb, 2, 2);
+    let r = blit_argb_rgba(&mut dst, 4, 4, 4, &argb, 2, 2, 2);
     assert_eq!(r, (0, 0, 4, 4), "放大满窗");
     // (0,0) 与 (1,0) 同源 (0,0)
     assert_eq!(&dst[0..4], &[0x11, 0x22, 0x33, 0xFF]);
@@ -142,7 +142,7 @@ fn blit_rect_reported_for_painter() {
     // 返回矩形=呈现脏区（unlockAndPost 前的 lock 缓冲换算面）
     let mut dst = vec![0u8; 3 * 3 * 4];
     let argb = vec![0xFF000000u32; 9];
-    let r = blit_argb_rgba(&mut dst, 3, 3, &argb, 3, 3);
+    let r = blit_argb_rgba(&mut dst, 3, 3, 3, &argb, 3, 3, 1);
     assert_eq!(r, (0, 0, 3, 3));
 }
 
@@ -164,4 +164,82 @@ fn surface_negotiate_null_window_noop() {
     let mut w = game_android::native::ShellWiring::new();
     let null_win: *mut game_android::native::ANativeWindow = std::ptr::null_mut();
     assert!(!w.ensure_surface(null_win), "NULL window 不协商（不调 setBuffersGeometry）");
+}
+
+// ───────────────────────────────────────── Bug1 stride 行距钉（实机碎裂回派）
+
+#[test]
+fn blit_row_pitch_uses_stride_not_width() {
+    // 实机 Bug1（字形碎裂每行左移累积）：lock 缓冲 stride(256)≠width(240)——
+    // 逐行按 stride 跳行，禁按 width 连写。
+    let (w, h, stride) = (240u32, 2u32, 256u32);
+    let mut dst = vec![0u8; (stride * h * 4) as usize];
+    let argb = vec![0xFF112233u32; (w * h) as usize];
+    let r = blit_argb_rgba(&mut dst, w, h, stride, &argb, w, h, 1);
+    assert_eq!(r, (0, 0, w, h), "1:1 直拷（宽度域）");
+    // 行 0 首像素在 0；行 1 首像素在 stride*4（不是 width*4）
+    assert_eq!(&dst[0..4], &[0x11, 0x22, 0x33, 0xFF], "行 0");
+    assert_eq!(&dst[(stride * 4) as usize..(stride * 4) as usize + 4], &[0x11, 0x22, 0x33, 0xFF], "行 1 落 stride 行距");
+    assert_eq!(&dst[(w * 4) as usize..(w * 4) as usize + 4], &[0, 0, 0, 0], "width*4 处=行 0 尾隙，不得错位连写");
+}
+
+// ───────────────────────────────────────── Bug2 信箱几何钉（实机压扁回派·#2 规格）
+
+#[test]
+fn landscape_matrix_game_rects() {
+    // 【2026-10-23 更正】Bug2 信箱钉数字随 #2 显式规格修正：诊断括注"0.75 画幅"
+    // 系宽高比对比非尺寸规则；lead #2 给出显式几何（18 格=576@2x=1152、侧余 759px
+    // 放触控）——固定 SCALE 倍数居中方画幅+侧余触控区。四档分辨率矩阵矩形：
+    let buf = (2670u32, 1200u32); // Xiaomi 14 横屏
+    // A) 13 格=416@2x=832
+    assert_eq!(game_android::native::fit_rect(buf.0, buf.1, 416, 416, 2), (919, 184, 832, 832));
+    // B) 18 格=576@2x=1152（贴高，侧余 759px——lead 候选 B）
+    assert_eq!(game_android::native::fit_rect(buf.0, buf.1, 576, 576, 2), (759, 24, 1152, 1152));
+    // C) 15 格=480@2x=960
+    assert_eq!(game_android::native::fit_rect(buf.0, buf.1, 480, 480, 2), (855, 120, 960, 960));
+    // D) 37 格=1184@1x=1184（最大视野）
+    assert_eq!(game_android::native::fit_rect(buf.0, buf.1, 1184, 1184, 1), (743, 8, 1184, 1184));
+}
+
+#[test]
+fn fit_rect_overflow_shrinks_proportionally() {
+    // 游戏区越界=等比缩进（分数倍最近邻）：2670×1200 @ 37 格@2x=2368 超高
+    let r = game_android::native::fit_rect(2670, 1200, 1184, 1184, 2);
+    assert_eq!(r, (735, 0, 1200, 1200), "高限 1200 ⇒ 等比缩进 1200×1200 居中");
+}
+
+#[test]
+fn touch_inverse_maps_through_game_rect() {
+    // 触点反变换随格数/缩放自适配（#2）：buf 坐标→游戏区→逻辑画布坐标
+    // 2670×1200 横屏 B 档（576@2x=1152，x0=759,y0=24）：点 (759,24)→逻辑 (0,0)；
+    // 点 (759+1151, 24+1151)→逻辑 (575,575)
+    let (lx, ly) = game_android::native::map_touch_xy(759.0, 24.0, 2670, 1200, 18, 2);
+    assert_eq!((lx.round() as i32, ly.round() as i32), (0, 0), "游戏区左上=逻辑原点");
+    let (hx, hy) = game_android::native::map_touch_xy(759.0 + 1151.0, 24.0 + 1151.0, 2670, 1200, 18, 2);
+    assert_eq!((hx.round() as i32, hy.round() as i32), (575, 575), "游戏区右下=逻辑 (575,575)");
+    // 触控侧余区（759px 内）：逻辑 x 为负（区外=触控键区，不入格）
+    let (ox, _) = game_android::native::map_touch_xy(100.0, 600.0, 2670, 1200, 18, 2);
+    assert!(ox < 0.0, "侧余触控区落在画布外（负坐标）");
+}
+
+// ───────────────────────────────────────── #2 动态分辨率选择策略（假分辨率表）
+
+#[test]
+fn pick_resolution_matrix() {
+    // 用户批准的三步策略：①scale=最大整数倍(1x/2x/3x)使方画幅≤min(屏宽,屏高)
+    // ②grid=floor(边长/32/scale) clamp [13,24] ③触控区=横屏侧区自适应
+    use game_android::native::pick_resolution;
+    assert_eq!(pick_resolution(2670, 1200), (18, 2), "Xiaomi 14 横屏：scale2/grid18（1200/32/2=18.75）");
+    assert_eq!(pick_resolution(240, 320), (13, 1), "小屏 clamp 下限 13（原视野起手）");
+    assert_eq!(pick_resolution(3840, 2400), (24, 3), "巨屏 clamp 上限 24（防全图失衡）");
+    assert_eq!(pick_resolution(1280, 720), (22, 1), "720p：3x/2x 都不足 13 ⇒ 1x/grid22");
+}
+
+#[test]
+fn pick_resolution_prefers_largest_scale() {
+    // ①最大整数倍优先：3x 可用则 3x（如 2560×1440：1440/96=15 ≥13 ⇒ (15,3)）
+    use game_android::native::pick_resolution;
+    assert_eq!(pick_resolution(2560, 1440), (15, 3));
+    // 2x/1x 均可时选 2x（2670×1200 已证）；1x 仅在 3x/2x 都 <13 时
+    assert_eq!(pick_resolution(900, 600), (18, 1), "600/32/1=18.75→18；600/64=9<13");
 }

@@ -30,6 +30,39 @@ use crate::lifecycle::{Notify, Visibility};
 pub const CANVAS_W: u32 = 240;
 pub const CANVAS_H: u32 = 320;
 
+/// 【#2 横屏 Modern】格数（任意格数×32=逻辑边长，layout.rs modern 公式）——
+/// 真机分辨率矩阵可调（lead 候选 A13/B18/C15/D37，默认 B=18）。
+pub const GRID_N: i32 = 18;
+/// 【#2】呈现缩放（整数倍；游戏区像素边长=GRID_N*32*SCALE——矩阵可调，default 2x）。
+pub const SCALE: i32 = 2;
+
+/// 逻辑画布（Modern 方画幅 = GRID_N×32 见方）。
+pub fn logical_canvas() -> (u32, u32) {
+    ((GRID_N * 32) as u32, (GRID_N * 32) as u32)
+}
+
+/// 【#2 动态分辨率选择】（用户批准策略）三步算 (grid, scale)：
+/// ① scale=最大整数倍（3x/2x/1x）使方画幅 ≤ min(屏宽,屏高)（横屏=屏高）；
+/// ② grid=floor(边长/32/scale)，clamp [13,24]（13=原视野起手，24=防全图失衡）；
+/// ③ 触控区=横屏侧区自适应（画幅居中信箱，侧区放触控件/UNDO——fit_rect 承载）。
+/// GRID_N/SCALE 常量=测试注入点（覆盖选策略用），默认=runtime 选择。
+pub fn pick_resolution(buf_w: u32, buf_h: u32) -> (u32, u32) {
+    let side = buf_w.min(buf_h);
+    for scale in [3u32, 2, 1] {
+        let raw = side / (32 * scale);
+        if raw >= 13 {
+            return (raw.clamp(13, 24), scale);
+        }
+    }
+    (13, 1) // 小屏：clamp 下限（越界由 fit_rect 等比缩进兜底）
+}
+
+/// 游戏区像素（呈现面 = 逻辑×SCALE）。
+pub fn game_pixels() -> (u32, u32) {
+    let (w, h) = logical_canvas();
+    (w * SCALE as u32, h * SCALE as u32)
+}
+
 // ───────────────────────────────────────── NDK 常量（android/input.h + native_app_glue.h）
 
 /// MotionEvent ACTION_*（android/input.h；低 8 位=动作、(action>>8)&0xff=pointer index）。
@@ -131,33 +164,58 @@ pub fn lifecycle_notify(vis: &mut Visibility, cmd: i32, in_pip: bool) -> Option<
     }
 }
 
-/// 呈现 blit：画布 ARGB（0xAARRGGBB）→ 窗口 RGBA8888（字节序 [R,G,B,A]）等比信箱。
-/// 整数倍最近邻放大（contain）+ 居中；信箱区清零。返回 blit 矩形 (x,y,w,h)。
+/// 游戏区矩形（【Bug2 信箱+#2】固定 SCALE 倍数居中方画幅+侧余触控区）：
+/// game=(canvas_w×scale, canvas_h×scale) 居中于 buf；越界=等比缩进（分数倍最近邻）。
+/// 钉：2670×1200 + 576@2x=1152 ⇒ (759,24,1152,1152)（侧余 759px 放触控）。
+pub fn fit_rect(
+    buf_w: u32,
+    buf_h: u32,
+    canvas_w: u32,
+    canvas_h: u32,
+    scale: u32,
+) -> (u32, u32, u32, u32) {
+    let sc = scale.max(1);
+    let (mut w, mut h) = (canvas_w * sc, canvas_h * sc);
+    if w > buf_w || h > buf_h {
+        let k = ((buf_w as f64 / w as f64).min(buf_h as f64 / h as f64)).min(1.0);
+        w = (((w as f64) * k) as u32).max(1);
+        h = (((h as f64) * k) as u32).max(1);
+    }
+    ((buf_w.saturating_sub(w)) / 2, (buf_h.saturating_sub(h)) / 2, w, h)
+}
+
+/// 呈现 blit：画布 ARGB（0xAARRGGBB）→ 窗口 RGBA8888（字节序 [R,G,B,A]）。
+/// **逐行按 stride 跳行**（lock 缓冲行距≠width——实机碎裂 Bug1 根因：禁按 width
+/// 连写）；游戏区=fit_rect 居中信箱，最近邻整数倍缩放（分数倍 NN 同式）。
+/// 返回 blit 矩形 (x,y,w,h)。
 pub fn blit_argb_rgba(
     dst: &mut [u8],
-    dst_w: u32,
-    dst_h: u32,
+    buf_w: u32,
+    buf_h: u32,
+    stride_px: u32,
     argb: &[u32],
     canvas_w: u32,
     canvas_h: u32,
+    scale: u32,
 ) -> (u32, u32, u32, u32) {
     let (cw, ch) = (canvas_w.max(1), canvas_h.max(1));
-    let (dw, dh) = (dst_w, dst_h);
+    let stride = stride_px.max(buf_w);
     for b in dst.iter_mut() {
         *b = 0; // 信箱清零
     }
-    let scale = ((dw / cw).min(dh / ch)).max(1);
-    let (w, h) = (cw * scale, ch * scale);
-    let (x0, y0) = ((dw.saturating_sub(w)) / 2, (dh.saturating_sub(h)) / 2);
-    for y in 0..h.min(dh.saturating_sub(y0)) {
-        for x in 0..w.min(dw.saturating_sub(x0)) {
-            let src = ((y / scale) * cw + (x / scale)) as usize;
-            let Some(px) = argb.get(src) else { continue };
+    let (x0, y0, w, h) = fit_rect(buf_w, buf_h, cw, ch, scale);
+    for y in 0..h.min(buf_h.saturating_sub(y0)) {
+        for x in 0..w.min(buf_w.saturating_sub(x0)) {
+            // 最近邻源坐标（与 map_touch_xy 同式：floor((x-x0)*cw/w)）
+            let sx = ((x as u64 * cw as u64) / w as u64) as u32;
+            let sy = ((y as u64 * ch as u64) / h as u64) as u32;
+            let Some(px) = argb.get((sy * cw + sx) as usize) else { continue };
             let a = (*px >> 24) & 0xff;
             let r = (*px >> 16) & 0xff;
             let g = (*px >> 8) & 0xff;
             let b = *px & 0xff;
-            let off = (((y0 + y) as u32 * dw + (x0 + x) as u32) * 4) as usize;
+            // 【Bug1】行距=stride（y*stride），列=buf 列（x0+x）
+            let off = (((y0 + y) as usize) * (stride as usize) + (x0 + x) as usize) * 4;
             if off + 4 <= dst.len() {
                 dst[off] = r as u8;
                 dst[off + 1] = g as u8;
@@ -166,16 +224,18 @@ pub fn blit_argb_rgba(
             }
         }
     }
-    (x0, y0, w.min(dw), h.min(dh))
+    (x0, y0, w, h)
 }
 
-/// 触点窗口坐标→逻辑画布 240×320（等比信箱反变换：减信箱偏移、除缩放）。
-pub fn map_touch_xy(x: f32, y: f32, surf_w: u32, surf_h: u32) -> (f32, f32) {
-    let (cw, ch) = (CANVAS_W.max(1), CANVAS_H.max(1));
-    let scale = ((surf_w / cw).min(surf_h / ch)).max(1) as f32;
-    let (w, h) = (cw as f32 * scale, ch as f32 * scale);
-    let (x0, y0) = ((surf_w as f32 - w) / 2.0, (surf_h as f32 - h) / 2.0);
-    (((x - x0) / scale), ((y - y0) / scale))
+/// 触点窗口坐标→逻辑画布（【#2】经 fit_rect 反变换：格数/缩放自适配）：
+/// logical = floor((x-x0)*canvas_w/w)（与 blit 最近邻同式）；侧余触控区=负坐标
+/// （画布外=触控键区，不入格）。
+pub fn map_touch_xy(x: f32, y: f32, buf_w: u32, buf_h: u32, grid: u32, scale: u32) -> (f32, f32) {
+    let (cw, ch) = (grid * 32, grid * 32);
+    let (x0, y0, w, h) = fit_rect(buf_w, buf_h, cw, ch, scale);
+    let lx = ((x - x0 as f32) * cw as f32 / w as f32).floor();
+    let ly = ((y - y0 as f32) * ch as f32 / h as f32).floor();
+    (lx, ly)
 }
 
 /// `ANativeActivity`（不透明；字段面见 android/native_activity.h——internalDataPath
@@ -205,6 +265,9 @@ pub struct ShellWiring {
     pub gesture: game_shell_common::touch::GestureTracker,
     /// 呈现表面尺寸（INIT_WINDOW 更新；触点信箱反变换用）
     pub surface: (u32, u32),
+    /// 【#2】分辨率选择结果 (grid, scale)：None=INIT_WINDOW 时按策略选；
+    /// Some=测试注入点（覆盖选策略——GRID_N/SCALE 常量默认值同此用途）
+    pub resolution: Option<(u32, u32)>,
 }
 
 impl ShellWiring {
@@ -215,7 +278,8 @@ impl ShellWiring {
             touch: TouchMapper::new(pad.clone()),
             pad,
             gesture: game_shell_common::touch::GestureTracker::new(24),
-            surface: (CANVAS_W, CANVAS_H),
+            surface: logical_canvas(),
+            resolution: None,
         }
     }
 
@@ -223,6 +287,12 @@ impl ShellWiring {
     /// shell/win `frame_interval()` 同构（main.rs:645-650）。
     pub fn frame_interval_ms(&self) -> u64 {
         75
+    }
+
+    /// 分辨率（grid, scale）：测试注入 resolution 覆盖，否则常量默认（runtime
+    /// 选择在 INIT_WINDOW 由 pick_resolution 写入 resolution）。
+    pub fn resolved(&self) -> (u32, u32) {
+        self.resolution.unwrap_or((GRID_N as u32, SCALE as u32))
     }
 
     /// 触点事件翻译（宿主可测面）：pad 区→键动作流 + 手势簿登记。
@@ -254,11 +324,14 @@ impl ShellWiring {
                     let Some(phase) = motion_phase(action) else { return (Vec::new(), true) };
                     let idx = motion_pointer_index(action) as usize;
                     let id = ffi::AMotionEvent_getPointerId(event, idx);
+                    let (g, sc) = self.resolved();
                     let (x, y) = map_touch_xy(
                         ffi::AMotionEvent_getX(event, idx),
                         ffi::AMotionEvent_getY(event, idx),
                         self.surface.0,
                         self.surface.1,
+                        g,
+                        sc,
                     );
                     let ev = TouchEvent { id, phase, x, y };
                     (self.on_touch(&ev), true) // 触点恒吞（触摸屏无系统默认）
@@ -299,14 +372,26 @@ impl ShellWiring {
         #[cfg(target_os = "android")]
         unsafe {
             const WINDOW_FORMAT_RGBA_8888: i32 = 1;
-            ffi::ANativeWindow_setBuffersGeometry(
-                window,
-                CANVAS_W as i32,
-                CANVAS_H as i32,
-                WINDOW_FORMAT_RGBA_8888,
-            );
+            // 【Bug2 根治】只协商**格式**（0,0=buffer 留显示原生尺寸比例）——
+            // setBuffersGeometry(240,320) 会让 SurfaceFlinger 全屏硬拉压扁。
+            ffi::ANativeWindow_setBuffersGeometry(window, 0, 0, WINDOW_FORMAT_RGBA_8888);
         }
-        self.surface = (CANVAS_W, CANVAS_H);
+        // 【#2】runtime 选择：按 buffer/显示尺寸三步算（测试注入 resolution 不覆盖）
+        if self.resolution.is_none() {
+            #[cfg(target_os = "android")]
+            unsafe {
+                let bw = ffi::ANativeWindow_getWidth(window).max(0) as u32;
+                let bh = ffi::ANativeWindow_getHeight(window).max(0) as u32;
+                if bw > 0 && bh > 0 {
+                    let (g, sc) = pick_resolution(bw, bh);
+                    self.resolution = Some((g, sc));
+                    self.surface = (g * 32, g * 32);
+                }
+            }
+        }
+        if self.resolution.is_none() {
+            self.surface = logical_canvas();
+        }
         true
     }
 
@@ -343,7 +428,8 @@ impl ShellWiring {
                 let stride = buf.stride.max(0) as u32;
                 let total = (stride as usize) * (bh as usize) * 4;
                 let dst = std::slice::from_raw_parts_mut(buf.bits as *mut u8, total);
-                blit_argb_rgba(dst, stride, bh, argb, CANVAS_W, CANVAS_H);
+                let (g, sc) = self.resolved();
+                blit_argb_rgba(dst, bw, bh, stride, argb, g * 32, g * 32, sc);
             }
             ffi::ANativeWindow_unlockAndPost(window);
         }
@@ -478,6 +564,8 @@ mod ffi {
             height: i32,
             format: i32,
         ) -> i32;
+        pub fn ANativeWindow_getWidth(window: *mut ANativeWindow) -> i32;
+        pub fn ANativeWindow_getHeight(window: *mut ANativeWindow) -> i32;
         pub fn ALooper_pollAll(
             timeout_millis: i32,
             out_fd: *mut i32,
@@ -508,6 +596,11 @@ extern "C" fn handle_cmd(app: *mut AndroidApp, cmd: i32) {
                 // 【实机 SIGSEGV 回派修复①】窗口就绪才协商（setBuffersGeometry 移入）
                 let ok = st.wiring.ensure_surface((*app).window);
                 st.surface = st.wiring.surface;
+                // 【#2】策略选定分辨率 → 画布/Modern 布局重解析（任意格数×32 公式）
+                let (g, _sc) = st.wiring.resolved();
+                st.canvas = game_core::render::ArgbImage::create((g * 32) as i32, (g * 32) as i32);
+                st.machine
+                    .apply_layout(game_core::layout::Layout::modern(g as i32, g as i32));
                 let _ = ok;
             }
             APP_CMD_TERM_WINDOW => {
@@ -601,12 +694,13 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
             container("load", 2),
         );
         machine.sptarm = container("sptarm", 10);
-        machine.apply_layout(game_core::layout::Layout::classic());
+        // 【#2】Modern 布局（任意格数×32 公式）——横屏方画幅，GRID_N/SCALE 矩阵可配
+        machine.apply_layout(game_core::layout::Layout::modern(GRID_N, GRID_N));
 
         let mut st = Box::new(HostState {
             wiring: ShellWiring::new(),
             machine,
-            canvas: ArgbImage::create(CANVAS_W as i32, CANVAS_H as i32),
+            canvas: ArgbImage::create((GRID_N * 32), (GRID_N * 32)),
             assets,
             _storage: storage,
             surface: (CANVAS_W, CANVAS_H),
@@ -706,7 +800,9 @@ mod tests {
     fn wiring_assembly_touch_surface_ready() {
         // T5 装配自检：触屏件（TouchMapper/GestureTracker）+ 呈现面 240×320 就位
         let mut w = ShellWiring::new();
-        assert_eq!(w.surface, (CANVAS_W, CANVAS_H), "逻辑画布 240×320（Stage A）");
+        assert_eq!(w.surface, logical_canvas(), "Modern 方画布（GRID_N×32）");
+        assert_eq!(logical_canvas(), (576, 576), "默认 18 格=576 逻辑边长");
+        assert_eq!(game_pixels(), (1152, 1152), "默认 @2x=1152 呈现边长");
         assert_eq!(w.pad.dpad.cx, 56.0, "虚拟方向盘几何（T3 PadLayout）");
         // 硬件键翻译直通（-1..-7 契约面）：BACK 恒吞（BUG-020）
         let (keys, consumed) = w.on_hw_key(AKEYCODE_BACK, 0, 0);
