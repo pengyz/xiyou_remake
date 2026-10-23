@@ -21,4 +21,5 @@ pub mod save;
 pub mod scene;
 pub mod title;
 pub mod script;
+pub mod undo_journal;
 pub mod walk;
