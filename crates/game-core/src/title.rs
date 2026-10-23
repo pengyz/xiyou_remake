@@ -354,6 +354,30 @@ impl TitleMachine {
         g.reset_clip();
     }
 
+    /// 【2c 裁定】6 项菜单行矩形单源（paint 与 hit-test 共调——item_cell_origin
+    /// 先例）：行高 28+行隙 2、x∈[80, sw-80)、底锚于底条上方（y0=sh-bar-6*30）。
+    pub fn menu_item_rects(sw: i32, sh: i32, bar: i32) -> [(i32, i32, i32, i32); 6] {
+        let row_h = 28;
+        let gap = 2;
+        let y0 = sh - bar - 6 * (row_h + gap);
+        let mut out = [(0, 0, 0, 0); 6];
+        for (i, r) in out.iter_mut().enumerate() {
+            *r = (80, y0 + i as i32 * (row_h + gap), sw - 160, row_h);
+        }
+        out
+    }
+
+    /// 【2c 裁定】tap 命中：行内=Some(index)（切换+确认一步到位），行隙/区外=None
+    ///（不误触）。标题 UI=键盘语义（cursor+-5 确认），本 fn 只做命中定位。
+    pub fn menu_hit(x: i32, y: i32, sw: i32, sh: i32, bar: i32) -> Option<usize> {
+        for (i, (rx, ry, rw, rh)) in Self::menu_item_rects(sw, sh, bar).into_iter().enumerate() {
+            if x >= rx && x < rx + rw && y >= ry && y < ry + rh {
+                return Some(i);
+            }
+        }
+        None
+    }
+
     /// `drawIconStrip`（a.java:4790-4797）：4 列图标带（列源 x = 0/17/34/51），
     /// 每列按 STRIP_DX/DY[帧] 波动；字段帧每 paint +1（环 8）。
     fn paint_icon_strip(&mut self, g: &mut SoftGraphics<'_>, strip: &ArgbImage, x0: i32, y0: i32, sy: i32) {

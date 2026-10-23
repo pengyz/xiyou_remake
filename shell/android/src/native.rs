@@ -282,6 +282,8 @@ pub struct ShellWiring {
     pub gesture: game_shell_common::touch::GestureTracker,
     /// 呈现表面尺寸（逻辑画布 g*32）
     pub surface: (u32, u32),
+    /// 【2c】tap 待决表（画布内 Up，无 pad 键产出）——UI 态 pointer_hit 消费
+    pub pending_taps: Vec<(f32, f32)>,
     /// 【问题2b】窗口/缓冲真实像素尺寸（INIT_WINDOW 实测——触点反变换分母；
     /// 旧误传逻辑尺寸 ⇒ 点击全落侧余负区=触屏全链不通根因）
     pub window_size: (u32, u32),
@@ -299,6 +301,7 @@ impl ShellWiring {
             pad,
             gesture: game_shell_common::touch::GestureTracker::new(24),
             surface: logical_canvas(),
+            pending_taps: Vec::new(),
             window_size: (0, 0),
             resolution: None,
         }
@@ -360,6 +363,10 @@ impl ShellWiring {
                     let ev = TouchEvent { id, phase, x, y };
                     let keys = self.on_touch(&ev);
                     log_input(&format!("touch keys={keys:?} in_canvas={}", x >= 0.0 && y >= 0.0));
+                    // 【2c】tap（Up 且画布内）入待决表——UI 态走 pointer_hit（见主循环）
+                    if matches!(phase, TouchPhase::Up) && x >= 0.0 && y >= 0.0 && keys.is_empty() {
+                        self.pending_taps.push((x, y));
+                    }
                     (keys, true) // 触点恒吞（触摸屏无系统默认）
                 }
                 AINPUT_EVENT_TYPE_KEY => {
@@ -783,6 +790,22 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
         // 【#2】Modern 布局（任意格数×32 公式）——横屏方画幅，GRID_N/SCALE 矩阵可配
         machine.apply_layout(game_core::layout::Layout::modern(GRID_N, GRID_N));
 
+        // 【音频断层修】4 轨先载入 TrackStore（旧 store=空 Vec=Mixer 无轨可混=静音）
+        // ——Android 轨道 AssetSource::read("track{i}.ogg")（shell/common audio.rs 口径）
+        let mut tracks: Vec<Option<std::sync::Arc<game_shell_common::audio::Track>>> =
+            (0..4).map(|_| None).collect();
+        for i in 0..4usize {
+            match assets.read(&format!("track{i}.ogg")) {
+                Ok(bytes) => match game_shell_common::audio::decode_ogg(&bytes) {
+                    Ok(t) => {
+                        log_input(&format!("track{i} loaded ok"));
+                        tracks[i] = Some(std::sync::Arc::new(t));
+                    }
+                    Err(e) => log_input(&format!("track{i} decode err {e}")),
+                },
+                Err(e) => log_input(&format!("track{i} read err {e}")),
+            }
+        }
         let mut st = Box::new(HostState {
             wiring: ShellWiring::new(),
             machine,
@@ -799,6 +822,7 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
         // AAudio 音频环（阻塞 write=节拍；开失败=NullSink 无声降级，API<26 同）
         let (tx, rx) = std::sync::mpsc::channel::<game_shell_common::audio::Msg>();
         std::thread::spawn(move || {
+            log_input("aaudio thread spawn");
             let dev: Box<dyn AudioOut> = match crate::audio::aaudio::AAudioPcm::open() {
                 Ok(pcm) => {
                     log_input("aaudio open ret=ok");
@@ -810,7 +834,7 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
                 }
             };
             let store: game_shell_common::audio::TrackStore =
-                std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+                std::sync::Arc::new(std::sync::Mutex::new(tracks));
             game_shell_common::audio::audio_loop(rx, dev, game_shell_common::audio::Mixer::new(store));
         });
         let mut last_bgm: Option<usize> = None;
@@ -854,8 +878,23 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
                     KeyAction::Release => 0,
                 });
                 st.machine.tick(key);
+                // 【2c 裁定】tap=切换+确认一步到位：menu_hit 命中⇒cursor=i+确认
+                // 直发（与 -5 同路径零新语义）；行矩形单源=title::menu_item_rects
+                for (tx_, ty_) in std::mem::take(&mut st.wiring.pending_taps) {
+                    let (sw, sh) = (st.wiring.surface.0 as i32, st.wiring.surface.1 as i32);
+                    let hit = game_core::title::TitleMachine::menu_hit(tx_ as i32, ty_ as i32, sw, sh, 18);
+                    log_input(&format!("menu_hit({tx_:.0},{ty_:.0})→{hit:?}"));
+                    if let Some(i) = hit {
+                        st.machine.select_row(i as i32);
+                        st.pending_keys.push(KeyAction::Press(-5)); // 确认直发=-5 同路径
+                    }
+                }
                 // BGM：轨道变更 → 音频线程（bgm_request/bgm_serial 同构 shell/win）
-                if let Some(track) = st.machine.bgm_request() {
+                let req = st.machine.bgm_request();
+                if req != last_bgm {
+                    log_input(&format!("bgm req={req:?}"));
+                }
+                if let Some(track) = req {
                     let serial = st.machine.bgm_serial();
                     if last_bgm != Some(track) {
                         last_bgm = Some(track);

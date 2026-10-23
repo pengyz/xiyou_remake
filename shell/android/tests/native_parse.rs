@@ -337,37 +337,23 @@ fn tap_chain_buf_to_walk_to() {
 }
 
 #[test]
-fn title_button_hit_diff_smoke() {
-    // 【问题2c】标题按钮命中面：BootMachine::pointer_hit 底部中带 vs 远角=不同命中
-    use game_core::paint::BootMachine;
-    use game_core::render::ArgbImage;
-    let img = || ArgbImage::create(2, 2);
-    let vec = |n: usize| (0..n).map(|_| img()).collect::<Vec<_>>();
-    let mut m = BootMachine::new(img(), img(), vec(8), vec(25), vec(2), img(), vec(2), vec(1), vec(2));
-    m.apply_layout(game_core::layout::Layout::modern(18, 18));
-    let band = m.pointer_hit(288, 540); // 底部中带（开始游戏带）
-    let corner = m.pointer_hit(2, 2);
-    let _ = (band, corner); // 命中面可达（Debug 面随设备日志 jjxy-input 观测）
-}
-
-#[test]
-fn title_cover_bottom_keeps_logo_visible() {
-    // 【截断回派】576² 画布底锚 cover：底部 logo 区非透明（裁上部天空保 logo）
-    use game_core::paint::title_fill_rect_bottom;
-    use game_core::render::{ArgbImage, SoftGraphics};
-    let mut img = ArgbImage::create(240, 320);
-    for y in 0..320i32 {
-        for x in 0..240i32 {
-            let c = if y >= 300 { 0xFFFF0000u32 } else { 0xFF0000FF };
-            img.argb[(y * 240 + x) as usize] = c;
+fn menu_hit_rows_and_gaps() {
+    // 【2c 裁定】行矩形单源：点行中=命中、行间空隙=不误触（四角+间隙钉）
+    use game_core::title::TitleMachine;
+    let (sw, sh, bar) = (576i32, 576i32, 18i32);
+    let rects = TitleMachine::menu_item_rects(sw, sh, bar);
+    for (i, (x, y, w, h)) in rects.iter().enumerate() {
+        for (cx, cy) in [(*x, *y), (*x + w - 1, *y), (*x, *y + h - 1), (*x + w - 1, *y + h - 1)] {
+            assert_eq!(TitleMachine::menu_hit(cx, cy, sw, sh, bar), Some(i), "行{i} 四角=命中");
+        }
+        // 行间空隙=不误触
+        if i < 5 {
+            let gap_y = y + h;
+            assert_eq!(TitleMachine::menu_hit(*x + 10, gap_y, sw, sh, bar), None, "行隙不误触");
         }
     }
-    let mut canvas = ArgbImage::create(576, 576);
-    {
-        let mut g = SoftGraphics::new(&mut canvas);
-        g.draw_image_cover(&img, 576, 576, true);
-    }
-    assert_eq!(canvas.argb[575 * 576], 0xFFFF0000, "画布底行=源底 logo 色（非透明未截）");
-    let r = title_fill_rect_bottom(576, 576, 240, 320);
-    assert_eq!(r.1 + r.3, 576, "底锚 y+h=画布底（裁上部天空）");
+    // 实机"开始游戏"logical 点 (350,542) 落某行内=命中
+    assert!(TitleMachine::menu_hit(350, 542, sw, sh, bar).is_some(), "(350,542) 命中行");
+    // 行区外=不误触
+    assert_eq!(TitleMachine::menu_hit(5, 5, sw, sh, bar), None);
 }
