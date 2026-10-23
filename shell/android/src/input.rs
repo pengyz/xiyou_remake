@@ -300,4 +300,157 @@ impl InputRouter {
             KeyMapResult { code: None, consumed: r.consumed }
         }
     }
+
+}
+
+// ---------------- T3 触屏映射集成（touch-native-undo-plan §1，2026-10-23） ----------------
+
+use game_shell_common::touch::{self as tch, Gesture, ShellAction, TouchGeom};
+
+/// 触点双模集成（用户裁定：双模**并存**非替代）：虚拟键区（DpadZone/SoftZone
+/// 一等公民，既有 TouchMapper 语义一行不改）+ 自由区触点（点按移动/滑动踏步/
+/// 撤销钮，game-shell-common::touch 单源）。win 鼠标=触点等价（shell/win
+/// main.rs 同 consume 共享层——双壳同构）。
+#[derive(Debug)]
+pub struct TouchInput {
+    pub mapper: TouchMapper,
+    /// 虚拟键区触点 id 簿（区分键通道/手势通道）
+    pad_ids: Vec<i32>,
+    gestures: tch::GestureTracker,
+}
+
+impl TouchInput {
+    pub fn new(layout: PadLayout) -> TouchInput {
+        TouchInput {
+            mapper: TouchMapper::new(layout),
+            pad_ids: Vec::new(),
+            gestures: tch::GestureTracker::new(24),
+        }
+    }
+
+    fn in_pad(&self, x: f32, y: f32) -> bool {
+        self.mapper.soft_at(x, y).is_some() || in_dpad_capture(&self.mapper.layout.dpad, x, y)
+    }
+
+    fn map_keys(keys: Vec<KeyAction>) -> Vec<ShellAction> {
+        keys.iter()
+            .flat_map(|k| match k {
+                KeyAction::Press(c) => tch::Dispatcher::key(*c),
+                KeyAction::Release => tch::Dispatcher::release(),
+            })
+            .collect()
+    }
+
+    /// 一个触点事件 → ShellAction 流（保序；键/触两通道同流=双模并存无互斥；
+    /// 打断全通道=各通道首动作 Interrupt，由 Dispatcher 组装）。
+    pub fn feed(
+        &mut self,
+        ev: &TouchEvent,
+        geom: &TouchGeom,
+        screen_w: i32,
+        screen_h: i32,
+        player: (i32, i32),
+        walkable: impl Fn(i32, i32) -> bool,
+    ) -> Vec<ShellAction> {
+        match ev.phase {
+            TouchPhase::Down => {
+                if self.in_pad(ev.x, ev.y) {
+                    self.pad_ids.push(ev.id);
+                    let keys = self.mapper.feed(ev);
+                    Self::map_keys(keys)
+                } else {
+                    self.gestures.down(ev.x as i32, ev.y as i32);
+                    Vec::new()
+                }
+            }
+            TouchPhase::Move => {
+                if self.pad_ids.contains(&ev.id) {
+                    let keys = self.mapper.feed(ev);
+                    Self::map_keys(keys)
+                } else {
+                    // 滑动=方向手动踏步（一格/次、撞墙即停）
+                    self.gestures
+                        .move_to(ev.x as i32, ev.y as i32)
+                        .map(tch::Dispatcher::swipe)
+                        .unwrap_or_default()
+                }
+            }
+            TouchPhase::Up | TouchPhase::Cancel => {
+                if let Some(pos) = self.pad_ids.iter().position(|i| *i == ev.id) {
+                    self.pad_ids.remove(pos);
+                    let keys = self.mapper.feed(ev);
+                    Self::map_keys(keys)
+                } else {
+                    match self.gestures.up(ev.x as i32, ev.y as i32) {
+                        Gesture::Tap(x, y) => tch::Dispatcher::tap(tch::classify_tap(
+                            x,
+                            y,
+                            geom,
+                            screen_w,
+                            screen_h,
+                            player,
+                            walkable,
+                        )),
+                        _ => Vec::new(),
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod t3_touch_tests {
+    use super::*;
+
+    fn geom() -> TouchGeom {
+        TouchGeom { cam_x: -144, cam_y: -16, tile_off: 20, cols: 26, rows: 26 }
+    }
+    fn ev(id: i32, phase: TouchPhase, x: f32, y: f32) -> TouchEvent {
+        TouchEvent { id, phase, x, y }
+    }
+
+    /// 双模并存：虚拟键区按键流与自由区 tap 动作流互不压制（用户裁定）。
+    #[test]
+    fn dual_mode_pad_keys_and_free_taps_coexist() {
+        let mut ti = TouchInput::new(PadLayout::default_240x320());
+        let g = geom();
+        // 自由区 tap → WalkTo（点空地）
+        let a1 = ti.feed(&ev(1, TouchPhase::Down, 32.0, 48.0), &g, 240, 320, (9, 1), |_, _| true);
+        assert!(a1.is_empty(), "按下不发（手势待抬起分类）");
+        let a2 = ti.feed(&ev(1, TouchPhase::Up, 32.0, 48.0), &g, 240, 320, (9, 1), |_, _| true);
+        assert_eq!(a2, vec![ShellAction::Interrupt, ShellAction::WalkTo((11, 2))], "tap=打断+WalkTo");
+        // 虚拟键区（方向盘 cy=252）按键流照常（不被 tap 压制）
+        let a3 = ti.feed(&ev(2, TouchPhase::Down, 86.0, 252.0), &g, 240, 320, (9, 1), |_, _| true);
+        assert_eq!(a3, vec![ShellAction::Interrupt, ShellAction::Key(KEY_RIGHT)], "tap 后方向盘不被压制");
+        let a4 = ti.feed(&ev(2, TouchPhase::Up, 86.0, 252.0), &g, 240, 320, (9, 1), |_, _| true);
+        assert_eq!(a4, vec![ShellAction::KeyRelease], "抬起=Release");
+        // 自由区 tap 照常（不被键流压制）
+        let a5 = ti.feed(&ev(3, TouchPhase::Down, 32.0, 48.0), &g, 240, 320, (9, 1), |_, _| true);
+        let a6 = ti.feed(&ev(3, TouchPhase::Up, 32.0, 48.0), &g, 240, 320, (9, 1), |_, _| true);
+        assert_eq!(a6[1], ShellAction::WalkTo((11, 2)), "按键后 tap 不被压制");
+        assert_eq!(a5, Vec::new());
+    }
+
+    /// 点墙=探步入、撤销区=Undo、滑动=一格/次踏步（撞墙即停）。
+    #[test]
+    fn free_tap_wall_probe_undo_and_swipe_step() {
+        let mut ti = TouchInput::new(PadLayout::default_240x320());
+        let g = geom();
+        let walkable = |x: i32, y: i32| !(x == 10 && y == 1); // (10,1)=墙
+        // 点墙格 → 探步入
+        ti.feed(&ev(1, TouchPhase::Down, 16.0, 20.0), &g, 240, 320, (9, 1), walkable);
+        let a = ti.feed(&ev(1, TouchPhase::Up, 16.0, 20.0), &g, 240, 320, (9, 1), walkable);
+        assert_eq!(a, vec![ShellAction::Interrupt, ShellAction::ProbeStep(2)], "点墙格=探步入 Right");
+        // 撤销区 → Undo
+        ti.feed(&ev(2, TouchPhase::Down, 200.0, 5.0), &g, 240, 320, (9, 1), walkable);
+        let a = ti.feed(&ev(2, TouchPhase::Up, 200.0, 5.0), &g, 240, 320, (9, 1), walkable);
+        assert_eq!(a, vec![ShellAction::Interrupt, ShellAction::Undo], "撤销区=Undo");
+        // 滑动：一格/次（越阈一次；续滑无后续=撞墙即停语义）
+        ti.feed(&ev(3, TouchPhase::Down, 100.0, 100.0), &g, 240, 320, (9, 1), walkable);
+        let a = ti.feed(&ev(3, TouchPhase::Move, 140.0, 100.0), &g, 240, 320, (9, 1), walkable);
+        assert_eq!(a, vec![ShellAction::Interrupt, ShellAction::ProbeStep(2)], "滑动=打断+一步踏步");
+        let a = ti.feed(&ev(3, TouchPhase::Move, 300.0, 100.0), &g, 240, 320, (9, 1), walkable);
+        assert!(a.is_empty(), "同手势续滑无后续步（一格/次、撞墙即停）");
+    }
 }

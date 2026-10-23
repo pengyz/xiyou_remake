@@ -638,6 +638,11 @@ impl Shell {
     /// game-core 已接：`GameScene::press_key` 按下即调、`BootMachine::tick` 入口对挂起键调
     /// （`bgm.on_key_pressed`）；壳再调即重复计数。
     fn route_key(&mut self, code: i32, pressed: bool) {
+        // 【T3】打断全通道（touch-native-undo §0）：任意键输入（方向/软键/滚轮同口）
+        // 皆打断寻路——route 未开=core 幂等零影响；经典 key 链一行不动（保真红线）。
+        if let Some(Screen::Game(sc)) = self.state.as_mut() {
+            sc.interrupt_route();
+        }
         // MIDP Canvas「Event Delivery」：key/pointer 回调只在 showNotify 之后、hideNotify
         // 之前投递——隐藏期的键不得消费续播边沿（否则看不见窗口时音乐被键唤醒）
         if !self.visibility.shown() {
@@ -835,6 +840,90 @@ impl Shell {
             }
         }
         click_key(x, y, self.layout.screen_w, self.layout.screen_h, self.game_mode(), right)
+    }
+
+    /// 【T3】可回撤步数（撤销按钮"可回撤 N 步"数据面；非 Game 态=None 不绘制）。
+    fn undo_count(&self) -> Option<usize> {
+        match self.state.as_ref() {
+            Some(Screen::Game(sc)) => Some(game_shell_common::undo_ui::undo_count(sc)),
+            _ => None,
+        }
+    }
+
+    /// 【T3】壳侧动作流消费（win 鼠标=触点等价；android 同构走同一 Dispatcher）。
+    fn apply_touch_action(&mut self, a: game_shell_common::touch::ShellAction) {
+        use game_shell_common::touch::ShellAction as A;
+        match a {
+            A::Interrupt => {
+                if let Some(Screen::Game(sc)) = self.state.as_mut() {
+                    sc.interrupt_route();
+                }
+            }
+            A::WalkTo((x, y)) => {
+                if let Some(Screen::Game(sc)) = self.state.as_mut() {
+                    sc.walk_to(x, y);
+                }
+            }
+            A::ProbeStep(d) => {
+                if let Some(Screen::Game(sc)) = self.state.as_mut() {
+                    sc.probe_step(d);
+                }
+            }
+            A::Undo => {
+                if let Some(Screen::Game(sc)) = self.state.as_mut() {
+                    game_shell_common::undo_ui::undo_last(sc);
+                }
+            }
+            A::Key(c) => self.route_key(c, true),
+            A::KeyRelease => self.route_key(0, false),
+        }
+    }
+
+    /// 【T3】触点抬起分类（tap）：Map 行走态=触点→格（撤销钮/点墙探步入/点地
+    /// walk_to）；其余态=既有 WIN-OP③ 基线（行命中/软键）语义不动。
+    /// 返回 true=触点通道已消费（不再走基线）。
+    fn pointer_tap(&mut self, x: i32, y: i32, right: bool) -> bool {
+        use game_shell_common::touch::{classify_tap, Dispatcher, ShellAction, TouchGeom};
+        let actions: Vec<ShellAction> = if !right {
+            match self.state.as_ref() {
+                Some(Screen::Game(sc)) if self.game_mode() == game_core::enums::GameMode::Map => {
+                    let geom = TouchGeom {
+                        cam_x: sc.view.cam_x,
+                        cam_y: sc.view.cam_y,
+                        tile_off: self.layout.view_top_y,
+                        cols: sc.view.wide,
+                        rows: sc.view.high,
+                    };
+                    let player = (sc.player_cell_x, sc.player_cell_y);
+                    let walkable = |cx: i32, cy: i32| {
+                        sc.walkable
+                            .get(cy as usize)
+                            .and_then(|r| r.get(cx as usize))
+                            .copied()
+                            .unwrap_or(false)
+                    };
+                    Dispatcher::tap(classify_tap(
+                        x,
+                        y,
+                        &geom,
+                        self.layout.screen_w,
+                        self.layout.screen_h,
+                        player,
+                        walkable,
+                    ))
+                }
+                _ => Vec::new(),
+            }
+        } else {
+            Vec::new()
+        };
+        if actions.is_empty() {
+            return false;
+        }
+        for a in actions {
+            self.apply_touch_action(a);
+        }
+        true
     }
 
     /// 一逻辑拍（logic → paint，同 Java run 循环体），随后同步 BGM 请求。可见性不影响出拍：
@@ -1316,6 +1405,9 @@ fn run_window(shell: Shell) {
         surface: Option<softbuffer::Surface<W, W>>,
         pacer: view::Pacer,
         mouse: Option<(f64, f64)>,
+        /// 【T3】左键手势（tap/滑动踏步；右键不入）
+        press: Option<(i32, i32)>,
+        gesture: game_shell_common::touch::GestureTracker,
     }
 
     impl ApplicationHandler for Runner {
@@ -1372,7 +1464,16 @@ fn run_window(shell: Shell) {
                             self.shell.layout.screen_w as u32,
                             self.shell.layout.screen_h as u32,
                         ) {
-                            self.shell.pointer_hover(x, y);
+                            if self.press.is_some() {
+                                // 【T3】拖动=滑动方向手动踏步（一格/次；探步失败=撞墙即停）
+                                if let Some(dir) = self.gesture.move_to(x, y) {
+                                    for a in game_shell_common::touch::Dispatcher::swipe(dir) {
+                                        self.shell.apply_touch_action(a);
+                                    }
+                                }
+                            } else {
+                                self.shell.pointer_hover(x, y);
+                            }
                         }
                     }
                 }
@@ -1391,13 +1492,33 @@ fn run_window(shell: Shell) {
                     if !right && button != winit::event::MouseButton::Left {
                         return;
                     }
-                    // WIN-OP③：命中行→对位+确认键；未命中→基线（软键/右键/确认，态门控）
-                    let Some(code) = self.shell.pointer_click(x, y, right) else {
+                    if right {
+                        // 右键=即时基线（既有语义不动）
+                        let Some(code) = self.shell.pointer_click(x, y, true) else { return };
+                        self.shell.route_key(code, true);
+                        self.shell.route_key(code, false);
+                    } else {
+                        // 【T3】左键=手势判定（tap/滑动踏步，抬起分类）
+                        self.gesture.down(x, y);
+                        self.press = Some((x, y));
+                    }
+                }
+                WindowEvent::MouseInput { state: ElementState::Released, button, .. } => {
+                    if button != winit::event::MouseButton::Left {
                         return;
-                    };
-                    // 点按 = 一次 press + release（下一拍消费 keyValue；不即时推进逻辑）
-                    self.shell.route_key(code, true);
-                    self.shell.route_key(code, false);
+                    }
+                    let Some((px, py)) = self.press.take() else { return };
+                    if let game_shell_common::touch::Gesture::Tap(tx, ty) =
+                        self.gesture.up(px, py)
+                    {
+                        // tap：触点→格通道优先（Map 态）；未消费=既有基线（行命中/软键）
+                        if !self.shell.pointer_tap(tx, ty, false) {
+                            if let Some(code) = self.shell.pointer_click(tx, ty, false) {
+                                self.shell.route_key(code, true);
+                                self.shell.route_key(code, false);
+                            }
+                        }
+                    }
                 }
                 WindowEvent::MouseWheel { delta, .. } => {
                     // WIN-OP②：滚轮 → 行导航（C-a 态门控：Map 行走态不合成）
@@ -1481,6 +1602,22 @@ fn run_window(shell: Shell) {
             self.shell.set_scale(vp.scale);
             let (bw, bh) = (self.shell.screen.width as u32, self.shell.screen.height as u32);
             view::blit_1to1(&mut buffer, &vp, &self.shell.screen.argb, bw, bh);
+            // 【T3】撤销按钮常驻 UI（读 undo_journal 计数；窗口层合成=游戏画布/
+            // oracle 金样零污染）
+            if let Some(count) = self.shell.undo_count() {
+                let s = (self.shell.screen.width / self.shell.layout.screen_w).max(1);
+                let bx = vp.ox as i32
+                    + (self.shell.layout.screen_w - game_shell_common::touch::UNDO_ZONE_W) * s;
+                game_shell_common::undo_ui::draw_undo_button(
+                    &mut buffer,
+                    vp.win_w as usize,
+                    vp.win_h as usize,
+                    bx,
+                    vp.oy as i32,
+                    count,
+                    s,
+                );
+            }
             let _ = buffer.present();
         }
     }
@@ -1500,6 +1637,8 @@ fn run_window(shell: Shell) {
         surface: None,
         pacer: view::Pacer::new(Instant::now(), first),
         mouse: None,
+        press: None,
+        gesture: game_shell_common::touch::GestureTracker::new(24),
     };
     event_loop.run_app(&mut runner).unwrap();
 }
@@ -2435,6 +2574,37 @@ mod shell_tests {
         assert!(h.shell.consume_exit(&mut probe), "粘滞信号：重复轮询仍请求");
         assert_eq!(*calls.lock().unwrap(), 3, "每轮轮询一次（F4 口径 a，无消费位）");
         eprintln!("退出请求链起点 T{t}");
+    }
+    /// 【T3】壳层动作消费接线（映射/手势判据=game-shell-common 8+3 测试）：
+    /// WalkTo 动作喂缓冲、打断动作清缓冲、撤销动作减栈（hold-walk 脚本进 Map 态）。
+    #[test]
+    fn t3_touch_actions_wire_to_scene() {
+        use game_shell_common::touch::ShellAction as A;
+        let ev = script("shell/win/tests/fixtures/hold-walk.txt");
+        let mut h = Harness::new("preset-floor1.preset");
+        for _ in 0..240 {
+            h.run_tick(&ev);
+        }
+        assert_eq!(h.shell.game_mode(), game_core::enums::GameMode::Map, "脚本进 Map 态");
+        let (px, py) = {
+            let sc = h.scene();
+            (sc.player_cell_x, sc.player_cell_y)
+        };
+        // 触点→格：WalkTo 动作喂 walkPathBuffer
+        h.shell.apply_touch_action(A::WalkTo((px - 2, py)));
+        assert!(h.scene().walk_step_count > 0, "WalkTo 动作喂缓冲");
+        // 打断信号（全通道首动作）清缓冲停步
+        h.shell.apply_touch_action(A::Interrupt);
+        assert_eq!(h.scene().walk_step_count, 0, "打断动作清缓冲停步");
+        // 撤销钮动作：到位=位移笔入栈 ⇒ Undo 减栈
+        h.shell.apply_touch_action(A::WalkTo((px - 2, py)));
+        for _ in 0..60 {
+            h.run_tick(&[]);
+        }
+        let before = h.shell.undo_count().expect("Game 态计数在");
+        assert!(before >= 1, "WalkTo 到位=位移笔入栈（可回撤 {before} 步）");
+        h.shell.apply_touch_action(A::Undo);
+        assert_eq!(h.shell.undo_count(), Some(before - 1), "撤销动作减栈（按钮 N 同步）");
     }
 }
 
