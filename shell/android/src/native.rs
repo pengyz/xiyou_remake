@@ -177,10 +177,12 @@ pub fn fit_rect(
     let sc = scale.max(1);
     let (mut w, mut h) = (canvas_w * sc, canvas_h * sc);
     if w > buf_w || h > buf_h {
-        let k = ((buf_w as f64 / w as f64).min(buf_h as f64 / h as f64)).min(1.0);
-        // 【复核A 黄1】四舍五入（as u32 截断可欠 1px）+夹取不越 buf
-        w = (((w as f64) * k).round() as u32).clamp(1, buf_w.max(1));
-        h = (((h as f64) * k).round() as u32).clamp(1, buf_h.max(1));
+        // 【复核B R2】整数化（f64 截断曾致 w=239≠240⇒出口越一格）：
+        // contain 宽=min(buf_w, buf_h*w/ch)、高=min(buf_h, buf_w*h/cw)——纯整数。
+        let wi = ((buf_h as u64 * w as u64) / (h as u64).max(1)) as u32;
+        let hi = ((buf_w as u64 * h as u64) / (w as u64).max(1)) as u32;
+        w = buf_w.min(wi).max(1);
+        h = buf_h.min(hi).max(1);
     }
     ((buf_w.saturating_sub(w)) / 2, (buf_h.saturating_sub(h)) / 2, w, h)
 }
@@ -238,9 +240,19 @@ pub fn map_touch_xy(x: f32, y: f32, buf_w: u32, buf_h: u32, grid: u32, scale: u3
     debug_assert!(grid >= 1, "grid 须 ≥1（pick_resolution 契约域 [13,24]）");
     let (cw, ch) = ((grid.max(1)) * 32, (grid.max(1)) * 32);
     let (x0, y0, w, h) = fit_rect(buf_w, buf_h, cw, ch, scale);
-    let lx = ((x - x0 as f32) * cw as f32 / w as f32).floor();
-    let ly = ((y - y0 as f32) * ch as f32 / h as f32).floor();
-    (lx, ly)
+    // 【复核B R1】侧余**负坐标**四向对称（左/上线性负；右/下=溢出逻辑距取负）——
+    // UNDO/触控件按符号判区；【复核B R2】出口钳制=逻辑域 [0, grid*32-1]（越一格拒）。
+    let map_axis = |v: f32, o: u32, len: u32, span: u32| -> f32 {
+        let raw = (v - o as f32) * len as f32 / span as f32;
+        if raw < 0.0 {
+            raw.floor() // 左/上侧余：线性负
+        } else if raw >= len as f32 {
+            -((raw - len as f32).floor() + 1.0) // 右/下侧余：负（溢出逻辑距+1）
+        } else {
+            raw.floor().min(len as f32 - 1.0) // 出口钳制（R2）
+        }
+    };
+    (map_axis(x, x0, cw, w), map_axis(y, y0, ch, h))
 }
 
 /// `ANativeActivity`（不透明；字段面见 android/native_activity.h——internalDataPath
@@ -391,6 +403,9 @@ impl ShellWiring {
                     let (g, sc) = pick_resolution(bw, bh);
                     self.resolution = Some((g, sc));
                     self.surface = (g * 32, g * 32);
+                    // 【复核B R3】触控件随选策略生成（贴底/贴右 Modern 布局）
+                    self.pad = crate::input::PadLayout::for_modern(g as i32);
+                    self.touch = TouchMapper::new(self.pad.clone());
                 }
             }
         }

@@ -134,6 +134,23 @@ impl PadLayout {
     /// 默认 240×320 布局：左下方向盘 + 右下三软键（-6 左软/-5 确认/-7 右软）。
     /// 对照 shell/win 鼠标映射（main.rs:13：底部 30% 左 1/3=-6、右 1/3=-7、其余=-5），
     /// 触屏用常显 overlay 几何（对抗审查 §3：坐标→键码解耦为纯函数）。
+    /// 【复核B R3】Modern 方画幅布局（贴底/贴右，对齐 layout.rs modern 软键锚：
+    /// softkey_base_y=grid*32-18——13/18/24 格=398/558/750）：触控件随格数生成，
+    /// 区=classic 布局相对 (右,底) 偏移同式（左块 [w-128,w-72)、右键 [w-64,w-8)、
+    /// 底带 [h-100,h-36)、方向盘 (56, h-68)）。
+    pub fn for_modern(grid_n: i32) -> PadLayout {
+        let w = (grid_n * 32) as f32;
+        let h = (grid_n * 32) as f32;
+        PadLayout {
+            dpad: DpadZone { cx: 56.0, cy: h - 68.0, r_inner: 12.0, r_switch: 30.0 },
+            soft: vec![
+                SoftZone { code: KEY_LEFT_SOFT, x0: w - 128.0, y0: h - 100.0, x1: w - 72.0, y1: h - 72.0 },
+                SoftZone { code: KEY_FIRE, x0: w - 128.0, y0: h - 64.0, x1: w - 72.0, y1: h - 36.0 },
+                SoftZone { code: KEY_RIGHT_SOFT, x0: w - 64.0, y0: h - 100.0, x1: w - 8.0, y1: h - 36.0 },
+            ],
+        }
+    }
+
     pub fn default_240x320() -> PadLayout {
         PadLayout {
             dpad: DpadZone { cx: 56.0, cy: 252.0, r_inner: 12.0, r_switch: 30.0 },

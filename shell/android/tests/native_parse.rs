@@ -247,3 +247,62 @@ fn pick_resolution_prefers_largest_scale() {
     // 2x/1x 均可时选 2x（2670×1200 已证）；1x 仅在 3x/2x 都 <13 时
     assert_eq!(pick_resolution(900, 600), (18, 1), "600/32/1=18.75→18；600/64=9<13");
 }
+
+// ───────────────────────────────────────── 复核B 三红钉（侧余对称/出口钳制/Modern 布局）
+
+#[test]
+fn touch_margins_negative_all_four_sides() {
+    // 【R1】侧余负坐标四向对称（旧右/下返正越界 870）——UNDO/触控件按符号判区
+    use game_android::native::map_touch_xy;
+    let (lx, _) = map_touch_xy(2500.0, 600.0, 2670, 1200, 18, 2);
+    assert!(lx < 0.0, "右侧余=负（旧 870 正越界）");
+    let (_, ty) = map_touch_xy(1000.0, 1190.0, 2670, 1200, 18, 2);
+    assert!(ty < 0.0, "下侧余=负");
+    let (a, b) = map_touch_xy(0.0, 0.0, 2670, 1200, 18, 2);
+    assert!(a < 0.0 && b < 0.0, "左上角=双负");
+    let (c, d) = map_touch_xy(2669.0, 1199.0, 2670, 1200, 18, 2);
+    assert!(c < 0.0 && d < 0.0, "右下角=双负");
+    // 四角+24 格（黄：断言扩 24 格——24格@1x=768 画幅四边有信箱，取角=双负；
+    // 24格@2x=缩进档上下贴边属区内，另在缩进档测断言）
+    let (e, f) = map_touch_xy(2669.0, 1199.0, 2670, 1200, 24, 1);
+    assert!(e < 0.0 && f < 0.0, "24 格右下角=双负");
+    let (e2, f2) = map_touch_xy(0.0, 0.0, 2670, 1200, 24, 1);
+    assert!(e2 < 0.0 && f2 < 0.0, "24 格左上角=双负");
+    // 游戏区内=非负有界
+    let (okx, oky) = map_touch_xy(759.0 + 576.0, 24.0 + 576.0, 2670, 1200, 18, 2);
+    assert!((0.0..576.0).contains(&okx) && (0.0..576.0).contains(&oky), "区内=[0,575]");
+}
+
+#[test]
+fn touch_edge_clamped_in_shrink_case() {
+    // 【R2】缩进档出口钳制：g13s1（buf 240×320、画幅 416）——旧 f64 截断 w=239
+    // ⇒ 点 (239,279) 映到 (416,416) 越一格；整数化+钳制后 ≤ 415。
+    use game_android::native::{fit_rect, map_touch_xy};
+    assert_eq!(fit_rect(240, 320, 416, 416, 1), (0, 40, 240, 240), "整数化 w=240（非 239）");
+    let (x, y) = map_touch_xy(239.0, 279.0, 240, 320, 13, 1);
+    assert!((0.0..416.0).contains(&x) && (0.0..416.0).contains(&y), "边缘触点钳制<grid*32（得 {x},{y}）");
+    // 缩进档四角（黄）：x0=0（宽贴齐）⇒左缘=区内 0；上侧余（y<40）=负
+    let (a, b) = map_touch_xy(0.0, 0.0, 240, 320, 13, 1);
+    assert_eq!(a, 0.0, "左缘贴齐=逻辑 x=0");
+    assert!(b < 0.0, "上侧余=负 y");
+    let (_, by) = map_touch_xy(120.0, 39.0, 240, 320, 13, 1);
+    assert!(by < 0.0, "上侧余（y<40）=负");
+}
+
+#[test]
+fn pad_layout_modern_tracks_grid() {
+    // 【R3】Modern 触控件随格数贴底/贴右（对齐 layout.rs modern softkey_base_y=边长-18）
+    use game_android::input::PadLayout;
+    let p18 = PadLayout::for_modern(18); // 576
+    assert_eq!((p18.soft[2].x0, p18.soft[2].x1), (512.0, 568.0), "右键贴右 [w-64,w-8)");
+    assert_eq!((p18.soft[2].y0, p18.soft[2].y1), (476.0, 540.0), "右键贴底 [h-100,h-36)");
+    assert_eq!(p18.dpad.cy, 508.0, "方向盘贴底 h-68");
+    let p24 = PadLayout::for_modern(24); // 768（黄：扩 24 格）
+    assert_eq!((p24.soft[2].x0, p24.soft[2].y0), (704.0, 668.0), "24 格贴右/贴底");
+    assert_eq!(p24.dpad.cy, 700.0);
+    // layout.rs modern 贴底锚互证（24 格钉）
+    let l24 = game_core::layout::Layout::modern(24, 24);
+    assert_eq!(l24.softkey_base_y, 750, "softkey_base_y=768-18（24 格）");
+    let l18 = game_core::layout::Layout::modern(18, 18);
+    assert_eq!(l18.softkey_base_y, 558, "576-18（18 格）");
+}
