@@ -214,6 +214,85 @@ fn interrupt_closes_segment_at_actual_endpoint() {
     assert_eq!(st.tile, (2, 3));
 }
 
+// ───────────────────────────────────────── 时序组合钉（T2 终检黄-1 补钉）
+
+#[test]
+fn undo_midway_then_new_walk_keeps_lifo() {
+    // 组合①：回撤中寻路——push 2 笔→undo 1→新 WalkTo 起新段→旧栈 LIFO 不变
+    //（仍 1 笔）且新段终点再入栈（walk_to=RouteTracker::begin 生产调用方）。
+    let mut journal = UndoJournal::new();
+    let mut track = RouteTracker::new();
+    track.begin((1, 3));
+    track.arrive((3, 3), &mut journal); // 笔①：段 (1,3)→(3,3)
+    track.begin((3, 3));
+    track.arrive((5, 3), &mut journal); // 笔②：段 (3,3)→(5,3)
+    assert_eq!(journal.len(), 2);
+
+    let mut st = UndoMock::new();
+    st.tile = (5, 3);
+    // 回撤 1：撤笔②——栈内剩 1 笔（笔①原样在底）
+    assert_eq!(
+        journal.undo(&mut st),
+        UndoOutcome::Undone(Stroke::Move(MoveStroke { from: (3, 3), to: (5, 3) })),
+        "undo#1=笔②（LIFO 顶）"
+    );
+    assert_eq!(journal.len(), 1, "旧栈剩 1 笔");
+    assert_eq!(st.tile, (3, 3));
+
+    // 新 WalkTo 起新段（回撤中寻路）→ 终点再入栈
+    track.begin((3, 3));
+    track.arrive((4, 4), &mut journal);
+    assert_eq!(journal.len(), 2, "新段终点入栈后=2 笔");
+    assert_eq!(
+        journal.undo(&mut st),
+        UndoOutcome::Undone(Stroke::Move(MoveStroke { from: (3, 3), to: (4, 4) })),
+        "新段笔=LIFO 顶（先于旧笔①逆放）"
+    );
+    assert_eq!(
+        journal.undo(&mut st),
+        UndoOutcome::Undone(Stroke::Move(MoveStroke { from: (1, 3), to: (3, 3) })),
+        "旧笔①原样在底（旧栈 LIFO 不变）"
+    );
+    assert_eq!(journal.undo(&mut st), UndoOutcome::Empty);
+}
+
+#[test]
+fn interrupt_during_combat_pending_blocks_then_lifo() {
+    // 组合②：战斗挂起中打断——begin_combat→interrupt_route→undo==Blocked→
+    // finish_combat→undo：战斗笔先于段笔逆放（LIFO：终结入栈在段笔之后）。
+    let mut journal = UndoJournal::new();
+    let mut track = RouteTracker::new();
+    track.begin((2, 3));
+    journal.begin_combat(); // 战斗挂起（终结才入栈）
+    track.interrupt((4, 3), &mut journal); // 打断=段收于实际终点（挂起中）
+    assert_eq!(journal.len(), 1, "段笔入栈（打断=实际终点）");
+    assert_eq!(journal.undo(&mut UndoMock::new()), UndoOutcome::Blocked, "战斗挂起中不可撤");
+
+    track.finish_combat(
+        CombatStroke {
+            enemy_slot: 0,
+            enemy_type_id: 44,
+            enemy_hp_before: 120,
+            vitals_before: PlayerVitals { hp: 80, gold: 50, exp: 10 },
+            items_before: vec![],
+        },
+        &mut journal,
+    );
+    assert_eq!(journal.len(), 2, "战斗终结入栈（段笔之后）");
+
+    let mut st = UndoMock::new();
+    st.tile = (4, 3);
+    st.enemy_alive = false;
+    st.enemy_hp = 0;
+    // LIFO 逆放：战斗笔先、段笔后
+    assert!(matches!(journal.undo(&mut st), UndoOutcome::Undone(Stroke::Combat(_))), "逆放#1=战斗笔");
+    assert!(st.enemy_alive && st.enemy_hp == 120, "敌复活原血");
+    assert_eq!(st.tile, (4, 3), "战斗笔不含位移");
+    assert!(matches!(journal.undo(&mut st), UndoOutcome::Undone(Stroke::Move(_))), "逆放#2=段笔");
+    assert_eq!(st.tile, (2, 3), "段笔=实际终点回起点");
+    assert_eq!(journal.undo(&mut st), UndoOutcome::Empty);
+}
+
 // ───────────────────────────────────────── mock（T1 UndoTarget 语义面）
 
 #[derive(Default)]
