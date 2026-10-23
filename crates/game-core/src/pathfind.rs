@@ -203,3 +203,230 @@ fn relax_path_neighbors(
         *open_count += 1; // 原版怪癖：未命中插入也自增（逐行复刻）
     }
 }
+
+// ───────────────────────────────────────── T2 策略层（touch-native-undo §0 行为政策）
+
+/// 探步入（一步撞击尝试）：自停靠格向目标墙格一步——暗墙命中=进入/揭示
+/// （挂 openWallOnRoute a.java:8738-8870 / 撞击臂型 10/11/12），实墙=撞停。
+/// 暗墙双通道（方向键踏步/触屏点墙滑动）由 T3 发起，本结构为 core 端探步接口。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ProbeStep {
+    /// 停靠格（探步起点）
+    pub from: (i32, i32),
+    /// 方向码（0 下 1 上 2 右 3 左——walkPathBuffer 同语义）
+    pub dir: u8,
+    /// 探入格（目标墙格）
+    pub into: (i32, i32),
+}
+
+/// 寻路计划（策略层产物：直达/停靠/探步入）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RoutePlan {
+    /// 步序（walkPathBuffer 语义：目标端优先，自末端消费）
+    pub steps: Vec<u8>,
+    /// 终位（直达=目标格；停靠=实际终点）
+    pub dock: (i32, i32),
+    /// 直达目标格
+    pub reached: bool,
+    /// 墙格目标的探步入
+    pub probe: Option<ProbeStep>,
+}
+
+/// 目标→邻格方向码（0 下 1 上 2 右 3 左）。
+fn dir_between(from: (i32, i32), into: (i32, i32)) -> u8 {
+    match (into.0 - from.0, into.1 - from.1) {
+        (0, 1) => 0,
+        (0, -1) => 1,
+        (1, 0) => 2,
+        (-1, 0) => 3,
+        d => panic!("非 4 邻接：{from:?}→{into:?}（{d:?}）"),
+    }
+}
+
+impl Walkability<'_> {
+    /// 可走格（terrain 面；实体槽/门/敌格可入=路径面语义，碰撞语义复用 tryStep）。
+    pub fn walkable(&self, x: i32, y: i32) -> bool {
+        self.is_cell_walkable(x, y)
+    }
+}
+
+/// 寻路计划（touch-native 操作模型，plan §0）：
+/// - 目标可走且可达 = 直达（原版 findPath 步序——零发明保真）；
+/// - 目标可走不可达 = **朝目标方向最远可达点停靠**（投影最远→距目标最近→行主序）；
+/// - 目标为墙 = **最近相邻格停靠 + 探步入**（一步撞击尝试）；相邻全不可达=退化停靠。
+pub fn plan_route(walk: &Walkability, from: (i32, i32), to: (i32, i32)) -> RoutePlan {
+    if from == to {
+        return RoutePlan { steps: Vec::new(), dock: from, reached: true, probe: None };
+    }
+    if walk.walkable(to.0, to.1) {
+        let direct = find_path(walk, from.0, from.1, to.0, to.1);
+        if direct.found {
+            return RoutePlan { steps: direct.steps, dock: to, reached: true, probe: None };
+        }
+        // 不可达可走格：朝目标方向最远可达点停靠
+        let dock = furthest_reachable_toward(walk, from, to);
+        let steps = if dock == from {
+            Vec::new()
+        } else {
+            find_path(walk, from.0, from.1, dock.0, dock.1).steps
+        };
+        return RoutePlan { steps, dock, reached: false, probe: None };
+    }
+    // 墙格目标：最近相邻（路径最短）+探步入；相邻全不可达=退化为朝目标停靠
+    let mut best: Option<((i32, i32), usize)> = None;
+    for (ax, ay) in [(to.0, to.1 + 1), (to.0, to.1 - 1), (to.0 + 1, to.1), (to.0 - 1, to.1)] {
+        if !walk.walkable(ax, ay) {
+            continue;
+        }
+        let len = if (ax, ay) == from {
+            0
+        } else {
+            let r = find_path(walk, from.0, from.1, ax, ay);
+            if !r.found {
+                continue;
+            }
+            r.steps.len()
+        };
+        let better = match best {
+            None => true,
+            Some((_, blen)) => len < blen,
+        };
+        if better {
+            best = Some(((ax, ay), len));
+        }
+    }
+    if let Some((adj, _)) = best {
+        let steps = if adj == from {
+            Vec::new()
+        } else {
+            find_path(walk, from.0, from.1, adj.0, adj.1).steps
+        };
+        return RoutePlan {
+            steps,
+            dock: adj,
+            reached: false,
+            probe: Some(ProbeStep { from: adj, dir: dir_between(adj, to), into: to }),
+        };
+    }
+    let dock = furthest_reachable_toward(walk, from, to);
+    let steps = if dock == from {
+        Vec::new()
+    } else {
+        find_path(walk, from.0, from.1, dock.0, dock.1).steps
+    };
+    RoutePlan { steps, dock, reached: false, probe: None }
+}
+
+/// 朝目标方向最远可达点（保真口径=可达即 find_path 命中，扩展上限 100 同引擎）。
+/// 排序：投影 (cell-start)·(target-start) 最大 → 距目标曼哈顿最小 → 行主序最小。
+fn furthest_reachable_toward(walk: &Walkability, from: (i32, i32), to: (i32, i32)) -> (i32, i32) {
+    let (fx, fy) = (to.0 - from.0, to.1 - from.1);
+    let mut best: Option<(i32, i32, i32, i32)> = None; // (投影, -距目标, -行主序, 编码)
+    let mut consider = |cell: (i32, i32), proj: i32, dist: i32, ord: i32| {
+        let better = match best {
+            None => true,
+            Some((bp, bd, bo, _)) => (proj, -dist, -ord) > (bp, bd, bo),
+        };
+        if better {
+            best = Some((proj, -dist, -ord, 0));
+            Some(cell)
+        } else {
+            None
+        }
+    };
+    let mut pick = from;
+    {
+        // 起点恒可达（投影 0）
+        if let Some(c) = consider(from, 0, (to.0 - from.0).abs() + (to.1 - from.1).abs(), 0) {
+            pick = c;
+        }
+        for y in 0..walk.rows {
+            for x in 0..walk.cols {
+                if (x, y) == from || !walk.walkable(x, y) {
+                    continue;
+                }
+                if !find_path(walk, from.0, from.1, x, y).found {
+                    continue;
+                }
+                let proj = (x - from.0) * fx + (y - from.1) * fy;
+                let dist = (x - to.0).abs() + (y - to.1).abs();
+                let ord = y * walk.cols + x;
+                if let Some(c) = consider((x, y), proj, dist, ord) {
+                    pick = c;
+                }
+            }
+        }
+    }
+    pick
+}
+
+// ───────────────────────────────────────── RouteTracker（T1 journal 挂点契约执行面）
+
+use crate::undo_journal::{CombatStroke, MoveStroke, UndoJournal};
+
+/// WalkTo 路段追踪器：位移笔=段起终点（**中断/挂起=实际终点**）、战斗笔=终结时
+/// ——plan §2 入栈时机契约 + task-11"挂起→journal 挂点→续走"。
+#[derive(Debug, Default)]
+pub struct RouteTracker {
+    seg_from: (i32, i32),
+    seg_open: bool,
+    suspended: bool,
+}
+
+impl RouteTracker {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// 挂起中（事件处理期——T2 呼吸暂停续走判定）。
+    pub fn is_suspended(&self) -> bool {
+        self.suspended
+    }
+
+    /// 段开放（WalkTo/探步寻路段进行中——press_key 打断判定）。
+    pub fn is_open(&self) -> bool {
+        self.seg_open
+    }
+
+    /// 开段（WalkTo 发起/续走）。
+    pub fn begin(&mut self, from: (i32, i32)) {
+        self.seg_from = from;
+        self.seg_open = true;
+        self.suspended = false;
+    }
+
+    /// 续走（挂起解除后新段自事件格起）。
+    pub fn resume(&mut self, at: (i32, i32)) {
+        self.begin(at);
+    }
+
+    /// 段终位（整段起终点入栈）。
+    pub fn arrive(&mut self, at: (i32, i32), journal: &mut UndoJournal) {
+        self.close(at, journal);
+    }
+
+    /// 事件挂起（撞敌/拾取/开门——段收于**实际终点**=事件格，挂起）。
+    pub fn suspend(&mut self, at: (i32, i32), journal: &mut UndoJournal) {
+        self.close(at, journal);
+        self.suspended = true;
+    }
+
+    /// 战斗终结才入栈（T1 挂点契约），挂起解除。
+    pub fn finish_combat(&mut self, stroke: CombatStroke, journal: &mut UndoJournal) {
+        journal.finish_combat(stroke);
+        self.suspended = false;
+    }
+
+    /// 打断（任意输入）：段收于**实际终点**。
+    pub fn interrupt(&mut self, at: (i32, i32), journal: &mut UndoJournal) {
+        self.close(at, journal);
+        self.suspended = false;
+    }
+
+    fn close(&mut self, at: (i32, i32), journal: &mut UndoJournal) {
+        if self.seg_open {
+            journal.push_move(MoveStroke { from: self.seg_from, to: at });
+            self.seg_open = false;
+        }
+    }
+}

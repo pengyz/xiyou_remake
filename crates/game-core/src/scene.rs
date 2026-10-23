@@ -505,6 +505,12 @@ pub struct GameScene {
     pub path_arrows_visible: bool,
     /// walkPathBuffer（findPath 步序，目标端优先）
     pub walk_path_buffer: Vec<u8>,
+    /// 【T2】操作级回撤 journal（T1 模块；只在 WalkTo/探步寻路段落笔——经典面零写入）
+    pub undo: crate::undo_journal::UndoJournal,
+    /// 【T2】WalkTo 路段追踪器（位移笔=段起终点/中断挂起=实际终点/战斗笔=终结时）
+    pub route: crate::pathfind::RouteTracker,
+    /// 【T2】战斗段快照（撞敌挂起时记账，战斗终结入 CombatStroke）
+    battle_undo_snap: Option<(usize, i32, i32, crate::undo_journal::PlayerVitals)>,
     /// itemUseTargetType：最近拾取/装备的类型号（浮层图标 + 商店显示）
     pub overlay_kind_item: i32,
     /// 浮层图标图（kind1/3：entityTypeImage[itemUseTargetType] 的克隆——paint 免借用冲突）
@@ -1081,6 +1087,9 @@ impl GameScene {
             item_cursor: 0,
             path_arrows_visible: false,
             walk_path_buffer: Vec::new(),
+            undo: crate::undo_journal::UndoJournal::new(),
+            route: crate::pathfind::RouteTracker::new(),
+            battle_undo_snap: None,
             width_table: width_table.to_vec(),
             tile_walk: tile_walkability.to_vec(),
             afterimage_x: [0; 4],
@@ -1861,6 +1870,86 @@ impl GameScene {
     }
 
     /// findPath（a.java:9892-9957）的场景外壳：Walkability = 地形 walkable 克隆 +
+    /// 【T2】WalkTo(tile) 触屏寻路入口（touch-native-undo §0 操作模型）：
+    /// 策略层 [`crate::pathfind::plan_route`]（直达/朝目标最远可达停靠/墙格探步入）
+    /// → 喂 walkPathBuffer（dp3 消费机器=MOV 五参同款，零发明保真）。
+    /// **新入口即打断**旧路线（手动优先）。返回计划（含探步入=T3 暗墙双通道接面）。
+    pub fn walk_to(&mut self, tx: i32, ty: i32) -> crate::pathfind::RoutePlan {
+        self.interrupt_route();
+        let (cx, cy) = (self.player_cell_x, self.player_cell_y);
+        let plan = {
+            let walk = crate::pathfind::Walkability {
+                terrain: self.walkable.clone(),
+                has_entity_slot: &|x, y| {
+                    let ct = self.grid.cell_type[y as usize][x as usize] as usize;
+                    self.grid.capacity[ct] > 0
+                },
+                cols: self.view.wide,
+                rows: self.view.high,
+            };
+            crate::pathfind::plan_route(&walk, (cx, cy), (tx, ty))
+        };
+        self.route.begin((cx, cy));
+        self.walk_path_buffer = plan.steps.clone();
+        self.walk_step_count = plan.steps.len() as i32;
+        self.script_walk_armed = true;
+        self.dialog_phase = 3;
+        self.walk_phase = 0;
+        // dp3 消费机器在 Dialog 语境（op_mov 同款——脚本行走=mode 11 语境）
+        self.game_mode = GameMode::Dialog;
+        self.lock_camera_on(0);
+        plan
+    }
+
+    /// 【T2】探步入（一步撞击尝试）：暗墙命中=进入/揭示（挂撞击臂型 10/11/12/
+    /// openWallOnRoute），实墙=撞停。**探墙双通道**（方向键踏步/触屏点墙滑动）
+    /// 由 T3 发起——本入口为 core 端探步接口。新入口即打断旧路线。
+    pub fn probe_step(&mut self, dir: u8) -> bool {
+        self.interrupt_route();
+        self.try_step(dir as i32)
+    }
+
+    /// 【T2】打断终版（task-11）：寻路中任意输入皆打断——清 walkPathBuffer 停步
+    /// （手动优先）。位移段收于**实际终点**入栈（中断=实际终点，T1 挂点契约）。
+    /// 仅对 WalkTo/探步寻路段生效：经典脚本行走（MOV/dp2）key 链一行不动
+    /// （plan §0 保真红线"key 行为链一行不动"）。
+    pub fn interrupt_route(&mut self) {
+        if self.route.is_open() {
+            let at = (self.player_cell_x, self.player_cell_y);
+            self.route.interrupt(at, &mut self.undo);
+        }
+        self.walk_path_buffer.clear();
+        self.walk_step_count = 0;
+    }
+
+    /// 【T2】事件挂起（撞敌/拾取/开门）：段收于实际终点+挂起（T1 挂点契约）。
+    /// 战斗笔由 [`Self::route_combat_finished`] 终结时入栈；拾取开门笔由 T3
+    /// 交互面经 [`Self::route_pickup`] 落笔。
+    pub fn route_event_suspend(&mut self) {
+        if self.route.is_open() {
+            let at = (self.player_cell_x, self.player_cell_y);
+            self.route.suspend(at, &mut self.undo);
+        }
+    }
+
+    /// 【T2】战斗终结入栈（T1 挂点契约：战斗终结才入栈）+挂起解除。
+    pub fn route_combat_finished(&mut self, stroke: crate::undo_journal::CombatStroke) {
+        self.route.finish_combat(stroke, &mut self.undo);
+    }
+
+    /// 【T2】拾取/开门笔挂点（T3 交互面调用：立即入栈）。
+    pub fn route_pickup(&mut self, stroke: crate::undo_journal::PickupStroke) {
+        self.undo.push_pickup(stroke);
+    }
+
+    /// 【T2】段终位（dp3 步序耗尽）：整段起终点入栈。
+    pub fn route_arrived(&mut self) {
+        if self.route.is_open() {
+            let at = (self.player_cell_x, self.player_cell_y);
+            self.route.arrive(at, &mut self.undo);
+        }
+    }
+
     /// 实体槽判定 canPathThroughEntity（格类型容量 > 0）。**恒**重写 walkPathBuffer/walkStepCount
     /// ——Java 头部 `walkPathBuffer = new byte[100]; walkStepCount = 0`（a.java:9894-9895），
     /// 回溯逐步填充（回溯失败 `return false` 时保留已填前缀）——返回 found。
@@ -2664,6 +2753,13 @@ impl GameScene {
                                 self.walk_phase = 1;
                                 self.try_step(self.facing);
                             } else {
+                                // 【T2】WalkTo 段终位（整段起终点入栈）+回 Map 模式；
+                                // 经典脚本行走（route 未开放）零改动——mode 回归留脚本机器
+                                let walkto = self.route.is_open();
+                                self.route_arrived();
+                                if walkto {
+                                    self.game_mode = GameMode::Map;
+                                }
                                 self.script_walk_armed = false;
                                 self.dialog_phase = 0;
                             }
@@ -2690,6 +2786,12 @@ impl GameScene {
                                 self.player_cell_x = self.view.player_px >> 5;
                                 self.player_cell_y = self.view.player_py >> 5;
                                 self.apply_step_cell_effects();
+                                // 【T2】WalkTo 段终位：步尽归格=实际终点（整段起终点
+                                // 入栈）+回 Map；经典脚本行走 route 未开放=零改动
+                                if self.walk_step_count == 0 && self.route.is_open() {
+                                    self.route_arrived();
+                                    self.game_mode = GameMode::Map;
+                                }
                             }
                         }
                         5 => self.tick_battle(self.battle_active),
@@ -4370,6 +4472,12 @@ impl GameScene {
     /// keyPressed（a.java:4663-4676）：keyValue = keyHeldCode = code（覆盖式：同拍
     /// 多次按下取末个，R-2）；anyKeyPlayed 时按 gameMode 恢复播放（音频半）。
     pub fn press_key(&mut self, code: i32) {
+        // 【T2 打断终版】寻路（WalkTo/探步段）中任意输入皆打断——全通道（触屏/
+        // 方向键/软键）即刻清 walkPathBuffer 停步（手动优先）。经典脚本行走
+        // （MOV/dp2）不受影响（route 段仅 WalkTo 开放）——保真红线 key 链不动。
+        if self.route.is_open() {
+            self.interrupt_route();
+        }
         self.key_value = code;
         self.key_held = code;
         self.bgm.on_key_pressed(self.game_mode);
@@ -4634,6 +4742,12 @@ impl GameScene {
                     self.step_progress = 0;
                     self.player_frame = 0;
                     self.apply_step_cell_effects();
+                                // 【T2】WalkTo 段终位：步尽归格=实际终点（整段起终点入栈）+回 Map；
+                    // 经典脚本行走 route 未开放=零改动（保真红线）
+                    if self.walk_step_count == 0 && self.route.is_open() {
+                        self.route_arrived();
+                        self.game_mode = GameMode::Map;
+                    }
                 }
             }
             2 => {
@@ -5110,6 +5224,21 @@ impl GameScene {
                                     self.walk_phase = 5;
                                     self.entities.items[e].state = 3;
                                     self.battle_target = e as i32;
+                                    // 【T2】撞敌=事件挂起（段收于实际终点=敌格，T1 挂点）
+                                    // ——仅 WalkTo/探步寻路段记账；经典面 route 未开放=零写入
+                                    if self.route.is_open() {
+                                        self.route_event_suspend();
+                                        self.battle_undo_snap = Some((
+                                            e,
+                                            self.entities.items[e].type_,
+                                            self.battle_enemy_hp,
+                                            crate::undo_journal::PlayerVitals {
+                                                hp: self.player.hp,
+                                                gold: self.player.gold,
+                                                exp: 0, // 本作无经验字段（PlayerCombat 面）——T1 通用字段恒 0
+                                            },
+                                        ));
+                                    }
                                     // battleEnemyHp = enemyBaseHp[type-41]（**基础表**非缩放表）
                                     self.battle_enemy_hp = self.enemy_base_hp[(t - 41) as usize];
                                     self.battle_active = true;
@@ -5356,6 +5485,27 @@ impl GameScene {
                             }
                         }
                         _ => {}
+                    }
+                    // 【T2】战斗终结才入栈（T1 挂点契约）+挂起解除+续走新段
+                    if let Some((slot, ety, hp_before, vitals_before)) = self.battle_undo_snap.take()
+                    {
+                        let items_before = self
+                            .player
+                            .item_types
+                            .iter()
+                            .zip(self.player.item_uses.iter())
+                            .take(self.player.item_stack_size as usize)
+                            .map(|(t, u)| (*t as i32, *u as i32))
+                            .collect();
+                        self.route_combat_finished(crate::undo_journal::CombatStroke {
+                            enemy_slot: slot,
+                            enemy_type_id: ety,
+                            enemy_hp_before: hp_before,
+                            vitals_before,
+                            items_before,
+                        });
+                        let at = (self.player_cell_x, self.player_cell_y);
+                        self.route.resume(at);
                     }
                     self.battle_target = -1;
                 }
@@ -9742,4 +9892,63 @@ mod entity_route_tests {
         }
     }
 
+}
+
+/// T2 WalkTo/打断 scene 级判据（touch-native-undo-plan §3.2/3.4 + task-11 打断终版）。
+#[cfg(test)]
+mod t2_walkto_route_tests {
+    use super::scene_test_support::{scene, ROW};
+    use super::*;
+
+    fn run_until_settled(sc: &mut GameScene, limit: i64) {
+        let wt = sc.width_table.clone();
+        for fc in 0..limit {
+            sc.tick(fc, &wt);
+            if !sc.script_walk_armed && sc.walk_phase == 0 {
+                return;
+            }
+        }
+    }
+
+    #[test]
+    fn t2_walk_to_feeds_buffer_and_arrives() {
+        // WalkTo 链：tap 格→walkPathBuffer 推进→终位断言+位移笔（整段起终点）
+        let mut sc = scene((1, ROW), &[]);
+        let plan = sc.walk_to(5, ROW);
+        assert!(plan.reached, "直线路直达");
+        assert_eq!(sc.walk_step_count, 4, "喂 walkPathBuffer 4 步");
+        run_until_settled(&mut sc, 200);
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (5, ROW), "终位=tap 格");
+        assert_eq!(sc.undo.len(), 1, "段终位=位移笔一笔");
+    }
+
+    #[test]
+    fn t2_interrupt_all_channels_clear_buffer() {
+        // 打断全通道：press_key（方向键/软键同口）/新 WalkTo/探步入 皆清 walkPathBuffer
+        let mut sc = scene((1, ROW), &[]);
+        sc.walk_to(5, ROW);
+        assert!(sc.walk_step_count > 0);
+        sc.press_key(-4); // 任意输入（方向键）
+        assert_eq!(sc.walk_step_count, 0, "press_key 打断=清 walkPathBuffer 停步");
+        assert_eq!(sc.undo.len(), 1, "中断段=实际终点入栈（未动=起点段）");
+
+        sc.walk_to(5, ROW);
+        assert!(sc.walk_step_count > 0);
+        let plan2 = sc.walk_to(2, ROW); // 新触点=打断旧路线（手动优先）
+        assert_eq!(sc.walk_step_count, 1, "新 WalkTo 重设路线");
+        assert_eq!(plan2.dock, (2, ROW));
+        sc.probe_step(0); // 探步入=打断
+        assert_eq!(sc.walk_step_count, 0, "探步入打断=清 walkPathBuffer");
+    }
+
+    #[test]
+    fn t2_classic_script_walk_unaffected_by_press_key() {
+        // 保真红线：经典脚本行走（op_mov 路）press_key 不清缓冲（route 段未开放）
+        let mut sc = scene((1, ROW), &[]);
+        sc.find_path(1, ROW, 5, ROW); // MOV 同口（findPath 喂缓冲）
+        let before = sc.walk_step_count;
+        assert!(before > 0);
+        sc.press_key(-4);
+        assert_eq!(sc.walk_step_count, before, "经典面 key 链一行不动（缓冲不清）");
+    }
 }
