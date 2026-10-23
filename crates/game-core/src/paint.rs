@@ -389,6 +389,14 @@ impl BootMachine {
 
     pub fn paint(&mut self, g: &mut SoftGraphics<'_>) {
         self.paints += 1;
+        // 【件1 渲染异常修】modern 全画幅清屏重绘——状态迁移/局部绘制态残留
+        // （继续游戏=sunset 面板+标题美术残留三景错叠，实机截图 anomaly_continue_menu）。
+        // modern 大画幅暴露、classic 小画幅全重绘不显 ⇒ **仅 Modern 路径 additive**
+        // （classic 零漂移）。
+        if self.layout.preset == crate::layout::Preset::Modern {
+            g.set_color(crate::layout::WHITE);
+            g.fill_rect(0, 0, self.layout.screen_w, self.layout.screen_h);
+        }
         match self.mode {
             GameMode::SoundAsk => paint_sound_prompt(g, &self.ui[10], &self.ui[11], self.softkeys, &self.layout),
             GameMode::MainMenu => {

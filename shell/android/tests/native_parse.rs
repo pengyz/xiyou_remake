@@ -357,3 +357,60 @@ fn menu_hit_rows_and_gaps() {
     // 行区外=不误触
     assert_eq!(TitleMachine::menu_hit(5, 5, sw, sh, bar), None);
 }
+
+// ───────────────────────────────────────── 双件钉（件1 清屏/件2 同源框）
+
+#[test]
+fn modern_paint_no_residual_pixels() {
+    // 【件1】modern 画幅清屏重绘：脏画布（DEADBEEF 全铺）paint 后零残留
+    //（对拍 title→menu 切换帧——继续游戏三景错叠根治）
+    use game_core::paint::BootMachine;
+    use game_core::render::{ArgbImage, SoftGraphics};
+    let img = || ArgbImage::create(2, 2);
+    let vec = |n: usize| (0..n).map(|_| img()).collect::<Vec<_>>();
+    let mut m = BootMachine::new(img(), img(), vec(8), vec(25), vec(2), img(), vec(2), vec(1), vec(2));
+    m.apply_layout(game_core::layout::Layout::modern(18, 18));
+    for _ in 0..200 {
+        m.tick(0); // 走 boot 时间线（含状态迁移）
+    }
+    let mut canvas = ArgbImage::create(576, 576);
+    for px in canvas.argb.iter_mut() {
+        *px = 0xDEADBEEF; // 脏画布=标题美术残留面
+    }
+    {
+        let mut g = SoftGraphics::new(&mut canvas);
+        m.paint(&mut g);
+    }
+    let residue = canvas.argb.iter().filter(|p| **p == 0xDEADBEEF).count();
+    assert_eq!(residue, 0, "modern 画幅零残留（清屏重绘）：残留 {residue} px");
+}
+
+#[test]
+fn overlay_rects_match_hit_tables() {
+    // 【件2】框坐标==命中表坐标同源断言（防框和感应区脱节=二次盲区）
+    use game_android::native::overlay_rects;
+    let rects = overlay_rects(18, 2670, 1200);
+    let menu: Vec<_> = game_core::title::TitleMachine::menu_item_rects(576, 576, 18).to_vec();
+    for mr in &menu {
+        assert!(
+            rects.iter().any(|r| (r.0, r.1, r.2, r.3) == *mr),
+            "菜单行框==命中表行矩形（单源）：{mr:?}"
+        );
+    }
+    // UNDO 框中心=undo_zone_hit 命中（同源）
+    let undo = rects.iter().find(|r| r.4 == "undo").expect("UNDO 框在");
+    let (cx, cy) = (undo.0 + undo.2 / 2, undo.1 + undo.3 / 2);
+    assert!(
+        game_shell_common::touch::undo_zone_hit(cx, cy, 576, 576),
+        "UNDO 框中心=感应区命中（同源）"
+    );
+    // 虚拟键区==PadLayout::for_modern 单源
+    let pad = game_android::input::PadLayout::for_modern(18);
+    for z in &pad.soft {
+        assert!(
+            rects.iter().any(|r| r.4 == "soft"
+                && (r.0, r.1, r.2, r.3) == (z.x0 as i32, z.y0 as i32, (z.x1 - z.x0) as i32, (z.y1 - z.y0) as i32)),
+            "软键框==PadLayout 单源"
+        );
+    }
+}

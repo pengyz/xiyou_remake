@@ -479,6 +479,45 @@ impl Default for ShellWiring {
     }
 }
 
+/// 【件2 触控区可视化】叠加框（debug 描边常驻，量产收审美）——**单源**：
+/// 菜单行=TitleMachine::menu_item_rects（与 menu_hit 共调）、虚拟键区=
+/// PadLayout::for_modern、UNDO=undo_zone_hit 同源矩形（钉=框坐标==命中表坐标）。
+pub fn overlay_rects(grid: u32, buf_w: i32, buf_h: i32) -> Vec<(i32, i32, i32, i32, &'static str)> {
+    let (sw, sh) = ((grid * 32) as i32, (grid * 32) as i32);
+    let mut out = Vec::new();
+    for (x, y, w, h) in game_core::title::TitleMachine::menu_item_rects(sw, sh, 18) {
+        out.push((x, y, w, h, "menu"));
+    }
+    // UNDO 钮（shell/common/touch.rs undo_zone_hit 同源：**右上角** UNDO_ZONE_W×H）
+    out.push((
+        sw - game_shell_common::touch::UNDO_ZONE_W,
+        0,
+        game_shell_common::touch::UNDO_ZONE_W,
+        game_shell_common::touch::UNDO_ZONE_H,
+        "undo",
+    ));
+    let pad = crate::input::PadLayout::for_modern(grid as i32);
+    out.push((
+        pad.dpad.cx as i32 - 30,
+        pad.dpad.cy as i32 - 30,
+        60,
+        60,
+        "dpad",
+    ));
+    for z in &pad.soft {
+        out.push((
+            z.x0 as i32,
+            z.y0 as i32,
+            (z.x1 - z.x0) as i32,
+            (z.y1 - z.y0) as i32,
+            "soft",
+        ));
+    }
+    let _ = buf_w;
+    let _ = buf_h;
+    out
+}
+
 /// 【问题2】debug 日志（logcat TAG=jjxy-input，debug 级保留——实机复核用）。
 pub fn log_input(msg: &str) {
     #[cfg(target_os = "android")]
@@ -909,8 +948,16 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
             // 呈现（20 拍/秒）——【回派修复②】每帧前判 window 非空
             // （TERM_WINDOW→window=NULL 竞态挡；未就绪期跳过渲染呈现）
             if !(*app).window.is_null() {
-                let mut g = SoftGraphics::new(&mut st.canvas);
-                st.machine.paint(&mut g);
+                let (g_, _sc) = st.wiring.resolved();
+                {
+                    let mut g = SoftGraphics::new(&mut st.canvas);
+                    st.machine.paint(&mut g);
+                    // 【件2】触控区叠加（debug 描边常驻——同源命中表）
+                    g.set_color(0xFFFF00FFu32);
+                    for (x, y, w, h, _tag) in overlay_rects(g_, 0, 0) {
+                        g.draw_rect(x, y, w, h);
+                    }
+                }
                 let argb = st.canvas.argb.clone();
                 st.wiring.present((*app).window, &argb);
             }
