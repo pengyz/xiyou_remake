@@ -119,7 +119,7 @@ fn blit_letterbox_on_larger_surface() {
     let r = blit_argb_rgba(&mut dst, 4, 2, 4, &argb, 2, 2, 1);
     assert_eq!(r, (1, 0, 2, 2), "居中信箱 rect（x=1,w=2）");
     // 左补列=0（dst 先清）
-    assert_eq!(&dst[0..4], &[0, 0, 0, 0], "信箱区清零");
+    assert_eq!(&dst[0..4], &[0, 0, 0, 0xFF], "信箱区=不透黑（复核A 黄2：防截图透桌面）");
     assert_eq!(&dst[4..8], &[0xFF, 0xFF, 0xFF, 0xFF], "画布首像素落 (1,0)");
 }
 
@@ -180,7 +180,11 @@ fn blit_row_pitch_uses_stride_not_width() {
     // 行 0 首像素在 0；行 1 首像素在 stride*4（不是 width*4）
     assert_eq!(&dst[0..4], &[0x11, 0x22, 0x33, 0xFF], "行 0");
     assert_eq!(&dst[(stride * 4) as usize..(stride * 4) as usize + 4], &[0x11, 0x22, 0x33, 0xFF], "行 1 落 stride 行距");
-    assert_eq!(&dst[(w * 4) as usize..(w * 4) as usize + 4], &[0, 0, 0, 0], "width*4 处=行 0 尾隙，不得错位连写");
+    assert_eq!(
+        &dst[(w * 4) as usize..(w * 4) as usize + 4],
+        &[0, 0, 0, 0xFF],
+        "width*4 处=行 0 尾隙（不透黑），不得错位连写"
+    );
 }
 
 // ───────────────────────────────────────── Bug2 信箱几何钉（实机压扁回派·#2 规格）

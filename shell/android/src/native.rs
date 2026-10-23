@@ -178,8 +178,9 @@ pub fn fit_rect(
     let (mut w, mut h) = (canvas_w * sc, canvas_h * sc);
     if w > buf_w || h > buf_h {
         let k = ((buf_w as f64 / w as f64).min(buf_h as f64 / h as f64)).min(1.0);
-        w = (((w as f64) * k) as u32).max(1);
-        h = (((h as f64) * k) as u32).max(1);
+        // 【复核A 黄1】四舍五入（as u32 截断可欠 1px）+夹取不越 buf
+        w = (((w as f64) * k).round() as u32).clamp(1, buf_w.max(1));
+        h = (((h as f64) * k).round() as u32).clamp(1, buf_h.max(1));
     }
     ((buf_w.saturating_sub(w)) / 2, (buf_h.saturating_sub(h)) / 2, w, h)
 }
@@ -200,8 +201,9 @@ pub fn blit_argb_rgba(
 ) -> (u32, u32, u32, u32) {
     let (cw, ch) = (canvas_w.max(1), canvas_h.max(1));
     let stride = stride_px.max(buf_w);
-    for b in dst.iter_mut() {
-        *b = 0; // 信箱清零
+    // 【复核A 黄2】信箱=不透黑（0xFF000000）——alpha=0 透明条会在截图工具下透桌面
+    for (i, b) in dst.iter_mut().enumerate() {
+        *b = if i % 4 == 3 { 0xFF } else { 0 };
     }
     let (x0, y0, w, h) = fit_rect(buf_w, buf_h, cw, ch, scale);
     for y in 0..h.min(buf_h.saturating_sub(y0)) {
@@ -231,7 +233,10 @@ pub fn blit_argb_rgba(
 /// logical = floor((x-x0)*canvas_w/w)（与 blit 最近邻同式）；侧余触控区=负坐标
 /// （画布外=触控键区，不入格）。
 pub fn map_touch_xy(x: f32, y: f32, buf_w: u32, buf_h: u32, grid: u32, scale: u32) -> (f32, f32) {
-    let (cw, ch) = (grid * 32, grid * 32);
+    // 【复核A 黄3】grid=0 ⇒ 画布 0 ⇒ 除零 NaN 不可达：debug_assert 拦 + max(1) 防御
+    // （契约：pick_resolution 恒返 [13,24]，GRID_N 注入点亦应 ≥1）
+    debug_assert!(grid >= 1, "grid 须 ≥1（pick_resolution 契约域 [13,24]）");
+    let (cw, ch) = ((grid.max(1)) * 32, (grid.max(1)) * 32);
     let (x0, y0, w, h) = fit_rect(buf_w, buf_h, cw, ch, scale);
     let lx = ((x - x0 as f32) * cw as f32 / w as f32).floor();
     let ly = ((y - y0 as f32) * ch as f32 / h as f32).floor();
