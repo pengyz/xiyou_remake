@@ -635,6 +635,33 @@ pub struct HostState {
     pub pending_keys: Vec<KeyAction>,
 }
 
+/// 【哨兵2/3】显式排水（glue process_input 同式）：每调用打 `drain q=%p` 活值
+/// 指针（NULL/非空一眼可辨），每 getEvent 打 `getEvent ret=%d`（事件到达可辨）。
+#[cfg(target_os = "android")]
+fn drain_input(app: *mut AndroidApp) {
+    unsafe {
+        // 活值读取（非快照）：glue attachLooper 后 (*app).input_queue 才非空
+        let q = (*app).input_queue;
+        log_input(&format!("drain q={:p}", q));
+        if q.is_null() {
+            return;
+        }
+        loop {
+            let mut ev: *mut AInputEvent = std::ptr::null_mut();
+            let ret = ffi::AInputQueue_getEvent(q, &mut ev);
+            log_input(&format!("getEvent ret={ret}"));
+            if ret < 0 {
+                break;
+            }
+            if ffi::AInputQueue_preDispatchEvent(q, ev) != 0 {
+                continue; // IME 预分派消费
+            }
+            let handled = handle_input(app, ev);
+            ffi::AInputQueue_finishEvent(q, ev, handled);
+        }
+    }
+}
+
 #[cfg(target_os = "android")]
 extern "C" fn handle_cmd(app: *mut AndroidApp, cmd: i32) {
     unsafe {
@@ -686,6 +713,12 @@ extern "C" fn handle_input(app: *mut AndroidApp, event: *mut AInputEvent) -> i32
 pub extern "C" fn android_main(app: *mut AndroidApp) {
     #[cfg(target_os = "android")]
     unsafe {
+        // 【哨兵1】入口哨兵（裸格式串零可变参数——兼验日志机制本身）
+        ffi::__android_log_print(
+            3,
+            b"jjxy-input\0".as_ptr() as *const _,
+            b"boot android_main entered\0".as_ptr() as *const _,
+        );
         use crate::asset::apk::ApkAssetSource;
         use crate::storage::AndroidStorage;
         use game_core::paint::BootMachine;
@@ -789,23 +822,10 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
                     break;
                 }
             }
-            // 【层1修复·修法1】显式排水输入队列（glue process_input 同式：
-            // getEvent→preDispatch(IME)→on_input_ex→finishEvent）——实机定位
-            // LOOPER_ID_INPUT 轮询断层（onInputEvent 从未触发）；无条件排水绕开
-            // ident 判定歧义（空队列 getEvent 立返 -1，代价可忽略）。
-            if !(*app).input_queue.is_null() {
-                loop {
-                    let mut ev: *mut AInputEvent = std::ptr::null_mut();
-                    if ffi::AInputQueue_getEvent((*app).input_queue, &mut ev) < 0 {
-                        break;
-                    }
-                    if ffi::AInputQueue_preDispatchEvent((*app).input_queue, ev) != 0 {
-                        continue; // IME 预分派消费
-                    }
-                    let handled = handle_input(app, ev);
-                    ffi::AInputQueue_finishEvent((*app).input_queue, ev, handled);
-                }
-            }
+            // 【层1修复·修法1】显式排水输入队列——每轮**活值**读 (*app).input_queue
+            // （lead 精准嫌疑：指针快照——glue attachLooper 前为 NULL；活值读取
+            // 保证 attach 后非空即可排水）。
+            drain_input(app);
             // 逻辑拍（frame_interval_ms 节奏）：键流折叠单键（覆盖式取末键）
             let interval = std::time::Duration::from_millis(st.wiring.frame_interval_ms());
             if last_logic.elapsed() >= interval {
