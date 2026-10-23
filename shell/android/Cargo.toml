@@ -19,3 +19,10 @@ crate-type = ["cdylib", "rlib"]
 game-platform = { path = "../../crates/game-platform" }
 # 共享壳实现（FileRms/音频共享面）：消费不拷贝（对抗审查 F-4 裁决）。
 game-shell-common = { path = "../common" }
+# T5 装配链：android_main 主循环组装游戏机（BootMachine/SoftGraphics）与容器解码。
+game-core = { path = "../../crates/game-core" }
+game-data = { path = "../../crates/game-data" }
+
+[build-dependencies]
+# T5 原生入口：cc 编译 NDK native_app_glue.c（ANativeActivity_onCreate 落 .so）。
+cc = "1"
