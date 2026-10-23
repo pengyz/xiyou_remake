@@ -435,6 +435,9 @@ dependencies = [
 name = "game-android"
 version = "0.1.0"
 dependencies = [
+ "cc",
+ "game-core",
+ "game-data",
  "game-platform",
  "game-shell-common",
 ]
