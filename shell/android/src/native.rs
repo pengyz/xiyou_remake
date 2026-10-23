@@ -280,8 +280,11 @@ pub struct ShellWiring {
     pub touch: TouchMapper,
     /// T3 手势（滑动=方向手动踏步；shell/common/touch.rs）
     pub gesture: game_shell_common::touch::GestureTracker,
-    /// 呈现表面尺寸（INIT_WINDOW 更新；触点信箱反变换用）
+    /// 呈现表面尺寸（逻辑画布 g*32）
     pub surface: (u32, u32),
+    /// 【问题2b】窗口/缓冲真实像素尺寸（INIT_WINDOW 实测——触点反变换分母；
+    /// 旧误传逻辑尺寸 ⇒ 点击全落侧余负区=触屏全链不通根因）
+    pub window_size: (u32, u32),
     /// 【#2】分辨率选择结果 (grid, scale)：None=INIT_WINDOW 时按策略选；
     /// Some=测试注入点（覆盖选策略——GRID_N/SCALE 常量默认值同此用途）
     pub resolution: Option<(u32, u32)>,
@@ -296,6 +299,7 @@ impl ShellWiring {
             pad,
             gesture: game_shell_common::touch::GestureTracker::new(24),
             surface: logical_canvas(),
+            window_size: (0, 0),
             resolution: None,
         }
     }
@@ -342,16 +346,21 @@ impl ShellWiring {
                     let idx = motion_pointer_index(action) as usize;
                     let id = ffi::AMotionEvent_getPointerId(event, idx);
                     let (g, sc) = self.resolved();
-                    let (x, y) = map_touch_xy(
-                        ffi::AMotionEvent_getX(event, idx),
-                        ffi::AMotionEvent_getY(event, idx),
-                        self.surface.0,
-                        self.surface.1,
-                        g,
-                        sc,
-                    );
+                    let (bx, by) = (ffi::AMotionEvent_getX(event, idx), ffi::AMotionEvent_getY(event, idx));
+                    // 【问题2b】反变换分母=真实窗口尺寸（旧传 self.surface=逻辑尺寸 ⇒ 全落侧余）
+                    let (ww, wh) = if self.window_size.0 > 0 {
+                        self.window_size
+                    } else {
+                        self.surface
+                    };
+                    let (x, y) = map_touch_xy(bx, by, ww, wh, g, sc);
+                    log_input(&format!(
+                        "motion phase={phase:?} raw=({bx:.0},{by:.0}) buf=({ww}x{wh}) logical=({x:.0},{y:.0})"
+                    ));
                     let ev = TouchEvent { id, phase, x, y };
-                    (self.on_touch(&ev), true) // 触点恒吞（触摸屏无系统默认）
+                    let keys = self.on_touch(&ev);
+                    log_input(&format!("touch keys={keys:?} in_canvas={}", x >= 0.0 && y >= 0.0));
+                    (keys, true) // 触点恒吞（触摸屏无系统默认）
                 }
                 AINPUT_EVENT_TYPE_KEY => {
                     let code = ffi::AKeyEvent_getKeyCode(event);
@@ -400,6 +409,7 @@ impl ShellWiring {
                 let bw = ffi::ANativeWindow_getWidth(window).max(0) as u32;
                 let bh = ffi::ANativeWindow_getHeight(window).max(0) as u32;
                 if bw > 0 && bh > 0 {
+                    self.window_size = (bw, bh); // 【问题2b】真实缓冲尺寸
                     let (g, sc) = pick_resolution(bw, bh);
                     self.resolution = Some((g, sc));
                     self.surface = (g * 32, g * 32);
@@ -459,6 +469,18 @@ impl ShellWiring {
 impl Default for ShellWiring {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// 【问题2】debug 日志（logcat TAG=jjxy-input，debug 级保留——实机复核用）。
+pub fn log_input(msg: &str) {
+    #[cfg(target_os = "android")]
+    unsafe {
+        ffi::__android_log_print(3, b"jjxy-input\0".as_ptr() as *const _, b"%s\0".as_ptr() as *const _, msg.as_ptr() as *const std::os::raw::c_char);
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = msg;
     }
 }
 
@@ -579,6 +601,7 @@ mod ffi {
             height: i32,
             format: i32,
         ) -> i32;
+        pub fn __android_log_print(prio: i32, tag: *const std::os::raw::c_char, fmt: *const std::os::raw::c_char, ...) -> i32;
         pub fn ANativeWindow_getWidth(window: *mut ANativeWindow) -> i32;
         pub fn ANativeWindow_getHeight(window: *mut ANativeWindow) -> i32;
         pub fn ALooper_pollAll(
@@ -634,6 +657,7 @@ extern "C" fn handle_cmd(app: *mut AndroidApp, cmd: i32) {
 extern "C" fn handle_input(app: *mut AndroidApp, event: *mut AInputEvent) -> i32 {
     unsafe {
         let st = &mut *((*app).user_data as *mut HostState);
+        log_input(&format!("input-arrival type={}", ffi::AInputEvent_getType(event)));
         let (keys, consumed) = st.wiring.on_input_ex(event);
         st.pending_keys.extend(keys);
         if consumed {

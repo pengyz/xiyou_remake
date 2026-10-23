@@ -304,7 +304,13 @@ impl TitleMachine {
             g.set_color(top_px); // 左右带=纯蓝（顶带同款）
             g.fill_rect(0, img_y, img_x, map_bg.height);
             g.fill_rect(img_x + map_bg.width, img_y, sw - (img_x + map_bg.width), map_bg.height);
-            g.draw_image(map_bg, img_x, img_y, 0);
+            if layout.preset == crate::layout::Preset::Modern {
+                // 【问题1】Modern 标题美术铺满游戏方框（用户裁定：贴图满幅、蓝底
+                // 留边也行但贴图必须满幅）——cover 撑满裁切；下方蓝填充行被盖住
+                g.draw_image_cover(map_bg, sw, sh);
+            } else {
+                g.draw_image(map_bg, img_x, img_y, 0);
+            }
             // 底部条/图标带/双箭头=锚位公式化（屏心 ± 原偏置；ARROW 对原偏置
             // 不对称=原版字面，layout.rs:370-371 公式表）
             g.set_color(crate::layout::DARK_BACKDROP);

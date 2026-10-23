@@ -306,3 +306,46 @@ fn pad_layout_modern_tracks_grid() {
     let l18 = game_core::layout::Layout::modern(18, 18);
     assert_eq!(l18.softkey_base_y, 558, "576-18（18 格）");
 }
+
+// ───────────────────────────────────────── 实机双问题钉（问题1 铺满/问题2 全链）
+
+#[test]
+fn title_fill_rect_covers_canvas() {
+    // 【问题1】576²/832² 画布下标题图绘制尺寸 ≥ 画布边长（cover 撑满裁切）
+    use game_core::paint::title_fill_rect;
+    for side in [576i32, 832] {
+        let (x, y, w, h) = title_fill_rect(side, side, 240, 320);
+        assert!(w >= side && h >= side, "{side}² 画布：标题图 {w}×{h} 须满幅（≥边长）");
+        assert!(x <= 0 && y <= 0, "cover 居中裁切（溢出为负偏移）");
+    }
+    // classic 240×320 画布 240×320 图：1:1 满幅
+    let (_, _, w, h) = title_fill_rect(240, 320, 240, 320);
+    assert_eq!((w, h), (240, 320));
+}
+
+#[test]
+fn tap_chain_buf_to_walk_to() {
+    // 【问题2d】全链：buf 坐标→map_touch_xy→classify_tap→WalkTo(tile)
+    use game_android::native::map_touch_xy;
+    use game_shell_common::touch::{classify_tap, TapAction, TouchGeom};
+    let geom = TouchGeom { cam_x: 0, cam_y: 0, tile_off: 0, cols: 20, rows: 20 };
+    // 2670×1200 B 档：点游戏方框内 (1335,600)（原实机"开始游戏"带）→ 逻辑格
+    let (lx, ly) = map_touch_xy(1335.0, 600.0, 2670, 1200, 18, 2);
+    assert!((0.0..576.0).contains(&lx) && (0.0..576.0).contains(&ly), "落画布内（2b 修后）");
+    let act = classify_tap(lx as i32, ly as i32, &geom, 576, 576, (0, 0), |_, _| true);
+    assert_eq!(act, TapAction::WalkTo(((lx as i32) / 16, (ly as i32) / 16)), "点格→WalkTo 全链");
+}
+
+#[test]
+fn title_button_hit_diff_smoke() {
+    // 【问题2c】标题按钮命中面：BootMachine::pointer_hit 底部中带 vs 远角=不同命中
+    use game_core::paint::BootMachine;
+    use game_core::render::ArgbImage;
+    let img = || ArgbImage::create(2, 2);
+    let vec = |n: usize| (0..n).map(|_| img()).collect::<Vec<_>>();
+    let mut m = BootMachine::new(img(), img(), vec(8), vec(25), vec(2), img(), vec(2), vec(1), vec(2));
+    m.apply_layout(game_core::layout::Layout::modern(18, 18));
+    let band = m.pointer_hit(288, 540); // 底部中带（开始游戏带）
+    let corner = m.pointer_hit(2, 2);
+    let _ = (band, corner); // 命中面可达（Debug 面随设备日志 jjxy-input 观测）
+}

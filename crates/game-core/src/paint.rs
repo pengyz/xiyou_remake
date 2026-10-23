@@ -125,6 +125,17 @@ pub fn anchor_top_hcenter() -> i32 {
 ///
 /// 相位 <2：整屏白 + 启动图几何居中（Java `-` 优先于 `>>` ⇒ `(240-w)>>1`）；
 /// 相位 >=2：`paintLogoAnimation` logo 动画层（[`crate::logo_anim::LogoAnim::paint`]）。
+/// 【问题1】标题铺满矩形（cover 等比撑满裁切）：返回 (x,y,w,h)——w/h **≥ 画布边长**
+/// （宿主钉：576²/832² 画布断言）。Modern additivce；classic 不经此面。
+pub fn title_fill_rect(canvas_w: i32, canvas_h: i32, img_w: i32, img_h: i32) -> (i32, i32, i32, i32) {
+    let (iw, ih) = (img_w.max(1), img_h.max(1));
+    let (cw, ch) = (canvas_w.max(1), canvas_h.max(1));
+    let k = (cw as f64 / iw as f64).max(ch as f64 / ih as f64);
+    let w = (iw as f64 * k).ceil() as i32;
+    let h = (ih as f64 * k).ceil() as i32;
+    ((cw - w) / 2, (ch - h) / 2, w, h)
+}
+
 pub fn paint_boot(g: &mut SoftGraphics<'_>, boot: &BootPaintState, layout: &crate::layout::Layout) {
     if boot.phase < 2 {
         // setColor(-1)：Java int -1 位模式 & 0xFFFFFF = 0xFFFFFF
@@ -134,6 +145,9 @@ pub fn paint_boot(g: &mut SoftGraphics<'_>, boot: &BootPaintState, layout: &crat
         g.set_color(crate::layout::WHITE);
         g.fill_rect(0, 0, layout.screen_w, layout.screen_h);
         if let Some(img) = &boot.image {
+            // 【2026-10-23 更正】铺满裁定作用于**标题画面美术**（title.rs map_bg），
+            // 非 boot logo——本处保留 2026-10-19 追加件裁定"白底满画布+logo 原尺寸
+            // 居中"（modern_boot_white_background_fills_canvas 钉）。
             let x = (layout.screen_w - img.width) >> 1;
             let y = (layout.screen_h - img.height) >> 1;
             g.draw_image(img, x, y, 0);

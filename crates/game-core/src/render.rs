@@ -700,6 +700,26 @@ impl<'a> SoftGraphics<'a> {
     /// 逻辑坐标进；像素素材**最近邻 ×scale**（硬边保像素味——task-13 ④）。
     /// 【R-2 换算收敛】op 记录与 anchor 一律用**逻辑尺寸**（=w/d，与 density 无关；
     /// R-6 ops 流隔离）。d=1 ⇒ 逻辑=像素，逐字节恒等。
+    /// 【问题1】cover 撑满裁切（NN）：把 img 等比放大到盖满 dst_w×dst_h（居中、
+    /// 溢出裁切）——Modern 标题铺满用（用户裁定：贴图满幅）。classic 路径零调用。
+    pub fn draw_image_cover(&mut self, img: &ArgbImage, dst_w: i32, dst_h: i32) {
+        let (iw, ih) = (img.width.max(1), img.height.max(1));
+        let (dw, dh) = (dst_w.max(1), dst_h.max(1));
+        let k = (dw as f64 / iw as f64).max(dh as f64 / ih as f64);
+        let sw = (iw as f64 * k).ceil();
+        let sh = (ih as f64 * k).ceil();
+        let ox = ((dw as f64 - sw) / 2.0).floor();
+        let oy = ((dh as f64 - sh) / 2.0).floor();
+        for y in 0..dh {
+            for x in 0..dw {
+                let sx = (((x as f64 - ox) * iw as f64 / sw).floor() as i32).clamp(0, iw - 1);
+                let sy = (((y as f64 - oy) * ih as f64 / sh).floor() as i32).clamp(0, ih - 1);
+                let px = img.argb.get((sy * iw + sx) as usize).copied().unwrap_or(0);
+                self.set_pixel(x, y, px);
+            }
+        }
+    }
+
     pub fn draw_image(&mut self, img: &ArgbImage, x: i32, y: i32, anchor: i32) {
         self.op(format!(
             "drawImage({}x{},{x},{y},{anchor})",
