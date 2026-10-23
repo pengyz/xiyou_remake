@@ -30,3 +30,6 @@ save/
 
 dist/
 
+
+# 超分模型权重（可再下载，不入库）
+tools/style-sample/models/
