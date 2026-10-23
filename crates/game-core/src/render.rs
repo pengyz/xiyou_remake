@@ -702,14 +702,16 @@ impl<'a> SoftGraphics<'a> {
     /// R-6 ops 流隔离）。d=1 ⇒ 逻辑=像素，逐字节恒等。
     /// 【问题1】cover 撑满裁切（NN）：把 img 等比放大到盖满 dst_w×dst_h（居中、
     /// 溢出裁切）——Modern 标题铺满用（用户裁定：贴图满幅）。classic 路径零调用。
-    pub fn draw_image_cover(&mut self, img: &ArgbImage, dst_w: i32, dst_h: i32) {
+    /// `anchor_bottom`=true：**底锚裁切**（裁上部天空、保底部 logo 区——
+    /// 用户实机"大闹天宫"截断回派）。
+    pub fn draw_image_cover(&mut self, img: &ArgbImage, dst_w: i32, dst_h: i32, anchor_bottom: bool) {
         let (iw, ih) = (img.width.max(1), img.height.max(1));
         let (dw, dh) = (dst_w.max(1), dst_h.max(1));
         let k = (dw as f64 / iw as f64).max(dh as f64 / ih as f64);
         let sw = (iw as f64 * k).ceil();
         let sh = (ih as f64 * k).ceil();
         let ox = ((dw as f64 - sw) / 2.0).floor();
-        let oy = ((dh as f64 - sh) / 2.0).floor();
+        let oy = if anchor_bottom { (dh as f64 - sh).floor() } else { ((dh as f64 - sh) / 2.0).floor() };
         for y in 0..dh {
             for x in 0..dw {
                 let sx = (((x as f64 - ox) * iw as f64 / sw).floor() as i32).clamp(0, iw - 1);

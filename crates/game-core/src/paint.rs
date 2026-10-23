@@ -136,6 +136,12 @@ pub fn title_fill_rect(canvas_w: i32, canvas_h: i32, img_w: i32, img_h: i32) -> 
     ((cw - w) / 2, (ch - h) / 2, w, h)
 }
 
+/// 【截断回派】底锚 cover 矩形：y=canvas_h-h（裁上部、保底部 logo 区）。
+pub fn title_fill_rect_bottom(canvas_w: i32, canvas_h: i32, img_w: i32, img_h: i32) -> (i32, i32, i32, i32) {
+    let (x, _, w, h) = title_fill_rect(canvas_w, canvas_h, img_w, img_h);
+    (x, canvas_h.max(1) - h, w, h)
+}
+
 pub fn paint_boot(g: &mut SoftGraphics<'_>, boot: &BootPaintState, layout: &crate::layout::Layout) {
     if boot.phase < 2 {
         // setColor(-1)：Java int -1 位模式 & 0xFFFFFF = 0xFFFFFF

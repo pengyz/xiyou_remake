@@ -349,3 +349,25 @@ fn title_button_hit_diff_smoke() {
     let corner = m.pointer_hit(2, 2);
     let _ = (band, corner); // 命中面可达（Debug 面随设备日志 jjxy-input 观测）
 }
+
+#[test]
+fn title_cover_bottom_keeps_logo_visible() {
+    // 【截断回派】576² 画布底锚 cover：底部 logo 区非透明（裁上部天空保 logo）
+    use game_core::paint::title_fill_rect_bottom;
+    use game_core::render::{ArgbImage, SoftGraphics};
+    let mut img = ArgbImage::create(240, 320);
+    for y in 0..320i32 {
+        for x in 0..240i32 {
+            let c = if y >= 300 { 0xFFFF0000u32 } else { 0xFF0000FF };
+            img.argb[(y * 240 + x) as usize] = c;
+        }
+    }
+    let mut canvas = ArgbImage::create(576, 576);
+    {
+        let mut g = SoftGraphics::new(&mut canvas);
+        g.draw_image_cover(&img, 576, 576, true);
+    }
+    assert_eq!(canvas.argb[575 * 576], 0xFFFF0000, "画布底行=源底 logo 色（非透明未截）");
+    let r = title_fill_rect_bottom(576, 576, 240, 320);
+    assert_eq!(r.1 + r.3, 576, "底锚 y+h=画布底（裁上部天空）");
+}

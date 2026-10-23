@@ -307,7 +307,7 @@ impl TitleMachine {
             if layout.preset == crate::layout::Preset::Modern {
                 // 【问题1】Modern 标题美术铺满游戏方框（用户裁定：贴图满幅、蓝底
                 // 留边也行但贴图必须满幅）——cover 撑满裁切；下方蓝填充行被盖住
-                g.draw_image_cover(map_bg, sw, sh);
+                g.draw_image_cover(map_bg, sw, sh, true); // 底锚：保底部 logo（截断回派）
             } else {
                 g.draw_image(map_bg, img_x, img_y, 0);
             }

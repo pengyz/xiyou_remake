@@ -549,6 +549,10 @@ pub struct AndroidApp {
     pub destroy_requested: i32,
 }
 
+/// `LOOPER_ID_INPUT`（native_app_glue.h enum：MAIN=1/INPUT=2/USER=3）。
+#[cfg(target_os = "android")]
+const LOOPER_ID_INPUT: i32 = 2;
+
 /// `android_poll_source`（native_app_glue.h）。
 #[repr(C)]
 #[cfg(target_os = "android")]
@@ -796,8 +800,14 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
         let (tx, rx) = std::sync::mpsc::channel::<game_shell_common::audio::Msg>();
         std::thread::spawn(move || {
             let dev: Box<dyn AudioOut> = match crate::audio::aaudio::AAudioPcm::open() {
-                Ok(pcm) => Box::new(pcm),
-                Err(_) => Box::new(SilentOut),
+                Ok(pcm) => {
+                    log_input("aaudio open ret=ok");
+                    Box::new(pcm)
+                }
+                Err(e) => {
+                    log_input(&format!("aaudio open ret=err {e}"));
+                    Box::new(SilentOut)
+                }
             };
             let store: game_shell_common::audio::TrackStore =
                 std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
@@ -811,7 +821,8 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
         while (*app).destroy_requested == 0 {
             let mut events = 0i32;
             let mut data: *mut std::ffi::c_void = std::ptr::null_mut();
-            while ffi::ALooper_pollAll(0, std::ptr::null_mut(), &mut events, &mut data) >= 0 {
+            // 短阻塞（16ms）：给 looper 回调泵调度窗口（0ms 裸轮询=实证搬运工饿死）
+            while ffi::ALooper_pollAll(16, std::ptr::null_mut(), &mut events, &mut data) >= 0 {
                 if !data.is_null() {
                     let src = data as *mut AndroidPollSource;
                     if let Some(process) = (*src).process {
@@ -822,10 +833,18 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
                     break;
                 }
             }
-            // 【层1修复·修法1】显式排水输入队列——每轮**活值**读 (*app).input_queue
-            // （lead 精准嫌疑：指针快照——glue attachLooper 前为 NULL；活值读取
-            // 保证 attach 后非空即可排水）。
-            drain_input(app);
+            // 【终极诊断修复】排水=**looper 唤醒后**（搬运工=attachLooper 回调泵入；
+            // 裸调 getEvent 只读待处理列表=跳过搬运工⇒恒 EAGAIN）。主循环
+            // ALooper_pollAll(16ms) 阻塞唤醒；ident==LOOPER_ID_INPUT（poll 源
+            // id，glue :212 自标）时走 getEvent→preDispatch→on_input_ex→finishEvent。
+            let mut ie: i32 = 0;
+            let mut idata: *mut std::ffi::c_void = std::ptr::null_mut();
+            let iident = ffi::ALooper_pollAll(0, std::ptr::null_mut(), &mut ie, &mut idata);
+            let is_input = iident == LOOPER_ID_INPUT
+                || (!idata.is_null() && (*(idata as *mut AndroidPollSource)).id == LOOPER_ID_INPUT);
+            if is_input {
+                drain_input(app);
+            }
             // 逻辑拍（frame_interval_ms 节奏）：键流折叠单键（覆盖式取末键）
             let interval = std::time::Duration::from_millis(st.wiring.frame_interval_ms());
             if last_logic.elapsed() >= interval {
@@ -840,6 +859,7 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
                     let serial = st.machine.bgm_serial();
                     if last_bgm != Some(track) {
                         last_bgm = Some(track);
+                        log_input(&format!("playBgm track={track}"));
                         let _ = tx.send(game_shell_common::audio::Msg::Cmd(
                             game_shell_common::audio::Cmd::Play { track, gain: 1.0 },
                         ));
