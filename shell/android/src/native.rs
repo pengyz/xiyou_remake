@@ -284,6 +284,8 @@ pub struct ShellWiring {
     pub surface: (u32, u32),
     /// 【2c】tap 待决表（画布内 Up，无 pad 键产出）——UI 态 pointer_hit 消费
     pub pending_taps: Vec<(f32, f32)>,
+    /// 【黄④】触控区描边开关（debug 常驻样式可关——量产/帧哈希前收审美）
+    pub overlay_debug: bool,
     /// 【问题2b】窗口/缓冲真实像素尺寸（INIT_WINDOW 实测——触点反变换分母；
     /// 旧误传逻辑尺寸 ⇒ 点击全落侧余负区=触屏全链不通根因）
     pub window_size: (u32, u32),
@@ -302,6 +304,7 @@ impl ShellWiring {
             gesture: game_shell_common::touch::GestureTracker::new(24),
             surface: logical_canvas(),
             pending_taps: Vec::new(),
+            overlay_debug: true,
             window_size: (0, 0),
             resolution: None,
         }
@@ -488,7 +491,11 @@ pub mod title_menu {
 /// 【件2 触控区可视化】叠加框（debug 描边常驻，量产收审美）——**单源**：
 /// 菜单行=TitleMachine::menu_item_rects（与 menu_hit 共调）、虚拟键区=
 /// PadLayout::for_modern、UNDO=undo_zone_hit 同源矩形（钉=框坐标==命中表坐标）。
-pub fn overlay_rects(grid: u32, buf_w: i32, buf_h: i32) -> Vec<(i32, i32, i32, i32, &'static str)> {
+pub fn overlay_rects(
+    grid: u32,
+    pad: &crate::input::PadLayout,
+    game_state: bool,
+) -> Vec<(i32, i32, i32, i32, &'static str)> {
     let (sw, sh) = ((grid * 32) as i32, (grid * 32) as i32);
     let mut out = Vec::new();
     for (x, y, w, h) in game_core::title::TitleMachine::menu_item_rects(sw, sh, crate::native::title_menu::SOFTKEY_BAR_H) {
@@ -502,12 +509,15 @@ pub fn overlay_rects(grid: u32, buf_w: i32, buf_h: i32) -> Vec<(i32, i32, i32, i
         game_shell_common::touch::UNDO_ZONE_H,
         "undo",
     ));
-    let pad = crate::input::PadLayout::for_modern(grid as i32);
+    // 【红-1】dpad 框由 r_switch 派生：捕获圆 r=2*r_switch（in_dpad_capture）——
+    // 外切方=2×捕获半径（**覆盖捕获圆全域**）；旧 60×60 硬编码=45px 出键在框外
+    // =画的框骗人（复核B 红-1 实锤）。
+    let half = 2 * pad.dpad.r_switch as i32; // =捕获半径 60
     out.push((
-        pad.dpad.cx as i32 - 30,
-        pad.dpad.cy as i32 - 30,
-        60,
-        60,
+        pad.dpad.cx as i32 - half,
+        pad.dpad.cy as i32 - half,
+        half * 2,
+        half * 2,
         "dpad",
     ));
     for z in &pad.soft {
@@ -519,8 +529,10 @@ pub fn overlay_rects(grid: u32, buf_w: i32, buf_h: i32) -> Vec<(i32, i32, i32, i
             "soft",
         ));
     }
-    let _ = buf_w;
-    let _ = buf_h;
+    // 【黄③】覆盖补齐：游戏态=地图点格区（tap→walk_to 响应面，全画布格域）+滑动区
+    if game_state {
+        out.push((0, 0, sw, sh, "map"));
+    }
     out
 }
 
@@ -969,10 +981,15 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
                 {
                     let mut g = SoftGraphics::new(&mut st.canvas);
                     st.machine.paint(&mut g);
-                    // 【件2】触控区叠加（debug 描边常驻——同源命中表）
-                    g.set_color(0xFFFF00FFu32);
-                    for (x, y, w, h, _tag) in overlay_rects(g_, 0, 0) {
-                        g.draw_rect(x, y, w, h);
+                    // 【件2+黄④】触控区叠加（同源命中表；debug 开关可关）
+                    if st.wiring.overlay_debug {
+                        let game_state = !st.machine.is_ui_state();
+                        let rects =
+                            overlay_rects(g_, &st.wiring.pad, game_state);
+                        g.set_color(0xFFFF00FFu32);
+                        for (x, y, w, h, _tag) in rects {
+                            g.draw_rect(x, y, w, h);
+                        }
                     }
                 }
                 let argb = st.canvas.argb.clone();

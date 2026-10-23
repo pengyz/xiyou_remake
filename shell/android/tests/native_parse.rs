@@ -389,7 +389,8 @@ fn modern_paint_no_residual_pixels() {
 fn overlay_rects_match_hit_tables() {
     // 【件2】框坐标==命中表坐标同源断言（防框和感应区脱节=二次盲区）
     use game_android::native::overlay_rects;
-    let rects = overlay_rects(18, 2670, 1200);
+    let pad = game_android::input::PadLayout::for_modern(18);
+    let rects = overlay_rects(18, &pad, true);
     let menu: Vec<_> = game_core::title::TitleMachine::menu_item_rects(576, 576, 18).to_vec();
     for mr in &menu {
         assert!(
@@ -404,15 +405,31 @@ fn overlay_rects_match_hit_tables() {
         game_shell_common::touch::undo_zone_hit(cx, cy, 576, 576),
         "UNDO 框中心=感应区命中（同源）"
     );
-    // 虚拟键区==PadLayout::for_modern 单源
-    let pad = game_android::input::PadLayout::for_modern(18);
+    // 虚拟键区==wiring.pad 同源（黄②：消费而非重建）
+    let rects2 = overlay_rects(18, &pad, true);
     for z in &pad.soft {
         assert!(
-            rects.iter().any(|r| r.4 == "soft"
+            rects2.iter().any(|r| r.4 == "soft"
                 && (r.0, r.1, r.2, r.3) == (z.x0 as i32, z.y0 as i32, (z.x1 - z.x0) as i32, (z.y1 - z.y0) as i32)),
             "软键框==PadLayout 单源"
         );
     }
+    // 【红-1】dpad 边界探针：45px 出键且框内=同源（旧 60×60 框=出键在框外）
+    let dpad = rects.iter().find(|r| r.4 == "dpad").expect("dpad 框在");
+    let (cx, cy) = (pad.dpad.cx as i32, pad.dpad.cy as i32);
+    for (dx, dy) in [(45, 0), (-45, 0), (0, 45), (0, -45)] {
+        assert!(game_android::input::in_dpad_capture(&pad.dpad, (cx + dx) as f32, (cy + dy) as f32), "45px 探针=捕获圆内出键（绝对坐标域）");
+        let (px, py) = (cx + dx, cy + dy);
+        assert!(
+            px >= dpad.0 && px < dpad.0 + dpad.2 && py >= dpad.1 && py < dpad.1 + dpad.3,
+            "45px 探针=框内（同源）：({px},{py}) vs {dpad:?}"
+        );
+    }
+    // 地图区（黄③）：游戏态覆盖 tap→walk 响应面
+    assert!(rects.iter().any(|r| r.4 == "map"), "游戏态地图区框在");
+    // UI 态不画地图区
+    let ui_rects = overlay_rects(18, &pad, false);
+    assert!(!ui_rects.iter().any(|r| r.4 == "map"), "UI 态无地图区框");
 }
 
 // ─────────────────────────── 【2026-10-23 复原】复核C 硬发现①误删两测 ──

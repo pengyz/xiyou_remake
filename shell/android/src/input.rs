@@ -164,7 +164,7 @@ impl PadLayout {
 }
 
 /// 触点在方向盘区（捕获半径 = 2×r_switch：迟滞半径外仍捕获方向指——拖远 = 强方向）。
-fn in_dpad_capture(d: &DpadZone, x: f32, y: f32) -> bool {
+pub fn in_dpad_capture(d: &DpadZone, x: f32, y: f32) -> bool {
     let (dx, dy) = (x - d.cx, y - d.cy);
     let r = d.r_switch * 2.0;
     dx * dx + dy * dy <= r * r
