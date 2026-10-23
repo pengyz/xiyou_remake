@@ -8,11 +8,11 @@
    "bytes": 692758
   },
   "title": {
-   "sha256": "edc7e791c29a6b76150675197a8309e88a3ef769377f1ece366f155d5f063a67",
+   "sha256": "aeff30551645b7082159c0cb3270fc50f288ed0c9edda206afb0b7f19db917a0",
    "bytes": 692758
   },
   "intro": {
-   "sha256": "18382cf76f4ae30aa780394df77441d6319415b026fbc5bad1fdebfdaa3dae63",
+   "sha256": "8754bc1b690fb395a7c45a7170c71ce37e530ceb31869e56359ba700fd8a85f9",
    "bytes": 692758
   },
   "game": {
@@ -20,7 +20,7 @@
    "bytes": 692758
   },
   "menu": {
-   "sha256": "f8ae7fad451210eb6be3b951b842e92247cda6ffccfad574588310180cc4cccc",
+   "sha256": "61fe56844fdc100bd82da40a31564c4720f34d4ac24a824b7b06d36afe13965d",
    "bytes": 692758
   }
  }
