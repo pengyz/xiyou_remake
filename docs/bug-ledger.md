@@ -281,6 +281,19 @@ Evidence: A 级——deobf a.java:3297 自赋值原文 + panic backtrace（scene
 transition_to:1482）+ 红绿复现（RED 2 测同 panic → GREEN 2 测过 + oracle
 preset_itemstack_frames_match 红→绿）。Confidence: 93
 
+## BUG-024 remove_des 状态臂 cat0/4 过写（移植偏差，V2-P2 表驱动化时收回，已修复）
+> 【2026-10-23 知会登记】v2-consumer-swap（task-7 V2-P2 消费替换）发现并修正；oracle 流
+> 未覆盖（CES 型 36/40 于 53/55 层不在对拍场景），以单测钉住。
+- **现象**：Rust remove_des 状态臂带 default 臂，对 render_category 0/4 也覆写 anim_row——
+  Java 原版 switch **无 default 臂**（cat0/4 走 switch 不命中=不覆写）。
+- **复现**：单元测试 `task7_mark_des_removed_java_switch_no_default`（型 36/40 场景钉死）。
+- **根因**：移植期 switch 翻译多带 default 臂（38 写点归一时代的过写残留），非原版行为。
+- **影响**：CES 型 36/40（53/55 层）的 mark_des_removed 外观过写——oracle 场景未覆盖此型此层，
+  金样无从发现；行为差在特定型的动画行。
+- **Stage A 处理**：**已修复**（随 V2-P2 表驱动化按 transition_overrides 真值收回，commit 2d27c47）；
+  oracle 覆盖缺口如实登记（不补场景——对拍面扩充归 verify-batch 另议）。
+- **Stage B 修复方案**：—。
+Evidence: A 级——Java switch 无 default 臂（a.java remove_des 源）+单测钉死+表侧真值锚（220 逐值锚）。Confidence: 90
 ## 记录规范
 - **现象**：玩家可见的行为描述，含层号/坐标/道具条件
 - **复现**：确定性复现输入序列（trace id 或按键脚本）
