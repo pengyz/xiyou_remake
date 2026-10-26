@@ -35,6 +35,7 @@
 - [Android 主循环饿死+按键批吞键](gotcha_android-looper-starvation-and-key-fold.md) — `while pollAll(16)>=0` 在 Move 流下不退出（长按断拍 1053ms）+ 批"取末动作"把 [Press,Release] 折成 0 ⇒ 触屏全不通；pump 非阻塞排空+按下锁存（2026-10-26 实机）
 - [布局派生的计时哨兵致 UI 停滞](gotcha_layout-derived-sentinel-ui-stall.md) — 序章快进 scroll_x=240 在 Modern 宽画幅 < 行宽+10 ⇒ 连按永停；且字幕排版在 paint 内、只 step 不 paint 的宿主驱动永不推进（2026-10-26 实机"序章点了不动"）
 - [精灵表取格的裁剪 blit 成本](gotcha_sprite-sheet-clip-blit-cost.md) — setClip 小窗+整表 drawImage，旧 blit 全表逐点再裁 ⇒ 97% 时间耗在被裁像素=门禁 10min 真因；裁剪窗快路径+SHA-NI ⇒ 26s（2026-10-26）
+- [Android 按键反馈：JNI 线程与系统开关](gotcha_android-key-feedback-jni-thread-and-switches.md) — View.playSoundEffect 须 UI 线程且受系统触摸提示音（小米实机关）⇒ AudioManager.playSoundEffect(FX_KEY_CLICK,-1f)；performHapticFeedback 无线程校验/无需权限；dumpsys vibrator_manager / audio SoundPool 事件核对（2026-10-26）
 
 ## Patterns
 
