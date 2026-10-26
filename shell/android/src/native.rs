@@ -439,6 +439,8 @@ pub struct ShellWiring {
     pub map_extent: crate::portrait::MapExtent,
     /// 【竖屏公式化】glue contentRect（窗口坐标 l,t,r,b；None=未收到）——内容区内缩源。
     pub content_rect: Option<(i32, i32, i32, i32)>,
+    /// 【按键反馈】待派发的虚拟键按下数（TouchMapper 产出的 Press；输入回调后立即取走）。
+    key_presses: u32,
 }
 
 /// 【竖屏】触点区。
@@ -470,7 +472,13 @@ impl ShellWiring {
             dpi: crate::portrait::DP_BASELINE_DPI,
             map_extent: crate::portrait::MapExtent::default(),
             content_rect: None,
+            key_presses: 0,
         }
+    }
+
+    /// 【按键反馈】取走待派发的虚拟键按下数（feedback::emit 的输入；取走即清）。
+    pub fn take_key_presses(&mut self) -> u32 {
+        std::mem::take(&mut self.key_presses)
     }
 
     /// 【竖屏公式化】规划输入（窗口 w×h + 本机密度/内容区/地图——全部设备与数据来源）：
@@ -545,7 +553,9 @@ impl ShellWiring {
         match region {
             Some(TouchRegion::Panel) => {
                 let ev = TouchEvent { id, phase, x: x - panel.x as f32, y: y - panel.y as f32 };
-                self.touch.feed(&ev)
+                let keys = self.touch.feed(&ev);
+                self.key_presses += crate::feedback::presses_in(&keys);
+                keys
             }
             Some(TouchRegion::Game) => {
                 let c = canvas.rect_in(game);
@@ -578,7 +588,9 @@ impl ShellWiring {
     /// 触点事件翻译（宿主可测面）：pad 区→键动作流 + 手势簿登记。
     pub fn on_touch(&mut self, ev: &TouchEvent) -> Vec<KeyAction> {
         self.gesture.down(ev.x as i32, ev.y as i32);
-        self.touch.feed(ev)
+        let keys = self.touch.feed(ev);
+        self.key_presses += crate::feedback::presses_in(&keys);
+        keys
     }
 
     /// 触点路由（宿主可测全面；on_input_ex 坐标反变换后调用）：
@@ -1066,6 +1078,8 @@ pub struct HostState {
     pub panel_state: Option<crate::portrait::PanelState>,
     /// 【竖屏】软键图标条（ui[11]，面板软键图标=游戏同款）。
     pub softkey_icons: game_core::render::ArgbImage,
+    /// 【按键反馈】触感 + 按键音出口（JNI 工作线程；None = 未起）。
+    pub feedback: Option<crate::feedback::android::JniFeedback>,
 }
 
 #[cfg(target_os = "android")]
@@ -1174,6 +1188,11 @@ extern "C" fn handle_input(app: *mut AndroidApp, event: *mut AInputEvent) -> i32
         log_input(&format!("input-arrival type={}", ffi::AInputEvent_getType(event)));
         let (keys, consumed) = st.wiring.on_input_ex(event);
         st.pending_keys.extend(keys);
+        // 【按键反馈】虚拟键按下 ⇒ 输入回调内立即派发（不等 75ms 逻辑拍）；按键音随游戏内"声音"
+        let presses = st.wiring.take_key_presses();
+        if let Some(fb) = st.feedback.as_mut() {
+            crate::feedback::emit(fb, presses, st.rt.sound_enabled());
+        }
         if consumed {
             1
         } else {
@@ -1269,7 +1288,10 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
             panel: ArgbImage::create(1, 1),
             panel_state: None,
             softkey_icons,
+            feedback: None,
         });
+        // 【按键反馈】JNI 工作线程（触感 + 按键音；attach 一次、缓存方法 ID，输入回调零阻塞）
+        st.feedback = Some(crate::feedback::android::JniFeedback::spawn((*activity).vm, (*activity).clazz, log_input));
         // 【竖屏公式化】规划输入的设备/数据源：密度（glue 已自 assetManager 填 config）+
         // 全关卡最大格数（maplv 头）——INIT_WINDOW 时与窗口尺寸一并入公式
         if !(*app).config.is_null() {

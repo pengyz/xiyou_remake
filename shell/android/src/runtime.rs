@@ -113,6 +113,15 @@ impl Runtime {
         }
     }
 
+    /// 游戏内"声音"开关（活动机 `bgm.sound_enabled`；交接时随 bgm 续接，设置页翻转即变）——
+    /// 壳侧按键音据此门控（feedback.rs）。只读，不碰游戏状态。
+    pub fn sound_enabled(&self) -> bool {
+        match self.scene.as_ref() {
+            Some(sc) => sc.bgm.sound_enabled,
+            None => self.machine.bgm.sound_enabled,
+        }
+    }
+
     /// 标题态（触点只走轮播手势；场景活动时恒 false）。
     pub fn title_mode(&self) -> bool {
         self.scene.is_none() && self.machine.title_geom().is_some()

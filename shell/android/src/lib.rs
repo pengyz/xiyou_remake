@@ -39,3 +39,6 @@ pub mod native;
 
 /// 竖屏动态分辨率：组成规划（游戏视口+控制面板）、帧合成、面板绘制（纯函数）。
 pub mod portrait;
+
+/// 虚拟键按下反馈：触感 + 按键音（策略纯函数；Android 出口 = JNI 工作线程）。
+pub mod feedback;

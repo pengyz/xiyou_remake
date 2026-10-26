@@ -440,6 +440,7 @@ dependencies = [
  "game-data",
  "game-platform",
  "game-shell-common",
+ "jni-sys 0.3.1",
 ]
 
 [[package]]
