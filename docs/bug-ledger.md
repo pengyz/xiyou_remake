@@ -366,6 +366,13 @@ fx-chang-e-floor1-taps Java 帧锚 T786。Confidence: 95
 Evidence: A 级——NDK 27.1.12297006 AAudio.h 枚举原文；AOSP android-16.0.0_r1 libaaudio 源码（validate / processData /
 AudioStreamTrack::write）；实机探针 RED（logcat `illegal performanceMode = 1`；HANG cpu 5.97 s / 6.0 s）。Confidence: 92
 
+> 【2026-10-26 补·设备切换重开】同组件潜在缺陷（出声后才会暴露）：插拔耳机/连蓝牙 ⇒ AAudio 把流置为断开——
+> legacy 路径设备 ID 一变即 `forceDisconnect`（AOSP `AudioStreamLegacy.cpp:283-303`），其后 write 返回
+> `AAUDIO_ERROR_DISCONNECTED`（`AudioStreamTrack.cpp:500-502`）、start 返回 INVALID_STATE（`AudioStream.cpp:169`）
+> ⇒ audio_loop 按契约转无声，**本次运行 BGM 永久消失**。修：`StreamPcm::with_reopen` 挂 `NdkStream::open` 工厂——
+> 断开即关旧开新、余量续写，每次 write 至多重开一次（新流仍失败 = Err）。宿主钉 `aaudio_stream.rs` 3 测
+> （写中途断开 / 空闲期断开 / 重开有界）。**实机未验证**：需物理插拔耳机或切蓝牙（B 级：源码路径推理）。
+
 ## BUG-028 Android 壳 BGM 命令翻译残缺——不发 Stop / 不认 serial / 音量恒 1.0 / 每拍刷日志（壳层移植缺陷，已修复）
 
 - **现象**（BUG-027 修好出声后即暴露）：切后台、设置里关声、mode 22 退出动画后音乐**照放**；回前台按键续播、

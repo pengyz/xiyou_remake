@@ -13,6 +13,7 @@ use game_android::audio::{
     StreamOps, StreamPcm, IDLE_SETTLE_TRIES, STREAM_CONFIG, WRITE_TIMEOUT_NS,
 };
 use game_platform::{AudioOut, CHANNELS, SAMPLE_RATE};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -24,6 +25,8 @@ enum Call {
     Stop,
     Wait(i32),
     Write { frames: usize, timeout_ns: i64 },
+    /// 流被 Drop（= AAudioStream_close）。
+    Close,
 }
 
 /// 假 AAudio 流：状态机 + 调用录制（录制表共享，便于设备 move 进线程后核对）。
@@ -38,6 +41,9 @@ struct FakeStream {
     start_result: Option<i32>,
     /// requestPause 是否被拒（不支持 pause 的流）。
     pause_unsupported: bool,
+    /// 设备切换开关（共享：测试中途翻转）——断开后 write = DISCONNECTED（AudioStreamTrack.cpp:500-502）、
+    /// start = INVALID_STATE（AudioStream.cpp:169）。
+    disconnected: Arc<AtomicBool>,
 }
 
 impl FakeStream {
@@ -50,6 +56,7 @@ impl FakeStream {
             write_result: None,
             start_result: None,
             pause_unsupported: false,
+            disconnected: Arc::new(AtomicBool::new(false)),
         };
         (s, log)
     }
@@ -58,6 +65,15 @@ impl FakeStream {
         self.log.lock().unwrap().push(c);
     }
 
+    fn is_disconnected(&self) -> bool {
+        self.disconnected.load(Ordering::SeqCst)
+    }
+}
+
+impl Drop for FakeStream {
+    fn drop(&mut self) {
+        self.rec(Call::Close);
+    }
 }
 
 impl StreamOps for FakeStream {
@@ -65,6 +81,9 @@ impl StreamOps for FakeStream {
         self.rec(Call::Start);
         if let Some(r) = self.start_result {
             return r;
+        }
+        if self.is_disconnected() {
+            return AAUDIO_ERROR_INVALID_STATE;
         }
         match self.state {
             AAUDIO_STREAM_STATE_OPEN
@@ -135,6 +154,9 @@ impl StreamOps for FakeStream {
         self.rec(Call::Write { frames: n, timeout_ns });
         if let Some(r) = self.write_result {
             return r;
+        }
+        if self.is_disconnected() {
+            return AAUDIO_ERROR_DISCONNECTED;
         }
         if self.state != AAUDIO_STREAM_STATE_STARTED {
             return 0; // 实机：未启动的流不消费，写入 0 帧立返
@@ -340,4 +362,85 @@ fn stream_pcm_is_send_and_object_safe() {
     });
     h.join().unwrap();
     assert_eq!(calls(&log).first(), Some(&Call::Start));
+}
+
+/// 重开工厂：每次开出一条新假流，登记其录制表与断开开关（测试据此核对/翻转）。
+type Opened = Arc<Mutex<Vec<(Arc<Mutex<Vec<Call>>>, Arc<AtomicBool>)>>>;
+
+fn factory(opened: &Opened, fail: bool) -> Box<dyn FnMut() -> Result<FakeStream, String> + Send> {
+    let opened = opened.clone();
+    Box::new(move || {
+        if fail {
+            return Err("openStream：AAUDIO_ERROR_NO_SERVICE(-881)".into());
+        }
+        let (s, log) = FakeStream::new();
+        opened.lock().unwrap().push((log, s.disconnected.clone()));
+        Ok(s)
+    })
+}
+
+/// 设备切换（插拔耳机/连蓝牙）：写中途 DISCONNECTED ⇒ 关旧流、开新流、start、余量续写——
+/// 本块不丢、调用方无感（Err 才会让 audio_loop 本次运行转无声）。
+#[test]
+fn disconnect_mid_write_reopens_and_finishes_chunk() {
+    let (s, old) = FakeStream::new();
+    let flag = s.disconnected.clone();
+    let opened: Opened = Arc::new(Mutex::new(Vec::new()));
+    let mut pcm = StreamPcm::new(s).with_reopen(factory(&opened, false));
+    pcm.write(&CHUNK).unwrap();
+    flag.store(true, Ordering::SeqCst); // 设备切换
+    assert_eq!(pcm.write(&CHUNK), Ok(()), "断开后重开续写，调用方无感");
+    assert_eq!(pcm.reopens(), 1);
+    assert_eq!(calls(&old).last(), Some(&Call::Close), "旧流已关：{:?}", calls(&old));
+    let fresh = opened.lock().unwrap()[0].0.clone();
+    assert_eq!(
+        calls(&fresh),
+        vec![Call::Start, Call::Write { frames: 1024, timeout_ns: WRITE_TIMEOUT_NS }],
+        "新流：先 start 再写满本块"
+    );
+}
+
+/// 空闲（曲间/后台 pause）期间设备切换：下次 write 的 start 被拒（INVALID_STATE）⇒ 同样重开。
+#[test]
+fn disconnect_while_idle_reopens_on_next_start() {
+    let (s, _old) = FakeStream::new();
+    let flag = s.disconnected.clone();
+    let opened: Opened = Arc::new(Mutex::new(Vec::new()));
+    let mut pcm = StreamPcm::new(s).with_reopen(factory(&opened, false));
+    pcm.write(&CHUNK).unwrap();
+    pcm.idle();
+    flag.store(true, Ordering::SeqCst);
+    assert_eq!(pcm.write(&CHUNK), Ok(()));
+    assert_eq!(pcm.reopens(), 1);
+    assert_eq!(calls(&opened.lock().unwrap()[0].0).first(), Some(&Call::Start));
+}
+
+/// 每次 write 至多重开一次：新流也断开 / 重开失败 ⇒ Err（不死循环；契约 Err = 不可恢复）。
+#[test]
+fn reopen_is_bounded_and_failure_is_err() {
+    // 新流开出即断开：本次 write Err，只重开一次
+    let (s, _) = FakeStream::new();
+    let flag = s.disconnected.clone();
+    let opened: Opened = Arc::new(Mutex::new(Vec::new()));
+    let opened2 = opened.clone();
+    let mut pcm = StreamPcm::new(s).with_reopen(Box::new(move || {
+        let (s, log) = FakeStream::new();
+        s.disconnected.store(true, Ordering::SeqCst);
+        opened2.lock().unwrap().push((log, s.disconnected.clone()));
+        Ok(s)
+    }));
+    pcm.write(&CHUNK).unwrap();
+    flag.store(true, Ordering::SeqCst);
+    let e = pcm.write(&CHUNK).unwrap_err();
+    assert!(e.contains("INVALID_STATE"), "新流 start 被拒：{e}");
+    assert_eq!((pcm.reopens(), opened.lock().unwrap().len()), (1, 1), "每次 write 至多重开一次");
+
+    // 重开本身失败：Err 带两段诊断
+    let (s, _) = FakeStream::new();
+    let flag = s.disconnected.clone();
+    let mut pcm = StreamPcm::new(s).with_reopen(factory(&Arc::new(Mutex::new(Vec::new())), true));
+    pcm.write(&CHUNK).unwrap();
+    flag.store(true, Ordering::SeqCst);
+    let e = pcm.write(&CHUNK).unwrap_err();
+    assert!(e.contains("DISCONNECTED") && e.contains("重开失败") && e.contains("NO_SERVICE"), "{e}");
 }

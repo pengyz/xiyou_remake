@@ -232,15 +232,33 @@ pub trait StreamOps {
 ///   每次带正 [`WRITE_TIMEOUT_NS`]、分段写满；超时仍 0 帧 = 流不消费 ⇒ Err（绝不自旋）。
 /// - `idle`：停止并丢弃缓冲 = requestPause → 等 PAUSED → requestFlush；下一次 write 重新
 ///   start。未启动 = 无操作（audio_loop 起手即 idle）。pause 被拒 ⇒ 退化 requestStop。
+/// - 设备切换（插拔耳机/连蓝牙）：AAudio 把流置为断开——legacy 路径设备 ID 一变即
+///   forceDisconnect（AudioStreamLegacy.cpp:283-303），其后 write 返回 DISCONNECTED
+///   （AudioStreamTrack.cpp:500-502）、start 返回 INVALID_STATE（AudioStream.cpp:169）。
+///   挂了重开工厂（[`StreamPcm::with_reopen`]）⇒ 关旧流开新流、余量续写，每次 write
+///   至多重开一次；新流仍失败 / 无工厂 ⇒ Err（契约：不可恢复，上层转无声）。
 pub struct StreamPcm<S: StreamOps> {
     stream: S,
     started: bool,
+    reopen: Option<Box<dyn FnMut() -> Result<S, String> + Send>>,
+    reopens: u32,
 }
 
 impl<S: StreamOps> StreamPcm<S> {
     /// 包装一条已打开（OPEN 态）的流。
     pub fn new(stream: S) -> StreamPcm<S> {
-        StreamPcm { stream, started: false }
+        StreamPcm { stream, started: false, reopen: None, reopens: 0 }
+    }
+
+    /// 挂设备切换后的重开工厂（Android = `NdkStream::open`）。
+    pub fn with_reopen(mut self, open: Box<dyn FnMut() -> Result<S, String> + Send>) -> StreamPcm<S> {
+        self.reopen = Some(open);
+        self
+    }
+
+    /// 累计重开次数（诊断）。
+    pub fn reopens(&self) -> u32 {
+        self.reopens
     }
 
     /// 底层流（诊断用）。
@@ -253,25 +271,40 @@ impl<S: StreamOps + Send> AudioOut for StreamPcm<S> {
     fn write(&mut self, frames: &[i16]) -> Result<(), String> {
         let total = frames.len() / CHANNELS;
         let mut off = 0usize;
+        let mut reopened = false;
         while off < total {
-            if !self.started {
+            let failure = if !self.started {
                 let r = self.stream.request_start();
-                if r != AAUDIO_OK {
-                    return Err(format!("AAudioStream_requestStart：{}", result_name(r)));
+                if r == AAUDIO_OK {
+                    self.started = true;
+                    continue;
                 }
-                self.started = true;
-            }
-            let n = self.stream.write(&frames[off * CHANNELS..total * CHANNELS], WRITE_TIMEOUT_NS);
-            if n < 0 {
-                return Err(format!("AAudioStream_write：{}", result_name(n)));
-            }
-            if n == 0 {
-                return Err(format!(
-                    "AAudioStream_write：{} ms 内 0 帧（流不消费）",
-                    WRITE_TIMEOUT_NS / 1_000_000
-                ));
-            }
-            off += n as usize;
+                format!("AAudioStream_requestStart：{}", result_name(r))
+            } else {
+                let n = self.stream.write(&frames[off * CHANNELS..total * CHANNELS], WRITE_TIMEOUT_NS);
+                if n > 0 {
+                    off += n as usize;
+                    continue;
+                }
+                if n == 0 {
+                    return Err(format!(
+                        "AAudioStream_write：{} ms 内 0 帧（流不消费）",
+                        WRITE_TIMEOUT_NS / 1_000_000
+                    ));
+                }
+                if n != AAUDIO_ERROR_DISCONNECTED {
+                    return Err(format!("AAudioStream_write：{}", result_name(n)));
+                }
+                format!("AAudioStream_write：{}", result_name(n))
+            };
+            // 断开（write=DISCONNECTED）或启动被拒（断开后 start=INVALID_STATE）⇒ 至多重开一次
+            let Some(open) = self.reopen.as_mut().filter(|_| !reopened) else {
+                return Err(failure);
+            };
+            reopened = true;
+            self.stream = open().map_err(|e| format!("{failure}；重开失败：{e}"))?; // 旧流 Drop = close
+            self.started = false;
+            self.reopens += 1;
         }
         Ok(())
     }
@@ -463,9 +496,17 @@ pub mod aaudio {
     pub type AAudioPcm = StreamPcm<NdkStream>;
 
     impl StreamPcm<NdkStream> {
-        /// 打开设备（失败 ⇒ 调用方无声降级）。
+        /// 打开设备（失败 ⇒ 调用方无声降级）；挂设备切换重开工厂（重开结果进 logcat）。
         pub fn open() -> Result<AAudioPcm, String> {
-            NdkStream::open().map(StreamPcm::new)
+            let reopen = || {
+                let r = NdkStream::open();
+                match &r {
+                    Ok(s) => crate::native::log_input(&format!("aaudio reopen ok {}", s.describe())),
+                    Err(e) => crate::native::log_input(&format!("aaudio reopen err {e}")),
+                }
+                r
+            };
+            NdkStream::open().map(|s| StreamPcm::new(s).with_reopen(Box::new(reopen)))
         }
 
         /// 实得流参数（见 [`NdkStream::describe`]）。
