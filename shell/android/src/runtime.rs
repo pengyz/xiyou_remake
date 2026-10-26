@@ -15,6 +15,7 @@ use game_core::enums::GameMode;
 use game_core::paint::BootMachine;
 use game_core::render::{ArgbImage, SoftGraphics};
 use game_core::scene::GameScene;
+use game_shell_common::audio::{AudioSink, BgmController, BgmSnapshot, NullSink};
 use game_shell_common::handoff::{self, GameAssets};
 
 /// BootMachine 装配（APK/目录资产 → 游戏机；win 壳 Shell::new 同参）。
@@ -62,6 +63,8 @@ pub struct Runtime {
     /// 【竖屏动态分辨率】游戏场景布局（交接时 apply；开场链布局=machine.layout）——
     /// 两档逻辑分辨率共用同一物理视口（portrait.rs）。缺省=machine 同布局（旧单档口径）。
     pub scene_layout: game_core::layout::Layout,
+    /// BGM 命令翻译（缺省出口静音；android_main 注入音频线程通道）。
+    bgm: BgmController,
 }
 
 impl Runtime {
@@ -84,6 +87,7 @@ impl Runtime {
             frame_counter: 0,
             crashed: false,
             scene_layout,
+            bgm: BgmController::new(Box::new(NullSink)),
         }
     }
 
@@ -150,12 +154,14 @@ impl Runtime {
     }
 
     /// hideNotify 边沿（win 壳 hide_notify 同构）：游戏态=GameScene::hide_notify（mode3→4
-    /// 弹菜单 + closeAudioPlayer + anyKeyPlayed）；Boot 态=bgm.on_hide_notify。
+    /// 弹菜单 + closeAudioPlayer + anyKeyPlayed）；Boot 态=bgm.on_hide_notify。随即同步 BGM
+    /// （closeAudioPlayer ⇒ Stop 立发：切后台不等下一拍）。
     pub fn hide_notify(&mut self) {
         match self.scene.as_mut() {
             Some(sc) => sc.hide_notify(),
             None => self.machine.bgm.on_hide_notify(),
         }
+        self.sync_bgm();
     }
 
     /// 叠加框态（框=当前态生效命中面）。
@@ -185,6 +191,28 @@ impl Runtime {
             self.step_boot(src, keys, gestures, taps);
         }
         self.frame_counter += 1;
+        self.sync_bgm();
+    }
+
+    /// 注入 BGM 命令出口（android_main = 音频线程通道；宿主测试 = 录制器）。翻译基线随之
+    /// 归零（新出口从"未播放"起算）。
+    pub fn set_bgm_sink(&mut self, sink: Box<dyn AudioSink>) {
+        self.bgm = BgmController::new(sink);
+    }
+
+    /// 活动机 BGM 快照（场景活动 = GameScene，否则 = BootMachine；win 壳 bgm_snapshot 同源）。
+    pub fn bgm_snapshot(&self) -> BgmSnapshot {
+        match self.scene.as_ref() {
+            Some(sc) => BgmSnapshot::of_scene(sc),
+            None => BgmSnapshot::of_boot(&self.machine),
+        }
+    }
+
+    /// 快照 → Play/Stop（只在变化时发；shell-common BgmController = win 壳 sync_bgm 同一翻译）。
+    /// 每拍末 + hideNotify 后调用（切后台即停，不等下一拍）。
+    fn sync_bgm(&mut self) {
+        let snap = self.bgm_snapshot();
+        self.bgm.update(snap);
     }
 
     /// Boot 拍：拍前解析标题手势 / UI 行点按 → 锁存键 → tick → SKY_WAR 写穿 → 交接

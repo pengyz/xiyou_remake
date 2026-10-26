@@ -559,16 +559,8 @@ impl Shell {
 
     fn bgm_snapshot(&self) -> audio::BgmSnapshot {
         match &self.state {
-            Some(Screen::Boot(m)) => audio::BgmSnapshot {
-                track: m.bgm_request(),
-                serial: m.bgm_serial(),
-                volume: m.bgm_volume().unwrap_or(0),
-            },
-            Some(Screen::Game(sc)) => audio::BgmSnapshot {
-                track: sc.bgm_request(),
-                serial: sc.bgm_serial(),
-                volume: sc.bgm_volume().unwrap_or(0),
-            },
+            Some(Screen::Boot(m)) => audio::BgmSnapshot::of_boot(m),
+            Some(Screen::Game(sc)) => audio::BgmSnapshot::of_scene(sc),
             Some(Screen::Crashed) | None => audio::BgmSnapshot::default(),
         }
     }

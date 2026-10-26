@@ -41,6 +41,18 @@ pub struct BgmSnapshot {
     pub volume: i32,
 }
 
+impl BgmSnapshot {
+    /// 开场链 BootMachine 的快照（win/android 双壳同源取数，防拷贝漂移）。
+    pub fn of_boot(m: &game_core::paint::BootMachine) -> BgmSnapshot {
+        BgmSnapshot { track: m.bgm_request(), serial: m.bgm_serial(), volume: m.bgm_volume().unwrap_or(0) }
+    }
+
+    /// 游戏场景 GameScene 的快照。
+    pub fn of_scene(sc: &game_core::scene::GameScene) -> BgmSnapshot {
+        BgmSnapshot { track: sc.bgm_request(), serial: sc.bgm_serial(), volume: sc.bgm_volume().unwrap_or(0) }
+    }
+}
+
 /// 发往播放后端的命令。
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Cmd {

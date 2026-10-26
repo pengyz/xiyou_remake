@@ -365,3 +365,23 @@ fx-chang-e-floor1-taps Java 帧锚 T786。Confidence: 95
 - **Stage B 修复方案**：—。
 Evidence: A 级——NDK 27.1.12297006 AAudio.h 枚举原文；AOSP android-16.0.0_r1 libaaudio 源码（validate / processData /
 AudioStreamTrack::write）；实机探针 RED（logcat `illegal performanceMode = 1`；HANG cpu 5.97 s / 6.0 s）。Confidence: 92
+
+## BUG-028 Android 壳 BGM 命令翻译残缺——不发 Stop / 不认 serial / 音量恒 1.0 / 每拍刷日志（壳层移植缺陷，已修复）
+
+- **现象**（BUG-027 修好出声后即暴露）：切后台、设置里关声、mode 22 退出动画后音乐**照放**；回前台按键续播、
+  设置里关声再开不从头播；BGM 音量恒满幅（应为 VolumeControl 级别/100，默认 60）；logcat 每拍一行
+  `bgm req=None`（75 ms/拍，日志缓冲很快被刷满轮转）。
+- **复现**：`cargo test --release -p game-android --test bgm_sync`——旧翻译逐行搬入 `Runtime::sync_bgm` 时
+  命令序列仅 `[Play{2,1.0}, Play{3,1.0}]`（应为 `[Play2, Stop, Play2, Stop, Play2, Play3, Stop]`，gain 0.6）。
+- **根因**：native.rs 主循环手写翻译只认 `bgm_request()` 轨道下标——变 None 不发 Stop、`last_bgm` 永不复位、
+  同轨 serial 变（Java 关闭重建 = 从头播放，a.java:10178-10199）不重发、音量不读 `bgm_volume()`；且只在拍后
+  同步、hideNotify 后不同步。shell-common 早有完整翻译 `BgmController`（win 壳在用），Android 壳另写了一份残缺拷贝
+  （双拷贝漂移，`docs/knowledge/pattern_dual-copy-algorithms-sync-fix.md` 同型）。
+- **影响**：Android 壳 BGM 启停/音量语义与原版（docs/spec/audio.md §1 状态表）不符。
+- **Stage A 处理**：**已修复**——`Runtime` 持 `BgmController`（每拍末 + hideNotify 后同步），快照取数
+  `BgmSnapshot::of_boot/of_scene` 收进 shell-common（win/android 双壳同源）；android_main 只注入音频线程出口
+  （命令即日志，无变化不打印）。宿主钉 `shell/android/tests/bgm_sync.rs`（真资产全流程：标题 → 切后台 → 按键续播 →
+  设置关/开声 → 进游戏 → 游戏中切后台）。
+- **Stage B 修复方案**：—。
+Evidence: A 级——宿主 RED/GREEN 逐字（旧翻译 `[Play{2,1.0}, Play{3,1.0}]` vs 期望序列）+ docs/spec/audio.md §1 状态表
+（Java 锚 a.java:4157-4167/4502-4513/4663-4676/10158-10215）。Confidence: 93

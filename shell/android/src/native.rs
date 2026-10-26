@@ -1334,7 +1334,18 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
                 std::sync::Arc::new(std::sync::Mutex::new(tracks));
             game_shell_common::audio::audio_loop(rx, dev, game_shell_common::audio::Mixer::new(store));
         });
-        let mut last_bgm: Option<usize> = None;
+        // BGM 命令出口：Runtime 每拍末 + hideNotify 后经 shell-common BgmController 翻译
+        // （runtime.rs sync_bgm，win 壳同源；宿主钉 tests/bgm_sync.rs）——只在变化时发、日志随
+        // 命令。【2026-10-26】旧手写翻译只认轨道：None 不发 Stop、serial 变不重发、gain 恒 1.0、
+        // last_bgm 永不复位 ⇒ `bgm req=None` 每拍刷屏。
+        struct AudioThreadSink(std::sync::mpsc::Sender<game_shell_common::audio::Msg>);
+        impl game_shell_common::audio::AudioSink for AudioThreadSink {
+            fn send(&mut self, cmd: game_shell_common::audio::Cmd) {
+                log_input(&format!("bgm {cmd:?}"));
+                let _ = self.0.send(game_shell_common::audio::Msg::Cmd(cmd));
+            }
+        }
+        st.rt.set_bgm_sink(Box::new(AudioThreadSink(tx)));
 
         // 【2026-10-26 实机根因②】主循环=pump 调度（shell/android/src/pump.rs 宿主钉）：
         // 非阻塞排空事件 → 到期出拍（tick→paint→present **每拍一次**：BootMachine::paint
@@ -1364,20 +1375,7 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
                 st.rt.step(&st.assets, &keys, gestures, taps);
                 // 标题态随拍更新（下一批触点的路由依据；场景活动时恒非标题）
                 st.wiring.title_mode = st.rt.title_mode();
-                // BGM：活动机的轨道请求 → 音频线程（bgm_request 两机同构 shell/win）
-                let req = st.rt.bgm_request();
-                if req != last_bgm {
-                    log_input(&format!("bgm req={req:?}"));
-                }
-                if let Some(track) = req {
-                    if last_bgm != Some(track) {
-                        last_bgm = Some(track);
-                        log_input(&format!("playBgm track={track}"));
-                        let _ = tx.send(game_shell_common::audio::Msg::Cmd(
-                            game_shell_common::audio::Cmd::Play { track, gain: 1.0 },
-                        ));
-                    }
-                }
+                // BGM：step 末已同步（Runtime::sync_bgm → AudioThreadSink）
             }
             // 呈现（每拍一次，tick 后）——【回派修复②】每帧前判 window 非空
             // （TERM_WINDOW→window=NULL 竞态挡；未就绪期跳过渲染呈现）
