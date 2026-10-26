@@ -140,6 +140,31 @@ fn headless_portrait_shots() {
         last = step(&mut rt, &mut host, &[], vec![], vec![]);
     }
     write_ppm(&out, "5_menu", w, h, &last);
+    // 游戏内菜单子页（用户报"存档UI没有居中"）：光标移到目标项 → 确定 → 截帧 → 右软键返回
+    for (target, mode, name) in
+        [(2, GameMode::SaveSlot, "6_save"), (3, GameMode::About, "7_settings"), (4, GameMode::Help, "8_help")]
+    {
+        if rt.scene.as_ref().unwrap().game_mode != GameMode::InGameMenu {
+            step(&mut rt, &mut host, &[KeyAction::Press(-7), KeyAction::Release], vec![], vec![]);
+            step(&mut rt, &mut host, &[], vec![], vec![]);
+        }
+        let mut guard = 0;
+        while rt.scene.as_ref().unwrap().menu_cursor != target && guard < 12 {
+            step(&mut rt, &mut host, &[KeyAction::Press(-2), KeyAction::Release], vec![], vec![]);
+            step(&mut rt, &mut host, &[], vec![], vec![]);
+            guard += 1;
+        }
+        step(&mut rt, &mut host, &[KeyAction::Press(-5), KeyAction::Release], vec![], vec![]);
+        for _ in 0..8 {
+            last = step(&mut rt, &mut host, &[], vec![], vec![]);
+        }
+        assert_eq!(rt.scene.as_ref().unwrap().game_mode, mode, "{name}：进入子页");
+        write_ppm(&out, name, w, h, &last);
+        step(&mut rt, &mut host, &[KeyAction::Press(-7), KeyAction::Release], vec![], vec![]);
+        for _ in 0..4 {
+            step(&mut rt, &mut host, &[], vec![], vec![]);
+        }
+    }
     eprintln!("font={font:?} intro_ticks={n} dialog_ticks={k} crashed={} → {}", rt.crashed, out.display());
     assert!(!rt.crashed);
 }
