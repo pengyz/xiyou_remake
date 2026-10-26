@@ -451,6 +451,12 @@ pub struct Layout {
     /// （a.java:3371-3373 → SoundAsk，64 枚帧夹具的 Java 参照面）；modern=false =
     /// STAGE-B-001 门控面（跳过询问直入 MainMenu，docs/spec/stage-b-deviations.md）。
     pub boot_sound_prompt: bool,
+    // —— 壳层呈现开关（壳配置；两预设默认 = 原版行为）——
+    /// 画布内软键栏（paintSoftkeyBar：左右底图 + ui[11] 图标，a.java:6006-6013）是否绘制。
+    /// 两预设默认 true（原版行为——classic 恒等面不动）；壳层自带外置软键 UI 时（例：竖屏
+    /// 控制面板自带同款图标）置 false 免双份。**纯呈现**：软键种类 `softkeys` 状态照常推进
+    /// （壳据此画外置软键），不影响任何逻辑/命中/状态迁移。
+    pub softkey_bar_visible: bool,
     // —— UI 公式锚（②：顶栏楼层贴左/钥匙金币贴右/中间填充；HUD 贴底居中）——
     /// 三钥格 x（贴右：`screen_w - 175 + 42i`，右块 = 三钥槽 126 + 金币区 49）。
     pub status_key_x: [i32; 3],
@@ -502,6 +508,7 @@ impl Layout {
             edge_margin: EDGE_MARGIN,
             camera_clamp_max: CAMERA_CLAMP_MAX,
             boot_sound_prompt: true,
+            softkey_bar_visible: true,
             status_key_x: STATUS_KEY_X,
             status_gold_icon_x: STATUS_GOLD_ICON_X,
             status_gold_num_x: STATUS_GOLD_NUM_X,
@@ -874,5 +881,20 @@ mod tests {
             assert!(minimap_dot_suppressed(t), "型 {t} 基底层已有标记");
         }
         assert!(!minimap_dot_suppressed(4), "宝箱走色点层");
+    }
+}
+
+/// 【2026-10-26 壳层呈现开关】画布内软键栏（paintSoftkeyBar）是否绘制 = 壳层配置项：
+/// 两预设默认开（原版行为；classic 恒等面不动），壳层自带外置软键 UI 时可关。
+#[cfg(test)]
+mod shell_switch_tests {
+    use super::*;
+
+    #[test]
+    fn softkey_bar_visible_defaults_to_original_behavior() {
+        assert!(Layout::classic().softkey_bar_visible, "classic 默认画（原版 a.java:6006-6013）");
+        for (w, h) in [(4, 4), (12, 16), (13, 13), (18, 18)] {
+            assert!(Layout::modern(w, h).softkey_bar_visible, "modern {w}×{h} 默认画（壳不配置 = 原版）");
+        }
     }
 }

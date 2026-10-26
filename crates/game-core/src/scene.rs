@@ -7846,6 +7846,48 @@ mod slot_equip_scene_tests {
         Some((nums.next()?, nums.next()?))
     }
 
+    /// 【2026-10-26 壳层呈现开关】mode 3 游戏画面：`softkey_bar_visible=false` 时绘制序列 =
+    /// 默认序列**恰去掉一段 paintSoftkeyBar**（HUD 左右下角的软键底图 + 图标），其余 op
+    /// （瓦片/实体/HUD/状态栏…）逐条不变；软键种类状态照常（壳据此画外置软键）。
+    #[test]
+    fn softkey_bar_switch_removes_exactly_the_softkey_block() {
+        let icons = synthetic_sptarm();
+        let layout = crate::layout::Layout::modern(12, 16);
+        let render = |visible: bool| {
+            let mut sc = scene_with(&icons);
+            let mut l = layout.clone();
+            l.softkey_bar_visible = visible;
+            sc.apply_layout(l);
+            let mut img = ArgbImage::create(layout.screen_w, layout.screen_h);
+            let ops = {
+                let mut g = SoftGraphics::new(&mut img);
+                sc.paint(&mut g, &solid(64, 64));
+                g.ops.clone()
+            };
+            (ops, sc.softkeys)
+        };
+        let (shown, keys) = render(true);
+        let (hidden, keys_hidden) = render(false);
+        assert_eq!(keys, (1, 3), "mode 3 软键种类");
+        assert_eq!(keys_hidden, keys, "开关不动软键状态");
+        // 期望删去的块 = 同尺寸画布上单独调 paintSoftkeyBar 的 op 串
+        let block = {
+            let sc = scene_with(&icons);
+            let mut img = ArgbImage::create(layout.screen_w, layout.screen_h);
+            let mut g = SoftGraphics::new(&mut img);
+            crate::paint::m_034_softkeys(&mut g, &sc.images.ui[10], &sc.images.ui[11], 1, 3, &layout);
+            g.ops.clone()
+        };
+        assert!(!block.is_empty());
+        let at: Vec<usize> = (0..=shown.len().saturating_sub(block.len()))
+            .filter(|&i| shown[i..i + block.len()] == block[..])
+            .collect();
+        assert_eq!(at.len(), 1, "默认帧含且仅含一段软键栏");
+        let mut expect = shown.clone();
+        expect.drain(at[0]..at[0] + block.len());
+        assert_eq!(hidden, expect, "关闭 = 恰去掉软键栏，其余 op 逐条不变");
+    }
+
     /// 第二轮返修判据（用户复验三破绽 2026-10-18）：
     /// ②背景铺满：视差列/行须盖满画布（现状=只盖左上固定区，右侧/下方大片黑）；
     /// ③HUD 内容组水平居中偏移 ≤ 12px；

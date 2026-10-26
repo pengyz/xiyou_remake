@@ -56,6 +56,11 @@ pub fn m_034_softkeys(
     right: i8,
     layout: &crate::layout::Layout,
 ) {
+    // 【2026-10-26 壳层呈现开关】画布内软键栏可由壳关闭（Layout::softkey_bar_visible——
+    // 外置软键 UI 时免双份）；默认 true = 原版行为，classic 零偏离。
+    if !layout.softkey_bar_visible {
+        return;
+    }
     // 【STAGE-B-004a ①b】软键图标悬空锚修复：锚随 layout（modern 贴屏底/右缘）——
     // classic 代入=原值零偏离；旧版用 classic 自由函数致 modern 下图标悬空。
     if left != 0 {
@@ -1327,5 +1332,42 @@ mod tests {
         }
         // TICK 32 帧哈希 = 纯白画布（与 L1b blank_white golden 同值，交叉验证）
         assert_eq!(frame_sha(&screen), "a682fa570213181c0f6fd50f7da5ef6f");
+    }
+}
+
+/// 【2026-10-26 壳层呈现开关】`Layout::softkey_bar_visible = false` ⇒ paintSoftkeyBar 零绘制
+/// （壳层外置软键 UI 时免双份）；默认 true 照画（原版行为）。
+#[cfg(test)]
+mod softkey_switch_tests {
+    use super::*;
+
+    #[test]
+    fn softkey_bar_hidden_by_layout_draws_nothing() {
+        let ui10 = ArgbImage::from_rgb(&vec![0xFF80_8080; 18 * 18], 18, 18, true);
+        let ui11 = ArgbImage::from_rgb(&vec![0xFFFF_FFFF; 36 * 10], 36, 10, true);
+        for base in [crate::layout::Layout::classic(), crate::layout::Layout::modern(12, 16)] {
+            let (w, h) = (base.screen_w, base.screen_h);
+            let draw = |layout: &crate::layout::Layout| {
+                let mut img = ArgbImage::create(w, h);
+                let ops = {
+                    let mut g = SoftGraphics::new(&mut img);
+                    m_034_softkeys(&mut g, &ui10, &ui11, 1, 3, layout);
+                    g.ops.clone()
+                };
+                (ops, img.argb)
+            };
+            let (shown_ops, shown_px) = draw(&base);
+            assert_eq!(
+                shown_ops.iter().filter(|o| o.starts_with("drawImage")).count(),
+                4,
+                "{w}×{h} 默认：左右底图 + 两图标（{shown_ops:?}）"
+            );
+            assert!(shown_px.iter().any(|&p| p != 0), "{w}×{h} 默认：画布有像素");
+            let mut hidden = base.clone();
+            hidden.softkey_bar_visible = false;
+            let (hidden_ops, hidden_px) = draw(&hidden);
+            assert!(hidden_ops.is_empty(), "{w}×{h} 关闭：零 op（{hidden_ops:?}）");
+            assert!(hidden_px.iter().all(|&p| p == 0), "{w}×{h} 关闭：画布不动");
+        }
     }
 }
