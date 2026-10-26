@@ -3664,7 +3664,8 @@ impl GameScene {
             x = col_x0;
             y += 40;
         }
-        x = ((SCREEN_W + self.item_box_w) >> 1) - 22;
+        // 翻页箭头=盒右-22（盒框同源 layout；【2026-10-26 更正】旧 SCREEN_W 同病）
+        x = ((self.layout.screen_w + self.item_box_w) >> 1) - 22;
         y -= (self.item_box_h - 32 - font.height() - 4) >> 1;
         if self.item_scroll_top > 0 {
             draw_image_clipped(g, &self.images.ui[15], x, y - 15, 0, 0, 7, 9);
@@ -9064,11 +9065,14 @@ impl GameScene {
     /// 背包栅格原点（③-1 单源）：**paint_item_panel 与 pointer_hit 共调本 fn**。
     /// y = 盒顶+31+font.height()——paint 累积式（:3412 +16、:3420 +fh+4、:3424 +1、
     /// :3427 +10）逐项同式；2026-10-18 F-1 整改：原写 32 差 1px + 测试自证，已修。
+    /// > 【2026-10-26 更正】盒顶/盒左须取 **layout** 画布（paint 盒框已是 layout 居中）——
+    /// > 旧 SCREEN_W/H 常量使 Modern 下格阵留在经典 240×320 左上区、与盒框脱节（竖屏实机
+    /// > 截图实证）。classic 代入 layout=240×320 原值零偏离。
     pub fn item_cell_origin(&self) -> (i32, i32) {
         let font = crate::paint::paint_font();
         (
-            (SCREEN_W - self.item_box_w) / 2 + 20,
-            (SCREEN_H - self.item_box_h) / 2 + 31 + font.height(),
+            (self.layout.screen_w - self.item_box_w) / 2 + 20,
+            (self.layout.screen_h - self.item_box_h) / 2 + 31 + font.height(),
         )
     }
 
@@ -9484,6 +9488,34 @@ mod pointer_seam_tests {
         }
     }
 
+    /// 【2026-10-26 竖屏实机】Modern 背包：格阵须在盒框内（盒=layout 居中，格原点=盒左+20、
+    /// 盒顶+31+fh——paint 累积式）。实机 12×16 格竖屏：格阵画在经典 240×320 左上区、
+    /// 盒框却居中 ⇒ 格阵与盒框脱节（截图实证）。翻页箭头 x 同源（盒右-22）。
+    #[test]
+    fn modern_item_grid_sits_inside_box_frame() {
+        for layout in [crate::layout::Layout::modern(12, 16), crate::layout::Layout::modern(18, 18)] {
+            let mut sc = scene((2, 2), &[]);
+            sc.apply_layout(layout.clone());
+            let bx = (layout.screen_w - sc.item_box_w) >> 1;
+            let by = (layout.screen_h - sc.item_box_h) >> 1;
+            let fh = crate::paint::paint_font().height;
+            assert_eq!(
+                sc.item_cell_origin(),
+                (bx + 20, by + 31 + fh),
+                "{}×{}：格原点=盒左+20 / 盒顶+31+fh（与 paint 盒框同源）",
+                layout.screen_w,
+                layout.screen_h
+            );
+        }
+        // classic：盒=(240-w)/2 ⇒ 原值零偏离
+        let sc = scene((2, 2), &[]);
+        assert_eq!(
+            sc.item_cell_origin(),
+            ((SCREEN_W - sc.item_box_w) / 2 + 20, (SCREEN_H - sc.item_box_h) / 2 + 31 + crate::paint::paint_font().height),
+            "classic 原值"
+        );
+    }
+
     /// 背包栅格：几何单源 + 命中 + (a) confirm_key=-6 + select_row
     #[test]
     fn item_grid_pointer_hit_and_select() {
@@ -9497,8 +9529,13 @@ mod pointer_seam_tests {
         sc.item_cursor = 0;
         // 期望取字面常量（F-1：禁被测自身作期望）——锚 paint_item_panel 累积式
         //（盒顶+16+fh+4+1+10 = 盒顶+31+fh；(320-盒高)/2=…+31+14）
-        let ox = (SCREEN_W - sc.item_box_w) / 2 + 20;
-        let oy = (SCREEN_H - sc.item_box_h) / 2 + 31 + crate::paint::paint_font().height;
+        // > 【2026-10-26 更正】盒顶/盒左取 **layout 画布**（本测 Modern 18×18；paint 盒框早已
+        // > layout 居中）——旧期望字面 SCREEN_W/H 把"格阵与盒框脱节"的缺陷钉成了正确
+        // >（竖屏实机截图实证，modern_item_grid_sits_inside_box_frame）。
+        let (lw, lh) = (sc.layout.screen_w, sc.layout.screen_h);
+        assert_eq!((lw, lh), (18 * crate::layout::CELL_PX, 18 * crate::layout::CELL_PX), "Modern 18×18 格");
+        let ox = (lw - sc.item_box_w) / 2 + 20;
+        let oy = (lh - sc.item_box_h) / 2 + 31 + crate::paint::paint_font().height;
         assert_eq!(sc.item_cell_origin(), (ox, oy), "格原点与 paint 累积式同式");
         // 顶像素 ±1px 归属锚（栅格版，照菜单侧规格）
         assert_eq!(sc.pointer_hit(ox + 16, oy), PointerHit::Row { index: 0, confirm_key: -6 }, "格顶像素归本格");
