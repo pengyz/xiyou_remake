@@ -42,6 +42,7 @@
 - [双拷贝算法修复必须同步](pattern_dual-copy-algorithms-sync-fix.md) — layout_full_text/layout_wrapped_text_limited 同算法两份拷贝，修一份漏一份 = 偏差换入口复发（迭代 26→30 实证）；review 布局函数强制查姊妹
 - [接任务先盘点仓库最新状态](pattern_survey-repo-state-before-research.md) — 多会话推进项目，几百提交可让"待调研问题"早已定案（decision 条目为证）；先 git log + knowledge 再动手
 - [门禁总闸下 TDD 红证据三件](pattern_tdd-red-evidence-with-gates.md) — pre-commit 跑 gates check（含 cargo test）⇒ 红提交过不了总闸；每单元 commit 携 RED 逐字输出+一致性声明+复现指令（测试部分单独应用到父树即得红），禁 --no-verify、禁死文件假先行
+- [动态布局 = 设备输入 + 游戏数据 + 规范常量的公式](pattern_layout-from-device-formulas.md) — 禁设备特化魔数（首版 12 列/80px/字高 14 被用户质询）；审美取值只许 dp 令牌/无量纲比例集中列表；测试钉手算算例 + 设备矩阵不变量（2026-10-26 竖屏）
 
 ## Debug
 
