@@ -339,3 +339,29 @@ Evidence: A 级——a.java:4663-4676 keyPressed 原文 + fx-chang-e-floor1-taps
 - **Stage B 修复方案**：—。
 Evidence: A 级——a.java:7135-7180 changeFloor 原文无 gameMode 写；a.java:7863-7866 道具 21 调用方写 gameMode=3；
 fx-chang-e-floor1-taps Java 帧锚 T786。Confidence: 95
+
+## BUG-027 Android BGM 全程无声——AAudio 设备实现三处缺陷（性能模式错值/从不启动/负超时）（用户实机，已修复）
+
+> 【2026-10-26】shell/android/README.md 验证矩阵早记"音频（AAudio `openStream` 报 ILLEGAL_ARGUMENT ⇒ 静音降级）"；
+> 用户："继续修声音问题"。
+- **现象**：Android 壳 BGM 全程无声：logcat `aaudio open ret=err AAudioStreamBuilder_openStream：AAUDIO_ERROR_ILLEGAL_ARGUMENT`
+  → `SilentOut` 无声降级。
+- **复现**：实机探针 `shell/android/examples/aaudio_probe.rs`（直接驱动壳的 `AAudioPcm`；adb shell 运行、不起 Activity、
+  只写静音；构建/运行命令见文件头）。修复前：`probe: open=err …ILLEGAL_ARGUMENT`，logcat
+  `E/AudioStreamBuilder: illegal performanceMode = 1`（EX、SH 两次打开皆然）。仅改正①后：
+  `probe: seg1 HANG（6.0s 内未写完 2s 音频；cpu=5.97s）`（写环满核自旋）。
+- **根因**（Android 壳实现缺陷，非原版 bug，D4 不适用；骨架期"extern 签名与常量照头文件手写、未验证"遗留）：
+  ① `AAUDIO_PERFORMANCE_MODE_LOW_LATENCY` 手写成 1——NDK `aaudio/AAudio.h:325-338` 该枚举自 `NONE = 10` 起算（LOW_LATENCY = 12）
+  ⇒ `AudioStreamBuilder::validate()` 落 default 臂恒拒（AOSP android-16.0.0_r1 `AudioStreamBuilder.cpp:266-282`）；
+  ② 打开后从不 `requestStart`：流停在 OPEN 不消费，写入 0 帧立返；
+  ③ 写超时 -1 当"无限等待"：AAudio 负/零 = 不阻塞（legacy `AudioStreamTrack.cpp:505` `blocking = timeoutNanoseconds > 0`；
+  MMAP `AudioStreamInternal.cpp:840/873` 截止 = now+timeout）⇒ ②③叠加 = 写环自旋、永不出声；
+  ④ `idle` 用 `requestStop` 且其后不再 start（stop 先播完残留；契约"停止并丢弃"= pause → PAUSED → flush，AAudio.h:1566/1585）。
+- **影响**：Android 壳无 BGM（改正①而不改②③ = 音频线程满核自旋）。
+- **Stage A 处理**：**已修复**——`audio::StreamPcm` 流状态机（首写前 start、正超时分段写满、0 帧即 Err 不自旋、
+  idle = pause → 等 PAUSED → flush）× `aaudio::NdkStream`（NDK 直绑）；打开参数改 SHARED + PERFORMANCE_MODE_NONE
+  （常驻流不占 EXCLUSIVE、BGM 不要低延迟、与探针同走 legacy 路径——取舍见 audio.rs `STREAM_CONFIG`）。
+  宿主钉 `shell/android/tests/aaudio_stream.rs`（假流按 AAudio 状态规则建模）。
+- **Stage B 修复方案**：—。
+Evidence: A 级——NDK 27.1.12297006 AAudio.h 枚举原文；AOSP android-16.0.0_r1 libaaudio 源码（validate / processData /
+AudioStreamTrack::write）；实机探针 RED（logcat `illegal performanceMode = 1`；HANG cpu 5.97 s / 6.0 s）。Confidence: 92

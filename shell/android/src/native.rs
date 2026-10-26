@@ -1307,10 +1307,23 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
         let (tx, rx) = std::sync::mpsc::channel::<game_shell_common::audio::Msg>();
         std::thread::spawn(move || {
             log_input("aaudio thread spawn");
+            /// 设备写错误进 logcat（audio_loop 的 eprintln 在 NativeActivity 下无处可去）。
+            struct LoggedOut(Box<dyn AudioOut>);
+            impl AudioOut for LoggedOut {
+                fn write(&mut self, frames: &[i16]) -> Result<(), String> {
+                    self.0.write(frames).map_err(|e| {
+                        log_input(&format!("aaudio write err {e}"));
+                        e
+                    })
+                }
+                fn idle(&mut self) {
+                    self.0.idle()
+                }
+            }
             let dev: Box<dyn AudioOut> = match crate::audio::aaudio::AAudioPcm::open() {
                 Ok(pcm) => {
-                    log_input("aaudio open ret=ok");
-                    Box::new(pcm)
+                    log_input(&format!("aaudio open ret=ok {}", pcm.describe()));
+                    Box::new(LoggedOut(Box::new(pcm)))
                 }
                 Err(e) => {
                     log_input(&format!("aaudio open ret=err {e}"));
