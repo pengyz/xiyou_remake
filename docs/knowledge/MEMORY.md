@@ -36,6 +36,7 @@
 - [布局派生的计时哨兵致 UI 停滞](gotcha_layout-derived-sentinel-ui-stall.md) — 序章快进 scroll_x=240 在 Modern 宽画幅 < 行宽+10 ⇒ 连按永停；且字幕排版在 paint 内、只 step 不 paint 的宿主驱动永不推进（2026-10-26 实机"序章点了不动"）
 - [精灵表取格的裁剪 blit 成本](gotcha_sprite-sheet-clip-blit-cost.md) — setClip 小窗+整表 drawImage，旧 blit 全表逐点再裁 ⇒ 97% 时间耗在被裁像素=门禁 10min 真因；裁剪窗快路径+SHA-NI ⇒ 26s（2026-10-26）
 - [Android 按键反馈：JNI 线程与系统开关](gotcha_android-key-feedback-jni-thread-and-switches.md) — View.playSoundEffect 须 UI 线程且受系统触摸提示音（小米实机关）⇒ AudioManager.playSoundEffect(FX_KEY_CLICK,-1f)；performHapticFeedback 无线程校验/无需权限；dumpsys vibrator_manager / audio SoundPool 事件核对（2026-10-26）
+- [夹具重放绕过壳层投键路径](gotcha_fixture-replay-bypasses-shell-key-path.md) — fixture_frames 直调 press_key，壳层投键前先 interrupt_route() 不在 Java 对拍内；BUG-025 夹具全绿、实机剧情被连点截断；补位 replay_logic_with(shell_keys=true)（2026-10-26）
 
 ## Patterns
 
