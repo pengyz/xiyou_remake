@@ -282,7 +282,7 @@ impl BootMachine {
             // 标题侧读档槽列表（paint case 8）：SlotSelect 行带单源
             if let Some(slots) = self.slots.as_ref() {
                 for vis in 0..(slots.scroll_bottom - slots.scroll_top).max(0) {
-                    let (ry, rh) = slots.row_band(vis);
+                    let (ry, rh) = slots.row_band(vis, &self.layout);
                     if y >= ry && y < ry + rh {
                         let index = slots.scroll_top + vis;
                         return crate::scene::PointerHit::Row { index, confirm_key: -5 };
@@ -294,7 +294,7 @@ impl BootMachine {
         if self.mode == GameMode::About {
             if let Some(list) = self.options.as_ref() {
                 for i in 0..list.len() {
-                    let (ry, rh) = list.row_band(i);
+                    let (ry, rh) = list.row_band(i, &self.layout);
                     if y >= ry && y < ry + rh {
                         return crate::scene::PointerHit::Row { index: i as i32, confirm_key: -5 };
                     }
@@ -422,7 +422,7 @@ impl BootMachine {
                 let segs = [3, 5]; // titleBarSegments[1]
                 if let Some(slots) = &self.slots {
                     let sptarm = self.sptarm_for_slots();
-                    slots.paint(g, &self.ui, &segs, &sptarm, || 0);
+                    slots.paint(g, &self.ui, &segs, &sptarm, || 0, &self.layout);
                 }
                 m_034_softkeys(g, &self.ui[10], &self.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
             }
@@ -430,7 +430,8 @@ impl BootMachine {
                 self.backdrop.paint(g, &self.mapbg, false, 0);
                 let sy = if self.mode == GameMode::Help { 51 } else { 68 };
                 let mut f = self.strip_frame;
-                crate::title::paint_icon_strip_at(g, &self.menu[1], 86, 10, sy, 68, &mut f);
+                let sx = crate::title::menu_strip_x(self.layout.screen_w);
+                crate::title::paint_icon_strip_at(g, &self.menu[1], sx, 10, sy, 68, &mut f);
                 self.strip_frame = f;
                 m_034_softkeys(g, &self.ui[10], &self.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
                 self.paint_overlay_tail(g);
@@ -438,10 +439,11 @@ impl BootMachine {
             GameMode::About => {
                 self.backdrop.paint(g, &self.mapbg, false, 0);
                 let mut f = self.strip_frame;
-                crate::title::paint_icon_strip_at(g, &self.menu[1], 86, 10, 34, 68, &mut f);
+                let sx = crate::title::menu_strip_x(self.layout.screen_w);
+                crate::title::paint_icon_strip_at(g, &self.menu[1], sx, 10, 34, 68, &mut f);
                 self.strip_frame = f;
                 if let Some(opts) = &self.options {
-                    opts.paint(g, &self.ui, &crate::paint::paint_font());
+                    opts.paint(g, &self.ui, &crate::paint::paint_font(), &self.layout);
                 }
                 m_034_softkeys(g, &self.ui[10], &self.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
             }

@@ -27,7 +27,6 @@
 //! `drawParallaxBackdrop` 的 backdropScroll 在 **paint 内** --1（<-154 重置 0，
 //! 周期 155）——与 Java 相同的副作用位置。
 
-use crate::layout::{CENTER_X, SCREEN_H, SCREEN_W};
 use crate::render::FontMetrics;
 use crate::render::{ArgbImage, SoftGraphics};
 
@@ -793,9 +792,11 @@ impl SlotSelect {
     /// run case 8 的 -2（a.java:3859-3862）。
     /// 行带几何（③-1 单源：paint_list 与 pointer 共调）：行首 = 盒顶+16、
     /// 行高 = textLineHeight = font.height()+4（a.java:471 字高派生）。返回 (行y, 行高)。
-    pub fn row_band(&self, visible: i32) -> (i32, i32) {
+    /// > 【2026-10-26 更正】盒顶取 **layout 画布**高（旧 SCREEN_H ⇒ Modern 槽表留在经典
+    /// > 左上区，用户报"存档UI没有居中"）；classic 代入 240×320 原值零偏离。
+    pub fn row_band(&self, visible: i32, layout: &crate::layout::Layout) -> (i32, i32) {
         let font = crate::paint::paint_font();
-        let y = (SCREEN_H - self.content_h) / 2 + 16;
+        let y = (layout.screen_h - self.content_h) / 2 + 16;
         (y + visible * (font.height() + 4), font.height() + 4)
     }
 
@@ -853,8 +854,9 @@ impl SlotSelect {
         segs: &[i32],
         sptarm: &[ArgbImage],
         arrow_y: fn() -> i32,
+        layout: &crate::layout::Layout,
     ) {
-        let (lx, ly) = self.paint_list(g, ui, segs);
+        let (lx, ly) = self.paint_list(g, ui, segs, layout);
         let _ = arrow_y;
         // 详情面板（a.java:9130-9150，slotValidFlags[cursor] 才画）
         if self.valid[self.cursor as usize] {
@@ -866,8 +868,8 @@ impl SlotSelect {
                 g.draw_image(&ui[8], vx + 50, vy + 8, 0);
             }
             // 装备框段（a.java:9104-9143）：sptarm = f_Image_arr2_00[6] 原容器
-            self.paint_equipment_frames(g, c, vy, |i| sptarm.get(i));
-            let (mut vx, vy) = self.paint_detail_stats(g, ui, c, vy);
+            self.paint_equipment_frames(g, c, vy, layout, |i| sptarm.get(i));
+            let (mut vx, vy) = self.paint_detail_stats(g, ui, c, vy, layout);
             // paintKeySlot（a.java:6046-6052）：ui[6] 槽位图 + ui[2] 数字（+40/+5）
             for (kind, count) in [(0, self.keys_yellow[c]), (1, self.keys_blue[c]), (2, self.keys_red[c])] {
                 g.set_clip(vx, vy, 18, 16);
@@ -889,39 +891,50 @@ impl SlotSelect {
     /// 【2026-10-15 更正】装备框段曾两份**不一致**（场景侧恒画材质名、未移植
     /// a.java:9116-9123 / 9136-9143 图标分支；boot 侧甲胄钳位误作 `>9`），
     /// 已合并为 [`Self::paint_equipment_frames`] 单源。
-    pub fn paint_list(&self, g: &mut SoftGraphics<'_>, ui: &[ArgbImage], segs: &[i32]) -> (i32, i32) {
+    ///
+    /// > 【2026-10-26 更正】盒/行/箭头/分隔线几何取 **layout 画布**（`screen_w/screen_h/center_x`）：
+    /// > 旧 SCREEN_W/H/CENTER_X 使 Modern 槽表留在经典 240×320 左上区（Xiaomi 14 竖屏实机截图，
+    /// > 用户报"存档UI没有居中"）。Modern 构图 = classic 整体平移到画布中心；classic 零偏离。
+    pub fn paint_list(
+        &self,
+        g: &mut SoftGraphics<'_>,
+        ui: &[ArgbImage],
+        segs: &[i32],
+        layout: &crate::layout::Layout,
+    ) -> (i32, i32) {
         let font = crate::paint::paint_font();
         let _lh = font.height() + 4; // textLineHeight（a.java:471；行高现由 row_band 提供）
-        let x = (SCREEN_W - self.content_w - 22) >> 1;
-        let y = (SCREEN_H - self.content_h) >> 1;
+        let cx = layout.center_x;
+        let x = (layout.screen_w - self.content_w - 22) >> 1;
+        let y = (layout.screen_h - self.content_h) >> 1;
         paint_titled_box(g, &ui[0], &ui[13], segs, x, y, self.content_w + 22, self.content_h);
         for row in self.scroll_top..self.scroll_bottom {
             // 行几何 = row_band 单源（C-1 口径：paint 真调，与 pointer 共调）
-            let (y, lh) = self.row_band(row - self.scroll_top);
+            let (y, lh) = self.row_band(row - self.scroll_top, layout);
             if row != self.cursor {
                 g.set_color(crate::layout::SLOT_TEXT);
             } else {
                 g.set_color(crate::layout::DARK_BACKDROP);
-                g.fill_rect(CENTER_X - (self.content_w >> 1), y, self.content_w, lh);
-                g.draw_image(&ui[14], CENTER_X - (self.content_w >> 1) + 10, y + ((font.height() - 8) >> 1), 0);
+                g.fill_rect(cx - (self.content_w >> 1), y, self.content_w, lh);
+                g.draw_image(&ui[14], cx - (self.content_w >> 1) + 10, y + ((font.height() - 8) >> 1), 0);
                 let t = crate::paint::NOKIA_TRANSFORM_TABLE[1];
-                g.draw_image_transformed(&ui[14], CENTER_X + (self.content_w >> 1) - 30, y + ((font.height() - 8) >> 1), 0, t);
+                g.draw_image_transformed(&ui[14], cx + (self.content_w >> 1) - 30, y + ((font.height() - 8) >> 1), 0, t);
                 g.set_color(crate::layout::SLOT_TEXT_ACTIVE);
             }
             if !self.valid[row as usize] {
-                g.draw_string(DASH_LABEL, CENTER_X, y + 2, 17);
+                g.draw_string(DASH_LABEL, cx, y + 2, 17);
             } else {
                 let mut label: Vec<u16> = SAVE_LABEL.to_vec();
                 label.extend((row as u16).to_string().chars().map(|c| c as u16));
-                g.draw_string(&label, CENTER_X, y + 2, 17);
+                g.draw_string(&label, cx, y + 2, 17);
             }
             // 行 y 由 row_band 逐行定位（原 y += lh 累加已删）
         }
         // 行后锚 = row_band(行数).0（原 y 累计终点——箭头/分隔线/详情段锚定于此；
         // 2026-10-18 整改：单源派生，恢复下游链）
-        let y = self.row_band(self.scroll_bottom - self.scroll_top).0;
+        let y = self.row_band(self.scroll_bottom - self.scroll_top, layout).0;
         // 翻页箭头（a.java:9080-9087）
-        let ax = CENTER_X + ((self.content_w >> 1) - 10);
+        let ax = cx + ((self.content_w >> 1) - 10);
         if self.scroll_top > 0 {
             crate::paint::draw_image_clipped(g, &ui[15], ax, y - 20, 0, 0, 7, 9);
         }
@@ -949,10 +962,12 @@ impl SlotSelect {
         g: &mut SoftGraphics<'_>,
         c: usize,
         vy: i32,
+        layout: &crate::layout::Layout,
         sptarm: impl Fn(usize) -> Option<&'a ArgbImage>,
     ) {
         // a.java:9104-9105：script_cursor0 = 240 + slotListWidth >> 1; script_cursor0 -= 68
-        let vx = ((SCREEN_W + self.content_w) >> 1) - 68;
+        //（240 = 屏宽 ⇒ layout.screen_w；【2026-10-26 更正】同 paint_list）
+        let vx = ((layout.screen_w + self.content_w) >> 1) - 68;
         // 武器 f_byte_arr_25（a.java:9106-9123）：v-33 > 7 ⇒ 钳 8
         paint_equipment_frame(g, vx, vy, self.weapon[c], 8, &sptarm);
         // 甲 f_byte_arr_26（a.java:9125-9143）：script_cursor0 += 34；v-33 > 7 ⇒ 钳 9
@@ -961,8 +976,15 @@ impl SlotSelect {
 
     /// paintSlotTable 详情面板中段（a.java:9145-9169）：金币行 + HP/攻/防 三围框（槽 `c`）。
     /// `vy` = 装备框行 y；返回三钥行起点 `(vx, vy)`。两条移植共用（见 [`Self::paint_list`]）。
-    pub fn paint_detail_stats(&self, g: &mut SoftGraphics<'_>, ui: &[ArgbImage], c: usize, vy: i32) -> (i32, i32) {
-        let mut vx = (SCREEN_W - self.content_w + 10) >> 1;
+    pub fn paint_detail_stats(
+        &self,
+        g: &mut SoftGraphics<'_>,
+        ui: &[ArgbImage],
+        c: usize,
+        vy: i32,
+        layout: &crate::layout::Layout,
+    ) -> (i32, i32) {
+        let mut vx = (layout.screen_w - self.content_w + 10) >> 1;
         let mut vy = vy + 20;
         g.draw_image(&ui[1], vx, vy, 0);
         vx += 60;
@@ -985,7 +1007,7 @@ impl SlotSelect {
         g.set_color(512);
         paint_mini_frame(g, vx, vy, 30, 12);
         paint_number(g, &ui[2], self.def[c], vx + 28, vy + 2);
-        (((SCREEN_W - self.content_w) >> 1) + 6, vy + 16)
+        (((layout.screen_w - self.content_w) >> 1) + 6, vy + 16)
     }
 }
 
@@ -1133,6 +1155,7 @@ pub(crate) mod slot_equip_test_support {
 
 #[cfg(test)]
 mod slot_equip_tests {
+    use crate::layout::{SCREEN_H, SCREEN_W};
     use crate::render::FontMetrics;
     use super::slot_equip_test_support::*;
     use super::*;
@@ -1147,7 +1170,7 @@ mod slot_equip_tests {
         {
             let mut g = SoftGraphics::new(&mut screen);
             g.set_font(Some(crate::paint::paint_font()));
-            slot.paint_equipment_frames(&mut g, 0, FRAME_Y, |i| icons.get(i));
+            slot.paint_equipment_frames(&mut g, 0, FRAME_Y, &crate::layout::Layout::classic(), |i| icons.get(i));
         }
         screen
     }
@@ -1249,7 +1272,7 @@ mod slot_equip_tests {
             {
                 let mut g = SoftGraphics::new(&mut screen);
                 g.set_font(Some(crate::paint::paint_font()));
-                slot.paint(&mut g, &ui, &[3, 5], &icons, || 0);
+                slot.paint(&mut g, &ui, &[3, 5], &icons, || 0, &crate::layout::Layout::classic());
             }
             screen
         };
@@ -1354,20 +1377,29 @@ impl OptionList {
 
     /// 行带几何（③-1 单源：paint 与 pointer_hit 共调）：行高 = optionRowHeight
     /// = font.height()+8（a.java:812）；行首 = 盒顶+16。返回 (行y, 行高)。
-    pub fn row_band(&self, i: usize) -> (i32, i32) {
+    /// > 【2026-10-26 更正】盒顶取 **layout 画布**高（同 SlotSelect::row_band）。
+    pub fn row_band(&self, i: usize, layout: &crate::layout::Layout) -> (i32, i32) {
         let font = crate::paint::paint_font();
-        let y = (SCREEN_H - self.box_h) / 2 + 16;
+        let y = (layout.screen_h - self.box_h) / 2 + 16;
         (y + (font.height() + 8) * i as i32, font.height() + 8)
     }
 
     /// paint case 16（a.java:2959-2990）。
-    pub fn paint(&self, g: &mut SoftGraphics<'_>, ui: &[ArgbImage], font: &dyn crate::render::FontMetrics) {
-        let x = (SCREEN_W - self.box_w - 22) >> 1;
-        let y = (SCREEN_H - self.box_h) >> 1;
+    /// > 【2026-10-26 更正】盒/标签几何取 **layout 画布**（240 = 屏宽 ⇒ layout.screen_w；
+    /// > 320 = 屏高 ⇒ layout.screen_h）：Modern 构图 = classic 平移到画布中心；classic 零偏离。
+    pub fn paint(
+        &self,
+        g: &mut SoftGraphics<'_>,
+        ui: &[ArgbImage],
+        font: &dyn crate::render::FontMetrics,
+        layout: &crate::layout::Layout,
+    ) {
+        let x = (layout.screen_w - self.box_w - 22) >> 1;
+        let y = (layout.screen_h - self.box_h) >> 1;
         paint_box_frame(g, &ui[0], x, y, self.box_w + 22, self.box_h);
         let content_x = x + 11;
         // 行几何 = row_band 单源（C-1 整改：paint 真调，根除公式双份）
-        let (y0, row_h) = self.row_band(0);
+        let (y0, row_h) = self.row_band(0, layout);
         let hl = row_h * self.highlight;
         g.set_color(crate::layout::OPTION_HIGHLIGHT);
         g.fill_rect(content_x, y0 + hl, self.box_w, row_h);
@@ -1382,8 +1414,8 @@ impl OptionList {
         );
         for i in 0..self.labels.len() {
             let label = OPTION_LABELS[self.labels[i]];
-            let mut lx = (SCREEN_W - font.string_width(label) - 16) >> 1;
-            let (ry, _) = self.row_band(i); // C-1：行 y 单源
+            let mut lx = (layout.screen_w - font.string_width(label) - 16) >> 1;
+            let (ry, _) = self.row_band(i, layout); // C-1：行 y 单源
             g.set_color(crate::layout::WHITE);
             g.draw_string(label, lx, ry + 4, 0);
             lx += 2 + font.string_width(label);
@@ -1530,5 +1562,101 @@ mod stage_b_004b_menu_anchor_tests {
         let m = hud_panel_anchor(448, 276, 50);
         assert_eq!((m.x, m.y, m.w, m.h), (0, 276, 448, 50), "modern 贴底随宽");
         assert_eq!(m.x + m.w, 448, "随宽铺满（顶栏 status_fill 同款全宽锚）");
+    }
+}
+
+/// 【2026-10-26 竖屏实机·用户报"存档UI没有居中"】Modern 画布下槽表（mode 7 存档 / mode 8 读档）、
+/// 选项面板（mode 16）与菜单族图标条 = **classic 构图整体平移到画布中心**：每个绘制 op 的
+/// (x, y) = classic + (dx, dy)，dx = (W−240)/2、dy = (H−320)/2；行带（指针命中单源）同平移。
+/// 旧实现几何取 SCREEN_W/H/CENTER_X ⇒ 留在经典 240×320 左上区（Xiaomi 14 竖屏 384×512
+/// 实机截图实证）。classic 代入 layout = 240×320 ⇒ 原值零偏离（既有 classic 钉不动）。
+#[cfg(test)]
+mod modern_center_tests {
+    use super::slot_equip_test_support::synthetic_sptarm;
+    use super::*;
+    use crate::layout::{Layout, SCREEN_H, SCREEN_W};
+
+    fn ui() -> Vec<ArgbImage> {
+        (0..25).map(|_| ArgbImage::from_rgb(&vec![0xFF202020; 24 * 24], 24, 24, true)).collect()
+    }
+
+    /// 绘制 op 的 (名, x, y) 序列；reset_clip 的 `setClip(0,0,画布)` 为画布级、不计。
+    fn ops_xy(layout: &Layout, f: &dyn Fn(&mut SoftGraphics<'_>)) -> Vec<(String, i32, i32)> {
+        let mut img = ArgbImage::create(layout.screen_w, layout.screen_h);
+        let ops = {
+            let mut g = SoftGraphics::new(&mut img);
+            g.set_font(Some(crate::paint::paint_font()));
+            f(&mut g);
+            g.ops.clone()
+        };
+        ops.iter()
+            .filter(|o| !o.starts_with("setClip(0,0,"))
+            .filter_map(|o| {
+                let name = o.split('(').next()?.to_string();
+                let args = o.split_once('(')?.1.rsplit_once(')')?.0;
+                let mut nums = args.split(',').filter_map(|t| t.trim().parse::<i32>().ok());
+                Some((name, nums.next()?, nums.next()?))
+            })
+            .collect()
+    }
+
+    fn shifted(v: &[(String, i32, i32)], dx: i32, dy: i32) -> Vec<(String, i32, i32)> {
+        v.iter().map(|(n, x, y)| (n.clone(), x + dx, y + dy)).collect()
+    }
+
+    fn modern_layouts() -> [Layout; 3] {
+        [Layout::modern(12, 16), Layout::modern(13, 13), Layout::modern(18, 18)]
+    }
+
+    #[test]
+    fn slot_table_is_classic_composition_centered() {
+        let (ui, icons) = (ui(), synthetic_sptarm());
+        let mut slot = SlotSelect::new();
+        slot.valid[0] = true; // 详情面板（层数/装备框/金币/三围/三钥）全段入判据
+        slot.floor_num[0] = 7;
+        slot.weapon[0] = 35;
+        slot.armor[0] = 41;
+        slot.gold[0] = 120;
+        slot.valid[2] = true;
+        let classic = Layout::classic();
+        let base = ops_xy(&classic, &|g| slot.paint(g, &ui, &[3, 5], &icons, || 0, &classic));
+        assert!(base.len() > 20, "判据非空（{} op）", base.len());
+        for l in modern_layouts() {
+            let (dx, dy) = ((l.screen_w - SCREEN_W) / 2, (l.screen_h - SCREEN_H) / 2);
+            let got = ops_xy(&l, &|g| slot.paint(g, &ui, &[3, 5], &icons, || 0, &l));
+            assert_eq!(got, shifted(&base, dx, dy), "{}×{}：槽表 = classic 构图平移 ({dx},{dy})", l.screen_w, l.screen_h);
+            for vis in 0..=slot.rows_per_page {
+                let (cy, ch) = slot.row_band(vis, &classic);
+                assert_eq!(slot.row_band(vis, &l), (cy + dy, ch), "{}×{}：行带（命中单源）同平移", l.screen_w, l.screen_h);
+            }
+        }
+    }
+
+    #[test]
+    fn option_panel_is_classic_composition_centered() {
+        let ui = ui();
+        let list = OptionList::new(true, false);
+        let font = crate::paint::paint_font();
+        let classic = Layout::classic();
+        let base = ops_xy(&classic, &|g| list.paint(g, &ui, &font, &classic));
+        assert!(base.len() > 8, "判据非空（{} op）", base.len());
+        for l in modern_layouts() {
+            let (dx, dy) = ((l.screen_w - SCREEN_W) / 2, (l.screen_h - SCREEN_H) / 2);
+            let got = ops_xy(&l, &|g| list.paint(g, &ui, &font, &l));
+            assert_eq!(got, shifted(&base, dx, dy), "{}×{}：选项面板 = classic 构图平移", l.screen_w, l.screen_h);
+            for i in 0..list.len() {
+                let (cy, ch) = list.row_band(i, &classic);
+                assert_eq!(list.row_band(i, &l), (cy + dy, ch));
+            }
+        }
+    }
+
+    #[test]
+    fn menu_icon_strip_x_centers_on_canvas() {
+        // a.java:2960/2969/3000 drawIconStrip(…, 86, 10, 0, sy, 68, 17, 17)：86 = (240−68)/2
+        assert_eq!(crate::title::menu_strip_x(SCREEN_W), 86, "classic = Java 字面");
+        for l in modern_layouts() {
+            assert_eq!(crate::title::menu_strip_x(l.screen_w), 86 + (l.screen_w - SCREEN_W) / 2);
+        }
     }
 }

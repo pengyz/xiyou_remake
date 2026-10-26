@@ -3789,7 +3789,7 @@ impl GameScene {
         let ui = &self.images.ui;
         // 标题变体 2（存档）：titleBarSegments[2] = {4,5}；列表段/装备框段/三围段与
         // boot 读档路径共用 SlotSelect 方法（原为双拷贝）
-        let (lx, ly) = self.slot.paint_list(g, ui, &[4, 5]);
+        let (lx, ly) = self.slot.paint_list(g, ui, &[4, 5], &self.layout);
         // 详情面板（a.java:9092-9147，slotValidFlags[cursor] 才画）
         let c = self.slot.cursor as usize;
         if self.slot.valid[c] {
@@ -3802,13 +3802,13 @@ impl GameScene {
             // 装备框段（a.java:9104-9143）：f_Image_arr2_00[6][i] 经 m_122 映射表
             // 反查 entityTypeImage（同一位图，见 SPTARM_ENTITY_TYPES）
             let entity = &self.images.entity;
-            self.slot.paint_equipment_frames(g, c, vy, |i| {
+            self.slot.paint_equipment_frames(g, c, vy, &self.layout, |i| {
                 crate::menu_family::SPTARM_ENTITY_TYPES
                     .get(i)
                     .and_then(|&t| entity.get(t))
                     .and_then(|o| o.as_ref())
             });
-            let (mut vx, vy) = self.slot.paint_detail_stats(g, ui, c, vy);
+            let (mut vx, vy) = self.slot.paint_detail_stats(g, ui, c, vy, &self.layout);
             self.paint_key_slot(g, 0, self.slot.keys_yellow[c] as i32, vx, vy);
             vx += 42;
             self.paint_key_slot(g, 1, self.slot.keys_blue[c] as i32, vx, vy);
@@ -3855,7 +3855,8 @@ impl GameScene {
     fn paint_menu15(&mut self, g: &mut SoftGraphics<'_>) {
         self.paint_parallax(g, false);
         let mut f = self.strip_frame;
-        crate::title::paint_icon_strip_at(g, &self.images.menu_strip, 86, 10, 51, 68, &mut f);
+        let sx = crate::title::menu_strip_x(self.layout.screen_w);
+        crate::title::paint_icon_strip_at(g, &self.images.menu_strip, sx, 10, 51, 68, &mut f);
         self.strip_frame = f;
         m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
         if !self.transitioning && self.overlay_active {
@@ -5997,11 +5998,12 @@ impl GameScene {
             // 视差=全幅层自豁免】
             self.paint_parallax(g, false);
             let mut f = self.strip_frame;
-            crate::title::paint_icon_strip_at(g, &self.images.menu_strip, 86, 10, 34, 68, &mut f);
+            let sx = crate::title::menu_strip_x(self.layout.screen_w);
+            crate::title::paint_icon_strip_at(g, &self.images.menu_strip, sx, 10, 34, 68, &mut f);
             self.strip_frame = f;
             if let Some(opt) = &self.options {
                 let font = crate::paint::paint_font();
-                opt.paint(g, &self.images.ui, &font);
+                opt.paint(g, &self.images.ui, &font, &self.layout);
             }
             m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
             return self.paint_wipe_tail(g);
@@ -9098,7 +9100,7 @@ impl GameScene {
                 // 存档槽列表（SlotSelect，7/8 共享 dispatchModeEntry case7）：行带单源；
                 // confirm=-5（run case 7：-6/-5 同义确认——mode7 存档/mode8 读档）
                 for vis in 0..(self.slot.scroll_bottom - self.slot.scroll_top).max(0) {
-                    let (ry, rh) = self.slot.row_band(vis);
+                    let (ry, rh) = self.slot.row_band(vis, &self.layout);
                     if y >= ry && y < ry + rh {
                         let index = self.slot.scroll_top + vis;
                         return PointerHit::Row { index, confirm_key: -5 };
@@ -9111,7 +9113,7 @@ impl GameScene {
                 // 翻转键，a.java:4143-4188）
                 if let Some(list) = self.options.as_ref() {
                     for i in 0..list.len() {
-                        let (ry, rh) = list.row_band(i);
+                        let (ry, rh) = list.row_band(i, &self.layout);
                         if y >= ry && y < ry + rh {
                             return PointerHit::Row { index: i as i32, confirm_key: -5 };
                         }
@@ -9262,9 +9264,14 @@ mod pointer_seam_tests {
         let row_h = font.height() + 8;
         // 期望=字面常量锚（F-1 口径：禁被测自身作期望）——OptionList::add 累加式：
         // box_h=32+2*row_h（a.java:9911-9926）；行首=盒顶+16（paint case 16）
+        // > 【2026-10-26 更正】盒顶取 **layout 画布**高（本测 Modern 18×18）——旧期望取
+        // > SCREEN_H/W 把"Modern 面板留在经典左上区"钉成了正确（竖屏实机截图实证，用户报
+        // > "存档UI没有居中"；menu_family::modern_center_tests）。
+        let (lw, lh) = (sc.layout.screen_w, sc.layout.screen_h);
+        assert_eq!((lw, lh), (18 * crate::layout::CELL_PX, 18 * crate::layout::CELL_PX), "Modern 18×18 格");
         let box_h = 32 + 2 * row_h;
-        let y0 = (SCREEN_H - box_h) / 2 + 16;
-        let x = SCREEN_W / 2; // 盒内任一 x（行带命中与 x 无关，盒外另测）
+        let y0 = (lh - box_h) / 2 + 16;
+        let x = lw / 2; // 盒内任一 x（行带命中与 x 无关，盒外另测）
         assert_eq!(
             sc.pointer_hit(x, y0 + 1),
             PointerHit::Row { index: 0, confirm_key: -5 },
@@ -9296,8 +9303,11 @@ mod pointer_seam_tests {
         sc.game_mode = GameMode::SaveSlot;
         let font = crate::paint::paint_font();
         let lh = font.height() + 4;
-        let y0 = (SCREEN_H - sc.slot.content_h) / 2 + 16; // 字面锚：行首=盒顶+16
-        let x = SCREEN_W / 2;
+        // > 【2026-10-26 更正】行首=盒顶+16 的盒顶取 **layout 画布**高（同上 options 测更正）
+        let (cw, ch) = (sc.layout.screen_w, sc.layout.screen_h);
+        assert_eq!((cw, ch), (18 * crate::layout::CELL_PX, 18 * crate::layout::CELL_PX), "Modern 18×18 格");
+        let y0 = (ch - sc.slot.content_h) / 2 + 16; // 字面锚：行首=盒顶+16
+        let x = cw / 2;
         assert_eq!(
             sc.pointer_hit(x, y0 + 1),
             PointerHit::Row { index: 0, confirm_key: -5 },

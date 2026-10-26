@@ -264,6 +264,16 @@ impl Particles {
     }
 }
 
+/// 菜单族图标条源宽（4 列 × 17px；drawIconStrip 第 6 参 68，deobf a.java:2960/2969/3000）。
+pub const MENU_STRIP_W: i32 = 68;
+
+/// 菜单族图标条左 x = 水平居中于画布：`(screen_w − 68) / 2`。classic 代入 (240−68)/2 = 86 =
+/// Java 字面（deobf a.java:2960/2969/3000 `drawIconStrip(…, 86, 10, 0, sy, 68, 17, 17)`，
+/// 帮助/设置/图鉴三处同值 ⇒ 居中语义，B 级）。【2026-10-26】Modern 画布随宽居中。
+pub fn menu_strip_x(screen_w: i32) -> i32 {
+    (screen_w - MENU_STRIP_W) / 2
+}
+
 /// `drawIconStrip` 通用形（a.java:4793-4805）。`frame` 为 iconStripFrame
 ///（每 paint +1 环 8）；count 为源宽度阈值（60=title 4 列、68=菜单族 4 列）。
 pub fn paint_icon_strip_at(
