@@ -21,6 +21,7 @@
 
 pub mod asset;
 pub mod font;
+pub mod handoff;
 pub mod touch;
 pub mod undo_ui;
 pub mod audio;

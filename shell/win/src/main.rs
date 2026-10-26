@@ -39,7 +39,7 @@ use std::time::{Duration, Instant};
 use game_core::layout::{SCREEN_H, SCREEN_W};
 use game_core::paint::BootMachine;
 use game_core::render::{ArgbImage, SoftGraphics};
-use game_core::scene::{FloorAssets, GameScene};
+use game_core::scene::GameScene;
 
 /// mode 21 起的帧间隔 f_int_02（a.java:27 初值 75 / a.java:3377 复位 75）；GameScene
 /// 阶段恒为此值（f_int_02 仅 a.java:3350/3377 两处写，均在 mode 0 内）。
@@ -65,120 +65,15 @@ const WINDOW_TITLE: &str = "囧囧西游-大闹天宫";
 
 // ---------------------------------------------------------------- 资产装载
 
-macro_rules! fixture {
-    ($t:literal) => {
-        include_str!(concat!("../../../crates/game-core/tests/fixtures/", $t))
-            .lines()
-            .filter_map(|l| l.trim().parse().ok())
-            .collect::<Vec<i32>>()
-    };
-}
-
 /// 目录型资产源（接缝④）已抽 `game-shell-common::asset::DirAssetSource`（task-5
 /// 双壳总审裁定 2026-10-18：DirAssetSource/DirAssets 生产面小重复 → 并入共享单源，
 /// 防双壳拷贝漂移）。本地别名保既有调用面与测试（`DirAssets::new(&…)`）零改动
 /// （adversary 裁定 A：机械接线）。
 use game_shell_common::asset::DirAssetSource as DirAssets;
 
-fn load_container(src: &dyn game_platform::AssetSource, name: &str, count: usize) -> Vec<ArgbImage> {
-    let data = src
-        .read(name)
-        .unwrap_or_else(|e| panic!("缺资产 {name}（先跑 tools/extract-assets/extract.py）：{e}"));
-    game_data::PackedPng::parse(&data, count)
-        .unwrap_or_else(|e| panic!("容器 {name} 解析失败：{e}"))
-        .images
-        .iter()
-        .map(|sub| ArgbImage::from_decoded_png(game_data::decode_png(sub.bytes).unwrap()))
-        .collect()
-}
-
-struct Assets {
-    tileset: ArgbImage,
-    images: game_core::scene::SceneImages,
-    floors: Vec<Option<FloorAssets>>,
-    width_table: Vec<i32>,
-    tile_walk: Vec<i32>,
-}
-
-fn load_assets(src: &dyn game_platform::AssetSource) -> Assets {
-    let mapbg = load_container(src, "mapbg", 1);
-    let map = load_container(src, "map", 12);
-    let actor_c = load_container(src, "actor", 4);
-    let sptmap = load_container(src, "sptmap", 13);
-    let sptprop = load_container(src, "sptprop", 23);
-    let sptarm = load_container(src, "sptarm", 10);
-    let sptenemy1 = load_container(src, "sptenemy1", 20);
-    let sptenemy2 = load_container(src, "sptenemy2", 20);
-    let ui = load_container(src, "ui", 25);
-    let images = game_core::scene::SceneImages {
-        backdrop: mapbg[0].clone(),
-        shadow: sptprop[0].clone(),
-        actor: actor_c[0].clone(),
-        actor_face: actor_c[1].clone(),
-        stair_icons: (map[1].clone(), map[2].clone()),
-        open_anim: map[9].clone(),
-        opened_door: sptmap[12].clone(),
-        entity: game_core::scene::SceneImages::map_entity_images(
-            &sptmap, &sptprop, &sptarm, &sptenemy1, &sptenemy2,
-        ),
-        popup: game_core::popup::PopupImages {
-            digit_strips: [map[3].clone(), map[4].clone(), map[5].clone()],
-            icon_strip: map[6].clone(),
-            battle_digits: ui[9].clone(),
-        },
-        spark_sheet: actor_c[2].clone(),
-        corner_sprites: ui[23].clone(),
-        map211: Some(map[11].clone()),
-        map210: map[10].clone(),
-        menu_strip: load_container(src, "menu", 2)[1].clone(),
-        battle_icon: map[8].clone(),
-        battle_strip: map[7].clone(),
-        ui: ui.clone(),
-        faces: load_container(src, "face", 12),
-        ending: load_container(src, "end", 1)[0].clone(),
-        xtq: load_container(src, "xtq", 6),
-    };
-    // 55 层全量装载（楼梯换层即时可用；maplv+sprite 每层 <2KB）
-    let door_tables = game_core::sprite_spawn::DoorTables {
-        door12: include_str!("../../../crates/game-core/tests/fixtures/door12.txt")
-            .lines()
-            .filter_map(|l| l.trim().parse().ok())
-            .collect(),
-        door13: include_str!("../../../crates/game-core/tests/fixtures/door13.txt")
-            .lines()
-            .filter_map(|l| l.trim().parse().ok())
-            .collect(),
-    };
-    let mut floors: Vec<Option<FloorAssets>> = vec![None; 56];
-    for (n, slot) in floors.iter_mut().enumerate().skip(1).take(54) {
-        let maplv = src
-            .read(&format!("maplv{n}"))
-            .unwrap_or_else(|e| panic!("缺资产 maplv{n}：{e}"));
-        let sp = game_data::SpriteTable::parse(
-            &src.read(&format!("sprite{n}"))
-                .unwrap_or_else(|e| panic!("缺资产 sprite{n}：{e}")),
-        )
-        .unwrap_or_else(|e| panic!("sprite{n} 解析失败：{e}"));
-        let records: Vec<(u8, u16, u16, i16, bool)> = sp
-            .records
-            .iter()
-            .map(|rec| {
-                let (param, hide) = game_core::sprite_spawn::spawn_param_and_visibility(
-                    rec.type_code, &rec.extra, &door_tables,
-                );
-                (rec.type_code, rec.x, rec.y, param, !hide)
-            })
-            .collect();
-        *slot = Some(FloorAssets { maplv, records });
-    }
-    Assets {
-        tileset: map[0].clone(),
-        images,
-        floors,
-        width_table: fixture!("type_width_px.txt"),
-        tile_walk: fixture!("tile_walkability.txt"),
-    }
-}
+// 【2026-10-26】场景资产装载 / 交接两路 / 敌人数值表已迁 game_shell_common::handoff
+// （Android 进游戏同源，双壳消费不拷贝）；本地别名保既有调用面与测试零改动。
+use game_shell_common::handoff::{load_container, load_game_assets as load_assets, GameAssets as Assets};
 
 /// 【R-8 可选·实机试玩】`--hd-assets`：demo 弃件② 图集（assets/hd-demo/map_00_3x.png，
 /// density=3）替换 tileset（map 容器帧 00），其余素材一律不动（对照变量唯一同款）。
@@ -508,21 +403,9 @@ impl Shell {
             load_container(src, "load", 2),
         );
         machine.preset_stores = stores.clone();
-        // SKY_WAR 装载（saveGlobalProgress 对偶，a.java:4458-4478）：损坏/缺失 ⇒
-        // catch 语义（default_7 ⇒ [1]=true）+ 置脏回写（4477-4478）。
-        match stores.iter().find(|(k, _)| k.starts_with("SKY_WAR@")) {
-            Some((_, blob)) => match game_core::save::parse_global_save(blob) {
-                Ok(g) => machine.apply_global(g),
-                Err(_) => {
-                    machine.apply_global(game_core::save::GlobalSave::default_7());
-                    machine.global_dirty = true;
-                }
-            },
-            None => {
-                machine.apply_global(game_core::save::GlobalSave::default_7());
-                machine.global_dirty = true;
-            }
-        }
+        // SKY_WAR 装载（saveGlobalProgress 对偶，a.java:4458-4478）——共享实现
+        // （损坏/缺失 ⇒ default_7 + 置脏回写，handoff::apply_stored_global）
+        game_shell_common::handoff::apply_stored_global(&mut machine, &stores);
         machine.sptarm = load_container(src, "sptarm", 10);
         // 【STAGE-B-004a】BootMachine 布局换轨（与 GameScene::apply_layout 同口径）
         // ——不换轨则 modern 画布下标题/序章仍走 classic 分支（同 sha 实证）。
@@ -546,19 +429,6 @@ impl Shell {
             settings_path: None,
             settings_saved: None,
         }
-    }
-
-    /// 敌人数值表装配（读档 / 新游戏两路交接共用）：难度 1 缩放 + 基础 HP / 金币表。
-    fn install_combat_tables(sc: &mut GameScene) {
-        let tables = game_core::combat::CombatTables {
-            enemy_base_hp: fixture!("enemybasehp.txt"),
-            enemy_base_atk: fixture!("enemybaseatk.txt"),
-            enemy_base_def: fixture!("enemybasedef.txt"),
-            difficulty_multipliers: fixture!("difficulty_multipliers.txt"),
-        };
-        sc.enemies = game_core::combat::scale_enemy_stats(&tables, 1);
-        sc.enemy_base_hp = tables.enemy_base_hp;
-        sc.enemy_base_gold = fixture!("enemybasegold.txt");
     }
 
     /// keyPressed / keyReleased 投递——Java Canvas 回调语义（a.java:4663-4680）：只改
@@ -1034,12 +904,8 @@ impl Shell {
         if !dirty {
             return;
         }
-        let blob = game_core::save::serialize_global_save(&g);
-        let mut stores = std::mem::take(&mut self.stores);
-        stores.retain(|(k, _)| !k.starts_with("SKY_WAR@"));
-        stores.push(("SKY_WAR@1".into(), blob));
-        self.rms.persist(&stores);
-        self.stores = stores;
+        game_shell_common::handoff::put_global(&mut self.stores, &g);
+        self.rms.persist(&self.stores);
     }
 
     /// MOT_IF 读失败回写（markSlotEntry(-1) 对偶，BUG-021 ②c）：槽表 parse_dirty
@@ -1056,12 +922,8 @@ impl Shell {
             Some(Screen::Crashed) | None => None,
         };
         let Some(slot) = dirty_slot else { return };
-        let mot_if = serialize_slot_if(&slot);
-        let mut stores = std::mem::take(&mut self.stores);
-        stores.retain(|(k, _)| !k.starts_with("MOT_IF@"));
-        stores.push(("MOT_IF@1".into(), mot_if.clone()));
-        self.rms.persist(&stores);
-        self.stores = stores;
+        let mot_if = game_shell_common::handoff::put_slot_if(&mut self.stores, &slot);
+        self.rms.persist(&self.stores);
         if let Some(Screen::Game(sc)) = self.state.as_mut() {
             sc.preset_mot_if = Some(mot_if); // 重读源同步（BUG-018 环）
         }
@@ -1070,28 +932,10 @@ impl Shell {
     fn step(&mut self) {
         match self.state.take() {
             Some(Screen::Game(mut sc)) => {
-                // 存档落盘（游戏内「保存游戏」→ saved_slot_blobs/slot 变化即写穿）
-                if sc.saved_slot_blobs != self.persisted_blobs {
-                    let mut stores = std::mem::take(&mut self.stores);
-                    // 【2026-10-17 BUG-018】原只改写已存在键——新键（空存档目录/槽3-5）
-                    // 会被整体丢弃；改 upsert。保存后回写 sc.preset_mot_if（mode7/8
-                    // 每次进入的重读源）——原缺此环 ⇒ 会话内加载列表看不到新存档。
-                    for idx in 0..6 {
-                        if let Some(blob) = &sc.saved_slot_blobs[idx] {
-                            let key = format!("MOT_L{idx}@1");
-                            match stores.iter_mut().find(|(k, _)| *k == key) {
-                                Some((_, v)) => *v = blob.clone(),
-                                None => stores.push((key, blob.clone())),
-                            }
-                        }
-                    }
-                    let mot_if = serialize_slot_if(&sc.slot);
-                    stores.retain(|(k, _)| !k.starts_with("MOT_IF@"));
-                    stores.push(("MOT_IF@1".into(), mot_if.clone()));
-                    self.rms.persist(&stores);
-                    self.stores = stores;
-                    self.persisted_blobs = sc.saved_slot_blobs.clone();
-                    sc.preset_mot_if = Some(mot_if);
+                // 存档落盘（游戏内「保存游戏」→ saved_slot_blobs/slot 变化即写穿）——
+                // 共享实现 handoff::sync_scene_saves（BUG-018 upsert + preset_mot_if 回写）
+                if game_shell_common::handoff::sync_scene_saves(&mut sc, &mut self.stores, &mut self.persisted_blobs) {
+                    self.rms.persist(&self.stores);
                 }
                 // P0-2 壳层统一（bug-012-softlock-report.md §3）：game-core 崩溃
                 // （如 T350 槽登记越界 = Java AIOOBE 同点同因）在此捕获 → 崩溃终止屏。
@@ -1157,82 +1001,15 @@ impl Shell {
                 } else {
                     machine.tick(key);
                 }
-                // 交接一：读档（槽载入动画完成 → mode 3）
-                if machine.mode == GameMode::Map {
-                    if let Some(cursor) = machine.slot_loaded {
-                        let key = format!("MOT_L{cursor}@1");
-                        if let Some((_, blob)) = self.stores.iter().find(|(k, _)| *k == key) {
-                            let save = game_core::save::parse_floor_save(blob, 0).unwrap();
-                            let fl = save.current_floor as usize;
-                            if let Some(fa) = self.assets.floors.get(fl).cloned().flatten() {
-                                let maplv = fa.maplv.clone();
-                                let records = fa.records.clone();
-                                let mut sc = game_core::scene::load_floor_from_save(
-                                    &maplv,
-                                    &records,
-                                    &self.assets.width_table,
-                                    &self.assets.tile_walk,
-                                    self.assets.images.clone(),
-                                    self.assets.floors.clone(),
-                                    &save,
-                                )
-                                .unwrap();
-                                sc.backdrop_scroll = machine.backdrop.scroll();
-                                if let Some(t) = &machine.title {
-                                    sc.menu_cursor = t.cursor;
-                                    sc.bob_offset = machine.bob_offset;
-                                    sc.bob_rising = machine.bob_rising;
-                                }
-                                sc.strip_frame = machine.strip_frame;
-                                sc.preset_mot_if = self
-                                    .stores
-                                    .iter()
-                                    .find(|(k, _)| k.starts_with("MOT_IF@"))
-                                    .map(|(_, v)| v.clone());
-                                Self::install_combat_tables(&mut sc);
-                                sc.rng = machine.rng.clone();
-                                // 音频状态续接（Java 同一对象：soundEnabled/track/
-                                // bgm 跨模式连续；dispatchModeEntry case 3 已在 machine 侧执行）
-                                sc.bgm = machine.bgm.clone();
-                                self.persisted_blobs = sc.saved_slot_blobs.clone();
-                                self.enter_scene(sc, machine);
-                                return;
-                            }
-                        }
-                    }
+                // 交接一：读档（槽载入动画完成 → mode 3）——共享实现（handoff.rs，交接即消费信号）
+                if let Some(sc) = game_shell_common::handoff::slot_scene(&self.assets, &mut machine, &self.stores) {
+                    self.persisted_blobs = sc.saved_slot_blobs.clone();
+                    self.enter_scene(sc, machine);
+                    return;
                 }
-                // 交接二：新游戏（序章冷启动——与 prologue 用例同构）
+                // 交接二：新游戏（序章冷启动——与 prologue 用例同构）——共享实现（消费信号）
                 if machine.new_game_ready {
-                    let fa = self.assets.floors[51].as_ref().unwrap();
-                    let maplv51 = fa.maplv.clone();
-                    let records51 = fa.records.clone();
-                    let mut sc = game_core::scene::GameScene::load_floor(
-                        &maplv51,
-                        32,
-                        352,
-                        &records51,
-                        &self.assets.width_table,
-                        &self.assets.tile_walk,
-                        self.assets.images.clone(),
-                        self.assets.floors.clone(),
-                    )
-                    .unwrap();
-                    sc.floor = 51;
-                    sc.min_floor = 51;
-                    sc.max_floor = 51;
-                    sc.player.hp = 300;
-                    sc.player.atk = 10;
-                    sc.player.def = 10;
-                    Self::install_combat_tables(&mut sc);
-                    sc.build_minimap();
-                    sc.enter_view();
-                    sc.bob_offset = machine.bob_offset;
-                    sc.bob_rising = machine.bob_rising;
-                    sc.strip_frame = machine.strip_frame;
-                    sc.backdrop_scroll = machine.backdrop.scroll();
-                    sc.rng = machine.rng.clone();
-                    sc.bgm = machine.bgm.clone(); // 音频状态续接（同上）
-                    sc.apply_entry_step_effects();
+                    let sc = game_shell_common::handoff::new_game_scene(&self.assets, &mut machine);
                     self.enter_scene(sc, machine);
                     return;
                 }

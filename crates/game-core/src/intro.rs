@@ -154,7 +154,11 @@ impl IntroSequence {
                         // 按键快进（a.java:4868）。C 类·语义不明：introScrollX 无任何几何
                         // 消费者（仅与 stringWidth+10 比较，a.java:4860），240 是 px 单位的
                         // 计时哨兵（≥ 排版宽 220+10）而非屏宽——**不**派生 SCREEN_W。
-                        self.scroll_x = 240;
+                        // > 【2026-10-26 更正】Modern 字幕框宽=屏宽-20（576 画幅 556）⇒ 行宽
+                        // > 可达 ~540 > 哨兵 240-10：每次按键反把进度**拉回** 240、连按即永停
+                        // > 本行（Android 实机"序章点了不动、进不了游戏"根因）。快进=跳到行尾
+                        // > `max(240, 行宽+10)`；classic 行宽 ≤220 ⇒ 恒 240（原值零偏离）。
+                        self.scroll_x = 240.max(line_w + 10);
                     }
                 } else {
                     self.color_idx += 1;
@@ -205,6 +209,20 @@ impl IntroSequence {
         self.color_idx = 0;
     }
 
+    /// 【2026-10-26】Modern 立绘整数倍：最大 k 使 `w·k ≤ 屏宽` 且 `h·k + 字幕三行 ≤ 屏高`；
+    /// classic 恒 1（原版逐字）。
+    fn modern_art_scale(img: &ArgbImage, font: &dyn crate::render::FontMetrics, layout: &crate::layout::Layout) -> i32 {
+        if layout.preset != crate::layout::Preset::Modern {
+            return 1;
+        }
+        let text_h = (font.height() + 4) * 3;
+        let mut k = 1;
+        while img.width * (k + 1) <= layout.screen_w && img.height * (k + 1) + text_h <= layout.screen_h {
+            k += 1;
+        }
+        k
+    }
+
     /// paint case 14（a.java:2923-2950）。`particles` 由调用方持有（case 14
     /// 尾部的粒子层）；返回值无。
     pub fn paint(
@@ -219,7 +237,11 @@ impl IntroSequence {
             // 【STAGE-B-004a ③】立绘=**原尺寸居中**（禁放大，分级策略）+ 黑带随
             // 画布延展（原设计黑带语义保持）；字幕框=锚位公式化（classic 10/220
             // 居中同构回代零偏离）；「跳过/请按任意键」=贴右/居中公式随 layout。
-            let ih = img.height;
+            // > 【2026-10-26 更正】"禁放大"被 Android 实机反馈"序章画面缩放问题"推翻：
+            // > 576 画幅下 240×145 立绘仅占 42% 宽。Modern 改**整数倍**放大（像素均匀，
+            // > 与标题 C 方案同口径）；放不下 2× 的画幅（k=1）与 classic 走原式零偏离。
+            let k = Self::modern_art_scale(img, font, layout);
+            let (iw, ih) = (img.width * k, img.height * k);
             let band_y = (layout.screen_h - ih - (font.height() + 4) * 3) >> 1;
             g.set_color(crate::layout::BLACK);
             g.fill_rect(0, 0, layout.screen_w, band_y);
@@ -229,13 +251,18 @@ impl IntroSequence {
             // 自然过渡无波浪纹）——延展带配色与素材边缘协调（立绘边缘=云雾色）。
             // classic 无侧带（图满幅）零偏离。
             let edge_px = img.argb[0] & 0x00FF_FFFF | 0xFF00_0000;
-            let img_x = layout.center_x - (img.width >> 1);
+            let img_x = layout.center_x - (iw >> 1);
             if img_x > 0 {
+                let right_x = if k == 1 { layout.center_x + ((img.width + 1) >> 1) } else { img_x + iw };
                 g.set_color(edge_px);
                 g.fill_rect(0, band_y, img_x, ih);
-                g.fill_rect(layout.center_x + ((img.width + 1) >> 1), band_y, layout.screen_w - (img_x + img.width), ih);
+                g.fill_rect(right_x, band_y, layout.screen_w - (img_x + iw), ih);
             }
-            g.draw_image(img, layout.center_x, band_y, 17);
+            if k == 1 {
+                g.draw_image(img, layout.center_x, band_y, 17);
+            } else {
+                g.draw_image_scaled(img, img_x, band_y, k);
+            }
             if !self.color_phase {
                 g.set_color(crate::layout::WHITE);
             } else {
@@ -350,6 +377,72 @@ impl LoadProgress {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 【2026-10-26 实机反馈"序章画面缩放问题"】Modern 立绘=**整数倍**放大（576 画幅
+    /// 2×：240×145→480×290，像素均匀 2×2 块）+ 横居中 + 立绘/字幕整体纵居中；classic
+    /// 与放不下 2× 的画幅（k=1）原式不变。
+    #[test]
+    fn modern_intro_art_integer_scaled_and_centered() {
+        let layout = crate::layout::Layout::modern(18, 18);
+        let mut iv = IntroSequence::new();
+        let mut art = ArgbImage::create(240, 145);
+        for y in 0..145 {
+            for x in 0..240 {
+                art.argb[(y * 240 + x) as usize] = 0xFF00_0000 | ((x as u32) << 16) | ((y as u32) << 8) | 0x33;
+            }
+        }
+        iv.set_image_for_test(art.clone());
+        let mut img = ArgbImage::create(576, 576);
+        {
+            let mut g = SoftGraphics::new(&mut img);
+            let mut ov = crate::menu_family::OverlayEngine::new();
+            let mut parts = crate::title::Particles::new();
+            let font = crate::paint::paint_font();
+            iv.paint(&mut g, &mut ov, &mut parts, &font, &layout);
+        }
+        let font_h = crate::paint::paint_font().height();
+        let band_y = (576 - 290 - (font_h + 4) * 3) >> 1;
+        let at = |x: i32, y: i32| img.argb[(y * 576 + x) as usize];
+        for (u, v) in [(0, 0), (120, 70), (239, 144)] {
+            let src = art.argb[(v * 240 + u) as usize];
+            let (x, y) = (48 + 2 * u, band_y + 2 * v);
+            for (dx, dy) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+                assert_eq!(at(x + dx, y + dy), src, "源({u},{v}) → 2×2 均匀块");
+            }
+        }
+        assert_eq!(at(10, band_y + 100), art.argb[0], "侧带=素材边缘色（2026-10-19 验收口径）");
+        assert_eq!(at(288, band_y - 1) & 0x00FF_FFFF, 0, "立绘上方=黑遮幅");
+    }
+
+    /// 【2026-10-26 实机"序章点了不动、进不了游戏"】按键快进须到行尾：Modern 字幕框宽
+    /// =屏宽-20（576 画幅 556）⇒ 行宽可达 ~540 > 旧哨兵 240-10，且连续按键每次重置回
+    /// 240 ⇒ 永停本行。判据：每拍都按键，序章须在有限拍内走完（classic/Modern 两预设）。
+    #[test]
+    fn key_mash_fast_forward_completes_intro_in_both_presets() {
+        for layout in [crate::layout::Layout::classic(), crate::layout::Layout::modern(18, 18)] {
+            let mut iv = IntroSequence::new();
+            let mut ov = crate::menu_family::OverlayEngine::new();
+            let mut parts = crate::title::Particles::new();
+            let font = crate::paint::paint_font();
+            let intro = vec![ArgbImage::create(240, 145), ArgbImage::create(240, 143)];
+            let end = vec![ArgbImage::create(240, 145)];
+            let mut canvas = ArgbImage::create(layout.screen_w, layout.screen_h);
+            let mut done_at = None;
+            for t in 0..3000 {
+                if iv.tick(-5, &intro, &end, &mut ov, &font) {
+                    done_at = Some(t);
+                    break;
+                }
+                let mut g = SoftGraphics::new(&mut canvas);
+                iv.paint(&mut g, &mut ov, &mut parts, &font, &layout);
+            }
+            assert!(
+                done_at.is_some(),
+                "{:?}：连续按键序章须走完（旧哨兵 240 < 行宽+10 ⇒ 永停）",
+                layout.preset
+            );
+        }
+    }
 
     /// 【task-14 开场链】加载屏对齐判据（用户"大闹天宫加载界面没对齐"）：
     /// modern 背景满幅（零未绘制像素）+ 进度条带居中（内容 x 中心=屏心）。

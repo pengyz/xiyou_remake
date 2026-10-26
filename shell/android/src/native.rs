@@ -308,6 +308,80 @@ pub fn resolve_title_gestures(
         .collect()
 }
 
+/// 【进游戏】场景键重放（win 壳 route_key 同口径）：Press = 打断寻路 + press_key
+/// （keyValue=keyHeld=code 覆盖式，a.java:4663-4676）；Release = release_key（只清
+/// keyHeld，a.java:4678）。按事件到达序逐个重放（同批点按：keyValue 留给下一拍）。
+pub fn replay_scene_keys(sc: &mut game_core::scene::GameScene, batch: &[KeyAction]) {
+    for a in batch {
+        match *a {
+            KeyAction::Press(c) => {
+                sc.interrupt_route();
+                sc.press_key(c);
+            }
+            KeyAction::Release => sc.release_key(),
+        }
+    }
+}
+
+/// 【进游戏】场景点按（逻辑坐标；win 壳 pointer_tap/pointer_click 同口径）：
+/// - Map 行走态：触点→格（T3 classify_tap：撤销钮 > 点墙探步入 > 点地 walk_to）→
+///   就地执行，返回 None；
+/// - 其余态（游戏内菜单/背包/商店…）：pointer_hit 行命中 → 选行并返回该态确认键
+///   （调用方按普通点按投递）；未命中 = None。
+pub fn scene_tap(sc: &mut game_core::scene::GameScene, x: i32, y: i32) -> Option<i32> {
+    use game_shell_common::touch::{classify_tap, Dispatcher, ShellAction, TouchGeom};
+    if sc.game_mode == game_core::enums::GameMode::Map {
+        let actions = {
+            let geom = TouchGeom {
+                cam_x: sc.view.cam_x,
+                cam_y: sc.view.cam_y,
+                tile_off: sc.layout.view_top_y,
+                cols: sc.view.wide,
+                rows: sc.view.high,
+            };
+            let walkable = |cx: i32, cy: i32| {
+                sc.walkable
+                    .get(cy as usize)
+                    .and_then(|r| r.get(cx as usize))
+                    .copied()
+                    .unwrap_or(false)
+            };
+            Dispatcher::tap(classify_tap(
+                x,
+                y,
+                &geom,
+                sc.layout.screen_w,
+                sc.layout.screen_h,
+                (sc.player_cell_x, sc.player_cell_y),
+                walkable,
+            ))
+        };
+        for a in actions {
+            match a {
+                ShellAction::Interrupt => sc.interrupt_route(),
+                ShellAction::WalkTo((tx, ty)) => {
+                    let _ = sc.walk_to(tx, ty);
+                }
+                ShellAction::ProbeStep(d) => {
+                    let _ = sc.probe_step(d);
+                }
+                ShellAction::Undo => {
+                    let _ = game_shell_common::undo_ui::undo_last(sc);
+                }
+                ShellAction::Key(_) | ShellAction::KeyRelease => {}
+            }
+        }
+        return None;
+    }
+    if let game_core::scene::PointerHit::Row { index, confirm_key } = sc.pointer_hit(x, y) {
+        sc.select_row(index);
+        return Some(confirm_key);
+    }
+    // 行外点按=确认 -5（win 壳 click_key 基线同语义：非 Map 态非软键区左键=确认）——
+    // 对话"点屏幕继续"、菜单族确认均走此臂
+    Some(-5)
+}
+
 /// `ANativeActivity`（不透明；字段面见 android/native_activity.h——internalDataPath
 /// / assetManager / vm / clazz 顺序布局，TODO：实机核对后升 A）。
 #[repr(C)]
@@ -816,14 +890,14 @@ mod ffi {
     }
 }
 
-/// 主机装配态（android_main 主循环持有：四 trait 实现 + 游戏机 + 画布）。
+/// 主机装配态（android_main 主循环持有：平台件 + 运行时 + 画布）。
 #[cfg(target_os = "android")]
 pub struct HostState {
     pub wiring: ShellWiring,
-    pub machine: game_core::paint::BootMachine,
+    /// 【进游戏】双机运行时（Boot/GameScene 调度 + 交接 + 存档写穿；宿主流程钉同一体）
+    pub rt: crate::runtime::Runtime,
     pub canvas: game_core::render::ArgbImage,
     pub assets: crate::asset::apk::ApkAssetSource,
-    pub _storage: crate::storage::AndroidStorage,
     pub surface: (u32, u32),
     pub pending_keys: Vec<KeyAction>,
 }
@@ -875,8 +949,7 @@ extern "C" fn handle_cmd(app: *mut AndroidApp, cmd: i32) {
                 let (g, sc) = st.wiring.resolved();
                 // 【字体修复】物理背板（逻辑×sc；字形按物理光栅化）
                 st.canvas = game_core::render::ArgbImage::create((g * 32 * sc) as i32, (g * 32 * sc) as i32);
-                st.machine
-                    .apply_layout(game_core::layout::Layout::modern(g as i32, g as i32));
+                st.rt.apply_layout(game_core::layout::Layout::modern(g as i32, g as i32));
                 let _ = ok;
             }
             APP_CMD_TERM_WINDOW => {
@@ -885,8 +958,14 @@ extern "C" fn handle_cmd(app: *mut AndroidApp, cmd: i32) {
             _ => {}
         }
         let in_pip = false; // PiP 判定（isInPictureInPictureMode）走 JNI；默认非 PiP
-        if let Some(_n) = st.wiring.on_lifecycle(cmd, in_pip) {
-            // 边沿交游戏机：hide_notify/showNotify（BootMachine::tick 入口同构消费）
+        if let Some(n) = st.wiring.on_lifecycle(cmd, in_pip) {
+            // 【进游戏】hideNotify 边沿交游戏机（win 壳 hide_notify 同构）：游戏态=
+            // GameScene::hide_notify（mode3→4 弹菜单 + closeAudioPlayer + anyKeyPlayed）；
+            // Boot 态=bgm.on_hide_notify。showNotify 只清 latch（无游戏态副作用）。
+            if n == Notify::Hide {
+                st.rt.hide_notify();
+                log_input("lifecycle hideNotify");
+            }
         }
     }
 }
@@ -922,7 +1001,6 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
         );
         use crate::asset::apk::ApkAssetSource;
         use crate::storage::AndroidStorage;
-        use game_core::paint::BootMachine;
         use game_platform::{AssetSource, AudioOut};
 
         // 【2026-10-26 字体修复】D2 字形缝：系统 CJK 字体（NotoSansCJK SC 面）注入
@@ -944,7 +1022,6 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
             fn idle(&mut self) {}
         }
         use game_core::render::ArgbImage;
-        use game_data::{decode_png, PackedPng};
         use std::ffi::CStr;
 
         let activity = (*app).activity as *mut ANativeActivityFields;
@@ -958,37 +1035,14 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
         };
         let assets = ApkAssetSource::new(asset_mgr);
         let (storage, stores) = AndroidStorage::open(&data_path);
-        let _ = &stores; // 持久记录（SKY_WAR 等）；BootMachine.apply_global 接线随实机核对
+        log_input(&format!("storage {} stores={:?}", data_path.display(), stores.iter().map(|(k, _)| k.as_str()).collect::<Vec<_>>()));
 
-        // BootMachine 装配（win main.rs:560-580 同构：APK assets 容器→游戏机）
-        let png = |name: &str| {
-            ArgbImage::from_decoded_png(
-                decode_png(&assets.read(name).expect("缺 assets 资产")).expect("png 解码"),
-            )
-        };
-        let container = |name: &str, count: usize| {
-            PackedPng::parse(&assets.read(name).expect("缺容器资产"), count)
-                .expect("容器解析")
-                .images
-                .iter()
-                .map(|s| ArgbImage::from_decoded_png(decode_png(s.bytes).unwrap()))
-                .collect::<Vec<_>>()
-        };
-        let mapbg = container("mapbg", 1);
-        let mut machine = BootMachine::new(
-            png("l0.png"),
-            png("l1.png"),
-            container("sflogo", 8),
-            container("ui", 25),
-            container("menu", 2),
-            mapbg[0].clone(),
-            container("intro", 2),
-            container("end", 1),
-            container("load", 2),
+        // BootMachine 装配 + 双机运行时（runtime.rs：宿主流程钉同一调度体）
+        let machine = crate::runtime::build_boot_machine(
+            &assets,
+            game_core::layout::Layout::modern(GRID_N, GRID_N),
         );
-        machine.sptarm = container("sptarm", 10);
-        // 【#2】Modern 布局（任意格数×32 公式）——横屏方画幅，GRID_N/SCALE 矩阵可配
-        machine.apply_layout(game_core::layout::Layout::modern(GRID_N, GRID_N));
+        let rt = crate::runtime::Runtime::new(machine, stores, Box::new(storage));
 
         // 【音频断层修】4 轨先载入 TrackStore（旧 store=空 Vec=Mixer 无轨可混=静音）
         // ——Android 轨道 AssetSource::read("track{i}.ogg")（shell/common audio.rs 口径）
@@ -1008,10 +1062,9 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
         }
         let mut st = Box::new(HostState {
             wiring: ShellWiring::new(),
-            machine,
+            rt,
             canvas: ArgbImage::create(GRID_N * 32 * SCALE, GRID_N * 32 * SCALE),
             assets,
-            _storage: storage,
             surface: (CANVAS_W, CANVAS_H),
             pending_keys: Vec::new(),
         });
@@ -1046,9 +1099,9 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
         let mut looper = AndroidLooper { app, t0: std::time::Instant::now() };
         let mut pacer = crate::pump::FramePacer::new(0);
         while (*app).destroy_requested == 0 {
-            // 逻辑拍间隔：BootMachine.frame_interval_ms（mode 0=100 a.java:3350，
-            // 其余 75 a.java:3377）——win 壳 frame_interval() 同源
-            let interval = st.machine.frame_interval_ms.max(1) as u64;
+            // 逻辑拍间隔：Boot=frame_interval_ms（mode 0=100 a.java:3350，其余 75
+            // a.java:3377）、场景恒 75——win 壳 frame_interval() 同源
+            let interval = st.rt.frame_interval_ms();
             if !crate::pump::pump_once(&mut looper, &mut pacer, interval) {
                 let wait = pacer.wait_ms(crate::pump::Pump::now_ms(&looper));
                 crate::pump::Pump::poll(&mut looper, wait);
@@ -1058,49 +1111,27 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
                 break;
             }
             {
-                // 【C 方案】拍前解析：标题手势→键（标题态单源几何）；其余 UI 态点按→
-                // BootMachine::pointer_hit 行命中（读档槽/设置项，win 壳 pointer_click
-                // 同口径：选行+该态确认键）；游戏态点按=walk_to 面（scene 接线随批）。
+                // 【进游戏】双机运行时一拍（runtime.rs；宿主流程钉 tests/flow.rs 同一体）：
+                // GameScene 接管后走场景拍（键重放/点按/存档写穿/kind7 换回标题），否则
+                // 走 Boot 拍（手势/点按解析 → 锁存键 → tick → 读条完交接 GameScene）。
                 let gestures = std::mem::take(&mut st.wiring.title_gestures);
-                if !gestures.is_empty() {
-                    let keys = resolve_title_gestures(&st.machine, gestures.clone());
-                    log_input(&format!("title gestures={gestures:?} → {keys:?}"));
-                    st.pending_keys.extend(keys);
-                }
-                for (tx_, ty_) in std::mem::take(&mut st.wiring.pending_taps) {
-                    if !st.machine.is_ui_state() {
-                        log_input("tap skipped: game-state walk_to lane");
-                        continue;
-                    }
-                    let hit = st.machine.pointer_hit(tx_ as i32, ty_ as i32);
-                    log_input(&format!("pointer_hit({tx_:.0},{ty_:.0})→{hit:?}"));
-                    if let game_core::scene::PointerHit::Row { index, confirm_key } = hit {
-                        st.machine.select_row(index);
-                        st.pending_keys.push(KeyAction::Press(confirm_key));
-                    }
-                }
-                let key = boot_key_from_batch(&st.pending_keys);
-                if !st.pending_keys.is_empty() {
-                    log_input(&format!("tick batch={:?} → key={key}", st.pending_keys));
-                }
-                st.pending_keys.clear();
-                st.machine.tick(key);
-                // 标题态随拍更新（下一批触点的路由依据）
-                st.wiring.title_mode = st.machine.title_geom().is_some();
-                // BGM：轨道变更 → 音频线程（bgm_request/bgm_serial 同构 shell/win）
-                let req = st.machine.bgm_request();
+                let taps = std::mem::take(&mut st.wiring.pending_taps);
+                let keys = std::mem::take(&mut st.pending_keys);
+                st.rt.step(&st.assets, &keys, gestures, taps);
+                // 标题态随拍更新（下一批触点的路由依据；场景活动时恒非标题）
+                st.wiring.title_mode = st.rt.title_mode();
+                // BGM：活动机的轨道请求 → 音频线程（bgm_request 两机同构 shell/win）
+                let req = st.rt.bgm_request();
                 if req != last_bgm {
                     log_input(&format!("bgm req={req:?}"));
                 }
                 if let Some(track) = req {
-                    let serial = st.machine.bgm_serial();
                     if last_bgm != Some(track) {
                         last_bgm = Some(track);
                         log_input(&format!("playBgm track={track}"));
                         let _ = tx.send(game_shell_common::audio::Msg::Cmd(
                             game_shell_common::audio::Cmd::Play { track, gain: 1.0 },
                         ));
-                        let _ = serial;
                     }
                 }
             }
@@ -1110,14 +1141,10 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
                 let (g_, sc_) = st.wiring.resolved();
                 {
                     let mut g = canvas_graphics(&mut st.canvas, sc_);
-                    st.machine.paint(&mut g);
+                    st.rt.paint(&mut g);
                     // 【件2+黄④】触控区叠加（按态=该态生效命中面，同源；debug 开关可关）
                     if st.wiring.overlay_debug {
-                        let state = match st.machine.title_geom() {
-                            Some(geo) => OverlayState::Title(geo),
-                            None if st.machine.is_ui_state() => OverlayState::Ui,
-                            None => OverlayState::Game,
-                        };
+                        let state = st.rt.overlay_state();
                         let rects = overlay_rects(g_, &st.wiring.pad, state);
                         g.set_color(0xFFFF00FFu32);
                         for (x, y, w, h, _tag) in rects {

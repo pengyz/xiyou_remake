@@ -642,3 +642,121 @@ fn physical_canvas_present_rect_matches_logical_scale() {
     assert_eq!(fit_rect(2536, 1200, 1152, 1152, 1), fit_rect(2536, 1200, 576, 576, 2));
     assert_eq!(fit_rect(2536, 1200, 1152, 1152, 1), (692, 24, 1152, 1152), "Xiaomi 14 实测窗 2536×1200");
 }
+
+// ─────────────────────────── 【2026-10-26 进游戏】Boot→GameScene 交接后的场景输入面 ──
+// 实机根因：Android 壳只有 BootMachine，读条完 mode=Map 无人接管 ⇒ tick_mode0 回落
+// 标题（设备 BGM 3→2 实录）。交接走 game_shell_common::handoff（win 壳同源）；场景
+// 键语义=press_key/release_key 逐个重放（keyPressed 覆盖式 + keyReleased 只清 held），
+// 点按=Map 态 classify_tap→walk_to/探步/撤销、UI 态 pointer_hit→选行+该态确认键。
+
+fn repo_raw() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/raw")
+}
+
+fn new_game_scene_fixture() -> game_core::scene::GameScene {
+    new_game_scene_with_assets().0
+}
+
+fn new_game_scene_with_assets() -> (game_core::scene::GameScene, game_shell_common::handoff::GameAssets) {
+    use game_shell_common::handoff::{load_container, load_game_assets, new_game_scene};
+    let src = game_shell_common::asset::DirAssetSource::new(&repo_raw());
+    let assets = load_game_assets(&src);
+    let png = |n: &str| {
+        game_core::render::ArgbImage::from_decoded_png(
+            game_data::decode_png(&game_platform::AssetSource::read(&src, n).unwrap()).unwrap(),
+        )
+    };
+    let mut m = game_core::paint::BootMachine::new(
+        png("l0.png"),
+        png("l1.png"),
+        load_container(&src, "sflogo", 8),
+        load_container(&src, "ui", 25),
+        load_container(&src, "menu", 2),
+        load_container(&src, "mapbg", 1)[0].clone(),
+        load_container(&src, "intro", 2),
+        load_container(&src, "end", 1),
+        load_container(&src, "load", 2),
+    );
+    m.new_game_ready = true;
+    let mut sc = new_game_scene(&assets, &mut m);
+    sc.apply_layout(game_core::layout::Layout::modern(18, 18));
+    (sc, assets)
+}
+
+/// 剧情推进：非 Map 态逐拍按确认（-5 按/放交替），连续 30 拍 Map 视为剧情结束。
+fn settle(sc: &mut game_core::scene::GameScene, fc: &mut i64, wt: &[i32]) {
+    let mut calm = 0;
+    for i in 0..4000 {
+        if sc.game_mode == game_core::enums::GameMode::Map {
+            calm += 1;
+            if calm >= 30 {
+                return;
+            }
+        } else {
+            calm = 0;
+            if i % 4 == 0 {
+                sc.press_key(-5);
+            } else if i % 4 == 1 {
+                sc.release_key();
+            }
+        }
+        sc.tick(*fc, wt);
+        *fc += 1;
+    }
+}
+
+#[test]
+fn scene_key_replay_keeps_press_and_release_semantics() {
+    use game_android::native::replay_scene_keys;
+    let mut sc = new_game_scene_fixture();
+    replay_scene_keys(&mut sc, &[KeyAction::Press(-1), KeyAction::Release]);
+    assert_eq!(sc.key_value, -1, "同批点按：keyValue 保留按下（下一拍消费）");
+    assert_eq!(sc.key_held, 0, "抬起只清 keyHeld（keyReleased 语义）");
+    replay_scene_keys(&mut sc, &[KeyAction::Press(-4)]);
+    assert_eq!((sc.key_value, sc.key_held), (-4, -4), "按住=held 持续（长按行走）");
+}
+
+#[test]
+fn scene_tap_walks_on_map_and_confirms_rows_in_menus() {
+    use game_android::native::scene_tap;
+    use game_core::enums::GameMode;
+    let (mut sc, assets) = new_game_scene_with_assets();
+    let mut fc = 0i64;
+    settle(&mut sc, &mut fc, &assets.width_table);
+    assert_eq!(sc.game_mode, GameMode::Map, "前置：序章对话推完落 Map 态（{fc} 拍）");
+    // 玩家格→屏幕坐标，向右下找一个可走空地格点按
+    let layout = sc.layout.clone();
+    let geom = game_shell_common::touch::TouchGeom {
+        cam_x: sc.view.cam_x,
+        cam_y: sc.view.cam_y,
+        tile_off: layout.view_top_y,
+        cols: sc.view.wide,
+        rows: sc.view.high,
+    };
+    let (px, py) = (sc.player_cell_x, sc.player_cell_y);
+    let target = (0..6)
+        .flat_map(|d| [(px + d, py), (px, py + d), (px - d, py), (px, py - d)])
+        .find(|&(x, y)| {
+            (x, y) != (px, py)
+                && sc.walkable.get(y as usize).and_then(|r| r.get(x as usize)).copied().unwrap_or(false)
+        })
+        .expect("玩家附近有可走格");
+    let (sx, sy) = geom.cell_screen_xy(target.0, target.1);
+    assert_eq!(scene_tap(&mut sc, sx + 8, sy + 8), None, "Map 态点按=寻路（不合成键）");
+    assert!(sc.route.is_open() || sc.game_mode != GameMode::Map, "点空地格=walk_to 寻路开启（或首步即触发剧情）");
+    // 游戏内菜单（-7 右软键开菜单）：先推完寻路可能触发的剧情，点按行=选行 + 该态确认键
+    sc.interrupt_route();
+    settle(&mut sc, &mut fc, &assets.width_table);
+    sc.press_key(-7);
+    sc.release_key();
+    sc.tick(fc, &assets.width_table);
+    assert_eq!(sc.game_mode, GameMode::InGameMenu, "-7 开游戏内菜单");
+    let cx = sc.layout.center_x;
+    let row_y = (0..sc.layout.screen_h)
+        .find(|&y| matches!(sc.pointer_hit(cx, y), game_core::scene::PointerHit::Row { .. }))
+        .expect("菜单有可点行");
+    assert_eq!(scene_tap(&mut sc, cx, row_y), Some(-6), "菜单行点按=选行+确认 -6");
+    // 行外点按=确认 -5（win 壳 click_key 基线同语义：非 Map 态非软键区左键=确认）——
+    // 对话态"点屏幕继续"即走此臂
+    assert_eq!(scene_tap(&mut sc, 1, 1), Some(-5), "UI 态行外点按=确认（PC 点击基线同源）");
+}

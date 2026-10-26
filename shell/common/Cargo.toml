@@ -7,6 +7,7 @@ edition = "2021"
 # 可复用实现收敛于此，防双壳拷贝漂移。依赖面最小化：无 winit（Android 壳可直用）。
 [dependencies]
 game-core = { path = "../../crates/game-core" }
+game-data = { path = "../../crates/game-data" }
 game-platform = { path = "../../crates/game-platform" }
 # BGM：OGG Vorbis 解码（纯 Rust；与 tools/audio 自检同一解码器；随 decode_ogg 自
 # shell/win 迁入，版本与那边原锁一致）
