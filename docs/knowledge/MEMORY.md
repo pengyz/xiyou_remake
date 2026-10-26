@@ -32,6 +32,7 @@
 - [共享 shim 假设自我印证](gotcha_shared-shim-assumption-self-confirming.md) — 对拍全绿≠真机真值：双端共享模拟器参数时四层证据互相印证同一错误前提；BUG-008"缺底边"= shim 字高 10 裁半饰条，真值考据分工 javap 管反编译、设计反证/真机管参数
 - [共享工作区裸 commit 卷队友暂存](gotcha_shared-workspace-bare-commit-sweeps-index.md) — 裸 git commit 提交整个索引（含队友 git add 的文件）⇒ 声称/内容/写范围三不符（117aba7、ba14d4e 两起）；pathspec 提交强制（`git commit -- <路径>`，禁裸 commit/add -A），提交前 `git diff --cached --stat` 三对账
 - [cargo mtime 旧指纹假红](gotcha_cargo-mtime-stale-rlib-false-red.md) — Copy-Item/git checkout 还原带回旧 mtime ⇒ cargo 跳过 lib 重编链旧 rlib，报"no X in the root"假红（build 却 Finished）；touch 时间戳 / cargo clean / git archive temp 复现法三防
+- [Android 主循环饿死+按键批吞键](gotcha_android-looper-starvation-and-key-fold.md) — `while pollAll(16)>=0` 在 Move 流下不退出（长按断拍 1053ms）+ 批"取末动作"把 [Press,Release] 折成 0 ⇒ 触屏全不通；pump 非阻塞排空+按下锁存（2026-10-26 实机）
 
 ## Patterns
 
@@ -53,6 +54,7 @@
 - [壳音频 dlopen ALSA 而非 rodio/cpal](decision_shell-audio-dlopen-alsa.md) — alsa-sys 构建期要 libasound2-dev，CI 缺包且违反不依赖系统包；运行时 dlopen 零构建依赖（代价：暂仅 Linux）
 - [生成物禁手改，改配置源重生成](decision_generated-docs-edit-via-config-source.md) — coverage-matrix 等判定/销账改 tools/cover_matrix.py ARM_GAPS 后重生成；手改仅限显式声明过渡态（6467342，lead 同 commit 自纠）
 - [存档/读档路径由外部 shell 注入](decision_save-path-shell-injection.md) — 平台路径规范各异（Windows exe 目录\save vs Android 应用私有目录宿主注入）；game-core 零 I/O，`--save` 注入缝 + 平台默认（2026-10-17，BUG-018 连带架构决策）
+- [主菜单触屏=原版轮播触屏化](decision_touch-title-carousel-stage-b.md) — 点左/右热区切项、点标签确认、水平滑切项 + Modern 底栏 ×2 + 美术整数倍；取代 2c 六行隐形横条（误触退出）（2026-10-26 用户裁定 C）
 
 ## Reference
 
