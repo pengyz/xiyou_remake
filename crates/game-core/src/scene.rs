@@ -1738,6 +1738,10 @@ impl GameScene {
     /// loadLevelScript（a.java:8035-8052）：mode 11 + 脚本行装载。
     /// case 31 层重排特例（a.java:8028-8028）未达（script 40 不涉），todo 守卫。
     pub fn load_level_script(&mut self, idx: i32) {
+        // 【2026-10-26·BUG-025】剧情接管 = 收束触屏寻路段（WalkTo 走进剧情点）：段收于实际终点、清余步。
+        // 否则剧情中投键（press_key 见段开放即打断）截断脚本 MOV 行走，dp3 步尽臂还会把
+        // 剧情中途切回 Map。经典面（无寻路段）interrupt_route 零操作。
+        self.interrupt_route();
         self.script_walk_armed = false;
         self.transition_to(GameMode::Dialog);
         self.dialog_page = 0;
@@ -1915,11 +1919,17 @@ impl GameScene {
     /// （手动优先）。位移段收于**实际终点**入栈（中断=实际终点，T1 挂点契约）。
     /// 仅对 WalkTo/探步寻路段生效：经典脚本行走（MOV/dp2）key 链一行不动
     /// （plan §0 保真红线"key 行为链一行不动"）。
+    /// > 【2026-10-26 更正·BUG-025】旧实现**无条件**清 walkPathBuffer/walkStepCount（与上句承诺相反）；
+    /// > 壳层每次投键都先调本函数（android replay_scene_keys / win route_key / 触屏 Dispatcher）⇒
+    /// > 剧情中连点"确定"截断脚本 MOV 的实体路径（dp2）与玩家脚本行走（dp3）——用户实机
+    /// > "跳过教程后，嫦娥脚本行为异常"（一层 script19 嫦娥停在半路、后续 MOV/DES 落空）。
+    /// > 现：仅寻路段开放或挂起（战斗/拾取后待续走）时清；否则零操作。
     pub fn interrupt_route(&mut self) {
-        if self.route.is_open() {
-            let at = (self.player_cell_x, self.player_cell_y);
-            self.route.interrupt(at, &mut self.undo);
+        if !self.route.is_open() && !self.route.is_suspended() {
+            return;
         }
+        let at = (self.player_cell_x, self.player_cell_y);
+        self.route.interrupt(at, &mut self.undo);
         self.walk_path_buffer.clear();
         self.walk_step_count = 0;
     }
@@ -10115,5 +10125,46 @@ mod t2_walkto_route_tests {
         assert!(before > 0);
         sc.press_key(-4);
         assert_eq!(sc.walk_step_count, before, "经典面 key 链一行不动（缓冲不清）");
+    }
+
+    /// 【2026-10-26 用户实机"跳过教程后，嫦娥脚本行为异常"】壳层投键口径 = 每次按键/抬键前先
+    /// `interrupt_route()`（android replay_scene_keys / win route_key / 触屏 Dispatcher）。
+    /// 无 WalkTo 段时它必须零操作——旧实现无条件清 walkPathBuffer/walkStepCount ⇒ 剧情里
+    /// 连点"确定"截断 MOV 实体路径（dp2）与玩家脚本行走（dp3）：嫦娥停在半路、后续
+    /// `MOV_84_x_y_…` 找不到她而跳过、`DES_84_10_1` 落空（Java keyPressed 只写
+    /// keyValue/keyHeldCode，a.java:4663-4676）。
+    #[test]
+    fn t2_interrupt_route_without_open_route_keeps_script_walk() {
+        let mut sc = scene((1, ROW), &[]);
+        sc.find_path(1, ROW, 5, ROW); // 脚本 MOV 同口
+        let (steps, buf) = (sc.walk_step_count, sc.walk_path_buffer.clone());
+        assert!(steps > 0 && !sc.route.is_open());
+        sc.interrupt_route();
+        assert_eq!((sc.walk_step_count, &sc.walk_path_buffer), (steps, &buf), "无寻路段：打断=零操作");
+        // 寻路段被战斗/拾取挂起时（段已收、待续走），任意输入仍须打断续走
+        sc.walk_to(5, ROW);
+        sc.route_event_suspend();
+        assert!(!sc.route.is_open() && sc.route.is_suspended() && sc.walk_step_count > 0);
+        sc.interrupt_route();
+        assert_eq!(sc.walk_step_count, 0, "挂起中的寻路余步：打断清除");
+        assert!(!sc.route.is_suspended(), "打断=挂起解除");
+    }
+
+    /// 同一 bug 的第二入口：触屏点格寻路（WalkTo）走进剧情点 ⇒ 剧情接管时寻路段仍开放 ⇒
+    /// 剧情中点"确定"（press_key 见段开放即打断）照样截断脚本行走，且 dp3 步尽臂
+    /// `walk_step_count==0 && route.is_open()` 会把剧情中途切回 Map。剧情接管必须收束寻路段。
+    #[test]
+    fn t2_script_takeover_closes_walkto_route() {
+        let mut sc = scene((1, ROW), &[]);
+        sc.dialog_data.scripts = vec!["TAK_0_0 ".to_string()];
+        sc.walk_to(5, ROW);
+        assert!(sc.route.is_open());
+        sc.load_level_script(0);
+        assert!(!sc.route.is_open() && !sc.route.is_suspended(), "剧情接管 = 寻路段收束");
+        sc.find_path(1, ROW, 5, ROW); // 剧情 MOV
+        let steps = sc.walk_step_count;
+        sc.press_key(-5);
+        sc.interrupt_route();
+        assert_eq!(sc.walk_step_count, steps, "剧情行走不受投键打断");
     }
 }

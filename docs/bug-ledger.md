@@ -300,6 +300,30 @@ Evidence: A 级——Java switch 无 default 臂（a.java remove_des 源）+单�
 - **根因**：参考版 Java 中的方法/行（反混淆命名后引用）
 - **Stage A 处理**：`保真保留` / `保留但登记偏差`（差分白名单编号）
 
+## BUG-025 剧情行走中连点"确定"⇒ 嫦娥走位戏错乱（壳层投键打断寻路误清脚本行走路径，用户实机，已修复）
+
+> 【2026-10-26 用户实机报告】"跳过教程后，嫦娥脚本行为异常"——"不是 soft lock，没有锁死，脚本执行了，
+> 但行为异常"。实机截图：一层嫦娥停在左走廊半路、玩家挡在其下，剧情草草收尾。
+- **现象**：一层 script19（嫦娥走位戏 `CES_84_7_7 MOV_84_7_7_6_8 … MOV_84_1_1_10_1 MOV_0_6_1 DES_84_10_1 …`）
+  进行中，嫦娥/玩家脚本行走期间点"确定"（触屏面板、键盘同口）⇒ 行走被截断停在半路；其后
+  `MOV_84_<格>…` 按格找不到嫦娥而跳过、`DES_84_10_1` 落空 ⇒ 嫦娥滞留、剧情走样。与逻辑分辨率无关
+  （classic 240×320 与竖屏 12×16 同表现）。
+- **复现**：`cargo test -p game-android --release --test script_walk_taps`（修复前两测红："嫦娥走到 (6,8)"）；
+  Java 锚夹具 `crates/game-oracle/tests/fixtures/fx-chang-e-floor1-taps.*`（A==B==C，2400 帧，T320 起每 16 拍 -5）
+  按壳层投键口径重放（`fx_chang_e_floor1_taps_shell_key_path_frames_match`）修复前 TICK 387 帧不符。
+- **根因**：Stage B 触屏寻路（b2dc630 / f4ce171）的 `GameScene::interrupt_route` 文档承诺"仅对 WalkTo/探步
+  寻路段生效、经典脚本行走 key 链一行不动"，实现却**无条件**清 walkPathBuffer/walkStepCount；壳层每次投键先调它
+  （android `replay_scene_keys`、win `route_key`、触屏 Dispatcher）⇒ 截断脚本 MOV 的实体路径（dp2）与玩家脚本
+  行走（dp3）。第二入口：触屏点格寻路走进剧情点时寻路段不收束，剧情中 `press_key` 见段开放仍会打断。
+  Java 锚：`keyPressed` 只写 keyValue/keyHeldCode（a.java:4663-4676），行走期按键不动路径。
+- **影响**：所有含脚本行走的剧情在"边走边点"时走样（一层嫦娥戏最显眼）；对拍夹具直投 `press_key`、绕过壳层
+  投键路径 ⇒ 门禁未覆盖。
+- **Stage A 处理**：**已修复**——`interrupt_route` 仅在寻路段开放或挂起（战斗/拾取待续走）时清；
+  `load_level_script` 剧情接管先收束寻路段。core 单测 `t2_interrupt_route_without_open_route_keeps_script_walk` /
+  `t2_script_takeover_closes_walkto_route` + Java 锚壳层口径对拍 + Android 运行时全链两测。
+- **Stage B 修复方案**：—。
+Evidence: A 级——a.java:4663-4676 keyPressed 原文 + fx-chang-e-floor1-taps Java 三方一致帧锚（壳层投键口径 2400/2400 帧一致）。Confidence: 95
+
 ## BUG-026 changeFloor 误写 gameMode=3 ⇒ 剧情脚本行走踩楼梯切层即丢弃剩余脚本（移植偏差，已修复）
 
 - **现象**：剧情中 MOV 让玩家走上楼梯格（一层 script19 尾 `MOV_0_11_1` 走上 (11,1) 楼梯 → 2 层续

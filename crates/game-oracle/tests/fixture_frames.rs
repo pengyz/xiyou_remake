@@ -1156,6 +1156,152 @@ fn bug012b_floor2_stair_transition_repro() {
     );
 }
 
+// ===== 【2026-10-26】嫦娥剧情链夹具 Modern 重跑（用户实机报"跳过教程后，嫦娥脚本行为异常"）=====
+// 判据：同一夹具输入，Modern 逻辑分辨率下**逐拍逻辑状态**（state_dump，除相机/视口尺寸 4 项——
+// 视口变大相机值必然不同）= classic；classic 档本驱动同时逐帧断言 Java 帧 sha（与
+// replay_opt 同构驱动：classic 档 = Java 锚定，Modern 档以其为参照）。
+
+/// 视口相关项（Modern 下必然不同，不入逻辑对拍）。`ease` = lockCameraOn 缓动坐标
+/// （ease_cam = (view−32)/2 − cam，随视口派生），仅供探针打印。
+const VIEW_FIELDS: [&str; 5] = ["cameraPixelX", "cameraPixelY", "viewWidthPx", "viewHeightPx", "ease"];
+
+/// replay_opt 同构驱动 + 场景布局注入；逐拍（tick+paint 后）导出逻辑状态到 `out`。
+/// classic 布局时逐帧断言 Java 帧 sha。`out` 逐拍追加 ⇒ panic 时前缀仍可用。
+/// `shell_keys`：按壳层投键口径投递（win `route_key` / android `replay_scene_keys`：每次按键/抬键
+/// 前先 `interrupt_route()`，再 press_key / release_key）——验证壳层投键路径与 Java 一致。
+fn replay_logic_with(
+    preset_text: &str,
+    records: &[FrameRec],
+    layout: &game_core::layout::Layout,
+    shell_keys: bool,
+    out: &mut Vec<Vec<String>>,
+) {
+    let classic = layout.preset == game_core::layout::Preset::Classic;
+    let stores = parse_preset(preset_text);
+    let mot_l0 = &stores.iter().find(|(k, _)| k.starts_with("MOT_L0@")).expect("MOT_L0").1;
+    let save = parse_floor_save(mot_l0, 0).unwrap();
+    let floors = all_floors();
+    let cur = floors[save.current_floor as usize].clone().expect("存档层资产");
+    let width_table: Vec<i32> = numbers(include_str!("../../game-core/tests/fixtures/type_width_px.txt"));
+    let walkability: Vec<i32> = numbers(include_str!("../../game-core/tests/fixtures/tile_walkability.txt"));
+    let combat_tables = game_core::combat::CombatTables {
+        enemy_base_hp: numbers(include_str!("../../game-core/tests/fixtures/enemybasehp.txt")),
+        enemy_base_atk: numbers(include_str!("../../game-core/tests/fixtures/enemybaseatk.txt")),
+        enemy_base_def: numbers(include_str!("../../game-core/tests/fixtures/enemybasedef.txt")),
+        difficulty_multipliers: numbers(include_str!("../../game-core/tests/fixtures/difficulty_multipliers.txt")),
+    };
+    let images = scene_images();
+    let mut machine = BootMachine::new(
+        decode_png(&raw("l0.png")),
+        decode_png(&raw("l1.png")),
+        load_container("sflogo", 8),
+        load_container("ui", 25),
+        load_container("menu", 2),
+        load_container("mapbg", 1)[0].clone(),
+        load_container("intro", 2),
+        load_container("end", 1),
+        load_container("load", 2),
+    );
+    machine.preset_stores = stores.clone();
+    machine.sptarm = load_container("sptarm", 10);
+    let tileset = load_container("map", 12)[0].clone();
+    // 开场链恒 classic（夹具输入按原版时间轴编排）；场景接管时注入被测布局
+    let mut boot_screen = ArgbImage::create(game_core::layout::SCREEN_W, game_core::layout::SCREEN_H);
+    let mut scene_screen = ArgbImage::create(layout.screen_w, layout.screen_h);
+    let mut scene: Option<GameScene> = None;
+    let (mut pending_key, mut pending_press, mut pending_release) = (0i32, 0i32, false);
+    for rec in records {
+        let key = pending_key;
+        pending_key = press_code(&rec.input);
+        if let Some(sc) = scene.as_mut() {
+            if pending_press != 0 {
+                if shell_keys {
+                    sc.interrupt_route();
+                }
+                sc.press_key(pending_press);
+                pending_press = 0;
+            }
+            if pending_release {
+                if shell_keys {
+                    sc.interrupt_route();
+                }
+                sc.release_key();
+                pending_release = false;
+            }
+            sc.tick(rec.tick as i64 - 1, &width_table);
+            match rec.input.as_deref() {
+                Some(i) if i.starts_with("press(") => pending_press = press_code(&rec.input),
+                Some(i) if i.starts_with("release(") => pending_release = true,
+                _ => {}
+            }
+        } else {
+            machine.tick(key);
+            if machine.mode == GameMode::Map && machine.slot_loaded.is_some() {
+                let m = &machine;
+                let mut sc = game_core::scene::load_floor_from_save(
+                    &cur.maplv,
+                    &cur.records,
+                    &width_table,
+                    &walkability,
+                    images.clone(),
+                    floors.clone(),
+                    &save,
+                )
+                .unwrap();
+                sc.apply_layout(layout.clone());
+                sc.backdrop_scroll = m.backdrop.scroll();
+                if let Some(t) = &m.title {
+                    sc.menu_cursor = t.cursor;
+                    sc.bob_offset = t.bob;
+                    sc.bob_rising = t.bob_rising;
+                }
+                sc.strip_frame = m.strip_frame;
+                sc.preset_mot_if =
+                    m.preset_stores.iter().find(|(k, _)| k.starts_with("MOT_IF@")).map(|(_, v)| v.clone());
+                sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
+                sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
+                sc.enemy_base_gold = numbers(include_str!("../../game-core/tests/fixtures/enemybasegold.txt"));
+                sc.rng = m.rng.clone();
+                if pending_key != 0 {
+                    sc.press_key(pending_key);
+                    pending_key = 0;
+                }
+                scene = Some(sc);
+            }
+        }
+        let screen = if scene.is_some() { &mut scene_screen } else { &mut boot_screen };
+        let (w, h) = (screen.width, screen.height);
+        {
+            let mut g = SoftGraphics::new(screen);
+            g.set_clip(0, 0, w, h);
+            g.set_font(Some(game_core::paint::paint_font()));
+            match scene.as_mut() {
+                Some(sc) => sc.paint(&mut g, &tileset),
+                None => machine.paint(&mut g),
+            }
+        }
+        if classic {
+            let sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
+            assert_eq!(sha, rec.sha, "classic 档 TICK {} 帧不符（驱动须与 Java 锚定）", rec.tick);
+        }
+        out.push(match scene.as_ref() {
+            Some(sc) => {
+                let mut v: Vec<String> = game_oracle::state_dump::dump_scene(sc)
+                    .into_iter()
+                    .filter(|l| !VIEW_FIELDS.iter().any(|f| l.starts_with(&format!("{f} = "))))
+                    .collect();
+                // 探针附行（不入对拍：比较前按 VIEW_FIELDS 前缀剔除）
+                v.push(format!(
+                    "ease = cam({},{}) ease({},{})→({},{})",
+                    sc.view.cam_x, sc.view.cam_y, sc.ease_cam_x, sc.ease_cam_y, sc.ease_target_x, sc.ease_target_y
+                ));
+                v
+            }
+            None => vec![format!("boot mode={:?}", machine.mode)],
+        });
+    }
+}
+
 // ===== 【2026-10-26】一层嫦娥走位戏（script19）+ 剧情中连点"确定"（用户实机报"跳过教程后，
 // 嫦娥脚本行为异常"）——Java 锚定夹具 fx-chang-e-floor1-taps（A==B==C，2400 帧）=====
 
@@ -1190,4 +1336,15 @@ fn fx_chang_e_floor1_taps_frames_match() {
     // MOV_0_1_11 于 2 层 → 2 层天牢嫦娥 = floor2 恢复钩子刷的 84@(11,4)（evidence-boss §4.1）
     assert_eq!(sc.floor, 2, "script19 尾 MOV_0_11_1 走上楼梯 → 2 层");
     assert_eq!(chang_e_cells(&sc), vec![((11, 4), 0)], "2 层天牢嫦娥（floor2 恢复钩子）");
+}
+
+/// 壳层投键口径（每次按键前 interrupt_route，= android replay_scene_keys / win route_key）：
+/// 同一夹具也必须逐帧 = Java——剧情行走（MOV 实体路径 dp2 / 玩家脚本行走 dp3）期间连点
+/// "确定"不得截断 walkPathBuffer（Java keyPressed 只写 keyValue/keyHeldCode，a.java:4663）。
+#[test]
+fn fx_chang_e_floor1_taps_shell_key_path_frames_match() {
+    let (records, preset) = fx_chang_e_floor1_taps();
+    let mut out = Vec::new();
+    replay_logic_with(preset, &records, &game_core::layout::Layout::classic(), true, &mut out);
+    assert_eq!(out.len(), records.len(), "T1-2400 全帧必须比对（壳层投键口径）");
 }
