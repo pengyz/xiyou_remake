@@ -116,6 +116,11 @@ pub const OUTLINE_DP: f32 = 2.0;
 /// 箭头占臂格比例（顶点/底边距格心 ±c·ARROW_FRAC、半底宽 c·ARROW_FRAC）。
 pub const ARROW_FRAC: f32 = 0.25;
 
+/// 画布内软键栏（**core 参数 `Layout::softkey_bar_visible`，由本壳配置**）：竖屏组成的控制面板
+/// 已画同款软键图标（ui[11] ×icon_scale），画布内 HUD/菜单左右下角的小图标与之重复 ⇒ 关。
+/// core 默认开（横屏旧路径 / PC 壳不配置 = 原版照画）。
+pub const CANVAS_SOFTKEY_BAR: bool = false;
+
 /// AConfiguration 密度码 → dpi：DEFAULT=0 / ANY=0xfffe / NONE=0xffff（及越界）⇒ 160
 /// （dp 基准：1dp = 1px，最保守——不放大控件也不缩小）。
 pub fn dpi_or_baseline(raw: i32) -> i32 {
@@ -190,9 +195,12 @@ pub struct Canvas {
 }
 
 impl Canvas {
-    /// Modern 布局（逻辑尺寸以 layout 为准：modern 最小钳位 = 原分辨率 240×320）。
+    /// Modern 布局（逻辑尺寸以 layout 为准：modern 最小钳位 = 原分辨率 240×320）+ 本壳呈现
+    /// 配置（画布内软键栏 = [`CANVAS_SOFTKEY_BAR`]）。
     pub fn layout(&self) -> Layout {
-        Layout::modern(self.grid_w, self.grid_h)
+        let mut l = Layout::modern(self.grid_w, self.grid_h);
+        l.softkey_bar_visible = CANVAS_SOFTKEY_BAR;
+        l
     }
 
     /// 逻辑尺寸。

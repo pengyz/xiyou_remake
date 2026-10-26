@@ -296,6 +296,16 @@ fn panel_paint_shows_dpad_ok_and_pressed_feedback() {
 }
 
 #[test]
+fn portrait_canvases_hide_in_canvas_softkey_bar() {
+    // 壳层配置（core 参数 Layout::softkey_bar_visible）：竖屏组成 = 画布 + 控制面板，面板软键已画
+    // 同款图标（×icon_scale）⇒ 两档画布都关画布内软键栏；core 默认（横屏旧路径 / PC）照画。
+    let p = plan_portrait(&xm14());
+    assert!(!p.scene.layout().softkey_bar_visible, "游戏档：HUD 左右下角小图标不画");
+    assert!(!p.boot.layout().softkey_bar_visible, "开场链档：菜单页角标不画");
+    assert!(game_core::layout::Layout::modern(18, 18).softkey_bar_visible, "core 默认不变（壳不配置 = 原版）");
+}
+
+#[test]
 fn runtime_dual_layouts_handoff_uses_scene_layout() {
     use game_android::runtime::{build_boot_machine, Runtime};
     let src = assets();
@@ -313,6 +323,7 @@ fn runtime_dual_layouts_handoff_uses_scene_layout() {
     rt.step(&src, &[], Vec::new(), Vec::new());
     let sc = rt.scene.as_ref().expect("交接");
     assert_eq!((sc.layout.screen_w, sc.layout.screen_h), p.scene.logical(), "游戏场景=scene 档");
+    assert!(!sc.layout.softkey_bar_visible && !rt.machine.layout.softkey_bar_visible, "两机都用壳配置（画布软键栏关）");
     assert_eq!(rt.active_canvas(&p), p.scene, "场景期活动画布=scene 档");
     let _ = std::fs::remove_dir_all(&dir);
 }
