@@ -33,6 +33,8 @@
 - [共享工作区裸 commit 卷队友暂存](gotcha_shared-workspace-bare-commit-sweeps-index.md) — 裸 git commit 提交整个索引（含队友 git add 的文件）⇒ 声称/内容/写范围三不符（117aba7、ba14d4e 两起）；pathspec 提交强制（`git commit -- <路径>`，禁裸 commit/add -A），提交前 `git diff --cached --stat` 三对账
 - [cargo mtime 旧指纹假红](gotcha_cargo-mtime-stale-rlib-false-red.md) — Copy-Item/git checkout 还原带回旧 mtime ⇒ cargo 跳过 lib 重编链旧 rlib，报"no X in the root"假红（build 却 Finished）；touch 时间戳 / cargo clean / git archive temp 复现法三防
 - [Android 主循环饿死+按键批吞键](gotcha_android-looper-starvation-and-key-fold.md) — `while pollAll(16)>=0` 在 Move 流下不退出（长按断拍 1053ms）+ 批"取末动作"把 [Press,Release] 折成 0 ⇒ 触屏全不通；pump 非阻塞排空+按下锁存（2026-10-26 实机）
+- [布局派生的计时哨兵致 UI 停滞](gotcha_layout-derived-sentinel-ui-stall.md) — 序章快进 scroll_x=240 在 Modern 宽画幅 < 行宽+10 ⇒ 连按永停；且字幕排版在 paint 内、只 step 不 paint 的宿主驱动永不推进（2026-10-26 实机"序章点了不动"）
+- [精灵表取格的裁剪 blit 成本](gotcha_sprite-sheet-clip-blit-cost.md) — setClip 小窗+整表 drawImage，旧 blit 全表逐点再裁 ⇒ 97% 时间耗在被裁像素=门禁 10min 真因；裁剪窗快路径+SHA-NI ⇒ 26s（2026-10-26）
 
 ## Patterns
 
