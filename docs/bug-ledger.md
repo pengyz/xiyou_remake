@@ -299,3 +299,19 @@ Evidence: A 级——Java switch 无 default 臂（a.java remove_des 源）+单�
 - **复现**：确定性复现输入序列（trace id 或按键脚本）
 - **根因**：参考版 Java 中的方法/行（反混淆命名后引用）
 - **Stage A 处理**：`保真保留` / `保留但登记偏差`（差分白名单编号）
+
+## BUG-026 changeFloor 误写 gameMode=3 ⇒ 剧情脚本行走踩楼梯切层即丢弃剩余脚本（移植偏差，已修复）
+
+- **现象**：剧情中 MOV 让玩家走上楼梯格（一层 script19 尾 `MOV_0_11_1` 走上 (11,1) 楼梯 → 2 层续
+  `MOV_0_1_11`）：Rust 切层即回 mode 3、余下脚本丢弃；Java 在 mode 11 续跑（2 层继续脚本行走）。
+- **复现**：`fx_chang_e_floor1_taps_frames_match`（classic 引擎口径，press_key 直投）修复前 TICK 786 帧不符
+  （Rust mode=3 / Java gameMode=11，T786 Java floorTransitioning=true、T800 2 层 walkStepCount=8 scriptCursor=184）。
+- **根因**：Stage A 移植把道具 21 调用方语义（`changeFloor(+1); keyHeldCode=0; gameMode=3`，a.java:7863-7866）
+  误挂进 `change_floor` 本体；Java `changeFloor`（a.java:7135-7180）不写 gameMode。楼梯步效果（a.java:5655/5661）、
+  49/55 换乘键（5298/5304）、跳过教程（4779 调用方自写 gameMode=3）均不经此路回 mode 3。
+- **影响**：classic 路径保真缺口（原版剧情链"走楼梯换层后继续演出"被截断）；oracle 场景此前未覆盖"脚本行走踩梯"。
+- **Stage A 处理**：**已修复**——`change_floor` 不写模式；道具 21 臂按 Java 补 `key_held=0` + mode 3。
+  A-preset-item21 等全部对拍夹具保持全绿。
+- **Stage B 修复方案**：—。
+Evidence: A 级——a.java:7135-7180 changeFloor 原文无 gameMode 写；a.java:7863-7866 道具 21 调用方写 gameMode=3；
+fx-chang-e-floor1-taps Java 帧锚 T786。Confidence: 95

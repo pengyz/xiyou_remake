@@ -1211,10 +1211,12 @@ impl GameScene {
         // （removed/state==1 跳过）——死怪/已开门跨层持久
         self.save_floor_state();
         self.transitioning = true;
-        // a.java 台账实证（迭代 46，A-preset-item21 T402）：changeFloor 起
-        // 遮幅即回 mode 3（行走世界 + 遮幅点阵渐显）——面板内道具触发路径
-        // 的 gameMode 不再停留 mode 10
-        self.transition_to(GameMode::Map);
+        // > 【2026-10-26 更正·BUG-026】原此处 `transition_to(Map)`（注"changeFloor 起遮幅即回 mode 3，
+        // > A-preset-item21 T402 实证"）系**调用方语义误挂**：Java changeFloor（a.java:7135-7180）
+        // > 不写 gameMode；mode 3 来自道具 21 调用方 `changeFloor; keyHeldCode=0; gameMode=3`
+        // > （a.java:7863-7866）。误挂使**脚本行走踩楼梯**（mode 11 中 MOV 走上梯格，如一层嫦娥
+        // > 走位戏 script19 尾 `MOV_0_11_1 MOV_0_1_11`）切层即回 mode 3、丢弃剩余脚本——Java 在
+        // > mode 11 续跑（fx-chang-e-floor1-taps T786：Java gameMode=11，2 层续走 MOV_0_1_11）。
         if target < self.min_floor {
             self.min_floor = target;
         } else if target > self.max_floor {
@@ -3437,8 +3439,12 @@ impl GameScene {
                 }
             }
             21 => {
-                // a.java:7851-7852：changeFloor(+1)——返回值即消耗与否
-                self.change_floor(self.floor + 1, false, false)
+                // a.java:7863-7866：changeFloor(+1)（返回值即消耗与否）+ keyHeldCode=0 + gameMode=3
+                //（面板内道具触发路径不停留 mode 10——A-preset-item21 T402 实证；mode 3 归本调用方，BUG-026）
+                let consumed = self.change_floor(self.floor + 1, false, false);
+                self.key_held = 0;
+                self.transition_to(GameMode::Map);
+                consumed
             }
             _ => false,
         }

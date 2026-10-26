@@ -1155,3 +1155,39 @@ fn bug012b_floor2_stair_transition_repro() {
         "T328 TAK_8_9 剧情对话开启（Java dialogPage=8/phase1/cursor31）: {t328}"
     );
 }
+
+// ===== 【2026-10-26】一层嫦娥走位戏（script19）+ 剧情中连点"确定"（用户实机报"跳过教程后，
+// 嫦娥脚本行为异常"）——Java 锚定夹具 fx-chang-e-floor1-taps（A==B==C，2400 帧）=====
+
+/// 嫦娥（型 84）在场实体的格与态（state 1 = DES 移除态）。
+fn chang_e_cells(sc: &GameScene) -> Vec<((i32, i32), u8)> {
+    (0..sc.entities.count)
+        .map(|i| &sc.entities.items[i])
+        .filter(|e| e.type_ == 84)
+        .map(|e| ((e.px >> 5, e.py >> 5), e.state))
+        .collect()
+}
+
+fn fx_chang_e_floor1_taps() -> (Vec<FrameRec>, &'static str) {
+    let records = frame_records(include_str!("fixtures/fx-chang-e-floor1-taps.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-chang-e-floor1-taps.txt"));
+    (records, include_str!("fixtures/fx-chang-e-floor1-taps.preset"))
+}
+
+/// classic 引擎口径（press_key 直投）：2400 帧逐帧 = Java。
+#[test]
+fn fx_chang_e_floor1_taps_frames_match() {
+    let (records, preset) = fx_chang_e_floor1_taps();
+    let (checked, sc) = replay("fx-chang-e-floor1-taps", preset, &records);
+    assert_eq!(checked, records.len(), "T1-2400 全帧必须比对");
+    eprintln!(
+        "FX-CHANGE-END floor={} mode={:?} script={} cursor={} cell=({},{}) flags19={} e84={:?}",
+        sc.floor, sc.game_mode, sc.current_script_index, sc.script_cursor, sc.player_cell_x, sc.player_cell_y,
+        sc.script_line_flags[19], chang_e_cells(&sc)
+    );
+    assert!(sc.script_line_flags[19], "script19 跑完置位");
+    // Java 末态（T2400 帧逐帧一致）：嫦娥 (10,1) 被 DES 后玩家脚本走上 (11,1) 楼梯 → mode 11 续跑
+    // MOV_0_1_11 于 2 层 → 2 层天牢嫦娥 = floor2 恢复钩子刷的 84@(11,4)（evidence-boss §4.1）
+    assert_eq!(sc.floor, 2, "script19 尾 MOV_0_11_1 走上楼梯 → 2 层");
+    assert_eq!(chang_e_cells(&sc), vec![((11, 4), 0)], "2 层天牢嫦娥（floor2 恢复钩子）");
+}
