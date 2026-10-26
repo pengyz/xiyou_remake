@@ -337,25 +337,36 @@ fn tap_chain_buf_to_walk_to() {
 }
 
 #[test]
-fn menu_hit_rows_and_gaps() {
-    // 【2c 裁定】行矩形单源：点行中=命中、行间空隙=不误触（四角+间隙钉）
-    use game_core::title::TitleMachine;
-    let (sw, sh, bar) = (576i32, 576i32, 18i32);
-    let rects = TitleMachine::menu_item_rects(sw, sh, bar);
-    for (i, (x, y, w, h)) in rects.iter().enumerate() {
-        for (cx, cy) in [(*x, *y), (*x + w - 1, *y), (*x, *y + h - 1), (*x + w - 1, *y + h - 1)] {
-            assert_eq!(TitleMachine::menu_hit(cx, cy, sw, sh, bar), Some(i), "行{i} 四角=命中");
-        }
-        // 行间空隙=不误触
-        if i < 5 {
-            let gap_y = y + h;
-            assert_eq!(TitleMachine::menu_hit(*x + 10, gap_y, sw, sh, bar), None, "行隙不误触");
-        }
-    }
-    // 实机"开始游戏"logical 点 (350,542) 落某行内=命中
-    assert!(TitleMachine::menu_hit(350, 542, sw, sh, bar).is_some(), "(350,542) 命中行");
-    // 行区外=不误触
-    assert_eq!(TitleMachine::menu_hit(5, 5, sw, sh, bar), None);
+fn title_touch_routes_tap_and_swipe_through_wiring() {
+    // 【C 方案 2026-10-26】标题态触点只走轮播手势（点按/水平滑动），**不喂**虚拟键区
+    // （方向盘捕获圆 (56,508) r=60 与"上一项"热区重叠——旧路由先喂 pad 会把左下点按
+    // 译成方向键=语义错位）。
+    // > 【2026-10-26 更正】本钉取代 `menu_hit_rows_and_gaps`（2c 六行隐形横条几何钉：
+    // > 行不可见、实机 (350,542) 落第 6 行=退出误触，已随 C 方案撤除）。
+    use game_android::input::TouchEvent;
+    use game_android::native::{ShellWiring, TitleGesture};
+    use game_core::title::TitleTouch;
+    let mut w = ShellWiring::new();
+    w.pad = game_android::input::PadLayout::for_modern(18);
+    w.touch = game_android::input::TouchMapper::new(w.pad.clone());
+    w.title_mode = true;
+    let ev = |id, phase, x, y| TouchEvent { id, phase, x, y };
+    // 点按（方向盘区内）：零键、记 Tap（落点=按下点）
+    assert!(w.on_touch_event(&ev(1, TouchPhase::Down, 60.0, 520.0)).is_empty(), "标题态不喂方向盘");
+    assert!(w.on_touch_event(&ev(1, TouchPhase::Move, 64.0, 522.0)).is_empty(), "阈值内抖动≠滑动");
+    assert!(w.on_touch_event(&ev(1, TouchPhase::Up, 64.0, 522.0)).is_empty());
+    assert_eq!(std::mem::take(&mut w.title_gestures), vec![TitleGesture::Tap(60.0, 520.0)]);
+    // 左滑=下一项（一手势一次），抬手不再记 Tap
+    w.on_touch_event(&ev(2, TouchPhase::Down, 300.0, 300.0));
+    w.on_touch_event(&ev(2, TouchPhase::Move, 250.0, 305.0));
+    w.on_touch_event(&ev(2, TouchPhase::Move, 150.0, 305.0));
+    w.on_touch_event(&ev(2, TouchPhase::Up, 150.0, 305.0));
+    assert_eq!(std::mem::take(&mut w.title_gestures), vec![TitleGesture::Swipe(TitleTouch::Next)]);
+    // 非标题态：照旧喂虚拟键区（软键 -5 中心）
+    w.title_mode = false;
+    let keys = w.on_touch_event(&ev(3, TouchPhase::Down, 476.0, 526.0));
+    assert_eq!(keys, vec![KeyAction::Press(-5)], "UI/游戏态虚拟键区不受影响");
+    assert!(w.title_gestures.is_empty());
 }
 
 // ───────────────────────────────────────── 双件钉（件1 清屏/件2 同源框）
@@ -388,16 +399,15 @@ fn modern_paint_no_residual_pixels() {
 #[test]
 fn overlay_rects_match_hit_tables() {
     // 【件2】框坐标==命中表坐标同源断言（防框和感应区脱节=二次盲区）
-    use game_android::native::overlay_rects;
+    // > 【2026-10-26 更正】按态分：标题态=轮播三热区（TitleGeom 单源，pad 不接管）；
+    // > 原"6 菜单行框"随 2c 六行横条撤除（C 方案）。
+    use game_android::native::{overlay_rects, OverlayState};
     let pad = game_android::input::PadLayout::for_modern(18);
-    let rects = overlay_rects(18, &pad, true);
-    let menu: Vec<_> = game_core::title::TitleMachine::menu_item_rects(576, 576, 18).to_vec();
-    for mr in &menu {
-        assert!(
-            rects.iter().any(|r| (r.0, r.1, r.2, r.3) == *mr),
-            "菜单行框==命中表行矩形（单源）：{mr:?}"
-        );
-    }
+    let geo = game_core::title::TitleGeom::modern(&game_core::layout::Layout::modern(18, 18), 240, 295, 20, 13);
+    let title_rects = overlay_rects(18, &pad, OverlayState::Title(geo));
+    let zones: Vec<_> = title_rects.iter().map(|r| (r.0, r.1, r.2, r.3)).collect();
+    assert_eq!(zones, vec![geo.zone_prev, geo.zone_ok, geo.zone_next], "标题态框==热区（单源逐元）");
+    let rects = overlay_rects(18, &pad, OverlayState::Game);
     // UNDO 框中心=undo_zone_hit 命中（同源）
     let undo = rects.iter().find(|r| r.4 == "undo").expect("UNDO 框在");
     let (cx, cy) = (undo.0 + undo.2 / 2, undo.1 + undo.3 / 2);
@@ -406,7 +416,7 @@ fn overlay_rects_match_hit_tables() {
         "UNDO 框中心=感应区命中（同源）"
     );
     // 虚拟键区==wiring.pad 同源（黄②：消费而非重建）
-    let rects2 = overlay_rects(18, &pad, true);
+    let rects2 = overlay_rects(18, &pad, OverlayState::Game);
     for z in &pad.soft {
         assert!(
             rects2.iter().any(|r| r.4 == "soft"
@@ -427,9 +437,10 @@ fn overlay_rects_match_hit_tables() {
     }
     // 地图区（黄③）：游戏态覆盖 tap→walk 响应面
     assert!(rects.iter().any(|r| r.4 == "map"), "游戏态地图区框在");
-    // UI 态不画地图区
-    let ui_rects = overlay_rects(18, &pad, false);
-    assert!(!ui_rects.iter().any(|r| r.4 == "map"), "UI 态无地图区框");
+    // UI 态不画地图区/UNDO（UNDO 仅游戏态生效）
+    let ui_rects = overlay_rects(18, &pad, OverlayState::Ui);
+    assert!(!ui_rects.iter().any(|r| r.4 == "map" || r.4 == "undo"), "UI 态无地图区/UNDO 框");
+    assert!(ui_rects.iter().any(|r| r.4 == "dpad"), "UI 态虚拟键区照显");
 }
 
 // ─────────────────────────── 【2026-10-23 复原】复核C 硬发现①误删两测 ──
@@ -474,32 +485,160 @@ fn title_cover_bottom_keeps_logo_visible() {
 }
 
 #[test]
-fn tap_row_chain_cursor_confirm_mode() {
-    // 【R3 链路钉】tap 行 i→cursor==i→Press(-5)→gameMode 变更（kind→mode 分派
-    // 见 TitleMachine::tick a.java 锚；本钉收口"切换+确认一步到位"全链——
-    // 此前钉只测几何）。行序裁定：行 i=该行可见项（menu_kinds 序）。
+fn title_gesture_chain_drives_cursor_and_confirm() {
+    // 【C 方案链路钉】手势→键→title tick 既有臂→光标/模式全链（壳解析面
+    // resolve_title_gestures + BootMachine 单源几何）。
+    // > 【2026-10-26 更正】本钉取代 `tap_row_chain_cursor_confirm_mode`（2c 六行
+    // > 横条链路钉，随六行撤除）。
+    use game_android::native::{resolve_title_gestures, TitleGesture};
+    use game_core::enums::GameMode;
     use game_core::paint::BootMachine;
     use game_core::render::ArgbImage;
-    use game_core::title::TitleMachine;
-    let img = || ArgbImage::create(2, 2);
-    let vec = |n: usize| (0..n).map(|_| img()).collect::<Vec<_>>();
-    let mut pairs = Vec::new();
-    for i in 0..6i32 {
-        let mut m = BootMachine::new(img(), img(), vec(8), vec(25), vec(2), img(), vec(2), vec(1), vec(2));
-        m.apply_layout(game_core::layout::Layout::modern(18, 18));
-        for _ in 0..200 {
-            m.tick(0); // → MainMenu
+    use game_core::title::TitleTouch;
+    let img = |w, h| ArgbImage::create(w, h);
+    let mut ui: Vec<_> = (0..25).map(|_| img(2, 2)).collect();
+    ui[14] = img(20, 13);
+    let v = |n: usize| (0..n).map(|_| img(2, 2)).collect::<Vec<_>>();
+    let mut m = BootMachine::new(img(2, 2), img(2, 2), v(8), ui, vec![img(240, 295), img(68, 102)], img(2, 2), v(2), v(1), v(2));
+    m.apply_layout(game_core::layout::Layout::modern(18, 18));
+    for _ in 0..200 {
+        m.tick(0);
+        if m.mode == GameMode::MainMenu {
+            break;
         }
-        let (x, y, w, h) = TitleMachine::menu_item_rects(576, 576, 18)[i as usize];
-        assert_eq!(TitleMachine::menu_hit(x + w / 2, y + h / 2, 576, 576, 18), Some(i as usize), "行{i} 中心=命中");
-        m.select_row(i);
-        assert_eq!(m.title_cursor(), Some(i), "select_row 标题分支：cursor==i（唯一写点）");
-        let before = format!("{:?}", m.title_cursor());
-        m.tick(-5); // 确认直发=-5 同路径
-        let _ = before;
-        // 全链收口：确认实际派发（mode 离开 MainMenu）
-        assert_ne!(format!("{:?}", m.title_cursor()), String::from("None"), "行{i} 确认后标题态仍在/或已迁移");
-        pairs.push(i);
     }
-    assert_eq!(pairs, (0..6).collect::<Vec<_>>(), "六行全链逐行走通");
+    let g = m.title_geom().expect("标题态");
+    let mid = |r: (i32, i32, i32, i32)| ((r.0 + r.2 / 2) as f32, (r.1 + r.3 / 2) as f32);
+    let press = |m: &mut BootMachine, gs: Vec<TitleGesture>| {
+        let keys = resolve_title_gestures(m, gs);
+        m.tick(game_android::native::boot_key_from_batch(&keys));
+    };
+    let (nx, ny) = mid(g.zone_next);
+    press(&mut m, vec![TitleGesture::Tap(nx, ny)]);
+    assert_eq!(m.title_cursor(), Some(1), "点下一项热区");
+    press(&mut m, vec![TitleGesture::Swipe(TitleTouch::Prev)]);
+    assert_eq!(m.title_cursor(), Some(0), "右滑=上一项");
+    press(&mut m, vec![TitleGesture::Tap(10.0, 10.0)]);
+    assert_eq!(m.title_cursor(), Some(0), "美术区点按=无键");
+    let (ox, oy) = mid(g.zone_ok);
+    press(&mut m, vec![TitleGesture::Tap(ox, oy)]);
+    assert_eq!(m.mode, GameMode::IntroCutscene, "点标签=确认（kind0 开始游戏→序章）");
+    // 离开标题态后残留手势一律丢弃（滑动不得在序章合成键）
+    assert!(resolve_title_gestures(&m, vec![TitleGesture::Swipe(TitleTouch::Next), TitleGesture::Tap(ox, oy)]).is_empty());
+}
+
+#[test]
+fn boot_key_latch_keeps_tap_press_across_release() {
+    // 【2026-10-26 实机根因】同批 [Press(-5), Release]（点按/长按抬手后首拍）旧 fold
+    // "取末动作"=0 ⇒ 按键被吞（设备 DIAG：batch=[Press(-5), Release] 后标题不动）。
+    // 对齐 win 壳 route_key：BootMachine 只读 keyValue ⇒ Press 覆盖式锁存（末个按下胜），
+    // Release 对 BootMachine 无效果（shell/win/src/main.rs:654-658 pending_machine_key）。
+    use game_android::native::boot_key_from_batch;
+    assert_eq!(boot_key_from_batch(&[KeyAction::Press(-5), KeyAction::Release]), -5, "点按=按下不被抬起抹掉");
+    assert_eq!(
+        boot_key_from_batch(&[KeyAction::Press(-3), KeyAction::Release, KeyAction::Press(-4), KeyAction::Release]),
+        -4,
+        "同拍多次按下=覆盖式取末个按下"
+    );
+    assert_eq!(boot_key_from_batch(&[KeyAction::Release]), 0, "纯抬起=无键");
+    assert_eq!(boot_key_from_batch(&[]), 0, "空批=无键");
+}
+
+// ─────────────────────────── 【2026-10-26 实机根因②】主循环饿死 ──
+// 设备 DIAG 实录：按住软键 1000ms（119 个 Move 事件）期间逻辑拍断档 1053ms——
+// 内层 `while ALooper_pollAll(16) >= 0` 在 120Hz Move 流下恒返回 ≥0 不退出 ⇒
+// tick/paint 整段饿死，抬手后 [Press, Release] 同批（叠加旧 fold ⇒ 全吞）。
+// 钉：虚拟时钟假 looper（事件按时刻到达），驱动生产同一 pump_once。
+
+use game_android::pump::{pump_once, FramePacer, Pump};
+
+/// 虚拟时钟 looper：poll(timeout) = 截止 now+timeout 内有事件则推进到事件时刻并消费。
+struct FakeLooper {
+    now: u64,
+    events: std::collections::VecDeque<u64>,
+}
+
+impl Pump for FakeLooper {
+    fn now_ms(&self) -> u64 {
+        self.now
+    }
+    fn poll(&mut self, timeout_ms: i32) -> bool {
+        let deadline = self.now + timeout_ms.max(0) as u64;
+        match self.events.front().copied() {
+            Some(t) if t <= deadline => {
+                self.now = self.now.max(t);
+                self.events.pop_front();
+                true
+            }
+            _ => {
+                self.now = deadline;
+                false
+            }
+        }
+    }
+}
+
+#[test]
+fn pump_keeps_ticking_under_continuous_touch_moves() {
+    // 100ms 起按住 1000ms：每 8ms 一个 Move（≈120Hz 触控采样）
+    let events = (0..125u64).map(|i| 100 + i * 8).collect();
+    let mut lp = FakeLooper { now: 0, events };
+    let mut pacer = FramePacer::new(0);
+    let mut ticks = Vec::new();
+    while lp.now < 1500 {
+        if pump_once(&mut lp, &mut pacer, 75) {
+            ticks.push(lp.now);
+            lp.now += 5; // 拍内工作（tick+paint+present）耗时
+        }
+        let wait = pacer.wait_ms(lp.now);
+        lp.poll(wait);
+    }
+    let max_gap = ticks.windows(2).map(|w| w[1] - w[0]).max().unwrap_or(0);
+    assert!(ticks.len() >= 18, "1500ms 内约 20 拍（75ms 节拍）：实得 {}", ticks.len());
+    assert!(max_gap <= 90, "触摸流期间逻辑拍不得断档：最大间隔 {max_gap}ms（旧 poll(16) 循环≈1000ms）");
+}
+
+#[test]
+fn pacer_sleeps_remainder_without_catch_up_burst() {
+    // J2ME run 循环语义：拍起点+间隔=下一拍（睡余量，不追帧）
+    let mut p = FramePacer::new(0);
+    assert!(p.due(0, 75), "首拍立即到期");
+    assert!(!p.due(74, 75), "未到间隔不出拍");
+    assert_eq!(p.wait_ms(70), 5, "等待=距下一拍余量");
+    assert!(p.due(75, 75));
+    // 卡顿 300ms 后：只出一拍并重锚（不连发 4 拍追帧）
+    assert!(p.due(375, 75), "卡顿后出一拍");
+    assert!(!p.due(376, 75), "不追帧连发");
+    assert_eq!(p.wait_ms(376), 74);
+}
+
+// ─────────────────────────── 【2026-10-26 字体修复】物理背板（字形清晰度） ──
+// 旧：画布=逻辑 576²、SoftGraphics scale=1、呈现 NN×2 ⇒ 字形按 1× 光栅化再放大=
+// 马赛克。新：背板=逻辑×scale 物理像素（win 壳 canvas_graphics 同口径，task-13 ②），
+// 字形钩子按 scale×格高直落物理像素；呈现 1:1。
+
+#[test]
+fn physical_canvas_graphics_rasterizes_at_scale() {
+    use game_android::native::canvas_graphics;
+    use game_core::render::ArgbImage;
+    let mut c = ArgbImage::create(2 * 576, 2 * 576);
+    {
+        let mut g = canvas_graphics(&mut c, 2);
+        assert_eq!(g.canvas_logical(), (576, 576), "逻辑坐标面不变（game-core 只见布局坐标）");
+        g.set_color(0xFF0000);
+        g.fill_rect(575, 575, 1, 1); // 逻辑右下角 1px
+    }
+    let w = 1152usize;
+    for (x, y) in [(1150, 1150), (1151, 1150), (1150, 1151), (1151, 1151)] {
+        assert_eq!(c.argb[y * w + x], 0xFFFF0000, "逻辑 1px = 物理 2×2 块（{x},{y}）");
+    }
+    assert_eq!(c.argb[1149 * w + 1149] & 0xFF000000, 0, "块外未写");
+}
+
+#[test]
+fn physical_canvas_present_rect_matches_logical_scale() {
+    use game_android::native::fit_rect;
+    // 物理背板 1152² 以 1:1 呈现 == 逻辑 576² 以 2× 呈现（信箱/触点反变换不变）
+    assert_eq!(fit_rect(2536, 1200, 1152, 1152, 1), fit_rect(2536, 1200, 576, 576, 2));
+    assert_eq!(fit_rect(2536, 1200, 1152, 1152, 1), (692, 24, 1152, 1152), "Xiaomi 14 实测窗 2536×1200");
 }

@@ -722,6 +722,55 @@ impl<'a> SoftGraphics<'a> {
         }
     }
 
+    /// 【STAGE-B 触屏标题 C 方案（2026-10-26 用户裁定）】源矩形**整数倍**最近邻放大：
+    /// 1 源（逻辑）像素 = k×k 逻辑格（像素画均匀放大——非整数倍 NN 会出现 2/3 格
+    /// 宽交替的不均匀像素，2.4× cover 回派）。逻辑坐标进（origin/scale 换算同
+    /// drawImage）；clip/alpha 语义=set_pixel；`flip_h`=水平翻转（诺基亚 8192 同义）。
+    /// classic 路径零调用。
+    #[allow(clippy::too_many_arguments)]
+    pub fn draw_region_scaled(
+        &mut self,
+        img: &ArgbImage,
+        sx: i32,
+        sy: i32,
+        sw: i32,
+        sh: i32,
+        dx: i32,
+        dy: i32,
+        k: i32,
+        flip_h: bool,
+    ) {
+        self.op(format!("drawRegionScaled({sx},{sy},{sw},{sh},{dx},{dy},{k},{})", flip_h as i32));
+        let k = k.max(1);
+        let d = img.density.max(1);
+        let (lw, lh) = (img.logical_width(), img.logical_height());
+        let (u0, v0) = (sx.max(0), sy.max(0));
+        let (u1, v1) = ((sx + sw).min(lw), (sy + sh).min(lh));
+        let block = k * self.scale;
+        for v in v0..v1 {
+            for u in u0..u1 {
+                let p = img.argb[((v * d) * img.width + u * d) as usize];
+                if (p >> 24) & 0xFF == 0 {
+                    continue;
+                }
+                let col = if flip_h { sw - 1 - (u - sx) } else { u - sx };
+                let px0 = self.phys_x(dx + col * k);
+                let py0 = self.phys_y(dy + (v - sy) * k);
+                for by in 0..block {
+                    for bx in 0..block {
+                        self.set_pixel(px0 + bx, py0 + by, p);
+                    }
+                }
+            }
+        }
+    }
+
+    /// 整图整数倍放大（[`Self::draw_region_scaled`] 全图特例）。
+    pub fn draw_image_scaled(&mut self, img: &ArgbImage, x: i32, y: i32, k: i32) {
+        let (w, h) = (img.logical_width(), img.logical_height());
+        self.draw_region_scaled(img, 0, 0, w, h, x, y, k, false);
+    }
+
     pub fn draw_image(&mut self, img: &ArgbImage, x: i32, y: i32, anchor: i32) {
         self.op(format!(
             "drawImage({}x{},{x},{y},{anchor})",

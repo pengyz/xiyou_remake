@@ -8,6 +8,12 @@
 
 ## 0. 诚实边界（本环境无 Android SDK/NDK——不虚报可运行）
 
+> 【2026-10-26 更正】本机已具备 SDK/NDK（`~/Android/Sdk`，NDK 27.1）并已**实机跑通**
+> （Xiaomi 14 / HyperOS，Android 16，窗口 2536×1200）：开机→标题（触屏轮播 C 方案）→
+> 读档/设置子页→序章（真 CJK 字形）均实机验证（截图+`jjxy-input` 日志）。**未通**：
+> 序章/读条之后进游戏（壳缺 Boot→GameScene 交接，读条完回落标题）、音频（AAudio
+> `openStream` 报 ILLEGAL_ARGUMENT ⇒ 静音降级）。下表为 2026-10-18 原始口径，保留不删。
+
 | 状态 | 内容 | 判定方式 |
 |---|---|---|
 | ✅ 宿主已验证 | 触控/硬件键→键码映射（含**折叠单键状态机**）、生命周期状态机、宿主桩契约语义、Storage 根路径注入接线、音频轨 AssetSource 装载、装配态自检 | `cargo test -p game-android` 45/45 全绿 |
@@ -99,8 +105,16 @@ rustup target add aarch64-linux-android
 cargo install cargo-ndk          # NDK 需 ANDROID_NDK_HOME 或 sdkmanager 安装
 
 # 2) 产出 .so（cdylib；输出到 gradle 的 jniLibs）
-cargo ndk -t arm64-v8a -o android/app/src/main/jniLibs \
+#    【2026-10-26 实机核对】必须 -P 26：cargo-ndk 默认 API 级找不到 libaaudio
+#    （ld.lld: unable to find library -laaudio）
+cargo ndk -t arm64-v8a -P 26 -o android/app/src/main/jniLibs \
     build --release -p game-android
+
+# 3) 打包 + 装机（本机已验证：gradle 8.5 离线 + AGP 8.2；Xiaomi 14 = adb -s c362a15b）
+ANDROID_HOME=$HOME/Android/Sdk /tmp/gradle-8.5/bin/gradle -p android assembleDebug --offline
+adb -s <serial> install -r android/app/build/outputs/apk/debug/app-debug.apk
+adb -s <serial> shell am start -n com.jjxy.game/android.app.NativeActivity
+adb -s <serial> logcat -s jjxy-input:D      # 输入/拍/字体/BGM 诊断日志
 ```
 
 gradle 要点（`android/app/build.gradle`）：

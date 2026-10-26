@@ -63,6 +63,18 @@ pub fn game_pixels() -> (u32, u32) {
     (w * SCALE as u32, h * SCALE as u32)
 }
 
+/// 【2026-10-26 字体修复】画布绘制上下文（win 壳 `canvas_graphics` 同口径，task-13 ②）：
+/// 背板=逻辑×scale **物理**像素、全幅裁剪、游戏字体、光栅倍率——字形钩子按 scale×格高
+/// 直落物理像素（旧 scale=1 逻辑背板+呈现 NN×2 ⇒ 1× 字形放大=马赛克）。
+pub fn canvas_graphics(canvas: &mut game_core::render::ArgbImage, scale: u32) -> game_core::render::SoftGraphics<'_> {
+    let (w, h) = (canvas.width, canvas.height);
+    let mut g = game_core::render::SoftGraphics::new(canvas);
+    g.set_clip(0, 0, w, h);
+    g.set_scale(scale.max(1) as i32);
+    g.set_font(Some(game_core::paint::paint_font()));
+    g
+}
+
 // ───────────────────────────────────────── NDK 常量（android/input.h + native_app_glue.h）
 
 /// MotionEvent ACTION_*（android/input.h；低 8 位=动作、(action>>8)&0xff=pointer index）。
@@ -255,6 +267,47 @@ pub fn map_touch_xy(x: f32, y: f32, buf_w: u32, buf_h: u32, grid: u32, scale: u3
     (map_axis(x, x0, cw, w), map_axis(y, y0, ch, h))
 }
 
+/// 【2026-10-26 实机根因】一拍内键动作批 → BootMachine 本拍键值（keyValue 语义）。
+/// 旧 fold"取末动作"把 [Press, Release] 折成 0 ⇒ 点按/抬手首拍全吞（设备 DIAG 实录）。
+/// 对齐 win 壳 `route_key`（shell/win/src/main.rs:654-658）：BootMachine 只读 keyValue，
+/// Press = 覆盖式锁存（同拍末个按下胜，a.java:4663-4680 keyPressed 语义），
+/// Release 对 BootMachine 无效果（无 keyHeldCode 消费者）。
+pub fn boot_key_from_batch(batch: &[KeyAction]) -> i32 {
+    batch.iter().fold(0i32, |k, a| match a {
+        KeyAction::Press(c) => *c,
+        KeyAction::Release => k,
+    })
+}
+
+/// 【C 方案 2026-10-26】标题态手势（壳记录、拍前经 [`resolve_title_gestures`] 解析为键）。
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum TitleGesture {
+    /// 点按（落点=按下点，逻辑坐标；同 GestureTracker Tap 口径）
+    Tap(f32, f32),
+    /// 水平滑动（一手势至多一次）
+    Swipe(game_core::title::TitleTouch),
+}
+
+/// 标题滑动阈值（逻辑 px；与 GestureTracker::new(24) 同值）。
+pub const TITLE_SWIPE_MIN: i32 = 24;
+
+/// 标题手势 → 键动作（拍前解析）。**仅标题态**生效：几何=BootMachine::title_geom
+/// 单源；离开标题态的残留手势一律丢弃（防滑动在序章/读档面合成键）。
+pub fn resolve_title_gestures(
+    machine: &game_core::paint::BootMachine,
+    gestures: Vec<TitleGesture>,
+) -> Vec<KeyAction> {
+    let Some(geo) = machine.title_geom() else { return Vec::new() };
+    gestures
+        .into_iter()
+        .filter_map(|gst| match gst {
+            TitleGesture::Tap(x, y) => geo.hit(x as i32, y as i32),
+            TitleGesture::Swipe(t) => Some(t),
+        })
+        .map(|t| KeyAction::Press(t.key()))
+        .collect()
+}
+
 /// `ANativeActivity`（不透明；字段面见 android/native_activity.h——internalDataPath
 /// / assetManager / vm / clazz 顺序布局，TODO：实机核对后升 A）。
 #[repr(C)]
@@ -292,6 +345,13 @@ pub struct ShellWiring {
     /// 【#2】分辨率选择结果 (grid, scale)：None=INIT_WINDOW 时按策略选；
     /// Some=测试注入点（覆盖选策略——GRID_N/SCALE 常量默认值同此用途）
     pub resolution: Option<(u32, u32)>,
+    /// 【C 方案】标题态（主循环每拍据 BootMachine::title_geom 置位）：触点只走
+    /// 轮播手势，不喂虚拟键区。
+    pub title_mode: bool,
+    /// 【C 方案】待解析标题手势（拍前 resolve_title_gestures）。
+    pub title_gestures: Vec<TitleGesture>,
+    /// 标题手势簿：(触点 id, 按下点, 本手势已发滑动)
+    title_track: Option<(i32, f32, f32, bool)>,
 }
 
 impl ShellWiring {
@@ -307,6 +367,9 @@ impl ShellWiring {
             overlay_debug: true,
             window_size: (0, 0),
             resolution: None,
+            title_mode: false,
+            title_gestures: Vec::new(),
+            title_track: None,
         }
     }
 
@@ -326,6 +389,54 @@ impl ShellWiring {
     pub fn on_touch(&mut self, ev: &TouchEvent) -> Vec<KeyAction> {
         self.gesture.down(ev.x as i32, ev.y as i32);
         self.touch.feed(ev)
+    }
+
+    /// 触点路由（宿主可测全面；on_input_ex 坐标反变换后调用）：
+    /// - 标题态（title_mode）：只记轮播手势（点按/水平滑动，单指），**不喂** pad；
+    /// - 其余态：虚拟键区（TouchMapper）出键；画布内 Up 且无键 ⇒ pending_taps
+    ///   （UI 行命中=BootMachine::pointer_hit，主循环拍前解析）。
+    pub fn on_touch_event(&mut self, ev: &TouchEvent) -> Vec<KeyAction> {
+        if self.title_mode {
+            self.on_title_touch(ev);
+            return Vec::new();
+        }
+        let keys = self.on_touch(ev);
+        if matches!(ev.phase, TouchPhase::Up) && ev.x >= 0.0 && ev.y >= 0.0 && keys.is_empty() {
+            self.pending_taps.push((ev.x, ev.y));
+        }
+        keys
+    }
+
+    /// 标题态单指手势：越阈水平滑动=一次 Swipe；未滑抬起=Tap(按下点)。
+    fn on_title_touch(&mut self, ev: &TouchEvent) {
+        match ev.phase {
+            TouchPhase::Down => {
+                if self.title_track.is_none() {
+                    self.title_track = Some((ev.id, ev.x, ev.y, false));
+                }
+            }
+            TouchPhase::Move => {
+                if let Some((id, x0, y0, fired)) = self.title_track.as_mut() {
+                    if *id == ev.id && !*fired {
+                        let (dx, dy) = ((ev.x - *x0) as i32, (ev.y - *y0) as i32);
+                        if let Some(t) = game_core::title::title_swipe(dx, dy, TITLE_SWIPE_MIN) {
+                            *fired = true;
+                            self.title_gestures.push(TitleGesture::Swipe(t));
+                        }
+                    }
+                }
+            }
+            TouchPhase::Up | TouchPhase::Cancel => {
+                if let Some((id, x0, y0, fired)) = self.title_track {
+                    if id == ev.id {
+                        self.title_track = None;
+                        if !fired && matches!(ev.phase, TouchPhase::Up) {
+                            self.title_gestures.push(TitleGesture::Tap(x0, y0));
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// 硬件键翻译（宿主可测面）：AKEYCODE 语义→-1..-7（BACK 恒 consumed——BUG-020）。
@@ -364,12 +475,12 @@ impl ShellWiring {
                         "motion phase={phase:?} raw=({bx:.0},{by:.0}) buf=({ww}x{wh}) logical=({x:.0},{y:.0})"
                     ));
                     let ev = TouchEvent { id, phase, x, y };
-                    let keys = self.on_touch(&ev);
-                    log_input(&format!("touch keys={keys:?} in_canvas={}", x >= 0.0 && y >= 0.0));
-                    // 【2c】tap（Up 且画布内）入待决表——UI 态走 pointer_hit（见主循环）
-                    if matches!(phase, TouchPhase::Up) && x >= 0.0 && y >= 0.0 && keys.is_empty() {
-                        self.pending_taps.push((x, y));
-                    }
+                    let keys = self.on_touch_event(&ev);
+                    log_input(&format!(
+                        "touch keys={keys:?} in_canvas={} title_mode={}",
+                        x >= 0.0 && y >= 0.0,
+                        self.title_mode
+                    ));
                     (keys, true) // 触点恒吞（触摸屏无系统默认）
                 }
                 AINPUT_EVENT_TYPE_KEY => {
@@ -464,7 +575,8 @@ impl ShellWiring {
                 let total = (stride as usize) * (bh as usize) * 4;
                 let dst = std::slice::from_raw_parts_mut(buf.bits as *mut u8, total);
                 let (g, sc) = self.resolved();
-                blit_argb_rgba(dst, bw, bh, stride, argb, g * 32, g * 32, sc);
+                // 【字体修复】背板=物理像素（逻辑×sc）⇒ 呈现 1:1（矩形同逻辑×sc，钉见 native_parse）
+                blit_argb_rgba(dst, bw, bh, stride, argb, g * 32 * sc, g * 32 * sc, 1);
             }
             ffi::ANativeWindow_unlockAndPost(window);
         }
@@ -482,33 +594,46 @@ impl Default for ShellWiring {
     }
 }
 
-/// 【黄①】软键条高常量单源（menu_hit 调用路径+overlay 共用——B 实验证明双写
-/// 硬编码对调用点脱节全盲）。
-pub mod title_menu {
-    pub const SOFTKEY_BAR_H: i32 = 18;
+/// 【件2 触控区可视化】叠加框的态（框=当前态**生效**的命中面，单源）。
+#[derive(Clone, Copy, Debug)]
+pub enum OverlayState {
+    /// 标题态：轮播三热区（TitleGeom 单源；pad 不接管）
+    Title(game_core::title::TitleGeom),
+    /// 其余 UI 态：虚拟键区
+    Ui,
+    /// 游戏态：虚拟键区 + UNDO + 地图点格区
+    Game,
 }
 
 /// 【件2 触控区可视化】叠加框（debug 描边常驻，量产收审美）——**单源**：
-/// 菜单行=TitleMachine::menu_item_rects（与 menu_hit 共调）、虚拟键区=
-/// PadLayout::for_modern、UNDO=undo_zone_hit 同源矩形（钉=框坐标==命中表坐标）。
+/// 标题热区=TitleGeom（与 BootMachine::title_touch_key 同源）、虚拟键区=
+/// wiring.pad（TouchMapper 活布局）、UNDO=undo_zone_hit 同源矩形。
+/// > 【2026-10-26 更正】原"6 菜单行框"（2c 六行横条 + SOFTKEY_BAR_H 双写常量）
+/// > 随 C 方案撤除；框按态只画该态生效的命中面。
 pub fn overlay_rects(
     grid: u32,
     pad: &crate::input::PadLayout,
-    game_state: bool,
+    state: OverlayState,
 ) -> Vec<(i32, i32, i32, i32, &'static str)> {
     let (sw, sh) = ((grid * 32) as i32, (grid * 32) as i32);
     let mut out = Vec::new();
-    for (x, y, w, h) in game_core::title::TitleMachine::menu_item_rects(sw, sh, crate::native::title_menu::SOFTKEY_BAR_H) {
-        out.push((x, y, w, h, "menu"));
+    if let OverlayState::Title(geo) = state {
+        let (a, b, c) = (geo.zone_prev, geo.zone_ok, geo.zone_next);
+        out.push((a.0, a.1, a.2, a.3, "prev"));
+        out.push((b.0, b.1, b.2, b.3, "ok"));
+        out.push((c.0, c.1, c.2, c.3, "next"));
+        return out;
     }
-    // UNDO 钮（shell/common/touch.rs undo_zone_hit 同源：**右上角** UNDO_ZONE_W×H）
-    out.push((
-        sw - game_shell_common::touch::UNDO_ZONE_W,
-        0,
-        game_shell_common::touch::UNDO_ZONE_W,
-        game_shell_common::touch::UNDO_ZONE_H,
-        "undo",
-    ));
+    if matches!(state, OverlayState::Game) {
+        // UNDO 钮（shell/common/touch.rs undo_zone_hit 同源：**右上角** UNDO_ZONE_W×H）
+        out.push((
+            sw - game_shell_common::touch::UNDO_ZONE_W,
+            0,
+            game_shell_common::touch::UNDO_ZONE_W,
+            game_shell_common::touch::UNDO_ZONE_H,
+            "undo",
+        ));
+    }
     // 【红-1】dpad 框由 r_switch 派生：捕获圆 r=2*r_switch（in_dpad_capture）——
     // 外切方=2×捕获半径（**覆盖捕获圆全域**）；旧 60×60 硬编码=45px 出键在框外
     // =画的框骗人（复核B 红-1 实锤）。
@@ -530,7 +655,7 @@ pub fn overlay_rects(
         ));
     }
     // 【黄③】覆盖补齐：游戏态=地图点格区（tap→walk_to 响应面，全画布格域）+滑动区
-    if game_state {
+    if matches!(state, OverlayState::Game) {
         out.push((0, 0, sw, sh, "map"));
     }
     out
@@ -703,29 +828,36 @@ pub struct HostState {
     pub pending_keys: Vec<KeyAction>,
 }
 
-/// 【哨兵2/3】显式排水（glue process_input 同式）：每调用打 `drain q=%p` 活值
-/// 指针（NULL/非空一眼可辨），每 getEvent 打 `getEvent ret=%d`（事件到达可辨）。
+/// 生产 looper（[`crate::pump::Pump`] 的 ALooper 实现）：poll(timeout) 就绪源经
+/// glue 的 `process`（process_input 内部循环 getEvent→preDispatch→onInputEvent→
+/// finishEvent 排空整队，native_app_glue.c:181-192；process_cmd 处理 APP_CMD_*）。
 #[cfg(target_os = "android")]
-fn drain_input(app: *mut AndroidApp) {
-    unsafe {
-        // 活值读取（非快照）：glue attachLooper 后 (*app).input_queue 才非空
-        let q = (*app).input_queue;
-        log_input(&format!("drain q={:p}", q));
-        if q.is_null() {
-            return;
-        }
-        loop {
-            let mut ev: *mut AInputEvent = std::ptr::null_mut();
-            let ret = ffi::AInputQueue_getEvent(q, &mut ev);
-            log_input(&format!("getEvent ret={ret}"));
-            if ret < 0 {
-                break;
+struct AndroidLooper {
+    app: *mut AndroidApp,
+    t0: std::time::Instant,
+}
+
+#[cfg(target_os = "android")]
+impl crate::pump::Pump for AndroidLooper {
+    fn now_ms(&self) -> u64 {
+        self.t0.elapsed().as_millis() as u64
+    }
+
+    fn poll(&mut self, timeout_ms: i32) -> bool {
+        unsafe {
+            let mut events = 0i32;
+            let mut data: *mut std::ffi::c_void = std::ptr::null_mut();
+            let ident = ffi::ALooper_pollAll(timeout_ms, std::ptr::null_mut(), &mut events, &mut data);
+            if ident < 0 {
+                return false; // TIMEOUT/WAKE/ERROR：无就绪源
             }
-            if ffi::AInputQueue_preDispatchEvent(q, ev) != 0 {
-                continue; // IME 预分派消费
+            if !data.is_null() {
+                let src = data as *mut AndroidPollSource;
+                if let Some(process) = (*src).process {
+                    process(self.app, src);
+                }
             }
-            let handled = handle_input(app, ev);
-            ffi::AInputQueue_finishEvent(q, ev, handled);
+            (*self.app).destroy_requested == 0
         }
     }
 }
@@ -740,8 +872,9 @@ extern "C" fn handle_cmd(app: *mut AndroidApp, cmd: i32) {
                 let ok = st.wiring.ensure_surface((*app).window);
                 st.surface = st.wiring.surface;
                 // 【#2】策略选定分辨率 → 画布/Modern 布局重解析（任意格数×32 公式）
-                let (g, _sc) = st.wiring.resolved();
-                st.canvas = game_core::render::ArgbImage::create((g * 32) as i32, (g * 32) as i32);
+                let (g, sc) = st.wiring.resolved();
+                // 【字体修复】物理背板（逻辑×sc；字形按物理光栅化）
+                st.canvas = game_core::render::ArgbImage::create((g * 32 * sc) as i32, (g * 32 * sc) as i32);
                 st.machine
                     .apply_layout(game_core::layout::Layout::modern(g as i32, g as i32));
                 let _ = ok;
@@ -792,6 +925,16 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
         use game_core::paint::BootMachine;
         use game_platform::{AssetSource, AudioOut};
 
+        // 【2026-10-26 字体修复】D2 字形缝：系统 CJK 字体（NotoSansCJK SC 面）注入
+        // game-core 字形钩子——旧未注入 ⇒ 全部文字=差分占位哈希块（读档"???"/序章乱块）。
+        // 共享实现 game_shell_common::font（win 壳同源）；无字体=占位真回退。
+        let t_font = std::time::Instant::now();
+        let chosen = game_shell_common::font::install(
+            &game_shell_common::font::android_candidates(),
+            &mut |m| log_input(m),
+        );
+        log_input(&format!("font install {:?} in {}ms", chosen, t_font.elapsed().as_millis()));
+
         /// 无声降级设备（AAudio 开失败/API<26）：吞写不阻塞（loop 自带节拍）。
         struct SilentOut;
         impl AudioOut for SilentOut {
@@ -800,7 +943,7 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
             }
             fn idle(&mut self) {}
         }
-        use game_core::render::{ArgbImage, SoftGraphics};
+        use game_core::render::ArgbImage;
         use game_data::{decode_png, PackedPng};
         use std::ffi::CStr;
 
@@ -866,7 +1009,7 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
         let mut st = Box::new(HostState {
             wiring: ShellWiring::new(),
             machine,
-            canvas: ArgbImage::create((GRID_N * 32), (GRID_N * 32)),
+            canvas: ArgbImage::create(GRID_N * 32 * SCALE, GRID_N * 32 * SCALE),
             assets,
             _storage: storage,
             surface: (CANVAS_W, CANVAS_H),
@@ -896,67 +1039,54 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
         });
         let mut last_bgm: Option<usize> = None;
 
-        // 20 拍/秒呈现节拍（50ms）；逻辑拍=frame_interval_ms（75/100）
-        let present_budget = std::time::Duration::from_millis(50);
-        let mut last_logic = std::time::Instant::now();
+        // 【2026-10-26 实机根因②】主循环=pump 调度（shell/android/src/pump.rs 宿主钉）：
+        // 非阻塞排空事件 → 到期出拍（tick→paint→present **每拍一次**：BootMachine::paint
+        // 推进粒子/图标带动画，旧"每轮都 paint"使动画速度随事件频率漂移）→ 阻塞等到
+        // 下一拍（触点到达提前醒）。旧 `while pollAll(16)>=0` 在 Move 流下饿死 tick。
+        let mut looper = AndroidLooper { app, t0: std::time::Instant::now() };
+        let mut pacer = crate::pump::FramePacer::new(0);
         while (*app).destroy_requested == 0 {
-            let mut events = 0i32;
-            let mut data: *mut std::ffi::c_void = std::ptr::null_mut();
-            // 短阻塞（16ms）：给 looper 回调泵调度窗口（0ms 裸轮询=实证搬运工饿死）
-            while ffi::ALooper_pollAll(16, std::ptr::null_mut(), &mut events, &mut data) >= 0 {
-                if !data.is_null() {
-                    let src = data as *mut AndroidPollSource;
-                    if let Some(process) = (*src).process {
-                        process(app, src);
-                    }
-                }
-                if (*app).destroy_requested != 0 {
-                    break;
-                }
+            // 逻辑拍间隔：BootMachine.frame_interval_ms（mode 0=100 a.java:3350，
+            // 其余 75 a.java:3377）——win 壳 frame_interval() 同源
+            let interval = st.machine.frame_interval_ms.max(1) as u64;
+            if !crate::pump::pump_once(&mut looper, &mut pacer, interval) {
+                let wait = pacer.wait_ms(crate::pump::Pump::now_ms(&looper));
+                crate::pump::Pump::poll(&mut looper, wait);
+                continue;
             }
-            // 【终极诊断修复】排水=**looper 唤醒后**（搬运工=attachLooper 回调泵入；
-            // 裸调 getEvent 只读待处理列表=跳过搬运工⇒恒 EAGAIN）。主循环
-            // ALooper_pollAll(16ms) 阻塞唤醒；ident==LOOPER_ID_INPUT（poll 源
-            // id，glue :212 自标）时走 getEvent→preDispatch→on_input_ex→finishEvent。
-            let mut ie: i32 = 0;
-            let mut idata: *mut std::ffi::c_void = std::ptr::null_mut();
-            let iident = ffi::ALooper_pollAll(0, std::ptr::null_mut(), &mut ie, &mut idata);
-            let is_input = iident == LOOPER_ID_INPUT
-                || (!idata.is_null() && (*(idata as *mut AndroidPollSource)).id == LOOPER_ID_INPUT);
-            if is_input {
-                drain_input(app);
+            if (*app).destroy_requested != 0 {
+                break;
             }
-            // 逻辑拍（frame_interval_ms 节奏）：键流折叠单键（覆盖式取末键）
-            let interval = std::time::Duration::from_millis(st.wiring.frame_interval_ms());
-            if last_logic.elapsed() >= interval {
-                last_logic = std::time::Instant::now();
-                let key = st.pending_keys.drain(..).fold(0i32, |_, a| match a {
-                    KeyAction::Press(c) => c,
-                    KeyAction::Release => 0,
-                });
-                st.machine.tick(key);
-                // 【2c 裁定+R3 mode 门控】tap=切换+确认一步到位：**仅 UI 态**
-                // 走命中表（游戏态 tap→walk_to 独走防误注）；按态分发（EquipDetail/
-                // About 不喂标题行网格）；行矩形单源=title::menu_item_rects。
-                if !st.machine.is_ui_state() {
-                    st.wiring.pending_taps.clear(); // 游戏态：walk_to 面（scene 接线随批）
-                    log_input("tap(s) skipped: game-state walk_to lane");
+            {
+                // 【C 方案】拍前解析：标题手势→键（标题态单源几何）；其余 UI 态点按→
+                // BootMachine::pointer_hit 行命中（读档槽/设置项，win 壳 pointer_click
+                // 同口径：选行+该态确认键）；游戏态点按=walk_to 面（scene 接线随批）。
+                let gestures = std::mem::take(&mut st.wiring.title_gestures);
+                if !gestures.is_empty() {
+                    let keys = resolve_title_gestures(&st.machine, gestures.clone());
+                    log_input(&format!("title gestures={gestures:?} → {keys:?}"));
+                    st.pending_keys.extend(keys);
                 }
                 for (tx_, ty_) in std::mem::take(&mut st.wiring.pending_taps) {
-                    let (sw, sh) = (st.wiring.surface.0 as i32, st.wiring.surface.1 as i32);
-                    let hit = if st.machine.is_ui_state() {
-                        game_core::title::TitleMachine::menu_hit(
-                            tx_ as i32, ty_ as i32, sw, sh, crate::native::title_menu::SOFTKEY_BAR_H,
-                        )
-                    } else {
-                        None
-                    };
-                    log_input(&format!("menu_hit({tx_:.0},{ty_:.0})→{hit:?}"));
-                    if let Some(i) = hit {
-                        st.machine.select_row(i as i32); // R3：cursor=i（标题态分支）
-                        st.pending_keys.push(KeyAction::Press(-5)); // 确认直发=-5 同路径
+                    if !st.machine.is_ui_state() {
+                        log_input("tap skipped: game-state walk_to lane");
+                        continue;
+                    }
+                    let hit = st.machine.pointer_hit(tx_ as i32, ty_ as i32);
+                    log_input(&format!("pointer_hit({tx_:.0},{ty_:.0})→{hit:?}"));
+                    if let game_core::scene::PointerHit::Row { index, confirm_key } = hit {
+                        st.machine.select_row(index);
+                        st.pending_keys.push(KeyAction::Press(confirm_key));
                     }
                 }
+                let key = boot_key_from_batch(&st.pending_keys);
+                if !st.pending_keys.is_empty() {
+                    log_input(&format!("tick batch={:?} → key={key}", st.pending_keys));
+                }
+                st.pending_keys.clear();
+                st.machine.tick(key);
+                // 标题态随拍更新（下一批触点的路由依据）
+                st.wiring.title_mode = st.machine.title_geom().is_some();
                 // BGM：轨道变更 → 音频线程（bgm_request/bgm_serial 同构 shell/win）
                 let req = st.machine.bgm_request();
                 if req != last_bgm {
@@ -974,18 +1104,21 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
                     }
                 }
             }
-            // 呈现（20 拍/秒）——【回派修复②】每帧前判 window 非空
+            // 呈现（每拍一次，tick 后）——【回派修复②】每帧前判 window 非空
             // （TERM_WINDOW→window=NULL 竞态挡；未就绪期跳过渲染呈现）
             if !(*app).window.is_null() {
-                let (g_, _sc) = st.wiring.resolved();
+                let (g_, sc_) = st.wiring.resolved();
                 {
-                    let mut g = SoftGraphics::new(&mut st.canvas);
+                    let mut g = canvas_graphics(&mut st.canvas, sc_);
                     st.machine.paint(&mut g);
-                    // 【件2+黄④】触控区叠加（同源命中表；debug 开关可关）
+                    // 【件2+黄④】触控区叠加（按态=该态生效命中面，同源；debug 开关可关）
                     if st.wiring.overlay_debug {
-                        let game_state = !st.machine.is_ui_state();
-                        let rects =
-                            overlay_rects(g_, &st.wiring.pad, game_state);
+                        let state = match st.machine.title_geom() {
+                            Some(geo) => OverlayState::Title(geo),
+                            None if st.machine.is_ui_state() => OverlayState::Ui,
+                            None => OverlayState::Game,
+                        };
+                        let rects = overlay_rects(g_, &st.wiring.pad, state);
                         g.set_color(0xFFFF00FFu32);
                         for (x, y, w, h, _tag) in rects {
                             g.draw_rect(x, y, w, h);
@@ -995,7 +1128,6 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
                 let argb = st.canvas.argb.clone();
                 st.wiring.present((*app).window, &argb);
             }
-            std::thread::sleep(present_budget / 4);
         }
         (*app).user_data = std::ptr::null_mut();
         drop(st);

@@ -1,0 +1,20 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'com.jjxy.game'
+    compileSdk 34
+    defaultConfig {
+        applicationId "com.jjxy.game"
+        minSdk 26                 // AAudio（AudioTrack 兜底已砍 ⇒ 统一 26，README §5）
+        targetSdk 34
+        versionCode 1
+        versionName "0.1-stageB"
+    }
+    sourceSets.main {
+        // 资产：assets/raw 产物进 APK assets/（与 shell/win 装载同口径；
+        // 音频轨 track{i}.ogg 亦放 assets/——B2：Android 走 AssetSource）
+        assets.srcDirs = ['../../assets/raw', '../../assets/audio']  // B2 第五缝：track{i}.ogg 走 AssetSource
+        jniLibs.srcDirs = ['src/main/jniLibs']
+    }
+    packagingOptions { jniLibs { useLegacyPackaging true } }
+}

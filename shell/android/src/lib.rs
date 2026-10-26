@@ -29,6 +29,7 @@ pub mod audio;
 pub mod input;
 pub mod lifecycle;
 pub mod process;
+pub mod pump;
 pub mod storage;
 
 /// NativeActivity 胶水骨架（宿主可编译=纯装配态+不透明类型；真正 NDK 调用在

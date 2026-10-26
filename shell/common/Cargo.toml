@@ -11,3 +11,6 @@ game-platform = { path = "../../crates/game-platform" }
 # BGM：OGG Vorbis 解码（纯 Rust；与 tools/audio 自检同一解码器；随 decode_ogg 自
 # shell/win 迁入，版本与那边原锁一致）
 lewton = "=0.10.2"
+# D2 字体缝共享实现（font.rs，2026-10-26 自 shell/win font_inject 迁入）：纯 Rust
+# TTF/TTC 光栅（Android 可直用）；版本=Cargo.lock 既锁 0.2.32（零新增下载）。
+ab_glyph = "=0.2.32"

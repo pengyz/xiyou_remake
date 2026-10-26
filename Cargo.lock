@@ -461,7 +461,6 @@ dependencies = [
 name = "game-desktop"
 version = "0.1.0"
 dependencies = [
- "ab_glyph",
  "game-core",
  "game-data",
  "game-platform",
@@ -489,6 +488,7 @@ version = "0.1.0"
 name = "game-shell-common"
 version = "0.1.0"
 dependencies = [
+ "ab_glyph",
  "game-core",
  "game-platform",
  "lewton",

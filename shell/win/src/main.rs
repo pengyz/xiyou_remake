@@ -260,10 +260,8 @@ fn click_key(x: i32, y: i32, w: i32, h: i32, mode: game_core::enums::GameMode, r
 // ---------------------------------------------------------------- 真字形注入（D2 字体缝）
 
 mod font_inject {
-    use std::sync::OnceLock;
-    use ab_glyph::{Font, FontVec, PxScale, point};
-
-    static FONT: OnceLock<Option<FontVec>> = OnceLock::new();
+    //! 【2026-10-26】字形钩子实现已迁 `game_shell_common::font`（双壳消费不拷贝——
+    //! Android 字体注入同源）；本模块只留 win/Linux 平台候选路径（数据面零改动）。
 
     const CANDIDATES: &[&str] = &[
         "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
@@ -283,89 +281,22 @@ mod font_inject {
             .collect()
     }
 
-    fn load() -> Option<FontVec> {
-        let extra = windows_candidates();
-        for path in CANDIDATES.iter().map(|s| s.to_string()).chain(extra) {
-            if let Ok(bytes) = std::fs::read(&path) {
-                match FontVec::try_from_vec_and_index(bytes, 0) {
-                    Ok(f) => {
-                        eprintln!("字形源：{path}");
-                        return Some(f);
-                    }
-                    Err(e) => eprintln!("字体 {path} 不可用（{e}），试下一个"),
-                }
-            }
-        }
-        eprintln!("未找到 CJK 字体——文字保持差分占位字形");
-        None
-    }
-
-    /// game_core::render::set_glyph_hook 的注入实现：系统 TTF 真 CJK 字形。
-    /// 布局仍用 SoftFont 的格宽/格高（与差分验证过的排版一致），仅字形换真。
-    /// 【task-13 ②】倍率由图形层经 GlyphHook 签名传入（单源真相）——旧
-    /// DISPLAY_SCALE 注入面已清（钩子不再读）。
+    /// game_core::render::set_glyph_hook 的注入：系统 TTF 真 CJK 字形（候选序与面索引
+    /// 0 同迁移前——帧基线零漂移）。布局仍用 SoftFont 的格宽/格高，仅字形换真；
+    /// 无字体 = 不装 hook（差分占位字形原样保留，真回退）。
     pub fn install() {
-        let font = load();
-        let has_font = font.is_some();
-        let _ = FONT.set(font);
-        if has_font {
-            game_core::render::set_glyph_hook(Some(hook_fn));
-        }
-        // 无字体 = **不装 hook**：game-core 差分占位字形原样保留（真回退；
-        // 此前无条件装 hook 且 hook 内直接 return = 文字空白的假回退）
-    }
-
-    fn hook_fn(
-        ch: u16,
-        px: i32,
-        py: i32,
-        cw: i32,
-        chh: i32,
-        color: u32,
-        put: &mut dyn FnMut(i32, i32, u32),
-        scale: i32,
-    ) {
-        let Some(font) = FONT.get().and_then(|f| f.as_ref()) else { return };
-        // 【task-13 ②】字形按**物理尺寸光栅化**（替换降采样）：scale 由图形层为
-        // 真相源传入，字形以 scale×格高光栅化、笔画直落物理像素=真 TTF 锐度
-        // （2× 笔画占真 2×2 像素，非 1× 落点放大色块）；scale=1 ⇒ 与原 1× 分支
-        // 逐像素同（classic 零偏离）。
-        let ss = scale.max(1);
-        let s = PxScale {
-            x: (chh * ss) as f32,
-            y: (chh * ss) as f32,
-        };
-        // 基线放格底上方 1px（CJK 无下伸部，格内视觉居中）——物理坐标同乘 ss
-        let glyph = font
-            .glyph_id(char::from_u32(ch as u32).unwrap_or(' '))
-            .with_scale_and_position(s, point((px * ss) as f32, ((py + chh - 1) * ss) as f32));
-        if let Some(outline) = font.outline_glyph(glyph) {
-            // ab_glyph 回调坐标是 px_bounds **局部**坐标（outlined.rs draw() 文档：
-            // "pixel coordinate inside the bounds"），必须平移 bbox 最小角才是画布
-            // 绝对坐标——否则全部字形像素堆在 (0,0)，文本落点为空（mode21 文字不可见 bug）。
-            let bb = outline.px_bounds();
-            let (ox, oy) = (bb.min.x.round() as i32, bb.min.y.round() as i32);
-            let mut dots: Vec<(i32, i32, f32)> = Vec::new();
-            outline.draw(|gx, gy, a| dots.push((gx as i32, gy as i32, a)));
-            for (x, y) in dots_to_physical(&dots, ox, oy) {
-                put(x, y, color);
-            }
-        }
-        let _ = cw;
-    }
-
-    /// 字形笔画 → 物理像素（task-13 ②）：alpha>0.25 阈（与原 1× 分支同语义）
-    /// 直落物理坐标（局部坐标 + bbox 最小角平移）。**窗口呈现路径文本存在性
-    /// 判据挂此**（2× 笔画=真 2×2 物理像素、逐像素可控）。
-    pub(crate) fn dots_to_physical(dots: &[(i32, i32, f32)], ox: i32, oy: i32) -> Vec<(i32, i32)> {
-        let mut out: Vec<(i32, i32)> = dots
+        let cands: Vec<game_shell_common::font::Candidate> = CANDIDATES
             .iter()
-            .filter(|(_, _, a)| *a > 0.25)
-            .map(|&(gx, gy, _)| (ox + gx, oy + gy))
+            .map(|s| s.to_string())
+            .chain(windows_candidates())
+            .map(|p| (p, 0))
             .collect();
-        out.sort();
-        out
+        game_shell_common::font::install(&cands, &mut |m| eprintln!("{m}"));
     }
+
+    /// 字形笔画 → 物理像素（task-13 ②）：共享实现再导出（窗口呈现路径文本存在性判据挂此）。
+    #[cfg(test)]
+    pub(crate) use game_shell_common::font::dots_to_physical;
 
     #[cfg(test)]
     /// 窗口呈现路径文本存在性判据（task-13 ② 物理落点）：2× 笔画占真 2×2

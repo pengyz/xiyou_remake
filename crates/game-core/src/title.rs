@@ -33,6 +33,139 @@ pub const STRIP_DY: [i32; 8] = [-1, -1, -1, 0, 1, 1, 1, 0];
 /// 粒子槽位容量（spawnParticle/updateAndDrawParticles 的 32 槽环形游标）。
 const PARTICLE_SLOTS: usize = 32;
 
+// ---------------- 【STAGE-B 触屏标题 C 方案（2026-10-26 用户裁定）】 ----------------
+//
+// 决策记录：docs/knowledge/decision_touch-title-carousel-stage-b.md。
+// - 保留原版**轮播**视觉（底栏「◆ 当前项 ◆」，左右键切项、确认进入）；
+// - 触屏 = 点左/右热区切上/下一项、点中间标签确认、水平滑动切项（键码走既有
+//   title tick 臂 -3/-4/-5，零新游戏状态）；
+// - Modern 底栏/标签/箭头 ×2（手机可读）+ 美术**整数倍**放大（像素均匀）；
+// - 几何单源：paint 与命中共用 [`TitleGeom::modern`]（pointer-menu 决策硬条件①）。
+// classic 路径零改动（原版 240×320 逐字）。
+
+/// Modern 底栏 UI 倍率（标签/箭头放大）。
+pub const MODERN_UI_K: i32 = 2;
+/// Modern 底栏标签上下留白。
+pub const MODERN_BAR_PAD: i32 = 3;
+/// 触屏热区高（自画布底向上）：底栏 40 + 向上延伸 32 = 72 逻辑 px
+/// （2× 呈现@480dpi ≈ 7.6mm，手指可点尺寸；底栏本身仅 ≈4mm）。
+pub const TOUCH_ZONE_H: i32 = 72;
+/// 美术顶部最大裁切 = 美术高的 1/10（超出则降一档整数倍）。
+const ART_MAX_CROP_DIV: i32 = 10;
+/// 图标带格边长（drawIconStrip 17×17 格，4 格=一个菜单项标签）。
+const STRIP_CELL: i32 = 17;
+const STRIP_CELLS: i32 = 4;
+
+/// Modern 标题几何（paint 与触屏命中的**唯一**几何源）。矩形均为 (x, y, w, h) 逻辑 px。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TitleGeom {
+    /// 美术整数倍率（≥1）。
+    pub art_k: i32,
+    /// 美术左上角（横居中；y 负=顶部裁切，底边恒贴底栏上沿）。
+    pub art_x: i32,
+    pub art_y: i32,
+    /// 底栏高（2× 标签 + 上下留白）。
+    pub bar_h: i32,
+    /// 底栏 UI 倍率。
+    pub ui_k: i32,
+    /// 当前项标签（图标带 4 格）矩形。
+    pub label: (i32, i32, i32, i32),
+    /// 左/右箭头基准 x（bob 摆动另加 ±ui_k×bob）与 y。
+    pub arrow_left_x: i32,
+    pub arrow_right_x: i32,
+    pub arrow_y: i32,
+    /// 触屏热区：上一项 / 确认 / 下一项（横向无缝铺满画布，贴底）。
+    pub zone_prev: (i32, i32, i32, i32),
+    pub zone_ok: (i32, i32, i32, i32),
+    pub zone_next: (i32, i32, i32, i32),
+}
+
+impl TitleGeom {
+    /// Modern 几何推导。`art_*`=标题美术逻辑尺寸（menu[0] 240×295）、`arrow_*`=箭头
+    /// （ui[14] 20×13）。箭头偏置取 layout 的 arrow_pair（屏心 −60/+40 原偏置）×ui_k。
+    pub fn modern(
+        layout: &crate::layout::Layout,
+        art_w: i32,
+        art_h: i32,
+        arrow_w: i32,
+        arrow_h: i32,
+    ) -> TitleGeom {
+        let (sw, sh, cx) = (layout.screen_w, layout.screen_h, layout.center_x);
+        let ui_k = MODERN_UI_K;
+        let label_w = STRIP_CELL * STRIP_CELLS * ui_k;
+        let label_h = STRIP_CELL * ui_k;
+        let bar_h = label_h + 2 * MODERN_BAR_PAD;
+        let avail_h = sh - bar_h;
+        let (aw, ah) = (art_w.max(1), art_h.max(1));
+        // 最大整数倍：不超宽、顶裁 ≤ 1/10（两约束随 k 单调 ⇒ 首个失败即停）
+        let mut art_k = 1;
+        let mut k = 2;
+        while aw * k <= sw && ah * k - avail_h <= ah * k / ART_MAX_CROP_DIV {
+            art_k = k;
+            k += 1;
+        }
+        let label_x = cx - label_w / 2;
+        let zy = sh - TOUCH_ZONE_H;
+        let _ = arrow_w;
+        TitleGeom {
+            art_k,
+            art_x: (sw - aw * art_k) / 2,
+            art_y: avail_h - ah * art_k,
+            bar_h,
+            ui_k,
+            label: (label_x, sh - bar_h + MODERN_BAR_PAD, label_w, label_h),
+            arrow_left_x: cx + (layout.arrow_pair_left_x - cx) * ui_k,
+            arrow_right_x: cx + (layout.arrow_pair_right_x - cx) * ui_k,
+            arrow_y: sh - bar_h + ((bar_h - arrow_h * ui_k) >> 1),
+            zone_prev: (0, zy, label_x, TOUCH_ZONE_H),
+            zone_ok: (label_x, zy, label_w, TOUCH_ZONE_H),
+            zone_next: (label_x + label_w, zy, sw - (label_x + label_w), TOUCH_ZONE_H),
+        }
+    }
+
+    /// 触点命中（逻辑坐标；热区外/画布外=None——美术区不误触）。
+    pub fn hit(&self, x: i32, y: i32) -> Option<TitleTouch> {
+        let inside = |r: (i32, i32, i32, i32)| x >= r.0 && x < r.0 + r.2 && y >= r.1 && y < r.1 + r.3;
+        if inside(self.zone_prev) {
+            Some(TitleTouch::Prev)
+        } else if inside(self.zone_ok) {
+            Some(TitleTouch::Confirm)
+        } else if inside(self.zone_next) {
+            Some(TitleTouch::Next)
+        } else {
+            None
+        }
+    }
+}
+
+/// 标题轮播触屏动作。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TitleTouch {
+    Prev,
+    Confirm,
+    Next,
+}
+
+impl TitleTouch {
+    /// 投递键码=既有 title tick 臂（a.java:3388-3426）：-3 上移环绕 / -4 下移环绕 /
+    /// -5 确认——触屏只合成键，零新游戏状态。
+    pub fn key(self) -> i32 {
+        match self {
+            TitleTouch::Prev => -3,
+            TitleTouch::Confirm => -5,
+            TitleTouch::Next => -4,
+        }
+    }
+}
+
+/// 水平滑动=切项（左滑=下一项：轮播内容左移；右滑=上一项）；纵滑/阈值内=None。
+pub fn title_swipe(dx: i32, dy: i32, min_len: i32) -> Option<TitleTouch> {
+    if dx.abs() < min_len || dx.abs() < dy.abs() {
+        return None;
+    }
+    Some(if dx < 0 { TitleTouch::Next } else { TitleTouch::Prev })
+}
+
 /// 粒子系统状态（spawnParticle 登记表 + updateAndDrawParticles 演化）。
 pub struct Particles {
     x: [i32; PARTICLE_SLOTS],
@@ -282,6 +415,11 @@ impl TitleMachine {
     ) {
         let bar = self.bar_height;
         let (sw, sh) = (layout.screen_w, layout.screen_h);
+        // 【C 方案 2026-10-26】Modern=触屏轮播版（美术整数倍+底栏 ×2，几何单源）
+        if layout.preset == crate::layout::Preset::Modern {
+            self.paint_modern_touch(g, map_bg, strip, arrow, layout);
+            return;
+        }
         // 【STAGE-B-004a ②】分级适配（用户裁定：手绘素材=原尺寸居中+边缘延展
         // **不放大**；可重排 UI=锚位公式化）。classic 画布=原式原样（零偏离）。
         if sw > crate::layout::SCREEN_W || sh > crate::layout::SCREEN_H {
@@ -304,13 +442,12 @@ impl TitleMachine {
             g.set_color(top_px); // 左右带=纯蓝（顶带同款）
             g.fill_rect(0, img_y, img_x, map_bg.height);
             g.fill_rect(img_x + map_bg.width, img_y, sw - (img_x + map_bg.width), map_bg.height);
-            if layout.preset == crate::layout::Preset::Modern {
-                // 【问题1】Modern 标题美术铺满游戏方框（用户裁定：贴图满幅、蓝底
-                // 留边也行但贴图必须满幅）——cover 撑满裁切；下方蓝填充行被盖住
-                g.draw_image_cover(map_bg, sw, sh, true); // 底锚：保底部 logo（截断回派）
-            } else {
-                g.draw_image(map_bg, img_x, img_y, 0);
-            }
+            // > 【2026-10-26 更正】原 Modern 分支 `draw_image_cover` 铺满（2026-10-23
+            // 问题1"贴图满幅"）被用户实机反馈"放太大"推翻：240×295 放 2.4×（非整数倍
+            // ⇒ 像素 2/3 格交替不均）、顶裁 19%（人物头被切）、底部 logo 被底栏盖住。
+            // Modern 已改走 `paint_modern_touch`（2× 整数倍，见上方早返回）；本分支只剩
+            // 非 Modern 大画幅（公开构造不可达，保留原尺寸居中原式）。
+            g.draw_image(map_bg, img_x, img_y, 0);
             // 底部条/图标带/双箭头=锚位公式化（屏心 ± 原偏置；ARROW 对原偏置
             // 不对称=原版字面，layout.rs:370-371 公式表）
             g.set_color(crate::layout::DARK_BACKDROP);
@@ -354,31 +491,75 @@ impl TitleMachine {
         g.reset_clip();
     }
 
-    /// 【2c 裁定】6 项菜单行矩形单源（【2026-10-23 措辞更正】"paint 与 hit-test
-    /// 共调"不实——实际 hit-test(menu_hit) 与 overlay 两端共调，paint 侧行序
-    /// ==kinds 序为行序裁定约束）：行高 28+行隙 2、x∈[80, sw-80)、底锚底条上方。
-    pub fn menu_item_rects(sw: i32, sh: i32, bar: i32) -> [(i32, i32, i32, i32); 6] {
-        let row_h = 28;
-        let gap = 2;
-        let y0 = sh - bar - 6 * (row_h + gap);
-        let mut out = [(0, 0, 0, 0); 6];
-        for (i, r) in out.iter_mut().enumerate() {
-            *r = (80, y0 + i as i32 * (row_h + gap), sw - 160, row_h);
-        }
-        out
+    /// 【C 方案 2026-10-26】Modern 标题绘制：美术**整数倍**（像素均匀，底贴底栏、
+    /// 顶裁 ≤1/10）+ 底栏/当前项标签/双箭头 ×ui_k。几何=[`TitleGeom::modern`] 单源
+    /// （触屏命中同源）。延展带=顶带同款纯蓝（2026-10-19 用户验收口径不变）。
+    fn paint_modern_touch(
+        &mut self,
+        g: &mut SoftGraphics<'_>,
+        map_bg: &ArgbImage,
+        strip: &ArgbImage,
+        arrow: &ArgbImage,
+        layout: &crate::layout::Layout,
+    ) {
+        let (sw, sh) = (layout.screen_w, layout.screen_h);
+        let (aw, ah) = (arrow.logical_width(), arrow.logical_height());
+        let geo = TitleGeom::modern(layout, map_bg.logical_width(), map_bg.logical_height(), aw, ah);
+        let top_px = map_bg.argb[0] & 0x00FF_FFFF | 0xFF00_0000;
+        g.set_color(top_px);
+        g.fill_rect(0, 0, sw, sh);
+        g.draw_image_scaled(map_bg, geo.art_x, geo.art_y, geo.art_k);
+        g.set_color(crate::layout::DARK_BACKDROP);
+        g.fill_rect(0, sh - geo.bar_h, sw, geo.bar_h);
+        let sy = STRIP_CELL * self.menu_kinds[self.cursor as usize] as i32;
+        self.paint_icon_strip_scaled(g, strip, geo.label.0, geo.label.1, sy, geo.ui_k);
+        // 双箭头（左=水平翻转，诺基亚 8192 同义；bob 摆幅同倍）
+        let k = geo.ui_k;
+        g.draw_region_scaled(arrow, 0, 0, aw, ah, geo.arrow_left_x - k * self.bob, geo.arrow_y, k, true);
+        g.draw_region_scaled(arrow, 0, 0, aw, ah, geo.arrow_right_x + k * self.bob, geo.arrow_y, k, false);
+        // 粒子层（原式 clip；生成域随画布 ①a）
+        let bar = self.bar_height;
+        g.set_clip(0, bar, sw, sh - (bar >> 1));
+        self.particles.paint_and_update(g);
+        g.reset_clip();
     }
 
-    /// 【2c 裁定】tap 命中：行内=Some(index)（切换+确认一步到位），行隙/区外=None
-    ///（不误触）。标题 UI=键盘语义（cursor+-5 确认），本 fn 只做命中定位。
-    pub fn menu_hit(x: i32, y: i32, sw: i32, sh: i32, bar: i32) -> Option<usize> {
-        for (i, (rx, ry, rw, rh)) in Self::menu_item_rects(sw, sh, bar).into_iter().enumerate() {
-            if x >= rx && x < rx + rw && y >= ry && y < ry + rh {
-                return Some(i);
+    /// drawIconStrip 的 ×k 形（列宽/波动幅 ×k；帧推进与 [`Self::paint_icon_strip`] 逐字同）。
+    fn paint_icon_strip_scaled(
+        &mut self,
+        g: &mut SoftGraphics<'_>,
+        strip: &ArgbImage,
+        x0: i32,
+        y0: i32,
+        sy: i32,
+        k: i32,
+    ) {
+        let mut frame = self.strip_frame;
+        let mut src_x = 0;
+        let mut base_x = x0;
+        while src_x < 60 {
+            let cx = base_x + STRIP_DX[frame] * k;
+            let cy = y0 + STRIP_DY[frame] * k;
+            g.draw_region_scaled(strip, src_x, sy, STRIP_CELL, STRIP_CELL, cx, cy, k, false);
+            frame += 1;
+            if frame > 7 {
+                frame = 0;
             }
+            src_x += STRIP_CELL;
+            base_x += STRIP_CELL * k;
         }
-        None
+        self.strip_frame += 1;
+        if self.strip_frame > 7 {
+            self.strip_frame = 0;
+        }
     }
 
+    /// > 【2026-10-26 更正】原 `menu_item_rects`/`menu_hit`（2c 裁定：6 条行矩形叠在
+    /// > 标题美术上，tap 行 i=选中+确认）已撤除：行**不可见**（paint 从未画行，可见
+    /// > 菜单=底栏轮播单项），实机点"开始游戏"文字落行外、点到第 6 行=退出
+    /// > （LogoAnim）误触。由用户裁定 C 方案取代：轮播热区 [`TitleGeom::hit`]
+    /// > （与 paint 同源）+ [`title_swipe`]。
+    ///
     /// `drawIconStrip`（a.java:4790-4797）：4 列图标带（列源 x = 0/17/34/51），
     /// 每列按 STRIP_DX/DY[帧] 波动；字段帧每 paint +1（环 8）。
     fn paint_icon_strip(&mut self, g: &mut SoftGraphics<'_>, strip: &ArgbImage, x0: i32, y0: i32, sy: i32) {
@@ -402,5 +583,121 @@ impl TitleMachine {
             self.strip_frame = 0;
         }
         g.reset_clip();
+    }
+}
+
+#[cfg(test)]
+mod touch_carousel_tests {
+    //! 【STAGE-B 触屏标题 C 方案（2026-10-26 用户裁定）】Modern 标题几何单源
+    //! （paint 与触屏命中共用）+ 轮播触屏语义 + 2× 整数倍美术。
+    use super::*;
+    use crate::layout::Layout;
+
+    /// 真素材尺寸：menu[0] 标题美术 240×295、ui[14] 箭头 20×13（assets/raw 实测）。
+    fn geom(grid: i32) -> TitleGeom {
+        TitleGeom::modern(&Layout::modern(grid, grid), 240, 295, 20, 13)
+    }
+
+    #[test]
+    fn geom_576_integer_2x_art_bottom_on_bar_and_finger_zones() {
+        let g = geom(18);
+        assert_eq!((g.art_k, g.art_x, g.art_y), (2, 48, -54), "2× 整数倍、横居中、底贴底栏（顶裁 54）");
+        assert_eq!(g.bar_h, 40, "底栏=2× 标签 34 + 上下留白 3");
+        assert_eq!(g.art_y + 295 * g.art_k, 576 - g.bar_h, "美术底边=底栏上沿（logo 不被盖）");
+        assert_eq!(g.label, (220, 539, 136, 34), "标签 2×（4 格×17×2）屏心居中");
+        assert_eq!((g.arrow_left_x, g.arrow_right_x, g.arrow_y), (168, 368, 543), "箭头=原偏置×2");
+        assert_eq!(g.zone_prev, (0, 504, 220, 72));
+        assert_eq!(g.zone_ok, (220, 504, 136, 72));
+        assert_eq!(g.zone_next, (356, 504, 220, 72));
+    }
+
+    #[test]
+    fn geom_art_scale_is_integer_and_crop_bounded_across_grids() {
+        for grid in 13..=24 {
+            let g = geom(grid);
+            let (sw, sh) = (grid * 32, grid * 32);
+            assert!(g.art_k >= 1 && 240 * g.art_k <= sw, "grid {grid}：美术不超宽");
+            let crop = (295 * g.art_k - (sh - g.bar_h)).max(0);
+            assert!(crop * 10 <= 295 * g.art_k, "grid {grid}：顶裁 ≤10%（实裁 {crop}）");
+            assert_eq!(g.art_y + 295 * g.art_k, sh - g.bar_h, "grid {grid}：底贴底栏");
+            // 热区横向无缝铺满、互不重叠
+            assert_eq!(g.zone_prev.0, 0);
+            assert_eq!(g.zone_prev.0 + g.zone_prev.2, g.zone_ok.0);
+            assert_eq!(g.zone_ok.0 + g.zone_ok.2, g.zone_next.0);
+            assert_eq!(g.zone_next.0 + g.zone_next.2, sw);
+            assert_eq!(g.zone_ok.1 + g.zone_ok.3, sh, "热区贴底");
+            assert!(g.zone_ok.3 >= g.bar_h, "热区覆盖底栏");
+        }
+        assert_eq!(geom(13).art_k, 1, "416 画幅放不下 2×（480>416）⇒ 1×");
+        assert_eq!(geom(24).art_k, 2, "768 画幅 3× 顶裁 157>88 ⇒ 2×");
+    }
+
+    #[test]
+    fn touch_zones_map_to_existing_key_arms() {
+        let g = geom(18);
+        let mid = |r: (i32, i32, i32, i32)| (r.0 + r.2 / 2, r.1 + r.3 / 2);
+        let (px, py) = mid(g.zone_prev);
+        let (ox, oy) = mid(g.zone_ok);
+        let (nx, ny) = mid(g.zone_next);
+        assert_eq!(g.hit(px, py), Some(TitleTouch::Prev));
+        assert_eq!(g.hit(ox, oy), Some(TitleTouch::Confirm));
+        assert_eq!(g.hit(nx, ny), Some(TitleTouch::Next));
+        assert_eq!(g.hit(ox, g.zone_ok.1 - 1), None, "热区上沿外=美术区不误触");
+        assert_eq!(g.hit(-1, oy), None, "画布外（侧余负坐标）=None");
+        // 键码=既有 title tick 臂（-3 上移环绕 / -4 下移环绕 / -5 确认）
+        assert_eq!(TitleTouch::Prev.key(), -3);
+        assert_eq!(TitleTouch::Next.key(), -4);
+        assert_eq!(TitleTouch::Confirm.key(), -5);
+    }
+
+    #[test]
+    fn horizontal_swipe_switches_item_vertical_ignored() {
+        assert_eq!(title_swipe(-40, 5, 24), Some(TitleTouch::Next), "左滑=下一项（轮播内容左移）");
+        assert_eq!(title_swipe(40, -5, 24), Some(TitleTouch::Prev), "右滑=上一项");
+        assert_eq!(title_swipe(5, 60, 24), None, "纵滑不切项");
+        assert_eq!(title_swipe(10, 0, 24), None, "阈值内=非滑动");
+    }
+
+    #[test]
+    fn modern_paint_uses_geom_single_source() {
+        let layout = Layout::modern(18, 18);
+        let g0 = TitleGeom::modern(&layout, 240, 295, 20, 13);
+        // 美术：逐像素可辨（x/y 编进颜色），顶行纯蓝
+        let mut art = ArgbImage::create(240, 295);
+        for y in 0..295 {
+            for x in 0..240 {
+                art.argb[(y * 240 + x) as usize] =
+                    if y == 0 { 0xFF3388CC } else { 0xFF000000 | ((x as u32) << 16) | ((y as u32) << 8) | 0x55 };
+            }
+        }
+        let mut strip = ArgbImage::create(68, 102);
+        strip.argb.fill(0xFFEE1111);
+        let mut arrow = ArgbImage::create(20, 13);
+        arrow.argb.fill(0xFF11EE11);
+        let mut canvas = ArgbImage::create(576, 576);
+        let mut t = TitleMachine::new();
+        {
+            let mut g = SoftGraphics::new(&mut canvas);
+            t.paint(&mut g, &art, &strip, &arrow, &layout);
+        }
+        let at = |x: i32, y: i32| canvas.argb[(y * 576 + x) as usize];
+        // 2× 整数倍：源 (u,v) → 2×2 逻辑块（均匀），左上块角=art_x+2u, art_y+2v
+        for (u, v) in [(10, 40), (100, 150), (239, 294)] {
+            let src = art.argb[(v * 240 + u) as usize];
+            let (x, y) = (g0.art_x + 2 * u, g0.art_y + 2 * v);
+            for (dx, dy) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+                assert_eq!(at(x + dx, y + dy), src, "源({u},{v}) 2×2 块均匀");
+            }
+        }
+        assert_eq!(at(5, 200), 0xFF3388CC, "左延展带=顶带同款纯蓝（10-19 验收口径不变）");
+        assert_eq!(at(570, 200), 0xFF3388CC, "右延展带同");
+        assert_eq!(at(5, 575), 0xFF000000 | crate::layout::DARK_BACKDROP, "底栏=暗底色 40 高");
+        assert_eq!(at(5, 576 - g0.bar_h), 0xFF000000 | crate::layout::DARK_BACKDROP, "底栏上沿行");
+        // 标签 2×：标签首格内（列波动 ±2 不出格）=图标带色
+        let (lx, ly, _lw, lh) = g0.label;
+        assert_eq!(at(lx + 17, ly + lh / 2), 0xFFEE1111, "标签 2× 落在 geom.label");
+        // 箭头 2×：左/右箭头基准 x 起 40×26（bob=0 首帧）
+        assert_eq!(at(g0.arrow_left_x + 20, g0.arrow_y + 13), 0xFF11EE11, "左箭头 2×");
+        assert_eq!(at(g0.arrow_right_x + 20, g0.arrow_y + 13), 0xFF11EE11, "右箭头 2×");
     }
 }

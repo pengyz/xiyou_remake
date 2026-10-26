@@ -9,6 +9,7 @@
 //!   + MOT_IF 槽表序列化（[`rms::serialize_slot_if`]）。
 //! - [`audio`]：BGM/PCM 共享面——纯字节、**零 `std::fs`/路径**（BgmController/Track/
 //!   decode_ogg/Mixer/audio_loop，设备实现留各壳）。
+//! - [`font`]：D2 字体缝（系统 TTF/TTC → game-core 字形钩子；候选路径由各壳给）。
 //!
 //! **已知第五缝不入本 crate**（docs/spec/platform-contract.md §0/§4.2，B2 登记）：
 //! BGM 轨迹装载 `start()`/`track_path`/`REGEN_CMD` 是路径型装载（`--audio` 注入）=
@@ -19,6 +20,7 @@
 //! 判据锚 `behavior_anchors::storage_lookup_follows_fs_case_rules_key_stays_canonical`）。
 
 pub mod asset;
+pub mod font;
 pub mod touch;
 pub mod undo_ui;
 pub mod audio;

@@ -15,7 +15,7 @@ game-platform = { path = "../../crates/game-platform" }
 game-shell-common = { path = "../common" }
 winit = "0.30"
 softbuffer = "0.4"
-ab_glyph = "0.2"
+# 【2026-10-26】ab_glyph 随字形钩子迁 game-shell-common（font.rs），本 crate 不再直依赖。
 
 # BGM 输出：运行时 dlopen libasound.so.2（无构建期系统依赖——cpal/rodio 经 alsa-sys
 # 需 libasound2-dev + pkg-config）。版本与 winit 依赖树已锁定的 0.8.9 一致（零新增下载）。

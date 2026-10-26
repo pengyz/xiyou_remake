@@ -757,6 +757,28 @@ impl BootMachine {
         !matches!(self.mode, GameMode::Map)
     }
 
+    /// 【C 方案 2026-10-26】Modern 标题态几何（paint 同参单源：menu[0] 美术 + ui[14]
+    /// 箭头）；非标题态 / classic（原版按键语义）=None。
+    pub fn title_geom(&self) -> Option<crate::title::TitleGeom> {
+        if self.mode != GameMode::MainMenu || self.layout.preset != crate::layout::Preset::Modern {
+            return None;
+        }
+        let (art, arrow) = (self.menu.first()?, self.ui.get(14)?);
+        Some(crate::title::TitleGeom::modern(
+            &self.layout,
+            art.logical_width(),
+            art.logical_height(),
+            arrow.logical_width(),
+            arrow.logical_height(),
+        ))
+    }
+
+    /// 【C 方案】标题触点 → 键码（热区外=None）：-3 上一项 / -4 下一项 / -5 确认，
+    /// 走既有 title tick 臂（壳按普通按下投递，零新游戏状态）。
+    pub fn title_touch_key(&self, x: i32, y: i32) -> Option<i32> {
+        self.title_geom()?.hit(x, y).map(crate::title::TitleTouch::key)
+    }
+
     /// 当前 title 光标对应的 kind（mode 1 出口分派键）。
     fn title_kind(&self) -> i32 {
         self.title
@@ -960,6 +982,57 @@ mod tests {
             vec![],
             vec![],
         )
+    }
+
+    /// 【C 方案 2026-10-26】标题触屏入口：几何=TitleGeom 单源（与 paint 同参：menu[0]
+    /// 美术 + ui[14] 箭头尺寸）；热区→既有键臂→光标环绕/确认派发全链；classic=None。
+    #[test]
+    fn title_touch_key_chain_prev_next_confirm() {
+        let mut ui = vec![synth(24, 24); 25];
+        ui[14] = synth(20, 13);
+        let mut m = BootMachine::new(
+            synth(164, 117),
+            synth(176, 138),
+            vec![synth(24, 24); 8],
+            ui,
+            vec![synth(240, 295), synth(68, 102)],
+            synth(77, 320),
+            vec![synth(24, 24); 2],
+            vec![synth(24, 24); 1],
+            vec![synth(24, 24); 2],
+        );
+        m.apply_layout(crate::layout::Layout::modern(18, 18));
+        assert_eq!(m.title_touch_key(288, 560), None, "非标题态=None");
+        for _ in 0..200 {
+            m.tick(0);
+            if m.mode == GameMode::MainMenu {
+                break;
+            }
+        }
+        assert_eq!(m.mode, GameMode::MainMenu, "前置：modern 跳过声音询问直入标题");
+        let g = m.title_geom().expect("标题态有几何");
+        assert_eq!(g, crate::title::TitleGeom::modern(&m.layout, 240, 295, 20, 13), "几何单源=paint 同参");
+        let mid = |r: (i32, i32, i32, i32)| (r.0 + r.2 / 2, r.1 + r.3 / 2);
+        let (nx, ny) = mid(g.zone_next);
+        let (px, py) = mid(g.zone_prev);
+        let (ox, oy) = mid(g.zone_ok);
+        assert_eq!(m.title_touch_key(nx, ny), Some(-4));
+        m.tick(-4);
+        assert_eq!(m.title_cursor(), Some(1), "下一项=光标+1");
+        assert_eq!(m.title_touch_key(px, py), Some(-3));
+        m.tick(-3);
+        m.tick(-3);
+        assert_eq!(m.title_cursor(), Some(5), "上一项环绕：0→5（menuCursorIndex 环绕）");
+        m.tick(-4);
+        assert_eq!(m.title_cursor(), Some(0));
+        assert_eq!(m.title_touch_key(ox, oy), Some(-5));
+        assert_eq!(m.title_touch_key(ox, g.zone_ok.1 - 1), None, "热区外=美术区不误触");
+        m.tick(-5);
+        assert_eq!(m.mode, GameMode::IntroCutscene, "确认 kind0=开始游戏→序章");
+        let mut c = boot_state();
+        c.mode = GameMode::MainMenu;
+        c.title = Some(crate::title::TitleMachine::new());
+        assert_eq!(c.title_geom(), None, "classic=原版按键语义，无触屏热区");
     }
 
     /// STAGE-B-004a ①a 判据（序章白点散射根因，viewport 复核 V2 点名项）：
