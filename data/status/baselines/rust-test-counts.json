@@ -13,10 +13,10 @@
     "density_draw(test)": 16,
     "entity_golden(test)": 12,
     "feedback(test)": 5,
-    "fixture_frames(test)": 25,
+    "fixture_frames(test)": 28,
     "flow(test)": 3,
     "game_android(lib)": 5,
-    "game_core(lib)": 163,
+    "game_core(lib)": 165,
     "game_data(lib)": 35,
     "game_oracle(lib)": 0,
     "game_platform(lib)": 6,
@@ -41,6 +41,7 @@
     "render_category_table_driven(test)": 4,
     "render_golden(test)": 16,
     "script_golden(test)": 14,
+    "script_walk_taps(test)": 2,
     "sheet_index_table_driven(test)": 6,
     "size_dispatch_table_driven(test)": 5,
     "slot_equip_scene(test)": 2,
@@ -56,5 +57,5 @@
     "walk_route(test)": 11,
     "xiyou(bin)": 40
   },
-  "total": 654
+  "total": 661
 }
