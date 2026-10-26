@@ -2,11 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-feature android:glEsVersion="0x00020000" android:required="false" />
     <application android:label="囧囧西游" android:icon="@mipmap/ic_launcher" android:hasCode="false" android:allowBackup="false">
+        <!-- 【2026-10-26 竖屏动态分辨率】默认竖屏 + 全屏（隐藏状态栏：画面不再被状态栏/
+             挖孔压住）；布局由 shell/android/src/portrait.rs 按窗口尺寸动态规划 -->
         <activity android:name="android.app.NativeActivity"
                   android:label="囧囧西游"
+                  android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
                   android:configChanges="orientation|screenSize|keyboardHidden"
                   android:exported="true"
-                  android:screenOrientation="landscape">
+                  android:screenOrientation="portrait">
             <meta-data android:name="android.app.lib_name" android:value="game_android" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

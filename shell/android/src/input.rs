@@ -103,7 +103,7 @@ pub fn map_hw_key(key: HwKey, repeat: bool) -> KeyMapResult {
 }
 
 /// 虚拟方向盘区（逻辑画布坐标）。
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DpadZone {
     pub cx: f32,
     pub cy: f32,
@@ -114,7 +114,7 @@ pub struct DpadZone {
 }
 
 /// 软键区（矩形，半开 [x0,x1)×[y0,y1)）。
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SoftZone {
     pub code: i32,
     pub x0: f32,
@@ -124,7 +124,7 @@ pub struct SoftZone {
 }
 
 /// 虚拟手柄布局（overlay 几何）。
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PadLayout {
     pub dpad: DpadZone,
     pub soft: Vec<SoftZone>,
@@ -223,6 +223,14 @@ impl TouchMapper {
             .iter()
             .find(|s| x >= s.x0 && x < s.x1 && y >= s.y0 && y < s.y1)
             .map(|s| s.code)
+    }
+
+    /// 当前按住的键码（各触点翻译簿里的现行键；面板按下反馈用，零状态副作用）。
+    pub fn held_codes(&self) -> Vec<i32> {
+        let mut v: Vec<i32> = self.pointers.iter().filter_map(|(_, p)| p.code).collect();
+        v.sort();
+        v.dedup();
+        v
     }
 
     /// 一个触点事件 → 键动作流（保序）。

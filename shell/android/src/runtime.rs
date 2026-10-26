@@ -59,6 +59,9 @@ pub struct Runtime {
     pub frame_counter: u64,
     /// 场景崩溃（game-core panic 被捕获）：停拍留帧，日志 GAME-CRASH。
     pub crashed: bool,
+    /// 【竖屏动态分辨率】游戏场景布局（交接时 apply；开场链布局=machine.layout）——
+    /// 两档逻辑分辨率共用同一物理视口（portrait.rs）。缺省=machine 同布局（旧单档口径）。
+    pub scene_layout: game_core::layout::Layout,
 }
 
 impl Runtime {
@@ -70,6 +73,7 @@ impl Runtime {
     ) -> Runtime {
         machine.preset_stores = stores.clone();
         handoff::apply_stored_global(&mut machine, &stores);
+        let scene_layout = machine.layout.clone();
         Runtime {
             machine,
             scene: None,
@@ -79,6 +83,33 @@ impl Runtime {
             persisted_blobs: Default::default(),
             frame_counter: 0,
             crashed: false,
+            scene_layout,
+        }
+    }
+
+    /// 【竖屏动态分辨率】双档布局换轨：开场链 → machine、游戏 → 现场景 + 后续交接。
+    pub fn apply_layouts(&mut self, boot: game_core::layout::Layout, scene: game_core::layout::Layout) {
+        self.machine.apply_layout(boot);
+        if let Some(sc) = self.scene.as_mut() {
+            sc.apply_layout(scene.clone());
+        }
+        self.scene_layout = scene;
+    }
+
+    /// 活动机对应的画布档（场景活动=scene 档，否则=boot 档）。
+    pub fn active_canvas(&self, plan: &crate::portrait::PortraitPlan) -> crate::portrait::Canvas {
+        if self.scene.is_some() {
+            plan.scene
+        } else {
+            plan.boot
+        }
+    }
+
+    /// 活动机软键种类（面板软键图标=游戏同款，随态切换）。
+    pub fn softkeys(&self) -> (i8, i8) {
+        match self.scene.as_ref() {
+            Some(sc) => sc.softkeys,
+            None => self.machine.softkeys,
         }
     }
 
@@ -104,12 +135,9 @@ impl Runtime {
         }
     }
 
-    /// 布局换轨（窗口重建；两机同口径 apply_layout）。
+    /// 布局换轨（窗口重建；两机同口径 apply_layout——旧单档口径）。
     pub fn apply_layout(&mut self, layout: game_core::layout::Layout) {
-        if let Some(sc) = self.scene.as_mut() {
-            sc.apply_layout(layout.clone());
-        }
-        self.machine.apply_layout(layout);
+        self.apply_layouts(layout.clone(), layout);
     }
 
     /// hideNotify 边沿（win 壳 hide_notify 同构）：游戏态=GameScene::hide_notify（mode3→4
@@ -210,7 +238,8 @@ impl Runtime {
         };
         if let Some(mut sc) = sc {
             // win 壳 enter_scene 同口径：布局经 apply_layout 换轨 + SKY_WAR 交接拷贝
-            sc.apply_layout(self.machine.layout.clone());
+            // 【竖屏】游戏场景用 scene 档布局（可与开场链不同档，同一物理视口）
+            sc.apply_layout(self.scene_layout.clone());
             sc.apply_global(self.machine.global_snapshot());
             self.persisted_blobs = sc.saved_slot_blobs.clone();
             log_input(&format!("handoff → GameScene floor={} mode={:?}", sc.floor, sc.game_mode));

@@ -101,6 +101,7 @@ pub const AKEYCODE_MENU: i32 = 82;
 /// APP_CMD_*（native_app_glue.h `android_app_cmd`）。
 pub const APP_CMD_INIT_WINDOW: i32 = 1;
 pub const APP_CMD_TERM_WINDOW: i32 = 2;
+pub const APP_CMD_CONTENT_RECT_CHANGED: i32 = 5;
 pub const APP_CMD_GAINED_FOCUS: i32 = 6;
 pub const APP_CMD_LOST_FOCUS: i32 = 7;
 pub const APP_CMD_START: i32 = 10;
@@ -426,6 +427,25 @@ pub struct ShellWiring {
     pub title_gestures: Vec<TitleGesture>,
     /// 标题手势簿：(触点 id, 按下点, 本手势已发滑动)
     title_track: Option<(i32, f32, f32, bool)>,
+    /// 【竖屏动态分辨率】竖屏规划（Some=竖屏组成：游戏视口+控制面板；None=旧横屏方画幅）。
+    pub portrait: Option<crate::portrait::PortraitPlan>,
+    /// 【竖屏】活动画布档（触点→逻辑坐标的缩放/放置依据；主循环每拍按活动机更新）。
+    pub active_canvas: Option<crate::portrait::Canvas>,
+    /// 【竖屏】触点分区簿（按下时定区：面板/视口；拖出区仍归原区——按钮捕获语义）。
+    route: Vec<(i32, TouchRegion)>,
+    /// 【竖屏公式化】屏幕密度（AConfiguration_getDensity 经 dpi_or_baseline；dp 换算源）。
+    pub dpi: i32,
+    /// 【竖屏公式化】全关卡最大格数（maplv 头；游戏格阵上限）。
+    pub map_extent: crate::portrait::MapExtent,
+    /// 【竖屏公式化】glue contentRect（窗口坐标 l,t,r,b；None=未收到）——内容区内缩源。
+    pub content_rect: Option<(i32, i32, i32, i32)>,
+}
+
+/// 【竖屏】触点区。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TouchRegion {
+    Panel,
+    Game,
 }
 
 impl ShellWiring {
@@ -444,6 +464,102 @@ impl ShellWiring {
             title_mode: false,
             title_gestures: Vec::new(),
             title_track: None,
+            portrait: None,
+            active_canvas: None,
+            route: Vec::new(),
+            dpi: crate::portrait::DP_BASELINE_DPI,
+            map_extent: crate::portrait::MapExtent::default(),
+            content_rect: None,
+        }
+    }
+
+    /// 【竖屏公式化】规划输入（窗口 w×h + 本机密度/内容区/地图——全部设备与数据来源）：
+    /// 上缩 = contentRect.top、下缩 = 窗高 − contentRect.bottom（越界/未知 = 0）。
+    pub fn portrait_input(&self, w: i32, h: i32) -> crate::portrait::PlanInput {
+        let (inset_top, inset_bottom) = match self.content_rect {
+            Some((_, t, _, b)) if b > t && b <= h => (t.clamp(0, h), h - b),
+            _ => (0, 0),
+        };
+        crate::portrait::PlanInput { window: (w, h), dpi: self.dpi, inset_top, inset_bottom, map: self.map_extent }
+    }
+
+    /// 【竖屏公式化】输入变化（contentRect 到达）后重规划：结果与现行不同才采用并返回
+    /// （Some = 宿主须重建画布/面板）；非竖屏或未变 = None。
+    pub fn replan_portrait(&mut self) -> Option<crate::portrait::PortraitPlan> {
+        let (w, h) = self.portrait.as_ref()?.window;
+        let plan = crate::portrait::plan_portrait(&self.portrait_input(w, h));
+        if self.portrait.as_ref() == Some(&plan) {
+            return None;
+        }
+        self.apply_portrait(plan.clone());
+        Some(plan)
+    }
+
+    /// 【竖屏】采用竖屏规划：面板控件=PadLayout（面板局部物理像素），触控翻译换轨；
+    /// 画布内调试描边关闭（控件已是面板上的可见 UI）；活动画布初始=开场链档。
+    pub fn apply_portrait(&mut self, plan: crate::portrait::PortraitPlan) {
+        self.pad = plan.pad.clone();
+        self.touch = TouchMapper::new(plan.pad.clone());
+        self.window_size = (plan.window.0 as u32, plan.window.1 as u32);
+        self.resolution = Some((plan.scene.grid_w as u32, plan.scene.scale as u32));
+        self.surface = (plan.scene.logical().0 as u32, plan.scene.logical().1 as u32);
+        self.overlay_debug = false;
+        self.active_canvas = Some(plan.boot);
+        self.route.clear();
+        self.portrait = Some(plan);
+    }
+
+    /// 【竖屏】活动画布档（主循环按活动机每拍更新）。
+    pub fn set_active_canvas(&mut self, c: crate::portrait::Canvas) {
+        self.active_canvas = Some(c);
+    }
+
+    /// 【竖屏】设备坐标触点路由（物理像素，窗口坐标）：按下定区——
+    /// 面板 → 面板局部坐标喂 TouchMapper（方向盘/确定/软键出键）；
+    /// 视口 → 活动画布逻辑坐标：标题态记轮播手势、其余态 Up 入待决点按（不出键）。
+    /// 拖出原区仍归原区（按住方向拖进视口不被截走）。
+    pub fn on_touch_device(&mut self, id: i32, phase: TouchPhase, x: f32, y: f32) -> Vec<KeyAction> {
+        let Some(plan) = self.portrait.as_ref() else { return Vec::new() };
+        let (panel, game) = (plan.panel, plan.game);
+        let canvas = self.active_canvas.unwrap_or(plan.boot);
+        let region = match phase {
+            TouchPhase::Down => {
+                let r = if panel.contains(x, y) {
+                    Some(TouchRegion::Panel)
+                } else if game.contains(x, y) {
+                    Some(TouchRegion::Game)
+                } else {
+                    None
+                };
+                self.route.retain(|(i, _)| *i != id);
+                if let Some(r) = r {
+                    self.route.push((id, r));
+                }
+                r
+            }
+            _ => self.route.iter().find(|(i, _)| *i == id).map(|(_, r)| *r),
+        };
+        if matches!(phase, TouchPhase::Up | TouchPhase::Cancel) {
+            self.route.retain(|(i, _)| *i != id);
+        }
+        match region {
+            Some(TouchRegion::Panel) => {
+                let ev = TouchEvent { id, phase, x: x - panel.x as f32, y: y - panel.y as f32 };
+                self.touch.feed(&ev)
+            }
+            Some(TouchRegion::Game) => {
+                let c = canvas.rect_in(game);
+                let s = canvas.scale.max(1) as f32;
+                let (lx, ly) = (((x - c.x as f32) / s).floor(), ((y - c.y as f32) / s).floor());
+                let ev = TouchEvent { id, phase, x: lx, y: ly };
+                if self.title_mode {
+                    self.on_title_touch(&ev);
+                } else if matches!(phase, TouchPhase::Up) && lx >= 0.0 && ly >= 0.0 {
+                    self.pending_taps.push((lx, ly));
+                }
+                Vec::new()
+            }
+            None => Vec::new(),
         }
     }
 
@@ -538,6 +654,12 @@ impl ShellWiring {
                     let id = ffi::AMotionEvent_getPointerId(event, idx);
                     let (g, sc) = self.resolved();
                     let (bx, by) = (ffi::AMotionEvent_getX(event, idx), ffi::AMotionEvent_getY(event, idx));
+                    // 【竖屏】设备坐标分区路由（面板=控件，视口=游戏）
+                    if self.portrait.is_some() {
+                        let keys = self.on_touch_device(id, phase, bx, by);
+                        log_input(&format!("motion phase={phase:?} raw=({bx:.0},{by:.0}) portrait keys={keys:?}"));
+                        return (keys, true);
+                    }
                     // 【问题2b】反变换分母=真实窗口尺寸（旧传 self.surface=逻辑尺寸 ⇒ 全落侧余）
                     let (ww, wh) = if self.window_size.0 > 0 {
                         self.window_size
@@ -603,7 +725,11 @@ impl ShellWiring {
             unsafe {
                 let bw = ffi::ANativeWindow_getWidth(window).max(0) as u32;
                 let bh = ffi::ANativeWindow_getHeight(window).max(0) as u32;
-                if bw > 0 && bh > 0 {
+                if bw > 0 && bh >= bw {
+                    // 【竖屏动态分辨率】竖窗=游戏视口+控制面板组成（portrait.rs 公式规划）
+                    let plan = crate::portrait::plan_portrait(&self.portrait_input(bw as i32, bh as i32));
+                    self.apply_portrait(plan);
+                } else if bw > 0 && bh > 0 {
                     self.window_size = (bw, bh); // 【问题2b】真实缓冲尺寸
                     let (g, sc) = pick_resolution(bw, bh);
                     self.resolution = Some((g, sc));
@@ -616,6 +742,38 @@ impl ShellWiring {
         }
         if self.resolution.is_none() {
             self.surface = logical_canvas();
+        }
+        true
+    }
+
+    /// 【竖屏】多层呈现：锁窗缓冲 → compose_layers（清不透黑 + 各层 1:1 拷入）→ post。
+    /// 层 = (ARGB, 宽, 高, x, y)（窗口物理像素坐标）。window=NULL ⇒ No-op 返回 false。
+    pub fn present_layers(&mut self, window: *mut ANativeWindow, layers: &[(&[u32], i32, i32, i32, i32)]) -> bool {
+        if window.is_null() {
+            return false;
+        }
+        #[cfg(target_os = "android")]
+        unsafe {
+            let mut buf = ANativeWindowBuffer {
+                width: 0,
+                height: 0,
+                stride: 0,
+                format: 0,
+                bits: std::ptr::null_mut(),
+            };
+            if ffi::ANativeWindow_lock(window, &mut buf, std::ptr::null_mut()) != 0 {
+                return false;
+            }
+            if !buf.bits.is_null() && buf.width > 0 && buf.height > 0 {
+                let total = (buf.stride.max(0) as usize) * (buf.height as usize) * 4;
+                let dst = std::slice::from_raw_parts_mut(buf.bits as *mut u8, total);
+                crate::portrait::compose_layers(dst, buf.width, buf.height, buf.stride, layers);
+            }
+            ffi::ANativeWindow_unlockAndPost(window);
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            let _ = layers;
         }
         true
     }
@@ -881,6 +1039,9 @@ mod ffi {
         pub fn AInputQueue_finishEvent(queue: *mut std::ffi::c_void, event: *mut AInputEvent, handled: i32) -> i32;
         pub fn ANativeWindow_getWidth(window: *mut ANativeWindow) -> i32;
         pub fn ANativeWindow_getHeight(window: *mut ANativeWindow) -> i32;
+        /// android/configuration.h：`int32_t AConfiguration_getDensity(AConfiguration*)`
+        /// （ACONFIGURATION_DENSITY_*：dpi 值；0/0xfffe/0xffff = 未知码）。
+        pub fn AConfiguration_getDensity(config: *mut std::ffi::c_void) -> i32;
         pub fn ALooper_pollAll(
             timeout_millis: i32,
             out_fd: *mut i32,
@@ -900,6 +1061,28 @@ pub struct HostState {
     pub assets: crate::asset::apk::ApkAssetSource,
     pub surface: (u32, u32),
     pub pending_keys: Vec<KeyAction>,
+    /// 【竖屏】控制面板画布（面板物理像素；状态变化才重绘）+ 上次绘制状态。
+    pub panel: game_core::render::ArgbImage,
+    pub panel_state: Option<crate::portrait::PanelState>,
+    /// 【竖屏】软键图标条（ui[11]，面板软键图标=游戏同款）。
+    pub softkey_icons: game_core::render::ArgbImage,
+}
+
+#[cfg(target_os = "android")]
+impl HostState {
+    /// 【竖屏】采用规划（INIT_WINDOW / contentRect 变化重排共用）：双档布局换轨 +
+    /// 活动档画布与面板按物理尺寸重建（面板强制重绘）。
+    fn adopt_portrait(&mut self, plan: &crate::portrait::PortraitPlan) {
+        self.rt.apply_layouts(plan.boot.layout(), plan.scene.layout());
+        let (cw, ch) = self.rt.active_canvas(plan).physical();
+        self.canvas = game_core::render::ArgbImage::create(cw, ch);
+        self.panel = game_core::render::ArgbImage::create(plan.panel.w, plan.panel.h);
+        self.panel_state = None;
+        log_input(&format!(
+            "portrait plan window={:?} dp={} panel_min={} scene={:?} boot={:?} game={:?} panel={:?} geom={:?}",
+            plan.window, plan.dp, plan.panel_min, plan.scene, plan.boot, plan.game, plan.panel, plan.geom
+        ));
+    }
 }
 
 /// 生产 looper（[`crate::pump::Pump`] 的 ALooper 实现）：poll(timeout) 就绪源经
@@ -945,15 +1128,29 @@ extern "C" fn handle_cmd(app: *mut AndroidApp, cmd: i32) {
                 // 【实机 SIGSEGV 回派修复①】窗口就绪才协商（几何协商唯一写点）
                 let ok = st.wiring.ensure_surface((*app).window);
                 st.surface = st.wiring.surface;
-                // 【#2】策略选定分辨率 → 画布/Modern 布局重解析（任意格数×32 公式）
-                let (g, sc) = st.wiring.resolved();
-                // 【字体修复】物理背板（逻辑×sc；字形按物理光栅化）
-                st.canvas = game_core::render::ArgbImage::create((g * 32 * sc) as i32, (g * 32 * sc) as i32);
-                st.rt.apply_layout(game_core::layout::Layout::modern(g as i32, g as i32));
+                if let Some(plan) = st.wiring.portrait.clone() {
+                    // 【竖屏动态分辨率】双档布局：开场链 boot 档 / 游戏 scene 档（同一视口）
+                    st.adopt_portrait(&plan);
+                } else {
+                    // 【#2】策略选定分辨率 → 画布/Modern 布局重解析（任意格数×32 公式）
+                    let (g, sc) = st.wiring.resolved();
+                    // 【字体修复】物理背板（逻辑×sc；字形按物理光栅化）
+                    st.canvas = game_core::render::ArgbImage::create((g * 32 * sc) as i32, (g * 32 * sc) as i32);
+                    st.rt.apply_layout(game_core::layout::Layout::modern(g as i32, g as i32));
+                }
                 let _ = ok;
             }
             APP_CMD_TERM_WINDOW => {
                 // glue 随后置 app->window=NULL（native_app_glue.c:145）——呈现侧每帧判空
+            }
+            APP_CMD_CONTENT_RECT_CHANGED => {
+                // 【竖屏公式化】内容区（系统栏/手势条让位）到达：内缩入规划输入，结果变才重排
+                let r = (*app).content_rect;
+                st.wiring.content_rect = Some((r.left, r.top, r.right, r.bottom));
+                log_input(&format!("content rect l={} t={} r={} b={}", r.left, r.top, r.right, r.bottom));
+                if let Some(plan) = st.wiring.replan_portrait() {
+                    st.adopt_portrait(&plan);
+                }
             }
             _ => {}
         }
@@ -1043,6 +1240,8 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
             game_core::layout::Layout::modern(GRID_N, GRID_N),
         );
         let rt = crate::runtime::Runtime::new(machine, stores, Box::new(storage));
+        // 【竖屏】面板软键图标=游戏同款 ui[11]（与画布角标同义，随态切换）
+        let softkey_icons = game_shell_common::handoff::load_container(&assets, "ui", 25)[11].clone();
 
         // 【音频断层修】4 轨先载入 TrackStore（旧 store=空 Vec=Mixer 无轨可混=静音）
         // ——Android 轨道 AssetSource::read("track{i}.ogg")（shell/common audio.rs 口径）
@@ -1067,7 +1266,17 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
             assets,
             surface: (CANVAS_W, CANVAS_H),
             pending_keys: Vec::new(),
+            panel: ArgbImage::create(1, 1),
+            panel_state: None,
+            softkey_icons,
         });
+        // 【竖屏公式化】规划输入的设备/数据源：密度（glue 已自 assetManager 填 config）+
+        // 全关卡最大格数（maplv 头）——INIT_WINDOW 时与窗口尺寸一并入公式
+        if !(*app).config.is_null() {
+            st.wiring.dpi = crate::portrait::dpi_or_baseline(ffi::AConfiguration_getDensity((*app).config));
+        }
+        st.wiring.map_extent = crate::portrait::MapExtent::from_assets(&st.assets);
+        log_input(&format!("portrait inputs dpi={} map={:?}", st.wiring.dpi, st.wiring.map_extent));
         (*app).user_data = &mut *st as *mut HostState as *mut std::ffi::c_void;
         (*app).on_app_cmd = Some(handle_cmd);
         (*app).on_input_event = Some(handle_input);
@@ -1138,22 +1347,51 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
             // 呈现（每拍一次，tick 后）——【回派修复②】每帧前判 window 非空
             // （TERM_WINDOW→window=NULL 竞态挡；未就绪期跳过渲染呈现）
             if !(*app).window.is_null() {
-                let (g_, sc_) = st.wiring.resolved();
-                {
-                    let mut g = canvas_graphics(&mut st.canvas, sc_);
-                    st.rt.paint(&mut g);
-                    // 【件2+黄④】触控区叠加（按态=该态生效命中面，同源；debug 开关可关）
-                    if st.wiring.overlay_debug {
-                        let state = st.rt.overlay_state();
-                        let rects = overlay_rects(g_, &st.wiring.pad, state);
-                        g.set_color(0xFFFF00FFu32);
-                        for (x, y, w, h, _tag) in rects {
-                            g.draw_rect(x, y, w, h);
+                if let Some(plan) = st.wiring.portrait.clone() {
+                    // 【竖屏动态分辨率】活动机画布档（开场链 2× / 游戏 3×，同一物理视口）
+                    let canvas = st.rt.active_canvas(&plan);
+                    st.wiring.set_active_canvas(canvas);
+                    let (cw, ch) = canvas.physical();
+                    if (st.canvas.width, st.canvas.height) != (cw, ch) {
+                        st.canvas = ArgbImage::create(cw, ch);
+                    }
+                    {
+                        let mut g = canvas_graphics(&mut st.canvas, canvas.scale as u32);
+                        st.rt.paint(&mut g);
+                    }
+                    // 面板：按住键 + 软键种类变化才重绘
+                    let ps = crate::portrait::PanelState {
+                        held: st.wiring.touch.held_codes(),
+                        softkeys: st.rt.softkeys(),
+                    };
+                    if st.panel_state.as_ref() != Some(&ps) {
+                        crate::portrait::paint_panel(&mut st.panel, &plan.geom, &ps, &st.softkey_icons);
+                        st.panel_state = Some(ps);
+                    }
+                    let cr = canvas.rect_in(plan.game);
+                    let layers: [(&[u32], i32, i32, i32, i32); 2] = [
+                        (&st.canvas.argb, st.canvas.width, st.canvas.height, cr.x, cr.y),
+                        (&st.panel.argb, st.panel.width, st.panel.height, plan.panel.x, plan.panel.y),
+                    ];
+                    st.wiring.present_layers((*app).window, &layers);
+                } else {
+                    let (g_, sc_) = st.wiring.resolved();
+                    {
+                        let mut g = canvas_graphics(&mut st.canvas, sc_);
+                        st.rt.paint(&mut g);
+                        // 【件2+黄④】触控区叠加（按态=该态生效命中面，同源；debug 开关可关）
+                        if st.wiring.overlay_debug {
+                            let state = st.rt.overlay_state();
+                            let rects = overlay_rects(g_, &st.wiring.pad, state);
+                            g.set_color(0xFFFF00FFu32);
+                            for (x, y, w, h, _tag) in rects {
+                                g.draw_rect(x, y, w, h);
+                            }
                         }
                     }
+                    let argb = st.canvas.argb.clone();
+                    st.wiring.present((*app).window, &argb);
                 }
-                let argb = st.canvas.argb.clone();
-                st.wiring.present((*app).window, &argb);
             }
         }
         (*app).user_data = std::ptr::null_mut();
