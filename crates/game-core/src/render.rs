@@ -806,8 +806,14 @@ impl<'a> SoftGraphics<'a> {
         let ox = self.phys_x(x) - adj[0];
         let oy = self.phys_y(y) - adj[1];
         let w = img.width;
-        for ly in 0..lh {
-            for lx in 0..lw {
+        // 【门禁提速 2026-10-26】裁剪窗快路径：只遍历与 clip 相交的**目的格**（逆变换回
+        // 源格）——J2ME 精灵表取格=setClip 小窗+整张表 drawImageT，旧算法全表逐点
+        // set_pixel 再裁掉。变换为双射且每目的像素每次调用至多写一次 ⇒ 遍历序无关、
+        // 逐字节等价（clip_window_equivalence 钉：旧算法逐字复制作参照）。
+        let (gx0, gx1) = clip_cells(ox, s, self.clip_x, self.clip_w, bw);
+        let (gy0, gy1) = clip_cells(oy, s, self.clip_y, self.clip_h, bh);
+        for dy in gy0..gy1 {
+            for dx in gx0..gx1 {
                 // 变换码表 = shim DirectGraphics 自定义 1..=7（Graphics.java:346-376
                 // 权威分派，与 MIDP 旋转族同名不同义）：
                 //   1=MIRROR_ROT180(垂直翻转) 2=MIRROR(水平翻转) 3=ROT180
@@ -817,18 +823,20 @@ impl<'a> SoftGraphics<'a> {
                 // 此前两侧均未实现（shim default 恒等 + Rust 无臂）= 锚点与
                 // 真机观感分歧的根因，现两侧同步翻转。
                 // 【R-3】表语义/行文不动，坐标单位 = 逻辑格（(w,h)→(lw,lh)）。
-                let (dx, dy) = match transform {
-                    1 => (lx, lh - 1 - ly),
-                    2 => (lw - 1 - lx, ly),
-                    3 => (lw - 1 - lx, lh - 1 - ly),
-                    4 => (ly, lx),
-                    5 => (lh - 1 - ly, lx),
-                    6 => (ly, lw - 1 - lx),
-                    7 => (lh - 1 - ly, lw - 1 - lx),
-                    8192 => (lw - 1 - lx, ly),
-                    16384 => (lx, lh - 1 - ly),
-                    24576 => (lw - 1 - lx, lh - 1 - ly),
-                    _ => (lx, ly),
+                // 正向表（源格→目的格，原文保留作语义锚）：
+                //   1:(lx,lh-1-ly) 2:(lw-1-lx,ly) 3:(lw-1-lx,lh-1-ly) 4:(ly,lx)
+                //   5:(lh-1-ly,lx) 6:(ly,lw-1-lx) 7:(lh-1-ly,lw-1-lx)
+                //   8192:(lw-1-lx,ly) 16384:(lx,lh-1-ly) 24576:(lw-1-lx,lh-1-ly) _:(lx,ly)
+                // 下为其逆（目的格→源格）：
+                let (lx, ly) = match transform {
+                    1 | 16384 => (dx, lh - 1 - dy),
+                    2 | 8192 => (lw - 1 - dx, dy),
+                    3 | 24576 => (lw - 1 - dx, lh - 1 - dy),
+                    4 => (dy, dx),
+                    5 => (dy, lh - 1 - dx),
+                    6 => (lw - 1 - dy, dx),
+                    7 => (lw - 1 - dy, lh - 1 - dx),
+                    _ => (dx, dy),
                 };
                 // 落笔块 s×s：目的子像素 NN 采源子像素（相位 src=l*d/s），
                 // 块内镜像/转置与码表同构（d==s 双射=物理域精确变换）。
@@ -865,10 +873,16 @@ impl<'a> SoftGraphics<'a> {
         let d = img.density;
         let w = img.width;
         let (lw, lh) = (img.logical_width(), img.logical_height());
+        // 【门禁提速 2026-10-26】裁剪窗快路径：只遍历落入 clip 的源像素/行段（J2ME 精灵表
+        // 取格=setClip 小窗+整张表 drawImage，旧算法全表逐点 set_pixel 再裁掉——实测
+        // preset 用例绘制 97% 耗在被裁像素）。被跳过的点 set_pixel 本就拒写 ⇒ 逐字节等价
+        // （clip_window_equivalence 钉：旧算法逐字复制作参照）。
         if d == 1 {
             // d=1 退化 = 旧 blit 原算法（1 源像素 = s×s 物理块）。
-            for sy in 0..img.height {
-                for sx in 0..img.width {
+            let (sx0, sx1) = clip_cells(x, s, self.clip_x, self.clip_w, img.width);
+            let (sy0, sy1) = clip_cells(y, s, self.clip_y, self.clip_h, img.height);
+            for sy in sy0..sy1 {
+                for sx in sx0..sx1 {
                     let p = img.argb[(sy * w + sx) as usize];
                     if (p >> 24) & 0xFF == 0 {
                         continue;
@@ -879,18 +893,19 @@ impl<'a> SoftGraphics<'a> {
             return;
         }
         if d == s {
-            // d==s 行拷直采：src = l（1:1）。
-            for ly in 0..lh {
-                for iy in 0..s {
-                    let row = ((ly * d + iy) * w) as usize;
-                    let py = y + ly * s + iy;
-                    for dx in 0..lw * s {
-                        let p = img.argb[row + dx as usize];
-                        if (p >> 24) & 0xFF == 0 {
-                            continue;
-                        }
-                        self.set_pixel(x + dx, py, p);
+            // d==s 行拷直采：src = l（1:1）——源行 r=ly*s+iy 即物理行，源列=物理列。
+            let (r0, r1) = clip_cells(y, 1, self.clip_y, self.clip_h, lh * s);
+            let (c0, c1) = clip_cells(x, 1, self.clip_x, self.clip_w, lw * s);
+            for r in r0..r1 {
+                let (ly, iy) = (r / s, r % s);
+                let row = ((ly * d + iy) * w) as usize;
+                let py = y + ly * s + iy;
+                for dx in c0..c1 {
+                    let p = img.argb[row + dx as usize];
+                    if (p >> 24) & 0xFF == 0 {
+                        continue;
                     }
+                    self.set_pixel(x + dx, py, p);
                 }
             }
             return;
@@ -1055,6 +1070,16 @@ fn in_arc(rad: f64, start_deg: i32, arc_deg: i32) -> bool {
         rel -= 360.0;
     }
     rel <= arc_deg as f64
+}
+
+/// 【门禁提速 2026-10-26】裁剪窗相交格区间：格 i 覆盖物理 `[origin+i·step, origin+i·step+step)`，
+/// 返回与 clip `[c0, c0+cw)` 相交的格下标半开区间 `[lo, hi)`（夹到 `[0, n)`，空则 lo==hi）。
+/// 区间是**超集安全**的（cw=0 时可能多给一格，set_pixel 仍逐点拒写）——只省掉必被裁掉的格。
+fn clip_cells(origin: i32, step: i32, c0: i32, cw: i32, n: i32) -> (i32, i32) {
+    let step = step.max(1);
+    let lo = (c0 - origin).div_euclid(step).clamp(0, n.max(0));
+    let hi = (c0 + cw.max(0) - origin + step - 1).div_euclid(step).clamp(0, n.max(0));
+    (lo, hi.max(lo))
 }
 
 /// `anchorAdjust`（`Graphics.java:392-405`）：水平 HCENTER→w/2、RIGHT→w；垂直 VCENTER→h/2、BOTTOM→h。
@@ -1224,6 +1249,173 @@ mod scale_origin_tests {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+/// 【门禁提速 2026-10-26】blit/transformed 裁剪窗口快路径的**逐字节等价钉**：参照实现
+/// = 优化前原算法逐字复制（全源像素遍历 + set_pixel 逐点裁剪）；随机覆盖 14 变换码 ×
+/// scale{1,2,3} × density{1,s} × 随机裁剪区（含越界/空）× 随机 alpha（0/255/半透）×
+/// 随机预填画布——新旧两侧画布 argb 必须逐像素相同。
+mod clip_window_equivalence {
+    use super::*;
+
+    /// 优化前 blit 原算法（d=1 / d==s 两段，逐字复制）。
+    fn ref_blit(g: &mut SoftGraphics<'_>, img: &ArgbImage, x: i32, y: i32) {
+        let s = g.scale;
+        let d = img.density;
+        let w = img.width;
+        let (lw, lh) = (img.logical_width(), img.logical_height());
+        if d == 1 {
+            for sy in 0..img.height {
+                for sx in 0..img.width {
+                    let p = img.argb[(sy * w + sx) as usize];
+                    if (p >> 24) & 0xFF == 0 {
+                        continue;
+                    }
+                    g.set_pixel_block(x + sx * s, y + sy * s, p);
+                }
+            }
+            return;
+        }
+        assert_eq!(d, s, "参照只覆盖 d=1 与 d==s 两段（d≠s 段未改）");
+        for ly in 0..lh {
+            for iy in 0..s {
+                let row = ((ly * d + iy) * w) as usize;
+                let py = y + ly * s + iy;
+                for dx in 0..lw * s {
+                    let p = img.argb[row + dx as usize];
+                    if (p >> 24) & 0xFF == 0 {
+                        continue;
+                    }
+                    g.set_pixel(x + dx, py, p);
+                }
+            }
+        }
+    }
+
+    /// 优化前 draw_image_transformed 像素循环（逐字复制；ox/oy 已含 anchor 调整）。
+    fn ref_transformed(g: &mut SoftGraphics<'_>, img: &ArgbImage, ox: i32, oy: i32, transform: i32) {
+        let s = g.scale;
+        let d = img.density;
+        let (lw, lh) = (img.logical_width(), img.logical_height());
+        let w = img.width;
+        for ly in 0..lh {
+            for lx in 0..lw {
+                let (dx, dy) = match transform {
+                    1 => (lx, lh - 1 - ly),
+                    2 => (lw - 1 - lx, ly),
+                    3 => (lw - 1 - lx, lh - 1 - ly),
+                    4 => (ly, lx),
+                    5 => (lh - 1 - ly, lx),
+                    6 => (ly, lw - 1 - lx),
+                    7 => (lh - 1 - ly, lw - 1 - lx),
+                    8192 => (lw - 1 - lx, ly),
+                    16384 => (lx, lh - 1 - ly),
+                    24576 => (lw - 1 - lx, lh - 1 - ly),
+                    _ => (lx, ly),
+                };
+                for iy in 0..s {
+                    for ix in 0..s {
+                        let (a, b) = in_cell_src_sub(transform, ix, iy, d, s);
+                        let p = img.argb[((ly * d + b) * w + (lx * d + a)) as usize];
+                        if (p >> 24) & 0xFF == 0 {
+                            continue;
+                        }
+                        g.set_pixel(ox + dx * s + ix, oy + dy * s + iy, p);
+                    }
+                }
+            }
+        }
+    }
+
+    /// 线性同余伪随机（测试确定性）。
+    struct Lcg(u64);
+    impl Lcg {
+        fn next(&mut self) -> u32 {
+            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            (self.0 >> 33) as u32
+        }
+        fn range(&mut self, lo: i32, hi: i32) -> i32 {
+            lo + (self.next() % ((hi - lo) as u32).max(1)) as i32
+        }
+    }
+
+    fn random_img(r: &mut Lcg, lw: i32, lh: i32, d: i32) -> ArgbImage {
+        let mut img = ArgbImage::create(lw * d, lh * d);
+        for p in img.argb.iter_mut() {
+            let a = match r.next() % 4 {
+                0 => 0,
+                1 => 0x80,
+                _ => 0xFF,
+            };
+            *p = (a << 24) | (r.next() & 0x00FF_FFFF);
+        }
+        img.with_density(d)
+    }
+
+    #[test]
+    fn blit_and_transformed_clip_window_byte_identical() {
+        const CODES: [i32; 14] = [0, 1, 2, 3, 4, 5, 6, 7, 8192, 16384, 24576, 8462, 270, 90];
+        let mut r = Lcg(20261026);
+        let mut cases = 0;
+        for &s in &[1, 2, 3] {
+            for &dmode in &[1, 0] {
+                let d = if dmode == 1 { 1 } else { s };
+                for _ in 0..60 {
+                    let (cw, ch) = (r.range(20, 60), r.range(20, 60));
+                    let mut base = ArgbImage::create(cw * s, ch * s);
+                    for p in base.argb.iter_mut() {
+                        *p = r.next();
+                    }
+                    let (iw, ih) = (r.range(1, 40), r.range(1, 40));
+                    let img = random_img(&mut r, iw, ih, d);
+                    let (x, y) = (r.range(-30, cw + 10), r.range(-30, ch + 10));
+                    let clip = (r.range(-10, cw), r.range(-10, ch), r.range(0, cw + 10), r.range(0, ch + 10));
+                    let anchor = [0, 17, 3, 40][r.range(0, 4) as usize];
+                    let t = CODES[r.range(0, CODES.len() as i32) as usize];
+                    // drawImage：快路径 vs 参照
+                    let (mut a, mut b) = (base.clone(), base.clone());
+                    {
+                        let mut g = SoftGraphics::new(&mut a);
+                        g.set_scale(s);
+                        g.set_clip(clip.0, clip.1, clip.2, clip.3);
+                        g.draw_image(&img, x, y, anchor);
+                    }
+                    {
+                        let mut g = SoftGraphics::new(&mut b);
+                        g.set_scale(s);
+                        g.set_clip(clip.0, clip.1, clip.2, clip.3);
+                        let adj = anchor_adjust(anchor, img.logical_width() * s, img.logical_height() * s);
+                        let (ox, oy) = (g.phys_x(x) - adj[0], g.phys_y(y) - adj[1]);
+                        ref_blit(&mut g, &img, ox, oy);
+                    }
+                    assert!(a.argb == b.argb, "drawImage 不等价 s={s} d={d} img={}x{} at ({x},{y}) clip={clip:?}", img.width, img.height);
+                    // drawImageTransformed：快路径 vs 参照
+                    let (mut a, mut b) = (base.clone(), base.clone());
+                    {
+                        let mut g = SoftGraphics::new(&mut a);
+                        g.set_scale(s);
+                        g.set_clip(clip.0, clip.1, clip.2, clip.3);
+                        g.draw_image_transformed(&img, x, y, anchor, t);
+                    }
+                    {
+                        let mut g = SoftGraphics::new(&mut b);
+                        g.set_scale(s);
+                        g.set_clip(clip.0, clip.1, clip.2, clip.3);
+                        let swap = (4..=7).contains(&t);
+                        let (lw, lh) = (img.logical_width(), img.logical_height());
+                        let (bw, bh) = if swap { (lh, lw) } else { (lw, lh) };
+                        let adj = anchor_adjust(anchor, bw * s, bh * s);
+                        let (ox, oy) = (g.phys_x(x) - adj[0], g.phys_y(y) - adj[1]);
+                        ref_transformed(&mut g, &img, ox, oy, t);
+                    }
+                    assert!(a.argb == b.argb, "drawImageT 不等价 t={t} s={s} d={d} img={}x{} at ({x},{y}) clip={clip:?}", img.width, img.height);
+                    cases += 1;
+                }
+            }
+        }
+        assert_eq!(cases, 360);
     }
 }
 
