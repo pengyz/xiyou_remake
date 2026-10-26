@@ -1167,6 +1167,10 @@ const VIEW_FIELDS: [&str; 5] = ["cameraPixelX", "cameraPixelY", "viewWidthPx", "
 
 /// replay_opt 同构驱动 + 场景布局注入；逐拍（tick+paint 后）导出逻辑状态到 `out`。
 /// classic 布局时逐帧断言 Java 帧 sha。`out` 逐拍追加 ⇒ panic 时前缀仍可用。
+fn replay_logic(preset_text: &str, records: &[FrameRec], layout: &game_core::layout::Layout, out: &mut Vec<Vec<String>>) {
+    replay_logic_with(preset_text, records, layout, false, out)
+}
+
 /// `shell_keys`：按壳层投键口径投递（win `route_key` / android `replay_scene_keys`：每次按键/抬键
 /// 前先 `interrupt_route()`，再 press_key / release_key）——验证壳层投键路径与 Java 一致。
 fn replay_logic_with(
@@ -1300,6 +1304,111 @@ fn replay_logic_with(
             None => vec![format!("boot mode={:?}", machine.mode)],
         });
     }
+}
+
+/// 跑一档（容 panic：返回已导出的逐拍前缀 + panic 文案）。
+fn replay_logic_catch(preset: &str, records: &[FrameRec], layout: &game_core::layout::Layout) -> (Vec<Vec<String>>, Option<String>) {
+    let mut out = Vec::new();
+    let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| replay_logic(preset, records, layout, &mut out)));
+    let msg = r.err().map(|e| {
+        e.downcast_ref::<String>().cloned().or_else(|| e.downcast_ref::<&str>().map(|s| s.to_string())).unwrap_or_default()
+    });
+    (out, msg)
+}
+
+#[test]
+fn chang_e_fixtures_modern_logic_matches_classic() {
+    let cases = [
+        ("story-fullrun", include_str!("fixtures/story-fullrun.frames.txt"), include_str!("fixtures/story-fullrun.preset")),
+        (
+            "fx-scriptwalk-floor3",
+            include_str!("fixtures/fx-scriptwalk-floor3.frames.txt"),
+            include_str!("fixtures/fx-scriptwalk-floor3.preset"),
+        ),
+        ("fx-lay2a", include_str!("fixtures/fx-lay2a.frames.txt"), include_str!("fixtures/fx-lay2a.preset")),
+        (
+            "fx-bug-ces70-slot",
+            include_str!("fixtures/fx-bug-ces70-slot.frames.txt"),
+            include_str!("fixtures/fx-bug-ces70-slot.preset"),
+        ),
+        (
+            "fx-chang-e-floor1-taps",
+            include_str!("fixtures/fx-chang-e-floor1-taps.frames.txt"),
+            include_str!("fixtures/fx-chang-e-floor1-taps.preset"),
+        ),
+    ];
+    let mut report = Vec::new();
+    // 5 夹具 × 4 布局 = 20 次独立重放 ⇒ 并行（门禁 1 分钟预算）
+    const GRIDS: [(i32, i32); 3] = [(12, 16), (13, 13), (18, 18)];
+    let runs: std::collections::BTreeMap<(usize, usize), (Vec<Vec<String>>, Option<String>)> = std::thread::scope(|s| {
+        let hs: Vec<_> = (0..cases.len())
+            .flat_map(|ci| (0..=GRIDS.len()).map(move |li| (ci, li)))
+            .map(|(ci, li)| {
+                let (_, frames, preset) = cases[ci];
+                s.spawn(move || {
+                    let layout = match li {
+                        0 => game_core::layout::Layout::classic(),
+                        _ => game_core::layout::Layout::modern(GRIDS[li - 1].0, GRIDS[li - 1].1),
+                    };
+                    ((ci, li), replay_logic_catch(preset, &frame_records(frames), &layout))
+                })
+            })
+            .collect();
+        hs.into_iter().map(|h| h.join().expect("重放线程")).collect()
+    });
+    for (ci, (label, frames, _)) in cases.into_iter().enumerate() {
+        let records = frame_records(frames);
+        let (base, base_panic) = &runs[&(ci, 0)];
+        report.push(format!("{label}: classic {} 拍 Java 帧锚定 panic={base_panic:?}", base.len()));
+        for (gi, (gw, gh)) in GRIDS.into_iter().enumerate() {
+            let (got, got_panic) = &runs[&(ci, gi + 1)];
+            let logic = |v: &Vec<String>| -> Vec<String> { v.iter().filter(|l| !l.starts_with("ease = ")).cloned().collect() };
+            let first = base.iter().zip(got.iter()).position(|(a, b)| logic(a) != logic(b));
+            match first {
+                Some(i) => {
+                    let diff: Vec<String> = base[i]
+                        .iter()
+                        .zip(got[i].iter())
+                        .filter(|(a, b)| a != b)
+                        .map(|(a, b)| format!("classic[{a}] modern[{b}]"))
+                        .collect();
+                    // 唯一允许的分歧形态（STAGE-B-002 偏离点 8）：剧情收尾"等相机"（dialogPhase 4）
+                    // 时长随视口——该拍两侧逻辑仅 gameMode 不同，一侧仍 11（等相机）、一侧已回 3。
+                    // 此后夹具输入按拍锁定、两侧相位错开，逐拍对拍失去意义 ⇒ 记录并止于此拍。
+                    let logic_diff: Vec<&String> =
+                        diff.iter().filter(|d| !d.starts_with("classic[ease = ")).collect();
+                    let modes: std::collections::BTreeSet<&str> = [&base[i], &got[i]]
+                        .iter()
+                        .filter_map(|v| v.iter().find(|l| l.starts_with("gameMode = ")).map(|l| &l[11..]))
+                        .collect();
+                    let camera_wait = logic_diff.len() == 1
+                        && logic_diff[0].starts_with("classic[gameMode = ")
+                        && base[i].iter().any(|l| l == "dialogPhase = 4")
+                        && modes == ["11", "3"].into_iter().collect();
+                    if camera_wait {
+                        report.push(format!(
+                            "{label} modern {gw}×{gh}: T1-{} 逐拍一致；T{} 收尾等相机时长差（STAGE-B-002 #8，允许）→ {}",
+                            records[i].tick - 1,
+                            records[i].tick,
+                            diff.join(" ; ")
+                        ));
+                    } else {
+                        report.push(format!("{label} modern {gw}×{gh}: 首个分歧 TICK {} → {}", records[i].tick, diff.join(" ; ")));
+                    }
+                }
+                None if base.len() != got.len() || base_panic.is_some() != got_panic.is_some() => report.push(format!(
+                    "{label} modern {gw}×{gh}: 长度/崩溃不一致 classic={}拍/{base_panic:?} modern={}拍/{got_panic:?}",
+                    base.len(),
+                    got.len()
+                )),
+                None => report.push(format!("{label} modern {gw}×{gh}: {} 拍逐拍一致", got.len())),
+            }
+        }
+    }
+    for l in &report {
+        eprintln!("MODERN-RERUN {l}");
+    }
+    assert!(report.iter().all(|l| !l.contains("分歧") && !l.contains("不一致")), "Modern 重跑与 classic 逻辑分歧：\n{}", report.join("\n"));
 }
 
 // ===== 【2026-10-26】一层嫦娥走位戏（script19）+ 剧情中连点"确定"（用户实机报"跳过教程后，
