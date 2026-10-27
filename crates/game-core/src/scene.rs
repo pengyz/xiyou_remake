@@ -566,6 +566,28 @@ fn text_overlay_box(content_w: i32, visible_lines: i32, line_h: i32) -> (i32, i3
     (content_w + 32, 32 + visible_lines * line_h)
 }
 
+/// 浮层底角软键图标（paint 公共尾 a.java:3160-3168）：左 x = bx+13、右 x = bx+w−25，y = by+h−12−18+6；
+/// ui[11] 精灵条第 n 枚 12×10（实物：1 ○ 确定 / 2 × 取消 / 3 ↩ 返回）。原版浮层与 STAGE-B-005 确认框共用。
+#[allow(clippy::too_many_arguments)]
+fn paint_overlay_footer_icons(
+    g: &mut SoftGraphics<'_>,
+    ui11: &ArgbImage,
+    bx: i32,
+    by: i32,
+    box_w: i32,
+    box_h: i32,
+    left: i8,
+    right: i8,
+) {
+    let iy = by + box_h - 12 - 18;
+    if left != 0 {
+        draw_image_clipped(g, ui11, bx + 13, iy + 6, (left as i32 - 1) * 12, 0, 12, 10);
+    }
+    if right != 0 {
+        draw_image_clipped(g, ui11, bx + box_w - 25, iy + 6, (right as i32 - 1) * 12, 0, 12, 10);
+    }
+}
+
 /// 【STAGE-B-005】退出确认框布局（独立于原版 overlay_* 状态；kind 4 文本浮层同式）。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ExitConfirmBox {
@@ -919,14 +941,44 @@ impl GameScene {
                 g.set_color(WHITE);
                 self.paint_wrapped_text(g, bx + 16, ty + 36, OVERLAY_TEXT_W, self.overlay_box_h - 32 - 36, true);
             }
-            let iy = by + self.overlay_box_h - 12 - 18;
-            if self.overlay_left_icon != 0 {
-                draw_image_clipped(g, &self.images.ui[11], bx + 13, iy + 6, (self.overlay_left_icon as i32 - 1) * 12, 0, 12, 10);
-            }
-            if self.overlay_right_icon != 0 {
-                draw_image_clipped(g, &self.images.ui[11], bx + self.overlay_box_w - 25, iy + 6, (self.overlay_right_icon as i32 - 1) * 12, 0, 12, 10);
-            }
+            paint_overlay_footer_icons(
+                g,
+                &self.images.ui[11],
+                bx,
+                by,
+                self.overlay_box_w,
+                self.overlay_box_h,
+                self.overlay_left_icon,
+                self.overlay_right_icon,
+            );
         }
+    }
+
+    /// 【STAGE-B-005】退出确认框绘制（kind 4 文本浮层同式：ui[0] 盒画布居中 + 白字换行 + 底角 ○/×）。
+    fn paint_exit_confirm(&self, g: &mut SoftGraphics<'_>) {
+        let Some(b) = self.exit_confirm.as_ref() else { return };
+        let bx = (self.layout.screen_w - b.box_w) >> 1;
+        let by = (self.layout.screen_h - b.box_h) >> 1;
+        crate::menu_family::paint_box_frame(g, &self.images.ui[0], bx, by, b.box_w, b.box_h);
+        g.set_color(WHITE);
+        let font = crate::paint::paint_font();
+        let bottom = b.total_lines.min(b.lines_per_page);
+        crate::menu_family::paint_wrapped_lines(
+            g,
+            &b.lines,
+            0,
+            bottom,
+            b.total_lines,
+            b.line_height * b.lines_per_page,
+            b.line_height,
+            bx + 16,
+            by + 16,
+            OVERLAY_TEXT_W,
+            true,
+            self.frame_counter as i32,
+            &font,
+        );
+        paint_overlay_footer_icons(g, &self.images.ui[11], bx, by, b.box_w, b.box_h, 1, 2);
     }
 
     pub fn load_floor(
@@ -6188,12 +6240,15 @@ impl GameScene {
         self.popups.draw(g, &self.images.popup);
         // paint case 3 内断言软键 (1,3)（a.java:2421-2422）——菜单族改写的
         // softkey 落回 mode 3 时由 paint 复位（Java 字段赋值语义）
-        self.softkeys = (1, 3);
+        // 【STAGE-B-005】退出确认框开 ⇒ (1,2)（○ 确定 / × 取消）；框关 = 原值 (1,3) 零偏离
+        self.softkeys = if self.exit_confirm.is_some() { (1, 2) } else { (1, 3) };
         m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
         // 提示浮层（paint 公共尾 a.java:3129-3168，!floorTransitioning && overlayActive）
         if !self.transitioning && self.overlay_active {
             self.paint_overlay_box(g);
         }
+        // 【STAGE-B-005】退出确认框（原版浮层之后、遮幅尾之前）
+        self.paint_exit_confirm(g);
         self.paint_wipe_tail(g);
     }
 
@@ -10595,5 +10650,38 @@ mod exit_confirm_tests {
         assert!(!sc.exit_confirm_open(), "切后台 = 取消");
         assert!(!sc.take_exit_confirmed());
         assert_eq!(sc.game_mode, GameMode::InGameMenu, "原版暂停：Map → 游戏内菜单");
+    }
+
+    fn paint_ops(sc: &mut super::GameScene) -> Vec<String> {
+        use crate::render::{ArgbImage, SoftGraphics};
+        let mut canvas = ArgbImage::create(sc.layout.screen_w, sc.layout.screen_h);
+        let mut g = SoftGraphics::new(&mut canvas);
+        sc.paint(&mut g, &ArgbImage::create(64, 64));
+        g.ops.clone()
+    }
+
+    #[test]
+    fn paint_draws_kind4_style_box_and_switches_softkeys() {
+        use crate::render::FontMetrics;
+        let mut sc = map_scene();
+        sc.open_exit_confirm();
+        let b = sc.exit_confirm.clone().unwrap();
+        let lh = crate::paint::paint_font().height() + 4;
+        assert_eq!(b.total_lines, 2, "两行文案");
+        assert_eq!(b.box_w, crate::layout::OVERLAY_TEXT_W + 32, "多行 ⇒ 盒宽 = 列宽 + 32（kind 4 同式）");
+        assert_eq!(b.box_h, 32 + 2 * lh + 18, "盒高 = 32 + 行 × 行高 + 图标行 18");
+        let (bx, by) = ((sc.layout.screen_w - b.box_w) >> 1, (sc.layout.screen_h - b.box_h) >> 1);
+        let iy = by + b.box_h - 12 - 18 + 6;
+        let left = format!("setClip({},{iy},12,10)", bx + 13);
+        let right = format!("setClip({},{iy},12,10)", bx + b.box_w - 25);
+        let ops = paint_ops(&mut sc);
+        assert!(ops.contains(&left), "左下 ○ 图标位");
+        assert!(ops.contains(&right), "右下 × 图标位");
+        assert_eq!(sc.softkeys, (1, 2), "框开软键 (1,2)");
+        sc.press_key(-7);
+        sc.tick(1, &[]);
+        let ops2 = paint_ops(&mut sc);
+        assert!(!ops2.contains(&left) && !ops2.contains(&right), "关框后不画");
+        assert_eq!(sc.softkeys, (1, 3), "关框软键复原 (1,3)（原版 a.java:2421-2422）");
     }
 }
