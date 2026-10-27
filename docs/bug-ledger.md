@@ -509,7 +509,7 @@ Confidence: 97
 > 【2026-10-27】用户实机（Xiaomi 14 竖屏）："主菜单右滑无法退出，主菜单选择退出也无法结束进程"。
 - **现象**：① 主菜单选"退出"确认 → 退场动画（mode 22）播完后停在白屏，进程不退、前台仍是游戏；② 主菜单返回手势
   （边缘滑动 = KEYCODE_BACK）无任何反应。
-- **复现**（修复前）：实机现场为用户操作所留，本方只读取证——截屏 `target/verify/exit_stuck.png`（白屏）；14:05 `ps` 见
+- **复现**（修复前）：实机现场为用户操作所留，本方只读取证——截屏：游戏区整屏白、下方虚拟摇杆面板仍在；14:05 `ps` 见
   进程 30585 仍在（已运行 70 min）、`dumpsys activity` 的 topResumedActivity 仍为 `com.jjxy.game/android.app.NativeActivity`；
   logcat 标题态返回 = `tick batch=[Press(-7), Release]`、模式不变。宿主：`tests/exit_chain.rs` 对修复前源码编译即
   E0599（`Runtime` 无 `exit_requested` / `title_back_keys`——壳侧没有退出消费面）。
