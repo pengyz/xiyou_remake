@@ -14,7 +14,7 @@
     "defs_negative(test)": 16,
     "density_draw(test)": 16,
     "entity_golden(test)": 12,
-    "exit_chain(test)": 3,
+    "exit_chain(test)": 5,
     "feedback(test)": 5,
     "fixture_frames(test)": 29,
     "flow(test)": 3,
@@ -60,5 +60,5 @@
     "walk_route(test)": 11,
     "xiyou(bin)": 40
   },
-  "total": 687
+  "total": 689
 }
