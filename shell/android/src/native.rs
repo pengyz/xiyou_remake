@@ -1186,7 +1186,20 @@ extern "C" fn handle_input(app: *mut AndroidApp, event: *mut AInputEvent) -> i32
     unsafe {
         let st = &mut *((*app).user_data as *mut HostState);
         log_input(&format!("input-arrival type={}", ffi::AInputEvent_getType(event)));
-        let (keys, consumed) = st.wiring.on_input_ex(event);
+        let (mut keys, consumed) = st.wiring.on_input_ex(event);
+        // 【BUG-033 · 壳层输入映射】标题态 BACK（返回键/边缘返回手势）= 主菜单"退出"项确认，走游戏
+        // 自身退出链（runtime.rs title_back_keys）；非标题态保持右软键 -7 原映射。
+        const AINPUT_EVENT_TYPE_KEY: i32 = 1;
+        if ffi::AInputEvent_getType(event) == AINPUT_EVENT_TYPE_KEY
+            && ffi::AKeyEvent_getKeyCode(event) == AKEYCODE_BACK
+            && ffi::AKeyEvent_getAction(event) == AKEY_EVENT_ACTION_DOWN
+            && ffi::AKeyEvent_getRepeatCount(event) == 0
+        {
+            if let Some(k) = st.rt.title_back_keys() {
+                log_input("back at title → 退出项确认（退出链）");
+                keys = k;
+            }
+        }
         st.pending_keys.extend(keys);
         // 【按键反馈】虚拟键按下 ⇒ 输入回调内立即派发（不等 75ms 逻辑拍）；按键音随游戏内"声音"
         let presses = st.wiring.take_key_presses();
@@ -1353,6 +1366,14 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
         // 下一拍（触点到达提前醒）。旧 `while pollAll(16)>=0` 在 Move 流下饿死 tick。
         let mut looper = AndroidLooper { app, t0: std::time::Instant::now() };
         let mut pacer = crate::pump::FramePacer::new(0);
+        // 【BUG-033】退出链执行半（win 壳 consume_exit 同口径）：BootMachine::finished ⇒
+        // ProcessControl::request_exit = ANativeActivity_finish（任意线程可调，NDK 投递主线程 finish）；
+        // Activity 销毁（APP_CMD_DESTROY ⇒ destroy_requested）后循环退出，再结束进程
+        // （= MIDlet notifyDestroyed；亦免 NativeActivity 同进程二次进入时静态状态残留）。
+        let mut process = crate::process::android::AndroidProcessControl::new(
+            (*app).activity as *mut crate::process::android::ANativeActivity,
+        );
+        let mut exit_sent = false;
         while (*app).destroy_requested == 0 {
             // 逻辑拍间隔：Boot=frame_interval_ms（mode 0=100 a.java:3350，其余 75
             // a.java:3377）、场景恒 75——win 壳 frame_interval() 同源
@@ -1376,6 +1397,11 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
                 // 标题态随拍更新（下一批触点的路由依据；场景活动时恒非标题）
                 st.wiring.title_mode = st.rt.title_mode();
                 // BGM：step 末已同步（Runtime::sync_bgm → AudioThreadSink）
+                if !exit_sent && st.rt.exit_requested() {
+                    exit_sent = true;
+                    log_input("exit chain: finished → ANativeActivity_finish");
+                    game_platform::ProcessControl::request_exit(&mut process);
+                }
             }
             // 呈现（每拍一次，tick 后）——【回派修复②】每帧前判 window 非空
             // （TERM_WINDOW→window=NULL 竞态挡；未就绪期跳过渲染呈现）
@@ -1429,6 +1455,17 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
         }
         (*app).user_data = std::ptr::null_mut();
         drop(st);
+        if exit_sent {
+            log_input("exit chain: activity destroyed → process exit");
+            // `_exit` 而非 libc `exit`：此刻 Java 主线程阻塞在 onDestroy（glue android_app_free 等本线程
+            // 置 destroyed）、binder/AAudio 线程仍活——`exit` 的 __cxa_finalize 会析构各共享库静态对象，
+            // 与这些线程并发竞态；`_exit` 不跑 atexit/析构。无待刷数据：存档同步写穿
+            // （FileRms::persist = std::fs::write，无用户态缓冲），logcat 写为同步。
+            extern "C" {
+                fn _exit(status: i32) -> !;
+            }
+            _exit(0);
+        }
     }
     #[cfg(not(target_os = "android"))]
     {

@@ -41,7 +41,7 @@
 | trait | Android 实现 | 宿主桩（测试面） |
 |---|---|---|
 | `Storage` | `storage::AndroidStorage`：注入根路径（应用私有目录 `activity->internalDataPath`）薄接线 `game-shell-common::rms::FileRms` | 临时目录实测（`tests/storage_wiring.rs`） |
-| `ProcessControl` | `process::android::AndroidProcessControl`：`ANativeActivity_finish`（= JNI `Activity.finish()`，**不杀进程**） | `process::HostProcessControl`（幂等观测） |
+| `ProcessControl` | `process::android::AndroidProcessControl`：`ANativeActivity_finish`（= JNI `Activity.finish()`，本身**不杀进程**）；壳在 Activity 销毁（APP_CMD_DESTROY）后 `_exit(0)` 结束进程（BUG-033，native.rs `android_main` 尾） | `process::HostProcessControl`（幂等观测） |
 | `AudioOut` | `audio::aaudio::AAudioPcm`：AAudio 阻塞 write（API 26+；EXCLUSIVE→SHARED 回退）。**AudioTrack 兜底已砍**（对抗审查 §3-1）：失败/旧系统 ⇒ `NullSink` 无声降级，minSdk 26 | `audio::CountingPcm`（契约形状：全量写/Err 不可恢复/idle 丢弃） |
 | `AssetSource` | `asset::apk::ApkAssetSource`：`AAssetManager_open` + 全量读（**不是 std::fs**；`activity->assetManager` 免 JNI） | `asset::DirAssetSource`（目录注入 std::fs） |
 
@@ -72,7 +72,7 @@
 |---|---|---|
 | 虚拟方向盘（左下 overlay） | 主导轴 4 向 → -1..-4 | 死区 r_inner + 换向迟滞 r_switch 防抖；拖动换向 = Release 旧 + Press 新（保序） |
 | 软键三钮（右下 overlay） | -6 / -5 / -7 | 按钮捕获语义：按下后漂移不换键，Up/Cancel 才释放 |
-| KEYCODE_BACK | **-7 且吞默认** | 不吞 ⇒ 系统 finish Activity ⇒ 绕过 m_000 退出链（BUG-020）；repeat 丢键仍吞 |
+| KEYCODE_BACK | **标题态 = 选中「退出」项 + 确认 -5**；其余 **-7**；恒吞默认 | 标题态走游戏自身退出链（mode 22 退场动画 → finished → finish + 结束进程，BUG-033；原 -7 在标题 tick 无臂 = 死键）；不吞 ⇒ 系统 finish Activity ⇒ 绕过 m_000 退出链（BUG-020）；repeat 丢键仍吞 |
 | KEYCODE_DPAD_* | -1..-4 | repeat 丢弃（gotcha_os-key-repeat-is-not-keypressed） |
 | CENTER/ENTER/SPACE | -5 | 与 win Enter\|Space 同表 |
 | KEYCODE_MENU | -6 | 若设备有 |

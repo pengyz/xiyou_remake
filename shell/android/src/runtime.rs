@@ -131,6 +131,25 @@ impl Runtime {
         self.scene.is_none() && self.machine.title_geom().is_some()
     }
 
+    /// 进程退出请求（BUG-033 消费面；win 壳 `finished()` 同口径）：开场链 BootMachine 置 `finished`
+    /// = CMidlet.dispatchModeEntry 退出信号（mode 22 退场动画 70 拍走完，paint.rs）。粘滞；场景活动时恒 false。
+    pub fn exit_requested(&self) -> bool {
+        self.scene.is_none() && self.machine.finished
+    }
+
+    /// 【BUG-033 · 壳层输入映射】标题态返回（BACK 键 / 边缘返回手势）= 主菜单"退出"项（menuItemKinds 5）
+    /// 选中 + 确认——走游戏自身退出链（mode 22 退场动画 → finished → 壳 finish + 结束进程），不另造退出路径；
+    /// 游戏层零改动（同虚拟键盘：壳把平台输入译成既有按键）。返回投递键批；非标题态 = None（调用方保留
+    /// BACK 原映射右软键 -7）。
+    pub fn title_back_keys(&mut self) -> Option<Vec<KeyAction>> {
+        if !self.title_mode() {
+            return None;
+        }
+        let idx = self.machine.title.as_ref()?.menu_kinds.iter().position(|&k| k == 5)? as i32;
+        self.machine.select_row(idx);
+        Some(vec![KeyAction::Press(crate::input::KEY_FIRE), KeyAction::Release])
+    }
+
     /// 逻辑拍间隔（mode 0=100 / 其余 75；场景恒 75——win 壳 frame_interval 同源）。
     pub fn frame_interval_ms(&self) -> u64 {
         if self.scene.is_some() {

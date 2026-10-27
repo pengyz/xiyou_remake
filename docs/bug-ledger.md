@@ -503,3 +503,42 @@ Confidence: 93
 - **Stage B 修复方案**：—。
 Evidence: A 级——javap 字节码 5242-5255 + Java A==B==C 夹具 fx-record-arrows（trace sha256 e3027e66a623…）T621/T701 帧锚。
 Confidence: 97
+
+## BUG-033 Android 主菜单"退出"不结束进程、返回手势无反应——退出信号无壳消费者 + 标题态 BACK 死键（壳层移植缺口，用户实机，已修复）
+
+> 【2026-10-27】用户实机（Xiaomi 14 竖屏）："主菜单右滑无法退出，主菜单选择退出也无法结束进程"。
+- **现象**：① 主菜单选"退出"确认 → 退场动画（mode 22）播完后停在白屏，进程不退、前台仍是游戏；② 主菜单返回手势
+  （边缘滑动 = KEYCODE_BACK）无任何反应。
+- **复现**（修复前）：实机现场为用户操作所留，本方只读取证——截屏 `target/verify/exit_stuck.png`（白屏）；14:05 `ps` 见
+  进程 30585 仍在（已运行 70 min）、`dumpsys activity` 的 topResumedActivity 仍为 `com.jjxy.game/android.app.NativeActivity`；
+  logcat 标题态返回 = `tick batch=[Press(-7), Release]`、模式不变。宿主：`tests/exit_chain.rs` 对修复前源码编译即
+  E0599（`Runtime` 无 `exit_requested` / `title_back_keys`——壳侧没有退出消费面）。
+- **根因**（Android 壳移植缺口，非原版 bug，D4 不适用）：
+  ① game-core 退出链正确：mode 22 第 71 拍置 `BootMachine::finished`（paint.rs:709-721 = reference a.java:4249-4256
+  `CMidlet.m_000()` = `destroyApp(true)` + `notifyDestroyed()`）；Android 壳**无任何消费者**——
+  `process::android::AndroidProcessControl`（ANativeActivity_finish）自骨架期从未接线（shell/android/src 无引用），
+  BUG-020（win 壳）同型缺口 Android 侧未补；
+  ② BACK 恒吞并译为右软键 -7（input.rs:91，BUG-020 口径：退出须走游戏退出链），而标题 tick 只有 -5/53 确认、
+  -4/-2/54/56 下移、-3/-1/50/52 上移三臂（title.rs:382-415），-7 落 `_ => None` ⇒ 主菜单返回 = 死键。
+- **影响**：Android 壳无法从游戏内退出（只能从最近任务划掉）；选"退出"后进程与 Activity 常驻白屏。
+- **Stage A 处理**：**已修复**——
+  ① 主循环每拍查 `Runtime::exit_requested()`（场景外 ∧ finished；win 壳 consume_exit 同口径）⇒
+  `ProcessControl::request_exit` = `ANativeActivity_finish`（只发一次）；Activity 销毁（APP_CMD_DESTROY）后主循环退出 ⇒
+  `_exit(0)` 结束进程（= MIDlet notifyDestroyed；不用 libc `exit`：此刻 Java 主线程阻塞在 onDestroy、binder/AAudio 线程
+  仍活，`__cxa_finalize` 静态析构与之竞态；存档为同步写穿，无待刷数据）；
+  ② 标题态 BACK（DOWN、非重复）= 选中"退出"项（menuItemKinds 5）+ 确认 -5——走同一条退出链（mode 22 退场动画
+  71 拍 × 75 ms ≈ 5.3 s 后退出），不另造退出路径；非标题态保持 -7 原语义（子页返回 / 游戏内菜单）。属壳层输入映射
+  （同虚拟键盘：平台输入译成既有按键），游戏层零改动、无帧金样影响。
+  宿主钉 `shell/android/tests/exit_chain.rs` 3 测（菜单退出 → 动画播完才请求 / 返回同链且光标落「退出」/ 读档子页不劫持）。
+- **Stage B 修复方案**：—。
+Evidence: A 级——reference a.java:4249-4256 + CMidlet.java:29-33 原文；paint.rs:709-721 / title.rs:382-415 / input.rs:91；
+实机现场只读取证（白屏截屏 / 进程常驻 70 min / logcat -7 批）；宿主 RED（E0599）/ GREEN 3 测；`llvm-readelf` 见
+`ANativeActivity_finish`（UND，NEEDED libandroid.so）与 `_exit@LIBC`。**本方实机验证待补**（手机在用，未占前台）。
+Confidence: 90
+
+> 【2026-10-27 实机旁证·用户操作】本方装包（14:13:01）并 `am start` 启动（14:13:10 出帧）后，用户自行在标题做返回手势——
+> 本方未注入、只被动读 logcat，按 AGENTS §5 **不记为本方验证**：`14:13:55.110 back at title → 退出项确认（退出链）` →
+> `tick batch=[Press(-5), Release, Release] → key=-5` → `bgm Stop`（进 mode 22）；`14:13:56.177` 动画期第二次返回 =
+> `[Press(-7), Release]`（非标题态，无效果）；`14:14:00.483 exit chain: finished → ANativeActivity_finish`（距确认 5.37 s
+> ≈ 71 拍 × 75 ms）→ `14:14:01.570 exit chain: activity destroyed → process exit` → ActivityManager `Process com.jjxy.game
+> (pid 5420) has died: cch CRE`；crash 缓冲为空，前台回桌面。

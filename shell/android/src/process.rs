@@ -10,7 +10,8 @@
 //!
 //! - 宿主桩 [`HostProcessControl`]：记录退出请求（幂等观测面）——宿主测试/无头验证。
 //! - Android [`android::AndroidProcessControl`]：`ANativeActivity_finish`
-//!   （NDK 封装 JNI `Activity.finish()`，**不杀进程**）。
+//!   （NDK 封装 JNI `Activity.finish()`，本身**不杀进程**）；进程结束由壳在 Activity 销毁后执行
+//!   （native.rs `android_main` 尾 `_exit(0)`，BUG-033）。
 
 use game_platform::ProcessControl;
 
