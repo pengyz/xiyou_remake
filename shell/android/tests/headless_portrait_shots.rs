@@ -4,7 +4,7 @@
 //!
 //! 用法：`JJXY_SHOTS=/tmp/jjxy-portrait cargo test -p game-android --release \
 //!        --test headless_portrait_shots -- --ignored --nocapture`
-//! 帧：1_title 2_intro 3_scene 4_map_hold_right 5_menu（整窗 1200×2536）。
+//! 帧：1_title 2_intro 3_scene 4_map_hold_right 4b_exit_confirm 5_menu（整窗 1200×2536）。
 
 use game_android::input::KeyAction;
 use game_android::native::{canvas_graphics, TitleGesture};
@@ -135,6 +135,14 @@ fn headless_portrait_shots() {
     rt.step(&src, &[], vec![], vec![]);
     last = host.frame(&mut rt, vec![-4]);
     write_ppm(&out, "4_map_hold_right", w, h, &last);
+    // 【STAGE-B-005】地图态系统返回 ⇒ 退出确认框（kind 4 样式 + 面板 ○ / ×）；右软键 -7 取消后再走原流程
+    assert!(rt.back_opens_exit_confirm(), "地图态返回 = 退出确认框");
+    for _ in 0..4 {
+        last = step(&mut rt, &mut host, &[], vec![], vec![]);
+    }
+    write_ppm(&out, "4b_exit_confirm", w, h, &last);
+    step(&mut rt, &mut host, &[KeyAction::Press(-7), KeyAction::Release], vec![], vec![]);
+    assert!(!rt.scene.as_ref().unwrap().exit_confirm_open(), "-7 取消");
     step(&mut rt, &mut host, &[KeyAction::Press(-7), KeyAction::Release], vec![], vec![]);
     for _ in 0..6 {
         last = step(&mut rt, &mut host, &[], vec![], vec![]);
