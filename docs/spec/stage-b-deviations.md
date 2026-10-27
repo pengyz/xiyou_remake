@@ -106,3 +106,21 @@ epack(unpack(x))==x 逐字节恒等（126 资产，常驻 gates）；
   （原版 volumeLevel 亦从不持久——写点 a.java:2240/4159/4234/4241 无回灌）；
   GlobalSave 70/71 只写不读=**趋同非偏离**（原版本就不回灌 soundEnabled）。
 - **代码注释引用**：`// STAGE-B-001`（game-core 跳过点 / shell settings / 测试）。
+
+## STAGE-B-005 游戏内退出确认框（Android 返回手势）
+
+- **状态**：已实施（2026-10-27，宿主验证完成；实机复核待补）
+- **用户裁定原话**（2026-10-27）："游戏内右滑弹出推出确认菜单，样式就用游戏内弹框样式"；逐项：触发范围 A
+  （只在地图行走态）、确定后 A（直接退出进程）、文案 A（加未保存提醒）、实现层方案 2（放进游戏核心）。
+- **偏离点**：原版**无**退出确认框（`f_String_arr_16` 的 "是否确定退出游戏？" a.java:2298 全文件无消费点）；
+  Rust 新增核心模态 `GameScene::exit_confirm`（独立于原版 `overlay_*`）：样式 = 原版 kind 4 文本浮层
+  （a.java:3129-3168 盒/白字/底角 ui[11] 图标 1 ○、2 ×），键 = kind 4 同义（-6/-5 确认、-7 取消，a.java:3308-3318），
+  软键 (1,2)；框开期间 tick 头拦截冻结逻辑。文案次行"未保存的进度将会丢失"为新增文本。
+- **门控**：仅壳调用 `open_exit_confirm` 可达（Android `handle_input` BACK 分支，地图行走态）；classic 回放/夹具/差分
+  不调用 ⇒ **classic 零偏离、无新增豁免**。附带等价重构：浮层盒尺寸（`text_overlay_box`）与底角图标
+  （`paint_overlay_footer_icons`）单源共用——op 序列不变（classic 帧夹具全绿兜底）。
+- **金样影响**：无（Modern 帧基线 5 状态 sha 不变；新增宿主钉 scene.rs `exit_confirm_tests` 6 测 +
+  shell/android/tests/exit_confirm.rs 5 测）。
+- **代码注释**：`// STAGE-B-005`（scene.rs / runtime.rs / native.rs）。
+- **设计件 / 计划**：docs/superpowers/specs/2026-10-27-in-game-exit-confirm-design.md /
+  docs/superpowers/plans/2026-10-27-in-game-exit-confirm.md。
