@@ -867,8 +867,9 @@ impl BootMachine {
         if !self.overlay_active {
             return;
         }
-        let x = (crate::layout::SCREEN_W - self.overlay.box_w) >> 1;
-        let y = (crate::layout::SCREEN_H - self.overlay.box_h) >> 1;
+        // 【BUG-031⑤】盒框居中随 layout（同臂图标条/软键已随 layout；GameScene::paint_overlay_box 同式）
+        let x = (self.layout.screen_w - self.overlay.box_w) >> 1;
+        let y = (self.layout.screen_h - self.overlay.box_h) >> 1;
         crate::menu_family::paint_box_frame(g, &self.ui[0], x, y, self.overlay.box_w, self.overlay.box_h);
         g.set_color(crate::layout::WHITE);
         let text: Vec<u16> = if self.mode == GameMode::Help {
@@ -989,6 +990,44 @@ mod tests {
             vec![],
             vec![],
         )
+    }
+
+    /// 【BUG-031⑤】开场链帮助/关于浮层（paint 公共尾 a.java:3129-3171）：盒框 x/y 仍按 SCREEN_W/H 常量
+    /// 居中，同臂图标条/软键早随 layout（GameScene::paint_overlay_box 已换轨）⇒ 开场链画布 > 240×320
+    /// （win 壳 modern / 竖屏开场档放大）时盒框偏左上。判据：盒框左上 = layout 屏心居中式。
+    #[test]
+    fn boot_help_overlay_box_centered_on_layout() {
+        let clip4 = |o: &String| {
+            let a = o.strip_prefix("setClip(")?.strip_suffix(')')?;
+            let v: Vec<i32> = a.split(',').filter_map(|t| t.trim().parse().ok()).collect();
+            (v.len() == 4).then(|| (v[0], v[1], v[2], v[3]))
+        };
+        for layout in [
+            crate::layout::Layout::classic(),
+            crate::layout::Layout::modern(13, 13),
+            crate::layout::Layout::modern(18, 18),
+        ] {
+            for mode in [GameMode::Help, GameMode::IconView] {
+                let mut m = boot_state();
+                m.apply_layout(layout.clone());
+                m.mode = mode;
+                m.enter_menu_mode();
+                let mut img = ArgbImage::create(layout.screen_w, layout.screen_h);
+                let ops = {
+                    let mut g = SoftGraphics::new(&mut img);
+                    m.paint(&mut g);
+                    g.ops.clone()
+                };
+                let frame = ops.iter().filter_map(clip4).find(|c| (c.2, c.3) == (26, 16)).map(|c| (c.0, c.1));
+                assert_eq!(
+                    frame,
+                    Some(((layout.screen_w - m.overlay.box_w) >> 1, (layout.screen_h - m.overlay.box_h) >> 1)),
+                    "{}×{} {mode:?}：浮层盒框须按 layout 居中",
+                    layout.screen_w,
+                    layout.screen_h
+                );
+            }
+        }
     }
 
     /// 【C 方案 2026-10-26】标题触屏入口：几何=TitleGeom 单源（与 paint 同参：menu[0]

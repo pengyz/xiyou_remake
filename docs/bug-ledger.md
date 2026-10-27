@@ -433,3 +433,34 @@ Confidence: 95
   ⇒ classic 夹具确实画到金币弹字、240 与 Java 逐像素一致。
 - **Stage B 修复方案**：—（扩展缝适配缺口，Stage A 即修类）。
 Evidence: A 级——a.java:9706-9707 原文 + layout.rs 金币列贴右公式 + RED/GREEN + classic 覆盖探针。Confidence: 95
+
+## BUG-031 Modern 布局字面量漏换轨 5 处（BUG-029 同型，全量扫描所得，已修复）
+
+> 【2026-10-27】用户："全量扫描整体是否还有类似的布局公式问题"。静态扫描 game-core 全部绘制调用的屏幕派生字面量
+> （折叠的 `320−k` / `240−k` / 屏心 120、160 与 SCREEN_W/H 常量），逐处对照 a.java 同块兄弟臂是否已换轨。
+- **现象 / 根因**（Modern 适配缺口，非原版 bug，D4 不适用；共同签名 = 同一 Java 块的兄弟臂已随 layout，漏网的是
+  编译期折叠字面量或残留 SCREEN 常量）：
+  ① walkPhase==2 观察态四角箭头（scene.rs paint_player，a.java:5964-5967）：`148 = 160−12`、`109 = 120−11`、
+  `215 = 240−25` 留 classic 位，同块下臂早随 viewBottom ⇒ modern 左右箭头停在画面中上、右箭头在画面中间；
+  ② 炼丹（mode 9，a.java:2715-2722）：属性图标 x 97 / 加值 x 142（= 高亮行 x 62 + 35 / + 80）不随居中的行框 ⇒ modern
+  落在框外左侧；
+  ③ 敌人图鉴（mode 5，a.java:2511/2524/2595）：翻页箭头 x 112（= 120−8）、预测伤害列 `(SCREEN_W + 面板宽 >> 1) − 75`
+  ⇒ modern 箭头偏左、伤害列不贴面板右缘（12×16 偏 72 px）；
+  ④ 记录浏览（mode 12，a.java:2906-2914）：页码 CENTER_X、双箭头 ARROW_PAIR_LEFT/RIGHT_X 常量（Layout 早有
+  center_x / arrow_pair_*，标题页已用）⇒ modern 不随屏心；
+  ⑤ 开场链帮助/关于浮层（paint.rs paint_overlay_tail）：盒框 `(SCREEN_W/H − 盒) >> 1` ⇒ 开场链画布 > 240×320
+  （win 壳 modern）时偏左上（Android 竖屏开场档恒 240×320，潜伏）。
+- **复现**（修复前）：`cargo test --release -p game-core --lib`——`soul_view_corner_arrows_frame_the_screen` /
+  `alchemy_rows_translate_with_highlight_row` / `encyclopedia_arrows_and_damage_column_follow_panel` /
+  `record_browser_indicator_and_arrows_follow_center` / `boot_help_overlay_box_centered_on_layout` 5 测 RED。
+- **影响**：Modern 下上述 5 个界面元素错位（①③④⑤ 用户实机竖屏可见，⑤ 仅 win 壳 modern 可见）。
+- **Stage A 处理**：**已修复**——逐处换成 classic 回代 = Java 字面量的 layout 公式（屏心 / 屏宽 / 行内相对位）。
+  classic 覆盖探针：每处修复点临时偏 1 px 均有 classic Java 锚测转红（① preset_floor49 / fx_chang_e_floor1_taps×2 /
+  story_fullrun，② preset_alchemy，③ preset_item13（箭头 + 伤害列），④ preset_floor5，⑤ boot_menu_frames_match_tick_by_tick）
+  ⇒ 公式运行期确实回代 Java 字面量；修后 game-oracle 全绿、Modern 帧基线 5 状态 sha 不变。
+- **扫描余项（未改，如实登记）**：结局卷轴（mode 20，a.java:3043/3064）图 240 宽左贴、字幕 x 15——modern 右侧露白，
+  需定"居中 + 两侧补带色"设计（待用户定）；logo 飞入起点 x 15（logo_anim.rs:394，a.java:10394）语义不明（低）；
+  记录浏览箭头 y 的运算符优先级移植偏差见 BUG-032（classic 同错，另立）。
+- **Stage B 修复方案**：—（扩展缝适配缺口，Stage A 即修类）。
+Evidence: A 级——a.java 各行原文（兄弟臂 `240−…>>1` / `320−…` 形式为屏幕派生铁证）+ 5 测 RED/GREEN + classic 覆盖探针。
+Confidence: 93

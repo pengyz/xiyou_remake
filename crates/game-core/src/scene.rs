@@ -3976,8 +3976,10 @@ impl GameScene {
         let by = (self.layout.screen_h - self.encyc_panel_h) >> 1;
         if self.encyc_scroll_bottom - self.encyc_scroll_top > 0 {
             crate::menu_family::paint_box_frame(g, &self.images.ui[0], bx, by, self.encyc_panel_w, self.encyc_panel_h);
+            // 【BUG-031③】a.java:2511/2595 翻页箭头 x 112 = 屏心 120 − 8（面板居中 ⇒ 随屏心）
+            let arrow_x = self.layout.center_x - 8;
             if self.encyc_scroll_top > 0 {
-                draw_image_clipped(g, &self.images.ui[19], 112, by - 17 - (self.frame_counter & 1) as i32, 16, 0, 15, 17);
+                draw_image_clipped(g, &self.images.ui[19], arrow_x, by - 17 - (self.frame_counter & 1) as i32, 16, 0, 15, 17);
             }
             let mut y = by + 16;
             for row in self.encyc_scroll_top..self.encyc_scroll_bottom {
@@ -3988,7 +3990,8 @@ impl GameScene {
                 g.set_color(13097429);
                 let name: Vec<u16> = self.object_type_names[t].encode_utf16().collect();
                 g.draw_string(&name, x, y + 2, 0);
-                let dmg_x = ((SCREEN_W + self.encyc_panel_w) >> 1) - 75;
+                // 【BUG-031③】a.java:2524 `(240 + 面板宽 >> 1) − 75`：屏宽 240 随 layout（伤害列贴面板右缘）
+                let dmg_x = ((self.layout.screen_w + self.encyc_panel_w) >> 1) - 75;
                 let name_dy = (font.height() - 19) >> 1;
                 y += name_dy;
                 if pred < 0 {
@@ -4025,7 +4028,7 @@ impl GameScene {
                             0,
                         );
                     }
-                    g.set_clip(x, y, SCREEN_W, SCREEN_H);
+                    g.set_clip(x, y, self.layout.screen_w, self.layout.screen_h); // a.java:2553 `240, 320`
                 }
                 y += 4;
                 x += 36;
@@ -4068,7 +4071,7 @@ impl GameScene {
             }
             y += 16;
             if self.encyc_scroll_bottom < self.encyc_count {
-                draw_image_clipped(g, &self.images.ui[19], 112, y + (self.frame_counter & 1) as i32, 16, 17, 15, 17);
+                draw_image_clipped(g, &self.images.ui[19], arrow_x, y + (self.frame_counter & 1) as i32, 16, 17, 15, 17);
             }
         }
         m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
@@ -4150,14 +4153,16 @@ impl GameScene {
         g.fill_rect(x, y + (self.alchemy_cursor << 4), bw, 16);
         g.draw_image(&self.images.ui[14], x + 10, y + 2 + (self.alchemy_cursor << 4), 0);
         g.draw_image_transformed(&self.images.ui[14], x + bw - 30, y + 2 + (self.alchemy_cursor << 4), 0, 8192);
-        draw_image_clipped(g, &self.images.ui[7], 97, y + 4, 0, 2, 10, 10);
-        paint_number(g, &self.images.ui[2], self.alchemy_gain_hp, 142, y + 6);
+        // 【BUG-031②】a.java:2715-2722 图标 x 97 / 加值 x 142 = 高亮行 x 62（`240 − 115 >> 1`）+ 35 / + 80
+        // ——行内相对位，随居中的高亮行（classic 回代原值）。
+        draw_image_clipped(g, &self.images.ui[7], x + 35, y + 4, 0, 2, 10, 10);
+        paint_number(g, &self.images.ui[2], self.alchemy_gain_hp, x + 80, y + 6);
         y += 16;
-        draw_image_clipped(g, &self.images.ui[7], 97, y + 4, 11, 0, 8, 13);
-        paint_number(g, &self.images.ui[2], self.alchemy_gain_atk, 142, y + 6);
+        draw_image_clipped(g, &self.images.ui[7], x + 35, y + 4, 11, 0, 8, 13);
+        paint_number(g, &self.images.ui[2], self.alchemy_gain_atk, x + 80, y + 6);
         y += 16;
-        draw_image_clipped(g, &self.images.ui[7], 97, y + 4, 20, 2, 10, 11);
-        paint_number(g, &self.images.ui[2], self.alchemy_gain_def, 142, y + 6);
+        draw_image_clipped(g, &self.images.ui[7], x + 35, y + 4, 20, 2, 10, 11);
+        paint_number(g, &self.images.ui[2], self.alchemy_gain_def, x + 80, y + 6);
         // 全局浮层（paint 尾部 a.java:3125-3210 对全部模式生效）
         self.paint_overlay_box(g);
     }
@@ -6558,10 +6563,13 @@ impl GameScene {
         if self.walk_phase == 2 {
             let bob = self.bob_offset;
             let vb = self.view_bottom;
-            draw_image_clipped(g, &self.images.corner_sprites, 5 - bob, 148, 44, 0, 22, 24);
-            draw_image_clipped(g, &self.images.corner_sprites, 109, 25 - bob, 0, 0, 22, 24);
-            draw_image_clipped(g, &self.images.corner_sprites, 109, vb - 29 + bob, 22, 0, 22, 24);
-            crate::menu_family::draw_edge_patch(g, &self.images.corner_sprites, 215 + bob, 148, 44, 0, 22, 24, 1);
+            // 【BUG-031①】a.java:5964-5967 字面量 148 / 109 / 215 = 屏心 y − 12 / 屏心 x − 11 / 屏宽 − 25
+            // （classic 回代原值）；下臂 viewBottom 原本即变量——同块另三臂随之换轨。
+            let (cx, cy, w) = (self.layout.center_x, self.layout.center_y, self.layout.screen_w);
+            draw_image_clipped(g, &self.images.corner_sprites, 5 - bob, cy - 12, 44, 0, 22, 24);
+            draw_image_clipped(g, &self.images.corner_sprites, cx - 11, 25 - bob, 0, 0, 22, 24);
+            draw_image_clipped(g, &self.images.corner_sprites, cx - 11, vb - 29 + bob, 22, 0, 22, 24);
+            crate::menu_family::draw_edge_patch(g, &self.images.corner_sprites, w - 25 + bob, cy - 12, 44, 0, 22, 24, 1);
         }
         // walkPhase==3 道具面板：道具批次（spec 待办）
     }
@@ -6749,15 +6757,18 @@ impl GameScene {
         self.paint_parallax(g, false);
         let text_bottom_y = self.layout.screen_h - crate::paint::paint_font().height - 4;
         let indicator = self.page_indicator.clone();
-        self.draw_shadow_text(g, &indicator, CENTER_X, text_bottom_y + 2, 4202520, 0xFFFF_FFFFu32 as i32);
+        // 【BUG-031④】a.java:2906-2914 页码 x 120 / 箭头 60−bob、160+bob = 屏心派生 ⇒ Layout 字段
+        //（center_x / arrow_pair_left_x / arrow_pair_right_x，classic 回代原值）
+        let cx = self.layout.center_x;
+        self.draw_shadow_text(g, &indicator, cx, text_bottom_y + 2, 4202520, 0xFFFF_FFFFu32 as i32);
         let arrow_y = (text_bottom_y + (crate::paint::paint_font().height + 4 - 13)) >> 1;
         let arrow = self.images.ui[14].clone();
         let bob = self.bob_offset;
         if self.record_page > 0 {
-            g.draw_image_transformed(&arrow, ARROW_PAIR_LEFT_X - bob, arrow_y, 0, 1);
+            g.draw_image_transformed(&arrow, self.layout.arrow_pair_left_x - bob, arrow_y, 0, 1);
         }
         if self.record_page < self.journal.len() as i32 - 1 {
-            g.draw_image(&arrow, ARROW_PAIR_RIGHT_X + bob, arrow_y, 0);
+            g.draw_image(&arrow, self.layout.arrow_pair_right_x + bob, arrow_y, 0);
         }
         m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
         // 公共尾 overlay 框（paintOverlayBox）：日志文本 kind5 框在指示/箭头之上
@@ -7086,6 +7097,175 @@ mod slot_equip_scene_tests {
                 "modern {gw}×{gh}：金币弹字须对齐金币列（与 classic 同相对位）"
             );
         }
+    }
+
+    /// `setClip(x,y,w,h)` 四元解析（reset 臂 `setClip(0,0,画布)` 同格式）。
+    fn clip4(o: &str) -> Option<(i32, i32, i32, i32)> {
+        let a = o.strip_prefix("setClip(")?.strip_suffix(')')?;
+        let v: Vec<i32> = a.split(',').filter_map(|t| t.trim().parse().ok()).collect();
+        (v.len() == 4).then(|| (v[0], v[1], v[2], v[3]))
+    }
+
+    /// 【BUG-031①】walkPhase==2 观察形态四角箭头（a.java:5964-5967：`(5−bob,148)` `(109,25−bob)`
+    /// `(109,viewBottom−29+bob)` `(215+bob,148)`）：148 = 160−12、109 = 120−11、215 = 240−25 是屏心/屏宽
+    /// 折叠字面量，同块下臂早随 view_bottom（BUG-029 同型）⇒ modern 须随 center_y / center_x / screen_w。
+    #[test]
+    fn soul_view_corner_arrows_frame_the_screen() {
+        let icons = synthetic_sptarm();
+        for layout in [
+            crate::layout::Layout::classic(),
+            crate::layout::Layout::modern(12, 16),
+            crate::layout::Layout::modern(13, 13),
+            crate::layout::Layout::modern(18, 18),
+        ] {
+            let mut sc = scene_with(&icons);
+            sc.apply_layout(layout.clone());
+            sc.walk_phase = 2;
+            sc.view_locked = false;
+            let bob = sc.bob_offset;
+            let mut img = ArgbImage::create(layout.screen_w, layout.screen_h);
+            let ops = {
+                let mut g = SoftGraphics::new(&mut img);
+                sc.paint_player(&mut g, sc.view.cam_x, sc.view.cam_y + sc.layout.view_top_y);
+                g.ops.clone()
+            };
+            let arrows: Vec<(i32, i32)> =
+                ops.iter().filter_map(|o| clip4(o)).filter(|c| (c.2, c.3) == (22, 24)).map(|c| (c.0, c.1)).collect();
+            let (cx, cy, vb, w) = (layout.center_x, layout.center_y, sc.view_bottom, layout.screen_w);
+            assert_eq!(
+                arrows,
+                vec![(5 - bob, cy - 12), (cx - 11, 25 - bob), (cx - 11, vb - 29 + bob), (w - 25 + bob, cy - 12)],
+                "{}×{}：四角箭头须框住画面（左/右屏心 y、上/下屏心 x、右贴右缘）",
+                layout.screen_w,
+                layout.screen_h
+            );
+        }
+    }
+
+    /// 【BUG-031②】炼丹（mode 9，a.java:2696-2722）：框 / 花费行 / 高亮行已随屏居中，三行属性图标 x 97、
+    /// 加值 x 142（= 高亮行 x 62 + 35 / + 80）仍是 classic 字面量 ⇒ modern 落到框外。判据：高亮行之后的
+    /// 全部绘制 op 相对高亮行左上的坐标序列，modern 与 classic 逐项相等（纯平移）。
+    #[test]
+    fn alchemy_rows_translate_with_highlight_row() {
+        let icons = synthetic_sptarm();
+        let rel = |layout: crate::layout::Layout| {
+            let mut sc = scene_with(&icons);
+            sc.apply_layout(layout.clone());
+            sc.game_mode = GameMode::Alchemy;
+            sc.alchemy_cursor = 0;
+            let mut img = ArgbImage::create(layout.screen_w, layout.screen_h);
+            let ops = {
+                let mut g = SoftGraphics::new(&mut img);
+                sc.paint(&mut g, &solid(64, 64));
+                g.ops.clone()
+            };
+            let hi = ops
+                .iter()
+                .position(|o| o.starts_with("fillRect(") && o.contains(",115,16,"))
+                .expect("高亮行 fillRect(x,y,115,16)");
+            let (rx, ry) = op_xy(&ops[hi]).unwrap();
+            ops[hi + 1..]
+                .iter()
+                .filter(|o| !o.starts_with("setClip(0,0,")) // 整画布 reset 臂不属行内容
+                .filter_map(|o| {
+                    let (x, y) = op_xy(o)?;
+                    Some((o.split('(').next().unwrap_or("").to_string(), x - rx, y - ry))
+                })
+                .collect::<Vec<_>>()
+        };
+        let classic = rel(crate::layout::Layout::classic());
+        assert!(classic.len() >= 6, "前置：三行图标+加值均有绘制 op：{classic:?}");
+        for (gw, gh) in [(12, 16), (13, 13), (18, 18)] {
+            assert_eq!(rel(crate::layout::Layout::modern(gw, gh)), classic, "modern {gw}×{gh}：炼丹行内容须随高亮行平移");
+        }
+    }
+
+    /// 【BUG-031③】敌人图鉴（mode 5，a.java:2497-2595）：面板已随屏居中（modern 面板宽 = 屏宽 − 32），
+    /// 翻页箭头 x 112（= 120 − 8 屏心折叠）与预测伤害列 `(240 + 面板宽 >> 1) − 75`（SCREEN_W 常量）未随动。
+    /// 判据：箭头相对面板中线、伤害图标相对面板右缘的 x，modern 与 classic 相等。
+    #[test]
+    fn encyclopedia_arrows_and_damage_column_follow_panel() {
+        let icons = synthetic_sptarm();
+        let probe = |layout: crate::layout::Layout| {
+            let mut sc = scene_with(&icons);
+            sc.apply_layout(layout.clone());
+            sc.game_mode = GameMode::EnemyInfo;
+            sc.images.ui[16] = solid(17, 9); // 预测伤害图标：独有尺寸便于定位
+            sc.encyc_panel_w = sc.layout.encyc_panel_w;
+            sc.encyc_types = vec![41, 42, 43];
+            sc.encyc_damage = vec![10, 20, -1];
+            sc.encyc_count = 3;
+            sc.encyc_rows_visible = 1;
+            sc.encyc_panel_h = 72;
+            sc.encyc_scroll_top = 1; // 中间页：上下翻页箭头都画
+            sc.encyc_scroll_bottom = 2;
+            let mut img = ArgbImage::create(layout.screen_w, layout.screen_h);
+            let ops = {
+                let mut g = SoftGraphics::new(&mut img);
+                sc.paint(&mut g, &solid(64, 64));
+                g.ops.clone()
+            };
+            let bx = (layout.screen_w - sc.encyc_panel_w) >> 1;
+            let (mid, right) = (bx + (sc.encyc_panel_w >> 1), bx + sc.encyc_panel_w);
+            let arrows: Vec<i32> =
+                ops.iter().filter_map(|o| clip4(o)).filter(|c| (c.2, c.3) == (15, 17)).map(|c| c.0 - mid).collect();
+            let dmg: Vec<i32> =
+                ops.iter().filter(|o| o.starts_with("drawImage(17x9,")).filter_map(|o| op_xy(o)).map(|p| p.0 - right).collect();
+            (arrows, dmg)
+        };
+        let classic = probe(crate::layout::Layout::classic());
+        assert_eq!(classic, (vec![-8, -8], vec![-87]), "classic：箭头 112 = 中线 120 − 8；伤害图标 149 − 12 = 右缘 224 − 87");
+        for (gw, gh) in [(12, 16), (13, 13), (18, 18)] {
+            assert_eq!(probe(crate::layout::Layout::modern(gw, gh)), classic, "modern {gw}×{gh}：箭头随面板中线、伤害列随面板右缘");
+        }
+    }
+
+    /// 【BUG-031④】记录浏览（mode 12，a.java:2905-2914）：页码 x 120、双箭头 x `60 − bob` / `160 + bob` 为屏心
+    /// 派生（Layout 早有 center_x / arrow_pair_left_x / arrow_pair_right_x，标题页已用）⇒ modern 须随屏心。
+    /// 判据：页码主色串与两箭头的 x 相对 center_x，modern 与 classic 相等（y 见 BUG-032）。
+    #[test]
+    fn record_browser_indicator_and_arrows_follow_center() {
+        let icons = synthetic_sptarm();
+        let probe = |layout: crate::layout::Layout| {
+            let mut sc = scene_with(&icons);
+            sc.apply_layout(layout.clone());
+            sc.game_mode = GameMode::RecordBrowser;
+            sc.images.ui[14] = solid(20, 13); // 箭头图：独有尺寸便于定位
+            sc.journal = vec![(0, 0), (0, 1), (0, 2)];
+            sc.record_page = 1; // 中间页：左右箭头都画
+            sc.page_indicator = "2 / 3".into();
+            sc.overlay_active = false;
+            let bob = sc.bob_offset;
+            let mut img = ArgbImage::create(layout.screen_w, layout.screen_h);
+            let ops = {
+                let mut g = SoftGraphics::new(&mut img);
+                sc.paint(&mut g, &solid(64, 64));
+                g.ops.clone()
+            };
+            let cx = layout.center_x;
+            let text = ops.iter().filter(|o| o.starts_with("drawString(")).filter_map(|o| op_xy_after_text(o)).last().map(|p| p.0 - cx);
+            let arrows: Vec<i32> = ops
+                .iter()
+                .filter(|o| o.starts_with("drawImage(20x13,") || o.starts_with("drawImageT(20x13,"))
+                .filter_map(|o| op_xy(o))
+                .map(|p| p.0 - cx)
+                .collect();
+            (text, arrows, bob)
+        };
+        let classic = probe(crate::layout::Layout::classic());
+        let bob = classic.2;
+        assert_eq!((classic.0, classic.1.clone()), (Some(0), vec![-60 - bob, 40 + bob]), "classic：页码 120、箭头 60−bob / 160+bob");
+        for (gw, gh) in [(12, 16), (13, 13), (18, 18)] {
+            assert_eq!(probe(crate::layout::Layout::modern(gw, gh)), classic, "modern {gw}×{gh}：页码与箭头须随屏心");
+        }
+    }
+
+    /// `drawString(text,x,y,anchor)` 的 (x,y)（跳过首个文本参数）。
+    fn op_xy_after_text(o: &str) -> Option<(i32, i32)> {
+        let args = o.strip_prefix("drawString(")?.strip_suffix(')')?;
+        let nums: Vec<i32> = args.rsplitn(4, ',').filter_map(|t| t.trim().parse().ok()).collect();
+        // rsplitn 逆序：anchor, y, x
+        (nums.len() == 3).then(|| (nums[2], nums[1]))
     }
 
     /// STAGE-B-002 ② 消费面：paint_status_bar 锚位随 `self.layout`（modern 贴右/
