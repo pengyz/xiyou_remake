@@ -67,6 +67,8 @@ pub struct Runtime {
     bgm: BgmController,
     /// 壳层退出请求（BUG-034：根界面返回 = 立即退出；粘滞）。
     shell_exit: bool,
+    /// 【STAGE-B-005】系统退出对话框未决（已请求弹出、未收到结果）：游戏暂停、输入不进游戏。
+    exit_dialog_pending: bool,
 }
 
 impl Runtime {
@@ -91,6 +93,7 @@ impl Runtime {
             scene_layout,
             bgm: BgmController::new(Box::new(NullSink)),
             shell_exit: false,
+            exit_dialog_pending: false,
         }
     }
 
@@ -156,6 +159,36 @@ impl Runtime {
         root
     }
 
+    /// 【STAGE-B-005 · 壳层·系统对话框】游戏内返回（BACK 键 / 边缘返回手势）：场景活动 ∧ 地图行走态 ∧ 原版浮层未开
+    /// ∧ 非换层遮幅 ∧ 无未决对话框 ⇒ 置未决、返回 true（调用方弹 Android 标准退出确认框并丢弃该 BACK 的 -7）。
+    /// 其余 ⇒ false（BACK 照旧 -7：浮层关/拒、菜单返回、对话推进…）。面板右软键不经此口（地图上照旧开游戏内菜单）。
+    /// 游戏核心零改动：未决期 [`Runtime::step`] 不出拍（暂停），结果经 [`Runtime::on_exit_dialog_result`] 回灌。
+    pub fn back_requests_exit_dialog(&mut self) -> bool {
+        if self.exit_dialog_pending {
+            return false;
+        }
+        let ok = matches!(
+            self.scene.as_ref(),
+            Some(sc) if sc.game_mode == GameMode::Map && !sc.overlay_active && !sc.transitioning
+        );
+        self.exit_dialog_pending = ok;
+        ok
+    }
+
+    /// 【STAGE-B-005】系统退出对话框是否未决。
+    pub fn exit_dialog_pending(&self) -> bool {
+        self.exit_dialog_pending
+    }
+
+    /// 【STAGE-B-005】对话框结果回灌：`exit` = 选"退出" ⇒ 进程退出请求（既有退出链）；否则（取消 / 返回 / 点框外 /
+    /// 弹出失败）⇒ 结束未决、游戏原样继续。
+    pub fn on_exit_dialog_result(&mut self, exit: bool) {
+        self.exit_dialog_pending = false;
+        if exit {
+            self.shell_exit = true;
+        }
+    }
+
     /// 逻辑拍间隔（mode 0=100 / 其余 75；场景恒 75——win 壳 frame_interval 同源）。
     pub fn frame_interval_ms(&self) -> u64 {
         if self.scene.is_some() {
@@ -192,7 +225,7 @@ impl Runtime {
     /// 叠加框态（框=当前态生效命中面）。
     pub fn overlay_state(&self) -> OverlayState {
         match self.scene.as_ref() {
-            Some(sc) if sc.game_mode == GameMode::Map => OverlayState::Game,
+            Some(sc) if sc.game_mode == GameMode::Map && !self.exit_dialog_pending => OverlayState::Game,
             Some(_) => OverlayState::Ui,
             None => match self.machine.title_geom() {
                 Some(geo) => OverlayState::Title(geo),
@@ -210,6 +243,10 @@ impl Runtime {
         gestures: Vec<TitleGesture>,
         taps: Vec<(f32, f32)>,
     ) {
+        // 【STAGE-B-005】系统退出对话框未决 ⇒ 暂停：不出逻辑拍，本拍键/点按丢弃（系统对话框持焦点，输入本不进游戏）
+        if self.exit_dialog_pending {
+            return;
+        }
         if self.scene.is_some() {
             self.step_scene(keys, taps);
         } else {

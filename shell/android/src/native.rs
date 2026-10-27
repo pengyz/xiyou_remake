@@ -1086,6 +1086,8 @@ pub struct HostState {
     pub softkey_icons: game_core::render::ArgbImage,
     /// 【按键反馈】触感 + 按键音出口（JNI 工作线程；None = 未起）。
     pub feedback: Option<crate::feedback::android::JniFeedback>,
+    /// 【STAGE-B-005】游戏内退出确认 = Android 标准对话框出口（JNI 工作线程；None = 未起）。
+    pub exit_dialog: Option<crate::exit_dialog::android::ExitDialog>,
 }
 
 #[cfg(target_os = "android")]
@@ -1195,16 +1197,26 @@ extern "C" fn handle_input(app: *mut AndroidApp, event: *mut AInputEvent) -> i32
         let (mut keys, consumed) = st.wiring.on_input_ex(event);
         // 【BUG-034 · 壳层输入映射】根界面（开机 logo / 主菜单 / 退场动画）BACK（返回键/边缘返回手势）=
         // 立即退出（runtime.rs back_requests_exit：置退出请求，主循环下一轮 finish）；丢弃该 BACK 的 -7。
-        // 其余态保持右软键 -7 原映射（子页返回 / 序章跳过 / 游戏内菜单）。
+        // 【STAGE-B-005】地图行走态 BACK = Android 标准退出确认框（runtime.rs back_requests_exit_dialog 置未决 ⇒
+        // 暂停；exit_dialog.rs 弹框）；丢弃该 BACK 的 -7。辅助类未就绪 ⇒ 照旧 -7（开游戏内菜单）。
+        // 其余态保持右软键 -7 原映射（子页返回 / 序章跳过 / 游戏内菜单 / 浮层关闭）。
         const AINPUT_EVENT_TYPE_KEY: i32 = 1;
-        if ffi::AInputEvent_getType(event) == AINPUT_EVENT_TYPE_KEY
+        let back_down = ffi::AInputEvent_getType(event) == AINPUT_EVENT_TYPE_KEY
             && ffi::AKeyEvent_getKeyCode(event) == AKEYCODE_BACK
             && ffi::AKeyEvent_getAction(event) == AKEY_EVENT_ACTION_DOWN
-            && ffi::AKeyEvent_getRepeatCount(event) == 0
-            && st.rt.back_requests_exit()
-        {
-            log_input(&format!("back at root mode={:?} → 立即退出", st.rt.machine.mode));
-            keys.clear();
+            && ffi::AKeyEvent_getRepeatCount(event) == 0;
+        if back_down {
+            let dialog_ready = st.exit_dialog.as_ref().is_some_and(|d| d.available());
+            if st.rt.back_requests_exit() {
+                log_input(&format!("back at root mode={:?} → 立即退出", st.rt.machine.mode));
+                keys.clear();
+            } else if dialog_ready && st.rt.back_requests_exit_dialog() {
+                if let Some(d) = st.exit_dialog.as_ref() {
+                    d.show();
+                }
+                log_input("back in game → 系统退出确认框");
+                keys.clear();
+            }
         }
         st.pending_keys.extend(keys);
         // 【按键反馈】虚拟键按下 ⇒ 输入回调内立即派发（不等 75ms 逻辑拍）；按键音随游戏内"声音"
@@ -1308,9 +1320,12 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
             panel_state: None,
             softkey_icons,
             feedback: None,
+            exit_dialog: None,
         });
         // 【按键反馈】JNI 工作线程（触感 + 按键音；attach 一次、缓存方法 ID，输入回调零阻塞）
         st.feedback = Some(crate::feedback::android::JniFeedback::spawn((*activity).vm, (*activity).clazz, log_input));
+        // 【STAGE-B-005】退出确认对话框 JNI 工作线程（Java 辅助类经 activity 类加载器解析；主循环零 JNI）
+        st.exit_dialog = Some(crate::exit_dialog::android::ExitDialog::spawn((*activity).vm, (*activity).clazz, log_input));
         // 【竖屏公式化】规划输入的设备/数据源：密度（glue 已自 assetManager 填 config）+
         // 全关卡最大格数（maplv 头）——INIT_WINDOW 时与窗口尺寸一并入公式
         if !(*app).config.is_null() {
@@ -1398,6 +1413,11 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
                 // 走 Boot 拍（手势/点按解析 → 锁存键 → tick → 读条完交接 GameScene）。
                 // 【BUG-034】退出请求已成立（返回键立即退出 / 退场动画走完）⇒ 不再出拍：免 logo 期
                 // 返回后再走拍进主菜单起 BGM；finish 到 Activity 销毁之间画面停在末帧。
+                // 【STAGE-B-005】系统退出确认框结果回灌（退出 ⇒ 进程退出请求；取消 ⇒ 结束暂停）
+                if let Some(r) = st.exit_dialog.as_ref().and_then(|d| d.try_result()) {
+                    log_input(&format!("exit dialog result {r:?}"));
+                    st.rt.on_exit_dialog_result(r == crate::exit_dialog::DialogResult::Exit);
+                }
                 if !exit_sent && !st.rt.exit_requested() {
                     let gestures = std::mem::take(&mut st.wiring.title_gestures);
                     let taps = std::mem::take(&mut st.wiring.pending_taps);

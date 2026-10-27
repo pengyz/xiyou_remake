@@ -42,3 +42,6 @@ pub mod portrait;
 
 /// 虚拟键按下反馈：触感 + 按键音（策略纯函数；Android 出口 = JNI 工作线程）。
 pub mod feedback;
+
+/// 【STAGE-B-005】游戏内退出确认 = Android 标准对话框（结果映射纯函数；Android 出口 = JNI 工作线程）。
+pub mod exit_dialog;

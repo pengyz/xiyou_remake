@@ -228,7 +228,8 @@ pub mod android {
     }
 
     /// obj 的实例方法 ID（GetObjectClass + GetMethodID；失败清异常返回 None）。
-    unsafe fn method(env: *mut JNIEnv, obj: jobject, name: &CStr, sig: &CStr) -> Option<jmethodID> {
+    /// `pub(crate)`：exit_dialog.rs（STAGE-B-005 系统对话框）同口径复用。
+    pub(crate) unsafe fn method(env: *mut JNIEnv, obj: jobject, name: &CStr, sig: &CStr) -> Option<jmethodID> {
         let cls = ((**env).GetObjectClass?)(env, obj);
         if cls.is_null() || exception(env) {
             return None;
@@ -242,7 +243,7 @@ pub mod android {
     }
 
     /// 调对象返回值实例方法（返回局部引用；null 或异常 ⇒ None）。
-    unsafe fn call_object(env: *mut JNIEnv, obj: jobject, name: &CStr, sig: &CStr, args: &[jvalue]) -> Option<jobject> {
+    pub(crate) unsafe fn call_object(env: *mut JNIEnv, obj: jobject, name: &CStr, sig: &CStr, args: &[jvalue]) -> Option<jobject> {
         let mid = method(env, obj, name, sig)?;
         let r = ((**env).CallObjectMethodA?)(env, obj, mid, args.as_ptr());
         if r.is_null() || exception(env) {
@@ -252,13 +253,13 @@ pub mod android {
         }
     }
 
-    unsafe fn global(env: *mut JNIEnv, obj: jobject) -> Option<jobject> {
+    pub(crate) unsafe fn global(env: *mut JNIEnv, obj: jobject) -> Option<jobject> {
         let g = ((**env).NewGlobalRef?)(env, obj);
         (!g.is_null()).then_some(g)
     }
 
     /// 有挂起异常 ⇒ 打印到 logcat 并清除，返回 true。
-    unsafe fn exception(env: *mut JNIEnv) -> bool {
+    pub(crate) unsafe fn exception(env: *mut JNIEnv) -> bool {
         let (Some(check), Some(describe), Some(clear)) =
             ((**env).ExceptionCheck, (**env).ExceptionDescribe, (**env).ExceptionClear)
         else {

@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-feature android:glEsVersion="0x00020000" android:required="false" />
-    <application android:label="囧囧西游" android:icon="@mipmap/ic_launcher" android:hasCode="false" android:allowBackup="false">
+    <application android:label="囧囧西游" android:icon="@mipmap/ic_launcher" android:hasCode="true" android:allowBackup="false">
+        <!-- 【STAGE-B-005】hasCode=true：游戏内退出确认 = Android 标准对话框（Java 辅助类
+             com.jjxy.game.ExitConfirm，原生 JNI 调用）；Activity 仍为 NativeActivity -->
         <!-- 【2026-10-26 竖屏动态分辨率】默认竖屏 + 全屏（隐藏状态栏：画面不再被状态栏/
              挖孔压住）；布局由 shell/android/src/portrait.rs 按窗口尺寸动态规划 -->
         <activity android:name="android.app.NativeActivity"
