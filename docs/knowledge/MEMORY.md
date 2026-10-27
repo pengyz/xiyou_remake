@@ -4,7 +4,7 @@
 
 ## Architecture
 
-- [Shell 契约：实现一个平台壳要做什么](architecture_shell-contract.md) — 三层架构（game-core 零 I/O / game-platform trait / shell 全平台依赖）+ 八接缝清单（资产/存档/退出/音频/输入/呈现/字体/生命周期）+ 新壳最小验收（2026-10-17，BUG-020 连带）
+- [Shell 契约：实现一个平台壳要做什么](architecture_shell-contract.md) — 三层架构（game-core 零 I/O / game-platform trait / shell 全平台依赖）+ 八接缝清单（资产/存档/退出/音频/输入/呈现/字体/生命周期）+ 新壳最小验收（2026-10-17，BUG-020 连带；2026-10-27 BUG-033 补注：Android 复发——trait 已实现 ≠ 主循环已接线，验收须实走退出链）
 
 ## Gotchas
 
@@ -62,6 +62,7 @@
 - [生成物禁手改，改配置源重生成](decision_generated-docs-edit-via-config-source.md) — coverage-matrix 等判定/销账改 tools/cover_matrix.py ARM_GAPS 后重生成；手改仅限显式声明过渡态（6467342，lead 同 commit 自纠）
 - [存档/读档路径由外部 shell 注入](decision_save-path-shell-injection.md) — 平台路径规范各异（Windows exe 目录\save vs Android 应用私有目录宿主注入）；game-core 零 I/O，`--save` 注入缝 + 平台默认（2026-10-17，BUG-018 连带架构决策）
 - [主菜单触屏=原版轮播触屏化](decision_touch-title-carousel-stage-b.md) — 点左/右热区切项、点标签确认、水平滑切项 + Modern 底栏 ×2 + 美术整数倍；取代 2c 六行隐形横条（误触退出）（2026-10-26 用户裁定 C）
+- [Android 竖屏以虚拟摇杆为主操作面](decision_android-virtual-pad-primary-input.md) — 用户 2026-10-27 裁定"不用管触摸屏问题"：只在触屏路径复现的问题登记不修、摇杆路径也复现的照修；实机验证按摇杆坐标注入
 
 ## Reference
 

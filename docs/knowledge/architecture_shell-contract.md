@@ -67,6 +67,10 @@ sources: ["2026-10-17 用户问（退出无反应 BUG-020 连带架构确认）"
 
 1. 传齐 1/2/4 三路径（assets/save/audio）；
 2. 退出链：主菜单"退出" → 退场动画 70 拍 → 进程退出；
+   > 【2026-10-27 BUG-033】Android 壳复发 BUG-020 同型缺口：`AndroidProcessControl` 已实现、宿主桩契约测试全绿，
+   > 但主循环从未调用（`finished` 无消费者）⇒ 选"退出"后白屏常驻。验收须在目标平台**实走**本链并核对进程结束
+   > （Android：`pidof` 为空 + ActivityManager "has died"）；"trait 已实现 / 桩测绿"不能代替接线核对（`grep` 壳 src
+   > 有无 `finished` 与 `request_exit` 调用点）。平台返回键也须在标题态有语义（Android：BACK = 退出项确认，壳层映射）。
 3. 存档环：保存 → 回主菜单 → 读档列表可见 → 重启仍在；
 4. 音频：BGM 连续无欠载；
 5. `gates/cli.py check` 8/8（game-core 侧与壳无关，恒绿）。
