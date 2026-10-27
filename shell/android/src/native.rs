@@ -1409,7 +1409,9 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
             }
             // 呈现（每拍一次，tick 后）——【回派修复②】每帧前判 window 非空
             // （TERM_WINDOW→window=NULL 竞态挡；未就绪期跳过渲染呈现）
-            if !(*app).window.is_null() {
+            // 【BUG-035】退出已发（finish 至销毁约 1 s）⇒ 不再呈现：窗口保留最后一帧（主菜单）随关闭动画收起，
+            // 免画出 mode 22 首帧（白底 logo 层）闪一下。
+            if !(*app).window.is_null() && !exit_sent {
                 if let Some(plan) = st.wiring.portrait.clone() {
                     // 【竖屏动态分辨率】活动机画布档（开场链 2× / 游戏 3×，同一物理视口）
                     let canvas = st.rt.active_canvas(&plan);

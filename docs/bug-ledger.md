@@ -583,6 +583,8 @@ Confidence: 90
   链 `CMidlet.m_000` = `destroyApp(true)`（空方法，CMidlet.java）+ `notifyDestroyed()`，无存档副作用（存档同步写穿）⇒ 跳过
   动画不丢状态。其余界面 BACK 仍 = 右软键 -7（读档/设置/帮助/关于子页 → 主菜单；序章 → 跳过；游戏内 → 游戏内菜单）。
   菜单"退出"项仍走原版退场动画（动画期可再返回立即退出）。游戏层零改动、无帧金样影响。
+  > 【2026-10-27 更正】"菜单退出仍走原版退场动画"已被 **BUG-035** 取代（用户实机：菜单退出未结束进程）——现菜单"退出"
+  > 确认即立即退出；exit_chain.rs 测试集随之改为 BUG-035 口径（"菜单退出动画播完才请求""退场动画期返回即退"两测已替换）。
   宿主钉 `shell/android/tests/exit_chain.rs` 5 测（菜单退出动画播完才请求 / logo 期返回即退 / 主菜单返回即退且不进 mode 22 /
   退场动画期返回即退 / 读档子页·序章·游戏内不劫持）。
 - **Stage B 修复方案**：—。
@@ -590,3 +592,27 @@ Evidence: A 级——用户实操 logcat（上列时间线，含 MIUIInput/PreSt
 3369 / 4249-4256 + CMidlet.java（destroyApp 空、m_000）原文；宿主 RED（E0599：`back_requests_exit` 不存在；父树
 `title_back_runs_the_same_exit_chain` 绿 = 旧行为"返回 → mode 22 → >60 拍才退"）/ GREEN 5 测。**本方实机验证待补**。
 Confidence: 92
+
+## BUG-035 Android 主菜单选"退出"后进程迟迟不结束——仍走 5.3 s 原版 logo 退场动画（与开机同款，形似片头），用户等不到即离开（壳层交互缺陷，用户实机，已修复）
+
+> 【2026-10-27】用户实机（Xiaomi 14，装 BUG-034 包 15:27:03）："右滑退出已经有了，但主菜单选择退出没有结束进程"。
+- **现象 / 复现**（用户操作，本方只读 logcat 取证）：pid 31946（16:38:58 启动）：16:39:07.470 方向盘左 `key=-3`（光标落
+  "退出"）→ 16:39:08.184 确定 `key=-5` + `bgm Stop`（进 mode 22）→ 16:39:12.431 `lifecycle hideNotify`（确认后 4.25 s 上滑离开）→
+  16:39:12.710 ActivityManager `Force stopping com.jjxy.game … SwipeUpClean`、`Killing 31946 … due to SwipeUpClean`——全程无
+  `exit chain` 行：进程是被用户在最近任务里划掉强停的，不是退出链结束的。
+- **根因**（BUG-034 未覆盖菜单路径，非原版 bug，D4 不适用）：菜单"退出" = kind 5 → mode 22，原版 `runLogoAnimation(1, t)`
+  70 拍 ≈ 5.3 s 后才 `CMidlet.m_000`（reference a.java:4249-4256）；该动画与开机 `runLogoAnimation(0, t)`（a.java:3369）同为
+  SNOWFISH logo——用户此前已称之为"重新播放片头"（BUG-034）⇒ 不被认作"正在退出"，等不到 5.3 s。（核对：隐藏后主循环
+  **照常出拍**——pump.rs `pump_once` 只按时钟出拍、无可见性门控——本次若不划掉，约 1 s 后仍会经退出链结束；故非"隐藏
+  即永不退出"。）
+- **影响**：Android 菜单"退出"的体感 = 播一段片头、进程不退。
+- **Stage A 处理**：**已修复**——`Runtime::step_boot` 拍后见游戏进 mode 22（原版退出链入口：closeAudioPlayer 已执行）即置
+  壳层退出请求：同拍 `exit_requested` ⇒ 主循环不再出拍、`ANativeActivity_finish`，销毁后 `_exit(0)`；退出已发后不再呈现，
+  窗口保留主菜单末帧随关闭动画收起（免画出 mode 22 首帧白底闪一下）。与根界面返回（BUG-034）同口径，m_000 无副作用 ⇒
+  跳过动画不丢状态。游戏层零改动、无帧金样影响（win 壳仍播原版动画）。
+  宿主钉 `shell/android/tests/exit_chain.rs`：`title_menu_exit_item_exits_immediately`（确认同拍即退出请求、mode 22、BGM 已停）+
+  `menu_exit_after_returning_from_game_exits_immediately`（新游戏 → Map → 游戏内菜单"退出" kind 7 → 主菜单 → 菜单退出）。
+- **Stage B 修复方案**：—。
+Evidence: A 级——用户实操 logcat（上列，含 ActivityManager SwipeUpClean 强停行）+ reference a.java:3369 / 4249-4256 +
+pump.rs `pump_once` 原文；宿主 RED（两测均断在"确认即退出请求"：`确认即退出请求（不等退场动画）` /
+`回主菜单后菜单退出 = 立即退出`）/ GREEN 5/5。**本方实机验证待补**。Confidence: 93

@@ -46,7 +46,7 @@
 | trait | Android 实现 | 宿主桩（测试面） |
 |---|---|---|
 | `Storage` | `storage::AndroidStorage`：注入根路径（应用私有目录 `activity->internalDataPath`）薄接线 `game-shell-common::rms::FileRms` | 临时目录实测（`tests/storage_wiring.rs`） |
-| `ProcessControl` | `process::android::AndroidProcessControl`：`ANativeActivity_finish`（= JNI `Activity.finish()`，本身**不杀进程**）；壳在 Activity 销毁（APP_CMD_DESTROY）后 `_exit(0)` 结束进程（BUG-033，native.rs `android_main` 尾） | `process::HostProcessControl`（幂等观测） |
+| `ProcessControl` | `process::android::AndroidProcessControl`：`ANativeActivity_finish`（= JNI `Activity.finish()`，本身**不杀进程**）；壳在 Activity 销毁（APP_CMD_DESTROY）后 `_exit(0)` 结束进程（BUG-033，native.rs `android_main` 尾）；退出请求 = 根界面返回（BUG-034）或菜单「退出」确认（BUG-035，不播 mode 22 退场动画） | `process::HostProcessControl`（幂等观测） |
 | `AudioOut` | `audio::aaudio::AAudioPcm`：AAudio 阻塞 write（API 26+；EXCLUSIVE→SHARED 回退）。**AudioTrack 兜底已砍**（对抗审查 §3-1）：失败/旧系统 ⇒ `NullSink` 无声降级，minSdk 26 | `audio::CountingPcm`（契约形状：全量写/Err 不可恢复/idle 丢弃） |
 | `AssetSource` | `asset::apk::ApkAssetSource`：`AAssetManager_open` + 全量读（**不是 std::fs**；`activity->assetManager` 免 JNI） | `asset::DirAssetSource`（目录注入 std::fs） |
 

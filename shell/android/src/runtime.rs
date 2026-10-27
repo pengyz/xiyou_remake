@@ -275,6 +275,14 @@ impl Runtime {
         // 读档列表同步真源（win 壳 step 同口径：会话内保存后返回主菜单即可见）
         self.machine.preset_stores = self.stores.clone();
         self.machine.tick(key);
+        // 【BUG-035】菜单"退出"确认 ⇒ 游戏进 mode 22（原版退出链入口：closeAudioPlayer + 70 拍 logo 退场动画后
+        // CMidlet.m_000）⇒ 壳即刻退出，不播动画——与根界面返回同口径（BUG-034）。用户实机：动画 5.3 s 与开机同款
+        // logo（"重播片头"），用户 4.25 s 时离开并在最近任务划掉，退出链未走完。m_000 = destroyApp（空）+
+        // notifyDestroyed，无副作用。
+        if self.machine.mode == GameMode::LogoAnim && !self.shell_exit {
+            self.shell_exit = true;
+            log_input("menu exit → 立即退出（不播 mode 22 退场动画）");
+        }
         if self.machine.take_global_dirty() {
             handoff::put_global(&mut self.stores, &self.machine.global_snapshot());
             self.storage.persist(&self.stores);
