@@ -18,6 +18,13 @@
 > 交接（win 壳同源）——实机走通 序章→读条→交接→剧情对话→地图行走（方向盘/点地寻路
 > 拾钥匙）→游戏内菜单；宿主钉 `tests/flow.rs`（新游戏/存档-退出-读档/只点屏幕三条全
 > 流程，真资产每拍 step+paint）。音频仍未通（同上）。
+>
+> 【2026-10-27 更正③】音频已通（BUG-027/028）：AAudio 设备 = `audio::StreamPcm` 状态机 × NDK 流（SHARED +
+> PERFORMANCE_MODE_NONE），BGM 命令翻译 = shell-common `BgmController`（Runtime 每拍 + hideNotify 同步）。实机：探针
+> `shell/android/examples/aaudio_probe.rs`（adb shell 运行、只写静音）阻塞写节拍 + idle 丢弃重启、游戏内标题曲播放 /
+> 切后台即停（docs/bug-ledger.md BUG-027/028 实机复核注）。下表"⏳ AAudio 负 timeout 阻塞口径"一项已结：负/零超时
+> = **不阻塞**（AOSP AudioStreamTrack.cpp:505 + 实机探针自旋实证），实现改正超时 1 s。未实机验证：输出设备切换
+> （插拔耳机/连蓝牙）后的流重开（`StreamPcm::with_reopen`，宿主钉 + 源码路径推理）。
 
 | 状态 | 内容 | 判定方式 |
 |---|---|---|

@@ -366,6 +366,14 @@ fx-chang-e-floor1-taps Java 帧锚 T786。Confidence: 95
 Evidence: A 级——NDK 27.1.12297006 AAudio.h 枚举原文；AOSP android-16.0.0_r1 libaaudio 源码（validate / processData /
 AudioStreamTrack::write）；实机探针 RED（logcat `illegal performanceMode = 1`；HANG cpu 5.97 s / 6.0 s）。Confidence: 92
 
+> 【2026-10-27 实机复核·GREEN】（Xiaomi 14 / Android 16，本方运行，非用户操作）探针（adb shell，只写静音）：
+> `open=ok sharing=1 perf=10 rate=44100 burst=4895 buffer=9790/9790 xrun=0`；`seg1 write=Ok(()) audio=2.020s wall=1.828s
+> cpu=0.01s`（阻塞写 = 节拍，不自旋；墙钟短 0.19 s = 首块填缓冲 9790 帧 ≈ 0.22 s）；`seg2-after-idle audio=1.022s
+> wall=0.838s cpu=0.00s`（idle 已丢弃缓冲、重启正常）；logcat 状态链 OPEN→STARTING→STARTED→PAUSING→PAUSED→
+> FLUSHING→STARTING、`MMAP not used because AAUDIO_PERFORMANCE_MODE_LOW_LATENCY not requested`（NONE 走 legacy 实证）。
+> 游戏进程（11:35）：`aaudio open ret=ok sharing=1 perf=10 …`；`dumpsys audio` 本进程 `AudioPlaybackConfiguration …
+> type:AAudio … state:started`（蓝牙 A2DP 设备 10046）；音频线程 CPU ≈ 1%（3 s 窗 3 tick）。Confidence: 97
+
 > 【2026-10-26 补·设备切换重开】同组件潜在缺陷（出声后才会暴露）：插拔耳机/连蓝牙 ⇒ AAudio 把流置为断开——
 > legacy 路径设备 ID 一变即 `forceDisconnect`（AOSP `AudioStreamLegacy.cpp:283-303`），其后 write 返回
 > `AAUDIO_ERROR_DISCONNECTED`（`AudioStreamTrack.cpp:500-502`）、start 返回 INVALID_STATE（`AudioStream.cpp:169`）
@@ -392,6 +400,10 @@ AudioStreamTrack::write）；实机探针 RED（logcat `illegal performanceMode 
 - **Stage B 修复方案**：—。
 Evidence: A 级——宿主 RED/GREEN 逐字（旧翻译 `[Play{2,1.0}, Play{3,1.0}]` vs 期望序列）+ docs/spec/audio.md §1 状态表
 （Java 锚 a.java:4157-4167/4502-4513/4663-4676/10158-10215）。Confidence: 93
+
+> 【2026-10-27 实机复核·GREEN】（本方运行）标题 `bgm Play { track: 2, gain: 0.6 }`（音量 60 ⇒ 0.6）；本方注入 HOME
+> （11:36:29）⇒ 同毫秒 `bgm Stop` + `lifecycle hideNotify`，`dumpsys audio` 本进程播放配置 `state:started` → `state:paused`；
+> 全程无 `bgm req=None` 刷屏（日志只随命令）。Confidence: 96
 
 ## BUG-029 Modern 下牛魔王（型 72）对话立绘错位到地图中左、对话框头像格空——定尺剪裁臂 y 字面量 275 漏换轨（Modern 回归，用户实机，已修复）
 
@@ -433,6 +445,10 @@ Confidence: 95
   ⇒ classic 夹具确实画到金币弹字、240 与 Java 逐像素一致。
 - **Stage B 修复方案**：—（扩展缝适配缺口，Stage A 即修类）。
 Evidence: A 级——a.java:9706-9707 原文 + layout.rs 金币列贴右公式 + RED/GREEN + classic 覆盖探针。Confidence: 95
+
+> 【2026-10-27 实机旁证】本方验证 = 宿主单测 + 竖屏整窗无头截帧（f8dc52c，金币 +1 右缘贴金币列）。另：用户 12:51 实玩
+> 被动录屏（本方未注入）中金币 4→5 时 "+1" 弹字右缘贴在金币数值列正下方——属用户操作，按 AGENTS §5 不记为本方验证成果，
+> 仅作旁证。
 
 ## BUG-031 Modern 布局字面量漏换轨 5 处（BUG-029 同型，全量扫描所得，已修复）
 
