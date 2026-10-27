@@ -168,3 +168,148 @@ fn headless_portrait_shots() {
     eprintln!("font={font:?} intro_ticks={n} dialog_ticks={k} crashed={} → {}", rt.crashed, out.display());
     assert!(!rt.crashed);
 }
+
+/// 【BUG-029/030 实机管线无头核对】Xiaomi 14 竖屏整窗：story-fullrun 存档（天牢 2 层）读档 → 踩点自走 →
+/// 牛魔王对话页（说话者 72，对话框在屏）截整窗；再走一次金币弹字（`spawn(4,…)`，与击杀两处同入口）截整窗。
+///
+/// 用法：`JJXY_SHOTS=/tmp/jjxy-portrait cargo test -p game-android --release --test headless_portrait_shots \
+///        -- --ignored headless_portrait_niumowang_dialog_and_gold_popup --nocapture`
+/// 帧：9_niumowang_dialog 10_gold_popup（整窗 1200×2536 PPM）。
+#[test]
+#[ignore]
+fn headless_portrait_niumowang_dialog_and_gold_popup() {
+    let _ = game_shell_common::font::install(
+        &[("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc".to_string(), 2)],
+        &mut |m| eprintln!("{m}"),
+    );
+    let out = std::path::PathBuf::from(std::env::var("JJXY_SHOTS").unwrap_or_else(|_| "/tmp/jjxy-portrait".into()));
+    std::fs::create_dir_all(&out).unwrap();
+    let raw = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/raw");
+    let src = game_shell_common::asset::DirAssetSource::new(&raw);
+    let plan = plan_portrait(&PlanInput {
+        window: (1200, 2536),
+        dpi: 480,
+        inset_top: 0,
+        inset_bottom: 0,
+        map: MapExtent::from_assets(&src),
+    });
+    let save = out.join("save-niumowang");
+    let _ = std::fs::remove_dir_all(&save);
+    let (rms, _) = game_shell_common::rms::FileRms::load(&save);
+    let stores = game_core::save::parse_preset(include_str!("../../../crates/game-oracle/tests/fixtures/story-fullrun.preset"));
+    let mut rt = Runtime::new(build_boot_machine(&src, plan.scene.layout()), stores, Box::new(rms));
+    rt.apply_layouts(plan.boot.layout(), plan.scene.layout());
+    let (w, h) = plan.window;
+    let mut host = Host {
+        canvas: ArgbImage::create(1, 1),
+        panel: ArgbImage::create(plan.panel.w, plan.panel.h),
+        icons: game_shell_common::handoff::load_container(&src, "ui", 25)[11].clone(),
+        plan,
+    };
+    let tap = |c: i32| vec![KeyAction::Press(c), KeyAction::Release];
+    // 推进拍只画活动档画布（逻辑推进需 paint：打字机/遮幅挂 paint 尾）；整窗合成只在截帧时做
+    let mut step = |rt: &mut Runtime, host: &mut Host, keys: &[KeyAction], g: Vec<TitleGesture>| {
+        rt.step(&src, keys, g, vec![]);
+        let c = rt.active_canvas(&host.plan);
+        let (cw, ch) = c.physical();
+        if (host.canvas.width, host.canvas.height) != (cw, ch) {
+            host.canvas = ArgbImage::create(cw, ch);
+        }
+        let mut gfx = canvas_graphics(&mut host.canvas, c.scale as u32);
+        rt.paint(&mut gfx);
+    };
+    // 标题 → 继续游戏（轮播 1）→ 读档槽 → 确认 → 读条交接
+    let mut n = 0;
+    while !rt.title_mode() && n < 300 {
+        step(&mut rt, &mut host, &[], vec![]);
+        n += 1;
+    }
+    let geo = rt.machine.title_geom().expect("标题");
+    let mid = |z: (i32, i32, i32, i32)| ((z.0 + z.2 / 2) as f32, (z.1 + z.3 / 2) as f32);
+    while rt.machine.title_cursor() != Some(1) {
+        let p = mid(geo.zone_next);
+        step(&mut rt, &mut host, &[], vec![TitleGesture::Tap(p.0, p.1)]);
+    }
+    let ok = mid(geo.zone_ok);
+    step(&mut rt, &mut host, &[], vec![TitleGesture::Tap(ok.0, ok.1)]);
+    assert_eq!(rt.machine.mode, GameMode::EquipDetail, "继续游戏 → 读档槽");
+    step(&mut rt, &mut host, &tap(-5), vec![]);
+    n = 0;
+    while rt.scene.is_none() && n < 600 {
+        step(&mut rt, &mut host, &[], vec![]);
+        n += 1;
+    }
+    assert_eq!(rt.scene.as_ref().expect("读档交接").floor, 2, "天牢 2 层");
+    // 踩点自走 → 对话；推页直到牛魔王（72）说话页的对话框在屏
+    let mut k = 0;
+    let mut holding = false;
+    let mut seen = String::new();
+    loop {
+        let sc = rt.scene.as_ref().unwrap();
+        let ev = format!(
+            "f{} {:?} pg{} sp{} ph{} pl({},{})",
+            sc.floor,
+            sc.game_mode,
+            sc.dialog_page,
+            sc.dialog_speaker,
+            sc.dialog_phase,
+            sc.view.player_px >> 5,
+            sc.view.player_py >> 5
+        );
+        if ev != seen {
+            if std::env::var("JJXY_TRACE").is_ok() {
+                eprintln!("k={k} {ev}");
+            }
+            seen = ev;
+        }
+        let shown = sc.game_mode == GameMode::Dialog
+            && sc.dialog_speaker == 72
+            && sc.overlay_text.is_some()
+            && !sc.overlay_active
+            && sc.dialog_phase != 4;
+        if shown {
+            for _ in 0..12 {
+                step(&mut rt, &mut host, &[], vec![]); // 打字机走几拍
+            }
+            break;
+        }
+        assert!(k < 8000, "8000 拍内未见牛魔王说话页（{seen}）");
+        // Map：按住"下"直到起步/进剧情再抬起（一格一按，script_walk_taps 同口径）；Dialog：逐页确认
+        let keys = match sc.game_mode {
+            GameMode::Dialog => {
+                if holding {
+                    holding = false;
+                    vec![KeyAction::Release]
+                } else if k % 20 == 0 {
+                    tap(-5)
+                } else {
+                    vec![]
+                }
+            }
+            GameMode::Map if !holding && k % 40 == 0 => {
+                holding = true;
+                vec![KeyAction::Press(-2)]
+            }
+            GameMode::Map if holding && sc.walk_phase != 0 => {
+                holding = false;
+                vec![KeyAction::Release]
+            }
+            _ => vec![],
+        };
+        step(&mut rt, &mut host, &keys, vec![]);
+        k += 1;
+    }
+    let mut last = host.frame(&mut rt, Vec::new());
+    write_ppm(&out, "9_niumowang_dialog", w, h, &last);
+    // 金币弹字（kind 4）：同击杀两处 spawn 入口
+    {
+        let sc = rt.scene.as_mut().unwrap();
+        let dw = sc.images.popup.digit_strips[0].width / 11;
+        sc.popups.spawn(4, 1, 0, 0, sc.view.cam_x, sc.view.cam_y, dw);
+    }
+    rt.step(&src, &[], vec![], vec![]);
+    last = host.frame(&mut rt, Vec::new());
+    write_ppm(&out, "10_gold_popup", w, h, &last);
+    eprintln!("load_ticks={n} dialog_ticks={k} crashed={} → {}", rt.crashed, out.display());
+    assert!(!rt.crashed);
+}
