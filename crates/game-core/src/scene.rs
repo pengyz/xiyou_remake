@@ -6865,7 +6865,11 @@ impl GameScene {
                         let fw = self.type_frame_width_for(self.dialog_speaker);
                         draw_image_clipped(g, img, ((80 - fw) >> 1) + dx, self.layout.screen_h - img.height, 0, 0, fw, img.height);
                     } else {
-                        draw_image_clipped(g, img, 24 + dx, 275, 0, 0, 32, 45);
+                        // a.java:2852 `drawImageClipped(var9, 24, 275, 0, 0, 32, 45)`：275 = 320 − 45
+                        // （定尺 32×45 剪裁贴屏底，同段两臂 `320 − h` 同义）⇒ 公式 screen_h − 45，
+                        // classic 回代 275 零偏离。【BUG-029】旧照抄字面量 275 ⇒ Modern 下牛魔王
+                        // 立绘画到地图中左、对话框头像格空。
+                        draw_image_clipped(g, img, 24 + dx, self.layout.screen_h - 45, 0, 0, 32, 45);
                     }
                 }
             } else if self.dialog_speaker == 0 {
@@ -7644,8 +7648,9 @@ mod slot_equip_scene_tests {
                 })
                 .collect::<Vec<_>>()
         };
-        // speaker>0（立绘分支）与 speaker==0（面孔分支）两路都钉（坐标+层序）
-        for speaker in [0, 1] {
+        // speaker>0（立绘分支）、speaker==72（牛魔王定尺剪裁臂 a.java:2852）与 speaker==0
+        // （面孔分支）三路都钉（坐标+层序）。72 臂漏钉 ⇒ 字面量 y=275 漏网（BUG-029）。
+        for speaker in [0, 1, 72] {
             let classic = coords(crate::layout::Layout::classic(), speaker);
             let modern = coords(crate::layout::Layout::modern(13, 13), speaker);
             assert_eq!(

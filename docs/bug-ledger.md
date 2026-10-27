@@ -392,3 +392,26 @@ AudioStreamTrack::write）；实机探针 RED（logcat `illegal performanceMode 
 - **Stage B 修复方案**：—。
 Evidence: A 级——宿主 RED/GREEN 逐字（旧翻译 `[Play{2,1.0}, Play{3,1.0}]` vs 期望序列）+ docs/spec/audio.md §1 状态表
 （Java 锚 a.java:4157-4167/4502-4513/4663-4676/10158-10215）。Confidence: 93
+
+## BUG-029 Modern 下牛魔王（型 72）对话立绘错位到地图中左、对话框头像格空——定尺剪裁臂 y 字面量 275 漏换轨（Modern 回归，用户实机，已修复）
+
+> 【2026-10-27】用户实机截图（Xiaomi 14 竖屏 12×16，2 层天牢"牛魔王：恩恩，现在大哥带你从密道出去……"）：
+> "牛魔王的对话头像位置不对""这个问题是 regression，classic 没有这个问题"。
+- **现象**：Modern 布局下牛魔王说话页，立绘画在地图左中部（逻辑 (24+dx, 275)），底部对话框左侧头像格为空；
+  其余说话者（型 >0 非 72 / 玩家头像）正常；classic 240×320 正常。
+- **复现**（修复前）：`cargo test --release -p game-core --lib bottom_composition_is_translate_only`（组合关系钉补
+  speaker=72 后）RED：modern 底部带缺 `("setClip",24,275)/("drawImage",24,275)` 两项（classic 有）。
+- **根因**（Modern 适配回归，非原版 bug，D4 不适用）：a.java:2852 `drawImageClipped(var9, 24, 275, 0, 0, 32, 45)`
+  的 275 = 320 − 45（定尺 32×45 贴屏底；同段另两臂写作 `320 − h`，a.java:2841-2849/2855-2857）。076ec69
+  （STAGE-B-002 返修"modern 绘制坐标系整体换轨"，2026-10-18）把对话框锚 `dialog_block_y0` 与另两臂的
+  `SCREEN_H − h` 换成 `screen_h − h`，72 臂是编译期折叠后的字面量、未被识别为屏高派生 ⇒ 漏改；9a23314 只补了
+  水平居中 dx。对话框随之下移到屏底、72 立绘留在 y=275 ⇒ 自 076ec69 起 Modern 回归。组合关系钉
+  `bottom_composition_is_translate_only` 只覆盖 speaker 0/1，漏 72 特例臂 ⇒ 门禁未拦。
+- **影响**：Modern 下全部牛魔王对话页（2 层天牢链、50 层）立绘错位。classic 不受影响：screen_h = 320 ⇒ y = 275
+  与 Java 同值。
+- **Stage A 处理**：**已修复**——72 臂 y 改 `screen_h − 45`（classic 回代 275，零偏离）；组合关系钉补 speaker=72。
+  classic 28 个 Java 锚帧夹具全绿；覆盖探针：72 臂 y 偏 1px ⇒ `story_fullrun_fixture_frames_match` TICK 1434
+  （mode 11）帧不符 ⇒ classic 夹具确实画到牛魔王立绘、且 275 与 Java 逐像素一致；Modern 帧基线 5 状态 sha 不变。
+- **Stage B 修复方案**：—（扩展缝适配缺口，Stage A 即修类）。
+Evidence: A 级——a.java:2838-2857 原文 + 076ec69/9a23314 diff + 组合关系钉 RED/GREEN + classic 覆盖探针（T1434 帧锚）。
+Confidence: 95
