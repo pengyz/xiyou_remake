@@ -15,10 +15,11 @@
     "density_draw(test)": 16,
     "entity_golden(test)": 12,
     "exit_chain(test)": 5,
+    "exit_dialog(test)": 7,
     "feedback(test)": 5,
     "fixture_frames(test)": 29,
     "flow(test)": 3,
-    "game_android(lib)": 5,
+    "game_android(lib)": 6,
     "game_core(lib)": 172,
     "game_data(lib)": 35,
     "game_oracle(lib)": 0,
@@ -61,5 +62,5 @@
     "walk_route(test)": 11,
     "xiyou(bin)": 40
   },
-  "total": 693
+  "total": 701
 }
