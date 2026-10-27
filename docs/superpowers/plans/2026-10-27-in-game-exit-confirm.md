@@ -1,5 +1,8 @@
 # 游戏内右滑退出确认框 Implementation Plan
 
+> 【2026-10-27 更正·已被取代】任务 1-3 已实施后经用户实机评审否决游戏内样式，代码撤回（92e1dfb）；现行实现 = 壳层
+> Android 标准对话框（26a4bf0，见 docs/spec/stage-b-deviations.md STAGE-B-005 更正注）。本计划保留作历史记录。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Android 竖屏游戏内、地图行走态下系统返回（右滑/BACK）弹出原版 kind 4 样式的退出确认框，确定即退出进程。

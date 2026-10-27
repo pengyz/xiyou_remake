@@ -80,7 +80,7 @@
 |---|---|---|
 | 虚拟方向盘（左下 overlay） | 主导轴 4 向 → -1..-4 | 死区 r_inner + 换向迟滞 r_switch 防抖；拖动换向 = Release 旧 + Press 新（保序） |
 | 软键三钮（右下 overlay） | -6 / -5 / -7 | 按钮捕获语义：按下后漂移不换键，Up/Cancel 才释放 |
-| KEYCODE_BACK | **根界面（开机 logo / 主菜单 / 退场动画）= 立即退出**；**地图行走态 = 退出确认框**（STAGE-B-005：○ 确定即退出 / × 取消）；其余 **-7**；恒吞默认 | 根界面 = Nokia 红键语义（`CMidlet.destroyApp` 为空，跳过 logo 退场动画不丢状态；BUG-034）。【2026-10-27 更正】BUG-033 版"标题态 = 选中「退出」项 + 确认 -5"走 mode 22 logo 动画，用户实机形似重播片头、动画期返回无效，已弃。地图态面板右软键仍 = -7 开游戏内菜单（只系统返回开框）；框开时返回 = -7 = 取消。其余态 -7 = 子页返回主菜单 / 序章跳过 / 游戏内菜单返回；不吞 ⇒ 系统 finish Activity ⇒ 绕过 m_000 退出链（BUG-020）；repeat 丢键仍吞 |
+| KEYCODE_BACK | **根界面（开机 logo / 主菜单 / 退场动画）= 立即退出**；**地图行走态 = Android 系统退出确认框**（STAGE-B-005：「退出」即退出进程 / 「取消」继续）；其余 **-7**；恒吞默认 | 根界面 = Nokia 红键语义（`CMidlet.destroyApp` 为空，跳过 logo 退场动画不丢状态；BUG-034）。【2026-10-27 更正】BUG-033 版"标题态 = 选中「退出」项 + 确认 -5"走 mode 22 logo 动画，用户实机形似重播片头、动画期返回无效，已弃；STAGE-B-005 游戏内样式框经评审改为系统 `AlertDialog`（`exit_dialog.rs` + Java `com.jjxy.game.ExitConfirm`；框开期间壳不出拍 = 暂停，框内返回/点框外 = 取消）。地图态面板右软键仍 = -7 开游戏内菜单（只系统返回开框）；辅助类未就绪 ⇒ 照旧 -7。其余态 -7 = 子页返回主菜单 / 序章跳过 / 游戏内菜单返回 / 浮层关闭；不吞 ⇒ 系统 finish Activity ⇒ 绕过 m_000 退出链（BUG-020）；repeat 丢键仍吞 |
 | KEYCODE_DPAD_* | -1..-4 | repeat 丢弃（gotcha_os-key-repeat-is-not-keypressed） |
 | CENTER/ENTER/SPACE | -5 | 与 win Enter\|Space 同表 |
 | KEYCODE_MENU | -6 | 若设备有 |

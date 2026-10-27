@@ -109,6 +109,16 @@ epack(unpack(x))==x 逐字节恒等（126 资产，常驻 gates）；
 
 ## STAGE-B-005 游戏内退出确认框（Android 返回手势）
 
+> 【2026-10-27 更正·改为系统对话框】用户实机评审游戏内样式后改裁："视觉效果不好，我建议不用游戏内UI，直接用Android
+> 标准关闭UI，作为shell层实现，提醒效果更明确"。**下文"核心模态 / kind 4 样式"方案已撤回**（96639aa / 83d58dd /
+> 2b9ac7c / a35e1ed 于 92e1dfb 逐字撤回，测数先行下调 af35ebf）；**现行实现**（26a4bf0）= 壳层 Android 标准
+> `AlertDialog`（Java 辅助类 `com.jjxy.game.ExitConfirm`，DeviceDefault 主题随系统深浅色；标题"退出游戏"、正文"是否
+> 确定退出游戏？未保存的进度将会丢失。"、按钮"取消""退出"；框开时音乐继续），JNI 工作线程 `shell/android/src/exit_dialog.rs`，
+> 状态机 `runtime.rs back_requests_exit_dialog / on_exit_dialog_result`（未决期壳不出拍 = 暂停）。**游戏核心零改动**
+> ⇒ classic/Modern 帧面与对拍不受影响；偏离只在 Android 壳交互层。宿主钉 `shell/android/tests/exit_dialog.rs` 7 测 +
+> `exit_dialog::tests` 1 测。实机：本方注入右滑 ⇒ 系统框（截屏 + uiautomator 核文案与按钮）；退出/取消结果路径为用户
+> 实操旁证（logcat：取消 ⇒ 继续、退出 ⇒ AM `has died: cch CRE`）。
+
 - **状态**：已实施（2026-10-27，宿主验证完成；实机复核待补）
 - **用户裁定原话**（2026-10-27）："游戏内右滑弹出推出确认菜单，样式就用游戏内弹框样式"；逐项：触发范围 A
   （只在地图行走态）、确定后 A（直接退出进程）、文案 A（加未保存提醒）、实现层方案 2（放进游戏核心）。
