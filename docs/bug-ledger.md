@@ -464,3 +464,23 @@ Evidence: A 级——a.java:9706-9707 原文 + layout.rs 金币列贴右公式 +
 - **Stage B 修复方案**：—（扩展缝适配缺口，Stage A 即修类）。
 Evidence: A 级——a.java 各行原文（兄弟臂 `240−…>>1` / `320−…` 形式为屏幕派生铁证）+ 5 测 RED/GREEN + classic 覆盖探针。
 Confidence: 93
+
+## BUG-032 记录浏览（mode 12）双箭头画错位置与朝向——运算符优先级误译 + 变换码直传（classic 移植偏差，扫描所得，已修复）
+
+> 【2026-10-27】BUG-031 全量扫描时发现（静态读码 + javap 字节码核对），新建 Java 锚夹具实证。
+- **现象**（classic 与 Modern 同错）：记录浏览有 ≥2 条日志时，翻页箭头画在屏幕中部（classic y 153）而非页码两侧
+  （Java y 304）；且左箭头朝向错误（垂直翻转，Java 为水平翻转）。
+- **复现**：新夹具 `crates/game-oracle/tests/fixtures/fx-record-arrows.*`（preset-floor5 同场景、存档日志改 3 条——原
+  preset-floor5 仅 1 条、箭头不画 ⇒ 该行从未被帧锚覆盖；Java A==B==C 1200 帧）：修复前 `fx_record_arrows_frames_match`
+  "TICK 621 帧不符（mode=12）"（y），只改 y 后 "TICK 701 帧不符（mode=12）"（翻到末页、左箭头首现 ⇒ 变换码）。
+- **根因**（Stage A 移植偏差，非原版 bug，D4 不适用）：
+  ① a.java:2908 `var46 += var24.fontHeight + 4 - 13 >> 1`：复合赋值右侧整体 = `(fh + 4 − 13) >> 1`（javap 5242-5255：
+  `iload_2 … iconst_1 ishr iadd`）；Rust 译成 `(行底 + (fh + 4 − 13)) >> 1`，把页码行底也减半；
+  ② a.java:2910 `drawImageWithNokiaTransform(…, 1)` 的 1 是变换表下标（→ `NOKIA_TRANSFORM_TABLE[1] = 8192` 水平翻转，
+  Java trace `drawImageT(20x13,60,304,0,8192)`）；Rust 直传 1（shim 自定义表 1 = 垂直翻转）。
+- **影响**：日志 ≥2 条时的记录浏览界面（道具 14 使用后）。
+- **Stage A 处理**：**已修复**——①按字节码改为 `行底 + ((fh+4−13)>>1)`；②传 `NOKIA_TRANSFORM_TABLE[1]`。
+  新夹具 1200/1200 帧 = Java；core 钉 `record_browser_arrow_y_sits_beside_indicator`（classic / modern 同式）。
+- **Stage B 修复方案**：—。
+Evidence: A 级——javap 字节码 5242-5255 + Java A==B==C 夹具 fx-record-arrows（trace sha256 e3027e66a623…）T621/T701 帧锚。
+Confidence: 97

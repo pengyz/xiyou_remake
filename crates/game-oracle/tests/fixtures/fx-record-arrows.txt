@@ -1,0 +1,30 @@
+# ticks: 1200
+# preset: fx-record-arrows.preset
+# cover: BUG-032 记录浏览（mode 12）双箭头 y——preset-floor5 同场景（槽载入 floor5 (4,8) → -2 拾道具14 →
+#   面板使用 → mode12），存档日志改 3 条（MOT_L0 inventoryEntryCount=3：(0,2)(0,5)(0,6)）⇒ 箭头真画
+#   （原 preset-floor5 仅 1 条，箭头不画 = 该行从未被帧锚覆盖）。-4/-3 翻页走首页/末页/中间页三态。
+#   Java 字节码锚：paint case12 `var46 += fontHeight + 4 - 13 >> 1`（javap 5242-5255：iload_2 … ishr iadd）。
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+260 -2 press
+262 -2 release
+380 -6 press
+382 -6 release
+500 -6 press
+502 -6 release
+620 -6 press
+622 -6 release
+700 -3 press
+702 -3 release
+760 -3 press
+762 -3 release
+830 -4 press
+832 -4 release
+910 -6 press
+912 -6 release

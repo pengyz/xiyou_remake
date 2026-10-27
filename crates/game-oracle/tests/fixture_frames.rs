@@ -352,6 +352,18 @@ fn preset_floor5_fixture_frames_match() {
     assert!(sc.player.find_item(14) >= 0, "道具14 已入栈（addItemToItemStack）");
 }
 
+/// 【BUG-032】记录浏览（mode 12）双箭头 y：preset-floor5 同场景、存档日志改 3 条（箭头真画——原夹具仅 1 条，
+/// 箭头行从未被帧锚覆盖）。Java 锚：paint case12 `var46 += fontHeight + 4 - 13 >> 1`（javap 5242-5255
+/// `iload_2 … iconst_1 ishr iadd` = var46 + ((fh+4−13)>>1)），A==B==C 1200 帧。
+#[test]
+fn fx_record_arrows_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-record-arrows.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-record-arrows.txt"));
+    let (checked, sc) = replay("fx-record-arrows", include_str!("fixtures/fx-record-arrows.preset"), &records);
+    assert_eq!(checked, records.len(), "T1-1200 全帧必须比对");
+    assert_eq!(sc.journal.len(), 3, "日志 3 条（preset MOT_L0 inventoryEntryCount=3）");
+}
+
 /// 按层铺 floor49（迭代 66 原用例，308765f 起改作他用后缺位——此处夹具化恢复）：门卫/守卫宝箱配对
 /// + (6,8) 型83 首访 inert（tryRunScene case15：probeCrossFloorSnapshot(当前层,5) 守卫在场 ⇒ false）→ 二访伏击
 ///   script15 → 61/70 战 → case70 → script35。T1-3400。

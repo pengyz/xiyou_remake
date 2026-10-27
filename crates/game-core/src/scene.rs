@@ -6761,11 +6761,16 @@ impl GameScene {
         //（center_x / arrow_pair_left_x / arrow_pair_right_x，classic 回代原值）
         let cx = self.layout.center_x;
         self.draw_shadow_text(g, &indicator, cx, text_bottom_y + 2, 4202520, 0xFFFF_FFFFu32 as i32);
-        let arrow_y = (text_bottom_y + (crate::paint::paint_font().height + 4 - 13)) >> 1;
+        // 【BUG-032】a.java:2908 `var46 += fontHeight + 4 - 13 >> 1`：复合赋值右侧整体 = (fh+4−13)>>1
+        // （javap 5242-5255：iload_2 … iconst_1 ishr iadd）——旧译 `(var46 + …) >> 1` 把行底也减半（classic
+        // 画到 y 153，Java 304）。
+        let arrow_y = text_bottom_y + ((crate::paint::paint_font().height + 4 - 13) >> 1);
         let arrow = self.images.ui[14].clone();
         let bob = self.bob_offset;
         if self.record_page > 0 {
-            g.draw_image_transformed(&arrow, self.layout.arrow_pair_left_x - bob, arrow_y, 0, 1);
+            // a.java:2910 drawImageWithNokiaTransform(…, 1) ⇒ 变换码 = NOKIA_TRANSFORM_TABLE[1] = 8192（水平翻转；
+            // Java trace `drawImageT(20x13,60,304,0,8192)`）。【BUG-032】旧直传 1（shim 表 1 = 垂直翻转）。
+            g.draw_image_transformed(&arrow, self.layout.arrow_pair_left_x - bob, arrow_y, 0, crate::paint::NOKIA_TRANSFORM_TABLE[1]);
         }
         if self.record_page < self.journal.len() as i32 - 1 {
             g.draw_image(&arrow, self.layout.arrow_pair_right_x + bob, arrow_y, 0);
@@ -7257,6 +7262,38 @@ mod slot_equip_scene_tests {
         assert_eq!((classic.0, classic.1.clone()), (Some(0), vec![-60 - bob, 40 + bob]), "classic：页码 120、箭头 60−bob / 160+bob");
         for (gw, gh) in [(12, 16), (13, 13), (18, 18)] {
             assert_eq!(probe(crate::layout::Layout::modern(gw, gh)), classic, "modern {gw}×{gh}：页码与箭头须随屏心");
+        }
+    }
+
+    /// 【BUG-032】记录浏览双箭头 y（a.java:2908 `var46 += fontHeight + 4 - 13 >> 1`；javap 5242-5255
+    /// `iload_2 … iconst_1 ishr iadd`）= 页码行底 + ((fh + 4 − 13) >> 1)，非 (行底 + …) >> 1。两预设同式。
+    #[test]
+    fn record_browser_arrow_y_sits_beside_indicator() {
+        let icons = synthetic_sptarm();
+        for layout in [crate::layout::Layout::classic(), crate::layout::Layout::modern(12, 16)] {
+            let mut sc = scene_with(&icons);
+            sc.apply_layout(layout.clone());
+            sc.game_mode = GameMode::RecordBrowser;
+            sc.images.ui[14] = solid(20, 13);
+            sc.journal = vec![(0, 0), (0, 1), (0, 2)];
+            sc.record_page = 1;
+            sc.overlay_active = false;
+            let mut img = ArgbImage::create(layout.screen_w, layout.screen_h);
+            let ops = {
+                let mut g = SoftGraphics::new(&mut img);
+                sc.paint(&mut g, &solid(64, 64));
+                g.ops.clone()
+            };
+            let fh = crate::paint::paint_font().height;
+            let text_bottom = layout.screen_h - fh - 4;
+            let ys: Vec<i32> = ops
+                .iter()
+                .filter(|o| o.starts_with("drawImage(20x13,") || o.starts_with("drawImageT(20x13,"))
+                .filter_map(|o| op_xy(o))
+                .map(|p| p.1)
+                .collect();
+            let y = text_bottom + ((fh + 4 - 13) >> 1);
+            assert_eq!(ys, vec![y, y], "{}×{}：箭头 y = 页码行底 + ((fh+4−13)>>1)", layout.screen_w, layout.screen_h);
         }
     }
 
