@@ -593,6 +593,12 @@ Evidence: A 级——用户实操 logcat（上列时间线，含 MIUIInput/PreSt
 `title_back_runs_the_same_exit_chain` 绿 = 旧行为"返回 → mode 22 → >60 拍才退"）/ GREEN 5 测。**本方实机验证待补**。
 Confidence: 92
 
+> 【2026-10-27 实机复核·GREEN】（本方运行，Xiaomi 14；装机 .so sha256 `5933882f…` = 8bae944 构建）开机 logo 期注入左边缘
+> 右滑（经系统返回手势通路：`input swipe 3 1300 650 1300 250`）→ `16:56:15.331 back at root mode=Boot → 立即退出` → finish →
+> `16:56:16.345 exit chain: activity destroyed → process exit` → ActivityManager `pid 864 has died: cch CRE`；主菜单注入右边缘
+> 左滑 → `16:56:42.192 back at root mode=MainMenu → 立即退出` → `16:56:43.267 process exit` → `pid 1660 has died: cch CRE`。
+> 两次 crash 缓冲空、前台回桌面。Confidence: 96
+
 ## BUG-035 Android 主菜单选"退出"后进程迟迟不结束——仍走 5.3 s 原版 logo 退场动画（与开机同款，形似片头），用户等不到即离开（壳层交互缺陷，用户实机，已修复）
 
 > 【2026-10-27】用户实机（Xiaomi 14，装 BUG-034 包 15:27:03）："右滑退出已经有了，但主菜单选择退出没有结束进程"。
@@ -616,6 +622,10 @@ Confidence: 92
 Evidence: A 级——用户实操 logcat（上列，含 ActivityManager SwipeUpClean 强停行）+ reference a.java:3369 / 4249-4256 +
 pump.rs `pump_once` 原文；宿主 RED（两测均断在"确认即退出请求"：`确认即退出请求（不等退场动画）` /
 `回主菜单后菜单退出 = 立即退出`）/ GREEN 5/5。**本方实机验证待补**。Confidence: 93
+
+> 【2026-10-27 实机复核·GREEN】（本方运行，同包）方向盘左 → 确定：`16:55:55.722` 同拍 `menu exit → 立即退出（不播 mode 22
+> 退场动画）` + `bgm Stop` + `exit chain: exit requested → ANativeActivity_finish` → `16:55:56.764 process exit` → ActivityManager
+> `pid 501 has died: cch CRE`；点确定到进程消失 1.18 s（旧版 = 5.3 s 动画 + 约 1 s）。crash 缓冲空。Confidence: 96
 
 ## BUG-036 Android 退出后约 1 s 内再点图标 ⇒ 新开的游戏被旧实例 `_exit` 一并杀掉、系统再重启一遍（BUG-033 `_exit` 时机缺陷，用户实机，已修复）
 
@@ -644,3 +654,9 @@ pump.rs `pump_once` 原文；宿主 RED（两测均断在"确认即退出请求"
 Evidence: A 级——pid 32119 时间线（同 pid 双 `android_main entered` + `has died: fg TOP` + 新 pid 重启）；B 级——三次 ActivityManager
 同型迹象；全局状态清单 = `grep OnceLock|static mut|thread_local` 于 crates/ 与 shell/；宿主 RED（E0432：`InstanceCounter` /
 `end_process_after_destroy` 不存在）/ GREEN 4/4。**本方实机验证待补**。Confidence: 90
+
+> 【2026-10-27 实机复核·GREEN】（本方运行，同包）主菜单返回后 0.34 s 再 `am start`：`16:57:07.570 back at root mode=MainMenu`
+> → `16:57:07.573 finish` → `16:57:07.908 START` → `16:57:07.931` **同 pid 6453 第二次** `boot android_main entered`（竞态复现）→
+> `16:57:08.380 exit chain: activity destroyed, 1 other instance(s) alive → keep process` → 新实例 `16:57:15.040` 到主菜单（截屏
+> 标题与面板正常、`aaudio open ret=ok`、字体沿用 `font install None in 0ms`）；随后该实例菜单退出 → `16:58:01.178 process exit`
+> → ActivityManager `pid 6453 has died: cch CRE`。全程无 `fg  TOP` 死亡、crash 缓冲空。Confidence: 95

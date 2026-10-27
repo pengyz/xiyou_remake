@@ -30,6 +30,9 @@
 > 已交叉编译并实机验证——主菜单选"退出" / 标题态 BACK → mode 22 退场动画 → `ANativeActivity_finish` → Activity 销毁后
 > `_exit(0)`；Xiaomi 14 两条路径 logcat `exit chain` 全链 + ActivityManager `has died`、crash 缓冲为空
 > （docs/bug-ledger.md BUG-033 实机复核注）。BACK **不消费**时的系统 finish 行为（下表 ⏳ 行）仍未测（壳恒消费）。
+>
+> 【2026-10-27 更正⑤】上条"→ mode 22 退场动画 →"已不适用：根界面返回（BUG-034）与菜单"退出"确认（BUG-035）均**立即**
+> finish、不播 mode 22 动画；退出后立即再点图标、新实例进了同一进程时不结束进程（BUG-036）。三项实机复核 GREEN（台账各条尾注）。
 
 | 状态 | 内容 | 判定方式 |
 |---|---|---|
