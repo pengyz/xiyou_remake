@@ -530,6 +530,9 @@ Confidence: 97
   71 拍 × 75 ms ≈ 5.3 s 后退出），不另造退出路径；非标题态保持 -7 原语义（子页返回 / 游戏内菜单）。属壳层输入映射
   （同虚拟键盘：平台输入译成既有按键），游戏层零改动、无帧金样影响。
   宿主钉 `shell/android/tests/exit_chain.rs` 3 测（菜单退出 → 动画播完才请求 / 返回同链且光标落「退出」/ 读档子页不劫持）。
+  > 【2026-10-27 更正】② 已被 **BUG-034** 取代：返回走 mode 22 logo 退场动画，用户实机反馈形似"进程内重置、重播片头"、
+  > 动画期再返回无效、开机 logo 期返回亦无效——"不符合用户习惯"。现为根界面返回 = 立即退出（见 BUG-034）；
+  > ①（finished 消费 + 销毁后 `_exit`）不变。
 - **Stage B 修复方案**：—。
 Evidence: A 级——reference a.java:4249-4256 + CMidlet.java:29-33 原文；paint.rs:709-721 / title.rs:382-415 / input.rs:91；
 实机现场只读取证（白屏截屏 / 进程常驻 70 min / logcat -7 批）；宿主 RED（E0599）/ GREEN 3 测；`llvm-readelf` 见
@@ -551,5 +554,39 @@ Confidence: 90
 > （5.38 s）→ `14:31:28.776 process exit` → `pid 32051 has died`。两次 crash 缓冲均空、前台回桌面、`dumpsys activity` 无本包
 > 记录。边缘手势 → KEYCODE_BACK 的系统转换本方未注入，由用户实操日志旁证（`input-arrival type=1` = 键事件）。
 > 旁注（用户操作，14:30:44 自桌面启动）：开机 logo 期（mode 0）连按返回 4 次 = `[Press(-7), Release]` 无效果，到标题后
-> 返回才进退出链——logo 期不认键是原版行为（reference a.java:3348-3378 mode 0 臂不读 keyValue，非本缺陷），如需"logo 期返回
+> 返回才进退出链——logo 期不认键是原版行为（reference a.java:3349-3381 mode 0 臂不读 keyValue，非本缺陷），如需"logo 期返回
 > 即退"属另立的壳层交互决定。Confidence: 96
+
+## BUG-034 Android 返回手势退出不符合用户习惯——开机 logo 期无效、主菜单返回进入 logo 退场动画（形似重播片头）且动画期无效（壳层交互设计缺陷，用户实机，已修复）
+
+> 【2026-10-27】用户实机（Xiaomi 14，装 BUG-033 包）："1. 刚启动时到主菜单弹出前，右滑无效；2. 到主菜单后，右滑不退出，
+> 进程内重置，重新播放片头；3. 再次进入主菜单，右滑退出成立……这不符合用户习惯"。
+- **现象 / 复现**（用户操作，本方只读 logcat 取证）：
+  会话 1（pid 4475，15:11:58 自桌面启动）：开机 logo 期返回 ×2（15:12:02/03）= `tick batch=[Press(-7), Release] → key=-7`
+  无效果；15:12:05 到主菜单；15:12:21.937 `back at title → 退出项确认（退出链）` → `bgm Stop`（进 mode 22）；动画期点按
+  左/右软键与返回（15:12:24/25/27）均无效果；15:12:27.322 finish → 15:12:28.403 进程退出 → AM `pid 4475 has died`；
+  **15:12:28.511 桌面收到一次真实触摸**（`MIUIInput … deviceId=7`，`(417.8, 400)`，落在游戏图标——退出关闭动画的目标
+  `ShortcutIcon(囧囧西游)`）→ `PreStartUtils: preLaunchProcess com.jjxy.game` → 15:12:28.533 `Start proc 9020` → 桌面重新启动
+  游戏 ⇒ 用户所见"进程内重置、重新播放片头"实为：logo 退场动画 + 进程退出后图标被点中重启。
+  会话 2（pid 9020）：logo 期返回 ×8（15:12:30.9–35.6）均无效；15:12:36.160 主菜单返回 → mode 22；动画期返回 ×4 无效；
+  15:12:41.536 finish → 15:12:42.567 进程退出。另 15:12:21.112 一次横滑起点 x=147（≈49 dp）在系统边缘手势区
+  （`GestureStubLeft [0,268,62,2594]`）之外 ⇒ 作为普通触点进游戏（`keys=[]`），非返回。
+- **根因**（BUG-033 壳层映射的交互设计缺陷，非原版 bug，D4 不适用）：
+  ① 开机 logo 期 BACK = -7，而原版 mode 0 臂不读 keyValue（reference a.java:3349-3381）⇒ 启动后约 7 s 返回无效；
+  ② BUG-033 把主菜单返回映射为"选中退出项 + 确认"⇒ 进 mode 22 = 原版退场动画 `runLogoAnimation(1, t)` 70 拍 ≈ 5.3 s
+  （a.java:4249-4256），与开机 `runLogoAnimation(0, t)`（a.java:3369）同一 SNOWFISH logo ⇒ 用户看到"片头重播"；mode 22
+  同样不读键 ⇒ 动画期再返回无效。
+- **影响**：Android 竖屏全部"返回即退出"操作（用户最常用的退出方式）。
+- **Stage A 处理**：**已修复**——根界面（无场景且 mode ∈ {0 开机 logo, 1 主菜单, 22 退场动画}）BACK（DOWN、非重复）=
+  立即退出：`Runtime::back_requests_exit` 置壳层退出请求、丢弃该 BACK 的 -7；主循环见 `exit_requested` 即不再出拍并
+  `ANativeActivity_finish`，Activity 销毁后 `_exit(0)`（BUG-033 ① 不变）。语义 = Nokia 红键（AMS 随时销毁 MIDlet）：原版退出
+  链 `CMidlet.m_000` = `destroyApp(true)`（空方法，CMidlet.java）+ `notifyDestroyed()`，无存档副作用（存档同步写穿）⇒ 跳过
+  动画不丢状态。其余界面 BACK 仍 = 右软键 -7（读档/设置/帮助/关于子页 → 主菜单；序章 → 跳过；游戏内 → 游戏内菜单）。
+  菜单"退出"项仍走原版退场动画（动画期可再返回立即退出）。游戏层零改动、无帧金样影响。
+  宿主钉 `shell/android/tests/exit_chain.rs` 5 测（菜单退出动画播完才请求 / logo 期返回即退 / 主菜单返回即退且不进 mode 22 /
+  退场动画期返回即退 / 读档子页·序章·游戏内不劫持）。
+- **Stage B 修复方案**：—。
+Evidence: A 级——用户实操 logcat（上列时间线，含 MIUIInput/PreStartUtils/ActivityManager 系统侧行）+ reference a.java:3349-3381 /
+3369 / 4249-4256 + CMidlet.java（destroyApp 空、m_000）原文；宿主 RED（E0599：`back_requests_exit` 不存在；父树
+`title_back_runs_the_same_exit_chain` 绿 = 旧行为"返回 → mode 22 → >60 拍才退"）/ GREEN 5 测。**本方实机验证待补**。
+Confidence: 92

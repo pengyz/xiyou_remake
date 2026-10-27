@@ -1187,18 +1187,18 @@ extern "C" fn handle_input(app: *mut AndroidApp, event: *mut AInputEvent) -> i32
         let st = &mut *((*app).user_data as *mut HostState);
         log_input(&format!("input-arrival type={}", ffi::AInputEvent_getType(event)));
         let (mut keys, consumed) = st.wiring.on_input_ex(event);
-        // 【BUG-033 · 壳层输入映射】标题态 BACK（返回键/边缘返回手势）= 主菜单"退出"项确认，走游戏
-        // 自身退出链（runtime.rs title_back_keys）；非标题态保持右软键 -7 原映射。
+        // 【BUG-034 · 壳层输入映射】根界面（开机 logo / 主菜单 / 退场动画）BACK（返回键/边缘返回手势）=
+        // 立即退出（runtime.rs back_requests_exit：置退出请求，主循环下一轮 finish）；丢弃该 BACK 的 -7。
+        // 其余态保持右软键 -7 原映射（子页返回 / 序章跳过 / 游戏内菜单）。
         const AINPUT_EVENT_TYPE_KEY: i32 = 1;
         if ffi::AInputEvent_getType(event) == AINPUT_EVENT_TYPE_KEY
             && ffi::AKeyEvent_getKeyCode(event) == AKEYCODE_BACK
             && ffi::AKeyEvent_getAction(event) == AKEY_EVENT_ACTION_DOWN
             && ffi::AKeyEvent_getRepeatCount(event) == 0
+            && st.rt.back_requests_exit()
         {
-            if let Some(k) = st.rt.title_back_keys() {
-                log_input("back at title → 退出项确认（退出链）");
-                keys = k;
-            }
+            log_input(&format!("back at root mode={:?} → 立即退出", st.rt.machine.mode));
+            keys.clear();
         }
         st.pending_keys.extend(keys);
         // 【按键反馈】虚拟键按下 ⇒ 输入回调内立即派发（不等 75ms 逻辑拍）；按键音随游戏内"声音"
@@ -1390,16 +1390,20 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
                 // 【进游戏】双机运行时一拍（runtime.rs；宿主流程钉 tests/flow.rs 同一体）：
                 // GameScene 接管后走场景拍（键重放/点按/存档写穿/kind7 换回标题），否则
                 // 走 Boot 拍（手势/点按解析 → 锁存键 → tick → 读条完交接 GameScene）。
-                let gestures = std::mem::take(&mut st.wiring.title_gestures);
-                let taps = std::mem::take(&mut st.wiring.pending_taps);
-                let keys = std::mem::take(&mut st.pending_keys);
-                st.rt.step(&st.assets, &keys, gestures, taps);
-                // 标题态随拍更新（下一批触点的路由依据；场景活动时恒非标题）
-                st.wiring.title_mode = st.rt.title_mode();
-                // BGM：step 末已同步（Runtime::sync_bgm → AudioThreadSink）
+                // 【BUG-034】退出请求已成立（返回键立即退出 / 退场动画走完）⇒ 不再出拍：免 logo 期
+                // 返回后再走拍进主菜单起 BGM；finish 到 Activity 销毁之间画面停在末帧。
+                if !exit_sent && !st.rt.exit_requested() {
+                    let gestures = std::mem::take(&mut st.wiring.title_gestures);
+                    let taps = std::mem::take(&mut st.wiring.pending_taps);
+                    let keys = std::mem::take(&mut st.pending_keys);
+                    st.rt.step(&st.assets, &keys, gestures, taps);
+                    // 标题态随拍更新（下一批触点的路由依据；场景活动时恒非标题）
+                    st.wiring.title_mode = st.rt.title_mode();
+                    // BGM：step 末已同步（Runtime::sync_bgm → AudioThreadSink）
+                }
                 if !exit_sent && st.rt.exit_requested() {
                     exit_sent = true;
-                    log_input("exit chain: finished → ANativeActivity_finish");
+                    log_input("exit chain: exit requested → ANativeActivity_finish");
                     game_platform::ProcessControl::request_exit(&mut process);
                 }
             }
