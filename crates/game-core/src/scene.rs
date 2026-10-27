@@ -547,6 +547,34 @@ pub struct GameScene {
     pub ease_cam_y: i32,
     pub ease_target_x: i32,
     pub ease_target_y: i32,
+    /// 【STAGE-B-005】游戏内退出确认框（壳层返回手势打开；None = 未开）。
+    pub exit_confirm: Option<ExitConfirmBox>,
+    /// 【STAGE-B-005】退出确认信号（框内确认即置；壳 `take_exit_confirmed` 取走）。
+    exit_confirmed: bool,
+}
+
+/// 【STAGE-B-005】游戏内退出确认框文案：首行 = 原版未用字面量（`f_String_arr_16`，a.java:2298
+/// "是否确定退出游戏？"，全文件无消费点）；次行 = 未保存提醒（用户裁定 2026-10-27 Q3=A）。
+pub const EXIT_CONFIRM_TEXT: &str = "是否确定退出游戏？\n未保存的进度将会丢失";
+
+/// 浮层底角图标行高（showOverlayMessage a.java:4917-4919 `overlayBoxHeight += 18`）。
+const OVERLAY_ICON_ROW_H: i32 = 18;
+
+/// 文本浮层盒尺寸（showOverlayMessage 文本臂 a.java:4904-4909：宽 = 内容宽 + 32、高 = 32 + 可见行 × 行高）。
+/// 原版 kind 0/2/4/5 与 STAGE-B-005 确认框共用（单源）。
+fn text_overlay_box(content_w: i32, visible_lines: i32, line_h: i32) -> (i32, i32) {
+    (content_w + 32, 32 + visible_lines * line_h)
+}
+
+/// 【STAGE-B-005】退出确认框布局（独立于原版 overlay_* 状态；kind 4 文本浮层同式）。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExitConfirmBox {
+    pub lines: Vec<Vec<u16>>,
+    pub total_lines: i32,
+    pub lines_per_page: i32,
+    pub line_height: i32,
+    pub box_w: i32,
+    pub box_h: i32,
 }
 
 /// menuLabels（a.java:458-462）：18 条菜单标签。
@@ -1101,6 +1129,8 @@ impl GameScene {
             ease_cam_y: 0,
             ease_target_x: 0,
             ease_target_y: 0,
+            exit_confirm: None,
+            exit_confirmed: false,
         };
         scene.load_floor_data(maplv, player_px, player_py, records, scene.floor)?;
         Ok(scene)
@@ -1372,8 +1402,9 @@ impl GameScene {
         let line_h = font.height() + 4;
         if matches!(kind, 0 | 2 | 4 | 5) {
             self.layout_full_text(text, OVERLAY_TEXT_W, OVERLAY_TEXT_MAX_H);
-            self.overlay_box_w = self.overlay_content_w + 32;
-            self.overlay_box_h = 32 + (self.overlay_page_bottom - self.overlay_page_top) * line_h;
+            let (w, h) = text_overlay_box(self.overlay_content_w, self.overlay_page_bottom - self.overlay_page_top, line_h);
+            self.overlay_box_w = w;
+            self.overlay_box_h = h;
         } else {
             self.layout_full_text(text, OVERLAY_TEXT_W, OVERLAY_ICON_TEXT_MAX_H);
             self.overlay_box_w = 212;
@@ -1382,8 +1413,55 @@ impl GameScene {
         self.overlay_left_icon = left;
         self.overlay_right_icon = right;
         if left != 0 || right != 0 {
-            self.overlay_box_h += 18;
+            self.overlay_box_h += OVERLAY_ICON_ROW_H;
         }
+    }
+
+    /// 【STAGE-B-005】打开游戏内退出确认框：地图行走态 ∧ 原版浮层未开 ∧ 非换层遮幅 ∧ 未开 ⇒ 布局并打开，
+    /// 返回是否打开。仅壳调用（Android 返回手势）；classic 回放/夹具/差分不调用 ⇒ 零偏离。
+    pub fn open_exit_confirm(&mut self) -> bool {
+        if self.game_mode != GameMode::Map || self.overlay_active || self.transitioning || self.exit_confirm.is_some() {
+            return false;
+        }
+        let font = crate::paint::paint_font();
+        let text: Vec<u16> = EXIT_CONFIRM_TEXT.encode_utf16().collect();
+        let r = crate::menu_family::layout_wrapped_text(&text, OVERLAY_TEXT_W, OVERLAY_TEXT_MAX_H, text.len(), &font);
+        let visible = r.total_lines.min(r.lines_per_page);
+        let (box_w, h) = text_overlay_box(r.content_w, visible, r.line_height);
+        self.exit_confirm = Some(ExitConfirmBox {
+            lines: r.lines,
+            total_lines: r.total_lines,
+            lines_per_page: r.lines_per_page,
+            line_height: r.line_height,
+            box_w,
+            box_h: h + OVERLAY_ICON_ROW_H,
+        });
+        true
+    }
+
+    /// 【STAGE-B-005】退出确认框是否开着。
+    pub fn exit_confirm_open(&self) -> bool {
+        self.exit_confirm.is_some()
+    }
+
+    /// 【STAGE-B-005】取走退出确认信号（取后清零）。
+    pub fn take_exit_confirmed(&mut self) -> bool {
+        std::mem::take(&mut self.exit_confirmed)
+    }
+
+    /// 【STAGE-B-005】框内键（tick 头拦截）：-5 确定键 / -6 左软键 = 确认；-7 右软键（含再次返回）= 取消；
+    /// 其余吞。键值双清同原版浮层 label510 块尾（a.java:3345）——held 残留会让关框后首拍误触发 tryStep。
+    fn tick_exit_confirm(&mut self) {
+        match self.key_value {
+            -5 | -6 => {
+                self.exit_confirm = None;
+                self.exit_confirmed = true;
+            }
+            -7 => self.exit_confirm = None,
+            _ => {}
+        }
+        self.key_value = 0;
+        self.key_held = 0;
     }
 
     /// layoutFullText（a.java:4940-4942）：Java 原文即
@@ -3009,6 +3087,8 @@ impl GameScene {
     /// （dispatchModeEntry case 4 = enter_menu4）；4509-4510 closeAudioPlayer + anyKeyPlayed=true
     /// 由 BgmState::on_hide_notify 承担。Java 顺序 = 菜单先、音频后。
     pub fn hide_notify(&mut self) {
+        // 【STAGE-B-005】切后台 = 取消退出确认框，再走原版暂停（Map → 游戏内菜单 + 关音）
+        self.exit_confirm = None;
         if self.game_mode == GameMode::Map {
             self.transition_to(GameMode::InGameMenu);
             self.enter_menu4();
@@ -4533,6 +4613,11 @@ impl GameScene {
     /// `frame_counter` 为本拍值（TICK n → n-1）。
     pub fn tick(&mut self, frame_counter: i64, width_table: &[i32]) {
         self.frame_counter = frame_counter;
+        // 【STAGE-B-005】退出确认框（壳层打开的模态）：先于原版浮层拦截——框开即冻结全部逻辑
+        if self.exit_confirm.is_some() {
+            self.tick_exit_confirm();
+            return;
+        }
         // overlay 显示期（run 的 label510 分支 a.java:3252）：kind0 且
         // gameMode∈{15,17} 走 -7 专用支路（仅 -7 关层+回 menuReturnMode，
         // 其余键吞掉）；其余情况 handleOverlayKey（a.java:4923-4931：任意
@@ -10416,5 +10501,99 @@ mod t2_walkto_route_tests {
         sc.press_key(-5);
         sc.interrupt_route();
         assert_eq!(sc.walk_step_count, steps, "剧情行走不受投键打断");
+    }
+}
+
+/// 【STAGE-B-005】游戏内退出确认框（壳层返回手势打开的核心模态）——设计件
+/// docs/superpowers/specs/2026-10-27-in-game-exit-confirm-design.md。
+#[cfg(test)]
+mod exit_confirm_tests {
+    use super::scene_test_support::scene;
+    use crate::enums::GameMode;
+
+    fn map_scene() -> super::GameScene {
+        let mut sc = scene((2, 3), &[]);
+        sc.game_mode = GameMode::Map;
+        sc
+    }
+
+    #[test]
+    fn opens_only_in_map_without_overlay_or_wipe() {
+        let mut sc = map_scene();
+        assert!(sc.open_exit_confirm(), "地图行走态可开");
+        assert!(sc.exit_confirm_open());
+        assert!(!sc.open_exit_confirm(), "已开不重开");
+        for mode in [GameMode::InGameMenu, GameMode::ItemPanel, GameMode::Dialog, GameMode::SaveSlot] {
+            let mut s = map_scene();
+            s.game_mode = mode;
+            assert!(!s.open_exit_confirm(), "{mode:?} 不开");
+        }
+        let mut s = map_scene();
+        s.show_overlay_message(0, "保存成功！", 0, 0);
+        assert!(!s.open_exit_confirm(), "原版浮层开着不开");
+        assert!(s.overlay_active && s.overlay_text.as_deref() == Some("保存成功！"), "原版浮层不被冲掉");
+        let mut s = map_scene();
+        s.transitioning = true;
+        assert!(!s.open_exit_confirm(), "换层遮幅中不开");
+    }
+
+    #[test]
+    fn confirm_keys_emit_signal_once() {
+        for key in [-5, -6] {
+            let mut sc = map_scene();
+            sc.open_exit_confirm();
+            sc.press_key(key);
+            sc.tick(1, &[]);
+            assert!(!sc.exit_confirm_open(), "确认即关框（key {key}）");
+            assert!(sc.take_exit_confirmed(), "确认信号（key {key}）");
+            assert!(!sc.take_exit_confirmed(), "信号一次性");
+            assert_eq!(sc.game_mode, GameMode::Map, "游戏态不变（退出由壳执行；-6 未开背包）");
+        }
+    }
+
+    #[test]
+    fn cancel_closes_and_right_softkey_resumes_original_menu() {
+        let mut sc = map_scene();
+        sc.open_exit_confirm();
+        sc.press_key(-7);
+        sc.tick(1, &[]);
+        assert!(!sc.exit_confirm_open(), "-7 取消关框");
+        assert!(!sc.take_exit_confirmed(), "取消无退出信号");
+        assert_eq!(sc.game_mode, GameMode::Map, "该 -7 被框消费，不开游戏内菜单");
+        sc.press_key(-7);
+        sc.tick(2, &[]);
+        assert_eq!(sc.game_mode, GameMode::InGameMenu, "框关后 -7 照旧开游戏内菜单（a.java:3553-3558）");
+    }
+
+    #[test]
+    fn open_dialog_freezes_game_logic() {
+        let mut sc = map_scene();
+        let start = sc.view.player_px;
+        sc.open_exit_confirm();
+        for fc in 1..20 {
+            sc.press_key(-4);
+            sc.tick(fc, &[]);
+        }
+        assert!(sc.exit_confirm_open(), "方向键不关框");
+        assert_eq!(sc.view.player_px, start, "框开期间玩家不动");
+        assert_eq!(sc.key_held, 0, "框内键双清（关框后首拍不误触 tryStep）");
+        // 对照：关框后同一方向键可走（证上面不动是框冻结所致）
+        sc.press_key(-7);
+        sc.tick(20, &[]);
+        sc.press_key(-4);
+        for fc in 21..30 {
+            sc.tick(fc, &[]);
+        }
+        assert_ne!(sc.view.player_px, start, "关框后右行");
+    }
+
+    #[test]
+    fn hide_notify_cancels_dialog_then_pauses_to_menu() {
+        let mut sc = map_scene();
+        sc.open_exit_confirm();
+        sc.hide_notify();
+        assert!(!sc.exit_confirm_open(), "切后台 = 取消");
+        assert!(!sc.take_exit_confirmed());
+        assert_eq!(sc.game_mode, GameMode::InGameMenu, "原版暂停：Map → 游戏内菜单");
     }
 }
