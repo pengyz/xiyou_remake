@@ -2581,6 +2581,7 @@ impl GameScene {
             layout.screen_h,
         );
         self.view_bottom = layout.view_bottom_y;
+        self.popups.set_gold_anchor(layout.gold_popup_x);
         self.layout = layout;
     }
 
@@ -7058,6 +7059,33 @@ mod slot_equip_scene_tests {
             vec![None; 56],
         )
         .unwrap()
+    }
+
+    /// 【BUG-030】金币弹字（spawnPopup kind 4，a.java:9706 `popupX = 240`）右缘锚**跟随金币列**：
+    /// classic 240 = 金币数值右锚 237 + 3；modern 金币列贴右（`screen_w − 3`）⇒ 弹字须同步贴右。
+    /// 判据 = 弹字首位裁剪 x − 金币数值右锚，两预设相等（旧字面量 240 ⇒ modern 偏左 screen_w − 240）。
+    #[test]
+    fn gold_popup_tracks_gold_column() {
+        let icons = synthetic_sptarm();
+        let offset = |layout: crate::layout::Layout| {
+            let mut sc = scene_with(&icons);
+            sc.apply_layout(layout.clone());
+            let dw = sc.images.popup.digit_strips[0].width / 11;
+            sc.popups.spawn(4, 1, 0, 0, sc.view.cam_x, sc.view.cam_y, dw);
+            let mut img = ArgbImage::create(layout.screen_w, layout.screen_h);
+            let mut g = SoftGraphics::new(&mut img);
+            sc.popups.draw(&mut g, &sc.images.popup);
+            let first = g.ops.iter().find(|o| o.starts_with("setClip(")).expect("金币弹字裁剪");
+            op_xy(first).unwrap().0 - sc.layout.status_gold_num_x
+        };
+        let classic = offset(crate::layout::Layout::classic());
+        for (gw, gh) in [(12, 16), (13, 13), (18, 18)] {
+            assert_eq!(
+                offset(crate::layout::Layout::modern(gw, gh)),
+                classic,
+                "modern {gw}×{gh}：金币弹字须对齐金币列（与 classic 同相对位）"
+            );
+        }
     }
 
     /// STAGE-B-002 ② 消费面：paint_status_bar 锚位随 `self.layout`（modern 贴右/

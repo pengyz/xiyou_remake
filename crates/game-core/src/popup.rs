@@ -4,7 +4,7 @@
 //! 最后一帧后跳过已 retired 槽）。种类：
 //! - 1：物品图标条（map[2][6] 37×19 帧 ×value），y 上升 4px/拍
 //! - 2/3/4：数字条（map[2][3/4/5] 11 分格数字带，红/绿/金），y 上升 4px/拍；
-//!   kind4 定位固定 (240,30)（金币）
+//!   kind4（金币）定位 (gold_x, 30)：gold_x = 金币列右锚 +3（classic 240，a.java:9706；BUG-030）
 //! - 5/6/7：战斗伤害数字（ui[8][9] + 六张散射偏移表，无 y 上升）
 //!
 //! 计数器 0..=8，>7 置 retired（第 9 拍仍绘制后退役）。
@@ -34,7 +34,6 @@ pub struct PopupImages {
 }
 
 /// 30 槽环形 popup 队列（Java popupKind/Value/X/Y + popupRetired + popupRiseCounter）。
-#[derive(Default)]
 pub struct PopupRing {
     kind: [i32; 30],
     value: [i32; 30],
@@ -44,9 +43,32 @@ pub struct PopupRing {
     retired: [bool; 30],
     write: usize,
     retire: usize,
+    /// kind 4 金币弹字右缘锚 x（= `Layout::gold_popup_x`，场景换布局时同步；classic 240）。
+    gold_x: i32,
+}
+
+impl Default for PopupRing {
+    fn default() -> PopupRing {
+        PopupRing {
+            kind: [0; 30],
+            value: [0; 30],
+            x: [0; 30],
+            y: [0; 30],
+            counter: [0; 30],
+            retired: [false; 30],
+            write: 0,
+            retire: 0,
+            gold_x: crate::layout::GOLD_POPUP_X,
+        }
+    }
 }
 
 impl PopupRing {
+    /// 金币弹字右缘锚（`Layout::gold_popup_x`；GameScene::apply_layout 同步）。
+    pub fn set_gold_anchor(&mut self, x: i32) {
+        self.gold_x = x;
+    }
+
     /// spawnPopup（a.java:9688-9719）。`wx/wy` 为世界坐标（+cam 平移在此发生）；
     /// `digit_w` = map[2][3] 的数字格宽（宽/11）——kind 2/3/4 的 x 居中计算用。
     pub fn spawn(&mut self, kind: i32, value: i32, wx: i32, wy: i32, cam_x: i32, cam_y: i32, digit_w: i32) {
@@ -59,10 +81,11 @@ impl PopupRing {
         self.counter[w] = 0;
         self.y[w] = sy;
         if kind == 4 {
-            // a.java:9697-9698 金币弹字定位（draw_digit_strip 自 x 向左绘，故右缘对齐）。
-            // C 类·语义不明：x=240 是"屏右缘"还是"跟随状态栏金币位（STATUS_GOLD_NUM_X
-            // =237，设计常量）"无法判定——扩视口两者分叉，**不**派生 SCREEN_W。
-            self.x[w] = 240;
+            // a.java:9706-9707 金币弹字定位（draw_digit_strip 自 x 向左绘，故右缘对齐）。
+            // 【BUG-030 2026-10-27 定案】旧注"C 类·语义不明：屏右缘 vs 跟随金币位（237+3），扩视口
+            // 两者分叉"——modern 金币列贴右（screen_w−3）⇒ 两解同值 screen_w，分叉不存在；取"跟随
+            // 金币列"（Layout::gold_popup_x，classic 240）。旧字面量 240 ⇒ modern 偏左 screen_w−240。
+            self.x[w] = self.gold_x;
             self.y[w] = 30;
         } else if (5..=7).contains(&kind) {
             self.x[w] = sx + 16;

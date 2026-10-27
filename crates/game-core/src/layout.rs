@@ -198,6 +198,9 @@ pub const STATUS_KEY_X: [i32; 3] = [65, 107, 149];
 /// 金币图标 x 与数值右锚 x。
 pub const STATUS_GOLD_ICON_X: i32 = 191;
 pub const STATUS_GOLD_NUM_X: i32 = 237;
+/// 金币弹字右缘锚 x（spawnPopup kind 4 `popupX = 240`，a.java:9706；drawDigitStrip 自 x 向左绘）
+/// = 金币数值右锚 + 3——弹字**跟随金币列**（modern 金币列贴右 ⇒ 同步贴右，BUG-030）。
+pub const GOLD_POPUP_X: i32 = 240;
 /// 钥匙格尺寸（ui[8][6] 18px 三联片）与数量偏移。
 pub const KEY_SLOT_W: i32 = 18;
 pub const KEY_SLOT_H: i32 = 16;
@@ -463,6 +466,8 @@ pub struct Layout {
     /// 金币图标/数值右锚 x（贴右：`screen_w - 49` / `screen_w - 3`）。
     pub status_gold_icon_x: i32,
     pub status_gold_num_x: i32,
+    /// 金币弹字右缘锚 x（跟随金币列：`status_gold_num_x + 3`，classic = 240 = a.java:9706）。
+    pub gold_popup_x: i32,
     /// 顶栏中间填充左界 = 左块宽（楼层贴左，固定 65）。
     pub status_fill_x: i32,
     /// HUD 面孔锚 x / 属性图标列 x（贴底居中：`center_x - 80` / `center_x - 37`）。
@@ -512,6 +517,7 @@ impl Layout {
             status_key_x: STATUS_KEY_X,
             status_gold_icon_x: STATUS_GOLD_ICON_X,
             status_gold_num_x: STATUS_GOLD_NUM_X,
+            gold_popup_x: GOLD_POPUP_X,
             status_fill_x: STATUS_KEY_X[0],
             hud_face_ax: HUD_FACE_AX,
             hud_icon_x: HUD_ICON_X,
@@ -561,6 +567,8 @@ impl Layout {
         l.status_key_x = [screen_w - 175, screen_w - 133, screen_w - 91];
         l.status_gold_icon_x = screen_w - 49;
         l.status_gold_num_x = screen_w - 3;
+        // 金币弹字随金币列（classic 240 − 237 = 3 的相对位不变）
+        l.gold_popup_x = l.status_gold_num_x + (GOLD_POPUP_X - STATUS_GOLD_NUM_X);
         l.status_fill_x = 65; // 左块宽固定（楼层贴左）——与 classic 同值
         l.hud_face_ax = screen_w / 2 - 80;
         l.hud_icon_x = screen_w / 2 - 37;
@@ -759,6 +767,11 @@ mod tests {
         );
         assert_eq!(big.status_fill_x, 65, "左块宽固定（楼层贴左）");
         assert_eq!((big.hud_face_ax, big.hud_icon_x), (128, 171), "HUD 中钉 = 屏心-80 / 屏心-37");
+        // 金币弹字（BUG-030）：classic = Java 字面量 240；modern 随金币列贴右（相对位 +3 不变）
+        assert_eq!(l.gold_popup_x, 240, "a.java:9706 popupX=240");
+        for m in [big, Layout::modern(12, 16), Layout::modern(18, 18)] {
+            assert_eq!(m.gold_popup_x - m.status_gold_num_x, l.gold_popup_x - l.status_gold_num_x, "弹字跟随金币列");
+        }
     }
 
     /// ⑤ 设计常量段逐条考证：modern 新值 = 公式派生（classic 代入**化回原值**），

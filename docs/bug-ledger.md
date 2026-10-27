@@ -415,3 +415,21 @@ Evidence: A 级——宿主 RED/GREEN 逐字（旧翻译 `[Play{2,1.0}, Play{3,1
 - **Stage B 修复方案**：—（扩展缝适配缺口，Stage A 即修类）。
 Evidence: A 级——a.java:2838-2857 原文 + 076ec69/9a23314 diff + 组合关系钉 RED/GREEN + classic 覆盖探针（T1434 帧锚）。
 Confidence: 95
+
+## BUG-030 Modern 下击败怪物的"金币 +N"弹字偏离金币列——kind 4 弹字 x 字面量 240 未跟随贴右的金币列（Modern 回归，用户实机，已修复）
+
+> 【2026-10-27】用户实机（Xiaomi 14 竖屏 12×16）："击败怪物后，金币+1 的提示没有对齐到金币列，偏移了"。
+- **现象**：Modern 布局下击败怪物（主动战胜利 / cat8 直杀）弹出的金币 +N 数字落在顶栏钥匙格下方，偏左 `screen_w − 240`
+  （12×16 = 384 宽：144 px）；classic 正常（右缘对齐金币数值）。
+- **复现**（修复前）：`cargo test --release -p game-core --lib gold_popup_tracks_gold_column`——弹字首位裁剪 x − 金币数值
+  右锚：classic 0、modern 12×16 −144。
+- **根因**（Modern 适配缺口，非原版 bug，D4 不适用）：`PopupRing::spawn` kind 4 照抄 a.java:9706 `popupX = 240`；
+  STAGE-B-002 ② 把顶栏金币列改为贴右（`status_gold_num_x = screen_w − 3`），弹字未随动。旧注把 240 判为"C 类·语义
+  不明（屏右缘 vs 跟随金币位 237+3），扩视口两者分叉，不派生"——实则金币列贴右后两解同值 `screen_w`，不存在分叉。
+- **影响**：Modern 全部金币弹字（scene.rs 主动战胜利 / cat8 直杀两处 spawn）。
+- **Stage A 处理**：**已修复**——`Layout::gold_popup_x`（classic `GOLD_POPUP_X = 240`；modern = 金币右锚 + 3），
+  `GameScene::apply_layout` 同步给 `PopupRing`。classic 28 个 Java 锚帧夹具全绿；覆盖探针：classic 锚 240→241 ⇒
+  fx_boss74a / fx_boss67a / fx_boss68a / fx_chang_e_floor1_taps / preset_floor49 等 7 测帧不符（首个 TICK 302）
+  ⇒ classic 夹具确实画到金币弹字、240 与 Java 逐像素一致。
+- **Stage B 修复方案**：—（扩展缝适配缺口，Stage A 即修类）。
+Evidence: A 级——a.java:9706-9707 原文 + layout.rs 金币列贴右公式 + RED/GREEN + classic 覆盖探针。Confidence: 95
