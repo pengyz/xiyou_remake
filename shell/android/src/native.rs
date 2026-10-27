@@ -1010,6 +1010,7 @@ extern "C" {
 /// 与 [`android_main`] 构成标准入口对——**实机崩因
 /// `undefined symbol: ANativeActivity_onCreate` 的根治点**：
 /// ① build.rs 编译胶水并重命名其入口；② 本 trampoline 提供真名导出转发。
+/// 【BUG-036】先登记实例（主线程，早于该实例的 android_main 线程与旧实例的销毁判定）。
 #[cfg(target_os = "android")]
 #[no_mangle]
 pub unsafe extern "C" fn ANativeActivity_onCreate(
@@ -1017,8 +1018,13 @@ pub unsafe extern "C" fn ANativeActivity_onCreate(
     saved_state: *const u8,
     saved_state_size: usize,
 ) {
+    LIVE_INSTANCES.enter();
     glue_ANativeActivity_onCreate(activity, saved_state, saved_state_size)
 }
+
+/// 本进程存活的 Activity 实例数（BUG-036：旧实例销毁时仍有新实例 ⇒ 不结束进程）。
+#[cfg(target_os = "android")]
+static LIVE_INSTANCES: crate::process::InstanceCounter = crate::process::InstanceCounter::new();
 
 #[cfg(target_os = "android")]
 mod ffi {
@@ -1461,7 +1467,10 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
         }
         (*app).user_data = std::ptr::null_mut();
         drop(st);
-        if exit_sent {
+        // 【BUG-036】注销本实例；仅当本实例发起过退出 ∧ 进程内已无其他实例才结束进程——用户退出后立即再点
+        // 图标时，新实例已进本进程（同 pid 第二个 android_main），此时 `_exit` 会连新实例一起杀掉。
+        let remaining = LIVE_INSTANCES.leave();
+        if crate::process::end_process_after_destroy(exit_sent, remaining) {
             log_input("exit chain: activity destroyed → process exit");
             // `_exit` 而非 libc `exit`：此刻 Java 主线程阻塞在 onDestroy（glue android_app_free 等本线程
             // 置 destroyed）、binder/AAudio 线程仍活——`exit` 的 __cxa_finalize 会析构各共享库静态对象，
@@ -1471,6 +1480,10 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
                 fn _exit(status: i32) -> !;
             }
             _exit(0);
+        } else if exit_sent {
+            log_input(&format!(
+                "exit chain: activity destroyed, {remaining} other instance(s) alive → keep process"
+            ));
         }
     }
     #[cfg(not(target_os = "android"))]

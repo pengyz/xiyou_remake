@@ -616,3 +616,31 @@ Confidence: 92
 Evidence: A 级——用户实操 logcat（上列，含 ActivityManager SwipeUpClean 强停行）+ reference a.java:3369 / 4249-4256 +
 pump.rs `pump_once` 原文；宿主 RED（两测均断在"确认即退出请求"：`确认即退出请求（不等退场动画）` /
 `回主菜单后菜单退出 = 立即退出`）/ GREEN 5/5。**本方实机验证待补**。Confidence: 93
+
+## BUG-036 Android 退出后约 1 s 内再点图标 ⇒ 新开的游戏被旧实例 `_exit` 一并杀掉、系统再重启一遍（BUG-033 `_exit` 时机缺陷，用户实机，已修复）
+
+> 【2026-10-27】BUG-035 取证时于同段 logcat 发现（用户 16:38–16:40 反复退出/进入）；用户感知 = "又从片头重来一遍"。
+- **现象 / 复现**（用户操作，本方只读 logcat 取证）：pid 32119：16:39:44.343 主菜单返回 → 16:39:44.367 `exit chain: exit
+  requested → ANativeActivity_finish` → 16:39:45.384 ActivityTaskManager `START … cmp=com.jjxy.game/android.app.NativeActivity`
+  （用户再点图标）→ 16:39:45.407 **同 pid 第二次** `boot android_main entered`（新实例进了将退出的旧进程）→ 16:39:45.829 旧实例
+  `exit chain: activity destroyed → process exit` → 16:39:45.865 ActivityManager `Process com.jjxy.game (pid 32119) has died:
+  fg  TOP` → 16:39:46.826 `Start proc 32638`（系统另起进程，从开机 logo 再来一遍）。另 16:38:43.460（pid 11794，`START` 后
+  0.10 s；16:38:43.357 `The Process com.jjxy.game Already Exists in BG. So sending its PID: 11794`）/ 16:38:48.492（pid 12244，
+  `START` 后 0.50 s）/ 16:38:58.708（pid 12667，`START` 后 0.05 s）三次 `has died: fg TOP` 同型——该段游戏侧日志已轮转，只余
+  ActivityManager 行（B 级）。
+- **根因**（BUG-033 移植设计缺陷，非原版 bug，D4 不适用）：BUG-033 在 `android_main` 尾"本实例发起过退出 ⇒ `_exit(0)`"。
+  native_app_glue 支持同进程多实例（每次 `ANativeActivity_onCreate` 起一条新 `android_main` 线程）；退出后、旧实例销毁前
+  （finish → onDestroy 约 1 s）用户再点图标，系统复用尚存的旧进程承载新实例 ⇒ 旧实例 `_exit` 连新实例一起杀掉 ⇒ 前台进程
+  死亡，系统另起进程重启。
+- **影响**：退出后约 1 s 内再进游戏 ⇒ 多一次闪退重启（再看一遍开机 logo）；连续操作时可连环发生。
+- **Stage A 处理**：**已修复**——`process::InstanceCounter`：`ANativeActivity_onCreate`（主线程，早于该实例任何生命周期回调）
+  登记、`android_main` 末注销；`process::end_process_after_destroy(exit_sent, remaining)` = 本实例发起过退出 ∧ 进程内已无其他
+  实例才 `_exit(0)`，否则正常返回（glue 收尾、新实例继续）并记 `keep process` 日志。同进程再入安全性：Android 构建的进程级
+  全局只有字形钩子（`render::GLYPH_HOOK`，同函数重设）、字体 `OnceLock`（重复 install 沿用首次）、`resource_cfg` `OnceLock`
+  （只读）——均可重入（`ADVANCE_HOOK` 仅 core 单测设置）；16:39:45.407 第二实例初始化日志完整（storage / aaudio open ok）为旁证。
+  宿主钉 `shell/android/tests/process_exit.rs` 4 测（单实例退出即结束 / 退出中再入保留进程、后者退出再结束 / 非本方销毁不结束 /
+  计数不下溢）。
+- **Stage B 修复方案**：—。
+Evidence: A 级——pid 32119 时间线（同 pid 双 `android_main entered` + `has died: fg TOP` + 新 pid 重启）；B 级——三次 ActivityManager
+同型迹象；全局状态清单 = `grep OnceLock|static mut|thread_local` 于 crates/ 与 shell/；宿主 RED（E0432：`InstanceCounter` /
+`end_process_after_destroy` 不存在）/ GREEN 4/4。**本方实机验证待补**。Confidence: 90

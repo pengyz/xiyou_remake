@@ -14,6 +14,41 @@
 //!   （native.rs `android_main` 尾 `_exit(0)`，BUG-033）。
 
 use game_platform::ProcessControl;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+/// 同进程 Activity 实例计数（BUG-036）。NativeActivity 允许系统把新实例放进**尚未退出的旧进程**：
+/// 用户退出后约 1 s 内再点图标 ⇒ 旧实例已 finish、未销毁，新实例 `onCreate` 已在同进程跑起
+/// （native_app_glue 每实例一条 `android_main` 线程）。旧实例销毁后若直接 `_exit` 会连新实例一起杀掉
+/// （实机：ActivityManager `has died: fg TOP` ⇒ 系统另起进程重启 = 用户所见"又重来一遍"）。
+/// 登记点 = `ANativeActivity_onCreate`（主线程，先于该实例任何生命周期回调）；注销点 = `android_main` 末。
+#[derive(Debug, Default)]
+pub struct InstanceCounter(AtomicUsize);
+
+impl InstanceCounter {
+    pub const fn new() -> InstanceCounter {
+        InstanceCounter(AtomicUsize::new(0))
+    }
+
+    /// 登记一个实例（`ANativeActivity_onCreate`）。
+    pub fn enter(&self) {
+        self.0.fetch_add(1, Ordering::SeqCst);
+    }
+
+    /// 注销本实例，返回进程内剩余存活实例数（不下溢：未登记即注销 = 0）。
+    pub fn leave(&self) -> usize {
+        let prev = self
+            .0
+            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| Some(n.saturating_sub(1)))
+            .unwrap_or(0);
+        prev.saturating_sub(1)
+    }
+}
+
+/// 实例销毁后壳是否结束进程：本实例发起过退出（BUG-033 退出链）∧ 进程内已无其他实例（BUG-036）。
+/// 非本方发起的销毁（系统回收 / 配置重建 / 最近任务划掉）不结束进程，交系统处置。
+pub fn end_process_after_destroy(exit_sent: bool, remaining_instances: usize) -> bool {
+    exit_sent && remaining_instances == 0
+}
 
 /// 宿主桩：记录退出请求（不杀进程——同契约：桌面=退事件循环、Android=finish Activity）。
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
