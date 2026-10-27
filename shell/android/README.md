@@ -25,6 +25,11 @@
 > 切后台即停（docs/bug-ledger.md BUG-027/028 实机复核注）。下表"⏳ AAudio 负 timeout 阻塞口径"一项已结：负/零超时
 > = **不阻塞**（AOSP AudioStreamTrack.cpp:505 + 实机探针自旋实证），实现改正超时 1 s。未实机验证：输出设备切换
 > （插拔耳机/连蓝牙）后的流重开（`StreamPcm::with_reopen`，宿主钉 + 源码路径推理）。
+>
+> 【2026-10-27 更正④】退出链已通（BUG-033）：下表"⚠ 骨架·未编译"行中的 `process::android`（ANativeActivity_finish）
+> 已交叉编译并实机验证——主菜单选"退出" / 标题态 BACK → mode 22 退场动画 → `ANativeActivity_finish` → Activity 销毁后
+> `_exit(0)`；Xiaomi 14 两条路径 logcat `exit chain` 全链 + ActivityManager `has died`、crash 缓冲为空
+> （docs/bug-ledger.md BUG-033 实机复核注）。BACK **不消费**时的系统 finish 行为（下表 ⏳ 行）仍未测（壳恒消费）。
 
 | 状态 | 内容 | 判定方式 |
 |---|---|---|

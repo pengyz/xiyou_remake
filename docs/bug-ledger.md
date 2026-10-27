@@ -542,3 +542,14 @@ Confidence: 90
 > `[Press(-7), Release]`（非标题态，无效果）；`14:14:00.483 exit chain: finished → ANativeActivity_finish`（距确认 5.37 s
 > ≈ 71 拍 × 75 ms）→ `14:14:01.570 exit chain: activity destroyed → process exit` → ActivityManager `Process com.jjxy.game
 > (pid 5420) has died: cch CRE`；crash 缓冲为空，前台回桌面。
+
+> 【2026-10-27 实机复核·GREEN】（Xiaomi 14，本方运行；装机包内 .so sha256 `04f3dcf2…` = HEAD 构建，cargo 无待重编）
+> ① 菜单路径：`am start` → 标题 → 方向盘左 `tick batch=[Press(-3), Release] → key=-3`（截屏轮播 = "退出"）→ 确定
+> `14:30:35.251 key=-5` + `bgm Stop` → `14:30:40.606 exit chain: finished → ANativeActivity_finish`（5.36 s）→
+> `14:30:41.695 exit chain: activity destroyed → process exit` → ActivityManager `Process com.jjxy.game (pid 17774) has died:
+> cch CRE`；② 返回路径：`input keyevent 4` → `14:31:22.312 back at title → 退出项确认（退出链）` → `14:31:27.689 finish`
+> （5.38 s）→ `14:31:28.776 process exit` → `pid 32051 has died`。两次 crash 缓冲均空、前台回桌面、`dumpsys activity` 无本包
+> 记录。边缘手势 → KEYCODE_BACK 的系统转换本方未注入，由用户实操日志旁证（`input-arrival type=1` = 键事件）。
+> 旁注（用户操作，14:30:44 自桌面启动）：开机 logo 期（mode 0）连按返回 4 次 = `[Press(-7), Release]` 无效果，到标题后
+> 返回才进退出链——logo 期不认键是原版行为（reference a.java:3348-3378 mode 0 臂不读 keyValue，非本缺陷），如需"logo 期返回
+> 即退"属另立的壳层交互决定。Confidence: 96
