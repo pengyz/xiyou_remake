@@ -295,6 +295,30 @@ fn panel_paint_shows_dpad_ok_and_pressed_feedback() {
     assert_ne!(at(&b, dx + g.cell, dy), at(&a, dx + g.cell, dy), "按下右=右箭头高亮");
 }
 
+/// 【2026-10-27 用户："横屏时为解决菜单'开始游戏'太小做了放大，现在改成竖屏了，不需要放大了"】
+/// 标题底栏/标签/箭头 ×2（MODERN_UI_K）是横屏补偿：那时开场链画布 = Modern 大格数（18×18 = 576 逻辑 px，
+/// 物理 ×2），原尺寸标签只占画面一小条。竖屏开场链 = **原分辨率 240×320 × 最大整数倍**（Xiaomi 14 = ×5）
+/// ⇒ 原尺寸标签物理高 17×5 = 85 px，已大于横屏 2× 的 17×2×2 = 68 px ⇒ 不放大（ui ×1）；core 默认
+/// （横屏旧路径 / PC modern）仍 ×2。
+#[test]
+fn portrait_boot_title_bar_is_original_size() {
+    let p = plan_portrait(&xm14());
+    let geo = game_core::title::TitleGeom::modern(&p.boot.layout(), 240, 295, 20, 13);
+    assert_eq!(geo.ui_k, 1, "竖屏开场链（原分辨率×{}）：标题底栏不放大", p.boot.scale);
+    assert_eq!((geo.label.2, geo.label.3), (68, 17), "当前项标签 = 图标带原尺寸 4×17 格");
+    assert!(
+        geo.label.3 * p.boot.scale >= 17 * 2 * 2,
+        "原尺寸标签物理高 ≥ 横屏 2× 标签（17×2 逻辑 ×2 物理）"
+    );
+    let landscape = game_core::title::TitleGeom::modern(&game_core::layout::Layout::modern(18, 18), 240, 295, 20, 13);
+    assert_eq!(landscape.ui_k, 2, "core 默认不变（横屏旧路径 / PC modern 仍 ×2）");
+    // 热区随底栏收：底栏 23 + 延伸 16 = 39 逻辑（×5 = 195 px ≈ 10mm ≥ 48dp 手指目标 144 px），
+    // 不再沿用 ×2 档的 72（×5 = 360 px，隐形热区盖住半个标题 logo = 2c 误触教训）
+    assert_eq!((geo.bar_h, geo.zone_ok.3), (23, 39), "竖屏：底栏 17+2×3、热区 = 底栏 + 16");
+    assert!(geo.zone_ok.3 as f32 * p.boot.scale as f32 >= 48.0 * p.dp, "热区物理高 ≥ 48dp");
+    assert_eq!((landscape.bar_h, landscape.zone_ok.3), (40, 72), "横屏 ×2 档热区不变（40 + 32）");
+}
+
 #[test]
 fn portrait_canvases_hide_in_canvas_softkey_bar() {
     // 壳层配置（core 参数 Layout::softkey_bar_visible）：竖屏组成 = 画布 + 控制面板，面板软键已画

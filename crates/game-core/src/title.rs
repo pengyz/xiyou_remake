@@ -39,17 +39,19 @@ const PARTICLE_SLOTS: usize = 32;
 // - 保留原版**轮播**视觉（底栏「◆ 当前项 ◆」，左右键切项、确认进入）；
 // - 触屏 = 点左/右热区切上/下一项、点中间标签确认、水平滑动切项（键码走既有
 //   title tick 臂 -3/-4/-5，零新游戏状态）；
-// - Modern 底栏/标签/箭头 ×2（手机可读）+ 美术**整数倍**放大（像素均匀）；
+// - Modern 底栏/标签/箭头 ×k（`Layout::title_ui_k`：modern 默认 ×2 = 横屏大画布补偿；壳可配，
+//   Android 竖屏开场链 = 原分辨率 × 整数倍 ⇒ ×1）+ 美术**整数倍**放大（像素均匀）；
 // - 几何单源：paint 与命中共用 [`TitleGeom::modern`]（pointer-menu 决策硬条件①）。
 // classic 路径零改动（原版 240×320 逐字）。
 
-/// Modern 底栏 UI 倍率（标签/箭头放大）。
+/// Modern 底栏 UI 倍率默认值（`Layout::modern` 的 `title_ui_k`；标签/箭头放大）。
 pub const MODERN_UI_K: i32 = 2;
 /// Modern 底栏标签上下留白。
 pub const MODERN_BAR_PAD: i32 = 3;
-/// 触屏热区高（自画布底向上）：底栏 40 + 向上延伸 32 = 72 逻辑 px
-/// （2× 呈现@480dpi ≈ 7.6mm，手指可点尺寸；底栏本身仅 ≈4mm）。
-pub const TOUCH_ZONE_H: i32 = 72;
+/// 触屏热区 = 底栏 + 向上延伸 `TOUCH_ZONE_EXT × ui_k`（自画布底向上；×2 档 = 40 + 32 = 72 逻辑 px，
+/// 横屏 2× 呈现@480dpi ≈ 7.6mm 手指可点；×1 档 = 23 + 16 = 39，竖屏 ×5 呈现 ≈ 10mm）。延伸随 ui_k：
+/// 壳按物理倍率选 ui_k，延伸同比 ⇒ 热区物理尺寸两档相当、不大面积覆盖美术（隐形热区 = 2c 误触教训）。
+pub const TOUCH_ZONE_EXT: i32 = 16;
 /// 美术顶部最大裁切 = 美术高的 1/10（超出则降一档整数倍）。
 const ART_MAX_CROP_DIV: i32 = 10;
 /// 图标带格边长（drawIconStrip 17×17 格，4 格=一个菜单项标签）。
@@ -91,7 +93,7 @@ impl TitleGeom {
         arrow_h: i32,
     ) -> TitleGeom {
         let (sw, sh, cx) = (layout.screen_w, layout.screen_h, layout.center_x);
-        let ui_k = MODERN_UI_K;
+        let ui_k = layout.title_ui_k.max(1);
         let label_w = STRIP_CELL * STRIP_CELLS * ui_k;
         let label_h = STRIP_CELL * ui_k;
         let bar_h = label_h + 2 * MODERN_BAR_PAD;
@@ -105,7 +107,8 @@ impl TitleGeom {
             k += 1;
         }
         let label_x = cx - label_w / 2;
-        let zy = sh - TOUCH_ZONE_H;
+        let zone_h = bar_h + TOUCH_ZONE_EXT * ui_k;
+        let zy = sh - zone_h;
         let _ = arrow_w;
         TitleGeom {
             art_k,
@@ -117,9 +120,9 @@ impl TitleGeom {
             arrow_left_x: cx + (layout.arrow_pair_left_x - cx) * ui_k,
             arrow_right_x: cx + (layout.arrow_pair_right_x - cx) * ui_k,
             arrow_y: sh - bar_h + ((bar_h - arrow_h * ui_k) >> 1),
-            zone_prev: (0, zy, label_x, TOUCH_ZONE_H),
-            zone_ok: (label_x, zy, label_w, TOUCH_ZONE_H),
-            zone_next: (label_x + label_w, zy, sw - (label_x + label_w), TOUCH_ZONE_H),
+            zone_prev: (0, zy, label_x, zone_h),
+            zone_ok: (label_x, zy, label_w, zone_h),
+            zone_next: (label_x + label_w, zy, sw - (label_x + label_w), zone_h),
         }
     }
 

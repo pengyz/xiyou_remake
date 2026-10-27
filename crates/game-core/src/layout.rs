@@ -460,6 +460,11 @@ pub struct Layout {
     /// 控制面板自带同款图标）置 false 免双份。**纯呈现**：软键种类 `softkeys` 状态照常推进
     /// （壳据此画外置软键），不影响任何逻辑/命中/状态迁移。
     pub softkey_bar_visible: bool,
+    /// Modern 标题底栏 UI 倍率（当前项标签 / 双箭头 / 底栏高 ×k，`title::TitleGeom::modern` 消费）。
+    /// modern 默认 [`crate::title::MODERN_UI_K`]（=2，横屏大格数画布补偿：原尺寸标签只占画面一小条）；
+    /// 壳层可配——开场链画布 = 原分辨率 × 整数倍时（Android 竖屏）原尺寸已够大 ⇒ 1。classic 不经此路
+    /// （原版 240×320 逐字）。**纯呈现**：热区随几何同源，键码/状态不变。
+    pub title_ui_k: i32,
     // —— UI 公式锚（②：顶栏楼层贴左/钥匙金币贴右/中间填充；HUD 贴底居中）——
     /// 三钥格 x（贴右：`screen_w - 175 + 42i`，右块 = 三钥槽 126 + 金币区 49）。
     pub status_key_x: [i32; 3],
@@ -514,6 +519,7 @@ impl Layout {
             camera_clamp_max: CAMERA_CLAMP_MAX,
             boot_sound_prompt: true,
             softkey_bar_visible: true,
+            title_ui_k: 1,
             status_key_x: STATUS_KEY_X,
             status_gold_icon_x: STATUS_GOLD_ICON_X,
             status_gold_num_x: STATUS_GOLD_NUM_X,
@@ -548,6 +554,7 @@ impl Layout {
         l.preset = Preset::Modern;
         // STAGE-B-001 门控面：modern 跳过开机声音询问（classic 保留原版时间轴）
         l.boot_sound_prompt = false;
+        l.title_ui_k = crate::title::MODERN_UI_K;
         l.screen_w = screen_w;
         l.screen_h = screen_h;
         l.center_x = screen_w / 2;

@@ -121,6 +121,12 @@ pub const ARROW_FRAC: f32 = 0.25;
 /// core 默认开（横屏旧路径 / PC 壳不配置 = 原版照画）。
 pub const CANVAS_SOFTKEY_BAR: bool = false;
 
+/// 画布内标题底栏 UI 倍率（壳层配置 core `Layout::title_ui_k`）：竖屏开场链 = 原分辨率 240×320 ×
+/// 最大整数倍（Xiaomi 14 = ×5）⇒ 原尺寸「开始游戏」标签物理高 17×5 = 85 px，已大于横屏 ×2 补偿
+/// （18×18 画布物理 ×2：17×2×2 = 68 px）⇒ 不再放大。core 默认 ×2（横屏旧路径 / PC modern 不变）。
+/// 【2026-10-27 用户："横屏时为解决'开始游戏'太小做了放大，现在改成竖屏了，不需要放大了"】
+pub const CANVAS_TITLE_UI_K: i32 = 1;
+
 /// AConfiguration 密度码 → dpi：DEFAULT=0 / ANY=0xfffe / NONE=0xffff（及越界）⇒ 160
 /// （dp 基准：1dp = 1px，最保守——不放大控件也不缩小）。
 pub fn dpi_or_baseline(raw: i32) -> i32 {
@@ -196,10 +202,11 @@ pub struct Canvas {
 
 impl Canvas {
     /// Modern 布局（逻辑尺寸以 layout 为准：modern 最小钳位 = 原分辨率 240×320）+ 本壳呈现
-    /// 配置（画布内软键栏 = [`CANVAS_SOFTKEY_BAR`]）。
+    /// 配置（画布内软键栏 = [`CANVAS_SOFTKEY_BAR`]、标题底栏倍率 = [`CANVAS_TITLE_UI_K`]）。
     pub fn layout(&self) -> Layout {
         let mut l = Layout::modern(self.grid_w, self.grid_h);
         l.softkey_bar_visible = CANVAS_SOFTKEY_BAR;
+        l.title_ui_k = CANVAS_TITLE_UI_K;
         l
     }
 
