@@ -38,6 +38,7 @@
 - [Android 按键反馈：JNI 线程与系统开关](gotcha_android-key-feedback-jni-thread-and-switches.md) — View.playSoundEffect 须 UI 线程且受系统触摸提示音（小米实机关）⇒ AudioManager.playSoundEffect(FX_KEY_CLICK,-1f)；performHapticFeedback 无线程校验/无需权限；dumpsys vibrator_manager / audio SoundPool 事件核对（2026-10-26）
 - [夹具重放绕过壳层投键路径](gotcha_fixture-replay-bypasses-shell-key-path.md) — fixture_frames 直调 press_key，壳层投键前先 interrupt_route() 不在 Java 对拍内；BUG-025 夹具全绿、实机剧情被连点截断；补位 replay_logic_with(shell_keys=true)（2026-10-26）
 - [AAudio 直绑四坑](gotcha_aaudio-ndk-constants-start-timeout.md) — 性能模式自 10 起算（手写 1 ⇒ ILLEGAL_ARGUMENT）、open 后须 requestStart、write 负/零超时=不阻塞、stop 播完残留（丢弃=pause→PAUSED→flush）、设备切换 DISCONNECTED 须重开；adb shell 探针取证（2026-10-26 BUG-027）
+- [折叠屏幕字面量逃过 layout 换轨](gotcha_folded-screen-literals-escape-layout-conversion.md) — SCREEN_H 符号替换抓不到 275=320−45 / 148=160−12 / 240=金币列+3 类折叠值，同块兄弟臂已换单臂漏网（BUG-029/030/031 共 7 处）；兄弟臂形式判屏幕派生 + 1px 覆盖探针证 classic 回代 + 特例臂全枚举（2026-10-27）
 
 ## Patterns
 
