@@ -1195,21 +1195,16 @@ extern "C" fn handle_input(app: *mut AndroidApp, event: *mut AInputEvent) -> i32
         let (mut keys, consumed) = st.wiring.on_input_ex(event);
         // 【BUG-034 · 壳层输入映射】根界面（开机 logo / 主菜单 / 退场动画）BACK（返回键/边缘返回手势）=
         // 立即退出（runtime.rs back_requests_exit：置退出请求，主循环下一轮 finish）；丢弃该 BACK 的 -7。
-        // 【STAGE-B-005】地图行走态 BACK = 退出确认框（runtime.rs back_opens_exit_confirm）；丢弃该 BACK 的 -7。
-        // 其余态（含框已开 = 取消）保持右软键 -7 原映射（子页返回 / 序章跳过 / 游戏内菜单返回）。
+        // 其余态保持右软键 -7 原映射（子页返回 / 序章跳过 / 游戏内菜单）。
         const AINPUT_EVENT_TYPE_KEY: i32 = 1;
-        let back_down = ffi::AInputEvent_getType(event) == AINPUT_EVENT_TYPE_KEY
+        if ffi::AInputEvent_getType(event) == AINPUT_EVENT_TYPE_KEY
             && ffi::AKeyEvent_getKeyCode(event) == AKEYCODE_BACK
             && ffi::AKeyEvent_getAction(event) == AKEY_EVENT_ACTION_DOWN
-            && ffi::AKeyEvent_getRepeatCount(event) == 0;
-        if back_down {
-            if st.rt.back_requests_exit() {
-                log_input(&format!("back at root mode={:?} → 立即退出", st.rt.machine.mode));
-                keys.clear();
-            } else if st.rt.back_opens_exit_confirm() {
-                log_input("back in game → 退出确认框");
-                keys.clear();
-            }
+            && ffi::AKeyEvent_getRepeatCount(event) == 0
+            && st.rt.back_requests_exit()
+        {
+            log_input(&format!("back at root mode={:?} → 立即退出", st.rt.machine.mode));
+            keys.clear();
         }
         st.pending_keys.extend(keys);
         // 【按键反馈】虚拟键按下 ⇒ 输入回调内立即派发（不等 75ms 逻辑拍）；按键音随游戏内"声音"

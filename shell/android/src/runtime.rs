@@ -156,17 +156,6 @@ impl Runtime {
         root
     }
 
-    /// 【STAGE-B-005 · 壳层输入映射】游戏内返回（BACK 键 / 边缘返回手势）：场景活动 ∧ 确认框未开 ⇒ 交核心
-    /// `open_exit_confirm`（仅地图行走态 ∧ 无原版浮层 ∧ 非遮幅才开），开了返回 true（调用方丢弃该 BACK 的 -7）。
-    /// 框已开 / 其余游戏内界面 ⇒ false（BACK 照旧 -7：框内 = 取消；菜单返回 / 对话推进…）。
-    /// 面板右软键不经此口（地图上照旧开游戏内菜单）。
-    pub fn back_opens_exit_confirm(&mut self) -> bool {
-        match self.scene.as_mut() {
-            Some(sc) if !sc.exit_confirm_open() => sc.open_exit_confirm(),
-            _ => false,
-        }
-    }
-
     /// 逻辑拍间隔（mode 0=100 / 其余 75；场景恒 75——win 壳 frame_interval 同源）。
     pub fn frame_interval_ms(&self) -> u64 {
         if self.scene.is_some() {
@@ -203,7 +192,7 @@ impl Runtime {
     /// 叠加框态（框=当前态生效命中面）。
     pub fn overlay_state(&self) -> OverlayState {
         match self.scene.as_ref() {
-            Some(sc) if sc.game_mode == GameMode::Map && !sc.exit_confirm_open() => OverlayState::Game,
+            Some(sc) if sc.game_mode == GameMode::Map => OverlayState::Game,
             Some(_) => OverlayState::Ui,
             None => match self.machine.title_geom() {
                 Some(geo) => OverlayState::Title(geo),
@@ -333,15 +322,6 @@ impl Runtime {
     fn step_scene(&mut self, keys: &[KeyAction], taps: Vec<(f32, f32)>) {
         let Some(sc) = self.scene.as_mut() else { return };
         let mut batch = keys.to_vec();
-        // 【STAGE-B-005】退出确认框开 ⇒ 画面点按不生效（不寻路/探步/撤销；键照常交核心框内处理）
-        let taps = if sc.exit_confirm_open() {
-            if !taps.is_empty() {
-                log_input("taps ignored: exit confirm open");
-            }
-            Vec::new()
-        } else {
-            taps
-        };
         for (tx_, ty_) in taps {
             let k = scene_tap(sc, tx_ as i32, ty_ as i32);
             log_input(&format!("scene_tap({tx_:.0},{ty_:.0}) mode={:?} → {k:?}", sc.game_mode));
@@ -371,11 +351,6 @@ impl Runtime {
                 log_input(&format!("GAME-CRASH: {msg}"));
                 self.crashed = true;
             }
-        }
-        // 【STAGE-B-005】框内确认 ⇒ 退出进程（同根界面返回：不再出拍 → finish → 销毁后 _exit）
-        if sc.take_exit_confirmed() {
-            self.shell_exit = true;
-            log_input("exit confirm → 立即退出");
         }
         if sc.take_global_dirty() {
             handoff::put_global(&mut self.stores, &sc.global_snapshot());
