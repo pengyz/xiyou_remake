@@ -17,6 +17,25 @@ use game_core::render::{ArgbImage, SoftGraphics};
 use game_core::scene::GameScene;
 use game_shell_common::audio::{AudioSink, BgmController, BgmSnapshot, NullSink};
 use game_shell_common::handoff::{self, GameAssets};
+use game_shell_common::settings::AppSettings;
+
+/// 【STAGE-B-006】壳层附加设置行 id（core 不解释含义；行序 = 设置页第 3-5 行）。
+pub const PREF_SPLASH: u8 = 1;
+pub const PREF_HAPTIC: u8 = 2;
+pub const PREF_CLICK: u8 = 3;
+
+/// 【STAGE-B-006】设置 → 附加行：开屏画面 / 按键震动 / 按键音（排在原版"声音、小地图"之后）。
+pub fn shell_rows(s: &AppSettings) -> Vec<game_core::menu_family::ShellOption> {
+    [(PREF_SPLASH, "开屏画面", s.show_splash), (PREF_HAPTIC, "按键震动", s.key_haptic), (PREF_CLICK, "按键音", s.key_click)]
+        .into_iter()
+        .map(|(id, label, checked)| game_core::menu_family::ShellOption { id, label: label.encode_utf16().collect(), checked })
+        .collect()
+}
+
+/// 附加行勾选（缺行 ⇒ `default`）。
+fn row_checked(rows: &[game_core::menu_family::ShellOption], id: u8, default: bool) -> bool {
+    rows.iter().find(|r| r.id == id).map_or(default, |r| r.checked)
+}
 
 /// BootMachine 装配（APK/目录资产 → 游戏机；win 壳 Shell::new 同参）。
 pub fn build_boot_machine(src: &dyn game_platform::AssetSource, layout: game_core::layout::Layout) -> BootMachine {
@@ -69,6 +88,8 @@ pub struct Runtime {
     shell_exit: bool,
     /// 【STAGE-B-005】系统退出对话框未决（已请求弹出、未收到结果）：游戏暂停、输入不进游戏。
     exit_dialog_pending: bool,
+    /// 【STAGE-B-006】设置文件（路径, 已落盘值）：None = 未接线（宿主流程测试 / 无持久场景）不落盘。
+    settings_file: Option<(std::path::PathBuf, AppSettings)>,
 }
 
 impl Runtime {
@@ -94,6 +115,56 @@ impl Runtime {
             bgm: BgmController::new(Box::new(NullSink)),
             shell_exit: false,
             exit_dialog_pending: false,
+            settings_file: None,
+        }
+    }
+
+    /// 【STAGE-B-006】应用设置（启动时、首拍前）：声音对 → 三行附加行 → 开屏关则跳过开屏。顺序不可换：跳过即进标题，
+    /// `enter_title` 按当时的声音开关建播放器（复核 M5③）。只写开场链机器（启动时无场景）。
+    pub fn apply_app_settings(&mut self, s: &AppSettings) {
+        self.machine.bgm.sound_enabled = s.sound_enabled;
+        self.machine.bgm.volume_level = s.volume_level;
+        self.machine.shell_options = shell_rows(s);
+        if !s.show_splash {
+            self.machine.skip_boot_splash();
+        }
+    }
+
+    /// 【STAGE-B-006】当前设置快照：读活动机（场景活动读场景，否则读开场链）的声音对与三行勾选；缺行取默认。
+    /// 场景活动期开场链那份是交接前的旧值，壳侧一律经本函数读，不直接读 `machine.shell_options`（复核 T4-F2）。
+    pub fn app_settings(&self) -> AppSettings {
+        let (bgm, rows) = match self.scene.as_ref() {
+            Some(sc) => (&sc.bgm, &sc.shell_options),
+            None => (&self.machine.bgm, &self.machine.shell_options),
+        };
+        let d = AppSettings::default();
+        AppSettings {
+            sound_enabled: bgm.sound_enabled,
+            volume_level: bgm.volume_level,
+            show_splash: row_checked(rows, PREF_SPLASH, d.show_splash),
+            key_haptic: row_checked(rows, PREF_HAPTIC, d.key_haptic),
+            key_click: row_checked(rows, PREF_CLICK, d.key_click),
+        }
+    }
+
+    /// 【STAGE-B-006】设置文件接线（android_main：Runtime::new 之后、首拍前调用一次）：装载 → 应用 → 记住路径与已落盘值。
+    /// 之后每拍末快照变化即写（[`Self::step`]，同一拍内落盘：退出请求后不再出拍也不丢，复核 L1）。
+    pub fn open_app_settings(&mut self, path: std::path::PathBuf) {
+        let s = AppSettings::load(&path);
+        self.apply_app_settings(&s);
+        log_input(&format!("app settings loaded {s:?} → mode={:?}", self.machine.mode));
+        self.settings_file = Some((path, s));
+    }
+
+    /// 【STAGE-B-006】设置快照相对已落盘值变化 ⇒ 写文件（tmp + rename，失败吞）。
+    fn persist_app_settings_if_changed(&mut self) {
+        let cur = self.app_settings();
+        if let Some((path, saved)) = self.settings_file.as_mut() {
+            if *saved != cur {
+                cur.save(path);
+                *saved = cur;
+                log_input(&format!("app settings persisted {cur:?}"));
+            }
         }
     }
 
@@ -254,6 +325,7 @@ impl Runtime {
         }
         self.frame_counter += 1;
         self.sync_bgm();
+        self.persist_app_settings_if_changed(); // 【STAGE-B-006】设置页切换同拍落盘
     }
 
     /// 注入 BGM 命令出口（android_main = 音频线程通道；宿主测试 = 录制器）。翻译基线随之

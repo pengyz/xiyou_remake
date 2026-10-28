@@ -440,6 +440,8 @@ pub struct ShellWiring {
     pub content_rect: Option<(i32, i32, i32, i32)>,
     /// 【按键反馈】待派发的虚拟键按下数（TouchMapper 产出的 Press；输入回调后立即取走）。
     key_presses: u32,
+    /// 【STAGE-B-006 · 复核 T6-F3】首帧已呈现（主循环首次呈现成功后置位）；之前的输入一律丢弃。
+    presented: bool,
 }
 
 /// 【竖屏】触点区。
@@ -472,12 +474,39 @@ impl ShellWiring {
             map_extent: crate::portrait::MapExtent::default(),
             content_rect: None,
             key_presses: 0,
+            presented: false,
         }
     }
 
     /// 【按键反馈】取走待派发的虚拟键按下数（feedback::emit 的输入；取走即清）。
     pub fn take_key_presses(&mut self) -> u32 {
         std::mem::take(&mut self.key_presses)
+    }
+
+    /// 【STAGE-B-006 · 复核 T6-F3】首帧已呈现（present / present_layers 成功时自动置位；宿主测试可直接调用）。
+    pub fn mark_presented(&mut self) {
+        self.presented = true;
+    }
+
+    /// 【STAGE-B-006 · 复核 T6-F3】取走本拍输入（键批 `keys` / 标题手势 / 画布点按，取走即清）。首帧呈现前一律丢弃：
+    /// 用户看到的是黑屏，而开屏关时首拍前已在主菜单——看不见的标题确认区 / 面板确定键接住的点按会直接开始新游戏。
+    /// 开屏开时 mode 0 本就不读键，行为不变。
+    pub fn take_step_inputs(
+        &mut self,
+        keys: &mut Vec<KeyAction>,
+    ) -> (Vec<KeyAction>, Vec<TitleGesture>, Vec<(f32, f32)>) {
+        let k = std::mem::take(keys);
+        let g = std::mem::take(&mut self.title_gestures);
+        let t = std::mem::take(&mut self.pending_taps);
+        if self.presented {
+            return (k, g, t);
+        }
+        // 按下早于首帧、抬起晚于首帧的标题触点：按下半已作废，抬起不得补出 Tap（复核 T6b-N1）
+        self.title_track = None;
+        if !(k.is_empty() && g.is_empty() && t.is_empty()) {
+            log_input(&format!("pre-first-frame input dropped keys={k:?} gestures={g:?} taps={t:?}"));
+        }
+        (Vec::new(), Vec::new(), Vec::new())
     }
 
     /// 【竖屏公式化】规划输入（窗口 w×h + 本机密度/内容区/地图——全部设备与数据来源）：
@@ -786,6 +815,7 @@ impl ShellWiring {
         {
             let _ = layers;
         }
+        self.presented = true; // 【STAGE-B-006 · 复核 T6b-N3】首帧已呈现 ⇒ 输入放行
         true
     }
 
@@ -827,6 +857,7 @@ impl ShellWiring {
         {
             let _ = argb;
         }
+        self.presented = true; // 【STAGE-B-006 · 复核 T6b-N3】首帧已呈现 ⇒ 输入放行
         true
     }
 }
@@ -1288,7 +1319,10 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
             &assets,
             game_core::layout::Layout::modern(GRID_N, GRID_N),
         );
-        let rt = crate::runtime::Runtime::new(machine, stores, Box::new(storage));
+        let mut rt = crate::runtime::Runtime::new(machine, stores, Box::new(storage));
+        // 【STAGE-B-006】设置文件（声音 / 开屏画面 / 按键震动 / 按键音）：首拍前装载并应用——开屏关 ⇒ 首拍前即主菜单；
+        // 之后设置页切换由 Runtime 每拍末同拍落盘（与存档同目录，FileRms 只认 *.bin 记录名、不误读）
+        rt.open_app_settings(data_path.join("app_settings.cfg"));
         // 【竖屏】面板软键图标=游戏同款 ui[11]（与画布角标同义，随态切换）
         let softkey_icons = game_shell_common::handoff::load_container(&assets, "ui", 25)[11].clone();
 
@@ -1321,6 +1355,9 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
             feedback: None,
             exit_dialog: None,
         });
+        // 【STAGE-B-006 · 复核 T3-F2】开屏关时首拍前已在主菜单：标题态路由须先于首批触点生效（否则初始化期间的点按按
+        // 非标题态走点空白 = 代按确认，直接开始新游戏）；之后照旧每拍刷新
+        st.wiring.title_mode = st.rt.title_mode();
         // 【按键反馈】JNI 工作线程（触感 + 按键音；attach 一次、缓存方法 ID，输入回调零阻塞）
         st.feedback = Some(crate::feedback::android::JniFeedback::spawn((*activity).vm, (*activity).clazz, log_input));
         // 【STAGE-B-005】退出确认对话框 JNI 工作线程（Java 辅助类经 activity 类加载器解析；主循环零 JNI）
@@ -1418,9 +1455,8 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
                     st.rt.on_exit_dialog_result(r == crate::exit_dialog::DialogResult::Exit);
                 }
                 if !exit_sent && !st.rt.exit_requested() {
-                    let gestures = std::mem::take(&mut st.wiring.title_gestures);
-                    let taps = std::mem::take(&mut st.wiring.pending_taps);
-                    let keys = std::mem::take(&mut st.pending_keys);
+                    // 【STAGE-B-006 · 复核 T6-F3】首帧呈现前的输入丢弃（take_step_inputs）
+                    let (keys, gestures, taps) = st.wiring.take_step_inputs(&mut st.pending_keys);
                     st.rt.step(&st.assets, &keys, gestures, taps);
                     // 标题态随拍更新（下一批触点的路由依据；场景活动时恒非标题）
                     st.wiring.title_mode = st.rt.title_mode();
