@@ -660,3 +660,31 @@ Evidence: A 级——pid 32119 时间线（同 pid 双 `android_main entered` + 
 > `16:57:08.380 exit chain: activity destroyed, 1 other instance(s) alive → keep process` → 新实例 `16:57:15.040` 到主菜单（截屏
 > 标题与面板正常、`aaudio open ret=ok`、字体沿用 `font install None in 0ms`）；随后该实例菜单退出 → `16:58:01.178 process exit`
 > → ActivityManager `pid 6453 has died: cch CRE`。全程无 `fg  TOP` 死亡、crash 缓冲空。Confidence: 95
+
+## BUG-040 点地寻路收尾不完整：途中按键打断后落进剧本"行尾收尾"写剧情旗标；单步寻路后脚本行走武装残留、下一步手动行走停不下来（Stage B 触屏寻路，2026-10-28 对抗复核发现，已修复）
+
+> 【2026-10-28】设计 v0 对抗复核（`docs/reviews/2026-10-28-settings-controls-design-adversarial-review.md` §3 探针 P3）发现症状①；
+> 修复取证时由单测发现同根症状②。
+- **现象 / 复现**：
+  - ① 点地寻路途中按任意键打断（地图非空闲时点画面也发 -5，同路）：相位轨迹 `Dialog/dp3 → Dialog/dp0 → Dialog/dp4 → Map/dp4`。dp0 执行
+    `execute_script_instruction` 的行尾收尾：`script_line_flags[current_script_index] = true` + `lock_camera_on(0)` + dp4 等镜头回位。
+    当前脚本旗标原为 false 时会误关该剧情的门（例：读档后 current_script_index=0、脚本行为空 ⇒ 写 flags[0]，0 号门见
+    `try_run_scene` scene.rs:1623——可达性 B 级）。
+  - ② 点相邻格（单步寻路）后再按一下方向键：连走 3 格仍 walkPhase 1，停不下来（单测实录 `(walk_phase, x, px&31) = (1, 5, 0)`，
+    期望 `(0, 3, 0)`）。Map 态 walkPhase 1 步进不判墙（B 级推断：持续滑行）。
+- **根因**（T2 移植设计缺陷，非原版 bug，D4 不适用）：WalkTo 复用脚本行走机器 dp3，dp3 两处收尾只凭 `route.is_open()` 认寻路。
+  - 打断（`interrupt_route` 收束寻路段）后 dp3 失去寻路归属，于是走了脚本机收尾（①）；
+  - 寻路回 Map 时只切模式、不解除 `script_walk_armed`。单步寻路的唯一一步由 dp3 wp0 弹出，不经 `advance_script_walk` 清武装，
+    残留的武装让 Map 态下一次手动步进在步末走 `advanceScriptWalk` 臂：无步可弹，也不把 walkPhase 归 0（②）。
+- **影响**：① 剧情旗标误写（可能锁住剧情），打断后多一段镜头回位等待；② 点地寻路之后的第一次手动行走失控。
+- **Stage A 处理**：**已修复**。
+  - 新增 `walkto_draining`：`interrupt_route` 时若处于 Dialog dp3 则置位；新 `walk_to`、剧情接管 `load_level_script` 时清位。
+  - `walkto_owns_dp3()` = 段开放 ∨ 收尾中。
+  - dp3 两处收尾统一走 `finish_walkto()`：段终位入栈 + 清收尾位 + 解除武装 + 回 Map。
+  - 经典脚本行走（段未开放、未收尾）零改动；剧情接管后 dp 仍归剧情（新测钉住）。
+  - 宿主钉：scene.rs `walkto_interrupt_tests`（2）、`walkto_single_step_tests`（1）。
+- **Stage B 修复方案**：—。
+Evidence: A 级——探针 P3 运行时实录（走 Android 生产路径 `Runtime::step`）；单测 RED：`walkto_interrupt_drains_to_map_without_script_tail`
+轨迹 `[(Dialog,3)×4, (Dialog,0), (Dialog,4), (Map,4)]`、`single_step_walkto_then_manual_step_stops_at_next_cell` `(1,5,0) ≠ (0,3,0)`；
+GREEN：game-core lib 175/175，game-core / game-shell-common / game-android / game-desktop 共 528 测全绿。B 级——①的有害可达性。
+Confidence: 90

@@ -509,6 +509,10 @@ pub struct GameScene {
     pub undo: crate::undo_journal::UndoJournal,
     /// 【T2】WalkTo 路段追踪器（位移笔=段起终点/中断挂起=实际终点/战斗笔=终结时）
     pub route: crate::pathfind::RouteTracker,
+    /// 【BUG-040 · T2】点地寻路被打断、但 dp3 仍归寻路所有（走完当前步即回 Map）。打断会收束
+    /// 寻路段（route 不再开放），dp3 收尾原本只凭 `route.is_open()` 认寻路 ⇒ 打断后落入脚本机
+    /// dp0 行尾收尾。置位 = interrupt_route 时处于 Dialog dp3；清位 = 新 walk_to / 剧情接管 / 回 Map。
+    walkto_draining: bool,
     /// 【T2】战斗段快照（撞敌挂起时记账，战斗终结入 CombatStroke）
     battle_undo_snap: Option<(usize, i32, i32, crate::undo_journal::PlayerVitals)>,
     /// itemUseTargetType：最近拾取/装备的类型号（浮层图标 + 商店显示）
@@ -1089,6 +1093,7 @@ impl GameScene {
             walk_path_buffer: Vec::new(),
             undo: crate::undo_journal::UndoJournal::new(),
             route: crate::pathfind::RouteTracker::new(),
+            walkto_draining: false,
             battle_undo_snap: None,
             width_table: width_table.to_vec(),
             tile_walk: tile_walkability.to_vec(),
@@ -1742,6 +1747,7 @@ impl GameScene {
         // 否则剧情中投键（press_key 见段开放即打断）截断脚本 MOV 行走，dp3 步尽臂还会把
         // 剧情中途切回 Map。经典面（无寻路段）interrupt_route 零操作。
         self.interrupt_route();
+        self.walkto_draining = false; // 【BUG-040】dp 归剧情（打断后的寻路收尾作废）
         self.script_walk_armed = false;
         self.transition_to(GameMode::Dialog);
         self.dialog_page = 0;
@@ -1882,6 +1888,7 @@ impl GameScene {
     /// **新入口即打断**旧路线（手动优先）。返回计划（含探步入=T3 暗墙双通道接面）。
     pub fn walk_to(&mut self, tx: i32, ty: i32) -> crate::pathfind::RoutePlan {
         self.interrupt_route();
+        self.walkto_draining = false; // 新路线 = 段重新开放（改道）
         let (cx, cy) = (self.player_cell_x, self.player_cell_y);
         let plan = {
             let walk = crate::pathfind::Walkability {
@@ -1932,6 +1939,26 @@ impl GameScene {
         self.route.interrupt(at, &mut self.undo);
         self.walk_path_buffer.clear();
         self.walk_step_count = 0;
+        // 【BUG-040】寻路驱动的 dp3 被打断：dp3 仍归寻路，走完当前步即回 Map（见 finish_walkto）
+        if self.game_mode == GameMode::Dialog && self.dialog_phase == 3 {
+            self.walkto_draining = true;
+        }
+    }
+
+    /// 【BUG-040 · T2】点地寻路收尾（dp3 步尽：到达或打断后走完当前步）：段终位入栈 + 回 Map，
+    /// 并解除脚本行走武装——寻路首步由 dp3 wp0 弹出、不经 advanceScriptWalk 清武装（单步寻路
+    /// 即全程如此），武装残留会让 Map 态下一次手动步进步末走 advanceScriptWalk 臂、不归
+    /// walkPhase 0（实测：按一下方向键连走 3 格不停）。
+    fn finish_walkto(&mut self) {
+        self.route_arrived();
+        self.walkto_draining = false;
+        self.script_walk_armed = false;
+        self.game_mode = GameMode::Map;
+    }
+
+    /// 【BUG-040】dp3 当前是否归点地寻路所有（段开放，或打断后仍在走完当前步）。
+    fn walkto_owns_dp3(&self) -> bool {
+        self.route.is_open() || self.walkto_draining
     }
 
     /// 【T2】事件挂起（撞敌/拾取/开门）：段收于实际终点+挂起（T1 挂点契约）。
@@ -2768,10 +2795,11 @@ impl GameScene {
                             } else {
                                 // 【T2】WalkTo 段终位（整段起终点入栈）+回 Map 模式；
                                 // 经典脚本行走（route 未开放）零改动——mode 回归留脚本机器
-                                let walkto = self.route.is_open();
-                                self.route_arrived();
-                                if walkto {
-                                    self.game_mode = GameMode::Map;
+                                // 【BUG-040】打断后的收尾（walkto_draining）同走寻路收尾
+                                if self.walkto_owns_dp3() {
+                                    self.finish_walkto();
+                                } else {
+                                    self.route_arrived();
                                 }
                                 self.script_walk_armed = false;
                                 self.dialog_phase = 0;
@@ -2801,9 +2829,9 @@ impl GameScene {
                                 self.apply_step_cell_effects();
                                 // 【T2】WalkTo 段终位：步尽归格=实际终点（整段起终点
                                 // 入栈）+回 Map；经典脚本行走 route 未开放=零改动
-                                if self.walk_step_count == 0 && self.route.is_open() {
-                                    self.route_arrived();
-                                    self.game_mode = GameMode::Map;
+                                // 【BUG-040】打断后走完当前步同此收尾；收尾解除武装
+                                if self.walk_step_count == 0 && self.walkto_owns_dp3() {
+                                    self.finish_walkto();
                                 }
                             }
                         }
@@ -10416,5 +10444,99 @@ mod t2_walkto_route_tests {
         sc.press_key(-5);
         sc.interrupt_route();
         assert_eq!(sc.walk_step_count, steps, "剧情行走不受投键打断");
+    }
+}
+
+/// BUG-040：点地寻路（WalkTo）途中任意键打断 ⇒ 打断后的 dp3 失去"寻路段开放"判据，步尽时
+/// 落入脚本机 dp0 的"行尾收尾"（写 script_line_flags[当前脚本] = true + dp4 等相机才回 Map）
+/// ——2026-10-28 对抗复核探针 P3 实测相位轨迹 Dialog/dp3 → dp0 → dp4 → Map/dp4。
+#[cfg(test)]
+mod walkto_interrupt_tests {
+    use super::scene_test_support::{scene, ROW};
+    use super::*;
+
+    /// 打断后走完当前这一步即回 Map；全程不进 dp0、不写当前脚本旗标、解除脚本行走武装
+    /// （武装残留会让 Map 态下一次手动步进走 advanceScriptWalk 臂而不归 walkPhase 0）。
+    #[test]
+    fn walkto_interrupt_drains_to_map_without_script_tail() {
+        let mut sc = scene((1, ROW), &[]);
+        let cur = sc.current_script_index;
+        sc.script_line_flags[cur] = false;
+        sc.walk_to(5, ROW);
+        let wt = sc.width_table.clone();
+        sc.tick(0, &wt); // dp3 弹第一步、起步
+        sc.press_key(-1); // 任意键打断（壳层投键口径）
+        sc.release_key();
+        let mut trail = Vec::new();
+        for fc in 1..60 {
+            sc.tick(fc, &wt);
+            trail.push((sc.game_mode, sc.dialog_phase));
+            if sc.game_mode == GameMode::Map && sc.walk_phase == 0 {
+                break;
+            }
+        }
+        assert_eq!(sc.game_mode, GameMode::Map, "打断后回 Map：{trail:?}");
+        assert!(
+            !trail.iter().any(|&(m, dp)| m == GameMode::Dialog && dp == 0),
+            "不得落入脚本机 dp0：{trail:?}"
+        );
+        assert!(!sc.script_line_flags[cur], "当前脚本完成旗标不得被写");
+        assert!(!sc.script_walk_armed, "脚本行走武装已解除");
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (2, ROW), "走完打断时的那一步后停下");
+    }
+
+    /// 剧情接管（踩剧情点 ⇒ loadLevelScript）后的 dp 归剧情所有：先前的打断不得让剧情中途切回 Map。
+    #[test]
+    fn script_takeover_after_interrupt_keeps_dialog() {
+        let mut sc = scene((1, ROW), &[]);
+        sc.dialog_data.scripts = vec!["TAK_0_0 ".to_string()];
+        sc.walk_to(5, ROW);
+        sc.press_key(-1); // 打断（未出拍）
+        sc.load_level_script(0); // 剧情接管
+        sc.find_path(1, ROW, 3, ROW); // 剧情 MOV 驱动的脚本行走
+        sc.script_walk_armed = true;
+        sc.dialog_phase = 3;
+        let wt = sc.width_table.clone();
+        for fc in 0..12 {
+            sc.tick(fc, &wt);
+            assert_eq!(sc.game_mode, GameMode::Dialog, "剧情行走期仍是 Dialog（拍 {fc}）");
+        }
+    }
+}
+
+/// BUG-040 同根第二症状（2026-10-28 本测 RED 证实：寻路后武装残留=true，按一下方向键走了 3 格
+/// 仍 walkPhase 1）：单步点地寻路（点相邻格）由 dp3 wp0 弹出唯一一步，不经 advanceScriptWalk
+/// 清武装 ⇒ 回 Map 后 script_walk_armed 残留 ⇒ 下一次手动步进步末走 advanceScriptWalk 臂
+/// （无步可弹、不归 walkPhase 0）⇒ 停不下来。
+#[cfg(test)]
+mod walkto_single_step_tests {
+    use super::scene_test_support::{scene, ROW};
+    use super::*;
+
+    #[test]
+    fn single_step_walkto_then_manual_step_stops_at_next_cell() {
+        let mut sc = scene((1, ROW), &[]);
+        sc.walk_to(2, ROW);
+        let wt = sc.width_table.clone();
+        let mut fc = 0;
+        while fc < 40 && !(sc.game_mode == GameMode::Map && sc.walk_phase == 0) {
+            sc.tick(fc, &wt);
+            fc += 1;
+        }
+        assert_eq!((sc.game_mode, sc.player_cell_x), (GameMode::Map, 2), "单步寻路到达");
+        let armed_after_walkto = sc.script_walk_armed;
+        sc.press_key(-4); // 手动向右一步
+        sc.tick(fc, &wt);
+        fc += 1;
+        sc.release_key();
+        for _ in 0..12 {
+            sc.tick(fc, &wt);
+            fc += 1;
+        }
+        assert_eq!(
+            (sc.walk_phase, sc.player_cell_x, sc.view.player_px & 31),
+            (0, 3, 0),
+            "手动一步后停在下一格（寻路后武装残留={armed_after_walkto}）"
+        );
     }
 }
