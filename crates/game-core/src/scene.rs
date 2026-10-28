@@ -1886,7 +1886,12 @@ impl GameScene {
     /// 策略层 [`crate::pathfind::plan_route`]（直达/朝目标最远可达停靠/墙格探步入）
     /// → 喂 walkPathBuffer（dp3 消费机器=MOV 五参同款，零发明保真）。
     /// **新入口即打断**旧路线（手动优先）。返回计划（含探步入=T3 暗墙双通道接面）。
+    /// 【BUG-038】场上非空闲（[`Self::field_tap_allowed`] 为假）⇒ 拒绝：零状态变化，返回空计划。
     pub fn walk_to(&mut self, tx: i32, ty: i32) -> crate::pathfind::RoutePlan {
+        if !self.field_tap_allowed() {
+            let at = (self.player_cell_x, self.player_cell_y);
+            return crate::pathfind::RoutePlan { steps: Vec::new(), dock: at, reached: false, probe: None };
+        }
         self.interrupt_route();
         self.walkto_draining = false; // 新路线 = 段重新开放（改道）
         let (cx, cy) = (self.player_cell_x, self.player_cell_y);
@@ -1917,9 +1922,29 @@ impl GameScene {
     /// 【T2】探步入（一步撞击尝试）：暗墙命中=进入/揭示（挂撞击臂型 10/11/12/
     /// openWallOnRoute），实墙=撞停。**探墙双通道**（方向键踏步/触屏点墙滑动）
     /// 由 T3 发起——本入口为 core 端探步接口。新入口即打断旧路线。
+    /// 【BUG-038】场上非空闲 ⇒ 拒绝（零状态变化，返回 false）。
     pub fn probe_step(&mut self, dir: u8) -> bool {
+        if !self.field_tap_allowed() {
+            return false;
+        }
         self.interrupt_route();
         self.try_step(dir as i32)
+    }
+
+    /// 【BUG-038 · Stage B 触屏】场上是否接受点地动作（点格寻路 / 探步 / 撤销钮）：原版只在
+    /// 地图行走态 walkPhase 0、无浮层时读场上输入（浮层分支吞键整拍返回 a.java:3252-3345；
+    /// walkPhase 分派 a.java:3563-3679），换层遮幅期亦不行走。另一许可情形 = 点地寻路自身
+    /// 驱动的 dp3 正处于格边界（段开放或打断后收尾中，见 BUG-040；新点地 = 改道，T2"手动优先"）。
+    /// 壳层据此决定点按走场上通道。
+    pub fn field_tap_allowed(&self) -> bool {
+        if self.overlay_active || self.transitioning || self.walk_phase != 0 {
+            return false;
+        }
+        match self.game_mode {
+            GameMode::Map => !self.script_walk_armed,
+            GameMode::Dialog => self.dialog_phase == 3 && self.walkto_owns_dp3(),
+            _ => false,
+        }
     }
 
     /// 【T2】打断终版（task-11）：寻路中任意输入皆打断——清 walkPathBuffer 停步
@@ -9418,6 +9443,10 @@ impl GameScene {
     /// （不点走剧情、不在行走态误触）。confirm_key 逐态（③-3）：菜单族激活=-6、
     /// 道具使用=-6（键码契约 §4 同码不同动作——标题确认另有 -5/53）。
     pub fn pointer_hit(&self, x: i32, y: i32) -> PointerHit {
+        // 【BUG-038】浮层在最上层：其下的行 / 格不接受命中（原版浮层分支先于各模式吞键）
+        if self.overlay_active {
+            return PointerHit::None;
+        }
         match self.game_mode {
             GameMode::InGameMenu | GameMode::Shop => {
                 let vis_n = self.menu_visible_bottom - self.menu_scroll_top;
@@ -10537,6 +10566,73 @@ mod walkto_single_step_tests {
             (sc.walk_phase, sc.player_cell_x, sc.view.player_px & 31),
             (0, 3, 0),
             "手动一步后停在下一格（寻路后武装残留={armed_after_walkto}）"
+        );
+    }
+}
+
+/// BUG-038：触屏点按穿透到下层 / 在场上非空闲时执行场上动作（Stage B 触屏层，2026-10-28
+/// 对抗复核运行时探针 P1a/P1b/P2 实测）。原版浮层打开期间场上不吃任何输入（a.java:3252-3345
+/// 浮层分支吞键后整拍返回），行走中 / 战斗中也不读场上输入（walkPhase 分派 a.java:3563-3679）。
+#[cfg(test)]
+mod touch_tap_guard_tests {
+    use super::scene_test_support::{scene, ROW};
+    use super::*;
+
+    /// 地图上弹着提示框：点地寻路 / 探步一律拒绝，且拒绝 = 零状态变化（探针 P1a/P1b：
+    /// 曾在框后挂上寻路并切到 Dialog、或在框开着时起步撞格）。
+    #[test]
+    fn field_taps_refused_while_overlay_open() {
+        let mut sc = scene((1, ROW), &[]);
+        sc.show_overlay_message(0, "提示", 0, 0);
+        assert!(!sc.field_tap_allowed(), "弹框期不接受点地");
+        let plan = sc.walk_to(5, ROW);
+        assert!(!plan.reached && plan.steps.is_empty(), "拒绝寻路：{plan:?}");
+        assert_eq!((sc.game_mode, sc.walk_phase, sc.walk_step_count), (GameMode::Map, 0, 0), "模式/相位/步数不变");
+        assert!(!sc.route.is_open(), "未开寻路段");
+        assert!(!sc.probe_step(2), "拒绝探步");
+        assert_eq!(sc.walk_phase, 0, "探步未起步");
+        assert!(sc.overlay_active, "弹框仍开着");
+    }
+
+    /// 行走中（walkPhase 1）、探索（2）、换层（4）、战斗（5）、换层遮幅中同样拒绝；空闲地图允许。
+    #[test]
+    fn field_taps_refused_unless_field_idle() {
+        let mut sc = scene((1, ROW), &[]);
+        assert!(sc.field_tap_allowed(), "空闲地图允许点地");
+        for wp in [1, 2, 4, 5] {
+            sc.walk_phase = wp;
+            assert!(!sc.field_tap_allowed(), "walkPhase {wp} 不接受点地");
+            let plan = sc.walk_to(5, ROW);
+            assert!(plan.steps.is_empty() && sc.walk_phase == wp && !sc.route.is_open(), "walkPhase {wp}：walk_to 零变化");
+            assert!(!sc.probe_step(2) && sc.walk_phase == wp, "walkPhase {wp}：probe_step 零变化");
+        }
+        sc.walk_phase = 0;
+        sc.transitioning = true;
+        assert!(!sc.field_tap_allowed(), "换层遮幅中不接受点地");
+    }
+
+    /// 弹框盖住的下层行 / 格不接受指针命中（探针 P2：道具使用确认框开着时点另一格 ⇒ 光标改到
+    /// 被点那格并"使用"了它——框里显示的却是原先那件）。
+    #[test]
+    fn pointer_hit_ignores_rows_beneath_overlay() {
+        let mut sc = scene((1, ROW), &[]);
+        sc.player.item_types[0] = 16;
+        sc.player.item_uses[0] = 1;
+        sc.player.item_types[1] = 19;
+        sc.player.item_uses[1] = 1;
+        sc.player.item_stack_size = 2;
+        sc.transition_to(GameMode::ItemPanel);
+        sc.enter_item_panel();
+        let (ox, oy) = sc.item_cell_origin();
+        let cell1 = (ox + 40 + 20, oy + 20);
+        assert!(
+            matches!(sc.pointer_hit(cell1.0, cell1.1), PointerHit::Row { index: 1, .. }),
+            "无弹框：命中 1 号格"
+        );
+        sc.show_overlay_message(3, "芭蕉扇", 1, 2);
+        assert!(
+            matches!(sc.pointer_hit(cell1.0, cell1.1), PointerHit::None),
+            "确认框开着：下层道具格不可点"
         );
     }
 }

@@ -688,3 +688,28 @@ Evidence: A 级——探针 P3 运行时实录（走 Android 生产路径 `Runti
 轨迹 `[(Dialog,3)×4, (Dialog,0), (Dialog,4), (Map,4)]`、`single_step_walkto_then_manual_step_stops_at_next_cell` `(1,5,0) ≠ (0,3,0)`；
 GREEN：game-core lib 175/175，game-core / game-shell-common / game-android / game-desktop 共 528 测全绿。B 级——①的有害可达性。
 Confidence: 90
+
+## BUG-038 触屏点按穿透浮层 / 场上非空闲时仍执行场上动作：框开着点地图会在框后挂寻路或起步撞格；道具确认框开着点别的格会用掉被点那件（Stage B 触屏层，2026-10-28 对抗复核实测，已修复）
+
+> 【2026-10-28】设计 v0 对抗复核（`docs/reviews/2026-10-28-settings-controls-design-adversarial-review.md` §3 探针 P1a/P1b/P2）。
+- **现象 / 复现**（Android 生产路径 `Runtime::step → step_scene → native::scene_tap`，宿主真资产）：
+  - P1a：地图上弹着提示框时点可走格 ⇒ 框仍开着，mode 却 Map→Dialog dp3（寻路挂在框后，关框瞬间按键又打断它）。
+  - P1b：同上点墙格 ⇒ walkPhase 0→1（框开着时 `try_step` / `interact_with_cell` 已执行，可拾取、开门、开战）。
+  - P2：芭蕉扇使用确认框（kind 3，○/×）开着时点 1 号格 ⇒ 光标改到 1 号、千年月桂露被用掉（HP 300→448，次数 1→0）。
+  - 同理（B 级，读码）：
+    - Windows 鼠标悬停在确认框下的格子上会挪光标，之后按 Q（-6）用掉的是悬停那件；
+    - 行走中、探索、战斗中点地会照样 `walk_to` / `probe_step`（不清 step_progress，可离格或打断战斗）。
+- **根因**（T2/T3 触屏移植缺陷，非原版 bug，D4 不适用）：原版浮层打开期间场上不吃任何输入（a.java:3252-3345 浮层分支吞键后整拍返回），行走、战斗相位也不读场上输入（walkPhase 分派 a.java:3563-3679）。
+  - 壳层点按只判 `game_mode == Map` 就走场上通道（native.rs `scene_tap`、win `pointer_tap`）；
+  - core 的 Stage B 入口 `walk_to` / `probe_step` 不判场上是否空闲；
+  - `pointer_hit` 不看浮层（scene.rs pointer_hit；Windows pointer_hover 同源）。
+- **影响**：误用道具（不可撤）、框后误寻路、弹框期执行场上交互。
+- **Stage A 处理**：**已修复（core 入口）**。
+  - `GameScene::field_tap_allowed()`：无浮层 ∧ 非遮幅 ∧ walkPhase 0 ∧（Map 且未武装 ∨ 点地寻路自身的 dp3 处于格边界）。
+  - `walk_to` / `probe_step` 不满足即拒绝，零状态变化。
+  - `pointer_hit` 在浮层打开时恒 None。
+  - 双壳同受益，壳层未改。点画面在弹框 / 列表里应做什么，见 BUG-039。
+  - 宿主钉：scene.rs `touch_tap_guard_tests`（3）；`shell/android/tests/tap_routing.rs`（3，P1a/P1b/P2 生产路径）。
+- **Stage B 修复方案**：—。
+Evidence: A 级——探针实录；`tap_routing.rs` 三测在修复前 core 上 RED（P1a mode=Dialog、P1b walkPhase=1、P2 光标 1 + 道具已用），修复后 GREEN；
+core 单测 RED = E0599（`field_tap_allowed` 不存在）→ GREEN。game-core / game-shell-common / game-android / game-desktop 534 测全绿。Confidence: 92
