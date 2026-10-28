@@ -325,13 +325,13 @@ pub fn replay_scene_keys(sc: &mut game_core::scene::GameScene, batch: &[KeyActio
 }
 
 /// 【进游戏】场景点按（逻辑坐标；win 壳 pointer_tap/pointer_click 同口径）：
-/// - Map 行走态：触点→格（T3 classify_tap：撤销钮 > 点墙探步入 > 点地 walk_to）→
-///   就地执行，返回 None；
-/// - 其余态（游戏内菜单/背包/商店…）：pointer_hit 行命中 → 选行并返回该态确认键
-///   （调用方按普通点按投递）；未命中 = None。
+/// - 场上空闲（[`GameScene::field_tap_allowed`]，BUG-038）：触点→格（T3 classify_tap：撤销钮 >
+///   点墙探步入 > 点地 walk_to）→ 就地执行，返回 None；
+/// - 其余：pointer_hit 行命中 → 选行并返回该态确认键（调用方按普通点按投递）；未命中 = 点空白，
+///   返回 [`GameScene::blank_tap_key`]（BUG-039：只有继续 / 关闭类情境代按 -5）。
 pub fn scene_tap(sc: &mut game_core::scene::GameScene, x: i32, y: i32) -> Option<i32> {
     use game_shell_common::touch::{classify_tap, Dispatcher, ShellAction, TouchGeom};
-    if sc.game_mode == game_core::enums::GameMode::Map {
+    if sc.field_tap_allowed() {
         let actions = {
             let geom = TouchGeom {
                 cam_x: sc.view.cam_x,
@@ -378,9 +378,8 @@ pub fn scene_tap(sc: &mut game_core::scene::GameScene, x: i32, y: i32) -> Option
         sc.select_row(index);
         return Some(confirm_key);
     }
-    // 行外点按=确认 -5（win 壳 click_key 基线同语义：非 Map 态非软键区左键=确认）——
-    // 对话"点屏幕继续"、菜单族确认均走此臂
-    Some(-5)
+    // 点空白：对话"点屏幕继续"、提示框关闭代按 -5；要做决定的界面不代按（BUG-039）
+    sc.blank_tap_key()
 }
 
 /// `ANativeActivity`（不透明；字段面见 android/native_activity.h——internalDataPath

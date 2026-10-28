@@ -300,9 +300,13 @@ impl Runtime {
                     self.machine.select_row(index);
                     batch.push(KeyAction::Press(confirm_key));
                 }
-                // 行外点按=确认 -5（win 壳 click_key 基线同语义）：序章快进/翻页、
-                // 子页确认——标题态不经此（轮播手势独立通道）
-                _ => batch.push(KeyAction::Press(-5)),
+                // 点空白：序章快进 / 翻页代按 -5；读档列表、设置页不代按（BUG-039）——
+                // 标题态不经此（轮播手势独立通道）
+                _ => {
+                    if let Some(k) = self.machine.blank_tap_key() {
+                        batch.push(KeyAction::Press(k));
+                    }
+                }
             }
         }
         let key = boot_key_from_batch(&batch);

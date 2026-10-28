@@ -136,20 +136,17 @@ fn wheel_key(dy: f64, mode: game_core::enums::GameMode) -> Option<i32> {
 }
 
 /// WIN-OP③（2026-10-18）：鼠标点击 → 游戏键。软键区优先（全态，HUD 语义）；
-/// 右键 = -7 返回/菜单（全态）；非软键区左键 = 确认（-5），但 Map 行走态禁
-/// （防误触玩法键）——行点击（直接选行）另经 game-core handle_pointer（Stage B）。
-fn click_key(x: i32, y: i32, w: i32, h: i32, mode: game_core::enums::GameMode, right: bool) -> Option<i32> {
-    use game_core::enums::GameMode as M;
+/// 右键 = -7 返回/菜单（全态）；非软键区左键 = 点空白，代按 `blank`（活动机
+/// `blank_tap_key`：只有继续 / 关闭类情境 = -5，BUG-039）——行点击（直接选行）另经
+/// game-core pointer_hit（Stage B）。
+fn click_key(x: i32, y: i32, w: i32, h: i32, blank: Option<i32>, right: bool) -> Option<i32> {
     if right {
         return Some(-7);
     }
     if let Some(code) = softkey_code(x, y, w, h) {
         return Some(code); // 软键区（-6/-7）——判区单源
     }
-    if mode == M::Map {
-        return None;
-    }
-    Some(-5)
+    blank
 }
 
 // ---------------------------------------------------------------- 真字形注入（D2 字体缝）
@@ -632,7 +629,16 @@ impl Shell {
                 _ => {}
             }
         }
-        click_key(x, y, self.layout.screen_w, self.layout.screen_h, self.game_mode(), right)
+        click_key(x, y, self.layout.screen_w, self.layout.screen_h, self.blank_tap_key(), right)
+    }
+
+    /// 【BUG-039】活动机点空白代按键（core 单源：GameScene / BootMachine::blank_tap_key）。
+    fn blank_tap_key(&self) -> Option<i32> {
+        match self.state.as_ref() {
+            Some(Screen::Game(sc)) => sc.blank_tap_key(),
+            Some(Screen::Boot(m)) => m.blank_tap_key(),
+            _ => None,
+        }
     }
 
     /// 【T3】可回撤步数（撤销按钮"可回撤 N 步"数据面；非 Game 态=None 不绘制）。
@@ -672,14 +678,14 @@ impl Shell {
         }
     }
 
-    /// 【T3】触点抬起分类（tap）：Map 行走态=触点→格（撤销钮/点墙探步入/点地
-    /// walk_to）；其余态=既有 WIN-OP③ 基线（行命中/软键）语义不动。
+    /// 【T3】触点抬起分类（tap）：场上空闲（core field_tap_allowed，BUG-038）=触点→格
+    /// （撤销钮/点墙探步入/点地 walk_to）；其余态=既有 WIN-OP③ 基线（行命中/软键/点空白）。
     /// 返回 true=触点通道已消费（不再走基线）。
     fn pointer_tap(&mut self, x: i32, y: i32, right: bool) -> bool {
         use game_shell_common::touch::{classify_tap, Dispatcher, ShellAction, TouchGeom};
         let actions: Vec<ShellAction> = if !right {
             match self.state.as_ref() {
-                Some(Screen::Game(sc)) if self.game_mode() == game_core::enums::GameMode::Map => {
+                Some(Screen::Game(sc)) if sc.field_tap_allowed() => {
                     let geom = TouchGeom {
                         cam_x: sc.view.cam_x,
                         cam_y: sc.view.cam_y,
@@ -2165,12 +2171,13 @@ mod shell_tests {
         assert_eq!(wheel_key(1.0, GameMode::InGameMenu), Some(-1), "菜单态滚轮=上移");
         assert_eq!(wheel_key(-1.0, GameMode::Dialog), Some(-2), "对话态滚轮=下移/翻页（自然）");
         assert_eq!(wheel_key(0.0, GameMode::MainMenu), None, "零位移无动作");
-        // ③ 点击基线：软键区优先全态；右键=-7 全态；非软键区左键=确认但 Map 态禁
+        // ③ 点击基线：软键区优先全态；右键=-7 全态；非软键区左键=点空白，代按活动机
+        //    blank_tap_key（BUG-039：继续 / 关闭类 = -5，要做决定的界面与 Map = 不代按）
         let (w, h) = (SCREEN_W, SCREEN_H);
-        assert_eq!(click_key(5, h - 5, SCREEN_W, SCREEN_H, GameMode::Map, false), Some(-6), "软键区全态生效");
-        assert_eq!(click_key(5, 5, SCREEN_W, SCREEN_H, GameMode::Map, true), Some(-7), "右键=返回全态");
-        assert_eq!(click_key(5, 5, SCREEN_W, SCREEN_H, GameMode::Map, false), None, "Map 态点击不误触");
-        assert_eq!(click_key(5, 5, SCREEN_W, SCREEN_H, GameMode::InGameMenu, false), Some(-5), "菜单态点击=确认");
+        assert_eq!(click_key(5, h - 5, SCREEN_W, SCREEN_H, None, false), Some(-6), "软键区全态生效");
+        assert_eq!(click_key(5, 5, SCREEN_W, SCREEN_H, None, true), Some(-7), "右键=返回全态");
+        assert_eq!(click_key(5, 5, SCREEN_W, SCREEN_H, None, false), None, "Map / 决定类界面点空白不代按");
+        assert_eq!(click_key(5, 5, SCREEN_W, SCREEN_H, Some(-5), false), Some(-5), "对话 / 提示框点空白=继续");
         assert!(w > 0); // 占位消未用告警
     }
 

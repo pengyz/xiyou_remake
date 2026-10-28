@@ -181,3 +181,63 @@ fn use_confirm_open_tap_on_other_cell_uses_nothing() {
     assert_eq!(sc.item_cursor, 0, "框开着点 1 号格：光标不得改到下层格");
     assert_eq!((sc.player.hp, sc.player.item_stack_size, sc.player.item_uses[1]), (hp, 2, 1), "千年月桂露未被使用（探针 P2 曾 HP 300→448）");
 }
+
+// ───────────────────────── BUG-039：点空白只在"继续 / 关闭"类情境代按确定
+
+/// 地图上的普通提示框：点画面 = 关闭（与面板"确定"同效）。
+#[test]
+fn map_message_overlay_tap_closes_it() {
+    let mut h = to_map("b39msg");
+    let (walk, _) = field_points(&h);
+    open_map_message(&mut h);
+    h.step_no_paint(vec![], vec![walk]);
+    assert!(!h.sc().overlay_active, "点画面关闭提示框");
+    assert_eq!(h.sc().game_mode, GameMode::Map, "不寻路");
+}
+
+/// 原版用 ○/× 脚注标明的是否框（商人报价同款）：点画面不代按确定（-5 = 接受 / 购买）。
+#[test]
+fn map_yes_no_overlay_tap_does_nothing() {
+    let mut h = to_map("b39yesno");
+    let (walk, _) = field_points(&h);
+    {
+        let sc = h.sc_mut();
+        sc.overlay_active = true;
+        sc.overlay_kind = 4;
+        sc.overlay_left_icon = 1;
+        sc.overlay_right_icon = 2;
+        sc.overlay_text = Some("报价".into());
+    }
+    let gold = h.sc().player.gold;
+    h.step_no_paint(vec![], vec![walk]);
+    assert!(h.sc().overlay_active, "是否框仍开着（等玩家按 接受 / 拒绝）");
+    assert_eq!(h.sc().player.gold, gold, "未花钱");
+}
+
+/// 存档页点空白：不得覆盖当前槽（曾 = -5 存入高亮槽并弹"保存成功！"）。
+#[test]
+fn save_page_blank_tap_does_not_overwrite_slot() {
+    let mut h = to_map("b39save");
+    h.step(tap(-7), vec![]); // 游戏内菜单
+    for _ in 0..3 {
+        h.step(vec![], vec![]);
+    }
+    let kinds = h.sc().menu_kinds.clone();
+    let save_idx = kinds.iter().position(|&k| k == 3).expect("菜单有保存项");
+    for _ in 0..save_idx {
+        h.step(tap(-2), vec![]);
+        h.step(vec![], vec![]);
+    }
+    h.step(tap(-6), vec![]); // 保存游戏 → 存档槽（mode 7）
+    h.step(vec![], vec![]);
+    assert_eq!(h.sc().game_mode, GameMode::SaveSlot, "前置：存档槽页");
+    let blank = (2.0, 2.0);
+    assert!(
+        matches!(h.sc().pointer_hit(2, 2), game_core::scene::PointerHit::None),
+        "前置：(2,2) 不在任何槽行上"
+    );
+    h.step(vec![], vec![blank]);
+    h.step(vec![], vec![]);
+    assert!(!h.rt.stores.iter().any(|(k, _)| k == "MOT_L0@1"), "点空白不写存档");
+    assert!(!h.sc().overlay_active, "未弹\"保存成功！\"");
+}

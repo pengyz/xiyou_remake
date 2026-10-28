@@ -756,7 +756,7 @@ fn scene_tap_walks_on_map_and_confirms_rows_in_menus() {
         .find(|&y| matches!(sc.pointer_hit(cx, y), game_core::scene::PointerHit::Row { .. }))
         .expect("菜单有可点行");
     assert_eq!(scene_tap(&mut sc, cx, row_y), Some(-6), "菜单行点按=选行+确认 -6");
-    // 行外点按=确认 -5（win 壳 click_key 基线同语义：非 Map 态非软键区左键=确认）——
-    // 对话态"点屏幕继续"即走此臂
-    assert_eq!(scene_tap(&mut sc, 1, 1), Some(-5), "UI 态行外点按=确认（PC 点击基线同源）");
+    // 【BUG-039】行外点按（点空白）在要做决定的界面不代按确认（曾 = -5 执行高亮项）；
+    // 对话"点屏幕继续"仍代按（core GameScene::blank_tap_key）
+    assert_eq!(scene_tap(&mut sc, 1, 1), None, "游戏内菜单点空白不代按确认");
 }

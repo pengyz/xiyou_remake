@@ -309,6 +309,16 @@ impl BootMachine {
         crate::scene::PointerHit::None
     }
 
+    /// 【BUG-039 · Stage B 触屏】开场链点空白时代按的键：标题（只显示当前一项，点即确认该项——
+    /// win 鼠标基线；Android 标题走轮播手势不经此）与序章（快进）代按 -5；读档列表（会读高亮槽）、
+    /// 设置（会切换高亮行）与其余不代按。
+    pub fn blank_tap_key(&self) -> Option<i32> {
+        match self.mode {
+            GameMode::MainMenu | GameMode::IntroCutscene => Some(-5),
+            _ => None,
+        }
+    }
+
     /// 指针选行（只动高亮，零其他状态）。
     pub fn select_row(&mut self, index: i32) {
         if self.mode == GameMode::MainMenu {
@@ -990,6 +1000,26 @@ mod tests {
             vec![],
             vec![],
         )
+    }
+
+    /// 【BUG-039】开场链点空白：标题（只显示一项，点即确认该项——win 鼠标基线）与序章（快进）
+    /// 代按 -5；读档列表（会读高亮槽）、设置（会切换高亮行）与其余不代按。
+    #[test]
+    fn boot_blank_tap_continues_only_in_title_and_intro() {
+        let mut m = boot_state();
+        for (mode, want) in [
+            (GameMode::MainMenu, Some(-5)),
+            (GameMode::IntroCutscene, Some(-5)),
+            (GameMode::EquipDetail, None),
+            (GameMode::About, None),
+            (GameMode::Help, None),
+            (GameMode::IconView, None),
+            (GameMode::Loading, None),
+            (GameMode::Boot, None),
+        ] {
+            m.mode = mode;
+            assert_eq!(m.blank_tap_key(), want, "{mode:?} 点空白");
+        }
     }
 
     /// 【BUG-031⑤】开场链帮助/关于浮层（paint 公共尾 a.java:3129-3171）：盒框 x/y 仍按 SCREEN_W/H 常量

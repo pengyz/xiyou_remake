@@ -9442,6 +9442,25 @@ impl GameScene {
     /// 指针命中：游戏内菜单/商店（行带）与背包（栅格）。对话/玩法态恒 None
     /// （不点走剧情、不在行走态误触）。confirm_key 逐态（③-3）：菜单族激活=-6、
     /// 道具使用=-6（键码契约 §4 同码不同动作——标题确认另有 -5/53）。
+    /// 【BUG-039 · Stage B 触屏】点空白（未命中任何行 / 格）时代按的键。只有"继续 / 关闭"类
+    /// 情境代按确定 -5：对话、结局、普通提示框；要做决定的界面（菜单、存档、炼丹、道具栏、
+    /// 设置等列表）与原版以 ○/× 脚注标明的是否框（道具使用确认 kind 3、商人报价 kind 4）点空白
+    /// 不代按——曾：存档页点空白 = 覆盖当前槽、炼丹炉 = 花钱、菜单 = 执行高亮项。换层遮幅期
+    /// 浮层不画却照吞键（paint 公共尾 `!transitioning` 门），点空白亦不代按。
+    pub fn blank_tap_key(&self) -> Option<i32> {
+        if self.transitioning {
+            return None;
+        }
+        if self.overlay_active {
+            let yes_no = self.overlay_left_icon == 1 && self.overlay_right_icon == 2;
+            return if yes_no { None } else { Some(-5) };
+        }
+        match self.game_mode {
+            GameMode::Dialog | GameMode::Ending => Some(-5),
+            _ => None,
+        }
+    }
+
     pub fn pointer_hit(&self, x: i32, y: i32) -> PointerHit {
         // 【BUG-038】浮层在最上层：其下的行 / 格不接受命中（原版浮层分支先于各模式吞键）
         if self.overlay_active {
@@ -10634,5 +10653,50 @@ mod touch_tap_guard_tests {
             matches!(sc.pointer_hit(cell1.0, cell1.1), PointerHit::None),
             "确认框开着：下层道具格不可点"
         );
+    }
+}
+
+/// BUG-039：点空白（未命中行 / 格）恒代按确定 -5（native.rs scene_tap 行外臂、runtime.rs step_boot、
+/// win click_key 非 Map 态）⇒ 存档页点空白 = 覆盖当前槽、炼丹炉 = 花钱买、游戏内菜单 = 执行高亮项、
+/// 设置页 = 切换高亮行、道具栏 = 选中高亮道具。只有"继续 / 关闭"类情境代按；原版以 ○/× 脚注
+/// 标明的是否框（道具使用确认 kind 3、商人报价 kind 4）点空白不代按。
+#[cfg(test)]
+mod blank_tap_tests {
+    use super::scene_test_support::{scene, ROW};
+    use super::*;
+
+    #[test]
+    fn blank_tap_continues_only_in_continue_contexts() {
+        let mut sc = scene((1, ROW), &[]);
+        for (mode, want) in [
+            (GameMode::Dialog, Some(-5)),
+            (GameMode::Ending, Some(-5)),
+            (GameMode::Map, None),
+            (GameMode::InGameMenu, None),
+            (GameMode::SaveSlot, None),
+            (GameMode::Alchemy, None),
+            (GameMode::ItemPanel, None),
+            (GameMode::About, None),
+            (GameMode::EnemyInfo, None),
+            (GameMode::Help, None),
+        ] {
+            sc.game_mode = mode;
+            assert_eq!(sc.blank_tap_key(), want, "{mode:?} 无浮层点空白");
+        }
+        sc.game_mode = GameMode::Map;
+        for (kind, l, r, want) in [
+            (0, 0, 0, Some(-5)), // 提示框：关闭
+            (1, 0, 3, Some(-5)), // 拾取说明：关闭
+            (3, 0, 3, Some(-5)), // 说明类道具：关闭
+            (4, 0, 0, Some(-5)), // 赠礼 / 告示：关闭
+            (3, 1, 2, None),     // 道具使用确认（○/×）：不代按
+            (4, 1, 2, None),     // 商人报价（○/×）：不代按
+        ] {
+            sc.show_overlay_message(kind, "x", l, r);
+            assert_eq!(sc.blank_tap_key(), want, "浮层 kind {kind} 脚注 ({l},{r}) 点空白");
+        }
+        sc.show_overlay_message(0, "x", 0, 0);
+        sc.transitioning = true;
+        assert_eq!(sc.blank_tap_key(), None, "换层遮幅期（浮层不画却照吞键）点空白不代按");
     }
 }

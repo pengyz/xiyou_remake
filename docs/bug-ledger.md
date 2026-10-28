@@ -713,3 +713,38 @@ Confidence: 90
 - **Stage B 修复方案**：—。
 Evidence: A 级——探针实录；`tap_routing.rs` 三测在修复前 core 上 RED（P1a mode=Dialog、P1b walkPhase=1、P2 光标 1 + 道具已用），修复后 GREEN；
 core 单测 RED = E0599（`field_tap_allowed` 不存在）→ GREEN。game-core / game-shell-common / game-android / game-desktop 534 测全绿。Confidence: 92
+
+## BUG-039 点空白恒代按确定：存档页点空白覆盖当前槽、炼丹炉点空白花钱、游戏内菜单点空白执行高亮项（Stage B 触屏 / 鼠标，2026-10-28 对抗复核发现，已修复）
+
+> 【2026-10-28】设计 v0 对抗复核（`docs/reviews/2026-10-28-settings-controls-design-adversarial-review.md` §4 S3②）。
+- **现象 / 复现**：点按未命中任何行 / 格时，一律代按确定 -5。涉及三处：Android `native::scene_tap` 行外臂、`runtime::step_boot`、
+  Windows `click_key`（非 Map 态）。
+  - 宿主实测（`shell/android/tests/tap_routing.rs`，修复前 RED）：存档页点 (2,2) 空白 ⇒ 写入 `MOT_L0@1` 并弹"保存成功！"。
+  - 同理（读码）：
+    - 炼丹炉 = 花钱买高亮属性；
+    - 游戏内菜单 = 执行高亮项（"退出"、"跳过教程"）；
+    - 道具栏 = 选中高亮道具；
+    - 设置页 = 切换高亮行；
+    - 标题侧读档列表 = 读高亮槽。
+  - 反向缺口：BUG-038 修复后，地图上弹着的普通提示框点画面没有反应（点按仍走场上通道、被拒）。
+- **根因**（WIN-OP③ / T3 设计缺陷，非原版 bug，D4 不适用）："点画面 = 确定"是为对话推进设计的，但被一刀切用于所有非地图态；
+  原版只有对话、提示框是"任意键继续"语义。
+- **影响**：误覆盖存档（不可撤）、误花钱、误执行菜单项。
+- **Stage A 处理**：**已修复**。
+  - core 单源 `GameScene::blank_tap_key()`：
+    - 对话、结局、普通提示框 → Some(-5)；
+    - 原版 ○/× 脚注标明的是否框（道具使用确认 kind 3、商人报价 kind 4）→ None；
+    - 要做决定的列表、地图、换层遮幅期 → None。
+  - core 单源 `BootMachine::blank_tap_key()`：标题（只显示当前一项，点即确认该项——Windows 鼠标基线）、序章快进 → Some(-5)；
+    读档列表、设置等 → None。
+  - Android `scene_tap` 改为：场上空闲走场上通道（`field_tap_allowed`，BUG-038），否则先命中行，再取点空白键；`step_boot` 同用。
+  - Windows：`pointer_tap` 只在 `field_tap_allowed` 时走场上通道；`click_key` 的点空白取活动机 `blank_tap_key`。
+  - **行为变化**（含 Windows 鼠标）：上述列表界面点空白不再确认，改为点行；炼丹炉没有行命中，用按键或面板"确定"。
+  - 宿主钉：
+    - scene.rs `blank_tap_tests`（1）、paint.rs `boot_blank_tap_continues_only_in_title_and_intro`（1）；
+    - `tap_routing.rs` 新增 3 测（提示框点击关闭 / 是否框点击无效 / 存档页点空白不写档）；
+    - `native_parse.rs` 游戏内菜单点空白断言由 `Some(-5)` 改 `None`；
+    - Windows `click_key` 断言按新签名改写。
+- **Stage B 修复方案**：—（STAGE-B-007 功能键面板会把点画面规则并入同一查询）。
+Evidence: A 级——`tap_routing.rs` 存档页 / 提示框两测、`native_parse.rs` 菜单点空白断言在修复前 RED（写入 `MOT_L0@1`、提示框未关、`Some(-5)`）；
+core 两测 RED = E0599（`blank_tap_key` 不存在）。GREEN：game-core / game-shell-common / game-android / game-desktop 539 测全绿。Confidence: 92
