@@ -933,41 +933,63 @@ impl BootMachine {
                 lg.set_canvas(self.layout.screen_w, self.layout.screen_h);
                 lg.tick(&self.sflogo, self.counter);
             } else {
-                // a.java:3371-3373：清理 + gameMode=21 + dispatchModeEntry()
-                self.logo.as_mut().unwrap().clear_all(); // removeLogoItem(-1)
-                self.logo.as_mut().unwrap().reset_layout_flag(); // logoLayoutDone=false（a.java:3372）
-                self.image = None;
-                self.counter = 0;
-                self.bgm.close(); // closeAudioPlayer（a.java:3376，此时无播放器）
-                self.frame_interval_ms = 75; // f_int_02=75（a.java:3377）
-                if self.layout.boot_sound_prompt {
-                    // classic 原版时间轴（a.java:3371-3373 → SoundAsk + case21 入场）——
-                    // STAGE-B-001 门控化（2026-10-19 lead 裁定）：001 行为只在 modern
-                    // 预设生效；classic 预设保留开机声音询问 = 原版时间轴，64 枚帧夹具
-                    // Java 参照面零偏离（docs/spec/stage-b-deviations.md 001 节更正）。
-                    self.mode = GameMode::SoundAsk;
-                    // dispatchModeEntry case 21（a.java:4482-4478）：软键 (1,2)；
-                    // soundEnabled=false（a.java:4484）；RMS "SKY_WAR" 读档失败路径
-                    //（oracle 内存库恒空 ⇒ catch 删库重置）
-                    self.softkeys = (1, 2);
-                    self.bgm.enter_sound_prompt();
-                    self.finished = false; // mode 21 属对拍范围
-                } else {
-                    // STAGE-B-001（modern 预设面，docs/spec/stage-b-deviations.md）：
-                    // 跳过 mode 21 声音询问——直入标题，默认开声。偏离点 1/2。
-                    self.mode = GameMode::MainMenu;
-                    // mode1 入场半：建 TitleMachine（照 SoundAsk 回答臂的 gameMode=1 语义
-                    // a.java:4232-4241 同款）——跳过询问不跳过初始化（首版漏此致 title=None panic）
-                    self.title = Some(crate::title::TitleMachine::new());
-                    self.bgm.enter_title(); // m_000 case 1 音频半（a.java:4295/4311）——
-                    // 标题 BGM=track2（STAGE-B-001 硬要求 3：防直入标题带出无声屏）
-                    self.finished = false;
-                    // SKY_WAR 读档失败路径（oracle 内存库恒空 ⇒ catch 删库重置）——
-                    // 原在 case21 入场（a.java:4450-4479）；Rust 侧构造链独立（shell boot）
-                }
+                self.finish_boot_splash();
             }
         }
         self.key_value = 0; // a.java:4276（tick 末 keyValue=0）
+    }
+
+    /// 【STAGE-B-006】跳过开屏（mode 0 三屏：l0 / l1 / sflogo 动画）：modern ∧ mode 0 ∧ 尚未出拍 ⇒ 直接走 mode 0 收尾
+    /// （与自然播完共用 [`Self::finish_boot_splash`]），返回 true；否则不操作，返回 false。classic（开机声音询问 = 原版
+    /// 时间轴）恒 false。壳须在写入声音设置之后调用（收尾即进标题，`enter_title` 按当时的声音开关建播放器）。
+    /// mode 0 不读键、不用随机数，资源与 SKY_WAR 由壳在开屏前装载 ⇒ 跳过不漏初始化。
+    pub fn skip_boot_splash(&mut self) -> bool {
+        if self.mode != GameMode::Boot || self.phase != 0 || self.counter != 0 || self.layout.boot_sound_prompt {
+            return false;
+        }
+        self.phase = 2; // 与自然播完同值（logo 相位）
+        self.finish_boot_splash();
+        true
+    }
+
+    /// mode 0 收尾（a.java:3371-3377）：清理 + 切换。自然播完（logo 时间线 35 拍耗尽）与
+    /// [`Self::skip_boot_splash`] 共用（STAGE-B-006）。
+    fn finish_boot_splash(&mut self) {
+        // a.java:3371-3373：清理 + gameMode=21 + dispatchModeEntry()
+        // 【STAGE-B-006】logo 取得改 get_or_insert_with：自然路径此时恒 Some（logo 相位已建）⇒ 行为不变；跳过路径无 logo ⇒
+        // 补建空层（mode 22 绘制臂 `logo.as_ref().unwrap()` 依赖其存在；复核 M5①）
+        let lg = self.logo.get_or_insert_with(crate::logo_anim::LogoAnim::new);
+        lg.clear_all(); // removeLogoItem(-1)
+        lg.reset_layout_flag(); // logoLayoutDone=false（a.java:3372）
+        self.image = None;
+        self.counter = 0;
+        self.bgm.close(); // closeAudioPlayer（a.java:3376，此时无播放器）
+        self.frame_interval_ms = 75; // f_int_02=75（a.java:3377）
+        if self.layout.boot_sound_prompt {
+            // classic 原版时间轴（a.java:3371-3373 → SoundAsk + case21 入场）——
+            // STAGE-B-001 门控化（2026-10-19 lead 裁定）：001 行为只在 modern
+            // 预设生效；classic 预设保留开机声音询问 = 原版时间轴，64 枚帧夹具
+            // Java 参照面零偏离（docs/spec/stage-b-deviations.md 001 节更正）。
+            self.mode = GameMode::SoundAsk;
+            // dispatchModeEntry case 21（a.java:4482-4478）：软键 (1,2)；
+            // soundEnabled=false（a.java:4484）；RMS "SKY_WAR" 读档失败路径
+            //（oracle 内存库恒空 ⇒ catch 删库重置）
+            self.softkeys = (1, 2);
+            self.bgm.enter_sound_prompt();
+            self.finished = false; // mode 21 属对拍范围
+        } else {
+            // STAGE-B-001（modern 预设面，docs/spec/stage-b-deviations.md）：
+            // 跳过 mode 21 声音询问——直入标题，默认开声。偏离点 1/2。
+            self.mode = GameMode::MainMenu;
+            // mode1 入场半：建 TitleMachine（照 SoundAsk 回答臂的 gameMode=1 语义
+            // a.java:4232-4241 同款）——跳过询问不跳过初始化（首版漏此致 title=None panic）
+            self.title = Some(crate::title::TitleMachine::new());
+            self.bgm.enter_title(); // m_000 case 1 音频半（a.java:4295/4311）——
+            // 标题 BGM=track2（STAGE-B-001 硬要求 3：防直入标题带出无声屏）
+            self.finished = false;
+            // SKY_WAR 读档失败路径（oracle 内存库恒空 ⇒ catch 删库重置）——
+            // 原在 case21 入场（a.java:4450-4479）；Rust 侧构造链独立（shell boot）
+        }
     }
 }
 
@@ -1386,6 +1408,91 @@ mod tests {
         m.tick(-5);
         assert_eq!(m.bgm.sound_enabled, !sound, "原行为：第 1 行照旧翻声音");
         assert!(m.take_global_dirty(), "原行为：原行翻转照旧置脏");
+    }
+
+    /// 【STAGE-B-006】开屏结束后的可观察状态（跳过 vs 自然播完的等价判据，设计件 §2.3）。比较点 = 拍边界、尚未绘制；
+    /// 运行时自然路径还会多绘制一帧（paints 68 对 0、strip_frame 多 1：只差图标带相位，复核 T3-F3 实测像素无其他差异）。
+    fn boot_exit_state(m: &BootMachine) -> impl PartialEq + std::fmt::Debug {
+        let mut rng = m.rng.clone();
+        let draws: Vec<i32> = (0..4).map(|_| rng.random_below(1000)).collect();
+        (
+            (m.mode, m.title_cursor(), m.bgm.clone(), m.bgm_request(), m.frame_interval_ms, m.finished),
+            (m.softkeys, m.logo.is_some(), m.phase, m.counter, m.image.is_none(), m.key_value),
+            (m.global_snapshot(), m.global_dirty, m.strip_frame, m.bob_offset, m.bob_rising, draws),
+        )
+    }
+
+    /// 【STAGE-B-006】modern 首拍前跳过开屏 = 自然播完 68 拍（l0 16 + l1 16 + logo 36）后的状态；声音开 / 关各一对。
+    #[test]
+    fn skip_boot_splash_equals_natural_finish() {
+        for sound in [true, false] {
+            let fresh = || {
+                let mut m = boot_state();
+                m.apply_layout(crate::layout::Layout::modern(12, 16));
+                m.bgm.sound_enabled = sound;
+                m
+            };
+            let mut natural = fresh();
+            for _ in 0..67 {
+                natural.tick(0);
+            }
+            assert_eq!(natural.mode, GameMode::Boot, "前置：第 67 拍仍在开屏");
+            natural.tick(0);
+            assert_eq!(natural.mode, GameMode::MainMenu, "前置：第 68 拍进主菜单");
+            let mut skipped = fresh();
+            assert!(skipped.skip_boot_splash(), "modern 首拍前可跳过");
+            assert_eq!(boot_exit_state(&skipped), boot_exit_state(&natural), "sound={sound}");
+            assert_eq!(skipped.bgm_request().is_some(), sound, "标题曲随声音开关");
+        }
+    }
+
+    /// 【STAGE-B-006】只在 modern ∧ mode 0 ∧ 首拍前生效；其余不操作返回 false（四个守卫项各钉一例，复核 T3-F1）。
+    #[test]
+    fn skip_boot_splash_refused_in_classic_or_after_first_tick() {
+        let modern = || {
+            let mut m = boot_state();
+            m.apply_layout(crate::layout::Layout::modern(12, 16));
+            m
+        };
+        let mut classic = boot_state(); // 默认 classic：保留开机声音询问 = 原版时间轴
+        let before = boot_exit_state(&classic);
+        assert!(!classic.skip_boot_splash(), "classic 不跳过");
+        assert_eq!(boot_exit_state(&classic), before, "classic 状态不变");
+        // 已出拍：counter 1（l0 显示中）、phase 1 / counter 0（l1 装载前）、phase 2 / counter 0（logo 相位前）
+        for ticks in [1, 16, 32] {
+            let mut m = modern();
+            for _ in 0..ticks {
+                m.tick(0);
+            }
+            assert_eq!(m.mode, GameMode::Boot, "前置：{ticks} 拍后仍在开屏");
+            let before = boot_exit_state(&m);
+            assert!(!m.skip_boot_splash(), "{ticks} 拍后不跳过");
+            assert_eq!(boot_exit_state(&m), before, "{ticks} 拍后状态不变");
+        }
+        // 非 mode 0（phase / counter 仍为 0）
+        let mut other = modern();
+        other.mode = GameMode::About;
+        let before = boot_exit_state(&other);
+        assert!(!other.skip_boot_splash(), "非 mode 0 不跳过");
+        assert_eq!(boot_exit_state(&other), before, "非 mode 0 状态不变");
+        let mut twice = modern();
+        assert!(twice.skip_boot_splash());
+        assert!(!twice.skip_boot_splash(), "已在主菜单不再跳");
+    }
+
+    /// 【STAGE-B-006】跳过后在主菜单选"退出"：mode 22 入场后先绘制再出拍，绘制臂 `logo.as_ref().unwrap()` 不得 panic
+    /// （复核 M5①：跳过路径未经 logo 相位，logo 须由收尾补建）。
+    #[test]
+    fn exit_after_skip_paints_logo_anim_without_panic() {
+        let mut m = boot_state();
+        m.apply_layout(crate::layout::Layout::modern(12, 16));
+        assert!(m.skip_boot_splash());
+        m.title.as_mut().unwrap().cursor = 5; // kind 5 = 退出
+        m.tick(-5);
+        assert_eq!(m.mode, GameMode::LogoAnim);
+        let mut img = ArgbImage::create(m.layout.screen_w, m.layout.screen_h);
+        let mut g = SoftGraphics::new(&mut img);
+        m.paint(&mut g);
     }
 
     /// 水位助手条件（a.java:4297/7163 共用）：50 抬升；51 结局层不计；不回退。
