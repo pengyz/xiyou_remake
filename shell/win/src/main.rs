@@ -365,6 +365,8 @@ struct Shell {
     /// STAGE-B-001：全局应用设置（声音对）——save 目录旁 app_settings.cfg；
     /// settings_path=None = 平台未给路径（测试/无持久场景）不落盘。
     settings_path: Option<std::path::PathBuf>,
+    /// 上次装载 / 落盘值。【STAGE-B-006】还携带 Windows 不提供的三键（开屏画面 / 按键震动 / 按键音），
+    /// persist 用它补齐——不可简化回 `Default`（否则改写 Android 版写出的值）。
     settings_saved: Option<game_shell_common::settings::AppSettings>,
 }
 
@@ -845,9 +847,14 @@ impl Shell {
     }
 
     /// STAGE-B-001：变更落盘（写-if-changed，best-effort 吞错——FileRms 同律）。
+    /// 【STAGE-B-006】Windows 不提供开屏 / 按键反馈三行：其余键沿用上次装载 / 落盘值，不改写文件里的它们。
     fn persist_settings_if_changed(&mut self) {
         let Some((sound, vol)) = self.sound_state() else { return };
-        let cur = game_shell_common::settings::AppSettings { sound_enabled: sound, volume_level: vol };
+        let cur = game_shell_common::settings::AppSettings {
+            sound_enabled: sound,
+            volume_level: vol,
+            ..self.settings_saved.unwrap_or_default()
+        };
         if self.settings_saved == Some(cur) {
             return;
         }
@@ -1679,6 +1686,39 @@ mod shell_tests {
         h.run_tick(&[]);
         let s = game_shell_common::settings::AppSettings::load(&p);
         assert!(!s.sound_enabled, "toggle 后下一拍落盘（关声持久）");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 【STAGE-B-006】Windows 不提供"开屏画面 / 按键震动 / 按键音"三行，但声音变更落盘时不得改写文件里的这三个键
+    /// （同一份 app_settings.cfg 可能由 Android 版写出或被用户手改）：保留装载值。
+    #[test]
+    fn persist_keeps_stage_b006_keys() {
+        let mut h = Harness::new("preset-floor1.preset");
+        let dir = std::env::temp_dir().join(format!("xiyou-settings-b006-win-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("app_settings.cfg");
+        std::fs::write(&p, "sound_enabled=true\nvolume_level=60\nshow_splash=true\nkey_haptic=false\nkey_click=false\n").unwrap();
+        h.shell.settings_path = Some(p.clone());
+        h.shell.apply_loaded_settings(game_shell_common::settings::AppSettings::load(&p));
+        // classic 时间轴的开机声音询问会让声音对短暂变化 ⇒ 期间落盘属既有行为（新键须在这些写盘中保留，末尾核对）
+        h.run_to(250, &LOAD_FLOOR1);
+        // 值未变化 ⇒ 不改写：换成同值的非规范写法（注释 + 键序不同），若被改写字节必变（复核 T5-F2）
+        let same = "# 手写注释\nkey_click=false\nsound_enabled=true\nshow_splash=true\nvolume_level=60\nkey_haptic=false\n";
+        std::fs::write(&p, same).unwrap();
+        for _ in 0..5 {
+            h.run_tick(&[]);
+        }
+        assert_eq!(std::fs::read_to_string(&p).unwrap(), same, "值未变化 ⇒ 不改写文件");
+        if let Some(Screen::Game(sc)) = h.shell.state.as_mut() {
+            sc.bgm.sound_enabled = false;
+            sc.bgm.volume_level = 0;
+        } else {
+            panic!("前置：在场景中");
+        }
+        h.run_tick(&[]);
+        let s = game_shell_common::settings::AppSettings::load(&p);
+        assert!(!s.sound_enabled, "声音变更已落盘");
+        assert_eq!((s.show_splash, s.key_haptic, s.key_click), (true, false, false), "三个新键保留装载值");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
