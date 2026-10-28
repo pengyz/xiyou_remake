@@ -480,6 +480,9 @@ pub struct GameScene {
     pub encyc_scroll_bottom: i32,
     /// mode 16 设置面板（kind4 进入；menuReturnMode=4 返回）
     pub options: Option<crate::menu_family::OptionList>,
+    /// 【STAGE-B-006】壳层附加设置行（交接自 BootMachine，回标题时交回；空 = 原版两行）：设置页入口据此生成第 3 行起的
+    /// 附加行，切换回写此处。core 不解释其含义。
+    pub shell_options: Vec<crate::menu_family::ShellOption>,
     /// 音频语义（crate::audio；docs/spec/audio.md）。soundEnabled 的唯一真相源
     ///（run case16 label0 翻转，a.java:4157）。独立构造默认 = 「刚进 mode 3、声音开」；
     /// 宿主从 BootMachine 交接时整体覆盖（Java 为同一对象，状态连续）。
@@ -1076,6 +1079,7 @@ impl GameScene {
             encyc_scroll_top: 0,
             encyc_scroll_bottom: 0,
             options: None,
+            shell_options: Vec::new(),
             bgm: crate::audio::BgmState::in_game_default(),
             saved_slot_blobs: [None, None, None, None, None, None],
             rainbow_phase: 0,
@@ -4491,9 +4495,11 @@ impl GameScene {
     }
 
     fn enter_menu16(&mut self) {
-        self.options = Some(crate::menu_family::OptionList::new(
+        // 【STAGE-B-006】原两行之后接壳层附加行（空 = 原版两行）
+        self.options = Some(crate::menu_family::OptionList::with_shell_rows(
             self.bgm.sound_enabled,
             self.minimap_enabled,
+            &self.shell_options,
         ));
         self.softkeys = (0, 3);
     }
@@ -4507,6 +4513,12 @@ impl GameScene {
             -7 | -6 => self.transition_to(self.menu_return_mode),
             -5 | -4 | -3 => {
                 let cur = opt.highlight as usize;
+                if let Some((id, v)) = opt.toggle_shell_row(cur) {
+                    // 【STAGE-B-006】壳层附加行：只翻该行并回写 shell_options——不碰声音 / 小地图 / SKY_WAR。
+                    // 早退：本 match 是函数末语句（原臂文本保持原样）；若日后在 match 后加逻辑，须改回 if/else。
+                    crate::menu_family::set_shell_option(&mut self.shell_options, id, v);
+                    return;
+                }
                 opt.checked[cur] = !opt.checked[cur];
                 match opt.labels[cur] {
                     0 => {
@@ -4527,14 +4539,14 @@ impl GameScene {
             }
             -2 => {
                 opt.highlight += 1;
-                if opt.highlight > opt.labels.len() as i32 - 1 {
+                if opt.highlight > opt.len() as i32 - 1 {
                     opt.highlight = 0;
                 }
             }
             -1 => {
                 opt.highlight -= 1;
                 if opt.highlight < 0 {
-                    opt.highlight = opt.labels.len() as i32 - 1;
+                    opt.highlight = opt.len() as i32 - 1;
                 }
             }
             _ => {}
@@ -9676,6 +9688,70 @@ mod pointer_seam_tests {
             panic!();
         }
         assert_eq!(sc.player.hp, hp, "他态零变化");
+    }
+
+    /// 【STAGE-B-006】游戏内设置页：壳层附加行排在第 3-5 行；切换只改 `shell_options`（声音 / 小地图 / SKY_WAR 快照 /
+    /// 脏位不变）；高亮在 5 行内环绕；-5 / -4 / -3 与"点行 → 选中 → 确认"都只翻附加行（复核 T1-F2）。
+    #[test]
+    fn in_game_settings_shell_rows_toggle_only_shell_options() {
+        let rows: Vec<crate::menu_family::ShellOption> = [(1u8, "开屏画面", false), (2, "按键震动", true), (3, "按键音", true)]
+            .into_iter()
+            .map(|(id, l, checked)| crate::menu_family::ShellOption { id, label: l.encode_utf16().collect(), checked })
+            .collect();
+        let mut sc = scene((2, 2), &[]);
+        sc.apply_layout(crate::layout::Layout::modern(18, 18));
+        sc.build_minimap();
+        sc.shell_options = rows.clone();
+        sc.menu_return_mode = GameMode::InGameMenu;
+        sc.enter_menu16();
+        sc.game_mode = GameMode::About;
+        let hl = |sc: &super::GameScene| sc.options.as_ref().unwrap().highlight_index();
+        assert_eq!(sc.options.as_ref().unwrap().len(), 5, "原两行 + 三行附加行");
+        for want in [1, 2, 3, 4, 0] {
+            sc.key_value = -2;
+            sc.tick_menu16();
+            assert_eq!(hl(&sc), want, "下移逐行走完一圈（第 5 行后回第 1 行）");
+        }
+        for want in [4, 3, 2, 1, 0] {
+            sc.key_value = -1;
+            sc.tick_menu16();
+            assert_eq!(hl(&sc), want, "上移逐行走完一圈（第 1 行后到第 5 行）");
+        }
+        // 不变量逐键核对（复核 T2-F1：偶数次翻转会抵消布尔旁写，只在末尾断言抓不到）
+        let inv = |sc: &super::GameScene| {
+            let o = sc.options.as_ref().unwrap();
+            (
+                sc.bgm.clone(),
+                sc.minimap_enabled,
+                sc.minimap.is_some(),
+                sc.global_snapshot(),
+                sc.global_dirty,
+                o.labels.clone(),
+                o.checked.clone(),
+            )
+        };
+        let before = inv(&sc);
+        assert!(before.2, "前置：小地图已建");
+        sc.options.as_mut().unwrap().set_highlight(3); // 按键震动
+        for (k, expect) in [(-5, false), (-4, true), (-3, false)] {
+            sc.key_value = k;
+            sc.tick_menu16();
+            assert_eq!(sc.shell_options[1].checked, expect, "键 {k}：按键震动行翻转");
+            assert_eq!(sc.options.as_ref().unwrap().shell_rows()[1].checked, expect, "键 {k}：面板同步");
+            assert_eq!(inv(&sc), before, "键 {k}：声音 / 小地图 / SKY_WAR / 脏位 / 原两行不变");
+        }
+        let (ry, rh) = sc.options.as_ref().unwrap().row_band(3, &sc.layout);
+        assert_eq!(sc.pointer_hit(sc.layout.screen_w / 2, ry + rh / 2), PointerHit::Row { index: 3, confirm_key: -5 });
+        sc.select_row(3);
+        sc.key_value = -5;
+        sc.tick_menu16();
+        assert!(sc.shell_options[1].checked, "点行确认：按键震动行翻回开");
+        assert_eq!((&sc.shell_options[0], &sc.shell_options[2]), (&rows[0], &rows[2]), "其余附加行不动");
+        assert_eq!(inv(&sc), before, "点行确认：声音 / 小地图 / SKY_WAR / 脏位 / 原两行不变");
+        sc.select_row(1);
+        sc.key_value = -5;
+        sc.tick_menu16();
+        assert!(!sc.options.as_ref().unwrap().checked[1] && sc.minimap.is_none(), "原行为：小地图行照旧关小地图");
     }
 
     /// 存档槽列表（SlotSelect 面，2026-10-18 用户反馈）：行带单源 + 命中 ±1px +

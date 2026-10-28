@@ -238,6 +238,9 @@ pub struct BootMachine {
     pub slots: Option<crate::menu_family::SlotSelect>,
     /// mode 16 选项表。
     pub options: Option<crate::menu_family::OptionList>,
+    /// 【STAGE-B-006】壳层附加设置行（壳提供；空 = 原版两行）：设置页入口据此生成第 3 行起的附加行，切换回写此处，
+    /// 随交接往返（handoff）。core 不解释其含义。
+    pub shell_options: Vec<crate::menu_family::ShellOption>,
     /// iconStripFrame 共享（菜单族与 title 同一字段 a.java:464）。
     pub strip_frame: usize,
     /// 虚拟 RMS：preset 解析产物（store→blob；槽载入/进度读档用）
@@ -385,6 +388,7 @@ impl BootMachine {
             return_mode: GameMode::Boot,
             slots: None,
             options: None,
+            shell_options: Vec::new(),
             strip_frame: 0,
             preset_stores: Vec::new(),
             sptarm: Vec::new(),
@@ -631,24 +635,29 @@ impl BootMachine {
                     -5 | -4 | -3 => {
                         if let Some(opts) = self.options.as_mut() {
                             let i = opts.highlight as usize;
-                            opts.checked[i] = !opts.checked[i];
-                            if opts.labels[i] == 0 {
-                                // case 0：声音联动（a.java:4156-4167）：翻转 + 开则
-                                // volumeLevel=60 + playBgm(f_bool_28?3:2)，关则 closeAudioPlayer
-                                self.bgm.toggle_sound();
+                            if let Some((id, v)) = opts.toggle_shell_row(i) {
+                                // 【STAGE-B-006】壳层附加行：只翻该行并回写 shell_options——不碰声音、不写 SKY_WAR、不置脏
+                                crate::menu_family::set_shell_option(&mut self.shell_options, id, v);
+                            } else {
+                                opts.checked[i] = !opts.checked[i];
+                                if opts.labels[i] == 0 {
+                                    // case 0：声音联动（a.java:4156-4167）：翻转 + 开则
+                                    // volumeLevel=60 + playBgm(f_bool_28?3:2)，关则 closeAudioPlayer
+                                    self.bgm.toggle_sound();
+                                }
+                                // saveGlobalProgress（a.java:4169）：勾选同步进 SKY_WAR 并置脏
+                                self.global.option_checked[0] =
+                                    opts.checked.first().copied().unwrap_or(false);
+                                self.global.option_checked[1] =
+                                    opts.checked.get(1).copied().unwrap_or(false);
+                                self.global_dirty = true;
                             }
-                            // saveGlobalProgress（a.java:4169）：勾选同步进 SKY_WAR 并置脏
-                            self.global.option_checked[0] =
-                                opts.checked.first().copied().unwrap_or(false);
-                            self.global.option_checked[1] =
-                                opts.checked.get(1).copied().unwrap_or(false);
-                            self.global_dirty = true;
                         }
                     }
                     -2 => {
                         if let Some(opts) = self.options.as_mut() {
                             opts.highlight += 1;
-                            if opts.highlight > opts.labels.len() as i32 - 1 {
+                            if opts.highlight > opts.len() as i32 - 1 {
                                 opts.highlight = 0;
                             }
                         }
@@ -657,7 +666,7 @@ impl BootMachine {
                         if let Some(opts) = self.options.as_mut() {
                             opts.highlight -= 1;
                             if opts.highlight < 0 {
-                                opts.highlight = opts.labels.len() as i32 - 1;
+                                opts.highlight = opts.len() as i32 - 1;
                             }
                         }
                     }
@@ -849,9 +858,11 @@ impl BootMachine {
             GameMode::About => {
                 // case 16（a.java:4414-4416）：选项表 + 软键 (0,3)。
                 // optionChecked[1]=true：mode 21 的 RMS 失败 catch（a.java:4467）
-                self.options = Some(crate::menu_family::OptionList::new(
+                // 【STAGE-B-006】原两行之后接壳层附加行（空 = 原版两行）
+                self.options = Some(crate::menu_family::OptionList::with_shell_rows(
                     self.bgm.sound_enabled,
                     true,
+                    &self.shell_options,
                 ));
                 self.softkeys = (0, 3);
             }
@@ -1317,6 +1328,64 @@ mod tests {
         let g = m.global_snapshot();
         assert_eq!(g.option_checked[0], !before.option_checked[0], "声音行随翻转");
         assert!(!m.take_global_dirty(), "dirty 一次性消费");
+    }
+
+    fn stage_b006_rows() -> Vec<crate::menu_family::ShellOption> {
+        [(1u8, "开屏画面", false), (2, "按键震动", true), (3, "按键音", true)]
+            .into_iter()
+            .map(|(id, l, checked)| crate::menu_family::ShellOption { id, label: l.encode_utf16().collect(), checked })
+            .collect()
+    }
+
+    /// 【STAGE-B-006】标题侧设置页：壳层附加行排在第 3-5 行；切换只改 `shell_options`（声音 / SKY_WAR 快照 / 脏位不变）；
+    /// 高亮在 5 行内环绕；-5 / -4 / -3 与"点行 → 选中 → 确认"都只翻附加行（复核 T1-F2：整臂先判附加行）。
+    #[test]
+    fn title_settings_shell_rows_toggle_only_shell_options() {
+        let rows = stage_b006_rows();
+        let mut m = boot_state();
+        m.apply_layout(crate::layout::Layout::modern(12, 16));
+        m.shell_options = rows.clone();
+        m.mode = GameMode::About;
+        m.enter_menu_mode();
+        assert_eq!(m.options.as_ref().unwrap().len(), 5, "原两行 + 三行附加行");
+        let hl = |m: &BootMachine| m.options.as_ref().unwrap().highlight_index();
+        for want in [1, 2, 3, 4, 0] {
+            m.tick(-2);
+            assert_eq!(hl(&m), want, "下移逐行走完一圈（第 5 行后回第 1 行）");
+        }
+        for want in [4, 3, 2, 1, 0] {
+            m.tick(-1);
+            assert_eq!(hl(&m), want, "上移逐行走完一圈（第 1 行后到第 5 行）");
+        }
+        // 不变量逐键核对（复核 T2-F1：偶数次翻转会抵消布尔旁写，只在末尾断言抓不到）
+        let inv = |m: &BootMachine| {
+            let o = m.options.as_ref().unwrap();
+            (m.bgm.clone(), m.global_snapshot(), o.labels.clone(), o.checked.clone())
+        };
+        let before = inv(&m);
+        let _ = m.take_global_dirty();
+        m.options.as_mut().unwrap().set_highlight(2); // 开屏画面
+        for (k, expect) in [(-5, true), (-4, false), (-3, true)] {
+            m.tick(k);
+            assert_eq!(m.shell_options[0].checked, expect, "键 {k}：开屏画面行翻转");
+            assert_eq!(m.options.as_ref().unwrap().shell_rows()[0].checked, expect, "键 {k}：面板同步");
+            assert_eq!(inv(&m), before, "键 {k}：声音 / SKY_WAR 快照 / 原两行不变");
+            assert!(!m.take_global_dirty(), "键 {k}：附加行不置脏（不写 SKY_WAR）");
+        }
+        let (ry, rh) = m.options.as_ref().unwrap().row_band(4, &m.layout);
+        let hit = m.pointer_hit(m.layout.screen_w / 2, ry + rh / 2);
+        assert_eq!(hit, crate::scene::PointerHit::Row { index: 4, confirm_key: -5 }, "点第 5 行");
+        m.select_row(4);
+        m.tick(-5);
+        assert!(!m.shell_options[2].checked, "按键音行翻转");
+        assert_eq!(m.shell_options[1], rows[1], "按键震动行不动");
+        assert_eq!(inv(&m), before, "点行确认：声音 / SKY_WAR 快照 / 原两行不变");
+        assert!(!m.take_global_dirty(), "点行确认：不置脏");
+        let sound = m.bgm.sound_enabled;
+        m.select_row(0);
+        m.tick(-5);
+        assert_eq!(m.bgm.sound_enabled, !sound, "原行为：第 1 行照旧翻声音");
+        assert!(m.take_global_dirty(), "原行为：原行翻转照旧置脏");
     }
 
     /// 水位助手条件（a.java:4297/7163 共用）：50 抬升；51 结局层不计；不回退。
