@@ -1297,6 +1297,24 @@ pub struct OptionList {
     /// optionBoxWidth/optionBoxHeight：盒宽/高。
     box_w: i32,
     box_h: i32,
+    /// 【STAGE-B-006】壳层附加行：排在原两行之后（空 = 原版两行）；原两行的 `labels` / `checked` 不含它们。
+    shell: Vec<ShellOption>,
+}
+
+/// 【STAGE-B-006】壳层附加设置行：core 只负责显示、切换、交接，不解释含义（`id` 由壳定义）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShellOption {
+    pub id: u8,
+    /// 行文字（UTF-16，字体绘制，不需美术）。
+    pub label: Vec<u16>,
+    pub checked: bool,
+}
+
+/// 【STAGE-B-006】按 id 回写机器侧附加行的勾选（两处设置页入口共用；未知 id 不动）。
+pub fn set_shell_option(rows: &mut [ShellOption], id: u8, checked: bool) {
+    for r in rows.iter_mut().filter(|r| r.id == id) {
+        r.checked = checked;
+    }
 }
 
 #[cfg(test)]
@@ -1329,38 +1347,55 @@ impl OptionList {
     /// `minimap_checked`：optionChecked[1]——oracle RMS 恒空 ⇒ mode 21 的
     /// dispatchModeEntry case 21 catch 分支设 true（a.java:4475-4471）。
     pub fn new(sound_enabled: bool, minimap_checked: bool) -> OptionList {
+        Self::with_shell_rows(sound_enabled, minimap_checked, &[])
+    }
+
+    /// 【STAGE-B-006】原两行 + 壳层附加行（`shell` 空 ⇒ 与 [`Self::new`] 相同）。附加行盒尺寸按 addOption
+    /// 非首行同式累加（[`Self::grow_box`]）。
+    pub fn with_shell_rows(sound_enabled: bool, minimap_checked: bool, shell: &[ShellOption]) -> OptionList {
         let mut list = OptionList {
             labels: Vec::new(),
             checked: Vec::new(),
             highlight: 0,
             box_w: 0,
             box_h: 0,
+            shell: Vec::new(),
         };
         list.add(0, sound_enabled); // addOption(0)：checked=soundEnabled
         list.add(1, minimap_checked);
+        for row in shell {
+            list.grow_box(&row.label);
+            list.shell.push(row.clone());
+        }
         list
     }
 
     /// `addOption`（a.java:9911-9926）：登记选项 + 盒尺寸累加。
     fn add(&mut self, label_idx: usize, checked: bool) {
         let font = crate::paint::paint_font();
-        let w = font.string_width(OPTION_LABELS[label_idx]) + 80;
         self.labels.push(label_idx);
         self.checked.push(checked);
         if self.labels.len() == 1 {
             self.box_h = 32 + (font.height() + 8); // optionRowHeight = fontHeight+8（a.java:812）
-            self.box_w = w;
+            self.box_w = font.string_width(OPTION_LABELS[label_idx]) + 80;
         } else {
-            self.box_h += font.height() + 8;
-            if self.box_w < w {
-                self.box_w = w;
-            }
+            self.grow_box(OPTION_LABELS[label_idx]);
         }
     }
 
-    /// 选项数（指针命中遍历用）。
+    /// addOption 非首行的盒尺寸累加（a.java:9911-9926）：盒高 += 行高；盒宽 = max(盒宽, 标签宽 + 80)。
+    fn grow_box(&mut self, label: &[u16]) {
+        let font = crate::paint::paint_font();
+        let w = font.string_width(label) + 80;
+        self.box_h += font.height() + 8;
+        if self.box_w < w {
+            self.box_w = w;
+        }
+    }
+
+    /// 总行数（原行 + 壳层附加行；指针命中遍历 / 高亮环绕用）。
     pub fn len(&self) -> usize {
-        self.labels.len()
+        self.labels.len() + self.shell.len()
     }
 
     /// 当前高亮（指针选行断言用）。
@@ -1370,8 +1405,31 @@ impl OptionList {
 
     /// 设高亮（指针选行；只动光标语义）。
     pub fn set_highlight(&mut self, i: usize) {
-        if i < self.labels.len() {
+        if i < self.len() {
             self.highlight = i as _;
+        }
+    }
+
+    /// 【STAGE-B-006】第 i 行若是壳层附加行 ⇒ 翻转并返回 `(id, 新勾选)`；原行 / 越界 ⇒ None（不动任何状态）。
+    pub fn toggle_shell_row(&mut self, i: usize) -> Option<(u8, bool)> {
+        let row = self.shell.get_mut(i.checked_sub(self.labels.len())?)?;
+        row.checked = !row.checked;
+        Some((row.id, row.checked))
+    }
+
+    /// 【STAGE-B-006】壳层附加行（只读）。
+    pub fn shell_rows(&self) -> &[ShellOption] {
+        &self.shell
+    }
+
+    /// 第 i 行的（标签, 勾选）：原行取 optionLabels / optionChecked，其后为壳层附加行。
+    fn row(&self, i: usize) -> (&[u16], bool) {
+        match self.labels.get(i) {
+            Some(&idx) => (OPTION_LABELS[idx], self.checked[i]),
+            None => {
+                let r = &self.shell[i - self.labels.len()];
+                (&r.label, r.checked)
+            }
         }
     }
 
@@ -1412,17 +1470,164 @@ impl OptionList {
             0,
             t,
         );
-        for i in 0..self.labels.len() {
-            let label = OPTION_LABELS[self.labels[i]];
+        for i in 0..self.len() {
+            let (label, checked) = self.row(i); // 【STAGE-B-006】原两行之后接壳层附加行，同式绘制
             let mut lx = (layout.screen_w - font.string_width(label) - 16) >> 1;
             let (ry, _) = self.row_band(i, layout); // C-1：行 y 单源
             g.set_color(crate::layout::WHITE);
             g.draw_string(label, lx, ry + 4, 0);
             lx += 2 + font.string_width(label);
             // 勾选框：未选中 sy=12、选中 sy=0（a.java:2987-2987 分支方向）
-            let sy = if !self.checked[i] { 12 } else { 0 };
+            let sy = if !checked { 12 } else { 0 };
             crate::paint::draw_image_clipped(g, &ui[11], lx, ry + ((font.height() - 2) >> 1), sy, 0, 12, 10);
         }
+    }
+}
+
+#[cfg(test)]
+mod shell_row_tests {
+    //! 【STAGE-B-006】设置页壳层附加行（设计件 docs/superpowers/specs/2026-10-28-settings-splash-key-feedback-design.md §2.1）。
+    use super::*;
+    use crate::layout::Layout;
+
+    fn ui() -> Vec<ArgbImage> {
+        (0..25).map(|_| ArgbImage::from_rgb(&vec![0xFF202020; 24 * 24], 24, 24, true)).collect()
+    }
+
+    fn ops(list: &OptionList, layout: &Layout) -> Vec<String> {
+        let mut img = ArgbImage::create(layout.screen_w, layout.screen_h);
+        let mut g = SoftGraphics::new(&mut img);
+        g.set_font(Some(crate::paint::paint_font()));
+        list.paint(&mut g, &ui(), &crate::paint::paint_font(), layout);
+        g.ops.clone()
+    }
+
+    fn digest(v: &[String]) -> String {
+        game_platform::hash::sha256_hex(v.join("\n").as_bytes())[..32].to_string()
+    }
+
+    /// 零附加行 ⇒ op 流与改前逐字相同。期望 = 改前（HEAD ba7e92e）实现实测摘要：重构不变量，非被测自证。
+    #[test]
+    fn zero_shell_rows_paint_matches_pre_change_ops() {
+        let cases = [
+            (true, false, 0, Layout::classic(), "cccf05f1a160709ba357d9787d21e497"),
+            (false, true, 1, Layout::classic(), "2b0580dca5c873bc8463a65d1961d05d"),
+            (true, true, 1, Layout::modern(12, 16), "d17849443b103d788e5d2ee7004b1b29"),
+        ];
+        let got: Vec<(String, String)> = cases
+            .iter()
+            .map(|(sound, minimap, hl, layout, _)| {
+                let mut a = OptionList::new(*sound, *minimap);
+                a.highlight = *hl;
+                let mut b = OptionList::with_shell_rows(*sound, *minimap, &[]);
+                b.highlight = *hl;
+                (digest(&ops(&a, layout)), digest(&ops(&b, layout)))
+            })
+            .collect();
+        for ((sound, minimap, hl, _, expect), (via_new, via_empty)) in cases.iter().zip(got) {
+            assert_eq!(via_new, *expect, "new() sound={sound} minimap={minimap} hl={hl}");
+            assert_eq!(via_empty, *expect, "with_shell_rows(&[]) sound={sound} minimap={minimap} hl={hl}");
+        }
+    }
+
+    fn rows() -> Vec<ShellOption> {
+        [(1u8, "开屏画面", false), (2, "按键震动", true), (3, "按键音", true)]
+            .into_iter()
+            .map(|(id, l, checked)| ShellOption { id, label: l.encode_utf16().collect(), checked })
+            .collect()
+    }
+
+    fn utf16(s: &str) -> Vec<u16> {
+        s.encode_utf16().collect()
+    }
+
+    /// 附加行几何 = 原行同式（addOption a.java:9911-9926 / paint case 16 a.java:2959-2990）：盒高 = 32 + 5×行高、
+    /// 盒宽 = 最宽标签 + 80、行 i 顶 = 盒顶 + 16 + 行高×i；标签与勾选框逐行同式。
+    #[test]
+    fn shell_rows_extend_box_rows_and_paint() {
+        use crate::render::FontMetrics;
+        let font = crate::paint::paint_font();
+        let layout = Layout::modern(12, 16);
+        let mut list = OptionList::with_shell_rows(true, false, &rows());
+        assert_eq!(list.len(), 5);
+        let row_h = font.height() + 8;
+        let box_h = 32 + 5 * row_h;
+        let top = (layout.screen_h - box_h) / 2 + 16;
+        for i in 0..5 {
+            assert_eq!(list.row_band(i, &layout), (top + row_h * i as i32, row_h), "行 {i}");
+        }
+        let widest = ["声音", "小地图", "开屏画面", "按键震动", "按键音"]
+            .iter()
+            .map(|s| font.string_width(&utf16(s)))
+            .max()
+            .unwrap();
+        let box_w = widest + 80;
+        list.highlight = 4;
+        let got = ops(&list, &layout);
+        let cx = ((layout.screen_w - box_w - 22) >> 1) + 11;
+        assert!(
+            got.iter().any(|o| o.starts_with(&format!("fillRect({cx},{},{box_w},{row_h},", top + row_h * 4))),
+            "高亮条在第 5 行、宽 = 盒宽"
+        );
+        for (i, (label, checked)) in [("开屏画面", false), ("按键震动", true), ("按键音", true)].into_iter().enumerate() {
+            let w = font.string_width(&utf16(label));
+            let lx = (layout.screen_w - w - 16) >> 1;
+            let ry = top + row_h * (i as i32 + 2);
+            // op 文本里非 ASCII 记作 \uXXXX（render.rs quote_utf16）
+            let quoted: String = utf16(label).iter().map(|c| format!("\\u{c:04x}")).collect();
+            let at = got
+                .iter()
+                .position(|o| *o == format!("drawString(\"{quoted}\",{lx},{},0)", ry + 4))
+                .unwrap_or_else(|| panic!("{label} 标签位置"));
+            let (bx, by) = (lx + 2 + w, ry + ((font.height() - 2) >> 1));
+            assert_eq!(got[at + 1], format!("setClip({bx},{by},12,10)"), "{label} 勾选框位置");
+            let sel = if checked { 0 } else { 12 };
+            assert_eq!(got[at + 2], format!("drawImage(24x24,{},{by},0)", bx - sel), "{label} 勾选态");
+        }
+    }
+
+    #[test]
+    fn toggle_shell_row_flips_only_shell_rows() {
+        let mut list = OptionList::with_shell_rows(true, false, &rows());
+        assert_eq!(list.toggle_shell_row(0), None, "声音行不归附加行");
+        assert_eq!(list.toggle_shell_row(1), None, "小地图行不归附加行");
+        assert_eq!(list.checked, vec![true, false], "原两行勾选不动");
+        assert_eq!(list.toggle_shell_row(2), Some((1, true)));
+        assert_eq!(list.toggle_shell_row(4), Some((3, false)));
+        assert_eq!(list.toggle_shell_row(5), None, "越界");
+        let r = list.shell_rows();
+        assert_eq!((r[0].checked, r[1].checked, r[2].checked), (true, true, false));
+        list.set_highlight(4);
+        assert_eq!(list.highlight_index(), 4, "附加行可选中");
+        list.set_highlight(5);
+        assert_eq!(list.highlight_index(), 4, "越界不选");
+    }
+
+    /// 翻附加行不碰原两行（`labels` / `checked` 是 SKY_WAR [0][1] 位的来源：BootMachine::global_snapshot）与高亮——
+    /// 每行连翻两次，true / false 各写一遍，任何旁写都会暴露（复核 T1-F1）。
+    #[test]
+    fn toggling_shell_rows_never_touches_original_rows_or_highlight() {
+        for (sound, minimap) in [(true, false), (false, true)] {
+            let mut list = OptionList::with_shell_rows(sound, minimap, &rows());
+            list.highlight = 1;
+            let before = (list.labels.clone(), list.checked.clone(), list.highlight);
+            assert_eq!(before, (vec![0, 1], vec![sound, minimap], 1), "附加行不进原两行");
+            for i in 2..5 {
+                for _ in 0..2 {
+                    assert!(list.toggle_shell_row(i).is_some());
+                    assert_eq!((list.labels.clone(), list.checked.clone(), list.highlight), before, "行 {i}");
+                }
+            }
+            assert_eq!(list.shell_rows(), &rows()[..], "连翻两次回原值");
+        }
+    }
+
+    #[test]
+    fn set_shell_option_writes_by_id() {
+        let mut r = rows();
+        set_shell_option(&mut r, 2, false);
+        set_shell_option(&mut r, 9, true); // 未知 id：不动
+        assert_eq!(r.iter().map(|o| o.checked).collect::<Vec<_>>(), vec![false, false, true]);
     }
 }
 
