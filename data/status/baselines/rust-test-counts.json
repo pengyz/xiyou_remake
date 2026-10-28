@@ -2,6 +2,7 @@
   "comment": "每测试二进制用例数 ratchet（只许增不许减）。减少 = 测试被删除或嵌套化静默失效（gotcha_nested-test-silently-skipped）。更新基线必须在 commit 正文写明原因与影响。",
   "binaries": {
     "aaudio_stream(test)": 12,
+    "app_settings(test)": 10,
     "asset_roundtrip(test)": 2,
     "asset_source_contract(test)": 4,
     "audio_out_contract(test)": 6,
@@ -16,15 +17,15 @@
     "entity_golden(test)": 12,
     "exit_chain(test)": 5,
     "exit_dialog(test)": 7,
-    "feedback(test)": 5,
+    "feedback(test)": 6,
     "fixture_frames(test)": 29,
     "flow(test)": 4,
     "game_android(lib)": 6,
-    "game_core(lib)": 180,
+    "game_core(lib)": 190,
     "game_data(lib)": 35,
     "game_oracle(lib)": 0,
     "game_platform(lib)": 6,
-    "game_shell_common(lib)": 35,
+    "game_shell_common(lib)": 37,
     "gameplay_floor1(test)": 5,
     "golden(test)": 9,
     "hd_visual(test)": 6,
@@ -61,7 +62,7 @@
     "walk_camera_golden(test)": 4,
     "walk_replay_floor1(test)": 2,
     "walk_route(test)": 11,
-    "xiyou(bin)": 41
+    "xiyou(bin)": 42
   },
-  "total": 718
+  "total": 742
 }
