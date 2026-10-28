@@ -21,7 +21,7 @@
     "fixture_frames(test)": 29,
     "flow(test)": 4,
     "game_android(lib)": 6,
-    "game_core(lib)": 190,
+    "game_core(lib)": 197,
     "game_data(lib)": 35,
     "game_oracle(lib)": 0,
     "game_platform(lib)": 6,
@@ -55,7 +55,7 @@
     "storage_wiring(test)": 4,
     "stubs_contract(test)": 11,
     "style_sample(test)": 1,
-    "tap_routing(test)": 6,
+    "tap_routing(test)": 9,
     "track_loading(test)": 4,
     "transition_table_driven(test)": 10,
     "undo_journal(test)": 11,
@@ -64,5 +64,5 @@
     "walk_route(test)": 11,
     "xiyou(bin)": 42
   },
-  "total": 742
+  "total": 752
 }
