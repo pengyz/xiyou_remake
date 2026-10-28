@@ -748,3 +748,24 @@ core 单测 RED = E0599（`field_tap_allowed` 不存在）→ GREEN。game-core 
 - **Stage B 修复方案**：—（STAGE-B-007 功能键面板会把点画面规则并入同一查询）。
 Evidence: A 级——`tap_routing.rs` 存档页 / 提示框两测、`native_parse.rs` 菜单点空白断言在修复前 RED（写入 `MOT_L0@1`、提示框未关、`Some(-5)`）；
 core 两测 RED = E0599（`blank_tap_key` 不存在）。GREEN：game-core / game-shell-common / game-android / game-desktop 539 测全绿。Confidence: 92
+
+## BUG-041 游戏内关掉声音后退出回标题，声音被回滚为开、标题曲照响（双机交接只有单向；Android / Windows 同病，2026-10-28 对抗复核发现，已修复）
+
+> 【2026-10-28】设计 v0 对抗复核（`docs/reviews/2026-10-28-settings-controls-design-adversarial-review.md` §4 S1，复核者 B 读码提出，本方宿主实测证实）。
+- **现象 / 复现**：新游戏 → 游戏内菜单 → 设置 → 关"声音" → 返回 → 退出（kind 7）回标题 ⇒ 声音开关变回开，标题曲 track 2 照响。
+  - Android 宿主实测（`shell/android/tests/flow.rs` `in_game_sound_off_survives_return_to_title`，修复前 RED：`!rt.sound_enabled()` 失败）。
+  - Windows 宿主实测（`return_to_title_keeps_in_game_sound_off`，修复前 `sound_state` = `Some(true)`）。
+  - Windows 还会在下一拍 `persist_settings_if_changed` 把"开"写回 `app_settings.cfg`（读码）。
+- **根因**（双机移植设计缺陷，非原版 bug，D4 不适用）：Java 是同一个对象，soundEnabled / volumeLevel / SKY_WAR（含 f_int_154 水位）跨模式连续。
+  - Rust 拆成 BootMachine 与 GameScene 两台机：交接只有 BootMachine→GameScene 单向拷贝（handoff.rs `new_game_scene` / `slot_scene`）。
+  - 回标题时，两壳都换回交接前那台 BootMachine（Android runtime.rs step_scene、Windows `swap_back_to_boot_if_requested`），它带着旧的 bgm 与 global。
+  - 同理（读码）：之后若在标题侧切换设置置脏，会把陈旧的 global（旧水位）写回 SKY_WAR。
+- **影响**：用户关掉的声音在回标题后自行恢复（Windows 连设置文件一起改回）；SKY_WAR 水位可能被旧值覆盖。
+- **Stage A 处理**：**已修复**。
+  - 新增 `handoff::return_to_title(machine, scene)`：回传 BgmState 与 global 快照（`apply_global`，不置脏，因为场景侧已写穿）。
+  - 两壳在换回 BootMachine、`enter_title` 之前调用。
+  - 未纳入：rng / bob / 图标条帧 / 标题光标等视觉相位（不影响状态正确性，另案评估）。
+  - 宿主钉：handoff.rs `return_to_title_carries_sound_and_global_back`、Android `flow.rs` 一测、Windows shell_tests 一测。
+- **Stage B 修复方案**：—。
+Evidence: A 级——Android / Windows 两条宿主测试在修复前 RED（声音回滚为开），修复后 GREEN；handoff 单测 RED = E0425（`return_to_title` 不存在）。
+B 级——陈旧水位写回 SKY_WAR 的路径（读码）。GREEN：game-core / game-shell-common / game-android / game-desktop 542 测全绿。Confidence: 92

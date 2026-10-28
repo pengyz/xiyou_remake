@@ -882,6 +882,10 @@ impl Shell {
         };
         if need {
             if let Some(mut m) = self.stashed_boot.take() {
+                // 【BUG-041】反向交接：游戏内改过的声音 / SKY_WAR 回传（否则换回储备机的交接前旧值）
+                if let Some(Screen::Game(sc)) = self.state.as_ref() {
+                    game_shell_common::handoff::return_to_title(&mut m, sc);
+                }
                 m.mode = game_core::enums::GameMode::MainMenu;
                 // dispatchModeEntry case 1 音频半（a.java:4295/4311）：f_bool_28=false + playBgm(2)
                 //——2026-10-18 用户实报：换机后音乐未切回标题曲（stash 机器带着
@@ -1937,6 +1941,24 @@ mod shell_tests {
             ],
             "BGM 切轨拍与 Java EVT（createPlayer@T71 / close+createPlayer@T237）一致"
         );
+    }
+
+    /// 【BUG-041】游戏内关掉声音后回标题（kind 7 退出 ⇒ scene 置 MainMenu ⇒ 换回储备 BootMachine）：
+    /// 声音保持关闭、cfg 不被写回"开"（旧：换回交接前的 BootMachine，声音回滚为开）。
+    #[test]
+    fn return_to_title_keeps_in_game_sound_off() {
+        let mut h = Harness::new("preset-floor1.preset");
+        h.run_to(240, &LOAD_FLOOR1);
+        let _ = h.scene(); // 前置：已进场景
+        if let Some(Screen::Game(sc)) = h.shell.state.as_mut() {
+            assert!(sc.bgm.sound_enabled, "前置：声音开");
+            sc.bgm.toggle_sound(); // 游戏内设置关声音
+            sc.game_mode = GameMode::MainMenu; // kind 7 退出的换机请求
+        }
+        h.shell.swap_back_to_boot_if_requested();
+        assert!(matches!(h.shell.state, Some(Screen::Boot(_))), "已换回标题");
+        assert_eq!(h.shell.sound_state().map(|s| s.0), Some(false), "声音保持关闭（不回滚）");
+        assert_eq!(h.bgm(), None, "标题不放音乐");
     }
 
     /// OS 自动重复无效果 + 同拍多键覆盖式取末个（R-2）：

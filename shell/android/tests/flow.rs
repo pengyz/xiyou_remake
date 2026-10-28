@@ -239,3 +239,32 @@ fn tap_anywhere_advances_dialog_and_intro() {
     assert_eq!(rt.scene.as_ref().unwrap().game_mode, GameMode::Map, "只点屏幕推完开局剧情");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// 【BUG-041】游戏内设置关掉声音 → 退出回标题：声音保持关闭、标题不放音乐（旧：换回交接前的
+/// BootMachine，声音被回滚为开，标题曲照响）。
+#[test]
+fn in_game_sound_off_survives_return_to_title() {
+    let (mut rt, src, dir) = runtime("sound-title");
+    reach_map(&mut rt, &src);
+    tap_key(&mut rt, &src, -7); // 游戏内菜单
+    let kinds = rt.scene.as_ref().unwrap().menu_kinds.clone();
+    let idx = |k: i8| kinds.iter().position(|&x| x == k).expect("菜单条目在");
+    for _ in 0..idx(4) {
+        tap_key(&mut rt, &src, -2);
+    }
+    tap_key(&mut rt, &src, -6); // 设置
+    assert_eq!(rt.scene.as_ref().unwrap().game_mode, GameMode::About, "进设置页");
+    assert!(rt.sound_enabled(), "前置：声音开");
+    tap_key(&mut rt, &src, -5); // 第 0 行"声音"：切换为关
+    assert!(!rt.sound_enabled(), "游戏内关声音");
+    tap_key(&mut rt, &src, -7); // 回菜单
+    let cur = rt.scene.as_ref().unwrap().menu_cursor as usize;
+    for _ in 0..(idx(7) + kinds.len() - cur) % kinds.len() {
+        tap_key(&mut rt, &src, -2);
+    }
+    tap_key(&mut rt, &src, -6); // 退出 → 回标题
+    assert!(rt.scene.is_none() && rt.title_mode(), "回到标题");
+    assert!(!rt.sound_enabled(), "声音保持关闭（不回滚）");
+    assert_eq!(rt.bgm_request(), None, "标题不放音乐");
+    let _ = std::fs::remove_dir_all(&dir);
+}

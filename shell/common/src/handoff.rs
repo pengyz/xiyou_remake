@@ -220,6 +220,16 @@ pub fn slot_scene(
     Some(sc)
 }
 
+/// 【BUG-041】回标题反向交接（游戏内"退出" kind 7 ⇒ scene 置 MainMenu ⇒ 换回 BootMachine）：
+/// Java 是同一对象，soundEnabled / volumeLevel / SKY_WAR（含 f_int_154 水位）跨模式连续；
+/// 双机实现须把这些从 GameScene 回传，否则换回的是交接前的旧值——游戏内关掉的声音回滚为开、
+/// 下一次标题侧置脏会把陈旧水位写回 SKY_WAR。调用方随后照旧 `bgm.enter_title()`（dispatchModeEntry
+/// case 1 音频半）。未纳入：rng / bob / 图标条帧 / 标题光标等视觉相位（另案评估，不影响状态正确性）。
+pub fn return_to_title(machine: &mut BootMachine, sc: &GameScene) {
+    machine.bgm = sc.bgm.clone();
+    machine.apply_global(sc.global_snapshot()); // 场景侧已写穿 ⇒ 不置脏
+}
+
 /// 槽存档写穿（win 壳 step 存档块迁入；BUG-018 upsert 口径）：scene 侧
 /// `saved_slot_blobs` 相对已落盘指纹 `persisted` 变化 ⇒ upsert `MOT_L{idx}@1` + 整表
 /// `MOT_IF@1`，回写 `sc.preset_mot_if`（mode7/8 每次进入的重读源）。返回 true=stores
@@ -355,6 +365,26 @@ mod tests {
         let sc = slot_scene(&assets, &mut m, &stores).expect("有档=交接");
         assert!(sc.floor >= 1, "读档还原层号（实得 {}）", sc.floor);
         assert_eq!(m.slot_loaded, None, "交接即消费（回标题后新游戏不得误走槽分支）");
+    }
+
+    /// 【BUG-041】回标题反向交接：游戏内关掉的声音、游戏内抬升的全局存档（SKY_WAR）回传 BootMachine
+    /// ——Java 是同一对象（soundEnabled / f_int_154 跨模式连续）；旧行为沿用交接前的 BootMachine 旧值。
+    #[test]
+    fn return_to_title_carries_sound_and_global_back() {
+        let src = DirAssetSource::new(&raw());
+        let assets = load_game_assets(&src);
+        let mut m = machine(&src);
+        m.new_game_ready = true;
+        assert!(m.bgm.sound_enabled, "前置：交接前开声");
+        let mut sc = new_game_scene(&assets, &mut m);
+        sc.bgm.toggle_sound(); // 游戏内设置关声音
+        let mut g = sc.global_snapshot();
+        g.max_floor_watermark += 7; // 游戏内抬升水位
+        sc.apply_global(g);
+        return_to_title(&mut m, &sc);
+        assert!(!m.bgm.sound_enabled, "声音开关回传（不回滚为开）");
+        assert_eq!(m.global_snapshot(), sc.global_snapshot(), "全局存档回传（不留陈旧水位）");
+        assert!(!m.take_global_dirty(), "回传不置脏（场景侧已写穿）");
     }
 
     #[test]

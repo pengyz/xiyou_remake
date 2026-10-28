@@ -404,6 +404,8 @@ impl Runtime {
             self.storage.persist(&self.stores);
         }
         if sc.game_mode == GameMode::MainMenu {
+            // 【BUG-041】反向交接：游戏内改过的声音 / SKY_WAR 回传（否则换回交接前旧值）
+            handoff::return_to_title(&mut self.machine, sc);
             self.machine.mode = GameMode::MainMenu;
             // dispatchModeEntry case 1 音频半（a.java:4295/4311）：f_bool_28=false + playBgm(2)
             self.machine.bgm.enter_title();
