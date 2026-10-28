@@ -791,3 +791,25 @@ B 级——陈旧水位写回 SKY_WAR 的路径（读码）。GREEN：game-core 
 Evidence: A 级——只改常量 16 ↔ 32：新测试 RED（`route.is_open()` 假）↔ GREEN；变异实测：TILE=16、相机 x/y 对调、`cell_at` 列号 +1、
 tile_off=0 均被杀；cols/rows 对调存活（12×13 图上只差边界一列，界内不可观测，如实记录）。设备日志 `scene_tap(292,324) mode=Map → None`。
 B 级——格单位由 `>> 5` / `<< 5` 调用图推出。GREEN：game-core / game-shell-common / game-android / game-desktop 全绿。Confidence: 93
+
+## BUG-043 教程路径箭头在点地寻路时错位（虚拟摇杆走正常；Stage B 触屏，用户实机，已修复）
+
+> 【2026-10-28】用户实机："教程关中有绘制路径箭头的情况，当箭头存在时，用触屏移动会导致箭头错位，用虚拟摇杆移动不会"。
+- **现象 / 复现**：序章首图出生即有箭头 ↑→→（SEE flag=1）。点箭头上的第 2 格：
+  - 宿主实测（修复前）：点下那一拍箭头改画成以玩家为起点的 →→（(2,11)(3,11)，墙上），走完第一步箭头熄灭；方向键走到同一格余下 (3,10)。
+- **根因**（Stage B 移植错误，非原版 bug）：箭头与脚本行走共用 `walkPathBuffer`（原版 MOV 亦然）。点地寻路 `walk_to` 驱动 dp3 脚本行走、
+  覆写这个缓冲 ⇒ 绘制（a.java:5929-5956，自玩家格沿缓冲外扩）画成寻路路线；label216（a.java:5748-5761）按寻路步消费 / 熄灭箭头。
+- **Stage A 处理**：**已修复**（只动点地寻路路径，经典面零变化）：
+  - `walk_to` 开路时把可见箭头步序移入暂存 `walkto_arrows`；绘制与 `path_arrow_cells()` 读暂存；
+  - label216 在暂存存在时作用于暂存，比较"刚走完那一步"的朝向（寻路下一步已在步末弹出转向；方向键逐格时二者一致）；
+  - 寻路收尾 / 被剧情接管后放回 `walkPathBuffer`（剧情接管延迟到寻路释放 dp 后放回，撞格触发剧情时立即放回会被随后的
+    `walk_step_count = 0` 清掉）；撞锁门 / 打不过两处原版清共用 `walkStepCount` 的位置同步清暂存；`find_path` 作废暂存。
+  - 语义口径：点地 = 方向键**逐格**沿同一路线走（按住摇杆过拐角时原版会熄箭头，属原版行为，点地不模仿）。
+  - 宿主钉：core `bug043_*` 7 条（沿箭头 / 偏离 / 打断 / 收尾缓冲同参照 / findPath 作废 / 撞剧情格 / 撞锁门）、android
+    `tap_routing.rs` `tutorial_arrows_stay_on_their_path_during_tap_walk`（真资产，逐拍箭头须是原路线尾段、终态 = 方向键参照）。
+- **另案（复核 R4，修复前既有，未修）**：`tick_battle` 击杀触发剧情后无条件 `route.resume()`，会把已被剧情收束的寻路段重新打开
+  （BUG-025 同型风险）。待取证后单独处理。
+- **Stage B 修复方案**：—。
+Evidence: A 级——宿主 RED（修复前箭头格 (2,11)(3,11) 不在原路线上；真资产终态 [] ≠ 方向键 [(3,10)]）→ GREEN；变异：`walked_facing`→`facing`、
+撞门不清暂存、剧情接管立即放回、findPath 不清暂存均被杀；实机（Xiaomi 14，本方注入点按 (2,10)）连拍：↑→→ → 走动中 →→ 留在原格 → 到达后余 (3,10)。
+classic：game-oracle 帧差分与 Windows modern 五状态帧不变。Confidence: 90

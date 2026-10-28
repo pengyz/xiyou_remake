@@ -516,6 +516,10 @@ pub struct GameScene {
     /// 寻路段（route 不再开放），dp3 收尾原本只凭 `route.is_open()` 认寻路 ⇒ 打断后落入脚本机
     /// dp0 行尾收尾。置位 = interrupt_route 时处于 Dialog dp3；清位 = 新 walk_to / 剧情接管 / 回 Map。
     walkto_draining: bool,
+    /// 【BUG-043】点地寻路期间暂存的教程路径箭头步序（SEE flag=1 写入 walkPathBuffer 的那条；末元素 = 下一步）。
+    /// walk_to 会占用 walkPathBuffer 装寻路路线，箭头改从这里画、每走完一格按 label216 规则消费，收尾放回 walkPathBuffer。
+    /// None = 未暂存（经典面恒 None）。
+    walkto_arrows: Option<Vec<u8>>,
     /// 【T2】战斗段快照（撞敌挂起时记账，战斗终结入 CombatStroke）
     battle_undo_snap: Option<(usize, i32, i32, crate::undo_journal::PlayerVitals)>,
     /// itemUseTargetType：最近拾取/装备的类型号（浮层图标 + 商店显示）
@@ -1098,6 +1102,7 @@ impl GameScene {
             undo: crate::undo_journal::UndoJournal::new(),
             route: crate::pathfind::RouteTracker::new(),
             walkto_draining: false,
+            walkto_arrows: None,
             battle_undo_snap: None,
             width_table: width_table.to_vec(),
             tile_walk: tile_walkability.to_vec(),
@@ -1751,6 +1756,8 @@ impl GameScene {
         // 否则剧情中投键（press_key 见段开放即打断）截断脚本 MOV 行走，dp3 步尽臂还会把
         // 剧情中途切回 Map。经典面（无寻路段）interrupt_route 零操作。
         self.interrupt_route();
+        // 【BUG-043】寻路被剧情接管：箭头暂存**不在此放回**——撞格触发剧情时本函数在 advanceScriptWalk 撞格臂之前执行，
+        // 立即放回会被随后的 `walk_step_count = 0` 清掉（复核 R2）；改由 settle_walkto_arrows 在寻路释放 dp 后放回
         self.walkto_draining = false; // 【BUG-040】dp 归剧情（打断后的寻路收尾作废）
         self.script_walk_armed = false;
         self.transition_to(GameMode::Dialog);
@@ -1912,6 +1919,11 @@ impl GameScene {
             crate::pathfind::plan_route(&walk, (cx, cy), (tx, ty))
         };
         self.route.begin((cx, cy));
+        // 【BUG-043】箭头可见 ⇒ 先把箭头步序移出 walkPathBuffer（改道时已暂存，保留原暂存）
+        if self.path_arrows_visible && self.walkto_arrows.is_none() {
+            let n = (self.walk_step_count.max(0) as usize).min(self.walk_path_buffer.len());
+            self.walkto_arrows = Some(self.walk_path_buffer[..n].to_vec());
+        }
         self.walk_path_buffer = plan.steps.clone();
         self.walk_step_count = plan.steps.len() as i32;
         self.script_walk_armed = true;
@@ -1980,6 +1992,7 @@ impl GameScene {
     /// walkPhase 0（实测：按一下方向键连走 3 格不停）。
     fn finish_walkto(&mut self) {
         self.route_arrived();
+        self.restore_walkto_arrows();
         self.walkto_draining = false;
         self.script_walk_armed = false;
         self.game_mode = GameMode::Map;
@@ -1988,6 +2001,76 @@ impl GameScene {
     /// 【BUG-040】dp3 当前是否归点地寻路所有（段开放，或打断后仍在走完当前步）。
     fn walkto_owns_dp3(&self) -> bool {
         self.route.is_open() || self.walkto_draining
+    }
+
+    /// 路径箭头的步序源（buffer, 条数）：绘制（a.java:5929-5956）自玩家格沿 `buffer[..条数]` 自末端逐格外扩。
+    /// 【BUG-043】点地寻路期间取暂存的箭头步序（walkPathBuffer 此时装的是寻路路线）。
+    fn path_arrow_steps(&self) -> (&[u8], usize) {
+        match &self.walkto_arrows {
+            Some(steps) => (steps, steps.len()),
+            None => (&self.walk_path_buffer, self.walk_step_count.max(0) as usize),
+        }
+    }
+
+    /// 【BUG-043】点地寻路期间的 label216（a.java:5748-5761，applyStepCellEffects 步末）作用于暂存箭头：
+    /// 顶步 == 刚走完那一步的朝向 ⇒ 消费一步；否则整条清空并熄箭头；箭头已尽亦熄——与方向键走同一路线时同规则同时机。
+    /// 用 `walked`（步首朝向）而非当前 facing：寻路的下一步已在本步末弹出并转向，转弯处 facing 已是下一步方向
+    ///（方向键一格一按时步末 facing 即刚走那一步，二者一致）。
+    fn consume_walkto_arrow_step(&mut self, walked: i32) {
+        if !self.path_arrows_visible {
+            return;
+        }
+        let Some(steps) = self.walkto_arrows.as_mut() else { return };
+        match steps.last() {
+            Some(&top) if top as i32 == walked => {
+                steps.pop();
+            }
+            Some(_) => {
+                steps.clear();
+                self.path_arrows_visible = false;
+            }
+            None => self.path_arrows_visible = false,
+        }
+    }
+
+    /// 【BUG-043】寻路已释放 dp（段关闭、非收尾中、非事件挂起）而箭头仍暂存 ⇒ 放回（剧情接管后的延迟放回）。
+    fn settle_walkto_arrows(&mut self) {
+        if self.walkto_arrows.is_some() && !self.walkto_owns_dp3() && !self.route.is_suspended() {
+            self.restore_walkto_arrows();
+        }
+    }
+
+    /// 【BUG-043】点地寻路收尾 / 被剧情接管：余下箭头步序放回 walkPathBuffer（与方向键走到此处时同态）。
+    /// 箭头途中已熄（偏离 / 浮层撞格清除）⇒ 只丢弃暂存、不动 walkPathBuffer。
+    fn restore_walkto_arrows(&mut self) {
+        if let Some(steps) = self.walkto_arrows.take() {
+            if self.path_arrows_visible {
+                self.walk_step_count = steps.len() as i32;
+                self.walk_path_buffer = steps;
+            }
+        }
+    }
+
+    /// 路径箭头当前绘制在哪些格（自玩家格起，与绘制同源）；箭头不可见 ⇒ 空。
+    pub fn path_arrow_cells(&self) -> Vec<(i32, i32)> {
+        if !self.path_arrows_visible {
+            return Vec::new();
+        }
+        let (buf, count) = self.path_arrow_steps();
+        let (mut x, mut y) = (self.player_cell_x, self.player_cell_y);
+        (0..count)
+            .rev()
+            .filter_map(|i| {
+                match buf[i] {
+                    0 => y += 1,
+                    1 => y -= 1,
+                    2 => x += 1,
+                    3 => x -= 1,
+                    _ => return None,
+                }
+                Some((x, y))
+            })
+            .collect()
     }
 
     /// 【T2】事件挂起（撞敌/拾取/开门）：段收于实际终点+挂起（T1 挂点契约）。
@@ -2037,6 +2120,7 @@ impl GameScene {
         };
         self.walk_path_buffer = result.steps;
         self.walk_step_count = self.walk_path_buffer.len() as i32;
+        self.walkto_arrows = None; // 【BUG-043】新路径（SEE 箭头 / MOV）取代任何暂存的旧箭头
         result.found
     }
 
@@ -4598,6 +4682,7 @@ impl GameScene {
     /// `frame_counter` 为本拍值（TICK n → n-1）。
     pub fn tick(&mut self, frame_counter: i64, width_table: &[i32]) {
         self.frame_counter = frame_counter;
+        self.settle_walkto_arrows(); // 【BUG-043】经典面暂存恒 None ⇒ 零操作
         // overlay 显示期（run 的 label510 分支 a.java:3252）：kind0 且
         // gameMode∈{15,17} 走 -7 专用支路（仅 -7 关层+回 menuReturnMode，
         // 其余键吞掉）；其余情况 handleOverlayKey（a.java:4923-4931：任意
@@ -5142,6 +5227,11 @@ impl GameScene {
                                         self.build_minimap();
                                     } else {
                                         self.walk_step_count = 0;
+                                        // 【BUG-043】原版此处清的是与箭头共用的 walkStepCount（方向键撞门 ⇒ 箭头即不画）；
+                                        // 点地寻路期间箭头在暂存里，同步清空（经典面暂存恒 None）
+                                        if let Some(a) = self.walkto_arrows.as_mut() {
+                                            a.clear();
+                                        }
                                         self.overlay_kind_item = 0;
                                         self.show_overlay_message(
                                             0,
@@ -5334,6 +5424,10 @@ impl GameScene {
                                     self.battle_no_counter = true;
                                 } else {
                                     self.walk_step_count = 0;
+                                    // 【BUG-043】同上：箭头暂存随共用 walkStepCount 一并清空
+                                    if let Some(a) = self.walkto_arrows.as_mut() {
+                                        a.clear();
+                                    }
                                     // "你无法战胜它" 提示浮层：交互批次
                                 }
                             }
@@ -5647,6 +5741,8 @@ impl GameScene {
         /// 刷新 + 格内实体效果（拾取 cat2/4；楼梯 7/8 → 换层批次）+
         /// walkPhase=0 + handleFieldInput（按住连走）。
         fn apply_step_cell_effects(&mut self) {
+            // 【BUG-043】刚走完这一步的朝向（下文 handleFieldInput 在 Dialog 语境会弹出点地寻路的下一步并转向）
+            let walked_facing = self.facing;
             self.player_cell_x = self.view.player_px >> 5;
             self.player_cell_y = self.view.player_py >> 5;
             self.player_bob_applied = false; // player_bob_applied 每步清零（a.java:5550），踩喷泉再置
@@ -5835,7 +5931,12 @@ impl GameScene {
         }
         // label216（a.java:5748-5761）：路径消费/清除——顶步 == 朝向则消费一步，
         // 否则整条清空 + 熄箭头；步数已尽也熄箭头
-        if self.path_arrows_visible {
+        // 【BUG-043】点地寻路期间 walkPathBuffer 装的是寻路路线：规则改作用于暂存的箭头步序
+        //（否则会吃掉寻路步、并在寻路步尽时熄箭头）；经典面 walkto_arrows 恒 None，原逻辑一字不动
+        if self.path_arrows_visible && self.walkto_arrows.is_some() {
+            self.consume_walkto_arrow_step(walked_facing);
+            self.settle_walkto_arrows();
+        } else if self.path_arrows_visible {
             if self.walk_step_count > 0 {
                 let top = self.walk_path_buffer[(self.walk_step_count - 1) as usize] as i32;
                 if top == self.facing {
@@ -6601,9 +6702,10 @@ impl GameScene {
             let mut ay = (self.player_cell_y << 5) + cam_y;
             let bob = self.bob_offset;
             let piece = &self.images.ui[22];
-            for i in (0..self.walk_step_count as usize).rev() {
+            let (buf, count) = self.path_arrow_steps();
+            for i in (0..count).rev() {
                 g.set_color(136);
-                match self.walk_path_buffer[i] {
+                match buf[i] {
                     0 => {
                         ay += 32;
                         draw_image_clipped(g, piece, ax + 5, ay + 5 + bob, 21, 0, 21, 22);
@@ -10497,6 +10599,239 @@ mod t2_walkto_route_tests {
         run_until_settled(&mut sc, 200);
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (5, ROW), "终位=tap 格");
         assert_eq!(sc.undo.len(), 1, "段终位=位移笔一笔");
+    }
+
+    /// 【BUG-043】教程路径箭头（SEE flag=1：findPath 写 walkPathBuffer + pathArrowsVisible）下点地寻路：箭头须与用方向键
+    /// 走同一条路线时完全一致（沿箭头走 ⇒ 逐格消费、余下箭头不动；偏离箭头 ⇒ 箭头熄灭，a.java:5748-5761 label216）。
+    /// 旧行为：walk_to 覆写同一个 walkPathBuffer，箭头改画寻路路线（以玩家为起点 ⇒ "错位"），且 dp3 弹步不走 label216。
+    fn arrows_scene(from: i32, to: i32) -> GameScene {
+        let mut sc = scene((from, ROW), &[]);
+        assert!(sc.find_path(from, ROW, to, ROW), "前置：箭头路径可达");
+        sc.path_arrows_visible = true; // op_see flag=1 同款
+        sc
+    }
+
+    /// 方向键逐格走到 `dest`（参照行为：每格按一下、松开、等走完这一格再按下一下）。
+    fn key_walk(sc: &mut GameScene, code: i32, dest: (i32, i32)) {
+        let wt = sc.width_table.clone();
+        let mut fc = 0;
+        while (sc.player_cell_x, sc.player_cell_y) != dest && fc < 400 {
+            let at = (sc.player_cell_x, sc.player_cell_y);
+            sc.press_key(code);
+            sc.tick(fc, &wt);
+            fc += 1;
+            sc.release_key();
+            while ((sc.player_cell_x, sc.player_cell_y) == at || sc.walk_phase != 0) && fc < 400 {
+                sc.tick(fc, &wt);
+                fc += 1;
+            }
+        }
+        for _ in 0..40 {
+            sc.tick(fc, &wt);
+            fc += 1;
+        }
+    }
+
+    /// 点地走到 `dest`，逐拍记录箭头格。
+    fn tap_walk(sc: &mut GameScene, dest: (i32, i32)) -> Vec<Vec<(i32, i32)>> {
+        let wt = sc.width_table.clone();
+        assert!(sc.walk_to(dest.0, dest.1).reached);
+        let mut frames = vec![sc.path_arrow_cells()];
+        for fc in 0..400 {
+            sc.tick(fc, &wt);
+            frames.push(sc.path_arrow_cells());
+            if !sc.script_walk_armed && sc.walk_phase == 0 && !sc.route.is_open() {
+                break;
+            }
+        }
+        for fc in 400..440 {
+            sc.tick(fc, &wt);
+        }
+        frames
+    }
+
+    #[test]
+    fn bug043_tap_walk_along_arrows_consumes_like_keys() {
+        let original = arrows_scene(1, 6).path_arrow_cells();
+        assert_eq!(original, vec![(2, ROW), (3, ROW), (4, ROW), (5, ROW), (6, ROW)], "前置：箭头 (1)→(6)");
+        let mut keys = arrows_scene(1, 6);
+        key_walk(&mut keys, -4, (3, ROW));
+        let mut touch = arrows_scene(1, 6);
+        let frames = tap_walk(&mut touch, (3, ROW));
+        assert_eq!((touch.player_cell_x, touch.player_cell_y), (3, ROW), "走到点中格");
+        assert_eq!(touch.game_mode, GameMode::Map);
+        assert_eq!(keys.path_arrow_cells(), vec![(4, ROW), (5, ROW), (6, ROW)], "参照：方向键沿箭头走两格 ⇒ 余下三格");
+        assert_eq!(touch.path_arrow_cells(), keys.path_arrow_cells(), "点地 = 方向键");
+        for (t, cells) in frames.iter().enumerate() {
+            assert!(
+                original.ends_with(cells),
+                "第 {t} 拍箭头 {cells:?} 须是原箭头路径的尾段（不得改画寻路路线 / 错位）"
+            );
+        }
+    }
+
+    #[test]
+    fn bug043_tap_walk_off_arrows_clears_them_like_keys() {
+        let mut keys = arrows_scene(3, 6);
+        key_walk(&mut keys, -3, (2, ROW));
+        assert!(!keys.path_arrows_visible, "参照：方向键走离箭头 ⇒ 箭头熄灭（label216）");
+        let mut touch = arrows_scene(3, 6);
+        tap_walk(&mut touch, (2, ROW));
+        assert_eq!((touch.player_cell_x, touch.player_cell_y), (2, ROW));
+        assert_eq!(touch.path_arrows_visible, keys.path_arrows_visible, "点地 = 方向键");
+        assert!(touch.path_arrow_cells().is_empty());
+    }
+
+    #[test]
+    fn bug043_interrupted_tap_walk_keeps_remaining_arrows() {
+        // 沿箭头点地走、途中按键打断（BUG-040 收尾）：已走的格消费，余下箭头仍按原路线画
+        let original = arrows_scene(1, 6).path_arrow_cells();
+        let mut sc = arrows_scene(1, 6);
+        let wt = sc.width_table.clone();
+        assert!(sc.walk_to(6, ROW).reached);
+        let mut fc = 0;
+        while sc.player_cell_x < 3 && fc < 400 {
+            sc.tick(fc, &wt);
+            fc += 1;
+        }
+        sc.press_key(-1); // 上 = 撞墙，打断寻路
+        sc.release_key();
+        for _ in 0..60 {
+            sc.tick(fc, &wt);
+            fc += 1;
+        }
+        assert_eq!(sc.game_mode, GameMode::Map);
+        assert!(!sc.route.is_open());
+        let cells = sc.path_arrow_cells();
+        assert!(sc.path_arrows_visible, "沿箭头走被打断：箭头仍在（方向键沿箭头走同样保留）");
+        assert!(original.ends_with(&cells), "余下箭头 {cells:?} 须是原路线尾段");
+        assert_eq!(cells.first().copied(), Some((sc.player_cell_x + 1, ROW)), "余下箭头紧接玩家格");
+    }
+
+    /// 箭头相关全部状态（对照用）：可见、绘制格、暂存是否已清、walkPathBuffer 有效段（label216 / 绘制的数据源）。
+    fn arrow_state(sc: &GameScene) -> (bool, Vec<(i32, i32)>, bool, Vec<u8>) {
+        let n = sc.walk_step_count.max(0) as usize;
+        (sc.path_arrows_visible, sc.path_arrow_cells(), sc.walkto_arrows.is_none(), sc.walk_path_buffer[..n].to_vec())
+    }
+
+    /// 复核 bug043-R1：到达 / 打断两个出口收尾后，暂存已清、walkPathBuffer 有效段与方向键参照相同（不只是"画出来一样"）。
+    #[test]
+    fn bug043_exits_restore_buffer_like_keys() {
+        let mut keys = arrows_scene(1, 6);
+        key_walk(&mut keys, -4, (3, ROW));
+        let mut arrived = arrows_scene(1, 6);
+        tap_walk(&mut arrived, (3, ROW));
+        assert_eq!(arrow_state(&arrived), arrow_state(&keys), "到达");
+        assert!(arrow_state(&arrived).2, "到达：暂存已清");
+        // 打断：寻路走到 3 时按"上"（撞墙），收尾停在 3
+        let mut cut = arrows_scene(1, 6);
+        let wt = cut.width_table.clone();
+        assert!(cut.walk_to(6, ROW).reached);
+        let mut fc = 0;
+        while cut.player_cell_x < 3 && fc < 400 {
+            cut.tick(fc, &wt);
+            fc += 1;
+        }
+        cut.press_key(-1);
+        cut.release_key();
+        for _ in 0..60 {
+            cut.tick(fc, &wt);
+            fc += 1;
+        }
+        let at = (cut.player_cell_x, cut.player_cell_y);
+        let mut keys2 = arrows_scene(1, 6);
+        key_walk(&mut keys2, -4, at);
+        assert_eq!(arrow_state(&cut), arrow_state(&keys2), "打断于 {at:?}");
+    }
+
+    /// 复核 bug043-R1：新路径（SEE / MOV 的 findPath）取代暂存——寻路途中剧情重算路径后不得再画旧箭头。
+    #[test]
+    fn bug043_find_path_drops_stash() {
+        let mut sc = arrows_scene(1, 6);
+        assert!(sc.walk_to(4, ROW).reached);
+        assert!(sc.walkto_arrows.is_some(), "前置：箭头已暂存");
+        assert!(sc.find_path(1, ROW, 2, ROW));
+        assert!(sc.walkto_arrows.is_none(), "findPath 后暂存作废");
+        assert_eq!(sc.path_arrow_cells(), vec![(2, ROW)], "箭头 = 新路径");
+    }
+
+    /// 复核 bug043-R2：点地走到剧情触发格（型 83，撞格触发）前一格并撞进去 = 方向键走过去再撞进去。
+    #[test]
+    fn bug043_bump_into_scene_trigger_like_keys() {
+        let make = || {
+            let mut sc = scene((1, ROW), &[(83, 5, ROW)]);
+            sc.dialog_data.scripts = vec!["TAK_0_0 ".to_string()];
+            assert!(sc.find_path(1, ROW, 6, ROW) || sc.find_path(1, ROW, 4, ROW), "前置：箭头路径");
+            sc.path_arrows_visible = true;
+            sc
+        };
+        let mut keys = make();
+        key_walk(&mut keys, -4, (4, ROW));
+        let wt = keys.width_table.clone();
+        keys.press_key(-4); // 撞 83 ⇒ 剧情
+        for fc in 0..20 {
+            keys.tick(fc, &wt);
+        }
+        keys.release_key();
+        let mut touch = make();
+        let wt2 = touch.width_table.clone();
+        let _ = touch.walk_to(5, ROW);
+        for fc in 0..200 {
+            touch.tick(fc, &wt2);
+            if touch.game_mode == GameMode::Dialog && !touch.route.is_open() && touch.dialog_phase != 3 {
+                break;
+            }
+        }
+        for fc in 200..220 {
+            touch.tick(fc, &wt2);
+        }
+        assert_eq!(keys.game_mode, GameMode::Dialog, "参照：撞 83 进剧情");
+        assert_eq!(touch.game_mode, GameMode::Dialog, "点地：撞 83 进剧情");
+        assert_eq!((touch.player_cell_x, touch.player_cell_y), (keys.player_cell_x, keys.player_cell_y));
+        assert_eq!(arrow_state(&touch), arrow_state(&keys), "撞格触发剧情后的箭头状态");
+    }
+
+    /// 复核 bug043-R3：箭头一路指到锁门（无钥匙），点地沿箭头走到门前并撞门 = 方向键沿箭头走过去再撞门：
+    /// 原版撞门清共用 walkStepCount ⇒ 余下箭头不再画。多步寻路的末步撞门走 advanceScriptWalk（步末连走）臂，
+    /// 不经"浮层撞格熄箭头"臂——暂存须在撞门处同清。
+    #[test]
+    fn bug043_bump_locked_door_like_keys() {
+        let make = || {
+            let mut sc = scene((1, ROW), &[(1, 4, ROW)]); // 型 1 = 黄门（无钥匙）
+            assert!(sc.find_path(1, ROW, 4, ROW), "前置：箭头路径 (1)→门(4)");
+            sc.path_arrows_visible = true;
+            assert_eq!(sc.path_arrow_cells(), vec![(2, ROW), (3, ROW), (4, ROW)]);
+            sc
+        };
+        let mut keys = make();
+        key_walk(&mut keys, -4, (3, ROW));
+        assert_eq!(keys.path_arrow_cells(), vec![(4, ROW)], "参照前置：走到门前余下门格箭头");
+        let wt = keys.width_table.clone();
+        keys.press_key(-4); // 撞门
+        keys.tick(500, &wt);
+        keys.release_key();
+        let mut touch = make();
+        let wt2 = touch.width_table.clone();
+        let _ = touch.walk_to(4, ROW);
+        for fc in 0..200 {
+            touch.tick(fc, &wt2);
+            if touch.overlay_active {
+                break;
+            }
+        }
+        assert!(keys.overlay_active && touch.overlay_active, "两边都弹出\"没有钥匙\"提示");
+        assert_eq!((touch.player_cell_x, touch.player_cell_y), (3, ROW), "停在门前");
+        assert!(keys.path_arrow_cells().is_empty(), "参照：方向键撞门后余下箭头不再画（原版清 walkStepCount）");
+        // 关掉提示后再走几拍：两边一致、箭头不复现
+        for sc in [&mut keys, &mut touch] {
+            sc.overlay_active = false;
+            let wt = sc.width_table.clone();
+            for fc in 600..640 {
+                sc.tick(fc, &wt);
+            }
+        }
+        assert!(touch.walkto_arrows.is_none(), "暂存已清");
+        assert_eq!(touch.path_arrow_cells(), keys.path_arrow_cells(), "点地撞门 = 方向键撞门");
     }
 
     #[test]

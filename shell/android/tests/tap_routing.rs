@@ -196,6 +196,53 @@ fn tap_walk_case(tag: &str, cam: Option<(i32, i32)>) {
     }
 }
 
+/// 【BUG-043】用户实机："教程关中有绘制路径箭头的情况，当箭头存在时，用触屏移动会导致箭头错位，用虚拟摇杆移动不会"。
+/// 序章首图：箭头自出生格起 ↑→→。点箭头上的第 2 格：逐拍画出的箭头都须是原箭头路线的尾段（旧：改画寻路路线、以玩家为起点
+/// ⇒ 错位），走到后余下箭头 = 用方向键走到同一格时的余下箭头。
+#[test]
+fn tutorial_arrows_stay_on_their_path_during_tap_walk() {
+    let mut h = to_map("bug043");
+    let original = h.sc().path_arrow_cells();
+    assert!(original.len() >= 3, "前置：序章首图有路径箭头（实得 {original:?}）");
+    let target = original[1];
+    let (sx, sy) = {
+        let sc = h.sc();
+        (sc.view.cam_x + (target.0 << 5) + 16, sc.view.cam_y + sc.layout.view_top_y + (target.1 << 5) + 16)
+    };
+    h.step(vec![], vec![(sx as f32, sy as f32)]);
+    assert!(h.sc().route.is_open(), "点箭头格 {target:?} = 开寻路");
+    for t in 0..160 {
+        let cells = h.sc().path_arrow_cells();
+        assert!(original.ends_with(&cells), "第 {t} 拍箭头 {cells:?} 偏离原路线 {original:?}");
+        if (h.sc().player_cell_x, h.sc().player_cell_y) == target && h.sc().walk_phase == 0 && !h.sc().route.is_open() {
+            break;
+        }
+        h.step(vec![], vec![]);
+    }
+    assert_eq!((h.sc().player_cell_x, h.sc().player_cell_y), target, "走到点中格");
+    // 参照：另起一局，用方向键（面板同键码）逐格沿箭头走到同一格
+    let mut k = to_map("bug043key");
+    for &cell in &original[..2] {
+        let from = (k.sc().player_cell_x, k.sc().player_cell_y);
+        let code = if cell.1 > from.1 { -2 } else if cell.1 < from.1 { -1 } else if cell.0 > from.0 { -4 } else { -3 };
+        k.step(vec![KeyAction::Press(code)], vec![]);
+        k.step(vec![KeyAction::Release], vec![]);
+        for _ in 0..40 {
+            if (k.sc().player_cell_x, k.sc().player_cell_y) == cell && k.sc().walk_phase == 0 {
+                break;
+            }
+            k.step(vec![], vec![]);
+        }
+    }
+    for _ in 0..6 {
+        k.step(vec![], vec![]);
+        h.step(vec![], vec![]);
+    }
+    assert_eq!((k.sc().player_cell_x, k.sc().player_cell_y), target, "参照：方向键走到同一格");
+    assert_eq!(h.sc().path_arrow_cells(), k.sc().path_arrow_cells(), "余下箭头：点地 = 方向键");
+    assert_eq!(h.sc().path_arrows_visible, k.sc().path_arrows_visible);
+}
+
 #[test]
 fn tap_on_drawn_walkable_cell_walks_player_there() {
     tap_walk_case("bug042", None);
