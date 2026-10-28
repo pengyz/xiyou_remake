@@ -769,3 +769,25 @@ core 两测 RED = E0599（`blank_tap_key` 不存在）。GREEN：game-core / gam
 - **Stage B 修复方案**：—。
 Evidence: A 级——Android / Windows 两条宿主测试在修复前 RED（声音回滚为开），修复后 GREEN；handoff 单测 RED = E0425（`return_to_title` 不存在）。
 B 级——陈旧水位写回 SKY_WAR 的路径（读码）。GREEN：game-core / game-shell-common / game-android / game-desktop 542 测全绿。Confidence: 92
+
+## BUG-042 点地寻路基本不走：触屏格换算用 16 px（瓦片层子瓦片），游戏格是 32 px（Stage B 触屏 / 鼠标，用户实机，已修复）
+
+> 【2026-10-28】用户实机："测一下触屏效果，我试过，无法触发走动"。
+- **现象 / 复现**：Android 竖屏进地图后点画面上的空地格，悟空不动。
+  - 设备日志（本方注入）：`scene_tap(292,324) mode=Map → None`——点按已走到场上通道（`field_tap_allowed` 为真），但无寻路。
+  - 宿主复现（真资产、设备同档布局 12×16）：点游戏绘制在 (80,370) 的空格 (2,10)，`route.is_open()` 恒假。
+  - 同一会话用户另一次尝试落在 scene mode 0（hideNotify 菜单 -7 = 已登记 BUG-014，原版保真），与本条无关。
+- **根因**（Stage B 壳层移植错误，非原版 bug，D4 不适用）：`shell/common/src/touch.rs` `TouchGeom::TILE = 16`，注释"paint_tiles 16px 步进"。
+  - `GameView::paint_tiles` 画的是**子瓦片**（每行 `wide*2` 块、16 px）；游戏格是 32 px：`player_cell_x = player_px >> 5`（scene.rs:960）、
+    实体 `cx << 5`（scene.rs:2612）、`map_w_px = wide << 5`（game_view.rs:119）；`walkable` / `walk_to` / `probe_step` 都用这个格网。
+  - 用 16 换算 ⇒ 格号约为真实的 2 倍：画面右半 / 下半的点按越界被忽略（例：x 292 → 列 18 ≥ 12），其余落到错误格（常为墙 ⇒ 探步撞墙）。
+    10-26 实机记录的"点地寻路拾钥匙"可解释为点到左上区域、走到了别的可走格（B 级推断），当时只验"有没有走"，没核对落点。
+  - 旧测试抓不到：点位用同模块的 `cell_screen_xy` 求（与被测同错），或手写 16 px 字面量。
+- **影响**：Android 点地寻路 / 点墙探步、Windows 鼠标点地（`pointer_tap` 同用 `TouchGeom`）基本不可用或走错格。
+- **Stage A 处理**：**已修复**。`TILE = 32`（日期更正注）。7 条旧测试按 32 px 改写字面量（原意不变）。
+  - 宿主钉：`shell/android/tests/tap_routing.rs` `tap_on_drawn_walkable_cell_walks_player_there` / `tap_walks_to_drawn_cell_with_camera_offset`
+    ——点位按**游戏绘制公式**求（相机 + view_top + 格 × 32 + 16），依次点可达范围内每个空格、须恰好走到被点的格，第二例先把相机移到 (37,-45)。
+- **Stage B 修复方案**：—。
+Evidence: A 级——只改常量 16 ↔ 32：新测试 RED（`route.is_open()` 假）↔ GREEN；变异实测：TILE=16、相机 x/y 对调、`cell_at` 列号 +1、
+tile_off=0 均被杀；cols/rows 对调存活（12×13 图上只差边界一列，界内不可观测，如实记录）。设备日志 `scene_tap(292,324) mode=Map → None`。
+B 级——格单位由 `>> 5` / `<< 5` 调用图推出。GREEN：game-core / game-shell-common / game-android / game-desktop 全绿。Confidence: 93

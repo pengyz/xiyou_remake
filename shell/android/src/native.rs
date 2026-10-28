@@ -347,21 +347,28 @@ pub fn scene_tap(sc: &mut game_core::scene::GameScene, x: i32, y: i32) -> Option
                     .copied()
                     .unwrap_or(false)
             };
-            Dispatcher::tap(classify_tap(
-                x,
-                y,
-                &geom,
-                sc.layout.screen_w,
-                sc.layout.screen_h,
-                (sc.player_cell_x, sc.player_cell_y),
-                walkable,
-            ))
+            let player = (sc.player_cell_x, sc.player_cell_y);
+            let act = classify_tap(x, y, &geom, sc.layout.screen_w, sc.layout.screen_h, player, walkable);
+            log_input(&format!(
+                "field tap ({x},{y}) cam=({},{}) cell={:?} player={player:?} → {act:?}",
+                geom.cam_x,
+                geom.cam_y,
+                geom.cell_at(x, y)
+            ));
+            Dispatcher::tap(act)
         };
         for a in actions {
             match a {
                 ShellAction::Interrupt => sc.interrupt_route(),
                 ShellAction::WalkTo((tx, ty)) => {
-                    let _ = sc.walk_to(tx, ty);
+                    let plan = sc.walk_to(tx, ty);
+                    log_input(&format!(
+                        "walk_to({tx},{ty}) steps={} dock={:?} reached={} probe={}",
+                        plan.steps.len(),
+                        plan.dock,
+                        plan.reached,
+                        plan.probe.is_some()
+                    ));
                 }
                 ShellAction::ProbeStep(d) => {
                     let _ = sc.probe_step(d);

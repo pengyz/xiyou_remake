@@ -129,6 +129,83 @@ fn open_map_message(h: &mut H) {
     sc.overlay_text = Some("提示".into());
 }
 
+/// 【BUG-042】点地寻路的格换算须与游戏绘制同一格网：格 = 32 px（`player_cell_x = player_px >> 5`、实体 `cx << 5`）。
+/// 期望点来自游戏绘制公式（格屏幕原点 = 相机 + view_top + 格 × 32，scene.rs paint_entities / paint_player 同式），
+/// 不经触屏模块自身的换算（旧测试用 `cell_screen_xy` 求点 ⇒ 与被测同错，抓不到）。
+/// 依次点可达范围内**每一个**在视口内的空格，每次都须恰好走到被点的格（单个目标可能因邻格实体让 walk_to 停在邻格而掩盖
+/// ±1 格换算错误，复核 bug042-重要1）。`cam` = Some 时先把相机移到 x / y 不等的偏移（首图相机近原点，掩盖相机项与 x / y 对调）。
+fn tap_walk_case(tag: &str, cam: Option<(i32, i32)>) {
+    let mut h = to_map(tag);
+    let set_cam = |h: &mut H| {
+        if let Some((cx, cy)) = cam {
+            let sc = h.sc_mut();
+            sc.view.cam_x = cx;
+            sc.view.cam_y = cy;
+        }
+    };
+    set_cam(&mut h);
+    let (px, py) = (h.sc().player_cell_x, h.sc().player_cell_y);
+    let targets: Vec<(i32, i32)> = {
+        let sc = h.sc();
+        let in_map = |x: i32, y: i32| x >= 0 && y >= 0 && x < sc.view.wide && y < sc.view.high;
+        let free = |x: i32, y: i32| {
+            in_map(x, y)
+                && sc.walkable[y as usize][x as usize]
+                && sc.grid.capacity[sc.grid.cell_type[y as usize][x as usize] as usize] == 0
+        };
+        let on_screen = |x: i32, y: i32| {
+            let (sx, sy) = (sc.view.cam_x + (x << 5), sc.view.cam_y + sc.layout.view_top_y + (y << 5));
+            sx >= 0 && sy >= sc.layout.view_top_y && sx + 32 <= sc.layout.screen_w && sy + 32 <= sc.layout.view_top_y + sc.view.view_h
+        };
+        let mut seen = std::collections::HashSet::from([(px, py)]);
+        let mut q = std::collections::VecDeque::from([(px, py)]);
+        let mut out = Vec::new();
+        while let Some((x, y)) = q.pop_front() {
+            if (x, y) != (px, py) && on_screen(x, y) {
+                out.push((x, y));
+            }
+            for (dx, dy) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
+                let n = (x + dx, y + dy);
+                if free(n.0, n.1) && seen.insert(n) {
+                    q.push_back(n);
+                }
+            }
+        }
+        out
+    };
+    assert!(targets.len() >= 2, "[{tag}] 前置：可达空格 ≥2（实得 {targets:?}）");
+    for target in targets {
+        set_cam(&mut h);
+        let from = (h.sc().player_cell_x, h.sc().player_cell_y);
+        let (sx, sy) = {
+            let sc = h.sc();
+            (sc.view.cam_x + (target.0 << 5) + 16, sc.view.cam_y + sc.layout.view_top_y + (target.1 << 5) + 16)
+        };
+        h.step(vec![], vec![(sx as f32, sy as f32)]);
+        if target != from {
+            assert!(h.sc().route.is_open(), "[{tag}] 点中绘制在 ({sx},{sy}) 的格 {target:?}：开寻路（玩家在 {from:?}）");
+        }
+        for _ in 0..160 {
+            h.step(vec![], vec![]);
+            if (h.sc().player_cell_x, h.sc().player_cell_y) == target && h.sc().walk_phase == 0 && !h.sc().route.is_open() {
+                break;
+            }
+        }
+        assert_eq!((h.sc().player_cell_x, h.sc().player_cell_y), target, "[{tag}] 从 {from:?} 点 {target:?}：走到被点的那一格");
+        assert_eq!(h.sc().game_mode, GameMode::Map, "[{tag}] 走完回到地图行走态");
+    }
+}
+
+#[test]
+fn tap_on_drawn_walkable_cell_walks_player_there() {
+    tap_walk_case("bug042", None);
+}
+
+#[test]
+fn tap_walks_to_drawn_cell_with_camera_offset() {
+    tap_walk_case("bug042cam", Some((37, -45)));
+}
+
 #[test]
 fn map_overlay_tap_on_walkable_cell_does_not_walk() {
     let mut h = to_map("p1a");

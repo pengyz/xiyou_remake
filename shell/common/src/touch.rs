@@ -28,10 +28,13 @@ pub struct TouchGeom {
 }
 
 impl TouchGeom {
-    /// 格像素（paint_tiles 16px 步进；陷阱①索引语义域）。
-    pub const TILE: i32 = 16;
+    /// 格像素 = 游戏格网 32 px（`player_cell_x = player_px >> 5`、实体 `cx << 5`、`map_w_px = wide << 5`；
+    /// walkable / walk_to / probe_step 同一格网）。
+    /// > 【2026-10-28 更正 · BUG-042】原取 16（"paint_tiles 16px 步进"）：那是瓦片层的**子瓦片**（`wide*2` 列、每格 2×2 块），
+    /// > 不是游戏格。用 16 换算后格号翻倍 ⇒ 点地图大部分区域越界被忽略、其余落到错误格（多为墙 ⇒ 探步撞墙），点地寻路基本不走。
+    pub const TILE: i32 = 32;
 
-    /// 屏幕逻辑 px → 格（半开 16px 格网；界外 None）。
+    /// 屏幕逻辑 px → 格（半开 TILE = 32 px 格网；界外 None）。
     pub fn cell_at(&self, x: i32, y: i32) -> Option<(i32, i32)> {
         let cx = (x - self.cam_x).div_euclid(Self::TILE);
         let cy = (y - self.cam_y - self.tile_off).div_euclid(Self::TILE);
@@ -210,9 +213,11 @@ impl Dispatcher {
 mod tests {
     use super::*;
 
-    /// maplv5 对照锚同款几何（cam(-144,-16)、tile_off=20、26×26 格图）。
+    /// maplv5 对照锚同款几何（cam(-144,-16)、tile_off=20）。maplv5 头 26 = 子瓦片数 ⇒ **13×13 游戏格**（32 px）。
+    /// > 【2026-10-28 更正 · BUG-042】原写"26×26 格图"并按 16 px 求期望——把子瓦片当成了格；下列期望改由游戏绘制公式
+    /// > 推出：格 (c,r) 屏幕原点 = (cam_x + 32c, cam_y + tile_off + 32r)（scene.rs paint_entities / paint_player 同式）。
     fn geom() -> TouchGeom {
-        TouchGeom { cam_x: -144, cam_y: -16, tile_off: 20, cols: 26, rows: 26 }
+        TouchGeom { cam_x: -144, cam_y: -16, tile_off: 20, cols: 13, rows: 13 }
     }
 
     // —— ① 坐标反变换四角（视口/相机反变换：逻辑 px → 格） ——
@@ -220,16 +225,16 @@ mod tests {
     #[test]
     fn cell_at_four_corners_of_tile_window() {
         let g = geom();
-        // 格 (9,1) 起绘于屏幕 (0,20)（cam_x+16*9=0、cam_y+20+16*1=20）
-        assert_eq!(g.cell_at(0, 20), Some((9, 1)), "格左上角");
-        assert_eq!(g.cell_at(15, 35), Some((9, 1)), "格右下内沿（16px 半开）");
-        assert_eq!(g.cell_at(16, 36), Some((10, 2)), "右下邻格起点");
-        assert_eq!(g.cell_at(239, 319), Some((23, 19)), "画面右下角（screen y=4+16r）");
+        // 格 (5,1) 起绘于屏幕 (16,36)（cam_x+32*5=16、cam_y+20+32*1=36）
+        assert_eq!(g.cell_at(16, 36), Some((5, 1)), "格左上角");
+        assert_eq!(g.cell_at(47, 67), Some((5, 1)), "格右下内沿（32px 半开）");
+        assert_eq!(g.cell_at(48, 68), Some((6, 2)), "右下邻格起点");
+        assert_eq!(g.cell_at(239, 319), Some((11, 9)), "画面右下角（x=(239+144)/32、y=(319-4)/32）");
         // 反变换四角互逆：cell_screen_xy(cell_at(p)) = 格原点
-        for (x, y) in [(0, 20), (16, 36), (112, 164), (239, 319)] {
+        for (x, y) in [(16, 36), (48, 68), (112, 164), (239, 319)] {
             let (cx, cy) = g.cell_at(x, y).unwrap();
             let (ox, oy) = g.cell_screen_xy(cx, cy);
-            assert!(x >= ox && x < ox + 16 && y >= oy && y < oy + 16, "({x},{y}) 落回格原点 ({ox},{oy})");
+            assert!(x >= ox && x < ox + 32 && y >= oy && y < oy + 32, "({x},{y}) 落回格原点 ({ox},{oy})");
         }
     }
 
@@ -238,8 +243,10 @@ mod tests {
         let g = geom();
         assert_eq!(g.cell_at(-145, 20), None, "左越界（col<0；cam_x=-144 左沿）");
         assert_eq!(g.cell_at(0, 3), None, "上越界（row<0；地图顶沿 y=4）");
-        assert_eq!(g.cell_at(272, 20), None, "右越界（col>=26）");
-        assert_eq!(g.cell_at(0, 420), None, "下越界（row>=26）");
+        assert_eq!(g.cell_at(272, 20), None, "右越界（col>=13：-144+13*32=272）");
+        assert_eq!(g.cell_at(271, 20), Some((12, 0)), "右沿内");
+        assert_eq!(g.cell_at(0, 420), None, "下越界（row>=13：4+13*32=420）");
+        assert_eq!(g.cell_at(0, 419), Some((4, 12)), "下沿内");
     }
 
     // —— ② 撤销命中（常驻按钮区，右上 56×20） ——
@@ -286,24 +293,24 @@ mod tests {
     #[test]
     fn tap_classifies_walk_wall_probe_and_undo() {
         let g = geom();
-        let player = (9, 1);
-        let walkable = |x: i32, y: i32| !(x == 10 && y == 1); // (10,1)=墙，其余可走
-        // 点空地 → WalkTo(tile)
+        let player = (5, 1);
+        let walkable = |x: i32, y: i32| !(x == 6 && y == 1); // (6,1)=墙，其余可走
+        // 点空地 → WalkTo(tile)：格 (7,2) 原点 (80,68)
         assert_eq!(
-            classify_tap(32, 48, &g, 240, 320, player, &walkable),
-            TapAction::WalkTo((11, 2)),
+            classify_tap(90, 80, &g, 240, 320, player, &walkable),
+            TapAction::WalkTo((7, 2)),
             "点空地=walk_to(格)"
         );
-        // 点墙格（相邻）→ 探步入（朝墙方向）
+        // 点墙格（相邻）→ 探步入（朝墙方向）：格 (6,1) 原点 (48,36)
         assert_eq!(
-            classify_tap(16, 20, &g, 240, 320, player, &walkable),
+            classify_tap(50, 40, &g, 240, 320, player, &walkable),
             TapAction::ProbeStep(2),
             "点墙格=探步入 Right"
         );
         // 撤销区 → Undo
         assert_eq!(classify_tap(200, 5, &g, 240, 320, player, &walkable), TapAction::Undo, "撤销区=Undo");
         // 玩家自身格 / 画外 → Ignore
-        assert_eq!(classify_tap(1, 21, &g, 240, 320, player, &walkable), TapAction::Ignore, "点自身格=忽略");
+        assert_eq!(classify_tap(17, 37, &g, 240, 320, player, &walkable), TapAction::Ignore, "点自身格=忽略");
         assert_eq!(classify_tap(5000, 0, &g, 240, 320, player, &walkable), TapAction::Ignore, "画外=忽略");
     }
 
@@ -313,8 +320,8 @@ mod tests {
     fn dual_mode_keys_and_taps_coexist() {
         // 触点通道动作后，键通道照常发键（无互斥开关/无压制）
         let g = geom();
-        let tap = Dispatcher::tap(classify_tap(32, 48, &g, 240, 320, (9, 1), &|_, _| true));
-        assert_eq!(tap[1], ShellAction::WalkTo((11, 2)));
+        let tap = Dispatcher::tap(classify_tap(90, 80, &g, 240, 320, (5, 1), &|_, _| true));
+        assert_eq!(tap[1], ShellAction::WalkTo((7, 2)));
         let key = Dispatcher::key(-4);
         assert_eq!(key, vec![ShellAction::Interrupt, ShellAction::Key(-4)], "tap 后按键不被压制");
         let tap2 = Dispatcher::tap(TapAction::WalkTo((12, 2)));
@@ -327,7 +334,7 @@ mod tests {
     #[test]
     fn interrupt_signal_on_every_channel() {
         let g = geom();
-        let tap = Dispatcher::tap(classify_tap(32, 52, &g, 240, 320, (9, 1), &|_, _| false));
+        let tap = Dispatcher::tap(classify_tap(90, 80, &g, 240, 320, (5, 1), &|_, _| false));
         assert_eq!(tap[0], ShellAction::Interrupt, "触点通道发打断");
         assert_eq!(Dispatcher::swipe(0)[0], ShellAction::Interrupt, "滑动通道发打断");
         assert_eq!(Dispatcher::key(-1)[0], ShellAction::Interrupt, "方向键通道发打断");

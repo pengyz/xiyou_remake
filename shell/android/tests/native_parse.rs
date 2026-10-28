@@ -333,7 +333,8 @@ fn tap_chain_buf_to_walk_to() {
     let (lx, ly) = map_touch_xy(1335.0, 600.0, 2670, 1200, 18, 2);
     assert!((0.0..576.0).contains(&lx) && (0.0..576.0).contains(&ly), "落画布内（2b 修后）");
     let act = classify_tap(lx as i32, ly as i32, &geom, 576, 576, (0, 0), |_, _| true);
-    assert_eq!(act, TapAction::WalkTo(((lx as i32) / 16, (ly as i32) / 16)), "点格→WalkTo 全链");
+    // 【2026-10-28 更正 · BUG-042】格 = 32 px（游戏格网；原 /16 把瓦片层子瓦片当格）
+    assert_eq!(act, TapAction::WalkTo(((lx as i32) / 32, (ly as i32) / 32)), "点格→WalkTo 全链");
 }
 
 #[test]
@@ -741,6 +742,8 @@ fn scene_tap_walks_on_map_and_confirms_rows_in_menus() {
                 && sc.walkable.get(y as usize).and_then(|r| r.get(x as usize)).copied().unwrap_or(false)
         })
         .expect("玩家附近有可走格");
+    // 注：点位由被测模块自身的 cell_screen_xy 求得（自指）——只钉"Map 态点按走寻路通道"，格单位由
+    // tap_routing.rs `tap_on_drawn_walkable_cell_walks_player_there`（BUG-042，按游戏绘制公式求点）守护。
     let (sx, sy) = geom.cell_screen_xy(target.0, target.1);
     assert_eq!(scene_tap(&mut sc, sx + 8, sy + 8), None, "Map 态点按=寻路（不合成键）");
     assert!(sc.route.is_open() || sc.game_mode != GameMode::Map, "点空地格=walk_to 寻路开启（或首步即触发剧情）");
