@@ -1,7 +1,8 @@
-//! 【2026-10-26 虚拟键按下反馈】宿主钉：哪些触点算"虚拟键按下"、反馈策略（触感恒发、
-//! 按键音随游戏内"声音"开关）、运行时声音开关读数。用户："虚拟按键按的时候触发震动和
-//! 按键声音，现在操作无反馈"。纯壳层（core 不知情）；JNI 出口（View.performHapticFeedback /
+//! 【2026-10-26 虚拟键按下反馈】宿主钉：哪些触点算"虚拟键按下"、反馈策略、运行时开关读数。用户："虚拟按键按的时候
+//! 触发震动和按键声音，现在操作无反馈"。纯壳层（core 不知情）；JNI 出口（View.performHapticFeedback /
 //! AudioManager.playSoundEffect）在 feedback::android，实机 logcat 验证。
+//! > 【2026-10-28 更正 · STAGE-B-006】策略由"触感恒发、按键音随游戏内'声音'"改为"触感看'按键震动'、按键音看'按键音'"
+//! > （用户裁定"声音和按键音是分开的"）；对应测试改写，见 `cue_policy_haptic_and_click_follow_their_own_switches`。
 
 use game_android::feedback::{emit, presses_in, Cue, RecordingFeedback};
 use game_android::input::{KeyAction, TouchEvent, TouchPhase};
@@ -78,18 +79,55 @@ fn landscape_canvas_pad_presses_count_too() {
     assert_eq!(w.take_key_presses(), 0, "键区外点按 = UI 点按，非虚拟键");
 }
 
+/// 【STAGE-B-006】策略改写（原 `cue_policy_haptic_always_click_follows_game_sound_switch`：触感恒发、按键音随游戏内"声音"）：
+/// 触感看设置页"按键震动"、按键音看"按键音"，与"声音"互不影响（用户裁定"声音和按键音是分开的"）；两项全关 ⇒ 无反馈。
 #[test]
-fn cue_policy_haptic_always_click_follows_game_sound_switch() {
+fn cue_policy_haptic_and_click_follow_their_own_switches() {
     let mut out = RecordingFeedback::default();
-    emit(&mut out, 0, true);
+    emit(&mut out, 0, true, true);
     assert!(out.cues.is_empty(), "无按下不反馈");
-    emit(&mut out, 1, true);
-    emit(&mut out, 2, false);
+    for presses in [1, 2] {
+        for (haptic, click) in [(true, true), (true, false), (false, true), (false, false)] {
+            emit(&mut out, presses, haptic, click);
+        }
+    }
+    let three = vec![
+        Cue { haptic: true, click: true },
+        Cue { haptic: true, click: false },
+        Cue { haptic: false, click: true },
+    ];
     assert_eq!(
         out.cues,
-        vec![Cue { haptic: true, click: true }, Cue { haptic: true, click: false }],
-        "同一事件多次按下合并为一次；游戏内声音关 ⇒ 只震不响"
+        [three.clone(), three].concat(),
+        "单次 / 多次按下各一次反馈（同一事件合并）；两开关各自独立；两项全关 ⇒ 无反馈"
     );
+}
+
+/// 【STAGE-B-006】反馈开关读活动机的"按键震动 / 按键音"两行：开场链读 BootMachine、交接后读 GameScene（设置页切换即生效）；
+/// 无附加行（未接设置文件）⇒ 两项默认开；游戏内"声音"不参与。
+#[test]
+fn runtime_key_feedback_reads_active_machine() {
+    use game_android::runtime::{build_boot_machine, Runtime, PREF_CLICK, PREF_HAPTIC};
+    use game_core::menu_family::set_shell_option;
+    let raw = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/raw");
+    let src = game_shell_common::asset::DirAssetSource::new(&raw);
+    let dir = std::env::temp_dir().join(format!("jjxy-feedback-keys-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let (rms, stores) = game_shell_common::rms::FileRms::load(&dir);
+    let mut rt = Runtime::new(build_boot_machine(&src, game_core::layout::Layout::modern(12, 16)), stores, Box::new(rms));
+    assert_eq!(rt.key_feedback(), (true, true), "无附加行：两项默认开");
+    rt.apply_app_settings(&game_shell_common::settings::AppSettings { key_haptic: false, ..Default::default() });
+    assert_eq!(rt.key_feedback(), (false, true), "开场链：读 BootMachine 两行");
+    rt.machine.bgm.sound_enabled = false;
+    assert_eq!(rt.key_feedback(), (false, true), "声音关不影响按键音");
+    rt.machine.new_game_ready = true;
+    rt.machine.mode = game_core::enums::GameMode::Map;
+    rt.step(&src, &[], Vec::new(), Vec::new());
+    let sc = rt.scene.as_mut().expect("交接");
+    set_shell_option(&mut sc.shell_options, PREF_HAPTIC, true);
+    set_shell_option(&mut sc.shell_options, PREF_CLICK, false);
+    assert_eq!(rt.key_feedback(), (true, false), "游戏中：读 GameScene");
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]

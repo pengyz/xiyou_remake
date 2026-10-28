@@ -9,7 +9,11 @@
 //! | 合并 | 同一输入事件内多个 `Press` 合并为一次反馈 |
 //! | 时机 | 输入回调内立即派发（不等 75ms 逻辑拍）；JNI 在专用工作线程，主循环零阻塞 |
 //! | 触感 | `View.performHapticFeedback(VIRTUAL_KEY)`：系统"触感反馈"设置由系统侧裁决；无需 VIBRATE 权限 |
-//! | 按键音 | `AudioManager.playSoundEffect(FX_KEY_CLICK, -1)`：随**游戏内"声音"开关**（与 BGM 同一开关）；不受系统"触摸提示音"约束；系统音量静音时仍静 |
+//! | 按键音 | `AudioManager.playSoundEffect(FX_KEY_CLICK, -1)`：不受系统"触摸提示音"约束；系统音量静音时仍静 |
+//! | 开关 | 【2026-10-28 STAGE-B-006】设置页"按键震动"管触感、"按键音"管按键音，各自独立，与游戏内"声音"（BGM）互不影响 |
+//!
+//! > 【2026-10-28 更正 · STAGE-B-006】原策略"触感恒发、按键音随游戏内'声音'开关（与 BGM 同一开关）"是 2026-10-26 本方
+//! > 设计、非用户裁定；用户要求设置页加两个独立开关（默认都开），并裁定"声音和按键音是分开的"。
 //!
 //! # 证据（A 级：AOSP `android-16.0.0_r1` 源码 + 实机只读查询；Xiaomi 14 = Android 16 / API 36）
 //!
@@ -39,9 +43,9 @@ pub const CLICK_VOLUME_SYSTEM_DEFAULT: f32 = -1.0;
 /// 一次按键反馈。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Cue {
-    /// 触感（系统"触感反馈"设置在系统侧裁决）。
+    /// 触感（设置页"按键震动"；系统"触感反馈"设置在系统侧裁决）。
     pub haptic: bool,
-    /// 按键音（游戏内"声音"开关）。
+    /// 按键音（设置页"按键音"；与游戏内"声音"互不影响）。
     pub click: bool,
 }
 
@@ -50,9 +54,9 @@ pub fn presses_in(keys: &[KeyAction]) -> u32 {
     keys.iter().filter(|k| matches!(k, KeyAction::Press(_))).count() as u32
 }
 
-/// 策略：本输入事件的虚拟键按下数 → 至多一次反馈；触感恒发、按键音随游戏内"声音"。
-pub fn cue_for(presses: u32, sound_enabled: bool) -> Option<Cue> {
-    (presses > 0).then_some(Cue { haptic: true, click: sound_enabled })
+/// 策略（STAGE-B-006）：本输入事件的虚拟键按下数 → 至多一次反馈；触感看"按键震动"、按键音看"按键音"；两项全关 ⇒ 无反馈。
+pub fn cue_for(presses: u32, haptic: bool, click: bool) -> Option<Cue> {
+    (presses > 0 && (haptic || click)).then_some(Cue { haptic, click })
 }
 
 /// 反馈出口（Android = JNI 工作线程 [`android::JniFeedback`]；宿主 = [`RecordingFeedback`]）。
@@ -73,8 +77,8 @@ impl FeedbackOut for RecordingFeedback {
 }
 
 /// 派发：按策略得到反馈才交出口。
-pub fn emit(out: &mut dyn FeedbackOut, presses: u32, sound_enabled: bool) {
-    if let Some(cue) = cue_for(presses, sound_enabled) {
+pub fn emit(out: &mut dyn FeedbackOut, presses: u32, haptic: bool, click: bool) {
+    if let Some(cue) = cue_for(presses, haptic, click) {
         out.play(cue);
     }
 }

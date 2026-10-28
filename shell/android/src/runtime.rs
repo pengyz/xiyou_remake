@@ -194,13 +194,19 @@ impl Runtime {
         }
     }
 
-    /// 游戏内"声音"开关（活动机 `bgm.sound_enabled`；交接时随 bgm 续接，设置页翻转即变）——
-    /// 壳侧按键音据此门控（feedback.rs）。只读，不碰游戏状态。
+    /// 游戏内"声音"开关（活动机 `bgm.sound_enabled`；交接时随 bgm 续接，设置页翻转即变）。只读，不碰游戏状态。
+    /// > 【2026-10-28 更正 · STAGE-B-006】按键音不再据此门控（改看设置页"按键音"，[`Self::key_feedback`]）。
     pub fn sound_enabled(&self) -> bool {
         match self.scene.as_ref() {
             Some(sc) => sc.bgm.sound_enabled,
             None => self.machine.bgm.sound_enabled,
         }
+    }
+
+    /// 【STAGE-B-006】按键反馈开关（触感, 按键音）= 活动机设置页"按键震动 / 按键音"两行（缺行默认开）；与"声音"无关。
+    pub fn key_feedback(&self) -> (bool, bool) {
+        let s = self.app_settings();
+        (s.key_haptic, s.key_click)
     }
 
     /// 标题态（触点只走轮播手势；场景活动时恒 false）。

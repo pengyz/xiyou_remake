@@ -1249,10 +1249,12 @@ extern "C" fn handle_input(app: *mut AndroidApp, event: *mut AInputEvent) -> i32
             }
         }
         st.pending_keys.extend(keys);
-        // 【按键反馈】虚拟键按下 ⇒ 输入回调内立即派发（不等 75ms 逻辑拍）；按键音随游戏内"声音"
+        // 【按键反馈】虚拟键按下 ⇒ 输入回调内立即派发（不等 75ms 逻辑拍）；触感 / 按键音各看设置页"按键震动 / 按键音"
+        //（STAGE-B-006：与"声音"互不影响；读活动机快照）
         let presses = st.wiring.take_key_presses();
         if let Some(fb) = st.feedback.as_mut() {
-            crate::feedback::emit(fb, presses, st.rt.sound_enabled());
+            let (haptic, click) = st.rt.key_feedback();
+            crate::feedback::emit(fb, presses, haptic, click);
         }
         if consumed {
             1
