@@ -106,6 +106,10 @@ epack(unpack(x))==x 逐字节恒等（126 资产，常驻 gates）；
   （原版 volumeLevel 亦从不持久——写点 a.java:2240/4159/4234/4241 无回灌）；
   GlobalSave 70/71 只写不读=**趋同非偏离**（原版本就不回灌 soundEnabled）。
 - **代码注释引用**：`// STAGE-B-001`（game-core 跳过点 / shell settings / 测试）。
+- > 【2026-10-28 补注 · STAGE-B-006】偏离点 3 的设置文件此前只有 Windows 壳接入，Android 每次启动声音回到开（复核 C6）；
+  > 现 Android 已接入 `internalDataPath/app_settings.cfg`（启动应用、设置页切换同拍落盘），声音开关跨启动保存。同时
+  > `AppSettings` 布尔键改为只认小写 `true` / `false`、坏值取默认：`sound_enabled` 坏值由"读成关"改为"取默认开"
+  > （复核 L1；程序只写 true / false，旧用户无感）。详见 STAGE-B-006 节。
 
 ## STAGE-B-005 游戏内退出确认框（Android 返回手势）
 
@@ -134,3 +138,42 @@ epack(unpack(x))==x 逐字节恒等（126 资产，常驻 gates）；
 - **代码注释**：`// STAGE-B-005`（scene.rs / runtime.rs / native.rs）。
 - **设计件 / 计划**：docs/superpowers/specs/2026-10-27-in-game-exit-confirm-design.md /
   docs/superpowers/plans/2026-10-27-in-game-exit-confirm.md。
+
+## STAGE-B-006 设置页新增「开屏画面 / 按键震动 / 按键音」（Android 竖屏壳）
+
+- **状态**：已实施（2026-10-28，宿主验证完成；实机验证结果见本节末）
+- **用户裁定原话**（2026-10-28）："游戏开头的开屏信息加开关去掉，开关放在游戏内设置菜单里，默认关闭，用户选择性打开，
+  关闭后，启动直接现实游戏主菜单"；"游戏设置里加入按键震动和按键音开关，默认都打开"；"声音和按键音是分开的"。
+- **偏离点**：
+  1. **设置页新增三行**：原版 mode 16 只有"声音、小地图"两行（optionLabels a.java:811；addOption a.java:9911-9926）⇒
+     Android 两处设置页（标题侧 / 游戏内）在其后接"开屏画面（默认关）/ 按键震动（默认开）/ 按键音（默认开）"。
+     core 只提供壳层附加行（`menu_family::ShellOption`，显示 / 切换 / 随交接往返），不解释含义；附加行与原行同式绘制，
+     切换不碰声音、小地图、SKY_WAR（`global` / `global_dirty`）。
+  2. **开屏可跳过（默认跳过）**：原版 mode 0 三屏（l0 / l1 / sflogo 动画，68 拍 × 100 ms，a.java:3349-3381）⇒ 开屏关时
+     Android 启动在首拍前走 mode 0 收尾直入主菜单（`BootMachine::skip_boot_splash`，与自然播完共用 `finish_boot_splash`）。
+  3. **按键音与声音分开**：2026-10-26 加入的虚拟键按下反馈（f766313，当时未登记）策略为"触感恒发、按键音随游戏内'声音'"
+     （本方设计，非用户裁定）⇒ 触感看"按键震动"、按键音看"按键音"，各自独立，与"声音"（BGM）互不影响。
+  4. **首帧呈现前的输入丢弃**（Android 壳）：开屏关时首拍前已在主菜单，黑屏上的点按若落到看不见的标题确认区 / 面板确定键会
+     直接开始新游戏 ⇒ 首帧呈现前键 / 手势 / 点按全丢（含跨首帧的标题触点）。
+  5. **设置文件接入 Android**：见 STAGE-B-001 补注。
+- **门控**：附加行只由 Android 壳提供（两机 `shell_options` 默认空）；`skip_boot_splash` 只在 modern ∧ mode 0 ∧ 首拍前生效
+  ⇒ classic 回放 / 帧夹具 / Windows 壳零偏离。Windows 壳不提供三行、不跳开屏，落盘时保留文件里的三个键（不改写）。
+- **金样影响**：无。零附加行 op 流 = 改前实现实测摘要（`menu_family::shell_row_tests`）；classic boot 回放 / 帧夹具全绿；
+  Windows modern 五状态帧在干净目录下与改前 6643627 逐字节相同。
+- **改写的测试**：`shell/android/tests/feedback.rs` `cue_policy_haptic_always_click_follows_game_sound_switch` →
+  `cue_policy_haptic_and_click_follow_their_own_switches`（行为变更，偏离点 3）。
+- **新增宿主钉**：core `shell_row_tests` 5 / `title_settings_shell_rows_toggle_only_shell_options` /
+  `in_game_settings_shell_rows_toggle_only_shell_options` / `skip_boot_splash_*` 3；shell-common
+  `shell_options_ride_handoff_both_ways` / `stage_b006_keys_defaults_roundtrip_and_bad_values`；Windows
+  `persist_keeps_stage_b006_keys`；Android `tests/app_settings.rs` 10 / `runtime_key_feedback_reads_active_machine`。
+- **代码注释**：`【STAGE-B-006】`（menu_family.rs / paint.rs / scene.rs / handoff.rs / settings.rs / runtime.rs / native.rs /
+  feedback.rs / win main.rs）。
+- **设计件 / 计划 / 复核**：docs/superpowers/specs/2026-10-28-settings-splash-key-feedback-design.md /
+  docs/superpowers/plans/2026-10-28-settings-splash-key-feedback.md / 设计复核
+  docs/reviews/2026-10-28-settings-controls-design-adversarial-review.md（各任务实施复核记录在 target/verify/，不入库）。
+- **另案（本件不修）**：
+  - Windows 壳的设置文件路径固定为 exe 旁 `save/`，不随 `--save` 走；`--save` 指向别处且 exe 旁 `save/` 不存在时，声音切换
+    静默不落盘（复核 L1，T5 复核实测）。
+  - `tools/modern_frame_baseline.py --check` 的 menu 态（标题设置页）读 exe 旁 `save/app_settings.cfg` 的本机声音值，帧随本机
+    状态变化；冻结值 61fe56844fdc 与干净目录实测 720bba349f9e 不符，改前 6643627 即如此（与本件无关，待二分定位与工具隔离）。
+  - 小地图勾选不跨次保留（复核 M4）：先取证。

@@ -23,6 +23,7 @@
   不是用户裁定（头注只引用户原话"触发震动和按键声音"）。
 - **设置文件**（shell/common/src/settings.rs `AppSettings` → `app_settings.cfg`，STAGE-B-001）只有 Windows 壳接入。
   Android 至今不读不写，声音开关每次启动回到开（复核 C6）。
+  > 【2026-10-28 实施注】以上两条"现状"是设计时快照：按键反馈策略已在 T7（717e7a4）改为本件 §4；Android 设置文件已在 T6（09d8ebf）接入。
 - **原版无此三项**：全为新增行为（Stage B）。
 
 ## 1. 交互规格
@@ -107,6 +108,10 @@
   - `AndroidStorage::open` 之后读 `data_path/app_settings.cfg`，`Runtime::new` 后 `apply_app_settings`；
   - 每次 `rt.step` 之后比较 `rt.app_settings()` 与上次落盘值，不同即 `save`。在同一拍内完成，退出请求后不再出拍也不丢（复核 L1）；
   - `handle_input` 的反馈改为 `feedback::emit(fb, presses, haptic, click)`。
+  > 【2026-10-28 实施注】装载 + 应用 + 每拍比较落盘收进 `Runtime::open_app_settings` / `step` 末的
+  > `persist_app_settings_if_changed`（时机不变，宿主测试可覆盖写盘路径），native.rs 只调一次 `open_app_settings`。
+  > 实施复核另加：首帧呈现前的键 / 手势 / 点按丢弃（`ShellWiring::take_step_inputs`，T3/T6 复核：开屏关时黑屏点按会落到
+  > 看不见的标题确认区开始新游戏）。
 - 反馈策略 `feedback::cue_for(presses, haptic, click)`：
   - presses > 0 ∧（haptic ∨ click）⇒ `Some(Cue { haptic, click })`，否则 None；
   - 按键音只看"按键音"，不再看"声音"。

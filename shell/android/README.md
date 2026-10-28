@@ -70,6 +70,10 @@
 - 平铺 `{店}.bin` + 写-if-changed + upsert + 域外键丢弃 + 吞错 best-effort = `FileRms` 单源；
 - 平台差（登记非 bug）：文件查找跟随宿主 FS 原生语义（Android ext4 区分大小写 /
   Windows 不区分），契约 §5 脚注不强行归一。
+- 【2026-10-28 STAGE-B-006】应用设置文件 `app_settings.cfg`（`game_shell_common::settings::AppSettings`：声音对 +
+  开屏画面 / 按键震动 / 按键音）与 RMS 同目录（`FileRms` 只认 `{店}.bin`，不误读）。`Runtime::open_app_settings` 在首拍前
+  装载并应用（开屏关 ⇒ 首拍前即主菜单），之后设置页切换在同一拍末落盘（`persist_app_settings_if_changed`）；宿主钉
+  `tests/app_settings.rs`。
 
 ## 3. 输入映射（触控/硬件键 → 游戏键码）
 
@@ -85,6 +89,8 @@
 | CENTER/ENTER/SPACE | -5 | 与 win Enter\|Space 同表 |
 | KEYCODE_MENU | -6 | 若设备有 |
 | 音量键 | 不消费 | 交系统（用户设备操作，非游戏可听行为） |
+| 虚拟键按下反馈 | 触感（`View.performHapticFeedback`）+ 按键音（`AudioManager.playSoundEffect`） | 【2026-10-28 STAGE-B-006】触感看设置页"按键震动"、按键音看"按键音"（默认都开，与"声音"互不影响；原 2026-10-26 口径"触感恒发、按键音随声音"已改）；只对控制面板虚拟键，同一输入事件合并一次；`feedback.rs` |
+| 首帧呈现前的输入 | 丢弃 | 【2026-10-28 STAGE-B-006】开屏关时首拍前已在主菜单，黑屏上的点按不得落到看不见的确认区开始新游戏（`ShellWiring::take_step_inputs`；BACK 不经此队列，照常立即退出） |
 
 **折叠单键状态机（实现硬门，对抗审查 v2 复审口径）**：多点触控折叠进**单一**键状态机，
 禁 per-role/per-pointer held——press = `key_value = key_held = code` 覆盖式取末键
