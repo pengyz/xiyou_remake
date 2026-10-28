@@ -140,7 +140,7 @@ pub fn install_combat_tables(sc: &mut GameScene) {
 
 /// 交接二：新游戏（序章冷启动——与 prologue 用例同构；step8 统计 floor51/hp300/
 /// atk10/def10，a.java:3496-3506）。调用方在 `machine.new_game_ready` 时调用；
-/// **消费**该信号。BootMachine 跨模式状态（bob/图标带帧/视差/rng/音频）续接。
+/// **消费**该信号。BootMachine 跨模式状态（bob/图标带帧/视差/rng/音频/壳层附加设置行）续接。
 pub fn new_game_scene(assets: &GameAssets, machine: &mut BootMachine) -> GameScene {
     machine.new_game_ready = false;
     let fa = assets.floors[51].as_ref().unwrap();
@@ -170,12 +170,14 @@ pub fn new_game_scene(assets: &GameAssets, machine: &mut BootMachine) -> GameSce
     sc.backdrop_scroll = machine.backdrop.scroll();
     sc.rng = machine.rng.clone();
     sc.bgm = machine.bgm.clone(); // 音频状态续接（Java 同一对象）
+    sc.shell_options = machine.shell_options.clone(); // 【STAGE-B-006】壳层附加设置行续接
     sc.apply_entry_step_effects();
     sc
 }
 
 /// 交接一：读档（槽载入动画完成 → mode 3）。仅 `mode==Map && slot_loaded` 且存档
 /// 可读时交接（返回 Some 并**消费** slot_loaded）；否则 None（信号保留，等档就绪）。
+/// 跨模式续接同新游戏（音频 / 壳层附加设置行等）。
 pub fn slot_scene(
     assets: &GameAssets,
     machine: &mut BootMachine,
@@ -216,6 +218,7 @@ pub fn slot_scene(
     // 音频状态续接（Java 同一对象：soundEnabled/track/bgm 跨模式连续；
     // dispatchModeEntry case 3 已在 machine 侧执行）
     sc.bgm = machine.bgm.clone();
+    sc.shell_options = machine.shell_options.clone(); // 【STAGE-B-006】壳层附加设置行续接
     machine.slot_loaded = None;
     Some(sc)
 }
@@ -225,9 +228,11 @@ pub fn slot_scene(
 /// 双机实现须把这些从 GameScene 回传，否则换回的是交接前的旧值——游戏内关掉的声音回滚为开、
 /// 下一次标题侧置脏会把陈旧水位写回 SKY_WAR。调用方随后照旧 `bgm.enter_title()`（dispatchModeEntry
 /// case 1 音频半）。未纳入：rng / bob / 图标条帧 / 标题光标等视觉相位（另案评估，不影响状态正确性）。
+/// 【STAGE-B-006】壳层附加设置行（开屏画面 / 按键震动 / 按键音）同理回传——游戏内改过的勾选不回滚。
 pub fn return_to_title(machine: &mut BootMachine, sc: &GameScene) {
     machine.bgm = sc.bgm.clone();
     machine.apply_global(sc.global_snapshot()); // 场景侧已写穿 ⇒ 不置脏
+    machine.shell_options = sc.shell_options.clone(); // 【STAGE-B-006】
 }
 
 /// 槽存档写穿（win 壳 step 存档块迁入；BUG-018 upsert 口径）：scene 侧
@@ -385,6 +390,35 @@ mod tests {
         assert!(!m.bgm.sound_enabled, "声音开关回传（不回滚为开）");
         assert_eq!(m.global_snapshot(), sc.global_snapshot(), "全局存档回传（不留陈旧水位）");
         assert!(!m.take_global_dirty(), "回传不置脏（场景侧已写穿）");
+    }
+
+    /// 【STAGE-B-006】壳层附加设置行随交接往返：新游戏 / 读档正向带入场景，回标题反向带回（游戏内改过的值不回滚；
+    /// 双机实现同 BUG-041 口径）。
+    #[test]
+    fn shell_options_ride_handoff_both_ways() {
+        use game_core::menu_family::ShellOption;
+        let src = DirAssetSource::new(&raw());
+        let assets = load_game_assets(&src);
+        let rows: Vec<ShellOption> = [(1u8, "开屏画面", false), (2, "按键震动", true), (3, "按键音", true)]
+            .into_iter()
+            .map(|(id, l, checked)| ShellOption { id, label: l.encode_utf16().collect(), checked })
+            .collect();
+        let mut m = machine(&src);
+        m.shell_options = rows.clone();
+        m.new_game_ready = true;
+        let mut sc = new_game_scene(&assets, &mut m);
+        assert_eq!(sc.shell_options, rows, "新游戏：带入场景");
+        assert_eq!(m.shell_options, rows, "新游戏：正向是拷贝，机器侧不变");
+        sc.shell_options[1].checked = false; // 游戏内关掉"按键震动"
+        return_to_title(&mut m, &sc);
+        assert_eq!(m.shell_options, sc.shell_options, "回标题：带回（不回滚为交接前的值）");
+        assert!(!m.shell_options[1].checked);
+        m.slot_loaded = Some(0);
+        m.mode = game_core::enums::GameMode::Map; // 读条完成
+        let want = m.shell_options.clone();
+        let sc2 = slot_scene(&assets, &mut m, &preset_stores("preset-floor1.preset")).expect("有档=交接");
+        assert_eq!(sc2.shell_options, want, "读档：带入场景");
+        assert_eq!(m.shell_options, want, "读档：正向是拷贝，机器侧不变");
     }
 
     #[test]
