@@ -5715,33 +5715,42 @@ impl GameScene {
                         _ => {}
                     }
                     // 【T2】战斗终结才入栈（T1 挂点契约）+挂起解除+续走新段
-                    if let Some((slot, ety, hp_before, vitals_before, snapshot, count_at_start)) = self.battle_undo_snap.take()
-                    {
-                        if self.entities.count != count_at_start {
-                            // 【BUG-045】击杀掉落（spawn_boss_event）/ 61 机关生成实体等不可逆副作用：实体表在战斗期间增长（append-only）⇒
-                            // 撤销只能复活怪、撤不掉生成物（复核 T3-R1/R2：循环复制掉落，16 次后槽表越界 panic）⇒ 不入战斗笔并清栈；
-                            // 续走照旧（否则路段停在挂起态，dp3 收尾不回 Map）。
-                            self.undo.clear(crate::undo_journal::ClearReason::Irreversible);
-                        } else {
-                            let items_before = self
-                                .player
-                                .item_types
-                                .iter()
-                                .zip(self.player.item_uses.iter())
-                                .take(self.player.item_stack_size as usize)
-                                .map(|(t, u)| (*t as i32, *u as i32))
-                                .collect();
-                            self.route_combat_finished(crate::undo_journal::CombatStroke {
-                                enemy_slot: slot,
-                                enemy_type_id: ety,
-                                enemy_hp_before: hp_before,
-                                vitals_before,
-                                items_before,
-                                enemy_snapshot: snapshot,
-                            });
+                    // 【BUG-048】剧情接管（胜利特判里 load_level_script 已收段并清栈 ⇒ 路段与战斗挂起都已解除）：丢快照、不入栈、不续走——
+                    // 补入战斗笔会让撤销在剧情后复活怪物，重开路段会截断剧情行走。
+                    // 其余（路段仍挂起 = 正常；或战斗中经壳层按键链 interrupt_route 打断 = 路段挂起解除但战斗仍挂起、未清栈）：入栈（不可逆则清栈）
+                    // 并续走——按键打断时步序已清空，续走只开一个零步段给胜利 restep 记位移笔（否则撤销战斗后玩家与复活的怪重叠，复核 T4-R1）。
+                    if self.route.is_suspended() || self.undo.combat_in_progress() {
+                        if let Some((slot, ety, hp_before, vitals_before, snapshot, count_at_start)) =
+                            self.battle_undo_snap.take()
+                        {
+                            if self.entities.count != count_at_start {
+                                // 【BUG-045】击杀掉落（spawn_boss_event）/ 61 机关生成实体等不可逆副作用：实体表在战斗期间增长（append-only）⇒
+                                // 撤销只能复活怪、撤不掉生成物（复核 T3-R1/R2：循环复制掉落，16 次后槽表越界 panic）⇒ 不入战斗笔并清栈；
+                                // 续走照旧（restep 的位移笔记在清栈之后）。
+                                self.undo.clear(crate::undo_journal::ClearReason::Irreversible);
+                            } else {
+                                let items_before = self
+                                    .player
+                                    .item_types
+                                    .iter()
+                                    .zip(self.player.item_uses.iter())
+                                    .take(self.player.item_stack_size as usize)
+                                    .map(|(t, u)| (*t as i32, *u as i32))
+                                    .collect();
+                                self.route_combat_finished(crate::undo_journal::CombatStroke {
+                                    enemy_slot: slot,
+                                    enemy_type_id: ety,
+                                    enemy_hp_before: hp_before,
+                                    vitals_before,
+                                    items_before,
+                                    enemy_snapshot: snapshot,
+                                });
+                            }
+                            let at = (self.player_cell_x, self.player_cell_y);
+                            self.route.resume(at);
                         }
-                        let at = (self.player_cell_x, self.player_cell_y);
-                        self.route.resume(at);
+                    } else {
+                        self.battle_undo_snap = None;
                     }
                     self.battle_target = -1;
                 }
@@ -11372,6 +11381,142 @@ mod t2_walkto_route_tests {
         entity::reattach_to_cell(&mut sc.grid, &mut sc.entities, e as usize);
         assert_eq!(sc.grid.capacity[ct], cap, "摘槽后重登一次");
         assert!(!sc.entities.items[e as usize].removed);
+    }
+
+    /// 【BUG-048】点地撞怪开战、击杀触发剧情（49 层型 70 → load_level_script(35)）：
+    /// 剧情接管后寻路段不得被重开，撤销栈保持清空（不补入战斗笔）。
+    #[test]
+    fn bug048_victory_script_takeover_keeps_route_closed_and_journal_empty() {
+        let mut sc = scene((5, ROW), &[(70, 6, ROW)]);
+        sc.floor = 49;
+        sc.current_floor = 49;
+        sc.dialog_data.scripts = vec!["TAK_0_0 ".to_string(); 40];
+        sc.player.atk = 100_000;
+        sc.player.def = 100_000;
+        sc.player.hp = 100_000;
+        let wt = sc.width_table.clone();
+        let _ = sc.walk_to(6, ROW);
+        let mut saw_battle = false;
+        let mut fc = 0;
+        while fc < 600 {
+            sc.tick(fc, &wt);
+            fc += 1;
+            saw_battle |= sc.walk_phase == 5;
+            if saw_battle && sc.battle_target < 0 {
+                break;
+            }
+        }
+        assert!(saw_battle, "前置：开战");
+        assert!(sc.battle_target < 0, "前置：战斗结束");
+        assert!(!sc.route.is_open(), "剧情接管后寻路段不得被重开");
+        assert!(sc.undo.is_empty(), "剧情接管 ⇒ 撤销栈已清，不再补入战斗笔");
+    }
+
+    /// 【BUG-048】战斗中经壳层按键链打断（壳先 interrupt_route 再 press ⇒ 路段挂起被解除，但未清栈）：战斗照常入栈、撤销不被永久挡住，路段不续走。
+    #[test]
+    fn bug048_key_interrupt_mid_tap_battle_still_records_combat() {
+        let mut sc = scene((5, ROW), &[(41, 6, ROW)]);
+        sc.player.atk = 2; // 刚好打得动：多回合战斗，留出按键窗口
+        sc.player.def = 100_000;
+        sc.player.hp = 100_000;
+        let wt = sc.width_table.clone();
+        let _ = sc.walk_to(6, ROW);
+        let mut fc = 0;
+        while sc.walk_phase != 5 && fc < 40 {
+            sc.tick(fc, &wt);
+            fc += 1;
+        }
+        assert_eq!(sc.walk_phase, 5, "前置：战斗中");
+        // 壳层按键链：先 interrupt_route 再 press（native.rs replay / Dispatcher::key——不看路段是否开放，战斗挂起中同样打断）
+        sc.interrupt_route();
+        sc.press_key(-1); // 上 = 墙：只起打断作用
+        sc.tick(fc, &wt);
+        fc += 1;
+        sc.release_key();
+        while sc.battle_target >= 0 && fc < 3000 {
+            sc.tick(fc, &wt);
+            fc += 1;
+        }
+        assert!(sc.battle_target < 0, "前置：战斗结束");
+        assert!(!sc.undo.combat_in_progress(), "战斗挂起已解除（撤销不被永久挡住）");
+        for _ in 0..60 {
+            sc.tick(fc, &wt);
+            fc += 1;
+        }
+        assert_eq!(sc.game_mode, GameMode::Map, "收尾回 Map");
+        assert!(!sc.route.is_open() && !sc.script_walk_armed, "路段已收、无武装残留");
+        // 栈顶两笔：Move(邻格→敌格)（胜利 restep）在 Combat 之上——撤销先退回邻格，再复活怪物，人怪不重叠（复核 T4-R1）
+        struct Rec(Vec<String>);
+        impl crate::undo_journal::UndoTarget for Rec {
+            fn set_player_tile(&mut self, t: (i32, i32)) {
+                self.0.push(format!("tile{t:?}"));
+            }
+            fn set_player_vitals(&mut self, _: crate::undo_journal::PlayerVitals) {}
+            fn revive_enemy(&mut self, _: crate::undo_journal::EnemyRestore) {
+                self.0.push("revive".into());
+            }
+            fn set_item_count(&mut self, _: i32, _: i32) {}
+            fn set_door_state(&mut self, _: i32, _: i32, _: crate::undo_journal::DoorState) {}
+        }
+        let mut rec = Rec(Vec::new());
+        let mut j = std::mem::take(&mut sc.undo);
+        let _ = j.undo(&mut rec);
+        let _ = j.undo(&mut rec);
+        assert_eq!(rec.0, vec![format!("tile{:?}", (5, ROW)), "revive".to_string()], "先退回邻格 (5,ROW)，再复活怪");
+    }
+
+    /// 【BUG-048 · 复核 T4-R2】剧情接管且击杀有生成（49 层型 71 ⇒ spawn_boss_event + load_level_script(35)）：同样不入栈、不续走、战斗挂起已解除。
+    #[test]
+    fn bug048_script_takeover_with_spawn_keeps_route_closed_and_journal_empty() {
+        let mut sc = scene((5, ROW), &[(71, 6, ROW)]);
+        sc.floor = 49;
+        sc.current_floor = 49;
+        sc.dialog_data.scripts = vec!["TAK_0_0 ".to_string(); 40];
+        sc.player.atk = 1_000_000;
+        sc.player.def = 1_000_000;
+        sc.player.hp = 100_000;
+        let count0 = sc.entities.count;
+        let wt = sc.width_table.clone();
+        let _ = sc.walk_to(6, ROW);
+        let mut saw_battle = false;
+        let mut fc = 0;
+        while fc < 600 {
+            sc.tick(fc, &wt);
+            fc += 1;
+            saw_battle |= sc.walk_phase == 5;
+            if saw_battle && sc.battle_target < 0 {
+                break;
+            }
+        }
+        assert!(saw_battle && sc.battle_target < 0, "前置：开战并结束");
+        assert!(sc.entities.count > count0, "前置：击杀生成实体");
+        assert!(!sc.route.is_open() && !sc.route.is_suspended(), "剧情接管：路段不重开");
+        assert!(!sc.undo.combat_in_progress(), "战斗挂起已解除");
+        assert!(sc.undo.is_empty(), "撤销栈为空");
+    }
+
+    /// 【BUG-048】回归钉：无剧情钩子的击杀照常入战斗笔并续走（路段在胜利尾重开）。
+    #[test]
+    fn bug048_plain_victory_still_pushes_combat_and_resumes() {
+        let mut sc = scene((5, ROW), &[(41, 6, ROW)]);
+        sc.player.atk = 100_000;
+        sc.player.def = 100_000;
+        sc.player.hp = 100_000;
+        let wt = sc.width_table.clone();
+        let _ = sc.walk_to(6, ROW);
+        let mut saw_battle = false;
+        let mut fc = 0;
+        while fc < 600 {
+            sc.tick(fc, &wt);
+            fc += 1;
+            saw_battle |= sc.walk_phase == 5;
+            if saw_battle && sc.battle_target < 0 {
+                break;
+            }
+        }
+        assert!(saw_battle && sc.battle_target < 0, "前置：开战并结束");
+        assert!(sc.route.is_open(), "无剧情：胜利尾续走（路段重开，restep 进敌格）");
+        assert!(journal_has_combat(&mut sc), "无剧情：栈里有战斗笔");
     }
 }
 

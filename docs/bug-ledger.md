@@ -809,6 +809,7 @@ B 级——格单位由 `>> 5` / `<< 5` 调用图推出。GREEN：game-core / ga
     `tap_routing.rs` `tutorial_arrows_stay_on_their_path_during_tap_walk`（真资产，逐拍箭头须是原路线尾段、终态 = 方向键参照）。
 - **另案（复核 R4，修复前既有，未修）**：`tick_battle` 击杀触发剧情后无条件 `route.resume()`，会把已被剧情收束的寻路段重新打开
   （BUG-025 同型风险）。待取证后单独处理。
+  > 【2026-10-29 更正】已登记为 BUG-048 并修复（见 BUG-048 节）。
 - **Stage B 修复方案**：—。
 Evidence: A 级——宿主 RED（修复前箭头格 (2,11)(3,11) 不在原路线上；真资产终态 [] ≠ 方向键 [(3,10)]）→ GREEN；变异：`walked_facing`→`facing`、
 撞门不清暂存、剧情接管立即放回、findPath 不清暂存均被杀；实机（Xiaomi 14，本方注入点按 (2,10)）连拍：↑→→ → 走动中 →→ 留在原格 → 到达后余 (3,10)。
@@ -924,3 +925,23 @@ Evidence: A 级——`reference/src/deobf/a.java:5487-5490` 原文；`rg "无法
   `field_taps_refused_unless_field_idle` 加"拒绝不改朝向"断言（把写朝向挪到守卫之前的变异被杀）、16 组合测试断言返回值。
 Evidence: A 级——复核探针运行时实录（探针已删）；修复前 `probe_step`（scene.rs:1942-1948）无 facing 写入（本方 2026-10-29 复看）；
 修复后删去写朝向一行 ⇒ 4 条 bug047 测试 FAILED（本方实跑）。Confidence: 90
+
+## BUG-048 点地撞怪击杀触发剧情后，寻路段被重开、撤销栈被补入战斗笔（Stage B 点地寻路 / 撤销，BUG-043 复核 R4，已修复）
+
+> 【2026-10-29】BUG-043 对抗复核 R4 登记为另案；双操控 spec 复核 m9 列为前置。
+- **现象**：点地寻路撞怪开战、胜利特判触发剧情（35 层型 69、49 层型 70/71、50 层型 72 → `load_level_script`）：剧情接管已收段并清栈，
+  随后胜利尾无条件 `route_combat_finished` + `route.resume`（修复前 `scene.rs:5744`，b80ee3c）⇒ 剧情运行中寻路段被重开（截断剧情 MOV 行走的风险，BUG-025 同型），
+  撤销栈被补入战斗笔（剧情后可撤销复活 boss）。
+- **根因**：Stage B T2 挂点只看 `battle_undo_snap` 是否存在，不看路段是否已被剧情接管。
+- **Stage A 处理**：classic 不受影响（classic 战斗不开路段）。
+- **修复**（2026-10-29）：胜利尾三分支——
+  ① 剧情接管（`load_level_script` 已收段并清栈 ⇒ 路段与战斗挂起都已解除）：丢快照、不入栈、不续走；
+  ② 正常（路段仍挂起）：入战斗笔（击杀有不可逆生成则按 BUG-045 清栈）并续走；
+  ③ 战斗中经壳层按键链 `interrupt_route` 打断（路段挂起解除、战斗仍挂起、未清栈）：同 ②。续走只开零步段给胜利 restep 记位移笔，
+     否则撤销战斗后玩家与复活的怪同格（计划 1 T4 复核 R1）；计划原稿"只看 `is_suspended`"会让该情形 `combat_pending` 永久为真、撤销恒 Blocked。
+  宿主钉（core 4 条）：`bug048_victory_script_takeover_keeps_route_closed_and_journal_empty`（70@49）、
+  `bug048_script_takeover_with_spawn_keeps_route_closed_and_journal_empty`（71@49，击杀有生成）、`bug048_plain_victory_still_pushes_combat_and_resumes`、
+  `bug048_key_interrupt_mid_tap_battle_still_records_combat`（撤销顺序：先退回邻格再复活）。
+  变异：分支条件改为"有快照即入栈续走"（≈修复前）⇒ 两条剧情接管钉红；按键打断不续走 ⇒ 按键钉红。
+Evidence: A 级——宿主 RED（49 层型 70 击杀触发剧情后 route.is_open() 为真）→ GREEN；上述变异被杀；复核 `target/verify/review_plan1_T4.md` 探针
+（69@35 / 71@49 / 72@50 剧情接管终态、按键打断重叠回退）；gates trace 实跑见提交说明。Confidence: 85
