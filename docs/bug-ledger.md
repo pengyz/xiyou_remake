@@ -889,7 +889,7 @@ Evidence: A 级——复核探针运行时实录（探针已删）；`undo_ui.rs
 Evidence: A 级——生产路径宿主 RED → GREEN（复活后不在格槽、属性表被写坏、战斗中可撤、换层后仍可撤）；复核探针运行时实录（boss 掉落复制、重排后误写）；
 全部变异被杀；全量测试 0 失败；gates trace PASS。Confidence: 85
 
-## BUG-046 "你无法战胜它"提示框未移植：打不过的怪撞上去 Rust 静默挡住，原版弹 kind 0 提示（classic 移植缺口，2026-10-29 spec 对抗复核发现，未修）
+## BUG-046 "你无法战胜它"提示框未移植：打不过的怪撞上去 Rust 静默挡住，原版弹 kind 0 提示（classic 移植缺口，2026-10-29 spec 对抗复核发现，已修复）
 
 > 【2026-10-29】双操控方案 spec 对抗复核 C3。
 - **现象**：手动撞上打不过的怪，原版清 `walkStepCount` 并弹提示框"你无法战胜它"；Rust 只清步数，不弹框。
@@ -901,6 +901,20 @@ Evidence: A 级——生产路径宿主 RED → GREEN（复活后不在格槽、
   trace 基线变化须在提交说明中写明。排在 STAGE-B-008 之前。
 - **Stage B 修复方案**：—（移植后触屏"打不过"沿用原版提示框，不另加闪红）。
 Evidence: A 级——`reference/src/deobf/a.java:5487-5490` 原文；`rg "无法战胜" crates` 零命中（本方 2026-10-29 复看）。Confidence: 95
+- **修复**（2026-10-29，计划 1 T5）：不可胜分支补 `show_overlay_message(0, "你无法战胜它", 0, 0)`。Java 对拍：`fx-boss68b`（25 层 (6,7) 朝上、atk310 = 型 68 缩放防御，
+  T300 北撞 → T360 关框 → T420 再撞 → T480 关框；A/B/C 三方 trace sha256 一致 `9b6b8051…1b69`，抽帧 560，帧链 `a954f21e…0c54`）。
+  取证：Java T301 起画面中央出现带边框提示框（6 个字形 = 6 字文案；T301–T360 静止），T361 框消失；T421 再弹、T481 消失。
+  Rust RED：首个不一致帧 T301（Rust = 无框帧）→ GREEN 560 帧逐帧一致。既有 classic 回放与 29 个帧夹具无变化（含 fx-boss68a）；gates trace PASS，
+  visual 为既有 SKIP（比对器未就绪）。连带：`bug044_tap_walk_first_step_into_blocker_stays_put` 的"打不过的怪"子例改为先断言提示框、关框后再断言收尾
+  （点地首步撞打不过的怪：弹框期间仍为 Dialog dp3、路段开着，关框后回 Map——与手动撞同一格同样弹框）。
+- **连带 classic 路径**（计划 1 T5 复核 `target/verify/review_plan1_T5.md`）：
+  - 道具 20 对角瞬移的镜像格是打不过的怪：activateItem case 20（a.java:7848-7859）先 interactWithCell ⇒ 拒战提示，不再弹"无法移动到该位置"。
+    移植前 Rust 弹的是后者。新夹具 `fx-item20b`（floor1 (7,6)、atk=1、镜像格 (5,6) 型 43；三方 trace `4c8048ae…`，560 帧）：去修复行 ⇒ T381 红，修复后逐帧一致。
+  - MOV 驱动的 dp3 玩家行走 / advanceScriptWalk 撞上打不过的怪：移植前不弹框、wp 停 1 走进怪格，移植后与 Java 一致（a.java:5353-5358 复位）。
+    剧本路线是否真会经过打不过的怪未做全语料可达性判定，无夹具（B 级，遗留）。
+  - 按住方向键持续撞同一只打不过的怪只弹一次（浮层分支块尾清 keyHeldCode，a.java:3345；复核临时 Java 场景三方一致、Rust 600 帧一致）。
+- 根因行 `scene.rs:5426-5432` 为修复前行号（修复后不可胜分支在 5468 附近）。
+Evidence: A 级——Java 三方一致参照帧 + Rust 逐帧比对 RED→GREEN（fx_boss68b_refuse_frames_match、fx_item20b_teleport_onto_unbeatable_enemy_frames_match）。Confidence: 95
 
 ## BUG-047 探步 `probe_step` 不写朝向：按旧朝向走出一整格且不做碰撞，可穿墙（点远处墙格 / Windows 点击 / 滑动；Stage B 触屏，2026-10-29 spec 第二轮复核实测，已修复）
 

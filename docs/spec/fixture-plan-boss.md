@@ -157,6 +157,10 @@ f16/f36 的 84 与 83 同为关卡数据同帧入槽（sprite 内 84 在前、83
 - **销账**：evidence-boss.md §3.1 拒战半（a.java:5487-5490 逐字段）；连带 R-boss-1
   "拒绝路径"一句（预测臂负例）。
 
+> 【2026-10-29】已落地：`crates/game-oracle/tests/fixtures/fx-boss68b.*`，用例 `fx_boss68b_refuse_frames_match`（BUG-046）。落地脚本与上方草图的差异：
+> 第二次撞击前用 -5 关框（kind 0 的 -1/-2 是翻页键，不关框），共两次北撞（T300 / T420）。
+> 落地路径取代上方"目标夹具文件名"（`crates/game-core/tests/fixtures/preset-f25-boss68-refuse.*`）：帧夹具统一放 `crates/game-oracle/tests/fixtures/`，按 `fx-*` 命名。
+
 ### FX-CHAN-84F2A：scene26 营救链（优先级 1，84 主窗）
 
 - **目标**：三合一——f2 补刷钩子（a.java:9642-9647）、同格 bump 触发（case 83 + case 32

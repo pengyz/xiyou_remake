@@ -1,0 +1,26 @@
+# ticks: 560
+# preset: fx-item20b.preset
+# cover: BUG-046 连带 classic 路径——道具 20（相形变位）对角瞬移镜像格是打不过的怪：activateItem case 20（a.java:7848-7859）
+#   先 interactWithCell(镜像格) ⇒ 不可胜臂（a.java:5487-5490）弹"你无法战胜它"⇒ !overlayActive 不成立，不再弹"无法移动到该位置"。
+#   boot 70/-6 100/-2 150/-5 200/-5 → 槽载入 floor1 (7,6) 朝左、atk=1 → 300 -6 开背包 → 340 -6 选中道具 20（kind3 说明 / 确认）→
+#   380 -6 确认 ⇒ 镜像格 (5,6) 型 43 不可胜 ⇒ 拒战提示（Java T381 起）→ 440 -5 关框 → 480 -7 回场。
+#   preset：python3 tools/frames_fixture.py preset floor=1 x=7 y=6 facing=3 hp=500 atk=1 def=30 sky=5 items=20:1
+#   来源：计划 1 T5 复核 R1（target/verify/review_plan1_T5.md 附录 A）。
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -6 press
+302 -6 release
+340 -6 press
+342 -6 release
+380 -6 press
+382 -6 release
+440 -5 press
+442 -5 release
+480 -7 press
+482 -7 release

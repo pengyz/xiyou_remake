@@ -5473,7 +5473,8 @@ impl GameScene {
                                     if let Some(a) = self.walkto_arrows.as_mut() {
                                         a.clear();
                                     }
-                                    // "你无法战胜它" 提示浮层：交互批次
+                                    // 【BUG-046】a.java:5487-5490：拒战提示框（kind 0，无脚注图标）
+                                    self.show_overlay_message(0, "你无法战胜它", 0, 0);
                                 }
                             }
                             16 => {
@@ -11084,10 +11085,26 @@ mod t2_walkto_route_tests {
             let plan = sc.walk_to(7, ROW);
             assert!(!plan.steps.is_empty(), "{label}：前置——find_path 经实体槽规划出路线");
             run_until_settled(&mut sc, 300);
+            if t == 70 {
+                // 【BUG-046】打不过 ⇒ 原版拒战提示框（a.java:5487-5490）；关框后寻路收尾
+                assert!(sc.overlay_active, "{label}：弹拒战提示框");
+                assert_eq!(sc.overlay_text.as_deref(), Some("你无法战胜它"), "{label}：提示文案");
+                assert_eq!((sc.game_mode, sc.dialog_phase), (GameMode::Dialog, 3), "{label}：弹框期间仍归点地寻路的 dp3");
+                assert!(sc.route.is_open(), "{label}：弹框期间路段开着（关框键打断收尾）");
+                let wt = sc.width_table.clone();
+                sc.press_key(-5);
+                sc.tick(1000, &wt);
+                sc.release_key();
+                run_until_settled(&mut sc, 300);
+                for fc in 1001..1010 {
+                    sc.tick(fc, &wt);
+                }
+            }
             assert_eq!((sc.player_cell_x, sc.player_cell_y), (5, ROW), "{label}：首步被挡，玩家留在原格");
             assert_eq!((sc.view.player_px, sc.view.player_py), (5 << 5, ROW << 5), "{label}：像素位置未动");
             assert_eq!(sc.game_mode, GameMode::Map, "{label}：寻路收尾回 Map");
             assert!(!sc.route.is_open(), "{label}：路段已收");
+            assert!(!sc.script_walk_armed && !sc.walkto_draining, "{label}：无寻路武装 / 排空残留");
             assert_ne!(sc.walk_phase, 5, "{label}：未开战");
         }
     }

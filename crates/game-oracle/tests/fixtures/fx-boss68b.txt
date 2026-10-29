@@ -1,0 +1,24 @@
+# ticks: 560
+# preset: fx-boss68b.preset
+# cover: FX-BOSS-68B 太上老君拒战负例（fixture-plan-boss §FX-BOSS-68B，a.java:5487-5490）：
+#   boot 70/-6 100/-2 150/-5 200/-5 → 槽载入 floor25 (6,7) 朝上 → 300 -1 北撞 (6,6) 型68，
+#   预测 -1（atk310 = 缩放防御）⇒ "你无法战胜它" kind 0 提示、walkStepCount=0、不开战 →
+#   360 -5 关提示（kind 0 的 -1/-2 是翻页键，不关框）→ 420 -1 再撞（再弹提示）→ 480 -5 关提示。
+#   preset：python3 tools/frames_fixture.py preset floor=25 x=6 y=7 facing=1 hp=1000 atk=310
+#   def=1000 gold=0 yk=0 bk=0 rk=0 sky=5
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -1 press
+302 -1 release
+360 -5 press
+362 -5 release
+420 -1 press
+422 -1 release
+480 -5 press
+482 -5 release

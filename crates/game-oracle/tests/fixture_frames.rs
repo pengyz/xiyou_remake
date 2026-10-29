@@ -735,6 +735,20 @@ fn fx_item20a_no_teleport_floor40_frames_match() {
     assert_eq!(sc.player.item_uses[i], 3, "两次使用零消耗（uses 恒 3，a.java:7766 短路）");
 }
 
+/// 【BUG-046 连带】FX-ITEM-20B：相形变位对角瞬移的镜像格是打不过的怪（floor1 (7,6) 朝左、atk=1，镜像格 (5,6) 型 43）：
+/// activateItem case 20（a.java:7848-7859）先 interactWithCell ⇒ 不可胜臂弹"你无法战胜它"（a.java:5487-5490），不弹"无法移动到该位置"、不瞬移。
+/// 计划 1 T5 复核 R1：移植前 Rust 弹的是"无法移动到该位置"（Java T381 起不一致）。T1-560。
+#[test]
+fn fx_item20b_teleport_onto_unbeatable_enemy_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-item20b.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-item20b.txt"));
+    let (checked, sc) = replay("fx-item20b", include_str!("fixtures/fx-item20b.preset"), &records);
+    assert_eq!(checked, records.len(), "T1-560 全帧必须比对");
+    assert_eq!(sc.floor, 1);
+    assert_eq!((sc.view.player_px >> 5, sc.view.player_py >> 5), (7, 6), "未瞬移");
+    assert!(!sc.battle_active, "不开战");
+}
+
 /// FX-INT-11-N23：非23层型11 撞墙真臂（evidence-interact-types R-INT-11 真臂半 + :5442
 /// 销账真臂钉，closure-typist 三次驳回销账路径）。floor29 (8,3) 型11 双撞 ⇒ case11
 /// （a.java:5441-5448）currentFloor!=23 ⇒ 「障碍物：墙\n只有金勺子、玄明石可以凿开。
@@ -806,6 +820,22 @@ fn fx_boss68a_kill_spawn_frames_match() {
         sc.script_line_flags.iter().all(|&f| !f),
         "case68 双 switch default：无脚本钩子（对照 74 的 loadLevelScript(21)）"
     );
+}
+
+/// 【BUG-046】FX-BOSS-68B 拒战负例（fixture-plan-boss §FX-BOSS-68B，a.java:5487-5490）：
+/// 预测 −1 ⇒ "你无法战胜它" kind 0 提示框、不开战、玩家与型 68 都不动；Java 参照帧逐帧一致。
+#[test]
+fn fx_boss68b_refuse_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-boss68b.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-boss68b.txt"));
+    let (checked, sc) = replay("fx-boss68b", include_str!("fixtures/fx-boss68b.preset"), &records);
+    assert_eq!(checked, records.len(), "T1-560 全帧必须比对");
+    assert_eq!(sc.floor, 25);
+    assert!(!sc.battle_active, "不开战");
+    assert_eq!((sc.view.player_px >> 5, sc.view.player_py >> 5), (6, 7), "玩家不动");
+    assert_eq!((sc.player.hp, sc.player.gold), (1000, 0), "血 / 金不变");
+    let boss = (0..sc.entities.count).find(|&i| sc.entities.items[i].type_ == 68).expect("型 68 仍在");
+    assert_eq!(sc.entities.items[boss].state, 0, "型 68 未进战斗态");
 }
 
 /// FX-BUG-CES70-SLOT：script0 CES_70 出生崩溃钉死（原版 bug 复现夹具，D4 保真不修；
