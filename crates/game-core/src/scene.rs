@@ -1944,6 +1944,9 @@ impl GameScene {
             return false;
         }
         self.interrupt_route();
+        // 【BUG-047】先置朝向再撞（与 handle_field_input 同式，scene.rs:5154-5155）：
+        // 放行后 Map wp1 臂按 self.facing 位移；不写则按旧朝向走出一整格、且该方向不做碰撞（可穿墙）。
+        self.facing = dir as i32;
         self.try_step(dir as i32)
     }
 
@@ -10904,6 +10907,110 @@ mod t2_walkto_route_tests {
         sc.interrupt_route();
         assert_eq!(sc.walk_step_count, steps, "剧情行走不受投键打断");
     }
+
+    /// 【BUG-047】探步按探步方向走，不按旧朝向走：{旧朝向 × 4} × {探步方向 × 4}。
+    /// 走廊 y=ROW 横向可走、上下是墙 ⇒ 右探到 (6,ROW)、左探到 (4,ROW)、上下探原地不动；朝向 = 探步方向。
+    #[test]
+    fn bug047_probe_step_moves_in_probe_direction_for_every_old_facing() {
+        for old in 0..4 {
+            for dir in 0u8..4 {
+                let mut sc = scene((5, ROW), &[]);
+                let wt = sc.width_table.clone();
+                sc.facing = old;
+                let accepted = sc.probe_step(dir);
+                assert_eq!(accepted, matches!(dir, 2 | 3), "旧朝向 {old}、探步方向 {dir}：返回值 = 是否放行（壳层滑动撞墙即停的依据）");
+                for fc in 0..20 {
+                    sc.tick(fc, &wt);
+                }
+                let want = match dir {
+                    2 => (6, ROW),
+                    3 => (4, ROW),
+                    _ => (5, ROW),
+                };
+                assert_eq!(
+                    (sc.player_cell_x, sc.player_cell_y),
+                    want,
+                    "旧朝向 {old}、探步方向 {dir}：终点须是探步方向邻格或原地"
+                );
+                assert_eq!(
+                    (sc.view.player_px, sc.view.player_py),
+                    (want.0 << 5, want.1 << 5),
+                    "旧朝向 {old}、探步方向 {dir}：像素位置与格一致（不得走进墙格半途）"
+                );
+                assert_eq!(sc.facing, dir as i32, "旧朝向 {old}、探步方向 {dir}：朝向 = 探步方向");
+            }
+        }
+    }
+
+    /// 【BUG-047】炼丹炉只在朝上走入时打开（scene.rs:5329-5341，5333 判 facing == 1）：
+    /// 旧朝向为上、向右横向探步撞炉，不得打开炼丹炉页，玩家不动。
+    #[test]
+    fn bug047_sideways_probe_into_alchemy_with_old_facing_up_does_not_open_it() {
+        let mut sc = scene((5, ROW), &[(9, 6, ROW)]);
+        let wt = sc.width_table.clone();
+        sc.facing = 1;
+        let _ = sc.probe_step(2);
+        for fc in 0..20 {
+            sc.tick(fc, &wt);
+        }
+        assert_ne!(sc.game_mode, GameMode::Alchemy, "横向撞炉不进炼丹炉");
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (5, ROW), "被炉挡住，原地");
+    }
+
+    /// 【BUG-047】正向：旧朝向为下、向上探步撞炉（炉在正上方）⇒ 打开炼丹炉页（判的是探步方向，不是旧朝向）。
+    #[test]
+    fn bug047_upward_probe_into_alchemy_with_old_facing_down_opens_it() {
+        let mut sc = scene((5, ROW), &[(9, 5, ROW - 1)]);
+        sc.facing = 0;
+        let _ = sc.probe_step(1);
+        assert_eq!(sc.game_mode, GameMode::Alchemy, "朝上撞炉进炼丹炉");
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (5, ROW), "进炉不移动玩家");
+    }
+
+    /// 【BUG-047】探步 ≡ 方向键（复核 R2）：撞带钥匙的黄门、撞可胜的怪，探步与按方向键走同一格的结果逐字段一致。
+    /// 期望值取方向键路径（handle_field_input，a.java:5308-5329 同式），不依赖 probe_step。
+    #[test]
+    fn bug047_probe_step_matches_direction_key_on_doors_and_enemies() {
+        fn outcome(sc: &GameScene) -> ((i32, i32), (i32, i32), i32, i32, i32, Vec<(i32, u8, bool)>) {
+            let ents = (0..sc.entities.count)
+                .map(|i| (sc.entities.items[i].type_, sc.entities.items[i].state, sc.entities.items[i].removed))
+                .collect();
+            (
+                (sc.player_cell_x, sc.player_cell_y),
+                (sc.view.player_px, sc.view.player_py),
+                sc.facing,
+                sc.player.yellow_keys,
+                sc.player.hp,
+                ents,
+            )
+        }
+        let make = |t: u8, old: i32| {
+            let mut sc = scene((5, ROW), &[(t, 6, ROW)]);
+            sc.player.yellow_keys = 1;
+            sc.player.atk = 100_000;
+            sc.player.def = 100_000;
+            sc.facing = old;
+            sc
+        };
+        for (t, label) in [(1u8, "黄门（带钥匙）"), (43, "可胜的怪")] {
+            for old in 0..4 {
+                let mut keys = make(t, old);
+                let wt = keys.width_table.clone();
+                keys.press_key(-4);
+                keys.tick(0, &wt);
+                keys.release_key();
+                for fc in 1..300 {
+                    keys.tick(fc, &wt);
+                }
+                let mut probe = make(t, old);
+                let _ = probe.probe_step(2);
+                for fc in 0..300 {
+                    probe.tick(fc, &wt);
+                }
+                assert_eq!(outcome(&probe), outcome(&keys), "{label}、旧朝向 {old}：探步 = 方向键");
+            }
+        }
+    }
 }
 
 /// BUG-040：点地寻路（WalkTo）途中任意键打断 ⇒ 打断后的 dp3 失去"寻路段开放"判据，步尽时
@@ -11034,7 +11141,9 @@ mod touch_tap_guard_tests {
             assert!(!sc.field_tap_allowed(), "walkPhase {wp} 不接受点地");
             let plan = sc.walk_to(5, ROW);
             assert!(plan.steps.is_empty() && sc.walk_phase == wp && !sc.route.is_open(), "walkPhase {wp}：walk_to 零变化");
+            sc.facing = 0;
             assert!(!sc.probe_step(2) && sc.walk_phase == wp, "walkPhase {wp}：probe_step 零变化");
+            assert_eq!(sc.facing, 0, "walkPhase {wp}：拒绝的探步不改朝向（BUG-047 写朝向须在守卫之后）");
         }
         sc.walk_phase = 0;
         sc.transitioning = true;

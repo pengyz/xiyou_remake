@@ -870,7 +870,7 @@ Evidence: A 级——复核探针运行时实录（探针已删）；`undo_ui.rs
 - **Stage B 修复方案**：—（移植后触屏"打不过"沿用原版提示框，不另加闪红）。
 Evidence: A 级——`reference/src/deobf/a.java:5487-5490` 原文；`rg "无法战胜" crates` 零命中（本方 2026-10-29 复看）。Confidence: 95
 
-## BUG-047 探步 `probe_step` 不写朝向：按旧朝向走出一整格且不做碰撞，可穿墙（点远处墙格 / Windows 点击 / 滑动；Stage B 触屏，2026-10-29 spec 第二轮复核实测，未修）
+## BUG-047 探步 `probe_step` 不写朝向：按旧朝向走出一整格且不做碰撞，可穿墙（点远处墙格 / Windows 点击 / 滑动；Stage B 触屏，2026-10-29 spec 第二轮复核实测，已修复）
 
 > 【2026-10-29】双操控方案 spec 第二轮对抗复核 R2-1（探针 R2-C / R2-C2，记录见 `docs/reviews/2026-10-29-dual-control-schemes-spec-adversarial-review.md` §6）。
 - **现象 / 复现**（宿主探针，1 层真资产）：
@@ -881,6 +881,15 @@ Evidence: A 级——`reference/src/deobf/a.java:5487-5490` 原文；`rg "无法
   放行后 Map wp1 臂按 `self.facing` 位移（`scene.rs:4880-4905`）。方向键路径先置 `self.facing = facing` 再 `try_step`（`scene.rs:5150-5152`）。
   炼丹炉判 `self.facing == 1`（`scene.rs:5330`），所以探步进炉也随旧朝向错乱。
 - **Stage A 处理**：classic 不受影响（探步是 Stage B 新增入口）。
+  > 【2026-10-29 更正】（计划 1 T1 复核 R3）准确说法：classic 的按键链、game-oracle 回放与 trace 不经过 `probe_step`；但两个壳的触屏 / 鼠标入口
+  > 不按预设区分（Windows `main.rs:670` 的 `pointer_tap` / 鼠标拖动、Android `native.rs:374` 的 `scene_tap`），classic 预设下同样触发本缺陷，也同样拿到修复。
+  > 另，复核差分（探步 vs 方向键，9 种格 × 4 旧朝向 × 4 方向）显示修复前还有：带钥匙撞黄门先扣钥匙再按旧朝向走进墙格、胜后补步按旧朝向走、
+  > 撞墙 / 商人等不转向（存档 facing 随之不同）、debug 构建横探炉 panic。根因段行号为修复前行号。
 - **Stage B 修复方案**：`probe_step` 在 `try_step` 前置 `self.facing = dir`（与 `handle_field_input` 同式）。测试：{旧朝向 × 4} × {探步方向 × 4}，
   断言终点 = 探步方向邻格或原地；炉 × {朝上探步、横向探步且旧朝向为上}。列为 STAGE-B-008 前置任务。
-Evidence: A 级——复核探针运行时实录（探针已删）；`scene.rs:1942-1948` 无 facing 写入（本方 2026-10-29 复看）。Confidence: 90
+- **修复**（2026-10-29）：`probe_step` 在 `try_step` 前置 `self.facing = dir`。宿主钉：core `bug047_probe_step_moves_in_probe_direction_for_every_old_facing`
+  （16 组合）、`bug047_sideways_probe_into_alchemy_with_old_facing_up_does_not_open_it`、`bug047_upward_probe_into_alchemy_with_old_facing_down_opens_it`（正向）；
+  删去该行的变异三条全被杀。复核补钉：`bug047_probe_step_matches_direction_key_on_doors_and_enemies`（黄门带钥匙 / 可胜怪 × 4 旧朝向，期望取方向键路径）、
+  `field_taps_refused_unless_field_idle` 加"拒绝不改朝向"断言（把写朝向挪到守卫之前的变异被杀）、16 组合测试断言返回值。
+Evidence: A 级——复核探针运行时实录（探针已删）；修复前 `probe_step`（scene.rs:1942-1948）无 facing 写入（本方 2026-10-29 复看）；
+修复后删去写朝向一行 ⇒ 4 条 bug047 测试 FAILED（本方实跑）。Confidence: 90
