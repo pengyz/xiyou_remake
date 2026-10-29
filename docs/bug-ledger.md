@@ -814,7 +814,7 @@ Evidence: A 级——宿主 RED（修复前箭头格 (2,11)(3,11) 不在原路�
 撞门不清暂存、剧情接管立即放回、findPath 不清暂存均被杀；实机（Xiaomi 14，本方注入点按 (2,10)）连拍：↑→→ → 走动中 →→ 留在原格 → 到达后余 (3,10)。
 classic：game-oracle 帧差分与 Windows modern 五状态帧不变。Confidence: 90
 
-## BUG-044 点地寻路首步不判碰撞结果：首步被挡且不弹浮层时玩家"穿格"（站上怪物 / 炼丹炉、穿过隐形墙；Stage B 触屏，2026-10-29 spec 对抗复核实测，未修）
+## BUG-044 点地寻路首步不判碰撞结果：首步被挡且不弹浮层时玩家"穿格"（站上怪物 / 炼丹炉、穿过隐形墙；Stage B 触屏，2026-10-29 spec 对抗复核实测，部分修复——余项见下）
 
 > 【2026-10-29】双操控方案 spec 对抗复核（`docs/reviews/2026-10-29-dual-control-schemes-spec-adversarial-review.md` C1，探针 A / E / F / I）。
 - **现象 / 复现**（宿主探针，真资产，生产入口 `walk_to`）：
@@ -839,6 +839,18 @@ Evidence: A 级——复核探针运行时实录（探针已删，复现条件�
 > - 修复方案改为：dp3 wp0 臂加**仅点地寻路占用（`walkto_owns_dp3()`）时生效**的分支——弹步 → 置 wp1 → `ok = try_step`；`!ok` 且未开战则清步、
 >   置 wp0，下拍 `finish_walkto`。经典 MOV 不占用，trace 零变化。另，点地的撞击（门 / 怪 / 炉等目标）一律在路线结束、回到 Map wp0 后执行，
 >   不作为路线末步（炉页会被 `finish_walkto` 吞掉，R2-2）。
+- **修复**（2026-10-29，计划 1 T2）：dp3 wp0 臂加点地寻路专用分支——弹步前记归属 `owned = walkto_owns_dp3()`；`try_step` 返回 false 且 wp 仍为 1
+  （未开战、无浮层复位）⇒ 清步、归 wp0，下拍 `finish_walkto` 回 Map。被挡步把模式切走（朝上撞炉 ⇒ Alchemy）时就地收尾（收段、放回箭头、
+  解除武装，不写回 Map 以保留炉页）。用弹步时的归属判定，是因为撞"撞格即触发"的剧情点（型 83）时 `load_level_script` 先收段（复核 T2-2）。
+  宿主钉（core，8 条）：`bug044_tap_walk_first_step_into_blocker_stays_put`（炉 / 隐形墙 / 打不过的怪）、`bug044_tap_walk_first_step_into_winnable_enemy_still_fights`、
+  `bug044_classic_script_walk_keeps_original_unchecked_first_step`（经典 MOV 保真钉，去门控即红）、`bug044_first_step_into_scene_trigger_matches_direction_key`、
+  `bug044_step_after_trap_damage_into_blocker_stays_put`、`bug044_step_after_open_group_animation_into_blocker_stays_put`、
+  `bug044_tap_alchemy_above_leaves_no_armed_walk`（release 运行，见余项①）。变异（整支失效 / 门控改为事后归属 / 去模式切换收尾 / 去 wp==1 / 去 wp=0）均被杀。
+- **余项（未修，归 STAGE-B-008 计划 2"撞击一律在 Map wp0 执行"）**：
+  ① 点地路线朝上进炉（首步或途中）走 Dialog → Alchemy，该边不在 `TRANSFER_EDGES` ⇒ debug 构建 `transition_to` 的 `debug_assert` panic（release 不受影响）；
+  ② 途中一步朝上进炉（`advance_script_walk` 臂）后同拍被 `finish_walkto` 写回 Map，炉页被吞（spec 第二轮复核 R2-2）；
+  ③ 被挡后收尾落零长位移笔（from == to），撤销要多按一次空操作（复核 T2-3；spec §5.2 定为零长笔不入栈）。
+- **classic 口径**（复核 T2-6）：经典脚本行走（MOV）不占用 dp3，按键链与 trace 不经新分支；Windows classic 预设下的鼠标点地属 Stage B 输入，同样走新分支。
 
 ## BUG-045 撤销对战斗的逆放损坏，且撤销日志从不清栈（Stage B 撤销，2026-10-29 spec 对抗复核实测，未修）
 

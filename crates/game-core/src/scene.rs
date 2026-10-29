@@ -2903,11 +2903,30 @@ impl GameScene {
                     match self.walk_phase {
                         0 => {
                             if self.walk_step_count > 0 {
+                                // 【BUG-044】弹步前记"本步归点地寻路"：被挡步可能经剧情接管（型 83 → load_level_script 先收段）
+                                // 让 walkto_owns_dp3() 在 try_step 之后变假，门控须看弹步时的归属（复核 T2-2）。
+                                let owned = self.walkto_owns_dp3();
                                 self.walk_step_count -= 1;
                                 self.facing =
                                     self.walk_path_buffer[self.walk_step_count as usize] as i32;
                                 self.walk_phase = 1;
-                                self.try_step(self.facing);
+                                let ok = self.try_step(self.facing);
+                                // 【BUG-044】点地寻路专用：被挡且未开战（wp 仍为 1）⇒ 清步、归 wp0，下拍走 finish_walkto。
+                                // 原版 MOV 消费机不判返回值（a.java:4080-4084，脚本路线由剧本保证可走）；
+                                // 经典脚本行走不占用 dp3（owned 恒假），此分支不触达 classic 按键链。
+                                if !ok && self.walk_phase == 1 && owned {
+                                    self.walk_step_count = 0;
+                                    self.walk_phase = 0;
+                                    // 被挡步把模式切走（朝上撞炉 ⇒ Alchemy）：dp3 不再 tick、finish_walkto 等不到，就地收尾
+                                    //（不写回 Map，保留炉页；复核 T2-1：否则武装残留 ⇒ 出页后点地全被拒、方向键连走穿墙）
+                                    if self.game_mode != GameMode::Dialog && self.walkto_owns_dp3() {
+                                        self.route_arrived();
+                                        self.restore_walkto_arrows();
+                                        self.walkto_draining = false;
+                                        self.script_walk_armed = false;
+                                        self.dialog_phase = 0;
+                                    }
+                                }
                             } else {
                                 // 【T2】WalkTo 段终位（整段起终点入栈）+回 Map 模式；
                                 // 经典脚本行走（route 未开放）零改动——mode 回归留脚本机器
@@ -11010,6 +11029,176 @@ mod t2_walkto_route_tests {
                 assert_eq!(outcome(&probe), outcome(&keys), "{label}、旧朝向 {old}：探步 = 方向键");
             }
         }
+    }
+
+    /// 【BUG-044】点地寻路首步撞上不弹浮层的阻挡：玩家不得进入该格，寻路收尾回 Map。
+    /// find_path 经实体槽规划路线（walk_to(7,ROW) 自 (5,ROW) 起两步，首步即 (6,ROW)）。
+    #[test]
+    fn bug044_tap_walk_first_step_into_blocker_stays_put() {
+        let cases: &[(u8, &str)] = &[(9, "炼丹炉（横向撞）"), (12, "隐形墙"), (70, "打不过的怪")];
+        for &(t, label) in cases {
+            let mut sc = scene((5, ROW), &[(t, 6, ROW)]);
+            if t == 70 {
+                sc.player.hp = 1;
+            }
+            let plan = sc.walk_to(7, ROW);
+            assert!(!plan.steps.is_empty(), "{label}：前置——find_path 经实体槽规划出路线");
+            run_until_settled(&mut sc, 300);
+            assert_eq!((sc.player_cell_x, sc.player_cell_y), (5, ROW), "{label}：首步被挡，玩家留在原格");
+            assert_eq!((sc.view.player_px, sc.view.player_py), (5 << 5, ROW << 5), "{label}：像素位置未动");
+            assert_eq!(sc.game_mode, GameMode::Map, "{label}：寻路收尾回 Map");
+            assert!(!sc.route.is_open(), "{label}：路段已收");
+            assert_ne!(sc.walk_phase, 5, "{label}：未开战");
+        }
+    }
+
+    /// 【BUG-044】可胜的怪仍照常开战（返回 false 但 wp=5 的分支不得被当成"被挡"清掉）。
+    #[test]
+    fn bug044_tap_walk_first_step_into_winnable_enemy_still_fights() {
+        let mut sc = scene((5, ROW), &[(41, 6, ROW)]);
+        sc.player.atk = 100_000;
+        sc.player.def = 100_000;
+        sc.player.hp = 500; // 夹具默认 hp=0 ⇒ 预测 loss(0) < hp 不成立，会被判"打不过"
+        let wt = sc.width_table.clone();
+        let _ = sc.walk_to(6, ROW);
+        let mut saw_battle = false;
+        for fc in 0..40 {
+            sc.tick(fc, &wt);
+            saw_battle |= sc.walk_phase == 5;
+        }
+        assert!(saw_battle, "首步撞可胜的怪 ⇒ 开战（walk_phase 5）");
+    }
+
+    /// 【BUG-044】保真钉：经典脚本行走（MOV 驱动的 dp3，路段未开）首步撞阻挡仍按原版不判返回值
+    /// （a.java:4080-4084）——修复分支只对点地寻路生效（walkto_owns_dp3）。去掉该门控的变异须在此变红。
+    #[test]
+    fn bug044_classic_script_walk_keeps_original_unchecked_first_step() {
+        let mut sc = scene((5, ROW), &[(9, 6, ROW)]);
+        let wt = sc.width_table.clone();
+        // dp3 消费机的经典入口状态（op_mov 同款：路径缓冲 + 武装 + Dialog dp3 wp0），不开路段
+        sc.walk_path_buffer = vec![2];
+        sc.walk_step_count = 1;
+        sc.script_walk_armed = true;
+        sc.dialog_phase = 3;
+        sc.walk_phase = 0;
+        sc.game_mode = GameMode::Dialog;
+        assert!(!sc.route.is_open(), "前置：经典脚本行走不开路段");
+        for fc in 0..12 {
+            sc.tick(fc, &wt);
+        }
+        assert_eq!(
+            (sc.player_cell_x, sc.player_cell_y),
+            (6, ROW),
+            "经典 MOV 首步不判碰撞（原版行为，Stage A 保真）"
+        );
+    }
+
+    /// 一拍 + 绘制（wp4 开门动画由 paint 推进，advance_open_group_paint）。
+    fn tick_paint(sc: &mut GameScene, fc: i64) {
+        let wt = sc.width_table.clone();
+        sc.tick(fc, &wt);
+        let mut canvas = crate::render::ArgbImage::create(240, 320);
+        let mut g = crate::render::SoftGraphics::new(&mut canvas);
+        sc.paint(&mut g, &crate::render::ArgbImage::create(2, 2));
+    }
+
+    /// 【BUG-044】复核 T2-2：首步撞"撞格即触发"的剧情点（型 83，空脚本立即收尾）——剧情接管先收段，
+    /// 门控须按弹步时的归属判定；终格 = 方向键撞同一格的终格（停在原格）。
+    #[test]
+    fn bug044_first_step_into_scene_trigger_matches_direction_key() {
+        let make = || {
+            let mut sc = scene((4, ROW), &[(83, 5, ROW)]);
+            sc.dialog_data.scripts = vec![String::new()];
+            sc
+        };
+        let mut keys = make();
+        let wt = keys.width_table.clone();
+        keys.press_key(-4);
+        keys.tick(0, &wt);
+        keys.release_key();
+        for fc in 1..120 {
+            keys.tick(fc, &wt);
+        }
+        let mut touch = make();
+        let _ = touch.walk_to(6, ROW);
+        for fc in 0..120 {
+            touch.tick(fc, &wt);
+        }
+        assert_eq!(
+            (touch.player_cell_x, touch.player_cell_y, touch.view.player_px),
+            (keys.player_cell_x, keys.player_cell_y, keys.view.player_px),
+            "首步撞剧情点：点地终格 = 方向键终格"
+        );
+        assert_eq!((touch.player_cell_x, touch.player_cell_y), (4, ROW), "参照：方向键撞剧情点停在原格");
+    }
+
+    /// 【BUG-044】踩 60 邻格扣血（step_triggered 短路 advance_script_walk）后的下一步经 dp3 wp0：撞炉须被挡。
+    #[test]
+    fn bug044_step_after_trap_damage_into_blocker_stays_put() {
+        let mut sc = scene((1, ROW), &[(60, 2, ROW + 1), (9, 3, ROW)]);
+        sc.player.hp = 1000;
+        let _ = sc.walk_to(5, ROW);
+        let mut hp_dropped = false;
+        for fc in 0..200 {
+            tick_paint(&mut sc, fc);
+            hp_dropped |= sc.player.hp < 1000;
+        }
+        assert!(hp_dropped, "前置：踩 60 邻格扣血");
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (2, ROW), "扣血后的下一步撞炉被挡，停在 (2,ROW)");
+        assert_eq!(sc.game_mode, GameMode::Map);
+        assert!(!sc.route.is_open());
+    }
+
+    /// 【BUG-044】踏板 76 开组门（wp4 开门动画，paint 推进）后的下一步经 dp3 wp0：撞炉须被挡。
+    #[test]
+    fn bug044_step_after_open_group_animation_into_blocker_stays_put() {
+        let mut sc = scene((1, ROW), &[(76, 2, ROW), (4, 10, ROW), (9, 3, ROW)]);
+        let door = (0..sc.entities.count).find(|&i| sc.entities.items[i].type_ == 4).expect("型 4");
+        sc.entities.items[door].param = 1; // 组号 = 76 的 param&0xff + 1 = 1
+        let _ = sc.walk_to(5, ROW);
+        let mut saw_wp4 = false;
+        for fc in 0..200 {
+            tick_paint(&mut sc, fc);
+            saw_wp4 |= sc.walk_phase == 4;
+        }
+        assert!(saw_wp4, "前置：踩 76 进 wp4 开门动画");
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (2, ROW), "wp4 后的下一步撞炉被挡，停在 (2,ROW)");
+        assert_eq!(sc.game_mode, GameMode::Map);
+        assert!(!sc.route.is_open());
+    }
+
+    /// 【BUG-044】复核 T2-1：炉在正上方、点炉格（首步朝上撞炉 ⇒ 炉页）：不得残留寻路武装——出页后点地可用、方向键一步一格。
+    /// debug 构建下 Dialog → Alchemy 未登记转移边会触发 transition_to 的 debug_assert（点地路径借 dp3 进炉，计划 2 改为 Map wp0 撞击后消除），
+    /// 故本钉只在 release（gates rust-tests 口径）运行。
+    #[test]
+    #[cfg_attr(debug_assertions, ignore = "Dialog→Alchemy 未登记转移边（debug_assert）；计划 2 改 Map wp0 撞击后取消")]
+    fn bug044_tap_alchemy_above_leaves_no_armed_walk() {
+        let mut sc = scene((5, ROW), &[(9, 5, ROW - 1)]);
+        let wt = sc.width_table.clone();
+        sc.walkable[(ROW - 1) as usize][5] = true; // 夹具走廊只有一行：把炉格地形置可走，让 walk_to 直达炉格（真资产 1 层 (8,1) 同形）
+        let plan = sc.walk_to(5, ROW - 1);
+        assert_eq!(plan.steps, vec![1u8], "前置：一步朝上进炉格");
+        for fc in 0..10 {
+            sc.tick(fc, &wt);
+        }
+        assert_eq!(sc.game_mode, GameMode::Alchemy, "前置：进炉页");
+        assert!(!sc.script_walk_armed, "炉页中无寻路武装残留");
+        assert!(!sc.route.is_open(), "路段已收");
+        sc.press_key(-7);
+        sc.tick(10, &wt);
+        sc.release_key();
+        for fc in 11..20 {
+            sc.tick(fc, &wt);
+        }
+        assert_eq!(sc.game_mode, GameMode::Map, "前置：出炉页");
+        assert!(sc.field_tap_allowed(), "出页后点地可用");
+        sc.press_key(-4);
+        sc.tick(20, &wt);
+        sc.release_key();
+        for fc in 21..80 {
+            sc.tick(fc, &wt);
+        }
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (6, ROW), "方向键一步只走一格");
     }
 }
 
