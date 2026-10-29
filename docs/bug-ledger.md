@@ -813,3 +813,74 @@ B 级——格单位由 `>> 5` / `<< 5` 调用图推出。GREEN：game-core / ga
 Evidence: A 级——宿主 RED（修复前箭头格 (2,11)(3,11) 不在原路线上；真资产终态 [] ≠ 方向键 [(3,10)]）→ GREEN；变异：`walked_facing`→`facing`、
 撞门不清暂存、剧情接管立即放回、findPath 不清暂存均被杀；实机（Xiaomi 14，本方注入点按 (2,10)）连拍：↑→→ → 走动中 →→ 留在原格 → 到达后余 (3,10)。
 classic：game-oracle 帧差分与 Windows modern 五状态帧不变。Confidence: 90
+
+## BUG-044 点地寻路首步不判碰撞结果：首步被挡且不弹浮层时玩家"穿格"（站上怪物 / 炼丹炉、穿过隐形墙；Stage B 触屏，2026-10-29 spec 对抗复核实测，未修）
+
+> 【2026-10-29】双操控方案 spec 对抗复核（`docs/reviews/2026-10-29-dual-control-schemes-spec-adversarial-review.md` C1，探针 A / E / F / I）。
+- **现象 / 复现**（宿主探针，真资产，生产入口 `walk_to`）：
+  - 1 层玩家 (8,2)，(9,2) 放型 70，hp=1（打不过），`walk_to(10,2)` ⇒ 玩家站到怪物格 (9,2)，未开战；
+  - 23 层玩家 (5,3) 紧邻隐形墙 (5,4)，`walk_to(5,5)` ⇒ 轨迹 (5,3)→(5,4)→(5,5)，穿墙后墙才显形为型 11；
+  - (9,2) 放炼丹炉型 9，`walk_to(10,2)` ⇒ 站上炉格；炉在正上方时 `walk_to` 炉格 ⇒ 进炼丹炉页时 wp=1 残留，离开后走进炉格。
+- **根因**（Stage B 移植用法错误）：点地寻路借用 dp3 脚本行走消费机。wp0 臂先置 `walk_phase = 1` 再 `try_step`、不看返回值
+  （`scene.rs:2903-2907`，原版 MOV 消费 a.java:4080-4084 同式——原版脚本路线由剧本保证可走，不会撞格）。`try_step` 只在
+  "有浮层 ∧ wp==1" 时复位相位（`scene.rs:5156-5177`），所以首步撞上不弹浮层的阻挡（打不过的怪——Rust 缺浮层见 BUG-046、隐形墙、
+  炼丹炉、联动门 32、实墙）时玩家照样走进去。第 2 步起走 `advance_script_walk`，撞格清步，表现正常（探针 C）。
+- **Stage A 处理**：classic 不受影响（经典脚本行走的路线由剧本给出）。原版 MOV 消费机保持不动。
+- **Stage B 修复方案**：点地寻路的首步 / 0 步撞击不经 dp3 wp0：0 步撞击在 Map walkPhase 0 直接 `try_step`（并开 route 段，保证撤销记账）；
+  ≥1 步时撞击作为缓冲末步走 `advance_script_walk` 臂。纳入双操控方案（STAGE-B-008）前置任务，测试矩阵 =
+  {怪（可胜 / 不可胜）、门（有 / 无钥匙）、炉（朝上 / 横向）、墙、隐形墙、剧情点、联动门} × {邻接、远端}，断言玩家格与相位。
+Evidence: A 级——复核探针运行时实录（探针已删，复现条件见复核记录 §1）；`scene.rs:2903-2907` 逐行核对（本方 2026-10-29 复看）。Confidence: 85
+
+> 【2026-10-29 更正】（第二轮复核 R2-3 / R2-13）
+> - 范围不止"首步"：凡经 dp3 wp0 弹出的步都不判返回值——首步、踩 60 扣血后（`step_triggered` 时步末不调 `advance_script_walk`）的下一步、
+>   wp4 开门动画结束后的下一步（后两者 B 级，未构造实例）。
+> - 阻挡清单中的"实墙"不成立：find_path 只经"地形可走 ∨ 有槽"的格，纯地形墙不会成为路线上的步。
+> - 炉例在 debug 构建下会在 `transition_to` 的 `debug_assert` 处 panic（Dialog → Alchemy 不在 `TRANSFER_EDGES`，`scene.rs:711-779`、`:1503`）。
+> - 修复方案改为：dp3 wp0 臂加**仅点地寻路占用（`walkto_owns_dp3()`）时生效**的分支——弹步 → 置 wp1 → `ok = try_step`；`!ok` 且未开战则清步、
+>   置 wp0，下拍 `finish_walkto`。经典 MOV 不占用，trace 零变化。另，点地的撞击（门 / 怪 / 炉等目标）一律在路线结束、回到 Map wp0 后执行，
+>   不作为路线末步（炉页会被 `finish_walkto` 吞掉，R2-2）。
+
+## BUG-045 撤销对战斗的逆放损坏，且撤销日志从不清栈（Stage B 撤销，2026-10-29 spec 对抗复核实测，未修）
+
+> 【2026-10-29】双操控方案 spec 对抗复核 C2（探针 B / D）。
+- **现象 / 复现**（宿主探针，生产入口 `walk_to` → 战斗 → `undo_last`）：
+  1. 被杀怪物死亡动画结束后已摘格槽（`removed = true`）。`revive_enemy`（`shell/common/src/undo_ui.rs:36-46`）只写 type / state=0 / visible，
+     不恢复 `removed`、不重登格槽 ⇒ 撤销后怪物不画、不挡路：等于白杀一只还回血回金。
+  2. `revive_enemy` 以**实体槽号**写 `enemies.hp`，而该表按 `type − 41` 索引 ⇒ 写坏全局怪物属性表（实测型 67 HP 1200→0）。
+  3. 战斗快照在 `battle_enemy_hp` 赋值之前取值（`scene.rs:5413` 取、`:5422` 赋），记下的是旧值。
+  4. 生产代码从不调用 `UndoJournal::clear` / `begin_combat`（仅测试调用）⇒ 换层 / 存档 / 剧情后仍可撤回；
+     1 层寻路后换到 2 层再撤销，玩家被放到 1 层坐标 (8,2)。
+- **根因**：touch-native-undo（T1/T2）撤销日志的逆放与清栈未接到生产路径；终审"清栈 ✅"只测了 journal 本身（测试自证）。
+- **Stage A 处理**：classic 不受影响（撤销是 Stage B 新增功能）。
+- **Stage B 修复方案**：复活恢复 `removed` 与格槽；HP 回写战斗 HP 语义而非属性表；快照取赋值后值；换层 / 读档 / 存档 / 剧情事件接 `clear`。
+  测试走生产路径：`walk_to` → 战斗 → `undo_last` → 再撞同格必须开战；换层后 `undo_last` 无效。纳入 STAGE-B-008 前置任务；
+  「自动战斗」开关排在本修复之后。
+Evidence: A 级——复核探针运行时实录（探针已删）；`undo_ui.rs:36-46` 逐行核对（本方 2026-10-29 复看：`enemies.hp.get_mut(e.slot)`）。Confidence: 85
+
+## BUG-046 "你无法战胜它"提示框未移植：打不过的怪撞上去 Rust 静默挡住，原版弹 kind 0 提示（classic 移植缺口，2026-10-29 spec 对抗复核发现，未修）
+
+> 【2026-10-29】双操控方案 spec 对抗复核 C3。
+- **现象**：手动撞上打不过的怪，原版清 `walkStepCount` 并弹提示框"你无法战胜它"；Rust 只清步数，不弹框。
+- **根因**（classic 移植缺口）：`a.java:5487-5490`（`walkStepCount = 0; showOverlayMessage(0, "你无法战胜它", 0, 0)`）；
+  Rust `scene.rs:5426-5432` 只留注释 `// "你无法战胜它" 提示浮层：交互批次`，全仓无此字符串。
+  gameplay.md R-battle-4、fixture-plan-boss FX-BOSS-68B 已写明此浮层，trace 门禁的已录场景未覆盖。
+- **影响**：classic 与参考版行为不一致（少一个浮层，及其吞键 / 复位 wp 的后果——原版正是靠这个浮层让 dp3 首步撞怪时复位相位，见 BUG-044）。
+- **Stage A 处理**：**须修**（Rust 少了原版行为，属保真偏离而非原版 bug）。按 BUG-037 体例移植并加 Java 对拍用例；修复后 classic 向 Java 收敛，
+  trace 基线变化须在提交说明中写明。排在 STAGE-B-008 之前。
+- **Stage B 修复方案**：—（移植后触屏"打不过"沿用原版提示框，不另加闪红）。
+Evidence: A 级——`reference/src/deobf/a.java:5487-5490` 原文；`rg "无法战胜" crates` 零命中（本方 2026-10-29 复看）。Confidence: 95
+
+## BUG-047 探步 `probe_step` 不写朝向：按旧朝向走出一整格且不做碰撞，可穿墙（点远处墙格 / Windows 点击 / 滑动；Stage B 触屏，2026-10-29 spec 第二轮复核实测，未修）
+
+> 【2026-10-29】双操控方案 spec 第二轮对抗复核 R2-1（探针 R2-C / R2-C2，记录见 `docs/reviews/2026-10-29-dual-control-schemes-spec-adversarial-review.md` §6）。
+- **现象 / 复现**（宿主探针，1 层真资产）：
+  - 玩家 (2,5)、`facing = 3`（左），`probe_step(0)`（向下）⇒ 返回 true，玩家**向左**走到 (1,5)；
+  - 玩家 (1,5)、`facing` 指向地形不可走的 (1,6)，`probe_step(1)`（向上，上方为空格）⇒ 玩家走进 (1,6)（穿墙）。
+  - 现网触发：点远处墙格时 `classify_tap` 按主轴发 `ProbeStep`（`touch.rs:156-167`）；Windows 点击、`Dispatcher::swipe` 同入口。
+- **根因**（Stage B 移植错误）：`probe_step(dir)`（`scene.rs:1942-1948`）以 `dir` 调 `try_step` 判目标格，但不写 `self.facing`；
+  放行后 Map wp1 臂按 `self.facing` 位移（`scene.rs:4880-4905`）。方向键路径先置 `self.facing = facing` 再 `try_step`（`scene.rs:5150-5152`）。
+  炼丹炉判 `self.facing == 1`（`scene.rs:5330`），所以探步进炉也随旧朝向错乱。
+- **Stage A 处理**：classic 不受影响（探步是 Stage B 新增入口）。
+- **Stage B 修复方案**：`probe_step` 在 `try_step` 前置 `self.facing = dir`（与 `handle_field_input` 同式）。测试：{旧朝向 × 4} × {探步方向 × 4}，
+  断言终点 = 探步方向邻格或原地；炉 × {朝上探步、横向探步且旧朝向为上}。列为 STAGE-B-008 前置任务。
+Evidence: A 级——复核探针运行时实录（探针已删）；`scene.rs:1942-1948` 无 facing 写入（本方 2026-10-29 复看）。Confidence: 90
