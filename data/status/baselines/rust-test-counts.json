@@ -18,14 +18,14 @@
     "exit_chain(test)": 5,
     "exit_dialog(test)": 7,
     "feedback(test)": 6,
-    "fixture_frames(test)": 29,
+    "fixture_frames(test)": 31,
     "flow(test)": 4,
     "game_android(lib)": 6,
-    "game_core(lib)": 197,
+    "game_core(lib)": 216,
     "game_data(lib)": 35,
     "game_oracle(lib)": 0,
     "game_platform(lib)": 6,
-    "game_shell_common(lib)": 37,
+    "game_shell_common(lib)": 40,
     "gameplay_floor1(test)": 5,
     "golden(test)": 9,
     "hd_visual(test)": 6,
@@ -64,5 +64,5 @@
     "walk_route(test)": 11,
     "xiyou(bin)": 42
   },
-  "total": 752
+  "total": 776
 }
