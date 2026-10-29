@@ -15,7 +15,7 @@ use crate::render::ArgbImage;
 /// 实体记录（SoA→AoS，refactor-plan §2 第 1 步）：字段对照 a.java 声明序（行号锚
 /// 随字段）；**行为逻辑零改动**——仅存储布局。默认值=旧 Vec 预填值（可见 true、
 /// 其余 0/false）——state_dump 金样整表引用含 100 槽尾部，尾默认必须逐字段对齐。
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Entity {
     /// entityType（a.java:129）
     pub type_: i32,
@@ -538,6 +538,26 @@ pub fn detach_from_cell(grid: &mut CellGrid, table: &mut EntityTable, idx: usize
     let cx = (table.items[idx].px >> 5) as usize;
     let ct = grid.cell_type[cy][cx] as usize;
     grid.slot_remove_first(ct, idx + 1);
+}
+
+/// 【BUG-045 · Stage B 撤销】`detach_from_cell` 的逆：removed=false + 重新登记入实体当前像素所在格的槽表
+/// （格类型为 0 时分配新类型，与 spawn 槽登记同式）。只摘了主格的槽，只重登主格（与 detach 对称）。
+pub fn reattach_to_cell(grid: &mut CellGrid, table: &mut EntityTable, idx: usize) {
+    table.items[idx].removed = false;
+    let cy = (table.items[idx].py >> 5) as usize;
+    let cx = (table.items[idx].px >> 5) as usize;
+    let mut ct = grid.cell_type[cy][cx];
+    if ct == 0 {
+        grid.next_cell_type += 1;
+        ct = grid.next_cell_type;
+        grid.cell_type[cy][cx] = ct;
+    }
+    // 幂等：已在槽表中（死亡动画未播完、尚未摘槽即撤销）则不重复登记（复核 T3-R6）。
+    // 追加到末尾而非放回原位：同格多实体时槽序可能变化，仅保证单占格等价（复核 T3-R7）。
+    let cap = grid.capacity[ct as usize] as usize;
+    if !grid.slots[ct as usize][..cap].contains(&((idx + 1) as u8)) {
+        grid.slot_push(ct as usize, idx + 1);
+    }
 }
 
 /// relocateSlotsAtRouteEnd（a.java:8880-8904）：路径缓动实体的格槽迁移——从**起点格** (from_x,from_y)

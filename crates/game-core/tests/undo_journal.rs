@@ -85,6 +85,7 @@ fn undo_twice_combat_then_position_user_judge() {
         enemy_hp_before: 120,
         vitals_before: PlayerVitals { hp: 80, gold: 50, exp: 10 },
         items_before: vec![(7, 1)],
+        enemy_snapshot: Default::default(),
     });
     assert!(!journal.combat_in_progress(), "终结后挂起清除");
     assert_eq!(journal.len(), 2, "走过去+战斗=2 笔");
@@ -129,6 +130,7 @@ fn undo_lifo_three_strokes_reverse_order() {
         enemy_hp_before: 30,
         vitals_before: PlayerVitals { hp: 80, gold: 50, exp: 10 },
         items_before: vec![],
+        enemy_snapshot: Default::default(),
     });
     journal.push_pickup(PickupStroke {
         item: Some((9, 0, 2)),                       // 拾取道具 9：0→2
@@ -198,6 +200,7 @@ fn combat_mid_fight_not_undoable() {
         enemy_hp_before: 120,
         vitals_before: PlayerVitals { hp: 80, gold: 50, exp: 10 },
         items_before: vec![],
+        enemy_snapshot: Default::default(),
     });
     assert_eq!(journal.len(), 2, "终结入栈");
     assert!(matches!(journal.undo(&mut st), UndoOutcome::Undone(Stroke::Combat(_))), "终结后可撤");
@@ -236,6 +239,7 @@ fn clear_on_script_event() {
         enemy_hp_before: 120,
         vitals_before: PlayerVitals { hp: 80, gold: 50, exp: 10 },
         items_before: vec![],
+        enemy_snapshot: Default::default(),
     });
     journal.clear(ClearReason::ScriptEvent);
     assert_eq!(journal.len(), 0, "脚本事件格触发=全清");

@@ -35,8 +35,10 @@ pub struct EnemyRestore {
     pub slot: usize,
     /// 敌型（复活后型不变——变形/召唤语义 v1 不入回撤域）
     pub type_id: i32,
-    /// 复活原血
+    /// 复活原血（【BUG-045②】保留但不消费：复活不写全局属性表，战斗血由下次开战按基础表重算）
     pub hp: i32,
+    /// 【BUG-045】开战前的实体整格快照（位置 / 精灵 / 动画 / state=0 / visible）——复活按此还原
+    pub entity: crate::entity::Entity,
 }
 
 /// 门状态（拾取开门笔的逆放字段面）。
@@ -76,6 +78,8 @@ pub struct CombatStroke {
     pub vitals_before: PlayerVitals,
     /// 战利品/掉落回滚面（item_id, count_before）——掉落新增量按此退回
     pub items_before: Vec<(i32, i32)>,
+    /// 【BUG-045】开战前的实体整格快照
+    pub enemy_snapshot: crate::entity::Entity,
 }
 
 /// 拾取/开门笔：道具计数 delta + 门状态 delta（逆=退回道具+门复锁）。
@@ -133,6 +137,9 @@ pub enum ClearReason {
     Save,
     /// MOV/脚本事件格触发（宝箱/陷阱/剧情/开关）
     ScriptEvent,
+    /// 【BUG-045】不可逆副作用：击杀掉落 / 机关生成实体（战斗期间实体表增长）、未记账的消费（炼丹 / 商人 / 道具使用）、
+    /// 跨层探针重载实体表（下标重排）——撤销无法诚实复原，触发即清栈。
+    Irreversible,
     /// 手动复位（菜单"重新开始"类）
     Restart,
 }
@@ -210,6 +217,7 @@ impl UndoJournal {
                     slot: c.enemy_slot,
                     type_id: c.enemy_type_id,
                     hp: c.enemy_hp_before,
+                    entity: c.enemy_snapshot,
                 });
                 target.set_player_vitals(c.vitals_before);
                 for (item_id, count) in &c.items_before {

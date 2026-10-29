@@ -168,6 +168,7 @@ fn suspend_combat_resume_lifo_with_journal() {
             enemy_hp_before: 120,
             vitals_before: PlayerVitals { hp: 80, gold: 50, exp: 10 },
             items_before: vec![(7, 1)],
+            enemy_snapshot: Default::default(),
         },
         &mut journal,
     );
@@ -275,6 +276,7 @@ fn interrupt_during_combat_pending_blocks_then_lifo() {
             enemy_hp_before: 120,
             vitals_before: PlayerVitals { hp: 80, gold: 50, exp: 10 },
             items_before: vec![],
+            enemy_snapshot: Default::default(),
         },
         &mut journal,
     );

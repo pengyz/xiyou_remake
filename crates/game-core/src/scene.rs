@@ -521,7 +521,8 @@ pub struct GameScene {
     /// None = 未暂存（经典面恒 None）。
     walkto_arrows: Option<Vec<u8>>,
     /// 【T2】战斗段快照（撞敌挂起时记账，战斗终结入 CombatStroke）
-    battle_undo_snap: Option<(usize, i32, i32, crate::undo_journal::PlayerVitals)>,
+    /// 撤销快照（实体槽, 型, 复活血, 战前血金, 战前整格实体, 开战时实体数——战斗期间实体表增长 = 不可逆生成，见 BUG-045）
+    battle_undo_snap: Option<(usize, i32, i32, crate::undo_journal::PlayerVitals, entity::Entity, usize)>,
     /// itemUseTargetType：最近拾取/装备的类型号（浮层图标 + 商店显示）
     pub overlay_kind_item: i32,
     /// 浮层图标图（kind1/3：entityTypeImage[itemUseTargetType] 的克隆——paint 免借用冲突）
@@ -1130,6 +1131,8 @@ impl GameScene {
         records: &[(u8, u16, u16, i16, bool)],
         floor: i32,
     ) -> Result<(), String> {
+        // 【BUG-045④】换层清栈（旧层坐标的位移笔在新层无意义——复核探针 D：撤销把玩家传回上一层坐标）
+        self.undo.clear(crate::undo_journal::ClearReason::FloorChange);
         // 【P0 回归修复 2026-10-20】换层重建视图**布局换轨收口**：from_maplv 显式
         // 带 ViewDims（编译强制=漏网-proof）——旧 classic 常量初始致换层残留
         // 240-era col/row 范围=modern 地形半绘根因（floor1 正常=初始已换轨、
@@ -1603,6 +1606,8 @@ impl GameScene {
         entity::sort_by_y(&mut entities, &mut grid);
         self.entities = entities;
         self.grid = grid;
+        // 【BUG-045】实体表按活体重建并重排下标（跨层探针 m_119/m_122 往返）⇒ 撤销笔里的实体槽号失效（复核 T3-R3）⇒ 清栈
+        self.undo.clear(crate::undo_journal::ClearReason::Irreversible);
     }
 
     /// probeCrossFloorSnapshot（a.java:8640-8659）：跨层探存活实体——忠实往返：
@@ -1756,6 +1761,8 @@ impl GameScene {
         // 否则剧情中投键（press_key 见段开放即打断）截断脚本 MOV 行走，dp3 步尽臂还会把
         // 剧情中途切回 Map。经典面（无寻路段）interrupt_route 零操作。
         self.interrupt_route();
+        // 【BUG-045④】剧情推进不可撤（undo_journal 清栈边界：MOV / 脚本事件触发 = 清栈）
+        self.undo.clear(crate::undo_journal::ClearReason::ScriptEvent);
         // 【BUG-043】寻路被剧情接管：箭头暂存**不在此放回**——撞格触发剧情时本函数在 advanceScriptWalk 撞格臂之前执行，
         // 立即放回会被随后的 `walk_step_count = 0` 清掉（复核 R2）；改由 settle_walkto_arrows 在寻路释放 dp 后放回
         self.walkto_draining = false; // 【BUG-040】dp 归剧情（打断后的寻路收尾作废）
@@ -3730,6 +3737,8 @@ impl GameScene {
     /// useItemStack（a.java:7761-7781）：uses>0 → activate，消耗且减至 0
     /// 时栈压实（后项前移 + size--）；uses==0 → 仅 activate 不消耗。
     fn use_item_stack(&mut self, idx: usize) {
+        // 【BUG-045】道具使用（消耗 / 瞬移 / 换层 / 回血）不记账 ⇒ 清栈（复核 T3-R4）
+        self.undo.clear(crate::undo_journal::ClearReason::Irreversible);
         // itemStackUses = **有符号 byte**（a.java:7762）：-1 = 无限次（走
         // else 无条件 activate 不计数）——u8 直读会把 -1 读成 255 误计数。
         if (self.player.item_uses[idx] as i8) > 0 {
@@ -3875,6 +3884,8 @@ impl GameScene {
             -7 => self.transition_to(self.menu_return_mode),
             -6 | -5 => {
                 if self.game_mode == GameMode::SaveSlot {
+                    // 【BUG-045④】存档清栈（存档后不可撤回存档前的操作）
+                    self.undo.clear(crate::undo_journal::ClearReason::Save);
                     self.save_floor_state();
                     let cursor = self.slot.cursor as usize;
                     let blob = self.serialize_slot_blob();
@@ -4262,6 +4273,8 @@ impl GameScene {
             -7 => self.transition_to(GameMode::Map),
             -6 | -5 => {
                 if self.player.gold >= self.alchemy_price {
+                    // 【BUG-045】未记账的消费：撤销按战前绝对值还原血金会白送回花掉的钱（复核 T3-R4）⇒ 清栈
+                    self.undo.clear(crate::undo_journal::ClearReason::Irreversible);
                     self.player.gold -= self.alchemy_price;
                     match self.alchemy_cursor {
                         0 => self.player.hp += self.alchemy_gain_hp,
@@ -4434,6 +4447,10 @@ impl GameScene {
     /// applyMerchantOffer（a.java:7307-7370）：buy=true 购买/false 拒绝。
     /// 返回 overlayActive 新值（true=浮层停留，false=关闭）。
     fn apply_merchant_offer(&mut self, buy: bool) -> bool {
+        if buy {
+            // 【BUG-045】商人交易（扣金 / 送物）不记账 ⇒ 清栈（复核 T3-R4）
+            self.undo.clear(crate::undo_journal::ClearReason::Irreversible);
+        }
         let param = self.entities.items[self.merchant_entity as usize].param as i32;
         let flags = (param >> 8) as i8;
         let idx = param as i8;
@@ -5422,26 +5439,32 @@ impl GameScene {
                                 let loss = self.predict_hp_loss(t, true);
                                 allowed = false;
                                 if loss >= 0 && loss < self.player.hp {
+                                    // 【BUG-045】撤销快照须在改 state 之前取（复活 = 还原到开战前的整格实体）
+                                    let snapshot = self.entities.items[e];
                                     self.walk_phase = 5;
                                     self.entities.items[e].state = 3;
                                     self.battle_target = e as i32;
+                                    // battleEnemyHp = enemyBaseHp[type-41]（**基础表**非缩放表）
+                                    self.battle_enemy_hp = self.enemy_base_hp[(t - 41) as usize];
                                     // 【T2】撞敌=事件挂起（段收于实际终点=敌格，T1 挂点）
                                     // ——仅 WalkTo/探步寻路段记账；经典面 route 未开放=零写入
                                     if self.route.is_open() {
                                         self.route_event_suspend();
+                                        // 【BUG-045③】战斗进行中不可撤（T1 契约的生产接线）
+                                        self.undo.begin_combat();
                                         self.battle_undo_snap = Some((
                                             e,
-                                            self.entities.items[e].type_,
+                                            snapshot.type_,
                                             self.battle_enemy_hp,
                                             crate::undo_journal::PlayerVitals {
                                                 hp: self.player.hp,
                                                 gold: self.player.gold,
                                                 exp: 0, // 本作无经验字段（PlayerCombat 面）——T1 通用字段恒 0
                                             },
+                                            snapshot,
+                                            self.entities.count,
                                         ));
                                     }
-                                    // battleEnemyHp = enemyBaseHp[type-41]（**基础表**非缩放表）
-                                    self.battle_enemy_hp = self.enemy_base_hp[(t - 41) as usize];
                                     self.battle_active = true;
                                     self.battle_no_counter = true;
                                 } else {
@@ -5692,23 +5715,31 @@ impl GameScene {
                         _ => {}
                     }
                     // 【T2】战斗终结才入栈（T1 挂点契约）+挂起解除+续走新段
-                    if let Some((slot, ety, hp_before, vitals_before)) = self.battle_undo_snap.take()
+                    if let Some((slot, ety, hp_before, vitals_before, snapshot, count_at_start)) = self.battle_undo_snap.take()
                     {
-                        let items_before = self
-                            .player
-                            .item_types
-                            .iter()
-                            .zip(self.player.item_uses.iter())
-                            .take(self.player.item_stack_size as usize)
-                            .map(|(t, u)| (*t as i32, *u as i32))
-                            .collect();
-                        self.route_combat_finished(crate::undo_journal::CombatStroke {
-                            enemy_slot: slot,
-                            enemy_type_id: ety,
-                            enemy_hp_before: hp_before,
-                            vitals_before,
-                            items_before,
-                        });
+                        if self.entities.count != count_at_start {
+                            // 【BUG-045】击杀掉落（spawn_boss_event）/ 61 机关生成实体等不可逆副作用：实体表在战斗期间增长（append-only）⇒
+                            // 撤销只能复活怪、撤不掉生成物（复核 T3-R1/R2：循环复制掉落，16 次后槽表越界 panic）⇒ 不入战斗笔并清栈；
+                            // 续走照旧（否则路段停在挂起态，dp3 收尾不回 Map）。
+                            self.undo.clear(crate::undo_journal::ClearReason::Irreversible);
+                        } else {
+                            let items_before = self
+                                .player
+                                .item_types
+                                .iter()
+                                .zip(self.player.item_uses.iter())
+                                .take(self.player.item_stack_size as usize)
+                                .map(|(t, u)| (*t as i32, *u as i32))
+                                .collect();
+                            self.route_combat_finished(crate::undo_journal::CombatStroke {
+                                enemy_slot: slot,
+                                enemy_type_id: ety,
+                                enemy_hp_before: hp_before,
+                                vitals_before,
+                                items_before,
+                                enemy_snapshot: snapshot,
+                            });
+                        }
                         let at = (self.player_cell_x, self.player_cell_y);
                         self.route.resume(at);
                     }
@@ -11199,6 +11230,148 @@ mod t2_walkto_route_tests {
             sc.tick(fc, &wt);
         }
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (6, ROW), "方向键一步只走一格");
+    }
+
+    /// 【BUG-045④】换层 / 存档 / 剧情接管后撤销栈清空（undo_journal.rs 清栈边界契约的生产接线）。
+    #[test]
+    fn bug045_journal_clears_on_floor_change_save_and_script() {
+        use crate::undo_journal::MoveStroke;
+        let stroke = MoveStroke { from: (1, ROW), to: (2, ROW) };
+        // 换层（load_floor_data = changeFloor / LAY 的原地重载）
+        let mut sc = scene((5, ROW), &[]);
+        sc.undo.push_move(stroke);
+        sc.load_floor_data(&super::scene_test_support::maplv(), 5 << 5, ROW << 5, &[], 2).unwrap();
+        assert!(sc.undo.is_empty(), "换层清栈");
+        // 剧情接管
+        let mut sc = scene((5, ROW), &[]);
+        sc.dialog_data.scripts = vec!["TAK_0_0 ".to_string(); 2];
+        sc.undo.push_move(stroke);
+        sc.load_level_script(0);
+        assert!(sc.undo.is_empty(), "剧情清栈");
+        // 存档（mode 7 确认键）
+        let mut sc = scene((5, ROW), &[]);
+        let wt = sc.width_table.clone();
+        sc.undo.push_move(stroke);
+        sc.menu_return_mode = GameMode::InGameMenu;
+        sc.game_mode = GameMode::SaveSlot;
+        sc.enter_menu7();
+        sc.press_key(-5);
+        sc.tick(0, &wt);
+        sc.release_key();
+        assert!(sc.slot.valid[sc.slot.cursor as usize], "前置：存档写入");
+        assert!(sc.undo.is_empty(), "存档清栈");
+    }
+
+    /// 撤销栈里是否有战斗笔（逐笔弹出检查；只读状态副本的空目标）。
+    fn journal_has_combat(sc: &mut GameScene) -> bool {
+        struct Nop;
+        impl crate::undo_journal::UndoTarget for Nop {
+            fn set_player_tile(&mut self, _: (i32, i32)) {}
+            fn set_player_vitals(&mut self, _: crate::undo_journal::PlayerVitals) {}
+            fn revive_enemy(&mut self, _: crate::undo_journal::EnemyRestore) {}
+            fn set_item_count(&mut self, _: i32, _: i32) {}
+            fn set_door_state(&mut self, _: i32, _: i32, _: crate::undo_journal::DoorState) {}
+        }
+        let mut j = std::mem::take(&mut sc.undo);
+        let mut found = false;
+        while let crate::undo_journal::UndoOutcome::Undone(s) = j.undo(&mut Nop) {
+            found |= matches!(s, crate::undo_journal::Stroke::Combat(_));
+        }
+        found
+    }
+
+    /// 【BUG-045 · 复核 T3-R1】击杀带不可逆生成（boss 序 68 ⇒ spawn_boss_event 生成掉落）：不入战斗笔、清栈——
+    /// 否则"击杀 → 撤销"循环复制掉落（16 次后槽表越界 panic）。对照：普通怪 41 照常入战斗笔。
+    #[test]
+    fn bug045_kill_with_spawned_drops_pushes_no_combat_stroke() {
+        let fight = |t: u8| {
+            let mut sc = scene((5, ROW), &[(t, 6, ROW)]);
+            sc.player.atk = 1_000_000;
+            sc.player.def = 1_000_000;
+            sc.player.hp = 1000;
+            let count0 = sc.entities.count;
+            let wt = sc.width_table.clone();
+            let _ = sc.walk_to(6, ROW);
+            let mut saw_battle = false;
+            let mut fc = 0;
+            while fc < 600 {
+                sc.tick(fc, &wt);
+                fc += 1;
+                saw_battle |= sc.walk_phase == 5;
+                if saw_battle && sc.battle_target < 0 {
+                    break;
+                }
+            }
+            assert!(saw_battle && sc.battle_target < 0, "型 {t}：前置——开战并结束");
+            let spawned = sc.entities.count > count0;
+            (spawned, journal_has_combat(&mut sc))
+        };
+        let (spawned68, combat68) = fight(68);
+        assert!(spawned68, "前置：型 68 击杀生成掉落");
+        assert!(!combat68, "有不可逆生成 ⇒ 栈里没有战斗笔");
+        let (spawned41, combat41) = fight(41);
+        assert!(!spawned41, "前置：型 41 击杀不生成实体");
+        assert!(combat41, "对照：普通怪照常入战斗笔");
+    }
+
+    /// 【BUG-045 · 复核 T3-R3/R4】实体表重载（跨层探针）与未记账的消费（炼丹 / 商人 / 道具使用）清栈。
+    #[test]
+    fn bug045_journal_clears_on_reload_and_unrecorded_spending() {
+        use crate::undo_journal::MoveStroke;
+        let stroke = MoveStroke { from: (1, ROW), to: (2, ROW) };
+        // 跨层探针的实体表重载（下标重排）
+        let mut sc = scene((5, ROW), &[(41, 8, ROW)]);
+        sc.undo.push_move(stroke);
+        let f = sc.floor;
+        sc.reload_floor_entities(f);
+        assert!(sc.undo.is_empty(), "实体表重载清栈");
+        // 炼丹购买
+        let mut sc = scene((5, ROW), &[]);
+        let wt = sc.width_table.clone();
+        sc.undo.push_move(stroke);
+        sc.player.gold = 1000;
+        sc.alchemy_price = 10;
+        sc.game_mode = GameMode::Alchemy;
+        sc.press_key(-6);
+        sc.tick(0, &wt);
+        sc.release_key();
+        assert_eq!(sc.player.gold, 990, "前置：炼丹扣金");
+        assert!(sc.undo.is_empty(), "炼丹清栈");
+        // 商人交易（型 78，src 1，flags 2，报价 3 = 50 金买蓝钥匙）
+        let mut sc = scene((5, ROW), &[(78, 6, ROW)]);
+        sc.undo.push_move(stroke);
+        sc.player.gold = 100;
+        let m = (0..sc.entities.count).find(|&i| sc.entities.items[i].type_ == 78).expect("型 78");
+        sc.entities.items[m].param = (2 << 8) | 3;
+        sc.merchant_entity = m as i32;
+        let _ = sc.apply_merchant_offer(true);
+        assert_eq!((sc.player.gold, sc.player.blue_keys), (50, 1), "前置：商人扣金给钥匙");
+        assert!(sc.undo.is_empty(), "商人交易清栈");
+        // 道具使用（19 回血）
+        let mut sc = scene((5, ROW), &[]);
+        sc.undo.push_move(stroke);
+        sc.player.item_types[0] = 19;
+        sc.player.item_uses[0] = 1;
+        sc.player.item_stack_size = 1;
+        sc.use_item_stack(0);
+        assert!(sc.undo.is_empty(), "道具使用清栈");
+    }
+
+    /// 【BUG-045 · 复核 T3-R6】reattach_to_cell 幂等：未摘槽（死亡动画中）即重登，不重复登记。
+    #[test]
+    fn bug045_reattach_is_idempotent_when_still_in_cell() {
+        let mut sc = scene((5, ROW), &[(41, 8, ROW)]);
+        let e = entity::cell_entity(&sc.grid, &sc.entities, 8, ROW, 41);
+        assert!(e >= 0);
+        let ct = sc.grid.cell_type[ROW as usize][8] as usize;
+        let cap = sc.grid.capacity[ct];
+        entity::reattach_to_cell(&mut sc.grid, &mut sc.entities, e as usize);
+        assert_eq!(sc.grid.capacity[ct], cap, "已在槽表中 ⇒ 不重复登记");
+        entity::detach_from_cell(&mut sc.grid, &mut sc.entities, e as usize);
+        assert_eq!(sc.grid.capacity[ct], cap - 1, "前置：摘槽");
+        entity::reattach_to_cell(&mut sc.grid, &mut sc.entities, e as usize);
+        assert_eq!(sc.grid.capacity[ct], cap, "摘槽后重登一次");
+        assert!(!sc.entities.items[e as usize].removed);
     }
 }
 

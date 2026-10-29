@@ -852,7 +852,7 @@ Evidence: A 级——复核探针运行时实录（探针已删，复现条件�
   ③ 被挡后收尾落零长位移笔（from == to），撤销要多按一次空操作（复核 T2-3；spec §5.2 定为零长笔不入栈）。
 - **classic 口径**（复核 T2-6）：经典脚本行走（MOV）不占用 dp3，按键链与 trace 不经新分支；Windows classic 预设下的鼠标点地属 Stage B 输入，同样走新分支。
 
-## BUG-045 撤销对战斗的逆放损坏，且撤销日志从不清栈（Stage B 撤销，2026-10-29 spec 对抗复核实测，未修）
+## BUG-045 撤销对战斗的逆放损坏，且撤销日志从不清栈（Stage B 撤销，2026-10-29 spec 对抗复核实测，已修复；剧情接管另见 BUG-048）
 
 > 【2026-10-29】双操控方案 spec 对抗复核 C2（探针 B / D）。
 - **现象 / 复现**（宿主探针，生产入口 `walk_to` → 战斗 → `undo_last`）：
@@ -868,6 +868,25 @@ Evidence: A 级——复核探针运行时实录（探针已删，复现条件�
   测试走生产路径：`walk_to` → 战斗 → `undo_last` → 再撞同格必须开战；换层后 `undo_last` 无效。纳入 STAGE-B-008 前置任务；
   「自动战斗」开关排在本修复之后。
 Evidence: A 级——复核探针运行时实录（探针已删）；`undo_ui.rs:36-46` 逐行核对（本方 2026-10-29 复看：`enemies.hp.get_mut(e.slot)`）。Confidence: 85
+- **修复**（2026-10-29）：开战时把整格 `Entity` 存进撤销快照（改 state 之前取）；撤销按快照整格还原，已摘槽则 `entity::reattach_to_cell`
+  重登主格；不再写 `enemies.hp`；路段开放的开战调 `begin_combat`（战斗中撤销 = Blocked）；`load_floor_data` / 存档 / `load_level_script`
+  清栈。宿主钉：shell-common `bug045_undo_after_tap_battle_revives_enemy_in_place`（生产路径 walk_to → 战斗 → undo_last → 再撞即开战）、
+  `bug045_undo_is_blocked_mid_tap_battle`；core `bug045_journal_clears_on_floor_change_save_and_script`。变异：删 `reattach_to_cell`、
+  删 `begin_combat`、逐一删三处 `clear`、恢复 `enemies.hp` 按槽号写入均被杀（最后一项初版存活——夹具怪物恰在实体槽 0、型 41，表下标同为 0、
+  原值恰等于复活血；测试改为先在该下标放哨兵值后被杀）。
+  余项：怪物紧邻时开战，`route_event_suspend` 压一笔零长位移笔（既有行为，归计划 2"零长笔不入栈"）。
+- **复核补修**（计划 1 T3 复核 `target/verify/review_plan1_T3.md`）：
+  - R1/R2 不可逆生成：击杀掉落（boss 序 `spawn_boss_event`）/ 49 层 61 机关在战斗期间生成实体（实体表 append-only，计数增长）⇒ 不入战斗笔、
+    清栈（`ClearReason::Irreversible`），续走照旧。修复前"击杀 → 撤销"循环可无限复制掉落，16 次后 `slot_push` 越界 panic（复核探针 G）。
+  - R3 实体表重排：`reload_floor_entities`（跨层探针往返）清栈；`revive_enemy` 加身份校验（槽内须仍是同型同位的尸体），不盲写别的实体。
+  - R4 未记账的消费：炼丹购买、商人交易、道具使用清栈（撤销按战前绝对值还原血金会白送回花掉的钱；B 级推断，按保守口径处理）。
+  - R5/R6/R8：复活整格字段断言、`reattach_to_cell` 幂等（未摘槽即撤销不重复登记）、撤销后玩家位置由断言而非手工摆位。
+  - R7（未改）：重登格槽追加到末尾，同格多实体时槽序可能变化——仅保证单占格等价（代码注释已写明）。
+  - 宿主钉新增：core `bug045_kill_with_spawned_drops_pushes_no_combat_stroke`（68 对照 41）、`bug045_journal_clears_on_reload_and_unrecorded_spending`、
+    `bug045_reattach_is_idempotent_when_still_in_cell`；shell-common `bug045_revive_skips_slot_holding_another_entity`。
+    变异（去计数判据 / 去重载清栈 / 去炼丹、商人、道具清栈 / 去幂等 / 去身份校验）均被杀。
+Evidence: A 级——生产路径宿主 RED → GREEN（复活后不在格槽、属性表被写坏、战斗中可撤、换层后仍可撤）；复核探针运行时实录（boss 掉落复制、重排后误写）；
+全部变异被杀；全量测试 0 失败；gates trace PASS。Confidence: 85
 
 ## BUG-046 "你无法战胜它"提示框未移植：打不过的怪撞上去 Rust 静默挡住，原版弹 kind 0 提示（classic 移植缺口，2026-10-29 spec 对抗复核发现，未修）
 
