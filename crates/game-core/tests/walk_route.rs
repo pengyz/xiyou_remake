@@ -330,3 +330,26 @@ impl game_core::undo_journal::UndoTarget for UndoMock {
     }
     fn set_door_state(&mut self, _cx: i32, _cy: i32, _s: game_core::undo_journal::DoorState) {}
 }
+
+/// 【STAGE-B-008 · spec §5.2】零长位移笔（段起点 = 终点）不入撤销栈：撞墙 / 紧邻开战收段时撤销不多一次空操作。
+#[test]
+fn zero_length_segment_is_not_pushed() {
+    let mut journal = UndoJournal::new();
+    let mut track = RouteTracker::new();
+    track.begin((4, 4));
+    track.arrive((4, 4), &mut journal);
+    assert_eq!(journal.len(), 0, "arrive 于起点：不入栈");
+    track.begin((4, 4));
+    track.interrupt((4, 4), &mut journal);
+    assert_eq!(journal.len(), 0, "interrupt 于起点：不入栈");
+    track.begin((4, 4));
+    track.suspend((4, 4), &mut journal);
+    assert_eq!(journal.len(), 0, "suspend（紧邻开战）于起点：不入栈");
+    assert!(track.is_suspended(), "挂起语义不变");
+    track.begin((4, 4));
+    track.arrive((5, 4), &mut journal);
+    assert_eq!(journal.len(), 1, "非零长照常入栈");
+    track.begin((4, 4));
+    track.arrive((4, 5), &mut journal);
+    assert_eq!(journal.len(), 2, "只在 y 上有差的非零长段照常入栈（复核 R3）");
+}

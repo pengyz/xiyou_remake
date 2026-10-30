@@ -5,7 +5,8 @@
 //! 拾取开门（[`PickupStroke`]）/对话商店背包消耗（[`SpendStroke`]）。
 //!
 //! **入栈时机契约**（plan §2，T2 挂点按此喂）：
-//! - 位移笔=寻路**整段起终点**；寻路打断=按**实际终点**入栈（`to`=中断点）；
+//! - 位移笔=寻路**整段起终点**；寻路打断=按**实际终点**入栈（`to`=中断后的最终落格：
+//!   步在途时计入在途步的落格——那一步必然走完；起点 = 终点的零长段不入栈，STAGE-B-008）；
 //! - 战斗笔=**战斗终结才入栈**（[`UndoJournal::begin_combat`] 置挂起、
 //!   [`UndoJournal::finish_combat`] 入栈——中途 [`UndoJournal::undo`] 恒
 //!   [`UndoOutcome::Blocked`]，journal 无战斗笔）；

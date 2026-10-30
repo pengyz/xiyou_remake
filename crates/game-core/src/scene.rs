@@ -1982,17 +1982,37 @@ impl GameScene {
     /// > 剧情中连点"确定"截断脚本 MOV 的实体路径（dp2）与玩家脚本行走（dp3）——用户实机
     /// > "跳过教程后，嫦娥脚本行为异常"（一层 script19 嫦娥停在半路、后续 MOV/DES 落空）。
     /// > 现：仅寻路段开放或挂起（战斗/拾取后待续走）时清；否则零操作。
+    /// > 【2026-10-30 更正·STAGE-B-008 复核 R1/R2】"实际终点"= 排空后的落格：步在途时打断，
+    /// > 这一步照样走完（BUG-040 排空 / 胜利尾 restep），逻辑格到步末才更新——收段点取
+    /// > [`Self::route_landing_cell`]，否则首步内 / restep 内打断被判成零长丢弃，走出的一格不可撤。
     pub fn interrupt_route(&mut self) {
         if !self.route.is_open() && !self.route.is_suspended() {
             return;
         }
-        let at = (self.player_cell_x, self.player_cell_y);
+        let at = self.route_landing_cell();
         self.route.interrupt(at, &mut self.undo);
         self.walk_path_buffer.clear();
         self.walk_step_count = 0;
         // 【BUG-040】寻路驱动的 dp3 被打断：dp3 仍归寻路，走完当前步即回 Map（见 finish_walkto）
         if self.game_mode == GameMode::Dialog && self.dialog_phase == 3 {
             self.walkto_draining = true;
+        }
+    }
+
+    /// 【STAGE-B-008 · 复核 R1/R2】打断收段点 = 玩家最终落格。`walk_phase == 1`（步在途）⇒ 这一步必然走完：
+    /// dp3 wp1 臂与 Map wp1 臂都按 facing 每拍 8px、满 32px 归格（逻辑格 = 像素 >> 5，步中 facing 不变），
+    /// 落格 = 玩家格 + facing 增量（0 下 y+1、1 上 y−1、2 右 x+1、3 左 x−1）；否则 = 玩家格。
+    fn route_landing_cell(&self) -> (i32, i32) {
+        let (x, y) = (self.player_cell_x, self.player_cell_y);
+        if self.walk_phase != 1 {
+            return (x, y);
+        }
+        match self.facing {
+            0 => (x, y + 1),
+            1 => (x, y - 1),
+            2 => (x + 1, y),
+            3 => (x - 1, y),
+            _ => (x, y),
         }
     }
 
@@ -10908,7 +10928,7 @@ mod t2_walkto_route_tests {
         assert!(sc.walk_step_count > 0);
         sc.press_key(-4); // 任意输入（方向键）
         assert_eq!(sc.walk_step_count, 0, "press_key 打断=清 walkPathBuffer 停步");
-        assert_eq!(sc.undo.len(), 1, "中断段=实际终点入栈（未动=起点段）");
+        assert_eq!(sc.undo.len(), 0, "中断段于起点（未动）= 零长段，不入栈（STAGE-B-008）");
 
         sc.walk_to(5, ROW);
         assert!(sc.walk_step_count > 0);
@@ -11513,6 +11533,93 @@ mod t2_walkto_route_tests {
         let _ = j.undo(&mut rec);
         let _ = j.undo(&mut rec);
         assert_eq!(rec.0, vec![format!("tile{:?}", (5, ROW)), "revive".to_string()], "先退回邻格 (5,ROW)，再复活怪");
+    }
+
+    /// 弹出撤销栈全部笔，按逆放顺序记录（tile = 玩家落格，revive = 复活怪）。
+    fn undo_seq(sc: &mut GameScene) -> Vec<String> {
+        struct Rec(Vec<String>);
+        impl crate::undo_journal::UndoTarget for Rec {
+            fn set_player_tile(&mut self, t: (i32, i32)) {
+                self.0.push(format!("tile{t:?}"));
+            }
+            fn set_player_vitals(&mut self, _: crate::undo_journal::PlayerVitals) {}
+            fn revive_enemy(&mut self, _: crate::undo_journal::EnemyRestore) {
+                self.0.push("revive".into());
+            }
+            fn set_item_count(&mut self, _: i32, _: i32) {}
+            fn set_door_state(&mut self, _: i32, _: i32, _: crate::undo_journal::DoorState) {}
+        }
+        let mut rec = Rec(Vec::new());
+        let mut j = std::mem::take(&mut sc.undo);
+        while let crate::undo_journal::UndoOutcome::Undone(_) = j.undo(&mut rec) {}
+        rec.0
+    }
+
+    /// 壳层投键口径打断（先 interrupt_route 再 press / release），随后跑到收尾。
+    fn shell_key_interrupt_then_settle(sc: &mut GameScene, mut fc: i64) {
+        let wt = sc.width_table.clone();
+        sc.interrupt_route();
+        sc.press_key(-1); // 上 = 墙：只起打断作用
+        sc.tick(fc, &wt);
+        fc += 1;
+        sc.release_key();
+        for _ in 0..60 {
+            sc.tick(fc, &wt);
+            fc += 1;
+        }
+    }
+
+    /// 【STAGE-B-008 · 复核 R2】首步在途（wp1，逻辑格仍是起点）时打断：排空走完这一步，这一格必须可撤。
+    /// 收段点 = 在途步的落格（`route_landing_cell`），不是打断瞬间的逻辑格——否则判成零长丢弃，栈空。
+    #[test]
+    fn stage_b008_interrupt_mid_first_step_keeps_drained_step_undoable() {
+        let mut sc = scene((1, ROW), &[]);
+        let wt = sc.width_table.clone();
+        let _ = sc.walk_to(5, ROW);
+        let mut fc = 0;
+        while sc.walk_phase != 1 && fc < 10 {
+            sc.tick(fc, &wt);
+            fc += 1;
+        }
+        assert_eq!(sc.walk_phase, 1, "前置：首步在途");
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (1, ROW), "前置：逻辑格仍在起点");
+        shell_key_interrupt_then_settle(&mut sc, fc);
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (2, ROW), "排空：在途步走完");
+        assert_eq!(sc.undo.len(), 1, "走出的一格入栈");
+        assert_eq!(undo_seq(&mut sc), vec![format!("tile{:?}", (1, ROW))], "撤销回起点");
+    }
+
+    /// 【STAGE-B-008 · 复核 R1】紧邻开战胜利后 restep 在途时打断：撤销序列 = [退回邻格, 复活怪]。
+    /// 先复活会把怪压在玩家身上（复核 T4-R1 的重叠）。
+    #[test]
+    fn stage_b008_interrupt_mid_victory_restep_undoes_step_before_revive() {
+        let mut sc = scene((5, ROW), &[(41, 6, ROW)]);
+        sc.player.atk = 100_000;
+        sc.player.def = 100_000;
+        sc.player.hp = 500; // 夹具默认 hp=0 ⇒ 判"打不过"
+        let wt = sc.width_table.clone();
+        let _ = sc.walk_to(6, ROW);
+        let mut saw_battle = false;
+        let mut fc = 0;
+        while fc < 600 {
+            sc.tick(fc, &wt);
+            fc += 1;
+            saw_battle |= sc.walk_phase == 5;
+            if saw_battle && sc.battle_target < 0 && sc.walk_phase == 1 {
+                break;
+            }
+        }
+        assert!(saw_battle && sc.battle_target < 0, "前置：开战并胜利");
+        assert_eq!(sc.walk_phase, 1, "前置：胜利 restep 在途");
+        assert!(sc.route.is_open(), "前置：续走段已开");
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (5, ROW), "前置：逻辑格仍在邻格");
+        shell_key_interrupt_then_settle(&mut sc, fc);
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (6, ROW), "排空：restep 走进敌格");
+        assert_eq!(
+            undo_seq(&mut sc),
+            vec![format!("tile{:?}", (5, ROW)), "revive".to_string()],
+            "先退回邻格 (5,ROW)，再复活怪"
+        );
     }
 
     /// 【BUG-048 · 复核 T4-R2】剧情接管且击杀有生成（49 层型 71 ⇒ spawn_boss_event + load_level_script(35)）：同样不入栈、不续走、战斗挂起已解除。

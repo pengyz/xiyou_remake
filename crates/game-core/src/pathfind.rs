@@ -366,6 +366,8 @@ use crate::undo_journal::{CombatStroke, MoveStroke, UndoJournal};
 
 /// WalkTo 路段追踪器：位移笔=段起终点（**中断/挂起=实际终点**）、战斗笔=终结时
 /// ——plan §2 入栈时机契约 + task-11"挂起→journal 挂点→续走"。
+/// 实际终点 = 玩家**最终落格**：步在途时打断，计入在途步的落格（那一步必然走完，
+/// 由调用方 `GameScene::route_landing_cell` 给出；STAGE-B-008 复核 R1/R2/R5）。
 #[derive(Debug, Default)]
 pub struct RouteTracker {
     seg_from: (i32, i32),
@@ -417,7 +419,7 @@ impl RouteTracker {
         self.suspended = false;
     }
 
-    /// 打断（任意输入）：段收于**实际终点**。
+    /// 打断（任意输入）：段收于**实际终点**（步在途时 = 在途步的落格，调用方负责计入）。
     pub fn interrupt(&mut self, at: (i32, i32), journal: &mut UndoJournal) {
         self.close(at, journal);
         self.suspended = false;
@@ -425,7 +427,10 @@ impl RouteTracker {
 
     fn close(&mut self, at: (i32, i32), journal: &mut UndoJournal) {
         if self.seg_open {
-            journal.push_move(MoveStroke { from: self.seg_from, to: at });
+            // 【STAGE-B-008】零长段（起点 = 终点：撞墙 / 撞门 / 紧邻开战）不入栈——撤销不多一次看不见效果的空操作
+            if self.seg_from != at {
+                journal.push_move(MoveStroke { from: self.seg_from, to: at });
+            }
             self.seg_open = false;
         }
     }
