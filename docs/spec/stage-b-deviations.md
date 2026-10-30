@@ -191,3 +191,38 @@ epack(unpack(x))==x 逐字节恒等（126 资产，常驻 gates）；
     > 【2026-10-28 更正】"点地寻路由宿主测试覆盖"不成立：那批宿主测试的点位与被测用同一个错误格单位（16 px），用户随即实机发现
     > 点地寻路基本不走（BUG-042，已修复并改用按游戏绘制公式求点的测试）。
   - 测后已把应用数据恢复为测前备份（逐文件比对一致）。
+
+## STAGE-B-008 双操控方案——点地规则与反馈（计划 2 部分）
+
+- **状态**：已实施（2026-10-30，计划 2：core 点地规则 / 反馈绘制 / 壳层改接，T1–T12 提交 151e3e3…5a3e367；
+  工具栏、操控方式与自动战斗设置行、Android 滑动 / 拖动手势细化、提示卡、帮助归计划 3）
+- **用户裁定原话**：Q7"点哪里就往哪里走，点中的是东西就去和它交互"；Q8"默认是B,但配置中可以选：自动战斗（仅触屏模式有选项），
+  选了就不用二次确认……使用回退来对抗错误操作"；Q5 A（目标标记、红色拒绝闪烁）；Q10 A（持火眼金睛才显示预计掉血）。
+- **偏离点**：
+  1. 点地寻路改为安全通行 BFS（只经可见地面、避开陷阱危险格、无扩展上限），点墙 / 门 / 炉 / 怪 = 走到邻格后在 Map wp0 撞一步；
+     到不了 = 停最近可达格并闪红。原版无触屏；旧 Stage B 规则（find_path + 点墙探步）见 touch-native-undo 计划，已原地更正。
+  2. 点怪首点选中、再点开战；`auto_battle`（core 字段，默认关；设置行计划 3）开时一点即战；选中每拍校验，任一失效即清。
+  3. 点地寻路中点按 / 滑动排队（只留最后一次），走完当前格后执行；点自己 = 停下；再点当前目标格 = 原路线继续（spec §5.2 更正④）；
+     战斗 / 手动行走中点按闪红、状态不变；末步在途窗口按住方向键 = 手动接管，后续一并作废。
+  4. 零长位移笔不入撤销栈；撤销同时清目标标记 / 选中 / 排队。
+  5. 赠予 / 报价框（kind 4 型 77 flags&2）点空白不代按（原按图标判会代按"接受"）；附带更正商人 flags 注释（&4 = 不消耗 / 可重复）。
+  6. modern 布局画目标金框 / 闪红红框加叉 / 选中闪烁框与火眼金睛预计掉血（与观察模式同源同位：通用怪 −ENTITY_LIFT、69/67 不抬）。
+  7. classic 预设（含 Windows classic 鼠标点地）新规则生效但不画任何反馈：Map 行走 / 战斗中图内点击从旧"软键基线（−6/−7）"
+     变为"闪红被吞"（复核 T10-12 R5）——语义按 spec §5.2（手动行走 / 战斗不收点地动作），视觉零呈现属 Task 8"只在 modern 布局画"的取舍。
+- **门控**：只经壳层点按入口（Android scene_tap、Windows pointer_tap / 拖动）与 modern 绘制；classic 按键链、oracle 回放、帧夹具
+  零变化（t8 classic 整帧 op 流逐条相同；gates trace / state-machine-anchors 照旧）。
+- **金样影响**：无。
+- **改写的测试**（前提随新规则变化，各提交正文逐条列明）：T5 `tap_cell_in_last_step_window_stops…` → `…queues_reroute…`（T7 排队语义）；
+  T10 touch.rs `tap_classifies_walk_wall_probe_and_undo` → `tap_target_maps_cells_undo_and_outside`（墙格照报格）、
+  `interrupt_signal_on_every_channel` → `interrupt_only_on_key_channels`（点按 / 滑动不再先打断）、`swipe_wall_stop_no_repeat` 期望改单 Swipe；
+  input.rs `free_tap_wall_probe…` → `free_tap_cell_undo_and_swipe`；native_parse `tap_chain_buf_to_walk_to` → `tap_chain_buf_to_cell`；
+  T11 tap_routing `field_points` 改 core 格分类、`tutorial_arrows…` 参照局改沿点地实际路线（plan_tap 步序 + 缓冲一致性断言）、
+  `tap_walk_case` 前提加"非陷阱危险格"；T12 win `t3_touch_actions_wire_to_scene` WalkTo→TapCell、目标改动态可达格
+  （旧前提 (px−2,py) 被 preset 怪围死，新语义 Docking 闪红为正确行为）、Interrupt 后补拍等 dp 机收尾。
+- **新增宿主钉**：T1 walk_route 1；T2 tap_walk 11；T3 trap_predicate 1；T4 tap_grid 2；T5 tap_cell 8；T6 t6_ 5；T7 t7_ 21；
+  T8 t8_ 3；T9 blank_tap 1；T10 undo_ui 1；T11 tap_routing 5（54 层隐藏通路不泄露 / 23 层隐形墙撞停显形 / 寻路中改道 /
+  战斗中闪红不代按 / 拾取弹框生产路径关框续走）；win t3 追加 Swipe 恰一格与撤销钮 pointer_tap 全链两段。
+- **代码注释**：`【STAGE-B-008】`（tap_walk.rs / pathfind.rs / scene.rs / touch.rs / undo_ui.rs / input.rs / native.rs / win main.rs）。
+- **设计件 / 计划 / 复核**：docs/superpowers/specs/2026-10-29-dual-control-schemes-design.md /
+  docs/superpowers/plans/2026-10-30-dual-control-core-tap-rules.md（各任务复核记录在 target/verify/review_plan2_T*.md，不入库；
+  T7 复核 7 轮意见 R1–R7 已吸收进实现，记录文件随 target 清理不可查，见 T7 提交正文）。

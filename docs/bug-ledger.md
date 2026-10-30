@@ -815,7 +815,7 @@ Evidence: A 级——宿主 RED（修复前箭头格 (2,11)(3,11) 不在原路�
 撞门不清暂存、剧情接管立即放回、findPath 不清暂存均被杀；实机（Xiaomi 14，本方注入点按 (2,10)）连拍：↑→→ → 走动中 →→ 留在原格 → 到达后余 (3,10)。
 classic：game-oracle 帧差分与 Windows modern 五状态帧不变。Confidence: 90
 
-## BUG-044 点地寻路首步不判碰撞结果：首步被挡且不弹浮层时玩家"穿格"（站上怪物 / 炼丹炉、穿过隐形墙；Stage B 触屏，2026-10-29 spec 对抗复核实测，部分修复——余项见下）
+## BUG-044 点地寻路首步不判碰撞结果：首步被挡且不弹浮层时玩家"穿格"（站上怪物 / 炼丹炉、穿过隐形墙；Stage B 触屏，2026-10-29 spec 对抗复证实测，已修复——余项①② 随 STAGE-B-008 生产路径消除、③ 已修）
 
 > 【2026-10-29】双操控方案 spec 对抗复核（`docs/reviews/2026-10-29-dual-control-schemes-spec-adversarial-review.md` C1，探针 A / E / F / I）。
 - **现象 / 复现**（宿主探针，真资产，生产入口 `walk_to`）：
@@ -852,6 +852,10 @@ Evidence: A 级——复核探针运行时实录（探针已删，复现条件�
   ② 途中一步朝上进炉（`advance_script_walk` 臂）后同拍被 `finish_walkto` 写回 Map，炉页被吞（spec 第二轮复核 R2-2）；
   ③ 被挡后收尾落零长位移笔（from == to），撤销要多按一次空操作（复核 T2-3；spec §5.2 定为零长笔不入栈）。
 - **classic 口径**（复核 T2-6）：经典脚本行走（MOV）不占用 dp3，按键链与 trace 不经新分支；Windows classic 预设下的鼠标点地属 Stage B 输入，同样走新分支。
+
+> 【2026-10-30 收口 · STAGE-B-008 计划 2】①② 生产路径不再出现：壳层点地改走 `tap_cell`，撞击一律在 Map wp0 执行（不进 dp3 路线），
+> 炉自正下方朝上撞直接 Map → Alchemy（`tap_cell_alchemy_from_below_opens_page`）。旧入口 `walk_to` 仅剩宿主测试 / 脚本面调用，未改。
+> ③ 已修：`RouteTracker::close` 零长段不入栈（`zero_length_segment_is_not_pushed`）。提交：151e3e3（③）/ 0aab8bb（tap_cell 撞击口径）/ 5a3e367（壳层改接）。
 
 ## BUG-045 撤销对战斗的逆放损坏，且撤销日志从不清栈（Stage B 撤销，2026-10-29 spec 对抗复核实测，已修复；剧情接管另见 BUG-048）
 
