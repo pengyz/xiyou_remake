@@ -1532,6 +1532,12 @@ EOF
 
 ### Task 7: 点地寻路中的点按 / 滑动排队（改道、点自己停下、`swipe_step`）
 
+> 【2026-10-30 执行期更正 · T5 复核】以代码为准：① "寻路中"判据已抽成 `tap_walk_in_progress()`（Dialog dp3 归寻路，或多步路线末步在 Map wp1 走完的窗口
+> `Map ∧ walk_phase == 1 ∧ tap_followup_ready`）——下文 Dialog 分支、`swipe_step` 的 Dialog 分支一律改用它；末步窗口内 `interrupt_route` 为空操作，排队动作照样在落格后的后续拍执行。
+> ② 浮层开着时按键不打断路线、不清撞击（`interrupt_route_for_input`；`press_key` 清 `tap_bump` 仅在无浮层时）——`press_key` 清 `tap_pending` 同此判据；
+> `tick_tap_state` 在浮层开着时暂缓后续（保留就绪位），残留丢弃规则不得在浮层暂缓期间丢弃排队。③ T5 已有测试 `tap_cell_in_last_step_window_stops_and_cancels_bump`
+> 的期望（Stopped）随本任务改为排队语义时，按"末步窗口点别处 = 排队改道"重写其期望并在 commit 正文列出。
+
 **Files:**
 - Modify: `crates/game-core/src/tap_walk.rs`（加 `PendingTap`）
 - Modify: `crates/game-core/src/scene.rs`：字段 `tap_pending`；`tap_cell` 的 Dialog 分支；新增 `swipe_step`；`tick_tap_state`、`clear_tap_state`、`press_key`
@@ -2245,6 +2251,10 @@ Run: `sleep 2; touch shell/common/src/*.rs shell/android/src/input.rs; cargo tes
 
 ### Task 11: Android `scene_tap` 改走 `tap_cell`，宿主测试按新规则重写
 
+> 【2026-10-30 执行期更正 · T5 复核 R1】壳的按键路径投键前的打断须改用 `sc.interrupt_route_for_input()`（浮层开着时按键属浮层、不打断点地路线）：
+> `shell/android/src/native.rs` `replay_scene_keys` 的 Press 分支（约 319 行）与 `ShellAction::Interrupt` 臂；补宿主测试：点地路线途经特殊拾取物弹框，
+> 经生产路径（`Runtime::step` 投 −5）关框后继续走到目标。
+
 **Files:**
 - Modify: `shell/android/src/native.rs`（`scene_tap`，约 332 行）
 - Modify: `shell/android/tests/tap_routing.rs`（导入、`field_points`、BUG-043 用例；新增 4 条真资产用例）
@@ -2426,6 +2436,8 @@ Expected: 全部 passed（tap_routing 新增 4 条）。若 BUG-042 两条 `tap_
 ---
 
 ### Task 12: Windows 鼠标点地 / 拖动改走 `tap_cell` / `swipe_step`；三壳一起提交
+
+> 【2026-10-30 执行期更正 · T5 复核 R1】`shell/win/src/main.rs` `route_key`（约 444 行）与 `apply_touch_action` 的 `A::Interrupt` 臂改调 `sc.interrupt_route_for_input()`。
 
 **Files:**
 - Modify: `shell/win/src/main.rs`（`pointer_tap` 约 686 行、`apply_touch_action` 约 655 行、拖动 `Dispatcher::swipe` 约 1186 行；测试 `t3_touch_actions_wire_to_scene` 约 2350 行）

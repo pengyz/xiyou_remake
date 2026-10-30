@@ -284,6 +284,30 @@ pub fn plan_tap(grid: &TapGrid, from: (i32, i32), target: (i32, i32)) -> TapPlan
     }
 }
 
+/// [`crate::scene::GameScene::tap_cell`] 的结果（壳据此决定反馈）。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TapResult {
+    /// 不处理（点自己、观察模式、场上不收点按、图外）
+    Ignored,
+    /// 开始走向目标格
+    Walking,
+    /// 走到邻格再撞（或已在邻格、当场撞）
+    Bumping,
+    /// 到不了：走到最近可达格（或原地），目标格闪红
+    Docking,
+    /// 怪物首点：选中（Task 6）
+    Selected,
+    /// 点地寻路中：排队，走完当前格后改道（Task 7）
+    Queued,
+    /// 点地寻路中点自己：停下
+    Stopped,
+    /// 场上忙（手动行走 / 战斗）：闪红叉，状态不变
+    Rejected,
+}
+
+/// 闪红持续拍数（Android / Windows 逻辑拍 75 ms ⇒ 约 0.6 s）。
+pub const TAP_REJECT_TICKS: i64 = 8;
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -523,6 +523,16 @@ pub struct GameScene {
     /// 【T2】战斗段快照（撞敌挂起时记账，战斗终结入 CombatStroke）
     /// 撤销快照（实体槽, 型, 复活血, 战前血金, 战前整格实体, 开战时实体数——战斗期间实体表增长 = 不可逆生成，见 BUG-045）
     battle_undo_snap: Option<(usize, i32, i32, crate::undo_journal::PlayerVitals, entity::Entity, usize)>,
+    /// 【STAGE-B-008】自动战斗（触屏模式设置项，壳写入；默认 false = 点怪先选中、再点开战）
+    pub auto_battle: bool,
+    /// 【STAGE-B-008】点地目标标记（走向 / 撞向的格；路线与撞击结束即清）
+    pub tap_target: Option<(i32, i32)>,
+    /// 【STAGE-B-008】闪红（格, 到期拍）
+    pub tap_reject: Option<((i32, i32), i64)>,
+    /// 【STAGE-B-008】路线走完后的撞击（停靠格, 方向）——在 Map wp0 执行
+    tap_bump: Option<((i32, i32), u8)>,
+    /// 【STAGE-B-008】点地寻路收尾后下一拍执行后续（撞击 / 排队）
+    tap_followup_ready: bool,
     /// itemUseTargetType：最近拾取/装备的类型号（浮层图标 + 商店显示）
     pub overlay_kind_item: i32,
     /// 浮层图标图（kind1/3：entityTypeImage[itemUseTargetType] 的克隆——paint 免借用冲突）
@@ -1105,6 +1115,11 @@ impl GameScene {
             walkto_draining: false,
             walkto_arrows: None,
             battle_undo_snap: None,
+            auto_battle: false,
+            tap_target: None,
+            tap_reject: None,
+            tap_bump: None,
+            tap_followup_ready: false,
             width_table: width_table.to_vec(),
             tile_walk: tile_walkability.to_vec(),
             afterimage_x: [0; 4],
@@ -1133,6 +1148,7 @@ impl GameScene {
     ) -> Result<(), String> {
         // 【BUG-045④】换层清栈（旧层坐标的位移笔在新层无意义——复核探针 D：撤销把玩家传回上一层坐标）
         self.undo.clear(crate::undo_journal::ClearReason::FloorChange);
+        self.clear_tap_state();
         // 【P0 回归修复 2026-10-20】换层重建视图**布局换轨收口**：from_maplv 显式
         // 带 ViewDims（编译强制=漏网-proof）——旧 classic 常量初始致换层残留
         // 240-era col/row 范围=modern 地形半绘根因（floor1 正常=初始已换轨、
@@ -1763,6 +1779,7 @@ impl GameScene {
         self.interrupt_route();
         // 【BUG-045④】剧情推进不可撤（undo_journal 清栈边界：MOV / 脚本事件触发 = 清栈）
         self.undo.clear(crate::undo_journal::ClearReason::ScriptEvent);
+        self.clear_tap_state();
         // 【BUG-043】寻路被剧情接管：箭头暂存**不在此放回**——撞格触发剧情时本函数在 advanceScriptWalk 撞格臂之前执行，
         // 立即放回会被随后的 `walk_step_count = 0` 清掉（复核 R2）；改由 settle_walkto_arrows 在寻路释放 dp 后放回
         self.walkto_draining = false; // 【BUG-040】dp 归剧情（打断后的寻路收尾作废）
@@ -1910,6 +1927,9 @@ impl GameScene {
             let at = (self.player_cell_x, self.player_cell_y);
             return crate::pathfind::RoutePlan { steps: Vec::new(), dock: at, reached: false, probe: None };
         }
+        // 【STAGE-B-008 · 计划 2 T5 复核 R5】旧入口不继承点地后续（撞击 / 就绪位），免得之后无关的收尾执行旧撞击
+        self.tap_bump = None;
+        self.tap_followup_ready = false;
         self.interrupt_route();
         self.walkto_draining = false; // 新路线 = 段重新开放（改道）
         let (cx, cy) = (self.player_cell_x, self.player_cell_y);
@@ -1925,21 +1945,176 @@ impl GameScene {
             };
             crate::pathfind::plan_route(&walk, (cx, cy), (tx, ty))
         };
+        self.begin_walk_route(plan.steps.clone());
+        plan
+    }
+
+    /// 【T2 / STAGE-B-008】按给定步序（目标端优先）开点地寻路：开路段、暂存教程箭头（BUG-043）、喂 dp3 消费机（Dialog 语境）。
+    fn begin_walk_route(&mut self, steps: Vec<u8>) {
+        let (cx, cy) = (self.player_cell_x, self.player_cell_y);
         self.route.begin((cx, cy));
         // 【BUG-043】箭头可见 ⇒ 先把箭头步序移出 walkPathBuffer（改道时已暂存，保留原暂存）
         if self.path_arrows_visible && self.walkto_arrows.is_none() {
             let n = (self.walk_step_count.max(0) as usize).min(self.walk_path_buffer.len());
             self.walkto_arrows = Some(self.walk_path_buffer[..n].to_vec());
         }
-        self.walk_path_buffer = plan.steps.clone();
-        self.walk_step_count = plan.steps.len() as i32;
+        self.walk_step_count = steps.len() as i32;
+        self.walk_path_buffer = steps;
         self.script_walk_armed = true;
         self.dialog_phase = 3;
         self.walk_phase = 0;
         // dp3 消费机器在 Dialog 语境（op_mov 同款——脚本行走=mode 11 语境）
         self.game_mode = GameMode::Dialog;
         self.lock_camera_on(0);
-        plan
+    }
+
+    /// 【STAGE-B-008】场上是否接收点地（壳据此决定点按走 [`Self::tap_cell`] 还是行命中 / 点空白）：
+    /// 无浮层、非遮幅，且为地图态或点地寻路自身驱动的 dp3。手动行走 / 战斗 / 观察模式也接收（由 tap_cell 闪红或忽略）。
+    pub fn accepts_field_tap(&self) -> bool {
+        if self.overlay_active || self.transitioning {
+            return false;
+        }
+        match self.game_mode {
+            GameMode::Map => true,
+            GameMode::Dialog => self.dialog_phase == 3 && self.walkto_owns_dp3(),
+            _ => false,
+        }
+    }
+
+    /// 【STAGE-B-008 · spec §5.2】点中格 (cx, cy)。
+    pub fn tap_cell(&mut self, cx: i32, cy: i32) -> crate::tap_walk::TapResult {
+        use crate::tap_walk::TapResult;
+        if !self.accepts_field_tap() {
+            return TapResult::Ignored;
+        }
+        let at = (self.player_cell_x, self.player_cell_y);
+        if self.tap_walk_in_progress() {
+            // 点地寻路中（含末步在途窗口，见 tap_walk_in_progress）：T5 语义 = 先停下、取消撞击后续、返回 Stopped。
+            // 计划 Task 7 改为排队改道（spec §5.2"点地寻路中点别处 ⇒ 排队"）。
+            self.tap_bump = None;
+            self.interrupt_route();
+            return TapResult::Stopped;
+        }
+        match self.walk_phase {
+            0 if !self.script_walk_armed => {}
+            2 => return TapResult::Ignored, // 观察模式：点按无效（拖动平移由壳接，计划 3）
+            _ => {
+                // 手动行走 / 战斗 / Map 语境的脚本行走（wp0 ∧ 武装，field_tap_allowed 同口径拒绝）：闪红、状态不变
+                self.flash_reject((cx, cy));
+                return TapResult::Rejected;
+            }
+        }
+        if (cx, cy) == at {
+            return TapResult::Ignored;
+        }
+        let grid = self.tap_grid();
+        let plan = crate::tap_walk::plan_tap(&grid, at, (cx, cy));
+        self.start_tap_plan(plan, (cx, cy))
+    }
+
+    /// 【STAGE-B-008 · spec §5.2 · 计划 2 T5 复核 R3】是否"点地寻路中"：dp3 归点地寻路（Dialog 语境），或多步路线的
+    /// 末步在途窗口——末步由 advanceScriptWalk 在倒数第二格步末弹出，finish_walkto 随即回 Map，这一步在 Map wp1 走完
+    ///（约 4 拍）。该窗口 [`Self::accepts_field_tap`] 为真（Map ⇒ true）。
+    fn tap_walk_in_progress(&self) -> bool {
+        (self.game_mode == GameMode::Dialog && self.dialog_phase == 3 && self.walkto_owns_dp3())
+            || (self.game_mode == GameMode::Map && self.walk_phase == 1 && self.tap_followup_ready)
+    }
+
+    fn start_tap_plan(&mut self, plan: crate::tap_walk::TapPlan, target: (i32, i32)) -> crate::tap_walk::TapResult {
+        use crate::tap_walk::{TapPlan, TapResult};
+        match plan {
+            TapPlan::Walk { steps, .. } => {
+                self.walkto_draining = false;
+                self.begin_walk_route(steps);
+                self.tap_target = Some(target);
+                TapResult::Walking
+            }
+            TapPlan::Bump { steps, dock, dir } => {
+                self.tap_target = Some(target);
+                if steps.is_empty() {
+                    self.execute_bump(dir);
+                } else {
+                    self.walkto_draining = false;
+                    self.tap_bump = Some((dock, dir));
+                    self.begin_walk_route(steps);
+                }
+                TapResult::Bumping
+            }
+            TapPlan::Dock { steps, .. } => {
+                self.flash_reject(target);
+                if !steps.is_empty() {
+                    self.walkto_draining = false;
+                    self.begin_walk_route(steps);
+                }
+                TapResult::Docking
+            }
+            TapPlan::Ignore => TapResult::Ignored,
+        }
+    }
+
+    /// 【STAGE-B-008 · R2-2】Map wp0 撞一步：置朝向 → 开路段（撞怪开战时记撤销快照）→ try_step。
+    /// 未开战且被挡 ⇒ 收段（零长段不入栈）；走进去了 ⇒ Map wp1 步末收段。
+    fn execute_bump(&mut self, dir: u8) {
+        let at = (self.player_cell_x, self.player_cell_y);
+        self.facing = dir as i32;
+        self.route.begin(at);
+        let ok = self.try_step(dir as i32);
+        if self.walk_phase == 5 || ok {
+            return;
+        }
+        self.route_arrived();
+    }
+
+    fn flash_reject(&mut self, cell: (i32, i32)) {
+        self.tap_reject = Some((cell, self.frame_counter + crate::tap_walk::TAP_REJECT_TICKS));
+    }
+
+    /// 【STAGE-B-008】清点地状态（撤销 / 换层 / 剧情 / 按键时）。
+    pub fn clear_tap_state(&mut self) {
+        self.tap_target = None;
+        self.tap_reject = None;
+        self.tap_bump = None;
+        self.tap_followup_ready = false;
+    }
+
+    /// 【STAGE-B-008】每拍开头：闪红到期；点地寻路收尾、玩家落格后的第一拍执行撞击（回到 Map wp0、无浮层 / 遮幅 / 新按键，
+    /// 且玩家正在停靠格），否则作废；末步在途（Map wp1）或浮层开着时暂缓到下一拍再判（spec §5.1 T5 复核 R2）；
+    /// 路线与撞击都结束即清目标标记。classic 下各字段恒空，零操作。
+    fn tick_tap_state(&mut self) {
+        if let Some((_, until)) = self.tap_reject {
+            if self.frame_counter >= until {
+                self.tap_reject = None;
+            }
+        }
+        if self.tap_followup_ready
+            && !(self.game_mode == GameMode::Map && self.walk_phase == 1)
+            && !self.overlay_active
+        {
+            // 末步在途（Map wp1）时暂缓：多步路线的末步由 advanceScriptWalk 在倒数第二格步末弹出，
+            // finish_walkto 随即回 Map、这一步仍在走（BUG-040 收尾口径）——等它落格后再判。
+            // 【spec §5.1 · 计划 2 T5 复核 R2】浮层开着（停靠格本身弹拾取框）同样暂缓：保留就绪位与撞击，
+            // 关框后下一拍再按下列就绪条件判（关框键属浮层，press_key 不清撞击）。
+            self.tap_followup_ready = false;
+            let bump = self.tap_bump.take();
+            let ready = self.game_mode == GameMode::Map
+                && self.walk_phase == 0
+                && !self.overlay_active
+                && !self.transitioning
+                && self.key_value == 0
+                && self.key_held == 0;
+            if ready {
+                if let Some((dock, dir)) = bump {
+                    if (self.player_cell_x, self.player_cell_y) == dock {
+                        self.execute_bump(dir);
+                    }
+                }
+            }
+        }
+        if self.tap_target.is_some()
+            && !(self.route.is_open() || self.walkto_draining || self.tap_bump.is_some() || self.tap_followup_ready)
+        {
+            self.tap_target = None;
+        }
     }
 
     /// 【T2】探步入（一步撞击尝试）：暗墙命中=进入/揭示（挂撞击臂型 10/11/12/
@@ -1950,6 +2125,9 @@ impl GameScene {
         if !self.field_tap_allowed() {
             return false;
         }
+        // 【STAGE-B-008 · 计划 2 T5 复核 R5】同 walk_to：不继承点地后续
+        self.tap_bump = None;
+        self.tap_followup_ready = false;
         self.interrupt_route();
         // 【BUG-047】先置朝向再撞（与 handle_field_input 同式，scene.rs:5154-5155）：
         // 放行后 Map wp1 臂按 self.facing 位移；不写则按旧朝向走出一整格、且该方向不做碰撞（可穿墙）。
@@ -1999,6 +2177,17 @@ impl GameScene {
         }
     }
 
+    /// 【STAGE-B-008 · 复核 T4-R4】按键输入口的打断：浮层开着时零操作。原版浮层分支吞键、整拍返回
+    ///（a.java:3252-3345），该键属浮层（关框 / 翻页），不是场上输入；BUG-040"手动优先"只对场上输入。
+    /// ⇒ 点地路线途经拾取物弹框，关框后继续走向目标。换层 / 剧情接管等须无条件收段的调用方仍用
+    /// [`Self::interrupt_route`]。
+    pub fn interrupt_route_for_input(&mut self) {
+        if self.overlay_active {
+            return;
+        }
+        self.interrupt_route();
+    }
+
     /// 【STAGE-B-008 · 复核 R1/R2】打断收段点 = 玩家最终落格。`walk_phase == 1`（步在途）⇒ 这一步必然走完：
     /// dp3 wp1 臂与 Map wp1 臂都按 facing 每拍 8px、满 32px 归格（逻辑格 = 像素 >> 5，步中 facing 不变），
     /// 落格 = 玩家格 + facing 增量（0 下 y+1、1 上 y−1、2 右 x+1、3 左 x−1）；否则 = 玩家格。
@@ -2026,6 +2215,8 @@ impl GameScene {
         self.walkto_draining = false;
         self.script_walk_armed = false;
         self.game_mode = GameMode::Map;
+        // 【STAGE-B-008】下一拍开头执行点地后续（撞击 / 排队）
+        self.tap_followup_ready = true;
     }
 
     /// 【BUG-040】dp3 当前是否归点地寻路所有（段开放，或打断后仍在走完当前步）。
@@ -4704,11 +4895,18 @@ impl GameScene {
     /// keyPressed（a.java:4663-4676）：keyValue = keyHeldCode = code（覆盖式：同拍
     /// 多次按下取末个，R-2）；anyKeyPlayed 时按 gameMode 恢复播放（音频半）。
     pub fn press_key(&mut self, code: i32) {
+        // 【STAGE-B-008】场上按键取消点地后续撞击（BUG-040"手动优先"同口径）。
+        // 【spec §5.1 · 计划 2 T5 复核 R1/R2】浮层开着时按键属浮层（关框 / 翻页），不取消撞击——与
+        // interrupt_route_for_input 同判据：关框后继续走向目标并照常撞击。
+        if !self.overlay_active {
+            self.tap_bump = None;
+        }
         // 【T2 打断终版】寻路（WalkTo/探步段）中任意输入皆打断——全通道（触屏/
         // 方向键/软键）即刻清 walkPathBuffer 停步（手动优先）。经典脚本行走
         // （MOV/dp2）不受影响（route 段仅 WalkTo 开放）——保真红线 key 链不动。
+        // 【STAGE-B-008 复核 T4-R4】浮层开着时按键属浮层（关框 / 翻页），不打断——见 interrupt_route_for_input。
         if self.route.is_open() {
-            self.interrupt_route();
+            self.interrupt_route_for_input();
         }
         self.key_value = code;
         self.key_held = code;
@@ -4741,6 +4939,7 @@ impl GameScene {
     /// `frame_counter` 为本拍值（TICK n → n-1）。
     pub fn tick(&mut self, frame_counter: i64, width_table: &[i32]) {
         self.frame_counter = frame_counter;
+        self.tick_tap_state(); // 【STAGE-B-008】classic 下点地状态恒空 ⇒ 零操作
         self.settle_walkto_arrows(); // 【BUG-043】经典面暂存恒 None ⇒ 零操作
         // overlay 显示期（run 的 label510 分支 a.java:3252）：kind0 且
         // gameMode∈{15,17} 走 -7 专用支路（仅 -7 关层+回 menuReturnMode，
@@ -4975,9 +5174,14 @@ impl GameScene {
                     self.step_progress = 0;
                     self.player_frame = 0;
                     self.apply_step_cell_effects();
-                                // 【T2】WalkTo 段终位：步尽归格=实际终点（整段起终点入栈）+回 Map；
+                    // 【T2】WalkTo 段终位：步尽归格=实际终点（整段起终点入栈）+回 Map；
                     // 经典脚本行走 route 未开放=零改动（保真红线）
-                    if self.walk_step_count == 0 && self.route.is_open() {
+                    // 【STAGE-B-008 · 计划 2 T5 复核问题 B】Map 语境下开着的路段只可能是单步段：点地撞击（execute_bump 走进门格 /
+                    // 开战）或 Map 语境战斗的胜利 restep（route.resume）——点地路线的步序只在 Dialog dp3 下装进 walkPathBuffer。
+                    // 此时 walkPathBuffer / walk_step_count 装的可能是 finish_walkto 放回的教程箭头（BUG-043），不是路线步，
+                    // 故不再以 `walk_step_count == 0` 为条件：否则箭头开着时段一直不收（目标标记不清、下次按键清掉箭头、
+                    // 下次点地重设段起点丢掉这一格的位移笔）。
+                    if self.route.is_open() {
                         self.route_arrived();
                         self.game_mode = GameMode::Map;
                     }
@@ -11225,7 +11429,7 @@ mod t2_walkto_route_tests {
                 assert!(sc.overlay_active, "{label}：弹拒战提示框");
                 assert_eq!(sc.overlay_text.as_deref(), Some("你无法战胜它"), "{label}：提示文案");
                 assert_eq!((sc.game_mode, sc.dialog_phase), (GameMode::Dialog, 3), "{label}：弹框期间仍归点地寻路的 dp3");
-                assert!(sc.route.is_open(), "{label}：弹框期间路段开着（关框键打断收尾）");
+                assert!(sc.route.is_open(), "{label}：弹框期间路段开着（关框键属浮层不打断；步序已清，关框后 finish_walkto 收尾）");
                 let wt = sc.width_table.clone();
                 sc.press_key(-5);
                 sc.tick(1000, &wt);
@@ -11998,6 +12202,431 @@ mod t2_walkto_route_tests {
         assert_eq!(kind(7), TargetKind::Alchemy, "门 + 炉（门先）= 炉");
         assert_eq!(kind(10), TargetKind::Interact, "道具 + 门 = 交互物");
         assert_eq!(kind(11), TargetKind::Interact, "门 + 道具 = 交互物");
+    }
+
+    fn settle(sc: &mut GameScene, from: i64, n: i64) {
+        let wt = sc.width_table.clone();
+        for fc in from..from + n {
+            sc.tick(fc, &wt);
+        }
+    }
+
+    /// 夹具 `scene()` 的记录一律 visible=true：按 m_122 无存档分支语义手动隐藏指定型（同 tap_grid 测试写法）。
+    fn hide_types(sc: &mut GameScene, types: &[i32]) {
+        for i in 0..sc.entities.count {
+            if types.contains(&sc.entities.items[i].type_) {
+                sc.entities.items[i].visible = false;
+            }
+        }
+    }
+
+    /// 【STAGE-B-008 · spec §5.2】点可达地面：走过去（BFS），到达后回 Map、目标标记清除。
+    #[test]
+    fn tap_cell_walks_to_reachable_floor() {
+        use crate::tap_walk::TapResult;
+        let mut sc = scene((2, ROW), &[]);
+        assert_eq!(sc.tap_cell(7, ROW), TapResult::Walking);
+        assert_eq!(sc.tap_target, Some((7, ROW)), "目标标记");
+        settle(&mut sc, 0, 120);
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (7, ROW));
+        assert_eq!(sc.game_mode, GameMode::Map);
+        assert_eq!(sc.tap_target, None, "到达后标记清除");
+    }
+
+    /// 点远处的墙：走到墙边可达邻格，再朝墙撞一步（不移动、朝向 = 撞击方向、不留零长撤销笔）。
+    #[test]
+    fn tap_cell_far_wall_walks_adjacent_then_bumps() {
+        let mut sc = scene((2, ROW), &[]);
+        let _ = sc.tap_cell(8, ROW - 1);
+        settle(&mut sc, 0, 160);
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (8, ROW), "停在墙下方");
+        assert_eq!(sc.facing, 1, "朝上撞过墙");
+        assert_eq!(sc.game_mode, GameMode::Map);
+        assert_eq!(sc.undo.len(), 1, "只有一笔 (2,ROW)→(8,ROW) 的位移笔（撞墙零长段不入栈）");
+    }
+
+    /// 点门（有钥匙）：走到门旁、撞门开门并走进门格。
+    #[test]
+    fn tap_cell_door_opens_with_key() {
+        let mut sc = scene((2, ROW), &[(1, 6, ROW)]);
+        sc.player.yellow_keys = 1;
+        let _ = sc.tap_cell(6, ROW);
+        settle(&mut sc, 0, 200);
+        assert_eq!(sc.player.yellow_keys, 0, "耗钥开门");
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (6, ROW), "走进门格");
+    }
+
+    /// 点正上方的炼丹炉：停在炉正下方朝上撞 ⇒ 打开炼丹炉页（Map → Alchemy，不经 Dialog——debug 构建不 panic）。
+    #[test]
+    fn tap_cell_alchemy_from_below_opens_page() {
+        let mut sc = scene((2, ROW), &[(9, 5, ROW - 1)]);
+        let _ = sc.tap_cell(6, ROW - 1);
+        settle(&mut sc, 0, 160);
+        assert_eq!(sc.game_mode, GameMode::Alchemy, "炉页打开");
+        assert!(!sc.script_walk_armed && !sc.route.is_open(), "无寻路残留");
+    }
+
+    /// 到不了的地面：停在最近可达格，目标格闪红。
+    #[test]
+    fn tap_cell_unreachable_floor_docks_and_flashes() {
+        use crate::tap_walk::TapResult;
+        let mut sc = scene((2, ROW), &[]);
+        sc.walkable[ROW as usize][7] = false; // 走廊中间砌墙
+        assert_eq!(sc.tap_cell(9, ROW), TapResult::Docking);
+        assert!(matches!(sc.tap_reject, Some(((9, r), _)) if r == ROW), "目标格闪红");
+        settle(&mut sc, 0, 120);
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (6, ROW), "停在墙前最近格");
+    }
+
+    /// 【spec §0 隐藏通路泄露】只能经隐形路径到达的地面：不得走过去、隐形路径不显形（停靠 + 闪红）。
+    #[test]
+    fn tap_cell_does_not_leak_hidden_path() {
+        let mut sc = scene((2, ROW), &[(6, 6, ROW)]);
+        hide_types(&mut sc, &[6]); // 未显形的隐形路径
+        sc.walkable[ROW as usize][6] = false; // 隐形路径格的地形 = 墙（真实关卡同形）
+        let _ = sc.tap_cell(9, ROW);
+        settle(&mut sc, 0, 160);
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (5, ROW), "停在隐形路径前");
+        let i6 = (0..sc.entities.count).find(|&i| sc.entities.items[i].type_ == 6).unwrap();
+        assert!(!sc.entities.items[i6].visible, "隐形路径未显形");
+    }
+
+    /// 途中撞上隐形墙（看起来是地面）：被挡停下，撞击后续作废（玩家不在停靠格）。
+    #[test]
+    fn tap_cell_bump_cancelled_when_route_stops_early() {
+        let mut sc = scene((2, ROW), &[(12, 5, ROW)]);
+        hide_types(&mut sc, &[12]); // 未显形的隐形墙（tap_grid 视为地面）
+        let _ = sc.tap_cell(9, ROW - 1); // 墙：停靠 (9,ROW)，路线途经 (5,ROW) 隐形墙
+        settle(&mut sc, 0, 200);
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (4, ROW), "撞隐形墙停下");
+        assert_ne!(sc.facing, 1, "朝上的撞击已作废");
+        assert_eq!(sc.game_mode, GameMode::Map);
+    }
+
+    /// 观察模式点按无效；手动行走中点按闪红、状态不变。
+    #[test]
+    fn tap_cell_ignored_in_observe_and_rejected_while_walking() {
+        use crate::tap_walk::TapResult;
+        let mut sc = scene((2, ROW), &[]);
+        sc.walk_phase = 2;
+        assert_eq!(sc.tap_cell(7, ROW), TapResult::Ignored);
+        sc.walk_phase = 1;
+        assert_eq!(sc.tap_cell(7, ROW), TapResult::Rejected);
+        assert!(sc.tap_reject.is_some() && !sc.route.is_open());
+        sc.walk_phase = 5;
+        assert_eq!(sc.tap_cell(7, ROW), TapResult::Rejected, "战斗中闪红");
+        assert_eq!(sc.walk_phase, 5, "战斗状态不变");
+        sc.walk_phase = 0;
+        sc.script_walk_armed = true; // Map 语境脚本行走的步间
+        assert_eq!(sc.tap_cell(7, ROW), TapResult::Rejected, "脚本行走中不得插入点地路线");
+        assert!(!sc.route.is_open());
+    }
+
+    /// 【STAGE-B-008 · 复核 T4-R4】点地路线途经特殊拾取物（型 25：道具栈 + kind 1 带图标提示框，right=3）：
+    /// 拾取格步末 advanceScriptWalk 已弹出下一步（wp1），提示框冻结 walkPhase 机——框开时人在拾取格、路段开着、目标标记仍在。
+    /// 裁定（spec §5.1【2026-10-30 更正 · 计划 2 T5 复核 R1/R2】）：关框键属浮层（a.java:3252-3345 浮层分支吞键），不是手动行走输入，不打断点地路线
+    ///（[`GameScene::interrupt_route_for_input`]）；关框后继续走到目标（"点哪里就往哪里走"）。
+    /// 夹具：起点 (2,ROW) → 目标 (9,ROW)，拾取物在 (5,ROW)。`close_key` = 关框所按的键。
+    fn pickup_overlay_route(close_key: i32) {
+        use crate::tap_walk::{TapResult, TargetKind};
+        let mut sc = scene((2, ROW), &[(25, 5, ROW)]);
+        assert_eq!(sc.tap_grid().get(5, ROW).unwrap().kind, TargetKind::Floor, "前置：道具格 = 地面（可途经）");
+        assert_eq!(sc.tap_cell(9, ROW), TapResult::Walking);
+        let wt = sc.width_table.clone();
+        let mut fc = 0;
+        while !sc.overlay_active && fc < 200 {
+            sc.tick(fc, &wt);
+            fc += 1;
+        }
+        assert!(sc.overlay_active, "前置：拾取型 25 弹提示框");
+        assert_eq!((sc.overlay_kind, sc.overlay_right_icon), (1, 3), "前置：kind 1、right=3 拾取框");
+        settle(&mut sc, fc, 10); // 框开期间多跑几拍：浮层冻结 walkPhase 机
+        fc += 10;
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (5, ROW), "框开时人在拾取格");
+        assert!(sc.route.is_open(), "框开时路段开着");
+        assert_eq!(sc.tap_target, Some((9, ROW)), "框开时目标标记仍在");
+        // 真实关框路径：按键 → tick（浮层分支处理该键）→ 松键
+        sc.press_key(close_key);
+        assert!(sc.route.is_open(), "key={close_key}：按键属浮层，不打断路段");
+        sc.tick(fc, &wt);
+        fc += 1;
+        sc.release_key();
+        assert!(!sc.overlay_active, "key={close_key}：提示框已关");
+        settle(&mut sc, fc, 200);
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (9, ROW), "key={close_key}：关框后续走到终点");
+        assert_eq!(sc.game_mode, GameMode::Map);
+        assert!(!sc.route.is_open() && !sc.script_walk_armed && !sc.walkto_draining, "无寻路残留");
+        assert_eq!(sc.tap_target, None, "收尾后目标标记清除");
+        assert_eq!(undo_seq(&mut sc), vec![format!("tile{:?}", (2, ROW))], "撤销栈 = 整段位移一笔（撤回起点）");
+    }
+
+    /// 【STAGE-B-008 · 计划 2 T5 复核问题 B】教程箭头开着时点门（有钥匙）/ 点紧邻可胜怪：路线收尾 `finish_walkto`
+    /// 把余下箭头放回 walkPathBuffer（BUG-043，walk_step_count ≠ 0），随后 `execute_bump` 在 Map 语境开撞击段、走进门格 /
+    /// 胜利 restep 进敌格。Map wp1 步末收段原条件含 `walk_step_count == 0` ⇒ 段一直开着：目标标记不清；下一次按键
+    /// `interrupt_route` 清掉 walkPathBuffer（= 箭头），与方向键走同一路线不一致；下一次点地 `begin_walk_route` 重设段起点，
+    /// 撞进去那一格的位移笔丢失。期望：撞进去那一步步末即收段，箭头 / 撤销与方向键参照一致。
+    fn bump_with_tutorial_arrows(target_type: u8) {
+        let make = || {
+            let mut sc = scene((1, ROW), &[(target_type, 6, ROW)]);
+            sc.player.yellow_keys = 1;
+            sc.player.atk = 100_000;
+            sc.player.def = 100_000;
+            sc.player.hp = 500;
+            assert!(sc.find_path(1, ROW, 8, ROW), "前置：箭头 (1)→(8) 经 (6,ROW)");
+            sc.path_arrows_visible = true;
+            sc
+        };
+        let label = if target_type == 1 { "黄门" } else { "可胜怪" };
+        // 参照：方向键逐格走进 (6,ROW)（门：撞开后走进；怪：开战、胜利 restep 进敌格）
+        let mut keys = make();
+        key_walk(&mut keys, -4, (6, ROW));
+        assert_eq!((keys.player_cell_x, keys.player_cell_y), (6, ROW), "{label} 参照前置：走进 (6,ROW)");
+        let mut sc = make();
+        let wt = sc.width_table.clone();
+        assert_eq!(sc.tap_cell(6, ROW), crate::tap_walk::TapResult::Bumping, "{label}");
+        let mut fc = 0;
+        while fc < 3000 && !((sc.player_cell_x, sc.player_cell_y) == (6, ROW) && sc.walk_phase == 0 && sc.game_mode == GameMode::Map) {
+            sc.tick(fc, &wt);
+            fc += 1;
+        }
+        settle(&mut sc, fc, 20);
+        fc += 20;
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (6, ROW), "{label}：撞进去了");
+        assert!(!sc.route.is_open() && !sc.route.is_suspended(), "{label}：撞进去那一步步末收段");
+        assert_eq!(sc.tap_target, None, "{label}：收尾后目标标记清除");
+        assert!(!sc.script_walk_armed, "{label}：无脚本行走武装（下次方向键不走 advanceScriptWalk 臂）");
+        assert_eq!(arrow_state(&sc), arrow_state(&keys), "{label}：撞进去后箭头 = 方向键参照");
+        // 再按一下方向键（右，沿箭头）：与方向键参照同一结果
+        for k in [&mut keys, &mut sc] {
+            k.press_key(-4);
+            k.tick(fc, &wt);
+            k.release_key();
+            settle(k, fc + 1, 40);
+        }
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (7, ROW), "{label}：方向键走一格");
+        assert_eq!(arrow_state(&sc), arrow_state(&keys), "{label}：再走一格后箭头 = 方向键参照");
+        // 撤销栈：点地段 (1→5) 与撞进去那一格 (5→6) 各一笔（怪另有战斗笔），方向键那格不入栈
+        let seq = undo_seq(&mut sc);
+        let expect: Vec<String> = if target_type == 1 {
+            vec![format!("tile{:?}", (5, ROW)), format!("tile{:?}", (1, ROW))]
+        } else {
+            vec![format!("tile{:?}", (5, ROW)), "revive".to_string(), format!("tile{:?}", (1, ROW))]
+        };
+        assert_eq!(seq, expect, "{label}：撤销序列");
+    }
+
+    #[test]
+    fn tap_bump_door_with_tutorial_arrows_closes_route() {
+        bump_with_tutorial_arrows(1);
+    }
+
+    #[test]
+    fn tap_bump_enemy_with_tutorial_arrows_closes_route_after_restep() {
+        bump_with_tutorial_arrows(41);
+    }
+
+    #[test]
+    fn tap_cell_route_through_pickup_overlay_resumes_after_close() {
+        pickup_overlay_route(-5);
+    }
+
+    /// 对照：框开着时按方向键（-3 左）。kind 1 / right=3 分支（scene.rs tick 浮层块）对 0 吞、-2/-1 翻页、
+    /// 其余键关层，块尾 keyValue / keyHeldCode 双清（a.java:3345）⇒ -3 只起关框作用、不走一步、不打断路线；
+    /// 关框后同样续走到终点。
+    #[test]
+    fn tap_cell_route_through_pickup_overlay_direction_key_also_resumes() {
+        pickup_overlay_route(-3);
+    }
+
+    /// (x, ROW) 上的门（型 1）是否未开：实体仍在、常态、未移除。
+    fn door_intact(sc: &GameScene, x: i32) -> bool {
+        (0..sc.entities.count).any(|i| {
+            let e = &sc.entities.items[i];
+            e.type_ == 1 && e.px == x << 5 && e.py == ROW << 5 && e.state == 0 && !e.removed
+        })
+    }
+
+    /// 点门（有钥匙）多步路线：起点 (2,ROW)、门 (7,ROW)、停靠格 (6,ROW)。跑到末步在途窗口
+    ///（`Map ∧ walk_phase == 1 ∧ tap_followup_ready`：advanceScriptWalk 在 (5,ROW) 步末弹出末步，finish_walkto 随即回 Map）。
+    fn door_route_in_last_step_window() -> (GameScene, i64) {
+        let mut sc = scene((2, ROW), &[(1, 7, ROW)]);
+        sc.player.yellow_keys = 1;
+        assert_eq!(sc.tap_cell(7, ROW), crate::tap_walk::TapResult::Bumping);
+        let wt = sc.width_table.clone();
+        let mut fc = 0;
+        while !(sc.game_mode == GameMode::Map && sc.walk_phase == 1 && sc.tap_followup_ready) && fc < 400 {
+            sc.tick(fc, &wt);
+            fc += 1;
+        }
+        assert!(sc.game_mode == GameMode::Map && sc.walk_phase == 1 && sc.tap_followup_ready, "前置：到达末步在途窗口");
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (5, ROW), "前置：末步 (5,ROW)→(6,ROW) 在途");
+        assert_eq!(sc.tap_bump, Some(((6, ROW), 2)), "前置：撞击后续在");
+        (sc, fc)
+    }
+
+    /// 【STAGE-B-008 · spec §5.2 · 计划 2 T5 复核 R3（探针 P1）】末步在途窗口算"点地寻路中"：点别处 ⇒ `Stopped`
+    ///（Task 7 起改排队），不闪红；落格后旧撞击不执行（钥匙仍 1、门未开）。
+    #[test]
+    fn tap_cell_in_last_step_window_stops_and_cancels_bump() {
+        let (mut sc, fc) = door_route_in_last_step_window();
+        assert!(sc.accepts_field_tap(), "末步在途窗口场上接收点地（Map）");
+        assert_eq!(sc.tap_cell(10, ROW), crate::tap_walk::TapResult::Stopped);
+        assert_eq!(sc.tap_reject, None, "不闪红");
+        assert_eq!(sc.tap_bump, None, "撞击已取消");
+        settle(&mut sc, fc, 80);
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (6, ROW), "末步走完，停在停靠格");
+        assert_eq!(sc.player.yellow_keys, 1, "未耗钥");
+        assert!(door_intact(&sc, 7), "门未开");
+        assert_eq!(sc.game_mode, GameMode::Map);
+        assert_eq!(sc.tap_target, None, "目标标记清除");
+    }
+
+    /// 【计划 2 T5 复核 R4（探针 P3）】末步在途窗口按方向键（上，撞墙方向）⇒ 撞击取消（钥匙仍 1、门未开）。
+    #[test]
+    fn key_press_in_last_step_window_cancels_bump() {
+        let (mut sc, fc) = door_route_in_last_step_window();
+        sc.press_key(-1);
+        sc.release_key();
+        assert_eq!(sc.tap_bump, None, "场上按键取消撞击");
+        settle(&mut sc, fc, 80);
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (6, ROW), "停在停靠格");
+        assert_eq!(sc.player.yellow_keys, 1, "未耗钥");
+        assert!(door_intact(&sc, 7), "门未开");
+        assert_eq!(sc.tap_target, None, "目标标记清除");
+    }
+
+    /// 【STAGE-B-008 · spec §5.1 · 计划 2 T5 复核 R1/R2（探针 M）】点门路线途经特殊拾取物（型 25 @ (4,ROW)）：
+    /// 框开时按 -5 关框 ⇒ 关框键属浮层，不打断路线、不取消撞击；关框后续走到停靠格 (7,ROW) 并撞开门 (8,ROW)、走进门格。
+    #[test]
+    fn tap_bump_route_through_pickup_overlay_still_bumps_after_close() {
+        let mut sc = scene((2, ROW), &[(25, 4, ROW), (1, 8, ROW)]);
+        sc.player.yellow_keys = 1;
+        assert_eq!(sc.tap_cell(8, ROW), crate::tap_walk::TapResult::Bumping);
+        let wt = sc.width_table.clone();
+        let mut fc = 0;
+        while !sc.overlay_active && fc < 200 {
+            sc.tick(fc, &wt);
+            fc += 1;
+        }
+        assert!(sc.overlay_active, "前置：拾取型 25 弹提示框");
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (4, ROW), "前置：框开时人在拾取格");
+        assert_eq!(sc.tap_bump, Some(((7, ROW), 2)), "前置：撞击后续在");
+        sc.press_key(-5);
+        assert_eq!(sc.tap_bump, Some(((7, ROW), 2)), "关框键不取消撞击");
+        sc.tick(fc, &wt);
+        fc += 1;
+        sc.release_key();
+        assert!(!sc.overlay_active, "提示框已关");
+        settle(&mut sc, fc, 300);
+        assert_eq!(sc.player.yellow_keys, 0, "撞门耗钥");
+        assert!(!door_intact(&sc, 8), "门已开");
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (8, ROW), "走进门格");
+        assert_eq!(sc.game_mode, GameMode::Map);
+        assert!(!sc.route.is_open() && !sc.script_walk_armed && !sc.walkto_draining, "无寻路残留");
+        assert_eq!(sc.tap_target, None, "收尾后目标标记清除");
+    }
+
+    /// 【STAGE-B-008 · spec §5.1 · 计划 2 T5 复核 R2（探针 N2）】停靠格 (6,ROW) 本身有型 25：末步落格弹框，
+    /// 撞击暂缓到关框后（框开期间保留撞击后续），关框后下一拍撞开门 (7,ROW)。
+    #[test]
+    fn tap_bump_dock_pickup_overlay_defers_bump_until_close() {
+        let mut sc = scene((2, ROW), &[(25, 6, ROW), (1, 7, ROW)]);
+        sc.player.yellow_keys = 1;
+        assert_eq!(sc.tap_cell(7, ROW), crate::tap_walk::TapResult::Bumping);
+        let wt = sc.width_table.clone();
+        let mut fc = 0;
+        while !sc.overlay_active && fc < 200 {
+            sc.tick(fc, &wt);
+            fc += 1;
+        }
+        assert!(sc.overlay_active, "前置：停靠格拾取弹框");
+        settle(&mut sc, fc, 10); // 框开期间多跑几拍：撞击须暂缓、不作废
+        fc += 10;
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (6, ROW), "框开时人在停靠格");
+        assert_eq!(sc.tap_bump, Some(((6, ROW), 2)), "框开期间撞击后续保留");
+        assert_eq!(sc.player.yellow_keys, 1, "框开期间未撞");
+        assert_eq!(sc.tap_target, Some((7, ROW)), "框开期间目标标记仍在");
+        sc.press_key(-5);
+        sc.tick(fc, &wt);
+        fc += 1;
+        sc.release_key();
+        assert!(!sc.overlay_active, "提示框已关");
+        settle(&mut sc, fc, 200);
+        assert_eq!(sc.player.yellow_keys, 0, "关框后撞门耗钥");
+        assert!(!door_intact(&sc, 7), "门已开");
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (7, ROW), "走进门格");
+        assert_eq!(sc.tap_target, None, "收尾后目标标记清除");
+    }
+
+    /// 【计划 2 T5 复核 R4（变异 M11）】1 步路线：站 (5,ROW) 点门 (7,ROW)，停靠格 (6,ROW)。首步在途（Dialog dp3 wp1）时点自己
+    /// ⇒ `Stopped`；排空落到停靠格后不撞（钥匙仍 1、门未开）。
+    #[test]
+    fn tap_self_during_one_step_route_stops_without_bump() {
+        let mut sc = scene((5, ROW), &[(1, 7, ROW)]);
+        sc.player.yellow_keys = 1;
+        assert_eq!(sc.tap_cell(7, ROW), crate::tap_walk::TapResult::Bumping);
+        assert_eq!(sc.walk_step_count, 1, "前置：1 步路线");
+        let wt = sc.width_table.clone();
+        let mut fc = 0;
+        while !(sc.game_mode == GameMode::Dialog && sc.walk_phase == 1) && fc < 50 {
+            sc.tick(fc, &wt);
+            fc += 1;
+        }
+        assert!(sc.game_mode == GameMode::Dialog && sc.walk_phase == 1, "前置：首步在途");
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (5, ROW));
+        assert_eq!(sc.tap_cell(5, ROW), crate::tap_walk::TapResult::Stopped);
+        settle(&mut sc, fc, 80);
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (6, ROW), "排空落到停靠格");
+        assert_eq!(sc.player.yellow_keys, 1, "未耗钥");
+        assert!(door_intact(&sc, 7), "门未开");
+        assert_eq!(sc.game_mode, GameMode::Map);
+        assert_eq!(sc.tap_target, None, "目标标记清除");
+    }
+
+    /// 【计划 2 T5 复核 R4（变异 M9）】按住方向键（上，顶墙不动：keyHeldCode 每拍 tryStep 撞墙，停在 wp0）时点门：
+    /// 撞击后续是在按键之后设的，press_key 清不到；落到停靠格时 keyHeldCode 仍非 0 ⇒ 场上手动输入优先，撞击作废
+    ///（钥匙仍 1、门未开、人留在停靠格）。
+    #[test]
+    fn held_key_at_dock_cancels_bump() {
+        let mut sc = scene((2, ROW), &[(1, 7, ROW)]);
+        sc.player.yellow_keys = 1;
+        let wt = sc.width_table.clone();
+        sc.press_key(-1); // 按住不放
+        sc.tick(0, &wt);
+        assert_eq!((sc.player_cell_x, sc.player_cell_y, sc.walk_phase), (2, ROW, 0), "前置：顶墙不动");
+        assert_eq!(sc.tap_cell(7, ROW), crate::tap_walk::TapResult::Bumping);
+        assert_eq!(sc.tap_bump, Some(((6, ROW), 2)), "前置：撞击后续在");
+        settle(&mut sc, 1, 200);
+        assert_eq!(sc.key_held, -1, "前置：全程按住");
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (6, ROW), "停在停靠格");
+        assert_eq!(sc.player.yellow_keys, 1, "未耗钥");
+        assert!(door_intact(&sc, 7), "门未开");
+        assert_eq!(sc.tap_target, None, "目标标记清除");
+    }
+
+    /// 【计划 2 T5 复核 R4（变异 M8 / M8b）】换层（load_floor_data）与剧情接管（load_level_script）清点地状态：
+    /// 目标标记、闪红、撞击后续、后续就绪位全空。
+    #[test]
+    fn tap_state_cleared_on_floor_change_and_script_takeover() {
+        for entry in ["换层", "剧情"] {
+            let mut sc = scene((2, ROW), &[(1, 7, ROW)]);
+            sc.player.yellow_keys = 1;
+            sc.dialog_data.scripts = vec!["TAK_0_0 ".to_string()];
+            assert_eq!(sc.tap_cell(7, ROW), crate::tap_walk::TapResult::Bumping);
+            sc.flash_reject((9, ROW));
+            assert_eq!(sc.tap_target, Some((7, ROW)), "{entry} 前置：目标标记");
+            assert_eq!(sc.tap_bump, Some(((6, ROW), 2)), "{entry} 前置：撞击后续");
+            assert!(sc.tap_reject.is_some(), "{entry} 前置：闪红");
+            if entry == "换层" {
+                sc.load_floor_data(&super::scene_test_support::maplv(), 2 << 5, ROW << 5, &[], 2).unwrap();
+            } else {
+                sc.load_level_script(0);
+            }
+            assert_eq!(sc.tap_target, None, "{entry}：目标标记清除");
+            assert_eq!(sc.tap_reject, None, "{entry}：闪红清除");
+            assert_eq!(sc.tap_bump, None, "{entry}：撞击后续清除");
+            assert!(!sc.tap_followup_ready, "{entry}：后续就绪位清除");
+        }
     }
 }
 
