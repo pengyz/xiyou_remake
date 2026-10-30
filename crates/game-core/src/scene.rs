@@ -5871,7 +5871,8 @@ impl GameScene {
                             }
                             16 => {
                                 // 告示牌/商人（a.java:5494-5517）：param 打包交互——
-                                // 高字节=标志（&1=open 入队、&2=效果表、&4=一次性），
+                                // 高字节=标志（&1=交互入队且两键都消耗实体、&2=报价（效果表）、&4=不消耗 / 买后不翻转（可重复）），
+                                // > 【2026-10-30 更正 · STAGE-B-008】原注"&4=一次性"与 apply_merchant_offer（:4821 起，flags&4 防护不摘实体）相反。
                                 // 低字节=报价序号（1 基）；type77=文本源 0，其余=源 1；
                                 // 触发即阻挡（cur_x=false）+ kind4 报价浮层开。
                                 self.merchant_entity = e as i32;
@@ -10142,7 +10143,8 @@ impl GameScene {
     /// 道具使用=-6（键码契约 §4 同码不同动作——标题确认另有 -5/53）。
     /// 【BUG-039 · Stage B 触屏】点空白（未命中任何行 / 格）时代按的键。只有"继续 / 关闭"类
     /// 情境代按确定 -5：对话、结局、普通提示框；要做决定的界面（菜单、存档、炼丹、道具栏、
-    /// 设置等列表）与原版以 ○/× 脚注标明的是否框（道具使用确认 kind 3、商人报价 kind 4）点空白
+    /// 设置等列表）、原版以 ○/× 脚注标明的是否框（道具使用确认 kind 3、商人报价 kind 4）与
+    /// 赠予 / 报价（kind 4 型 77 flags&2，STAGE-B-008）点空白
     /// 不代按——曾：存档页点空白 = 覆盖当前槽、炼丹炉 = 花钱、菜单 = 执行高亮项。换层遮幅期
     /// 浮层不画却照吞键（paint 公共尾 `!transitioning` 门），点空白亦不代按。
     pub fn blank_tap_key(&self) -> Option<i32> {
@@ -10150,6 +10152,15 @@ impl GameScene {
             return None;
         }
         if self.overlay_active {
+            // 【STAGE-B-008 · spec §5.2】赠予 / 报价（kind 4、型 77 = 文本源 0、param 高字节 &2）无脚注图标，但 −5 = 接受（扣金 / 送物），
+            // 是要做决定的框 ⇒ 点空白不代按（曾代按 −5）。判据与 apply_merchant_offer 同源（买成功 ^512 后的告示子框照旧代按）。
+            // type_==77 为防御性判据（复核 T9-R1：生产态空间中型 78 两子类图标恒 (1,2)、本就 None）。
+            if self.overlay_kind == 4 && self.merchant_entity >= 0 {
+                let ent = &self.entities.items[self.merchant_entity as usize];
+                if ent.type_ == 77 && ((ent.param as i32) >> 8) & 2 != 0 {
+                    return None;
+                }
+            }
             let yes_no = self.overlay_left_icon == 1 && self.overlay_right_icon == 2;
             return if yes_no { None } else { Some(-5) };
         }
@@ -13945,5 +13956,32 @@ mod blank_tap_tests {
         sc.show_overlay_message(0, "x", 0, 0);
         sc.transitioning = true;
         assert_eq!(sc.blank_tap_key(), None, "换层遮幅期（浮层不画却照吞键）点空白不代按");
+    }
+
+    /// 【STAGE-B-008 · spec §5.2】赠予 / 报价（kind 4、型 77、flags&2）点空白不代按；同实体 flags&2 = 0（告示子类）照旧代按 −5；
+    /// 型 78 报价（○/× 图标）本就不代按。
+    #[test]
+    fn blank_tap_does_not_accept_type77_offer() {
+        let mut sc = scene((2, ROW), &[(77, 5, ROW), (78, 7, ROW)]);
+        let i77 = (0..sc.entities.count).find(|&i| sc.entities.items[i].type_ == 77).unwrap();
+        let i78 = (0..sc.entities.count).find(|&i| sc.entities.items[i].type_ == 78).unwrap();
+        sc.overlay_active = true;
+        sc.overlay_kind = 4;
+        sc.merchant_entity = i77 as i32;
+        sc.entities.items[i77].param = (2 << 8) | 1;
+        sc.overlay_left_icon = 0;
+        sc.overlay_right_icon = 0;
+        assert_eq!(sc.blank_tap_key(), None, "型 77 报价：点空白不接受");
+        sc.entities.items[i77].param = 1;
+        assert_eq!(sc.blank_tap_key(), Some(-5), "型 77 告示子类（flags&2 = 0）：点空白关闭");
+        sc.merchant_entity = i78 as i32;
+        sc.entities.items[i78].param = (2 << 8) | 1;
+        sc.overlay_left_icon = 1;
+        sc.overlay_right_icon = 2;
+        assert_eq!(sc.blank_tap_key(), None, "型 78 报价（○/×）不代按（原规则）");
+        sc.merchant_entity = -1;
+        sc.overlay_left_icon = 0;
+        sc.overlay_right_icon = 0;
+        assert_eq!(sc.blank_tap_key(), Some(-5), "merchant_entity=-1 的 kind 4（测试构造态；生产长文浏览必经 case16 设 merchant 且靠 &2=0 放行，复核 T9-R2）照旧代按");
     }
 }
