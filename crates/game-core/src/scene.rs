@@ -6464,6 +6464,36 @@ impl GameScene {
         entity::cell_entity(&self.grid, &self.entities, x, y, type_id)
     }
 
+    /// 【STAGE-B-008】站上 (x, y) 是否会被陷阱伤到（点地寻路途中避让用；纯判定、无副作用）。
+    /// 与 `apply_step_cell_effects` 的陷阱块逐式同判（a.java:5555-5621）：装备 40 全免；61 左右或上下夹击（两侧都须在界内）；
+    /// 62 / 60 四邻（右邻判界用 view.high——原式怪癖照搬）。等价性由 `trap_predicate_matches_step_effects_everywhere` 对拍钉住。
+    /// 返回的是"陷阱触发条件成立"，与当前 hp 无关（hp 很小时 apply_hp_delta 钳 1、实际可能不掉血；避让取保守）。
+    /// 边框格上 Java 原式会越界抛异常（findBlockingEntity 不判界），实机边框不可走、不可达；此处返回 false。
+    #[allow(dead_code)] // 消费者 tap_grid（Task 4）
+    fn trap_damage_at(&self, x: i32, y: i32) -> bool {
+        if self.equipped_armor == 40 {
+            return false;
+        }
+        let hit_lr = x > 0
+            && self.entity_at_cell(x - 1, y, 61) >= 0
+            && x < self.view.wide - 1
+            && self.entity_at_cell(x + 1, y, 61) >= 0;
+        let hit_ud = y > 0
+            && self.entity_at_cell(x, y - 1, 61) >= 0
+            && y < self.view.high - 1
+            && self.entity_at_cell(x, y + 1, 61) >= 0;
+        if hit_lr || hit_ud {
+            return true;
+        }
+        let adjacent = |t: i32| {
+            (x > 0 && self.entity_at_cell(x - 1, y, t) >= 0)
+                || (x < self.view.high - 1 && self.entity_at_cell(x + 1, y, t) >= 0)
+                || (y > 0 && self.entity_at_cell(x, y - 1, t) >= 0)
+                || (y < self.view.high - 1 && self.entity_at_cell(x, y + 1, t) >= 0)
+        };
+        adjacent(62) || adjacent(60)
+    }
+
     /// renderCategoryByType 的场景视角（a.java:9669-9667 m_122 尾）：type 72
     /// 类别**层相关**——floor50 = 8（可战斗），其余层 = 32。静态
     /// entity::render_category 只覆盖非 50 层语义（迭代 56：floor50 boss
@@ -11674,6 +11704,135 @@ mod t2_walkto_route_tests {
         assert!(saw_battle && sc.battle_target < 0, "前置：开战并结束");
         assert!(sc.route.is_open(), "无剧情：胜利尾续走（路段重开，restep 进敌格）");
         assert!(journal_has_combat(&mut sc), "无剧情：栈里有战斗笔");
+    }
+
+    /// 【STAGE-B-008 · spec §2.2 保真红线】陷阱谓词与 classic 原块（apply_step_cell_effects）逐格对拍：
+    /// 合成摆放 × 视口判界变体 × 全格 × 装备 {0, 40}，"站上该格是否扣血"须一致。原块是裁判（实跑扣血），谓词不得由原块推导。
+    /// 视口变体：格表恒为 13×13，覆写 view.wide / view.high 把"视口判界"与"格表越界（entity_at_cell 返 −1）"解耦——
+    /// 实机两者同源（CellGrid::new(view.wide, view.high)），不解耦时 61 的 `x < wide - 1` 等判界项被越界兜底吞掉、
+    /// 变异杀不死；(12, 13) = 唯一非方形层 floor 51 的真实尺寸（maplv51 头 `1800 1a00`），(13, 12) 是"右邻用 view.high"
+    /// 怪癖实际收窄判界的方向。
+    #[test]
+    fn trap_predicate_matches_step_effects_everywhere() {
+        // 摆放：61 夹击（横 / 竖）、62 邻接、60 邻接（含 60 上邻的上爬分支）、贴边（判界怪癖）
+        let layouts: &[&[(u8, i32, i32)]] = &[
+            &[(61, 4, ROW), (61, 6, ROW)],
+            &[(61, 5, ROW - 1), (61, 5, ROW + 1)],
+            &[(62, 7, ROW)],
+            &[(60, 3, ROW)],
+            &[(60, 8, ROW - 1)],
+            &[(62, 0, ROW), (60, 12, ROW)],
+            &[(61, 0, ROW), (61, 2, ROW), (62, 11, ROW + 1)],
+            // 贴右 / 贴下（配合视口变体）：61 横对跨 x = 11、竖对跨 y = 11；62 / 60 在 x = 12 列
+            &[(61, 10, ROW), (61, 12, ROW), (61, 5, 10), (61, 5, 12)],
+            &[(62, 12, ROW), (60, 12, ROW + 2), (62, 7, 12)],
+            // 贴顶（复核 T3-R1）：上邻 / 61 竖夹的 `y > 0` 判界
+            &[(62, 7, 0), (60, 9, 0), (61, 3, 0), (61, 3, 2)],
+        ];
+        for (li, ents) in layouts.iter().enumerate() {
+            for view_dims in [None, Some((12, 13)), Some((13, 12))] {
+                for armor in [0, 40] {
+                    for y in 0..13 {
+                        for x in 0..13 {
+                            if ents.iter().any(|&(_, ex, ey)| (ex, ey) == (x, y)) {
+                                continue;
+                            }
+                            let mut sc = scene((1, ROW), ents);
+                            if let Some((w, h)) = view_dims {
+                                sc.view.wide = w;
+                                sc.view.high = h;
+                            }
+                            sc.equipped_armor = armor;
+                            let predicted = sc.trap_damage_at(x, y);
+                            sc.player.hp = 10_000;
+                            sc.view.player_px = x << 5;
+                            sc.view.player_py = y << 5;
+                            sc.apply_step_cell_effects();
+                            let damaged = sc.player.hp < 10_000;
+                            assert_eq!(
+                                predicted, damaged,
+                                "摆放 {li} 视口 {view_dims:?} 装备 {armor} 格 ({x},{y})：谓词 = 原块"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// 【STAGE-B-008】陷阱谓词真实数据对拍：assets/raw 全部 maplv{n}+sprite{n}（0..=54）中含型 60/61/62 的层，
+    /// 全图每格 × 装备 {0, 40}，谓词 vs 原块实跑扣血。实测覆盖 floor 41–43、45–49（均 13×13；唯一非方形层 51 无陷阱实体）。
+    /// 隔离：站立格本身有实体（拾取 / 楼梯 / 宝箱 / 83 踩格 /
+    /// 门组等格内效果会改 hp 或换层）的格跳过并计数——陷阱块只读四邻，站立格实体不参与陷阱判定。
+    #[test]
+    fn trap_predicate_matches_step_effects_on_real_trap_floors() {
+        use super::scene_test_support::{images, numbers};
+        let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let raw = |name: &str| {
+            std::fs::read(repo.join("assets/raw").join(name)).unwrap_or_else(|e| panic!("缺资产 {name}：{e}"))
+        };
+        let width_table = numbers(include_str!("../tests/fixtures/type_width_px.txt"));
+        let walk = numbers(include_str!("../tests/fixtures/tile_walkability.txt"));
+        let doors = crate::sprite_spawn::DoorTables {
+            door12: numbers(include_str!("../tests/fixtures/door12.txt")),
+            door13: numbers(include_str!("../tests/fixtures/door13.txt")),
+        };
+        let mut covered: Vec<(i32, i32, i32, usize, usize, usize)> = Vec::new(); // (层, wide, high, 比较格, 跳过格, 扣血格)
+        for n in 0..55i32 {
+            let maplv = raw(&format!("maplv{n}"));
+            let sp = game_data::SpriteTable::parse(&raw(&format!("sprite{n}"))).unwrap();
+            let recs: Vec<(u8, u16, u16, i16, bool)> = sp
+                .records
+                .iter()
+                .map(|r| {
+                    let (param, hide) = crate::sprite_spawn::spawn_param_and_visibility(r.type_code, &r.extra, &doors);
+                    (r.type_code, r.x, r.y, param, !hide)
+                })
+                .collect();
+            if !recs.iter().any(|r| matches!(r.0, 60..=62)) {
+                continue;
+            }
+            let load = || {
+                let mut sc =
+                    GameScene::load_floor(&maplv, 0, 0, &recs, &width_table, &walk, images(), vec![None; 56]).unwrap();
+                sc.floor = n;
+                sc.current_floor = n;
+                sc
+            };
+            let probe = load();
+            let (wide, high) = (probe.view.wide, probe.view.high);
+            let (mut cmp, mut skip, mut hurt) = (0usize, 0usize, 0usize);
+            for y in 0..high {
+                for x in 0..wide {
+                    let ct = probe.grid.cell_type[y as usize][x as usize] as usize;
+                    if probe.grid.capacity[ct] > 0 {
+                        skip += 1;
+                        continue;
+                    }
+                    for armor in [0, 40] {
+                        let mut sc = load();
+                        sc.equipped_armor = armor;
+                        let predicted = sc.trap_damage_at(x, y);
+                        sc.player.hp = 10_000;
+                        sc.view.player_px = x << 5;
+                        sc.view.player_py = y << 5;
+                        sc.apply_step_cell_effects();
+                        let damaged = sc.player.hp < 10_000;
+                        assert_eq!(predicted, damaged, "floor {n}（{wide}×{high}）装备 {armor} 格 ({x},{y})：谓词 = 原块");
+                        cmp += 1;
+                        hurt += damaged as usize;
+                    }
+                }
+            }
+            covered.push((n, wide, high, cmp, skip, hurt));
+        }
+        eprintln!("PROBE 陷阱层对拍（层, wide, high, 比较格次, 跳过实体格, 扣血格次）: {covered:?}");
+        assert_eq!(
+            covered.iter().map(|c| c.0).collect::<Vec<_>>(),
+            vec![41, 42, 43, 45, 46, 47, 48, 49],
+            "含型 60/61/62 的层须全部覆盖（复核 T3-R2：44、50–54 无陷阱）"
+        );
+        assert!(covered.iter().all(|c| c.5 > 0), "每个陷阱层至少有扣血格（防判定全假的空对拍）");
     }
 }
 

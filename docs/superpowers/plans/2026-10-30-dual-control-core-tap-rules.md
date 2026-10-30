@@ -572,7 +572,8 @@ EOF
 **Files:**
 - Modify: `crates/game-core/src/scene.rs`（在 `entity_at_cell`（约 6443 行）之后新增方法；测试追加到 `mod t2_walkto_route_tests` 末尾）
 
-背景：classic 陷阱块在 `apply_step_cell_effects`（约 5806 行起）：61 左右或上下夹击、62 邻接、60 邻接扣血；装备 40 三者全免（a.java:5555-5621，gameplay.md R-scene-4 已更正）。原式怪癖：62 / 60 右邻判界用 `view.high`；61 两侧都须在界内；60 / 62 左邻无显式判界（`entity_at_cell` 对越界返回 −1）。谓词**独立实现、无副作用**，classic 块一行不动；等价性由对拍测试证明。
+背景：classic 陷阱块在 `apply_step_cell_effects`（约 5806 行起）：61 左右或上下夹击、62 邻接、60 邻接扣血；装备 40 三者全免（a.java:5555-5621，gameplay.md R-scene-4 已更正）。原式怪癖：62 / 60 右邻判界用 `view.high`；61 两侧都须在界内；60 / 62 左邻无显式判界（`entity_at_cell` 对越界返回 −1）。
+> 【2026-10-30 更正 · 复核 T3-R3】Java 的 62 / 60 左邻**都有**显式 `x > 0`（javap 字节码 applyStepCellEffects 偏移 231–233、399–401）；只有 Rust classic 块的 62 左邻省略，靠 `cell_entity` 越界返回 −1 保持等价。另：唯一非方形层是 floor 51（12×13，无陷阱），floor 49 为 13×13。谓词**独立实现、无副作用**，classic 块一行不动；等价性由对拍测试证明。
 
 - [ ] **Step 1: 写失败测试（对拍）**
 
