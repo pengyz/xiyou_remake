@@ -155,6 +155,11 @@ const BLOCKS_PLAYER_INSERT: [bool; 13] = {
     t
 };
 
+/// 【STAGE-B-008 · spec §6】点地反馈色（modern 专用）：目标 / 选中框金、闪红红、选中闪烁的另一相位橙。
+const TAP_TARGET_RGB: u32 = 0xFFE070;
+const TAP_REJECT_RGB: u32 = 0xFF3030;
+const TAP_SELECT_ALT_RGB: u32 = 0xFF8040;
+
 /// 对白数据集（构造期从夹具装载；game-core 无 I/O——include_str 编译期）。
 /// miscTexts（a.java:438-445 初始化器逐字）：[0-3]=changeFloor 提示浮层，
 /// [4-7]=序章卷轴文本（[5]=装备丢弃提示）。
@@ -6697,6 +6702,7 @@ impl GameScene {
         let tile_off = self.layout.view_top_y + self.advance_open_group_paint();
         self.view.paint_tiles(g, tileset, tile_off);
         self.paint_entities(g, self.view.cam_x, self.view.cam_y + self.layout.view_top_y);
+        self.paint_tap_markers(g, self.view.cam_x, self.view.cam_y + self.layout.view_top_y); // 【STAGE-B-008】
         // 小地图（optionChecked[1] && minimapImage）：右上角，玩家点
         if self.minimap_enabled {
             if let Some(mm) = &self.minimap {
@@ -6929,6 +6935,48 @@ impl GameScene {
     /// `sheet_index.assembly_profiles.seg67` 表中表（9 片件 xywh + 3×5 段帧）——
     /// 查表入口 `resource_cfg::ResourceCfg::seg67`；绘制臂消费见 paint_entities
     /// 型 67 分支（tests/sheet_index_table_driven.rs::task7_seg67_follows_table 对账）。
+
+    /// 【STAGE-B-008 · spec §6】点地反馈层：目标框（金）、闪红（红框 + 叉）、选中怪物（闪烁框；持火眼金睛（13）旁标预计掉血，
+    /// 与观察模式战后数字条同源同位（a.java:6617-6638：通用怪先 −ENTITY_LIFT、69/67 分支不抬；标记为静态位、无波动相位）。
+    /// 层级 = 实体层之上、HUD / 浮层之下。classic 零绘制 op。
+    fn paint_tap_markers(&self, g: &mut SoftGraphics<'_>, cam_x: i32, cam_y: i32) {
+        if self.layout.preset != crate::layout::Preset::Modern {
+            return;
+        }
+        fn frame(g: &mut SoftGraphics<'_>, x: i32, y: i32, w: i32) {
+            g.draw_rect(x, y, w, 32);
+            g.draw_rect(x + 1, y + 1, w - 2, 30);
+        }
+        if let Some((x, y)) = self.tap_target {
+            g.set_color(TAP_TARGET_RGB);
+            frame(g, cam_x + (x << 5), cam_y + (y << 5), 32);
+        }
+        if let Some(((x, y), until)) = self.tap_reject {
+            if self.frame_counter < until {
+                let (sx, sy) = (cam_x + (x << 5), cam_y + (y << 5));
+                g.set_color(TAP_REJECT_RGB);
+                frame(g, sx, sy, 32);
+                g.draw_line(sx + 8, sy + 8, sx + 23, sy + 23);
+                g.draw_line(sx + 23, sy + 8, sx + 8, sy + 23);
+            }
+        }
+        if let Some(s) = self.tap_selected {
+            let w = entity::width_cells(s.type_, &self.width_table) << 5;
+            let (sx, sy) = (cam_x + (s.cell.0 << 5), cam_y + (s.cell.1 << 5));
+            g.set_color(if (self.frame_counter >> 1) & 1 == 0 { TAP_TARGET_RGB } else { TAP_SELECT_ALT_RGB });
+            frame(g, sx, sy, w);
+            if self.player.find_item(13) >= 0 {
+                // 与观察模式数字条同基位：通用怪先 −ENTITY_LIFT（a.java:6613 var10 −= 4），69/67 不抬（复核 T8-R1）
+                let lift = if s.type_ != 69 && s.type_ != 67 { ENTITY_LIFT } else { 0 };
+                let digit = self.predict_hp_loss(s.type_, true);
+                if digit >= 0 {
+                    crate::popup::draw_digit_strip(g, &self.images.battle_strip, digit, sx + 30, sy - lift - 17);
+                } else {
+                    draw_image_clipped(g, &self.images.battle_strip, sx + 14, sy - lift - 17, 70, 0, 7, 9);
+                }
+            }
+        }
+    }
 
     pub fn paint_entities(&mut self, g: &mut SoftGraphics<'_>, cam_x: i32, cam_y: i32) {
         entity::advance_bob(&mut self.bob_offset, &mut self.bob_rising);
@@ -7545,6 +7593,7 @@ impl GameScene {
         let tile_off = self.layout.view_top_y + self.advance_open_group_paint();
         self.view.paint_tiles(g, tileset, tile_off);
         self.paint_entities(g, self.view.cam_x, self.view.cam_y + self.layout.view_top_y);
+        self.paint_tap_markers(g, self.view.cam_x, self.view.cam_y + self.layout.view_top_y); // 【STAGE-B-008】
         self.popups.draw(g, &self.images.popup);
         self.paint_status_bar(g);
         let show_box = self.overlay_text.is_some() && !self.overlay_active && self.dialog_phase != 4;
@@ -13593,6 +13642,101 @@ mod t2_walkto_route_tests {
         settle(&mut sc, fc, 200);
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (6, ROW), "探步落 (6,ROW) 即停，不再执行旧排队");
         assert!(sc.tap_pending.is_none() && sc.tap_target.is_none());
+    }
+
+    // ------- Task 8：点地反馈绘制（spec §6，modern 专用、classic 零 op） -------
+
+    fn marker_ops(sc: &GameScene) -> Vec<String> {
+        let mut img = crate::render::ArgbImage::create(sc.layout.screen_w, sc.layout.screen_h);
+        let mut g = crate::render::SoftGraphics::new(&mut img);
+        sc.paint_tap_markers(&mut g, sc.view.cam_x, sc.view.cam_y + sc.layout.view_top_y);
+        g.ops.clone()
+    }
+
+    fn full_frame_ops(sc: &mut GameScene) -> Vec<String> {
+        let mut img = crate::render::ArgbImage::create(sc.layout.screen_w, sc.layout.screen_h);
+        let mut g = crate::render::SoftGraphics::new(&mut img);
+        sc.paint(&mut g, &crate::render::ArgbImage::create(2, 2));
+        g.ops.clone()
+    }
+
+    fn put_markers(sc: &mut GameScene) {
+        let e = (0..sc.entities.count).find(|&i| sc.entities.items[i].type_ == 41).unwrap();
+        sc.tap_target = Some((5, ROW));
+        sc.tap_reject = Some(((4, ROW), sc.frame_counter + crate::tap_walk::TAP_REJECT_TICKS));
+        sc.tap_selected = Some(crate::tap_walk::SelectedEnemy { entity: e, type_: 41, cell: (8, ROW), floor: sc.current_floor });
+    }
+
+    /// 【STAGE-B-008 · spec §6】classic：反馈层零 op，整帧 op 流与无点地状态时逐条相同。
+    #[test]
+    fn t8_markers_classic_zero_ops() {
+        let mut a = scene((2, ROW), &[(41, 8, ROW)]);
+        let mut b = scene((2, ROW), &[(41, 8, ROW)]);
+        put_markers(&mut a);
+        assert!(marker_ops(&a).is_empty(), "classic 反馈层零 op");
+        assert_eq!(full_frame_ops(&mut a), full_frame_ops(&mut b), "classic 整帧 op 流不变");
+    }
+
+    /// modern：目标金框 / 闪红红框加叉（到期即不画）/ 选中闪烁框；火眼金睛才画预计掉血（弱 = "无法战胜"字形、
+    /// 强 = 数字条，与观察模式同位：通用怪先 −ENTITY_LIFT(4) ⇒ y = 格顶 − 21）；多格怪 69 框宽 96；整帧里确有反馈层。
+    #[test]
+    fn t8_markers_modern_draw_target_reject_and_selection() {
+        let mut sc = scene((2, ROW), &[(41, 8, ROW)]);
+        sc.apply_layout(crate::layout::Layout::modern(13, 13));
+        put_markers(&mut sc);
+        let (ox, oy) = (sc.view.cam_x, sc.view.cam_y + sc.layout.view_top_y);
+        let ops = marker_ops(&sc);
+        assert!(ops.contains(&format!("drawRect({},{},32,32,#ffe070)", ox + 5 * 32, oy + ROW * 32)), "目标金框：{ops:?}");
+        assert!(ops.iter().any(|o| o.contains("#ff3030")), "闪红");
+        assert!(ops.iter().any(|o| o.starts_with(&format!("drawRect({},{},32,32,", ox + 8 * 32, oy + ROW * 32))), "选中框");
+        sc.frame_counter += crate::tap_walk::TAP_REJECT_TICKS;
+        assert!(!marker_ops(&sc).iter().any(|o| o.contains("#ff3030")), "闪红到期不画");
+        let without = marker_ops(&sc).len();
+        sc.player.item_types[0] = 13;
+        sc.player.item_uses[0] = 1;
+        sc.player.item_stack_size = 1;
+        let ops = marker_ops(&sc);
+        assert!(ops.len() > without, "持火眼金睛：多画预计掉血");
+        let (m41x, m41y) = (ox + 8 * 32, oy + ROW * 32);
+        assert!(
+            ops.contains(&format!("setClip({},{},7,9)", m41x + 14, m41y - 21)),
+            "弱方 = 无法战胜字形（观察模式同位：−ENTITY_LIFT−17）：{ops:?}"
+        );
+        sc.player.atk = 100_000;
+        sc.player.def = 100_000;
+        sc.player.hp = 100_000;
+        let ops = marker_ops(&sc);
+        assert!(!ops.iter().any(|o| o.ends_with(",7,9)")), "强方无字形：{ops:?}");
+        assert!(
+            ops.iter().any(|o| o.starts_with("setClip(") && o.ends_with(",2,24)")),
+            "强方 = 数字条（夹具条 24×24 ⇒ 数位宽 2、高 24）：{ops:?}"
+        );
+        assert!(full_frame_ops(&mut sc).iter().any(|o| o.contains("#ffe070")), "整帧含反馈层");
+    }
+
+    /// 【T8 复核 R2】多格怪 69（宽 3 格）：选中框按实体宽 96 画；69 分支不抬 ⇒ 数字条 y = 格顶 − 17。
+    #[test]
+    fn t8_markers_multi_cell_monster_frame_and_no_lift() {
+        let mut sc = scene((2, ROW), &[(69, 7, ROW)]);
+        sc.apply_layout(crate::layout::Layout::modern(13, 13));
+        let e = (0..sc.entities.count).find(|&i| sc.entities.items[i].type_ == 69).unwrap();
+        sc.player.item_types[0] = 13;
+        sc.player.item_uses[0] = 1;
+        sc.player.item_stack_size = 1;
+        sc.player.atk = 100_000;
+        sc.player.def = 100_000;
+        sc.player.hp = 100_000;
+        sc.tap_selected = Some(crate::tap_walk::SelectedEnemy { entity: e, type_: 69, cell: (7, ROW), floor: sc.current_floor });
+        let (ox, oy) = (sc.view.cam_x, sc.view.cam_y + sc.layout.view_top_y);
+        let ops = marker_ops(&sc);
+        assert!(
+            ops.iter().any(|o| o.starts_with(&format!("drawRect({},{},96,32,", ox + 7 * 32, oy + ROW * 32))),
+            "69 三格宽选中框：{ops:?}"
+        );
+        assert!(
+            ops.iter().any(|o| o.starts_with("setClip(") && o.contains(&format!(",{},2,24)", oy + ROW * 32 - 17))),
+            "69 不抬 ⇒ 数字条 y = 格顶 − 17：{ops:?}"
+        );
     }
 }
 
