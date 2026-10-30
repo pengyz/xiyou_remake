@@ -312,11 +312,13 @@ pub fn resolve_title_gestures(
 /// 【进游戏】场景键重放（win 壳 route_key 同口径）：Press = 打断寻路 + press_key
 /// （keyValue=keyHeld=code 覆盖式，a.java:4663-4676）；Release = release_key（只清
 /// keyHeld，a.java:4678）。按事件到达序逐个重放（同批点按：keyValue 留给下一拍）。
+/// 【STAGE-B-008 · 复核 T5-R1】打断用 interrupt_route_for_input：浮层开着时按键属浮层
+///（关框 / 翻页），不打断点地路线——路线途经拾取物弹框，关框后继续走向目标。
 pub fn replay_scene_keys(sc: &mut game_core::scene::GameScene, batch: &[KeyAction]) {
     for a in batch {
         match *a {
             KeyAction::Press(c) => {
-                sc.interrupt_route();
+                sc.interrupt_route_for_input();
                 sc.press_key(c);
             }
             KeyAction::Release => sc.release_key(),
@@ -325,58 +327,42 @@ pub fn replay_scene_keys(sc: &mut game_core::scene::GameScene, batch: &[KeyActio
 }
 
 /// 【进游戏】场景点按（逻辑坐标；win 壳 pointer_tap/pointer_click 同口径）：
-/// - 场上空闲（[`GameScene::field_tap_allowed`]，BUG-038）：触点→格（T3 classify_tap：撤销钮 >
-///   点墙探步入 > 点地 walk_to）→ 就地执行，返回 None；
+/// - 场上收点地（[`GameScene::accepts_field_tap`]：地图态或点地寻路中，无浮层 / 遮幅）：
+///   触点 → 撤销钮 / 格 → core `tap_cell`（走 / 停靠 / 撞 / 选中 / 排队 / 闪红，STAGE-B-008），
+///   返回 None；
 /// - 其余：pointer_hit 行命中 → 选行并返回该态确认键（调用方按普通点按投递）；未命中 = 点空白，
 ///   返回 [`GameScene::blank_tap_key`]（BUG-039：只有继续 / 关闭类情境代按 -5）。
 pub fn scene_tap(sc: &mut game_core::scene::GameScene, x: i32, y: i32) -> Option<i32> {
-    use game_shell_common::touch::{classify_tap, Dispatcher, ShellAction, TouchGeom};
-    if sc.field_tap_allowed() {
-        let actions = {
-            let geom = TouchGeom {
-                cam_x: sc.view.cam_x,
-                cam_y: sc.view.cam_y,
-                tile_off: sc.layout.view_top_y,
-                cols: sc.view.wide,
-                rows: sc.view.high,
-            };
-            let walkable = |cx: i32, cy: i32| {
-                sc.walkable
-                    .get(cy as usize)
-                    .and_then(|r| r.get(cx as usize))
-                    .copied()
-                    .unwrap_or(false)
-            };
-            let player = (sc.player_cell_x, sc.player_cell_y);
-            let act = classify_tap(x, y, &geom, sc.layout.screen_w, sc.layout.screen_h, player, walkable);
-            log_input(&format!(
-                "field tap ({x},{y}) cam=({},{}) cell={:?} player={player:?} → {act:?}",
-                geom.cam_x,
-                geom.cam_y,
-                geom.cell_at(x, y)
-            ));
-            Dispatcher::tap(act)
+    use game_shell_common::touch::{tap_target, Dispatcher, ShellAction, TouchGeom};
+    if sc.accepts_field_tap() {
+        let geom = TouchGeom {
+            cam_x: sc.view.cam_x,
+            cam_y: sc.view.cam_y,
+            tile_off: sc.layout.view_top_y,
+            cols: sc.view.wide,
+            rows: sc.view.high,
         };
-        for a in actions {
+        let t = tap_target(x, y, &geom, sc.layout.screen_w, sc.layout.screen_h);
+        for a in Dispatcher::tap(t) {
             match a {
-                ShellAction::Interrupt => sc.interrupt_route(),
-                ShellAction::WalkTo((tx, ty)) => {
-                    let plan = sc.walk_to(tx, ty);
+                ShellAction::TapCell((cx, cy)) => {
+                    let r = sc.tap_cell(cx, cy);
                     log_input(&format!(
-                        "walk_to({tx},{ty}) steps={} dock={:?} reached={} probe={}",
-                        plan.steps.len(),
-                        plan.dock,
-                        plan.reached,
-                        plan.probe.is_some()
+                        "field tap ({x},{y}) cam=({},{}) cell=({cx},{cy}) player=({},{}) → {r:?}",
+                        geom.cam_x,
+                        geom.cam_y,
+                        sc.player_cell_x,
+                        sc.player_cell_y
                     ));
                 }
-                ShellAction::ProbeStep(d) => {
-                    let _ = sc.probe_step(d);
-                }
                 ShellAction::Undo => {
-                    let _ = game_shell_common::undo_ui::undo_last(sc);
+                    // BUG-038：只在 field_tap_allowed 时撤销。dp3 步进期恒拒（不打断寻路）；
+                    // 被挡步边界拍（Dialog∧wp0∧route 开）会放行撤销——既有行为，后果良性（复核 T10-12 R2）。
+                    if sc.field_tap_allowed() {
+                        let _ = game_shell_common::undo_ui::undo_last(sc);
+                    }
                 }
-                ShellAction::Key(_) | ShellAction::KeyRelease => {}
+                ShellAction::Interrupt | ShellAction::Swipe(_) | ShellAction::Key(_) | ShellAction::KeyRelease => {}
             }
         }
         return None;

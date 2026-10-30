@@ -324,17 +324,20 @@ fn title_fill_rect_covers_canvas() {
 }
 
 #[test]
-fn tap_chain_buf_to_walk_to() {
-    // 【问题2d】全链：buf 坐标→map_touch_xy→classify_tap→WalkTo(tile)
+fn tap_chain_buf_to_cell() {
+    // 【问题2d】全链：buf 坐标→map_touch_xy→tap_target→Cell(tile)（STAGE-B-008：壳只报格，语义在 core tap_cell）
     use game_android::native::map_touch_xy;
-    use game_shell_common::touch::{classify_tap, TapAction, TouchGeom};
+    use game_shell_common::touch::{tap_target, TapTarget, TouchGeom};
     let geom = TouchGeom { cam_x: 0, cam_y: 0, tile_off: 0, cols: 20, rows: 20 };
     // 2670×1200 B 档：点游戏方框内 (1335,600)（原实机"开始游戏"带）→ 逻辑格
     let (lx, ly) = map_touch_xy(1335.0, 600.0, 2670, 1200, 18, 2);
     assert!((0.0..576.0).contains(&lx) && (0.0..576.0).contains(&ly), "落画布内（2b 修后）");
-    let act = classify_tap(lx as i32, ly as i32, &geom, 576, 576, (0, 0), |_, _| true);
-    // 【2026-10-28 更正 · BUG-042】格 = 32 px（游戏格网；原 /16 把瓦片层子瓦片当格）
-    assert_eq!(act, TapAction::WalkTo(((lx as i32) / 32, (ly as i32) / 32)), "点格→WalkTo 全链");
+    // 格 = 32 px（游戏格网；BUG-042 更正后口径不变）
+    assert_eq!(
+        tap_target(lx as i32, ly as i32, &geom, 576, 576),
+        TapTarget::Cell((lx as i32) / 32, (ly as i32) / 32),
+        "点格→格全链"
+    );
 }
 
 #[test]
@@ -648,7 +651,7 @@ fn physical_canvas_present_rect_matches_logical_scale() {
 // 实机根因：Android 壳只有 BootMachine，读条完 mode=Map 无人接管 ⇒ tick_mode0 回落
 // 标题（设备 BGM 3→2 实录）。交接走 game_shell_common::handoff（win 壳同源）；场景
 // 键语义=press_key/release_key 逐个重放（keyPressed 覆盖式 + keyReleased 只清 held），
-// 点按=Map 态 classify_tap→walk_to/探步/撤销、UI 态 pointer_hit→选行+该态确认键。
+// 点按=场上收点地→core tap_cell（走/停靠/撞/选中/排队）、UI 态 pointer_hit→选行+该态确认键。
 
 fn repo_raw() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/raw")

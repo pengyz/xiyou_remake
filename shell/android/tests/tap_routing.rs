@@ -11,7 +11,8 @@ use game_android::runtime::{build_boot_machine, Runtime};
 use game_core::enums::GameMode;
 use game_core::layout::Layout;
 use game_core::render::ArgbImage;
-use game_shell_common::touch::{classify_tap, TapAction, TouchGeom};
+use game_core::tap_walk::{TapPlan, TargetKind};
+use game_shell_common::touch::TouchGeom;
 
 fn tap(code: i32) -> Vec<KeyAction> {
     vec![KeyAction::Press(code), KeyAction::Release]
@@ -97,7 +98,8 @@ fn to_map(tag: &str) -> H {
     h
 }
 
-/// 用 scene_tap 同一几何找一个"点地寻路"点和一个"探步"点（逻辑坐标）。
+/// 用 core 格分类找一个"点地寻路"点（可达 Floor）和一个"探步/撞"点（Wall），逻辑坐标（STAGE-B-008：
+/// 格语义全在 core tap_grid，壳只报格）。
 fn field_points(h: &H) -> ((f32, f32), (f32, f32)) {
     let sc = h.sc();
     let geom = TouchGeom {
@@ -107,18 +109,23 @@ fn field_points(h: &H) -> ((f32, f32), (f32, f32)) {
         cols: sc.view.wide,
         rows: sc.view.high,
     };
-    let walkable = |cx: i32, cy: i32| sc.walkable.get(cy as usize).and_then(|r| r.get(cx as usize)).copied().unwrap_or(false);
+    let grid = sc.tap_grid();
+    let me = (sc.player_cell_x, sc.player_cell_y);
     let (mut walk, mut probe) = (None, None);
     for y in (40..sc.layout.screen_h - 40).step_by(8) {
         for x in (8..sc.layout.screen_w - 8).step_by(8) {
-            match classify_tap(x, y, &geom, sc.layout.screen_w, sc.layout.screen_h, (sc.player_cell_x, sc.player_cell_y), &walkable) {
-                TapAction::WalkTo(_) if walk.is_none() => walk = Some((x as f32, y as f32)),
-                TapAction::ProbeStep(_) if probe.is_none() => probe = Some((x as f32, y as f32)),
+            let Some(c) = geom.cell_at(x, y) else { continue };
+            if c == me {
+                continue;
+            }
+            match grid.get(c.0, c.1).map(|k| k.kind) {
+                Some(TargetKind::Floor) if walk.is_none() => walk = Some((x as f32, y as f32)),
+                Some(TargetKind::Wall) if probe.is_none() => probe = Some((x as f32, y as f32)),
                 _ => {}
             }
         }
     }
-    (walk.expect("有可走格"), probe.expect("有墙格"))
+    (walk.expect("有地面格"), probe.expect("有墙格"))
 }
 
 /// 地图上置一个提示框（kind 0，无脚注图标）。
@@ -147,11 +154,13 @@ fn tap_walk_case(tag: &str, cam: Option<(i32, i32)>) {
     let (px, py) = (h.sc().player_cell_x, h.sc().player_cell_y);
     let targets: Vec<(i32, i32)> = {
         let sc = h.sc();
+        let grid = sc.tap_grid(); // 【STAGE-B-008】前提含"非陷阱危险格"（BFS 途中须避让）
         let in_map = |x: i32, y: i32| x >= 0 && y >= 0 && x < sc.view.wide && y < sc.view.high;
         let free = |x: i32, y: i32| {
             in_map(x, y)
                 && sc.walkable[y as usize][x as usize]
                 && sc.grid.capacity[sc.grid.cell_type[y as usize][x as usize] as usize] == 0
+                && !grid.get(x, y).map_or(false, |c| c.danger)
         };
         let on_screen = |x: i32, y: i32| {
             let (sx, sy) = (sc.view.cam_x + (x << 5), sc.view.cam_y + sc.layout.view_top_y + (y << 5));
@@ -197,20 +206,29 @@ fn tap_walk_case(tag: &str, cam: Option<(i32, i32)>) {
 }
 
 /// 【BUG-043】用户实机："教程关中有绘制路径箭头的情况，当箭头存在时，用触屏移动会导致箭头错位，用虚拟摇杆移动不会"。
-/// 序章首图：箭头自出生格起 ↑→→。点箭头上的第 2 格：逐拍画出的箭头都须是原箭头路线的尾段（旧：改画寻路路线、以玩家为起点
-/// ⇒ 错位），走到后余下箭头 = 用方向键走到同一格时的余下箭头。
+/// 序章首图：箭头自出生格起 ↑→→。点箭头上的第 2 格（点地路线现由 core BFS 给出，可能与箭头路线不同——spec §5.4）：
+/// 逐拍画出的箭头都须是**原箭头路线**的尾段；参照局 = 用方向键沿**点地实际走的路线**逐格走到同一格
+///（期望 = 经典按键链独立产生），走到后余下箭头 = 点地局。
 #[test]
 fn tutorial_arrows_stay_on_their_path_during_tap_walk() {
     let mut h = to_map("bug043");
     let original = h.sc().path_arrow_cells();
     assert!(original.len() >= 3, "前置：序章首图有路径箭头（实得 {original:?}）");
     let target = original[1];
+    // 点地路线（被测输入）：点按前独立取 plan_tap 步序（目标端优先、自末端消费 ⇒ 第一步 = steps[len-1]）
+    let steps: Vec<u8> = {
+        let sc = h.sc();
+        let plan = game_core::tap_walk::plan_tap(&sc.tap_grid(), (sc.player_cell_x, sc.player_cell_y), target);
+        let TapPlan::Walk { steps, .. } = plan else { panic!("箭头格应为可达地面：{plan:?}") };
+        steps
+    };
     let (sx, sy) = {
         let sc = h.sc();
         (sc.view.cam_x + (target.0 << 5) + 16, sc.view.cam_y + sc.layout.view_top_y + (target.1 << 5) + 16)
     };
     h.step(vec![], vec![(sx as f32, sy as f32)]);
     assert!(h.sc().route.is_open(), "点箭头格 {target:?} = 开寻路");
+    assert_eq!(&h.sc().walk_path_buffer[..], &steps[..], "点按后缓冲 = plan_tap 步序（count 为剩余游标，同一拍可能已消费首步）");
     for t in 0..160 {
         let cells = h.sc().path_arrow_cells();
         assert!(original.ends_with(&cells), "第 {t} 拍箭头 {cells:?} 偏离原路线 {original:?}");
@@ -220,15 +238,20 @@ fn tutorial_arrows_stay_on_their_path_during_tap_walk() {
         h.step(vec![], vec![]);
     }
     assert_eq!((h.sc().player_cell_x, h.sc().player_cell_y), target, "走到点中格");
-    // 参照：另起一局，用方向键（面板同键码）逐格沿箭头走到同一格
+    // 参照：另起一局，用方向键（面板同键码）沿同一路线逐格走到同一格
     let mut k = to_map("bug043key");
-    for &cell in &original[..2] {
+    for &d in steps.iter().rev() {
+        let code = match d {
+            0 => -2,
+            1 => -1,
+            2 => -4,
+            _ => -3,
+        };
         let from = (k.sc().player_cell_x, k.sc().player_cell_y);
-        let code = if cell.1 > from.1 { -2 } else if cell.1 < from.1 { -1 } else if cell.0 > from.0 { -4 } else { -3 };
         k.step(vec![KeyAction::Press(code)], vec![]);
         k.step(vec![KeyAction::Release], vec![]);
         for _ in 0..40 {
-            if (k.sc().player_cell_x, k.sc().player_cell_y) == cell && k.sc().walk_phase == 0 {
+            if (k.sc().player_cell_x, k.sc().player_cell_y) != from && k.sc().walk_phase == 0 {
                 break;
             }
             k.step(vec![], vec![]);
@@ -238,7 +261,7 @@ fn tutorial_arrows_stay_on_their_path_during_tap_walk() {
         k.step(vec![], vec![]);
         h.step(vec![], vec![]);
     }
-    assert_eq!((k.sc().player_cell_x, k.sc().player_cell_y), target, "参照：方向键走到同一格");
+    assert_eq!((k.sc().player_cell_x, k.sc().player_cell_y), target, "参照：方向键沿点地路线走到同一格");
     assert_eq!(h.sc().path_arrow_cells(), k.sc().path_arrow_cells(), "余下箭头：点地 = 方向键");
     assert_eq!(h.sc().path_arrows_visible, k.sc().path_arrows_visible);
 }
@@ -364,4 +387,288 @@ fn save_page_blank_tap_does_not_overwrite_slot() {
     h.step(vec![], vec![]);
     assert!(!h.rt.stores.iter().any(|(k, _)| k == "MOT_L0@1"), "点空白不写存档");
     assert!(!h.sc().overlay_active, "未弹\"保存成功！\"");
+}
+
+// ───────────────────────── STAGE-B-008：core 点地规则（tap_cell / tap_grid）真资产钉
+
+/// 独立 BFS（只走地形可走格，不经被测代码）：自玩家格的可达集。
+fn terrain_reach(sc: &game_core::scene::GameScene) -> std::collections::HashSet<(i32, i32)> {
+    let me = (sc.player_cell_x, sc.player_cell_y);
+    let mut seen = std::collections::HashSet::from([me]);
+    let mut q = std::collections::VecDeque::from([me]);
+    while let Some((x, y)) = q.pop_front() {
+        for n in [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)] {
+            let inside = n.0 >= 0 && n.1 >= 0 && n.0 < sc.view.wide && n.1 < sc.view.high;
+            if inside && sc.walkable[n.1 as usize][n.0 as usize] && seen.insert(n) {
+                q.push_back(n);
+            }
+        }
+    }
+    seen
+}
+
+/// 【STAGE-B-008 · spec §0 隐藏通路】54 层：(4,2) 只能经未显形的隐形路径到达——点它不得走到、隐形路径不得显形。
+#[test]
+fn tap_does_not_leak_hidden_path_floor54() {
+    let mut h = to_map("hidden54");
+    h.sc_mut().change_floor(54, false, false);
+    for _ in 0..60 {
+        h.step(vec![], vec![]);
+    }
+    let target = (4, 2);
+    // 前置（独立 BFS，不经被测代码）：只走地形可走格不可达；把隐形路径格算作可走则可达
+    let (no_hidden, with_hidden) = {
+        let sc = h.sc();
+        let hidden: std::collections::HashSet<(i32, i32)> = sc.entities.items[..sc.entities.count]
+            .iter()
+            .filter(|e| e.type_ == 6 && !e.removed && !e.visible)
+            .map(|e| (e.px >> 5, e.py >> 5))
+            .collect();
+        let reach = |with: bool| {
+            let me = (sc.player_cell_x, sc.player_cell_y);
+            let mut seen = std::collections::HashSet::from([me]);
+            let mut q = std::collections::VecDeque::from([me]);
+            while let Some((x, y)) = q.pop_front() {
+                for n in [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)] {
+                    let inside = n.0 >= 0 && n.1 >= 0 && n.0 < sc.view.wide && n.1 < sc.view.high;
+                    if inside && (sc.walkable[n.1 as usize][n.0 as usize] || (with && hidden.contains(&n))) && seen.insert(n) {
+                        q.push_back(n);
+                    }
+                }
+            }
+            seen.contains(&target)
+        };
+        (reach(false), reach(true))
+    };
+    assert!(!no_hidden && with_hidden, "前置：(4,2) 只经隐形路径可达（实得 {no_hidden}/{with_hidden}）");
+    let (sx, sy) = { let sc = h.sc(); (sc.view.cam_x + (target.0 << 5) + 16, sc.view.cam_y + sc.layout.view_top_y + (target.1 << 5) + 16) };
+    h.step(vec![], vec![(sx as f32, sy as f32)]);
+    for _ in 0..200 {
+        h.step(vec![], vec![]);
+    }
+    let sc = h.sc();
+    assert_ne!((sc.player_cell_x, sc.player_cell_y), target, "不得走到");
+    assert!(sc.entities.items[..sc.entities.count].iter().filter(|e| e.type_ == 6 && !e.removed).all(|e| !e.visible), "隐形路径不显形");
+}
+
+/// 23 层：隐形墙（型 12，看起来是地面）——点它：路线照常走过去，撞上即显形并停在墙前，玩家从不站上隐形墙格（与方向键同效）。
+#[test]
+fn tap_into_hidden_wall_reveals_and_blocks_floor23() {
+    let mut h = to_map("hidden23");
+    h.sc_mut().change_floor(23, false, false);
+    for _ in 0..60 {
+        h.step(vec![], vec![]);
+    }
+    // 目标 = 首个经地形可走格（独立 BFS）可达、在屏的未显形型 12 格
+    let (target, e12) = {
+        let sc = h.sc();
+        let reach = terrain_reach(sc);
+        let on_screen = |x: i32, y: i32| {
+            let (sx, sy) = (sc.view.cam_x + (x << 5), sc.view.cam_y + sc.layout.view_top_y + (y << 5));
+            sx >= 0 && sy >= sc.layout.view_top_y && sx + 32 <= sc.layout.screen_w && sy + 32 <= sc.layout.view_top_y + sc.view.view_h
+        };
+        let found = (0..sc.entities.count)
+            .map(|i| (i, &sc.entities.items[i]))
+            .find(|(_, e)| e.type_ == 12 && !e.visible && !e.removed && reach.contains(&(e.px >> 5, e.py >> 5)) && on_screen(e.px >> 5, e.py >> 5))
+            .expect("有可达在屏的未显形隐形墙");
+        (((found.1.px >> 5, found.1.py >> 5)), found.0)
+    };
+    let walls12: Vec<(i32, i32)> = { let sc = h.sc(); sc.entities.items[..sc.entities.count].iter().filter(|e| e.type_ == 12 && !e.removed).map(|e| (e.px >> 5, e.py >> 5)).collect() };
+    let (sx, sy) = { let sc = h.sc(); (sc.view.cam_x + (target.0 << 5) + 16, sc.view.cam_y + sc.layout.view_top_y + (target.1 << 5) + 16) };
+    h.step(vec![], vec![(sx as f32, sy as f32)]);
+    for _ in 0..240 {
+        h.step(vec![], vec![]);
+        let me = (h.sc().player_cell_x, h.sc().player_cell_y);
+        assert!(!walls12.contains(&me), "玩家站上隐形墙格 {me:?}");
+    }
+    assert!(h.sc().entities.items[e12].visible, "撞上的隐形墙显形");
+    assert_ne!((h.sc().player_cell_x, h.sc().player_cell_y), target);
+}
+
+/// 寻路中再点：排队改道（生产路径 scene_tap → tap_cell）。
+#[test]
+fn tap_during_walk_reroutes() {
+    let mut h = to_map("queue");
+    // 教程层（floor 1）带脚本剧情：打断排空后 dp 机被剧情接管（dp1 等键），排队按 spec"剧情接管 ⇒ 丢弃"
+    // 属正确行为——本用例钉"排队改道"本身，换无剧情层。
+    h.sc_mut().change_floor(5, false, false);
+    for _ in 0..60 {
+        h.step(vec![], vec![]);
+    }
+    let spawn = { let sc = h.sc(); (sc.player_cell_x, sc.player_cell_y) };
+    // 可达在屏空格表（tap_walk_case 同式：地形可走、无实体槽、非危险）
+    let cells: Vec<(i32, i32)> = {
+        let sc = h.sc();
+        let grid = sc.tap_grid();
+        let reach = terrain_reach(sc);
+        let on_screen = |x: i32, y: i32| {
+            let (sx, sy) = (sc.view.cam_x + (x << 5), sc.view.cam_y + sc.layout.view_top_y + (y << 5));
+            sx >= 0 && sy >= sc.layout.view_top_y && sx + 32 <= sc.layout.screen_w && sy + 32 <= sc.layout.view_top_y + sc.view.view_h
+        };
+        reach.into_iter()
+            .filter(|&(x, y)| {
+                on_screen(x, y)
+                    && sc.grid.capacity[sc.grid.cell_type[y as usize][x as usize] as usize] == 0
+                    && !grid.get(x, y).map_or(false, |c| c.danger)
+            })
+            .collect()
+    };
+    assert!(cells.len() >= 3, "前置：可达在屏空格 ≥3");
+    let a = *cells.iter().max_by_key(|&&c| (c.0 - spawn.0).abs() + (c.1 - spawn.1).abs()).unwrap();
+    let b = *cells
+        .iter()
+        .filter(|&&c| c != spawn)
+        .max_by_key(|&&c| (c.0 - a.0).abs() + (c.1 - a.1).abs())
+        .unwrap();
+    let tap_cell_at = |h: &mut H, c: (i32, i32)| {
+        let (sx, sy) = { let sc = h.sc(); (sc.view.cam_x + (c.0 << 5) + 16, sc.view.cam_y + sc.layout.view_top_y + (c.1 << 5) + 16) };
+        h.step(vec![], vec![(sx as f32, sy as f32)]);
+    };
+    tap_cell_at(&mut h, a);
+    for _ in 0..120 {
+        let sc = h.sc();
+        let at = (sc.player_cell_x, sc.player_cell_y);
+        // 等到玩家既离开出生格、也不在 b 格上（点自己 = 停下，不是排队），且无浮层
+        if sc.game_mode == GameMode::Dialog && at != spawn && at != b && !sc.overlay_active {
+            break;
+        }
+        h.step(vec![], vec![]);
+    }
+    {
+        let sc = h.sc();
+        assert_eq!(sc.game_mode, GameMode::Dialog, "前置：寻路中");
+        assert_ne!((sc.player_cell_x, sc.player_cell_y), spawn, "前置：已离开出生格");
+        assert_ne!((sc.player_cell_x, sc.player_cell_y), b, "前置：不在 b 格上");
+    }
+    tap_cell_at(&mut h, b);
+    assert_eq!(h.sc().tap_target, Some(b), "第二点 = 排队：目标标记立即换到 b");
+    for _ in 0..300 {
+        // 排空落格与排队执行之间有一拍间隙（Map wp0、路线已收、标记未清）：以标记清除为"全部收尾"判据
+        if h.sc().game_mode == GameMode::Map && h.sc().walk_phase == 0 && !h.sc().route.is_open() && h.sc().tap_target.is_none() {
+            break;
+        }
+        // 途中拾取提示浮层：按生产口径投 -5 关框（关框键属浮层，不清排队），关框后照常改道
+        if h.sc().overlay_active && h.sc().game_mode == GameMode::Map {
+            h.step(tap(-5), vec![]);
+            h.step(vec![KeyAction::Release], vec![]);
+            continue;
+        }
+        h.step(vec![], vec![]);
+    }
+    assert_eq!((h.sc().player_cell_x, h.sc().player_cell_y), b, "改道到第二次点中的格");
+    assert_eq!(h.sc().tap_target, None, "收尾后无残留标记");
+}
+
+/// 战斗中点画面：不代按、不打断战斗，闪红（scene_tap 直调；战斗态由场景字段构造，不跑 tick）。
+#[test]
+fn tap_during_battle_is_rejected_without_key() {
+    let mut h = to_map("battle");
+    let (walk, _) = field_points(&h);
+    let sc = h.sc_mut();
+    sc.walk_phase = 5;
+    let key = game_android::native::scene_tap(sc, walk.0 as i32, walk.1 as i32);
+    assert_eq!(key, None, "不代按");
+    assert_eq!(sc.walk_phase, 5, "战斗不被打断");
+    assert!(sc.tap_reject.is_some(), "闪红");
+}
+
+/// 【计划 2 T11 执行期补充 · 复核 T10-12 R1】点地路线途经特殊拾取物弹框：经**生产路径**（Runtime::step 投 −5
+/// → replay_scene_keys 的 interrupt_route_for_input 浮层期零操作 + press_key 关框）后继续走到目标。
+/// 目标取玩家正前方 2 格（曼哈顿距离 2 ⇒ 任何最短路必经中间格），中间格放拾取型 25（踩上弹提示框）。
+#[test]
+fn pickup_overlay_mid_route_closes_and_resumes_via_production_keys() {
+    let mut h = to_map("ovlresume");
+    // 教程层（floor 1）带脚本剧情（踩到箭头末端格触发对话、剧情接管丢路线——spec 正确行为），换无剧情层
+    h.sc_mut().change_floor(5, false, false);
+    for _ in 0..60 {
+        h.step(vec![], vec![]);
+    }
+    // 目标 = 新格分类下 ≥2 步可达的在屏地面格；拾取格 = 该路线（BFS 确定性）的首步格（必经）
+    let (target, pick) = {
+        let sc = h.sc();
+        let from = (sc.player_cell_x, sc.player_cell_y);
+        let reach = terrain_reach(sc);
+        let in_map = |x: i32, y: i32| x >= 0 && y >= 0 && x < sc.view.wide && y < sc.view.high;
+        let free = |x: i32, y: i32| {
+            in_map(x, y)
+                && sc.walkable[y as usize][x as usize]
+                && sc.grid.capacity[sc.grid.cell_type[y as usize][x as usize] as usize] == 0
+        };
+        let on_screen = |x: i32, y: i32| {
+            let (sx, sy) = (sc.view.cam_x + (x << 5), sc.view.cam_y + sc.layout.view_top_y + (y << 5));
+            sx >= 0 && sy >= sc.layout.view_top_y && sx + 32 <= sc.layout.screen_w && sy + 32 <= sc.layout.view_top_y + sc.view.view_h
+        };
+        let step_to = |at: (i32, i32), d: u8| -> (i32, i32) {
+            match d {
+                0 => (at.0, at.1 + 1),
+                1 => (at.0, at.1 - 1),
+                2 => (at.0 + 1, at.1),
+                _ => (at.0 - 1, at.1),
+            }
+        };
+        let grid = sc.tap_grid();
+        let mut out = None;
+        'outer: for &t in reach.iter() {
+            if t == from || !on_screen(t.0, t.1) || !free(t.0, t.1) {
+                continue;
+            }
+            if let TapPlan::Walk { steps, .. } = game_core::tap_walk::plan_tap(&grid, from, t) {
+                if steps.len() < 2 {
+                    continue;
+                }
+                // 步序目标端优先 ⇒ 逆序消费还原实际途经格序；首步格 = 途径格中最靠近玩家、必经
+                let mut at = from;
+                let mut first = from;
+                for (i, &d) in steps.iter().rev().enumerate() {
+                    at = step_to(at, d);
+                    if i == 0 {
+                        first = at;
+                    }
+                }
+                if free(first.0, first.1) {
+                    out = Some((t, first));
+                    break 'outer;
+                }
+            }
+        }
+        out.expect("有 ≥2 步可达、途径格可放拾取物的目标")
+    };
+    // 中间格放拾取型 25（append-only 实体表 + 重登格槽）
+    {
+        let sc = h.sc_mut();
+        let idx = sc.entities.count;
+        sc.entities.items[idx] = game_core::entity::Entity {
+            type_: 25,
+            px: pick.0 << 5,
+            py: pick.1 << 5,
+            ..Default::default()
+        };
+        sc.entities.count += 1;
+        game_core::entity::reattach_to_cell(&mut sc.grid, &mut sc.entities, idx);
+    }
+    let (sx, sy) = { let sc = h.sc(); (sc.view.cam_x + (target.0 << 5) + 16, sc.view.cam_y + sc.layout.view_top_y + (target.1 << 5) + 16) };
+    h.step(vec![], vec![(sx as f32, sy as f32)]);
+    assert!(h.sc().route.is_open(), "前置：开寻路");
+    // 走到拾取格：弹提示框（确定性——任何 2 步最短路必经中间格）
+    let mut popped = false;
+    for _ in 0..120 {
+        h.step(vec![], vec![]);
+        if h.sc().overlay_active {
+            popped = true;
+            break;
+        }
+    }
+    assert!(popped, "前置：踩拾取格弹提示框");
+    assert_eq!(h.sc().overlay_kind, 1, "拾取说明框（kind 1）");
+    // 生产路径关框：Runtime::step 投 −5（replay_scene_keys：浮层期 interrupt_route_for_input 零操作 + press_key）
+    h.step(tap(-5), vec![]);
+    h.step(vec![KeyAction::Release], vec![]);
+    assert!(!h.sc().overlay_active, "提示框已关（且未打断路线）");
+    for _ in 0..120 {
+        if h.sc().game_mode == GameMode::Map && h.sc().walk_phase == 0 && !h.sc().route.is_open() && h.sc().tap_target.is_none() {
+            break;
+        }
+        h.step(vec![], vec![]);
+    }
+    assert_eq!((h.sc().player_cell_x, h.sc().player_cell_y), target, "关框后继续走到目标");
 }

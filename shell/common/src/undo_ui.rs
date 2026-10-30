@@ -93,6 +93,8 @@ pub fn undo_count(sc: &GameScene) -> usize {
 /// 撤销一笔（journal LIFO 逆放）。战斗进行中= [`UndoOutcome::Blocked`]（中途
 /// 不可撤，T1 契约）；栈空= [`UndoOutcome::Empty`]。
 pub fn undo_last(sc: &mut GameScene) -> UndoOutcome {
+    // 【STAGE-B-008 · spec §7】撤销同时清目标标记、怪物选中、排队动作
+    sc.clear_tap_state();
     // journal 借出规避 sc.undo/self 双可变借用（core 零改 ⇒ 无 scene 级入口）
     let mut journal = std::mem::take(&mut sc.undo);
     let out = journal.undo(&mut SceneUndo(sc));
@@ -418,5 +420,19 @@ mod tests {
         }
         assert_eq!(sc.walk_phase, 5, "前置：战斗中");
         assert_eq!(undo_last(&mut sc), UndoOutcome::Blocked, "战斗中撤销被拒");
+    }
+
+    /// 【STAGE-B-008 · spec §7】撤销同时清目标标记、怪物选中、排队动作。
+    #[test]
+    fn undo_clears_tap_state() {
+        let mut sc = scene();
+        // 手动推位移笔（同 undo_move_restores_tile_and_count：钉 undo_last 执行路径，不依赖战斗时序）
+        sc.undo.push_move(MoveStroke { from: (3, 10), to: (5, 10) });
+        sc.tap_target = Some((3, 10));
+        sc.tap_reject = Some(((4, 10), sc.frame_counter + 8));
+        let out = undo_last(&mut sc);
+        assert!(matches!(out, UndoOutcome::Undone(_)), "撤销成功：{out:?}");
+        assert_eq!(sc.tap_target, None);
+        assert_eq!(sc.tap_reject, None);
     }
 }

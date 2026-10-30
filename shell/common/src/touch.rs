@@ -1,12 +1,13 @@
-//! T3 shell 触屏映射（touch-native-undo-plan §1「映射在壳、逻辑在核」）：
+//! T3 shell 触屏映射（touch-native-undo-plan §1「映射在壳、逻辑在核」：
 //! 触点→格坐标反变换（视口/相机/缩放逆变换终态）、撤销按钮命中、滑动=方向
-//! 手动踏步（一格/次、撞墙即停）、双模并存（键/触不互斥）、打断全通道。
+//! 手动踏步（一格/次、撞墙即停）、双模并存（键/触不互斥）、打断只在按键通道。
 //!
 //! **纯逻辑零 IO**：android/win 双壳同构消费本模块（win 鼠标=触点等价）。
-//! 红线：game-core 零改动——本模块只做映射与动作流组装，执行走 core 既有入口
-//! （walk_to/probe_step/interrupt_route/undo_journal）。
+//! 格的语义（地面 / 墙 / 交互物 / 怪、怪物选中、停靠再撞、排队）全在 core
+//! （`GameScene::tap_cell` / `swipe_step`，STAGE-B-008）；本模块只做
+//! 触点→落点（撤销钮 / 格 / 图外）与动作流组装。
 //!
-//! 方向编码 = try_step facing 域（scene.rs:4985）：0=Down 1=Up 2=Right 3=Left。
+//! 方向编码 = try_step facing 域（scene.rs）：0=Down 1=Up 2=Right 3=Left。
 
 
 // ---------------- 实现 ----------------
@@ -124,80 +125,58 @@ impl GestureTracker {
     }
 }
 
-/// 点按分类（撤销区 > 点墙=探步入 > 点空地=walk_to）。
+/// 触点落点（撤销区 > 地图格 > 图外）。格的语义（地面 / 墙 / 交互物 / 怪 / 点自己）由 core `GameScene::tap_cell` 判（STAGE-B-008）。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TapAction {
+pub enum TapTarget {
     Undo,
-    WalkTo((i32, i32)),
-    /// 探步入（朝点中的墙格；facing 域 0=Down 1=Up 2=Right 3=Left）
-    ProbeStep(u8),
-    Ignore,
+    Cell(i32, i32),
+    Outside,
 }
 
-/// 点按分类：触点→格→动作（T3 §1：点墙格=探步入请求，点空地=WalkTo(tile)）。
-pub fn classify_tap(
-    x: i32,
-    y: i32,
-    geom: &TouchGeom,
-    screen_w: i32,
-    screen_h: i32,
-    player: (i32, i32),
-    walkable: impl Fn(i32, i32) -> bool,
-) -> TapAction {
+/// 触点 → 落点。
+/// > 【2026-10-30 更正 · STAGE-B-008】原 `classify_tap` 在壳层按地形判"点地 = walk_to、点墙 = 探步"，
+/// > 与 spec §5 的格分类（实体可见性、怪物选中、停靠再撞）不一致，已由本函数 + core `tap_cell` 取代。
+pub fn tap_target(x: i32, y: i32, geom: &TouchGeom, screen_w: i32, screen_h: i32) -> TapTarget {
     if undo_zone_hit(x, y, screen_w, screen_h) {
-        return TapAction::Undo;
+        return TapTarget::Undo;
     }
-    let Some((cx, cy)) = geom.cell_at(x, y) else {
-        return TapAction::Ignore;
-    };
-    if (cx, cy) == player {
-        return TapAction::Ignore;
-    }
-    if walkable(cx, cy) {
-        TapAction::WalkTo((cx, cy))
-    } else {
-        // 点墙格=探步入（主轴朝向；探墙双通道与按键踏步等权走 try_step）
-        let (dx, dy) = (cx - player.0, cy - player.1);
-        TapAction::ProbeStep(if dx.abs() >= dy.abs() {
-            if dx >= 0 { 2 } else { 3 }
-        } else if dy >= 0 {
-            0
-        } else {
-            1
-        })
+    match geom.cell_at(x, y) {
+        Some((cx, cy)) => TapTarget::Cell(cx, cy),
+        None => TapTarget::Outside,
     }
 }
 
-/// 壳侧动作流（win/android 同构消费；执行=core 既有入口）。
+/// 壳侧动作流（win / android 同构消费；执行 = core 入口）。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ShellAction {
-    /// 打断寻路（任意手动输入首动作；core interrupt_route 幂等，route 未开=无操作）
+    /// 打断寻路（按键通道首动作；core interrupt_route 幂等）
     Interrupt,
-    WalkTo((i32, i32)),
-    ProbeStep(u8),
+    /// 点中格（core `tap_cell`）
+    TapCell((i32, i32)),
+    /// 滑动一格（core `swipe_step`，facing 域 0=Down 1=Up 2=Right 3=Left）
+    Swipe(u8),
+    /// 撤销（壳在 `field_tap_allowed` 时执行）
     Undo,
     Key(i32),
     KeyRelease,
 }
 
-/// 全通道分发器：**打断信号全通道发出**（触点/滑动/方向键/软键/撤销皆首动作
-/// Interrupt）；**双模并存**（键/触动作流无互斥态、无压制）。
+/// 全通道分发器：按键通道先发 Interrupt（手动优先）；点按 / 滑动不先打断（寻路中由 core 排队，STAGE-B-008）；
+/// 双模并存（键 / 触动作流无互斥态）。
 pub struct Dispatcher;
 
 impl Dispatcher {
-    pub fn tap(a: TapAction) -> Vec<ShellAction> {
-        let act = match a {
-            TapAction::Undo => ShellAction::Undo,
-            TapAction::WalkTo(t) => ShellAction::WalkTo(t),
-            TapAction::ProbeStep(d) => ShellAction::ProbeStep(d),
-            TapAction::Ignore => return Vec::new(),
-        };
-        vec![ShellAction::Interrupt, act]
+    pub fn tap(t: TapTarget) -> Vec<ShellAction> {
+        match t {
+            TapTarget::Undo => vec![ShellAction::Undo],
+            TapTarget::Cell(cx, cy) => vec![ShellAction::TapCell((cx, cy))],
+            TapTarget::Outside => Vec::new(),
+        }
     }
 
-    /// 滑动=方向手动踏步（一格/次；探步返回 false=撞墙即停，无后续步）。
+    /// 滑动 = 一格（空闲探步 / 寻路中排队，由 core 决定）。
     pub fn swipe(dir: u8) -> Vec<ShellAction> {
-        vec![ShellAction::Interrupt, ShellAction::ProbeStep(dir)]
+        vec![ShellAction::Swipe(dir)]
     }
 
     pub fn key(code: i32) -> Vec<ShellAction> {
@@ -280,9 +259,9 @@ mod tests {
 
     #[test]
     fn swipe_wall_stop_no_repeat() {
-        // 撞墙即停：一次手势一步；探步返回 false（撞墙）后同手势不再产生后续步
+        // 滑动 = 一次 Swipe（探步 / 排队由 core swipe_step 决定）
         let acts = Dispatcher::swipe(2);
-        assert_eq!(acts, vec![ShellAction::Interrupt, ShellAction::ProbeStep(2)], "滑动=打断+一步探步");
+        assert_eq!(acts, vec![ShellAction::Swipe(2)], "滑动=一次 Swipe 动作");
         let mut gt = GestureTracker::new(24);
         gt.down(0, 0);
         let first = gt.move_to(80, 0);
@@ -291,27 +270,13 @@ mod tests {
     }
 
     #[test]
-    fn tap_classifies_walk_wall_probe_and_undo() {
+    fn tap_target_maps_cells_undo_and_outside() {
         let g = geom();
-        let player = (5, 1);
-        let walkable = |x: i32, y: i32| !(x == 6 && y == 1); // (6,1)=墙，其余可走
-        // 点空地 → WalkTo(tile)：格 (7,2) 原点 (80,68)
-        assert_eq!(
-            classify_tap(90, 80, &g, 240, 320, player, &walkable),
-            TapAction::WalkTo((7, 2)),
-            "点空地=walk_to(格)"
-        );
-        // 点墙格（相邻）→ 探步入（朝墙方向）：格 (6,1) 原点 (48,36)
-        assert_eq!(
-            classify_tap(50, 40, &g, 240, 320, player, &walkable),
-            TapAction::ProbeStep(2),
-            "点墙格=探步入 Right"
-        );
-        // 撤销区 → Undo
-        assert_eq!(classify_tap(200, 5, &g, 240, 320, player, &walkable), TapAction::Undo, "撤销区=Undo");
-        // 玩家自身格 / 画外 → Ignore
-        assert_eq!(classify_tap(17, 37, &g, 240, 320, player, &walkable), TapAction::Ignore, "点自身格=忽略");
-        assert_eq!(classify_tap(5000, 0, &g, 240, 320, player, &walkable), TapAction::Ignore, "画外=忽略");
+        assert_eq!(tap_target(90, 80, &g, 240, 320), TapTarget::Cell(7, 2), "空地格");
+        assert_eq!(tap_target(50, 40, &g, 240, 320), TapTarget::Cell(6, 1), "墙格也只报格（墙 / 门 / 怪由 core tap_cell 分类）");
+        assert_eq!(tap_target(200, 5, &g, 240, 320), TapTarget::Undo, "撤销区优先于格");
+        assert_eq!(tap_target(17, 37, &g, 240, 320), TapTarget::Cell(5, 1), "玩家格照报（点自己 = 停下 / 无动作由 core 判）");
+        assert_eq!(tap_target(5000, 0, &g, 240, 320), TapTarget::Outside, "图外");
     }
 
     // —— ④ 双模无互斥（键/触并存，不是替代） ——
@@ -320,25 +285,27 @@ mod tests {
     fn dual_mode_keys_and_taps_coexist() {
         // 触点通道动作后，键通道照常发键（无互斥开关/无压制）
         let g = geom();
-        let tap = Dispatcher::tap(classify_tap(90, 80, &g, 240, 320, (5, 1), &|_, _| true));
-        assert_eq!(tap[1], ShellAction::WalkTo((7, 2)));
+        let tap = Dispatcher::tap(tap_target(90, 80, &g, 240, 320));
+        assert_eq!(tap, vec![ShellAction::TapCell((7, 2))]);
         let key = Dispatcher::key(-4);
         assert_eq!(key, vec![ShellAction::Interrupt, ShellAction::Key(-4)], "tap 后按键不被压制");
-        let tap2 = Dispatcher::tap(TapAction::WalkTo((12, 2)));
-        assert_eq!(tap2[1], ShellAction::WalkTo((12, 2)), "按键后 tap 不被压制");
+        let tap2 = Dispatcher::tap(TapTarget::Cell(12, 2));
+        assert_eq!(tap2, vec![ShellAction::TapCell((12, 2))], "按键后 tap 不被压制");
         assert_eq!(Dispatcher::release(), vec![ShellAction::KeyRelease]);
     }
 
-    // —— ⑤ 打断信号全通道发出（触点/滑动/方向键/软键） ——
+    // —— ⑤ 打断信号只在按键通道（点按/滑动由 core 排队，STAGE-B-008 spec §5.2） ——
 
     #[test]
-    fn interrupt_signal_on_every_channel() {
+    fn interrupt_only_on_key_channels() {
         let g = geom();
-        let tap = Dispatcher::tap(classify_tap(90, 80, &g, 240, 320, (5, 1), &|_, _| false));
-        assert_eq!(tap[0], ShellAction::Interrupt, "触点通道发打断");
-        assert_eq!(Dispatcher::swipe(0)[0], ShellAction::Interrupt, "滑动通道发打断");
+        // 点按 / 滑动 / 撤销不先打断：寻路中的点按与滑动由 core 排队（STAGE-B-008 spec §5.2），撤销仅空闲时执行
+        assert_eq!(Dispatcher::tap(tap_target(90, 80, &g, 240, 320)), vec![ShellAction::TapCell((7, 2))]);
+        assert_eq!(Dispatcher::swipe(0), vec![ShellAction::Swipe(0)]);
+        assert_eq!(Dispatcher::tap(TapTarget::Undo), vec![ShellAction::Undo]);
+        assert_eq!(Dispatcher::tap(TapTarget::Outside), Vec::new());
+        // 按键通道照旧先打断（手动优先，BUG-040）
         assert_eq!(Dispatcher::key(-1)[0], ShellAction::Interrupt, "方向键通道发打断");
         assert_eq!(Dispatcher::key(-7)[0], ShellAction::Interrupt, "软键通道发打断");
-        assert_eq!(Dispatcher::tap(TapAction::Undo)[0], ShellAction::Interrupt, "撤销通道发打断");
     }
 }

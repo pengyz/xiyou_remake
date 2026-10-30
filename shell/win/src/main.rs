@@ -438,10 +438,11 @@ impl Shell {
     /// game-core 已接：`GameScene::press_key` 按下即调、`BootMachine::tick` 入口对挂起键调
     /// （`bgm.on_key_pressed`）；壳再调即重复计数。
     fn route_key(&mut self, code: i32, pressed: bool) {
-        // 【T3】打断全通道（touch-native-undo §0）：任意键输入（方向/软键/滚轮同口）
+        // 【T3】打断在按键通道（touch-native-undo §0）：任意键输入（方向/软键/滚轮同口）
         // 皆打断寻路——route 未开=core 幂等零影响；经典 key 链一行不动（保真红线）。
+        // 【STAGE-B-008 · 复核 T5-R1】浮层开着时按键属浮层（关框/翻页），不打断点地路线。
         if let Some(Screen::Game(sc)) = self.state.as_mut() {
-            sc.interrupt_route();
+            sc.interrupt_route_for_input();
         }
         // MIDP Canvas「Event Delivery」：key/pointer 回调只在 showNotify 之后、hideNotify
         // 之前投递——隐藏期的键不得消费续播边沿（否则看不见窗口时音乐被键唤醒）
@@ -657,22 +658,27 @@ impl Shell {
         match a {
             A::Interrupt => {
                 if let Some(Screen::Game(sc)) = self.state.as_mut() {
-                    sc.interrupt_route();
+                    // 【STAGE-B-008 · 复核 T5-R1】浮层开着时按键属浮层，不打断点地路线（与 route_key 同口径）
+                    sc.interrupt_route_for_input();
                 }
             }
-            A::WalkTo((x, y)) => {
+            A::TapCell((x, y)) => {
                 if let Some(Screen::Game(sc)) = self.state.as_mut() {
-                    sc.walk_to(x, y);
+                    let _ = sc.tap_cell(x, y);
                 }
             }
-            A::ProbeStep(d) => {
+            A::Swipe(d) => {
                 if let Some(Screen::Game(sc)) = self.state.as_mut() {
-                    sc.probe_step(d);
+                    let _ = sc.swipe_step(d);
                 }
             }
             A::Undo => {
                 if let Some(Screen::Game(sc)) = self.state.as_mut() {
-                    game_shell_common::undo_ui::undo_last(sc);
+                    // BUG-038：只在 field_tap_allowed 时撤销。dp3 步进期恒拒（不打断寻路）；
+                    // 被挡步边界拍（Dialog∧wp0∧route 开）会放行撤销——既有行为，后果良性（复核 T10-12 R2）。
+                    if sc.field_tap_allowed() {
+                        game_shell_common::undo_ui::undo_last(sc);
+                    }
                 }
             }
             A::Key(c) => self.route_key(c, true),
@@ -680,14 +686,15 @@ impl Shell {
         }
     }
 
-    /// 【T3】触点抬起分类（tap）：场上空闲（core field_tap_allowed，BUG-038）=触点→格
-    /// （撤销钮/点墙探步入/点地 walk_to）；其余态=既有 WIN-OP③ 基线（行命中/软键/点空白）。
+    /// 【T3 · STAGE-B-008】触点抬起分类（tap）：场上收点地（core `accepts_field_tap`：地图态
+    /// 或点地寻路中，无浮层 / 遮幅）= 触点 → 撤销钮 / 格 → core `tap_cell`（走 / 停靠 / 撞 /
+    /// 选中 / 排队 / 闪红）；其余态 = 既有 WIN-OP③ 基线（行命中 / 软键 / 点空白）。
     /// 返回 true=触点通道已消费（不再走基线）。
     fn pointer_tap(&mut self, x: i32, y: i32, right: bool) -> bool {
-        use game_shell_common::touch::{classify_tap, Dispatcher, ShellAction, TouchGeom};
+        use game_shell_common::touch::{tap_target, Dispatcher, ShellAction, TouchGeom};
         let actions: Vec<ShellAction> = if !right {
             match self.state.as_ref() {
-                Some(Screen::Game(sc)) if sc.field_tap_allowed() => {
+                Some(Screen::Game(sc)) if sc.accepts_field_tap() => {
                     let geom = TouchGeom {
                         cam_x: sc.view.cam_x,
                         cam_y: sc.view.cam_y,
@@ -695,23 +702,7 @@ impl Shell {
                         cols: sc.view.wide,
                         rows: sc.view.high,
                     };
-                    let player = (sc.player_cell_x, sc.player_cell_y);
-                    let walkable = |cx: i32, cy: i32| {
-                        sc.walkable
-                            .get(cy as usize)
-                            .and_then(|r| r.get(cx as usize))
-                            .copied()
-                            .unwrap_or(false)
-                    };
-                    Dispatcher::tap(classify_tap(
-                        x,
-                        y,
-                        &geom,
-                        self.layout.screen_w,
-                        self.layout.screen_h,
-                        player,
-                        walkable,
-                    ))
+                    Dispatcher::tap(tap_target(x, y, &geom, self.layout.screen_w, self.layout.screen_h))
                 }
                 _ => Vec::new(),
             }
@@ -2345,7 +2336,7 @@ mod shell_tests {
         eprintln!("退出请求链起点 T{t}");
     }
     /// 【T3】壳层动作消费接线（映射/手势判据=game-shell-common 8+3 测试）：
-    /// WalkTo 动作喂缓冲、打断动作清缓冲、撤销动作减栈（hold-walk 脚本进 Map 态）。
+    /// TapCell 动作喂缓冲、打断动作清缓冲、撤销动作减栈（hold-walk 脚本进 Map 态）。
     #[test]
     fn t3_touch_actions_wire_to_scene() {
         use game_shell_common::touch::ShellAction as A;
@@ -2355,25 +2346,113 @@ mod shell_tests {
             h.run_tick(&ev);
         }
         assert_eq!(h.shell.game_mode(), game_core::enums::GameMode::Map, "脚本进 Map 态");
-        let (px, py) = {
+        // 前置：preset 把玩家围在怪中（BUG-045 场景）——摘掉四邻的怪腾出通路（接线测试钉壳→core 传递，不测怪本身）
+        {
+            let Some(Screen::Game(sc)) = h.shell.state.as_mut() else { panic!("Game 态") };
+            let (px, py) = (sc.player_cell_x, sc.player_cell_y);
+            let adj: Vec<usize> = (0..sc.entities.count)
+                .filter(|&i| {
+                    let e = &sc.entities.items[i];
+                    let (ex, ey) = (e.px >> 5, e.py >> 5);
+                    !e.removed && (ex - px).abs() + (ey - py).abs() == 1 && game_core::entity::render_category(e.type_) == 8
+                })
+                .collect();
+            for i in adj {
+                game_core::entity::remove(&mut sc.entities, i);
+            }
+        }
+        // 触点→格：TapCell 动作喂 walkPathBuffer。目标 = 新格分类（tap_grid）下 ≥2 步可达的地面格——
+        // 旧前提 (px−2,py) 被可见怪挡住，新语义 = Docking 闪红（spec §5.4 前提变化，commit 正文列明）
+        let (target, first_dir, first_cell) = {
             let sc = h.scene();
-            (sc.player_cell_x, sc.player_cell_y)
+            let grid = sc.tap_grid();
+            let from = (sc.player_cell_x, sc.player_cell_y);
+            let mut t = None;
+            for y in 0..sc.view.high {
+                for x in 0..sc.view.wide {
+                    if (x, y) == from {
+                        continue;
+                    }
+                    if let game_core::tap_walk::TapPlan::Walk { steps, .. } =
+                        game_core::tap_walk::plan_tap(&grid, from, (x, y))
+                    {
+                        if steps.len() >= 2 {
+                            // 步序目标端优先 ⇒ 首步 = steps 末位；还原首步落格（强断言 Swipe 用）
+                            let d = *steps.last().unwrap();
+                            let first = match d {
+                                0 => (from.0, from.1 + 1),
+                                1 => (from.0, from.1 - 1),
+                                2 => (from.0 + 1, from.1),
+                                _ => (from.0 - 1, from.1),
+                            };
+                            t = Some(((x, y), d, first));
+                        }
+                    }
+                    if t.is_some() {
+                        break;
+                    }
+                }
+                if t.is_some() {
+                    break;
+                }
+            }
+            t.expect("有 ≥2 步可达的地面格")
         };
-        // 触点→格：WalkTo 动作喂 walkPathBuffer
-        h.shell.apply_touch_action(A::WalkTo((px - 2, py)));
-        assert!(h.scene().walk_step_count > 0, "WalkTo 动作喂缓冲");
-        // 打断信号（全通道首动作）清缓冲停步
+        let target = target;
+        h.shell.apply_touch_action(A::TapCell(target));
+        assert!(h.scene().walk_step_count > 0, "TapCell 动作喂缓冲");
+        // 打断信号（按键通道首动作）清缓冲停步（dp 机收尾需数拍才回 Map，期间点地被 accepts_field_tap 拒）
         h.shell.apply_touch_action(A::Interrupt);
         assert_eq!(h.scene().walk_step_count, 0, "打断动作清缓冲停步");
-        // 撤销钮动作：到位=位移笔入栈 ⇒ Undo 减栈
-        h.shell.apply_touch_action(A::WalkTo((px - 2, py)));
-        for _ in 0..60 {
+        for _ in 0..40 {
+            if h.shell.game_mode() == game_core::enums::GameMode::Map && h.scene().walk_phase == 0 {
+                break;
+            }
             h.run_tick(&[]);
         }
+        // 撤销钮动作：到位=位移笔入栈 ⇒ Undo 减栈
+        h.shell.apply_touch_action(A::TapCell(target));
+        for _ in 0..400 {
+            if (h.scene().player_cell_x, h.scene().player_cell_y) == target
+                && h.scene().walk_phase == 0
+                && !h.scene().route.is_open()
+            {
+                break;
+            }
+            h.run_tick(&[]);
+        }
+        assert_eq!((h.scene().player_cell_x, h.scene().player_cell_y), target, "TapCell 走到目标");
         let before = h.shell.undo_count().expect("Game 态计数在");
-        assert!(before >= 1, "WalkTo 到位=位移笔入栈（可回撤 {before} 步）");
+        assert!(before >= 1, "TapCell 到位=位移笔入栈（可回撤 {before} 步）");
         h.shell.apply_touch_action(A::Undo);
         assert_eq!(h.shell.undo_count(), Some(before - 1), "撤销动作减栈（按钮 N 同步）");
+        // 拖动 = Swipe：空闲时朝可走方向（首步方向，路线已验证）经 core swipe_step 恰好探步一格
+        h.shell.apply_touch_action(A::Swipe(first_dir));
+        for _ in 0..20 {
+            h.run_tick(&[]);
+        }
+        assert_eq!(
+            (h.scene().player_cell_x, h.scene().player_cell_y),
+            first_cell,
+            "Swipe 动作经 core swipe_step 探步一格（接线断开即红）"
+        );
+        // Windows 可见撤销钮点击链（pointer_tap → tap_target → Undo → undo_last）：再点目标走完入栈后点钮区右上角
+        h.shell.apply_touch_action(A::TapCell(target));
+        for _ in 0..400 {
+            if (h.scene().player_cell_x, h.scene().player_cell_y) == target
+                && h.scene().walk_phase == 0
+                && !h.scene().route.is_open()
+            {
+                break;
+            }
+            h.run_tick(&[]);
+        }
+        assert_eq!((h.scene().player_cell_x, h.scene().player_cell_y), target, "前置：走到目标");
+        let before_btn = h.shell.undo_count().expect("Game 态计数在");
+        assert!(before_btn >= 1, "前置：走完入栈（可回撤 {before_btn} 步）");
+        let w = h.shell.layout.screen_w;
+        assert!(h.shell.pointer_tap(w - 1, 10, false), "撤销钮区点击被触点通道消费");
+        assert_eq!(h.shell.undo_count(), Some(before_btn - 1), "钮点击走 Undo 动作链（栈减一）");
     }
 }
 
