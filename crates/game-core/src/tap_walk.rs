@@ -294,6 +294,15 @@ pub struct SelectedEnemy {
     pub floor: i32,
 }
 
+/// 点地寻路中到达的输入，排队到排空回 Map wp0 后执行（spec §5.2；只保留最后一次）。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PendingTap {
+    /// 新目标格（执行 = `tap_cell`）
+    Cell(i32, i32),
+    /// 滑动方向（执行 = `swipe_step`）
+    Swipe(u8),
+}
+
 /// [`crate::scene::GameScene::tap_cell`] 的结果（壳据此决定反馈）。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TapResult {

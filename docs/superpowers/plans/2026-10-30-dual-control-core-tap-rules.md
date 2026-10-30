@@ -1804,6 +1804,7 @@ Run: `sleep 2; touch crates/game-core/src/scene.rs crates/game-core/src/tap_walk
 变异（逐个、恢复）：
 - `press_key` 去掉清 `tap_pending` ⇒ `t7_queued_tap_discarded_on_key_or_blocked_landing` 第一段红；
 - 就绪条件去掉 `!self.overlay_active` ⇒ 第二段红；
+  > 【2026-10-30 更正 · 复核 T7-R7】浮层改为暂缓后，此变异与原码等价（外层已判浮层），改用"后续入口去掉浮层暂缓"变异。
 - Dialog 分支去掉"点自己 = 停下"（一律排队）⇒ `t7_tap_self_while_walking_stops` 红或通过——若通过（排队到自己格 = Ignored，效果同停下），在 commit 正文说明该变异等价、不计入；
 - `PendingTap::Swipe` 执行改为什么都不做 ⇒ `t7_swipe_steps_when_idle_and_queues_while_walking` 红。
 
