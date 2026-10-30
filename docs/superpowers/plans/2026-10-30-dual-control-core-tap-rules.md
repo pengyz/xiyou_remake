@@ -740,6 +740,7 @@ EOF
 ```
 
 注：夹具 `scene()` 载入时按 m_122 把 5/81/6/12/76/82/83 置不可见（`scene.rs` load_floor 无存档分支）；若某型在夹具里不可见性与断言不符，先打印 `sc.entities.items[i].visible` 核对，再按实际载入语义调整断言措辞（不改分类规则）。
+> 【2026-10-30 更正 · 复核 T4-R5】夹具 `scene()` 的记录一律 visible = true，不会隐藏这些型（隐藏位由调用方经 `sprite_spawn::spawn_param_and_visibility` 给出）；测试须手动置不可见。
 
 - [ ] **Step 2: 运行，确认失败**
 

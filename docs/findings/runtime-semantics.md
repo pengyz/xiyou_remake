@@ -120,3 +120,12 @@ Stage A 保真，载入走 mode 8 路线（已验证可达）。
 
 `reference/oracle/fields.py`：FLD 声明序索引 ↔ 字段名（本批台账 N-0087 起的语义名
 已可直查）+ `--timeline` 变更时间线。本文件全部字段时间线证据均可一键复现。
+
+## 10. 假设区（未证实，不得据此 rename / 下结论）
+
+- **【2026-10-30 · C 级 · 计划 2 T4 复核旁支】`interact_with_cell` 循环中格槽表被跨层探针重建**：Rust `interact_with_cell` 在遍历前缓存
+  `ct` / `cap`；循环内 83 臂 `try_run_scene(32, false)` 可走到 `probe_cross_floor_snapshot(23, 12)`，重载并重排实体表与格槽表，旧 `ct`
+  可能指向另一格的槽表。Rust 宿主实测（A 级，仅限"floor_assets 全空 ⇒ 层 23 无活的 12"的人造环境）：F29 (3,2) 的类目 32 型 72 被放行走入；
+  真实资产下层 23 有活的 12，剧情 32 触发并被挡（正常）。待取证：① Java 原式是否同样缓存 cellType（a.java interactWithCell 段）；
+  ② 真机能否把层 23 的 24 处隐形墙全部撞显以进入该条件。若证实，按 D4 登记 bug-ledger。记录：target/verify/review_plan2_T4.md"旁支发现"。
+

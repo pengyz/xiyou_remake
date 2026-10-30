@@ -6469,7 +6469,6 @@ impl GameScene {
     /// 62 / 60 四邻（右邻判界用 view.high——原式怪癖照搬）。等价性由 `trap_predicate_matches_step_effects_everywhere` 对拍钉住。
     /// 返回的是"陷阱触发条件成立"，与当前 hp 无关（hp 很小时 apply_hp_delta 钳 1、实际可能不掉血；避让取保守）。
     /// 边框格上 Java 原式会越界抛异常（findBlockingEntity 不判界），实机边框不可走、不可达；此处返回 false。
-    #[allow(dead_code)] // 消费者 tap_grid（Task 4）
     fn trap_damage_at(&self, x: i32, y: i32) -> bool {
         if self.equipped_armor == 40 {
             return false;
@@ -6492,6 +6491,59 @@ impl GameScene {
                 || (y < self.view.high - 1 && self.entity_at_cell(x, y + 1, t) >= 0)
         };
         adjacent(62) || adjacent(60)
+    }
+
+    /// 【STAGE-B-008 · spec §5.1】点地格分类（见 [`crate::tap_walk::TapGrid`]）。
+    pub fn tap_grid(&self) -> crate::tap_walk::TapGrid {
+        use crate::tap_walk::{TapCell, TapGrid, TargetKind};
+        let (cols, rows) = (self.view.wide, self.view.high);
+        let mut g = TapGrid::new(cols, rows);
+        let rank = |k: &Option<TargetKind>| match k {
+            Some(TargetKind::Monster(_)) => 3,
+            Some(TargetKind::Alchemy) => 2,
+            Some(TargetKind::Interact) => 1,
+            _ => 0,
+        };
+        for y in 0..rows {
+            for x in 0..cols {
+                let ct = self.grid.cell_type[y as usize][x as usize] as usize;
+                let cap = self.grid.capacity[ct] as usize;
+                let mut blocker: Option<TargetKind> = None;
+                let mut revealed_path = false;
+                for s in 0..cap {
+                    let e = self.grid.slots[ct][s] as usize - 1; // 槽存 1 基实体号（CellGrid::slot_push）
+                    let ent = &self.entities.items[e];
+                    if !ent.visible || ent.state == 1 || ent.removed {
+                        continue; // 不可见 / 开门或死亡动画中 / 已移除：对寻路不存在
+                    }
+                    let t = ent.type_;
+                    let cat = self.entity_category(t);
+                    let k = if t == 9 {
+                        Some(TargetKind::Alchemy)
+                    } else if cat == 8 {
+                        Some(TargetKind::Monster(e))
+                    } else if cat == 2 || cat == 4 {
+                        None
+                    } else if t == 6 {
+                        revealed_path = true;
+                        None
+                    } else {
+                        Some(TargetKind::Interact)
+                    };
+                    if rank(&k) > rank(&blocker) {
+                        blocker = k;
+                    }
+                }
+                let kind = match blocker {
+                    Some(k) => k,
+                    None if self.walkable[y as usize][x as usize] || revealed_path => TargetKind::Floor,
+                    None => TargetKind::Wall,
+                };
+                let danger = kind == TargetKind::Floor && self.trap_damage_at(x, y);
+                g.set(x, y, TapCell { kind, danger });
+            }
+        }
+        g
     }
 
     /// renderCategoryByType 的场景视角（a.java:9669-9667 m_122 尾）：type 72
@@ -11833,6 +11885,119 @@ mod t2_walkto_route_tests {
             "含型 60/61/62 的层须全部覆盖（复核 T3-R2：44、50–54 无陷阱）"
         );
         assert!(covered.iter().all(|c| c.5 > 0), "每个陷阱层至少有扣血格（防判定全假的空对拍）");
+    }
+
+    /// 【STAGE-B-008 · spec §5.1】格分类：不可见实体只看地形（隐形路径 = 墙、隐形墙 / 剧情点 = 地面），
+    /// 可见的门 / 商人 / 怪 / 炉按类别，道具格是地面，陷阱邻格标危险，已死 / 开门动画中的实体不挡。
+    #[test]
+    fn tap_grid_classifies_by_visible_entities_and_terrain() {
+        use crate::tap_walk::TargetKind;
+        // 走廊 y=ROW、x∈1..=11 可走；其余墙
+        let mut sc = scene((1, ROW), &[(6, 2, ROW + 1), (12, 3, ROW), (83, 4, ROW), (1, 5, ROW), (41, 6, ROW), (9, 8, ROW), (13, 11, ROW), (62, 10, ROW - 1)]);
+        // 夹具 scene() 的记录一律 visible=true（隐藏位由调用方经 sprite_spawn::spawn_param_and_visibility 给出）；
+        // 此处按 m_122 无存档分支语义手动隐藏 6 / 12 / 83（load_floor_data `if !visible` 臂）。
+        for i in 0..sc.entities.count {
+            if matches!(sc.entities.items[i].type_, 6 | 12 | 83) {
+                sc.entities.items[i].visible = false;
+            }
+        }
+        let g = sc.tap_grid();
+        let kind = |x: i32, y: i32| g.get(x, y).unwrap().kind;
+        assert_eq!(kind(2, ROW + 1), TargetKind::Wall, "未显形隐形路径 = 墙（地形不可走）");
+        assert_eq!(kind(3, ROW), TargetKind::Floor, "未显形隐形墙 = 地面（地形可走）");
+        assert_eq!(kind(4, ROW), TargetKind::Floor, "剧情点（不可见）= 地面");
+        assert_eq!(kind(5, ROW), TargetKind::Interact, "门 = 交互物");
+        assert!(matches!(kind(6, ROW), TargetKind::Monster(_)), "怪");
+        assert_eq!(kind(8, ROW), TargetKind::Alchemy, "炉（3 格宽：8..=10）");
+        assert_eq!(kind(10, ROW), TargetKind::Alchemy, "炉第三格");
+        assert_eq!(kind(11, ROW), TargetKind::Floor, "道具格 = 地面");
+        assert_eq!(kind(0, ROW), TargetKind::Wall, "地形墙");
+        assert!(g.get(10, ROW - 2).map_or(true, |c| !c.danger), "非地面格不标危险（即使紧邻 62）");
+        // (3, ROW) 的四邻 (2,ROW)(4,ROW)(3,ROW±1) 都不是 62（62 在 (10, ROW-1)）
+        assert!(!g.get(3, ROW).unwrap().danger, "不邻 62 的地面格不危险");
+        // 显形后的隐形路径 = 地面；死亡 / 移除的怪不挡
+        let i6 = (0..sc.entities.count).find(|&i| sc.entities.items[i].type_ == 6).unwrap();
+        sc.entities.items[i6].visible = true;
+        let i41 = (0..sc.entities.count).find(|&i| sc.entities.items[i].type_ == 41).unwrap();
+        sc.entities.items[i41].state = 1;
+        let g = sc.tap_grid();
+        assert_eq!(g.get(2, ROW + 1).unwrap().kind, TargetKind::Floor, "已显形隐形路径 = 地面");
+        assert_eq!(g.get(6, ROW).unwrap().kind, TargetKind::Floor, "死亡动画中的怪不挡");
+    }
+
+    /// 危险标记：62 上方紧邻的走廊格危险；装备 40 时不危险。
+    #[test]
+    fn tap_grid_marks_trap_danger() {
+        let mut sc = scene((1, ROW), &[(62, 7, ROW - 1)]);
+        assert!(sc.tap_grid().get(7, ROW).unwrap().danger, "62 正下方危险");
+        assert!(!sc.tap_grid().get(5, ROW).unwrap().danger, "远处不危险");
+        sc.equipped_armor = 40;
+        assert!(!sc.tap_grid().get(7, ROW).unwrap().danger, "装备 40 全免");
+    }
+
+    /// 类目覆盖：装备（类目 4）= 地面；77/78（类目 16）、84 / 非 50 层 72（类目 32）= 交互物；
+    /// 50 层 72 = 怪（层覆写，entity_category 读 `self.floor`）；型 69 三格同一 Monster 下标；Monster(e) 指向本格怪。
+    #[test]
+    fn tap_grid_categories_and_monster_index() {
+        use crate::tap_walk::TargetKind;
+        let mut sc = scene(
+            (1, ROW),
+            &[(33, 2, ROW), (77, 3, ROW), (78, 4, ROW), (84, 5, ROW), (72, 6, ROW), (69, 7, ROW), (41, 11, ROW)],
+        );
+        let g = sc.tap_grid();
+        let kind = |x: i32| g.get(x, ROW).unwrap().kind;
+        assert_eq!(kind(2), TargetKind::Floor, "装备 33（类目 4）= 地面");
+        assert_eq!(kind(3), TargetKind::Interact, "77（类目 16）= 交互物");
+        assert_eq!(kind(4), TargetKind::Interact, "78（类目 16）= 交互物");
+        assert_eq!(kind(5), TargetKind::Interact, "84（类目 32）= 交互物");
+        assert_eq!(kind(6), TargetKind::Interact, "非 50 层 72（类目 32）= 交互物");
+        let TargetKind::Monster(e69) = kind(7) else { panic!("69 首格应为怪: {:?}", kind(7)) };
+        assert_eq!(sc.entities.items[e69].type_, 69, "Monster 下标指向 69");
+        assert_eq!(kind(8), TargetKind::Monster(e69), "69 第二格同一下标（96px = 3 格）");
+        assert_eq!(kind(9), TargetKind::Monster(e69), "69 第三格同一下标");
+        assert_eq!(kind(10), TargetKind::Floor, "69 只占 3 格");
+        let TargetKind::Monster(e41) = kind(11) else { panic!("41 应为怪: {:?}", kind(11)) };
+        assert_eq!(sc.entities.items[e41].type_, 41, "Monster 下标指向 41");
+
+        sc.floor = 50;
+        sc.current_floor = 50;
+        let g = sc.tap_grid();
+        let TargetKind::Monster(e72) = g.get(6, ROW).unwrap().kind else {
+            panic!("50 层 72 应为怪: {:?}", g.get(6, ROW).unwrap().kind)
+        };
+        assert_eq!(sc.entities.items[e72].type_, 72, "Monster 下标指向 72");
+    }
+
+    /// 同格多实体的优先级 Monster > Alchemy > Interact（两种登记顺序都试：防"后者覆盖"）；道具 + 门 = 交互物。
+    #[test]
+    fn tap_grid_same_cell_priority() {
+        use crate::tap_walk::TargetKind;
+        let sc = scene(
+            (1, ROW),
+            &[
+                (41, 2, ROW), (1, 2, ROW), // 怪先登记
+                (1, 3, ROW), (41, 3, ROW), // 门先登记
+                (9, 4, ROW), (1, 5, ROW), // 炉 4..=6，门叠在炉第二格（炉先）
+                (1, 7, ROW), (9, 7, ROW), // 门先，炉 7..=9
+                (13, 10, ROW), (1, 10, ROW),
+                (1, 11, ROW), (13, 11, ROW),
+            ],
+        );
+        // 前置：同格确实登记了两个槽
+        for x in [2, 3, 5, 7, 10, 11] {
+            let ct = sc.grid.cell_type[ROW as usize][x] as usize;
+            assert_eq!(sc.grid.capacity[ct], 2, "({x}, ROW) 应有 2 个槽");
+        }
+        let g = sc.tap_grid();
+        let kind = |x: i32| g.get(x, ROW).unwrap().kind;
+        for x in [2, 3] {
+            let TargetKind::Monster(e) = kind(x) else { panic!("({x}) 怪 + 门应为怪: {:?}", kind(x)) };
+            assert_eq!(sc.entities.items[e].type_, 41, "({x}) Monster 下标指向 41");
+        }
+        assert_eq!(kind(5), TargetKind::Alchemy, "炉 + 门（炉先）= 炉");
+        assert_eq!(kind(7), TargetKind::Alchemy, "门 + 炉（门先）= 炉");
+        assert_eq!(kind(10), TargetKind::Interact, "道具 + 门 = 交互物");
+        assert_eq!(kind(11), TargetKind::Interact, "门 + 道具 = 交互物");
     }
 }
 
