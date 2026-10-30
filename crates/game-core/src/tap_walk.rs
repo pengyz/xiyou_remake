@@ -284,6 +284,16 @@ pub fn plan_tap(grid: &TapGrid, from: (i32, i32), target: (i32, i32)) -> TapPlan
     }
 }
 
+/// 已选中的怪物（spec §5.2：首点选中、再点开战）。`cell` = 实体主格（`px >> 5, py >> 5`），`floor` = 选中时楼层号；
+/// 每拍按这些字段校验，任一变化即清选中。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SelectedEnemy {
+    pub entity: usize,
+    pub type_: i32,
+    pub cell: (i32, i32),
+    pub floor: i32,
+}
+
 /// [`crate::scene::GameScene::tap_cell`] 的结果（壳据此决定反馈）。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TapResult {

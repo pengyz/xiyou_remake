@@ -1276,6 +1276,10 @@ EOF
 ---
 ### Task 6: 怪物首点选中、再点开战、自动战斗、每拍校验
 
+> 【2026-10-30 执行期更正】① 本任务顺带修 T5 遗留：`tap_cell` Map wp0 分支开头清 `tap_bump` / `tap_followup_ready`（路线已收尾、撞击排在下一拍开头的间隙里再点按，
+> 旧撞击须作废），测试 `t6_new_tap_in_followup_gap_cancels_pending_bump`。② 复核 T6-R2：`again` 须同时 `selection_valid`（实体表同帧重排后下标指向另一只）。
+> ③ 复核 T6-R1 要求生命周期走真实入口（hide_notify / load_floor_data / 道具 86 / 观察模式 / 遮幅），测试数以实际为准。
+
 **Files:**
 - Modify: `crates/game-core/src/tap_walk.rs`（加 `SelectedEnemy`）
 - Modify: `crates/game-core/src/scene.rs`：字段 `tap_selected`；`tap_cell` 的 Map 分支；新增 `selection_valid` / `engage_selected`；`tick_tap_state`、`clear_tap_state`、`press_key`
@@ -2251,6 +2255,7 @@ Run: `sleep 2; touch shell/common/src/*.rs shell/android/src/input.rs; cargo tes
 
 ### Task 11: Android `scene_tap` 改走 `tap_cell`，宿主测试按新规则重写
 
+> 【2026-10-30 执行期补充 · T6 复核 R5】再加一条真资产用例：50 层 (6,5) 型 72 与未播剧情点 83 同格——首点 Selected，再点撞上 ⇒ 进 Dialog、无战斗笔（与方向键一致）。
 > 【2026-10-30 执行期更正 · T5 复核 R1】壳的按键路径投键前的打断须改用 `sc.interrupt_route_for_input()`（浮层开着时按键属浮层、不打断点地路线）：
 > `shell/android/src/native.rs` `replay_scene_keys` 的 Press 分支（约 319 行）与 `ShellAction::Interrupt` 臂；补宿主测试：点地路线途经特殊拾取物弹框，
 > 经生产路径（`Runtime::step` 投 −5）关框后继续走到目标。

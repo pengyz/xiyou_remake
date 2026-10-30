@@ -533,6 +533,8 @@ pub struct GameScene {
     tap_bump: Option<((i32, i32), u8)>,
     /// 【STAGE-B-008】点地寻路收尾后下一拍执行后续（撞击 / 排队）
     tap_followup_ready: bool,
+    /// 【STAGE-B-008】已选中的怪物（首点选中、再点开战；每拍校验）
+    pub tap_selected: Option<crate::tap_walk::SelectedEnemy>,
     /// itemUseTargetType：最近拾取/装备的类型号（浮层图标 + 商店显示）
     pub overlay_kind_item: i32,
     /// 浮层图标图（kind1/3：entityTypeImage[itemUseTargetType] 的克隆——paint 免借用冲突）
@@ -1120,6 +1122,7 @@ impl GameScene {
             tap_reject: None,
             tap_bump: None,
             tap_followup_ready: false,
+            tap_selected: None,
             width_table: width_table.to_vec(),
             tile_walk: tile_walkability.to_vec(),
             afterimage_x: [0; 4],
@@ -2004,10 +2007,32 @@ impl GameScene {
                 return TapResult::Rejected;
             }
         }
+        // 新点按取代上一次点按尚未执行的撞击后续（路线已收尾、撞击排在下一拍开头的那一拍间隙里点按）
+        self.tap_bump = None;
+        self.tap_followup_ready = false;
+        let grid = self.tap_grid();
+        // 【STAGE-B-008 · spec §5.2 Q8】点中怪物：自动战斗关且不是已选中的那只 ⇒ 只选中（不动、不开路线、不置目标框）
+        if let Some(crate::tap_walk::TapCell { kind: crate::tap_walk::TargetKind::Monster(e), .. }) = grid.get(cx, cy) {
+            // 再点判据带有效性校验：实体表重排（跨层探针 / 换层重载）后、下一拍校验前的同帧窗口里，
+            // 同下标可能已是另一只怪（计划 2 T6 复核 R2）
+            let again = self.tap_selected.map_or(false, |s| s.entity == e && self.selection_valid(s));
+            if !self.auto_battle && !again {
+                let ent = &self.entities.items[e];
+                self.tap_selected = Some(crate::tap_walk::SelectedEnemy {
+                    entity: e,
+                    type_: ent.type_,
+                    cell: (ent.px >> 5, ent.py >> 5),
+                    floor: self.current_floor,
+                });
+                self.tap_target = None;
+                return TapResult::Selected;
+            }
+        }
+        // 点别处 / 点自己 / 再点同一只 / 自动战斗：清选中，再执行这次点按
+        self.tap_selected = None;
         if (cx, cy) == at {
             return TapResult::Ignored;
         }
-        let grid = self.tap_grid();
         let plan = crate::tap_walk::plan_tap(&grid, at, (cx, cy));
         self.start_tap_plan(plan, (cx, cy))
     }
@@ -2075,12 +2100,45 @@ impl GameScene {
         self.tap_reject = None;
         self.tap_bump = None;
         self.tap_followup_ready = false;
+        self.tap_selected = None;
+    }
+
+    /// 【STAGE-B-008 · spec §5.2】选中是否仍有效（每拍校验的判据）。
+    fn selection_valid(&self, s: crate::tap_walk::SelectedEnemy) -> bool {
+        if self.game_mode != GameMode::Map
+            || self.walk_phase != 0
+            || self.overlay_active
+            || self.transitioning
+            || self.current_floor != s.floor
+            || s.entity >= self.entities.count
+        {
+            return false;
+        }
+        let ent = &self.entities.items[s.entity];
+        !ent.removed && ent.state != 1 && ent.visible && ent.type_ == s.type_ && (ent.px >> 5, ent.py >> 5) == s.cell
+    }
+
+    /// 【STAGE-B-008 · spec §3.2「开战」】撞已选中的怪（工具栏按钮由计划 3 接入）。无有效选中 = Ignored。
+    pub fn engage_selected(&mut self) -> crate::tap_walk::TapResult {
+        match self.tap_selected {
+            Some(s) if self.selection_valid(s) => self.tap_cell(s.cell.0, s.cell.1),
+            _ => {
+                self.tap_selected = None;
+                crate::tap_walk::TapResult::Ignored
+            }
+        }
     }
 
     /// 【STAGE-B-008】每拍开头：闪红到期；点地寻路收尾、玩家落格后的第一拍执行撞击（回到 Map wp0、无浮层 / 遮幅 / 新按键，
     /// 且玩家正在停靠格），否则作废；末步在途（Map wp1）或浮层开着时暂缓到下一拍再判（spec §5.1 T5 复核 R2）；
     /// 路线与撞击都结束即清目标标记。classic 下各字段恒空，零操作。
     fn tick_tap_state(&mut self) {
+        // 【STAGE-B-008 · spec §5.2】选中每拍校验：任一条件不满足即清
+        if let Some(s) = self.tap_selected {
+            if !self.selection_valid(s) {
+                self.tap_selected = None;
+            }
+        }
         if let Some((_, until)) = self.tap_reject {
             if self.frame_counter >= until {
                 self.tap_reject = None;
@@ -4901,6 +4959,8 @@ impl GameScene {
         if !self.overlay_active {
             self.tap_bump = None;
         }
+        // 【STAGE-B-008 · spec §5.2】任何按键清怪物选中（浮层开着时选中本就由每拍校验清掉）
+        self.tap_selected = None;
         // 【T2 打断终版】寻路（WalkTo/探步段）中任意输入皆打断——全通道（触屏/
         // 方向键/软键）即刻清 walkPathBuffer 停步（手动优先）。经典脚本行走
         // （MOV/dp2）不受影响（route 段仅 WalkTo 开放）——保真红线 key 链不动。
@@ -12382,6 +12442,7 @@ mod t2_walkto_route_tests {
         key_walk(&mut keys, -4, (6, ROW));
         assert_eq!((keys.player_cell_x, keys.player_cell_y), (6, ROW), "{label} 参照前置：走进 (6,ROW)");
         let mut sc = make();
+        sc.auto_battle = true; // 【计划 2 T6】本测试测撞击收尾、不测首点选中：自动战斗开 ⇒ 点怪一点即撞（门不受影响）
         let wt = sc.width_table.clone();
         assert_eq!(sc.tap_cell(6, ROW), crate::tap_walk::TapResult::Bumping, "{label}");
         let mut fc = 0;
@@ -12627,6 +12688,201 @@ mod t2_walkto_route_tests {
             assert_eq!(sc.tap_bump, None, "{entry}：撞击后续清除");
             assert!(!sc.tap_followup_ready, "{entry}：后续就绪位清除");
         }
+    }
+
+    /// 路线已收尾（Map wp0）、撞击排在下一拍开头时再点按（此处点自己：不开新路线、仍在 Map）：旧撞击作废。
+    #[test]
+    fn t6_new_tap_in_followup_gap_cancels_pending_bump() {
+        use crate::tap_walk::TapResult;
+        let mut sc = scene((2, ROW), &[(1, 8, ROW)]);
+        sc.player.yellow_keys = 1;
+        assert_eq!(sc.tap_cell(8, ROW), TapResult::Bumping);
+        let wt = sc.width_table.clone();
+        let mut fc = 0;
+        while !(sc.tap_followup_ready && sc.game_mode == GameMode::Map && sc.walk_phase == 0) {
+            sc.tick(fc, &wt);
+            fc += 1;
+            assert!(fc < 200, "前置：收尾间隙");
+        }
+        assert_eq!(sc.player_cell_x, 7, "前置：停在门前");
+        // 点自己（不开新路线、仍在 Map）：间隙里的旧撞击必须作废，否则下一拍照样开门
+        assert_eq!(sc.tap_cell(7, ROW), TapResult::Ignored);
+        settle(&mut sc, fc, 60);
+        assert_eq!(sc.player.yellow_keys, 1, "旧撞击作废：门未开");
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (7, ROW), "原地不动");
+        // 【复核 R4】只去间隙里的 tap_bump = None 时旧撞击滞留 ⇒ 目标框挂在门上不消失
+        assert!(sc.tap_bump.is_none(), "旧撞击后续已清");
+        assert_eq!(sc.tap_target, None, "目标框不残留");
+    }
+
+    fn strong(sc: &mut GameScene) {
+        sc.player.atk = 100_000;
+        sc.player.def = 100_000;
+        sc.player.hp = 100_000;
+    }
+
+    /// 【STAGE-B-008 · spec §5.2 Q8】点怪：首点只选中（不动、不开路线）；再点同一只 = 走到邻格撞上开战（战斗笔可撤销）。
+    #[test]
+    fn t6_first_tap_selects_second_tap_fights() {
+        use crate::tap_walk::TapResult;
+        let mut sc = scene((2, ROW), &[(41, 6, ROW)]);
+        strong(&mut sc);
+        let e = (0..sc.entities.count).find(|&i| sc.entities.items[i].type_ == 41).unwrap();
+        assert_eq!(sc.tap_cell(6, ROW), TapResult::Selected);
+        assert_eq!(sc.tap_selected.map(|s| s.entity), Some(e));
+        assert_eq!(sc.tap_target, None, "选中不画目标框（有自己的闪烁框）");
+        settle(&mut sc, 0, 20);
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (2, ROW), "选中不移动");
+        assert!(!sc.route.is_open() && sc.game_mode == GameMode::Map);
+        assert!(sc.tap_selected.is_some(), "空闲时选中保持");
+        assert_eq!(sc.tap_cell(6, ROW), TapResult::Bumping);
+        assert!(sc.tap_selected.is_none(), "开战即清选中");
+        settle(&mut sc, 20, 400);
+        let ent = &sc.entities.items[e];
+        assert!(ent.removed || ent.state == 1, "怪被击杀");
+        assert!(journal_has_combat(&mut sc), "战斗笔入栈（误触靠撤销）");
+    }
+
+    /// 自动战斗开：一点即战。
+    #[test]
+    fn t6_auto_battle_fights_on_first_tap() {
+        use crate::tap_walk::TapResult;
+        let mut sc = scene((2, ROW), &[(41, 6, ROW)]);
+        strong(&mut sc);
+        sc.auto_battle = true;
+        assert_eq!(sc.tap_cell(6, ROW), TapResult::Bumping);
+        assert!(sc.tap_selected.is_none());
+    }
+
+    /// 点另一只 = 改选；点别处 = 清选中并执行。
+    #[test]
+    fn t6_tap_elsewhere_or_other_monster_replaces_selection() {
+        use crate::tap_walk::TapResult;
+        let mut sc = scene((2, ROW), &[(41, 6, ROW), (42, 9, ROW)]);
+        assert_eq!(sc.tap_cell(6, ROW), TapResult::Selected);
+        assert_eq!(sc.tap_cell(9, ROW), TapResult::Selected, "点另一只 = 改选");
+        assert_eq!(sc.tap_selected.map(|s| s.type_), Some(42));
+        assert_eq!(sc.tap_cell(4, ROW), TapResult::Walking, "点别处 = 清选中并执行");
+        assert!(sc.tap_selected.is_none());
+    }
+
+    /// 多格怪（型 69 宽 3 格）：点任一格选中同一只，再点另一格 = 开战（停靠在整只怪的外侧邻格）。
+    #[test]
+    fn t6_multi_cell_monster_any_cell_is_same_selection() {
+        use crate::tap_walk::TapResult;
+        let mut sc = scene((2, ROW), &[(69, 6, ROW)]);
+        strong(&mut sc);
+        assert_eq!(sc.tap_cell(8, ROW), TapResult::Selected, "点 69 的第三格");
+        assert_eq!(sc.tap_cell(7, ROW), TapResult::Bumping, "再点同一只的中间格 = 开战");
+    }
+
+    /// 选中有效性每拍校验：移除 / 死亡动画 / 被搬走 / 变型 / 换层 / 浮层 / 按键 / 清状态，任一即清。
+    #[test]
+    fn t6_selection_invalidated_every_tick() {
+        let mk = || {
+            let mut sc = scene((2, ROW), &[(41, 6, ROW)]);
+            let _ = sc.tap_cell(6, ROW);
+            assert!(sc.tap_selected.is_some(), "前置：已选中");
+            sc
+        };
+        let cases: Vec<(&str, Box<dyn Fn(&mut GameScene)>)> = vec![
+            ("实体移除（他处击杀）", Box::new(|sc| { let e = sc.tap_selected.unwrap().entity; sc.entities.items[e].removed = true; })),
+            ("死亡动画 state = 1", Box::new(|sc| { let e = sc.tap_selected.unwrap().entity; sc.entities.items[e].state = 1; })),
+            ("被搬走（MOV）", Box::new(|sc| { let e = sc.tap_selected.unwrap().entity; sc.entities.items[e].px += 32; })),
+            ("变型（道具改写）", Box::new(|sc| { let e = sc.tap_selected.unwrap().entity; sc.entities.items[e].type_ = 42; })),
+            ("楼层号变化", Box::new(|sc| sc.current_floor += 1)),
+            ("浮层", Box::new(|sc| sc.overlay_active = true)),
+            // 【复核 R1】以下各钉一个 selection_valid 判据（去掉该判据即红）
+            // hide_notify 真实入口：Map → InGameMenu（walk_phase / 浮层 / 楼层 / 实体都不变，只有 game_mode 判据拦得住）
+            ("hide_notify（切后台 ⇒ 游戏内菜单）", Box::new(|sc| {
+                sc.hide_notify();
+                assert_eq!(sc.game_mode, GameMode::InGameMenu, "前置：hide_notify 进游戏内菜单");
+            })),
+            ("观察模式 walk_phase = 2", Box::new(|sc| sc.walk_phase = 2)),
+            ("换层遮幅 transitioning", Box::new(|sc| sc.transitioning = true)),
+            ("实体隐藏 visible = false", Box::new(|sc| { let e = sc.tap_selected.unwrap().entity; sc.entities.items[e].visible = false; })),
+            // 防御判据：层内实体表只追加不压实、重排只在 reload_floor_entities（同时有型 / 格判据兜底），
+            // 没有真实路径能让选中下标单独越界 ⇒ 直接缩小 count 构造
+            ("实体下标越界（防御判据）", Box::new(|sc| sc.entities.count = 0)),
+            // 「切模式」（classic ↔ modern）由计划 3 接入后补测
+        ];
+        for (what, f) in cases {
+            let mut sc = mk();
+            f(&mut sc);
+            settle(&mut sc, 0, 1);
+            assert!(sc.tap_selected.is_none(), "{what} ⇒ 清选中");
+        }
+        let mut sc = mk();
+        sc.press_key(-2);
+        assert!(sc.tap_selected.is_none(), "任何按键 ⇒ 清选中");
+        let mut sc = mk();
+        sc.clear_tap_state();
+        assert!(sc.tap_selected.is_none(), "撤销 / 换层 / 剧情 ⇒ 清选中");
+        let mut sc = mk();
+        assert_eq!(sc.engage_selected(), crate::tap_walk::TapResult::Bumping, "「开战」= 撞已选中的怪");
+    }
+
+    /// 【复核 R1】换层 / 读档真实入口 load_floor_data：立即清选中（不等下一拍）。
+    #[test]
+    fn t6_selection_cleared_by_load_floor_data() {
+        let mut sc = scene((2, ROW), &[(41, 6, ROW)]);
+        let _ = sc.tap_cell(6, ROW);
+        assert!(sc.tap_selected.is_some(), "前置：已选中");
+        sc.load_floor_data(&super::scene_test_support::maplv(), 2 << 5, ROW << 5, &[], 2).unwrap();
+        assert!(sc.tap_selected.is_none(), "换层 / 读档 ⇒ 立即清选中");
+    }
+
+    /// 【复核 R1】他处击杀真实击杀代码：选中邻格怪后用道具 86（use_item_stack → activate_item(86) → 四邻格 killAdjacentAt），下一拍清选中。
+    /// 直接调确认浮层 -6 臂的 use_item_stack：UI 全路径上开面板的按键 / ItemPanel 模式 / 确认浮层本身都会先清选中（复核探针 P05），
+    /// 这里要钉的是"选中仍在时实体被他处击杀"的 removed / state 判据。
+    #[test]
+    fn t6_selection_cleared_after_item86_kills_selected() {
+        use crate::tap_walk::TapResult;
+        let mut sc = scene((5, ROW), &[(41, 6, ROW)]);
+        assert_eq!(sc.tap_cell(6, ROW), TapResult::Selected, "前置：选中邻格怪");
+        let e = sc.tap_selected.unwrap().entity;
+        sc.player.item_types[0] = 86;
+        sc.player.item_uses[0] = 1;
+        sc.player.item_stack_size = 1;
+        sc.use_item_stack(0);
+        let ent = &sc.entities.items[e];
+        assert!(ent.removed || ent.state == 1, "前置：86 击杀选中的怪");
+        assert!(sc.tap_selected.is_some(), "前置：选中要等每拍校验清");
+        settle(&mut sc, 0, 1);
+        assert!(sc.tap_selected.is_none(), "道具 86 击杀 ⇒ 清选中");
+    }
+
+    /// 【复核 R2】实体表重排（跨层探针 m_119/m_122 往返压实）后、下一拍校验前的同帧里点同下标的另一只：只选中、不开战。
+    #[test]
+    fn t6_reorder_then_tap_other_monster_same_frame_selects() {
+        use crate::tap_walk::TapResult;
+        let mut sc = scene((6, ROW), &[(41, 2, ROW), (42, 9, ROW), (43, 4, ROW)]);
+        let i41 = (0..sc.entities.count).find(|&i| sc.entities.items[i].type_ == 41).unwrap();
+        sc.entities.items[i41].removed = true; // 已死：往返后压掉 ⇒ 后面的下标前移
+        assert_eq!(sc.tap_cell(9, ROW), TapResult::Selected, "前置：选中 42");
+        let sel = sc.tap_selected.unwrap();
+        let _ = sc.probe_cross_floor_snapshot(23, 12); // 结果无关：只要它的 save → reload(23) → reload(本层) 往返
+        let at = &sc.entities.items[sel.entity];
+        assert_eq!((at.type_, at.px >> 5, at.py >> 5), (43, 4, ROW), "前置：重排后同下标 = 43@4");
+        assert!(sc.tap_selected.is_some(), "前置：未 tick，选中仍在");
+        assert_eq!(sc.tap_cell(4, ROW), TapResult::Selected, "同下标的另一只 = 首点选中，不开战");
+        assert_eq!(sc.tap_selected.map(|s| s.type_), Some(43));
+        assert!(!sc.route.is_open(), "未开路线");
+    }
+
+    /// 【复核 R3】选中后实体被移除、未 tick 就按「开战」：Ignored、清选中、玩家不动。
+    #[test]
+    fn t6_engage_selected_invalid_is_ignored() {
+        use crate::tap_walk::TapResult;
+        let mut sc = scene((2, ROW), &[(41, 6, ROW)]);
+        assert_eq!(sc.tap_cell(6, ROW), TapResult::Selected);
+        let e = sc.tap_selected.unwrap().entity;
+        sc.entities.items[e].removed = true;
+        assert_eq!(sc.engage_selected(), TapResult::Ignored);
+        assert!(sc.tap_selected.is_none(), "清选中");
+        assert!(!sc.route.is_open(), "未开路线");
+        settle(&mut sc, 0, 30);
+        assert_eq!((sc.player_cell_x, sc.player_cell_y), (2, ROW), "玩家不动");
     }
 }
 
