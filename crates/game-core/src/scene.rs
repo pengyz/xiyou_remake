@@ -6296,6 +6296,9 @@ impl GameScene {
         }
         if self.game_mode == GameMode::Dialog {
             self.paint_dialog(g, tileset);
+            // 【BUG-049】提示浮层在 paint 公共尾对所有模式共跑（a.java:3129-3168；switch 各 case 皆 break、无提前 return）：
+            // mode 11 里弹出的提示（脚本 / 点地寻路行走撞上打不过的怪、无钥匙的门等）原先不画——画面无提示却吞键。
+            self.paint_overlay_box(g);
             return self.paint_wipe_tail(g);
         }
         if self.game_mode == GameMode::Alchemy {
@@ -11070,6 +11073,36 @@ mod t2_walkto_route_tests {
                 assert_eq!(outcome(&probe), outcome(&keys), "{label}、旧朝向 {old}：探步 = 方向键");
             }
         }
+    }
+
+    /// 【BUG-049】Dialog 模式（mode 11）下弹出的提示框必须画出来（Java paint 公共尾对所有模式共跑，a.java:3129-3168）。
+    /// 实机发现：点地寻路首步撞打不过的怪 ⇒ 拒战提示已激活（吞键），但画面上看不到。
+    #[test]
+    fn bug049_overlay_is_painted_in_dialog_mode() {
+        let paint_once = |overlay: bool| {
+            let mut sc = scene((5, ROW), &[]);
+            sc.game_mode = GameMode::Dialog;
+            sc.dialog_phase = 3;
+            if overlay {
+                sc.show_overlay_message(0, "你无法战胜它", 0, 0);
+            }
+            let mut canvas = crate::render::ArgbImage::create(240, 320);
+            {
+                let mut g = crate::render::SoftGraphics::new(&mut canvas);
+                sc.paint(&mut g, &crate::render::ArgbImage::create(2, 2));
+            }
+            (canvas.argb, sc.overlay_box_w, sc.overlay_box_h)
+        };
+        let (plain, _, _) = paint_once(false);
+        let (with_box, bw, bh) = paint_once(true);
+        assert!(bw > 0 && bh > 0, "前置：提示框有尺寸");
+        // 盒框居中（paint_overlay_box：bx = (screen_w - w) >> 1）；框内必须有像素与无框画面不同
+        let (bx, by) = ((240 - bw) >> 1, (320 - bh) >> 1);
+        let changed = (by..by + bh)
+            .flat_map(|y| (bx..bx + bw).map(move |x| (x, y)))
+            .filter(|&(x, y)| plain[(y * 240 + x) as usize] != with_box[(y * 240 + x) as usize])
+            .count();
+        assert!(changed > 0, "Dialog 模式下提示框区域须被绘制");
     }
 
     /// 【BUG-044】点地寻路首步撞上不弹浮层的阻挡：玩家不得进入该格，寻路收尾回 Map。
