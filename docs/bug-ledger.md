@@ -959,3 +959,20 @@ Evidence: A 级——复核探针运行时实录（探针已删）；修复前 `
   变异：分支条件改为"有快照即入栈续走"（≈修复前）⇒ 两条剧情接管钉红；按键打断不续走 ⇒ 按键钉红。
 Evidence: A 级——宿主 RED（49 层型 70 击杀触发剧情后 route.is_open() 为真）→ GREEN；上述变异被杀；复核 `target/verify/review_plan1_T4.md` 探针
 （69@35 / 71@49 / 72@50 剧情接管终态、按键打断重叠回退）；gates trace 实跑见提交说明。Confidence: 85
+
+## BUG-049 Dialog 模式（mode 11）下弹出的提示框不画：画面无提示却吞键（classic 移植缺口，2026-10-30 计划 1 实机冒烟发现，已修复）
+
+> 【2026-10-30】计划 1 Task 7 实机冒烟（Xiaomi 14 `c362a15b`）：25 层（fx-boss68b 预置）点打不过的型 68 ⇒ 玩家不动、画面无任何提示，
+> 此后方向键无效（日志 `scene keys=[Press(-1)] mode=Dialog`）；按确定后才回 Map。同一只怪用方向键手动撞（Map 模式）提示框正常显示。
+- **根因**（classic 移植缺口）：Java `paint` 的提示浮层在 mode switch **之后**的公共尾绘制（a.java:3129-3168：`!floorTransitioning && overlayActive`），
+  switch 各 case 均以 break 结束、无提前 return（a.java:2385-3127 区间内无 `return`）⇒ 所有模式都画。Rust 只在 Map 尾与 SaveSlot / InGameMenu /
+  Shop / ItemPanel / Help / Alchemy / RecordBrowser 分支调 `paint_overlay_box`，Dialog 分支（`scene.rs` paint 的 `GameMode::Dialog` 臂）漏画。
+  BUG-046 移植后，点地寻路（借 dp3、处于 Dialog）首步撞打不过的怪会在 Dialog 模式弹拒战框，缺口由此在实机暴露；classic 下脚本行走（MOV dp3）
+  撞上弹框的阻挡同样受影响。
+- **Stage A 处理**：**须修**（Rust 少了原版行为）。Dialog 臂在 `paint_dialog` 之后补 `paint_overlay_box`（函数内自带 `!transitioning && overlay_active` 门）。
+  其余未调 `paint_overlay_box` 的模式（About / Ending / EnemyInfo 等）在这些模式下能否激活浮层未考证（C 级），未改。
+- **Stage B 修复方案**：—。
+- **修复**（2026-10-30）：宿主钉 core `bug049_overlay_is_painted_in_dialog_mode`（Dialog 模式下提示框区域须被绘制；删去补画一行即红）。
+  实机复测：同一场景点打不过的怪 ⇒ "你无法战胜它"框可见，确定关框后回 Map（`scene keys … mode=Map`）。全量测试 0 失败；gates trace PASS。
+Evidence: A 级——a.java:3129-3168 公共尾 + switch 区间无 return；实机日志与截图（target/verify/device_plan1/b4_padbump.jpg 无框、b9_tap_refuse.jpg 有框）；
+宿主 RED→GREEN。Confidence: 90
