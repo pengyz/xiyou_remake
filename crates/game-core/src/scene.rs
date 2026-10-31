@@ -2357,24 +2357,27 @@ impl GameScene {
             || self.walk_phase != 2
             || self.view_locked
             || self.overlay_active
+            // 【复核 T4-R5】遮幅期防御门（生产 (wp2∧transitioning) 不可达；与 field_tap_allowed 同口径）
+            || self.transitioning
         {
             return (0, 0);
         }
         if dx == 0 && dy == 0 {
             return (0, 0);
         }
+        // 【复核 T4-R2 · 方向裁定（操作便利性）】渲染约定 screen=world+cam（a.java:7034）：
+        // cam += 增量 ⇒ 内容屏幕坐标同向移动 =「内容跟手」（地图应用惯例；原版 wp2 键臂 cam−16
+        // =「镜头跟手」是按键机取景框语义，触屏拖动不用）。facing 恒表镜头朝向：拖右（内容右移）
+        // = 镜头左移 = facing 左(3)，与键臂（按右=镜头右=facing 2）恰好镜像、各自自洽。
         let (cx, cy) = (self.view.cam_x, self.view.cam_y);
-        // 方向语义与 wp2 keyHeld 平移臂一致（a.java:3618-3640）：键"右"= 内容右移 = cam_x −16 ⇒
-        // 拖动 dx>0（手指右拖、内容跟随）= cam −dx（t4_pan 钉：拖右 → cam_x 减）
-        let (nx, ny) = (cx - dx, cy - dy);
+        let (nx, ny) = (cx + dx, cy + dy);
         self.view.set_camera(nx, ny);
-        // 主轴方向改 facing（与 wp2 平移臂一致：主轴主导，dx 优先）
         let f = if dx.abs() >= dy.abs() {
-            if dx > 0 { 2 } else { 3 }
+            if dx > 0 { 3 } else { 2 }
         } else if dy > 0 {
-            0
-        } else if dy < 0 {
             1
+        } else if dy < 0 {
+            0
         } else {
             self.facing
         };
@@ -13869,21 +13872,21 @@ mod t2_walkto_route_tests {
         assert_eq!(sc.walk_phase, 2, "前置：观察模式");
         assert!(!sc.view_locked);
         let (cx0, cy0) = (sc.view.cam_x, sc.view.cam_y);
-        // 向右拖 3 拍（每拍 16px）：内容跟随手指 → cam_x 减（wp2 平移臂同向）
+        // 向右拖 3 拍（每拍 16px）：内容跟手（cam+dx，复核 T4-R2 裁定）
         let mut moved = 0;
         for _ in 0..3 {
             let (dx, _) = sc.pan_viewport(16, 0);
             moved += dx;
         }
-        assert_eq!(moved, -48, "三拍共移 −48px（cam 反向于手指；钳位前）");
-        assert_eq!(sc.view.cam_x, cx0 + moved, "拖右 = 相机左移（内容右移）");
-        assert_eq!(sc.facing, 2, "主方向 = 右");
-        // 向上拖（负 dy）⇒ facing 上
+        assert_eq!(moved, 48, "三拍共移 48px（内容跟手）");
+        assert_eq!(sc.view.cam_x, cx0 + moved, "拖右 = 内容右移（cam 增）");
+        assert_eq!(sc.facing, 3, "镜头朝向 = 左（内容右移 ⇒ 看向更左）");
+        // 上拖（dy<0 = 内容上移 = 镜头下）⇒ facing 下
         let _ = sc.pan_viewport(0, -16);
-        assert_eq!(sc.facing, 1, "上拖 facing=1");
-        // 对角（dx 优先）
+        assert_eq!(sc.facing, 0, "上拖 = 镜头下（facing 0）");
+        // 对角（dx 优先；拖右 = 镜头左）
         let _ = sc.pan_viewport(16, -1);
-        assert_eq!(sc.facing, 2, "对角 dx 优先");
+        assert_eq!(sc.facing, 3, "对角 dx 优先（镜头左）");
         // 零增量
         let before = (sc.view.cam_x, sc.view.cam_y);
         assert_eq!(sc.pan_viewport(0, 0), (0, 0));

@@ -63,6 +63,14 @@ core `menu_family.rs` / `boot`（新入口 `replace_shell_rows(rows)`：同改 s
 
 ### Task 4: 手势分类（点 / 滑 / 拖）与 Android 视口 Move 接入（spec §5.3）
 
+> 【2026-10-31 实施记录 · 复核 T4 处置】① 阻断缺陷 R1（pending_vp_taps 只写不读、竖屏点地/Boot 页点行
+> 全断）已修：短按合流进 step_scene 与 step_boot 两路（改 Vec 保多指序），端到端钉 vp_tap_reaches_scene_and_boot_pages。
+> ② R2 方向裁定（用户授权操作便利性）：**内容跟手**（cam+dx，地图应用惯例；原版 wp2 键臂的"镜头跟手"是取景框
+> 语义），facing 恒表镜头朝向（拖右=内容右移=镜头左=facing 3，与键臂镜像自洽）——spec §5.3 补口径注（T11 一并）。
+> ③ R4：Gesture::Drag(i32,i32) 逐事件增量载荷（win 接 pan_viewport）；R5：pan 门补 transitioning（BUG-038 同口径）。
+> ④ 登记：R3 阈值=画布逻辑 px（触点已反变换，比例相对游戏画面恒定；物理距离随设备缩放）；R8 拖动 facing 逐事件
+> 重算斜拖抖动（实机反馈后打磨）。
+
 **Files:** `shell/common/src/touch.rs`（`GestureTracker` 扩拖动判定：超阈且未松手持续 = 拖动；阈值 dp 定值并注明）；`shell/android/src/native.rs`
 （视口 Move 事件：滑 → `swipe_step` 排队 / 空闲探步；拖（观察 wp2）→ 相机直写 modern 专用入口 + 主方向改 facing，钳位同 wp2 平移臂
 scene.rs:4927-4963 同式；滑 / 拖不产生 Up 点按）。

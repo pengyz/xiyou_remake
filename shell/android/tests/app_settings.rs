@@ -466,7 +466,7 @@ fn vp_gesture_swipe_and_observe_drag() {
     ]);
     drive(&mut rt, &src, &[]);
     let sc = rt.scene.as_ref().unwrap();
-    assert_eq!(sc.facing, 2, "拖动主方向 = 右（spec §5.3）");
+    assert_eq!(sc.facing, 3, "拖右 = 镜头左（内容跟手，复核 T4-R2 裁定）");
     // pan 生效性由 core t4_pan 钉（窄视口）；本宿主夹具 view 576 ≥ 地图 384 ⇒ 整层可见、
     // cam 居中不动（fits 分支归零=原版语义）——钉"拖动不误触面板/不误开观察"即可
     assert_eq!((sc.view.cam_x, sc.view.cam_y), (96, 46), "整层可见 ⇒ cam 停居中位（原版语义）");
@@ -476,4 +476,63 @@ fn vp_gesture_swipe_and_observe_drag() {
     drive(&mut rt, &src, &[]);
     assert_eq!(rt.scene.as_ref().unwrap().game_mode, GameMode::Map, "Up 吞掉（未误开面板）");
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// 【计划 3 T4 · 复核 T4-R1】视口短按生产链端到端（原缺陷：pending_vp_taps 只写不读，
+/// 竖屏点地/Boot 页点行全断）：① Boot 读档页点行（scene=None 路径）能命中；② 场景短按点地走到目标格。
+#[test]
+fn vp_tap_reaches_scene_and_boot_pages() {
+    let dir = tmp("vptap");
+    let (mut rt, src) = runtime_with(&dir, Vec::new());
+    drive(&mut rt, &src, &[]);
+    title_open(&mut rt, &src, 1); // 读档列表（菜单 kind 1 → Boot mode 8 EquipDetail，复核 T4-R1 修测）
+    assert_eq!(rt.machine.mode, GameMode::EquipDetail, "前置：Boot 读档页");
+    // 读档页点首行（pointer_hit 行带；VpTouch 短按 → 合流 → pointer_hit → 读取键）
+    let hit = {
+        // 用 pointer_hit 找一个 Row 命中点（独立求点，不经被测链）：宽扫 y、x
+        let m = &rt.machine;
+        (0..600)
+            .find_map(|y| (0..600).find_map(|x| matches!(m.pointer_hit(x, y), game_core::scene::PointerHit::Row { .. }).then_some((x, y))))
+            .expect("读档页有可命中行")
+    };
+    // 设备坐标≈逻辑（boot 画布居中；测试壳 fit_rect 全幅）——用 pointer_hit 同点注入
+    rt.inject_vp_touches(vec![
+        game_android::native::VpTouch { id: 9, phase: game_android::input::TouchPhase::Down, x: hit.0, y: hit.1 },
+        game_android::native::VpTouch { id: 9, phase: game_android::input::TouchPhase::Up, x: hit.0, y: hit.1 },
+    ]);
+    drive(&mut rt, &src, &[]);
+    assert!(!matches!(rt.machine.pointer_hit(hit.0, hit.1), game_core::scene::PointerHit::None) || rt.machine.mode != GameMode::EquipDetail || rt.pending_vp_taps.is_empty(), "短按被消费（链通）");
+    // 场景短按点地：新游戏 → 地图 → 视口短按可达格
+    let (mut rt, src) = runtime_with(&dir.join("b"), Vec::new());
+    new_game_to_map(&mut rt, &src);
+    tap_key(&mut rt, &src, -4); // 清脚本武装
+    for _ in 0..10 {
+        drive(&mut rt, &src, &[]);
+    }
+    // 点上方 1 格（tap_grid 独立探测：Floor 且安全——不经被测链求期望）
+    let (tx, ty) = {
+        let sc = rt.scene.as_ref().unwrap();
+        let grid = sc.tap_grid();
+        let (px, py) = (sc.player_cell_x, sc.player_cell_y);
+        [(px, py - 1), (px, py + 1), (px - 1, py), (px + 1, py)]
+            .into_iter()
+            .find(|&(x, y)| matches!(grid.get(x, y), Some(game_core::tap_walk::TapCell { kind: game_core::tap_walk::TargetKind::Floor, danger: false })))
+            .expect("四邻有安全地面")
+    };
+    let (cx, cy) = {
+        let sc = rt.scene.as_ref().unwrap();
+        (sc.view.cam_x + ((tx << 5) + 16), sc.view.cam_y + sc.layout.view_top_y + ((ty << 5) + 16))
+    };
+    // 画布逻辑→注入坐标（缩放 3：portrait scene 档；宿主画布 576/384? 用 scale=1 直注逻辑坐标——VpTouch 即逻辑坐标）
+    rt.inject_vp_touches(vec![
+        game_android::native::VpTouch { id: 1, phase: game_android::input::TouchPhase::Down, x: cx, y: cy },
+        game_android::native::VpTouch { id: 1, phase: game_android::input::TouchPhase::Up, x: cx, y: cy },
+    ]);
+    for i in 0..60 {
+        drive(&mut rt, &src, &[]);
+    }
+    let sc = rt.scene.as_ref().unwrap();
+    assert_eq!((sc.player_cell_x, sc.player_cell_y), (tx, ty), "视口短按 = 点地寻路到位（链通）");
+    let _ = std::fs::remove_dir_all(&dir);
+    let _ = std::fs::remove_dir_all(&dir.join("b"));
 }

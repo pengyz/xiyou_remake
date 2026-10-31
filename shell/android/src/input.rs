@@ -391,6 +391,7 @@ impl TouchInput {
                     // 观察拖动由 pan_viewport 消费（映射层不产生键码动作，STAGE-B-008 计划 3 T4）
                     match self.gestures.move_to(ev.x as i32, ev.y as i32) {
                         Some(tch::Gesture::Swipe(d)) => tch::Dispatcher::swipe(d),
+                        // Drag 增量的 pan 消费同 Runtime::vp_gesture_feed（TouchInput 生产无消费者，等价迁移）
                         _ => Vec::new(),
                     }
                 }

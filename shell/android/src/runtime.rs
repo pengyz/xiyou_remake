@@ -115,8 +115,9 @@ pub struct Runtime {
     pub vp_track: std::collections::HashMap<i32, (i32, i32, bool)>,
     /// native 层（wiring）收割来的视口触点暂存（step_scene 消费）。
     pub pending_vp_touches: Vec<crate::native::VpTouch>,
-    /// vp 短按产生的点按（逻辑坐标；step_scene 与外部 taps 合流）。
-    pub pending_vp_tap: Option<(f32, f32)>,
+    /// vp 短按产生的点按（逻辑坐标；step_scene / step_boot 与外部 taps 合流——复核 T4-R1：
+    /// 首版只写不读致竖屏点地/Boot 页点行全断，改 Vec 保多指序）。
+    pub pending_vp_taps: Vec<(f32, f32)>,
 }
 
 impl Runtime {
@@ -149,7 +150,7 @@ impl Runtime {
             rt_tips_seen_touch: false,
             vp_track: std::collections::HashMap::new(),
             pending_vp_touches: Vec::new(),
-            pending_vp_tap: None,
+            pending_vp_taps: Vec::new(),
         }
     }
 
@@ -369,6 +370,11 @@ impl Runtime {
         if self.exit_dialog_pending {
             return;
         }
+        // 【复核 T4-R1】vp 触点分类先于两侧步进（feed 内短按入队、swipe/drag 仅 scene 时生效）
+        let vp = std::mem::take(&mut self.pending_vp_touches);
+        for t in vp {
+            self.vp_gesture_feed(t);
+        }
         if self.scene.is_some() {
             self.step_scene(keys, taps);
         } else {
@@ -435,6 +441,9 @@ impl Runtime {
         gestures: Vec<TitleGesture>,
         taps: Vec<(f32, f32)>,
     ) {
+        // 【复核 T4-R1】vp 短按合流（Boot 读档/设置页点行走 pointer_hit）
+        let mut taps: Vec<(f32, f32)> = taps;
+        taps.extend(std::mem::take(&mut self.pending_vp_taps));
         let mut batch = keys.to_vec();
         if !gestures.is_empty() {
             let k = resolve_title_gestures(&self.machine, gestures.clone());
@@ -533,15 +542,14 @@ impl Runtime {
                             let res = self.scene.as_mut().map(|sc| sc.swipe_step(d));
                             log_input(&format!("vp swipe {d} → {res:?}"));
                         }
-                    } else {
-                        if dx != 0 || dy != 0 {
-                            let moved = self.scene.as_mut().map(|sc| sc.pan_viewport(dx, dy));
-                            *x0 = t.x;
-                            *y0 = t.y;
-                            if let Some((mx, my)) = moved {
-                                if mx != 0 || my != 0 {
-                                    log_input(&format!("vp pan ({dx},{dy}) → ({mx},{my})"));
-                                }
+                    } else if dx != 0 || dy != 0 {
+                        // 已发滑动后续 move = 拖动（逐事件增量，复核 T4-R4 口径）；非观察态 pan 零变化
+                        *x0 = t.x;
+                        *y0 = t.y;
+                        let moved = self.scene.as_mut().map(|sc| sc.pan_viewport(dx, dy));
+                        if let Some((mx, my)) = moved {
+                            if mx != 0 || my != 0 {
+                                log_input(&format!("vp pan ({dx},{dy}) → ({mx},{my})"));
                             }
                         }
                     }
@@ -550,8 +558,8 @@ impl Runtime {
             crate::input::TouchPhase::Up | crate::input::TouchPhase::Cancel => {
                 if let Some((x0, y0, fired)) = self.vp_track.remove(&t.id) {
                     if !fired && matches!(t.phase, crate::input::TouchPhase::Up) {
-                        // 短按：交既有点按链（scene_tap）
-                        self.pending_vp_tap = Some((t.x as f32, t.y as f32));
+                        // 短按：交既有点按链（scene_tap / Boot pointer_hit）
+                        self.pending_vp_taps.push((t.x as f32, t.y as f32));
                     }
                     let _ = (x0, y0);
                 }
@@ -562,13 +570,10 @@ impl Runtime {
     /// 场景拍（win 壳 step Game 臂同构）：点按/键按到达序投递 → 存档写穿 → tick
     /// （panic 捕获=停拍留帧）→ SKY_WAR 写穿 → kind7 退出换回标题。
     fn step_scene(&mut self, keys: &[KeyAction], taps: Vec<(f32, f32)>) {
-        // 【计划 3 T4 · spec §5.3】视口手势先于点按/键（分类内部自借 scene）：滑 = swipe_step（core
-        // 决定探步/排队）；拖 = 观察模式 pan_viewport（非观察态零变化）；滑/拖不产生点按。
-        let vp = std::mem::take(&mut self.pending_vp_touches);
-        for t in vp {
-            self.vp_gesture_feed(t);
-        }
         let Some(sc) = self.scene.as_mut() else { return };
+        // 【复核 T4-R1】短按合流（先于外部 taps）
+        let mut taps: Vec<(f32, f32)> = taps;
+        taps.extend(std::mem::take(&mut self.pending_vp_taps));
         let mut batch = keys.to_vec();
         for (tx_, ty_) in taps {
             let k = scene_tap(sc, tx_ as i32, ty_ as i32);

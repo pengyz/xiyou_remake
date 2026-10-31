@@ -1181,8 +1181,18 @@ fn run_window(shell: Shell) {
                                             self.shell.apply_touch_action(a);
                                         }
                                     }
-                                    // 【计划 3 T4】续滑=观察拖动：win 鼠标低频，观察相机平移归 T5
-                                    //（与工具栏一起接 core pan_viewport；本任务只保滑动臂语义不变）
+                                    // 【计划 3 T4 · 复核 R4】续滑=观察拖动（逐事件增量→pan_viewport；
+                                    // 非观察态零变化）
+                                    Some(game_shell_common::touch::Gesture::Drag(dx, dy)) => {
+                                        if dx != 0 || dy != 0 {
+                                            if let Some(Screen::Game(sc)) = self.shell.state.as_mut() {
+                                                let (mx, my) = sc.pan_viewport(dx, dy);
+                                                if mx != 0 || my != 0 {
+                                                    eprintln!("win pan ({dx},{dy}) → ({mx},{my})");
+                                                }
+                                            }
+                                        }
+                                    }
                                     _ => {}
                                 }
                             } else {

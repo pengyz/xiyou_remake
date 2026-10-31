@@ -78,13 +78,14 @@ pub fn swipe_dir(dx: i32, dy: i32, min_len: i32) -> Option<u8> {
 pub enum Gesture {
     Tap(i32, i32),
     Swipe(u8),
-    /// 观察模式拖动（累计位移增量；每次 move_to 给出主轴增量）
-    Drag,
+    /// 观察模式拖动：自上一事件的增量（逐事件口径，消费侧累计投 pan_viewport）
+    Drag(i32, i32),
     None,
 }
 
-/// 手势追踪器：**一格/次**——一个手势至多一次滑动踏步（越阈即发、发后停手，
-/// 撞墙即停语义=无后续自动步）。
+/// 手势追踪器（计划 3 T4 三分类）：越阈首拍发一次 Swipe（滑动=一格踏步，撞墙即停语义）；
+/// 已发后续 move = Drag(增量)——增量相对**上一事件点**（逐事件口径，与 Runtime vp_track 一致；
+/// 复核 T4-R4：不再"发后停手"）。短按抬起 = Tap(down 点)；滑/拖抬起无点按。
 #[derive(Debug)]
 pub struct GestureTracker {
     min_len: i32,
@@ -103,21 +104,25 @@ impl GestureTracker {
     }
 
     /// 位移中：越阈 → 一次性 Some(dir)（同手势后续 None）。
-    /// 位移中：未越阈=None；越阈首拍 → 一次性 Some(Swipe(dir))（滑动踏步）；已发后继续 move → Some(Drag)
-    ///（观察拖动；消费侧按 wp2 分派踏步/拖动，spec §5.3）。min_len 用 dp 换算后的物理 px。
+    /// 位移中：未越阈=None；越阈首拍 → 一次性 Some(Swipe(dir))（滑动踏步）；已发后继续 move → Drag(增量)
+///（观察拖动；消费侧按 wp2 分派踏步/拖动，spec §5.3）。min_len 单位=调用方坐标系（android 画布逻辑 px
+/// ——触点已反变换，比例相对游戏画面恒定；复核 T4-R3 口径注）。
     pub fn move_to(&mut self, x: i32, y: i32) -> Option<Gesture> {
         let (sx, sy) = self.start?;
         let (dx, dy) = (x - sx, y - sy);
         if !self.fired {
             if let Some(dir) = swipe_dir(dx, dy, self.min_len) {
                 self.fired = true;
+                // 锚点迁移到当前点：后续 Drag 增量相对上一事件（复核 T4-R4 口径）
+                self.start = Some((x, y));
                 return Some(Gesture::Swipe(dir));
             }
             return None;
         }
-        // 已发：继续移动 = 拖动（每次给出 ≥min_len 的持续位移；短促抖动不算）
-        if swipe_dir(dx, dy, self.min_len).is_some() {
-            Some(Gesture::Drag)
+        // 已发：任意增量 = 拖动（逐事件增量；1px 也 pan——平滑跟手，复核 T4-R8 抖动打磨另案）
+        if dx != 0 || dy != 0 {
+            self.start = Some((x, y));
+            Some(Gesture::Drag(dx, dy))
         } else {
             None
         }
@@ -261,11 +266,11 @@ mod tests {
         assert_eq!(swipe_dir(40, 0, 24), Some(2), "右滑=Right(facing 2)");
         assert_eq!(swipe_dir(-40, 0, 24), Some(3), "左滑=Left(facing 3)");
         assert_eq!(swipe_dir(4, 4, 24), None, "阈值内=非滑动（tap）");
-        // 一格/次：一个手势至多一次滑动踏步；续滑 = Drag（观察拖动由消费侧分派）
+        // 一格/次：一个手势至多一次滑动踏步；续滑 = Drag(逐事件增量)
         let mut gt = GestureTracker::new(24);
         gt.down(100, 100);
         assert_eq!(gt.move_to(140, 100), Some(Gesture::Swipe(2)), "越阈值发一次 Swipe");
-        assert_eq!(gt.move_to(300, 100), Some(Gesture::Drag), "同手势续滑 = 拖动");
+        assert_eq!(gt.move_to(300, 100), Some(Gesture::Drag(160, 0)), "续滑 = Drag（相对上一事件点）");
         assert_eq!(gt.up(300, 100), Gesture::None, "滑动不产生点按（spec §5.3）");
     }
 
@@ -278,8 +283,8 @@ mod tests {
         gt.down(0, 0);
         let first = gt.move_to(80, 0);
         assert_eq!(first, Some(Gesture::Swipe(2)));
-        // 续滑 = Drag（拖动语义；消费侧在地图态可自行忽略）
-        assert_eq!(gt.move_to(200, 0), Some(Gesture::Drag), "续滑=拖动（消费侧分派）");
+        // 续滑 = Drag（逐事件增量）
+        assert_eq!(gt.move_to(200, 0), Some(Gesture::Drag(120, 0)), "续滑=Drag 增量");
     }
 
     /// 【计划 3 T4 · spec §5.3】手势三分类：阈内=Tap（短按）、越阈首拍=Swipe、续滑=Drag、
@@ -297,11 +302,10 @@ mod tests {
         // 主轴主导：dy 大于 dx
         gt.down(0, 0);
         assert_eq!(gt.move_to(10, 40), Some(Gesture::Swipe(0)), "纵向主导 = 下滑");
-        assert_eq!(gt.move_to(10, 60), Some(Gesture::Drag), "续滑 = Drag");
-        // 回拖（累计位移仍越阈）= 仍 Drag（fired 态只认累计位移，不重发 Swipe、不转 tap）
-        assert_eq!(gt.move_to(12, 42), Some(Gesture::Drag), "累计位移越阈 = Drag");
-        // 拖回阈内（累计 < min_len）= None（手势停驻）
-        assert_eq!(gt.move_to(6, 8), None, "拖回阈内 = None");
+        assert_eq!(gt.move_to(10, 60), Some(Gesture::Drag(0, 20)), "续滑 = Drag 增量");
+        // Drag 后任意增量（含拖回）都是 Drag——锚点随事件迁移
+        assert_eq!(gt.move_to(4, 8), Some(Gesture::Drag(-6, -52)), "增量可负（拖回）");
+        assert_eq!(gt.move_to(4, 8), None, "零增量 = None");
         assert_eq!(gt.up(12, 42), Gesture::None, "滑/拖抬起 = 无点按");
     }
 
