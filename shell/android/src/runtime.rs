@@ -23,6 +23,10 @@ use game_shell_common::settings::AppSettings;
 pub const PREF_SPLASH: u8 = 1;
 pub const PREF_HAPTIC: u8 = 2;
 pub const PREF_CLICK: u8 = 3;
+/// 【STAGE-B-008 计划 3 T3】操控方式行（checked = 触屏；默认摇杆=unchecked）。行增减归 T3.2。
+pub const PREF_CONTROL_MODE: u8 = 4;
+/// 【STAGE-B-008 计划 3 T3】自动战斗行（仅触屏模式出现，T3.2 增减）。
+pub const PREF_AUTO_BATTLE: u8 = 5;
 
 /// 【STAGE-B-006】设置 → 附加行：开屏画面 / 按键震动 / 按键音（排在原版"声音、小地图"之后）。
 pub fn shell_rows(s: &AppSettings) -> Vec<game_core::menu_family::ShellOption> {
@@ -90,6 +94,12 @@ pub struct Runtime {
     exit_dialog_pending: bool,
     /// 【STAGE-B-006】设置文件（路径, 已落盘值）：None = 未接线（宿主流程测试 / 无持久场景）不落盘。
     settings_file: Option<(std::path::PathBuf, AppSettings)>,
+    /// 【STAGE-B-008 计划 3 T3 · spec §8】运行时操控设置：control_mode/auto_battle 行存在时以行为准
+    ///（T3.2 行同步接入），行缺失时保留本字段；tips_seen_* 恒纯 Runtime 字段。
+    pub rt_control_mode: game_shell_common::settings::ControlMode,
+    pub rt_auto_battle: bool,
+    pub rt_tips_seen_pad: bool,
+    pub rt_tips_seen_touch: bool,
 }
 
 impl Runtime {
@@ -116,12 +126,21 @@ impl Runtime {
             shell_exit: false,
             exit_dialog_pending: false,
             settings_file: None,
+            rt_control_mode: game_shell_common::settings::ControlMode::Pad,
+            rt_auto_battle: false,
+            rt_tips_seen_pad: false,
+            rt_tips_seen_touch: false,
         }
     }
 
     /// 【STAGE-B-006】应用设置（启动时、首拍前）：声音对 → 三行附加行 → 开屏关则跳过开屏。顺序不可换：跳过即进标题，
     /// `enter_title` 按当时的声音开关建播放器（复核 M5③）。只写开场链机器（启动时无场景）。
     pub fn apply_app_settings(&mut self, s: &AppSettings) {
+        // 【STAGE-B-008 计划 3 T3】运行时操控设置（行覆盖待 T3.2 接线）
+        self.rt_control_mode = s.control_mode;
+        self.rt_auto_battle = s.auto_battle;
+        self.rt_tips_seen_pad = s.tips_seen_pad;
+        self.rt_tips_seen_touch = s.tips_seen_touch;
         self.machine.bgm.sound_enabled = s.sound_enabled;
         self.machine.bgm.volume_level = s.volume_level;
         self.machine.shell_options = shell_rows(s);
@@ -144,6 +163,12 @@ impl Runtime {
             show_splash: row_checked(rows, PREF_SPLASH, d.show_splash),
             key_haptic: row_checked(rows, PREF_HAPTIC, d.key_haptic),
             key_click: row_checked(rows, PREF_CLICK, d.key_click),
+            // 【STAGE-B-008 计划 3 T3】操控方式/自动战斗：行存在时以行为准（T3.2 接线）；
+            // 此处先取 Runtime 字段（spec §8：行缺失不回默认）。tips_seen_* 恒 Runtime 值。
+            control_mode: self.rt_control_mode,
+            auto_battle: self.rt_auto_battle,
+            tips_seen_pad: self.rt_tips_seen_pad,
+            tips_seen_touch: self.rt_tips_seen_touch,
         }
     }
 
