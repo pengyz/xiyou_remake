@@ -226,3 +226,37 @@ epack(unpack(x))==x 逐字节恒等（126 资产，常驻 gates）；
 - **设计件 / 计划 / 复核**：docs/superpowers/specs/2026-10-29-dual-control-schemes-design.md /
   docs/superpowers/plans/2026-10-30-dual-control-core-tap-rules.md（各任务复核记录在 target/verify/review_plan2_T*.md，不入库；
   T7 复核 7 轮意见 R1–R7 已吸收进实现，记录文件随 target 清理不可查，见 T7 提交正文）。
+
+## STAGE-B-008 双操控方案——壳层功能查询/工具栏/手势/设置/提示卡（计划 3 部分）
+
+- **状态**：已实施（2026-10-31，计划 3 T1–T10，提交 96951cc…<T10>；T11 收口随本条）。
+- **用户裁定原话**：Q12 功能键面板并入本件；"按照你的建议来"（§12）+ 授权代理取舍：
+  战斗操作触屏方案（2026-10-31：装饰按钮不做可点，spec §3.2 战斗行注）；pan 方向=内容跟手（T4-R2）。
+- **偏离点 / 实施口径**：
+  1. 功能查询 `controls()`（core 纯查询，情境→钮集合，标签迁 shell-common controls_ui——M8 core 无文字）；
+     页面行含商店（spec 原表漏行，T2-R3 补）；读档=Boot gameMode 8 EquipDetail（T2-R1 更正）。
+  2. Action 执行器 `perform_action`：Key=边沿键值（不 press_key，无 keyHeld 锁存）；StopThen 停下后打开
+     与排队共用机制；Undo=false（撤销在壳 undo_ui）。
+  3. 手势三分类（shell-common）：越阈首拍 Swipe（一格踏步）、续滑 Drag(逐事件增量)、滑/拖 Up 吞点按；
+     阈值=调用方坐标系（android 画布逻辑 px 24，比例相对游戏画面恒定——**物理距离随设备缩放**，T4-R3 口径）。
+  4. 观察拖动 `pan_viewport`：**内容跟手**（cam+dx）+ facing=镜头朝向（与 wp2 键臂镜像）；门=modern ∧ Map wp2
+     ∧ 未锁 ∧ 无浮层 ∧ 非遮幅；整层可见时 set_camera 归中（原版语义）。
+  5. 触屏档布局（spec §4.1 公式；spec 表第三行原"3 倍 7×14"不满足自身 C_min，已更正为 2 倍 11×16——T5-R5）；
+     工具栏**贴底**（h−G−64dp，T5-R4 对齐）；触屏面板区=工具栏、pad 恒空。
+  6. 设置四键（control_mode/auto_battle/tips_seen_pad|touch）；replace_shell_rows 两机；切模式主循环轮询
+     ⇒ 触屏档/TouchMapper 重建（按住态清零）。**auto_battle 的 rt 值在摇杆模式同样作用**（行缺失=保留值，
+     spec §8 口径注）。
+  7. 提示卡：首次可操作地图弹 kind 0 原版框（触屏文案含战斗按钮裁定说明）+ 置位同拍落盘；帮助文本覆盖入口
+     两机（未覆盖原文）。
+  8. **Android 右上隐形撤销热区去除**（scene_tap 不再调 undo_zone_hit；撤销=工具栏钮）；Windows 可见钮保留。
+  9. 筋斗云↑/↓ 钮**生产恒隐**（stair_hint/f_bool_13 生产从不置位——BUG-037/计划 1b 未移植；查询门控判据
+     与键臂一致）。落地 1b 后钮自动出现，无需改本件。
+- **门控**：classic 按键链、oracle 回放零变化（controls/pan/三分类生产调用面仅 android 壳 + 呈现；win Swipe
+  臂语义不变、Drag 接 pan）；state-machine-anchors/diff-trace 照旧 PASS。
+- **金样影响**：无。
+- **新增宿主钉**：T1 controls 9（含 R1/R2 修正）、T2 页面行+执行器 3、T2b Boot 行 1、T3 设置 3+翻转链 1、
+  T4 手势 1+pan 1+vp_gesture 1、T5 布局 4+切换/命中 2、T6 标注 1、T7 提示卡+帮助 2、T8 热区去除 1、
+  T9 一致性验收 9；controls_acceptance(test)=9（ratchet 单独入账）。
+- **复核记录**：target/verify/review_plan3_T1..T5.md（不入库）；R5 表更正/R3 阈值口径/R8 抖动打磨已登记。
+- **设计件 / 计划**：docs/superpowers/specs/2026-10-29-dual-control-schemes-design.md（含 T2/T4/T5 原地更正注）/
+  docs/superpowers/plans/2026-10-31-dual-control-shell-toolbar-plan.md。

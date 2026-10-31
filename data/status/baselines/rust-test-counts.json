@@ -2,7 +2,7 @@
   "comment": "每测试二进制用例数 ratchet（只许增不许减）。减少 = 测试被删除或嵌套化静默失效（gotcha_nested-test-silently-skipped）。更新基线必须在 commit 正文写明原因与影响。",
   "binaries": {
     "aaudio_stream(test)": 12,
-    "app_settings(test)": 10,
+    "app_settings(test)": 17,
     "asset_roundtrip(test)": 2,
     "asset_source_contract(test)": 4,
     "audio_out_contract(test)": 6,
@@ -10,6 +10,7 @@
     "boot_replay(test)": 2,
     "combat_golden(test)": 6,
     "config_proof(test)": 1,
+    "controls_acceptance(test)": 9,
     "decode_equivalence(test)": 3,
     "defs_golden(test)": 3,
     "defs_negative(test)": 16,
@@ -21,11 +22,11 @@
     "fixture_frames(test)": 31,
     "flow(test)": 4,
     "game_android(lib)": 6,
-    "game_core(lib)": 300,
+    "game_core(lib)": 314,
     "game_data(lib)": 35,
     "game_oracle(lib)": 0,
     "game_platform(lib)": 6,
-    "game_shell_common(lib)": 41,
+    "game_shell_common(lib)": 44,
     "gameplay_floor1(test)": 5,
     "golden(test)": 9,
     "hd_visual(test)": 6,
@@ -39,7 +40,7 @@
     "native_parse(test)": 36,
     "one_fact_one_host(test)": 6,
     "png_golden(test)": 1,
-    "portrait(test)": 14,
+    "portrait(test)": 20,
     "preset_cases(test)": 35,
     "probe_floor2(test)": 1,
     "process_control_contract(test)": 5,
@@ -64,5 +65,5 @@
     "walk_route(test)": 12,
     "xiyou(bin)": 42
   },
-  "total": 867
+  "total": 906
 }

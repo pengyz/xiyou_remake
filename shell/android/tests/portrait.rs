@@ -469,3 +469,27 @@ fn t6_pad_labels_follow_controls() {
     let diff = (y0..y1).any(|y| (x0..x1).any(|x| a.argb[y * a.width as usize + x] != b.argb[y * b.width as usize + x]));
     assert!(diff, "软键位标注在画（labels 有 → 像素变）");
 }
+
+/// 【计划 3 T5 · 复核 T5-R10】Touch 输入 plan 不变量（跨设备扫）：触屏档存在、视口=game_touch、
+/// 面板=工具栏条、pad 空（无摇杆键）、scene_touch 格≥8×10（C_min）。
+#[test]
+fn t5r10_touch_plan_invariants() {
+    for (w, h, dpi) in [(1200i32, 2536i32, 480i32), (1080, 2400, 420), (720, 1600, 320)] {
+        let mut inp = PlanInput {
+            window: (w, h),
+            dpi,
+            inset_top: 0,
+            inset_bottom: 0,
+            map: MAP,
+            control_mode: game_shell_common::settings::ControlMode::Pad,
+        };
+        inp.control_mode = game_shell_common::settings::ControlMode::Touch;
+        let p = plan_portrait(&inp);
+        assert_eq!(p.game, p.game_touch, "{w}×{h}: 视口=触屏档");
+        assert_eq!(p.panel.y, p.toolbar.bar.y, "{w}×{h}: 面板区=工具栏条");
+        assert!(p.pad.soft.is_empty(), "{w}×{h}: 无摇杆软键");
+        assert!(p.scene_touch.grid_w >= 8, "{w}×{h}: C_min=8");
+        assert!(p.scene_touch.grid_h >= 10, "{w}×{h}: ≥10 行");
+        assert!(p.toolbar.bar.h > 0 && p.toolbar.left.w > 0, "{w}×{h}: 工具栏几何正");
+    }
+}
