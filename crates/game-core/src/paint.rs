@@ -240,6 +240,8 @@ pub struct BootMachine {
     pub options: Option<crate::menu_family::OptionList>,
     /// 【STAGE-B-006】壳层附加设置行（壳提供；空 = 原版两行）：设置页入口据此生成第 3 行起的附加行，切换回写此处，
     /// 随交接往返（handoff）。core 不解释其含义。
+    /// 【计划 3 T7】帮助文本覆盖（壳注入；None=原文）。
+    pub help_override: Option<String>,
     pub shell_options: Vec<crate::menu_family::ShellOption>,
     /// iconStripFrame 共享（菜单族与 title 同一字段 a.java:464）。
     pub strip_frame: usize,
@@ -389,6 +391,7 @@ impl BootMachine {
             slots: None,
             options: None,
             shell_options: Vec::new(),
+            help_override: None,
             strip_frame: 0,
             preset_stores: Vec::new(),
             sptarm: Vec::new(),
@@ -858,8 +861,12 @@ impl BootMachine {
                 self.softkeys = (1, 3);
             }
             GameMode::Help => {
-                // case 15（a.java:4402-4406）：帮助 overlay + 软键 (0,3)
-                let text = HELP_TEXT.encode_utf16().collect::<Vec<u16>>();
+                // case 15（a.java:4402-4406）：帮助 overlay + 软键 (0,3)；壳覆盖优先（计划 3 T7）
+                let text: Vec<u16> = self
+                    .help_override
+                    .as_ref()
+                    .map(|t| t.encode_utf16().collect())
+                    .unwrap_or_else(|| HELP_TEXT.encode_utf16().collect());
                 let font = paint_font();
                 self.overlay.show_kind0(&text, &font, (0, 0));
                 self.overlay_active = true;
@@ -912,7 +919,10 @@ impl BootMachine {
         crate::menu_family::paint_box_frame(g, &self.ui[0], x, y, self.overlay.box_w, self.overlay.box_h);
         g.set_color(crate::layout::WHITE);
         let text: Vec<u16> = if self.mode == GameMode::Help {
-            HELP_TEXT.encode_utf16().collect()
+            self.help_override
+                .as_ref()
+                .map(|t| t.encode_utf16().collect())
+                .unwrap_or_else(|| HELP_TEXT.encode_utf16().collect())
         } else {
             ABOUT_TEXT.encode_utf16().collect()
         };

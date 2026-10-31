@@ -112,6 +112,15 @@ fn settle_map(rt: &mut Runtime, src: &dyn game_platform::AssetSource) {
 }
 
 /// 新游戏直达 Map（标题"开始游戏" → -7 跳序章 → 交接 → 推完剧情）。
+
+/// 【计划 3 T7】若提示卡开着（首次到地图）关框（-5）——供读档/序章后直入操作的用例前置。
+fn close_tips_if_open(rt: &mut Runtime, src: &dyn game_platform::AssetSource) {
+    if rt.scene.as_ref().map(|s| s.overlay_active).unwrap_or(false) {
+        rt.step(src, &[KeyAction::Press(-5), KeyAction::Release], Vec::new(), Vec::new());
+        drive(rt, src, &[]);
+    }
+}
+
 fn new_game_to_map(rt: &mut Runtime, src: &dyn game_platform::AssetSource) {
     assert!(run_until(rt, src, 200, |r| r.title_mode()), "到标题");
     title_open(rt, src, 0);
@@ -119,6 +128,8 @@ fn new_game_to_map(rt: &mut Runtime, src: &dyn game_platform::AssetSource) {
     drive(rt, src, &[KeyAction::Press(-7), KeyAction::Release]);
     assert!(run_until(rt, src, 400, |r| r.scene.is_some()), "交接 GameScene");
     settle_map(rt, src);
+    // 【计划 3 T7】首次到地图弹提示卡（浮层吞键）——统一关框，后续按地图空闲操作
+    close_tips_if_open(rt, src);
 }
 
 /// oracle 预置存档（`键=hex`；reference/ 只读，win 壳 / handoff 测试同口径）。
@@ -385,6 +396,7 @@ fn slot_load_keeps_non_default_settings() {
     assert_eq!(rt.app_settings(), loaded, "交接拍后设置不变");
     assert_eq!(std::fs::read_to_string(&cfg).unwrap(), original, "文件未被改写");
     settle_map(&mut rt, &src);
+    close_tips_if_open(&mut rt, &src);
     in_game_open(&mut rt, &src, 4);
     let sc = rt.scene.as_ref().unwrap();
     assert_eq!(sc.game_mode, GameMode::About);
@@ -574,5 +586,64 @@ fn toolbar_hit_executes_action() {
     assert!(rt.scene.as_mut().unwrap().perform_action(c.mid[0].action));
     drive(&mut rt, &src, &[]);
     assert_eq!(rt.scene.as_ref().unwrap().walk_phase, 2, "观察钮 = 进观察（同拍键值被 tick 消费）");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// 【计划 3 T7 · spec §8】提示卡：新档首次可操作地图弹 kind 0 框 + 置位落盘；关框后续不弹；重启不再弹。
+#[test]
+fn tips_card_shown_once_and_persisted() {
+    let dir = tmp("tips");
+    let cfg = dir.join("app_settings.cfg");
+    let (mut rt, src) = runtime_with(&dir, Vec::new());
+    // 推进到首次 Map（settle_map 稳定时提示卡已弹且开着——mode 仍 Map）
+    assert!(run_until(&mut rt, &src, 200, |r| r.title_mode()), "到标题");
+    title_open(&mut rt, &src, 0);
+    drive(&mut rt, &src, &[KeyAction::Press(-7), KeyAction::Release]);
+    assert!(run_until(&mut rt, &src, 400, |r| r.scene.is_some()), "交接");
+    settle_map(&mut rt, &src);
+    assert!(rt.scene.as_ref().unwrap().overlay_active, "首次到地图弹提示卡");
+    assert_eq!(rt.scene.as_ref().unwrap().overlay_kind, 0);
+    assert!(rt.rt_tips_seen_pad, "置位");
+    assert!(AppSettings::load(&cfg).tips_seen_pad, "同拍落盘");
+    // 关框（-5）
+    rt.step(&src, &[KeyAction::Press(-5), KeyAction::Release], Vec::new(), Vec::new());
+    assert!(!rt.scene.as_ref().unwrap().overlay_active, "框已关");
+    for _ in 0..20 {
+        drive(&mut rt, &src, &[]);
+    }
+    assert!(!rt.scene.as_ref().unwrap().overlay_active || rt.rt_tips_seen_pad, "不再弹（已置位）");
+    // 重启不再弹
+    let (mut rt2, src2) = runtime_with(&dir, Vec::new());
+    new_game_to_map(&mut rt2, &src2);
+    for _ in 0..6 {
+        drive(&mut rt2, &src2, &[]);
+    }
+    assert!(!rt2.scene.as_ref().unwrap().overlay_active, "重启不再弹");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+
+/// 【计划 3 T8 · spec §7】Android 右上隐形撤销热区去除：画面内右上角短按 = 普通点格（不触发撤销——
+/// 栈不变）；撤销改由工具栏/摇杆呈现承担（计划 3）。Windows 可见钮不受影响（win tap_target 未动）。
+#[test]
+fn t8_undo_zone_removed_on_android() {
+    let dir = tmp("t8undo");
+    let (mut rt, src) = runtime_with(&dir, Vec::new());
+    new_game_to_map(&mut rt, &src);
+    // 造一笔位移（右走一步）
+    tap_key(&mut rt, &src, -4);
+    for _ in 0..10 {
+        drive(&mut rt, &src, &[]);
+    }
+    let before = rt.scene.as_ref().unwrap().undo.len();
+    // 右上角短按（VpTouch 生产链；位于画面内 ⇒ 点格 = 墙/界外 → 无撤销副作用）
+    rt.inject_vp_touches(vec![
+        game_android::native::VpTouch { id: 7, phase: game_android::input::TouchPhase::Down, x: 560, y: 8 },
+        game_android::native::VpTouch { id: 7, phase: game_android::input::TouchPhase::Up, x: 560, y: 8 },
+    ]);
+    for _ in 0..6 {
+        drive(&mut rt, &src, &[]);
+    }
+    assert_eq!(rt.scene.as_ref().unwrap().undo.len(), before, "右上短按不触发撤销（热区已去除）");
     let _ = std::fs::remove_dir_all(&dir);
 }

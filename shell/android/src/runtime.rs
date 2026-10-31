@@ -626,6 +626,40 @@ impl Runtime {
                 self.crashed = true;
             }
         }
+        // 【计划 3 T7 · spec §8】提示卡（壳显式调用 core 显示；core 不自动弹）：该模式 tips_seen=false
+        // ∧ 首次可操作地图（Map wp0、无浮层、非遮幅）⇒ 弹 kind 0 原版框（文案限一页）+ 置位落盘。
+        // 文案含"战斗自动进行，画面中的攻击/撤退按钮为原版装饰"（2026-10-31 裁定注）。
+        {
+            let seen = match self.rt_control_mode {
+                ControlMode::Pad => self.rt_tips_seen_pad,
+                ControlMode::Touch => self.rt_tips_seen_touch,
+            };
+            if !seen
+                && sc.game_mode == GameMode::Map
+                && sc.walk_phase == 0
+                && !sc.overlay_active
+                && !sc.transitioning
+            {
+                let (text, key) = match self.rt_control_mode {
+                    ControlMode::Touch => (
+                        "触屏操作：点地面走过去（点怪先选中、再点开战）；滑动踏步；                         观察模式拖动看四周。战斗自动进行——画面中的攻击/撤退按钮为原版装饰。\\cFFCC00按确定键继续。",
+                        self.rt_tips_seen_touch,
+                    ),
+                    _ => (
+                        "摇杆操作：方向键移动，确定键探索。\\cFFCC00按确定键继续。",
+                        self.rt_tips_seen_pad,
+                    ),
+                };
+                let _ = key;
+                sc.show_overlay_message(0, &text, 0, 0);
+                match self.rt_control_mode {
+                    ControlMode::Pad => self.rt_tips_seen_pad = true,
+                    ControlMode::Touch => self.rt_tips_seen_touch = true,
+                }
+                log_input(&format!("tips card shown mode={:?}", self.rt_control_mode));
+                // 落盘由拍尾 persist_app_settings_if_changed 经 app_settings() 快照（含 tips_seen_*）完成
+            }
+        }
         if sc.take_global_dirty() {
             handoff::put_global(&mut self.stores, &sc.global_snapshot());
             self.storage.persist(&self.stores);

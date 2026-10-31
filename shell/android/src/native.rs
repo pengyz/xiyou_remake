@@ -345,7 +345,7 @@ pub fn replay_scene_keys(sc: &mut game_core::scene::GameScene, batch: &[KeyActio
 /// - 其余：pointer_hit 行命中 → 选行并返回该态确认键（调用方按普通点按投递）；未命中 = 点空白，
 ///   返回 [`GameScene::blank_tap_key`]（BUG-039：只有继续 / 关闭类情境代按 -5）。
 pub fn scene_tap(sc: &mut game_core::scene::GameScene, x: i32, y: i32) -> Option<i32> {
-    use game_shell_common::touch::{tap_target, Dispatcher, ShellAction, TouchGeom};
+    use game_shell_common::touch::{Dispatcher, ShellAction, TapTarget, TouchGeom};
     if sc.accepts_field_tap() {
         let geom = TouchGeom {
             cam_x: sc.view.cam_x,
@@ -354,7 +354,12 @@ pub fn scene_tap(sc: &mut game_core::scene::GameScene, x: i32, y: i32) -> Option
             cols: sc.view.wide,
             rows: sc.view.high,
         };
-        let t = tap_target(x, y, &geom, sc.layout.screen_w, sc.layout.screen_h);
+        // 【计划 3 T8 · spec §7】Android 不再调 undo_zone_hit（右上隐形撤销热区去除；撤销=工具栏/摇杆
+        // 由计划 3 呈现承担；Windows 保留可见钮走 tap_target）。android 分类 = 图内即格、图外 Ignore。
+        let t = match geom.cell_at(x, y) {
+            Some((cx, cy)) => TapTarget::Cell(cx, cy),
+            None => TapTarget::Outside,
+        };
         for a in Dispatcher::tap(t) {
             match a {
                 ShellAction::TapCell((cx, cy)) => {
@@ -1627,6 +1632,11 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
                     let ps = crate::portrait::PanelState {
                         held: st.wiring.touch.held_codes(),
                         softkeys: st.rt.softkeys(),
+                        // 【计划 3 T6】软键标注 = controls() 左右钮功能名（两呈现同源；None=隐藏）
+                        labels: (
+                            st.rt.toolbar_side_left.map(|(f, _)| game_shell_common::controls_ui::label(f).to_string()),
+                            st.rt.toolbar_side_right.map(|(f, _)| game_shell_common::controls_ui::label(f).to_string()),
+                        ),
                     };
                     if st.panel_state.as_ref() != Some(&ps) {
                         crate::portrait::paint_panel(&mut st.panel, &plan.geom, &ps, &st.softkey_icons);

@@ -88,6 +88,11 @@ fn run_script19(scene_layout: Layout, tap_while_walking: bool) -> Vec<String> {
     for _ in 0..4 {
         step(&mut rt, vec![], vec![], vec![]);
     }
+    // 【计划 3 T7】首次到地图提示卡（浮层吞键）——统一关框后再交后续操作
+    if rt.scene.as_ref().unwrap().overlay_active {
+        step(&mut rt, tap(-5), vec![], vec![]);
+        step(&mut rt, vec![], vec![], vec![]);
+    }
     // 菜单 → 跳过教程（floor>50 菜单序 [1,17,3,4,5,7]，索引 1）
     step(&mut rt, tap(-7), vec![], vec![]);
     step(&mut rt, vec![], vec![], vec![]);

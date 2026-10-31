@@ -485,6 +485,8 @@ pub struct GameScene {
     pub encyc_scroll_bottom: i32,
     /// mode 16 设置面板（kind4 进入；menuReturnMode=4 返回）
     pub options: Option<crate::menu_family::OptionList>,
+    /// 【计划 3 T7】帮助文本覆盖（壳注入；交接不清除=随档持久，读档/换层不影响）。
+    pub help_override: Option<String>,
     /// 【STAGE-B-006】壳层附加设置行（交接自 BootMachine，回标题时交回；空 = 原版两行）：设置页入口据此生成第 3 行起的
     /// 附加行，切换回写此处。core 不解释其含义。
     pub shell_options: Vec<crate::menu_family::ShellOption>,
@@ -1103,6 +1105,7 @@ impl GameScene {
             encyc_scroll_top: 0,
             encyc_scroll_bottom: 0,
             options: None,
+            help_override: None,
             shell_options: Vec::new(),
             bgm: crate::audio::BgmState::in_game_default(),
             saved_slot_blobs: [None, None, None, None, None, None],
@@ -4478,8 +4481,14 @@ impl GameScene {
     /// loadPackedImages(8)/loadPackedImages(1) = 懒加载资源容器（Rust 构造期全量装载，等价 no-op）。
     /// 迭代 26：改走 showOverlayMessage 完整口（原内联排版漏 overlayActive=true，
     /// 浮层整体不画——preset_help 嵌套假绿掩盖至今）。
+    /// 【计划 3 T7 · spec §8】帮助文本覆盖（壳按模式注入触屏/摇杆操作说明；None=原文）。
+    pub fn set_help_override(&mut self, text: Option<String>) {
+        self.help_override = text;
+    }
+
     fn enter_menu15(&mut self) {
-        self.show_overlay_message(0, Self::HELP_TEXT, 0, 0);
+        let owned = self.help_override.clone().unwrap_or_else(|| Self::HELP_TEXT.to_string());
+        self.show_overlay_message(0, &owned, 0, 0);
         self.softkeys = (0, 3);
     }
 

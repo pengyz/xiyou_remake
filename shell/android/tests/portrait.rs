@@ -294,7 +294,7 @@ fn panel_paint_shows_dpad_ok_and_pressed_feedback() {
     let g = &p.geom;
     let icons = game_core::render::ArgbImage::create(36, 10);
     let mut a = game_core::render::ArgbImage::create(p.panel.w, p.panel.h);
-    paint_panel(&mut a, g, &PanelState { held: vec![], softkeys: (1, 3) }, &icons);
+    paint_panel(&mut a, g, &PanelState { held: vec![], softkeys: (1, 3), labels: (None, None) }, &icons);
     let at = |img: &game_core::render::ArgbImage, x: f32, y: f32| img.argb[(y as i32 * img.width + x as i32) as usize];
     assert!(a.argb.iter().all(|px| px >> 24 == 0xFF), "面板全不透明");
     let bg = at(&a, 2.0, p.panel.h as f32 - 2.0);
@@ -305,7 +305,7 @@ fn panel_paint_shows_dpad_ok_and_pressed_feedback() {
     assert_eq!(at(&a, dx, dy + g.dpad_d / 2.0 + 2.0 * g.outline as f32), bg, "盘下沿外 = 底色");
     // 按下反馈：确定 / 方向右
     let mut b = game_core::render::ArgbImage::create(p.panel.w, p.panel.h);
-    paint_panel(&mut b, g, &PanelState { held: vec![-5, -4], softkeys: (1, 3) }, &icons);
+    paint_panel(&mut b, g, &PanelState { held: vec![-5, -4], softkeys: (1, 3), labels: (None, None) }, &icons);
     assert_ne!(at(&b, g.ok.0, g.ok.1 + g.ok_r * 0.6), ok_idle, "按下确定=变色");
     assert_ne!(at(&b, dx + g.cell, dy), at(&a, dx + g.cell, dy), "按下右=右箭头高亮");
 }
@@ -447,4 +447,25 @@ fn t5r3_wiring_set_control_mode_touch() {
     let plan2 = w.set_control_mode(game_shell_common::settings::ControlMode::Pad).expect("切回应重排");
     assert_eq!(w.portrait.as_ref().unwrap().game, plan2.game, "回摇杆档");
     assert!(w.touch.held_codes().is_empty(), "重建后无按住键");
+}
+
+/// 【计划 3 T6 · spec §3.3】摇杆软键标注：labels 随情境（controls 查询）——地图空闲左=背包/右=菜单；
+/// 对话右=继续；labels None=不画；灰显（softkey kind=0）时文字用灰。绘制像素级抽查：标注文字异色于底。
+#[test]
+fn t6_pad_labels_follow_controls() {
+    // 绘制抽查：同一面板，labels (背包, 菜单) vs (None, None)——软键框附近像素差 = 标注在画
+    let g = &plan_portrait(&xm14()).geom;
+    let icons = game_core::render::ArgbImage::create(36, 10);
+    let mut a = game_core::render::ArgbImage::create(1200, 900);
+    let mut b = game_core::render::ArgbImage::create(1200, 900);
+    paint_panel(&mut a, g, &PanelState { held: vec![], softkeys: (1, 3), labels: (Some("背包".into()), Some("菜单".into())) }, &icons);
+    paint_panel(&mut b, g, &PanelState { held: vec![], softkeys: (1, 3), labels: (None, None) }, &icons);
+    // 左软键框内右下区域（标注位）应有差异
+    let z = g.soft[0];
+    let x0 = (z.x0 as i32 + 4) as usize;
+    let x1 = (z.x1 as i32 - 4) as usize;
+    let y0 = ((z.y0 as i32 + z.y1 as i32) / 2) as usize;
+    let y1 = (z.y1 as i32 - 4) as usize;
+    let diff = (y0..y1).any(|y| (x0..x1).any(|x| a.argb[y * a.width as usize + x] != b.argb[y * b.width as usize + x]));
+    assert!(diff, "软键位标注在画（labels 有 → 像素变）");
 }

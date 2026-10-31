@@ -95,6 +95,11 @@ fn to_map(tag: &str) -> H {
         h.step(vec![], vec![]);
     }
     assert_eq!(h.sc().game_mode, GameMode::Map, "前置：到达首个地图");
+    // 【计划 3 T7】首次到地图提示卡（浮层吞点按）——统一关框后再交用例
+    if h.sc().overlay_active {
+        h.step(tap(-5), vec![]);
+        h.step(vec![], vec![]);
+    }
     h
 }
 

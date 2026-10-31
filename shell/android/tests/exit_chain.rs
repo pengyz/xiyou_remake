@@ -125,6 +125,11 @@ fn menu_exit_after_returning_from_game_exits_immediately() {
         let mode = rt.scene.as_ref().unwrap().game_mode;
         calm = if mode == GameMode::Map { calm + 1 } else { 0 };
         if calm >= 30 {
+            // 【计划 3 T7】首次到地图提示卡统一关框
+            if rt.scene.as_ref().unwrap().overlay_active {
+                drive(&mut rt, &src, &[KeyAction::Press(-5), KeyAction::Release], Vec::new());
+                drive(&mut rt, &src, &[], Vec::new());
+            }
             break;
         }
         let keys: &[KeyAction] =

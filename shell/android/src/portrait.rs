@@ -86,7 +86,7 @@ use game_core::layout::{
     Layout, CELL_PX, HUD_FRAME_H, SCREEN_H, SCREEN_W, SOFTKEY_ICON_H, SOFTKEY_ICON_W, STATUS_BAR_H,
 };
 use game_core::paint::paint_font;
-use game_core::render::{ArgbImage, SoftGraphics};
+use game_core::render::{ArgbImage, FontMetrics, SoftGraphics};
 
 /// dp 定义基准：1dp = dpi/160 px（Android `DisplayMetrics.DENSITY_DEFAULT`）。
 pub const DP_BASELINE_DPI: i32 = 160;
@@ -548,6 +548,9 @@ pub struct PanelState {
     pub held: Vec<i32>,
     /// 活动机软键种类（左, 右）：0=不显示图标；k≥1 = ui[11] 第 k 个图标。
     pub softkeys: (i8, i8),
+    /// 【计划 3 T6 · spec §3.3】软键功能标注（左, 右）：Some(名) = 标注；None = 不标（标题等）。
+    /// 物理键码恒 −6/−7，标注文字来自 controls() 查询（两呈现同源）；灰显 = 功能不可用。
+    pub labels: (Option<String>, Option<String>),
 }
 
 const PANEL_BG: u32 = 0xFF00_0000 | game_core::layout::DARK_BACKDROP; // 底栏同色
@@ -640,7 +643,7 @@ pub fn paint_panel(img: &mut ArgbImage, g: &PanelGeom, st: &PanelState, icons: &
     fill_rect(img, 0, 0, w, o, PANEL_LINE); // 顶分隔线
     let held = |c: i32| st.held.contains(&c);
     // 软键（左 -6 / 右 -7）：描边框 + 面；图标 = 游戏同款 ui[11]（与画布角标同义）
-    for (z, kind) in [(g.soft[0], st.softkeys.0), (g.soft[1], st.softkeys.1)] {
+    for (i, (z, kind)) in [(g.soft[0], st.softkeys.0), (g.soft[1], st.softkeys.1)].into_iter().enumerate() {
         let face = if held(z.code) {
             KEY_FACE_HOT
         } else if kind == 0 {
@@ -652,6 +655,24 @@ pub fn paint_panel(img: &mut ArgbImage, g: &PanelGeom, st: &PanelState, icons: &
         fill_rect(img, x0, y0, x1, y1, PANEL_LINE);
         fill_rect(img, x0 + o, y0 + o, x1 - o, y1 - o, face);
         blit_icon(img, icons, kind, (z.x0 + z.x1) / 2.0, (z.y0 + z.y1) / 2.0, g.icon_scale);
+        // 【计划 3 T6】功能标注（右下角小字；灰显=不可用仍照发键，spec §3.3/10-28 M2）
+        let label_opt = if i == 0 { &st.labels.0 } else { &st.labels.1 };
+        if let Some(text) = label_opt {
+            let k = g.label_scale;
+            let u16s: Vec<u16> = text.encode_utf16().collect();
+            let font = paint_font();
+            let tw = font.measure(&u16s).0;
+            let mut gfx = SoftGraphics::new(img);
+            gfx.set_scale(k);
+            gfx.set_font(Some(font));
+            gfx.set_color(if kind == 0 { 0xFF8A8A96 } else { 0xFFD8CBA0 });
+            gfx.draw_string(
+                &u16s,
+                ((x1 - o) / k as i32) - tw / k as i32,
+                ((y1 - o) / k as i32) - paint_font().height,
+                game_core::render::anchor::TOP | game_core::render::anchor::LEFT,
+            );
+        }
     }
     // 十字键：盘面 + 描边；四臂箭头（臂格心距盘心 1 格，按住高亮）；中格 = 死区盘心
     let (cx, cy) = g.dpad;

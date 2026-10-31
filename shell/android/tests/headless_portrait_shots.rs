@@ -33,7 +33,7 @@ impl Host {
             let mut g = canvas_graphics(&mut self.canvas, c.scale as u32);
             rt.paint(&mut g);
         }
-        paint_panel(&mut self.panel, &self.plan.geom, &PanelState { held, softkeys: rt.softkeys() }, &self.icons);
+        paint_panel(&mut self.panel, &self.plan.geom, &PanelState { held, softkeys: rt.softkeys(), labels: (None, None) }, &self.icons);
         let (w, h) = self.plan.window;
         let cr = c.rect_in(self.plan.game);
         let p = self.plan.panel;

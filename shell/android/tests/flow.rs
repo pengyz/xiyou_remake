@@ -82,6 +82,11 @@ fn new_game_flow_reaches_scene_and_map() {
         if mode == GameMode::Map {
             calm += 1;
             if calm >= 30 {
+                // 【计划 3 T7】首次到地图提示卡统一关框
+                if rt.scene.as_ref().unwrap().overlay_active {
+                    drive(&mut rt, &src, &[KeyAction::Press(-5), KeyAction::Release], Vec::new(), Vec::new());
+                    drive(&mut rt, &src, &[], Vec::new(), Vec::new());
+                }
                 break;
             }
         } else {
@@ -146,6 +151,11 @@ fn reach_map(rt: &mut Runtime, src: &dyn game_platform::AssetSource) {
         let mode = rt.scene.as_ref().unwrap().game_mode;
         calm = if mode == GameMode::Map { calm + 1 } else { 0 };
         if calm >= 30 {
+            // 【计划 3 T7】首次到地图提示卡统一关框
+            if rt.scene.as_ref().unwrap().overlay_active {
+                drive(rt, src, &[KeyAction::Press(-5), KeyAction::Release], Vec::new(), Vec::new());
+                drive(rt, src, &[], Vec::new(), Vec::new());
+            }
             return;
         }
         let keys: &[KeyAction] = if mode != GameMode::Map && i % 4 == 0 {
@@ -230,6 +240,11 @@ fn tap_anywhere_advances_dialog_and_intro() {
         let mode = rt.scene.as_ref().unwrap().game_mode;
         calm = if mode == GameMode::Map { calm + 1 } else { 0 };
         if calm >= 30 {
+            // 【计划 3 T7】首次到地图提示卡统一关框（点屏幕=−5）
+            if rt.scene.as_ref().unwrap().overlay_active {
+                drive(&mut rt, &src, &[], Vec::new(), vec![(288.0, 300.0)]);
+                drive(&mut rt, &src, &[], Vec::new(), Vec::new());
+            }
             break;
         }
         let t = if mode != GameMode::Map && n % 4 == 0 { vec![(288.0, 300.0)] } else { Vec::new() };
