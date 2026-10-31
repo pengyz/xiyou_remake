@@ -437,9 +437,14 @@ pub fn paint_toolbar(
 ) {
     use game_core::render::FontMetrics;
     use game_shell_common::controls_ui::label;
-    fill_rect(buf, tb.bar.x, tb.bar.y, tb.bar.x + tb.bar.w, tb.bar.y + tb.bar.h, PANEL_BG);
-    fill_rect(buf, tb.bar.x, tb.bar.y, tb.bar.x + tb.bar.w, tb.bar.y + 2, PANEL_LINE); // 顶分隔线
+    // 【实机修正 T11】tb.* 是窗口绝对坐标；panel 画布局部原点 = bar 左上（绝对 y 超出画布高被
+    // fill_rect 夹取 ⇒ 全黑）。全部矩形平移到局部系。
+    let (ox, oy) = (tb.bar.x, tb.bar.y);
+    let local = |r: &Rect| Rect { x: r.x - ox, y: r.y - oy, w: r.w, h: r.h };
+    fill_rect(buf, 0, 0, tb.bar.w, tb.bar.h, PANEL_BG);
+    fill_rect(buf, 0, 0, tb.bar.w, 2, PANEL_LINE); // 顶分隔线
     let mut draw_btn = |r: &Rect, text: &str, pressed: bool| {
+        let r = &local(r);
         let face = if pressed { 0xFF3A3A52 } else { 0xFF2C2C3E };
         fill_rect(buf, r.x, r.y, r.x + r.w, r.y + r.h, face);
         fill_rect(buf, r.x, r.y, r.x + r.w, r.y + 1, 0xFF4A4A66);
