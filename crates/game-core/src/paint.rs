@@ -1035,6 +1035,60 @@ mod tests {
         )
     }
 
+
+    /// 【计划 3 T2b · spec §3.2】BootMachine 侧页面行：读档/设置/片头/标题隐藏 + 帮助恒翻页/关于可翻时。
+    #[test]
+    fn t2b_boot_page_rows() {
+        use crate::controls::{Action, Controls, FunctionId as F};
+        let mut m = boot_state();
+        m.mode = GameMode::MainMenu;
+        assert_eq!(m.controls(), Controls::hidden(), "标题整条隐藏");
+        m.mode = GameMode::IntroCutscene;
+        let c = m.controls();
+        assert_eq!(c.right.map(|b| (b.function, b.action)), Some((F::Skip, Action::Key(-7))), "片头跳过 −7");
+        m.mode = GameMode::EquipDetail; // Boot 读档 = mode 8（复核 T2-R1）
+        let c = m.controls();
+        assert_eq!(c.left.map(|b| (b.function, b.action)), Some((F::Read, Action::Key(-5))), "读档 −5");
+        assert_eq!(c.right.map(|b| b.action), Some(Action::Key(-7)));
+        m.mode = GameMode::About;
+        assert_eq!(m.controls().right.map(|b| b.action), Some(Action::Key(-7)), "设置返回 −7");
+        // 帮助（15）：kind0 浮层整页翻——恒在（spec 无"可翻时"）
+        m.mode = GameMode::Help;
+        m.overlay_active = true;
+        let long_text: String = (0..40).map(|i| format!("第{i}行\n")).collect();
+        let txt: Vec<u16> = long_text.encode_utf16().collect();
+        m.overlay.show_kind0(&txt, &crate::paint::paint_font(), (0, 0));
+        let c = m.controls();
+        assert_eq!(
+            c.mid.iter().map(|b| (b.function, b.action)).collect::<Vec<_>>(),
+            vec![(F::PrevPage, Action::Key(-1)), (F::NextPage, Action::Key(-2))],
+            "帮助上下页恒在"
+        );
+        assert_eq!(c.right.map(|b| b.action), Some(Action::Key(-7)), "帮助返回 −7");
+        // 关于（17）：可翻时——期望由引擎 flip_page 驱动（独立于 controls 的判式，复核 T2-R4）：
+        // 顶页：有下页无上页；翻到引擎末页（flip 不再前进）：无下页有上页
+        m.mode = GameMode::IconView;
+        let c = m.controls();
+        assert!(!c.mid.iter().any(|b| b.function == F::PrevPage), "顶页无上页");
+        assert!(c.mid.iter().any(|b| b.function == F::NextPage), "顶页有下页（文本 5 行 > 每页行数则多页）");
+        // flip_page(page) 为绝对页号（a.java flipOverlayPage）：逐页推进直到不再前进 = 末页
+        let mut page = 1i32;
+        loop {
+            let before = m.overlay.page_top();
+            m.overlay.flip_page(page);
+            let after = m.overlay.page_top();
+            if after == before {
+                break;
+            }
+            page += 1;
+        }
+        let c = m.controls();
+        assert!(c.mid.iter().any(|b| b.function == F::PrevPage), "末页有上页");
+        assert!(!c.mid.iter().any(|b| b.function == F::NextPage), "末页无下页");
+        m.overlay_active = false;
+        assert_eq!(m.controls(), Controls::hidden(), "IconView 无浮层（异常态）隐藏");
+    }
+
     /// 【BUG-039】开场链点空白：标题（只显示一项，点即确认该项——win 鼠标基线）与序章（快进）
     /// 代按 -5；读档列表（会读高亮槽）、设置（会切换高亮行）与其余不代按。
     #[test]

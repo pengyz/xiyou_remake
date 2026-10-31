@@ -153,16 +153,22 @@ impl GameScene {
                 mid: vec![],
                 right: Some(Controls::key(FunctionId::Back, -7)),
             },
-            GameMode::About | GameMode::Help | GameMode::EnemyInfo => {
-                // 设置（16 两面）/ 帮助（15）/ 图鉴（5）：中 = 上/下页（spec 无"可翻时"修饰，恒在），
-                // 右 = 返回。About 只返回（spec 行）。
-                let mid = if matches!(self.game_mode, GameMode::About) {
-                    vec![]
-                } else {
-                    vec![Controls::key(FunctionId::PrevPage, -1), Controls::key(FunctionId::NextPage, -2)]
-                };
-                Controls { left: None, mid, right: Some(Controls::key(FunctionId::Back, -7)) }
-            }
+            GameMode::About => Controls { left: None, mid: vec![], right: Some(Controls::key(FunctionId::Back, -7)) },
+            // 帮助（15）：kind0 专臂整页翻 ±lpp——上/下页恒在（spec 行无"可翻时"修饰）
+            GameMode::Help => Controls {
+                left: None,
+                mid: vec![Controls::key(FunctionId::PrevPage, -1), Controls::key(FunctionId::NextPage, -2)],
+                right: Some(Controls::key(FunctionId::Back, -7)),
+            },
+            // 怪物图鉴（5）：−1/−2 = 行滚 ±1 条目（a.java:3740-3745 m_092 顶指针）≠ 整页翻
+            //（【复核 T2-R2】spec 表原措辞"上页/下页"已原地更正）
+            GameMode::EnemyInfo => Controls {
+                left: None,
+                mid: vec![Controls::key(FunctionId::PrevItem, -1), Controls::key(FunctionId::NextItem, -2)],
+                right: Some(Controls::key(FunctionId::Back, -7)),
+            },
+            // 【复核 T2-R3】商店（19）：−7 返回菜单（与 Boot 面同）
+            GameMode::Shop => Controls { left: None, mid: vec![], right: Some(Controls::key(FunctionId::Back, -7)) },
             GameMode::ItemPanel => Controls {
                 left: Some(Controls::key(FunctionId::Use, -6)),
                 mid: vec![],
@@ -334,6 +340,44 @@ impl GameScene {
                 }
                 Controls { left: None, mid, right: Some(Controls::key(FunctionId::Close, -7)) }
             }
+            _ => Controls::hidden(),
+        }
+    }
+}
+
+
+impl crate::paint::BootMachine {
+    /// 【计划 3 T2b · spec §3.2】BootMachine 侧页面行：读档（mode 8）读取 −5 / 返回 −7；设置（16）
+    /// 返回 −7；帮助（15）上 / 下页 −1/−2（spec 无"可翻时"修饰，恒在）；关于（17，IconView）上 / 下页
+    /// 可翻时；片头（intro）跳过 −7；标题整条隐藏（自有三区点按 + 横滑）；logo / 退场 / Loading 全隐藏。
+    pub fn controls(&self) -> Controls {
+        use crate::enums::GameMode as G;
+        // 帮助 / 关于的 kind0 浮层：整页翻（±lpp）+ 关层 −7（页面专臂，a.java case15/17）
+        if self.overlay_active && matches!(self.mode, G::Help | G::IconView) {
+            let (top, total) = (self.overlay.page_top(), self.overlay.total_lines());
+            let bottom = self.overlay.page_bottom();
+            let always = self.mode == G::Help; // 帮助行无"可翻时"修饰 ⇒ 恒在；关于行可翻时（含 bottom<total，同 T1-R1 修正口径）
+            let mut mid = vec![];
+            if always || top > 0 {
+                mid.push(Controls::key(FunctionId::PrevPage, -1));
+            }
+            if always || bottom < total {
+                mid.push(Controls::key(FunctionId::NextPage, -2));
+            }
+            return Controls { left: None, mid, right: Some(Controls::key(FunctionId::Back, -7)) };
+        }
+        match self.mode {
+            // 【复核 T2-R1】Boot 读档列表 = gameMode 8（EquipDetail 变体；a.java:3400/3836-3856）——
+            // mode 7（SaveSlot）只在 GameScene 侧出现（存档页）
+            G::EquipDetail => Controls {
+                left: Some(Controls::key(FunctionId::Read, -5)),
+                mid: vec![],
+                right: Some(Controls::key(FunctionId::Back, -7)),
+            },
+            // 【复核 T2-R3】商店（19）：−7 返回菜单（a.java:4197-4200）——spec 表原缺行，已原地补注
+            G::Shop => Controls { left: None, mid: vec![], right: Some(Controls::key(FunctionId::Back, -7)) },
+            G::About => Controls { left: None, mid: vec![], right: Some(Controls::key(FunctionId::Back, -7)) },
+            G::IntroCutscene => Controls { left: None, mid: vec![], right: Some(Controls::key(FunctionId::Skip, -7)) },
             _ => Controls::hidden(),
         }
     }
@@ -559,8 +603,7 @@ mod tests {
             (GameMode::InGameMenu, Some(FunctionId::Confirm), 0usize, Some(FunctionId::Back)),
             (GameMode::SaveSlot, Some(FunctionId::Save), 0, Some(FunctionId::Back)),
             (GameMode::About, None, 0, Some(FunctionId::Back)),
-            (GameMode::Help, None, 2, Some(FunctionId::Back)),
-            (GameMode::EnemyInfo, None, 2, Some(FunctionId::Back)),
+            (GameMode::Shop, None, 0, Some(FunctionId::Back)),
             (GameMode::ItemPanel, Some(FunctionId::Use), 0, Some(FunctionId::Back)),
             (GameMode::Alchemy, Some(FunctionId::Refine), 2, Some(FunctionId::Back)),
         ] {
@@ -576,6 +619,18 @@ mod tests {
             assert_eq!(c.right.map(|b| b.function), r, "{mode:?} 右");
             assert!(c.right.map(|b| b.action) == Some(Action::Key(-7)), "{mode:?} 右 = −7");
         }
+        // 帮助 = 上/下页（整页翻）；图鉴 = 上一条/下一条（行滚 ±1 条目，复核 T2-R2）
+        sc.game_mode = GameMode::Help;
+        assert_eq!(
+            sc.controls().mid.iter().map(|b| b.function).collect::<Vec<_>>(),
+            vec![FunctionId::PrevPage, FunctionId::NextPage]
+        );
+        sc.game_mode = GameMode::EnemyInfo;
+        assert_eq!(
+            sc.controls().mid.iter().map(|b| b.function).collect::<Vec<_>>(),
+            vec![FunctionId::PrevItem, FunctionId::NextItem],
+            "图鉴 = 行滚条目，非整页翻"
+        );
         sc.game_mode = GameMode::Map;
         sc.transitioning = true;
         assert_eq!(sc.controls(), Controls::hidden(), "换层遮幅全隐藏");
@@ -617,6 +672,17 @@ mod tests {
         let _ = sc.tap_cell(8, ROW); // 再选中
         assert!(sc.perform_action(Action::Fight), "开战受理");
         assert!(sc.tap_selected.is_none(), "开战即清选中");
+        settle_(&mut sc, 0, 160);
+        let i41 = (0..sc.entities.count).find(|&i| sc.entities.items[i].type_ == 41).unwrap();
+        assert!(sc.entities.items[i41].removed || sc.entities.items[i41].state == 1, "Fight 端到端：怪被击杀");
+        // StopThen 清目标标记 + 链仍达（复核 T2-R5）
+        let mut sc = scene((1, ROW), &[]);
+        let _ = sc.tap_cell(10, ROW);
+        let fc = walk_until_x_(&mut sc, 4);
+        let _ = sc.perform_action(Action::StopThen(-6));
+        assert!(sc.tap_target.is_none(), "StopThen 打断 ⇒ 目标标记消失");
+        settle_(&mut sc, fc, 200);
+        assert_eq!(sc.game_mode, GameMode::ItemPanel, "StopThen 链仍达（开背包）");
         // Undo 恒 false（壳职责）
         assert!(!sc.perform_action(Action::Undo));
     }

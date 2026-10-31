@@ -2182,6 +2182,7 @@ impl GameScene {
                 if self.tap_walk_in_progress() {
                     self.tap_bump = None;
                     self.tap_selected = None;
+                    self.tap_target = None; // 【复核 T2-R5】打断 ⇒ 目标标记消失（spec §6）
                     self.interrupt_route();
                     self.tap_pending = Some(crate::tap_walk::PendingTap::StopThen(c));
                     true

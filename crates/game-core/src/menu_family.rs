@@ -569,6 +569,11 @@ impl OverlayEngine {
         self.total_lines
     }
 
+    /// 【计划 3 T2 · 复核 T2-R8】页尾行（= min(top+lpp, total)，排版不变量单源）。
+    pub fn page_bottom(&self) -> i32 {
+        (self.page_top + self.lines_per_page).min(self.total_lines)
+    }
+
     pub fn lines_per_page(&self) -> i32 {
         self.lines_per_page
     }
