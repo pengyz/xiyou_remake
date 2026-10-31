@@ -301,6 +301,8 @@ pub enum PendingTap {
     Cell(i32, i32),
     /// 滑动方向（执行 = `swipe_step`）
     Swipe(u8),
+    /// 停下后打开（spec §3.2"停下后打开"；执行 = 置 key_value 待 Map wp0 消费，计划 3 T2）
+    StopThen(i32),
 }
 
 /// [`crate::scene::GameScene::tap_cell`] 的结果（壳据此决定反馈）。

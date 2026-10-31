@@ -541,7 +541,7 @@ pub struct GameScene {
     /// 【STAGE-B-008】已选中的怪物（首点选中、再点开战；每拍校验）
     pub tap_selected: Option<crate::tap_walk::SelectedEnemy>,
     /// 【STAGE-B-008】点地寻路中排队的输入（排空回 Map wp0 后下一拍执行；只留最后一次）
-    tap_pending: Option<crate::tap_walk::PendingTap>,
+    pub(crate) tap_pending: Option<crate::tap_walk::PendingTap>,
     /// itemUseTargetType：最近拾取/装备的类型号（浮层图标 + 商店显示）
     pub overlay_kind_item: i32,
     /// 浮层图标图（kind1/3：entityTypeImage[itemUseTargetType] 的克隆——paint 免借用冲突）
@@ -2149,6 +2149,51 @@ impl GameScene {
         !ent.removed && ent.state != 1 && ent.visible && ent.type_ == s.type_ && (ent.px >> 5, ent.py >> 5) == s.cell
     }
 
+    /// 【STAGE-B-008 计划 3 T2 · spec §3.1】执行 [`crate::controls::Action`]（壳工具栏 / 摇杆标注消费，计划 3 T5/T6 接线）。
+    /// 返回 true = 动作被受理（`Undo` 恒 false：撤销执行在壳 undo_ui——core 无撤销入口）。
+    pub fn perform_action(&mut self, a: crate::controls::Action) -> bool {
+        use crate::controls::Action;
+        match a {
+            // 键码动作 = 边沿键值（按钮无抬起事件，不走 press_key 的 keyHeld 锁存；菜单/确定类键
+            // 在出现的情境里无 held 语义）。工具栏情境不含寻路中 ⇒ 无须打断。
+            Action::Key(c) => {
+                self.key_value = c;
+                true
+            }
+            Action::Stop => {
+                if self.tap_walk_in_progress() {
+                    self.tap_bump = None;
+                    self.tap_selected = None;
+                    self.tap_pending = None;
+                    self.tap_target = None;
+                    self.interrupt_route();
+                }
+                true
+            }
+            Action::Cancel => {
+                self.tap_selected = None;
+                true
+            }
+            Action::Fight => {
+                let _ = self.engage_selected();
+                true
+            }
+            Action::StopThen(c) => {
+                if self.tap_walk_in_progress() {
+                    self.tap_bump = None;
+                    self.tap_selected = None;
+                    self.interrupt_route();
+                    self.tap_pending = Some(crate::tap_walk::PendingTap::StopThen(c));
+                    true
+                } else {
+                    self.key_value = c;
+                    true
+                }
+            }
+            Action::Undo => false,
+        }
+    }
+
     /// 【STAGE-B-008 · spec §3.2「开战」】撞已选中的怪（工具栏按钮由计划 3 接入）。无有效选中 = Ignored。
     pub fn engage_selected(&mut self) -> crate::tap_walk::TapResult {
         match self.tap_selected {
@@ -2255,6 +2300,12 @@ impl GameScene {
                     }
                     Some(crate::tap_walk::PendingTap::Swipe(d)) => {
                         let _ = self.swipe_step(d);
+                    }
+                    // 【计划 3 T2 · spec §3.2"停下后打开"】排空落 Map wp0：置键值待 Map 分派消费
+                    //（直写 key_value 而非 press_key——按钮无抬起事件，press_key 的 keyHeld 锁存会
+                    // 卡住点地后续的就绪判据 key_held==0）
+                    Some(crate::tap_walk::PendingTap::StopThen(c)) => {
+                        self.key_value = c;
                     }
                     None => {
                         if let Some((dock, dir)) = bump {
