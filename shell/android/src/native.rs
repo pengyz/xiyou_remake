@@ -289,6 +289,18 @@ pub enum TitleGesture {
     Swipe(game_core::title::TitleTouch),
 }
 
+/// 视口滑动阈值（逻辑 px；GestureTracker::new(24) 同值——一格/次的发步口径）。
+pub const VP_SWIPE_MIN: i32 = 24;
+
+/// 【计划 3 T4】视口触点（逻辑坐标；Game 区、非标题态——分类在 Runtime 手势簿）。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VpTouch {
+    pub id: i32,
+    pub phase: TouchPhase,
+    pub x: i32,
+    pub y: i32,
+}
+
 /// 标题滑动阈值（逻辑 px；与 GestureTracker::new(24) 同值）。
 pub const TITLE_SWIPE_MIN: i32 = 24;
 
@@ -404,6 +416,8 @@ pub struct ShellWiring {
     pub surface: (u32, u32),
     /// 【2c】tap 待决表（画布内 Up，无 pad 键产出）——UI 态 pointer_hit 消费
     pub pending_taps: Vec<(f32, f32)>,
+    /// 【计划 3 T4】视口触点队列（Game 区逻辑坐标；Runtime 拍前取走做手势分类）。
+    pub pending_vp_touches: Vec<VpTouch>,
     /// 【黄④】触控区描边开关（debug 常驻样式可关——量产/帧哈希前收审美）
     pub overlay_debug: bool,
     /// 【问题2b】窗口/缓冲真实像素尺寸（INIT_WINDOW 实测——触点反变换分母；
@@ -460,6 +474,7 @@ impl ShellWiring {
             title_mode: false,
             title_gestures: Vec::new(),
             title_track: None,
+            pending_vp_touches: Vec::new(),
             portrait: None,
             active_canvas: None,
             route: Vec::new(),
@@ -585,8 +600,10 @@ impl ShellWiring {
                 let ev = TouchEvent { id, phase, x: lx, y: ly };
                 if self.title_mode {
                     self.on_title_touch(&ev);
-                } else if matches!(phase, TouchPhase::Up) && lx >= 0.0 && ly >= 0.0 {
-                    self.pending_taps.push((lx, ly));
+                } else {
+                    // 【计划 3 T4 · spec §5.3】视口触点原样上报（逻辑坐标）：点按/滑/拖分类由
+                    // Runtime 持手势簿判定（本函数纯翻译零状态），消费见 Runtime::step_scene。
+                    self.pending_vp_touches.push(VpTouch { id, phase, x: ev.x as i32, y: ev.y as i32 });
                 }
                 Vec::new()
             }
@@ -1218,6 +1235,8 @@ extern "C" fn handle_input(app: *mut AndroidApp, event: *mut AInputEvent) -> i32
         let st = &mut *((*app).user_data as *mut HostState);
         log_input(&format!("input-arrival type={}", ffi::AInputEvent_getType(event)));
         let (mut keys, consumed) = st.wiring.on_input_ex(event);
+        // 【计划 3 T4】视口触点（Game 区逻辑坐标）搬运进 Runtime（step_scene 分类：tap/swipe/drag）
+        st.rt.inject_vp_touches(std::mem::take(&mut st.wiring.pending_vp_touches));
         // 【BUG-034 · 壳层输入映射】根界面（开机 logo / 主菜单 / 退场动画）BACK（返回键/边缘返回手势）=
         // 立即退出（runtime.rs back_requests_exit：置退出请求，主循环下一轮 finish）；丢弃该 BACK 的 -7。
         // 【STAGE-B-005】地图行走态 BACK = Android 标准退出确认框（runtime.rs back_requests_exit_dialog 置未决 ⇒

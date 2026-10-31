@@ -17,7 +17,7 @@ use game_core::render::{ArgbImage, SoftGraphics};
 use game_core::scene::GameScene;
 use game_shell_common::audio::{AudioSink, BgmController, BgmSnapshot, NullSink};
 use game_shell_common::handoff::{self, GameAssets};
-use game_shell_common::settings::AppSettings;
+use game_shell_common::settings::{AppSettings, ControlMode};
 
 /// 【STAGE-B-006】壳层附加设置行 id（core 不解释含义；行序 = 设置页第 3-5 行）。
 pub const PREF_SPLASH: u8 = 1;
@@ -29,9 +29,19 @@ pub const PREF_CONTROL_MODE: u8 = 4;
 pub const PREF_AUTO_BATTLE: u8 = 5;
 
 /// 【STAGE-B-006】设置 → 附加行：开屏画面 / 按键震动 / 按键音（排在原版"声音、小地图"之后）。
+/// 【计划 3 T3.2】恒含第 4 行「操控方式」（勾=触屏）；触屏模式再含第 5 行「自动战斗」（行增减走 replace_shell_rows）。
 pub fn shell_rows(s: &AppSettings) -> Vec<game_core::menu_family::ShellOption> {
-    [(PREF_SPLASH, "开屏画面", s.show_splash), (PREF_HAPTIC, "按键震动", s.key_haptic), (PREF_CLICK, "按键音", s.key_click)]
-        .into_iter()
+    // 【计划 3 T3.2】操控方式行恒在（勾=触屏）；自动战斗行仅触屏模式（spec §8，行增减走 replace_shell_rows）
+    let mut rows: Vec<(u8, &str, bool)> = vec![
+        (PREF_SPLASH, "开屏画面", s.show_splash),
+        (PREF_HAPTIC, "按键震动", s.key_haptic),
+        (PREF_CLICK, "按键音", s.key_click),
+        (PREF_CONTROL_MODE, "操控方式", s.control_mode == ControlMode::Touch),
+    ];
+    if s.control_mode == ControlMode::Touch {
+        rows.push((PREF_AUTO_BATTLE, "自动战斗", s.auto_battle));
+    }
+    rows.into_iter()
         .map(|(id, label, checked)| game_core::menu_family::ShellOption { id, label: label.encode_utf16().collect(), checked })
         .collect()
 }
@@ -100,6 +110,13 @@ pub struct Runtime {
     pub rt_auto_battle: bool,
     pub rt_tips_seen_pad: bool,
     pub rt_tips_seen_touch: bool,
+    /// 【计划 3 T4 · spec §5.3】视口手势簿：触点 id →（起点，已发滑动）；滑 = 一次 swipe_step、
+    /// 续滑 = 拖动（观察 pan）。滑/拖的 Up 不产生点按。
+    pub vp_track: std::collections::HashMap<i32, (i32, i32, bool)>,
+    /// native 层（wiring）收割来的视口触点暂存（step_scene 消费）。
+    pub pending_vp_touches: Vec<crate::native::VpTouch>,
+    /// vp 短按产生的点按（逻辑坐标；step_scene 与外部 taps 合流）。
+    pub pending_vp_tap: Option<(f32, f32)>,
 }
 
 impl Runtime {
@@ -130,6 +147,9 @@ impl Runtime {
             rt_auto_battle: false,
             rt_tips_seen_pad: false,
             rt_tips_seen_touch: false,
+            vp_track: std::collections::HashMap::new(),
+            pending_vp_touches: Vec::new(),
+            pending_vp_tap: None,
         }
     }
 
@@ -356,7 +376,33 @@ impl Runtime {
         }
         self.frame_counter += 1;
         self.sync_bgm();
+        self.sync_control_rows(); // 【计划 3 T3.2】行→Runtime 字段；操控方式切换 ⇒ 行集增减（spec §8）
         self.persist_app_settings_if_changed(); // 【STAGE-B-006】设置页切换同拍落盘
+    }
+
+    /// 【计划 3 T3.2 · spec §8】行/字段同步：操控方式 / 自动战斗行存在时以行为准（缺行保留 Runtime 值）。
+    /// 操控方式翻转 ⇒ 重生成行集（自动战斗行增减）并 `replace_shell_rows` 到活动机（备用机交接时拷贝）。
+    /// 自动战斗同步进场景 core 字段（点怪一点即战，计划 2 的 auto_battle）。
+    fn sync_control_rows(&mut self) {
+        let rows = match self.scene.as_ref() {
+            Some(sc) => sc.shell_options.clone(),
+            None => self.machine.shell_options.clone(),
+        };
+        let touch = row_checked(&rows, PREF_CONTROL_MODE, self.rt_control_mode == ControlMode::Touch);
+        let auto = row_checked(&rows, PREF_AUTO_BATTLE, self.rt_auto_battle);
+        if touch != (self.rt_control_mode == ControlMode::Touch) {
+            self.rt_control_mode = if touch { ControlMode::Touch } else { ControlMode::Pad };
+            let s = self.app_settings();
+            let new_rows = shell_rows(&s);
+            match self.scene.as_mut() {
+                Some(sc) => sc.replace_shell_rows(new_rows),
+                None => self.machine.replace_shell_rows(new_rows),
+            }
+        }
+        self.rt_auto_battle = auto;
+        if let Some(sc) = self.scene.as_mut() {
+            sc.auto_battle = auto;
+        }
     }
 
     /// 注入 BGM 命令出口（android_main = 音频线程通道；宿主测试 = 录制器）。翻译基线随之
@@ -461,9 +507,67 @@ impl Runtime {
         }
     }
 
+    /// 【计划 3 T4】wiring 里收割视口触点（native 层翻译产物）。宿主测试可直接
+    /// `wiring.pending_vp_touches` 注入后调本方法。
+    /// 【计划 3 T4】宿主/事件循环注入视口触点（下一步 step_scene 消费）。
+    pub fn inject_vp_touches(&mut self, ts: Vec<crate::native::VpTouch>) {
+        self.pending_vp_touches.extend(ts);
+    }
+
+    /// 【计划 3 T4 · spec §5.3】视口手势分类：短按 Up=点按（走 taps 链）、越阈首拍=swipe_step、
+    /// 续滑=观察拖动 pan_viewport；滑/拖的 Up 吞掉不产生点按。阈 = VP_SWIPE_MIN 逻辑 px。
+    fn vp_gesture_feed(&mut self, t: crate::native::VpTouch) {
+        const MIN: i32 = crate::native::VP_SWIPE_MIN;
+        match t.phase {
+            crate::input::TouchPhase::Down => {
+                self.vp_track.insert(t.id, (t.x, t.y, false));
+            }
+            crate::input::TouchPhase::Move => {
+                if let Some((x0, y0, fired)) = self.vp_track.get_mut(&t.id) {
+                    let (dx, dy) = (t.x - *x0, t.y - *y0);
+                    if !*fired {
+                        if let Some(d) = game_shell_common::touch::swipe_dir(dx, dy, MIN) {
+                            *fired = true;
+                            *x0 = t.x;
+                            *y0 = t.y;
+                            let res = self.scene.as_mut().map(|sc| sc.swipe_step(d));
+                            log_input(&format!("vp swipe {d} → {res:?}"));
+                        }
+                    } else {
+                        if dx != 0 || dy != 0 {
+                            let moved = self.scene.as_mut().map(|sc| sc.pan_viewport(dx, dy));
+                            *x0 = t.x;
+                            *y0 = t.y;
+                            if let Some((mx, my)) = moved {
+                                if mx != 0 || my != 0 {
+                                    log_input(&format!("vp pan ({dx},{dy}) → ({mx},{my})"));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            crate::input::TouchPhase::Up | crate::input::TouchPhase::Cancel => {
+                if let Some((x0, y0, fired)) = self.vp_track.remove(&t.id) {
+                    if !fired && matches!(t.phase, crate::input::TouchPhase::Up) {
+                        // 短按：交既有点按链（scene_tap）
+                        self.pending_vp_tap = Some((t.x as f32, t.y as f32));
+                    }
+                    let _ = (x0, y0);
+                }
+            }
+        }
+    }
+
     /// 场景拍（win 壳 step Game 臂同构）：点按/键按到达序投递 → 存档写穿 → tick
     /// （panic 捕获=停拍留帧）→ SKY_WAR 写穿 → kind7 退出换回标题。
     fn step_scene(&mut self, keys: &[KeyAction], taps: Vec<(f32, f32)>) {
+        // 【计划 3 T4 · spec §5.3】视口手势先于点按/键（分类内部自借 scene）：滑 = swipe_step（core
+        // 决定探步/排队）；拖 = 观察模式 pan_viewport（非观察态零变化）；滑/拖不产生点按。
+        let vp = std::mem::take(&mut self.pending_vp_touches);
+        for t in vp {
+            self.vp_gesture_feed(t);
+        }
         let Some(sc) = self.scene.as_mut() else { return };
         let mut batch = keys.to_vec();
         for (tx_, ty_) in taps {

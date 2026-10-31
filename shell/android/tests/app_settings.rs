@@ -3,7 +3,7 @@
 //! 运行时与 android_main 同一调度体（runtime.rs）；真资产 + 临时目录。
 
 use game_android::input::KeyAction;
-use game_android::runtime::{build_boot_machine, Runtime, PREF_CLICK, PREF_HAPTIC, PREF_SPLASH};
+use game_android::runtime::{build_boot_machine, Runtime, PREF_CLICK, PREF_HAPTIC, PREF_SPLASH, PREF_CONTROL_MODE};
 use game_core::enums::GameMode;
 use game_shell_common::settings::AppSettings;
 
@@ -59,10 +59,13 @@ fn rows_of(opts: &[game_core::menu_family::ShellOption]) -> Vec<(u8, String, boo
 }
 
 fn expected_rows(splash: bool, haptic: bool, click: bool) -> Vec<(u8, String, bool)> {
+    // 【计划 3 T3.2 前提更正】壳行恒含第 4 行「操控方式」（勾=触屏；默认摇杆=false）；
+    // 自动战斗行仅触屏模式出现（这些用例都在默认摇杆模式下跑）
     vec![
         (PREF_SPLASH, "开屏画面".into(), splash),
         (PREF_HAPTIC, "按键震动".into(), haptic),
         (PREF_CLICK, "按键音".into(), click),
+        (PREF_CONTROL_MODE, "操控方式".into(), false),
     ]
 }
 
@@ -141,7 +144,7 @@ fn no_file_starts_at_main_menu_with_default_rows() {
     assert_eq!(rt.machine.mode, GameMode::MainMenu, "开屏默认关：首拍前即主菜单");
     assert!(rt.title_mode(), "首拍前即标题态（壳据此路由首批触点，复核 T3-F2）");
     assert_eq!(rt.frame_interval_ms(), 75, "不走 mode 0 的 100 ms 节拍");
-    assert_eq!(rows_of(&rt.machine.shell_options), expected_rows(false, true, true), "三行默认值");
+    assert_eq!(rows_of(&rt.machine.shell_options), expected_rows(false, true, true), "壳行默认值（含操控方式=摇杆）");
     drive(&mut rt, &src, &[]);
     assert_eq!(rt.machine.mode, GameMode::MainMenu);
     assert_eq!(rt.bgm_request(), Some(2), "标题曲直接开始");
@@ -210,7 +213,7 @@ fn title_settings_toggle_persists_same_step() {
     title_open(&mut rt, &src, 2); // 设置
     assert_eq!(rt.machine.mode, GameMode::About, "标题侧设置页");
     let opts = rt.machine.options.as_ref().unwrap();
-    assert_eq!(opts.len(), 5, "声音 / 小地图 + 三行");
+    assert_eq!(opts.len(), 6, "声音 / 小地图 + 三行 + 操控方式");
     assert_eq!(rows_of(opts.shell_rows()), expected_rows(false, true, true));
     tap_key(&mut rt, &src, -2);
     tap_key(&mut rt, &src, -2);
@@ -223,6 +226,50 @@ fn title_settings_toggle_persists_same_step() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// 【计划 3 T3.2 · spec §8 · 复核 T3-R1】操控方式翻转链（宿主级，生产路径）：翻「操控方式」同拍
+/// rt_control_mode=Touch、活动机行集出现第 5 行「自动战斗」、设置页 options 重建（6+1 行）且高亮停在操控方式行、
+/// cfg 落盘 control_mode=touch；翻「自动战斗」同拍落盘；切回摇杆 ⇒ 第 5 行消失且 auto_battle 保留落盘。
+#[test]
+fn control_mode_toggle_chain_rows_and_persist() {
+    use game_android::runtime::PREF_AUTO_BATTLE;
+    let dir = tmp("ctlmode");
+    let cfg = dir.join("app_settings.cfg");
+    let (mut rt, src) = runtime_with(&dir, Vec::new());
+    drive(&mut rt, &src, &[]);
+    title_open(&mut rt, &src, 2); // 设置
+    // 高亮移到「操控方式」（第 6 行，下标 5）并确认
+    for _ in 0..5 {
+        tap_key(&mut rt, &src, -2);
+    }
+    assert_eq!(rt.machine.options.as_ref().unwrap().highlight_index(), 5, "高亮 = 操控方式");
+    rt.step(&src, &[KeyAction::Press(-5), KeyAction::Release], Vec::new(), Vec::new());
+    assert_eq!(rt.rt_control_mode, game_shell_common::settings::ControlMode::Touch, "同拍 rt=触屏");
+    let ids: Vec<u8> = rt.machine.shell_options.iter().map(|r| r.id).collect();
+    assert!(ids.contains(&PREF_AUTO_BATTLE), "行集出现自动战斗行（触屏）");
+    let opts = rt.machine.options.as_ref().unwrap();
+    assert_eq!(opts.len(), 7, "设置页重建：原两行 + 壳 5 行");
+    assert_eq!(opts.highlight_index(), 5, "高亮停在操控方式行（spec §8）");
+    let s = AppSettings::load(&cfg);
+    assert_eq!(s.control_mode, game_shell_common::settings::ControlMode::Touch, "落盘 control_mode=touch");
+    // 翻「自动战斗」（第 7 行，下标 6）⇒ 同拍落盘
+    tap_key(&mut rt, &src, -2);
+    rt.step(&src, &[KeyAction::Press(-5), KeyAction::Release], Vec::new(), Vec::new());
+    assert!(AppSettings::load(&cfg).auto_battle, "自动战斗同拍落盘");
+    assert!(rt.scene.is_none() || rt.scene.as_ref().unwrap().auto_battle, "场景侧 core 字段同步（无场景时跳过）");
+    // 切回摇杆：第 5 行消失、auto_battle 保留（上移 = -1）
+    tap_key(&mut rt, &src, -1);
+    assert_eq!(rt.machine.options.as_ref().unwrap().highlight_index(), 5, "回到操控方式行");
+    rt.step(&src, &[KeyAction::Press(-5), KeyAction::Release], Vec::new(), Vec::new());
+    let ids: Vec<u8> = rt.machine.shell_options.iter().map(|r| r.id).collect();
+    assert!(!ids.contains(&PREF_AUTO_BATTLE), "切回摇杆 ⇒ 自动战斗行消失");
+    assert_eq!(rt.machine.options.as_ref().unwrap().len(), 6, "页重建回 6 行");
+    drive(&mut rt, &src, &[]); // 再走一拍：行集已无自动战斗行 ⇒ 缺行同步路径（保 rt 值）
+    let s = AppSettings::load(&cfg);
+    assert_eq!(s.control_mode, game_shell_common::settings::ControlMode::Pad, "落盘回摇杆");
+    assert!(s.auto_battle, "行缺失 ⇒ auto_battle 值保留落盘（spec §8）");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 #[test]
 fn in_game_toggle_persists_and_survives_return_to_title() {
     let dir = tmp("ingame");
@@ -232,7 +279,7 @@ fn in_game_toggle_persists_and_survives_return_to_title() {
     in_game_open(&mut rt, &src, 4); // 设置
     let sc = rt.scene.as_ref().unwrap();
     assert_eq!(sc.game_mode, GameMode::About, "游戏内设置页");
-    assert_eq!(rows_of(sc.options.as_ref().unwrap().shell_rows()), expected_rows(false, true, true), "交接带入三行");
+    assert_eq!(rows_of(sc.options.as_ref().unwrap().shell_rows()), expected_rows(false, true, true), "交接带入壳行（含操控方式）");
     for _ in 0..3 {
         tap_key(&mut rt, &src, -2);
     }
@@ -289,16 +336,16 @@ fn title_touch_spanning_first_frame_yields_no_gesture() {
     let mut w = game_android::native::ShellWiring::new();
     w.title_mode = true;
     let ev = |phase, x, y| TouchEvent { id: 1, phase, x, y };
-    w.on_touch_event(&ev(TouchPhase::Down, 120.0, 300.0));
+    w.on_touch_event(&ev(game_android::input::TouchPhase::Down, 120.0, 300.0));
     let mut keys = Vec::new();
     let _ = w.take_step_inputs(&mut keys); // 首帧前：丢弃
     w.mark_presented();
-    w.on_touch_event(&ev(TouchPhase::Up, 120.0, 300.0));
+    w.on_touch_event(&ev(game_android::input::TouchPhase::Up, 120.0, 300.0));
     let (_, g, _) = w.take_step_inputs(&mut keys);
     assert!(g.is_empty(), "跨首帧的点按不补出 Tap（实得 {g:?}）");
     // 首帧后的完整点按照常
-    w.on_touch_event(&ev(TouchPhase::Down, 120.0, 300.0));
-    w.on_touch_event(&ev(TouchPhase::Up, 120.0, 300.0));
+    w.on_touch_event(&ev(game_android::input::TouchPhase::Down, 120.0, 300.0));
+    w.on_touch_event(&ev(game_android::input::TouchPhase::Up, 120.0, 300.0));
     let (_, g, _) = w.take_step_inputs(&mut keys);
     assert_eq!(g, vec![game_android::native::TitleGesture::Tap(120.0, 300.0)]);
 }
@@ -341,6 +388,92 @@ fn slot_load_keeps_non_default_settings() {
     in_game_open(&mut rt, &src, 4);
     let sc = rt.scene.as_ref().unwrap();
     assert_eq!(sc.game_mode, GameMode::About);
-    assert_eq!(rows_of(sc.options.as_ref().unwrap().shell_rows()), expected_rows(true, false, true), "游戏内设置页 5 行、值同文件");
+    assert_eq!(rows_of(sc.options.as_ref().unwrap().shell_rows()), expected_rows(true, false, true), "游戏内设置页行值同文件（含操控方式行）");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// 【计划 3 T4 · spec §5.3】视口手势端到端（Runtime 注入，生产分类链）：
+/// ① 地图空闲滑动一格；② 观察模式拖动平移相机（pan 生效、facing 同改）；③ 滑/拖的 Up 不产生点按。
+#[test]
+fn vp_gesture_swipe_and_observe_drag() {
+    let dir = tmp("vpg");
+    let (mut rt, src) = runtime_with(&dir, Vec::new());
+    new_game_to_map(&mut rt, &src);
+    // ① 空闲滑动（右）：先按一下方向键（清序章脚本行走武装残留，同实机用户首步操作）
+    tap_key(&mut rt, &src, -4);
+    for _ in 0..10 {
+        drive(&mut rt, &src, &[]);
+    }
+    assert!(!rt.scene.as_ref().unwrap().script_walk_armed, "前置：武装已清");
+
+    let x0 = rt.scene.as_ref().unwrap().player_cell_x;
+    // 选一个可走方向（独立探测：tap_grid 找玩家四邻中 Floor 且安全、BFS 可达的一格——不动玩家）
+    let swipe_dir_code = {
+        let sc = rt.scene.as_ref().unwrap();
+        let grid = sc.tap_grid();
+        let (px, py) = (sc.player_cell_x, sc.player_cell_y);
+        let cand = [(0u8, px, py + 1), (1, px, py - 1), (2, px + 1, py), (3, px - 1, py)];
+        cand
+            .into_iter()
+            .find(|&(_, x, y)| {
+                matches!(grid.get(x, y), Some(game_core::tap_walk::TapCell { kind: game_core::tap_walk::TargetKind::Floor, danger: false }))
+            })
+            .map(|(d, _, _)| d)
+            .expect("玩家四邻有可走地面格")
+    };
+    let x0 = rt.scene.as_ref().unwrap().player_cell_x;
+    let y0 = rt.scene.as_ref().unwrap().player_cell_y;
+    // Down → 越阈 Move → Up（Up 不得产生点按）
+    // 视口中部（画布逻辑坐标）。分拍注入（同真实事件流）：Down 拍 → Move 越阈拍（= swipe_step 起步）
+    let (mx, my) = match swipe_dir_code {
+        0 => (96, 232),
+        1 => (96, 168),
+        2 => (128, 200),
+        _ => (64, 200),
+    };
+    rt.inject_vp_touches(vec![game_android::native::VpTouch { id: 1, phase: game_android::input::TouchPhase::Down, x: 96, y: 200 }]);
+    drive(&mut rt, &src, &[]);
+    rt.inject_vp_touches(vec![
+        game_android::native::VpTouch { id: 1, phase: game_android::input::TouchPhase::Move, x: (96 + mx) / 2, y: (200 + my) / 2 },
+        game_android::native::VpTouch { id: 1, phase: game_android::input::TouchPhase::Move, x: mx, y: my },
+    ]);
+    drive(&mut rt, &src, &[]);
+    rt.inject_vp_touches(vec![game_android::native::VpTouch { id: 1, phase: game_android::input::TouchPhase::Up, x: 130, y: 200 }]);
+    for _ in 0..8 {
+        drive(&mut rt, &src, &[]);
+    }
+    {
+        let sc = rt.scene.as_ref().unwrap();
+        assert_eq!(
+            (sc.player_cell_x, sc.player_cell_y),
+            match swipe_dir_code { 0 => (x0, y0 + 1), 1 => (x0, y0 - 1), 2 => (x0 + 1, y0), _ => (x0 - 1, y0) },
+            "滑动一格探步"
+        );
+    }
+    assert_eq!(rt.scene.as_ref().unwrap().walk_phase, 0, "滑动后回地图（Up 未产点按）");
+    // ② 观察拖动：-5 进观察 → pan 右移
+    // -5 同拍会进 wp2 并立即回锁（wp2 臂消费同批 key_value）——宿主注入拆两拍：Press 拍进观察（未锁），
+    // pan 窗口只有下一拍（Release 后 wp2 臂不再见 -5）
+    rt.step(&src, &[KeyAction::Press(-5)], Vec::new(), Vec::new());
+    assert_eq!(rt.scene.as_ref().unwrap().walk_phase, 2, "观察模式（未锁定）");
+    assert!(!rt.scene.as_ref().unwrap().view_locked, "前置：未锁定（pan 窗口）");
+    let cam0 = rt.scene.as_ref().unwrap().view.cam_x;
+    // 同拍注入 Down+越阈 Move（Swipe→Ignored 于观察态）+续滑 Move（pan 生效）
+    rt.inject_vp_touches(vec![
+        game_android::native::VpTouch { id: 2, phase: game_android::input::TouchPhase::Down, x: 200, y: 400 },
+        game_android::native::VpTouch { id: 2, phase: game_android::input::TouchPhase::Move, x: 240, y: 400 },
+        game_android::native::VpTouch { id: 2, phase: game_android::input::TouchPhase::Move, x: 280, y: 400 },
+    ]);
+    drive(&mut rt, &src, &[]);
+    let sc = rt.scene.as_ref().unwrap();
+    assert_eq!(sc.facing, 2, "拖动主方向 = 右（spec §5.3）");
+    // pan 生效性由 core t4_pan 钉（窄视口）；本宿主夹具 view 576 ≥ 地图 384 ⇒ 整层可见、
+    // cam 居中不动（fits 分支归零=原版语义）——钉"拖动不误触面板/不误开观察"即可
+    assert_eq!((sc.view.cam_x, sc.view.cam_y), (96, 46), "整层可见 ⇒ cam 停居中位（原版语义）");
+    rt.step(&src, &[KeyAction::Release], Vec::new(), Vec::new());
+    // ③ 拖动后抬起：不产生点按（不进背包等）
+    rt.inject_vp_touches(vec![game_android::native::VpTouch { id: 2, phase: game_android::input::TouchPhase::Up, x: 280, y: 400 }]);
+    drive(&mut rt, &src, &[]);
+    assert_eq!(rt.scene.as_ref().unwrap().game_mode, GameMode::Map, "Up 吞掉（未误开面板）");
     let _ = std::fs::remove_dir_all(&dir);
 }

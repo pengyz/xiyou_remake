@@ -246,7 +246,8 @@ fn portrait_touch_routes_panel_to_pad_and_viewport_to_game() {
     assert!(w.on_touch_device(3, TouchPhase::Down, tx, ty).is_empty(), "视口触点不出键");
     w.on_touch_device(3, TouchPhase::Up, tx, ty);
     assert_eq!(std::mem::take(&mut w.title_gestures), vec![TitleGesture::Tap(120.0, 160.0)]);
-    // 视口（游戏态，scene 档）：Up → 待决点按
+    // 视口（游戏态，scene 档）：触点原样入 VpTouch 队列（逻辑坐标）；点按/滑/拖分类在 Runtime
+    //（计划 3 T4 重构——wiring 纯翻译零状态）
     w.title_mode = false;
     w.set_active_canvas(p.scene);
     let c = p.scene.rect_in(p.game);
@@ -254,7 +255,15 @@ fn portrait_touch_routes_panel_to_pad_and_viewport_to_game() {
     let (gx, gy) = (c.x as f32 + 100.0 * s, c.y as f32 + 200.0 * s);
     w.on_touch_device(4, TouchPhase::Down, gx, gy);
     w.on_touch_device(4, TouchPhase::Up, gx, gy);
-    assert_eq!(std::mem::take(&mut w.pending_taps), vec![(100.0, 200.0)]);
+    let vp = std::mem::take(&mut w.pending_vp_touches);
+    assert_eq!(
+        vp.iter().map(|t| (t.phase, t.x, t.y)).collect::<Vec<_>>(),
+        vec![
+            (TouchPhase::Down, 100, 200),
+            (TouchPhase::Up, 100, 200),
+        ],
+        "视口触点原样入队（逻辑坐标）"
+    );
 }
 
 #[test]

@@ -1173,11 +1173,17 @@ fn run_window(shell: Shell) {
                             self.shell.layout.screen_h as u32,
                         ) {
                             if self.press.is_some() {
-                                // 【T3】拖动=滑动方向手动踏步（一格/次；探步失败=撞墙即停）
-                                if let Some(dir) = self.gesture.move_to(x, y) {
-                                    for a in game_shell_common::touch::Dispatcher::swipe(dir) {
-                                        self.shell.apply_touch_action(a);
+                                // 【T3 · 计划 3 T4】越阈首拍=滑动一格（core swipe_step）；续滑=观察拖动
+                                //（wp2 pan_viewport，非观察态零变化；spec §5.3）
+                                match self.gesture.move_to(x, y) {
+                                    Some(game_shell_common::touch::Gesture::Swipe(dir)) => {
+                                        for a in game_shell_common::touch::Dispatcher::swipe(dir) {
+                                            self.shell.apply_touch_action(a);
+                                        }
                                     }
+                                    // 【计划 3 T4】续滑=观察拖动：win 鼠标低频，观察相机平移归 T5
+                                    //（与工具栏一起接 core pan_viewport；本任务只保滑动臂语义不变）
+                                    _ => {}
                                 }
                             } else {
                                 self.shell.pointer_hover(x, y);

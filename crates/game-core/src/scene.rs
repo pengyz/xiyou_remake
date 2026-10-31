@@ -2348,6 +2348,40 @@ impl GameScene {
         self.try_step(dir as i32)
     }
 
+    /// 【STAGE-B-008 计划 3 T4 · spec §5.3】观察模式拖动：按拖动增量平移相机 + 主方向改 facing
+    ///（与 wp2 keyHeld 平移臂同式：±16px/次、set_camera 原版钳位；a.java:3610-3642）。
+    /// 仅 modern 布局（触屏模式专属）；其余态 = 零变化。返回实际平移量（钳位后）。
+    pub fn pan_viewport(&mut self, dx: i32, dy: i32) -> (i32, i32) {
+        if self.layout.preset != crate::layout::Preset::Modern
+            || self.game_mode != GameMode::Map
+            || self.walk_phase != 2
+            || self.view_locked
+            || self.overlay_active
+        {
+            return (0, 0);
+        }
+        if dx == 0 && dy == 0 {
+            return (0, 0);
+        }
+        let (cx, cy) = (self.view.cam_x, self.view.cam_y);
+        // 方向语义与 wp2 keyHeld 平移臂一致（a.java:3618-3640）：键"右"= 内容右移 = cam_x −16 ⇒
+        // 拖动 dx>0（手指右拖、内容跟随）= cam −dx（t4_pan 钉：拖右 → cam_x 减）
+        let (nx, ny) = (cx - dx, cy - dy);
+        self.view.set_camera(nx, ny);
+        // 主轴方向改 facing（与 wp2 平移臂一致：主轴主导，dx 优先）
+        let f = if dx.abs() >= dy.abs() {
+            if dx > 0 { 2 } else { 3 }
+        } else if dy > 0 {
+            0
+        } else if dy < 0 {
+            1
+        } else {
+            self.facing
+        };
+        self.facing = f;
+        (self.view.cam_x - cx, self.view.cam_y - cy)
+    }
+
     /// 【BUG-038 · Stage B 触屏】场上是否接受点地动作（点格寻路 / 探步 / 撤销钮）：原版只在
     /// 地图行走态 walkPhase 0、无浮层时读场上输入（浮层分支吞键整拍返回 a.java:3252-3345；
     /// walkPhase 分派 a.java:3563-3679），换层遮幅期亦不行走。另一许可情形 = 点地寻路自身
@@ -5039,6 +5073,24 @@ impl GameScene {
             }
         }
         follow_up
+    }
+
+    /// 【STAGE-B-008 计划 3 T3.2 · spec §8】整体替换壳层附加行（如操控方式切换 ⇒ 自动战斗行增减）。
+    /// 设置页开着 ⇒ 同步重建 options（盒高随之变），高亮钳在新行数内（spec：保持在「操控方式」行）。
+    pub fn replace_shell_rows(&mut self, rows: Vec<crate::menu_family::ShellOption>) {
+        self.shell_options = rows;
+        if self.game_mode == GameMode::About {
+            if let Some(old) = self.options.take() {
+                let h = old.highlight;
+                let mut list = crate::menu_family::OptionList::with_shell_rows(
+                    self.bgm.sound_enabled,
+                    self.minimap_enabled,
+                    &self.shell_options,
+                );
+                list.highlight = h.clamp(0, list.len() as i32 - 1);
+                self.options = Some(list);
+            }
+        }
     }
 
     fn enter_menu16(&mut self) {
@@ -13801,7 +13853,57 @@ mod t2_walkto_route_tests {
             "69 不抬 ⇒ 数字条 y = 格顶 − 17：{ops:?}"
         );
     }
+
+    // ------- T4：观察模式拖动 pan_viewport（spec §5.3） -------
+
+        /// 【计划 3 T4】拖动平移：观察模式（wp2 未锁）按增量平移相机 + 主方向 facing；钳位同原版；
+    /// 锁定期 / 非 wp2 / classic / 浮层 = 零变化。
+    #[test]
+    fn t4_pan_viewport_observe_drag() {
+        let mut sc = scene((4, ROW), &[]);
+        // 窄视口（宽 320 < 地图 416 ⇒ fits_w=false）：横向可平移（13×13 整层可见时 x 臂归零=原版语义）
+        sc.apply_layout(crate::layout::Layout::modern(10, 13));
+        // 进观察：-5（Map wp0）→ wp2 未锁定
+        sc.key_value = -5;
+        sc.handle_field_input();
+        assert_eq!(sc.walk_phase, 2, "前置：观察模式");
+        assert!(!sc.view_locked);
+        let (cx0, cy0) = (sc.view.cam_x, sc.view.cam_y);
+        // 向右拖 3 拍（每拍 16px）：内容跟随手指 → cam_x 减（wp2 平移臂同向）
+        let mut moved = 0;
+        for _ in 0..3 {
+            let (dx, _) = sc.pan_viewport(16, 0);
+            moved += dx;
+        }
+        assert_eq!(moved, -48, "三拍共移 −48px（cam 反向于手指；钳位前）");
+        assert_eq!(sc.view.cam_x, cx0 + moved, "拖右 = 相机左移（内容右移）");
+        assert_eq!(sc.facing, 2, "主方向 = 右");
+        // 向上拖（负 dy）⇒ facing 上
+        let _ = sc.pan_viewport(0, -16);
+        assert_eq!(sc.facing, 1, "上拖 facing=1");
+        // 对角（dx 优先）
+        let _ = sc.pan_viewport(16, -1);
+        assert_eq!(sc.facing, 2, "对角 dx 优先");
+        // 零增量
+        let before = (sc.view.cam_x, sc.view.cam_y);
+        assert_eq!(sc.pan_viewport(0, 0), (0, 0));
+        assert_eq!((sc.view.cam_x, sc.view.cam_y), before);
+        // 锁定期（回锁期）零变化（锁定态由 tick wp2 臂消费 -5 进入；纯查询直置）
+        sc.view_locked = true;
+        let (cx, cy) = (sc.view.cam_x, sc.view.cam_y);
+        assert_eq!(sc.pan_viewport(32, 32), (0, 0), "回锁期拖动无效");
+        assert_eq!((sc.view.cam_x, sc.view.cam_y), (cx, cy));
+        // classic 零变化
+        let mut cl = scene((4, ROW), &[]);
+        cl.key_value = -5;
+        cl.handle_field_input();
+        assert_eq!(cl.walk_phase, 2);
+        let c0 = (cl.view.cam_x, cl.view.cam_y);
+        assert_eq!(cl.pan_viewport(64, 64), (0, 0), "classic 拖动无效");
+        assert_eq!((cl.view.cam_x, cl.view.cam_y), c0);
+    }
 }
+
 
 /// BUG-040：点地寻路（WalkTo）途中任意键打断 ⇒ 打断后的 dp3 失去"寻路段开放"判据，步尽时
 /// 落入脚本机 dp0 的"行尾收尾"（写 script_line_flags[当前脚本] = true + dp4 等相机才回 Map）

@@ -387,11 +387,12 @@ impl TouchInput {
                     let keys = self.mapper.feed(ev);
                     Self::map_keys(keys)
                 } else {
-                    // 滑动=一格（空闲探步 / 寻路中排队，由 core swipe_step 决定）
-                    self.gestures
-                        .move_to(ev.x as i32, ev.y as i32)
-                        .map(tch::Dispatcher::swipe)
-                        .unwrap_or_default()
+                    // 滑动=一格（空闲探步 / 寻路中排队）；拖动 = Swipe 动作外的 Drag——
+                    // 观察拖动由 pan_viewport 消费（映射层不产生键码动作，STAGE-B-008 计划 3 T4）
+                    match self.gestures.move_to(ev.x as i32, ev.y as i32) {
+                        Some(tch::Gesture::Swipe(d)) => tch::Dispatcher::swipe(d),
+                        _ => Vec::new(),
+                    }
                 }
             }
             TouchPhase::Up | TouchPhase::Cancel => {

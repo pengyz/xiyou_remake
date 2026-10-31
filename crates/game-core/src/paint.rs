@@ -814,6 +814,24 @@ impl BootMachine {
     }
 
     /// dispatchModeEntry 的菜单族 case（a.java:4360/4386-4425）：进入模式时初始化。
+    /// 【STAGE-B-008 计划 3 T3.2 · spec §8】整体替换壳层附加行（GameScene 同名入口同构）。
+    /// 标题侧设置页开着 ⇒ 同步重建 options（optionChecked[1]=true 口径不变），高亮钳在新行数内。
+    pub fn replace_shell_rows(&mut self, rows: Vec<crate::menu_family::ShellOption>) {
+        self.shell_options = rows;
+        if self.mode == GameMode::About {
+            if let Some(old) = self.options.take() {
+                let h = old.highlight;
+                let mut list = crate::menu_family::OptionList::with_shell_rows(
+                    self.bgm.sound_enabled,
+                    true,
+                    &self.shell_options,
+                );
+                list.highlight = h.clamp(0, list.len() as i32 - 1);
+                self.options = Some(list);
+            }
+        }
+    }
+
     fn enter_menu_mode(&mut self) {
         match self.mode {
             GameMode::EquipDetail => {
@@ -1035,6 +1053,41 @@ mod tests {
         )
     }
 
+
+
+    /// 【计划 3 T3.2 · spec §8】replace_shell_rows 两机：换 shell_options；设置页开着 ⇒ 重建 options
+    ///（盒高变）、高亮钳在新行数内；页未开只换行集。
+    #[test]
+    fn t3_replace_shell_rows_boot_and_scene() {
+        use crate::menu_family::{OptionList, ShellOption};
+        let opt = |id: u8, checked: bool| ShellOption { id, label: "行".encode_utf16().collect(), checked };
+        // BootMachine
+        let mut m = boot_state();
+        m.shell_options = vec![opt(4, true), opt(4 + 1, true)];
+        m.mode = GameMode::About;
+        m.options = Some(OptionList::with_shell_rows(true, true, &m.shell_options));
+        m.options.as_mut().unwrap().highlight = 4;
+        m.replace_shell_rows(vec![opt(4, false)]);
+        assert_eq!(m.shell_options.len(), 1, "Boot：行集整体替换");
+        let o = m.options.as_ref().expect("设置页开着 ⇒ options 重建");
+        assert_eq!(o.len(), 3, "原两行 + 一壳行");
+        assert_eq!(o.highlight, 2, "高亮钳在新行数内");
+        // GameScene
+        let mut sc = crate::scene::scene_test_support::scene((1, 3), &[]);
+        sc.shell_options = vec![opt(4, true), opt(4 + 1, true)];
+        sc.game_mode = GameMode::About;
+        sc.options = Some(OptionList::with_shell_rows(true, sc.minimap_enabled, &sc.shell_options));
+        sc.options.as_mut().unwrap().highlight = 4;
+        sc.replace_shell_rows(vec![opt(4, false)]);
+        assert_eq!(sc.shell_options.len(), 1);
+        assert_eq!(sc.options.as_ref().unwrap().len(), 3);
+        assert_eq!(sc.options.as_ref().unwrap().highlight, 2);
+        // 设置页未开：只换行集（不动 options——留着旧页对象，下次进页重建）
+        sc.game_mode = GameMode::Map;
+        sc.replace_shell_rows(vec![opt(4, true), opt(4 + 1, false)]);
+        assert_eq!(sc.shell_options.len(), 2);
+        assert_eq!(sc.options.as_ref().unwrap().len(), 3, "页未开不动旧 options");
+    }
 
     /// 【计划 3 T2b · spec §3.2】BootMachine 侧页面行：读档/设置/片头/标题隐藏 + 帮助恒翻页/关于可翻时。
     #[test]
