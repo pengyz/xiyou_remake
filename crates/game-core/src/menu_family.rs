@@ -1072,7 +1072,7 @@ fn paint_equipment_frame<'a>(
 /// 图标 = sptarm[k] 左上 `(fx + (32-w>>1), fy + (32-h>>1))`；
 /// 材质名 = 白字“无”@`(fx + (32-wideCharWidth>>1), fy + (32-fontHeight>>1))`
 /// （wideCharWidth=12、fontHeight=14——2026-10-15 字高更正后 32-14>>1=9）。
-#[cfg(test)]
+
 pub(crate) mod slot_equip_test_support {
     use crate::layout::{MINIFRAME_FILL, SCREEN_H, SCREEN_W};
     use crate::render::{ArgbImage, SoftGraphics};

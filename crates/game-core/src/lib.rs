@@ -23,5 +23,11 @@ pub mod title;
 pub mod script;
 pub mod controls;
 pub mod tap_walk;
+
+/// 【测试夹具导出】scene_test_support 仅测试用（合成图像 + 仓库夹具）；非生产 API。
+#[doc(hidden)]
+pub mod scene_test_support {
+    pub use crate::scene::scene_test_support::*;
+}
 pub mod undo_journal;
 pub mod walk;

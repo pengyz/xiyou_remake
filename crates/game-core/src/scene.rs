@@ -7874,7 +7874,6 @@ fn m_003_clip5(g: &mut SoftGraphics<'_>, img: &ArgbImage, x: i32, y: i32, src_x:
 /// 场景存档槽表（mode 7）装备框接线：paint_slot_list 图标分支（entityTypeImage
 /// 反查 sptarm）+ markSlotEntry 装备拷贝（a.java:9013-9014）。像素判据见
 /// [`crate::menu_family::slot_equip_test_support`]。
-#[cfg(test)]
 mod slot_equip_scene_tests {
     use crate::render::FontMetrics;
     use super::*;
@@ -9992,13 +9991,13 @@ mod slot_equip_scene_tests {
 
 /// 场景级单测的合成夹具（本文件 #[cfg(test)] 模块共用）：13×13 网格（走廊 y=ROW、
 /// x∈1..=11 地形可走，其余墙）+ 纯色合成图集 + 真实数值表夹具。
-#[cfg(test)]
-pub(crate) mod scene_test_support {
+#[doc(hidden)]
+pub mod scene_test_support {
     use crate::render::FontMetrics;
     use super::*;
 
     const W: i32 = 13;
-    pub(crate) const ROW: i32 = 3;
+    pub const ROW: i32 = 3;
 
     fn solid(w: i32, h: i32) -> ArgbImage {
         ArgbImage::from_rgb(&vec![0xFF202020; (w * h) as usize], w, h, true)
@@ -10113,7 +10112,7 @@ pub(crate) mod scene_test_support {
         );
     }
 
-    pub(crate) fn scene(player: (i32, i32), ents: &[(u8, i32, i32)]) -> GameScene {
+    pub fn scene(player: (i32, i32), ents: &[(u8, i32, i32)]) -> GameScene {
         let width_table = numbers(include_str!("../tests/fixtures/type_width_px.txt"));
         let walk = numbers(include_str!("../tests/fixtures/tile_walkability.txt"));
         assert_eq!((walk[0], walk[1]), (0, 1), "合成 tile 0=墙 1=可走");
