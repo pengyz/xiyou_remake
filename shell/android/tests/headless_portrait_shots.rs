@@ -7,6 +7,7 @@
 //! 帧：1_title 2_intro 3_scene 4_map_hold_right 5_menu（整窗 1200×2536）。
 
 use game_android::input::KeyAction;
+use game_shell_common::settings::ControlMode;
 use game_android::native::{canvas_graphics, TitleGesture};
 use game_android::portrait::{compose_layers, paint_panel, plan_portrait, MapExtent, PanelState, PlanInput, PortraitPlan};
 use game_android::runtime::{build_boot_machine, Runtime};
@@ -73,6 +74,7 @@ fn headless_portrait_shots() {
         inset_top: 0,
         inset_bottom: 0,
         map: MapExtent::from_assets(&src),
+        control_mode: game_shell_common::settings::ControlMode::Pad,
     });
     eprintln!("plan scene={:?} boot={:?} game={:?} panel={:?}", plan.scene, plan.boot, plan.game, plan.panel);
     let save = out.join("save");
@@ -192,6 +194,7 @@ fn headless_portrait_niumowang_dialog_and_gold_popup() {
         inset_top: 0,
         inset_bottom: 0,
         map: MapExtent::from_assets(&src),
+        control_mode: game_shell_common::settings::ControlMode::Pad,
     });
     let save = out.join("save-niumowang");
     let _ = std::fs::remove_dir_all(&save);

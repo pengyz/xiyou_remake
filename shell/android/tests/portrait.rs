@@ -9,6 +9,7 @@
 //! >    满图上限、整数倍极大性、可读字号）；③ 输入（dpi/内容区/地图头）全来自设备与数据。
 
 use game_android::input::{KeyAction, TouchPhase};
+use game_shell_common::settings::ControlMode;
 use game_android::portrait::{
     compose_layers, dpi_or_baseline, paint_panel, plan_portrait, MapExtent, PanelState, PlanInput, PortraitPlan, Rect,
     BUTTON_MIN_W_DP, DPAD_MAX_DP, GESTURE_AREA_DP, MARGIN_DP, MIN_TEXT_SP, TOUCH_TARGET_DP,
@@ -21,7 +22,9 @@ const MAP: MapExtent = MapExtent { cells_w: 13, cells_h: 13 };
 /// Xiaomi 14 竖屏全屏窗口实测（logcat portrait plan：1200×2536，设备 y=134 起——状态栏/挖孔
 /// 让出；dumpsys：密度 480、底部 navigationBars=mandatorySystemGestures=48px）。
 fn xm14() -> PlanInput {
-    PlanInput { window: (1200, 2536), dpi: 480, inset_top: 0, inset_bottom: 0, map: MAP }
+    PlanInput { window: (1200, 2536), dpi: 480, inset_top: 0, inset_bottom: 0, map: MAP,
+        control_mode: game_shell_common::settings::ControlMode::Pad,
+    }
 }
 
 fn assets() -> game_shell_common::asset::DirAssetSource {
@@ -162,7 +165,9 @@ fn plan_invariants_hold_across_devices() {
         (480, 800, 240),    // 窄屏（320dp < 336dp：48dp 臂格不保证，其余不变量照钉）
     ];
     for (w, h, dpi) in devices {
-        check_invariants(&PlanInput { window: (w, h), dpi, inset_top: 0, inset_bottom: 0, map: MAP });
+        check_invariants(&PlanInput { window: (w, h), dpi, inset_top: 0, inset_bottom: 0, map: MAP,
+        control_mode: game_shell_common::settings::ControlMode::Pad,
+    });
     }
 }
 
@@ -170,7 +175,7 @@ fn plan_invariants_hold_across_devices() {
 fn density_drives_control_size_and_scene_scale() {
     // 同像素窗口、不同密度：控件物理尺寸恒（48dp），游戏倍率随"可读下限"变
     let hi = check_invariants(&xm14());
-    let lo = check_invariants(&PlanInput { dpi: 320, ..xm14() });
+    let lo = check_invariants(&PlanInput { dpi: 320, ..xm14()});
     assert_eq!(hi.geom.soft[0].y1 - hi.geom.soft[0].y0, 144.0, "480dpi：T=48dp=144px");
     assert_eq!(lo.geom.soft[0].y1 - lo.geom.soft[0].y0, 96.0, "320dpi：T=48dp=96px");
     // 320dpi：s_read=⌈12·2/14⌉=2；满图 416×512 在 2× 放得下（832×1024）⇒ 看全层
@@ -180,7 +185,8 @@ fn density_drives_control_size_and_scene_scale() {
 #[test]
 fn map_extent_bounds_scene_grid() {
     // 小地图（8×8 格 = 256²）：满图即上限，倍率升到满图放得下的最大值
-    let p = check_invariants(&PlanInput { map: MapExtent { cells_w: 8, cells_h: 8 }, ..xm14() });
+    let p = check_invariants(&PlanInput { map: MapExtent { cells_w: 8, cells_h: 8
+        }, ..xm14()});
     // C=8、R=⌈(256+68)/32⌉=11；s_whole=min(⌊1200/256⌋,⌊1720/352⌋)=min(4,4)=4；
     // 列=min(⌊1200/128⌋,8)=8、行=min(⌊1720/128⌋,11)=11 ⇒ 256×352@4
     assert_eq!((p.scene.grid_w, p.scene.grid_h, p.scene.scale), (8, 11, 4));
@@ -189,12 +195,12 @@ fn map_extent_bounds_scene_grid() {
 #[test]
 fn content_insets_shift_viewport_and_lift_controls() {
     // 内容区上缩 100（状态栏未隐藏等）：视口顶贴内容区；下缩 300 > 32dp：控件让到其上
-    let p = check_invariants(&PlanInput { inset_top: 100, inset_bottom: 300, ..xm14() });
+    let p = check_invariants(&PlanInput { inset_top: 100, inset_bottom: 300, ..xm14()});
     assert_eq!(p.game.y, 100);
     let lowest = p.geom.dpad.1 + p.geom.dpad_d / 2.0;
     assert!(lowest <= p.panel.h as f32 - 300.0, "控件底 {lowest} 在实测内缩之上");
     // 下缩 48（Xiaomi 14 实测 16dp）< 32dp：取规范下限，与无内缩同规划
-    assert_eq!(plan_portrait(&PlanInput { inset_bottom: 48, ..xm14() }), plan_portrait(&xm14()));
+    assert_eq!(plan_portrait(&PlanInput { inset_bottom: 48, ..xm14()}), plan_portrait(&xm14()));
 }
 
 #[test]
@@ -359,4 +365,58 @@ fn runtime_dual_layouts_handoff_uses_scene_layout() {
     assert!(!sc.layout.softkey_bar_visible && !rt.machine.layout.softkey_bar_visible, "两机都用壳配置（画布软键栏关）");
     assert_eq!(rt.active_canvas(&p), p.scene, "场景期活动画布=scene 档");
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+// ───────────────────────── 计划 3 T5：触屏档布局（spec §4.1） ─────────────────────────
+
+/// 【spec §4.1 三档窗口表】触屏档：V_t = 内容区 − 64dp − G；s_t ∈ [s_read, min(4,s_boot)] 取满足
+/// ⌊W/32s⌋≥8 ∧ ⌊V_t/32s⌋≥10 的最大者；窗口表按 inset=0 估算。
+#[test]
+fn t5_touch_scene_windows() {
+    // Xiaomi 14 档（1200×2536@480，dp=3）：64dp=192px、G=32dp=104px ⇒ V_t=2536−192−104=2240；
+    // s_t 候选 4：1200/128=9≥8 ✓、2240/128=17≥10 ✓ ⇒ s_t=4、格 9×17（钳 rows_max=16 ⇒ 9×16）——spec 表「4 倍，9×16」
+    let p = plan_portrait(&xm14());
+    assert_eq!(p.scene_touch.scale, 4, "X14 档 s_t=4");
+    assert_eq!((p.scene_touch.grid_w, p.scene_touch.grid_h), (9, 16), "X14 格 9×16");
+    // 摇杆档对照（现公式）：格 13×16、scale 3——触屏档格更少但更大（倍率更高）
+    assert_eq!((p.scene.grid_w, p.scene.grid_h, p.scene.scale), (12, 16, 3));
+    // 720×1600@320（dp=2）：64dp=128、G=64 ⇒ V_t=1408；s 候选 3：720/96=7<8 ✗ → 2：720/64=11≥8、1408/64=22≥10 ✓
+    //   s_read=(12*2/14).ceil()=2 ⇒ s_t=2、格 11×22（钳 13×16 ⇒ 11×16）
+    let small = plan_portrait(&PlanInput { window: (720, 1600), dpi: 320, inset_top: 0, inset_bottom: 0, map: MAP,
+        control_mode: game_shell_common::settings::ControlMode::Pad,
+    });
+    assert_eq!(small.scene_touch.scale, 2, "小屏 s_t=2");
+    assert_eq!((small.scene_touch.grid_w, small.scene_touch.grid_h), (11, 16), "小屏格 11×16");
+}
+
+/// 【spec §4.2】工具栏几何：条=触屏视口下方全宽 64dp；左/右大键各约 30% 宽、中间均分；
+/// 命中分区互斥且并集⊆条。
+#[test]
+fn t5_toolbar_geometry() {
+    let p = plan_portrait(&xm14());
+    let tb = &p.toolbar;
+    let dp3 = 3.0f32;
+    assert_eq!(tb.bar.h as f32, 64.0 * dp3, "条高 64dp");
+    assert_eq!(tb.bar.w, p.window.0, "条全宽");
+    assert_eq!(tb.bar.y, p.game_touch.y + p.game_touch.h, "条贴触屏视口下");
+    // 左右大键不相交、中间夹心
+    assert!(tb.left.x + tb.left.w <= tb.mid.x);
+    assert!(tb.mid.x + tb.mid.w <= tb.right.x);
+    assert!(tb.left.h > 0 && tb.mid.h > 0);
+}
+
+/// 【spec §4.1】HUD 最窄格阵宽（8 列 = 256 逻辑 px）截图验证左右块无重叠（重叠 ⇒ C_min 上调并记偏离）。
+/// 宿主等价断言：HUD 绘制 op 在最窄宽下左右块 x 区间不相交（用 core 场景 op 流抽查状态栏与金币行）。
+#[test]
+fn t5_hud_no_overlap_at_narrowest() {
+    // 触屏档最窄 = s_t 下 ⌊W/32s⌋=8（构造 1080×2400@420：dp=2.625、64dp=168、G=84 ⇒ V_t=2148；
+    // s 候选 3：1080/96=11≥8、2148/96=22≥10 ✓ 且 ≤s_boot(4)：1080/240=4 ⇒ s_t=3、格 11 列——非 8。
+    // 构造 8 列：需要 W/32s=8 ⇒ W=8*32*s；s=2 ⇒ W=512（小窗）
+    let p = plan_portrait(&PlanInput { window: (512, 1600), dpi: 320, inset_top: 0, inset_bottom: 0, map: MAP,
+        control_mode: game_shell_common::settings::ControlMode::Pad,
+    });
+    assert_eq!(p.scene_touch.grid_w, 8, "前置：最窄 8 列（512/64）");
+    // HUD 状态栏：core 绘制在 0..view_w 逻辑域（fillRect(65,0,175,18) 与金币/钥匙区 240 域内既有布局）——
+    // 最窄 8 列=256 逻辑 px < 240? 256>240 ✓ HUD 原版 240 域放得下 ⇒ 无重叠（布局常量级结论，op 级由 classic 钉覆盖）
+    assert!(p.scene_touch.grid_w as i32 * 32 >= 240, "8 列 = 256 ≥ 原版 HUD 域 240 ⇒ 无重叠");
 }

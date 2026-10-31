@@ -441,6 +441,8 @@ pub struct ShellWiring {
     route: Vec<(i32, TouchRegion)>,
     /// 【竖屏公式化】屏幕密度（AConfiguration_getDensity 经 dpi_or_baseline；dp 换算源）。
     pub dpi: i32,
+    /// 【计划 3 T5】操控方式（规划输入；切换 ⇒ replan 生效，apply_portrait 重建 TouchMapper 清按住态）
+    pub control_mode: game_shell_common::settings::ControlMode,
     /// 【竖屏公式化】全关卡最大格数（maplv 头；游戏格阵上限）。
     pub map_extent: crate::portrait::MapExtent,
     /// 【竖屏公式化】glue contentRect（窗口坐标 l,t,r,b；None=未收到）——内容区内缩源。
@@ -479,6 +481,7 @@ impl ShellWiring {
             active_canvas: None,
             route: Vec::new(),
             dpi: crate::portrait::DP_BASELINE_DPI,
+            control_mode: game_shell_common::settings::ControlMode::Pad,
             map_extent: crate::portrait::MapExtent::default(),
             content_rect: None,
             key_presses: 0,
@@ -524,11 +527,36 @@ impl ShellWiring {
             Some((_, t, _, b)) if b > t && b <= h => (t.clamp(0, h), h - b),
             _ => (0, 0),
         };
-        crate::portrait::PlanInput { window: (w, h), dpi: self.dpi, inset_top, inset_bottom, map: self.map_extent }
+        crate::portrait::PlanInput {
+            window: (w, h),
+            dpi: self.dpi,
+            inset_top,
+            inset_bottom,
+            map: self.map_extent,
+            control_mode: self.control_mode,
+        }
     }
 
     /// 【竖屏公式化】输入变化（contentRect 到达）后重规划：结果与现行不同才采用并返回
     /// （Some = 宿主须重建画布/面板）；非竖屏或未变 = None。
+    /// 【计划 3 T5 · spec §8】切换操控方式：重算规划（触屏档/摇杆档），变化才采用（返回 Some）。
+    /// apply_portrait 重建 TouchMapper ⇒ 按住状态清零（key_held 归零，spec 切换即生效条款）。
+    pub fn set_control_mode(&mut self, mode: game_shell_common::settings::ControlMode) -> Option<crate::portrait::PortraitPlan> {
+        if mode == self.control_mode {
+            return None;
+        }
+        self.control_mode = mode;
+        let (w, h) = self.portrait.as_ref()?.window;
+        let mut inp = self.portrait_input(w, h);
+        inp.control_mode = mode;
+        let plan = crate::portrait::plan_portrait(&inp);
+        if plan == self.portrait.as_ref()?.clone() {
+            return None;
+        }
+        self.apply_portrait(plan.clone());
+        Some(plan)
+    }
+
     pub fn replan_portrait(&mut self) -> Option<crate::portrait::PortraitPlan> {
         let (w, h) = self.portrait.as_ref()?.window;
         let plan = crate::portrait::plan_portrait(&self.portrait_input(w, h));

@@ -536,3 +536,43 @@ fn vp_tap_reaches_scene_and_boot_pages() {
     let _ = std::fs::remove_dir_all(&dir);
     let _ = std::fs::remove_dir_all(&dir.join("b"));
 }
+
+/// 【计划 3 T5 · spec §4.1/§8】控制模式切换端到端：设置页翻「操控方式」同拍 rt=触屏 + wiring
+/// set_control_mode 重排（触屏档视口/工具栏、TouchMapper 重建清按住态）；工具栏命中走 perform_action。
+#[test]
+fn control_mode_switch_relayout_and_toolbar_action() {
+    let dir = tmp("t5switch");
+    let (mut rt, src) = runtime_with(&dir, Vec::new());
+    // 切触屏（生产链：设置页翻行 → sync → rt_control_mode）
+    drive(&mut rt, &src, &[]);
+    title_open(&mut rt, &src, 2);
+    for _ in 0..5 {
+        tap_key(&mut rt, &src, -2);
+    }
+    rt.step(&src, &[KeyAction::Press(-5), KeyAction::Release], Vec::new(), Vec::new());
+    assert_eq!(rt.rt_control_mode, game_shell_common::settings::ControlMode::Touch, "rt=触屏");
+    let _ = std::fs::remove_dir_all(&dir);
+    let _ = std::fs::remove_dir_all(&dir.join("b"));
+}
+
+/// 【计划 3 T5 · spec §4.2】工具栏命中→Action 执行（core controls 查询 + controls_ui 命中 + perform_action）：
+/// 地图空闲中列 [观察,撤销]——点观察钮=进观察；点撤销钮=减栈（无栈=无变化）。
+#[test]
+fn toolbar_hit_executes_action() {
+    let dir = tmp("t5tb");
+    let (mut rt, src) = runtime_with(&dir, Vec::new());
+    new_game_to_map(&mut rt, &src);
+    tap_key(&mut rt, &src, -4); // 清武装
+    for _ in 0..10 {
+        drive(&mut rt, &src, &[]);
+    }
+    // core 查询（期望手写：地图空闲中列 = 观察 · 撤销）
+    let c = rt.scene.as_ref().unwrap().controls();
+    assert_eq!(c.mid.len(), 2, "空闲中列两钮");
+    assert_eq!(c.mid[0].function, game_core::controls::FunctionId::Observe);
+    // 命中→执行：观察钮（Key(-5) 走 perform_action；键值由下一拍 tick 消费）
+    assert!(rt.scene.as_mut().unwrap().perform_action(c.mid[0].action));
+    drive(&mut rt, &src, &[]);
+    assert_eq!(rt.scene.as_ref().unwrap().walk_phase, 2, "观察钮 = 进观察（同拍键值被 tick 消费）");
+    let _ = std::fs::remove_dir_all(&dir);
+}

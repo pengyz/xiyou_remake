@@ -39,44 +39,6 @@ pub enum FunctionId {
     Skip,
 }
 
-impl FunctionId {
-    /// 中文名（壳标注 / 帮助文本用；两呈现读同一查询）。
-    pub fn label(&self) -> &'static str {
-        match self {
-            FunctionId::Bag => "背包",
-            FunctionId::Observe => "观察",
-            FunctionId::Undo => "撤销",
-            FunctionId::CloudUp => "筋斗云↑",
-            FunctionId::CloudDown => "筋斗云↓",
-            FunctionId::Menu => "菜单",
-            FunctionId::Stop => "停下",
-            FunctionId::Cancel => "取消",
-            FunctionId::Fight => "开战",
-            FunctionId::ExitObserve => "退出观察",
-            FunctionId::PrevPage => "上页",
-            FunctionId::NextPage => "下页",
-            FunctionId::ScrollUp => "上滚",
-            FunctionId::ScrollDown => "下滚",
-            FunctionId::Continue => "继续",
-            FunctionId::Use => "使用",
-            FunctionId::Back => "返回",
-            FunctionId::Buy => "买",
-            FunctionId::Accept => "接受",
-            FunctionId::Refuse => "拒绝",
-            FunctionId::Close => "关闭",
-            FunctionId::PrevRec => "上一条",
-            FunctionId::NextRec => "下一条",
-            FunctionId::Confirm => "确定",
-            FunctionId::Save => "存档",
-            FunctionId::Read => "读取",
-            FunctionId::Refine => "炼丹",
-            FunctionId::PrevItem => "上一项",
-            FunctionId::NextItem => "下一项",
-            FunctionId::Skip => "跳过",
-        }
-    }
-}
-
 /// 按下执行的动作（spec §3.1）：发原版键码，或无键码动作（停 / 取消 / 开战 / 停下后打开 / 撤销）。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Action {

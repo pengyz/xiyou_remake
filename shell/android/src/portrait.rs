@@ -111,6 +111,8 @@ pub const DPAD_CELLS: f32 = 3.0;
 pub const OK_CELLS: f32 = 2.0;
 /// 十字键直径上限 192dp（= 4T ≈ 30mm，单拇指不挪掌可覆盖）。
 pub const DPAD_MAX_DP: f32 = 192.0;
+/// 【计划 3 T5 · spec §4.1】触屏工具栏高（64dp）。
+pub const TOOLBAR_H_DP: f32 = 64.0;
 /// 描边粗 2dp。
 pub const OUTLINE_DP: f32 = 2.0;
 /// 箭头占臂格比例（顶点/底边距格心 ±c·ARROW_FRAC、半底宽 c·ARROW_FRAC）。
@@ -172,6 +174,8 @@ pub struct PlanInput {
     pub dpi: i32,
     /// 内容区上 / 下内缩（px；未知 = 0）。
     pub inset_top: i32,
+    /// 【计划 3 T5】操控方式（默认摇杆；触屏=工具栏档。setting 里缺省构造处须补 Pad）。
+    pub control_mode: game_shell_common::settings::ControlMode,
     pub inset_bottom: i32,
     /// 全关卡最大格数。
     pub map: MapExtent,
@@ -266,6 +270,18 @@ impl PanelGeom {
     }
 }
 
+/// 【计划 3 T5 · spec §4.2】工具栏几何（触屏档；窗口物理 px）。
+#[derive(Clone, Debug, PartialEq)]
+pub struct ToolbarGeom {
+    /// 工具栏条（全宽，高 64dp）。
+    pub bar: Rect,
+    /// 左大键 / 右大键（各约 1/3 宽）。
+    pub left: Rect,
+    pub right: Rect,
+    /// 中间小钮（0–4 个均分剩余；命中时按 idx 均分重算）。
+    pub mid: Rect,
+}
+
 /// 竖屏规划结果。
 #[derive(Clone, Debug, PartialEq)]
 pub struct PortraitPlan {
@@ -274,7 +290,7 @@ pub struct PortraitPlan {
     pub dp: f32,
     /// 面板下限 P = 4T + 3M + G（px，向上取整）。
     pub panel_min: i32,
-    /// 游戏场景档（Modern 格阵）。
+    /// 游戏场景档（Modern 格阵，摇杆面板档）。
     pub scene: Canvas,
     /// 开场链档（原分辨率 240×320）。
     pub boot: Canvas,
@@ -286,6 +302,12 @@ pub struct PortraitPlan {
     pub geom: PanelGeom,
     /// 面板触控区（= geom.pad()）。
     pub pad: PadLayout,
+    /// 【计划 3 T5 · spec §4.1】触屏档场景（工具栏替代摇杆面板：V_t 更大 ⇒ 格阵更大或同）。
+    pub scene_touch: Canvas,
+    /// 触屏档游戏视口（scene_touch+boot 两档外接）。
+    pub game_touch: Rect,
+    /// 触屏档工具栏几何（视口下方全宽条）。
+    pub toolbar: ToolbarGeom,
 }
 
 /// 竖屏规划（纯函数；公式见模块文档）。
@@ -320,7 +342,88 @@ pub fn plan_portrait(inp: &PlanInput) -> PortraitPlan {
     let game = Rect { x: (w - vw) / 2, y: top, w: vw, h: vh };
     let panel = Rect { x: 0, y: top + vh, w, h: (h - top - vh).max(0) };
     let geom = panel_geom(panel.w, panel.h, dp, gesture);
-    PortraitPlan { window: (w, h), dp, panel_min, scene, boot, game, panel, pad: geom.pad(), geom }
+
+    // 【计划 3 T5 · spec §4.1】触屏档：工具栏高 64dp 贴手势区上；V_t = 内容区高 − 64dp − G
+    let toolbar_h = (TOOLBAR_H_DP * dp).ceil() as i32;
+    let v_touch = (h - top - toolbar_h - gesture as i32).max(0);
+    // s_t：在 [s_read, min(4, s_boot)] 中取最大 s，使 ⌊W/32s⌋ ≥ 8 且 ⌊V_t/32s⌋ ≥ 10（C_min=8，§12）
+    let mut s_t = 1usize;
+    for cand in (1..=4usize).rev() {
+        if w / (CELL_PX * cand as i32) >= 8 && v_touch / (CELL_PX * cand as i32) >= 10 {
+            s_t = cand;
+            break;
+        }
+    }
+    let s_t = s_t.max(s_read.max(1) as usize).min(s_boot.max(1) as usize) as i32;
+    let scene_touch = Canvas {
+        grid_w: (w / (CELL_PX * s_t)).min(cols_max),
+        grid_h: (v_touch / (CELL_PX * s_t)).min(rows_max),
+        scale: s_t,
+    };
+    let (bw2, bh2) = (boot.physical().0.max(scene_touch.physical().0), boot.physical().1.max(scene_touch.physical().1));
+    let game_touch = Rect { x: (w - bw2) / 2, y: top, w: bw2, h: bh2 };
+    // 工具栏条 = 触屏视口下方全宽（窗口绝对坐标；spec §4.1 贴底、手势区之上）
+    let toolbar = toolbar_geom(w, top + bh2, toolbar_h, dp);
+
+    if inp.control_mode == game_shell_common::settings::ControlMode::Touch {
+        // 触屏档：视口=game_touch；面板区=工具栏（pad 恒空——无摇杆控件；TouchMapper 重建由 apply_portrait 完成）
+        let pad_empty = PadLayout { dpad: DpadZone { cx: -10000.0, cy: -10000.0, r_inner: 0.0, r_switch: 0.0 }, soft: vec![] };
+        PortraitPlan {
+            window: (w, h),
+            dp,
+            panel_min,
+            scene,
+            boot,
+            game: game_touch,
+            panel: Rect { x: 0, y: toolbar.bar.y, w, h: h - toolbar.bar.y },
+            pad: pad_empty,
+            geom: PanelGeom {
+                soft: [SoftZone { code: -6, x0: -10000.0, y0: -10000.0, x1: -9999.0, y1: -9999.0 }, SoftZone { code: -7, x0: -10000.0, y0: -10000.0, x1: -9999.0, y1: -9999.0 }],
+                icon_scale: 1,
+                dpad: (-10000.0, -10000.0),
+                dpad_d: 0.0,
+                cell: 0.0,
+                ok: (-10000.0, -10000.0),
+                ok_r: 0.0,
+                outline: 1,
+                label_scale: 1,
+            },
+            scene_touch,
+            game_touch,
+            toolbar,
+        }
+    } else {
+        PortraitPlan {
+            window: (w, h),
+            dp,
+            panel_min,
+            scene,
+            boot,
+            game,
+            panel,
+            pad: geom.pad(),
+            geom,
+            scene_touch,
+            game_touch,
+            toolbar,
+        }
+    }
+}
+
+/// 【计划 3 T5 · spec §4.2】工具栏几何：条=面板区全宽、高 64dp（贴手势区上）；左/右大键各约 1/3、中间均分剩余。
+fn toolbar_geom(w: i32, bar_y: i32, bar_h: i32, dp: f32) -> ToolbarGeom {
+    let m = (MARGIN_DP * dp) as i32;
+    let bar = Rect { x: 0, y: bar_y, w, h: bar_h };
+    let usable_w = w - 2 * m;
+    let big_w = usable_w * 30 / 100;
+    let mid_x = m + big_w + m;
+    let mid_w = usable_w - 2 * big_w - 2 * m;
+    ToolbarGeom {
+        bar,
+        left: Rect { x: m, y: bar.y + m, w: big_w, h: bar_h - 2 * m },
+        right: Rect { x: w - m - big_w, y: bar.y + m, w: big_w, h: bar_h - 2 * m },
+        mid: Rect { x: mid_x, y: bar.y + m, w: mid_w, h: bar_h - 2 * m },
+    }
 }
 
 /// 面板控件几何（面板局部 px；公式见模块文档"面板"行）。

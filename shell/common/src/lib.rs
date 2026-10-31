@@ -25,6 +25,7 @@ pub mod handoff;
 pub mod touch;
 pub mod undo_ui;
 pub mod audio;
+pub mod controls_ui;
 pub mod settings;
 pub mod rms;
 
