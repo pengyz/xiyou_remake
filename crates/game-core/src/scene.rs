@@ -1324,7 +1324,7 @@ impl GameScene {
     /// param>>9==0（低 9 位无高字节——目标层 ≤255 的常规门）。
     /// findFloorGateEntity（a.java:7106-7122）：首个 param>>9==0 的型7/8
     /// 门格实体下标（暗道换乘目标——param 低 8 位 = 目标层）。
-    fn find_floor_gate_entity(&self, up: bool) -> Option<usize> {
+    pub(crate) fn find_floor_gate_entity(&self, up: bool) -> Option<usize> {
         let want = if up { 7 } else { 8 };
         for e in 0..self.entities.count {
             if self.entities.items[e].type_ == want && (self.entities.items[e].param >> 9) == 0 {
@@ -2381,7 +2381,7 @@ impl GameScene {
     }
 
     /// 【BUG-040】dp3 当前是否归点地寻路所有（段开放，或打断后仍在走完当前步）。
-    fn walkto_owns_dp3(&self) -> bool {
+    pub(crate) fn walkto_owns_dp3(&self) -> bool {
         self.route.is_open() || self.walkto_draining
     }
 
@@ -9877,12 +9877,12 @@ mod slot_equip_scene_tests {
 /// 场景级单测的合成夹具（本文件 #[cfg(test)] 模块共用）：13×13 网格（走廊 y=ROW、
 /// x∈1..=11 地形可走，其余墙）+ 纯色合成图集 + 真实数值表夹具。
 #[cfg(test)]
-mod scene_test_support {
+pub(crate) mod scene_test_support {
     use crate::render::FontMetrics;
     use super::*;
 
     const W: i32 = 13;
-    pub(super) const ROW: i32 = 3;
+    pub(crate) const ROW: i32 = 3;
 
     fn solid(w: i32, h: i32) -> ArgbImage {
         ArgbImage::from_rgb(&vec![0xFF202020; (w * h) as usize], w, h, true)
@@ -9892,7 +9892,7 @@ mod scene_test_support {
         (0..n).map(|_| solid(24, 24)).collect()
     }
 
-    pub(super) fn images() -> SceneImages {
+    pub(crate) fn images() -> SceneImages {
         SceneImages {
             backdrop: solid(77, SCREEN_H),
             shadow: solid(24, 24),
@@ -9997,7 +9997,7 @@ mod scene_test_support {
         );
     }
 
-    pub(super) fn scene(player: (i32, i32), ents: &[(u8, i32, i32)]) -> GameScene {
+    pub(crate) fn scene(player: (i32, i32), ents: &[(u8, i32, i32)]) -> GameScene {
         let width_table = numbers(include_str!("../tests/fixtures/type_width_px.txt"));
         let walk = numbers(include_str!("../tests/fixtures/tile_walkability.txt"));
         assert_eq!((walk[0], walk[1]), (0, 1), "合成 tile 0=墙 1=可走");
