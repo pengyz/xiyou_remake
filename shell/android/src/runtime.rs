@@ -118,6 +118,10 @@ pub struct Runtime {
     /// vp 短按产生的点按（逻辑坐标；step_scene / step_boot 与外部 taps 合流——复核 T4-R1：
     /// 首版只写不读致竖屏点地/Boot 页点行全断，改 Vec 保多指序）。
     pub pending_vp_taps: Vec<(f32, f32)>,
+    /// 【计划 3 T5】工具栏钮当前 Action（每拍自 controls() 同步；HostState 桥给 wiring 绘制/命中）。
+    pub toolbar_side_left: Option<(game_core::controls::FunctionId, game_core::controls::Action)>,
+    pub toolbar_side_right: Option<(game_core::controls::FunctionId, game_core::controls::Action)>,
+    pub toolbar_mid: Vec<game_core::controls::ControlButton>,
 }
 
 impl Runtime {
@@ -151,6 +155,9 @@ impl Runtime {
             vp_track: std::collections::HashMap::new(),
             pending_vp_touches: Vec::new(),
             pending_vp_taps: Vec::new(),
+            toolbar_side_left: None,
+            toolbar_side_right: None,
+            toolbar_mid: Vec::new(),
         }
     }
 
@@ -225,10 +232,14 @@ impl Runtime {
 
     /// 活动机对应的画布档（场景活动=scene 档，否则=boot 档）。
     pub fn active_canvas(&self, plan: &crate::portrait::PortraitPlan) -> crate::portrait::Canvas {
-        if self.scene.is_some() {
-            plan.scene
+        if self.scene.is_none() {
+            return plan.boot;
+        }
+        // 【计划 3 T5 · 复核 T5-R1】触屏档：活动场景画布 = scene_touch（工具栏档）
+        if self.rt_control_mode == game_shell_common::settings::ControlMode::Touch {
+            plan.scene_touch
         } else {
-            plan.boot
+            plan.scene
         }
     }
 
@@ -374,6 +385,16 @@ impl Runtime {
         let vp = std::mem::take(&mut self.pending_vp_touches);
         for t in vp {
             self.vp_gesture_feed(t);
+        }
+        // 【计划 3 T5 · 复核 T5-R2】工具栏左右 Action 同步（每拍自 controls()；命中消费在 HostState 轮询）
+        {
+            let c = match self.scene.as_ref() {
+                Some(sc) => sc.controls(),
+                None => self.machine.controls(),
+            };
+            self.toolbar_side_left = c.left.map(|b| (b.function, b.action));
+            self.toolbar_side_right = c.right.map(|b| (b.function, b.action));
+            self.toolbar_mid = c.mid.clone();
         }
         if self.scene.is_some() {
             self.step_scene(keys, taps);

@@ -362,8 +362,10 @@ pub fn plan_portrait(inp: &PlanInput) -> PortraitPlan {
     };
     let (bw2, bh2) = (boot.physical().0.max(scene_touch.physical().0), boot.physical().1.max(scene_touch.physical().1));
     let game_touch = Rect { x: (w - bw2) / 2, y: top, w: bw2, h: bh2 };
-    // 工具栏条 = 触屏视口下方全宽（窗口绝对坐标；spec §4.1 贴底、手势区之上）
-    let toolbar = toolbar_geom(w, top + bh2, toolbar_h, dp);
+    // 工具栏条 = **贴底**（spec §4.1：位于手势区之上 ⇒ bar_y = h − G − 64dp；复核 T5-R4——
+    // 首版贴视口下沿留死带，已对齐）。视口高随之钳到 bar 上沿（bh2 超出时格阵已按 v_touch 钳，无害）。
+    let bar_y = (h - gesture as i32 - toolbar_h).max(top);
+    let toolbar = toolbar_geom(w, bar_y, toolbar_h, dp);
 
     if inp.control_mode == game_shell_common::settings::ControlMode::Touch {
         // 触屏档：视口=game_touch；面板区=工具栏（pad 恒空——无摇杆控件；TouchMapper 重建由 apply_portrait 完成）
@@ -425,6 +427,51 @@ fn toolbar_geom(w: i32, bar_y: i32, bar_h: i32, dp: f32) -> ToolbarGeom {
         mid: Rect { x: mid_x, y: bar.y + m, w: mid_w, h: bar_h - 2 * m },
     }
 }
+/// 【计划 3 T5 · spec §4.2 · 复核 T5-R2】工具栏绘制（触屏档；无按键时隐藏钮=不画）。
+/// `sides` = (左, 右) 各 (查询钮, 按下反馈)；`mid` = 中钮列表。文字 = controls_ui::label（壳侧单源）。
+pub fn paint_toolbar(
+    buf: &mut game_core::render::ArgbImage,
+    tb: &ToolbarGeom,
+    sides: &[(Option<(game_core::controls::FunctionId, game_core::controls::Action)>, bool); 2],
+    mid: &[(game_core::controls::FunctionId, game_core::controls::Action)],
+) {
+    use game_core::render::FontMetrics;
+    use game_shell_common::controls_ui::label;
+    fill_rect(buf, tb.bar.x, tb.bar.y, tb.bar.x + tb.bar.w, tb.bar.y + tb.bar.h, PANEL_BG);
+    fill_rect(buf, tb.bar.x, tb.bar.y, tb.bar.x + tb.bar.w, tb.bar.y + 2, PANEL_LINE); // 顶分隔线
+    let mut draw_btn = |r: &Rect, text: &str, pressed: bool| {
+        let face = if pressed { 0xFF3A3A52 } else { 0xFF2C2C3E };
+        fill_rect(buf, r.x, r.y, r.x + r.w, r.y + r.h, face);
+        fill_rect(buf, r.x, r.y, r.x + r.w, r.y + 1, 0xFF4A4A66);
+        fill_rect(buf, r.x, r.y + r.h - 1, r.x + r.w, r.y + r.h, 0xFF4A4A66);
+        fill_rect(buf, r.x, r.y, r.x + 1, r.y + r.h, 0xFF4A4A66);
+        fill_rect(buf, r.x + r.w - 1, r.y, r.x + r.w, r.y + r.h, 0xFF4A4A66);
+        // 文本（游戏字体，居中；draw_string TOP|LEFT 锚）
+        let font = game_core::paint::paint_font();
+        let u16s: Vec<u16> = text.encode_utf16().collect();
+        let (tw, th) = font.measure(&u16s);
+        let cx = r.x + (r.w - tw) / 2;
+        let cy = r.y + (r.h - th) / 2;
+        let g = &mut game_core::render::SoftGraphics::new(buf);
+        g.set_color(0xF0E8D0);
+        g.draw_string(&u16s, cx, cy, 20); // TOP|LEFT
+    };
+    if let Some((f, _)) = sides[0].0 {
+        draw_btn(&tb.left, label(f), sides[0].1);
+    }
+    if let Some((f, _)) = sides[1].0 {
+        draw_btn(&tb.right, label(f), sides[1].1);
+    }
+    if !mid.is_empty() {
+        let n = mid.len() as i32;
+        let w = tb.mid.w / n;
+        for (i, (f, _)) in mid.iter().enumerate() {
+            let r = Rect { x: tb.mid.x + w * i as i32, y: tb.mid.y, w, h: tb.mid.h };
+            draw_btn(&r, label(*f), false);
+        }
+    }
+}
+
 
 /// 面板控件几何（面板局部 px；公式见模块文档"面板"行）。
 fn panel_geom(pw: i32, ph: i32, dp: f32, gesture: f32) -> PanelGeom {

@@ -398,7 +398,7 @@ fn t5_toolbar_geometry() {
     let dp3 = 3.0f32;
     assert_eq!(tb.bar.h as f32, 64.0 * dp3, "条高 64dp");
     assert_eq!(tb.bar.w, p.window.0, "条全宽");
-    assert_eq!(tb.bar.y, p.game_touch.y + p.game_touch.h, "条贴触屏视口下");
+    assert_eq!(tb.bar.y + tb.bar.h, p.window.1 - (32 * 3) as i32, "条贴底（上手势区上；spec §4.1，dp=3 ⇒ G=96）");
     // 左右大键不相交、中间夹心
     assert!(tb.left.x + tb.left.w <= tb.mid.x);
     assert!(tb.mid.x + tb.mid.w <= tb.right.x);
@@ -419,4 +419,32 @@ fn t5_hud_no_overlap_at_narrowest() {
     // HUD 状态栏：core 绘制在 0..view_w 逻辑域（fillRect(65,0,175,18) 与金币/钥匙区 240 域内既有布局）——
     // 最窄 8 列=256 逻辑 px < 240? 256>240 ✓ HUD 原版 240 域放得下 ⇒ 无重叠（布局常量级结论，op 级由 classic 钉覆盖）
     assert!(p.scene_touch.grid_w as i32 * 32 >= 240, "8 列 = 256 ≥ 原版 HUD 域 240 ⇒ 无重叠");
+}
+
+/// 【计划 3 T5 · 复核 T5-R3】真实 wiring 切换：set_control_mode(Touch) ⇒ 触屏档生效
+///（game==game_touch、panel==toolbar.bar、resolution/surface=touch 档、pad 空=无摇杆键）+ 再切回。
+/// TouchMapper 重建清按住态由 apply_portrait 新建 mapper 保证（结构断言：新实例 held 空）。
+#[test]
+fn t5r3_wiring_set_control_mode_touch() {
+    use game_android::input::{TouchPhase, TouchEvent};
+    let mut w = game_android::native::ShellWiring::new();
+    w.apply_portrait(plan_portrait(&xm14()));
+    assert_eq!(w.control_mode, game_shell_common::settings::ControlMode::Pad);
+    // Pad 下视口触点出 VpTouch；面板触点出键
+    // 切 Touch
+    let plan = w.set_control_mode(game_shell_common::settings::ControlMode::Touch).expect("切换应重排");
+    assert_eq!(w.control_mode, game_shell_common::settings::ControlMode::Touch);
+    assert_eq!(w.portrait.as_ref().unwrap(), &plan);
+    assert_eq!(w.portrait.as_ref().unwrap().game, plan.game_touch, "视口=触屏档");
+    assert_eq!(w.portrait.as_ref().unwrap().panel.y, plan.toolbar.bar.y, "面板区=工具栏条");
+    assert_eq!(w.resolution, Some((plan.scene_touch.grid_w as u32, plan.scene_touch.scale as u32)), "resolution=touch 档");
+    // 触屏下面板触点（工具栏区内）不出键、入命中/无队列（命中查询独立）——feed 空 mapper 无键
+    let tb = &plan.toolbar;
+    let inside = ((tb.bar.x + 10) as f32, (tb.bar.y + 10) as f32);
+    assert!(w.on_touch_device(9, TouchPhase::Down, inside.0, inside.1).is_empty(), "Touch 面板触点无摇杆键");
+    w.on_touch_device(9, TouchPhase::Up, inside.0, inside.1);
+    // 切回摇杆
+    let plan2 = w.set_control_mode(game_shell_common::settings::ControlMode::Pad).expect("切回应重排");
+    assert_eq!(w.portrait.as_ref().unwrap().game, plan2.game, "回摇杆档");
+    assert!(w.touch.held_codes().is_empty(), "重建后无按住键");
 }

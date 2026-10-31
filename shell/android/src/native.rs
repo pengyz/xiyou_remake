@@ -418,6 +418,10 @@ pub struct ShellWiring {
     pub pending_taps: Vec<(f32, f32)>,
     /// 【计划 3 T4】视口触点队列（Game 区逻辑坐标；Runtime 拍前取走做手势分类）。
     pub pending_vp_touches: Vec<VpTouch>,
+    /// 【计划 3 T5 · 复核 T5-R2】工具栏命中队列（Touch 模式；Runtime 拍前取走 perform_action）。
+    pub pending_toolbar_actions: Vec<game_core::controls::Action>,
+    /// 左右大键当前 Action（Runtime 每拍自 controls() 同步；None=隐藏）。
+    pub toolbar_side: Option<(game_core::controls::FunctionId, game_core::controls::Action)>,
     /// 【黄④】触控区描边开关（debug 常驻样式可关——量产/帧哈希前收审美）
     pub overlay_debug: bool,
     /// 【问题2b】窗口/缓冲真实像素尺寸（INIT_WINDOW 实测——触点反变换分母；
@@ -477,6 +481,8 @@ impl ShellWiring {
             title_gestures: Vec::new(),
             title_track: None,
             pending_vp_touches: Vec::new(),
+            pending_toolbar_actions: Vec::new(),
+            toolbar_side: None,
             portrait: None,
             active_canvas: None,
             route: Vec::new(),
@@ -573,8 +579,14 @@ impl ShellWiring {
         self.pad = plan.pad.clone();
         self.touch = TouchMapper::new(plan.pad.clone());
         self.window_size = (plan.window.0 as u32, plan.window.1 as u32);
-        self.resolution = Some((plan.scene.grid_w as u32, plan.scene.scale as u32));
-        self.surface = (plan.scene.logical().0 as u32, plan.scene.logical().1 as u32);
+        // 【复核 T5-R1】resolution/surface 按操控方式选档（触屏=scene_touch）
+        let (res_g, res_s, surf) = if self.control_mode == game_shell_common::settings::ControlMode::Touch {
+            (plan.scene_touch.grid_w as u32, plan.scene_touch.scale as u32, plan.scene_touch.logical())
+        } else {
+            (plan.scene.grid_w as u32, plan.scene.scale as u32, plan.scene.logical())
+        };
+        self.resolution = Some((res_g, res_s));
+        self.surface = (surf.0 as u32, surf.1 as u32);
         self.overlay_debug = false;
         self.active_canvas = Some(plan.boot);
         self.route.clear();
@@ -616,6 +628,33 @@ impl ShellWiring {
         }
         match region {
             Some(TouchRegion::Panel) => {
+                // 【计划 3 T5 · 复核 T5-R2】Touch 模式面板=工具栏：Up 命中 → Action 队列（Runtime
+                // perform_action 执行）；Pad 模式照旧摇杆 mapper。
+                if self.control_mode == game_shell_common::settings::ControlMode::Touch {
+                    if matches!(phase, TouchPhase::Up) {
+                        if let Some(plan) = self.portrait.as_ref() {
+                            let tb = &plan.toolbar;
+                            let hit = game_shell_common::controls_ui::hit_toolbar(
+                                (x - tb.bar.x as f32) as i32,
+                                (y - tb.bar.y as f32) as i32,
+                                (tb.left.x - tb.bar.x, tb.left.y - tb.bar.y, tb.left.w, tb.left.h),
+                                (tb.mid.x - tb.bar.x, tb.mid.y - tb.bar.y, tb.mid.w, tb.mid.h),
+                                (tb.right.x - tb.bar.x, tb.right.y - tb.bar.y, tb.right.w, tb.right.h),
+                                4, // mid 上限 4 均分；idx 越界由 Runtime 消费侧按查询校验
+                            );
+                            if let Some(h) = hit {
+                                use game_shell_common::controls_ui::ToolbarHit;
+                                let a = match h {
+                                    ToolbarHit::Left => self.toolbar_side.map(|(_, a)| a).unwrap_or(game_core::controls::Action::Key(-6)),
+                                    ToolbarHit::Right => self.toolbar_side.map(|(_, a)| a).unwrap_or(game_core::controls::Action::Key(-7)),
+                                    ToolbarHit::Mid(i) => game_core::controls::Action::Key(-(i as i32) - 100), // 占位码，Runtime 校验
+                                };
+                                self.pending_toolbar_actions.push(a);
+                            }
+                        }
+                    }
+                    return Vec::new();
+                }
                 let ev = TouchEvent { id, phase, x: x - panel.x as f32, y: y - panel.y as f32 };
                 let keys = self.touch.feed(&ev);
                 self.key_presses += crate::feedback::presses_in(&keys);
@@ -1163,10 +1202,21 @@ impl HostState {
     /// 【竖屏】采用规划（INIT_WINDOW / contentRect 变化重排共用）：双档布局换轨 +
     /// 活动档画布与面板按物理尺寸重建（面板强制重绘）。
     fn adopt_portrait(&mut self, plan: &crate::portrait::PortraitPlan) {
-        self.rt.apply_layouts(plan.boot.layout(), plan.scene.layout());
+        // 【复核 T5-R1】场景布局按操控方式选档（触屏=scene_touch 的 Layout；交接 apply_layouts 同源）
+        let scene_layout = if self.rt.rt_control_mode == game_shell_common::settings::ControlMode::Touch {
+            plan.scene_touch.layout()
+        } else {
+            plan.scene.layout()
+        };
+        self.rt.apply_layouts(plan.boot.layout(), scene_layout);
         let (cw, ch) = self.rt.active_canvas(plan).physical();
         self.canvas = game_core::render::ArgbImage::create(cw, ch);
-        self.panel = game_core::render::ArgbImage::create(plan.panel.w, plan.panel.h);
+        // 面板画布：Touch=工具栏条尺寸（绘制走 toolbar 臂）；Pad=摇杆面板
+        if self.rt.rt_control_mode == game_shell_common::settings::ControlMode::Touch {
+            self.panel = game_core::render::ArgbImage::create(plan.toolbar.bar.w, plan.toolbar.bar.h);
+        } else {
+            self.panel = game_core::render::ArgbImage::create(plan.panel.w, plan.panel.h);
+        }
         self.panel_state = None;
         log_input(&format!(
             "portrait plan window={:?} dp={} panel_min={} scene={:?} boot={:?} game={:?} panel={:?} geom={:?}",
@@ -1497,6 +1547,38 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
                     st.rt.on_exit_dialog_result(r == crate::exit_dialog::DialogResult::Exit);
                 }
                 if !exit_sent && !st.rt.exit_requested() {
+                    // 【计划 3 T5 · 复核 T5-R1】操控方式轮询：rt 侧翻转（设置页翻行→sync）→ wiring 重排+adopt
+                    // （触屏档画布/Layout/工具栏生效；apply_portrait 重建 TouchMapper=按住态清零）
+                    st.wiring.toolbar_side = st.rt.toolbar_side_left.or(st.rt.toolbar_side_right);
+                    // 【计划 3 T5 · 复核 T5-R2】工具栏命中消费：perform_action（Mid 占位码 → 查询校验；
+                    // Boot 面 = machine.key_value 直置）
+                    for a in std::mem::take(&mut st.wiring.pending_toolbar_actions) {
+                        let mid_n = st.rt.toolbar_mid.len();
+                        let resolved: Option<game_core::controls::Action> = match a {
+                            game_core::controls::Action::Key(code) if (-code) >= 101 => {
+                                st.rt.toolbar_mid.get((-code - 101) as usize).map(|b| b.action)
+                            }
+                            other => Some(other),
+                        };
+                        let _ = mid_n;
+                        if let Some(act) = resolved {
+                            match st.rt.scene.as_mut() {
+                                Some(sc) => {
+                                    let _ = sc.perform_action(act);
+                                }
+                                None => {
+                                    if let game_core::controls::Action::Key(k) = act {
+                                        st.rt.machine.key_value = k;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if st.rt.rt_control_mode != st.wiring.control_mode {
+                        if let Some(plan) = st.wiring.set_control_mode(st.rt.rt_control_mode) {
+                            st.adopt_portrait(&plan);
+                        }
+                    }
                     // 【STAGE-B-006 · 复核 T6-F3】首帧呈现前的输入丢弃（take_step_inputs）
                     let (keys, gestures, taps) = st.wiring.take_step_inputs(&mut st.pending_keys);
                     st.rt.step(&st.assets, &keys, gestures, taps);
@@ -1527,7 +1609,21 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
                         let mut g = canvas_graphics(&mut st.canvas, canvas.scale as u32);
                         st.rt.paint(&mut g);
                     }
-                    // 面板：按住键 + 软键种类变化才重绘
+                    // 面板：按住键 + 软键种类变化才重绘；Touch 模式=工具栏臂（controls 查询+controls_ui 绘制）
+                    if st.rt.rt_control_mode == game_shell_common::settings::ControlMode::Touch {
+                        if let Some(sc) = st.rt.scene.as_ref() {
+                            let c = sc.controls();
+                            crate::portrait::paint_toolbar(
+                                &mut st.panel,
+                                &plan.toolbar,
+                                &[
+                                    (c.left.map(|b| (b.function, b.action)), st.wiring.touch.held_codes().contains(&-6)),
+                                    (c.right.map(|b| (b.function, b.action)), st.wiring.touch.held_codes().contains(&-7)),
+                                ],
+                                &c.mid.iter().map(|b| (b.function, b.action)).collect::<Vec<_>>(),
+                            );
+                        }
+                    } else {
                     let ps = crate::portrait::PanelState {
                         held: st.wiring.touch.held_codes(),
                         softkeys: st.rt.softkeys(),
@@ -1535,6 +1631,7 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
                     if st.panel_state.as_ref() != Some(&ps) {
                         crate::portrait::paint_panel(&mut st.panel, &plan.geom, &ps, &st.softkey_icons);
                         st.panel_state = Some(ps);
+                    }
                     }
                     let cr = canvas.rect_in(plan.game);
                     let layers: [(&[u32], i32, i32, i32, i32); 2] = [
