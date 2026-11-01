@@ -249,8 +249,9 @@ epack(unpack(x))==x 逐字节恒等（126 资产，常驻 gates）；
   7. 提示卡：首次可操作地图弹 kind 0 原版框（触屏文案含战斗按钮裁定说明）+ 置位同拍落盘；帮助文本覆盖入口
      两机（未覆盖原文）。
   8. **Android 右上隐形撤销热区去除**（scene_tap 不再调 undo_zone_hit；撤销=工具栏钮）；Windows 可见钮保留。
-  9. 筋斗云↑/↓ 钮**生产恒隐**（stair_hint/f_bool_13 生产从不置位——BUG-037/计划 1b 未移植；查询门控判据
-     与键臂一致）。落地 1b 后钮自动出现，无需改本件。
+  9. 筋斗云↑/↓ 钮门控 stair_hint（f_bool_13）——【2026-11-01 更正】BUG-037 已移植（recompute_stair_hint
+     每 tick 重算：tutorialSeen ∧ 玩家四邻为楼梯锚点格，a.java:5765-5805；提交 4d3a675），教程拾取后邻梯
+     即亮、49/55 键与筋斗云钮生产可用；原"生产恒隐"条目作废。
 - **门控**：classic 按键链、oracle 回放零变化（controls/pan/三分类生产调用面仅 android 壳 + 呈现；win Swipe
   臂语义不变、Drag 接 pan）；state-machine-anchors/diff-trace 照旧 PASS。
 - **金样影响**：无。
