@@ -427,6 +427,8 @@ pub struct ShellWiring {
     pub pending_toolbar_actions: Vec<game_core::controls::Action>,
     /// 左右大键当前 Action（Runtime 每拍自 controls() 同步；None=隐藏）。
     pub toolbar_side: Option<(game_core::controls::FunctionId, game_core::controls::Action)>,
+    /// 【计划 3 T5 · T11 修】当前查询中列钮数（命中均分依据；Runtime 每拍同步）。
+    pub toolbar_mid_n: usize,
     /// 【黄④】触控区描边开关（debug 常驻样式可关——量产/帧哈希前收审美）
     pub overlay_debug: bool,
     /// 【问题2b】窗口/缓冲真实像素尺寸（INIT_WINDOW 实测——触点反变换分母；
@@ -488,6 +490,7 @@ impl ShellWiring {
             pending_vp_touches: Vec::new(),
             pending_toolbar_actions: Vec::new(),
             toolbar_side: None,
+            toolbar_mid_n: 0,
             portrait: None,
             active_canvas: None,
             route: Vec::new(),
@@ -631,7 +634,7 @@ impl ShellWiring {
         if matches!(phase, TouchPhase::Up | TouchPhase::Cancel) {
             self.route.retain(|(i, _)| *i != id);
         }
-        match region {
+            match region {
             Some(TouchRegion::Panel) => {
                 // 【计划 3 T5 · 复核 T5-R2】Touch 模式面板=工具栏：Up 命中 → Action 队列（Runtime
                 // perform_action 执行）；Pad 模式照旧摇杆 mapper。
@@ -642,18 +645,19 @@ impl ShellWiring {
                             let hit = game_shell_common::controls_ui::hit_toolbar(
                                 (x - tb.bar.x as f32) as i32,
                                 (y - tb.bar.y as f32) as i32,
-                                (tb.left.x - tb.bar.x, tb.left.y - tb.bar.y, tb.left.w, tb.left.h),
-                                (tb.mid.x - tb.bar.x, tb.mid.y - tb.bar.y, tb.mid.w, tb.mid.h),
-                                (tb.right.x - tb.bar.x, tb.right.y - tb.bar.y, tb.right.w, tb.right.h),
-                                4, // mid 上限 4 均分；idx 越界由 Runtime 消费侧按查询校验
+                                (tb.left.x, tb.left.y - tb.bar.y, tb.left.w, tb.left.h),
+                                (tb.mid.x, tb.mid.y - tb.bar.y, tb.mid.w, tb.mid.h),
+                                (tb.right.x, tb.right.y - tb.bar.y, tb.right.w, tb.right.h),
+                                self.toolbar_mid_n, // mid 均分数 = 当前查询钮数（Runtime 每拍同步）
                             );
                             if let Some(h) = hit {
                                 use game_shell_common::controls_ui::ToolbarHit;
                                 let a = match h {
                                     ToolbarHit::Left => self.toolbar_side.map(|(_, a)| a).unwrap_or(game_core::controls::Action::Key(-6)),
                                     ToolbarHit::Right => self.toolbar_side.map(|(_, a)| a).unwrap_or(game_core::controls::Action::Key(-7)),
-                                    ToolbarHit::Mid(i) => game_core::controls::Action::Key(-(i as i32) - 100), // 占位码，Runtime 校验
+                                    ToolbarHit::Mid(i) => game_core::controls::Action::Key(-(i as i32) - 101), // 占位码 -101..-104，Runtime 按 idx 查询校验
                                 };
+                                log_input(&format!("toolbar hit {h:?} → {a:?}"));
                                 self.pending_toolbar_actions.push(a);
                             }
                         }
@@ -1555,6 +1559,7 @@ pub extern "C" fn android_main(app: *mut AndroidApp) {
                     // 【计划 3 T5 · 复核 T5-R1】操控方式轮询：rt 侧翻转（设置页翻行→sync）→ wiring 重排+adopt
                     // （触屏档画布/Layout/工具栏生效；apply_portrait 重建 TouchMapper=按住态清零）
                     st.wiring.toolbar_side = st.rt.toolbar_side_left.or(st.rt.toolbar_side_right);
+                    st.wiring.toolbar_mid_n = st.rt.toolbar_mid.len();
                     // 【计划 3 T5 · 复核 T5-R2】工具栏命中消费：perform_action（Mid 占位码 → 查询校验；
                     // Boot 面 = machine.key_value 直置）
                     for a in std::mem::take(&mut st.wiring.pending_toolbar_actions) {
