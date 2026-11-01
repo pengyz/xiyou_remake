@@ -5521,6 +5521,8 @@ impl GameScene {
         // run 主循环尾部（a.java:4276，else 分支）：**keyValue 每拍清零**
         // （边沿触发；keyHeldCode 由 keyReleased 清——a.java:4678）
         self.key_value = 0;
+        // f_bool_13 每拍重算（a.java:5765-5805 在 label216 段后；BUG-037 移植）
+        self.recompute_stair_hint();
     }
 
     /// easeAfterimages（a.java:5209-5256）：残影蛇缓动。目标 = 未锁定时的
@@ -5722,6 +5724,34 @@ impl GameScene {
             self.walk_phase = 0;
         }
         ok
+    }
+
+    /// 【BUG-037 · a.java:5765-5805】f_bool_13（stair_hint）每 tick 重算：先清零；
+    /// tutorialSeen 亮且玩家四邻之一为楼梯锚点格（上/下梯各判同侧两向）⇒ 置 true。
+    /// 此前生产从不置位（仅测试置位）⇒ 49/55 暗道换乘键与筋斗云钮生产不可达（移植缺口）。
+    /// 本块纯加法：classic 教程前 stair_hint 恒 false 与 Java 一致，教程后向 Java 收敛。
+    pub fn recompute_stair_hint(&mut self) {
+        let mut hint = false;
+        if self.tutorial_seen {
+            let (px, py) = (self.player_cell_x, self.player_cell_y);
+            let anchors: Vec<(i32, i32)> = [self.entities.stair_up, self.entities.stair_down]
+                .into_iter()
+                .flatten()
+                .map(|(x, y)| (x >> 5, y >> 5))
+                .collect();
+            for &(ax, ay) in &anchors {
+                // a.java:5775 先清零（函数头）；四向判定（上/下/左/右各两梯）
+                let up = py > 0 && ax == px && ay + 1 == py; // var6-1==var43 / var6+1==var43 族
+                let down = py < self.view.high - 1 && ax == px && ay == py + 1;
+                let left = px > 0 && ax + 1 == px && ay == py;
+                let right = px < self.view.wide - 1 && ax == px + 1 && ay == py;
+                if up || down || left || right {
+                    hint = true;
+                    break;
+                }
+            }
+        }
+        self.stair_hint = hint;
     }
 
     /// interactWithCell（a.java:5363-5531）：格槽**倒序**遍历 + 类目交互 +
@@ -13912,6 +13942,57 @@ mod t2_walkto_route_tests {
         let c0 = (cl.view.cam_x, cl.view.cam_y);
         assert_eq!(cl.pan_viewport(64, 64), (0, 0), "classic 拖动无效");
         assert_eq!((cl.view.cam_x, cl.view.cam_y), c0);
+    }
+
+    // ------- BUG-037：stair_hint（f_bool_13）生产置位（a.java:5765-5805 忠实移植）-------
+
+    /// 【BUG-037】教程后玩家走到楼梯锚点四邻 ⇒ tick 置 stair_hint（此前生产恒 false=移植缺口）；
+    /// 走离 ⇒ 清除；期间 49/55 换层键可用（门控链完整）。
+    #[test]
+    fn bug037_stair_hint_set_when_adjacent_and_gates_keys() {
+        let mut sc = scene((2, ROW), &[]);
+        sc.tutorial_seen = true;
+        entity::spawn(&mut sc.entities, &mut sc.grid, 7, 4 << 5, ROW << 5, 10, &sc.width_table, None);
+        // 非邻格：tick 不置位
+        sc.tick(0, &sc.width_table.clone());
+        assert!(!sc.stair_hint, "非邻格不置位");
+        // 走到左邻格 (3, ROW)：tick 置位（a.java:5790-5795）
+        sc.player_cell_x = 3;
+        sc.view.player_px = 3 << 5;
+        sc.tick(1, &sc.width_table.clone());
+        assert!(sc.stair_hint, "邻格置位（左邻）");
+        // 门控生效：49（筋斗云上）换层（change_floor strict 需层界含目标 10）
+        sc.min_floor = 1;
+        sc.max_floor = 55;
+        sc.key_value = 49;
+        sc.handle_field_input();
+        assert_eq!(sc.pending_floor, 10, "49 → 型 7 门换层");
+        // 走离 → 清除
+        sc.player_cell_x = 1;
+        sc.view.player_px = 1 << 5;
+        sc.tick(2, &sc.width_table.clone());
+        assert!(!sc.stair_hint, "走离清除");
+        // 教程未亮：邻格也不置位
+        sc.tutorial_seen = false;
+        sc.player_cell_x = 3;
+        sc.view.player_px = 3 << 5;
+        sc.tick(3, &sc.width_table.clone());
+        assert!(!sc.stair_hint, "tutorialSeen 未亮 ⇒ 不置位");
+    }
+
+    /// 【BUG-037】下梯锚（型 8）的 up 方向（a.java:5776-5779）与右邻方向（5797-5802）。
+    #[test]
+    fn bug037_stair_down_directions() {
+        let mut sc = scene((2, ROW), &[]);
+        sc.tutorial_seen = true;
+        entity::spawn(&mut sc.entities, &mut sc.grid, 8, 2 << 5, (ROW - 1) << 5, 20, &sc.width_table, None);
+        sc.tick(0, &sc.width_table.clone());
+        assert!(sc.stair_hint, "上邻下梯锚置位");
+        let mut sc2 = scene((2, ROW), &[]);
+        sc2.tutorial_seen = true;
+        entity::spawn(&mut sc2.entities, &mut sc2.grid, 8, 3 << 5, ROW << 5, 20, &sc2.width_table, None);
+        sc2.tick(0, &sc2.width_table.clone());
+        assert!(sc2.stair_hint, "右邻下梯锚置位");
     }
 }
 
