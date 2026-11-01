@@ -32,6 +32,10 @@
 | 10 | FX-CHAN-84F26A | scene30/31：from_walk 双门控（flags[0]、持 16 芭蕉扇）+ MOV_84 走位 | 26 | `preset-f26-chan84` | boss §4.1 scene30/31 行 + 门控 a.java:8190-8193 |
 
 第二波（§3.2 扩展候选，不在本批）：FX-BOSS-68C（>50 层无钩子负例，同 FX-BOSS-74B 族）、
+> 【2026-11-01 探路登记 · FX-BOSS-74B 前置缺口】floor53 直改 MOT_L0 current_floor=53 载入 ⇒
+> 深层黑屏+中央文字（非 mode3 地图）——53 层可玩需 floor_states/深层编排初始化前置（preset-ending
+> 仅到 floor50）。74@(7,4) 位置已探定（sprite53：71@(6,3)/75@(5,4)/66×4 护卫）。74B 挂起待深层载入
+> 缺口解决；Rust 钩子分支（floor<=50 门，scene.rs 击杀钩子）已逐行核对一致，非移植缺陷。
 FX-CHAN-84F1A（scene19 到达臂）、FX-E2E-84F2-RELOAD（场景 26 后重入 f2 不再补刷的跨夹具链）。
 
 ---

@@ -1,0 +1,7 @@
+# ticks: 400
+# preset: preset-boss74b.preset
+# cover: 探路：floor53 (7,5) 朝上撞型 74（>50 层钩子负例探路）
+60 -1 press
+80 -1 release
+120 -1 press
+140 -1 release

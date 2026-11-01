@@ -460,3 +460,30 @@ fn preset_floor40_mov_frames_match() {
     assert_eq!((sc.player_cell_x, sc.player_cell_y), (6, 6), "mode3 tickBattle(true) 收尾 restep 北移");
     assert!(sc.script_line_flags[12], "script12 旗标（case73 钩子置当前脚本）");
 }
+
+/// 【FX-ITEM-25A · 二波扩展候选销账】幸运币（25）金钱翻倍被动：floor1 栈[25](uses=-1) 东行撞 41 群
+/// 击杀 ⇒ 金增 = enemyBaseGold[0]<<1（100→102，baseGold[0]=1）且栈不消耗（-1 永不消耗）。
+/// Java 参照帧三方一致（fx-item25a，A/B/C 逐字节）；T1-1600 全帧对拍。
+#[test]
+fn fx_item25a_lucky_coin_doubles_gold_frames_match() {
+    let spec = Spec {
+        floor: 1,
+        preset: include_str!("fixtures/fx-item25a.preset"),
+        script: include_str!("fixtures/fx-item25a.txt"),
+        frames: include_str!("fixtures/fx-item25a.frames.txt"),
+        ticks: 1600,
+    };
+    let mut gold_after_kill = None;
+    let sc = run_scene(&spec, |tick, sc| {
+        // 金从 100（预置）变为 >100 的首拍 = 击杀入账拍（幸运币翻倍生效点）
+        if gold_after_kill.is_none() && sc.player.gold > 100 {
+            gold_after_kill = Some((tick, sc.player.gold));
+        }
+    });
+    let (t, g) = gold_after_kill.expect("击杀 41 后金应入账");
+    assert!(g >= 102, "幸运币 ×2：金增 ≥2（实得 {g} @T{t}）");
+    assert_eq!(g % 2, 0, "翻倍 ⇒ 偶数增量");
+    // 栈不消耗：uses=-1 永不消耗，道具仍在
+    assert!(sc.player.find_item(25) >= 0, "幸运币仍在栈上（-1 不消耗）");
+    // 全帧一致由 run_scene 断言（frame_records 逐 tick sha 对拍）
+}

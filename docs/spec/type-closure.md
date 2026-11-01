@@ -75,7 +75,7 @@ cat8 战斗 + cat16 商人）与 applyStepCellEffects（:5637-5715，case 1-8/76
 | 22 | 下行符 | ✅ | preset_item2122_frames_match（21+22 配对使用臂帧测）；来源 script25 CES_22_6_6（§5 更正）；来源 script25 `CES_22_6_6`（§5 更正） |
 | 23 | 太公杖 | 📦 | delta【2026-10-16 预翻 📦 被动派生】使用臂空操作系原版语义（a.java:7795-7800 fall-through `default: break`，返回 false 不消耗，uses=-1 永久）；被动效果移植已核 = effective_attack_vs_type（combat.rs:66-72，a.java:9992-10002：特性位 &1 且背包有 23 ⇒ 攻击 ×2），单测 combat_golden（"无 23 号不翻倍"/"23 号 + &1 ⇒ ×2"） |
 | 24 | 捆仙绳 | 📦 | delta。来源 = 玉皇大帝二阶段(71) 击杀 spawnBossEvent(5)（§5 更正）【2026-10-16 预翻 📦 被动派生】使用臂空操作系原版语义（a.java:7795-7800 fall-through，uses=-1 永久）；被动效果移植已核 = effective_attack_vs_type（combat.rs:66-72：特性位 &2 且背包有 24 ⇒ 攻击 ×2），单测 combat_golden（"&2 需要 24 号"⇒ ×2） |
-| 25 | 幸运币 | 📦 | delta【2026-10-16 预翻 📦 被动派生】使用臂空操作系原版语义（a.java:7795-7800 fall-through，uses=-1 永久）；被动效果移植已核 = 金翻倍**两掉落点**（scene.rs:3036-3039 战杀 + 4855-4856 killAdjacentAt，`find_item(25)>=0 ⇒ enemyBaseGold<<1`，a.java:10046-10052/7944-7948）；帧夹具 FX-ITEM-25A 列扩展候选（fixture-plan §3） |
+| 25 | 幸运币 | ✅ | delta【2026-10-16 预翻 📦 被动派生】使用臂空操作系原版语义（a.java:7795-7800 fall-through，uses=-1 永久）；被动效果移植已核 = 金翻倍**两掉落点**（scene.rs:3036-3039 战杀 + 4855-4856 killAdjacentAt，`find_item(25)>=0 ⇒ enemyBaseGold<<1`，a.java:10046-10052/7944-7948）；帧夹具 FX-ITEM-25A 列扩展候选（fixture-plan §3）【2026-11-01 翻 ✅】FX-ITEM-25A 落地（fe0c113）：floor1 栈 25(uses 0xFF) 东行撞 41 击杀 ⇒ 金 100→102（baseGold[0]=1 <<1）+ 栈不消耗，Java 三方一致 1600 帧全对拍绿（fx_item25a_lucky_coin_doubles_gold_frames_match）——被动臂帧锚落地，销 📦 |
 | 26 | 黄钥匙 | ✅ | 拾取常见 |
 | 27 | 红钥匙 | ✅ | 拾取常见 |
 | 28 | 蓝钥匙 | ✅ | floor48 T480 帧证拾取 |
