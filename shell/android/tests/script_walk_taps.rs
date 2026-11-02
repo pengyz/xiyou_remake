@@ -98,7 +98,7 @@ fn run_script19(scene_layout: Layout, tap_while_walking: bool) -> Vec<String> {
     step(&mut rt, vec![], vec![], vec![]);
     step(&mut rt, tap(-2), vec![], vec![]);
     step(&mut rt, vec![], vec![], vec![]);
-    assert_eq!(rt.scene.as_ref().unwrap().menu_cursor, 1, "菜单光标在'跳过教程'");
+    assert_eq!(rt.scene.as_ref().unwrap().menu.menu_cursor, 1, "菜单光标在'跳过教程'");
     step(&mut rt, tap(-5), vec![], vec![]);
     // 一格一按：按下 → 起步即抬起
     let route = [-1, -3, -4, -1];

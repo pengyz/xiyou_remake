@@ -25,7 +25,7 @@ impl GameScene {
                 paint_mini_frame(g, tx, ty, 32, 32);
                 // 图标 = entityTypeImage[overlayKindItem]（itemUseTargetType——拾取时记录）
                 // 【R-2 换算收敛】居中式 (32-img.width)>>1：宽高用**逻辑**尺寸（=w/d）。
-                if let Some(img) = &self.overlay_icon {
+                if let Some(img) = &self.menu.overlay_icon {
                     g.draw_image(
                         img,
                         tx + ((32 - img.logical_width()) >> 1),
@@ -35,7 +35,7 @@ impl GameScene {
                 }
                 tx += 42;
                 g.set_color(16770173);
-                if let Some(name) = &self.overlay_item_name {
+                if let Some(name) = &self.menu.overlay_item_name {
                     g.draw_string(name, tx, ty + ((32 - font.height()) >> 1), 0);
                 }
                 g.set_color(WHITE);
@@ -103,11 +103,11 @@ impl GameScene {
             let sx = crate::title::menu_strip_x(self.layout.screen_w);
             crate::title::paint_icon_strip_at(g, &self.images.menu_strip, sx, 10, 34, 68, &mut f);
             self.strip_frame = f;
-            if let Some(opt) = &self.options {
+            if let Some(opt) = &self.menu.options {
                 let font = crate::paint::paint_font();
                 opt.paint(g, &self.images.ui, &font, &self.layout);
             }
-            m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
+            m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.menu.softkeys.0, self.menu.softkeys.1, &self.layout);
             return self.paint_wipe_tail(g);
         }
         if self.game_mode == GameMode::SaveSlot {
@@ -187,8 +187,8 @@ impl GameScene {
         self.popups.draw(g, &self.images.popup);
         // paint case 3 内断言软键 (1,3)（a.java:2421-2422）——菜单族改写的
         // softkey 落回 mode 3 时由 paint 复位（Java 字段赋值语义）
-        self.softkeys = (1, 3);
-        m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
+        self.menu.softkeys = (1, 3);
+        m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.menu.softkeys.0, self.menu.softkeys.1, &self.layout);
         // 提示浮层（paint 公共尾 a.java:3129-3168，!floorTransitioning && overlayActive）
         if !self.transitioning && self.dialog.overlay_active {
             self.paint_overlay_box(g);
@@ -820,7 +820,7 @@ impl GameScene {
     pub(super) fn paint_mode12(&mut self, g: &mut SoftGraphics<'_>) {
         self.paint_parallax(g, false);
         let text_bottom_y = self.layout.screen_h - crate::paint::paint_font().height - 4;
-        let indicator = self.page_indicator.clone();
+        let indicator = self.menu.page_indicator.clone();
         // 【BUG-031④】a.java:2906-2914 页码 x 120 / 箭头 60−bob、160+bob = 屏心派生 ⇒ Layout 字段
         //（center_x / arrow_pair_left_x / arrow_pair_right_x，classic 回代原值）
         let cx = self.layout.center_x;
@@ -831,15 +831,15 @@ impl GameScene {
         let arrow_y = text_bottom_y + ((crate::paint::paint_font().height + 4 - 13) >> 1);
         let arrow = self.images.ui[14].clone();
         let bob = self.bob_offset;
-        if self.record_page > 0 {
+        if self.menu.record_page > 0 {
             // a.java:2910 drawImageWithNokiaTransform(…, 1) ⇒ 变换码 = NOKIA_TRANSFORM_TABLE[1] = 8192（水平翻转；
             // Java trace `drawImageT(20x13,60,304,0,8192)`）。【BUG-032】旧直传 1（shim 表 1 = 垂直翻转）。
             g.draw_image_transformed(&arrow, self.layout.arrow_pair_left_x - bob, arrow_y, 0, crate::paint::NOKIA_TRANSFORM_TABLE[1]);
         }
-        if self.record_page < self.persist.journal.len() as i32 - 1 {
+        if self.menu.record_page < self.persist.journal.len() as i32 - 1 {
             g.draw_image(&arrow, self.layout.arrow_pair_right_x + bob, arrow_y, 0);
         }
-        m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
+        m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.menu.softkeys.0, self.menu.softkeys.1, &self.layout);
         // 公共尾 overlay 框（paintOverlayBox）：日志文本 kind5 框在指示/箭头之上
         self.paint_overlay_box(g);
     }

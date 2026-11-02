@@ -96,9 +96,9 @@ fn in_game_open(rt: &mut Runtime, src: &dyn game_platform::AssetSource, k: i8) {
     tap_key(rt, src, -7);
     let sc = rt.scene.as_ref().unwrap();
     assert_eq!(sc.game_mode, GameMode::InGameMenu, "游戏内菜单");
-    let kinds = sc.menu_kinds.clone();
+    let kinds = sc.menu.menu_kinds.clone();
     let want = kinds.iter().position(|&x| x == k).expect("菜单条目在") as i32;
-    while rt.scene.as_ref().unwrap().menu_cursor != want {
+    while rt.scene.as_ref().unwrap().menu.menu_cursor != want {
         tap_key(rt, src, -2);
     }
     tap_key(rt, src, -6);
@@ -303,11 +303,11 @@ fn in_game_toggle_persists_and_survives_return_to_title() {
     in_game_open(&mut rt, &src, 4); // 设置
     let sc = rt.scene.as_ref().unwrap();
     assert_eq!(sc.game_mode, GameMode::About, "游戏内设置页");
-    assert_eq!(rows_of(sc.options.as_ref().unwrap().shell_rows()), expected_rows(false, true, true), "交接带入壳行（含操控方式）");
+    assert_eq!(rows_of(sc.menu.options.as_ref().unwrap().shell_rows()), expected_rows(false, true, true), "交接带入壳行（含操控方式）");
     for _ in 0..3 {
         tap_key(&mut rt, &src, -2);
     }
-    assert_eq!(rt.scene.as_ref().unwrap().options.as_ref().unwrap().highlight_index(), 3, "高亮 = 按键震动");
+    assert_eq!(rt.scene.as_ref().unwrap().menu.options.as_ref().unwrap().highlight_index(), 3, "高亮 = 按键震动");
     rt.step(&src, &[KeyAction::Press(-5), KeyAction::Release], Vec::new(), Vec::new());
     assert!(!AppSettings::load(&cfg).key_haptic, "切换那一拍即落盘");
     let saved = std::fs::read(&cfg).unwrap();
@@ -319,9 +319,9 @@ fn in_game_toggle_persists_and_survives_return_to_title() {
     }
     assert_eq!(std::fs::read_to_string(&cfg).unwrap(), same, "无变化 ⇒ 不再写");
     tap_key(&mut rt, &src, -7); // 回游戏内菜单
-    let kinds = rt.scene.as_ref().unwrap().menu_kinds.clone();
+    let kinds = rt.scene.as_ref().unwrap().menu.menu_kinds.clone();
     let exit = kinds.iter().position(|&x| x == 7).unwrap() as i32;
-    while rt.scene.as_ref().unwrap().menu_cursor != exit {
+    while rt.scene.as_ref().unwrap().menu.menu_cursor != exit {
         tap_key(&mut rt, &src, -2);
     }
     tap_key(&mut rt, &src, -6); // 退出 → 回标题
@@ -413,7 +413,7 @@ fn slot_load_keeps_non_default_settings() {
     in_game_open(&mut rt, &src, 4);
     let sc = rt.scene.as_ref().unwrap();
     assert_eq!(sc.game_mode, GameMode::About);
-    assert_eq!(rows_of(sc.options.as_ref().unwrap().shell_rows()), expected_rows(true, false, true), "游戏内设置页行值同文件（含操控方式行）");
+    assert_eq!(rows_of(sc.menu.options.as_ref().unwrap().shell_rows()), expected_rows(true, false, true), "游戏内设置页行值同文件（含操控方式行）");
     let _ = std::fs::remove_dir_all(&dir);
 }
 

@@ -151,7 +151,7 @@ fn headless_portrait_shots() {
             step(&mut rt, &mut host, &[], vec![], vec![]);
         }
         let mut guard = 0;
-        while rt.scene.as_ref().unwrap().menu_cursor != target && guard < 12 {
+        while rt.scene.as_ref().unwrap().menu.menu_cursor != target && guard < 12 {
             step(&mut rt, &mut host, &[KeyAction::Press(-2), KeyAction::Release], vec![], vec![]);
             step(&mut rt, &mut host, &[], vec![], vec![]);
             guard += 1;

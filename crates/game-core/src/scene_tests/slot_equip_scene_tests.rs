@@ -186,22 +186,22 @@
             sc.apply_layout(layout.clone());
             sc.game_mode = GameMode::EnemyInfo;
             sc.images.ui[16] = solid(17, 9); // 预测伤害图标：独有尺寸便于定位
-            sc.encyc_panel_w = sc.layout.encyc_panel_w;
-            sc.encyc_types = vec![41, 42, 43];
-            sc.encyc_damage = vec![10, 20, -1];
-            sc.encyc_count = 3;
-            sc.encyc_rows_visible = 1;
-            sc.encyc_panel_h = 72;
-            sc.encyc_scroll_top = 1; // 中间页：上下翻页箭头都画
-            sc.encyc_scroll_bottom = 2;
+            sc.menu.encyc_panel_w = sc.layout.encyc_panel_w;
+            sc.menu.encyc_types = vec![41, 42, 43];
+            sc.menu.encyc_damage = vec![10, 20, -1];
+            sc.menu.encyc_count = 3;
+            sc.menu.encyc_rows_visible = 1;
+            sc.menu.encyc_panel_h = 72;
+            sc.menu.encyc_scroll_top = 1; // 中间页：上下翻页箭头都画
+            sc.menu.encyc_scroll_bottom = 2;
             let mut img = ArgbImage::create(layout.screen_w, layout.screen_h);
             let ops = {
                 let mut g = SoftGraphics::new(&mut img);
                 sc.paint(&mut g, &solid(64, 64));
                 g.ops.clone()
             };
-            let bx = (layout.screen_w - sc.encyc_panel_w) >> 1;
-            let (mid, right) = (bx + (sc.encyc_panel_w >> 1), bx + sc.encyc_panel_w);
+            let bx = (layout.screen_w - sc.menu.encyc_panel_w) >> 1;
+            let (mid, right) = (bx + (sc.menu.encyc_panel_w >> 1), bx + sc.menu.encyc_panel_w);
             let arrows: Vec<i32> =
                 ops.iter().filter_map(|o| clip4(o)).filter(|c| (c.2, c.3) == (15, 17)).map(|c| c.0 - mid).collect();
             let dmg: Vec<i32> =
@@ -227,8 +227,8 @@
             sc.game_mode = GameMode::RecordBrowser;
             sc.images.ui[14] = solid(20, 13); // 箭头图：独有尺寸便于定位
             sc.persist.journal = vec![(0, 0), (0, 1), (0, 2)];
-            sc.record_page = 1; // 中间页：左右箭头都画
-            sc.page_indicator = "2 / 3".into();
+            sc.menu.record_page = 1; // 中间页：左右箭头都画
+            sc.menu.page_indicator = "2 / 3".into();
             sc.dialog.overlay_active = false;
             let bob = sc.bob_offset;
             let mut img = ArgbImage::create(layout.screen_w, layout.screen_h);
@@ -266,7 +266,7 @@
             sc.game_mode = GameMode::RecordBrowser;
             sc.images.ui[14] = solid(20, 13);
             sc.persist.journal = vec![(0, 0), (0, 1), (0, 2)];
-            sc.record_page = 1;
+            sc.menu.record_page = 1;
             sc.dialog.overlay_active = false;
             let mut img = ArgbImage::create(layout.screen_w, layout.screen_h);
             let ops = {
@@ -1120,7 +1120,7 @@
                 sc.paint(&mut g, &solid(64, 64));
                 g.ops.clone()
             };
-            (ops, sc.softkeys)
+            (ops, sc.menu.softkeys)
         };
         let (shown, keys) = render(true);
         let (hidden, keys_hidden) = render(false);
@@ -1374,7 +1374,7 @@
     #[test]
     fn script_res_resets_run_stats_on_easy() {
         let mut sc = scene_with(&synthetic_sptarm());
-        sc.difficulty_index = 0;
+        sc.menu.difficulty_index = 0;
         sc.player.hp = 999;
         sc.player.gold = 777;
         sc.player.yellow_keys = 5;
@@ -1393,7 +1393,7 @@
         assert!(sc.persist.journal.is_empty(), "inventoryEntryCount 清零（inventoryEntryCount+跟随对）");
         // 非 easy 不动
         let mut sc2 = scene_with(&synthetic_sptarm());
-        sc2.difficulty_index = 1;
+        sc2.menu.difficulty_index = 1;
         sc2.player.hp = 999;
         sc2.script_line = "RES_0 ".to_string();
         sc2.script_cursor = 0;
@@ -1496,7 +1496,7 @@
     }
 
     fn enter7(sc: &mut GameScene) {
-        sc.menu_return_mode = GameMode::InGameMenu;
+        sc.menu.menu_return_mode = GameMode::InGameMenu;
         sc.game_mode = GameMode::SaveSlot;
         sc.enter_menu7();
     }
@@ -1540,11 +1540,11 @@
         for _ in 0..4 {
             key7(&mut sc, -2);
         }
-        assert_eq!(sc.slot.cursor, 4);
-        assert!(!sc.slot.valid[4]);
+        assert_eq!(sc.menu.slot.cursor, 4);
+        assert!(!sc.menu.slot.valid[4]);
         key7(&mut sc, -5);
-        assert!(sc.slot.valid[4]);
-        assert_eq!((sc.slot.weapon[4], sc.slot.armor[4]), (33, 0));
+        assert!(sc.menu.slot.valid[4]);
+        assert_eq!((sc.menu.slot.weapon[4], sc.menu.slot.armor[4]), (33, 0));
         let s = paint7(&mut sc);
         assert_frame_icon(&s, WEAPON_X, FRAME_Y, &icons, 0, "存档后 武器=33");
         assert_frame_material_name(&s, ARMOR_X, FRAME_Y, "存档后 甲=0");
@@ -1553,7 +1553,7 @@
         sc.equipped_weapon = 0;
         sc.equipped_armor = 80;
         key7(&mut sc, -5);
-        assert_eq!((sc.slot.weapon[4], sc.slot.armor[4]), (0, 80));
+        assert_eq!((sc.menu.slot.weapon[4], sc.menu.slot.armor[4]), (0, 80));
         let s = paint7(&mut sc);
         assert_frame_material_name(&s, WEAPON_X, FRAME_Y, "覆写后 武器=0");
         assert_frame_icon(&s, ARMOR_X, FRAME_Y, &icons, 9, "覆写后 甲=80");
@@ -1970,7 +1970,7 @@
     #[test]
     fn field_input_keys_49_55_split_up_down_gates() {
         let mut sc = scene_with(&synthetic_sptarm());
-        sc.stair_hint = true; // f_bool_13（a.java:5297/5303 门控）
+        sc.menu.stair_hint = true; // f_bool_13（a.java:5297/5303 门控）
         sc.persist.min_floor = 1;
         sc.persist.max_floor = 55;
         // 双门并存：型 7（上行）目标层 10、型 8（下行）目标层 20（param>>9==0）
@@ -2008,7 +2008,7 @@
     #[test]
     fn field_input_keys_49_55_gated_by_stair_hint() {
         let mut sc = scene_with(&synthetic_sptarm());
-        sc.stair_hint = false;
+        sc.menu.stair_hint = false;
         entity::spawn(&mut sc.entities, &mut sc.grid, 7, 2 << 5, 2 << 5, 10, &sc.width_table, None);
         entity::spawn(&mut sc.entities, &mut sc.grid, 8, 5 << 5, 5 << 5, 20, &sc.width_table, None);
         sc.persist.pending_floor = -1;

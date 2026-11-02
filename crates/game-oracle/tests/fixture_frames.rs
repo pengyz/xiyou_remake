@@ -272,7 +272,7 @@ fn replay_opt(label: &str, preset_text: &str, records: &[FrameRec]) -> (usize, O
                 .unwrap();
                 sc.backdrop_scroll = m.backdrop.scroll();
                 if let Some(t) = &m.title {
-                    sc.menu_cursor = t.cursor;
+                    sc.menu.menu_cursor = t.cursor;
                     sc.bob_offset = t.bob;
                     sc.bob_rising = t.bob_rising;
                 }
@@ -1025,7 +1025,7 @@ fn bug012_replay(
                 .unwrap();
                 sc.backdrop_scroll = m.backdrop.scroll();
                 if let Some(t) = &m.title {
-                    sc.menu_cursor = t.cursor;
+                    sc.menu.menu_cursor = t.cursor;
                     sc.bob_offset = t.bob;
                     sc.bob_rising = t.bob_rising;
                 }
@@ -1297,7 +1297,7 @@ fn replay_logic_with(
                 sc.apply_layout(layout.clone());
                 sc.backdrop_scroll = m.backdrop.scroll();
                 if let Some(t) = &m.title {
-                    sc.menu_cursor = t.cursor;
+                    sc.menu.menu_cursor = t.cursor;
                     sc.bob_offset = t.bob;
                     sc.bob_rising = t.bob_rising;
                 }

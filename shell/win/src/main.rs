@@ -917,7 +917,7 @@ impl Shell {
     /// 重读源）⇒ 重复进入收敛（Java 写后可解析同收敛）。
     fn persist_slot_if_if_dirty(&mut self) {
         let dirty_slot = match self.state.as_mut() {
-            Some(Screen::Game(sc)) => sc.slot.take_parse_dirty().then(|| sc.slot.clone()),
+            Some(Screen::Game(sc)) => sc.menu.slot.take_parse_dirty().then(|| sc.menu.slot.clone()),
             Some(Screen::Boot(m)) => {
                 m.slots.as_mut().and_then(|s| s.take_parse_dirty().then(|| s.clone()))
             }
@@ -1742,9 +1742,9 @@ mod shell_tests {
         // 注入游戏内菜单 kind7（退出）确认——模拟用户操作
         if let Some(Screen::Game(sc)) = h.shell.state.as_mut() {
             sc.game_mode = GameMode::InGameMenu;
-            sc.menu_kinds = vec![7];
-            sc.menu_item_count = 1;
-            sc.menu_cursor = 0;
+            sc.menu.menu_kinds = vec![7];
+            sc.menu.menu_item_count = 1;
+            sc.menu.menu_cursor = 0;
             sc.key_value = -6;
         }
         h.run_tick(&[]);
@@ -1820,20 +1820,20 @@ mod shell_tests {
         ev.extend([(250, -7, true), (252, -7, false)]);
         h.run_to(260, &ev);
         assert_eq!((h.scene().game_mode, h.bgm()), (GameMode::InGameMenu, Some(3)));
-        let (cursor, count) = (h.scene().menu_cursor, h.scene().menu_item_count);
+        let (cursor, count) = (h.scene().menu.menu_cursor, h.scene().menu.menu_item_count);
         h.shell.set_minimized(true);
         assert_eq!((h.scene().game_mode, h.bgm()), (GameMode::InGameMenu, None), "mode≠3 ⇒ gameMode 不变（a.java:4504）");
         h.shell.route_key(-2, true);
         h.shell.route_key(-2, false);
         h.run_tick(&[]);
-        assert_eq!(h.scene().menu_cursor, cursor, "隐藏期键不投递");
+        assert_eq!(h.scene().menu.menu_cursor, cursor, "隐藏期键不投递");
         h.shell.set_minimized(false);
         h.shell.route_key(-2, true);
         h.shell.route_key(-2, false);
         assert_eq!(h.bgm(), Some(3), "首键续播 game(3)");
         h.run_tick(&[]);
         let expect = if cursor < count - 1 { cursor + 1 } else { 0 };
-        assert_eq!((h.scene().game_mode, h.scene().menu_cursor), (GameMode::InGameMenu, expect));
+        assert_eq!((h.scene().game_mode, h.scene().menu.menu_cursor), (GameMode::InGameMenu, expect));
     }
 
     /// 标题（BootMachine，f_bool_28=false 分支 ⇒ 续播 menu(2)）+ 挂起键与 hide 的 Java 次序：
@@ -1934,8 +1934,8 @@ mod shell_tests {
         h.shell.set_occluded(true);
         let sc = h.scene();
         assert_eq!(sc.game_mode, GameMode::InGameMenu, "gameMode=4（a.java:4505）");
-        assert_eq!(sc.menu_kinds, vec![1, 3, 4, 5, 7], "m_000 case 4（a.java:4326-4337）");
-        assert_eq!(sc.softkeys, (1, 3));
+        assert_eq!(sc.menu.menu_kinds, vec![1, 3, 4, 5, 7], "m_000 case 4（a.java:4326-4337）");
+        assert_eq!(sc.menu.softkeys, (1, 3));
         assert_eq!((sc.bgm_request(), sc.bgm.any_key_played), (None, true));
     }
 

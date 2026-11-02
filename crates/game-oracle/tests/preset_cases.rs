@@ -246,7 +246,7 @@ fn preset_load_menu_frames_match() {
                     .unwrap();
                     sc.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
-                        sc.menu_cursor = t.cursor;
+                        sc.menu.menu_cursor = t.cursor;
                         sc.bob_offset = t.bob;
                         sc.bob_rising = t.bob_rising;
                     }
@@ -447,7 +447,7 @@ fn preset_help_frames_match() {
                     .unwrap();
                     sc.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
-                        sc.menu_cursor = t.cursor;
+                        sc.menu.menu_cursor = t.cursor;
                         sc.bob_offset = t.bob;
                         sc.bob_rising = t.bob_rising;
                     }
@@ -648,7 +648,7 @@ fn preset_item13_frames_match() {
                 .unwrap();
                 sc.backdrop_scroll = m.backdrop.scroll();
                 if let Some(t) = &m.title {
-                    sc.menu_cursor = t.cursor;
+                    sc.menu.menu_cursor = t.cursor;
                     sc.bob_offset = t.bob;
                     sc.bob_rising = t.bob_rising;
                 }
@@ -861,7 +861,7 @@ fn preset_itemstack_frames_match() {
                 .unwrap();
                 sc.backdrop_scroll = m.backdrop.scroll();
                 if let Some(t) = &m.title {
-                    sc.menu_cursor = t.cursor;
+                    sc.menu.menu_cursor = t.cursor;
                     sc.bob_offset = t.bob;
                     sc.bob_rising = t.bob_rising;
                 }
@@ -1093,7 +1093,7 @@ fn preset_item2122_frames_match() {
                 .unwrap();
                 sc.backdrop_scroll = m.backdrop.scroll();
                 if let Some(t) = &m.title {
-                    sc.menu_cursor = t.cursor;
+                    sc.menu.menu_cursor = t.cursor;
                     sc.bob_offset = t.bob;
                     sc.bob_rising = t.bob_rising;
                 }
@@ -1328,7 +1328,7 @@ fn preset_item21_frames_match() {
                 .unwrap();
                 sc.backdrop_scroll = m.backdrop.scroll();
                 if let Some(t) = &m.title {
-                    sc.menu_cursor = t.cursor;
+                    sc.menu.menu_cursor = t.cursor;
                     sc.bob_offset = t.bob;
                     sc.bob_rising = t.bob_rising;
                 }
@@ -1542,7 +1542,7 @@ fn preset_itemcymbal_frames_match() {
                 .unwrap();
                 sc.backdrop_scroll = m.backdrop.scroll();
                 if let Some(t) = &m.title {
-                    sc.menu_cursor = t.cursor;
+                    sc.menu.menu_cursor = t.cursor;
                     sc.bob_offset = t.bob;
                     sc.bob_rising = t.bob_rising;
                 }
@@ -1794,7 +1794,7 @@ fn preset_itemboss40_frames_match() {
                     .unwrap();
                     sc.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
-                        sc.menu_cursor = t.cursor;
+                        sc.menu.menu_cursor = t.cursor;
                         sc.bob_offset = t.bob;
                         sc.bob_rising = t.bob_rising;
                     }
@@ -2031,7 +2031,7 @@ fn preset_floor2_frames_match() {
                     .unwrap();
                     sc.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
-                        sc.menu_cursor = t.cursor;
+                        sc.menu.menu_cursor = t.cursor;
                         sc.bob_offset = t.bob;
                         sc.bob_rising = t.bob_rising;
                     }
@@ -2267,7 +2267,7 @@ fn preset_merchant_frames_match() {
                     .unwrap();
                     sc.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
-                        sc.menu_cursor = t.cursor;
+                        sc.menu.menu_cursor = t.cursor;
                         sc.bob_offset = t.bob;
                         sc.bob_rising = t.bob_rising;
                     }
@@ -2495,7 +2495,7 @@ fn floor_crossing_frames_match() {
                     .unwrap();
                     sc.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
-                        sc.menu_cursor = t.cursor;
+                        sc.menu.menu_cursor = t.cursor;
                         sc.bob_offset = t.bob;
                         sc.bob_rising = t.bob_rising;
                     }
@@ -3168,7 +3168,7 @@ fn gameplay_floor1_frames_match() {
                     .unwrap();
                     sc.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
-                        sc.menu_cursor = t.cursor;
+                        sc.menu.menu_cursor = t.cursor;
                         sc.bob_offset = t.bob;
                         sc.bob_rising = t.bob_rising;
                     }
@@ -3397,7 +3397,7 @@ fn floor2_tour_frames_match() {
                     .unwrap();
                     sc.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
-                        sc.menu_cursor = t.cursor;
+                        sc.menu.menu_cursor = t.cursor;
                         sc.bob_offset = t.bob;
                         sc.bob_rising = t.bob_rising;
                     }
@@ -3624,7 +3624,7 @@ fn floor1_tour_frames_match() {
                     .unwrap();
                     sc.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
-                        sc.menu_cursor = t.cursor;
+                        sc.menu.menu_cursor = t.cursor;
                         sc.bob_offset = t.bob;
                         sc.bob_rising = t.bob_rising;
                     }
@@ -3851,7 +3851,7 @@ fn walk_pure_frames_match() {
                     .unwrap();
                     sc.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
-                        sc.menu_cursor = t.cursor;
+                        sc.menu.menu_cursor = t.cursor;
                         sc.bob_offset = t.bob;
                         sc.bob_rising = t.bob_rising;
                     }
@@ -4069,7 +4069,7 @@ fn preset_save_frames_match() {
                     .unwrap();
                     sc.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
-                        sc.menu_cursor = t.cursor;
+                        sc.menu.menu_cursor = t.cursor;
                         sc.bob_offset = t.bob;
                         sc.bob_rising = t.bob_rising;
                     }
@@ -4309,7 +4309,7 @@ fn preset_floor35_frames_match() {
                     .unwrap();
                     sc.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
-                        sc.menu_cursor = t.cursor;
+                        sc.menu.menu_cursor = t.cursor;
                         sc.bob_offset = t.bob;
                         sc.bob_rising = t.bob_rising;
                     }
@@ -4548,7 +4548,7 @@ fn preset_floor10_frames_match() {
                     .unwrap();
                     sc.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
-                        sc.menu_cursor = t.cursor;
+                        sc.menu.menu_cursor = t.cursor;
                         sc.bob_offset = t.bob;
                         sc.bob_rising = t.bob_rising;
                     }
@@ -4804,7 +4804,7 @@ fn preset_floor46_frames_match() {
                     .unwrap();
                     sc.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
-                        sc.menu_cursor = t.cursor;
+                        sc.menu.menu_cursor = t.cursor;
                         sc.bob_offset = t.bob;
                         sc.bob_rising = t.bob_rising;
                     }
@@ -5044,7 +5044,7 @@ fn preset_floor41_frames_match() {
                     .unwrap();
                     sc.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
-                        sc.menu_cursor = t.cursor;
+                        sc.menu.menu_cursor = t.cursor;
                         sc.bob_offset = t.bob;
                         sc.bob_rising = t.bob_rising;
                     }
@@ -5276,7 +5276,7 @@ fn preset_floor44_frames_match() {
                     .unwrap();
                     sc.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
-                        sc.menu_cursor = t.cursor;
+                        sc.menu.menu_cursor = t.cursor;
                         sc.bob_offset = t.bob;
                         sc.bob_rising = t.bob_rising;
                     }
@@ -5508,7 +5508,7 @@ fn preset_floor45_frames_match() {
                     .unwrap();
                     sc.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
-                        sc.menu_cursor = t.cursor;
+                        sc.menu.menu_cursor = t.cursor;
                         sc.bob_offset = t.bob;
                         sc.bob_rising = t.bob_rising;
                     }
@@ -5742,7 +5742,7 @@ fn preset_floor48_frames_match() {
                     .unwrap();
                     sc.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
-                        sc.menu_cursor = t.cursor;
+                        sc.menu.menu_cursor = t.cursor;
                         sc.bob_offset = t.bob;
                         sc.bob_rising = t.bob_rising;
                     }
@@ -5977,7 +5977,7 @@ fn preset_floor14_frames_match() {
                     .unwrap();
                     sc.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
-                        sc.menu_cursor = t.cursor;
+                        sc.menu.menu_cursor = t.cursor;
                         sc.bob_offset = t.bob;
                         sc.bob_rising = t.bob_rising;
                     }
@@ -6210,7 +6210,7 @@ fn preset_floor38_frames_match() {
                     .unwrap();
                     sc.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
-                        sc.menu_cursor = t.cursor;
+                        sc.menu.menu_cursor = t.cursor;
                         sc.bob_offset = t.bob;
                         sc.bob_rising = t.bob_rising;
                     }
@@ -6441,7 +6441,7 @@ fn preset_floor47_frames_match() {
                     .unwrap();
                     sc.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
-                        sc.menu_cursor = t.cursor;
+                        sc.menu.menu_cursor = t.cursor;
                         sc.bob_offset = t.bob;
                         sc.bob_rising = t.bob_rising;
                     }
@@ -6670,7 +6670,7 @@ fn preset_floor34_frames_match() {
                     .unwrap();
                     sc.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
-                        sc.menu_cursor = t.cursor;
+                        sc.menu.menu_cursor = t.cursor;
                         sc.bob_offset = t.bob;
                         sc.bob_rising = t.bob_rising;
                     }
@@ -6899,7 +6899,7 @@ fn preset_floor10_nw_frames_match() {
                     .unwrap();
                     sc.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
-                        sc.menu_cursor = t.cursor;
+                        sc.menu.menu_cursor = t.cursor;
                         sc.bob_offset = t.bob;
                         sc.bob_rising = t.bob_rising;
                     }
@@ -7127,7 +7127,7 @@ fn preset_floor10b_frames_match() {
                     .unwrap();
                     sc.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
-                        sc.menu_cursor = t.cursor;
+                        sc.menu.menu_cursor = t.cursor;
                         sc.bob_offset = t.bob;
                         sc.bob_rising = t.bob_rising;
                     }
@@ -7355,7 +7355,7 @@ fn preset_floor17_frames_match() {
                     .unwrap();
                     sc.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
-                        sc.menu_cursor = t.cursor;
+                        sc.menu.menu_cursor = t.cursor;
                         sc.bob_offset = t.bob;
                         sc.bob_rising = t.bob_rising;
                     }
@@ -7596,7 +7596,7 @@ fn preset_floor42_frames_match() {
                     .unwrap();
                     sc.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
-                        sc.menu_cursor = t.cursor;
+                        sc.menu.menu_cursor = t.cursor;
                         sc.bob_offset = t.bob;
                         sc.bob_rising = t.bob_rising;
                     }
@@ -7833,7 +7833,7 @@ fn preset_floor43_frames_match() {
                     .unwrap();
                     sc.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
-                        sc.menu_cursor = t.cursor;
+                        sc.menu.menu_cursor = t.cursor;
                         sc.bob_offset = t.bob;
                         sc.bob_rising = t.bob_rising;
                     }
@@ -8066,7 +8066,7 @@ fn preset_alchemy_frames_match() {
                     .unwrap();
                     sc.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
-                        sc.menu_cursor = t.cursor;
+                        sc.menu.menu_cursor = t.cursor;
                         sc.bob_offset = t.bob;
                         sc.bob_rising = t.bob_rising;
                     }

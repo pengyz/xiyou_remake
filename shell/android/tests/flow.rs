@@ -175,7 +175,7 @@ fn save_exit_to_title_then_continue_loads_slot() {
     // 游戏内菜单（-7）：条目 [继续, 跳过教程(层>50), 保存, 设置, 帮助, 退出]
     tap_key(&mut rt, &src, -7);
     assert_eq!(rt.scene.as_ref().unwrap().game_mode, GameMode::InGameMenu, "-7 开游戏内菜单");
-    let kinds = rt.scene.as_ref().unwrap().menu_kinds.clone();
+    let kinds = rt.scene.as_ref().unwrap().menu.menu_kinds.clone();
     let idx = |k: i8| kinds.iter().position(|&x| x == k).expect("菜单条目在");
     for _ in 0..idx(3) {
         tap_key(&mut rt, &src, -2);
@@ -189,7 +189,7 @@ fn save_exit_to_title_then_continue_loads_slot() {
     while rt.scene.as_ref().unwrap().game_mode != GameMode::InGameMenu {
         tap_key(&mut rt, &src, -7);
     }
-    let cur = rt.scene.as_ref().unwrap().menu_cursor as usize;
+    let cur = rt.scene.as_ref().unwrap().menu.menu_cursor as usize;
     let steps = (idx(7) + kinds.len() - cur) % kinds.len();
     for _ in 0..steps {
         tap_key(&mut rt, &src, -2);
@@ -262,7 +262,7 @@ fn in_game_sound_off_survives_return_to_title() {
     let (mut rt, src, dir) = runtime("sound-title");
     reach_map(&mut rt, &src);
     tap_key(&mut rt, &src, -7); // 游戏内菜单
-    let kinds = rt.scene.as_ref().unwrap().menu_kinds.clone();
+    let kinds = rt.scene.as_ref().unwrap().menu.menu_kinds.clone();
     let idx = |k: i8| kinds.iter().position(|&x| x == k).expect("菜单条目在");
     for _ in 0..idx(4) {
         tap_key(&mut rt, &src, -2);
@@ -273,7 +273,7 @@ fn in_game_sound_off_survives_return_to_title() {
     tap_key(&mut rt, &src, -5); // 第 0 行"声音"：切换为关
     assert!(!rt.sound_enabled(), "游戏内关声音");
     tap_key(&mut rt, &src, -7); // 回菜单
-    let cur = rt.scene.as_ref().unwrap().menu_cursor as usize;
+    let cur = rt.scene.as_ref().unwrap().menu.menu_cursor as usize;
     for _ in 0..(idx(7) + kinds.len() - cur) % kinds.len() {
         tap_key(&mut rt, &src, -2);
     }

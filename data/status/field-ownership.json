@@ -926,6 +926,11 @@
    "field": "dialog",
    "domain": "coordinator",
    "why": "域切片根槽（DialogState 聚合——V2 dialog-VM 收口）"
+  },
+  {
+   "field": "menu",
+   "domain": "coordinator",
+   "why": "域切片根槽（MenuState 聚合——V2 menu/UI 收口）"
   }
  ]
 }

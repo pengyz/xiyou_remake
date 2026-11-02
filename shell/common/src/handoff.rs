@@ -170,7 +170,7 @@ pub fn new_game_scene(assets: &GameAssets, machine: &mut BootMachine) -> GameSce
     sc.backdrop_scroll = machine.backdrop.scroll();
     sc.rng = machine.rng.clone();
     sc.bgm = machine.bgm.clone(); // 音频状态续接（Java 同一对象）
-    sc.shell_options = machine.shell_options.clone(); // 【STAGE-B-006】壳层附加设置行续接
+    sc.menu.shell_options = machine.shell_options.clone(); // 【STAGE-B-006】壳层附加设置行续接
     sc.apply_entry_step_effects();
     sc
 }
@@ -204,7 +204,7 @@ pub fn slot_scene(
     .unwrap();
     sc.backdrop_scroll = machine.backdrop.scroll();
     if let Some(t) = &machine.title {
-        sc.menu_cursor = t.cursor;
+        sc.menu.menu_cursor = t.cursor;
         sc.bob_offset = machine.bob_offset;
         sc.bob_rising = machine.bob_rising;
     }
@@ -218,7 +218,7 @@ pub fn slot_scene(
     // 音频状态续接（Java 同一对象：soundEnabled/track/bgm 跨模式连续；
     // dispatchModeEntry case 3 已在 machine 侧执行）
     sc.bgm = machine.bgm.clone();
-    sc.shell_options = machine.shell_options.clone(); // 【STAGE-B-006】壳层附加设置行续接
+    sc.menu.shell_options = machine.shell_options.clone(); // 【STAGE-B-006】壳层附加设置行续接
     machine.slot_loaded = None;
     Some(sc)
 }
@@ -232,7 +232,7 @@ pub fn slot_scene(
 pub fn return_to_title(machine: &mut BootMachine, sc: &GameScene) {
     machine.bgm = sc.bgm.clone();
     machine.apply_global(sc.global_snapshot()); // 场景侧已写穿 ⇒ 不置脏
-    machine.shell_options = sc.shell_options.clone(); // 【STAGE-B-006】
+    machine.shell_options = sc.menu.shell_options.clone(); // 【STAGE-B-006】
 }
 
 /// 槽存档写穿（win 壳 step 存档块迁入；BUG-018 upsert 口径）：scene 侧
@@ -256,7 +256,7 @@ pub fn sync_scene_saves(
             }
         }
     }
-    let mot_if = crate::rms::serialize_slot_if(&sc.slot);
+    let mot_if = crate::rms::serialize_slot_if(&sc.menu.slot);
     stores.retain(|(k, _)| !k.starts_with("MOT_IF@"));
     stores.push(("MOT_IF@1".into(), mot_if.clone()));
     *persisted = sc.persist.saved_slot_blobs.clone();
@@ -407,17 +407,17 @@ mod tests {
         m.shell_options = rows.clone();
         m.new_game_ready = true;
         let mut sc = new_game_scene(&assets, &mut m);
-        assert_eq!(sc.shell_options, rows, "新游戏：带入场景");
+        assert_eq!(sc.menu.shell_options, rows, "新游戏：带入场景");
         assert_eq!(m.shell_options, rows, "新游戏：正向是拷贝，机器侧不变");
-        sc.shell_options[1].checked = false; // 游戏内关掉"按键震动"
+        sc.menu.shell_options[1].checked = false; // 游戏内关掉"按键震动"
         return_to_title(&mut m, &sc);
-        assert_eq!(m.shell_options, sc.shell_options, "回标题：带回（不回滚为交接前的值）");
+        assert_eq!(m.shell_options, sc.menu.shell_options, "回标题：带回（不回滚为交接前的值）");
         assert!(!m.shell_options[1].checked);
         m.slot_loaded = Some(0);
         m.mode = game_core::enums::GameMode::Map; // 读条完成
         let want = m.shell_options.clone();
         let sc2 = slot_scene(&assets, &mut m, &preset_stores("preset-floor1.preset")).expect("有档=交接");
-        assert_eq!(sc2.shell_options, want, "读档：带入场景");
+        assert_eq!(sc2.menu.shell_options, want, "读档：带入场景");
         assert_eq!(m.shell_options, want, "读档：正向是拷贝，机器侧不变");
     }
 

@@ -667,13 +667,13 @@
         let mut sc = scene((5, ROW), &[]);
         let wt = sc.width_table.clone();
         sc.undo.push_move(stroke);
-        sc.menu_return_mode = GameMode::InGameMenu;
+        sc.menu.menu_return_mode = GameMode::InGameMenu;
         sc.game_mode = GameMode::SaveSlot;
         sc.enter_menu7();
         sc.press_key(-5);
         sc.tick(0, &wt);
         sc.release_key();
-        assert!(sc.slot.valid[sc.slot.cursor as usize], "前置：存档写入");
+        assert!(sc.menu.slot.valid[sc.menu.slot.cursor as usize], "前置：存档写入");
         assert!(sc.undo.is_empty(), "存档清栈");
     }
 
@@ -2633,16 +2633,16 @@
     #[test]
     fn bug037_stair_hint_set_when_adjacent_and_gates_keys() {
         let mut sc = scene((2, ROW), &[]);
-        sc.tutorial_seen = true;
+        sc.menu.tutorial_seen = true;
         entity::spawn(&mut sc.entities, &mut sc.grid, 7, 4 << 5, ROW << 5, 10, &sc.width_table, None);
         // 非邻格：tick 不置位
         sc.tick(0, &sc.width_table.clone());
-        assert!(!sc.stair_hint, "非邻格不置位");
+        assert!(!sc.menu.stair_hint, "非邻格不置位");
         // 走到左邻格 (3, ROW)：tick 置位（a.java:5790-5795）
         sc.player_cell_x = 3;
         sc.view.player_px = 3 << 5;
         sc.tick(1, &sc.width_table.clone());
-        assert!(sc.stair_hint, "邻格置位（左邻）");
+        assert!(sc.menu.stair_hint, "邻格置位（左邻）");
         // 门控生效：49（筋斗云上）换层（change_floor strict 需层界含目标 10）
         sc.persist.min_floor = 1;
         sc.persist.max_floor = 55;
@@ -2653,26 +2653,26 @@
         sc.player_cell_x = 1;
         sc.view.player_px = 1 << 5;
         sc.tick(2, &sc.width_table.clone());
-        assert!(!sc.stair_hint, "走离清除");
+        assert!(!sc.menu.stair_hint, "走离清除");
         // 教程未亮：邻格也不置位
-        sc.tutorial_seen = false;
+        sc.menu.tutorial_seen = false;
         sc.player_cell_x = 3;
         sc.view.player_px = 3 << 5;
         sc.tick(3, &sc.width_table.clone());
-        assert!(!sc.stair_hint, "tutorialSeen 未亮 ⇒ 不置位");
+        assert!(!sc.menu.stair_hint, "tutorialSeen 未亮 ⇒ 不置位");
     }
 
     /// 【BUG-037】下梯锚（型 8）的 up 方向（a.java:5776-5779）与右邻方向（5797-5802）。
     #[test]
     fn bug037_stair_down_directions() {
         let mut sc = scene((2, ROW), &[]);
-        sc.tutorial_seen = true;
+        sc.menu.tutorial_seen = true;
         entity::spawn(&mut sc.entities, &mut sc.grid, 8, 2 << 5, (ROW - 1) << 5, 20, &sc.width_table, None);
         sc.tick(0, &sc.width_table.clone());
-        assert!(sc.stair_hint, "上邻下梯锚置位");
+        assert!(sc.menu.stair_hint, "上邻下梯锚置位");
         let mut sc2 = scene((2, ROW), &[]);
-        sc2.tutorial_seen = true;
+        sc2.menu.tutorial_seen = true;
         entity::spawn(&mut sc2.entities, &mut sc2.grid, 8, 3 << 5, ROW << 5, 20, &sc2.width_table, None);
         sc2.tick(0, &sc2.width_table.clone());
-        assert!(sc2.stair_hint, "右邻下梯锚置位");
+        assert!(sc2.menu.stair_hint, "右邻下梯锚置位");
     }

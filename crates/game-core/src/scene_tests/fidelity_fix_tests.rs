@@ -7,11 +7,11 @@
     #[test]
     fn add_item_to_stack_writes_item_use_target_type() {
         let mut sc = scene((3, 3), &[]);
-        sc.overlay_kind_item = 0;
+        sc.menu.overlay_kind_item = 0;
         sc.add_item_to_stack(19);
-        assert_eq!(sc.overlay_kind_item, 19);
+        assert_eq!(sc.menu.overlay_kind_item, 19);
         assert_eq!(sc.dialog.overlay_kind, 1);
-        assert_eq!(sc.overlay_item_name, sc.object_type_name(19), "浮层名取 itemUseTargetType");
+        assert_eq!(sc.menu.overlay_item_name, sc.object_type_name(19), "浮层名取 itemUseTargetType");
         assert_eq!(sc.player.item_types[0], 19);
     }
 

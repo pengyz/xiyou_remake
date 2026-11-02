@@ -7,7 +7,7 @@
         sc.player.item_types[0] = 13;
         sc.player.item_uses[0] = 1;
         sc.player.item_stack_size = 1;
-        sc.item_cursor = 0;
+        sc.menu.item_cursor = 0;
         sc.game_mode = GameMode::ItemPanel;
         sc.key_value = -5;
         sc.tick_item_panel(); // 型13：transition_to(Map) + activate_item(13)→EnemyInfo
@@ -20,7 +20,7 @@
         sc.player.item_types[0] = 14;
         sc.player.item_uses[0] = 1;
         sc.player.item_stack_size = 1;
-        sc.item_cursor = 0;
+        sc.menu.item_cursor = 0;
         sc.persist.journal.push((0, 0)); // 非空日志（空日志回退=“没有记录”回面板，另一分支）
         sc.game_mode = GameMode::ItemPanel;
         sc.key_value = -5;

@@ -126,8 +126,8 @@ fn runtime_key_feedback_reads_active_machine() {
     rt.machine.mode = game_core::enums::GameMode::Map;
     rt.step(&src, &[], Vec::new(), Vec::new());
     let sc = rt.scene.as_mut().expect("交接");
-    set_shell_option(&mut sc.shell_options, PREF_HAPTIC, true);
-    set_shell_option(&mut sc.shell_options, PREF_CLICK, false);
+    set_shell_option(&mut sc.menu.shell_options, PREF_HAPTIC, true);
+    set_shell_option(&mut sc.menu.shell_options, PREF_CLICK, false);
     assert_eq!(rt.key_feedback(), (true, false), "游戏中：读 GameScene");
     let _ = std::fs::remove_dir_all(&dir);
 }

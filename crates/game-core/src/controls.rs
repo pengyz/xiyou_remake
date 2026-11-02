@@ -170,7 +170,7 @@ impl GameScene {
                     ControlButton { function: FunctionId::Undo, action: Action::Undo },
                 ];
                 // 49/55 门控 = stair_hint（f_bool_13，a.java:5297/5303）∧ 层门实体在（型 7 上 / 型 8 下）
-                if self.stair_hint {
+                if self.menu.stair_hint {
                     if self.find_floor_gate_entity(true).is_some() {
                         mid.push(Controls::key(FunctionId::CloudUp, 49));
                     }
@@ -250,7 +250,7 @@ impl GameScene {
             }
             3 => {
                 // 道具说明子类（15/23/24/25，overlay_kind_item）只有关闭；其余 = 使用确认
-                if matches!(self.overlay_kind_item, 15 | 23 | 24 | 25) {
+                if matches!(self.menu.overlay_kind_item, 15 | 23 | 24 | 25) {
                     Controls { left: None, mid: vec![], right: Some(Controls::key(FunctionId::Close, -7)) }
                 } else {
                     Controls {
@@ -374,7 +374,7 @@ mod tests {
         let up = sc.entities.count;
         crate::entity::spawn(&mut sc.entities, &mut sc.grid, 7, 3 << 5, (ROW - 1) << 5, 10, &sc.width_table, None);
         let _ = up;
-        sc.stair_hint = true;
+        sc.menu.stair_hint = true;
         let c = sc.controls();
         assert_eq!(
             c.mid,
@@ -386,7 +386,7 @@ mod tests {
             "只有上行门 ⇒ 只出筋斗云↑"
         );
         // 门在但 stair_hint（f_bool_13）未亮 ⇒ 云仍不出（门控变异被杀）
-        sc.stair_hint = false;
+        sc.menu.stair_hint = false;
         assert_eq!(
             sc.controls().mid,
             vec![btn(FunctionId::Observe, Action::Key(-5)), btn(FunctionId::Undo, Action::Undo)],
@@ -394,7 +394,7 @@ mod tests {
         );
         // 双门（型 7 上 + 型 8 下）⇒ 云↑/云↓ 都在
         crate::entity::spawn(&mut sc.entities, &mut sc.grid, 8, 4 << 5, (ROW - 1) << 5, 20, &sc.width_table, None);
-        sc.stair_hint = true;
+        sc.menu.stair_hint = true;
         assert_eq!(
             sc.controls().mid,
             vec![
@@ -521,11 +521,11 @@ mod tests {
         let mut sc = scene((2, ROW), &[]);
         sc.dialog.overlay_active = true;
         sc.dialog.overlay_kind = 3;
-        sc.overlay_kind_item = 16; // 非说明类 ⇒ 使用确认
+        sc.menu.overlay_kind_item = 16; // 非说明类 ⇒ 使用确认
         let c = sc.controls();
         assert_eq!(c.left, Some(btn(FunctionId::Use, Action::Key(-6))));
         assert_eq!(c.right, Some(btn(FunctionId::Back, Action::Key(-7))));
-        sc.overlay_kind_item = 15; // 说明类
+        sc.menu.overlay_kind_item = 15; // 说明类
         let c = sc.controls();
         assert_eq!(c.right, Some(btn(FunctionId::Close, Action::Key(-7))));
         assert_eq!(c.left, None, "说明类无左钮");

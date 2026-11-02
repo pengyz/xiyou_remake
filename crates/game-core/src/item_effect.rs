@@ -63,7 +63,7 @@ impl GameScene {
                     ItemPanel::RecordBrowser => {
                         self.transition_to(GameMode::RecordBrowser);
                         self.open_record_page(*page);
-                        self.softkeys.1 = 3;
+                        self.menu.softkeys.1 = 3;
                     }
                 }
                 false

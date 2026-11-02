@@ -102,7 +102,56 @@ impl GameScene {
             enemies: crate::combat::ScaledEnemies::default(),
             enemy_base_hp: Vec::new(),
             enemy_base_gold: Vec::new(),
-            softkeys: (1, 3),
+            menu: scene_menu::MenuState {
+    softkeys: (1, 3),
+    tutorial_seen: false,
+    stair_hint: false,
+    overlay_kind_item: 0,
+    overlay_icon: None,
+    overlay_item_name: None,
+    record_page: 0,
+    record_text_a: include_str!("../tests/fixtures/record_texts_a.txt")
+        .lines()
+        .map(|l| l.replace("\\n", "\n"))
+        .collect(),
+    record_text_b: include_str!("../tests/fixtures/record_texts_b.txt")
+        .lines()
+        .map(|l| l.replace("\\n", "\n"))
+        .collect(),
+    page_indicator: String::new(),
+    difficulty_index: 0,
+    menu_kinds: Vec::new(),
+    menu_item_count: 0,
+    menu_box_width: 0,
+    menu_line_height: 0,
+    menu_visible_rows: 0,
+    menu_list_height: 0,
+    menu_scroll_top: 0,
+    menu_visible_bottom: 0,
+    menu_cursor: 0,
+    menu_return_mode: GameMode::MainMenu,
+    slot: crate::menu_family::SlotSelect::new(),
+    encyc_damage: Vec::new(),
+    encyc_types: Vec::new(),
+    encyc_panel_w: ENCYC_PANEL_W,
+    encyc_count: 0,
+    encyc_rows_visible: 0,
+    encyc_panel_h: 0,
+    encyc_scroll_top: 0,
+    encyc_scroll_bottom: 0,
+    options: None,
+    help_override: None,
+    shell_options: Vec::new(),
+    in_game_menu_return_mode: GameMode::Boot, // BUG-008：Java 无初值（默认 0）保真对齐；原值 3 属顺手修 bug 偏差
+    item_cols: 4,
+    item_rows_total: 8,
+    item_rows_visible: 6,
+    item_scroll_top: 0,
+    item_scroll_bottom: 6,
+    item_box_w: 202,
+    item_box_h: 296,
+    item_cursor: 0,
+            },
             key_value: 0,
             key_held: 0,
             player_cell_x: player_px >> 5,
@@ -162,24 +211,9 @@ impl GameScene {
             open_group: Vec::new(),
             open_anim_tick: 0,
             tile_bob: 0,
-            tutorial_seen: false,
-            stair_hint: false,
-            overlay_kind_item: 0,
-            overlay_icon: None,
-            overlay_item_name: None,
             game_mode: GameMode::Map,
             transition_count: 0,
             last_transition: None,
-            record_page: 0,
-            record_text_a: include_str!("../tests/fixtures/record_texts_a.txt")
-                .lines()
-                .map(|l| l.replace("\\n", "\n"))
-                .collect(),
-            record_text_b: include_str!("../tests/fixtures/record_texts_b.txt")
-                .lines()
-                .map(|l| l.replace("\\n", "\n"))
-                .collect(),
-            page_indicator: String::new(),
             ending_scroll: 0,
             ending_anim: 0,
             ending_done: false,
@@ -188,22 +222,7 @@ impl GameScene {
             script_delay: 0,
             script_line_flags: vec![false; 68],
             current_script_index: 0,
-            difficulty_index: 0,
             script_walk_armed: false,
-            menu_kinds: Vec::new(),
-            menu_item_count: 0,
-            menu_box_width: 0,
-            menu_line_height: 0,
-            menu_visible_rows: 0,
-            menu_list_height: 0,
-            menu_scroll_top: 0,
-            menu_visible_bottom: 0,
-            menu_cursor: 0,
-            menu_return_mode: GameMode::MainMenu,
-            slot: crate::menu_family::SlotSelect::new(),
-            encyc_damage: Vec::new(),
-            encyc_types: Vec::new(),
-            encyc_panel_w: ENCYC_PANEL_W,
             alchemy_price: 0,
             alchemy_gain_hp: 0,
             alchemy_gain_atk: 0,
@@ -214,26 +233,9 @@ impl GameScene {
             offer_queue_src: Vec::new(),
             offer_queue_idx: Vec::new(),
             offer_queue_cursor: 0,
-            encyc_count: 0,
-            encyc_rows_visible: 0,
-            encyc_panel_h: 0,
-            encyc_scroll_top: 0,
-            encyc_scroll_bottom: 0,
-            options: None,
-            help_override: None,
-            shell_options: Vec::new(),
             bgm: crate::audio::BgmState::in_game_default(),
             rainbow_phase: 0,
             strip_frame: 0,
-            in_game_menu_return_mode: GameMode::Boot, // BUG-008：Java 无初值（默认 0）保真对齐；原值 3 属顺手修 bug 偏差
-            item_cols: 4,
-            item_rows_total: 8,
-            item_rows_visible: 6,
-            item_scroll_top: 0,
-            item_scroll_bottom: 6,
-            item_box_w: 202,
-            item_box_h: 296,
-            item_cursor: 0,
             path_arrows_visible: false,
             walk_path_buffer: Vec::new(),
             undo: crate::undo_journal::UndoJournal::new(),
@@ -518,7 +520,7 @@ impl GameScene {
     /// **不可迁**（非域内闭合）；coordination 面显式留置。
     pub(super) fn serialize_slot_blob(&self) -> Vec<u8> {
         let mut o = Vec::new();
-        o.push(self.difficulty_index as u8);
+        o.push(self.menu.difficulty_index as u8);
         o.push(self.persist.floor as u8);
         o.push(self.persist.min_floor as u8);
         o.push(self.persist.max_floor as u8);

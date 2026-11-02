@@ -330,7 +330,7 @@ fn use_confirm_open_tap_on_other_cell_uses_nothing() {
     h.step(vec![], vec![cell1]);
     h.step(vec![], vec![]);
     let sc = h.sc();
-    assert_eq!(sc.item_cursor, 0, "框开着点 1 号格：光标不得改到下层格");
+    assert_eq!(sc.menu.item_cursor, 0, "框开着点 1 号格：光标不得改到下层格");
     assert_eq!((sc.player.hp, sc.player.item_stack_size, sc.player.item_uses[1]), (hp, 2, 1), "千年月桂露未被使用（探针 P2 曾 HP 300→448）");
 }
 
@@ -374,7 +374,7 @@ fn save_page_blank_tap_does_not_overwrite_slot() {
     for _ in 0..3 {
         h.step(vec![], vec![]);
     }
-    let kinds = h.sc().menu_kinds.clone();
+    let kinds = h.sc().menu.menu_kinds.clone();
     let save_idx = kinds.iter().position(|&k| k == 3).expect("菜单有保存项");
     for _ in 0..save_idx {
         h.step(tap(-2), vec![]);

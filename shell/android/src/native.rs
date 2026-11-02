@@ -398,7 +398,7 @@ pub fn scene_tap(sc: &mut game_core::scene::GameScene, x: i32, y: i32) -> Option
                 let exec = if matches!(sc.game_mode, GM::ItemPanel) {
                     sc.ui_tap_two_stage(index as usize)
                 } else {
-                    sc.slot.tap_row_two_stage(index as usize, sc.tap.ui_frame)
+                    sc.menu.slot.tap_row_two_stage(index as usize, sc.tap.ui_frame)
                 };
                 log_input(&format!(
                     "ui tap({x},{y}) mode={:?} row={index} exec={exec}",
@@ -408,7 +408,7 @@ pub fn scene_tap(sc: &mut game_core::scene::GameScene, x: i32, y: i32) -> Option
             }
             _ => {
                 sc.ui_interrupt();
-                sc.slot.interrupt_select();
+                sc.menu.slot.interrupt_select();
                 log_input(&format!("ui tap({x},{y}) outside → interrupt mode={:?}", sc.game_mode));
                 return None;
             }

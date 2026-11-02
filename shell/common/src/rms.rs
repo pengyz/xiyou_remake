@@ -69,7 +69,7 @@ impl Storage for FileRms {
     }
 }
 
-/// scene.slot → MOT_IF 序列化（SlotSelect::load_slot_table 读序的镜像：
+/// scene.menu.slot → MOT_IF 序列化（SlotSelect::load_slot_table 读序的镜像：
 /// 6 × (valid u8; valid 时 floor/weapon/armor u8 + hp/atk/def/三钥/金 7×i32 BE)）。
 /// 自 shell/win `main.rs:196-218` 迁入（消费方 shell/win Shell::step 存档块）。
 pub fn serialize_slot_if(slot: &game_core::menu_family::SlotSelect) -> Vec<u8> {

@@ -85,7 +85,7 @@ impl GameScene {
 
     /// RES_x（a.java:8470-8490）：easy（difficultyIndex==0）重置 run 统计；非 easy 空转。
     pub(super) fn op_res(&mut self) {
-        if self.difficulty_index == 0 {
+        if self.menu.difficulty_index == 0 {
             self.player.yellow_keys = 0;
             self.player.red_keys = 0;
             self.player.blue_keys = 0;

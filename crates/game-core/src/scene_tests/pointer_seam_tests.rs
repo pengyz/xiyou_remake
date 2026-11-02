@@ -6,14 +6,14 @@
     fn menu_scene() -> super::GameScene {
         let mut sc = scene((2, 2), &[(43, 5, 5)]);
         sc.game_mode = GameMode::InGameMenu;
-        sc.menu_kinds = vec![0, 1, 2, 3, 4, 5];
-        sc.menu_item_count = 6;
-        sc.menu_scroll_top = 0;
-        sc.menu_visible_bottom = 6;
-        sc.menu_line_height = 18;
-        sc.menu_box_width = 148;
-        sc.menu_list_height = 112;
-        sc.menu_cursor = 0;
+        sc.menu.menu_kinds = vec![0, 1, 2, 3, 4, 5];
+        sc.menu.menu_item_count = 6;
+        sc.menu.menu_scroll_top = 0;
+        sc.menu.menu_visible_bottom = 6;
+        sc.menu.menu_line_height = 18;
+        sc.menu.menu_box_width = 148;
+        sc.menu.menu_list_height = 112;
+        sc.menu.menu_cursor = 0;
         sc
     }
 
@@ -45,19 +45,19 @@
         let hp = sc.player.hp;
         let gold = sc.player.gold;
         sc.select_row(2);
-        assert_eq!(sc.menu_cursor, 2);
-        assert_eq!(sc.menu_scroll_top, 0, "可视窗内不滚");
+        assert_eq!(sc.menu.menu_cursor, 2);
+        assert_eq!(sc.menu.menu_scroll_top, 0, "可视窗内不滚");
         assert_eq!(sc.player.hp, hp);
         assert_eq!(sc.player.gold, gold);
-        sc.menu_scroll_top = 0;
-        sc.menu_visible_bottom = 4;
+        sc.menu.menu_scroll_top = 0;
+        sc.menu.menu_visible_bottom = 4;
         sc.select_row(5);
-        assert_eq!(sc.menu_cursor, 5);
-        assert_eq!(sc.menu_visible_bottom, 6, "滚窗跟随下缘");
-        assert_eq!(sc.menu_scroll_top, 2);
+        assert_eq!(sc.menu.menu_cursor, 5);
+        assert_eq!(sc.menu.menu_visible_bottom, 6, "滚窗跟随下缘");
+        assert_eq!(sc.menu.menu_scroll_top, 2);
         sc.select_row(0);
-        assert_eq!(sc.menu_scroll_top, 0, "滚窗跟随上缘");
-        assert_eq!(sc.menu_visible_bottom, 4);
+        assert_eq!(sc.menu.menu_scroll_top, 0, "滚窗跟随上缘");
+        assert_eq!(sc.menu.menu_visible_bottom, 4);
     }
 
     /// 设置面板（OptionList，2026-10-18 用户反馈面）：行带单源 + 命中 ±1px +
@@ -68,7 +68,7 @@
         sc.apply_layout(crate::layout::Layout::modern(18, 18)); // Modern 面（清屏门控域）
         sc.game_mode = GameMode::About;
         let list = crate::menu_family::OptionList::new(true, false);
-        sc.options = Some(list);
+        sc.menu.options = Some(list);
         let font = crate::paint::paint_font();
         let row_h = font.height() + 8;
         // 期望=字面常量锚（F-1 口径：禁被测自身作期望）——OptionList::add 累加式：
@@ -95,7 +95,7 @@
         // select_row 只动高亮
         let hp = sc.player.hp;
         sc.select_row(1);
-        if let Some(l) = sc.options.as_ref() {
+        if let Some(l) = sc.menu.options.as_ref() {
             assert_eq!(l.highlight_index(), 1);
         } else {
             panic!();
@@ -114,12 +114,12 @@
         let mut sc = scene((2, 2), &[]);
         sc.apply_layout(crate::layout::Layout::modern(18, 18));
         sc.build_minimap();
-        sc.shell_options = rows.clone();
-        sc.menu_return_mode = GameMode::InGameMenu;
+        sc.menu.shell_options = rows.clone();
+        sc.menu.menu_return_mode = GameMode::InGameMenu;
         sc.enter_menu16();
         sc.game_mode = GameMode::About;
-        let hl = |sc: &super::GameScene| sc.options.as_ref().unwrap().highlight_index();
-        assert_eq!(sc.options.as_ref().unwrap().len(), 5, "原两行 + 三行附加行");
+        let hl = |sc: &super::GameScene| sc.menu.options.as_ref().unwrap().highlight_index();
+        assert_eq!(sc.menu.options.as_ref().unwrap().len(), 5, "原两行 + 三行附加行");
         for want in [1, 2, 3, 4, 0] {
             sc.key_value = -2;
             sc.tick_menu16();
@@ -132,7 +132,7 @@
         }
         // 不变量逐键核对（复核 T2-F1：偶数次翻转会抵消布尔旁写，只在末尾断言抓不到）
         let inv = |sc: &super::GameScene| {
-            let o = sc.options.as_ref().unwrap();
+            let o = sc.menu.options.as_ref().unwrap();
             (
                 sc.bgm.clone(),
                 sc.minimap_enabled,
@@ -145,26 +145,26 @@
         };
         let before = inv(&sc);
         assert!(before.2, "前置：小地图已建");
-        sc.options.as_mut().unwrap().set_highlight(3); // 按键震动
+        sc.menu.options.as_mut().unwrap().set_highlight(3); // 按键震动
         for (k, expect) in [(-5, false), (-4, true), (-3, false)] {
             sc.key_value = k;
             sc.tick_menu16();
-            assert_eq!(sc.shell_options[1].checked, expect, "键 {k}：按键震动行翻转");
-            assert_eq!(sc.options.as_ref().unwrap().shell_rows()[1].checked, expect, "键 {k}：面板同步");
+            assert_eq!(sc.menu.shell_options[1].checked, expect, "键 {k}：按键震动行翻转");
+            assert_eq!(sc.menu.options.as_ref().unwrap().shell_rows()[1].checked, expect, "键 {k}：面板同步");
             assert_eq!(inv(&sc), before, "键 {k}：声音 / 小地图 / SKY_WAR / 脏位 / 原两行不变");
         }
-        let (ry, rh) = sc.options.as_ref().unwrap().row_band(3, &sc.layout);
+        let (ry, rh) = sc.menu.options.as_ref().unwrap().row_band(3, &sc.layout);
         assert_eq!(sc.pointer_hit(sc.layout.screen_w / 2, ry + rh / 2), PointerHit::Row { index: 3, confirm_key: -5 });
         sc.select_row(3);
         sc.key_value = -5;
         sc.tick_menu16();
-        assert!(sc.shell_options[1].checked, "点行确认：按键震动行翻回开");
-        assert_eq!((&sc.shell_options[0], &sc.shell_options[2]), (&rows[0], &rows[2]), "其余附加行不动");
+        assert!(sc.menu.shell_options[1].checked, "点行确认：按键震动行翻回开");
+        assert_eq!((&sc.menu.shell_options[0], &sc.menu.shell_options[2]), (&rows[0], &rows[2]), "其余附加行不动");
         assert_eq!(inv(&sc), before, "点行确认：声音 / 小地图 / SKY_WAR / 脏位 / 原两行不变");
         sc.select_row(1);
         sc.key_value = -5;
         sc.tick_menu16();
-        assert!(!sc.options.as_ref().unwrap().checked[1] && sc.minimap.is_none(), "原行为：小地图行照旧关小地图");
+        assert!(!sc.menu.options.as_ref().unwrap().checked[1] && sc.minimap.is_none(), "原行为：小地图行照旧关小地图");
     }
 
     /// 存档槽列表（SlotSelect 面，2026-10-18 用户反馈）：行带单源 + 命中 ±1px +
@@ -179,7 +179,7 @@
         // > 【2026-10-26 更正】行首=盒顶+16 的盒顶取 **layout 画布**高（同上 options 测更正）
         let (cw, ch) = (sc.layout.screen_w, sc.layout.screen_h);
         assert_eq!((cw, ch), (18 * crate::layout::CELL_PX, 18 * crate::layout::CELL_PX), "Modern 18×18 格");
-        let y0 = (ch - sc.slot.content_h) / 2 + 16; // 字面锚：行首=盒顶+16
+        let y0 = (ch - sc.menu.slot.content_h) / 2 + 16; // 字面锚：行首=盒顶+16
         let x = cw / 2;
         assert_eq!(
             sc.pointer_hit(x, y0 + 1),
@@ -194,7 +194,7 @@
         );
         let hp = sc.player.hp;
         sc.select_row(1);
-        assert_eq!(sc.slot.cursor, 1);
+        assert_eq!(sc.menu.slot.cursor, 1);
         assert_eq!(sc.player.hp, hp, "他态零变化");
     }
 
@@ -278,9 +278,9 @@
         let mut sc = scene((2, 2), &[]);
         sc.apply_layout(crate::layout::Layout::modern(18, 18)); // Modern 面（清屏门控域）
         sc.game_mode = GameMode::InGameMenu;
-        sc.menu_kinds = vec![7]; // 退出项
-        sc.menu_item_count = 1;
-        sc.menu_cursor = 0;
+        sc.menu.menu_kinds = vec![7]; // 退出项
+        sc.menu.menu_item_count = 1;
+        sc.menu.menu_cursor = 0;
         sc.key_value = -6; // 确认（菜单族激活键）
         sc.tick(0, &[]);
         assert_eq!(
@@ -379,8 +379,8 @@
         for layout in [crate::layout::Layout::modern(12, 16), crate::layout::Layout::modern(18, 18)] {
             let mut sc = scene((2, 2), &[]);
             sc.apply_layout(layout.clone());
-            let bx = (layout.screen_w - sc.item_box_w) >> 1;
-            let by = (layout.screen_h - sc.item_box_h) >> 1;
+            let bx = (layout.screen_w - sc.menu.item_box_w) >> 1;
+            let by = (layout.screen_h - sc.menu.item_box_h) >> 1;
             let fh = crate::paint::paint_font().height;
             assert_eq!(
                 sc.item_cell_origin(),
@@ -394,7 +394,7 @@
         let sc = scene((2, 2), &[]);
         assert_eq!(
             sc.item_cell_origin(),
-            ((SCREEN_W - sc.item_box_w) / 2 + 20, (SCREEN_H - sc.item_box_h) / 2 + 31 + crate::paint::paint_font().height),
+            ((SCREEN_W - sc.menu.item_box_w) / 2 + 20, (SCREEN_H - sc.menu.item_box_h) / 2 + 31 + crate::paint::paint_font().height),
             "classic 原值"
         );
     }
@@ -405,11 +405,11 @@
         let mut sc = scene((2, 2), &[]);
         sc.apply_layout(crate::layout::Layout::modern(18, 18)); // Modern 面（清屏门控域）
         sc.game_mode = GameMode::ItemPanel;
-        sc.item_cols = 4;
-        sc.item_rows_total = 3;
-        sc.item_scroll_top = 0;
-        sc.item_scroll_bottom = 3;
-        sc.item_cursor = 0;
+        sc.menu.item_cols = 4;
+        sc.menu.item_rows_total = 3;
+        sc.menu.item_scroll_top = 0;
+        sc.menu.item_scroll_bottom = 3;
+        sc.menu.item_cursor = 0;
         // 期望取字面常量（F-1：禁被测自身作期望）——锚 paint_item_panel 累积式
         //（盒顶+16+fh+4+1+10 = 盒顶+31+fh；(320-盒高)/2=…+31+14）
         // > 【2026-10-26 更正】盒顶/盒左取 **layout 画布**（本测 Modern 18×18；paint 盒框早已
@@ -417,8 +417,8 @@
         // >（竖屏实机截图实证，modern_item_grid_sits_inside_box_frame）。
         let (lw, lh) = (sc.layout.screen_w, sc.layout.screen_h);
         assert_eq!((lw, lh), (18 * crate::layout::CELL_PX, 18 * crate::layout::CELL_PX), "Modern 18×18 格");
-        let ox = (lw - sc.item_box_w) / 2 + 20;
-        let oy = (lh - sc.item_box_h) / 2 + 31 + crate::paint::paint_font().height;
+        let ox = (lw - sc.menu.item_box_w) / 2 + 20;
+        let oy = (lh - sc.menu.item_box_h) / 2 + 31 + crate::paint::paint_font().height;
         assert_eq!(sc.item_cell_origin(), (ox, oy), "格原点与 paint 累积式同式");
         // 顶像素 ±1px 归属锚（栅格版，照菜单侧规格）
         assert_eq!(sc.pointer_hit(ox + 16, oy), PointerHit::Row { index: 0, confirm_key: -6 }, "格顶像素归本格");
@@ -430,10 +430,10 @@
         );
         assert_eq!(sc.pointer_hit(ox - 5, oy + 16), PointerHit::None);
         sc.select_row(5);
-        assert_eq!(sc.item_cursor, 5);
-        assert_eq!(sc.item_scroll_top, 0);
+        assert_eq!(sc.menu.item_cursor, 5);
+        assert_eq!(sc.menu.item_scroll_top, 0);
         // 越窗行 → 滚窗同步
         sc.select_row(11);
-        assert_eq!(sc.item_cursor, 11);
-        assert_eq!(sc.item_scroll_bottom, 3, "末行仍全窗");
+        assert_eq!(sc.menu.item_cursor, 11);
+        assert_eq!(sc.menu.item_scroll_bottom, 3, "末行仍全窗");
     }

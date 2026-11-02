@@ -259,7 +259,7 @@ fn preset_save_equip_frames_match() {
                 .unwrap();
                 sc.backdrop_scroll = m.backdrop.scroll();
                 if let Some(t) = &m.title {
-                    sc.menu_cursor = t.cursor;
+                    sc.menu.menu_cursor = t.cursor;
                     sc.bob_offset = t.bob;
                     sc.bob_rising = t.bob_rising;
                 }
@@ -283,7 +283,7 @@ fn preset_save_equip_frames_match() {
         }
         // 覆盖登记：本拍将画的详情面板装备框分支（a.java:9107/9127 条件）
         let panel = match scene.as_ref() {
-            Some(sc) if sc.game_mode == GameMode::SaveSlot => Some((2usize, &sc.slot)),
+            Some(sc) if sc.game_mode == GameMode::SaveSlot => Some((2usize, &sc.menu.slot)),
             Some(_) => None,
             None if machine.mode == GameMode::EquipDetail => machine.slots.as_ref().map(|s| (0usize, s)),
             None => None,
@@ -321,6 +321,6 @@ fn preset_save_equip_frames_match() {
     let sc = scene.expect("≤T416 应已交场景（Java gameMode=3 首见 T416 采样）");
     assert_eq!(sc.game_mode, GameMode::Map);
     assert_eq!((sc.equipped_weapon, sc.equipped_armor), (0, 80));
-    assert!(sc.slot.valid[4]);
-    assert_eq!((sc.slot.weapon[4], sc.slot.armor[4]), (0, 80));
+    assert!(sc.menu.slot.valid[4]);
+    assert_eq!((sc.menu.slot.weapon[4], sc.menu.slot.armor[4]), (0, 80));
 }

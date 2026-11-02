@@ -140,9 +140,9 @@ fn menu_exit_after_returning_from_game_exits_immediately() {
     assert!(!rt.back_requests_exit(), "游戏内返回不劫持（-7 = 游戏内菜单）");
     tap(&mut rt, &src, -7);
     assert_eq!(rt.scene.as_ref().unwrap().game_mode, GameMode::InGameMenu, "-7 开游戏内菜单");
-    let kinds = rt.scene.as_ref().unwrap().menu_kinds.clone();
+    let kinds = rt.scene.as_ref().unwrap().menu.menu_kinds.clone();
     let quit = kinds.iter().position(|&k| k == 7).expect("游戏内菜单有退出项（kind 7）");
-    let cur = rt.scene.as_ref().unwrap().menu_cursor as usize;
+    let cur = rt.scene.as_ref().unwrap().menu.menu_cursor as usize;
     for _ in 0..(quit + kinds.len() - cur) % kinds.len() {
         tap(&mut rt, &src, -2);
     }

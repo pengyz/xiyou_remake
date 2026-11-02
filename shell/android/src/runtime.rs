@@ -208,7 +208,7 @@ impl Runtime {
     /// 场景活动期开场链那份是交接前的旧值，壳侧一律经本函数读，不直接读 `machine.shell_options`（复核 T4-F2）。
     pub fn app_settings(&self) -> AppSettings {
         let (bgm, rows) = match self.scene.as_ref() {
-            Some(sc) => (&sc.bgm, &sc.shell_options),
+            Some(sc) => (&sc.bgm, &sc.menu.shell_options),
             None => (&self.machine.bgm, &self.machine.shell_options),
         };
         let d = AppSettings::default();
@@ -275,7 +275,7 @@ impl Runtime {
     /// 活动机软键种类（面板软键图标=游戏同款，随态切换）。
     pub fn softkeys(&self) -> (i8, i8) {
         match self.scene.as_ref() {
-            Some(sc) => sc.softkeys,
+            Some(sc) => sc.menu.softkeys,
             None => self.machine.softkeys,
         }
     }
@@ -441,7 +441,7 @@ impl Runtime {
     /// 自动战斗同步进场景 core 字段（点怪一点即战，计划 2 的 auto_battle）。
     fn sync_control_rows(&mut self) {
         let rows = match self.scene.as_ref() {
-            Some(sc) => sc.shell_options.clone(),
+            Some(sc) => sc.menu.shell_options.clone(),
             None => self.machine.shell_options.clone(),
         };
         let touch = row_checked(&rows, PREF_CONTROL_MODE, self.rt_control_mode == ControlMode::Touch);
@@ -667,7 +667,7 @@ impl Runtime {
         if !keys.is_empty() {
             if let Some(sc) = self.scene.as_mut() {
                 sc.ui_interrupt();
-                sc.slot.interrupt_select();
+                sc.menu.slot.interrupt_select();
             }
         }
         let Some(sc) = self.scene.as_mut() else { return };
@@ -744,8 +744,8 @@ impl Runtime {
             self.storage.persist(&self.stores);
         }
         // MOT_IF 读失败回写（BUG-021 ②c）+ Game 侧重读源同步（BUG-018 环）
-        if sc.slot.take_parse_dirty() {
-            let slot = sc.slot.clone();
+        if sc.menu.slot.take_parse_dirty() {
+            let slot = sc.menu.slot.clone();
             sc.persist.preset_mot_if = Some(handoff::put_slot_if(&mut self.stores, &slot));
             self.storage.persist(&self.stores);
         }

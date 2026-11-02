@@ -1083,19 +1083,19 @@ mod tests {
         assert_eq!(o.highlight, 2, "高亮钳在新行数内");
         // GameScene
         let mut sc = crate::scene::scene_test_support::scene((1, 3), &[]);
-        sc.shell_options = vec![opt(4, true), opt(4 + 1, true)];
+        sc.menu.shell_options = vec![opt(4, true), opt(4 + 1, true)];
         sc.game_mode = GameMode::About;
-        sc.options = Some(OptionList::with_shell_rows(true, sc.minimap_enabled, &sc.shell_options));
-        sc.options.as_mut().unwrap().highlight = 4;
+        sc.menu.options = Some(OptionList::with_shell_rows(true, sc.minimap_enabled, &sc.menu.shell_options));
+        sc.menu.options.as_mut().unwrap().highlight = 4;
         sc.replace_shell_rows(vec![opt(4, false)]);
-        assert_eq!(sc.shell_options.len(), 1);
-        assert_eq!(sc.options.as_ref().unwrap().len(), 3);
-        assert_eq!(sc.options.as_ref().unwrap().highlight, 2);
+        assert_eq!(sc.menu.shell_options.len(), 1);
+        assert_eq!(sc.menu.options.as_ref().unwrap().len(), 3);
+        assert_eq!(sc.menu.options.as_ref().unwrap().highlight, 2);
         // 设置页未开：只换行集（不动 options——留着旧页对象，下次进页重建）
         sc.game_mode = GameMode::Map;
         sc.replace_shell_rows(vec![opt(4, true), opt(4 + 1, false)]);
-        assert_eq!(sc.shell_options.len(), 2);
-        assert_eq!(sc.options.as_ref().unwrap().len(), 3, "页未开不动旧 options");
+        assert_eq!(sc.menu.shell_options.len(), 2);
+        assert_eq!(sc.menu.options.as_ref().unwrap().len(), 3, "页未开不动旧 options");
     }
 
     /// 【计划 3 T2b · spec §3.2】BootMachine 侧页面行：读档/设置/片头/标题隐藏 + 帮助恒翻页/关于可翻时。

@@ -329,8 +329,6 @@ pub struct GameScene {
     pub offer_queue_src: Vec<u8>,
     pub offer_queue_idx: Vec<u8>,
     pub offer_queue_cursor: i32,
-    /// 软键（dispatchModeEntry case 3：1/3）
-    pub softkeys: (i8, i8),
 
     // —— 输入（keyPressed/keyReleased a.java:4663-4675）——
     /// keyValue：粘性"最近按键"（keyReleased 不清）
@@ -402,11 +400,6 @@ pub struct GameScene {
     pub open_anim_tick: i32,
     /// tileBob：遮幅纵向抖动（±2 交替）
     pub tile_bob: i32,
-    /// tutorialSeen：教程标记（型 15 拾取置 true——f_bool_13 楼梯指示的门控）
-    pub tutorial_seen: bool,
-    /// f_bool_13：楼梯指示（49/55 暗道换乘键门控；proximity 更新——
-    /// lockCameraOn/行走批次——未移植，稳态 false 与 Java 稳态一致）
-    pub stair_hint: bool,
 
     // —— mode 11 对话（gameMode 3=世界 / 11=对话；a.java:4011-4068 相位机）——
     pub game_mode: GameMode,
@@ -414,12 +407,6 @@ pub struct GameScene {
     pub transition_count: u32,
     /// 转移日志（件 A' 收口观测：最后一次 (from, to)）——观测字段，不进金样 dump
     pub last_transition: Option<(GameMode, GameMode)>,
-    /// mode12 日志浏览（recordPage 页 + f_String_04 页码指示 + 日志对）
-    pub record_page: i32,
-    /// f_String_arr_06/09（a.java:823/887 init 常量；fixtures 迭代 59）
-    pub record_text_a: Vec<String>,
-    pub record_text_b: Vec<String>,
-    pub page_indicator: String,
     /// mode20 结局卷轴状态（Java f_int_22/f_int_23/f_bool_04——dispatchModeEntry case20
     /// **不重置**，场景构造期零值即 Java 新运行初值）。
     pub ending_scroll: i32,
@@ -435,43 +422,12 @@ pub struct GameScene {
     pub script_line_flags: Vec<bool>,
     /// currentScriptIndex
     pub current_script_index: usize,
-    /// difficultyIndex（难度乘数索引；tryRunScene case 67 门控）
-    pub difficulty_index: i32,
     /// scriptWalkArmed（脚本行走武装；phase 3 门控）
     pub script_walk_armed: bool,
-    /// mode 4/19 菜单族共享布局（menuLabels a.java:458-462 / resetMenuLayout
-    /// a.java:4690-4702 / addMenuItem a.java:4704-4716）
-    pub menu_kinds: Vec<i8>,
-    pub menu_item_count: i32,
-    pub menu_box_width: i32,
-    pub menu_line_height: i32,
-    pub menu_visible_rows: i32,
-    pub menu_list_height: i32,
-    pub menu_scroll_top: i32,
-    pub menu_visible_bottom: i32,
-    pub menu_cursor: i32,
-    /// menuReturnMode（N-0240 menuReturnMode）：mode7/8 -7 的返回目标
-    pub menu_return_mode: GameMode,
-    /// mode 7 存档槽状态（dispatchModeEntry case7 布局 + loadSlotTable 冷态）
-    pub slot: crate::menu_family::SlotSelect,
-    /// mode 5 敌人图鉴：f_int_arr_22（预测伤害）/f_byte_arr_20（类型）
-    pub encyc_damage: Vec<i32>,
-    pub encyc_types: Vec<u8>,
-    pub encyc_panel_w: i32,
-    pub encyc_count: i32,
-    pub encyc_rows_visible: i32,
-    pub encyc_panel_h: i32,
-    pub encyc_scroll_top: i32,
-    pub encyc_scroll_bottom: i32,
-    /// mode 16 设置面板（kind4 进入；menuReturnMode=4 返回）
-    pub options: Option<crate::menu_family::OptionList>,
-    /// 【计划 3 T7】帮助文本覆盖（壳注入；交接不清除=随档持久，读档/换层不影响）。
-    pub help_override: Option<String>,
-    /// 【STAGE-B-006】壳层附加设置行（交接自 BootMachine，回标题时交回；空 = 原版两行）：设置页入口据此生成第 3 行起的
-    /// 附加行，切换回写此处。core 不解释其含义。
-    pub shell_options: Vec<crate::menu_family::ShellOption>,
     /// 【task-15 V2 dialog-VM】对话/浮层域切片（22 字段→DialogState）。
     pub dialog: scene_dialog::DialogState,
+    /// 【task-15 V2 menu/UI】菜单/UI 域切片（42 字段→MenuState）。
+    pub menu: scene_menu::MenuState,
     /// 音频语义（crate::audio；docs/spec/audio.md）。soundEnabled 的唯一真相源
     ///（run case16 label0 翻转，a.java:4157）。独立构造默认 = 「刚进 mode 3、声音开」；
     /// 宿主从 BootMachine 交接时整体覆盖（Java 为同一对象，状态连续）。
@@ -480,17 +436,6 @@ pub struct GameScene {
     pub rainbow_phase: i32,
     /// iconStripFrame（a.java:464 全局；mode16 图标条动画帧）
     pub strip_frame: usize,
-    /// inGameMenuReturnMode：菜单返回目标（run case3 -7 时存 gameMode）
-    pub in_game_menu_return_mode: GameMode,
-    /// mode 10 道具面板布局（dispatchModeEntry case10 a.java:4370-4380：itemPanelCols..104）
-    pub item_cols: i32,
-    pub item_rows_total: i32,
-    pub item_rows_visible: i32,
-    pub item_scroll_top: i32,
-    pub item_scroll_bottom: i32,
-    pub item_box_w: i32,
-    pub item_box_h: i32,
-    pub item_cursor: i32,
     /// pathArrowsVisible：路径箭头可见（SEE flag=1 且 findPath 成功）
     pub path_arrows_visible: bool,
     /// walkPathBuffer（findPath 步序，目标端优先）
@@ -505,12 +450,6 @@ pub struct GameScene {
     /// 寻路段（route 不再开放），dp3 收尾原本只凭 `route.is_open()` 认寻路 ⇒ 打断后落入脚本机
     /// dp0 行尾收尾。置位 = interrupt_route 时处于 Dialog dp3；清位 = 新 walk_to / 剧情接管 / 回 Map。
     walkto_draining: bool,
-    /// itemUseTargetType：最近拾取/装备的类型号（浮层图标 + 商店显示）
-    pub overlay_kind_item: i32,
-    /// 浮层图标图（kind1/3：entityTypeImage[itemUseTargetType] 的克隆——paint 免借用冲突）
-    pub overlay_icon: Option<ArgbImage>,
-    /// 浮层标题（objectTypeNames[itemUseTargetType]）
-    pub overlay_item_name: Option<Vec<u16>>,
     /// objectTypeNames（89 项；夹具同源 a.java:954-1041）
     pub object_type_names: Vec<String>,
     /// 宽度表/可行走表（换层重载用）
@@ -572,6 +511,7 @@ pub fn load_floor_from_save(
     floor_assets: Vec<Option<FloorAssets>>,
     save: &crate::save::FloorSave,
 ) -> Result<GameScene, String> {
+
     let px = (save.player_cell_x as i32) << 5;
     let py = (save.player_cell_y as i32) << 5;
     let mut scene = GameScene::load_floor(
@@ -617,7 +557,7 @@ pub fn load_floor_from_save(
     scene.build_minimap();
     // step 11 相机（a.java:3523-3525）+ dispatchModeEntry case 3（a.java:4312-4318）
     scene.enter_view();
-    scene.softkeys = (1, 3);
+    scene.menu.softkeys = (1, 3);
     scene.dialog.overlay_active = false;
     scene.apply_step_cell_effects();
     Ok(scene)
@@ -834,9 +774,9 @@ impl GameScene {
         self.dialog.overlay_kind = kind;
         self.dialog.overlay_text = Some(text.to_string());
         if matches!(kind, 1 | 3) {
-            let t = self.overlay_kind_item;
-            self.overlay_icon = self.images.entity.get(t as usize).cloned().flatten();
-            self.overlay_item_name = self.object_type_name(t);
+            let t = self.menu.overlay_kind_item;
+            self.menu.overlay_icon = self.images.entity.get(t as usize).cloned().flatten();
+            self.menu.overlay_item_name = self.object_type_name(t);
         }
         let font = crate::paint::paint_font();
         let line_h = font.height() + 4;
@@ -993,7 +933,7 @@ impl GameScene {
                     gate &= from_walk;
                 }
             }
-            16 => gate &= self.difficulty_index == 0,
+            16 => gate &= self.menu.difficulty_index == 0,
             // 18（a.java:8127-8144）：from_walk 且八 Cell 扫描任一命中 → false
             // + flags[18] 置位（六格缺型1 或两格有型1）。
             18 => {
@@ -1046,7 +986,7 @@ impl GameScene {
             46 => gate &= from_walk && !self.script_line_flags[47],
             47 => gate &= from_walk && !self.script_line_flags[46],
             66 => gate = false,
-            67 => gate &= self.difficulty_index > 0,
+            67 => gate &= self.menu.difficulty_index > 0,
             _ => {}
         }
         gate
@@ -2174,34 +2114,34 @@ impl GameScene {
     /// resetMenuLayout（a.java:4690-4702）。
     fn reset_menu_layout(&mut self) {
         let font = crate::paint::paint_font();
-        self.menu_line_height = font.height() + 6;
-        self.menu_visible_rows = 238 / self.menu_line_height;
-        self.menu_list_height = self.menu_line_height * self.menu_visible_rows;
-        self.menu_box_width = font.char_width('回' as u16) << 1; // wideCharWidth（全宽字符宽）
-        self.menu_item_count = 0;
-        self.menu_kinds.clear();
-        self.menu_scroll_top = 0;
+        self.menu.menu_line_height = font.height() + 6;
+        self.menu.menu_visible_rows = 238 / self.menu.menu_line_height;
+        self.menu.menu_list_height = self.menu.menu_line_height * self.menu.menu_visible_rows;
+        self.menu.menu_box_width = font.char_width('回' as u16) << 1; // wideCharWidth（全宽字符宽）
+        self.menu.menu_item_count = 0;
+        self.menu.menu_kinds.clear();
+        self.menu.menu_scroll_top = 0;
     }
 
     /// addMenuItem（a.java:4704-4716）：kind 登记 + 框宽按 stringWidth+60 伸长。
     fn add_menu_item(&mut self, kind: i8) {
-        if self.menu_item_count < 16 {
+        if self.menu.menu_item_count < 16 {
             let font = crate::paint::paint_font();
             let label = MENU_LABELS[kind as usize];
             let w: i32 = label.chars().map(|c| font.char_width(c as u16)).sum();
             let w = w + 60;
-            self.menu_kinds.push(kind);
-            if w > self.menu_box_width {
-                self.menu_box_width = w;
+            self.menu.menu_kinds.push(kind);
+            if w > self.menu.menu_box_width {
+                self.menu.menu_box_width = w;
             }
-            self.menu_item_count += 1;
-            if self.menu_item_count <= self.menu_visible_rows {
-                self.menu_visible_bottom = self.menu_item_count;
+            self.menu.menu_item_count += 1;
+            if self.menu.menu_item_count <= self.menu.menu_visible_rows {
+                self.menu.menu_visible_bottom = self.menu.menu_item_count;
             }
             // menuTotalHeight += lineHeight；listHeight 按可见区间重算
             //（a.java:4712-4713——非 resetMenuLayout 的行数积）
-            self.menu_list_height =
-                (self.menu_visible_bottom - self.menu_scroll_top) * self.menu_line_height;
+            self.menu.menu_list_height =
+                (self.menu.menu_visible_bottom - self.menu.menu_scroll_top) * self.menu.menu_line_height;
         }
     }
 
@@ -2253,23 +2193,23 @@ impl GameScene {
     /// 3→mode7（存档槽）/4→mode16（设置）/5→mode15（帮助）/7→mode1（退出标题）
     /// 为跨机模式移交，桌面宿主批次接线——本批对拍面不激活。
     fn activate_menu_item(&mut self) {
-        match self.menu_kinds[self.menu_cursor as usize] {
+        match self.menu.menu_kinds[self.menu.menu_cursor as usize] {
             1 => self.transition_to(GameMode::Map),
             3 => {
                 // a.java:4776-4780：gameMode=7 + menuReturnMode=4 + dispatchModeEntry
-                self.menu_return_mode = GameMode::InGameMenu;
+                self.menu.menu_return_mode = GameMode::InGameMenu;
                 self.transition_to(GameMode::SaveSlot);
                 self.enter_menu7();
             }
             4 => {
                 // a.java:4781-4785：gameMode=16 + menuReturnMode=4 + dispatchModeEntry
-                self.menu_return_mode = GameMode::InGameMenu;
+                self.menu.menu_return_mode = GameMode::InGameMenu;
                 self.transition_to(GameMode::About);
                 self.enter_menu16();
             }
             5 => {
                 // a.java:4786-4790：gameMode=15 + menuReturnMode=4 + dispatchModeEntry
-                self.menu_return_mode = GameMode::InGameMenu;
+                self.menu.menu_return_mode = GameMode::InGameMenu;
                 self.transition_to(GameMode::Help);
                 self.enter_menu15();
             }
@@ -2457,7 +2397,7 @@ impl GameScene {
     /// 浮层整体不画——preset_help 嵌套假绿掩盖至今）。
     /// 【计划 3 T7 · spec §8】帮助文本覆盖（壳按模式注入触屏/摇杆操作说明；None=原文）。
     pub fn set_help_override(&mut self, text: Option<String>) {
-        self.help_override = text;
+        self.menu.help_override = text;
     }
 
 
@@ -2468,10 +2408,10 @@ impl GameScene {
     /// 按类型去重 → 预测伤害（predictBattleHpLoss noCounter=true）→ 冒泡降序
     /// → 可见行数 258/50 钳条目数 → 面板高 50×行+32 → 滚动窗 [0,行)。
     fn build_encyclopedia(&mut self) {
-        self.encyc_damage = vec![0; 128];
-        self.encyc_types = vec![0; 128];
-        self.encyc_panel_w = ENCYC_PANEL_W;
-        self.encyc_count = 0;
+        self.menu.encyc_damage = vec![0; 128];
+        self.menu.encyc_types = vec![0; 128];
+        self.menu.encyc_panel_w = ENCYC_PANEL_W;
+        self.menu.encyc_count = 0;
         'outer: for e in 0..self.entities.count {
             if self.entities.items[e].removed {
                 continue;
@@ -2480,49 +2420,49 @@ impl GameScene {
             if self.entity_category(t) != 8 || t < 41 {
                 continue;
             }
-            for k in 0..self.encyc_count as usize {
-                if self.encyc_types[k] as i32 == t {
+            for k in 0..self.menu.encyc_count as usize {
+                if self.menu.encyc_types[k] as i32 == t {
                     continue 'outer;
                 }
             }
             let dmg = self.predict_hp_loss(t, true);
-            let c = self.encyc_count as usize;
-            self.encyc_damage[c] = dmg;
-            self.encyc_types[c] = t as u8;
-            self.encyc_count += 1;
+            let c = self.menu.encyc_count as usize;
+            self.menu.encyc_damage[c] = dmg;
+            self.menu.encyc_types[c] = t as u8;
+            self.menu.encyc_count += 1;
         }
         // 冒泡降序（a.java:7986-7998）
-        for a in 0..self.encyc_count {
-            let mut b = self.encyc_count;
+        for a in 0..self.menu.encyc_count {
+            let mut b = self.menu.encyc_count;
             while b > a + 1 {
                 b -= 1;
-                let dm = self.encyc_damage[b as usize];
-                let dp = self.encyc_damage[b as usize - 1];
+                let dm = self.menu.encyc_damage[b as usize];
+                let dp = self.menu.encyc_damage[b as usize - 1];
                 if dm >= 0 && dm < dp {
-                    self.encyc_damage.swap(b as usize, b as usize - 1);
-                    self.encyc_types.swap(b as usize, b as usize - 1);
+                    self.menu.encyc_damage.swap(b as usize, b as usize - 1);
+                    self.menu.encyc_types.swap(b as usize, b as usize - 1);
                 }
             }
         }
         let font = crate::paint::paint_font();
         let row_h = font.height() + 4 + 36;
-        self.encyc_rows_visible = 258 / row_h;
-        if self.encyc_rows_visible > self.encyc_count {
-            self.encyc_rows_visible = self.encyc_count;
+        self.menu.encyc_rows_visible = 258 / row_h;
+        if self.menu.encyc_rows_visible > self.menu.encyc_count {
+            self.menu.encyc_rows_visible = self.menu.encyc_count;
         }
-        self.encyc_panel_h = row_h * self.encyc_rows_visible + 32;
-        self.encyc_scroll_top = 0;
-        self.encyc_scroll_bottom = self.encyc_rows_visible;
+        self.menu.encyc_panel_h = row_h * self.menu.encyc_rows_visible + 32;
+        self.menu.encyc_scroll_top = 0;
+        self.menu.encyc_scroll_bottom = self.menu.encyc_rows_visible;
     }
 
     /// m_092（a.java:8016-8027）：翻页。
     fn encyclopedia_set_page(&mut self, page: i32) {
-        let max_page = (self.encyc_count - self.encyc_rows_visible).max(0);
+        let max_page = (self.menu.encyc_count - self.menu.encyc_rows_visible).max(0);
         if page >= 0 && page <= max_page {
-            self.encyc_scroll_top = page;
-            self.encyc_scroll_bottom = self.encyc_scroll_top + self.encyc_rows_visible;
-            if self.encyc_scroll_bottom > self.encyc_count {
-                self.encyc_scroll_bottom = self.encyc_count;
+            self.menu.encyc_scroll_top = page;
+            self.menu.encyc_scroll_bottom = self.menu.encyc_scroll_top + self.menu.encyc_rows_visible;
+            if self.menu.encyc_scroll_bottom > self.menu.encyc_count {
+                self.menu.encyc_scroll_bottom = self.menu.encyc_count;
             }
         }
     }
@@ -2824,17 +2764,17 @@ impl GameScene {
     /// 【STAGE-B-008 计划 3 T3.2 · spec §8】整体替换壳层附加行（如操控方式切换 ⇒ 自动战斗行增减）。
     /// 设置页开着 ⇒ 同步重建 options（盒高随之变），高亮钳在新行数内（spec：保持在「操控方式」行）。
     pub fn replace_shell_rows(&mut self, rows: Vec<crate::menu_family::ShellOption>) {
-        self.shell_options = rows;
+        self.menu.shell_options = rows;
         if self.game_mode == GameMode::About {
-            if let Some(old) = self.options.take() {
+            if let Some(old) = self.menu.options.take() {
                 let anchor = old.highlight_anchor(); // 【件1】随行 id 跟随
                 let mut list = crate::menu_family::OptionList::with_shell_rows(
                     self.bgm.sound_enabled,
                     self.minimap_enabled,
-                    &self.shell_options,
+                    &self.menu.shell_options,
                 );
                 list.highlight = list.resolve_highlight(anchor) as i32;
-                self.options = Some(list);
+                self.menu.options = Some(list);
             }
         }
     }
@@ -2926,8 +2866,8 @@ impl GameScene {
                         self.dialog.overlay_active = false;
                         self.transition_to(GameMode::ItemPanel);
                     }
-                    -4 => self.open_record_page(self.record_page + 1),
-                    -3 => self.open_record_page(self.record_page - 1),
+                    -4 => self.open_record_page(self.menu.record_page + 1),
+                    -3 => self.open_record_page(self.menu.record_page - 1),
                     -2 => self.flip_overlay_page(self.dialog.overlay_page_top + 1),
                     -1 => self.flip_overlay_page(self.dialog.overlay_page_top - 1),
                     _ => {}
@@ -2936,7 +2876,7 @@ impl GameScene {
                 match self.key_value {
                     -7 => {
                         self.dialog.overlay_active = false;
-                        self.transition_to(self.menu_return_mode);
+                        self.transition_to(self.menu.menu_return_mode);
                     }
                     -2 => {
                         self.flip_overlay_page(self.dialog.overlay_page_top + self.dialog.overlay_lines_per_page)
@@ -2956,7 +2896,7 @@ impl GameScene {
                     }
                     -6 => {
                         self.dialog.overlay_active = false;
-                        self.use_item_stack(self.item_cursor as usize);
+                        self.use_item_stack(self.menu.item_cursor as usize);
                     }
                     _ => self.handle_overlay_key(),
                 }
@@ -3075,7 +3015,7 @@ impl GameScene {
         match self.key_value {
             -7 => {
                 // a.java:3559-3561：inGameMenuReturnMode=gameMode → gameMode=4 + dispatchModeEntry
-                self.in_game_menu_return_mode = self.game_mode;
+                self.menu.in_game_menu_return_mode = self.game_mode;
                 self.transition_to(GameMode::InGameMenu);
                 self.enter_menu4();
             }
@@ -3350,7 +3290,7 @@ impl GameScene {
             // 先清零 key_value 再判 up ⇒ 恒 false、49 臂被并入 55；且臂末
             // return 吞掉 Java break 后续走的 keyHeldCode switch（5308 起）。
             self.key_value = 0;
-            if self.stair_hint {
+            if self.menu.stair_hint {
                 if let Some(e) = self.find_floor_gate_entity(true) {
                     let target = self.entities.items[e].param as i32 & 255;
                     self.change_floor(target, false, true);
@@ -3360,7 +3300,7 @@ impl GameScene {
             // 55=下行（a.java:5300-5305 **分立 case**）：清零键值 → f_bool_13
             // 且存在型 8 门（param>>9==0）→ changeFloor(param&255, true, true)。
             self.key_value = 0;
-            if self.stair_hint {
+            if self.menu.stair_hint {
                 if let Some(e) = self.find_floor_gate_entity(false) {
                     let target = self.entities.items[e].param as i32 & 255;
                     self.change_floor(target, true, true);
@@ -3409,7 +3349,7 @@ impl GameScene {
     /// 本块纯加法：classic 教程前 stair_hint 恒 false 与 Java 一致，教程后向 Java 收敛。
     pub fn recompute_stair_hint(&mut self) {
         let mut hint = false;
-        if self.tutorial_seen {
+        if self.menu.tutorial_seen {
             let (px, py) = (self.player_cell_x, self.player_cell_y);
             let anchors: Vec<(i32, i32)> = [self.entities.stair_up, self.entities.stair_down]
                 .into_iter()
@@ -3428,7 +3368,7 @@ impl GameScene {
                 }
             }
         }
-        self.stair_hint = hint;
+        self.menu.stair_hint = hint;
     }
 
     /// interactWithCell（a.java:5363-5531）：格槽**倒序**遍历 + 类目交互 +
@@ -3486,7 +3426,7 @@ impl GameScene {
                                         if let Some(a) = self.tap.walkto_arrows.as_mut() {
                                             a.clear();
                                         }
-                                        self.overlay_kind_item = 0;
+                                        self.menu.overlay_kind_item = 0;
                                         self.show_overlay_message(
                                             0,
                                             match t {
@@ -4247,13 +4187,13 @@ impl GameScene {
 
     fn pickup_item_type(&mut self, t: i32) {
         // a.java:7528 起 pickupItemType 拾取链：itemUseTargetType = 道具类型（描述 overlay 的图标/名）
-        self.overlay_kind_item = t;
+        self.menu.overlay_kind_item = t;
         // 描述表（itemDescriptions a.java:906 / equipDescriptions a.java:930——
         // 全量入库 reference；此处取用句柄）
         match t {
             13..=25 | 85 | 86 => {
                 if t == 15 {
-                    self.tutorial_seen = true; // tutorialSeen
+                    self.menu.tutorial_seen = true; // tutorialSeen
                 }
                 self.add_item_to_stack(t);
             }
@@ -4338,7 +4278,7 @@ impl GameScene {
         }
         // itemUseTargetType = (byte)py_key（a.java:7732）：kind1 浮层图标/名的数据源
         // ——拾取路径调用方已先写同值，商人赠物路径（a.java:7333/7336）唯此一写
-        self.overlay_kind_item = t;
+        self.menu.overlay_kind_item = t;
         let text = self.item_description(idx);
         self.show_overlay_message(1, &text, 0, 3);
     }
@@ -4550,21 +4490,21 @@ impl GameScene {
     fn open_record_page(&mut self, page: i32) {
         let total = self.persist.journal.len() as i32;
         if total > 0 {
-            self.record_page = if page < 0 {
+            self.menu.record_page = if page < 0 {
                 total - 1
             } else if page >= total {
                 0
             } else {
                 page
             };
-            let (kind, idx) = self.persist.journal[self.record_page as usize];
+            let (kind, idx) = self.persist.journal[self.menu.record_page as usize];
             let text = if kind == 0 {
-                self.record_text_a.get(idx as usize).cloned().unwrap_or_default()
+                self.menu.record_text_a.get(idx as usize).cloned().unwrap_or_default()
             } else {
-                self.record_text_b.get(idx as usize).cloned().unwrap_or_default()
+                self.menu.record_text_b.get(idx as usize).cloned().unwrap_or_default()
             };
             self.show_overlay_message(5, &text, 0, 3);
-            self.page_indicator = format!("{} / {}", self.record_page + 1, total);
+            self.menu.page_indicator = format!("{} / {}", self.menu.record_page + 1, total);
         } else {
             self.show_overlay_message(0, "没有记录", 0, 3);
             self.transition_to(GameMode::ItemPanel);
@@ -4692,10 +4632,10 @@ impl GameScene {
     /// 行距 menu_line_height；pad=(line_height-font.height())>>1）。返回 (行y, 行高)。
     fn menu_row_band(&self, visible: i32) -> (i32, i32) {
         let font = crate::paint::paint_font();
-        let pad = (self.menu_line_height - font.height()) >> 1;
-        let by = CENTER_Y - ((self.menu_list_height + 32) >> 1) + 16 + pad
-            + visible * self.menu_line_height;
-        (by - pad, self.menu_line_height)
+        let pad = (self.menu.menu_line_height - font.height()) >> 1;
+        let by = CENTER_Y - ((self.menu.menu_list_height + 32) >> 1) + 16 + pad
+            + visible * self.menu.menu_line_height;
+        (by - pad, self.menu.menu_line_height)
     }
 
     /// 背包栅格原点（③-1 单源）：**paint_item_panel 与 pointer_hit 共调本 fn**。
@@ -4707,8 +4647,8 @@ impl GameScene {
     pub fn item_cell_origin(&self) -> (i32, i32) {
         let font = crate::paint::paint_font();
         (
-            (self.layout.screen_w - self.item_box_w) / 2 + 20,
-            (self.layout.screen_h - self.item_box_h) / 2 + 31 + font.height(),
+            (self.layout.screen_w - self.menu.item_box_w) / 2 + 20,
+            (self.layout.screen_h - self.menu.item_box_h) / 2 + 31 + font.height(),
         )
     }
 
@@ -4751,12 +4691,12 @@ impl GameScene {
         }
         match self.game_mode {
             GameMode::InGameMenu | GameMode::Shop => {
-                let vis_n = self.menu_visible_bottom - self.menu_scroll_top;
+                let vis_n = self.menu.menu_visible_bottom - self.menu.menu_scroll_top;
                 for vis in 0..vis_n.max(0) {
                     let (ry, rh) = self.menu_row_band(vis);
                     if y >= ry && y < ry + rh {
-                        let index = self.menu_scroll_top + vis;
-                        if index >= 0 && index < self.menu_item_count {
+                        let index = self.menu.menu_scroll_top + vis;
+                        if index >= 0 && index < self.menu.menu_item_count {
                             return PointerHit::Row { index, confirm_key: -6 };
                         }
                     }
@@ -4766,10 +4706,10 @@ impl GameScene {
             GameMode::SaveSlot | GameMode::EquipDetail => {
                 // 存档槽列表（SlotSelect，7/8 共享 dispatchModeEntry case7）：行带单源；
                 // confirm=-5（run case 7：-6/-5 同义确认——mode7 存档/mode8 读档）
-                for vis in 0..(self.slot.scroll_bottom - self.slot.scroll_top).max(0) {
-                    let (ry, rh) = self.slot.row_band(vis, &self.layout);
+                for vis in 0..(self.menu.slot.scroll_bottom - self.menu.slot.scroll_top).max(0) {
+                    let (ry, rh) = self.menu.slot.row_band(vis, &self.layout);
                     if y >= ry && y < ry + rh {
-                        let index = self.slot.scroll_top + vis;
+                        let index = self.menu.slot.scroll_top + vis;
                         return PointerHit::Row { index, confirm_key: -5 };
                     }
                 }
@@ -4778,7 +4718,7 @@ impl GameScene {
             GameMode::About => {
                 // 设置面板（OptionList）：行带单源 row_band；confirm=-5（run case 16
                 // 翻转键，a.java:4143-4188）
-                if let Some(list) = self.options.as_ref() {
+                if let Some(list) = self.menu.options.as_ref() {
                     for i in 0..list.len() {
                         let (ry, rh) = list.row_band(i, &self.layout);
                         if y >= ry && y < ry + rh {
@@ -4793,10 +4733,10 @@ impl GameScene {
                 if x >= ox && y >= oy {
                     let c = (x - ox) / 40;
                     let r = (y - oy) / 40;
-                    if c >= 0 && c < self.item_cols && r >= 0
-                        && r < self.item_scroll_bottom - self.item_scroll_top
+                    if c >= 0 && c < self.menu.item_cols && r >= 0
+                        && r < self.menu.item_scroll_bottom - self.menu.item_scroll_top
                     {
-                        let index = (self.item_scroll_top + r) * self.item_cols + c;
+                        let index = (self.menu.item_scroll_top + r) * self.menu.item_cols + c;
                         return PointerHit::Row { index, confirm_key: -6 };
                     }
                 }
@@ -4828,40 +4768,40 @@ impl GameScene {
     pub fn select_row(&mut self, index: i32) {
         match self.game_mode {
             GameMode::SaveSlot | GameMode::EquipDetail => {
-                self.slot.set_cursor(index); // 只动光标+滚窗
+                self.menu.slot.set_cursor(index); // 只动光标+滚窗
             }
             GameMode::InGameMenu | GameMode::Shop => {
-                if index >= 0 && index < self.menu_item_count {
-                    self.menu_cursor = index;
-                    let n = self.menu_visible_bottom - self.menu_scroll_top;
-                    if self.menu_cursor >= self.menu_visible_bottom {
-                        self.menu_visible_bottom = self.menu_cursor + 1;
-                        self.menu_scroll_top = self.menu_visible_bottom - n;
-                    } else if self.menu_cursor < self.menu_scroll_top {
-                        self.menu_scroll_top = self.menu_cursor;
-                        self.menu_visible_bottom = self.menu_scroll_top + n;
+                if index >= 0 && index < self.menu.menu_item_count {
+                    self.menu.menu_cursor = index;
+                    let n = self.menu.menu_visible_bottom - self.menu.menu_scroll_top;
+                    if self.menu.menu_cursor >= self.menu.menu_visible_bottom {
+                        self.menu.menu_visible_bottom = self.menu.menu_cursor + 1;
+                        self.menu.menu_scroll_top = self.menu.menu_visible_bottom - n;
+                    } else if self.menu.menu_cursor < self.menu.menu_scroll_top {
+                        self.menu.menu_scroll_top = self.menu.menu_cursor;
+                        self.menu.menu_visible_bottom = self.menu.menu_scroll_top + n;
                     }
                 }
             }
             GameMode::About => {
-                if let Some(list) = self.options.as_mut() {
+                if let Some(list) = self.menu.options.as_mut() {
                     if index >= 0 && (index as usize) < list.len() {
                         list.set_highlight(index as usize); // 只动高亮（光标语义），零其他状态
                     }
                 }
             }
             GameMode::ItemPanel => {
-                let total = self.item_cols * self.item_rows_total;
+                let total = self.menu.item_cols * self.menu.item_rows_total;
                 if index >= 0 && index < total {
-                    self.item_cursor = index;
-                    let n = self.item_scroll_bottom - self.item_scroll_top;
-                    let row = self.item_cursor / self.item_cols;
-                    if row >= self.item_scroll_bottom {
-                        self.item_scroll_bottom = row + 1;
-                        self.item_scroll_top = self.item_scroll_bottom - n;
-                    } else if row < self.item_scroll_top {
-                        self.item_scroll_top = row;
-                        self.item_scroll_bottom = self.item_scroll_top + n;
+                    self.menu.item_cursor = index;
+                    let n = self.menu.item_scroll_bottom - self.menu.item_scroll_top;
+                    let row = self.menu.item_cursor / self.menu.item_cols;
+                    if row >= self.menu.item_scroll_bottom {
+                        self.menu.item_scroll_bottom = row + 1;
+                        self.menu.item_scroll_top = self.menu.item_scroll_bottom - n;
+                    } else if row < self.menu.item_scroll_top {
+                        self.menu.item_scroll_top = row;
+                        self.menu.item_scroll_bottom = self.menu.item_scroll_top + n;
                     }
                 }
             }

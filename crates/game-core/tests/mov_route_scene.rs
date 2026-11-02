@@ -322,7 +322,7 @@ fn run_scene(spec: &Spec, mut observe: impl FnMut(u32, &GameScene)) -> GameScene
                 .unwrap();
                 sc.backdrop_scroll = m.backdrop.scroll();
                 if let Some(t) = &m.title {
-                    sc.menu_cursor = t.cursor;
+                    sc.menu.menu_cursor = t.cursor;
                     sc.bob_offset = t.bob;
                     sc.bob_rising = t.bob_rising;
                 }
