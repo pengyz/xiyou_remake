@@ -653,6 +653,11 @@ pub fn paint_panel(img: &mut ArgbImage, g: &PanelGeom, st: &PanelState, icons: &
     let held = |c: i32| st.held.contains(&c);
     // 软键（左 -6 / 右 -7）：描边框 + 面；图标 = 游戏同款 ui[11]（与画布角标同义）
     for (i, (z, kind)) in [(g.soft[0], st.softkeys.0), (g.soft[1], st.softkeys.1)].into_iter().enumerate() {
+        // 【三机验收修复·标题态侧功能钮空框】label=None = 无功能指派 ⇒ 整格隐藏
+        // （连框；T6"None=隐藏"，accept5_annibale.png 空框=实现与设计相悖）。
+        // 两态钉：t6_side_slot_none_hides_frame_some_shows_frame_and_label。
+        let label_opt = if i == 0 { &st.labels.0 } else { &st.labels.1 };
+        let Some(text) = label_opt else { continue };
         let face = if held(z.code) {
             KEY_FACE_HOT
         } else if kind == 0 {
@@ -665,8 +670,7 @@ pub fn paint_panel(img: &mut ArgbImage, g: &PanelGeom, st: &PanelState, icons: &
         fill_rect(img, x0 + o, y0 + o, x1 - o, y1 - o, face);
         blit_icon(img, icons, kind, (z.x0 + z.x1) / 2.0, (z.y0 + z.y1) / 2.0, g.icon_scale);
         // 【计划 3 T6】功能标注（右下角小字；灰显=不可用仍照发键，spec §3.3/10-28 M2）
-        let label_opt = if i == 0 { &st.labels.0 } else { &st.labels.1 };
-        if let Some(text) = label_opt {
+        {
             let k = g.label_scale;
             let u16s: Vec<u16> = text.encode_utf16().collect();
             let font = paint_font();

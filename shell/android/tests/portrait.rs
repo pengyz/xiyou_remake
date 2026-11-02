@@ -493,3 +493,31 @@ fn t5r10_touch_plan_invariants() {
         assert!(p.toolbar.bar.h > 0 && p.toolbar.left.w > 0, "{w}×{h}: 工具栏几何正");
     }
 }
+
+/// 【三机验收遗留·标题态侧功能钮空框】label=None = 无功能指派 ⇒ **连框隐藏**
+/// （T6 注释"None=隐藏"；实机 accept5_annibale.png 两空框=实现与设计相悖）；
+/// label=Some ⇒ 框+label 同显。两态钉死：无功能时面板无框 / 有功能时框+标注同显。
+#[test]
+fn t6_side_slot_none_hides_frame_some_shows_frame_and_label() {
+    let g = &plan_portrait(&xm14()).geom;
+    let icons = game_core::render::ArgbImage::create(36, 10);
+    let mut none_img = game_core::render::ArgbImage::create(1200, 900);
+    let mut some_img = game_core::render::ArgbImage::create(1200, 900);
+    paint_panel(&mut none_img, g, &PanelState { held: vec![], softkeys: (1, 3), labels: (None, None) }, &icons);
+    paint_panel(&mut some_img, g, &PanelState { held: vec![], softkeys: (1, 3), labels: (Some("背包".into()), Some("菜单".into())) }, &icons);
+    let w = none_img.width as usize;
+    let bg = none_img.argb[(none_img.height as usize - 2) * w + 2]; // 盘下沿外底色采样
+    for (idx, z) in g.soft.iter().enumerate() {
+        let (x0, y0, x1, y1) = (z.x0 as usize, z.y0 as usize, z.x1 as usize, z.y1 as usize);
+        // 态一：无功能 ⇒ 钮格全区 = 底色（连框隐藏，无描边/无面/无图标/无字）
+        for y in y0..y1 {
+            for x in x0..x1 {
+                assert_eq!(none_img.argb[y * w + x], bg, "None 态钮格 {idx} 应无框 @({x},{y})");
+            }
+        }
+        // 态二：有功能 ⇒ 框（描边左缘）+ label（0xFFD8CBA0 字形色）同显
+        assert_ne!(some_img.argb[(y0 + (y1 - y0) / 2) * w + x0], bg, "Some 态钮格 {idx} 框在画");
+        let has_label = (y0..y1).any(|y| (x0..x1).any(|x| some_img.argb[y * w + x] == 0xFFD8CBA0));
+        assert!(has_label, "Some 态钮格 {idx} label 同显");
+    }
+}
