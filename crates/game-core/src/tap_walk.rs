@@ -35,6 +35,32 @@ pub struct TapState {
     pub tap_pending: Option<crate::tap_walk::PendingTap>,
 }
 
+/// 【双归域·tap 逻辑回补】域方法持域状态（lead 裁定）——两段式选中断言/
+/// 打断=纯 TapState 态迁移；select_row 光标联动=GameScene 编排（coordination
+/// 注记归因）。
+impl TapState {
+    /// 两段式 tap（cfcc9ad 同则）：tap1=选中(行,帧) 不执行；tap2 同行超阈值=
+    /// 执行（清选中）；换行=换选不执行；连击内 tap2=阈值抑制。返回 true=执行。
+    pub fn tap_two_stage(&mut self, index: usize, frame: u64) -> bool {
+        if let Some((sel, stamp)) = self.ui_selected {
+            if sel == index {
+                if frame.saturating_sub(stamp) >= crate::menu_family::TWO_STAGE_MIN_STEPS {
+                    self.ui_selected = None;
+                    return true;
+                }
+                return false;
+            }
+        }
+        self.ui_selected = Some((index, frame));
+        false
+    }
+
+    /// 打断（滑动/按键/点行外）：清选中不执行。
+    pub fn interrupt(&mut self) {
+        self.ui_selected = None;
+    }
+}
+
 /// 点中格的目标类别。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TargetKind {

@@ -514,6 +514,8 @@ impl GameScene {
     /// saveFloorState 写侧（a.java:9182-9244）：blob 序 = parse_floor_save 读序
     /// 的镜像（difficulty..follow 对/128 旗标/道具栈/56 层触发）。
     /// 装备位恒 0：equippedWeaponType/ArmorType 为装备批次字段（当前层恒无装备）。
+    /// 【双归域·编排注记归因】槽 blob 序列化=跨域编排面（persist+player+装备+坐标逐参写盘）——
+    /// **不可迁**（非域内闭合）；coordination 面显式留置。
     pub(super) fn serialize_slot_blob(&self) -> Vec<u8> {
         let mut o = Vec::new();
         o.push(self.difficulty_index as u8);

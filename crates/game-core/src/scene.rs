@@ -4924,26 +4924,20 @@ impl GameScene {
 
     /// 【批三】道具使用/装备替换两段式：tap1=选中（返回 false 不执行；光标+预览
     /// 随 select_row 可见）；tap2 同行=执行（true）；点别行=换选不执行。
+    /// 【双归域】两段式 tap 委托（TapState 域方法持断言；select_row 光标联动=
+    /// 编排面 coordination 注记归因）。
     pub fn ui_tap_two_stage(&mut self, index: usize) -> bool {
-        if let Some((sel, stamp)) = self.tap.ui_selected {
-            if sel == index {
-                if self.tap.ui_frame.saturating_sub(stamp)
-                    >= crate::menu_family::TWO_STAGE_MIN_STEPS
-                {
-                    self.tap.ui_selected = None;
-                    return true;
-                }
-                return false; // 【Y1】连击抑制
-            }
+        let frame = self.tap.ui_frame;
+        let exec = self.tap.tap_two_stage(index, frame);
+        if !exec {
+            self.select_row(index as i32); // 编排：光标+滚窗联动（跨域）
         }
-        self.tap.ui_selected = Some((index, self.tap.ui_frame));
-        self.select_row(index as i32);
-        false
+        exec
     }
 
-    /// 【批三】打断（滑动/按键/点行外）：清选中不执行。
+    /// 【双归域】打断委托（TapState::interrupt 域方法）。
     pub fn ui_interrupt(&mut self) {
-        self.tap.ui_selected = None;
+        self.tap.interrupt();
     }
 
     /// 指针选行（hover 高亮/点击对位）：只动光标+滚窗同步，无其他状态变化（③-2/b）。
