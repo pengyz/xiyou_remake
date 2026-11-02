@@ -10,6 +10,7 @@
 | floor1-tour.txt | 8000 | ✓ | **PASS** | `2ddbccac558656af…` |
 | floor2-tour.txt | 2000 | ✓ | **PASS** | `ef320b45f4ebed38…` |
 | floor51-menu.txt | 9800 | ✓ | **PASS** | `b441b91d3c6df283…` |
+| fx-item25a.txt | 900 | ✓ | **PASS** | `176ba060cde0cdbb…` |
 | gameplay-floor1.txt | 3000 | ✓ | **PASS** | `cceb91defd67b2ac…` |
 | menu-sweep.txt | 2200 | ✓ | **PASS** | `aee5eab7ca5243f7…` |
 | preset-alchemy.txt | 700 | ✓ | **PASS** | `e22bff045507f340…` |
@@ -45,6 +46,7 @@
 | preset-load-menu.txt | 800 | ✓ | **PASS** | `038a1ef425fd01e4…` |
 | preset-merchant.txt | 600 | ✓ | **PASS** | `1d187095753922ed…` |
 | preset-save.txt | 700 | ✓ | **PASS** | `829b9bc90aaa32f1…` |
+| probe-boss74b.txt | 400 | ✓ | **PASS** | `af9783654d1aef8e…` |
 | prologue-dialog.txt | 9800 | ✓ | **PASS** | `50f9c399fe9f37ca…` |
 | prologue-patient.txt | 21000 | ✓ | **PASS** | `2449a089659fecab…` |
 | prologue-walk-storypoint.txt | 1500 | ✓ | **PASS** | `d273e5d9b34bf1ab…` |
@@ -58,6 +60,7 @@
 - **floor1-tour.txt**：第 1 层游走圈图——大范围踩格探测战斗/门/钥匙/道具/楼梯事件（走向由 seed=7 固定）
 - **floor2-tour.txt**：floor2 巡回——型11 道具浮层、药水/大血拾取、宝箱 type4（组开门 walkPhase4）
 - **floor51-menu.txt**：序章 6 句对话推进（菩提老祖/悟空）→SEE_3_10_166_166_1 电影镜头等待态→mode10 大地图 UI 开关（-6/-7 实测生效）
+- **fx-item25a.txt**：FX-ITEM-25A 幸运币(25)金钱翻倍被动（a.java gainGold findItemStackIndex(25) ⇒ 增量<<1）：
 - **gameplay-floor1.txt**：真实玩法（存档预置直达第 1 层）——继续游戏→存档槽0确认→m_115 读 MOT_L0 预置（HP500/ATK30/金100）→mode3 自由玩法：行走子状态机/金币拾取(+1)/格子移动
 - **menu-sweep.txt**：菜单扫荡——道具栏(8)进出+列表导航/设置(16)开关切换/帮助(15)翻页/关于(17)/退出确认(22)→70帧淡出→应用自毁(thread-exit 收尾路径)
 - **preset-alchemy.txt**：preset 直达第 12 层（type9 炼丹台 @cell(5,9)，facing==1 向下踩触发）：
@@ -93,6 +96,7 @@
 - **preset-load-menu.txt**：preset 槽载入（MOT_L0 floor1 (3,10) hp500/atk30/def30 钥1/0/0 金100）直达
 - **preset-merchant.txt**：preset 直达第 2 层（type78 告示牌 @cell(11,7) param01=报价0）：右行撞牌
 - **preset-save.txt**：preset 槽载入 → mode4 菜单 → kind3 保存（mode7 存档槽 → -5 确认写回
+- **probe-boss74b.txt**：探路：floor53 (7,5) 朝上撞型 74（>50 层钩子负例探路）
 - **prologue-dialog.txt**：序章 6 句对话推进（菩提老祖/悟空）→SEE_3_10_166_166_1 电影镜头等待态→mode10 大地图 UI 开关（-6/-7 实测生效）
 - **prologue-patient.txt**：序章耐心版——对话后全程静默让 SEE_ 电影镜头自走（试验场景）
 - **prologue-walk-storypoint.txt**：BUG-006 走位实验（task-20 一锤定音判据）——序章对话推进至 SEE_3_10_166_166_1
