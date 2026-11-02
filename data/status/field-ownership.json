@@ -1,0 +1,886 @@
+{
+ "schema": "field-ownership-1",
+ "rule": "每字段唯一归属（v3 §1 域切纪律）；双写=同字段写点跨归属域文件",
+ "fields": [
+  {
+   "field": "view",
+   "domain": "entity",
+   "why": "entity.rs AoS 聚合域"
+  },
+  {
+   "field": "entities",
+   "domain": "entity",
+   "why": "entity.rs AoS 聚合域"
+  },
+  {
+   "field": "grid",
+   "domain": "entity",
+   "why": "entity.rs AoS 聚合域"
+  },
+  {
+   "field": "images",
+   "domain": "env-infra",
+   "why": "准域对账（不重造：undo_journal/RouteTracker/PopupRing/BgmState/WalkState 邻面）"
+  },
+  {
+   "field": "walkable",
+   "domain": "entity",
+   "why": "entity.rs AoS 聚合域"
+  },
+  {
+   "field": "minimap",
+   "domain": "entity",
+   "why": "entity.rs AoS 聚合域"
+  },
+  {
+   "field": "minimap_enabled",
+   "domain": "coordinator",
+   "why": "GameScene 协调器保留（状态机/装配）"
+  },
+  {
+   "field": "layout",
+   "domain": "env-infra",
+   "why": "准域对账（不重造：undo_journal/RouteTracker/PopupRing/BgmState/WalkState 邻面）"
+  },
+  {
+   "field": "global",
+   "domain": "persist",
+   "why": "v3 §1 persist 收口域"
+  },
+  {
+   "field": "global_dirty",
+   "domain": "persist",
+   "why": "v3 §1 persist 收口域"
+  },
+  {
+   "field": "frame_counter",
+   "domain": "coordinator",
+   "why": "GameScene 协调器保留（状态机/装配）"
+  },
+  {
+   "field": "bob_offset",
+   "domain": "render",
+   "why": "E3 六字段显式划 render（前序切片禁触碰）"
+  },
+  {
+   "field": "bob_rising",
+   "domain": "render",
+   "why": "E3 六字段显式划 render（前序切片禁触碰）"
+  },
+  {
+   "field": "backdrop_scroll",
+   "domain": "render",
+   "why": "E3 六字段显式划 render（前序切片禁触碰）"
+  },
+  {
+   "field": "view_bottom",
+   "domain": "coordinator",
+   "why": "GameScene 协调器保留（状态机/装配）"
+  },
+  {
+   "field": "facing",
+   "domain": "entity",
+   "why": "entity.rs AoS 聚合域"
+  },
+  {
+   "field": "walk_phase",
+   "domain": "entity",
+   "why": "entity.rs AoS 聚合域"
+  },
+  {
+   "field": "player_frame",
+   "domain": "entity",
+   "why": "entity.rs AoS 聚合域"
+  },
+  {
+   "field": "player_bob_applied",
+   "domain": "entity",
+   "why": "entity.rs AoS 聚合域"
+  },
+  {
+   "field": "floor",
+   "domain": "persist",
+   "why": "v3 §1 persist 收口域"
+  },
+  {
+   "field": "player",
+   "domain": "entity",
+   "why": "entity.rs AoS 聚合域"
+  },
+  {
+   "field": "enemies",
+   "domain": "entity",
+   "why": "entity.rs AoS 聚合域"
+  },
+  {
+   "field": "enemy_base_hp",
+   "domain": "combat",
+   "why": "combat 纯计算域（combat.rs 已落）"
+  },
+  {
+   "field": "enemy_base_gold",
+   "domain": "combat",
+   "why": "combat 纯计算域（combat.rs 已落）"
+  },
+  {
+   "field": "alchemy_price",
+   "domain": "item-effect",
+   "why": "v3 §1 item/effect（效果状态）"
+  },
+  {
+   "field": "alchemy_gain_hp",
+   "domain": "item-effect",
+   "why": "v3 §1 item/effect（效果状态）"
+  },
+  {
+   "field": "alchemy_gain_atk",
+   "domain": "item-effect",
+   "why": "v3 §1 item/effect（效果状态）"
+  },
+  {
+   "field": "alchemy_gain_def",
+   "domain": "item-effect",
+   "why": "v3 §1 item/effect（效果状态）"
+  },
+  {
+   "field": "alchemy_cursor",
+   "domain": "item-effect",
+   "why": "v3 §1 item/effect（效果状态）"
+  },
+  {
+   "field": "alchemy_upgrade_count",
+   "domain": "item-effect",
+   "why": "v3 §1 item/effect（效果状态）"
+  },
+  {
+   "field": "merchant_entity",
+   "domain": "item-effect",
+   "why": "v3 §1 item/effect（效果状态）"
+  },
+  {
+   "field": "offer_queue_src",
+   "domain": "item-effect",
+   "why": "v3 §1 item/effect（效果状态）"
+  },
+  {
+   "field": "offer_queue_idx",
+   "domain": "item-effect",
+   "why": "v3 §1 item/effect（效果状态）"
+  },
+  {
+   "field": "offer_queue_cursor",
+   "domain": "item-effect",
+   "why": "v3 §1 item/effect（效果状态）"
+  },
+  {
+   "field": "softkeys",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "key_value",
+   "domain": "coordinator",
+   "why": "GameScene 协调器保留（状态机/装配）"
+  },
+  {
+   "field": "key_held",
+   "domain": "coordinator",
+   "why": "GameScene 协调器保留（状态机/装配）"
+  },
+  {
+   "field": "player_cell_x",
+   "domain": "entity",
+   "why": "entity.rs AoS 聚合域"
+  },
+  {
+   "field": "player_cell_y",
+   "domain": "entity",
+   "why": "entity.rs AoS 聚合域"
+  },
+  {
+   "field": "step_progress",
+   "domain": "entity",
+   "why": "entity.rs AoS 聚合域"
+  },
+  {
+   "field": "walk_step_count",
+   "domain": "entity",
+   "why": "entity.rs AoS 聚合域"
+  },
+  {
+   "field": "battle_target",
+   "domain": "combat",
+   "why": "combat 纯计算域（combat.rs 已落）"
+  },
+  {
+   "field": "battle_enemy_hp",
+   "domain": "combat",
+   "why": "combat 纯计算域（combat.rs 已落）"
+  },
+  {
+   "field": "battle_tick",
+   "domain": "combat",
+   "why": "combat 纯计算域（combat.rs 已落）"
+  },
+  {
+   "field": "battle_anim_tick",
+   "domain": "combat",
+   "why": "combat 纯计算域（combat.rs 已落）"
+  },
+  {
+   "field": "battle_finishing",
+   "domain": "combat",
+   "why": "combat 纯计算域（combat.rs 已落）"
+  },
+  {
+   "field": "battle_rerun_scene",
+   "domain": "combat",
+   "why": "combat 纯计算域（combat.rs 已落）"
+  },
+  {
+   "field": "battle_no_counter",
+   "domain": "combat",
+   "why": "combat 纯计算域（combat.rs 已落）"
+  },
+  {
+   "field": "battle_active",
+   "domain": "combat",
+   "why": "combat 纯计算域（combat.rs 已落）"
+  },
+  {
+   "field": "popups",
+   "domain": "env-infra",
+   "why": "准域对账（不重造：undo_journal/RouteTracker/PopupRing/BgmState/WalkState 邻面）"
+  },
+  {
+   "field": "transitioning",
+   "domain": "coordinator",
+   "why": "GameScene 协调器保留（状态机/装配）"
+  },
+  {
+   "field": "wipe_closing",
+   "domain": "render",
+   "why": "render 副作用/视觉态"
+  },
+  {
+   "field": "wipe",
+   "domain": "render",
+   "why": "render 副作用/视觉态"
+  },
+  {
+   "field": "pending_floor",
+   "domain": "persist",
+   "why": "v3 §1 persist 收口域"
+  },
+  {
+   "field": "went_down",
+   "domain": "persist",
+   "why": "v3 §1 persist 收口域"
+  },
+  {
+   "field": "min_floor",
+   "domain": "persist",
+   "why": "v3 §1 persist 收口域"
+  },
+  {
+   "field": "max_floor",
+   "domain": "persist",
+   "why": "v3 §1 persist 收口域"
+  },
+  {
+   "field": "route_entity",
+   "domain": "tap-input",
+   "why": "v3 §1 tap/input 域"
+  },
+  {
+   "field": "route_dir",
+   "domain": "tap-input",
+   "why": "v3 §1 tap/input 域"
+  },
+  {
+   "field": "route_phase",
+   "domain": "tap-input",
+   "why": "v3 §1 tap/input 域"
+  },
+  {
+   "field": "route_progress",
+   "domain": "tap-input",
+   "why": "v3 §1 tap/input 域"
+  },
+  {
+   "field": "route_start",
+   "domain": "tap-input",
+   "why": "v3 §1 tap/input 域"
+  },
+  {
+   "field": "current_floor",
+   "domain": "persist",
+   "why": "v3 §1 persist 收口域"
+  },
+  {
+   "field": "floor_assets",
+   "domain": "persist",
+   "why": "v3 §1 persist 收口域"
+  },
+  {
+   "field": "saved_floor_states",
+   "domain": "persist",
+   "why": "v3 §1 persist 收口域"
+  },
+  {
+   "field": "equipped_weapon",
+   "domain": "item-effect",
+   "why": "v3 §1 item/effect（效果状态）"
+  },
+  {
+   "field": "equipped_armor",
+   "domain": "item-effect",
+   "why": "v3 §1 item/effect（效果状态）"
+  },
+  {
+   "field": "equip_bonuses",
+   "domain": "item-effect",
+   "why": "v3 §1 item/effect（效果状态）"
+  },
+  {
+   "field": "equip_types",
+   "domain": "item-effect",
+   "why": "v3 §1 item/effect（效果状态）"
+  },
+  {
+   "field": "overlay_active",
+   "domain": "dialog-vm",
+   "why": "v3 §1 dialog-VM 域（浮层=对话视图面）"
+  },
+  {
+   "field": "overlay_kind",
+   "domain": "dialog-vm",
+   "why": "v3 §1 dialog-VM 域（浮层=对话视图面）"
+  },
+  {
+   "field": "overlay_text",
+   "domain": "dialog-vm",
+   "why": "v3 §1 dialog-VM 域（浮层=对话视图面）"
+  },
+  {
+   "field": "overlay_box_w",
+   "domain": "dialog-vm",
+   "why": "v3 §1 dialog-VM 域（浮层=对话视图面）"
+  },
+  {
+   "field": "overlay_box_h",
+   "domain": "dialog-vm",
+   "why": "v3 §1 dialog-VM 域（浮层=对话视图面）"
+  },
+  {
+   "field": "overlay_left_icon",
+   "domain": "dialog-vm",
+   "why": "v3 §1 dialog-VM 域（浮层=对话视图面）"
+  },
+  {
+   "field": "overlay_right_icon",
+   "domain": "dialog-vm",
+   "why": "v3 §1 dialog-VM 域（浮层=对话视图面）"
+  },
+  {
+   "field": "overlay_lines",
+   "domain": "dialog-vm",
+   "why": "v3 §1 dialog-VM 域（浮层=对话视图面）"
+  },
+  {
+   "field": "overlay_page_top",
+   "domain": "dialog-vm",
+   "why": "v3 §1 dialog-VM 域（浮层=对话视图面）"
+  },
+  {
+   "field": "overlay_page_bottom",
+   "domain": "dialog-vm",
+   "why": "v3 §1 dialog-VM 域（浮层=对话视图面）"
+  },
+  {
+   "field": "overlay_lines_per_page",
+   "domain": "dialog-vm",
+   "why": "v3 §1 dialog-VM 域（浮层=对话视图面）"
+  },
+  {
+   "field": "overlay_total_lines",
+   "domain": "dialog-vm",
+   "why": "v3 §1 dialog-VM 域（浮层=对话视图面）"
+  },
+  {
+   "field": "overlay_content_w",
+   "domain": "dialog-vm",
+   "why": "v3 §1 dialog-VM 域（浮层=对话视图面）"
+  },
+  {
+   "field": "open_group",
+   "domain": "coordinator",
+   "why": "GameScene 协调器保留（状态机/装配）"
+  },
+  {
+   "field": "open_anim_tick",
+   "domain": "render",
+   "why": "E3 六字段显式划 render（前序切片禁触碰）"
+  },
+  {
+   "field": "tile_bob",
+   "domain": "render",
+   "why": "E3 六字段显式划 render（前序切片禁触碰）"
+  },
+  {
+   "field": "tutorial_seen",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "stair_hint",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "game_mode",
+   "domain": "coordinator",
+   "why": "GameScene 协调器保留（状态机/装配）"
+  },
+  {
+   "field": "transition_count",
+   "domain": "coordinator",
+   "why": "GameScene 协调器保留（状态机/装配）"
+  },
+  {
+   "field": "last_transition",
+   "domain": "coordinator",
+   "why": "GameScene 协调器保留（状态机/装配）"
+  },
+  {
+   "field": "dialog_phase",
+   "domain": "dialog-vm",
+   "why": "v3 §1 dialog-VM 域（浮层=对话视图面）"
+  },
+  {
+   "field": "record_page",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "record_text_a",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "record_text_b",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "page_indicator",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "journal",
+   "domain": "persist",
+   "why": "v3 §1 persist 收口域"
+  },
+  {
+   "field": "ending_scroll",
+   "domain": "render",
+   "why": "render 副作用/视觉态"
+  },
+  {
+   "field": "ending_anim",
+   "domain": "render",
+   "why": "render 副作用/视觉态"
+  },
+  {
+   "field": "ending_done",
+   "domain": "render",
+   "why": "render 副作用/视觉态"
+  },
+  {
+   "field": "dialog_page",
+   "domain": "dialog-vm",
+   "why": "v3 §1 dialog-VM 域（浮层=对话视图面）"
+  },
+  {
+   "field": "dialog_page_end",
+   "domain": "dialog-vm",
+   "why": "v3 §1 dialog-VM 域（浮层=对话视图面）"
+  },
+  {
+   "field": "dialog_speaker",
+   "domain": "dialog-vm",
+   "why": "v3 §1 dialog-VM 域（浮层=对话视图面）"
+  },
+  {
+   "field": "dialog_anchor",
+   "domain": "dialog-vm",
+   "why": "v3 §1 dialog-VM 域（浮层=对话视图面）"
+  },
+  {
+   "field": "dialog_char",
+   "domain": "dialog-vm",
+   "why": "v3 §1 dialog-VM 域（浮层=对话视图面）"
+  },
+  {
+   "field": "dialog_target",
+   "domain": "dialog-vm",
+   "why": "v3 §1 dialog-VM 域（浮层=对话视图面）"
+  },
+  {
+   "field": "script_line",
+   "domain": "script",
+   "why": "script_ops/脚本引擎域"
+  },
+  {
+   "field": "script_cursor",
+   "domain": "script",
+   "why": "script_ops/脚本引擎域"
+  },
+  {
+   "field": "script_delay",
+   "domain": "script",
+   "why": "script_ops/脚本引擎域"
+  },
+  {
+   "field": "script_line_flags",
+   "domain": "script",
+   "why": "script_ops/脚本引擎域"
+  },
+  {
+   "field": "current_script_index",
+   "domain": "script",
+   "why": "script_ops/脚本引擎域"
+  },
+  {
+   "field": "dialog_data",
+   "domain": "dialog-vm",
+   "why": "v3 §1 dialog-VM 域（浮层=对话视图面）"
+  },
+  {
+   "field": "difficulty_index",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "script_walk_armed",
+   "domain": "script",
+   "why": "script_ops/脚本引擎域"
+  },
+  {
+   "field": "overlay_saved_color",
+   "domain": "dialog-vm",
+   "why": "v3 §1 dialog-VM 域（浮层=对话视图面）"
+  },
+  {
+   "field": "menu_kinds",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "menu_item_count",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "menu_box_width",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "menu_line_height",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "menu_visible_rows",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "menu_list_height",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "menu_scroll_top",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "menu_visible_bottom",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "menu_cursor",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "menu_return_mode",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "slot",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "preset_mot_if",
+   "domain": "persist",
+   "why": "v3 §1 persist 收口域"
+  },
+  {
+   "field": "encyc_damage",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "encyc_types",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "encyc_panel_w",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "encyc_count",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "encyc_rows_visible",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "encyc_panel_h",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "encyc_scroll_top",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "encyc_scroll_bottom",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "options",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "help_override",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "shell_options",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "bgm",
+   "domain": "env-infra",
+   "why": "准域对账（不重造：undo_journal/RouteTracker/PopupRing/BgmState/WalkState 邻面）"
+  },
+  {
+   "field": "saved_slot_blobs",
+   "domain": "persist",
+   "why": "v3 §1 persist 收口域"
+  },
+  {
+   "field": "rainbow_phase",
+   "domain": "render",
+   "why": "render 副作用/视觉态"
+  },
+  {
+   "field": "strip_frame",
+   "domain": "render",
+   "why": "E3 六字段显式划 render（前序切片禁触碰）"
+  },
+  {
+   "field": "in_game_menu_return_mode",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "item_cols",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "item_rows_total",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "item_rows_visible",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "item_scroll_top",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "item_scroll_bottom",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "item_box_w",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "item_box_h",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "item_cursor",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "path_arrows_visible",
+   "domain": "tap-input",
+   "why": "v3 §1 tap/input 域"
+  },
+  {
+   "field": "walk_path_buffer",
+   "domain": "tap-input",
+   "why": "v3 §1 tap/input 域"
+  },
+  {
+   "field": "undo",
+   "domain": "tap-input",
+   "why": "v3 §1 tap/input 域"
+  },
+  {
+   "field": "route",
+   "domain": "tap-input",
+   "why": "v3 §1 tap/input 域"
+  },
+  {
+   "field": "ui_selected",
+   "domain": "tap-input",
+   "why": "v3 §1 tap/input 域"
+  },
+  {
+   "field": "ui_frame",
+   "domain": "tap-input",
+   "why": "v3 §1 tap/input 域"
+  },
+  {
+   "field": "auto_battle",
+   "domain": "tap-input",
+   "why": "v3 §1 tap/input 域"
+  },
+  {
+   "field": "tap_target",
+   "domain": "tap-input",
+   "why": "v3 §1 tap/input 域"
+  },
+  {
+   "field": "tap_reject",
+   "domain": "tap-input",
+   "why": "v3 §1 tap/input 域"
+  },
+  {
+   "field": "tap_selected",
+   "domain": "tap-input",
+   "why": "v3 §1 tap/input 域"
+  },
+  {
+   "field": "overlay_kind_item",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "overlay_icon",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "overlay_item_name",
+   "domain": "menu-ui",
+   "why": "v3 §1 menu/UI 域（含 item 面板/encyc/record）"
+  },
+  {
+   "field": "object_type_names",
+   "domain": "entity",
+   "why": "entity.rs AoS 聚合域"
+  },
+  {
+   "field": "width_table",
+   "domain": "entity",
+   "why": "entity.rs AoS 聚合域"
+  },
+  {
+   "field": "tile_walk",
+   "domain": "entity",
+   "why": "entity.rs AoS 聚合域"
+  },
+  {
+   "field": "rng",
+   "domain": "env-infra",
+   "why": "准域对账（不重造：undo_journal/RouteTracker/PopupRing/BgmState/WalkState 邻面）"
+  },
+  {
+   "field": "afterimage_x",
+   "domain": "render",
+   "why": "render 副作用/视觉态"
+  },
+  {
+   "field": "afterimage_y",
+   "domain": "render",
+   "why": "render 副作用/视觉态"
+  },
+  {
+   "field": "view_locked",
+   "domain": "entity",
+   "why": "entity.rs AoS 聚合域"
+  },
+  {
+   "field": "show_battle_digits",
+   "domain": "combat",
+   "why": "combat 纯计算域（combat.rs 已落）"
+  },
+  {
+   "field": "battle_digit_by_type",
+   "domain": "combat",
+   "why": "combat 纯计算域（combat.rs 已落）"
+  },
+  {
+   "field": "ease_cam_x",
+   "domain": "render",
+   "why": "render 副作用/视觉态"
+  },
+  {
+   "field": "ease_cam_y",
+   "domain": "render",
+   "why": "render 副作用/视觉态"
+  },
+  {
+   "field": "ease_target_x",
+   "domain": "render",
+   "why": "render 副作用/视觉态"
+  },
+  {
+   "field": "ease_target_y",
+   "domain": "render",
+   "why": "render 副作用/视觉态"
+  }
+ ]
+}

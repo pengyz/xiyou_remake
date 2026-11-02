@@ -412,12 +412,6 @@ impl BootMachine {
         }
     }
 
-    /// 一次 paint（serviceRepaints → a.paint）。按 [`Self::mode`] 分发。
-    /// 【task-14】内容居中平移（开场链经典构图整体平移）：
-    /// dx=(screen_w−经典宽)/2（classic dx=0 恒等）。
-    fn content_dx(&self) -> i32 {
-        (self.layout.screen_w - crate::layout::SCREEN_W) / 2
-    }
 
     pub fn paint(&mut self, g: &mut SoftGraphics<'_>) {
         self.paints += 1;

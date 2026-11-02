@@ -1133,7 +1133,8 @@ fn paint_equipment_frame<'a>(
 pub(crate) mod slot_equip_test_support {
     #[cfg(test)]
     use crate::layout::{MINIFRAME_FILL, SCREEN_H, SCREEN_W};
-    use crate::render::ArgbImage;
+    #[cfg(test)]
+use crate::render::ArgbImage; // 【2026-11-02 警告清】随测试件门控（release 死码面清）
     #[cfg(test)]
     use crate::render::SoftGraphics;
 
@@ -1141,6 +1142,7 @@ pub(crate) mod slot_equip_test_support {
     // 判定c（测试引用中）：scene.rs:7962 scene_with（release 亦编译的测试岛 helper）经
     // synthetic_sptarm 引用本表；scene.rs 归 UX 批，岛挂门后本 allow 可撤。
     /// 【2026-11-02 实归】原 #[allow(dead_code)] 撤（岛 slot_equip_scene_tests 已挂 #[cfg(test)]——临时压警跨批滞留纠正，复核C 黄①）。
+#[cfg(test)] // 【2026-11-02 警告清】测试支撑件（scene_tests 跨引）——release 死码三类判定：cfg 归位
 pub const ICON_COLORS: [u32; 10] = [
         0xFFFF0000, 0xFF00FF00, 0xFF0000FF, 0xFFFFFF00, 0xFFFF00FF, 0xFF00FFFF, 0xFF800000,
         0xFF008000, 0xFF000080, 0xFF808000,
@@ -1163,7 +1165,8 @@ pub const ICON_COLORS: [u32; 10] = [
     /// 尺寸逐张不同（居中偏移逐张可辨）。
     // 判定c（测试引用中）：release 侧活引用=scene.rs slot_equip_scene_tests 的
     // scene_with 等 helper（跨文件耦合，scene.rs 归 UX 批）；同上，岛挂门后撤 allow。
-    pub fn synthetic_sptarm() -> Vec<ArgbImage> {
+    #[cfg(test)] // 【2026-11-02 警告清】同上（合成图集=测试夹具件）
+pub fn synthetic_sptarm() -> Vec<ArgbImage> {
         (0..10)
             .map(|i| {
                 let (w, h) = (11 + 2 * i as i32, 25 - i as i32);

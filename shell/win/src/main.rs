@@ -98,7 +98,9 @@ fn apply_hd_demo_tileset(assets: &mut Assets, assets_dir: &std::path::Path) {
 /// 防双壳拷贝漂移）：`FileRms` 实现 `game_platform::Storage`（接缝①；键域/键名走契约
 /// `RMS_STORES`/`rms_key`/`rms_store_name`）。本地别名保既有调用面与测试
 /// （`crate::Rms`/`crate::serialize_slot_if`）零改动（adversary 裁定 A：机械接线）。
-use game_shell_common::rms::{serialize_slot_if, FileRms as Rms};
+use game_shell_common::rms::FileRms as Rms;
+#[cfg(test)] // 【2026-11-02 警告清】测试经 crate::serialize_slot_if 引——release 未用面门控
+use game_shell_common::rms::serialize_slot_if;
 
 // ---------------------------------------------------------------- 键位
 
