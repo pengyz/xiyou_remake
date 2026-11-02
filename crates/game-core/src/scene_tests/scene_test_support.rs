@@ -168,8 +168,8 @@
             vec![None; 56],
         )
         .unwrap();
-        sc.floor = 2;
-        sc.current_floor = 2;
+        sc.persist.floor = 2;
+        sc.persist.current_floor = 2;
         let tables = crate::combat::CombatTables {
             enemy_base_hp: numbers(include_str!("../../tests/fixtures/enemybasehp.txt")),
             enemy_base_atk: numbers(include_str!("../../tests/fixtures/enemybaseatk.txt")),

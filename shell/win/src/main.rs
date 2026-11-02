@@ -222,7 +222,7 @@ mod font_inject {
     /// BUG-018 回归（2026-10-17 用户实机："保存存档后，加载存档，无法看到已保存的存档"）：
 /// ①Rms 六槽全键域落盘/回读（原只载 MOT_L0-2 ⇒ 槽 3-5 保存丢失）；
 /// ②MOT_IF 槽表序列化对偶（serialize_slot_if ↔ load_slot_table）。
-/// 壳层接线（保存块 upsert + sc.preset_mot_if 回写 + BootMachine stores 同步）
+/// 壳层接线（保存块 upsert + sc.persist.preset_mot_if 回写 + BootMachine stores 同步）
 /// 由 Shell::step 存档块承载，本测锁 Rms 层键域与格式对偶。
 #[cfg(test)]
 mod rms_save_roundtrip {
@@ -927,7 +927,7 @@ impl Shell {
         let mot_if = game_shell_common::handoff::put_slot_if(&mut self.stores, &slot);
         self.rms.persist(&self.stores);
         if let Some(Screen::Game(sc)) = self.state.as_mut() {
-            sc.preset_mot_if = Some(mot_if); // 重读源同步（BUG-018 环）
+            sc.persist.preset_mot_if = Some(mot_if); // 重读源同步（BUG-018 环）
         }
     }
 
@@ -1005,7 +1005,7 @@ impl Shell {
                 }
                 // 交接一：读档（槽载入动画完成 → mode 3）——共享实现（handoff.rs，交接即消费信号）
                 if let Some(sc) = game_shell_common::handoff::slot_scene(&self.assets, &mut machine, &self.stores) {
-                    self.persisted_blobs = sc.saved_slot_blobs.clone();
+                    self.persisted_blobs = sc.persist.saved_slot_blobs.clone();
                     self.enter_scene(sc, machine);
                     return;
                 }

@@ -602,8 +602,8 @@ impl Runtime {
             // 【竖屏】游戏场景用 scene 档布局（可与开场链不同档，同一物理视口）
             sc.apply_layout(self.scene_layout.clone());
             sc.apply_global(self.machine.global_snapshot());
-            self.persisted_blobs = sc.saved_slot_blobs.clone();
-            log_input(&format!("handoff → GameScene floor={} mode={:?}", sc.floor, sc.game_mode));
+            self.persisted_blobs = sc.persist.saved_slot_blobs.clone();
+            log_input(&format!("handoff → GameScene floor={} mode={:?}", sc.persist.floor, sc.game_mode));
             self.scene = Some(Box::new(sc));
         }
     }
@@ -746,7 +746,7 @@ impl Runtime {
         // MOT_IF 读失败回写（BUG-021 ②c）+ Game 侧重读源同步（BUG-018 环）
         if sc.slot.take_parse_dirty() {
             let slot = sc.slot.clone();
-            sc.preset_mot_if = Some(handoff::put_slot_if(&mut self.stores, &slot));
+            sc.persist.preset_mot_if = Some(handoff::put_slot_if(&mut self.stores, &slot));
             self.storage.persist(&self.stores);
         }
         if sc.game_mode == GameMode::MainMenu {

@@ -1,6 +1,35 @@
 //! task-15 步④ 装载/存档/换层（move-only 自 scene.rs）。
 use super::*; // scene.rs 私有面可见（子模块）——纯剪切语义保持
 
+/// 【task-15 V2 persist 收口】持久域切片（v3 §1 域切纪律：一次性切禁双写）——
+/// 装载/存档/换层状态 13 字段唯一归属（field-ownership.json persist 域）。
+/// dump 名不变（state_dump 名集面零漂）。
+pub struct PersistState {
+    /// SKY_WAR 全局存档（saveGlobalProgress a.java:8917-8942；两机同构拷贝）。
+    pub global: crate::save::GlobalSave,
+    /// 全局态脏位（壳轮询持久化）。
+    pub global_dirty: bool,
+    /// HUD 数值源（paintHudPanel/paintStatusBar 读；战斗/拾取写）
+    pub floor: i32,
+    pub current_floor: i32,
+    /// minFloorReached/maxFloorReached
+    pub min_floor: i32,
+    pub max_floor: i32,
+    /// f_byte_arr2_05：层状态存档（m_119 写/m_122 读；索引=层号）
+    pub saved_floor_states: Vec<Option<Vec<u8>>>,
+    /// 层资产表（按层号索引）
+    pub floor_assets: Vec<Option<FloorAssets>>,
+    /// 虚拟 RMS：MOT_L{slot} 槽位 blob（saveFloorState 写侧；game-core 无 I/O）
+    pub saved_slot_blobs: [Option<Vec<u8>>; 6],
+    /// MOT_IF 槽表 blob（preset 虚拟 RMS；loadSlotTable 每次进 mode7 重读）
+    pub preset_mot_if: Option<Vec<u8>>,
+    /// pendingFloor：目标层
+    pub pending_floor: i32,
+    /// wentDown：下楼标记（型7 上楼传 false）
+    pub went_down: bool,
+    pub journal: Vec<(i32, i32)>,
+}
+
 impl GameScene {
     pub fn load_floor(
         maplv: &[u8],
@@ -15,8 +44,21 @@ impl GameScene {
         let mut scene = GameScene {
             ui_selected: None,
             ui_frame: 0,
-            global: crate::save::GlobalSave::default_7(),
-            global_dirty: false,
+            persist: PersistState {
+    global: crate::save::GlobalSave::default_7(),
+    global_dirty: false,
+    floor: 1,
+    pending_floor: 0,
+    went_down: false,
+    min_floor: 1,
+    max_floor: 1,
+    current_floor: 1,
+    floor_assets,
+    saved_floor_states: vec![None; 56],
+    journal: Vec::new(),
+    preset_mot_if: None,
+    saved_slot_blobs: [None, None, None, None, None, None],
+            },
             view: GameView::from_maplv(maplv, player_px, player_py, crate::game_view::ViewDims::classic())?,
             entities: EntityTable::new(100),
             grid: CellGrid::new(1, 1),
@@ -34,7 +76,6 @@ impl GameScene {
             walk_phase: 0,
             player_frame: 0,
             player_bob_applied: false,
-            floor: 1,
             player: crate::combat::PlayerCombat {
                 hp: 0,
                 atk: 0,
@@ -70,18 +111,11 @@ impl GameScene {
             transitioning: false,
             wipe_closing: true,
             wipe: 0,
-            pending_floor: 0,
-            went_down: false,
-            min_floor: 1,
-            max_floor: 1,
             route_entity: 0,
             route_dir: 0,
             route_phase: 0,
             route_progress: 0,
             route_start: (0, 0),
-            current_floor: 1,
-            floor_assets,
-            saved_floor_states: vec![None; 56],
             object_type_names: {
                 let raw = include_str!("../tests/fixtures/object_type_names.txt");
                 raw.lines().map(|l| l.trim().to_string()).collect()
@@ -125,7 +159,6 @@ impl GameScene {
                 .map(|l| l.replace("\\n", "\n"))
                 .collect(),
             page_indicator: String::new(),
-            journal: Vec::new(),
             ending_scroll: 0,
             ending_anim: 0,
             ending_done: false,
@@ -155,7 +188,6 @@ impl GameScene {
             menu_cursor: 0,
             menu_return_mode: GameMode::MainMenu,
             slot: crate::menu_family::SlotSelect::new(),
-            preset_mot_if: None,
             encyc_damage: Vec::new(),
             encyc_types: Vec::new(),
             encyc_panel_w: ENCYC_PANEL_W,
@@ -178,7 +210,6 @@ impl GameScene {
             help_override: None,
             shell_options: Vec::new(),
             bgm: crate::audio::BgmState::in_game_default(),
-            saved_slot_blobs: [None, None, None, None, None, None],
             rainbow_phase: 0,
             strip_frame: 0,
             in_game_menu_return_mode: GameMode::Boot, // BUG-008：Java 无初值（默认 0）保真对齐；原值 3 属顺手修 bug 偏差
@@ -216,7 +247,7 @@ impl GameScene {
             ease_target_x: 0,
             ease_target_y: 0,
         };
-        scene.load_floor_data(maplv, player_px, player_py, records, scene.floor)?;
+        scene.load_floor_data(maplv, player_px, player_py, records, scene.persist.floor)?;
         Ok(scene)
     }
     /// loadFloorData 的原地重载（换层遮幅中段 a.java:3189 调用同方法）：
@@ -262,7 +293,7 @@ impl GameScene {
         // 已开门保持开）；无存档 → sprite{n} 权威数据 + 5/81/6/12/76/82/83 隐藏
         // 存档态按**目标层**取键（a.java:9465+ f_byte_arr2_05[py_key]）——跨层装载
         // （probe/ADD）时不得取当前层（潜伏缺陷 2026-10-15 修）
-        if let Some(data) = self.saved_floor_states[floor as usize].clone() {
+        if let Some(data) = self.persist.saved_floor_states[floor as usize].clone() {
             // m_122 存档分支核=entity::restore_floor_state（第 1 步文件合流）；
             // 恢复臂 index quirk（a.java:9638）随核保留。
             let img_h_of = |t: i32| self.images.entity.get(t as usize).cloned().flatten().map(|im| im.height);
@@ -304,11 +335,11 @@ impl GameScene {
     pub fn change_floor(&mut self, target: i32, down: bool, strict: bool) -> bool {
         if strict {
             // 已达层界提示（a.java:7133-7144）：下界 miscTexts[0]、上界 [1]
-            if target < self.min_floor {
+            if target < self.persist.min_floor {
                 self.show_overlay_message(0, MISC_TEXTS[0], 0, 0);
                 return false;
             }
-            if target > self.max_floor {
+            if target > self.persist.max_floor {
                 self.show_overlay_message(0, MISC_TEXTS[1], 0, 0);
                 return false;
             }
@@ -332,14 +363,14 @@ impl GameScene {
         // > （a.java:7863-7866）。误挂使**脚本行走踩楼梯**（mode 11 中 MOV 走上梯格，如一层嫦娥
         // > 走位戏 script19 尾 `MOV_0_11_1 MOV_0_1_11`）切层即回 mode 3、丢弃剩余脚本——Java 在
         // > mode 11 续跑（fx-chang-e-floor1-taps T786：Java gameMode=11，2 层续走 MOV_0_1_11）。
-        if target < self.min_floor {
-            self.min_floor = target;
-        } else if target > self.max_floor {
-            self.max_floor = target;
+        if target < self.persist.min_floor {
+            self.persist.min_floor = target;
+        } else if target > self.persist.max_floor {
+            self.persist.max_floor = target;
             self.note_max_floor(target); // f_int_154 水位（a.java:7163-7164）
         }
-        self.pending_floor = target;
-        self.went_down = down;
+        self.persist.pending_floor = target;
+        self.persist.went_down = down;
         true
     }
     /// m_119（a.java:9373-9400）：层状态序列化。格式：u16 计数（BE，m_120）+
@@ -354,34 +385,34 @@ impl GameScene {
         // m_119：表操作核=entity::serialize_floor_state（第 1 步文件合流）；
         // count==0 ⇒ 存 null（a.java:9383-9384）留本层。
         if self.entities.count == 0 {
-            self.saved_floor_states[self.floor as usize] = None;
+            self.persist.saved_floor_states[self.persist.floor as usize] = None;
             return;
         }
         let data = entity::serialize_floor_state(&self.entities);
-        self.saved_floor_states[self.floor as usize] = Some(data);
+        self.persist.saved_floor_states[self.persist.floor as usize] = Some(data);
     }
     /// 遮幅中段换层（a.java:3186-3206）：loadFloorData + 落点特例
     /// （0/50/1-上行 place_player_at_cell；其余 findFloorGateEntity → step_off_stairs）+ 小地图 + 步效果。
     pub(super) fn swap_floor(&mut self) {
-        self.floor = self.pending_floor;
-        self.current_floor = self.pending_floor;
-        let fa = self.floor_assets[self.pending_floor as usize]
+        self.persist.floor = self.persist.pending_floor;
+        self.persist.current_floor = self.persist.pending_floor;
+        let fa = self.persist.floor_assets[self.persist.pending_floor as usize]
             .clone()
             .expect("层资产未提供");
         let px = self.view.player_px;
         let py = self.view.player_py;
-        self.load_floor_data(&fa.maplv, px, py, &fa.records, self.floor)
+        self.load_floor_data(&fa.maplv, px, py, &fa.records, self.persist.floor)
             .expect("层资产重载失败");
-        if self.floor == 0 {
+        if self.persist.floor == 0 {
             self.place_player_at_cell(1, 2);
             self.view.center_on_player();
-        } else if self.floor == 50 {
+        } else if self.persist.floor == 50 {
             self.place_player_at_cell(6, 7);
             self.view.center_on_player();
-        } else if self.floor == 1 && !self.went_down {
+        } else if self.persist.floor == 1 && !self.persist.went_down {
             self.place_player_at_cell(6, 11);
             self.view.center_on_player();
-        } else if let Some((gx, gy)) = self.find_floor_gate(self.went_down) {
+        } else if let Some((gx, gy)) = self.find_floor_gate(self.persist.went_down) {
             self.step_off_stairs(gx, gy);
         }
         self.build_minimap();
@@ -399,13 +430,13 @@ impl GameScene {
     pub fn reload_floor_entities(&mut self, floor: i32) {
         let mut entities = entity::EntityTable::new(100);
         let mut grid = entity::CellGrid::new(self.view.wide, self.view.high);
-        if let Some(data) = self.saved_floor_states[floor as usize].clone() {
+        if let Some(data) = self.persist.saved_floor_states[floor as usize].clone() {
             // m_122 存档分支核=entity::restore_floor_state（第 1 步文件合流）；
             // 恢复臂 index quirk（按循环下标回填 visible/removed，a.java:9638）随核保留。
             let img_h_of = |t: i32| self.images.entity.get(t as usize).cloned().flatten().map(|im| im.height);
             entity::restore_floor_state(&mut entities, &mut grid, &data, &self.width_table, &img_h_of);
             self.apply_restore_rules(&mut entities, &mut grid);
-        } else if let Some(fa) = self.floor_assets.get(floor as usize).cloned().flatten() {
+        } else if let Some(fa) = self.persist.floor_assets.get(floor as usize).cloned().flatten() {
             for &(type_code, x, y, param, visible) in &fa.records {
                 let img_h = self.images.entity[type_code as usize].as_ref().map(|i| i.height);
                 let idx = entity::spawn(
@@ -434,7 +465,7 @@ impl GameScene {
     /// 结果以真装载后的实体表为准（floor23 存档态无型12 ⇒ false，与参照跑
     /// T281 mode=3 吻合）。
     pub fn probe_cross_floor_snapshot(&mut self, floor: i32, type_id: i32) -> bool {
-        let foreign = self.floor != floor;
+        let foreign = self.persist.floor != floor;
         if foreign {
             self.save_floor_state();
             self.reload_floor_entities(floor);
@@ -447,7 +478,7 @@ impl GameScene {
             }
         }
         if foreign {
-            self.reload_floor_entities(self.floor);
+            self.reload_floor_entities(self.persist.floor);
         }
         found
     }
@@ -482,9 +513,9 @@ impl GameScene {
     pub(super) fn serialize_slot_blob(&self) -> Vec<u8> {
         let mut o = Vec::new();
         o.push(self.difficulty_index as u8);
-        o.push(self.floor as u8);
-        o.push(self.min_floor as u8);
-        o.push(self.max_floor as u8);
+        o.push(self.persist.floor as u8);
+        o.push(self.persist.min_floor as u8);
+        o.push(self.persist.max_floor as u8);
         o.push(self.facing as u8);
         o.push(self.equipped_weapon as u8); // equippedWeaponType（a.java:9192 写真实值）
         o.push(self.equipped_armor as u8); // equippedArmorType（a.java:9193）
@@ -507,8 +538,8 @@ impl GameScene {
         o.extend_from_slice(&(self.alchemy_upgrade_count as i16).to_be_bytes());
         // writeShort(inventoryEntryCount，原 inventoryEntryCount) + f_byte_arr_14/15 对（a.java:9207-9212）= mode12 日志
         //（读侧 a.java:9278-9283 → journal；旧写法取恒空的 special_item_types）
-        o.extend_from_slice(&(self.journal.len() as i16).to_be_bytes());
-        for &(kind, idx) in &self.journal {
+        o.extend_from_slice(&(self.persist.journal.len() as i16).to_be_bytes());
+        for &(kind, idx) in &self.persist.journal {
             o.push(kind as u8);
             o.push(idx as u8);
         }
@@ -525,7 +556,7 @@ impl GameScene {
         }
         // 56 层触发状态
         for k in 0..56usize {
-            match &self.saved_floor_states[k] {
+            match &self.persist.saved_floor_states[k] {
                 Some(d) => {
                     o.extend_from_slice(&(d.len() as i16).to_be_bytes());
                     o.extend_from_slice(d);

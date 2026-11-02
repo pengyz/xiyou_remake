@@ -327,7 +327,7 @@ fn run_scene(spec: &Spec, mut observe: impl FnMut(u32, &GameScene)) -> GameScene
                     sc.bob_rising = t.bob_rising;
                 }
                 sc.strip_frame = m.strip_frame;
-                sc.preset_mot_if = m
+                sc.persist.preset_mot_if = m
                     .preset_stores
                     .iter()
                     .find(|(k, _)| k.starts_with("MOT_IF@"))

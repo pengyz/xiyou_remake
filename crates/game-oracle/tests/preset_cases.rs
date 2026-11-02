@@ -251,7 +251,7 @@ fn preset_load_menu_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
-                    sc.preset_mot_if = m
+                    sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
                         .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -452,7 +452,7 @@ fn preset_help_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
-                    sc.preset_mot_if = m
+                    sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
                         .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -653,7 +653,7 @@ fn preset_item13_frames_match() {
                     sc.bob_rising = t.bob_rising;
                 }
                 sc.strip_frame = m.strip_frame;
-                sc.preset_mot_if = m
+                sc.persist.preset_mot_if = m
                     .preset_stores
                     .iter()
                     .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -866,7 +866,7 @@ fn preset_itemstack_frames_match() {
                     sc.bob_rising = t.bob_rising;
                 }
                 sc.strip_frame = m.strip_frame;
-                sc.preset_mot_if = m
+                sc.persist.preset_mot_if = m
                     .preset_stores
                     .iter()
                     .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -1098,7 +1098,7 @@ fn preset_item2122_frames_match() {
                     sc.bob_rising = t.bob_rising;
                 }
                 sc.strip_frame = m.strip_frame;
-                sc.preset_mot_if = m
+                sc.persist.preset_mot_if = m
                     .preset_stores
                     .iter()
                     .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -1333,7 +1333,7 @@ fn preset_item21_frames_match() {
                     sc.bob_rising = t.bob_rising;
                 }
                 sc.strip_frame = m.strip_frame;
-                sc.preset_mot_if = m
+                sc.persist.preset_mot_if = m
                     .preset_stores
                     .iter()
                     .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -1547,7 +1547,7 @@ fn preset_itemcymbal_frames_match() {
                     sc.bob_rising = t.bob_rising;
                 }
                 sc.strip_frame = m.strip_frame;
-                sc.preset_mot_if = m
+                sc.persist.preset_mot_if = m
                     .preset_stores
                     .iter()
                     .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -1799,7 +1799,7 @@ fn preset_itemboss40_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
-                    sc.preset_mot_if = m
+                    sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
                         .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -2036,7 +2036,7 @@ fn preset_floor2_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
-                    sc.preset_mot_if = m
+                    sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
                         .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -2272,7 +2272,7 @@ fn preset_merchant_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
-                    sc.preset_mot_if = m
+                    sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
                         .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -2500,7 +2500,7 @@ fn floor_crossing_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
-                    sc.preset_mot_if = m
+                    sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
                         .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -2717,9 +2717,9 @@ fn prologue_frames_match() {
                     floor_assets.clone(),
                 )
                 .unwrap();
-                sc.floor = 51;
-                sc.min_floor = 51;
-                sc.max_floor = 51;
+                sc.persist.floor = 51;
+                sc.persist.min_floor = 51;
+                sc.persist.max_floor = 51;
                 sc.player.hp = 300;
                 sc.player.atk = 10;
                 sc.player.def = 10;
@@ -2938,9 +2938,9 @@ fn floor51_menu_frames_match() {
                     floor_assets.clone(),
                 )
                 .unwrap();
-                sc.floor = 51;
-                sc.min_floor = 51;
-                sc.max_floor = 51;
+                sc.persist.floor = 51;
+                sc.persist.min_floor = 51;
+                sc.persist.max_floor = 51;
                 sc.player.hp = 300;
                 sc.player.atk = 10;
                 sc.player.def = 10;
@@ -3173,7 +3173,7 @@ fn gameplay_floor1_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
-                    sc.preset_mot_if = m
+                    sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
                         .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -3402,7 +3402,7 @@ fn floor2_tour_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
-                    sc.preset_mot_if = m
+                    sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
                         .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -3629,7 +3629,7 @@ fn floor1_tour_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
-                    sc.preset_mot_if = m
+                    sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
                         .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -3856,7 +3856,7 @@ fn walk_pure_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
-                    sc.preset_mot_if = m
+                    sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
                         .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -4074,7 +4074,7 @@ fn preset_save_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
-                    sc.preset_mot_if = m
+                    sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
                         .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -4314,7 +4314,7 @@ fn preset_floor35_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
-                    sc.preset_mot_if = m
+                    sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
                         .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -4553,7 +4553,7 @@ fn preset_floor10_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
-                    sc.preset_mot_if = m
+                    sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
                         .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -4809,7 +4809,7 @@ fn preset_floor46_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
-                    sc.preset_mot_if = m
+                    sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
                         .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -5049,7 +5049,7 @@ fn preset_floor41_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
-                    sc.preset_mot_if = m
+                    sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
                         .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -5281,7 +5281,7 @@ fn preset_floor44_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
-                    sc.preset_mot_if = m
+                    sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
                         .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -5513,7 +5513,7 @@ fn preset_floor45_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
-                    sc.preset_mot_if = m
+                    sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
                         .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -5747,7 +5747,7 @@ fn preset_floor48_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
-                    sc.preset_mot_if = m
+                    sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
                         .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -5982,7 +5982,7 @@ fn preset_floor14_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
-                    sc.preset_mot_if = m
+                    sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
                         .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -6215,7 +6215,7 @@ fn preset_floor38_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
-                    sc.preset_mot_if = m
+                    sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
                         .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -6446,7 +6446,7 @@ fn preset_floor47_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
-                    sc.preset_mot_if = m
+                    sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
                         .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -6675,7 +6675,7 @@ fn preset_floor34_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
-                    sc.preset_mot_if = m
+                    sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
                         .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -6904,7 +6904,7 @@ fn preset_floor10_nw_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
-                    sc.preset_mot_if = m
+                    sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
                         .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -7132,7 +7132,7 @@ fn preset_floor10b_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
-                    sc.preset_mot_if = m
+                    sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
                         .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -7360,7 +7360,7 @@ fn preset_floor17_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
-                    sc.preset_mot_if = m
+                    sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
                         .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -7601,7 +7601,7 @@ fn preset_floor42_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
-                    sc.preset_mot_if = m
+                    sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
                         .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -7838,7 +7838,7 @@ fn preset_floor43_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
-                    sc.preset_mot_if = m
+                    sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
                         .find(|(k, _)| k.starts_with("MOT_IF@"))
@@ -8071,7 +8071,7 @@ fn preset_alchemy_frames_match() {
                         sc.bob_rising = t.bob_rising;
                     }
                     sc.strip_frame = m.strip_frame;
-                    sc.preset_mot_if = m
+                    sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
                         .find(|(k, _)| k.starts_with("MOT_IF@"))

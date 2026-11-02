@@ -182,7 +182,7 @@ fn build_scene() -> GameScene {
     scene.player.blue_keys = s.blue_keys as i32;
     scene.player.red_keys = s.red_keys as i32;
     scene.player.gold = s.gold;
-    scene.floor = s.current_floor as i32;
+    scene.persist.floor = s.current_floor as i32;
     // 敌方表：基础三表（夹具）× 难度乘数 1（difficultyIndex=0 → ×1，
     // scaleEnemyStats a.java:7239-7240）+ 赏金/基础 HP
     let base = game_core::combat::CombatTables {

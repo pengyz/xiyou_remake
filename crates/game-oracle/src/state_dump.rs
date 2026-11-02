@@ -97,7 +97,7 @@ pub fn dump_scene(sc: &GameScene) -> Vec<String> {
     push(e_int("viewHeightPx", sc.view.view_h));
     push(e_int("mapCellsWide", sc.view.wide));
     push(e_int("mapCellsHigh", sc.view.high));
-    push(e_int("currentFloor", sc.floor));
+    push(e_int("currentFloor", sc.persist.floor));
     push(e_int("entityCount", sc.entities.count as i32));
     push(e_int("yellowKeyCount", sc.player.yellow_keys));
     push(e_int("blueKeyCount", sc.player.blue_keys));

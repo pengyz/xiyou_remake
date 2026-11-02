@@ -64,7 +64,7 @@ impl GameScene {
     /// LAY_x（a.java:8355-8362）：m_119 存态 + 目标层 + 遮幅（phase=5）+ 清 overlay。
     pub(super) fn op_lay(&mut self, floor: i32) {
         self.save_floor_state();
-        self.pending_floor = floor;
+        self.persist.pending_floor = floor;
         self.transitioning = true;
         self.overlay_text = None;
         self.dialog_phase = 5;
@@ -92,21 +92,21 @@ impl GameScene {
             self.player.item_stack_size = 0;
             self.player.gold = 4;
             self.alchemy_upgrade_count = 0;
-            self.min_floor = 1;
-            self.max_floor = 3;
+            self.persist.min_floor = 1;
+            self.persist.max_floor = 3;
             self.player.atk = 10;
             self.player.def = 10;
             self.player.hp = 400;
-            self.journal.clear();
+            self.persist.journal.clear();
         }
     }
 
     /// ADD_a_b_c_d（a.java:8438-8468）：跨层生成实体——目标层非当前时
     /// m_119 存当前→m_122 载目标→spawn→m_119 存目标→还原（8462-8464）。
     pub(super) fn op_add(&mut self, floor: i32, ty: i32, cx: i32, cy: i32) {
-        if self.floor != floor {
+        if self.persist.floor != floor {
             self.save_floor_state();
-            if self.floor_assets.get(floor as usize).cloned().flatten().is_some() {
+            if self.persist.floor_assets.get(floor as usize).cloned().flatten().is_some() {
                 self.reload_floor_entities(floor);
             }
         }
@@ -121,9 +121,9 @@ impl GameScene {
             None,
         );
         self.save_floor_state();
-        if self.floor != floor {
-            if self.floor_assets.get(self.floor as usize).cloned().flatten().is_some() {
-                self.reload_floor_entities(self.floor);
+        if self.persist.floor != floor {
+            if self.persist.floor_assets.get(self.persist.floor as usize).cloned().flatten().is_some() {
+                self.reload_floor_entities(self.persist.floor);
             }
         }
     }

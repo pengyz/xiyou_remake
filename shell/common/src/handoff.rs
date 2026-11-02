@@ -155,9 +155,9 @@ pub fn new_game_scene(assets: &GameAssets, machine: &mut BootMachine) -> GameSce
         assets.floors.clone(),
     )
     .unwrap();
-    sc.floor = 51;
-    sc.min_floor = 51;
-    sc.max_floor = 51;
+    sc.persist.floor = 51;
+    sc.persist.min_floor = 51;
+    sc.persist.max_floor = 51;
     sc.player.hp = 300;
     sc.player.atk = 10;
     sc.player.def = 10;
@@ -209,7 +209,7 @@ pub fn slot_scene(
         sc.bob_rising = machine.bob_rising;
     }
     sc.strip_frame = machine.strip_frame;
-    sc.preset_mot_if = stores
+    sc.persist.preset_mot_if = stores
         .iter()
         .find(|(k, _)| k.starts_with("MOT_IF@"))
         .map(|(_, v)| v.clone());
@@ -237,18 +237,18 @@ pub fn return_to_title(machine: &mut BootMachine, sc: &GameScene) {
 
 /// 槽存档写穿（win 壳 step 存档块迁入；BUG-018 upsert 口径）：scene 侧
 /// `saved_slot_blobs` 相对已落盘指纹 `persisted` 变化 ⇒ upsert `MOT_L{idx}@1` + 整表
-/// `MOT_IF@1`，回写 `sc.preset_mot_if`（mode7/8 每次进入的重读源）。返回 true=stores
+/// `MOT_IF@1`，回写 `sc.persist.preset_mot_if`（mode7/8 每次进入的重读源）。返回 true=stores
 /// 已变（调用方 `Storage::persist`）；无变化=false（幂等）。
 pub fn sync_scene_saves(
     sc: &mut GameScene,
     stores: &mut Vec<(String, Vec<u8>)>,
     persisted: &mut [Option<Vec<u8>>; 6],
 ) -> bool {
-    if sc.saved_slot_blobs == *persisted {
+    if sc.persist.saved_slot_blobs == *persisted {
         return false;
     }
     for idx in 0..6 {
-        if let Some(blob) = &sc.saved_slot_blobs[idx] {
+        if let Some(blob) = &sc.persist.saved_slot_blobs[idx] {
             let key = format!("MOT_L{idx}@1");
             match stores.iter_mut().find(|(k, _)| *k == key) {
                 Some((_, v)) => *v = blob.clone(),
@@ -259,8 +259,8 @@ pub fn sync_scene_saves(
     let mot_if = crate::rms::serialize_slot_if(&sc.slot);
     stores.retain(|(k, _)| !k.starts_with("MOT_IF@"));
     stores.push(("MOT_IF@1".into(), mot_if.clone()));
-    *persisted = sc.saved_slot_blobs.clone();
-    sc.preset_mot_if = Some(mot_if);
+    *persisted = sc.persist.saved_slot_blobs.clone();
+    sc.persist.preset_mot_if = Some(mot_if);
     true
 }
 
@@ -335,7 +335,7 @@ mod tests {
         let mut m = machine(&src);
         m.new_game_ready = true;
         let sc = new_game_scene(&assets, &mut m);
-        assert_eq!((sc.floor, sc.min_floor, sc.max_floor), (51, 51, 51), "序章层 51");
+        assert_eq!((sc.persist.floor, sc.persist.min_floor, sc.persist.max_floor), (51, 51, 51), "序章层 51");
         assert_eq!((sc.player.hp, sc.player.atk, sc.player.def), (300, 10, 10), "冷启动统计 a.java:3496-3506");
         assert!(!m.new_game_ready, "交接信号一次性消费（回标题后不得再开新游戏）");
         assert!(!sc.enemy_base_hp.is_empty(), "敌人数值表已装配");
@@ -368,7 +368,7 @@ mod tests {
         assert!(slot_scene(&assets, &mut m, &[]).is_none(), "无档=不交接");
         assert_eq!(m.slot_loaded, Some(0), "未交接不消费（win 同口径：等档就绪）");
         let sc = slot_scene(&assets, &mut m, &stores).expect("有档=交接");
-        assert!(sc.floor >= 1, "读档还原层号（实得 {}）", sc.floor);
+        assert!(sc.persist.floor >= 1, "读档还原层号（实得 {}）", sc.persist.floor);
         assert_eq!(m.slot_loaded, None, "交接即消费（回标题后新游戏不得误走槽分支）");
     }
 
@@ -431,12 +431,12 @@ mod tests {
         let mut stores = vec![("SKY_WAR@1".to_string(), vec![1, 2, 3])];
         let mut persisted: [Option<Vec<u8>>; 6] = Default::default();
         assert!(!sync_scene_saves(&mut sc, &mut stores, &mut persisted), "无新存档=不写");
-        sc.saved_slot_blobs[2] = Some(vec![9, 9]);
+        sc.persist.saved_slot_blobs[2] = Some(vec![9, 9]);
         assert!(sync_scene_saves(&mut sc, &mut stores, &mut persisted), "新存档=写穿");
         assert!(stores.iter().any(|(k, v)| k == "MOT_L2@1" && v == &vec![9, 9]), "槽 2 upsert");
         assert_eq!(stores.iter().filter(|(k, _)| k.starts_with("MOT_IF@")).count(), 1, "MOT_IF 整表一条");
         assert!(stores.iter().any(|(k, _)| k == "SKY_WAR@1"), "无关键不动");
-        assert!(sc.preset_mot_if.is_some(), "回写 preset_mot_if（mode7/8 重读源）");
+        assert!(sc.persist.preset_mot_if.is_some(), "回写 preset_mot_if（mode7/8 重读源）");
         assert!(!sync_scene_saves(&mut sc, &mut stores, &mut persisted), "指纹已同步=幂等");
     }
 

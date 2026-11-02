@@ -21,15 +21,15 @@
     fn save_floor_state_null_only_when_entity_table_empty() {
         let mut sc = scene((3, 3), &[]);
         assert_eq!(sc.entities.count, 0);
-        sc.saved_floor_states[2] = Some(vec![9, 9]);
+        sc.persist.saved_floor_states[2] = Some(vec![9, 9]);
         sc.save_floor_state();
-        assert_eq!(sc.saved_floor_states[2], None, "entityCount==0 → null（a.java:9383-9384）");
+        assert_eq!(sc.persist.saved_floor_states[2], None, "entityCount==0 → null（a.java:9383-9384）");
 
         let mut sc = scene((3, 3), &[(43, 5, 3)]);
         let e = sc.entity_at_cell(5, 3, 43) as usize;
         entity::remove(&mut sc.entities, e);
         sc.save_floor_state();
-        assert_eq!(sc.saved_floor_states[2], Some(vec![0, 0]), "有实体全死 → 计数 0 的 2 字节块");
+        assert_eq!(sc.persist.saved_floor_states[2], Some(vec![0, 0]), "有实体全死 → 计数 0 的 2 字节块");
     }
 
     /// ③ floor2 恢复特例：`!flags[26] && findBlockingEntity(11,4,84) < 0` → spawnEntity(84,352,128,0)。
@@ -37,17 +37,17 @@
     fn floor2_restore_respawns_84_only_while_script26_pending() {
         for (flag26, respawn) in [(false, true), (true, false)] {
             let mut sc = scene((3, 3), &[]);
-            assert_eq!(sc.floor, 2);
+            assert_eq!(sc.persist.floor, 2);
             sc.script_line_flags[26] = flag26;
-            sc.saved_floor_states[2] = Some(vec![0, 0]); // 恢复分支（0 实体）
-            sc.load_floor_data(&maplv(), 3 << 5, 3 << 5, &[], sc.floor).unwrap();
+            sc.persist.saved_floor_states[2] = Some(vec![0, 0]); // 恢复分支（0 实体）
+            sc.load_floor_data(&maplv(), 3 << 5, 3 << 5, &[], sc.persist.floor).unwrap();
             assert_eq!(sc.entity_at_cell(11, 4, 84) >= 0, respawn, "flags[26]={flag26}");
         }
         // 非 2 层不补生
         let mut sc = scene((3, 3), &[]);
-        sc.floor = 3;
-        sc.saved_floor_states[3] = Some(vec![0, 0]);
-        sc.load_floor_data(&maplv(), 3 << 5, 3 << 5, &[], sc.floor).unwrap();
+        sc.persist.floor = 3;
+        sc.persist.saved_floor_states[3] = Some(vec![0, 0]);
+        sc.load_floor_data(&maplv(), 3 << 5, 3 << 5, &[], sc.persist.floor).unwrap();
         assert!(sc.entity_at_cell(11, 4, 84) < 0);
     }
 
@@ -67,8 +67,8 @@
             v
         }
         let mut sc = scene((3, 3), &[]);
-        sc.floor = 12;
-        sc.saved_floor_states[12] = Some(blob(&[
+        sc.persist.floor = 12;
+        sc.persist.saved_floor_states[12] = Some(blob(&[
             (78, 1 << 5, 1 << 5, 9),
             (78, 11 << 5, 1 << 5, 9),
             (78, 5 << 5, 5 << 5, 9),
@@ -109,8 +109,8 @@
             v
         }
         let mut sc = scene((3, 3), &[]);
-        sc.floor = 39;
-        sc.saved_floor_states[39] = Some(blob(&[
+        sc.persist.floor = 39;
+        sc.persist.saved_floor_states[39] = Some(blob(&[
             (7, 11 << 5, 1 << 5, 0),
             (8, 11 << 5, 11 << 5, 0),
             (43, 5 << 5, 5 << 5, 0),

@@ -65,7 +65,7 @@ impl GameScene {
         entities: &mut EntityTable,
         grid: &mut CellGrid,
     ) {
-        let Some(rule) = RESTORE_RULES.iter().find(|r| r.floor == self.floor) else {
+        let Some(rule) = RESTORE_RULES.iter().find(|r| r.floor == self.persist.floor) else {
             return;
         };
         for action in rule.actions {

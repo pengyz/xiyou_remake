@@ -72,7 +72,7 @@ fn new_game_flow_reaches_scene_and_map() {
         run_until(&mut rt, &src, 400, &[], |r| r.scene.is_some()),
         "序章跳过 → 读条 → 交接 GameScene（旧壳此处回落标题）"
     );
-    assert_eq!(rt.scene.as_ref().unwrap().floor, 51, "新游戏序章层 51");
+    assert_eq!(rt.scene.as_ref().unwrap().persist.floor, 51, "新游戏序章层 51");
     assert!(!rt.title_mode(), "场景活动时非标题态");
     assert_eq!(rt.bgm_request(), Some(3), "游戏曲 track3（场景接管 BGM 请求）");
     // 序章剧情对话：逐拍确认推进，稳定落 Map
@@ -212,7 +212,7 @@ fn save_exit_to_title_then_continue_loads_slot() {
     assert_eq!(rt.machine.mode, GameMode::EquipDetail, "继续游戏 → 读档槽列表");
     tap_key(&mut rt, &src, -5);
     assert!(run_until(&mut rt, &src, 400, &[], |r| r.scene.is_some()), "读条 → 读档交接 GameScene");
-    assert_eq!(rt.scene.as_ref().unwrap().floor, 51, "读回存档层号");
+    assert_eq!(rt.scene.as_ref().unwrap().persist.floor, 51, "读回存档层号");
     assert!(!rt.crashed);
     let _ = std::fs::remove_dir_all(&dir);
 }

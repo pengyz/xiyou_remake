@@ -27,7 +27,7 @@ fn event_line(rt: &Runtime) -> String {
         .collect();
     format!(
         "f{} {:?} s{}@{} pg{} ph{} pl({},{})+({},{}) e84{:?}",
-        sc.floor,
+        sc.persist.floor,
         sc.game_mode,
         sc.current_script_index,
         sc.script_cursor,

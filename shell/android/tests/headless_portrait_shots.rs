@@ -242,7 +242,7 @@ fn headless_portrait_niumowang_dialog_and_gold_popup() {
         step(&mut rt, &mut host, &[], vec![]);
         n += 1;
     }
-    assert_eq!(rt.scene.as_ref().expect("读档交接").floor, 2, "天牢 2 层");
+    assert_eq!(rt.scene.as_ref().expect("读档交接").persist.floor, 2, "天牢 2 层");
     // 踩点自走 → 对话；推页直到牛魔王（72）说话页的对话框在屏
     let mut k = 0;
     let mut holding = false;
@@ -251,7 +251,7 @@ fn headless_portrait_niumowang_dialog_and_gold_popup() {
         let sc = rt.scene.as_ref().unwrap();
         let ev = format!(
             "f{} {:?} pg{} sp{} ph{} pl({},{})",
-            sc.floor,
+            sc.persist.floor,
             sc.game_mode,
             sc.dialog_page,
             sc.dialog_speaker,

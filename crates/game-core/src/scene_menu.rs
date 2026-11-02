@@ -164,7 +164,7 @@ impl GameScene {
     pub(super) fn enter_menu4(&mut self) {
         self.reset_menu_layout();
         self.add_menu_item(1);
-        if self.floor > 50 {
+        if self.persist.floor > 50 {
             self.add_menu_item(17);
         }
         self.add_menu_item(3);
@@ -501,7 +501,7 @@ impl GameScene {
         self.slot.reset_entry_layout();
         // 【Y3】提示词根随面：mode7 存档="保存"/mode8 读档="加载"（a.java 语义）
         self.slot.retry_verb = if self.game_mode == GameMode::SaveSlot { "保存" } else { "加载" };
-        self.slot.load_slot_table(self.preset_mot_if.as_deref());
+        self.slot.load_slot_table(self.persist.preset_mot_if.as_deref());
         self.softkeys = (1, 3);
     }
     /// run case 7（a.java:3829-3878，case7/8 共享）：-7 回 menuReturnMode；
@@ -517,10 +517,10 @@ impl GameScene {
                     self.save_floor_state();
                     let cursor = self.slot.cursor as usize;
                     let blob = self.serialize_slot_blob();
-                    self.saved_slot_blobs[cursor] = Some(blob);
+                    self.persist.saved_slot_blobs[cursor] = Some(blob);
                     // markSlotEntry（a.java:9152-9172）
                     self.slot.valid[cursor] = true;
-                    self.slot.floor_num[cursor] = self.floor as i8;
+                    self.slot.floor_num[cursor] = self.persist.floor as i8;
                     self.slot.hp[cursor] = self.player.hp;
                     self.slot.atk[cursor] = self.player.atk;
                     self.slot.def[cursor] = self.player.def;

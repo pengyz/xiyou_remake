@@ -424,7 +424,7 @@ mod tests {
     fn t1_map_selected_monster() {
         let mut sc = scene((2, ROW), &[(41, 8, ROW)]);
         let e = (0..sc.entities.count).find(|&i| sc.entities.items[i].type_ == 41).unwrap();
-        sc.tap_selected = Some(crate::tap_walk::SelectedEnemy { entity: e, type_: 41, cell: (8, ROW), floor: sc.current_floor });
+        sc.tap_selected = Some(crate::tap_walk::SelectedEnemy { entity: e, type_: 41, cell: (8, ROW), floor: sc.persist.current_floor });
         let c = sc.controls();
         assert_eq!(
             c.mid,

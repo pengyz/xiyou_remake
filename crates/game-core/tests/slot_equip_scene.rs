@@ -264,7 +264,7 @@ fn preset_save_equip_frames_match() {
                     sc.bob_rising = t.bob_rising;
                 }
                 sc.strip_frame = m.strip_frame;
-                sc.preset_mot_if = m
+                sc.persist.preset_mot_if = m
                     .preset_stores
                     .iter()
                     .find(|(k, _)| k.starts_with("MOT_IF@"))

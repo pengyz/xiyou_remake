@@ -49,6 +49,7 @@ mod script_ops;
 mod restore_rules;
 pub(crate) use script_ops::ScriptOp;
 pub use restore_rules::{RestoreAction, RestoreRule, RESTORE_RULES};
+use scene_persist::PersistState;
 
 /// f_Image_arr2_00 的 16 容器名序已迁 `sheet_index.containers`（a.java:451 名序值行；
 /// 张数表锚勘误=a.java:453 非 451）——查表入口 `resource_cfg::ResourceCfg::container_names`。
@@ -280,10 +281,6 @@ pub struct GameScene {
     /// 布局面（STAGE-B-002）：classic=原版恒等（默认）；modern=公式派生能力面。
     /// 消费方（shell 缩放适配）在交接时按预设改写。
     pub layout: crate::layout::Layout,
-    /// SKY_WAR 全局存档（saveGlobalProgress a.java:8917-8942；两机同构拷贝）。
-    pub global: crate::save::GlobalSave,
-    /// 全局态脏位（壳轮询持久化）。
-    pub global_dirty: bool,
     /// frameCounter（run 循环变量，TICK n 拍 = n-1）
     pub frame_counter: i64,
     /// advanceBobPhase 浮沉相位（paint 内推进）
@@ -298,8 +295,6 @@ pub struct GameScene {
     pub walk_phase: i32,
     pub player_frame: i32,
     pub player_bob_applied: bool, // player_bob_applied
-    /// HUD 数值源（paintHudPanel/paintStatusBar 读；战斗/拾取写）
-    pub floor: i32,
     /// 玩家战斗面（HP/攻/防/三钥/金/物品栈——tickBattle 与拾取的读写集）
     pub player: crate::combat::PlayerCombat,
     /// 敌方缩放表（scaleEnemyStats：difficultyIndex=0 → ×1）
@@ -371,13 +366,6 @@ pub struct GameScene {
     pub wipe_closing: bool,
     /// wipePhase：遮幅计数 0..=4
     pub wipe: i32,
-    /// pendingFloor：目标层
-    pub pending_floor: i32,
-    /// wentDown：下楼标记（型7 上楼传 false）
-    pub went_down: bool,
-    /// minFloorReached/maxFloorReached
-    pub min_floor: i32,
-    pub max_floor: i32,
     /// route_entity：dp2 路径缓动实体索引（MOV 五参 a.java:8289 写 findBlockingEntity（原 findBlockingEntity）结果——
     /// 未命中亦写 -1；openWallOnRoute 收尾/战斗收尾写 -1）。paintEntityLayer case 32 型 72
     /// "追踪中"分支（a.java:6660）读之。Java int 字段默认 0（首个 MOV 前恒 0）。
@@ -394,11 +382,6 @@ pub struct GameScene {
     /// f_int_129/f_int_130：路径起点格（MOV 五参 a.java:8297-8298 写；relocateSlotsAtRouteEnd 迁槽的
     /// "旧格"——全程不随实体移动更新）
     pub route_start: (i32, i32),
-    pub current_floor: i32,
-    /// 层资产表（按层号索引）
-    pub floor_assets: Vec<Option<FloorAssets>>,
-    /// f_byte_arr2_05：层状态存档（m_119 写/m_122 读；索引=层号）
-    pub saved_floor_states: Vec<Option<Vec<u8>>>,
     /// equippedWeaponType/ArmorType（resetNewGameState 重置；tryEquip 更新；HUD 槽显示）
     pub equipped_weapon: i32,
     pub equipped_armor: i32,
@@ -446,7 +429,6 @@ pub struct GameScene {
     pub record_text_a: Vec<String>,
     pub record_text_b: Vec<String>,
     pub page_indicator: String,
-    pub journal: Vec<(i32, i32)>,
     /// mode20 结局卷轴状态（Java f_int_22/f_int_23/f_bool_04——dispatchModeEntry case20
     /// **不重置**，场景构造期零值即 Java 新运行初值）。
     pub ending_scroll: i32,
@@ -497,8 +479,6 @@ pub struct GameScene {
     pub menu_return_mode: GameMode,
     /// mode 7 存档槽状态（dispatchModeEntry case7 布局 + loadSlotTable 冷态）
     pub slot: crate::menu_family::SlotSelect,
-    /// MOT_IF 槽表 blob（preset 虚拟 RMS；loadSlotTable 每次进 mode7 重读）
-    pub preset_mot_if: Option<Vec<u8>>,
     /// mode 5 敌人图鉴：f_int_arr_22（预测伤害）/f_byte_arr_20（类型）
     pub encyc_damage: Vec<i32>,
     pub encyc_types: Vec<u8>,
@@ -519,8 +499,6 @@ pub struct GameScene {
     ///（run case16 label0 翻转，a.java:4157）。独立构造默认 = 「刚进 mode 3、声音开」；
     /// 宿主从 BootMachine 交接时整体覆盖（Java 为同一对象，状态连续）。
     pub bgm: crate::audio::BgmState,
-    /// 虚拟 RMS：MOT_L{slot} 槽位 blob（saveFloorState 写侧；game-core 无 I/O）
-    pub saved_slot_blobs: [Option<Vec<u8>>; 6],
     /// shopRainbowPhase：商店条目彩虹色相位（paint 每 4 拍推进）
     pub rainbow_phase: i32,
     /// iconStripFrame（a.java:464 全局；mode16 图标条动画帧）
@@ -542,6 +520,8 @@ pub struct GameScene {
     pub walk_path_buffer: Vec<u8>,
     /// 【T2】操作级回撤 journal（T1 模块；只在 WalkTo/探步寻路段落笔——经典面零写入）
     pub undo: crate::undo_journal::UndoJournal,
+    /// 【task-15 V2 persist 收口】持久域切片（13 字段→PersistState，唯一归属）。
+    pub persist: PersistState,
     /// 【T2】WalkTo 路段追踪器（位移笔=段起终点/中断挂起=实际终点/战斗笔=终结时）
     pub route: crate::pathfind::RouteTracker,
     /// 【BUG-040 · T2】点地寻路被打断、但 dp3 仍归寻路所有（走完当前步即回 Map）。打断会收束
@@ -652,10 +632,10 @@ pub fn load_floor_from_save(
         floor_assets,
     )?;
     // step 16 = loadFloorSave 字段应用（a.java:9257-9299）
-    scene.floor = save.current_floor as i32;
-    scene.current_floor = save.current_floor as i32;
-    scene.min_floor = save.min_floor_reached as i32;
-    scene.max_floor = save.max_floor_reached as i32;
+    scene.persist.floor = save.current_floor as i32;
+    scene.persist.current_floor = save.current_floor as i32;
+    scene.persist.min_floor = save.min_floor_reached as i32;
+    scene.persist.max_floor = save.max_floor_reached as i32;
     scene.facing = 0; // step 11（a.java:3521，覆盖 blob 朝向——Java 原样）
     scene.equipped_weapon = save.equipped_weapon_type as i32; // 读档恢复装备（a.java:9260）
     scene.equipped_armor = save.equipped_armor_type as i32; // （a.java:9261）
@@ -666,21 +646,21 @@ pub fn load_floor_from_save(
     scene.player.blue_keys = save.blue_keys as i32;
     scene.player.red_keys = save.red_keys as i32;
     scene.player.gold = save.gold;
-    scene.journal = save.journal.iter().map(|(k, i)| (*k as i32, *i as i32)).collect();
+    scene.persist.journal = save.journal.iter().map(|(k, i)| (*k as i32, *i as i32)).collect();
     scene.player.item_stack_size = save.item_stack_size as i32;
     scene.alchemy_upgrade_count = save.alchemy_upgrades as i32; // a.java:9281 链（loadFloorSave 应用）
     for k in 0..save.item_stack_size as usize {
         scene.player.item_types[k] = save.item_stack_types[k];
         scene.player.item_uses[k] = save.item_stack_uses[k];
     }
-    scene.saved_floor_states = save.floor_states.clone();
+    scene.persist.saved_floor_states = save.floor_states.clone();
     // scriptLineFlags 读回（a.java:9285-9291：前 scriptLineCount 项 readBoolean，余
     // skip）——须先于 step 10 loadFloorData（m_122 floor2 恢复特例读 flags[26]）
     scene.script_line_flags = vec![false; 128];
     let line_count = scene.dialog_data.scripts.len().min(save.script_flags.len());
     scene.script_line_flags[..line_count].copy_from_slice(&save.script_flags[..line_count]);
     // step 10 = loadFloorData（应用本层触发缓存）+ buildMinimap（a.java:3515-3517）
-    scene.load_floor_data(maplv, px, py, records, scene.floor)?;
+    scene.load_floor_data(maplv, px, py, records, scene.persist.floor)?;
     scene.build_minimap();
     // step 11 相机（a.java:3523-3525）+ dispatchModeEntry case 3（a.java:4312-4318）
     scene.enter_view();
@@ -1367,7 +1347,7 @@ impl GameScene {
                     entity: e,
                     type_: ent.type_,
                     cell: (ent.px >> 5, ent.py >> 5),
-                    floor: self.current_floor,
+                    floor: self.persist.current_floor,
                 });
                 self.tap_target = None;
                 return TapResult::Selected;
@@ -1455,7 +1435,7 @@ impl GameScene {
             || self.walk_phase != 0
             || self.overlay_active
             || self.transitioning
-            || self.current_floor != s.floor
+            || self.persist.current_floor != s.floor
             || s.entity >= self.entities.count
         {
             return false;
@@ -2286,7 +2266,7 @@ impl GameScene {
 
     /// SKY_WAR 快照（[0]=soundEnabled 镜像 a.java:7284；[1]=minimap_enabled）。
     pub fn global_snapshot(&self) -> crate::save::GlobalSave {
-        let mut g = self.global.clone();
+        let mut g = self.persist.global.clone();
         g.option_checked[0] = self.bgm.sound_enabled;
         g.option_checked[1] = self.minimap_enabled;
         g
@@ -2294,20 +2274,20 @@ impl GameScene {
 
     /// 消费脏位。
     pub fn take_global_dirty(&mut self) -> bool {
-        std::mem::take(&mut self.global_dirty)
+        std::mem::take(&mut self.persist.global_dirty)
     }
 
     /// 装载/交接灌入（不置脏）。
     pub fn apply_global(&mut self, g: crate::save::GlobalSave) {
-        self.global = g;
-        self.global_dirty = false;
+        self.persist.global = g;
+        self.persist.global_dirty = false;
     }
 
     /// 水位抬升（a.java:7163-7164：`floor<51 && floor>水位`）。
     pub fn note_max_floor(&mut self, floor: i32) {
-        if floor < 51 && floor > self.global.max_floor_watermark {
-            self.global.max_floor_watermark = floor;
-            self.global_dirty = true;
+        if floor < 51 && floor > self.persist.global.max_floor_watermark {
+            self.persist.global.max_floor_watermark = floor;
+            self.persist.global_dirty = true;
         }
     }
 
@@ -2452,7 +2432,7 @@ impl GameScene {
                 // a.java:7832-7850：对角瞬移——40 层禁用；镜像格 interact 放行
                 // → place_player_at_cell + 相机居中 + applyStepCellEffects + 消耗；
                 // 拦截且无浮层 → 「无法移动到该位置」不消耗
-                if self.floor == 40 {
+                if self.persist.floor == 40 {
                     self.show_overlay_message(0, "本层不能直接瞬移。", 0, 0);
                     false
                 } else {
@@ -2479,7 +2459,7 @@ impl GameScene {
             21 => {
                 // a.java:7863-7866：changeFloor(+1)（返回值即消耗与否）+ keyHeldCode=0 + gameMode=3
                 //（面板内道具触发路径不停留 mode 10——A-preset-item21 T402 实证；mode 3 归本调用方，BUG-026）
-                let consumed = self.change_floor(self.floor + 1, false, false);
+                let consumed = self.change_floor(self.persist.floor + 1, false, false);
                 self.key_held = 0;
                 self.transition_to(GameMode::Map);
                 consumed
@@ -3772,9 +3752,9 @@ impl GameScene {
                                     self.transition_to(GameMode::Alchemy);
                                     self.alchemy_price =
                                         Self::alchemy_price_for(self.alchemy_upgrade_count + 1);
-                                    self.alchemy_gain_hp = Self::scaled_by_floor_tier(100, self.floor);
-                                    self.alchemy_gain_atk = Self::scaled_by_floor_tier(2, self.floor);
-                                    self.alchemy_gain_def = Self::scaled_by_floor_tier(4, self.floor);
+                                    self.alchemy_gain_hp = Self::scaled_by_floor_tier(100, self.persist.floor);
+                                    self.alchemy_gain_atk = Self::scaled_by_floor_tier(2, self.persist.floor);
+                                    self.alchemy_gain_def = Self::scaled_by_floor_tier(4, self.persist.floor);
                                     // dispatchModeEntry()：mode 9 run 臂对无键进入无动作（a.java:3885 default）
                                 }
                             }
@@ -3791,7 +3771,7 @@ impl GameScene {
                             }
                             11 => {
                                 // 墙（a.java:5441-5448）：23 层静默；其余提示。阻挡 + 停扫
-                                if self.floor != 23 {
+                                if self.persist.floor != 23 {
                                     self.show_overlay_message(
                                         0,
                                         "障碍物：墙\n只有金勺子、玄明石可以凿开。或者剧情打开！",
@@ -4019,7 +3999,7 @@ impl GameScene {
                                 // loadLevelScript(22) + 40 层 spawnBossEvent(6)；
                                 // 型74 → 脚本 21；型75 → 脚本 20（重入场景）
                                 let mut rerun = false;
-                                if self.floor <= 50 {
+                                if self.persist.floor <= 50 {
                                     if let Some(bi) =
                                         BOSS_TYPE_ORDER.iter().rposition(|&b| b == t)
                                     {
@@ -4030,7 +4010,7 @@ impl GameScene {
                                             self.script_line_flags
                                                 [self.current_script_index] = true;
                                             self.load_level_script(22);
-                                            if self.floor == 40 {
+                                            if self.persist.floor == 40 {
                                                 self.spawn_boss_event(6);
                                             }
                                         }
@@ -4070,7 +4050,7 @@ impl GameScene {
                     let vt = self.entities.items[self.battle_target as usize].type_;
                     match vt {
                         61 => {
-                            if self.floor == 49
+                            if self.persist.floor == 49
                                 && self.entity_at_cell(6, 2, 61) < 0
                                 && self.entity_at_cell(5, 3, 61) < 0
                                 && self.entity_at_cell(7, 3, 61) < 0
@@ -4101,18 +4081,18 @@ impl GameScene {
                             }
                         }
                         69 => {
-                            if self.floor == 35 {
+                            if self.persist.floor == 35 {
                                 self.spawn_boss_event(7);
                                 self.load_level_script(36);
                             }
                         }
                         70 | 71 => {
-                            if self.floor == 49 {
+                            if self.persist.floor == 49 {
                                 self.load_level_script(35);
                             }
                         }
                         72 => {
-                            if self.floor == 50 {
+                            if self.persist.floor == 50 {
                                 self.load_level_script(65);
                             }
                         }
@@ -4422,11 +4402,11 @@ impl GameScene {
     /// （a.java:5172-5184，difficultyIndex=0 → 无 ×16）。
     /// floorTier（a.java:7642-7652）：((floor-1)/10) 钳负、floor>50 归 0，返回 +1。
     pub fn floor_tier(&self) -> i32 {
-        let mut tier = (self.floor - 1) / 10;
+        let mut tier = (self.persist.floor - 1) / 10;
         if tier < 0 {
             tier = 0;
         }
-        if self.floor > 50 {
+        if self.persist.floor > 50 {
             tier = 0;
         }
         tier + 1
@@ -4452,10 +4432,10 @@ impl GameScene {
             // ((floor-1)/10)+1（floor>50 钳 0，a.java:7642-7652）。迭代 31：
             // 原硬编码 tier=1 仅对 ≤10 层成立，floor12 实测 +50 应为 +100。
             29 => {
-                if self.floor <= 10 { self.player.atk += 1 } else { self.player.atk += self.floor_tier() }
+                if self.persist.floor <= 10 { self.player.atk += 1 } else { self.player.atk += self.floor_tier() }
             }
             30 => {
-                if self.floor <= 10 { self.player.def += 1 } else { self.player.def += self.floor_tier() }
+                if self.persist.floor <= 10 { self.player.def += 1 } else { self.player.def += self.floor_tier() }
             }
             31 => self.apply_hp_delta(50 * self.floor_tier()),
             32 => self.apply_hp_delta(200 * self.floor_tier()),
@@ -4715,7 +4695,7 @@ impl GameScene {
         // 【V2-P2 消费替换】floor50 类目覆写改查 sprite_defs.floor_category_override
         // （表驱动；旧特例 `t==72 && floor==50 → 8` 与表逐值等价）。
         crate::resource_cfg::global()
-            .floor_category(t, self.floor)
+            .floor_category(t, self.persist.floor)
             .unwrap_or_else(|| entity::render_category(t))
     }
 
@@ -4735,7 +4715,7 @@ impl GameScene {
     /// kind=0 → f_String_arr_06，其余 → f_String_arr_09；总条数 0 →
     /// "没有记录" 回 mode10。
     fn open_record_page(&mut self, page: i32) {
-        let total = self.journal.len() as i32;
+        let total = self.persist.journal.len() as i32;
         if total > 0 {
             self.record_page = if page < 0 {
                 total - 1
@@ -4744,7 +4724,7 @@ impl GameScene {
             } else {
                 page
             };
-            let (kind, idx) = self.journal[self.record_page as usize];
+            let (kind, idx) = self.persist.journal[self.record_page as usize];
             let text = if kind == 0 {
                 self.record_text_a.get(idx as usize).cloned().unwrap_or_default()
             } else {

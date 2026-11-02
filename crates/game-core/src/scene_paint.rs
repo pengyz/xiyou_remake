@@ -836,7 +836,7 @@ impl GameScene {
             // Java trace `drawImageT(20x13,60,304,0,8192)`）。【BUG-032】旧直传 1（shim 表 1 = 垂直翻转）。
             g.draw_image_transformed(&arrow, self.layout.arrow_pair_left_x - bob, arrow_y, 0, crate::paint::NOKIA_TRANSFORM_TABLE[1]);
         }
-        if self.record_page < self.journal.len() as i32 - 1 {
+        if self.record_page < self.persist.journal.len() as i32 - 1 {
             g.draw_image(&arrow, self.layout.arrow_pair_right_x + bob, arrow_y, 0);
         }
         m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
@@ -850,7 +850,7 @@ impl GameScene {
         let font = crate::paint::paint_font();
         g.set_clip(0, 0, self.layout.screen_w, self.layout.screen_h);
         g.draw_image(&self.images.ui[3], 0, base_y, 0);
-        if self.floor > 50 {
+        if self.persist.floor > 50 {
             // "引子" outline 文本（drawOutlinedText a.java:4487-4495）：anchor 17 =
             // TOP(16)|HCENTER(1) 顶部居中——8 向偏移点各画一次全串（色[0]）+
             // 中心 fill（色[1]）。shim 常量：VCENTER=2 非 16！
@@ -872,7 +872,7 @@ impl GameScene {
                 g.draw_string(&text, *px, *py, 17);
             }
         } else {
-            paint_number(g, &self.images.ui[18], self.floor, STATUS_FLOOR_NUM_X, base_y + 4 + 2);
+            paint_number(g, &self.images.ui[18], self.persist.floor, STATUS_FLOOR_NUM_X, base_y + 4 + 2);
             g.draw_image(&self.images.ui[8], STATUS_TIER_ICON_X, base_y + 4 + 10, 0);
         }
         g.set_color(STATUS_FILL);

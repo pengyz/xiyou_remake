@@ -737,7 +737,7 @@
         // 跨层探针的实体表重载（下标重排）
         let mut sc = scene((5, ROW), &[(41, 8, ROW)]);
         sc.undo.push_move(stroke);
-        let f = sc.floor;
+        let f = sc.persist.floor;
         sc.reload_floor_entities(f);
         assert!(sc.undo.is_empty(), "实体表重载清栈");
         // 炼丹购买
@@ -794,8 +794,8 @@
     #[test]
     fn bug048_victory_script_takeover_keeps_route_closed_and_journal_empty() {
         let mut sc = scene((5, ROW), &[(70, 6, ROW)]);
-        sc.floor = 49;
-        sc.current_floor = 49;
+        sc.persist.floor = 49;
+        sc.persist.current_floor = 49;
         sc.dialog_data.scripts = vec!["TAK_0_0 ".to_string(); 40];
         sc.player.atk = 100_000;
         sc.player.def = 100_000;
@@ -962,8 +962,8 @@
     #[test]
     fn bug048_script_takeover_with_spawn_keeps_route_closed_and_journal_empty() {
         let mut sc = scene((5, ROW), &[(71, 6, ROW)]);
-        sc.floor = 49;
-        sc.current_floor = 49;
+        sc.persist.floor = 49;
+        sc.persist.current_floor = 49;
         sc.dialog_data.scripts = vec!["TAK_0_0 ".to_string(); 40];
         sc.player.atk = 1_000_000;
         sc.player.def = 1_000_000;
@@ -1101,8 +1101,8 @@
             let load = || {
                 let mut sc =
                     GameScene::load_floor(&maplv, 0, 0, &recs, &width_table, &walk, images(), vec![None; 56]).unwrap();
-                sc.floor = n;
-                sc.current_floor = n;
+                sc.persist.floor = n;
+                sc.persist.current_floor = n;
                 sc
             };
             let probe = load();
@@ -1190,7 +1190,7 @@
     }
 
     /// 类目覆盖：装备（类目 4）= 地面；77/78（类目 16）、84 / 非 50 层 72（类目 32）= 交互物；
-    /// 50 层 72 = 怪（层覆写，entity_category 读 `self.floor`）；型 69 三格同一 Monster 下标；Monster(e) 指向本格怪。
+    /// 50 层 72 = 怪（层覆写，entity_category 读 `self.persist.floor`）；型 69 三格同一 Monster 下标；Monster(e) 指向本格怪。
     #[test]
     fn tap_grid_categories_and_monster_index() {
         use crate::tap_walk::TargetKind;
@@ -1213,8 +1213,8 @@
         let TargetKind::Monster(e41) = kind(11) else { panic!("41 应为怪: {:?}", kind(11)) };
         assert_eq!(sc.entities.items[e41].type_, 41, "Monster 下标指向 41");
 
-        sc.floor = 50;
-        sc.current_floor = 50;
+        sc.persist.floor = 50;
+        sc.persist.current_floor = 50;
         let g = sc.tap_grid();
         let TargetKind::Monster(e72) = g.get(6, ROW).unwrap().kind else {
             panic!("50 层 72 应为怪: {:?}", g.get(6, ROW).unwrap().kind)
@@ -1782,7 +1782,7 @@
             ("死亡动画 state = 1", Box::new(|sc| { let e = sc.tap_selected.unwrap().entity; sc.entities.items[e].state = 1; })),
             ("被搬走（MOV）", Box::new(|sc| { let e = sc.tap_selected.unwrap().entity; sc.entities.items[e].px += 32; })),
             ("变型（道具改写）", Box::new(|sc| { let e = sc.tap_selected.unwrap().entity; sc.entities.items[e].type_ = 42; })),
-            ("楼层号变化", Box::new(|sc| sc.current_floor += 1)),
+            ("楼层号变化", Box::new(|sc| sc.persist.current_floor += 1)),
             ("浮层", Box::new(|sc| sc.overlay_active = true)),
             // 【复核 R1】以下各钉一个 selection_valid 判据（去掉该判据即红）
             // hide_notify 真实入口：Map → InGameMenu（walk_phase / 浮层 / 楼层 / 实体都不变，只有 game_mode 判据拦得住）
@@ -2502,7 +2502,7 @@
         let e = (0..sc.entities.count).find(|&i| sc.entities.items[i].type_ == 41).unwrap();
         sc.tap_target = Some((5, ROW));
         sc.tap_reject = Some(((4, ROW), sc.frame_counter + crate::tap_walk::TAP_REJECT_TICKS));
-        sc.tap_selected = Some(crate::tap_walk::SelectedEnemy { entity: e, type_: 41, cell: (8, ROW), floor: sc.current_floor });
+        sc.tap_selected = Some(crate::tap_walk::SelectedEnemy { entity: e, type_: 41, cell: (8, ROW), floor: sc.persist.current_floor });
     }
 
     /// 【STAGE-B-008 · spec §6】classic：反馈层零 op，整帧 op 流与无点地状态时逐条相同。
@@ -2564,7 +2564,7 @@
         sc.player.atk = 100_000;
         sc.player.def = 100_000;
         sc.player.hp = 100_000;
-        sc.tap_selected = Some(crate::tap_walk::SelectedEnemy { entity: e, type_: 69, cell: (7, ROW), floor: sc.current_floor });
+        sc.tap_selected = Some(crate::tap_walk::SelectedEnemy { entity: e, type_: 69, cell: (7, ROW), floor: sc.persist.current_floor });
         let (ox, oy) = (sc.view.cam_x, sc.view.cam_y + sc.layout.view_top_y);
         let ops = marker_ops(&sc);
         assert!(
@@ -2644,11 +2644,11 @@
         sc.tick(1, &sc.width_table.clone());
         assert!(sc.stair_hint, "邻格置位（左邻）");
         // 门控生效：49（筋斗云上）换层（change_floor strict 需层界含目标 10）
-        sc.min_floor = 1;
-        sc.max_floor = 55;
+        sc.persist.min_floor = 1;
+        sc.persist.max_floor = 55;
         sc.key_value = 49;
         sc.handle_field_input();
-        assert_eq!(sc.pending_floor, 10, "49 → 型 7 门换层");
+        assert_eq!(sc.persist.pending_floor, 10, "49 → 型 7 门换层");
         // 走离 → 清除
         sc.player_cell_x = 1;
         sc.view.player_px = 1 << 5;

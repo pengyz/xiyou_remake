@@ -138,7 +138,7 @@
                 sc.minimap_enabled,
                 sc.minimap.is_some(),
                 sc.global_snapshot(),
-                sc.global_dirty,
+                sc.persist.global_dirty,
                 o.labels.clone(),
                 o.checked.clone(),
             )
