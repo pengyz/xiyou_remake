@@ -916,6 +916,11 @@
    "field": "tap_pending",
    "domain": "tap-input",
    "why": "v3 §1 tap/input 域"
+  },
+  {
+   "field": "tap",
+   "domain": "coordinator",
+   "why": "域切片根槽（TapState 聚合——V2 tap/input 收口）"
   }
  ]
 }

@@ -4,6 +4,37 @@
 //! 方向码 0 下（y+1）、1 上（y−1）、2 右（x+1）、3 左（x−1）；路线步序 = 目标端优先、自末端消费
 //!（与 `walk_path_buffer` 同语义：`steps[len-1]` 是第一步）。
 
+/// 【task-15 V2 tap/input 收口】触屏/行走域切片（v3 §1：tap_walk.rs+11 字段）——
+/// 一次性切禁双写；字段定义逐字迁移（私有→pub=子模块可见性等效机械注记）。
+pub struct TapState {
+    /// 【BUG-043】点地寻路期间暂存的教程路径箭头步序（SEE flag=1 写入 walkPathBuffer 的那条；末元素 = 下一步）。
+    /// walk_to 会占用 walkPathBuffer 装寻路路线，箭头改从这里画、每走完一格按 label216 规则消费，收尾放回 walkPathBuffer。
+    /// None = 未暂存（经典面恒 None）。
+    pub walkto_arrows: Option<Vec<u8>>,
+    /// 【T2】战斗段快照（撞敌挂起时记账，战斗终结入 CombatStroke）
+    /// 撤销快照（实体槽, 型, 复活血, 战前血金, 战前整格实体, 开战时实体数——战斗期间实体表增长 = 不可逆生成，见 BUG-045）
+    pub battle_undo_snap: Option<(usize, i32, i32, crate::undo_journal::PlayerVitals, crate::entity::Entity, usize)>,
+    /// 【批三 2026-11-02】道具使用/装备替换两段式选中（ItemPanel 行域；cfcc9ad
+    /// 先例）：tap1=选中看预览（属性/道具效果），tap2 同行=执行，打断=不执行。
+    pub ui_selected: Option<(usize, u64)>,
+    /// 【Y1】两段式步序钟（tick +1；tap2 阈值判定用）。
+    pub ui_frame: u64,
+    /// 【STAGE-B-008】自动战斗（触屏模式设置项，壳写入；默认 false = 点怪先选中、再点开战）
+    pub auto_battle: bool,
+    /// 【STAGE-B-008】点地目标标记（走向 / 撞向的格；路线与撞击结束即清）
+    pub tap_target: Option<(i32, i32)>,
+    /// 【STAGE-B-008】闪红（格, 到期拍）
+    pub tap_reject: Option<((i32, i32), i64)>,
+    /// 【STAGE-B-008】路线走完后的撞击（停靠格, 方向）——在 Map wp0 执行
+    pub tap_bump: Option<((i32, i32), u8)>,
+    /// 【STAGE-B-008】点地寻路收尾后下一拍执行后续（撞击 / 排队）
+    pub tap_followup_ready: bool,
+    /// 【STAGE-B-008】已选中的怪物（首点选中、再点开战；每拍校验）
+    pub tap_selected: Option<crate::tap_walk::SelectedEnemy>,
+    /// 【STAGE-B-008】点地寻路中排队的输入（排空回 Map wp0 后下一拍执行；只留最后一次）
+    pub tap_pending: Option<crate::tap_walk::PendingTap>,
+}
+
 /// 点中格的目标类别。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TargetKind {

@@ -122,17 +122,17 @@
         let mut sc = scene((2, 2), &[]);
         sc.game_mode = GameMode::ItemPanel;
         assert!(!sc.ui_tap_two_stage(3), "tap1=选中不执行");
-        assert_eq!(sc.ui_selected.map(|(r, _)| r), Some(3), "选中态");
+        assert_eq!(sc.tap.ui_selected.map(|(r, _)| r), Some(3), "选中态");
         assert!(!sc.ui_tap_two_stage(3), "【Y1】连击 tap2 抑制");
-        sc.ui_frame += crate::menu_family::TWO_STAGE_MIN_STEPS;
+        sc.tap.ui_frame += crate::menu_family::TWO_STAGE_MIN_STEPS;
         assert!(sc.ui_tap_two_stage(3), "tap2 同行=执行（≥阈值）");
-        assert_eq!(sc.ui_selected, None, "执行后清选中");
-        sc.ui_selected = Some((1, sc.ui_frame));
+        assert_eq!(sc.tap.ui_selected, None, "执行后清选中");
+        sc.tap.ui_selected = Some((1, sc.tap.ui_frame));
         sc.ui_interrupt();
-        assert_eq!(sc.ui_selected, None, "打断清选中不执行");
+        assert_eq!(sc.tap.ui_selected, None, "打断清选中不执行");
         assert!(!sc.ui_tap_two_stage(0), "换行 tap1");
         assert!(!sc.ui_tap_two_stage(2), "换行=换选不执行");
-        assert_eq!(sc.ui_selected.map(|(r, _)| r), Some(2));
+        assert_eq!(sc.tap.ui_selected.map(|(r, _)| r), Some(2));
     }
 
     #[test]
@@ -141,12 +141,12 @@
         let mut sc = scene((2, 2), &[]);
         sc.game_mode = GameMode::ItemPanel;
         assert!(!sc.ui_tap_two_stage(7), "装备格 tap1=选中");
-        assert_eq!(sc.ui_selected.map(|(r, _)| r), Some(7));
-        sc.ui_frame += crate::menu_family::TWO_STAGE_MIN_STEPS;
+        assert_eq!(sc.tap.ui_selected.map(|(r, _)| r), Some(7));
+        sc.tap.ui_frame += crate::menu_family::TWO_STAGE_MIN_STEPS;
         assert!(sc.ui_tap_two_stage(7), "装备格 tap2=替换执行（≥阈值）");
-        sc.ui_selected = Some((7, sc.ui_frame));
+        sc.tap.ui_selected = Some((7, sc.tap.ui_frame));
         sc.ui_interrupt();
-        assert_eq!(sc.ui_selected, None, "打断不替换");
+        assert_eq!(sc.tap.ui_selected, None, "打断不替换");
     }
 
     pub fn scene(player: (i32, i32), ents: &[(u8, i32, i32)]) -> GameScene {

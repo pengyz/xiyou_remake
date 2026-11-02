@@ -398,7 +398,7 @@ pub fn scene_tap(sc: &mut game_core::scene::GameScene, x: i32, y: i32) -> Option
                 let exec = if matches!(sc.game_mode, GM::ItemPanel) {
                     sc.ui_tap_two_stage(index as usize)
                 } else {
-                    sc.slot.tap_row_two_stage(index as usize, sc.ui_frame)
+                    sc.slot.tap_row_two_stage(index as usize, sc.tap.ui_frame)
                 };
                 log_input(&format!(
                     "ui tap({x},{y}) mode={:?} row={index} exec={exec}",

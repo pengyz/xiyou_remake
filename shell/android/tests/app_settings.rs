@@ -278,7 +278,7 @@ fn control_mode_toggle_chain_rows_and_persist() {
     tap_key(&mut rt, &src, -2);
     rt.step(&src, &[KeyAction::Press(-5), KeyAction::Release], Vec::new(), Vec::new());
     assert!(AppSettings::load(&cfg).auto_battle, "自动战斗同拍落盘");
-    assert!(rt.scene.is_none() || rt.scene.as_ref().unwrap().auto_battle, "场景侧 core 字段同步（无场景时跳过）");
+    assert!(rt.scene.is_none() || rt.scene.as_ref().unwrap().tap.auto_battle, "场景侧 core 字段同步（无场景时跳过）");
     // 切回摇杆：按键两行回归、自动战斗**常显保留**（件1 裁定；上移 = -1）
     tap_key(&mut rt, &src, -1);
     assert_eq!(rt.machine.options.as_ref().unwrap().highlight_index(), 3, "回到操控方式行");

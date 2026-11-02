@@ -546,10 +546,10 @@ fn tap_during_walk_reroutes() {
         assert_ne!((sc.player_cell_x, sc.player_cell_y), b, "前置：不在 b 格上");
     }
     tap_cell_at(&mut h, b);
-    assert_eq!(h.sc().tap_target, Some(b), "第二点 = 排队：目标标记立即换到 b");
+    assert_eq!(h.sc().tap.tap_target, Some(b), "第二点 = 排队：目标标记立即换到 b");
     for _ in 0..300 {
         // 排空落格与排队执行之间有一拍间隙（Map wp0、路线已收、标记未清）：以标记清除为"全部收尾"判据
-        if h.sc().game_mode == GameMode::Map && h.sc().walk_phase == 0 && !h.sc().route.is_open() && h.sc().tap_target.is_none() {
+        if h.sc().game_mode == GameMode::Map && h.sc().walk_phase == 0 && !h.sc().route.is_open() && h.sc().tap.tap_target.is_none() {
             break;
         }
         // 途中拾取提示浮层：按生产口径投 -5 关框（关框键属浮层，不清排队），关框后照常改道
@@ -561,7 +561,7 @@ fn tap_during_walk_reroutes() {
         h.step(vec![], vec![]);
     }
     assert_eq!((h.sc().player_cell_x, h.sc().player_cell_y), b, "改道到第二次点中的格");
-    assert_eq!(h.sc().tap_target, None, "收尾后无残留标记");
+    assert_eq!(h.sc().tap.tap_target, None, "收尾后无残留标记");
 }
 
 /// 战斗中点画面：不代按、不打断战斗，闪红（scene_tap 直调；战斗态由场景字段构造，不跑 tick）。
@@ -574,7 +574,7 @@ fn tap_during_battle_is_rejected_without_key() {
     let key = game_android::native::scene_tap(sc, walk.0 as i32, walk.1 as i32);
     assert_eq!(key, None, "不代按");
     assert_eq!(sc.walk_phase, 5, "战斗不被打断");
-    assert!(sc.tap_reject.is_some(), "闪红");
+    assert!(sc.tap.tap_reject.is_some(), "闪红");
 }
 
 /// 【计划 2 T11 执行期补充 · 复核 T10-12 R1】点地路线途经特殊拾取物弹框：经**生产路径**（Runtime::step 投 −5
@@ -670,7 +670,7 @@ fn pickup_overlay_mid_route_closes_and_resumes_via_production_keys() {
     h.step(vec![KeyAction::Release], vec![]);
     assert!(!h.sc().overlay_active, "提示框已关（且未打断路线）");
     for _ in 0..120 {
-        if h.sc().game_mode == GameMode::Map && h.sc().walk_phase == 0 && !h.sc().route.is_open() && h.sc().tap_target.is_none() {
+        if h.sc().game_mode == GameMode::Map && h.sc().walk_phase == 0 && !h.sc().route.is_open() && h.sc().tap.tap_target.is_none() {
             break;
         }
         h.step(vec![], vec![]);

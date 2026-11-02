@@ -428,11 +428,11 @@ mod tests {
         let mut sc = scene();
         // 手动推位移笔（同 undo_move_restores_tile_and_count：钉 undo_last 执行路径，不依赖战斗时序）
         sc.undo.push_move(MoveStroke { from: (3, 10), to: (5, 10) });
-        sc.tap_target = Some((3, 10));
-        sc.tap_reject = Some(((4, 10), sc.frame_counter + 8));
+        sc.tap.tap_target = Some((3, 10));
+        sc.tap.tap_reject = Some(((4, 10), sc.frame_counter + 8));
         let out = undo_last(&mut sc);
         assert!(matches!(out, UndoOutcome::Undone(_)), "撤销成功：{out:?}");
-        assert_eq!(sc.tap_target, None);
-        assert_eq!(sc.tap_reject, None);
+        assert_eq!(sc.tap.tap_target, None);
+        assert_eq!(sc.tap.tap_reject, None);
     }
 }

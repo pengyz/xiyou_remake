@@ -295,11 +295,11 @@ impl GameScene {
             g.draw_rect(x, y, w, 32);
             g.draw_rect(x + 1, y + 1, w - 2, 30);
         }
-        if let Some((x, y)) = self.tap_target {
+        if let Some((x, y)) = self.tap.tap_target {
             g.set_color(TAP_TARGET_RGB);
             frame(g, cam_x + (x << 5), cam_y + (y << 5), 32);
         }
-        if let Some(((x, y), until)) = self.tap_reject {
+        if let Some(((x, y), until)) = self.tap.tap_reject {
             if self.frame_counter < until {
                 let (sx, sy) = (cam_x + (x << 5), cam_y + (y << 5));
                 g.set_color(TAP_REJECT_RGB);
@@ -308,7 +308,7 @@ impl GameScene {
                 g.draw_line(sx + 23, sy + 8, sx + 8, sy + 23);
             }
         }
-        if let Some(s) = self.tap_selected {
+        if let Some(s) = self.tap.tap_selected {
             let w = entity::width_cells(s.type_, &self.width_table) << 5;
             let (sx, sy) = (cam_x + (s.cell.0 << 5), cam_y + (s.cell.1 << 5));
             g.set_color(if (self.frame_counter >> 1) & 1 == 0 { TAP_TARGET_RGB } else { TAP_SELECT_ALT_RGB });

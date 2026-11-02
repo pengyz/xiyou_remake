@@ -34,18 +34,19 @@ def struct_fields() -> list:
         if m and not l.strip().startswith("//"):
             out.append(m.group(3))
     # 域切片成员（PersistState 等）同入归属面（2026-11-02 勘误：私有字段+切片面补全）
-    ps = ROOT / "crates/game-core/src/scene_persist.rs"
-    in_ps = False
-    for l in ps.read_text(encoding="utf-8").splitlines():
-        if l.startswith("pub struct PersistState"):
-            in_ps = True
-            continue
-        if in_ps:
-            if l.startswith("}"):
-                break
-            m = re.match(r"\s+(pub(\([^)]*\))? )?([a-z_][a-z0-9_]*):", l)
-            if m and not l.strip().startswith("//"):
-                out.append(m.group(3))
+    for fname, sname in [("crates/game-core/src/scene_persist.rs", "PersistState"),
+                         ("crates/game-core/src/tap_walk.rs", "TapState")]:
+        in_s = False
+        for l in (ROOT / fname).read_text(encoding="utf-8").splitlines():
+            if l.startswith("pub struct " + sname):
+                in_s = True
+                continue
+            if in_s:
+                if l.startswith("}"):
+                    break
+                m = re.match(r"\s+(pub(\([^)]*\))? )?([a-z_][a-z0-9_]*):", l)
+                if m and not l.strip().startswith("//"):
+                    out.append(m.group(3))
     return out
 
 

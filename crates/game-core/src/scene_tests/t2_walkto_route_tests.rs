@@ -133,7 +133,7 @@
     /// 箭头相关全部状态（对照用）：可见、绘制格、暂存是否已清、walkPathBuffer 有效段（label216 / 绘制的数据源）。
     fn arrow_state(sc: &GameScene) -> (bool, Vec<(i32, i32)>, bool, Vec<u8>) {
         let n = sc.walk_step_count.max(0) as usize;
-        (sc.path_arrows_visible, sc.path_arrow_cells(), sc.walkto_arrows.is_none(), sc.walk_path_buffer[..n].to_vec())
+        (sc.path_arrows_visible, sc.path_arrow_cells(), sc.tap.walkto_arrows.is_none(), sc.walk_path_buffer[..n].to_vec())
     }
 
     /// 复核 bug043-R1：到达 / 打断两个出口收尾后，暂存已清、walkPathBuffer 有效段与方向键参照相同（不只是"画出来一样"）。
@@ -171,9 +171,9 @@
     fn bug043_find_path_drops_stash() {
         let mut sc = arrows_scene(1, 6);
         assert!(sc.walk_to(4, ROW).reached);
-        assert!(sc.walkto_arrows.is_some(), "前置：箭头已暂存");
+        assert!(sc.tap.walkto_arrows.is_some(), "前置：箭头已暂存");
         assert!(sc.find_path(1, ROW, 2, ROW));
-        assert!(sc.walkto_arrows.is_none(), "findPath 后暂存作废");
+        assert!(sc.tap.walkto_arrows.is_none(), "findPath 后暂存作废");
         assert_eq!(sc.path_arrow_cells(), vec![(2, ROW)], "箭头 = 新路径");
     }
 
@@ -252,7 +252,7 @@
                 sc.tick(fc, &wt);
             }
         }
-        assert!(touch.walkto_arrows.is_none(), "暂存已清");
+        assert!(touch.tap.walkto_arrows.is_none(), "暂存已清");
         assert_eq!(touch.path_arrow_cells(), keys.path_arrow_cells(), "点地撞门 = 方向键撞门");
     }
 
@@ -1276,11 +1276,11 @@
         use crate::tap_walk::TapResult;
         let mut sc = scene((2, ROW), &[]);
         assert_eq!(sc.tap_cell(7, ROW), TapResult::Walking);
-        assert_eq!(sc.tap_target, Some((7, ROW)), "目标标记");
+        assert_eq!(sc.tap.tap_target, Some((7, ROW)), "目标标记");
         settle(&mut sc, 0, 120);
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (7, ROW));
         assert_eq!(sc.game_mode, GameMode::Map);
-        assert_eq!(sc.tap_target, None, "到达后标记清除");
+        assert_eq!(sc.tap.tap_target, None, "到达后标记清除");
     }
 
     /// 点远处的墙：走到墙边可达邻格，再朝墙撞一步（不移动、朝向 = 撞击方向、不留零长撤销笔）。
@@ -1323,7 +1323,7 @@
         let mut sc = scene((2, ROW), &[]);
         sc.walkable[ROW as usize][7] = false; // 走廊中间砌墙
         assert_eq!(sc.tap_cell(9, ROW), TapResult::Docking);
-        assert!(matches!(sc.tap_reject, Some(((9, r), _)) if r == ROW), "目标格闪红");
+        assert!(matches!(sc.tap.tap_reject, Some(((9, r), _)) if r == ROW), "目标格闪红");
         settle(&mut sc, 0, 120);
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (6, ROW), "停在墙前最近格");
     }
@@ -1362,7 +1362,7 @@
         assert_eq!(sc.tap_cell(7, ROW), TapResult::Ignored);
         sc.walk_phase = 1;
         assert_eq!(sc.tap_cell(7, ROW), TapResult::Rejected);
-        assert!(sc.tap_reject.is_some() && !sc.route.is_open());
+        assert!(sc.tap.tap_reject.is_some() && !sc.route.is_open());
         sc.walk_phase = 5;
         assert_eq!(sc.tap_cell(7, ROW), TapResult::Rejected, "战斗中闪红");
         assert_eq!(sc.walk_phase, 5, "战斗状态不变");
@@ -1394,7 +1394,7 @@
         fc += 10;
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (5, ROW), "框开时人在拾取格");
         assert!(sc.route.is_open(), "框开时路段开着");
-        assert_eq!(sc.tap_target, Some((9, ROW)), "框开时目标标记仍在");
+        assert_eq!(sc.tap.tap_target, Some((9, ROW)), "框开时目标标记仍在");
         // 真实关框路径：按键 → tick（浮层分支处理该键）→ 松键
         sc.press_key(close_key);
         assert!(sc.route.is_open(), "key={close_key}：按键属浮层，不打断路段");
@@ -1406,7 +1406,7 @@
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (9, ROW), "key={close_key}：关框后续走到终点");
         assert_eq!(sc.game_mode, GameMode::Map);
         assert!(!sc.route.is_open() && !sc.script_walk_armed && !sc.walkto_draining, "无寻路残留");
-        assert_eq!(sc.tap_target, None, "收尾后目标标记清除");
+        assert_eq!(sc.tap.tap_target, None, "收尾后目标标记清除");
         assert_eq!(undo_seq(&mut sc), vec![format!("tile{:?}", (2, ROW))], "撤销栈 = 整段位移一笔（撤回起点）");
     }
 
@@ -1432,7 +1432,7 @@
         key_walk(&mut keys, -4, (6, ROW));
         assert_eq!((keys.player_cell_x, keys.player_cell_y), (6, ROW), "{label} 参照前置：走进 (6,ROW)");
         let mut sc = make();
-        sc.auto_battle = true; // 【计划 2 T6】本测试测撞击收尾、不测首点选中：自动战斗开 ⇒ 点怪一点即撞（门不受影响）
+        sc.tap.auto_battle = true; // 【计划 2 T6】本测试测撞击收尾、不测首点选中：自动战斗开 ⇒ 点怪一点即撞（门不受影响）
         let wt = sc.width_table.clone();
         assert_eq!(sc.tap_cell(6, ROW), crate::tap_walk::TapResult::Bumping, "{label}");
         let mut fc = 0;
@@ -1444,7 +1444,7 @@
         fc += 20;
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (6, ROW), "{label}：撞进去了");
         assert!(!sc.route.is_open() && !sc.route.is_suspended(), "{label}：撞进去那一步步末收段");
-        assert_eq!(sc.tap_target, None, "{label}：收尾后目标标记清除");
+        assert_eq!(sc.tap.tap_target, None, "{label}：收尾后目标标记清除");
         assert!(!sc.script_walk_armed, "{label}：无脚本行走武装（下次方向键不走 advanceScriptWalk 臂）");
         assert_eq!(arrow_state(&sc), arrow_state(&keys), "{label}：撞进去后箭头 = 方向键参照");
         // 再按一下方向键（右，沿箭头）：与方向键参照同一结果
@@ -1505,13 +1505,13 @@
         assert_eq!(sc.tap_cell(7, ROW), crate::tap_walk::TapResult::Bumping);
         let wt = sc.width_table.clone();
         let mut fc = 0;
-        while !(sc.game_mode == GameMode::Map && sc.walk_phase == 1 && sc.tap_followup_ready) && fc < 400 {
+        while !(sc.game_mode == GameMode::Map && sc.walk_phase == 1 && sc.tap.tap_followup_ready) && fc < 400 {
             sc.tick(fc, &wt);
             fc += 1;
         }
-        assert!(sc.game_mode == GameMode::Map && sc.walk_phase == 1 && sc.tap_followup_ready, "前置：到达末步在途窗口");
+        assert!(sc.game_mode == GameMode::Map && sc.walk_phase == 1 && sc.tap.tap_followup_ready, "前置：到达末步在途窗口");
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (5, ROW), "前置：末步 (5,ROW)→(6,ROW) 在途");
-        assert_eq!(sc.tap_bump, Some(((6, ROW), 2)), "前置：撞击后续在");
+        assert_eq!(sc.tap.tap_bump, Some(((6, ROW), 2)), "前置：撞击后续在");
         (sc, fc)
     }
 
@@ -1523,15 +1523,15 @@
         let (mut sc, fc) = door_route_in_last_step_window();
         assert!(sc.accepts_field_tap(), "末步在途窗口场上接收点地（Map）");
         assert_eq!(sc.tap_cell(3, ROW), crate::tap_walk::TapResult::Queued);
-        assert_eq!(sc.tap_reject, None, "不闪红");
-        assert_eq!(sc.tap_bump, None, "撞击已取消");
-        assert_eq!(sc.tap_target, Some((3, ROW)), "目标标记换到新目标");
+        assert_eq!(sc.tap.tap_reject, None, "不闪红");
+        assert_eq!(sc.tap.tap_bump, None, "撞击已取消");
+        assert_eq!(sc.tap.tap_target, Some((3, ROW)), "目标标记换到新目标");
         settle(&mut sc, fc, 120);
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (3, ROW), "末步走完后改道到新目标");
         assert_eq!(sc.player.yellow_keys, 1, "未耗钥");
         assert!(door_intact(&sc, 7), "门未开");
         assert_eq!(sc.game_mode, GameMode::Map);
-        assert_eq!(sc.tap_target, None, "目标标记清除");
+        assert_eq!(sc.tap.tap_target, None, "目标标记清除");
     }
 
     /// 【计划 2 T5 复核 R4（探针 P3）】末步在途窗口按方向键（上，撞墙方向）⇒ 撞击取消（钥匙仍 1、门未开）。
@@ -1540,12 +1540,12 @@
         let (mut sc, fc) = door_route_in_last_step_window();
         sc.press_key(-1);
         sc.release_key();
-        assert_eq!(sc.tap_bump, None, "场上按键取消撞击");
+        assert_eq!(sc.tap.tap_bump, None, "场上按键取消撞击");
         settle(&mut sc, fc, 80);
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (6, ROW), "停在停靠格");
         assert_eq!(sc.player.yellow_keys, 1, "未耗钥");
         assert!(door_intact(&sc, 7), "门未开");
-        assert_eq!(sc.tap_target, None, "目标标记清除");
+        assert_eq!(sc.tap.tap_target, None, "目标标记清除");
     }
 
     /// 【STAGE-B-008 · spec §5.1 · 计划 2 T5 复核 R1/R2（探针 M）】点门路线途经特殊拾取物（型 25 @ (4,ROW)）：
@@ -1563,9 +1563,9 @@
         }
         assert!(sc.overlay_active, "前置：拾取型 25 弹提示框");
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (4, ROW), "前置：框开时人在拾取格");
-        assert_eq!(sc.tap_bump, Some(((7, ROW), 2)), "前置：撞击后续在");
+        assert_eq!(sc.tap.tap_bump, Some(((7, ROW), 2)), "前置：撞击后续在");
         sc.press_key(-5);
-        assert_eq!(sc.tap_bump, Some(((7, ROW), 2)), "关框键不取消撞击");
+        assert_eq!(sc.tap.tap_bump, Some(((7, ROW), 2)), "关框键不取消撞击");
         sc.tick(fc, &wt);
         fc += 1;
         sc.release_key();
@@ -1576,7 +1576,7 @@
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (8, ROW), "走进门格");
         assert_eq!(sc.game_mode, GameMode::Map);
         assert!(!sc.route.is_open() && !sc.script_walk_armed && !sc.walkto_draining, "无寻路残留");
-        assert_eq!(sc.tap_target, None, "收尾后目标标记清除");
+        assert_eq!(sc.tap.tap_target, None, "收尾后目标标记清除");
     }
 
     /// 【STAGE-B-008 · spec §5.1 · 计划 2 T5 复核 R2（探针 N2）】停靠格 (6,ROW) 本身有型 25：末步落格弹框，
@@ -1596,9 +1596,9 @@
         settle(&mut sc, fc, 10); // 框开期间多跑几拍：撞击须暂缓、不作废
         fc += 10;
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (6, ROW), "框开时人在停靠格");
-        assert_eq!(sc.tap_bump, Some(((6, ROW), 2)), "框开期间撞击后续保留");
+        assert_eq!(sc.tap.tap_bump, Some(((6, ROW), 2)), "框开期间撞击后续保留");
         assert_eq!(sc.player.yellow_keys, 1, "框开期间未撞");
-        assert_eq!(sc.tap_target, Some((7, ROW)), "框开期间目标标记仍在");
+        assert_eq!(sc.tap.tap_target, Some((7, ROW)), "框开期间目标标记仍在");
         sc.press_key(-5);
         sc.tick(fc, &wt);
         fc += 1;
@@ -1608,7 +1608,7 @@
         assert_eq!(sc.player.yellow_keys, 0, "关框后撞门耗钥");
         assert!(!door_intact(&sc, 7), "门已开");
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (7, ROW), "走进门格");
-        assert_eq!(sc.tap_target, None, "收尾后目标标记清除");
+        assert_eq!(sc.tap.tap_target, None, "收尾后目标标记清除");
     }
 
     /// 【计划 2 T5 复核 R4（变异 M11）】1 步路线：站 (5,ROW) 点门 (7,ROW)，停靠格 (6,ROW)。首步在途（Dialog dp3 wp1）时点自己
@@ -1633,7 +1633,7 @@
         assert_eq!(sc.player.yellow_keys, 1, "未耗钥");
         assert!(door_intact(&sc, 7), "门未开");
         assert_eq!(sc.game_mode, GameMode::Map);
-        assert_eq!(sc.tap_target, None, "目标标记清除");
+        assert_eq!(sc.tap.tap_target, None, "目标标记清除");
     }
 
     /// 【计划 2 T5 复核 R4（变异 M9）】按住方向键（上，顶墙不动：keyHeldCode 每拍 tryStep 撞墙，停在 wp0）时点门：
@@ -1648,13 +1648,13 @@
         sc.tick(0, &wt);
         assert_eq!((sc.player_cell_x, sc.player_cell_y, sc.walk_phase), (2, ROW, 0), "前置：顶墙不动");
         assert_eq!(sc.tap_cell(7, ROW), crate::tap_walk::TapResult::Bumping);
-        assert_eq!(sc.tap_bump, Some(((6, ROW), 2)), "前置：撞击后续在");
+        assert_eq!(sc.tap.tap_bump, Some(((6, ROW), 2)), "前置：撞击后续在");
         settle(&mut sc, 1, 200);
         assert_eq!(sc.key_held, -1, "前置：全程按住");
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (6, ROW), "停在停靠格");
         assert_eq!(sc.player.yellow_keys, 1, "未耗钥");
         assert!(door_intact(&sc, 7), "门未开");
-        assert_eq!(sc.tap_target, None, "目标标记清除");
+        assert_eq!(sc.tap.tap_target, None, "目标标记清除");
     }
 
     /// 【计划 2 T5 复核 R4（变异 M8 / M8b）】换层（load_floor_data）与剧情接管（load_level_script）清点地状态：
@@ -1667,18 +1667,18 @@
             sc.dialog_data.scripts = vec!["TAK_0_0 ".to_string()];
             assert_eq!(sc.tap_cell(7, ROW), crate::tap_walk::TapResult::Bumping);
             sc.flash_reject((9, ROW));
-            assert_eq!(sc.tap_target, Some((7, ROW)), "{entry} 前置：目标标记");
-            assert_eq!(sc.tap_bump, Some(((6, ROW), 2)), "{entry} 前置：撞击后续");
-            assert!(sc.tap_reject.is_some(), "{entry} 前置：闪红");
+            assert_eq!(sc.tap.tap_target, Some((7, ROW)), "{entry} 前置：目标标记");
+            assert_eq!(sc.tap.tap_bump, Some(((6, ROW), 2)), "{entry} 前置：撞击后续");
+            assert!(sc.tap.tap_reject.is_some(), "{entry} 前置：闪红");
             if entry == "换层" {
                 sc.load_floor_data(&super::scene_test_support::maplv(), 2 << 5, ROW << 5, &[], 2).unwrap();
             } else {
                 sc.load_level_script(0);
             }
-            assert_eq!(sc.tap_target, None, "{entry}：目标标记清除");
-            assert_eq!(sc.tap_reject, None, "{entry}：闪红清除");
-            assert_eq!(sc.tap_bump, None, "{entry}：撞击后续清除");
-            assert!(!sc.tap_followup_ready, "{entry}：后续就绪位清除");
+            assert_eq!(sc.tap.tap_target, None, "{entry}：目标标记清除");
+            assert_eq!(sc.tap.tap_reject, None, "{entry}：闪红清除");
+            assert_eq!(sc.tap.tap_bump, None, "{entry}：撞击后续清除");
+            assert!(!sc.tap.tap_followup_ready, "{entry}：后续就绪位清除");
         }
     }
 
@@ -1691,7 +1691,7 @@
         assert_eq!(sc.tap_cell(8, ROW), TapResult::Bumping);
         let wt = sc.width_table.clone();
         let mut fc = 0;
-        while !(sc.tap_followup_ready && sc.game_mode == GameMode::Map && sc.walk_phase == 0) {
+        while !(sc.tap.tap_followup_ready && sc.game_mode == GameMode::Map && sc.walk_phase == 0) {
             sc.tick(fc, &wt);
             fc += 1;
             assert!(fc < 200, "前置：收尾间隙");
@@ -1703,8 +1703,8 @@
         assert_eq!(sc.player.yellow_keys, 1, "旧撞击作废：门未开");
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (7, ROW), "原地不动");
         // 【复核 R4】只去间隙里的 tap_bump = None 时旧撞击滞留 ⇒ 目标框挂在门上不消失
-        assert!(sc.tap_bump.is_none(), "旧撞击后续已清");
-        assert_eq!(sc.tap_target, None, "目标框不残留");
+        assert!(sc.tap.tap_bump.is_none(), "旧撞击后续已清");
+        assert_eq!(sc.tap.tap_target, None, "目标框不残留");
     }
 
     fn strong(sc: &mut GameScene) {
@@ -1721,14 +1721,14 @@
         strong(&mut sc);
         let e = (0..sc.entities.count).find(|&i| sc.entities.items[i].type_ == 41).unwrap();
         assert_eq!(sc.tap_cell(6, ROW), TapResult::Selected);
-        assert_eq!(sc.tap_selected.map(|s| s.entity), Some(e));
-        assert_eq!(sc.tap_target, None, "选中不画目标框（有自己的闪烁框）");
+        assert_eq!(sc.tap.tap_selected.map(|s| s.entity), Some(e));
+        assert_eq!(sc.tap.tap_target, None, "选中不画目标框（有自己的闪烁框）");
         settle(&mut sc, 0, 20);
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (2, ROW), "选中不移动");
         assert!(!sc.route.is_open() && sc.game_mode == GameMode::Map);
-        assert!(sc.tap_selected.is_some(), "空闲时选中保持");
+        assert!(sc.tap.tap_selected.is_some(), "空闲时选中保持");
         assert_eq!(sc.tap_cell(6, ROW), TapResult::Bumping);
-        assert!(sc.tap_selected.is_none(), "开战即清选中");
+        assert!(sc.tap.tap_selected.is_none(), "开战即清选中");
         settle(&mut sc, 20, 400);
         let ent = &sc.entities.items[e];
         assert!(ent.removed || ent.state == 1, "怪被击杀");
@@ -1741,9 +1741,9 @@
         use crate::tap_walk::TapResult;
         let mut sc = scene((2, ROW), &[(41, 6, ROW)]);
         strong(&mut sc);
-        sc.auto_battle = true;
+        sc.tap.auto_battle = true;
         assert_eq!(sc.tap_cell(6, ROW), TapResult::Bumping);
-        assert!(sc.tap_selected.is_none());
+        assert!(sc.tap.tap_selected.is_none());
     }
 
     /// 点另一只 = 改选；点别处 = 清选中并执行。
@@ -1753,9 +1753,9 @@
         let mut sc = scene((2, ROW), &[(41, 6, ROW), (42, 9, ROW)]);
         assert_eq!(sc.tap_cell(6, ROW), TapResult::Selected);
         assert_eq!(sc.tap_cell(9, ROW), TapResult::Selected, "点另一只 = 改选");
-        assert_eq!(sc.tap_selected.map(|s| s.type_), Some(42));
+        assert_eq!(sc.tap.tap_selected.map(|s| s.type_), Some(42));
         assert_eq!(sc.tap_cell(4, ROW), TapResult::Walking, "点别处 = 清选中并执行");
-        assert!(sc.tap_selected.is_none());
+        assert!(sc.tap.tap_selected.is_none());
     }
 
     /// 多格怪（型 69 宽 3 格）：点任一格选中同一只，再点另一格 = 开战（停靠在整只怪的外侧邻格）。
@@ -1774,14 +1774,14 @@
         let mk = || {
             let mut sc = scene((2, ROW), &[(41, 6, ROW)]);
             let _ = sc.tap_cell(6, ROW);
-            assert!(sc.tap_selected.is_some(), "前置：已选中");
+            assert!(sc.tap.tap_selected.is_some(), "前置：已选中");
             sc
         };
         let cases: Vec<(&str, Box<dyn Fn(&mut GameScene)>)> = vec![
-            ("实体移除（他处击杀）", Box::new(|sc| { let e = sc.tap_selected.unwrap().entity; sc.entities.items[e].removed = true; })),
-            ("死亡动画 state = 1", Box::new(|sc| { let e = sc.tap_selected.unwrap().entity; sc.entities.items[e].state = 1; })),
-            ("被搬走（MOV）", Box::new(|sc| { let e = sc.tap_selected.unwrap().entity; sc.entities.items[e].px += 32; })),
-            ("变型（道具改写）", Box::new(|sc| { let e = sc.tap_selected.unwrap().entity; sc.entities.items[e].type_ = 42; })),
+            ("实体移除（他处击杀）", Box::new(|sc| { let e = sc.tap.tap_selected.unwrap().entity; sc.entities.items[e].removed = true; })),
+            ("死亡动画 state = 1", Box::new(|sc| { let e = sc.tap.tap_selected.unwrap().entity; sc.entities.items[e].state = 1; })),
+            ("被搬走（MOV）", Box::new(|sc| { let e = sc.tap.tap_selected.unwrap().entity; sc.entities.items[e].px += 32; })),
+            ("变型（道具改写）", Box::new(|sc| { let e = sc.tap.tap_selected.unwrap().entity; sc.entities.items[e].type_ = 42; })),
             ("楼层号变化", Box::new(|sc| sc.persist.current_floor += 1)),
             ("浮层", Box::new(|sc| sc.overlay_active = true)),
             // 【复核 R1】以下各钉一个 selection_valid 判据（去掉该判据即红）
@@ -1792,7 +1792,7 @@
             })),
             ("观察模式 walk_phase = 2", Box::new(|sc| sc.walk_phase = 2)),
             ("换层遮幅 transitioning", Box::new(|sc| sc.transitioning = true)),
-            ("实体隐藏 visible = false", Box::new(|sc| { let e = sc.tap_selected.unwrap().entity; sc.entities.items[e].visible = false; })),
+            ("实体隐藏 visible = false", Box::new(|sc| { let e = sc.tap.tap_selected.unwrap().entity; sc.entities.items[e].visible = false; })),
             // 防御判据：层内实体表只追加不压实、重排只在 reload_floor_entities（同时有型 / 格判据兜底），
             // 没有真实路径能让选中下标单独越界 ⇒ 直接缩小 count 构造
             ("实体下标越界（防御判据）", Box::new(|sc| sc.entities.count = 0)),
@@ -1802,14 +1802,14 @@
             let mut sc = mk();
             f(&mut sc);
             settle(&mut sc, 0, 1);
-            assert!(sc.tap_selected.is_none(), "{what} ⇒ 清选中");
+            assert!(sc.tap.tap_selected.is_none(), "{what} ⇒ 清选中");
         }
         let mut sc = mk();
         sc.press_key(-2);
-        assert!(sc.tap_selected.is_none(), "任何按键 ⇒ 清选中");
+        assert!(sc.tap.tap_selected.is_none(), "任何按键 ⇒ 清选中");
         let mut sc = mk();
         sc.clear_tap_state();
-        assert!(sc.tap_selected.is_none(), "撤销 / 换层 / 剧情 ⇒ 清选中");
+        assert!(sc.tap.tap_selected.is_none(), "撤销 / 换层 / 剧情 ⇒ 清选中");
         let mut sc = mk();
         assert_eq!(sc.engage_selected(), crate::tap_walk::TapResult::Bumping, "「开战」= 撞已选中的怪");
     }
@@ -1819,9 +1819,9 @@
     fn t6_selection_cleared_by_load_floor_data() {
         let mut sc = scene((2, ROW), &[(41, 6, ROW)]);
         let _ = sc.tap_cell(6, ROW);
-        assert!(sc.tap_selected.is_some(), "前置：已选中");
+        assert!(sc.tap.tap_selected.is_some(), "前置：已选中");
         sc.load_floor_data(&super::scene_test_support::maplv(), 2 << 5, ROW << 5, &[], 2).unwrap();
-        assert!(sc.tap_selected.is_none(), "换层 / 读档 ⇒ 立即清选中");
+        assert!(sc.tap.tap_selected.is_none(), "换层 / 读档 ⇒ 立即清选中");
     }
 
     /// 【复核 R1】他处击杀真实击杀代码：选中邻格怪后用道具 86（use_item_stack → activate_item(86) → 四邻格 killAdjacentAt），下一拍清选中。
@@ -1832,16 +1832,16 @@
         use crate::tap_walk::TapResult;
         let mut sc = scene((5, ROW), &[(41, 6, ROW)]);
         assert_eq!(sc.tap_cell(6, ROW), TapResult::Selected, "前置：选中邻格怪");
-        let e = sc.tap_selected.unwrap().entity;
+        let e = sc.tap.tap_selected.unwrap().entity;
         sc.player.item_types[0] = 86;
         sc.player.item_uses[0] = 1;
         sc.player.item_stack_size = 1;
         sc.use_item_stack(0);
         let ent = &sc.entities.items[e];
         assert!(ent.removed || ent.state == 1, "前置：86 击杀选中的怪");
-        assert!(sc.tap_selected.is_some(), "前置：选中要等每拍校验清");
+        assert!(sc.tap.tap_selected.is_some(), "前置：选中要等每拍校验清");
         settle(&mut sc, 0, 1);
-        assert!(sc.tap_selected.is_none(), "道具 86 击杀 ⇒ 清选中");
+        assert!(sc.tap.tap_selected.is_none(), "道具 86 击杀 ⇒ 清选中");
     }
 
     /// 【复核 R2】实体表重排（跨层探针 m_119/m_122 往返压实）后、下一拍校验前的同帧里点同下标的另一只：只选中、不开战。
@@ -1852,13 +1852,13 @@
         let i41 = (0..sc.entities.count).find(|&i| sc.entities.items[i].type_ == 41).unwrap();
         sc.entities.items[i41].removed = true; // 已死：往返后压掉 ⇒ 后面的下标前移
         assert_eq!(sc.tap_cell(9, ROW), TapResult::Selected, "前置：选中 42");
-        let sel = sc.tap_selected.unwrap();
+        let sel = sc.tap.tap_selected.unwrap();
         let _ = sc.probe_cross_floor_snapshot(23, 12); // 结果无关：只要它的 save → reload(23) → reload(本层) 往返
         let at = &sc.entities.items[sel.entity];
         assert_eq!((at.type_, at.px >> 5, at.py >> 5), (43, 4, ROW), "前置：重排后同下标 = 43@4");
-        assert!(sc.tap_selected.is_some(), "前置：未 tick，选中仍在");
+        assert!(sc.tap.tap_selected.is_some(), "前置：未 tick，选中仍在");
         assert_eq!(sc.tap_cell(4, ROW), TapResult::Selected, "同下标的另一只 = 首点选中，不开战");
-        assert_eq!(sc.tap_selected.map(|s| s.type_), Some(43));
+        assert_eq!(sc.tap.tap_selected.map(|s| s.type_), Some(43));
         assert!(!sc.route.is_open(), "未开路线");
     }
 
@@ -1868,10 +1868,10 @@
         use crate::tap_walk::TapResult;
         let mut sc = scene((2, ROW), &[(41, 6, ROW)]);
         assert_eq!(sc.tap_cell(6, ROW), TapResult::Selected);
-        let e = sc.tap_selected.unwrap().entity;
+        let e = sc.tap.tap_selected.unwrap().entity;
         sc.entities.items[e].removed = true;
         assert_eq!(sc.engage_selected(), TapResult::Ignored);
-        assert!(sc.tap_selected.is_none(), "清选中");
+        assert!(sc.tap.tap_selected.is_none(), "清选中");
         assert!(!sc.route.is_open(), "未开路线");
         settle(&mut sc, 0, 30);
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (2, ROW), "玩家不动");
@@ -1898,11 +1898,11 @@
         assert_eq!(sc.tap_cell(10, ROW), TapResult::Walking);
         let fc = walk_until_x(&mut sc, 4);
         assert_eq!(sc.tap_cell(2, ROW), TapResult::Queued);
-        assert_eq!(sc.tap_target, Some((2, ROW)), "标记立即换到新目标");
+        assert_eq!(sc.tap.tap_target, Some((2, ROW)), "标记立即换到新目标");
         settle(&mut sc, fc, 300);
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (2, ROW), "改道到新目标");
         assert_eq!(sc.game_mode, GameMode::Map);
-        assert_eq!(sc.tap_target, None);
+        assert_eq!(sc.tap.tap_target, None);
     }
 
     /// 寻路中点自己：停下（走完当前格），无排队、无标记。
@@ -1917,7 +1917,7 @@
         settle(&mut sc, fc, 200);
         assert!((4..=5).contains(&sc.player_cell_x), "走完当前格即停（实得 {}）", sc.player_cell_x);
         assert!(!sc.route.is_open() && sc.game_mode == GameMode::Map);
-        assert_eq!(sc.tap_target, None);
+        assert_eq!(sc.tap.tap_target, None);
 
         // 【计划 2 T7 复核 R3（变异 Mb）】先排队再点自己：排队作废 ⇒ Stopped、排空后停在原处附近，不改道去排队目标
         let mut sc = scene((1, ROW), &[]);
@@ -1926,12 +1926,12 @@
         assert_eq!(sc.tap_cell(2, ROW), TapResult::Queued, "前置：排队");
         let me = (sc.player_cell_x, sc.player_cell_y);
         assert_eq!(sc.tap_cell(me.0, me.1), TapResult::Stopped);
-        assert!(sc.tap_pending.is_none(), "点自己清排队");
-        assert_eq!(sc.tap_target, None, "点自己清目标框");
+        assert!(sc.tap.tap_pending.is_none(), "点自己清排队");
+        assert_eq!(sc.tap.tap_target, None, "点自己清目标框");
         settle(&mut sc, fc, 200);
         assert!((4..=5).contains(&sc.player_cell_x), "排空后停在原处附近、不改道去 x=2（实得 {}）", sc.player_cell_x);
         assert!(!sc.route.is_open() && sc.game_mode == GameMode::Map);
-        assert!(sc.tap_pending.is_none() && sc.tap_target.is_none());
+        assert!(sc.tap.tap_pending.is_none() && sc.tap.tap_target.is_none());
     }
 
     /// 排队失效：排空期间按键 ⇒ 丢弃；落格那一拍有手动按键（按住）⇒ 丢弃。
@@ -1965,11 +1965,11 @@
         sc.tick(fc, &wt);
         sc.tick(fc + 1, &wt);
         assert_eq!(sc.player_cell_x, landed, "浮层期间不执行排队");
-        assert_eq!(sc.tap_target, Some((2, ROW)), "浮层期间排队暂缓、标记仍在");
+        assert_eq!(sc.tap.tap_target, Some((2, ROW)), "浮层期间排队暂缓、标记仍在");
         sc.overlay_active = false;
         settle(&mut sc, fc + 2, 200);
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (2, ROW), "关框后执行排队");
-        assert!(!sc.route.is_open() && sc.tap_target.is_none());
+        assert!(!sc.route.is_open() && sc.tap.tap_target.is_none());
 
         // 落格时按住方向键（朝下顶墙）：手动输入优先 ⇒ 排队作废
         let mut sc = scene((1, ROW), &[]);
@@ -1988,7 +1988,7 @@
         settle(&mut sc, fc, 200);
         assert_eq!(sc.key_held, -2, "前置：全程按住");
         assert!(sc.player_cell_x >= 4, "按住键作废排队（实得 {}）", sc.player_cell_x);
-        assert!(!sc.route.is_open() && sc.tap_target.is_none() && sc.tap_pending.is_none());
+        assert!(!sc.route.is_open() && sc.tap.tap_target.is_none() && sc.tap.tap_pending.is_none());
     }
 
     /// 滑动：空闲 = 一格（朝墙 = 撞停并转向）；寻路中 = 排队，排空回 Map 后朝该方向踏一步。
@@ -2025,13 +2025,13 @@
         let _ = sc.tap_cell(10, ROW);
         let fc = walk_until_x(&mut sc, 4);
         assert_eq!(sc.tap_cell(2, ROW), TapResult::Queued, "前置：排队 Cell");
-        assert_eq!(sc.tap_target, Some((2, ROW)), "前置：目标框在排队目标");
+        assert_eq!(sc.tap.tap_target, Some((2, ROW)), "前置：目标框在排队目标");
         assert_eq!(sc.swipe_step(2), TapResult::Queued);
-        assert_eq!(sc.tap_target, None, "滑动排队 ⇒ 目标框清除");
-        assert_eq!(sc.tap_pending, Some(crate::tap_walk::PendingTap::Swipe(2)), "滑动覆盖排队 Cell");
+        assert_eq!(sc.tap.tap_target, None, "滑动排队 ⇒ 目标框清除");
+        assert_eq!(sc.tap.tap_pending, Some(crate::tap_walk::PendingTap::Swipe(2)), "滑动覆盖排队 Cell");
         let wt = sc.width_table.clone();
         sc.tick(fc, &wt);
-        assert_eq!(sc.tap_target, None, "下一拍目标框仍不在");
+        assert_eq!(sc.tap.tap_target, None, "下一拍目标框仍不在");
     }
 
     /// 滑动的非空闲态：观察模式忽略；手动行走 / 战斗 / Map 语境脚本行走 = Rejected（无格可闪红）；浮层开着 = Ignored。
@@ -2049,7 +2049,7 @@
         sc.script_walk_armed = true;
         assert_eq!(sc.swipe_step(2), TapResult::Rejected, "Map 语境脚本行走");
         sc.script_walk_armed = false;
-        assert!(sc.tap_reject.is_none(), "滑动无目标格、不闪红");
+        assert!(sc.tap.tap_reject.is_none(), "滑动无目标格、不闪红");
         sc.overlay_active = true;
         assert_eq!(sc.swipe_step(2), TapResult::Ignored, "浮层开着");
         sc.overlay_active = false;
@@ -2066,19 +2066,19 @@
         assert_eq!(sc.tap_cell(6, ROW), TapResult::Walking);
         let wt = sc.width_table.clone();
         let mut fc = 0;
-        while !(sc.game_mode == GameMode::Map && sc.walk_phase == 1 && sc.tap_followup_ready) {
+        while !(sc.game_mode == GameMode::Map && sc.walk_phase == 1 && sc.tap.tap_followup_ready) {
             sc.tick(fc, &wt);
             fc += 1;
             assert!(fc < 200, "前置：末步在途窗口");
         }
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (5, ROW), "前置：末步 (5,ROW)→(6,ROW) 在途");
         assert_eq!(sc.tap_cell(3, ROW), TapResult::Queued);
-        assert_eq!(sc.tap_target, Some((3, ROW)), "标记立即换到新目标");
-        assert_eq!(sc.tap_reject, None, "不闪红");
+        assert_eq!(sc.tap.tap_target, Some((3, ROW)), "标记立即换到新目标");
+        assert_eq!(sc.tap.tap_reject, None, "不闪红");
         settle(&mut sc, fc, 200);
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (3, ROW), "落格后改道到新目标");
         assert_eq!(sc.game_mode, GameMode::Map);
-        assert!(!sc.route.is_open() && sc.tap_target.is_none() && sc.tap_pending.is_none());
+        assert!(!sc.route.is_open() && sc.tap.tap_target.is_none() && sc.tap.tap_pending.is_none());
     }
 
     /// 寻路途经拾取物弹框时点别处 / 滑动：浮层开着 `accepts_field_tap` 为假 ⇒ Ignored、不排队；关框后续走原目标。
@@ -2097,8 +2097,8 @@
         assert!(!sc.accepts_field_tap(), "浮层开着不收点地");
         assert_eq!(sc.tap_cell(3, ROW), TapResult::Ignored);
         assert_eq!(sc.swipe_step(3), TapResult::Ignored);
-        assert!(sc.tap_pending.is_none(), "不排队");
-        assert_eq!(sc.tap_target, Some((9, ROW)), "原目标标记不变");
+        assert!(sc.tap.tap_pending.is_none(), "不排队");
+        assert_eq!(sc.tap.tap_target, Some((9, ROW)), "原目标标记不变");
         assert!(sc.route.is_open(), "路段未打断");
         sc.press_key(-5);
         sc.tick(fc, &wt);
@@ -2120,12 +2120,12 @@
         let fc = walk_until_x(&mut sc, 7);
         assert_eq!(sc.tap_cell(2, ROW), TapResult::Queued);
         settle(&mut sc, fc, 200);
-        assert_eq!(sc.tap_selected.map(|s| s.entity), Some(e), "落格后选中");
+        assert_eq!(sc.tap.tap_selected.map(|s| s.entity), Some(e), "落格后选中");
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (8, ROW), "停在排空落格，不走向怪");
         let ent = &sc.entities.items[e];
         assert!(!ent.removed && ent.state == 0, "未开战");
         assert!(!sc.route.is_open() && sc.game_mode == GameMode::Map);
-        assert_eq!(sc.tap_target, None, "选中不画目标框");
+        assert_eq!(sc.tap.tap_target, None, "选中不画目标框");
     }
 
     /// 末步在途窗口滑动 ⇒ 排队（与点按同一"寻路中"判据），落格后朝该方向踏一步。
@@ -2136,7 +2136,7 @@
         assert_eq!(sc.tap_cell(6, ROW), TapResult::Walking);
         let wt = sc.width_table.clone();
         let mut fc = 0;
-        while !(sc.game_mode == GameMode::Map && sc.walk_phase == 1 && sc.tap_followup_ready) {
+        while !(sc.game_mode == GameMode::Map && sc.walk_phase == 1 && sc.tap.tap_followup_ready) {
             sc.tick(fc, &wt);
             fc += 1;
             assert!(fc < 200, "前置：末步在途窗口");
@@ -2155,7 +2155,7 @@
         let fc = walk_until_x(&mut sc, 4);
         assert_eq!(sc.tap_cell(2, ROW), TapResult::Queued);
         sc.clear_tap_state();
-        assert!(sc.tap_pending.is_none() && sc.tap_target.is_none());
+        assert!(sc.tap.tap_pending.is_none() && sc.tap.tap_target.is_none());
         settle(&mut sc, fc, 200);
         assert_eq!(sc.player_cell_x, 5, "排空落格后不改道");
 
@@ -2164,7 +2164,7 @@
         let _ = walk_until_x(&mut sc, 4);
         assert_eq!(sc.tap_cell(2, ROW), TapResult::Queued);
         sc.load_floor_data(&super::scene_test_support::maplv(), 5 << 5, ROW << 5, &[], 2).unwrap();
-        assert!(sc.tap_pending.is_none(), "换层清排队");
+        assert!(sc.tap.tap_pending.is_none(), "换层清排队");
     }
 
     /// 排队已收尾、执行排在下一拍开头的间隙里再点按（Map wp0 新路线）：新点按取代旧排队——新路线走完后不再执行旧排队。
@@ -2176,7 +2176,7 @@
         let mut fc = walk_until_x(&mut sc, 4);
         assert_eq!(sc.tap_cell(2, ROW), TapResult::Queued);
         let wt = sc.width_table.clone();
-        while !(sc.tap_followup_ready && sc.game_mode == GameMode::Map && sc.walk_phase == 0) {
+        while !(sc.tap.tap_followup_ready && sc.game_mode == GameMode::Map && sc.walk_phase == 0) {
             sc.tick(fc, &wt);
             fc += 1;
             assert!(fc < 200, "前置：收尾间隙");
@@ -2185,7 +2185,7 @@
         assert_eq!(sc.tap_cell(8, ROW), TapResult::Walking, "间隙里点按 = 新路线");
         settle(&mut sc, fc, 300);
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (8, ROW), "新路线走完即停，不再执行旧排队（回 x=2）");
-        assert!(sc.tap_pending.is_none() && sc.tap_target.is_none());
+        assert!(sc.tap.tap_pending.is_none() && sc.tap.tap_target.is_none());
     }
 
     /// 【计划 2 T7 复核 R6 · spec §5.2 更正②】撞击后续所在路线途中被隐形怪截住开战（路段挂起）：撞击后续与目标框在挂起期间保留，
@@ -2198,7 +2198,7 @@
         strong(&mut sc);
         sc.player.yellow_keys = 1;
         assert_eq!(sc.tap_cell(8, ROW), TapResult::Bumping);
-        assert_eq!(sc.tap_bump, Some(((7, ROW), 2)), "前置：撞击后续在");
+        assert_eq!(sc.tap.tap_bump, Some(((7, ROW), 2)), "前置：撞击后续在");
         let wt = sc.width_table.clone();
         let mut fc = 0;
         while sc.walk_phase != 5 {
@@ -2209,8 +2209,8 @@
         assert!(!sc.route.is_open() && sc.route.is_suspended(), "前置：路段挂起");
         sc.tick(fc, &wt);
         fc += 1;
-        assert_eq!(sc.tap_bump, Some(((7, ROW), 2)), "开战挂起期间撞击后续保留");
-        assert_eq!(sc.tap_target, Some((8, ROW)), "挂起期间目标框保留");
+        assert_eq!(sc.tap.tap_bump, Some(((7, ROW), 2)), "开战挂起期间撞击后续保留");
+        assert_eq!(sc.tap.tap_target, Some((8, ROW)), "挂起期间目标框保留");
         settle(&mut sc, fc, 400);
         let i41 = (0..sc.entities.count).find(|&i| sc.entities.items[i].type_ == 41).unwrap();
         assert!(sc.entities.items[i41].removed || sc.entities.items[i41].state == 1, "前置：怪被击杀");
@@ -2218,7 +2218,7 @@
         assert!(!door_intact(&sc, 8), "门已开");
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (8, ROW), "走进门格");
         assert_eq!(sc.game_mode, GameMode::Map);
-        assert!(sc.tap_bump.is_none() && sc.tap_target.is_none(), "收尾后无残留");
+        assert!(sc.tap.tap_bump.is_none() && sc.tap.tap_target.is_none(), "收尾后无残留");
     }
 
     /// 【计划 2 T7 复核 R6】路段开战挂起期间，壳层投键口径（win `route_key` 抬键前先 `interrupt_route`）解除挂起：Dialog dp3 下
@@ -2242,7 +2242,7 @@
             fc += 1;
             assert!(fc < 200, "前置：途中开战");
         }
-        assert!(sc.route.is_suspended() && sc.tap_bump.is_some(), "前置：挂起中、撞击后续在");
+        assert!(sc.route.is_suspended() && sc.tap.tap_bump.is_some(), "前置：挂起中、撞击后续在");
         sc.interrupt_route(); // win route_key：抬键前先打断
         sc.release_key();
         assert!(!sc.route.is_suspended() && sc.walkto_draining, "前置：挂起解除、转排空");
@@ -2252,13 +2252,13 @@
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (5, ROW), "胜利 restep 落怪格即停");
         assert_eq!(sc.player.yellow_keys, 1, "未耗钥");
         assert!(door_intact(&sc, 8), "门未开");
-        assert!(sc.tap_bump.is_none() && sc.tap_target.is_none() && !sc.route.is_open());
+        assert!(sc.tap.tap_bump.is_none() && sc.tap.tap_target.is_none() && !sc.route.is_open());
     }
 
     /// 跑到多步路线的末步在途窗口（`Map ∧ walk_phase == 1 ∧ tap_followup_ready`），返回下一拍帧号。
     fn run_to_last_step_window(sc: &mut GameScene, mut fc: i64) -> i64 {
         let wt = sc.width_table.clone();
-        while !(sc.game_mode == GameMode::Map && sc.walk_phase == 1 && sc.tap_followup_ready) {
+        while !(sc.game_mode == GameMode::Map && sc.walk_phase == 1 && sc.tap.tap_followup_ready) {
             sc.tick(fc, &wt);
             fc += 1;
             assert!(fc < 300, "前置：末步在途窗口");
@@ -2270,12 +2270,12 @@
     fn assert_manual_walk_rejects(sc: &mut GameScene, tap: (i32, i32), label: &str) {
         use crate::tap_walk::TapResult;
         assert!(sc.game_mode == GameMode::Map && sc.walk_phase == 1, "{label} 前置：手动行走中");
-        assert!(!sc.tap_followup_ready, "{label}：就绪位已作废");
+        assert!(!sc.tap.tap_followup_ready, "{label}：就绪位已作废");
         assert_eq!(sc.tap_cell(tap.0, tap.1), TapResult::Rejected, "{label}：手动行走中点地 = Rejected");
-        assert!(matches!(sc.tap_reject, Some((c, _)) if c == tap), "{label}：闪红");
+        assert!(matches!(sc.tap.tap_reject, Some((c, _)) if c == tap), "{label}：闪红");
         assert_eq!(sc.swipe_step(2), TapResult::Rejected, "{label}：手动行走中滑动 = Rejected");
-        assert!(sc.tap_pending.is_none() && sc.tap_bump.is_none(), "{label}：无排队 / 撞击");
-        assert_eq!(sc.tap_target, None, "{label}：目标框清除");
+        assert!(sc.tap.tap_pending.is_none() && sc.tap.tap_bump.is_none(), "{label}：无排队 / 撞击");
+        assert_eq!(sc.tap.tap_target, None, "{label}：目标框清除");
     }
 
     /// 【计划 2 T7 复核 R1（探针 P1 / P11）· spec §5.2 更正③】末步在途窗口里按下并按住可走方向（左）：
@@ -2300,7 +2300,7 @@
         settle(&mut sc, fc, 200);
         assert!(sc.player_cell_x < 6, "松键后停在手动步落格，不执行旧排队去 x=9（实得 {}）", sc.player_cell_x);
         assert!(!sc.route.is_open() && sc.game_mode == GameMode::Map && sc.walk_phase == 0);
-        assert!(sc.tap_pending.is_none() && sc.tap_target.is_none());
+        assert!(sc.tap.tap_pending.is_none() && sc.tap.tap_target.is_none());
     }
 
     /// 【计划 2 T7 复核 R1（探针 P11b）】点地前已按住方向键（左，在 x=1 顶墙不动）再点门：路线照走；末步窗口里 keyHeldCode ≠ 0
@@ -2319,7 +2319,7 @@
         assert_eq!(sc.player_cell_x, 6, "前置：末步 (6,ROW)→(7,ROW) 在途");
         sc.tick(fc, &wt);
         fc += 1;
-        assert!(!sc.tap_followup_ready && sc.tap_bump.is_none(), "窗口内按住 ⇒ 就绪位与撞击作废");
+        assert!(!sc.tap.tap_followup_ready && sc.tap.tap_bump.is_none(), "窗口内按住 ⇒ 就绪位与撞击作废");
         while !(sc.player_cell_x == 7 && sc.walk_phase == 1 && sc.facing == 3) {
             sc.tick(fc, &wt);
             fc += 1;
@@ -2331,7 +2331,7 @@
         assert!(sc.player_cell_x < 7, "松键后停在手动步落格（实得 {}）", sc.player_cell_x);
         assert_eq!(sc.player.yellow_keys, 1, "未耗钥");
         assert!(door_intact(&sc, 8), "门未开");
-        assert!(sc.tap_bump.is_none() && sc.tap_pending.is_none() && sc.tap_target.is_none());
+        assert!(sc.tap.tap_bump.is_none() && sc.tap.tap_pending.is_none() && sc.tap.tap_target.is_none());
     }
 
     /// 【计划 2 T7 复核 R1】末步窗口内按下又在下一拍前松开（tick_tap_state 看不到 keyHeldCode）：press_key 本身作废就绪位 ⇒
@@ -2344,13 +2344,13 @@
         let fc = run_to_last_step_window(&mut sc, 0);
         sc.press_key(-2); // 下（墙）
         sc.release_key();
-        assert!(!sc.tap_followup_ready, "场上按键作废就绪位");
+        assert!(!sc.tap.tap_followup_ready, "场上按键作废就绪位");
         assert_eq!(sc.tap_cell(3, ROW), TapResult::Rejected, "末步余下拍 = 手动输入后的行走：点地 Rejected");
-        assert!(matches!(sc.tap_reject, Some(((3, r), _)) if r == ROW), "闪红");
-        assert!(sc.tap_pending.is_none(), "不排队");
+        assert!(matches!(sc.tap.tap_reject, Some(((3, r), _)) if r == ROW), "闪红");
+        assert!(sc.tap.tap_pending.is_none(), "不排队");
         settle(&mut sc, fc, 200);
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (6, ROW), "落在原末步终点，不改道");
-        assert!(!sc.route.is_open() && sc.game_mode == GameMode::Map && sc.tap_target.is_none());
+        assert!(!sc.route.is_open() && sc.game_mode == GameMode::Map && sc.tap.tap_target.is_none());
     }
 
     /// 【计划 2 T7 复核 R2（探针 P10）· spec §5.2 更正④】走向怪途中再点同一只（同格 = 当前 tap_target）：不打断、不排队、
@@ -2364,16 +2364,16 @@
         let e = (0..sc.entities.count).find(|&i| sc.entities.items[i].type_ == 41).unwrap();
         assert_eq!(sc.tap_cell(8, ROW), TapResult::Selected);
         assert_eq!(sc.tap_cell(8, ROW), TapResult::Bumping, "再点 = 开战");
-        let bump = sc.tap_bump;
+        let bump = sc.tap.tap_bump;
         assert!(bump.is_some(), "前置：撞击后续在");
         let fc = walk_until_x(&mut sc, 4);
         let steps = sc.walk_step_count;
         assert_eq!(sc.tap_cell(8, ROW), TapResult::Bumping, "途中再点同一只 = 原路线继续");
-        assert_eq!(sc.tap_bump, bump, "撞击保留");
+        assert_eq!(sc.tap.tap_bump, bump, "撞击保留");
         assert!(sc.route.is_open() && !sc.walkto_draining, "未打断");
         assert_eq!(sc.walk_step_count, steps, "步序未清");
-        assert!(sc.tap_pending.is_none(), "不排队");
-        assert_eq!(sc.tap_target, Some((8, ROW)), "目标框不变");
+        assert!(sc.tap.tap_pending.is_none(), "不排队");
+        assert_eq!(sc.tap.tap_target, Some((8, ROW)), "目标框不变");
         settle(&mut sc, fc, 400);
         let ent = &sc.entities.items[e];
         assert!(ent.removed || ent.state == 1, "照常开战并击杀");
@@ -2388,7 +2388,7 @@
         let fc = walk_until_x(&mut sc, 4);
         assert_eq!(sc.tap_cell(8, ROW), TapResult::Queued, "已知限制：另一格 ≠ tap_target ⇒ 按点别处排队");
         settle(&mut sc, fc, 200);
-        assert_eq!(sc.tap_selected.map(|s| s.entity), Some(e), "已知限制：落格执行 = 首点选中");
+        assert_eq!(sc.tap.tap_selected.map(|s| s.entity), Some(e), "已知限制：落格执行 = 首点选中");
         let ent = &sc.entities.items[e];
         assert!(!ent.removed && ent.state == 0, "已知限制：未开战");
         assert!(!sc.route.is_open() && sc.game_mode == GameMode::Map);
@@ -2405,11 +2405,11 @@
             let wt = sc.width_table.clone();
             let mut fc = 0;
             while sc.player.yellow_keys != 0 {
-                if retap && sc.player_cell_x == 4 && sc.game_mode == GameMode::Dialog && sc.tap_pending.is_none() {
+                if retap && sc.player_cell_x == 4 && sc.game_mode == GameMode::Dialog && sc.tap.tap_pending.is_none() {
                     let steps = sc.walk_step_count;
                     assert_eq!(sc.tap_cell(8, ROW), TapResult::Bumping, "途中再点门 = 原路线继续");
                     assert!(sc.route.is_open() && !sc.walkto_draining && sc.walk_step_count == steps, "未打断");
-                    assert!(sc.tap_bump.is_some() && sc.tap_pending.is_none(), "撞击保留、不排队");
+                    assert!(sc.tap.tap_bump.is_some() && sc.tap.tap_pending.is_none(), "撞击保留、不排队");
                 }
                 sc.tick(fc, &wt);
                 fc += 1;
@@ -2418,7 +2418,7 @@
             let open = fc;
             settle(&mut sc, fc, 100);
             assert!(!door_intact(&sc, 8), "门已开");
-            assert!(sc.tap_target.is_none() && sc.tap_bump.is_none());
+            assert!(sc.tap.tap_target.is_none() && sc.tap.tap_bump.is_none());
             (open, (sc.player_cell_x, sc.player_cell_y))
         };
         let control = open_frame(false);
@@ -2435,11 +2435,11 @@
         let fc = walk_until_x(&mut sc, 4);
         assert_eq!(sc.tap_cell(2, ROW), TapResult::Queued);
         assert_eq!(sc.tap_cell(2, ROW), TapResult::Queued, "再点排队目标 = 仍 Queued");
-        assert_eq!(sc.tap_pending, Some(PendingTap::Cell(2, ROW)), "排队不变");
-        assert_eq!(sc.tap_target, Some((2, ROW)), "目标框不变");
+        assert_eq!(sc.tap.tap_pending, Some(PendingTap::Cell(2, ROW)), "排队不变");
+        assert_eq!(sc.tap.tap_target, Some((2, ROW)), "目标框不变");
         settle(&mut sc, fc, 300);
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (2, ROW), "落格后照常改道");
-        assert!(sc.tap_pending.is_none() && sc.tap_target.is_none());
+        assert!(sc.tap.tap_pending.is_none() && sc.tap.tap_target.is_none());
     }
 
     /// 跑到排队收尾间隙（排空已落 (5,ROW)、Map wp0、就绪位在、排队 (2,ROW) 在），返回下一拍帧号。
@@ -2450,13 +2450,13 @@
         let mut fc = walk_until_x(&mut sc, 4);
         assert_eq!(sc.tap_cell(2, ROW), TapResult::Queued);
         let wt = sc.width_table.clone();
-        while !(sc.tap_followup_ready && sc.game_mode == GameMode::Map && sc.walk_phase == 0) {
+        while !(sc.tap.tap_followup_ready && sc.game_mode == GameMode::Map && sc.walk_phase == 0) {
             sc.tick(fc, &wt);
             fc += 1;
             assert!(fc < 200, "前置：收尾间隙");
         }
         assert_eq!(sc.player_cell_x, 5, "前置：排空落在 (5,ROW)");
-        assert!(sc.tap_pending.is_some(), "前置：排队在");
+        assert!(sc.tap.tap_pending.is_some(), "前置：排队在");
         (sc, fc)
     }
 
@@ -2465,10 +2465,10 @@
     fn t7_walk_to_in_followup_gap_supersedes_queue() {
         let (mut sc, fc) = queued_followup_gap();
         assert!(sc.walk_to(8, ROW).reached, "间隙里 walk_to = 新路线");
-        assert!(sc.tap_pending.is_none(), "walk_to 清排队");
+        assert!(sc.tap.tap_pending.is_none(), "walk_to 清排队");
         settle(&mut sc, fc, 300);
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (8, ROW), "新路线走完即停，不再执行旧排队");
-        assert!(sc.tap_pending.is_none() && sc.tap_target.is_none());
+        assert!(sc.tap.tap_pending.is_none() && sc.tap.tap_target.is_none());
     }
 
     /// 【计划 2 T7 复核 R4（变异 Mj）】收尾间隙里壳直接调 `probe_step`：探步取代旧排队——探步落格后不再执行旧排队（回 x=2）。
@@ -2476,10 +2476,10 @@
     fn t7_probe_step_in_followup_gap_supersedes_queue() {
         let (mut sc, fc) = queued_followup_gap();
         assert!(sc.probe_step(2), "间隙里探步（右）放行");
-        assert!(sc.tap_pending.is_none(), "probe_step 清排队");
+        assert!(sc.tap.tap_pending.is_none(), "probe_step 清排队");
         settle(&mut sc, fc, 200);
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (6, ROW), "探步落 (6,ROW) 即停，不再执行旧排队");
-        assert!(sc.tap_pending.is_none() && sc.tap_target.is_none());
+        assert!(sc.tap.tap_pending.is_none() && sc.tap.tap_target.is_none());
     }
 
     // ------- Task 8：点地反馈绘制（spec §6，modern 专用、classic 零 op） -------
@@ -2500,9 +2500,9 @@
 
     fn put_markers(sc: &mut GameScene) {
         let e = (0..sc.entities.count).find(|&i| sc.entities.items[i].type_ == 41).unwrap();
-        sc.tap_target = Some((5, ROW));
-        sc.tap_reject = Some(((4, ROW), sc.frame_counter + crate::tap_walk::TAP_REJECT_TICKS));
-        sc.tap_selected = Some(crate::tap_walk::SelectedEnemy { entity: e, type_: 41, cell: (8, ROW), floor: sc.persist.current_floor });
+        sc.tap.tap_target = Some((5, ROW));
+        sc.tap.tap_reject = Some(((4, ROW), sc.frame_counter + crate::tap_walk::TAP_REJECT_TICKS));
+        sc.tap.tap_selected = Some(crate::tap_walk::SelectedEnemy { entity: e, type_: 41, cell: (8, ROW), floor: sc.persist.current_floor });
     }
 
     /// 【STAGE-B-008 · spec §6】classic：反馈层零 op，整帧 op 流与无点地状态时逐条相同。
@@ -2564,7 +2564,7 @@
         sc.player.atk = 100_000;
         sc.player.def = 100_000;
         sc.player.hp = 100_000;
-        sc.tap_selected = Some(crate::tap_walk::SelectedEnemy { entity: e, type_: 69, cell: (7, ROW), floor: sc.persist.current_floor });
+        sc.tap.tap_selected = Some(crate::tap_walk::SelectedEnemy { entity: e, type_: 69, cell: (7, ROW), floor: sc.persist.current_floor });
         let (ox, oy) = (sc.view.cam_x, sc.view.cam_y + sc.layout.view_top_y);
         let ops = marker_ops(&sc);
         assert!(

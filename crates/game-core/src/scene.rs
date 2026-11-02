@@ -528,32 +528,6 @@ pub struct GameScene {
     /// 寻路段（route 不再开放），dp3 收尾原本只凭 `route.is_open()` 认寻路 ⇒ 打断后落入脚本机
     /// dp0 行尾收尾。置位 = interrupt_route 时处于 Dialog dp3；清位 = 新 walk_to / 剧情接管 / 回 Map。
     walkto_draining: bool,
-    /// 【BUG-043】点地寻路期间暂存的教程路径箭头步序（SEE flag=1 写入 walkPathBuffer 的那条；末元素 = 下一步）。
-    /// walk_to 会占用 walkPathBuffer 装寻路路线，箭头改从这里画、每走完一格按 label216 规则消费，收尾放回 walkPathBuffer。
-    /// None = 未暂存（经典面恒 None）。
-    walkto_arrows: Option<Vec<u8>>,
-    /// 【T2】战斗段快照（撞敌挂起时记账，战斗终结入 CombatStroke）
-    /// 撤销快照（实体槽, 型, 复活血, 战前血金, 战前整格实体, 开战时实体数——战斗期间实体表增长 = 不可逆生成，见 BUG-045）
-    battle_undo_snap: Option<(usize, i32, i32, crate::undo_journal::PlayerVitals, entity::Entity, usize)>,
-    /// 【批三 2026-11-02】道具使用/装备替换两段式选中（ItemPanel 行域；cfcc9ad
-    /// 先例）：tap1=选中看预览（属性/道具效果），tap2 同行=执行，打断=不执行。
-    pub ui_selected: Option<(usize, u64)>,
-    /// 【Y1】两段式步序钟（tick +1；tap2 阈值判定用）。
-    pub ui_frame: u64,
-    /// 【STAGE-B-008】自动战斗（触屏模式设置项，壳写入；默认 false = 点怪先选中、再点开战）
-    pub auto_battle: bool,
-    /// 【STAGE-B-008】点地目标标记（走向 / 撞向的格；路线与撞击结束即清）
-    pub tap_target: Option<(i32, i32)>,
-    /// 【STAGE-B-008】闪红（格, 到期拍）
-    pub tap_reject: Option<((i32, i32), i64)>,
-    /// 【STAGE-B-008】路线走完后的撞击（停靠格, 方向）——在 Map wp0 执行
-    tap_bump: Option<((i32, i32), u8)>,
-    /// 【STAGE-B-008】点地寻路收尾后下一拍执行后续（撞击 / 排队）
-    tap_followup_ready: bool,
-    /// 【STAGE-B-008】已选中的怪物（首点选中、再点开战；每拍校验）
-    pub tap_selected: Option<crate::tap_walk::SelectedEnemy>,
-    /// 【STAGE-B-008】点地寻路中排队的输入（排空回 Map wp0 后下一拍执行；只留最后一次）
-    pub(crate) tap_pending: Option<crate::tap_walk::PendingTap>,
     /// itemUseTargetType：最近拾取/装备的类型号（浮层图标 + 商店显示）
     pub overlay_kind_item: i32,
     /// 浮层图标图（kind1/3：entityTypeImage[itemUseTargetType] 的克隆——paint 免借用冲突）
@@ -578,6 +552,8 @@ pub struct GameScene {
     // —— walkPhase 2 交互视点（-5 键；easeAfterimages/lockCameraOn 家族）——
     /// afterimageX/Y[4]：残影蛇（-5 时填充玩家位，easeAfterimages 逐拍缓动）
     pub afterimage_x: [i32; 4],
+    /// 【task-15 V2 tap/input 收口】触屏/行走域切片（11 字段→TapState）。
+    pub tap: crate::tap_walk::TapState,
     pub afterimage_y: [i32; 4],
     /// cameraLockedOnPlayer：视点锁定（第二次 -5 置位 → stepCamera 回玩家）
     pub view_locked: bool,
@@ -1234,9 +1210,9 @@ impl GameScene {
             return crate::pathfind::RoutePlan { steps: Vec::new(), dock: at, reached: false, probe: None };
         }
         // 【STAGE-B-008 · 计划 2 T5 复核 R5】旧入口不继承点地后续（撞击 / 排队 / 就绪位），免得之后无关的收尾执行旧撞击
-        self.tap_bump = None;
-        self.tap_pending = None;
-        self.tap_followup_ready = false;
+        self.tap.tap_bump = None;
+        self.tap.tap_pending = None;
+        self.tap.tap_followup_ready = false;
         self.interrupt_route();
         self.walkto_draining = false; // 新路线 = 段重新开放（改道）
         let (cx, cy) = (self.player_cell_x, self.player_cell_y);
@@ -1261,9 +1237,9 @@ impl GameScene {
         let (cx, cy) = (self.player_cell_x, self.player_cell_y);
         self.route.begin((cx, cy));
         // 【BUG-043】箭头可见 ⇒ 先把箭头步序移出 walkPathBuffer（改道时已暂存，保留原暂存）
-        if self.path_arrows_visible && self.walkto_arrows.is_none() {
+        if self.path_arrows_visible && self.tap.walkto_arrows.is_none() {
             let n = (self.walk_step_count.max(0) as usize).min(self.walk_path_buffer.len());
-            self.walkto_arrows = Some(self.walk_path_buffer[..n].to_vec());
+            self.tap.walkto_arrows = Some(self.walk_path_buffer[..n].to_vec());
         }
         self.walk_step_count = steps.len() as i32;
         self.walk_path_buffer = steps;
@@ -1298,10 +1274,10 @@ impl GameScene {
         if self.tap_walk_in_progress() {
             // 【spec §5.2 · 计划 2 T7 复核 R2】再点当前目标格（不是点自己）= 不打断、不排队、不动撞击 / 选中，原路线继续
             //（走向怪途中再点这只怪：照常开战，不降级为选中）。排队后再点排队目标同此（tap_target 已换到排队目标）。
-            if self.tap_target == Some((cx, cy)) && (cx, cy) != at {
-                return if self.tap_pending.is_some() {
+            if self.tap.tap_target == Some((cx, cy)) && (cx, cy) != at {
+                return if self.tap.tap_pending.is_some() {
                     TapResult::Queued
-                } else if self.tap_bump.is_some() {
+                } else if self.tap.tap_bump.is_some() {
                     TapResult::Bumping
                 } else {
                     TapResult::Walking
@@ -1310,16 +1286,16 @@ impl GameScene {
             // 【spec §5.2 排队】点地寻路中（含末步在途窗口，见 tap_walk_in_progress）：打断（BUG-040 排空：走完当前步回 Map wp0；
             // 末步窗口里路段已收、interrupt_route 为空操作），取消旧撞击；点自己 = 停下，点别处 = 记下新目标（只留最后一次）、
             // 目标框立即换到新目标，落格后的后续拍执行（tick_tap_state）。
-            self.tap_bump = None;
-            self.tap_selected = None;
+            self.tap.tap_bump = None;
+            self.tap.tap_selected = None;
             self.interrupt_route();
             if (cx, cy) == at {
-                self.tap_pending = None;
-                self.tap_target = None;
+                self.tap.tap_pending = None;
+                self.tap.tap_target = None;
                 return TapResult::Stopped;
             }
-            self.tap_pending = Some(crate::tap_walk::PendingTap::Cell(cx, cy));
-            self.tap_target = Some((cx, cy));
+            self.tap.tap_pending = Some(crate::tap_walk::PendingTap::Cell(cx, cy));
+            self.tap.tap_target = Some((cx, cy));
             return TapResult::Queued;
         }
         match self.walk_phase {
@@ -1332,29 +1308,29 @@ impl GameScene {
             }
         }
         // 新点按取代上一次点按尚未执行的撞击 / 排队后续（路线已收尾、后续排在下一拍开头的那一拍间隙里点按）
-        self.tap_bump = None;
-        self.tap_pending = None;
-        self.tap_followup_ready = false;
+        self.tap.tap_bump = None;
+        self.tap.tap_pending = None;
+        self.tap.tap_followup_ready = false;
         let grid = self.tap_grid();
         // 【STAGE-B-008 · spec §5.2 Q8】点中怪物：自动战斗关且不是已选中的那只 ⇒ 只选中（不动、不开路线、不置目标框）
         if let Some(crate::tap_walk::TapCell { kind: crate::tap_walk::TargetKind::Monster(e), .. }) = grid.get(cx, cy) {
             // 再点判据带有效性校验：实体表重排（跨层探针 / 换层重载）后、下一拍校验前的同帧窗口里，
             // 同下标可能已是另一只怪（计划 2 T6 复核 R2）
-            let again = self.tap_selected.map_or(false, |s| s.entity == e && self.selection_valid(s));
-            if !self.auto_battle && !again {
+            let again = self.tap.tap_selected.map_or(false, |s| s.entity == e && self.selection_valid(s));
+            if !self.tap.auto_battle && !again {
                 let ent = &self.entities.items[e];
-                self.tap_selected = Some(crate::tap_walk::SelectedEnemy {
+                self.tap.tap_selected = Some(crate::tap_walk::SelectedEnemy {
                     entity: e,
                     type_: ent.type_,
                     cell: (ent.px >> 5, ent.py >> 5),
                     floor: self.persist.current_floor,
                 });
-                self.tap_target = None;
+                self.tap.tap_target = None;
                 return TapResult::Selected;
             }
         }
         // 点别处 / 点自己 / 再点同一只 / 自动战斗：清选中，再执行这次点按
-        self.tap_selected = None;
+        self.tap.tap_selected = None;
         if (cx, cy) == at {
             return TapResult::Ignored;
         }
@@ -1367,7 +1343,7 @@ impl GameScene {
     ///（约 4 拍）。该窗口 [`Self::accepts_field_tap`] 为真（Map ⇒ true）。
     fn tap_walk_in_progress(&self) -> bool {
         (self.game_mode == GameMode::Dialog && self.dialog_phase == 3 && self.walkto_owns_dp3())
-            || (self.game_mode == GameMode::Map && self.walk_phase == 1 && self.tap_followup_ready)
+            || (self.game_mode == GameMode::Map && self.walk_phase == 1 && self.tap.tap_followup_ready)
     }
 
     fn start_tap_plan(&mut self, plan: crate::tap_walk::TapPlan, target: (i32, i32)) -> crate::tap_walk::TapResult {
@@ -1376,16 +1352,16 @@ impl GameScene {
             TapPlan::Walk { steps, .. } => {
                 self.walkto_draining = false;
                 self.begin_walk_route(steps);
-                self.tap_target = Some(target);
+                self.tap.tap_target = Some(target);
                 TapResult::Walking
             }
             TapPlan::Bump { steps, dock, dir } => {
-                self.tap_target = Some(target);
+                self.tap.tap_target = Some(target);
                 if steps.is_empty() {
                     self.execute_bump(dir);
                 } else {
                     self.walkto_draining = false;
-                    self.tap_bump = Some((dock, dir));
+                    self.tap.tap_bump = Some((dock, dir));
                     self.begin_walk_route(steps);
                 }
                 TapResult::Bumping
@@ -1416,17 +1392,17 @@ impl GameScene {
     }
 
     fn flash_reject(&mut self, cell: (i32, i32)) {
-        self.tap_reject = Some((cell, self.frame_counter + crate::tap_walk::TAP_REJECT_TICKS));
+        self.tap.tap_reject = Some((cell, self.frame_counter + crate::tap_walk::TAP_REJECT_TICKS));
     }
 
     /// 【STAGE-B-008】清点地状态（撤销 / 换层 / 剧情 / 按键时）。
     pub fn clear_tap_state(&mut self) {
-        self.tap_target = None;
-        self.tap_reject = None;
-        self.tap_bump = None;
-        self.tap_followup_ready = false;
-        self.tap_selected = None;
-        self.tap_pending = None;
+        self.tap.tap_target = None;
+        self.tap.tap_reject = None;
+        self.tap.tap_bump = None;
+        self.tap.tap_followup_ready = false;
+        self.tap.tap_selected = None;
+        self.tap.tap_pending = None;
     }
 
     /// 【STAGE-B-008 · spec §5.2】选中是否仍有效（每拍校验的判据）。
@@ -1457,16 +1433,16 @@ impl GameScene {
             }
             Action::Stop => {
                 if self.tap_walk_in_progress() {
-                    self.tap_bump = None;
-                    self.tap_selected = None;
-                    self.tap_pending = None;
-                    self.tap_target = None;
+                    self.tap.tap_bump = None;
+                    self.tap.tap_selected = None;
+                    self.tap.tap_pending = None;
+                    self.tap.tap_target = None;
                     self.interrupt_route();
                 }
                 true
             }
             Action::Cancel => {
-                self.tap_selected = None;
+                self.tap.tap_selected = None;
                 true
             }
             Action::Fight => {
@@ -1475,11 +1451,11 @@ impl GameScene {
             }
             Action::StopThen(c) => {
                 if self.tap_walk_in_progress() {
-                    self.tap_bump = None;
-                    self.tap_selected = None;
-                    self.tap_target = None; // 【复核 T2-R5】打断 ⇒ 目标标记消失（spec §6）
+                    self.tap.tap_bump = None;
+                    self.tap.tap_selected = None;
+                    self.tap.tap_target = None; // 【复核 T2-R5】打断 ⇒ 目标标记消失（spec §6）
                     self.interrupt_route();
-                    self.tap_pending = Some(crate::tap_walk::PendingTap::StopThen(c));
+                    self.tap.tap_pending = Some(crate::tap_walk::PendingTap::StopThen(c));
                     true
                 } else {
                     self.key_value = c;
@@ -1492,10 +1468,10 @@ impl GameScene {
 
     /// 【STAGE-B-008 · spec §3.2「开战」】撞已选中的怪（工具栏按钮由计划 3 接入）。无有效选中 = Ignored。
     pub fn engage_selected(&mut self) -> crate::tap_walk::TapResult {
-        match self.tap_selected {
+        match self.tap.tap_selected {
             Some(s) if self.selection_valid(s) => self.tap_cell(s.cell.0, s.cell.1),
             _ => {
-                self.tap_selected = None;
+                self.tap.tap_selected = None;
                 crate::tap_walk::TapResult::Ignored
             }
         }
@@ -1509,11 +1485,11 @@ impl GameScene {
             return TapResult::Ignored;
         }
         if self.tap_walk_in_progress() {
-            self.tap_bump = None;
-            self.tap_selected = None;
+            self.tap.tap_bump = None;
+            self.tap.tap_selected = None;
             self.interrupt_route();
-            self.tap_pending = Some(PendingTap::Swipe(dir));
-            self.tap_target = None;
+            self.tap.tap_pending = Some(PendingTap::Swipe(dir));
+            self.tap.tap_target = None;
             return TapResult::Queued;
         }
         match self.walk_phase {
@@ -1521,10 +1497,10 @@ impl GameScene {
             2 => return TapResult::Ignored,
             _ => return TapResult::Rejected,
         }
-        self.tap_bump = None;
-        self.tap_pending = None;
-        self.tap_selected = None;
-        self.tap_target = None;
+        self.tap.tap_bump = None;
+        self.tap.tap_pending = None;
+        self.tap.tap_selected = None;
+        self.tap.tap_target = None;
         if self.probe_step(dir) {
             TapResult::Walking
         } else {
@@ -1537,41 +1513,41 @@ impl GameScene {
     /// 路线与撞击都结束即清目标标记。classic 下各字段恒空，零操作。
     fn tick_tap_state(&mut self) {
         // 【STAGE-B-008 · spec §5.2】选中每拍校验：任一条件不满足即清
-        if let Some(s) = self.tap_selected {
+        if let Some(s) = self.tap.tap_selected {
             if !self.selection_valid(s) {
-                self.tap_selected = None;
+                self.tap.tap_selected = None;
             }
         }
-        if let Some((_, until)) = self.tap_reject {
+        if let Some((_, until)) = self.tap.tap_reject {
             if self.frame_counter >= until {
-                self.tap_reject = None;
+                self.tap.tap_reject = None;
             }
         }
         // 【spec §5.2 · 计划 2 T7 复核 R1】末步在途窗口（Map wp1 ∧ 后续就绪）里按住方向键：落格那一拍 handle_field_input 按 keyHeldCode
         // 同拍续走手动步，walk_phase 回 1，窗口判据分不清末步与手动步 ⇒ 手动输入优先，就绪位、撞击、排队一并作废
         //（浮层开着时按键属浮层，不判；与 press_key 同口径）。须在下列块之前：作废后本拍起即不再算"点地寻路中"。
-        if self.tap_followup_ready
+        if self.tap.tap_followup_ready
             && self.game_mode == GameMode::Map
             && self.walk_phase == 1
             && !self.overlay_active
             && self.key_held != 0
         {
-            self.tap_followup_ready = false;
-            self.tap_bump = None;
-            self.tap_pending = None;
+            self.tap.tap_followup_ready = false;
+            self.tap.tap_bump = None;
+            self.tap.tap_pending = None;
         }
         // 【spec §5.2 · 计划 2 T7】排队 / 撞击后续只在"点地寻路中"（寻路占 dp3，或末步在途窗口）或"收尾待执行"（含下面两种暂缓）
         // 期间有效：其余时刻的残留丢弃，免得之后无关的收尾误执行、目标框挂着不消失。
         // 【计划 2 T7 复核 R6】撞击后续在途中开战挂起（route.is_suspended）期间保留：胜利后路线续走到停靠格，照常撞击；
         // 排队仍按此规则（排队后排空只走完当前步，不会再撞出挂起）。挂起被壳层投键口径的 interrupt_route 解除（win route_key
         // 抬键）⇒ 不再保留，下一拍丢弃。
-        if !self.tap_followup_ready && !self.tap_walk_in_progress() {
-            self.tap_pending = None;
+        if !self.tap.tap_followup_ready && !self.tap_walk_in_progress() {
+            self.tap.tap_pending = None;
             if !self.route.is_suspended() {
-                self.tap_bump = None;
+                self.tap.tap_bump = None;
             }
         }
-        if self.tap_followup_ready
+        if self.tap.tap_followup_ready
             && !(self.game_mode == GameMode::Map && self.walk_phase == 1)
             && !self.overlay_active
         {
@@ -1580,9 +1556,9 @@ impl GameScene {
             // 【spec §5.1 · 计划 2 T5 复核 R2】浮层开着（停靠格本身弹拾取框）同样暂缓：保留就绪位与撞击 / 排队，
             // 关框后下一拍再按下列就绪条件判（关框键属浮层，press_key 不清撞击 / 排队）。
             // 排队优先于撞击（排队时已清撞击，这里只是兜底次序）。
-            self.tap_followup_ready = false;
-            let bump = self.tap_bump.take();
-            let pending = self.tap_pending.take();
+            self.tap.tap_followup_ready = false;
+            let bump = self.tap.tap_bump.take();
+            let pending = self.tap.tap_pending.take();
             let ready = self.game_mode == GameMode::Map
                 && self.walk_phase == 0
                 && !self.overlay_active
@@ -1613,14 +1589,14 @@ impl GameScene {
                 }
             }
         }
-        if self.tap_target.is_some()
+        if self.tap.tap_target.is_some()
             && !(self.route.is_open()
                 || self.walkto_draining
-                || self.tap_bump.is_some()
-                || self.tap_followup_ready
-                || self.tap_pending.is_some())
+                || self.tap.tap_bump.is_some()
+                || self.tap.tap_followup_ready
+                || self.tap.tap_pending.is_some())
         {
-            self.tap_target = None;
+            self.tap.tap_target = None;
         }
     }
 
@@ -1633,9 +1609,9 @@ impl GameScene {
             return false;
         }
         // 【STAGE-B-008 · 计划 2 T5 复核 R5】同 walk_to：不继承点地后续
-        self.tap_bump = None;
-        self.tap_pending = None;
-        self.tap_followup_ready = false;
+        self.tap.tap_bump = None;
+        self.tap.tap_pending = None;
+        self.tap.tap_followup_ready = false;
         self.interrupt_route();
         // 【BUG-047】先置朝向再撞（与 handle_field_input 同式，scene.rs:5154-5155）：
         // 放行后 Map wp1 臂按 self.facing 位移；不写则按旧朝向走出一整格、且该方向不做碰撞（可穿墙）。
@@ -1761,7 +1737,7 @@ impl GameScene {
         self.script_walk_armed = false;
         self.game_mode = GameMode::Map;
         // 【STAGE-B-008】下一拍开头执行点地后续（撞击 / 排队）
-        self.tap_followup_ready = true;
+        self.tap.tap_followup_ready = true;
     }
 
     /// 【BUG-040】dp3 当前是否归点地寻路所有（段开放，或打断后仍在走完当前步）。
@@ -1772,7 +1748,7 @@ impl GameScene {
     /// 路径箭头的步序源（buffer, 条数）：绘制（a.java:5929-5956）自玩家格沿 `buffer[..条数]` 自末端逐格外扩。
     /// 【BUG-043】点地寻路期间取暂存的箭头步序（walkPathBuffer 此时装的是寻路路线）。
     fn path_arrow_steps(&self) -> (&[u8], usize) {
-        match &self.walkto_arrows {
+        match &self.tap.walkto_arrows {
             Some(steps) => (steps, steps.len()),
             None => (&self.walk_path_buffer, self.walk_step_count.max(0) as usize),
         }
@@ -1786,7 +1762,7 @@ impl GameScene {
         if !self.path_arrows_visible {
             return;
         }
-        let Some(steps) = self.walkto_arrows.as_mut() else { return };
+        let Some(steps) = self.tap.walkto_arrows.as_mut() else { return };
         match steps.last() {
             Some(&top) if top as i32 == walked => {
                 steps.pop();
@@ -1801,7 +1777,7 @@ impl GameScene {
 
     /// 【BUG-043】寻路已释放 dp（段关闭、非收尾中、非事件挂起）而箭头仍暂存 ⇒ 放回（剧情接管后的延迟放回）。
     fn settle_walkto_arrows(&mut self) {
-        if self.walkto_arrows.is_some() && !self.walkto_owns_dp3() && !self.route.is_suspended() {
+        if self.tap.walkto_arrows.is_some() && !self.walkto_owns_dp3() && !self.route.is_suspended() {
             self.restore_walkto_arrows();
         }
     }
@@ -1809,7 +1785,7 @@ impl GameScene {
     /// 【BUG-043】点地寻路收尾 / 被剧情接管：余下箭头步序放回 walkPathBuffer（与方向键走到此处时同态）。
     /// 箭头途中已熄（偏离 / 浮层撞格清除）⇒ 只丢弃暂存、不动 walkPathBuffer。
     fn restore_walkto_arrows(&mut self) {
-        if let Some(steps) = self.walkto_arrows.take() {
+        if let Some(steps) = self.tap.walkto_arrows.take() {
             if self.path_arrows_visible {
                 self.walk_step_count = steps.len() as i32;
                 self.walk_path_buffer = steps;
@@ -1886,7 +1862,7 @@ impl GameScene {
         };
         self.walk_path_buffer = result.steps;
         self.walk_step_count = self.walk_path_buffer.len() as i32;
-        self.walkto_arrows = None; // 【BUG-043】新路径（SEE 箭头 / MOV）取代任何暂存的旧箭头
+        self.tap.walkto_arrows = None; // 【BUG-043】新路径（SEE 箭头 / MOV）取代任何暂存的旧箭头
         result.found
     }
 
@@ -3023,12 +2999,12 @@ impl GameScene {
         // 【计划 2 T7 复核 R1】同时清后续就绪位：末步在途窗口内按下又在下一拍前松开，tick_tap_state 看不到 keyHeldCode，
         // 就绪位留着会让本步与之后的手动步仍算"点地寻路中"。
         if !self.overlay_active {
-            self.tap_bump = None;
-            self.tap_pending = None;
-            self.tap_followup_ready = false;
+            self.tap.tap_bump = None;
+            self.tap.tap_pending = None;
+            self.tap.tap_followup_ready = false;
         }
         // 【STAGE-B-008 · spec §5.2】任何按键清怪物选中（浮层开着时选中本就由每拍校验清掉）
-        self.tap_selected = None;
+        self.tap.tap_selected = None;
         // 【T2 打断终版】寻路（WalkTo/探步段）中任意输入皆打断——全通道（触屏/
         // 方向键/软键）即刻清 walkPathBuffer 停步（手动优先）。经典脚本行走
         // （MOV/dp2）不受影响（route 段仅 WalkTo 开放）——保真红线 key 链不动。
@@ -3650,7 +3626,7 @@ impl GameScene {
                                         self.walk_step_count = 0;
                                         // 【BUG-043】原版此处清的是与箭头共用的 walkStepCount（方向键撞门 ⇒ 箭头即不画）；
                                         // 点地寻路期间箭头在暂存里，同步清空（经典面暂存恒 None）
-                                        if let Some(a) = self.walkto_arrows.as_mut() {
+                                        if let Some(a) = self.tap.walkto_arrows.as_mut() {
                                             a.clear();
                                         }
                                         self.overlay_kind_item = 0;
@@ -3834,7 +3810,7 @@ impl GameScene {
                                         self.route_event_suspend();
                                         // 【BUG-045③】战斗进行中不可撤（T1 契约的生产接线）
                                         self.undo.begin_combat();
-                                        self.battle_undo_snap = Some((
+                                        self.tap.battle_undo_snap = Some((
                                             e,
                                             snapshot.type_,
                                             self.battle_enemy_hp,
@@ -3852,7 +3828,7 @@ impl GameScene {
                                 } else {
                                     self.walk_step_count = 0;
                                     // 【BUG-043】同上：箭头暂存随共用 walkStepCount 一并清空
-                                    if let Some(a) = self.walkto_arrows.as_mut() {
+                                    if let Some(a) = self.tap.walkto_arrows.as_mut() {
                                         a.clear();
                                     }
                                     // 【BUG-046】a.java:5487-5490：拒战提示框（kind 0，无脚注图标）
@@ -4105,7 +4081,7 @@ impl GameScene {
                     // 并续走——按键打断时步序已清空，续走只开一个零步段给胜利 restep 记位移笔（否则撤销战斗后玩家与复活的怪重叠，复核 T4-R1）。
                     if self.route.is_suspended() || self.undo.combat_in_progress() {
                         if let Some((slot, ety, hp_before, vitals_before, snapshot, count_at_start)) =
-                            self.battle_undo_snap.take()
+                            self.tap.battle_undo_snap.take()
                         {
                             if self.entities.count != count_at_start {
                                 // 【BUG-045】击杀掉落（spawn_boss_event）/ 61 机关生成实体等不可逆副作用：实体表在战斗期间增长（append-only）⇒
@@ -4134,7 +4110,7 @@ impl GameScene {
                             self.route.resume(at);
                         }
                     } else {
-                        self.battle_undo_snap = None;
+                        self.tap.battle_undo_snap = None;
                     }
                     self.battle_target = -1;
                 }
@@ -4379,7 +4355,7 @@ impl GameScene {
         // 否则整条清空 + 熄箭头；步数已尽也熄箭头
         // 【BUG-043】点地寻路期间 walkPathBuffer 装的是寻路路线：规则改作用于暂存的箭头步序
         //（否则会吃掉寻路步、并在寻路步尽时熄箭头）；经典面 walkto_arrows 恒 None，原逻辑一字不动
-        if self.path_arrows_visible && self.walkto_arrows.is_some() {
+        if self.path_arrows_visible && self.tap.walkto_arrows.is_some() {
             self.consume_walkto_arrow_step(walked_facing);
             self.settle_walkto_arrows();
         } else if self.path_arrows_visible {
@@ -4976,25 +4952,25 @@ impl GameScene {
     /// 【批三】道具使用/装备替换两段式：tap1=选中（返回 false 不执行；光标+预览
     /// 随 select_row 可见）；tap2 同行=执行（true）；点别行=换选不执行。
     pub fn ui_tap_two_stage(&mut self, index: usize) -> bool {
-        if let Some((sel, stamp)) = self.ui_selected {
+        if let Some((sel, stamp)) = self.tap.ui_selected {
             if sel == index {
-                if self.ui_frame.saturating_sub(stamp)
+                if self.tap.ui_frame.saturating_sub(stamp)
                     >= crate::menu_family::TWO_STAGE_MIN_STEPS
                 {
-                    self.ui_selected = None;
+                    self.tap.ui_selected = None;
                     return true;
                 }
                 return false; // 【Y1】连击抑制
             }
         }
-        self.ui_selected = Some((index, self.ui_frame));
+        self.tap.ui_selected = Some((index, self.tap.ui_frame));
         self.select_row(index as i32);
         false
     }
 
     /// 【批三】打断（滑动/按键/点行外）：清选中不执行。
     pub fn ui_interrupt(&mut self) {
-        self.ui_selected = None;
+        self.tap.ui_selected = None;
     }
 
     /// 指针选行（hover 高亮/点击对位）：只动光标+滚窗同步，无其他状态变化（③-2/b）。

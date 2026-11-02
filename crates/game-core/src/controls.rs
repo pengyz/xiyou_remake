@@ -152,7 +152,7 @@ impl GameScene {
         let menu = Controls::key(FunctionId::Menu, -7);
         match self.walk_phase {
             0 => {
-                if self.tap_selected.is_some() {
+                if self.tap.tap_selected.is_some() {
                     // 已选中怪物：中间 = 开战 · 取消 · 撤销
                     return Controls {
                         left: Some(bag),
@@ -424,7 +424,7 @@ mod tests {
     fn t1_map_selected_monster() {
         let mut sc = scene((2, ROW), &[(41, 8, ROW)]);
         let e = (0..sc.entities.count).find(|&i| sc.entities.items[i].type_ == 41).unwrap();
-        sc.tap_selected = Some(crate::tap_walk::SelectedEnemy { entity: e, type_: 41, cell: (8, ROW), floor: sc.persist.current_floor });
+        sc.tap.tap_selected = Some(crate::tap_walk::SelectedEnemy { entity: e, type_: 41, cell: (8, ROW), floor: sc.persist.current_floor });
         let c = sc.controls();
         assert_eq!(
             c.mid,
@@ -621,19 +621,19 @@ mod tests {
         let _ = sc.tap_cell(10, ROW);
         let fc = walk_until_x_(&mut sc, 3);
         assert!(sc.perform_action(Action::Stop));
-        assert!(sc.tap_pending.is_none() && sc.tap_target.is_none());
+        assert!(sc.tap.tap_pending.is_none() && sc.tap.tap_target.is_none());
         settle_(&mut sc, fc, 120);
         assert_eq!(sc.game_mode, GameMode::Map, "排空后停在地图");
         // Cancel / Fight：选中怪
         let mut sc = scene((2, ROW), &[(41, 8, ROW)]);
         strong_(&mut sc);
         let _ = sc.tap_cell(8, ROW); // Selected
-        assert!(sc.tap_selected.is_some());
+        assert!(sc.tap.tap_selected.is_some());
         assert!(sc.perform_action(Action::Cancel));
-        assert!(sc.tap_selected.is_none(), "取消清选中");
+        assert!(sc.tap.tap_selected.is_none(), "取消清选中");
         let _ = sc.tap_cell(8, ROW); // 再选中
         assert!(sc.perform_action(Action::Fight), "开战受理");
-        assert!(sc.tap_selected.is_none(), "开战即清选中");
+        assert!(sc.tap.tap_selected.is_none(), "开战即清选中");
         settle_(&mut sc, 0, 160);
         let i41 = (0..sc.entities.count).find(|&i| sc.entities.items[i].type_ == 41).unwrap();
         assert!(sc.entities.items[i41].removed || sc.entities.items[i41].state == 1, "Fight 端到端：怪被击杀");
@@ -642,7 +642,7 @@ mod tests {
         let _ = sc.tap_cell(10, ROW);
         let fc = walk_until_x_(&mut sc, 4);
         let _ = sc.perform_action(Action::StopThen(-6));
-        assert!(sc.tap_target.is_none(), "StopThen 打断 ⇒ 目标标记消失");
+        assert!(sc.tap.tap_target.is_none(), "StopThen 打断 ⇒ 目标标记消失");
         settle_(&mut sc, fc, 200);
         assert_eq!(sc.game_mode, GameMode::ItemPanel, "StopThen 链仍达（开背包）");
         // Undo 恒 false（壳职责）

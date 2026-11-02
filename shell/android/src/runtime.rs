@@ -461,7 +461,7 @@ impl Runtime {
         self.rt_key_haptic = haptic;
         self.rt_key_click = click;
         if let Some(sc) = self.scene.as_mut() {
-            sc.auto_battle = auto;
+            sc.tap.auto_battle = auto;
         }
     }
 

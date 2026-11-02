@@ -110,7 +110,7 @@ fn accept_fight_and_cancel_on_selection() {
     sc2.player.hp = 100_000;
     let _ = sc2.tap_cell(8, ROW);
     let _ = sc2.perform_action(Action::Cancel);
-    assert!(sc2.tap_selected.is_none(), "取消 = 清选中");
+    assert!(sc2.tap.tap_selected.is_none(), "取消 = 清选中");
     assert_eq!((sc2.player_cell_x, sc2.player_cell_y), (2, ROW), "取消不动");
     // 开战：engage → 战斗胜利
     let _ = sc.perform_action(Action::Fight);
