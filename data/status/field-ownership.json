@@ -881,6 +881,41 @@
    "field": "ease_target_y",
    "domain": "render",
    "why": "render 副作用/视觉态"
+  },
+  {
+   "field": "persist",
+   "domain": "coordinator",
+   "why": "域切片根槽（PersistState 聚合——V2 persist 收口）"
+  },
+  {
+   "field": "walkto_draining",
+   "domain": "tap-input",
+   "why": "v3 §1 tap/input 域"
+  },
+  {
+   "field": "walkto_arrows",
+   "domain": "tap-input",
+   "why": "v3 §1 tap/input 域"
+  },
+  {
+   "field": "battle_undo_snap",
+   "domain": "tap-input",
+   "why": "v3 §1 tap/input 域"
+  },
+  {
+   "field": "tap_bump",
+   "domain": "tap-input",
+   "why": "v3 §1 tap/input 域"
+  },
+  {
+   "field": "tap_followup_ready",
+   "domain": "tap-input",
+   "why": "v3 §1 tap/input 域"
+  },
+  {
+   "field": "tap_pending",
+   "domain": "tap-input",
+   "why": "v3 §1 tap/input 域"
   }
  ]
 }

@@ -30,9 +30,22 @@ def struct_fields() -> list:
         k += 1
     out = []
     for l in lines[si:k]:
-        m = re.match(r"\s+pub (\w+):", l)
-        if m:
-            out.append(m.group(1))
+        m = re.match(r"\s+(pub(\([^)]*\))? )?([a-z_][a-z0-9_]*):", l)
+        if m and not l.strip().startswith("//"):
+            out.append(m.group(3))
+    # 域切片成员（PersistState 等）同入归属面（2026-11-02 勘误：私有字段+切片面补全）
+    ps = ROOT / "crates/game-core/src/scene_persist.rs"
+    in_ps = False
+    for l in ps.read_text(encoding="utf-8").splitlines():
+        if l.startswith("pub struct PersistState"):
+            in_ps = True
+            continue
+        if in_ps:
+            if l.startswith("}"):
+                break
+            m = re.match(r"\s+(pub(\([^)]*\))? )?([a-z_][a-z0-9_]*):", l)
+            if m and not l.strip().startswith("//"):
+                out.append(m.group(3))
     return out
 
 
