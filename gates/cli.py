@@ -522,6 +522,21 @@ def cmd_status():
     return 1 if FAIL in statuses else 0
 
 
+def gate_state_baseline():
+    """state_dump 金样主判据（refactor-plan §7 条件 1 换枪决议；task-15 V0 挂闸）：
+    tools/state_baseline.py --check = 60 场景 dump sha 逐字节核对（Rust 重构主判据）。
+    耗时 ≈ 数分钟（重放 fixture_frames/preset_cases/gameplay_floor1 三套件导 dump）。
+    【AGENTS §2】本门禁改动独立 commit+自测+基线影响见 commit。"""
+    import subprocess
+    r = subprocess.run([sys.executable, str(ROOT / "tools" / "state_baseline.py"), "--check"],
+                       capture_output=True, text=True)
+    out = (r.stdout or "") + (r.stderr or "")
+    lines_ = [l for l in out.splitlines() if l.startswith(("[GREEN]", "[RED]"))]
+    green = r.returncode == 0 and any(l.startswith("[GREEN]") for l in lines_)
+    detail = "; ".join(lines_[-3:]) or out.strip()[-200:] or f"exit={r.returncode}"
+    return report("state-baseline", PASS if green else FAIL, detail)
+
+
 def gate_state_machine_anchors():
     """状态机锚校验（件 C/D 挂点）：key-code-contract §5 锚表 + 边数对照
     （TRANSFER_EDGES vs state-machine-edges.md 表）——防行号/注释漂移（前科两次）。"""
@@ -567,7 +582,8 @@ def cmd_check():
     statuses = [gate_original(), gate_assets_manifest(), gate_reference_seed_integrity(),
                 gate_knowledge_format(), gate_docs_links(), gate_naming_ledger(), gate_rust_tests(),
                 gate_test_ratchet(), gate_table_content_hash(), gate_table_evidence(),
-                gate_state_machine_anchors(), gate_asset_manifest()]
+                gate_state_machine_anchors(), gate_asset_manifest(),
+                gate_state_baseline()]
     # SKIP 项必须显式出现在输出（上面已打印），不得静默
     print("== 汇总 ==")
     print(f"PASS={statuses.count(PASS)} FAIL={statuses.count(FAIL)} SKIP={statuses.count(SKIP)}")
@@ -581,7 +597,7 @@ def cmd_all():
                 gate_test_ratchet(), gate_table_content_hash(), gate_table_evidence(),
                 gate_asset_manifest(),
                 gate_reference(), gate_scenarios(), gate_trace(), gate_visual(),
-                gate_zero_code_drill()]
+                gate_zero_code_drill(), gate_state_baseline()]
     print(f"PASS={statuses.count(PASS)} FAIL={statuses.count(FAIL)} SKIP={statuses.count(SKIP)}")
     return 1 if FAIL in statuses else 0
 
@@ -603,6 +619,7 @@ COMMANDS = {
     "table-content-hash-update": cmd_table_hash_update,
     "table-evidence": lambda: 1 if gate_table_evidence() == FAIL else 0,
     "zero-code-drill": lambda: 1 if gate_zero_code_drill() == FAIL else 0,
+    "state-baseline": lambda: 1 if gate_state_baseline() == FAIL else 0,
 }
 
 if __name__ == "__main__":
