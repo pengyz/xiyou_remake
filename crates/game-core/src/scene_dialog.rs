@@ -38,6 +38,60 @@ pub struct DialogState {
     pub overlay_saved_color: i32,
 }
 
+
+/// 【双归域·逻辑迁移】dialog-VM 域方法（lead 2026-11-02 裁定：域方法持域状态）——
+/// 打字机推进=纯对话域态（dialog_char/转义跳宽/翻页·确认决策）；跨域副作用
+/// （layout/ease/脚本分派/相机）由 GameScene 编排消费（coordination 面注记归因）。
+impl DialogState {
+    /// 打字机步进（a.java:4029-4026 语义逐字）：key≠0=全量跳行尾请求；隔帧
+    /// 自动推进+转义跳宽（\c=+8 \r=+2）；到尾后 key 分派=翻页/-1、确认=到下页。
+    /// 返回 [`TypewriterStep`] 供编排执行跨域动作（行为面零差：决策序不变）。
+    pub fn advance_typewriter(&mut self, key: i32, frame_odd: bool, text: &str) -> TypewriterStep {
+        let text_len = text.chars().count() as i32;
+        if self.dialog_char < text_len {
+            if key != 0 {
+                return TypewriterStep::SkipToLineEnd;
+            }
+            if frame_odd {
+                self.dialog_char += 1;
+                // 转义跳宽（charAt(typewriterPos-1)=='\\'——a.java 语义逐字）
+                let chars: Vec<char> = text.chars().collect();
+                let idx = self.dialog_char as usize - 1;
+                if idx < chars.len() && chars[idx] == '\\' {
+                    match chars.get(idx + 1).copied().unwrap_or(' ') {
+                        'c' => self.dialog_char += 8,
+                        'r' => self.dialog_char += 2,
+                        _ => {}
+                    }
+                }
+            }
+            return TypewriterStep::Typing;
+        }
+        match key {
+            -2 => TypewriterStep::PageNext,
+            -1 => TypewriterStep::PagePrev,
+            0 => TypewriterStep::Wait,
+            _ => TypewriterStep::Confirm,
+        }
+    }
+}
+
+/// 【双归域】打字机步进结果（域内决策枚举——编排面执行跨域副作用）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TypewriterStep {
+    /// 正在打字（调用方继续 layout）。
+    Typing,
+    /// key 请求全量 layout+跳行尾。
+    SkipToLineEnd,
+    /// 已到尾，待翻页（+方向）。
+    PageNext,
+    PagePrev,
+    /// 已到尾，无键。
+    Wait,
+    /// 确认（进入下页/收尾——编排面执行）。
+    Confirm,
+}
+
 impl GameScene {
     /// run case 11 相位机（a.java:4011-4068）。advanceEntityFrames 由调用方公共段跑。
     pub(super) fn tick_dialog(&mut self) {
@@ -51,47 +105,46 @@ impl GameScene {
                 }
             }
             1 | 6 => {
+                // 【双归域·编排面（coordination 注记归因）】打字机决策=DialogState
+                // 域方法；跨域副作用（layout/ease/open_dialog_page/相机）留此编排。
                 if self.dialog.dialog_phase != 6 || self.camera_at_target() {
                     let text = self.dialog.overlay_text.clone().unwrap_or_default();
                     let text_len = text.chars().count() as i32;
                     let line_h = crate::paint::paint_font().height + 4;
-                    if self.dialog.dialog_char < text_len {
-                        if self.key_value != 0 {
+                    let step = self.dialog.advance_typewriter(self.key_value, (self.frame_counter & 1) == 1, &text);
+                    match step {
+                        scene_dialog::TypewriterStep::SkipToLineEnd => {
                             // 全量 layout + 跳到行尾（a.java:4029-4026）
                             self.layout_full_text(&text, 129, (line_h << 1) + 12);
                             self.dialog.dialog_char = self.skip_text_to_line_end(self.dialog.dialog_char);
-                        } else if (self.frame_counter & 1) == 1 {
-                            self.dialog.dialog_char += 1;
-                            // 转义跳宽（charAt(typewriterPos-1)=='\\'）
-                            let chars: Vec<char> = text.chars().collect();
-                            let idx = self.dialog.dialog_char as usize - 1;
-                            if idx < chars.len() && chars[idx] == '\\' {
-                                match chars.get(idx + 1).copied().unwrap_or(' ') {
-                                    'c' => self.dialog.dialog_char += 8,
-                                    'r' => self.dialog.dialog_char += 2,
-                                    _ => {}
-                                }
+                            // 公共尾（原式 fall-through：skip 后同走 wrapped layout+翻页检）
+                            self.layout_wrapped_text_limited(&text, 129, (line_h << 1) + 12, self.dialog.dialog_char);
+                            if self.dialog.overlay_total_lines > self.dialog.overlay_page_bottom {
+                                self.flip_overlay_page(self.dialog.overlay_total_lines - self.dialog.overlay_lines_per_page);
                             }
                         }
-                        self.layout_wrapped_text_limited(&text, 129, (line_h << 1) + 12, self.dialog.dialog_char);
-                        if self.dialog.overlay_total_lines > self.dialog.overlay_page_bottom {
-                            self.flip_overlay_page(self.dialog.overlay_total_lines - self.dialog.overlay_lines_per_page);
+                        scene_dialog::TypewriterStep::Typing => {
+                            self.layout_wrapped_text_limited(&text, 129, (line_h << 1) + 12, self.dialog.dialog_char);
+                            if self.dialog.overlay_total_lines > self.dialog.overlay_page_bottom {
+                                self.flip_overlay_page(self.dialog.overlay_total_lines - self.dialog.overlay_lines_per_page);
+                            }
                         }
-                    } else {
-                        match self.key_value {
-                            -2 => self.flip_overlay_page(self.dialog.overlay_page_top + self.dialog.overlay_lines_per_page),
-                            -1 => self.flip_overlay_page(self.dialog.overlay_page_top - self.dialog.overlay_lines_per_page),
-                            0 => {}
-                            _ => {
-                                self.dialog.dialog_char = 1;
-                                self.open_dialog_page(self.dialog.dialog_page + 1);
-                                if self.dialog.dialog_phase == 6 {
-                                    // easeCameraToTarget：ease 目标 = SEE 目标格
-                                    self.ease_cam_x = ((self.view.view_w - 32) >> 1) - self.view.cam_x;
-                                    self.ease_cam_y = ((self.view.view_h - 32) >> 1) - self.view.cam_y;
-                                    self.ease_target_x = self.dialog.dialog_target.0 << 5;
-                                    self.ease_target_y = self.dialog.dialog_target.1 << 5;
-                                }
+                        scene_dialog::TypewriterStep::PageNext => {
+                            self.flip_overlay_page(self.dialog.overlay_page_top + self.dialog.overlay_lines_per_page);
+                        }
+                        scene_dialog::TypewriterStep::PagePrev => {
+                            self.flip_overlay_page(self.dialog.overlay_page_top - self.dialog.overlay_lines_per_page);
+                        }
+                        scene_dialog::TypewriterStep::Wait => {}
+                        scene_dialog::TypewriterStep::Confirm => {
+                            self.dialog.dialog_char = 1;
+                            self.open_dialog_page(self.dialog.dialog_page + 1);
+                            if self.dialog.dialog_phase == 6 {
+                                // easeCameraToTarget：ease 目标 = SEE 目标格
+                                self.ease_cam_x = ((self.view.view_w - 32) >> 1) - self.view.cam_x;
+                                self.ease_cam_y = ((self.view.view_h - 32) >> 1) - self.view.cam_y;
+                                self.ease_target_x = self.dialog.dialog_target.0 << 5;
+                                self.ease_target_y = self.dialog.dialog_target.1 << 5;
                             }
                         }
                     }
