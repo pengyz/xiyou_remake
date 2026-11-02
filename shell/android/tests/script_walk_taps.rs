@@ -31,8 +31,8 @@ fn event_line(rt: &Runtime) -> String {
         sc.game_mode,
         sc.current_script_index,
         sc.script_cursor,
-        sc.dialog_page,
-        sc.dialog_phase,
+        sc.dialog.dialog_page,
+        sc.dialog.dialog_phase,
         sc.view.player_px >> 5,
         sc.view.player_py >> 5,
         sc.view.player_px & 31,
@@ -89,7 +89,7 @@ fn run_script19(scene_layout: Layout, tap_while_walking: bool) -> Vec<String> {
         step(&mut rt, vec![], vec![], vec![]);
     }
     // 【计划 3 T7】首次到地图提示卡（浮层吞键）——统一关框后再交后续操作
-    if rt.scene.as_ref().unwrap().overlay_active {
+    if rt.scene.as_ref().unwrap().dialog.overlay_active {
         step(&mut rt, tap(-5), vec![], vec![]);
         step(&mut rt, vec![], vec![], vec![]);
     }
@@ -121,14 +121,14 @@ fn run_script19(scene_layout: Layout, tap_while_walking: bool) -> Vec<String> {
             && sc.game_mode == GameMode::Map
             && !sc.transitioning
             && sc.walk_phase == 0
-            && !sc.overlay_active
+            && !sc.dialog.overlay_active
             && k % 3 == 0
         {
             holding = true;
             vec![KeyAction::Press(route[leg])]
-        } else if sc.game_mode == GameMode::Map && sc.overlay_active && k % 4 == 0 {
+        } else if sc.game_mode == GameMode::Map && sc.dialog.overlay_active && k % 4 == 0 {
             tap(-5)
-        } else if sc.game_mode == GameMode::Dialog && k % 4 == 0 && (sc.dialog_phase == 1 || (tap_while_walking && matches!(sc.dialog_phase, 2 | 3))) {
+        } else if sc.game_mode == GameMode::Dialog && k % 4 == 0 && (sc.dialog.dialog_phase == 1 || (tap_while_walking && matches!(sc.dialog.dialog_phase, 2 | 3))) {
             tap(-5)
         } else {
             vec![]

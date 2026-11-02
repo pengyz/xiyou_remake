@@ -150,6 +150,6 @@ fn probe_floor2_type78() {
     println!(
         "try_step(2): ok={} mode={} px=({},{}) overlay={} kind={} merchant_entity={}",
         ok, scene.game_mode, scene.view.player_px, scene.view.player_py,
-        scene.overlay_active, scene.overlay_kind, scene.merchant_entity
+        scene.dialog.overlay_active, scene.dialog.overlay_kind, scene.merchant_entity
     );
 }

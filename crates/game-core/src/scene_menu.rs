@@ -2,163 +2,6 @@
 use super::*; // scene.rs 私有面可见（子模块）——纯剪切语义保持
 
 impl GameScene {
-    /// run case 11 相位机（a.java:4011-4068）。advanceEntityFrames 由调用方公共段跑。
-    pub(super) fn tick_dialog(&mut self) {
-        self.step_camera_toward_target();
-        match self.dialog_phase {
-            0 => {
-                if self.script_delay > 0 {
-                    self.script_delay -= 1;
-                } else {
-                    self.execute_script_instruction();
-                }
-            }
-            1 | 6 => {
-                if self.dialog_phase != 6 || self.camera_at_target() {
-                    let text = self.overlay_text.clone().unwrap_or_default();
-                    let text_len = text.chars().count() as i32;
-                    let line_h = crate::paint::paint_font().height + 4;
-                    if self.dialog_char < text_len {
-                        if self.key_value != 0 {
-                            // 全量 layout + 跳到行尾（a.java:4029-4026）
-                            self.layout_full_text(&text, 129, (line_h << 1) + 12);
-                            self.dialog_char = self.skip_text_to_line_end(self.dialog_char);
-                        } else if (self.frame_counter & 1) == 1 {
-                            self.dialog_char += 1;
-                            // 转义跳宽（charAt(typewriterPos-1)=='\\'）
-                            let chars: Vec<char> = text.chars().collect();
-                            let idx = self.dialog_char as usize - 1;
-                            if idx < chars.len() && chars[idx] == '\\' {
-                                match chars.get(idx + 1).copied().unwrap_or(' ') {
-                                    'c' => self.dialog_char += 8,
-                                    'r' => self.dialog_char += 2,
-                                    _ => {}
-                                }
-                            }
-                        }
-                        self.layout_wrapped_text_limited(&text, 129, (line_h << 1) + 12, self.dialog_char);
-                        if self.overlay_total_lines > self.overlay_page_bottom {
-                            self.flip_overlay_page(self.overlay_total_lines - self.overlay_lines_per_page);
-                        }
-                    } else {
-                        match self.key_value {
-                            -2 => self.flip_overlay_page(self.overlay_page_top + self.overlay_lines_per_page),
-                            -1 => self.flip_overlay_page(self.overlay_page_top - self.overlay_lines_per_page),
-                            0 => {}
-                            _ => {
-                                self.dialog_char = 1;
-                                self.open_dialog_page(self.dialog_page + 1);
-                                if self.dialog_phase == 6 {
-                                    // easeCameraToTarget：ease 目标 = SEE 目标格
-                                    self.ease_cam_x = ((self.view.view_w - 32) >> 1) - self.view.cam_x;
-                                    self.ease_cam_y = ((self.view.view_h - 32) >> 1) - self.view.cam_y;
-                                    self.ease_target_x = self.dialog_target.0 << 5;
-                                    self.ease_target_y = self.dialog_target.1 << 5;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            2 => self.tick_entity_route(),
-            3 => {
-                // dp3 脚本行走（a.java:4077-4114）：wp0 弹路径步 tryStep /
-                // 耗尽 → scriptWalkArmed=false + dp0；wp1 8px 步进（无边缘
-                // 跟随，cameraTarget 随玩家）+ m_025 帧 + 32px 归格
-                // applyStepCellEffects；wp5 战斗拍。
-                if !self.transitioning {
-                    match self.walk_phase {
-                        0 => {
-                            if self.walk_step_count > 0 {
-                                // 【BUG-044】弹步前记"本步归点地寻路"：被挡步可能经剧情接管（型 83 → load_level_script 先收段）
-                                // 让 walkto_owns_dp3() 在 try_step 之后变假，门控须看弹步时的归属（复核 T2-2）。
-                                let owned = self.walkto_owns_dp3();
-                                self.walk_step_count -= 1;
-                                self.facing =
-                                    self.walk_path_buffer[self.walk_step_count as usize] as i32;
-                                self.walk_phase = 1;
-                                let ok = self.try_step(self.facing);
-                                // 【BUG-044】点地寻路专用：被挡且未开战（wp 仍为 1）⇒ 清步、归 wp0，下拍走 finish_walkto。
-                                // 原版 MOV 消费机不判返回值（a.java:4080-4084，脚本路线由剧本保证可走）；
-                                // 经典脚本行走不占用 dp3（owned 恒假），此分支不触达 classic 按键链。
-                                if !ok && self.walk_phase == 1 && owned {
-                                    self.walk_step_count = 0;
-                                    self.walk_phase = 0;
-                                    // 被挡步把模式切走（朝上撞炉 ⇒ Alchemy）：dp3 不再 tick、finish_walkto 等不到，就地收尾
-                                    //（不写回 Map，保留炉页；复核 T2-1：否则武装残留 ⇒ 出页后点地全被拒、方向键连走穿墙）
-                                    if self.game_mode != GameMode::Dialog && self.walkto_owns_dp3() {
-                                        self.route_arrived();
-                                        self.restore_walkto_arrows();
-                                        self.walkto_draining = false;
-                                        self.script_walk_armed = false;
-                                        self.dialog_phase = 0;
-                                    }
-                                }
-                            } else {
-                                // 【T2】WalkTo 段终位（整段起终点入栈）+回 Map 模式；
-                                // 经典脚本行走（route 未开放）零改动——mode 回归留脚本机器
-                                // 【BUG-040】打断后的收尾（walkto_draining）同走寻路收尾
-                                if self.walkto_owns_dp3() {
-                                    self.finish_walkto();
-                                } else {
-                                    self.route_arrived();
-                                }
-                                self.script_walk_armed = false;
-                                self.dialog_phase = 0;
-                            }
-                        }
-                        1 => {
-                            match self.facing {
-                                0 => self.view.player_py += 8,
-                                1 => self.view.player_py -= 8,
-                                2 => self.view.player_px += 8,
-                                _ => self.view.player_px -= 8,
-                            }
-                            self.step_progress += 8;
-                            self.ease_target_x = self.view.player_px;
-                            self.ease_target_y = self.view.player_py;
-                            if self.player_frame < PLAYER_FRAME_TABLE.len() as i32 - 1 {
-                                self.player_frame += 1;
-                            } else {
-                                self.player_frame = 0;
-                            }
-                            if self.step_progress >= 32 {
-                                self.step_progress = 0;
-                                self.player_frame = 0;
-                                self.walk_phase = 0;
-                                self.player_cell_x = self.view.player_px >> 5;
-                                self.player_cell_y = self.view.player_py >> 5;
-                                self.apply_step_cell_effects();
-                                // 【T2】WalkTo 段终位：步尽归格=实际终点（整段起终点
-                                // 入栈）+回 Map；经典脚本行走 route 未开放=零改动
-                                // 【BUG-040】打断后走完当前步同此收尾；收尾解除武装
-                                if self.walk_step_count == 0 && self.walkto_owns_dp3() {
-                                    self.finish_walkto();
-                                }
-                            }
-                        }
-                        5 => self.tick_battle(self.battle_active),
-                        _ => {}
-                    }
-                }
-            }
-            4 => {
-                if self.camera_at_target() {
-                    self.transition_to(GameMode::Map);
-                }
-            }
-            5 => {
-                // LAY 批续跑缝（a.java:4123-4127）：floorTransitioning ∧ !wipeClosing
-                // （换层已过、遮幅开启中）⇒ 相位归 0 续跑脚本。op_lay 停表于此；
-                // 2026-10-17 前为空臂桩（"floorTransitioning 组合（LAY 批）"未译）⇒ 剧情链
-                // 永停（用户实机 BUG-016：3→2 天牢切层后牛魔王对话不触发 + 输入假死）。
-                if self.transitioning && !self.wipe_closing {
-                    self.dialog_phase = 0;
-                }
-            }
-            _ => {}
-        }
-    }
     /// dispatchModeEntry case 4（a.java:4326-4337）：继续游戏（+floor>50 的跳过教程）/
     /// 保存/设置/帮助/退出；软键 (1,3)。
     pub(super) fn enter_menu4(&mut self) {
@@ -585,14 +428,14 @@ impl GameScene {
     /// menuReturnMode；-2/-1 翻页；**其余键（含 -6）一律吞掉不关**——
     /// 迭代 26 更正：原 `_ => 关浮层` 系误植，-6 关闭语义不存在于原版。
     pub(super) fn tick_menu15(&mut self) {
-        if self.overlay_active {
+        if self.dialog.overlay_active {
             match self.key_value {
                 -7 => {
-                    self.overlay_active = false;
+                    self.dialog.overlay_active = false;
                     self.transition_to(self.menu_return_mode);
                 }
-                -2 => self.flip_overlay_page(self.overlay_page_top + self.overlay_lines_per_page),
-                -1 => self.flip_overlay_page(self.overlay_page_top - self.overlay_lines_per_page),
+                -2 => self.flip_overlay_page(self.dialog.overlay_page_top + self.dialog.overlay_lines_per_page),
+                -1 => self.flip_overlay_page(self.dialog.overlay_page_top - self.dialog.overlay_lines_per_page),
                 _ => {}
             }
             self.key_value = 0;
@@ -607,7 +450,7 @@ impl GameScene {
         crate::title::paint_icon_strip_at(g, &self.images.menu_strip, sx, 10, 51, 68, &mut f);
         self.strip_frame = f;
         m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
-        if !self.transitioning && self.overlay_active {
+        if !self.transitioning && self.dialog.overlay_active {
             self.paint_overlay_box(g);
         }
     }
@@ -880,7 +723,7 @@ impl GameScene {
         self.paint_tap_markers(g, self.view.cam_x, self.view.cam_y + self.layout.view_top_y); // 【STAGE-B-008】
         self.popups.draw(g, &self.images.popup);
         self.paint_status_bar(g);
-        let show_box = self.overlay_text.is_some() && !self.overlay_active && self.dialog_phase != 4;
+        let show_box = self.dialog.overlay_text.is_some() && !self.dialog.overlay_active && self.dialog.dialog_phase != 4;
         if show_box {
             let font = crate::paint::paint_font();
             let line_h = font.height() + 4;
@@ -911,10 +754,10 @@ impl GameScene {
                 draw_y += 16;
             }
             g.set_clip(0, 0, self.layout.screen_w, self.layout.screen_h);
-            if self.dialog_speaker > 0 {
-                if let Some(img) = &self.images.entity[self.dialog_speaker as usize] {
-                    if self.dialog_speaker != 72 {
-                        let fw = self.type_frame_width_for(self.dialog_speaker);
+            if self.dialog.dialog_speaker > 0 {
+                if let Some(img) = &self.images.entity[self.dialog.dialog_speaker as usize] {
+                    if self.dialog.dialog_speaker != 72 {
+                        let fw = self.type_frame_width_for(self.dialog.dialog_speaker);
                         draw_image_clipped(g, img, ((80 - fw) >> 1) + dx, self.layout.screen_h - img.height, 0, 0, fw, img.height);
                     } else {
                         // a.java:2852 `drawImageClipped(var9, 24, 275, 0, 0, 32, 45)`：275 = 320 − 45
@@ -924,7 +767,7 @@ impl GameScene {
                         draw_image_clipped(g, img, 24 + dx, self.layout.screen_h - 45, 0, 0, 32, 45);
                     }
                 }
-            } else if self.dialog_speaker == 0 {
+            } else if self.dialog.dialog_speaker == 0 {
                 let face = &self.images.actor_face;
                 g.draw_image(face, 40 - (face.width >> 1) + dx, self.layout.screen_h - face.height, 0);
             } else {
@@ -934,37 +777,37 @@ impl GameScene {
             }
             g.set_color(10473684);
             self.paint_wrapped_text(g, 85 + dx, dialog_block_y0 + 12, 129, dialog_block_h - 12, false);
-            if self.overlay_page_top > 0 {
+            if self.dialog.overlay_page_top > 0 {
                 draw_image_clipped(g, &self.images.ui[15], 220 + dx, self.layout.screen_h - line_h - 10, 0, 0, 7, 9);
             }
-            if self.overlay_page_bottom < self.overlay_total_lines {
+            if self.dialog.overlay_page_bottom < self.dialog.overlay_total_lines {
                 draw_image_clipped(g, &self.images.ui[15], 220 + dx, self.layout.screen_h - line_h + 1, 7, 0, 7, 9);
             }
-            if (self.dialog_phase == 6 || self.dialog_phase == 1)
-                && self.dialog_page >= 0
-                && (self.dialog_page as usize) < self.dialog_data.bubbles.len()
+            if (self.dialog.dialog_phase == 6 || self.dialog.dialog_phase == 1)
+                && self.dialog.dialog_page >= 0
+                && (self.dialog.dialog_page as usize) < self.dialog.dialog_data.bubbles.len()
             {
-                let bubble = self.dialog_data.bubbles[self.dialog_page as usize];
+                let bubble = self.dialog.dialog_data.bubbles[self.dialog.dialog_page as usize];
                 if bubble >= 0 {
-                    let (bx, by) = if self.dialog_anchor >= 0 {
-                        let e = self.dialog_anchor as usize;
+                    let (bx, by) = if self.dialog.dialog_anchor >= 0 {
+                        let e = self.dialog.dialog_anchor as usize;
                         (self.entities.items[e].px + 16, self.entities.items[e].py - 30)
                     } else {
                         (self.view.player_px + 16, self.view.player_py - 30)
                     };
-                    let by = if self.dialog_speaker == 84 { by - 20 } else { by };
+                    let by = if self.dialog.dialog_speaker == 84 { by - 20 } else { by };
                     // a.java:2887：标记图 = face 包第 bubble 张（26×22），非实体表
                     if let Some(face) = self.images.faces.get(bubble as usize) {
                         g.draw_image(face, bx + self.view.cam_x, by + self.view.cam_y + 20, 0);
                     }
                 }
             }
-            if self.dialog_phase == 6 {
+            if self.dialog.dialog_phase == 6 {
                 if let Some(arrow) = &self.images.map211 {
                     g.draw_image(
                         arrow,
-                        self.view.cam_x + 5 + (self.dialog_target.0 << 5),
-                        self.view.cam_y + (self.dialog_target.1 << 5) - 12 + self.bob_offset,
+                        self.view.cam_x + 5 + (self.dialog.dialog_target.0 << 5),
+                        self.view.cam_y + (self.dialog.dialog_target.1 << 5) - 12 + self.bob_offset,
                         0,
                     );
                 }

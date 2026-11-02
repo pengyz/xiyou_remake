@@ -90,7 +90,7 @@ impl GameScene {
             // 换层遮幅 / 转场（spec §3.2"开机 logo / 退场动画 / Loading / 换层遮幅 = 全隐藏"）
             return Controls::hidden();
         }
-        if self.overlay_active {
+        if self.dialog.overlay_active {
             return self.overlay_controls();
         }
         match self.game_mode {
@@ -205,12 +205,12 @@ impl GameScene {
                 right: Some(ControlButton { function: FunctionId::Menu, action: Action::StopThen(-7) }),
             };
         }
-        if self.dialog_phase == 1 || self.dialog_phase == 6 {
+        if self.dialog.dialog_phase == 1 || self.dialog.dialog_phase == 6 {
             let mut mid = vec![];
-            if self.overlay_page_top > 0 {
+            if self.dialog.overlay_page_top > 0 {
                 mid.push(Controls::key(FunctionId::PrevPage, -1));
             }
-            if self.overlay_page_bottom < self.overlay_total_lines {
+            if self.dialog.overlay_page_bottom < self.dialog.overlay_total_lines {
                 mid.push(Controls::key(FunctionId::NextPage, -2));
             }
             return Controls {
@@ -224,7 +224,7 @@ impl GameScene {
 
     /// 浮层族（spec §3.2 kind 0–5 行；键码 = 各 tick 臂实际接受键）。
     fn overlay_controls(&self) -> Controls {
-        match self.overlay_kind {
+        match self.dialog.overlay_kind {
             0 | 1 => {
                 // 【复核 T1-R2】Help（mode 15）/ IconView（mode 17）进页即带 kind0 浮层，但走页面专臂
                 //（−7 关层、−1/−2 整页翻、其余吞）——属页面类（Task 2），此处不得给出 kind0 通用钮集。
@@ -232,18 +232,18 @@ impl GameScene {
                     return Controls::hidden();
                 }
                 // kind 1 吞键子类（scene.rs run 浮层臂，a.java case1 441）：有图标 ∧ right ∉ {2,3} ⇒ 全吞键
-                if self.overlay_kind == 1
-                    && (self.overlay_left_icon != 0 || self.overlay_right_icon != 0)
-                    && self.overlay_right_icon != 2
-                    && self.overlay_right_icon != 3
+                if self.dialog.overlay_kind == 1
+                    && (self.dialog.overlay_left_icon != 0 || self.dialog.overlay_right_icon != 0)
+                    && self.dialog.overlay_right_icon != 2
+                    && self.dialog.overlay_right_icon != 3
                 {
                     return Controls::hidden();
                 }
                 let mut mid = vec![];
-                if self.overlay_page_top > 0 {
+                if self.dialog.overlay_page_top > 0 {
                     mid.push(Controls::key(FunctionId::ScrollUp, -1));
                 }
-                if self.overlay_page_bottom < self.overlay_total_lines {
+                if self.dialog.overlay_page_bottom < self.dialog.overlay_total_lines {
                     mid.push(Controls::key(FunctionId::ScrollDown, -2));
                 }
                 Controls { left: None, mid, right: Some(Controls::key(FunctionId::Close, -5)) }
@@ -294,10 +294,10 @@ impl GameScene {
                     Controls::key(FunctionId::PrevRec, -3),
                     Controls::key(FunctionId::NextRec, -4),
                 ];
-                if self.overlay_page_top > 0 {
+                if self.dialog.overlay_page_top > 0 {
                     mid.push(Controls::key(FunctionId::ScrollUp, -1));
                 }
-                if self.overlay_page_bottom < self.overlay_total_lines {
+                if self.dialog.overlay_page_bottom < self.dialog.overlay_total_lines {
                     mid.push(Controls::key(FunctionId::ScrollDown, -2));
                 }
                 Controls { left: None, mid, right: Some(Controls::key(FunctionId::Close, -7)) }
@@ -461,26 +461,26 @@ mod tests {
         // 打断回 Map 后设对话翻页相位（直接构造 dp1 态查纯函数）
         let mut sc = scene((2, ROW), &[]);
         sc.game_mode = GameMode::Dialog;
-        sc.dialog_phase = 1;
-        sc.overlay_page_top = 40;
-        sc.overlay_page_bottom = 49;
-        sc.overlay_total_lines = 120;
+        sc.dialog.dialog_phase = 1;
+        sc.dialog.overlay_page_top = 40;
+        sc.dialog.overlay_page_bottom = 49;
+        sc.dialog.overlay_total_lines = 120;
         let c = sc.controls();
         assert_eq!(c.mid, vec![btn(FunctionId::PrevPage, Action::Key(-1)), btn(FunctionId::NextPage, Action::Key(-2))]);
         assert_eq!(c.right, Some(btn(FunctionId::Continue, Action::Key(-5))));
-        sc.overlay_page_top = 0;
-        sc.overlay_page_bottom = 9;
+        sc.dialog.overlay_page_top = 0;
+        sc.dialog.overlay_page_bottom = 9;
         assert_eq!(sc.controls().mid, vec![btn(FunctionId::NextPage, Action::Key(-2))], "顶页无上页");
         // 【复核 T1-R1】恰剩一行在下方（bottom = total-1）⇒ 下页仍须在场
-        sc.overlay_page_top = 110;
-        sc.overlay_page_bottom = 119;
+        sc.dialog.overlay_page_top = 110;
+        sc.dialog.overlay_page_bottom = 119;
         assert_eq!(sc.controls().mid, vec![btn(FunctionId::PrevPage, Action::Key(-1)), btn(FunctionId::NextPage, Action::Key(-2))], "bottom=total-1 ⇒ 下页在场");
-        sc.overlay_page_bottom = 120;
+        sc.dialog.overlay_page_bottom = 120;
         assert_eq!(sc.controls().mid, vec![btn(FunctionId::PrevPage, Action::Key(-1))], "bottom=total ⇒ 末页无下页");
         // dp6 同 dp1（带目标文本相位）
-        sc.dialog_phase = 6;
+        sc.dialog.dialog_phase = 6;
         assert_eq!(sc.controls().right, Some(btn(FunctionId::Continue, Action::Key(-5))));
-        sc.dialog_phase = 3;
+        sc.dialog.dialog_phase = 3;
         assert_eq!(sc.controls(), Controls::hidden(), "其他相位全隐藏");
     }
 
@@ -488,27 +488,27 @@ mod tests {
     #[test]
     fn t1_overlay_kind0_and_kind1() {
         let mut sc = scene((2, ROW), &[]);
-        sc.overlay_active = true;
-        sc.overlay_kind = 0;
-        sc.overlay_total_lines = 5;
-        sc.overlay_lines_per_page = 4;
-        sc.overlay_page_top = 0;
-        sc.overlay_page_bottom = 4; // = min(top+lpp, total)：恰剩 1 行在下方 ⇒ 可下滚（复核 T1-R1 反例）
+        sc.dialog.overlay_active = true;
+        sc.dialog.overlay_kind = 0;
+        sc.dialog.overlay_total_lines = 5;
+        sc.dialog.overlay_lines_per_page = 4;
+        sc.dialog.overlay_page_top = 0;
+        sc.dialog.overlay_page_bottom = 4; // = min(top+lpp, total)：恰剩 1 行在下方 ⇒ 可下滚（复核 T1-R1 反例）
         let c = sc.controls();
         assert_eq!(c.mid, vec![btn(FunctionId::ScrollDown, Action::Key(-2))], "top=0 无上滚；bottom=4<total=5 ⇒ 下滚在（恰剩 1 行）");
         assert_eq!(c.right, Some(btn(FunctionId::Close, Action::Key(-5))));
         // kind 1 吞键子类：有图标 ∧ right ∉ {2,3}
-        sc.overlay_kind = 1;
-        sc.overlay_left_icon = 3;
-        sc.overlay_right_icon = 0; // 有图标 ∧ right ∉ {2,3} ⇒ 全吞
+        sc.dialog.overlay_kind = 1;
+        sc.dialog.overlay_left_icon = 3;
+        sc.dialog.overlay_right_icon = 0; // 有图标 ∧ right ∉ {2,3} ⇒ 全吞
         assert_eq!(sc.controls(), Controls::hidden(), "kind1 吞键子类整条隐藏");
         // right ∈ {2,3} 支路：−2/−1 滚、其余（含 −5）关层 ⇒ 滚钮 + 关闭
-        sc.overlay_right_icon = 2;
+        sc.dialog.overlay_right_icon = 2;
         let c = sc.controls();
         assert_eq!(c.mid, vec![btn(FunctionId::ScrollDown, Action::Key(-2))], "right=2：滚钮照常（top=0 ⇒ 仅下滚）");
         assert_eq!(c.right, Some(btn(FunctionId::Close, Action::Key(-5))), "right=2：−5 关层在");
         // 【复核 T1-R2】Help / IconView 的 kind0 浮层走页面专臂（−7 关层）：此处不落 kind0 通用钮集
-        sc.overlay_kind = 0;
+        sc.dialog.overlay_kind = 0;
         sc.game_mode = GameMode::Help;
         assert_eq!(sc.controls(), Controls::hidden(), "Help 的 kind0 浮层 = 页面类（Task 2）");
         sc.game_mode = GameMode::IconView;
@@ -519,8 +519,8 @@ mod tests {
     #[test]
     fn t1_overlay_kind3_and_kind4() {
         let mut sc = scene((2, ROW), &[]);
-        sc.overlay_active = true;
-        sc.overlay_kind = 3;
+        sc.dialog.overlay_active = true;
+        sc.dialog.overlay_kind = 3;
         sc.overlay_kind_item = 16; // 非说明类 ⇒ 使用确认
         let c = sc.controls();
         assert_eq!(c.left, Some(btn(FunctionId::Use, Action::Key(-6))));
@@ -538,7 +538,7 @@ mod tests {
             crate::entity::spawn(&mut sc.entities, &mut sc.grid, 77, 5 << 5, ROW << 5, 0, &sc.width_table, None);
         }
         let i77 = (0..sc.entities.count).find(|&i| sc.entities.items[i].type_ == 77).unwrap();
-        sc.overlay_kind = 4;
+        sc.dialog.overlay_kind = 4;
         sc.merchant_entity = i77 as i32;
         sc.entities.items[i77].param = (2 << 8) | 1;
         let c = sc.controls();
@@ -676,11 +676,11 @@ mod tests {
     #[test]
     fn t1_overlay_kind5_and_ending() {
         let mut sc = scene((2, ROW), &[]);
-        sc.overlay_active = true;
-        sc.overlay_kind = 5;
-        sc.overlay_total_lines = 3;
-        sc.overlay_page_top = 1;
-        sc.overlay_page_bottom = 1;
+        sc.dialog.overlay_active = true;
+        sc.dialog.overlay_kind = 5;
+        sc.dialog.overlay_total_lines = 3;
+        sc.dialog.overlay_page_top = 1;
+        sc.dialog.overlay_page_bottom = 1;
         let c = sc.controls();
         assert_eq!(
             c.mid,
@@ -693,7 +693,7 @@ mod tests {
         );
         assert_eq!(c.right, Some(btn(FunctionId::Close, Action::Key(-7))));
         // 结局
-        sc.overlay_active = false;
+        sc.dialog.overlay_active = false;
         sc.game_mode = GameMode::Ending;
         sc.ending_done = false;
         assert_eq!(sc.controls(), Controls::hidden());

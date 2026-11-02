@@ -16,7 +16,7 @@
         let mut trail = Vec::new();
         for fc in 1..60 {
             sc.tick(fc, &wt);
-            trail.push((sc.game_mode, sc.dialog_phase));
+            trail.push((sc.game_mode, sc.dialog.dialog_phase));
             if sc.game_mode == GameMode::Map && sc.walk_phase == 0 {
                 break;
             }
@@ -35,13 +35,13 @@
     #[test]
     fn script_takeover_after_interrupt_keeps_dialog() {
         let mut sc = scene((1, ROW), &[]);
-        sc.dialog_data.scripts = vec!["TAK_0_0 ".to_string()];
+        sc.dialog.dialog_data.scripts = vec!["TAK_0_0 ".to_string()];
         sc.walk_to(5, ROW);
         sc.press_key(-1); // 打断（未出拍）
         sc.load_level_script(0); // 剧情接管
         sc.find_path(1, ROW, 3, ROW); // 剧情 MOV 驱动的脚本行走
         sc.script_walk_armed = true;
-        sc.dialog_phase = 3;
+        sc.dialog.dialog_phase = 3;
         let wt = sc.width_table.clone();
         for fc in 0..12 {
             sc.tick(fc, &wt);

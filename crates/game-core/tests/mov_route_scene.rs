@@ -359,7 +359,7 @@ fn run_scene(spec: &Spec, mut observe: impl FnMut(u32, &GameScene)) -> GameScene
             sha = game_platform::hash::sha256_hex(&screen.hash_stream())[..32].to_string();
         }
         let mode = scene.as_ref().map(|s| s.game_mode).unwrap_or(machine.mode);
-        let dp = scene.as_ref().map(|s| s.dialog_phase).unwrap_or(-1);
+        let dp = scene.as_ref().map(|s| s.dialog.dialog_phase).unwrap_or(-1);
         assert_eq!(sha, rec.sha, "TICK {} 帧不符（mode={mode} dp={dp}）", rec.tick);
         checked += 1;
     }
@@ -393,7 +393,7 @@ fn preset_floor2_mov_frames_match() {
     let mut flags_loaded = false;
     let sc = run_scene(&FLOOR2, |tick, sc| {
         flags_loaded |= sc.script_line_flags[0];
-        if sc.game_mode == GameMode::Dialog && sc.dialog_phase == 2 {
+        if sc.game_mode == GameMode::Dialog && sc.dialog.dialog_phase == 2 {
             dp2_ticks[sc.current_script_index.min(2)] += 1;
             let e = sc.route_entity;
             if e >= 0 && sc.entities.items[e as usize].type_ == 72 {
@@ -438,7 +438,7 @@ fn preset_floor40_mov_frames_match() {
     let mut boss_hook_at = None;
     let mut route_types = Vec::new();
     let sc = run_scene(&FLOOR40, |tick, sc| {
-        if sc.game_mode == GameMode::Dialog && sc.dialog_phase == 2 {
+        if sc.game_mode == GameMode::Dialog && sc.dialog.dialog_phase == 2 {
             if sc.route_phase == 5 && prev_phase != 5 {
                 starts.push(tick);
                 battle_flag_false_in_dp2 &= !sc.battle_active && sc.walk_phase == 5;

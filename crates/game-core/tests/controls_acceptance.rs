@@ -138,10 +138,10 @@ fn accept_page_rows() {
     let mut sc = scene((2, ROW), &[]);
     sc.game_mode = GameMode::Help;
     sc.show_overlay_message(0, &"第一行\n第二行\n第三行\n第四行\n第五行\n第六行\n第七行\n第八行\n第九行\n第十行\n第十一行\n第十二行".repeat(1), 0, 3);
-    let top0 = sc.overlay_page_top;
+    let top0 = sc.dialog.overlay_page_top;
     sc.key_value = -2;
     settle(&mut sc, 4);
-    assert!(sc.overlay_page_top > top0 || sc.overlay_lines_per_page >= sc.overlay_total_lines, "下页/或单页无翻");
+    assert!(sc.dialog.overlay_page_top > top0 || sc.dialog.overlay_lines_per_page >= sc.dialog.overlay_total_lines, "下页/或单页无翻");
     // 结局：ending_done → 继续(−5) 回主菜单
     let mut sc = scene((2, ROW), &[]);
     sc.game_mode = GameMode::Ending;
@@ -167,11 +167,11 @@ fn hidden_contexts_have_no_buttons() {
 fn accept_dialog_continue() {
     let mut sc = scene((2, ROW), &[]);
     sc.game_mode = GameMode::Dialog;
-    sc.dialog_phase = 1;
+    sc.dialog.dialog_phase = 1;
     // 对话 dp1 的继续/翻页 = dialog_controls（浮层未开——序章对话走 dp 机文字带非浮层）
     let c = sc.controls();
     assert_eq!(c.right.as_ref().unwrap().function, FunctionId::Continue);
     sc.key_value = -5;
     settle(&mut sc, 6);
-    assert!(!sc.overlay_active || sc.dialog_phase != 1, "继续 = 关闭/推进");
+    assert!(!sc.dialog.overlay_active || sc.dialog.dialog_phase != 1, "继续 = 关闭/推进");
 }

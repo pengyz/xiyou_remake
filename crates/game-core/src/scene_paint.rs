@@ -11,14 +11,14 @@ impl GameScene {
     pub(super) fn paint_overlay_box(&mut self, g: &mut SoftGraphics<'_>) {
         // 提示浮层（paint 公共尾 a.java:3129-3168，!floorTransitioning && overlayActive）：
         // 盒框 + kind 0/2/4/5 纯文本 / kind 1/3 图标+文本 + 软键图标
-        if !self.transitioning && self.overlay_active {
-            let bx = (self.layout.screen_w - self.overlay_box_w) >> 1;
-            let by = (self.layout.screen_h - self.overlay_box_h) >> 1;
-            crate::menu_family::paint_box_frame(g, &self.images.ui[0], bx, by, self.overlay_box_w, self.overlay_box_h);
+        if !self.transitioning && self.dialog.overlay_active {
+            let bx = (self.layout.screen_w - self.dialog.overlay_box_w) >> 1;
+            let by = (self.layout.screen_h - self.dialog.overlay_box_h) >> 1;
+            crate::menu_family::paint_box_frame(g, &self.images.ui[0], bx, by, self.dialog.overlay_box_w, self.dialog.overlay_box_h);
             let font = crate::paint::paint_font();
             let mut tx = bx + 16;
             let ty = by + 16;
-            if matches!(self.overlay_kind, 0 | 2 | 4 | 5) {
+            if matches!(self.dialog.overlay_kind, 0 | 2 | 4 | 5) {
                 g.set_color(WHITE);
                 self.paint_wrapped_text(g, tx, ty, OVERLAY_TEXT_W, OVERLAY_TEXT_MAX_H, true);
             } else {
@@ -39,14 +39,14 @@ impl GameScene {
                     g.draw_string(name, tx, ty + ((32 - font.height()) >> 1), 0);
                 }
                 g.set_color(WHITE);
-                self.paint_wrapped_text(g, bx + 16, ty + 36, OVERLAY_TEXT_W, self.overlay_box_h - 32 - 36, true);
+                self.paint_wrapped_text(g, bx + 16, ty + 36, OVERLAY_TEXT_W, self.dialog.overlay_box_h - 32 - 36, true);
             }
-            let iy = by + self.overlay_box_h - 12 - 18;
-            if self.overlay_left_icon != 0 {
-                draw_image_clipped(g, &self.images.ui[11], bx + 13, iy + 6, (self.overlay_left_icon as i32 - 1) * 12, 0, 12, 10);
+            let iy = by + self.dialog.overlay_box_h - 12 - 18;
+            if self.dialog.overlay_left_icon != 0 {
+                draw_image_clipped(g, &self.images.ui[11], bx + 13, iy + 6, (self.dialog.overlay_left_icon as i32 - 1) * 12, 0, 12, 10);
             }
-            if self.overlay_right_icon != 0 {
-                draw_image_clipped(g, &self.images.ui[11], bx + self.overlay_box_w - 25, iy + 6, (self.overlay_right_icon as i32 - 1) * 12, 0, 12, 10);
+            if self.dialog.overlay_right_icon != 0 {
+                draw_image_clipped(g, &self.images.ui[11], bx + self.dialog.overlay_box_w - 25, iy + 6, (self.dialog.overlay_right_icon as i32 - 1) * 12, 0, 12, 10);
             }
         }
     }
@@ -61,17 +61,17 @@ impl GameScene {
         let font = crate::paint::paint_font();
         let line_h = font.height() + 4;
         let lines: Vec<Vec<u16>> = self
-            .overlay_lines
+            .dialog.overlay_lines
             .iter()
             .map(|l| l.encode_utf16().collect())
             .collect();
-        self.overlay_saved_color = crate::menu_family::paint_wrapped_lines(
+        self.dialog.overlay_saved_color = crate::menu_family::paint_wrapped_lines(
             g,
             &lines,
-            self.overlay_page_top,
-            self.overlay_page_bottom,
-            self.overlay_total_lines,
-            line_h * self.overlay_lines_per_page,
+            self.dialog.overlay_page_top,
+            self.dialog.overlay_page_bottom,
+            self.dialog.overlay_total_lines,
+            line_h * self.dialog.overlay_lines_per_page,
             line_h,
             x,
             y,
@@ -190,7 +190,7 @@ impl GameScene {
         self.softkeys = (1, 3);
         m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.softkeys.0, self.softkeys.1, &self.layout);
         // 提示浮层（paint 公共尾 a.java:3129-3168，!floorTransitioning && overlayActive）
-        if !self.transitioning && self.overlay_active {
+        if !self.transitioning && self.dialog.overlay_active {
             self.paint_overlay_box(g);
         }
         self.paint_wipe_tail(g);
@@ -786,7 +786,7 @@ impl GameScene {
     /// (texts[260], 15, 320−fontHeight−10, 210, fontHeight+10)。
     pub(super) fn paint_ending(&mut self, g: &mut SoftGraphics<'_>) {
         let img = self.images.ending.clone();
-        let text = self.dialog_data.texts[260].clone();
+        let text = self.dialog.dialog_data.texts[260].clone();
         let font = crate::paint::paint_font();
         let img_y0 = (self.layout.screen_h - img.height) >> 1;
         self.ending_anim += 2;
@@ -797,12 +797,12 @@ impl GameScene {
             }
         }
         let text_len = text.chars().count() as i32;
-        if (self.frame_counter & 3) >> 1 != 0 && self.dialog_char < text_len {
-            self.dialog_char += 1;
+        if (self.frame_counter & 3) >> 1 != 0 && self.dialog.dialog_char < text_len {
+            self.dialog.dialog_char += 1;
             let line_h = font.height() + 4;
-            self.layout_wrapped_text_limited(&text, 209, (line_h << 1) + 12, self.dialog_char);
-            self.overlay_page_top = (self.overlay_total_lines - 1).max(0);
-            self.overlay_page_bottom = self.overlay_total_lines;
+            self.layout_wrapped_text_limited(&text, 209, (line_h << 1) + 12, self.dialog.dialog_char);
+            self.dialog.overlay_page_top = (self.dialog.overlay_total_lines - 1).max(0);
+            self.dialog.overlay_page_bottom = self.dialog.overlay_total_lines;
         }
         g.set_color(3156024);
         // 【A 黄2·2026-10-23】顶带几何源改 layout（旧 classic 常量 SCREEN_W ⇒

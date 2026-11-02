@@ -35,7 +35,8 @@ def struct_fields() -> list:
             out.append(m.group(3))
     # 域切片成员（PersistState 等）同入归属面（2026-11-02 勘误：私有字段+切片面补全）
     for fname, sname in [("crates/game-core/src/scene_persist.rs", "PersistState"),
-                         ("crates/game-core/src/tap_walk.rs", "TapState")]:
+                         ("crates/game-core/src/tap_walk.rs", "TapState"),
+                         ("crates/game-core/src/scene_dialog.rs", "DialogState")]:
         in_s = False
         for l in (ROOT / fname).read_text(encoding="utf-8").splitlines():
             if l.startswith("pub struct " + sname):

@@ -14,7 +14,7 @@
         assert!(!sc.route.is_open(), "未开寻路段");
         assert!(!sc.probe_step(2), "拒绝探步");
         assert_eq!(sc.walk_phase, 0, "探步未起步");
-        assert!(sc.overlay_active, "弹框仍开着");
+        assert!(sc.dialog.overlay_active, "弹框仍开着");
     }
 
     /// 行走中（walkPhase 1）、探索（2）、换层（4）、战斗（5）、换层遮幅中同样拒绝；空闲地图允许。

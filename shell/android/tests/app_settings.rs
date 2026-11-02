@@ -127,7 +127,7 @@ fn settle_map(rt: &mut Runtime, src: &dyn game_platform::AssetSource) {
 
 /// 【计划 3 T7】若提示卡开着（首次到地图）关框（-5）——供读档/序章后直入操作的用例前置。
 fn close_tips_if_open(rt: &mut Runtime, src: &dyn game_platform::AssetSource) {
-    if rt.scene.as_ref().map(|s| s.overlay_active).unwrap_or(false) {
+    if rt.scene.as_ref().map(|s| s.dialog.overlay_active).unwrap_or(false) {
         rt.step(src, &[KeyAction::Press(-5), KeyAction::Release], Vec::new(), Vec::new());
         drive(rt, src, &[]);
     }
@@ -614,24 +614,24 @@ fn tips_card_shown_once_and_persisted() {
     drive(&mut rt, &src, &[KeyAction::Press(-7), KeyAction::Release]);
     assert!(run_until(&mut rt, &src, 400, |r| r.scene.is_some()), "交接");
     settle_map(&mut rt, &src);
-    assert!(rt.scene.as_ref().unwrap().overlay_active, "首次到地图弹提示卡");
-    assert_eq!(rt.scene.as_ref().unwrap().overlay_kind, 0);
+    assert!(rt.scene.as_ref().unwrap().dialog.overlay_active, "首次到地图弹提示卡");
+    assert_eq!(rt.scene.as_ref().unwrap().dialog.overlay_kind, 0);
     assert!(rt.rt_tips_seen_pad, "置位");
     assert!(AppSettings::load(&cfg).tips_seen_pad, "同拍落盘");
     // 关框（-5）
     rt.step(&src, &[KeyAction::Press(-5), KeyAction::Release], Vec::new(), Vec::new());
-    assert!(!rt.scene.as_ref().unwrap().overlay_active, "框已关");
+    assert!(!rt.scene.as_ref().unwrap().dialog.overlay_active, "框已关");
     for _ in 0..20 {
         drive(&mut rt, &src, &[]);
     }
-    assert!(!rt.scene.as_ref().unwrap().overlay_active || rt.rt_tips_seen_pad, "不再弹（已置位）");
+    assert!(!rt.scene.as_ref().unwrap().dialog.overlay_active || rt.rt_tips_seen_pad, "不再弹（已置位）");
     // 重启不再弹
     let (mut rt2, src2) = runtime_with(&dir, Vec::new());
     new_game_to_map(&mut rt2, &src2);
     for _ in 0..6 {
         drive(&mut rt2, &src2, &[]);
     }
-    assert!(!rt2.scene.as_ref().unwrap().overlay_active, "重启不再弹");
+    assert!(!rt2.scene.as_ref().unwrap().dialog.overlay_active, "重启不再弹");
     let _ = std::fs::remove_dir_all(&dir);
 }
 

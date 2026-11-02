@@ -16,7 +16,7 @@ impl GameScene {
         let script_cursor0 = self.script_cursor;
         if script_cursor0 + 3 > line.len() {
             // 行尾收尾（a.java:8597-8604）：phase=4 等相机 + 置 flag + 相机回玩家
-            self.dialog_phase = 4;
+            self.dialog.dialog_phase = 4;
             let cur = self.current_script_index;
             if cur != 32 {
                 self.script_line_flags[cur] = true;

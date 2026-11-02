@@ -182,7 +182,7 @@
     fn bug043_bump_into_scene_trigger_like_keys() {
         let make = || {
             let mut sc = scene((1, ROW), &[(83, 5, ROW)]);
-            sc.dialog_data.scripts = vec!["TAK_0_0 ".to_string()];
+            sc.dialog.dialog_data.scripts = vec!["TAK_0_0 ".to_string()];
             assert!(sc.find_path(1, ROW, 6, ROW) || sc.find_path(1, ROW, 4, ROW), "前置：箭头路径");
             sc.path_arrows_visible = true;
             sc
@@ -200,7 +200,7 @@
         let _ = touch.walk_to(5, ROW);
         for fc in 0..200 {
             touch.tick(fc, &wt2);
-            if touch.game_mode == GameMode::Dialog && !touch.route.is_open() && touch.dialog_phase != 3 {
+            if touch.game_mode == GameMode::Dialog && !touch.route.is_open() && touch.dialog.dialog_phase != 3 {
                 break;
             }
         }
@@ -237,16 +237,16 @@
         let _ = touch.walk_to(4, ROW);
         for fc in 0..200 {
             touch.tick(fc, &wt2);
-            if touch.overlay_active {
+            if touch.dialog.overlay_active {
                 break;
             }
         }
-        assert!(keys.overlay_active && touch.overlay_active, "两边都弹出\"没有钥匙\"提示");
+        assert!(keys.dialog.overlay_active && touch.dialog.overlay_active, "两边都弹出\"没有钥匙\"提示");
         assert_eq!((touch.player_cell_x, touch.player_cell_y), (3, ROW), "停在门前");
         assert!(keys.path_arrow_cells().is_empty(), "参照：方向键撞门后余下箭头不再画（原版清 walkStepCount）");
         // 关掉提示后再走几拍：两边一致、箭头不复现
         for sc in [&mut keys, &mut touch] {
-            sc.overlay_active = false;
+            sc.dialog.overlay_active = false;
             let wt = sc.width_table.clone();
             for fc in 600..640 {
                 sc.tick(fc, &wt);
@@ -315,7 +315,7 @@
     #[test]
     fn t2_script_takeover_closes_walkto_route() {
         let mut sc = scene((1, ROW), &[]);
-        sc.dialog_data.scripts = vec!["TAK_0_0 ".to_string()];
+        sc.dialog.dialog_data.scripts = vec!["TAK_0_0 ".to_string()];
         sc.walk_to(5, ROW);
         assert!(sc.route.is_open());
         sc.load_level_script(0);
@@ -438,7 +438,7 @@
         let paint_once = |overlay: bool| {
             let mut sc = scene((5, ROW), &[]);
             sc.game_mode = GameMode::Dialog;
-            sc.dialog_phase = 3;
+            sc.dialog.dialog_phase = 3;
             if overlay {
                 sc.show_overlay_message(0, "你无法战胜它", 0, 0);
             }
@@ -447,7 +447,7 @@
                 let mut g = crate::render::SoftGraphics::new(&mut canvas);
                 sc.paint(&mut g, &crate::render::ArgbImage::create(2, 2));
             }
-            (canvas.argb, sc.overlay_box_w, sc.overlay_box_h)
+            (canvas.argb, sc.dialog.overlay_box_w, sc.dialog.overlay_box_h)
         };
         let (plain, _, _) = paint_once(false);
         let (with_box, bw, bh) = paint_once(true);
@@ -476,9 +476,9 @@
             run_until_settled(&mut sc, 300);
             if t == 70 {
                 // 【BUG-046】打不过 ⇒ 原版拒战提示框（a.java:5487-5490）；关框后寻路收尾
-                assert!(sc.overlay_active, "{label}：弹拒战提示框");
-                assert_eq!(sc.overlay_text.as_deref(), Some("你无法战胜它"), "{label}：提示文案");
-                assert_eq!((sc.game_mode, sc.dialog_phase), (GameMode::Dialog, 3), "{label}：弹框期间仍归点地寻路的 dp3");
+                assert!(sc.dialog.overlay_active, "{label}：弹拒战提示框");
+                assert_eq!(sc.dialog.overlay_text.as_deref(), Some("你无法战胜它"), "{label}：提示文案");
+                assert_eq!((sc.game_mode, sc.dialog.dialog_phase), (GameMode::Dialog, 3), "{label}：弹框期间仍归点地寻路的 dp3");
                 assert!(sc.route.is_open(), "{label}：弹框期间路段开着（关框键属浮层不打断；步序已清，关框后 finish_walkto 收尾）");
                 let wt = sc.width_table.clone();
                 sc.press_key(-5);
@@ -525,7 +525,7 @@
         sc.walk_path_buffer = vec![2];
         sc.walk_step_count = 1;
         sc.script_walk_armed = true;
-        sc.dialog_phase = 3;
+        sc.dialog.dialog_phase = 3;
         sc.walk_phase = 0;
         sc.game_mode = GameMode::Dialog;
         assert!(!sc.route.is_open(), "前置：经典脚本行走不开路段");
@@ -554,7 +554,7 @@
     fn bug044_first_step_into_scene_trigger_matches_direction_key() {
         let make = || {
             let mut sc = scene((4, ROW), &[(83, 5, ROW)]);
-            sc.dialog_data.scripts = vec![String::new()];
+            sc.dialog.dialog_data.scripts = vec![String::new()];
             sc
         };
         let mut keys = make();
@@ -659,7 +659,7 @@
         assert!(sc.undo.is_empty(), "换层清栈");
         // 剧情接管
         let mut sc = scene((5, ROW), &[]);
-        sc.dialog_data.scripts = vec!["TAK_0_0 ".to_string(); 2];
+        sc.dialog.dialog_data.scripts = vec!["TAK_0_0 ".to_string(); 2];
         sc.undo.push_move(stroke);
         sc.load_level_script(0);
         assert!(sc.undo.is_empty(), "剧情清栈");
@@ -796,7 +796,7 @@
         let mut sc = scene((5, ROW), &[(70, 6, ROW)]);
         sc.persist.floor = 49;
         sc.persist.current_floor = 49;
-        sc.dialog_data.scripts = vec!["TAK_0_0 ".to_string(); 40];
+        sc.dialog.dialog_data.scripts = vec!["TAK_0_0 ".to_string(); 40];
         sc.player.atk = 100_000;
         sc.player.def = 100_000;
         sc.player.hp = 100_000;
@@ -964,7 +964,7 @@
         let mut sc = scene((5, ROW), &[(71, 6, ROW)]);
         sc.persist.floor = 49;
         sc.persist.current_floor = 49;
-        sc.dialog_data.scripts = vec!["TAK_0_0 ".to_string(); 40];
+        sc.dialog.dialog_data.scripts = vec!["TAK_0_0 ".to_string(); 40];
         sc.player.atk = 1_000_000;
         sc.player.def = 1_000_000;
         sc.player.hp = 100_000;
@@ -1384,12 +1384,12 @@
         assert_eq!(sc.tap_cell(9, ROW), TapResult::Walking);
         let wt = sc.width_table.clone();
         let mut fc = 0;
-        while !sc.overlay_active && fc < 200 {
+        while !sc.dialog.overlay_active && fc < 200 {
             sc.tick(fc, &wt);
             fc += 1;
         }
-        assert!(sc.overlay_active, "前置：拾取型 25 弹提示框");
-        assert_eq!((sc.overlay_kind, sc.overlay_right_icon), (1, 3), "前置：kind 1、right=3 拾取框");
+        assert!(sc.dialog.overlay_active, "前置：拾取型 25 弹提示框");
+        assert_eq!((sc.dialog.overlay_kind, sc.dialog.overlay_right_icon), (1, 3), "前置：kind 1、right=3 拾取框");
         settle(&mut sc, fc, 10); // 框开期间多跑几拍：浮层冻结 walkPhase 机
         fc += 10;
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (5, ROW), "框开时人在拾取格");
@@ -1401,7 +1401,7 @@
         sc.tick(fc, &wt);
         fc += 1;
         sc.release_key();
-        assert!(!sc.overlay_active, "key={close_key}：提示框已关");
+        assert!(!sc.dialog.overlay_active, "key={close_key}：提示框已关");
         settle(&mut sc, fc, 200);
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (9, ROW), "key={close_key}：关框后续走到终点");
         assert_eq!(sc.game_mode, GameMode::Map);
@@ -1557,11 +1557,11 @@
         assert_eq!(sc.tap_cell(8, ROW), crate::tap_walk::TapResult::Bumping);
         let wt = sc.width_table.clone();
         let mut fc = 0;
-        while !sc.overlay_active && fc < 200 {
+        while !sc.dialog.overlay_active && fc < 200 {
             sc.tick(fc, &wt);
             fc += 1;
         }
-        assert!(sc.overlay_active, "前置：拾取型 25 弹提示框");
+        assert!(sc.dialog.overlay_active, "前置：拾取型 25 弹提示框");
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (4, ROW), "前置：框开时人在拾取格");
         assert_eq!(sc.tap.tap_bump, Some(((7, ROW), 2)), "前置：撞击后续在");
         sc.press_key(-5);
@@ -1569,7 +1569,7 @@
         sc.tick(fc, &wt);
         fc += 1;
         sc.release_key();
-        assert!(!sc.overlay_active, "提示框已关");
+        assert!(!sc.dialog.overlay_active, "提示框已关");
         settle(&mut sc, fc, 300);
         assert_eq!(sc.player.yellow_keys, 0, "撞门耗钥");
         assert!(!door_intact(&sc, 8), "门已开");
@@ -1588,11 +1588,11 @@
         assert_eq!(sc.tap_cell(7, ROW), crate::tap_walk::TapResult::Bumping);
         let wt = sc.width_table.clone();
         let mut fc = 0;
-        while !sc.overlay_active && fc < 200 {
+        while !sc.dialog.overlay_active && fc < 200 {
             sc.tick(fc, &wt);
             fc += 1;
         }
-        assert!(sc.overlay_active, "前置：停靠格拾取弹框");
+        assert!(sc.dialog.overlay_active, "前置：停靠格拾取弹框");
         settle(&mut sc, fc, 10); // 框开期间多跑几拍：撞击须暂缓、不作废
         fc += 10;
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (6, ROW), "框开时人在停靠格");
@@ -1603,7 +1603,7 @@
         sc.tick(fc, &wt);
         fc += 1;
         sc.release_key();
-        assert!(!sc.overlay_active, "提示框已关");
+        assert!(!sc.dialog.overlay_active, "提示框已关");
         settle(&mut sc, fc, 200);
         assert_eq!(sc.player.yellow_keys, 0, "关框后撞门耗钥");
         assert!(!door_intact(&sc, 7), "门已开");
@@ -1664,7 +1664,7 @@
         for entry in ["换层", "剧情"] {
             let mut sc = scene((2, ROW), &[(1, 7, ROW)]);
             sc.player.yellow_keys = 1;
-            sc.dialog_data.scripts = vec!["TAK_0_0 ".to_string()];
+            sc.dialog.dialog_data.scripts = vec!["TAK_0_0 ".to_string()];
             assert_eq!(sc.tap_cell(7, ROW), crate::tap_walk::TapResult::Bumping);
             sc.flash_reject((9, ROW));
             assert_eq!(sc.tap.tap_target, Some((7, ROW)), "{entry} 前置：目标标记");
@@ -1783,7 +1783,7 @@
             ("被搬走（MOV）", Box::new(|sc| { let e = sc.tap.tap_selected.unwrap().entity; sc.entities.items[e].px += 32; })),
             ("变型（道具改写）", Box::new(|sc| { let e = sc.tap.tap_selected.unwrap().entity; sc.entities.items[e].type_ = 42; })),
             ("楼层号变化", Box::new(|sc| sc.persist.current_floor += 1)),
-            ("浮层", Box::new(|sc| sc.overlay_active = true)),
+            ("浮层", Box::new(|sc| sc.dialog.overlay_active = true)),
             // 【复核 R1】以下各钉一个 selection_valid 判据（去掉该判据即红）
             // hide_notify 真实入口：Map → InGameMenu（walk_phase / 浮层 / 楼层 / 实体都不变，只有 game_mode 判据拦得住）
             ("hide_notify（切后台 ⇒ 游戏内菜单）", Box::new(|sc| {
@@ -1960,13 +1960,13 @@
             assert!(fc < 300);
         }
         let landed = sc.player_cell_x;
-        sc.overlay_active = true; // 收尾后、执行前出现浮层（如拾取提示）
-        sc.overlay_text = Some("提示".into());
+        sc.dialog.overlay_active = true; // 收尾后、执行前出现浮层（如拾取提示）
+        sc.dialog.overlay_text = Some("提示".into());
         sc.tick(fc, &wt);
         sc.tick(fc + 1, &wt);
         assert_eq!(sc.player_cell_x, landed, "浮层期间不执行排队");
         assert_eq!(sc.tap.tap_target, Some((2, ROW)), "浮层期间排队暂缓、标记仍在");
-        sc.overlay_active = false;
+        sc.dialog.overlay_active = false;
         settle(&mut sc, fc + 2, 200);
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (2, ROW), "关框后执行排队");
         assert!(!sc.route.is_open() && sc.tap.tap_target.is_none());
@@ -2050,9 +2050,9 @@
         assert_eq!(sc.swipe_step(2), TapResult::Rejected, "Map 语境脚本行走");
         sc.script_walk_armed = false;
         assert!(sc.tap.tap_reject.is_none(), "滑动无目标格、不闪红");
-        sc.overlay_active = true;
+        sc.dialog.overlay_active = true;
         assert_eq!(sc.swipe_step(2), TapResult::Ignored, "浮层开着");
-        sc.overlay_active = false;
+        sc.dialog.overlay_active = false;
         assert_eq!(sc.swipe_step(4), TapResult::Ignored, "非法方向码");
         assert_eq!((sc.player_cell_x, sc.walk_phase), (3, 0), "全程未动");
     }
@@ -2089,11 +2089,11 @@
         assert_eq!(sc.tap_cell(9, ROW), TapResult::Walking);
         let wt = sc.width_table.clone();
         let mut fc = 0;
-        while !sc.overlay_active && fc < 200 {
+        while !sc.dialog.overlay_active && fc < 200 {
             sc.tick(fc, &wt);
             fc += 1;
         }
-        assert!(sc.overlay_active, "前置：拾取型 25 弹提示框");
+        assert!(sc.dialog.overlay_active, "前置：拾取型 25 弹提示框");
         assert!(!sc.accepts_field_tap(), "浮层开着不收点地");
         assert_eq!(sc.tap_cell(3, ROW), TapResult::Ignored);
         assert_eq!(sc.swipe_step(3), TapResult::Ignored);
@@ -2104,7 +2104,7 @@
         sc.tick(fc, &wt);
         fc += 1;
         sc.release_key();
-        assert!(!sc.overlay_active, "提示框已关");
+        assert!(!sc.dialog.overlay_active, "提示框已关");
         settle(&mut sc, fc, 200);
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (9, ROW), "关框后续走原目标");
     }

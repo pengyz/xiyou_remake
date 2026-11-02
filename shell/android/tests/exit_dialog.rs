@@ -61,7 +61,7 @@ fn to_map(rt: &mut Runtime, src: &dyn game_platform::AssetSource) {
         calm = if mode == GameMode::Map { calm + 1 } else { 0 };
         if calm >= 30 {
             // 【计划 3 T7】首次到地图弹提示卡（浮层吞 -7）——统一关框后再交用例
-            if rt.scene.as_ref().unwrap().overlay_active {
+            if rt.scene.as_ref().unwrap().dialog.overlay_active {
                 drive(rt, src, &[KeyAction::Press(-5), KeyAction::Release], Vec::new());
                 drive(rt, src, &[], Vec::new());
             }

@@ -229,7 +229,7 @@
             sc.persist.journal = vec![(0, 0), (0, 1), (0, 2)];
             sc.record_page = 1; // 中间页：左右箭头都画
             sc.page_indicator = "2 / 3".into();
-            sc.overlay_active = false;
+            sc.dialog.overlay_active = false;
             let bob = sc.bob_offset;
             let mut img = ArgbImage::create(layout.screen_w, layout.screen_h);
             let ops = {
@@ -267,7 +267,7 @@
             sc.images.ui[14] = solid(20, 13);
             sc.persist.journal = vec![(0, 0), (0, 1), (0, 2)];
             sc.record_page = 1;
-            sc.overlay_active = false;
+            sc.dialog.overlay_active = false;
             let mut img = ArgbImage::create(layout.screen_w, layout.screen_h);
             let ops = {
                 let mut g = SoftGraphics::new(&mut img);
@@ -853,7 +853,7 @@
             sc.apply_layout(layout);
             sc.game_mode = GameMode::Dialog;
             sc.open_dialog_page(0);
-            sc.dialog_speaker = speaker; // open_dialog_page 会置 speaker——须在其后覆盖
+            sc.dialog.dialog_speaker = speaker; // open_dialog_page 会置 speaker——须在其后覆盖
             if speaker > 0 {
                 sc.images.entity[speaker as usize] = Some(solid(36, 40)); // 立绘播种（分支必画）
             }
@@ -1333,27 +1333,27 @@
         sc.persist.min_floor = 2;
         sc.persist.max_floor = 10;
         assert!(!sc.change_floor(1, false, true), "strict 低于 min ⇒ false");
-        assert_eq!(sc.overlay_text.as_deref(), Some(MISC_TEXTS[0]));
+        assert_eq!(sc.dialog.overlay_text.as_deref(), Some(MISC_TEXTS[0]));
         assert!(!sc.change_floor(11, false, true), "strict 高于 max ⇒ false");
-        assert_eq!(sc.overlay_text.as_deref(), Some(MISC_TEXTS[1]));
+        assert_eq!(sc.dialog.overlay_text.as_deref(), Some(MISC_TEXTS[1]));
         assert!(!sc.change_floor(-1, false, false), "负层 ⇒ false");
-        assert_eq!(sc.overlay_text.as_deref(), Some(MISC_TEXTS[2]));
+        assert_eq!(sc.dialog.overlay_text.as_deref(), Some(MISC_TEXTS[2]));
         assert!(!sc.change_floor(56, false, false), "超 55 ⇒ false");
-        assert_eq!(sc.overlay_text.as_deref(), Some(MISC_TEXTS[3]));
+        assert_eq!(sc.dialog.overlay_text.as_deref(), Some(MISC_TEXTS[3]));
     }
 
     /// LAY_x（a.java:8355-8362）：脚本层跳转——m_119 存态 + 目标层 + 遮幅（dialogPhase=5）。
     #[test]
     fn script_lay_jumps_floor_with_wipe() {
         let mut sc = scene_with(&synthetic_sptarm());
-        sc.overlay_text = Some("x".into());
+        sc.dialog.overlay_text = Some("x".into());
         sc.script_line = "LAY_7 ".to_string();
         sc.script_cursor = 0;
         sc.execute_script_instruction();
         assert_eq!(sc.persist.pending_floor, 7);
         assert!(sc.transitioning);
-        assert_eq!(sc.dialog_phase, 5);
-        assert!(sc.overlay_text.is_none());
+        assert_eq!(sc.dialog.dialog_phase, 5);
+        assert!(sc.dialog.overlay_text.is_none());
     }
 
     /// GIN_a_b（a.java:8424-8437）：1=得金 b；尾递归执行下一条（END→行尾收尾）。
@@ -1366,7 +1366,7 @@
         sc.execute_script_instruction();
         assert_eq!(sc.player.gold, g0 + 1000, "gainGold(1000)");
         // 尾递归自证：GIN 后递归执行到行尾收尾分支（dialogPhase=4 + 置 flag）
-        assert_eq!(sc.dialog_phase, 4, "尾递归走到行尾收尾（a.java:8435-8436）");
+        assert_eq!(sc.dialog.dialog_phase, 4, "尾递归走到行尾收尾（a.java:8435-8436）");
         assert!(sc.script_line_flags[sc.current_script_index]);
     }
 
@@ -1549,7 +1549,7 @@
         assert_frame_icon(&s, WEAPON_X, FRAME_Y, &icons, 0, "存档后 武器=33");
         assert_frame_material_name(&s, ARMOR_X, FRAME_Y, "存档后 甲=0");
         // 再存一次（同槽覆写）：拾甲 80 后的装备态
-        sc.overlay_active = false;
+        sc.dialog.overlay_active = false;
         sc.equipped_weapon = 0;
         sc.equipped_armor = 80;
         key7(&mut sc, -5);
@@ -1710,15 +1710,15 @@
         let mut sc = scene_with(&synthetic_sptarm());
         sc.script_line = "XYZ ".to_string();
         sc.script_cursor = 0;
-        sc.dialog_phase = 3;
+        sc.dialog.dialog_phase = 3;
 
         sc.execute_script_instruction();
         assert_eq!(sc.script_cursor, 0, "未知 op 不推游标（原地 return）");
-        assert_eq!(sc.dialog_phase, 3, "未知 op 不改 dialogPhase");
+        assert_eq!(sc.dialog.dialog_phase, 3, "未知 op 不改 dialogPhase");
 
         sc.execute_script_instruction(); // 下一拍重解析同一 token
         assert_eq!(sc.script_cursor, 0, "下一拍原地重解析（停摆持续）");
-        assert_eq!(sc.dialog_phase, 3, "停摆期间 dialogPhase 不变");
+        assert_eq!(sc.dialog.dialog_phase, 3, "停摆期间 dialogPhase 不变");
     }
 
     /// 型 67 多段拼装元数据（a.java:682-697 f_byte_arr2_00/01 逐值）：9 片件
@@ -2062,21 +2062,21 @@
             .repeat(12);
         sc.show_overlay_message(4, &long, 0, 0);
         assert!(
-            sc.overlay_total_lines > sc.overlay_lines_per_page + 1,
+            sc.dialog.overlay_total_lines > sc.dialog.overlay_lines_per_page + 1,
             "总行数须超出单页才可翻页 total={} lpp={}",
-            sc.overlay_total_lines,
-            sc.overlay_lines_per_page
+            sc.dialog.overlay_total_lines,
+            sc.dialog.overlay_lines_per_page
         );
-        sc.overlay_page_top = 0;
+        sc.dialog.overlay_page_top = 0;
         sc.key_value = -2;
         sc.tick(0, &[]);
-        assert_eq!(sc.overlay_page_top, 1, "kind4 -2 = top+1（handleOverlayKey ±1）");
+        assert_eq!(sc.dialog.overlay_page_top, 1, "kind4 -2 = top+1（handleOverlayKey ±1）");
 
         sc.show_overlay_message(3, &long, 0, 3);
-        sc.overlay_page_top = 0;
+        sc.dialog.overlay_page_top = 0;
         sc.key_value = -2;
         sc.tick(0, &[]);
-        assert_eq!(sc.overlay_page_top, 1, "kind3 default → handleOverlayKey ±1");
+        assert_eq!(sc.dialog.overlay_page_top, 1, "kind3 default → handleOverlayKey ±1");
     }
 
     /// 钉②：kind2 全吞键（Java `case 2: default: break;`，deobf 3290-3291）——
@@ -2088,7 +2088,7 @@
         for k in [-7, -6, -1, 1] {
             sc.key_value = k;
             sc.tick(0, &[]);
-            assert!(sc.overlay_active, "kind2 全吞键（key={k}）");
+            assert!(sc.dialog.overlay_active, "kind2 全吞键（key={k}）");
         }
     }
 
@@ -2100,13 +2100,13 @@
         sc.show_overlay_message(1, "占位", 0, 1); // right=1（钥匙图标类）
         sc.key_value = -7;
         sc.tick(0, &[]);
-        assert!(sc.overlay_active, "right 非 2/3：全吞键");
+        assert!(sc.dialog.overlay_active, "right 非 2/3：全吞键");
 
         sc.show_overlay_message(1, "占位", 0, 3); // right=3（拾取浮层实况）
         sc.key_value = 0;
         sc.tick(0, &[]);
-        assert!(sc.overlay_active, "right 为 2/3 + key0 吞");
+        assert!(sc.dialog.overlay_active, "right 为 2/3 + key0 吞");
         sc.key_value = -7;
         sc.tick(0, &[]);
-        assert!(!sc.overlay_active, "right 为 2/3 + 非翻页键关闭");
+        assert!(!sc.dialog.overlay_active, "right 为 2/3 + 非翻页键关闭");
     }

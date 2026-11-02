@@ -253,9 +253,9 @@ fn headless_portrait_niumowang_dialog_and_gold_popup() {
             "f{} {:?} pg{} sp{} ph{} pl({},{})",
             sc.persist.floor,
             sc.game_mode,
-            sc.dialog_page,
-            sc.dialog_speaker,
-            sc.dialog_phase,
+            sc.dialog.dialog_page,
+            sc.dialog.dialog_speaker,
+            sc.dialog.dialog_phase,
             sc.view.player_px >> 5,
             sc.view.player_py >> 5
         );
@@ -266,10 +266,10 @@ fn headless_portrait_niumowang_dialog_and_gold_popup() {
             seen = ev;
         }
         let shown = sc.game_mode == GameMode::Dialog
-            && sc.dialog_speaker == 72
-            && sc.overlay_text.is_some()
-            && !sc.overlay_active
-            && sc.dialog_phase != 4;
+            && sc.dialog.dialog_speaker == 72
+            && sc.dialog.overlay_text.is_some()
+            && !sc.dialog.overlay_active
+            && sc.dialog.dialog_phase != 4;
         if shown {
             for _ in 0..12 {
                 step(&mut rt, &mut host, &[], vec![]); // 打字机走几拍

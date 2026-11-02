@@ -135,19 +135,30 @@ impl GameScene {
             equipped_armor: 0,
             equip_bonuses: [0, 10, 30, 70, 120, 220, 0, 10, 30, 70, 120, 220],
             equip_types: [0, 33, 34, 35, 79, 36, 0, 37, 38, 39, 80, 40],
-            overlay_active: false,
-            overlay_kind: 0,
-            overlay_text: None,
-            overlay_box_w: 0,
-            overlay_box_h: 0,
-            overlay_left_icon: 0,
-            overlay_right_icon: 0,
-            overlay_lines: Vec::new(),
-            overlay_page_top: 0,
-            overlay_page_bottom: 0,
-            overlay_lines_per_page: 0,
-            overlay_total_lines: 0,
-            overlay_content_w: 0,
+            dialog: scene_dialog::DialogState {
+    overlay_active: false,
+    overlay_kind: 0,
+    overlay_text: None,
+    overlay_box_w: 0,
+    overlay_box_h: 0,
+    overlay_left_icon: 0,
+    overlay_right_icon: 0,
+    overlay_lines: Vec::new(),
+    overlay_page_top: 0,
+    overlay_page_bottom: 0,
+    overlay_lines_per_page: 0,
+    overlay_total_lines: 0,
+    overlay_content_w: 0,
+    dialog_phase: 0,
+    dialog_page: 0,
+    dialog_page_end: 0,
+    dialog_speaker: 0,
+    dialog_anchor: -1,
+    dialog_char: 0,
+    dialog_target: (0, 0),
+    dialog_data: DialogData::from_fixtures(),
+    overlay_saved_color: 0,
+            },
             open_group: Vec::new(),
             open_anim_tick: 0,
             tile_bob: 0,
@@ -159,7 +170,6 @@ impl GameScene {
             game_mode: GameMode::Map,
             transition_count: 0,
             last_transition: None,
-            dialog_phase: 0,
             record_page: 0,
             record_text_a: include_str!("../tests/fixtures/record_texts_a.txt")
                 .lines()
@@ -173,21 +183,13 @@ impl GameScene {
             ending_scroll: 0,
             ending_anim: 0,
             ending_done: false,
-            dialog_page: 0,
-            dialog_page_end: 0,
-            dialog_speaker: 0,
-            dialog_anchor: -1,
-            dialog_char: 0,
-            dialog_target: (0, 0),
             script_line: String::new(),
             script_cursor: 0,
             script_delay: 0,
             script_line_flags: vec![false; 68],
             current_script_index: 0,
-            dialog_data: DialogData::from_fixtures(),
             difficulty_index: 0,
             script_walk_armed: false,
-            overlay_saved_color: 0,
             menu_kinds: Vec::new(),
             menu_item_count: 0,
             menu_box_width: 0,
@@ -499,12 +501,12 @@ impl GameScene {
         self.walkto_draining = false; // 【BUG-040】dp 归剧情（打断后的寻路收尾作废）
         self.script_walk_armed = false;
         self.transition_to(GameMode::Dialog);
-        self.dialog_page = 0;
+        self.dialog.dialog_page = 0;
         self.lock_camera_on(0); // ease 相机初始化到玩家
-        self.dialog_phase = 0;
+        self.dialog.dialog_phase = 0;
         self.current_script_index = idx as usize;
-        self.script_line = self.dialog_data.scripts[idx as usize].clone();
-        self.overlay_text = None;
+        self.script_line = self.dialog.dialog_data.scripts[idx as usize].clone();
+        self.dialog.overlay_text = None;
         self.script_cursor = 0;
         // scriptLineFlags[idx] 在行尾收尾（AwaitCamera）或 GUT/DES 时置位——
         // loadLevelScript 本身不置（a.java:8035-8052 无 flag 写）

@@ -42,6 +42,10 @@ mod scene_persist;
 mod scene_script;
 
 /// 【task-15 V1】脚本 op 归位（enum+22 impls+parse/execute 三处汇 1，move-only）。
+/// 【task-15 V2 dialog-VM】对话/浮层域（tick_dialog 归位）。
+#[path = "scene_dialog.rs"]
+mod scene_dialog;
+
 #[path = "script_ops.rs"]
 mod script_ops;
 /// 【task-15 V1】恢复规则归位（类型+表+执行器汇 1，move-only）。
@@ -388,21 +392,6 @@ pub struct GameScene {
     /// equipTierBonuses/Types（a.java:977-991 构造常量）
     pub equip_bonuses: [i32; 12],
     pub equip_types: [i32; 12],
-    /// 提示浮层（showOverlayMessage a.java:4898-4916）：active/kind/text/框宽高/页
-    pub overlay_active: bool,
-    pub overlay_kind: i32,
-    pub overlay_text: Option<String>,
-    pub overlay_box_w: i32,
-    pub overlay_box_h: i32,
-    pub overlay_left_icon: i8,
-    pub overlay_right_icon: i8,
-    /// layoutWrappedText 产物（行列表 + 分页游标）
-    pub overlay_lines: Vec<String>,
-    pub overlay_page_top: i32,
-    pub overlay_page_bottom: i32,
-    pub overlay_lines_per_page: i32,
-    pub overlay_total_lines: i32,
-    pub overlay_content_w: i32,
     /// 组开门动画数组（tryOpenChest 填充；paintTileLayer walkPhase4 消耗）
     pub open_group: Vec<usize>,
     /// openAnimTick：组开门动画计数（18 置 removed 动画、24 收尾）
@@ -421,8 +410,6 @@ pub struct GameScene {
     pub transition_count: u32,
     /// 转移日志（件 A' 收口观测：最后一次 (from, to)）——观测字段，不进金样 dump
     pub last_transition: Option<(GameMode, GameMode)>,
-    /// dialogPhase：0 脚本步进 / 1 TAK 打字 / 2 实体路径 / 3 脚本行走 / 4 等相机 / 6 SEE 打字
-    pub dialog_phase: i32,
     /// mode12 日志浏览（recordPage 页 + f_String_04 页码指示 + 日志对）
     pub record_page: i32,
     /// f_String_arr_06/09（a.java:823/887 init 常量；fixtures 迭代 59）
@@ -434,18 +421,6 @@ pub struct GameScene {
     pub ending_scroll: i32,
     pub ending_anim: i32,
     pub ending_done: bool,
-    /// dialogPage：当前对白页（dialogueTexts 下标）
-    pub dialog_page: i32,
-    /// dialogPageEnd：TAK 页尾（openDialogPage 边界）
-    pub dialog_page_end: i32,
-    /// dialogSpeakerType：说话者类型（>=0 实体立绘 / 0 玩家头像 / <0 "?"）
-    pub dialog_speaker: i32,
-    /// dialogAnchorEntity：lockCameraOn 返回的锚实体（气泡定位）
-    pub dialog_anchor: i32,
-    /// typewriterPos：打字机游标（UTF-16 单位）
-    pub dialog_char: i32,
-    /// dialogMoveX/115：SEE/MOV 目标格
-    pub dialog_target: (i32, i32),
     /// dialogScriptLine：当前脚本行
     pub script_line: String,
     /// scriptCursor
@@ -456,14 +431,10 @@ pub struct GameScene {
     pub script_line_flags: Vec<bool>,
     /// currentScriptIndex
     pub current_script_index: usize,
-    /// 对白数据集
-    pub dialog_data: DialogData,
     /// difficultyIndex（难度乘数索引；tryRunScene case 67 门控）
     pub difficulty_index: i32,
     /// scriptWalkArmed（脚本行走武装；phase 3 门控）
     pub script_walk_armed: bool,
-    /// overlaySavedColor（paintWrappedText \c 保存/\r 恢复的色；Java 字段默认 0）
-    pub overlay_saved_color: i32,
     /// mode 4/19 菜单族共享布局（menuLabels a.java:458-462 / resetMenuLayout
     /// a.java:4690-4702 / addMenuItem a.java:4704-4716）
     pub menu_kinds: Vec<i8>,
@@ -495,6 +466,8 @@ pub struct GameScene {
     /// 【STAGE-B-006】壳层附加设置行（交接自 BootMachine，回标题时交回；空 = 原版两行）：设置页入口据此生成第 3 行起的
     /// 附加行，切换回写此处。core 不解释其含义。
     pub shell_options: Vec<crate::menu_family::ShellOption>,
+    /// 【task-15 V2 dialog-VM】对话/浮层域切片（22 字段→DialogState）。
+    pub dialog: scene_dialog::DialogState,
     /// 音频语义（crate::audio；docs/spec/audio.md）。soundEnabled 的唯一真相源
     ///（run case16 label0 翻转，a.java:4157）。独立构造默认 = 「刚进 mode 3、声音开」；
     /// 宿主从 BootMachine 交接时整体覆盖（Java 为同一对象，状态连续）。
@@ -633,7 +606,7 @@ pub fn load_floor_from_save(
     // scriptLineFlags 读回（a.java:9285-9291：前 scriptLineCount 项 readBoolean，余
     // skip）——须先于 step 10 loadFloorData（m_122 floor2 恢复特例读 flags[26]）
     scene.script_line_flags = vec![false; 128];
-    let line_count = scene.dialog_data.scripts.len().min(save.script_flags.len());
+    let line_count = scene.dialog.dialog_data.scripts.len().min(save.script_flags.len());
     scene.script_line_flags[..line_count].copy_from_slice(&save.script_flags[..line_count]);
     // step 10 = loadFloorData（应用本层触发缓存）+ buildMinimap（a.java:3515-3517）
     scene.load_floor_data(maplv, px, py, records, scene.persist.floor)?;
@@ -641,7 +614,7 @@ pub fn load_floor_from_save(
     // step 11 相机（a.java:3523-3525）+ dispatchModeEntry case 3（a.java:4312-4318）
     scene.enter_view();
     scene.softkeys = (1, 3);
-    scene.overlay_active = false;
+    scene.dialog.overlay_active = false;
     scene.apply_step_cell_effects();
     Ok(scene)
 }
@@ -853,9 +826,9 @@ impl GameScene {
     /// showOverlayMessage（a.java:4898-4916）：kind 0/2/4/5 = 纯文本框；
     /// 1/3 = 带图标框（定宽 212、高 68+页高）。
     pub fn show_overlay_message(&mut self, kind: i32, text: &str, left: i8, right: i8) {
-        self.overlay_active = true;
-        self.overlay_kind = kind;
-        self.overlay_text = Some(text.to_string());
+        self.dialog.overlay_active = true;
+        self.dialog.overlay_kind = kind;
+        self.dialog.overlay_text = Some(text.to_string());
         if matches!(kind, 1 | 3) {
             let t = self.overlay_kind_item;
             self.overlay_icon = self.images.entity.get(t as usize).cloned().flatten();
@@ -865,17 +838,17 @@ impl GameScene {
         let line_h = font.height() + 4;
         if matches!(kind, 0 | 2 | 4 | 5) {
             self.layout_full_text(text, OVERLAY_TEXT_W, OVERLAY_TEXT_MAX_H);
-            self.overlay_box_w = self.overlay_content_w + 32;
-            self.overlay_box_h = 32 + (self.overlay_page_bottom - self.overlay_page_top) * line_h;
+            self.dialog.overlay_box_w = self.dialog.overlay_content_w + 32;
+            self.dialog.overlay_box_h = 32 + (self.dialog.overlay_page_bottom - self.dialog.overlay_page_top) * line_h;
         } else {
             self.layout_full_text(text, OVERLAY_TEXT_W, OVERLAY_ICON_TEXT_MAX_H);
-            self.overlay_box_w = 212;
-            self.overlay_box_h = 68 + (self.overlay_page_bottom - self.overlay_page_top) * line_h;
+            self.dialog.overlay_box_w = 212;
+            self.dialog.overlay_box_h = 68 + (self.dialog.overlay_page_bottom - self.dialog.overlay_page_top) * line_h;
         }
-        self.overlay_left_icon = left;
-        self.overlay_right_icon = right;
+        self.dialog.overlay_left_icon = left;
+        self.dialog.overlay_right_icon = right;
         if left != 0 || right != 0 {
-            self.overlay_box_h += 18;
+            self.dialog.overlay_box_h += 18;
         }
     }
 
@@ -965,7 +938,7 @@ impl GameScene {
     /// tryRunScene（a.java:8065-8139）：脚本行门控（scriptLineFlags + 场景参数
     /// script_cursor0=fromWalk）。case 40 落 5..40 直通组（table_count 原样 = !flags[40]）。
     pub fn try_run_scene(&mut self, idx: i32, from_walk: bool) -> bool {
-        if idx >= self.dialog_data.scripts.len() as i32 {
+        if idx >= self.dialog.dialog_data.scripts.len() as i32 {
             return false;
         }
         let mut gate = !self.script_line_flags[idx as usize];
@@ -1088,20 +1061,20 @@ impl GameScene {
     /// openDialogPage（a.java:8208-8227）：页装载 + 说话者/锚 + 预排版。
     /// 布局走 layout_wrapped_text_limited（w=129、高=2·lineH+12、limit=typewriterPos）。
     fn open_dialog_page(&mut self, page: i32) {
-        if page <= self.dialog_page_end {
-            self.dialog_page = page;
-            self.dialog_speaker = if page < 0 {
+        if page <= self.dialog.dialog_page_end {
+            self.dialog.dialog_page = page;
+            self.dialog.dialog_speaker = if page < 0 {
                 -1
             } else {
-                self.dialog_data.speakers[page as usize] as i32
+                self.dialog.dialog_data.speakers[page as usize] as i32
             };
-            self.dialog_anchor = {
+            self.dialog.dialog_anchor = {
                 // lockCameraOn(speaker)：相机锚初始化 + 返回目标实体
-                self.lock_camera_on(self.dialog_speaker);
-                if self.dialog_speaker != 0 && self.dialog_speaker != 87 {
+                self.lock_camera_on(self.dialog.dialog_speaker);
+                if self.dialog.dialog_speaker != 0 && self.dialog.dialog_speaker != 87 {
                     let mut found = -1;
                     for e in (0..self.entities.count).rev() {
-                        if self.entities.items[e].type_ == self.dialog_speaker {
+                        if self.entities.items[e].type_ == self.dialog.dialog_speaker {
                             found = e as i32;
                             break;
                         }
@@ -1110,7 +1083,7 @@ impl GameScene {
                         self.ease_target_x = self.entities.items[found as usize].px;
                         self.ease_target_y = self.entities.items[found as usize].py;
                         // a.java:8667-8668（lockCameraOn 内）：型69 目标 X += 32
-                        if self.dialog_speaker == 69 {
+                        if self.dialog.dialog_speaker == 69 {
                             self.ease_target_x += 32;
                         }
                     }
@@ -1121,23 +1094,23 @@ impl GameScene {
                     -1
                 }
             };
-            let composed = if self.dialog_speaker < 0 {
-                format!("?: \\cF8F8F8{}", self.dialog_data.texts[page as usize])
+            let composed = if self.dialog.dialog_speaker < 0 {
+                format!("?: \\cF8F8F8{}", self.dialog.dialog_data.texts[page as usize])
             } else {
-                let name = &self.object_type_names[self.dialog_speaker as usize];
-                format!("{}: \\cF8F8F8{}", name, self.dialog_data.texts[page as usize])
+                let name = &self.object_type_names[self.dialog.dialog_speaker as usize];
+                format!("{}: \\cF8F8F8{}", name, self.dialog.dialog_data.texts[page as usize])
             };
-            self.dialog_char = if self.dialog_speaker < 0 {
+            self.dialog.dialog_char = if self.dialog.dialog_speaker < 0 {
                 11
             } else {
-                (self.object_type_names[self.dialog_speaker as usize].chars().count() + 10) as i32
+                (self.object_type_names[self.dialog.dialog_speaker as usize].chars().count() + 10) as i32
             };
-            self.overlay_text = Some(composed.clone());
+            self.dialog.overlay_text = Some(composed.clone());
             let line_h = crate::paint::paint_font().height + 4;
-            self.layout_wrapped_text_limited(&composed, 129, (line_h << 1) + 12, self.dialog_char);
+            self.layout_wrapped_text_limited(&composed, 129, (line_h << 1) + 12, self.dialog.dialog_char);
         } else {
-            self.dialog_phase = 0;
-            self.dialog_char = 0;
+            self.dialog.dialog_phase = 0;
+            self.dialog.dialog_char = 0;
         }
     }
 
@@ -1157,12 +1130,12 @@ impl GameScene {
     fn apply_wrapped_layout(&mut self, text: &[u16], w: i32, max_h: i32, limit: usize) {
         let font = crate::paint::paint_font();
         let r = crate::menu_family::layout_wrapped_text(text, w, max_h, limit, &font);
-        self.overlay_page_top = 0;
-        self.overlay_total_lines = r.total_lines;
-        self.overlay_lines_per_page = r.lines_per_page;
-        self.overlay_page_bottom = r.total_lines.min(r.lines_per_page);
-        self.overlay_content_w = r.content_w;
-        self.overlay_lines = r.lines.iter().map(|l| String::from_utf16_lossy(l)).collect();
+        self.dialog.overlay_page_top = 0;
+        self.dialog.overlay_total_lines = r.total_lines;
+        self.dialog.overlay_lines_per_page = r.lines_per_page;
+        self.dialog.overlay_page_bottom = r.total_lines.min(r.lines_per_page);
+        self.dialog.overlay_content_w = r.content_w;
+        self.dialog.overlay_lines = r.lines.iter().map(|l| String::from_utf16_lossy(l)).collect();
     }
 
     /// flipOverlayPage（a.java:5129-5140）：页顶/页底钳制。
@@ -1172,29 +1145,29 @@ impl GameScene {
     /// kind0(15/17) 是 ±lines、kind5 与本口是 ±1（BUG-002 活码核查连带发现）。
     fn handle_overlay_key(&mut self) {
         match self.key_value {
-            -2 => self.flip_overlay_page(self.overlay_page_top + 1),
-            -1 => self.flip_overlay_page(self.overlay_page_top - 1),
+            -2 => self.flip_overlay_page(self.dialog.overlay_page_top + 1),
+            -1 => self.flip_overlay_page(self.dialog.overlay_page_top - 1),
             0 => {}
-            _ => self.overlay_active = false,
+            _ => self.dialog.overlay_active = false,
         }
     }
 
     fn flip_overlay_page(&mut self, page: i32) {
         let mut top = page;
         if top >= 0 {
-            if top > self.overlay_total_lines - self.overlay_lines_per_page {
-                top = self.overlay_total_lines - self.overlay_lines_per_page;
+            if top > self.dialog.overlay_total_lines - self.dialog.overlay_lines_per_page {
+                top = self.dialog.overlay_total_lines - self.dialog.overlay_lines_per_page;
             }
         } else {
             top = 0;
         }
-        self.overlay_page_top = top;
-        self.overlay_page_bottom = top + self.overlay_lines_per_page;
-        if self.overlay_page_top < 0 {
-            self.overlay_page_top = 0;
+        self.dialog.overlay_page_top = top;
+        self.dialog.overlay_page_bottom = top + self.dialog.overlay_lines_per_page;
+        if self.dialog.overlay_page_top < 0 {
+            self.dialog.overlay_page_top = 0;
         }
-        if self.overlay_page_bottom > self.overlay_total_lines {
-            self.overlay_page_bottom = self.overlay_total_lines;
+        if self.dialog.overlay_page_bottom > self.dialog.overlay_total_lines {
+            self.dialog.overlay_page_bottom = self.dialog.overlay_total_lines;
         }
     }
 
@@ -1244,7 +1217,7 @@ impl GameScene {
         self.walk_step_count = steps.len() as i32;
         self.walk_path_buffer = steps;
         self.script_walk_armed = true;
-        self.dialog_phase = 3;
+        self.dialog.dialog_phase = 3;
         self.walk_phase = 0;
         // dp3 消费机器在 Dialog 语境（op_mov 同款——脚本行走=mode 11 语境）
         self.game_mode = GameMode::Dialog;
@@ -1254,12 +1227,12 @@ impl GameScene {
     /// 【STAGE-B-008】场上是否接收点地（壳据此决定点按走 [`Self::tap_cell`] 还是行命中 / 点空白）：
     /// 无浮层、非遮幅，且为地图态或点地寻路自身驱动的 dp3。手动行走 / 战斗 / 观察模式也接收（由 tap_cell 闪红或忽略）。
     pub fn accepts_field_tap(&self) -> bool {
-        if self.overlay_active || self.transitioning {
+        if self.dialog.overlay_active || self.transitioning {
             return false;
         }
         match self.game_mode {
             GameMode::Map => true,
-            GameMode::Dialog => self.dialog_phase == 3 && self.walkto_owns_dp3(),
+            GameMode::Dialog => self.dialog.dialog_phase == 3 && self.walkto_owns_dp3(),
             _ => false,
         }
     }
@@ -1342,7 +1315,7 @@ impl GameScene {
     /// 末步在途窗口——末步由 advanceScriptWalk 在倒数第二格步末弹出，finish_walkto 随即回 Map，这一步在 Map wp1 走完
     ///（约 4 拍）。该窗口 [`Self::accepts_field_tap`] 为真（Map ⇒ true）。
     fn tap_walk_in_progress(&self) -> bool {
-        (self.game_mode == GameMode::Dialog && self.dialog_phase == 3 && self.walkto_owns_dp3())
+        (self.game_mode == GameMode::Dialog && self.dialog.dialog_phase == 3 && self.walkto_owns_dp3())
             || (self.game_mode == GameMode::Map && self.walk_phase == 1 && self.tap.tap_followup_ready)
     }
 
@@ -1409,7 +1382,7 @@ impl GameScene {
     fn selection_valid(&self, s: crate::tap_walk::SelectedEnemy) -> bool {
         if self.game_mode != GameMode::Map
             || self.walk_phase != 0
-            || self.overlay_active
+            || self.dialog.overlay_active
             || self.transitioning
             || self.persist.current_floor != s.floor
             || s.entity >= self.entities.count
@@ -1529,7 +1502,7 @@ impl GameScene {
         if self.tap.tap_followup_ready
             && self.game_mode == GameMode::Map
             && self.walk_phase == 1
-            && !self.overlay_active
+            && !self.dialog.overlay_active
             && self.key_held != 0
         {
             self.tap.tap_followup_ready = false;
@@ -1549,7 +1522,7 @@ impl GameScene {
         }
         if self.tap.tap_followup_ready
             && !(self.game_mode == GameMode::Map && self.walk_phase == 1)
-            && !self.overlay_active
+            && !self.dialog.overlay_active
         {
             // 末步在途（Map wp1）时暂缓：多步路线的末步由 advanceScriptWalk 在倒数第二格步末弹出，
             // finish_walkto 随即回 Map、这一步仍在走（BUG-040 收尾口径）——等它落格后再判。
@@ -1561,7 +1534,7 @@ impl GameScene {
             let pending = self.tap.tap_pending.take();
             let ready = self.game_mode == GameMode::Map
                 && self.walk_phase == 0
-                && !self.overlay_active
+                && !self.dialog.overlay_active
                 && !self.transitioning
                 && self.key_value == 0
                 && self.key_held == 0;
@@ -1627,7 +1600,7 @@ impl GameScene {
             || self.game_mode != GameMode::Map
             || self.walk_phase != 2
             || self.view_locked
-            || self.overlay_active
+            || self.dialog.overlay_active
             // 【复核 T4-R5】遮幅期防御门（生产 (wp2∧transitioning) 不可达；与 field_tap_allowed 同口径）
             || self.transitioning
         {
@@ -1662,12 +1635,12 @@ impl GameScene {
     /// 驱动的 dp3 正处于格边界（段开放或打断后收尾中，见 BUG-040；新点地 = 改道，T2"手动优先"）。
     /// 壳层据此决定点按走场上通道。
     pub fn field_tap_allowed(&self) -> bool {
-        if self.overlay_active || self.transitioning || self.walk_phase != 0 {
+        if self.dialog.overlay_active || self.transitioning || self.walk_phase != 0 {
             return false;
         }
         match self.game_mode {
             GameMode::Map => !self.script_walk_armed,
-            GameMode::Dialog => self.dialog_phase == 3 && self.walkto_owns_dp3(),
+            GameMode::Dialog => self.dialog.dialog_phase == 3 && self.walkto_owns_dp3(),
             _ => false,
         }
     }
@@ -1693,7 +1666,7 @@ impl GameScene {
         self.walk_path_buffer.clear();
         self.walk_step_count = 0;
         // 【BUG-040】寻路驱动的 dp3 被打断：dp3 仍归寻路，走完当前步即回 Map（见 finish_walkto）
-        if self.game_mode == GameMode::Dialog && self.dialog_phase == 3 {
+        if self.game_mode == GameMode::Dialog && self.dialog.dialog_phase == 3 {
             self.walkto_draining = true;
         }
     }
@@ -1703,7 +1676,7 @@ impl GameScene {
     /// ⇒ 点地路线途经拾取物弹框，关框后继续走向目标。换层 / 剧情接管等须无条件收段的调用方仍用
     /// [`Self::interrupt_route`]。
     pub fn interrupt_route_for_input(&mut self) {
-        if self.overlay_active {
+        if self.dialog.overlay_active {
             return;
         }
         self.interrupt_route();
@@ -1869,7 +1842,7 @@ impl GameScene {
     /// skipTextToLineEnd（a.java:5135-5148）：打字机跳到当前行尾（累计长度）。
     fn skip_text_to_line_end(&self, pos: i32) -> i32 {
         let mut cum = 0i32;
-        for line in &self.overlay_lines {
+        for line in &self.dialog.overlay_lines {
             cum += line.chars().count() as i32;
             if pos >= cum - line.chars().count() as i32 && pos < cum {
                 return cum;
@@ -2126,7 +2099,7 @@ impl GameScene {
                 }
                 let (sx, sy) = self.route_start;
                 entity::relocate_slot(&mut self.grid, &self.entities, e, sx, sy);
-                self.dialog_phase = 0;
+                self.dialog.dialog_phase = 0;
                 let t = self.entities.items[e].type_;
                 entity::dispatch_anim(t, e, &mut self.entities);
                 self.route_entity = -1;
@@ -2185,7 +2158,7 @@ impl GameScene {
                 self.tick_battle(self.battle_active);
                 let e = self.route_entity as usize;
                 if !self.battle_finishing && (self.entities.items[e].removed || self.entities.items[e].state == 1) {
-                    self.dialog_phase = 0;
+                    self.dialog.dialog_phase = 0;
                     self.route_phase = 0;
                     self.route_entity = -1;
                 }
@@ -2425,7 +2398,7 @@ impl GameScene {
                         self.transition_to(GameMode::Map);
                         true
                     } else {
-                        if !self.overlay_active {
+                        if !self.dialog.overlay_active {
                             self.show_overlay_message(0, "无法移动到该位置", 0, 0);
                         }
                         false
@@ -2998,7 +2971,7 @@ impl GameScene {
         // 【计划 2 T7】点地排队同此判据：排空期间的场上按键作废排队；浮层开着时的关框键不作废（关框后照常执行）。
         // 【计划 2 T7 复核 R1】同时清后续就绪位：末步在途窗口内按下又在下一拍前松开，tick_tap_state 看不到 keyHeldCode，
         // 就绪位留着会让本步与之后的手动步仍算"点地寻路中"。
-        if !self.overlay_active {
+        if !self.dialog.overlay_active {
             self.tap.tap_bump = None;
             self.tap.tap_pending = None;
             self.tap.tap_followup_ready = false;
@@ -3049,75 +3022,75 @@ impl GameScene {
         // gameMode∈{15,17} 走 -7 专用支路（仅 -7 关层+回 menuReturnMode，
         // 其余键吞掉）；其余情况 handleOverlayKey（a.java:4923-4931：任意
         // 非翻页键关层）。**walkPhase 状态机与 advanceEntityFrames 冻结**。
-        if self.overlay_active {
-            if self.overlay_kind == 4 {
+        if self.dialog.overlay_active {
+            if self.dialog.overlay_kind == 4 {
                 // 商人/告示牌（overlay 分派 case4，deobf 3311-3320）：-6/-5=
                 // applyMerchantOffer(true)，-7=(false)，其余 handleOverlayKey
                 // （±**1** 翻页——【2026-10-16 修】原误用 ±lines_per_page）
                 match self.key_value {
-                    -7 => self.overlay_active = self.apply_merchant_offer(false),
-                    -6 | -5 => self.overlay_active = self.apply_merchant_offer(true),
+                    -7 => self.dialog.overlay_active = self.apply_merchant_offer(false),
+                    -6 | -5 => self.dialog.overlay_active = self.apply_merchant_offer(true),
                     _ => self.handle_overlay_key(),
                 }
-            } else if self.overlay_kind == 5 {
+            } else if self.dialog.overlay_kind == 5 {
                 // mode12 日志浏览（overlay 分派 case5，a.java:3325-3344）：
                 // -3/-4 = browseOfferQueue 翻页、-2/-1 = 长文滚动、-5/-6/-7 关回 mode10。
                 // （迭代 59 纠偏：本臂曾被误挂商人报价 seek——商人 quote 实为
                 // kind4（a.java:7442），merchant 场景亦无 -3/-4 按键。）
                 match self.key_value {
                     -7 | -6 | -5 => {
-                        self.overlay_active = false;
+                        self.dialog.overlay_active = false;
                         self.transition_to(GameMode::ItemPanel);
                     }
                     -4 => self.open_record_page(self.record_page + 1),
                     -3 => self.open_record_page(self.record_page - 1),
-                    -2 => self.flip_overlay_page(self.overlay_page_top + 1),
-                    -1 => self.flip_overlay_page(self.overlay_page_top - 1),
+                    -2 => self.flip_overlay_page(self.dialog.overlay_page_top + 1),
+                    -1 => self.flip_overlay_page(self.dialog.overlay_page_top - 1),
                     _ => {}
                 }
-            } else if self.overlay_kind == 0 && (self.game_mode == GameMode::Help || self.game_mode == GameMode::IconView) {
+            } else if self.dialog.overlay_kind == 0 && (self.game_mode == GameMode::Help || self.game_mode == GameMode::IconView) {
                 match self.key_value {
                     -7 => {
-                        self.overlay_active = false;
+                        self.dialog.overlay_active = false;
                         self.transition_to(self.menu_return_mode);
                     }
                     -2 => {
-                        self.flip_overlay_page(self.overlay_page_top + self.overlay_lines_per_page)
+                        self.flip_overlay_page(self.dialog.overlay_page_top + self.dialog.overlay_lines_per_page)
                     }
                     -1 => {
-                        self.flip_overlay_page(self.overlay_page_top - self.overlay_lines_per_page)
+                        self.flip_overlay_page(self.dialog.overlay_page_top - self.dialog.overlay_lines_per_page)
                     }
                     _ => {}
                 }
-            } else if self.overlay_kind == 3 {
+            } else if self.dialog.overlay_kind == 3 {
                 // 道具确认浮层（overlay 分派 case3，a.java:3296-3306）：
                 // -7 回面板、-6 关层 + useItemStack、其余 handleOverlayKey
                 match self.key_value {
                     -7 => {
                         self.transition_to(GameMode::ItemPanel);
-                        self.overlay_active = false;
+                        self.dialog.overlay_active = false;
                     }
                     -6 => {
-                        self.overlay_active = false;
+                        self.dialog.overlay_active = false;
                         self.use_item_stack(self.item_cursor as usize);
                     }
                     _ => self.handle_overlay_key(),
                 }
-            } else if self.overlay_kind == 1 {
+            } else if self.dialog.overlay_kind == 1 {
                 // case1 图标支路（javap run() 336-441；deobf ~3245-3290）：
                 // 无图标 → handleOverlayKey；right 为 2/3 → key0 吞、-2/-1
                 // handleOverlayKey、其余关；right 非 2/3 → 全吞键（441 →
                 // goto 654）。【2026-10-16 补】原缺臂（并入兜底）。
-                if self.overlay_right_icon == 0 && self.overlay_left_icon == 0 {
+                if self.dialog.overlay_right_icon == 0 && self.dialog.overlay_left_icon == 0 {
                     self.handle_overlay_key();
-                } else if self.overlay_right_icon == 2 || self.overlay_right_icon == 3 {
+                } else if self.dialog.overlay_right_icon == 2 || self.dialog.overlay_right_icon == 3 {
                     match self.key_value {
                         0 => {}
                         -2 | -1 => self.handle_overlay_key(),
-                        _ => self.overlay_active = false,
+                        _ => self.dialog.overlay_active = false,
                     }
                 }
-            } else if self.overlay_kind == 2 {
+            } else if self.dialog.overlay_kind == 2 {
                 // case2（deobf 3290-3291 `case 2: default: break;`）：全吞键。
                 // 调用面 0 命中（Java 亦无生产者）——死码臂为忠实而保
                 // （MVS 先例），不得并入兜底关层。
@@ -3537,7 +3510,7 @@ impl GameScene {
             // a.java:5341-5342：interact 通过即 wp=1，**无 mode11 特例**（迭代 65：
             // 旧权宜复位会杀掉 dp3 脚本行走——floor10 MOV_0_6_5 T504 实证）。
             self.walk_phase = 1;
-        } else if self.overlay_active && self.walk_phase == 1 {
+        } else if self.dialog.overlay_active && self.walk_phase == 1 {
             // a.java:5353-5358：overlay 内撞格中断 → 路径与相位一并清
             self.path_arrows_visible = false;
             self.walk_step_count = 0;
@@ -3705,8 +3678,8 @@ impl GameScene {
                                 // （floor10 T401 实证：Java -1 撞 (6,6) 先行走、
                                 // applyStep 到达才开 script3 对话）。
                                 if self.try_run_scene(self.entities.items[e].param as i32, false) {
-                                    self.overlay_active = false;
-                                    self.overlay_text = None;
+                                    self.dialog.overlay_active = false;
+                                    self.dialog.overlay_text = None;
                                     let idx = self.entities.items[e].param as i32;
                                     self.load_level_script(idx);
                                     s = -1;
@@ -4245,8 +4218,8 @@ impl GameScene {
                         83 => {
                             // 出生/踩格触发（a.java:5708-5709）：序章 script 40 入口
                             if self.try_run_scene(self.entities.items[e].param as i32, true) {
-                                self.overlay_active = false;
-                                self.overlay_text = None;
+                                self.dialog.overlay_active = false;
+                                self.dialog.overlay_text = None;
                                 let idx = self.entities.items[e].param as i32;
                                 self.load_level_script(idx);
                                 step_triggered = true; // a.java:5712 sort_i=true
@@ -4868,17 +4841,17 @@ impl GameScene {
         if self.transitioning {
             return None;
         }
-        if self.overlay_active {
+        if self.dialog.overlay_active {
             // 【STAGE-B-008 · spec §5.2】赠予 / 报价（kind 4、型 77 = 文本源 0、param 高字节 &2）无脚注图标，但 −5 = 接受（扣金 / 送物），
             // 是要做决定的框 ⇒ 点空白不代按（曾代按 −5）。判据与 apply_merchant_offer 同源（买成功 ^512 后的告示子框照旧代按）。
             // type_==77 为防御性判据（复核 T9-R1：生产态空间中型 78 两子类图标恒 (1,2)、本就 None）。
-            if self.overlay_kind == 4 && self.merchant_entity >= 0 {
+            if self.dialog.overlay_kind == 4 && self.merchant_entity >= 0 {
                 let ent = &self.entities.items[self.merchant_entity as usize];
                 if ent.type_ == 77 && ((ent.param as i32) >> 8) & 2 != 0 {
                     return None;
                 }
             }
-            let yes_no = self.overlay_left_icon == 1 && self.overlay_right_icon == 2;
+            let yes_no = self.dialog.overlay_left_icon == 1 && self.dialog.overlay_right_icon == 2;
             return if yes_no { None } else { Some(-5) };
         }
         match self.game_mode {
@@ -4889,7 +4862,7 @@ impl GameScene {
 
     pub fn pointer_hit(&self, x: i32, y: i32) -> PointerHit {
         // 【BUG-038】浮层在最上层：其下的行 / 格不接受命中（原版浮层分支先于各模式吞键）
-        if self.overlay_active {
+        if self.dialog.overlay_active {
             return PointerHit::None;
         }
         match self.game_mode {

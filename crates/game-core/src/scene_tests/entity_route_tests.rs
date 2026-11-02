@@ -5,7 +5,7 @@
     /// 装载单行脚本并执行一条指令（dp0 一拍的 executeScriptInstruction）。
     fn exec(sc: &mut GameScene, line: &str) {
         sc.game_mode = GameMode::Dialog;
-        sc.dialog_phase = 0;
+        sc.dialog.dialog_phase = 0;
         sc.script_line = line.to_string();
         sc.script_cursor = 0;
         sc.execute_script_instruction();
@@ -26,11 +26,11 @@
         let eu = e as usize;
         sc.route_phase = 7; // 脏值：MOV 必须复位为 0（a.java:8291）
         exec(&mut sc, "MOV_72_3_3_5_3 \u{1e}");
-        assert_eq!(sc.dialog_phase, 2);
+        assert_eq!(sc.dialog.dialog_phase, 2);
         assert_eq!(sc.route_entity, e);
         assert_eq!(sc.route_phase, 0);
         assert_eq!(sc.route_start, (3, ROW));
-        assert_eq!(sc.dialog_target, (5, ROW));
+        assert_eq!(sc.dialog.dialog_target, (5, ROW));
         assert_eq!(sc.entities.items[eu].anim_row, 1, "型72 置动画行 1（a.java:8293-8294）");
         assert_eq!(sc.walk_path_buffer, vec![2, 2]);
         assert_eq!(sc.walk_step_count, 2);
@@ -59,20 +59,20 @@
             }
             assert_eq!(sc.entities.items[eu].anim_frame, frame, "拍 {i} 动画行1帧（表长 4 归 0）");
             assert_eq!(sc.walk_step_count, left, "拍 {i} 余步");
-            assert_eq!(sc.dialog_phase, 2);
+            assert_eq!(sc.dialog.dialog_phase, 2);
             assert_eq!(slots(&sc, 3, ROW), vec![eu], "途中槽表不动（只在收尾 relocateSlotsAtRouteEnd）");
         }
         // 第 2 步归格 → 递归 → 步尽：relocateSlotsAtRouteEnd + dp0 + dispatchAnimFields + route_entity=-1
         sc.tick_entity_route();
         assert_eq!(sc.entities.items[eu].px, 160);
-        assert_eq!((sc.dialog_phase, sc.route_phase, sc.route_entity), (0, 0, -1));
+        assert_eq!((sc.dialog.dialog_phase, sc.route_phase, sc.route_entity), (0, 0, -1));
         assert_eq!((sc.entities.items[eu].anim_row, sc.entities.items[eu].anim_frame), (0, 0), "animRowByType[72]=0");
         assert!(slots(&sc, 3, ROW).is_empty(), "relocateSlotsAtRouteEnd 自起点格摘除");
         assert_eq!(slots(&sc, 5, ROW), vec![eu], "relocateSlotsAtRouteEnd 追加到当前格");
         assert_eq!(sc.entity_at_cell(5, ROW, 72), e, "findBlockingEntity 可在新格命中（DES 依赖）");
         // 行尾 → dp4（script 收尾门）
         sc.execute_script_instruction();
-        assert_eq!(sc.dialog_phase, 4);
+        assert_eq!(sc.dialog.dialog_phase, 4);
     }
 
     /// 途中战斗（a.java:8765-8779 + 8861-8868）：非 72 型下一格=玩家格且可胜 →
@@ -110,10 +110,10 @@
         // case5：1 拍击杀 + 6 拍死亡动画
         for k in 0..6 {
             sc.tick_entity_route();
-            assert_eq!(sc.dialog_phase, 2, "收尾中不退 dp（拍 {k}）");
+            assert_eq!(sc.dialog.dialog_phase, 2, "收尾中不退 dp（拍 {k}）");
         }
         sc.tick_entity_route();
-        assert_eq!((sc.dialog_phase, sc.route_phase, sc.route_entity), (0, 0, -1));
+        assert_eq!((sc.dialog.dialog_phase, sc.route_phase, sc.route_entity), (0, 0, -1));
         assert_eq!(sc.entities.items[eu].state, 1, "markEntityRemoved");
         assert_eq!(sc.battle_target, -1);
         assert_eq!(sc.walk_phase, 5, "无 restep（battleActiveFlag=false）——walkPhase 不复位");
@@ -145,7 +145,7 @@
         assert_eq!(sc.entities.items[eu].px, 5 << 5, "实体走进玩家格");
         assert!(!sc.script_walk_armed);
         assert_eq!((sc.game_mode, sc.walk_phase, sc.facing), (GameMode::Map, 1, 2));
-        assert_eq!(sc.dialog_phase, 2, "dialogPhase 不变（路径挂起）");
+        assert_eq!(sc.dialog.dialog_phase, 2, "dialogPhase 不变（路径挂起）");
         assert_eq!((sc.route_phase, sc.walk_step_count), (1, 1), "同拍递归已弹第 3 步");
         assert_eq!(sc.route_entity, eu as i32);
     }
@@ -179,7 +179,7 @@
         exec(&mut sc, "MOV_72_3_3_5_3 ROS_4_2 \u{1e}");
         assert_eq!(sc.route_entity, -1);
         assert_eq!(sc.facing, 2, "ROS_4_2 同拍已执行");
-        assert_eq!(sc.dialog_phase, 0);
+        assert_eq!(sc.dialog.dialog_phase, 0);
         assert_eq!(sc.script_cursor, "MOV_72_3_3_5_3 ROS_4_2 ".len());
     }
 
@@ -188,8 +188,8 @@
     fn mov_nonpositive_first_param_is_player_walk() {
         let mut sc = scene((3, ROW), &[]);
         exec(&mut sc, "MOV_-1_5_3 \u{1e}");
-        assert_eq!(sc.dialog_target, (5, ROW));
-        assert_eq!(sc.dialog_phase, 3);
+        assert_eq!(sc.dialog.dialog_target, (5, ROW));
+        assert_eq!(sc.dialog.dialog_phase, 3);
         assert!(sc.script_walk_armed);
         assert_eq!(sc.walk_path_buffer, vec![2, 2]);
     }
@@ -202,15 +202,15 @@
         // miss 路径：(1,1) 无 type43 ⇒ 尾递归同拍执行 TAK_5_6
         let mut sc = scene((5, ROW), &[]);
         exec(&mut sc, line);
-        assert_eq!(sc.dialog_page, 5, "尾递归同拍执行 TAK（page=5）");
-        assert_eq!(sc.dialog_page_end, 6);
+        assert_eq!(sc.dialog.dialog_page, 5, "尾递归同拍执行 TAK（page=5）");
+        assert_eq!(sc.dialog.dialog_page_end, 6);
         assert_eq!(sc.script_cursor, line.len(), "游标越过 MOV段与 TAK 段（TAK 尾 +1 落行末）");
         // 命中对照：不递归——游标只到 TAK 前、相位=2（实体路线）
         let mut sc2 = scene((5, ROW), &[(43, 1, 1)]);
         exec(&mut sc2, line);
-        assert_eq!(sc2.dialog_phase, 2, "命中 ⇒ 实体路线相位（不递归）");
+        assert_eq!(sc2.dialog.dialog_phase, 2, "命中 ⇒ 实体路线相位（不递归）");
         assert_eq!(sc2.script_cursor, "MOV_43_1_1_2_2 ".len(), "游标停在 TAK 前");
-        assert_eq!(sc2.dialog_page, 0, "TAK 未执行");
+        assert_eq!(sc2.dialog.dialog_page, 0, "TAK 未执行");
     }
 
     /// 5.x（refactor-behavior-matrix §5）：**双面漂移防线**（DC-9 桥漏道具加成

@@ -76,8 +76,8 @@ pub fn dump_scene(sc: &GameScene) -> Vec<String> {
     push(e_byte("gameMode", sc.game_mode.raw() as i8)); // 序列化边界 raw()（件 A 边界契约）
     push(e_int("keyValue", sc.key_value));
     push(e_int("keyHeldCode", sc.key_held));
-    push(e_bool("overlayActive", sc.overlay_active));
-    push(e_byte("overlayKind", sc.overlay_kind as i8));
+    push(e_bool("overlayActive", sc.dialog.overlay_active));
+    push(e_byte("overlayKind", sc.dialog.overlay_kind as i8));
     push(e_int("playerHp", sc.player.hp));
     push(e_int("playerAtk", sc.player.atk));
     push(e_int("playerDef", sc.player.def));
@@ -105,8 +105,8 @@ pub fn dump_scene(sc: &GameScene) -> Vec<String> {
     push(e_int("tileBob", sc.tile_bob));
     push(e_int("openAnimTick", sc.open_anim_tick));
     push(e_int("currentScriptIndex", sc.current_script_index as i32));
-    push(e_int("dialogPage", sc.dialog_page));
-    push(e_byte("dialogPhase", sc.dialog_phase as i8));
+    push(e_int("dialogPage", sc.dialog.dialog_page));
+    push(e_byte("dialogPhase", sc.dialog.dialog_phase as i8));
     push(e_int("walkStepCount", sc.walk_step_count));
     push(e_bool("scriptWalkArmed", sc.script_walk_armed));
     push(e_bool("battleActiveFlag", sc.battle_active));

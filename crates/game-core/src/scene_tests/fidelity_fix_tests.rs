@@ -10,7 +10,7 @@
         sc.overlay_kind_item = 0;
         sc.add_item_to_stack(19);
         assert_eq!(sc.overlay_kind_item, 19);
-        assert_eq!(sc.overlay_kind, 1);
+        assert_eq!(sc.dialog.overlay_kind, 1);
         assert_eq!(sc.overlay_item_name, sc.object_type_name(19), "浮层名取 itemUseTargetType");
         assert_eq!(sc.player.item_types[0], 19);
     }
@@ -157,7 +157,7 @@
         let sc =
             load_floor_from_save(&maplv(), &[], &width_table, &walk, images(), vec![None; 56], &save)
                 .unwrap();
-        assert_eq!(sc.dialog_data.scripts.len(), 68, "scriptLineCount = levelScriptLines.length");
+        assert_eq!(sc.dialog.dialog_data.scripts.len(), 68, "scriptLineCount = levelScriptLines.length");
         assert!(sc.script_line_flags[0] && sc.script_line_flags[67]);
         assert!(!sc.script_line_flags[100], "scriptLineCount 之后被 skip");
         assert_eq!(sc.script_line_flags.iter().filter(|f| **f).count(), 2);

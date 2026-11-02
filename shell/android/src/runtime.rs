@@ -332,7 +332,7 @@ impl Runtime {
         }
         let ok = matches!(
             self.scene.as_ref(),
-            Some(sc) if sc.game_mode == GameMode::Map && !sc.overlay_active && !sc.transitioning
+            Some(sc) if sc.game_mode == GameMode::Map && !sc.dialog.overlay_active && !sc.transitioning
         );
         self.exit_dialog_pending = ok;
         ok
@@ -716,7 +716,7 @@ impl Runtime {
             if !seen
                 && sc.game_mode == GameMode::Map
                 && sc.walk_phase == 0
-                && !sc.overlay_active
+                && !sc.dialog.overlay_active
                 && !sc.transitioning
             {
                 let (text, key) = match self.rt_control_mode {

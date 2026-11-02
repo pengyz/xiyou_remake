@@ -96,7 +96,7 @@ fn to_map(tag: &str) -> H {
     }
     assert_eq!(h.sc().game_mode, GameMode::Map, "前置：到达首个地图");
     // 【计划 3 T7】首次到地图提示卡（浮层吞点按）——统一关框后再交用例
-    if h.sc().overlay_active {
+    if h.sc().dialog.overlay_active {
         h.step(tap(-5), vec![]);
         h.step(vec![], vec![]);
     }
@@ -136,9 +136,9 @@ fn field_points(h: &H) -> ((f32, f32), (f32, f32)) {
 /// 地图上置一个提示框（kind 0，无脚注图标）。
 fn open_map_message(h: &mut H) {
     let sc = h.sc_mut();
-    sc.overlay_active = true;
-    sc.overlay_kind = 0;
-    sc.overlay_text = Some("提示".into());
+    sc.dialog.overlay_active = true;
+    sc.dialog.overlay_kind = 0;
+    sc.dialog.overlay_text = Some("提示".into());
 }
 
 /// 【BUG-042】点地寻路的格换算须与游戏绘制同一格网：格 = 32 px（`player_cell_x = player_px >> 5`、实体 `cx << 5`）。
@@ -290,7 +290,7 @@ fn map_overlay_tap_on_walkable_cell_does_not_walk() {
     h.step_no_paint(vec![], vec![walk]);
     assert_eq!(h.sc().game_mode, GameMode::Map, "框开着点可走格：不得在框后挂寻路（探针 P1a 曾变 Dialog dp3）");
     assert!(!h.sc().route.is_open(), "未开寻路段");
-    h.sc_mut().overlay_active = false;
+    h.sc_mut().dialog.overlay_active = false;
     for _ in 0..40 {
         h.step(vec![], vec![]);
     }
@@ -321,7 +321,7 @@ fn use_confirm_open_tap_on_other_cell_uses_nothing() {
     h.step(vec![], vec![]);
     h.step(tap(-5), vec![]); // 选 0 号 → 使用确认框（kind 3，○/×）
     h.step(vec![], vec![]);
-    assert!(h.sc().overlay_active && h.sc().overlay_kind == 3, "前置：芭蕉扇使用确认框");
+    assert!(h.sc().dialog.overlay_active && h.sc().dialog.overlay_kind == 3, "前置：芭蕉扇使用确认框");
     let hp = h.sc().player.hp;
     let cell1 = {
         let (ox, oy) = h.sc().item_cell_origin();
@@ -343,7 +343,7 @@ fn map_message_overlay_tap_closes_it() {
     let (walk, _) = field_points(&h);
     open_map_message(&mut h);
     h.step_no_paint(vec![], vec![walk]);
-    assert!(!h.sc().overlay_active, "点画面关闭提示框");
+    assert!(!h.sc().dialog.overlay_active, "点画面关闭提示框");
     assert_eq!(h.sc().game_mode, GameMode::Map, "不寻路");
 }
 
@@ -354,15 +354,15 @@ fn map_yes_no_overlay_tap_does_nothing() {
     let (walk, _) = field_points(&h);
     {
         let sc = h.sc_mut();
-        sc.overlay_active = true;
-        sc.overlay_kind = 4;
-        sc.overlay_left_icon = 1;
-        sc.overlay_right_icon = 2;
-        sc.overlay_text = Some("报价".into());
+        sc.dialog.overlay_active = true;
+        sc.dialog.overlay_kind = 4;
+        sc.dialog.overlay_left_icon = 1;
+        sc.dialog.overlay_right_icon = 2;
+        sc.dialog.overlay_text = Some("报价".into());
     }
     let gold = h.sc().player.gold;
     h.step_no_paint(vec![], vec![walk]);
-    assert!(h.sc().overlay_active, "是否框仍开着（等玩家按 接受 / 拒绝）");
+    assert!(h.sc().dialog.overlay_active, "是否框仍开着（等玩家按 接受 / 拒绝）");
     assert_eq!(h.sc().player.gold, gold, "未花钱");
 }
 
@@ -391,7 +391,7 @@ fn save_page_blank_tap_does_not_overwrite_slot() {
     h.step(vec![], vec![blank]);
     h.step(vec![], vec![]);
     assert!(!h.rt.stores.iter().any(|(k, _)| k == "MOT_L0@1"), "点空白不写存档");
-    assert!(!h.sc().overlay_active, "未弹\"保存成功！\"");
+    assert!(!h.sc().dialog.overlay_active, "未弹\"保存成功！\"");
 }
 
 // ───────────────────────── STAGE-B-008：core 点地规则（tap_cell / tap_grid）真资产钉
@@ -534,7 +534,7 @@ fn tap_during_walk_reroutes() {
         let sc = h.sc();
         let at = (sc.player_cell_x, sc.player_cell_y);
         // 等到玩家既离开出生格、也不在 b 格上（点自己 = 停下，不是排队），且无浮层
-        if sc.game_mode == GameMode::Dialog && at != spawn && at != b && !sc.overlay_active {
+        if sc.game_mode == GameMode::Dialog && at != spawn && at != b && !sc.dialog.overlay_active {
             break;
         }
         h.step(vec![], vec![]);
@@ -553,7 +553,7 @@ fn tap_during_walk_reroutes() {
             break;
         }
         // 途中拾取提示浮层：按生产口径投 -5 关框（关框键属浮层，不清排队），关框后照常改道
-        if h.sc().overlay_active && h.sc().game_mode == GameMode::Map {
+        if h.sc().dialog.overlay_active && h.sc().game_mode == GameMode::Map {
             h.step(tap(-5), vec![]);
             h.step(vec![KeyAction::Release], vec![]);
             continue;
@@ -658,17 +658,17 @@ fn pickup_overlay_mid_route_closes_and_resumes_via_production_keys() {
     let mut popped = false;
     for _ in 0..120 {
         h.step(vec![], vec![]);
-        if h.sc().overlay_active {
+        if h.sc().dialog.overlay_active {
             popped = true;
             break;
         }
     }
     assert!(popped, "前置：踩拾取格弹提示框");
-    assert_eq!(h.sc().overlay_kind, 1, "拾取说明框（kind 1）");
+    assert_eq!(h.sc().dialog.overlay_kind, 1, "拾取说明框（kind 1）");
     // 生产路径关框：Runtime::step 投 −5（replay_scene_keys：浮层期 interrupt_route_for_input 零操作 + press_key）
     h.step(tap(-5), vec![]);
     h.step(vec![KeyAction::Release], vec![]);
-    assert!(!h.sc().overlay_active, "提示框已关（且未打断路线）");
+    assert!(!h.sc().dialog.overlay_active, "提示框已关（且未打断路线）");
     for _ in 0..120 {
         if h.sc().game_mode == GameMode::Map && h.sc().walk_phase == 0 && !h.sc().route.is_open() && h.sc().tap.tap_target.is_none() {
             break;

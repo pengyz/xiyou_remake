@@ -395,7 +395,7 @@ fn story_fullrun_fixture_frames_match() {
     let (checked, sc) = replay("story-fullrun", include_str!("fixtures/story-fullrun.preset"), &records);
     assert_eq!(checked, records.len(), "T1-4000 全帧必须比对（全程逐 tick 同构）");
     assert_eq!(sc.persist.floor, 2, "剧情链后仍处 2 层（天牢）");
-    assert_eq!(sc.dialog_page, 32, "牛魔王对话 32 页全程推进完毕（不卡判据）");
+    assert_eq!(sc.dialog.dialog_page, 32, "牛魔王对话 32 页全程推进完毕（不卡判据）");
 }
 
 /// advanceScriptWalk：floor3 (3,11) -3 撞 (2,11) 型83(param 0) ⇒ script0；`MOV_0_5_11` 玩家
@@ -708,7 +708,7 @@ fn fx_int11_f23_transform_silent_frames_match() {
     assert_eq!(sc.entities.items[w].state, 0, "state=2 过渡完成后归零（a.java:6842）");
     assert_eq!(sc.entities.items[w].anim_row, 0, "dispatchAnimFields(11) 归位 animRowByType[11]=0");
     assert!(
-        !sc.overlay_text.as_deref().unwrap_or("").contains("障碍物"),
+        !sc.dialog.overlay_text.as_deref().unwrap_or("").contains("障碍物"),
         "case11 静默臂：floor==23 不显「障碍物：墙」文案（a.java:5442 条件假臂）"
     );
 }
@@ -769,7 +769,7 @@ fn fx_int11_n23_wall_message_frames_match() {
         "双撞恒阻挡（cur_x=false）"
     );
     assert_eq!(
-        sc.overlay_text.as_deref().unwrap_or(""),
+        sc.dialog.overlay_text.as_deref().unwrap_or(""),
         "障碍物：墙\n只有金勺子、玄明石可以凿开。或者剧情打开！",
         "case11 真臂文案逐字（a.java:5443，floor!=23）"
     );
@@ -994,7 +994,7 @@ fn bug012_replay(
                 sc.game_mode,
                 sc.current_script_index,
                 sc.script_cursor,
-                sc.dialog_phase,
+                sc.dialog.dialog_phase,
                 sc.walk_phase,
                 sc.walk_step_count,
                 sc.view.player_px >> 5,

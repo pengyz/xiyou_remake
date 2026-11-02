@@ -55,9 +55,9 @@ impl GameScene {
     /// TAK_a_b（a.java:8257-8263）：页区间 + 对话相位 1 + 开页（pageEnd 先写——
     /// 不先更新会误判"越界"而丢页）。
     pub(super) fn op_tak(&mut self, start: i32, end: i32) {
-        self.dialog_page = start;
-        self.dialog_page_end = end;
-        self.dialog_phase = 1;
+        self.dialog.dialog_page = start;
+        self.dialog.dialog_page_end = end;
+        self.dialog.dialog_phase = 1;
         self.open_dialog_page(start);
     }
 
@@ -66,8 +66,8 @@ impl GameScene {
         self.save_floor_state();
         self.persist.pending_floor = floor;
         self.transitioning = true;
-        self.overlay_text = None;
-        self.dialog_phase = 5;
+        self.dialog.overlay_text = None;
+        self.dialog.dialog_phase = 5;
     }
 
     /// GIN_a_b（a.java:8424-8437）：0=pickupItemType(b)/1=gainGold(b)；
@@ -133,15 +133,15 @@ impl GameScene {
     /// case1 **无 break 落穿 default**：easeCameraToTarget 与箭头两者都做）；
     /// 收尾 phase=6 + easeCameraToTarget ease 相机目标 = 目标格。
     pub(super) fn op_see(&mut self, tx: i32, ty: i32, page: i32, page_end: i32, flag: i32) {
-        self.dialog_target = (tx, ty);
-        self.dialog_page = page;
-        self.dialog_page_end = page_end;
+        self.dialog.dialog_target = (tx, ty);
+        self.dialog.dialog_page = page;
+        self.dialog.dialog_page_end = page_end;
         self.open_dialog_page(page);
         if flag == 1 && self.find_path(self.player_cell_x, self.player_cell_y, tx, ty) {
             self.path_arrows_visible = true;
             self.walk_phase = 0;
         }
-        self.dialog_phase = 6;
+        self.dialog.dialog_phase = 6;
         self.ease_cam_x = ((self.view.view_w - 32) >> 1) - self.view.cam_x;
         self.ease_cam_y = ((self.view.view_h - 32) >> 1) - self.view.cam_y;
         self.ease_target_x = tx << 5;
@@ -161,7 +161,7 @@ impl GameScene {
     /// 失败无相位副作用）。**miss 尾递归**（8301-8302）：同拍执行下一条。
     pub(super) fn op_mov(&mut self, target_type: i32, cell: Option<(i32, i32)>, dst: (i32, i32)) {
         let (mx, my) = dst;
-        self.dialog_target = (mx, my);
+        self.dialog.dialog_target = (mx, my);
         if target_type > 0 {
             let (ent_x, ent_y) = cell.expect("五参已解析");
             // a.java:8289：route_entity = findBlockingEntity(...)（原 findBlockingEntity）——未命中也写入（-1）
@@ -178,14 +178,14 @@ impl GameScene {
                 // 只认 walkPathBuffer/walkStepCount（find_path 恒重写，含回溯
                 // 失败的部分前缀）
                 self.find_path(self.route_start.0, self.route_start.1, mx, my);
-                self.dialog_phase = 2;
+                self.dialog.dialog_phase = 2;
             } else {
                 // 实体未找到 → 同拍尾递归执行下一条（a.java:8301-8302）
                 self.execute_script_instruction();
             }
         } else if self.find_path(self.player_cell_x, self.player_cell_y, mx, my) {
             self.script_walk_armed = true;
-            self.dialog_phase = 3;
+            self.dialog.dialog_phase = 3;
             self.walk_phase = 0;
             self.lock_camera_on(0);
         }
@@ -259,8 +259,8 @@ impl GameScene {
     /// Java 原样）；f_int_22/23/f_bool_04 不重置。
     pub(super) fn op_end(&mut self) {
         self.transition_to(GameMode::Ending);
-        self.dialog_char = 1;
-        if let Some(t) = self.overlay_text.clone() {
+        self.dialog.dialog_char = 1;
+        if let Some(t) = self.dialog.overlay_text.clone() {
             let line_h = crate::paint::paint_font().height + 4;
             self.layout_wrapped_text_limited(&t, 209, (line_h << 1) + 12, 1);
         }
