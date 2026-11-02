@@ -34,6 +34,11 @@
    "bytes": 918398,
    "ticks": 523
   },
+  "fx-boss68b.state": {
+   "sha256": "32422167dc5a63629d73260c26c7f13d03a8418cd49058d117742816222f4d4d",
+   "bytes": 566746,
+   "ticks": 323
+  },
   "fx-boss74a.state": {
    "sha256": "be5fb62a6841f671f0761f76093e0097ad4f99c48802130592e7228a4581536d",
    "bytes": 641937,
@@ -43,6 +48,11 @@
    "sha256": "6689b1f1999ba963a4c5d25d7fee9295a9bc1df026dfecf9abaa6e713798b4c7",
    "bytes": 196586,
    "ticks": 112
+  },
+  "fx-chang-e-floor1-taps.state": {
+   "sha256": "546b2d45754c037beaebe06bb36fdf9d1b05cdb427e338e959eea8a7113584c6",
+   "bytes": 3816216,
+   "ticks": 2163
   },
   "fx-door2a.state": {
    "sha256": "25cc255ac01a999d54c490d22eb48ec0269eee6ada1a68368c2a09a4fa5b58c1",
@@ -104,10 +114,20 @@
    "bytes": 782062,
    "ticks": 443
   },
+  "fx-item20b.state": {
+   "sha256": "d683484256baa5e51b4f9d5275e834cea4fc351d5bbe5ce8785546d3506c551c",
+   "bytes": 567595,
+   "ticks": 323
+  },
   "fx-knockback-floor43.state": {
    "sha256": "a879413285e3baaa88731f3cce242864e5ded3fd55567bd98ff6daea051750b0",
    "bytes": 636216,
    "ticks": 363
+  },
+  "fx-record-arrows.state": {
+   "sha256": "42483e653d02811744942624d3d42dfa04a02c7ce8c5b590e743bb9839b4bfcd",
+   "bytes": 1690766,
+   "ticks": 963
   },
   "fx-scriptwalk-floor3.state": {
    "sha256": "763d13807c5625208b46e84dc2bdc409a66a4370b9da08fe26c8717aba386759",
