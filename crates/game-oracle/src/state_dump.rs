@@ -111,6 +111,14 @@ pub fn dump_scene(sc: &GameScene) -> Vec<String> {
     push(e_bool("scriptWalkArmed", sc.script_walk_armed));
     push(e_bool("battleActiveFlag", sc.battle_active));
 
+    // 【E3 金样扩面·2026-11-02 lead 裁准】paint 副作用 4 字段入 dump 面（V0）：
+    // 名=Java 字段名（名集相等约束——a.java:65/144/145/150）；行序追加于标量段尾
+    // （行序变更=金样红，state_baseline 协议 lead 裁准重冻结）。
+    push(e_byte("iconStripFrame", sc.strip_frame as i8)); // a.java:65 byte
+    push(e_int("backdropScroll", sc.backdrop_scroll)); // a.java:150
+    push(e_int("animBobOffset", sc.bob_offset)); // a.java:144
+    push(e_bool("animBobRising", sc.bob_rising)); // a.java:145
+
     // 实体数组（前 count 项有效；Java 恒 100 槽，尾部 0 填充在两侧等价）。
     // SoA→AoS（第 1 步）后按 items 映射重建整表引用：**push 序/值序/尾默认逐字节
     // 保持**（A2 行序冻结；Entity::default=旧 Vec 预填值 ⇒ 金样不变）。
