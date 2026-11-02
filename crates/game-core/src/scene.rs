@@ -43,6 +43,10 @@ mod scene_script;
 
 /// 【task-15 V1】脚本 op 归位（enum+22 impls+parse/execute 三处汇 1，move-only）。
 /// 【task-15 V2 dialog-VM】对话/浮层域（tick_dialog 归位）。
+/// 【task-15 V2 item/effect】道具效果域（表驱动仿 RestoreAction）。
+#[path = "item_effect.rs"]
+mod item_effect;
+
 #[path = "scene_dialog.rs"]
 mod scene_dialog;
 
@@ -2296,126 +2300,6 @@ impl GameScene {
 
 
 
-    /// activateItem（a.java:7781-7874+）的 mode10 头：13 → gameMode=5、
-    /// 14 → gameMode=12（dispatchModeEntry 布局侧效果随对应模式批次）。16-25 的效果
-    /// 分支（破墙/回血/瞬移等）为道具批次待办——序章背包恒空不可达。
-    /// activateItem（a.java:7795-7860）：返回是否**消耗**（script_cursor0——true 时
-    /// useItemStack 递减次数并在 0 时压实栈）。
-    fn activate_item(&mut self, t: i32) -> bool {
-        match t {
-            13 => {
-                // a.java:7786-7788：gameMode=5 + dispatchModeEntry case5（m_091+软键）
-                self.transition_to(GameMode::EnemyInfo);
-                self.enter_menu5();
-                false
-            }
-            14 => {
-                // a.java:7789-7791：gameMode=12 + dispatchModeEntry case12（a.java:4386-4388：
-                // browseOfferQueue(0) + softkeyRightKind=3）
-                self.transition_to(GameMode::RecordBrowser);
-                self.open_record_page(0);
-                self.softkeys.1 = 3;
-                false
-            }
-            16 | 17 => {
-                // a.java:7795-7810：四邻格 gates——16=型10 三昧真火、17=型11；
-                // 未命中提示、命中 mode3 + 消耗
-                let (target, msg) = if t == 16 {
-                    (10, "你必须面对三昧真火再使用它。")
-                } else {
-                    (11, "你必须面对一堵墙使用")
-                };
-                if self.remove_adjacent_entity_of_type(target) {
-                    self.transition_to(GameMode::Map);
-                    true
-                } else {
-                    self.show_overlay_message(0, msg, 0, 0);
-                    false
-                }
-            }
-            18 => {
-                // a.java:7812-7825：移除全场型11 实体 + mode3 + 消耗
-                let mut e = self.entities.count;
-                while e > 0 {
-                    e -= 1;
-                    if self.entities.items[e].type_ == 11
-                        && entity::remove(&mut self.entities, e)
-                    {
-                        self.build_minimap();
-                    }
-                }
-                self.transition_to(GameMode::Map);
-                true
-            }
-            19 => {
-                // a.java:7826-7831：(atk+def)*74/10 加血 + 提示 + 消耗
-                let delta = (self.player.atk + self.player.def) * 74 / 10;
-                self.apply_hp_delta(delta);
-                self.show_overlay_message(0, &format!("增加了{delta}血量"), 0, 0);
-                true
-            }
-            85 => {
-                // a.java:7865-7875：移除全场型1（黄门）实体 + mode3 + 消耗
-                let mut e = self.entities.count;
-                while e > 0 {
-                    e -= 1;
-                    if self.entities.items[e].type_ == 1 && entity::remove(&mut self.entities, e) {
-                        self.build_minimap();
-                    }
-                }
-                self.transition_to(GameMode::Map);
-                true
-            }
-            86 => {
-                // a.java:7876-7886：四邻格 killAdjacentAt + mode3 + 消耗
-                let cx = self.view.player_px >> 5;
-                let cy = self.view.player_py >> 5;
-                self.kill_adjacent_at(cx, cy - 1);
-                self.kill_adjacent_at(cx, cy + 1);
-                self.kill_adjacent_at(cx - 1, cy);
-                self.kill_adjacent_at(cx + 1, cy);
-                self.transition_to(GameMode::Map);
-                true
-            }
-            20 => {
-                // a.java:7832-7850：对角瞬移——40 层禁用；镜像格 interact 放行
-                // → place_player_at_cell + 相机居中 + applyStepCellEffects + 消耗；
-                // 拦截且无浮层 → 「无法移动到该位置」不消耗
-                if self.persist.floor == 40 {
-                    self.show_overlay_message(0, "本层不能直接瞬移。", 0, 0);
-                    false
-                } else {
-                    let tx = self.view.wide - 1 - (self.view.player_px >> 5);
-                    let ty = self.view.high - 1 - (self.view.player_py >> 5);
-                    let pass = self.interact_with_cell(tx, ty);
-                    if pass {
-                        self.place_player_at_cell(tx, ty);
-                        self.view.set_camera(
-                            ((self.view.view_w - 32) >> 1) - self.view.player_px,
-                            ((self.view.view_h - 32) >> 1) - self.view.player_py,
-                        );
-                        self.apply_step_cell_effects();
-                        self.transition_to(GameMode::Map);
-                        true
-                    } else {
-                        if !self.dialog.overlay_active {
-                            self.show_overlay_message(0, "无法移动到该位置", 0, 0);
-                        }
-                        false
-                    }
-                }
-            }
-            21 => {
-                // a.java:7863-7866：changeFloor(+1)（返回值即消耗与否）+ keyHeldCode=0 + gameMode=3
-                //（面板内道具触发路径不停留 mode 10——A-preset-item21 T402 实证；mode 3 归本调用方，BUG-026）
-                let consumed = self.change_floor(self.persist.floor + 1, false, false);
-                self.key_held = 0;
-                self.transition_to(GameMode::Map);
-                consumed
-            }
-            _ => false,
-        }
-    }
 
     /// killAdjacentAt（a.java:7923-7951）：格 (cx,cy) 槽位逐个——型5 宝箱类
     /// → removeSlotAt + tryOpenChest（开则 walkPhase=4 遮幅）；型<67 且
