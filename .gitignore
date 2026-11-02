@@ -39,3 +39,5 @@ android/local.properties
 
 # 超分模型权重（可再下载，不入库）
 tools/style-sample/models/
+
+# android 构建产物\/android/build/
