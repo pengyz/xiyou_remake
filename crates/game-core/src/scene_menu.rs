@@ -68,6 +68,47 @@ pub struct MenuState {
     pub overlay_item_name: Option<Vec<u16>>,
 }
 
+/// 【双归域·menu 逻辑回补】菜单光标域方法（纯 MenuState 态迁移：光标+滚窗
+/// 同步+环绕——a.java:3699/3713 语义逐字）；key 分派/激活=GameScene 编排
+/// （coordination 注记归因）。
+impl MenuState {
+    /// 下移一格（-2）：越尾环绕回顶（滚窗复位）。
+    pub fn cursor_down(&mut self) {
+        if self.menu_cursor < self.menu_item_count - 1 {
+            self.menu_cursor += 1;
+            if self.menu_cursor >= self.menu_visible_bottom {
+                self.menu_visible_bottom += 1;
+                self.menu_scroll_top += 1;
+            }
+        } else {
+            self.menu_cursor = 0;
+            self.menu_scroll_top = 0;
+            self.menu_visible_bottom = self.menu_item_count;
+            if self.menu_item_count > self.menu_visible_rows {
+                self.menu_visible_bottom = self.menu_visible_rows;
+            }
+        }
+    }
+
+    /// 上移一格（-1）：越顶环绕到底（滚窗钳 0）。
+    pub fn cursor_up(&mut self) {
+        if self.menu_cursor > 0 {
+            self.menu_cursor -= 1;
+            if self.menu_cursor < self.menu_scroll_top {
+                self.menu_scroll_top -= 1;
+                self.menu_visible_bottom -= 1;
+            }
+        } else {
+            self.menu_cursor = self.menu_item_count - 1;
+            self.menu_visible_bottom = self.menu_item_count;
+            self.menu_scroll_top = self.menu_visible_bottom - self.menu_visible_rows;
+            if self.menu_scroll_top < 0 {
+                self.menu_scroll_top = 0;
+            }
+        }
+    }
+}
+
 impl GameScene {
     /// dispatchModeEntry case 4（a.java:4326-4337）：继续游戏（+floor>50 的跳过教程）/
     /// 保存/设置/帮助/退出；软键 (1,3)。
@@ -95,40 +136,8 @@ impl GameScene {
         match self.key_value {
             -7 => self.transition_to(self.menu.in_game_menu_return_mode),
             -6 | -5 => self.activate_menu_item(),
-            -2 => {
-                // 仅 -2 下移（a.java:3699）：-4/-3 落 default 无操作
-                if self.menu.menu_cursor < self.menu.menu_item_count - 1 {
-                    self.menu.menu_cursor += 1;
-                    if self.menu.menu_cursor >= self.menu.menu_visible_bottom {
-                        self.menu.menu_visible_bottom += 1;
-                        self.menu.menu_scroll_top += 1;
-                    }
-                } else {
-                    self.menu.menu_cursor = 0;
-                    self.menu.menu_scroll_top = 0;
-                    self.menu.menu_visible_bottom = self.menu.menu_item_count;
-                    if self.menu.menu_item_count > self.menu.menu_visible_rows {
-                        self.menu.menu_visible_bottom = self.menu.menu_visible_rows;
-                    }
-                }
-            }
-            -1 => {
-                // 仅 -1 上移（a.java:3713）
-                if self.menu.menu_cursor > 0 {
-                    self.menu.menu_cursor -= 1;
-                    if self.menu.menu_cursor < self.menu.menu_scroll_top {
-                        self.menu.menu_scroll_top -= 1;
-                        self.menu.menu_visible_bottom -= 1;
-                    }
-                } else {
-                    self.menu.menu_cursor = self.menu.menu_item_count - 1;
-                    self.menu.menu_visible_bottom = self.menu.menu_item_count;
-                    self.menu.menu_scroll_top = self.menu.menu_visible_bottom - self.menu.menu_visible_rows;
-                    if self.menu.menu_scroll_top < 0 {
-                        self.menu.menu_scroll_top = 0;
-                    }
-                }
-            }
+            -2 => self.menu.cursor_down(), // 【双归域】域方法（a.java:3699 逐字）
+            -1 => self.menu.cursor_up(), // 【双归域】域方法（a.java:3713 逐字）
             _ => {}
         }
     }
