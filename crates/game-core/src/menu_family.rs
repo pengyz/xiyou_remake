@@ -1387,6 +1387,9 @@ pub struct ShellOption {
     pub checked: bool,
     /// 【件1 触屏 UX 2026-11-02】值循环行显示文本（Some="摇杆模式"/"触屏模式"…）
     /// ——行内显示当前值**文本**替代勾叉符号；循环语义归壳（toggle→壳读 id 重建行）。
+    /// 钉覆盖（复核A 黄③集中注记）：value_row_paints_value_text_not_checkbox（本
+    /// 文件 ops 面）/control_mode_row_shows_value_text（shell/android runtime）/
+    /// rows_of 元组面（app_settings 改写批）。
     pub value_text: Option<Vec<u16>>,
 }
 
@@ -1532,9 +1535,12 @@ impl OptionList {
     pub fn resolve_highlight(&self, a: HighlightAnchor) -> usize {
         let idx = match a {
             HighlightAnchor::Core(i) => i.min(self.labels.len().saturating_sub(1)),
-            HighlightAnchor::Shell(id) => {
-                self.labels.len() + self.shell.iter().position(|r| r.id == id).unwrap_or(0)
-            }
+            HighlightAnchor::Shell(id) => match self.shell.iter().position(|r| r.id == id) {
+                Some(p) => self.labels.len() + p,
+                // 【复核A 黄②】锚 id 缺失（行被隐藏/删除）⇒ 语义定死=尾行钳位
+                // （同 End——旧行已不存在，"保持原行"不可达；钉=锚落尾行）
+                None => self.len().saturating_sub(1),
+            },
             HighlightAnchor::End => self.len().saturating_sub(1),
         };
         idx.min(self.len().saturating_sub(1))

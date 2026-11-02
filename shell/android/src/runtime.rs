@@ -124,6 +124,10 @@ pub struct Runtime {
     ///（T3.2 行同步接入），行缺失时保留本字段；tips_seen_* 恒纯 Runtime 字段。
     pub rt_control_mode: game_shell_common::settings::ControlMode,
     pub rt_auto_battle: bool,
+    /// 【复核A 红-1】按键震动/按键音保值态（触屏隐藏行≠丢值——用户裁定"完全隐藏"
+    /// 语义=切回恢复原值；对齐 rt_auto_battle 缺行不回默认口径）。
+    pub rt_key_haptic: bool,
+    pub rt_key_click: bool,
     pub rt_tips_seen_pad: bool,
     pub rt_tips_seen_touch: bool,
     /// 【计划 3 T4 · spec §5.3】视口手势簿：触点 id →（起点，已发滑动）；滑 = 一次 swipe_step、
@@ -166,6 +170,8 @@ impl Runtime {
             settings_file: None,
             rt_control_mode: game_shell_common::settings::ControlMode::Pad,
             rt_auto_battle: false,
+            rt_key_haptic: game_shell_common::settings::AppSettings::default().key_haptic,
+            rt_key_click: game_shell_common::settings::AppSettings::default().key_click,
             rt_tips_seen_pad: false,
             rt_tips_seen_touch: false,
             vp_track: std::collections::HashMap::new(),
@@ -183,6 +189,8 @@ impl Runtime {
         // 【STAGE-B-008 计划 3 T3】运行时操控设置（行覆盖待 T3.2 接线）
         self.rt_control_mode = s.control_mode;
         self.rt_auto_battle = s.auto_battle;
+        self.rt_key_haptic = s.key_haptic;
+        self.rt_key_click = s.key_click;
         self.rt_tips_seen_pad = s.tips_seen_pad;
         self.rt_tips_seen_touch = s.tips_seen_touch;
         self.machine.bgm.sound_enabled = s.sound_enabled;
@@ -205,8 +213,10 @@ impl Runtime {
             sound_enabled: bgm.sound_enabled,
             volume_level: bgm.volume_level,
             show_splash: row_checked(rows, PREF_SPLASH, d.show_splash),
-            key_haptic: row_checked(rows, PREF_HAPTIC, d.key_haptic),
-            key_click: row_checked(rows, PREF_CLICK, d.key_click),
+            // 【复核A 红-1】隐藏行保值=**行在取行/缺行取保存态**（rt 字段）——
+            // 用户裁定"完全隐藏"=切回恢复原值（缺行不回默认 true）
+            key_haptic: row_checked(rows, PREF_HAPTIC, self.rt_key_haptic),
+            key_click: row_checked(rows, PREF_CLICK, self.rt_key_click),
             // 【STAGE-B-008 计划 3 T3】操控方式/自动战斗：行存在时以行为准（T3.2 接线）；
             // 此处先取 Runtime 字段（spec §8：行缺失不回默认）。tips_seen_* 恒 Runtime 值。
             control_mode: self.rt_control_mode,
@@ -443,6 +453,10 @@ impl Runtime {
             }
         }
         self.rt_auto_battle = auto;
+        let haptic = row_checked(&rows, PREF_HAPTIC, self.rt_key_haptic);
+        let click = row_checked(&rows, PREF_CLICK, self.rt_key_click);
+        self.rt_key_haptic = haptic;
+        self.rt_key_click = click;
         if let Some(sc) = self.scene.as_mut() {
             sc.auto_battle = auto;
         }

@@ -766,3 +766,65 @@ fn scene_tap_walks_on_map_and_confirms_rows_in_menus() {
     // 对话"点屏幕继续"仍代按（core GameScene::blank_tap_key）
     assert_eq!(scene_tap(&mut sc, 1, 1), None, "游戏内菜单点空白不代按确认");
 }
+
+// ─────────────────────────── 复核A 红-1+黄三连钉（保值/锚语义/held 清零）
+
+#[test]
+fn hidden_rows_keep_values_roundtrip() {
+    // 【复核A 红-1】隐藏≠丢值：key_haptic=false→切触屏（行隐藏）→切回=仍 false
+    // （快照/落盘双保；用户裁定"完全隐藏"=切回恢复原值）。
+    use game_android::runtime::{shell_rows, Runtime};
+    use game_shell_common::settings::{AppSettings, ControlMode};
+    let mut s = AppSettings::default();
+    s.key_haptic = false;
+    s.key_click = false;
+    s.control_mode = ControlMode::Touch;
+    let rows = shell_rows(&s); // 触屏：两行缺席
+    assert!(rows.iter().all(|r| r.id != 2 && r.id != 3), "触屏行集无按键行");
+    // 缺行不回默认：保值口径（rt 保存态）——模拟 app_settings 读回
+    let mut s2 = AppSettings::default();
+    s2.key_haptic = false;
+    s2.control_mode = ControlMode::Pad;
+    let rows2 = shell_rows(&s2); // 回摇杆：行回归
+    let h = rows2.iter().find(|r| r.id == 2).expect("按键震动行回归");
+    assert!(!h.checked, "切回恢复原值 false（非默认 true）");
+}
+
+#[test]
+fn anchor_missing_id_falls_to_tail() {
+    // 【复核A 黄②】锚 id 缺失（行被隐藏/删除）⇒ 语义定死=尾行钳位（同 End）
+    use game_core::menu_family::{HighlightAnchor, OptionList, ShellOption};
+    let rows = vec![ShellOption { id: 1, label: "行".encode_utf16().collect(), checked: true, value_text: None }];
+    let list = OptionList::with_shell_rows(true, true, &rows);
+    let v = list.resolve_highlight(HighlightAnchor::Shell(9)); // 不存在的 id
+    assert_eq!(v, list.len() - 1, "缺 id 锚=尾行钳位");
+    let v2 = list.resolve_highlight(HighlightAnchor::Shell(1));
+    assert_eq!(v2, 2, "在场 id=精确定位");
+}
+
+#[test]
+fn control_mode_switch_clears_held_keys() {
+    // 【复核A 黄①】映射重建/按住态清零：模式切换重建 TouchMapper ⇒ held 归零
+    // （spec 切换即生效条款）。
+    use game_android::native::ShellWiring;
+    use game_shell_common::settings::ControlMode;
+    let mut w = ShellWiring::new();
+    // 先立竖屏规划（默认 wiring 无 portrait 时 set_control_mode 早退）
+    let plan0 = game_android::portrait::plan_portrait(&game_android::portrait::PlanInput {
+        window: (1080, 2400),
+        dpi: 420,
+        inset_top: 0,
+        inset_bottom: 0,
+        map: game_android::portrait::MapExtent { cells_w: 26, cells_h: 26 },
+        control_mode: game_shell_common::settings::ControlMode::Pad,
+    });
+    w.apply_portrait(plan0);
+    // 摇杆档：按下方向盘键 → held 非空（按规划后实际 dpad 中心取点，死区外 20px）
+    let (dcx, dcy) = (w.pad.dpad.cx, w.pad.dpad.cy);
+    let ev = game_android::input::TouchEvent { id: 0, phase: game_android::input::TouchPhase::Down, x: dcx + w.pad.dpad.r_inner + 5.0, y: dcy }; // 死区外 5px（r_inner 随 dpi）
+    w.touch.feed(&ev); // 翻译簿登记（held_codes 域）
+    assert!(!w.touch.held_codes().is_empty(), "按住态非空（切换前）");
+    let plan = w.set_control_mode(ControlMode::Touch);
+    assert!(plan.is_some(), "模式切换触发重规划");
+    assert!(w.touch.held_codes().is_empty(), "重建后 held 清零");
+}
