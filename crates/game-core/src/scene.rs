@@ -41,6 +41,15 @@ mod scene_persist;
 #[path = "scene_script.rs"]
 mod scene_script;
 
+/// 【task-15 V1】脚本 op 归位（enum+22 impls+parse/execute 三处汇 1，move-only）。
+#[path = "script_ops.rs"]
+mod script_ops;
+/// 【task-15 V1】恢复规则归位（类型+表+执行器汇 1，move-only）。
+#[path = "restore_rules.rs"]
+mod restore_rules;
+pub(crate) use script_ops::ScriptOp;
+pub use restore_rules::{RestoreAction, RestoreRule, RESTORE_RULES};
+
 /// f_Image_arr2_00 的 16 容器名序已迁 `sheet_index.containers`（a.java:451 名序值行；
 /// 张数表锚勘误=a.java:453 非 451）——查表入口 `resource_cfg::ResourceCfg::container_names`。
 /// 本场景常驻引用见 [`SceneImages`]。
@@ -693,60 +702,7 @@ pub fn load_floor_from_save(
 pub const DOOR13_HI: [u8; 13] = [2, 3, 3, 3, 6, 3, 3, 6, 3, 3, 3, 3, 3];
 
 /// 恢复特例动作（m_122 层特例 switch 的三个 case）。
-pub enum RestoreAction {
-    /// case 2（a.java:9650-9652）：`!flags[flag] && find(find) < 0` → spawn（像素坐标）。
-    SpawnIfAbsent {
-        flag: usize,
-        find: (i32, i32, i32),
-        spawn: (i32, i32, i32, i16),
-    },
-    /// case 12（a.java:9653-9661）：find 命中 → param = lo | DOOR13_HI[hi_idx] << 8
-    ///（原式 6|door13_hi[5]<<8 与 5|door13_hi[4]<<8）。
-    ParamRewrite {
-        find: (i32, i32, i32),
-        lo: i16,
-        hi_idx: usize,
-    },
-    /// case 39（a.java:9664-9671）：find 命中 → removeGroup(find) + spawn。
-    /// **像素字面量保真**：Java `spawnEntity(8, 11, 1, 38)` 字节码常量即像素 (11,1)
-    /// ⇒ 落 cell(0,0)（javap 1446-1454/1483-1492 逐字）——原版实况，D4 不"修正"。
-    SwapSpawn {
-        find: (i32, i32, i32),
-        spawn: (i32, i32, i32, i16),
-    },
-}
-
-/// 层恢复特例规则（floor → 动作表）。
-pub struct RestoreRule {
-    pub floor: i32,
-    pub actions: &'static [RestoreAction],
-}
-
-/// m_122 恢复特例表（a.java:9648-9673 switch(currentFloor) 逐 case）。
-pub static RESTORE_RULES: &[RestoreRule] = &[
-    RestoreRule {
-        floor: 2,
-        actions: &[RestoreAction::SpawnIfAbsent {
-            flag: 26,
-            find: (11, 4, 84),
-            spawn: (84, 352, 128, 0),
-        }],
-    },
-    RestoreRule {
-        floor: 12,
-        actions: &[
-            RestoreAction::ParamRewrite { find: (1, 1, 78), lo: 6, hi_idx: 5 },
-            RestoreAction::ParamRewrite { find: (11, 1, 78), lo: 5, hi_idx: 4 },
-        ],
-    },
-    RestoreRule {
-        floor: 39,
-        actions: &[
-            RestoreAction::SwapSpawn { find: (11, 1, 7), spawn: (8, 11, 1, 38) },
-            RestoreAction::SwapSpawn { find: (11, 11, 8), spawn: (7, 11, 11, 40) },
-        ],
-    },
-];
+// 【task-15 V1】RestoreAction/RestoreRule/RESTORE_RULES → restore_rules.rs（move-only 汇 1）
 
 /// 模式转移边集（state-machine-survey §2 35 边逐条；件 A' 校验挂点读本表）。
 /// `to: None` = **动态目标**（menu_return_mode/in_game_menu_return_mode/target_mode
@@ -824,54 +780,7 @@ pub static TRANSFER_EDGES: &[(GameMode, Option<GameMode>)] = &[
 /// 命令模式（refactor-plan §3 第 2 步）：16 op 枚举。变体载荷=各 op 条件取参
 /// 结果 + **推进后游标**（游标契约，条件 4）；解析与执行分离但游标语义逐字节
 /// 等价（scriptCursor/lastDelimPos 口径 gotcha 级，两面对照测钉）。
-pub(crate) enum ScriptOp {
-    /// TAK_a_b（a.java:8257-8263）
-    Tak { start: i32, end: i32, cursor: usize },
-    /// LAY_x（a.java:8355-8362）
-    Lay { floor: i32, cursor: usize },
-    /// GIN_a_b（a.java:8424-8437）
-    Gin { kind: i32, value: i32, cursor: usize },
-    /// RES_x（a.java:8470-8490）
-    Res { cursor: usize },
-    /// ADD_a_b_c_d（a.java:8438-8468）
-    Add { floor: i32, ty: i32, cx: i32, cy: i32, cursor: usize },
-    /// SEE_a_b_c_d_e（a.java:8487-8510）
-    See { tx: i32, ty: i32, page: i32, page_end: i32, flag: i32, cursor: usize },
-    /// GUT_n（a.java:8308-8311）——cursor 由 loadLevelScript 覆写为 0
-    Gut { target: i32, cursor: usize },
-    /// MOV（a.java:8274-8309）：var55>0 ⇒ cell=Some(五参实体路线)；否则三参玩家行
-    Mov { target_type: i32, cell: Option<(i32, i32)>, dst: (i32, i32), cursor: usize },
-    /// DES 负参（a.java:8311-8320）：全表批量移除 -type
-    DesAll { want: i32, cursor: usize },
-    /// DES 正参（a.java:8321-8334）：格上定点移除
-    DesAt { ty: i32, cx: i32, cy: i32, cursor: usize },
-    /// SWD（a.java:8336-8352）
-    Swd { cursor: usize },
-    /// CES_t_cx_cy（a.java:8386-8420）
-    Ces { ty: i32, cx: i32, cy: i32, cursor: usize },
-    /// GLV_n（a.java:8464-8466）
-    Glv { cursor: usize },
-    /// END_n（a.java:8445-8463 区）
-    End { cursor: usize },
-    /// SMS_n（a.java 纯推进）
-    Sms { cursor: usize },
-    /// ROS_1（a.java:8361-8366）：玩家格坐标
-    RosMove { px: i32, py: i32, cursor: usize },
-    /// ROS_2（a.java:8367-8369）：强制装备
-    RosEquip { tier: i32, cursor: usize },
-    /// ROS_3（a.java:8370-8372）：HP
-    RosHp { v: i32, cursor: usize },
-    /// ROS_4（a.java:8373-8375）：朝向（Java byte 字段 ⇒ i8 截断保真）
-    RosFace { v: i32, cursor: usize },
-    /// ROS_5（a.java:8376-8378）：ATK
-    RosAtk { v: i32, cursor: usize },
-    /// ROS_6（a.java:8379-8381）：DEF
-    RosDef { v: i32, cursor: usize },
-    /// ROS 其余子码（a.java:8381 default）：不取参不推进（v2 不动）
-    RosNoop { cursor: usize },
-    /// MVS（a.java:8519-8592）
-    Mvs { cursor: usize },
-}
+// 【task-15 V1】ScriptOp enum → script_ops.rs（move-only 汇 1）
 
 impl ScriptOp {
     /// 游标契约（条件 4）：各 op 的推进后游标。
@@ -2016,338 +1925,27 @@ impl GameScene {
 
 
 
-    /// TAK_a_b（a.java:8257-8263）：页区间 + 对话相位 1 + 开页（pageEnd 先写——
-    /// 不先更新会误判"越界"而丢页）。
-    fn op_tak(&mut self, start: i32, end: i32) {
-        self.dialog_page = start;
-        self.dialog_page_end = end;
-        self.dialog_phase = 1;
-        self.open_dialog_page(start);
-    }
 
-    /// LAY_x（a.java:8355-8362）：m_119 存态 + 目标层 + 遮幅（phase=5）+ 清 overlay。
-    fn op_lay(&mut self, floor: i32) {
-        self.save_floor_state();
-        self.pending_floor = floor;
-        self.transitioning = true;
-        self.overlay_text = None;
-        self.dialog_phase = 5;
-    }
 
-    /// GIN_a_b（a.java:8424-8437）：0=pickupItemType(b)/1=gainGold(b)；
-    /// 完后**尾递归**执行下一条（8435-8436）。
-    fn op_gin(&mut self, kind: i32, value: i32) {
-        match kind {
-            0 => self.pickup_item_type(value),
-            1 => {
-                crate::combat::gain_gold(&mut self.player, value);
-            }
-            _ => {}
-        }
-        self.execute_script_instruction();
-    }
 
-    /// RES_x（a.java:8470-8490）：easy（difficultyIndex==0）重置 run 统计；非 easy 空转。
-    fn op_res(&mut self) {
-        if self.difficulty_index == 0 {
-            self.player.yellow_keys = 0;
-            self.player.red_keys = 0;
-            self.player.blue_keys = 0;
-            self.player.item_stack_size = 0;
-            self.player.gold = 4;
-            self.alchemy_upgrade_count = 0;
-            self.min_floor = 1;
-            self.max_floor = 3;
-            self.player.atk = 10;
-            self.player.def = 10;
-            self.player.hp = 400;
-            self.journal.clear();
-        }
-    }
 
-    /// ADD_a_b_c_d（a.java:8438-8468）：跨层生成实体——目标层非当前时
-    /// m_119 存当前→m_122 载目标→spawn→m_119 存目标→还原（8462-8464）。
-    fn op_add(&mut self, floor: i32, ty: i32, cx: i32, cy: i32) {
-        if self.floor != floor {
-            self.save_floor_state();
-            if self.floor_assets.get(floor as usize).cloned().flatten().is_some() {
-                self.reload_floor_entities(floor);
-            }
-        }
-        entity::spawn(
-            &mut self.entities,
-            &mut self.grid,
-            ty,
-            cx << 5,
-            cy << 5,
-            0,
-            &self.width_table,
-            None,
-        );
-        self.save_floor_state();
-        if self.floor != floor {
-            if self.floor_assets.get(self.floor as usize).cloned().flatten().is_some() {
-                self.reload_floor_entities(self.floor);
-            }
-        }
-    }
 
-    /// SEE_a_b_c_d_e（a.java:8487-8510）：pageStart/End 先解析入字段再开页
-    ///（8487-8495）；flag==1 ⇒ findPath 成功 → 路径箭头 + walkPhase=0（8497-8501，
-    /// case1 **无 break 落穿 default**：easeCameraToTarget 与箭头两者都做）；
-    /// 收尾 phase=6 + easeCameraToTarget ease 相机目标 = 目标格。
-    fn op_see(&mut self, tx: i32, ty: i32, page: i32, page_end: i32, flag: i32) {
-        self.dialog_target = (tx, ty);
-        self.dialog_page = page;
-        self.dialog_page_end = page_end;
-        self.open_dialog_page(page);
-        if flag == 1 && self.find_path(self.player_cell_x, self.player_cell_y, tx, ty) {
-            self.path_arrows_visible = true;
-            self.walk_phase = 0;
-        }
-        self.dialog_phase = 6;
-        self.ease_cam_x = ((self.view.view_w - 32) >> 1) - self.view.cam_x;
-        self.ease_cam_y = ((self.view.view_h - 32) >> 1) - self.view.cam_y;
-        self.ease_target_x = tx << 5;
-        self.ease_target_y = ty << 5;
-    }
 
-    /// GUT_n（a.java:8308-8311）：旗标置位 + loadLevelScript(n)（游标由 load
-    /// 重置为 0——Java 原样不前进）。
-    fn op_gut(&mut self, target: i32) {
-        let cur = self.current_script_index;
-        self.script_line_flags[cur] = true;
-        self.load_level_script(target);
-    }
 
-    /// MOV（a.java:8274-8309）：var55>0 ⇒ 五参实体路线（dp2/openWallOnRoute）；否则三参
-    /// 玩家脚本行走（findPath 成功 → scriptWalkArmed+dp3+walkPhase=0+lockCameraOn(0)；
-    /// 失败无相位副作用）。**miss 尾递归**（8301-8302）：同拍执行下一条。
-    fn op_mov(&mut self, target_type: i32, cell: Option<(i32, i32)>, dst: (i32, i32)) {
-        let (mx, my) = dst;
-        self.dialog_target = (mx, my);
-        if target_type > 0 {
-            let (ent_x, ent_y) = cell.expect("五参已解析");
-            // a.java:8289：route_entity = findBlockingEntity(...)（原 findBlockingEntity）——未命中也写入（-1）
-            self.route_entity = self.entity_at_cell(ent_x, ent_y, target_type);
-            if self.route_entity >= 0 {
-                let ei = self.route_entity as usize;
-                self.route_phase = 0; // routePhase = 0（a.java:8291）
-                if self.entities.items[ei].type_ == 72 {
-                    self.entities.items[ei].anim_row = 1; // a.java:8293-8294
-                }
-                // f_int_129/130 = 实体起点格（a.java:8297-8298）
-                self.route_start = (self.entities.items[ei].px >> 5, self.entities.items[ei].py >> 5);
-                // findPath(起点格 → 目标格)：返回值不判（a.java:8299）——openWallOnRoute
-                // 只认 walkPathBuffer/walkStepCount（find_path 恒重写，含回溯
-                // 失败的部分前缀）
-                self.find_path(self.route_start.0, self.route_start.1, mx, my);
-                self.dialog_phase = 2;
-            } else {
-                // 实体未找到 → 同拍尾递归执行下一条（a.java:8301-8302）
-                self.execute_script_instruction();
-            }
-        } else if self.find_path(self.player_cell_x, self.player_cell_y, mx, my) {
-            self.script_walk_armed = true;
-            self.dialog_phase = 3;
-            self.walk_phase = 0;
-            self.lock_camera_on(0);
-        }
-    }
 
-    /// DES 负参（a.java:8311-8320）：全表批量移除 -type。
-    fn op_des_all(&mut self, want: i32) {
-        for i in (0..self.entities.count).rev() {
-            if self.entities.items[i].type_ == want && entity::remove(&mut self.entities, i) {
-                self.build_minimap();
-            }
-        }
-    }
 
-    /// DES 正参（a.java:8321-8334）：格上首只该类型移除（findBlockingEntity + markEntityRemoved）。
-    fn op_des_at(&mut self, ty: i32, cx: i32, cy: i32) {
-        let idx = self.entity_at_cell(cx, cy, ty);
-        if idx >= 0 && entity::remove(&mut self.entities, idx as usize) {
-            self.build_minimap();
-        }
-    }
 
-    /// SWD（a.java:8336-8352）：全表扫 81 → 显形 + 改型 4 + DES 状态动画
-    ///（state=2 行 8——advance_frames 帧尽自解为常态）。
-    fn op_swd(&mut self) {
-        for i in (0..self.entities.count).rev() {
-            if !self.entities.items[i].removed && self.entities.items[i].type_ == 81 {
-                self.entities.items[i].visible = true;
-                self.entities.items[i].type_ = 4;
-                let img_h = self.images.entity.get(4).cloned().flatten().map(|im| im.height);
-                entity::dispatch_sprite_size(4, i, &mut self.entities, &self.width_table, img_h);
-                self.entities.items[i].state = 2;
-                self.entities.items[i].anim_row = 8;
-            }
-        }
-    }
 
-    /// CES（a.java:8386-8420）：spawnEntity(type, cx<<5, cy<<5, 0) +
-    /// markEntityDesRemoved + 相机回中后缓向新实体 + scriptStepDelay
-    ///（cat 1/8/16=5、2/4=8、其余 0）。
-    fn op_ces(&mut self, ty: i32, cx: i32, cy: i32) {
-        let img_h = self.images.entity.get(ty as usize).cloned().flatten().map(|im| im.height);
-        let idx = entity::spawn(
-            &mut self.entities,
-            &mut self.grid,
-            ty,
-            cx << 5,
-            cy << 5,
-            0,
-            &self.width_table,
-            img_h,
-        );
-        entity::remove_des(&mut self.entities, idx);
-        self.ease_cam_x = ((self.view.view_w - 32) >> 1) - self.view.cam_x;
-        self.ease_cam_y = ((self.view.view_h - 32) >> 1) - self.view.cam_y;
-        // Java `if (sort_i >= 0)` 守卫（a.java:8398）：spawn 返回 usize 恒非负 ⇒ 恒真
-        self.ease_target_x = self.entities.items[idx].px;
-        self.ease_target_y = self.entities.items[idx].py;
-        self.script_delay = match self.entity_category(ty) {
-            1 | 8 | 16 => 5,
-            2 | 4 => 8,
-            _ => 0,
-        };
-    }
 
-    /// GLV_n（a.java:8464-8466）：纯解析推进（无副作用）。
-    fn op_glv(&mut self) {}
 
-    /// END_n（a.java:8445-8463 区）：进结局态——dispatchModeEntry case 20（a.java:4443-4450）
-    /// 可观测部分：typewriterPos=1 + 初次 layout（对象 = **当时 overlayText 残页**，
-    /// Java 原样）；f_int_22/23/f_bool_04 不重置。
-    fn op_end(&mut self) {
-        self.transition_to(GameMode::Ending);
-        self.dialog_char = 1;
-        if let Some(t) = self.overlay_text.clone() {
-            let line_h = crate::paint::paint_font().height + 4;
-            self.layout_wrapped_text_limited(&t, 209, (line_h << 1) + 12, 1);
-        }
-    }
 
-    /// SMS_n（a.java 纯推进）：无副作用。
-    fn op_sms(&mut self) {}
 
-    /// ROS_1（a.java:8361-8366）：玩家格坐标（px<<5/py<<5）+ 锁相机回玩家。
-    fn op_ros_move(&mut self, px: i32, py: i32) {
-        self.view.player_px = px << 5;
-        self.view.player_py = py << 5;
-        self.lock_camera_on(0);
-    }
 
-    /// ROS_2（a.java:8367-8369）：强制装备 tryEquip(tier,true)。
-    fn op_ros_equip(&mut self, tier: i32) {
-        self.try_equip(tier, true);
-    }
 
-    /// ROS_3（a.java:8370-8372）：HP。
-    fn op_ros_hp(&mut self, v: i32) {
-        self.player.hp = v;
-    }
 
-    /// ROS_4（a.java:8373-8375）：朝向（Java byte 字段 ⇒ i8 截断保真）。
-    fn op_ros_face(&mut self, v: i32) {
-        self.facing = (v as i8) as i32;
-    }
 
-    /// ROS_5（a.java:8376-8378）：ATK。
-    fn op_ros_atk(&mut self, v: i32) {
-        self.player.atk = v;
-    }
 
-    /// ROS_6（a.java:8379-8381）：DEF。
-    fn op_ros_def(&mut self, v: i32) {
-        self.player.def = v;
-    }
 
-    /// MVS（a.java:8519-8592）：型 82 传怪点成对互传。**双重死码**
-    ///（语料 297 条指令 0 条 MVS + 全 55 层 sprite 型 82=0，
-    /// evidence-todos.md T-1）——语料不可达，为忠实而保。体随迁移原样。
-    fn op_mvs(&mut self) {
-
-        // MVS（a.java:8519-8592）：型 82 传怪点成对互传。**双重死码**
-        // （语料 297 条指令 0 条 MVS + 全 55 层 sprite 型 82=0，
-        // evidence-todos.md T-1）——语料不可达，为忠实而保。
-        // 倒序扫 type==82 按 param&255 两两配对进 16 对短缓存
-        // （f_short_arr_04 等价，Java 每次 MVS 重建，a.java:8521-8522）；
-        // 每对两向（8571-8573 交换重复）：扫描格槽组内 renderCategory==8
-        // 怪物 → 双向 removeGroupAtCellByType(两格, 82)（82 点位消耗）
-        // → carry_monsters_to 搬到对端。槽组循环 var8 为**循环前**容量快照、槽表
-        // 就地压缩不清尾（a.java:6440-6443）⇒ stale 尾重触发 quirk 保真。
-        let mut buf = [0i16; 32];
-        for v6 in (0..self.entities.count as i32).rev() {
-            if self.entities.items[v6 as usize].type_ == 82 {
-                let key = self.entities.items[v6 as usize].param as i32 & 255;
-                let mut v7 = 0;
-                while v7 < 32 {
-                    let v70 = buf[v7] as i32 - 1;
-                    if v70 <= 0 {
-                        buf[v7] = (v6 + 1) as i16;
-                        break;
-                    }
-                    if key == (self.entities.items[v70 as usize].param as i32 & 255) {
-                        buf[v7 + 1] = (v6 + 1) as i16;
-                        break;
-                    }
-                    v7 += 2;
-                }
-            }
-        }
-        let mut v11 = 0;
-        while v11 < 32 {
-            let mut v70 = buf[v11] as i32;
-            let mut v9 = buf[v11 + 1] as i32;
-            if v70 <= 0 {
-                break;
-            }
-            if v9 > 0 {
-                v70 -= 1;
-                v9 -= 1;
-                let mut cx86 = self.entities.items[v70 as usize].px >> 5;
-                let mut cy6 = self.entities.items[v70 as usize].py >> 5;
-                let ct44 = self.grid.cell_type[cy6 as usize][cx86 as usize] as usize;
-                let n8 = self.grid.capacity[ct44] as usize;
-                let mut v12 = 0;
-                while v12 < n8 {
-                    let v10 = self.grid.slots[ct44][v12] as usize - 1;
-                    let t56 = self.entities.items[v10].type_;
-                    if entity::render_category(t56) == 8 {
-                        let tx = self.entities.items[v9 as usize].px >> 5;
-                        let ty = self.entities.items[v9 as usize].py >> 5;
-                        entity::remove_group_at_cell_by_type(tx, ty, 82, &mut self.entities, &mut self.grid);
-                        entity::remove_group_at_cell_by_type(cx86, cy6, 82, &mut self.entities, &mut self.grid);
-                        self.carry_monsters_to(v10, tx, ty);
-                    }
-                    v12 += 1;
-                }
-                // A/B 交换（a.java:8571-8573）后重复反向
-                core::mem::swap(&mut v70, &mut v9);
-                cx86 = self.entities.items[v70 as usize].px >> 5;
-                cy6 = self.entities.items[v70 as usize].py >> 5;
-                let ct46 = self.grid.cell_type[cy6 as usize][cx86 as usize] as usize;
-                let n8b = self.grid.capacity[ct46] as usize;
-                let mut v93 = 0;
-                while v93 < n8b {
-                    let v92 = self.grid.slots[ct46][v93] as usize - 1;
-                    let t56 = self.entities.items[v92].type_;
-                    if entity::render_category(t56) == 8 {
-                        let tx = self.entities.items[v9 as usize].px >> 5;
-                        let ty = self.entities.items[v9 as usize].py >> 5;
-                        entity::remove_group_at_cell_by_type(tx, ty, 82, &mut self.entities, &mut self.grid);
-                        entity::remove_group_at_cell_by_type(cx86, cy6, 82, &mut self.entities, &mut self.grid);
-                        self.carry_monsters_to(v92, tx, ty);
-                    }
-                    v93 += 1;
-                }
-            }
-            v11 += 2;
-        }
-    }
 
     /// carry_monsters_to（a.java:8872-8878）：怪物搬运原语——同型同 param 在目标格
     /// spawnEntity（入参格坐标，Java 内部 <<5 转像素）+ 对**旧格全部同型**

@@ -396,67 +396,6 @@ impl GameScene {
         }
         None
     }
-    /// 应用层恢复特例（m_122 尾 switch(currentFloor)，a.java:9648-9673）——
-    /// RESTORE_RULES 表驱动；flags[26] 双重角色与 case 39 像素字面量 quirk 随表保留。
-    pub(super) fn apply_restore_rules(
-        &self,
-        entities: &mut EntityTable,
-        grid: &mut CellGrid,
-    ) {
-        let Some(rule) = RESTORE_RULES.iter().find(|r| r.floor == self.floor) else {
-            return;
-        };
-        for action in rule.actions {
-            match *action {
-                RestoreAction::SpawnIfAbsent { flag, find, spawn } => {
-                    // flags[26] 双重角色：守卫=旗标关 + 目标格无活同型（a.java:9650-9652）
-                    if self.script_line_flags[flag] {
-                        continue;
-                    }
-                    if entity::cell_entity(grid, entities, find.0, find.1, find.2) >= 0 {
-                        continue;
-                    }
-                    let img_h = self.images.entity[spawn.0 as usize].as_ref().map(|i| i.height);
-                    entity::spawn(
-                        entities,
-                        grid,
-                        spawn.0,
-                        spawn.1,
-                        spawn.2,
-                        spawn.3,
-                        &self.width_table,
-                        img_h,
-                    );
-                }
-                RestoreAction::ParamRewrite { find, lo, hi_idx } => {
-                    // a.java:9653-9661：find 命中 → param = lo | door13_hi[hi_idx] << 8
-                    let idx = entity::cell_entity(grid, entities, find.0, find.1, find.2);
-                    if idx >= 0 {
-                        entities.items[idx as usize].param =
-                            lo | ((DOOR13_HI[hi_idx] as i16) << 8);
-                    }
-                }
-                RestoreAction::SwapSpawn { find, spawn } => {
-                    // a.java:9664-9671：find 命中 → removeGroup + spawn（像素字面量保真）
-                    if entity::cell_entity(grid, entities, find.0, find.1, find.2) < 0 {
-                        continue;
-                    }
-                    entity::remove_group_at_cell_by_type(find.0, find.1, find.2, entities, grid);
-                    let img_h = self.images.entity[spawn.0 as usize].as_ref().map(|i| i.height);
-                    entity::spawn(
-                        entities,
-                        grid,
-                        spawn.0,
-                        spawn.1,
-                        spawn.2,
-                        spawn.3,
-                        &self.width_table,
-                        img_h,
-                    );
-                }
-            }
-        }
-    }
     pub fn reload_floor_entities(&mut self, floor: i32) {
         let mut entities = entity::EntityTable::new(100);
         let mut grid = entity::CellGrid::new(self.view.wide, self.view.high);
