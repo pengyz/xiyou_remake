@@ -808,6 +808,11 @@ impl BootMachine {
         self.title_geom()?.hit(x, y).map(crate::title::TitleTouch::key)
     }
 
+    /// 【件3】槽页访问口（触屏两段式路由用）。
+    pub fn slot_page_mut(&mut self) -> Option<&mut crate::menu_family::SlotSelect> {
+        self.slots.as_mut()
+    }
+
     /// 当前 title 光标对应的 kind（mode 1 出口分派键）。
     fn title_kind(&self) -> i32 {
         self.title
@@ -823,13 +828,13 @@ impl BootMachine {
         self.shell_options = rows;
         if self.mode == GameMode::About {
             if let Some(old) = self.options.take() {
-                let h = old.highlight;
+                let anchor = old.highlight_anchor(); // 【件1】随行 id 跟随
                 let mut list = crate::menu_family::OptionList::with_shell_rows(
                     self.bgm.sound_enabled,
                     true,
                     &self.shell_options,
                 );
-                list.highlight = h.clamp(0, list.len() as i32 - 1);
+                list.highlight = list.resolve_highlight(anchor) as i32;
                 self.options = Some(list);
             }
         }
@@ -1070,7 +1075,7 @@ mod tests {
     #[test]
     fn t3_replace_shell_rows_boot_and_scene() {
         use crate::menu_family::{OptionList, ShellOption};
-        let opt = |id: u8, checked: bool| ShellOption { id, label: "行".encode_utf16().collect(), checked };
+        let opt = |id: u8, checked: bool| ShellOption { id, label: "行".encode_utf16().collect(), checked, value_text: None };
         // BootMachine
         let mut m = boot_state();
         m.shell_options = vec![opt(4, true), opt(4 + 1, true)];
@@ -1472,7 +1477,7 @@ mod tests {
     fn stage_b006_rows() -> Vec<crate::menu_family::ShellOption> {
         [(1u8, "开屏画面", false), (2, "按键震动", true), (3, "按键音", true)]
             .into_iter()
-            .map(|(id, l, checked)| crate::menu_family::ShellOption { id, label: l.encode_utf16().collect(), checked })
+            .map(|(id, l, checked)| crate::menu_family::ShellOption { id, label: l.encode_utf16().collect(), checked, value_text: None })
             .collect()
     }
 

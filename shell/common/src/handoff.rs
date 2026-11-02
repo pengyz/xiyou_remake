@@ -401,7 +401,7 @@ mod tests {
         let assets = load_game_assets(&src);
         let rows: Vec<ShellOption> = [(1u8, "开屏画面", false), (2, "按键震动", true), (3, "按键音", true)]
             .into_iter()
-            .map(|(id, l, checked)| ShellOption { id, label: l.encode_utf16().collect(), checked })
+            .map(|(id, l, checked)| ShellOption { id, label: l.encode_utf16().collect(), checked, value_text: None })
             .collect();
         let mut m = machine(&src);
         m.shell_options = rows.clone();

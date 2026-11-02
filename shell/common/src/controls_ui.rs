@@ -63,8 +63,15 @@ pub fn hit_toolbar(x: i32, y: i32, left: (i32, i32, i32, i32), mid: (i32, i32, i
     }
     let (mx, my, mw, mh) = mid;
     if x >= mx && x < mx + mw && y >= my && y < my + mh {
-        let idx = ((x - mx) * mid_n as i32 / mw).clamp(0, mid_n as i32 - 1) as usize;
-        return Some(ToolbarHit::Mid(idx));
+        // 【件2 单源】格归属=toolbar_cell_rect 逐格（旧 ((x-mx)*n/mw) 与 paint
+        // 分格双算——不可整除宽边界缝实锤 Mid(0)/Mid(1) 错格）。
+        for i in 0..mid_n {
+            let (cx, cy, cw, ch) = toolbar_cell_rect(mid, mid_n, i);
+            if x >= cx && x < cx + cw && y >= cy && y < cy + ch {
+                return Some(ToolbarHit::Mid(i));
+            }
+        }
+        return Some(ToolbarHit::Mid(mid_n - 1)); // 右界兜底
     }
     None
 }
@@ -103,5 +110,48 @@ mod tests {
         };
         assert_eq!(mid_button(&c, 1).unwrap().function, FunctionId::Undo);
         assert!(mid_button(&c, 2).is_none());
+    }
+}
+
+/// 【件2 单源】mid 区第 i 格矩形——paint 与 hit 共调（防框/感应区脱节=二次盲区）。
+pub fn toolbar_cell_rect(mid: (i32, i32, i32, i32), mid_n: usize, i: usize) -> (i32, i32, i32, i32) {
+    let (mx, my, mw, mh) = mid;
+    let x0 = mx + mw * i as i32 / mid_n.max(1) as i32;
+    let x1 = mx + mw * (i as i32 + 1) / mid_n.max(1) as i32;
+    (x0, my, x1 - x0, mh)
+}
+
+#[cfg(test)]
+mod same_source_tests {
+    //! 【件2】label 与命中区同源断言（钉）。
+    use super::*;
+
+    #[test]
+    fn toolbar_cell_hit_label_same_source() {
+        let mid = (100i32, 10i32, 203i32, 30i32); // 不可整除宽=双算缝暴露面
+        let fns = [
+            game_core::controls::FunctionId::Bag,
+            game_core::controls::FunctionId::Observe,
+            game_core::controls::FunctionId::Undo,
+            game_core::controls::FunctionId::Menu,
+        ];
+        for i in 0..4usize {
+            let (cx, cy, cw, ch) = toolbar_cell_rect(mid, 4, i);
+            // 格中心命中 = Mid(i)（paint 分格 == hit 分格）
+            let hit = hit_toolbar(cx + cw / 2, cy + ch / 2, (0, 0, 90, 30), mid, (310, 10, 90, 30), 4);
+            assert_eq!(hit, Some(ToolbarHit::Mid(i)), "cell {i} 中心命中同源");
+            // label 单源 = label(fns[i])（绘制面读同一查询）
+            assert!(!label(fns[i]).is_empty(), "label 非空");
+        }
+        // 边界：格 i 右界 = 格 i+1 左界（无缝无叠）
+        for i in 0..3usize {
+            let (_, _, cw, _) = toolbar_cell_rect(mid, 4, i);
+            let (x0, _, _, _) = toolbar_cell_rect(mid, 4, i + 1);
+            let (cx, cy, _, ch) = toolbar_cell_rect(mid, 4, i);
+            assert_eq!(cx + cw, x0, "格 {i} 右界=格 {} 左界", i + 1);
+            // 右界像素归属右格
+            let hit = hit_toolbar(cx + cw, cy + ch / 2, (0, 0, 90, 30), mid, (310, 10, 90, 30), 4);
+            assert_eq!(hit, Some(ToolbarHit::Mid(i + 1)), "界线归属右格");
+        }
     }
 }

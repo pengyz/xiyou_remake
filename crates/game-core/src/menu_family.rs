@@ -689,6 +689,18 @@ impl SlotSelect {
         false
     }
 
+    /// 【件3】槽行命中（row_band 单源——paint 与 tap 共调）：None=行外。
+    pub fn row_hit(&self, x: i32, y: i32, layout: &crate::layout::Layout) -> Option<usize> {
+        let lx = (layout.screen_w - self.content_w - 22) >> 1;
+        for row in self.scroll_top..self.scroll_bottom {
+            let (ry, rh) = self.row_band(row - self.scroll_top, layout);
+            if y >= ry && y < ry + rh && x >= lx && x < lx + self.content_w + 22 {
+                return Some(row as usize);
+            }
+        }
+        None
+    }
+
     /// 【件3】打断（滑动/换手势）：清选中不执行。
     pub fn interrupt_select(&mut self) {
         self.selected = None;
@@ -958,6 +970,13 @@ impl SlotSelect {
                 let mut label: Vec<u16> = SAVE_LABEL.to_vec();
                 label.extend((row as u16).to_string().chars().map(|c| c as u16));
                 g.draw_string(&label, cx, y + 2, 17);
+            }
+            // 【件3】选中行微提示（"再点加载"——两段式 tap1 后可见性告知）
+            if self.selected == Some(row as usize) {
+                if let Some(hint) = self.retry_hint_text() {
+                    g.set_color(crate::layout::SLOT_TEXT_ACTIVE);
+                    g.draw_string(&hint, cx + (self.content_w >> 2), y + 2, 17);
+                }
             }
             // 行 y 由 row_band 逐行定位（原 y += lh 累加已删）
         }

@@ -3,7 +3,7 @@
 //! 运行时与 android_main 同一调度体（runtime.rs）；真资产 + 临时目录。
 
 use game_android::input::KeyAction;
-use game_android::runtime::{build_boot_machine, Runtime, PREF_CLICK, PREF_HAPTIC, PREF_SPLASH, PREF_CONTROL_MODE};
+use game_android::runtime::{build_boot_machine, Runtime, PREF_CLICK, PREF_HAPTIC, PREF_SPLASH, PREF_CONTROL_MODE, PREF_AUTO_BATTLE};
 use game_core::enums::GameMode;
 use game_shell_common::settings::AppSettings;
 
@@ -59,13 +59,25 @@ fn rows_of(opts: &[game_core::menu_family::ShellOption]) -> Vec<(u8, String, boo
 }
 
 fn expected_rows(splash: bool, haptic: bool, click: bool) -> Vec<(u8, String, bool)> {
-    // 【计划 3 T3.2 前提更正】壳行恒含第 4 行「操控方式」（勾=触屏；默认摇杆=false）；
-    // 自动战斗行仅触屏模式出现（这些用例都在默认摇杆模式下跑）
+    // 【件1 触屏 UX 2026-11-02 用户裁定·测试随行为更新】摇杆模式行集：两行回归
+    // + **自动战斗通用常显**（T3.2"仅触屏"被裁定覆盖）；操控方式=值循环行
+    // （文本"摇杆模式"显示，checked 语义保留=触屏?false）。
     vec![
         (PREF_SPLASH, "开屏画面".into(), splash),
         (PREF_HAPTIC, "按键震动".into(), haptic),
         (PREF_CLICK, "按键音".into(), click),
         (PREF_CONTROL_MODE, "操控方式".into(), false),
+        (PREF_AUTO_BATTLE, "自动战斗".into(), false),
+    ]
+}
+
+/// 【件1】触屏模式行集：按键震动/按键音**完全隐藏**（缺席=不渲染+导航跳过）；
+/// 自动战斗常显。
+fn expected_rows_touch(splash: bool) -> Vec<(u8, String, bool)> {
+    vec![
+        (PREF_SPLASH, "开屏画面".into(), splash),
+        (PREF_CONTROL_MODE, "操控方式".into(), true),
+        (PREF_AUTO_BATTLE, "自动战斗".into(), false),
     ]
 }
 
@@ -224,7 +236,7 @@ fn title_settings_toggle_persists_same_step() {
     title_open(&mut rt, &src, 2); // 设置
     assert_eq!(rt.machine.mode, GameMode::About, "标题侧设置页");
     let opts = rt.machine.options.as_ref().unwrap();
-    assert_eq!(opts.len(), 6, "声音 / 小地图 + 三行 + 操控方式");
+    assert_eq!(opts.len(), 7, "声音 / 小地图 + 五壳行（自动战斗常显——件1 裁定）");
     assert_eq!(rows_of(opts.shell_rows()), expected_rows(false, true, true));
     tap_key(&mut rt, &src, -2);
     tap_key(&mut rt, &src, -2);
@@ -258,22 +270,23 @@ fn control_mode_toggle_chain_rows_and_persist() {
     let ids: Vec<u8> = rt.machine.shell_options.iter().map(|r| r.id).collect();
     assert!(ids.contains(&PREF_AUTO_BATTLE), "行集出现自动战斗行（触屏）");
     let opts = rt.machine.options.as_ref().unwrap();
-    assert_eq!(opts.len(), 7, "设置页重建：原两行 + 壳 5 行");
-    assert_eq!(opts.highlight_index(), 5, "高亮停在操控方式行（spec §8）");
+    assert_eq!(opts.len(), 5, "触屏重建：原两行 + 壳 3 行（按键两行隐藏——件1 裁定）");
+    assert_eq!(opts.highlight_index(), 3, "高亮停在操控方式行（触屏行序 2/3/4——件1）");
     let s = AppSettings::load(&cfg);
     assert_eq!(s.control_mode, game_shell_common::settings::ControlMode::Touch, "落盘 control_mode=touch");
-    // 翻「自动战斗」（第 7 行，下标 6）⇒ 同拍落盘
+    // 翻「自动战斗」（触屏行序下标 4）⇒ 同拍落盘
     tap_key(&mut rt, &src, -2);
     rt.step(&src, &[KeyAction::Press(-5), KeyAction::Release], Vec::new(), Vec::new());
     assert!(AppSettings::load(&cfg).auto_battle, "自动战斗同拍落盘");
     assert!(rt.scene.is_none() || rt.scene.as_ref().unwrap().auto_battle, "场景侧 core 字段同步（无场景时跳过）");
-    // 切回摇杆：第 5 行消失、auto_battle 保留（上移 = -1）
+    // 切回摇杆：按键两行回归、自动战斗**常显保留**（件1 裁定；上移 = -1）
     tap_key(&mut rt, &src, -1);
-    assert_eq!(rt.machine.options.as_ref().unwrap().highlight_index(), 5, "回到操控方式行");
+    assert_eq!(rt.machine.options.as_ref().unwrap().highlight_index(), 3, "回到操控方式行");
     rt.step(&src, &[KeyAction::Press(-5), KeyAction::Release], Vec::new(), Vec::new());
     let ids: Vec<u8> = rt.machine.shell_options.iter().map(|r| r.id).collect();
-    assert!(!ids.contains(&PREF_AUTO_BATTLE), "切回摇杆 ⇒ 自动战斗行消失");
-    assert_eq!(rt.machine.options.as_ref().unwrap().len(), 6, "页重建回 6 行");
+    assert!(ids.contains(&PREF_AUTO_BATTLE), "自动战斗常显（件1 裁定覆盖 T3.2）");
+    assert!(ids.contains(&PREF_HAPTIC) && ids.contains(&PREF_CLICK), "摇杆：按键两行回归");
+    assert_eq!(rt.machine.options.as_ref().unwrap().len(), 7, "页重建回 7 行（pad 五壳行——自动战斗常显）");
     drive(&mut rt, &src, &[]); // 再走一拍：行集已无自动战斗行 ⇒ 缺行同步路径（保 rt 值）
     let s = AppSettings::load(&cfg);
     assert_eq!(s.control_mode, game_shell_common::settings::ControlMode::Pad, "落盘回摇杆");

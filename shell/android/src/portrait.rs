@@ -468,11 +468,15 @@ pub fn paint_toolbar(
         draw_btn(&tb.right, label(f), sides[1].1);
     }
     if !mid.is_empty() {
-        let n = mid.len() as i32;
-        let w = tb.mid.w / n;
+        let n = mid.len();
         for (i, (f, _)) in mid.iter().enumerate() {
-            let r = Rect { x: tb.mid.x + w * i as i32, y: tb.mid.y, w, h: tb.mid.h };
-            draw_btn(&r, label(*f), false);
+            // 【件2 单源】分格=controls_ui::toolbar_cell_rect（与 hit 共调）
+            let (x, y, w, h) = game_shell_common::controls_ui::toolbar_cell_rect(
+                (tb.mid.x, tb.mid.y, tb.mid.w, tb.mid.h),
+                n,
+                i,
+            );
+            draw_btn(&Rect { x, y, w, h }, label(*f), false);
         }
     }
 }

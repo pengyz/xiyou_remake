@@ -5093,13 +5093,13 @@ impl GameScene {
         self.shell_options = rows;
         if self.game_mode == GameMode::About {
             if let Some(old) = self.options.take() {
-                let h = old.highlight;
+                let anchor = old.highlight_anchor(); // 【件1】随行 id 跟随
                 let mut list = crate::menu_family::OptionList::with_shell_rows(
                     self.bgm.sound_enabled,
                     self.minimap_enabled,
                     &self.shell_options,
                 );
-                list.highlight = h.clamp(0, list.len() as i32 - 1);
+                list.highlight = list.resolve_highlight(anchor) as i32;
                 self.options = Some(list);
             }
         }
@@ -7904,6 +7904,7 @@ fn m_003_clip5(g: &mut SoftGraphics<'_>, img: &ArgbImage, x: i32, y: i32, src_x:
 /// 场景存档槽表（mode 7）装备框接线：paint_slot_list 图标分支（entityTypeImage
 /// 反查 sptarm）+ markSlotEntry 装备拷贝（a.java:9013-9014）。像素判据见
 /// [`crate::menu_family::slot_equip_test_support`]。
+#[cfg(test)]
 mod slot_equip_scene_tests {
     use crate::render::FontMetrics;
     use super::*;
@@ -10538,7 +10539,7 @@ mod pointer_seam_tests {
     fn in_game_settings_shell_rows_toggle_only_shell_options() {
         let rows: Vec<crate::menu_family::ShellOption> = [(1u8, "开屏画面", false), (2, "按键震动", true), (3, "按键音", true)]
             .into_iter()
-            .map(|(id, l, checked)| crate::menu_family::ShellOption { id, label: l.encode_utf16().collect(), checked })
+            .map(|(id, l, checked)| crate::menu_family::ShellOption { id, label: l.encode_utf16().collect(), checked, value_text: None })
             .collect();
         let mut sc = scene((2, 2), &[]);
         sc.apply_layout(crate::layout::Layout::modern(18, 18));

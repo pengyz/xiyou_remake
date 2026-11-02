@@ -31,18 +31,34 @@ pub const PREF_AUTO_BATTLE: u8 = 5;
 /// 【STAGE-B-006】设置 → 附加行：开屏画面 / 按键震动 / 按键音（排在原版"声音、小地图"之后）。
 /// 【计划 3 T3.2】恒含第 4 行「操控方式」（勾=触屏）；触屏模式再含第 5 行「自动战斗」（行增减走 replace_shell_rows）。
 pub fn shell_rows(s: &AppSettings) -> Vec<game_core::menu_family::ShellOption> {
-    // 【计划 3 T3.2】操控方式行恒在（勾=触屏）；自动战斗行仅触屏模式（spec §8，行增减走 replace_shell_rows）
-    let mut rows: Vec<(u8, &str, bool)> = vec![
-        (PREF_SPLASH, "开屏画面", s.show_splash),
-        (PREF_HAPTIC, "按键震动", s.key_haptic),
-        (PREF_CLICK, "按键音", s.key_click),
-        (PREF_CONTROL_MODE, "操控方式", s.control_mode == ControlMode::Touch),
+    // 【件1 触屏 UX 2026-11-02 用户裁定】
+    // - 操控方式=值循环行（"摇杆模式"/"触屏模式"文本，替代勾叉符号）；
+    // - 触屏模式：按键震动/按键音两行**完全隐藏**（缺席=不渲染+导航天然跳过）；
+    //   摇杆模式回归；
+    // - 自动战斗=通用常显（T3.2"仅触屏"被本裁定覆盖——证伪更正见 commit）。
+    let mut rows: Vec<(u8, &str, bool, Option<String>)> = vec![
+        (PREF_SPLASH, "开屏画面", s.show_splash, None),
     ];
-    if s.control_mode == ControlMode::Touch {
-        rows.push((PREF_AUTO_BATTLE, "自动战斗", s.auto_battle));
+    if s.control_mode == ControlMode::Pad {
+        rows.push((PREF_HAPTIC, "按键震动", s.key_haptic, None));
+        rows.push((PREF_CLICK, "按键音", s.key_click, None));
     }
+    rows.push((
+        PREF_CONTROL_MODE,
+        "操控方式",
+        s.control_mode == ControlMode::Touch,
+        Some(
+            (if s.control_mode == ControlMode::Touch { "触屏模式" } else { "摇杆模式" }).to_string(),
+        ),
+    ));
+    rows.push((PREF_AUTO_BATTLE, "自动战斗", s.auto_battle, None));
     rows.into_iter()
-        .map(|(id, label, checked)| game_core::menu_family::ShellOption { id, label: label.encode_utf16().collect(), checked })
+        .map(|(id, label, checked, value)| game_core::menu_family::ShellOption {
+            id,
+            label: label.encode_utf16().collect(),
+            checked,
+            value_text: value.map(|v| v.encode_utf16().collect()),
+        })
         .collect()
 }
 
@@ -474,6 +490,29 @@ impl Runtime {
         for (tx_, ty_) in taps {
             let hit = self.machine.pointer_hit(tx_ as i32, ty_ as i32);
             log_input(&format!("pointer_hit({tx_:.0},{ty_:.0})→{hit:?}"));
+            // 【件3 两段式 2026-11-02 用户裁定】读档/存档槽页：tap1=选中看信息
+            // （预览区+「再点加载」微提示）；tap2 同行=执行；点别行/行外=换选/清选
+            // 不执行（防误触）。对齐 cfcc9ad 点怪先例；其余面维持直通（审计见 commit）。
+            if self.machine.mode == GameMode::EquipDetail {
+                if let Some(sl) = self.machine.slots.as_mut() {
+                    match hit {
+                        game_core::scene::PointerHit::Row { index, .. } => {
+                            let exec = sl.tap_row_two_stage(index as usize);
+                            log_input(&format!("slot tap({tx_:.0},{ty_:.0}) row={index} exec={exec}"));
+                            if exec {
+                                batch.push(KeyAction::Press(-5)); // tap2 同行=执行（加载）
+                            } else {
+                                self.machine.select_row(index); // tap1=选中
+                            }
+                        }
+                        _ => {
+                            sl.interrupt_select(); // 点行外=打断（清选不执行）
+                            log_input("slot tap outside → interrupt_select");
+                        }
+                    }
+                    continue;
+                }
+            }
             match hit {
                 game_core::scene::PointerHit::Row { index, confirm_key } => {
                     self.machine.select_row(index);
@@ -491,6 +530,12 @@ impl Runtime {
         let key = boot_key_from_batch(&batch);
         if !batch.is_empty() {
             log_input(&format!("tick batch={batch:?} → key={key}"));
+        }
+        // 【件3】按键/手势打断：清槽选中不执行（滑动=换选不执行语义）
+        if key != 0 {
+            if let Some(sl) = self.machine.slots.as_mut() {
+                sl.interrupt_select();
+            }
         }
         // 读档列表同步真源（win 壳 step 同口径：会话内保存后返回主菜单即可见）
         self.machine.preset_stores = self.stores.clone();
@@ -688,5 +733,42 @@ impl Runtime {
             Some(sc) => sc.paint(g, &self.game_assets.as_ref().unwrap().tileset),
             None => self.machine.paint(g),
         }
+    }
+}
+
+#[cfg(test)]
+mod touch_ux_rows_tests {
+    //! 【件1】设置行：值循环文本/触屏隐藏两行/自动战斗常显。
+    use super::*;
+    use game_shell_common::settings::{AppSettings, ControlMode};
+
+    #[test]
+    fn control_mode_row_shows_value_text() {
+        let mut s = AppSettings::default();
+        s.control_mode = ControlMode::Touch;
+        let rows = shell_rows(&s);
+        let cm = rows.iter().find(|r| r.id == PREF_CONTROL_MODE).expect("操控方式行在");
+        assert_eq!(String::from_utf16_lossy(cm.value_text.as_ref().unwrap()), "触屏模式");
+        let mut s2 = AppSettings::default();
+        s2.control_mode = ControlMode::Pad;
+        let rows2 = shell_rows(&s2);
+        let cm2 = rows2.iter().find(|r| r.id == PREF_CONTROL_MODE).unwrap();
+        assert_eq!(String::from_utf16_lossy(cm2.value_text.as_ref().unwrap()), "摇杆模式");
+    }
+
+    #[test]
+    fn touch_mode_hides_key_rows_auto_battle_always() {
+        // 触屏：按键震动/按键音缺席；自动战斗在；摇杆：两行回归+自动战斗仍在（通用常显）
+        let mut t = AppSettings::default();
+        t.control_mode = ControlMode::Touch;
+        let tr = shell_rows(&t);
+        assert!(tr.iter().all(|r| r.id != PREF_HAPTIC && r.id != PREF_CLICK), "触屏隐藏两行");
+        assert!(tr.iter().any(|r| r.id == PREF_AUTO_BATTLE), "自动战斗常显");
+        let mut p = AppSettings::default();
+        p.control_mode = ControlMode::Pad;
+        let pr = shell_rows(&p);
+        assert!(pr.iter().any(|r| r.id == PREF_HAPTIC), "摇杆回归按键震动");
+        assert!(pr.iter().any(|r| r.id == PREF_CLICK), "摇杆回归按键音");
+        assert!(pr.iter().any(|r| r.id == PREF_AUTO_BATTLE), "自动战斗摇杆也在（通用常显）");
     }
 }
