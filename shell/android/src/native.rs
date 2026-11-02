@@ -384,6 +384,36 @@ pub fn scene_tap(sc: &mut game_core::scene::GameScene, x: i32, y: i32) -> Option
         }
         return None;
     }
+    // 【批三 两段式】道具使用/装备替换（ItemPanel 行域）+场景侧存档/读档槽
+    // （SaveSlot/EquipDetail，批二"槽=两段式"同则）：tap1=选中+预览、tap2 同行
+    // =执行、点行外=打断清选不执行。其余面维持直通（审计表豁免口径）。
+    use game_core::enums::GameMode as GM;
+    let two_stage_mode = matches!(
+        sc.game_mode,
+        GM::ItemPanel | GM::SaveSlot | GM::EquipDetail
+    );
+    if two_stage_mode {
+        match sc.pointer_hit(x, y) {
+            game_core::scene::PointerHit::Row { index, confirm_key } => {
+                let exec = if matches!(sc.game_mode, GM::ItemPanel) {
+                    sc.ui_tap_two_stage(index as usize)
+                } else {
+                    sc.slot.tap_row_two_stage(index as usize)
+                };
+                log_input(&format!(
+                    "ui tap({x},{y}) mode={:?} row={index} exec={exec}",
+                    sc.game_mode
+                ));
+                return if exec { Some(confirm_key) } else { None };
+            }
+            _ => {
+                sc.ui_interrupt();
+                sc.slot.interrupt_select();
+                log_input(&format!("ui tap({x},{y}) outside → interrupt mode={:?}", sc.game_mode));
+                return None;
+            }
+        }
+    }
     if let game_core::scene::PointerHit::Row { index, confirm_key } = sc.pointer_hit(x, y) {
         sc.select_row(index);
         return Some(confirm_key);

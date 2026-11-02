@@ -650,6 +650,13 @@ impl Runtime {
     /// 场景拍（win 壳 step Game 臂同构）：点按/键按到达序投递 → 存档写穿 → tick
     /// （panic 捕获=停拍留帧）→ SKY_WAR 写穿 → kind7 退出换回标题。
     fn step_scene(&mut self, keys: &[KeyAction], taps: Vec<(f32, f32)>) {
+        // 【批三】按键/手势打断：清两段式选中不执行（滑动=换选不执行语义）
+        if !keys.is_empty() {
+            if let Some(sc) = self.scene.as_mut() {
+                sc.ui_interrupt();
+                sc.slot.interrupt_select();
+            }
+        }
         let Some(sc) = self.scene.as_mut() else { return };
         // 【复核 T4-R1】短按合流（先于外部 taps）
         let mut taps: Vec<(f32, f32)> = taps;

@@ -530,6 +530,9 @@ pub struct GameScene {
     /// 【T2】战斗段快照（撞敌挂起时记账，战斗终结入 CombatStroke）
     /// 撤销快照（实体槽, 型, 复活血, 战前血金, 战前整格实体, 开战时实体数——战斗期间实体表增长 = 不可逆生成，见 BUG-045）
     battle_undo_snap: Option<(usize, i32, i32, crate::undo_journal::PlayerVitals, entity::Entity, usize)>,
+    /// 【批三 2026-11-02】道具使用/装备替换两段式选中（ItemPanel 行域；cfcc9ad
+    /// 先例）：tap1=选中看预览（属性/道具效果），tap2 同行=执行，打断=不执行。
+    pub ui_selected: Option<usize>,
     /// 【STAGE-B-008】自动战斗（触屏模式设置项，壳写入；默认 false = 点怪先选中、再点开战）
     pub auto_battle: bool,
     /// 【STAGE-B-008】点地目标标记（走向 / 撞向的格；路线与撞击结束即清）
@@ -945,6 +948,7 @@ impl GameScene {
         floor_assets: Vec<Option<FloorAssets>>,
     ) -> Result<GameScene, String> {
         let mut scene = GameScene {
+            ui_selected: None,
             global: crate::save::GlobalSave::default_7(),
             global_dirty: false,
             view: GameView::from_maplv(maplv, player_px, player_py, crate::game_view::ViewDims::classic())?,
@@ -10143,6 +10147,36 @@ pub mod scene_test_support {
         );
     }
 
+    #[test]
+    fn item_use_two_stage_sequence() {
+        // 【批三】道具使用面三段：tap1=选中+预览、tap2 同行=执行、打断=不执行。
+        let mut sc = scene((2, 2), &[]);
+        sc.game_mode = GameMode::ItemPanel;
+        assert!(!sc.ui_tap_two_stage(3), "tap1=选中不执行");
+        assert_eq!(sc.ui_selected, Some(3), "选中态");
+        assert!(sc.ui_tap_two_stage(3), "tap2 同行=执行");
+        assert_eq!(sc.ui_selected, None, "执行后清选中");
+        sc.ui_selected = Some(1);
+        sc.ui_interrupt();
+        assert_eq!(sc.ui_selected, None, "打断清选中不执行");
+        assert!(!sc.ui_tap_two_stage(0), "换行 tap1");
+        assert!(!sc.ui_tap_two_stage(2), "换行=换选不执行");
+        assert_eq!(sc.ui_selected, Some(2));
+    }
+
+    #[test]
+    fn equip_replace_two_stage_sequence() {
+        // 【批三】装备替换面三段（ItemPanel 装备行域——同机制另一面钉）
+        let mut sc = scene((2, 2), &[]);
+        sc.game_mode = GameMode::ItemPanel;
+        assert!(!sc.ui_tap_two_stage(7), "装备格 tap1=选中");
+        assert_eq!(sc.ui_selected, Some(7));
+        assert!(sc.ui_tap_two_stage(7), "装备格 tap2=替换执行");
+        sc.ui_selected = Some(7);
+        sc.ui_interrupt();
+        assert_eq!(sc.ui_selected, None, "打断不替换");
+    }
+
     pub fn scene(player: (i32, i32), ents: &[(u8, i32, i32)]) -> GameScene {
         let width_table = numbers(include_str!("../tests/fixtures/type_width_px.txt"));
         let walk = numbers(include_str!("../tests/fixtures/tile_walkability.txt"));
@@ -10376,6 +10410,23 @@ impl GameScene {
             }
             _ => PointerHit::None,
         }
+    }
+
+    /// 【批三】道具使用/装备替换两段式：tap1=选中（返回 false 不执行；光标+预览
+    /// 随 select_row 可见）；tap2 同行=执行（true）；点别行=换选不执行。
+    pub fn ui_tap_two_stage(&mut self, index: usize) -> bool {
+        if self.ui_selected == Some(index) {
+            self.ui_selected = None;
+            return true;
+        }
+        self.ui_selected = Some(index);
+        self.select_row(index as i32);
+        false
+    }
+
+    /// 【批三】打断（滑动/按键/点行外）：清选中不执行。
+    pub fn ui_interrupt(&mut self) {
+        self.ui_selected = None;
     }
 
     /// 指针选行（hover 高亮/点击对位）：只动光标+滚窗同步，无其他状态变化（③-2/b）。
