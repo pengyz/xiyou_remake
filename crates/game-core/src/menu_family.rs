@@ -1140,8 +1140,8 @@ pub(crate) mod slot_equip_test_support {
     /// 合成 sptarm 的逐张纯色（互异，且异于框填充色/白字/黑底）。
     // 判定c（测试引用中）：scene.rs:7962 scene_with（release 亦编译的测试岛 helper）经
     // synthetic_sptarm 引用本表；scene.rs 归 UX 批，岛挂门后本 allow 可撤。
-    #[allow(dead_code)]
-    pub const ICON_COLORS: [u32; 10] = [
+    /// 【2026-11-02 实归】原 #[allow(dead_code)] 撤（岛 slot_equip_scene_tests 已挂 #[cfg(test)]——临时压警跨批滞留纠正，复核C 黄①）。
+pub const ICON_COLORS: [u32; 10] = [
         0xFFFF0000, 0xFF00FF00, 0xFF0000FF, 0xFFFFFF00, 0xFFFF00FF, 0xFF00FFFF, 0xFF800000,
         0xFF008000, 0xFF000080, 0xFF808000,
     ];
@@ -1163,7 +1163,6 @@ pub(crate) mod slot_equip_test_support {
     /// 尺寸逐张不同（居中偏移逐张可辨）。
     // 判定c（测试引用中）：release 侧活引用=scene.rs slot_equip_scene_tests 的
     // scene_with 等 helper（跨文件耦合，scene.rs 归 UX 批）；同上，岛挂门后撤 allow。
-    #[allow(dead_code)]
     pub fn synthetic_sptarm() -> Vec<ArgbImage> {
         (0..10)
             .map(|i| {
@@ -1400,6 +1399,7 @@ pub struct ShellOption {
     /// 行文字（UTF-16，字体绘制，不需美术）。
     pub label: Vec<u16>,
     pub checked: bool,
+    /// 【2026-11-02 注记·复核C】本字段为**有意变更**（壳行设置面 classic/触屏共用——批交付物本体，非"仅 additive"；classic 像素保真游戏帧零漂移=35/35 帧哈希旁证）。措辞三处更正之一（value_text/绘制分支/锚语义）。
     /// 【件1 触屏 UX 2026-11-02】值循环行显示文本（Some="摇杆模式"/"触屏模式"…）
     /// ——行内显示当前值**文本**替代勾叉符号；循环语义归壳（toggle→壳读 id 重建行）。
     /// 钉覆盖（复核A 黄③集中注记）：value_row_paints_value_text_not_checkbox（本
@@ -1531,6 +1531,7 @@ impl OptionList {
         }
     }
 
+    /// 【2026-11-02 注记·复核C】锚语义=h.clamp→id 跟随=**有意行为变更**（件1 用户裁定"保持在操控方式行"；非 additive 措辞面）——措辞三处更正之三。
     /// 【件1 高亮锚】重建跟随标识：core 行按位置、壳行按 id（删/增行致 idx 漂移
     /// ——"保持在操控方式行"须随 id）。
     pub fn highlight_anchor(&self) -> HighlightAnchor {
@@ -1613,6 +1614,7 @@ impl OptionList {
             lx += 2 + font.string_width(label);
             if let Some(v) = self.row_value(i) {
                 // 【件1】值循环行：行内显示当前值文本（替代勾叉符号）
+                // 【2026-11-02 注记·复核C】半加法=有意变更（else 臂=旧码原文逐字不变；值行仅新行触发）——措辞三处更正之二。
                 g.set_color(crate::layout::WHITE);
                 g.draw_string(v, lx, ry + 4, 0);
             } else {
