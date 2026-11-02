@@ -398,7 +398,7 @@ pub fn scene_tap(sc: &mut game_core::scene::GameScene, x: i32, y: i32) -> Option
                 let exec = if matches!(sc.game_mode, GM::ItemPanel) {
                     sc.ui_tap_two_stage(index as usize)
                 } else {
-                    sc.slot.tap_row_two_stage(index as usize)
+                    sc.slot.tap_row_two_stage(index as usize, sc.ui_frame)
                 };
                 log_input(&format!(
                     "ui tap({x},{y}) mode={:?} row={index} exec={exec}",
@@ -461,6 +461,10 @@ pub struct ShellWiring {
     pub toolbar_mid_n: usize,
     /// 【黄④】触控区描边开关（debug 常驻样式可关——量产/帧哈希前收审美）
     pub overlay_debug: bool,
+    /// 【Y2】滑动打断计数（滑动≠tap——落点 Up 不得当点按；路由消费为打断）
+    pub swipe_interrupts: u32,
+    /// 【Y2】按下位记账（id,x,y——Up 位移判滑动）。
+    pub down_marks: Vec<(i32, f32, f32)>,
     /// 【问题2b】窗口/缓冲真实像素尺寸（INIT_WINDOW 实测——触点反变换分母；
     /// 旧误传逻辑尺寸 ⇒ 点击全落侧余负区=触屏全链不通根因）
     pub window_size: (u32, u32),
@@ -512,6 +516,8 @@ impl ShellWiring {
             surface: logical_canvas(),
             pending_taps: Vec::new(),
             overlay_debug: true,
+            swipe_interrupts: 0,
+            down_marks: Vec::new(),
             window_size: (0, 0),
             resolution: None,
             title_mode: false,
@@ -747,8 +753,29 @@ impl ShellWiring {
             return Vec::new();
         }
         let keys = self.on_touch(ev);
-        if matches!(ev.phase, TouchPhase::Up) && ev.x >= 0.0 && ev.y >= 0.0 && keys.is_empty() {
-            self.pending_taps.push((ev.x, ev.y));
+        // 【Y2】滑动=打断：Up 位移 ≥ 阈值不当点按（防误触链——读档面滑动被
+        // 丢弃旧口径致误触）；Down 位记账；未滑 Up 才入 taps。
+        match ev.phase {
+            TouchPhase::Down => {
+                self.down_marks.retain(|(i, _, _)| *i != ev.id);
+                self.down_marks.push((ev.id, ev.x, ev.y));
+            }
+            TouchPhase::Up => {
+                let moved = self
+                    .down_marks
+                    .iter()
+                    .find(|(i, _, _)| *i == ev.id)
+                    .map(|(_, dx, dy)| (ev.x - dx).abs() + (ev.y - dy).abs())
+                    .unwrap_or(0.0);
+                self.down_marks.retain(|(i, _, _)| *i != ev.id);
+                if moved >= SWIPE_MIN_LOGICAL {
+                    self.swipe_interrupts += 1;
+                    log_input(&format!("swipe up moved={moved:.0} → interrupt（Y2）"));
+                } else if ev.x >= 0.0 && ev.y >= 0.0 && keys.is_empty() {
+                    self.pending_taps.push((ev.x, ev.y));
+                }
+            }
+            _ => {}
         }
         keys
     }
@@ -983,6 +1010,9 @@ impl Default for ShellWiring {
         Self::new()
     }
 }
+
+/// 【Y2】滑动判定阈值（逻辑单位，位移 L1）。
+pub const SWIPE_MIN_LOGICAL: f32 = 12.0;
 
 /// 【件2 触控区可视化】叠加框的态（框=当前态**生效**的命中面，单源）。
 #[derive(Clone, Copy, Debug)]

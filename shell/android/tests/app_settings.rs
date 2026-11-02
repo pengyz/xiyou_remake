@@ -660,3 +660,52 @@ fn t8_undo_zone_removed_on_android() {
     assert_eq!(rt.scene.as_ref().unwrap().undo.len(), before, "右上短按不触发撤销（热区已去除）");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// 【复核B R2+Y7】槽页两段式端到端：row_hit x 向（行外 x=打断）+tap1/tap2 执行链
+/// （valid 槽 ⇒ slot_loaded 可观测）+slots=None 防御拒绝（不静默回落直通）。
+#[test]
+fn slot_two_stage_route_x_aware_and_none_defense() {
+    let dir = tmp("twostage");
+    let (mut rt, src) = runtime_with(&dir, Vec::new());
+    drive(&mut rt, &src, &[]);
+    title_open(&mut rt, &src, 1); // 继续游戏 → EquipDetail（读档槽）
+    assert_eq!(rt.machine.mode, GameMode::EquipDetail, "读档槽页");
+    let layout = rt.machine.layout.clone();
+    let (ry, rh) = rt.machine.slots.as_ref().unwrap().row_band(0, &layout);
+    let (cx, cy) = (layout.screen_w / 2, ry + rh / 2);
+    // tap1 行内=选中不执行
+    rt.step(&src, &[], Vec::new(), vec![(cx as f32, cy as f32)]);
+    let sel = rt.machine.slots.as_ref().unwrap().selected.map(|(r, _)| r);
+    assert_eq!(sel, Some(0), "tap1=选中（执行位未触发）");
+    assert!(rt.machine.slot_loaded.is_none(), "tap1 不执行");
+    // 【R2】x 行外=打断（不执行）——旧 pointer_hit 全宽命中漏此
+    rt.step(&src, &[], Vec::new(), vec![(0.0, cy as f32)]);
+    assert_eq!(rt.machine.slots.as_ref().unwrap().selected, None, "x 行外=打断清选");
+    // tap1+tap2（超阈值）=执行（valid 槽 ⇒ slot_loaded 可观测）
+    rt.machine.slots.as_mut().unwrap().valid[0] = true;
+    rt.step(&src, &[], Vec::new(), vec![(cx as f32, cy as f32)]);
+    rt.step(&src, &[], Vec::new(), vec![]); // 步钟推进（≥阈值）
+    rt.step(&src, &[], Vec::new(), vec![]);
+    rt.step(&src, &[], Vec::new(), vec![(cx as f32, cy as f32)]);
+    assert_eq!(rt.machine.slot_loaded, Some(0), "tap2 同行=执行（加载）");
+    // 【Y7】slots=None 防御：不静默回落直通（REJECTED、无加载）
+    rt.machine.slot_loaded = None;
+    rt.machine.slots = None;
+    rt.step(&src, &[], Vec::new(), vec![(cx as f32, cy as f32)]);
+    assert!(rt.machine.slot_loaded.is_none(), "slots=None 拒绝（Y7 防御）");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// 【Y2】滑动≠tap：读档面滑动 Up 不当点按（防误触链）——wiring 滑动记账打断。
+#[test]
+fn swipe_is_not_tap_on_slot_page() {
+    use game_android::input::{TouchEvent, TouchPhase};
+    use game_android::native::ShellWiring;
+    let mut w = ShellWiring::new();
+    let d = TouchEvent { id: 1, phase: TouchPhase::Down, x: 100.0, y: 100.0 };
+    let up = TouchEvent { id: 1, phase: TouchPhase::Up, x: 100.0, y: 140.0 }; // 位移 40≥12
+    w.on_touch_event(&d);
+    w.on_touch_event(&up);
+    assert_eq!(w.pending_taps.len(), 0, "滑动 Up 不入 taps");
+    assert!(w.swipe_interrupts >= 1, "滑动记为打断（Y2）");
+}

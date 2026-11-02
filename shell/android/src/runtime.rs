@@ -138,6 +138,8 @@ pub struct Runtime {
     /// vp 短按产生的点按（逻辑坐标；step_scene / step_boot 与外部 taps 合流——复核 T4-R1：
     /// 首版只写不读致竖屏点地/Boot 页点行全断，改 Vec 保多指序）。
     pub pending_vp_taps: Vec<(f32, f32)>,
+    /// 【Y1】步序钟（两段式 tap2 阈值判定）。
+    pub step_no: u64,
     /// 【计划 3 T5】工具栏钮当前 Action（每拍自 controls() 同步；HostState 桥给 wiring 绘制/命中）。
     pub toolbar_side_left: Option<(game_core::controls::FunctionId, game_core::controls::Action)>,
     pub toolbar_side_right: Option<(game_core::controls::FunctionId, game_core::controls::Action)>,
@@ -177,6 +179,7 @@ impl Runtime {
             vp_track: std::collections::HashMap::new(),
             pending_vp_touches: Vec::new(),
             pending_vp_taps: Vec::new(),
+            step_no: 0,
             toolbar_side_left: None,
             toolbar_side_right: None,
             toolbar_mid: Vec::new(),
@@ -492,6 +495,7 @@ impl Runtime {
         gestures: Vec<TitleGesture>,
         taps: Vec<(f32, f32)>,
     ) {
+        self.step_no += 1; // 【Y1】步序钟
         // 【复核 T4-R1】vp 短按合流（Boot 读档/设置页点行走 pointer_hit）
         let mut taps: Vec<(f32, f32)> = taps;
         taps.extend(std::mem::take(&mut self.pending_vp_taps));
@@ -508,24 +512,32 @@ impl Runtime {
             // （预览区+「再点加载」微提示）；tap2 同行=执行；点别行/行外=换选/清选
             // 不执行（防误触）。对齐 cfcc9ad 点怪先例；其余面维持直通（审计见 commit）。
             if self.machine.mode == GameMode::EquipDetail {
-                if let Some(sl) = self.machine.slots.as_mut() {
-                    match hit {
-                        game_core::scene::PointerHit::Row { index, .. } => {
-                            let exec = sl.tap_row_two_stage(index as usize);
-                            log_input(&format!("slot tap({tx_:.0},{ty_:.0}) row={index} exec={exec}"));
-                            if exec {
-                                batch.push(KeyAction::Press(-5)); // tap2 同行=执行（加载）
-                            } else {
-                                self.machine.select_row(index); // tap1=选中
-                            }
-                        }
-                        _ => {
-                            sl.interrupt_select(); // 点行外=打断（清选不执行）
-                            log_input("slot tap outside → interrupt_select");
+                // 【复核B R2】命中改 row_hit（x+y 双向——pointer_hit 忽略 x 全宽
+                // 命中致"点行外=打断"仅 y 向成立）；【Y7】slots 缺位=防御性拒绝
+                // （不静默回落直通——语义定死：无槽页面不接受槽行 tap）。
+                let row = self.machine.slots.as_ref().and_then(|sl| {
+                    sl.row_hit(tx_ as i32, ty_ as i32, &self.machine.layout)
+                });
+                match (self.machine.slots.is_some(), row) {
+                    (false, _) => {
+                        log_input(&format!("slot tap({tx_:.0},{ty_:.0}) REJECTED: slots=None（Y7 防御）"));
+                    }
+                    (true, Some(index)) => {
+                        let sl = self.machine.slots.as_mut().unwrap();
+                        let exec = sl.tap_row_two_stage(index, self.step_no);
+                        log_input(&format!("slot tap({tx_:.0},{ty_:.0}) row={index} exec={exec}"));
+                        if exec {
+                            batch.push(KeyAction::Press(-5)); // tap2 同行=执行（加载）
+                        } else {
+                            self.machine.select_row(index as i32); // tap1=选中
                         }
                     }
-                    continue;
+                    (true, None) => {
+                        self.machine.slots.as_mut().unwrap().interrupt_select();
+                        log_input(&format!("slot tap({tx_:.0},{ty_:.0}) outside → interrupt（R2 x 向）"));
+                    }
                 }
+                continue;
             }
             match hit {
                 game_core::scene::PointerHit::Row { index, confirm_key } => {
@@ -650,6 +662,7 @@ impl Runtime {
     /// 场景拍（win 壳 step Game 臂同构）：点按/键按到达序投递 → 存档写穿 → tick
     /// （panic 捕获=停拍留帧）→ SKY_WAR 写穿 → kind7 退出换回标题。
     fn step_scene(&mut self, keys: &[KeyAction], taps: Vec<(f32, f32)>) {
+        self.step_no += 1; // 【Y1】步序钟
         // 【批三】按键/手势打断：清两段式选中不执行（滑动=换选不执行语义）
         if !keys.is_empty() {
             if let Some(sc) = self.scene.as_mut() {

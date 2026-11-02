@@ -668,8 +668,12 @@ pub struct SlotSelect {
     pub gold: [i32; 6],
     pub weapon: [i8; 6],
     pub armor: [i8; 6],
-    /// 【件3 两段式】触屏选中（tap1=选中看信息；tap2 同行=执行；打断/滑动=换选不执行）
-    pub selected: Option<usize>,
+    /// 【Y3】提示词根（读档="加载"/存档="保存"——页面入口设置）
+    pub retry_verb: &'static str,
+    /// 【件3 两段式】触屏选中（tap1=选中看信息；tap2 同行=执行；打断/滑动=换选
+    /// 不执行）——(行, tap1 步序)：【Y1】tap2 须距 tap1 ≥ TWO_STAGE_MIN_STEPS
+    /// （连击/双击=防加载误触阈值）。
+    pub selected: Option<(usize, u64)>,
     /// 读失败落盘触发器（BUG-021）：`load_slot_table` 失败（缺店/空/截断）置位 =
     /// Java markSlotEntry(-1) 的 delete+addRecord 整表落盘（a.java:9000-9001→9026-9052）；
     /// 壳消费 [`SlotSelect::take_parse_dirty`] 回写 MOT_IF。
@@ -679,12 +683,18 @@ pub struct SlotSelect {
 impl SlotSelect {
     /// 【件3】两段式 tap：tap1=选中（返回 false 不执行）；tap2 同行=执行（true）；
     /// 点别行=换选中不执行。触屏语义铁律（对齐 cfcc9ad 点怪先例）。
-    pub fn tap_row_two_stage(&mut self, row: usize) -> bool {
-        if self.selected == Some(row) {
-            self.selected = None;
-            return true;
+    pub fn tap_row_two_stage(&mut self, row: usize, now: u64) -> bool {
+        if let Some((sel, stamp)) = self.selected {
+            if sel == row {
+                if now.saturating_sub(stamp) >= TWO_STAGE_MIN_STEPS {
+                    self.selected = None;
+                    return true;
+                }
+                // 【Y1】连击内 tap2=阈值抑制（不执行、保持选中——防双击加载误触）
+                return false;
+            }
         }
-        self.selected = Some(row);
+        self.selected = Some((row, now));
         self.cursor = row as i32;
         false
     }
@@ -706,9 +716,10 @@ impl SlotSelect {
         self.selected = None;
     }
 
-    /// 【件3】选中行微提示："再点加载"（读档面；未选中=None）。
-    pub fn retry_hint_text(&self) -> Option<Vec<u16>> {
-        self.selected.map(|_| "再点加载".encode_utf16().collect())
+    /// 【件3+Y3】选中行微提示（参数化文案：读档="再点加载"/存档="再点保存"——
+    /// 批三存档面换文案；未选中=None）。
+    pub fn retry_hint_text(&self, verb: &str) -> Option<Vec<u16>> {
+        self.selected.map(|_| format!("再点{verb}").encode_utf16().collect())
     }
 
     /// case 7/8 入口布局（a.java:4354-4366）：度量随入口重算 + 光标/滚动复位。
@@ -733,6 +744,7 @@ impl SlotSelect {
     pub fn new() -> SlotSelect {
         let mut s = SlotSelect {
             cursor: 0,
+            retry_verb: "加载",
             selected: None,
             scroll_top: 0,
             scroll_bottom: 0,
@@ -972,8 +984,8 @@ impl SlotSelect {
                 g.draw_string(&label, cx, y + 2, 17);
             }
             // 【件3】选中行微提示（"再点加载"——两段式 tap1 后可见性告知）
-            if self.selected == Some(row as usize) {
-                if let Some(hint) = self.retry_hint_text() {
+            if matches!(self.selected, Some((r, _)) if r == row as usize) {
+                if let Some(hint) = self.retry_hint_text(self.retry_verb) {
                     g.set_color(crate::layout::SLOT_TEXT_ACTIVE);
                     g.draw_string(&hint, cx + (self.content_w >> 2), y + 2, 17);
                 }
@@ -1353,6 +1365,9 @@ mod slot_equip_tests {
         assert_frame_material_name(&screen, ARMOR_X, FRAME_Y, "boot 甲=0");
     }
 }
+
+/// 【Y1】两段式 tap2 最小间隔（步序单位——防连击误触；≈2 拍）。
+pub const TWO_STAGE_MIN_STEPS: u64 = 2;
 
 /// 【件1 高亮锚】行身份（重建跟随）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2075,31 +2090,37 @@ mod touch_ux_tests {
         let mut s = SlotSelect::new();
         s.reset_entry_layout();
         s.valid[1] = true;
-        // tap1 行1：只选中（执行位=未触发）
-        assert!(!s.tap_row_two_stage(1), "tap1=选中不执行");
-        assert_eq!(s.selected, Some(1), "选中态");
-        // 打断（点别行）：换选中不执行
-        assert!(!s.tap_row_two_stage(2), "换行不执行");
-        assert_eq!(s.selected, Some(2), "选中换行");
-        // tap2 同行=执行
         s.valid[2] = true;
-        assert!(s.tap_row_two_stage(2), "tap2 同行=执行");
+        // tap1 行1：只选中（执行位=未触发）
+        assert!(!s.tap_row_two_stage(1, 10), "tap1=选中不执行");
+        assert_eq!(s.selected.map(|(r, _)| r), Some(1), "选中态");
+        // 【Y1】连击内 tap2=阈值抑制（防双击加载误触）
+        assert!(!s.tap_row_two_stage(1, 10), "连击 tap2 抑制");
+        // 超阈值 tap2=执行
+        assert!(s.tap_row_two_stage(1, 12), "tap2 同行=执行（≥阈值）");
+        assert_eq!(s.selected, None, "执行后清选中");
+        // 打断（点别行）：换选不执行
+        assert!(!s.tap_row_two_stage(2, 20), "换行不执行");
+        assert_eq!(s.selected.map(|(r, _)| r), Some(2), "选中换行");
         // 滑动/打断清选中
-        s.selected = Some(0);
+        s.selected = Some((0, 30));
         s.interrupt_select();
         assert_eq!(s.selected, None, "打断清选中（不执行）");
     }
 
-    /// 【件3】选中行微提示（"再点加载"）——paint 挂点存在性（选中行才显示）。
-    #[test]
     fn slot_selected_row_shows_retry_hint() {
         let s = SlotSelect::new();
-        assert_eq!(s.retry_hint_text().is_some(), false, "未选中=无提示");
+        assert_eq!(s.retry_hint_text(s.retry_verb).is_some(), false, "未选中=无提示");
         let mut s2 = s;
-        s2.selected = Some(0);
+        s2.selected = Some((0, 0));
         assert_eq!(
-            String::from_utf16_lossy(&s2.retry_hint_text().expect("选中行有提示")),
+            String::from_utf16_lossy(&s2.retry_hint_text("加载").expect("选中行有提示")),
             "再点加载"
+        );
+        // 【Y3】词根参数化：存档面="再点保存"
+        assert_eq!(
+            String::from_utf16_lossy(&s2.retry_hint_text("保存").expect("词根参数化")),
+            "再点保存"
         );
     }
 }

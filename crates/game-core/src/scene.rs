@@ -532,7 +532,9 @@ pub struct GameScene {
     battle_undo_snap: Option<(usize, i32, i32, crate::undo_journal::PlayerVitals, entity::Entity, usize)>,
     /// 【批三 2026-11-02】道具使用/装备替换两段式选中（ItemPanel 行域；cfcc9ad
     /// 先例）：tap1=选中看预览（属性/道具效果），tap2 同行=执行，打断=不执行。
-    pub ui_selected: Option<usize>,
+    pub ui_selected: Option<(usize, u64)>,
+    /// 【Y1】两段式步序钟（tick +1；tap2 阈值判定用）。
+    pub ui_frame: u64,
     /// 【STAGE-B-008】自动战斗（触屏模式设置项，壳写入；默认 false = 点怪先选中、再点开战）
     pub auto_battle: bool,
     /// 【STAGE-B-008】点地目标标记（走向 / 撞向的格；路线与撞击结束即清）
@@ -949,6 +951,7 @@ impl GameScene {
     ) -> Result<GameScene, String> {
         let mut scene = GameScene {
             ui_selected: None,
+            ui_frame: 0,
             global: crate::save::GlobalSave::default_7(),
             global_dirty: false,
             view: GameView::from_maplv(maplv, player_px, player_py, crate::game_view::ViewDims::classic())?,
@@ -4340,6 +4343,8 @@ impl GameScene {
     /// parse_dirty（markSlotEntry(-1) 落盘触发器，壳消费回写 MOT_IF）。
     fn enter_menu7(&mut self) {
         self.slot.reset_entry_layout();
+        // 【Y3】提示词根随面：mode7 存档="保存"/mode8 读档="加载"（a.java 语义）
+        self.slot.retry_verb = if self.game_mode == GameMode::SaveSlot { "保存" } else { "加载" };
         self.slot.load_slot_table(self.preset_mot_if.as_deref());
         self.softkeys = (1, 3);
     }
@@ -10153,15 +10158,17 @@ pub mod scene_test_support {
         let mut sc = scene((2, 2), &[]);
         sc.game_mode = GameMode::ItemPanel;
         assert!(!sc.ui_tap_two_stage(3), "tap1=选中不执行");
-        assert_eq!(sc.ui_selected, Some(3), "选中态");
-        assert!(sc.ui_tap_two_stage(3), "tap2 同行=执行");
+        assert_eq!(sc.ui_selected.map(|(r, _)| r), Some(3), "选中态");
+        assert!(!sc.ui_tap_two_stage(3), "【Y1】连击 tap2 抑制");
+        sc.ui_frame += crate::menu_family::TWO_STAGE_MIN_STEPS;
+        assert!(sc.ui_tap_two_stage(3), "tap2 同行=执行（≥阈值）");
         assert_eq!(sc.ui_selected, None, "执行后清选中");
-        sc.ui_selected = Some(1);
+        sc.ui_selected = Some((1, sc.ui_frame));
         sc.ui_interrupt();
         assert_eq!(sc.ui_selected, None, "打断清选中不执行");
         assert!(!sc.ui_tap_two_stage(0), "换行 tap1");
         assert!(!sc.ui_tap_two_stage(2), "换行=换选不执行");
-        assert_eq!(sc.ui_selected, Some(2));
+        assert_eq!(sc.ui_selected.map(|(r, _)| r), Some(2));
     }
 
     #[test]
@@ -10170,9 +10177,10 @@ pub mod scene_test_support {
         let mut sc = scene((2, 2), &[]);
         sc.game_mode = GameMode::ItemPanel;
         assert!(!sc.ui_tap_two_stage(7), "装备格 tap1=选中");
-        assert_eq!(sc.ui_selected, Some(7));
-        assert!(sc.ui_tap_two_stage(7), "装备格 tap2=替换执行");
-        sc.ui_selected = Some(7);
+        assert_eq!(sc.ui_selected.map(|(r, _)| r), Some(7));
+        sc.ui_frame += crate::menu_family::TWO_STAGE_MIN_STEPS;
+        assert!(sc.ui_tap_two_stage(7), "装备格 tap2=替换执行（≥阈值）");
+        sc.ui_selected = Some((7, sc.ui_frame));
         sc.ui_interrupt();
         assert_eq!(sc.ui_selected, None, "打断不替换");
     }
@@ -10415,11 +10423,18 @@ impl GameScene {
     /// 【批三】道具使用/装备替换两段式：tap1=选中（返回 false 不执行；光标+预览
     /// 随 select_row 可见）；tap2 同行=执行（true）；点别行=换选不执行。
     pub fn ui_tap_two_stage(&mut self, index: usize) -> bool {
-        if self.ui_selected == Some(index) {
-            self.ui_selected = None;
-            return true;
+        if let Some((sel, stamp)) = self.ui_selected {
+            if sel == index {
+                if self.ui_frame.saturating_sub(stamp)
+                    >= crate::menu_family::TWO_STAGE_MIN_STEPS
+                {
+                    self.ui_selected = None;
+                    return true;
+                }
+                return false; // 【Y1】连击抑制
+            }
         }
-        self.ui_selected = Some(index);
+        self.ui_selected = Some((index, self.ui_frame));
         self.select_row(index as i32);
         false
     }
