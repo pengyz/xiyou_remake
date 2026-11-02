@@ -244,13 +244,13 @@ fn preset_load_menu_frames_match() {
                         &save,
                     )
                     .unwrap();
-                    sc.backdrop_scroll = m.backdrop.scroll();
+                    sc.render.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
                         sc.menu.menu_cursor = t.cursor;
-                        sc.bob_offset = t.bob;
-                        sc.bob_rising = t.bob_rising;
+                        sc.render.bob_offset = t.bob;
+                        sc.render.bob_rising = t.bob_rising;
                     }
-                    sc.strip_frame = m.strip_frame;
+                    sc.render.strip_frame = m.strip_frame;
                     sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
@@ -445,13 +445,13 @@ fn preset_help_frames_match() {
                         &save,
                     )
                     .unwrap();
-                    sc.backdrop_scroll = m.backdrop.scroll();
+                    sc.render.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
                         sc.menu.menu_cursor = t.cursor;
-                        sc.bob_offset = t.bob;
-                        sc.bob_rising = t.bob_rising;
+                        sc.render.bob_offset = t.bob;
+                        sc.render.bob_rising = t.bob_rising;
                     }
-                    sc.strip_frame = m.strip_frame;
+                    sc.render.strip_frame = m.strip_frame;
                     sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
@@ -646,13 +646,13 @@ fn preset_item13_frames_match() {
                     &save,
                 )
                 .unwrap();
-                sc.backdrop_scroll = m.backdrop.scroll();
+                sc.render.backdrop_scroll = m.backdrop.scroll();
                 if let Some(t) = &m.title {
                     sc.menu.menu_cursor = t.cursor;
-                    sc.bob_offset = t.bob;
-                    sc.bob_rising = t.bob_rising;
+                    sc.render.bob_offset = t.bob;
+                    sc.render.bob_rising = t.bob_rising;
                 }
-                sc.strip_frame = m.strip_frame;
+                sc.render.strip_frame = m.strip_frame;
                 sc.persist.preset_mot_if = m
                     .preset_stores
                     .iter()
@@ -859,13 +859,13 @@ fn preset_itemstack_frames_match() {
                     &save,
                 )
                 .unwrap();
-                sc.backdrop_scroll = m.backdrop.scroll();
+                sc.render.backdrop_scroll = m.backdrop.scroll();
                 if let Some(t) = &m.title {
                     sc.menu.menu_cursor = t.cursor;
-                    sc.bob_offset = t.bob;
-                    sc.bob_rising = t.bob_rising;
+                    sc.render.bob_offset = t.bob;
+                    sc.render.bob_rising = t.bob_rising;
                 }
-                sc.strip_frame = m.strip_frame;
+                sc.render.strip_frame = m.strip_frame;
                 sc.persist.preset_mot_if = m
                     .preset_stores
                     .iter()
@@ -1091,13 +1091,13 @@ fn preset_item2122_frames_match() {
                     &save,
                 )
                 .unwrap();
-                sc.backdrop_scroll = m.backdrop.scroll();
+                sc.render.backdrop_scroll = m.backdrop.scroll();
                 if let Some(t) = &m.title {
                     sc.menu.menu_cursor = t.cursor;
-                    sc.bob_offset = t.bob;
-                    sc.bob_rising = t.bob_rising;
+                    sc.render.bob_offset = t.bob;
+                    sc.render.bob_rising = t.bob_rising;
                 }
-                sc.strip_frame = m.strip_frame;
+                sc.render.strip_frame = m.strip_frame;
                 sc.persist.preset_mot_if = m
                     .preset_stores
                     .iter()
@@ -1326,13 +1326,13 @@ fn preset_item21_frames_match() {
                     &save,
                 )
                 .unwrap();
-                sc.backdrop_scroll = m.backdrop.scroll();
+                sc.render.backdrop_scroll = m.backdrop.scroll();
                 if let Some(t) = &m.title {
                     sc.menu.menu_cursor = t.cursor;
-                    sc.bob_offset = t.bob;
-                    sc.bob_rising = t.bob_rising;
+                    sc.render.bob_offset = t.bob;
+                    sc.render.bob_rising = t.bob_rising;
                 }
-                sc.strip_frame = m.strip_frame;
+                sc.render.strip_frame = m.strip_frame;
                 sc.persist.preset_mot_if = m
                     .preset_stores
                     .iter()
@@ -1540,13 +1540,13 @@ fn preset_itemcymbal_frames_match() {
                     &save,
                 )
                 .unwrap();
-                sc.backdrop_scroll = m.backdrop.scroll();
+                sc.render.backdrop_scroll = m.backdrop.scroll();
                 if let Some(t) = &m.title {
                     sc.menu.menu_cursor = t.cursor;
-                    sc.bob_offset = t.bob;
-                    sc.bob_rising = t.bob_rising;
+                    sc.render.bob_offset = t.bob;
+                    sc.render.bob_rising = t.bob_rising;
                 }
-                sc.strip_frame = m.strip_frame;
+                sc.render.strip_frame = m.strip_frame;
                 sc.persist.preset_mot_if = m
                     .preset_stores
                     .iter()
@@ -1792,13 +1792,13 @@ fn preset_itemboss40_frames_match() {
                         &save,
                     )
                     .unwrap();
-                    sc.backdrop_scroll = m.backdrop.scroll();
+                    sc.render.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
                         sc.menu.menu_cursor = t.cursor;
-                        sc.bob_offset = t.bob;
-                        sc.bob_rising = t.bob_rising;
+                        sc.render.bob_offset = t.bob;
+                        sc.render.bob_rising = t.bob_rising;
                     }
-                    sc.strip_frame = m.strip_frame;
+                    sc.render.strip_frame = m.strip_frame;
                     sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
@@ -2029,13 +2029,13 @@ fn preset_floor2_frames_match() {
                         &save,
                     )
                     .unwrap();
-                    sc.backdrop_scroll = m.backdrop.scroll();
+                    sc.render.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
                         sc.menu.menu_cursor = t.cursor;
-                        sc.bob_offset = t.bob;
-                        sc.bob_rising = t.bob_rising;
+                        sc.render.bob_offset = t.bob;
+                        sc.render.bob_rising = t.bob_rising;
                     }
-                    sc.strip_frame = m.strip_frame;
+                    sc.render.strip_frame = m.strip_frame;
                     sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
@@ -2265,13 +2265,13 @@ fn preset_merchant_frames_match() {
                         &save,
                     )
                     .unwrap();
-                    sc.backdrop_scroll = m.backdrop.scroll();
+                    sc.render.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
                         sc.menu.menu_cursor = t.cursor;
-                        sc.bob_offset = t.bob;
-                        sc.bob_rising = t.bob_rising;
+                        sc.render.bob_offset = t.bob;
+                        sc.render.bob_rising = t.bob_rising;
                     }
-                    sc.strip_frame = m.strip_frame;
+                    sc.render.strip_frame = m.strip_frame;
                     sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
@@ -2493,13 +2493,13 @@ fn floor_crossing_frames_match() {
                         &save,
                     )
                     .unwrap();
-                    sc.backdrop_scroll = m.backdrop.scroll();
+                    sc.render.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
                         sc.menu.menu_cursor = t.cursor;
-                        sc.bob_offset = t.bob;
-                        sc.bob_rising = t.bob_rising;
+                        sc.render.bob_offset = t.bob;
+                        sc.render.bob_rising = t.bob_rising;
                     }
-                    sc.strip_frame = m.strip_frame;
+                    sc.render.strip_frame = m.strip_frame;
                     sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
@@ -2737,10 +2737,10 @@ fn prologue_frames_match() {
                 sc.build_minimap();
                 sc.enter_view();
                 // 连续量移交（Java 单实例语义）：bob/图标条帧/视差滚动/rng LCG 位置
-                sc.bob_offset = machine.bob_offset;
-                sc.bob_rising = machine.bob_rising;
-                sc.strip_frame = machine.strip_frame;
-                sc.backdrop_scroll = machine.backdrop.scroll();
+                sc.render.bob_offset = machine.bob_offset;
+                sc.render.bob_rising = machine.bob_rising;
+                sc.render.strip_frame = machine.strip_frame;
+                sc.render.backdrop_scroll = machine.backdrop.scroll();
                 sc.rng = machine.rng.clone();
                 // dispatchModeEntry case 3 尾（a.java:4312-4318）：出生格 type83 → script 40
                 sc.apply_entry_step_effects();
@@ -2958,10 +2958,10 @@ fn floor51_menu_frames_match() {
                 sc.build_minimap();
                 sc.enter_view();
                 // 连续量移交（Java 单实例语义）：bob/图标条帧/视差滚动/rng LCG 位置
-                sc.bob_offset = machine.bob_offset;
-                sc.bob_rising = machine.bob_rising;
-                sc.strip_frame = machine.strip_frame;
-                sc.backdrop_scroll = machine.backdrop.scroll();
+                sc.render.bob_offset = machine.bob_offset;
+                sc.render.bob_rising = machine.bob_rising;
+                sc.render.strip_frame = machine.strip_frame;
+                sc.render.backdrop_scroll = machine.backdrop.scroll();
                 sc.rng = machine.rng.clone();
                 // dispatchModeEntry case 3 尾（a.java:4312-4318）：出生格 type83 → script 40
                 sc.apply_entry_step_effects();
@@ -3166,13 +3166,13 @@ fn gameplay_floor1_frames_match() {
                         &save,
                     )
                     .unwrap();
-                    sc.backdrop_scroll = m.backdrop.scroll();
+                    sc.render.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
                         sc.menu.menu_cursor = t.cursor;
-                        sc.bob_offset = t.bob;
-                        sc.bob_rising = t.bob_rising;
+                        sc.render.bob_offset = t.bob;
+                        sc.render.bob_rising = t.bob_rising;
                     }
-                    sc.strip_frame = m.strip_frame;
+                    sc.render.strip_frame = m.strip_frame;
                     sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
@@ -3395,13 +3395,13 @@ fn floor2_tour_frames_match() {
                         &save,
                     )
                     .unwrap();
-                    sc.backdrop_scroll = m.backdrop.scroll();
+                    sc.render.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
                         sc.menu.menu_cursor = t.cursor;
-                        sc.bob_offset = t.bob;
-                        sc.bob_rising = t.bob_rising;
+                        sc.render.bob_offset = t.bob;
+                        sc.render.bob_rising = t.bob_rising;
                     }
-                    sc.strip_frame = m.strip_frame;
+                    sc.render.strip_frame = m.strip_frame;
                     sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
@@ -3622,13 +3622,13 @@ fn floor1_tour_frames_match() {
                         &save,
                     )
                     .unwrap();
-                    sc.backdrop_scroll = m.backdrop.scroll();
+                    sc.render.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
                         sc.menu.menu_cursor = t.cursor;
-                        sc.bob_offset = t.bob;
-                        sc.bob_rising = t.bob_rising;
+                        sc.render.bob_offset = t.bob;
+                        sc.render.bob_rising = t.bob_rising;
                     }
-                    sc.strip_frame = m.strip_frame;
+                    sc.render.strip_frame = m.strip_frame;
                     sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
@@ -3849,13 +3849,13 @@ fn walk_pure_frames_match() {
                         &save,
                     )
                     .unwrap();
-                    sc.backdrop_scroll = m.backdrop.scroll();
+                    sc.render.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
                         sc.menu.menu_cursor = t.cursor;
-                        sc.bob_offset = t.bob;
-                        sc.bob_rising = t.bob_rising;
+                        sc.render.bob_offset = t.bob;
+                        sc.render.bob_rising = t.bob_rising;
                     }
-                    sc.strip_frame = m.strip_frame;
+                    sc.render.strip_frame = m.strip_frame;
                     sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
@@ -4067,13 +4067,13 @@ fn preset_save_frames_match() {
                         &save,
                     )
                     .unwrap();
-                    sc.backdrop_scroll = m.backdrop.scroll();
+                    sc.render.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
                         sc.menu.menu_cursor = t.cursor;
-                        sc.bob_offset = t.bob;
-                        sc.bob_rising = t.bob_rising;
+                        sc.render.bob_offset = t.bob;
+                        sc.render.bob_rising = t.bob_rising;
                     }
-                    sc.strip_frame = m.strip_frame;
+                    sc.render.strip_frame = m.strip_frame;
                     sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
@@ -4307,13 +4307,13 @@ fn preset_floor35_frames_match() {
                         &save,
                     )
                     .unwrap();
-                    sc.backdrop_scroll = m.backdrop.scroll();
+                    sc.render.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
                         sc.menu.menu_cursor = t.cursor;
-                        sc.bob_offset = t.bob;
-                        sc.bob_rising = t.bob_rising;
+                        sc.render.bob_offset = t.bob;
+                        sc.render.bob_rising = t.bob_rising;
                     }
-                    sc.strip_frame = m.strip_frame;
+                    sc.render.strip_frame = m.strip_frame;
                     sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
@@ -4546,13 +4546,13 @@ fn preset_floor10_frames_match() {
                         &save,
                     )
                     .unwrap();
-                    sc.backdrop_scroll = m.backdrop.scroll();
+                    sc.render.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
                         sc.menu.menu_cursor = t.cursor;
-                        sc.bob_offset = t.bob;
-                        sc.bob_rising = t.bob_rising;
+                        sc.render.bob_offset = t.bob;
+                        sc.render.bob_rising = t.bob_rising;
                     }
-                    sc.strip_frame = m.strip_frame;
+                    sc.render.strip_frame = m.strip_frame;
                     sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
@@ -4802,13 +4802,13 @@ fn preset_floor46_frames_match() {
                         &save,
                     )
                     .unwrap();
-                    sc.backdrop_scroll = m.backdrop.scroll();
+                    sc.render.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
                         sc.menu.menu_cursor = t.cursor;
-                        sc.bob_offset = t.bob;
-                        sc.bob_rising = t.bob_rising;
+                        sc.render.bob_offset = t.bob;
+                        sc.render.bob_rising = t.bob_rising;
                     }
-                    sc.strip_frame = m.strip_frame;
+                    sc.render.strip_frame = m.strip_frame;
                     sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
@@ -5042,13 +5042,13 @@ fn preset_floor41_frames_match() {
                         &save,
                     )
                     .unwrap();
-                    sc.backdrop_scroll = m.backdrop.scroll();
+                    sc.render.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
                         sc.menu.menu_cursor = t.cursor;
-                        sc.bob_offset = t.bob;
-                        sc.bob_rising = t.bob_rising;
+                        sc.render.bob_offset = t.bob;
+                        sc.render.bob_rising = t.bob_rising;
                     }
-                    sc.strip_frame = m.strip_frame;
+                    sc.render.strip_frame = m.strip_frame;
                     sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
@@ -5274,13 +5274,13 @@ fn preset_floor44_frames_match() {
                         &save,
                     )
                     .unwrap();
-                    sc.backdrop_scroll = m.backdrop.scroll();
+                    sc.render.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
                         sc.menu.menu_cursor = t.cursor;
-                        sc.bob_offset = t.bob;
-                        sc.bob_rising = t.bob_rising;
+                        sc.render.bob_offset = t.bob;
+                        sc.render.bob_rising = t.bob_rising;
                     }
-                    sc.strip_frame = m.strip_frame;
+                    sc.render.strip_frame = m.strip_frame;
                     sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
@@ -5506,13 +5506,13 @@ fn preset_floor45_frames_match() {
                         &save,
                     )
                     .unwrap();
-                    sc.backdrop_scroll = m.backdrop.scroll();
+                    sc.render.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
                         sc.menu.menu_cursor = t.cursor;
-                        sc.bob_offset = t.bob;
-                        sc.bob_rising = t.bob_rising;
+                        sc.render.bob_offset = t.bob;
+                        sc.render.bob_rising = t.bob_rising;
                     }
-                    sc.strip_frame = m.strip_frame;
+                    sc.render.strip_frame = m.strip_frame;
                     sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
@@ -5740,13 +5740,13 @@ fn preset_floor48_frames_match() {
                         &save,
                     )
                     .unwrap();
-                    sc.backdrop_scroll = m.backdrop.scroll();
+                    sc.render.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
                         sc.menu.menu_cursor = t.cursor;
-                        sc.bob_offset = t.bob;
-                        sc.bob_rising = t.bob_rising;
+                        sc.render.bob_offset = t.bob;
+                        sc.render.bob_rising = t.bob_rising;
                     }
-                    sc.strip_frame = m.strip_frame;
+                    sc.render.strip_frame = m.strip_frame;
                     sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
@@ -5975,13 +5975,13 @@ fn preset_floor14_frames_match() {
                         &save,
                     )
                     .unwrap();
-                    sc.backdrop_scroll = m.backdrop.scroll();
+                    sc.render.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
                         sc.menu.menu_cursor = t.cursor;
-                        sc.bob_offset = t.bob;
-                        sc.bob_rising = t.bob_rising;
+                        sc.render.bob_offset = t.bob;
+                        sc.render.bob_rising = t.bob_rising;
                     }
-                    sc.strip_frame = m.strip_frame;
+                    sc.render.strip_frame = m.strip_frame;
                     sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
@@ -6208,13 +6208,13 @@ fn preset_floor38_frames_match() {
                         &save,
                     )
                     .unwrap();
-                    sc.backdrop_scroll = m.backdrop.scroll();
+                    sc.render.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
                         sc.menu.menu_cursor = t.cursor;
-                        sc.bob_offset = t.bob;
-                        sc.bob_rising = t.bob_rising;
+                        sc.render.bob_offset = t.bob;
+                        sc.render.bob_rising = t.bob_rising;
                     }
-                    sc.strip_frame = m.strip_frame;
+                    sc.render.strip_frame = m.strip_frame;
                     sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
@@ -6439,13 +6439,13 @@ fn preset_floor47_frames_match() {
                         &save,
                     )
                     .unwrap();
-                    sc.backdrop_scroll = m.backdrop.scroll();
+                    sc.render.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
                         sc.menu.menu_cursor = t.cursor;
-                        sc.bob_offset = t.bob;
-                        sc.bob_rising = t.bob_rising;
+                        sc.render.bob_offset = t.bob;
+                        sc.render.bob_rising = t.bob_rising;
                     }
-                    sc.strip_frame = m.strip_frame;
+                    sc.render.strip_frame = m.strip_frame;
                     sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
@@ -6668,13 +6668,13 @@ fn preset_floor34_frames_match() {
                         &save,
                     )
                     .unwrap();
-                    sc.backdrop_scroll = m.backdrop.scroll();
+                    sc.render.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
                         sc.menu.menu_cursor = t.cursor;
-                        sc.bob_offset = t.bob;
-                        sc.bob_rising = t.bob_rising;
+                        sc.render.bob_offset = t.bob;
+                        sc.render.bob_rising = t.bob_rising;
                     }
-                    sc.strip_frame = m.strip_frame;
+                    sc.render.strip_frame = m.strip_frame;
                     sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
@@ -6897,13 +6897,13 @@ fn preset_floor10_nw_frames_match() {
                         &save,
                     )
                     .unwrap();
-                    sc.backdrop_scroll = m.backdrop.scroll();
+                    sc.render.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
                         sc.menu.menu_cursor = t.cursor;
-                        sc.bob_offset = t.bob;
-                        sc.bob_rising = t.bob_rising;
+                        sc.render.bob_offset = t.bob;
+                        sc.render.bob_rising = t.bob_rising;
                     }
-                    sc.strip_frame = m.strip_frame;
+                    sc.render.strip_frame = m.strip_frame;
                     sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
@@ -7125,13 +7125,13 @@ fn preset_floor10b_frames_match() {
                         &save,
                     )
                     .unwrap();
-                    sc.backdrop_scroll = m.backdrop.scroll();
+                    sc.render.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
                         sc.menu.menu_cursor = t.cursor;
-                        sc.bob_offset = t.bob;
-                        sc.bob_rising = t.bob_rising;
+                        sc.render.bob_offset = t.bob;
+                        sc.render.bob_rising = t.bob_rising;
                     }
-                    sc.strip_frame = m.strip_frame;
+                    sc.render.strip_frame = m.strip_frame;
                     sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
@@ -7353,13 +7353,13 @@ fn preset_floor17_frames_match() {
                         &save,
                     )
                     .unwrap();
-                    sc.backdrop_scroll = m.backdrop.scroll();
+                    sc.render.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
                         sc.menu.menu_cursor = t.cursor;
-                        sc.bob_offset = t.bob;
-                        sc.bob_rising = t.bob_rising;
+                        sc.render.bob_offset = t.bob;
+                        sc.render.bob_rising = t.bob_rising;
                     }
-                    sc.strip_frame = m.strip_frame;
+                    sc.render.strip_frame = m.strip_frame;
                     sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
@@ -7594,13 +7594,13 @@ fn preset_floor42_frames_match() {
                         &save,
                     )
                     .unwrap();
-                    sc.backdrop_scroll = m.backdrop.scroll();
+                    sc.render.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
                         sc.menu.menu_cursor = t.cursor;
-                        sc.bob_offset = t.bob;
-                        sc.bob_rising = t.bob_rising;
+                        sc.render.bob_offset = t.bob;
+                        sc.render.bob_rising = t.bob_rising;
                     }
-                    sc.strip_frame = m.strip_frame;
+                    sc.render.strip_frame = m.strip_frame;
                     sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
@@ -7831,13 +7831,13 @@ fn preset_floor43_frames_match() {
                         &save,
                     )
                     .unwrap();
-                    sc.backdrop_scroll = m.backdrop.scroll();
+                    sc.render.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
                         sc.menu.menu_cursor = t.cursor;
-                        sc.bob_offset = t.bob;
-                        sc.bob_rising = t.bob_rising;
+                        sc.render.bob_offset = t.bob;
+                        sc.render.bob_rising = t.bob_rising;
                     }
-                    sc.strip_frame = m.strip_frame;
+                    sc.render.strip_frame = m.strip_frame;
                     sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()
@@ -8064,13 +8064,13 @@ fn preset_alchemy_frames_match() {
                         &save,
                     )
                     .unwrap();
-                    sc.backdrop_scroll = m.backdrop.scroll();
+                    sc.render.backdrop_scroll = m.backdrop.scroll();
                     if let Some(t) = &m.title {
                         sc.menu.menu_cursor = t.cursor;
-                        sc.bob_offset = t.bob;
-                        sc.bob_rising = t.bob_rising;
+                        sc.render.bob_offset = t.bob;
+                        sc.render.bob_rising = t.bob_rising;
                     }
-                    sc.strip_frame = m.strip_frame;
+                    sc.render.strip_frame = m.strip_frame;
                     sc.persist.preset_mot_if = m
                         .preset_stores
                         .iter()

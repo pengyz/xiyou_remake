@@ -37,7 +37,8 @@ def struct_fields() -> list:
     for fname, sname in [("crates/game-core/src/scene_persist.rs", "PersistState"),
                          ("crates/game-core/src/tap_walk.rs", "TapState"),
                          ("crates/game-core/src/scene_dialog.rs", "DialogState"),
-                         ("crates/game-core/src/scene_menu.rs", "MenuState")]:
+                         ("crates/game-core/src/scene_menu.rs", "MenuState"),
+                         ("crates/game-core/src/scene_paint.rs", "RenderState")]:
         in_s = False
         for l in (ROOT / fname).read_text(encoding="utf-8").splitlines():
             if l.startswith("pub struct " + sname):

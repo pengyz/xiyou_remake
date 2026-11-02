@@ -164,10 +164,10 @@ pub fn new_game_scene(assets: &GameAssets, machine: &mut BootMachine) -> GameSce
     install_combat_tables(&mut sc);
     sc.build_minimap();
     sc.enter_view();
-    sc.bob_offset = machine.bob_offset;
-    sc.bob_rising = machine.bob_rising;
-    sc.strip_frame = machine.strip_frame;
-    sc.backdrop_scroll = machine.backdrop.scroll();
+    sc.render.bob_offset = machine.bob_offset;
+    sc.render.bob_rising = machine.bob_rising;
+    sc.render.strip_frame = machine.strip_frame;
+    sc.render.backdrop_scroll = machine.backdrop.scroll();
     sc.rng = machine.rng.clone();
     sc.bgm = machine.bgm.clone(); // 音频状态续接（Java 同一对象）
     sc.menu.shell_options = machine.shell_options.clone(); // 【STAGE-B-006】壳层附加设置行续接
@@ -202,13 +202,13 @@ pub fn slot_scene(
         &save,
     )
     .unwrap();
-    sc.backdrop_scroll = machine.backdrop.scroll();
+    sc.render.backdrop_scroll = machine.backdrop.scroll();
     if let Some(t) = &machine.title {
         sc.menu.menu_cursor = t.cursor;
-        sc.bob_offset = machine.bob_offset;
-        sc.bob_rising = machine.bob_rising;
+        sc.render.bob_offset = machine.bob_offset;
+        sc.render.bob_rising = machine.bob_rising;
     }
-    sc.strip_frame = machine.strip_frame;
+    sc.render.strip_frame = machine.strip_frame;
     sc.persist.preset_mot_if = stores
         .iter()
         .find(|(k, _)| k.starts_with("MOT_IF@"))

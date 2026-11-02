@@ -291,11 +291,6 @@ pub struct GameScene {
     pub layout: crate::layout::Layout,
     /// frameCounter（run 循环变量，TICK n 拍 = n-1）
     pub frame_counter: i64,
-    /// advanceBobPhase 浮沉相位（paint 内推进）
-    pub bob_offset: i32,
-    pub bob_rising: bool,
-    /// drawParallaxBackdrop 的滚动相位（每 paint -1，PARALLAX_WRAP 回绕）
-    pub backdrop_scroll: i32,
     /// viewBottom：视口底（HUD 顶）——初始化后与 layout::view_bottom_y() 一致
     pub view_bottom: i32,
     /// 玩家态（paintPlayerSprite 输入）
@@ -396,10 +391,6 @@ pub struct GameScene {
     pub equip_types: [i32; 12],
     /// 组开门动画数组（tryOpenChest 填充；paintTileLayer walkPhase4 消耗）
     pub open_group: Vec<usize>,
-    /// openAnimTick：组开门动画计数（18 置 removed 动画、24 收尾）
-    pub open_anim_tick: i32,
-    /// tileBob：遮幅纵向抖动（±2 交替）
-    pub tile_bob: i32,
 
     // —— mode 11 对话（gameMode 3=世界 / 11=对话；a.java:4011-4068 相位机）——
     pub game_mode: GameMode,
@@ -434,8 +425,6 @@ pub struct GameScene {
     pub bgm: crate::audio::BgmState,
     /// shopRainbowPhase：商店条目彩虹色相位（paint 每 4 拍推进）
     pub rainbow_phase: i32,
-    /// iconStripFrame（a.java:464 全局；mode16 图标条动画帧）
-    pub strip_frame: usize,
     /// pathArrowsVisible：路径箭头可见（SEE flag=1 且 findPath 成功）
     pub path_arrows_visible: bool,
     /// walkPathBuffer（findPath 步序，目标端优先）
@@ -445,6 +434,8 @@ pub struct GameScene {
     /// 【task-15 V2 persist 收口】持久域切片（13 字段→PersistState，唯一归属）。
     pub persist: PersistState,
     /// 【T2】WalkTo 路段追踪器（位移笔=段起终点/中断挂起=实际终点/战斗笔=终结时）
+    /// 【task-15 V2 render】副作用态切片（E3 六字段→RenderState；变更点留 paint 同时点）。
+    pub render: scene_paint::RenderState,
     pub route: crate::pathfind::RouteTracker,
     /// 【BUG-040 · T2】点地寻路被打断、但 dp3 仍归寻路所有（走完当前步即回 Map）。打断会收束
     /// 寻路段（route 不再开放），dp3 收尾原本只凭 `route.is_open()` 认寻路 ⇒ 打断后落入脚本机
@@ -3148,7 +3139,7 @@ impl GameScene {
         let (mut tx, mut ty) = if !self.view_locked {
             (
                 ((self.view.view_w - 41) >> 1) - self.view.cam_x,
-                (self.view.view_h >> 1) - self.view.cam_y + self.bob_offset,
+                (self.view.view_h >> 1) - self.view.cam_y + self.render.bob_offset,
             )
         } else {
             (self.view.player_px, self.view.player_py)
@@ -4543,29 +4534,29 @@ impl GameScene {
     /// paint case 3/9/11 三处 paintTileLayer(0,20) 调用点均须先跑本函数。
     fn advance_open_group_paint(&mut self) -> i32 {
         if self.walk_phase == 4 {
-            self.open_anim_tick += 1;
-            if self.open_anim_tick == 18 {
+            self.render.open_anim_tick += 1;
+            if self.render.open_anim_tick == 18 {
                 let group = self.open_group.clone();
                 for e in group {
                     self.entities.items[e].anim_row = 6;
                     self.entities.items[e].state = 1;
                 }
-            } else if self.open_anim_tick >= 24 {
+            } else if self.render.open_anim_tick >= 24 {
                 let group = std::mem::take(&mut self.open_group);
                 for e in group {
                     let gx = self.entities.items[e].px >> 5;
                     let gy = self.entities.items[e].py >> 5;
                     entity::remove_group_at_cell_by_type(gx, gy, 4, &mut self.entities, &mut self.grid);
                 }
-                self.open_anim_tick = 0;
-                self.tile_bob = 0;
+                self.render.open_anim_tick = 0;
+                self.render.tile_bob = 0;
                 self.walk_phase = 0;
             }
             // tileBob ±2 交替（a.java:7016-7014）
-            self.tile_bob = if self.tile_bob == -2 { 2 } else { -2 };
+            self.render.tile_bob = if self.render.tile_bob == -2 { 2 } else { -2 };
             // a.java:7015 `script_cursor0 = 20 + tileBob`：**重置拍（cnt24）也取 bob**
             //（wp 已清 0 但 script_cursor0 在块内计算）——迭代 64 T930 一像素差实证
-            return self.tile_bob;
+            return self.render.tile_bob;
         }
         0
     }

@@ -205,7 +205,7 @@ fn build_scene() -> GameScene {
     // 进画面前置相位（A 级 trace/源码推导，见模块文档）：
     // mode 3 首绘在 T537；T544 首列 x=-38 ⇒ T537 绘后 -31 ⇒ 初值 -30
     // （mode 8 末次 parallax=T500 绘后 -30，mode 2 无 parallax）
-    scene.backdrop_scroll = -30;
+    scene.render.backdrop_scroll = -30;
     // RNG 预推进：mode 1（T72-161）粒子消费——每 4 拍 spawnParticle
     // randomBelow(240)+randomBelow(150)（a.java:3382-3379），共 23 组；
     // 消费链已被 title/menu-sweep 全帧回放验证
@@ -213,8 +213,8 @@ fn build_scene() -> GameScene {
         scene.rng.random_below(240);
         scene.rng.random_below(150);
     }
-    scene.bob_offset = -2;
-    scene.bob_rising = true;
+    scene.render.bob_offset = -2;
+    scene.render.bob_rising = true;
     scene
 }
 

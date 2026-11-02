@@ -521,10 +521,10 @@ impl GameScene {
     /// （menu_strip sy=51）+ 软键 + 浮层尾。
     pub(super) fn paint_menu15(&mut self, g: &mut SoftGraphics<'_>) {
         self.paint_parallax(g, false);
-        let mut f = self.strip_frame;
+        let mut f = self.render.strip_frame;
         let sx = crate::title::menu_strip_x(self.layout.screen_w);
         crate::title::paint_icon_strip_at(g, &self.images.menu_strip, sx, 10, 51, 68, &mut f);
-        self.strip_frame = f;
+        self.render.strip_frame = f;
         m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.menu.softkeys.0, self.menu.softkeys.1, &self.layout);
         if !self.transitioning && self.dialog.overlay_active {
             self.paint_overlay_box(g);
@@ -883,7 +883,7 @@ impl GameScene {
                     g.draw_image(
                         arrow,
                         self.view.cam_x + 5 + (self.dialog.dialog_target.0 << 5),
-                        self.view.cam_y + (self.dialog.dialog_target.1 << 5) - 12 + self.bob_offset,
+                        self.view.cam_y + (self.dialog.dialog_target.1 << 5) - 12 + self.render.bob_offset,
                         0,
                     );
                 }

@@ -320,13 +320,13 @@ fn run_scene(spec: &Spec, mut observe: impl FnMut(u32, &GameScene)) -> GameScene
                     &save,
                 )
                 .unwrap();
-                sc.backdrop_scroll = m.backdrop.scroll();
+                sc.render.backdrop_scroll = m.backdrop.scroll();
                 if let Some(t) = &m.title {
                     sc.menu.menu_cursor = t.cursor;
-                    sc.bob_offset = t.bob;
-                    sc.bob_rising = t.bob_rising;
+                    sc.render.bob_offset = t.bob;
+                    sc.render.bob_rising = t.bob_rising;
                 }
-                sc.strip_frame = m.strip_frame;
+                sc.render.strip_frame = m.strip_frame;
                 sc.persist.preset_mot_if = m
                     .preset_stores
                     .iter()

@@ -931,6 +931,11 @@
    "field": "menu",
    "domain": "coordinator",
    "why": "域切片根槽（MenuState 聚合——V2 menu/UI 收口）"
+  },
+  {
+   "field": "render",
+   "domain": "coordinator",
+   "why": "域切片根槽（RenderState 聚合——V2 render 副作用清单化）"
   }
  ]
 }

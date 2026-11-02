@@ -1,6 +1,22 @@
 //! task-15 步② 渲染簇（move-only 自 scene.rs——只读绘制面，纯剪切零行为差）。
 use super::*; // scene.rs 私有面可见（子模块）——纯剪切语义保持
 
+/// 【task-15 V2 render 副作用清单化】render 域切片（E3 六字段——paint 变更态；
+/// 金样扩面钉在 dump（V0 已扩）+帧哈希 31 夹具判据）。
+pub struct RenderState {
+    /// iconStripFrame（a.java:464 全局；mode16 图标条动画帧）
+    pub strip_frame: usize,
+    /// drawParallaxBackdrop 的滚动相位（每 paint -1，PARALLAX_WRAP 回绕）
+    pub backdrop_scroll: i32,
+    /// advanceBobPhase 浮沉相位（paint 内推进）
+    pub bob_offset: i32,
+    pub bob_rising: bool,
+    /// openAnimTick：组开门动画计数（18 置 removed 动画、24 收尾）
+    pub open_anim_tick: i32,
+    /// tileBob：遮幅纵向抖动（±2 交替）
+    pub tile_bob: i32,
+}
+
 impl GameScene {
     /// loadFloorData（a.java:9404-9438）：maplv 装载 + initCellGrid 格索引重建 +
     /// 可行走重建 + m_122 实体生成 + sortEntitiesByY 排序。
@@ -99,10 +115,10 @@ impl GameScene {
             // paintBoxFrame + 选项行（OptionList::paint）【task-14：内容居中；
             // 视差=全幅层自豁免】
             self.paint_parallax(g, false);
-            let mut f = self.strip_frame;
+            let mut f = self.render.strip_frame;
             let sx = crate::title::menu_strip_x(self.layout.screen_w);
             crate::title::paint_icon_strip_at(g, &self.images.menu_strip, sx, 10, 34, 68, &mut f);
-            self.strip_frame = f;
+            self.render.strip_frame = f;
             if let Some(opt) = &self.menu.options {
                 let font = crate::paint::paint_font();
                 opt.paint(g, &self.images.ui, &font, &self.layout);
@@ -245,14 +261,14 @@ impl GameScene {
         // 露空）；绘后恢复调用方平移（ops 面不受影响=origin 隐式）。
         let saved_origin = g.origin();
         g.set_origin(0);
-        self.backdrop_scroll -= 1;
-        if self.backdrop_scroll < PARALLAX_WRAP {
-            self.backdrop_scroll = 0;
+        self.render.backdrop_scroll -= 1;
+        if self.render.backdrop_scroll < PARALLAX_WRAP {
+            self.render.backdrop_scroll = 0;
         }
         let bh = self.images.backdrop.height;
         let base_y = if game_view { self.layout.view_bottom_y - bh + 6 } else { 0 };
         let bw = self.images.backdrop.width as usize;
-        let mut col_x = self.backdrop_scroll;
+        let mut col_x = self.render.backdrop_scroll;
         while col_x < self.layout.screen_w {
             if self.layout.screen_h > bh {
                 // 【v6 返修】画布高于背景图 ⇒ 边缘**钳制延展**（顶带=图顶行色、
@@ -326,8 +342,8 @@ impl GameScene {
         }
     }
     pub fn paint_entities(&mut self, g: &mut SoftGraphics<'_>, cam_x: i32, cam_y: i32) {
-        entity::advance_bob(&mut self.bob_offset, &mut self.bob_rising);
-        let bob = self.bob_offset;
+        entity::advance_bob(&mut self.render.bob_offset, &mut self.render.bob_rising);
+        let bob = self.render.bob_offset;
         let mut player_drawn = false;
         let cull_bottom = self.layout.view_top_y + self.view.view_h;
 
@@ -404,7 +420,7 @@ impl GameScene {
                                     g.draw_image(&self.images.shadow, sx + 40, sy + 22, 0);
                                     let raw_off = ANIM_OFFSET_TABLE[anim][frame as usize];
                                     let sx69 = sx + 3;
-                                    let sy69 = sy - 49 + self.bob_offset;
+                                    let sy69 = sy - 49 + self.render.bob_offset;
                                     g.draw_image(img, sx69, sy69, 0);
                                     if raw_off > 0 {
                                         draw_image_clipped(
@@ -594,13 +610,13 @@ impl GameScene {
             // cam_y 含 view_top 分量（paint_entities 传参），故回补之
             (
                 (self.view.view_w - 41) >> 1,
-                (cam_y - self.view.cam_y) + (self.view.view_h >> 1) + self.bob_offset,
+                (cam_y - self.view.cam_y) + (self.view.view_h >> 1) + self.render.bob_offset,
             )
         } else {
             (cam_x + self.view.player_px, cam_y + self.view.player_py)
         };
         if !soul_view && self.player_bob_applied {
-            py -= self.bob_offset;
+            py -= self.render.bob_offset;
         }
         g.draw_image(&self.images.shadow, px + SHADOW_DX, py + SHADOW_DY, 0);
         let frame_x = PLAYER_FRAME_TABLE[self.player_frame as usize] * PLAYER_FRAME_W;
@@ -629,7 +645,7 @@ impl GameScene {
         if self.path_arrows_visible {
             let mut ax = (self.player_cell_x << 5) + cam_x;
             let mut ay = (self.player_cell_y << 5) + cam_y;
-            let bob = self.bob_offset;
+            let bob = self.render.bob_offset;
             let piece = &self.images.ui[22];
             let (buf, count) = self.path_arrow_steps();
             for i in (0..count).rev() {
@@ -657,7 +673,7 @@ impl GameScene {
         }
         // walkPhase==2 四角装饰（a.java:5959-5959，画后直接 return 语义）
         if self.walk_phase == 2 {
-            let bob = self.bob_offset;
+            let bob = self.render.bob_offset;
             let vb = self.view_bottom;
             // 【BUG-031①】a.java:5964-5967 字面量 148 / 109 / 215 = 屏心 y − 12 / 屏心 x − 11 / 屏宽 − 25
             // （classic 回代原值）；下臂 viewBottom 原本即变量——同块另三臂随之换轨。
@@ -830,7 +846,7 @@ impl GameScene {
         // 画到 y 153，Java 304）。
         let arrow_y = text_bottom_y + ((crate::paint::paint_font().height + 4 - 13) >> 1);
         let arrow = self.images.ui[14].clone();
-        let bob = self.bob_offset;
+        let bob = self.render.bob_offset;
         if self.menu.record_page > 0 {
             // a.java:2910 drawImageWithNokiaTransform(…, 1) ⇒ 变换码 = NOKIA_TRANSFORM_TABLE[1] = 8192（水平翻转；
             // Java trace `drawImageT(20x13,60,304,0,8192)`）。【BUG-032】旧直传 1（shim 表 1 = 垂直翻转）。

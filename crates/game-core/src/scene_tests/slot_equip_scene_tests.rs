@@ -117,7 +117,7 @@
             sc.apply_layout(layout.clone());
             sc.walk_phase = 2;
             sc.view_locked = false;
-            let bob = sc.bob_offset;
+            let bob = sc.render.bob_offset;
             let mut img = ArgbImage::create(layout.screen_w, layout.screen_h);
             let ops = {
                 let mut g = SoftGraphics::new(&mut img);
@@ -230,7 +230,7 @@
             sc.menu.record_page = 1; // 中间页：左右箭头都画
             sc.menu.page_indicator = "2 / 3".into();
             sc.dialog.overlay_active = false;
-            let bob = sc.bob_offset;
+            let bob = sc.render.bob_offset;
             let mut img = ArgbImage::create(layout.screen_w, layout.screen_h);
             let ops = {
                 let mut g = SoftGraphics::new(&mut img);
@@ -469,7 +469,7 @@
         let mut sc = scene_with(&synthetic_sptarm());
         sc.images.backdrop = bg;
         sc.apply_layout(crate::layout::Layout::modern(13, 13));
-        sc.backdrop_scroll = -1;
+        sc.render.backdrop_scroll = -1;
         let mut img = ArgbImage::create(416, 416);
         {
             let mut g = SoftGraphics::new(&mut img);
