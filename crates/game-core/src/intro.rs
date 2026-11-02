@@ -26,6 +26,9 @@
 //! 其余步骤的地图/实体装载属 mode 3 范围（本模块只推进度与目标模式）。
 
 use crate::enums::GameMode;
+// 判定b（挂门）：release 不用（123/213/232 走全路径 &dyn crate::render::FontMetrics）；
+// #[cfg(test)] tests 经 use super::* 需要 trait 入域调 paint_font().height()（:402）。
+#[cfg(test)]
 use crate::render::FontMetrics;
 use crate::render::{ArgbImage, SoftGraphics};
 

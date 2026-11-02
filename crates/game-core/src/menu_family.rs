@@ -668,6 +668,8 @@ pub struct SlotSelect {
     pub gold: [i32; 6],
     pub weapon: [i8; 6],
     pub armor: [i8; 6],
+    /// 【件3 两段式】触屏选中（tap1=选中看信息；tap2 同行=执行；打断/滑动=换选不执行）
+    pub selected: Option<usize>,
     /// 读失败落盘触发器（BUG-021）：`load_slot_table` 失败（缺店/空/截断）置位 =
     /// Java markSlotEntry(-1) 的 delete+addRecord 整表落盘（a.java:9000-9001→9026-9052）；
     /// 壳消费 [`SlotSelect::take_parse_dirty`] 回写 MOT_IF。
@@ -675,6 +677,28 @@ pub struct SlotSelect {
 }
 
 impl SlotSelect {
+    /// 【件3】两段式 tap：tap1=选中（返回 false 不执行）；tap2 同行=执行（true）；
+    /// 点别行=换选中不执行。触屏语义铁律（对齐 cfcc9ad 点怪先例）。
+    pub fn tap_row_two_stage(&mut self, row: usize) -> bool {
+        if self.selected == Some(row) {
+            self.selected = None;
+            return true;
+        }
+        self.selected = Some(row);
+        self.cursor = row as i32;
+        false
+    }
+
+    /// 【件3】打断（滑动/换手势）：清选中不执行。
+    pub fn interrupt_select(&mut self) {
+        self.selected = None;
+    }
+
+    /// 【件3】选中行微提示："再点加载"（读档面；未选中=None）。
+    pub fn retry_hint_text(&self) -> Option<Vec<u16>> {
+        self.selected.map(|_| "再点加载".encode_utf16().collect())
+    }
+
     /// case 7/8 入口布局（a.java:4354-4366）：度量随入口重算 + 光标/滚动复位。
     /// **不动数据数组**——Java 数组仅 `!f_bool_15` 首次分配（8961-8974）、跨进入
     /// 复用 ⇒ 半截解析的"旧值"即上次表值（BUG-021 保真面；旧实现 `SlotSelect::new()`
@@ -691,11 +715,13 @@ impl SlotSelect {
         self.cursor = 0; // slotScrollTop = slotCursor = 0（a.java:4365）
         self.scroll_top = 0;
         self.scroll_bottom = self.rows_per_page; // slotScrollBottom = slotsPerPage（4366）
+        self.selected = None; // 【件3】入场清选中
     }
 
     pub fn new() -> SlotSelect {
         let mut s = SlotSelect {
             cursor: 0,
+            selected: None,
             scroll_top: 0,
             scroll_bottom: 0,
             rows_per_page: 0,
@@ -1074,25 +1100,39 @@ fn paint_equipment_frame<'a>(
 /// （wideCharWidth=12、fontHeight=14——2026-10-15 字高更正后 32-14>>1=9）。
 
 pub(crate) mod slot_equip_test_support {
+    #[cfg(test)]
     use crate::layout::{MINIFRAME_FILL, SCREEN_H, SCREEN_W};
-    use crate::render::{ArgbImage, SoftGraphics};
+    use crate::render::ArgbImage;
+    #[cfg(test)]
+    use crate::render::SoftGraphics;
 
     /// 合成 sptarm 的逐张纯色（互异，且异于框填充色/白字/黑底）。
+    // 判定c（测试引用中）：scene.rs:7962 scene_with（release 亦编译的测试岛 helper）经
+    // synthetic_sptarm 引用本表；scene.rs 归 UX 批，岛挂门后本 allow 可撤。
+    #[allow(dead_code)]
     pub const ICON_COLORS: [u32; 10] = [
         0xFFFF0000, 0xFF00FF00, 0xFF0000FF, 0xFFFFFF00, 0xFFFF00FF, 0xFF00FFFF, 0xFF800000,
         0xFF008000, 0xFF000080, 0xFF808000,
     ];
+    #[cfg(test)] // 判定b：仅 assert_frame_*（本批挂门）引用
     pub const FILL: u32 = 0xFF000000 | MINIFRAME_FILL;
+    #[cfg(test)] // 判定b：仅 assert_frame_material_name 引用
     pub const WHITE: u32 = 0xFFFFFFFF;
     /// 装备框行 y（SlotSelect::new 布局：box_y=(320-content_h)>>1、+16+per*lh、
     /// 分隔线 +3、+8；content_h=112+lh*per，lh=fontHeight+4=18、per=6 ⇒ 185）。
+    #[cfg(test)] // 判定b：仅 menu_family slot_equip_tests + scene #[test] 引用
     pub const FRAME_Y: i32 = 185;
     /// 武器框 x：(240 + slotListWidth(148) >> 1) - 68 = 126；甲框 +34 = 160。
+    #[cfg(test)] // 判定b：同 FRAME_Y
     pub const WEAPON_X: i32 = 126;
+    #[cfg(test)] // 判定b：同 FRAME_Y
     pub const ARMOR_X: i32 = 160;
 
     /// 合成 sptarm 容器：第 i 张 `(11+2i) × (25-i)` 纯色——宽恒奇数（验 `>>1` 向下取整），
     /// 尺寸逐张不同（居中偏移逐张可辨）。
+    // 判定c（测试引用中）：release 侧活引用=scene.rs slot_equip_scene_tests 的
+    // scene_with 等 helper（跨文件耦合，scene.rs 归 UX 批）；同上，岛挂门后撤 allow。
+    #[allow(dead_code)]
     pub fn synthetic_sptarm() -> Vec<ArgbImage> {
         (0..10)
             .map(|i| {
@@ -1102,11 +1142,13 @@ pub(crate) mod slot_equip_test_support {
             .collect()
     }
 
+    #[cfg(test)] // 判定b：仅 assert_frame_* 引用
     pub fn px(img: &ArgbImage, x: i32, y: i32) -> u32 {
         img.argb[(y * img.width + x) as usize]
     }
 
     /// 框填充区内：图标矩形逐像素 = ICON_COLORS[k]，其余 = 框填充色。
+    #[cfg(test)] // 判定b：仅 #[test] 引用（menu_family+scene）
     pub fn assert_frame_icon(screen: &ArgbImage, fx: i32, fy: i32, icons: &[ArgbImage], k: usize, what: &str) {
         let (w, h) = (icons[k].width, icons[k].height);
         let (ox, oy) = (fx + ((32 - w) >> 1), fy + ((32 - h) >> 1));
@@ -1122,6 +1164,7 @@ pub(crate) mod slot_equip_test_support {
     /// Java 参照（a.java:9106-9115 逐句）：paintMiniFrame + setColor(-1) +
     /// drawString(“无”, fx+(32-12>>1), fy+(32-10>>1), 0)——与被测画面的框区逐像素相等；
     /// 另断言白字确实落笔且框内无任何图标色。
+    #[cfg(test)] // 判定b：仅 #[test] 引用（menu_family+scene）
     pub fn assert_frame_material_name(screen: &ArgbImage, fx: i32, fy: i32, what: &str) {
         use crate::render::FontMetrics;
         let mut reference = ArgbImage::create(SCREEN_W, SCREEN_H);
@@ -1149,6 +1192,7 @@ pub(crate) mod slot_equip_test_support {
     }
 
     /// 框填充区全为填充色（无字无图）。
+    #[cfg(test)] // 判定b：仅 #[test] 引用（menu_family）
     pub fn assert_frame_empty(screen: &ArgbImage, fx: i32, fy: i32, what: &str) {
         for y in fy..fy + 31 {
             for x in fx + 1..fx + 31 {
@@ -1291,6 +1335,15 @@ mod slot_equip_tests {
     }
 }
 
+/// 【件1 高亮锚】行身份（重建跟随）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HighlightAnchor {
+    Core(usize),
+    Shell(u8),
+    /// 越界高亮：重建后钳至尾行（旧 clamp 语义保留）。
+    End,
+}
+
 /// mode 16 选项列表（addOption 登记产物）。
 pub struct OptionList {
     /// optionLabelIdx：标签索引表（optionLabels 下标）。
@@ -1313,6 +1366,9 @@ pub struct ShellOption {
     /// 行文字（UTF-16，字体绘制，不需美术）。
     pub label: Vec<u16>,
     pub checked: bool,
+    /// 【件1 触屏 UX 2026-11-02】值循环行显示文本（Some="摇杆模式"/"触屏模式"…）
+    /// ——行内显示当前值**文本**替代勾叉符号；循环语义归壳（toggle→壳读 id 重建行）。
+    pub value_text: Option<Vec<u16>>,
 }
 
 /// 【STAGE-B-006】按 id 回写机器侧附加行的勾选（两处设置页入口共用；未知 id 不动）。
@@ -1438,6 +1494,39 @@ impl OptionList {
         }
     }
 
+    /// 【件1 高亮锚】重建跟随标识：core 行按位置、壳行按 id（删/增行致 idx 漂移
+    /// ——"保持在操控方式行"须随 id）。
+    pub fn highlight_anchor(&self) -> HighlightAnchor {
+        let h = self.highlight.max(0) as usize;
+        if h < self.labels.len() {
+            HighlightAnchor::Core(h)
+        } else {
+            self.shell
+                .get(h - self.labels.len())
+                .map(|r| HighlightAnchor::Shell(r.id))
+                // 越界高亮（垃圾输入）：保持旧钳位语义=重建后尾行
+                .unwrap_or(HighlightAnchor::End)
+        }
+    }
+
+    /// 【件1 高亮锚】新行集内解析回显索引（钳在行数内）。
+    pub fn resolve_highlight(&self, a: HighlightAnchor) -> usize {
+        let idx = match a {
+            HighlightAnchor::Core(i) => i.min(self.labels.len().saturating_sub(1)),
+            HighlightAnchor::Shell(id) => {
+                self.labels.len() + self.shell.iter().position(|r| r.id == id).unwrap_or(0)
+            }
+            HighlightAnchor::End => self.len().saturating_sub(1),
+        };
+        idx.min(self.len().saturating_sub(1))
+    }
+
+    /// 【件1】行值文本（值循环行）：壳层附加行 value_text 为 Some ⇒ 行内显示值。
+    pub fn row_value(&self, i: usize) -> Option<&[u16]> {
+        let r = self.shell.get(i.checked_sub(self.labels.len())?)?;
+        r.value_text.as_deref()
+    }
+
     /// 行带几何（③-1 单源：paint 与 pointer_hit 共调）：行高 = optionRowHeight
     /// = font.height()+8（a.java:812）；行首 = 盒顶+16。返回 (行y, 行高)。
     /// > 【2026-10-26 更正】盒顶取 **layout 画布**高（同 SlotSelect::row_band）。
@@ -1482,9 +1571,15 @@ impl OptionList {
             g.set_color(crate::layout::WHITE);
             g.draw_string(label, lx, ry + 4, 0);
             lx += 2 + font.string_width(label);
-            // 勾选框：未选中 sy=12、选中 sy=0（a.java:2987-2987 分支方向）
-            let sy = if !checked { 12 } else { 0 };
-            crate::paint::draw_image_clipped(g, &ui[11], lx, ry + ((font.height() - 2) >> 1), sy, 0, 12, 10);
+            if let Some(v) = self.row_value(i) {
+                // 【件1】值循环行：行内显示当前值文本（替代勾叉符号）
+                g.set_color(crate::layout::WHITE);
+                g.draw_string(v, lx, ry + 4, 0);
+            } else {
+                // 勾选框：未选中 sy=12、选中 sy=0（a.java:2987-2987 分支方向）
+                let sy = if !checked { 12 } else { 0 };
+                crate::paint::draw_image_clipped(g, &ui[11], lx, ry + ((font.height() - 2) >> 1), sy, 0, 12, 10);
+            }
         }
     }
 }
@@ -1538,7 +1633,7 @@ mod shell_row_tests {
     fn rows() -> Vec<ShellOption> {
         [(1u8, "开屏画面", false), (2, "按键震动", true), (3, "按键音", true)]
             .into_iter()
-            .map(|(id, l, checked)| ShellOption { id, label: l.encode_utf16().collect(), checked })
+            .map(|(id, l, checked)| ShellOption { id, label: l.encode_utf16().collect(), checked, value_text: None })
             .collect()
     }
 
@@ -1868,5 +1963,118 @@ mod modern_center_tests {
         for l in modern_layouts() {
             assert_eq!(crate::title::menu_strip_x(l.screen_w), 86 + (l.screen_w - SCREEN_W) / 2);
         }
+    }
+}
+
+#[cfg(test)]
+mod touch_ux_tests {
+    //! 【触屏 UX 三件 2026-11-02】件1 值循环行 / 件3 两段式序列钉。
+    use super::*;
+    use crate::layout::Layout;
+
+    fn ui() -> Vec<ArgbImage> {
+        (0..25).map(|_| ArgbImage::from_rgb(&vec![0xFF202020; 24 * 24], 24, 24, true)).collect()
+    }
+
+    fn shell_row(id: u8, label: &str, checked: bool, value: Option<&str>) -> ShellOption {
+        ShellOption {
+            id,
+            label: label.encode_utf16().collect(),
+            checked,
+            value_text: value.map(|v| v.encode_utf16().collect()),
+        }
+    }
+
+    /// 【件1】值循环行：显示值文本（"摇杆模式"/"触屏模式"），不再是勾叉符号。
+    #[test]
+    fn value_row_paints_value_text_not_checkbox() {
+        let layout = Layout::modern(12, 16);
+        let rows = vec![
+            shell_row(1, "开屏画面", true, None),
+            shell_row(4, "操控方式", false, Some("触屏模式")),
+        ];
+        let list = OptionList::with_shell_rows(true, false, &rows);
+        // 行序=声音(0)/小地图(1)/壳行[开屏(2)/操控方式(3)]
+        let v = list.row_value(3).expect("值循环行有值文本");
+        assert_eq!(String::from_utf16_lossy(v), "触屏模式");
+        assert!(list.row_value(1).is_none(), "core 勾叉行无值文本");
+        assert!(list.row_value(2).is_none(), "壳勾叉行无值文本");
+        // 绘制面：值文本入 ops
+        let mut img = ArgbImage::create(layout.screen_w, layout.screen_h);
+        let mut g = SoftGraphics::new(&mut img);
+        g.set_font(Some(crate::paint::paint_font()));
+        list.paint(&mut g, &ui(), &crate::paint::paint_font(), &layout);
+        let g_ops = g.ops.clone();
+        // ops 串为 UTF-16 转义形（\uXXXX）——按转义形断言
+        assert!(
+            g_ops.iter().any(|s| s.contains(r"\u89e6\u5c4f\u6a21\u5f0f")),
+            "paint 输出含值文本（转义形）"
+        );
+        // 值行不画勾叉精灵：setClip(x,y,12,10) 的 y 落值行带（278..302）⇒ 违例
+        assert!(
+            !g_ops.iter().any(|s| {
+                let Some(rest) = s.strip_prefix("setClip(") else { return false };
+                if !s.ends_with(",12,10)") { return false; }
+                rest.split(',').nth(1).and_then(|y| y.parse::<i32>().ok()).is_some_and(|y| (278..302).contains(&y))
+            }),
+            "值循环行不画勾叉精灵"
+        );
+    }
+
+    /// 【件1】隐藏行=列表缺席（不渲染+导航天然跳过）——壳侧重建行即隐藏。
+    #[test]
+    fn hidden_rows_absent_from_list_len() {
+        // 触屏模式行集：无按键音/按键震动 ⇒ len=声音+小地图+开屏+操控+自动战斗=5
+        let rows = vec![
+            shell_row(1, "开屏画面", false, None),
+            shell_row(4, "操控方式", false, Some("触屏模式")),
+            shell_row(5, "自动战斗", false, None),
+        ];
+        let list = OptionList::with_shell_rows(true, true, &rows);
+        assert_eq!(list.len(), 5, "触屏模式：两行隐藏（缺席）");
+        // 摇杆模式行集：含两行 + 值"摇杆模式" + 无自动战斗??——新裁定=自动战斗通用常显
+        let rows2 = vec![
+            shell_row(1, "开屏画面", false, None),
+            shell_row(2, "按键震动", true, None),
+            shell_row(3, "按键音", true, None),
+            shell_row(4, "操控方式", false, Some("摇杆模式")),
+            shell_row(5, "自动战斗", false, None),
+        ];
+        let list2 = OptionList::with_shell_rows(true, true, &rows2);
+        assert_eq!(list2.len(), 7, "摇杆模式：两行回归+自动战斗常显");
+    }
+
+    /// 【件3】两段式序列：tap1=选中（不执行）+tap2 同行=执行；打断=换选中不执行。
+    #[test]
+    fn slot_two_stage_select_then_execute() {
+        let mut s = SlotSelect::new();
+        s.reset_entry_layout();
+        s.valid[1] = true;
+        // tap1 行1：只选中（执行位=未触发）
+        assert!(!s.tap_row_two_stage(1), "tap1=选中不执行");
+        assert_eq!(s.selected, Some(1), "选中态");
+        // 打断（点别行）：换选中不执行
+        assert!(!s.tap_row_two_stage(2), "换行不执行");
+        assert_eq!(s.selected, Some(2), "选中换行");
+        // tap2 同行=执行
+        s.valid[2] = true;
+        assert!(s.tap_row_two_stage(2), "tap2 同行=执行");
+        // 滑动/打断清选中
+        s.selected = Some(0);
+        s.interrupt_select();
+        assert_eq!(s.selected, None, "打断清选中（不执行）");
+    }
+
+    /// 【件3】选中行微提示（"再点加载"）——paint 挂点存在性（选中行才显示）。
+    #[test]
+    fn slot_selected_row_shows_retry_hint() {
+        let s = SlotSelect::new();
+        assert_eq!(s.retry_hint_text().is_some(), false, "未选中=无提示");
+        let mut s2 = s;
+        s2.selected = Some(0);
+        assert_eq!(
+            String::from_utf16_lossy(&s2.retry_hint_text().expect("选中行有提示")),
+            "再点加载"
+        );
     }
 }
