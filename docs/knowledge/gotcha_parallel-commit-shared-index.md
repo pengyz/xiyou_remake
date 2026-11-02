@@ -1,9 +1,9 @@
 ---
 name: parallel-commit-shared-index
-description: 多 teammate 并行 git 提交的共享 index 竞态与共享闸 TDD 张力——--only 显式路径+工作树保编译+红证据进 message/commit 本体绿
+description: 多 teammate 并行 git 提交的共享 index 竞态与共享闸 TDD 张力——--only 只隔离路径不隔离同路径他人 WIP（取工作树现状）+工作树保编译+红证据进 message/commit 本体绿
 type: gotcha
 created: 2026-10-22
-sources: [208bcf1, 2da157d]
+sources: [208bcf1, 2da157d, 02b7413]
 ---
 
 多 teammate 并行工作时三类反复踩的坑（2026-10-21/22 会话各实锤）：

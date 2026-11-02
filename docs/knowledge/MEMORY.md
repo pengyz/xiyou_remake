@@ -9,6 +9,7 @@
 ## Gotchas
 
 - [全局替换命中刚插入的方法体](gotcha_global-replace-hits-newly-added-method.md) — 先插后换使新方法委托变自递归，尾位置 TCO 成 100% CPU 静默死循环；替换前逐处核对命中上下文
+- [并行提交共享 index 竞态](gotcha_parallel-commit-shared-index.md) — --only 只隔离路径**不隔离同路径他人未提交 WIP**（取工作树现状，02b7413 卷入实锤）；共享闸 TDD 张力=工作树保编译+commit 本体绿
 - [--no-verify 永禁 + git add 失败必验退出码](gotcha_no-verify-never.md) — 共享工作区 git 纪律三件套：pathspec 提交、add 验退出码、闸永不绕；绕闸补救=程序违规（2026-10-18 自首实例+再犯升级条款）
 - [并行批共享 preset 参数](gotcha_parallel-batch-shared-preset-param.md) — run_variants_parallel 的 preset 是批级参数，混批逐场景预置会静默丢失；指纹=带 preset 场景全分歧、无 preset 全吻合
 - [javac 解析期掩蔽](gotcha_javac-parse-phase-masking.md) — 语法错挡住全部类型错误（实测"2 错"实为 4797）；计数必须 -Xmaxerrs 全量
