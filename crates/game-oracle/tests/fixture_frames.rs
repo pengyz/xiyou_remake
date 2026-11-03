@@ -660,6 +660,40 @@ fn fx_pickup_28_blue_key_frames_match() {
     assert_eq!(sc.player.blue_keys, 1, "case 28 blueKeyCount++（a.java:7562-7564）");
 }
 
+
+/// FX-PICKUP-29：攻击药（a.java:7565-7572 case 29 playerAtk++/floorTier）。floor3 (1,9)。
+#[test]
+fn fx_pickup_29_atk_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-pickup-29.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-pickup-29.txt"));
+    let (checked, sc) = replay("fx-pickup-29", include_str!("fixtures/fx-pickup-29.preset"), &records);
+    assert_eq!(checked, records.len(), "全帧必须比对");
+    assert_eq!((sc.view.player_px >> 5, sc.view.player_py >> 5), (1, 9), "北步入拾取格");
+    assert_eq!(sc.player.atk, 201, "case 29 playerAtk++（floor3≤10=+1；a.java:7565-7572）");
+}
+
+/// FX-PICKUP-30：防御药（a.java:7573-7580 case 30 playerDef++/floorTier）。floor3 (2,1)。
+#[test]
+fn fx_pickup_30_def_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-pickup-30.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-pickup-30.txt"));
+    let (checked, sc) = replay("fx-pickup-30", include_str!("fixtures/fx-pickup-30.preset"), &records);
+    assert_eq!(checked, records.len(), "全帧必须比对");
+    assert_eq!((sc.view.player_px >> 5, sc.view.player_py >> 5), (2, 1), "西步入拾取格");
+    assert_eq!(sc.player.def, 31, "case 30 playerDef++（floor3≤10=+1；a.java:7573-7580）");
+}
+
+/// FX-PICKUP-31：血药（a.java:7581-7584 case 31 applyHpDelta(50*floorTier)）。floor3 (2,2)。
+#[test]
+fn fx_pickup_31_hp_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-pickup-31.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-pickup-31.txt"));
+    let (checked, sc) = replay("fx-pickup-31", include_str!("fixtures/fx-pickup-31.preset"), &records);
+    assert_eq!(checked, records.len(), "全帧必须比对");
+    assert_eq!((sc.view.player_px >> 5, sc.view.player_py >> 5), (2, 2), "西步入拾取格");
+    assert_eq!(sc.player.hp, 550, "case 31 applyHpDelta(50*floorTier)（floor3 tier=1=+50；a.java:7581-7584）");
+}
+
 /// FX-ITEM-18A：玄明石全清当前层墙（evidence-items §2.3/§3.4）。floor37 型11 ×8 同拍
 /// 全 markEntityRemoved（a.java:7817-7828 全表扫描）+ 出栈。T1-560。
 #[test]

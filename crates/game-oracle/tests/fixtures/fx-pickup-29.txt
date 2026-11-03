@@ -1,0 +1,19 @@
+# ticks: 320
+# preset: fx-pickup-29.preset
+# cover: FX-PICKUP-29 pickup 29 臂组（P1-a2 批3；spec §7-Q3 臂面 21 组）：
+#   boot 70/-6 100/-2 150/-5 200/-5 → 槽载入 floor3 (1,10) → 300 -1 步
+#   (1,9) 踩型29 实体格（sprite3 探针实证）⇒ pickup dispatch case29
+#   （a.java:7565-7572）：playerAtk++（floor≤10）（攻击药）→ 收尾静态。
+#   断言：playerAtk++（floor≤10） 实测值钉（preset 基线+臂效应）、终态玩家 (1,9)。
+#   preset：python3 tools/frames_fixture.py preset floor=3 x=1 y=10 facing=1 hp=500
+#   atk=200 def=30 sky=5
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -1 press
+302 -1 release

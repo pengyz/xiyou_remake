@@ -6,9 +6,9 @@
 > （`scene.saved_floor_states`→`scene.persist.` 前缀锚串实改）——此二条已从
 > ⚠ 清单消失（grep 实证）。**行 3 归登记**（仅加括注未使锚匹配=仍报⚠——
 > 复核红2 裁定）。
-> **异族四类**（黄③更正：原"同族多锚"标法错——实为异族）：PORT_NOTES 7 /
-> TRIAGE 2 / YELLOW_NOTES 4 / ARM_GAPS 1（+行 3 initFloorStates=PORT_NOTES
-> 共 8 PORT_NOTES）=登 14+1 另类。
+> **异族四类**（黄③更正：原"同族多锚"标法错——实为异族；Q-2 族分自洽更正：
+> TRIAGE 第 2 条=「修正暴露」不符类拆出另账）：**PORT_NOTES 8 / TRIAGE 1 /
+> YELLOW_NOTES 4 / ARM_GAPS 1 = 登 14（锚失效）+1 另类（TRIAGE 不符）**。
 
 ## 登记面（14 锚失效实名——⚠ 清单 grep 原文逐条）
 
@@ -28,6 +28,12 @@
 | 12 | YELLOW_NOTES | m_107 | `mvs_mismatched_pair_key_leaves_world_untouched` | 登记 |
 | 13 | YELLOW_NOTES | m_107 | `mvs_two_way_transfer_piles_monsters_at_first_slot_cell` | 登记 |
 | 14 | ARM_GAPS | interactWithCell | `_ => {} // 76/82：后续批次` | 登记 |
+
+## 附带预存债（批3 复核随批登记）
+
+| # | 位点 | 现象 | 处置 |
+|---|---|---|---|
+| A1 | scene.rs:4257-4259 三处 | 锚漂移（复核件点名——具体锚值待 sed 实文核） | 登记（下批引锚核对时逐条销） |
 
 ## 另类 1（非锚失效）
 
