@@ -230,7 +230,7 @@ impl GameScene {
             script_line: String::new(),
             script_cursor: 0,
             script_delay: 0,
-            script_line_flags: vec![false; 68],
+            script_line_flags: vec![false; 68], // levelScriptLines 全局 68 行表（a.java:1124）——硬编码 68=正确实现留痕（2026-11-03 复核实证）
             current_script_index: 0,
             script_walk_armed: false,
             alchemy_price: 0,

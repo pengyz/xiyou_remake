@@ -148,7 +148,7 @@
         assert_eq!(i16::from_be_bytes([blob[35], blob[36]]), 0);
         assert_eq!(blob[37], 1);
         blob[37 + 67] = 1; // scriptLineCount-1：读
-        blob[37 + 100] = 1; // ≥ scriptLineCount：Java skip（a.java:9289-9291）
+        blob[37 + 100] = 1; // ≥ scriptLineCount：Java skip（a.java:9291-9297——2026-11-03 锚行更正）
         let save = crate::save::parse_floor_save(&blob, 0).unwrap();
         assert_eq!(save.script_flags.len(), 128);
         assert!(save.script_flags[0] && save.script_flags[67] && save.script_flags[100]);
@@ -158,11 +158,36 @@
             load_floor_from_save(&maplv(), &[], &width_table, &walk, images(), vec![None; 56], &save)
                 .unwrap();
         assert_eq!(sc.dialog.dialog_data.scripts.len(), 68, "scriptLineCount = levelScriptLines.length");
-        // 【P1-a1 黄②·断言更正（a.java:2038-2039 换钉）】scriptLineFlags=新布尔[levelScriptLines.length]
-        // ——每层变长 68 槽：≥68 的 skip 字节根本不在场（旧 128 缓冲形的 [100] 反向断言=错位钉）；
-        // skip 语义链=save.script_flags[100] 真值仅存 save 侧+scene 面 68 槽无此位。
+        // 【P1-a1 黄②·断言换钉（a.java:2038-2039）+2026-11-03 更正】scriptLineFlags=
+        // 新布尔[levelScriptLines.length]——levelScriptLines=全局 68 行表（a.java:1124）
+        // 非"每层变长"（表述证伪更正）；68 槽形下 ≥68 的 skip 字节不在场（旧 128 缓冲的
+        // [100] 反向断言=错位钉）。skip 链=save.script_flags[100] 真值仅存 save 侧
+        // （a.java:9291-9297 不读入——锚行更正）。
         assert_eq!(sc.script_line_flags.len(), 68, "a.java:2038-2039 new boolean[levelScriptLines.length]");
         assert!(sc.script_line_flags[0] && sc.script_line_flags[67]);
-        assert!(save.script_flags[100], "skip 字节仅存 save 侧（a.java:9289-9291 不读入）");
+        assert!(save.script_flags[100], "skip 字节仅存 save 侧（a.java:9291-9297 不读入）");
         assert_eq!(sc.script_line_flags.iter().filter(|f| **f).count(), 2);
+    }
+
+    /// 【P1-a1 黄五连③】道具栈 byte[32] 边界（Java byte[32] 对齐面）：可达上限
+    /// **22 件**（型域 13..34=22 槽，叠加不入栈）——33 件不可经 add 达成（23+
+    /// 不可达=BUG-050 潜在缺口注记）；满 32 静默吞=直接置位钉 `n < len` 守卫
+    /// （Java=AIOOBE 分歧登记 BUG-050）。
+    #[test]
+    fn item_stack_byte32_boundary_and_overflow_silent() {
+        let stores = crate::save::parse_preset(include_str!("../../tests/fixtures/preset-floor2-mov.preset"));
+        let blob = stores.iter().find(|(k, _)| k.starts_with("MOT_L0@")).unwrap().1.clone();
+        let save = crate::save::parse_floor_save(&blob, 0).unwrap();
+        let width_table = numbers(include_str!("../../tests/fixtures/type_width_px.txt"));
+        let walk = numbers(include_str!("../../tests/fixtures/tile_walkability.txt"));
+        let mut sc = load_floor_from_save(&maplv(), &[], &width_table, &walk, images(), vec![None; 56], &save)
+            .unwrap();
+        assert_eq!(sc.player.item_types.len(), 32, "Java byte[32] 对齐（黄①收口面）");
+        for i in 0..22 {
+            sc.add_item_to_stack(13 + i); // 型域全域 22 件（叠加语义=同型不入栈）
+        }
+        assert_eq!(sc.player.item_stack_size, 22, "可达上限=型域 22 槽（33 件不可达——BUG-050）");
+        sc.player.item_stack_size = 32; // 满栈直接置位（经 add 不可达）
+        sc.add_item_to_stack(13); // 第 33 件：Rust `n < len` 守卫静默吞
+        assert_eq!(sc.player.item_stack_size, 32, "溢出静默（Java=AIOOBE——BUG-050 分歧钉）");
     }

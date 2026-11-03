@@ -182,3 +182,29 @@ pub fn dump_scene(sc: &GameScene) -> Vec<String> {
 
     out
 }
+
+
+/// 【P1-a1 黄五连①②】e_quoted 单测：代理对（encode_utf16 双单元镜像 charAt）/
+/// 空串/null 区分/五转义/非 ASCII——0 行覆盖补齐。
+#[cfg(test)]
+mod p1a1_quoted_tests {
+    use super::e_quoted;
+    #[test]
+    fn surrogate_pair_two_escapes() {
+        // U+1F600 😀 = UTF-16 代理对 D83D DE00 → Java charAt 两次 \u 转义
+        assert_eq!(e_quoted("x", Some("\u{1F600}")).value, "\"\\ud83d\\ude00\"");
+    }
+    #[test]
+    fn empty_string_is_quoted_not_null() {
+        assert_eq!(e_quoted("x", Some("")).value, "\"\"");
+    }
+    #[test]
+    fn null_is_literal_null() {
+        assert_eq!(e_quoted("x", None).value, "null");
+    }
+    #[test]
+    fn five_escapes_and_non_ascii() {
+        assert_eq!(e_quoted("x", Some("a\"b\\c\nd\te\u{4E2D}")).value,
+                   "\"a\\\"b\\\\c\\nd\\te\\u4e2d\"");
+    }
+}

@@ -599,7 +599,10 @@ pub fn load_floor_from_save(
     scene.persist.saved_floor_states = save.floor_states.clone();
     // scriptLineFlags 读回（a.java:9285-9291：前 scriptLineCount 项 readBoolean，余
     // skip）——须先于 step 10 loadFloorData（m_122 floor2 恢复特例读 flags[26]）
-    scene.script_line_flags = vec![false; scene.dialog.dialog_data.scripts.len()]; // 【P1-a1 黄②】每层变长（a.java:2038-2039 levelScriptLines.length）
+    // 【2026-11-03 更正】"每层变长"表述证伪：levelScriptLines=**全局 68 行表**
+    // （a.java:1124）非逐层；本式 len()≡68（与 scene_persist.rs:233 硬编码 68 同义）。
+    // 分配形=新布尔[levelScriptLines.length]（a.java:2038-2039 锚保真）。
+    scene.script_line_flags = vec![false; scene.dialog.dialog_data.scripts.len()];
     let line_count = scene.dialog.dialog_data.scripts.len().min(save.script_flags.len());
     scene.script_line_flags[..line_count].copy_from_slice(&save.script_flags[..line_count]);
     // step 10 = loadFloorData（应用本层触发缓存）+ buildMinimap（a.java:3515-3517）

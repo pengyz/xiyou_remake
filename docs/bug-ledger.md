@@ -980,3 +980,16 @@ Evidence: A 级——宿主 RED（49 层型 70 击杀触发剧情后 route.is_op
   实机复测：同一场景点打不过的怪 ⇒ "你无法战胜它"框可见，确定关框后回 Map（`scene keys … mode=Map`）。全量测试 0 失败；gates trace PASS。
 Evidence: A 级——a.java:3129-3168 公共尾 + switch 区间无 return；实机日志与截图（target/verify/device_plan1/b4_padbump.jpg 无框、b9_tap_refuse.jpg 有框）；
 宿主 RED→GREEN。Confidence: 90
+
+## BUG-050 道具栈满 32 溢出行为分歧（保真缺口·潜在）
+
+- 现象：addItemToItemStack（a.java:7721-7734）栈满 32 后第 33 件入栈——Java=
+  `byte[32]` 越界 **AIOOBE**（未捕获→崩溃/上层捕获面待考）；Rust=`n < len` 守卫
+  **静默吞**（无操作无提示）。
+- 复现：`item_stack_byte32_boundary_and_overflow_silent`（fidelity_fix_tests）——
+  满 32 后 add_item_to_stack(13) → size 保持 32。
+- 影响：**23+ 道具不可达**（正常流程栈深≤22，ITEM_USES 22 槽域）——金样 60 未触；
+  属潜在保真缺口非现行为差。Stage A 不修（D4）。
+- 登记：2026-11-03（DDDSA P1-a1 黄五连③·复核黄 3 裁定开条目）。
+- trace id：N/A（静态语义对拍：scene.rs add_item_to_stack `n < len` 守卫 vs
+  a.java:7721-7734 数组直写）。
