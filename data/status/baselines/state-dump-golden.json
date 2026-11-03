@@ -5,303 +5,303 @@
  "probe": "python3 tools/state_baseline.py --check",
  "scenarios": {
   "floor-crossing.state": {
-   "sha256": "d0c127796644ed60003d3ed28e9d7ef3e20fe2440fd2d8a9af240f0def94b538",
-   "bytes": 1769712,
+   "sha256": "b1351c7075292eda8e2e89d45efc714e7c0be148ba11efe602b50a0ba48515f8",
+   "bytes": 2181340,
    "ticks": 964
   },
   "floor1-tour.state": {
-   "sha256": "098cc58c45ca906a64f428f5f85882188ce2be25e89bb8bbcf0cc40ee7c98b1a",
-   "bytes": 13718371,
+   "sha256": "4f858218ace7bb96cb9201a389891fb4b180c83f6f18034ad2620b593bb8e90f",
+   "bytes": 16911885,
    "ticks": 7464
   },
   "floor2-tour.state": {
-   "sha256": "9a882458ceed4d72e1410d70fa87c6a855ced6627c640463edbc0a6b0e973414",
-   "bytes": 2688573,
+   "sha256": "6413e6c7addb72aa0eb35ee774cdb487d3597c24b379ed158c5ac32becb5d42d",
+   "bytes": 3366197,
    "ticks": 1464
   },
   "floor51-menu.state": {
-   "sha256": "df2439181cd3880abf31c062163f86a25e015c21638640df149c2ad4b0e8a5d9",
-   "bytes": 17156393,
+   "sha256": "c85456c4803dae1d91a19b5cf0fbac61e77caaf9e1933f8562c34004c547f5ed",
+   "bytes": 21694086,
    "ticks": 9224
   },
   "fx-boss67a.state": {
-   "sha256": "0de3f64d8fc23ff291ab35eadd3ba73d6b6a4b9b4f925db1a12f14a540b76d59",
-   "bytes": 592671,
+   "sha256": "8ec8181742bda5730bc148ccbffcf1590b04dcc72977fd103e0f5ba0a641163e",
+   "bytes": 730592,
    "ticks": 323
   },
   "fx-boss68a.state": {
-   "sha256": "caa2d0aa4b6ad43ae2160bb4482821d584ac6b24e52216ba37ad291d4c16c847",
-   "bytes": 960315,
+   "sha256": "d22bfff5299dd1c1b4100499dc7f3d11eff5c02acf5cdea30991d0c0ec3ae158",
+   "bytes": 1183992,
    "ticks": 523
   },
   "fx-boss68b.state": {
-   "sha256": "03c099c63238be05f7bf752b3fedba9c4572ba74af5ff94cd4c3341499eb4271",
-   "bytes": 592635,
+   "sha256": "f8b3dba3d830d35ac714e8f40d8ea0eec335baa34cb6fe2d1b2d7557cf249a6c",
+   "bytes": 748756,
    "ticks": 323
   },
   "fx-boss74a.state": {
-   "sha256": "97d79aef384f95374bf35512c22219a6d4bbb676188d7afc56023f9a303f8475",
-   "bytes": 671025,
+   "sha256": "46d6479de3f1e3e68c1046a598ee02f2786a228a86db7cf81f3b7c9630e6f74e",
+   "bytes": 842947,
    "ticks": 363
   },
   "fx-bug-ces70-slot.state": {
-   "sha256": "eed8b14a54b0beecf8d368c5c522d9a52ccfa63d072f930f56e64cfa1ec614b5",
-   "bytes": 205578,
+   "sha256": "1e14773f60b3783cc6cea04b47c3ba08244b11b25c86430da23d6ec75aa307a0",
+   "bytes": 253514,
    "ticks": 112
   },
   "fx-chang-e-floor1-taps.state": {
-   "sha256": "3f34a1a1a6d96c5fb489685ab1deaabb0d669f1d905f2de98ba1dd295522ce04",
-   "bytes": 3989603,
+   "sha256": "8a4d3f698f3990ce3f955c27036865380b1d3a0e5dab91cea0dd01ccb3dc1444",
+   "bytes": 5036043,
    "ticks": 2163
   },
   "fx-door2a.state": {
-   "sha256": "5a05db138301ce678383393af20975da144fa9247cbcf8dffbd8101ca762e190",
-   "bytes": 521965,
+   "sha256": "4daba4fd8a722280023d09e7d3aff00b4801b66c6231a1f3e60066f914f8eb1a",
+   "bytes": 642806,
    "ticks": 283
   },
   "fx-door2b.state": {
-   "sha256": "b513da55c315ff8843a7107682cf7228ae28674efe4626b13e1766da73179917",
-   "bytes": 521949,
+   "sha256": "e19050a513471ee8bd5e95bc57d6e51f48a724eff5f8a199d25f00c2e8a33c2d",
+   "bytes": 658870,
    "ticks": 283
   },
   "fx-fan-floor13.state": {
-   "sha256": "b7c3264bce23ec8c9e84ac0cbf039d94367aec6740d9bcc9b656f0b7dbe8ca77",
-   "bytes": 1072765,
+   "sha256": "da9bea41fb007a34ac5a5758d11c1d0775cfdaecb146ec35144ff5fcf17cfe8d",
+   "bytes": 1357409,
    "ticks": 593
   },
   "fx-firebump-floor13.state": {
-   "sha256": "4da0cca6bb41a1230f37c3752e742e3ba38b9d1415c06557ea308a1134eb39af",
-   "bytes": 439522,
+   "sha256": "217afdd6c9c828fbe6c4a6fdde13b16a21c6bc31eb6f6de567d2872c0702b0a1",
+   "bytes": 555883,
    "ticks": 243
   },
   "fx-int11f23.state": {
-   "sha256": "0266a0a955ab858db2ecf28c5e53bbb9759a6504211de2d158bf5a6444d8b0b4",
-   "bytes": 600895,
+   "sha256": "ae6cb85c23aae4a366a5a29837d312b149e9081b46d7a403e6d54ec5a4998394",
+   "bytes": 738816,
    "ticks": 323
   },
   "fx-int11n23.state": {
-   "sha256": "0ca85b6847889fbd356d003b2c436fd14530f00958db0edb8dffb5610cffff3b",
-   "bytes": 293488,
+   "sha256": "80e0500985620fd0108952992ca58fa7aacc63636f1b0040b24f35b84ae6d9d1",
+   "bytes": 369989,
    "ticks": 163
   },
   "fx-int6a.state": {
-   "sha256": "c3543a6dde4c5cb53c719a8d9b11b6e69b271ce4e4446d96237ce3e7c2c3ed39",
-   "bytes": 592892,
+   "sha256": "9bf364c60af28cf403b32a703b301ec8b29ed42711892428150e45ae8f84b1dd",
+   "bytes": 730813,
    "ticks": 323
   },
   "fx-item17a.state": {
-   "sha256": "806f5793106ebdb8a49674044d093cc230c4e84eb7f8607c7d0c15476d4a149a",
-   "bytes": 689532,
+   "sha256": "df7af7541e0d435ea19621ecbca296b39d3a5f7318a11dd08b4e8a4a05235638",
+   "bytes": 873336,
    "ticks": 383
   },
   "fx-item17b.state": {
-   "sha256": "8c2e9976666d2cddc5baed960e6745d27207e218cc0ba47acd2915338cf38148",
-   "bytes": 583951,
+   "sha256": "fa2c66dc533944f40d6dfb5cc9aa11ab53f6ff13addbc81d8ef77e623e70d644",
+   "bytes": 736915,
    "ticks": 323
   },
   "fx-item18a.state": {
-   "sha256": "82bf2fe729fc3e557afb79f74c806cecb7479b30aa8e07c7304b9a18286f6923",
-   "bytes": 590862,
+   "sha256": "9d4f4f8b2af5113e4f972c140c345675093974226758e3e3e3673dff6b10d266",
+   "bytes": 744506,
    "ticks": 323
   },
   "fx-item19a.state": {
-   "sha256": "bf260c59730565fc07b65e43b2cc6e25641c15133af57caacaa4ad8a1b08da6e",
-   "bytes": 584454,
+   "sha256": "7b2a9ce123a3e68c81318e31f402bea1cc2ff1ddc5a8524418a85dd69846b857",
+   "bytes": 737058,
    "ticks": 323
   },
   "fx-item20a.state": {
-   "sha256": "7a86b2c6ef3a9805aa2ebd96eaa49cb3ddc6a58a51c424b103c597e437df7a7e",
-   "bytes": 817883,
+   "sha256": "816422c0198c35ea45f1e27b13c2c4046b65099e1d5b4a1174ddd7752ea40585",
+   "bytes": 1030967,
    "ticks": 443
   },
   "fx-item20b.state": {
-   "sha256": "aba58d5b086e095dd70e0dd964ed356acfc924479c998fe822c8623c69158f57",
-   "bytes": 593641,
+   "sha256": "2b1d30df5050a424e4f0ea8fed9bcc980b6e0ee1c24535947ee65e8726dd51ae",
+   "bytes": 747305,
    "ticks": 323
   },
   "fx-knockback-floor43.state": {
-   "sha256": "4bd11258d99d2d9310092b65b930e38c5e607509829ce1016488b143ce42433d",
-   "bytes": 665304,
+   "sha256": "5026d4205992928d867d2db55156c7d30d2fea417df52fb1fc283e45b25d85a6",
+   "bytes": 820305,
    "ticks": 363
   },
   "fx-record-arrows.state": {
-   "sha256": "bacd9ef59007c87ea31b623cb31a44f0bd8c0eca52f95876413634153eca658f",
-   "bytes": 1768114,
+   "sha256": "4bb059dab83b20814b574948ee935c84325a5d98532f1170403873c84f9ba09a",
+   "bytes": 2245857,
    "ticks": 963
   },
   "fx-scriptwalk-floor3.state": {
-   "sha256": "64afdcafa84ed56560b1fd5cf51af8bd8fbbdb578cc090d7e784cc663d753b0d",
-   "bytes": 851072,
+   "sha256": "f47c02eaa0e437c1e596cf0c55a25417ddb301dd4d3eca27be265e5936679146",
+   "bytes": 1070671,
    "ticks": 463
   },
   "gameplay-floor1.state": {
-   "sha256": "2a3abd06615e96d117490f09c333555b8977da685fdd10531f72ca1068037939",
-   "bytes": 4526812,
+   "sha256": "8679ee25b0e7ef32ef93af7bdddb98e3b01109123551291b5e4cbdf1be3a98a5",
+   "bytes": 5578940,
    "ticks": 2464
   },
   "preset-alchemy.state": {
-   "sha256": "039f780d59a826cb9849e06300030e0f8e8789951859b19b3b6477bcbcb2e6d7",
-   "bytes": 853868,
+   "sha256": "98dc3a17e36517f5dc2dd98f7baf29fb70bdc72e74d89ad9650809c486239e83",
+   "bytes": 1060620,
    "ticks": 464
   },
   "preset-floor10-nw.state": {
-   "sha256": "10ce72ef0f7de9ab41b4195df634f4365e083f72e5103a8deb951cd1c093b30b",
-   "bytes": 1974511,
+   "sha256": "955a039522c4d454f4b451c51c522494e069fa7fa37df1effa3e2c5efd5f95ba",
+   "bytes": 2433109,
    "ticks": 1074
   },
   "preset-floor10.state": {
-   "sha256": "10ce72ef0f7de9ab41b4195df634f4365e083f72e5103a8deb951cd1c093b30b",
-   "bytes": 1974511,
+   "sha256": "955a039522c4d454f4b451c51c522494e069fa7fa37df1effa3e2c5efd5f95ba",
+   "bytes": 2433109,
    "ticks": 1074
   },
   "preset-floor10b.state": {
-   "sha256": "8db7996e76d409d3e12b7da3483ceec2818dd2f7c95742a073b5637b85cc515a",
-   "bytes": 1132994,
+   "sha256": "7634f9fd47af711393e07b6510f9bcab5e79bf4d56304fea03ca2b843c9a972a",
+   "bytes": 1395172,
    "ticks": 614
   },
   "preset-floor14.state": {
-   "sha256": "6eb277e705df3d296c5be49aff956f4b15daa49c77fb7c4d2ce159b6d78aab34",
-   "bytes": 8359279,
+   "sha256": "0a4112053ee7d33d6f793433a9b219835616cc4585984a316643172547472288",
+   "bytes": 10303837,
    "ticks": 4554
   },
   "preset-floor17.state": {
-   "sha256": "42e4c8c721afd3e5d7ac5fa4eaf42df923b42bd3667ad68887492829be933088",
-   "bytes": 1128696,
+   "sha256": "b15974f700bdc140e9d54bb239e27b50686db1243d4daca2614a35fb8ca889b6",
+   "bytes": 1390874,
    "ticks": 614
   },
   "preset-floor2.state": {
-   "sha256": "8c4f65781f525c27f8f1455b660f7dd0baf9425a139e409d2fd6c455cf5a2752",
-   "bytes": 669667,
+   "sha256": "b6d268e6e3ac064f7e5401578c4495ab07bce616989825aaf1031cd188386d81",
+   "bytes": 825459,
    "ticks": 364
   },
   "preset-floor34.state": {
-   "sha256": "412485be761be73d8ada0f3d06c4727a0983f4c72709a83d27d93facc1878e3e",
-   "bytes": 5138852,
+   "sha256": "441a003743676badec1061d52990c5958e302185c7c38de64611dce715880733",
+   "bytes": 6331890,
    "ticks": 2794
   },
   "preset-floor35.state": {
-   "sha256": "eda52605e40bd46b22adc586ec881a1c7ed602efd83099bd5563477621b0daab",
-   "bytes": 1786378,
+   "sha256": "f59b3df8927edf787f52a0c889dc237f2366f0955411174ca4e0c4f9c156a6b5",
+   "bytes": 2250135,
    "ticks": 964
   },
   "preset-floor38.state": {
-   "sha256": "1553b972437c071cafc5741b206967127ae83e739706c096a3c4b0a625a80b66",
-   "bytes": 10725445,
+   "sha256": "261fee2c4ce0b1114d81111cd5579ca114b23dff02cf3bc2d7a8de83c34eb891",
+   "bytes": 13209529,
    "ticks": 5814
   },
   "preset-floor41.state": {
-   "sha256": "1c3c484df311d72351d7af761b128abca9df8b5f9792e581ca4266b8d857d1d8",
-   "bytes": 3054414,
+   "sha256": "2a77d1c0b44a6c3debe47cf9e837cb3c297fb324ddb9fb4063064d82eb70fa7c",
+   "bytes": 3807451,
    "ticks": 1664
   },
   "preset-floor42.state": {
-   "sha256": "93e2f1877bd50cea42ef2d078e12e7f2e4a65075a6ae6390e69d52864fe5446c",
-   "bytes": 2704484,
+   "sha256": "d6fa462ce3e063a565519a15ea8dabd2578ce27979fc464aa1eaa5701ba546fd",
+   "bytes": 3411884,
    "ticks": 1464
   },
   "preset-floor43.state": {
-   "sha256": "f56818649a08cab22574f64a085d5eda366532d84299793b99c592eea33883f4",
-   "bytes": 2316504,
+   "sha256": "88f5e4a5d4c6de19599d55ddb5413801a1997198bfc8e317f432ec02b2ac9890",
+   "bytes": 2876064,
    "ticks": 1264
   },
   "preset-floor44.state": {
-   "sha256": "f67931bd3e09e13c285b4ecc953b3154ea6a49668b49686d388eca31059dbec5",
-   "bytes": 2498632,
+   "sha256": "051b8a3ba548be208eb1e8ad8df614312973e014c325903bbbec5890b4bc990d",
+   "bytes": 3092560,
    "ticks": 1364
   },
   "preset-floor45.state": {
-   "sha256": "0e150c4b3de1b45a7cf9847b77daa76d23c7311efcbe78fccaad9f43ef8680da",
-   "bytes": 2695030,
+   "sha256": "2fc2094869110a48f23022c48d7b1b4f88f49a757f20a11551480ac92a97fa9d",
+   "bytes": 3415434,
    "ticks": 1464
   },
   "preset-floor46.state": {
-   "sha256": "f88ad6e662a05b9b5578487a661af3618cfb95e8e7c0cfb4dce594f5e2efce4e",
-   "bytes": 2688932,
+   "sha256": "cb2ef05bc785848231f85fbdc4d1d5a4dfd0a526f8d9e24196e7e38fe323b330",
+   "bytes": 3401810,
    "ticks": 1464
   },
   "preset-floor47.state": {
-   "sha256": "c0577eaddf8fb83dec7f35e35be94bcf8b33d99fcb670011c599769a784b0618",
-   "bytes": 2054429,
+   "sha256": "8512e342269c891d404103ff469429c3c1dc4646d95cec89e9254a33fa272a88",
+   "bytes": 2530107,
    "ticks": 1114
   },
   "preset-floor48.state": {
-   "sha256": "16ee934605d5fd8197c38b87adeeb9f29c8437a66ad9d03d4cc6d6f9493f49f5",
-   "bytes": 5894530,
+   "sha256": "be9fe6d44479b839ea4e10842d82f0f4689b4ab728ece354a12076c09ad73bb8",
+   "bytes": 7390654,
    "ticks": 3204
   },
   "preset-floor49.state": {
-   "sha256": "1c86f7e6dd7c4da01d1b08791b8376713139995b8d2796abbd6f3a1fd7466436",
-   "bytes": 5810950,
+   "sha256": "caff6c8418ed7684f960cac14a4f20ecd94e426f1c452df723dbc90f35eb0404",
+   "bytes": 7161551,
    "ticks": 3163
   },
   "preset-floor5.state": {
-   "sha256": "bacd9ef59007c87ea31b623cb31a44f0bd8c0eca52f95876413634153eca658f",
-   "bytes": 1768114,
+   "sha256": "47ed3de33409941b916d1eae053c30a432a5c7933253411dc97eac916deed2c3",
+   "bytes": 2247287,
    "ticks": 963
   },
   "preset-help.state": {
-   "sha256": "0bad79af0c0318e17a70d3a35a720ddc7c5772129118a89aac91d40363c2ebed",
-   "bytes": 1011993,
+   "sha256": "a5421ca610d20b7c9790df586bce2255ddb10e57b5d12dc1b4557554602b9dc8",
+   "bytes": 1276971,
    "ticks": 564
   },
   "preset-item13.state": {
-   "sha256": "a4982e5185d0282880f32e3b8f5fa6ce0a8fb5be48debf10f05dcae1cebfdaa7",
-   "bytes": 484854,
+   "sha256": "3dcf9fbccbefc64bd5be8764653e19560bd903194573a0a269c251b31ec04061",
+   "bytes": 598260,
    "ticks": 264
   },
   "preset-item21.state": {
-   "sha256": "e9e91df5ec6fdfa45c9c05ccc66f96789a210027b236602509f51462cd562d23",
-   "bytes": 1218875,
+   "sha256": "3f3e47fe060541b072d12b6c8d3e356b5edc3bd79f204aaa5e320ecd643f3d6b",
+   "bytes": 1540467,
    "ticks": 664
   },
   "preset-item2122.state": {
-   "sha256": "22c60cdfcf15c87716f3f05d8f3cebe556a066bbae2d5d41158e278af9b38d03",
-   "bytes": 1219811,
+   "sha256": "3e3cb368b99d9fb66e40be01a83a746a6a0e18333d0a085676dd2adc5175df2b",
+   "bytes": 1542317,
    "ticks": 664
   },
   "preset-itemboss40.state": {
-   "sha256": "6f7bf43e051c84ae53b3119e376e706332b02cda6245d24c692dd485476a7170",
-   "bytes": 856116,
+   "sha256": "0e7762393c9583fe80408f078eb0c0be9e64237d65982859ae3417ae5699e266",
+   "bytes": 1079317,
    "ticks": 464
   },
   "preset-itemcymbal.state": {
-   "sha256": "d95551371ac43f1016fddcff86edbf70a3b1217eb4fd1ffe47a1c3b0cbe5c653",
-   "bytes": 668671,
+   "sha256": "d550ffbaaf1f7a2b404ae33ed1655f60bbf4e8077ccdedbdd142fbcaf8882fa6",
+   "bytes": 842463,
    "ticks": 364
   },
   "preset-itemstack.state": {
-   "sha256": "72ce0b8c3d08ba98b5045931d60a4c670fca5a9aab5b7ab5cdfdc1ab23b61a84",
-   "bytes": 484988,
+   "sha256": "87fd7b756e3a1a8efa73d7c62c1a0f4e2b12e822008ac79bde3510b0a6d5c4be",
+   "bytes": 608630,
    "ticks": 264
   },
   "preset-load-menu.state": {
-   "sha256": "c13b4e9dbd32a0c2dd21b9f67d277d7d7a7f8b23336780c4dc393cc20d5e8d77",
-   "bytes": 1011993,
+   "sha256": "625c10635a55a09260dabde2e48dfce195b4b800753fb206290e5993d7484783",
+   "bytes": 1282721,
    "ticks": 564
   },
   "preset-merchant.state": {
-   "sha256": "4ab8deababe1cbeb934ff6a3e3175a83347e0f2a9a9af8da19d7b8c33c1bef82",
-   "bytes": 669647,
+   "sha256": "0790815a199d80b8367cfe4c3e53b1f79094429c6faceab04d8f97379274c615",
+   "bytes": 847855,
    "ticks": 364
   },
   "preset-save.state": {
-   "sha256": "951440623bcbc52f40dbb7bd000f3e436b51b18c77c91e88aee14f265b0dcb2f",
-   "bytes": 851967,
+   "sha256": "9b30e89025eb92701210561bfaa5731808db7e9d5499221d09f8b1ee14b275c3",
+   "bytes": 1069595,
    "ticks": 464
   },
   "prologue.state": {
-   "sha256": "df2439181cd3880abf31c062163f86a25e015c21638640df149c2ad4b0e8a5d9",
-   "bytes": 17156393,
+   "sha256": "c85456c4803dae1d91a19b5cf0fbac61e77caaf9e1933f8562c34004c547f5ed",
+   "bytes": 21694086,
    "ticks": 9224
   },
   "story-fullrun.state": {
-   "sha256": "7af2ac074bc67a3603d3530a64058d4f52e4b6ae049d598f0da55978977b71ca",
-   "bytes": 6935724,
+   "sha256": "8d9290265306cfba0b3c7ae5b5812dbb4edaf2792da4ea497ad031d7958f2a2d",
+   "bytes": 8763127,
    "ticks": 3763
   },
   "walk-pure.state": {
-   "sha256": "c257246fecb1c9e38aa853be2c970ecbbf07b6b3e89037eaad662ae8cf5c9651",
-   "bytes": 6366337,
+   "sha256": "4f7daa4c37a7b24db1e802b3e7346dea8a8f92cbf2e37ae8339d522461c82214",
+   "bytes": 7848081,
    "ticks": 3464
   }
  }

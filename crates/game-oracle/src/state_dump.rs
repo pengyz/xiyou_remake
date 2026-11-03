@@ -145,6 +145,15 @@ pub fn dump_scene(sc: &GameScene) -> Vec<String> {
     push(e_bool_arr("entityRemoved", &ea_bool(|e| e.removed)));
     push(e_int_arr("enemyBaseGold", &sc.enemy_base_gold));
     push(e_byte_arr("walkPathBuffer", &sc.walk_path_buffer));
+    // ── P1-a1 dump 补面 6 组（DDDSA 前置件——名=Java 字段名 javap FLD 序；
+    //    statediff 名集相等约束；A2 行序冻结对象=本 push 序）──
+    push(e_byte_arr("itemStackTypes", &sc.player.item_types)); // FLD202
+    push(e_byte_arr("itemStackUses", &sc.player.item_uses)); // FLD203
+    push(e_int("itemStackSize", sc.player.item_stack_size)); // FLD201
+    push(e_byte("itemUseTargetType", sc.menu.overlay_kind_item as i8)); // FLD058（Rust 真身=overlay_kind_item，scene.rs:4330 注记）
+    push(e_bool("tutorialSeen", sc.menu.tutorial_seen)); // FLD215
+    push(e_bool_arr("scriptLineFlags", &sc.script_line_flags)); // FLD240
+    push(e_byte_arr("overlayText", sc.dialog.overlay_text.as_deref().unwrap_or("").as_bytes())); // FLD062（首个字符串面=UTF-8 字节数组编码）
 
     out
 }
