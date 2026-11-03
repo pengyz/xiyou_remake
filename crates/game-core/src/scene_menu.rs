@@ -507,7 +507,7 @@ impl GameScene {
         if self.dialog.overlay_active {
             match self.key_value {
                 -7 => {
-                    self.dialog.overlay_active = false;
+                    self.dialog.set_overlay_active(false);
                     self.transition_to(self.menu.menu_return_mode);
                 }
                 -2 => self.flip_overlay_page(self.dialog.overlay_page_top + self.dialog.overlay_lines_per_page),

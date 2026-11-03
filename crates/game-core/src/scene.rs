@@ -477,6 +477,10 @@ pub struct GameScene {
 
 /// 【终章·entity/移动域直写接口】（lead 2026-11-03 选项 1）——跨文件写点收敛。
 impl GameScene {
+    // ── 【终章簇2·script 域直写接口】（scene.rs=唯一直写面）──
+    pub(super) fn set_script_walk_armed(&mut self, v: bool) { self.script_walk_armed = v; }
+    pub(super) fn set_script_delay(&mut self, v: i32) { self.script_delay = v; }
+    pub(super) fn set_script_cursor(&mut self, v: usize) { self.script_cursor = v; }
     // ── 【终章·entity/移动域直写接口】跨文件写点收敛（禁 self.facing=/walk_phase= 等
     // 直写——lead 2026-11-03 裁定选项 1：域访问全走接口）。setter=写侧接口；
     // 语义操作可后叠（本批 1:1 机械收口保行为零差）。
@@ -803,9 +807,9 @@ impl GameScene {
     /// showOverlayMessage（a.java:4898-4916）：kind 0/2/4/5 = 纯文本框；
     /// 1/3 = 带图标框（定宽 212、高 68+页高）。
     pub fn show_overlay_message(&mut self, kind: i32, text: &str, left: i8, right: i8) {
-        self.dialog.overlay_active = true;
+        self.dialog.set_overlay_active(true);
         self.dialog.overlay_kind = kind;
-        self.dialog.overlay_text = Some(text.to_string());
+        self.dialog.set_overlay_text(Some(text.to_string()));
         if matches!(kind, 1 | 3) {
             let t = self.menu.overlay_kind_item;
             self.menu.overlay_icon = self.images.entity.get(t as usize).cloned().flatten();
@@ -1039,7 +1043,7 @@ impl GameScene {
     /// 布局走 layout_wrapped_text_limited（w=129、高=2·lineH+12、limit=typewriterPos）。
     fn open_dialog_page(&mut self, page: i32) {
         if page <= self.dialog.dialog_page_end {
-            self.dialog.dialog_page = page;
+            self.dialog.set_dialog_page(page);
             self.dialog.dialog_speaker = if page < 0 {
                 -1
             } else {
@@ -1082,12 +1086,12 @@ impl GameScene {
             } else {
                 (self.object_type_names[self.dialog.dialog_speaker as usize].chars().count() + 10) as i32
             };
-            self.dialog.overlay_text = Some(composed.clone());
+            self.dialog.set_overlay_text(Some(composed.clone()));
             let line_h = crate::paint::paint_font().height + 4;
             self.layout_wrapped_text_limited(&composed, 129, (line_h << 1) + 12, self.dialog.dialog_char);
         } else {
-            self.dialog.dialog_phase = 0;
-            self.dialog.dialog_char = 0;
+            self.dialog.set_dialog_phase(0);
+            self.dialog.set_dialog_char(0);
         }
     }
 
@@ -1194,7 +1198,7 @@ impl GameScene {
         self.walk_step_count = steps.len() as i32;
         self.walk_path_buffer = steps;
         self.script_walk_armed = true;
-        self.dialog.dialog_phase = 3;
+        self.dialog.set_dialog_phase(3);
         self.walk_phase = 0;
         // dp3 消费机器在 Dialog 语境（op_mov 同款——脚本行走=mode 11 语境）
         self.game_mode = GameMode::Dialog;
@@ -2076,7 +2080,7 @@ impl GameScene {
                 }
                 let (sx, sy) = self.route_start;
                 entity::relocate_slot(&mut self.grid, &self.entities, e, sx, sy);
-                self.dialog.dialog_phase = 0;
+                self.dialog.set_dialog_phase(0);
                 let t = self.entities.items[e].type_;
                 entity::dispatch_anim(t, e, &mut self.entities);
                 self.route_entity = -1;
@@ -2135,7 +2139,7 @@ impl GameScene {
                 self.tick_battle(self.battle_active);
                 let e = self.route_entity as usize;
                 if !self.battle_finishing && (self.entities.items[e].removed || self.entities.items[e].state == 1) {
-                    self.dialog.dialog_phase = 0;
+                    self.dialog.set_dialog_phase(0);
                     self.route_phase = 0;
                     self.route_entity = -1;
                 }
@@ -2896,7 +2900,7 @@ impl GameScene {
                 // kind4（a.java:7442），merchant 场景亦无 -3/-4 按键。）
                 match self.key_value {
                     -7 | -6 | -5 => {
-                        self.dialog.overlay_active = false;
+                        self.dialog.set_overlay_active(false);
                         self.transition_to(GameMode::ItemPanel);
                     }
                     -4 => self.open_record_page(self.menu.record_page + 1),
@@ -2908,7 +2912,7 @@ impl GameScene {
             } else if self.dialog.overlay_kind == 0 && (self.game_mode == GameMode::Help || self.game_mode == GameMode::IconView) {
                 match self.key_value {
                     -7 => {
-                        self.dialog.overlay_active = false;
+                        self.dialog.set_overlay_active(false);
                         self.transition_to(self.menu.menu_return_mode);
                     }
                     -2 => {
@@ -2925,10 +2929,10 @@ impl GameScene {
                 match self.key_value {
                     -7 => {
                         self.transition_to(GameMode::ItemPanel);
-                        self.dialog.overlay_active = false;
+                        self.dialog.set_overlay_active(false);
                     }
                     -6 => {
-                        self.dialog.overlay_active = false;
+                        self.dialog.set_overlay_active(false);
                         self.use_item_stack(self.menu.item_cursor as usize);
                     }
                     _ => self.handle_overlay_key(),
@@ -3535,8 +3539,8 @@ impl GameScene {
                                 // （floor10 T401 实证：Java -1 撞 (6,6) 先行走、
                                 // applyStep 到达才开 script3 对话）。
                                 if self.try_run_scene(self.entities.items[e].param as i32, false) {
-                                    self.dialog.overlay_active = false;
-                                    self.dialog.overlay_text = None;
+                                    self.dialog.set_overlay_active(false);
+                                    self.dialog.set_overlay_text(None);
                                     let idx = self.entities.items[e].param as i32;
                                     self.load_level_script(idx);
                                     s = -1;
@@ -4075,8 +4079,8 @@ impl GameScene {
                         83 => {
                             // 出生/踩格触发（a.java:5708-5709）：序章 script 40 入口
                             if self.try_run_scene(self.entities.items[e].param as i32, true) {
-                                self.dialog.overlay_active = false;
-                                self.dialog.overlay_text = None;
+                                self.dialog.set_overlay_active(false);
+                                self.dialog.set_overlay_text(None);
                                 let idx = self.entities.items[e].param as i32;
                                 self.load_level_script(idx);
                                 step_triggered = true; // a.java:5712 sort_i=true

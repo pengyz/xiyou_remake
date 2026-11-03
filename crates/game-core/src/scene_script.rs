@@ -16,7 +16,7 @@ impl GameScene {
         let script_cursor0 = self.script_cursor;
         if script_cursor0 + 3 > line.len() {
             // 行尾收尾（a.java:8597-8604）：phase=4 等相机 + 置 flag + 相机回玩家
-            self.dialog.dialog_phase = 4;
+            self.dialog.set_dialog_phase(4);
             let cur = self.current_script_index;
             if cur != 32 {
                 self.script_line_flags[cur] = true;
@@ -42,11 +42,11 @@ impl GameScene {
             self.set_facing(self.walk_path_buffer[self.walk_step_count as usize] as i32);
             let ok = self.try_step(self.facing);
             if self.walk_step_count == 0 {
-                self.script_walk_armed = false;
+                self.set_script_walk_armed(false);
                 return;
             }
             if !ok {
-                self.script_walk_armed = false;
+                self.set_script_walk_armed(false);
                 if self.walk_phase != 5 {
                     self.set_walk_phase(0);
                     self.set_walk_step_count(0);

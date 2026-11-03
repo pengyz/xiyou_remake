@@ -503,15 +503,15 @@ impl GameScene {
         // 【BUG-043】寻路被剧情接管：箭头暂存**不在此放回**——撞格触发剧情时本函数在 advanceScriptWalk 撞格臂之前执行，
         // 立即放回会被随后的 `walk_step_count = 0` 清掉（复核 R2）；改由 settle_walkto_arrows 在寻路释放 dp 后放回
         self.walkto_draining = false; // 【BUG-040】dp 归剧情（打断后的寻路收尾作废）
-        self.script_walk_armed = false;
+        self.set_script_walk_armed(false);
         self.transition_to(GameMode::Dialog);
-        self.dialog.dialog_page = 0;
+        self.dialog.set_dialog_page(0);
         self.lock_camera_on(0); // ease 相机初始化到玩家
-        self.dialog.dialog_phase = 0;
+        self.dialog.set_dialog_phase(0);
         self.current_script_index = idx as usize;
         self.script_line = self.dialog.dialog_data.scripts[idx as usize].clone();
-        self.dialog.overlay_text = None;
-        self.script_cursor = 0;
+        self.dialog.set_overlay_text(None);
+        self.set_script_cursor(0);
         // scriptLineFlags[idx] 在行尾收尾（AwaitCamera）或 GUT/DES 时置位——
         // loadLevelScript 本身不置（a.java:8035-8052 无 flag 写）
     }

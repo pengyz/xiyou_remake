@@ -92,6 +92,15 @@ pub enum TypewriterStep {
     Confirm,
 }
 
+/// 【终章簇2·dialog 域直写接口】跨文件写点收敛（lead 选项 1）。
+impl DialogState {
+    pub fn set_dialog_phase(&mut self, v: i32) { self.dialog_phase = v; }
+    pub fn set_dialog_char(&mut self, v: i32) { self.dialog_char = v; }
+    pub fn set_dialog_page(&mut self, v: i32) { self.dialog_page = v; }
+    pub fn set_overlay_text(&mut self, v: Option<String>) { self.overlay_text = v; }
+    pub fn set_overlay_active(&mut self, v: bool) { self.overlay_active = v; }
+}
+
 impl GameScene {
     /// run case 11 相位机（a.java:4011-4068）。advanceEntityFrames 由调用方公共段跑。
     pub(super) fn tick_dialog(&mut self) {
@@ -181,7 +190,7 @@ impl GameScene {
                                         self.route_arrived();
                                         self.restore_walkto_arrows();
                                         self.walkto_draining = false;
-                                        self.script_walk_armed = false;
+                                        self.set_script_walk_armed(false);
                                         self.dialog.dialog_phase = 0;
                                     }
                                 }
@@ -194,7 +203,7 @@ impl GameScene {
                                 } else {
                                     self.route_arrived();
                                 }
-                                self.script_walk_armed = false;
+                                self.set_script_walk_armed(false);
                                 self.dialog.dialog_phase = 0;
                             }
                         }
