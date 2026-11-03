@@ -38,8 +38,8 @@ impl GameScene {
     /// 撞格（返回 false）解除武装并清步（walkPhase==5 战斗中除外）。
     pub(super) fn advance_script_walk(&mut self) {
         if self.walk_step_count > 0 {
-            self.walk_step_count -= 1;
-            self.facing = self.walk_path_buffer[self.walk_step_count as usize] as i32;
+            self.dec_walk_step_count();
+            self.set_facing(self.walk_path_buffer[self.walk_step_count as usize] as i32);
             let ok = self.try_step(self.facing);
             if self.walk_step_count == 0 {
                 self.script_walk_armed = false;
@@ -48,8 +48,8 @@ impl GameScene {
             if !ok {
                 self.script_walk_armed = false;
                 if self.walk_phase != 5 {
-                    self.walk_phase = 0;
-                    self.walk_step_count = 0;
+                    self.set_walk_phase(0);
+                    self.set_walk_step_count(0);
                 }
             }
         }

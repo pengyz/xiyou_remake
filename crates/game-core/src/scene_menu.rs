@@ -768,7 +768,7 @@ impl GameScene {
                     }
                     1 => {
                         if !opt.checked[1] {
-                            self.minimap = None;
+                            self.set_minimap(None);
                         } else if self.menu.menu_return_mode == GameMode::InGameMenu {
                             self.build_minimap();
                         }

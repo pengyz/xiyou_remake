@@ -475,6 +475,48 @@ pub struct GameScene {
     pub ease_target_y: i32,
 }
 
+/// 【终章·entity/移动域直写接口】（lead 2026-11-03 选项 1）——跨文件写点收敛。
+impl GameScene {
+    // ── 【终章·entity/移动域直写接口】跨文件写点收敛（禁 self.facing=/walk_phase= 等
+    // 直写——lead 2026-11-03 裁定选项 1：域访问全走接口）。setter=写侧接口；
+    // 语义操作可后叠（本批 1:1 机械收口保行为零差）。
+    /// 写 facing（朝向）。
+    pub(super) fn set_facing(&mut self, v: i32) {
+        self.facing = v;
+    }
+    /// 写 walk_phase（步进相位）。
+    pub(super) fn set_walk_phase(&mut self, v: i32) {
+        self.walk_phase = v;
+    }
+    /// 写 walk_step_count（剩余步数）。
+    pub(super) fn set_walk_step_count(&mut self, v: i32) {
+        self.walk_step_count = v;
+    }
+    /// 递减 walk_step_count（步进消耗）。
+    pub(super) fn dec_walk_step_count(&mut self) {
+        self.walk_step_count -= 1;
+    }
+    /// 写 step_progress（步进进度）。
+    pub(super) fn set_step_progress(&mut self, v: i32) {
+        self.step_progress = v;
+    }
+    /// 写 player_frame（玩家帧）。
+    pub(super) fn set_player_frame(&mut self, v: i32) {
+        self.player_frame = v;
+    }
+    /// 写 player_cell（格坐标成对）。
+    pub(super) fn set_player_cell(&mut self, cx: i32, cy: i32) {
+        self.player_cell_x = cx;
+        self.player_cell_y = cy;
+    }
+    /// 写 minimap（小地图重建产物装载）。
+    pub(super) fn set_minimap(&mut self, v: Option<ArgbImage>) {
+        self.minimap = v;
+    }
+
+}
+
+
 /// menuLabels（a.java:458-462）：18 条菜单标签。
 pub const MENU_LABELS: [&str; 18] = [
     "新游戏", "继续游戏", "载入进度", "保存游戏", "设置", "帮助", "关于", "退出",

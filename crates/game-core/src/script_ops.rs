@@ -139,7 +139,7 @@ impl GameScene {
         self.open_dialog_page(page);
         if flag == 1 && self.find_path(self.player_cell_x, self.player_cell_y, tx, ty) {
             self.path_arrows_visible = true;
-            self.walk_phase = 0;
+            self.set_walk_phase(0);
         }
         self.dialog.dialog_phase = 6;
         self.ease_cam_x = ((self.view.view_w - 32) >> 1) - self.view.cam_x;
@@ -186,7 +186,7 @@ impl GameScene {
         } else if self.find_path(self.player_cell_x, self.player_cell_y, mx, my) {
             self.script_walk_armed = true;
             self.dialog.dialog_phase = 3;
-            self.walk_phase = 0;
+            self.set_walk_phase(0);
             self.lock_camera_on(0);
         }
     }
@@ -288,7 +288,7 @@ impl GameScene {
 
     /// ROS_4（a.java:8373-8375）：朝向（Java byte 字段 ⇒ i8 截断保真）。
     pub(super) fn op_ros_face(&mut self, v: i32) {
-        self.facing = (v as i8) as i32;
+        self.set_facing((v as i8) as i32);
     }
 
     /// ROS_5（a.java:8376-8378）：ATK。

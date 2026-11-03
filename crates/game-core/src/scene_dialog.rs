@@ -163,17 +163,18 @@ impl GameScene {
                                 // 【BUG-044】弹步前记"本步归点地寻路"：被挡步可能经剧情接管（型 83 → load_level_script 先收段）
                                 // 让 walkto_owns_dp3() 在 try_step 之后变假，门控须看弹步时的归属（复核 T2-2）。
                                 let owned = self.walkto_owns_dp3();
-                                self.walk_step_count -= 1;
-                                self.facing =
-                                    self.walk_path_buffer[self.walk_step_count as usize] as i32;
-                                self.walk_phase = 1;
+                                self.dec_walk_step_count();
+                                self.set_facing(
+                                    self.walk_path_buffer[self.walk_step_count as usize] as i32,
+                                );
+                                self.set_walk_phase(1);
                                 let ok = self.try_step(self.facing);
                                 // 【BUG-044】点地寻路专用：被挡且未开战（wp 仍为 1）⇒ 清步、归 wp0，下拍走 finish_walkto。
                                 // 原版 MOV 消费机不判返回值（a.java:4080-4084，脚本路线由剧本保证可走）；
                                 // 经典脚本行走不占用 dp3（owned 恒假），此分支不触达 classic 按键链。
                                 if !ok && self.walk_phase == 1 && owned {
-                                    self.walk_step_count = 0;
-                                    self.walk_phase = 0;
+                                    self.set_walk_step_count(0);
+                                    self.set_walk_phase(0);
                                     // 被挡步把模式切走（朝上撞炉 ⇒ Alchemy）：dp3 不再 tick、finish_walkto 等不到，就地收尾
                                     //（不写回 Map，保留炉页；复核 T2-1：否则武装残留 ⇒ 出页后点地全被拒、方向键连走穿墙）
                                     if self.game_mode != GameMode::Dialog && self.walkto_owns_dp3() {
@@ -210,14 +211,13 @@ impl GameScene {
                             if self.player_frame < PLAYER_FRAME_TABLE.len() as i32 - 1 {
                                 self.player_frame += 1;
                             } else {
-                                self.player_frame = 0;
+                                self.set_player_frame(0);
                             }
                             if self.step_progress >= 32 {
-                                self.step_progress = 0;
-                                self.player_frame = 0;
-                                self.walk_phase = 0;
-                                self.player_cell_x = self.view.player_px >> 5;
-                                self.player_cell_y = self.view.player_py >> 5;
+                                self.set_step_progress(0);
+                                self.set_player_frame(0);
+                                self.set_walk_phase(0);
+                                self.set_player_cell(self.view.player_px >> 5, self.view.player_py >> 5);
                                 self.apply_step_cell_effects();
                                 // 【T2】WalkTo 段终位：步尽归格=实际终点（整段起终点
                                 // 入栈）+回 Map；经典脚本行走 route 未开放=零改动
