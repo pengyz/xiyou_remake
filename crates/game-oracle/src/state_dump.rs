@@ -50,6 +50,31 @@ fn e_bool_arr(name: &'static str, v: &[bool]) -> Entry {
     }
 }
 
+/// 【P1-a1 红-1 修复】quote() 等价编码（TraceSink.java:44+ 逐字：UTF-16 code
+/// unit \u%04x 转义+引号；null≠空串——Option 分支）。Java String 面渲染=TraceSink.quote。
+fn e_quoted(name: &'static str, v: Option<&str>) -> Entry {
+    let value = match v {
+        None => "null".to_string(),
+        Some(sv) => {
+            let mut sb = String::from("\"");
+            for u in sv.encode_utf16() {
+                match u {
+                    0x22 => sb.push_str("\\\""),
+                    0x5C => sb.push_str("\\\\"),
+                    0x0A => sb.push_str("\\n"),
+                    0x0D => sb.push_str("\\r"),
+                    0x09 => sb.push_str("\\t"),
+                    _ if u < 0x20 || u > 0x7E => sb.push_str(&format!("\\u{:04x}", u)),
+                    _ => sb.push(u as u8 as char), // ASCII 0x20..=0x7E 段（上支已排除）
+                }
+            }
+            sb.push('"');
+            sb
+        }
+    };
+    Entry { name, value }
+}
+
 /// sha = 元素符号扩展 long 的 8 字节大端拼接 SHA-256 前 16 hex；head 前 16 项。
 fn arr_str(iter: impl Iterator<Item = (i64, String)>) -> String {
     let elems: Vec<(i64, String)> = iter.collect();
@@ -153,7 +178,7 @@ pub fn dump_scene(sc: &GameScene) -> Vec<String> {
     push(e_byte("itemUseTargetType", sc.menu.overlay_kind_item as i8)); // FLD058（Rust 真身=overlay_kind_item，scene.rs:4330 注记）
     push(e_bool("tutorialSeen", sc.menu.tutorial_seen)); // FLD215
     push(e_bool_arr("scriptLineFlags", &sc.script_line_flags)); // FLD240
-    push(e_byte_arr("overlayText", sc.dialog.overlay_text.as_deref().unwrap_or("").as_bytes())); // FLD062（首个字符串面=UTF-8 字节数组编码）
+    push(e_quoted("overlayText", sc.dialog.overlay_text.as_deref())); // FLD062（quote() 逐字对齐 TraceSink.java:44+；null≠""）
 
     out
 }

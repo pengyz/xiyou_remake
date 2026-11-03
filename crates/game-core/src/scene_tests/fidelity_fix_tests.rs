@@ -158,7 +158,11 @@
             load_floor_from_save(&maplv(), &[], &width_table, &walk, images(), vec![None; 56], &save)
                 .unwrap();
         assert_eq!(sc.dialog.dialog_data.scripts.len(), 68, "scriptLineCount = levelScriptLines.length");
+        // 【P1-a1 黄②·断言更正（a.java:2038-2039 换钉）】scriptLineFlags=新布尔[levelScriptLines.length]
+        // ——每层变长 68 槽：≥68 的 skip 字节根本不在场（旧 128 缓冲形的 [100] 反向断言=错位钉）；
+        // skip 语义链=save.script_flags[100] 真值仅存 save 侧+scene 面 68 槽无此位。
+        assert_eq!(sc.script_line_flags.len(), 68, "a.java:2038-2039 new boolean[levelScriptLines.length]");
         assert!(sc.script_line_flags[0] && sc.script_line_flags[67]);
-        assert!(!sc.script_line_flags[100], "scriptLineCount 之后被 skip");
+        assert!(save.script_flags[100], "skip 字节仅存 save 侧（a.java:9289-9291 不读入）");
         assert_eq!(sc.script_line_flags.iter().filter(|f| **f).count(), 2);
     }

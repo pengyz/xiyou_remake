@@ -107,8 +107,8 @@ impl GameScene {
                 blue_keys: 0,
                 red_keys: 0,
                 gold: 0,
-                item_types: vec![0; 16],
-                item_uses: vec![0; 16],
+                item_types: vec![0; 32], // 【P1-a1 黄①】Java byte[32] 对齐（16=潜在溢出缺口）
+                item_uses: vec![0; 32], // 【P1-a1 黄①】Java byte[32] 对齐
                 item_stack_size: 0,
             },
             enemies: crate::combat::ScaledEnemies::default(),
