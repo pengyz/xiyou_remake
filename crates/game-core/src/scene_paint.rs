@@ -17,6 +17,11 @@ pub struct RenderState {
     pub tile_bob: i32,
 }
 
+/// 【终章簇3·render 域直写接口】（strip_frame 跨文件写收敛）。
+impl RenderState {
+    pub fn set_strip_frame(&mut self, v: usize) { self.strip_frame = v; }
+}
+
 impl GameScene {
     /// loadFloorData（a.java:9404-9438）：maplv 装载 + initCellGrid 格索引重建 +
     /// 可行走重建 + m_122 实体生成 + sortEntitiesByY 排序。
@@ -203,7 +208,7 @@ impl GameScene {
         self.popups.draw(g, &self.images.popup);
         // paint case 3 内断言软键 (1,3)（a.java:2421-2422）——菜单族改写的
         // softkey 落回 mode 3 时由 paint 复位（Java 字段赋值语义）
-        self.menu.softkeys = (1, 3);
+        self.menu.set_softkeys((1, 3));
         m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.menu.softkeys.0, self.menu.softkeys.1, &self.layout);
         // 提示浮层（paint 公共尾 a.java:3129-3168，!floorTransitioning && overlayActive）
         if !self.transitioning && self.dialog.overlay_active {

@@ -2157,7 +2157,7 @@ impl GameScene {
         self.menu.menu_box_width = font.char_width('回' as u16) << 1; // wideCharWidth（全宽字符宽）
         self.menu.menu_item_count = 0;
         self.menu.menu_kinds.clear();
-        self.menu.menu_scroll_top = 0;
+        self.menu.set_menu_scroll_top(0);
     }
 
     /// addMenuItem（a.java:4704-4716）：kind 登记 + 框宽按 stringWidth+60 伸长。
@@ -2173,7 +2173,7 @@ impl GameScene {
             }
             self.menu.menu_item_count += 1;
             if self.menu.menu_item_count <= self.menu.menu_visible_rows {
-                self.menu.menu_visible_bottom = self.menu.menu_item_count;
+                self.menu.set_menu_visible_bottom(self.menu.menu_item_count);
             }
             // menuTotalHeight += lineHeight；listHeight 按可见区间重算
             //（a.java:4712-4713——非 resetMenuLayout 的行数积）
@@ -2811,7 +2811,7 @@ impl GameScene {
                     &self.menu.shell_options,
                 );
                 list.highlight = list.resolve_highlight(anchor) as i32;
-                self.menu.options = Some(list);
+                self.menu.set_options(Some(list));
             }
         }
     }
@@ -3463,7 +3463,7 @@ impl GameScene {
                                         if let Some(a) = self.tap.walkto_arrows.as_mut() {
                                             a.clear();
                                         }
-                                        self.menu.overlay_kind_item = 0;
+                                        self.menu.set_overlay_kind_item(0);
                                         self.show_overlay_message(
                                             0,
                                             match t {
@@ -4224,7 +4224,7 @@ impl GameScene {
 
     fn pickup_item_type(&mut self, t: i32) {
         // a.java:7528 起 pickupItemType 拾取链：itemUseTargetType = 道具类型（描述 overlay 的图标/名）
-        self.menu.overlay_kind_item = t;
+        self.menu.set_overlay_kind_item(t);
         // 描述表（itemDescriptions a.java:906 / equipDescriptions a.java:930——
         // 全量入库 reference；此处取用句柄）
         match t {
@@ -4315,7 +4315,7 @@ impl GameScene {
         }
         // itemUseTargetType = (byte)py_key（a.java:7732）：kind1 浮层图标/名的数据源
         // ——拾取路径调用方已先写同值，商人赠物路径（a.java:7333/7336）唯此一写
-        self.menu.overlay_kind_item = t;
+        self.menu.set_overlay_kind_item(t);
         let text = self.item_description(idx);
         self.show_overlay_message(1, &text, 0, 3);
     }
@@ -4809,14 +4809,14 @@ impl GameScene {
             }
             GameMode::InGameMenu | GameMode::Shop => {
                 if index >= 0 && index < self.menu.menu_item_count {
-                    self.menu.menu_cursor = index;
+                    self.menu.set_menu_cursor(index);
                     let n = self.menu.menu_visible_bottom - self.menu.menu_scroll_top;
                     if self.menu.menu_cursor >= self.menu.menu_visible_bottom {
-                        self.menu.menu_visible_bottom = self.menu.menu_cursor + 1;
-                        self.menu.menu_scroll_top = self.menu.menu_visible_bottom - n;
+                        self.menu.set_menu_visible_bottom(self.menu.menu_cursor + 1);
+                        self.menu.set_menu_scroll_top(self.menu.menu_visible_bottom - n);
                     } else if self.menu.menu_cursor < self.menu.menu_scroll_top {
-                        self.menu.menu_scroll_top = self.menu.menu_cursor;
-                        self.menu.menu_visible_bottom = self.menu.menu_scroll_top + n;
+                        self.menu.set_menu_scroll_top(self.menu.menu_cursor);
+                        self.menu.set_menu_visible_bottom(self.menu.menu_scroll_top + n);
                     }
                 }
             }
@@ -4830,15 +4830,15 @@ impl GameScene {
             GameMode::ItemPanel => {
                 let total = self.menu.item_cols * self.menu.item_rows_total;
                 if index >= 0 && index < total {
-                    self.menu.item_cursor = index;
+                    self.menu.set_item_cursor(index);
                     let n = self.menu.item_scroll_bottom - self.menu.item_scroll_top;
                     let row = self.menu.item_cursor / self.menu.item_cols;
                     if row >= self.menu.item_scroll_bottom {
-                        self.menu.item_scroll_bottom = row + 1;
-                        self.menu.item_scroll_top = self.menu.item_scroll_bottom - n;
+                        self.menu.set_item_scroll_bottom(row + 1);
+                        self.menu.set_item_scroll_top(self.menu.item_scroll_bottom - n);
                     } else if row < self.menu.item_scroll_top {
-                        self.menu.item_scroll_top = row;
-                        self.menu.item_scroll_bottom = self.menu.item_scroll_top + n;
+                        self.menu.set_item_scroll_top(row);
+                        self.menu.set_item_scroll_bottom(self.menu.item_scroll_top + n);
                     }
                 }
             }

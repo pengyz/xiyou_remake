@@ -50,7 +50,10 @@ pub fn item_actions(t: i32) -> Option<&'static [ItemAction]> {
 /// 【双归域·item/effect 编排面（coordination 注记归因）】动作执行=跨域副作用
 /// （mode 分派/实体表/小地图/相机/换层）——不可迁面显式留置；**表驱动本体**
 /// 保证新增道具零改此处（C1 §5.1 git diff 断言）。
+/// 【终章簇3·item-effect 域直写接口】（alchemy 状态跨文件写收敛）。
 impl GameScene {
+    pub(super) fn set_alchemy_price(&mut self, v: i32) { self.alchemy_price = v; }
+    pub(super) fn set_alchemy_upgrade_count(&mut self, v: i32) { self.alchemy_upgrade_count = v; }
     /// 执行一个道具动作（a.java 语义逐字——执行序=表序）。
     pub(super) fn execute_item_action(&mut self, a: &ItemAction) -> bool {
         match a {

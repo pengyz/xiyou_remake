@@ -109,6 +109,19 @@ impl MenuState {
     }
 }
 
+/// 【终章簇3·menu/UI 域直写接口】跨文件写点收敛（lead 选项 1）。
+impl MenuState {
+    pub fn set_menu_scroll_top(&mut self, v: i32) { self.menu_scroll_top = v; }
+    pub fn set_menu_visible_bottom(&mut self, v: i32) { self.menu_visible_bottom = v; }
+    pub fn set_menu_cursor(&mut self, v: i32) { self.menu_cursor = v; }
+    pub fn set_item_cursor(&mut self, v: i32) { self.item_cursor = v; }
+    pub fn set_item_scroll_top(&mut self, v: i32) { self.item_scroll_top = v; }
+    pub fn set_item_scroll_bottom(&mut self, v: i32) { self.item_scroll_bottom = v; }
+    pub fn set_options(&mut self, v: Option<crate::menu_family::OptionList>) { self.options = v; }
+    pub fn set_overlay_kind_item(&mut self, v: i32) { self.overlay_kind_item = v; }
+    pub fn set_softkeys(&mut self, v: (i8, i8)) { self.softkeys = v; }
+}
+
 impl GameScene {
     /// dispatchModeEntry case 4（a.java:4326-4337）：继续游戏（+floor>50 的跳过教程）/
     /// 保存/设置/帮助/退出；软键 (1,3)。
@@ -524,7 +537,7 @@ impl GameScene {
         let mut f = self.render.strip_frame;
         let sx = crate::title::menu_strip_x(self.layout.screen_w);
         crate::title::paint_icon_strip_at(g, &self.images.menu_strip, sx, 10, 51, 68, &mut f);
-        self.render.strip_frame = f;
+        self.render.set_strip_frame(f);
         m_034_softkeys(g, &self.images.ui[10], &self.images.ui[11], self.menu.softkeys.0, self.menu.softkeys.1, &self.layout);
         if !self.transitioning && self.dialog.overlay_active {
             self.paint_overlay_box(g);
@@ -675,7 +688,7 @@ impl GameScene {
                         _ => self.player.def += self.alchemy_gain_def,
                     }
                     self.alchemy_upgrade_count += 1;
-                    self.alchemy_price = Self::alchemy_price_for(self.alchemy_upgrade_count + 1);
+                    self.set_alchemy_price(Self::alchemy_price_for(self.alchemy_upgrade_count + 1));
                 } else {
                     self.show_overlay_message(0, "没有足够的金钱", 0, 0);
                 }

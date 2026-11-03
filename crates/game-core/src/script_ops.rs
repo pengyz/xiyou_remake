@@ -91,7 +91,7 @@ impl GameScene {
             self.player.blue_keys = 0;
             self.player.item_stack_size = 0;
             self.player.gold = 4;
-            self.alchemy_upgrade_count = 0;
+            self.set_alchemy_upgrade_count(0);
             self.persist.min_floor = 1;
             self.persist.max_floor = 3;
             self.player.atk = 10;
