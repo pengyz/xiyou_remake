@@ -1,0 +1,19 @@
+# ticks: 320
+# preset: fx-pickup-37.preset
+# cover: FX-PICKUP-37 pickup 37..=40|80 装备（防具）组（P1-a2 批4；spec §7-Q3 臂面 21 组）：
+#   boot 70/-6 100/-2 150/-5 200/-5 → 槽载入 floor9 (9,8) 朝上 → 300 -1 北步
+#   (9,7) 踩型实体格（sprite9 探针实证）⇒ pickup dispatch（a.java:7632-7648）
+#   case 37..=40|80 tryEquip 共享体（同体） → 收尾静态。
+#   断言：臂效应实测钉+全帧比+终态玩家 (9,7)。
+#   preset：python3 tools/frames_fixture.py preset floor=9 x=9 y=8 facing=1 hp=500
+#   atk=200 def=30 sky=5
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -1 press
+302 -1 release

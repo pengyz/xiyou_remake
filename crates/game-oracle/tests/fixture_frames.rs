@@ -694,6 +694,42 @@ fn fx_pickup_31_hp_frames_match() {
     assert_eq!(sc.player.hp, 550, "case 31 applyHpDelta(50*floorTier)（floor3 tier=1=+50；a.java:7581-7584）");
 }
 
+
+/// FX-PICKUP-33：33..=36|79 装备（武器）组（a.java:7632-7648 tryEquip 共享体）。
+/// floor5 (11,11)（边界注：首版起步格 (11,12) 出界 y>11 致 236 拍止）。
+#[test]
+fn fx_pickup_33_equip_weapon_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-pickup-33.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-pickup-33.txt"));
+    let (checked, sc) = replay("fx-pickup-33", include_str!("fixtures/fx-pickup-33.preset"), &records);
+    assert_eq!(checked, records.len(), "全帧必须比对");
+    assert_eq!((sc.view.player_px >> 5, sc.view.player_py >> 5), (11, 11), "南步入拾取格");
+    assert!(sc.equipped_weapon > 0, "case 33 tryEquip 成功=武器装备（a.java:7632-7648）");
+}
+
+/// FX-PICKUP-37：37..=40|80 装备（防具）组（a.java:7632-7648 同体）。floor9 (9,7)。
+#[test]
+fn fx_pickup_37_equip_armor_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-pickup-37.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-pickup-37.txt"));
+    let (checked, sc) = replay("fx-pickup-37", include_str!("fixtures/fx-pickup-37.preset"), &records);
+    assert_eq!(checked, records.len(), "全帧必须比对");
+    assert_eq!((sc.view.player_px >> 5, sc.view.player_py >> 5), (9, 7), "北步入拾取格");
+    assert!(sc.equipped_armor > 0, "case 37 tryEquip 成功=防具装备（a.java:7632-7648）");
+}
+
+/// FX-PICKUP-29F12：29 floor>10 臂（a.java:7565-7572 playerAtk+=floorTier；
+/// floorTier（a.java:7651-7662）=（f-1)/10+1=2@12）。floor12 (6,1)。
+#[test]
+fn fx_pickup_29f12_floor_tier_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-pickup-29f12.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-pickup-29f12.txt"));
+    let (checked, sc) = replay("fx-pickup-29f12", include_str!("fixtures/fx-pickup-29f12.preset"), &records);
+    assert_eq!(checked, records.len(), "全帧必须比对");
+    assert_eq!((sc.view.player_px >> 5, sc.view.player_py >> 5), (6, 1), "北步入拾取格");
+    assert_eq!(sc.player.atk, 202, "case 29 floor>10=+floorTier（12→tier2=+2；a.java:7565-7572/7651-7662）");
+}
+
 /// FX-ITEM-18A：玄明石全清当前层墙（evidence-items §2.3/§3.4）。floor37 型11 ×8 同拍
 /// 全 markEntityRemoved（a.java:7817-7828 全表扫描）+ 出栈。T1-560。
 #[test]

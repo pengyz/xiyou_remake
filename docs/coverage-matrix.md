@@ -64,6 +64,12 @@
 | `fixture_frames::fx_pickup_26_yellow_key_frames_match` | fx-pickup-26（夹具） | T1-None | 无触达快照 | 0 |
 | `fixture_frames::fx_pickup_27_red_key_frames_match` | fx-pickup-27（夹具） | T1-None | 无触达快照 | 0 |
 | `fixture_frames::fx_pickup_28_blue_key_frames_match` | fx-pickup-28（夹具） | T1-None | 无触达快照 | 0 |
+| `fixture_frames::fx_pickup_29_atk_frames_match` | fx-pickup-29（夹具） | T1-None | 无触达快照 | 0 |
+| `fixture_frames::fx_pickup_30_def_frames_match` | fx-pickup-30（夹具） | T1-None | 无触达快照 | 0 |
+| `fixture_frames::fx_pickup_31_hp_frames_match` | fx-pickup-31（夹具） | T1-None | 无触达快照 | 0 |
+| `fixture_frames::fx_pickup_33_equip_weapon_frames_match` | fx-pickup-33（夹具） | T1-None | 无触达快照 | 0 |
+| `fixture_frames::fx_pickup_37_equip_armor_frames_match` | fx-pickup-37（夹具） | T1-None | 无触达快照 | 0 |
+| `fixture_frames::fx_pickup_29f12_floor_tier_frames_match` | fx-pickup-29f12（夹具） | T1-None | 无触达快照 | 0 |
 | `fixture_frames::fx_item18a_clear_all_walls_frames_match` | fx-item18a（夹具） | T1-560 | FRAME 失配（夹具帧链 ≠ 实测） | 0 |
 | `fixture_frames::fx_boss67a_kill_spawn_frames_match` | fx-boss67a（夹具） | T1-560 | FRAME 失配（夹具帧链 ≠ 实测） | 0 |
 | `fixture_frames::fx_boss74a_kill_hooks_frames_match` | fx-boss74a（夹具） | T1-600 | FRAME 失配（夹具帧链 ≠ 实测） | 0 |
@@ -117,12 +123,12 @@
 
 - `arm_coverage::p1a2_all_21_arm_groups_have_fixture_triplets`（arm_coverage.rs:35）：ignored
 - `dump_face::p1a1_dump_face_contains_six_groups`（dump_face.rs:6）：structural
-- `fixture_frames::bug012_ces70_same_point_crash_regression`（fixture_frames.rs:1122）：fixture
-- `fixture_frames::bug012_lay2a_same_point_crash_regression`（fixture_frames.rs:1156）：fixture
-- `fixture_frames::bug012b_floor2_stair_transition_repro`（fixture_frames.rs:1225）：structural
-- `fixture_frames::chang_e_fixtures_modern_logic_matches_classic`（fixture_frames.rs:1426）：frame-unbounded，夹具 story-fullrun
-- `fixture_frames::fx_chang_e_floor1_taps_frames_match`（fixture_frames.rs:1540）：structural
-- `fixture_frames::fx_chang_e_floor1_taps_shell_key_path_frames_match`（fixture_frames.rs:1560）：structural
+- `fixture_frames::bug012_ces70_same_point_crash_regression`（fixture_frames.rs:1192）：fixture
+- `fixture_frames::bug012_lay2a_same_point_crash_regression`（fixture_frames.rs:1226）：fixture
+- `fixture_frames::bug012b_floor2_stair_transition_repro`（fixture_frames.rs:1295）：structural
+- `fixture_frames::chang_e_fixtures_modern_logic_matches_classic`（fixture_frames.rs:1496）：frame-unbounded，夹具 story-fullrun
+- `fixture_frames::fx_chang_e_floor1_taps_frames_match`（fixture_frames.rs:1610）：structural
+- `fixture_frames::fx_chang_e_floor1_taps_shell_key_path_frames_match`（fixture_frames.rs:1630）：structural
 - `gameplay_floor1::gameplay_floor1_t544_ops_prefix_match`（gameplay_floor1.rs:227）：trace-partial，读 A-gameplay-floor1
 - `gameplay_floor1::floor1_entity_draw_order_anchor`（gameplay_floor1.rs:290）：structural
 - `gameplay_floor1::dump_t544_pixels`（gameplay_floor1.rs:341）：ignored
