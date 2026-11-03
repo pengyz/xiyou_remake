@@ -56,8 +56,8 @@ Entity/TraceState 迁移**适配其序，禁按 FLD 序重排**；FLD 行=Java �
 |---|---|---|---|
 | 4.1 | save blob 布局逐字节（bool×4 + N + N×i32 + i32×3 头） | `scene.rs::save_blob_layout_matches_java_and_roundtrips` | ✅ |
 | 4.2 | entityCount==0 ⇒ 存 null（a.java:9383-9384） | `scene.rs::save_floor_state_null_only_when_entity_table_empty` | ✅ |
-| 4.3 | 读档 scriptLineFlags 前 scriptLineCount 项 + 层特例 floor2/12/39（a.java:9285-9291/9648-9673） | `load_restores_script_flags_prefix_only` + **`floor2_restore_respawns_84_only_while_script26_pending`** + **`floor12_restore_rewrites_type78_params`** + **`floor39_restore_swaps_types_with_pixel_literal_spawns`** + **`door13_hi_table_matches_fixture`**（两源对账）+ `fx-bug-ces70-slot` | ✅ 2026-10-17 特例批补齐（restore_rules 表驱动；case 39 像素字面量 quirk 钉死） |
-| 4.4 | addItemToItemStack 写 itemUseTargetType（a.java:7732） | `scene.rs::add_item_to_stack_writes_item_use_target_type` | ✅ |
+| 4.3 | 读档 scriptLineFlags 前 scriptLineCount 项 + 层特例 floor2/12/39（a.java:9291-9297/9648-9673） | `load_restores_script_flags_prefix_only` + **`floor2_restore_respawns_84_only_while_script26_pending`** + **`floor12_restore_rewrites_type78_params`** + **`floor39_restore_swaps_types_with_pixel_literal_spawns`** + **`door13_hi_table_matches_fixture`**（两源对账）+ `fx-bug-ces70-slot` | ✅ 2026-10-17 特例批补齐（restore_rules 表驱动；case 39 像素字面量 quirk 钉死） |
+| 4.4 | addItemToItemStack 写 itemUseTargetType（a.java:7738——2026-11-03 更正：原 7732） | `scene.rs::add_item_to_stack_writes_item_use_target_type` | ✅ |
 | 4.5 | 槽表 1-based 回读/实体可见性下标回填 | 见 1.1/1.4 | ⚠️ 同上 |
 
 ## 5. 双面分列（harness 面 vs 生产面，DC-9 漂移前科）

@@ -1,7 +1,7 @@
 //! RMS 存档格式解析（`loadFloorSave` a.java:9244-9300 + `saveFloorState` 对偶）
 //! 与全局进度 SKY_WAR 的布局备忘（`dispatchModeEntry`（原 dispatchModeEntry）case 21 读档 a.java:4450-4485）。
 //!
-//! # MOT_L{n} 楼层存档字段序（DataInputStream 大端，a.java:9253-9287）
+//! # MOT_L{n} 楼层存档字段序（DataInputStream 大端，a.java:9253-9317）
 //!
 //! | # | 类型 | 字段 |
 //! |---|---|---|
@@ -105,7 +105,7 @@ impl<'a> Cursor<'a> {
 ///
 /// `script_line_count` = 当前脚本行数：只决定旗标段的**字节跨度**
 /// （max(count,128)，与 Java 读 count + skip(128-count) 等长；0 即按 128 读）。
-/// 旗标值恒收进 [`FloorSave::script_flags`]（a.java:9285-9287）。
+/// 旗标值恒收进 [`FloorSave::script_flags`]（a.java:9291-9297）。
 pub fn parse_floor_save(data: &[u8], script_line_count: usize) -> Result<FloorSave, String> {
     let mut c = Cursor { data, pos: 0 };
     let mut s = FloorSave::default();

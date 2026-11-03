@@ -97,8 +97,8 @@ PORT_NOTES: dict[str, tuple[str, str]] = {
                            "其 Rust 行锚 8485 陈旧，落入 executeScriptInstruction）"),
     "addItemToItemStack": ("ported",
                            "crates/game-core/src/scene.rs `fn add_item_to_stack(&mut self, t: i32)`"
-                           "（追加/叠加次数 + showOverlayMessage = a.java:7722-7731/7733；行锚 7702-7714 漂移落入 "
-                           "itemTypeToStackIndex）。未移植 itemUseTargetType 写（a.java:7732）——无可见效应：拾取路径调用前 "
+                           "（追加/叠加次数 + showOverlayMessage = a.java:7731-7735/7739；行锚 7702-7714 漂移落入 "
+                           "itemTypeToStackIndex）。未移植 itemUseTargetType 写（a.java:7738——2026-11-03 更正：原 7732 错引，真相=7738）——无可见效应：拾取路径调用前 "
                            "已置 overlay_kind_item（crates/game-core/src/scene.rs `self.overlay_kind_item = t`），"
                            "商人路径浮层同调用内被关闭/替换（2026-10-15 独立审计核）"),
     "easeCameraToTarget": ("ported",
@@ -267,7 +267,7 @@ TRIAGE: dict[str, tuple[str, str, str]] = {
                  "解决：v2.1 字段初始化器归属规则"),
     "initCellGrid": ("c", "基线23", "CellGrid::new 已移植（a.java:6956-6961；见 PORT_NOTES）：fn 异名且无行锚"),
     "findItemStackIndex": ("c", "基线23", "PlayerCombat::find_item 已移植（a.java:7658-7669；见 PORT_NOTES）：fn 异名 + 行锚陈旧"),
-    "addItemToItemStack": ("c", "基线23", "add_item_to_stack 已移植（a.java:7721-7734；见 PORT_NOTES）：fn 异名 + 行锚漂移"),
+    "addItemToItemStack": ("c", "基线23", "add_item_to_stack 已移植（a.java:7727-7740——2026-11-03 锚更正：task-15 期旧锚 7721 段预存债清；随 coverage 重生成落）：fn 异名 + 行锚漂移"),
     "easeCameraToTarget": ("c", "基线23", "两处内联已移植（a.java:8662-8667；见 PORT_NOTES）：无 fn、注释点名无行锚"),
     "initFloorStates": ("c", "基线23", "构造期吸收（a.java:9365-9371；见 PORT_NOTES）"),
     "m_120": ("c", "基线23", "内联于 save_floor_state（a.java:9402-9405；见 PORT_NOTES）"),

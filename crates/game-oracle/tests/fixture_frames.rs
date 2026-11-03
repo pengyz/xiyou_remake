@@ -596,6 +596,33 @@ fn fx_item17a_chisel_wall_frames_match() {
     assert_eq!(sc.entities.items[w].state, 1, "markEntityRemoved state=1（墙开）");
 }
 
+
+/// FX-ITEM13：pickup 13..=25|85|86 臂组（P1-a2 净补首臂）。floor52 (3,8) 型13
+/// （sprite52 探针实证 type=13 x=96 y=256）。addItemToItemStack（a.java:7727-7740）
+/// 栈 0→1+描述 overlay。
+///
+/// 【P1-a2 复用面清点终版·spec §7-Q3 臂面 21 组】（逐批落夹具；全 21 绿时落
+/// arm_coverage 强制测）：
+/// pickup 11 组=13..=25|85|86【本件】、26、27、28、29、30、31、32（**递延**：
+/// "出现未拾"销账 pre-final-audit:122——型32 夹具随销账批落）、33..=36|79、
+/// 37..=40|80、default no-op（净补 10+递延 1）；
+/// use 10 行=13（**净补**——2026-11-03 更正：原标复用错）、14（preset-floor5
+/// 复用）、16|17（fx-item17a/b 复用）、18（fx-item18a）、19（fx-item19a）、
+/// 20（fx-item20a/b+**preset-item2122 归此行**——2026-11-03 更正：原错标 21 行）、
+/// 21（preset-item21 复用）、85（净补）、86（fx-boss68a/b 复用）、default
+/// no-op（净补）。
+#[test]
+fn fx_item13_pickup_stack_arm_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-item13.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-item13.txt"));
+    let (checked, sc) = replay("fx-item13", include_str!("fixtures/fx-item13.preset"), &records);
+    assert_eq!(checked, records.len(), "T1-400 全帧必须比对");
+    assert_eq!((sc.view.player_px >> 5, sc.view.player_py >> 5), (3, 8), "南步入 (3,8) 拾取");
+    assert_eq!(sc.player.item_stack_size, 1, "addItemToItemStack 栈 0→1");
+    assert_eq!(sc.player.item_types[0], 13, "型13 入栈");
+    assert_eq!(sc.player.find_item(13), 0, "find_item 命中槽 0");
+}
+
 /// FX-ITEM-18A：玄明石全清当前层墙（evidence-items §2.3/§3.4）。floor37 型11 ×8 同拍
 /// 全 markEntityRemoved（a.java:7817-7828 全表扫描）+ 出栈。T1-560。
 #[test]

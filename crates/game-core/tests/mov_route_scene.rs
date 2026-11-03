@@ -8,7 +8,7 @@
 //! - floor2 script2 `MOV_72_1_8_1_10` + `DES_72_1_10`：撞 (1,8) 的触发依赖 relocateSlotsAtRouteEnd 已把型72
 //!   迁入 (1,8)；DES 命中 (1,10) 依赖第二次 relocateSlotsAtRouteEnd 迁槽——槽表语义的端到端证据。
 //! - 读档旗标：MOT_L0 scriptLineFlags[0]=1（script1 门控 a.java:8081-8082 `flags[0] & !walk`）
-//!   ——load_floor_from_save 读回旗标（a.java:9285-9287）才可能触发 script1。
+//!   ——load_floor_from_save 读回旗标（a.java:9291-9297）才可能触发 script1。
 //! - floor40 script12 伏击（12 条非 72 型 MOV + `MOV_73`）：每只怪的路径经 x=6 列下行，
 //!   下一格 = 玩家格 (6,7) ⇒ openWallOnRoute case0 途中开战（缩放表 HP、walkPhase=5、
 //!   battleActiveFlag=false、state=5、routePhase=5、敌先手）→ case5 tickBattle(false)
@@ -414,7 +414,7 @@ fn preset_floor2_mov_frames_match() {
             des_hit_at = Some(tick);
         }
     });
-    assert!(flags_loaded, "读档旗标须读回（a.java:9285-9287）");
+    assert!(flags_loaded, "读档旗标须读回（a.java:9291-9297）");
     // Java 锚：script1 dp2 = T606-T618（13 拍）、script2 dp2 = T852-T860（9 拍）
     assert_eq!(dp2_ticks, [0, 13, 9], "dp2 拍数（脚本 0/1/2）");
     assert!(mirrored > 0 && unmirrored > 0, "左行镜像/非镜像帧行均须绘制: {mirrored}/{unmirrored}");

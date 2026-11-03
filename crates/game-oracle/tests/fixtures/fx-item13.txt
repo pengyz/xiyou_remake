@@ -1,0 +1,24 @@
+# ticks: 400
+# preset: fx-item13.preset
+# cover: FX-ITEM13 pickup 13..=25|85|86 臂组（P1-a2 净补首臂；spec §7-Q3 臂面实数=21）：
+#   boot 70/-6 100/-2 150/-5 200/-5 → 槽载入 floor52 (3,7) 朝下 → 300 -2 南步
+#   (3,8) 踩型13 实体格（sprite52 探针实证 type=13 x=96 y=256=格(3,8)）⇒
+#   pickupItemType 臂 13..=25|85|86（a.java pickup dispatch）⇒ addItemToItemStack
+#   （a.java:7727-7740）：栈 0→1（item_types[0]=13、uses=ITEM_USES[0]=-1）+
+#   itemUseTargetType 写 + showOverlayMessage(kind1, itemDescriptions[0]) ⇒
+#   400 -6 吞键关描述 → 收尾静态。
+#   断言：item_stack_size==1、item_types[0]==13、find_item(13)==0、终态玩家 (3,8)。
+#   preset：python3 tools/frames_fixture.py preset floor=52 x=3 y=7 facing=2 hp=500
+#   atk=200 def=30 sky=5
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -2 press
+302 -2 release
+380 -6 press
+382 -6 release

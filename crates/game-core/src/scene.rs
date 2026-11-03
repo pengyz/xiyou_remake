@@ -4307,7 +4307,7 @@ impl GameScene {
         }
     }
 
-    /// addItemToItemStack（a.java:7721-7734）：栈顶追加或叠加次数 +
+    /// addItemToItemStack（a.java:7727-7740）：栈顶追加或叠加次数 +
     /// itemUseTargetType 写 + showOverlayMessage(kind1, itemDescriptions[idx])。
     fn add_item_to_stack(&mut self, t: i32) {
         let idx = if t == 85 {
@@ -4330,7 +4330,7 @@ impl GameScene {
             let u = self.player.item_uses[existing as usize];
             self.player.item_uses[existing as usize] = (u as i32 + ITEM_USES[idx]) as u8;
         }
-        // itemUseTargetType = (byte)py_key（a.java:7732）：kind1 浮层图标/名的数据源
+        // itemUseTargetType = (byte)py_key（a.java:7738——2026-11-03 锚更正：原 7732）：kind1 浮层图标/名的数据源
         // ——拾取路径调用方已先写同值，商人赠物路径（a.java:7333/7336）唯此一写
         self.menu.set_overlay_kind_item(t);
         let text = self.item_description(idx);
@@ -4872,7 +4872,7 @@ mod pointer_seam_tests;
 
 /// 三处静默简化保真修复 + 读档旗标（completeness §3.4，2026-10-15）的单测
 /// （⑤ 存档 blob 布局见 slot_equip_scene_tests::save_blob_layout_matches_java_and_roundtrips）：
-/// ① addItemToItemStack 写 itemUseTargetType（a.java:7732）；② m_119 entityCount==0
+/// ① addItemToItemStack 写 itemUseTargetType（a.java:7738——2026-11-03 锚更正）；② m_119 entityCount==0
 /// 存 null（a.java:9383-9384）；③ m_122 floor2 恢复特例读 scriptLineFlags[26]
 /// （a.java:9643-9646）；④ loadFloorSave 读回 scriptLineFlags 前 scriptLineCount 项
 /// （a.java:9291-9297）。

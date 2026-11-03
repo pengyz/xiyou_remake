@@ -983,7 +983,7 @@ Evidence: A 级——a.java:3129-3168 公共尾 + switch 区间无 return；实�
 
 ## BUG-050 道具栈满 32 溢出行为分歧（保真缺口·潜在）
 
-- 现象：addItemToItemStack（a.java:7721-7734）栈满 32 后第 33 件入栈——Java=
+- 现象：addItemToItemStack（a.java:7727-7740——【2026-11-03 更正】原引错锚已清（旧值见 git 史 e19d08c 前文））栈满 32 后第 33 件入栈——Java=
   `byte[32]` 越界 **AIOOBE**（未捕获→崩溃/上层捕获面待考）；Rust=`n < len` 守卫
   **静默吞**（无操作无提示）。
 - 复现：`item_stack_byte32_boundary_and_overflow_silent`（fidelity_fix_tests）——
@@ -992,7 +992,7 @@ Evidence: A 级——a.java:3129-3168 公共尾 + switch 区间无 return；实�
   属潜在保真缺口非现行为差。Stage A 不修（D4）。
 - 登记：2026-11-03（DDDSA P1-a1 黄五连③·复核黄 3 裁定开条目）。
 - trace id：N/A（静态语义对拍：scene.rs add_item_to_stack `n < len` 守卫 vs
-  a.java:7721-7734 数组直写）。
+  a.java:7727-7740 数组直写）。
 - **【2026-11-03 口径更正】**"23+ 不可达"表述=use-count 推理非流程实测：a.java
   :7534-7555 流程可入栈 **15 型**+findItemStackIndex 85/86 可达 **24 件**——
   上限表述以此为准；但 **BUG-050 结论幸存**（33 件溢出双口径均不可达——满栈
