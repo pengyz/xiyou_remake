@@ -99,16 +99,16 @@ PORT_NOTES: dict[str, tuple[str, str]] = {
                            "crates/game-core/src/scene.rs `fn add_item_to_stack(&mut self, t: i32)`"
                            "（追加/叠加次数 + showOverlayMessage = a.java:7731-7735/7739；行锚 7702-7714 漂移落入 "
                            "itemTypeToStackIndex）。未移植 itemUseTargetType 写（a.java:7738——2026-11-03 更正：原 7732 错引，真相=7738）——无可见效应：拾取路径调用前 "
-                           "已置 overlay_kind_item（crates/game-core/src/scene.rs `self.overlay_kind_item = t`），"
+                           "已置 overlay_kind_item（crates/game-core/src/scene.rs `self.menu.set_overlay_kind_item(t)`），"
                            "商人路径浮层同调用内被关闭/替换（2026-10-15 独立审计核）"),
     "easeCameraToTarget": ("ported",
               "crates/game-core/src/scene.rs `// m_103：ease 相机目标 = 目标格`（SEE 臂）+ "
               "crates/game-core/src/scene.rs `// m_103：ease 目标 = SEE 目标格`（翻页臂）两处内联，"
               "四赋值 = a.java:8663-8666"),
     "initFloorStates": ("ported",
-              "crates/game-core/src/scene.rs `saved_floor_states: vec![None; 56]`（新游戏构造即 56 槽空 = "
+              "crates/game-core/src/scene.rs `saved_floor_states: vec![None; 56]`（现居 scene_persist.rs load_floor 字面量）（新游戏构造即 56 槽空 = "
               "a.java:9366-9370；读档路径 crates/game-core/src/scene.rs "
-              "`scene.saved_floor_states = save.floor_states.clone()`）"),
+              "`scene.persist.saved_floor_states = save.floor_states.clone()`）"),
     "m_120": ("ported",
               "crates/game-core/src/scene.rs `fn save_floor_state(&mut self)`（u16 BE 写内联为 to_be_bytes = "
               "a.java:9403-9404）"),

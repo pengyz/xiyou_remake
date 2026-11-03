@@ -129,6 +129,21 @@
    "bytes": 809052,
    "ticks": 363
   },
+  "fx-pickup-26.state": {
+   "sha256": "272eef3d34ca27cb9e7613a13848cc0f92f98760351e39b94f0d6120bb3e4eb7",
+   "bytes": 185459,
+   "ticks": 83
+  },
+  "fx-pickup-27.state": {
+   "sha256": "d617aea510d0f9abd92c1a19e8d16c52c79021b9c0e458294e17af15ce74447b",
+   "bytes": 184226,
+   "ticks": 83
+  },
+  "fx-pickup-28.state": {
+   "sha256": "60856f576d8ff5ed252ef442ef802023767350e965e22b93c7bec2818fdb8dab",
+   "bytes": 184858,
+   "ticks": 83
+  },
   "fx-record-arrows.state": {
    "sha256": "a308d39473007e07a73a4c9bdb2c0135e3b4b5036b1b5d28aa38a9bc4faa6659",
    "bytes": 2290780,

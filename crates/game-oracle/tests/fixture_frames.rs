@@ -623,6 +623,43 @@ fn fx_item13_pickup_stack_arm_frames_match() {
     assert_eq!(sc.player.find_item(13), 0, "find_item 命中槽 0");
 }
 
+
+/// FX-PICKUP-26：黄钥匙（a.java:7556-7558 case 26 yellowKeyCount++）。floor2
+/// （sprite1 备选=floor1 剧情触发面（嫦娥戏 236 拍止）弃——2026-11-04 实证）。
+/// 实证注记：sprite2 型26 三格 (3,4)/(4,4)/(3,5)——起步格 (3,5) 自带型26
+/// （载入即拾 +1）+北步 (3,4) 拾 +1=**2**（金样钉 2=双拾实况）。
+#[test]
+fn fx_pickup_26_yellow_key_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-pickup-26.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-pickup-26.txt"));
+    let (checked, sc) = replay("fx-pickup-26", include_str!("fixtures/fx-pickup-26.preset"), &records);
+    assert_eq!(checked, records.len(), "全帧必须比对");
+    assert_eq!((sc.view.player_px >> 5, sc.view.player_py >> 5), (3, 4), "北步入拾取格");
+    assert_eq!(sc.player.yellow_keys, 2, "双拾实况（起步格 (3,5) 自带+北步 (3,4)）——case 26 yellowKeyCount++（a.java:7556-7558）");
+}
+
+/// FX-PICKUP-27：红钥匙（a.java:7559-7561 case 27 redKeyCount++）。floor8 (2,2)。
+#[test]
+fn fx_pickup_27_red_key_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-pickup-27.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-pickup-27.txt"));
+    let (checked, sc) = replay("fx-pickup-27", include_str!("fixtures/fx-pickup-27.preset"), &records);
+    assert_eq!(checked, records.len(), "全帧必须比对");
+    assert_eq!((sc.view.player_px >> 5, sc.view.player_py >> 5), (2, 2), "北步入拾取格");
+    assert_eq!(sc.player.red_keys, 1, "case 27 redKeyCount++（a.java:7559-7561）");
+}
+
+/// FX-PICKUP-28：蓝钥匙（a.java:7562-7564 case 28 blueKeyCount++）。floor3 (5,3)。
+#[test]
+fn fx_pickup_28_blue_key_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-pickup-28.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-pickup-28.txt"));
+    let (checked, sc) = replay("fx-pickup-28", include_str!("fixtures/fx-pickup-28.preset"), &records);
+    assert_eq!(checked, records.len(), "全帧必须比对");
+    assert_eq!((sc.view.player_px >> 5, sc.view.player_py >> 5), (5, 3), "北步入拾取格");
+    assert_eq!(sc.player.blue_keys, 1, "case 28 blueKeyCount++（a.java:7562-7564）");
+}
+
 /// FX-ITEM-18A：玄明石全清当前层墙（evidence-items §2.3/§3.4）。floor37 型11 ×8 同拍
 /// 全 markEntityRemoved（a.java:7817-7828 全表扫描）+ 出栈。T1-560。
 #[test]

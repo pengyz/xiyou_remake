@@ -12,11 +12,9 @@
 - 黄项：8（被无对拍用例的场景触达 6 = 补用例即可转绿；无任何场景触达 2 = 带不触达论证 1 / 待论证 1——convergence-plan §0.1）
 - **判据①赤字**（convergence-plan §0.1：白项清零、黄项带论证）：白（非 ☠️）5 + 黄（无论证）7 = 12（白 = showNotify, m_062, m_101, m_108, m_134）
 - 口径复算（同一份 Rust 树）：v2 前任口径 绿 133 / 黄 11 / 白 19（差异见 §7）；v1 旧账（伪名口径，103 名）绿 44 / 黄 1 / 白 58（对照见 §6）
-- ⚠ PORT_NOTES[addItemToItemStack] 锚失效：crates/game-core/src/scene.rs `self.overlay_kind_item = t`
 - ⚠ PORT_NOTES[easeCameraToTarget] 锚失效：crates/game-core/src/scene.rs `// m_103：ease 相机目标 = 目标格`
 - ⚠ PORT_NOTES[easeCameraToTarget] 锚失效：crates/game-core/src/scene.rs `// m_103：ease 目标 = SEE 目标格`
 - ⚠ PORT_NOTES[initFloorStates] 锚失效：crates/game-core/src/scene.rs `saved_floor_states: vec![None; 56]`
-- ⚠ PORT_NOTES[initFloorStates] 锚失效：crates/game-core/src/scene.rs `scene.saved_floor_states = save.floor_states.clone()`
 - ⚠ PORT_NOTES[m_120] 锚失效：crates/game-core/src/scene.rs `fn save_floor_state(&mut self)`
 - ⚠ PORT_NOTES[restoreFloorState] 锚失效：crates/game-core/src/scene.rs `u16::from_be_bytes([d[*p], d[*p + 1]])`
 - ⚠ PORT_NOTES[resetNewGameState] 锚失效：crates/game-core/src/scene.rs `difficulty_index: 0`
@@ -63,6 +61,9 @@
 | `fixture_frames::fx_item19a_heal_exact_frames_match` | fx-item19a（夹具） | T1-560 | FRAME 失配（夹具帧链 ≠ 实测） | 0 |
 | `fixture_frames::fx_item17a_chisel_wall_frames_match` | fx-item17a（夹具） | T1-620 | FRAME 失配（夹具帧链 ≠ 实测） | 0 |
 | `fixture_frames::fx_item13_pickup_stack_arm_frames_match` | fx-item13（夹具） | T1-None | 无触达快照 | 0 |
+| `fixture_frames::fx_pickup_26_yellow_key_frames_match` | fx-pickup-26（夹具） | T1-None | 无触达快照 | 0 |
+| `fixture_frames::fx_pickup_27_red_key_frames_match` | fx-pickup-27（夹具） | T1-None | 无触达快照 | 0 |
+| `fixture_frames::fx_pickup_28_blue_key_frames_match` | fx-pickup-28（夹具） | T1-None | 无触达快照 | 0 |
 | `fixture_frames::fx_item18a_clear_all_walls_frames_match` | fx-item18a（夹具） | T1-560 | FRAME 失配（夹具帧链 ≠ 实测） | 0 |
 | `fixture_frames::fx_boss67a_kill_spawn_frames_match` | fx-boss67a（夹具） | T1-560 | FRAME 失配（夹具帧链 ≠ 实测） | 0 |
 | `fixture_frames::fx_boss74a_kill_hooks_frames_match` | fx-boss74a（夹具） | T1-600 | FRAME 失配（夹具帧链 ≠ 实测） | 0 |
@@ -114,14 +115,14 @@
 
 非帧级用例（不计入验证；列出以示归属）：
 
-- `arm_coverage::p1a2_all_21_arm_groups_have_fixture_triplets`（arm_coverage.rs:33）：ignored
+- `arm_coverage::p1a2_all_21_arm_groups_have_fixture_triplets`（arm_coverage.rs:35）：ignored
 - `dump_face::p1a1_dump_face_contains_six_groups`（dump_face.rs:6）：structural
-- `fixture_frames::bug012_ces70_same_point_crash_regression`（fixture_frames.rs:1085）：fixture
-- `fixture_frames::bug012_lay2a_same_point_crash_regression`（fixture_frames.rs:1119）：fixture
-- `fixture_frames::bug012b_floor2_stair_transition_repro`（fixture_frames.rs:1188）：structural
-- `fixture_frames::chang_e_fixtures_modern_logic_matches_classic`（fixture_frames.rs:1389）：frame-unbounded，夹具 story-fullrun
-- `fixture_frames::fx_chang_e_floor1_taps_frames_match`（fixture_frames.rs:1503）：structural
-- `fixture_frames::fx_chang_e_floor1_taps_shell_key_path_frames_match`（fixture_frames.rs:1523）：structural
+- `fixture_frames::bug012_ces70_same_point_crash_regression`（fixture_frames.rs:1122）：fixture
+- `fixture_frames::bug012_lay2a_same_point_crash_regression`（fixture_frames.rs:1156）：fixture
+- `fixture_frames::bug012b_floor2_stair_transition_repro`（fixture_frames.rs:1225）：structural
+- `fixture_frames::chang_e_fixtures_modern_logic_matches_classic`（fixture_frames.rs:1426）：frame-unbounded，夹具 story-fullrun
+- `fixture_frames::fx_chang_e_floor1_taps_frames_match`（fixture_frames.rs:1540）：structural
+- `fixture_frames::fx_chang_e_floor1_taps_shell_key_path_frames_match`（fixture_frames.rs:1560）：structural
 - `gameplay_floor1::gameplay_floor1_t544_ops_prefix_match`（gameplay_floor1.rs:227）：trace-partial，读 A-gameplay-floor1
 - `gameplay_floor1::floor1_entity_draw_order_anchor`（gameplay_floor1.rs:290）：structural
 - `gameplay_floor1::dump_t544_pixels`（gameplay_floor1.rs:341）：ignored
@@ -339,7 +340,7 @@
 | loadFloorSave | a.java:9253-9328 | `preset_cases::preset_alchemy_frames_match` / preset-alchemy @T220 | 32 | 行锚×3〔名3〕（crates/game-core/src/save.rs:1） |
 | deleteRecordStoreQuietly | a.java:9330-9335 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T68 | 6 | 人工·吸收：删库后重建（a.java:9331-9334）；三调用点 a.java:4476（SKY_WAR 读失败→删→saveGlobalProgress 重建）/9027（MOT_IF）/9190（MOT_L{n}）均为删后即写；壳 RMS 以覆盖写吸收删+写（shell/win/src/main.rs `std::fs::write(&path, v).ok();`）；SKY_WAR 路径的持久化缺口归 saveGlobalProgress（a） |
 | closeRecordStoreAndGc | a.java:9337-9369 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T151 | 33 | 人工·吸收：RecordStore/流关闭 + 五字段置 null + gc（a.java:9338-9368）；f_byte_arr_27 读者（dispatchModeEntry/loadSlotTable/loadFloorSave）均先 getRecord 赋值再读（a.java:4459/8980/9262）⇒ 无可观测效应 |
-| initFloorStates | a.java:9371-9377 | `preset_cases::preset_alchemy_frames_match` / preset-alchemy @T216 | 34 | 人工：crates/game-core/src/scene.rs `saved_floor_states: vec![None; 56]`（新游戏构造即 56 槽空 = a.java:9366-9370；读档路径 crates/game-core/src/scene.rs `scene.saved_floor_states = save.floor_states.clone()`） |
+| initFloorStates | a.java:9371-9377 | `preset_cases::preset_alchemy_frames_match` / preset-alchemy @T216 | 34 | 人工：crates/game-core/src/scene.rs `saved_floor_states: vec![None; 56]`（现居 scene_persist.rs load_floor 字面量）（新游戏构造即 56 槽空 = a.java:9366-9370；读档路径 crates/game-core/src/scene.rs `scene.persist.saved_floor_states = save.floor_states.clone()`） |
 | m_119 | a.java:9379-9406 | `preset_cases::preset_load_menu_frames_match` / preset-load-menu @T341 | 5 | 行锚×3〔名3〕（crates/game-core/src/entity.rs:76） |
 | m_120 | a.java:9408-9411 | `preset_cases::preset_load_menu_frames_match` / preset-load-menu @T341 | 5 | 人工：crates/game-core/src/scene.rs `fn save_floor_state(&mut self)`（u16 BE 写内联为 to_be_bytes = a.java:9403-9404）；行锚×1〔名1〕（crates/game-core/src/scene_persist.rs:391） |
 | loadFloorData | a.java:9413-9453 | `preset_cases::preset_alchemy_frames_match` / preset-alchemy @T223 | 34 | fn crates/game-core/src/scene_persist.rs:270；行锚×5〔seed名1/名4〕（crates/game-core/src/game_view.rs:1） |
@@ -376,7 +377,7 @@
 | hideNotify | a.java:4502-4514 | **无场景触达** | fn crates/game-core/src/scene.rs:2206；行锚×3〔名3〕（crates/game-core/src/audio.rs:65） |  | 不触达论证（B，机械校验 ✓）：MIDP 生命周期回调（a.java:4502-4513）：类 a 内零调用点，字节码唯一调用者 CMidlet.pauseApp@4（invokevirtual a.hideNotify），另由平台在 Canvas 离屏时回调；oracle 宿主只反射调 startApp、场景脚本只有按键事件（Runner.loadScript `<tick> <keycode> <press|release>`），shim/宿主源码无任何 pauseApp/hideNotify 调用 ⇒ 任何场景（含夹具场景）不可达。**非死代码**（真机来电/切后台必达），属场景驱动面盲区（扩驱动面须改 reference/ 宿主）。语义由壳侧宿主测试覆盖（ab8368a）：shell/win/src/main.rs `fn in_game_hide_closes_bgm_and_first_key_resumes_game_track`、shell/win/src/main.rs `fn hide_in_game_menu_keeps_mode_4`、shell/win/src/main.rs `fn title_hide_resumes_menu_track_in_java_event_order`、shell/win/src/main.rs `fn hide_in_modes_0_and_21_clears_flag_without_resume`、shell/win/src/main.rs `fn hide_in_mode3_opens_in_game_menu`（gameMode 3→4 臂 a.java:4504-4507，47169cc 接通 crates/game-core/src/scene.rs `pub fn hide_notify(&mut self)` 后摘 #[ignore]） |
 | advanceScriptWalk | a.java:5825-5842 | fx-scriptwalk-floor3@T308 | fn crates/game-core/src/scene_script.rs:39；行锚×1〔名1〕（crates/game-core/src/scene_script.rs:37） | run:3568, handleFieldInput:5268, applyStepCellEffects:5739 | 补帧级用例即转绿 |
 | browseOfferQueue | a.java:7489-7514 | preset-floor5@T621 | 行锚×1〔名1〕（crates/game-core/src/scene.rs:4541） | run:3331, run:3334, dispatchModeEntry:4387 | 补帧级用例即转绿 |
-| addItemToItemStack | a.java:7727-7740 | preset-floor5@T265 | 人工：crates/game-core/src/scene.rs `fn add_item_to_stack(&mut self, t: i32)`（追加/叠加次数 + showOverlayMessage = a.java:7731-7735/7739；行锚 7702-7714 漂移落入 itemTypeToStackIndex）。未移植 itemUseTargetType 写（a.java:7738——2026-11-03 更正：原 7732 错引，真相=7738）——无可见效应：拾取路径调用前 已置 overlay_kind_item（crates/game-core/src/scene.rs `self.overlay_kind_item = t`），商人路径浮层同调用内被关闭/替换（2026-10-15 独立审计核）；行锚×2〔名2〕（crates/game-core/src/scene.rs:4310） | applyMerchantOffer:7339, applyMerchantOffer:7342, pickupItemType:7554 | 补帧级用例即转绿 |
+| addItemToItemStack | a.java:7727-7740 | preset-floor5@T265 | 人工：crates/game-core/src/scene.rs `fn add_item_to_stack(&mut self, t: i32)`（追加/叠加次数 + showOverlayMessage = a.java:7731-7735/7739；行锚 7702-7714 漂移落入 itemTypeToStackIndex）。未移植 itemUseTargetType 写（a.java:7738——2026-11-03 更正：原 7732 错引，真相=7738）——无可见效应：拾取路径调用前 已置 overlay_kind_item（crates/game-core/src/scene.rs `self.menu.set_overlay_kind_item(t)`），商人路径浮层同调用内被关闭/替换（2026-10-15 独立审计核）；行锚×2〔名2〕（crates/game-core/src/scene.rs:4310） | applyMerchantOffer:7339, applyMerchantOffer:7342, pickupItemType:7554 | 补帧级用例即转绿 |
 | m_089 | a.java:7901-7930 | fx-fan-floor13@T381; fx-item17a@T381; fx-item17b@T381 | 行锚×1〔名1〕（crates/game-core/src/scene.rs:2364） | activateItem:7808, activateItem:7816 | 补帧级用例即转绿 |
 | probeCrossFloorSnapshot | a.java:8646-8666 | preset-floor49@T951 | fn crates/game-core/src/scene_persist.rs:482; crates/game-core/src/scene.rs:1051（fn m_102_current_floor）；行锚×3〔名3〕（crates/game-core/src/scene.rs:1048） | tryRunScene:8130, tryRunScene:8155, tryRunScene:8204 | 补帧级用例即转绿 |
 | m_106 | a.java:8744-8876 | preset-floor40-mov@T411; preset-floor2-mov@T607 | 行锚×6〔稳6〕（crates/game-core/src/combat.rs:111） | run:4073, m_106:8864 | 补帧级用例即转绿 |
@@ -586,7 +587,7 @@ v1 绿/黄 → 现色变色（v1 过账或口径差，逐条）：advanceScriptW
 | resetNewGameState | 绿 | 绿 | 4 | 0 | ported |
 | addOption | 白 | 绿 | 0 | 0 | ported |
 | findItemStackIndex | 白 | 绿 | 0 | 0 | ported |
-| consumeKeyForDoor | 绿 | 绿 | 2 | 0 | — |
+| consumeKeyForDoor | 绿 | 绿 | 4 | 0 | — |
 | cameraAtTarget | 绿 | 绿 | 2 | 0 | — |
 | m_101 | 黄 | 白 | 1 | 0 | — |
 | easeCameraToTarget | 绿 | 绿 | 1 | 0 | ported |

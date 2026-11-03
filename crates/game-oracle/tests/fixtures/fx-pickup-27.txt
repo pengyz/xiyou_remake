@@ -1,0 +1,19 @@
+# ticks: 320
+# preset: fx-pickup-27.preset
+# cover: FX-PICKUP-27 pickup 27 臂组（P1-a2 批2；spec §7-Q3 臂面 21 组）：
+#   boot 70/-6 100/-2 150/-5 200/-5 → 槽载入 floor8 (2,3) 朝上 → 300 -1 北步
+#   (2,2) 踩型27 实体格（sprite8 探针实证）⇒ pickup dispatch case27
+#   （a.java:7559-7561）：redKeyCount++（红钥匙）→ 收尾静态。
+#   断言：redKeyCount 0→1、实体 state=1（拾取消失）、终态玩家 (2,2)。
+#   preset：python3 tools/frames_fixture.py preset floor=8 x=2 y=3 facing=1 hp=500
+#   atk=200 def=30 sky=5
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -1 press
+302 -1 release

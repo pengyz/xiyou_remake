@@ -1,0 +1,19 @@
+# ticks: 320
+# preset: fx-pickup-26.preset
+# cover: FX-PICKUP-26 pickup 26 臂组（P1-a2 批2；spec §7-Q3 臂面 21 组）：
+#   boot 70/-6 100/-2 150/-5 200/-5 → 槽载入 floor2 (3,5) 朝上 → 300 -1 北步
+#   (3,4) 踩型26 实体格（sprite2 探针实证；sprite1 备选因 floor1 剧情触发面弃）⇒ pickup dispatch case26
+#   （a.java:7556-7558）：yellowKeyCount++（黄钥匙）→ 收尾静态。
+#   断言：yellowKeyCount 0→**2**（双拾实况：起步格 (3,5) 自带+北步 (3,4)——2026-11-04 实证）、终态玩家 (3,4)。
+#   preset：python3 tools/frames_fixture.py preset floor=2 x=3 y=5 facing=1 hp=500
+#   atk=200 def=30 sky=5
+70 -6 press
+72 -6 release
+100 -2 press
+102 -2 release
+150 -5 press
+152 -5 release
+200 -5 press
+202 -5 release
+300 -1 press
+302 -1 release
