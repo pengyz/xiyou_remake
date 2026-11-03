@@ -64,8 +64,8 @@ impl GameScene {
     /// LAY_x（a.java:8355-8362）：m_119 存态 + 目标层 + 遮幅（phase=5）+ 清 overlay。
     pub(super) fn op_lay(&mut self, floor: i32) {
         self.save_floor_state();
-        self.persist.pending_floor = floor;
-        self.transitioning = true;
+        self.persist.set_pending_floor(floor);
+        self.set_transitioning(true);
         self.dialog.set_overlay_text(None);
         self.dialog.set_dialog_phase(5);
     }
@@ -92,8 +92,8 @@ impl GameScene {
             self.player.item_stack_size = 0;
             self.player.gold = 4;
             self.set_alchemy_upgrade_count(0);
-            self.persist.min_floor = 1;
-            self.persist.max_floor = 3;
+            self.persist.set_min_floor(1);
+            self.persist.set_max_floor(3);
             self.player.atk = 10;
             self.player.def = 10;
             self.player.hp = 400;
@@ -138,14 +138,14 @@ impl GameScene {
         self.dialog.dialog_page_end = page_end;
         self.open_dialog_page(page);
         if flag == 1 && self.find_path(self.player_cell_x, self.player_cell_y, tx, ty) {
-            self.path_arrows_visible = true;
+            self.set_path_arrows_visible(true);
             self.set_walk_phase(0);
         }
         self.dialog.set_dialog_phase(6);
-        self.ease_cam_x = ((self.view.view_w - 32) >> 1) - self.view.cam_x;
-        self.ease_cam_y = ((self.view.view_h - 32) >> 1) - self.view.cam_y;
-        self.ease_target_x = tx << 5;
-        self.ease_target_y = ty << 5;
+        self.set_ease_cam_x(((self.view.view_w - 32) >> 1) - self.view.cam_x);
+        self.set_ease_cam_y(((self.view.view_h - 32) >> 1) - self.view.cam_y);
+        self.set_ease_target_x(tx << 5);
+        self.set_ease_target_y(ty << 5);
     }
 
     /// GUT_n（a.java:8308-8311）：旗标置位 + loadLevelScript(n)（游标由 load
@@ -165,10 +165,10 @@ impl GameScene {
         if target_type > 0 {
             let (ent_x, ent_y) = cell.expect("五参已解析");
             // a.java:8289：route_entity = findBlockingEntity(...)（原 findBlockingEntity）——未命中也写入（-1）
-            self.route_entity = self.entity_at_cell(ent_x, ent_y, target_type);
+            self.set_route_entity(self.entity_at_cell(ent_x, ent_y, target_type));
             if self.route_entity >= 0 {
                 let ei = self.route_entity as usize;
-                self.route_phase = 0; // routePhase = 0（a.java:8291）
+                self.set_route_phase(0); // routePhase = 0（a.java:8291）
                 if self.entities.items[ei].type_ == 72 {
                     self.entities.items[ei].anim_row = 1; // a.java:8293-8294
                 }
@@ -239,16 +239,16 @@ impl GameScene {
             img_h,
         );
         entity::remove_des(&mut self.entities, idx);
-        self.ease_cam_x = ((self.view.view_w - 32) >> 1) - self.view.cam_x;
-        self.ease_cam_y = ((self.view.view_h - 32) >> 1) - self.view.cam_y;
+        self.set_ease_cam_x(((self.view.view_w - 32) >> 1) - self.view.cam_x);
+        self.set_ease_cam_y(((self.view.view_h - 32) >> 1) - self.view.cam_y);
         // Java `if (sort_i >= 0)` 守卫（a.java:8398）：spawn 返回 usize 恒非负 ⇒ 恒真
-        self.ease_target_x = self.entities.items[idx].px;
-        self.ease_target_y = self.entities.items[idx].py;
-        self.script_delay = match self.entity_category(ty) {
+        self.set_ease_target_x(self.entities.items[idx].px);
+        self.set_ease_target_y(self.entities.items[idx].py);
+        self.set_script_delay(match self.entity_category(ty) {
             1 | 8 | 16 => 5,
             2 | 4 => 8,
             _ => 0,
-        };
+        });
     }
 
     /// GLV_n（a.java:8464-8466）：纯解析推进（无副作用）。

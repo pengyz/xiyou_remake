@@ -22,7 +22,17 @@ impl RenderState {
     pub fn set_strip_frame(&mut self, v: usize) { self.strip_frame = v; }
 }
 
+/// 【终章簇4·render 域直写接口】（ease 相机态跨文件写收敛——render 域家）。
 impl GameScene {
+    pub(super) fn set_ease_cam_x(&mut self, v: i32) { self.ease_cam_x = v; }
+    pub(super) fn set_ease_cam_y(&mut self, v: i32) { self.ease_cam_y = v; }
+    pub(super) fn set_ease_target_x(&mut self, v: i32) { self.ease_target_x = v; }
+    pub(super) fn set_ease_target_y(&mut self, v: i32) { self.ease_target_y = v; }
+    pub(super) fn add_ease_cam_x(&mut self, d: i32) { self.ease_cam_x += d; }
+    pub(super) fn add_ease_cam_y(&mut self, d: i32) { self.ease_cam_y += d; }
+    pub(super) fn add_ease_target_x(&mut self, d: i32) { self.ease_target_x += d; }
+    pub(super) fn add_ease_target_y(&mut self, d: i32) { self.ease_target_y += d; }
+
     /// loadFloorData（a.java:9404-9438）：maplv 装载 + initCellGrid 格索引重建 +
     /// 可行走重建 + m_122 实体生成 + sortEntitiesByY 排序。
     /// `floor_assets`：按层号索引的换层资产（索引缺省 = 该层不可达）。
@@ -235,7 +245,7 @@ impl GameScene {
                 self.wipe -= 1;
                 if self.wipe <= 0 {
                     self.wipe_closing = true;
-                    self.transitioning = false;
+                    self.set_transitioning(false);
                 }
             }
             let size = self.wipe * 2;
@@ -819,11 +829,11 @@ impl GameScene {
         }
         let text_len = text.chars().count() as i32;
         if (self.frame_counter & 3) >> 1 != 0 && self.dialog.dialog_char < text_len {
-            self.dialog.dialog_char += 1;
+            self.dialog.add_dialog_char(1);
             let line_h = font.height() + 4;
             self.layout_wrapped_text_limited(&text, 209, (line_h << 1) + 12, self.dialog.dialog_char);
-            self.dialog.overlay_page_top = (self.dialog.overlay_total_lines - 1).max(0);
-            self.dialog.overlay_page_bottom = self.dialog.overlay_total_lines;
+            self.dialog.set_overlay_page_top((self.dialog.overlay_total_lines - 1).max(0));
+            self.dialog.set_overlay_page_bottom(self.dialog.overlay_total_lines);
         }
         g.set_color(3156024);
         // 【A 黄2·2026-10-23】顶带几何源改 layout（旧 classic 常量 SCREEN_W ⇒

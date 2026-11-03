@@ -54,6 +54,7 @@ pub fn item_actions(t: i32) -> Option<&'static [ItemAction]> {
 impl GameScene {
     pub(super) fn set_alchemy_price(&mut self, v: i32) { self.alchemy_price = v; }
     pub(super) fn set_alchemy_upgrade_count(&mut self, v: i32) { self.alchemy_upgrade_count = v; }
+    pub(super) fn inc_alchemy_upgrade_count(&mut self) { self.alchemy_upgrade_count += 1; }
     /// 执行一个道具动作（a.java 语义逐字——执行序=表序）。
     pub(super) fn execute_item_action(&mut self, a: &ItemAction) -> bool {
         match a {
@@ -136,7 +137,7 @@ impl GameScene {
             }
             ItemAction::ChangeFloorUp => {
                 let consumed = self.change_floor(self.persist.floor + 1, false, false);
-                self.key_held = 0;
+                self.set_key_held(0);
                 self.transition_to(GameMode::Map);
                 consumed
             }

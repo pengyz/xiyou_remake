@@ -99,6 +99,9 @@ impl DialogState {
     pub fn set_dialog_page(&mut self, v: i32) { self.dialog_page = v; }
     pub fn set_overlay_text(&mut self, v: Option<String>) { self.overlay_text = v; }
     pub fn set_overlay_active(&mut self, v: bool) { self.overlay_active = v; }
+    pub fn add_dialog_char(&mut self, d: i32) { self.dialog_char += d; }
+    pub fn set_overlay_page_top(&mut self, v: i32) { self.overlay_page_top = v; }
+    pub fn set_overlay_page_bottom(&mut self, v: i32) { self.overlay_page_bottom = v; }
 }
 
 impl GameScene {
@@ -108,7 +111,7 @@ impl GameScene {
         match self.dialog.dialog_phase {
             0 => {
                 if self.script_delay > 0 {
-                    self.script_delay -= 1;
+                    self.dec_script_delay();
                 } else {
                     self.execute_script_instruction();
                 }
@@ -125,7 +128,7 @@ impl GameScene {
                         scene_dialog::TypewriterStep::SkipToLineEnd => {
                             // 全量 layout + 跳到行尾（a.java:4029-4026）
                             self.layout_full_text(&text, 129, (line_h << 1) + 12);
-                            self.dialog.dialog_char = self.skip_text_to_line_end(self.dialog.dialog_char);
+                            self.dialog.set_dialog_char(self.skip_text_to_line_end(self.dialog.dialog_char));
                             // 公共尾（原式 fall-through：skip 后同走 wrapped layout+翻页检）
                             self.layout_wrapped_text_limited(&text, 129, (line_h << 1) + 12, self.dialog.dialog_char);
                             if self.dialog.overlay_total_lines > self.dialog.overlay_page_bottom {
@@ -146,14 +149,14 @@ impl GameScene {
                         }
                         scene_dialog::TypewriterStep::Wait => {}
                         scene_dialog::TypewriterStep::Confirm => {
-                            self.dialog.dialog_char = 1;
+                            self.dialog.set_dialog_char(1);
                             self.open_dialog_page(self.dialog.dialog_page + 1);
                             if self.dialog.dialog_phase == 6 {
                                 // easeCameraToTarget：ease 目标 = SEE 目标格
-                                self.ease_cam_x = ((self.view.view_w - 32) >> 1) - self.view.cam_x;
-                                self.ease_cam_y = ((self.view.view_h - 32) >> 1) - self.view.cam_y;
-                                self.ease_target_x = self.dialog.dialog_target.0 << 5;
-                                self.ease_target_y = self.dialog.dialog_target.1 << 5;
+                                self.set_ease_cam_x(((self.view.view_w - 32) >> 1) - self.view.cam_x);
+                                self.set_ease_cam_y(((self.view.view_h - 32) >> 1) - self.view.cam_y);
+                                self.set_ease_target_x(self.dialog.dialog_target.0 << 5);
+                                self.set_ease_target_y(self.dialog.dialog_target.1 << 5);
                             }
                         }
                     }
@@ -189,7 +192,7 @@ impl GameScene {
                                     if self.game_mode != GameMode::Dialog && self.walkto_owns_dp3() {
                                         self.route_arrived();
                                         self.restore_walkto_arrows();
-                                        self.walkto_draining = false;
+                                        self.set_walkto_draining(false);
                                         self.set_script_walk_armed(false);
                                         self.dialog.dialog_phase = 0;
                                     }
@@ -214,11 +217,11 @@ impl GameScene {
                                 2 => self.view.player_px += 8,
                                 _ => self.view.player_px -= 8,
                             }
-                            self.step_progress += 8;
-                            self.ease_target_x = self.view.player_px;
-                            self.ease_target_y = self.view.player_py;
+                            self.add_step_progress(8);
+                            self.set_ease_target_x(self.view.player_px);
+                            self.set_ease_target_y(self.view.player_py);
                             if self.player_frame < PLAYER_FRAME_TABLE.len() as i32 - 1 {
-                                self.player_frame += 1;
+                                self.inc_player_frame();
                             } else {
                                 self.set_player_frame(0);
                             }

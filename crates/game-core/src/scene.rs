@@ -477,6 +477,19 @@ pub struct GameScene {
 
 /// 【终章·entity/移动域直写接口】（lead 2026-11-03 选项 1）——跨文件写点收敛。
 impl GameScene {
+    // ── 【终章簇4·尾巴直写接口】
+    pub(super) fn dec_script_delay(&mut self) { self.script_delay -= 1; }
+    pub(super) fn add_step_progress(&mut self, d: i32) { self.step_progress += d; }
+    // ── 【终章簇4·尾巴直写接口】（key/transitioning/tap 尾——scene.rs=唯一直写面）──
+    pub(super) fn inc_player_frame(&mut self) { self.player_frame += 1; }
+    pub(super) fn set_key_value(&mut self, v: i32) { self.key_value = v; }
+    pub(super) fn set_key_held(&mut self, v: i32) { self.key_held = v; }
+    pub(super) fn set_transitioning(&mut self, v: bool) { self.transitioning = v; }
+    pub(super) fn set_walkto_draining(&mut self, v: bool) { self.walkto_draining = v; }
+    pub(super) fn set_path_arrows_visible(&mut self, v: bool) { self.path_arrows_visible = v; }
+    pub(super) fn set_route_entity(&mut self, v: i32) { self.route_entity = v; }
+    pub(super) fn set_route_phase(&mut self, v: i32) { self.route_phase = v; }
+    pub(super) fn set_undo(&mut self, v: crate::undo_journal::UndoJournal) { self.undo = v; }
     // ── 【终章簇2·script 域直写接口】（scene.rs=唯一直写面）──
     pub(super) fn set_script_walk_armed(&mut self, v: bool) { self.script_walk_armed = v; }
     pub(super) fn set_script_delay(&mut self, v: i32) { self.script_delay = v; }
@@ -1061,17 +1074,17 @@ impl GameScene {
                         }
                     }
                     if found >= 0 {
-                        self.ease_target_x = self.entities.items[found as usize].px;
-                        self.ease_target_y = self.entities.items[found as usize].py;
+                        self.set_ease_target_x(self.entities.items[found as usize].px);
+                        self.set_ease_target_y(self.entities.items[found as usize].py);
                         // a.java:8667-8668（lockCameraOn 内）：型69 目标 X += 32
                         if self.dialog.dialog_speaker == 69 {
-                            self.ease_target_x += 32;
+                            self.add_ease_target_x(32);
                         }
                     }
                     found
                 } else {
-                    self.ease_target_x = self.view.player_px;
-                    self.ease_target_y = self.view.player_py;
+                    self.set_ease_target_x(self.view.player_px);
+                    self.set_ease_target_y(self.view.player_py);
                     -1
                 }
             };
@@ -1081,11 +1094,12 @@ impl GameScene {
                 let name = &self.object_type_names[self.dialog.dialog_speaker as usize];
                 format!("{}: \\cF8F8F8{}", name, self.dialog.dialog_data.texts[page as usize])
             };
-            self.dialog.dialog_char = if self.dialog.dialog_speaker < 0 {
+            let dlg_char = if self.dialog.dialog_speaker < 0 {
                 11
             } else {
                 (self.object_type_names[self.dialog.dialog_speaker as usize].chars().count() + 10) as i32
             };
+            self.dialog.set_dialog_char(dlg_char);
             self.dialog.set_overlay_text(Some(composed.clone()));
             let line_h = crate::paint::paint_font().height + 4;
             self.layout_wrapped_text_limited(&composed, 129, (line_h << 1) + 12, self.dialog.dialog_char);
@@ -1111,10 +1125,10 @@ impl GameScene {
     fn apply_wrapped_layout(&mut self, text: &[u16], w: i32, max_h: i32, limit: usize) {
         let font = crate::paint::paint_font();
         let r = crate::menu_family::layout_wrapped_text(text, w, max_h, limit, &font);
-        self.dialog.overlay_page_top = 0;
+        self.dialog.set_overlay_page_top(0);
         self.dialog.overlay_total_lines = r.total_lines;
         self.dialog.overlay_lines_per_page = r.lines_per_page;
-        self.dialog.overlay_page_bottom = r.total_lines.min(r.lines_per_page);
+        self.dialog.set_overlay_page_bottom(r.total_lines.min(r.lines_per_page));
         self.dialog.overlay_content_w = r.content_w;
         self.dialog.overlay_lines = r.lines.iter().map(|l| String::from_utf16_lossy(l)).collect();
     }
@@ -1129,7 +1143,7 @@ impl GameScene {
             -2 => self.flip_overlay_page(self.dialog.overlay_page_top + 1),
             -1 => self.flip_overlay_page(self.dialog.overlay_page_top - 1),
             0 => {}
-            _ => self.dialog.overlay_active = false,
+            _ => { self.dialog.set_overlay_active(false); }
         }
     }
 
@@ -1142,13 +1156,13 @@ impl GameScene {
         } else {
             top = 0;
         }
-        self.dialog.overlay_page_top = top;
-        self.dialog.overlay_page_bottom = top + self.dialog.overlay_lines_per_page;
+        self.dialog.set_overlay_page_top(top);
+        self.dialog.set_overlay_page_bottom(top + self.dialog.overlay_lines_per_page);
         if self.dialog.overlay_page_top < 0 {
-            self.dialog.overlay_page_top = 0;
+            self.dialog.set_overlay_page_top(0);
         }
         if self.dialog.overlay_page_bottom > self.dialog.overlay_total_lines {
-            self.dialog.overlay_page_bottom = self.dialog.overlay_total_lines;
+            self.dialog.set_overlay_page_bottom(self.dialog.overlay_total_lines);
         }
     }
 
@@ -2094,8 +2108,8 @@ impl GameScene {
                     3 => self.entities.items[e].px -= 8,
                     _ => {}
                 }
-                self.ease_target_x = self.entities.items[e].px;
-                self.ease_target_y = self.entities.items[e].py;
+                self.set_ease_target_x(self.entities.items[e].px);
+                self.set_ease_target_y(self.entities.items[e].py);
                 self.route_progress += 8;
                 let row = self.entities.items[e].anim_row;
                 if row > 0 {
@@ -2889,8 +2903,8 @@ impl GameScene {
                 // applyMerchantOffer(true)，-7=(false)，其余 handleOverlayKey
                 // （±**1** 翻页——【2026-10-16 修】原误用 ±lines_per_page）
                 match self.key_value {
-                    -7 => self.dialog.overlay_active = self.apply_merchant_offer(false),
-                    -6 | -5 => self.dialog.overlay_active = self.apply_merchant_offer(true),
+                    -7 => { let v = self.apply_merchant_offer(false); self.dialog.set_overlay_active(v); }
+                    -6 | -5 => { let v = self.apply_merchant_offer(true); self.dialog.set_overlay_active(v); }
                     _ => self.handle_overlay_key(),
                 }
             } else if self.dialog.overlay_kind == 5 {
@@ -2948,7 +2962,7 @@ impl GameScene {
                     match self.key_value {
                         0 => {}
                         -2 | -1 => self.handle_overlay_key(),
-                        _ => self.dialog.overlay_active = false,
+                        _ => { self.dialog.set_overlay_active(false); }
                     }
                 }
             } else if self.dialog.overlay_kind == 2 {
@@ -3234,8 +3248,8 @@ impl GameScene {
 
     /// lockCameraOn（a.java:8666-8696）：缓动相机初始化。0 → 目标 = 玩家位。
     fn lock_camera_on(&mut self, target: i32) {
-        self.ease_cam_x = ((self.view.view_w - 32) >> 1) - self.view.cam_x;
-        self.ease_cam_y = ((self.view.view_h - 32) >> 1) - self.view.cam_y;
+        self.set_ease_cam_x(((self.view.view_w - 32) >> 1) - self.view.cam_x);
+        self.set_ease_cam_y(((self.view.view_h - 32) >> 1) - self.view.cam_y);
         if target != 0 && target != 87 {
             // 目标类型查实体（倒序首个）——战后视点本窗口只用 0（玩家）
             let mut found = -1;
@@ -3246,16 +3260,16 @@ impl GameScene {
                 }
             }
             if found >= 0 {
-                self.ease_target_x = self.entities.items[found as usize].px;
-                self.ease_target_y = self.entities.items[found as usize].py;
+                self.set_ease_target_x(self.entities.items[found as usize].px);
+                self.set_ease_target_y(self.entities.items[found as usize].py);
                 // a.java:8667-8668：型69 目标 X += 32（取景右偏，全调用方共用）
                 if target == 69 {
-                    self.ease_target_x += 32;
+                    self.add_ease_target_x(32);
                 }
             }
         } else {
-            self.ease_target_x = self.view.player_px;
-            self.ease_target_y = self.view.player_py;
+            self.set_ease_target_x(self.view.player_px);
+            self.set_ease_target_y(self.view.player_py);
         }
     }
 
@@ -3263,25 +3277,25 @@ impl GameScene {
     /// 反演回 cameraPixel（(中心) - ease 坐标）。
     fn step_camera_toward_target(&mut self) {
         if self.ease_cam_x < self.ease_target_x {
-            self.ease_cam_x += ((self.ease_target_x - self.ease_cam_x) >> 2) + 2;
+            self.add_ease_cam_x(((self.ease_target_x - self.ease_cam_x) >> 2) + 2);
             if self.ease_cam_x > self.ease_target_x {
-                self.ease_cam_x = self.ease_target_x;
+                self.set_ease_cam_x(self.ease_target_x);
             }
         } else if self.ease_cam_x > self.ease_target_x {
-            self.ease_cam_x += ((self.ease_target_x - self.ease_cam_x) >> 2) - 2;
+            self.add_ease_cam_x(((self.ease_target_x - self.ease_cam_x) >> 2) - 2);
             if self.ease_cam_x < self.ease_target_x {
-                self.ease_cam_x = self.ease_target_x;
+                self.set_ease_cam_x(self.ease_target_x);
             }
         }
         if self.ease_cam_y < self.ease_target_y {
-            self.ease_cam_y += ((self.ease_target_y - self.ease_cam_y) >> 2) + 2;
+            self.add_ease_cam_y(((self.ease_target_y - self.ease_cam_y) >> 2) + 2);
             if self.ease_cam_y > self.ease_target_y {
-                self.ease_cam_y = self.ease_target_y;
+                self.set_ease_cam_y(self.ease_target_y);
             }
         } else if self.ease_cam_y > self.ease_target_y {
-            self.ease_cam_y += ((self.ease_target_y - self.ease_cam_y) >> 2) - 2;
+            self.add_ease_cam_y(((self.ease_target_y - self.ease_cam_y) >> 2) - 2);
             if self.ease_cam_y < self.ease_target_y {
-                self.ease_cam_y = self.ease_target_y;
+                self.set_ease_cam_y(self.ease_target_y);
             }
         }
         self.view.set_camera(
@@ -3560,8 +3574,8 @@ impl GameScene {
                                 allowed = false;
                                 if self.facing == 1 {
                                     self.transition_to(GameMode::Alchemy);
-                                    self.alchemy_price =
-                                        Self::alchemy_price_for(self.alchemy_upgrade_count + 1);
+                                    self.set_alchemy_price(
+                                        Self::alchemy_price_for(self.alchemy_upgrade_count + 1));
                                     self.alchemy_gain_hp = Self::scaled_by_floor_tier(100, self.persist.floor);
                                     self.alchemy_gain_atk = Self::scaled_by_floor_tier(2, self.persist.floor);
                                     self.alchemy_gain_def = Self::scaled_by_floor_tier(4, self.persist.floor);

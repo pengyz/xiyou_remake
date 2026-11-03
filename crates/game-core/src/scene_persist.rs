@@ -30,6 +30,13 @@ pub struct PersistState {
     pub journal: Vec<(i32, i32)>,
 }
 
+/// 【终章簇4·persist 域直写接口】（换层态跨文件写收敛——PersistState 域家）。
+impl PersistState {
+    pub fn set_min_floor(&mut self, v: i32) { self.min_floor = v; }
+    pub fn set_max_floor(&mut self, v: i32) { self.max_floor = v; }
+    pub fn set_pending_floor(&mut self, v: i32) { self.pending_floor = v; }
+}
+
 impl GameScene {
     pub fn load_floor(
         maplv: &[u8],
@@ -334,7 +341,7 @@ impl GameScene {
         self.entities = entities;
         self.grid = grid;
         self.walkable = walkable;
-        self.minimap = None;
+        self.set_minimap(None);
         Ok(())
     }
     /// changeFloor（a.java:7126-7164）：层号合法性（strict=键 49/55 路径；
@@ -364,7 +371,7 @@ impl GameScene {
         // m_119(currentFloor)（a.java:9370-9388）：序列化**存活**实体
         // （removed/state==1 跳过）——死怪/已开门跨层持久
         self.save_floor_state();
-        self.transitioning = true;
+        self.set_transitioning(true);
         // > 【2026-10-26 更正·BUG-026】原此处 `transition_to(Map)`（注"changeFloor 起遮幅即回 mode 3，
         // > A-preset-item21 T402 实证"）系**调用方语义误挂**：Java changeFloor（a.java:7135-7180）
         // > 不写 gameMode；mode 3 来自道具 21 调用方 `changeFloor; keyHeldCode=0; gameMode=3`
@@ -502,7 +509,7 @@ impl GameScene {
         self.clear_tap_state();
         // 【BUG-043】寻路被剧情接管：箭头暂存**不在此放回**——撞格触发剧情时本函数在 advanceScriptWalk 撞格臂之前执行，
         // 立即放回会被随后的 `walk_step_count = 0` 清掉（复核 R2）；改由 settle_walkto_arrows 在寻路释放 dp 后放回
-        self.walkto_draining = false; // 【BUG-040】dp 归剧情（打断后的寻路收尾作废）
+        self.set_walkto_draining(false); // 【BUG-040】dp 归剧情（打断后的寻路收尾作废）
         self.set_script_walk_armed(false);
         self.transition_to(GameMode::Dialog);
         self.dialog.set_dialog_page(0);

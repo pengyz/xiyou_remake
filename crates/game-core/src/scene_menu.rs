@@ -527,7 +527,7 @@ impl GameScene {
                 -1 => self.flip_overlay_page(self.dialog.overlay_page_top - self.dialog.overlay_lines_per_page),
                 _ => {}
             }
-            self.key_value = 0;
+            self.set_key_value(0);
         }
     }
     /// paint case 15（a.java:2958-2962）：parallax(false) + 帮助图标条
@@ -687,7 +687,7 @@ impl GameScene {
                         1 => self.player.atk += self.alchemy_gain_atk,
                         _ => self.player.def += self.alchemy_gain_def,
                     }
-                    self.alchemy_upgrade_count += 1;
+                    self.inc_alchemy_upgrade_count();
                     self.set_alchemy_price(Self::alchemy_price_for(self.alchemy_upgrade_count + 1));
                 } else {
                     self.show_overlay_message(0, "没有足够的金钱", 0, 0);
