@@ -597,7 +597,7 @@ pub fn load_floor_from_save(
         scene.player.item_uses[k] = save.item_stack_uses[k];
     }
     scene.persist.saved_floor_states = save.floor_states.clone();
-    // scriptLineFlags 读回（a.java:9285-9291：前 scriptLineCount 项 readBoolean，余
+    // scriptLineFlags 读回（a.java:9291-9297：前 scriptLineCount 项 readBoolean，余
     // skip）——须先于 step 10 loadFloorData（m_122 floor2 恢复特例读 flags[26]）
     // 【2026-11-03 更正】"每层变长"表述证伪：levelScriptLines=**全局 68 行表**
     // （a.java:1124）非逐层；本式 len()≡68（与 scene_persist.rs:233 硬编码 68 同义）。
@@ -4875,7 +4875,7 @@ mod pointer_seam_tests;
 /// ① addItemToItemStack 写 itemUseTargetType（a.java:7732）；② m_119 entityCount==0
 /// 存 null（a.java:9383-9384）；③ m_122 floor2 恢复特例读 scriptLineFlags[26]
 /// （a.java:9643-9646）；④ loadFloorSave 读回 scriptLineFlags 前 scriptLineCount 项
-/// （a.java:9285-9291）。
+/// （a.java:9291-9297）。
 #[cfg(test)]
 #[path = "scene_tests/fidelity_fix_tests.rs"]
 mod fidelity_fix_tests;

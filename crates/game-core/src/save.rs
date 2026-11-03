@@ -12,7 +12,7 @@
 //! | 16 | int | goldAmount |
 //! | 17 | short | alchemyUpgradeCount |
 //! | 18 | short | inventoryEntryCount（跟随对数）+ N×(byte,byte)（f_byte_arr_14/15） |
-//! | 19 | bool×scriptLineCount + skip 至 128 | scriptLineFlags（a.java:9285-9291；`script_flags` 收 128 字节原样） |
+//! | 19 | bool×scriptLineCount + skip 至 128 | scriptLineFlags（a.java:9291-9297；`script_flags` 收 128 字节原样） |
 //! | 20 | byte | itemStackSize + N×(type,uses) |
 //! | 21 | 56×(short len + byte[len]) | 楼层触发状态 f_byte_arr2_05 |
 //!
@@ -51,7 +51,7 @@ pub struct FloorSave {
     pub alchemy_upgrades: i16,
     /// mode12 日志（f_byte_arr_14/15 对，a.java:9207-9211 写 / 9278-9281 读）
     pub journal: Vec<(u8, u8)>,
-    /// scriptLineFlags 段原样（a.java:9285-9291 readBoolean = 字节≠0）：长度
+    /// scriptLineFlags 段原样（a.java:9291-9297 readBoolean = 字节≠0）：长度
     /// max(script_line_count,128)。Java 只读前 scriptLineCount（=levelScriptLines
     /// 行数 68）项、其余 skip——应用侧（load_floor_from_save）按此截取。
     pub script_flags: Vec<bool>,
@@ -135,7 +135,7 @@ pub fn parse_floor_save(data: &[u8], script_line_count: usize) -> Result<FloorSa
     for _ in 0..n_follow {
         journal.push((c.u8(), c.u8()));
     }
-    // scriptLineFlags（a.java:9285-9291）：Java 读 scriptLineCount 个 bool 再 skip 至
+    // scriptLineFlags（a.java:9291-9297）：Java 读 scriptLineCount 个 bool 再 skip 至
     // 128——两段合计 max(count,128) 字节；值原样收进 script_flags（应用侧截前
     // scriptLineCount 项，与 `script_line_count` 实参无关——调用方普遍传 0）
     let flag_bytes = script_line_count.max(128);

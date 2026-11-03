@@ -203,6 +203,11 @@ mod p1a1_quoted_tests {
         assert_eq!(e_quoted("x", None).value, "null");
     }
     #[test]
+    fn carriage_return_pinned() {
+        // 【复核补钉】\r 臂（0x0D→\\r）独立钉——四测原漏。
+        assert_eq!(e_quoted("x", Some("a\rb")).value, "\"a\\rb\"");
+    }
+    #[test]
     fn five_escapes_and_non_ascii() {
         assert_eq!(e_quoted("x", Some("a\"b\\c\nd\te\u{4E2D}")).value,
                    "\"a\\\"b\\\\c\\nd\\te\\u4e2d\"");

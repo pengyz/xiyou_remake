@@ -993,3 +993,7 @@ Evidence: A 级——a.java:3129-3168 公共尾 + switch 区间无 return；实�
 - 登记：2026-11-03（DDDSA P1-a1 黄五连③·复核黄 3 裁定开条目）。
 - trace id：N/A（静态语义对拍：scene.rs add_item_to_stack `n < len` 守卫 vs
   a.java:7721-7734 数组直写）。
+- **【2026-11-03 口径更正】**"23+ 不可达"表述=use-count 推理非流程实测：a.java
+  :7534-7555 流程可入栈 **15 型**+findItemStackIndex 85/86 可达 **24 件**——
+  上限表述以此为准；但 **BUG-050 结论幸存**（33 件溢出双口径均不可达——满栈
+  分歧仍属潜在缺口）。
