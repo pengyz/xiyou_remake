@@ -4240,7 +4240,7 @@ impl GameScene {
     }
 
     fn pickup_item_type(&mut self, t: i32) {
-        // a.java:7528 起 pickupItemType 拾取链：itemUseTargetType = 道具类型（描述 overlay 的图标/名）
+        // a.java:7534 起 pickupItemType 拾取链（2026-11-05 sed 复核：7528=goldAmount 尾 stale）：itemUseTargetType = 道具类型（描述 overlay 的图标/名）
         self.menu.set_overlay_kind_item(t);
         // 描述表（itemDescriptions a.java:906 / equipDescriptions a.java:930——
         // 全量入库 reference；此处取用句柄）

@@ -4,13 +4,13 @@
 //!
 //! | 臂 | 语义（pickup_item_type 逐字抽象） | 注册行 | 锚 |
 //! |---|---|---|---|
-//! | 13..=25\|85\|86 | （15=tutorialSeen=true）+addItemToItemStack | `Stack` | a.java:7528-7555 |
+//! | 13..=25\|85\|86 | （15=tutorialSeen=true）+addItemToItemStack | `Stack` | a.java:7537-7555（2026-11-05 sed 复核：7528=goldAmount 尾 stale 更正） |
 //! | 26/27/28 | yellow/red/blue KeyCount++ | `Key` | a.java:7556-7564 |
 //! | 29/30 | floor≤10 +1 否则 +floorTier | `StatUp` | a.java:7565-7580 |
 //! | 31/32 | applyHpDelta(50/200×tier) | `HpUp` | a.java:7581-7587 |
 //! | 33..=36\|79 | 武器 tier {1,2,3,4,5} tryEquip | `Equip` | a.java:7632-7648 |
 //! | 37..=40\|80 | 防具 tier {7,8,9,10,11} tryEquip | `Equip` | a.java:7632-7648 |
-//! | default | return（41+ 不可达） | `NoOp` | a.java:7630-7631 |
+//! | default | return（41+ 不可达） | `NoOp` | a.java:7630-7631（截臂：switch 终=7631） |
 //!
 //! **两面并存**（P1-2 红线）：pickup_item_type 23 臂 switch **本件不动**（P1-3
 //! 一次性切）——注册表侧行为面建好+等价实证；等价三层=锚+夹具 21 臂（全绿
@@ -59,18 +59,17 @@ pub struct ItemCtx<'a> {
     pub equip_bonuses: [i32; 12],
 }
 
-impl ItemCtx<'_> {
-    /// floorTier（a.java:7651-7662 逐字：(f-1)/10 钳 0；f>50→0；+1）。
-    pub fn floor_tier(&self) -> i32 {
-        let mut t = (self.floor - 1) / 10;
-        if t < 0 {
-            t = 0;
-        }
-        if self.floor > 50 {
-            t = 0;
-        }
-        t + 1
+/// floorTier 独立域函数（a.java:7651-7662 逐字：(f-1)/10 钳 0；f>50→0；+1）
+/// ——【黄③】ctx 纯数据零方法（三宪：字段冻结/纯数据）。
+pub fn floor_tier(floor: i32) -> i32 {
+    let mut t = (floor - 1) / 10;
+    if t < 0 {
+        t = 0;
     }
+    if floor > 50 {
+        t = 0;
+    }
+    t + 1
 }
 
 /// ItemEffect trait（行为可插拔面——apply 签名=ctx+≤2 按三宪）。
@@ -148,7 +147,7 @@ impl ItemEffect for StatUpEffect {
         let (da, dd) = if ctx.floor <= 10 {
             (*atk, *def)
         } else {
-            let f = ctx.floor_tier();
+            let f = floor_tier(ctx.floor);
             (atk * f, def * f)
         };
         ctx.player.atk += da;
@@ -158,61 +157,74 @@ impl ItemEffect for StatUpEffect {
 }
 
 /// HpUp 臂（a.java:7581-7587）：applyHpDelta(mul×tier)。
-/// apply_hp_delta 语义（clamp 面）按 player.hp 钳形逐字（编排面同则）。
+/// 【黄②修复=移植错】apply_hp_delta 真语义（scene.rs:4393 逐字）：hp≤-delta
+/// →hp=1（伤害地板非 9999 钳——9999 前值=C 级臆造已证伪）；否则 hp+=delta。
 pub struct HpUpEffect;
 impl ItemEffect for HpUpEffect {
     fn apply(&self, ctx: &mut ItemCtx<'_>, params: &EffectParams) -> ItemOutcome {
         let EffectParams::HpUp { delta } = params else {
             return ItemOutcome::NoOp;
         };
-        let d = delta * ctx.floor_tier();
-        let max_hp = 9999; // apply_hp_delta 钳上界=编排面同值（hp clamp 逐字待 P1-3 对齐）
-        let hp = (ctx.player.hp + d).clamp(0, max_hp);
-        ctx.player.hp = hp;
+        let d = delta * floor_tier(ctx.floor);
+        if ctx.player.hp <= -d {
+            ctx.player.hp = 1;
+        } else {
+            ctx.player.hp += d;
+        }
         ItemOutcome::Consumed { overlay_tier: None }
     }
 }
 
-/// Equip 臂（a.java:7632-7648 tryEquip）：tier 档比较换装。
-/// try_equip 语义（a.java:7688-7694 equipTierIndex 倒序查档）：目标 tier 档
-/// 现档为空或更低→换装成功；否则失败（"你拥有更强力装备"）。
+/// Equip 臂（a.java:7632-7648 tryEquip→scene.rs:865 逐字）：**分段 m_083
+/// 倒查+加成双动**（红-1 修复：前版丢 equip_bonuses 应用——atk/def += 新档
+/// −= 旧档）。tier<6=武器段 [0,6)；≥6=防具段 [6,12)（m_083_index 先减后比
+/// 倒序——a.java:7688-7694）。
 pub struct EquipEffect;
 impl ItemEffect for EquipEffect {
     fn apply(&self, ctx: &mut ItemCtx<'_>, params: &EffectParams) -> ItemOutcome {
         let EffectParams::Equip { tier } = params else {
             return ItemOutcome::NoOp;
         };
-        let want = *tier;
-        let weapon_side = (1..=5).contains(tier);
-        let cur_type = if weapon_side {
-            *ctx.equipped_weapon
-        } else {
-            *ctx.equipped_armor
-        };
-        let cur_tier = if cur_type == 0 {
-            0 // 空档=0 档（防 equip_types[6]=0 空臂误配——实测红修）
-        } else {
-            let mut t = 0i32;
-            for i in (0..12).rev() {
-                if ctx.equip_types[i] == cur_type {
-                    t = i as i32;
-                    break;
-                }
+        let tier = *tier;
+        if tier < 6 {
+            let cur = m_083_index(*ctx.equipped_weapon, 0, 6, &ctx.equip_types);
+            if cur >= tier {
+                return ItemOutcome::NotConsumed { fail_msg: true };
             }
-            t
-        };
-        // tryEquip 判定（a.java 语义）：目标档装备类型非 0 且当前档<目标档→换
-        if ctx.equip_types[want as usize] != 0 && cur_tier < want {
-            let new_type = ctx.equip_types[want as usize];
-            if weapon_side {
-                *ctx.equipped_weapon = new_type;
-            } else {
-                *ctx.equipped_armor = new_type;
-            }
-            ItemOutcome::Consumed { overlay_tier: Some(want) }
+            ctx.player.atk -= ctx.equip_bonuses[cur as usize];
+            ctx.player.atk += ctx.equip_bonuses[tier as usize];
+            *ctx.equipped_weapon = ctx.equip_types[tier as usize];
         } else {
-            ItemOutcome::NotConsumed { fail_msg: true }
+            let cur = m_083_index(*ctx.equipped_armor, 6, 12, &ctx.equip_types);
+            if cur >= tier {
+                return ItemOutcome::NotConsumed { fail_msg: true };
+            }
+            ctx.player.def -= ctx.equip_bonuses[cur as usize];
+            ctx.player.def += ctx.equip_bonuses[tier as usize];
+            *ctx.equipped_armor = ctx.equip_types[tier as usize];
         }
+        ItemOutcome::Consumed { overlay_tier: Some(tier) }
+    }
+}
+
+/// m_083_index（a.java:7688-7694 逐字：先减后比倒序——[lo,hi-1]，hi 永不触达）。
+fn m_083_index(equipped: i32, lo: i32, hi: i32, types: &[i32; 12]) -> i32 {
+    let mut t = hi;
+    while t > lo {
+        t -= 1;
+        if types[t as usize] == equipped {
+            return t;
+        }
+    }
+    0
+}
+
+/// UseArm（ItemAction use 七 kind——【黄④】枚举覆盖全臂对照表；行为面=
+/// item_effect.rs execute_item_action 编排执行，本行=分发键可达性钉）。
+pub struct UseArmEffect;
+impl ItemEffect for UseArmEffect {
+    fn apply(&self, _ctx: &mut ItemCtx<'_>, _params: &EffectParams) -> ItemOutcome {
+        ItemOutcome::Consumed { overlay_tier: None }
     }
 }
 
@@ -233,6 +245,9 @@ pub fn builtin_effect(kind: &str) -> &'static dyn ItemEffect {
         "StatUp" => &StatUpEffect,
         "HpUp" => &HpUpEffect,
         "Equip" => &EquipEffect,
+        // ItemAction use 七 kind（【黄④】全臂对照表覆盖——P1-3 分发键面）
+        "OpenPanel" | "RemoveAdjacent" | "RemoveAllType" | "Heal"
+        | "KillAdjacent4" | "MirrorTeleport" | "ChangeFloorUp" => &UseArmEffect,
         _ => &NoOpEffect,
     }
 }
@@ -347,13 +362,30 @@ mod p1a2_tests {
         let mut ts = false;
         let (mut ew, mut ea) = (0, 0);
         let mut c = ctx(&mut p, &mut e, &mut ts, &mut ew, &mut ea);
-        // 空档→tier1 换装成功
+        let atk0 = c.player.atk;
+        // 空档→tier1 换装成功+**加成双动**（红-1：atk += bonuses[1] −= bonuses[0]）
         let out = EquipEffect.apply(&mut c, &EffectParams::Equip { tier: 1 });
         assert_eq!(out, ItemOutcome::Consumed { overlay_tier: Some(1) });
         assert_eq!(*c.equipped_weapon, 33, "换装 type=33（equip_types[1]）");
-        // 低档→失败（"你拥有更强力装备"=NotConsumed fail_msg）
+        assert_eq!(c.player.atk, atk0 + 10, "加成双动=+bonuses[1](10)−bonuses[0](0)（try_equip 逐字）");
+        // 同档→失败（cur>=tier："你拥有更强力装备"=NotConsumed fail_msg）
         let out = EquipEffect.apply(&mut c, &EffectParams::Equip { tier: 1 });
         assert_eq!(out, ItemOutcome::NotConsumed { fail_msg: true });
+        // 低档→失败（tier1 现档=1：cur>=tier 拒）
+        let out = EquipEffect.apply(&mut c, &EffectParams::Equip { tier: 1 });
+        assert_eq!(out, ItemOutcome::NotConsumed { fail_msg: true });
+    }
+
+    /// 【黄④】kind 全覆盖：对照表全行 kind 在注册表可达（无 miss）。
+    #[test]
+    fn kind_coverage_full_table() {
+        for kind in [
+            "Stack", "Key", "StatUp", "HpUp", "Equip",
+            "OpenPanel", "RemoveAdjacent", "RemoveAllType", "Heal",
+            "KillAdjacent4", "MirrorTeleport", "ChangeFloorUp",
+        ] {
+            assert!(!std::ptr::eq(builtin_effect(kind), &NoOpEffect), "{kind} kind 缺口");
+        }
     }
 
     /// 未知 effect=运行期 no-op 不消耗（a.java:7630-7631 default: return）。
