@@ -730,6 +730,50 @@ fn fx_pickup_29f12_floor_tier_frames_match() {
     assert_eq!(sc.player.atk, 202, "case 29 floor>10=+floorTier（12→tier2=+2；a.java:7565-7572/7651-7662）");
 }
 
+
+/// FX-USE-13：use 13=EnemyInfo 查看（a.java:7794-7797 gameMode=5+
+/// dispatchModeEntry——sed 实文锚）。ITEM_EFFECTS use 行净补。
+/// 【RED·待裁（2026-11-04）】TICK 341 帧差=EnemyInfo 面板像素分歧（Rust≠Java
+/// 参照帧）：left 88c8a0ba… vs right ae1c885f…（mode=5 开面板拍）——非测试形
+/// 问题（帧链断言同式他测全绿）=**行为/渲染面真红**，按 §4 三问定位中（面板
+/// paint 差异=候选渲染缺口）；红证据实录待分类后解除 ignore 修或登记。
+#[test]
+#[ignore = "RED: EnemyInfo 面板 TICK 341 帧差——待 §4 定位分类（见上注）"]
+fn fx_use_13_enemyinfo_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-use-13.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-use-13.txt"));
+    let (checked, sc) = replay("fx-use-13", include_str!("fixtures/fx-use-13.preset"), &records);
+    assert_eq!(checked, records.len(), "全帧必须比对");
+    assert_eq!(sc.game_mode, GameMode::EnemyInfo, "case 13 gameMode=5⇒EnemyInfo（a.java:7794-7797）");
+}
+
+/// FX-USE-85：use 85=全清型1 黄门（a.java:7873-7884 markEntityRemoved 全表+
+/// gameMode=3+消耗）。floor3 型1×5 观察面。
+#[test]
+fn fx_use_85_clear_doors_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-use-85.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-use-85.txt"));
+    let (checked, sc) = replay("fx-use-85", include_str!("fixtures/fx-use-85.preset"), &records);
+    assert_eq!(checked, records.len(), "全帧必须比对");
+    let alive = (0..sc.entities.count)
+        .filter(|&i| sc.entities.items[i].type_ == 1 && sc.entities.items[i].state != 1)
+        .count();
+    assert_eq!(alive, 0, "case 85 全表 markEntityRemoved(型1)（a.java:7873-7884）");
+    assert_eq!(sc.game_mode, GameMode::Map, "case 85 gameMode=3（a.java:7882）");
+}
+
+/// FX-USE-DEFAULT：use default no-op（型23——a.java:7801-7806 case 15/23/24/
+/// 25/default 同组 break）：不消耗不生效。
+#[test]
+fn fx_use_default_noop_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-use-default.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-use-default.txt"));
+    let (checked, sc) = replay("fx-use-default", include_str!("fixtures/fx-use-default.preset"), &records);
+    assert_eq!(checked, records.len(), "全帧必须比对");
+    assert!(sc.player.find_item(23) >= 0, "default no-op=不消耗（a.java:7801-7806）");
+    assert_eq!(sc.game_mode, GameMode::ItemPanel, "default no-op=面板留开（观察实态：no-op 不关面板——金样 Java 同形）");
+}
+
 /// FX-ITEM-18A：玄明石全清当前层墙（evidence-items §2.3/§3.4）。floor37 型11 ×8 同拍
 /// 全 markEntityRemoved（a.java:7817-7828 全表扫描）+ 出栈。T1-560。
 #[test]
