@@ -735,20 +735,24 @@ fn fx_pickup_29f12_floor_tier_frames_match() {
 /// dispatchModeEntry——sed 实文锚）。ITEM_EFFECTS use 行净补。
 /// 【RED·待裁（2026-11-04）】TICK 341 帧差=EnemyInfo 面板像素分歧（Rust≠Java
 /// 参照帧）：left 88c8a0ba… vs right ae1c885f…（mode=5 开面板拍）——非测试形
+/// 【2026-11-04 红2 闭环=断言自校正】双侧 gameMode 时间线实测**零分歧**（Rust
+/// STATE_OUT vs Java A-trace FLD010 逐 tick 对拍）：t301 开面板(10)→t341 use 13
+/// ⇒EnemyInfo(5)→**t381 第三拍关闭⇒Map(3)**——原断言"终态 EnemyInfo"=自误
+/// （第三 -6=关闭非确认）；终态 Map 钉+臂面（341-381 帧区 EnemyInfo）由金样
+/// 帧链覆盖。夹具注同步更正（380 拍=关闭收尾）。
 /// 【2026-11-04 红1闭环+红2 登记】红1（像素 5px）→分析件钉死（Rust off_x<0 臂误传
 /// fw=35，Java 字面量 32，a.java:2546）→修复 scene_menu.rs:611 fw→32 后**帧比对
 /// 400 全过**（checked==records.len）。**红2（终态模式差）**：脚本尾后 Rust
 /// game_mode=Map vs fixture/Java=EnemyInfo（a.java:7794-7797 面板收尾静态）——
 /// EnemyInfo 关闭/保持语义待 §4 定位（收尾输入的模式保持差，候选=面板 tick 关闭条件）。
-/// 红2 登记后回 ignore；红2 修复+复核后解。
+/// 红2 闭环（断言自校正）后解 ignore=本用例在册运行。
 #[test]
-#[ignore = "RED2: 终态模式差——Rust Map vs Java EnemyInfo（脚本尾面板保持语义），见上注"]
 fn fx_use_13_enemyinfo_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-use-13.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-use-13.txt"));
     let (checked, sc) = replay("fx-use-13", include_str!("fixtures/fx-use-13.preset"), &records);
     assert_eq!(checked, records.len(), "全帧必须比对");
-    assert_eq!(sc.game_mode, GameMode::EnemyInfo, "case 13 gameMode=5⇒EnemyInfo（a.java:7794-7797）");
+    assert_eq!(sc.game_mode, GameMode::Map, "终态 Map（t381 第三拍关闭——双侧时间线零分歧实测；a.java:7794-7797 开臂在 t341-381 帧面）");
 }
 
 /// FX-USE-85：use 85=全清型1 黄门（a.java:7873-7884 markEntityRemoved 全表+

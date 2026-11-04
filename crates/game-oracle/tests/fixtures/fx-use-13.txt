@@ -2,8 +2,10 @@
 # preset: fx-use-13.preset
 # cover: FX-USE-13 use 13=EnemyInfo 查看（P1-a2 批5 主件；ITEM_EFFECTS use 行）：
 #   boot 70/-6 100/-2 150/-5 200/-5 → 槽载入 floor2 (3,5) 持道具 13（items=13:1）
-#   → 300 -6 面板 → 340 -6 选中 → 380 -6 确认 ⇒ activateItem case13
-#   （a.java:7794-7797）：gameMode=5+dispatchModeEntry⇒EnemyInfo 面板 → 收尾静态。
+#   → 300 -6 面板 → 340 -6 选中 → 340 -6 选中⇒activateItem case13
+#   （a.java:7794-7797）：gameMode=5+dispatchModeEntry⇒EnemyInfo 面板（341-381
+#   帧区）→ 380 -6=**关闭收尾⇒Map**（2026-11-04 红2 自校正：第三拍=关闭非确认；
+#   双侧 gameMode 时间线零分歧实测）。
 #   断言：臂效应实测钉+全帧比。
 #   preset：python3 tools/frames_fixture.py preset floor=2 x=3 y=5 facing=1 hp=500
 #   atk=200 def=30 sky=5 items=13:1
