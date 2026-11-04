@@ -164,6 +164,11 @@
    "bytes": 184493,
    "ticks": 83
   },
+  "fx-pickup-32.state": {
+   "sha256": "56bbc97f931b76f5d3e69c581e5324bd905ef770ed3c6b1a63351db233a8717a",
+   "bytes": 185482,
+   "ticks": 83
+  },
   "fx-pickup-33.state": {
    "sha256": "3febf929dfb8b74f9f550ad2f76dbffb4e2ced808e87419c15887d57d35d74eb",
    "bytes": 189636,

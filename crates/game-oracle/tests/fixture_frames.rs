@@ -782,6 +782,21 @@ fn fx_use_default_noop_frames_match() {
     assert_eq!(sc.game_mode, GameMode::ItemPanel, "default no-op=面板留开（观察实态：no-op 不关面板——金样 Java 同形）");
 }
 
+
+/// FX-PICKUP-32：pickup 32=长寿丹（**批6-②销账件**：pre-final-audit:122
+/// "🎨 出现未拾"→补拾取夹具销账）。case 32（a.java:7585-7587 sed 实文：
+/// applyHpDelta(200*floorTier)；落穿 7588-7631 空标链至 return=无害）。
+/// floor2 (3,10)。
+#[test]
+fn fx_pickup_32_hp_frames_match() {
+    let records = frame_records(include_str!("fixtures/fx-pickup-32.frames.txt"));
+    assert_fixture_matches_script(&records, include_str!("fixtures/fx-pickup-32.txt"));
+    let (checked, sc) = replay("fx-pickup-32", include_str!("fixtures/fx-pickup-32.preset"), &records);
+    assert_eq!(checked, records.len(), "全帧必须比对");
+    assert_eq!((sc.view.player_px >> 5, sc.view.player_py >> 5), (3, 10), "南步入拾取格");
+    assert_eq!(sc.player.hp, 700, "case 32 applyHpDelta(200*tier)（tier1=+200；a.java:7585-7587）");
+}
+
 /// FX-ITEM-18A：玄明石全清当前层墙（evidence-items §2.3/§3.4）。floor37 型11 ×8 同拍
 /// 全 markEntityRemoved（a.java:7817-7828 全表扫描）+ 出栈。T1-560。
 #[test]
