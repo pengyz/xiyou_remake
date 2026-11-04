@@ -735,10 +735,14 @@ fn fx_pickup_29f12_floor_tier_frames_match() {
 /// dispatchModeEntry——sed 实文锚）。ITEM_EFFECTS use 行净补。
 /// 【RED·待裁（2026-11-04）】TICK 341 帧差=EnemyInfo 面板像素分歧（Rust≠Java
 /// 参照帧）：left 88c8a0ba… vs right ae1c885f…（mode=5 开面板拍）——非测试形
-/// 问题（帧链断言同式他测全绿）=**行为/渲染面真红**，按 §4 三问定位中（面板
-/// paint 差异=候选渲染缺口）；红证据实录待分类后解除 ignore 修或登记。
+/// 【2026-11-04 红1闭环+红2 登记】红1（像素 5px）→分析件钉死（Rust off_x<0 臂误传
+/// fw=35，Java 字面量 32，a.java:2546）→修复 scene_menu.rs:611 fw→32 后**帧比对
+/// 400 全过**（checked==records.len）。**红2（终态模式差）**：脚本尾后 Rust
+/// game_mode=Map vs fixture/Java=EnemyInfo（a.java:7794-7797 面板收尾静态）——
+/// EnemyInfo 关闭/保持语义待 §4 定位（收尾输入的模式保持差，候选=面板 tick 关闭条件）。
+/// 红2 登记后回 ignore；红2 修复+复核后解。
 #[test]
-#[ignore = "RED: EnemyInfo 面板 TICK 341 帧差——待 §4 定位分类（见上注）"]
+#[ignore = "RED2: 终态模式差——Rust Map vs Java EnemyInfo（脚本尾面板保持语义），见上注"]
 fn fx_use_13_enemyinfo_frames_match() {
     let records = frame_records(include_str!("fixtures/fx-use-13.frames.txt"));
     assert_fixture_matches_script(&records, include_str!("fixtures/fx-use-13.txt"));

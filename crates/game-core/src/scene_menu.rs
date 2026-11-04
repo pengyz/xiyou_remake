@@ -608,7 +608,11 @@ impl GameScene {
                         let off_x = (32 - fw) >> 1;
                         let draw_h = (img.height).min(31);
                         if off_x < 0 {
-                            draw_image_clipped(g, &img, x, y + 31 - draw_h, -off_x, 0, fw, draw_h);
+                            // 【2026-11-04 根因修复】n2<0(off_x<0) 臂裁剪宽=字面量 32（32×32 框宽，a.java:2546
+                        // 逐字）；原误传 fw=typeFrameWidth（t=47 时 35）→裁剪面右移 3 列
+                        // 越框泄漏 5px（fx-use-13 TICK341 分析件根因）。else 臂(:613)传表值与
+                        // Java 一致不动。
+                        draw_image_clipped(g, &img, x, y + 31 - draw_h, -off_x, 0, 32, draw_h);
                         } else {
                             draw_image_clipped(g, &img, x + off_x, y + 31 - draw_h, 0, 0, fw, draw_h);
                         }
