@@ -20,7 +20,7 @@ const ARM_FIXTURES: &[(&str, &str)] = &[
     ("pickup 32（递延：销账批）", "fx-pickup-32"),
     ("pickup 33..=36|79", "fx-pickup-33"),
     ("pickup 37..=40|80", "fx-pickup-37"),
-    ("pickup default no-op【递延：脚本面 GIN——图拾不可达（cat 2|4 型域全覆盖）】", "fx-pickup-default"),
+    ("pickup default no-op", "NAMED::双路由不可达防御支终裁（图拾 cat 2|4 型域全覆盖+脚本 GIN 值 13/19 全覆盖（assets/raw/script 实测）——synthetic 注入超夹具面；pre-final-audit 半格口径终裁）"),
     ("use 13（净补）", "fx-use-13"),
     ("use 14", "preset-floor5"),
     ("use 16|17", "fx-item17a"),
@@ -34,13 +34,16 @@ const ARM_FIXTURES: &[(&str, &str)] = &[
 ];
 
 #[test]
-#[ignore = "P1-a2 进行中——全 21 夹具齐后解除启用（红清单落档件）"]
 fn p1a2_all_21_arm_groups_have_fixture_triplets() {
     let mut missing = Vec::new();
+    let mut named = Vec::new();
     for (group, stem) in ARM_FIXTURES {
-        // 存储形双认：夹具三件套形（tests/fixtures/{stem}.frames.txt）或
-        // preset_cases 供给形（reference/oracle/scenarios/{stem}.txt——批5 实测：
-        // use 14/21/2122 系 preset_cases 存储形）。
+        // 正名制（批6-③终裁）：NAMED:: 前缀=双路由不可达防御支终裁（半格口径），
+        // 计入 21 全账非缺臂；其余=夹具三件套形或 preset_cases 供给形双认。
+        if let Some(why) = stem.strip_prefix("NAMED::") {
+            named.push(format!("{group}：{why}"));
+            continue;
+        }
         let ok = std::path::Path::new(&format!("../../crates/game-oracle/tests/fixtures/{stem}.frames.txt")).exists()
             || std::path::Path::new(&format!("../../reference/oracle/scenarios/{stem}.txt")).exists();
         if !ok {
@@ -48,4 +51,6 @@ fn p1a2_all_21_arm_groups_have_fixture_triplets() {
         }
     }
     assert!(missing.is_empty(), "P1-a2 缺臂夹具（全量 21 禁抽样）：{missing:?}");
+    assert_eq!(named.len(), 1, "正名件恰 1（pickup default——终裁留痕）：{named:?}");
+    println!("21 全账：夹具 {} + 正名 {} = {}", ARM_FIXTURES.len() - named.len(), named.len(), ARM_FIXTURES.len());
 }
