@@ -1,6 +1,7 @@
 //! game-core —— 游戏逻辑（AGENTS §2 红线：无 I/O、确定性、禁平台 crate）。
 //!
 //! P3.1：脚本 DSL 解释器（docs/spec/p3-script-interpreter.md）。
+pub mod effect_registry; // 【DDDSA P1-2】ItemEffect trait+内建注册（行为可插拔面）
 pub mod enums;
 pub mod audio;
 pub mod game_view;
