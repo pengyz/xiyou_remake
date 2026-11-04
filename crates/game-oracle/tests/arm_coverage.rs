@@ -2,7 +2,9 @@
 //! 【红清单落档·排除面口径全列】grep 计数排除面=史料/哈希/原地注记/伪命中
 //! 四类（措辞纪律：实测边界随附排除口径）。
 //! 缺臂递减链（TDD 红证据续录）：批1 时点 15→批2 后 11（pickup 26/27/28）
-//! →批4 后 8（pickup 33/37/29f12）→批5 主件后 5（use 13/85/default）：fx-item13+pickup 净补 10
+//! →批4 后 8（pickup 33/37/29f12）→批5 主件后复核实测 3（预测 5 更正；存储形双认入校验后现 **2**：
+//! pickup 32 递延销账批/pickup default 递延脚本面 GIN/use 21=preset_cases
+//! 存储形双认入校验——use 面 13 红注待分析件修复）：fx-item13+pickup 净补 10
 //! +use 4（fx-item13-use/preset-item21 归位修正后重计）——逐批收敛，全 21 绿时
 //! 解除 #[ignore] 启用强制。
 
@@ -36,7 +38,11 @@ const ARM_FIXTURES: &[(&str, &str)] = &[
 fn p1a2_all_21_arm_groups_have_fixture_triplets() {
     let mut missing = Vec::new();
     for (group, stem) in ARM_FIXTURES {
-        let ok = std::path::Path::new(&format!("../../crates/game-oracle/tests/fixtures/{stem}.frames.txt")).exists();
+        // 存储形双认：夹具三件套形（tests/fixtures/{stem}.frames.txt）或
+        // preset_cases 供给形（reference/oracle/scenarios/{stem}.txt——批5 实测：
+        // use 14/21/2122 系 preset_cases 存储形）。
+        let ok = std::path::Path::new(&format!("../../crates/game-oracle/tests/fixtures/{stem}.frames.txt")).exists()
+            || std::path::Path::new(&format!("../../reference/oracle/scenarios/{stem}.txt")).exists();
         if !ok {
             missing.push(format!("{group} → {stem}"));
         }
