@@ -1,0 +1,654 @@
+{
+ "schema_version": 2,
+ "note": "DDDSA P1-1 ItemDef 聚合（id<1000=保真表）；生成器 tools/item-defs/gen_items.py（禁手抄逐值迁）",
+ "rows": [
+  {
+   "id": 13,
+   "name": "火眼金睛",
+   "icon": {
+    "entity_type": 13
+   },
+   "desc": "能看破敌人底细，显示敌人详细信息。在游戏中按快捷键5也可以查看伤害量。\\n\\\\c00ff00[使用次数：无限]",
+   "pickup_msg": "能看破敌人底细，显示敌人详细信息。在游戏中按快捷键5也可以查看伤害量。\\n\\\\c00ff00[使用次数：无限]",
+   "effect": {
+    "key": "OpenPanel",
+    "params": {
+     "panel": "EnemyInfo",
+     "page": 0
+    }
+   },
+   "evidence": {
+    "name": "object_type_names.txt:14",
+    "desc": "a.java:906-929 idx0",
+    "effect": "a.java:7794-7797"
+   }
+  },
+  {
+   "id": 14,
+   "name": "生死簿",
+   "icon": {
+    "entity_type": 14
+   },
+   "desc": "记录前尘往事。\\n\\\\c00ff00[使用次数：无限]",
+   "pickup_msg": "记录前尘往事。\\n\\\\c00ff00[使用次数：无限]",
+   "effect": {
+    "key": "OpenPanel",
+    "params": {
+     "panel": "RecordBrowser",
+     "page": 0
+    }
+   },
+   "evidence": {
+    "name": "object_type_names.txt:15",
+    "desc": "a.java:906-929 idx1",
+    "effect": "a.java:7798-7800"
+   }
+  },
+  {
+   "id": 15,
+   "name": "筋斗云",
+   "icon": {
+    "entity_type": 15
+   },
+   "desc": "在楼梯边，可以瞬间上下层，留神晕机。\\n\\\\c00ff00[使用次数：无限]",
+   "pickup_msg": "在楼梯边，可以瞬间上下层，留神晕机。\\n\\\\c00ff00[使用次数：无限]",
+   "effect": {
+    "key": "TutorialSeenStack",
+    "params": {}
+   },
+   "evidence": {
+    "name": "object_type_names.txt:16",
+    "desc": "a.java:906-929 idx2",
+    "effect": "a.java:7538-7539 case15 落穿入栈"
+   }
+  },
+  {
+   "id": 16,
+   "name": "芭蕉扇",
+   "icon": {
+    "entity_type": 16
+   },
+   "desc": "熄灭\\\\cFFCC33三昧真火\\\\r的神器。\\n\\\\c00ff00[使用次数：无限]",
+   "pickup_msg": "熄灭\\\\cFFCC33三昧真火\\\\r的神器。\\n\\\\c00ff00[使用次数：无限]",
+   "effect": {
+    "key": "RemoveAdjacent",
+    "params": {
+     "target": 10,
+     "msg": "你必须面对三昧真火再使用它。"
+    }
+   },
+   "evidence": {
+    "name": "object_type_names.txt:17",
+    "desc": "a.java:906-929 idx3",
+    "effect": "a.java:7807-7811"
+   }
+  },
+  {
+   "id": 17,
+   "name": "金勺子",
+   "icon": {
+    "entity_type": 17
+   },
+   "desc": "挖洞开墙越狱的利器,挫是挫了点，但是真的很好用。\\n\\\\c00ff00[使用次数：1次]",
+   "pickup_msg": "挖洞开墙越狱的利器,挫是挫了点，但是真的很好用。\\n\\\\c00ff00[使用次数：1次]",
+   "effect": {
+    "key": "RemoveAdjacent",
+    "params": {
+     "target": 11,
+     "msg": "你必须面对一堵墙使用"
+    }
+   },
+   "evidence": {
+    "name": "object_type_names.txt:18",
+    "desc": "a.java:906-929 idx4",
+    "effect": "a.java:7807-7811"
+   }
+  },
+  {
+   "id": 18,
+   "name": "玄明石",
+   "icon": {
+    "entity_type": 18
+   },
+   "desc": "可以震开当前层所有的墙\\n\\\\c00ff00[使用次数：1次]",
+   "pickup_msg": "可以震开当前层所有的墙\\n\\\\c00ff00[使用次数：1次]",
+   "effect": {
+    "key": "RemoveAllType",
+    "params": {
+     "target": 11
+    }
+   },
+   "evidence": {
+    "name": "object_type_names.txt:19",
+    "desc": "a.java:906-929 idx5",
+    "effect": "a.java:7812-7825"
+   }
+  },
+  {
+   "id": 19,
+   "name": "千年月桂露",
+   "icon": {
+    "entity_type": 19
+   },
+   "desc": "喝下后，增加相当于当前\\\\c00FFFF攻击力\\\\cFFFFFF加\\\\c00FFFF防御力\\\\cFFFFFF值740%的\\\\cFFCC00血量\\n[月宫出品，手工酿制，不含三聚氰胺，冷藏效果更佳，使用次数：1次]",
+   "pickup_msg": "喝下后，增加相当于当前\\\\c00FFFF攻击力\\\\cFFFFFF加\\\\c00FFFF防御力\\\\cFFFFFF值740%的\\\\cFFCC00血量\\n[月宫出品，手工酿制，不含三聚氰胺，冷藏效果更佳，使用次数：1次]",
+   "effect": {
+    "key": "Heal",
+    "params": {
+     "mul": 74,
+     "div": 10,
+     "msg_fmt": "增加了{}血量"
+    }
+   },
+   "evidence": {
+    "name": "object_type_names.txt:20",
+    "desc": "a.java:906-929 idx6",
+    "effect": "a.java:7826-7831"
+   }
+  },
+  {
+   "id": 20,
+   "name": "相形变位",
+   "icon": {
+    "entity_type": 20
+   },
+   "desc": "瞬移到以中心为对称点的位置上。\\n\\\\c00ff00[使用次数：3次]",
+   "pickup_msg": "瞬移到以中心为对称点的位置上。\\n\\\\c00ff00[使用次数：3次]",
+   "effect": {
+    "key": "MirrorTeleport",
+    "params": {}
+   },
+   "evidence": {
+    "name": "object_type_names.txt:21",
+    "desc": "a.java:906-929 idx7",
+    "effect": "a.java:7832-7850"
+   }
+  },
+  {
+   "id": 21,
+   "name": "上行符",
+   "icon": {
+    "entity_type": 21
+   },
+   "desc": "瞬移上行一层\\n\\\\c00ff00[使用次数：1次]",
+   "pickup_msg": "瞬移上行一层\\n\\\\c00ff00[使用次数：1次]",
+   "effect": {
+    "key": "ChangeFloorUp",
+    "params": {}
+   },
+   "evidence": {
+    "name": "object_type_names.txt:22",
+    "desc": "a.java:906-929 idx8",
+    "effect": "a.java:7863-7866"
+   }
+  },
+  {
+   "id": 22,
+   "name": "下行符",
+   "icon": {
+    "entity_type": 22
+   },
+   "desc": "瞬移下行一层\\n\\\\c00ff00[使用次数：1次]",
+   "pickup_msg": "瞬移下行一层\\n\\\\c00ff00[使用次数：1次]",
+   "effect": {
+    "key": "Passive",
+    "params": {
+     "kind": "AntiNarcissusDamage"
+    }
+   },
+   "evidence": {
+    "name": "object_type_names.txt:23",
+    "desc": "a.java:906-929 idx9",
+    "effect": "描述面：对自恋神仙伤害加倍（道具栏被动）"
+   }
+  },
+  {
+   "id": 23,
+   "name": "太公杖",
+   "icon": {
+    "entity_type": 23
+   },
+   "desc": "当年姜子牙受天命封神，他的钓鱼竹竿被原始天尊附上了神力，可以役使天神力士供他差遣，此杖又名“打神鞭”，对天神力士（包括巨灵神）威力加倍。\\n\\\\cFFCC00[放在道具栏中有效]",
+   "pickup_msg": "当年姜子牙受天命封神，他的钓鱼竹竿被原始天尊附上了神力，可以役使天神力士供他差遣，此杖又名“打神鞭”，对天神力士（包括巨灵神）威力加倍。\\n\\\\cFFCC00[放在道具栏中有效]",
+   "effect": {
+    "key": "Passive",
+    "params": {
+     "kind": "BindingRope"
+    }
+   },
+   "evidence": {
+    "name": "object_type_names.txt:24",
+    "desc": "a.java:906-929 idx10",
+    "effect": "描述面：捆仙绳（道具栏被动）"
+   }
+  },
+  {
+   "id": 24,
+   "name": "捆仙绳",
+   "icon": {
+    "entity_type": 24
+   },
+   "desc": "对某些自恋的神仙伤害加倍。\\n\\\\cFFCC00[放在道具栏中有效]",
+   "pickup_msg": "对某些自恋的神仙伤害加倍。\\n\\\\cFFCC00[放在道具栏中有效]",
+   "effect": {
+    "key": "Passive",
+    "params": {
+     "kind": "DamageReflect"
+    }
+   },
+   "evidence": {
+    "name": "object_type_names.txt:25",
+    "desc": "a.java:906-929 idx11",
+    "effect": "描述面：伤害反弹类被动"
+   }
+  },
+  {
+   "id": 25,
+   "name": "幸运币",
+   "icon": {
+    "entity_type": 25
+   },
+   "desc": "打怪得到的金钱加倍。\\n\\\\cFFCC00[放在道具栏中有效]",
+   "pickup_msg": "打怪得到的金钱加倍。\\n\\\\cFFCC00[放在道具栏中有效]",
+   "effect": {
+    "key": "Passive",
+    "params": {
+     "kind": "LuckyCoinGoldDouble"
+    }
+   },
+   "evidence": {
+    "name": "object_type_names.txt:26",
+    "desc": "a.java:906-929 idx12",
+    "effect": "a.java killAdjacent 金币加倍=find_item(25)"
+   }
+  },
+  {
+   "id": 26,
+   "name": "黄钥匙",
+   "icon": {
+    "entity_type": 26
+   },
+   "desc": "可以开启黄门。",
+   "pickup_msg": "可以开启黄门。",
+   "effect": {
+    "key": "Key",
+    "params": {
+     "color": "yellow"
+    }
+   },
+   "evidence": {
+    "name": "object_type_names.txt:27",
+    "desc": "a.java:906-929 idx13",
+    "effect": "a.java:7556-7558 yellowKeyCount++"
+   }
+  },
+  {
+   "id": 27,
+   "name": "红钥匙",
+   "icon": {
+    "entity_type": 27
+   },
+   "desc": "可以开启红门。",
+   "pickup_msg": "可以开启红门。",
+   "effect": {
+    "key": "Key",
+    "params": {
+     "color": "red"
+    }
+   },
+   "evidence": {
+    "name": "object_type_names.txt:28",
+    "desc": "a.java:906-929 idx14",
+    "effect": "a.java:7559-7561 redKeyCount++"
+   }
+  },
+  {
+   "id": 28,
+   "name": "蓝钥匙",
+   "icon": {
+    "entity_type": 28
+   },
+   "desc": "可以开启蓝门。",
+   "pickup_msg": "可以开启蓝门。",
+   "effect": {
+    "key": "Key",
+    "params": {
+     "color": "blue"
+    }
+   },
+   "evidence": {
+    "name": "object_type_names.txt:29",
+    "desc": "a.java:906-929 idx15",
+    "effect": "a.java:7562-7564 blueKeyCount++"
+   }
+  },
+  {
+   "id": 29,
+   "name": "威力丹",
+   "icon": {
+    "entity_type": 29
+   },
+   "desc": "加攻击。",
+   "pickup_msg": "加攻击。",
+   "effect": {
+    "key": "StatUp",
+    "params": {
+     "stat": "atk"
+    }
+   },
+   "evidence": {
+    "name": "object_type_names.txt:30",
+    "desc": "a.java:906-929 idx16",
+    "effect": "a.java:7565-7572 playerAtk++/floorTier"
+   }
+  },
+  {
+   "id": 30,
+   "name": "金刚丹",
+   "icon": {
+    "entity_type": 30
+   },
+   "desc": "加防御。",
+   "pickup_msg": "加防御。",
+   "effect": {
+    "key": "StatUp",
+    "params": {
+     "stat": "def"
+    }
+   },
+   "evidence": {
+    "name": "object_type_names.txt:31",
+    "desc": "a.java:906-929 idx17",
+    "effect": "a.java:7573-7580 playerDef++/floorTier"
+   }
+  },
+  {
+   "id": 31,
+   "name": "回春丸",
+   "icon": {
+    "entity_type": 31
+   },
+   "desc": "加血。",
+   "pickup_msg": "加血。",
+   "effect": {
+    "key": "HpUp",
+    "params": {
+     "mul": 50
+    }
+   },
+   "evidence": {
+    "name": "object_type_names.txt:32",
+    "desc": "a.java:906-929 idx18",
+    "effect": "a.java:7581-7584 applyHpDelta(50*tier)"
+   }
+  },
+  {
+   "id": 32,
+   "name": "长寿丹",
+   "icon": {
+    "entity_type": 32
+   },
+   "desc": "加血。",
+   "pickup_msg": "加血。",
+   "effect": {
+    "key": "HpUp",
+    "params": {
+     "mul": 200
+    }
+   },
+   "evidence": {
+    "name": "object_type_names.txt:33",
+    "desc": "a.java:906-929 idx19",
+    "effect": "a.java:7585-7587 applyHpDelta(200*tier)（落穿空标至 return 无害）"
+   }
+  },
+  {
+   "id": 33,
+   "name": "桃木棒",
+   "icon": {
+    "entity_type": 33
+   },
+   "desc": ")",
+   "pickup_msg": ")",
+   "effect": {
+    "key": "Equip",
+    "params": {
+     "tier": 1,
+     "bonus": 10
+    }
+   },
+   "evidence": {
+    "name": "object_type_names.txt:34",
+    "desc": "equipDescriptions[1]（a.java:7633 区）",
+    "effect": "a.java:7632-7648 tryEquip（equip_types[1]）"
+   }
+  },
+  {
+   "id": 34,
+   "name": "玄铁棒",
+   "icon": {
+    "entity_type": 34
+   },
+   "desc": "无法再下一层了，这是你达到的最底层",
+   "pickup_msg": "无法再下一层了，这是你达到的最底层",
+   "effect": {
+    "key": "Equip",
+    "params": {
+     "tier": 2,
+     "bonus": 30
+    }
+   },
+   "evidence": {
+    "name": "object_type_names.txt:35",
+    "desc": "equipDescriptions[2]（a.java:7633 区）",
+    "effect": "a.java:7632-7648 tryEquip（equip_types[2]）"
+   }
+  },
+  {
+   "id": 35,
+   "name": "真银棒",
+   "icon": {
+    "entity_type": 35
+   },
+   "desc": "无法再上一层了，这是你达到的最高层",
+   "pickup_msg": "无法再上一层了，这是你达到的最高层",
+   "effect": {
+    "key": "Equip",
+    "params": {
+     "tier": 3,
+     "bonus": 70
+    }
+   },
+   "evidence": {
+    "name": "object_type_names.txt:36",
+    "desc": "equipDescriptions[3]（a.java:7633 区）",
+    "effect": "a.java:7632-7648 tryEquip（equip_types[3]）"
+   }
+  },
+  {
+   "id": 36,
+   "name": "金箍棒",
+   "icon": {
+    "entity_type": 36
+   },
+   "desc": "无法再上去了。",
+   "pickup_msg": "无法再上去了。",
+   "effect": {
+    "key": "Equip",
+    "params": {
+     "tier": 5,
+     "bonus": 220
+    }
+   },
+   "evidence": {
+    "name": "object_type_names.txt:37",
+    "desc": "equipDescriptions[5]（a.java:7633 区）",
+    "effect": "a.java:7632-7648 tryEquip（equip_types[5]）"
+   }
+  },
+  {
+   "id": 37,
+   "name": "道袍",
+   "icon": {
+    "entity_type": 37
+   },
+   "desc": "你拥有更强力的装备，因此将捡到的丢弃了。",
+   "pickup_msg": "你拥有更强力的装备，因此将捡到的丢弃了。",
+   "effect": {
+    "key": "Equip",
+    "params": {
+     "tier": 7,
+     "bonus": 10
+    }
+   },
+   "evidence": {
+    "name": "object_type_names.txt:38",
+    "desc": "equipDescriptions[7]（a.java:7633 区）",
+    "effect": "a.java:7632-7648 tryEquip（equip_types[7]）"
+   }
+  },
+  {
+   "id": 38,
+   "name": "铁甲",
+   "icon": {
+    "entity_type": 38
+   },
+   "desc": "直到那一天，遇到了她，在筋斗云上的我，竟然第一次心潮起伏，有了晕机的感觉……",
+   "pickup_msg": "直到那一天，遇到了她，在筋斗云上的我，竟然第一次心潮起伏，有了晕机的感觉……",
+   "effect": {
+    "key": "Equip",
+    "params": {
+     "tier": 8,
+     "bonus": 30
+    }
+   },
+   "evidence": {
+    "name": "object_type_names.txt:39",
+    "desc": "equipDescriptions[8]（a.java:7633 区）",
+    "effect": "a.java:7632-7648 tryEquip（equip_types[8]）"
+   }
+  },
+  {
+   "id": 39,
+   "name": "锁子甲",
+   "icon": {
+    "entity_type": 39
+   },
+   "desc": "神仙动了感情，往往会万劫不复，\\n这一次，让我付出了五百年的时间去忘记她……\\n五指山脚下的沙子，掠过我的脸庞。\\n沙子，跟时间一样，同样随风流逝；同样掩埋过去；\\n多少次伸手想抓住，却从指隙溜走……\\n看夜空，半梦半醒间，往事历历上心头……",
+   "pickup_msg": "神仙动了感情，往往会万劫不复，\\n这一次，让我付出了五百年的时间去忘记她……\\n五指山脚下的沙子，掠过我的脸庞。\\n沙子，跟时间一样，同样随风流逝；同样掩埋过去；\\n多少次伸手想抓住，却从指隙溜走……\\n看夜空，半梦半醒间，往事历历上心头……",
+   "effect": {
+    "key": "Equip",
+    "params": {
+     "tier": 9,
+     "bonus": 70
+    }
+   },
+   "evidence": {
+    "name": "object_type_names.txt:40",
+    "desc": "equipDescriptions[9]（a.java:7633 区）",
+    "effect": "a.java:7632-7648 tryEquip（equip_types[9]）"
+   }
+  },
+  {
+   "id": 40,
+   "name": "紫金龙鳞甲",
+   "icon": {
+    "entity_type": 40
+   },
+   "desc": "mapbg",
+   "pickup_msg": "mapbg",
+   "effect": {
+    "key": "Equip",
+    "params": {
+     "tier": 11,
+     "bonus": 220
+    }
+   },
+   "evidence": {
+    "name": "object_type_names.txt:41",
+    "desc": "equipDescriptions[11]（a.java:7633 区）",
+    "effect": "a.java:7632-7648 tryEquip（equip_types[11]）"
+   }
+  },
+  {
+   "id": 79,
+   "name": "乌金棍",
+   "icon": {
+    "entity_type": 79
+   },
+   "desc": "无法再下去了。",
+   "pickup_msg": "无法再下去了。",
+   "effect": {
+    "key": "Equip",
+    "params": {
+     "tier": 4,
+     "bonus": 120
+    }
+   },
+   "evidence": {
+    "name": "object_type_names.txt:80",
+    "desc": "equipDescriptions[4]（a.java:7633 区）",
+    "effect": "a.java:7632-7648 tryEquip（equip_types[4]）"
+   }
+  },
+  {
+   "id": 80,
+   "name": "银缕锁甲",
+   "icon": {
+    "entity_type": 80
+   },
+   "desc": "sflogo",
+   "pickup_msg": "sflogo",
+   "effect": {
+    "key": "Equip",
+    "params": {
+     "tier": 10,
+     "bonus": 120
+    }
+   },
+   "evidence": {
+    "name": "object_type_names.txt:81",
+    "desc": "equipDescriptions[10]（a.java:7633 区）",
+    "effect": "a.java:7632-7648 tryEquip（equip_types[10]）"
+   }
+  },
+  {
+   "id": 85,
+   "name": "黄金钥匙",
+   "icon": {
+    "entity_type": 85
+   },
+   "desc": "开启当前层所有黄门",
+   "pickup_msg": "开启当前层所有黄门",
+   "effect": {
+    "key": "RemoveAllType",
+    "params": {
+     "target": 1
+    }
+   },
+   "evidence": {
+    "name": "object_type_names.txt:86",
+    "desc": "a.java:906-929 idx20",
+    "effect": "a.java:7873-7884 全表 markEntityRemoved(型1)"
+   }
+  },
+  {
+   "id": 86,
+   "name": "日月无极钹",
+   "icon": {
+    "entity_type": 86
+   },
+   "desc": "如来开“慈悲为怀”巡回佛经演唱会的时候，伴奏罗汉用的乐器，道行浅的敌人，会被其梵天佛音瞬间化为灰飞\\n\\\\cFFCC00使用：杀死上下左右的敌人，对BOSS不起作用。",
+   "pickup_msg": "如来开“慈悲为怀”巡回佛经演唱会的时候，伴奏罗汉用的乐器，道行浅的敌人，会被其梵天佛音瞬间化为灰飞\\n\\\\cFFCC00使用：杀死上下左右的敌人，对BOSS不起作用。",
+   "effect": {
+    "key": "KillAdjacent4",
+    "params": {}
+   },
+   "evidence": {
+    "name": "object_type_names.txt:87",
+    "desc": "a.java:906-929 idx21",
+    "effect": "a.java:7876-7886 四邻 killAdjacentAt"
+   }
+  }
+ ]
+}

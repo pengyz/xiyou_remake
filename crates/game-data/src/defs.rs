@@ -374,6 +374,238 @@ pub fn parse_sheet_index(src: &str) -> Result<SheetIndex, Reject> {
 }
 
 /// 语法解析 + 封套 unknown-field 拒载（第 5 类）+ schema 版本校验（§2.3）。
+// ─────────────────────────────────────────────────────────────────────────────
+// DDDSA P1-1 items.json（ItemDef 聚合记录——per-type 属性束；用户数据模型总则）
+// 生成器 tools/item-defs/gen_items.py（五源逐值迁：names.txt/D[22]/ITEM_EFFECTS+
+// dispatch/equip_types+bonuses/icon 外键）。强类型 Params（spec 红线：禁 JSON map
+// 弱类型——每 EffectKey 携 typed params）。
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ENVELOPE_ITEMS_KEYS: &[&str] = &["schema_version", "note", "rows"];
+
+/// 图标外键（entity 图引用=images.entity[t] 渲染面；sprite_defs 引用面）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ItemIcon {
+    pub entity_type: i32,
+}
+
+/// 面板分派目标（强类型）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ItemPanel {
+    EnemyInfo,
+    RecordBrowser,
+}
+
+/// 钥匙色（强类型）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum KeyColor {
+    Yellow,
+    Red,
+    Blue,
+}
+
+/// 属性面（强类型）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StatKind {
+    Atk,
+    Def,
+}
+
+/// EffectKey（强类型 params——每键自带 schema；加载期校验转换）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EffectKey {
+    OpenPanel { panel: ItemPanel, page: i32 },
+    RemoveAdjacent { target: i32, msg: String },
+    RemoveAllType { target: i32 },
+    Heal { mul: i32, div: i32, msg_fmt: String },
+    KillAdjacent4,
+    MirrorTeleport,
+    ChangeFloorUp,
+    TutorialSeenStack,
+    Passive { kind: String },
+    Key { color: KeyColor },
+    StatUp { stat: StatKind },
+    HpUp { mul: i32 },
+    Equip { tier: usize, bonus: i32 },
+}
+
+/// ItemDef 聚合记录（id<1000=保真表行；一行一物=per-type 属性束）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ItemDef {
+    pub id: i32,
+    pub name: String,
+    pub icon: ItemIcon,
+    pub desc: String,
+    pub pickup_msg: String,
+    pub effect: EffectKey,
+}
+
+/// 解析 `items.json` → [`ItemDef`] 列表（五类拒载 §2.3 同式）。
+///
+/// 拒载映射：①BadJson（parse_envelope）②BadForeignKey（icon.entity_type 域外
+/// =sprite 引用面拒；effect.params 外键字段名错）③DomainOverflow（id 0..=88
+/// [`TYPE_ID_MAX`]）④ParamsRange（Heal div=0/Equip tier≥12——FrameIndex 越界
+/// 同族）⑤UnknownField（行键/effect.key/枚举值外=拒载防拼写静默）。
+pub fn parse_items(src: &str) -> Result<Vec<ItemDef>, Reject> {
+    let doc = parse_envelope(src, ENVELOPE_ITEMS_KEYS)?;
+    let items = expect_arr(&doc, "rows", "rows")?;
+    items
+        .iter()
+        .enumerate()
+        .map(|(i, rec)| parse_item(rec, &format!("rows[{i}]")))
+        .collect()
+}
+
+const ITEM_ROW_KEYS: &[&str] = &["id", "name", "icon", "desc", "pickup_msg", "effect", "evidence"];
+
+fn parse_item(rec: &Json, path: &str) -> Result<ItemDef, Reject> {
+    // ⑤ UnknownField：行键外拒载（evidence=随行证据槽允许）
+    if let Json::Obj(kvs) = rec {
+        for (k, _) in kvs {
+            if !ITEM_ROW_KEYS.contains(&k.as_str()) {
+                return Err(Reject::UnknownField {
+                    path: format!("{path}.{k}"),
+                    field: k.clone(),
+                });
+            }
+        }
+    }
+    let id = rec.need_int("id").map_err(|e| schema(path, e))? as i32;
+    // ③ DomainOverflow：型号域 0..=88
+    if !(0..=TYPE_ID_MAX as i32).contains(&id) {
+        return Err(Reject::DomainOverflow {
+            path: format!("{path}.id"),
+            value: id as i64,
+            domain: "0..=88（TYPE_ID_MAX）",
+        });
+    }
+    let name = rec.need_str("name").map_err(|e| schema(path, e))?.to_string();
+    let desc = rec.need_str("desc").map_err(|e| schema(path, e))?.to_string();
+    let pickup_msg = rec.need_str("pickup_msg").map_err(|e| schema(path, e))?.to_string();
+    // icon 外键
+    let icon_o = rec.get("icon").ok_or_else(|| schema(path, "缺 icon"))?;
+    let et = icon_o.need_int("entity_type").map_err(|e| schema(path, e))? as i32;
+    if !(0..=TYPE_ID_MAX as i32).contains(&et) {
+        return Err(Reject::BadForeignKey {
+            path: format!("{path}.icon.entity_type"),
+            detail: format!("entity_type {et} 域外（sprite 引用面拒）"),
+        });
+    }
+    let effect_o = rec.get("effect").ok_or_else(|| schema(path, "缺 effect"))?;
+    let effect = parse_effect(effect_o, &format!("{path}.effect"))?;
+    Ok(ItemDef {
+        id,
+        name,
+        icon: ItemIcon { entity_type: et },
+        desc,
+        pickup_msg,
+        effect,
+    })
+}
+
+fn parse_effect(rec: &Json, path: &str) -> Result<EffectKey, Reject> {
+    let key = rec.need_str("key").map_err(|e| schema(path, e))?;
+    let p = rec.get("params").ok_or_else(|| schema(path, "缺 effect.params"))?;
+    let pi = format!("{path}.params");
+    let need_i = |k: &str| -> Result<i32, Reject> {
+        p.need_int(k).map(|v| v as i32).map_err(|e| schema(&pi, e))
+    };
+    let need_s = |k: &str| -> Result<String, Reject> {
+        p.need_str(k).map(|v| v.to_string()).map_err(|e| schema(&pi, e))
+    };
+    match key {
+        "OpenPanel" => {
+            let panel = match p.need_str("panel").map_err(|e| schema(&pi, e))? {
+                "EnemyInfo" => ItemPanel::EnemyInfo,
+                "RecordBrowser" => ItemPanel::RecordBrowser,
+                other => {
+                    return Err(Reject::UnknownField {
+                        path: format!("{pi}.panel"),
+                        field: other.to_string(),
+                    })
+                }
+            };
+            let page = need_i("page")?;
+            Ok(EffectKey::OpenPanel { panel, page })
+        }
+        "RemoveAdjacent" => Ok(EffectKey::RemoveAdjacent {
+            target: need_i("target")?,
+            msg: need_s("msg")?,
+        }),
+        "RemoveAllType" => Ok(EffectKey::RemoveAllType { target: need_i("target")? }),
+        "Heal" => {
+            let mul = need_i("mul")?;
+            let div = need_i("div")?;
+            if div == 0 {
+                return Err(Reject::FrameIndexOutOfBounds {
+                    path: format!("{pi}.div"),
+                    index: 0,
+                    table_len: 0,
+                });
+            }
+            Ok(EffectKey::Heal { mul, div, msg_fmt: need_s("msg_fmt")? })
+        }
+        "KillAdjacent4" => Ok(EffectKey::KillAdjacent4),
+        "MirrorTeleport" => Ok(EffectKey::MirrorTeleport),
+        "ChangeFloorUp" => Ok(EffectKey::ChangeFloorUp),
+        "TutorialSeenStack" => Ok(EffectKey::TutorialSeenStack),
+        "Passive" => Ok(EffectKey::Passive { kind: need_s("kind")? }),
+        "Key" => {
+            let color = match p.need_str("color").map_err(|e| schema(&pi, e))? {
+                "yellow" => KeyColor::Yellow,
+                "red" => KeyColor::Red,
+                "blue" => KeyColor::Blue,
+                other => {
+                    return Err(Reject::UnknownField {
+                        path: format!("{pi}.color"),
+                        field: other.to_string(),
+                    })
+                }
+            };
+            Ok(EffectKey::Key { color })
+        }
+        "StatUp" => {
+            let stat = match p.need_str("stat").map_err(|e| schema(&pi, e))? {
+                "atk" => StatKind::Atk,
+                "def" => StatKind::Def,
+                other => {
+                    return Err(Reject::UnknownField {
+                        path: format!("{pi}.stat"),
+                        field: other.to_string(),
+                    })
+                }
+            };
+            Ok(EffectKey::StatUp { stat })
+        }
+        "HpUp" => {
+            let mul = need_i("mul")?;
+            if mul <= 0 {
+                return Err(Reject::FrameIndexOutOfBounds {
+                    path: format!("{pi}.mul"),
+                    index: 0,
+                    table_len: 0,
+                });
+            }
+            Ok(EffectKey::HpUp { mul })
+        }
+        "Equip" => {
+            let tier = need_i("tier")?;
+            if !(0..12).contains(&tier) {
+                return Err(Reject::FrameIndexOutOfBounds {
+                    path: format!("{pi}.tier"),
+                    index: tier as i64,
+                    table_len: 12,
+                });
+            }
+            Ok(EffectKey::Equip { tier: tier as usize, bonus: need_i("bonus")? })
+        }
+        other => Err(Reject::UnknownField {
+            path: format!("{path}.key"),
+            field: other.to_string(),
+        }),
+    }
+}
+
 fn parse_envelope(src: &str, allowed_keys: &[&str]) -> Result<Json, Reject> {
     let doc = parse_json(src).map_err(|detail| Reject::BadJson { detail })?;
     check_keys(&doc, "<root>", allowed_keys)?;
