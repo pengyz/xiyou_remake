@@ -1,5 +1,5 @@
 # ticks: 900
-# preset: preset-item25a.preset
+# preset: fx-coin25a.preset
 # cover: FX-ITEM-25A 幸运币(25)金钱翻倍被动（a.java gainGold findItemStackIndex(25) ⇒ 增量<<1）：
 #   floor1 (3,10) 栈[25](uses=-1) → 东行撞 41 群击杀 → 金增=baseGold[0]<<1 且栈不消耗
 70 -6 press

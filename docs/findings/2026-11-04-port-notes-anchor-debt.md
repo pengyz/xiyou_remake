@@ -35,6 +35,27 @@
 |---|---|---|---|
 | A1 | scene.rs:4257-4259 三处 | 锚漂移（复核件点名——具体锚值待 sed 实文核） | 登记（下批引锚核对时逐条销） |
 
+## fx-item25a/fx-coin25a 双家归属注记（批5-a 黄②·2026-11-04）
+
+| 家 | 路径 | 归属 |
+|---|---|---|
+| provision 侧 | reference/oracle/scenarios/fx-item25a.txt+_out/{A,B,C}-fx-item25a | provision_tests 供给（stem=f-xitem25a 旧名保留——**不改**） |
+| 测试侧 | crates/game-core/tests/fixtures/fx-coin25a.{txt,preset,frames.txt} | game-core 夹具（批5-a 改名 fx-coin25a 清冲突） |
+
+再生命令锚（frames.txt L4）指向 **provision 实存**（_out/A-fx-item25a/trace.txt
+——2026-11-04 改向；前值 A-fx-coin25a=改名误伤不存在路径）。
+
+## "grep -F 修形"确切命令入档（批5-a 黄③）
+
+批5-a Evidence 贴件中的 fx-pickup 行两段=以下两命令输出（26 组 5 行+33 组 2 行
+两次拼接——命令侧整行选择=钦定合规加工三则（命令入档+不改字节+不隐匿不利
+输出）内）：
+
+```bash
+grep -F "fx_pickup_26" docs/coverage-matrix.md
+grep -F "fx_pickup_33" docs/coverage-matrix.md
+```
+
 ## 另类 1（非锚失效）
 
 - TRIAGE「修正暴露」与机械复算不符：漏登 ['m_101','m_134','showNotify']；

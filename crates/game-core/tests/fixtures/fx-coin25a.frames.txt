@@ -1,7 +1,7 @@
 # fx-coin25a Java 参照帧：单方（A）trace 逐 TICK 抽取（列 = tick FRAME-sha [INPUT]）。
 # 源 trace：reference/oracle/_out/A1/trace.txt sha256=25fb733215a286b633f2156d04da23c0987ca760a710b89fa084871139aaa2c1
 # 帧数 1600；帧链 sha256=d040316c92c9f12f6a20efb1571ea79b48f4ea6d9c6d954b4ae6cf583a6f3833（= tools/method_reach 快照 frame_chain 口径）
-# 既有 A-trace 抽取（不重跑 Java）；再生：python3 tools/frames_fixture.py extract reference/oracle/_out/A-fx-coin25a/trace.txt --stem fx-coin25a --out crates/game-core/tests/fixtures/fx-coin25a.frames.txt
+# 既有 A-trace 抽取（不重跑 Java）；再生：python3 tools/frames_fixture.py extract reference/oracle/_out/A-fx-item25a/trace.txt --stem fx-coin25a --out crates/game-core/tests/fixtures/fx-coin25a.frames.txt
 0001 57173976f11eeae0aed2c0029b6d5dd6
 0002 57173976f11eeae0aed2c0029b6d5dd6
 0003 57173976f11eeae0aed2c0029b6d5dd6
