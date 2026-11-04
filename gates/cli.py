@@ -403,7 +403,7 @@ def gate_asset_manifest():
 # 保真表内容哈希闸基线（survey §2.2 规则 3：哈希入 gates——非荣誉制）。
 # 基线只记保真三表；mod 表走 mod 独立基线（tools/mod-skeleton/mod_baseline.json，不进金样闸）。
 TABLE_HASH_BASELINE = ROOT / "gates" / "table_content_hash.json"
-FIDELITY_TABLES = ("sprite_defs.json", "anim_defs.json", "sheet_index.json")
+FIDELITY_TABLES = ("sprite_defs.json", "anim_defs.json", "sheet_index.json", "items.json")  # 【DDDSA P1-1】items.json id<1000 保真表行（勘误流程同则）
 
 
 def gate_table_content_hash():
