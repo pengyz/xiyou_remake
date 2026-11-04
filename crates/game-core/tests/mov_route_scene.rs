@@ -463,14 +463,14 @@ fn preset_floor40_mov_frames_match() {
 
 /// 【FX-ITEM-25A · 二波扩展候选销账】幸运币（25）金钱翻倍被动：floor1 栈[25](uses=-1) 东行撞 41 群
 /// 击杀 ⇒ 金增 = enemyBaseGold[0]<<1（100→102，baseGold[0]=1）且栈不消耗（-1 永不消耗）。
-/// Java 参照帧三方一致（fx-item25a，A/B/C 逐字节）；T1-1600 全帧对拍。
+/// Java 参照帧三方一致（fx-coin25a，A/B/C 逐字节）；T1-1600 全帧对拍。
 #[test]
-fn fx_item25a_lucky_coin_doubles_gold_frames_match() {
+fn fx_coin25a_lucky_coin_doubles_gold_frames_match() {
     let spec = Spec {
         floor: 1,
-        preset: include_str!("fixtures/fx-item25a.preset"),
-        script: include_str!("fixtures/fx-item25a.txt"),
-        frames: include_str!("fixtures/fx-item25a.frames.txt"),
+        preset: include_str!("fixtures/fx-coin25a.preset"),
+        script: include_str!("fixtures/fx-coin25a.txt"),
+        frames: include_str!("fixtures/fx-coin25a.frames.txt"),
         ticks: 1600,
     };
     let mut gold_after_kill = None;

@@ -17,7 +17,7 @@ const ARM_FIXTURES: &[(&str, &str)] = &[
     ("pickup 32（递延：销账批）", "fx-pickup-32"),
     ("pickup 33..=36|79", "fx-pickup-33"),
     ("pickup 37..=40|80", "fx-pickup-37"),
-    ("pickup default no-op", "fx-pickup-default"),
+    ("pickup default no-op【递延：脚本面 GIN——图拾不可达（cat 2|4 型域全覆盖）】", "fx-pickup-default"),
     ("use 13（净补）", "fx-use-13"),
     ("use 14", "preset-floor5"),
     ("use 16|17", "fx-item17a"),
