@@ -153,7 +153,13 @@ def gate_docs_links():
     for p in md_files:
         if not p.exists():
             continue
-        for target in re.findall(r"\[[^\]]*\]\(([^)]+)\)", p.read_text(encoding="utf-8")):
+        # 【2026-11-05 门禁误报修正】链接提取前剥离围栏代码块与行内代码 span——
+        # 代码内容里的 `](...)`（如断言消息 bonuses[1](10)）不是 markdown 链接。
+        # 真链接检查面不变（非代码区照查）；基线影响=docs-links 消除误报 2 例
+        # （p12-effect-round2.md 内联代码记法），无真链漏检（自测：注入真断链仍红）。
+        _txt = re.sub(r"```[^`]*```", "", p.read_text(encoding="utf-8"), flags=re.S)
+        _txt = re.sub(r"`[^`\n]*`", "", _txt)
+        for target in re.findall(r"\[[^\]]*\]\(([^)]+)\)", _txt):
             if re.match(r"^(https?://|mailto:|#)", target):
                 continue
             target = target.split("#")[0].strip()
