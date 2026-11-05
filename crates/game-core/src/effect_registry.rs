@@ -41,9 +41,11 @@
 //! 引用**（images.entity[t] 渲染面/sprite_defs 引用面）——归 entity/sprite
 //! 域外键非 item 自有字段（items.json icon 即该外键句柄；P1-6 EnemyDef 聚合
 //! 时同则）。
+//! **【硬门4 残留处置·归域落地】**ItemCtx.entities 死字段=**已删**（复核
+//! round-2 :123 残留清——零读取零消费，P1-3 接线时按需以 schema 流程重加，
+//! 不预埋死槽）。
 
 use crate::combat::PlayerCombat;
-use crate::entity::EntityTable;
 
 /// 强类型效果参数（行为面——与 game-data EffectKey 载荷镜像）。
 #[derive(Debug, Clone, PartialEq)]
@@ -69,13 +71,29 @@ pub enum ItemOutcome {
 /// Ctx 三宪：纯数据引用槽+字段冻结（结构固定不增）。
 pub struct ItemCtx<'a> {
     pub player: &'a mut PlayerCombat,
-    pub entities: &'a mut EntityTable,
     pub floor: i32,
     pub tutorial_seen: &'a mut bool,
     pub equipped_weapon: &'a mut i32,
     pub equipped_armor: &'a mut i32,
     pub equip_types: [i32; 12],
     pub equip_bonuses: [i32; 12],
+}
+
+/// type→kind 分发真值（【硬门1 代码孪生】书面表（模块头）唯一程序面——
+/// a.java:7537 pickup switch 七臂语义；测试以本函数钉 rows 配对（改错配对
+/// 即红）。⚠本表只管 **pickup 面**；items.json effect.key=**use 面**键
+/// （13/14/16..21/85/86 十型分歧两面并存——勿互对，P1-3 接线各取所需）。
+pub fn pickup_kind_for_type(t: i32) -> &'static str {
+    match t {
+        13 | 14 | 16..=21 | 85 | 86 => "Stack",
+        15 => "TutorialSeenStack",
+        22..=25 => "Passive",
+        26..=28 => "Key",
+        29 | 30 => "StatUp",
+        31 | 32 => "HpUp",
+        33..=40 | 79 | 80 => "Equip",
+        _ => "NoOp",
+    }
 }
 
 /// floorTier 独立域函数（a.java:7651-7662 逐字：(f-1)/10 钳 0；f>50→0；+1）
@@ -94,6 +112,10 @@ pub fn floor_tier(floor: i32) -> i32 {
 /// ItemEffect trait（行为可插拔面——apply 签名=ctx+≤2 按三宪）。
 pub trait ItemEffect {
     fn apply(&self, ctx: &mut ItemCtx<'_>, params: &EffectParams) -> ItemOutcome;
+    /// 判别指纹（【红-1 修复】kind 稳定标签值比较——`std::ptr::eq` 跨
+    /// codegen unit 的 &dyn 强转恒 false（两 vtable 实例），曾致 no-miss
+    /// 断言永绿伪钉；本方法回静态串值比较，删/误路由注册臂必红）。
+    fn kind_name(&self) -> &'static str;
 }
 
 // ── 内建效果（67 行 match 逐字抽象——逐臂等价三层：锚/夹具/金样）────────────
@@ -103,6 +125,7 @@ pub trait ItemEffect {
 /// 否则栈顶追加（n<cap 守卫=BUG-050 静默吞面）。
 pub struct StackEffect;
 impl ItemEffect for StackEffect {
+    fn kind_name(&self) -> &'static str { "Stack" }
     fn apply(&self, ctx: &mut ItemCtx<'_>, params: &EffectParams) -> ItemOutcome {
         let EffectParams::Stack { type_id, tutorial } = params else {
             return ItemOutcome::NoOp;
@@ -139,6 +162,7 @@ impl ItemEffect for StackEffect {
 /// Key 臂（a.java:7556-7564）：键计数 ++。
 pub struct KeyEffect;
 impl ItemEffect for KeyEffect {
+    fn kind_name(&self) -> &'static str { "Key" }
     fn apply(&self, ctx: &mut ItemCtx<'_>, params: &EffectParams) -> ItemOutcome {
         let EffectParams::Key { yellow, red, blue } = params else {
             return ItemOutcome::NoOp;
@@ -159,6 +183,7 @@ impl ItemEffect for KeyEffect {
 /// StatUp 臂（a.java:7565-7580）：floor≤10 +1 否则 +floorTier。
 pub struct StatUpEffect;
 impl ItemEffect for StatUpEffect {
+    fn kind_name(&self) -> &'static str { "StatUp" }
     fn apply(&self, ctx: &mut ItemCtx<'_>, params: &EffectParams) -> ItemOutcome {
         let EffectParams::StatUp { atk, def } = params else {
             return ItemOutcome::NoOp;
@@ -180,6 +205,7 @@ impl ItemEffect for StatUpEffect {
 /// →hp=1（伤害地板非 9999 钳——9999 前值=C 级臆造已证伪）；否则 hp+=delta。
 pub struct HpUpEffect;
 impl ItemEffect for HpUpEffect {
+    fn kind_name(&self) -> &'static str { "HpUp" }
     fn apply(&self, ctx: &mut ItemCtx<'_>, params: &EffectParams) -> ItemOutcome {
         let EffectParams::HpUp { delta } = params else {
             return ItemOutcome::NoOp;
@@ -200,6 +226,7 @@ impl ItemEffect for HpUpEffect {
 /// 倒序——a.java:7699-7709）。
 pub struct EquipEffect;
 impl ItemEffect for EquipEffect {
+    fn kind_name(&self) -> &'static str { "Equip" }
     fn apply(&self, ctx: &mut ItemCtx<'_>, params: &EffectParams) -> ItemOutcome {
         let EffectParams::Equip { tier } = params else {
             return ItemOutcome::NoOp;
@@ -244,6 +271,7 @@ fn m_083_index(equipped: i32, lo: i32, hi: i32, types: &[i32; 12]) -> i32 {
 /// 前值 Consumed=潜伏面已消：若误接线会假报消耗）。
 pub struct UseArmEffect;
 impl ItemEffect for UseArmEffect {
+    fn kind_name(&self) -> &'static str { "UseArm" }
     fn apply(&self, _ctx: &mut ItemCtx<'_>, _params: &EffectParams) -> ItemOutcome {
         ItemOutcome::NoOp
     }
@@ -252,6 +280,7 @@ impl ItemEffect for UseArmEffect {
 /// 未知/默认臂（a.java:7630-7631 `default: return`）：NoOp 不消耗。
 pub struct NoOpEffect;
 impl ItemEffect for NoOpEffect {
+    fn kind_name(&self) -> &'static str { "NoOp" }
     fn apply(&self, _ctx: &mut ItemCtx<'_>, _params: &EffectParams) -> ItemOutcome {
         ItemOutcome::NoOp
     }
@@ -299,14 +328,12 @@ mod p1a2_tests {
 
     fn ctx<'a>(
         p: &'a mut PlayerCombat,
-        e: &'a mut EntityTable,
         ts: &'a mut bool,
         ew: &'a mut i32,
         ea: &'a mut i32,
     ) -> ItemCtx<'a> {
         ItemCtx {
             player: p,
-            entities: e,
             floor: 3,
             tutorial_seen: ts,
             equipped_weapon: ew,
@@ -320,10 +347,9 @@ mod p1a2_tests {
     #[test]
     fn stack_arm_matches_match_semantics() {
         let mut p = fresh_player();
-        let mut e = EntityTable::new(4);
         let mut ts = false;
         let (mut ew, mut ea) = (0, 0);
-        let mut c = ctx(&mut p, &mut e, &mut ts, &mut ew, &mut ea);
+        let mut c = ctx(&mut p, &mut ts, &mut ew, &mut ea);
         let out = StackEffect.apply(&mut c, &EffectParams::Stack { type_id: 15, tutorial: true });
         assert_eq!(out, ItemOutcome::Consumed { overlay_tier: None });
         assert!(ts, "15=tutorialSeen（a.java:7538-7539）");
@@ -334,10 +360,9 @@ mod p1a2_tests {
     #[test]
     fn key_arm_matches_match_semantics() {
         let mut p = fresh_player();
-        let mut e = EntityTable::new(4);
         let mut ts = false;
         let (mut ew, mut ea) = (0, 0);
-        let mut c = ctx(&mut p, &mut e, &mut ts, &mut ew, &mut ea);
+        let mut c = ctx(&mut p, &mut ts, &mut ew, &mut ea);
         KeyEffect.apply(&mut c, &EffectParams::Key { yellow: true, red: false, blue: true });
         assert_eq!((p.yellow_keys, p.red_keys, p.blue_keys), (1, 0, 1));
     }
@@ -346,10 +371,9 @@ mod p1a2_tests {
     #[test]
     fn statup_arm_matches_match_semantics() {
         let mut p = fresh_player();
-        let mut e = EntityTable::new(4);
         let mut ts = false;
         let (mut ew, mut ea) = (0, 0);
-        let mut c = ctx(&mut p, &mut e, &mut ts, &mut ew, &mut ea);
+        let mut c = ctx(&mut p, &mut ts, &mut ew, &mut ea);
         StatUpEffect.apply(&mut c, &EffectParams::StatUp { atk: 1, def: 1 });
         assert_eq!((p.atk, p.def), (1, 1), "floor3≤10=+1（a.java:7565-7580）");
     }
@@ -358,10 +382,9 @@ mod p1a2_tests {
     #[test]
     fn statup_floor_tier_arm() {
         let mut p = fresh_player();
-        let mut e = EntityTable::new(4);
         let mut ts = false;
         let (mut ew, mut ea) = (0, 0);
-        let mut c = ctx(&mut p, &mut e, &mut ts, &mut ew, &mut ea);
+        let mut c = ctx(&mut p, &mut ts, &mut ew, &mut ea);
         c.floor = 12; // tier=2
         StatUpEffect.apply(&mut c, &EffectParams::StatUp { atk: 1, def: 0 });
         assert_eq!(p.atk, 2, "floor12→tier2=+2（a.java:7565-7572/7651-7662）");
@@ -371,10 +394,9 @@ mod p1a2_tests {
     #[test]
     fn hpup_arm_matches_match_semantics() {
         let mut p = fresh_player();
-        let mut e = EntityTable::new(4);
         let mut ts = false;
         let (mut ew, mut ea) = (0, 0);
-        let mut c = ctx(&mut p, &mut e, &mut ts, &mut ew, &mut ea);
+        let mut c = ctx(&mut p, &mut ts, &mut ew, &mut ea);
         HpUpEffect.apply(&mut c, &EffectParams::HpUp { delta: 200 });
         assert_eq!(p.hp, 200, "tier1=+200（a.java:7585-7587）");
     }
@@ -383,10 +405,9 @@ mod p1a2_tests {
     #[test]
     fn equip_arm_matches_match_semantics() {
         let mut p = fresh_player();
-        let mut e = EntityTable::new(4);
         let mut ts = false;
         let (mut ew, mut ea) = (0, 0);
-        let mut c = ctx(&mut p, &mut e, &mut ts, &mut ew, &mut ea);
+        let mut c = ctx(&mut p, &mut ts, &mut ew, &mut ea);
         let atk0 = c.player.atk;
         // 空档→tier1 换装成功+**加成双动**（红-1：atk += bonuses[1] −= bonuses[0]）
         let out = EquipEffect.apply(&mut c, &EffectParams::Equip { tier: 1 });
@@ -416,33 +437,85 @@ mod p1a2_tests {
             (86, "Stack"),
         ];
         assert_eq!(rows.len(), 32, "32 型全量");
-        for (t, kind) in rows {
-            assert!(!std::ptr::eq(builtin_effect(kind), &NoOpEffect), "型 {t} kind {kind} miss");
+        // 【外锚·同源断言】rows 型集 == items.json id 集（P1-1 生成器产物独立面）
+        let items_src = include_str!("../../../data/tables/items.json");
+        let mut ids: Vec<i32> = items_src
+            .split("\"id\": ")
+            .skip(1)
+            .map(|chunk| {
+                chunk
+                    .split([',', '\n'])
+                    .next()
+                    .unwrap()
+                    .trim()
+                    .parse::<i32>()
+                    .unwrap()
+            })
+            .collect();
+        ids.sort_unstable();
+        let mut row_ids: Vec<i32> = rows.iter().map(|(t, _)| *t).collect();
+        row_ids.sort_unstable();
+        assert_eq!(row_ids, ids, "rows 型集与 items.json id 集同源一致（外锚防型集漂移）");
+        for &(t, kind) in rows {
+            // 配对钉（M4 判别：改错 (t,kind) 配对即红——pickup_kind_for_type
+            // =书面表代码孪生，独立于 rows）
+            assert_eq!(
+                pickup_kind_for_type(t),
+                kind,
+                "型 {t} kind 配对漂移（rows vs pickup_kind_for_type）"
+            );
+            // 可达钉（M5 判误路由/删臂即红——kind_name 值比较跨 CGU 安全；
+            // ptr::eq 跨 codegen unit 恒 false 伪钉教训）。
+            let expected_label = match kind {
+                "TutorialSeenStack" | "Passive" => "Stack",
+                k => k,
+            };
+            assert_eq!(
+                builtin_effect(kind).kind_name(),
+                expected_label,
+                "型 {t} kind {kind} miss/误路由"
+            );
         }
     }
 
-    /// 【黄④】kind 全覆盖：对照表全行 kind 在注册表可达（无 miss）。
+    /// 【黄④】kind 全覆盖：对照表全行 kind 在注册表可达（判别=kind_name）。
     #[test]
     fn kind_coverage_full_table() {
-        for kind in [
-            "Stack", "Key", "StatUp", "HpUp", "Equip",
-            "TutorialSeenStack", "Passive",
-            "OpenPanel", "RemoveAdjacent", "RemoveAllType", "Heal",
-            "KillAdjacent4", "MirrorTeleport", "ChangeFloorUp",
+        for (kind, label) in [
+            ("Stack", "Stack"), ("Key", "Key"), ("StatUp", "StatUp"),
+            ("HpUp", "HpUp"), ("Equip", "Equip"),
+            ("TutorialSeenStack", "Stack"), ("Passive", "Stack"),
+            ("OpenPanel", "UseArm"), ("RemoveAdjacent", "UseArm"),
+            ("RemoveAllType", "UseArm"), ("Heal", "UseArm"),
+            ("KillAdjacent4", "UseArm"), ("MirrorTeleport", "UseArm"),
+            ("ChangeFloorUp", "UseArm"),
         ] {
-            assert!(!std::ptr::eq(builtin_effect(kind), &NoOpEffect), "{kind} kind 缺口");
+            assert_eq!(builtin_effect(kind).kind_name(), label, "{kind} kind 缺口/误路由");
         }
     }
+
+    /// 【黄②·NoOp 判别钉】UseArmEffect 仅键可达=本层零行为（M2 判别：改回
+    /// Consumed 即红——防'误接线假报消耗'回归）。
+    #[test]
+    fn use_arm_noop_discriminated() {
+        let mut p = fresh_player();
+        let mut ts = false;
+        let (mut ew, mut ea) = (0, 0);
+        let mut c = ctx(&mut p, &mut ts, &mut ew, &mut ea);
+        let out = UseArmEffect.apply(&mut c, &EffectParams::StatUp { atk: 1, def: 1 });
+        assert_eq!(out, ItemOutcome::NoOp, "UseArmEffect 本层零行为（revert Consumed 必红）");
+        assert_eq!(out, builtin_effect("OpenPanel").apply(&mut c, &EffectParams::StatUp { atk: 1, def: 1 }), "UseArm 路由一致性");
+    }
+
 
     /// 【黄②】HpUp 判别用例：大增益超 9999 **不钳**（revert 9999 臆造语义本用
     /// 例必红——真语义=纯加+伤害地板，a.java/scene.rs:4393）。
     #[test]
     fn hpup_no_9999_clamp_discriminator() {
         let mut p = fresh_player();
-        let mut e = EntityTable::new(4);
         let mut ts = false;
         let (mut ew, mut ea) = (0, 0);
-        let mut c = ctx(&mut p, &mut e, &mut ts, &mut ew, &mut ea);
+        let mut c = ctx(&mut p, &mut ts, &mut ew, &mut ea);
         c.floor = 3; // tier=1
         HpUpEffect.apply(&mut c, &EffectParams::HpUp { delta: 20000 });
         assert_eq!(c.player.hp, 20000, "无 9999 钳（判别：臆造语义下=9999 应红）");
@@ -452,25 +525,29 @@ mod p1a2_tests {
     #[test]
     fn equip_armor_tier_ge6_def_bonus() {
         let mut p = fresh_player();
-        let mut e = EntityTable::new(4);
         let mut ts = false;
         let (mut ew, mut ea) = (0, 0);
-        let mut c = ctx(&mut p, &mut e, &mut ts, &mut ew, &mut ea);
-        let def0 = c.player.def;
+        let mut c = ctx(&mut p, &mut ts, &mut ew, &mut ea);
+        // 第一步：tier 7 换装（空档 cur=m_083→0，+bonuses[7]=10）
         let out = EquipEffect.apply(&mut c, &EffectParams::Equip { tier: 7 });
         assert_eq!(out, ItemOutcome::Consumed { overlay_tier: Some(7) });
         assert_eq!(*c.equipped_armor, 37, "防具段换装 type=37（equip_types[7]）");
-        assert_eq!(c.player.def, def0 + 10, "def 双动=+bonuses[7](10)−bonuses[6](0)");
+        assert_eq!(c.player.def, 10, "加半=+bonuses[7](10)−bonuses[6](0)（M6 判加）");
+        // 第二步：tier 11 低段→高段换装（cur=7 档 bonuses[7]=10≠0——
+        // 【黄③ 减半真钉】def=10−bonuses[7](10)+bonuses[11](220)=220（M3 判减）
+        let out = EquipEffect.apply(&mut c, &EffectParams::Equip { tier: 11 });
+        assert_eq!(out, ItemOutcome::Consumed { overlay_tier: Some(11) });
+        assert_eq!(*c.equipped_armor, 40, "高段换装 type=40（equip_types[11]）");
+        assert_eq!(c.player.def, 220, "减半+加半双动=−bonuses[7](10)+bonuses[11](220)（M3 删减必红）");
     }
 
     /// 未知 effect=运行期 no-op 不消耗（a.java:7630-7631 default: return）。
     #[test]
     fn unknown_effect_is_noop() {
         let mut p = fresh_player();
-        let mut e = EntityTable::new(4);
         let mut ts = false;
         let (mut ew, mut ea) = (0, 0);
-        let mut c = ctx(&mut p, &mut e, &mut ts, &mut ew, &mut ea);
+        let mut c = ctx(&mut p, &mut ts, &mut ew, &mut ea);
         let out = builtin_effect("NoSuchKind").apply(&mut c, &EffectParams::HpUp { delta: 50 });
         assert_eq!(out, ItemOutcome::NoOp, "registry miss=NoOp 不消耗（a.java:7630-7631）");
     }
