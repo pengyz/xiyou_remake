@@ -22,6 +22,25 @@
 //! **未知 effect 两层语义**（spec 终裁）：加载期拒载（defs.rs 未知键=P1-1 已
 //! 钉）+运行期 no-op 不消耗（a.java:7630-7631 `default: return`——registry
 //! miss→[`ItemOutcome::NoOp`]）。
+//!
+//! **【硬门1】type→kind 书面约定**（32 型全映射无 miss——P1-3 switch 切换面
+//! 分发真值源）：
+//!
+//! | 型域 | kind | 型清单 |
+//! |---|---|---|
+//! | 栈增族 | Stack | 13,14,16,17,18,19,20,21,85,86 |
+//! | 栈增·tutorial 变体 | TutorialSeenStack | 15 |
+//! | 栈增·被动族 | Passive | 22,23,24,25 |
+//! | 键 | Key | 26(黄),27(红),28(蓝) |
+//! | 属性 | StatUp | 29(atk),30(def) |
+//! | 血量 | HpUp | 31(×50),32(×200) |
+//! | 装备·武器段 | Equip | 33,34,35,79,36（tier 1..5） |
+//! | 装备·防具段 | Equip | 37,38,39,80,40（tier 7..11） |
+//!
+//! **【硬门4】entities 字段归域**：ItemDef.icon.entity_type=**entity 图面
+//! 引用**（images.entity[t] 渲染面/sprite_defs 引用面）——归 entity/sprite
+//! 域外键非 item 自有字段（items.json icon 即该外键句柄；P1-6 EnemyDef 聚合
+//! 时同则）。
 
 use crate::combat::PlayerCombat;
 use crate::entity::EntityTable;
@@ -178,7 +197,7 @@ impl ItemEffect for HpUpEffect {
 /// Equip 臂（a.java:7632-7648 tryEquip→scene.rs:865 逐字）：**分段 m_083
 /// 倒查+加成双动**（红-1 修复：前版丢 equip_bonuses 应用——atk/def += 新档
 /// −= 旧档）。tier<6=武器段 [0,6)；≥6=防具段 [6,12)（m_083_index 先减后比
-/// 倒序——a.java:7688-7694）。
+/// 倒序——a.java:7699-7709）。
 pub struct EquipEffect;
 impl ItemEffect for EquipEffect {
     fn apply(&self, ctx: &mut ItemCtx<'_>, params: &EffectParams) -> ItemOutcome {
@@ -207,7 +226,7 @@ impl ItemEffect for EquipEffect {
     }
 }
 
-/// m_083_index（a.java:7688-7694 逐字：先减后比倒序——[lo,hi-1]，hi 永不触达）。
+/// m_083_index（a.java:7699-7709 逐字：先减后比倒序——[lo,hi-1]，hi 永不触达）。
 fn m_083_index(equipped: i32, lo: i32, hi: i32, types: &[i32; 12]) -> i32 {
     let mut t = hi;
     while t > lo {
@@ -219,12 +238,14 @@ fn m_083_index(equipped: i32, lo: i32, hi: i32, types: &[i32; 12]) -> i32 {
     0
 }
 
-/// UseArm（ItemAction use 七 kind——【黄④】枚举覆盖全臂对照表；行为面=
-/// item_effect.rs execute_item_action 编排执行，本行=分发键可达性钉）。
+/// UseArm（ItemAction use 七 kind——**【硬门3 仅键可达声明】**：本行=分发键
+/// 可达性钉（kind 覆盖面）；**本层零行为**（apply 返回 NoOp=不消耗不副作用）
+/// ——行为面=item_effect.rs execute_item_action 编排（P1-3 分发未接线；
+/// 前值 Consumed=潜伏面已消：若误接线会假报消耗）。
 pub struct UseArmEffect;
 impl ItemEffect for UseArmEffect {
     fn apply(&self, _ctx: &mut ItemCtx<'_>, _params: &EffectParams) -> ItemOutcome {
-        ItemOutcome::Consumed { overlay_tier: None }
+        ItemOutcome::NoOp
     }
 }
 
@@ -245,7 +266,11 @@ pub fn builtin_effect(kind: &str) -> &'static dyn ItemEffect {
         "StatUp" => &StatUpEffect,
         "HpUp" => &HpUpEffect,
         "Equip" => &EquipEffect,
-        // ItemAction use 七 kind（【黄④】全臂对照表覆盖——P1-3 分发键面）
+        // 【硬门2 归一】TutorialSeenStack/Passive=栈增族（pickup 臂 13..=25 同
+        // ——15=tutorial 变体；22..25=被动族（道具栏被动=find_item 活查，
+        // 拾取即栈增）；params Stack{tutorial} 编码变体。
+        "TutorialSeenStack" | "Passive" => &StackEffect,
+        // ItemAction use 七 kind（全臂对照表覆盖——P1-3 分发键面）
         "OpenPanel" | "RemoveAdjacent" | "RemoveAllType" | "Heal"
         | "KillAdjacent4" | "MirrorTeleport" | "ChangeFloorUp" => &UseArmEffect,
         _ => &NoOpEffect,
@@ -376,16 +401,66 @@ mod p1a2_tests {
         assert_eq!(out, ItemOutcome::NotConsumed { fail_msg: true });
     }
 
+    /// 【硬门1】type→kind 全映射无 miss：32 型逐型 kind 可达（书面约定执行钉）。
+    #[test]
+    fn type_to_kind_mapping_no_miss() {
+        let rows: &[(i32, &str)] = &[
+            (13, "Stack"), (14, "Stack"), (15, "TutorialSeenStack"),
+            (16, "Stack"), (17, "Stack"), (18, "Stack"), (19, "Stack"),
+            (20, "Stack"), (21, "Stack"), (22, "Passive"), (23, "Passive"),
+            (24, "Passive"), (25, "Passive"), (26, "Key"), (27, "Key"),
+            (28, "Key"), (29, "StatUp"), (30, "StatUp"), (31, "HpUp"),
+            (32, "HpUp"), (33, "Equip"), (34, "Equip"), (35, "Equip"),
+            (36, "Equip"), (37, "Equip"), (38, "Equip"), (39, "Equip"),
+            (40, "Equip"), (79, "Equip"), (80, "Equip"), (85, "Stack"),
+            (86, "Stack"),
+        ];
+        assert_eq!(rows.len(), 32, "32 型全量");
+        for (t, kind) in rows {
+            assert!(!std::ptr::eq(builtin_effect(kind), &NoOpEffect), "型 {t} kind {kind} miss");
+        }
+    }
+
     /// 【黄④】kind 全覆盖：对照表全行 kind 在注册表可达（无 miss）。
     #[test]
     fn kind_coverage_full_table() {
         for kind in [
             "Stack", "Key", "StatUp", "HpUp", "Equip",
+            "TutorialSeenStack", "Passive",
             "OpenPanel", "RemoveAdjacent", "RemoveAllType", "Heal",
             "KillAdjacent4", "MirrorTeleport", "ChangeFloorUp",
         ] {
             assert!(!std::ptr::eq(builtin_effect(kind), &NoOpEffect), "{kind} kind 缺口");
         }
+    }
+
+    /// 【黄②】HpUp 判别用例：大增益超 9999 **不钳**（revert 9999 臆造语义本用
+    /// 例必红——真语义=纯加+伤害地板，a.java/scene.rs:4393）。
+    #[test]
+    fn hpup_no_9999_clamp_discriminator() {
+        let mut p = fresh_player();
+        let mut e = EntityTable::new(4);
+        let mut ts = false;
+        let (mut ew, mut ea) = (0, 0);
+        let mut c = ctx(&mut p, &mut e, &mut ts, &mut ew, &mut ea);
+        c.floor = 3; // tier=1
+        HpUpEffect.apply(&mut c, &EffectParams::HpUp { delta: 20000 });
+        assert_eq!(c.player.hp, 20000, "无 9999 钳（判别：臆造语义下=9999 应红）");
+    }
+
+    /// 【黄③】def 臂 tier≥6 断言：防具段加成双动（bonuses[7]−bonuses[6]）。
+    #[test]
+    fn equip_armor_tier_ge6_def_bonus() {
+        let mut p = fresh_player();
+        let mut e = EntityTable::new(4);
+        let mut ts = false;
+        let (mut ew, mut ea) = (0, 0);
+        let mut c = ctx(&mut p, &mut e, &mut ts, &mut ew, &mut ea);
+        let def0 = c.player.def;
+        let out = EquipEffect.apply(&mut c, &EffectParams::Equip { tier: 7 });
+        assert_eq!(out, ItemOutcome::Consumed { overlay_tier: Some(7) });
+        assert_eq!(*c.equipped_armor, 37, "防具段换装 type=37（equip_types[7]）");
+        assert_eq!(c.player.def, def0 + 10, "def 双动=+bonuses[7](10)−bonuses[6](0)");
     }
 
     /// 未知 effect=运行期 no-op 不消耗（a.java:7630-7631 default: return）。
