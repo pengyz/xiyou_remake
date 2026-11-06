@@ -6,15 +6,15 @@
 加一个假想新敌人 = 纯表+资源行（sprite_defs 加行 + anim_profile 复用 + 资源行复用
 保真图集容器/槽位），**验证零 Rust 改动**（`git status --porcelain crates/` 为空）。
 
-两份制下的加行位置（§2.2）：保真三表被内容哈希闸冻结（gate `table-content-hash`，
+两份制下的加行位置（§2.2）：保真表全集被内容哈希闸冻结（gate `table-content-hash`，
 变更=勘误流程+金样重过）⇒ 新内容进 **mod 通道**（型号 id ≥ 1000 命名空间），
 保真表一字不动、金样运行禁 mod 表（规则 2）。
 
 演练步骤（每步断言，任一失败 ⇒ 退出码 1）：
-  [0] 前置护航：保真三表 sha256 == gate `table-content-hash` 基线（规则 3）
+  [0] 前置护航：保真表全集 sha256 == gate `table-content-hash` 基线（规则 3）
   [0b] 零改码基线：git 工作树 crates/ 干净（diff+status 皆空）
   [1] 正例：假想新敌人 mod 行（sprite_defs 加行+anim_profile 复用+资源行）⇒ 加载通过；
-      真解析器（crates/game-data defs.rs）保真三表原样可载（零改码链起点）
+      真解析器（crates/game-data defs.rs）保真表全集原样可载（零改码链起点）
   [2] 失败面 A 域外型：保真 sprite_defs 直接加行 id=89 ⇒ 真解析器域溢出拒载（域外三界①）；
       mod 通道 id=89 ⇒ 命名空间拒载
   [3] 失败面 B 坏外键：anim_profile 孤儿 ⇒ mod 通道拒载；保真侧同错 ⇒ 真解析器坏外键拒载
@@ -22,7 +22,7 @@
       走 Q-00x 路径拒载（§2.1 禁静默留码）；登记 Q-101 四字段+quirk_ref ⇒ 通过
   [5] 规则 2：金样运行清单混入 mod 表 ⇒ 断言触发
   [6] 规则 4：mod 独立基线立账/复验；保真哈希基线不含 mod 条目（不进金样闸）
-  [7] 收尾：保真三表哈希仍绿 + git crates/ 仍空 = 零 Rust 改动实证
+  [7] 收尾：保真表全集哈希仍绿 + git crates/ 仍空 = 零 Rust 改动实证
 
 用法：python3 tools/zero-code-drill/drill.py
 """
@@ -190,7 +190,7 @@ def main() -> int:
         print("[0] 前置护航：保真表内容哈希闸（非荣誉制）")
         try:
             hashes = verify_fidelity_hashes(TABLES, HASH_BASELINE)
-            check(True, f"保真三表 sha256 == 闸基线（{len(hashes)} 表，"
+            check(True, f"保真表全集 sha256 == 闸基线（{len(hashes)} 表，"
                         f"基线 {HASH_BASELINE.relative_to(ROOT)}）")
         except ModReject as e:
             check(False, f"保真表哈希护航失败：{e}")
@@ -220,7 +220,7 @@ def main() -> int:
             check(False, f"正例 mod 行被拒：{e}")
         ok = parser.run("bundle", str(TABLES / "sprite_defs.json"),
                         str(TABLES / "anim_defs.json"), str(TABLES / "sheet_index.json"))
-        check(ok == "OK", f"真解析器保真三表原样可载（零改码链起点）→ {ok[:60]}")
+        check(ok == "OK", f"真解析器保真表全集原样可载（零改码链起点）→ {ok[:60]}")
 
         # [2] 失败面 A：域外型 id>=89
         print("[2] 失败面 A 域外型：保真 sprite_defs 直接加行 id=89 ⇒ 拒载（域外三界①）")
@@ -281,7 +281,7 @@ def main() -> int:
         # [5] 规则 2：金样运行禁 mod 表
         print("[5] 规则 2：金样运行禁 mod 表（断言）")
         assert_golden_run_clean(GOLDEN_TABLES, fidelity)
-        check(True, "金样运行清单（纯保真三表）通过")
+        check(True, "金样运行清单（纯保真表全集）通过")
         try:
             assert_golden_run_clean(GOLDEN_TABLES + [mod_path], fidelity)
             check(False, "金样混入 mod 表应断言触发")
@@ -303,7 +303,7 @@ def main() -> int:
         print("[7] 收尾：零 Rust 改动实证")
         try:
             verify_fidelity_hashes(TABLES, HASH_BASELINE)
-            check(True, "演练后保真三表哈希仍绿（保真表一字未动）")
+            check(True, "演练后保真表全集哈希仍绿（保真表一字未动）")
         except ModReject as e:
             check(False, f"演练后保真表哈希漂移：{e}")
         dirty = _git_crates_dirty()

@@ -31,7 +31,7 @@
 | `docs-links` | 文档相对链接有效性 | 启用 |
 | `naming-ledger` | 每条 rename 带 evidence 指针 | 台账创建后自动启用 |
 | `rust-tests` | `cargo test --workspace` | crates/ 创建后自动启用 |
-| `table-content-hash` | 保真表内容哈希闸（data/tables 三表 sha256 对照 `table_content_hash.json`；变更=勘误流程+金样重过——**非荣誉制**） | 启用（V2·P3） |
+| `table-content-hash` | 保真表内容哈希闸（data/tables 保真表全集 sha256 对照 `table_content_hash.json`；变更=勘误流程+金样重过——**非荣誉制**） | 启用（V2·P3） |
 | `table-evidence` | 机械对照器进闸（javap/deobf 提取值==表值第二侧，防手抄互证同源错误；复用 `tools/table-evidence/`） | 启用（V2·P3） |
 | `zero-code-drill` | 零改码链演练实跑（加假想新敌人=纯表+资源行，零 Rust 改动；失败面三类各一）——验收级，进 `all` 不进 `check` 热路径 | 启用（V2·P3） |
 | `reference-regression` | 参考版 trace 逐 tick 不变 | P1 oracle 交付后启用 |

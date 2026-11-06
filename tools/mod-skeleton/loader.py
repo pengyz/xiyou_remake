@@ -86,7 +86,7 @@ def _sha256(path: Path) -> str:
 
 
 def verify_fidelity_hashes(tables_dir: Path, baseline: Path) -> dict:
-    """规则 3 护航：保真三表 sha256 == 闸基线（非荣誉制）。
+    """规则 3 护航：保真表全集 sha256 == 闸基线（非荣誉制）。
 
     基线形：`{"tables": {"sprite_defs.json": <sha256>, ...}}`
     （gate `table-content-hash` 读同一文件——两处一份真相）。
@@ -158,7 +158,7 @@ class ModBaseline:
     """mod 独立基线（规则 4：不进金样闸）——mod 表哈希单独立账。
 
     基线形：`{"comment": ..., "mod_tables": {<文件名>: <sha256>}}`。
-    保真哈希闸（规则 3）**不覆盖**本基线条目；本基线也**不得**记保真三表。
+    保真哈希闸（规则 3）**不覆盖**本基线条目；本基线也**不得**记保真表条目。
     """
 
     def __init__(self, path: Path):
