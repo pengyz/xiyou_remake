@@ -863,24 +863,23 @@ impl GameScene {
     /// tryEquip（a.java:7668-7680）：武器（<6）/甲（≥6）分档；降级拒绝
     ///（!force 且当前档 >= 新档 → false）；属性按 equipTierBonuses 增减。
     pub fn try_equip(&mut self, tier: i32, force: bool) -> bool {
-        if tier < 6 {
-            let cur = self.m_083_index(self.equipped_weapon, 0, 6);
-            if cur >= tier && !force {
-                return false;
-            }
-            self.player.atk -= self.equip_bonuses[cur as usize];
-            self.player.atk += self.equip_bonuses[tier as usize];
-            self.equipped_weapon = self.equip_types[tier as usize];
-        } else {
-            let cur = self.m_083_index(self.equipped_armor, 6, 12);
-            if cur >= tier && !force {
-                return false;
-            }
-            self.player.def -= self.equip_bonuses[cur as usize];
-            self.player.def += self.equip_bonuses[tier as usize];
-            self.equipped_armor = self.equip_types[tier as usize];
-        }
-        true
+        // 【P1-3 单源化】换装语义唯一源=effect_registry::EquipEffect（a.java
+        // try_equip 完整体含 force：cur>=tier&&!force→false；加成双动+分段
+        // m_083——本方法=薄委托，调用面 4278/4297/script_ops:281 零改动）。
+        use crate::effect_registry::{builtin_effect, EffectParams, ItemCtx, ItemOutcome};
+        let mut ctx = ItemCtx {
+            player: &mut self.player,
+            floor: self.persist.floor,
+            tutorial_seen: &mut self.menu.tutorial_seen,
+            equipped_weapon: &mut self.equipped_weapon,
+            equipped_armor: &mut self.equipped_armor,
+            equip_types: self.equip_types,
+            equip_bonuses: self.equip_bonuses,
+        };
+        matches!(
+            builtin_effect("Equip").apply(&mut ctx, &EffectParams::Equip { tier, force }),
+            ItemOutcome::Consumed { .. }
+        )
     }
 
     /// equipTierIndex（a.java:7688-7694）：档位区间倒序查当前装备所在档。
@@ -4229,87 +4228,97 @@ impl GameScene {
     /// （a.java:5172-5184，difficultyIndex=0 → 无 ×16）。
     /// floorTier（a.java:7642-7652）：((floor-1)/10) 钳负、floor>50 归 0，返回 +1。
     pub fn floor_tier(&self) -> i32 {
-        let mut tier = (self.persist.floor - 1) / 10;
-        if tier < 0 {
-            tier = 0;
-        }
-        if self.persist.floor > 50 {
-            tier = 0;
-        }
-        tier + 1
+        // 【P1-3 单源化】tier 计算唯一源=effect_registry::floor_tier
+        // （a.java:7651-7662——本方法=薄委托，调用面零改动）。
+        crate::effect_registry::floor_tier(self.persist.floor)
     }
 
     fn pickup_item_type(&mut self, t: i32) {
-        // a.java:7534 起 pickupItemType 拾取链（2026-11-05 sed 复核：7528=goldAmount 尾 stale）：itemUseTargetType = 道具类型（描述 overlay 的图标/名）
+        // 【P1-3 一次性切（禁双轨）】23 臂 match 已删——分发=effect_registry
+        // 表查（pickup_kind_for_type+pickup_params_for=23 臂逐行抽象；行为=
+        // builtin_effect(kind).apply）。引锚：a.java:7534 pickupItemType
+        // /7537-7648 switch 全体/7630-7631 default return。逐臂等价三层：
+        // 21 臂夹具+金样 74+对照表（effect_registry 模块头）。
         self.menu.set_overlay_kind_item(t);
-        // 描述表（itemDescriptions a.java:906 / equipDescriptions a.java:930——
-        // 全量入库 reference；此处取用句柄）
-        match t {
-            13..=25 | 85 | 86 => {
-                if t == 15 {
-                    self.menu.tutorial_seen = true; // tutorialSeen
+        let kind = crate::effect_registry::pickup_kind_for_type(t);
+        let params = crate::effect_registry::pickup_params_for(t);
+        let mut ctx = crate::effect_registry::ItemCtx {
+            player: &mut self.player,
+            floor: self.persist.floor,
+            tutorial_seen: &mut self.menu.tutorial_seen,
+            equipped_weapon: &mut self.equipped_weapon,
+            equipped_armor: &mut self.equipped_armor,
+            equip_types: self.equip_types,
+            equip_bonuses: self.equip_bonuses,
+        };
+        let out = crate::effect_registry::builtin_effect(kind).apply(&mut ctx, &params);
+        drop(ctx);
+        // outcome→浮层桥接（编排副作用：栈增族=描述浮层 add_item_to_stack
+        // 语义；装备成功=overlay_kind_pickup tier 档；失败=强装备提示）。
+        use crate::effect_registry::ItemOutcome;
+        match out {
+            ItemOutcome::Consumed { overlay_tier: Some(tier), hp_popup } => {
+                if let Some(d) = hp_popup {
+                    self.spawn_hp_popup(d);
                 }
-                self.add_item_to_stack(t);
+                self.overlay_kind_pickup(t, tier);
             }
-            26 => self.player.yellow_keys += 1,
-            27 => self.player.red_keys += 1,
-            28 => self.player.blue_keys += 1,
-            // 29/30（a.java:7556-7567）：floor ≤ 10 +1，否则 +floorTier()；
-            // 31/32（a.java:7568-7577）：50/200 × floorTier()——floorTier =
-            // ((floor-1)/10)+1（floor>50 钳 0，a.java:7642-7652）。迭代 31：
-            // 原硬编码 tier=1 仅对 ≤10 层成立，floor12 实测 +50 应为 +100。
-            29 => {
-                if self.persist.floor <= 10 { self.player.atk += 1 } else { self.player.atk += self.floor_tier() }
-            }
-            30 => {
-                if self.persist.floor <= 10 { self.player.def += 1 } else { self.player.def += self.floor_tier() }
-            }
-            31 => self.apply_hp_delta(50 * self.floor_tier()),
-            32 => self.apply_hp_delta(200 * self.floor_tier()),
-            33..=36 | 79 => {
-                // 武器档（equip_types 1..5 槽）——equipTierIndex 档位 = 表下标
-                let tier = match t {
-                    33 => 1,
-                    34 => 2,
-                    35 => 3,
-                    79 => 4,
-                    _ => 5, // 36
-                };
-                if self.try_equip(tier, false) {
-                    let eq_tier = if t < 37 {
-                        match t { 33 => 1, 34 => 2, 35 => 3, 79 => 4, _ => 5 }
+            ItemOutcome::Consumed { overlay_tier: None, hp_popup } => {
+                if let Some(d) = hp_popup {
+                    self.spawn_hp_popup(d);
+                }
+                if matches!(kind, "Stack" | "TutorialSeenStack" | "Passive") {
+                    let idx = if t == 85 {
+                        20
+                    } else if t == 86 {
+                        21
                     } else {
-                        match t { 37 => 7, 38 => 8, 39 => 9, 80 => 10, _ => 11 }
+                        (t - 13) as usize
                     };
-                    self.overlay_kind_pickup(t, eq_tier);
-                } else {
-                    self.show_overlay_message(0, "你拥有更强力装备", 0, 3);
+                    let text = self.item_description(idx);
+                    self.show_overlay_message(1, &text, 0, 3);
                 }
             }
-            37..=40 | 80 => {
-                let tier = match t {
-                    37 => 7,
-                    38 => 8,
-                    39 => 9,
-                    80 => 10,
-                    _ => 11, // 40
-                };
-                if self.try_equip(tier, false) {
-                    // a.java:7595 `equipDescriptions[script_cursor0]`：script_cursor0 = equipTierIndex 的
-                    // tier（10）——**非物品类型**，D 表按 tier 索引（迭代 70
-                    // floor43 80 甲实证：传类型 80 = D 表越界错帧）。
-                    self.overlay_kind_pickup(t, tier);
-                } else {
-                    self.show_overlay_message(0, "你拥有更强力装备", 0, 3);
-                }
-            }
-            _ => {} // 41+ 怪物类型不可达（a.java:7608-7620 default return）
+            ItemOutcome::NotConsumed { .. } => self.show_overlay_message(0, "你拥有更强力装备", 0, 3),
+            ItemOutcome::NoOp => {}
         }
     }
 
     /// addItemToItemStack（a.java:7727-7740）：栈顶追加或叠加次数 +
     /// itemUseTargetType 写 + showOverlayMessage(kind1, itemDescriptions[idx])。
+    /// 回血浮层编排（applyHpDelta else if delta>0 分支同参逐字：popups.
+    /// spawn(3,delta,player_px,py,cam_x,cam_y,digit_w/11)——副作用请求执行面）。
+    fn spawn_hp_popup(&mut self, delta: i32) {
+        self.popups.spawn(
+            3,
+            delta,
+            self.view.player_px,
+            self.view.player_py,
+            self.view.cam_x,
+            self.view.cam_y,
+            self.images.popup.digit_strips[0].width / 11,
+        );
+    }
+
     fn add_item_to_stack(&mut self, t: i32) {
+        // 【P1-3 单源化】栈增核心唯一源=effect_registry::StackEffect（ITEM_USES
+        // 叠加/栈顶追加 a.java:7727-7740——本方法=编排面：委托核心+itemUse
+        // TargetType 写+描述浮层副作用；调用面 2672/2673/测试零改动）。
+        use crate::effect_registry::{builtin_effect, EffectParams, ItemCtx};
+        let mut ctx = ItemCtx {
+            player: &mut self.player,
+            floor: self.persist.floor,
+            tutorial_seen: &mut self.menu.tutorial_seen,
+            equipped_weapon: &mut self.equipped_weapon,
+            equipped_armor: &mut self.equipped_armor,
+            equip_types: self.equip_types,
+            equip_bonuses: self.equip_bonuses,
+        };
+        builtin_effect("Stack").apply(&mut ctx, &EffectParams::Stack { type_id: t, tutorial: false });
+        drop(ctx);
+        // itemUseTargetType = (byte)py_key（a.java:7738——2026-11-03 锚更正
+        // ——拾取路径调用方已先写同值，商人赠物路径（a.java:7667）经本写）。
+        self.menu.set_overlay_kind_item(t);
         let idx = if t == 85 {
             20
         } else if t == 86 {
@@ -4317,22 +4326,6 @@ impl GameScene {
         } else {
             (t - 13) as usize
         };
-        const ITEM_USES: [i32; 22] = [-1, -1, -1, -1, 1, 1, 1, 3, 1, 1, -1, -1, -1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
-        let existing = self.player.find_item(t as u8);
-        if existing < 0 {
-            let n = self.player.item_stack_size as usize;
-            if n < self.player.item_types.len() {
-                self.player.item_types[n] = t as u8;
-                self.player.item_uses[n] = ITEM_USES[idx] as u8;
-                self.player.item_stack_size += 1;
-            }
-        } else {
-            let u = self.player.item_uses[existing as usize];
-            self.player.item_uses[existing as usize] = (u as i32 + ITEM_USES[idx]) as u8;
-        }
-        // itemUseTargetType = (byte)py_key（a.java:7738——2026-11-03 锚更正：原 7732）：kind1 浮层图标/名的数据源
-        // ——拾取路径调用方已先写同值，商人赠物路径（a.java:7333/7336）唯此一写
-        self.menu.set_overlay_kind_item(t);
         let text = self.item_description(idx);
         self.show_overlay_message(1, &text, 0, 3);
     }

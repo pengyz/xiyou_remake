@@ -54,14 +54,16 @@ pub enum EffectParams {
     Key { yellow: bool, red: bool, blue: bool },
     StatUp { atk: i32, def: i32 },
     HpUp { delta: i32 },
-    Equip { tier: i32 },
+    Equip { tier: i32, force: bool },
 }
 
 /// 动作结果（纯数据 outcome——副作用请求上交编排面执行）。
 #[derive(Debug, Clone, PartialEq)]
 pub enum ItemOutcome {
-    /// 消耗（true 臂：栈增/键增/属性增/换装成功/加血）。
-    Consumed { overlay_tier: Option<i32> },
+    /// 消耗（true 臂：栈增/键增/属性增/换装成功/加血）。hp_popup=回血浮层
+    /// 请求（applyHpDelta 的 else if delta>0 → popups.spawn(3,delta)——
+    /// 2026-11-05 fx-pickup-31/32 红修实录：漏读正分支丢 +N 浮层=帧差）。
+    Consumed { overlay_tier: Option<i32>, hp_popup: Option<i32> },
     /// 未消耗（装备失败臂：已有更强装备——浮层提示）。
     NotConsumed { fail_msg: bool },
     /// 未知 effect/默认臂（a.java:7630-7631 return）：不消耗无副作用。
@@ -93,6 +95,33 @@ pub fn pickup_kind_for_type(t: i32) -> &'static str {
         31 | 32 => "HpUp",
         33..=40 | 79 | 80 => "Equip",
         _ => "NoOp",
+    }
+}
+
+/// pickup 臂参数表（【P1-3 分发面】23 臂→EffectParams 逐行——a.java:7537-
+/// 7648 引锚；与 pickup_kind_for_type 同表两列：kind+params）。
+pub fn pickup_params_for(t: i32) -> EffectParams {
+    match t {
+        15 => EffectParams::Stack { type_id: 15, tutorial: true },
+        13 | 14 | 16..=25 | 85 | 86 => EffectParams::Stack { type_id: t, tutorial: false },
+        26 => EffectParams::Key { yellow: true, red: false, blue: false },
+        27 => EffectParams::Key { yellow: false, red: true, blue: false },
+        28 => EffectParams::Key { yellow: false, red: false, blue: true },
+        29 => EffectParams::StatUp { atk: 1, def: 0 },
+        30 => EffectParams::StatUp { atk: 0, def: 1 },
+        31 => EffectParams::HpUp { delta: 50 },
+        32 => EffectParams::HpUp { delta: 200 },
+        33 => EffectParams::Equip { tier: 1, force: false },
+        34 => EffectParams::Equip { tier: 2, force: false },
+        35 => EffectParams::Equip { tier: 3, force: false },
+        79 => EffectParams::Equip { tier: 4, force: false },
+        36 => EffectParams::Equip { tier: 5, force: false },
+        37 => EffectParams::Equip { tier: 7, force: false },
+        38 => EffectParams::Equip { tier: 8, force: false },
+        39 => EffectParams::Equip { tier: 9, force: false },
+        80 => EffectParams::Equip { tier: 10, force: false },
+        40 => EffectParams::Equip { tier: 11, force: false },
+        _ => EffectParams::Stack { type_id: t, tutorial: false }, // default 臂占位（kind=NoOp 吞）
     }
 }
 
@@ -155,7 +184,7 @@ impl ItemEffect for StackEffect {
             let u = p.item_uses[existing as usize];
             p.item_uses[existing as usize] = (u as i32 + ITEM_USES[idx]) as u8;
         }
-        ItemOutcome::Consumed { overlay_tier: None }
+        ItemOutcome::Consumed { overlay_tier: None, hp_popup: None }
     }
 }
 
@@ -176,7 +205,7 @@ impl ItemEffect for KeyEffect {
         if *blue {
             ctx.player.blue_keys += 1;
         }
-        ItemOutcome::Consumed { overlay_tier: None }
+        ItemOutcome::Consumed { overlay_tier: None, hp_popup: None }
     }
 }
 
@@ -196,7 +225,7 @@ impl ItemEffect for StatUpEffect {
         };
         ctx.player.atk += da;
         ctx.player.def += dd;
-        ItemOutcome::Consumed { overlay_tier: None }
+        ItemOutcome::Consumed { overlay_tier: None, hp_popup: None }
     }
 }
 
@@ -216,7 +245,10 @@ impl ItemEffect for HpUpEffect {
         } else {
             ctx.player.hp += d;
         }
-        ItemOutcome::Consumed { overlay_tier: None }
+        // 回血浮层请求（a.java applyHpDelta delta>0 分支=popups.spawn(3,delta)
+        // ——编排面执行；delta<=0 无浮层）。
+        let popup = if d > 0 { Some(d) } else { None };
+        ItemOutcome::Consumed { overlay_tier: None, hp_popup: popup }
     }
 }
 
@@ -228,13 +260,13 @@ pub struct EquipEffect;
 impl ItemEffect for EquipEffect {
     fn kind_name(&self) -> &'static str { "Equip" }
     fn apply(&self, ctx: &mut ItemCtx<'_>, params: &EffectParams) -> ItemOutcome {
-        let EffectParams::Equip { tier } = params else {
+        let EffectParams::Equip { tier, force } = params else {
             return ItemOutcome::NoOp;
         };
         let tier = *tier;
         if tier < 6 {
             let cur = m_083_index(*ctx.equipped_weapon, 0, 6, &ctx.equip_types);
-            if cur >= tier {
+            if cur >= tier && !force {
                 return ItemOutcome::NotConsumed { fail_msg: true };
             }
             ctx.player.atk -= ctx.equip_bonuses[cur as usize];
@@ -242,14 +274,14 @@ impl ItemEffect for EquipEffect {
             *ctx.equipped_weapon = ctx.equip_types[tier as usize];
         } else {
             let cur = m_083_index(*ctx.equipped_armor, 6, 12, &ctx.equip_types);
-            if cur >= tier {
+            if cur >= tier && !force {
                 return ItemOutcome::NotConsumed { fail_msg: true };
             }
             ctx.player.def -= ctx.equip_bonuses[cur as usize];
             ctx.player.def += ctx.equip_bonuses[tier as usize];
             *ctx.equipped_armor = ctx.equip_types[tier as usize];
         }
-        ItemOutcome::Consumed { overlay_tier: Some(tier) }
+        ItemOutcome::Consumed { overlay_tier: Some(tier), hp_popup: None }
     }
 }
 
@@ -306,6 +338,80 @@ pub fn builtin_effect(kind: &str) -> &'static dyn ItemEffect {
     }
 }
 
+/// 【P1-3 红·先行】pickup_params_for 23 臂对照（match→表行参数逐行——
+/// a.java:7537-7648 引锚纪律随断言）。
+#[cfg(test)]
+mod p1a3_tests {
+    use super::*;
+
+    /// 逐臂参数对照：23 臂→EffectParams（TDD 红：函数未实现=编译红）。
+    #[test]
+    fn pickup_params_for_all_arms() {
+        // 栈增族（a.java:7538-7555）
+        for t in [13, 14, 16, 17, 18, 19, 20, 21, 85, 86] {
+            assert_eq!(
+                pickup_params_for(t),
+                EffectParams::Stack { type_id: t, tutorial: false },
+                "型 {t} 栈增参数"
+            );
+        }
+        assert_eq!(
+            pickup_params_for(15),
+            EffectParams::Stack { type_id: 15, tutorial: true },
+            "15=tutorial 变体（a.java:7538-7539）"
+        );
+        for t in [22, 23, 24, 25] {
+            assert_eq!(
+                pickup_params_for(t),
+                EffectParams::Stack { type_id: t, tutorial: false },
+                "型 {t} 被动族栈增（a.java:7553 落穿）"
+            );
+        }
+        // 键（a.java:7556-7564）
+        assert_eq!(pickup_params_for(26), EffectParams::Key { yellow: true, red: false, blue: false });
+        assert_eq!(pickup_params_for(27), EffectParams::Key { yellow: false, red: true, blue: false });
+        assert_eq!(pickup_params_for(28), EffectParams::Key { yellow: false, red: false, blue: true });
+        // 属性（a.java:7565-7580）
+        assert_eq!(pickup_params_for(29), EffectParams::StatUp { atk: 1, def: 0 });
+        assert_eq!(pickup_params_for(30), EffectParams::StatUp { atk: 0, def: 1 });
+        // 血量（a.java:7581-7587）
+        assert_eq!(pickup_params_for(31), EffectParams::HpUp { delta: 50 });
+        assert_eq!(pickup_params_for(32), EffectParams::HpUp { delta: 200 });
+        // 装备 tier 面（a.java:7632-7648+7651-7662 tier 映射）
+        for (t, tier) in [(33, 1), (34, 2), (35, 3), (79, 4), (36, 5), (37, 7), (38, 8), (39, 9), (80, 10), (40, 11)] {
+            assert_eq!(
+                pickup_params_for(t),
+                EffectParams::Equip { tier, force: false },
+                "型 {t}→tier {tier}（force=false=拾取面）"
+            );
+        }
+        // default 臂（a.java:7630-7631 return）：NoOp 参数
+        assert_eq!(pickup_params_for(41), EffectParams::Stack { type_id: 41, tutorial: false }, "41+=default 臂参数占位");
+    }
+
+    /// Equip force 语义（a.java try_equip 完整体：force=true 跳 cur 检查强换）
+    /// ——script_ops:281 force 路径单源面。
+    #[test]
+    fn equip_force_semantics() {
+        let mut p = PlayerCombat { hp: 0, atk: 0, def: 0, yellow_keys: 0, blue_keys: 0, red_keys: 0, gold: 0, item_types: vec![0; 32], item_uses: vec![0; 32], item_stack_size: 0 };
+        let mut ts = false;
+        let (mut ew, mut ea) = (0, 0);
+        let mut c = ItemCtx { player: &mut p, floor: 3, tutorial_seen: &mut ts, equipped_weapon: &mut ew, equipped_armor: &mut ea, equip_types: [0, 33, 34, 35, 79, 36, 0, 37, 38, 39, 80, 40], equip_bonuses: [0, 10, 30, 70, 120, 220, 0, 10, 30, 70, 120, 220] };
+        // tier 5 换装成功
+        EquipEffect.apply(&mut c, &EffectParams::Equip { tier: 5, force: false });
+        assert_eq!(*c.equipped_weapon, 36);
+        // tier 1 低档 force=false→NotConsumed（cur>=tier）
+        let out = EquipEffect.apply(&mut c, &EffectParams::Equip { tier: 1, force: false });
+        assert_eq!(out, ItemOutcome::NotConsumed { fail_msg: true });
+        // tier 1 force=true→**强制换装**（跳检查；加成双动=−bonuses[5](220)+bonuses[1](10)）
+        let atk0 = c.player.atk;
+        let out = EquipEffect.apply(&mut c, &EffectParams::Equip { tier: 1, force: true });
+        assert_eq!(out, ItemOutcome::Consumed { overlay_tier: Some(1), hp_popup: None });
+        assert_eq!(*c.equipped_weapon, 33, "force 强换 type=33");
+        assert_eq!(c.player.atk, atk0 - 220 + 10, "force 路径加成双动（−旧档+新档）");
+    }
+}
+
 /// 【P1-2 等价测】逐臂语义钉（67 行 match 逐字抽象对拍——锚随断言）。
 #[cfg(test)]
 mod p1a2_tests {
@@ -351,7 +457,7 @@ mod p1a2_tests {
         let (mut ew, mut ea) = (0, 0);
         let mut c = ctx(&mut p, &mut ts, &mut ew, &mut ea);
         let out = StackEffect.apply(&mut c, &EffectParams::Stack { type_id: 15, tutorial: true });
-        assert_eq!(out, ItemOutcome::Consumed { overlay_tier: None });
+        assert_eq!(out, ItemOutcome::Consumed { overlay_tier: None, hp_popup: None });
         assert!(ts, "15=tutorialSeen（a.java:7538-7539）");
         assert_eq!(p.item_stack_size, 1, "addItemToItemStack 栈增");
     }
@@ -410,15 +516,15 @@ mod p1a2_tests {
         let mut c = ctx(&mut p, &mut ts, &mut ew, &mut ea);
         let atk0 = c.player.atk;
         // 空档→tier1 换装成功+**加成双动**（红-1：atk += bonuses[1] −= bonuses[0]）
-        let out = EquipEffect.apply(&mut c, &EffectParams::Equip { tier: 1 });
-        assert_eq!(out, ItemOutcome::Consumed { overlay_tier: Some(1) });
+        let out = EquipEffect.apply(&mut c, &EffectParams::Equip { tier: 1, force: false });
+        assert_eq!(out, ItemOutcome::Consumed { overlay_tier: Some(1), hp_popup: None });
         assert_eq!(*c.equipped_weapon, 33, "换装 type=33（equip_types[1]）");
         assert_eq!(c.player.atk, atk0 + 10, "加成双动=+bonuses[1](10)−bonuses[0](0)（try_equip 逐字）");
         // 同档→失败（cur>=tier："你拥有更强力装备"=NotConsumed fail_msg）
-        let out = EquipEffect.apply(&mut c, &EffectParams::Equip { tier: 1 });
+        let out = EquipEffect.apply(&mut c, &EffectParams::Equip { tier: 1, force: false });
         assert_eq!(out, ItemOutcome::NotConsumed { fail_msg: true });
         // 低档→失败（tier1 现档=1：cur>=tier 拒）
-        let out = EquipEffect.apply(&mut c, &EffectParams::Equip { tier: 1 });
+        let out = EquipEffect.apply(&mut c, &EffectParams::Equip { tier: 1, force: false });
         assert_eq!(out, ItemOutcome::NotConsumed { fail_msg: true });
     }
 
@@ -529,14 +635,14 @@ mod p1a2_tests {
         let (mut ew, mut ea) = (0, 0);
         let mut c = ctx(&mut p, &mut ts, &mut ew, &mut ea);
         // 第一步：tier 7 换装（空档 cur=m_083→0，+bonuses[7]=10）
-        let out = EquipEffect.apply(&mut c, &EffectParams::Equip { tier: 7 });
-        assert_eq!(out, ItemOutcome::Consumed { overlay_tier: Some(7) });
+        let out = EquipEffect.apply(&mut c, &EffectParams::Equip { tier: 7, force: false });
+        assert_eq!(out, ItemOutcome::Consumed { overlay_tier: Some(7), hp_popup: None });
         assert_eq!(*c.equipped_armor, 37, "防具段换装 type=37（equip_types[7]）");
         assert_eq!(c.player.def, 10, "加半=+bonuses[7](10)−bonuses[6](0)（M6 判加）");
         // 第二步：tier 11 低段→高段换装（cur=7 档 bonuses[7]=10≠0——
         // 【黄③ 减半真钉】def=10−bonuses[7](10)+bonuses[11](220)=220（M3 判减）
-        let out = EquipEffect.apply(&mut c, &EffectParams::Equip { tier: 11 });
-        assert_eq!(out, ItemOutcome::Consumed { overlay_tier: Some(11) });
+        let out = EquipEffect.apply(&mut c, &EffectParams::Equip { tier: 11, force: false });
+        assert_eq!(out, ItemOutcome::Consumed { overlay_tier: Some(11), hp_popup: None });
         assert_eq!(*c.equipped_armor, 40, "高段换装 type=40（equip_types[11]）");
         assert_eq!(c.player.def, 220, "减半+加半双动=−bonuses[7](10)+bonuses[11](220)（M3 删减必红）");
     }
