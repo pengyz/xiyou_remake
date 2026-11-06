@@ -247,9 +247,9 @@ mod tests {
             enemy_base_def: fixture_numbers("enemybasedef.txt"),
             difficulty_multipliers: fixture_numbers("difficulty_multipliers.txt"),
         };
-        sc.enemies = game_core::combat::scale_enemy_stats(&tables, 1);
-        sc.enemy_base_hp = tables.enemy_base_hp.clone();
-        sc.enemy_base_gold = fixture_numbers("enemybasegold.txt");
+        let __gold: Vec<i32> = fixture_numbers("enemybasegold.txt");
+        sc.enemy_base = tables.to_records(&__gold);
+        sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
         sc
     }
 
@@ -322,8 +322,8 @@ mod tests {
         // 按槽号误写的变异区分不了）——改成不可能由复活写出的值，任何按实体槽号的写入都会把它冲掉（复核 / 变异②）
         let slot = game_core::entity::cell_entity(&sc.grid, &sc.entities, 3, 10, 41);
         assert!(slot >= 0, "前置：怪物在 (3,10)");
-        sc.enemies.hp[slot as usize] = 987_654;
-        let hp_table_before = sc.enemies.hp.clone();
+        sc.enemies[slot as usize].hp = 987_654;
+        let hp_table_before: Vec<i32> = sc.enemies.iter().map(|r| r.hp).collect();
         let ent_before = sc.entities.items[slot as usize];
         let wt = sc.width_table.clone();
         let _ = sc.walk_to(3, 10);
@@ -365,7 +365,7 @@ mod tests {
             (ent_before.type_, ent_before.px, ent_before.py, ent_before.param, ent_before.sprite_w, ent_before.sprite_h, ent_before.anim_row),
             "复活实体的型 / 位置 / 参数 / 精灵 / 动画行 = 开战前"
         );
-        assert_eq!(sc.enemies.hp, hp_table_before, "全局怪物属性表不变");
+        assert_eq!(sc.enemies.iter().map(|r| r.hp).collect::<Vec<i32>>(), hp_table_before, "全局怪物属性表不变");
         assert_eq!((sc.player.hp, sc.player.gold), (500, 7), "玩家血 / 金回到战前");
         // 位移笔逆放已把玩家放回战前格（复核 T3-R8：不手工摆位，免得掩盖位移撤销放错格）
         assert_eq!((sc.player_cell_x, sc.player_cell_y, sc.view.player_px, sc.view.player_py), (2, 10, 2 << 5, 10 << 5), "玩家回到战前格");

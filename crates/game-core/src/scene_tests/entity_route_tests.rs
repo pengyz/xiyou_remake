@@ -103,8 +103,8 @@
         assert_eq!(sc.battle_target, e);
         assert_eq!(sc.entities.items[eu].state, 5);
         assert!(!sc.battle_no_counter);
-        assert_eq!(sc.battle_enemy_hp, sc.enemies.hp[ti], "缩放表 HP（a.java:8769，非 bump 战的基础表）");
-        let strike = sc.enemies.atk[ti].max(0);
+        assert_eq!(sc.battle_enemy_hp, sc.enemies[ti].hp, "缩放表 HP（a.java:8769，非 bump 战的基础表）");
+        let strike = sc.enemies[ti].atk.max(0);
         assert_eq!(sc.player.hp, 500 - strike, "敌先手一击");
         assert_eq!(sc.walk_step_count, 2, "余步保留（战斗收尾不再消费）");
         // case5：1 拍击杀 + 6 拍死亡动画

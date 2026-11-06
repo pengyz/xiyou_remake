@@ -332,9 +332,9 @@ fn run_scene(spec: &Spec, mut observe: impl FnMut(u32, &GameScene)) -> GameScene
                     .iter()
                     .find(|(k, _)| k.starts_with("MOT_IF@"))
                     .map(|(_, v)| v.clone());
-                sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                sc.enemy_base_gold = numbers(include_str!("fixtures/enemybasegold.txt"));
+                let __gold: Vec<i32> = numbers(include_str!("fixtures/enemybasegold.txt"));
+                sc.enemy_base = combat_tables.to_records(&__gold);
+                sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                 // rng 续接 machine LCG（docs/knowledge/gotcha_gamescene-rng-must-continue-machine-lcg.md）
                 sc.rng = m.rng.clone();
                 if pending_key != 0 {

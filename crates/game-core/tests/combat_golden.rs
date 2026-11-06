@@ -58,12 +58,13 @@ fn predict_battle_hp_loss_matches_deobf_arithmetic() {
 #[test]
 fn scale_enemy_stats_multiplies_base() {
     let base = tables();
-    let scaled = scale_enemy_stats(&base, 1);
-    // trace 实证（floor1 敌 popup 27 = 敌 HP 基值域内；baseHp[0]=35 为首敌）
-    assert_eq!(scaled.hp[0], base.enemy_base_hp[0]);
-    assert_eq!(scaled.atk[0], base.enemy_base_atk[0]);
-    let scaled30 = scale_enemy_stats(&base, 30);
-    assert_eq!(scaled30.hp[0], base.enemy_base_hp[0] * 30);
+    let gold = vec![0i32; base.enemy_base_hp.len()];
+    let recs = base.to_records(&gold);
+    let scaled = scale_enemy_stats(&recs, 1);
+    assert_eq!(scaled[0].hp, base.enemy_base_hp[0]);
+    assert_eq!(scaled[0].atk, base.enemy_base_atk[0]);
+    let scaled30 = scale_enemy_stats(&recs, 30);
+    assert_eq!(scaled30[0].hp, base.enemy_base_hp[0] * 30);
 }
 
 #[test]

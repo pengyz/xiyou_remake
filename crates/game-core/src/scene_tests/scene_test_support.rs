@@ -176,8 +176,8 @@
             enemy_base_def: numbers(include_str!("../../tests/fixtures/enemybasedef.txt")),
             difficulty_multipliers: numbers(include_str!("../../tests/fixtures/difficulty_multipliers.txt")),
         };
-        sc.enemies = crate::combat::scale_enemy_stats(&tables, 1);
-        sc.enemy_base_hp = tables.enemy_base_hp.clone();
-        sc.enemy_base_gold = numbers(include_str!("../../tests/fixtures/enemybasegold.txt"));
+        let __gold: Vec<i32> = numbers(include_str!("../../tests/fixtures/enemybasegold.txt"));
+        sc.enemy_base = tables.to_records(&__gold);
+        sc.enemies = crate::combat::scale_enemy_stats(&sc.enemy_base, 1);
         sc
     }

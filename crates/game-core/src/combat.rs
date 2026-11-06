@@ -18,6 +18,35 @@ pub struct CombatTables {
     pub difficulty_multipliers: Vec<i32>,
 }
 
+impl CombatTables {
+    /// 【P1-6 一次性切】四表横列→EnemyDef 逐行聚合（gold=独立表传参——
+    /// 消费面=记录（SoA 零残留）；装载入形保留=fixture/生成器数据形）。
+    pub fn to_records(&self, gold: &[i32]) -> Vec<game_data::defs::EnemyDef> {
+        (0..self.enemy_base_hp.len())
+            .map(|i| game_data::defs::EnemyDef {
+                id: 41 + i as i32,
+                hp: self.enemy_base_hp[i],
+                atk: self.enemy_base_atk[i],
+                def: self.enemy_base_def[i],
+                gold: gold[i],
+                trait_flags: trait_flags_for(41 + i as i32),
+            })
+            .collect()
+    }
+}
+
+/// traitFlagsByType 行为键（a.java:6266-6267 稀疏逐字：49/53/74=1、69=2）
+/// ——唯一源（scene 侧 trait_flags 表查已并入记录）。
+pub use game_data::defs::EnemyDef;
+
+pub fn trait_flags_for(t: i32) -> u8 {
+    match t {
+        49 | 53 | 74 => 1,
+        69 => 2,
+        _ => 0,
+    }
+}
+
 /// 玩家侧战斗相关字段（RES_0 重置集与 tickBattle 读写面）。
 pub struct PlayerCombat {
     pub hp: i32,
@@ -46,23 +75,21 @@ impl PlayerCombat {
 }
 
 /// 敌方缩放三表（scaleEnemyStats a.java:7203-7227：scaled = base × multiplier）。
-#[derive(Default)]
-pub struct ScaledEnemies {
-    pub atk: Vec<i32>,
-    pub def: Vec<i32>,
-    pub hp: Vec<i32>,
+/// 敌方缩放（scaleEnemyStats a.java:7203-7227：scaled=base×multiplier——
+/// hp/atk/def 乘算，gold/trait_flags 透传）。
+pub fn scale_enemy_stats(base: &[game_data::defs::EnemyDef], multiplier: i32) -> Vec<game_data::defs::EnemyDef> {
+    base.iter()
+        .map(|r| game_data::defs::EnemyDef {
+            id: r.id,
+            hp: r.hp * multiplier,
+            atk: r.atk * multiplier,
+            def: r.def * multiplier,
+            gold: r.gold,
+            trait_flags: r.trait_flags,
+        })
+        .collect()
 }
 
-pub fn scale_enemy_stats(base: &CombatTables, multiplier: i32) -> ScaledEnemies {
-    ScaledEnemies {
-        atk: base.enemy_base_atk.iter().map(|v| v * multiplier).collect(),
-        def: base.enemy_base_def.iter().map(|v| v * multiplier).collect(),
-        hp: base.enemy_base_hp.iter().map(|v| v * multiplier).collect(),
-    }
-}
-
-/// effectiveAttackVsType 忠实移植（a.java:9969-9973）：
-/// 特性位 &1 + 背包有 23 号 → ×2；特性位 &2 + 背包有 24 号 → ×2；返回 atk × 倍。
 pub fn effective_attack_vs_type(player: &PlayerCombat, trait_flags: u8) -> i32 {
     use item_kind::{TRAIT1_AMULET, TRAIT2_AMULET};
     let mut mult = 1;

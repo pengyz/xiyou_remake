@@ -133,9 +133,9 @@ pub fn install_combat_tables(sc: &mut GameScene) {
         enemy_base_def: fixture!("enemybasedef.txt"),
         difficulty_multipliers: fixture!("difficulty_multipliers.txt"),
     };
-    sc.enemies = game_core::combat::scale_enemy_stats(&tables, 1);
-    sc.enemy_base_hp = tables.enemy_base_hp;
-    sc.enemy_base_gold = fixture!("enemybasegold.txt");
+    let __gold: Vec<i32> = fixture!("enemybasegold.txt");
+    sc.enemy_base = tables.to_records(&__gold);
+    sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
 }
 
 /// 交接二：新游戏（序章冷启动——与 prologue 用例同构；step8 统计 floor51/hp300/
@@ -338,7 +338,7 @@ mod tests {
         assert_eq!((sc.persist.floor, sc.persist.min_floor, sc.persist.max_floor), (51, 51, 51), "序章层 51");
         assert_eq!((sc.player.hp, sc.player.atk, sc.player.def), (300, 10, 10), "冷启动统计 a.java:3496-3506");
         assert!(!m.new_game_ready, "交接信号一次性消费（回标题后不得再开新游戏）");
-        assert!(!sc.enemy_base_hp.is_empty(), "敌人数值表已装配");
+        assert!(!sc.enemy_base.is_empty(), "敌人数值表已装配");
     }
 
     /// oracle 预置存档夹具（reference/ 只读；格式 `键=hex`，win 壳 preset_stores 同口径）。

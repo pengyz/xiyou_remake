@@ -192,9 +192,9 @@ fn build_scene() -> GameScene {
         difficulty_multipliers: fixture_ints("difficulty_multipliers.txt"),
     };
     let mult = base.difficulty_multipliers[s.difficulty_index as usize];
-    scene.enemies = game_core::combat::scale_enemy_stats(&base, mult);
-    scene.enemy_base_hp = base.enemy_base_hp.clone();
-    scene.enemy_base_gold = fixture_ints("enemybasegold.txt");
+    let __gold: Vec<i32> = fixture_ints("enemybasegold.txt");
+    scene.enemy_base = base.to_records(&__gold);
+    scene.enemies = game_core::combat::scale_enemy_stats(&scene.enemy_base, mult);
     let sky_war = stores
         .iter()
         .find(|(k, _)| k.starts_with("SKY_WAR"))

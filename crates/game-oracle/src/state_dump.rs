@@ -168,7 +168,11 @@ pub fn dump_scene(sc: &GameScene) -> Vec<String> {
     push(e_byte_arr("entityState", &ea_u8(|e| e.state)));
     push(e_bool_arr("entityVisible", &ea_bool(|e| e.visible)));
     push(e_bool_arr("entityRemoved", &ea_bool(|e| e.removed)));
-    push(e_int_arr("enemyBaseGold", &sc.enemy_base_gold));
+    // 【P1-6 ②·A2 裁决】键名/值序/字节冻（74 金样逐字节）；值源=EnemyDef
+    // 记录派生（唯一真值——消费面 SoA 已删；输出面派生非双轨）。41..75 序=
+    // to_records 构造序逐位同。
+    let enemy_base_gold_derived: Vec<i32> = sc.enemy_base.iter().map(|r| r.gold).collect();
+    push(e_int_arr("enemyBaseGold", &enemy_base_gold_derived));
     push(e_byte_arr("walkPathBuffer", &sc.walk_path_buffer));
     // ── P1-a1 dump 补面 6 组（DDDSA 前置件——名=Java 字段名 javap FLD 序；
     //    statediff 名集相等约束；A2 行序冻结对象=本 push 序）──

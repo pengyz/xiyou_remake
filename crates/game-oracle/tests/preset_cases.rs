@@ -664,9 +664,9 @@ fn preset_item13_frames_match() {
                         enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                         difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                 };
-                sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                sc.enemy_base = combat_tables.to_records(&__gold);
+                sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                 // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                 // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                 // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -877,9 +877,9 @@ fn preset_itemstack_frames_match() {
                         enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                         difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                 };
-                sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                sc.enemy_base = combat_tables.to_records(&__gold);
+                sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                 // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                 // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                 // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -1109,9 +1109,9 @@ fn preset_item2122_frames_match() {
                         enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                         difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                 };
-                sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                sc.enemy_base = combat_tables.to_records(&__gold);
+                sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                 // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                 // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                 // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -1344,9 +1344,9 @@ fn preset_item21_frames_match() {
                         enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                         difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                 };
-                sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                sc.enemy_base = combat_tables.to_records(&__gold);
+                sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                 // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                 // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                 // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -1558,9 +1558,9 @@ fn preset_itemcymbal_frames_match() {
                         enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                         difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                 };
-                sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                sc.enemy_base = combat_tables.to_records(&__gold);
+                sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                 // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                 // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                 // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -1810,9 +1810,9 @@ fn preset_itemboss40_frames_match() {
                             enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                             difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                     };
-                    sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                    sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                    sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    sc.enemy_base = combat_tables.to_records(&__gold);
+                    sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                     // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                     // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                     // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -2047,9 +2047,9 @@ fn preset_floor2_frames_match() {
                             enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                             difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                     };
-                    sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                    sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                    sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    sc.enemy_base = combat_tables.to_records(&__gold);
+                    sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                     // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                     // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                     // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -2283,9 +2283,9 @@ fn preset_merchant_frames_match() {
                             enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                             difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                     };
-                    sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                    sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                    sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    sc.enemy_base = combat_tables.to_records(&__gold);
+                    sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                     // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                     // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                     // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -2511,9 +2511,9 @@ fn floor_crossing_frames_match() {
                             enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                             difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                     };
-                    sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                    sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                    sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    sc.enemy_base = combat_tables.to_records(&__gold);
+                    sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                     // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                     // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                     // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -2723,17 +2723,15 @@ fn prologue_frames_match() {
                 sc.player.hp = 300;
                 sc.player.atk = 10;
                 sc.player.def = 10;
-                sc.enemies = game_core::combat::scale_enemy_stats(
-                    &game_core::combat::CombatTables {
+                let __tables = game_core::combat::CombatTables {
                         enemy_base_hp: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasehp.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                         enemy_base_atk: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybaseatk.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                         enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                         difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
-                    },
-                    1,
-                );
-                sc.enemy_base_hp = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasehp.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
-                sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                };
+                let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();;
+                sc.enemy_base = __tables.to_records(&__gold);
+                sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                 sc.build_minimap();
                 sc.enter_view();
                 // 连续量移交（Java 单实例语义）：bob/图标条帧/视差滚动/rng LCG 位置
@@ -2944,17 +2942,15 @@ fn floor51_menu_frames_match() {
                 sc.player.hp = 300;
                 sc.player.atk = 10;
                 sc.player.def = 10;
-                sc.enemies = game_core::combat::scale_enemy_stats(
-                    &game_core::combat::CombatTables {
+                let __tables = game_core::combat::CombatTables {
                         enemy_base_hp: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasehp.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                         enemy_base_atk: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybaseatk.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                         enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                         difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
-                    },
-                    1,
-                );
-                sc.enemy_base_hp = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasehp.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
-                sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                };
+                let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();;
+                sc.enemy_base = __tables.to_records(&__gold);
+                sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                 sc.build_minimap();
                 sc.enter_view();
                 // 连续量移交（Java 单实例语义）：bob/图标条帧/视差滚动/rng LCG 位置
@@ -3184,9 +3180,9 @@ fn gameplay_floor1_frames_match() {
                             enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                             difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                     };
-                    sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                    sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                    sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    sc.enemy_base = combat_tables.to_records(&__gold);
+                    sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                     // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                     // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                     // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -3413,9 +3409,9 @@ fn floor2_tour_frames_match() {
                             enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                             difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                     };
-                    sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                    sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                    sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    sc.enemy_base = combat_tables.to_records(&__gold);
+                    sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                     // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                     // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                     // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -3640,9 +3636,9 @@ fn floor1_tour_frames_match() {
                             enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                             difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                     };
-                    sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                    sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                    sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    sc.enemy_base = combat_tables.to_records(&__gold);
+                    sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                     // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                     // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                     // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -3867,9 +3863,9 @@ fn walk_pure_frames_match() {
                             enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                             difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                     };
-                    sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                    sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                    sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    sc.enemy_base = combat_tables.to_records(&__gold);
+                    sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                     // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                     // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                     // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -4085,9 +4081,9 @@ fn preset_save_frames_match() {
                             enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                             difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                     };
-                    sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                    sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                    sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    sc.enemy_base = combat_tables.to_records(&__gold);
+                    sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                     // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                     // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                     // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -4325,9 +4321,9 @@ fn preset_floor35_frames_match() {
                             enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                             difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                     };
-                    sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                    sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                    sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    sc.enemy_base = combat_tables.to_records(&__gold);
+                    sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                     // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                     // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                     // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -4564,9 +4560,9 @@ fn preset_floor10_frames_match() {
                             enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                             difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                     };
-                    sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                    sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                    sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    sc.enemy_base = combat_tables.to_records(&__gold);
+                    sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                     // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                     // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                     // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -4820,9 +4816,9 @@ fn preset_floor46_frames_match() {
                             enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                             difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                     };
-                    sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                    sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                    sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    sc.enemy_base = combat_tables.to_records(&__gold);
+                    sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                     // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                     // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                     // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -5060,9 +5056,9 @@ fn preset_floor41_frames_match() {
                             enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                             difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                     };
-                    sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                    sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                    sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    sc.enemy_base = combat_tables.to_records(&__gold);
+                    sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                     // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                     // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                     // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -5292,9 +5288,9 @@ fn preset_floor44_frames_match() {
                             enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                             difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                     };
-                    sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                    sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                    sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    sc.enemy_base = combat_tables.to_records(&__gold);
+                    sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                     // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                     // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                     // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -5524,9 +5520,9 @@ fn preset_floor45_frames_match() {
                             enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                             difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                     };
-                    sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                    sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                    sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    sc.enemy_base = combat_tables.to_records(&__gold);
+                    sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                     // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                     // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                     // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -5758,9 +5754,9 @@ fn preset_floor48_frames_match() {
                             enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                             difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                     };
-                    sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                    sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                    sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    sc.enemy_base = combat_tables.to_records(&__gold);
+                    sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                     // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                     // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                     // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -5993,9 +5989,9 @@ fn preset_floor14_frames_match() {
                             enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                             difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                     };
-                    sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                    sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                    sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    sc.enemy_base = combat_tables.to_records(&__gold);
+                    sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                     // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                     // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                     // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -6226,9 +6222,9 @@ fn preset_floor38_frames_match() {
                             enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                             difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                     };
-                    sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                    sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                    sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    sc.enemy_base = combat_tables.to_records(&__gold);
+                    sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                     // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                     // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                     // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -6457,9 +6453,9 @@ fn preset_floor47_frames_match() {
                             enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                             difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                     };
-                    sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                    sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                    sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    sc.enemy_base = combat_tables.to_records(&__gold);
+                    sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                     // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                     // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                     // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -6686,9 +6682,9 @@ fn preset_floor34_frames_match() {
                             enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                             difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                     };
-                    sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                    sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                    sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    sc.enemy_base = combat_tables.to_records(&__gold);
+                    sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                     // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                     // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                     // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -6915,9 +6911,9 @@ fn preset_floor10_nw_frames_match() {
                             enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                             difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                     };
-                    sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                    sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                    sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    sc.enemy_base = combat_tables.to_records(&__gold);
+                    sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                     // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                     // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                     // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -7143,9 +7139,9 @@ fn preset_floor10b_frames_match() {
                             enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                             difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                     };
-                    sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                    sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                    sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    sc.enemy_base = combat_tables.to_records(&__gold);
+                    sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                     // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                     // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                     // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -7371,9 +7367,9 @@ fn preset_floor17_frames_match() {
                             enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                             difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                     };
-                    sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                    sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                    sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    sc.enemy_base = combat_tables.to_records(&__gold);
+                    sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                     // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                     // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                     // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -7612,9 +7608,9 @@ fn preset_floor42_frames_match() {
                             enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                             difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                     };
-                    sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                    sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                    sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    sc.enemy_base = combat_tables.to_records(&__gold);
+                    sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                     // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                     // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                     // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -7849,9 +7845,9 @@ fn preset_floor43_frames_match() {
                             enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                             difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                     };
-                    sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                    sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                    sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    sc.enemy_base = combat_tables.to_records(&__gold);
+                    sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                     // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                     // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                     // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0
@@ -8082,9 +8078,9 @@ fn preset_alchemy_frames_match() {
                             enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                             difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                     };
-                    sc.enemies = game_core::combat::scale_enemy_stats(&combat_tables, 1);
-                    sc.enemy_base_hp = combat_tables.enemy_base_hp.clone();
-                    sc.enemy_base_gold = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+                    sc.enemy_base = combat_tables.to_records(&__gold);
+                    sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                     // rng 连续性（a.java:2324 单一 gameRandom 实例）：machine 阶段
                     // （标题雪花等）已消费的 LCG 位置必须带入场景——战斗抖动
                     // （a.java:6559-6560 randomBelow(5)）是场景首个消费者，若重置种子 0

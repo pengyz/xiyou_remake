@@ -300,11 +300,11 @@ pub struct GameScene {
     pub player_bob_applied: bool, // player_bob_applied
     /// 玩家战斗面（HP/攻/防/三钥/金/物品栈——tickBattle 与拾取的读写集）
     pub player: crate::combat::PlayerCombat,
-    /// 敌方缩放表（scaleEnemyStats：difficultyIndex=0 → ×1）
-    pub enemies: crate::combat::ScaledEnemies,
-    /// 敌方基础表（enemyBaseHp/enemyBaseGold，a.java:1044/1121；夹具）
-    pub enemy_base_hp: Vec<i32>,
-    pub enemy_base_gold: Vec<i32>,
+        /// 敌方缩放记录（EnemyDef——P1-6 一次性切：SoA Vec 族收束；scale=
+    /// base×mult hp/atk/def，gold/trait 透传）
+    pub enemies: Vec<crate::combat::EnemyDef>,
+    /// 敌方基础记录（gold/trait 源+battle 初始血源 3642 面）
+    pub enemy_base: Vec<crate::combat::EnemyDef>,
     /// —— mode 9 炼丹（run case 9 a.java:3885-3940 / paint case 9 a.java:2690-2740）——
     /// alchemyPrice：当前升级价（alchemyPriceFor(upgrades+1)，a.java:7256）
     pub alchemy_price: i32,
@@ -2050,14 +2050,14 @@ impl GameScene {
                         let loss = self.predict_hp_loss(t, false);
                         if loss >= 0 && loss < self.player.hp {
                             let ti = (t - 41) as usize;
-                            self.battle_enemy_hp = self.enemies.hp[ti]; // enemyHpScaled（a.java:8769）
+                            self.battle_enemy_hp = self.enemies[ti].hp; // enemyHpScaled（a.java:8769）
                             self.walk_phase = 5;
                             self.battle_active = false;
                             self.battle_target = self.route_entity;
                             self.entities.items[e].state = 5;
                             self.route_phase = 5;
                             self.battle_no_counter = false;
-                            let strike = self.enemies.atk[ti] - self.player.def;
+                            let strike = self.enemies[ti].atk - self.player.def;
                             if strike > 0 {
                                 self.player.hp -= strike;
                             }
@@ -2308,9 +2308,9 @@ impl GameScene {
             {
                 entity::remove(&mut self.entities, e);
                 let gold = if self.player.find_item(25) >= 0 {
-                    self.enemy_base_gold[(t - 41) as usize] << 1
+                    self.enemy_base[(t - 41) as usize].gold << 1
                 } else {
-                    self.enemy_base_gold[(t - 41) as usize]
+                    self.enemy_base[(t - 41) as usize].gold
                 };
                 self.player.gold += gold;
                 if gold > 0 {
@@ -3639,7 +3639,7 @@ impl GameScene {
                                     self.entities.items[e].state = 3;
                                     self.battle_target = e as i32;
                                     // battleEnemyHp = enemyBaseHp[type-41]（**基础表**非缩放表）
-                                    self.battle_enemy_hp = self.enemy_base_hp[(t - 41) as usize];
+                                    self.battle_enemy_hp = self.enemy_base[(t - 41) as usize].hp;
                                     // 【T2】撞敌=事件挂起（段收于实际终点=敌格，T1 挂点）
                                     // ——仅 WalkTo/探步寻路段记账；经典面 route 未开放=零写入
                                     if self.route.is_open() {
@@ -3727,20 +3727,21 @@ impl GameScene {
             crate::combat::predict_battle_hp_loss(
                 atk,
                 self.player.def,
-                self.enemies.hp[idx],
-                self.enemies.atk[idx],
-                self.enemies.def[idx],
+                self.enemies[idx].hp,
+                self.enemies[idx].atk,
+                self.enemies[idx].def,
                 no_counter,
             )
         }
 
         /// traitFlagsByType 特性位（initEntityTables a.java:6266-6262：49/53/74=1、69=2）。
         fn trait_flags(&self, t: i32) -> u8 {
-            match t {
-                49 | 53 | 74 => 1,
-                69 => 2,
-                _ => 0,
-            }
+            // 【P1-6 一次性切】行为键=EnemyDef 记录字段（唯一源 trait_flags_for
+            // a.java:6266-6267——本表查删，SoA/表双轨面收束）
+            self.enemy_base
+                .get((t - 41) as usize)
+                .map(|r| r.trait_flags)
+                .unwrap_or(0)
         }
 
         /// tickBattle（a.java:10023-10149）：4 拍一击 → 胜利 → 死亡动画 6 拍 →
@@ -3754,7 +3755,7 @@ impl GameScene {
                     let t = self.entities.items[e].type_;
                     let idx = (t - 41) as usize;
                     let dmg = crate::combat::effective_attack_vs_type(&self.player, self.trait_flags(t))
-                        - self.enemies.def[idx];
+                        - self.enemies[idx].def;
                     if dmg > 0 {
                         if (self.battle_tick & 3) == 0 {
                             self.battle_enemy_hp -= dmg;
@@ -3769,7 +3770,7 @@ impl GameScene {
                                 self.images.popup.digit_strips[0].width / 11,
                             );
                             if self.battle_enemy_hp > 0 {
-                                let counter = self.enemies.atk[idx] - self.player.def;
+                                let counter = self.enemies[idx].atk - self.player.def;
                                 if counter > 0 {
                                     self.player.hp -= counter;
                                 }
@@ -3789,9 +3790,9 @@ impl GameScene {
                                     );
                                 }
                                 let gold = if self.player.find_item(25) >= 0 {
-                                    self.enemy_base_gold[idx] << 1
+                                    self.enemy_base[idx].gold << 1
                                 } else {
-                                    self.enemy_base_gold[idx]
+                                    self.enemy_base[idx].gold
                                 };
                                 let (gx, gy) = (self.entities.items[e].px, self.entities.items[e].py);
                                 self.player.gold += gold;

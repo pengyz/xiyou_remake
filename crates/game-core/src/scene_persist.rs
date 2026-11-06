@@ -111,9 +111,8 @@ impl GameScene {
                 item_uses: vec![0; 32], // 【P1-a1 黄①】Java byte[32] 对齐
                 item_stack_size: 0,
             },
-            enemies: crate::combat::ScaledEnemies::default(),
-            enemy_base_hp: Vec::new(),
-            enemy_base_gold: Vec::new(),
+            enemies: Vec::new(),
+            enemy_base: Vec::new(),
             menu: scene_menu::MenuState {
     softkeys: (1, 3),
     tutorial_seen: false,
