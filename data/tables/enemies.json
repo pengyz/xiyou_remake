@@ -1,0 +1,608 @@
+{
+ "schema_version": 2,
+ "note": "DDDSA P1-6 EnemyDef 聚合（per-type 属性束；生成器 tools/enemy-defs/gen_enemies.py 逐值迁）；difficulty_multipliers=全局表非 per-type（a.java:2236）",
+ "difficulty_multipliers": [
+  1,
+  30,
+  60,
+  80,
+  100
+ ],
+ "rows": [
+  {
+   "id": 41,
+   "hp": 35,
+   "atk": 18,
+   "def": 1,
+   "gold": 1,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[0]",
+    "atk": "enemyBaseAtk[0]",
+    "def": "enemyBaseDef[0]",
+    "gold": "enemyBaseGold[0]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 42,
+   "hp": 45,
+   "atk": 20,
+   "def": 2,
+   "gold": 2,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[1]",
+    "atk": "enemyBaseAtk[1]",
+    "def": "enemyBaseDef[1]",
+    "gold": "enemyBaseGold[1]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 43,
+   "hp": 35,
+   "atk": 38,
+   "def": 3,
+   "gold": 3,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[2]",
+    "atk": "enemyBaseAtk[2]",
+    "def": "enemyBaseDef[2]",
+    "gold": "enemyBaseGold[2]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 44,
+   "hp": 50,
+   "atk": 42,
+   "def": 6,
+   "gold": 6,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[3]",
+    "atk": "enemyBaseAtk[3]",
+    "def": "enemyBaseDef[3]",
+    "gold": "enemyBaseGold[3]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 45,
+   "hp": 60,
+   "atk": 32,
+   "def": 8,
+   "gold": 5,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[4]",
+    "atk": "enemyBaseAtk[4]",
+    "def": "enemyBaseDef[4]",
+    "gold": "enemyBaseGold[4]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 46,
+   "hp": 55,
+   "atk": 52,
+   "def": 12,
+   "gold": 8,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[5]",
+    "atk": "enemyBaseAtk[5]",
+    "def": "enemyBaseDef[5]",
+    "gold": "enemyBaseGold[5]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 47,
+   "hp": 100,
+   "atk": 180,
+   "def": 110,
+   "gold": 100,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[6]",
+    "atk": "enemyBaseAtk[6]",
+    "def": "enemyBaseDef[6]",
+    "gold": "enemyBaseGold[6]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 48,
+   "hp": 50,
+   "atk": 48,
+   "def": 22,
+   "gold": 12,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[7]",
+    "atk": "enemyBaseAtk[7]",
+    "def": "enemyBaseDef[7]",
+    "gold": "enemyBaseGold[7]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 49,
+   "hp": 260,
+   "atk": 85,
+   "def": 5,
+   "gold": 18,
+   "behavior": {
+    "trait_flags": 1
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[8]",
+    "atk": "enemyBaseAtk[8]",
+    "def": "enemyBaseDef[8]",
+    "gold": "enemyBaseGold[8]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 50,
+   "hp": 60,
+   "atk": 100,
+   "def": 8,
+   "gold": 12,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[9]",
+    "atk": "enemyBaseAtk[9]",
+    "def": "enemyBaseDef[9]",
+    "gold": "enemyBaseGold[9]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 51,
+   "hp": 130,
+   "atk": 60,
+   "def": 3,
+   "gold": 8,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[10]",
+    "atk": "enemyBaseAtk[10]",
+    "def": "enemyBaseDef[10]",
+    "gold": "enemyBaseGold[10]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 52,
+   "hp": 100,
+   "atk": 95,
+   "def": 30,
+   "gold": 22,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[11]",
+    "atk": "enemyBaseAtk[11]",
+    "def": "enemyBaseDef[11]",
+    "gold": "enemyBaseGold[11]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 53,
+   "hp": 320,
+   "atk": 120,
+   "def": 15,
+   "gold": 30,
+   "behavior": {
+    "trait_flags": 1
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[12]",
+    "atk": "enemyBaseAtk[12]",
+    "def": "enemyBaseDef[12]",
+    "gold": "enemyBaseGold[12]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 54,
+   "hp": 20,
+   "atk": 100,
+   "def": 68,
+   "gold": 28,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[13]",
+    "atk": "enemyBaseAtk[13]",
+    "def": "enemyBaseDef[13]",
+    "gold": "enemyBaseGold[13]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 55,
+   "hp": 320,
+   "atk": 140,
+   "def": 20,
+   "gold": 30,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[14]",
+    "atk": "enemyBaseAtk[14]",
+    "def": "enemyBaseDef[14]",
+    "gold": "enemyBaseGold[14]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 56,
+   "hp": 100,
+   "atk": 680,
+   "def": 50,
+   "gold": 55,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[15]",
+    "atk": "enemyBaseAtk[15]",
+    "def": "enemyBaseDef[15]",
+    "gold": "enemyBaseGold[15]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 57,
+   "hp": 210,
+   "atk": 200,
+   "def": 65,
+   "gold": 45,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[16]",
+    "atk": "enemyBaseAtk[16]",
+    "def": "enemyBaseDef[16]",
+    "gold": "enemyBaseGold[16]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 58,
+   "hp": 220,
+   "atk": 180,
+   "def": 30,
+   "gold": 35,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[17]",
+    "atk": "enemyBaseAtk[17]",
+    "def": "enemyBaseDef[17]",
+    "gold": "enemyBaseGold[17]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 59,
+   "hp": 160,
+   "atk": 230,
+   "def": 105,
+   "gold": 65,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[18]",
+    "atk": "enemyBaseAtk[18]",
+    "def": "enemyBaseDef[18]",
+    "gold": "enemyBaseGold[18]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 60,
+   "hp": 200,
+   "atk": 380,
+   "def": 130,
+   "gold": 90,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[19]",
+    "atk": "enemyBaseAtk[19]",
+    "def": "enemyBaseDef[19]",
+    "gold": "enemyBaseGold[19]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 61,
+   "hp": 230,
+   "atk": 450,
+   "def": 100,
+   "gold": 100,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[20]",
+    "atk": "enemyBaseAtk[20]",
+    "def": "enemyBaseDef[20]",
+    "gold": "enemyBaseGold[20]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 62,
+   "hp": 220,
+   "atk": 370,
+   "def": 110,
+   "gold": 80,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[21]",
+    "atk": "enemyBaseAtk[21]",
+    "def": "enemyBaseDef[21]",
+    "gold": "enemyBaseGold[21]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 63,
+   "hp": 200,
+   "atk": 390,
+   "def": 90,
+   "gold": 50,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[22]",
+    "atk": "enemyBaseAtk[22]",
+    "def": "enemyBaseDef[22]",
+    "gold": "enemyBaseGold[22]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 64,
+   "hp": 360,
+   "atk": 310,
+   "def": 20,
+   "gold": 40,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[23]",
+    "atk": "enemyBaseAtk[23]",
+    "def": "enemyBaseDef[23]",
+    "gold": "enemyBaseGold[23]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 65,
+   "hp": 180,
+   "atk": 430,
+   "def": 210,
+   "gold": 120,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[24]",
+    "atk": "enemyBaseAtk[24]",
+    "def": "enemyBaseDef[24]",
+    "gold": "enemyBaseGold[24]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 66,
+   "hp": 180,
+   "atk": 460,
+   "def": 360,
+   "gold": 200,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[25]",
+    "atk": "enemyBaseAtk[25]",
+    "def": "enemyBaseDef[25]",
+    "gold": "enemyBaseGold[25]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 67,
+   "hp": 1200,
+   "atk": 180,
+   "def": 20,
+   "gold": 100,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[26]",
+    "atk": "enemyBaseAtk[26]",
+    "def": "enemyBaseDef[26]",
+    "gold": "enemyBaseGold[26]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 68,
+   "hp": 4500,
+   "atk": 560,
+   "def": 310,
+   "gold": 1000,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[27]",
+    "atk": "enemyBaseAtk[27]",
+    "def": "enemyBaseDef[27]",
+    "gold": "enemyBaseGold[27]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 69,
+   "hp": 1500,
+   "atk": 600,
+   "def": 250,
+   "gold": 800,
+   "behavior": {
+    "trait_flags": 2
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[28]",
+    "atk": "enemyBaseAtk[28]",
+    "def": "enemyBaseDef[28]",
+    "gold": "enemyBaseGold[28]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 70,
+   "hp": 8000,
+   "atk": 5000,
+   "def": 1000,
+   "gold": 500,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[29]",
+    "atk": "enemyBaseAtk[29]",
+    "def": "enemyBaseDef[29]",
+    "gold": "enemyBaseGold[29]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 71,
+   "hp": 800,
+   "atk": 500,
+   "def": 100,
+   "gold": 500,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[30]",
+    "atk": "enemyBaseAtk[30]",
+    "def": "enemyBaseDef[30]",
+    "gold": "enemyBaseGold[30]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 72,
+   "hp": 5000,
+   "atk": 1580,
+   "def": 190,
+   "gold": 500,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[31]",
+    "atk": "enemyBaseAtk[31]",
+    "def": "enemyBaseDef[31]",
+    "gold": "enemyBaseGold[31]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 73,
+   "hp": 120,
+   "atk": 150,
+   "def": 50,
+   "gold": 100,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[32]",
+    "atk": "enemyBaseAtk[32]",
+    "def": "enemyBaseDef[32]",
+    "gold": "enemyBaseGold[32]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 74,
+   "hp": 444,
+   "atk": 199,
+   "def": 66,
+   "gold": 144,
+   "behavior": {
+    "trait_flags": 1
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[33]",
+    "atk": "enemyBaseAtk[33]",
+    "def": "enemyBaseDef[33]",
+    "gold": "enemyBaseGold[33]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  },
+  {
+   "id": 75,
+   "hp": 100,
+   "atk": 65,
+   "def": 15,
+   "gold": 30,
+   "behavior": {
+    "trait_flags": 0
+   },
+   "evidence": {
+    "hp": "a.java:1044-1130 enemyBaseHp[34]",
+    "atk": "enemyBaseAtk[34]",
+    "def": "enemyBaseDef[34]",
+    "gold": "enemyBaseGold[34]",
+    "behavior": "a.java:6266-6267 traitFlagsByType（稀疏：49/53/74=1、69=2）"
+   }
+  }
+ ]
+}

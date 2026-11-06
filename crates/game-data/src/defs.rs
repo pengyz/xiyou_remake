@@ -375,6 +375,103 @@ pub fn parse_sheet_index(src: &str) -> Result<SheetIndex, Reject> {
 
 /// 语法解析 + 封套 unknown-field 拒载（第 5 类）+ schema 版本校验（§2.3）。
 // ─────────────────────────────────────────────────────────────────────────────
+// DDDSA P1-6 enemies.json（EnemyDef 聚合——per-type 属性束；SoA 散表收束：
+// enemyBaseHp/Atk/Def/Gold 4×35 横索引→一行一型；difficulty_multipliers=
+// 全局表非 per-type 随信封；behavior.trait_flags=traitFlagsByType 行为键）
+// 生成器 tools/enemy-defs/gen_enemies.py（deobf a.java 逐值迁）。
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ENVELOPE_ENEMY_KEYS: &[&str] = &["schema_version", "note", "difficulty_multipliers", "rows"];
+
+/// EnemyDef 聚合记录（id=敌型 41..=75（SoA 横索引 t-41）；一行一型）。
+/// 【2026-11-06 amend 更正·§0 引反】前注"族表保留独立"**方向反**——spec
+/// v3 §0:16 实文："存量迁移：89 型怪族表/道具描述表→per-type 记录（值逐
+/// 字迁+V2 逐值锚重生+金样护航）"——**族表=本件正做迁移**（enemyBase 四表
+/// 聚合即族表收束）。cellSlotTable（实例空间索引）按 §0:12-13 判据
+/// （"某类资源怎么摆"→保留表）独立面保留。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnemyDef {
+    pub id: i32,
+    pub hp: i32,
+    pub atk: i32,
+    pub def: i32,
+    pub gold: i32,
+    /// traitFlagsByType 行为键（a.java:6266-6267 稀疏：49/53/74=1、69=2）
+    pub trait_flags: u8,
+}
+
+/// 解析 `enemies.json` →（EnemyDef 行, difficulty_multipliers 全局表）。
+/// 五类拒载 §2.3 同式（BadJson/BadForeignKey[icon 面无]/DomainOverflow[id
+/// 0..=88]/ParamsRange[trait_flags≤255]/UnknownField）。
+pub fn parse_enemies(src: &str) -> Result<(Vec<EnemyDef>, Vec<i64>), Reject> {
+    let doc = parse_envelope(src, ENVELOPE_ENEMY_KEYS)?;
+    let mult: Vec<i64> = match doc.get("difficulty_multipliers") {
+        Some(Json::Arr(a)) => a
+            .iter()
+            .map(|v| v.as_int().ok_or_else(|| schema("<root>.difficulty_multipliers", "非整数")))
+            .collect::<Result<_, _>>()?,
+        _ => return Err(schema("<root>.difficulty_multipliers", "缺/非数组")),
+    };
+    let items = expect_arr(&doc, "rows", "rows")?;
+    let rows = items
+        .iter()
+        .enumerate()
+        .map(|(i, rec)| parse_enemy(rec, &format!("rows[{i}]")))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok((rows, mult))
+}
+
+const ENEMY_ROW_KEYS: &[&str] = &["id", "hp", "atk", "def", "gold", "behavior", "evidence"];
+
+fn parse_enemy(rec: &Json, path: &str) -> Result<EnemyDef, Reject> {
+    if let Json::Obj(kvs) = rec {
+        for (k, _) in kvs {
+            if !ENEMY_ROW_KEYS.contains(&k.as_str()) {
+                return Err(Reject::UnknownField {
+                    path: format!("{path}.{k}"),
+                    field: k.clone(),
+                });
+            }
+        }
+    }
+    let id = rec.need_int("id").map_err(|e| schema(path, e))? as i32;
+    if !(0..=TYPE_ID_MAX as i32).contains(&id) {
+        return Err(Reject::DomainOverflow {
+            path: format!("{path}.id"),
+            value: id as i64,
+            domain: "0..=88（TYPE_ID_MAX）",
+        });
+    }
+    let beh = rec.get("behavior").ok_or_else(|| schema(path, "缺 behavior"))?;
+    if let Json::Obj(kvs) = beh {
+        for (k, _) in kvs {
+            if k.as_str() != "trait_flags" {
+                return Err(Reject::UnknownField {
+                    path: format!("{path}.behavior.{k}"),
+                    field: k.clone(),
+                });
+            }
+        }
+    }
+    let tf = beh.need_int("trait_flags").map_err(|e| schema(path, e))?;
+    if !(0..=255).contains(&tf) {
+        return Err(Reject::FrameIndexOutOfBounds {
+            path: format!("{path}.behavior.trait_flags"),
+            index: tf,
+            table_len: 256,
+        });
+    }
+    Ok(EnemyDef {
+        id,
+        hp: rec.need_int("hp").map_err(|e| schema(path, e))? as i32,
+        atk: rec.need_int("atk").map_err(|e| schema(path, e))? as i32,
+        def: rec.need_int("def").map_err(|e| schema(path, e))? as i32,
+        gold: rec.need_int("gold").map_err(|e| schema(path, e))? as i32,
+        trait_flags: tf as u8,
+    })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // DDDSA P1-1 items.json（ItemDef 聚合记录——per-type 属性束；用户数据模型总则）
 // 生成器 tools/item-defs/gen_items.py（五源逐值迁：names.txt/D[22]/ITEM_EFFECTS+
 // dispatch/equip_types+bonuses/icon 外键）。强类型 Params（spec 红线：禁 JSON map
