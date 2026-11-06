@@ -32,6 +32,7 @@
 | P1-3 | pickup/use dispatch 化（match 删除与表行**同 commit 一次性切**——禁双轨） | 金样 60+新 dump 面全同 |
 | P1-4 | 魔法区间表化（13..=25/26..40/79..85 全转行）+保真表哈希闸扩 FIDELITY_TABLES | 哈希闸+勘误流程注记 |
 | P1-5 | C1 升级演练：新物品=表加行零改码（含未知 effect 加载期拒载+运行期 no-op 测试） | zero-code-drill 断言 |
+| P1-6 | EnemyDef 聚合：敌人 SoA→per-type 记录（用户数据模型总则；lead 裁定排 P1-5 后） | EnemyDef 表+对账 |
 
 ## 2. P2 子系统 trait 化（8-15d，spec §3）——P1 后
 八 trait 面+Ctx 三宪+构造面收敛+item/effect 编排收敛——每件同纪律。

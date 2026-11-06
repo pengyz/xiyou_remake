@@ -447,18 +447,29 @@ pub struct ItemDef {
 /// [`TYPE_ID_MAX`]）④ParamsRange（Heal div=0/Equip tier≥12——FrameIndex 越界
 /// 同族）⑤UnknownField（行键/effect.key/枚举值外=拒载防拼写静默）。
 pub fn parse_items(src: &str) -> Result<Vec<ItemDef>, Reject> {
+    parse_items_in_domain(src, 0, TYPE_ID_MAX as i32)
+}
+
+/// 【DDDSA P1-5 mod 通道·两份制】mod 表解析（id 域 1000..=9999——保真表
+/// id<1000/金样禁 mod 表（mod 表不入 FIDELITY_TABLES 哈希闸=用户内容面）；
+/// 行解析/五类拒载与保真面同构（DomainOverflow 域=1000..9999）。
+pub fn parse_items_mod(src: &str) -> Result<Vec<ItemDef>, Reject> {
+    parse_items_in_domain(src, 1000, 9999)
+}
+
+fn parse_items_in_domain(src: &str, lo: i32, hi: i32) -> Result<Vec<ItemDef>, Reject> {
     let doc = parse_envelope(src, ENVELOPE_ITEMS_KEYS)?;
     let items = expect_arr(&doc, "rows", "rows")?;
     items
         .iter()
         .enumerate()
-        .map(|(i, rec)| parse_item(rec, &format!("rows[{i}]")))
+        .map(|(i, rec)| parse_item(rec, &format!("rows[{i}]"), lo, hi))
         .collect()
 }
 
 const ITEM_ROW_KEYS: &[&str] = &["id", "name", "icon", "desc", "pickup_msg", "effect", "evidence"];
 
-fn parse_item(rec: &Json, path: &str) -> Result<ItemDef, Reject> {
+fn parse_item(rec: &Json, path: &str, domain_lo: i32, domain_hi: i32) -> Result<ItemDef, Reject> {
     // ⑤ UnknownField：行键外拒载（evidence=随行证据槽允许）
     if let Json::Obj(kvs) = rec {
         for (k, _) in kvs {
@@ -472,11 +483,11 @@ fn parse_item(rec: &Json, path: &str) -> Result<ItemDef, Reject> {
     }
     let id = rec.need_int("id").map_err(|e| schema(path, e))? as i32;
     // ③ DomainOverflow：型号域 0..=88
-    if !(0..=TYPE_ID_MAX as i32).contains(&id) {
+    if !(domain_lo..=domain_hi).contains(&id) {
         return Err(Reject::DomainOverflow {
             path: format!("{path}.id"),
             value: id as i64,
-            domain: "0..=88（TYPE_ID_MAX）",
+            domain: if domain_lo == 0 { "0..=88（TYPE_ID_MAX 保真域）" } else { "1000..=9999（mod 域）" },
         });
     }
     let name = rec.need_str("name").map_err(|e| schema(path, e))?.to_string();

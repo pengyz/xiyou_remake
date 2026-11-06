@@ -1,0 +1,15 @@
+{
+ "schema_version": 2,
+ "note": "DDDSA P1-5 mod 通道（两份制：id≥1000 用户/mod 内容面——金样禁 mod 表；不入 FIDELITY_TABLES 哈希闸）。首行=P1-5 零改码演练样例（留痕）。",
+ "rows": [
+  {
+   "id": 1000,
+   "name": "演练品",
+   "icon": {"entity_type": 13},
+   "desc": "P1-5 零改码演练样例：只改本表行即可入戏（加载期校验+注册表查得——零 GameScene 改动）。",
+   "pickup_msg": "P1-5 零改码演练样例。",
+   "effect": {"key": "Passive", "params": {"kind": "DrillPassive"}},
+   "evidence": {"name": "P1-5 演练样例（tools/p15_drill.py 四段留痕）", "desc": "演练样例非保真内容", "effect": "builtin_effect(Passive)=StackEffect 归一行"}
+  }
+ ]
+}

@@ -420,8 +420,12 @@ mod p1a3_tests {
     }
 
     /// 【P1-4 红·先行】区间展开对照：PICKUP_ARM_TABLE 32 行=区间展开数
-    /// 逐行对拍（表建前=编译红；建后=与原区间语义 pickup_kind_for_type/
-    /// pickup_params_for 零漂移）。
+    /// （表建前=编译红）。
+    /// 【2026-11-06 更正·判别力缩界（p14 复核③）】"逐行 kind/params 对拍"
+    /// =**自指一致性**（查表 fn 与表同源恒真——变异实跑：表内 kind 改错本测
+    /// 自身绿）；**真值钉=p1a2 字面 rows 钉（kind）+p1a3 字面 params 钉**——
+    /// 变异实测边界：kind 改错→p1a2 红/params 改错→p1a3 红/id 改错→本测红
+    /// （行数+id 集外锚）。
     #[test]
     fn p1a4_arm_table_matches_expanded_ranges() {
         assert_eq!(PICKUP_ARM_TABLE.len(), 32, "32 行=区间展开数（10+1+4+3+2+2+10）");
