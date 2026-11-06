@@ -113,16 +113,6 @@
    "why": "entity.rs AoS 聚合域"
   },
   {
-   "field": "enemy_base_hp",
-   "domain": "combat",
-   "why": "combat 纯计算域（combat.rs 已落）"
-  },
-  {
-   "field": "enemy_base_gold",
-   "domain": "combat",
-   "why": "combat 纯计算域（combat.rs 已落）"
-  },
-  {
    "field": "alchemy_price",
    "domain": "item-effect",
    "why": "v3 §1 item/effect（效果状态）"
@@ -216,6 +206,11 @@
    "field": "battle_enemy_hp",
    "domain": "combat",
    "why": "combat 纯计算域（combat.rs 已落）"
+  },
+  {
+   "field": "enemy_base",
+   "domain": "combat",
+   "why": "combat 纯计算域（combat.rs to_records 聚合 EnemyDef；battle 初始血/金/trait 源）"
   },
   {
    "field": "battle_tick",

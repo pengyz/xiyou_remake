@@ -58,7 +58,7 @@
 - **测试构造面**：scene_tests/ **6,127 行**（12 文件，2026-11-07 `wc -l` 实测；
   spec §3.3 引 6098=2026-11-03 抽验值，cb710f4 后=6127）中**直写站点 382 处**
   （宽口径 `grep -rEn "\b[a-z_][a-z_0-9]*\.[a-z_][a-z_0-9]* = "` 去 == 实测；
-  scene() 构造器已存=166 调用，主体为测试逻辑非"直填"）→**批10 收敛**
+  scene() 构造器已存=166 调用（宽口径；真调用点 140），主体为测试逻辑非"直填"）→**批10 收敛**
   （scope=站点迁移量化口径，非行数迁移）。
 - ⚠ **潜伏红披露**（复核 R3）：`python3 tools/field_ownership.py --check` 现 **[RED]**
   （表缺 `enemy_base`/表多余 `enemy_base_hp`+`enemy_base_gold`，exit=1——b89d0df
@@ -93,7 +93,7 @@
 | 批6 | **ItemService**（§7-Q1 终案）：pickup/use 生命周期编排面；分发链唯一（Service→Registry::lookup→ItemEffect 序——现 execute_item_action 形保持）；禁第二分发链；menu 盲区登记 | pickup/use 生命周期夹具（P1 45 夹具面复用）；Registry 单测无副作用断言 | 1-1.5d |
 | 批7 | **InputMapper**：RawInput→Action 抽象（controls+tap_walk 消费面）；tap 盲区登记（autoBattle） | 输入映射夹具（tap_two_stage 两段式等价）；金样零重冻 | 1d |
 | 批8 | **UIRender**（只读边界件，不入互调通信面）：snapshot(&self)->UiFrame 纯读（E3 RenderState 消费面） | 纯读断言（无 &mut）；帧夹具（FRAME_OUT 对拍面） | 0.5-1d |
-| 批9 | **ShopGoods（P2 尾件——spec:89"ShopGoods 批 P2 尾"）**：scene.rs:2652 `match (src, idx)` 商人商品属性束（价格/效果/提示逐臂）→ShopGoods per-type 记录表（**ItemRegistry 首个消费者**；照 items.json/enemies.json 先例：id 升序+五类拒载）+一次性切（match 臂删+表行同 commit） | 商人购买夹具（src0/1 双商）+金样零重冻；grep 双源=0 | 0.5d |
+| 批9 | **ShopGoods（P2 尾件——spec:89"ShopGoods 批 P2 尾"）**：scene.rs:2653 `match (src, idx)` 商人商品属性束（价格/效果/提示逐臂）→ShopGoods per-type 记录表（**ItemRegistry 首个消费者**；照 items.json/enemies.json 先例：id 升序+五类拒载）+一次性切（match 臂删+表行同 commit） | 商人购买夹具（src0/1 双商）+金样零重冻；grep 双源=0 | 0.5d |
 | 批10 | **收口**：测试构造面收敛（**scope=382 直写站点**——宽口径实测分布：t2_walkto 147/slot_equip 131/pointer_seam 42/entity_route 15/blank_tap 14/scene_test_support 8/item13_use_regression 8/touch_tap 5/fidelity_fix 5/itempanel_self_edge 4/walkto_interrupt 3；机械迁移（313375b 先例 427 站点单 commit 金样零漂移）→域构造器/断言收敛）；盲区清单完备核（statediff 判据=**命名契约层**：dump 名集⊂Java FLD 名集+A 侧需面过滤——全 trace 名集相等**永红**（A 侧 411 名 vs Rust 60 名，合成实测 A-only 名即红；`docs/findings/reviews/2026-11-03-p1a1-dump-face-review.md:135-138`））；HostCtx 方法数终值 machine 断言；直写清零收尾核 | 构造面等价（夹具字节等价）；名集对照（命名契约层口径）；全闸+ratchet | 1.5-2d |
 
 合计 ≈**10.5-14d**（spec §5 估 8-15d 区间内；每批含验证前置件；含 ShopGoods 0.5d）。
