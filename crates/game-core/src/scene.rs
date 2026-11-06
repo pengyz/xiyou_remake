@@ -883,19 +883,6 @@ impl GameScene {
     }
 
     /// equipTierIndex（a.java:7688-7694）：档位区间倒序查当前装备所在档。
-    fn m_083_index(&self, equipped: i32, lo: i32, hi: i32) -> i32 {
-        // a.java:7693 `while (--table_count >= script_cursor0)`：**先减后比**——扫描区间 =
-        // [lo, hi-1]，索引 hi 永不触达（equip_types 12 项、hi=12 不越界）。
-        // 迭代 70 floor43 80 甲拾取越界实为此处误译（后减结构触达 hi）。
-        let mut t = hi;
-        while t > lo {
-            t -= 1;
-            if self.equip_types[t as usize] == equipped {
-                return t;
-            }
-        }
-        0
-    }
 
     /// objectTypeNames[type]（UTF-16 供 draw_string）。
     fn object_type_name(&self, t: i32) -> Option<Vec<u16>> {
@@ -4317,7 +4304,7 @@ impl GameScene {
         builtin_effect("Stack").apply(&mut ctx, &EffectParams::Stack { type_id: t, tutorial: false });
         drop(ctx);
         // itemUseTargetType = (byte)py_key（a.java:7738——2026-11-03 锚更正
-        // ——拾取路径调用方已先写同值，商人赠物路径（a.java:7667）经本写）。
+        // ——拾取路径调用方已先写同值，商人赠物/脚本 GIN 路径（a.java:7339/7342 addItemToItemStack(13)/(19)——2026-11-06 sed 核：7667=错锚）经本写）。
         self.menu.set_overlay_kind_item(t);
         let idx = if t == 85 {
             20

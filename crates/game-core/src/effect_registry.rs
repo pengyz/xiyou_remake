@@ -239,15 +239,20 @@ impl ItemEffect for HpUpEffect {
         let EffectParams::HpUp { delta } = params else {
             return ItemOutcome::NoOp;
         };
-        let d = delta * floor_tier(ctx.floor);
+        let mut d = delta * floor_tier(ctx.floor);
+        // 归零判据逐字（父 apply_hp_delta：hp<=-delta→hp=1 且 delta=hp-1=0
+        // ——**归零后不进浮层分支=不发**；2026-11-06 黄①修复：前版丢归零改写
+        // 致多发浮层（战斗 strike 无 hp 地板可致负 hp 可达——scene.rs:2076/
+        // 3788 面）。
+        let popup;
         if ctx.player.hp <= -d {
             ctx.player.hp = 1;
+            d = ctx.player.hp - 1;
+            popup = None;
         } else {
             ctx.player.hp += d;
+            popup = if d > 0 { Some(d) } else { None };
         }
-        // 回血浮层请求（a.java applyHpDelta delta>0 分支=popups.spawn(3,delta)
-        // ——编排面执行；delta<=0 无浮层）。
-        let popup = if d > 0 { Some(d) } else { None };
         ItemOutcome::Consumed { overlay_tier: None, hp_popup: popup }
     }
 }
@@ -387,6 +392,37 @@ mod p1a3_tests {
         }
         // default 臂（a.java:7630-7631 return）：NoOp 参数
         assert_eq!(pickup_params_for(41), EffectParams::Stack { type_id: 41, tutorial: false }, "41+=default 臂参数占位");
+    }
+
+    /// 【黄②·t=79 钉】79→tier 4（Java equipTierIndex(79)=4）——父 eq_tier
+    /// if t<37 else 分支对 79 落 _=>11 错帧（overlay_kind_pickup(79,11)≠Java
+    /// 4）；表行=Java 真值 4（移植错修正——fb1ddc6 静默修正今披露）。
+    #[test]
+    fn equip_79_tier_is_4() {
+        assert_eq!(
+            pickup_params_for(79),
+            EffectParams::Equip { tier: 4, force: false },
+            "79→tier 4（Java equipTierIndex(79)=4；父 eq_tier _=>11 错帧已修）"
+        );
+        let mut p = PlayerCombat { hp: 0, atk: 0, def: 0, yellow_keys: 0, blue_keys: 0, red_keys: 0, gold: 0, item_types: vec![0; 32], item_uses: vec![0; 32], item_stack_size: 0 };
+        let mut ts = false;
+        let (mut ew, mut ea) = (0, 0);
+        let mut c = ItemCtx { player: &mut p, floor: 3, tutorial_seen: &mut ts, equipped_weapon: &mut ew, equipped_armor: &mut ea, equip_types: [0, 33, 34, 35, 79, 36, 0, 37, 38, 39, 80, 40], equip_bonuses: [0, 10, 30, 70, 120, 220, 0, 10, 30, 70, 120, 220] };
+        let out = EquipEffect.apply(&mut c, &EffectParams::Equip { tier: 4, force: false });
+        assert_eq!(out, ItemOutcome::Consumed { overlay_tier: Some(4), hp_popup: None }, "浮层 tier=4（非 11）");
+    }
+
+    /// 【黄①·归零不发钉】hp<=-d 边界：hp=1+**不发浮层**（revert 多发必红）。
+    #[test]
+    fn hpup_floor_zero_no_popup() {
+        let mut p = PlayerCombat { hp: -100, atk: 0, def: 0, yellow_keys: 0, blue_keys: 0, red_keys: 0, gold: 0, item_types: vec![0; 32], item_uses: vec![0; 32], item_stack_size: 0 };
+        let mut ts = false;
+        let (mut ew, mut ea) = (0, 0);
+        let mut c = ItemCtx { player: &mut p, floor: 3, tutorial_seen: &mut ts, equipped_weapon: &mut ew, equipped_armor: &mut ea, equip_types: [0, 33, 34, 35, 79, 36, 0, 37, 38, 39, 80, 40], equip_bonuses: [0, 10, 30, 70, 120, 220, 0, 10, 30, 70, 120, 220] };
+        // hp=-100<=-50→归零路径：hp=1 且 hp_popup=None（父 delta=hp-1=0 不发）
+        let out = HpUpEffect.apply(&mut c, &EffectParams::HpUp { delta: 50 });
+        assert_eq!(out, ItemOutcome::Consumed { overlay_tier: None, hp_popup: None }, "归零不发浮层（revert 多发必红）");
+        assert_eq!(c.player.hp, 1);
     }
 
     /// Equip force 语义（a.java try_equip 完整体：force=true 跳 cur 检查强换）
