@@ -409,12 +409,12 @@ def gate_asset_manifest():
 # 保真表内容哈希闸基线（survey §2.2 规则 3：哈希入 gates——非荣誉制）。
 # 基线只记保真三表；mod 表走 mod 独立基线（tools/mod-skeleton/mod_baseline.json，不进金样闸）。
 TABLE_HASH_BASELINE = ROOT / "gates" / "table_content_hash.json"
-FIDELITY_TABLES = ("sprite_defs.json", "anim_defs.json", "sheet_index.json", "items.json")  # 【DDDSA P1-1】items.json id<1000 保真表行（勘误流程同则）
+FIDELITY_TABLES = ("sprite_defs.json", "anim_defs.json", "sheet_index.json", "items.json", "enemies.json")  # 【DDDSA P1-1】items.json id<1000 保真表行；【P1-6】enemies.json 敌表 35 行（勘误流程同则）
 
 
 def gate_table_content_hash():
     """保真表内容哈希闸（survey §2.2 规则 3 / §4 R2.3——非荣誉制）：
-    data/tables 三表 sha256 对照闸基线 gates/table_content_hash.json。
+    data/tables 保真表全集 sha256 对照闸基线 gates/table_content_hash.json。
     变更仅允许勘误流程：逐值锚证据更新（tools/table-evidence 生成式）+ 金样重过
     （gate table-evidence + trace）+ `python3 gates/cli.py table-content-hash-update`
     基线更新**单独 commit** 写明原因（AGENTS.md §2 gates 红线）。
@@ -450,7 +450,7 @@ def gate_table_content_hash():
                       "；".join(bad) + "——保真表变更=勘误流程+金样重过（非荣誉制），"
                       "禁手改表不重锚证据")
     return report("table-content-hash", PASS,
-                  f"保真三表 sha256 对照基线通过（逐值锚 220 宿主；基线 {TABLE_HASH_BASELINE.name}）")
+                  f"保真表全集 sha256 对照基线通过（逐值锚 220 宿主；基线 {TABLE_HASH_BASELINE.name}）")
 
 
 def gate_table_evidence():
@@ -492,8 +492,8 @@ def cmd_table_hash_update():
         print(f"表缺失：{missing}")
         return 1
     payload = {
-        "comment": "保真表内容哈希闸基线（survey §2.2 规则 3，非荣誉制）：data/tables 三表"
-                   " sha256。变更仅允许勘误流程——逐值锚证据更新+金样重过后由"
+        "comment": "保真表内容哈希闸基线（survey §2.2 规则 3，非荣誉制）：data/tables"
+                   " 保真表全集 sha256。变更仅允许勘误流程——逐值锚证据更新+金样重过后由"
                    " python3 gates/cli.py table-content-hash-update 重建，且更新单独"
                    " commit 写明原因（AGENTS.md §2）。mod 表不进本基线（mod 独立基线："
                    " tools/mod-skeleton/mod_baseline.json）。",
