@@ -104,6 +104,10 @@ trait InputMapper     { fn map(&self, ev: RawInput) -> Action; }          // A �
 trait EntityService   { fn spawn/remove/relocate(&mut self, …); }         // A 补（HostCtx 23 方法 fat trait 前车=拆小）
 trait UIRender        { fn snapshot(&self, …) -> UiFrame; }               // A 补：显式纯读
 ```
+> 【2026-11-07 更正】P2 批0 落码与本节两处差异（plan 已裁定，原文不删备查）：
+> ① PersistCodec 实现为 serialize+deserialize 双向（plan §2 批4「Blob↔域切片格式编解码面」），
+> 本节单行仅列 serialize；② UIRender::snapshot 实现为 `snapshot(&self) -> UiFrame` 无参
+> （plan 批8 锚行），本节 `…` 为参形未定占位。以上为 plan 授权收窄/扩展，非偏离。
 > 【轮2修复】四处注记：
 > ① **ItemService 切法终案落书**（C Q3 终结，详见 §7-Q1）：Registry=静态查表面（分发），
 > Service=道具生命周期运行面（pickup/use 编排），分发链唯一，跨域副作用归 Coordinator；

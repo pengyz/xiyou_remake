@@ -14,7 +14,7 @@
 //! # 写面归因登记（field-ownership 对照 state_dump FLD）
 //! `WRITE_FACE_REGISTRY` 每行=一个写槽：face（Ctx 结构名）+ field（=归属表键）+ domain（唯一归属域）+
 //! flds（state_dump.rs push FLD 名对照；空=无 FLD——dump 盲区，plan P2 盲区清单面）。
-//! ItemCtx=P1-2 effect_registry.rs:74 已存形态照录（不改史）；entityBaseGold 等派生键不入（输出面非写面）。
+//! ItemCtx=P1-2 effect_registry.rs:74 已存形态照录（不改史）；enemyBaseGold 等派生键不入（输出面非写面）。
 
 pub mod battle;
 pub mod dialog;
@@ -97,14 +97,16 @@ pub const WRITE_FACE_REGISTRY: &[WriteFaceRow] = &[
 
 #[cfg(test)]
 mod tests {
-    use super::battle::{BattleSubsystem};
-    use super::dialog::{DialogSubsystem};
+    use super::battle::{BattleCtx, BattleOutcome, BattleSubsystem, EnemyTypeId};
+    use super::dialog::{DialogCtx, DialogStep, DialogSubsystem};
     use super::entity_service::{EntityCtx, EntityService};
     use super::input_mapper::{InputMapper};
     use super::item_service::ItemService;
-    use super::persist_codec::{PersistCodec};
-    use super::script_host::{ScriptHost};
-    use super::ui_render::{UIRender};
+    use super::input_mapper::RawInput;
+    use super::persist_codec::{Blob, PersistCodec, SceneState};
+    use super::script_host::{ScriptCtx, ScriptHost, ScriptStep};
+    use super::ui_render::{UiFrame, UIRender};
+    use crate::controls::Action;
     use super::WRITE_FACE_REGISTRY;
 
     /// TDD 红→绿驱动：8 trait 形在（编译即断言——骨架判据=编译红「trait 缺位」→骨架绿）。
@@ -140,6 +142,100 @@ mod tests {
         let walkable = vec![vec![true; 2]; 2];
         let ctx = EntityCtx { entities: &mut entities, grid: &grid, walkable: &walkable };
         assert!(ctx.walkable[0][0], "读面槽可达");
+    }
+
+    /// 【F3 判别力】逐 trait 机器锁签名（编译期钉形——改签名即红；spec §3.1 逐字形）。
+    #[allow(dead_code)]
+    mod sig_lock {
+        use super::*;
+        use crate::scene::ScriptOp;
+
+        pub fn _sig_battle<T: BattleSubsystem>(t: &mut T, ctx: &mut BattleCtx, x: EnemyTypeId) -> BattleOutcome {
+            t.resolve_bump(ctx, x)
+        }
+        pub fn _sig_dialog_tick<T: DialogSubsystem>(t: &mut T, ctx: &mut DialogCtx) -> DialogStep {
+            t.tick(ctx)
+        }
+        pub fn _sig_persist_ser<T: PersistCodec>(t: &T, st: &SceneState) -> Blob {
+            t.serialize(st)
+        }
+        pub fn _sig_persist_de<T: PersistCodec>(t: &T, blob: &Blob) -> SceneState {
+            t.deserialize(blob)
+        }
+        pub fn _sig_script_op<T: ScriptHost>(t: &mut T, ctx: &mut ScriptCtx, op: ScriptOp) -> ScriptStep {
+            t.execute_op(ctx, op)
+        }
+        pub fn _sig_input_map<T: InputMapper>(t: &T, ev: RawInput) -> Action {
+            t.map(ev)
+        }
+        pub fn _sig_ui_snapshot<T: UIRender>(t: &T) -> UiFrame {
+            t.snapshot()
+        }
+    }
+
+    /// 【F3 判别力】其余 4 Ctx 纯数据构造（5 Ctx 之一 EntityCtx 见上）——
+    /// ItemCtx=effect_registry.rs:74 照录构造（不改史）。
+    #[test]
+    fn p2b0_ctx_pure_data_constructible_all() {
+        // BattleCtx：10 写槽+3 读槽
+        let (mut ba, mut bh, mut btick) = (false, 0i32, 0i32);
+        let (mut banim, mut bfin, mut bnc, mut brr) = (0i32, false, false, false);
+        let (mut btgt, mut sdb, mut bdig) = (0i32, false, Vec::<i32>::new());
+        let player = crate::combat::PlayerCombat {
+            hp: 1, atk: 1, def: 1, yellow_keys: 0, blue_keys: 0, red_keys: 0,
+            gold: 0, item_types: Vec::new(), item_uses: Vec::new(), item_stack_size: 0,
+        };
+        let enemies: Vec<crate::combat::EnemyDef> = Vec::new();
+        let enemy_base: Vec<crate::combat::EnemyDef> = Vec::new();
+        let bctx = BattleCtx {
+            battle_active: &mut ba, battle_anim_tick: &mut banim,
+            battle_digit_by_type: &mut bdig, battle_enemy_hp: &mut bh,
+            battle_finishing: &mut bfin, battle_no_counter: &mut bnc,
+            battle_rerun_scene: &mut brr, battle_target: &mut btgt,
+            battle_tick: &mut btick, show_battle_digits: &mut sdb,
+            player: &player, enemies: &enemies, enemy_base: &enemy_base,
+        };
+        assert_eq!(bctx.battle_active as *const bool as usize != 0, true);
+
+        // DialogCtx：记录槽+3 值拷贝读
+        let mut dialog = crate::scene::DialogState {
+            dialog_phase: 0, dialog_page: 0, dialog_page_end: 0, dialog_speaker: 0,
+            dialog_anchor: 0, dialog_char: 0, dialog_target: (0, 0),
+            dialog_data: crate::scene::DialogData {
+                scripts: Vec::new(), texts: Vec::new(), speakers: Vec::new(), bubbles: Vec::new(),
+            },
+            overlay_active: false, overlay_kind: 0, overlay_text: None,
+            overlay_box_w: 0, overlay_box_h: 0, overlay_left_icon: 0, overlay_right_icon: 0,
+            overlay_lines: Vec::new(), overlay_page_top: 0, overlay_page_bottom: 0,
+            overlay_lines_per_page: 0, overlay_total_lines: 0, overlay_content_w: 0,
+            overlay_saved_color: 0,
+        };
+        let dctx = DialogCtx { dialog: &mut dialog, key_value: 0, key_held: 0, frame_odd: false };
+        assert_eq!(dctx.key_value, 0);
+
+        // ScriptCtx：6 写槽+2 读槽
+        let (mut si, mut sc, mut sd) = (0usize, 0usize, 0i32);
+        let (mut sl, mut slf, mut swa) = (String::new(), Vec::<bool>::new(), false);
+        let mut entities = crate::entity::EntityTable::new(4);
+        let sctx = ScriptCtx {
+            current_script_index: &mut si, script_cursor: &mut sc, script_delay: &mut sd,
+            script_line: &mut sl, script_line_flags: &mut slf, script_walk_armed: &mut swa,
+            player: &player, entities: &entities,
+        };
+        assert_eq!(*sctx.script_delay, 0);
+
+        // ItemCtx：effect_registry.rs:74 照录（P1-2 已存形态不改史）
+        let mut pc = crate::combat::PlayerCombat {
+            hp: 1, atk: 1, def: 1, yellow_keys: 0, blue_keys: 0, red_keys: 0,
+            gold: 0, item_types: Vec::new(), item_uses: Vec::new(), item_stack_size: 0,
+        };
+        let (mut ts, mut ew, mut ea) = (false, 0i32, 0i32);
+        let ictx = crate::effect_registry::ItemCtx {
+            player: &mut pc, floor: 1, tutorial_seen: &mut ts,
+            equipped_weapon: &mut ew, equipped_armor: &mut ea,
+            equip_types: [0; 12], equip_bonuses: [0; 12],
+        };
+        assert_eq!(ictx.floor, 1);
     }
 
     /// 从归属表 JSON 文本取 field 的 domain（无 serde 手工扫描：按 "field": "X" 块切，块内取 "domain": "Y"）。
