@@ -31,7 +31,6 @@ impl GameScene {
     pub(super) fn add_ease_cam_x(&mut self, d: i32) { self.ease_cam_x += d; }
     pub(super) fn add_ease_cam_y(&mut self, d: i32) { self.ease_cam_y += d; }
     pub(super) fn add_ease_target_x(&mut self, d: i32) { self.ease_target_x += d; }
-    pub(super) fn add_ease_target_y(&mut self, d: i32) { self.ease_target_y += d; }
 
     /// loadFloorData（a.java:9404-9438）：maplv 装载 + initCellGrid 格索引重建 +
     /// 可行走重建 + m_122 实体生成 + sortEntitiesByY 排序。

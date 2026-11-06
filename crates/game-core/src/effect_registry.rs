@@ -244,15 +244,13 @@ impl ItemEffect for HpUpEffect {
         // ——**归零后不进浮层分支=不发**；2026-11-06 黄①修复：前版丢归零改写
         // 致多发浮层（战斗 strike 无 hp 地板可致负 hp 可达——scene.rs:2076/
         // 3788 面）。
-        let popup;
         if ctx.player.hp <= -d {
             ctx.player.hp = 1;
             d = ctx.player.hp - 1;
-            popup = None;
         } else {
             ctx.player.hp += d;
-            popup = if d > 0 { Some(d) } else { None };
         }
+        let popup = if d > 0 { Some(d) } else { None };
         ItemOutcome::Consumed { overlay_tier: None, hp_popup: popup }
     }
 }
@@ -369,7 +367,7 @@ mod p1a3_tests {
             assert_eq!(
                 pickup_params_for(t),
                 EffectParams::Stack { type_id: t, tutorial: false },
-                "型 {t} 被动族栈增（a.java:7553 落穿）"
+                "型 {t} 被动族栈增（a.java:7548-7554 落穿——2026-11-06 sed 核：7553=case 86: 标签）"
             );
         }
         // 键（a.java:7556-7564）

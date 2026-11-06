@@ -121,7 +121,6 @@ impl GameScene {
                 // 域方法；跨域副作用（layout/ease/open_dialog_page/相机）留此编排。
                 if self.dialog.dialog_phase != 6 || self.camera_at_target() {
                     let text = self.dialog.overlay_text.clone().unwrap_or_default();
-                    let text_len = text.chars().count() as i32;
                     let line_h = crate::paint::paint_font().height + 4;
                     let step = self.dialog.advance_typewriter(self.key_value, (self.frame_counter & 1) == 1, &text);
                     match step {

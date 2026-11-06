@@ -489,7 +489,6 @@ impl GameScene {
     pub(super) fn set_path_arrows_visible(&mut self, v: bool) { self.path_arrows_visible = v; }
     pub(super) fn set_route_entity(&mut self, v: i32) { self.route_entity = v; }
     pub(super) fn set_route_phase(&mut self, v: i32) { self.route_phase = v; }
-    pub(super) fn set_undo(&mut self, v: crate::undo_journal::UndoJournal) { self.undo = v; }
     // ── 【终章簇2·script 域直写接口】（scene.rs=唯一直写面）──
     pub(super) fn set_script_walk_armed(&mut self, v: bool) { self.script_walk_armed = v; }
     pub(super) fn set_script_delay(&mut self, v: i32) { self.script_delay = v; }
