@@ -4,12 +4,12 @@
 //!
 //! | 臂 | 语义（pickup_item_type 逐字抽象） | 注册行 | 锚 |
 //! |---|---|---|---|
-//! | 13..=25\|85\|86 | （15=tutorialSeen=true）+addItemToItemStack | `Stack` | a.java:7537-7555（2026-11-05 sed 复核：7528=goldAmount 尾 stale 更正） |
+//! | 13-25\|85\|86 | （15=tutorialSeen=true）+addItemToItemStack | `Stack` | a.java:7537-7555（2026-11-05 sed 复核：7528=goldAmount 尾 stale 更正） |
 //! | 26/27/28 | yellow/red/blue KeyCount++ | `Key` | a.java:7556-7564 |
 //! | 29/30 | floor≤10 +1 否则 +floorTier | `StatUp` | a.java:7565-7580 |
 //! | 31/32 | applyHpDelta(50/200×tier) | `HpUp` | a.java:7581-7587 |
-//! | 33..=36\|79 | 武器 tier {1,2,3,4,5} tryEquip | `Equip` | a.java:7632-7648 |
-//! | 37..=40\|80 | 防具 tier {7,8,9,10,11} tryEquip | `Equip` | a.java:7632-7648 |
+//! | 33-36\|79 | 武器 tier {1,2,3,4,5} tryEquip | `Equip` | a.java:7632-7648 |
+//! | 37-40\|80 | 防具 tier {7,8,9,10,11} tryEquip | `Equip` | a.java:7632-7648 |
 //! | default | return（41+ 不可达） | `NoOp` | a.java:7630-7631（截臂：switch 终=7631） |
 //!
 //! **两面并存**（P1-2 红线）：pickup_item_type 23 臂 switch **本件不动**（P1-3
@@ -86,43 +86,70 @@ pub struct ItemCtx<'a> {
 /// 即红）。⚠本表只管 **pickup 面**；items.json effect.key=**use 面**键
 /// （13/14/16..21/85/86 十型分歧两面并存——勿互对，P1-3 接线各取所需）。
 pub fn pickup_kind_for_type(t: i32) -> &'static str {
-    match t {
-        13 | 14 | 16..=21 | 85 | 86 => "Stack",
-        15 => "TutorialSeenStack",
-        22..=25 => "Passive",
-        26..=28 => "Key",
-        29 | 30 => "StatUp",
-        31 | 32 => "HpUp",
-        33..=40 | 79 | 80 => "Equip",
-        _ => "NoOp",
-    }
+    PICKUP_ARM_TABLE
+        .iter()
+        .find(|r| r.0 == t)
+        .map(|r| r.1)
+        .unwrap_or("NoOp")
 }
+
+/// 【P1-4 魔法区间表化】pickup 臂全表（32 行显式 id——原区间臂
+/// `13-25|85|86`/`33-36|79`/`37-40|80` 等**区间展开逐值等价**；
+/// 判据=grep 魔法区间模式=0；行数对账=区间展开数 32=10+1+4+3+2+2+10）。
+/// 形=（id, kind, params）三元组（params=const 可建枚举=EffectParams 载荷
+/// 同构）；查询=lookup_*/pickup_kind_for_type/pickup_params_for 查表。
+/// 锚：a.java:7537-7648 switch 全体+7651-7662 tier 映射。
+pub const PICKUP_ARM_TABLE: &[(i32, &'static str, EffectParams)] = &[
+    // 栈增族（13|14|16-21|85|86 展开——a.java:7540-7554）
+    (13, "Stack", EffectParams::Stack { type_id: 13, tutorial: false }),
+    (14, "Stack", EffectParams::Stack { type_id: 14, tutorial: false }),
+    (16, "Stack", EffectParams::Stack { type_id: 16, tutorial: false }),
+    (17, "Stack", EffectParams::Stack { type_id: 17, tutorial: false }),
+    (18, "Stack", EffectParams::Stack { type_id: 18, tutorial: false }),
+    (19, "Stack", EffectParams::Stack { type_id: 19, tutorial: false }),
+    (20, "Stack", EffectParams::Stack { type_id: 20, tutorial: false }),
+    (21, "Stack", EffectParams::Stack { type_id: 21, tutorial: false }),
+    (85, "Stack", EffectParams::Stack { type_id: 85, tutorial: false }),
+    (86, "Stack", EffectParams::Stack { type_id: 86, tutorial: false }),
+    // tutorial 变体（15——a.java:7538-7539）
+    (15, "TutorialSeenStack", EffectParams::Stack { type_id: 15, tutorial: true }),
+    // 被动族（22-25 展开——a.java:7548-7554 落穿）
+    (22, "Passive", EffectParams::Stack { type_id: 22, tutorial: false }),
+    (23, "Passive", EffectParams::Stack { type_id: 23, tutorial: false }),
+    (24, "Passive", EffectParams::Stack { type_id: 24, tutorial: false }),
+    (25, "Passive", EffectParams::Stack { type_id: 25, tutorial: false }),
+    // 键（26-28 展开——a.java:7556-7564）
+    (26, "Key", EffectParams::Key { yellow: true, red: false, blue: false }),
+    (27, "Key", EffectParams::Key { yellow: false, red: true, blue: false }),
+    (28, "Key", EffectParams::Key { yellow: false, red: false, blue: true }),
+    // 属性（29|30——a.java:7565-7580）
+    (29, "StatUp", EffectParams::StatUp { atk: 1, def: 0 }),
+    (30, "StatUp", EffectParams::StatUp { atk: 0, def: 1 }),
+    // 血量（31|32——a.java:7581-7587）
+    (31, "HpUp", EffectParams::HpUp { delta: 50 }),
+    (32, "HpUp", EffectParams::HpUp { delta: 200 }),
+    // 装备·武器段（33|34|35|79|36 展开=tier 1..5——a.java:7632-7648）
+    (33, "Equip", EffectParams::Equip { tier: 1, force: false }),
+    (34, "Equip", EffectParams::Equip { tier: 2, force: false }),
+    (35, "Equip", EffectParams::Equip { tier: 3, force: false }),
+    (79, "Equip", EffectParams::Equip { tier: 4, force: false }),
+    (36, "Equip", EffectParams::Equip { tier: 5, force: false }),
+    // 装备·防具段（37|38|39|80|40 展开=tier 7..11——a.java:7632-7648）
+    (37, "Equip", EffectParams::Equip { tier: 7, force: false }),
+    (38, "Equip", EffectParams::Equip { tier: 8, force: false }),
+    (39, "Equip", EffectParams::Equip { tier: 9, force: false }),
+    (80, "Equip", EffectParams::Equip { tier: 10, force: false }),
+    (40, "Equip", EffectParams::Equip { tier: 11, force: false }),
+];
 
 /// pickup 臂参数表（【P1-3 分发面】23 臂→EffectParams 逐行——a.java:7537-
 /// 7648 引锚；与 pickup_kind_for_type 同表两列：kind+params）。
 pub fn pickup_params_for(t: i32) -> EffectParams {
-    match t {
-        15 => EffectParams::Stack { type_id: 15, tutorial: true },
-        13 | 14 | 16..=25 | 85 | 86 => EffectParams::Stack { type_id: t, tutorial: false },
-        26 => EffectParams::Key { yellow: true, red: false, blue: false },
-        27 => EffectParams::Key { yellow: false, red: true, blue: false },
-        28 => EffectParams::Key { yellow: false, red: false, blue: true },
-        29 => EffectParams::StatUp { atk: 1, def: 0 },
-        30 => EffectParams::StatUp { atk: 0, def: 1 },
-        31 => EffectParams::HpUp { delta: 50 },
-        32 => EffectParams::HpUp { delta: 200 },
-        33 => EffectParams::Equip { tier: 1, force: false },
-        34 => EffectParams::Equip { tier: 2, force: false },
-        35 => EffectParams::Equip { tier: 3, force: false },
-        79 => EffectParams::Equip { tier: 4, force: false },
-        36 => EffectParams::Equip { tier: 5, force: false },
-        37 => EffectParams::Equip { tier: 7, force: false },
-        38 => EffectParams::Equip { tier: 8, force: false },
-        39 => EffectParams::Equip { tier: 9, force: false },
-        80 => EffectParams::Equip { tier: 10, force: false },
-        40 => EffectParams::Equip { tier: 11, force: false },
-        _ => EffectParams::Stack { type_id: t, tutorial: false }, // default 臂占位（kind=NoOp 吞）
-    }
+    PICKUP_ARM_TABLE
+        .iter()
+        .find(|r| r.0 == t)
+        .map(|r| r.2.clone())
+        .unwrap_or(EffectParams::Stack { type_id: t, tutorial: false })
 }
 
 /// floorTier 独立域函数（a.java:7651-7662 逐字：(f-1)/10 钳 0；f>50→0；+1）
@@ -330,7 +357,7 @@ pub fn builtin_effect(kind: &str) -> &'static dyn ItemEffect {
         "StatUp" => &StatUpEffect,
         "HpUp" => &HpUpEffect,
         "Equip" => &EquipEffect,
-        // 【硬门2 归一】TutorialSeenStack/Passive=栈增族（pickup 臂 13..=25 同
+        // 【硬门2 归一】TutorialSeenStack/Passive=栈增族（pickup 臂 13-25 同
         // ——15=tutorial 变体；22..25=被动族（道具栏被动=find_item 活查，
         // 拾取即栈增）；params Stack{tutorial} 编码变体。
         "TutorialSeenStack" | "Passive" => &StackEffect,
@@ -390,6 +417,29 @@ mod p1a3_tests {
         }
         // default 臂（a.java:7630-7631 return）：NoOp 参数
         assert_eq!(pickup_params_for(41), EffectParams::Stack { type_id: 41, tutorial: false }, "41+=default 臂参数占位");
+    }
+
+    /// 【P1-4 红·先行】区间展开对照：PICKUP_ARM_TABLE 32 行=区间展开数
+    /// 逐行对拍（表建前=编译红；建后=与原区间语义 pickup_kind_for_type/
+    /// pickup_params_for 零漂移）。
+    #[test]
+    fn p1a4_arm_table_matches_expanded_ranges() {
+        assert_eq!(PICKUP_ARM_TABLE.len(), 32, "32 行=区间展开数（10+1+4+3+2+2+10）");
+        for &(id, kind, ref params) in PICKUP_ARM_TABLE {
+            assert_eq!(pickup_kind_for_type(id), kind, "型 {id} kind 对照");
+            assert_eq!(pickup_params_for(id), *params, "型 {id} params 对照");
+        }
+        // 行 id 集=items.json id 集（外锚同源）
+        let items_src = include_str!("../../../data/tables/items.json");
+        let mut ids: Vec<i32> = items_src
+            .split("\"id\": ")
+            .skip(1)
+            .map(|c| c.split([',', '\n']).next().unwrap().trim().parse::<i32>().unwrap())
+            .collect();
+        ids.sort_unstable();
+        let mut row_ids: Vec<i32> = PICKUP_ARM_TABLE.iter().map(|r| r.0).collect();
+        row_ids.sort_unstable();
+        assert_eq!(row_ids, ids, "表行 id 集=items.json id 集");
     }
 
     /// 【黄②·t=79 钉】79→tier 4（Java equipTierIndex(79)=4）——父 eq_tier
