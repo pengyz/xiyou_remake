@@ -55,7 +55,8 @@ mod script_ops;
 /// 【task-15 V1】恢复规则归位（类型+表+执行器汇 1，move-only）。
 #[path = "restore_rules.rs"]
 mod restore_rules;
-pub(crate) use script_ops::ScriptOp;
+pub use script_ops::ScriptOp;
+pub use scene_dialog::DialogState;
 pub use restore_rules::{RestoreAction, RestoreRule, RESTORE_RULES};
 use scene_persist::PersistState;
 

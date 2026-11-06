@@ -2,7 +2,7 @@
 //! parse/execute 三处汇 1（move-only）——16 op 冻结面（a.java:8220-8568）字节不动。
 use super::*;
 
-pub(crate) enum ScriptOp {
+pub enum ScriptOp {
     /// TAK_a_b（a.java:8257-8263）
     Tak { start: i32, end: i32, cursor: usize },
     /// LAY_x（a.java:8355-8362）

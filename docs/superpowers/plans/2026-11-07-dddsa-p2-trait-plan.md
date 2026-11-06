@@ -64,6 +64,7 @@
   （表缺 `enemy_base`/表多余 `enemy_base_hp`+`enemy_base_gold`，exit=1——b89d0df
   P1-6② 切换未同步归属表；该工具不在 13 gate 内故闸面不显）→**批0 第一动作=归属表
   同步**（小笔补表=门禁工具数据表同步非功能变更，见批0 行）。
+  > 【2026-11-07 更正】本段为批0 动作前状态记录；0c9080f 后已 [GREEN] 186/186。
 - **P2 盲区清单**（dump 盲区随域迁移登记，§5 轮2注②）：
   dialog（typewriterPos/dialogSpeaker/dialogAnchor/dialogTarget/overlay 布局面）、
   menu（menuCursor/itemCursor/recordPage/difficultyIndex）、

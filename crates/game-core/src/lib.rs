@@ -2,6 +2,7 @@
 //!
 //! P3.1：脚本 DSL 解释器（docs/spec/p3-script-interpreter.md）。
 pub mod effect_registry; // 【DDDSA P1-2】ItemEffect trait+内建注册（行为可插拔面）
+pub mod subsystem; // 【DDDSA P2 批0】八 trait 面+Ctx 族+写面归因登记（骨架）
 pub mod enums;
 pub mod audio;
 pub mod game_view;

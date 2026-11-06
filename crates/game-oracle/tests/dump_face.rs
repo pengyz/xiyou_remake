@@ -21,3 +21,22 @@ fn p1a1_dump_face_contains_six_groups() {
         );
     }
 }
+
+/// 【P2 批0 红测试】写面归因登记 FLD 名↔state_dump push 面对照（TDD 红先行：登记挂名而
+/// dump 无此键=红——FLD 映射失实防线；flds 空=dump 盲区注记不检）。
+#[test]
+fn p2b0_registry_flds_present_in_state_dump() {
+    let src = include_str!("../src/state_dump.rs");
+    let body = src.split("pub fn dump_scene").nth(1).expect("dump_scene 体在");
+    for row in game_core::subsystem::WRITE_FACE_REGISTRY {
+        for name in row.flds {
+            assert!(
+                body.contains(&format!("\"{name}\"")),
+                "写面登记 FLD 失联：{}（face={} field={}）——state_dump push 面无此键",
+                name,
+                row.face,
+                row.field
+            );
+        }
+    }
+}
