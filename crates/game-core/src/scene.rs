@@ -59,6 +59,7 @@ mod script_ops;
 mod restore_rules;
 pub use script_ops::ScriptOp;
 pub use scene_dialog::DialogState;
+pub use scene_paint::RenderState; // 【P2 批8】UIRender 消费面（E3 六字段切片）跨模块可达（facade 复出口先例）
 pub use restore_rules::{RestoreAction, RestoreRule, RESTORE_RULES};
 use scene_persist::PersistState;
 
@@ -1403,7 +1404,7 @@ impl GameScene {
                 true
             }
             InputStep::InterruptThen(_) => {
-                // pending=StopThen(c) 装配已在 resolver（interrupt_route:1646 不触 tap_pending，序等价 A 级）
+                // pending=StopThen(c) 装配已在 resolver（interrupt_route body=1631-1643 不触 tap_pending，序等价 A 级）
                 self.interrupt_route();
                 true
             }

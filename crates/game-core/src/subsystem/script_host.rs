@@ -5,7 +5,7 @@
 //! op_* 编排体留 Coordinator 面（跨域调用=遗留直写批10 清零面——本批不迁，避免 21 helper 借用面重构风险）。
 //!
 //! 【HostCtx 余方法处置账】（plan 批5 明文交付；**批6 摘 2 后 HostCtx 现 8 方法**[give_gold/pickup_item 已迁批6 ItemService]；
-//! 批7 InputMapper 无 HostCtx 面=N/A（输入面三漏斗不涉 host 方法）——逐条处置归宿如下）：
+//! 批7 输入面/批8 渲染面均无 HostCtx 方法=N/A（零再收窄）——逐条处置归宿如下）：
 //! | 方法 | 消费面实测 | 处置归宿 |
 //! |---|---|---|
 //! | find_path | script MOV/SEE+tap_walk 寻路 | pathfind 域独立（plan §1）——不入 trait 面 |
@@ -16,7 +16,7 @@
 //!
 //! 【SCRIPT_BLIND_ZONES】script 域 dump 盲区：scriptLine/scriptCursor/scriptDelay（state_dump 无 FLD）；
 //! scriptLineFlags/currentScriptIndex/scriptWalkArmed=FLD 覆盖非盲区。plan:69 点名项无 script 域项
-//! （dialog/persist 域已登记=p2b5 跨域断言；menu 4+tap 1=显式 pending 批7/批9 销账）。
+//! （dialog/persist 域已登记=p2b5 跨域断言；menu4 批6/tap1 批7 已销账——pending 全清）。
 
 use crate::combat::PlayerCombat;
 use crate::entity::EntityTable;
@@ -101,9 +101,9 @@ pub const SCRIPT_BLIND_ZONES: &[&str] = &[
     "（评估）scriptLineFlags/currentScriptIndex/scriptWalkArmed=FLD 覆盖非盲区；plan:69 点名项无 script 域项",
 ];
 
-/// plan:69 点名项显式 pending（批7 InputMapper/tap+批9 ShopGoods/menu 登记时销账——批3 红1 教训横切）。
+/// plan:69 点名项显式 pending（已全清——批3 红1 教训横切机制保留）。
 pub const PLAN_NAMED_PENDING: &[&str] = &[];
-// plan:69-71 点名 13 项已全部登记销账：dialog4 批3（DIALOG_BLIND_ZONES）+persist4 批4（PERSIST_BLIND_ZONES）
+// plan:69-71 点名 14 token 已全部登记销账（挂账④计数勘误 13→14）：dialog5 批3（DIALOG_BLIND_ZONES 含 overlay）+persist4 批4（PERSIST_BLIND_ZONES）
 // +menu4 批6（MENU_BLIND_ZONES）+tap1 批7（INPUT_BLIND_ZONES tap.auto_battle）。本表清空，挂账机制保留。
 
 #[cfg(test)]
@@ -184,7 +184,7 @@ mod tests {
             assert!(s.contains(name), "script 盲区漏登记：{name}");
         }
         let d = crate::subsystem::dialog::DIALOG_BLIND_ZONES.join("\n");
-        for name in ["typewriterPos", "dialogSpeaker", "dialogAnchor", "dialogTarget"] {
+        for name in ["typewriterPos", "dialogSpeaker", "dialogAnchor", "dialogTarget", "overlay"] {
             assert!(d.contains(name), "dialog 盲区漏登记 plan:69 点名项：{name}");
         }
         let pp = crate::subsystem::persist_codec::PERSIST_BLIND_ZONES.join("\n");

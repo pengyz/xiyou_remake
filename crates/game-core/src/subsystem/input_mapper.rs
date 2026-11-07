@@ -7,15 +7,16 @@
 
 use crate::controls::Action;
 
-/// 原始输入事件（批7 终形）：三动作产出边界事件——shell 三漏斗实证
-/// （shell/win/src/main.rs:669 地图格/shell/common/src/controls_ui.rs 工具栏命中/shell/common/src/touch.rs:145
-/// TapTarget=Undo 区>地图格>图外/scene.rs:488 键盘）。
+/// 原始输入事件（批7 终形）：抽象定义+消费面，shell 接线未入本批（生产构造点=0，
+/// map 现仅测试消费）——三漏斗边界事件口径：地图格/工具栏命中/撤销区触点/键盘键码。
+/// 【2026-11-07 更正·挂账①】原注「三漏斗实证」口径不实（列了 shell 行锚但无生产构造点）。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RawInput {
     /// 物理/软键键码（key_value 同币——边沿）。
     Key(i32),
     /// 工具栏/摇杆标注命中按钮（**自带绑定**=controls 两表单源；host 差异随 ControlButton 携带——
-    /// GameScene:203-205 Bag/Menu=StopThen vs BootMachine 测试 :362-363=Key，map 不自设绑定防双轨）。
+    /// GameScene:203-205 Bag/Menu=StopThen vs idle 档 Key（controls.rs:362-363 t1_map_idle_buttons=Key(-6/-7)，
+/// GameScene 侧；BootMachine 侧 Key 断言真身=paint.rs:1116——挂账②行锚勘误），map 不自设绑定防双轨）。
     TapButton(crate::controls::ControlButton),
     /// 撤销区触点（touch.rs:145 TapTarget::Undo）。
     TapUndo,
@@ -34,7 +35,8 @@ pub enum InputStep {
     /// 需撞选中怪（Coordinator 执行 engage_selected）。
     Engage,
     /// 打断后排队键码（域写=resume: tap_pending=StopThen(c) 已在 resolver 装配；
-    /// Coordinator 仅执行 interrupt_route——interrupt_route:1646 不触 tap_pending，序等价 A 级）。
+    /// Coordinator 仅执行 interrupt_route——interrupt_route body=1631-1643 不触 tap_pending（挂账③行锚勘误：
+/// :1646 为 interrupt_route_for_input doc 行），序等价 A 级）。
     InterruptThen(i32),
 }
 

@@ -107,7 +107,7 @@ trait UIRender        { fn snapshot(&self, …) -> UiFrame; }               // A
 > 【2026-11-07 更正】P2 批0 落码与本节两处差异（plan 已裁定，原文不删备查）：
 > ① PersistCodec 实现为 serialize+deserialize 双向（plan §2 批4「Blob↔域切片格式编解码面」），
 > 本节单行仅列 serialize；② UIRender::snapshot 实现为 `snapshot(&self) -> UiFrame` 无参
-> （plan 批8 锚行），本节 `…` 为参形未定占位。以上为 plan 授权收窄/扩展，非偏离。
+> （plan 批8 锚行），本节 `…` 为参形未定占位。以上为 plan 授权收窄/扩展，非偏离。（序号⑤空缺：批4/5/6 未触本节，编号如实不补号）
 > 【2026-11-07 更正·批2】③ BattleSubsystem::resolve_bump 实现为 `resolve_bump(&mut self, ctx, t, ev: BattleEvent) -> BattleOutcome`（+ev 参——plan 批2「scene 战斗路径编排面→BattleOutcome」三事件面[途中开战/撞击开战/一击交换]需事件分辨；ctx+≤2 恰满 t+ev）。原文单 (ctx,t) 形不删备查。
 > 【2026-11-07 更正·批3】④ DialogSubsystem 实现为 3 方法（tick+set_typewriter/m_082_set_dialog_target——Host 边界 2 方法自 HostCtx 逐字迁入，lead 批3 派工「HostCtx 再收窄的面逐字迁+界收窄」授权；tick 形不变，ctx+≤2 不涉）。原文单 tick 形不删备查。
 > 【2026-11-07 更正·批7】⑥ InputMapper 实现为 2 方法（map+apply——`apply(&mut self, ctx:&mut InputCtx, a:Action)->InputStep` 为 perform_action 输入域写收拢面[批2/5/6 域写面收拢同款]，lead 批7 派工「域写面收拢进 InputResolver/Service」授权；map 形不变）。原文单 map 形不删备查。
