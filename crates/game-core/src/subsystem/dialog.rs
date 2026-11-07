@@ -72,12 +72,19 @@ pub const DIALOG_BLIND_ZONES: &[&str] = &[
     "layout_full_text/layout_wrapped_text_limited 排版面（scene.rs:859/1109——render 域编排）",
     "skip_text_to_line_end 跳行尾算法（scene.rs:1828——SkipToLineEnd 臂编排处置）",
     "溢出翻页检（lines_per_page 算术+flip_overlay_page 调用——tick_dialog 编排）",
-    "open_dialog_page 页面开合编排（scene.rs:1047 GameScene inherent）",
+    "open_dialog_page 页面开合编排（scene.rs:1047 GameScene inherent——内写 dialogSpeaker :1050/dialogAnchor :1055，真盲区 dump 无字段）",
     "phase 0-5 跨域分派（script 延迟/行走/相机/战斗——tick_dialog 相位机非 dialog 域）",
     "phase6 Confirm 臂 ease 相机 4 setter（camera_ease 域编排尾）",
+    "dialogTarget 直写（script_ops.rs:136 op_see/:164 op_mov——真盲区：state_dump 无字段+WriteFaceRow flds=&[]；夹具断言兜底=entity_route_tests op_mov :33/:191+op_see 对称断言）",
     "dialog_phase/dialog_page 编排直写（Coordinator 遗留直写——批10 清零面）",
+    "overlay 布局面（show_overlay_message box/icon 直写 scene.rs:839-847——overlay_box_w/h+left/right_icon，dialog-vm 域布局面；plan:69 明文项）",
     "typewriterPos=dialog_char（已入 DialogCtx 记录槽写面登记——对照注记非盲区）",
 ];
+
+/// 域归属注记（批3 红1 复核③评估——非 dialog 域不入清单，登记归属防漏账）：
+/// op_see ease 簇（script_ops.rs:145-148）与 op_ces 双簇（script_ops.rs:242-246）=
+/// set_ease_cam_x/y+set_ease_target_x/y 直写——**render 域**（field-ownership render 18 域含
+/// ease_cam_x/y/ease_target_x/y），非 dialog 域；归批8 UIRender 面处置，不入本清单。
 
 #[cfg(test)]
 mod tests {

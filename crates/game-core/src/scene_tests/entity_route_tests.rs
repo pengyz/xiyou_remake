@@ -79,6 +79,16 @@
     /// 战斗态字段 + 敌先手；case5 tickBattle(false) 击杀收尾 → dp0（不 restep，
     /// walkPhase 留 5——Java 原样，待 mode3 tickBattle 复位）。
     #[test]
+    /// 批3 红1②兜底断言（对称 op_mov dialog_target 断言——dialogTarget 真盲区 dump 无字段，
+    /// 夹具断言兜底；script_ops.rs:136 op_see 直写，plan:69 明文盲区项）。
+    #[test]
+    fn see_op_seeds_dialog_target() {
+        use super::scene_test_support::scene as mk_scene;
+        let mut sc = mk_scene((5, ROW), &[]);
+        exec(&mut sc, "SEE_4_10_168_168_0 ");
+        assert_eq!(sc.dialog.dialog_target, (4, 10), "op_see 装配 dialog_target（a.java:8487-8495）");
+    }
+
     fn route_enemy_battle_when_stepping_into_player() {
         let t = 43u8;
         let mut sc = scene((5, ROW), &[(t, 3, ROW)]);
