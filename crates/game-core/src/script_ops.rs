@@ -79,7 +79,18 @@ impl GameScene {
         match kind {
             0 => self.pickup_item_type(value),
             1 => {
-                crate::combat::gain_gold(&mut self.player, value);
+                // 【BUG-051 修】a.java:8439 gainGold 内弹 spawnPopup(4,v,playerPixelX/Y)（:7527-7532 体）。
+                if let Some(v) = crate::combat::gain_gold(&mut self.player, value) {
+                    self.popups.spawn(
+                        4,
+                        v,
+                        self.view.player_px,
+                        self.view.player_py,
+                        self.view.cam_x,
+                        self.view.cam_y,
+                        self.images.popup.digit_strips[0].width / 11,
+                    );
+                }
             }
             _ => {}
         }

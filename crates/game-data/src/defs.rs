@@ -611,6 +611,132 @@ fn parse_item(rec: &Json, path: &str, domain_lo: i32, domain_hi: i32) -> Result<
     })
 }
 
+// ---------------------------------------------------------------- ShopGoods（P2 批9）
+
+/// 【P2 批9】ShopGoods per-type 记录表行（plan:97 商人商品属性束一次性切）。
+/// 照 items.json/enemies.json 先例：rows id 升序+五类拒载；AddStack/PickupItem 的
+/// `item` 参数=ItemRegistry（items.json id）**外键**（首个消费面——调用方传 id 清单校验）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShopGoodDef {
+    /// 行 id（表内升序且唯一——id 稳定性先例）
+    pub id: i32,
+    /// 商人型：0=type77 系 / 1=另一型（scene apply_merchant_offer src 解）
+    pub src: i32,
+    /// 商品序（entity param 低 8 位；1..=127=i8 正域）
+    pub idx: i32,
+    /// 价格（0=免费；>0 走 spend_gold 门+fail_hint 提示）
+    pub price: i32,
+    /// 效果束（表行 effect{key,params}——批9 臂面枚举；ItemRegistry EffectKey
+    /// 命名空间未扩=保真冻结面不动，语义逐臂 a.java 锚见证据行）
+    pub effect: ShopEffect,
+    /// 失败提示（show_overlay_message 文本；免费行空串）
+    pub fail_hint: String,
+}
+
+/// 商人购买效果枚举（表行 effect.key 解）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ShopEffect {
+    GiveGold { amount: i32 },
+    AddStack { item: i32 },
+    StatPct { atk_pct: i32, def_pct: i32 },
+    AddKeys { blue: i32, yellow: i32, red: i32 },
+    SwapYellowKey { gold: i32 },
+    AddHp { amount: i32 },
+    PickupItem { item: i32 },
+}
+
+const ENVELOPE_SHOP_KEYS: &[&str] = &["schema_version", "note", "rows"];
+const SHOP_ROW_KEYS: &[&str] = &["id", "src", "idx", "price", "effect", "fail_hint", "evidence"];
+
+/// 解析 shop_goods.json（五类拒载：BadJson/UnknownField/DomainOverflow/BadForeignKey[ItemRegistry 外键]）。
+/// `item_ids`：ItemRegistry（items.json）id 清单——AddStack/PickupItem 的 item 外键目标（调用方提供，§2.3）。
+pub fn parse_shop_goods(src: &str, item_ids: &[i32]) -> Result<Vec<ShopGoodDef>, Reject> {
+    let doc = parse_envelope(src, ENVELOPE_SHOP_KEYS)?;
+    let rows = expect_arr(&doc, "rows", "rows")?;
+    let mut out: Vec<ShopGoodDef> = Vec::with_capacity(rows.len());
+    let mut prev_id: Option<i32> = None;
+    for (i, rec) in rows.iter().enumerate() {
+        let path = format!("rows[{i}]");
+        // ⑤ UnknownField：行键外拒载
+        if let Json::Obj(kvs) = rec {
+            for (k, _) in kvs {
+                if !SHOP_ROW_KEYS.contains(&k.as_str()) {
+                    return Err(Reject::UnknownField {
+                        path: format!("{path}.{k}"),
+                        field: k.clone(),
+                    });
+                }
+            }
+        }
+        let id = rec.need_int("id").map_err(|e| schema(&path, e))? as i32;
+        // id 稳定性（§2.3 先例）：升序且唯一=拒载
+        if prev_id.map_or(false, |p| id <= p) {
+            return Err(schema(&path, format!("id {id} 非升序/重复（id 稳定性先例）")));
+        }
+        prev_id = Some(id);
+        let src = rec.need_int("src").map_err(|e| schema(&path, e))? as i32;
+        let idx = rec.need_int("idx").map_err(|e| schema(&path, e))? as i32;
+        // ③ DomainOverflow：src∈0..=1 / idx∈1..=127（i8 正域）
+        if !(0..=1).contains(&src) {
+            return Err(Reject::DomainOverflow {
+                path: format!("{path}.src"),
+                value: src as i64,
+                domain: "0..=1（商人型）",
+            });
+        }
+        if !(1..=127).contains(&idx) {
+            return Err(Reject::DomainOverflow {
+                path: format!("{path}.idx"),
+                value: idx as i64,
+                domain: "1..=127（商品序 i8 正域）",
+            });
+        }
+        let price = rec.need_int("price").map_err(|e| schema(&path, e))? as i32;
+        let fail_hint = rec.need_str("fail_hint").map_err(|e| schema(&path, e))?.to_string();
+        let effect_o = rec.get("effect").ok_or_else(|| schema(&path, "缺 effect"))?;
+        let effect = parse_shop_effect(effect_o, &format!("{path}.effect"), item_ids)?;
+        out.push(ShopGoodDef { id, src, idx, price, effect, fail_hint });
+    }
+    Ok(out)
+}
+
+fn parse_shop_effect(rec: &Json, path: &str, item_ids: &[i32]) -> Result<ShopEffect, Reject> {
+    let key = rec.need_str("key").map_err(|e| schema(path, e))?;
+    let p = rec.get("params").ok_or_else(|| schema(path, "缺 effect.params"))?;
+    let pi = format!("{path}.params");
+    let need_i = |k: &str| -> Result<i32, Reject> {
+        p.need_int(k).map(|v| v as i32).map_err(|e| schema(&pi, e))
+    };
+    // ② BadForeignKey：ItemRegistry 外键（AddStack/PickupItem 的 item 参数）
+    let item_fk = |k: &str| -> Result<i32, Reject> {
+        let v = need_i(k)?;
+        if !item_ids.contains(&v) {
+            return Err(Reject::BadForeignKey {
+                path: format!("{pi}.{k}"),
+                detail: format!("item {v} 不在 ItemRegistry（items.json id 清单）——首个消费面外键拒载"),
+            });
+        }
+        Ok(v)
+    };
+    match key {
+        "GiveGold" => Ok(ShopEffect::GiveGold { amount: need_i("amount")? }),
+        "AddStack" => Ok(ShopEffect::AddStack { item: item_fk("item")? }),
+        "StatPct" => Ok(ShopEffect::StatPct { atk_pct: need_i("atk_pct")?, def_pct: need_i("def_pct")? }),
+        "AddKeys" => Ok(ShopEffect::AddKeys {
+            blue: need_i("blue")?,
+            yellow: need_i("yellow")?,
+            red: need_i("red")?,
+        }),
+        "SwapYellowKey" => Ok(ShopEffect::SwapYellowKey { gold: need_i("gold")? }),
+        "AddHp" => Ok(ShopEffect::AddHp { amount: need_i("amount")? }),
+        "PickupItem" => Ok(ShopEffect::PickupItem { item: item_fk("item")? }),
+        other => Err(Reject::UnknownField {
+            path: format!("{path}.key"),
+            field: other.to_string(),
+        }),
+    }
+}
+
 fn parse_effect(rec: &Json, path: &str) -> Result<EffectKey, Reject> {
     let key = rec.need_str("key").map_err(|e| schema(path, e))?;
     let p = rec.get("params").ok_or_else(|| schema(path, "缺 effect.params"))?;

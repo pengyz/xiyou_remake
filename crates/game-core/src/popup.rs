@@ -196,3 +196,14 @@ pub fn draw_digit_strip(g: &mut SoftGraphics<'_>, strip: &ArgbImage, mut value: 
     g.reset_clip();
     count + 1
 }
+
+#[cfg(test)]
+impl PopupRing {
+    /// 测试观察面（cfg(test) 零行为）：非 retired 槽的 (kind, value)。
+    pub fn test_active(&self) -> Vec<(i32, i32)> {
+        (0..30)
+            .filter(|&i| !self.retired[i] && self.kind[i] != 0)
+            .map(|i| (self.kind[i], self.value[i]))
+            .collect()
+    }
+}

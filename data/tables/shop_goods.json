@@ -1,0 +1,295 @@
+{
+ "schema_version": 2,
+ "note": "DDDSA P2 批9 ShopGoods per-type 记录表（scene.rs apply_merchant_offer match 臂一次性切；照 items.json/enemies.json 先例 id 升序+五类拒载；AddStack/PickupItem 的 item=ItemRegistry[items.json] 外键=首个消费面）",
+ "rows": [
+  {
+   "id": 1,
+   "src": 0,
+   "idx": 1,
+   "price": 0,
+   "effect": {
+    "key": "GiveGold",
+    "params": {
+     "amount": 1000
+    }
+   },
+   "fail_hint": "",
+   "evidence": {
+    "effect": "a.java:7336 gainGold(1000,playerPixelX/Y)（BUG-051②同源臂）"
+   }
+  },
+  {
+   "id": 2,
+   "src": 0,
+   "idx": 2,
+   "price": 0,
+   "effect": {
+    "key": "AddStack",
+    "params": {
+     "item": 13
+    }
+   },
+   "fail_hint": "",
+   "evidence": {
+    "effect": "a.java:7335-7340 区间 addItemToItemStack(13)"
+   }
+  },
+  {
+   "id": 3,
+   "src": 0,
+   "idx": 6,
+   "price": 0,
+   "effect": {
+    "key": "AddStack",
+    "params": {
+     "item": 19
+    }
+   },
+   "fail_hint": "",
+   "evidence": {
+    "effect": "a.java:7342 addItemToItemStack(19)"
+   }
+  },
+  {
+   "id": 4,
+   "src": 0,
+   "idx": 15,
+   "price": 0,
+   "effect": {
+    "key": "GiveGold",
+    "params": {
+     "amount": 1000
+    }
+   },
+   "fail_hint": "",
+   "evidence": {
+    "effect": "a.java:7336 同型复用臂（1|15|21）"
+   }
+  },
+  {
+   "id": 5,
+   "src": 0,
+   "idx": 21,
+   "price": 0,
+   "effect": {
+    "key": "GiveGold",
+    "params": {
+     "amount": 1000
+    }
+   },
+   "fail_hint": "",
+   "evidence": {
+    "effect": "a.java:7336 同型复用臂（1|15|21）"
+   }
+  },
+  {
+   "id": 6,
+   "src": 1,
+   "idx": 1,
+   "price": 0,
+   "effect": {
+    "key": "StatPct",
+    "params": {
+     "atk_pct": 3,
+     "def_pct": 3
+    }
+   },
+   "fail_hint": "",
+   "evidence": {
+    "effect": "a.java:7349-7350 atk/def 各+3%（playerAtk/playerDef）"
+   }
+  },
+  {
+   "id": 7,
+   "src": 1,
+   "idx": 3,
+   "price": 50,
+   "effect": {
+    "key": "AddKeys",
+    "params": {
+     "blue": 1,
+     "yellow": 0,
+     "red": 0
+    }
+   },
+   "fail_hint": "没有足够的金钱",
+   "evidence": {
+    "effect": "a.java:7355-7360 ¤50 蓝+1（spendGold 门）"
+   }
+  },
+  {
+   "id": 8,
+   "src": 1,
+   "idx": 4,
+   "price": 50,
+   "effect": {
+    "key": "AddKeys",
+    "params": {
+     "blue": 0,
+     "yellow": 5,
+     "red": 0
+    }
+   },
+   "fail_hint": "没有足够的金钱",
+   "evidence": {
+    "effect": "a.java:7363-7368 ¤50 黄+5（spendGold 门）"
+   }
+  },
+  {
+   "id": 9,
+   "src": 1,
+   "idx": 5,
+   "price": 1000,
+   "effect": {
+    "key": "AddKeys",
+    "params": {
+     "blue": 0,
+     "yellow": 1,
+     "red": 0
+    }
+   },
+   "fail_hint": "没有足够的金钱",
+   "evidence": {
+    "effect": "a.java:7371-7376 ¤1000 黄+1（spendGold 门）"
+   }
+  },
+  {
+   "id": 10,
+   "src": 1,
+   "idx": 6,
+   "price": 800,
+   "effect": {
+    "key": "AddKeys",
+    "params": {
+     "blue": 0,
+     "yellow": 0,
+     "red": 1
+    }
+   },
+   "fail_hint": "没有足够的金钱",
+   "evidence": {
+    "effect": "a.java:7379-7384 ¤800 红+1（spendGold 门）"
+   }
+  },
+  {
+   "id": 11,
+   "src": 1,
+   "idx": 7,
+   "price": 200,
+   "effect": {
+    "key": "AddKeys",
+    "params": {
+     "blue": 1,
+     "yellow": 0,
+     "red": 0
+    }
+   },
+   "fail_hint": "没有足够的金钱",
+   "evidence": {
+    "effect": "a.java:7387-7392 ¤200 蓝+1（spendGold 门）"
+   }
+  },
+  {
+   "id": 12,
+   "src": 1,
+   "idx": 8,
+   "price": 0,
+   "effect": {
+    "key": "SwapYellowKey",
+    "params": {
+     "gold": 100
+    }
+   },
+   "fail_hint": "没有黄钥匙",
+   "evidence": {
+    "effect": "a.java:7394-7402 黄-1→¤+100（键数门；含 case 8 标签+break）"
+   }
+  },
+  {
+   "id": 13,
+   "src": 1,
+   "idx": 9,
+   "price": 1000,
+   "effect": {
+    "key": "AddKeys",
+    "params": {
+     "blue": 1,
+     "yellow": 1,
+     "red": 0
+    }
+   },
+   "fail_hint": "没有足够的金钱",
+   "evidence": {
+    "effect": "a.java:7404-7410 ¤1000 黄+1蓝+1（spendGold 门）"
+   }
+  },
+  {
+   "id": 14,
+   "src": 1,
+   "idx": 10,
+   "price": 200,
+   "effect": {
+    "key": "AddKeys",
+    "params": {
+     "blue": 0,
+     "yellow": 3,
+     "red": 0
+    }
+   },
+   "fail_hint": "没有足够的金钱",
+   "evidence": {
+    "effect": "a.java:7413-7418 ¤200 黄+3（spendGold 门）"
+   }
+  },
+  {
+   "id": 15,
+   "src": 1,
+   "idx": 11,
+   "price": 2000,
+   "effect": {
+    "key": "AddKeys",
+    "params": {
+     "blue": 3,
+     "yellow": 0,
+     "red": 0
+    }
+   },
+   "fail_hint": "没有足够的金钱",
+   "evidence": {
+    "effect": "a.java:7421-7426 ¤2000 蓝+3（spendGold 门）"
+   }
+  },
+  {
+   "id": 16,
+   "src": 1,
+   "idx": 12,
+   "price": 1000,
+   "effect": {
+    "key": "AddHp",
+    "params": {
+     "amount": 2000
+    }
+   },
+   "fail_hint": "没有足够的金钱",
+   "evidence": {
+    "effect": "a.java:7429-7434 ¤1000 hp+2000（spendGold 门）"
+   }
+  },
+  {
+   "id": 17,
+   "src": 1,
+   "idx": 13,
+   "price": 4000,
+   "effect": {
+    "key": "PickupItem",
+    "params": {
+     "item": 18
+    }
+   },
+   "fail_hint": "没有足够的金钱",
+   "evidence": {
+    "effect": "a.java:7437-7442 ¤4000 pickupItemType(18)（spendGold 门）"
+   }
+  }
+ ]
+}

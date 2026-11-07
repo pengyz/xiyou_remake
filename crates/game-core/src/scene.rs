@@ -2622,6 +2622,20 @@ impl GameScene {
 
     /// applyMerchantOffer（a.java:7307-7370）：buy=true 购买/false 拒绝。
     /// 返回 overlayActive 新值（true=浮层停留，false=关闭）。
+    /// 【P2 批9】ShopGoods 表（shop_goods.json 编译期嵌入——items.json 先例；
+    /// AddStack/PickupItem 的 item=ItemRegistry 外键在 loader 校验=首个消费面）。
+    fn shop_goods() -> &'static [game_data::defs::ShopGoodDef] {
+        use std::sync::OnceLock;
+        static ROWS: OnceLock<Vec<game_data::defs::ShopGoodDef>> = OnceLock::new();
+        ROWS.get_or_init(|| {
+            let items = game_data::defs::parse_items(include_str!("../../../data/tables/items.json"))
+                .expect("ItemRegistry（shop_goods 外键基）");
+            let ids: Vec<i32> = items.iter().map(|it| it.id).collect();
+            game_data::defs::parse_shop_goods(include_str!("../../../data/tables/shop_goods.json"), &ids)
+                .expect("shop_goods 表")
+        })
+    }
+
     fn apply_merchant_offer(&mut self, buy: bool) -> bool {
         if buy {
             // 【BUG-045】商人交易（扣金 / 送物）不记账 ⇒ 清栈（复核 T3-R4）
@@ -2643,107 +2657,53 @@ impl GameScene {
 
         if buy {
             if flags & 2 != 0 {
-            match (src, idx) {
-                (0, 1 | 15 | 21) => {
-                    crate::combat::gain_gold(&mut self.player, 1000);
-                }
-                (0, 2) => self.add_item_to_stack(13),
-                (0, 6) => self.add_item_to_stack(19),
-                (1, 1) => {
-                    self.player.atk += self.player.atk * 3 / 100;
-                    self.player.def += self.player.def * 3 / 100;
-                }
-                (1, 3) => {
-                    if !self.spend_gold(50) {
-                        self.show_overlay_message(0, "没有足够的金钱", 0, 0);
-                        purchase_ok = false;
-                    } else {
-                        self.player.blue_keys += 1;
+            // 【P2 批9 一次性切】15 match 臂→ShopGoods 表查+效果 dispatcher
+            // （价格/效果/提示=data/tables/shop_goods.json 单源——grep 双源=0；
+            // 表缺行=原 `_ => {}` 落空保真（无效果、收尾块照走））。
+            if let Some(good) = Self::shop_goods().iter().find(|g| g.src == src && g.idx == idx as i32) {
+                use game_data::defs::ShopEffect;
+                if good.price > 0 && !self.spend_gold(good.price) {
+                    self.show_overlay_message(0, &good.fail_hint, 0, 0);
+                    purchase_ok = false;
+                } else {
+                    match &good.effect {
+                        ShopEffect::GiveGold { amount } => {
+                            // 【BUG-051 修】a.java:7336 gainGold 内弹同参（kind4 浮层）。
+                            if let Some(v) = crate::combat::gain_gold(&mut self.player, *amount) {
+                                self.popups.spawn(
+                                    4,
+                                    v,
+                                    self.view.player_px,
+                                    self.view.player_py,
+                                    self.view.cam_x,
+                                    self.view.cam_y,
+                                    self.images.popup.digit_strips[0].width / 11,
+                                );
+                            }
+                        }
+                        ShopEffect::AddStack { item } => self.add_item_to_stack(*item),
+                        ShopEffect::StatPct { atk_pct, def_pct } => {
+                            self.player.atk += self.player.atk * atk_pct / 100;
+                            self.player.def += self.player.def * def_pct / 100;
+                        }
+                        ShopEffect::AddKeys { blue, yellow, red } => {
+                            self.player.blue_keys += blue;
+                            self.player.yellow_keys += yellow;
+                            self.player.red_keys += red;
+                        }
+                        ShopEffect::SwapYellowKey { gold } => {
+                            if self.player.yellow_keys > 0 {
+                                self.player.yellow_keys -= 1;
+                                self.player.gold += gold;
+                            } else {
+                                self.show_overlay_message(0, &good.fail_hint, 0, 0);
+                                purchase_ok = false;
+                            }
+                        }
+                        ShopEffect::AddHp { amount } => self.player.hp += amount,
+                        ShopEffect::PickupItem { item } => self.pickup_item_type(*item),
                     }
                 }
-                (1, 4) => {
-                    if !self.spend_gold(50) {
-                        self.show_overlay_message(0, "没有足够的金钱", 0, 0);
-                        purchase_ok = false;
-                    } else {
-                        self.player.yellow_keys += 5;
-                    }
-                }
-                (1, 5) => {
-                    if !self.spend_gold(1000) {
-                        self.show_overlay_message(0, "没有足够的金钱", 0, 0);
-                        purchase_ok = false;
-                    } else {
-                        self.player.yellow_keys += 1;
-                    }
-                }
-                (1, 6) => {
-                    if !self.spend_gold(800) {
-                        self.show_overlay_message(0, "没有足够的金钱", 0, 0);
-                        purchase_ok = false;
-                    } else {
-                        self.player.red_keys += 1;
-                    }
-                }
-                (1, 7) => {
-                    if !self.spend_gold(200) {
-                        self.show_overlay_message(0, "没有足够的金钱", 0, 0);
-                        purchase_ok = false;
-                    } else {
-                        self.player.blue_keys += 1;
-                    }
-                }
-                (1, 8) => {
-                    if self.player.yellow_keys > 0 {
-                        self.player.yellow_keys -= 1;
-                        self.player.gold += 100;
-                    } else {
-                        self.show_overlay_message(0, "没有黄钥匙", 0, 0);
-                        purchase_ok = false;
-                    }
-                }
-                (1, 9) => {
-                    if !self.spend_gold(1000) {
-                        self.show_overlay_message(0, "没有足够的金钱", 0, 0);
-                        purchase_ok = false;
-                    } else {
-                        self.player.yellow_keys += 1;
-                        self.player.blue_keys += 1;
-                    }
-                }
-                (1, 10) => {
-                    if !self.spend_gold(200) {
-                        self.show_overlay_message(0, "没有足够的金钱", 0, 0);
-                        purchase_ok = false;
-                    } else {
-                        self.player.yellow_keys += 3;
-                    }
-                }
-                (1, 11) => {
-                    if !self.spend_gold(2000) {
-                        self.show_overlay_message(0, "没有足够的金钱", 0, 0);
-                        purchase_ok = false;
-                    } else {
-                        self.player.blue_keys += 3;
-                    }
-                }
-                (1, 12) => {
-                    if !self.spend_gold(1000) {
-                        self.show_overlay_message(0, "没有足够的金钱", 0, 0);
-                        purchase_ok = false;
-                    } else {
-                        self.player.hp += 2000;
-                    }
-                }
-                (1, 13) => {
-                    if !self.spend_gold(4000) {
-                        self.show_overlay_message(0, "没有足够的金钱", 0, 0);
-                        purchase_ok = false;
-                    } else {
-                        self.pickup_item_type(18);
-                    }
-                }
-                _ => {}
             }
                 // a.java:7422-7436：**收尾块在 flags&2 门内**——flags&2=0
                 // 时整块跳过（无效果、浮层关、follow_up=false）。迭代 76：
@@ -2769,7 +2729,7 @@ impl GameScene {
                         }
                     }
                 } else {
-                    // 购买失败（「没有足够的金钱」提示浮层已开）→ 浮层保持
+                    // 购买失败（表行 fail_hint 提示浮层已开）→ 浮层保持
                     follow_up = true;
                 }
             } else if flags & 1 != 0 {
@@ -4664,6 +4624,12 @@ mod slot_equip_scene_tests;
 #[doc(hidden)]
 #[path = "scene_tests/scene_test_support.rs"]
 pub mod scene_test_support;
+
+#[cfg(test)]
+#[path = "scene_tests/gold_popup_tests.rs"]
+mod gold_popup_tests;
+#[path = "scene_tests/shop_purchase_tests.rs"]
+mod shop_purchase_tests;
 
 /// BUG-017 回归（2026-10-17 用户实机："物品栏使用火眼金睛 → 游戏已终止"）：
 /// 道具面板确认型 13 = Java 双跳 mode10→3→5（a.java:3939-3945 + 7786-7788）。
