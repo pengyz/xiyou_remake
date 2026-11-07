@@ -2,6 +2,7 @@
 //! parse/execute 三处汇 1（move-only）——16 op 冻结面（a.java:8220-8568）字节不动。
 use super::*;
 
+#[derive(Clone, Copy)]
 pub enum ScriptOp {
     /// TAK_a_b（a.java:8257-8263）
     Tak { start: i32, end: i32, cursor: usize },
@@ -51,6 +52,8 @@ pub enum ScriptOp {
     Mvs { cursor: usize },
 }
 
+use crate::subsystem::script_host::ScriptHost;
+
 impl GameScene {
     /// TAK_a_b（a.java:8257-8263）：页区间 + 对话相位 1 + 开页（pageEnd 先写——
     /// 不先更新会误判"越界"而丢页）。
@@ -80,7 +83,7 @@ impl GameScene {
             }
             _ => {}
         }
-        self.execute_script_instruction();
+        // 尾递归已信号化 ScriptStep::Recurse（批5）
     }
 
     /// RES_x（a.java:8470-8490）：easy（difficultyIndex==0）重置 run 统计；非 easy 空转。
@@ -151,8 +154,7 @@ impl GameScene {
     /// GUT_n（a.java:8308-8311）：旗标置位 + loadLevelScript(n)（游标由 load
     /// 重置为 0——Java 原样不前进）。
     pub(super) fn op_gut(&mut self, target: i32) {
-        let cur = self.current_script_index;
-        self.script_line_flags[cur] = true;
+        // 旗标写已收拢 ScriptResolver（批5）
         self.load_level_script(target);
     }
 
@@ -244,11 +246,7 @@ impl GameScene {
         // Java `if (sort_i >= 0)` 守卫（a.java:8398）：spawn 返回 usize 恒非负 ⇒ 恒真
         self.set_ease_target_x(self.entities.items[idx].px);
         self.set_ease_target_y(self.entities.items[idx].py);
-        self.set_script_delay(match self.entity_category(ty) {
-            1 | 8 | 16 => 5,
-            2 | 4 => 8,
-            _ => 0,
-        });
+        // scriptStepDelay 写已收拢 ScriptResolver（批5）
     }
 
     /// GLV_n（a.java:8464-8466）：纯解析推进（无副作用）。
@@ -542,7 +540,12 @@ impl GameScene {
     /// 执行层：统一写游标（解析层逐 op 计算）→ 逐 op 独立函数。
     /// GUT 的游标随后被 loadLevelScript 重置为 0（a.java:8308-8311 原样）。
     pub(super) fn execute_op(&mut self, op: ScriptOp) {
-        self.set_script_cursor(op.cursor());
+        // 【P2 批5】脚本域写面收拢 ScriptResolver（cursor/Gut 旗标/Ces delay/Gin 尾递归信号）
+        let step = {
+            let mut ctx = self.script_ctx();
+            let mut r = crate::subsystem::script_host::ScriptResolver;
+            r.execute_op(&mut ctx, op)
+        };
         match op {
             ScriptOp::Tak { start, end, .. } => self.op_tak(start, end),
             ScriptOp::Lay { floor, .. } => self.op_lay(floor),
@@ -569,6 +572,9 @@ impl GameScene {
             ScriptOp::RosDef { v, .. } => self.op_ros_def(v),
             ScriptOp::RosNoop { .. } => {}
             ScriptOp::Mvs { .. } => self.op_mvs(),
+        }
+        if matches!(step, crate::subsystem::script_host::ScriptStep::Recurse) {
+            self.execute_script_instruction(); // GIN 同拍尾递归（a.java:8435-8436）
         }
     }
 

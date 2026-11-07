@@ -271,7 +271,8 @@ mod tests {
         let sctx = ScriptCtx {
             current_script_index: &mut si, script_cursor: &mut sc, script_delay: &mut sd,
             script_line: &mut sl, script_line_flags: &mut slf, script_walk_armed: &mut swa,
-            player: &player, entities: &entities,
+            player: &player, floor: 1,
+                entities: &entities,
         };
         assert_eq!(*sctx.script_delay, 0);
 

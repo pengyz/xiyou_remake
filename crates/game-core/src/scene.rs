@@ -711,7 +711,7 @@ pub static TRANSFER_EDGES: &[(GameMode, Option<GameMode>)] = &[
 
 impl ScriptOp {
     /// 游标契约（条件 4）：各 op 的推进后游标。
-    fn cursor(&self) -> usize {
+    pub fn cursor(&self) -> usize {
         match self {
             ScriptOp::Tak { cursor, .. }
             | ScriptOp::Lay { cursor, .. }
@@ -3760,6 +3760,21 @@ impl GameScene {
             }
         }
 
+        /// 【P2 批5】脚本域 ctx（6 写槽+player/entities 读+floor 值拷贝——disjoint field borrows）。
+        fn script_ctx(&mut self) -> crate::subsystem::script_host::ScriptCtx<'_> {
+            crate::subsystem::script_host::ScriptCtx {
+                current_script_index: &mut self.current_script_index,
+                script_cursor: &mut self.script_cursor,
+                script_delay: &mut self.script_delay,
+                script_line: &mut self.script_line,
+                script_line_flags: &mut self.script_line_flags,
+                script_walk_armed: &mut self.script_walk_armed,
+                player: &self.player,
+                entities: &self.entities,
+                floor: self.persist.floor,
+            }
+        }
+
         /// tickBattle（a.java:10023-10149）：4 拍一击 → 胜利 → 死亡动画 6 拍 →
         /// tryStep(facing) 重试（胜利跳格）→ battleTargetEntity=-1。
         fn tick_battle(&mut self, allow_restep: bool) {
@@ -4523,9 +4538,8 @@ impl GameScene {
     fn entity_category(&self, t: i32) -> u8 {
         // 【V2-P2 消费替换】floor50 类目覆写改查 sprite_defs.floor_category_override
         // （表驱动；旧特例 `t==72 && floor==50 → 8` 与表逐值等价）。
-        crate::resource_cfg::global()
-            .floor_category(t, self.persist.floor)
-            .unwrap_or_else(|| entity::render_category(t))
+        // 【P2 批5】真体=script_host::entity_category_with_floor（层覆写语义单源）。
+        crate::subsystem::script_host::entity_category_with_floor(t, self.persist.floor)
     }
 
     /// 型 67 片件表（a.java:682-697 f_byte_arr2_00/01 逐值）已迁
