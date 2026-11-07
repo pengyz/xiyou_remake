@@ -526,60 +526,56 @@ impl GameScene {
     /// 装备位恒 0：equippedWeaponType/ArmorType 为装备批次字段（当前层恒无装备）。
     /// 【双归域·编排注记归因】槽 blob 序列化=跨域编排面（persist+player+装备+坐标逐参写盘）——
     /// **不可迁**（非域内闭合）；coordination 面显式留置。
+    /// 【P2 批4】字段汇集（域切片状态集装配——编排面）：MOT_L 记录 23 字段族自场景面。
+    /// 字节布局写入=crate::subsystem::persist_codec::PersistCoder::serialize（格式面单源）。
+    fn scene_state(&self) -> crate::subsystem::persist_codec::SceneState {
+        use crate::subsystem::persist_codec::SceneState;
+        SceneState {
+            difficulty_index: self.menu.difficulty_index as i8,
+            current_floor: self.persist.floor as i8,
+            min_floor_reached: self.persist.min_floor as i8,
+            max_floor_reached: self.persist.max_floor as i8,
+            facing_direction: self.facing as i8,
+            equipped_weapon_type: self.equipped_weapon as i8,
+            equipped_armor_type: self.equipped_armor as i8,
+            player_cell_x: self.player_cell_x as i16,
+            player_cell_y: self.player_cell_y as i16,
+            player_hp: self.player.hp,
+            player_atk: self.player.atk,
+            player_def: self.player.def,
+            yellow_keys: self.player.yellow_keys as i16,
+            blue_keys: self.player.blue_keys as i16,
+            red_keys: self.player.red_keys as i16,
+            gold: self.player.gold,
+            alchemy_upgrades: self.alchemy_upgrade_count as i16,
+            journal: self
+                .persist
+                .journal
+                .iter()
+                .map(|&(k, i)| (k as u8, i as u8))
+                .collect(),
+            script_flags: (0..128)
+                .map(|k| self.script_line_flags.get(k).copied().unwrap_or(false))
+                .collect(),
+            item_stack_size: self.player.item_stack_size as u8,
+            item_stack_types: (0..self.player.item_stack_size as usize)
+                .map(|k| self.player.item_types[k])
+                .collect(),
+            item_stack_uses: (0..self.player.item_stack_size as usize)
+                .map(|k| self.player.item_uses[k])
+                .collect(),
+            // 56 层态（旧写 [k] 索引对 len<56 panic；.get 填 None=同字节序安全化）
+            floor_states: (0..56)
+                .map(|k| self.persist.saved_floor_states.get(k).cloned().flatten())
+                .collect(),
+        }
+    }
+    /// saveFloorState 写侧（a.java:9182-9244）：blob 序 = parse_floor_save 读序。
+    /// 【P2 批4】字节布局归 face（PersistCodec::serialize）；本函数=场景面字段汇集+编排。
     pub(super) fn serialize_slot_blob(&self) -> Vec<u8> {
-        let mut o = Vec::new();
-        o.push(self.menu.difficulty_index as u8);
-        o.push(self.persist.floor as u8);
-        o.push(self.persist.min_floor as u8);
-        o.push(self.persist.max_floor as u8);
-        o.push(self.facing as u8);
-        o.push(self.equipped_weapon as u8); // equippedWeaponType（a.java:9192 写真实值）
-        o.push(self.equipped_armor as u8); // equippedArmorType（a.java:9193）
-        // writeShort(playerCellX/Y)（a.java:9197-9198）：**2 字节**——旧写法
-        // `(px>>5).to_be_bytes()` 是 i32 四字节，令其后全部字段错位 4 字节
-        o.extend_from_slice(&(self.player_cell_x as i16).to_be_bytes());
-        o.extend_from_slice(&(self.player_cell_y as i16).to_be_bytes());
-        for v in [self.player.hp, self.player.atk, self.player.def] {
-            o.extend_from_slice(&v.to_be_bytes());
-        }
-        for v in [
-            self.player.yellow_keys as i16,
-            self.player.blue_keys as i16,
-            self.player.red_keys as i16,
-        ] {
-            o.extend_from_slice(&v.to_be_bytes());
-        }
-        o.extend_from_slice(&self.player.gold.to_be_bytes());
-        // writeShort(alchemyUpgradeCount)（a.java:9206；旧写法恒 0）
-        o.extend_from_slice(&(self.alchemy_upgrade_count as i16).to_be_bytes());
-        // writeShort(inventoryEntryCount，原 inventoryEntryCount) + f_byte_arr_14/15 对（a.java:9207-9212）= mode12 日志
-        //（读侧 a.java:9278-9283 → journal；旧写法取恒空的 special_item_types）
-        o.extend_from_slice(&(self.persist.journal.len() as i16).to_be_bytes());
-        for &(kind, idx) in &self.persist.journal {
-            o.push(kind as u8);
-            o.push(idx as u8);
-        }
-        // 128 字节脚本旗标（不足补 false）
-        for k in 0..128 {
-            let v = self.script_line_flags.get(k).copied().unwrap_or(false);
-            o.push(v as u8);
-        }
-        // 道具栈
-        o.push(self.player.item_stack_size as u8);
-        for k in 0..self.player.item_stack_size as usize {
-            o.push(self.player.item_types[k]);
-            o.push(self.player.item_uses[k]);
-        }
-        // 56 层触发状态
-        for k in 0..56usize {
-            match &self.persist.saved_floor_states[k] {
-                Some(d) => {
-                    o.extend_from_slice(&(d.len() as i16).to_be_bytes());
-                    o.extend_from_slice(d);
-                }
-                None => o.extend_from_slice(&(-1i16).to_be_bytes()),
-            }
-        }
-        o
+        use crate::subsystem::persist_codec::PersistCodec;
+        crate::subsystem::persist_codec::PersistCoder
+            .serialize(&self.scene_state())
+            .0
     }
 }
