@@ -997,3 +997,19 @@ Evidence: A 级——a.java:3129-3168 公共尾 + switch 区间无 return；实�
   :7534-7555 流程可入栈 **15 型**+findItemStackIndex 85/86 可达 **24 件**——
   上限表述以此为准；但 **BUG-050 结论幸存**（33 件溢出双口径均不可达——满栈
   分歧仍属潜在缺口）。
+
+## BUG-051 给金场景金币浮层缺失（保真缺口·可达）
+
+- 现象：Rust `gain_gold` 返回 Option（combat.rs:190-198 守卫=Java 同值），但生产
+  2 调用点丢 Option **不弹 kind4 金币浮层**——① `script_ops.rs:82` op_gin（Java
+  a.java:8439 弹）② `scene.rs:2661` 商人赠金 1000（Java a.java:7336 弹）。
+  战斗 2 站点弹层正常。
+- 复现：`assets/raw/script:42/:45` = `GIN_1_1000`（真流程可达）；47 场景零
+  GIN_1=全门禁盲区（state dump 无 popup 字段/fixture_frames 无该帧/无 popupKind
+  trace）。
+- 影响：给金时玩家看不到 +N 浮层（视觉保真差）；数值/账本本身正确。
+- 登记：2026-11-07（DDDSA P2 批6 复核面2 黄-中·非本批引入，diff 不含 2661、
+  script_ops.rs 不在 8 文件内）。
+- 计划：**批9 一并修**（+op_gin：`if let Some(v) = gain_gold(..) {
+  popups.spawn(4, v, px, py, ..) }`——先对拍 a.java:8439 浮层四参语义）。
+- trace id：N/A（静态对拍：复核件 docs/findings/reviews/2026-11-07-p2-batch6-review.md 面2）。
