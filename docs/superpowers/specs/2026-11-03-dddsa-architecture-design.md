@@ -110,6 +110,7 @@ trait UIRender        { fn snapshot(&self, …) -> UiFrame; }               // A
 > （plan 批8 锚行），本节 `…` 为参形未定占位。以上为 plan 授权收窄/扩展，非偏离。
 > 【2026-11-07 更正·批2】③ BattleSubsystem::resolve_bump 实现为 `resolve_bump(&mut self, ctx, t, ev: BattleEvent) -> BattleOutcome`（+ev 参——plan 批2「scene 战斗路径编排面→BattleOutcome」三事件面[途中开战/撞击开战/一击交换]需事件分辨；ctx+≤2 恰满 t+ev）。原文单 (ctx,t) 形不删备查。
 > 【2026-11-07 更正·批3】④ DialogSubsystem 实现为 3 方法（tick+set_typewriter/m_082_set_dialog_target——Host 边界 2 方法自 HostCtx 逐字迁入，lead 批3 派工「HostCtx 再收窄的面逐字迁+界收窄」授权；tick 形不变，ctx+≤2 不涉）。原文单 tick 形不删备查。
+> 【2026-11-07 更正·批7】⑥ InputMapper 实现为 2 方法（map+apply——`apply(&mut self, ctx:&mut InputCtx, a:Action)->InputStep` 为 perform_action 输入域写收拢面[批2/5/6 域写面收拢同款]，lead 批7 派工「域写面收拢进 InputResolver/Service」授权；map 形不变）。原文单 map 形不删备查。
 > 【轮2修复】四处注记：
 > ① **ItemService 切法终案落书**（C Q3 终结，详见 §7-Q1）：Registry=静态查表面（分发），
 > Service=道具生命周期运行面（pickup/use 编排），分发链唯一，跨域副作用归 Coordinator；

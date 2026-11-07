@@ -4,11 +4,12 @@
 //! resolver=**脚本域写面收拢**（普适 cursor 写+Gut 旗标+Ces scriptDelay+GIN 尾递归信号化）；
 //! op_* 编排体留 Coordinator 面（跨域调用=遗留直写批10 清零面——本批不迁，避免 21 helper 借用面重构风险）。
 //!
-//! 【HostCtx 余方法处置账】（plan 批5 明文交付；HostCtx 现 10 方法——本批**无再收窄面**，逐条处置归宿如下）：
+//! 【HostCtx 余方法处置账】（plan 批5 明文交付；**批6 摘 2 后 HostCtx 现 8 方法**[give_gold/pickup_item 已迁批6 ItemService]；
+//! 批7 InputMapper 无 HostCtx 面=N/A（输入面三漏斗不涉 host 方法）——逐条处置归宿如下）：
 //! | 方法 | 消费面实测 | 处置归宿 |
 //! |---|---|---|
 //! | find_path | script MOV/SEE+tap_walk 寻路 | pathfind 域独立（plan §1）——不入 trait 面 |
-//! | give_gold / pickup_item | GIN op 面 | **批6 ItemService** |
+//! | give_gold / pickup_item | GIN op 面 | ~~批6 ItemService~~ **已迁（批6 落定）** |
 //! | snap_camera_to_player / ces_camera / set_camera_anchor_target / snap_camera_after_ros1 | 脚本相机编排 | Coordinator 编排面（plan §1 相机 4 不入 trait） |
 //! | exit_application / mvs_exchange | **仅 ScriptEngine 边界**（script.rs:496/507；game 面 op_end=transition_to/op_mvs=内联体不走 host） | 平台边界 stub 留 HostCtx |
 //! | locate_speaker_entity | open_dialog_page（script.rs:224） | 批3 已注 dialog 面边界件 |
@@ -101,9 +102,9 @@ pub const SCRIPT_BLIND_ZONES: &[&str] = &[
 ];
 
 /// plan:69 点名项显式 pending（批7 InputMapper/tap+批9 ShopGoods/menu 登记时销账——批3 红1 教训横切）。
-pub const PLAN_NAMED_PENDING: &[&str] = &[
-    "tap:autoBattle（批7 InputMapper 登记）",
-];
+pub const PLAN_NAMED_PENDING: &[&str] = &[];
+// plan:69-71 点名 13 项已全部登记销账：dialog4 批3（DIALOG_BLIND_ZONES）+persist4 批4（PERSIST_BLIND_ZONES）
+// +menu4 批6（MENU_BLIND_ZONES）+tap1 批7（INPUT_BLIND_ZONES tap.auto_battle）。本表清空，挂账机制保留。
 
 #[cfg(test)]
 mod tests {
@@ -190,7 +191,8 @@ mod tests {
         for name in ["minFloor", "maxFloor", "pendingFloor", "wentDown"] {
             assert!(pp.contains(name), "persist 盲区漏登记 plan:69 点名项：{name}");
         }
-        assert_eq!(PLAN_NAMED_PENDING.len(), 1, "pending=tap1（menu4 已批6 销账）");
-        assert!(PLAN_NAMED_PENDING.join("\n").contains("autoBattle"), "pending 漏项：autoBattle");
+        assert!(PLAN_NAMED_PENDING.is_empty(), "pending 全清（批7 tap 销账）");
+        let ip = crate::subsystem::input_mapper::INPUT_BLIND_ZONES.join("\n");
+        assert!(ip.contains("auto_battle"), "tap 盲区漏登记 plan:69 点名项：autoBattle");
     }
 }

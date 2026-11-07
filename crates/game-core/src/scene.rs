@@ -1382,46 +1382,31 @@ impl GameScene {
     /// 【STAGE-B-008 计划 3 T2 · spec §3.1】执行 [`crate::controls::Action`]（壳工具栏 / 摇杆标注消费，计划 3 T5/T6 接线）。
     /// 返回 true = 动作被受理（`Undo` 恒 false：撤销执行在壳 undo_ui——core 无撤销入口）。
     pub fn perform_action(&mut self, a: crate::controls::Action) -> bool {
-        use crate::controls::Action;
-        match a {
-            // 键码动作 = 边沿键值（按钮无抬起事件，不走 press_key 的 keyHeld 锁存；菜单/确定类键
-            // 在出现的情境里无 held 语义）。工具栏情境不含寻路中 ⇒ 无须打断。
-            Action::Key(c) => {
-                self.key_value = c;
+        use crate::subsystem::input_mapper::{InputCtx, InputMapper, InputResolver, InputStep};
+        // 【P2 批7】域写收拢进 InputResolver::apply（逐臂等价）；编排（interrupt_route/
+        // engage_selected）留 Coordinator 由 InputStep 桥接。walk 先算后借（批2 E0502 教训）。
+        let walk = self.tap_walk_in_progress();
+        let step = {
+            let mut ctx = InputCtx { walk_in_progress: walk, key_value: &mut self.key_value, tap: &mut self.tap };
+            let mut r = InputResolver;
+            r.apply(&mut ctx, a)
+        };
+        match step {
+            InputStep::Ignored => false, // Undo：core 无撤销入口（撤销执行在壳 undo_ui）
+            InputStep::Accepted => true,
+            InputStep::Interrupt => {
+                self.interrupt_route();
                 true
             }
-            Action::Stop => {
-                if self.tap_walk_in_progress() {
-                    self.tap.tap_bump = None;
-                    self.tap.tap_selected = None;
-                    self.tap.tap_pending = None;
-                    self.tap.tap_target = None;
-                    self.interrupt_route();
-                }
-                true
-            }
-            Action::Cancel => {
-                self.tap.tap_selected = None;
-                true
-            }
-            Action::Fight => {
+            InputStep::Engage => {
                 let _ = self.engage_selected();
                 true
             }
-            Action::StopThen(c) => {
-                if self.tap_walk_in_progress() {
-                    self.tap.tap_bump = None;
-                    self.tap.tap_selected = None;
-                    self.tap.tap_target = None; // 【复核 T2-R5】打断 ⇒ 目标标记消失（spec §6）
-                    self.interrupt_route();
-                    self.tap.tap_pending = Some(crate::tap_walk::PendingTap::StopThen(c));
-                    true
-                } else {
-                    self.key_value = c;
-                    true
-                }
+            InputStep::InterruptThen(_) => {
+                // pending=StopThen(c) 装配已在 resolver（interrupt_route:1646 不触 tap_pending，序等价 A 级）
+                self.interrupt_route();
+                true
             }
-            Action::Undo => false,
         }
     }
 

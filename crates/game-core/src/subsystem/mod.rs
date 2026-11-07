@@ -100,7 +100,7 @@ mod tests {
     use super::battle::{BattleCtx, BattleEvent, BattleOutcome, BattleSubsystem, EnemyTypeId};
     use super::dialog::{DialogCtx, DialogStep, DialogSubsystem};
     use super::entity_service::{EntityCtx, EntityService};
-    use super::input_mapper::{InputMapper};
+    use super::input_mapper::{InputCtx, InputMapper, InputStep};
     use super::item_service::ItemService;
     use super::input_mapper::RawInput;
     use super::persist_codec::{Blob, PersistCodec, SceneState};
@@ -173,6 +173,9 @@ mod tests {
         }
         pub fn _sig_input_map<T: InputMapper>(t: &T, ev: RawInput) -> Action {
             t.map(ev)
+        }
+        pub fn _sig_input_apply<T: InputMapper>(t: &mut T, ctx: &mut InputCtx, a: Action) -> InputStep {
+            t.apply(ctx, a)
         }
         pub fn _sig_ui_snapshot<T: UIRender>(t: &T) -> UiFrame {
             t.snapshot()

@@ -116,7 +116,7 @@ mod tests {
         }
         let pend = crate::subsystem::script_host::PLAN_NAMED_PENDING.join("\n");
         assert!(!pend.contains("menu:"), "menu 4 项应销账（plan 批6 登记位）");
-        assert!(pend.contains("autoBattle"), "tap:autoBattle 留 pending（批7）");
+        assert!(!pend.contains("autoBattle"), "tap:autoBattle 已批7 销账（INPUT_BLIND_ZONES 归档）");
     }
 
     /// 【P2 批6 红测试】give_gold 逐字迁边界形（HostCtx 原签——sig_lock 孪生钉）。
