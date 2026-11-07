@@ -530,7 +530,7 @@ def cmd_status():
 
 def gate_state_baseline():
     """state_dump 金样主判据（refactor-plan §7 条件 1 换枪决议；task-15 V0 挂闸）：
-    tools/state_baseline.py --check = 60 场景 dump sha 逐字节核对（Rust 重构主判据）。
+    tools/state_baseline.py --check = 74 场景 dump sha 逐字节核对（Rust 重构主判据）。
     耗时 ≈ 数分钟（重放 fixture_frames/preset_cases/gameplay_floor1 三套件导 dump）。
     【AGENTS §2】本门禁改动独立 commit+自测+基线影响见 commit。"""
     import subprocess
