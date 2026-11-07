@@ -9,6 +9,7 @@
 //! [`crate::subsystem::entity_service::EntityService`]（HostCtx 拆小首件）。
 
 use crate::subsystem::entity_service::EntityService;
+use crate::subsystem::item_service::ItemService;
 use crate::subsystem::dialog::{DialogCtx, DialogStep, DialogSubsystem};
 
 /// 对白数据表（来源：deobf a.java:1124/1194 夹具，tests/fixtures/）。
@@ -133,8 +134,7 @@ impl Default for ScriptState {
 /// 批3：对话面 2 方法已迁 crate::subsystem::dialog::DialogSubsystem（Host 边界），余 10 暂留。
 pub trait HostCtx {
     fn find_path(&mut self, from_x: i32, from_y: i32, to_x: i32, to_y: i32) -> bool;
-    fn give_gold(&mut self, amount: i32);
-    fn pickup_item(&mut self, item_id: i32);
+    // 【批6 摘 2】give_gold/pickup_item 已逐字迁 crate::subsystem::item_service::ItemService（HostCtx 余 8）。
     /// lockCameraOn 相机部分（无条件）：相机锚 = 玩家像素位。
     fn snap_camera_to_player(&mut self);
     /// lockCameraOn 说话人实体定位 → dialogAnchorEntity。
@@ -246,7 +246,7 @@ impl<'d> ScriptEngine<'d> {
     /// 主循环步进：dialogPhase==0 时消费脚本（Java run dialogPhase 0 分支：
     /// scriptStepDelay>0 递减否则 execute，a.java:4000-4003 的镜像）。
     /// 批1 界收窄：透传 execute_script_instruction（EntityService 面）。
-    pub fn step(&mut self, host: &mut (impl HostCtx + EntityService + DialogSubsystem)) {
+    pub fn step(&mut self, host: &mut (impl HostCtx + EntityService + DialogSubsystem + ItemService)) {
         if self.state.dialog_phase == DialogPhase::ScriptStep {
             if self.state.scene_delay > 0 {
                 self.state.scene_delay -= 1;
@@ -267,7 +267,7 @@ impl<'d> ScriptEngine<'d> {
 
     /// executeScriptInstruction 忠实移植（a.java:8239-8581）。
     /// 批1 界收窄：MOV/DES/SWD/RES/spawn 实体面（EntityService）+相机面（HostCtx）。
-    pub fn execute_script_instruction(&mut self, host: &mut (impl HostCtx + EntityService + DialogSubsystem)) {
+    pub fn execute_script_instruction(&mut self, host: &mut (impl HostCtx + EntityService + DialogSubsystem + ItemService)) {
         let line = self.line();
         let script_cursor0 = self.state.script_cursor;
         let has_opcode = script_cursor0 + 3 <= line.len();
@@ -525,8 +525,6 @@ impl<'d> ScriptEngine<'d> {
 pub struct NoopHost;
 impl HostCtx for NoopHost {
     fn find_path(&mut self, _: i32, _: i32, _: i32, _: i32) -> bool { false }
-    fn give_gold(&mut self, _: i32) {}
-    fn pickup_item(&mut self, _: i32) {}
     fn snap_camera_to_player(&mut self) {}
     fn locate_speaker_entity(&mut self, _: i32) -> i32 { -1 }
     fn ces_camera(&mut self, _: i32) {}
@@ -539,6 +537,13 @@ impl DialogSubsystem for NoopHost {
     fn tick(&mut self, _: &mut DialogCtx) -> DialogStep { DialogStep::Wait }
     fn set_typewriter(&mut self, _: &str, _: i32, _: i32) {}
     fn m_082_set_dialog_target(&mut self, _: i32) {}
+}
+impl ItemService for NoopHost {
+    fn pickup(&mut self, _: &mut crate::effect_registry::ItemCtx, _: i32) -> crate::effect_registry::ItemOutcome {
+        crate::effect_registry::ItemOutcome::NoOp // pickup=resolver 服务面——host 不服务
+    }
+    fn give_gold(&mut self, _: i32) {}
+    fn pickup_item(&mut self, _: i32) {}
 }
 impl EntityService for NoopHost {
     fn cell_entity(&self, _: i32, _: i32, _: i32) -> i32 { -1 }

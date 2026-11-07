@@ -10,6 +10,7 @@ use game_core::enums::Dir;
 use game_core::script::HostCtx;
 use game_core::subsystem::entity_service::EntityService;
 use game_core::subsystem::dialog::{DialogCtx, DialogStep, DialogSubsystem};
+use game_core::subsystem::item_service::ItemService;
 use game_core::walk::WalkState;
 use game_oracle::trace::parse;
 
@@ -106,10 +107,6 @@ fn type_width_table() -> Vec<i32> {
 
 impl HostCtx for Floor1Host {
     fn find_path(&mut self, _: i32, _: i32, _: i32, _: i32) -> bool { false }
-    fn give_gold(&mut self, amount: i32) {
-        let _ = game_core::combat::gain_gold(&mut self.player, amount);
-    }
-    fn pickup_item(&mut self, _item: i32) {}
     fn snap_camera_to_player(&mut self) {}
     fn locate_speaker_entity(&mut self, _: i32) -> i32 { -1 }
     fn ces_camera(&mut self, _: i32) {}
@@ -117,6 +114,13 @@ impl HostCtx for Floor1Host {
     fn exit_application(&mut self) {}
     fn mvs_exchange(&mut self) {}
     fn snap_camera_after_ros1(&mut self, _px: i32, _py: i32) {}
+}
+impl ItemService for Floor1Host {
+    fn pickup(&mut self, _: &mut game_core::effect_registry::ItemCtx, _: i32) -> game_core::effect_registry::ItemOutcome {
+        game_core::effect_registry::ItemOutcome::NoOp
+    }
+    fn give_gold(&mut self, amount: i32) { let _ = game_core::combat::gain_gold(&mut self.player, amount); }
+    fn pickup_item(&mut self, item: i32) { let _ = item; }
 }
 impl DialogSubsystem for Floor1Host {
     fn tick(&mut self, _: &mut DialogCtx) -> DialogStep { DialogStep::Wait }

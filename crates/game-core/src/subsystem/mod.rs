@@ -207,6 +207,18 @@ mod tests {
         }
     }
 
+    /// 【P2 批6】give_gold 逐字迁签名锁（HostCtx 原签）。
+    #[allow(dead_code)]
+    pub fn _sig_item_give_gold<T: ItemService>(t: &mut T, amount: i32) {
+        t.give_gold(amount);
+    }
+
+    /// 【P2 批6】pickup_item 逐字迁签名锁（HostCtx 原签）。
+    #[allow(dead_code)]
+    pub fn _sig_item_pickup_item<T: ItemService>(t: &mut T, item_id: i32) {
+        t.pickup_item(item_id);
+    }
+
     /// 【F4 方法名机器断言】EntityService 9 方法名清单钉死
     /// （批1 终形=逐字迁移 HostCtx 实体面——防 doc 注释名字与实现漂移）。
     #[test]

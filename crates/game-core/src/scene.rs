@@ -24,6 +24,7 @@ use crate::menu_family::{paint_mini_frame, paint_number};
 use crate::paint::{draw_image_clipped, m_034_softkeys};
 use crate::render::FontMetrics;
 use crate::render::{ArgbImage, SoftGraphics};
+use crate::subsystem::item_service::{ItemResolver, ItemService};
 use crate::subsystem::battle::{BattleEvent, BattleOutcome, BattleResolver, BattleSubsystem, EnemyTypeId};
 
 /// 【task-15 步②】渲染簇（move-only——impl GameScene 分布多文件，蓝图 §0）。
@@ -492,8 +493,8 @@ impl GameScene {
     pub(super) fn set_route_entity(&mut self, v: i32) { self.route_entity = v; }
     pub(super) fn set_route_phase(&mut self, v: i32) { self.route_phase = v; }
     // ── 【终章簇2·script 域直写接口】（scene.rs=唯一直写面）──
+    // 【批6 死码删】set_script_delay 已删（批5 CES 写面收拢后零引用）。
     pub(super) fn set_script_walk_armed(&mut self, v: bool) { self.script_walk_armed = v; }
-    pub(super) fn set_script_delay(&mut self, v: i32) { self.script_delay = v; }
     pub(super) fn set_script_cursor(&mut self, v: usize) { self.script_cursor = v; }
     // ── 【终章·entity/移动域直写接口】跨文件写点收敛（禁 self.facing=/walk_phase= 等
     // 直写——lead 2026-11-03 裁定选项 1：域访问全走接口）。setter=写侧接口；
@@ -4257,16 +4258,9 @@ impl GameScene {
         crate::effect_registry::floor_tier(self.persist.floor)
     }
 
-    fn pickup_item_type(&mut self, t: i32) {
-        // 【P1-3 一次性切（禁双轨）】23 臂 match 已删——分发=effect_registry
-        // 表查（pickup_kind_for_type+pickup_params_for=23 臂逐行抽象；行为=
-        // builtin_effect(kind).apply）。引锚：a.java:7534 pickupItemType
-        // /7537-7648 switch 全体/7630-7631 default return。逐臂等价三层：
-        // 21 臂夹具+金样 74+对照表（effect_registry 模块头）。
-        self.menu.set_overlay_kind_item(t);
-        let kind = crate::effect_registry::pickup_kind_for_type(t);
-        let params = crate::effect_registry::pickup_params_for(t);
-        let mut ctx = crate::effect_registry::ItemCtx {
+    /// 【P2 批6】ItemCtx 借用槽构造（P1-2 形）——item_ctx helper（battle_ctx/script_ctx 同族）。
+    fn item_ctx(&mut self) -> crate::effect_registry::ItemCtx<'_> {
+        crate::effect_registry::ItemCtx {
             player: &mut self.player,
             floor: self.persist.floor,
             tutorial_seen: &mut self.menu.tutorial_seen,
@@ -4274,9 +4268,23 @@ impl GameScene {
             equipped_armor: &mut self.equipped_armor,
             equip_types: self.equip_types,
             equip_bonuses: self.equip_bonuses,
+        }
+    }
+
+    fn pickup_item_type(&mut self, t: i32) {
+        // 【P1-3 一次性切（禁双轨）】23 臂 match 已删——分发=effect_registry
+        // 表查（pickup_kind_for_type+pickup_params_for=23 臂逐行抽象；行为=
+        // builtin_effect(kind).apply）。引锚：a.java:7534 pickupItemType
+        // /7537-7648 switch 全体/7630-7631 default return。逐臂等价三层：
+        // 21 臂夹具+金样 74+对照表（effect_registry 模块头）。
+        self.menu.set_overlay_kind_item(t);
+        // 【P2 批6】分发核心收拢 ItemResolver::pickup（Service→Registry::lookup→
+        // ItemEffect 序——分发链唯一，禁第二分发链）；浮层桥接留 Coordinator。
+        let out = {
+            let mut ctx = self.item_ctx();
+            let mut r = ItemResolver;
+            r.pickup(&mut ctx, t)
         };
-        let out = crate::effect_registry::builtin_effect(kind).apply(&mut ctx, &params);
-        drop(ctx);
         // outcome→浮层桥接（编排副作用：栈增族=描述浮层 add_item_to_stack
         // 语义；装备成功=overlay_kind_pickup tier 档；失败=强装备提示）。
         use crate::effect_registry::ItemOutcome;
@@ -4291,6 +4299,8 @@ impl GameScene {
                 if let Some(d) = hp_popup {
                     self.spawn_hp_popup(d);
                 }
+                // 桥接策略读取（纯查表非分发——分发链唯一在 resolver）。
+                let kind = crate::effect_registry::pickup_kind_for_type(t);
                 if matches!(kind, "Stack" | "TutorialSeenStack" | "Passive") {
                     let idx = if t == 85 {
                         20

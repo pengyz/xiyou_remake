@@ -9,6 +9,7 @@ use game_core::enums::{DialogPhase, WalkPhase};
 use game_core::script::{DialogueTable, HostCtx, ScriptEngine};
 use game_core::subsystem::entity_service::EntityService;
 use game_core::subsystem::dialog::{DialogCtx, DialogStep, DialogSubsystem};
+use game_core::subsystem::item_service::ItemService;
 
 /// 从夹具构建对话表（\x1e 记录分隔，与提取脚本一致）。
 fn table() -> DialogueTable {
@@ -53,12 +54,6 @@ impl HostCtx for StubHost {
         self.find_path_calls.push((fx, fy, tx, ty));
         self.path_result
     }
-    fn give_gold(&mut self, amount: i32) {
-        self.gold_calls.push(amount);
-    }
-    fn pickup_item(&mut self, item: i32) {
-        self.pickup_calls.push(item);
-    }
     fn snap_camera_to_player(&mut self) {
         self.camera_snaps += 1;
     }
@@ -74,6 +69,13 @@ impl HostCtx for StubHost {
         panic!("MVS 在 P3.1 边界外（数据域零使用）");
     }
     fn snap_camera_after_ros1(&mut self, _px: i32, _py: i32) {}
+}
+impl ItemService for StubHost {
+    fn pickup(&mut self, _: &mut game_core::effect_registry::ItemCtx, _: i32) -> game_core::effect_registry::ItemOutcome {
+        game_core::effect_registry::ItemOutcome::NoOp
+    }
+    fn give_gold(&mut self, amount: i32) { self.gold_calls.push(amount); }
+    fn pickup_item(&mut self, item: i32) { self.pickup_calls.push(item); }
 }
 impl DialogSubsystem for StubHost {
     fn tick(&mut self, _: &mut DialogCtx) -> DialogStep { DialogStep::Wait }

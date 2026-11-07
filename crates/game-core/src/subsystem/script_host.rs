@@ -102,10 +102,6 @@ pub const SCRIPT_BLIND_ZONES: &[&str] = &[
 
 /// plan:69 点名项显式 pending（批7 InputMapper/tap+批9 ShopGoods/menu 登记时销账——批3 红1 教训横切）。
 pub const PLAN_NAMED_PENDING: &[&str] = &[
-    "menu:menuCursor（批9 ShopGoods/menu 登记）",
-    "menu:itemCursor（批9）",
-    "menu:recordPage（批9）",
-    "menu:difficultyIndex（批9）",
     "tap:autoBattle（批7 InputMapper 登记）",
 ];
 
@@ -194,9 +190,7 @@ mod tests {
         for name in ["minFloor", "maxFloor", "pendingFloor", "wentDown"] {
             assert!(pp.contains(name), "persist 盲区漏登记 plan:69 点名项：{name}");
         }
-        assert_eq!(PLAN_NAMED_PENDING.len(), 5, "pending 清单=menu4+tap1 共 5 条");
-        for name in ["menuCursor", "itemCursor", "recordPage", "difficultyIndex", "autoBattle"] {
-            assert!(PLAN_NAMED_PENDING.join("\n").contains(name), "pending 漏项：{name}");
-        }
+        assert_eq!(PLAN_NAMED_PENDING.len(), 1, "pending=tap1（menu4 已批6 销账）");
+        assert!(PLAN_NAMED_PENDING.join("\n").contains("autoBattle"), "pending 漏项：autoBattle");
     }
 }
