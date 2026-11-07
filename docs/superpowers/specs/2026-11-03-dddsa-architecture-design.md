@@ -108,6 +108,7 @@ trait UIRender        { fn snapshot(&self, …) -> UiFrame; }               // A
 > ① PersistCodec 实现为 serialize+deserialize 双向（plan §2 批4「Blob↔域切片格式编解码面」），
 > 本节单行仅列 serialize；② UIRender::snapshot 实现为 `snapshot(&self) -> UiFrame` 无参
 > （plan 批8 锚行），本节 `…` 为参形未定占位。以上为 plan 授权收窄/扩展，非偏离。
+> 【2026-11-07 更正·批2】③ BattleSubsystem::resolve_bump 实现为 `resolve_bump(&mut self, ctx, t, ev: BattleEvent) -> BattleOutcome`（+ev 参——plan 批2「scene 战斗路径编排面→BattleOutcome」三事件面[途中开战/撞击开战/一击交换]需事件分辨；ctx+≤2 恰满 t+ev）。原文单 (ctx,t) 形不删备查。
 > 【轮2修复】四处注记：
 > ① **ItemService 切法终案落书**（C Q3 终结，详见 §7-Q1）：Registry=静态查表面（分发），
 > Service=道具生命周期运行面（pickup/use 编排），分发链唯一，跨域副作用归 Coordinator；

@@ -24,6 +24,7 @@ use crate::menu_family::{paint_mini_frame, paint_number};
 use crate::paint::{draw_image_clipped, m_034_softkeys};
 use crate::render::FontMetrics;
 use crate::render::{ArgbImage, SoftGraphics};
+use crate::subsystem::battle::{BattleEvent, BattleOutcome, BattleResolver, BattleSubsystem, EnemyTypeId};
 
 /// 【task-15 步②】渲染簇（move-only——impl GameScene 分布多文件，蓝图 §0）。
 #[path = "scene_paint.rs"]
@@ -2048,23 +2049,27 @@ impl GameScene {
                     self.route_phase = 1;
                     let t = self.entities.items[e].type_;
                     if t != 72 && nx == self.player_cell_x && ny == self.player_cell_y {
-                        let loss = self.predict_hp_loss(t, false);
-                        if loss >= 0 && loss < self.player.hp {
-                            let ti = (t - 41) as usize;
-                            self.battle_enemy_hp = self.enemies[ti].hp; // enemyHpScaled（a.java:8769）
-                            self.walk_phase = 5;
-                            self.battle_active = false;
-                            self.battle_target = self.route_entity;
-                            self.entities.items[e].state = 5;
-                            self.route_phase = 5;
-                            self.battle_no_counter = false;
-                            let strike = self.enemies[ti].atk - self.player.def;
-                            if strike > 0 {
-                                self.player.hp -= strike;
+                        // 【P2 批2】开战解析走 BattleSubsystem::resolve_bump（途中面
+                        // a.java:8760-8780：hp 缩放源+敌先手）；battle_* 装配=resolver 经 ctx 写面。
+                        let slot = self.route_entity;
+                        let outcome = {
+                            let mut ctx = self.battle_ctx();
+                            let mut r = BattleResolver;
+                            r.resolve_bump(&mut ctx, EnemyTypeId(t), BattleEvent::RouteEngage { entity_slot: slot })
+                        };
+                        match outcome {
+                            BattleOutcome::Engage { first_strike } => {
+                                self.walk_phase = 5;
+                                self.entities.items[e].state = 5;
+                                self.route_phase = 5;
+                                if first_strike > 0 {
+                                    self.player.hp -= first_strike;
+                                }
                             }
-                        } else {
-                            self.walk_phase = 1;
-                            self.facing = self.route_dir;
+                            _ => {
+                                self.walk_phase = 1;
+                                self.facing = self.route_dir;
+                            }
                         }
                     }
                     // 下一格槽表倒序扫：cat1 型11 → markEntityRemoved（a.java:8786-8802；
@@ -3631,16 +3636,19 @@ impl GameScene {
                             },
                             8 => {
                                 // 怪物（a.java:5470-5490）：可胜 → 场上战斗；否则阻挡
-                                let loss = self.predict_hp_loss(t, true);
                                 allowed = false;
-                                if loss >= 0 && loss < self.player.hp {
+                                // 【P2 批2】开战解析走 BattleSubsystem::resolve_bump（撞击面
+                                // a.java:5470-5490：hp 基础源+无先手）；battle_* 装配=resolver 经 ctx 写面。
+                                let outcome = {
+                                    let mut ctx = self.battle_ctx();
+                                    let mut r = BattleResolver;
+                                    r.resolve_bump(&mut ctx, EnemyTypeId(t), BattleEvent::BumpEngage { entity_slot: e as i32 })
+                                };
+                                if let BattleOutcome::Engage { .. } = outcome {
                                     // 【BUG-045】撤销快照须在改 state 之前取（复活 = 还原到开战前的整格实体）
                                     let snapshot = self.entities.items[e];
                                     self.walk_phase = 5;
                                     self.entities.items[e].state = 3;
-                                    self.battle_target = e as i32;
-                                    // battleEnemyHp = enemyBaseHp[type-41]（**基础表**非缩放表）
-                                    self.battle_enemy_hp = self.enemy_base[(t - 41) as usize].hp;
                                     // 【T2】撞敌=事件挂起（段收于实际终点=敌格，T1 挂点）
                                     // ——仅 WalkTo/探步寻路段记账；经典面 route 未开放=零写入
                                     if self.route.is_open() {
@@ -3660,8 +3668,6 @@ impl GameScene {
                                             self.entities.count,
                                         ));
                                     }
-                                    self.battle_active = true;
-                                    self.battle_no_counter = true;
                                 } else {
                                     self.walk_step_count = 0;
                                     // 【BUG-043】同上：箭头暂存随共用 walkStepCount 一并清空
@@ -3721,28 +3727,37 @@ impl GameScene {
             allowed
         }
 
-        /// predictHpLossVsType（a.java:9983-9982）：effectiveAttackVsType 桥接。
+        /// predictHpLossVsType（a.java:9983-9982）：薄委托 battle 面纯查询
+        /// predict_engagement（query 消费=digit 显示/撞格预判——迁移面外 4 点，保形不动）。
         fn predict_hp_loss(&self, t: i32, no_counter: bool) -> i32 {
-            let idx = (t - 41) as usize;
-            let atk = crate::combat::effective_attack_vs_type(&self.player, self.trait_flags(t));
-            crate::combat::predict_battle_hp_loss(
-                atk,
-                self.player.def,
-                self.enemies[idx].hp,
-                self.enemies[idx].atk,
-                self.enemies[idx].def,
+            crate::subsystem::battle::predict_engagement(
+                &self.player,
+                &self.enemies,
+                &self.enemy_base,
+                t,
                 no_counter,
             )
         }
 
-        /// traitFlagsByType 特性位（initEntityTables a.java:6266-6262：49/53/74=1、69=2）。
-        fn trait_flags(&self, t: i32) -> u8 {
-            // 【P1-6 一次性切】行为键=EnemyDef 记录字段（唯一源 trait_flags_for
-            // a.java:6266-6267——本表查删，SoA/表双轨面收束）
-            self.enemy_base
-                .get((t - 41) as usize)
-                .map(|r| r.trait_flags)
-                .unwrap_or(0)
+        /// 【P2 批2】BattleCtx 装配（10 写槽+3 读槽 disjoint borrow；调用前 hoist
+        /// 全部 self 读——ctx 存活期禁触 self=E0502）。predict_hp_loss/trait_flags
+        /// 桥查询面=battle::predict_engagement 薄委托（math 单源）。
+        fn battle_ctx(&mut self) -> crate::subsystem::battle::BattleCtx<'_> {
+            crate::subsystem::battle::BattleCtx {
+                battle_active: &mut self.battle_active,
+                battle_anim_tick: &mut self.battle_anim_tick,
+                battle_digit_by_type: &mut self.battle_digit_by_type,
+                battle_enemy_hp: &mut self.battle_enemy_hp,
+                battle_finishing: &mut self.battle_finishing,
+                battle_no_counter: &mut self.battle_no_counter,
+                battle_rerun_scene: &mut self.battle_rerun_scene,
+                battle_target: &mut self.battle_target,
+                battle_tick: &mut self.battle_tick,
+                show_battle_digits: &mut self.show_battle_digits,
+                player: &self.player,
+                enemies: &self.enemies,
+                enemy_base: &self.enemy_base,
+            }
         }
 
         /// tickBattle（a.java:10023-10149）：4 拍一击 → 胜利 → 死亡动画 6 拍 →
@@ -3754,96 +3769,102 @@ impl GameScene {
                 } else {
                     let e = self.battle_target as usize;
                     let t = self.entities.items[e].type_;
-                    let idx = (t - 41) as usize;
-                    let dmg = crate::combat::effective_attack_vs_type(&self.player, self.trait_flags(t))
-                        - self.enemies[idx].def;
-                    if dmg > 0 {
-                        if (self.battle_tick & 3) == 0 {
-                            self.battle_enemy_hp -= dmg;
-                            let (ex, ey) = (self.entities.items[e].px, self.entities.items[e].py);
-                            self.popups.spawn(
-                                5 + self.battle_tick % 3,
-                                dmg,
-                                ex,
-                                ey,
-                                self.view.cam_x,
-                                self.view.cam_y,
-                                self.images.popup.digit_strips[0].width / 11,
-                            );
-                            if self.battle_enemy_hp > 0 {
-                                let counter = self.enemies[idx].atk - self.player.def;
-                                if counter > 0 {
-                                    self.player.hp -= counter;
-                                }
-                            } else {
-                                // 击杀（a.java:10036-10062）：终伤预测 popup + 赏金 +
-                                // boss 分支（floor1 无 73-75 型）→ 胜利动画阶段
-                                let loss = self.predict_hp_loss(t, self.battle_no_counter);
-                                if loss > 0 {
-                                    self.popups.spawn(
-                                        2,
-                                        loss,
-                                        self.view.player_px,
-                                        self.view.player_py,
-                                        self.view.cam_x,
-                                        self.view.cam_y,
-                                        self.images.popup.digit_strips[0].width / 11,
-                                    );
-                                }
-                                let gold = if self.player.find_item(25) >= 0 {
-                                    self.enemy_base[idx].gold << 1
+                    // 【P2 批2】交换解析走 BattleSubsystem::resolve_bump（Exchange 事件
+                    // ——tickBattle a.java:10023-10149 击打拍数学）；写面=battle_enemy_hp 经 ctx 槽。
+                    let outcome = {
+                        let mut ctx = self.battle_ctx();
+                        let mut r = BattleResolver;
+                        r.resolve_bump(&mut ctx, EnemyTypeId(t), BattleEvent::Exchange)
+                    };
+                    match outcome {
+                        BattleOutcome::Exchange {
+                            penetrates,
+                            blow,
+                            enemy_dmg,
+                            player_dmg,
+                            kill,
+                            predicted_loss,
+                            gold,
+                        } => {
+                            if !penetrates {
+                                self.walk_phase = 0;
+                            } else if blow {
+                                let (ex, ey) = (self.entities.items[e].px, self.entities.items[e].py);
+                                self.popups.spawn(
+                                    5 + self.battle_tick % 3,
+                                    enemy_dmg,
+                                    ex,
+                                    ey,
+                                    self.view.cam_x,
+                                    self.view.cam_y,
+                                    self.images.popup.digit_strips[0].width / 11,
+                                );
+                                if !kill {
+                                    if player_dmg > 0 {
+                                        self.player.hp -= player_dmg;
+                                    }
                                 } else {
-                                    self.enemy_base[idx].gold
-                                };
-                                let (gx, gy) = (self.entities.items[e].px, self.entities.items[e].py);
-                                self.player.gold += gold;
-                                if gold > 0 {
-                                    self.popups.spawn(
-                                        4,
-                                        gold,
-                                        gx,
-                                        gy,
-                                        self.view.cam_x,
-                                        self.view.cam_y,
-                                        self.images.popup.digit_strips[0].width / 11,
-                                    );
-                                }
-                                // 击杀钩子（a.java:10053-10070）：bossTypeOrder
-                                // 击杀 → spawnBossEvent；型73 → 脚本旗标 +
-                                // loadLevelScript(22) + 40 层 spawnBossEvent(6)；
-                                // 型74 → 脚本 21；型75 → 脚本 20（重入场景）
-                                let mut rerun = false;
-                                if self.persist.floor <= 50 {
-                                    if let Some(bi) =
-                                        BOSS_TYPE_ORDER.iter().rposition(|&b| b == t)
-                                    {
-                                        self.spawn_boss_event(bi);
+                                    // 击杀（a.java:10036-10062）：终伤预测 popup + 赏金 +
+                                    // boss 分支（floor1 无 73-75 型）→ 胜利动画阶段
+                                    if predicted_loss > 0 {
+                                        self.popups.spawn(
+                                            2,
+                                            predicted_loss,
+                                            self.view.player_px,
+                                            self.view.player_py,
+                                            self.view.cam_x,
+                                            self.view.cam_y,
+                                            self.images.popup.digit_strips[0].width / 11,
+                                        );
                                     }
-                                    match t {
-                                        73 => {
-                                            self.script_line_flags
-                                                [self.current_script_index] = true;
-                                            self.load_level_script(22);
-                                            if self.persist.floor == 40 {
-                                                self.spawn_boss_event(6);
-                                            }
-                                        }
-                                        74 => self.load_level_script(21),
-                                        75 => {
-                                            if self.try_run_scene(20, true) {
-                                                self.load_level_script(20);
-                                                rerun = true;
-                                            }
-                                        }
-                                        _ => {}
+                                    self.player.gold += gold;
+                                    if gold > 0 {
+                                        self.popups.spawn(
+                                            4,
+                                            gold,
+                                            ex,
+                                            ey,
+                                            self.view.cam_x,
+                                            self.view.cam_y,
+                                            self.images.popup.digit_strips[0].width / 11,
+                                        );
                                     }
+                                    // 击杀钩子（a.java:10053-10070）：bossTypeOrder
+                                    // 击杀 → spawnBossEvent；型73 → 脚本旗标 +
+                                    // loadLevelScript(22) + 40 层 spawnBossEvent(6)；
+                                    // 型74 → 脚本 21；型75 → 脚本 20（重入场景）
+                                    let mut rerun = false;
+                                    if self.persist.floor <= 50 {
+                                        if let Some(bi) =
+                                            BOSS_TYPE_ORDER.iter().rposition(|&b| b == t)
+                                        {
+                                            self.spawn_boss_event(bi);
+                                        }
+                                        match t {
+                                            73 => {
+                                                self.script_line_flags
+                                                    [self.current_script_index] = true;
+                                                self.load_level_script(22);
+                                                if self.persist.floor == 40 {
+                                                    self.spawn_boss_event(6);
+                                                }
+                                            }
+                                            74 => self.load_level_script(21),
+                                            75 => {
+                                                if self.try_run_scene(20, true) {
+                                                    self.load_level_script(20);
+                                                    rerun = true;
+                                                }
+                                            }
+                                            _ => {}
+                                        }
+                                    }
+                                    self.battle_rerun_scene = rerun;
+                                    self.battle_finishing = true;
                                 }
-                                self.battle_rerun_scene = rerun;
-                                self.battle_finishing = true;
                             }
                         }
-                    } else {
-                        self.walk_phase = 0;
+                        _ => {}
                     }
                     self.battle_tick += 1;
                 }

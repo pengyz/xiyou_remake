@@ -97,7 +97,7 @@ pub const WRITE_FACE_REGISTRY: &[WriteFaceRow] = &[
 
 #[cfg(test)]
 mod tests {
-    use super::battle::{BattleCtx, BattleOutcome, BattleSubsystem, EnemyTypeId};
+    use super::battle::{BattleCtx, BattleEvent, BattleOutcome, BattleSubsystem, EnemyTypeId};
     use super::dialog::{DialogCtx, DialogStep, DialogSubsystem};
     use super::entity_service::{EntityCtx, EntityService};
     use super::input_mapper::{InputMapper};
@@ -150,8 +150,8 @@ mod tests {
         use super::*;
         use crate::scene::ScriptOp;
 
-        pub fn _sig_battle<T: BattleSubsystem>(t: &mut T, ctx: &mut BattleCtx, x: EnemyTypeId) -> BattleOutcome {
-            t.resolve_bump(ctx, x)
+        pub fn _sig_battle<T: BattleSubsystem>(t: &mut T, ctx: &mut BattleCtx, x: EnemyTypeId, ev: BattleEvent) -> BattleOutcome {
+            t.resolve_bump(ctx, x, ev)
         }
         pub fn _sig_dialog_tick<T: DialogSubsystem>(t: &mut T, ctx: &mut DialogCtx) -> DialogStep {
             t.tick(ctx)
