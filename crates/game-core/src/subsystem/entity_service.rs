@@ -1,7 +1,9 @@
-//! entity_service face（P2 批0 骨架）——EntityService：spawn/remove/relocate 实体服务面（spec §3.1，…形参未定）。
+//! entity_service face（P2 批1 终形）——EntityService：实体服务面（spec §3.1 spawn/remove/relocate
+//! 参形已随实现迁移定形=9 方法，2026-11-07 批1 落定，签名/doc 逐字自 HostCtx）。
 //!
 //! plan 批1=HostCtx 实体面 9 方法迁移账（HostCtx 拆小首件，HostCtx 余 12 暂留）。
-//! 骨架不预设方法签名（spec …形=参形未定，防 C 级臆造；批1 终形）。
+//! 【历史轨迹】批0 骨架期记「骨架不预设方法签名（spec …形=参形未定，防 C 级臆造；批1 终形）」——
+//! 批1 终形已落（9 方法），too-many-args 冻结不追溯=执行则4。
 
 use crate::entity::{CellGrid, EntityTable};
 
