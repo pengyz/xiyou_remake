@@ -4,6 +4,12 @@
 //! resolver=**脚本域写面收拢**（普适 cursor 写+Gut 旗标+Ces scriptDelay+GIN 尾递归信号化）；
 //! op_* 编排体留 Coordinator 面（跨域调用=遗留直写批10 清零面——本批不迁，避免 21 helper 借用面重构风险）。
 //!
+//! 【P2 批10 C·Coordinator 遗留直写终裁】按 plan 批10 切面「能归域的归域，编排面按批3-9 先例注记归因登记，
+//! 不强迁」——终裁=编排面注记归因登记（各批 BLIND_ZONES/域注记已携归因）：op_* 编排体（跨域 helper 调用序列）、
+//! apply_merchant_offer 收尾块（param^=512 装备口令翻转/offer_queue 挂起/text 装配/BUG-045 清栈）、paint 簇 97 fn、
+//! ease 相机簇 4 setter（render 域直写接口家）均归编排面登记不迁。382 直写站点=D 项测试构造面（已收敛 SceneSetup），
+//! 与本账不同层。
+//!
 //! 【HostCtx 余方法处置账】（plan 批5 明文交付；**批6 摘 2 后 HostCtx 现 8 方法**[give_gold/pickup_item 已迁批6 ItemService]；
 //! 批7 输入面/批8 渲染面均无 HostCtx 方法=N/A（零再收窄）——逐条处置归宿如下）：
 //! | 方法 | 消费面实测 | 处置归宿 |
@@ -177,6 +183,40 @@ mod tests {
     }
 
     /// 【P2 批5 红测试】盲区登记：script 域清单+plan:69 点名项已域登记或显式 pending（批3 红1 教训横切）。
+    /// 【P2 批10 F】HostCtx 终值=8 对账断言（P2 十批拆小收官口径——批1/3/6 摘 2+2+2+批7/8/9 零再收窄）。
+    #[test]
+    fn p2b10_host_ctx_final_8_methods() {
+        let src = include_str!("../script.rs");
+        let body = src.split("pub trait HostCtx").nth(1).unwrap().split("}").next().unwrap();
+        let want = ["find_path", "snap_camera_to_player", "locate_speaker_entity", "ces_camera",
+            "set_camera_anchor_target", "exit_application", "mvs_exchange", "snap_camera_after_ros1"];
+        for n in want {
+            assert!(body.contains(&format!("fn {n}(")), "HostCtx 终值 8 名失联：{n}");
+        }
+        assert_eq!(want.len(), 8);
+    }
+
+    /// 【P2 批10 E】盲区完备核（plan:69-71 点名 14 token 逐项登记核——statediff 命名契约层口径）：
+    /// 每 token 必须现身于对应域 BLIND_ZONES 常量（dialog5/persist4/menu4/tap1）。
+    #[test]
+    fn p2b10_blind_zones_cover_all_plan_named() {
+        let d = include_str!("dialog.rs");
+        let p = include_str!("persist_codec.rs");
+        let m = include_str!("item_service.rs");
+        let i = include_str!("input_mapper.rs");
+        let groups: [(&str, &str, &[&str]); 4] = [
+            ("dialog", d, &["typewriterPos", "dialogSpeaker", "dialogAnchor", "dialogTarget", "overlay"]),
+            ("persist", p, &["minFloor", "maxFloor", "pendingFloor", "wentDown"]),
+            ("menu", m, &["menuCursor", "itemCursor", "recordPage", "difficultyIndex"]),
+            ("tap", i, &["autoBattle"]),
+        ];
+        for (dom, body, toks) in groups {
+            for t in toks {
+                assert!(body.contains(t), "plan 点名 token 未登记于 {dom} BLIND_ZONES：{t}");
+            }
+        }
+    }
+
     #[test]
     fn p2b5_blind_zones_cover_plan_named() {
         let s = SCRIPT_BLIND_ZONES.join("\n");

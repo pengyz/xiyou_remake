@@ -17,7 +17,6 @@
 //! 校验器非荣誉制：`ResourceCfg::from_embedded` 装载即跑（漂移=装载失败）；
 //! 校验器有牙齿自检=注入漂移必须报 diff≠0（防"断言恒真"假校验）。
 
-use game_core::entity;
 use game_core::resource_cfg::{self, ResourceCfg};
 
 fn global() -> &'static ResourceCfg {

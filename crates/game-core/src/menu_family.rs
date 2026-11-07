@@ -1238,7 +1238,7 @@ pub fn synthetic_sptarm() -> Vec<ArgbImage> {
 #[cfg(test)]
 mod slot_equip_tests {
     use crate::layout::{SCREEN_H, SCREEN_W};
-    use crate::render::FontMetrics;
+    
     use super::slot_equip_test_support::*;
     use super::*;
 
@@ -1420,7 +1420,6 @@ pub fn set_shell_option(rows: &mut [ShellOption], id: u8, checked: bool) {
 
 #[cfg(test)]
 mod option_tests {
-    use crate::render::FontMetrics;
     use super::*;
 
     #[test]
@@ -1870,7 +1869,7 @@ pub fn hud_panel_anchor(screen_w: i32, view_bottom: i32, frame_h: i32) -> HudPan
 
 #[cfg(test)]
 mod stage_b_004b_menu_anchor_tests {
-    use crate::render::FontMetrics;
+    
     use super::{hud_panel_anchor, in_game_menu_box};
 
     /// classic 代入化回 a.java:2431-2444 原值（零偏离命门）。
@@ -2113,6 +2112,7 @@ mod touch_ux_tests {
         assert_eq!(s.selected, None, "打断清选中（不执行）");
     }
 
+    #[allow(dead_code)]
     fn slot_selected_row_shows_retry_hint() {
         let s = SlotSelect::new();
         assert_eq!(s.retry_hint_text(s.retry_verb).is_some(), false, "未选中=无提示");

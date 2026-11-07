@@ -614,7 +614,7 @@ fn atlas_slice_edge_patch_kinds_d_eq_s() {
     let ts = big_atlas(d);
     // (sx,sy) = (v&7)<<4, (v>>3)<<4 —— v=10 ⇒ (32,16)（陷阱①索引语义）
     let (sx, sy, w, h) = (32, 16, 16, 16);
-    let (iw, ih) = (256, 256);
+    let (_iw, _ih) = (256, 256);
     for kind in 0..=7i32 {
         let mut screen = ArgbImage::create(128, 128);
         {

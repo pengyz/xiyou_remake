@@ -279,15 +279,15 @@ mod tests {
         let dctx = DialogCtx { dialog: &mut dialog, key_value: 0, key_held: 0, frame_odd: false };
         assert_eq!(dctx.key_value, 0);
 
-        // ScriptCtx：6 写槽+2 读槽
+        // ScriptCtx：6 写槽+3 读槽（player/entities/floor——批5 floor 值拷贝读）
         let (mut si, mut sc, mut sd) = (0usize, 0usize, 0i32);
         let (mut sl, mut slf, mut swa) = (String::new(), Vec::<bool>::new(), false);
-        let mut entities = crate::entity::EntityTable::new(4);
+        let entities = crate::entity::EntityTable::new(4);
         let sctx = ScriptCtx {
             current_script_index: &mut si, script_cursor: &mut sc, script_delay: &mut sd,
             script_line: &mut sl, script_line_flags: &mut slf, script_walk_armed: &mut swa,
             player: &player, floor: 1,
-                entities: &entities,
+            entities: &entities,
         };
         assert_eq!(*sctx.script_delay, 0);
 

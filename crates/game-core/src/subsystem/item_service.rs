@@ -49,7 +49,7 @@ pub const MENU_BLIND_ZONES: &[&str] = &[
 mod tests {
     use super::*;
     use crate::combat::PlayerCombat;
-    use crate::effect_registry::{ItemCtx, ItemOutcome};
+    use crate::effect_registry::ItemCtx;
 
     fn pc() -> PlayerCombat {
         PlayerCombat {

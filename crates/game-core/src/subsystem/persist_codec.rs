@@ -40,7 +40,7 @@ impl PersistCodec for PersistCoder {
         o.push(st.min_floor_reached as u8);
         o.push(st.max_floor_reached as u8);
         o.push(st.facing_direction as u8);
-        o.push(st.equipped_weapon_type as u8); // equippedWeaponType（a.java:9192 写真实值）
+        o.push(st.equipped_weapon_type as u8); // equippedWeaponType（a.java:9201 写真实值）
         o.push(st.equipped_armor_type as u8); // equippedArmorType（a.java:9193）
         // writeShort(playerCellX/Y)（a.java:9197-9198）：**2 字节**——旧写法 i16 BE
         o.extend_from_slice(&st.player_cell_x.to_be_bytes());

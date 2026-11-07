@@ -4,7 +4,7 @@
 //! 不可达可走格=朝目标方向最远可达点停靠；墙格=最近相邻+探步入（一步撞击尝试，
 //! 挂 openWallOnRoute/撞击臂型 10/11/12 语义）；斜向禁走；路径连续性。
 
-use game_core::pathfind::{plan_route, ProbeStep, RoutePlan, RouteTracker, Walkability};
+use game_core::pathfind::{plan_route, ProbeStep, RouteTracker, Walkability};
 use game_core::undo_journal::{
     CombatStroke, MoveStroke, PlayerVitals, Stroke, UndoJournal, UndoOutcome,
 };

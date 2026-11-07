@@ -1,4 +1,4 @@
-    use super::scene_test_support::{scene, ROW};
+    use super::scene_test_support::{scene, ROW, SceneSetup, apply_setup};
     use super::*;
 
     /// 打断后走完当前这一步即回 Map；全程不进 dp0、不写当前脚本旗标、解除脚本行走武装
@@ -35,7 +35,7 @@
     #[test]
     fn script_takeover_after_interrupt_keeps_dialog() {
         let mut sc = scene((1, ROW), &[]);
-        sc.dialog.dialog_data.scripts = vec!["TAK_0_0 ".to_string()];
+        apply_setup(&mut sc, SceneSetup { dialog_dialog_data_scripts: Some(vec!["TAK_0_0 ".to_string()]), ..Default::default() });
         sc.walk_to(5, ROW);
         sc.press_key(-1); // 打断（未出拍）
         sc.load_level_script(0); // 剧情接管

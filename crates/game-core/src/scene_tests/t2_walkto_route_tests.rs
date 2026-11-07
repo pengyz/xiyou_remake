@@ -1,4 +1,4 @@
-    use super::scene_test_support::{scene, ROW};
+    use super::scene_test_support::{scene, ROW, SceneSetup, apply_setup};
     use super::*;
 
     fn run_until_settled(sc: &mut GameScene, limit: i64) {
@@ -182,7 +182,7 @@
     fn bug043_bump_into_scene_trigger_like_keys() {
         let make = || {
             let mut sc = scene((1, ROW), &[(83, 5, ROW)]);
-            sc.dialog.dialog_data.scripts = vec!["TAK_0_0 ".to_string()];
+            apply_setup(&mut sc, SceneSetup { dialog_dialog_data_scripts: Some(vec!["TAK_0_0 ".to_string()]), ..Default::default() });
             assert!(sc.find_path(1, ROW, 6, ROW) || sc.find_path(1, ROW, 4, ROW), "前置：箭头路径");
             sc.path_arrows_visible = true;
             sc
@@ -315,7 +315,7 @@
     #[test]
     fn t2_script_takeover_closes_walkto_route() {
         let mut sc = scene((1, ROW), &[]);
-        sc.dialog.dialog_data.scripts = vec!["TAK_0_0 ".to_string()];
+        apply_setup(&mut sc, SceneSetup { dialog_dialog_data_scripts: Some(vec!["TAK_0_0 ".to_string()]), ..Default::default() });
         sc.walk_to(5, ROW);
         assert!(sc.route.is_open());
         sc.load_level_script(0);
@@ -380,7 +380,7 @@
     #[test]
     fn bug047_upward_probe_into_alchemy_with_old_facing_down_opens_it() {
         let mut sc = scene((5, ROW), &[(9, 5, ROW - 1)]);
-        sc.facing = 0;
+        apply_setup(&mut sc, SceneSetup { facing: Some(0), ..Default::default() });
         let _ = sc.probe_step(1);
         assert_eq!(sc.game_mode, GameMode::Alchemy, "朝上撞炉进炼丹炉");
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (5, ROW), "进炉不移动玩家");
@@ -405,10 +405,7 @@
         }
         let make = |t: u8, old: i32| {
             let mut sc = scene((5, ROW), &[(t, 6, ROW)]);
-            sc.player.yellow_keys = 1;
-            sc.player.atk = 100_000;
-            sc.player.def = 100_000;
-            sc.facing = old;
+            apply_setup(&mut sc, SceneSetup { player_yellow_keys: Some(1), player_atk: Some(100_000), player_def: Some(100_000), facing: Some(old), ..Default::default() });
             sc
         };
         for (t, label) in [(1u8, "黄门（带钥匙）"), (43, "可胜的怪")] {
@@ -437,8 +434,7 @@
     fn bug049_overlay_is_painted_in_dialog_mode() {
         let paint_once = |overlay: bool| {
             let mut sc = scene((5, ROW), &[]);
-            sc.game_mode = GameMode::Dialog;
-            sc.dialog.dialog_phase = 3;
+            apply_setup(&mut sc, SceneSetup { game_mode: Some(GameMode::Dialog), dialog_dialog_phase: Some(3), ..Default::default() });
             if overlay {
                 sc.show_overlay_message(0, "你无法战胜它", 0, 0);
             }
@@ -502,8 +498,7 @@
     #[test]
     fn bug044_tap_walk_first_step_into_winnable_enemy_still_fights() {
         let mut sc = scene((5, ROW), &[(41, 6, ROW)]);
-        sc.player.atk = 100_000;
-        sc.player.def = 100_000;
+        apply_setup(&mut sc, SceneSetup { player_atk: Some(100_000), player_def: Some(100_000), ..Default::default() });
         sc.player.hp = 500; // 夹具默认 hp=0 ⇒ 预测 loss(0) < hp 不成立，会被判"打不过"
         let wt = sc.width_table.clone();
         let _ = sc.walk_to(6, ROW);
@@ -554,7 +549,7 @@
     fn bug044_first_step_into_scene_trigger_matches_direction_key() {
         let make = || {
             let mut sc = scene((4, ROW), &[(83, 5, ROW)]);
-            sc.dialog.dialog_data.scripts = vec![String::new()];
+            apply_setup(&mut sc, SceneSetup { dialog_dialog_data_scripts: Some(vec![String::new()]), ..Default::default() });
             sc
         };
         let mut keys = make();
@@ -582,7 +577,7 @@
     #[test]
     fn bug044_step_after_trap_damage_into_blocker_stays_put() {
         let mut sc = scene((1, ROW), &[(60, 2, ROW + 1), (9, 3, ROW)]);
-        sc.player.hp = 1000;
+        apply_setup(&mut sc, SceneSetup { player_hp: Some(1000), ..Default::default() });
         let _ = sc.walk_to(5, ROW);
         let mut hp_dropped = false;
         for fc in 0..200 {
@@ -659,7 +654,7 @@
         assert!(sc.undo.is_empty(), "换层清栈");
         // 剧情接管
         let mut sc = scene((5, ROW), &[]);
-        sc.dialog.dialog_data.scripts = vec!["TAK_0_0 ".to_string(); 2];
+        apply_setup(&mut sc, SceneSetup { dialog_dialog_data_scripts: Some(vec!["TAK_0_0 ".to_string(); 2]), ..Default::default() });
         sc.undo.push_move(stroke);
         sc.load_level_script(0);
         assert!(sc.undo.is_empty(), "剧情清栈");
@@ -701,9 +696,7 @@
     fn bug045_kill_with_spawned_drops_pushes_no_combat_stroke() {
         let fight = |t: u8| {
             let mut sc = scene((5, ROW), &[(t, 6, ROW)]);
-            sc.player.atk = 1_000_000;
-            sc.player.def = 1_000_000;
-            sc.player.hp = 1000;
+            apply_setup(&mut sc, SceneSetup { player_atk: Some(1_000_000), player_def: Some(1_000_000), player_hp: Some(1000), ..Default::default() });
             let count0 = sc.entities.count;
             let wt = sc.width_table.clone();
             let _ = sc.walk_to(6, ROW);
@@ -794,12 +787,7 @@
     #[test]
     fn bug048_victory_script_takeover_keeps_route_closed_and_journal_empty() {
         let mut sc = scene((5, ROW), &[(70, 6, ROW)]);
-        sc.persist.floor = 49;
-        sc.persist.current_floor = 49;
-        sc.dialog.dialog_data.scripts = vec!["TAK_0_0 ".to_string(); 40];
-        sc.player.atk = 100_000;
-        sc.player.def = 100_000;
-        sc.player.hp = 100_000;
+        apply_setup(&mut sc, SceneSetup { persist_floor: Some(49), persist_current_floor: Some(49), dialog_dialog_data_scripts: Some(vec!["TAK_0_0 ".to_string(); 40]), player_atk: Some(100_000), player_def: Some(100_000), player_hp: Some(100_000), ..Default::default() });
         let wt = sc.width_table.clone();
         let _ = sc.walk_to(6, ROW);
         let mut saw_battle = false;
@@ -930,8 +918,7 @@
     #[test]
     fn stage_b008_interrupt_mid_victory_restep_undoes_step_before_revive() {
         let mut sc = scene((5, ROW), &[(41, 6, ROW)]);
-        sc.player.atk = 100_000;
-        sc.player.def = 100_000;
+        apply_setup(&mut sc, SceneSetup { player_atk: Some(100_000), player_def: Some(100_000), ..Default::default() });
         sc.player.hp = 500; // 夹具默认 hp=0 ⇒ 判"打不过"
         let wt = sc.width_table.clone();
         let _ = sc.walk_to(6, ROW);
@@ -962,12 +949,7 @@
     #[test]
     fn bug048_script_takeover_with_spawn_keeps_route_closed_and_journal_empty() {
         let mut sc = scene((5, ROW), &[(71, 6, ROW)]);
-        sc.persist.floor = 49;
-        sc.persist.current_floor = 49;
-        sc.dialog.dialog_data.scripts = vec!["TAK_0_0 ".to_string(); 40];
-        sc.player.atk = 1_000_000;
-        sc.player.def = 1_000_000;
-        sc.player.hp = 100_000;
+        apply_setup(&mut sc, SceneSetup { persist_floor: Some(49), persist_current_floor: Some(49), dialog_dialog_data_scripts: Some(vec!["TAK_0_0 ".to_string(); 40]), player_atk: Some(1_000_000), player_def: Some(1_000_000), player_hp: Some(100_000), ..Default::default() });
         let count0 = sc.entities.count;
         let wt = sc.width_table.clone();
         let _ = sc.walk_to(6, ROW);
@@ -992,9 +974,7 @@
     #[test]
     fn bug048_plain_victory_still_pushes_combat_and_resumes() {
         let mut sc = scene((5, ROW), &[(41, 6, ROW)]);
-        sc.player.atk = 100_000;
-        sc.player.def = 100_000;
-        sc.player.hp = 100_000;
+        apply_setup(&mut sc, SceneSetup { player_atk: Some(100_000), player_def: Some(100_000), player_hp: Some(100_000), ..Default::default() });
         let wt = sc.width_table.clone();
         let _ = sc.walk_to(6, ROW);
         let mut saw_battle = false;
@@ -1299,7 +1279,7 @@
     #[test]
     fn tap_cell_door_opens_with_key() {
         let mut sc = scene((2, ROW), &[(1, 6, ROW)]);
-        sc.player.yellow_keys = 1;
+        apply_setup(&mut sc, SceneSetup { player_yellow_keys: Some(1), ..Default::default() });
         let _ = sc.tap_cell(6, ROW);
         settle(&mut sc, 0, 200);
         assert_eq!(sc.player.yellow_keys, 0, "耗钥开门");
@@ -1358,7 +1338,7 @@
     fn tap_cell_ignored_in_observe_and_rejected_while_walking() {
         use crate::tap_walk::TapResult;
         let mut sc = scene((2, ROW), &[]);
-        sc.walk_phase = 2;
+        apply_setup(&mut sc, SceneSetup { walk_phase: Some(2), ..Default::default() });
         assert_eq!(sc.tap_cell(7, ROW), TapResult::Ignored);
         sc.walk_phase = 1;
         assert_eq!(sc.tap_cell(7, ROW), TapResult::Rejected);
@@ -1418,10 +1398,7 @@
     fn bump_with_tutorial_arrows(target_type: u8) {
         let make = || {
             let mut sc = scene((1, ROW), &[(target_type, 6, ROW)]);
-            sc.player.yellow_keys = 1;
-            sc.player.atk = 100_000;
-            sc.player.def = 100_000;
-            sc.player.hp = 500;
+            apply_setup(&mut sc, SceneSetup { player_yellow_keys: Some(1), player_atk: Some(100_000), player_def: Some(100_000), player_hp: Some(500), ..Default::default() });
             assert!(sc.find_path(1, ROW, 8, ROW), "前置：箭头 (1)→(8) 经 (6,ROW)");
             sc.path_arrows_visible = true;
             sc
@@ -1501,7 +1478,7 @@
     ///（`Map ∧ walk_phase == 1 ∧ tap_followup_ready`：advanceScriptWalk 在 (5,ROW) 步末弹出末步，finish_walkto 随即回 Map）。
     fn door_route_in_last_step_window() -> (GameScene, i64) {
         let mut sc = scene((2, ROW), &[(1, 7, ROW)]);
-        sc.player.yellow_keys = 1;
+        apply_setup(&mut sc, SceneSetup { player_yellow_keys: Some(1), ..Default::default() });
         assert_eq!(sc.tap_cell(7, ROW), crate::tap_walk::TapResult::Bumping);
         let wt = sc.width_table.clone();
         let mut fc = 0;
@@ -1553,7 +1530,7 @@
     #[test]
     fn tap_bump_route_through_pickup_overlay_still_bumps_after_close() {
         let mut sc = scene((2, ROW), &[(25, 4, ROW), (1, 8, ROW)]);
-        sc.player.yellow_keys = 1;
+        apply_setup(&mut sc, SceneSetup { player_yellow_keys: Some(1), ..Default::default() });
         assert_eq!(sc.tap_cell(8, ROW), crate::tap_walk::TapResult::Bumping);
         let wt = sc.width_table.clone();
         let mut fc = 0;
@@ -1584,7 +1561,7 @@
     #[test]
     fn tap_bump_dock_pickup_overlay_defers_bump_until_close() {
         let mut sc = scene((2, ROW), &[(25, 6, ROW), (1, 7, ROW)]);
-        sc.player.yellow_keys = 1;
+        apply_setup(&mut sc, SceneSetup { player_yellow_keys: Some(1), ..Default::default() });
         assert_eq!(sc.tap_cell(7, ROW), crate::tap_walk::TapResult::Bumping);
         let wt = sc.width_table.clone();
         let mut fc = 0;
@@ -1616,7 +1593,7 @@
     #[test]
     fn tap_self_during_one_step_route_stops_without_bump() {
         let mut sc = scene((5, ROW), &[(1, 7, ROW)]);
-        sc.player.yellow_keys = 1;
+        apply_setup(&mut sc, SceneSetup { player_yellow_keys: Some(1), ..Default::default() });
         assert_eq!(sc.tap_cell(7, ROW), crate::tap_walk::TapResult::Bumping);
         assert_eq!(sc.walk_step_count, 1, "前置：1 步路线");
         let wt = sc.width_table.clone();
@@ -1642,7 +1619,7 @@
     #[test]
     fn held_key_at_dock_cancels_bump() {
         let mut sc = scene((2, ROW), &[(1, 7, ROW)]);
-        sc.player.yellow_keys = 1;
+        apply_setup(&mut sc, SceneSetup { player_yellow_keys: Some(1), ..Default::default() });
         let wt = sc.width_table.clone();
         sc.press_key(-1); // 按住不放
         sc.tick(0, &wt);
@@ -1663,8 +1640,7 @@
     fn tap_state_cleared_on_floor_change_and_script_takeover() {
         for entry in ["换层", "剧情"] {
             let mut sc = scene((2, ROW), &[(1, 7, ROW)]);
-            sc.player.yellow_keys = 1;
-            sc.dialog.dialog_data.scripts = vec!["TAK_0_0 ".to_string()];
+            apply_setup(&mut sc, SceneSetup { player_yellow_keys: Some(1), dialog_dialog_data_scripts: Some(vec!["TAK_0_0 ".to_string()]), ..Default::default() });
             assert_eq!(sc.tap_cell(7, ROW), crate::tap_walk::TapResult::Bumping);
             sc.flash_reject((9, ROW));
             assert_eq!(sc.tap.tap_target, Some((7, ROW)), "{entry} 前置：目标标记");
@@ -1687,7 +1663,7 @@
     fn t6_new_tap_in_followup_gap_cancels_pending_bump() {
         use crate::tap_walk::TapResult;
         let mut sc = scene((2, ROW), &[(1, 8, ROW)]);
-        sc.player.yellow_keys = 1;
+        apply_setup(&mut sc, SceneSetup { player_yellow_keys: Some(1), ..Default::default() });
         assert_eq!(sc.tap_cell(8, ROW), TapResult::Bumping);
         let wt = sc.width_table.clone();
         let mut fc = 0;
@@ -2039,7 +2015,7 @@
     fn t7_swipe_ignored_or_rejected_when_not_idle() {
         use crate::tap_walk::TapResult;
         let mut sc = scene((3, ROW), &[]);
-        sc.walk_phase = 2;
+        apply_setup(&mut sc, SceneSetup { walk_phase: Some(2), ..Default::default() });
         assert_eq!(sc.swipe_step(2), TapResult::Ignored, "观察模式");
         sc.walk_phase = 1;
         assert_eq!(sc.swipe_step(2), TapResult::Rejected, "手动行走中");
@@ -2309,7 +2285,7 @@
     fn t7_key_held_before_tap_takes_over_after_last_step() {
         use crate::tap_walk::TapResult;
         let mut sc = scene((1, ROW), &[(1, 8, ROW)]);
-        sc.player.yellow_keys = 1;
+        apply_setup(&mut sc, SceneSetup { player_yellow_keys: Some(1), ..Default::default() });
         let wt = sc.width_table.clone();
         sc.press_key(-3); // 按住不放（press_key 发生在点地之前，清不到之后的撞击）
         sc.tick(0, &wt);
@@ -2400,7 +2376,7 @@
         use crate::tap_walk::TapResult;
         let open_frame = |retap: bool| -> (i64, (i32, i32)) {
             let mut sc = scene((2, ROW), &[(1, 8, ROW)]);
-            sc.player.yellow_keys = 1;
+            apply_setup(&mut sc, SceneSetup { player_yellow_keys: Some(1), ..Default::default() });
             assert_eq!(sc.tap_cell(8, ROW), TapResult::Bumping);
             let wt = sc.width_table.clone();
             let mut fc = 0;
@@ -2618,7 +2594,7 @@
         assert_eq!((sc.view.cam_x, sc.view.cam_y), (cx, cy));
         // classic 零变化
         let mut cl = scene((4, ROW), &[]);
-        cl.key_value = -5;
+        apply_setup(&mut cl, SceneSetup { key_value: Some(-5), ..Default::default() });
         cl.handle_field_input();
         assert_eq!(cl.walk_phase, 2);
         let c0 = (cl.view.cam_x, cl.view.cam_y);
@@ -2633,7 +2609,7 @@
     #[test]
     fn bug037_stair_hint_set_when_adjacent_and_gates_keys() {
         let mut sc = scene((2, ROW), &[]);
-        sc.menu.tutorial_seen = true;
+        apply_setup(&mut sc, SceneSetup { menu_tutorial_seen: Some(true), ..Default::default() });
         entity::spawn(&mut sc.entities, &mut sc.grid, 7, 4 << 5, ROW << 5, 10, &sc.width_table, None);
         // 非邻格：tick 不置位
         sc.tick(0, &sc.width_table.clone());
@@ -2666,12 +2642,12 @@
     #[test]
     fn bug037_stair_down_directions() {
         let mut sc = scene((2, ROW), &[]);
-        sc.menu.tutorial_seen = true;
+        apply_setup(&mut sc, SceneSetup { menu_tutorial_seen: Some(true), ..Default::default() });
         entity::spawn(&mut sc.entities, &mut sc.grid, 8, 2 << 5, (ROW - 1) << 5, 20, &sc.width_table, None);
         sc.tick(0, &sc.width_table.clone());
         assert!(sc.menu.stair_hint, "上邻下梯锚置位");
         let mut sc2 = scene((2, ROW), &[]);
-        sc2.menu.tutorial_seen = true;
+        apply_setup(&mut sc2, SceneSetup { menu_tutorial_seen: Some(true), ..Default::default() });
         entity::spawn(&mut sc2.entities, &mut sc2.grid, 8, 3 << 5, ROW << 5, 20, &sc2.width_table, None);
         sc2.tick(0, &sc2.width_table.clone());
         assert!(sc2.menu.stair_hint, "右邻下梯锚置位");

@@ -1,5 +1,6 @@
     use crate::render::FontMetrics;
     use super::*;
+    use super::scene_test_support::{SceneSetup, apply_setup};
     use crate::menu_family::slot_equip_test_support::*;
 
     fn solid(w: i32, h: i32) -> ArgbImage {
@@ -315,7 +316,7 @@
         }
         // modern(13,13)=416：填充 (65,0,351,18)——416-65=351；钥匙首槽 clip x=241（贴右）
         let mut sc = scene_with(&icons);
-        sc.layout = crate::layout::Layout::modern(13, 13);
+        apply_setup(&mut sc, SceneSetup { layout: Some(crate::layout::Layout::modern(13, 13)), ..Default::default() });
         let mut img = ArgbImage::create(416, 416);
         {
             let mut g = SoftGraphics::new(&mut img);
@@ -431,7 +432,7 @@
             "mapbg 须全不透明（若有透明则黑区另有透出路径）"
         );
         let mut sc = scene_with(&synthetic_sptarm());
-        sc.images.backdrop = bg;
+        apply_setup(&mut sc, SceneSetup { images_backdrop: Some(bg), ..Default::default() });
         sc.apply_layout(crate::layout::Layout::modern(13, 13));
         let mut img = ArgbImage::create(416, 416);
         {
@@ -467,7 +468,7 @@
         let bh = bg.height as usize;
         let (top_row, bottom_row) = (bg.argb[0], bg.argb[(bh - 1) * bw]);
         let mut sc = scene_with(&synthetic_sptarm());
-        sc.images.backdrop = bg;
+        apply_setup(&mut sc, SceneSetup { images_backdrop: Some(bg), ..Default::default() });
         sc.apply_layout(crate::layout::Layout::modern(13, 13));
         sc.render.backdrop_scroll = -1;
         let mut img = ArgbImage::create(416, 416);
@@ -1320,7 +1321,7 @@
     #[test]
     fn try_run_scene_case7_sets_flag32() {
         let mut sc = scene_with(&synthetic_sptarm());
-        sc.persist.floor = 23;
+        apply_setup(&mut sc, SceneSetup { persist_floor: Some(23), ..Default::default() });
         assert!(!sc.try_run_scene(7, false), "非 from_walk ⇒ 挡");
         assert!(sc.try_run_scene(7, true), "from_walk ∧ 无型12 ⇒ 过");
         assert!(sc.script_line_flags[32], "过门置 flags[32]");
@@ -1330,8 +1331,7 @@
     #[test]
     fn change_floor_prompt_texts() {
         let mut sc = scene_with(&synthetic_sptarm());
-        sc.persist.min_floor = 2;
-        sc.persist.max_floor = 10;
+        apply_setup(&mut sc, SceneSetup { persist_min_floor: Some(2), persist_max_floor: Some(10), ..Default::default() });
         assert!(!sc.change_floor(1, false, true), "strict 低于 min ⇒ false");
         assert_eq!(sc.dialog.overlay_text.as_deref(), Some(MISC_TEXTS[0]));
         assert!(!sc.change_floor(11, false, true), "strict 高于 max ⇒ false");
@@ -1346,9 +1346,7 @@
     #[test]
     fn script_lay_jumps_floor_with_wipe() {
         let mut sc = scene_with(&synthetic_sptarm());
-        sc.dialog.overlay_text = Some("x".into());
-        sc.script_line = "LAY_7 ".to_string();
-        sc.script_cursor = 0;
+        apply_setup(&mut sc, SceneSetup { dialog_overlay_text: Some(Some("x".into())), script_line: Some("LAY_7 ".to_string()), script_cursor: Some(0), ..Default::default() });
         sc.execute_script_instruction();
         assert_eq!(sc.persist.pending_floor, 7);
         assert!(sc.transitioning);
@@ -1374,13 +1372,7 @@
     #[test]
     fn script_res_resets_run_stats_on_easy() {
         let mut sc = scene_with(&synthetic_sptarm());
-        sc.menu.difficulty_index = 0;
-        sc.player.hp = 999;
-        sc.player.gold = 777;
-        sc.player.yellow_keys = 5;
-        sc.player.atk = 50;
-        sc.persist.min_floor = 9;
-        sc.persist.max_floor = 40;
+        apply_setup(&mut sc, SceneSetup { menu_difficulty_index: Some(0), player_hp: Some(999), player_gold: Some(777), player_yellow_keys: Some(5), player_atk: Some(50), persist_min_floor: Some(9), persist_max_floor: Some(40), ..Default::default() });
         sc.persist.journal.push((3, 1));
         sc.script_line = "RES_0 ".to_string();
         sc.script_cursor = 0;
@@ -1393,10 +1385,7 @@
         assert!(sc.persist.journal.is_empty(), "inventoryEntryCount 清零（inventoryEntryCount+跟随对）");
         // 非 easy 不动
         let mut sc2 = scene_with(&synthetic_sptarm());
-        sc2.menu.difficulty_index = 1;
-        sc2.player.hp = 999;
-        sc2.script_line = "RES_0 ".to_string();
-        sc2.script_cursor = 0;
+        apply_setup(&mut sc2, SceneSetup { menu_difficulty_index: Some(1), player_hp: Some(999), script_line: Some("RES_0 ".to_string()), script_cursor: Some(0), ..Default::default() });
         sc2.execute_script_instruction();
         assert_eq!(sc2.player.hp, 999, "difficulty!=0 空转");
     }
@@ -1418,8 +1407,7 @@
     #[test]
     fn save_roundtrip_restores_equipment() {
         let mut sc = scene_with(&synthetic_sptarm());
-        sc.equipped_weapon = 79;
-        sc.equipped_armor = 80;
+        apply_setup(&mut sc, SceneSetup { equipped_weapon: Some(79), equipped_armor: Some(80), ..Default::default() });
         let blob = sc.serialize_slot_blob();
         assert_eq!(blob[5], 79, "blob[5]=equippedWeaponType（a.java:9192）");
         assert_eq!(blob[6], 80, "blob[6]=equippedArmorType（a.java:9193）");
@@ -1435,15 +1423,7 @@
     #[test]
     fn save_blob_layout_matches_java_and_roundtrips() {
         let mut sc = scene_with(&synthetic_sptarm()); // floor1 (3,10)
-        sc.player.hp = 777;
-        sc.player.atk = 41;
-        sc.player.def = 42;
-        sc.player.yellow_keys = 3;
-        sc.player.blue_keys = 2;
-        sc.player.red_keys = 1;
-        sc.player.gold = 1234;
-        sc.alchemy_upgrade_count = 5;
-        sc.persist.journal = vec![(0, 3), (1, 7)];
+        apply_setup(&mut sc, SceneSetup { player_hp: Some(777), player_atk: Some(41), player_def: Some(42), player_yellow_keys: Some(3), player_blue_keys: Some(2), player_red_keys: Some(1), player_gold: Some(1234), alchemy_upgrade_count: Some(5), persist_journal: Some(vec![(0, 3), (1, 7)]), ..Default::default() });
         sc.script_line_flags[0] = true;
         let blob = sc.serialize_slot_blob();
         assert_eq!(&blob[7..11], &[0, 3, 0, 10], "writeShort(playerCellX/Y)");
@@ -1512,7 +1492,7 @@
     fn scene_slot_list_draws_icon_or_material_name() {
         let icons = synthetic_sptarm();
         let mut sc = scene_with(&icons);
-        sc.persist.preset_mot_if = Some(mot_if(&[(0, 34, 80), (1, 0, 0), (2, 79, 41)]));
+        apply_setup(&mut sc, SceneSetup { persist_preset_mot_if: Some(Some(mot_if(&[(0, 34, 80), (1, 0, 0), (2, 79, 41)]))), ..Default::default() });
         enter7(&mut sc);
         let s = paint7(&mut sc);
         assert_frame_icon(&s, WEAPON_X, FRAME_Y, &icons, 1, "槽0 武器=34");
@@ -1533,9 +1513,7 @@
     fn scene_save_copies_equipment_into_slot_table() {
         let icons = synthetic_sptarm();
         let mut sc = scene_with(&icons);
-        sc.persist.preset_mot_if = Some(mot_if(&[(0, 0, 0)]));
-        sc.equipped_weapon = 33;
-        sc.equipped_armor = 0;
+        apply_setup(&mut sc, SceneSetup { persist_preset_mot_if: Some(Some(mot_if(&[(0, 0, 0)]))), equipped_weapon: Some(33), equipped_armor: Some(0), ..Default::default() });
         enter7(&mut sc);
         for _ in 0..4 {
             key7(&mut sc, -2);
@@ -1708,9 +1686,7 @@
     #[test]
     fn unknown_op_silently_stalls_cursor() {
         let mut sc = scene_with(&synthetic_sptarm());
-        sc.script_line = "XYZ ".to_string();
-        sc.script_cursor = 0;
-        sc.dialog.dialog_phase = 3;
+        apply_setup(&mut sc, SceneSetup { script_line: Some("XYZ ".to_string()), script_cursor: Some(0), dialog_dialog_phase: Some(3), ..Default::default() });
 
         sc.execute_script_instruction();
         assert_eq!(sc.script_cursor, 0, "未知 op 不推游标（原地 return）");
@@ -2008,7 +1984,7 @@
     #[test]
     fn field_input_keys_49_55_gated_by_stair_hint() {
         let mut sc = scene_with(&synthetic_sptarm());
-        sc.menu.stair_hint = false;
+        apply_setup(&mut sc, SceneSetup { menu_stair_hint: Some(false), ..Default::default() });
         entity::spawn(&mut sc.entities, &mut sc.grid, 7, 2 << 5, 2 << 5, 10, &sc.width_table, None);
         entity::spawn(&mut sc.entities, &mut sc.grid, 8, 5 << 5, 5 << 5, 20, &sc.width_table, None);
         sc.persist.pending_floor = -1;
@@ -2042,7 +2018,7 @@
     #[test]
     fn field_input_key_53_falls_through_to_key_held() {
         let mut sc = scene_with(&synthetic_sptarm());
-        sc.key_value = 53;
+        apply_setup(&mut sc, SceneSetup { key_value: Some(53), ..Default::default() });
         sc.handle_field_input();
         assert_eq!(sc.walk_phase, 2, "战况屏态照设（a.java:5292）");
         sc.key_value = 53;

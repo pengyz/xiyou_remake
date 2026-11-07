@@ -39,6 +39,7 @@ fn terrain_floor1() -> Vec<Vec<bool>> {
 struct Floor1Host {
     table: EntityTable,
     grid: CellGrid,
+    #[allow(dead_code)]
     door_tables: DoorTables,
     player: game_core::combat::PlayerCombat,
 }
@@ -203,6 +204,8 @@ impl Floor1Host {
         can_walk
     }
 
+    #[allow(dead_code)]
+    #[allow(dead_code)]
     fn cell_has_entity_slot(&self, x: i32, y: i32) -> bool {
         if x >= 0 && y >= 0 && (x as usize) < 13 && (y as usize) < 13 {
             self.grid.capacity[self.grid.cell_type[y as usize][x as usize] as usize] > 0

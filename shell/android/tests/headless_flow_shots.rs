@@ -37,7 +37,7 @@ fn headless_flow_shots() {
     let machine = build_boot_machine(&src, game_core::layout::Layout::modern(18, 18));
     let mut rt = Runtime::new(machine, stores, Box::new(rms));
     let mut canvas = ArgbImage::create(1152, 1152);
-    let mut drive = |rt: &mut Runtime, canvas: &mut ArgbImage, keys: &[KeyAction], g: Vec<TitleGesture>, t: Vec<(f32, f32)>| {
+    let drive = |rt: &mut Runtime, canvas: &mut ArgbImage, keys: &[KeyAction], g: Vec<TitleGesture>, t: Vec<(f32, f32)>| {
         rt.step(&src, keys, g, t);
         let mut gfx = canvas_graphics(canvas, 2);
         rt.paint(&mut gfx);

@@ -1,5 +1,5 @@
     use crate::render::FontMetrics;
-    use super::scene_test_support::{images, maplv, numbers, scene};
+    use super::scene_test_support::{images, maplv, numbers, scene, SceneSetup, apply_setup};
     use super::*;
 
     /// ① 商人赠物路径（a.java:7333/7336 直调 addItemToItemStack，无前置写）：
@@ -7,7 +7,7 @@
     #[test]
     fn add_item_to_stack_writes_item_use_target_type() {
         let mut sc = scene((3, 3), &[]);
-        sc.menu.overlay_kind_item = 0;
+        apply_setup(&mut sc, SceneSetup { menu_overlay_kind_item: Some(0), ..Default::default() });
         sc.add_item_to_stack(19);
         assert_eq!(sc.menu.overlay_kind_item, 19);
         assert_eq!(sc.dialog.overlay_kind, 1);
@@ -45,7 +45,7 @@
         }
         // 非 2 层不补生
         let mut sc = scene((3, 3), &[]);
-        sc.persist.floor = 3;
+        apply_setup(&mut sc, SceneSetup { persist_floor: Some(3), ..Default::default() });
         sc.persist.saved_floor_states[3] = Some(vec![0, 0]);
         sc.load_floor_data(&maplv(), 3 << 5, 3 << 5, &[], sc.persist.floor).unwrap();
         assert!(sc.entity_at_cell(11, 4, 84) < 0);
@@ -67,7 +67,7 @@
             v
         }
         let mut sc = scene((3, 3), &[]);
-        sc.persist.floor = 12;
+        apply_setup(&mut sc, SceneSetup { persist_floor: Some(12), ..Default::default() });
         sc.persist.saved_floor_states[12] = Some(blob(&[
             (78, 1 << 5, 1 << 5, 9),
             (78, 11 << 5, 1 << 5, 9),
@@ -109,7 +109,7 @@
             v
         }
         let mut sc = scene((3, 3), &[]);
-        sc.persist.floor = 39;
+        apply_setup(&mut sc, SceneSetup { persist_floor: Some(39), ..Default::default() });
         sc.persist.saved_floor_states[39] = Some(blob(&[
             (7, 11 << 5, 1 << 5, 0),
             (8, 11 << 5, 11 << 5, 0),

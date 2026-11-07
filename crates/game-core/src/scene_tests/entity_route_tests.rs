@@ -1,5 +1,5 @@
     use crate::render::FontMetrics;
-    use super::scene_test_support::{scene, ROW};
+    use super::scene_test_support::{scene, ROW, SceneSetup, apply_setup};
     use super::*;
 
     /// 装载单行脚本并执行一条指令（dp0 一拍的 executeScriptInstruction）。
@@ -184,8 +184,7 @@
     #[test]
     fn mov_entity_missing_runs_next_instruction_same_tick() {
         let mut sc = scene((9, ROW), &[]);
-        sc.route_entity = 0;
-        sc.facing = 0;
+        apply_setup(&mut sc, SceneSetup { route_entity: Some(0), facing: Some(0), ..Default::default() });
         exec(&mut sc, "MOV_72_3_3_5_3 ROS_4_2 \u{1e}");
         assert_eq!(sc.route_entity, -1);
         assert_eq!(sc.facing, 2, "ROS_4_2 同拍已执行");

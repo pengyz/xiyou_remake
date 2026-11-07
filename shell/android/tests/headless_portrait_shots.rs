@@ -7,7 +7,6 @@
 //! 帧：1_title 2_intro 3_scene 4_map_hold_right 5_menu（整窗 1200×2536）。
 
 use game_android::input::KeyAction;
-use game_shell_common::settings::ControlMode;
 use game_android::native::{canvas_graphics, TitleGesture};
 use game_android::portrait::{compose_layers, paint_panel, plan_portrait, MapExtent, PanelState, PlanInput, PortraitPlan};
 use game_android::runtime::{build_boot_machine, Runtime};
@@ -94,7 +93,7 @@ fn headless_portrait_shots() {
         let (lw, lh) = rt.active_canvas(&host.plan).logical();
         vec![(lw as f32 / 2.0, lh as f32 / 2.0)]
     };
-    let mut step = |rt: &mut Runtime, host: &mut Host, keys: &[KeyAction], g: Vec<TitleGesture>, t: Vec<(f32, f32)>| {
+    let step = |rt: &mut Runtime, host: &mut Host, keys: &[KeyAction], g: Vec<TitleGesture>, t: Vec<(f32, f32)>| {
         rt.step(&src, keys, g, t);
         host.frame(rt, Vec::new())
     };
@@ -211,7 +210,7 @@ fn headless_portrait_niumowang_dialog_and_gold_popup() {
     };
     let tap = |c: i32| vec![KeyAction::Press(c), KeyAction::Release];
     // 推进拍只画活动档画布（逻辑推进需 paint：打字机/遮幅挂 paint 尾）；整窗合成只在截帧时做
-    let mut step = |rt: &mut Runtime, host: &mut Host, keys: &[KeyAction], g: Vec<TitleGesture>| {
+    let step = |rt: &mut Runtime, host: &mut Host, keys: &[KeyAction], g: Vec<TitleGesture>| {
         rt.step(&src, keys, g, vec![]);
         let c = rt.active_canvas(&host.plan);
         let (cw, ch) = c.physical();

@@ -97,6 +97,7 @@ fn input_key(inp: &Option<String>) -> i32 {
 }
 
 #[test]
+#[allow(unused_assignments)]
 // 【STAGE-B-001 豁免】boot 时间轴变化（有意不一致，登记册名单在案） 【2026-10-19 解禁：lead 裁定 (c) 预设门控——classic 恢复原版时间轴，本测复绿】
 fn preset_load_menu_frames_match() {
     let repo_path = repo();
@@ -135,6 +136,7 @@ fn preset_load_menu_frames_match() {
     let sptenemy1 = load_container("sptenemy1", 20);
     let sptenemy2 = load_container("sptenemy2", 20);
     let ui = load_container("ui", 25);
+    #[allow(unused_assignments)]
     let mut images_slot: Option<SceneImages> = None;
     let images_tmp = SceneImages {
         backdrop: mapbg[0].clone(),
@@ -2729,7 +2731,7 @@ fn prologue_frames_match() {
                         enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                         difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                 };
-                let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();;
+                let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
                 sc.enemy_base = __tables.to_records(&__gold);
                 sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                 sc.build_minimap();
@@ -2948,7 +2950,7 @@ fn floor51_menu_frames_match() {
                         enemy_base_def: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasedef.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                         difficulty_multipliers: std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/difficulty_multipliers.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect(),
                 };
-                let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();;
+                let __gold: Vec<i32> = std::fs::read_to_string(repo_path.join("crates/game-core/tests/fixtures/enemybasegold.txt")).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
                 sc.enemy_base = __tables.to_records(&__gold);
                 sc.enemies = game_core::combat::scale_enemy_stats(&sc.enemy_base, 1);
                 sc.build_minimap();

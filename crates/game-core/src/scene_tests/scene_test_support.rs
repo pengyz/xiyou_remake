@@ -181,3 +181,101 @@
         sc.enemies = crate::combat::scale_enemy_stats(&sc.enemy_base, 1);
         sc
     }
+
+/// 【P2 批10 D·域构造器】测试构造面收敛（plan:37/§4.6）：scene 构造行后连续纯赋值 run=
+/// 构造输入非运行时写——机械迁移为本配置结构体（构造段 112 站点→struct 字面量，40 字段=
+/// sed 实测观察字段全集）。穿插站点=测试逻辑（plan 自认「主体为测试逻辑非直填」）留原位
+/// 登记；复合算符站点同。夹具字节等价（金样零漂移）。313375b 机械迁移先例同口径。
+#[derive(Default, Debug)]
+pub struct SceneSetup {
+    pub alchemy_upgrade_count: Option<i32>,
+    pub dialog_dialog_data_scripts: Option<Vec<String>>,
+    pub dialog_dialog_phase: Option<i32>,
+    pub dialog_overlay_text: Option<Option<String>>,
+    pub equipped_armor: Option<i32>,
+    pub equipped_weapon: Option<i32>,
+    pub facing: Option<i32>,
+    pub game_mode: Option<GameMode>,
+    pub images_backdrop: Option<crate::scene::ArgbImage>,
+    pub key_value: Option<i32>,
+    pub layout: Option<crate::layout::Layout>,
+    pub menu_difficulty_index: Option<i32>,
+    pub menu_menu_box_width: Option<i32>,
+    pub menu_menu_cursor: Option<i32>,
+    pub menu_menu_item_count: Option<i32>,
+    pub menu_menu_kinds: Option<Vec<i8>>,
+    pub menu_menu_line_height: Option<i32>,
+    pub menu_menu_list_height: Option<i32>,
+    pub menu_menu_scroll_top: Option<i32>,
+    pub menu_menu_visible_bottom: Option<i32>,
+    pub menu_overlay_kind_item: Option<i32>,
+    pub menu_stair_hint: Option<bool>,
+    pub menu_tutorial_seen: Option<bool>,
+    pub persist_current_floor: Option<i32>,
+    pub persist_floor: Option<i32>,
+    pub persist_journal: Option<Vec<(i32, i32)>>,
+    pub persist_max_floor: Option<i32>,
+    pub persist_min_floor: Option<i32>,
+    pub persist_preset_mot_if: Option<Option<Vec<u8>>>,
+    pub player_atk: Option<i32>,
+    pub player_blue_keys: Option<i32>,
+    pub player_def: Option<i32>,
+    pub player_gold: Option<i32>,
+    pub player_hp: Option<i32>,
+    pub player_red_keys: Option<i32>,
+    pub player_yellow_keys: Option<i32>,
+    pub route_entity: Option<i32>,
+    pub script_cursor: Option<usize>,
+    pub script_line: Option<String>,
+    pub walk_phase: Option<i32>,
+}
+
+/// 域构造器入口（scene() 变体通用：构造行后以本配置施加构造输入）。
+pub fn scene_setup(player: (i32, i32), ents: &[(u8, i32, i32)], setup: SceneSetup) -> GameScene {
+    let mut sc = scene(player, ents);
+    apply_setup(&mut sc, setup);
+    sc
+}
+
+pub fn apply_setup(sc: &mut GameScene, s: SceneSetup) {
+    if let Some(v) = s.alchemy_upgrade_count { sc.alchemy_upgrade_count = v; }
+    if let Some(v) = s.dialog_dialog_data_scripts { sc.dialog.dialog_data.scripts = v; }
+    if let Some(v) = s.dialog_dialog_phase { sc.dialog.dialog_phase = v; }
+    if let Some(v) = s.dialog_overlay_text { sc.dialog.overlay_text = v; }
+    if let Some(v) = s.equipped_armor { sc.equipped_armor = v; }
+    if let Some(v) = s.equipped_weapon { sc.equipped_weapon = v; }
+    if let Some(v) = s.facing { sc.facing = v; }
+    if let Some(v) = s.game_mode { sc.game_mode = v; }
+    if let Some(v) = s.images_backdrop { sc.images.backdrop = v; }
+    if let Some(v) = s.key_value { sc.key_value = v; }
+    if let Some(v) = s.layout { sc.layout = v; }
+    if let Some(v) = s.menu_difficulty_index { sc.menu.difficulty_index = v; }
+    if let Some(v) = s.menu_menu_box_width { sc.menu.menu_box_width = v; }
+    if let Some(v) = s.menu_menu_cursor { sc.menu.menu_cursor = v; }
+    if let Some(v) = s.menu_menu_item_count { sc.menu.menu_item_count = v; }
+    if let Some(v) = s.menu_menu_kinds { sc.menu.menu_kinds = v; }
+    if let Some(v) = s.menu_menu_line_height { sc.menu.menu_line_height = v; }
+    if let Some(v) = s.menu_menu_list_height { sc.menu.menu_list_height = v; }
+    if let Some(v) = s.menu_menu_scroll_top { sc.menu.menu_scroll_top = v; }
+    if let Some(v) = s.menu_menu_visible_bottom { sc.menu.menu_visible_bottom = v; }
+    if let Some(v) = s.menu_overlay_kind_item { sc.menu.overlay_kind_item = v; }
+    if let Some(v) = s.menu_stair_hint { sc.menu.stair_hint = v; }
+    if let Some(v) = s.menu_tutorial_seen { sc.menu.tutorial_seen = v; }
+    if let Some(v) = s.persist_current_floor { sc.persist.current_floor = v; }
+    if let Some(v) = s.persist_floor { sc.persist.floor = v; }
+    if let Some(v) = s.persist_journal { sc.persist.journal = v; }
+    if let Some(v) = s.persist_max_floor { sc.persist.max_floor = v; }
+    if let Some(v) = s.persist_min_floor { sc.persist.min_floor = v; }
+    if let Some(v) = s.persist_preset_mot_if { sc.persist.preset_mot_if = v; }
+    if let Some(v) = s.player_atk { sc.player.atk = v; }
+    if let Some(v) = s.player_blue_keys { sc.player.blue_keys = v; }
+    if let Some(v) = s.player_def { sc.player.def = v; }
+    if let Some(v) = s.player_gold { sc.player.gold = v; }
+    if let Some(v) = s.player_hp { sc.player.hp = v; }
+    if let Some(v) = s.player_red_keys { sc.player.red_keys = v; }
+    if let Some(v) = s.player_yellow_keys { sc.player.yellow_keys = v; }
+    if let Some(v) = s.route_entity { sc.route_entity = v; }
+    if let Some(v) = s.script_cursor { sc.script_cursor = v; }
+    if let Some(v) = s.script_line { sc.script_line = v; }
+    if let Some(v) = s.walk_phase { sc.walk_phase = v; }
+}

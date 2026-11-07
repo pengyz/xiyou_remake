@@ -4628,6 +4628,7 @@ pub mod scene_test_support;
 #[cfg(test)]
 #[path = "scene_tests/gold_popup_tests.rs"]
 mod gold_popup_tests;
+#[cfg(test)]
 #[path = "scene_tests/shop_purchase_tests.rs"]
 mod shop_purchase_tests;
 

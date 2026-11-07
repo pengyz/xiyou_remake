@@ -12,7 +12,8 @@ use crate::combat::{EnemyDef, PlayerCombat};
 
 /// 事件面（spec 单 (ctx,t) 形无法表达三事件——plan 批2 授权扩展；F2 更正注记③）。
 pub enum BattleEvent {
-    /// 途中遭遇开战（a.java:8760-8780）：hp 缩放源（enemyHpScaled a.java:8769）+敌先手一击。
+    /// 途中遭遇开战（a.java:8771-8787）：hp 缩放源（enemyHpScaled a.java:8775）+敌先手一击
+    /// （a.java:8783-8784 strike 行）。【2026-11-08 批10 勘误】原 8760-8780/8769 等距推错且漏先手行。
     RouteEngage {
         /// 实体槽位（battle_target 写值——resolve_bump 无 slot 知识，经事件带入）。
         entity_slot: i32,
@@ -78,7 +79,8 @@ pub trait BattleSubsystem {
     fn resolve_bump(&mut self, ctx: &mut BattleCtx, t: EnemyTypeId, ev: BattleEvent) -> BattleOutcome;
 }
 
-/// 开战预测纯查询（predictHpLossVsType a.java:9983-9982 桥真语义——预测读**缩放表**，
+/// 开战预测纯查询（predictHpLossVsType a.java:9992-9996 桥真语义——预测读**缩放表**，
+    /// 【2026-11-08 批10 勘误】原 9983-9982 行锚倒置，sed 实核修。
 /// 与 hp 装配分源无关）；query 面消费=digit 显示/撞格预判/开战门。math 单源=crate::combat。
 pub fn predict_engagement(
     player: &PlayerCombat,
@@ -113,7 +115,7 @@ impl BattleSubsystem for BattleResolver {
         if !matches!(ev, BattleEvent::Exchange) {
             // armor_gate=撞击面无先手位（bump:true/route:false——a.java 两臂捆绑）
             let no_first_strike = matches!(ev, BattleEvent::BumpEngage { .. });
-            // 预测=缩放表（predictHpLossVsType 桥真语义 a.java:9983-9982——
+            // 预测=缩放表（predictHpLossVsType 桥真语义 a.java:9992-9996——
             // bump 面预测亦读缩放表，仅 hp 装配分源：保真不改）。
             let loss = predict_engagement(ctx.player, ctx.enemies, ctx.enemy_base, t.0, no_first_strike);
             if !(loss >= 0 && loss < ctx.player.hp) {
@@ -130,7 +132,8 @@ impl BattleSubsystem for BattleResolver {
                 };
                 BattleOutcome::Engage { first_strike: 0 }
             } else {
-                // 途中面（a.java:8760-8780）：缩放表源（enemyHpScaled a.java:8769）+敌先手 raw
+                // 途中面（a.java:8771-8787）：缩放表源（enemyHpScaled a.java:8775）+敌先手 raw
+                // （a.java:8783-8784）
                 *ctx.battle_enemy_hp = ctx.enemies[idx].hp;
                 *ctx.battle_active = false;
                 *ctx.battle_no_counter = false;

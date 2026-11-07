@@ -42,6 +42,7 @@ fn map_frames() -> Vec<ArgbImage> {
         .collect()
 }
 
+#[allow(dead_code)]
 fn one_frame(name: &str, count: usize, idx: usize) -> ArgbImage {
     let data = std::fs::read(repo(&format!("assets/raw/{name}")))
         .unwrap_or_else(|e| panic!("缺 assets/raw/{name}：{e}"));

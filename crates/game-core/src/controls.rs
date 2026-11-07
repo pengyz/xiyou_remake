@@ -357,7 +357,7 @@ mod tests {
     /// 【spec §3.2】地图空闲：背包 | 观察 · 撤销（无梯）| 菜单。
     #[test]
     fn t1_map_idle_buttons() {
-        let mut sc = scene((2, ROW), &[]);
+        let sc = scene((2, ROW), &[]);
         let c = sc.controls();
         assert_eq!(c.left, Some(btn(FunctionId::Bag, Action::Key(-6))));
         assert_eq!(c.right, Some(btn(FunctionId::Menu, Action::Key(-7))));

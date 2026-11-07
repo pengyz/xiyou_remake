@@ -5,7 +5,7 @@
 //! game-oracle fixture_frames.rs:310-313 像素取证缝，31 帧哈希夹具判据）。
 //!
 //! 【批8 处置·批3 registry 注记指针】op_see ease 簇（script_ops.rs ease 写）+op_ces 双簇=
-//! set_ease_cam_x/y+set_ease_target_x/y（scene_paint.rs:26-33 render 域直写接口家）——归 render 域
+//! set_ease_cam_x/y+set_ease_target_x/y（scene_paint.rs:27-34 render 域直写接口家——【2026-11-08 批10 勘误】原 26-33 逐行 +1 漂移）——归 render 域
 //! /UIRender 面，非 dialog 域（dialog.rs 盲区注记指回本行）。
 //!
 //! 【HostCtx N/A】输入/渲染面无 HostCtx 方法（批8 无再收窄——批5 处置账表形）。
@@ -94,6 +94,13 @@ mod tests {
         let f = { let rs = rs_fix(); let r = UIRenderResolver(&rs); r.snapshot() };
         let names_f = ["strip_frame", "backdrop_scroll", "bob_offset", "bob_rising", "open_anim_tick", "tile_bob"];
         let names_r = ["strip_frame", "backdrop_scroll", "bob_offset", "bob_rising", "open_anim_tick", "tile_bob"];
+        // 【批10 黄④判别力补强】名单比对本身恒真——真判据=下方解构钉：两侧字段集
+        // 与名单一一对应，任一侧新增/删字段即编译错（非恒真可判别）。
+        let UiFrame { strip_frame: _, backdrop_scroll: _, bob_offset: _, bob_rising: _, open_anim_tick: _, tile_bob: _ } = f;
+        let crate::scene::RenderState {
+            strip_frame: _, backdrop_scroll: _, bob_offset: _, bob_rising: _,
+            open_anim_tick: _, tile_bob: _,
+        } = rs_fix();
         assert_eq!(names_f, names_r, "六字段同集（E3 render 域）");
         let _ = f;
     }

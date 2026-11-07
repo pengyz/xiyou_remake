@@ -8,7 +8,7 @@
 //!
 //! 五类拒载负例见 `tests/defs_negative.rs`（fixtures/defs_negative/ 五件）。
 
-use game_data::defs::{self, DefBundle, SpriteDef};
+use game_data::defs::{DefBundle, SpriteDef};
 
 fn repo_file(rel: &str) -> String {
     let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..").join(rel);

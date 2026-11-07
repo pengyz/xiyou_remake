@@ -1,19 +1,12 @@
     use crate::render::FontMetrics;
     use super::scene_test_support::scene;
+    use super::scene_test_support::{SceneSetup, apply_setup};
     use super::{GameMode, PointerHit};
     use crate::layout::{SCREEN_H, SCREEN_W};
 
     fn menu_scene() -> super::GameScene {
         let mut sc = scene((2, 2), &[(43, 5, 5)]);
-        sc.game_mode = GameMode::InGameMenu;
-        sc.menu.menu_kinds = vec![0, 1, 2, 3, 4, 5];
-        sc.menu.menu_item_count = 6;
-        sc.menu.menu_scroll_top = 0;
-        sc.menu.menu_visible_bottom = 6;
-        sc.menu.menu_line_height = 18;
-        sc.menu.menu_box_width = 148;
-        sc.menu.menu_list_height = 112;
-        sc.menu.menu_cursor = 0;
+        apply_setup(&mut sc, SceneSetup { game_mode: Some(GameMode::InGameMenu), menu_menu_kinds: Some(vec![0, 1, 2, 3, 4, 5]), menu_menu_item_count: Some(6), menu_menu_scroll_top: Some(0), menu_menu_visible_bottom: Some(6), menu_menu_line_height: Some(18), menu_menu_box_width: Some(148), menu_menu_list_height: Some(112), menu_menu_cursor: Some(0), ..Default::default() });
         sc
     }
 
@@ -34,7 +27,7 @@
         assert_eq!(y0, 160 - ((112 + 32) >> 1) + 16, "行带 y 与 paint_menu_list 同式锚（pad 相消）");
         // 玩法/对话态恒 None（不误触）
         let mut s2 = menu_scene();
-        s2.game_mode = GameMode::Map;
+        apply_setup(&mut s2, SceneSetup { game_mode: Some(GameMode::Map), ..Default::default() });
         assert_eq!(s2.pointer_hit(120, y0 + 5), PointerHit::None);
     }
 

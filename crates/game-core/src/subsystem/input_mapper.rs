@@ -35,8 +35,8 @@ pub enum InputStep {
     /// 需撞选中怪（Coordinator 执行 engage_selected）。
     Engage,
     /// 打断后排队键码（域写=resume: tap_pending=StopThen(c) 已在 resolver 装配；
-    /// Coordinator 仅执行 interrupt_route——interrupt_route body=1631-1643 不触 tap_pending（挂账③行锚勘误：
-/// :1646 为 interrupt_route_for_input doc 行），序等价 A 级）。
+    /// Coordinator 仅执行 interrupt_route——interrupt_route body=1631-1643 不触 tap_pending
+    /// （挂账③行锚勘误：:1646 为 interrupt_route_for_input doc 行），序等价 A 级）。
     InterruptThen(i32),
 }
 

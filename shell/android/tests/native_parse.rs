@@ -773,7 +773,7 @@ fn scene_tap_walks_on_map_and_confirms_rows_in_menus() {
 fn hidden_rows_keep_values_roundtrip() {
     // 【复核A 红-1】隐藏≠丢值：key_haptic=false→切触屏（行隐藏）→切回=仍 false
     // （快照/落盘双保；用户裁定"完全隐藏"=切回恢复原值）。
-    use game_android::runtime::{shell_rows, Runtime};
+    use game_android::runtime::shell_rows;
     use game_shell_common::settings::{AppSettings, ControlMode};
     let mut s = AppSettings::default();
     s.key_haptic = false;

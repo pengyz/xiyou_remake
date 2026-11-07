@@ -73,6 +73,7 @@ fn expected_rows(splash: bool, haptic: bool, click: bool) -> Vec<(u8, String, bo
 
 /// 【件1】触屏模式行集：按键震动/按键音**完全隐藏**（缺席=不渲染+导航跳过）；
 /// 自动战斗常显。
+#[allow(dead_code)]
 fn expected_rows_touch(splash: bool) -> Vec<(u8, String, bool)> {
     vec![
         (PREF_SPLASH, "开屏画面".into(), splash),
@@ -356,7 +357,7 @@ fn inputs_before_first_frame_are_dropped() {
 /// 复核 T6b-N1：标题触点首帧前按下、首帧后抬起——按下那半被丢弃，抬起不得补出 Tap（否则仍会开始新游戏）。
 #[test]
 fn title_touch_spanning_first_frame_yields_no_gesture() {
-    use game_android::input::{TouchEvent, TouchPhase};
+    use game_android::input::TouchEvent;
     let mut w = game_android::native::ShellWiring::new();
     w.title_mode = true;
     let ev = |phase, x, y| TouchEvent { id: 1, phase, x, y };
@@ -431,7 +432,7 @@ fn vp_gesture_swipe_and_observe_drag() {
     }
     assert!(!rt.scene.as_ref().unwrap().script_walk_armed, "前置：武装已清");
 
-    let x0 = rt.scene.as_ref().unwrap().player_cell_x;
+    let _x0 = rt.scene.as_ref().unwrap().player_cell_x;
     // 选一个可走方向（独立探测：tap_grid 找玩家四邻中 Floor 且安全、BFS 可达的一格——不动玩家）
     let swipe_dir_code = {
         let sc = rt.scene.as_ref().unwrap();
@@ -482,7 +483,7 @@ fn vp_gesture_swipe_and_observe_drag() {
     rt.step(&src, &[KeyAction::Press(-5)], Vec::new(), Vec::new());
     assert_eq!(rt.scene.as_ref().unwrap().walk_phase, 2, "观察模式（未锁定）");
     assert!(!rt.scene.as_ref().unwrap().view_locked, "前置：未锁定（pan 窗口）");
-    let cam0 = rt.scene.as_ref().unwrap().view.cam_x;
+    let _cam0 = rt.scene.as_ref().unwrap().view.cam_x;
     // 同拍注入 Down+越阈 Move（Swipe→Ignored 于观察态）+续滑 Move（pan 生效）
     rt.inject_vp_touches(vec![
         game_android::native::VpTouch { id: 2, phase: game_android::input::TouchPhase::Down, x: 200, y: 400 },
@@ -553,7 +554,7 @@ fn vp_tap_reaches_scene_and_boot_pages() {
         game_android::native::VpTouch { id: 1, phase: game_android::input::TouchPhase::Down, x: cx, y: cy },
         game_android::native::VpTouch { id: 1, phase: game_android::input::TouchPhase::Up, x: cx, y: cy },
     ]);
-    for i in 0..60 {
+    for _i in 0..60 {
         drive(&mut rt, &src, &[]);
     }
     let sc = rt.scene.as_ref().unwrap();

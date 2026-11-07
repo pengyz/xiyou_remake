@@ -5,7 +5,6 @@
 //! > （用户裁定"声音和按键音是分开的"）；对应测试改写，见 `cue_policy_haptic_and_click_follow_their_own_switches`。
 
 use game_android::feedback::{emit, presses_in, Cue, RecordingFeedback};
-use game_shell_common::settings::ControlMode;
 use game_android::input::{KeyAction, TouchEvent, TouchPhase};
 use game_android::native::ShellWiring;
 use game_android::portrait::{plan_portrait, MapExtent, PlanInput};

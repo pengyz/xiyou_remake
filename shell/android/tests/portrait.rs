@@ -9,7 +9,6 @@
 //! >    满图上限、整数倍极大性、可读字号）；③ 输入（dpi/内容区/地图头）全来自设备与数据。
 
 use game_android::input::{KeyAction, TouchPhase};
-use game_shell_common::settings::ControlMode;
 use game_android::portrait::{
     compose_layers, dpi_or_baseline, paint_panel, plan_portrait, MapExtent, PanelState, PlanInput, PortraitPlan, Rect,
     BUTTON_MIN_W_DP, DPAD_MAX_DP, GESTURE_AREA_DP, MARGIN_DP, MIN_TEXT_SP, TOUCH_TARGET_DP,
@@ -426,7 +425,7 @@ fn t5_hud_no_overlap_at_narrowest() {
 /// TouchMapper 重建清按住态由 apply_portrait 新建 mapper 保证（结构断言：新实例 held 空）。
 #[test]
 fn t5r3_wiring_set_control_mode_touch() {
-    use game_android::input::{TouchPhase, TouchEvent};
+    use game_android::input::TouchPhase;
     let mut w = game_android::native::ShellWiring::new();
     w.apply_portrait(plan_portrait(&xm14()));
     assert_eq!(w.control_mode, game_shell_common::settings::ControlMode::Pad);
