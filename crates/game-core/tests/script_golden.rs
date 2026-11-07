@@ -7,6 +7,7 @@
 use game_core::enums::GameMode;
 use game_core::enums::{DialogPhase, WalkPhase};
 use game_core::script::{DialogueTable, HostCtx, ScriptEngine};
+use game_core::subsystem::entity_service::EntityService;
 
 /// 从夹具构建对话表（\x1e 记录分隔，与提取脚本一致）。
 fn table() -> DialogueTable {
@@ -51,17 +52,6 @@ impl HostCtx for StubHost {
         self.find_path_calls.push((fx, fy, tx, ty));
         self.path_result
     }
-    fn cell_entity(&self, _x: i32, _y: i32, _t: i32) -> i32 {
-        -1
-    }
-    fn remove_entity(&mut self, idx: i32) {
-        self.remove_calls.push(idx);
-    }
-    fn remove_all_of_type(&mut self, _t: i32) {}
-    fn swd_convert_type81(&mut self) {}
-    fn entity_pixel(&self, _idx: i32) -> (i32, i32) {
-        (0, 0)
-    }
     fn give_gold(&mut self, amount: i32) {
         self.gold_calls.push(amount);
     }
@@ -75,12 +65,6 @@ impl HostCtx for StubHost {
         -1
     }
     fn set_typewriter(&mut self, _text: &str, _y: i32, _pos: i32) {}
-    fn reload_floor_entities(&mut self, floor: i32) {
-        self.reloaded_floors.push(floor);
-    }
-    fn spawn_entity(&mut self, _t: i32, _x: i32, _y: i32) -> i32 {
-        -1
-    }
     fn ces_camera(&mut self, _idx: i32) {}
     fn set_camera_anchor_target(&mut self, _x: i32, _y: i32) {}
     fn exit_application(&mut self) {
@@ -90,9 +74,28 @@ impl HostCtx for StubHost {
         panic!("MVS 在 P3.1 边界外（数据域零使用）");
     }
     fn m_082_set_dialog_target(&mut self, _v: i32) {}
-    fn set_entity_route_flag(&mut self, _idx: i32) {}
-    fn entity_type(&self, _idx: i32) -> i32 { -1 }
     fn snap_camera_after_ros1(&mut self, _px: i32, _py: i32) {}
+}
+impl EntityService for StubHost {
+    fn cell_entity(&self, _x: i32, _y: i32, _t: i32) -> i32 {
+        -1
+    }
+    fn entity_type(&self, _idx: i32) -> i32 { -1 }
+    fn remove_entity(&mut self, idx: i32) {
+        self.remove_calls.push(idx);
+    }
+    fn remove_all_of_type(&mut self, _t: i32) {}
+    fn swd_convert_type81(&mut self) {}
+    fn entity_pixel(&self, _idx: i32) -> (i32, i32) {
+        (0, 0)
+    }
+    fn reload_floor_entities(&mut self, floor: i32) {
+        self.reloaded_floors.push(floor);
+    }
+    fn spawn_entity(&mut self, _t: i32, _x: i32, _y: i32) -> i32 {
+        -1
+    }
+    fn set_entity_route_flag(&mut self, _idx: i32) {}
 }
 
 /// 序章脚本 = 第 40 项（trace 实证 dialogScriptLine，deobf a.java:1124 起第 41 项）。

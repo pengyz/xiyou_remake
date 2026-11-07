@@ -171,6 +171,51 @@ mod tests {
         pub fn _sig_ui_snapshot<T: UIRender>(t: &T) -> UiFrame {
             t.snapshot()
         }
+        // 【F4+批1】EntityService 9 方法机器钉名（批1 终形=逐字迁移自 HostCtx script.rs:128-168）。
+        pub fn _sig_entity_cell_entity<T: EntityService>(t: &T, x: i32, y: i32, type_id: i32) -> i32 {
+            t.cell_entity(x, y, type_id)
+        }
+        pub fn _sig_entity_entity_type<T: EntityService>(t: &T, idx: i32) -> i32 {
+            t.entity_type(idx)
+        }
+        pub fn _sig_entity_remove_entity<T: EntityService>(t: &mut T, idx: i32) {
+            t.remove_entity(idx)
+        }
+        pub fn _sig_entity_remove_all_of_type<T: EntityService>(t: &mut T, type_id: i32) {
+            t.remove_all_of_type(type_id)
+        }
+        pub fn _sig_entity_swd_convert_type81<T: EntityService>(t: &mut T) {
+            t.swd_convert_type81()
+        }
+        pub fn _sig_entity_entity_pixel<T: EntityService>(t: &T, idx: i32) -> (i32, i32) {
+            t.entity_pixel(idx)
+        }
+        pub fn _sig_entity_reload_floor_entities<T: EntityService>(t: &mut T, floor: i32) {
+            t.reload_floor_entities(floor)
+        }
+        pub fn _sig_entity_spawn_entity<T: EntityService>(t: &mut T, type_id: i32, px: i32, py: i32) -> i32 {
+            t.spawn_entity(type_id, px, py)
+        }
+        pub fn _sig_entity_set_entity_route_flag<T: EntityService>(t: &mut T, idx: i32) {
+            t.set_entity_route_flag(idx)
+        }
+    }
+
+    /// 【F4 方法名机器断言】EntityService 9 方法名清单钉死
+    /// （批1 终形=逐字迁移 HostCtx 实体面——防 doc 注释名字与实现漂移）。
+    #[test]
+    fn p2b1_entity_service_method_names() {
+        let src = include_str!("entity_service.rs");
+        for name in [
+            "cell_entity", "entity_type", "remove_entity", "remove_all_of_type",
+            "swd_convert_type81", "entity_pixel", "reload_floor_entities",
+            "spawn_entity", "set_entity_route_flag",
+        ] {
+            assert!(
+                src.contains(&format!("fn {name}(")),
+                "EntityService 方法名漂移：{name} 失联（F4 名单断言）"
+            );
+        }
     }
 
     /// 【F3 判别力】其余 4 Ctx 纯数据构造（5 Ctx 之一 EntityCtx 见上）——

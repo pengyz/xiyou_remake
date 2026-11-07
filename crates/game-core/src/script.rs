@@ -5,7 +5,10 @@
 //! loadLevelScript（:7997-8012）。字段名与 data/naming 台账语义名对齐。
 //!
 //! 边界（P3.1）：实体/相机/地图副作用经 [`HostCtx`] trait 注入（P3.2 实体模块
-//! 落地真实实现）；MVS 数据域零使用，显式 P3.2 边界。
+//! 落地真实实现）；MVS 数据域零使用，显式 P3.2 边界。批1：实体面 9 方法迁
+//! [`crate::subsystem::entity_service::EntityService`]（HostCtx 拆小首件）。
+
+use crate::subsystem::entity_service::EntityService;
 
 /// 对白数据表（来源：deobf a.java:1124/1194 夹具，tests/fixtures/）。
 pub struct DialogueTable {
@@ -125,19 +128,9 @@ impl Default for ScriptState {
 }
 
 /// 实体/相机/系统副作用边界（P3.2 由实体模块提供真实实现；测试用确定性桩）。
+/// 批1：实体面 9 方法已迁 crate::subsystem::entity_service::EntityService（拆小首件），余 12 暂留。
 pub trait HostCtx {
     fn find_path(&mut self, from_x: i32, from_y: i32, to_x: i32, to_y: i32) -> bool;
-    /// findBlockingEntity：格 (x,y) 上 type_id 类型的实体索引（无则 -1）。
-    fn cell_entity(&self, x: i32, y: i32, type_id: i32) -> i32;
-    /// 实体类型读取（entityType[idx]）。
-    fn entity_type(&self, idx: i32) -> i32;
-    /// markEntityRemoved：移除实体。
-    fn remove_entity(&mut self, idx: i32);
-    /// DES 负参变体：按类型批量移除（Java 全表遍历，Host 侧持有实体表）。
-    fn remove_all_of_type(&mut self, type_id: i32);
-    /// SWD：类型 81 → 4 改写（Java 写五字段：hidden/texture/solid/anim/param）。
-    fn swd_convert_type81(&mut self);
-    fn entity_pixel(&self, idx: i32) -> (i32, i32);
     fn give_gold(&mut self, amount: i32);
     fn pickup_item(&mut self, item_id: i32);
     /// lockCameraOn 相机部分（无条件）：相机锚 = 玩家像素位。
@@ -146,10 +139,6 @@ pub trait HostCtx {
     fn locate_speaker_entity(&mut self, speaker: i32) -> i32;
     /// layoutWrappedText：打字机装填。
     fn set_typewriter(&mut self, text: &str, y: i32, pos: i32);
-    /// m_119/m_122：层实体表重载。
-    fn reload_floor_entities(&mut self, floor: i32);
-    /// spawnEntity：像素坐标生成实体 → 索引。
-    fn spawn_entity(&mut self, type_id: i32, px: i32, py: i32) -> i32;
     /// CES 尾部：相机 = 玩家屏幕位；若实体存在则 target = 实体像素位。
     fn ces_camera(&mut self, entity_idx: i32);
     /// easeCameraToTarget：SEE 的相机目标设置。
@@ -160,8 +149,6 @@ pub trait HostCtx {
     fn mvs_exchange(&mut self);
     /// ROS_2：tryEquip（对白目标设置，实体域）。
     fn m_082_set_dialog_target(&mut self, v: i32);
-    /// MOV 5 参分支：实体 72 的路线标志写（entityAnimRow[idx]=1，a.java:8275-8271）。
-    fn set_entity_route_flag(&mut self, idx: i32);
     /// ROS_1 后 lockCameraOn(0)：相机锚 = 新玩家像素位。
     fn snap_camera_after_ros1(&mut self, px: i32, py: i32);
 }
@@ -204,7 +191,8 @@ impl<'d> ScriptEngine<'d> {
     }
 
     /// GUT_ 目标装载 = Java loadLevelScript（a.java:8020-8029）。
-    pub fn load_level_script(&mut self, host: &mut impl HostCtx, idx: usize) {
+    /// 批1 界收窄：snap_camera（HostCtx）+reload_floor_entities（EntityService）双面。
+    pub fn load_level_script(&mut self, host: &mut (impl HostCtx + EntityService), idx: usize) {
         self.state.script_walk_armed = false;
         self.state_transition(GameMode::Dialog);
         self.state.current_script_index = idx;
@@ -259,7 +247,8 @@ impl<'d> ScriptEngine<'d> {
 
     /// 主循环步进：dialogPhase==0 时消费脚本（Java run dialogPhase 0 分支：
     /// scriptStepDelay>0 递减否则 execute，a.java:4000-4003 的镜像）。
-    pub fn step(&mut self, host: &mut impl HostCtx) {
+    /// 批1 界收窄：透传 execute_script_instruction（EntityService 面）。
+    pub fn step(&mut self, host: &mut (impl HostCtx + EntityService)) {
         if self.state.dialog_phase == DialogPhase::ScriptStep {
             if self.state.scene_delay > 0 {
                 self.state.scene_delay -= 1;
@@ -279,7 +268,8 @@ impl<'d> ScriptEngine<'d> {
     }
 
     /// executeScriptInstruction 忠实移植（a.java:8239-8581）。
-    pub fn execute_script_instruction(&mut self, host: &mut impl HostCtx) {
+    /// 批1 界收窄：MOV/DES/SWD/RES/spawn 实体面（EntityService）+相机面（HostCtx）。
+    pub fn execute_script_instruction(&mut self, host: &mut (impl HostCtx + EntityService)) {
         let line = self.line();
         let script_cursor0 = self.state.script_cursor;
         let has_opcode = script_cursor0 + 3 <= line.len();
@@ -537,24 +527,26 @@ impl<'d> ScriptEngine<'d> {
 pub struct NoopHost;
 impl HostCtx for NoopHost {
     fn find_path(&mut self, _: i32, _: i32, _: i32, _: i32) -> bool { false }
-    fn cell_entity(&self, _: i32, _: i32, _: i32) -> i32 { -1 }
-    fn remove_entity(&mut self, _: i32) {}
-    fn remove_all_of_type(&mut self, _: i32) {}
-    fn swd_convert_type81(&mut self) {}
-    fn entity_pixel(&self, _: i32) -> (i32, i32) { (0, 0) }
     fn give_gold(&mut self, _: i32) {}
     fn pickup_item(&mut self, _: i32) {}
     fn snap_camera_to_player(&mut self) {}
     fn locate_speaker_entity(&mut self, _: i32) -> i32 { -1 }
     fn set_typewriter(&mut self, _: &str, _: i32, _: i32) {}
-    fn reload_floor_entities(&mut self, _: i32) {}
-    fn spawn_entity(&mut self, _: i32, _: i32, _: i32) -> i32 { -1 }
     fn ces_camera(&mut self, _: i32) {}
     fn set_camera_anchor_target(&mut self, _: i32, _: i32) {}
     fn exit_application(&mut self) {}
     fn mvs_exchange(&mut self) {}
     fn m_082_set_dialog_target(&mut self, _: i32) {}
-    fn set_entity_route_flag(&mut self, _: i32) {}
-    fn entity_type(&self, _: i32) -> i32 { -1 }
     fn snap_camera_after_ros1(&mut self, _: i32, _: i32) {}
+}
+impl EntityService for NoopHost {
+    fn cell_entity(&self, _: i32, _: i32, _: i32) -> i32 { -1 }
+    fn entity_type(&self, _: i32) -> i32 { -1 }
+    fn remove_entity(&mut self, _: i32) {}
+    fn remove_all_of_type(&mut self, _: i32) {}
+    fn swd_convert_type81(&mut self) {}
+    fn entity_pixel(&self, _: i32) -> (i32, i32) { (0, 0) }
+    fn reload_floor_entities(&mut self, _: i32) {}
+    fn spawn_entity(&mut self, _: i32, _: i32, _: i32) -> i32 { -1 }
+    fn set_entity_route_flag(&mut self, _: i32) {}
 }

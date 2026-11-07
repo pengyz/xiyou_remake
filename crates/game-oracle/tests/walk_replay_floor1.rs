@@ -8,6 +8,7 @@ use game_core::sprite_spawn::{spawn_param_and_visibility, DoorTables};
 use game_core::entity::{self, CellGrid, EntityTable};
 use game_core::enums::Dir;
 use game_core::script::HostCtx;
+use game_core::subsystem::entity_service::EntityService;
 use game_core::walk::WalkState;
 use game_oracle::trace::parse;
 
@@ -104,8 +105,26 @@ fn type_width_table() -> Vec<i32> {
 
 impl HostCtx for Floor1Host {
     fn find_path(&mut self, _: i32, _: i32, _: i32, _: i32) -> bool { false }
+    fn give_gold(&mut self, amount: i32) {
+        let _ = game_core::combat::gain_gold(&mut self.player, amount);
+    }
+    fn pickup_item(&mut self, _item: i32) {}
+    fn snap_camera_to_player(&mut self) {}
+    fn locate_speaker_entity(&mut self, _: i32) -> i32 { -1 }
+    fn set_typewriter(&mut self, _: &str, _: i32, _: i32) {}
+    fn ces_camera(&mut self, _: i32) {}
+    fn set_camera_anchor_target(&mut self, _: i32, _: i32) {}
+    fn exit_application(&mut self) {}
+    fn mvs_exchange(&mut self) {}
+    fn m_082_set_dialog_target(&mut self, _: i32) {}
+    fn snap_camera_after_ros1(&mut self, _px: i32, _py: i32) {}
+}
+impl EntityService for Floor1Host {
     fn cell_entity(&self, x: i32, y: i32, t: i32) -> i32 {
         entity::cell_entity(&self.grid, &self.table, x, y, t)
+    }
+    fn entity_type(&self, idx: i32) -> i32 {
+        self.table.items.get(idx as usize).map(|e| e.type_).unwrap_or(-1)
     }
     fn remove_entity(&mut self, idx: i32) {
         entity::remove(&mut self.table, idx as usize);
@@ -117,27 +136,11 @@ impl HostCtx for Floor1Host {
     fn entity_pixel(&self, idx: i32) -> (i32, i32) {
         (self.table.items[idx as usize].px, self.table.items[idx as usize].py)
     }
-    fn give_gold(&mut self, amount: i32) {
-        let _ = game_core::combat::gain_gold(&mut self.player, amount);
-    }
-    fn pickup_item(&mut self, _item: i32) {}
-    fn snap_camera_to_player(&mut self) {}
-    fn locate_speaker_entity(&mut self, _: i32) -> i32 { -1 }
-    fn set_typewriter(&mut self, _: &str, _: i32, _: i32) {}
     fn reload_floor_entities(&mut self, _: i32) {}
     fn spawn_entity(&mut self, t: i32, x: i32, y: i32) -> i32 {
         entity::spawn(&mut self.table, &mut self.grid, t, x, y, 0, &type_width_table(), None) as i32
     }
-    fn ces_camera(&mut self, _: i32) {}
-    fn set_camera_anchor_target(&mut self, _: i32, _: i32) {}
-    fn exit_application(&mut self) {}
-    fn mvs_exchange(&mut self) {}
-    fn m_082_set_dialog_target(&mut self, _: i32) {}
     fn set_entity_route_flag(&mut self, _: i32) {}
-    fn entity_type(&self, idx: i32) -> i32 {
-        self.table.items.get(idx as usize).map(|e| e.type_).unwrap_or(-1)
-    }
-    fn snap_camera_after_ros1(&mut self, _px: i32, _py: i32) {}
 }
 
 // tryStep 需要的交互语义（interactWithCell 的行走放行子集）：

@@ -8,6 +8,7 @@
 //! 该序列与 Java trace 的过渡序列逐项一致（tick 584/782/902 实测）。
 
 use game_core::script::{DialogueTable, HostCtx, ScriptEngine};
+use game_core::subsystem::entity_service::EntityService;
 use game_oracle::trace::parse;
 
 fn table() -> DialogueTable {
@@ -38,26 +39,28 @@ fn table() -> DialogueTable {
 struct ReplayHost;
 impl HostCtx for ReplayHost {
     fn find_path(&mut self, _: i32, _: i32, _: i32, _: i32) -> bool { false }
-    fn cell_entity(&self, _: i32, _: i32, _: i32) -> i32 { -1 }
-    fn remove_entity(&mut self, _: i32) {}
-    fn remove_all_of_type(&mut self, _: i32) {}
-    fn swd_convert_type81(&mut self) {}
-    fn entity_pixel(&self, _: i32) -> (i32, i32) { (0, 0) }
     fn give_gold(&mut self, _: i32) {}
     fn pickup_item(&mut self, _: i32) {}
     fn snap_camera_to_player(&mut self) {}
     fn locate_speaker_entity(&mut self, _: i32) -> i32 { -1 }
     fn set_typewriter(&mut self, _: &str, _: i32, _: i32) {}
-    fn reload_floor_entities(&mut self, _: i32) {}
-    fn spawn_entity(&mut self, _: i32, _: i32, _: i32) -> i32 { -1 }
     fn ces_camera(&mut self, _: i32) {}
     fn set_camera_anchor_target(&mut self, _: i32, _: i32) {}
     fn exit_application(&mut self) {}
     fn mvs_exchange(&mut self) {}
     fn m_082_set_dialog_target(&mut self, _: i32) {}
-    fn set_entity_route_flag(&mut self, _: i32) {}
-    fn entity_type(&self, _idx: i32) -> i32 { -1 }
     fn snap_camera_after_ros1(&mut self, _px: i32, _py: i32) {}
+}
+impl EntityService for ReplayHost {
+    fn cell_entity(&self, _: i32, _: i32, _: i32) -> i32 { -1 }
+    fn entity_type(&self, _idx: i32) -> i32 { -1 }
+    fn remove_entity(&mut self, _: i32) {}
+    fn remove_all_of_type(&mut self, _: i32) {}
+    fn swd_convert_type81(&mut self) {}
+    fn entity_pixel(&self, _: i32) -> (i32, i32) { (0, 0) }
+    fn reload_floor_entities(&mut self, _: i32) {}
+    fn spawn_entity(&mut self, _: i32, _: i32, _: i32) -> i32 { -1 }
+    fn set_entity_route_flag(&mut self, _: i32) {}
 }
 
 fn press_key(input: &str) -> Option<i32> {
