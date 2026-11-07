@@ -156,6 +156,12 @@ mod tests {
         pub fn _sig_dialog_tick<T: DialogSubsystem>(t: &mut T, ctx: &mut DialogCtx) -> DialogStep {
             t.tick(ctx)
         }
+        pub fn _sig_dialog_set_typewriter<T: DialogSubsystem>(t: &mut T, s: &str, y: i32, pos: i32) {
+            t.set_typewriter(s, y, pos)
+        }
+        pub fn _sig_dialog_m082<T: DialogSubsystem>(t: &mut T, v: i32) {
+            t.m_082_set_dialog_target(v)
+        }
         pub fn _sig_persist_ser<T: PersistCodec>(t: &T, st: &SceneState) -> Blob {
             t.serialize(st)
         }

@@ -1,5 +1,6 @@
 //! task-15 V2 dialog-VM 域（v3 §1：tick_dialog 归位+22 字段切片——move+切）。
 use super::*;
+use crate::subsystem::dialog::{DialogResolver, DialogSubsystem};
 
 /// 【task-15 V2 dialog-VM】对话/浮层域切片（22 字段唯一归属——field-ownership dialog-vm）。
 pub struct DialogState {
@@ -77,20 +78,9 @@ impl DialogState {
 }
 
 /// 【双归域】打字机步进结果（域内决策枚举——编排面执行跨域副作用）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TypewriterStep {
-    /// 正在打字（调用方继续 layout）。
-    Typing,
-    /// key 请求全量 layout+跳行尾。
-    SkipToLineEnd,
-    /// 已到尾，待翻页（+方向）。
-    PageNext,
-    PagePrev,
-    /// 已到尾，无键。
-    Wait,
-    /// 确认（进入下页/收尾——编排面执行）。
-    Confirm,
-}
+/// 2026-11-07 批3：枚举体迁 crate::subsystem::dialog::DialogStep（face 终形六臂）——此处保同名
+/// 别名，既有 match 臂路径（scene_dialog::TypewriterStep::X）与测试零改动。原六臂 doc 随体迁移。
+pub type TypewriterStep = crate::subsystem::dialog::DialogStep;
 
 /// 【终章簇2·dialog 域直写接口】跨文件写点收敛（lead 选项 1）。
 impl DialogState {
@@ -106,6 +96,17 @@ impl DialogState {
 
 impl GameScene {
     /// run case 11 相位机（a.java:4011-4068）。advanceEntityFrames 由调用方公共段跑。
+    /// 【批3】DialogCtx 装配（dialog 记录槽 &mut+key_value/key_held/frame_odd 值拷贝——
+    /// disjoint field borrow；调用前 hoist self 读，ctx 存活期禁触 self）。
+    pub(super) fn dialog_ctx(&mut self) -> crate::subsystem::dialog::DialogCtx<'_> {
+        crate::subsystem::dialog::DialogCtx {
+            dialog: &mut self.dialog,
+            key_value: self.key_value,
+            key_held: self.key_held,
+            frame_odd: (self.frame_counter & 1) == 1,
+        }
+    }
+
     pub(super) fn tick_dialog(&mut self) {
         self.step_camera_toward_target();
         match self.dialog.dialog_phase {
@@ -122,7 +123,11 @@ impl GameScene {
                 if self.dialog.dialog_phase != 6 || self.camera_at_target() {
                     let text = self.dialog.overlay_text.clone().unwrap_or_default();
                     let line_h = crate::paint::paint_font().height + 4;
-                    let step = self.dialog.advance_typewriter(self.key_value, (self.frame_counter & 1) == 1, &text);
+                    let step = {
+                        let mut dlg_ctx = self.dialog_ctx();
+                        let mut dlg_r = DialogResolver;
+                        dlg_r.tick(&mut dlg_ctx)
+                    };
                     match step {
                         scene_dialog::TypewriterStep::SkipToLineEnd => {
                             // 全量 layout + 跳到行尾（a.java:4029-4026）
@@ -148,7 +153,7 @@ impl GameScene {
                         }
                         scene_dialog::TypewriterStep::Wait => {}
                         scene_dialog::TypewriterStep::Confirm => {
-                            self.dialog.set_dialog_char(1);
+                            // dialog_char=1 域写已入 DialogResolver::tick（批3）；此处编排接续。
                             self.open_dialog_page(self.dialog.dialog_page + 1);
                             if self.dialog.dialog_phase == 6 {
                                 // easeCameraToTarget：ease 目标 = SEE 目标格

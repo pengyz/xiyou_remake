@@ -9,6 +9,7 @@ use game_core::entity::{self, CellGrid, EntityTable};
 use game_core::enums::Dir;
 use game_core::script::HostCtx;
 use game_core::subsystem::entity_service::EntityService;
+use game_core::subsystem::dialog::{DialogCtx, DialogStep, DialogSubsystem};
 use game_core::walk::WalkState;
 use game_oracle::trace::parse;
 
@@ -111,13 +112,16 @@ impl HostCtx for Floor1Host {
     fn pickup_item(&mut self, _item: i32) {}
     fn snap_camera_to_player(&mut self) {}
     fn locate_speaker_entity(&mut self, _: i32) -> i32 { -1 }
-    fn set_typewriter(&mut self, _: &str, _: i32, _: i32) {}
     fn ces_camera(&mut self, _: i32) {}
     fn set_camera_anchor_target(&mut self, _: i32, _: i32) {}
     fn exit_application(&mut self) {}
     fn mvs_exchange(&mut self) {}
-    fn m_082_set_dialog_target(&mut self, _: i32) {}
     fn snap_camera_after_ros1(&mut self, _px: i32, _py: i32) {}
+}
+impl DialogSubsystem for Floor1Host {
+    fn tick(&mut self, _: &mut DialogCtx) -> DialogStep { DialogStep::Wait }
+    fn set_typewriter(&mut self, _: &str, _: i32, _: i32) {}
+    fn m_082_set_dialog_target(&mut self, _: i32) {}
 }
 impl EntityService for Floor1Host {
     fn cell_entity(&self, x: i32, y: i32, t: i32) -> i32 {

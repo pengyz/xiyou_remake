@@ -9,6 +9,7 @@
 //! [`crate::subsystem::entity_service::EntityService`]（HostCtx 拆小首件）。
 
 use crate::subsystem::entity_service::EntityService;
+use crate::subsystem::dialog::{DialogCtx, DialogStep, DialogSubsystem};
 
 /// 对白数据表（来源：deobf a.java:1124/1194 夹具，tests/fixtures/）。
 pub struct DialogueTable {
@@ -129,6 +130,7 @@ impl Default for ScriptState {
 
 /// 实体/相机/系统副作用边界（P3.2 由实体模块提供真实实现；测试用确定性桩）。
 /// 批1：实体面 9 方法已迁 crate::subsystem::entity_service::EntityService（拆小首件），余 12 暂留。
+/// 批3：对话面 2 方法已迁 crate::subsystem::dialog::DialogSubsystem（Host 边界），余 10 暂留。
 pub trait HostCtx {
     fn find_path(&mut self, from_x: i32, from_y: i32, to_x: i32, to_y: i32) -> bool;
     fn give_gold(&mut self, amount: i32);
@@ -137,8 +139,6 @@ pub trait HostCtx {
     fn snap_camera_to_player(&mut self);
     /// lockCameraOn 说话人实体定位 → dialogAnchorEntity。
     fn locate_speaker_entity(&mut self, speaker: i32) -> i32;
-    /// layoutWrappedText：打字机装填。
-    fn set_typewriter(&mut self, text: &str, y: i32, pos: i32);
     /// CES 尾部：相机 = 玩家屏幕位；若实体存在则 target = 实体像素位。
     fn ces_camera(&mut self, entity_idx: i32);
     /// easeCameraToTarget：SEE 的相机目标设置。
@@ -147,8 +147,6 @@ pub trait HostCtx {
     fn exit_application(&mut self);
     /// MVS（P3.2：deobf a.java:8513-8581；数据域 68 条脚本零使用）。
     fn mvs_exchange(&mut self);
-    /// ROS_2：tryEquip（对白目标设置，实体域）。
-    fn m_082_set_dialog_target(&mut self, v: i32);
     /// ROS_1 后 lockCameraOn(0)：相机锚 = 新玩家像素位。
     fn snap_camera_after_ros1(&mut self, px: i32, py: i32);
 }
@@ -209,13 +207,13 @@ impl<'d> ScriptEngine<'d> {
     }
 
     /// 对白页推进（玩家按键语义的引擎侧入口）= Java openDialogPage(page+1)。
-    pub fn advance_dialog_page(&mut self, host: &mut impl HostCtx) {
+    pub fn advance_dialog_page(&mut self, host: &mut (impl HostCtx + DialogSubsystem)) {
         let next = self.state.dialog_page + 1;
         self.open_dialog_page(host, next);
     }
 
     /// openDialogPage 忠实移植（a.java:8208-8227）。
-    pub fn open_dialog_page(&mut self, host: &mut impl HostCtx, page: i32) {
+    pub fn open_dialog_page(&mut self, host: &mut (impl HostCtx + DialogSubsystem), page: i32) {
         if page <= self.state.tak_page_end {
             self.state.dialog_page = page;
             self.state.speaker = if page < 0 {
@@ -248,7 +246,7 @@ impl<'d> ScriptEngine<'d> {
     /// 主循环步进：dialogPhase==0 时消费脚本（Java run dialogPhase 0 分支：
     /// scriptStepDelay>0 递减否则 execute，a.java:4000-4003 的镜像）。
     /// 批1 界收窄：透传 execute_script_instruction（EntityService 面）。
-    pub fn step(&mut self, host: &mut (impl HostCtx + EntityService)) {
+    pub fn step(&mut self, host: &mut (impl HostCtx + EntityService + DialogSubsystem)) {
         if self.state.dialog_phase == DialogPhase::ScriptStep {
             if self.state.scene_delay > 0 {
                 self.state.scene_delay -= 1;
@@ -269,7 +267,7 @@ impl<'d> ScriptEngine<'d> {
 
     /// executeScriptInstruction 忠实移植（a.java:8239-8581）。
     /// 批1 界收窄：MOV/DES/SWD/RES/spawn 实体面（EntityService）+相机面（HostCtx）。
-    pub fn execute_script_instruction(&mut self, host: &mut (impl HostCtx + EntityService)) {
+    pub fn execute_script_instruction(&mut self, host: &mut (impl HostCtx + EntityService + DialogSubsystem)) {
         let line = self.line();
         let script_cursor0 = self.state.script_cursor;
         let has_opcode = script_cursor0 + 3 <= line.len();
@@ -531,13 +529,16 @@ impl HostCtx for NoopHost {
     fn pickup_item(&mut self, _: i32) {}
     fn snap_camera_to_player(&mut self) {}
     fn locate_speaker_entity(&mut self, _: i32) -> i32 { -1 }
-    fn set_typewriter(&mut self, _: &str, _: i32, _: i32) {}
     fn ces_camera(&mut self, _: i32) {}
     fn set_camera_anchor_target(&mut self, _: i32, _: i32) {}
     fn exit_application(&mut self) {}
     fn mvs_exchange(&mut self) {}
-    fn m_082_set_dialog_target(&mut self, _: i32) {}
     fn snap_camera_after_ros1(&mut self, _: i32, _: i32) {}
+}
+impl DialogSubsystem for NoopHost {
+    fn tick(&mut self, _: &mut DialogCtx) -> DialogStep { DialogStep::Wait }
+    fn set_typewriter(&mut self, _: &str, _: i32, _: i32) {}
+    fn m_082_set_dialog_target(&mut self, _: i32) {}
 }
 impl EntityService for NoopHost {
     fn cell_entity(&self, _: i32, _: i32, _: i32) -> i32 { -1 }

@@ -8,6 +8,7 @@ use game_core::enums::GameMode;
 use game_core::enums::{DialogPhase, WalkPhase};
 use game_core::script::{DialogueTable, HostCtx, ScriptEngine};
 use game_core::subsystem::entity_service::EntityService;
+use game_core::subsystem::dialog::{DialogCtx, DialogStep, DialogSubsystem};
 
 /// 从夹具构建对话表（\x1e 记录分隔，与提取脚本一致）。
 fn table() -> DialogueTable {
@@ -64,7 +65,6 @@ impl HostCtx for StubHost {
     fn locate_speaker_entity(&mut self, _speaker: i32) -> i32 {
         -1
     }
-    fn set_typewriter(&mut self, _text: &str, _y: i32, _pos: i32) {}
     fn ces_camera(&mut self, _idx: i32) {}
     fn set_camera_anchor_target(&mut self, _x: i32, _y: i32) {}
     fn exit_application(&mut self) {
@@ -73,8 +73,12 @@ impl HostCtx for StubHost {
     fn mvs_exchange(&mut self) {
         panic!("MVS 在 P3.1 边界外（数据域零使用）");
     }
-    fn m_082_set_dialog_target(&mut self, _v: i32) {}
     fn snap_camera_after_ros1(&mut self, _px: i32, _py: i32) {}
+}
+impl DialogSubsystem for StubHost {
+    fn tick(&mut self, _: &mut DialogCtx) -> DialogStep { DialogStep::Wait }
+    fn set_typewriter(&mut self, _: &str, _: i32, _: i32) {}
+    fn m_082_set_dialog_target(&mut self, _: i32) {}
 }
 impl EntityService for StubHost {
     fn cell_entity(&self, _x: i32, _y: i32, _t: i32) -> i32 {
