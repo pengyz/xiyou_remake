@@ -121,7 +121,7 @@
 ### 2.5 初始状态（转写简报错误点之一）
 
 - **`assets/raw/script` 的 `GAME:` 段（:1-13：STLAYER=51/EDLAYER=51/HP=300/ATK=10/DEF=10/RKEY=BKEY=YKEY=0/HOT=0/SMS=0/WHOSYOURDADDY=0/END）无任何 Rust 代码读取（A 级）**：全仓 grep `STLAYER|EDLAYER|WHOSYOURDADDY` 零命中（仅 `golden.rs:226-247` 词法测试读 GUTS 段）；考证记录 `docs/findings/script-dsl-semantics.md` §2（a.java getResourceAsStream 仅 4 处都不是 script 文件；且 GAME: HP=300 与字段初值 this.J=498 不一致，a.java:482-485）。
-- **实际新游戏初始**：`crates/game-core/src/intro.rs:361` `pub fn new_game_stats() -> (i32, i32, i32, i32) { (300, 10, 10, 51) }`（hp/atk/def/floor=51；文档注锚 a.java:3482-3489 步骤8）。**该函数当前无调用方 = 接线点【待考证】**（考证路径：grep 调用点为零 → 查 a.java 步骤8 的实际调用处 → 批0 决定求解器直接取常量还是等接线）。
+- **实际新游戏初始**：`crates/game-core/src/intro.rs:363` `pub fn new_game_stats() -> (i32, i32, i32, i32) { (300, 10, 10, 51) }`（hp/atk/def/floor=51；文档注锚 a.java:3482-3489 步骤8）。**该函数当前无调用方 = 接线点【待考证】**（考证路径：grep 调用点为零 → 查 a.java 步骤8 的实际调用处 → 批0 决定求解器直接取常量还是等接线）。【2026-11-10 更正】原引 intro.rs:361，fac2c65 注释净插 2 行后真身 363-365。
 - 本计划 Q1-Q3 采用 `S0 = (300,10,10,51, keys=0, gold=0, ∅)`，与 new_game_stats 一致。
 
 ### 2.6 脚本 DSL 与"通关终点"（转写简报错误点之二）
@@ -271,7 +271,7 @@ struct SolverState {
 
 - [ ] 建 `crates/game-solver` 骨架（Cargo.toml deps: game-data, game-core；lib 纯函数 + bin）。
 - [ ] `ingest.rs`：maplv（复用 `MapLv::parse`）+ sprite（复用 `SpriteTable::parse` + `spawn_param_and_visibility`）+ fixture 脚本（68 槽，**用 `include_str!` 指向 `game-core/tests/fixtures/level_scripts.txt`**）+ enemies/items/shop_goods 三表 → `SolverInput`。
-- [ ] 初始状态 `S0 = (300,10,10,51,∅)` 取自 `intro.rs:361 new_game_stats`（接线点【待考证】按 §2.5 路径考证，结论写入 commit message）。
+- [ ] 初始状态 `S0 = (300,10,10,51,∅)` 取自 `intro.rs:363 new_game_stats`（接线点【待考证】按 §2.5 路径考证，结论写入 commit message）。
 - [ ] **Q3 终极装备集裁定**：{36,40} vs 并入 {79,80}——由 lead/用户确认后写死常量。
 - [ ] 快照测试：`SolverInput` 摘要（55 层尺寸/实体数/502 敌人/68 脚本槽/三表行数）与 §2 census 数字对拍。
 - [ ] 层号↔地图资源映射【待考证】（GUTS 层号至 67 但 maplv 只 1..54）：考证路径 = a.java loadLevelScript(:7997-8012) + GUT_n/LAY 全量交叉引用（`docs/findings/script-dsl-semantics.md:152` 遗留7 同族）；结论入 `docs/findings/`。
@@ -473,7 +473,7 @@ P3 编辑器（`docs/superpowers/specs/2026-11-03-dddsa-architecture-design.md` 
 ## 8. 本文实测行号复核清单（防"照抄未核"）
 
 **已实测复核（2026-11-09，grep/sed/xxd/python 现场验证）**：
-maplv.rs:51,65,69-70,93,117 · sprite.rs:54,77-87,90-103,107,133 · sprite_spawn.rs:18,23 · enums.rs:164,166,168,170,172,174,177 · handoff.rs:97,98,111,117 · scene.rs:252-253,612,926,2045(RouteEngage),3496,3592(BumpEngage),3739(Exchange),3804-3820,3891-3894,4068,4079,4085 · scene_persist.rs:349,362,366,**398(save_floor_state)**,410,435,444,501 · combat.rs:42,51,93,106,170 · subsystem/battle.rs:33,79,85,110,122,**190(gold<<1)** · script_ops.rs:6,167,226,264,269,279,282,289,318-324,401,553 · game-data/script.rs:25,31,53,93,111 · game-core/script.rs:154,193 · intro.rs:361 · pathfind.rs:1-16,22-27 · golden.rs:49,226-247 · state_baseline.py:6 · route_gen.py:1-30 · Cargo.toml(workspace):12-13 · walk_replay_floor1.rs 头注 · tables 三表行数 · gates status/check 子命令 · xxd maplv0 头 · census 脚本输出（1703/502/45/type83×52/type72×4）· fixture 68 行（与 assets/raw/script 5 槽 diff；语料计数 fixture 296/DES40 vs raw 297/DES41）· assets/raw/script:77 · script-dsl-semantics.md §2 · **docs/bug-ledger.md:1035(BUG-053，:1017/:1059 邻条)** · **docs/findings/2026-11-09-qol-passive-item-triggers.md §6（:550-598 实读，四条必须建模）** · **crates/game-core/src/battle.rs 文件不存在（ls 实证）**。
+maplv.rs:51,65,69-70,93,117 · sprite.rs:54,77-87,90-103,107,133 · sprite_spawn.rs:18,23 · enums.rs:164,166,168,170,172,174,177 · handoff.rs:97,98,111,117 · scene.rs:252-253,612,926,2045(RouteEngage),3496,3592(BumpEngage),3739(Exchange),3804-3820,3891-3894,4068,4079,4085 · scene_persist.rs:349,362,366,**398(save_floor_state)**,410,435,444,501 · combat.rs:42,51,93,106,170 · subsystem/battle.rs:33,79,85,110,122,**190(gold<<1)** · script_ops.rs:6,167,226,264,269,279,282,289,318-324,401,553 · game-data/script.rs:25,31,53,93,111 · game-core/script.rs:154,193 · intro.rs:363 · pathfind.rs:1-16,22-27 · golden.rs:49,226-247 · state_baseline.py:6 · route_gen.py:1-30 · Cargo.toml(workspace):12-13 · walk_replay_floor1.rs 头注 · tables 三表行数 · gates status/check 子命令 · xxd maplv0 头 · census 脚本输出（1703/502/45/type83×52/type72×4）· fixture 68 行（与 assets/raw/script 5 槽 diff；语料计数 fixture 296/DES40 vs raw 297/DES41）· assets/raw/script:77 · script-dsl-semantics.md §2 · **docs/bug-ledger.md:1035(BUG-053，:1017/:1059 邻条)** · **docs/findings/2026-11-09-qol-passive-item-triggers.md §6（:550-598 实读，四条必须建模）** · **crates/game-core/src/battle.rs 文件不存在（ls 实证）**。
 
 **未核/待批0 现场复核（引用前必须重新 grep）**：
 - a.java 行锚（7179/808/8445-8463/8594-8595/9869-9928/3482-3489/482-485/9497/10052-10058/7950-7954/9998-10008/7538-7539 等）——均系从 Rust 注释/doc/qol 考证件转引，**未打开 reference/ 现场核**；

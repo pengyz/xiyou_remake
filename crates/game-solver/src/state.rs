@@ -4,13 +4,13 @@
 //! - **真源 = 原版新游戏加载链 step8**：`reference/src/deobf/a.java:3482-3491`
 //!   （`case 8:` → `currentFloor = minFloorReached = 51` / `maxFloorReached = 51` /
 //!   `playerHp=300` / `playerAtk=10` / `playerDef=10` / 三色钥匙=0）。
-//! - 加载链定义：`crates/game-core/src/intro.rs:334-336` `LoadProgress::new_game()`
+//! - 加载链定义：`crates/game-core/src/intro.rs:336-338` `LoadProgress::new_game()`
 //!   `steps = &[6, 8, 5, 13, 9, 10, 2, 3, 12, 11]`（原版 `startNewGameLoad` a.java:7183-7194：
-//!   :7183 方法声明、:7185-7194 十步同序；`intro.rs:333` 旧注标 a.java:7172-7179 实测落在
-//!   `changeFloor`(:7135-7181) 尾段，属错锚——game-core 非批0 授权改动面，列账待裁）。
+//!   :7183 方法声明、:7185-7194 十步同序；旧注 a.java:7172-7179 实测落在
+//!   `changeFloor`(:7135-7181) 尾段属错锚——已由 fac2c65 注释级更正裁决【2026-11-10】）。
 //! - Rust 侧接线（**内联等值落实**，非经 new_game_stats）：`shell/common/src/handoff.rs:158-163`
 //!   `floor/min_floor/max_floor = 51; hp=300; atk=10; def=10`。
-//! - `crates/game-core/src/intro.rs:361-363 new_game_stats() = (300,10,10,51)` = **未接线死码**
+//! - `crates/game-core/src/intro.rs:363-365 new_game_stats() = (300,10,10,51)` = **未接线死码**
 //!   （全仓 grep 零调用方；裁定 `docs/spec/dead-code-rulings.md:316` DC-8 ☠️——其内联锚
 //!   `game-desktop/main.rs:766-771` / `preset_cases.rs:2600/2810` 已漂移，现锚=handoff.rs:158-163 /
 //!   preset_cases.rs:2722/2941，四元组值一致无行为缺口）。

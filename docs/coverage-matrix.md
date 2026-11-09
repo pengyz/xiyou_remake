@@ -259,7 +259,7 @@
 | 方法 | 区间 | 首个验证（用例 / 场景 @t_hit） | 验证用例数 | 移植证据 |
 |---|---|---|---|---|
 | <init> | a.java:436-2331 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T1 | 74 | 行锚×70〔seed稳1/字段2/稳67〕（crates/game-core/src/audio.rs:26） |
-| paint | a.java:2333-3227 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T1 | 75 | fn crates/game-core/src/intro.rs:231; crates/game-core/src/intro.rs:366 …；行锚×88〔seed稳2/名42/稳44〕（crates/game-core/src/intro.rs:1） |
+| paint | a.java:2333-3227 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T1 | 75 | fn crates/game-core/src/intro.rs:231; crates/game-core/src/intro.rs:368 …；行锚×88〔seed稳2/名42/稳44〕（crates/game-core/src/intro.rs:1） |
 | run | a.java:3229-4290 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T1 | 74 | 行锚×134〔名48/稳86〕（crates/game-core/src/audio.rs:15） |
 | dispatchModeEntry | a.java:4292-4493 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T1 | 75 | 行锚×46〔名32/稳14〕（crates/game-core/src/audio.rs:14） |
 | loadPackedImages | a.java:4516-4549 | `boot_replay::boot_menu_frames_match_tick_by_tick` / menu-sweep @T33 | 75 | 人工：打包图像容器装载器（a.java:4516-4549：resourceNames[i] 开流、按 resourceImageCounts[i] 循环读 u16 LE 长度 → Image.createImage）——crates/game-data/src/packed_png.rs `pub fn parse`/`pub fn parse_partial` 解析 N×[u16LE len][PNG]（L1 golden 守护）+ shell/win/src/main.rs `fn load_container` 消费 = 移植替换形态；名实更正 e772fef（N-0434）；c 类行号方言误判已由 v2.1 规则修复；行锚×1〔seed名1〕（crates/game-data/src/packed_png.rs:17） |
