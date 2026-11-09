@@ -1029,22 +1029,26 @@ Evidence: A 级——a.java:3129-3168 公共尾 + switch 区间无 return；实�
   对拍定谳是哪种）。
 - 登记：2026-11-09（DDDSA 求解器数据层扫描·盘 32 件物品四问时发现）。
 - 计划：与 BUG-053/054 一并修（求解器导入 items.json 前置）。
-- 已修：2026-11-09（修①批）——gen_items.py:43 锚 `equipDescriptions`→`this.equipDescriptions = new String[]`（旧锚命中 :219 字段声明→从下一 `{` 抽 666 串错源；正源 a.java:930-945）；items.json 重生成（仅 10 装备行 desc/pickup_msg 变，数值字段零动）；钉=items_defs.rs bug052_equip_descs_from_equip_descriptions。
+- 已修：2026-11-09（修①批）——gen_items.py:43 锚 `equipDescriptions`→`this.equipDescriptions = new String[]`（旧锚命中 :219 字段声明→从下一 `{` 抽 666 串错源；正源 a.java:930-943）；items.json 重生成【2026-11-09 勘误：原 930-945 锚尾两行=944 itemUseCounts/945 yellowKeyCount 非 equipDescriptions，复核实测改 930-943】（仅 10 装备行 desc/pickup_msg 变，数值字段零动）；钉=items_defs.rs bug052_equip_descs_from_equip_descriptions。
 - trace id：N/A（静态对拍：items.json desc 字段 vs a.java miscTexts/equipDescriptions）。
 
 ## BUG-053 items.json effect 映射错位（22-25 四件·Stage B）
 
 - 现象：id22 下行符 effect 标 `Passive AntiNarcissusDamage`（自恋伤害被动），但
-  desc=「瞬移下行一层」、原版 activateItem（a.java:7790+）**case22=changeFloor
+  desc=「瞬移下行一层」、原版 activateItem（a.java:7868-7872 case22；【2026-11-09 勘误】原 7790+ 系错锚）**case22=changeFloor
   (currentFloor−1)**——21/22 是对称主动换层件（case21=+1 已正确标 ChangeFloorUp）。
   id23 太公杖标 Passive BindingRope、id24 捆仙绳标 Passive DamageReflect，与
   desc 语义（23=役使天神力士威力加倍/24=对自恋神仙伤害加倍）也对不上。
 - 复现：`grep -A2 '"id": 22' data/tables/items.json` ↔ `sed -n '7863,7872p'
   reference/src/deobf/a.java`（case21/22 换层实文）。**【2026-11-09 勘误】原 7790-7816 系行锚错**（该区=switch 头 cases 13-17；case21/22 真身=7863-7867/7868-7872）。
-- 影响：①求解器若按 items.json effect 建模=按错效果算 ②Rust 侧 23/24/25 被动
+- 影响：①求解器若按 items.json effect 建模=按错效果算 ②~~Rust 侧 23/24/25 被动
   效果全仓零实现（grep BindingRope|DamageReflect|AntiNarcissus|LuckyCoin 在
-  game-core 零命中；原版被动消费判定点亦未定位——原版 activateItem 对 15/23/24/25
-  是空分支 default break，生效点在战斗/经济侧待考证）。
+  game-core 零命中）~~【2026-11-09 勘误】该主张系关键词 grep 漏检——Rust 已按
+  别名实现（TRAIT1_AMULET/TRAIT2_AMULET/find_item(25)，见
+  docs/findings/2026-11-09-qol-passive-item-triggers.md §5）；BUG-053 剩余面
+  收窄为 effect 标注问题（23/24/25 标注 vs 别名生效实况）。原版被动消费判定点
+  亦未定位——原版 activateItem 对 15/23/24/25 是空分支 default break，生效点在
+  战斗/经济侧待考证。
 - 登记：2026-11-09（同上扫描；effect_registry.rs:117-120 (22,23,24,25) 全标
   Passive+Stack 型 :625-626 为 Rust 侧证据）。
 - 计划：先考证原版被动判定点（23/24/25 究竟在哪生效/是否原版也无效果），再改
@@ -1054,7 +1058,7 @@ Evidence: A 级——a.java:3129-3168 公共尾 + switch 区间无 return；实�
   bug053_id22_effect_is_active_change_floor_down。23/24/25 仍待被动判定点考证
   （本批不动）；effect_registry.rs:117-120 的 (22..25) "Passive" kind 标注同病
   未随改（pickup 行为=Stack 未动，标注修正随 23/24/25 考证批）。
-- trace id：N/A（静态对拍：effect_registry.rs:117-120 vs a.java:7790-7816）。
+- trace id：N/A（静态对拍：effect_registry.rs:117-120 vs a.java:7863-7872[case21=7863-7867/case22=7868-7872]）。【2026-11-09 勘误】原 7790-7816 行锚错（该区=switch 头 cases 13-17）。
 
 ## BUG-054 Rust 下行符使用空转（保真缺口·可达）
 
@@ -1072,4 +1076,4 @@ Evidence: A 级——a.java:3129-3168 公共尾 + switch 区间无 return；实�
 - 已修：2026-11-09（修①批）——item_effect.rs ItemAction::ChangeFloorDown+表行
   (22)+执行臂 change_floor(floor−1,true,false)+keyHeld=0+Map（a.java:7868-7872
   逐字）；钉=bug054_down_stair_tests bug054_use_down_stair_decrements_floor。
-- trace id：N/A（静态对拍：item_effect.rs:33-44 vs a.java:7790+ case21/22）。
+- trace id：N/A（静态对拍：item_effect.rs:33-44 vs a.java:7863-7872 case21/22）。【2026-11-09 勘误】原 7790+ 含糊锚写实。

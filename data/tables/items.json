@@ -417,7 +417,7 @@
    },
    "evidence": {
     "name": "object_type_names.txt:34",
-    "desc": "equipDescriptions[1]（a.java:930-945 数组/7644 消费）",
+    "desc": "equipDescriptions[1]（a.java:930-943 数组/7644 消费）",
     "effect": "a.java:7632-7648 tryEquip（equip_types[1]）"
    }
   },
@@ -438,7 +438,7 @@
    },
    "evidence": {
     "name": "object_type_names.txt:35",
-    "desc": "equipDescriptions[2]（a.java:930-945 数组/7644 消费）",
+    "desc": "equipDescriptions[2]（a.java:930-943 数组/7644 消费）",
     "effect": "a.java:7632-7648 tryEquip（equip_types[2]）"
    }
   },
@@ -459,7 +459,7 @@
    },
    "evidence": {
     "name": "object_type_names.txt:36",
-    "desc": "equipDescriptions[3]（a.java:930-945 数组/7644 消费）",
+    "desc": "equipDescriptions[3]（a.java:930-943 数组/7644 消费）",
     "effect": "a.java:7632-7648 tryEquip（equip_types[3]）"
    }
   },
@@ -480,7 +480,7 @@
    },
    "evidence": {
     "name": "object_type_names.txt:37",
-    "desc": "equipDescriptions[5]（a.java:930-945 数组/7644 消费）",
+    "desc": "equipDescriptions[5]（a.java:930-943 数组/7644 消费）",
     "effect": "a.java:7632-7648 tryEquip（equip_types[5]）"
    }
   },
@@ -501,7 +501,7 @@
    },
    "evidence": {
     "name": "object_type_names.txt:38",
-    "desc": "equipDescriptions[7]（a.java:930-945 数组/7644 消费）",
+    "desc": "equipDescriptions[7]（a.java:930-943 数组/7644 消费）",
     "effect": "a.java:7632-7648 tryEquip（equip_types[7]）"
    }
   },
@@ -522,7 +522,7 @@
    },
    "evidence": {
     "name": "object_type_names.txt:39",
-    "desc": "equipDescriptions[8]（a.java:930-945 数组/7644 消费）",
+    "desc": "equipDescriptions[8]（a.java:930-943 数组/7644 消费）",
     "effect": "a.java:7632-7648 tryEquip（equip_types[8]）"
    }
   },
@@ -543,7 +543,7 @@
    },
    "evidence": {
     "name": "object_type_names.txt:40",
-    "desc": "equipDescriptions[9]（a.java:930-945 数组/7644 消费）",
+    "desc": "equipDescriptions[9]（a.java:930-943 数组/7644 消费）",
     "effect": "a.java:7632-7648 tryEquip（equip_types[9]）"
    }
   },
@@ -564,7 +564,7 @@
    },
    "evidence": {
     "name": "object_type_names.txt:41",
-    "desc": "equipDescriptions[11]（a.java:930-945 数组/7644 消费）",
+    "desc": "equipDescriptions[11]（a.java:930-943 数组/7644 消费）",
     "effect": "a.java:7632-7648 tryEquip（equip_types[11]）"
    }
   },
@@ -585,7 +585,7 @@
    },
    "evidence": {
     "name": "object_type_names.txt:80",
-    "desc": "equipDescriptions[4]（a.java:930-945 数组/7644 消费）",
+    "desc": "equipDescriptions[4]（a.java:930-943 数组/7644 消费）",
     "effect": "a.java:7632-7648 tryEquip（equip_types[4]）"
    }
   },
@@ -606,7 +606,7 @@
    },
    "evidence": {
     "name": "object_type_names.txt:81",
-    "desc": "equipDescriptions[10]（a.java:930-945 数组/7644 消费）",
+    "desc": "equipDescriptions[10]（a.java:930-943 数组/7644 消费）",
     "effect": "a.java:7632-7648 tryEquip（equip_types[10]）"
    }
   },

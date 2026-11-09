@@ -99,7 +99,7 @@ def main() -> int:
             "desc": equips[tier] if tier < len(equips) else "",
             "pickup_msg": equips[tier] if tier < len(equips) else "",
             "effect": {"key": "Equip", "params": {"tier": tier, "bonus": equip_bonuses[tier]}},
-            "evidence": {"name": f"object_type_names.txt:{t+1}", "desc": f"equipDescriptions[{tier}]（a.java:930-945 数组/7644 消费）", "effect": f"a.java:7632-7648 tryEquip（equip_types[{tier}]）"},
+            "evidence": {"name": f"object_type_names.txt:{t+1}", "desc": f"equipDescriptions[{tier}]（a.java:930-943 数组/7644 消费）", "effect": f"a.java:7632-7648 tryEquip（equip_types[{tier}]）"},
         })
     rows.sort(key=lambda r: r["id"])
     doc = {
