@@ -17,6 +17,8 @@
 - [ ] 求解器 lib 纯函数零 I/O；`game-solver` → `game-data`/`game-core` 单向依赖，**不得被 game-core/game-data 引用**（无环）。
 - [ ] 求解语义复用真游戏公式（`predict_battle_hp_loss` 等），**禁止求解器内重写一套战斗算术**；与现解释器/真引擎对拍，禁自证。
 - [ ] 不发明行为：语义拿不准的标 **【待考证】** 并给考证路径（见 §5）。
+- [ ] **items.json 22-25 effect 字段禁作求解器效果源（红线）**：`docs/bug-ledger.md:1035` BUG-053「items.json effect 映射错位（22-25 四件）」明文"求解器若按 items.json effect 建模=按错效果算"（`529dfd5` 登记；22 已由 `6efd30e` 修、23/24/25 仍待被动判定点考证）。效果一律以**原版 activateItem** 与实考证为准；台账该条关闭前，批0 ingest 对该四件不得信 effect key（§2.7 同步标注）。
+- [ ] **解合法性口径（三查询共同前提）**：合法解 = **通关 + QoL 全收集**（筋斗云**可晚拿不可不拿**，m03276 裁定）；Q1/Q2/Q3 的"存在路线"均指存在满足此口径的路线（§1.2）。
 - [ ] 每批判据 = 可复制命令 + 预期输出；每批 = 报 lead → **独立对抗复核子 agent** → 绿后推送（用户 m00963 裁定）。
 - [ ] 金样 `python3 tools/state_baseline.py --check` 与 `python3 gates/cli.py check` 在每批结束时必须绿；求解器新增测试**不得**使 ratchet 回退。
 - [ ] 计划≠已完成：本文全篇为待执行项，checkbox 未勾 = 未做。
@@ -24,9 +26,10 @@
 **Review Focus（对抗复核看这里）**
 
 1. 行号是否与现场一致（抽查 §2/§4 各 3 处）。
-2. 批次判据是否可复制运行、预期输出是否具体。
-3. 三查询定义是否忠实于用户裁定（最大化血量 / 最少杀怪 / 禁终极装备可达）。
+2. 批次判据是否可复制运行、预期输出是否具体、测试过滤器是否有**存在性闸**（防空过）。
+3. 三查询定义是否忠实于用户裁定（最大化血量 / 最少杀怪 / 禁终极装备可达），且**解合法性=通关+QoL 全收集**已落文。
 4. 是否把"计划"写成了"已完成"。
+5. 三红线是否落文：QoL 合法性（§0/§1.2）、**逐层五元组预测 vs 真引擎分叉判别器**（§4 批5/A11）、items 22-25 effect 不可信（§0/§2.7）。
 
 ---
 
@@ -48,12 +51,13 @@
 
 | # | 查询 | 目标函数 | 约束 |
 |---|------|---------|------|
-| Q1 | 剩余血量最大 | **最大化**通关时 `player.hp` | 存在通关路线 |
-| Q2 | 最少杀怪（=剩余怪物最多） | **最小化**通关路径上击杀的怪物数（等价最大化存活怪物） | 存在通关路线 |
-| Q3 | 不拿终极装备能否通关 | 判定型：**可达性 0/1** | 通关路线上**不装备**终极装备集（集合口径见 §2.7，批0 裁定） |
+| Q1 | 剩余血量最大 | **最大化**通关时 `player.hp` | 存在**满足 §1.2 解合法性口径（通关+QoL 全收集）**的通关路线 |
+| Q2 | 最少杀怪（=剩余怪物最多） | **最小化**通关路径上击杀的怪物数（等价最大化存活怪物） | 同上：存在满足解合法性口径的通关路线（**Q2 不得靠"漏拿 QoL 件"取巧**） |
+| Q3 | 不拿终极装备能否通关 | 判定型：**可达性 0/1** | 通关路线上**不装备**终极装备集（集合口径见 §2.7，批0 裁定）**且满足解合法性口径** |
 
 口径细则（写死，防跑偏）：
 
+- **解合法性（三查询共同前提，m03276 裁定）**：合法解 = **通关 + QoL 全收集**（QoL 件清单见 §2.7；**筋斗云可晚拿不可不拿**——晚到终点前补拿合法，整条路线不拿 = 非法解）。考证支撑：`docs/findings/2026-11-09-qol-passive-item-triggers.md` §6（树上未提交考证件，直接引用）。
 - Q1/Q2 的"解"必须是**完整通关解**，不是局部最优；两者允许不同路线（Q1 可多杀强怪换金买药，Q2 可绕路避战）。
 - Q2 "杀怪"= 使敌方 HP 归零的战斗；**Refused 战斗（打不过）不计入杀怪**（它根本没发生）。
 - Q3 的"终极装备"= 候选 {36 金箍棒, 40 紫金龙鳞甲}（tier 最高 bonus220，§2.7）；**是否并入 79/80 次级档属批0 裁定项**，裁定后写死为常量。
@@ -109,10 +113,10 @@
 | `predict_battle_hp_loss(atk, def, enemy_hp, enemy_atk, enemy_def, armor_gate) -> i32` | hits=⌈enemy_hp/(atk−def)⌉；loss=(enemy_atk−def)×(hits−1)；`!armor_gate && enemy_atk>def` 再加首击差；**atk≤def ⇒ -1** | `combat.rs:106`（hits 上整 :115-120、多击 :121-124、首击 :126-128） |
 | `predict_engagement(player, enemies, enemy_base, t, no_counter) -> i32` | idx=t−41；trait_flags 取 enemy_base；atk 走 effective_attack_vs_type | `crates/game-core/src/subsystem/battle.rs:85` |
 | `resolve_bump(...) -> BattleOutcome`；**Refused = loss<0 或 loss≥hp** | `if !(loss >= 0 && loss < ctx.player.hp) return Refused` | `battle.rs:79`（trait）、`:110`（impl）、`:122`（判据）、`Refused` 变体 `:33` |
-| BumpEngage=撞格无先手(armor_gate)、RouteEngage=途中敌先手 | 调用点 `scene.rs:2045 / 3592 / 3739` | 实测 |
+| 三种开战面：**BumpEngage**=撞格无先手(armor_gate)、**RouteEngage**=途中敌先手、**Exchange**=对杀 | 调用点实测 `scene.rs:3592`(Bump) / `scene.rs:2045`(Route) / `scene.rs:3739`(Exchange) | grep 实测 |
 | 钥匙消耗：`consume_key_for_door(player, door) -> (bool, i32)`（黄26/红27/蓝28 各 −1，无钥 (false,0)） | | `combat.rs:170`（体 :175-188） |
 | PlayerCombat 字段（**逐层 checkpoint 的字段源**）：hp/atk/def/yellow_keys/blue_keys/red_keys/gold/item_types/item_uses/item_stack_size | | `combat.rs:51` |
-| 掉落金：battle 胜利 +gold（幸运币 item25 则 gold<<1） | | `crates/game-core/src/battle.rs:189-192` |
+| 掉落金：击杀 +gold（幸运币 item25 则 `gold<<1`）；**两处击杀点**：战斗击杀（Exchange 臂）与 type86 四邻杀 | | `crates/game-core/src/subsystem/battle.rs:190`（实测 `ctx.enemy_base[idx].gold << 1`；**`crates/game-core/src/battle.rs` 文件不存在**，勿引）；第二点 a.java:7950-7954 转引 qol §6 |
 
 ### 2.5 初始状态（转写简报错误点之一）
 
@@ -128,7 +132,7 @@
 - `assets/raw/script`（79 行 CRLF）**与运行时数组 index 对齐 diff 实测 5 槽不一致：[0,18,27,31,63]**（层0 文件多 `DES_84_6_11`；层18 fixture 多 `DES_1_4_4`；层27 `DES_84_11_4` vs `DES_84_6_11`；层31 文件多 `DES_10_6_7`；层63 `DES_-59_0` vs `DES_-66_0`）。
   → **求解器输入必须用 fixture 源，不用 assets/raw/script**（`assets/raw/script` 仅作 GUTS 语料参考）。
 
-**语料规模**：GUTS 段 **64 编号行、297 条指令**（与 `script_ops.rs:318-324` 注释"297 条"一致）；opcode 分布 TAK 81 / CES 48 / MOV 47 / DES 41 / ROS 30 / SEE 30 / GUT 7 / GIN 4 / SWD 3 / LAY 1 / RES 1 / ADD 1 / GLV 1 / END 1 / SMS 1 / **MVS 0**。
+**语料规模（归属写死）**：`assets/raw/script` GUTS 段 **64 编号行、297 条指令 / DES 41**（与 `script_ops.rs:318-324` 注释"297 条"一致）；**fixture 侧（求解器实际用源）实测 296 条 / DES 40**——差 = slot0/31 各 raw 多 1 条 DES、slot18 fixture 多 1 条 DES。opcode 分布（raw 侧）TAK 81 / CES 48 / MOV 47 / DES 41 / ROS 30 / SEE 30 / GUT 7 / GIN 4 / SWD 3 / LAY 1 / RES 1 / ADD 1 / GLV 1 / END 1 / SMS 1 / **MVS 0**。
 
 **词法（复用，禁重写）**：`crates/game-data/src/script.rs` — `OPCODES: [&str;16]` `:25`（CES,MOV,TAK,DES,ROS,SEE,GUT,GIN,ADD,GLV,RES,SWD,MVS,LAY,END,SMS）、`is_known_opcode` `:31`、`split_instr_token` `:53`、`lex_instr_stream` `:93`、`parse_guts_line` `:111`。
 
@@ -145,7 +149,7 @@
 | 脚本行 65 = `TAK_127_128 END_0`（`assets/raw/script:77`）⇒ **通关 = floor50 击败型72 → END** | 实测 |
 | 场景门：type83 踩格/出生 → `try_run_scene(param, from_walk)`（`scene.rs:926` 定义、`:4068` 踩格、`:3496` step 内），过门才 `load_level_script`；case 按号特判（case15 活型5 挡等） | `scene.rs:926,3496,4068` |
 | 楼梯换层：type7 `change_floor(param&0xff,false,false)`（`scene.rs:4079`）、type8 同理（`:4085`） | 实测 |
-| `change_floor(target, down, strict)`（`scene_persist.rs:349`）：**target<0 或 >55 直接拒绝**（floorCountMax=55，a.java:808）；save/swap/reload 链 :383/:410/:444 | `scene_persist.rs:349,362,366` |
+| `change_floor(target, down, strict)`（`scene_persist.rs:349`）：**target<0 或 >55 直接拒绝**（floorCountMax=55，a.java:808）；save/swap/reload 链 :398/:410/:444 | `scene_persist.rs:349,362,366,398`（:398=`pub(super) fn save_floor_state` 实测） |
 
 **层号语义辨析（防混淆）**：GUTS 行号 = **脚本行 index（0..67）**，与**楼层号（1..54）是两套编号**——两者仅通过 type83 门（param=脚本号）与战斗胜利触发（floor==50→65 等）关联。求解器数据结构里必须分字段命名（`script_idx` vs `floor`），禁混用。
 
@@ -160,12 +164,23 @@
 
 → **Q3 终极装备集候选 = {36 金箍棒, 40 紫金龙鳞甲}**（tier 最高、bonus220）；79/80 为次级（bonus120）。**是否并入 79/80 = 批0 裁定项**，裁定后写死常量并在 §7 验收表登记。
 
+⚠️ **effect key 仅作清单索引，不作效果真相源（红线，见 §0）**：`docs/bug-ledger.md:1035` BUG-053「items.json effect 映射错位（22-25 四件）」——22 已由 `6efd30e` 修（`gen_items.py EFFECT[22]→ChangeFloorDown`，a.java:7868-7872），**23/24/25 仍待被动判定点考证**；台账该条关闭前，求解器对 22-25 的效果一律以**原版 activateItem** 与下表实考证为准。
+
+**QoL/被动件必须建模结论**（引 `docs/findings/2026-11-09-qol-passive-item-triggers.md` §6:562-571，2026-11-09 考证件，树上未提交）：
+
+| 效果件 | 建模要点 | 证据锚 |
+|--------|---------|--------|
+| 25 幸运币 → 打怪金×2 | **两处击杀点翻倍**：战斗击杀、type86 四邻杀；商人/脚本 GIN/宝箱**不翻倍** | a.java:10052-10058（战斗）、a.java:7950-7954（四邻杀） |
+| 23 太公杖 → 对敌 {49,53,74} 攻×2 | 先乘后减敌防（atk×2≤def 仍不破防） | qol §6 表（a.java:9998-10008） |
+| 24 捆仙绳 → 对敌 {69} 攻×2 | 同上；与 23 互斥（按持有者各配一敌） | qol §6 表（a.java:10003-10004） |
+| 15 筋斗云 → 邻梯瞬移 | **独立于踩梯的换层通道 + 探索区间门** `[minFloorReached,maxFloorReached]`，4 状态分量（tutorialSeen / f_bool_13 / findFloorGateEntity / changeFloor strict） | a.java:7538-7539, 5767-5806, 7115-7133, 7139-7151, 5295-5306 |
+
 ### 2.8 可复用的求解基建
 
 | 组件 | 用途 | 证据 |
 |------|------|------|
 | `findPath` 忠实移植（best-first cost=曼哈顿和，扩展上限 `++table_count < 100`，**可通行 = terrain ‖ 格有实体槽**） | 层内移动可行性 | `crates/game-core/src/pathfind.rs:1-16`、Walkability `:22-27` |
-| `change_floor` / `find_floor_gate` / `save_floor_state` / `reload_floor_entities` | 层间转移与状态保存 | `scene_persist.rs:349 / 435 / 383 / 444` |
+| `change_floor` / `find_floor_gate` / `save_floor_state` / `reload_floor_entities` | 层间转移与状态保存 | `scene_persist.rs:349 / 435 / 398 / 444` |
 | **金样 74 场景** = 已知通关样例对拍锚 | 批5 验证 | `data/status/baselines/state-dump-golden.json`（scenarios=74 实测）；`python3 tools/state_baseline.py --check`（`tools/state_baseline.py:6`） |
 | game-oracle 无头回放先例 | 批5 oracle 回放 | `crates/game-oracle/tests/walk_replay_floor1.rs`（真实 floor1 maplv+sprite，Rust walk vs Java 逐采样像素）、`boot_replay.rs`（逐 tick FRAME sha）、`preset_cases.rs`（GameScene 构造）、`l2_prologue.rs`（脚本驱动） |
 | `tools/route_gen.py`（**手写路线走步填充，非规划器**：BFS 填航点+三重校验） | 与求解器互补：求解器产航点 → route_gen 转 oracle 输入脚本 | `tools/route_gen.py:1-30` |
@@ -212,7 +227,7 @@ game-core / game-data ──X──▶ game-solver   （禁止反向引用；CI/
 
 lead 倾向"分层求解（单层资源规划 + 层间关键道具 DAG）+ 状态抽象（hp 离散化/背包 canonical），不承诺全局最优"。本计划**采纳**，理由：
 
-1. 楼梯/换层把状态天然切成 54 层子问题（`change_floor` 保存/恢复实体与玩家状态，`scene_persist.rs:383/444`），层内图小（13×13 典型，§2.1），单层可穷举或 A*；
+1. 楼梯/换层把状态天然切成 54 层子问题（`change_floor` 保存/恢复实体与玩家状态，`scene_persist.rs:398/444`），层内图小（13×13 典型，§2.1），单层可穷举或 A*；
 2. 层间只有少量耦合量：hp、三色钥匙、金币、装备、关键道具（脚本 GIN/ADD 产出）、脚本旗标（script_line_flags）——DAG 规模 = 54 节点 + 边上的资源约束；
 3. 与"评估难度"目标匹配：每层的杀怪代价/钥匙需求本身就是难度指标。
 
@@ -283,18 +298,20 @@ python3 gates/cli.py check                # 预期：任一 FAIL=0（PASS 汇总
   - **B 纯展示（求解器剥除，不进状态）**：TAK、SEE、SMS、**GLV（体为空 `{}`，op_glv:264）**、END（END 单独处理=终止符，不算状态变换）；
   - **C 玩家干预/边界（求解器按约束处理）**：MVS（**死码**：语料 0 条 + sprite type82=0，表内留 no-op 分支并注释证据）、END(终止)。
   - ⚠️ 转写简报把 GLV 归 A、把 END 归 B——**按实测语义修正**（GLV 空体、END 是通关判定），修正理由写入单测注释。
-- [ ] 分类单测：每 opcode 至少 1 条 fixture 语料驱动的转移断言（A 类改状态、B 类状态不变、C 类按约束）。
+- [ ] 分类单测：每 opcode 至少 1 条 fixture 语料驱动的转移断言（**A 类"改状态"断言作 TDD 红测试；B 类"状态不变"只作回归护栏——天然空过，不得当红**；C 类按约束）。
 - [ ] **与现解释器对拍**（禁自证）：构造同一 fixture 行 → (a) 经 solver 转移函数表、(b) 经 game-core 现有解释路径（`ScriptEngine`（`script.rs:154`，pub）或 GameScene `load_level_script`（`scene_persist.rs:501`，pub））→ 断言可观测状态一致（hp/gold/keys/实体集合）。
 
 **判据**
 
 ```bash
+cargo test -p game-solver --lib -- --list | grep -c script_abs   # 预期：≥1（过滤器存在性闸，防空过）
 cargo test -p game-solver --lib script_abs   # 预期：A/B/C 分类单测全绿（含 23 变体逐一覆盖）
-cargo test -p game-solver --lib 对拍          # 预期：fixture 64 行逐行对拍 0 差异
+cargo test -p game-solver --lib -- --list | grep -c 对拍          # 预期：≥1（对拍过滤器存在性闸，防空过）
+cargo test -p game-solver --lib 对拍          # 预期：fixture 68 槽（非空 64 行、296 条指令，§2.6）逐行对拍 0 差异
 python3 gates/cli.py check                    # 预期：FAIL=0
 ```
 
-**依赖**：批0。**TDD**：先写"GLV/SMS 状态不变""RES easy 重置"等红测试 → 实现转移表。
+**依赖**：批0。**TDD**：先写 A 类**改状态**红测试（`RES` easy 重置 / `GIN` 给金给物 / `DES` 删实体——断言状态字段变化，未实现时必红）→ 实现转移表至绿；B 类"状态不变"（GLV/SMS 空体等）作回归护栏随实现补上，不作红测试。
 
 ### 批2 · 单层求解 MVP = 一层跑通可达 + 最优 hp + 最小杀怪 【估时 2–3d】
 
@@ -309,6 +326,7 @@ python3 gates/cli.py check                    # 预期：FAIL=0
 ```bash
 cargo run --release -p game-solver --bin solver -- solve-local --floor 1
 # 预期输出（形状）：{"floor":1,"reachable":true,"max_hp":<N>,"min_kills":<M>,"route":["10,11",...]}
+cargo test -p game-solver -- --list | grep -c solve_local    # 预期：≥1（存在性闸，防空过）
 cargo test -p game-solver solve_local          # 预期：可达性与手工构造的小图样例一致；hp/kills 单调性断言绿
 python3 gates/cli.py check                     # 预期：FAIL=0
 ```
@@ -319,7 +337,7 @@ python3 gates/cli.py check                     # 预期：FAIL=0
 
 **内容**
 
-- [ ] `solve_global.rs`：层间 DAG（换层边 = 楼梯 param 指向 + LAY/GUT + 型72 触发），层间传播 `SolverState`（§3.3），checkpoint 字段对齐 `PlayerCombat`（`combat.rs:51`）。
+- [ ] `solve_global.rs`：层间 DAG（换层边 = 楼梯 param 指向 + LAY/GUT + 型72 触发 + **筋斗云邻梯瞬移——独立于踩梯的换层通道，带探索区间门 4 分量，§2.7 表**），层间传播 `SolverState`（§3.3），checkpoint 字段对齐 `PlayerCombat`（`combat.rs:51`）。
 - [ ] 状态抽象落地：hp/gold 离散桶宽裁定（报审时定死并写注释）、背包 canonical、script_line_flags 位图；状态去重 + 双目标（Q1 hp 最大 / Q2 kills 最小）Pareto 或字典序（口径批3 定死）。
 - [ ] 有界求解口径：界（扩展数/时间）可配，解标注 `optimal|bounded-best|feasible`。
 - [ ] 确定性：同输入同解——固定遍历序（层号→格→动作字典序），无 HashMap 迭代序依赖。
@@ -327,6 +345,7 @@ python3 gates/cli.py check                     # 预期：FAIL=0
 **判据**
 
 ```bash
+cargo test -p game-solver -- --list | grep -c solve_global   # 预期：≥1（存在性闸，防空过）
 cargo test -p game-solver solve_global     # 预期：分层一致性测试绿（逐层结果拼接 == 全局解的 hp/kills）
 cargo run --release -p game-solver --bin solver -- solve-global --bound 1e6 --out /tmp/sol1.json
 cargo run --release -p game-solver --bin solver -- solve-global --bound 1e6 --out /tmp/sol2.json
@@ -360,6 +379,7 @@ python3 gates/cli.py check                 # 预期：FAIL=0
 **内容**
 
 - [ ] 解 → oracle 无头回放：把批4 路线喂给 game-oracle（参照 `walk_replay_floor1.rs` / `route_gen.py` 语法），断言路线在**真引擎**走通（到达 Ending）。
+- [ ] **逐层五元组分叉判别器（m03266 裁定）**：求解器输出**操作脚本**（非结论）→ 真引擎回放 → **每层落 checkpoint 断言五元组（血/攻/防/三色钥匙/金币，字段源 `combat.rs:51`）的求解器预测值 == 真引擎实测值**——任一层分叉 = **求解器 bug**（不是游戏 bug），判失败并输出分叉层与两侧数值。整路线到 Ending 只是必要条件，本项是充分判别器。
 - [ ] 金样对拍：`python3 tools/state_baseline.py --check` —— 74 场景逐字节等价（重构前后主判据，`tools/state_baseline.py:6`）。
 - [ ] 确定性复跑：三查询连续跑 2 次 `diff` 无差异（批3 已做，批5 在全量数据上复验）。
 - [ ] 回放通过后，把批4 findings 的"待确认"标记翻成"已证实"。
@@ -367,7 +387,10 @@ python3 gates/cli.py check                 # 预期：FAIL=0
 **判据**
 
 ```bash
+cargo test -p game-oracle -- --list | grep -c solver_replay   # 预期：≥1（批5 新增后；未写时此闸红=防空过，禁止 0 匹配 exit 0 当绿）
+cargo test -p game-oracle -- --list | grep -c checkpoint      # 预期：≥1（五元组分叉判别器存在性闸）
 cargo test -p game-oracle solver_replay     # 预期：解路线在真引擎回放 0 断言失败
+cargo test -p game-oracle checkpoint        # 预期：逐层五元组预测==实测，0 分叉
 python3 tools/state_baseline.py --check     # 预期：[GREEN] 金样逐字节等价：74 场景 sha 全同
 python3 gates/cli.py all                    # 预期：FAIL=0（visual-diff 仍 SKIP 且显式打印）
 ```
@@ -385,13 +408,15 @@ python3 gates/cli.py all                    # 预期：FAIL=0（visual-diff 仍 
 | R1 | **状态爆炸**（hp×金×钥匙×装备×旗标×层） | 批3 超时/内存 | 离散桶 + canonical 去重 + 有界求解（界可配）；报审时给界与耗时曲线；不承诺全局最优（§1.3） |
 | R2 | **隐藏墙双通道破坏决策**：可通行 = terrain ‖ 实体槽（`pathfind.rs:22-27`），实体被脚本 DES/ADD/CES/MOV 动态改（A 类），且 sprite 有 hide 分支（spawn 可见性）——静态图会误判可达 | 可达性假阳/假阴 | 求解器层内图**每步按当前实体集重建**，不缓存静态图；与 findPath 对拍（批2） |
 | R3 | **剧情强制 ROS_2/DES 可达性约束**：脚本强制换装/清状态/删实体（op_ros_*、op_des_*、op_res），可能使"最优路线"被剧情否决 | 解不可执行 | A 类转移全量进状态机（批1）；批5 oracle 回放兜底——回放不过=解作废 |
-| R4 | **行为键 trait_flags 已入公式**：`effective_attack_vs_type` 的护身符 ×2 分支（`combat.rs:96-98`）依赖 trait_flags 稀疏表（49/53/74=1、69=2） | 漏算=hp 低估 | 战斗一律调 `predict_battle_hp_loss`+`effective_attack_vs_type`（§2.4），禁自算；单测覆盖 4 个 trait 敌 |
+| R4 | **行为键 trait_flags 已入公式**：`effective_attack_vs_type` 的护身符 ×2 分支（`combat.rs:96-98`）依赖 trait_flags 稀疏表（49/53/74=1、69=2；=太公杖/捆仙绳效果面，qol §6） | 漏算=hp 低估 | 战斗一律调 `predict_battle_hp_loss`+`effective_attack_vs_type`（§2.4），禁自算；单测覆盖 4 个 trait 敌 |
 | R5 | **双真相源**：assets/raw/script vs fixture 5 槽不一致（§2.6） | 用错源=解不可回放 | ingest **只读 fixture**（批0 判据钉死）；assets/raw/script 仅语料参考 |
 | R6 | **层号 vs 脚本 index 两套编号**（§2.6） | 换层/触发错位 | 数据结构分字段 `floor`/`script_idx`，类型层面禁混（批0 review 焦点） |
 | R7 | **ScriptOp parse/execute 私有**（`script_ops.rs:401,553`） | 求解器不能直调现解释器 | 批1 自建转移表 + 与现解释器对拍（禁自证）；若必须直调，另立提案改 game-core（不混入本批） |
 | R8 | **MVS/type82 死码、GLV/SMS 空体** | 分类误判 | 按实测语义归类（批1 分类表），死码留 no-op 分支+证据注释 |
 | R9 | **GUTS 层号 >54、maplv 只 1..54**（§2.6） | 层映射断裂 | 批0 【待考证】：a.java loadLevelScript(:7997-8012) + GUT_n/LAY 交叉引用；结论入 findings |
 | R10 | **new_game_stats 无调用方**（§2.5） | 初始状态接线不确定 | 批0 考证 a.java 步骤8 实际调用处；S0 常量先按 (300,10,10,51) 写死并注证据 |
+| R11 | **筋斗云独立换层通道**：15 筋斗云邻梯瞬移是**独立于踩梯的换层路径**，且带探索区间门 `[minFloorReached,maxFloorReached]`（4 状态分量，§2.7 表）——层间 DAG 只建楼梯/脚本边会**漏解或误判可达**（含 QoL 合法性：整条路线不拿筋斗云=非法解） | 可达性假阴/假阳、解非法 | 批3 DAG 显式建筋斗云换层边 + 区间门 4 分量入 `SolverState.flags`；批5 oracle 回放含"补拿筋斗云"路径 |
+| R12 | **items.json 22-25 effect 不可信**（BUG-053，`docs/bug-ledger.md:1035`） | 按错效果算（求解器把下行符当被动等） | §0 红线：效果以原版 activateItem 为准；台账关闭前 ingest 对该四件不信 effect key（§2.7） |
 
 **不发明行为**：凡表中未列的语义（如商店购买的精确时序、难度 difficulty_index ×16 机制 `scene.rs:978/1031/4199`、a.java:5172-5184）一律标【待考证】，考证路径 = 对应 a.java 锚 + 运行时插桩，不进结论。
 
@@ -403,7 +428,7 @@ P3 编辑器（`docs/superpowers/specs/2026-11-03-dddsa-architecture-design.md` 
 
 ```
 改数据（items/enemies/maplv/sprite/script）
-   → cargo run -p solver -- query --all   # 三查询重跑
+   → cargo run --release -p game-solver --bin solver -- query --all   # 三查询重跑
    → 与基线 JSON diff：
         Q3 reachable 必须不变（false→true 允许，true→false = 破坏可通关性，打回）
         Q1 max_hp / Q2 min_kills 越界（变难超过阈值）→ 提示"难度不越界"复核
@@ -420,16 +445,20 @@ P3 编辑器（`docs/superpowers/specs/2026-11-03-dddsa-architecture-design.md` 
 
 | # | 验收项 | 判据（可复制命令） | 预期输出 |
 |---|--------|--------------------|---------|
-| A1 | Q1 剩余血量最大出一轮解 | `cargo run --release -p game-solver --bin solver -- query q1` | `Q1 max_hp=<N> confidence=<optimal\|bounded-best\|feasible> route_len=<L>` |
-| A2 | Q2 最少杀怪出一轮解 | `... -- query q2` | `Q2 min_kills=<M> confidence=<…>` |
-| A3 | Q3 禁终极装备可达性 | `... -- query q3 --ultimate36,40`（集合=批0 裁定常量） | `Q3 reachable=<true\|false>` |
+| A1 | Q1 剩余血量最大出一轮解 | `cargo run --release -p game-solver --bin solver -- query q1 \| python3 -c "import json,sys;d=json.load(sys.stdin);assert d['query']=='q1' and isinstance(d['max_hp'],int) and d['confidence'] in ('optimal','bounded-best','feasible');print(d)"` | assert 通过；`Q1 max_hp=<N> confidence=<optimal\|bounded-best\|feasible> route_len=<L>` |
+| A2 | Q2 最少杀怪出一轮解 | `... -- query q2 \| python3 -c "import json,sys;d=json.load(sys.stdin);assert d['query']=='q2' and isinstance(d['min_kills'],int);print(d)"`（同上断言式，防空过） | assert 通过；`Q2 min_kills=<M> confidence=<…>` |
+| A3 | Q3 禁终极装备可达性 | `... -- query q3 --ultimate 36,40 \| python3 -c "import json,sys;d=json.load(sys.stdin);assert d['query']=='q3' and isinstance(d['reachable'],bool);print(d)"`（集合=批0 裁定常量） | assert 通过；`Q3 reachable=<true\|false>` |
 | A4 | 三查询结果落盘 | `... -- query --all --out docs/findings/solver-queries.json` + §4 批4 的 python assert | assert 通过，json 含 q1/q2/q3 |
-| A5 | **确定性复跑** | 连跑 2 次 `--query --all` 到不同文件后 `diff` | 无差异 |
-| A6 | **oracle 回放**（解在真引擎走通） | `cargo test -p game-oracle solver_replay` | 全绿，到达 Ending |
+| A5 | **确定性复跑** | 连跑 2 次 `query --all` 到不同文件后 `diff` | 无差异 |
+| A6 | **oracle 回放**（解在真引擎走通，**批5 新增**） | `cargo test -p game-oracle -- --list \| grep -c solver_replay`（≥1 存在性闸）+ `cargo test -p game-oracle solver_replay` | 计数≥1 且全绿，到达 Ending |
 | A7 | **金样对拍** | `python3 tools/state_baseline.py --check` | `[GREEN] 金样逐字节等价：74 场景 sha 全同` |
 | A8 | 门禁总闸 | `python3 gates/cli.py check` | FAIL=0（visual-diff SKIP 显式打印，属已知项） |
-| A9 | 纯度/无环 | `cargo tree -p game-solver -i game-solver` + lib 无 fs/net 断言测试 | 无反向依赖 |
-| A10 | 分类对拍（批1） | `cargo test -p game-solver --lib` | 23 变体覆盖 + fixture 64 行对拍 0 差异 |
+| A9 | 纯度/无环 | `cargo tree -p game-solver -i game-solver`（预期仅 game-solver 自身，无 game-core/game-data 反向边）+ `grep -rnE 'std::fs\|std::net\|std::process\|std::time' crates/game-solver/src --include='*.rs' \| grep -v 'bin/solver.rs'` | tree 仅自身；grep **0 命中**（lib 无 I/O 依赖） |
+| A10 | 分类对拍（批1） | `cargo test -p game-solver --lib -- --list \| grep -c 对拍`（≥1 存在性闸，防空过）+ `cargo test -p game-solver --lib 对拍` | 计数≥1；23 变体覆盖 + fixture 68 槽（296 条）对拍 0 差异 |
+| A11 | **逐层五元组分叉判别器**（批5 新增，m03266） | 求解器操作脚本→真引擎回放→每层断言 血/攻/防/三色钥匙/金币 预测==实测：`cargo test -p game-oracle -- --list \| grep -c checkpoint`（≥1）+ `cargo test -p game-oracle checkpoint` | 计数≥1；**逐层 0 分叉**（任一层分叉=求解器 bug，判失败） |
+
+> A1–A3 命令内嵌 python assert（Y3-1 修正）：单查询行必须做 JSON 结构断言，禁止"打印就算过"。
+> 所有 `cargo test … <过滤器>` 判据一律配 `-- --list | grep -c` **存在性闸**（0 匹配 exit 0 ≠ 绿）。
 
 **样例输出格式**（A1–A3 统一 JSON，写死防漂）：
 
@@ -444,11 +473,11 @@ P3 编辑器（`docs/superpowers/specs/2026-11-03-dddsa-architecture-design.md` 
 ## 8. 本文实测行号复核清单（防"照抄未核"）
 
 **已实测复核（2026-11-09，grep/sed/xxd/python 现场验证）**：
-maplv.rs:51,65,69-70,93,117 · sprite.rs:54,107,133 · sprite_spawn.rs:18,23 · enums.rs:164,166,168,170,172,174,177 · handoff.rs:97,98,111,117 · scene.rs:252-253,612,926,3496,3804-3820,3891-3894,4068,4079,4085 · scene_persist.rs:349,362,366,383,410,435,444,501 · combat.rs:42,51,93,106,170 · subsystem/battle.rs:33,79,85,110,122 · script_ops.rs:6,167,226,264,269,279,282,289,318-324,401,553 · game-data/script.rs:25,31,53,93,111 · game-core/script.rs:154,193 · intro.rs:361 · pathfind.rs:1-16,22-27 · golden.rs:49,226-247 · state_baseline.py:6 · route_gen.py:1-30 · Cargo.toml(workspace):12-13 · walk_replay_floor1.rs 头注 · tables 三表行数 · gates status/check 子命令 · xxd maplv0 头 · census 脚本输出（1703/502/45/type83×52/type72×4）· fixture 68 行 · assets/raw/script:77 · script-dsl-semantics.md §2。
+maplv.rs:51,65,69-70,93,117 · sprite.rs:54,77-87,90-103,107,133 · sprite_spawn.rs:18,23 · enums.rs:164,166,168,170,172,174,177 · handoff.rs:97,98,111,117 · scene.rs:252-253,612,926,2045(RouteEngage),3496,3592(BumpEngage),3739(Exchange),3804-3820,3891-3894,4068,4079,4085 · scene_persist.rs:349,362,366,**398(save_floor_state)**,410,435,444,501 · combat.rs:42,51,93,106,170 · subsystem/battle.rs:33,79,85,110,122,**190(gold<<1)** · script_ops.rs:6,167,226,264,269,279,282,289,318-324,401,553 · game-data/script.rs:25,31,53,93,111 · game-core/script.rs:154,193 · intro.rs:361 · pathfind.rs:1-16,22-27 · golden.rs:49,226-247 · state_baseline.py:6 · route_gen.py:1-30 · Cargo.toml(workspace):12-13 · walk_replay_floor1.rs 头注 · tables 三表行数 · gates status/check 子命令 · xxd maplv0 头 · census 脚本输出（1703/502/45/type83×52/type72×4）· fixture 68 行（与 assets/raw/script 5 槽 diff；语料计数 fixture 296/DES40 vs raw 297/DES41）· assets/raw/script:77 · script-dsl-semantics.md §2 · **docs/bug-ledger.md:1035(BUG-053，:1017/:1059 邻条)** · **docs/findings/2026-11-09-qol-passive-item-triggers.md §6（:550-598 实读，四条必须建模）** · **crates/game-core/src/battle.rs 文件不存在（ls 实证）**。
 
 **未核/待批0 现场复核（引用前必须重新 grep）**：
-- a.java 行锚（7179/808/8445-8463/8594-8595/9869-9928/3482-3489/482-485/9497 等）——均系从 Rust 注释/doc 转引，**未打开 reference/ 现场核**；
-- `scene.rs:2045/3592/3739`（RouteEngage 调用点，转引）、`scene.rs:978/1031/4199`（difficulty_index，转引）、`battle.rs:189-192`（掉落金，转引）；
+- a.java 行锚（7179/808/8445-8463/8594-8595/9869-9928/3482-3489/482-485/9497/10052-10058/7950-7954/9998-10008/7538-7539 等）——均系从 Rust 注释/doc/qol 考证件转引，**未打开 reference/ 现场核**；
+- `scene.rs:978/1031/4199`（difficulty_index，转引）；
 - `script-dsl-semantics.md:152` 遗留问题清单（引用其编号，未复读该行）；
 - `docs/superpowers/specs/2026-11-03-dddsa-architecture-design.md` §4/§5（本会话早前读过，行号未记——引用只写 §号不写行号）。
 
