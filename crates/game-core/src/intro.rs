@@ -330,7 +330,9 @@ impl LoadProgress {
         LoadProgress { steps: steps.to_vec(), step_idx: 0, progress: 0, bar_max: 0, target_mode: target, call_m000 }
     }
 
-    /// `startNewGameLoad`（a.java:7172-7179）：新游戏加载链。
+    /// `startNewGameLoad`（a.java:7183-7194）：新游戏加载链。
+    /// 【2026-11-09 更正】原注 7172-7179 系错锚（该区间落在 `changeFloor`(:7135-7181) 尾段），
+    /// 实测 :7183 方法声明、:7185-7194 十步 stepLoadTask 同序。
     pub fn new_game() -> LoadProgress {
         LoadProgress::new(GameMode::Map, true, &[6, 8, 5, 13, 9, 10, 2, 3, 12, 11])
     }
