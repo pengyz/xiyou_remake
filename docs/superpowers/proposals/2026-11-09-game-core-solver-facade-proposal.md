@@ -3,6 +3,7 @@
 > 2026-11-09。**用户 2026-11-09 裁定方案 B，批1 前过对抗复核**：求解器批1 走**直调 game-core**，拒绝自建 23 枚举转移表的重复逻辑。本件即求解器实施计划 §3.1 后门条款所称「另立提案」（[solver-implementation-plan.md:224](../plans/2026-11-09-solver-implementation-plan.md) 实测原话：「若对拍暴露必须直调的需求，另立提案改 game-core 暴露 `pub` 门面，**不混入本计划批次**。」），同步消解计划风险 R7（同文件 :414「**ScriptOp parse/execute 私有**（`script_ops.rs:401,553`）…若必须直调，另立提案改 game-core（不混入本批）」）。
 > **只立文档：本提案不改任何代码、不改计划**；实施切片（§4）须待本件过对抗复核通过后另行派工。**先经对抗复核，通过后派工。**
 > 全部行号 = 2026-11-09 在当前 HEAD `fac2c65`（分支 modern）上 sed/grep 实测；`git diff df4e3ea..HEAD -- crates/game-core/src/script_ops.rs crates/game-core/src/scene_script.rs crates/game-core/src/scene.rs crates/game-core/src/subsystem/script_host.rs` 为**空**——任务书所记 df4e3ea 起这四个文件未变，两侧行号一致（A 级验证，见 §7 表）。
+> **修订 2026-11-10（对抗复核回派，红 R1 + 黄 Y1-Y8）**：(b) 侧钉死 `ScriptEngine`（§5 R1 条款）、行锚勘误（Y1）、闸值更新（Y2）、锚漂移提示（Y3）、签名锁边界与 G5b 行为锁（Y4）、feature gate 对比（Y5）、GIN 论证降级（Y6）、守卫前置冒烟（Y7）、派工单引用条款（Y8）；修订后行号复测于 HEAD `31ac853`（四文件 `git diff df4e3ea..31ac853` 仍为空）。复核报告：[2026-11-09-solver-facade-proposal-review.md](../../findings/reviews/2026-11-09-solver-facade-proposal-review.md)。
 
 ## 0. 裁定与边界
 
@@ -25,10 +26,10 @@
 
 **为什么是 3 个而不是 2 个**（parse_op + execute_op 不够）：
 
-- `execute_script_instruction` 承载**行级语义三件套**，求解器若只拿 parse+execute 自己拼行循环，就必须复刻这三件＝回到方案 B 要拒绝的重复逻辑：
+- `execute_script_instruction` 承载**行级语义**，求解器若只拿 parse+execute 自己拼行循环，就必须复刻下面两件＝回到方案 B 要拒绝的重复逻辑：
   1. **行尾收尾依赖私有 fn**：`scene_script.rs:16-24` 行尾守卫 `if script_cursor0 + 3 > line.len() {` 分支内调 `set_dialog_phase(4)`、置 `script_line_flags[cur]`（`cur != 32` 特判在 :20-21）、`lock_camera_on(0)` —— 而 `lock_camera_on` 是**私有**的（`scene.rs:3191` `fn lock_camera_on(&mut self, target: i32)`，无 pub，实测）。外部无法复刻收尾而不改可见性，改它 = 扩暴露面（违反本件最小集）。
   2. **未知 op 静默停摆语义**：`scene_script.rs:29` `let Some(op) = Self::parse_op(&line, script_cursor0) else {` → 停摆 return（原版 a.java:8594-8595）。注意 `parse_op` 本身**无守卫**：`script_ops.rs:402` `let op = &line[script_cursor0..script_cursor0 + 3];` 越界会 panic——守卫只在 `scene_script.rs:16-17`。求解器绕过行驱动直接裸调 `parse_op` 需自带守卫，否则踩 panic 面。
-  3. **GIN 同拍尾递归宿主**：`script_ops.rs:587-589` execute_op 末尾 `if matches!(step, …Recurse) { self.execute_script_instruction(); // GIN 同拍尾递归（a.java:8435-8436）`——execute_op 内部已会回调 execute_script_instruction，暴露它使门面语义自洽（转发链不悬空）。
+  3. **（配套关系，非 #3 的独立必要性——复核 Y6 修正）GIN 同拍尾递归在 `execute_op` 内部**：`script_ops.rs:587-589` execute_op 末尾 `if matches!(step, …Recurse) { self.execute_script_instruction(); // GIN 同拍尾递归（a.java:8435-8436）`——该回调随 #2 开启**自动生效，不以暴露 #3 为前提**；#3 的必要性由上面第 1、2 条支撑。此条只说明**配套性**：#3 与 #2 同开时，求解器经门面行驱动与内部尾递归共用同一入口（`scene_script.rs:14`），不产生第二套行循环口径。
 - 反过来，**execute_op 也不能省**：它是 23 臂 match（`script_ops.rs:560-586`）→ `op_*` helper（22 个 `pub(super)`，实测 `grep -c "pub(super) fn op_" = 22`，第 23 变体 RosNoop 无 helper 且 :584 空臂）的总入口，A 类状态变换（gold/实体/hp）全在此（§1.3）。
 - **状态读取不需要新符号**（全部已 pub，见 §1.4），**checkpoint 五元组回放**（计划批5 :382「五元组（血/攻/防/三色钥匙/金币，字段源 `combat.rs:51`）」）读的字段已可跨 crate 访问。
 
@@ -43,7 +44,7 @@
 任务点名要实测的「P2 批5 已有 ScriptHost::execute_op 可能就是免费门面」——实测结论：
 
 - **确实免费且已 pub**：`script_host.rs:48` `pub trait ScriptHost {` / `:49` `fn execute_op(&mut self, ctx: &mut ScriptCtx, op: ScriptOp) -> ScriptStep;`（pub trait 的方法即跨 crate 可调）；`script_host.rs:61` `pub struct ScriptResolver;`；`subsystem/mod.rs:25` `pub mod script_host;`。求解器可直接 `impl ScriptHost` 或直接调 `ScriptResolver`。
-- **但只覆盖「脚本域写」**：`ScriptResolver` 实现体（`script_host.rs:71-95`）只做 `*ctx.script_cursor = op.cursor()`（:74，游标推进）、Gut 旗标写、Ces delay 写、Gin → `ScriptStep::Recurse` 信号——**不碰 gold/实体/hp**。
+- **但只覆盖「脚本域写」**：`ScriptResolver` 实现体（`script_host.rs:71-92`，fn :71 起 :92 闭，impl 闭 :93）只做 `*ctx.script_cursor = op.cursor()`（**:72**，游标推进；:74 为 Gut 臂头）、Gut 旗标写（:74-80）、Ces delay 写（:81-88）、Gin → `ScriptStep::Recurse`（:89）、其余臂 `_ => Advance`（:90）——**不碰 gold/实体/hp**。
 - **A 类状态变换全在 GameScene 侧**：`script_ops.rs:560-586` 的 match 23 臂逐臂调 `self.op_*`（`op_tak:60` `op_add:120` `op_res:101` `op_mov:175` `op_des_all:208` …共 22 个 `pub(super)` helper）。这些 helper 全是 GameScene 方法，`ScriptResolver` 摸不到。
 - **且没有注入缝**：`script_ops.rs:556-559` execute_op 内部**硬编码自建** `ScriptResolver`（`let mut r = crate::subsystem::script_host::ScriptResolver; r.execute_op(&mut ctx, op)`），不接受外部 host 注入——求解器即使自己 impl 一个 ScriptHost，GameScene 也永远不会调它。
 - **结论**：ScriptHost 面保留原样（已 pub，零改动）；`execute_op` 必须经 GameScene 面转发（门面 #2）。求解器若只需「游标推进 + 脚本域写」可免费直用 ScriptResolver，但批1 转移需求（A 类变换）必须走门面。
@@ -58,14 +59,14 @@
 | 五元组/背包 | `combat.rs:51` `pub struct PlayerCombat`（hp:52 / gold:58 / yellow_keys·blue_keys·red_keys / item_types 全 pub） | 批5 :382 五元组源 |
 | 实体表 | `entity.rs:57` `pub struct EntityTable` | 实体集合对比源 |
 | 装载入口 | `scene_persist.rs:41` `load_floor` / `:269` `load_floor_data` / `:501` `pub fn load_level_script(&mut self, idx: i32)` | 计划 :147 集成路径 |
-| 对拍 harness 面 | `script.rs:154` `pub struct ScriptEngine<'d>` / `:162 pub fn new` / `:270 pub fn execute_script_instruction` | 计划 :302 对拍 (b) 侧 |
+| 对拍 harness 面 | `script.rs:154` `pub struct ScriptEngine<'d>` / `:162 pub fn new` / `:270 pub fn execute_script_instruction` | 计划 :302 对拍 (b) 侧；**唯一合法 (b) = ScriptEngine，见 §5 R1 条款** |
 | 测试构造 | `lib.rs:29-33` `#[doc(hidden)] pub mod scene_test_support`；`scene.rs:4624-4626` | 跨 crate 无头构造先例 |
 | 22 个 `op_*` helper | `script_ops.rs:60-316`，全 `pub(super)` | **不开**——经 execute_op 间接可达，逐个开=暴露面爆炸 |
 
 ### 1.5 消费端（批1）如何接
 
 - `crates/game-solver/Cargo.toml` deps **已含 game-core**（实测），无需改依赖。
-- 批1 的 `script_abs.rs`：`use game_core::scene::solver_api::{parse_op, execute_op, execute_script_instruction};` + 读 §1.4 已 pub 字段。计划 :302 对拍的 (b) 侧（`ScriptEngine` / `load_level_script`）不变。
+- 批1 的 `script_abs.rs`：`use game_core::scene::solver_api::{parse_op, execute_op, execute_script_instruction};` + 读 §1.4 已 pub 字段。计划 :302 对拍的 (b) 侧按 **§5 R1 条款**钉死 = `ScriptEngine`（禁止门面/GameScene 路径充当 (b)）。
 
 ## 2. 三问预检（AGENTS.md §4 :70-77，动手前三问）
 
@@ -82,23 +83,24 @@
 | G1 | 总闸 | `python3 gates/cli.py check` | FAIL=0（13/13；实测 status：`PASS=13 FAIL=0 SKIP=1 TOLERATED=0`，`SKIP=visual-diff` 显式打印） | AGENTS.md §5 :79-91；计划 :191 |
 | G2 | 金样 74 零漂移 | `python3 tools/state_baseline.py --check` | `[GREEN] 金样逐字节等价：74 场景 sha 全同` | 计划 :184/:383 |
 | G3 | 差分 trace | `python3 gates/cli.py trace` | L1–L3 无回退 | AGENTS.md :90「改 game-data/game-core 后」必跑 |
-| G4 | ratchet 不回退 | 随 G1 | 求解器新增测试不得使 ratchet 回退（现状 total=1022 / 基线 978） | 计划 :23 全局约束、:191 |
-| G5 | 签名锁 | 新增测试（§4 commit2） | 门面 3 个 fn 签名被编译期钉死，漂移即红 | 本件 §1.1 |
+| G4 | ratchet 不回退 | 随 G1 | 求解器新增测试不得使 ratchet 回退（实测 total=1029 / 基线 978，2026-11-10 @31ac853；计划 :191 记 1022 为旧快照） | 计划 :23 全局约束、:191 |
+| G5 | 签名锁 + 转发目标行为锁 | 新增测试（§4 commit2） | **G5a 签名锁**：门面 3 个 fn 签名编译期钉死（`let _: fn(...)`，漂移即红）；**G5b 行为锁**：scene 树内测试双跑「门面 vs 底层 `pub(super)` 直调」，断言输出/状态逐字段相等（改接同签名的另一个 fn 即红） | 本件 §1.1、§3.2（复核 Y4） |
 
 ### 3.2 「pub 化后被求解器以外误用」的风险与约束
 
 - **风险**：门面一旦 `pub`，任何依赖 game-core 的 crate（game-desktop / game-wasm / game-oracle / 测试）都可调；若语义理解有偏（如把 execute_op 当普通状态机步进滥用、绕过行驱动裸调 parse_op 触发 :402 越界 panic），错误会扩散到门面之外。
-- **推荐约束（三件套，本提案采纳）**：
+- **推荐约束（本提案采纳）**：
   1. **窄门面模块收口**（推荐，理由见 §1.2）：唯一入口 `scene::solver_api`，3 个 fn 之外无第二条直调路径——审计面 = 一个新文件；比「直接把 `pub(super)` 改 `pub`」多一个文件的代价，换来零既有行改动 + 单点审计。
-  2. **`#[doc(hidden)]` + 模块契约 doc 注释**：`#[doc(hidden)]` 不进 rustdoc 公开文档（仓内先例：`lib.rs:29-33` scene_test_support「非生产 API」同款处置）；模块 doc 写明「唯一合法消费者 = game-solver 批1；新消费者须先改本提案」。
-  3. **签名锁测试**（G5）：把 §1.1 表的 3 个签名以 `let _: fn(...) = ...` 形式编译期钉死，签名漂移即测试红——防「顺手改签名」破坏消费端。
-- **替代案（不推荐）**：直接 `pub(super)` → `pub` + doc 注释。diff 更小（改 3 个词），但：改的是解释器核心行（触发「为何改」审计）；无收口（22 个 op_* 的可见性边界模糊化）；无 doc(hidden) 护栏。仅当对抗复核认定「转发层多余」时降级采用，且须仍过 G1-G4 + 补签名锁。
+  2. **`#[doc(hidden)]` + 模块契约 doc 注释**：`#[doc(hidden)]` 不进 rustdoc 公开文档（仓内先例：`lib.rs:29-33` scene_test_support「非生产 API」同款处置）；模块 doc 写明「唯一合法消费者 = game-solver 批1；新消费者须先改本提案」+ 调用前置（见 §4 Commit 1，复核 Y7）。
+  3. **签名锁 + 转发目标行为锁**（G5a/G5b，复核 Y4）：G5a 把 §1.1 表的 3 个签名以 `let _: fn(...) = ...` 形式编译期钉死，签名漂移即测试红——防「顺手改签名」破坏消费端。**边界如实**：签名锁只锁签名、不锁转发目标（同签名换实现仍绿）；故补 G5b 行为锁——在 scene 树内测试（可见 `pub(super)` 底层）对同一输入双跑「门面 vs 底层直调」，断言输出/状态逐字段相等，改接同签名的另一个 fn 即红。残余边界：改接「同签名且行为全等」的实现测不出，但行为全等即无行为风险，剩余仅审计面问题，由窄门面收口 + 模块契约 doc 约束；**(b) 侧独立性由 §5 R1 条款钉死**（这才是对拍不自证的关键）。
+- **替代案 1（不推荐）**：直接 `pub(super)` → `pub` + doc 注释。diff 更小（改 3 个词），但：改的是解释器核心行（触发「为何改」审计）；无收口（22 个 op_* 的可见性边界模糊化）；无 doc(hidden) 护栏。仅当对抗复核认定「转发层多余」时降级采用，且须仍过 G1-G4 + 补 G5a/G5b。
+- **替代案 2（不采纳，理由如实——复核 Y5）**：cargo feature gate 编译期隔离。实测 `crates/game-core/Cargo.toml` **无 `[features]` 段**（grep `features` 无命中，2026-11-10 @31ac853）；引入 feature 须改 Cargo.toml + workspace feature unification + 消费端逐个启用，本仓无先例；其隔离强于 `doc(hidden)`，但本面已有「窄门面收口 + 模块契约 doc + G5a 签名锁 + G5b 行为锁 + §5 R1 对拍」五层约束，feature 的增量收益低于 Cargo 面改动与组合矩阵代价 → 不采纳；若实际发生误用再按 AGENTS 流程升级。
 
 ## 4. 执行切片（问题 4，过审后实施，2 个小 commit）
 
-- **Commit 1 —— 门面**：新建 `crates/game-core/src/scene_solver_api.rs`（3 个纯转发 fn + `#[doc(hidden)]` + 模块契约 doc），`scene.rs` 加一行 `#[path = "scene_solver_api.rs"] pub mod solver_api;`（挂载风格与 scene.rs:43-44/:55-56 一致）。**diff = 新文件 + 1 行挂载**，底层零改动 → 直接过 G1-G4。
-- **Commit 2 —— 签名锁测试**：G5 签名锁（3 个 `let _: fn(...)` 编译期断言）+ 门面冒烟（parse 一条 fixture 语料 → execute → 回读字段），落 game-solver 或 game-core 测试侧。
-- **批1 消费（本提案过审后）**：`script_abs.rs` 从自建 23 枚举转移表改为直调门面（`parse_op` + `execute_op` + 行驱动 `execute_script_instruction`）；**对拍闸不删、降级为回归校验**（§5）。计划 :295「自建，不依赖 crate 私有的 parse_op/execute_op」原案句由本裁定作废，计划文档本身不改（纪律：不改计划；修订走计划的正常变更流程，不混入本件）。
+- **Commit 1 —— 门面**：新建 `crates/game-core/src/scene_solver_api.rs`（3 个纯转发 fn + `#[doc(hidden)]` + 模块契约 doc），`scene.rs` 加一行 `#[path = "scene_solver_api.rs"] pub mod solver_api;`（挂载风格与 scene.rs:43-44/:55-56 一致）。**diff = 新文件 + 1 行挂载**，底层零改动 → 直接过 G1-G4。**锚漂移提示（复核 Y3）**：插入挂载行后 `scene.rs` 全部行锚（:60 / :252-253 / :282 / :411-419 / :3191 / :4624-4626 等）将 +1~2 漂移——实施 commit message **必须记录漂移量**，实施后重测本件引用的全部 scene.rs 锚（§1.2/§1.4/§6/§7）。**模块契约 doc 写死调用前置（复核 Y7）**：`parse_op` 要求 `script_cursor0 + 3 <= line.len()` 且游标落在 UTF-8 字符边界（否则 `script_ops.rs:402` 切片 panic；#3 行驱动的守卫 `scene_script.rs:17` 只拦字节越界、不拦字符边界）；语料 ASCII 前提实测成立（fixture 非 ASCII=0，复核面4）。
+- **Commit 2 —— 签名锁 + 行为锁测试**：G5a 签名锁（3 个 `let _: fn(...)` 编译期断言）+ G5b 转发目标行为锁（scene 树内双跑门面 vs 底层直调）+ 门面冒烟（parse 一条 fixture 语料 → execute → 回读字段）；**冒烟含守卫前置用例（复核 Y7）**：多字节字符行 / 越界游标 → 断言 panic 或守卫拦截（`#[should_panic]` 或前置条件断言），语料级覆盖由计划批1 对拍 `:310` 在全 68 槽上承担。测试落 game-solver 或 game-core 测试侧。
+- **批1 消费（本提案过审后）**：`script_abs.rs` 从自建 23 枚举转移表改为直调门面（`parse_op` + `execute_op` + 行驱动 `execute_script_instruction`）；**对拍闸不删、降级为回归校验**（§5，(b) 侧按 R1 条款钉死 = `ScriptEngine`）。计划 :295「自建，不依赖 crate 私有的 parse_op/execute_op」原案句由本裁定作废，计划文档本身不改（纪律：不改计划；修订走计划的正常变更流程，不混入本件）。**派工单引用条款（复核 Y8）**：批1 派工单必须显式引用本提案，并注明「计划 :295『自建转移函数表』表述与 2026-11-09 方案 B 裁定冲突——实现路线以本提案为准；计划判据块 :307-311（含 :307 `script_abs` 存在性闸）不涉实现路线、原样执行（判据以 :307 为准）」，防未来读者照 :295 自建。
 
 ## 5. 对拍不删（问题 5：构造性同语义 ≠ 免检）
 
@@ -107,6 +109,15 @@
   - 计划 :302 对拍句：构造同一 fixture 行 → (a) 经求解器门面直调路径、(b) 经 `ScriptEngine`（script.rs:154，pub）或 `load_level_script`（scene_persist.rs:501，pub）→ 断言可观测状态一致（hp/gold/keys/实体集合）；
   - 计划 :307-311 判据块照旧：`grep -c 对拍 ≥ 1`（存在性闸，防空过）+ fixture 68 槽逐行 0 差异 + `gates/cli.py check` FAIL=0；
   - 变化仅一处：(a) 侧从「求解器自建转移表」换成「门面直调」——(b) 侧（独立实现）**不动**，故对拍仍是**异实现互证**而非自证。
+
+> 【2026-11-10 更正（对抗复核 R1；原主张保留可见）】上条「(b) 侧（独立实现）不动，故对拍仍是异实现互证」是**有条件且原未钉死的承诺**，其隐患系 2026-11-10 对抗复核发现（[复核报告](../../findings/reviews/2026-11-09-solver-facade-proposal-review.md) 面7）：门面打开**前**，(b) 经 GameScene 执行至少依赖 `pub(super)` 的 `execute_op`（`script_ops.rs:553`）/`execute_script_instruction`（`scene_script.rs:14`），跨 crate 直接驱动不可达，复核认定 (b) 实际只能走 `ScriptEngine`；门面打开**后**，(b) 可被写成 `load_level_script + solver_api::execute_script_instruction` 等**任何运行 GameScene 解释器的路径**，与 (a) 共用同一实现（(a) 即门面直调 GameScene）→ 对拍恒等通过，`grep -c 对拍 ≥ 1` 存在性闸（:309）、G1-G4（金样/trace 不经门面）、G5（原只锁签名不锁转发目标）**全部抓不到**——而对拍是本提案自认唯一能抓「门面接错」的闸。据此钉死：
+
+**R1 条款（批1 派工单直接引用；(b) 侧代码评审检查点，违者对拍判无效、批1 不得合）**：
+
+1. **(b) 侧唯一合法路径 = `ScriptEngine`**（`script.rs:154/162/270`，pub；计划 :147 认定的第二解释器，复核实测其不 `use` ScriptOp/GameScene，为独立实现）。**禁止以 `solver_api` 门面路径或任何 GameScene 解释器路径充当 (b)**——包括 `load_level_script + solver_api::execute_script_instruction`、`load_level_script` 后经其他入口驱动 GameScene 等：(a) 已运行 GameScene，(b) 再运行 GameScene 即同实现自证。
+2. **评审检查点**：批1 对拍代码评审必须核验 (b) 侧只经 `game_core::script::ScriptEngine`（或其测试 harness）驱动，**不 import `game_core::scene::solver_api`、不驱动 GameScene 解释器**；违者对拍判无效。
+3. 该条款是本节「异实现互证」承诺的**成立前提**：`ScriptEngine`（script.rs 独立实现）与门面直调（GameScene 路径）分属计划 :147 双解释器——钉死后对拍仍同时抓两类错：门面接错（(a) 行为偏离 (b)）与求解器层错误（(a) 的 script_abs 逻辑偏离 (b)）。计划文本（:302 的「或 load_level_script」）**不改**（纪律），本条款钉死其**执行方式**；判据块 :307-311 一字不动。
+
 - **仓内先例**（构造性共享仍对拍的旁证）：`scene_tests/entity_route_tests.rs:230` `script_surfaces_op_dispatch_cursor_parity()`——同一 `GameScene` 面上 parse/execute 游标一致性仍单列一条对拍测试。
 - **批5 衔接**：对拍抓「接错」，批5 :382 五元组判别器抓「分叉」（求解器预测 vs 真引擎实测），两闸正交，均不因直调删除。
 
@@ -114,16 +125,16 @@
 
 1. **暴露面是否真的最小？**——门面是否只有 §1.1 的 3 个 fn？有没有顺手把 22 个 `op_*`（script_ops.rs:60-316）或 `lock_camera_on`（scene.rs:3191）也开了？有没有改底层 `pub(super)` → `pub`（应零改动）？
 2. **有没有顺手改行为？**——`git diff` 应只见新文件 + scene.rs 一行挂载；`script_ops.rs`/`scene_script.rs`/`script_host.rs` 必须零 diff。
-3. **ScriptHost 面结论是否成立？**——复核 §1.3：`script_host.rs:49` 是否真 pub、`ScriptResolver`（:71-95）是否真的只写脚本域、`script_ops.rs:556-559` 是否真无注入缝（外部 impl ScriptHost 会不会被 GameScene 调用）。
+3. **ScriptHost 面结论是否成立？**——复核 §1.3：`script_host.rs:49` 是否真 pub、`ScriptResolver`（:71-92，游标写 :72）是否真的只写脚本域、`script_ops.rs:556-559` 是否真无注入缝（外部 impl ScriptHost 会不会被 GameScene 调用）。
 4. **execute_script_instruction 进暴露面是否过度？**——若认为 3 个太多，请指出求解器如何在**不复刻** `scene_script.rs:16-24`（依赖私有 `lock_camera_on` scene.rs:3191）的前提下完成行尾收尾与未知 op 停摆。
-5. **行号锚实测性**——抽查本件 ≥6 个行号 sed/grep 复跑，核对与引文一致（引锚漂移是惯犯；另核 `git diff df4e3ea..HEAD` 四文件为空的声明）。
+5. **行号锚实测性**——抽查本件 ≥6 个行号 sed/grep 复跑，核对与引文一致（引锚漂移是惯犯；另核 `git diff df4e3ea..HEAD` 四文件为空的声明；实施后按 §4 Y3 提示重测 scene.rs 锚）。
 6. **门面挂载位置是否正确**——`solver_api` 必须在 scene 树内（scene.rs 挂载），若放 lib.rs 层则 `pub(super)` 转发**编译不过**（可见性物理约束）；复核者可尝试编译验证。
-7. **签名锁是否真锁**——临时改门面 fn 签名，G5 测试必须变红。
-8. **对拍闸是否保留**——计划 :302/:307-311 判据是否原样（尤其 (b) 侧独立实现未被换成门面自证）。
+7. **签名锁与行为锁是否真锁**——临时改门面 fn 签名，G5a 必须变红；临时改接同签名的另一个实现，G5b 行为锁必须变红。
+8. **对拍闸是否保留且 (b) 钉死**——计划 :302/:307-311 判据是否原样；(b) 侧是否严格 = `ScriptEngine`（§5 R1 条款）：grep (b) 侧代码不得出现 `scene::solver_api` / GameScene 解释器驱动，出现即自证、判无效。
 9. **门禁是否全绿**——G1-G4 五项输出是否齐全（13/13、金样 74、trace、ratchet、SKIP=visual-diff 显式）。
-10. **纪律合规**——本件是否只新建这一个文档（`git status` 应只见该 md 新增）；文档头是否注明「用户 2026-11-09 裁定方案 B，批1 前过对抗复核」；未过对抗复核不推送。
+10. **纪律合规**——本件是否只改这一个文档（`git status` 应只见该 md 修改）；文档头是否注明「用户 2026-11-09 裁定方案 B，批1 前过对抗复核」与 2026-11-10 修订记录；未过对抗复核不推送。
 
-## 7. 证据指针表（全部 sed/grep 实测于 HEAD fac2c65）
+## 7. 证据指针表（原测于 HEAD fac2c65；2026-11-10 修订复测于 HEAD 31ac853——四文件 df4e3ea..31ac853 零 diff，锚不变；Y1 勘误已按复核改正）
 
 | # | 事实 | 锚（实测行号） | 级别 |
 |---|---|---|---|
@@ -132,10 +143,10 @@
 | E3 | execute_op = 硬编码 ScriptResolver + match 23 臂 + GIN 尾递归 | `script_ops.rs:554-559`（自建无注入缝）、`:560-586`（match）、`:587-589`（尾递归 :588） | A |
 | E4 | 22 个 `op_*` helper 全 `pub(super)`（第 23 变体 RosNoop 无 helper，`:542` parse 兜底、`:584` 空臂） | `script_ops.rs:60-316`（grep 计数=22） | A |
 | E5 | `parse_op` 体无守卫（越界 panic 面） | `script_ops.rs:401-405`（`:402` 切片） | A |
-| E6 | 行驱动三件套：行尾收尾/未知 op 停摆/execute 调用 | `scene_script.rs:16-24`（守卫+收尾）、`:29`（parse let-else 停摆）、`:35`（execute_op） | A |
+| E6 | 行驱动：行尾收尾/未知 op 停摆/execute 调用 | `scene_script.rs:16-24`（守卫+收尾）、`:29`（parse let-else 停摆）、`:35`（execute_op） | A |
 | E7 | 收尾依赖私有 `lock_camera_on` | `scene.rs:3191`（无 pub） | A |
 | E8 | 模块挂载链（pub(super)=pub(in scene)，门面须挂 scene 树） | `scene.rs:55-56`（script_ops）、`:43-44`（scene_script）、`lib.rs:23`（pub mod scene） | A |
-| E9 | ScriptHost 面 pub 但只写脚本域 | `script_host.rs:48/49`（trait+方法）、`:61`（Resolver）、`:71-95`（实现体）、`subsystem/mod.rs:25` | A |
+| E9 | ScriptHost 面 pub 但只写脚本域（Y1 勘误后） | `script_host.rs:48/49`（trait+方法）、`:61`（Resolver）、`:71-92`（fn 实现体，:72 游标写、:74-80 Gut 臂、:81-88 Ces 臂、:89 Gin→Recurse、:90 其余→Advance；impl 闭 :93）、`subsystem/mod.rs:25` | A |
 | E10 | ScriptOp 已跨 crate pub | `script_ops.rs:6`、`scene.rs:60`、`script_host.rs:31` | A |
 | E11 | 状态/五元组/实体字段全 pub | `scene.rs:282/:411-419`、`combat.rs:51`、`entity.rs:57` | A |
 | E12 | 装载与对拍 harness 面已 pub | `scene_persist.rs:501`、`script.rs:154/:162/:270` | A |
@@ -143,7 +154,9 @@
 | E14 | 计划后门原话 / R7 风险行 | `plans/2026-11-09-solver-implementation-plan.md:224` / `:414` | A |
 | E15 | 计划批1 原案、对拍句、判据块 | 同文件 `:295` / `:302` / `:307-311` | A |
 | E16 | 门禁现状与金样 74 | `gates/cli.py status` 实跑（PASS=13 FAIL=0 SKIP=1 TOLERATED=0）；计划 `:184/:191` | A |
-| E17 | 三问预检出处 | `AGENTS.md:70`（§4 标题）、`:75-77`（三问原文）、`:90`（改 game-core 后跑 trace）、`:36`（game-core 红线） | A |
+| E17 | 三问预检出处 | `AGENTS.md:70`（§4 标题）、`:75-77`（三问原文）、`:90`（改 game-core 跑 trace）、`:36`（game-core 红线） | A |
 | E18 | 对拍先例 | `scene_tests/entity_route_tests.rs:230` | A |
 | E19 | fixture 真相源 68 槽 | `scene.rs:252-253`（include_str）、计划 `:131` | A |
 | E20 | 批5 五元组判别器（字段源 combat.rs:51） | 计划 `:382/:458`（A11） | A |
+| E21 | (b) 钉死依据：GameScene 执行方法门面前跨 crate 不可达、ScriptEngine 为独立解释器 | `script_ops.rs:553`、`scene_script.rs:14`（pub(super)）、`script.rs:154/270`（独立实现，复核实测 script.rs 不 use ScriptOp/GameScene）、计划 `:147` | A |
+| E22 | game-core 无 `[features]` 段（feature gate 对比依据，Y5） | `crates/game-core/Cargo.toml`（grep `features` 无命中，2026-11-10 @31ac853） | A |
