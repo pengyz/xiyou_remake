@@ -4640,6 +4640,10 @@ mod shop_purchase_tests;
 #[path = "scene_tests/item13_use_regression.rs"]
 mod item13_use_regression;
 
+#[cfg(test)]
+#[path = "scene_tests/bug054_down_stair_tests.rs"]
+mod bug054_down_stair_tests;
+
 /// BUG-023 回归（diff-trace 既有红，2026-10-20 根因定位）：道具确认浮层（kind3）
 /// `-7`"回面板"臂在 **ItemPanel 态**调 `transition_to(ItemPanel)`——Java 原版 =
 /// `gameMode = 10` **自赋值**（deobf a.java:3297 `var15.gameMode = 10;`）。TRANSFER_EDGES

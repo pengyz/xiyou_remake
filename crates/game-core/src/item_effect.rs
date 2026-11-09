@@ -20,6 +20,7 @@ pub enum ItemAction {
     MirrorTeleport,
     /// 换层 +1（消耗=change_floor 返回；keyHeld=0+回 Map）
     ChangeFloorUp,
+    ChangeFloorDown,
 }
 
 /// 面板分派目标。
@@ -40,6 +41,7 @@ pub static ITEM_EFFECTS: &[(i32, &[ItemAction])] = &[
     (86, &[ItemAction::KillAdjacent4]),
     (20, &[ItemAction::MirrorTeleport]),
     (21, &[ItemAction::ChangeFloorUp]),
+    (22, &[ItemAction::ChangeFloorDown]),
 ];
 
 /// 表查询：道具型 t 的动作序列。
@@ -137,6 +139,12 @@ impl GameScene {
             }
             ItemAction::ChangeFloorUp => {
                 let consumed = self.change_floor(self.persist.floor + 1, false, false);
+                self.set_key_held(0);
+                self.transition_to(GameMode::Map);
+                consumed
+            }
+            ItemAction::ChangeFloorDown => {
+                let consumed = self.change_floor(self.persist.floor - 1, true, false);
                 self.set_key_held(0);
                 self.transition_to(GameMode::Map);
                 consumed

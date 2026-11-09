@@ -179,7 +179,7 @@
    "evidence": {
     "name": "object_type_names.txt:22",
     "desc": "a.java:906-929 idx8",
-    "effect": "a.java:7863-7866"
+    "effect": "a.java:7863-7867"
    }
   },
   {
@@ -191,15 +191,13 @@
    "desc": "瞬移下行一层\\n\\\\c00ff00[使用次数：1次]",
    "pickup_msg": "瞬移下行一层\\n\\\\c00ff00[使用次数：1次]",
    "effect": {
-    "key": "Passive",
-    "params": {
-     "kind": "AntiNarcissusDamage"
-    }
+    "key": "ChangeFloorDown",
+    "params": {}
    },
    "evidence": {
     "name": "object_type_names.txt:23",
     "desc": "a.java:906-929 idx9",
-    "effect": "描述面：对自恋神仙伤害加倍（道具栏被动）"
+    "effect": "a.java:7868-7872 case22=changeFloor(currentFloor-1,true,false)+keyHeld=0+gameMode=3"
    }
   },
   {
@@ -408,8 +406,8 @@
    "icon": {
     "entity_type": 33
    },
-   "desc": ")",
-   "pickup_msg": ")",
+   "desc": "\\\\cdddddd一根相当长的木制长棍,新手必备.有了它杀人越货不慌不愁.\\n\\\\c00ff00装备: 攻击+10.\\n\\\\cFFCC00\\\"看上去似乎会断掉。\\\".",
+   "pickup_msg": "\\\\cdddddd一根相当长的木制长棍,新手必备.有了它杀人越货不慌不愁.\\n\\\\c00ff00装备: 攻击+10.\\n\\\\cFFCC00\\\"看上去似乎会断掉。\\\".",
    "effect": {
     "key": "Equip",
     "params": {
@@ -419,7 +417,7 @@
    },
    "evidence": {
     "name": "object_type_names.txt:34",
-    "desc": "equipDescriptions[1]（a.java:7633 区）",
+    "desc": "equipDescriptions[1]（a.java:930-945 数组/7644 消费）",
     "effect": "a.java:7632-7648 tryEquip（equip_types[1]）"
    }
   },
@@ -429,8 +427,8 @@
    "icon": {
     "entity_type": 34
    },
-   "desc": "无法再下一层了，这是你达到的最底层",
-   "pickup_msg": "无法再下一层了，这是你达到的最底层",
+   "desc": "\\\\cdddddd乌黑油亮，显然经历过多人之手。\\n\\\\c00ff00装备: 攻击+30.\\n\\\\cFFCC00\\\"很粗很结实！\\\".",
+   "pickup_msg": "\\\\cdddddd乌黑油亮，显然经历过多人之手。\\n\\\\c00ff00装备: 攻击+30.\\n\\\\cFFCC00\\\"很粗很结实！\\\".",
    "effect": {
     "key": "Equip",
     "params": {
@@ -440,7 +438,7 @@
    },
    "evidence": {
     "name": "object_type_names.txt:35",
-    "desc": "equipDescriptions[2]（a.java:7633 区）",
+    "desc": "equipDescriptions[2]（a.java:930-945 数组/7644 消费）",
     "effect": "a.java:7632-7648 tryEquip（equip_types[2]）"
    }
   },
@@ -450,8 +448,8 @@
    "icon": {
     "entity_type": 35
    },
-   "desc": "无法再上一层了，这是你达到的最高层",
-   "pickup_msg": "无法再上一层了，这是你达到的最高层",
+   "desc": "\\\\cdddddd银棍，恩，有这个名字就足够了。\\n\\\\c00ff00装备: 攻击+70.\\n\\\\cFFCC00\\\"只是根银棍\\\".",
+   "pickup_msg": "\\\\cdddddd银棍，恩，有这个名字就足够了。\\n\\\\c00ff00装备: 攻击+70.\\n\\\\cFFCC00\\\"只是根银棍\\\".",
    "effect": {
     "key": "Equip",
     "params": {
@@ -461,7 +459,7 @@
    },
    "evidence": {
     "name": "object_type_names.txt:36",
-    "desc": "equipDescriptions[3]（a.java:7633 区）",
+    "desc": "equipDescriptions[3]（a.java:930-945 数组/7644 消费）",
     "effect": "a.java:7632-7648 tryEquip（equip_types[3]）"
    }
   },
@@ -471,8 +469,8 @@
    "icon": {
     "entity_type": 36
    },
-   "desc": "无法再上去了。",
-   "pickup_msg": "无法再上去了。",
+   "desc": "\\\\cdddddd您的需要，它知道；您的需求，它满足。它好，你也好，龙王后宫，镇宫之宝！\\n\\\\c00ff00装备: 攻击+220.\\n\\\\cFFCC00\\\"不要迷恋它，它只是一根传说。\\\".",
+   "pickup_msg": "\\\\cdddddd您的需要，它知道；您的需求，它满足。它好，你也好，龙王后宫，镇宫之宝！\\n\\\\c00ff00装备: 攻击+220.\\n\\\\cFFCC00\\\"不要迷恋它，它只是一根传说。\\\".",
    "effect": {
     "key": "Equip",
     "params": {
@@ -482,7 +480,7 @@
    },
    "evidence": {
     "name": "object_type_names.txt:37",
-    "desc": "equipDescriptions[5]（a.java:7633 区）",
+    "desc": "equipDescriptions[5]（a.java:930-945 数组/7644 消费）",
     "effect": "a.java:7632-7648 tryEquip（equip_types[5]）"
    }
   },
@@ -492,8 +490,8 @@
    "icon": {
     "entity_type": 37
    },
-   "desc": "你拥有更强力的装备，因此将捡到的丢弃了。",
-   "pickup_msg": "你拥有更强力的装备，因此将捡到的丢弃了。",
+   "desc": "\\\\cdddddd没有太多的装饰，一件非常朴素、轻便的布衣.\\n\\\\c00ff00装备: 防御+10.\\n\\\\cFFCC00\\\"看上去有不少人用过了。\\\".",
+   "pickup_msg": "\\\\cdddddd没有太多的装饰，一件非常朴素、轻便的布衣.\\n\\\\c00ff00装备: 防御+10.\\n\\\\cFFCC00\\\"看上去有不少人用过了。\\\".",
    "effect": {
     "key": "Equip",
     "params": {
@@ -503,7 +501,7 @@
    },
    "evidence": {
     "name": "object_type_names.txt:38",
-    "desc": "equipDescriptions[7]（a.java:7633 区）",
+    "desc": "equipDescriptions[7]（a.java:930-945 数组/7644 消费）",
     "effect": "a.java:7632-7648 tryEquip（equip_types[7]）"
    }
   },
@@ -513,8 +511,8 @@
    "icon": {
     "entity_type": 38
    },
-   "desc": "直到那一天，遇到了她，在筋斗云上的我，竟然第一次心潮起伏，有了晕机的感觉……",
-   "pickup_msg": "直到那一天，遇到了她，在筋斗云上的我，竟然第一次心潮起伏，有了晕机的感觉……",
+   "desc": "\\\\cdddddd保暖御寒，腰不酸，腿不疼，走路也有劲了。\\n\\\\c00ff00装备: 防御+30.\\n\\\\cFFCC00\\\"豹纹，性感又野性，今年天宫最流行的皮草款式\\\".",
+   "pickup_msg": "\\\\cdddddd保暖御寒，腰不酸，腿不疼，走路也有劲了。\\n\\\\c00ff00装备: 防御+30.\\n\\\\cFFCC00\\\"豹纹，性感又野性，今年天宫最流行的皮草款式\\\".",
    "effect": {
     "key": "Equip",
     "params": {
@@ -524,7 +522,7 @@
    },
    "evidence": {
     "name": "object_type_names.txt:39",
-    "desc": "equipDescriptions[8]（a.java:7633 区）",
+    "desc": "equipDescriptions[8]（a.java:930-945 数组/7644 消费）",
     "effect": "a.java:7632-7648 tryEquip（equip_types[8]）"
    }
   },
@@ -534,8 +532,8 @@
    "icon": {
     "entity_type": 39
    },
-   "desc": "神仙动了感情，往往会万劫不复，\\n这一次，让我付出了五百年的时间去忘记她……\\n五指山脚下的沙子，掠过我的脸庞。\\n沙子，跟时间一样，同样随风流逝；同样掩埋过去；\\n多少次伸手想抓住，却从指隙溜走……\\n看夜空，半梦半醒间，往事历历上心头……",
-   "pickup_msg": "神仙动了感情，往往会万劫不复，\\n这一次，让我付出了五百年的时间去忘记她……\\n五指山脚下的沙子，掠过我的脸庞。\\n沙子，跟时间一样，同样随风流逝；同样掩埋过去；\\n多少次伸手想抓住，却从指隙溜走……\\n看夜空，半梦半醒间，往事历历上心头……",
+   "desc": "\\\\cdddddd如果没有上面的那行字，它也算是个杰作。\\n\\\\c00ff00装备: 防御+70.\\n\\\\cFFCC00\\\"上面写着'办四级神仙证书，回收二手莲花宝座'\\\".",
+   "pickup_msg": "\\\\cdddddd如果没有上面的那行字，它也算是个杰作。\\n\\\\c00ff00装备: 防御+70.\\n\\\\cFFCC00\\\"上面写着'办四级神仙证书，回收二手莲花宝座'\\\".",
    "effect": {
     "key": "Equip",
     "params": {
@@ -545,7 +543,7 @@
    },
    "evidence": {
     "name": "object_type_names.txt:40",
-    "desc": "equipDescriptions[9]（a.java:7633 区）",
+    "desc": "equipDescriptions[9]（a.java:930-945 数组/7644 消费）",
     "effect": "a.java:7632-7648 tryEquip（equip_types[9]）"
    }
   },
@@ -555,8 +553,8 @@
    "icon": {
     "entity_type": 40
    },
-   "desc": "mapbg",
-   "pickup_msg": "mapbg",
+   "desc": "\\\\cdddddd东海龙鳞编织而成，限量版，天上天下，只此一款。\\n\\\\c00ff00装备: 防御+220.\\n\\\\cFFCC00\\\"更轻薄，更透气，更多防护，更多安心\\\".",
+   "pickup_msg": "\\\\cdddddd东海龙鳞编织而成，限量版，天上天下，只此一款。\\n\\\\c00ff00装备: 防御+220.\\n\\\\cFFCC00\\\"更轻薄，更透气，更多防护，更多安心\\\".",
    "effect": {
     "key": "Equip",
     "params": {
@@ -566,7 +564,7 @@
    },
    "evidence": {
     "name": "object_type_names.txt:41",
-    "desc": "equipDescriptions[11]（a.java:7633 区）",
+    "desc": "equipDescriptions[11]（a.java:930-945 数组/7644 消费）",
     "effect": "a.java:7632-7648 tryEquip（equip_types[11]）"
    }
   },
@@ -576,8 +574,8 @@
    "icon": {
     "entity_type": 79
    },
-   "desc": "无法再下去了。",
-   "pickup_msg": "无法再下去了。",
+   "desc": "\\\\cdddddd因乘天地之灵气，集日月之精华乃“万木之灵，灵木之尊”。\\n\\\\c00ff00装备: 攻击+120.\\n\\\\cFFCC00\\\"木之精华，削铁断金\\\".",
+   "pickup_msg": "\\\\cdddddd因乘天地之灵气，集日月之精华乃“万木之灵，灵木之尊”。\\n\\\\c00ff00装备: 攻击+120.\\n\\\\cFFCC00\\\"木之精华，削铁断金\\\".",
    "effect": {
     "key": "Equip",
     "params": {
@@ -587,7 +585,7 @@
    },
    "evidence": {
     "name": "object_type_names.txt:80",
-    "desc": "equipDescriptions[4]（a.java:7633 区）",
+    "desc": "equipDescriptions[4]（a.java:930-945 数组/7644 消费）",
     "effect": "a.java:7632-7648 tryEquip（equip_types[4]）"
    }
   },
@@ -597,8 +595,8 @@
    "icon": {
     "entity_type": 80
    },
-   "desc": "sflogo",
-   "pickup_msg": "sflogo",
+   "desc": "\\\\cdddddd华丽的装饰，就是有点旧。\\n\\\\c00ff00装备: 防御+120.\\n\\\\cFFCC00\\\"别人穿过的极品。\\\".",
+   "pickup_msg": "\\\\cdddddd华丽的装饰，就是有点旧。\\n\\\\c00ff00装备: 防御+120.\\n\\\\cFFCC00\\\"别人穿过的极品。\\\".",
    "effect": {
     "key": "Equip",
     "params": {
@@ -608,7 +606,7 @@
    },
    "evidence": {
     "name": "object_type_names.txt:81",
-    "desc": "equipDescriptions[10]（a.java:7633 区）",
+    "desc": "equipDescriptions[10]（a.java:930-945 数组/7644 消费）",
     "effect": "a.java:7632-7648 tryEquip（equip_types[10]）"
    }
   },

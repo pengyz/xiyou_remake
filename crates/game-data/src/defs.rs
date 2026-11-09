@@ -518,6 +518,7 @@ pub enum EffectKey {
     KillAdjacent4,
     MirrorTeleport,
     ChangeFloorUp,
+    ChangeFloorDown,
     TutorialSeenStack,
     Passive { kind: String },
     Key { color: KeyColor },
@@ -782,6 +783,7 @@ fn parse_effect(rec: &Json, path: &str) -> Result<EffectKey, Reject> {
         "KillAdjacent4" => Ok(EffectKey::KillAdjacent4),
         "MirrorTeleport" => Ok(EffectKey::MirrorTeleport),
         "ChangeFloorUp" => Ok(EffectKey::ChangeFloorUp),
+        "ChangeFloorDown" => Ok(EffectKey::ChangeFloorDown),
         "TutorialSeenStack" => Ok(EffectKey::TutorialSeenStack),
         "Passive" => Ok(EffectKey::Passive { kind: need_s("kind")? }),
         "Key" => {

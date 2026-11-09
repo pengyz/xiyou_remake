@@ -40,7 +40,7 @@ def main() -> int:
     src = AOBJ.read_text(encoding="utf-8", errors="replace")
     names = [l.strip() for l in NAMES.read_text(encoding="utf-8").splitlines()]
     descs = java_string_array(src, "this.itemDescriptions = new String[]")
-    equips = java_string_array(src, "equipDescriptions")
+    equips = java_string_array(src, "this.equipDescriptions = new String[]")  # BUG-052 修：锚=赋值 :930（旧锚命中 :219 字段声明→抽 666 串错源）
     # equip_types/bonuses 真源行（scene_persist 硬编码——行锚 2026-11-04 核）
     sp = (ROOT / "crates/game-core/src/scene_persist.rs").read_text(encoding="utf-8")
     et = re.search(r"equip_types: \[([^\]]+)\]", sp).group(1)
@@ -64,8 +64,8 @@ def main() -> int:
         18: ("RemoveAllType", {"target": 11}, "a.java:7812-7825"),
         19: ("Heal", {"mul": 74, "div": 10, "msg_fmt": "增加了{}血量"}, "a.java:7826-7831"),
         20: ("MirrorTeleport", {}, "a.java:7832-7850"),
-        21: ("ChangeFloorUp", {}, "a.java:7863-7866"),
-        22: ("Passive", {"kind": "AntiNarcissusDamage"}, "描述面：对自恋神仙伤害加倍（道具栏被动）"),
+        21: ("ChangeFloorUp", {}, "a.java:7863-7867"),
+        22: ("ChangeFloorDown", {}, "a.java:7868-7872 case22=changeFloor(currentFloor-1,true,false)+keyHeld=0+gameMode=3"),
         23: ("Passive", {"kind": "BindingRope"}, "描述面：捆仙绳（道具栏被动）"),
         24: ("Passive", {"kind": "DamageReflect"}, "描述面：伤害反弹类被动"),
         25: ("Passive", {"kind": "LuckyCoinGoldDouble"}, "a.java killAdjacent 金币加倍=find_item(25)"),
@@ -99,7 +99,7 @@ def main() -> int:
             "desc": equips[tier] if tier < len(equips) else "",
             "pickup_msg": equips[tier] if tier < len(equips) else "",
             "effect": {"key": "Equip", "params": {"tier": tier, "bonus": equip_bonuses[tier]}},
-            "evidence": {"name": f"object_type_names.txt:{t+1}", "desc": f"equipDescriptions[{tier}]（a.java:7633 区）", "effect": f"a.java:7632-7648 tryEquip（equip_types[{tier}]）"},
+            "evidence": {"name": f"object_type_names.txt:{t+1}", "desc": f"equipDescriptions[{tier}]（a.java:930-945 数组/7644 消费）", "effect": f"a.java:7632-7648 tryEquip（equip_types[{tier}]）"},
         })
     rows.sort(key=lambda r: r["id"])
     doc = {

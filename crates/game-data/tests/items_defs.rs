@@ -64,3 +64,38 @@ fn items_reject_bad_param_range() {
     let err = parse_items(&bad).unwrap_err();
     assert!(matches!(err, Reject::FrameIndexOutOfBounds { .. }), "{err:?}");
 }
+
+/// BUG-052 红钉：装备 desc/pickup_msg 正源=equipDescriptions（a.java:930-945），
+/// 不得是 miscTexts 系统提示语（BUG-052 错源标志串）。
+#[test]
+fn bug052_equip_descs_from_equip_descriptions() {
+    let rows = parse_items(ITEMS).expect("items.json 解载");
+    let expect = [
+        (33, "木制长棍", "攻击+10"), (34, "乌黑油亮", "攻击+30"),
+        (35, "银棍", "攻击+70"), (79, "木之精华", "攻击+120"),
+        (36, "龙王后宫", "攻击+220"), (37, "布衣", "防御+10"),
+        (38, "豹纹", "防御+30"), (39, "四级神仙证书", "防御+70"),
+        (80, "华丽的装饰", "防御+120"), (40, "东海龙鳞", "防御+220"),
+    ];
+    for (id, word, stat) in expect {
+        let r = rows.iter().find(|r| r.id == id).unwrap();
+        assert!(r.desc.contains(word) && r.desc.contains(stat),
+            "id{id} desc 应含 equipDescriptions 锚词「{word}·{stat}」，实={:.30}", r.desc);
+        assert_eq!(r.desc, r.pickup_msg, "id{id} desc==pickup_msg（生成器同源）");
+    }
+    for r in &rows {
+        assert!(!r.desc.contains("无法再下一层了"),
+            "id{} desc 不得含系统提示语（BUG-052 错源标志）", r.id);
+    }
+}
+
+/// BUG-053 红钉：id22 下行符=主动 ChangeFloorDown（与 id21 ChangeFloorUp 对称）。
+#[test]
+fn bug053_id22_effect_is_active_change_floor_down() {
+    let rows = parse_items(ITEMS).expect("items.json 解载");
+    let t21 = rows.iter().find(|r| r.id == 21).unwrap();
+    assert!(matches!(t21.effect, EffectKey::ChangeFloorUp), "21=ChangeFloorUp 对称锚");
+    let t22 = rows.iter().find(|r| r.id == 22).unwrap();
+    assert!(matches!(t22.effect, EffectKey::ChangeFloorDown),
+        "22=ChangeFloorDown（BUG-053 修 id22 部分），实={:?}", t22.effect);
+}
