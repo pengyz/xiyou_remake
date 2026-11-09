@@ -1013,3 +1013,54 @@ Evidence: A 级——a.java:3129-3168 公共尾 + switch 区间无 return；实�
 - 计划：**批9 一并修**（+op_gin：`if let Some(v) = gain_gold(..) {
   popups.spawn(4, v, px, py, ..) }`——先对拍 a.java:8439 浮层四参语义）。
 - trace id：N/A（静态对拍：复核件 docs/findings/reviews/2026-11-07-p2-batch6-review.md 面2）。
+
+## BUG-052 装备 desc 错源（P1-1 数据生成缺陷·Stage B）
+
+- 现象：`data/tables/items.json` id 33-40/79/80（十件装备）的 desc/pickup_msg
+  取自 `miscTexts` **系统提示语**（如 id34 玄铁棒 desc=「无法再下一层了，这是你
+  达到的最底层」、id37=「你拥有更强力的装备，因此将捡到的丢弃了。」、id38=
+  「直到那一天，遇到了她，在筋斗云上的我…」），正源应为 `equipDescriptions`
+  （a.java:934+「一根相当长的木制长棍…装备: 攻击+10.」）。
+- 复现：`python3 -c "import json; [print(r['id'], r['desc'][:20]) for r in
+  json.load(open('data/tables/items.json'))['rows'] if r['id'] in (34,37,38)]"`
+  ↔ `sed -n '438,446p' reference/src/deobf/a.java`（miscTexts 同文）。
+- 影响：物品栏显示文案错（装备显示系统提示语）；不影响数值/行为。属 P1-1
+  `tools/item-defs/gen_items.py` 取源错位或 items.json 系旧版生成（须复跑生成器
+  对拍定谳是哪种）。
+- 登记：2026-11-09（DDDSA 求解器数据层扫描·盘 32 件物品四问时发现）。
+- 计划：与 BUG-053/054 一并修（求解器导入 items.json 前置）。
+- trace id：N/A（静态对拍：items.json desc 字段 vs a.java miscTexts/equipDescriptions）。
+
+## BUG-053 items.json effect 映射错位（22-25 四件·Stage B）
+
+- 现象：id22 下行符 effect 标 `Passive AntiNarcissusDamage`（自恋伤害被动），但
+  desc=「瞬移下行一层」、原版 activateItem（a.java:7790+）**case22=changeFloor
+  (currentFloor−1)**——21/22 是对称主动换层件（case21=+1 已正确标 ChangeFloorUp）。
+  id23 太公杖标 Passive BindingRope、id24 捆仙绳标 Passive DamageReflect，与
+  desc 语义（23=役使天神力士威力加倍/24=对自恋神仙伤害加倍）也对不上。
+- 复现：`grep -A2 '"id": 22' data/tables/items.json` ↔ `sed -n '7790,7816p'
+  reference/src/deobf/a.java`（case21/22 换层实文）。
+- 影响：①求解器若按 items.json effect 建模=按错效果算 ②Rust 侧 23/24/25 被动
+  效果全仓零实现（grep BindingRope|DamageReflect|AntiNarcissus|LuckyCoin 在
+  game-core 零命中；原版被动消费判定点亦未定位——原版 activateItem 对 15/23/24/25
+  是空分支 default break，生效点在战斗/经济侧待考证）。
+- 登记：2026-11-09（同上扫描；effect_registry.rs:117-120 (22,23,24,25) 全标
+  Passive+Stack 型 :625-626 为 Rust 侧证据）。
+- 计划：先考证原版被动判定点（23/24/25 究竟在哪生效/是否原版也无效果），再改
+  effect 标注真值；22 改主动 ChangeFloorDown（与 BUG-054 同修）。
+- trace id：N/A（静态对拍：effect_registry.rs:117-120 vs a.java:7790-7816）。
+
+## BUG-054 Rust 下行符使用空转（保真缺口·可达）
+
+- 现象：原版使用下行符=changeFloor(currentFloor−1)（a.java case22，keyHeld=0）；
+  Rust `ITEM_EFFECTS`（item_effect.rs:33-44）仅 10 行（13/14/16/17/18/85/19/86/
+  20/21）**无 22**，`ChangeFloorDown` 在 crates/ 全仓零命中，`item_actions(22)`
+  走 None 分支——按使用键**无任何效果**。
+- 复现：`grep -rn "ChangeFloorDown" crates/` = 0 命中；`grep -n "22" crates/
+  game-core/src/item_effect.rs`（表内无 22 行）。
+- 影响：Stage A 行为不一致（原版可换层、Rust 原地不动）；74 金样恰好零覆盖
+  「使用下行符」场景故全绿幸存。上行符（21 ChangeFloorUp）已实现，21/22 应对称。
+- 登记：2026-11-09（求解器数据层扫描终核实锤）。
+- 计划：补 case22 实现（对拍 a.java case21/22 对称语义+keyHeld=0）+TDD 红钉
+  （下行符使用→层数−1）+金样零重冻核验；与 BUG-052/053 同批修。
+- trace id：N/A（静态对拍：item_effect.rs:33-44 vs a.java:7790+ case21/22）。
