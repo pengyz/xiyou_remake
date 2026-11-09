@@ -2567,7 +2567,7 @@
         sc.handle_field_input();
         assert_eq!(sc.walk_phase, 2, "前置：观察模式");
         assert!(!sc.view_locked);
-        let (cx0, cy0) = (sc.view.cam_x, sc.view.cam_y);
+        let (cx0, _cy0) = (sc.view.cam_x, sc.view.cam_y);
         // 向右拖 3 拍（每拍 16px）：内容跟手（cam+dx，复核 T4-R2 裁定）
         let mut moved = 0;
         for _ in 0..3 {

@@ -1,4 +1,3 @@
-    use crate::render::FontMetrics;
     use super::scene_test_support::{images, maplv, numbers, scene, SceneSetup, apply_setup};
     use super::*;
 

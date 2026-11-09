@@ -61,13 +61,13 @@ fn p2b9_shop_swap_yellow_key_gate() {
 fn p2b9_shop_goods_single_source_no_inline_values() {
     let scene_src = include_str!("../scene.rs");
     let start = scene_src.find("fn apply_merchant_offer").expect("fn 在档");
-    // 界定=apply_merchant_offer 函数体（到下一 fn replace_shell_rows 前止——
-    // 超出体的后续 helper 不入判定面；体内注释亦须零字面=过扫更严）。
+    // 界定=apply_merchant_offer 函数体（到 fn camera_at_target(2777) 前止——含
+    // replace_shell_rows(2758-2776)；判定面更宽更严无假绿；体内注释亦须零字面=过扫更严）。
     // 【2026-11-08 更正】原注称 OFFER_TEXTS 报价单文案含「没有足够的金钱」子串
     // ——实测 0 处（复核建议②），失实注释删除：本界真正的意义=单源判定聚焦
     // 买臂效果面（收尾块/报价文案面均为消费方非价格源）。
     let end = scene_src[start..]
-        .find("\n    fn ")
+        .find("fn camera_at_target")
         .map(|i| start + i)
         .unwrap_or(scene_src.len());
     let body = &scene_src[start..end];

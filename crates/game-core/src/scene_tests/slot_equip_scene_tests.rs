@@ -1,4 +1,3 @@
-    use crate::render::FontMetrics;
     use super::*;
     use super::scene_test_support::{SceneSetup, apply_setup};
     use crate::menu_family::slot_equip_test_support::*;
@@ -1077,7 +1076,7 @@
                 bad.push((n, miss));
             }
             if std::env::var("PROBE_DATA_RIGHT").is_ok() {
-                let (mut right, mut map_w) = (0i32, (v.wide as i32) * 32);
+                let (mut right, map_w) = (0i32, (v.wide as i32) * 32);
                 for r in 0..(v.high as i32) * 2 {
                     for c in 0..(v.wide as i32) * 2 {
                         if v.terrain_at(r, c) > 0 {

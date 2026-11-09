@@ -1404,7 +1404,7 @@ impl GameScene {
                 true
             }
             InputStep::InterruptThen(_) => {
-                // pending=StopThen(c) 装配已在 resolver（interrupt_route body=1631-1643 不触 tap_pending，序等价 A 级）
+                // pending=StopThen(c) 装配已在 resolver（interrupt_route body=1633-1643 不触 tap_pending，序等价 A 级）
                 self.interrupt_route();
                 true
             }
