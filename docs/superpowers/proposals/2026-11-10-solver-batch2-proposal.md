@@ -260,7 +260,7 @@ K₀(s) = (pos, ents_digest, flags, keys, bag, atk, def)   # 结构键
 5. **BattleCtx 装配等价**：求解器自备 10 写槽 + `battle_enemy_hp` 分源装配（`subsystem/battle.rs:59-75/:127+`）与 `scene.rs` 真引擎装配路径是否逐位一致，只靠 T2 夹具覆盖是否足够。
 6. **script19 终止边归约**：丢弃 floor2 续跑状态（`MOV_0_1_11` 落点）是否可被批3 回收——BUG-026 注（`scene_persist.rs:374-379`）只证 Java 续跑存在，未证求解器归约无损。
 7. **DC-9 分叉面（2026-11-10 floor1 面关闭）**：实测 `trait_flags_for`（`combat.rs:42-49` = 49\|53\|74⇒1、69⇒2、_⇒0）⇒ floor1 怪 41..46 全 0，批2 闭式分叉面不存在（BR-5 已更正；「23/24」系护符道具 id 非 trait_flags，`combat.rs:162-165`）；DC-9 注现锚 `combat.rs:133`；遗留=**批4 全图重测** 49/53/74/69 型怪。
-8. **RouteEngage 必经点（2026-11-10 存在性关闭）**：**已实测存在**——避敌区 39 格不含出口、0-1 BFS min crossings=3（§3.2）；遗留待复核=T6 断言 `min_kills ≥ 3` 是否足以拦住 findPath 可达性虚高（白走怪格），及 key 经济（7 门 5 钥）下 min_kills=3 的上界可达性、及 Exit#1 本身钥经济可达性（0-1 BFS=门全开口径；若 Exit#1 不可达则 max_hp/min_kills=None 而 reachable=true，T6 形状断言首跑核对）（T6 真层输出核对）。以上 `min_kills` 均为 Exit#1 域口径（§1.4 ②）：脚本出层路 Path B kills=0 已实证，入 reachable/max_hp、不入 min_kills。
+8. **RouteEngage 必经点（2026-11-10 存在性关闭）**：**已实测存在**——避敌区 39 格不含出口、0-1 BFS min crossings=3（§3.2）；遗留待复核=T6 断言 `min_kills ≥ 3` 是否足以拦住 findPath 可达性虚高（白走怪格），及 key 经济（7 门 5 钥）下 min_kills=3 的上界可达性、及 Exit#1 本身钥经济可达性（0-1 BFS=门全开口径；若 Exit#1 不可达则 `min_kills=None` 而 `reachable=true`、`max_hp=Some`（由 Exit#2 路给出，§2.1 不收域）；T6 形状断言 `min_kills:<int>` 此情形 None 变体首跑核对）（T6 真层输出核对）。以上 `min_kills` 均为 Exit#1 域口径（§1.4 ②）：脚本出层路 Path B kills=0 已实证，入 reachable/max_hp、不入 min_kills。
 9. **A 编号归属**：本提案把 A1-A5/A10 正式验收留在批4/批1、A6/A11 留在批5，批2 只背 A7/A8/A9 + 计划 :326-332 自身判据——与计划 §7 表逐行核对是否有越领/漏领。
 10. **route_gen 语法兼容的验收强度**：计划 :322 只说「兼容语法」，本提案 T6 落成「route 逐航点过 route_gen 解析」——是否要把 `route_gen.py` 实跑（含其 BFS 填充三重校验，`route_gen.py:6-7` floor8/14 教训）纳入批2 CI 判据，计划未明说，待裁定。
 
