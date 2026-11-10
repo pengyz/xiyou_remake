@@ -54,6 +54,7 @@ mod scene_dialog;
 
 #[path = "script_ops.rs"]
 mod script_ops;
+#[doc(hidden)] #[path = "scene_solver_api.rs"] pub mod solver_api;
 /// 【task-15 V1】恢复规则归位（类型+表+执行器汇 1，move-only）。
 #[path = "restore_rules.rs"]
 mod restore_rules;
