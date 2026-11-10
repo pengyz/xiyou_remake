@@ -2,7 +2,7 @@
 
 > 2026-11-10。**用户 2026-11-10 裁定「按计划切片走，先出提案再复核」**：本件即求解器实施计划 §4 批2（[solver-implementation-plan.md:316-335](../plans/2026-11-09-solver-implementation-plan.md) 实测范围块）的**设计提案**；先出提案、过对抗复核，通过后另行派工实施。
 > **只立文档：本提案不改任何代码、不改计划。** 实施切片（§5）须待本件过对抗复核后按计划 §9 工作流（:486-494）派工。
-> 全部行号 = 2026-11-10 在当前 HEAD `b976803`（分支 modern）上 sed/grep 实测；`git status` 除既有未跟踪项（`android/build/`、`docs/findings/reviews/*.md`）外树净。**凡本提案未实测者一律标【待复核】，不装实。**
+> 全部行号 = 2026-11-10/11 在当前 HEAD `b976803`（分支 modern）上 sed/grep 实测（2026-11-11 二轮修订新增锚同 HEAD 复测）；`git status` 除既有未跟踪项（`android/build/`、`docs/findings/reviews/*.md`）外树净。**凡本提案未实测者一律标【待复核】，不装实。**
 > ⚠ **引锚漂移提示**：计划正文引用的 `scene.rs` 行号系计划成文时旧 HEAD 所测（如 `try_run_scene` 计划引 `:926`、踩格引 `:4068`），本仓 scene.rs 此后 +1（`scene_solver_api.rs:36-38` Y3 已登记同源漂移）。**本提案一律以 HEAD `b976803` 实测值为准**：`try_run_scene` :927、踩格 :4069、`try_step` :3315、门臂 :3386。
 
 ## 0. 裁定与边界
@@ -88,7 +88,8 @@
 **解与合法性**（单层切面）：动作序列 `π = a₁…aₙ`，转移 `T(s,a)`；`π` 合法 ⇔ 每步 `T(s,a) ≠ ⊥`（Refused/越界/无钥撞门=⊥，不可行边，**不产生状态**）∧ 终态 `sₙ.pos ∈ Exit`（§2.1 出口集合）。QoL 位（筋斗云捡否）在批2 **记录不作硬约束**——单层无「全收集是否达成」的全局判定面，硬约束随批3 层间传播生效（计划 :21 是全局口径；本条是切面顺延，待复核确认不构成对 :21 的削弱）。
 
 - **① max_hp**：`max_hp = max_{π 合法} hp(sₙ)`，`route_hp = argmax`（并列取步数少者——tie-break 钉死为确定性的一部分，§3.3）。floor1 无治疗动作（UseItem 裁出）⇒ `hp(sₙ) ≤ hp(s₀)`，天然可断言。
-- **② min_kills**：`min_kills = min_{π 合法} kills(π)`，其中 `kills(π) = |{i : aᵢ = BumpEnemy ∧ T(s,aᵢ)≠⊥}|`。**Refused 不计杀**由「⊥ 不产生状态」直接推出，与计划 :334 TDD 起手式（「杀不过则 Refused 不计杀」）同构。
+- **② min_kills**：`min_kills = min_{π 合法 ∧ sₙ.pos ∈ Exit#1} kills(π)`，其中 `kills(π) = |{i : aᵢ = BumpEnemy ∧ T(s,aᵢ)≠⊥}|`。**Refused 不计杀**由「⊥ 不产生状态」直接推出，与计划 :334 TDD 起手式（「杀不过则 Refused 不计杀」）同构。**量化域 = Exit#1（步行楼梯），2026-11-11 二轮 R2-1 裁定，理由三条**：(1) 二轮复核实证存在经 Exit#2 的合法路 **Path B**（黄钥(5,10) 0杀→门(6,9)→gate19→slot19 四腿 find_path 全通→(11,1) 换层；机制链 `scene_script.rs:48-54` 保步数、`scene.rs:3841-3843` 胜利重步、`scene.rs:3255` 续走，本件静态复测在位），其 `kills(π)=0`——脚本内三战是 `T(s,a)` 内部演化，非求解器动作；(2) **度量与答案在脚本域分叉**：0 是「无主动交战」而非「杀 0 怪」（实际三战三杀），拿它答用户 Q2「最少杀怪」= 把杀 3 只误报为 0；**Exit#1 域内两口径重合**（纯步行、无脚本执行，每次 BumpEnemy 胜=一杀），度量与答案同平面；(3) 若入域，凡有出口脚本的层 `min_kills` 恒 0 ⇒ Q2 失去层间区分度、批3 全局 Q2 被脚本边架空；且 `min_kills` 带路线须为出层航点序列（计划 :321/:322），脚本路航点止于触发格、出层段无玩家动作。Exit#2 不因此作废：全额入 `reachable` 与 `max_hp`（:112）。域内下界 `min_kills ≥ 3`（0-1 BFS 实测，§3.2-5；上界=3 的钥经济可达性与 Exit#1 本身可达性 = T6 核对，BR-6）。
+
 - **③ 变体（禁终极装备）**：批2 不实现（计划归批4 A3）；形式化上= 合法性追加 `equip ∩ {36,40} = ∅`（`state.rs` `Q3_EQUIP_SET`，批0 裁定常量），单层内因 UseItem/Equip 裁出而**恒真**——批2 无需动作即满足，故不占切片。
 
 **多目标怎么合：提案 = 不合，双查询独立出解，理由三条**：
@@ -108,8 +109,8 @@
 - **入口 = `(6,11)`**：`scene_persist.rs:426-427` `else if floor == 1 && !went_down { place_player_at_cell(6, 11) }`（`swap_floor` :410-434 落点特例之一；同链另有 floor0→(1,2) :421、floor50→(6,7) :424、其余 `find_floor_gate` :435 踢下楼梯）。**census 实测（55 sprite 全扫，A 级，2026-11-10 对抗复核后更正）：全仓有 3 处楼梯 param&0xff==1 指向 floor1**——sprite0 type7 param=257(0x0101)@(1,1)、sprite2 type8 param=1@(1,1)、sprite54 type7 param=1@(7,1)（floor1 自身 type7 extra=0200 param=2 无误）；另 `change_floor(1,…)` 调用点= `scene.rs:2254`（菜单 case17 跳层，带 hp/atk/def 改写）与 `item_effect.rs:141` `ChangeFloorUp`（floor+1）。**入口特例只覆盖 `!went_down` 分支**（`scene_persist.rs:426`）：上行进 floor1（down=false：floor0/54 的 type7、菜单、上行符）→ (6,11)；**下行进 floor1**（sprite2 type8→1，went_down=true）→ `swap_floor` 走 `find_floor_gate(went_down)`（`scene_persist.rs:435`，`want=if up{7}else{8}`）→ 找 type7 → floor1 有 t7@(11,1) → `step_off_stairs` **落点 (11,1)=出口格本身**（旧主张「无 type8 ⇒ 不落点」作废，见文末勘误注）。solve-local 批2 钉入口=(6,11)（覆盖 `!went_down` 路径=判据面）；下行进入分支的换层语义归批3 层间边，单层 MVP 不跑（见 §6-3）。
 - **出口集合 `Exit`**：
   1. **上行楼梯**：type7 @px352,py32=(11,1)，`param=2` → floor2（census + `scene.rs:4077-4082` change :4080）。这是 floor1 自身记录中**唯一**楼梯（floor1 census 无 type8；他层进入走 §2.1 特例与 §6-3）。
-  2. **脚本换层边**：`StepGate` 触发的脚本内 MOV 踩梯/change_floor（§2.2）——归约为「已离开本层」的终止边，记录 `pending_floor`（`scene_persist.rs:386`）为目标层，**不展开跨层**（批3）。
-- 单层 MVP **不区分**两种出口的「优劣」：`reachable` = 任一出口可达；`max_hp/min_kills` 在出口集合上取最优。
+  2. **脚本换层边**：`StepGate` 触发的脚本内 MOV 踩梯/change_floor（§2.2）——归约为「已离开本层」的终止边，记录 `pending_floor`（`scene_persist.rs:386`）为目标层，**不展开跨层**（批3）。**该边入 `reachable`/`max_hp`，不入 `min_kills` 量化域**（§1.4 ②）。
+- 单层 MVP 的量化域（2026-11-11 二轮裁定）：`reachable` = 任一出口可达（Exit = Exit#1 ∪ Exit#2）；`max_hp` = 在**全部合法路**上取最大（**含 Exit#2**——hp 是转移的直接观测、无计数口径问题，脚本域不失真；脚本终态 hp 读于 `pending_floor` 置位时刻、尚未跨层，BR-1 丢弃的只是 floor2 续跑位置、不影响 hp）；`min_kills` = 只在**终态 ∈ Exit#1** 的合法路上取最小（域裁定三条理由见 §1.4 ②）。`max_hp` 不随 `min_kills` 收域：计划 :321 对 `max_hp` 未限出口域，收域反而使「仅脚本可出层」的层失真为 None；两查询域不同不产生断言矛盾（T3(iii) 已改写为 Exit#1 域内断言，见 §3.1）。
 
 ### 2.2 脚本触发如何进转移
 
@@ -122,7 +123,7 @@ floor1 三个 type83 门（census 实测）：`param=19 @（6,9）`、`param=66 
    ⇒ floor1 实际可达脚本只有 **slot19**；66/67 两门进状态（flags 位）但转移恒 ⊥，用红测试钉死（§3.1-T9）。
 2. **执行**（过门后）：`scene.rs:4073` `load_level_script(param)` → 逐指令 `scene_solver_api.rs:59`，驱动复用 `script_abs.rs:191` `side_a::drive`（批1 已对拍过该面的 A/B 等价，A10 :457）。
 3. **终态读回并回抽象态**：`side_a::drive` 返回的 `Obs`（`script_abs.rs:191`；`flags` 字段 `script_abs.rs:76`，`:208` 克隆 `script_line_flags` 灌入；另有 stats/px/py/entities）→ 并入 `s'`；difficulty/floor 用 `Snapshot::from_scene`（`script_abs.rs:118`，Obs 无此二字段）补读；`script_line_flags[idx]=true` 使门不可重入（幂等）。
-4. **脚本内换层（floor1 特有边界）**：slot19 尾 `MOV_0_11_1 MOV_0_1_11`——MOV 把玩家**走上 (11,1) 梯格**触发 `change_floor(2,…)`，剩余指令在 floor2 续跑（`scene_persist.rs:374-379` BUG-026 更正注原话，Java mode11 续跑 fx-chang-e-floor1-taps T786）。**批2 归约**：harness 驱动中一旦 `persist.pending_floor` 被置（`:386`），即停驱、把该转移记为**终止边**（出口=脚本换层边，目标层 2），不执行 `swap_floor`、不展开续跑。丢弃的 floor2 续走状态（`MOV_0_1_11` 落点）= BR-1 风险面（§4.2），批3 层间边必须回收。
+4. **脚本内换层（floor1 特有边界）**：slot19 尾 `MOV_0_11_1 MOV_0_1_11`——MOV 把玩家**走上 (11,1) 梯格**触发 `change_floor(2,…)`，剩余指令在 floor2 续跑（`scene_persist.rs:374-379` BUG-026 更正注原话，Java mode11 续跑 fx-chang-e-floor1-taps T786）。**批2 归约**：harness 驱动中一旦 `persist.pending_floor` 被置（`:386`），即停驱、把该转移记为**终止边**（出口=脚本换层边，目标层 2），不执行 `swap_floor`、不展开续跑。丢弃的 floor2 续走状态（`MOV_0_1_11` 落点）= BR-1 风险面（§4.2），批3 层间边必须回收。该终止边入 `reachable`/`max_hp`、不入 `min_kills` 量化域（§1.4 ②）。
 
 ### 2.3 暗墙/隐藏门（probe）如何建模
 
@@ -146,14 +147,14 @@ floor1 三个 type83 门（census 实测）：`param=19 @（6,9）`、`param=66 
 | T3 | `max_hp`/`min_kills` 单调性断言（口径本提案钉死，见下） | :330「hp/kills 单调性断言绿」 | 预演 A1/A2（正式归批4） |
 | T4 | 手工夹具有钥开门/无钥阻挡（`consume_key_for_door` 直调进转移；钥匙数变化断言） | :320「开门（consume_key_for_door）」 | 批2 自身判据 |
 | T5 | floor1 census 快照：13×13、type7×1@(11,1)→2、type1×7、type26×5、type15×1、type83×3{19,66,67}、type12/type6=0——**断言挂 solve_local 的 fixture 装载路径**（未实现⇒红；直调 census.rs 既有断言=写时即绿，计划 :301/:314 B 类不得当红） | :327 `--floor 1` fixture 前置 | 防夹具漂（A9 同族） |
-| T6 | floor1 端到端：`solve-local --floor 1` 输出 JSON 形状 `{"floor":1,"reachable":true,"max_hp":<int>,"min_kills":<int>,"confidence":"bounded-best","route":[…]}`（逐字段类型断言，防空过）+ **`min_kills ≥ 3` 断言**（§3.2 实测下界） | :327-328 预期输出（形状） | 预演 A1/A2 形状（正式归批4） |
+| T6 | floor1 端到端：`solve-local --floor 1` 输出 JSON 形状 `{"floor":1,"reachable":true,"max_hp":<int>,"min_kills":<int>,"confidence":"bounded-best","route":[…]}`（逐字段类型断言，防空过）+ **`min_kills ≥ 3` 断言**（§3.2 实测下界；域=Exit#1，§1.4 ②） | :327-328 预期输出（形状） | 预演 A1/A2 形状（正式归批4） |
 | T7 | **findPath 对拍**：同层同起终点，`find_path` 的 found ⇔ solver BFS 的 found（floor1 全格对 + 暗墙夹具格对） | §5 R2 :409 对策「与 findPath 对拍（批2）」 | 批2 强制（R2 落地） |
 | T8 | 暗墙夹具：type12 撞前不可达/撞后 type11 仍阻挡/凿开语义不在批2（断言 type 不变性）；type6 踩后显形；**+型69..75 胜利 A 类换层手工夹具**（计划 :320 范围，floor1 真层无此类怪、真层不跑）——断言经 solve_local 夹具求解路径触发（直调既有测试只作回归护栏，计划 :301） | §2.3 建模 + R2；:320 范围 | 批2 夹具面 |
-| T9 | type83 三分支：case19 踩格触发（from_walk=true 才跑、flags 置位后不可重入）、case66 恒不触发、case67 difficulty=0 不触发——**断言经 solve_local StepGate 转移层**（未实现⇒红，计划 :314） | :320「层内脚本触发」 | 批2 自身判据 |
+| T9 | type83 三分支：case19 踩格触发（from_walk=true 才跑、flags 置位后不可重入）、case66 恒不触发、case67 difficulty=0 不触发——**断言经 solve_local StepGate 转移层**（未实现⇒红，计划 :314）；终止边入 reachable/max_hp、不入 min_kills 量化（§1.4 ②） | :320「层内脚本触发」 | 批2 自身判据 |
 | T10 | **确定性**：同输入双跑，`route/max_hp/min_kills` 逐字节相等（测试内双跑 + 判据命令双跑 `diff` 两层） | A5 :452 形状（批2 起步实现） | 预演 A5（正式归批4） |
 
 **T3 单调性口径（计划只写「单调性」三字，本提案钉死具体断言，待复核确认）**：
-(i) `reachable=false ⇒ max_hp=min_kills=None`；(ii) `reachable=true ⇒ max_hp ≤ hp(s₀)`（无治疗子集）；(iii) `min_kills ≤ kills(route_max_hp)`。（旧 (iv)「杀数上限 k 参数化单调性」依赖批2 未承诺的 k 参数化，已按复核黄项删除；若批3 引入 k 参数化再补。）
+(i) `reachable=false ⇒ max_hp=min_kills=None`；(ii) `reachable=true ⇒ max_hp ≤ hp(s₀)`（无治疗子集）；(iii) **域内下界**：对每条终态 ∈ Exit#1 的合法路 π 有 `min_kills ≤ kills(π)`——测试实例化：`route_min_kills` 取等号、夹具内可枚举的 Exit#1 路逐一断言；`route_max_hp` 终态 ∈ Exit#1 时亦须满足，终态 ∈ Exit#2 时不参与（kills 计数在脚本域与实际杀怪分叉，域外不比）。（旧跨域写法在 Path B 下为假，已按二轮 R2-1 更正，见 §8-9。）（旧 (iv)「杀数上限 k 参数化单调性」依赖批2 未承诺的 k 参数化，已按复核黄项删除；若批3 引入 k 参数化再补。）
 
 **§7 A 编号归属总表（与计划逐条对齐）**：
 
@@ -171,8 +172,8 @@ floor1 三个 type83 门（census 实测）：`param=19 @（6,9）`、`param=66 
 1. **判据硬编码**：计划 :327 `solve-local --floor 1`——改层=改计划，本提案不改计划 ⇒ fixture 必须 floor1。
 2. **真地形先例**：`walk_replay_floor1.rs` 已用真实 maplv1+sprite1 跑通 13×13 可通行面（计划 §2.8 :185 引），批2 可直接复用同一 fixture 源。
 3. **真格 13×13**：批0 b38b694 考证（maplv1 头 26×26 raw→>>1），规模小到状态空间可穷举论证（§4.1）。
-4. **动作覆盖好**：单出口上行无歧义（(11,1) param→2）；**7 黄门+5 黄钥匙**覆盖开门经济（耗钥/无钥双侧可断言）；11 只弱怪（type41-46）覆盖战斗闭式双侧（能杀/杀不过由 T2 夹具补足）；**3 个 type83 覆盖 try_run_scene 三分支**（T9）；**脚本19 换层边覆盖「脚本触发离开本层」边界**（§2.2.4）；QoL 件筋斗云 type15×1 恰在本层（QoL 位有真值可断言）。
-5. **必经点已裁定（2026-11-10 A 级实测）**：**存在必经点，min_kills ≥ 3**——避敌（11 敌格全避、门全开）可达区仅 39 格、出口 (11,1) 不在区内；0-1 BFS min crossings=3，最优路必穿 (7,1)type41、(8,1)type42、(9,1)type41（门+怪全可通行时可达 78 格含出口；`walk_replay_floor1.rs:38`「怪物格阻挡」注佐证）。T6 断言 `min_kills ≥ 3`。
+4. **动作覆盖好**：单出口上行无歧义（(11,1) param→2）；**7 黄门+5 黄钥匙**覆盖开门经济（耗钥/无钥双侧可断言）；11 只弱怪（type41-46）覆盖战斗闭式双侧（能杀/杀不过由 T2 夹具补足）；**3 个 type83 覆盖 try_run_scene 三分支**（T9）；**脚本19 换层边覆盖「脚本触发离开本层」边界**（§2.2.4；该边入 reachable/max_hp、不入 min_kills 量化域，§1.4 ②）；QoL 件筋斗云 type15×1 恰在本层（QoL 位有真值可断言）。
+5. **必经点已裁定（2026-11-10 A 级实测）**：**存在必经点，min_kills ≥ 3**——避敌（11 敌格全避、门全开）可达区仅 39 格、出口 (11,1) 不在区内；0-1 BFS min crossings=3，最优路必穿 (7,1)type41、(8,1)type42、(9,1)type41（门+怪全可通行时可达 78 格含出口；`walk_replay_floor1.rs:38`「怪物格阻挡」注佐证）。T6 断言 `min_kills ≥ 3`（**Exit#1 域**——0-1 BFS 口径=步行出层；二轮实证脚本出层路 Path B kills=0 不入域，§1.4 ②；本下界在域内恒真，与 Path B 不矛盾）。
 6. **短板显式声明**：floor1 无 type12/type6 暗墙、无商店——由 T8 夹具、批3 承接，**不假装 floor1 覆盖**。
 
 ### 3.3 确定性怎么钉（同输入两次同解）
@@ -227,7 +228,7 @@ K₀(s) = (pos, ents_digest, flags, keys, bag, atk, def)   # 结构键
 | BR-3 | **find_path 非最短/有怪癖**（扩展上限 100、cost=曼哈顿和）：拿它当最短路会静默错 | `pathfind.rs:1-16` 头注、`:55` | 可达性=find_path、最短=BFS 自算，**只对拍 found 不对拍路径**（T7）；路径正确性由 T6 真层回放语义钉 |
 | BR-4 | **difficulty 门**：case67 在非默认难度下触发，钉 difficulty=0 若与批4 query 的实际难度面不符 ⇒ 漏转移 | `scene.rs:1032`；默认 0 `scene_persist.rs:133` | 批4 接 query 前复核菜单改值路径【待复核 §6-4】；solve-local 输出带 `difficulty` 字段占位 |
 | BR-5 | **闭式与引擎分叉（DC-9）**：`predictHpLossVsType` 桥已删（缺 23/24 护符二倍加成）。**2026-11-10 实测：分叉面在 floor1 不存在**——`trait_flags_for`（`combat.rs:42-49`）= `49\|53\|74⇒1, 69⇒2, _⇒0`，floor1 怪 41..46 全部 trait_flags=0；「含 23/24」系护符**道具 id**（TRAIT1/TRAIT2_AMULET=23/24，`combat.rs:162-165`）非 trait_flags | `combat.rs:133`（DC-9 注起）、`:42-49`、`:162-165` | 批2 无需动作；**批4 全图重测** 49/53/74/69 型怪（命中 → 该类怪改走 harness `resolve_bump` 直读结论，登记 finding） |
-| BR-6 | **RouteEngage 裁出破功（必经点）**：findPath「实体槽可通行」把怪格当可走 ⇒ 可达性虚高。**2026-11-10 实测：必经点存在**（避敌区 39 格不含出口、min crossings=3）⇒ 该风险 concrete | `scene.rs:2046` 途中面；`pathfind.rs:11` 可通行=terrain‖实体槽；避敌区/0-1 BFS 实测（§3.2） | T6 断言 `min_kills ≥ 3` + 路线中路过怪格必须建模为 BumpEnemy 动作（不许白走，T2 夹具同族）；min_kills=3 上界在 key 经济（7 门 5 钥）下是否可达 = T6 真层输出核对 |
+| BR-6 | **RouteEngage 裁出破功（必经点）**：findPath「实体槽可通行」把怪格当可走 ⇒ 可达性虚高。**2026-11-10 实测：必经点存在**（避敌区 39 格不含出口、min crossings=3）⇒ 该风险 concrete | `scene.rs:2046` 途中面；`pathfind.rs:11` 可通行=terrain‖实体槽；避敌区/0-1 BFS 实测（§3.2） | T6 断言 `min_kills ≥ 3`（Exit#1 域，§1.4 ②）+ 路线中路过怪格必须建模为 BumpEnemy 动作（不许白走，T2 夹具同族；Exit#1 域内 kills=实际杀怪，白走漏杀必被 ≥3 断言拦下）；min_kills=3 上界在 key 经济（7 门 5 钥）下是否可达、及 Exit#1 本身钥经济可达性（0-1 BFS=门全开口径）= T6 真层输出核对 |
 | BR-7 | **UseItem 裁出 ⇒ max_hp 非全局最优** | §1.2 裁剪声明 | 输出 `confidence=bounded-best` 不冒充 optimal（A1 :448 三态自洽）；复核若驳 → 加 C6b 切片（+0.5d） |
 
 ---
@@ -242,7 +243,7 @@ K₀(s) = (pos, ents_digest, flags, keys, bag, atk, def)   # 结构键
 | **C2** | 手工 3×3 夹具 + 可达性（find_path 直调 + BFS 自算）+ 战斗 Refused（BattleCtx 直调 resolve_bump） | T2 红（能杀/杀不过两例）→ 绿 | `cargo test -p game-solver solve_local` T2 绿；A9 纯度 grep 0 命中 | 0.5d |
 | **C3** | 目标函数：max_hp / min_kills 双查询（同骨架两代价泛型 + Pareto 支配） | T3 单调性红 → 绿 | T3 三断言 (i)-(iii) 绿；并列 tie-break 有断言 | 0.5d |
 | **C4** | 开门转移（`consume_key_for_door` 直调）+ 钥匙经济 | T4 红（有钥开/无钥挡）→ 绿 | T4 绿；T5 census 快照绿（floor1 7 门 5 钥进 fixture） | 0.25d |
-| **C5** | 脚本触发转移（门面 execute_script + side_a drive + Snapshot 读回 + pending_floor 终止边） | T9 红（三分支）→ 绿 | T9 绿；slot19 触发→终止边断言；66/67 恒不触发断言 | 0.5d |
+| **C5** | 脚本触发转移（门面 execute_script + side_a drive + **Obs 读回** flags/stats/px/py/entities（`script_abs.rs:191`，flags 字段 `:76`）+ Snapshot 补 difficulty/floor（`:118`）+ **harness 读 `scene.persist.pending_floor`**（`scene_persist.rs:386`，非 Snapshot/Obs 字段）作终止边） | T9 红（三分支）→ 绿 | T9 绿；slot19 触发→终止边断言（入 reachable/max_hp、不入 min_kills 量化，§1.4 ②）；66/67 恒不触发断言 | 0.5d |
 | **C6** | floor1 端到端 + route 序列化（route_gen 航点语法）+ 确定性双跑 | T6/T10 红 → 绿 | 计划判据 :327-328 四条命令全绿（含 `gates check` :331）；route 逐航点过 `route_gen.py` 语法（`route_gen.py:12-15`） | 0.5d |
 | **C7** | findPath 对拍 + 暗墙夹具 + 回归收尾 | T7/T8 红 → 绿 | T7/T8 绿；A7 金样绿、A8 门禁绿、A9 纯度绿、A10 对拍不回退 | 0.25d |
 
@@ -259,7 +260,7 @@ K₀(s) = (pos, ents_digest, flags, keys, bag, atk, def)   # 结构键
 5. **BattleCtx 装配等价**：求解器自备 10 写槽 + `battle_enemy_hp` 分源装配（`subsystem/battle.rs:59-75/:127+`）与 `scene.rs` 真引擎装配路径是否逐位一致，只靠 T2 夹具覆盖是否足够。
 6. **script19 终止边归约**：丢弃 floor2 续跑状态（`MOV_0_1_11` 落点）是否可被批3 回收——BUG-026 注（`scene_persist.rs:374-379`）只证 Java 续跑存在，未证求解器归约无损。
 7. **DC-9 分叉面（2026-11-10 floor1 面关闭）**：实测 `trait_flags_for`（`combat.rs:42-49` = 49\|53\|74⇒1、69⇒2、_⇒0）⇒ floor1 怪 41..46 全 0，批2 闭式分叉面不存在（BR-5 已更正；「23/24」系护符道具 id 非 trait_flags，`combat.rs:162-165`）；DC-9 注现锚 `combat.rs:133`；遗留=**批4 全图重测** 49/53/74/69 型怪。
-8. **RouteEngage 必经点（2026-11-10 存在性关闭）**：**已实测存在**——避敌区 39 格不含出口、0-1 BFS min crossings=3（§3.2）；遗留待复核=T6 断言 `min_kills ≥ 3` 是否足以拦住 findPath 可达性虚高（白走怪格），及 key 经济（7 门 5 钥）下 min_kills=3 的上界可达性（T6 真层输出核对）。
+8. **RouteEngage 必经点（2026-11-10 存在性关闭）**：**已实测存在**——避敌区 39 格不含出口、0-1 BFS min crossings=3（§3.2）；遗留待复核=T6 断言 `min_kills ≥ 3` 是否足以拦住 findPath 可达性虚高（白走怪格），及 key 经济（7 门 5 钥）下 min_kills=3 的上界可达性、及 Exit#1 本身钥经济可达性（0-1 BFS=门全开口径；若 Exit#1 不可达则 max_hp/min_kills=None 而 reachable=true，T6 形状断言首跑核对）（T6 真层输出核对）。以上 `min_kills` 均为 Exit#1 域口径（§1.4 ②）：脚本出层路 Path B kills=0 已实证，入 reachable/max_hp、不入 min_kills。
 9. **A 编号归属**：本提案把 A1-A5/A10 正式验收留在批4/批1、A6/A11 留在批5，批2 只背 A7/A8/A9 + 计划 :326-332 自身判据——与计划 §7 表逐行核对是否有越领/漏领。
 10. **route_gen 语法兼容的验收强度**：计划 :322 只说「兼容语法」，本提案 T6 落成「route 逐航点过 route_gen 解析」——是否要把 `route_gen.py` 实跑（含其 BFS 填充三重校验，`route_gen.py:6-7` floor8/14 教训）纳入批2 CI 判据，计划未明说，待裁定。
 
@@ -296,9 +297,9 @@ K₀(s) = (pos, ents_digest, flags, keys, bag, atk, def)   # 结构键
 
 ---
 
-## 8. 修订勘误注（2026-11-10 对抗复核后原地更正）
+## 8. 修订勘误注（2026-11-10 一轮 / 2026-11-11 二轮 对抗复核后原地更正）
 
-> 依据 `docs/findings/reviews/2026-11-10-solver-batch2-proposal-review.md`（红6·黄项）修订；按 AGENTS.md §3 证伪更正文化，旧主张在此留痕、不删历史：
+> 依据 `docs/findings/reviews/2026-11-10-solver-batch2-proposal-review.md`（一轮：红6·黄8）与 `docs/findings/reviews/2026-11-10-solver-batch2-proposal-review-r2.md`（二轮：红1·黄1）两轮修订；按 AGENTS.md §3 证伪更正文化，旧主张在此留痕、不删历史（条 1-8=一轮，条 9-10=二轮）：
 
 1. **scene_persist 行号漂移（红6-R6）**：旧引 → 现值（本批 sed 实测）：BUG-026 注 `:371-378` → **`:374-379`**；`swap_floor` `:413-437` → **`:410-434`**；`find_floor_gate` `:438-446` → **`:435-443`**；floor0 落点 `:423` → **`:421`**；floor50 落点 `:425` → **`:424`**；（floor1 落点 `:426-427` 复测无误）。E19 范围同步 `:413-446` → `:410-443`。
 2. **combat DC-9 锚（红6-R6）**：`combat.rs:131+` → **`:133`**（DC-9 注起始行实测）。
@@ -308,3 +309,5 @@ K₀(s) = (pos, ents_digest, flags, keys, bag, atk, def)   # 结构键
 6. **拾取 pub（红6-R3）**：`pickup_item_type`（scene.rs:4221）为**私有** fn——红线表改经 pub `try_step`（:3315）落格触发（apply_step_cell_effects :3987 内 :4094），不列不可达面。
 7. **形式化（红6-R1）**：去重键由 `K`（含 hp/kills，致支配恒等永不可触发）改为 **`K₀=(pos,ents_digest,flags,keys,bag,atk,def)` + (hp,kills) 支配维度**；等价合并/支配剪枝/§1.4 措辞同步（转移读取面 ⊆ K₀∪{hp,kills}，hp/kills 只参与支配）。
 8. **黄项 Y1-Y8 全部落地**：型69..75 不裁出（改手工夹具 T8 扩展）、T5/T8/T9 绑 solve_local 产物层防写时即绿（计划 :301/:314）、删 T3(iv)（C3 改三断言）、BR-5 实测关闭（floor1 分叉面不存在）、必经点 min_kills≥3 实测入 T6、R11 筋斗云换层边显式归批3、T6 JSON 加 `confidence:"bounded-best"`（对齐 A1 样例 :466）、qol 派生论证补入 §1.1。**复核报告标题写「黄9」但正文只列 Y1-Y8 共 8 条（无 Y9），此处按 8 条处置。**
+9. **min_kills 量化域（二轮红 R2-1，2026-11-11 更正）**：旧主张（隐含）`min_kills` 在全部出口上取最小 ⇒ 二轮实证 **Path B**（0 杀脚本出层路：黄钥(5,10)→门(6,9)→gate19→slot19→(11,1) 换层；机制链本件静态复测在位）使该口径下 floor1 `min_kills=0`，与本件四处 `≥3` 断言矛盾 ⇒ 裁定 **`min_kills` 量化域 = Exit#1（步行楼梯）**，Exit#2 入 `reachable`/`max_hp` 不入 `min_kills`（理由 §1.4 ② 三条）；T3(iii) 跨域断言改为 Exit#1 域内下界（旧式在 Path B 下为假 `3≤0`）。三选一取 **(a)**：(b) 承认 0 不取——Q2 在一切有出口脚本的层退化为 0，且把「杀 3 只」误报为「0」（度量与答案在脚本域分叉；Exit#1 域内两口径重合）；(c) 实跑证伪不采纳——本件只立文档不改代码，证伪需新增驱动测试=越权，且静态机制复测（`scene_script.rs:48-54`、`scene.rs:3841-3843`、`:3255`）与 census 反支持 Path B 成立。
+10. **C5 读回口径（二轮黄 Y2-1）**：旧「Snapshot 读回」→ `side_a::drive` 返回 Obs 读回 flags/stats/px/py/entities（`script_abs.rs:191`，flags 字段 `:76`）+ `Snapshot::from_scene` 补 difficulty/floor（`:118`）+ `pending_floor` 由 harness 读 `scene_persist.rs:386`（**非 Snapshot/Obs 字段**）。
