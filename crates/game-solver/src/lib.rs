@@ -6,4 +6,5 @@
 //!
 //! 批0=输入构造 `ingest`（maplv/sprite/fixture 脚本/三表 → `SolverInput`）+ census 快照。
 pub mod ingest;
+pub mod script_abs;
 pub mod state;
