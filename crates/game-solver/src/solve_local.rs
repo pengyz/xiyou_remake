@@ -268,7 +268,8 @@ pub fn solve_local(input: &SolveInput) -> SolveResult {
         reachable,
         max_hp: hp_goal.map(|g| g.hp),
         min_kills: kill_goal.map(|g| g.kills),
-        confidence: "feasible",
+        // BR-7/§64：批2 单层版策略空间受限但空间内最优 ⇒ 一律 bounded-best，不冒充 optimal
+        confidence: "bounded-best",
         route: hp_goal.map(|g| g.route.clone()).unwrap_or_default(),
         route_min_kills: kill_goal.map(|g| g.route.clone()).unwrap_or_default(),
         keys_used: hp_goal
@@ -311,11 +312,14 @@ pub fn load_floor(
     if cols <= 0 || rows <= 0 {
         return Err(format!("floor{floor_idx} 尺寸非法 {cols}x{rows}"));
     }
-    // 地形（行主序；索引式与 route_gen.py:52 `wk` 同源）
+    // 地形（行主序；索引式与 route_gen.py:52 `wk` 同源）：
+    // Maplv.terrain=headerless 网格（maplv.rs take(data,4,grid_bytes)，13×13=676B），
+    // 行走判定读法=行距 wide·4、列距 2（a.java:6973 rebuildWalkability 内层 +2×wide
+    // + 外层 var3<<1；route_gen.py:52 `g1[y * wide * 4 + x * 2]`；scene_persist.rs:301 同式）
     let mut terrain = vec![false; (cols * rows) as usize];
     for y in 0..rows {
         for x in 0..cols {
-            let idx = ((y * cols + x) * 2) as usize;
+            let idx = (y * cols * 4 + x * 2) as usize;
             let Some(&tile) = floor.terrain.get(idx) else {
                 return Err(format!("floor{floor_idx} terrain 缺 ({x},{y}) idx={idx}"));
             };
@@ -580,6 +584,9 @@ enum Cell {
     Monster(usize, i32), // 槽位, type_id
     /// 黄/红/蓝门（C4：expand 内直调 `consume_key_for_door`；未消耗 ⇒ ⊥）
     Door(usize, i32), // 槽位, type_id
+    /// 拾取实体（C6：cat 2|4 道物，`apply_step_cell_effects` `scene.rs:4093-4096`
+    /// 拾取+移除同拍——expand 内 harness `try_step` 落格触发，读回 player keys/实体移除）
+    Pickup, // cat 2|4 道物（拾取面=该格全部存活 cat2|4，expand 内 harness 直调）
 }
 
 /// 到达格的 StepGate 结果（§1.3 StepGate=踩场景门 `from_walk=true`；bump 面
@@ -635,6 +642,7 @@ impl<'a> Search<'a> {
     fn classify(&self, st: &St, x: i32, y: i32) -> Cell {
         let mut monster: Option<(usize, i32)> = None;
         let mut door: Option<(usize, i32)> = None;
+        let mut pickup = false;
         let mut blocked = false;
         let mut stair_like = false;
         for (slot, e) in self.level.entities.iter().enumerate() {
@@ -661,7 +669,9 @@ impl<'a> Search<'a> {
                     // 5 宝箱 / 83 场景门 / 76|82 组门：bump 放行
                     _ => {}
                 },
-                // 2|4 道物、0/16/32 装饰：可走
+                // 2|4 道物（C6 拾取转移：harness try_step 落格触发 pickup_item_type）、
+                // 0/16/32 装饰：可走
+                2 | 4 => pickup = true,
                 _ => {}
             }
         }
@@ -676,9 +686,11 @@ impl<'a> Search<'a> {
         if let Some((slot, ty)) = door {
             return Cell::Door(slot, ty);
         }
-        match monster {
-            Some((slot, ty)) => Cell::Monster(slot, ty),
-            None => Cell::Move,
+        // 怪/拾取并存（批2 夹具无）：战斗优先——打赢后落格才拾取（引擎 interact→apply 时序）
+        match (monster, pickup) {
+            (Some((slot, ty)), _) => Cell::Monster(slot, ty),
+            (None, true) => Cell::Pickup,
+            (None, false) => Cell::Move,
         }
     }
 
@@ -737,6 +749,17 @@ impl<'a> Search<'a> {
                         // 再判 StepGate（引擎 bump 开门→落格踩格触发，同拍语义）
                         let g = self.gate_arrive(&ns, tx, ty);
                         out.push((Act::Door(tx, ty), ns, g));
+                    }
+                }
+                Cell::Pickup => {
+                    // 拾取转移（C6，§1.3 拾取行字面路径）：harness pub `try_step` 落格
+                    // → tick 推进 32px 归格 → `apply_step_cell_effects`（scene.rs:4093-4096
+                    // `pickup_item_type`+`entity::remove` 同拍）→ 读回 player 全字段。
+                    // 引擎时序直调；❌不自写物品效果表、❌不直调私有 pickup_item_type。
+                    if let Some(ns) = self.pickup_step(st, tx, ty) {
+                        let g = self.gate_arrive(&ns, tx, ty);
+                        // 航点=普通格 `x,y`（route_gen 语法：走过去；Act::Move 序列化同）
+                        out.push((Act::Move, ns, g));
                     }
                 }
             }
@@ -889,6 +912,89 @@ impl<'a> Search<'a> {
             }
         }
         GateArrive::Pass
+    }
+
+    /// 拾取转移（C6，§1.3 拾取行字面路径）：harness pub `try_step` 落格 → 有拍
+    /// `tick` 推进 32px 归格 → `apply_step_cell_effects`（scene.rs:4093-4096
+    /// `pickup_item_type`+`entity::remove` 同拍）→ 读回 player 全字段 + 实体移除
+    /// + flags（Obs 读回三源之 flags，§1.3）。引擎时序直调；
+    /// ❌不自写物品效果表、❌不直调私有 `pickup_item_type`。
+    /// 返回 None ⇒ ⊥（try_step 被拒或步进未完成——不产生状态，§1.1）。
+    fn pickup_step(&self, st: &St, tx: i32, ty: i32) -> Option<St> {
+        let mut sc = build_scene(self.input, st, st.pos);
+        // 拾取=Map 语境场步（tick 早退链：Dialog 在 walk_phase 分派前 return
+        // ⇒ 必须 Map 才推进手动步；批2 夹具拾取面全为 Map 场景）
+        sc.game_mode = GameMode::Map;
+        sc.key_value = 0; // 无输入注入（步尽后的 handle_field_input 不得消费残留键）
+        // facing（try_step：0=下 1=上 2=右 3=左）；DIRS 保证 (tx,ty) 邻接。
+        // ⚠ try_step(facing) 只用参数算目标格、**不写 self.facing**——tick 步进臂
+        // （scene.rs:3022 `match self.facing`）按场景 facing 字段走；引擎正常流=
+        // handle_field_input 先置 facing 再 try_step。故此处必须同步置位，否则走错方向。
+        let facing = match (tx - st.pos.0, ty - st.pos.1) {
+            (0, 1) => 0,
+            (0, -1) => 1,
+            (1, 0) => 2,
+            (-1, 0) => 3,
+            _ => return None, // 非邻接（防御：expand 只走 DIRS）
+        };
+        sc.facing = facing;
+        if !sc.try_step(facing) {
+            return None; // 引擎拒步（interact_with_cell 不通过）⇒ ⊥
+        }
+        // 有拍推进：每 tick 8px、4 tick 归格触发 apply；拾取后 walk_phase 自动回 0
+        let wt = sc.width_table.clone();
+        let mut landed = false;
+        for ft in 0..8i64 {
+            if sc.walk_phase == 0
+                && (sc.view.player_px >> 5) == tx
+                && (sc.view.player_py >> 5) == ty
+            {
+                landed = true;
+                break;
+            }
+            sc.tick(ft, &wt);
+        }
+        if !landed {
+            return None; // 步进未完成（超时/异常）⇒ ⊥，保守不产假转移
+        }
+        // 读回（§1.3 拾取行：apply 已执行拾取+移除；逐字段镜像 from_combat 映射）
+        let p = &sc.player;
+        let mut ns = st.clone();
+        ns.player = PlayerSpec {
+            hp: p.hp,
+            atk: p.atk,
+            def: p.def,
+            yellow: p.yellow_keys,
+            blue: p.blue_keys,
+            red: p.red_keys,
+            gold: p.gold,
+            item_types: p.item_types.clone(),
+            item_uses: p.item_uses.clone(),
+            item_stack_size: p.item_stack_size,
+        };
+        // 实体移除镜像：该格全部存活 cat2|4（引擎倒序逐个 pickup+remove）
+        for (slot, e) in self.level.entities.iter().enumerate() {
+            if e.x == tx
+                && e.y == ty
+                && alive(&ns.ents, slot)
+                && matches!(entity_category_with_floor(e.ty, self.input.floor), 2 | 4)
+            {
+                clear_alive(&mut ns.ents, slot);
+            }
+        }
+        // flags 读回（§1.3 Obs.flags 同源；apply 内 case0 等置位面）
+        for i in 0..sc.script_line_flags.len().min(128) {
+            if sc.script_line_flags[i] {
+                ns.flags |= 1u128 << i;
+            } else {
+                ns.flags &= !(1u128 << i);
+            }
+        }
+        ns.pos = (tx, ty);
+        ns.steps += 1;
+        // 边界（报审注明）：拾取格与 type83 共存批2 夹具无（floor1 键格无 83）——
+        // 共存时 apply 在本 harness 内已触发门、驱动不完整=批3 面，本批不建模。
+        Some(ns)
     }
 }
 

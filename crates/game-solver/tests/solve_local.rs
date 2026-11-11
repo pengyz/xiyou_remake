@@ -610,3 +610,122 @@ fn p2s1_t9_solve_local_StepGate三分支与脚本终止边() {
     let f67h = fixture_gate(67, 0, 1);
     assert!(probe_gate(&f67h, 67), "case67 在 difficulty>0 必须触发");
 }
+
+// ================= C6（提案 §3.1 T6/T10；计划 :327-328 判据）=================
+
+/// C6 输入：floor1 真层端到端（load_all_ingest → load_floor，与 T5 同装载路径）。
+fn fixture_floor1() -> SolveInput {
+    let si = load_all_ingest();
+    let (base, scaled) = enemy_tables();
+    let tile_walk = nums(include_str!(
+        "../../game-core/tests/fixtures/tile_walkability.txt"
+    ));
+    game_solver::solve_local::load_floor(
+        &si,
+        1,
+        (6, 11),
+        PlayerSpec::from_combat(player(300, 10, 10)),
+        scaled,
+        base,
+        &tile_walk,
+    )
+    .expect("floor1 fixture 装载")
+}
+
+/// route 元素提取（T1 同式：route=末字段字符串数组）。
+fn route_elems(json: &str) -> Vec<String> {
+    let ri = json
+        .find("\"route\":[")
+        .unwrap_or_else(|| panic!("缺 route：{json}"));
+    let rest = &json[ri + "\"route\":".len()..];
+    assert!(rest.ends_with('}'), "route 是末字段、其后为右括号：{json}");
+    let arr = &rest[..rest.len() - 1];
+    assert!(arr.starts_with('[') && arr.ends_with(']'), "route 为数组：{json}");
+    let inner = &arr[1..arr.len() - 1];
+    if inner.is_empty() {
+        return Vec::new();
+    }
+    assert!(inner.starts_with('"') && inner.ends_with('"'), "route 元素为字符串：{json}");
+    inner
+        .split("\",\"")
+        .map(|s| s.trim_matches('"').to_string())
+        .collect()
+}
+
+/// 航点过 `route_gen.py:12-15` 语法：`x,y` 普通格 / `bump 型@x,y` / `door x,y`。
+/// 批2 追加 `gate x,y`=脚本换层终止边标记——**route_gen 三类语法无此 token**
+/// （提案 C6 判据「route 逐航点过 route_gen 语法」的歧义面，报审注明；该航点
+/// 不产生移动、位置已由前一航点覆盖，喂 route_gen 时剥除即可复现）。
+fn waypoint_ok(wp: &str) -> bool {
+    let cell_ok = |s: &str| {
+        let parts: Vec<&str> = s.split(',').collect();
+        parts.len() == 2 && parts.iter().all(|p| p.parse::<i32>().is_ok())
+    };
+    if wp.starts_with("gate ") {
+        return true;
+    }
+    if let Some(r) = wp.strip_prefix("bump ") {
+        let Some((ty, cell)) = r.split_once('@') else {
+            return false;
+        };
+        return !ty.trim().is_empty() && cell_ok(cell);
+    }
+    if let Some(r) = wp.strip_prefix("door ") {
+        return cell_ok(r);
+    }
+    cell_ok(wp)
+}
+
+/// T6（提案 §3.1 T6 / 计划 :327-328）：floor1 端到端 JSON 形状 + min_kills≥3 下界。
+#[test]
+fn p2s1_t6_solve_local_floor1端到端json形状与min_kills下界() {
+    let r = solve_local(&fixture_floor1());
+    let j = r.to_json();
+
+    // 逐字段类型断言（提案 :151 原文形状，防空过）
+    assert_eq!(scalar(&j, "floor"), "1", "floor=1：{j}");
+    assert_eq!(scalar(&j, "difficulty"), "0", "difficulty=int：{j}");
+    assert_eq!(scalar(&j, "reachable"), "true", "floor1 必须有解：{j}");
+    let mh = scalar(&j, "max_hp");
+    assert!(mh.parse::<i32>().is_ok(), "max_hp 必须为 int：{j}");
+    let mk = scalar(&j, "min_kills");
+    // §8-8 首跑核对（2026-11-11 实测裁定）：Exit#1 步行不可达 ⇒ min_kills=None——
+    // 口袋唯一出口=door@(6,9)，踩格必触发 script19 换层边（flags[19] 新局 false、
+    // case0 在 floor1 无触发源），Exit#1 无合法路；reachable/max_hp 由 Exit#2
+    // （gate19 终止边）给出，route=Path B（kills=0 不入 min_kills 域，§1.4 ②）。
+    // 提案 §8-8 verbatim：「若 Exit#1 不可达则 min_kills=None 而 reachable=true、
+    // max_hp=Some（由 Exit#2 路给出）；T6 形状断言 min_kills:<int> 此情形 None
+    // 变体首跑核对（T6 真层输出核对）」⇒ 本断言按 None 变体钉。
+    assert_eq!(mk, "null", "min_kills=None（§8-8 None 变体）：{j}");
+    assert_eq!(
+        scalar(&j, "confidence"),
+        "\"bounded-best\"",
+        "confidence=bounded-best（BR-7 / §64 单层版不冒充 optimal）：{j}"
+    );
+
+    // route 非空字符串数组 + 逐航点过 route_gen.py 语法（:12-15，C6 判据）
+    let elems = route_elems(&j);
+    assert!(!elems.is_empty(), "floor1 route 非空：{j}");
+    for wp in &elems {
+        assert!(waypoint_ok(wp), "航点过 route_gen 语法：{wp}（{j}）");
+    }
+
+    // min_kills ≥ 3 断言已按 §8-8 None 变体改判（见上方 :691 注释块，2026-11-11）
+}
+
+/// T10（提案 §3.1 T10 / A5 形状）：同输入双跑 route/max_hp/min_kills 逐字节相等。
+/// 附非平凡闸：双跑须为有解输出（空 route 双跑恒等=确定性空过，不算证据）。
+#[test]
+fn p2s1_t10_solve_local_同输入双跑逐字节相等() {
+    let input = fixture_floor1();
+    let a = solve_local(&input).to_json();
+    let b = solve_local(&input).to_json();
+    assert_eq!(
+        a, b,
+        "同输入双跑 route/max_hp/min_kills 逐字节相等（§3.3 / T10）"
+    );
+    assert!(
+        !route_elems(&a).is_empty(),
+        "双跑输出须非平凡（route 非空）：{a}"
+    );
+}
