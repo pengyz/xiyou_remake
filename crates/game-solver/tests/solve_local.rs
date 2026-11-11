@@ -10,6 +10,7 @@ use game_core::scene_test_support::scene;
 use game_solver::solve_local::{
     probe_bump, solve_local, EntSpec, ExitKind, ExitSpec, LevelSpec, PlayerSpec, SolveInput,
 };
+use std::path::PathBuf;
 
 /// 取 `"key":` 之后的标量值 token（到下一个顶层 `,` 为止）；route 数组除外（取到末尾 `}` 前）。
 fn scalar<'a>(json: &'a str, key: &str) -> &'a str {
@@ -357,5 +358,166 @@ fn p2s1_t3_solve_local_目标双查询单调性与tie_break() {
     assert_eq!(
         r.route_min_kills, r.route,
         "同并列口径：min_kills 路线亦为字典序最小"
+    );
+}
+
+// ================= C4（提案 §3.1 T4/T5；§5 C4）=================
+
+/// C4 开门夹具：3×1 走廊，start (0,0) → 黄门 type1@(1,0) → 出口 type7@(2,0)。
+/// `yellow` = 入口黄钥数（有钥开 / 无钥挡双例，提案 §3.1 T4）。
+fn fixture_door(yellow: i32) -> SolveInput {
+    let (base, scaled) = enemy_tables();
+    let level = LevelSpec {
+        cols: 3,
+        rows: 1,
+        terrain: vec![true; 3],
+        start: (0, 0),
+        entities: vec![
+            EntSpec {
+                ty: 1,
+                x: 1,
+                y: 0,
+                param: 0,
+            },
+            EntSpec {
+                ty: 7,
+                x: 2,
+                y: 0,
+                param: 2,
+            },
+        ],
+        exits: vec![ExitSpec {
+            x: 2,
+            y: 0,
+            kind: ExitKind::Stair,
+            index: 1,
+        }],
+        player: PlayerSpec {
+            yellow,
+            ..PlayerSpec::from_combat(player(300, 10, 10))
+        },
+        enemies: scaled,
+        enemy_base: base,
+    };
+    SolveInput {
+        floor: 1,
+        difficulty: 0,
+        level: Some(level),
+    }
+}
+
+#[test]
+fn p2s1_t4_开门有钥则开无钥则挡耗钥断言() {
+    // 有钥：开门走入、耗一把黄钥（consume_key_for_door 直调进转移，§1.3 开门行）
+    let r = solve_local(&fixture_door(1));
+    assert!(r.reachable, "有钥 ⇒ 出口可达：{r:?}");
+    assert_eq!(
+        r.keys_used,
+        (1, 0, 0),
+        "开黄门耗一把黄钥（T4 钥匙数变化断言；序=(yellow,blue,red)）：{r:?}"
+    );
+    assert_eq!(
+        r.route,
+        vec!["0,0", "door 1,0", "2,0"],
+        "route_gen door 航点（route_gen.py:14 `door x,y`）：{r:?}"
+    );
+
+    // 无钥：阻挡 ⇒ 不可达、零消耗（§1.1 ⊥ 不产生状态）
+    let r = solve_local(&fixture_door(0));
+    assert!(!r.reachable, "无钥 ⇒ 挡：{r:?}");
+    assert!(r.route.is_empty(), "无解 ⇒ 空路线：{r:?}");
+    assert_eq!(r.keys_used, (0, 0, 0), "未开门 ⇒ 零消耗：{r:?}");
+}
+
+/// C4 fixture 装载路径数据源（census_snapshot.rs 同法：测试侧 I/O，lib 保持纯红线）。
+fn repo() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(2)
+        .unwrap()
+        .to_path_buf()
+}
+
+/// 与 census_snapshot.rs 的 `load_all` 同构：assets/raw 55 层 + 七参夹具（测试侧 I/O）。
+fn load_all_ingest() -> game_solver::ingest::SolverInput {
+    let root = repo();
+    let mut maplvs: Vec<Vec<u8>> = Vec::new();
+    let mut sprites: Vec<Vec<u8>> = Vec::new();
+    for i in 0..55 {
+        maplvs.push(std::fs::read(root.join(format!("assets/raw/maplv{i}"))).unwrap());
+        sprites.push(std::fs::read(root.join(format!("assets/raw/sprite{i}"))).unwrap());
+    }
+    let maplv_refs: Vec<&[u8]> = maplvs.iter().map(|v| v.as_slice()).collect();
+    let sprite_refs: Vec<&[u8]> = sprites.iter().map(|v| v.as_slice()).collect();
+    game_solver::ingest::ingest(
+        &maplv_refs,
+        &sprite_refs,
+        include_str!("../../game-core/tests/fixtures/level_scripts.txt"),
+        include_str!("../../game-core/tests/fixtures/door12.txt"),
+        include_str!("../../game-core/tests/fixtures/door13.txt"),
+        include_str!("../../../data/tables/enemies.json"),
+        include_str!("../../../data/tables/items.json"),
+        include_str!("../../../data/tables/shop_goods.json"),
+    )
+    .expect("ingest 55 层资源")
+}
+
+#[test]
+fn p2s1_t5_floor1_fixture_census快照() {
+    // T5：断言挂 solve_local 的 fixture 装载路径（提案 §3.1 T5：未实现⇒红）。
+    // census.rs 既有直调断言属计划 :301/:314 B 类（写时即绿），不得当红。
+    let si = load_all_ingest();
+    let (base, scaled) = enemy_tables();
+    let tile_walk = nums(include_str!(
+        "../../game-core/tests/fixtures/tile_walkability.txt"
+    ));
+    let input = game_solver::solve_local::load_floor(
+        &si,
+        1,
+        (6, 11),
+        PlayerSpec::from_combat(player(300, 10, 10)),
+        scaled,
+        base,
+        &tile_walk,
+    )
+    .expect("floor1 fixture 装载");
+    assert_eq!(input.floor, 1, "maplv1 ⇒ floor 字段=1（preset 同号先例）");
+    let lv = input.level.as_ref().expect("level 已装载");
+
+    // census 快照（提案 §3.1 T5）
+    assert_eq!((lv.cols, lv.rows), (13, 13), "floor1 13×13 真格");
+    let cnt = |ty: i32| lv.entities.iter().filter(|e| e.ty == ty).count();
+    assert_eq!(cnt(1), 7, "type1 黄门×7");
+    assert_eq!(cnt(26), 5, "type26 黄钥×5");
+    assert_eq!(cnt(15), 1, "type15 筋斗云×1");
+    assert_eq!(cnt(12), 0, "type12=0");
+    assert_eq!(cnt(6), 0, "type6=0");
+    let e7: Vec<&EntSpec> = lv.entities.iter().filter(|e| e.ty == 7).collect();
+    assert_eq!(e7.len(), 1, "type7×1");
+    assert_eq!(
+        (e7[0].x, e7[0].y, e7[0].param),
+        (11, 1, 2),
+        "type7@(11,1)→2（提案 §2 出口）"
+    );
+    assert_eq!(cnt(83), 3, "type83×3");
+    let mut p83: Vec<i32> = lv
+        .entities
+        .iter()
+        .filter(|e| e.ty == 83)
+        .map(|e| e.param)
+        .collect();
+    p83.sort_unstable();
+    assert_eq!(p83, vec![19, 66, 67], "type83 三分支参数 {{19,66,67}}");
+
+    // 出口派生（type7 ⇒ Exit#1，index=出口序号 1-based）
+    assert_eq!(
+        lv.exits,
+        vec![ExitSpec {
+            x: 11,
+            y: 1,
+            kind: ExitKind::Stair,
+            index: 1,
+        }],
+        "唯一出口 (11,1) Stair"
     );
 }

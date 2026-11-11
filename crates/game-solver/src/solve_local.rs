@@ -1,8 +1,9 @@
-//! 【求解器批2 C1-C2】单层求解 `solve_local`（提案 §5：C1 骨架+子命令壳 / C2 可达性+战斗）。
+//! 【求解器批2 C1-C4】单层求解 `solve_local`（提案 §5：C1 骨架+子命令壳 / C2 可达性+战斗 /
+//! C3 目标双查询 / C4 开门+钥匙经济）。
 //!
 //! **纯度边界**（`lib.rs` 契约 + 计划 :456 A9）：本模块=纯函数——输入 `SolveInput`
 //! （由 bin/测试装配），输出 `SolveResult`；**禁文件/网络/时钟/进程 I/O**、禁 GameRng/Clock。
-//! 后续切片：C3 目标双查询 → C4 开门 → C5 脚本 → C6 floor1 端到端 → C7 对拍回归。
+//! 后续切片：C5 脚本 → C6 floor1 端到端 → C7 对拍回归。
 //!
 //! **C2 转移分工（提案 §1.3 直调红线）**：
 //! - 战斗 Refused/Engage = 直调 `BattleResolver::resolve_bump`（判据 `battle.rs:121` 在其内部，
@@ -11,6 +12,8 @@
 //!   ❌不自算 hits/loss；
 //! - 可达子图 = 直调 `find_path`（`pathfind.rs:55`）+ `Walkability`（`:21`）；
 //! - 类目分类 = 直调 `entity_category_with_floor`（`script_host.rs:96`，层覆写单源）；
+//! - 开门（C4）= 直调 `consume_key_for_door`（`combat.rs:170`，门映射同 `scene.rs:3397-3399`），
+//!   ❌不自写「有钥减一」；钥匙拾取（type26）留 C6 接入面；
 //! - 搜索编排/去重支配/目标/路线序列化 = 本模块自算（§1.3 白名单）。
 use crate::state::s0;
 use game_core::combat::PlayerCombat;
@@ -90,7 +93,8 @@ pub struct ExitSpec {
     pub x: i32,
     pub y: i32,
     pub kind: ExitKind,
-    /// route_gen 楼层号（type7 param，提案 §2）
+    /// 出口序号（1-based；本批 Exit#1=步行楼梯，提案 §1.4 ②量化域标签。
+    /// 与 type7 `param` 无关——原 doc「route_gen 楼层号」为误注，2026-11-11 更正）。
     pub index: u8,
 }
 
@@ -162,6 +166,9 @@ pub struct SolveResult {
     /// Q2（min_kills）路线：量化域=Exit#1（§1.4 ②）；T3(iii) `route_min_kills` 断言面。
     /// 不入 JSON——T6 形状只有单一 `route` 字段。
     pub route_min_kills: Vec<String>,
+    /// Q1 路线钥匙消耗 `(yellow, blue, red)` = 入口 − 终态；T4 钥匙数变化断言面。
+    /// 不入 JSON（T6 形状无此字段）。
+    pub keys_used: (i32, i32, i32),
 }
 
 impl SolveResult {
@@ -223,6 +230,7 @@ pub fn solve_local(input: &SolveInput) -> SolveResult {
             confidence: "feasible",
             route: Vec::new(),
             route_min_kills: Vec::new(),
+            keys_used: (0, 0, 0),
         };
     };
     let search = Search::new(input, level);
@@ -247,7 +255,105 @@ pub fn solve_local(input: &SolveInput) -> SolveResult {
         confidence: "feasible",
         route: hp_goal.map(|g| g.route.clone()).unwrap_or_default(),
         route_min_kills: kill_goal.map(|g| g.route.clone()).unwrap_or_default(),
+        keys_used: hp_goal
+            .map(|g| {
+                (
+                    level.player.yellow - g.keys.0,
+                    level.player.blue - g.keys.1,
+                    level.player.red - g.keys.2,
+                )
+            })
+            .unwrap_or((0, 0, 0)),
     }
+}
+
+/// C4 fixture 装载路径：ingest 产物 → 单层 `SolveInput`（提案 §5 C4 / T5 断言面）。
+///
+/// - 地形：`tile_walkability` 判据（`scene_persist.rs:297-301` 同式 `idx = y*cols*4 + x*2`、
+///   `tile_walk[tile]==1`；A 级 oracle FLD 134）；
+/// - 实体：该层全部 spawn 记录（含 hidden——type83 场景门需在内，T5）；
+/// - 出口：type7|type8 ⇒ `ExitSpec{kind: Stair, index}`（index=出口序号 1-based）；
+/// - `floor` 字段 = `floor_idx`（maplv1 ⇒ 1，preset `current_floor` 同号先例）、difficulty=0。
+///
+/// I/O 归测试/bin 侧（数据已由 `ingest` 解析进内存，本函数纯变换）。
+#[allow(clippy::too_many_arguments)]
+pub fn load_floor(
+    si: &crate::ingest::SolverInput,
+    floor_idx: usize,
+    start: (i32, i32),
+    player: PlayerSpec,
+    enemies: Vec<EnemyDef>,
+    enemy_base: Vec<EnemyDef>,
+    tile_walk: &[i32],
+) -> Result<SolveInput, String> {
+    let floor = si
+        .floors
+        .get(floor_idx)
+        .ok_or_else(|| format!("floor_idx={floor_idx} 越界（共 {} 层）", si.floors.len()))?;
+    let cols = floor.width as i32;
+    let rows = floor.height as i32;
+    if cols <= 0 || rows <= 0 {
+        return Err(format!("floor{floor_idx} 尺寸非法 {cols}x{rows}"));
+    }
+    // 地形（行主序；索引式与 route_gen.py:52 `wk` 同源）
+    let mut terrain = vec![false; (cols * rows) as usize];
+    for y in 0..rows {
+        for x in 0..cols {
+            let idx = ((y * cols + x) * 2) as usize;
+            let Some(&tile) = floor.terrain.get(idx) else {
+                return Err(format!("floor{floor_idx} terrain 缺 ({x},{y}) idx={idx}"));
+            };
+            terrain[(y * cols + x) as usize] = (tile as usize) < tile_walk.len()
+                && tile_walk[tile as usize] == 1;
+        }
+    }
+    // 实体：层 i 区间 = per_floor_records[..i] 前缀和（ingest.rs 平铺约定）
+    let rec_off: usize = si.per_floor_records.iter().take(floor_idx).sum();
+    let rec_n = si
+        .per_floor_records
+        .get(floor_idx)
+        .copied()
+        .unwrap_or(0);
+    let recs = si
+        .spawns
+        .get(rec_off..rec_off + rec_n)
+        .ok_or_else(|| format!("floor{floor_idx} spawn 区间越界 off={rec_off} n={rec_n}"))?;
+    let mut entities = Vec::with_capacity(recs.len());
+    let mut exits = Vec::new();
+    let mut exit_no = 0u8;
+    for sp in recs {
+        let (x, y) = ((sp.record.x >> 5) as i32, (sp.record.y >> 5) as i32);
+        entities.push(EntSpec {
+            ty: sp.record.type_code as i32,
+            x,
+            y,
+            param: sp.param as i32,
+        });
+        if matches!(sp.record.type_code, 7 | 8) {
+            exit_no = exit_no.saturating_add(1);
+            exits.push(ExitSpec {
+                x,
+                y,
+                kind: ExitKind::Stair,
+                index: exit_no,
+            });
+        }
+    }
+    Ok(SolveInput {
+        floor: floor_idx as i32,
+        difficulty: 0,
+        level: Some(LevelSpec {
+            cols,
+            rows,
+            terrain,
+            start,
+            entities,
+            exits,
+            player,
+            enemies,
+            enemy_base,
+        }),
+    })
 }
 
 /// C2 探针：BumpEnemy 转移判定（搜索与本探针**共用 `bump_outcome`**，非自证）。
@@ -370,6 +476,8 @@ enum Act {
     Start,
     Move,
     Bump(i32, i32, i32), // type, x, y
+    /// 开门走入（route_gen `door x,y` 航点，route_gen.py:14；C4）
+    Door(i32, i32), // x, y
 }
 
 /// 终态候选（双查询共用；提案 §1.4「一次搜索维护 Pareto 前沿即可双查询取解」）。
@@ -378,6 +486,8 @@ struct Goal {
     hp: i32,
     kills: i32,
     steps: i32,
+    /// 终态三色钥匙数（`keys_used` 断言面：入口 − 本值，T4）
+    keys: (i32, i32, i32),
     kind: ExitKind,
     route: Vec<String>,
 }
@@ -451,6 +561,8 @@ enum Cell {
     Blocked,
     Move,
     Monster(usize, i32), // 槽位, type_id
+    /// 黄/红/蓝门（C4：expand 内直调 `consume_key_for_door`；未消耗 ⇒ ⊥）
+    Door(usize, i32), // 槽位, type_id
 }
 
 fn all_alive(n: usize) -> Vec<u64> {
@@ -493,6 +605,7 @@ impl<'a> Search<'a> {
     /// `entity_category_with_floor` 层覆写表；地形终审=楼梯豁免 `stair_count>0`）。
     fn classify(&self, st: &St, x: i32, y: i32) -> Cell {
         let mut monster: Option<(usize, i32)> = None;
+        let mut door: Option<(usize, i32)> = None;
         let mut blocked = false;
         let mut stair_like = false;
         for (slot, e) in self.level.entities.iter().enumerate() {
@@ -506,8 +619,14 @@ impl<'a> Search<'a> {
                     }
                 }
                 1 => match e.ty {
-                    // 门（C4 起可开）/炼丹台/真火/墙/撞击墙/81
-                    1 | 2 | 3 | 9 | 10 | 11 | 12 | 81 => blocked = true,
+                    // 门（C4 起可开：expand 内直调 consume_key_for_door，无钥 ⇒ ⊥）
+                    1 | 2 | 3 => {
+                        if door.is_none() {
+                            door = Some((slot, e.ty));
+                        }
+                    }
+                    // 炼丹台/真火/墙/撞击墙/81
+                    9 | 10 | 11 | 12 | 81 => blocked = true,
                     // 楼梯族（bump 显形/楼梯计数豁免地形终审）
                     6 | 7 | 8 => stair_like = true,
                     // 5 宝箱 / 83 场景门 / 76|82 组门：bump 放行
@@ -523,6 +642,10 @@ impl<'a> Search<'a> {
         }
         if blocked {
             return Cell::Blocked;
+        }
+        // 门在可走地形上才产生开门转移（真层门格地形均可走；非可走地形=不入格不耗钥的保守近似）
+        if let Some((slot, ty)) = door {
+            return Cell::Door(slot, ty);
         }
         match monster {
             Some((slot, ty)) => Cell::Monster(slot, ty),
@@ -559,6 +682,26 @@ impl<'a> Search<'a> {
                         ns.pos = (tx, ty);
                         ns.steps += 1;
                         out.push((Act::Bump(ety, tx, ty), ns));
+                    }
+                }
+                Cell::Door(slot, dty) => {
+                    // 开门转移：直调 consume_key_for_door（combat.rs:170，§1.3 开门行，
+                    // ❌不自写「有钥减一」）；门映射同 scene.rs:3397-3399（1黄/2红/_蓝）。
+                    // 未消耗 ⇒ ⊥（无钥匙阻挡，§1.1 不产生状态）。
+                    let door = match dty {
+                        1 => game_core::combat::door_code::YELLOW,
+                        2 => game_core::combat::door_code::RED,
+                        _ => game_core::combat::door_code::BLUE,
+                    };
+                    let mut pc = st.player.to_combat();
+                    let (consumed, _) = game_core::combat::consume_key_for_door(&mut pc, door);
+                    if consumed {
+                        let mut ns = st.clone();
+                        ns.player = PlayerSpec::from_combat(pc);
+                        clear_alive(&mut ns.ents, slot);
+                        ns.pos = (tx, ty);
+                        ns.steps += 1;
+                        out.push((Act::Door(tx, ty), ns));
                     }
                 }
             }
@@ -605,6 +748,7 @@ impl<'a> Search<'a> {
                     hp: st.player.hp,
                     kills: st.kills,
                     steps: st.steps,
+                    keys: (st.player.yellow, st.player.blue, st.player.red),
                     kind: e.kind,
                     route: route_of(&nodes, id),
                 });
@@ -705,6 +849,7 @@ fn route_of(nodes: &[Node], id: u32) -> Vec<String> {
         .map(|(act, pos)| match act {
             Act::Start | Act::Move => format!("{},{}", pos.0, pos.1),
             Act::Bump(ty, x, y) => format!("bump {ty}@{x},{y}"),
+            Act::Door(x, y) => format!("door {x},{y}"),
         })
         .collect()
 }
