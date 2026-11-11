@@ -8,7 +8,8 @@ use game_data::defs::EnemyDef;
 use game_core::combat::{scale_enemy_stats, CombatTables, PlayerCombat};
 use game_core::scene_test_support::scene;
 use game_solver::solve_local::{
-    probe_bump, solve_local, EntSpec, ExitKind, ExitSpec, LevelSpec, PlayerSpec, SolveInput,
+    probe_bump, probe_gate, solve_local, EntSpec, ExitKind, ExitSpec, LevelSpec, PlayerSpec,
+    SolveInput,
 };
 use std::path::PathBuf;
 
@@ -137,6 +138,7 @@ fn fixture_3x3(p: PlayerCombat) -> SolveInput {
         player: PlayerSpec::from_combat(p),
         enemies: scaled,
         enemy_base: base,
+        flags: 0,
     };
     SolveInput {
         floor: 1,
@@ -242,6 +244,7 @@ fn fixture_split() -> SolveInput {
         player: PlayerSpec::from_combat(player(300, 10, 18)),
         enemies: scaled,
         enemy_base: base,
+        flags: 0,
     };
     SolveInput {
         floor: 1,
@@ -276,6 +279,7 @@ fn fixture_tie() -> SolveInput {
         player: PlayerSpec::from_combat(player(300, 10, 10)),
         enemies: scaled,
         enemy_base: base,
+        flags: 0,
     };
     SolveInput {
         floor: 1,
@@ -398,6 +402,7 @@ fn fixture_door(yellow: i32) -> SolveInput {
         },
         enemies: scaled,
         enemy_base: base,
+        flags: 0,
     };
     SolveInput {
         floor: 1,
@@ -520,4 +525,88 @@ fn p2s1_t5_floor1_fixture_census快照() {
         }],
         "唯一出口 (11,1) Stair"
     );
+}
+
+/// T9 专用夹具（提案 §3.1 T9）：13×13 全可走，start=(6,10)，门格 83@param@(6,9) +
+/// 楼梯 7@(11,1) param=2（script19 尾 `MOV_0_11_1 MOV_0_1_11` 走上梯格触发
+/// `change_floor(2)` ⇒ harness 读 `persist.pending_floor` 作终止边，§2.2 ④）；
+/// **无 ExitSpec**——脚本换层边是唯一出口，用于断言终止边入 reachable/max_hp、
+/// 不入 min_kills 量化域。`flags`=script_line_flags 位图初值（bit19 重入断言用）。
+fn fixture_gate(param: i32, flags: u128, difficulty: i32) -> SolveInput {
+    let (base, scaled) = enemy_tables();
+    let level = LevelSpec {
+        cols: 13,
+        rows: 13,
+        terrain: vec![true; 13 * 13],
+        start: (6, 10),
+        entities: vec![
+            EntSpec {
+                ty: 83,
+                x: 6,
+                y: 9,
+                param,
+            },
+            EntSpec {
+                ty: 7,
+                x: 11,
+                y: 1,
+                param: 2,
+            },
+        ],
+        exits: vec![],
+        player: PlayerSpec::from_combat(player(300, 10, 10)),
+        enemies: scaled,
+        enemy_base: base,
+        flags,
+    };
+    SolveInput {
+        floor: 1,
+        difficulty,
+        level: Some(level),
+    }
+}
+
+/// T9（提案 §3.1 T9 / 计划 :314）：type83 三分支断言经 solve_local StepGate 转移层
+/// + 终止边入 reachable/max_hp、不入 min_kills（§1.4 ②）。
+#[test]
+fn p2s1_t9_solve_local_StepGate三分支与脚本终止边() {
+    // (a) case19：踩格触发（from_walk=true 才跑）+ flags 未置位 ⇒ probe 真；
+    //     终止边=唯一出口 ⇒ reachable=true、max_hp=Some、min_kills=None。
+    let f19 = fixture_gate(19, 0, 0);
+    assert!(
+        probe_gate(&f19, 19),
+        "case19 踩格必须触发（flags 未置位、from_walk=true）"
+    );
+    let r = solve_local(&f19);
+    assert!(r.reachable, "脚本换层终止边必须入 reachable");
+    assert_eq!(r.max_hp, Some(300), "终止边必须入 max_hp");
+    assert_eq!(
+        r.min_kills, None,
+        "终止边不入 min_kills 量化域（§1.4 ② 域=Exit#1）"
+    );
+    assert_eq!(
+        r.route,
+        vec!["6,10", "6,9", "gate 6,9"],
+        "route=入口→门格→gate 航点收尾"
+    );
+
+    // (b) flags 置位后不可重入（try_run_scene:931 gate=!flags[idx]）
+    let f19r = fixture_gate(19, 1u128 << 19, 0);
+    assert!(!probe_gate(&f19r, 19), "flags[19] 置位后必须不可重入");
+    let rr = solve_local(&f19r);
+    assert!(!rr.reachable, "门不触发且无出口 ⇒ 无解");
+    assert!(rr.route.is_empty(), "无解 ⇒ route 空");
+
+    // (c) case66：恒不触发（try_run_scene:1031 gate=false）
+    let f66 = fixture_gate(66, 0, 0);
+    assert!(!probe_gate(&f66, 66), "case66 必须恒不触发");
+    assert!(!solve_local(&f66).reachable, "66 不触发且无出口 ⇒ 无解");
+
+    // (d) case67：difficulty=0 不触发（try_run_scene:1032 gate &= difficulty_index>0）；
+    //     附 difficulty>0 放行（证分支读 difficulty_index 而非恒假）
+    let f67 = fixture_gate(67, 0, 0);
+    assert!(!probe_gate(&f67, 67), "case67 在 difficulty=0 必须不触发");
+    assert!(!solve_local(&f67).reachable, "67@d0 不触发且无出口 ⇒ 无解");
+    let f67h = fixture_gate(67, 0, 1);
+    assert!(probe_gate(&f67h, 67), "case67 在 difficulty>0 必须触发");
 }

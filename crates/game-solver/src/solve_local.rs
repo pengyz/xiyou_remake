@@ -1,9 +1,9 @@
-//! 【求解器批2 C1-C4】单层求解 `solve_local`（提案 §5：C1 骨架+子命令壳 / C2 可达性+战斗 /
-//! C3 目标双查询 / C4 开门+钥匙经济）。
+//! 【求解器批2 C1-C5】单层求解 `solve_local`（提案 §5：C1 骨架+子命令壳 / C2 可达性+战斗 /
+//! C3 目标双查询 / C4 开门+钥匙经济 / C5 脚本触发转移 StepGate）。
 //!
 //! **纯度边界**（`lib.rs` 契约 + 计划 :456 A9）：本模块=纯函数——输入 `SolveInput`
 //! （由 bin/测试装配），输出 `SolveResult`；**禁文件/网络/时钟/进程 I/O**、禁 GameRng/Clock。
-//! 后续切片：C5 脚本 → C6 floor1 端到端 → C7 对拍回归。
+//! 后续切片：C6 floor1 端到端 → C7 对拍回归。
 //!
 //! **C2 转移分工（提案 §1.3 直调红线）**：
 //! - 战斗 Refused/Engage = 直调 `BattleResolver::resolve_bump`（判据 `battle.rs:121` 在其内部，
@@ -14,10 +14,20 @@
 //! - 类目分类 = 直调 `entity_category_with_floor`（`script_host.rs:96`，层覆写单源）；
 //! - 开门（C4）= 直调 `consume_key_for_door`（`combat.rs:170`，门映射同 `scene.rs:3397-3399`），
 //!   ❌不自写「有钥减一」；钥匙拾取（type26）留 C6 接入面；
+//! - 脚本触发（C5）= 判门直调 `try_run_scene(param,true)`（`scene.rs:927`）→ 载入
+//!   `load_level_script`（`scene_persist.rs:501`）→ **有拍驱动** `tick`（`scene.rs:2834`，
+//!   引擎节拍机自排序 phase0 指令→phase3 行走）→ 终止边读 `persist.pending_floor`
+//!   （`scene_persist.rs:386`，§2.2 ④），❌禁自建 23 枚举转移表（§1.3）。
+//!   **偏离提案 C5 行「驱动复用 side_a::drive」字面**：无拍 drive 实证无法产生终止边
+//!   （行尾收尾 phase4 不再走 dp3、全部 `MOV_0_*` 从原点重武装成孤儿）；读回仍按
+//!   §1.3 Obs/Snapshot/pending_floor 三源，报审注明该偏离。
 //! - 搜索编排/去重支配/目标/路线序列化 = 本模块自算（§1.3 白名单）。
 use crate::state::s0;
 use game_core::combat::PlayerCombat;
+use game_core::enums::GameMode;
 use game_core::pathfind::{find_path, Walkability};
+use game_core::scene::GameScene;
+use game_core::scene_test_support::{scene_setup, SceneSetup};
 use game_core::subsystem::battle::{
     predict_engagement, BattleCtx, BattleEvent, BattleOutcome, BattleResolver, BattleSubsystem,
     EnemyTypeId,
@@ -70,6 +80,9 @@ pub struct LevelSpec {
     pub enemies: Vec<EnemyDef>,
     /// 基础表（trait_flags / 撞击面 hp 源）
     pub enemy_base: Vec<EnemyDef>,
+    /// `script_line_flags` 位图初值（bit i = `script_line_flags[i]`；68 槽 ⇒ u128，
+    /// 提案 §4.1 flags 进 K₀）。`load_floor` ⇒ 0；T9 夹具显式置位（重入断言）
+    pub flags: u128,
 }
 
 /// 实体夹具记录（type_id + 格坐标 + 场景参数）。
@@ -81,10 +94,13 @@ pub struct EntSpec {
     pub param: i32,
 }
 
-/// 出口类别（批2=Exit#1 步行楼梯；Exit#2 脚本换层 C5 接入）。
+/// 出口类别（批2=Exit#1 步行楼梯；Exit#2 脚本换层边 C5 接入）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExitKind {
     Stair,
+    /// Exit#2 脚本换层边（C5 StepGate 终止边，§2.2 ④）。§1.4 ② 不入 min_kills
+    /// 量化域——`Kills::eligible` 只认 `Stair`；`HpLoss` 全收。
+    Script,
 }
 
 /// 出口定义。
@@ -352,6 +368,7 @@ pub fn load_floor(
             player,
             enemies,
             enemy_base,
+            flags: 0,
         }),
     })
 }
@@ -426,8 +443,8 @@ struct St {
     player: PlayerSpec,
     /// 存活位图（槽位=`LevelSpec.entities` 下标；层内单调）
     ents: Vec<u64>,
-    /// `script_line_flags` 位图（C5 脚本门用；批2 恒 0）
-    flags: u64,
+    /// `script_line_flags` 位图（C5 脚本门；68 槽 ⇒ u128，初值 `LevelSpec.flags`）
+    flags: u128,
     kills: i32,
     steps: i32,
 }
@@ -438,7 +455,7 @@ struct St {
 struct Key {
     pos: (i32, i32),
     ents: Vec<u64>,
-    flags: u64,
+    flags: u128,
     keys: (i32, i32, i32),
     bag: (Vec<u8>, Vec<u8>, i32),
     atk: i32,
@@ -565,6 +582,18 @@ enum Cell {
     Door(usize, i32), // 槽位, type_id
 }
 
+/// 到达格的 StepGate 结果（§1.3 StepGate=踩场景门 `from_walk=true`；bump 面
+/// by construction 不触发——`interact_with_cell` 用 `try_run_scene(param,false)`）。
+enum GateArrive {
+    /// 无门实体 / 门未命中（gate=false：flags 置位 / case66 / case67@d0）——正常走格
+    Pass,
+    /// 门命中且脚本换层终止边（harness 读 `persist.pending_floor`≠0，§2.2 ④）
+    Terminal,
+    /// 门命中但非终态完成或驱动停摆 ⇒ ⊥（C5 口径：批2 夹具不触发，报审注明；
+    /// T6 对 floor1 reachable=true 兜底——若真触发会即刻暴露）
+    Dropped,
+}
+
 fn all_alive(n: usize) -> Vec<u64> {
     let mut v = vec![0u64; n.div_ceil(64)];
     for i in 0..n {
@@ -654,7 +683,8 @@ impl<'a> Search<'a> {
     }
 
     /// 后继生成（solver 自算=搜索编排白名单；转移本体全为 §1.3 直调）。
-    fn expand(&self, st: &St, out: &mut Vec<(Act, St)>) {
+    /// 第三元=到达格 StepGate 结果（C5；仅 Move/Door 到达面——踩格触发）。
+    fn expand(&self, st: &St, out: &mut Vec<(Act, St, GateArrive)>) {
         for &(dx, dy) in &DIRS {
             let (tx, ty) = (st.pos.0 + dx, st.pos.1 + dy);
             if tx < 0 || ty < 0 || tx >= self.level.cols || ty >= self.level.rows {
@@ -669,7 +699,8 @@ impl<'a> Search<'a> {
                     let mut ns = st.clone();
                     ns.pos = (tx, ty);
                     ns.steps += 1;
-                    out.push((Act::Move, ns));
+                    let g = self.gate_arrive(&ns, tx, ty);
+                    out.push((Act::Move, ns, g));
                 }
                 Cell::Monster(slot, ety) => {
                     let player = st.player.to_combat();
@@ -681,7 +712,8 @@ impl<'a> Search<'a> {
                         clear_alive(&mut ns.ents, slot);
                         ns.pos = (tx, ty);
                         ns.steps += 1;
-                        out.push((Act::Bump(ety, tx, ty), ns));
+                        // 怪格不建模 StepGate（batch2 夹具无共存；报审注明）
+                        out.push((Act::Bump(ety, tx, ty), ns, GateArrive::Pass));
                     }
                 }
                 Cell::Door(slot, dty) => {
@@ -701,7 +733,10 @@ impl<'a> Search<'a> {
                         clear_alive(&mut ns.ents, slot);
                         ns.pos = (tx, ty);
                         ns.steps += 1;
-                        out.push((Act::Door(tx, ty), ns));
+                        // floor1 (6,9)=门+83 同格：开门走入即踩格 ⇒ 同一到达面上
+                        // 再判 StepGate（引擎 bump 开门→落格踩格触发，同拍语义）
+                        let g = self.gate_arrive(&ns, tx, ty);
+                        out.push((Act::Door(tx, ty), ns, g));
                     }
                 }
             }
@@ -716,7 +751,9 @@ impl<'a> Search<'a> {
             pos: self.level.start,
             player: self.level.player.clone(),
             ents: all_alive(n),
-            flags: 0,
+            // T9(b) 重入分支：根态必须继承夹具 flags 初值（probe_gate 同源）；
+            // 硬编码 0 会让 flags[19] 置位夹具照样触发 ⇒ 假 reachable。
+            flags: self.level.flags,
             kills: 0,
             steps: 0,
         };
@@ -756,7 +793,36 @@ impl<'a> Search<'a> {
             }
             let mut succ = Vec::new();
             self.expand(&st, &mut succ);
-            for (act, ns) in succ {
+            for (act, ns, gate) in succ {
+                match gate {
+                    // 门命中但非终态/停摆 ⇒ ⊥（不产生状态，§1.1；C5 口径见 GateArrive）
+                    GateArrive::Dropped => continue,
+                    GateArrive::Terminal => {
+                        // 脚本换层终止边：记录候选节点但**不入队不扩展**——本层搜索
+                        // 到此为止（§2.2 ④ 不执行 swap_floor、不展开目标层续跑=BR-1）。
+                        let new_id = nodes.len() as u32;
+                        nodes.push(Node {
+                            st: ns,
+                            parent: id,
+                            act,
+                        });
+                        pruned.push(false);
+                        let n = &nodes[new_id as usize];
+                        let mut route = route_of(&nodes, new_id);
+                        // gate 航点（route_gen 无此 token=提案缺口，报审注明）
+                        route.push(format!("gate {},{}", n.st.pos.0, n.st.pos.1));
+                        goals.push(Goal {
+                            hp: n.st.player.hp,
+                            kills: n.st.kills,
+                            steps: n.st.steps,
+                            keys: (n.st.player.yellow, n.st.player.blue, n.st.player.red),
+                            kind: ExitKind::Script,
+                            route,
+                        });
+                        continue;
+                    }
+                    GateArrive::Pass => {}
+                }
                 let k = key_of(&ns);
                 let list = by_key.entry(k).or_default();
                 let mut dominated = false;
@@ -794,6 +860,35 @@ impl<'a> Search<'a> {
         // goals 上分叉（§1.4 双查询独立出解）。
         let reachable = !goals.is_empty();
         (reachable, goals)
+    }
+
+    /// StepGate 到达转移（§1.3 StepGate 行；踩格 `from_walk=true`，bump 面
+    /// by construction 不触发）：扫到达格存活 type83 → 直调 `try_run_scene(param,true)`
+    /// 判门 → 命中 `load_level_script` → 有拍驱动（`tickdrive`）→ `persist.pending_floor`
+    /// 判终止边（§2.2 ④）。无门/未命中 ⇒ Pass（不建 harness）。
+    fn gate_arrive(&self, st: &St, tx: i32, ty: i32) -> GateArrive {
+        let mut gates: Vec<i32> = Vec::new();
+        for (slot, e) in self.level.entities.iter().enumerate() {
+            if e.x == tx && e.y == ty && e.ty == 83 && alive(&st.ents, slot) {
+                gates.push(e.param);
+            }
+        }
+        if gates.is_empty() {
+            return GateArrive::Pass;
+        }
+        let mut sc = build_scene(self.input, st, (tx, ty));
+        // 槽位升序=夹具序（提案 §3.3）；首个命中者载入执行（apply_step_cell_effects
+        // 同拍内先判先得；floor1 (6,9) 同格 19+66 —— 66 恒 false ⇒ 19 必判）
+        for param in gates {
+            if sc.try_run_scene(param, true) {
+                sc.load_level_script(param);
+                return match tickdrive(&mut sc) {
+                    Some(_) => GateArrive::Terminal,
+                    None => GateArrive::Dropped,
+                };
+            }
+        }
+        GateArrive::Pass
     }
 }
 
@@ -852,4 +947,130 @@ fn route_of(nodes: &[Node], id: u32) -> Vec<String> {
             Act::Door(x, y) => format!("door {x},{y}"),
         })
         .collect()
+}
+
+// ---------------------------------------------------------------- C5 harness
+
+/// 等价态灌一个 harness `GameScene`（提案 §2.2 管线③「从等价态灌 harness →
+/// drive → 读回 → 并回抽象态」；❌不把 GameScene 当搜索态本体——仅 StepGate
+/// 到达时临时构造）。`scene_test_support` 全程 include_str 夹具，无运行时 I/O。
+fn build_scene(input: &SolveInput, st: &St, at: (i32, i32)) -> GameScene {
+    let level = input
+        .level
+        .as_ref()
+        .expect("gate 转移需要夹具（level=None 占位分支不经过此路径）");
+    // 只灌存活槽（死亡怪/已开门不进 harness）；(type,x,y) 三元组=槽位序来源。
+    let alive_specs: Vec<&EntSpec> = level
+        .entities
+        .iter()
+        .enumerate()
+        .filter(|(slot, _)| alive(&st.ents, *slot))
+        .map(|(_, e)| e)
+        .collect();
+    let ents: Vec<(u8, i32, i32)> = alive_specs
+        .iter()
+        .map(|e| (e.ty as u8, e.x, e.y))
+        .collect();
+    let mut sc = scene_setup(
+        at,
+        &ents,
+        SceneSetup {
+            game_mode: Some(GameMode::Dialog),
+            dialog_dialog_phase: Some(0),
+            menu_difficulty_index: Some(input.difficulty),
+            persist_floor: Some(input.floor),
+            persist_current_floor: Some(input.floor),
+            player_hp: Some(st.player.hp),
+            player_atk: Some(st.player.atk),
+            player_def: Some(st.player.def),
+            player_yellow_keys: Some(st.player.yellow),
+            player_blue_keys: Some(st.player.blue),
+            player_red_keys: Some(st.player.red),
+            player_gold: Some(st.player.gold),
+            ..Default::default()
+        },
+    );
+    // 地形：夹具 terrain 灌满 walkable；夹具外格=False（杀合成地图 y=3 行泄漏）。
+    // 夹具 ≤13×13（scene() 合成几何）；更大层需扩展 harness 几何=批3 面。
+    for y in 0..(level.rows as usize).min(sc.walkable.len()) {
+        let cols = (level.cols as usize).min(sc.walkable[y].len());
+        for x in 0..cols {
+            sc.walkable[y][x] = level.terrain[y * level.cols as usize + x];
+        }
+    }
+    // 实体 param 回灌：按 (type,格) 首配消费（scene() 三元组 param 恒 0；同格多枚
+    // 按夹具序）。楼梯 param 必需——param=0 ⇒ change_floor(0) 撞 pending_floor=0
+    // 哨兵（e2 实测 PENDING 前 pending=0）；script19 控制流不读 83 param（e2 实测
+    // params=0 仍走到终止边）；scene() 会多生实体（e1 count=3 > 夹具 2），不能 zip。
+    let mut pool: Vec<&EntSpec> = alive_specs;
+    for sc_e in sc.entities.items.iter_mut() {
+        if let Some(pos) = pool.iter().position(|s| {
+            s.ty == sc_e.type_ as i32 && s.x == (sc_e.px >> 5) && s.y == (sc_e.py >> 5)
+        }) {
+            sc_e.param = pool.remove(pos).param as i16;
+        }
+    }
+    // flags 位图灌入（script_line_flags pub，SceneSetup 无该字段；68 槽 ≤ u128）。
+    for (i, f) in sc.script_line_flags.iter_mut().enumerate() {
+        *f = i < 128 && ((st.flags >> i) & 1) == 1;
+    }
+    sc
+}
+
+/// 有拍驱动（§2.2②③）：每拍注入 Confirm（`key_value=1`）+ `tick`——引擎节拍机
+/// 自排序（phase0 逐指令→phase1 打字机→phase3 行走 32px 归格踩格→…）。
+/// 返回 `Some(pending_floor)`=脚本换层终止边；`None`=行尾收尾进 Map（非终态
+/// 完成）或停摆——两者在 C5 口径均为 ⊥（Dropped），安全兜底不产假 reachable。
+/// 注：无拍 `side_a::drive` 实测产不出终止边（b35/b38 实证）——提案 C5 行
+/// 「驱动复用 side_a::drive」字面不可行，偏离已记模块头 doc，报审注明。
+fn tickdrive(sc: &mut GameScene) -> Option<i32> {
+    let wt = sc.width_table.clone();
+    let mut ft = 0i64;
+    let mut last = String::new();
+    let mut stall = 0;
+    loop {
+        if sc.persist.pending_floor != 0 {
+            return Some(sc.persist.pending_floor);
+        }
+        if matches!(sc.game_mode, GameMode::Map) {
+            return None; // 行尾收尾 transition_to(Map)：非终态完成
+        }
+        sc.key_value = 1;
+        sc.tick(ft, &wt);
+        ft += 1;
+        let sig = format!(
+            "{}/{}/{}/{}/{}",
+            sc.dialog.dialog_phase,
+            sc.script_walk_armed,
+            sc.walk_phase,
+            sc.view.player_px,
+            sc.view.player_py
+        );
+        if sig == last {
+            stall += 1;
+        } else {
+            stall = 0;
+        }
+        last = sig;
+        if stall > 500 || ft > 30_000 {
+            return None; // 停摆兜底 ⇒ ⊥（保守：不产生假 reachable）
+        }
+    }
+}
+
+/// T9 探针（`probe_bump` 同法=与搜索共用 harness 门面路径，非自证）：夹具
+/// flags/difficulty 下 `try_run_scene(param, true)` 的判门结果——只判不放
+/// （不 load/tick；case19/66/67 臂只读 flags/difficulty，无副作用）。
+pub fn probe_gate(input: &SolveInput, param: i32) -> bool {
+    let level = input.level.as_ref().expect("probe_gate 需要夹具");
+    let st = St {
+        pos: level.start,
+        player: level.player.clone(),
+        ents: all_alive(level.entities.len()),
+        flags: level.flags,
+        kills: 0,
+        steps: 0,
+    };
+    let mut sc = build_scene(input, &st, level.start);
+    sc.try_run_scene(param, true)
 }
