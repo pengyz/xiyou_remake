@@ -412,7 +412,7 @@ fn fixture_door(yellow: i32) -> SolveInput {
 }
 
 #[test]
-fn p2s1_t4_开门有钥则开无钥则挡耗钥断言() {
+fn p2s1_t4_solve_local_开门有钥则开无钥则挡耗钥断言() {
     // 有钥：开门走入、耗一把黄钥（consume_key_for_door 直调进转移，§1.3 开门行）
     let r = solve_local(&fixture_door(1));
     assert!(r.reachable, "有钥 ⇒ 出口可达：{r:?}");
@@ -468,7 +468,7 @@ fn load_all_ingest() -> game_solver::ingest::SolverInput {
 }
 
 #[test]
-fn p2s1_t5_floor1_fixture_census快照() {
+fn p2s1_t5_solve_local_floor1_fixture_census快照() {
     // T5：断言挂 solve_local 的 fixture 装载路径（提案 §3.1 T5：未实现⇒红）。
     // census.rs 既有直调断言属计划 :301/:314 B 类（写时即绿），不得当红。
     let si = load_all_ingest();
@@ -676,9 +676,10 @@ fn waypoint_ok(wp: &str) -> bool {
     cell_ok(wp)
 }
 
-/// T6（提案 §3.1 T6 / 计划 :327-328）：floor1 端到端 JSON 形状 + min_kills≥3 下界。
+/// T6（提案 §3.1 T6 / 计划 :327-328）：floor1 端到端 JSON 形状 + min_kills=null 形态
+/// （§8-8 首跑核对：Exit#1 步行不可达 ⇒ min_kills=None，断言按 null 形态钉）。
 #[test]
-fn p2s1_t6_solve_local_floor1端到端json形状与min_kills下界() {
+fn p2s1_t6_solve_local_floor1端到端json形状与min_kills为None变体() {
     let r = solve_local(&fixture_floor1());
     let j = r.to_json();
 
@@ -823,9 +824,12 @@ fn p2s1_t8_solve_local_暗墙与胜利夹具() {
     // 撞前不可达——提案 T8「型69..75 胜利」对 72 的误标裁定（见分类 32 臂注释）
     let r = solve_local(&fixture_corridor(72, true));
     assert!(!r.reachable, "type72 联动门撞前不可达：{r:?}");
-    // 胜利夹具（型69..71,73,74；type75 缺敌表行避开、type72=联动门阻挡）：
+    // 胜利夹具（计划 :320 型69..75 全域；type72=联动门阻挡单列于上）：
+    // > 2026-11-12 更正（复核 Y1 证伪）：原注「type75 缺敌表行避开」不成立——
+    // > enemies.json id75 在、enemybasehp 35 词=41..75、combat.rs id:41+i ⇒ 敌表行存在，
+    // > 循环补回 75（docs/findings/reviews/2026-11-12-solver-batch2-impl-review.md Y1）。
     // 击杀开路 vs 无出口判别
-    for ty in [69, 70, 71, 73, 74] {
+    for ty in [69, 70, 71, 73, 74, 75] {
         let r = solve_local(&fixture_corridor(ty, true));
         assert!(r.reachable, "type{ty} 击杀开路可达：{r:?}");
         assert!(

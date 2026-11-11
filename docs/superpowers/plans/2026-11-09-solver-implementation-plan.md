@@ -320,6 +320,7 @@ python3 gates/cli.py check                    # 预期：FAIL=0
 - [ ] `solve_local.rs`：选**一层**（建议 floor1：oracle 有 walk_replay_floor1 真地形先例，§2.8）做全量求解：可达性（复用 findPath 语义/或 solver 内 BFS，可通行=terrain‖实体槽，`pathfind.rs:22-27`）+ 战斗闭式（`predict_battle_hp_loss`）+ 开门（`consume_key_for_door`）+ 层内脚本触发（type83/型69..75 胜利触发的 A 类转移）。
 - [ ] 三个出口都出解：`reachable: bool`、`max_hp: Option<i32>`（带路线）、`min_kills: Option<u32>`（带路线）。
 - [ ] 路线输出为航点序列（兼容 `tools/route_gen.py` 的 `x,y` / `bump 型@x,y` 语法，§2.8——为批5 铺路）。
+  - 批2 复核注（2026-11-12，Y4）：批2 route 含 `gate x,y` 终止边航点（StepGate 换层边），route_gen.py 三类语法（:12-15）无 `gate` token ⇒ **喂 route_gen 前须剥除 `gate ` 航点**（或补 token），该剥除/补丁规则须在**批5 A6 oracle 回放落地前**写定（A6 行 :453）。
 
 **判据**
 

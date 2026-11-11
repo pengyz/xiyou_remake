@@ -312,10 +312,10 @@ pub fn load_floor(
     if cols <= 0 || rows <= 0 {
         return Err(format!("floor{floor_idx} 尺寸非法 {cols}x{rows}"));
     }
-    // 地形（行主序；索引式与 route_gen.py:52 `wk` 同源）：
+    // 地形（行主序；索引式与 route_gen.py:54-55 `wk` 同源）：
     // Maplv.terrain=headerless 网格（maplv.rs take(data,4,grid_bytes)，13×13=676B），
     // 行走判定读法=行距 wide·4、列距 2（a.java:6973 rebuildWalkability 内层 +2×wide
-    // + 外层 var3<<1；route_gen.py:52 `g1[y * wide * 4 + x * 2]`；scene_persist.rs:301 同式）
+    // + 外层 var3<<1；route_gen.py:54-55 `g1[y * wide * 4 + x * 2]`；scene_persist.rs:300 同式）
     let mut terrain = vec![false; (cols * rows) as usize];
     for y in 0..rows {
         for x in 0..cols {
@@ -671,7 +671,7 @@ impl<'a> Search<'a> {
                 },
                 // 2|4 道物（C6 拾取转移：harness try_step 落格触发 pickup_item_type）
                 2 | 4 => pickup = true,
-                // 32 联动门（type72/84/87）：interact 面恒阻挡（a.java:5520 /
+                // 32 联动门（type72/84/87）：interact 面恒阻挡（a.java:5527 /
                 // scene.rs:3664 `32 => allowed = false`）。floor1 上 type72 无层覆写
                 // （sprite_defs floor_category_override 仅 floor50→cat8，
                 // evidence a.java:6292 render_category=32、a.java:9681 default_category=32）
