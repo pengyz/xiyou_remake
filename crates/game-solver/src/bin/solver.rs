@@ -1,7 +1,8 @@
-//! 【求解器批0】solver CLI：`ingest --summary`——加载资产/夹具/三表 → census 摘要输出。
+//! 【求解器批0/批2】solver CLI：`ingest --summary`（批0 census）+ `solve-local --floor N`（批2 单层求解，C1 起）。
 //!
 //! I/O 只在此 bin（lib 纯度边界见 src/lib.rs）。
 use game_solver::ingest::{census, ingest};
+use game_solver::solve_local::{solve_local, SolveInput};
 use std::path::PathBuf;
 
 fn repo() -> PathBuf {
@@ -10,8 +11,22 @@ fn repo() -> PathBuf {
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(|s| s.as_str()) == Some("solve-local") {
+        // 批2 C1：单层求解子命令（逻辑在 lib::solve_local，壳只在此处解析参数+打印）
+        let floor = args
+            .iter()
+            .position(|a| a == "--floor")
+            .and_then(|i| args.get(i + 1))
+            .map(|v| v.parse::<i32>().expect("--floor 需整数"))
+            .unwrap_or_else(|| {
+                eprintln!("用法：solver solve-local --floor <N>");
+                std::process::exit(2);
+            });
+        println!("{}", solve_local(&SolveInput::placeholder(floor)).to_json());
+        return;
+    }
     if args.first().map(|s| s.as_str()) != Some("ingest") || args.get(1).map(|s| s.as_str()) != Some("--summary") {
-        eprintln!("用法：solver ingest --summary");
+        eprintln!("用法：solver ingest --summary | solver solve-local --floor <N>");
         std::process::exit(2);
     }
     let root = repo();
