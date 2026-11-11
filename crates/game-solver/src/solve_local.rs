@@ -669,9 +669,14 @@ impl<'a> Search<'a> {
                     // 5 宝箱 / 83 场景门 / 76|82 组门：bump 放行
                     _ => {}
                 },
-                // 2|4 道物（C6 拾取转移：harness try_step 落格触发 pickup_item_type）、
-                // 0/16/32 装饰：可走
+                // 2|4 道物（C6 拾取转移：harness try_step 落格触发 pickup_item_type）
                 2 | 4 => pickup = true,
+                // 32 联动门（type72/84/87）：interact 面恒阻挡（a.java:5520 /
+                // scene.rs:3664 `32 => allowed = false`）。floor1 上 type72 无层覆写
+                // （sprite_defs floor_category_override 仅 floor50→cat8，
+                // evidence a.java:6292 render_category=32、a.java:9681 default_category=32）
+                // ⇒ 撞前不可达。0/16 装饰：可走
+                32 => blocked = true,
                 _ => {}
             }
         }
@@ -1004,29 +1009,10 @@ impl<'a> Search<'a> {
 fn subgraph(level: &LevelSpec) -> Vec<bool> {
     let cols = level.cols;
     let rows = level.rows;
-    let terrain: Vec<Vec<bool>> = (0..rows)
-        .map(|y| {
-            (0..cols)
-                .map(|x| level.terrain[(y * cols + x) as usize])
-                .collect()
-        })
-        .collect();
-    let has_slot = |x: i32, y: i32| -> bool {
-        level
-            .entities
-            .iter()
-            .any(|e| e.x == x && e.y == y)
-    };
-    let walk = Walkability {
-        terrain,
-        has_entity_slot: &has_slot,
-        cols,
-        rows,
-    };
     let mut sub = vec![false; (cols * rows) as usize];
     for y in 0..rows {
         for x in 0..cols {
-            sub[(y * cols + x) as usize] = find_path(&walk, level.start.0, level.start.1, x, y).found;
+            sub[(y * cols + x) as usize] = find_cell_path(level, level.start, (x, y));
         }
     }
     let s = (level.start.1 * cols + level.start.0) as usize;
@@ -1034,6 +1020,83 @@ fn subgraph(level: &LevelSpec) -> Vec<bool> {
         sub[s] = true;
     }
     sub
+}
+
+/// T7（提案 §3.1 T7 / 计划 :319「find_path found 与 solver BFS found 一致」）：
+/// `game_core::pathfind::find_path` 直调薄封装——转发其 found，不复刻任何怪癖；
+/// `subgraph` 与 T7 对拍测试共用本函数（生产/测试单源）。谓词=terrain||slot。
+/// 注：不能返回 `Walkability`（`has_entity_slot` 闭包借 `level` 悬垂=E0515），每次装配。
+pub fn find_cell_path(level: &LevelSpec, from: (i32, i32), to: (i32, i32)) -> bool {
+    let cols = level.cols;
+    let rows = level.rows;
+    let terrain: Vec<Vec<bool>> = (0..rows)
+        .map(|y| {
+            (0..cols)
+                .map(|x| level.terrain[(y * cols + x) as usize])
+                .collect()
+        })
+        .collect();
+    let has_slot = |x: i32, y: i32| level.entities.iter().any(|e| e.x == x && e.y == y);
+    let walk = Walkability {
+        terrain,
+        has_entity_slot: &has_slot,
+        cols,
+        rows,
+    };
+    find_path(&walk, from.0, from.1, to.0, to.1).found
+}
+
+/// T7 对拍的 solver 侧 BFS（独立遍历、同谓词 terrain||slot、同邻序左右上下）。
+/// 语义按 `find_path` 实测对齐（分歧根因=其结构性怪癖，见报审 T7 段）：
+/// - 目标格不可走（无槽）⇒ false——find_path 只 push 可走格，dst 永不入队；
+/// - 起点自身**不需可走**——find_path 从起点直接 relax 邻格、不校验起点；
+/// - `from == to` ⇒ 起点可走且有可走邻格才 true——find_path 起点不入队、
+///   靠邻格回推；孤立格经幻影队头回溯失败（pathfind.rs:133）⇒ false；
+/// - 不设 expansions≤100 上限（floor1 可推格 <100 不触发；触发即 T7 实测暴露）。
+pub fn bfs_reachable(level: &LevelSpec, from: (i32, i32), to: (i32, i32)) -> bool {
+    let cols = level.cols;
+    let rows = level.rows;
+    let inb = |x: i32, y: i32| x >= 0 && y >= 0 && x < cols && y < rows;
+    if !inb(from.0, from.1) || !inb(to.0, to.1) {
+        return false;
+    }
+    let pushable = |x: i32, y: i32| -> bool {
+        level.terrain[(y * cols + x) as usize]
+            || level.entities.iter().any(|e| e.x == x && e.y == y)
+    };
+    if !pushable(to.0, to.1) {
+        return false;
+    }
+    if from == to {
+        // find_path 起点不入队：须有可走邻格回推才 found；孤立格=false（幻影队头回溯失败）
+        return pushable(from.0, from.1)
+            && [(-1i32, 0i32), (1, 0), (0, -1), (0, 1)]
+                .iter()
+                .any(|&(dx, dy)| {
+                    let (nx, ny) = (from.0 + dx, from.1 + dy);
+                    inb(nx, ny) && pushable(nx, ny)
+                });
+    }
+    // BFS：起点可不 pushable（find_path 从起点直接 relax 邻格）；仅可走格可被进入；
+    // dst 在 push 时判（find_path 在 pop 时判，未封顶时二者同真值）
+    let mut visited = vec![vec![false; cols as usize]; rows as usize];
+    let mut q = VecDeque::new();
+    visited[from.1 as usize][from.0 as usize] = true;
+    q.push_back(from);
+    while let Some((x, y)) = q.pop_front() {
+        for &(dx, dy) in &[(-1i32, 0i32), (1, 0), (0, -1), (0, 1)] {
+            let (nx, ny) = (x + dx, y + dy);
+            if !inb(nx, ny) || visited[ny as usize][nx as usize] || !pushable(nx, ny) {
+                continue;
+            }
+            if (nx, ny) == to {
+                return true;
+            }
+            visited[ny as usize][nx as usize] = true;
+            q.push_back((nx, ny));
+        }
+    }
+    false
 }
 
 /// 路线重建（route_gen.py 航点：`route_gen.py:12-15`；route[0]=入口格）。

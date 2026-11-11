@@ -729,3 +729,116 @@ fn p2s1_t10_solve_local_同输入双跑逐字节相等() {
         "双跑输出须非平凡（route 非空）：{a}"
     );
 }
+
+// ===== C7（提案 §3.1 T7/T8；计划 :319-320）=====
+
+/// C7 走廊夹具（3×1，地形全可走）：start(0,0)、中格 (1,0) 实体 ty、可选 Exit#1 (2,0)。
+/// T7 暗墙格对对拍与 T8 暗墙/胜利断言共用；高攻玩家保证型69..74（def 至 1000）
+/// hits=1 ⇒ loss=0 可杀（战斗数学已由 T2 钉死，此处只测转移结构）。
+fn fixture_corridor(ty: i32, with_exit: bool) -> SolveInput {
+    let (base, scaled) = enemy_tables();
+    SolveInput {
+        floor: 1,
+        difficulty: 0,
+        level: Some(LevelSpec {
+            cols: 3,
+            rows: 1,
+            terrain: vec![true; 3],
+            start: (0, 0),
+            entities: vec![EntSpec {
+                ty,
+                x: 1,
+                y: 0,
+                param: 0,
+            }],
+            exits: if with_exit {
+                vec![ExitSpec {
+                    x: 2,
+                    y: 0,
+                    kind: ExitKind::Stair,
+                    index: 1,
+                }]
+            } else {
+                vec![]
+            },
+            player: PlayerSpec::from_combat(player(1_000_000, 10_000, 1)),
+            enemies: scaled,
+            enemy_base: base,
+            flags: 0,
+        }),
+    }
+}
+
+/// T7（提案 §3.1 T7 / 计划 :319「find_path found 与 solver BFS found 一致」）：
+/// 同层同起终点，find_path 的 found ⇔ solver BFS 的 found —— floor1 全格对（169²）
+/// + 暗墙夹具格对。产物层绑定：find_cell_path=find_path 直调薄封装（零逻辑，
+/// subgraph 与本测试共用 = 单源），bfs_reachable=独立 BFS 同谓词（terrain||slot）。
+#[test]
+fn p2s1_t7_solve_local_find_path与bfs_found对拍() {
+    use game_solver::solve_local::{bfs_reachable, find_cell_path};
+
+    let mut inputs = vec![fixture_floor1()];
+    for ty in [12, 11, 6] {
+        inputs.push(fixture_corridor(ty, true));
+    }
+    for input in &inputs {
+        let level = input.level.as_ref().unwrap();
+        for fy in 0..level.rows {
+            for fx in 0..level.cols {
+                for gy in 0..level.rows {
+                    for gx in 0..level.cols {
+                        let fp = find_cell_path(level, (fx, fy), (gx, gy));
+                        let bfs = bfs_reachable(level, (fx, fy), (gx, gy));
+                        assert_eq!(
+                            fp, bfs,
+                            "格对 ({fx},{fy})->({gx},{gy})（floor{}）find_path={fp} bfs={bfs}",
+                            input.floor
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// T8（提案 §3.1 T8 / §2.3 暗墙 + 计划 :320 型69..75 胜利夹具）：
+/// 暗墙 type12 撞前不可达 / type11 撞后仍阻挡（凿开不在批2 ⇒ 可达性不开）/
+/// type6 踩后显形（隐形路径可走）；胜利夹具经 solve_local 求解路径触发——
+/// 提案 §1.3 :61 标「A 类换层」，实测钩子链（load_level_script→TAK 对话）无
+/// change_floor ⇒ 击杀=普通转移非终止边：有出口可达+route 含 bump、
+/// **无出口不可达（判别断言：若误建成换层终止边则 true）**。
+#[test]
+fn p2s1_t8_solve_local_暗墙与胜利夹具() {
+    // 暗墙（撞前 type12 隐形阻挡）
+    let r = solve_local(&fixture_corridor(12, true));
+    assert!(!r.reachable, "type12 撞前不可达：{r:?}");
+    // 撞后变 type11 仍阻挡（凿开不在批2）
+    let r = solve_local(&fixture_corridor(11, true));
+    assert!(!r.reachable, "type11 撞后仍阻挡：{r:?}");
+    // type6 隐形路径踩后显形=可走 ⇒ 可达且 route 过中格
+    let r = solve_local(&fixture_corridor(6, true));
+    assert!(r.reachable, "type6 可通行：{r:?}");
+    assert_eq!(r.route, vec!["0,0", "1,0", "2,0"], "route 过显形格");
+    // type72=floor1 联动门（cat32 恒阻挡，sprite_defs 无 floor1 覆写）：
+    // 撞前不可达——提案 T8「型69..75 胜利」对 72 的误标裁定（见分类 32 臂注释）
+    let r = solve_local(&fixture_corridor(72, true));
+    assert!(!r.reachable, "type72 联动门撞前不可达：{r:?}");
+    // 胜利夹具（型69..71,73,74；type75 缺敌表行避开、type72=联动门阻挡）：
+    // 击杀开路 vs 无出口判别
+    for ty in [69, 70, 71, 73, 74] {
+        let r = solve_local(&fixture_corridor(ty, true));
+        assert!(r.reachable, "type{ty} 击杀开路可达：{r:?}");
+        assert!(
+            r.route
+                .iter()
+                .any(|w| w.starts_with(&format!("bump {ty}@"))),
+            "route 含 bump {ty}：{:?}",
+            r.route
+        );
+        let r2 = solve_local(&fixture_corridor(ty, false));
+        assert!(
+            !r2.reachable,
+            "type{ty} 无出口不可达（胜利非换层终止边判别）：{r2:?}"
+        );
+    }
+}
