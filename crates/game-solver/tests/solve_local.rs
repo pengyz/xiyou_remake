@@ -201,3 +201,161 @@ fn p2s1_t2b_solve_local_3x3强怪挡路_杀不过refused不计杀() {
         "Refused ⇒ 拒战浮层（scene.rs:3626）"
     );
 }
+
+/// 航点里 `bump ` 前缀数 = 该路杀怪数（Refused ⇒ 不产生航点，§1.1「⊥ 不产生状态」）。
+fn bumps(route: &[String]) -> i32 {
+    route.iter().filter(|w| w.starts_with("bump ")).count() as i32
+}
+
+/// T3 双查询分叉夹具（5×3，下排整墙）：
+/// - 中排直穿：type41 三连挡 (1,1)(2,1)(3,1)，4 步 3 杀；
+/// - 上排绕行：(1,0)(3,0) 两怪，6 步 2 杀——全图无 1 杀路（x∈{1,2,3} 两排必穿其二，下排墙）。
+/// 玩家 def18 ≥ 怪 atk18 ⇒ 每战 loss=0（combat.rs:106-131）⇒ 两路 hp 同为 300
+/// ⇒ max_hp 并列走 tie-break（步数少 ⇒ 直穿 3 杀）、min_kills 取 2 杀路
+/// ⇒ 双查询独立出解（§1.4「双查询独立出解」实证）。
+fn fixture_split() -> SolveInput {
+    let (base, scaled) = enemy_tables();
+    let level = LevelSpec {
+        cols: 5,
+        rows: 3,
+        // 行主序：y=0 全可走、y=1 全可走、y=2 全墙
+        terrain: vec![
+            true, true, true, true, true, true, true, true, true, true, false, false, false,
+            false, false,
+        ],
+        start: (0, 1),
+        entities: vec![
+            EntSpec { ty: 41, x: 1, y: 1, param: 0 },
+            EntSpec { ty: 41, x: 2, y: 1, param: 0 },
+            EntSpec { ty: 41, x: 3, y: 1, param: 0 },
+            EntSpec { ty: 41, x: 1, y: 0, param: 0 },
+            EntSpec { ty: 41, x: 3, y: 0, param: 0 },
+            EntSpec { ty: 7, x: 4, y: 1, param: 2 },
+        ],
+        exits: vec![ExitSpec {
+            x: 4,
+            y: 1,
+            kind: ExitKind::Stair,
+            index: 1,
+        }],
+        player: PlayerSpec::from_combat(player(300, 10, 18)),
+        enemies: scaled,
+        enemy_base: base,
+    };
+    SolveInput {
+        floor: 1,
+        difficulty: 0,
+        level: Some(level),
+    }
+}
+
+/// T3 tie-break 夹具（3×2 全可走）：S=(2,1)、出口 (1,0)。两条等长 2 步路：
+/// - 上路（BFS 首见，DIRS 序「上」优先）：2,1 → 2,0 → 1,0
+/// - 左路（字典序更小）：2,1 → 1,1 → 1,0
+/// hp/kills/steps 全并列 ⇒ §3.3 取字典序最小路线；只取 BFS 首见会得上路 ⇒ 断言可判别。
+fn fixture_tie() -> SolveInput {
+    let (base, scaled) = enemy_tables();
+    let level = LevelSpec {
+        cols: 3,
+        rows: 2,
+        terrain: vec![true; 6],
+        start: (2, 1),
+        entities: vec![EntSpec {
+            ty: 7,
+            x: 1,
+            y: 0,
+            param: 2,
+        }],
+        exits: vec![ExitSpec {
+            x: 1,
+            y: 0,
+            kind: ExitKind::Stair,
+            index: 1,
+        }],
+        player: PlayerSpec::from_combat(player(300, 10, 10)),
+        enemies: scaled,
+        enemy_base: base,
+    };
+    SolveInput {
+        floor: 1,
+        difficulty: 0,
+        level: Some(level),
+    }
+}
+
+/// T3（提案 §3.1 T3 / 计划 :330「hp/kills 单调性断言」）：三断言 (i)-(iii) + 并列 tie-break。
+#[test]
+fn p2s1_t3_solve_local_目标双查询单调性与tie_break() {
+    // (i) reachable=false ⇒ max_hp=min_kills=None（T2b 同款杀不过封死）
+    let r = solve_local(&fixture_3x3(player(10, 10, 10)));
+    assert!(!r.reachable, "(i) 杀不过 ⇒ 封死：{r:?}");
+    assert_eq!(r.max_hp, None, "(i) reachable=false ⇒ max_hp=None");
+    assert_eq!(r.min_kills, None, "(i) reachable=false ⇒ min_kills=None");
+
+    // (ii)+(iii) 走廊夹具：唯一 Exit#1 路=必杀 1 怪（loss=24）
+    let r = solve_local(&fixture_3x3(player(300, 10, 10)));
+    assert!(r.reachable, "(ii) 可达");
+    let max_hp = r.max_hp.expect("(ii) reachable=true ⇒ Some");
+    assert!(max_hp <= 300, "(ii) max_hp ≤ hp(s0)=300：{max_hp}");
+    assert_eq!(max_hp, 276, "唯一路 300-24");
+    let min_kills = r.min_kills.expect("(iii) Exit#1 域非空 ⇒ Some");
+    assert_eq!(
+        bumps(&r.route_min_kills),
+        min_kills,
+        "(iii) route_min_kills 取等号"
+    );
+    assert!(
+        min_kills <= bumps(&r.route),
+        "(iii) route_max_hp 终态∈Exit#1 ⇒ 域内下界"
+    );
+
+    // (iii) 分叉夹具：min_kills 走 2 杀路、max_hp 走 3 杀直穿 ⇒ 双查询独立出解
+    let r = solve_local(&fixture_split());
+    assert!(r.reachable, "(iii) 分叉夹具可达");
+    assert_eq!(r.max_hp, Some(300), "两路 loss=0 ⇒ hp 同 300");
+    let min_kills = r.min_kills.expect("(iii)");
+    assert_eq!(min_kills, 2, "全图最少杀数=2（下排墙，x∈{{1,2,3}} 必穿其二）");
+    assert_ne!(
+        r.route, r.route_min_kills,
+        "双查询独立出解：max_hp 走 3 杀直穿、min_kills 走 2 杀绕行（§1.4）"
+    );
+    assert_eq!(
+        bumps(&r.route_min_kills),
+        min_kills,
+        "(iii) route_min_kills 取等号"
+    );
+    assert_eq!(
+        bumps(&r.route),
+        3,
+        "route_max_hp=直穿 3 杀（hp 并列 ⇒ 步数少者胜）"
+    );
+    assert!(
+        min_kills <= bumps(&r.route),
+        "(iii) route_max_hp 终态∈Exit#1 ⇒ 亦须满足域内下界"
+    );
+    // 夹具内可枚举的全部 Exit#1 路逐一断言
+    for route in [
+        vec!["0,1", "bump 41@1,1", "bump 41@2,1", "bump 41@3,1", "4,1"],        // 直穿 3 杀
+        vec!["0,1", "0,0", "bump 41@1,0", "2,0", "bump 41@3,0", "4,0", "4,1"],   // 上绕 2 杀
+    ] {
+        let k = route.iter().filter(|w| w.starts_with("bump ")).count() as i32;
+        assert!(
+            min_kills <= k,
+            "π={route:?} kills={k} ≥ min_kills={min_kills}（(iii) 逐路断言）"
+        );
+    }
+
+    // 并列 tie-break（§3.3）：字典序最小，而非 BFS 首见
+    let r = solve_local(&fixture_tie());
+    assert_eq!(r.max_hp, Some(300), "无伤 ⇒ hp(s0)");
+    assert_eq!(
+        r.route,
+        vec!["2,1", "1,1", "1,0"],
+        "hp/kills/steps 并列 ⇒ 字典序最小路线（BFS 首见为上路 2,0，断言可判别）"
+    );
+    assert_eq!(r.min_kills, Some(0), "无怪 ⇒ 0 杀");
+    assert_eq!(
+        r.route_min_kills, r.route,
+        "同并列口径：min_kills 路线亦为字典序最小"
+    );
+}

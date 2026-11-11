@@ -157,8 +157,11 @@ pub struct SolveResult {
     pub min_kills: Option<i32>,
     /// 三态置信（计划 :448 A1）：UseItem 裁出 ⇒ 批2 恒 `bounded-best`（BR-7）
     pub confidence: &'static str,
-    /// 路线（route_gen.py 航点语法，`route_gen.py:12-15`）
+    /// Q1（max_hp）路线：T6 JSON 单 `route` 字段取自本字段（提案 §1.4 ① / §3.1 T6 形状）
     pub route: Vec<String>,
+    /// Q2（min_kills）路线：量化域=Exit#1（§1.4 ②）；T3(iii) `route_min_kills` 断言面。
+    /// 不入 JSON——T6 形状只有单一 `route` 字段。
+    pub route_min_kills: Vec<String>,
 }
 
 impl SolveResult {
@@ -219,10 +222,13 @@ pub fn solve_local(input: &SolveInput) -> SolveResult {
             min_kills: None,
             confidence: "feasible",
             route: Vec::new(),
+            route_min_kills: Vec::new(),
         };
     };
     let search = Search::new(input, level);
-    let (reachable, route) = search.run();
+    let (reachable, goals) = search.run();
+    let hp_goal = pick::<HpLoss>(&goals);
+    let kill_goal = pick::<Kills>(&goals);
     SolveResult {
         floor: input.floor,
         difficulty: input.difficulty,
@@ -236,10 +242,11 @@ pub fn solve_local(input: &SolveInput) -> SolveResult {
             level.player.gold,
         ),
         reachable,
-        max_hp: None,   // C3 目标双查询接入
-        min_kills: None, // C3：量化域=Exit#1
+        max_hp: hp_goal.map(|g| g.hp),
+        min_kills: kill_goal.map(|g| g.kills),
         confidence: "feasible",
-        route,
+        route: hp_goal.map(|g| g.route.clone()).unwrap_or_default(),
+        route_min_kills: kill_goal.map(|g| g.route.clone()).unwrap_or_default(),
     }
 }
 
@@ -365,6 +372,74 @@ enum Act {
     Bump(i32, i32, i32), // type, x, y
 }
 
+/// 终态候选（双查询共用；提案 §1.4「一次搜索维护 Pareto 前沿即可双查询取解」）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Goal {
+    hp: i32,
+    kills: i32,
+    steps: i32,
+    kind: ExitKind,
+    route: Vec<String>,
+}
+
+/// 代价泛型（§5 C3「同骨架两代价泛型」+ §1.4 双查询独立出解）。
+/// 支配剪枝与代价无关 ⇒ 搜索骨架只跑一次，代价只在取解时分叉。
+trait Cost {
+    /// 量化域（HpLoss：全部出口；Kills：仅 Exit#1 步行楼梯，§1.4 ②）
+    fn eligible(kind: ExitKind) -> bool;
+    /// 优劣：true = a 优于 b（并列取步数少者、再并列字典序最小路线，§3.3）
+    fn better(a: &Goal, b: &Goal) -> bool;
+}
+
+/// Q1：max_hp（域=全部合法路，含 Exit#2；§1.4 ①）
+struct HpLoss;
+
+impl Cost for HpLoss {
+    fn eligible(_kind: ExitKind) -> bool {
+        true
+    }
+    fn better(a: &Goal, b: &Goal) -> bool {
+        if a.hp != b.hp {
+            a.hp > b.hp
+        } else if a.steps != b.steps {
+            a.steps < b.steps
+        } else {
+            a.route < b.route
+        }
+    }
+}
+
+/// Q2：min_kills（域=终态 ∈ Exit#1；§1.4 ②）
+struct Kills;
+
+impl Cost for Kills {
+    fn eligible(kind: ExitKind) -> bool {
+        matches!(kind, ExitKind::Stair)
+    }
+    fn better(a: &Goal, b: &Goal) -> bool {
+        if a.kills != b.kills {
+            a.kills < b.kills
+        } else if a.steps != b.steps {
+            a.steps < b.steps
+        } else {
+            a.route < b.route
+        }
+    }
+}
+
+/// 取解：域内 argbest（None = 该域无解；`reachable` 仍由「任一出口」决定）。
+fn pick<C: Cost>(goals: &[Goal]) -> Option<&Goal> {
+    let mut best: Option<&Goal> = None;
+    for g in goals.iter().filter(|g| C::eligible(g.kind)) {
+        best = match best {
+            None => Some(g),
+            Some(b) if C::better(g, b) => Some(g),
+            some => some,
+        };
+    }
+    best
+}
+
 struct Node {
     st: St,
     parent: u32,
@@ -412,13 +487,6 @@ impl<'a> Search<'a> {
 
     fn walkable(&self, x: i32, y: i32) -> bool {
         self.level.terrain[(y * self.level.cols + x) as usize]
-    }
-
-    fn is_exit(&self, st: &St) -> bool {
-        self.level
-            .exits
-            .iter()
-            .any(|e| e.x == st.pos.0 && e.y == st.pos.1)
     }
 
     /// 格分类（`scene.rs interact_with_cell` 的类目臂归约，提案 §6-7 单源：
@@ -498,8 +566,8 @@ impl<'a> Search<'a> {
     }
 
     /// 搜索主循环：BFS（FIFO）+ K₀ 去重 + Pareto 支配剪枝。
-    /// 返回（任一出口可达, 首个 goal 路线）。
-    fn run(&self) -> (bool, Vec<String>) {
+    /// 返回（任一出口可达, 全部非支配终态候选——双查询取解共用，§1.4）。
+    fn run(&self) -> (bool, Vec<Goal>) {
         let n = self.level.entities.len();
         let root = St {
             pos: self.level.start,
@@ -519,16 +587,28 @@ impl<'a> Search<'a> {
         queue.push_back(0);
         let mut by_key: BTreeMap<Key, Vec<u32>> = BTreeMap::new();
         by_key.entry(key_of(&nodes[0].st)).or_default().push(0);
-        let mut goals: Vec<u32> = Vec::new();
+        let mut goals: Vec<Goal> = Vec::new();
 
         while let Some(id) = queue.pop_front() {
             if pruned[id as usize] {
                 continue;
             }
             let st = nodes[id as usize].st.clone();
-            if self.is_exit(&st) {
-                goals.push(id);
-                continue; // 终态不扩展
+            if let Some(e) = self
+                .level
+                .exits
+                .iter()
+                .find(|e| e.x == st.pos.0 && e.y == st.pos.1)
+            {
+                // 终态：记录候选（kind 决定量化域归属，§1.4 ② Exit#1），不扩展
+                goals.push(Goal {
+                    hp: st.player.hp,
+                    kills: st.kills,
+                    steps: st.steps,
+                    kind: e.kind,
+                    route: route_of(&nodes, id),
+                });
+                continue;
             }
             let mut succ = Vec::new();
             self.expand(&st, &mut succ);
@@ -566,11 +646,10 @@ impl<'a> Search<'a> {
             }
         }
 
-        // C2：首个 goal（BFS 序=确定性）；C3 起改为双查询选路
-        match goals.first() {
-            Some(&g) => (true, route_of(&nodes, g)),
-            None => (false, Vec::new()),
-        }
+        // C3：reachable = 任一出口可达；取解（max_hp/min_kills）由 Cost 泛型在
+        // goals 上分叉（§1.4 双查询独立出解）。
+        let reachable = !goals.is_empty();
+        (reachable, goals)
     }
 }
 
