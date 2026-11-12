@@ -56,6 +56,12 @@ fn p2s0_floor_geometry_sizes_present() {
 fn p2s0_s0_and_q3_constants() {
     assert_eq!(game_solver::state::s0(), (300, 10, 10, 51));
     assert_eq!(game_solver::state::Q3_EQUIP_SET, &[36, 40], "Q3 裁定项现值=A 候选");
+    // 批3 F4（用户 2026-11-12 裁 F4-A）：QoL 全收集口径=可获得子集
+    assert_eq!(
+        game_solver::state::QOL_ITEMS,
+        &[15, 21, 23],
+        "F4-A：20/22/24 世界零获取不入全收集前提"
+    );
 }
 
 #[test]
