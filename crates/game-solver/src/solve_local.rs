@@ -511,6 +511,8 @@ struct Goal {
     keys: (i32, i32, i32),
     kind: ExitKind,
     route: Vec<String>,
+    /// 批3 C1：终态全态（层间传播用——pos/ents 位图/背包/atk,def/flags 继承到下一层）
+    post: St,
 }
 
 /// 代价泛型（§5 C3「同骨架两代价泛型」+ §1.4 双查询独立出解）。
@@ -626,10 +628,15 @@ struct Search<'a> {
 
 impl<'a> Search<'a> {
     fn new(input: &'a SolveInput, level: &'a LevelSpec) -> Self {
+        Self::from_entry(input, level, level.start)
+    }
+
+    /// 批3 C1：从任意入场格起搜（层间边：入场梯落点≠`level.start` ⇒ `sub` 按入场格重算）。
+    fn from_entry(input: &'a SolveInput, level: &'a LevelSpec, entry: (i32, i32)) -> Self {
         Search {
             input,
             level,
-            sub: subgraph(level),
+            sub: subgraph_from(level, entry),
         }
     }
 
@@ -775,10 +782,16 @@ impl<'a> Search<'a> {
     /// 返回（任一出口可达, 全部非支配终态候选——双查询取解共用，§1.4）。
     fn run(&self) -> (bool, Vec<Goal>) {
         let n = self.level.entities.len();
+        self.run_root(self.level.start, all_alive(n))
+    }
+
+    /// 批3 C1：任意入场格 + 初始存活位图起搜（层间边传播：入场格=上一层出场梯的
+    /// 落点、位图=上一层终态——批2 `run` 的 `start`/`all_alive` 特例化）。
+    fn run_root(&self, entry: (i32, i32), root_ents: Vec<u64>) -> (bool, Vec<Goal>) {
         let root = St {
-            pos: self.level.start,
+            pos: entry,
             player: self.level.player.clone(),
-            ents: all_alive(n),
+            ents: root_ents,
             // T9(b) 重入分支：根态必须继承夹具 flags 初值（probe_gate 同源）；
             // 硬编码 0 会让 flags[19] 置位夹具照样触发 ⇒ 假 reachable。
             flags: self.level.flags,
@@ -816,6 +829,7 @@ impl<'a> Search<'a> {
                     keys: (st.player.yellow, st.player.blue, st.player.red),
                     kind: e.kind,
                     route: route_of(&nodes, id),
+                    post: st.clone(),
                 });
                 continue;
             }
@@ -846,6 +860,7 @@ impl<'a> Search<'a> {
                             keys: (n.st.player.yellow, n.st.player.blue, n.st.player.red),
                             kind: ExitKind::Script,
                             route,
+                            post: n.st.clone(),
                         });
                         continue;
                     }
@@ -1003,19 +1018,21 @@ impl<'a> Search<'a> {
     }
 }
 
-/// `find_path` 可达子图（§1.3 可达=find_path 直调）：从 start 到每格 `found`；
-/// `sub[start]=true` 强制。过度近似安全——我方动作的可通行语义 ⊆
+/// `find_path` 可达子图（§1.3 可达=find_path 直调）：从 `from` 到每格 `found`；
+/// `sub[from]=true` 强制。过度近似安全——我方动作的可通行语义 ⊆
 /// `is_cell_walkable || can_path_through_entity`。
-fn subgraph(level: &LevelSpec) -> Vec<bool> {
+/// 批3 C1：从 `from` 出发的可达域（`sub` 语义=「入场格的连通分量」——批2 只从
+/// `level.start` 起算，层间边入场格≠start ⇒ 按入场格重算）。
+fn subgraph_from(level: &LevelSpec, from: (i32, i32)) -> Vec<bool> {
     let cols = level.cols;
     let rows = level.rows;
     let mut sub = vec![false; (cols * rows) as usize];
     for y in 0..rows {
         for x in 0..cols {
-            sub[(y * cols + x) as usize] = find_cell_path(level, level.start, (x, y));
+            sub[(y * cols + x) as usize] = find_cell_path(level, from, (x, y));
         }
     }
-    let s = (level.start.1 * cols + level.start.0) as usize;
+    let s = (from.1 * cols + from.0) as usize;
     if s < sub.len() {
         sub[s] = true;
     }
@@ -1242,4 +1259,123 @@ pub fn probe_gate(input: &SolveInput, param: i32) -> bool {
     };
     let mut sc = build_scene(input, &st, level.start);
     sc.try_run_scene(param, true)
+}
+
+// ---------------------------------------------------------------- 批3 C1
+
+/// 批3 C1 单元测试（`run_from`/终态 `St` 是私有面，集成测试（tests/）只够得着 pub API；
+/// `script_abs.rs:565` 同法先例）。A9 面：本文件禁 `std::fs/net/process/time`。
+/// 测试名统一带 `solve_global` 前缀（判据 `cargo test -p game-solver solve_global`
+/// 存在性闸；批2 复核 Y2=过滤词漏配教训）。
+#[cfg(test)]
+mod solve_global_c1 {
+    use super::*;
+    use game_core::combat::scale_enemy_stats;
+
+    /// C1 夹具：4×3 单走廊（y=1 行 (0..3,1) 可走）——start (0,1)、type41 怪挡道 (2,1)、
+    /// Exit#1 type7 梯 (3,1)。与 `tests/solve_local.rs::fixture_3x3` 同构但加长一格：
+    /// 自定义入场 (1,1) ≠ start，钉死「从入场格起搜」而非「仍从 start 起搜」。
+    fn c1_input() -> SolveInput {
+        let base = vec![EnemyDef {
+            id: 41,
+            hp: 35,
+            atk: 18,
+            def: 1,
+            gold: 0,
+            trait_flags: 0,
+        }];
+        // difficulty=0 ⇒ ×1（BR-4；tests fixture 同式 scale_enemy_stats(&base, 1)）
+        let scaled = scale_enemy_stats(&base, 1);
+        let level = LevelSpec {
+            cols: 4,
+            rows: 3,
+            // 行主序：y=0 全墙、y=1 全可走、y=2 全墙
+            terrain: vec![
+                false, false, false, false, //
+                true, true, true, true, //
+                false, false, false, false,
+            ],
+            start: (0, 1),
+            entities: vec![
+                EntSpec {
+                    ty: 41,
+                    x: 2,
+                    y: 1,
+                    param: 0,
+                },
+                EntSpec {
+                    ty: 7,
+                    x: 3,
+                    y: 1,
+                    param: 2,
+                },
+            ],
+            exits: vec![ExitSpec {
+                x: 3,
+                y: 1,
+                kind: ExitKind::Stair,
+                index: 1,
+            }],
+            player: PlayerSpec {
+                hp: 300,
+                atk: 10,
+                def: 10,
+                yellow: 0,
+                blue: 0,
+                red: 0,
+                gold: 0,
+                item_types: Vec::new(),
+                item_uses: Vec::new(),
+                item_stack_size: 0,
+            },
+            enemies: scaled,
+            enemy_base: base,
+            flags: 0,
+        };
+        SolveInput {
+            floor: 1,
+            difficulty: 0,
+            level: Some(level),
+        }
+    }
+
+    #[test]
+    fn solve_global_c1_run_from自定义入场_初始位图_终态St() {
+        let input = c1_input();
+        let level = input.level.as_ref().unwrap();
+
+        // (a) 怪存活：入场 (1,1) ≠ start (0,1)，走廊唯一通路必撞怪
+        let (reach, goals) =
+            Search::from_entry(&input, level, (1, 1)).run_root((1, 1), all_alive(2));
+        assert!(reach, "入场可达出口");
+        let g = goals
+            .iter()
+            .find(|g| g.kind == ExitKind::Stair)
+            .expect("必有 Exit#1 候选");
+        assert_eq!(
+            g.route,
+            vec!["1,1", "bump 41@2,1", "3,1"],
+            "路线从入场格起算（非 start）"
+        );
+        assert_eq!(g.steps, 2, "入场比 start 少一步 ⇒ entry 生效");
+        assert_eq!(g.kills, 1, "走廊必撞怪 ⇒ 计 1 杀");
+        assert_eq!(g.post.pos, (3, 1), "终态=出口格");
+        assert_eq!(g.post.kills, 1, "终态 kills 与目标一致");
+        assert!(!alive(&g.post.ents, 0), "怪已杀 ⇒ 终态位图清除");
+
+        // (b) 预死怪位图（跨层继承：上一层已杀的怪不复活）⇒ 不计杀、位图保持
+        let mut predead = all_alive(2);
+        clear_alive(&mut predead, 0);
+        let (reach2, goals2) =
+            Search::from_entry(&input, level, (1, 1)).run_root((1, 1), predead.clone());
+        assert!(reach2, "怪已死 ⇒ 走廊通");
+        let g2 = goals2
+            .iter()
+            .find(|g| g.kind == ExitKind::Stair)
+            .expect("必有 Exit#1 候选");
+        assert_eq!(g2.kills, 0, "怪已死 ⇒ 不计杀（位图继承）");
+        assert_eq!(g2.post.ents, predead, "终态位图=初始位图（无复活）");
+        assert_eq!(g2.route, vec!["1,1", "2,1", "3,1"], "无怪 ⇒ 直穿");
+        assert_eq!(g2.steps, 2, "两步走穿走廊");
+    }
 }
