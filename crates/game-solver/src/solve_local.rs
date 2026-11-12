@@ -316,6 +316,9 @@ pub struct LayerGoal {
     pub post_ents: Vec<u64>,
     /// 终态 `script_line_flags` 位图（下一层注入 `flags`）
     pub post_flags: u128,
+    /// 批3 C3a：StepGate 换层边两元组 `(target, went_down)`（仅 `Script` 臂非 None；
+    /// `solve_global` 换层落点的取参源）
+    pub script_edge: Option<(i32, bool)>,
 }
 
 /// 批3 C2 单层求解门面（`solve_local`↔`solve_global` 唯一接口；`Search` 保持私有）。
@@ -356,6 +359,7 @@ pub fn solve_layer(
             post_pos: g.post.pos,
             post_ents: g.post.ents,
             post_flags: g.post.flags,
+            script_edge: g.script_edge,
         })
         .collect();
     (reachable, mapped)
@@ -590,6 +594,9 @@ struct Goal {
     route: Vec<String>,
     /// 批3 C1：终态全态（层间传播用——pos/ents 位图/背包/atk,def/flags 继承到下一层）
     post: St,
+    /// 批3 C3a：StepGate 换层边两元组 `(target, went_down)`——仅 `ExitKind::Script`
+    /// 臂非 None（Stair 由出口梯实体 param 取参、Ending 非换层）
+    script_edge: Option<(i32, bool)>,
 }
 
 /// 代价泛型（§5 C3「同骨架两代价泛型」+ §1.4 双查询独立出解）。
@@ -673,8 +680,13 @@ enum Cell {
 enum GateArrive {
     /// 无门实体 / 门未命中（gate=false：flags 置位 / case66 / case67@d0）——正常走格
     Pass,
-    /// 门命中且脚本换层终止边（harness 读 `persist.pending_floor`≠0，§2.2 ④）
-    Terminal,
+    /// 门命中且脚本换层终止边（harness 读 `persist.pending_floor`≠0，§2.2 ④）。
+    /// 批3 C3a 线程化两元组：`pending`=目标层（swap_floor 的 pending_floor）、
+    /// `went_down`=落点链入参（scene_persist.rs:410 find_floor_gate 方向）
+    Terminal {
+        pending: i32,
+        went_down: bool,
+    },
     /// 门命中但非终态完成或驱动停摆 ⇒ ⊥（C5 口径：批2 夹具不触发，报审注明；
     /// T6 对 floor1 reachable=true 兜底——若真触发会即刻暴露）
     Dropped,
@@ -803,7 +815,7 @@ impl<'a> Search<'a> {
                     let mut ns = st.clone();
                     ns.pos = (tx, ty);
                     ns.steps += 1;
-                    let g = self.gate_arrive(&ns, tx, ty);
+                    let g = self.gate_arrive(&mut ns, tx, ty);
                     out.push((Act::Move, ns, g));
                 }
                 Cell::Monster(slot, ety) => {
@@ -849,7 +861,7 @@ impl<'a> Search<'a> {
                         ns.steps += 1;
                         // floor1 (6,9)=门+83 同格：开门走入即踩格 ⇒ 同一到达面上
                         // 再判 StepGate（引擎 bump 开门→落格踩格触发，同拍语义）
-                        let g = self.gate_arrive(&ns, tx, ty);
+                        let g = self.gate_arrive(&mut ns, tx, ty);
                         out.push((Act::Door(tx, ty), ns, g));
                     }
                 }
@@ -858,8 +870,8 @@ impl<'a> Search<'a> {
                     // → tick 推进 32px 归格 → `apply_step_cell_effects`（scene.rs:4093-4096
                     // `pickup_item_type`+`entity::remove` 同拍）→ 读回 player 全字段。
                     // 引擎时序直调；❌不自写物品效果表、❌不直调私有 pickup_item_type。
-                    if let Some(ns) = self.pickup_step(st, tx, ty) {
-                        let g = self.gate_arrive(&ns, tx, ty);
+                    if let Some(mut ns) = self.pickup_step(st, tx, ty) {
+                        let g = self.gate_arrive(&mut ns, tx, ty);
                         // 航点=普通格 `x,y`（route_gen 语法：走过去；Act::Move 序列化同）
                         out.push((Act::Move, ns, g));
                     }
@@ -934,6 +946,7 @@ impl<'a> Search<'a> {
                     kind: e.kind,
                     route: route_of(&nodes, id),
                     post: st.clone(),
+                    script_edge: None,
                 });
                 continue;
             }
@@ -943,7 +956,10 @@ impl<'a> Search<'a> {
                 match gate {
                     // 门命中但非终态/停摆 ⇒ ⊥（不产生状态，§1.1；C5 口径见 GateArrive）
                     GateArrive::Dropped => continue,
-                    GateArrive::Terminal => {
+                    GateArrive::Terminal {
+                        pending,
+                        went_down,
+                    } => {
                         // 脚本换层终止边：记录候选节点但**不入队不扩展**——本层搜索
                         // 到此为止（§2.2 ④ 不执行 swap_floor、不展开目标层续跑=BR-1）。
                         let new_id = nodes.len() as u32;
@@ -965,6 +981,7 @@ impl<'a> Search<'a> {
                             kind: ExitKind::Script,
                             route,
                             post: n.st.clone(),
+                            script_edge: Some((pending, went_down)),
                         });
                         continue;
                     }
@@ -987,6 +1004,7 @@ impl<'a> Search<'a> {
                             kind: ExitKind::Ending,
                             route: route_of(&nodes, new_id),
                             post: n.st.clone(),
+                            script_edge: None,
                         });
                         continue;
                     }
@@ -1035,7 +1053,7 @@ impl<'a> Search<'a> {
     /// by construction 不触发）：扫到达格存活 type83 → 直调 `try_run_scene(param,true)`
     /// 判门 → 命中 `load_level_script` → 有拍驱动（`tickdrive`）→ `persist.pending_floor`
     /// 判终止边（§2.2 ④）。无门/未命中 ⇒ Pass（不建 harness）。
-    fn gate_arrive(&self, st: &St, tx: i32, ty: i32) -> GateArrive {
+    fn gate_arrive(&self, st: &mut St, tx: i32, ty: i32) -> GateArrive {
         let mut gates: Vec<i32> = Vec::new();
         for (slot, e) in self.level.entities.iter().enumerate() {
             if e.x == tx && e.y == ty && e.ty == 83 && alive(&st.ents, slot) {
@@ -1052,7 +1070,32 @@ impl<'a> Search<'a> {
             if sc.try_run_scene(param, true) {
                 sc.load_level_script(param);
                 return match tickdrive(&mut sc) {
-                    Some(_) => GateArrive::Terminal,
+                    Some(pending) => {
+                        // 批3 C3a 终态回读（镜像 pickup_step 读回面：player 全字段
+                        // + flags 位图；实体位图不同步=已知边界，报审注明+批5 兜底）
+                        let p = &sc.player;
+                        st.player.hp = p.hp;
+                        st.player.atk = p.atk;
+                        st.player.def = p.def;
+                        st.player.yellow = p.yellow_keys;
+                        st.player.blue = p.blue_keys;
+                        st.player.red = p.red_keys;
+                        st.player.gold = p.gold;
+                        st.player.item_types = p.item_types.clone();
+                        st.player.item_uses = p.item_uses.clone();
+                        st.player.item_stack_size = p.item_stack_size;
+                        for i in 0..sc.script_line_flags.len().min(128) {
+                            if sc.script_line_flags[i] {
+                                st.flags |= 1u128 << i;
+                            } else {
+                                st.flags &= !(1u128 << i);
+                            }
+                        }
+                        GateArrive::Terminal {
+                            pending,
+                            went_down: sc.persist.went_down,
+                        }
+                    }
                     None => GateArrive::Dropped,
                 };
             }

@@ -232,3 +232,116 @@ fn solve_global_toy反例_无钥直入floor50无解() {
     assert!(r.goals.is_empty(), "无钥不应有通关目标：{r:?}");
     assert_eq!(r.confidence, "feasible", "无解=feasible（裁定⑤）：{r:?}");
 }
+
+/// gate 夹具（批2 T9 同构，step_off 走位锚梯改 param=50→floor50）：
+/// 13×13 全可走，(6,10) 入场 → (6,9) 场景门 type83 param=19；
+/// 脚本19（fixture 第20行）尾部 `MOV_0_11_1 MOV_0_1_11` 把玩家走位上梯
+/// (11,1) type7 → changeFloor(50, down=false, strict=false) → pending_floor=50。
+/// **(11,1) 不入 exits**：只作脚本走位锚（避免与 Script 边双路径）；真实数据
+/// load_floor 全量入 exits=C5 端到端再对齐。
+fn gate_floor() -> LevelSpec {
+    LevelSpec {
+        cols: 13,
+        rows: 13,
+        terrain: vec![true; 13 * 13],
+        start: (6, 10),
+        entities: vec![
+            EntSpec { ty: 83, x: 6, y: 9, param: 19 },
+            EntSpec { ty: 7, x: 11, y: 1, param: 50 },
+        ],
+        exits: Vec::new(),
+        player: player(),
+        enemies: enemies(),
+        enemy_base: enemies(),
+        flags: 0,
+    }
+}
+
+/// floor50 无门玩具：(6,7)=swap_floor floor50 固定落点 → (7,7) type72；无出口。
+fn floor50_nodoor() -> LevelSpec {
+    let mut terrain = vec![false; 9 * 9];
+    for x in 5..=8 {
+        terrain[7 * 9 + x] = true;
+    }
+    LevelSpec {
+        cols: 9,
+        rows: 9,
+        terrain,
+        start: (6, 7),
+        entities: vec![EntSpec { ty: 72, x: 7, y: 7, param: 0 }],
+        exits: Vec::new(),
+        player: player(),
+        enemies: enemies(),
+        enemy_base: enemies(),
+        flags: 0,
+    }
+}
+
+/// C3a 主测：StepGate script 换层边（BR-1 回收 pending_floor/went_down 线程化）
+/// + 跨层携态 + 分层一致性（判据 `cargo test -p game-solver solve_global`）。
+#[test]
+fn solve_global_toy_stepgate脚本换层边_跨层携态与通关终局() {
+    let mut floors: BTreeMap<i32, LevelSpec> = BTreeMap::new();
+    floors.insert(1, gate_floor());
+    floors.insert(50, floor50_nodoor());
+    let r = solve_global(&GlobalInput {
+        floors,
+        start_floor: 1,
+        start_pos: (6, 10),
+        start_player: player(),
+        start_flags: 0,
+        bound: 10_000,
+    });
+
+    assert_eq!(r.confidence, "optimal", "置信：{r:?}");
+    let g = r
+        .goals
+        .first()
+        .unwrap_or_else(|| panic!("脚本边应跨层到 floor50 通关：{r:?}"));
+    assert_eq!(g.floors, vec![1, 50], "层序列：{g:?}");
+    assert_eq!(g.kills, 1, "只杀 type72：{g:?}");
+    assert_eq!(g.hp, 276, "300-24：{g:?}");
+    assert_eq!(g.steps, 2, "floor1 走 1（入场→门格）+ floor50 走 1（落点直接 bump 邻格）：{g:?}");
+    assert_eq!(
+        g.route,
+        vec![
+            "6,10", "6,9", "gate 6,9", // floor1：入场→门格→gate 航点
+            "6,7", "bump 72@7,7", // floor50：固定落点→终局
+        ],
+        "跨层 route：{g:?}"
+    );
+
+    // 分层一致性：逐层 solve_layer 拼接 == 全局解
+    let s1 = SolveInput { floor: 1, difficulty: 0, level: Some(gate_floor()) };
+    let (reach1, goals1) = solve_layer(&s1, (6, 10), None, player(), 0);
+    assert!(reach1, "floor1 层可达");
+    let leg1 = goals1
+        .iter()
+        .find(|q| q.kind == ExitKind::Script)
+        .unwrap_or_else(|| panic!("floor1 应有 Script 目标：{goals1:?}"));
+    // 脚本换层边的两元组：target=param&0xff=50、type7 → went_down=false
+    assert_eq!(leg1.script_edge, Some((50, false)), "script 边：{leg1:?}");
+    assert_eq!(leg1.hp, 300, "floor1 无战斗：{leg1:?}");
+    assert_eq!(leg1.kills, 0, "无怪：{leg1:?}");
+    assert_eq!(leg1.steps, 1, "入场→门格：{leg1:?}");
+    assert_eq!(leg1.route, vec!["6,10", "6,9", "gate 6,9"], "层内 route：{leg1:?}");
+
+    let s50 = SolveInput { floor: 50, difficulty: 0, level: Some(floor50_nodoor()) };
+    let (reach2, goals2) = solve_layer(&s50, (6, 7), None, leg1.post.clone(), leg1.post_flags);
+    assert!(reach2, "floor50 层可达");
+    let leg2 = goals2
+        .iter()
+        .find(|q| q.kind == ExitKind::Ending)
+        .unwrap_or_else(|| panic!("floor50 应有 Ending 目标：{goals2:?}"));
+    assert_eq!(leg2.hp, 276, "开怪扣血：{leg2:?}");
+    assert_eq!(leg2.kills, 1, "杀 type72：{leg2:?}");
+    assert_eq!(leg2.steps, 1, "落点 (6,7) 直接 bump 邻格 (7,7)：{leg2:?}");
+
+    // 拼接 == 全局（判据原文：逐层结果拼接==全局解 hp/kills）
+    assert_eq!(g.kills, leg1.kills + leg2.kills, "kills 拼接：{g:?}");
+    assert_eq!(g.hp, leg2.hp, "hp 拼接（终层 post）：{g:?}");
+    assert_eq!(g.steps, leg1.steps + leg2.steps, "steps 拼接：{g:?}");
+    let mut joined = leg1.route.clone();
+    joined.extend(leg2.route.iter().cloned());
+    assert_eq!(g.route, joined, "route 拼接：{g:?}");
+}

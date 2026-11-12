@@ -299,11 +299,19 @@ pub fn solve_global(input: &GlobalInput) -> GlobalResult {
             let mut ents = st.ents.clone();
             ents.insert(st.floor, g.post_ents.clone());
             match g.kind {
-                crate::solve_local::ExitKind::Stair => {
-                    let Some((target, went_down)) = stair_target(level, {
-                        g.post_pos
-                    }) else {
-                        // 出口梯无对应实体（夹具缺口）⇒ 丢边，报审注明
+                crate::solve_local::ExitKind::Stair
+                | crate::solve_local::ExitKind::Script => {
+                    // 取参源分叉：Stair=出口梯实体 param（stair_target）、
+                    // Script=脚本换层两元组（C3a：gate_arrive 线程化
+                    // pending_floor/went_down）；落点/子态/位图/入队同构。
+                    let edge = match g.kind {
+                        crate::solve_local::ExitKind::Stair => {
+                            stair_target(level, g.post_pos)
+                        }
+                        _ => g.script_edge,
+                    };
+                    let Some((target, went_down)) = edge else {
+                        // 出口梯无对应实体（夹具缺口）/Script 缺两元组 ⇒ 丢边，报审注明
                         continue;
                     };
                     let Some(tspec) = per_floor.get(&target) else {
@@ -360,10 +368,6 @@ pub fn solve_global(input: &GlobalInput) -> GlobalResult {
                         post: g.post.clone(),
                         ents,
                     });
-                }
-                crate::solve_local::ExitKind::Script => {
-                    // TODO(C3)：StepGate script 终止边（pending_floor/went_down
-                    // BR-1 脚本续跑）——批3 C2 不建，C3 接入。
                 }
             }
         }
