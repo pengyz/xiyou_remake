@@ -115,6 +115,13 @@ pub enum ExitKind {
     /// 与 Script 同族：`Kills::eligible` 只认 Stair ⇒ 不入 min_kills 量化域
     /// （裁定 Exit#1）。区间门（min/maxFloorReached=全局史）在 solve_global 落闸。
     Cloud,
+    /// 批3 F3 UseItem 符21/22 换层边（lead 2026-11-12 裁定；a.java case21/22 =
+    /// `changeFloor(currentFloor+1, false, false)` / `(currentFloor-1, true,
+    /// false)`，var3=false **无区间门**，边界 `var1<0 || >floorCountMax` 拒
+    /// ⇒ 目标层缺规格由 solve_global 丢边）。`itemUseCounts=1`（a.java:944：
+    /// 21→idx8、22→idx9）⇒ 成功使用即消耗、post 扣一枚。`Kills::eligible` 只认
+    /// Stair ⇒ 不入 min_kills 量化域（裁定 Exit#1）；起跳不耗步。
+    UseItem,
 }
 
 /// 出口定义。
@@ -604,7 +611,7 @@ struct Goal {
     route: Vec<String>,
     /// 批3 C1：终态全态（层间传播用——pos/ents 位图/背包/atk,def/flags 继承到下一层）
     post: St,
-    /// 批3 C3a/C3b：换层边两元组 `(target, went_down)`——仅 `ExitKind::Script`/
+    /// 批3 C3a/C3b：换层边两元组 `(target, went_down)`——`ExitKind::Script`/`Cloud`/`UseItem`（F3）——原仅 Script/
     /// `Cloud` 臂非 None（Stair 由出口梯实体 param 取参、Ending 非换层）
     cross_edge: Option<(i32, bool)>,
 }
@@ -703,6 +710,23 @@ enum GateArrive {
     /// 批3 C2 终局边（通关）：floor50 击败型72 的 bump 后继——游戏到此结束
     /// （Ending 非换层、非 StepGate，由 expand 的怪臂直接产出，不经 gate_arrive）。
     Ending,
+}
+
+/// 批3 F3：消耗一枚栈物品（`itemUseCounts=1` 语义 a.java:944/7770-7789——
+/// uses>1 递减、否则从 types/uses 双数组弹栈；types 有而 uses 缺=按1处理）。
+fn consume_item(p: &mut PlayerSpec, item: u8) {
+    if let Some(i) = p.item_types.iter().position(|&t| t == item) {
+        if p.item_uses.get(i).copied().unwrap_or(1) > 1 {
+            if let Some(u) = p.item_uses.get_mut(i) {
+                *u -= 1;
+            }
+        } else {
+            p.item_types.remove(i);
+            if i < p.item_uses.len() {
+                p.item_uses.remove(i);
+            }
+        }
+    }
 }
 
 fn all_alive(n: usize) -> Vec<u64> {
@@ -965,6 +989,8 @@ impl<'a> Search<'a> {
         let mut goals: Vec<Goal> = Vec::new();
         // 批3 C3b：根态云候选（真数据重入场携15 的回程通道；玩具根态通常不邻锚）
         self.record_cloud(&mut goals, &nodes, 0);
+        // 批3 F3：根态 UseItem 符候选（真数据 S0 无符；测试/特殊起始携符时生效）
+        self.record_useitem(&mut goals, &nodes, 0);
 
         while let Some(id) = queue.pop_front() {
             if pruned[id as usize] {
@@ -1083,6 +1109,8 @@ impl<'a> Search<'a> {
                 // 批3 C3b：过支配实际入队才记云候选（被支配/重复态不记——
                 // 同 K₀ 优态已记过其云边）
                 self.record_cloud(&mut goals, &nodes, new_id);
+                // 批3 F3：过支配入队态才记 UseItem 候选（同上口径）
+                self.record_useitem(&mut goals, &nodes, new_id);
             }
         }
 
@@ -1140,6 +1168,33 @@ impl<'a> Search<'a> {
                 kind: ExitKind::Cloud,
                 route: route_of(nodes, id),
                 post: st.clone(),
+                cross_edge: Some((target, went_down)),
+            });
+        }
+    }
+
+    /// 批3 F3：把已入队态的 UseItem 符21/22 候选记为换层目标（a.java case21/22
+    /// =`changeFloor(currentFloor±1, went_down, false)`，var3=false 无区间门；
+    /// 边界 `var1<0 || >floorCountMax` 拒 ⇒ 目标层缺规格由 solve_global 丢边）。
+    /// 起跳不耗步、位置不变；post=扣符后的全态（`itemUseCounts=1` a.java:944
+    /// ⇒ 成功即耗，stack uses>1 递减、否则弹栈 a.java:7770-7789）。
+    fn record_useitem(&self, goals: &mut Vec<Goal>, nodes: &[Node], id: u32) {
+        let st = &nodes[id as usize].st;
+        for (item, delta, went_down) in [(21u8, 1i32, false), (22u8, -1, true)] {
+            if !st.player.item_types.contains(&item) {
+                continue;
+            }
+            let target = self.input.floor + delta;
+            let mut post = st.clone();
+            consume_item(&mut post.player, item);
+            goals.push(Goal {
+                hp: st.player.hp,
+                kills: st.kills,
+                steps: st.steps,
+                keys: (st.player.yellow, st.player.blue, st.player.red),
+                kind: ExitKind::UseItem,
+                route: route_of(nodes, id),
+                post,
                 cross_edge: Some((target, went_down)),
             });
         }

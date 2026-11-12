@@ -312,10 +312,12 @@ pub fn solve_global(input: &GlobalInput) -> GlobalResult {
             match g.kind {
                 crate::solve_local::ExitKind::Stair
                 | crate::solve_local::ExitKind::Script
-                | crate::solve_local::ExitKind::Cloud => {
+                | crate::solve_local::ExitKind::Cloud
+                | crate::solve_local::ExitKind::UseItem => {
                     // 取参源分叉：Stair=出口梯实体 param（stair_target）、
-                    // Script/Cloud=换层两元组（C3a gate_arrive 线程化 pending_floor、
-                    // C3b 云边候选）；落点/子态/位图/入队同构。
+                    // Script/Cloud/UseItem=换层两元组（C3a gate_arrive 线程化
+                    // pending_floor、C3b 云边候选、F3 符21/22 case21/22）；
+                    // 落点/子态/位图/入队同构。区间门仅 Cloud（UseItem var3=false）。
                     let edge = match g.kind {
                         crate::solve_local::ExitKind::Stair => {
                             stair_target(level, g.post_pos)

@@ -838,3 +838,96 @@ fn solve_global_tprobe计时分段() {
         goals.len()
     );
 }
+
+/// 批3 F3：UseItem 符21 上行换层边（a.java case21=changeFloor(currentFloor+1,
+/// false, false)、var3=false 无区间门；itemUseCounts=1 a.java:944 idx8 ⇒ 成功
+/// 使用即消耗、post 必须扣 21）。f49 拾 21 → use → f50 落点走 swap_floor 特例
+/// (6,7)（scene_persist.rs:410）→ 型72 终局。exits=[] = 手建 LevelSpec 不复刻
+/// load_floor 全量梯入出口（fixture quirk，真实数据 C5 已载）。
+fn floor49_useitem() -> LevelSpec {
+    let mut terrain = vec![false; 5 * 3];
+    for x in 0..5 {
+        terrain[1 * 5 + x] = true; // 中排全走
+    }
+    LevelSpec {
+        cols: 5,
+        rows: 3,
+        terrain,
+        start: (0, 1),
+        entities: vec![EntSpec { ty: 21, x: 1, y: 1, param: 0 }],
+        exits: Vec::new(),
+        player: player(),
+        enemies: enemies(),
+        enemy_base: enemies(),
+        flags: 0,
+    }
+}
+
+/// f50 夹具：落点特例 (6,7) → ty72 邻格 bump 终局（与 floor50_nodoor 同构）。
+fn floor50_useitem() -> LevelSpec {
+    let mut terrain = vec![false; 9 * 9];
+    for x in 5..=8 {
+        terrain[7 * 9 + x] = true;
+    }
+    LevelSpec {
+        cols: 9,
+        rows: 9,
+        terrain,
+        start: (6, 7),
+        entities: vec![EntSpec { ty: 72, x: 7, y: 7, param: 0 }],
+        exits: Vec::new(),
+        player: player(),
+        enemies: enemies(),
+        enemy_base: enemies(),
+        flags: 0,
+    }
+}
+
+#[test]
+fn solve_global_tuseitem符21上行换层边_拾符跨层消耗与通关终局() {
+    // 层内腿：f49 拾 21 → UseItem 边 (50,false)、post 扣 21、起跳不耗步
+    let si49 = SolveInput {
+        floor: 49,
+        difficulty: 0,
+        level: Some(floor49_useitem()),
+    };
+    let (ok1, g1) = solve_layer(&si49, (0, 1), None, player(), 0);
+    assert!(ok1, "f49 可达");
+    let u = g1
+        .iter()
+        .find(|g| g.kind == ExitKind::UseItem)
+        .expect("携21 态应记录 UseItem 边");
+    assert_eq!(u.cross_edge, Some((50, false)), "case21=+1 上行 went_down=false");
+    assert!(!u.post.item_types.contains(&21), "首用即耗 itemUseCounts=1");
+    assert_eq!(u.post_pos, (1, 1), "起跳不耗步、位置不变");
+    assert_eq!(u.steps, 1, "拾符那步");
+    assert_eq!(u.route, vec!["0,1".to_string(), "1,1".to_string()]);
+
+    // 全局腿：f49 →（UseItem 消耗21）→ f50 落 (6,7) → bump 型72 → Ending
+    let mut floors = BTreeMap::new();
+    floors.insert(49, floor49_useitem());
+    floors.insert(50, floor50_useitem());
+    let gi = GlobalInput {
+        floors,
+        start_floor: 49,
+        start_pos: (0, 1),
+        start_player: player(),
+        start_flags: 0,
+        bound: 10_000,
+    };
+    let r = solve_global(&gi);
+    assert_eq!(r.confidence, "optimal", "置信：{r:?}");
+    let g = r
+        .goals
+        .iter()
+        .find(|g| g.floors == vec![49, 50])
+        .expect("携21 跨层到 50 的终局解");
+    assert_eq!(g.kills, 1, "型72 一杀：{:?}", g);
+    assert_eq!(g.hp, 276, "300-24");
+    assert!(
+        g.route.contains(&"bump 72@7,7".to_string()),
+        "route：{:?}",
+        g.route
+    );
+    assert!(!g.post.item_types.contains(&21), "终局背包无 21");
+}
