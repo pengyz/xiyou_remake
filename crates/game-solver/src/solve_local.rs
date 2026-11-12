@@ -34,7 +34,8 @@ use game_core::subsystem::battle::{
 };
 use game_core::subsystem::script_host::entity_category_with_floor;
 use game_data::defs::EnemyDef;
-use std::collections::{BTreeMap, VecDeque};
+use std::cell::RefCell;
+use std::collections::{BTreeMap, HashMap, VecDeque};
 
 /// 方向序=上、下、左、右（与 `tools/route_gen.py:29` `KEY` 表同序，提案 §3.3）。
 const DIRS: [(i32, i32); 4] = [(0, -1), (0, 1), (-1, 0), (1, 0)];
@@ -129,7 +130,8 @@ pub struct ExitSpec {
 
 /// 玩家状态纯数据镜像（`PlayerCombat` 无 derive，`combat.rs:51-63`；
 /// `from_combat`/`to_combat`=逐字段机械搬运，非语义重写）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// 批3 C5b：+`Hash`（gate_memo 键分量；game-solver 自有类型，非 game-core 面）。
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct PlayerSpec {
     pub hp: i32,
     pub atk: i32,
@@ -732,6 +734,12 @@ struct Search<'a> {
     /// 批2 `solve_local`/`run()` 保持 false——批2 裁定「UseItem 裁出⇒无筋斗云
     /// 换层边」零回归。
     cloud: bool,
+    /// 批3 C5b：安全门结局 memo——`(param, 入场 player, 入场 flags) → (player', flags')`。
+    /// 安全脚本无 MOV/DES/CES/SWD ⇒ 结局与 ents/pos 无关；`try_run_scene` 判门只读
+    /// `flags[idx]`（scene.rs:928）⇒ 键完备。危险门/Pending/停摆不入缓存（每次现算，
+    /// 语义与批2 一致）。`RefCell`=Search 单线程 interior mutability；缓存纯加速、
+    /// 不改遍历序（确定性不受影响）。
+    gate_memo: RefCell<HashMap<(i32, PlayerSpec, u128), (PlayerSpec, u128)>>,
 }
 
 impl<'a> Search<'a> {
@@ -758,6 +766,7 @@ impl<'a> Search<'a> {
                 .find(|e| e.ty == 8)
                 .map(|e| (e.x, e.y)),
             cloud: false,
+            gate_memo: RefCell::new(HashMap::new()),
         }
     }
 
@@ -1150,13 +1159,23 @@ impl<'a> Search<'a> {
         if gates.is_empty() {
             return GateArrive::Pass;
         }
-        let mut sc = build_scene(self.input, st, (tx, ty));
         // 槽位升序=夹具序（提案 §3.3）；首个命中者载入执行（apply_step_cell_effects
         // 同拍内先判先得；floor1 (6,9) 同格 19+66 —— 66 恒 false ⇒ 19 必判）
+        // 批3 C5b：场景惰性构建——memo 全命中时零 build（build_scene 是逐次调用
+        // 的主要成本之一，实测 floor51 单层 46s 分段定位得出）。
+        let mut sc_opt: Option<GameScene> = None;
         for param in gates {
+            // 批3 C5b：memo 命中=复用安全门结局（免 build 免 drive）。
+            let key = (param, st.player.clone(), st.flags);
+            if let Some((p, f)) = self.gate_memo.borrow().get(&key) {
+                st.player = p.clone();
+                st.flags = *f;
+                return GateArrive::Pass;
+            }
+            let sc = sc_opt.get_or_insert_with(|| build_scene(self.input, st, (tx, ty)));
             if sc.try_run_scene(param, true) {
                 sc.load_level_script(param);
-                return match tickdrive(&mut sc) {
+                return match tickdrive(sc) {
                     Drive::Pending(pending) => {
                         // 批3 C3a 终态回读（镜像 pickup_step 读回面：player 全字段
                         // + flags 位图；实体位图不同步=已知边界，报审注明+批5 兜底）
@@ -1177,6 +1196,10 @@ impl<'a> Search<'a> {
                         if script_chain_safe(&sc.dialog.dialog_data.scripts, param as usize)
                         {
                             readback_script(st, &sc);
+                            // 批3 C5b：安全门结局入缓存（存读回后态）
+                            self.gate_memo
+                                .borrow_mut()
+                                .insert(key, (st.player.clone(), st.flags));
                             GateArrive::Pass
                         } else {
                             GateArrive::Dropped
@@ -1185,6 +1208,11 @@ impl<'a> Search<'a> {
                     Drive::Stalled => GateArrive::Dropped,
                 };
             }
+            // 判门未开（flags[idx] 已置）⇒ 脚本未执行 ⇒ 结局恒等（与脚本内容无关，
+            // 危险门同理可缓存——没跑就不会改 ents/pos）
+            self.gate_memo
+                .borrow_mut()
+                .insert(key, (st.player.clone(), st.flags));
         }
         GateArrive::Pass
     }

@@ -763,3 +763,78 @@ fn solve_global_t真数据首层穿门可达() {
         "应有出口梯 (2,2) Stair 目标：{goals:?}"
     );
 }
+
+#[test]
+fn solve_global_tprobe51层全实体清点() {
+    let gi = real_global_input(1_000);
+    let lv = gi.floors.get(&51).expect("层51");
+    println!("floor51 ents={} exits={:?}", lv.entities.len(), lv.exits);
+    for e in &lv.entities {
+        println!("ty={} @({},{}) p={}", e.ty, e.x, e.y, e.param);
+    }
+    let lv50 = gi.floors.get(&50).expect("层50");
+    println!("floor50 ents={} exits={:?}", lv50.entities.len(), lv50.exits);
+    for e in &lv50.entities {
+        if matches!(e.ty, 7 | 8 | 4 | 2 | 21 | 22 | 5) { println!("50: ty={} @({},{}) p={}", e.ty, e.x, e.y, e.param); }
+    }
+}
+
+#[test]
+fn solve_global_tprobe全楼层楼梯param() {
+    let gi = real_global_input(1_000);
+    for (f, lv) in &gi.floors {
+        let stairs: Vec<String> = lv.entities.iter()
+            .filter(|e| matches!(e.ty, 7 | 8))
+            .map(|e| format!("ty{}@({},{})p{}", e.ty, e.x, e.y, e.param))
+            .collect();
+        if !stairs.is_empty() { println!("f{f}: {}", stairs.join(" ")); }
+    }
+}
+
+#[test]
+fn solve_global_tprobe全楼层拾取物() {
+    let gi = real_global_input(1_000);
+    for (f, lv) in &gi.floors {
+        let picks: Vec<String> = lv.entities.iter()
+            .filter(|e| matches!(e.ty, 2 | 4 | 5))
+            .map(|e| format!("ty{}@({},{})p{}", e.ty, e.x, e.y, e.param))
+            .collect();
+        if !picks.is_empty() { println!("f{f}: {}", picks.join(" ")); }
+    }
+}
+
+#[test]
+fn solve_global_tprobeQoL件落位() {
+    let gi = real_global_input(1_000);
+    let mut hist: std::collections::BTreeMap<i32, i32> = Default::default();
+    for (f, lv) in &gi.floors {
+        for e in &lv.entities {
+            *hist.entry(e.ty).or_default() += 1;
+            if matches!(e.ty, 15 | 20 | 21 | 22 | 23 | 24) {
+                println!("QoL ty{} on f{f} @({},{}) p={}", e.ty, e.x, e.y, e.param);
+            }
+        }
+    }
+    println!("hist={:?}", hist);
+}
+
+#[test]
+fn solve_global_tprobe计时分段() {
+    let t0 = std::time::Instant::now();
+    let inp = real_global_input(1_000);
+    let t1 = std::time::Instant::now();
+    let si = SolveInput {
+        floor: 51,
+        difficulty: 0,
+        level: Some(inp.floors.get(&51).expect("层51").clone()),
+    };
+    let (ok, goals) = solve_layer(&si, (1, 11), None, player(), 0);
+    let t2 = std::time::Instant::now();
+    println!(
+        "计时: 装载={:?} solve_layer={:?} ok={} goals={}",
+        t1 - t0,
+        t2 - t1,
+        ok,
+        goals.len()
+    );
+}
