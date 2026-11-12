@@ -507,3 +507,39 @@ fn push_state(
     list.push(new_id);
     queue.push_back(new_id);
 }
+
+// ---- C5：JSON 输出（手写，与批2 SolveResult::to_json 同范式；route token全安全字符无需转义）----
+
+impl GlobalGoal {
+    fn to_json(&self) -> String {
+        let floors: Vec<String> = self.floors.iter().map(|f| f.to_string()).collect();
+        let route: Vec<String> = self
+            .route
+            .iter()
+            .map(|r| format!("\"{r}\""))
+            .collect();
+        format!(
+            "{{\"hp\":{},\"kills\":{},\"steps\":{},\"floors\":[{}],\"monsters_alive\":{},\"route\":[{}]}}",
+            self.hp,
+            self.kills,
+            self.steps,
+            floors.join(","),
+            self.monsters_alive,
+            route.join(",")
+        )
+    }
+}
+
+impl GlobalResult {
+    /// C5：确定性双跑字节同（计划 §4 批3 判据③）；形状=confidence/bound/expansions/goals[]。
+    pub fn to_json(&self) -> String {
+        let goals: Vec<String> = self.goals.iter().map(|g| g.to_json()).collect();
+        format!(
+            "{{\"confidence\":\"{}\",\"bound\":{},\"expansions\":{},\"goals\":[{}]}}",
+            self.confidence,
+            self.bound,
+            self.expansions,
+            goals.join(",")
+        )
+    }
+}

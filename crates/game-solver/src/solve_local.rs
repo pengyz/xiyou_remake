@@ -1157,33 +1157,32 @@ impl<'a> Search<'a> {
             if sc.try_run_scene(param, true) {
                 sc.load_level_script(param);
                 return match tickdrive(&mut sc) {
-                    Some(pending) => {
+                    Drive::Pending(pending) => {
                         // 批3 C3a 终态回读（镜像 pickup_step 读回面：player 全字段
                         // + flags 位图；实体位图不同步=已知边界，报审注明+批5 兜底）
-                        let p = &sc.player;
-                        st.player.hp = p.hp;
-                        st.player.atk = p.atk;
-                        st.player.def = p.def;
-                        st.player.yellow = p.yellow_keys;
-                        st.player.blue = p.blue_keys;
-                        st.player.red = p.red_keys;
-                        st.player.gold = p.gold;
-                        st.player.item_types = p.item_types.clone();
-                        st.player.item_uses = p.item_uses.clone();
-                        st.player.item_stack_size = p.item_stack_size;
-                        for i in 0..sc.script_line_flags.len().min(128) {
-                            if sc.script_line_flags[i] {
-                                st.flags |= 1u128 << i;
-                            } else {
-                                st.flags &= !(1u128 << i);
-                            }
-                        }
+                        readback_script(st, &sc);
                         GateArrive::Terminal {
                             pending,
                             went_down: sc.persist.went_down,
                         }
                     }
-                    None => GateArrive::Dropped,
+                    Drive::Completed => {
+                        // 批3 C5a：演出门续走。引擎语义（A 级）：脚本跑完回 Map、
+                        // 玩家留格可继续走（try_run_scene 链 a.java）；batch2 把
+                        // 「Map 完成」与「停摆」混同 None→Dropped(⊥) 卡死真数据
+                        // （floor51 到梯必经 9 门全为演出脚本）。白名单安全集：
+                        // op⊆{TAK,SEE,ROS,GIN,RES,LAY,GLV,SMS}∪GUT(转导) 才续走
+                        // （全楼层门脚本 grep：27 危险/21 安全）；含 DES/CES/MOV/
+                        // SWD/ADD（实体/位置变=读回盖不住）或未知 op ⇒ 仍 ⊥。
+                        if script_chain_safe(&sc.dialog.dialog_data.scripts, param as usize)
+                        {
+                            readback_script(st, &sc);
+                            GateArrive::Pass
+                        } else {
+                            GateArrive::Dropped
+                        }
+                    }
+                    Drive::Stalled => GateArrive::Dropped,
                 };
             }
         }
@@ -1476,17 +1475,27 @@ fn build_scene(input: &SolveInput, st: &St, at: (i32, i32)) -> GameScene {
 /// 完成）或停摆——两者在 C5 口径均为 ⊥（Dropped），安全兜底不产假 reachable。
 /// 注：无拍 `side_a::drive` 实测产不出终止边（b35/b38 实证）——提案 C5 行
 /// 「驱动复用 side_a::drive」字面不可行，偏离已记模块头 doc，报审注明。
-fn tickdrive(sc: &mut GameScene) -> Option<i32> {
+/// 批3 C5a：有拍驱动结果三态（原 `Option<i32>` 把「脚本演出完成」与「停摆」
+/// 混同于 None——真数据演出门（TAK/ROS/SEE 跑完回 Map）被误判 Dropped(⊥)
+/// 卡死首层；判据③空心根因）。Pending=换层、Completed=演出完成可续走、
+/// Stalled=停摆兜底 ⇒ ⊥。
+enum Drive {
+    Pending(i32),
+    Completed,
+    Stalled,
+}
+
+fn tickdrive(sc: &mut GameScene) -> Drive {
     let wt = sc.width_table.clone();
     let mut ft = 0i64;
     let mut last = String::new();
     let mut stall = 0;
     loop {
         if sc.persist.pending_floor != 0 {
-            return Some(sc.persist.pending_floor);
+            return Drive::Pending(sc.persist.pending_floor);
         }
         if matches!(sc.game_mode, GameMode::Map) {
-            return None; // 行尾收尾 transition_to(Map)：非终态完成
+            return Drive::Completed; // 行尾收尾 transition_to(Map)：演出完成、玩家留格（C5a 续走）
         }
         sc.key_value = 1;
         sc.tick(ft, &wt);
@@ -1506,9 +1515,70 @@ fn tickdrive(sc: &mut GameScene) -> Option<i32> {
         }
         last = sig;
         if stall > 500 || ft > 30_000 {
-            return None; // 停摆兜底 ⇒ ⊥（保守：不产生假 reachable）
+            return Drive::Stalled; // 停摆兜底 ⇒ ⊥（保守：不产生假 reachable）
         }
     }
+}
+
+/// 批3 C5a：门脚本终态读回（Pending/Completed 两臂共用；镜像 pickup_step
+/// 读回面：player 全字段 + script_line_flags 位图回写 st.flags）。
+fn readback_script(st: &mut St, sc: &GameScene) {
+    let p = &sc.player;
+    st.player.hp = p.hp;
+    st.player.atk = p.atk;
+    st.player.def = p.def;
+    st.player.yellow = p.yellow_keys;
+    st.player.blue = p.blue_keys;
+    st.player.red = p.red_keys;
+    st.player.gold = p.gold;
+    st.player.item_types = p.item_types.clone();
+    st.player.item_uses = p.item_uses.clone();
+    st.player.item_stack_size = p.item_stack_size;
+    for i in 0..sc.script_line_flags.len().min(128) {
+        if sc.script_line_flags[i] {
+            st.flags |= 1u128 << i;
+        } else {
+            st.flags &= !(1u128 << i);
+        }
+    }
+}
+
+/// 批3 C5a：门脚本链安全判定（白名单）。根=门 param 行（load_level_script
+/// 刚置的即该行；GUT 链后 script_line 已变，故以 param 为根），GUT 转导
+/// 递归（visited 防环）；空行=安全（无 op）。未知名/越界/解析失败⇒不安全
+/// （批2 Dropped 口径对未知保持）。
+fn script_chain_safe(lines: &[String], root: usize) -> bool {
+    const SAFE: &[&str] = &["TAK", "SEE", "ROS", "GIN", "RES", "LAY", "GLV", "SMS"];
+    fn line_safe(lines: &[String], idx: usize, visited: &mut Vec<usize>) -> bool {
+        if visited.contains(&idx) {
+            return true; // 环：该行已检过
+        }
+        visited.push(idx);
+        let Some(line) = lines.get(idx) else {
+            return false; // 越界：保守不安全
+        };
+        for raw in line.split_whitespace() {
+            // fixture 行尾带 RS(0x1E) 等控制分隔符残留（非空白不可 split 掉）——
+            // 剥掉再取 op；纯控制 token=分隔残留跳过（真 op 首字符必 A-Z）
+            let tok = raw.trim_matches(|c: char| c.is_ascii_control());
+            if tok.is_empty() {
+                continue;
+            }
+            let op = tok.split('_').next().unwrap_or("");
+            if SAFE.contains(&op) {
+                continue;
+            }
+            if op == "GUT" {
+                match tok.split('_').nth(1).and_then(|t| t.parse::<usize>().ok()) {
+                    Some(t) if line_safe(lines, t, visited) => continue,
+                    _ => return false,
+                }
+            }
+            return false; // DES/CES/MOV/SWD/ADD/END/未知 ⇒ 不安全
+        }
+        true
+    }
+    line_safe(lines, root, &mut Vec::new())
 }
 
 /// T9 探针（`probe_bump` 同法=与搜索共用 harness 门面路径，非自证）：夹具

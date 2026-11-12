@@ -12,10 +12,11 @@
 //! 夹具全手工（13×13 真图归 C5 CLI 端到端）；敌表 dense 41..=72——
 //! `resolve_bump`/`predict_engagement` 按 `idx=(t-41)` 稠密下标（battle.rs:105/130）。
 use game_data::defs::EnemyDef;
+use game_core::combat::{scale_enemy_stats, CombatTables, PlayerCombat};
 use game_solver::solve_global::{solve_global, to_solver_state, GlobalInput};
 use game_solver::state::{CanonicalBag, DiscreteGold, DiscreteHp, ScriptFlags, SolverState};
 use game_solver::solve_local::{
-    solve_layer, EntSpec, ExitKind, ExitSpec, LevelSpec, PlayerSpec, SolveInput,
+    load_floor, solve_layer, EntSpec, ExitKind, ExitSpec, LevelSpec, PlayerSpec, SolveInput,
 };
 use std::collections::BTreeMap;
 
@@ -636,4 +637,129 @@ fn floor49_two() -> LevelSpec {
         enemy_base: enemies(),
         flags: 0,
     }
+}
+
+/// C5：真数据全局输入（计划 §4 批3 判据③ 的 lib 腿；装载范式=census_snapshot 同构，
+/// I/O 在测试面——A9 只扫 src/*.rs 排除 bin/solver.rs）。
+fn real_global_input(bound: u64) -> GlobalInput {
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(2)
+        .unwrap()
+        .to_path_buf();
+    let mut maplvs: Vec<Vec<u8>> = Vec::new();
+    let mut sprites: Vec<Vec<u8>> = Vec::new();
+    for i in 0..55 {
+        maplvs.push(std::fs::read(root.join(format!("assets/raw/maplv{i}"))).unwrap());
+        sprites.push(std::fs::read(root.join(format!("assets/raw/sprite{i}"))).unwrap());
+    }
+    let maplv_refs: Vec<&[u8]> = maplvs.iter().map(|v| v.as_slice()).collect();
+    let sprite_refs: Vec<&[u8]> = sprites.iter().map(|v| v.as_slice()).collect();
+    let si = game_solver::ingest::ingest(
+        &maplv_refs,
+        &sprite_refs,
+        include_str!("../../game-core/tests/fixtures/level_scripts.txt"),
+        include_str!("../../game-core/tests/fixtures/door12.txt"),
+        include_str!("../../game-core/tests/fixtures/door13.txt"),
+        include_str!("../../../data/tables/enemies.json"),
+        include_str!("../../../data/tables/items.json"),
+        include_str!("../../../data/tables/shop_goods.json"),
+    )
+    .expect("ingest 失败");
+    let nums = |t: &str| -> Vec<i32> {
+        t.lines()
+            .map(|l| l.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.parse().expect("fixture 整数"))
+            .collect()
+    };
+    let tables = CombatTables {
+        enemy_base_hp: nums(include_str!("../../game-core/tests/fixtures/enemybasehp.txt")),
+        enemy_base_atk: nums(include_str!("../../game-core/tests/fixtures/enemybaseatk.txt")),
+        enemy_base_def: nums(include_str!("../../game-core/tests/fixtures/enemybasedef.txt")),
+        difficulty_multipliers: nums(include_str!(
+            "../../game-core/tests/fixtures/difficulty_multipliers.txt"
+        )),
+    };
+    let gold = nums(include_str!("../../game-core/tests/fixtures/enemybasegold.txt"));
+    let base = tables.to_records(&gold);
+    let scaled = scale_enemy_stats(&base, 1); // difficulty=0 ⇒ ×1（BR-4）
+    let tile_walk = nums(include_str!("../../game-core/tests/fixtures/tile_walkability.txt"));
+    let mk_player = || PlayerCombat {
+        hp: 300,
+        atk: 10,
+        def: 10,
+        yellow_keys: 0,
+        blue_keys: 0,
+        red_keys: 0,
+        gold: 0,
+        item_types: Vec::new(),
+        item_uses: Vec::new(),
+        item_stack_size: 0,
+    };
+    let mut floors: BTreeMap<i32, LevelSpec> = BTreeMap::new();
+    for f in 1..=54 {
+        if let Ok(inp) = load_floor(
+            &si,
+            f,
+            (1, 11),
+            PlayerSpec::from_combat(mk_player()),
+            scaled.clone(),
+            base.clone(),
+            &tile_walk,
+        ) {
+            if let Some(lv) = inp.level {
+                floors.insert(f as i32, lv);
+            }
+        }
+    }
+    GlobalInput {
+        floors,
+        start_floor: 51,
+        start_pos: (1, 11), // handoff.rs:154 load_floor(32,352) ⇒ (1,11)
+        start_player: PlayerSpec::from_combat(mk_player()),
+        start_flags: 0,
+        bound,
+    }
+}
+
+/// C5 端到端：真数据全局求解确定性双跑（计划 §4 批3 判据③ 同输入同解）。
+#[test]
+fn solve_global_t真数据端到端_确定性双跑() {
+    let j1 = game_solver::solve_global::solve_global(&real_global_input(500)).to_json();
+    let j2 = game_solver::solve_global::solve_global(&real_global_input(500)).to_json();
+    assert_eq!(j1, j2, "同输入同解（计划 §4 ④ 确定性）");
+    assert!(j1.starts_with("{\"confidence\":"), "JSON 形状头：{j1:.120}");
+    assert!(j1.contains("\"bound\":500"), "bound 回显：{j1:.200}");
+    assert!(
+        [
+            "\"confidence\":\"optimal\"",
+            "\"confidence\":\"bounded-best\"",
+            "\"confidence\":\"feasible\""
+        ]
+        .iter()
+        .any(|c| j1.contains(c)),
+        "置信三态：{j1:.200}"
+    );
+}
+
+/// TEMP probe（诊断后删）
+#[test]
+fn solve_global_t真数据首层穿门可达() {
+    // 批3 C5a 红：真数据层51 从入场梯 (1,11) 出发必须能拿到出口梯 (2,2) 的
+    // Stair 目标——到梯必经 9 个场景门（纯演出脚本 TAK/ROS/SEE 跑完回 Map），
+    // batch2 保守口径 tickdrive None→Dropped(⊥) 卡死首层（判据③首跑空心根因）。
+    let gi = real_global_input(1_000);
+    let lv = gi.floors.get(&51).expect("层51 规格");
+    let si = SolveInput {
+        floor: 51,
+        difficulty: 0,
+        level: Some(lv.clone()),
+    };
+    let (ok, goals) = solve_layer(&si, (1, 11), None, player(), 0);
+    assert!(ok, "真数据首层入场可达（穿演出门）：goals={goals:?}");
+    assert!(
+        goals.iter().any(|g| g.kind == ExitKind::Stair),
+        "应有出口梯 (2,2) Stair 目标：{goals:?}"
+    );
 }
