@@ -101,6 +101,12 @@ pub enum ExitKind {
     /// Exit#2 脚本换层边（C5 StepGate 终止边，§2.2 ④）。§1.4 ② 不入 min_kills
     /// 量化域——`Kills::eligible` 只认 `Stair`；`HpLoss` 全收。
     Script,
+    /// 批3 C2 终局边（通关终点）：floor50 击败型72 → `load_level_script(65)`
+    /// （scene.rs:3891-3894）→ script65=`TAK_127_128 END_0` → `op_end`
+    /// （scene.rs:269）→ `GameMode::Ending`（计划 §2.6 通关判定）。
+    /// `Cost` 两实现不动：`HpLoss::eligible` 全收天然含本变体；`Kills::eligible`
+    /// 仍只认 `Stair`（批2 量化域零变化；全局 Q1/Q2 取解在 solve_global 自做）。
+    Ending,
 }
 
 /// 出口定义。
@@ -282,6 +288,77 @@ pub fn solve_local(input: &SolveInput) -> SolveResult {
             })
             .unwrap_or((0, 0, 0)),
     }
+}
+
+/// 批3 C2 层目标（`solve_global` 层间传播的单层结果镜像；`Goal` 私有面的 pub 投影）。
+///
+/// 字段=单层求解终态的**层间耦合量**（计划 §3.2/§3.3：hp、钥匙、金币、装备、
+/// 背包、脚本旗标、存活位图）——`post.*` 是跨层携带的全部状态，全局层不读层内私有态。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LayerGoal {
+    /// 终态 hp（Q1 目标面）
+    pub hp: i32,
+    /// 本层击杀数（Q2 拼接面：全局 kills=逐层和）
+    pub kills: i32,
+    /// 本层步数（确定性/tie-break 面：全局 steps=逐层和）
+    pub steps: i32,
+    /// 终态三色钥匙 `(yellow, blue, red)`
+    pub keys: (i32, i32, i32),
+    /// 出口类别（`Stair`=层间边 / `Script`=StepGate 终止边 / `Ending`=通关终局边）
+    pub kind: ExitKind,
+    /// 本层路线（route_gen token：`x,y` / `bump ty@x,y` / `door x,y`，首 token=入场格）
+    pub route: Vec<String>,
+    /// 终态玩家全状态（hp/atk/def/三色钥/金币/背包——下一层入场 `player` 的注入源）
+    pub post: PlayerSpec,
+    /// 终态格（出口格=楼梯换层边的取参面：出口梯实体查找）
+    pub post_pos: (i32, i32),
+    /// 终态存活位图（本层；下一层注入同层重入或本层 post 直传）
+    pub post_ents: Vec<u64>,
+    /// 终态 `script_line_flags` 位图（下一层注入 `flags`）
+    pub post_flags: u128,
+}
+
+/// 批3 C2 单层求解门面（`solve_local`↔`solve_global` 唯一接口；`Search` 保持私有）。
+///
+/// - `entry`：入场格（批2 特例=`level.start`；层间边=上一层出场梯落点，
+///   `swap_floor` 语义 `scene_persist.rs:410-433`）；
+/// - `ents`：初始存活位图；`None` ⇒ `all_alive`（新层首入）；
+/// - `player`/`flags`：注入的入场玩家状态与脚本旗标（层间携带上一层 `post`；
+///   `run()` 特例=`level.player`/`level.flags`）。
+///
+/// 返回 `(任一层目标可达, 全部非支配层目标)`；`level=None` ⇒ `(false, vec![])`。
+pub fn solve_layer(
+    input: &SolveInput,
+    entry: (i32, i32),
+    ents: Option<&[u64]>,
+    player: PlayerSpec,
+    flags: u128,
+) -> (bool, Vec<LayerGoal>) {
+    let Some(level) = input.level.as_ref() else {
+        return (false, Vec::new());
+    };
+    let root_ents = match ents {
+        Some(v) => v.to_vec(),
+        None => all_alive(level.entities.len()),
+    };
+    let search = Search::from_entry(input, level, entry);
+    let (reachable, goals) = search.run_root(entry, root_ents, player, flags);
+    let mapped = goals
+        .into_iter()
+        .map(|g| LayerGoal {
+            hp: g.hp,
+            kills: g.kills,
+            steps: g.steps,
+            keys: g.keys,
+            kind: g.kind,
+            route: g.route,
+            post: g.post.player,
+            post_pos: g.post.pos,
+            post_ents: g.post.ents,
+            post_flags: g.post.flags,
+        })
+        .collect();
+    (reachable, mapped)
 }
 
 /// C4 fixture 装载路径：ingest 产物 → 单层 `SolveInput`（提案 §5 C4 / T5 断言面）。
@@ -601,6 +678,9 @@ enum GateArrive {
     /// 门命中但非终态完成或驱动停摆 ⇒ ⊥（C5 口径：批2 夹具不触发，报审注明；
     /// T6 对 floor1 reachable=true 兜底——若真触发会即刻暴露）
     Dropped,
+    /// 批3 C2 终局边（通关）：floor50 击败型72 的 bump 后继——游戏到此结束
+    /// （Ending 非换层、非 StepGate，由 expand 的怪臂直接产出，不经 gate_arrive）。
+    Ending,
 }
 
 fn all_alive(n: usize) -> Vec<u64> {
@@ -736,8 +816,18 @@ impl<'a> Search<'a> {
                         clear_alive(&mut ns.ents, slot);
                         ns.pos = (tx, ty);
                         ns.steps += 1;
+                        // 批3 C2 终局边：floor50 击败型72 → Ending（钩子
+                        // scene.rs:3891-3894 → load_level_script(65) → END_0；
+                        // floor50 cat8 覆写=sprite_defs floor50→cat8 ⇒ 可 bump，
+                        // 其它层型72=cat32 恒阻挡进不了本臂）。语义=游戏结束
+                        // ⇒ 记候选不入队（run_root 的 Ending 臂，同 Terminal 口径）。
                         // 怪格不建模 StepGate（batch2 夹具无共存；报审注明）
-                        out.push((Act::Bump(ety, tx, ty), ns, GateArrive::Pass));
+                        let gate = if self.input.floor == 50 && ety == 72 {
+                            GateArrive::Ending
+                        } else {
+                            GateArrive::Pass
+                        };
+                        out.push((Act::Bump(ety, tx, ty), ns, gate));
                     }
                 }
                 Cell::Door(slot, dty) => {
@@ -782,19 +872,33 @@ impl<'a> Search<'a> {
     /// 返回（任一出口可达, 全部非支配终态候选——双查询取解共用，§1.4）。
     fn run(&self) -> (bool, Vec<Goal>) {
         let n = self.level.entities.len();
-        self.run_root(self.level.start, all_alive(n))
+        self.run_root(
+            self.level.start,
+            all_alive(n),
+            self.level.player.clone(),
+            self.level.flags,
+        )
     }
 
     /// 批3 C1：任意入场格 + 初始存活位图起搜（层间边传播：入场格=上一层出场梯的
     /// 落点、位图=上一层终态——批2 `run` 的 `start`/`all_alive` 特例化）。
-    fn run_root(&self, entry: (i32, i32), root_ents: Vec<u64>) -> (bool, Vec<Goal>) {
+    /// 批3 C2：玩家/flags 也由调用方注入（层间携带上一层 post；批2 的
+    /// `level.player`/`level.flags` 特例化为 `run` 的两参转发）。
+    fn run_root(
+        &self,
+        entry: (i32, i32),
+        root_ents: Vec<u64>,
+        player: PlayerSpec,
+        flags: u128,
+    ) -> (bool, Vec<Goal>) {
         let root = St {
             pos: entry,
-            player: self.level.player.clone(),
+            player,
             ents: root_ents,
-            // T9(b) 重入分支：根态必须继承夹具 flags 初值（probe_gate 同源）；
+            // T9(b) 重入分支：根态必须继承注入 flags（probe_gate 同源；批2 版读
+            // `level.flags`——批3 起由调用方传入，层间边携带上一层终态）；
             // 硬编码 0 会让 flags[19] 置位夹具照样触发 ⇒ 假 reachable。
-            flags: self.level.flags,
+            flags,
             kills: 0,
             steps: 0,
         };
@@ -860,6 +964,28 @@ impl<'a> Search<'a> {
                             keys: (n.st.player.yellow, n.st.player.blue, n.st.player.red),
                             kind: ExitKind::Script,
                             route,
+                            post: n.st.clone(),
+                        });
+                        continue;
+                    }
+                    GateArrive::Ending => {
+                        // 批3 C2 终局边（通关）：记录候选节点但**不入队不扩展**——
+                        // 路线尾已是 `bump 72@x,y`（route_of Bump 臂），无需 gate 航点。
+                        let new_id = nodes.len() as u32;
+                        nodes.push(Node {
+                            st: ns,
+                            parent: id,
+                            act,
+                        });
+                        pruned.push(false);
+                        let n = &nodes[new_id as usize];
+                        goals.push(Goal {
+                            hp: n.st.player.hp,
+                            kills: n.st.kills,
+                            steps: n.st.steps,
+                            keys: (n.st.player.yellow, n.st.player.blue, n.st.player.red),
+                            kind: ExitKind::Ending,
+                            route: route_of(&nodes, new_id),
                             post: n.st.clone(),
                         });
                         continue;
@@ -1264,7 +1390,7 @@ pub fn probe_gate(input: &SolveInput, param: i32) -> bool {
 // ---------------------------------------------------------------- 批3 C1
 
 /// 批3 C1 单元测试（`run_from`/终态 `St` 是私有面，集成测试（tests/）只够得着 pub API；
-/// `script_abs.rs:565` 同法先例）。A9 面：本文件禁 `std::fs/net/process/time`。
+/// `script_abs.rs:565` 同法先例）。A9 面：本文件禁文件/网络/进程/时钟 I/O（判据 grep 的字面量不落注释——A9 零命中要求）。
 /// 测试名统一带 `solve_global` 前缀（判据 `cargo test -p game-solver solve_global`
 /// 存在性闸；批2 复核 Y2=过滤词漏配教训）。
 #[cfg(test)]
@@ -1346,7 +1472,12 @@ mod solve_global_c1 {
 
         // (a) 怪存活：入场 (1,1) ≠ start (0,1)，走廊唯一通路必撞怪
         let (reach, goals) =
-            Search::from_entry(&input, level, (1, 1)).run_root((1, 1), all_alive(2));
+            Search::from_entry(&input, level, (1, 1)).run_root(
+                (1, 1),
+                all_alive(2),
+                level.player.clone(),
+                level.flags,
+            );
         assert!(reach, "入场可达出口");
         let g = goals
             .iter()
@@ -1367,7 +1498,12 @@ mod solve_global_c1 {
         let mut predead = all_alive(2);
         clear_alive(&mut predead, 0);
         let (reach2, goals2) =
-            Search::from_entry(&input, level, (1, 1)).run_root((1, 1), predead.clone());
+            Search::from_entry(&input, level, (1, 1)).run_root(
+                (1, 1),
+                predead.clone(),
+                level.player.clone(),
+                level.flags,
+            );
         assert!(reach2, "怪已死 ⇒ 走廊通");
         let g2 = goals2
             .iter()
