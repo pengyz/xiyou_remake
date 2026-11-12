@@ -12,7 +12,8 @@
 //! 夹具全手工（13×13 真图归 C5 CLI 端到端）；敌表 dense 41..=72——
 //! `resolve_bump`/`predict_engagement` 按 `idx=(t-41)` 稠密下标（battle.rs:105/130）。
 use game_data::defs::EnemyDef;
-use game_solver::solve_global::{solve_global, GlobalInput};
+use game_solver::solve_global::{solve_global, to_solver_state, GlobalInput};
+use game_solver::state::{CanonicalBag, DiscreteGold, DiscreteHp, ScriptFlags, SolverState};
 use game_solver::solve_local::{
     solve_layer, EntSpec, ExitKind, ExitSpec, LevelSpec, PlayerSpec, SolveInput,
 };
@@ -531,3 +532,108 @@ fn solve_global_toy筋斗云边_区间门外拒绝() {
     assert_eq!(c.cross_edge, Some((50, true)), "层内边：{c:?}");
 }
 
+
+/// C4 状态抽象（计划 §3.3 字段名不许漂 + 批3 裁定①②落地 + monsters_alive 全局口径）。
+#[test]
+fn solve_global_t状态抽象SolverState字段与怪物存亡口径() {
+    // ① 字段名锁定：字面构造 SolverState（floor/hp/atk/def/keys/gold/inventory/
+    //    flags/kills/monsters_alive——计划 §3.3 十字段，编译期防漂移）。
+    let s = SolverState {
+        floor: 51,
+        hp: DiscreteHp(300),
+        atk: 10,
+        def: 10,
+        keys: (0, 0, 0),
+        gold: DiscreteGold(0),
+        inventory: CanonicalBag::from_player(&player()),
+        flags: ScriptFlags(0),
+        kills: 0,
+        monsters_alive: 0,
+    };
+    assert_eq!(s.floor, 51);
+    // ② 裁定①：hp 桶宽=1=精确整数（Q1 要精确值，Pareto 已压缩状态面）。
+    assert_eq!(DiscreteHp::bucket(299).0, 299);
+    assert_eq!(DiscreteHp::bucket(300).0, 300);
+    assert_ne!(DiscreteHp::bucket(299), DiscreteHp::bucket(300));
+    // ③ 背包 canonical：按 item_stack_size 前缀截断——尾槽垃圾不进去重键。
+    let mut a = player();
+    a.item_types = vec![0u8; 32];
+    a.item_uses = vec![0u8; 32];
+    a.item_types[0] = 15;
+    a.item_stack_size = 1;
+    let mut b = a.clone();
+    b.item_types[5] = 99; // 越过 size 的尾部垃圾（不同字节、同语义）
+    b.item_uses[7] = 42;
+    assert_eq!(
+        CanonicalBag::from_player(&a).key(),
+        CanonicalBag::from_player(&b).key(),
+        "canonical：size 前缀外的尾槽不进键"
+    );
+    assert_ne!(
+        CanonicalBag::from_player(&a).key(),
+        CanonicalBag::from_player(&player()).key(),
+        "size 内真差异必须进键"
+    );
+
+    // ④ monsters_alive 全局口径 = 已访层位图存活(cat8) + 未访层 sprite 全活(cat8)：
+    //    floor51_m41 有 type41@(3,1) 存活(1) + floor50 型72 已杀(0) + floor49 未访(2) = 3。
+    let mut floors: BTreeMap<i32, LevelSpec> = BTreeMap::new();
+    floors.insert(51, floor51_roundtrip_m41());
+    floors.insert(50, floor50_roundtrip());
+    floors.insert(49, floor49_two());
+    let input = GlobalInput {
+        floors,
+        start_floor: 51,
+        start_pos: (0, 1),
+        start_player: player(),
+        start_flags: 0,
+        bound: 10_000,
+    };
+    let r = solve_global(&input);
+    assert_eq!(r.confidence, "optimal", "置信：{r:?}");
+    let g = r
+        .goals
+        .iter()
+        .find(|q| q.floors == vec![51, 50] && q.kills == 1)
+        .unwrap_or_else(|| panic!("A 目标应存在：{r:?}"));
+    assert_eq!(g.monsters_alive, 3, "怪物存亡口径：{g:?}");
+
+    // ⑤ to_solver_state 往返：目标→计划 §3.3 字段形状。
+    let st = to_solver_state(g);
+    assert_eq!(st.floor, 50);
+    assert_eq!(st.hp.0, 276);
+    assert_eq!(st.atk, 10);
+    assert_eq!(st.def, 10);
+    assert_eq!(st.keys, (1, 0, 0));
+    assert_eq!(st.kills, 1);
+    assert_eq!(st.monsters_alive, 3);
+}
+
+/// C4 夹具：floor51_roundtrip 变体——row1 扩到 x0..4 + type41@(3,1)
+/// （路径 (0,1)→(1,1)→(2,1) 不经 (3,1) ⇒ A 直下解不杀它 ⇒ 存活计入口径）。
+fn floor51_roundtrip_m41() -> LevelSpec {
+    let mut lv = floor51_roundtrip();
+    lv.terrain[5 + 3] = true; // (3,1) 可走
+    lv.terrain[5 + 4] = true; // (4,1) 可走
+    lv.entities.push(EntSpec { ty: 41, x: 3, y: 1, param: 0 });
+    lv
+}
+
+/// C4 夹具：floor49 未访层——3×3 全可走、2 只 type41、无出口（全局无边可达）。
+fn floor49_two() -> LevelSpec {
+    LevelSpec {
+        cols: 3,
+        rows: 3,
+        terrain: vec![true; 9],
+        start: (1, 1),
+        entities: vec![
+            EntSpec { ty: 41, x: 0, y: 0, param: 0 },
+            EntSpec { ty: 41, x: 2, y: 2, param: 0 },
+        ],
+        exits: vec![],
+        player: player(),
+        enemies: enemies(),
+        enemy_base: enemies(),
+        flags: 0,
+    }
+}

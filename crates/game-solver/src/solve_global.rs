@@ -14,6 +14,8 @@
 //! 同输入同解由批2 同款双跑测试钉死（C4）。
 
 use crate::solve_local::{solve_layer, LevelSpec, PlayerSpec, SolveInput};
+use crate::state::{CanonicalBag, DiscreteGold, DiscreteHp, ScriptFlags, SolverState};
+use game_core::subsystem::script_host::entity_category_with_floor;
 use std::collections::{BTreeMap, VecDeque};
 
 /// 全局求解输入。
@@ -50,6 +52,10 @@ pub struct GlobalGoal {
     pub post: PlayerSpec,
     /// 各层终态存活位图（`monsters_alive` 全局口径的取材面，C4/C5）
     pub ents: BTreeMap<i32, Vec<u64>>,
+    /// 终态 `script_line_flags` 位图（`to_solver_state` 用；A11 checkpoint 预留）
+    pub flags: u128,
+    /// 存活怪物数（C4 全局口径：已访层位图∩cat8 + 未访层 sprite 全活 cat8）
+    pub monsters_alive: u32,
 }
 
 /// 全局求解结果。
@@ -93,7 +99,8 @@ struct GKey {
     pos: (i32, i32),
     flags: u128,
     keys: (i32, i32, i32),
-    bag: (Vec<u8>, Vec<u8>, i32),
+    /// canonical 背包（size 前缀截断，`state::CanonicalBag`——裁定②同键面）
+    bag: CanonicalBag,
     atk: i32,
     def: i32,
     gold: i32,
@@ -122,11 +129,7 @@ fn key_of(st: &GSt) -> GKey {
             st.player.blue,
             st.player.red,
         ),
-        bag: (
-            st.player.item_types.clone(),
-            st.player.item_uses.clone(),
-            st.player.item_stack_size,
-        ),
+        bag: CanonicalBag::from_player(&st.player),
         atk: st.player.atk,
         def: st.player.def,
         gold: st.player.gold,
@@ -377,6 +380,7 @@ pub fn solve_global(input: &GlobalInput) -> GlobalResult {
                     // 通关终局边：组装全局目标（route=父链段+本层段）
                     let mut route = route_of_global(&nodes, id);
                     route.extend(g.route.iter().cloned());
+                    let ma = monsters_alive_of(&input.floors, &ents);
                     goals.push(GlobalGoal {
                         hp: g.post.hp,
                         kills: st.kills + g.kills,
@@ -384,6 +388,8 @@ pub fn solve_global(input: &GlobalInput) -> GlobalResult {
                         route,
                         floors: st.floors.clone(),
                         post: g.post.clone(),
+                        flags: st.flags,
+                        monsters_alive: ma,
                         ents,
                     });
                 }
@@ -404,6 +410,60 @@ pub fn solve_global(input: &GlobalInput) -> GlobalResult {
         bound: input.bound,
         expansions,
     }
+}
+
+/// 目标 → 计划 §3.3 `SolverState`（字段名不许漂；C4）。
+pub fn to_solver_state(goal: &GlobalGoal) -> SolverState {
+    SolverState {
+        floor: goal.floors.last().copied().unwrap_or(51) as u8,
+        hp: DiscreteHp(goal.hp),
+        atk: goal.post.atk,
+        def: goal.post.def,
+        keys: (
+            goal.post.yellow as u8,
+            goal.post.blue as u8,
+            goal.post.red as u8,
+        ),
+        gold: DiscreteGold(goal.post.gold),
+        inventory: CanonicalBag::from_player(&goal.post),
+        flags: ScriptFlags(goal.flags),
+        kills: goal.kills as u32,
+        monsters_alive: goal.monsters_alive,
+    }
+}
+
+/// monsters_alive 全局口径（C4）：已访层=位图存活∩`entity_category_with_floor==8`；
+/// 未访层（缺席键=首入前）=sprite 全活计数。
+fn monsters_alive_of(
+    floors: &BTreeMap<i32, LevelSpec>,
+    visited: &BTreeMap<i32, Vec<u64>>,
+) -> u32 {
+    let mut n = 0u32;
+    for (f, bits) in visited {
+        let Some(level) = floors.get(f) else { continue };
+        for (slot, e) in level.entities.iter().enumerate() {
+            if entity_category_with_floor(e.ty, *f) == 8 && alive_bits(bits, slot) {
+                n += 1;
+            }
+        }
+    }
+    for (f, level) in floors {
+        if visited.contains_key(f) {
+            continue;
+        }
+        n += level
+            .entities
+            .iter()
+            .filter(|e| entity_category_with_floor(e.ty, *f) == 8)
+            .count() as u32;
+    }
+    n
+}
+
+/// 存活位（批2 `solve_local::alive` 同序：`slot/64` 字 `slot%64` 位；彼处私有，
+/// 此处镜像——位图格式=批2/批3 共同约定）。
+fn alive_bits(v: &[u64], slot: usize) -> bool {
+    (v[slot / 64] >> (slot % 64)) & 1 == 1
 }
 
 /// 入队+K₀ 去重+Pareto（批2 `run` 入队段镜像；**相等也丢**——防 bounce 零步等价环）。

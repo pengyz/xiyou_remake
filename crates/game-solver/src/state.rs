@@ -27,3 +27,69 @@ pub fn s0() -> (i32, i32, i32, i32) {
 /// **裁定（用户 2026-11-09，A 案）**：`{36 金箍棒, 40 紫金龙鳞甲}`（tier 最高 bonus220 二件）；
 /// 次级档 `{79 乌金棍, 80 银缕锁甲}`（bonus120）**不入禁**。裁定后本常量即现值，无待改项。
 pub const Q3_EQUIP_SET: &[i32] = &[36, 40];
+
+// ================= 批3 C4：状态抽象（计划 §3.3 字段名不许漂） =================
+
+/// 批3 裁定①（报审定死）：hp 离散桶宽=**1=精确整数**——Q1 要精确通关值、
+/// 双目标 Pareto 已在同键内做 hp 支配压缩，再分桶只损精度不省键。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct DiscreteHp(pub i32);
+
+impl DiscreteHp {
+    /// 桶化（桶宽1=恒等；若改桶宽只动此函数并同步报审口径）。
+    pub fn bucket(v: i32) -> Self {
+        Self(v)
+    }
+}
+
+/// 批3 裁定②（报审定死）：gold 离散桶宽=**1=精确整数**，且**进去重键 K₀′**
+/// ——批2 伏笔「批3 商店层再入键」（批2 floor1 无商店未入键；批3 全局起有
+/// 商店层，不同金币=不同购买能力不可合并）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct DiscreteGold(pub i32);
+
+/// `script_line_flags` 位图（68 槽 ≤ u128；字段名 `ScriptFlags` 计划 §3.3）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+pub struct ScriptFlags(pub u128);
+
+/// 背包 canonical（计划 §3.3 `inventory CanonicalBag`）：按 `item_stack_size`
+/// **前缀截断**——越过 size 的尾槽垃圾字节不进去重键；size 内真差异保留
+/// （类型/次数有序、引擎栈序=拾取序确定性：不排序不聚合=保真）。
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct CanonicalBag {
+    types: Vec<u8>,
+    uses: Vec<u8>,
+}
+
+impl CanonicalBag {
+    pub fn from_player(p: &crate::solve_local::PlayerSpec) -> Self {
+        let n = (p.item_stack_size.max(0) as usize).min(p.item_types.len());
+        let m = (p.item_stack_size.max(0) as usize).min(p.item_uses.len());
+        Self {
+            types: p.item_types[..n].to_vec(),
+            uses: p.item_uses[..m].to_vec(),
+        }
+    }
+
+    /// 去重键面（size 前缀对）。
+    pub fn key(&self) -> (Vec<u8>, Vec<u8>) {
+        (self.types.clone(), self.uses.clone())
+    }
+}
+
+/// 计划 §3.3 层间传播状态（**字段名不许漂**：floor/hp/atk/def/keys/gold/
+/// inventory/flags/kills/monsters_alive 十字段逐一对位）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SolverState {
+    pub floor: u8,
+    pub hp: DiscreteHp,
+    pub atk: i32,
+    pub def: i32,
+    /// (黄, 蓝, 红)（PlayerSpec 字段序）
+    pub keys: (u8, u8, u8),
+    pub gold: DiscreteGold,
+    pub inventory: CanonicalBag,
+    pub flags: ScriptFlags,
+    pub kills: u32,
+    pub monsters_alive: u32,
+}
