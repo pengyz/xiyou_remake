@@ -320,7 +320,7 @@ fn solve_global_toy_stepgate脚本换层边_跨层携态与通关终局() {
         .find(|q| q.kind == ExitKind::Script)
         .unwrap_or_else(|| panic!("floor1 应有 Script 目标：{goals1:?}"));
     // 脚本换层边的两元组：target=param&0xff=50、type7 → went_down=false
-    assert_eq!(leg1.script_edge, Some((50, false)), "script 边：{leg1:?}");
+    assert_eq!(leg1.cross_edge, Some((50, false)), "script 边：{leg1:?}");
     assert_eq!(leg1.hp, 300, "floor1 无战斗：{leg1:?}");
     assert_eq!(leg1.kills, 0, "无怪：{leg1:?}");
     assert_eq!(leg1.steps, 1, "入场→门格：{leg1:?}");
@@ -345,3 +345,189 @@ fn solve_global_toy_stepgate脚本换层边_跨层携态与通关终局() {
     joined.extend(leg2.route.iter().cloned());
     assert_eq!(g.route, joined, "route 拼接：{g:?}");
 }
+
+/// C3b：floor51 往返玩具——5×2；row1=(0,1) 入场、(1,1) 筋斗云 type15、
+/// (2,1) 下行梯 type8 param=50（入 exits）；row0=(1,0)(2,0)(3,0) 黄门 type1、
+/// (4,0) QoL type20。锚 down=(2,1)（层内唯一 type8）、无 type7 ⇒ 只有键55 云边。
+fn floor51_roundtrip() -> LevelSpec {
+    let mut terrain = vec![false; 5 * 2];
+    for x in 1..=4 {
+        terrain[x] = true; // row0 x1..4
+    }
+    for x in 0..=2 {
+        terrain[5 + x] = true; // row1 x0..2
+    }
+    LevelSpec {
+        cols: 5,
+        rows: 2,
+        terrain,
+        start: (0, 1),
+        entities: vec![
+            EntSpec { ty: 15, x: 1, y: 1, param: 0 },
+            EntSpec { ty: 8, x: 2, y: 1, param: 50 },
+            EntSpec { ty: 1, x: 3, y: 0, param: 0 },
+            EntSpec { ty: 20, x: 4, y: 0, param: 0 },
+        ],
+        exits: vec![ExitSpec { x: 2, y: 1, kind: ExitKind::Stair, index: 1 }],
+        player: player(),
+        enemies: enemies(),
+        enemy_base: enemies(),
+        flags: 0,
+    }
+}
+
+/// C3b：floor50 往返玩具——11×9 仅 row7 x5..10 可走；(6,7) swap_floor 固定落点、
+/// (7,7) 上行梯 type7 param=51（锚点，**不入 exits**=gate_floor 同款夹具quirk，
+/// 避免与普通踩梯双路径；真实数据 C5 对齐）、(8,7) 黄钥 type26、(10,7) 型72。
+/// 无 type8 ⇒ floor50 上只有键49（type7）云边。
+fn floor50_roundtrip() -> LevelSpec {
+    let mut terrain = vec![false; 11 * 9];
+    for x in 5..=10 {
+        terrain[7 * 11 + x] = true;
+    }
+    LevelSpec {
+        cols: 11,
+        rows: 9,
+        terrain,
+        start: (6, 7),
+        entities: vec![
+            EntSpec { ty: 7, x: 7, y: 7, param: 51 },
+            EntSpec { ty: 26, x: 8, y: 7, param: 0 },
+            EntSpec { ty: 72, x: 10, y: 7, param: 0 },
+        ],
+        exits: Vec::new(),
+        player: player(),
+        enemies: enemies(),
+        enemy_base: enemies(),
+        flags: 0,
+    }
+}
+
+/// C3b：floor51 仅云通路玩具——同 roundtrip 但 **exits=[]**（唯一换层通道=筋斗云
+/// 键55）、无门无 QoL20：普通踩梯路径不存在 ⇒ 全局若拒绝云边则必无解。
+fn floor51_cloudonly() -> LevelSpec {
+    let mut terrain = vec![false; 5 * 2];
+    for x in 0..=2 {
+        terrain[5 + x] = true; // row1 x0..2
+    }
+    LevelSpec {
+        cols: 5,
+        rows: 2,
+        terrain,
+        start: (0, 1),
+        entities: vec![
+            EntSpec { ty: 15, x: 1, y: 1, param: 0 },
+            EntSpec { ty: 8, x: 2, y: 1, param: 50 },
+        ],
+        exits: Vec::new(),
+        player: player(),
+        enemies: enemies(),
+        enemy_base: enemies(),
+        flags: 0,
+    }
+}
+
+/// C3b 主测①：筋斗云边区间内回程——A=首访直杀通关 [51,50]；
+/// B=拾钥回 floor51 开门（**黄门只在返回后可开 ⇒ route 含 `door 3,0` ⇒
+/// 云回程必然发生**=最稳判据）再入 floor50 终局 [51,50,51,50]。
+/// 分层一致性：solve_layer 两腿拼接 == 全局解（判据原文）。
+#[test]
+fn solve_global_toy筋斗云边_区间内回程开门与通关() {
+    let mut floors: BTreeMap<i32, LevelSpec> = BTreeMap::new();
+    floors.insert(51, floor51_roundtrip());
+    floors.insert(50, floor50_roundtrip());
+    let r = solve_global(&GlobalInput {
+        floors,
+        start_floor: 51,
+        start_pos: (0, 1),
+        start_player: player(),
+        start_flags: 0,
+        bound: 10_000,
+    });
+
+    assert_eq!(r.confidence, "optimal", "置信：{r:?}");
+    let a = r
+        .goals
+        .iter()
+        .find(|g| g.floors == vec![51, 50])
+        .unwrap_or_else(|| panic!("A 首访直杀目标应存在：{r:?}"));
+    assert_eq!(a.kills, 1, "A 只杀 type72：{a:?}");
+    assert_eq!(a.hp, 276, "A 300-24：{a:?}");
+    let b = r
+        .goals
+        .iter()
+        .find(|g| {
+            g.floors == vec![51, 50, 51, 50]
+                && g.route.iter().any(|s| s == "door 3,0")
+        })
+        .unwrap_or_else(|| panic!("B 回程开门目标应存在：{r:?}"));
+    assert_eq!(b.kills, 1, "B 只杀 type72：{b:?}");
+    assert_eq!(b.hp, 276, "B 300-24：{b:?}");
+    assert!(
+        b.route.iter().any(|s| s == "bump 72@10,7"),
+        "B 终局航点：{b:?}"
+    );
+
+    // 分层一致性腿1：floor51 云边（键55：type8 → went_down=true）
+    let s1 = SolveInput { floor: 51, difficulty: 0, level: Some(floor51_roundtrip()) };
+    let (reach1, goals1) = solve_layer(&s1, (0, 1), None, player(), 0);
+    assert!(reach1, "floor51 层可达");
+    let c1 = goals1
+        .iter()
+        .find(|q| q.kind == ExitKind::Cloud)
+        .unwrap_or_else(|| panic!("floor1 应有云边候选：{goals1:?}"));
+    assert_eq!(c1.cross_edge, Some((50, true)), "键55 边：{c1:?}");
+    assert_eq!(c1.hp, 300, "无战斗：{c1:?}");
+    assert_eq!(c1.kills, 0, "无怪：{c1:?}");
+    assert_eq!(c1.steps, 1, "入场→拾云格：{c1:?}");
+    assert_eq!(c1.route, vec!["0,1", "1,1"], "云边 route：{c1:?}");
+
+    // 分层一致性腿2：floor50 携 15 起跳（键49：type7 → went_down=false）
+    let mut stack = vec![0u8; 32];
+    stack[0] = 15;
+    let mut p15 = player();
+    p15.item_types = stack;
+    let s50 = SolveInput { floor: 50, difficulty: 0, level: Some(floor50_roundtrip()) };
+    let (reach2, goals2) = solve_layer(&s50, (6, 7), None, p15, 0);
+    assert!(reach2, "floor50 层可达");
+    let c2 = goals2
+        .iter()
+        .find(|q| q.kind == ExitKind::Cloud)
+        .unwrap_or_else(|| panic!("floor50 应有云边候选：{goals2:?}"));
+    assert_eq!(c2.cross_edge, Some((51, false)), "键49 边：{c2:?}");
+    assert_eq!(c2.hp, 300, "起跳前无战斗：{c2:?}");
+    assert_eq!(c2.steps, 0, "根态起跳不耗步：{c2:?}");
+    assert_eq!(c2.route, vec!["6,7"], "根态云边 route：{c2:?}");
+}
+
+/// C3b 主测②：区间门外拒绝——首访区间 [51,51] 拒 target50 ⇒ 全局无解
+/// （唯一通路=云）；层内照发云边（区间门是全局史，层内不知）。
+#[test]
+fn solve_global_toy筋斗云边_区间门外拒绝() {
+    let mut floors: BTreeMap<i32, LevelSpec> = BTreeMap::new();
+    floors.insert(51, floor51_cloudonly());
+    floors.insert(50, floor50_nodoor());
+    let r = solve_global(&GlobalInput {
+        floors,
+        start_floor: 51,
+        start_pos: (0, 1),
+        start_player: player(),
+        start_flags: 0,
+        bound: 10_000,
+    });
+    assert!(
+        r.goals.is_empty(),
+        "首访 [51,51] 拒 target50 ⇒ 云边全局落闸：{r:?}"
+    );
+    assert_eq!(r.confidence, "feasible", "无目标置信：{r:?}");
+
+    // 层内腿照发（证明拒绝发生在全局区间门，不是层内没生成边）
+    let s1 = SolveInput { floor: 51, difficulty: 0, level: Some(floor51_cloudonly()) };
+    let (_reach, goals1) = solve_layer(&s1, (0, 1), None, player(), 0);
+    let c = goals1
+        .iter()
+        .find(|q| q.kind == ExitKind::Cloud)
+        .unwrap_or_else(|| panic!("层内云边应照发：{goals1:?}"));
+    assert_eq!(c.cross_edge, Some((50, true)), "层内边：{c:?}");
+}
+

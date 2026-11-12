@@ -145,6 +145,14 @@ fn dominates(a: &GSt, b: &GSt) -> bool {
     hp_ge && kills_le && steps_le && strict
 }
 
+/// 同 K₀ **弱支配**（含指标全等）：a 全面不劣于 b ⇒ b 冗余。
+/// 严格版 `dominates` 会漏掉「指标全等、仅 `floors` 史不同」的筋斗云零步等价环
+/// （C3b T1 实测 `6,7↔2,0` 循环打爆 bound）；同 K₀ ⇒ 同已访层集（`ents_flat`
+/// 含全部已访层位图）⇒ 区间门同域，弱支配丢弃安全。
+fn weakly_ge(a: &GSt, b: &GSt) -> bool {
+    a.player.hp >= b.player.hp && a.kills <= b.kills && a.steps <= b.steps
+}
+
 /// 全局节点（父指针+入边段：route 长镜像按段拼接，避免逐节点全长 route 内存爆）。
 struct GNode {
     st: GSt,
@@ -300,20 +308,30 @@ pub fn solve_global(input: &GlobalInput) -> GlobalResult {
             ents.insert(st.floor, g.post_ents.clone());
             match g.kind {
                 crate::solve_local::ExitKind::Stair
-                | crate::solve_local::ExitKind::Script => {
+                | crate::solve_local::ExitKind::Script
+                | crate::solve_local::ExitKind::Cloud => {
                     // 取参源分叉：Stair=出口梯实体 param（stair_target）、
-                    // Script=脚本换层两元组（C3a：gate_arrive 线程化
-                    // pending_floor/went_down）；落点/子态/位图/入队同构。
+                    // Script/Cloud=换层两元组（C3a gate_arrive 线程化 pending_floor、
+                    // C3b 云边候选）；落点/子态/位图/入队同构。
                     let edge = match g.kind {
                         crate::solve_local::ExitKind::Stair => {
                             stair_target(level, g.post_pos)
                         }
-                        _ => g.script_edge,
+                        _ => g.cross_edge,
                     };
                     let Some((target, went_down)) = edge else {
-                        // 出口梯无对应实体（夹具缺口）/Script 缺两元组 ⇒ 丢边，报审注明
+                        // 出口梯无对应实体（夹具缺口）/Script/Cloud 缺两元组 ⇒ 丢边，报审注明
                         continue;
                     };
+                    if g.kind == crate::solve_local::ExitKind::Cloud {
+                        // 批3 C3b 区间门（a.java:7135-7178：strict=true 只有筋斗云
+                        // 调用点带；min/maxFloorReached=已访层域 ⇒ floors 极值）
+                        let lo = st.floors.iter().min().copied().unwrap_or(st.floor);
+                        let hi = st.floors.iter().max().copied().unwrap_or(st.floor);
+                        if target < lo || target > hi {
+                            continue;
+                        }
+                    }
                     let Some(tspec) = per_floor.get(&target) else {
                         // 目标层缺规格 ⇒ 不扩展
                         continue;
@@ -404,7 +422,7 @@ fn push_state(
     let mut kill: Vec<u32> = Vec::new();
     for &eid in list.iter() {
         let e = &nodes[eid as usize].st;
-        if dominates(e, &ns) || *e == ns {
+        if weakly_ge(e, &ns) {
             dominated = true;
             break;
         }

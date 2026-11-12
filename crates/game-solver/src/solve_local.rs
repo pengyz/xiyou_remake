@@ -107,6 +107,13 @@ pub enum ExitKind {
     /// `Cost` 两实现不动：`HpLoss::eligible` 全收天然含本变体；`Kills::eligible`
     /// 仍只认 `Stair`（批2 量化域零变化；全局 Q1/Q2 取解在 solve_global 自做）。
     Ending,
+    /// 批3 C3b 筋斗云换层边（QoL 件15，计划 R11 独立换层通道）：tutorialSeen
+    /// （≡背包含15，唯一写点 pickup case15 a.java:7539、use=-1 永不消耗）∧
+    /// f_bool_13（与层内锚点四邻非同格 a.java:5767-5806）∧ 首个 `param>>9==0`
+    /// 的 type7/8 → `changeFloor(..., strict=true)`（a.java:5295-5306/7115-7178）。
+    /// 与 Script 同族：`Kills::eligible` 只认 Stair ⇒ 不入 min_kills 量化域
+    /// （裁定 Exit#1）。区间门（min/maxFloorReached=全局史）在 solve_global 落闸。
+    Cloud,
 }
 
 /// 出口定义。
@@ -316,9 +323,9 @@ pub struct LayerGoal {
     pub post_ents: Vec<u64>,
     /// 终态 `script_line_flags` 位图（下一层注入 `flags`）
     pub post_flags: u128,
-    /// 批3 C3a：StepGate 换层边两元组 `(target, went_down)`（仅 `Script` 臂非 None；
-    /// `solve_global` 换层落点的取参源）
-    pub script_edge: Option<(i32, bool)>,
+    /// 批3 C3a/C3b：换层边两元组 `(target, went_down)`（`Script`/`Cloud` 臂非 None；
+    /// `solve_global` 换层落点的取参源；Stair 由出口梯实体 param 取参）
+    pub cross_edge: Option<(i32, bool)>,
 }
 
 /// 批3 C2 单层求解门面（`solve_local`↔`solve_global` 唯一接口；`Search` 保持私有）。
@@ -344,7 +351,8 @@ pub fn solve_layer(
         Some(v) => v.to_vec(),
         None => all_alive(level.entities.len()),
     };
-    let search = Search::from_entry(input, level, entry);
+    let mut search = Search::from_entry(input, level, entry);
+    search.cloud = true; // 批3 C3b：层间路径开筋斗云候选（批2 solve_local/run 关）
     let (reachable, goals) = search.run_root(entry, root_ents, player, flags);
     let mapped = goals
         .into_iter()
@@ -359,7 +367,7 @@ pub fn solve_layer(
             post_pos: g.post.pos,
             post_ents: g.post.ents,
             post_flags: g.post.flags,
-            script_edge: g.script_edge,
+            cross_edge: g.cross_edge,
         })
         .collect();
     (reachable, mapped)
@@ -594,9 +602,9 @@ struct Goal {
     route: Vec<String>,
     /// 批3 C1：终态全态（层间传播用——pos/ents 位图/背包/atk,def/flags 继承到下一层）
     post: St,
-    /// 批3 C3a：StepGate 换层边两元组 `(target, went_down)`——仅 `ExitKind::Script`
-    /// 臂非 None（Stair 由出口梯实体 param 取参、Ending 非换层）
-    script_edge: Option<(i32, bool)>,
+    /// 批3 C3a/C3b：换层边两元组 `(target, went_down)`——仅 `ExitKind::Script`/
+    /// `Cloud` 臂非 None（Stair 由出口梯实体 param 取参、Ending 非换层）
+    cross_edge: Option<(i32, bool)>,
 }
 
 /// 代价泛型（§5 C3「同骨架两代价泛型」+ §1.4 双查询独立出解）。
@@ -716,6 +724,14 @@ struct Search<'a> {
     level: &'a LevelSpec,
     /// `find_path` 可达子图（直调 `pathfind.rs:55`；BR-3 怪癖只对拍 found）
     sub: Vec<bool>,
+    /// 批3 C3b：筋斗云换层锚点——层内**最后 spawn** 的 type7/type8 格
+    /// （entity.rs:361/363 覆写序「最后 spawn 胜」；a.java marker>>5 转格同源）。
+    stair_up: Option<(i32, i32)>,
+    stair_down: Option<(i32, i32)>,
+    /// 批3 C3b：是否记录筋斗云候选。`solve_layer`（批3 层间路径）置 true；
+    /// 批2 `solve_local`/`run()` 保持 false——批2 裁定「UseItem 裁出⇒无筋斗云
+    /// 换层边」零回归。
+    cloud: bool,
 }
 
 impl<'a> Search<'a> {
@@ -729,6 +745,19 @@ impl<'a> Search<'a> {
             input,
             level,
             sub: subgraph_from(level, entry),
+            stair_up: level
+                .entities
+                .iter()
+                .rev()
+                .find(|e| e.ty == 7)
+                .map(|e| (e.x, e.y)),
+            stair_down: level
+                .entities
+                .iter()
+                .rev()
+                .find(|e| e.ty == 8)
+                .map(|e| (e.x, e.y)),
+            cloud: false,
         }
     }
 
@@ -925,6 +954,8 @@ impl<'a> Search<'a> {
         let mut by_key: BTreeMap<Key, Vec<u32>> = BTreeMap::new();
         by_key.entry(key_of(&nodes[0].st)).or_default().push(0);
         let mut goals: Vec<Goal> = Vec::new();
+        // 批3 C3b：根态云候选（真数据重入场携15 的回程通道；玩具根态通常不邻锚）
+        self.record_cloud(&mut goals, &nodes, 0);
 
         while let Some(id) = queue.pop_front() {
             if pruned[id as usize] {
@@ -946,7 +977,7 @@ impl<'a> Search<'a> {
                     kind: e.kind,
                     route: route_of(&nodes, id),
                     post: st.clone(),
-                    script_edge: None,
+                    cross_edge: None,
                 });
                 continue;
             }
@@ -981,7 +1012,7 @@ impl<'a> Search<'a> {
                             kind: ExitKind::Script,
                             route,
                             post: n.st.clone(),
-                            script_edge: Some((pending, went_down)),
+                            cross_edge: Some((pending, went_down)),
                         });
                         continue;
                     }
@@ -1004,7 +1035,7 @@ impl<'a> Search<'a> {
                             kind: ExitKind::Ending,
                             route: route_of(&nodes, new_id),
                             post: n.st.clone(),
-                            script_edge: None,
+                            cross_edge: None,
                         });
                         continue;
                     }
@@ -1040,6 +1071,9 @@ impl<'a> Search<'a> {
                 pruned.push(false);
                 list.push(new_id);
                 queue.push_back(new_id);
+                // 批3 C3b：过支配实际入队才记云候选（被支配/重复态不记——
+                // 同 K₀ 优态已记过其云边）
+                self.record_cloud(&mut goals, &nodes, new_id);
             }
         }
 
@@ -1047,6 +1081,59 @@ impl<'a> Search<'a> {
         // goals 上分叉（§1.4 双查询独立出解）。
         let reachable = !goals.is_empty();
         (reachable, goals)
+    }
+
+    /// 批3 C3b：筋斗云换层候选（四段链 a.java:5738-5753 tutorialSeen→f_bool_13
+    /// →键49/55（a.java:5295-5306）→findFloorGateEntity（a.java:7115-7133 首个
+    /// `param>>9==0` 的 type7/8）→changeFloor(..., strict=true)（a.java:7135-7178））。
+    /// tutorialSeen≡背包含15（唯一写点 pickup case15 a.java:7539）；f_bool_13=
+    /// 与锚点四邻**非同格**（a.java:5767-5806，站梯格上=false）。**区间门不在层内**
+    /// ——min/maxFloorReached 是全局史，由 solve_global 落闸。
+    fn cloud_goals(&self, st: &St) -> Vec<(i32, bool)> {
+        let mut out: Vec<(i32, bool)> = Vec::new();
+        if !self.cloud || !st.player.item_types.contains(&15) {
+            return out;
+        }
+        let adj = |a: Option<(i32, i32)>| match a {
+            Some((ax, ay)) => {
+                let (px, py) = st.pos;
+                (ax - px).abs() + (ay - py).abs() == 1
+            }
+            None => false,
+        };
+        if !(adj(self.stair_up) || adj(self.stair_down)) {
+            return out;
+        }
+        // 按键序固定输出（确定性）：49（type7 → went_down=false）、55（type8 → true）
+        for (ty, went_down) in [(7, false), (8, true)] {
+            if let Some(e) = self
+                .level
+                .entities
+                .iter()
+                .find(|e| e.ty == ty && (e.param >> 9) == 0)
+            {
+                out.push((e.param & 0xff, went_down));
+            }
+        }
+        out
+    }
+
+    /// 批3 C3b：把已入队态的筋斗云候选记为终止目标（与 Terminal 臂同构：不入队
+    /// 不扩展、route=route_of、post=起跳前全态；steps=态步数=起跳不耗步）。
+    fn record_cloud(&self, goals: &mut Vec<Goal>, nodes: &[Node], id: u32) {
+        let st = &nodes[id as usize].st;
+        for (target, went_down) in self.cloud_goals(st) {
+            goals.push(Goal {
+                hp: st.player.hp,
+                kills: st.kills,
+                steps: st.steps,
+                keys: (st.player.yellow, st.player.blue, st.player.red),
+                kind: ExitKind::Cloud,
+                route: route_of(nodes, id),
+                post: st.clone(),
+                cross_edge: Some((target, went_down)),
+            });
+        }
     }
 
     /// StepGate 到达转移（§1.3 StepGate 行；踩格 `from_walk=true`，bump 面
@@ -1345,6 +1432,17 @@ fn build_scene(input: &SolveInput, st: &St, at: (i32, i32)) -> GameScene {
             ..Default::default()
         },
     );
+    // 物品栈连续性（批3 C3b）：build_scene 每步重建场景，而引擎 item_types/
+    // item_uses/item_stack_size 挂在持久 player 上跨步保留；SceneSetup 只有 7
+    // 个标量字段（scene_test_support.rs:220-226），不注入则拾取回读把先前栈
+    // 丢掉——实证：T1 夹具 (1,1) 拾 type15→(8,7) 拾钥 type26 回读 [0×32]
+    // （KeyEffect 只 ++yellow 不碰栈，effect_registry.rs:227/207-210），15 丢失
+    // ⇒ 筋斗云边漏发。空 Vec=夹具未铺栈（≡引擎默认 32 槽零填、size0）不覆盖。
+    if !st.player.item_types.is_empty() {
+        sc.player.item_types = st.player.item_types.clone();
+        sc.player.item_uses = st.player.item_uses.clone();
+        sc.player.item_stack_size = st.player.item_stack_size;
+    }
     // 地形：夹具 terrain 灌满 walkable；夹具外格=False（杀合成地图 y=3 行泄漏）。
     // 夹具 ≤13×13（scene() 合成几何）；更大层需扩展 harness 几何=批3 面。
     for y in 0..(level.rows as usize).min(sc.walkable.len()) {
