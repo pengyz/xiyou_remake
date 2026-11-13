@@ -1083,6 +1083,25 @@ fn solve_global_t穿隐形81封印_层10上行梯可达() {
 
 /// C6g 红：根态恰在出口仍须扩展（step_off 四邻皆墙留梯格场景）
 #[test]
+fn solve_global_t节点上限触发_诚实降级() {
+    // 批3 lead 裁定 A 同族：全局节点上限（R1 有界可配）——触界必须可观测
+    // （node_cap_hit 入 JSON）且 confidence 降级 bounded-best，不得冒充 optimal。
+    let mut floors = BTreeMap::new();
+    floors.insert(51, floor51());
+    floors.insert(50, floor50()); // 缺50 规格则子层被丢、根后即队列空，触不到 cap
+    let gi = GlobalInput { floors, start_floor: 51, start_pos: (0, 1), start_player: player(), start_flags: 0, bound: 10_000 };
+    let r = game_solver::solve_global::solve_global_capped(&gi, 2);
+    assert!(r.node_cap_hit, "cap=2 应触界：{r:?}");
+    // 无解+触界 → feasible（无解词表优先；触界降级 optimal 的路径=同
+    // `hit_bound||node_cap_hit||truncated` 判据，有解时才可能 optimal→bounded-best）
+    assert_eq!(r.confidence, "feasible", "触界不得冒充 optimal：{r:?}");
+    assert!(r.to_json().contains("\"node_cap_hit\":true"), "{}", r.to_json());
+    // 未触界对照：大 cap 不得误报
+    let r2 = game_solver::solve_global::solve_global_capped(&gi, 1_000_000);
+    assert!(!r2.node_cap_hit, "大 cap 不应触界：{r2:?}");
+}
+
+#[test]
 fn solve_global_t根在出口仍扩展() {
     let input = real_global_input(1_000);
     let lv = input.floors.get(&10).expect("f10").clone();

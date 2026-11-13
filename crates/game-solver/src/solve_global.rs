@@ -76,6 +76,10 @@ pub struct GlobalResult {
     /// R1 层界截断记录（lead 裁定 A 条件1）：`(floor, 截断时 nodes 实数)`——
     /// 非空 ⇒ 该结果被层界污染 ⇒ confidence 已降级（不标 optimal）。
     pub truncated_layers: Vec<(i32, usize)>,
+    /// C6h：本次求解的全局节点上限（env SOLVER_NODE_LIMIT 或显式入参）。
+    pub node_cap: u64,
+    /// C6h：nodes.len() 达上限提前终止（可观测；confidence 已降级）。
+    pub node_cap_hit: bool,
 }
 
 /// 全局态（层间耦合量，计划 §3.3 字段口径；`floor/pos/player/flags/kills/steps`
@@ -240,6 +244,23 @@ fn route_of_global(nodes: &[GNode], id: u32) -> Vec<String> {
 
 /// 全局分层求解入口（计划 §4 批3 判据 `solve-global --bound`）。
 pub fn solve_global(input: &GlobalInput) -> GlobalResult {
+    solve_global_capped(input, node_cap_env())
+}
+
+/// C6h：全局节点上限 env（SOLVER_NODE_LIMIT，默认 **100_000**）——lead 裁定 A 同族
+/// （R1 有界可配）：bound1e6 双跑曾 OOM 双杀（exit137，12-15min、31GB 机），节点
+/// 上限让判据③ 命令可完成且确定性可复跑。默认值实测标定：gauge 50_000→2m26s
+/// （exp17532、~120 exp/s）⇒ 100_000≈4-5min/跑、双跑≈10min、内存 ~1-2GB；
+/// env 可调（求解深度优先场景调大），报审记录该口径。
+fn node_cap_env() -> u64 {
+    std::env::var("SOLVER_NODE_LIMIT")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(100_000)
+}
+
+/// C6h：显式节点上限求解（触界 ⇒ node_cap_hit=true、confidence 降级）。
+pub fn solve_global_capped(input: &GlobalInput, node_cap: u64) -> GlobalResult {
     // 每层 SolveInput 预构造（difficulty=0=BR-4；LevelSpec 每层只 clone 一次）
     let mut per_floor: BTreeMap<i32, SolveInput> = BTreeMap::new();
     for (f, spec) in &input.floors {
@@ -297,6 +318,7 @@ pub fn solve_global(input: &GlobalInput) -> GlobalResult {
     let mut goals: Vec<GlobalGoal> = Vec::new();
     let mut expansions: u64 = 0;
     let mut hit_bound = false;
+    let mut node_cap_hit = false;
     let mut truncated_layers: Vec<(i32, usize)> = Vec::new();
     while let Some((Reverse(_), _, Reverse(id))) = queue.pop() {
         if pruned[id as usize] {
@@ -308,6 +330,11 @@ pub fn solve_global(input: &GlobalInput) -> GlobalResult {
         };
         if expansions >= input.bound {
             hit_bound = true;
+            break;
+        }
+        if nodes.len() as u64 >= node_cap {
+            // C6h：全局节点上限（arena 内存+运行时双守卫；确定性触发）
+            node_cap_hit = true;
             break;
         }
         expansions += 1;
@@ -421,8 +448,8 @@ pub fn solve_global(input: &GlobalInput) -> GlobalResult {
 
     let confidence = if goals.is_empty() {
         "feasible"
-    } else if hit_bound || !truncated_layers.is_empty() {
-        // R1 层界（裁定 A）：任一层被截断 ⇒ 探索不完整 ⇒ 不冒充 optimal
+    } else if hit_bound || node_cap_hit || !truncated_layers.is_empty() {
+        // R1 层界（裁定 A）：任一层被截断/节点上限触界/打界 ⇒ 探索不完整 ⇒ 不冒充 optimal
         "bounded-best"
     } else {
         "optimal"
@@ -433,6 +460,8 @@ pub fn solve_global(input: &GlobalInput) -> GlobalResult {
         bound: input.bound,
         expansions,
         truncated_layers,
+        node_cap,
+        node_cap_hit,
     }
 }
 
@@ -610,10 +639,12 @@ impl GlobalResult {
             .map(|(f, n)| format!("[{f},{n}]"))
             .collect();
         format!(
-            "{{\"confidence\":\"{}\",\"bound\":{},\"expansions\":{},\"goals\":[{}],\"truncated_layers\":[{}]}}",
+            "{{\"confidence\":\"{}\",\"bound\":{},\"expansions\":{},\"node_cap\":{},\"node_cap_hit\":{},\"goals\":[{}],\"truncated_layers\":[{}]}}",
             self.confidence,
             self.bound,
             self.expansions,
+            self.node_cap,
+            self.node_cap_hit,
             goals.join(","),
             trunc.join(",")
         )
