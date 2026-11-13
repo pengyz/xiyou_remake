@@ -341,6 +341,8 @@ python3 gates/cli.py check                     # 预期：FAIL=0
 **内容**
 
 - [ ] `solve_global.rs`：层间 DAG（换层边 = 楼梯 param 指向 + LAY/GUT + 型72 触发 + **筋斗云邻梯瞬移——独立于踩梯的换层通道，带探索区间门 4 分量，§2.7 表**），层间传播 `SolverState`（§3.3），checkpoint 字段对齐 `PlayerCombat`（`combat.rs:51`）。
+
+> 【2026-11-13 更正·复核红1】原句「换层边 = 楼梯 param + LAY/GUT + 型72」中 GUT 非换层边：`op_gut`=load_level_script 脚本槽跳转（script_ops.rs:167，findings floor-script-maplv:122），门脚本内由 tickdrive 链自然跟随；LAY 确为换层（op_lay=save_floor_state+set_pending_floor+set_transitioning，script_ops.rs:68；a.java:6261 q=5 为其渲染相位）但经既有 pending_floor 通道被 solve_local gate_arrive 的 Drive::Pending 分支统一捕获，批3 不建独立边。批3 按机制建四类边：楼梯 param/StepGate/筋斗云/UseItem（F1 偏离见批3 报审）。slot0 LAY_2 执行方待考证。
 - [ ] 状态抽象落地：hp/gold 离散桶宽裁定（报审时定死并写注释）、背包 canonical、script_line_flags 位图；状态去重 + 双目标（Q1 hp 最大 / Q2 kills 最小）Pareto 或字典序（口径批3 定死）。
 - [ ] 有界求解口径：界（扩展数/时间）可配，解标注 `optimal|bounded-best|feasible`。
 - [ ] 确定性：同输入同解——固定遍历序（层号→格→动作字典序），无 HashMap 迭代序依赖。
