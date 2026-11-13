@@ -10,13 +10,14 @@
 //! C3 起补：StepGate script 边（`pending_floor`/`went_down`）、筋斗云邻梯瞬移边
 //! （探索区间门 4 分量入 flags）、battle-victory 脚本 69/70/71/73/74/75 转移边。
 //!
-//! 确定性（计划 §4 ④）：遍历全走 `BTreeMap`/`VecDeque`，无 HashMap 迭代序依赖；
+//! 确定性（计划 §4 ④）：遍历全走 `BTreeMap`/`BinaryHeap`，无 HashMap 迭代序依赖；
 //! 同输入同解由批2 同款双跑测试钉死（C4）。
 
-use crate::solve_local::{solve_layer, LevelSpec, PlayerSpec, SolveInput};
+use crate::solve_local::{solve_layer, sprite_full, EntRec, LevelSpec, PlayerSpec, SolveInput};
 use crate::state::{CanonicalBag, DiscreteGold, DiscreteHp, ScriptFlags, SolverState};
 use game_core::subsystem::script_host::entity_category_with_floor;
-use std::collections::{BTreeMap, VecDeque};
+use std::cmp::Reverse;
+use std::collections::{BinaryHeap, BTreeMap};
 
 /// 全局求解输入。
 #[derive(Debug, Clone)]
@@ -50,8 +51,8 @@ pub struct GlobalGoal {
     pub floors: Vec<i32>,
     /// 通关瞬间玩家状态（hp/atk/def/三色钥/金币/背包）
     pub post: PlayerSpec,
-    /// 各层终态存活位图（`monsters_alive` 全局口径的取材面，C4/C5）
-    pub ents: BTreeMap<i32, Vec<u64>>,
+    /// 各层终态活体实体列表（C6a A-lite；`monsters_alive` 全局口径取材面，C4/C5）
+    pub ents: BTreeMap<i32, Vec<EntRec>>,
     /// 终态 `script_line_flags` 位图（`to_solver_state` 用；A11 checkpoint 预留）
     pub flags: u128,
     /// 存活怪物数（C4 全局口径：已访层位图∩cat8 + 未访层 sprite 全活 cat8）
@@ -84,9 +85,9 @@ struct GSt {
     kills: i32,
     /// 全程累计步数（含已穿层）
     steps: i32,
-    /// 已访层存活位图（缺席层=sprite 全活=首次进入；save_floor_state 语义：
-    /// 已死怪/已开门跨层持久，`scene_persist.rs:398`）
-    ents: BTreeMap<i32, Vec<u64>>,
+    /// 已访层活体实体列表（C6a A-lite；缺席层=sprite 全活=首次进入；
+    /// save_floor_state 语义：已死怪/已开门跨层持久，`scene_persist.rs:398`）
+    ents: BTreeMap<i32, Vec<EntRec>>,
     /// 访问层序列（含重复访问）
     floors: Vec<i32>,
 }
@@ -104,20 +105,21 @@ struct GKey {
     atk: i32,
     def: i32,
     gold: i32,
-    /// 逐层位图展平（BTreeMap 序：`floor i32 字节 + bitmap 字节`；缺席层不出现）
+    /// 逐层实体列表展平（C6a：BTreeMap 层序 + 引擎槽序；`floor i32 + len u16 +
+    /// 每条 ty/x/y/param 各 u16`；缺席层不出现——与原位图版同为确定性线形序列）
     ents_flat: Vec<u8>,
 }
 
 fn key_of(st: &GSt) -> GKey {
     let mut ents_flat = Vec::new();
-    for (f, bits) in &st.ents {
+    for (f, recs) in &st.ents {
         ents_flat.extend_from_slice(&f.to_le_bytes());
-        ents_flat.extend_from_slice(&[
-            bits.len().min(255) as u8,
-            (bits.len() >> 8).min(255) as u8,
-        ]);
-        for b in bits {
-            ents_flat.extend_from_slice(&b.to_le_bytes());
+        ents_flat.extend_from_slice(&(recs.len() as u16).to_le_bytes());
+        for r in recs {
+            ents_flat.extend_from_slice(&(r.ty as u16).to_le_bytes());
+            ents_flat.extend_from_slice(&(r.x as u16).to_le_bytes());
+            ents_flat.extend_from_slice(&(r.y as u16).to_le_bytes());
+            ents_flat.extend_from_slice(&(r.param as u16).to_le_bytes());
         }
     }
     GKey {
@@ -160,6 +162,8 @@ fn weakly_ge(a: &GSt, b: &GSt) -> bool {
 struct GNode {
     st: GSt,
     parent: u32,
+    /// 根到本节点的换层深度（根=0；C5d 最深优先遍历主键）
+    depth: u32,
     /// 入边段=产生本节点的 `LayerGoal.route`（根=空）
     segment: Vec<String>,
 }
@@ -244,17 +248,15 @@ pub fn solve_global(input: &GlobalInput) -> GlobalResult {
         );
     }
 
-    let n_start = input
-        .floors
-        .get(&input.start_floor)
-        .map(|s| s.entities.len())
-        .unwrap_or(0);
     let mut start_ents = BTreeMap::new();
-    let mut v = vec![0u64; n_start.div_ceil(64)];
-    for i in 0..n_start {
-        v[i / 64] |= 1u64 << (i % 64);
-    }
-    start_ents.insert(input.start_floor, v);
+    start_ents.insert(
+        input.start_floor,
+        input
+            .floors
+            .get(&input.start_floor)
+            .map(sprite_full)
+            .unwrap_or_default(),
+    );
     let root = GSt {
         floor: input.start_floor,
         pos: input.start_pos,
@@ -268,18 +270,21 @@ pub fn solve_global(input: &GlobalInput) -> GlobalResult {
     let mut nodes: Vec<GNode> = vec![GNode {
         st: root,
         parent: u32::MAX,
+        depth: 0,
         segment: Vec::new(),
     }];
     let mut pruned = vec![false];
-    let mut queue: VecDeque<u32> = VecDeque::new();
-    queue.push_back(0);
+    // C5d 遍历序=**最深优先**（深度主键降序+node id 升序 tiebreak=全序、确定性；
+    // BFS FIFO 会被浅层巨扇出淹没、bound 全耗浅层到不了深链——诊断 queue 80→15.5k
+    // visited_floors 恒 [51,52,53]）。返回支路（重入同层）steps 更大被支配自然死。
+    let mut queue: BinaryHeap<(u32, Reverse<u32>)> = BinaryHeap::new();
+    queue.push((0, Reverse(0)));
     let mut by_key: BTreeMap<GKey, Vec<u32>> = BTreeMap::new();
     by_key.entry(key_of(&nodes[0].st)).or_default().push(0);
     let mut goals: Vec<GlobalGoal> = Vec::new();
     let mut expansions: u64 = 0;
     let mut hit_bound = false;
-
-    while let Some(id) = queue.pop_front() {
+    while let Some((_, Reverse(id))) = queue.pop() {
         if pruned[id as usize] {
             continue;
         }
@@ -347,12 +352,7 @@ pub fn solve_global(input: &GlobalInput) -> GlobalResult {
                     };
                     if !ents.contains_key(&target) {
                         // 新层首入=sprite 全活（save_floor_state count==0 语义）
-                        let n = tlevel.entities.len();
-                        let mut bits = vec![0u64; n.div_ceil(64)];
-                        for i in 0..n {
-                            bits[i / 64] |= 1u64 << (i % 64);
-                        }
-                        ents.insert(target, bits);
+                        ents.insert(target, sprite_full(tlevel));
                     }
                     let ns = GSt {
                         floor: target,
@@ -434,17 +434,17 @@ pub fn to_solver_state(goal: &GlobalGoal) -> SolverState {
     }
 }
 
-/// monsters_alive 全局口径（C4）：已访层=位图存活∩`entity_category_with_floor==8`；
-/// 未访层（缺席键=首入前）=sprite 全活计数。
+/// monsters_alive 全局口径（C4）：已访层=活体列表∩`entity_category_with_floor==8`
+/// （C6a 起列表即引擎活体槽，无位图换算）；未访层（缺席键=首入前）=sprite 全活计数。
 fn monsters_alive_of(
     floors: &BTreeMap<i32, LevelSpec>,
-    visited: &BTreeMap<i32, Vec<u64>>,
+    visited: &BTreeMap<i32, Vec<EntRec>>,
 ) -> u32 {
     let mut n = 0u32;
-    for (f, bits) in visited {
-        let Some(level) = floors.get(f) else { continue };
-        for (slot, e) in level.entities.iter().enumerate() {
-            if entity_category_with_floor(e.ty, *f) == 8 && alive_bits(bits, slot) {
+    for (f, recs) in visited {
+        let _ = floors.get(f);
+        for r in recs {
+            if entity_category_with_floor(r.ty, *f) == 8 {
                 n += 1;
             }
         }
@@ -462,22 +462,23 @@ fn monsters_alive_of(
     n
 }
 
-/// 存活位（批2 `solve_local::alive` 同序：`slot/64` 字 `slot%64` 位；彼处私有，
-/// 此处镜像——位图格式=批2/批3 共同约定）。
-fn alive_bits(v: &[u64], slot: usize) -> bool {
-    (v[slot / 64] >> (slot % 64)) & 1 == 1
-}
+
 
 /// 入队+K₀ 去重+Pareto（批2 `run` 入队段镜像；**相等也丢**——防 bounce 零步等价环）。
 fn push_state(
     nodes: &mut Vec<GNode>,
     pruned: &mut Vec<bool>,
-    queue: &mut VecDeque<u32>,
+    queue: &mut BinaryHeap<(u32, Reverse<u32>)>,
     by_key: &mut BTreeMap<GKey, Vec<u32>>,
     parent: u32,
     segment: Vec<String>,
     ns: GSt,
 ) {
+    let depth = if parent == u32::MAX {
+        0
+    } else {
+        nodes[parent as usize].depth + 1
+    };
     let k = key_of(&ns);
     let list = by_key.entry(k).or_default();
     let mut dominated = false;
@@ -503,11 +504,12 @@ fn push_state(
     nodes.push(GNode {
         st: ns,
         parent,
+        depth,
         segment,
     });
     pruned.push(false);
     list.push(new_id);
-    queue.push_back(new_id);
+    queue.push((depth, Reverse(new_id)));
 }
 
 // ---- C5：JSON 输出（手写，与批2 SolveResult::to_json 同范式；route token全安全字符无需转义）----

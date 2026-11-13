@@ -16,7 +16,8 @@ use game_core::combat::{scale_enemy_stats, CombatTables, PlayerCombat};
 use game_solver::solve_global::{solve_global, to_solver_state, GlobalInput};
 use game_solver::state::{CanonicalBag, DiscreteGold, DiscreteHp, ScriptFlags, SolverState};
 use game_solver::solve_local::{
-    load_floor, solve_layer, EntSpec, ExitKind, ExitSpec, LevelSpec, PlayerSpec, SolveInput,
+    load_floor, solve_layer, EntRec, EntSpec, ExitKind, ExitSpec, LevelSpec, PlayerSpec,
+    SolveInput,
 };
 use std::collections::BTreeMap;
 
@@ -764,81 +765,6 @@ fn solve_global_t真数据首层穿门可达() {
     );
 }
 
-#[test]
-fn solve_global_tprobe51层全实体清点() {
-    let gi = real_global_input(1_000);
-    let lv = gi.floors.get(&51).expect("层51");
-    println!("floor51 ents={} exits={:?}", lv.entities.len(), lv.exits);
-    for e in &lv.entities {
-        println!("ty={} @({},{}) p={}", e.ty, e.x, e.y, e.param);
-    }
-    let lv50 = gi.floors.get(&50).expect("层50");
-    println!("floor50 ents={} exits={:?}", lv50.entities.len(), lv50.exits);
-    for e in &lv50.entities {
-        if matches!(e.ty, 7 | 8 | 4 | 2 | 21 | 22 | 5) { println!("50: ty={} @({},{}) p={}", e.ty, e.x, e.y, e.param); }
-    }
-}
-
-#[test]
-fn solve_global_tprobe全楼层楼梯param() {
-    let gi = real_global_input(1_000);
-    for (f, lv) in &gi.floors {
-        let stairs: Vec<String> = lv.entities.iter()
-            .filter(|e| matches!(e.ty, 7 | 8))
-            .map(|e| format!("ty{}@({},{})p{}", e.ty, e.x, e.y, e.param))
-            .collect();
-        if !stairs.is_empty() { println!("f{f}: {}", stairs.join(" ")); }
-    }
-}
-
-#[test]
-fn solve_global_tprobe全楼层拾取物() {
-    let gi = real_global_input(1_000);
-    for (f, lv) in &gi.floors {
-        let picks: Vec<String> = lv.entities.iter()
-            .filter(|e| matches!(e.ty, 2 | 4 | 5))
-            .map(|e| format!("ty{}@({},{})p{}", e.ty, e.x, e.y, e.param))
-            .collect();
-        if !picks.is_empty() { println!("f{f}: {}", picks.join(" ")); }
-    }
-}
-
-#[test]
-fn solve_global_tprobeQoL件落位() {
-    let gi = real_global_input(1_000);
-    let mut hist: std::collections::BTreeMap<i32, i32> = Default::default();
-    for (f, lv) in &gi.floors {
-        for e in &lv.entities {
-            *hist.entry(e.ty).or_default() += 1;
-            if matches!(e.ty, 15 | 20 | 21 | 22 | 23 | 24) {
-                println!("QoL ty{} on f{f} @({},{}) p={}", e.ty, e.x, e.y, e.param);
-            }
-        }
-    }
-    println!("hist={:?}", hist);
-}
-
-#[test]
-fn solve_global_tprobe计时分段() {
-    let t0 = std::time::Instant::now();
-    let inp = real_global_input(1_000);
-    let t1 = std::time::Instant::now();
-    let si = SolveInput {
-        floor: 51,
-        difficulty: 0,
-        level: Some(inp.floors.get(&51).expect("层51").clone()),
-    };
-    let (ok, goals) = solve_layer(&si, (1, 11), None, player(), 0);
-    let t2 = std::time::Instant::now();
-    println!(
-        "计时: 装载={:?} solve_layer={:?} ok={} goals={}",
-        t1 - t0,
-        t2 - t1,
-        ok,
-        goals.len()
-    );
-}
-
 /// 批3 F3：UseItem 符21 上行换层边（a.java case21=changeFloor(currentFloor+1,
 /// false, false)、var3=false 无区间门；itemUseCounts=1 a.java:944 idx8 ⇒ 成功
 /// 使用即消耗、post 必须扣 21）。f49 拾 21 → use → f50 落点走 swap_floor 特例
@@ -893,9 +819,11 @@ fn solve_global_tuseitem符21上行换层边_拾符跨层消耗与通关终局()
     };
     let (ok1, g1) = solve_layer(&si49, (0, 1), None, player(), 0);
     assert!(ok1, "f49 可达");
+    // C5d 归并按 (kind,cross_edge,player,flags,pos,ents) 分组、BTreeMap 按 pos 排序
+    // ⇒ 首项顺序不稳（拾符后走回起点 (0,1) 的态也合法携21）——选择器钉 pos。
     let u = g1
         .iter()
-        .find(|g| g.kind == ExitKind::UseItem)
+        .find(|g| g.kind == ExitKind::UseItem && g.post_pos == (1, 1))
         .expect("携21 态应记录 UseItem 边");
     assert_eq!(u.cross_edge, Some((50, false)), "case21=+1 上行 went_down=false");
     assert!(!u.post.item_types.contains(&21), "首用即耗 itemUseCounts=1");
@@ -930,4 +858,193 @@ fn solve_global_tuseitem符21上行换层边_拾符跨层消耗与通关终局()
         g.route
     );
     assert!(!g.post.item_types.contains(&21), "终局背包无 21");
+}
+
+// ─── 批3 C5d：门脚本世界变保守放行（选项 D，lead 已报备） ───
+
+/// 真数据 f52：上行梯 (11,11)→53 只能穿 gate53（line53=CES_36/40 物品+DES_11
+/// 拆障+演出）与 gate50（CES_6 楼梯）。保守放行（物品/楼梯 CES、DES=开路方向、
+/// 位图陈旧=更少路径=健全）后该 goal 必须存在；怪物/阻挡 CES、实体 MOV 仍拒。
+#[test]
+fn solve_global_t门实体变保守放行_f52穿gate53达上行梯() {
+    let gi = real_global_input(1_000);
+    let lv = gi.floors.get(&52).expect("层52 规格");
+    let si = SolveInput { floor: 52, difficulty: 0, level: Some(lv.clone()) };
+    let (ok, goals) = solve_layer(&si, (2, 11), None, player(), 0);
+    assert!(ok, "f52 应可达：{goals:?}");
+    assert!(
+        goals.iter().any(|g| g.kind == ExitKind::Stair && g.post_pos == (11, 11)),
+        "上行梯 (11,11) goal 应存在（gate53/gate50 放行）：{goals:?}"
+    );
+}
+
+/// 玩家 MOV_0_*（script31 `MOV_0_6_5`）穿门后 pos 必须读回引擎真值：隔墙布局
+/// （x=3 全墙），不读回 pos 则停在门格 (1,1) 永远到不了墙后出口 (6,6)。
+#[test]
+fn solve_global_t门玩家MOV_pos读回_穿门达墙后出口() {
+    // 夹具修正（C5d 调试实证）：①墙=ty10 实体列——find_path 地形单源
+    // （pathfind.rs is_cell_walkable 只查 terrain）穿实体、solver classify 挡 ty10
+    // ⇒ 门内 MOV_0_6_5 是唯一跨墙途径（原地形墙两头都挡=测试前提错）；
+    // ②case31 门 gate &= from_walk && find_item(16)>=0（scene.rs:1016）⇒ 须持16。
+    let terrain = vec![true; 7 * 7];
+    let ents = vec![
+        EntSpec { ty: 83, x: 1, y: 1, param: 31 },
+        EntSpec { ty: 7, x: 6, y: 6, param: 2 },
+    ];
+    // 无墙（C5d 实证改版）：MOV=引擎「直达走位」——find_path 规划穿实体槽、
+    // try_step 撞格即中止（advance_script_walk 撞格臂），墙在路径上 walk 必死；
+    // pos 读回改由路线形状证明（无读回 ⇒ BFS 从门格重走 ~10 token）。
+    let mut p16 = player();
+    p16.item_types = vec![16];
+    p16.item_uses = vec![1];
+    p16.item_stack_size = 1;
+    let level = LevelSpec {
+        cols: 7,
+        rows: 7,
+        terrain,
+        start: (0, 1),
+        entities: ents,
+        exits: vec![ExitSpec { x: 6, y: 6, kind: ExitKind::Stair, index: 1 }],
+        player: p16.clone(),
+        enemies: enemies(),
+        enemy_base: enemies(),
+        flags: 0,
+    };
+    let si = SolveInput { floor: 26, difficulty: 0, level: Some(level) };
+    let (ok, goals) = solve_layer(&si, (0, 1), None, p16, 0);
+    assert!(ok, "MOV 穿门（pos 读回 (6,5)）后应达出口：{goals:?}");
+    // pos 读回形状断言：读回 (6,5) ⇒ 出口 (6,6) 一步即达（route=4 token）；
+    // 读回缺失（停门格 (1,1)）⇒ BFS 重走整格 ⇒ route ≥13 token 被杀。
+    // 读回实证（C5d 调试钉死的形状）：Completed 臂不加 gate 标记（非 Terminal），
+    // C6a 后 route token=act 到达格：门格节点 token="1,1"（读回 pos 不进
+    // route）、全程 3 token 到出口——无读回时 BFS 从 (1,1) 重走 ≥13 token 被杀；
+    // 读回缺失则门格 token="1,1"+BFS 重走 ⇒ ≥13 token。
+    let shaped = goals.iter().any(|g| {
+        g.post_pos == (6, 6)
+            && g.route.last().map(String::as_str) == Some("6,6")
+            && g.route.len() == 3
+            && g.route[1] == "1,1"
+            && g.post_flags != 0
+    });
+    assert!(shaped, "MOV pos 读回应让出口一步即达：{goals:?}");
+}
+
+/// 拒绝面回归：line38=`CES_6_4_1 CES_61_4_1`（type61=怪物 CES）⇒ Dropped，
+/// 墙隙唯一通路被门封死 ⇒ 零 goal（放行怪物 CES 会产生幻影路径=不健全）。
+#[test]
+fn solve_global_t门怪物CES拒绝_分支不产生() {
+    let mut terrain = vec![true; 6 * 3];
+    terrain[0 * 6 + 2] = false; // x=2 全墙，仅 row1 通
+    terrain[2 * 6 + 2] = false;
+    let level = LevelSpec {
+        cols: 6,
+        rows: 3,
+        terrain,
+        start: (0, 1),
+        entities: vec![
+            EntSpec { ty: 83, x: 2, y: 1, param: 38 },
+            EntSpec { ty: 7, x: 5, y: 1, param: 2 },
+        ],
+        exits: vec![ExitSpec { x: 5, y: 1, kind: ExitKind::Stair, index: 1 }],
+        player: player(),
+        enemies: enemies(),
+        enemy_base: enemies(),
+        flags: 0,
+    };
+    let si = SolveInput { floor: 48, difficulty: 0, level: Some(level) };
+    let (_ok, goals) = solve_layer(&si, (0, 1), None, player(), 0);
+    assert!(goals.is_empty(), "怪物 CES 门应 Dropped、零 goal：{goals:?}");
+}
+
+
+/// 批3 C6a：穿门读回引擎实体表（A-lite）——脚本 CES 新实体进 `post_ents`
+/// （canonical=引擎活体槽序：sprite 序幸存者+append 序新增；entity.rs:330 append-only）。
+#[test]
+fn solve_global_t穿门读回CES实体_进post_ents() {
+    // 8×8 全可走；gate p25@(1,0)（fixture line26 idx25=`CES_22_6_6`，type22=cat2 拾取物）；
+    // 出口梯 @(2,0)。entry (0,0)→踩门 Completed→CES 生成→走到出口。
+    // 门条件（scene.rs case25）：`from_walk && flags[13] && 无型60@(2,2)/(10,2)`
+    // ⇒ 根 flags=1<<13（首跑红=没置 flags[13]、门不 fire、脚本没跑）。
+    let level = LevelSpec {
+        cols: 8,
+        rows: 8,
+        terrain: vec![true; 64],
+        start: (0, 0),
+        entities: vec![
+            EntSpec { ty: 83, x: 1, y: 0, param: 25 },
+            EntSpec { ty: 7, x: 2, y: 0, param: 50 },
+        ],
+        exits: vec![ExitSpec { x: 2, y: 0, kind: ExitKind::Stair, index: 1 }],
+        player: player(),
+        enemies: enemies(),
+        enemy_base: enemies(),
+        flags: 0,
+    };
+    let si = SolveInput { floor: 1, difficulty: 0, level: Some(level) };
+    let (ok, goals) = solve_layer(&si, (0, 0), None, player(), 1 << 13);
+    assert!(ok, "穿门到出口应可达");
+    // 夹具 8×8 全可走⇒门格非独路：存在「绕行拾取 type22 后再出门」解（post_ents
+    // 不含22）与「直穿门携 CES」解两支；取携 CES 者断言（merge 排序后 find 首项
+    // 可能是拾取支——断言打脸过一次）。引擎 append 序：CES 新实体在槽尾。
+    let g = goals
+        .iter()
+        .find(|g| {
+            g.kind == ExitKind::Stair
+                && g.post_ents.contains(&EntRec { ty: 22, x: 6, y: 6, param: 0 })
+        })
+        .expect("携 CES 实体的 Stair goal 应存在");
+    assert!(
+        g.post_ents.contains(&EntRec { ty: 22, x: 6, y: 6, param: 0 }),
+        "CES_22_6_6 生成实体应读回进 post_ents：{:?}",
+        g.post_ents
+    );
+    assert_eq!(g.post_ents.len(), 3, "sprite 两实体+CES 新增一（append 序）");
+    assert_eq!(
+        g.post_ents.last(),
+        Some(&EntRec { ty: 22, x: 6, y: 6, param: 0 }),
+        "CES 新实体在引擎槽尾（append-only）"
+    );
+}
+
+/// 批3 C6a：穿门读回——脚本 DES 拆除的实体出 `post_ents`（alive 谓词=
+/// `serialize_floor_state` 逐字 `!removed && state != 1`，entity.rs:86-88）。
+#[test]
+fn solve_global_t穿门读回DES拆除_出post_ents() {
+    // gate p14@(1,0)（fixture file line15 idx14=`ROS_4_1 TAK_92_97 DES_73_6_8
+    // TAK_98_100 DES_70_6_7`——14 号门 case14 直通（scene.rs 直通簇注释）、
+    // 行内 op 全 D-放行；原 p18 被 case18 六格型1 扫描挡死=首跑红根因）；
+    // 预置 type70@(6,7)。穿门后 DES_70_6_7 拆除读回。
+    let level = LevelSpec {
+        cols: 8,
+        rows: 8,
+        terrain: vec![true; 64],
+        start: (0, 0),
+        entities: vec![
+            EntSpec { ty: 83, x: 1, y: 0, param: 14 },
+            EntSpec { ty: 70, x: 6, y: 7, param: 0 },
+            EntSpec { ty: 7, x: 2, y: 0, param: 50 },
+        ],
+        exits: vec![ExitSpec { x: 2, y: 0, kind: ExitKind::Stair, index: 1 }],
+        player: player(),
+        enemies: enemies(),
+        enemy_base: enemies(),
+        flags: 0,
+    };
+    let si = SolveInput { floor: 1, difficulty: 0, level: Some(level) };
+    let (ok, goals) = solve_layer(&si, (0, 0), None, player(), 0);
+    assert!(ok, "穿门到出口应可达");
+    let g = goals
+        .iter()
+        .find(|g| g.kind == ExitKind::Stair)
+        .expect("Stair goal");
+    assert!(
+        !g.post_ents.iter().any(|r| r.ty == 70 && r.x == 6 && r.y == 7),
+        "DES_70_6_7 拆除应读回：{:?}",
+        g.post_ents
+    );
+    assert!(
+        g.post_ents.iter().any(|r| r.ty == 83 && r.x == 1 && r.y == 0),
+        "门与出口梯保留：{:?}",
+        g.post_ents
+    );
 }

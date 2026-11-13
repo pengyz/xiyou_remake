@@ -96,7 +96,7 @@ pub struct EntSpec {
 }
 
 /// 出口类别（批2=Exit#1 步行楼梯；Exit#2 脚本换层边 C5 接入）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ExitKind {
     Stair,
     /// Exit#2 脚本换层边（C5 StepGate 终止边，§2.2 ④）。§1.4 ② 不入 min_kills
@@ -138,7 +138,7 @@ pub struct ExitSpec {
 /// 玩家状态纯数据镜像（`PlayerCombat` 无 derive，`combat.rs:51-63`；
 /// `from_combat`/`to_combat`=逐字段机械搬运，非语义重写）。
 /// 批3 C5b：+`Hash`（gate_memo 键分量；game-solver 自有类型，非 game-core 面）。
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PlayerSpec {
     pub hp: i32,
     pub atk: i32,
@@ -329,7 +329,7 @@ pub struct LayerGoal {
     /// 终态格（出口格=楼梯换层边的取参面：出口梯实体查找）
     pub post_pos: (i32, i32),
     /// 终态存活位图（本层；下一层注入同层重入或本层 post 直传）
-    pub post_ents: Vec<u64>,
+    pub post_ents: Vec<EntRec>,
     /// 终态 `script_line_flags` 位图（下一层注入 `flags`）
     pub post_flags: u128,
     /// 批3 C3a/C3b：换层边两元组 `(target, went_down)`（`Script`/`Cloud` 臂非 None；
@@ -341,7 +341,7 @@ pub struct LayerGoal {
 ///
 /// - `entry`：入场格（批2 特例=`level.start`；层间边=上一层出场梯落点，
 ///   `swap_floor` 语义 `scene_persist.rs:410-433`）；
-/// - `ents`：初始存活位图；`None` ⇒ `all_alive`（新层首入）；
+/// - `ents`：初始活体实体列表（C6a A-lite）；`None` ⇒ `sprite_full`（新层首入）；
 /// - `player`/`flags`：注入的入场玩家状态与脚本旗标（层间携带上一层 `post`；
 ///   `run()` 特例=`level.player`/`level.flags`）。
 ///
@@ -349,7 +349,7 @@ pub struct LayerGoal {
 pub fn solve_layer(
     input: &SolveInput,
     entry: (i32, i32),
-    ents: Option<&[u64]>,
+    ents: Option<&[EntRec]>,
     player: PlayerSpec,
     flags: u128,
 ) -> (bool, Vec<LayerGoal>) {
@@ -358,12 +358,31 @@ pub fn solve_layer(
     };
     let root_ents = match ents {
         Some(v) => v.to_vec(),
-        None => all_alive(level.entities.len()),
+        None => sprite_full(level),
     };
+    // C5d″：层结果缓存 lookup——全局队列里同 K₀ 不同 kills/steps 的变体会以完全
+    // 相同输入反复 pop 同一层（f52 实测同输入 8 连 pop、单层状态 80 万）。
+    let memo_key = (
+        input.floor,
+        entry,
+        player.clone(),
+        flags,
+        root_ents.clone(),
+        level_digest(input),
+    );
+    if let Some(hit) = LAYER_MEMO.with(|m| m.borrow().get(&memo_key).cloned()) {
+        return hit;
+    }
     let mut search = Search::from_entry(input, level, entry);
     search.cloud = true; // 批3 C3b：层间路径开筋斗云候选（批2 solve_local/run 关）
     let (reachable, goals) = search.run_root(entry, root_ents, player, flags);
-    let mapped = goals
+    // C5d′：层出口同态归并——同 (kind, cross_edge, post 全态) 组内 (kills,steps)
+    // 支配剪枝（组内 hp 在键里=相等）。全局 push_state 对同 K₀ 子态做同样弱支配
+    // ⇒ 本归并=同一结果前移，省 route 克隆与逐 goal GSt/GKey 克隆（f52 单层 3.2 万
+    // goals 爆炸源）。仅 solve_layer（批3 面）——批2 solve_local 走 run() 不受影响
+    // （其 Cost tie-break 依赖原始 goals 序）。BTreeMap 键序=确定性（禁 HashMap 序）。
+    let goals = merge_layer_goals(goals);
+    let mapped: Vec<LayerGoal> = goals
         .into_iter()
         .map(|g| LayerGoal {
             hp: g.hp,
@@ -379,7 +398,110 @@ pub fn solve_layer(
             cross_edge: g.cross_edge,
         })
         .collect();
+    // C5d″：纯函数结果入缓存（键=全部输入；gate memo 只提速不改输出）
+    LAYER_MEMO.with(|m| {
+        m.borrow_mut().insert(memo_key, (reachable, mapped.clone()));
+    });
     (reachable, mapped)
+}
+
+thread_local! {
+    /// C5d″：层求解结果缓存——`solve_layer` 是（层规格+入场态）的纯函数 ⇒ 同键同
+    /// 输出。全局队列中同 K₀ 不同 kills/steps 的状态以相同输入反复 pop 同层
+    /// （f52 实测同输入 8 连 pop、单层 80 万状态、单层秒级）——缓存=跳过重复层搜索。
+    /// 键含 `level_digest`（FNV-1a 层规格内容摘要）防「同 floor 不同夹具」串味
+    /// （玩具测试同 floor 多套 LevelSpec）；thread_local=多线程测试隔离；缓存纯
+    /// 加速、不改输出与遍历序（确定性不受影响）。
+    static LAYER_MEMO: RefCell<
+        HashMap<(i32, (i32, i32), PlayerSpec, u128, Vec<EntRec>, u64), (bool, Vec<LayerGoal>)>,
+    > = RefCell::new(HashMap::new());
+}
+
+/// C5d″：层规格内容摘要（FNV-1a，`LAYER_MEMO` 键分量）。覆盖 `SolveInput` 全
+/// 字段面（difficulty/level 全成员——地形/实体/出口/入场玩家/敌表双份/flags），
+/// 内容同⇒缓存共享=正确（同内容同输出）。
+fn level_digest(si: &SolveInput) -> u64 {
+    let mut h: u64 = 0xcbf29ce484222325;
+    {
+        let mut mix = |bytes: &[u8]| {
+            for &b in bytes {
+                h ^= b as u64;
+                h = h.wrapping_mul(0x100000001b3);
+            }
+        };
+        mix(&si.difficulty.to_le_bytes());
+        let Some(l) = si.level.as_ref() else {
+            return h;
+        };
+        mix(&l.cols.to_le_bytes());
+        mix(&l.rows.to_le_bytes());
+        for &t in &l.terrain {
+            mix(&[t as u8]);
+        }
+        mix(&l.start.0.to_le_bytes());
+        mix(&l.start.1.to_le_bytes());
+        for e in &l.entities {
+            mix(&e.ty.to_le_bytes());
+            mix(&e.x.to_le_bytes());
+            mix(&e.y.to_le_bytes());
+            mix(&e.param.to_le_bytes());
+        }
+        for x in &l.exits {
+            mix(&x.x.to_le_bytes());
+            mix(&x.y.to_le_bytes());
+            mix(&[x.kind as u8]);
+            mix(&[x.index]);
+        }
+        let p = &l.player;
+        for v in [
+            p.hp, p.atk, p.def, p.yellow, p.blue, p.red, p.gold, p.item_stack_size,
+        ] {
+            mix(&v.to_le_bytes());
+        }
+        for &v in &p.item_types {
+            mix(&[v]);
+        }
+        for &v in &p.item_uses {
+            mix(&[v]);
+        }
+        for d in l.enemies.iter().chain(l.enemy_base.iter()) {
+            mix(&d.id.to_le_bytes());
+            mix(&d.hp.to_le_bytes());
+            mix(&d.atk.to_le_bytes());
+            mix(&d.def.to_le_bytes());
+            mix(&d.gold.to_le_bytes());
+            mix(&[d.trait_flags]);
+        }
+        mix(&l.flags.to_le_bytes());
+    }
+    h
+}
+
+/// C5d′：层出口归并（见 `solve_layer` 调用点注）。组键=子态 K₀ 全分量
+/// （kind/cross_edge/player/flags/pos/ents）；组内 (kills,steps) Pareto：
+/// 已有不劣于新⇒丢新（先到胜=确定性）、新支配旧⇒剔旧、互有优劣⇒并存。
+fn merge_layer_goals(goals: Vec<Goal>) -> Vec<Goal> {
+    let mut groups: BTreeMap<
+        (ExitKind, Option<(i32, bool)>, PlayerSpec, u128, (i32, i32), Vec<EntRec>),
+        Vec<Goal>,
+    > = BTreeMap::new();
+    for g in goals {
+        let key = (
+            g.kind,
+            g.cross_edge,
+            g.post.player.clone(),
+            g.post.flags,
+            g.post.pos,
+            g.post.ents.clone(),
+        );
+        let slot = groups.entry(key).or_default();
+        if slot.iter().any(|e| e.kills <= g.kills && e.steps <= g.steps) {
+            continue;
+        }
+        slot.retain(|e| !(g.kills <= e.kills && g.steps <= e.steps));
+        slot.push(g);
+    }
+    groups.into_values().flatten().collect()
 }
 
 /// C4 fixture 装载路径：ingest 产物 → 单层 `SolveInput`（提案 §5 C4 / T5 断言面）。
@@ -536,6 +658,45 @@ fn bump_outcome(level: &LevelSpec, player: &PlayerCombat, ty: i32, slot: usize) 
     }
 }
 
+
+// ---------------------------------------------------------------- C6a 实体表（A-lite）
+/// 活体实体记录（C6a A-lite 表示统一：引擎 `EntityTable` 活体槽的 canonical 快照）。
+/// canonical 序=**引擎槽序**（sprite 记录序=引擎载入序，幸存者按序保位；脚本
+/// CES/ADD 新实体按 `spawnEntity` append 序尾追——entity.rs:330-346 `idx = count++`）。
+/// **不排序**：评估成稿原拟「ty,x,y,param 字典序」改为引擎槽序——槽序是引擎 append
+/// 演化的 canonical，字典序会把 append 压成集合、丢顺序信息（去重面变弱）。
+/// 活体谓词=`serialize_floor_state` 逐字 `!removed && state != 1`（entity.rs:86-88）。
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct EntRec {
+    pub ty: i32,
+    pub x: i32,
+    pub y: i32,
+    pub param: i32,
+}
+
+/// sprite 载入序全活列表（`LevelSpec.entities` 序=scene_setup 注入序=引擎 sprite
+/// 加载序——即初始 `EntityTable`）。
+pub fn sprite_full(level: &LevelSpec) -> Vec<EntRec> {
+    level
+        .entities
+        .iter()
+        .map(|e| EntRec { ty: e.ty, x: e.x, y: e.y, param: e.param })
+        .collect()
+}
+
+/// 从跑完脚本的 harness 场景读回活体实体表（C6a A-lite）：谓词同
+/// `serialize_floor_state`（entity.rs:86-88）；param 已由 `build_scene` 按
+/// (type,格) 首配回灌 sprite 值、CES 新实体 param=0——与引擎读值同源。
+fn readback_ents(sc: &GameScene) -> Vec<EntRec> {
+    sc.entities
+        .items
+        .iter()
+        .enumerate()
+        .filter(|(i, e)| *i < sc.entities.count && !e.removed && e.state != 1)
+        .map(|(_, e)| EntRec { ty: e.type_, x: e.px >> 5, y: e.py >> 5, param: e.param as i32 })
+        .collect()
+}
+
 // ---------------------------------------------------------------- 搜索态
 
 /// 搜索态（提案 §1 状态 s 的批2 切面：hp/kills 为支配维度，不进去重键）。
@@ -543,8 +704,10 @@ fn bump_outcome(level: &LevelSpec, player: &PlayerCombat, ty: i32, slot: usize) 
 struct St {
     pos: (i32, i32),
     player: PlayerSpec,
-    /// 存活位图（槽位=`LevelSpec.entities` 下标；层内单调）
-    ents: Vec<u64>,
+    /// 当前层活体实体列表（C6a A-lite：引擎 `EntityTable` 活体槽 canonical
+    /// 快照——sprite 序幸存者保位+脚本新增 append 序尾追；层内单调：杀/拾/DES
+    /// 压实移除、CES/ADD 尾追加）
+    ents: Vec<EntRec>,
     /// `script_line_flags` 位图（C5 脚本门；68 槽 ⇒ u128，初值 `LevelSpec.flags`）
     flags: u128,
     kills: i32,
@@ -556,7 +719,7 @@ struct St {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct Key {
     pos: (i32, i32),
-    ents: Vec<u64>,
+    ents: Vec<EntRec>,
     flags: u128,
     keys: (i32, i32, i32),
     bag: (Vec<u8>, Vec<u8>, i32),
@@ -581,6 +744,12 @@ fn key_of(st: &St) -> Key {
 }
 
 /// 支配判定（§4.1：hp₁≥hp₂ ∧ kills₁≤kills₂ ∧ steps₁≤steps₂ 且至少一严格 ⇒ 丢 s₂）。
+/// 弱支配（含相等）：同 K₀ 下 e 各指标不劣于 ns 即丢 ns（等价态=丢）。
+/// 与 solve_global::push_state 的 weakly_ge 同口径（C3b bounce 环修）。
+fn weakly_ge(a: &St, b: &St) -> bool {
+    a.player.hp >= b.player.hp && a.kills <= b.kills && a.steps <= b.steps
+}
+
 fn dominates(a: &St, b: &St) -> bool {
     let ge_hp = a.player.hp >= b.player.hp;
     let le_kills = a.kills <= b.kills;
@@ -589,11 +758,14 @@ fn dominates(a: &St, b: &St) -> bool {
     ge_hp && le_kills && le_steps && strict
 }
 
-/// 动作（路线重建用；`Move` 的目标格=节点自身 pos）。
+/// 动作（路线重建用）。`Move(x,y)`=**到达格**（C6a：门格节点的 `st.pos` 被
+/// 读回改写成脚本走位落点，route token 必须用到达格而非读回 pos——否则
+/// 「gate 航点」与 Move token 漂到脚本落点，C3a 断言与 replay 语义双坏）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Act {
     Start,
-    Move,
+    Move(i32, i32), // x, y 到达格
+
     Bump(i32, i32, i32), // type, x, y
     /// 开门走入（route_gen `door x,y` 航点，route_gen.py:14；C4）
     Door(i32, i32), // x, y
@@ -729,27 +901,12 @@ fn consume_item(p: &mut PlayerSpec, item: u8) {
     }
 }
 
-fn all_alive(n: usize) -> Vec<u64> {
-    let mut v = vec![0u64; n.div_ceil(64)];
-    for i in 0..n {
-        v[i / 64] |= 1u64 << (i % 64);
-    }
-    v
-}
 
-fn alive(v: &[u64], slot: usize) -> bool {
-    (v[slot / 64] >> (slot % 64)) & 1 == 1
-}
 
-fn clear_alive(v: &mut [u64], slot: usize) {
-    v[slot / 64] &= !(1u64 << (slot % 64));
-}
 
 struct Search<'a> {
     input: &'a SolveInput,
     level: &'a LevelSpec,
-    /// `find_path` 可达子图（直调 `pathfind.rs:55`；BR-3 怪癖只对拍 found）
-    sub: Vec<bool>,
     /// 批3 C3b：筋斗云换层锚点——层内**最后 spawn** 的 type7/type8 格
     /// （entity.rs:361/363 覆写序「最后 spawn 胜」；a.java marker>>5 转格同源）。
     stair_up: Option<(i32, i32)>,
@@ -758,12 +915,6 @@ struct Search<'a> {
     /// 批2 `solve_local`/`run()` 保持 false——批2 裁定「UseItem 裁出⇒无筋斗云
     /// 换层边」零回归。
     cloud: bool,
-    /// 批3 C5b：安全门结局 memo——`(param, 入场 player, 入场 flags) → (player', flags')`。
-    /// 安全脚本无 MOV/DES/CES/SWD ⇒ 结局与 ents/pos 无关；`try_run_scene` 判门只读
-    /// `flags[idx]`（scene.rs:928）⇒ 键完备。危险门/Pending/停摆不入缓存（每次现算，
-    /// 语义与批2 一致）。`RefCell`=Search 单线程 interior mutability；缓存纯加速、
-    /// 不改遍历序（确定性不受影响）。
-    gate_memo: RefCell<HashMap<(i32, PlayerSpec, u128), (PlayerSpec, u128)>>,
 }
 
 impl<'a> Search<'a> {
@@ -771,12 +922,11 @@ impl<'a> Search<'a> {
         Self::from_entry(input, level, level.start)
     }
 
-    /// 批3 C1：从任意入场格起搜（层间边：入场梯落点≠`level.start` ⇒ `sub` 按入场格重算）。
-    fn from_entry(input: &'a SolveInput, level: &'a LevelSpec, entry: (i32, i32)) -> Self {
+    /// 批3 C1：从任意入场格起搜（层间边：入场梯落点≠`level.start`）。
+    fn from_entry(input: &'a SolveInput, level: &'a LevelSpec, _entry: (i32, i32)) -> Self {
         Search {
             input,
             level,
-            sub: subgraph_from(level, entry),
             stair_up: level
                 .entities
                 .iter()
@@ -790,7 +940,6 @@ impl<'a> Search<'a> {
                 .find(|e| e.ty == 8)
                 .map(|e| (e.x, e.y)),
             cloud: false,
-            gate_memo: RefCell::new(HashMap::new()),
         }
     }
 
@@ -806,8 +955,8 @@ impl<'a> Search<'a> {
         let mut pickup = false;
         let mut blocked = false;
         let mut stair_like = false;
-        for (slot, e) in self.level.entities.iter().enumerate() {
-            if e.x != x || e.y != y || !alive(&st.ents, slot) {
+        for (slot, e) in st.ents.iter().enumerate() {
+            if e.x != x || e.y != y {
                 continue;
             }
             match entity_category_with_floor(e.ty, self.input.floor) {
@@ -868,9 +1017,8 @@ impl<'a> Search<'a> {
             if tx < 0 || ty < 0 || tx >= self.level.cols || ty >= self.level.rows {
                 continue;
             }
-            if !self.sub[(ty * self.level.cols + tx) as usize] {
-                continue;
-            }
+            // C5d：不再按起点连通分量剪枝——走步邻接天然限分量（对纯走步是
+            // 空操作），而门脚本 MOV_0 传送落点可跨分量（静态过滤会拦死）。
             match self.classify(st, tx, ty) {
                 Cell::Blocked => {}
                 Cell::Move => {
@@ -878,7 +1026,7 @@ impl<'a> Search<'a> {
                     ns.pos = (tx, ty);
                     ns.steps += 1;
                     let g = self.gate_arrive(&mut ns, tx, ty);
-                    out.push((Act::Move, ns, g));
+                    out.push((Act::Move(tx, ty), ns, g));
                 }
                 Cell::Monster(slot, ety) => {
                     let player = st.player.to_combat();
@@ -887,7 +1035,7 @@ impl<'a> Search<'a> {
                         let mut ns = st.clone();
                         ns.player.hp -= loss;
                         ns.kills += 1;
-                        clear_alive(&mut ns.ents, slot);
+                        ns.ents.remove(slot);
                         ns.pos = (tx, ty);
                         ns.steps += 1;
                         // 批3 C2 终局边：floor50 击败型72 → Ending（钩子
@@ -918,7 +1066,7 @@ impl<'a> Search<'a> {
                     if consumed {
                         let mut ns = st.clone();
                         ns.player = PlayerSpec::from_combat(pc);
-                        clear_alive(&mut ns.ents, slot);
+                        ns.ents.remove(slot);
                         ns.pos = (tx, ty);
                         ns.steps += 1;
                         // floor1 (6,9)=门+83 同格：开门走入即踩格 ⇒ 同一到达面上
@@ -935,7 +1083,7 @@ impl<'a> Search<'a> {
                     if let Some(mut ns) = self.pickup_step(st, tx, ty) {
                         let g = self.gate_arrive(&mut ns, tx, ty);
                         // 航点=普通格 `x,y`（route_gen 语法：走过去；Act::Move 序列化同）
-                        out.push((Act::Move, ns, g));
+                        out.push((Act::Move(tx, ty), ns, g));
                     }
                 }
             }
@@ -945,23 +1093,22 @@ impl<'a> Search<'a> {
     /// 搜索主循环：BFS（FIFO）+ K₀ 去重 + Pareto 支配剪枝。
     /// 返回（任一出口可达, 全部非支配终态候选——双查询取解共用，§1.4）。
     fn run(&self) -> (bool, Vec<Goal>) {
-        let n = self.level.entities.len();
         self.run_root(
             self.level.start,
-            all_alive(n),
+            sprite_full(self.level),
             self.level.player.clone(),
             self.level.flags,
         )
     }
 
     /// 批3 C1：任意入场格 + 初始存活位图起搜（层间边传播：入场格=上一层出场梯的
-    /// 落点、位图=上一层终态——批2 `run` 的 `start`/`all_alive` 特例化）。
+    /// 落点、活体列表=上一层终态——批2 `run` 的 `start`/sprite 全活特例化）。
     /// 批3 C2：玩家/flags 也由调用方注入（层间携带上一层 post；批2 的
     /// `level.player`/`level.flags` 特例化为 `run` 的两参转发）。
     fn run_root(
         &self,
         entry: (i32, i32),
-        root_ents: Vec<u64>,
+        root_ents: Vec<EntRec>,
         player: PlayerSpec,
         flags: u128,
     ) -> (bool, Vec<Goal>) {
@@ -1037,8 +1184,13 @@ impl<'a> Search<'a> {
                         pruned.push(false);
                         let n = &nodes[new_id as usize];
                         let mut route = route_of(&nodes, new_id);
-                        // gate 航点（route_gen 无此 token=提案缺口，报审注明）
-                        route.push(format!("gate {},{}", n.st.pos.0, n.st.pos.1));
+                        // gate 航点（route_gen 无此 token=提案缺口，报审注明）。
+                        // C6a：坐标取 act 到达格（st.pos 已被读回改写成脚本落点）
+                        let (gx, gy) = match n.act {
+                            Act::Move(x, y) | Act::Door(x, y) => (x, y),
+                            _ => n.st.pos,
+                        };
+                        route.push(format!("gate {gx},{gy}"));
                         goals.push(Goal {
                             hp: n.st.player.hp,
                             kills: n.st.kills,
@@ -1076,13 +1228,55 @@ impl<'a> Search<'a> {
                     }
                     GateArrive::Pass => {}
                 }
+                // 批3 C6a：出口到达即记 goal（批2 的 pop 侧记 goal 前移到达侧，
+                // 与 Terminal/Ending 臂同构）——出口节点**绕过去重直记**：等长
+                // 双解必须全记（t3 字典序 tie-break 的原材料，去重丢一支即断言
+                // 打脸，实测过）；非出口等价态走下方 weakly_ge 丢=终止性
+                // （DES 挂起实测 87k 节点/160 键）。出口节点不入队不扩展 ⇒
+                // 重复到达有界（前驱已去重）。
+                if let Some(e) = self
+                    .level
+                    .exits
+                    .iter()
+                    .find(|e| e.x == ns.pos.0 && e.y == ns.pos.1)
+                {
+                    let new_id = nodes.len() as u32;
+                    nodes.push(Node {
+                        st: ns,
+                        parent: id,
+                        act,
+                    });
+                    pruned.push(false);
+                    let route = route_of(&nodes, new_id);
+                    let n = &nodes[new_id as usize];
+                    goals.push(Goal {
+                        hp: n.st.player.hp,
+                        kills: n.st.kills,
+                        steps: n.st.steps,
+                        keys: (n.st.player.yellow, n.st.player.blue, n.st.player.red),
+                        kind: e.kind,
+                        route,
+                        post: n.st.clone(),
+                        cross_edge: None,
+                    });
+                    // C3b/F3 候选口径与批2 入队态一致（出口态此前入队=有记录点）
+                    self.record_cloud(&mut goals, &nodes, new_id);
+                    self.record_useitem(&mut goals, &nodes, new_id);
+                    continue;
+                }
                 let k = key_of(&ns);
                 let list = by_key.entry(k).or_default();
                 let mut dominated = false;
                 let mut kill: Vec<u32> = Vec::new();
                 for &eid in list.iter() {
                     let e = &nodes[eid as usize].st;
-                    if dominates(e, &ns) {
+                    // C6a 修复（batch2 潜伏缺陷，C6a Completed 多世界探索暴露）：
+                    // 原 strict dominates 漏「全指标相等」态 ⇒ 同键等价态反复入队
+                    // （等长替代路径每格皆有）⇒ 队列单调涨永不收敛（DES 测试
+                    // 87k 节点/160 键实测）。改弱支配含相等=丢（镜像 solve_global
+                    // push_state 的 weakly_ge 修，bounce 等价环同族）；e 非严格更优
+                    // 即丢 ns，相等保留先到者=确定性。kill 腿 strict 不动。
+                    if weakly_ge(e, &ns) {
                         dominated = true;
                         break;
                     }
@@ -1206,8 +1400,9 @@ impl<'a> Search<'a> {
     /// 判终止边（§2.2 ④）。无门/未命中 ⇒ Pass（不建 harness）。
     fn gate_arrive(&self, st: &mut St, tx: i32, ty: i32) -> GateArrive {
         let mut gates: Vec<i32> = Vec::new();
-        for (slot, e) in self.level.entities.iter().enumerate() {
-            if e.x == tx && e.y == ty && e.ty == 83 && alive(&st.ents, slot) {
+        // C6a：st.ents=引擎活体槽序 ⇒ 门优先级与引擎载入序一致
+        for e in st.ents.iter() {
+            if e.x == tx && e.y == ty && e.ty == 83 {
                 gates.push(e.param);
             }
         }
@@ -1221,10 +1416,20 @@ impl<'a> Search<'a> {
         let mut sc_opt: Option<GameScene> = None;
         for param in gates {
             // 批3 C5b：memo 命中=复用安全门结局（免 build 免 drive）。
-            let key = (param, st.player.clone(), st.flags);
-            if let Some((p, f)) = self.gate_memo.borrow().get(&key) {
-                st.player = p.clone();
-                st.flags = *f;
+            // C6a：键+入场 ents（DES 结果依赖 pre-entities）、值=pos/ents 全套
+            let key = (
+                self.input.floor,
+                param,
+                st.player.clone(),
+                st.flags,
+                st.ents.clone(),
+            );
+            if let Some((p, f, pos, ents)) = GATE_MEMO.with(|m| m.borrow().get(&key).cloned())
+            {
+                st.player = p;
+                st.flags = f;
+                st.pos = pos; // pos=引擎真值（无玩家走位脚本时=到达格，恒等）
+                st.ents = ents;
                 return GateArrive::Pass;
             }
             let sc = sc_opt.get_or_insert_with(|| build_scene(self.input, st, (tx, ty)));
@@ -1241,33 +1446,48 @@ impl<'a> Search<'a> {
                         }
                     }
                     Drive::Completed => {
-                        // 批3 C5a：演出门续走。引擎语义（A 级）：脚本跑完回 Map、
-                        // 玩家留格可继续走（try_run_scene 链 a.java）；batch2 把
-                        // 「Map 完成」与「停摆」混同 None→Dropped(⊥) 卡死真数据
-                        // （floor51 到梯必经 9 门全为演出脚本）。白名单安全集：
-                        // op⊆{TAK,SEE,ROS,GIN,RES,LAY,GLV,SMS}∪GUT(转导) 才续走
-                        // （全楼层门脚本 grep：27 危险/21 安全）；含 DES/CES/MOV/
-                        // SWD/ADD（实体/位置变=读回盖不住）或未知 op ⇒ 仍 ⊥。
-                        if script_chain_safe(&sc.dialog.dialog_data.scripts, param as usize)
-                        {
+                        // 批3 C5a：演出门续走（引擎语义 A 级：脚本跑完回 Map、
+                        // 玩家留格可继续走）；C5d 扩保守放行面（DES/SWD/玩家 MOV/
+                        // 中性 CES，见 script_cross_allowed 头注）——f52 上行梯
+                        // 只能穿 gate50/53（CES_6 楼梯、CES_36/40 物品+DES 拆障），
+                        // C5a 纯白名单会 Dropped 卡死真数据（lead 已报备选项 D）。
+                        if script_cross_allowed(
+                            &sc.dialog.dialog_data.scripts,
+                            param as usize,
+                            self.input.floor,
+                        ) {
+                            // C6a：player+flags+pos+ents 四件套读引擎真值
                             readback_script(st, &sc);
-                            // 批3 C5b：安全门结局入缓存（存读回后态）
-                            self.gate_memo
-                                .borrow_mut()
-                                .insert(key, (st.player.clone(), st.flags));
+                            // 批3 C5b/C5d：安全门结局入缓存（读回后全态）
+                            GATE_MEMO.with(|m| {
+                                m.borrow_mut().insert(
+                                    key,
+                                    (
+                                        st.player.clone(),
+                                        st.flags,
+                                        st.pos,
+                                        st.ents.clone(),
+                                    ),
+                                );
+                            });
                             GateArrive::Pass
                         } else {
                             GateArrive::Dropped
                         }
                     }
-                    Drive::Stalled => GateArrive::Dropped,
+                    Drive::Stalled => {
+                        GateArrive::Dropped
+                    },
                 };
             }
             // 判门未开（flags[idx] 已置）⇒ 脚本未执行 ⇒ 结局恒等（与脚本内容无关，
             // 危险门同理可缓存——没跑就不会改 ents/pos）
-            self.gate_memo
-                .borrow_mut()
-                .insert(key, (st.player.clone(), st.flags));
+            GATE_MEMO.with(|m| {
+                m.borrow_mut().insert(
+                    key,
+                    (st.player.clone(), st.flags, st.pos, st.ents.clone()),
+                );
+            });
         }
         GateArrive::Pass
     }
@@ -1330,16 +1550,10 @@ impl<'a> Search<'a> {
             item_uses: p.item_uses.clone(),
             item_stack_size: p.item_stack_size,
         };
-        // 实体移除镜像：该格全部存活 cat2|4（引擎倒序逐个 pickup+remove）
-        for (slot, e) in self.level.entities.iter().enumerate() {
-            if e.x == tx
-                && e.y == ty
-                && alive(&ns.ents, slot)
-                && matches!(entity_category_with_floor(e.ty, self.input.floor), 2 | 4)
-            {
-                clear_alive(&mut ns.ents, slot);
-            }
-        }
+        // 实体表读回（C6a A-lite）：sc=build_scene(st)→引擎 try_step+apply
+        // 同拍 pickup+remove ⇒ sc.entities 活体压实序=拾取后真值（含本层此前
+        // CES/DES 增删——比原 sprite 位图循环更全）。
+        ns.ents = readback_ents(&sc);
         // flags 读回（§1.3 Obs.flags 同源；apply 内 case0 等置位面）
         for i in 0..sc.script_line_flags.len().min(128) {
             if sc.script_line_flags[i] {
@@ -1356,30 +1570,9 @@ impl<'a> Search<'a> {
     }
 }
 
-/// `find_path` 可达子图（§1.3 可达=find_path 直调）：从 `from` 到每格 `found`；
-/// `sub[from]=true` 强制。过度近似安全——我方动作的可通行语义 ⊆
-/// `is_cell_walkable || can_path_through_entity`。
-/// 批3 C1：从 `from` 出发的可达域（`sub` 语义=「入场格的连通分量」——批2 只从
-/// `level.start` 起算，层间边入场格≠start ⇒ 按入场格重算）。
-fn subgraph_from(level: &LevelSpec, from: (i32, i32)) -> Vec<bool> {
-    let cols = level.cols;
-    let rows = level.rows;
-    let mut sub = vec![false; (cols * rows) as usize];
-    for y in 0..rows {
-        for x in 0..cols {
-            sub[(y * cols + x) as usize] = find_cell_path(level, from, (x, y));
-        }
-    }
-    let s = (from.1 * cols + from.0) as usize;
-    if s < sub.len() {
-        sub[s] = true;
-    }
-    sub
-}
-
 /// T7（提案 §3.1 T7 / 计划 :319「find_path found 与 solver BFS found 一致」）：
 /// `game_core::pathfind::find_path` 直调薄封装——转发其 found，不复刻任何怪癖；
-/// `subgraph` 与 T7 对拍测试共用本函数（生产/测试单源）。谓词=terrain||slot。
+/// T7 对拍测试用（生产侧 C5d 起无 subgraph）。谓词=terrain||slot。
 /// 注：不能返回 `Walkability`（`has_entity_slot` 闭包借 `level` 悬垂=E0515），每次装配。
 pub fn find_cell_path(level: &LevelSpec, from: (i32, i32), to: (i32, i32)) -> bool {
     let cols = level.cols;
@@ -1466,7 +1659,8 @@ fn route_of(nodes: &[Node], id: u32) -> Vec<String> {
     acts.reverse();
     acts.into_iter()
         .map(|(act, pos)| match act {
-            Act::Start | Act::Move => format!("{},{}", pos.0, pos.1),
+            Act::Start => format!("{},{}", pos.0, pos.1),
+            Act::Move(x, y) => format!("{x},{y}"),
             Act::Bump(ty, x, y) => format!("bump {ty}@{x},{y}"),
             Act::Door(x, y) => format!("door {x},{y}"),
         })
@@ -1483,18 +1677,10 @@ fn build_scene(input: &SolveInput, st: &St, at: (i32, i32)) -> GameScene {
         .level
         .as_ref()
         .expect("gate 转移需要夹具（level=None 占位分支不经过此路径）");
-    // 只灌存活槽（死亡怪/已开门不进 harness）；(type,x,y) 三元组=槽位序来源。
-    let alive_specs: Vec<&EntSpec> = level
-        .entities
-        .iter()
-        .enumerate()
-        .filter(|(slot, _)| alive(&st.ents, *slot))
-        .map(|(_, e)| e)
-        .collect();
-    let ents: Vec<(u8, i32, i32)> = alive_specs
-        .iter()
-        .map(|e| (e.ty as u8, e.x, e.y))
-        .collect();
+    // C6a：st.ents=活体实体列表（引擎槽序）直灌——(type,x,y) 三元组进
+    // scene_setup（param=0 起步），下方 restore 按 (type,格) 首配回灌 sprite param。
+    let ents: Vec<(u8, i32, i32)> =
+        st.ents.iter().map(|r| (r.ty as u8, r.x, r.y)).collect();
     let mut sc = scene_setup(
         at,
         &ents,
@@ -1537,7 +1723,7 @@ fn build_scene(input: &SolveInput, st: &St, at: (i32, i32)) -> GameScene {
     // 按夹具序）。楼梯 param 必需——param=0 ⇒ change_floor(0) 撞 pending_floor=0
     // 哨兵（e2 实测 PENDING 前 pending=0）；script19 控制流不读 83 param（e2 实测
     // params=0 仍走到终止边）；scene() 会多生实体（e1 count=3 > 夹具 2），不能 zip。
-    let mut pool: Vec<&EntSpec> = alive_specs;
+    let mut pool: Vec<EntRec> = st.ents.clone();
     for sc_e in sc.entities.items.iter_mut() {
         if let Some(pos) = pool.iter().position(|s| {
             s.ty == sc_e.type_ as i32 && s.x == (sc_e.px >> 5) && s.y == (sc_e.py >> 5)
@@ -1578,7 +1764,15 @@ fn tickdrive(sc: &mut GameScene) -> Drive {
             return Drive::Pending(sc.persist.pending_floor);
         }
         if matches!(sc.game_mode, GameMode::Map) {
-            return Drive::Completed; // 行尾收尾 transition_to(Map)：演出完成、玩家留格（C5a 续走）
+            // C5d：脚本 walk（MOV/SEE flag=1）以背景相位在 Map 后继续推进——
+            // armed 且未落 dialog_target 前不收尾（提前收尾实测读回半途
+            // view=(2,1) 而非目标 (6,5)）；落点/无 armed walk ⇒ 收尾。
+            // stall>500 兜底仍在（永动防护），walk 不落=Stalled=保守 ⊥。
+            let landed = (sc.view.player_px >> 5, sc.view.player_py >> 5)
+                == sc.dialog.dialog_target;
+            if !(sc.script_walk_armed && !landed) {
+                return Drive::Completed; // 行尾收尾 transition_to(Map)：演出完成、玩家留格（C5a 续走）
+            }
         }
         sc.key_value = 1;
         sc.tick(ft, &wt);
@@ -1624,15 +1818,44 @@ fn readback_script(st: &mut St, sc: &GameScene) {
             st.flags &= !(1u128 << i);
         }
     }
+    // C6a A-lite：pos 与实体表读引擎真值（pos 无玩家走位脚本时=到达格恒等；
+    // ents=活体压实序，谓词=serialize_floor_state entity.rs:86-88）
+    st.pos = (sc.view.player_px >> 5, sc.view.player_py >> 5);
+    st.ents = readback_ents(sc);
 }
 
-/// 批3 C5a：门脚本链安全判定（白名单）。根=门 param 行（load_level_script
-/// 刚置的即该行；GUT 链后 script_line 已变，故以 param 为根），GUT 转导
-/// 递归（visited 防环）；空行=安全（无 op）。未知名/越界/解析失败⇒不安全
-/// （批2 Dropped 口径对未知保持）。
-fn script_chain_safe(lines: &[String], root: usize) -> bool {
+thread_local! {
+    /// 批3 C5d′：安全门结局 memo 从 Search 级提升为**线程级**（原每 solve_layer/
+    /// 每 global pop 各建一份，真数据 e2e debug >7min 的主导开销）。
+    /// 键 `(floor, param, 入场 player, 入场 flags)`：安全集无世界变（无 MOV/DES/CES/
+    /// SWD）⇒ 结局与 ents/pos 无关；判门只读 `flags[idx]`（scene.rs:928）⇒ 键完备；
+    /// **带 floor**=玩家 MOV 步行成败依赖楼层地形（同脚本异层不可共享）。危险门/
+    /// Pending/停摆不入缓存（现算，语义与批2 一致）。thread_local=多线程测试隔离；
+    /// 缓存纯加速、不改遍历序（确定性不受影响）。
+    static GATE_MEMO: RefCell<
+        HashMap<
+            (i32, i32, PlayerSpec, u128, Vec<EntRec>),
+            (PlayerSpec, u128, (i32, i32), Vec<EntRec>),
+        >,
+    > = RefCell::new(HashMap::new());
+}
+/// 批3 C5a/C5d：门脚本链放行判定。根=门 param 行（load_level_script 刚置的
+/// 即该行；GUT 链后 script_line 已变，故以 param 为根），GUT 转导递归
+/// （visited 防环）；空行=放行（无 op）。C5d（选项 D，lead 已报备）在 C5a
+/// 白名单 {TAK,SEE,ROS,GIN,RES,LAY,GLV,SMS} 之上**保守放行**三类世界变：
+/// - `DES*`：只拆不建=开路方向；位图陈旧（实体仍在 bitmap）⇒ 路径只少不多 ⇒ 健全；
+/// - `SWD`：解封 type81 同为开路方向，同上保守；
+/// - `MOV_0_*`：玩家绝对坐标移动 ⇒ pos 从引擎 sc 读回（`view.player_px>>5`）；
+///   `MOV_<ty>_*` 实体搬移（挡路/怪物重排=幻影路径）⇒ 拒；
+/// - `CES/ADD`：建实体，仅目标类型**中性可走**放行——拾取 cat2/cat4、楼梯
+///   type6（不触发 changeFloor，a.java case7/8 才触发）；怪物 cat8/门/阻挡
+///   cat32/其它 ⇒ 拒（忽略会产幻影路径=不健全）。
+/// 未知名/越界/解析失败 ⇒ 拒（批2 Dropped 口径对未知保持）。健全性方向：
+/// 放行的每类 op「忽略其效果后求得的路径 ⊆ 真实可行路径」——只可能少找不多找。
+
+fn script_cross_allowed(lines: &[String], root: usize, floor: i32) -> bool {
     const SAFE: &[&str] = &["TAK", "SEE", "ROS", "GIN", "RES", "LAY", "GLV", "SMS"];
-    fn line_safe(lines: &[String], idx: usize, visited: &mut Vec<usize>) -> bool {
+    fn line_safe(lines: &[String], idx: usize, visited: &mut Vec<usize>, floor: i32) -> bool {
         if visited.contains(&idx) {
             return true; // 环：该行已检过
         }
@@ -1651,18 +1874,41 @@ fn script_chain_safe(lines: &[String], root: usize) -> bool {
             if SAFE.contains(&op) {
                 continue;
             }
-            if op == "GUT" {
-                match tok.split('_').nth(1).and_then(|t| t.parse::<usize>().ok()) {
-                    Some(t) if line_safe(lines, t, visited) => continue,
-                    _ => return false,
+            match op {
+                "GUT" => {
+                    match tok.split('_').nth(1).and_then(|t| t.parse::<usize>().ok()) {
+                        Some(t) if line_safe(lines, t, visited, floor) => continue,
+                        _ => return false,
+                    }
                 }
+                "DES" | "SWD" => continue, // 拆/解封=开路方向（见头注健全性）
+                "MOV" => {
+                    // MOV_0_x_y=玩家绝对坐标（pos 读回）；MOV_<ty>_=实体搬移 ⇒ 拒
+                    if tok.split('_').nth(1) == Some("0") {
+                        continue;
+                    }
+                    return false;
+                }
+                "CES" | "ADD" => {
+                    let Some(ty) = tok.split('_').nth(1).and_then(|t| t.parse::<i32>().ok())
+                    else {
+                        return false;
+                    };
+                    let cat = entity_category_with_floor(ty, floor);
+                    if cat == 2 || cat == 4 || ty == 6 {
+                        continue; // 拾取/楼梯=中性可走
+                    }
+                    return false; // 怪物/门/阻挡/商人… ⇒ 拒
+                }
+                _ => return false, // END/未知 ⇒ 拒
             }
-            return false; // DES/CES/MOV/SWD/ADD/END/未知 ⇒ 不安全
         }
         true
     }
-    line_safe(lines, root, &mut Vec::new())
+    line_safe(lines, root, &mut Vec::new(), floor)
 }
+
+
 
 /// T9 探针（`probe_bump` 同法=与搜索共用 harness 门面路径，非自证）：夹具
 /// flags/difficulty 下 `try_run_scene(param, true)` 的判门结果——只判不放
@@ -1672,7 +1918,7 @@ pub fn probe_gate(input: &SolveInput, param: i32) -> bool {
     let st = St {
         pos: level.start,
         player: level.player.clone(),
-        ents: all_alive(level.entities.len()),
+        ents: sprite_full(level),
         flags: level.flags,
         kills: 0,
         steps: 0,
@@ -1768,7 +2014,7 @@ mod solve_global_c1 {
         let (reach, goals) =
             Search::from_entry(&input, level, (1, 1)).run_root(
                 (1, 1),
-                all_alive(2),
+                sprite_full(level),
                 level.player.clone(),
                 level.flags,
             );
@@ -1786,11 +2032,15 @@ mod solve_global_c1 {
         assert_eq!(g.kills, 1, "走廊必撞怪 ⇒ 计 1 杀");
         assert_eq!(g.post.pos, (3, 1), "终态=出口格");
         assert_eq!(g.post.kills, 1, "终态 kills 与目标一致");
-        assert!(!alive(&g.post.ents, 0), "怪已杀 ⇒ 终态位图清除");
+        assert!(
+            !g.post.ents.iter().any(|r| r.ty == 41 && r.x == 2 && r.y == 1),
+            "怪已杀 ⇒ 终态列表移除该记录：{:?}",
+            g.post.ents
+        );
 
         // (b) 预死怪位图（跨层继承：上一层已杀的怪不复活）⇒ 不计杀、位图保持
-        let mut predead = all_alive(2);
-        clear_alive(&mut predead, 0);
+        let mut predead = sprite_full(level);
+        predead.remove(0); // 预死=移除 sprite 首记录（type41）
         let (reach2, goals2) =
             Search::from_entry(&input, level, (1, 1)).run_root(
                 (1, 1),
@@ -1804,8 +2054,38 @@ mod solve_global_c1 {
             .find(|g| g.kind == ExitKind::Stair)
             .expect("必有 Exit#1 候选");
         assert_eq!(g2.kills, 0, "怪已死 ⇒ 不计杀（位图继承）");
-        assert_eq!(g2.post.ents, predead, "终态位图=初始位图（无复活）");
+        assert_eq!(g2.post.ents, predead, "终态列表=初始列表（无复活）");
         assert_eq!(g2.route, vec!["1,1", "2,1", "3,1"], "无怪 ⇒ 直穿");
         assert_eq!(g2.steps, 2, "两步走穿走廊");
+    }
+}
+
+#[cfg(test)]
+mod solve_global_c5d {
+    use super::script_cross_allowed;
+
+    /// 批3 C5d 分类器红先行：物品/楼梯 CES+DES 拆障+玩家 MOV+SWD 放行；
+    /// 怪物 CES、实体 MOV、未知 op、GUT 转导到怪物行 拒。
+    #[test]
+    fn solve_global_c5d分类_保守放行与拒绝面() {
+        let allow1 = vec![
+            "TAK_217_218 ROS_5_510 CES_36_11_8 CES_40_11_9 DES_11_10_9".to_string(),
+        ];
+        assert!(script_cross_allowed(&allow1, 0, 52), "物品 CES+DES 拆障应放行");
+        let allow2 = vec!["TAK_108_108 MOV_0_6_5".to_string()];
+        assert!(script_cross_allowed(&allow2, 0, 26), "玩家 MOV_0 应放行");
+        let allow3 = vec!["SWD".to_string()];
+        assert!(script_cross_allowed(&allow3, 0, 9), "SWD 解封=开路应放行");
+        let deny_add = vec!["ADD_2_72_11_10".to_string()];
+        assert!(!script_cross_allowed(&deny_add, 0, 7), "ADD 门(type2 cat1)应拒");
+        let allow4 = vec!["CES_20_4_4".to_string()];
+        assert!(script_cross_allowed(&allow4, 0, 7), "CES 物品(type20 cat2)应放行");
+        assert!(!script_cross_allowed(&["CES_61_5_2".to_string()], 0, 15), "怪物 CES 拒");
+        assert!(!script_cross_allowed(&["MOV_72_1_8_1_10".to_string()], 0, 2), "实体 MOV 拒");
+        assert!(!script_cross_allowed(&["FOO_1".to_string()], 0, 1), "未知 op 拒");
+        let gut = vec!["TAK_1_2 GUT_1".to_string(), "CES_69_5_5".to_string()];
+        assert!(!script_cross_allowed(&gut, 0, 62), "GUT 转导到怪物 CES 行拒");
+        let gut_ok = vec!["TAK_1_2 GUT_1".to_string(), "TAK_3_4 DES_5_1_1".to_string()];
+        assert!(script_cross_allowed(&gut_ok, 0, 62), "GUT 转导到安全行放行");
     }
 }
