@@ -353,6 +353,7 @@ pub fn solve_layer(
     player: PlayerSpec,
     flags: u128,
 ) -> (bool, Vec<LayerGoal>) {
+    LAYER_TRUNC.with(|f| f.set(None));
     let Some(level) = input.level.as_ref() else {
         return (false, Vec::new());
     };
@@ -370,8 +371,11 @@ pub fn solve_layer(
         root_ents.clone(),
         level_digest(input),
     );
-    if let Some(hit) = LAYER_MEMO.with(|m| m.borrow().get(&memo_key).cloned()) {
-        return hit;
+    if let Some((hit_ok, hit_goals, hit_trunc)) =
+        LAYER_MEMO.with(|m| m.borrow().get(&memo_key).cloned())
+    {
+        LAYER_TRUNC.with(|f| f.set(hit_trunc)); // memo 命中回放截断标记（可观测性不变）
+        return (hit_ok, hit_goals);
     }
     let mut search = Search::from_entry(input, level, entry);
     search.cloud = true; // 批3 C3b：层间路径开筋斗云候选（批2 solve_local/run 关）
@@ -398,9 +402,13 @@ pub fn solve_layer(
             cross_edge: g.cross_edge,
         })
         .collect();
-    // C5d″：纯函数结果入缓存（键=全部输入；gate memo 只提速不改输出）
+    // C5d″：纯函数结果入缓存（键=全部输入；gate memo 只提速不改输出）；
+    // 截断标记随结果入缓存（同输入⇒同截断⇒确定性）
     LAYER_MEMO.with(|m| {
-        m.borrow_mut().insert(memo_key, (reachable, mapped.clone()));
+        m.borrow_mut().insert(
+            memo_key,
+            (reachable, mapped.clone(), LAYER_TRUNC.with(|f| f.get())),
+        );
     });
     (reachable, mapped)
 }
@@ -413,8 +421,34 @@ thread_local! {
     /// （玩具测试同 floor 多套 LevelSpec）；thread_local=多线程测试隔离；缓存纯
     /// 加速、不改输出与遍历序（确定性不受影响）。
     static LAYER_MEMO: RefCell<
-        HashMap<(i32, (i32, i32), PlayerSpec, u128, Vec<EntRec>, u64), (bool, Vec<LayerGoal>)>,
+        HashMap<
+            (i32, (i32, i32), PlayerSpec, u128, Vec<EntRec>, u64),
+            (bool, Vec<LayerGoal>, Option<(i32, usize)>),
+        >,
     > = RefCell::new(HashMap::new());
+    /// R1 层界截断标记（lead 裁定 A 2026-11-13 条件1「截断可观测」）：
+    /// `Some((floor, nodes))`=该层在 nodes 达上限时截断。solve_layer 入口清零、
+    /// run_root 触界置位、memo 命中按缓存值回放 ⇒ 全局层每调一次都可观测。
+    static LAYER_TRUNC: std::cell::Cell<Option<(i32, usize)>> = std::cell::Cell::new(None);
+}
+
+/// R1 层节点上限（计划 §5 R1「离散桶+canonical+**有界可配**+不承诺全局最优」；
+/// lead 裁定 A 2026-11-13：默认 200_000、env `SOLVER_LAYER_LIMIT` 可调、
+/// **确定性=同 env 同结果**（截断点=节点计数=遍历序确定函数）。层截断⇒该层
+/// 结果不完整⇒GlobalResult.confidence 降级 bounded-best/feasible、
+/// `truncated_layers` 记 (floor, nodes 实数)——判据③/报审可回答
+/// 「结果是否被界污染」）。
+fn layer_node_limit() -> usize {
+    std::env::var("SOLVER_LAYER_LIMIT")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|&n| n > 0)
+        .unwrap_or(200_000)
+}
+
+/// 取走并清零层截断标记（solve_global 消费；见 LAYER_TRUNC doc）。
+pub(crate) fn take_layer_trunc() -> Option<(i32, usize)> {
+    LAYER_TRUNC.with(|f| f.get())
 }
 
 /// C5d″：层规格内容摘要（FNV-1a，`LAYER_MEMO` 键分量）。覆盖 `SolveInput` 全
@@ -972,11 +1006,16 @@ impl<'a> Search<'a> {
                             door = Some((slot, e.ty));
                         }
                     }
-                    // 炼丹台/真火/墙/撞击墙/81
-                    9 | 10 | 11 | 12 | 81 => blocked = true,
+                    // 炼丹台/真火/墙/撞击墙（C6f：81 移出——见下）
+                    9 | 10 | 11 | 12 => blocked = true,
                     // 楼梯族（bump 显形/楼梯计数豁免地形终审）
                     6 | 7 | 8 => stair_like = true,
                     // 5 宝箱 / 83 场景门 / 76|82 组门：bump 放行
+                    // 81 封印门：spawn 即隐形（sprite_spawn.rs:31 m_122 置
+                    // visible=false；全仓仅 op_swd 改 visible 且同帧 type→4），
+                    // 引擎 interact「仅可见时拦截、隐形期放行」（scene.rs
+                    // 81 臂注「floor10 南北隐形封印门可穿，迭代65 差分实证」）
+                    // ⇒ 生产恒放行，分类器不再挡（C6f 红绿实证层10 上行梯）。
                     _ => {}
                 },
                 // 2|4 道物（C6 拾取转移：harness try_step 落格触发 pickup_item_type）
@@ -1143,6 +1182,11 @@ impl<'a> Search<'a> {
             if pruned[id as usize] {
                 continue;
             }
+            if nodes.len() >= layer_node_limit() {
+                // R1 层界（lead 裁定 A）：触界即停，截断标记带 (floor, nodes 实数)
+                LAYER_TRUNC.with(|f| f.set(Some((self.input.floor, nodes.len()))));
+                break;
+            }
             let st = nodes[id as usize].st.clone();
             if let Some(e) = self
                 .level
@@ -1161,7 +1205,12 @@ impl<'a> Search<'a> {
                     post: st.clone(),
                     cross_edge: None,
                 });
-                continue;
+                if id != 0 {
+                    // 批3 C6g：根态恰在出口（step_off 四邻皆墙留梯格等）记录后仍须
+                    // 扩展——否则层搜索饿死（f10 entry(1,11) 实测 goals=1）；
+                    // 中途到达出口维持批2 语义=记目标不扩展。
+                    continue;
+                }
             }
             let mut succ = Vec::new();
             self.expand(&st, &mut succ);
@@ -1447,33 +1496,25 @@ impl<'a> Search<'a> {
                     }
                     Drive::Completed => {
                         // 批3 C5a：演出门续走（引擎语义 A 级：脚本跑完回 Map、
-                        // 玩家留格可继续走）；C5d 扩保守放行面（DES/SWD/玩家 MOV/
-                        // 中性 CES，见 script_cross_allowed 头注）——f52 上行梯
-                        // 只能穿 gate50/53（CES_6 楼梯、CES_36/40 物品+DES 拆障），
-                        // C5a 纯白名单会 Dropped 卡死真数据（lead 已报备选项 D）。
-                        if script_cross_allowed(
-                            &sc.dialog.dialog_data.scripts,
-                            param as usize,
-                            self.input.floor,
-                        ) {
-                            // C6a：player+flags+pos+ents 四件套读引擎真值
-                            readback_script(st, &sc);
-                            // 批3 C5b/C5d：安全门结局入缓存（读回后全态）
-                            GATE_MEMO.with(|m| {
-                                m.borrow_mut().insert(
-                                    key,
-                                    (
-                                        st.player.clone(),
-                                        st.flags,
-                                        st.pos,
-                                        st.ents.clone(),
-                                    ),
-                                );
-                            });
-                            GateArrive::Pass
-                        } else {
-                            GateArrive::Dropped
-                        }
+                        // 玩家留格可继续走）。C6b（A-lite，lead 批准 2026-11-13）：
+                        // **分类器退役**——C6a 读回已把引擎真值（player+flags+pos+
+                        // ents 四件套）导入层间态，脚本世界变（怪物 CES/实体 MOV/
+                        // 拆障…）不再是幻影路径，任何 Completed 脚本均可续走；
+                        // 原选项 D 白名单（script_cross_allowed）整删。停摆
+                        // Stalled→Dropped 保守不变（结局未知）。
+                        readback_script(st, &sc);
+                        GATE_MEMO.with(|m| {
+                            m.borrow_mut().insert(
+                                key,
+                                (
+                                    st.player.clone(),
+                                    st.flags,
+                                    st.pos,
+                                    st.ents.clone(),
+                                ),
+                            );
+                        });
+                        GateArrive::Pass
                     }
                     Drive::Stalled => {
                         GateArrive::Dropped
@@ -1825,12 +1866,13 @@ fn readback_script(st: &mut St, sc: &GameScene) {
 }
 
 thread_local! {
-    /// 批3 C5d′：安全门结局 memo 从 Search 级提升为**线程级**（原每 solve_layer/
-    /// 每 global pop 各建一份，真数据 e2e debug >7min 的主导开销）。
-    /// 键 `(floor, param, 入场 player, 入场 flags)`：安全集无世界变（无 MOV/DES/CES/
-    /// SWD）⇒ 结局与 ents/pos 无关；判门只读 `flags[idx]`（scene.rs:928）⇒ 键完备；
-    /// **带 floor**=玩家 MOV 步行成败依赖楼层地形（同脚本异层不可共享）。危险门/
-    /// Pending/停摆不入缓存（现算，语义与批2 一致）。thread_local=多线程测试隔离；
+    /// 批3 C5d′/C6a/C6b：门结局 memo，线程级（原每 solve_layer/每 global pop
+    /// 各建一份，真数据 e2e debug >7min 的主导开销）。键 `(floor, param, 入场
+    /// player, 入场 flags, 入场 ents)`=引擎结局的全部输入（判门只读 flags[idx]
+    /// scene.rs:928、脚本效果只吃 player/flags/ents/地形、地形由 floor 定）⇒
+    /// 键完备（C6a 起 ents 入键：DES 结果依赖 pre-entities；A-lite 后无「安全集」
+    /// 概念，全部 Completed 门都可缓存）。值=读回后全态（player/flags/pos/ents）。
+    /// Pending/停摆 Stalled 不入缓存（现算）。thread_local=多线程测试隔离；
     /// 缓存纯加速、不改遍历序（确定性不受影响）。
     static GATE_MEMO: RefCell<
         HashMap<
@@ -1839,77 +1881,6 @@ thread_local! {
         >,
     > = RefCell::new(HashMap::new());
 }
-/// 批3 C5a/C5d：门脚本链放行判定。根=门 param 行（load_level_script 刚置的
-/// 即该行；GUT 链后 script_line 已变，故以 param 为根），GUT 转导递归
-/// （visited 防环）；空行=放行（无 op）。C5d（选项 D，lead 已报备）在 C5a
-/// 白名单 {TAK,SEE,ROS,GIN,RES,LAY,GLV,SMS} 之上**保守放行**三类世界变：
-/// - `DES*`：只拆不建=开路方向；位图陈旧（实体仍在 bitmap）⇒ 路径只少不多 ⇒ 健全；
-/// - `SWD`：解封 type81 同为开路方向，同上保守；
-/// - `MOV_0_*`：玩家绝对坐标移动 ⇒ pos 从引擎 sc 读回（`view.player_px>>5`）；
-///   `MOV_<ty>_*` 实体搬移（挡路/怪物重排=幻影路径）⇒ 拒；
-/// - `CES/ADD`：建实体，仅目标类型**中性可走**放行——拾取 cat2/cat4、楼梯
-///   type6（不触发 changeFloor，a.java case7/8 才触发）；怪物 cat8/门/阻挡
-///   cat32/其它 ⇒ 拒（忽略会产幻影路径=不健全）。
-/// 未知名/越界/解析失败 ⇒ 拒（批2 Dropped 口径对未知保持）。健全性方向：
-/// 放行的每类 op「忽略其效果后求得的路径 ⊆ 真实可行路径」——只可能少找不多找。
-
-fn script_cross_allowed(lines: &[String], root: usize, floor: i32) -> bool {
-    const SAFE: &[&str] = &["TAK", "SEE", "ROS", "GIN", "RES", "LAY", "GLV", "SMS"];
-    fn line_safe(lines: &[String], idx: usize, visited: &mut Vec<usize>, floor: i32) -> bool {
-        if visited.contains(&idx) {
-            return true; // 环：该行已检过
-        }
-        visited.push(idx);
-        let Some(line) = lines.get(idx) else {
-            return false; // 越界：保守不安全
-        };
-        for raw in line.split_whitespace() {
-            // fixture 行尾带 RS(0x1E) 等控制分隔符残留（非空白不可 split 掉）——
-            // 剥掉再取 op；纯控制 token=分隔残留跳过（真 op 首字符必 A-Z）
-            let tok = raw.trim_matches(|c: char| c.is_ascii_control());
-            if tok.is_empty() {
-                continue;
-            }
-            let op = tok.split('_').next().unwrap_or("");
-            if SAFE.contains(&op) {
-                continue;
-            }
-            match op {
-                "GUT" => {
-                    match tok.split('_').nth(1).and_then(|t| t.parse::<usize>().ok()) {
-                        Some(t) if line_safe(lines, t, visited, floor) => continue,
-                        _ => return false,
-                    }
-                }
-                "DES" | "SWD" => continue, // 拆/解封=开路方向（见头注健全性）
-                "MOV" => {
-                    // MOV_0_x_y=玩家绝对坐标（pos 读回）；MOV_<ty>_=实体搬移 ⇒ 拒
-                    if tok.split('_').nth(1) == Some("0") {
-                        continue;
-                    }
-                    return false;
-                }
-                "CES" | "ADD" => {
-                    let Some(ty) = tok.split('_').nth(1).and_then(|t| t.parse::<i32>().ok())
-                    else {
-                        return false;
-                    };
-                    let cat = entity_category_with_floor(ty, floor);
-                    if cat == 2 || cat == 4 || ty == 6 {
-                        continue; // 拾取/楼梯=中性可走
-                    }
-                    return false; // 怪物/门/阻挡/商人… ⇒ 拒
-                }
-                _ => return false, // END/未知 ⇒ 拒
-            }
-        }
-        true
-    }
-    line_safe(lines, root, &mut Vec::new(), floor)
-}
-
-
-
 /// T9 探针（`probe_bump` 同法=与搜索共用 harness 门面路径，非自证）：夹具
 /// flags/difficulty 下 `try_run_scene(param, true)` 的判门结果——只判不放
 /// （不 load/tick；case19/66/67 臂只读 flags/difficulty，无副作用）。
@@ -2057,35 +2028,5 @@ mod solve_global_c1 {
         assert_eq!(g2.post.ents, predead, "终态列表=初始列表（无复活）");
         assert_eq!(g2.route, vec!["1,1", "2,1", "3,1"], "无怪 ⇒ 直穿");
         assert_eq!(g2.steps, 2, "两步走穿走廊");
-    }
-}
-
-#[cfg(test)]
-mod solve_global_c5d {
-    use super::script_cross_allowed;
-
-    /// 批3 C5d 分类器红先行：物品/楼梯 CES+DES 拆障+玩家 MOV+SWD 放行；
-    /// 怪物 CES、实体 MOV、未知 op、GUT 转导到怪物行 拒。
-    #[test]
-    fn solve_global_c5d分类_保守放行与拒绝面() {
-        let allow1 = vec![
-            "TAK_217_218 ROS_5_510 CES_36_11_8 CES_40_11_9 DES_11_10_9".to_string(),
-        ];
-        assert!(script_cross_allowed(&allow1, 0, 52), "物品 CES+DES 拆障应放行");
-        let allow2 = vec!["TAK_108_108 MOV_0_6_5".to_string()];
-        assert!(script_cross_allowed(&allow2, 0, 26), "玩家 MOV_0 应放行");
-        let allow3 = vec!["SWD".to_string()];
-        assert!(script_cross_allowed(&allow3, 0, 9), "SWD 解封=开路应放行");
-        let deny_add = vec!["ADD_2_72_11_10".to_string()];
-        assert!(!script_cross_allowed(&deny_add, 0, 7), "ADD 门(type2 cat1)应拒");
-        let allow4 = vec!["CES_20_4_4".to_string()];
-        assert!(script_cross_allowed(&allow4, 0, 7), "CES 物品(type20 cat2)应放行");
-        assert!(!script_cross_allowed(&["CES_61_5_2".to_string()], 0, 15), "怪物 CES 拒");
-        assert!(!script_cross_allowed(&["MOV_72_1_8_1_10".to_string()], 0, 2), "实体 MOV 拒");
-        assert!(!script_cross_allowed(&["FOO_1".to_string()], 0, 1), "未知 op 拒");
-        let gut = vec!["TAK_1_2 GUT_1".to_string(), "CES_69_5_5".to_string()];
-        assert!(!script_cross_allowed(&gut, 0, 62), "GUT 转导到怪物 CES 行拒");
-        let gut_ok = vec!["TAK_1_2 GUT_1".to_string(), "TAK_3_4 DES_5_1_1".to_string()];
-        assert!(script_cross_allowed(&gut_ok, 0, 62), "GUT 转导到安全行放行");
     }
 }

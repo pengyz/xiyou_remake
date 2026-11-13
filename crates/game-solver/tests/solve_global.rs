@@ -744,7 +744,7 @@ fn solve_global_t真数据端到端_确定性双跑() {
     );
 }
 
-/// TEMP probe（诊断后删）
+/// 批3 C5a 正式测试（doc 误标 TEMP 已更正）：真数据首层穿门可达
 #[test]
 fn solve_global_t真数据首层穿门可达() {
     // 批3 C5a 红：真数据层51 从入场梯 (1,11) 出发必须能拿到出口梯 (2,2) 的
@@ -929,10 +929,12 @@ fn solve_global_t门玩家MOV_pos读回_穿门达墙后出口() {
     assert!(shaped, "MOV pos 读回应让出口一步即达：{goals:?}");
 }
 
-/// 拒绝面回归：line38=`CES_6_4_1 CES_61_4_1`（type61=怪物 CES）⇒ Dropped，
-/// 墙隙唯一通路被门封死 ⇒ 零 goal（放行怪物 CES 会产生幻影路径=不健全）。
+/// 批3 C6b（A-lite，lead 批准 2026-11-13）：怪物 CES 门不再 Dropped——
+/// 穿门读回引擎实体表，CES 新实体进 post_ents。原「拒绝面」测试（选项 D
+/// 口径）反向改写：line38=`CES_6_4_1 CES_61_4_1`（type6 中性楼梯+type61 怪
+/// 同格 append），墙隙唯一通路穿门 ⇒ 分类器退役后 goal 必须产生。
 #[test]
-fn solve_global_t门怪物CES拒绝_分支不产生() {
+fn solve_global_t门怪物CES读回_分支产生() {
     let mut terrain = vec![true; 6 * 3];
     terrain[0 * 6 + 2] = false; // x=2 全墙，仅 row1 通
     terrain[2 * 6 + 2] = false;
@@ -952,8 +954,17 @@ fn solve_global_t门怪物CES拒绝_分支不产生() {
         flags: 0,
     };
     let si = SolveInput { floor: 48, difficulty: 0, level: Some(level) };
-    let (_ok, goals) = solve_layer(&si, (0, 1), None, player(), 0);
-    assert!(goals.is_empty(), "怪物 CES 门应 Dropped、零 goal：{goals:?}");
+    let (ok, goals) = solve_layer(&si, (0, 1), None, player(), 0);
+    assert!(ok, "穿怪物 CES 门后应可达（A-lite 读回续走）：{goals:?}");
+    // CES_6_4_1 生成的中性楼梯 type6@(4,1) 永久在场（line38 无 DES）——
+    // post_ents 含它=脚本世界变读回进层间态的直接证据。
+    assert!(
+        goals.iter().any(|g| {
+            g.kind == ExitKind::Stair
+                && g.post_ents.iter().any(|r| r.ty == 6 && r.x == 4 && r.y == 1)
+        }),
+        "CES_6_4_1 生成实体应读回进 post_ents：{goals:?}"
+    );
 }
 
 
@@ -1046,5 +1057,46 @@ fn solve_global_t穿门读回DES拆除_出post_ents() {
         g.post_ents.iter().any(|r| r.ty == 83 && r.x == 1 && r.y == 0),
         "门与出口梯保留：{:?}",
         g.post_ents
+    );
+}
+
+/// C6f 红：层10 上行梯可达（隐形81 封印门穿行=引擎语义，b63/迭代65 实证）
+#[test]
+fn solve_global_t穿隐形81封印_层10上行梯可达() {
+    let input = real_global_input(1_000);
+    let lv = input.floors.get(&10).expect("f10").clone();
+    let si = SolveInput { floor: 10, difficulty: 0, level: Some(lv) };
+    let mut p = player();
+    p.atk = 510;
+    p.def = 510;
+    p.yellow = 9;
+    p.blue = 9;
+    p.red = 9;
+    let (_ok, goals) = solve_layer(&si, (1, 10), None, p, 0);
+    let up = goals
+        .iter()
+        .any(|g| g.kind == ExitKind::Stair && g.post_pos == (6, 1));
+    assert!(up, "层10 上行梯 (6,1) 应可达：stair goals={:?}",
+        goals.iter().filter(|g| g.kind == ExitKind::Stair)
+            .map(|g| g.post_pos).collect::<Vec<_>>());
+}
+
+/// C6g 红：根态恰在出口仍须扩展（step_off 四邻皆墙留梯格场景）
+#[test]
+fn solve_global_t根在出口仍扩展() {
+    let input = real_global_input(1_000);
+    let lv = input.floors.get(&10).expect("f10").clone();
+    let si = SolveInput { floor: 10, difficulty: 0, level: Some(lv) };
+    let mut p = player();
+    p.atk = 510;
+    p.def = 510;
+    p.yellow = 9;
+    p.blue = 9;
+    p.red = 9;
+    let (_ok, goals) = solve_layer(&si, (1, 11), None, p, 0);
+    assert!(
+        goals.len() > 1,
+        "根在出口 (1,11) 应记录后仍扩展出更多目标：goals={}",
+        goals.len()
     );
 }

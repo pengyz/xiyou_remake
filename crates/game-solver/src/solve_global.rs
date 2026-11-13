@@ -13,11 +13,13 @@
 //! 确定性（计划 §4 ④）：遍历全走 `BTreeMap`/`BinaryHeap`，无 HashMap 迭代序依赖；
 //! 同输入同解由批2 同款双跑测试钉死（C4）。
 
-use crate::solve_local::{solve_layer, sprite_full, EntRec, LevelSpec, PlayerSpec, SolveInput};
+use crate::solve_local::{
+    solve_layer, sprite_full, take_layer_trunc, EntRec, LevelSpec, PlayerSpec, SolveInput,
+};
 use crate::state::{CanonicalBag, DiscreteGold, DiscreteHp, ScriptFlags, SolverState};
 use game_core::subsystem::script_host::entity_category_with_floor;
 use std::cmp::Reverse;
-use std::collections::{BinaryHeap, BTreeMap};
+use std::collections::{BinaryHeap, BTreeMap, VecDeque};
 
 /// 全局求解输入。
 #[derive(Debug, Clone)]
@@ -71,6 +73,9 @@ pub struct GlobalResult {
     pub bound: u64,
     /// 实际扩展（出队处理）节点数
     pub expansions: u64,
+    /// R1 层界截断记录（lead 裁定 A 条件1）：`(floor, 截断时 nodes 实数)`——
+    /// 非空 ⇒ 该结果被层界污染 ⇒ confidence 已降级（不标 optimal）。
+    pub truncated_layers: Vec<(i32, usize)>,
 }
 
 /// 全局态（层间耦合量，计划 §3.3 字段口径；`floor/pos/player/flags/kills/steps`
@@ -274,17 +279,26 @@ pub fn solve_global(input: &GlobalInput) -> GlobalResult {
         segment: Vec::new(),
     }];
     let mut pruned = vec![false];
-    // C5d 遍历序=**最深优先**（深度主键降序+node id 升序 tiebreak=全序、确定性；
-    // BFS FIFO 会被浅层巨扇出淹没、bound 全耗浅层到不了深链——诊断 queue 80→15.5k
-    // visited_floors 恒 [51,52,53]）。返回支路（重入同层）steps 更大被支配自然死。
-    let mut queue: BinaryHeap<(u32, Reverse<u32>)> = BinaryHeap::new();
-    queue.push((0, Reverse(0)));
+    // 遍历序（C6c 终版）=**层链距目标升序**（goal-directed）：反向 BFS 自目标层
+    // 50 沿楼梯 param 边+符21/22 ±1 边得 floor_dist，主键 dist 升序、tiebreak=
+    // depth 降序、node id 升序=全序确定性。教训链：BFS FIFO 浅层扇出淹没（queue
+    // 80→15.5k 恒 [51,52,53]，b41）→最深优先深徘徊（maxdepth 卡133 goals0、
+    // f7/f8 内部长走态占满带宽，今日实测）→层链距直达走廊 f51→52→53→54→1→…
+    // →23→24→50。**纯排序变换**：K₀/去重/bound/结果集全不变、同 env 同序。
+    let floor_dist = floor_chain_dist(&input.floors);
+    let dist_root = floor_dist
+        .get(&input.start_floor)
+        .copied()
+        .unwrap_or(u32::MAX);
+    let mut queue: BinaryHeap<(Reverse<u32>, u32, Reverse<u32>)> = BinaryHeap::new();
+    queue.push((Reverse(dist_root), 0, Reverse(0)));
     let mut by_key: BTreeMap<GKey, Vec<u32>> = BTreeMap::new();
     by_key.entry(key_of(&nodes[0].st)).or_default().push(0);
     let mut goals: Vec<GlobalGoal> = Vec::new();
     let mut expansions: u64 = 0;
     let mut hit_bound = false;
-    while let Some((_, Reverse(id))) = queue.pop() {
+    let mut truncated_layers: Vec<(i32, usize)> = Vec::new();
+    while let Some((Reverse(_), _, Reverse(id))) = queue.pop() {
         if pruned[id as usize] {
             continue;
         }
@@ -307,6 +321,11 @@ pub fn solve_global(input: &GlobalInput) -> GlobalResult {
             st.player.clone(),
             st.flags,
         );
+        if let Some(t) = take_layer_trunc() {
+            if !truncated_layers.contains(&t) {
+                truncated_layers.push(t);
+            }
+        }
         if !reachable {
             continue;
         }
@@ -373,6 +392,7 @@ pub fn solve_global(input: &GlobalInput) -> GlobalResult {
                         &mut pruned,
                         &mut queue,
                         &mut by_key,
+                        &floor_dist,
                         id,
                         g.route,
                         ns,
@@ -401,7 +421,8 @@ pub fn solve_global(input: &GlobalInput) -> GlobalResult {
 
     let confidence = if goals.is_empty() {
         "feasible"
-    } else if hit_bound {
+    } else if hit_bound || !truncated_layers.is_empty() {
+        // R1 层界（裁定 A）：任一层被截断 ⇒ 探索不完整 ⇒ 不冒充 optimal
         "bounded-best"
     } else {
         "optimal"
@@ -411,6 +432,7 @@ pub fn solve_global(input: &GlobalInput) -> GlobalResult {
         confidence,
         bound: input.bound,
         expansions,
+        truncated_layers,
     }
 }
 
@@ -468,12 +490,14 @@ fn monsters_alive_of(
 fn push_state(
     nodes: &mut Vec<GNode>,
     pruned: &mut Vec<bool>,
-    queue: &mut BinaryHeap<(u32, Reverse<u32>)>,
+    queue: &mut BinaryHeap<(Reverse<u32>, u32, Reverse<u32>)>,
     by_key: &mut BTreeMap<GKey, Vec<u32>>,
+    floor_dist: &BTreeMap<i32, u32>,
     parent: u32,
     segment: Vec<String>,
     ns: GSt,
 ) {
+    let ns_floor = ns.floor;
     let depth = if parent == u32::MAX {
         0
     } else {
@@ -509,7 +533,49 @@ fn push_state(
     });
     pruned.push(false);
     list.push(new_id);
-    queue.push((depth, Reverse(new_id)));
+    let d = floor_dist.get(&ns_floor).copied().unwrap_or(u32::MAX);
+    queue.push((Reverse(d), depth, Reverse(new_id)));
+}
+
+/// C6c 层链距目标（反向 BFS 自层50；边=楼梯 param 目标（ty7/8 的 `param&0xff`，
+/// **仅楼梯**——见函数内 ±1 剔除注）；图外层=`u32::MAX` 最后弹出（仍会被探索=
+/// 完备性不依赖启发式）。解环：51-54 环经 f1（f54 ty7→1）由 f24 链反向注入。
+/// 确定性：BTreeMap 迭代+pred 排序+BFS 队列序全固定。
+fn floor_chain_dist(floors: &BTreeMap<i32, LevelSpec>) -> BTreeMap<i32, u32> {
+    let mut radj: BTreeMap<i32, Vec<i32>> = BTreeMap::new();
+    for (f, spec) in floors {
+        let mut succ: Vec<i32> = Vec::new();
+        for e in &spec.entities {
+            if e.ty == 7 || e.ty == 8 {
+                succ.push(e.param & 0xff);
+            }
+        }
+        // 只用楼梯边：±1（符21/22 近似）会把 dist[f51] 压成 1（f51-1=50）拉平
+        // 梯度、且 51-54 环靠 f24 链经 f1 反向注入（f54 ty7→1）解环——符21 分支
+        // （f45..49→50）在纯楼梯图里 dist=MAX=最后探索（仍探索=完备性不依赖它）。
+        for t in succ {
+            if floors.contains_key(&t) {
+                radj.entry(t).or_default().push(*f);
+            }
+        }
+    }
+    let mut dist: BTreeMap<i32, u32> = BTreeMap::new();
+    let mut q: VecDeque<(i32, u32)> = VecDeque::new();
+    dist.insert(50, 0);
+    q.push_back((50, 0));
+    while let Some((f, d)) = q.pop_front() {
+        if let Some(preds) = radj.get(&f) {
+            let mut ps = preds.clone();
+            ps.sort_unstable();
+            for &p in &ps {
+                if !dist.contains_key(&p) {
+                    dist.insert(p, d + 1);
+                    q.push_back((p, d + 1));
+                }
+            }
+        }
+    }
+    dist
 }
 
 // ---- C5：JSON 输出（手写，与批2 SolveResult::to_json 同范式；route token全安全字符无需转义）----
@@ -538,12 +604,18 @@ impl GlobalResult {
     /// C5：确定性双跑字节同（计划 §4 批3 判据③）；形状=confidence/bound/expansions/goals[]。
     pub fn to_json(&self) -> String {
         let goals: Vec<String> = self.goals.iter().map(|g| g.to_json()).collect();
+        let trunc: Vec<String> = self
+            .truncated_layers
+            .iter()
+            .map(|(f, n)| format!("[{f},{n}]"))
+            .collect();
         format!(
-            "{{\"confidence\":\"{}\",\"bound\":{},\"expansions\":{},\"goals\":[{}]}}",
+            "{{\"confidence\":\"{}\",\"bound\":{},\"expansions\":{},\"goals\":[{}],\"truncated_layers\":[{}]}}",
             self.confidence,
             self.bound,
             self.expansions,
-            goals.join(",")
+            goals.join(","),
+            trunc.join(",")
         )
     }
 }
