@@ -31,7 +31,7 @@
     "game_oracle(lib)": 5,
     "game_platform(lib)": 6,
     "game_shell_common(lib)": 45,
-    "game_solver(lib)": 6,
+    "game_solver(lib)": 7,
     "gameplay_floor1(test)": 5,
     "golden(test)": 9,
     "hd_visual(test)": 6,
@@ -60,6 +60,7 @@
     "shop_goods_defs(test)": 6,
     "size_dispatch_table_driven(test)": 5,
     "slot_equip_scene(test)": 2,
+    "solve_global(test)": 17,
     "solve_local(test)": 11,
     "solver(bin)": 0,
     "storage_contract(test)": 7,
@@ -75,5 +76,5 @@
     "walk_route(test)": 12,
     "xiyou(bin)": 42
   },
-  "total": 1057
+  "total": 1075
 }
