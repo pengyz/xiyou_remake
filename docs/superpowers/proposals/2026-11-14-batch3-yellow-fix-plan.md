@@ -1,6 +1,6 @@
 # 批3 随批黄项处置方案（2026-11-14）
 
-> **状态**：草案，待第二子 agent 对抗复核；**未过复核不推送**。
+> **状态**：已过一轮对抗复核（**需修订** 红3黄4绿12，报告 `docs/findings/reviews/2026-11-14-batch3-yellow-fix-plan-review.md`）→ **2026-11-14 修订**（R1/R2/R3 实测更正 + Y1-Y4 随修；修法本体、行数守恒与零行为结论不变，复核绿 12 项未动）；**未过修订件快审不推送**。
 > **依据**：`docs/findings/reviews/2026-11-13-solver-batch3-review.md`（445 行 12 节，红0黄7；随批修5 = Y1/Y2/Y4/Y6/Y7，挂批4 = Y3/Y5）。
 > **范围**：本文件只是一份处置方案（供成员执行）；起草阶段**不改代码、不改台账、不改 plan**。
 > **纪律**：下文所有行号/原文均为 2026-11-14 对工作树 **sed/grep 实测**（分支 `modern`，HEAD=`71908d6`，工作树除未跟踪报告外干净），不凭记忆。实测中已抓到**复核报告自身 5 处行号偏差**（见 §8.10），故本方案对报告引用一律以实测覆核。
@@ -145,7 +145,7 @@ wc -l crates/game-solver/src/state.rs                                           
   - `solve_global.rs:383-389` 区间门：383-384 注 `// 批3 C3b 区间门（a.java:7135-7178：strict=true 只有筋斗云` / `// 调用点带；min/maxFloorReached=已访层域 ⇒ floors 极值）`；385 `let lo = st.floors.iter().min()…`；386 `let hi = …max()…`；387 `if target < lo || target > hi {`；388 `continue;`；389 `}`
   - `crates/game-solver/src/solve_local.rs:1372-1399` `fn cloud_goals(&self, st: &St) -> Vec<(i32, bool)>`（**复核 §9.4 写 1374-1397 = 偏差，实测 1372-1399**）：`:1374` `if !self.cloud || !st.player.item_types.contains(&15) { return out; }`（tutorialSeen=背包权威源）；`:1377-1386` 邻梯几何 `adj(self.stair_up) || adj(self.stair_down)`（f_bool_13 派生几何）；`:1388-1397` 按 `ty==7/8` 找实体（findFloorGateEntity=层数据）
 - 需求原文（实测）：`plan:178` 4 分量表行（tutorialSeen / f_bool_13 / findFloorGateEntity / changeFloor strict + 锚 `a.java:7538-7539, 5767-5806, 7115-7133, 7139-7151, 5295-5306`）；**`plan:423` = R11 行**（`…区间门 4 分量入 SolverState.flags…`；**复核 §9.4 写 plan:421 = 偏差，:421 是 R9 行**）
-- canonical 裁定（复核 §9.4 原文，实测行 341）：tutorialSeen 权威源=背包 `item_types.contains(&15)`（唯一写点 pickup case15），抄进 flags 即双源；f_bool_13 逐 tick 派生几何，存值会与重算分叉；findFloorGateEntity 是层数据非状态；changeFloor min/maxFloorReached 是全局史已归 `st.floors`；塞 flags 只污染 K₀ ScriptFlags 键域而无行为增益 → **实作 canonical、doc 措辞错（Y4 随批修）**。
+- canonical 裁定（复核 §9.4 原文，实测行 341）：tutorialSeen 权威源=背包 `item_types.contains(&15)`（唯一写点 pickup case15），抄进 flags 即双源；f_bool_13 逐 tick 派生几何，存值会与重算分叉；findFloorGateEntity 是层数据非状态；changeFloor min/maxFloorReached 是全局史已归 `st.floors`；塞 flags 只污染 K₀ ScriptFlags 键域而无行为增益 → **实作 canonical、doc 措辞错（Y4 随批修）**。 **【2026-11-14 更正·实测】** 上引「唯一写点 pickup case15」是报告的绝对表述：deobf 实有 **3 处赋值**——`:7539`（case 15 置 true，报告称 pickup）、`:9299`（存档回读先置 false）、`:9305-9306`（按 `itemStackTypes==15` 从背包容器回推 true）；功能口径「**背包权威源**」成立（load 路径即由背包推导）。§3.2 改写文案只用「背包权威源」、不含「唯一写点」（绿 G5 已验）。
 
 ### 3.2 修法（单行原地替换，行数守恒）
 
@@ -155,7 +155,7 @@ wc -l crates/game-solver/src/state.rs                                           
 - 改后（推荐文案，仍为 1 行）：
   `//! （探索区间门 4 分量 canonical 实作：tutorialSeen 背包权威源、f_bool_13 逐 tick 派生几何、findFloorGateEntity 层数据，由 solve_local.rs:1372-1399 cloud_goals 派生；changeFloor min/max 已归 st.floors，本文件 :383-389 落闸——均不入 flags（裁定见批3 复核报告 §9.4））、battle-victory 脚本 69/70/71/73/74/75 转移边。`
 
-> **硬约束：行数守恒**。复核报告大量 pin 本文件行号（`:250-260`、`:311-316`、`:383-389`、`:449-456`、`:571-600`、`:642`…），改 1 行为 2 行会让其全部失效。若 lead 觉得单行过长，唯一可接受的等长改写是压缩措辞，不是拆行。
+> **硬约束：行数守恒**。复核报告 pin 本文件行号（`:250-260`、`:311-316`、`:383-389`、**`:450-456`**、`:571-600`、`:642`…；报告 :105 原文即 `solve_global.rs:450-456`——**报告 pin 值 450-456 与本方案自纠值 449-456 分列**，块起点实测 449、变异点 :451，勿混），改 1 行为 2 行会让其全部失效。若 lead 觉得单行过长，唯一可接受的等长改写是压缩措辞，不是拆行。
 
 ### 3.3 判据
 
@@ -177,7 +177,7 @@ git diff <笔1> --numstat -- crates/game-solver/src/solve_global.rs            #
 
 ### 4.1 现状实文（sed/grep 实测）
 
-指向不入库报审件的 3 处（`grep -rn '批3 报审件'` 全仓命中，除报告自身外恰为这 3 处）：
+指向不入库报审件的 3 处（2026-11-14 复核后复测：`grep -rn '批3 报审件' crates/ docs/superpowers/` = **13** = 本方案自身 10 + plan:62/:165 2 + state.rs:35 1；全仓 md 另含两份报告自身——批3 复核报告 1（:39）、本方案对抗复核报告 7（:17/:25/:27/:30/:72/:73/:74）。**检索面含本方案自身（自指），判据必须逐份排除**；排除报告与本方案自身后，代码/计划侧恰为这 3 处）：
 
 1. `plan:62`：`…（sprite 1703 记录+shop_goods 17 行+GIN×4+宝箱穷尽对照见批3 报审件）；原主张保留不删（AGENTS §3.6 证伪更正）…`
 2. `plan:165`：`…20/22/24 世界零获取——普查对照见批3 报审件，原清单保留不删；另 16/17/25 亦无获取来源…`
@@ -189,7 +189,7 @@ git diff <笔1> --numstat -- crates/game-solver/src/solve_global.rs            #
 
 - 复核报告 `docs/findings/reviews/2026-11-13-solver-batch3-review.md` 当前 **UNTRACKED**（`git ls-files --error-unmatch` 报「未匹配任何 git 已知文件」）；`git ls-files docs/findings/reviews/` = 63 tracked（该目录部分报告已入库，本笔需显式 add）。
 - 报告 **§5.2 = 行 204-215**：含可复现命令 `$ python3 tools/type_census.py`（`tools/type_census.py` tracked）与输出 `sprite0..54 共 1703 条记录`、`type15 → floor1 (320,352)`、`type20/22/24 全世 0 枚`、`shop_goods.json rows = 17`。
-- **无任何 tracked 文档含该普查**：`grep 零获取` 仅命中 plan + 未入库报告；`20/22/24` 仅命中 plan:62/165；`docs/findings/2026-11-09-qol-passive-item-triggers.md`（tracked）无普查 → 只能指向报告 §5.2。
+- **除本方案自身与两份复核报告外，无独立 tracked 文档含该普查**（2026-11-14 复核后复测，自指修正）：`git grep -ln '零获取' -- '*.md'` = plan + **本方案**（本方案 tracked 且引述了普查，构成自指）；`git grep -n '20/22/24' -- '*.md'` = **5 行** = plan:62/:165 + 本方案 3 行（§4.1 引文区：plan:165 引文、§5.2 命令与输出引述、本行判据命令）；`docs/findings/2026-11-09-qol-passive-item-triggers.md`（tracked）无普查 → 本方案引述不构成独立出处，**指针仍指向报告 §5.2（可复现命令原件）**。
 - 闸的盲点（实测）：`gate_docs_links`（gates/cli.py）只查 **tracked .md 内 md 链接的磁盘存在性**（剥代码围栏/行内代码），**不查目标是否 tracked** → 指向未入库文件照样过闸。**因此判据必须用 `git ls-files`，不能拿「闸绿」当入库证据。**
 
 > 与复核报告处置列的差异（如实记录）：报告 Y6 行写「**随批4** 把 1703 记录普查命令/结果落 `docs/findings/`」。本方案按本任务口径执行「**随批修：指针改指入库物（报告 §5.2）**」——两者不冲突：指针修随批解「库内无对照命令可复现」；普查**独立**落 `docs/findings/` 仍可挂批4（届时直接引 §5.2 命令），本方案不替代它。
@@ -216,7 +216,7 @@ git diff <笔1> --numstat -- crates/game-solver/src/solve_global.rs            #
 # 先决：目标已入库
 git ls-files --error-unmatch docs/findings/reviews/2026-11-13-solver-batch3-review.md  # 通过
 # 指针已换
-grep -rn '批3 报审件' crates/ docs/superpowers/ | wc -l                                # 0
+grep -rn '批3 报审件' crates/ docs/superpowers/ | grep -v 2026-11-14-batch3-yellow-fix-plan.md | wc -l   # 笔1 后 = 0（排除本方案自身后现值 3 = plan 2 + state.rs 1）
 grep -c 'reviews/2026-11-13-solver-batch3-review.md' \
   docs/superpowers/plans/2026-11-09-solver-implementation-plan.md                       # 2（plan 两处）
 grep -c 'reviews/2026-11-13-solver-batch3-review.md' \
@@ -224,7 +224,7 @@ grep -c 'reviews/2026-11-13-solver-batch3-review.md' \
 # 行数守恒 + 链接可解析
 wc -l docs/superpowers/plans/2026-11-09-solver-implementation-plan.md crates/game-solver/src/state.rs
                                                                                         # 506 / 106
-python3 gates/cli.py docs-links   # 或并入 check；链接目标须存在（笔0 后必然存在）
+python3 gates/cli.py check   # docs-links 无独立子命令（实测 python3 gates/cli.py docs-links → exit=2、COMMANDS 键表无此键），只能经总闸 check（内含 gate_docs_links，实测 ≈11 分钟）；链接目标须存在（笔0 后必然存在）
 ```
 
 ### 4.4 风险
@@ -238,12 +238,12 @@ python3 gates/cli.py docs-links   # 或并入 check；链接目标须存在（�
 
 ### 5.1 现状实文（sed 实测）
 
-- **仓内唯一问题锚**：`plan:345`（**复核报告 §11.4 两处写 `plan:344`，实测 344 是空行、345 才是该行——报告 off-by-one**）：
+- **仓内唯一问题锚**：`plan:345`（**复核报告 §11.1（:382）与 §11.4（:420）各写一处 `plan:344`，实测 344 是空行、345 才是该行——报告 off-by-one**）：
   `…（op_lay=save_floor_state+set_pending_floor+set_transitioning，script_ops.rs:68；a.java:6261 q=5 为其渲染相位）但经既有 pending_floor 通道…`
 - `71908d6` message：L8 `  （script_ops.rs:68-73 实读；a.java:6261-6268 q=5 是其渲染相位非反证）`；Evidence 段 `  reference/seed/a.java:6261-6268(LAY handler q=5);`（**已限定 seed，可查**）+ `Confidence: 95`。
 - 两套行号实测：
   - seed：`reference/seed/a.java:6261` = `            } else if (string.equals("LAY")) {`、`:6267` = `                this.q = (byte)5;`、`:6268` = `            } else if (string.equals("ROS")) {` → handler = **6261-6268**（message Evidence 正确）
-  - deobf：`reference/src/deobf/a.java:8361` = `            if (var3.equals("LAY")) {`、`:8367` = `               this.dialogPhase = 5;`、`:8368` = `            } else if (var3.equals("ROS")) {`、`:8369` = ROS 体 → handler = **8361-8368**（复核 §11.4/§0.4/Y7 行三处写 `8361-8369` 多算 1 行）
+  - deobf：`reference/src/deobf/a.java:8361` = `            if (var3.equals("LAY")) {`、`:8367` = `               this.dialogPhase = 5;`、`:8368` = `            } else if (var3.equals("ROS")) {`、`:8369` = ROS 体 → handler = **8361-8368**（复核报告三处写 `8361-8369` 多算 1 行：§0.2 Y7 行（:40）、§11.4（:419、:420）；**报告无 §0.4**——原稿引错）
   - 陷阱实证：`reference/src/deobf/a.java:6261` = `      this.entityAnimRow = new int[100];` → 裸锚按 deobf 惯例 sed 必扑空
 - 仓内惯例（抽验实测）：裸 `a.java:NNNN` = deobf（deobf:7864 = `var2 = this.changeFloor(this.currentFloor + 1, false, false);` 对 F3 case21；seed:7864 = `catch (Exception exception) {}`；deobf 10889 行 vs seed 8457 行；findings 引 `a.java:9413` 超 seed 上限）。
 - 保护与漂移风险：seed 受 `gates/cli.py:175-190 gate_reference_seed_integrity`（sha256+行数对照 baseline）保护 → **seed 行号永不失效**；deobf 按 AGENTS §2 允许语义等价改名/格式化 → **deobf 行号可再漂**。
@@ -289,9 +289,10 @@ sed -n '8361p;8368p' reference/src/deobf/a.java    # LAY if / ROS else-if；确�
 
 ### 6.2 Y5：A-lite④ 风险注记未落库
 
-- 本会话实测：`grep -rn '上确界|支配吸收'`（md/rs/json）工作树 = **3 命中，全部在复核报告自身**（`:38`（Y5 行）、`:133`（引报审原句「须子集上确界代表或限定效果被 hp/gold 支配吸收的槽位，任意先到者保留=不健全」）、`:134`（「全仓 + 全 git 历史 grep = 0」））；`git log --all -S"上确界"` = 0、`git log --all -S"支配吸收"` = 0。
-- 结论维持：**除报告自身外全仓 + 全历史无落库** → 挂批4（B 提案补录时落 `docs/findings/` 或 plan）。
-- 判据备注（笔0 入库报告后）：`grep -rn '上确界|支配吸收' --include='*.md' . | grep -v 2026-11-13-solver-batch3-review.md | wc -l` 应 = 0（**须排除报告本身**，否则报告入库后恒非 0）。
+- 实测（2026-11-14 复核后复测，**ERE 口径**）：`grep -rnE '上确界|支配吸收' --include='*.md' .` = **14 行 / 3 份文档**——批3 复核报告 3（:38/:133/:134）、本方案对抗复核报告 7（:17/:26/:237/:242/:244/:246/:249）、**本方案自身 4（§6.2 三行 + §8.14 一条，自指）**；全仓命中随审计文档自增，**判据必须逐份排除**。原稿「3 命中全在报告」「`git log --all -S` = 0」系 e4b19a6 前口径，复核 R2 判失真，照实更正。
+- 历史侧：无排除的 `git log --all -S'上确界'` / `git log --all -S'支配吸收'` 自 **e4b19a6** 起就命中方案自身的引入笔——复核时各=1，**本修订笔改写本段后各=2**（此后随方案自身每次修订继续 +1，任何时点读到的都是 ≥1）；必须 pathspec 排除本方案文件才有意义（实测排除后 = 空，见判据）。
+- 结论维持：**排除三份审计文档与本方案自身后，全仓 + 全历史无落库** → 挂批4（B 提案补录时落 `docs/findings/` 或 plan）。
+- 判据（修订版：ERE + 逐份排除 + pathspec 排除自身）：`grep -rnE '上确界|支配吸收' --include='*.md' . | grep -v 2026-11-13-solver-batch3-review.md | grep -v 2026-11-14-batch3-yellow-fix-plan-review.md | grep -v 2026-11-14-batch3-yellow-fix-plan.md | wc -l` = 0；`git log --all -S'上确界' --oneline -- . ':(exclude)docs/superpowers/proposals/2026-11-14-batch3-yellow-fix-plan.md'` = 空（`支配吸收` 同）。注：BRE 单竖线是**字面量**（会命中判据行自身），必须 `grep -E`。
 
 ---
 
@@ -312,7 +313,7 @@ sed -n '8361p;8368p' reference/src/deobf/a.java    # LAY if / ROS else-if；确�
 
 ---
 
-## 8. 待复核攻击面（第二子 agent 逐条验，10 点）
+## 8. 待复核攻击面（第二子 agent 逐条验，14 点 = 原 10 + 对抗复核补 4）
 
 1. **行号锚全量复测**：本方案引用的每个行号逐个 `sed -n` 复跑——`json:63`、`state.rs:39`（及 `:35/:36/:40`）、`solve_global.rs:11`（及 `:383-389/:449-456/:451`）、`plan:62/:165/:345`（及 `:178/:423`）、`solve_local.rs:1372-1399`、`seed:6261/6267/6268`、`deobf:8361/8367/8368/8369`、报告 `§5.2=行204-215`。**引锚漂移是惯犯，本方案起草中就抓到自己一处**：初稿与复核报告都写 `plan:344`，实测为 **345**（344 空行；`@@ -341,6 +341,8 @@` 证实）——凡报告与实测冲突，以实测为准。
 2. **零行为证明**：`git diff 笔1` 只动 `//!`/`///`/plan 文本行；`git diff 笔1 -- crates/` 内不得出现非注释行；`solve_global.rs:451`、ratchet JSON、`reference/`、`gates/` 必须零 diff。
@@ -323,8 +324,12 @@ sed -n '8361p;8368p' reference/src/deobf/a.java    # LAY if / ROS else-if；确�
 7. **Y6 目标必须 tracked**：`git ls-files --error-unmatch docs/findings/reviews/2026-11-13-solver-batch3-review.md` 必须在笔1 前通过；**docs-links 闸不查 trackedness（实测）**，闸绿 ≠ 入库，拿闸绿当入库证据 → 打回。
 8. **Y4 新措辞如实性**：对照实文核——min/max 来自 `st.floors`（`solve_global.rs:385-386`）、三分量由 `cloud_goals`（`solve_local.rs:1372-1399`：`:1374` item15 背包、`:1377-1386` 邻梯几何、`:1388-1397` ty7/8 实体）派生。新 doc 若与这些实文不符（把「入 flags」换成另一个不实描述）→ 打回。
 9. **Y1 更正注数字自洽**：17（`json:63` + `grep -c '#\[test\]'` 实测）/ 18（存在性闸 `--list | grep -c` 实测）/ lib 1 个（`solve_local.rs:1980`）三数在更正注内互洽，且与 `3e7d235` message 原文逐字对应——更正注本身写错数 → 打回。
-10. **复核报告自身 5 处行号偏差不得被照抄**（逐条实测覆核）：§9.4 `plan:421`→实为 **423**（R11）；§9.4 `cloud_goals 1374-1397`→实为 **1372-1399**；§3.1 `solve_global.rs:450-456`→实为 **449-456**；§11.4/§0.4/Y7 行 deobf `8361-8369`→实为 **8361-8368**（8369=ROS 体）；§11.4 两处 `plan:344`→实为 **345**。本方案已按实测修正；若执行件或报告修订沿用报告原数 → 打回。
+10. **复核报告自身 5 处行号偏差不得被照抄**（逐条实测覆核；**报告 pin 值与本方案自纠值分列**）：§9.4 `plan:421`（报告 pin）→自纠 **423**（R11）；§9.4 `cloud_goals 1374-1397`（报告 pin）→自纠 **1372-1399**；报告 :105 `solve_global.rs:450-456`（报告 pin）→自纠 **449-456**（块起点 449、`:451` 变异点）；§0.2（:40）+§11.4（:419/:420）deobf `8361-8369`（报告 pin，**报告无 §0.4**——原稿引错）→自纠 **8361-8368**（8369=ROS 体）；§11.1（:382）+§11.4（:420）各一处 `plan:344`（报告 pin）→自纠 **345**（344 空行）。本方案已按实测修正；若执行件或报告修订沿用报告原数 → 打回。
+11. **判据必须排除检索面中的审计文档自身**（对抗复核 R1/R2 实际踩中）：凡 `grep` 类判据先列「预期命中文件集」，显式 `grep -v` 本方案与两份复核报告（`2026-11-13-solver-batch3-review.md`、`2026-11-14-batch3-yellow-fix-plan-review.md`、`2026-11-14-batch3-yellow-fix-plan.md`）再比数；判据在方案入库（`e4b19a6`）前后期望值不同，须注明口径（如 §4.3「现值 3 / 笔1 后 0」）。
+12. **`gates/cli.py` 子命令存在性预演**（对抗复核 R1）：任何判据引用 CLI 子命令前先无参 `python3 gates/cli.py` 对 COMMANDS 键表——`docs-links` 实测 `exit=2`（键表无此键），docs-links 只能经 `check`/`all` 跑；预演要在写判据时做，不能等执行时才发现。
+13. **对复核报告章节号的引用逐个核**（对抗复核 Y1）：`grep -c '^### 0\.4'`/`grep -n '8361-8369'`/`grep -n 'plan:344'` 实测——报告**无 §0.4**；`8361-8369` 在 §0.2（:40）+§11.4（:419/:420）；`plan:344` 在 §11.1（:382）+§11.4（:420）。本方案原引 `§0.4`、`§11.4 两处` 已改（§5.1/§8.10）。
+14. **`git log -S` 类历史判据会被本方案自身 commit 推翻**（对抗复核 R2）：无排除的 `-S'上确界'`/`-S'支配吸收'` 自 `e4b19a6` 起命中方案自身（复核时各=1，本修订笔后各=2，随方案修订继续增长）——历史判据须 pathspec `:(exclude)` 本方案文件（§6.2 判据已改），或注明「除方案自身外」；预期值必须按「判据文档自身也是仓内变更」重算。
 
 ---
 
-*起草：批3 黄项处置方案（2026-11-14）；所有行号/原文为 HEAD=`71908d6` 工作树实测。未过对抗复核不推送。*
+*起草：批3 黄项处置方案（2026-11-14）；所有行号/原文为 HEAD=`71908d6` 工作树实测。2026-11-14 对抗复核（红3黄4绿12，报告 `docs/findings/reviews/2026-11-14-batch3-yellow-fix-plan-review.md`）后修订 R1/R2/R3 + Y1-Y4。未过修订件快审不推送。*
