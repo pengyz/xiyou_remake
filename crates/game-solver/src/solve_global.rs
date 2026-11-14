@@ -8,7 +8,7 @@
 //! 批3 C2 已建边：**楼梯边**（Exit#1：出口梯格→`param&0xff` 目标层，`swap_floor`
 //! 落点语义）与**型72 终局边**（floor50 击败型72 → `ExitKind::Ending`=通关）。
 //! C3 起补：StepGate script 边（`pending_floor`/`went_down`）、筋斗云邻梯瞬移边
-//! （探索区间门 4 分量入 flags）、battle-victory 脚本 69/70/71/73/74/75 转移边。
+//! （探索区间门 4 分量 canonical 实作：tutorialSeen 背包权威源、f_bool_13 逐 tick 派生几何、findFloorGateEntity 层数据，由 solve_local.rs:1372-1399 cloud_goals 派生；changeFloor min/max 已归 st.floors，本文件 :383-389 落闸——均不入 flags（裁定见批3 复核报告 §9.4））、battle-victory 脚本 69/70/71/73/74/75 转移边。
 //!
 //! 确定性（计划 §4 ④）：遍历全走 `BTreeMap`/`BinaryHeap`，无 HashMap 迭代序依赖；
 //! 同输入同解由批2 同款双跑测试钉死（C4）。

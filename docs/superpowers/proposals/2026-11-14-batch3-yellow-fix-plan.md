@@ -189,7 +189,7 @@ git diff <笔1> --numstat -- crates/game-solver/src/solve_global.rs            #
 
 - 复核报告 `docs/findings/reviews/2026-11-13-solver-batch3-review.md` 当前 **UNTRACKED**（`git ls-files --error-unmatch` 报「未匹配任何 git 已知文件」）；`git ls-files docs/findings/reviews/` = 63 tracked（该目录部分报告已入库，本笔需显式 add）。
 - 报告 **§5.2 = 行 204-215**：含可复现命令 `$ python3 tools/type_census.py`（`tools/type_census.py` tracked）与输出 `sprite0..54 共 1703 条记录`、`type15 → floor1 (320,352)`、`type20/22/24 全世 0 枚`、`shop_goods.json rows = 17`。
-- **除本方案自身与两份复核报告外，无独立 tracked 文档含该普查**（2026-11-14 复核后复测，自指修正）：`git grep -ln '零获取' -- '*.md'` = plan + **本方案**（本方案 tracked 且引述了普查，构成自指）；`git grep -n '20/22/24' -- '*.md'` = **5 行** = plan:62/:165 + 本方案 3 行（§4.1 引文区：plan:165 引文、§5.2 命令与输出引述、本行判据命令）；`docs/findings/2026-11-09-qol-passive-item-triggers.md`（tracked）无普查 → 本方案引述不构成独立出处，**指针仍指向报告 §5.2（可复现命令原件）**。
+- **除本方案自身与复核报告外，无独立 tracked 文档含该普查**（2026-11-14 终验后复测，自指修正；`零获取` 命中 tracked=批3复核报告+plan+本方案 3 文件，另有三份 2026-11-14 报告 untracked，全入库后自指清单共五份报告）：`git grep -ln '零获取' -- '*.md'` = plan + **本方案**（本方案 tracked 且引述了普查，构成自指）；`git grep -n '20/22/24' -- '*.md'` = **5 行** = plan:62/:165 + 本方案 3 行（§4.1 引文区：plan:165 引文、§5.2 命令与输出引述、本行判据命令）；`docs/findings/2026-11-09-qol-passive-item-triggers.md`（tracked）无普查 → 本方案引述不构成独立出处，**指针仍指向报告 §5.2（可复现命令原件）**。**NY1 警示（2026-11-14 终验后实测）：本行判据现=7 行**（批3 复核报告 2 :200/:212 + plan 2 + 本方案 3；入库前 5=报告 untracked 未计）——独立出处计数须逐份排除**全部复核报告（此时已四份：2026-11-13-solver-batch3-review / 2026-11-14-batch3-yellow-fix-plan-review / -rereview / -exec-review，`20/22/24` 各 2/1/2/3 行）与本方案自身**（:180 同款排除式；四报告全入库后 `git grep '20/22/24' -- '*.md'`=13=plan 2+本方案 3+四报告 8）。
 - 闸的盲点（实测）：`gate_docs_links`（gates/cli.py）只查 **tracked .md 内 md 链接的磁盘存在性**（剥代码围栏/行内代码），**不查目标是否 tracked** → 指向未入库文件照样过闸。**因此判据必须用 `git ls-files`，不能拿「闸绿」当入库证据。**
 
 > 与复核报告处置列的差异（如实记录）：报告 Y6 行写「**随批4** 把 1703 记录普查命令/结果落 `docs/findings/`」。本方案按本任务口径执行「**随批修：指针改指入库物（报告 §5.2）**」——两者不冲突：指针修随批解「库内无对照命令可复现」；普查**独立**落 `docs/findings/` 仍可挂批4（届时直接引 §5.2 命令），本方案不替代它。
@@ -238,7 +238,7 @@ python3 gates/cli.py check   # docs-links 无独立子命令（实测 python3 ga
 
 ### 5.1 现状实文（sed 实测）
 
-- **仓内唯一问题锚**：`plan:345`（**复核报告 §11.1（:382）与 §11.4（:420）各写一处 `plan:344`，实测 344 是空行、345 才是该行——报告 off-by-one**）：
+- **仓内唯一问题锚**：`plan:345`（**批3 复核报告（`2026-11-13-solver-batch3-review.md`）§11.1（:382）与 §11.4（:420）各写一处 `plan:344`，实测 344 是空行、345 才是该行——报告 off-by-one**）：
   `…（op_lay=save_floor_state+set_pending_floor+set_transitioning，script_ops.rs:68；a.java:6261 q=5 为其渲染相位）但经既有 pending_floor 通道…`
 - `71908d6` message：L8 `  （script_ops.rs:68-73 实读；a.java:6261-6268 q=5 是其渲染相位非反证）`；Evidence 段 `  reference/seed/a.java:6261-6268(LAY handler q=5);`（**已限定 seed，可查**）+ `Confidence: 95`。
 - 两套行号实测：
@@ -324,10 +324,10 @@ sed -n '8361p;8368p' reference/src/deobf/a.java    # LAY if / ROS else-if；确�
 7. **Y6 目标必须 tracked**：`git ls-files --error-unmatch docs/findings/reviews/2026-11-13-solver-batch3-review.md` 必须在笔1 前通过；**docs-links 闸不查 trackedness（实测）**，闸绿 ≠ 入库，拿闸绿当入库证据 → 打回。
 8. **Y4 新措辞如实性**：对照实文核——min/max 来自 `st.floors`（`solve_global.rs:385-386`）、三分量由 `cloud_goals`（`solve_local.rs:1372-1399`：`:1374` item15 背包、`:1377-1386` 邻梯几何、`:1388-1397` ty7/8 实体）派生。新 doc 若与这些实文不符（把「入 flags」换成另一个不实描述）→ 打回。
 9. **Y1 更正注数字自洽**：17（`json:63` + `grep -c '#\[test\]'` 实测）/ 18（存在性闸 `--list | grep -c` 实测）/ lib 1 个（`solve_local.rs:1980`）三数在更正注内互洽，且与 `3e7d235` message 原文逐字对应——更正注本身写错数 → 打回。
-10. **复核报告自身 5 处行号偏差不得被照抄**（逐条实测覆核；**报告 pin 值与本方案自纠值分列**）：§9.4 `plan:421`（报告 pin）→自纠 **423**（R11）；§9.4 `cloud_goals 1374-1397`（报告 pin）→自纠 **1372-1399**；报告 :105 `solve_global.rs:450-456`（报告 pin）→自纠 **449-456**（块起点 449、`:451` 变异点）；§0.2（:40）+§11.4（:419/:420）deobf `8361-8369`（报告 pin，**报告无 §0.4**——原稿引错）→自纠 **8361-8368**（8369=ROS 体）；§11.1（:382）+§11.4（:420）各一处 `plan:344`（报告 pin）→自纠 **345**（344 空行）。本方案已按实测修正；若执行件或报告修订沿用报告原数 → 打回。
-11. **判据必须排除检索面中的审计文档自身**（对抗复核 R1/R2 实际踩中）：凡 `grep` 类判据先列「预期命中文件集」，显式 `grep -v` 本方案与两份复核报告（`2026-11-13-solver-batch3-review.md`、`2026-11-14-batch3-yellow-fix-plan-review.md`、`2026-11-14-batch3-yellow-fix-plan.md`）再比数；判据在方案入库（`e4b19a6`）前后期望值不同，须注明口径（如 §4.3「现值 3 / 笔1 后 0」）。
+10. **批3 复核报告（`2026-11-13-solver-batch3-review.md`）自身 5 处行号偏差不得被照抄**（逐条实测覆核；**报告 pin 值与本方案自纠值分列**）：§9.4 `plan:421`（报告 pin）→自纠 **423**（R11）；§9.4 `cloud_goals 1374-1397`（报告 pin）→自纠 **1372-1399**；报告 :105 `solve_global.rs:450-456`（报告 pin）→自纠 **449-456**（块起点 449、`:451` 变异点）；§0.2（:40）+§11.4（:419/:420）deobf `8361-8369`（报告 pin，**报告无 §0.4**——原稿引错）→自纠 **8361-8368**（8369=ROS 体）；§11.1（:382）+§11.4（:420）各一处 `plan:344`（报告 pin）→自纠 **345**（344 空行）。本方案已按实测修正；若执行件或报告修订沿用报告原数 → 打回。
+11. **判据必须排除检索面中的审计文档自身**（对抗复核 R1/R2 实际踩中）：凡 `grep` 类判据先列「预期命中文件集」，显式 `grep -v` 本方案与全部复核报告（`2026-11-13-solver-batch3-review.md`、`2026-11-14-batch3-yellow-fix-plan-review.md`、`2026-11-14-batch3-yellow-fix-plan-rereview.md`、`2026-11-14-batch3-yellow-fix-exec-review.md`、`2026-11-14-batch3-yellow-fix-plan.md`）再比数；判据在方案入库（`e4b19a6`）前后期望值不同，须注明口径（如 §4.3「现值 3 / 笔1 后 0」）。
 12. **`gates/cli.py` 子命令存在性预演**（对抗复核 R1）：任何判据引用 CLI 子命令前先无参 `python3 gates/cli.py` 对 COMMANDS 键表——`docs-links` 实测 `exit=2`（键表无此键），docs-links 只能经 `check`/`all` 跑；预演要在写判据时做，不能等执行时才发现。
-13. **对复核报告章节号的引用逐个核**（对抗复核 Y1）：`grep -c '^### 0\.4'`/`grep -n '8361-8369'`/`grep -n 'plan:344'` 实测——报告**无 §0.4**；`8361-8369` 在 §0.2（:40）+§11.4（:419/:420）；`plan:344` 在 §11.1（:382）+§11.4（:420）。本方案原引 `§0.4`、`§11.4 两处` 已改（§5.1/§8.10）。
+13. **对批3 复核报告（`2026-11-13-solver-batch3-review.md`）章节号的引用逐个核**（对抗复核 Y1）：`grep -c '^### 0\.4'`/`grep -n '8361-8369'`/`grep -n 'plan:344'` 实测——报告**无 §0.4**；`8361-8369` 在 §0.2（:40）+§11.4（:419/:420）；`plan:344` 在 §11.1（:382）+§11.4（:420）。本方案原引 `§0.4`、`§11.4 两处` 已改（§5.1/§8.10）。
 14. **`git log -S` 类历史判据会被本方案自身 commit 推翻**（对抗复核 R2）：无排除的 `-S'上确界'`/`-S'支配吸收'` 自 `e4b19a6` 起命中方案自身（复核时各=1，本修订笔后各=2，随方案修订继续增长）——历史判据须 pathspec `:(exclude)` 本方案文件（§6.2 判据已改），或注明「除方案自身外」；预期值必须按「判据文档自身也是仓内变更」重算。
 
 ---
