@@ -14,13 +14,13 @@
 //! 同输入同解由批2 同款双跑测试钉死（C4）。
 
 use crate::solve_local::{
-    solve_layer_with, sprite_full, take_layer_trunc, ClosurePolicy, EntRec, LevelSpec,
+    solve_layer_with, sprite_full, take_layer_trunc, ClosurePolicy, EntRec, ExitKind, LevelSpec,
     PlayerSpec, SolveInput,
 };
 use crate::state::{CanonicalBag, DiscreteGold, DiscreteHp, ScriptFlags, SolverState};
 use game_core::subsystem::script_host::entity_category_with_floor;
 use std::cmp::Reverse;
-use std::collections::{BinaryHeap, BTreeMap, VecDeque};
+use std::collections::{BinaryHeap, BTreeMap, BTreeSet, VecDeque};
 
 /// 全局求解输入。
 #[derive(Debug, Clone)]
@@ -260,7 +260,7 @@ pub fn solve_global_with(input: &GlobalInput, node_cap: u64, policy: ClosurePoli
 /// 上限让判据③ 命令可完成且确定性可复跑。默认值实测标定：gauge 50_000→2m26s
 /// （exp17532、~120 exp/s）⇒ 100_000≈4-5min/跑、双跑≈10min、内存 ~1-2GB；
 /// env 可调（求解深度优先场景调大），报审记录该口径。
-fn node_cap_env() -> u64 {
+pub fn node_cap_env() -> u64 {
     std::env::var("SOLVER_NODE_LIMIT")
         .ok()
         .and_then(|v| v.parse().ok())
@@ -279,6 +279,12 @@ pub fn solve_global_capped_with(
     node_cap: u64,
     policy: ClosurePolicy,
 ) -> GlobalResult {
+    // C4-b′ 资源预留 landmark 静态表（每次 solve 构造一次；层图极小）
+    let landmark = if input.floors.contains_key(&50) {
+        Some(build_landmark(&input.floors))
+    } else {
+        None // 玩具缺 floor50 ⇒ 无 Ending 目标 ⇒ 整体跳过 landmark（保既有测试）
+    };
     // 每层 SolveInput 预构造（difficulty=0=BR-4；LevelSpec 每层只 clone 一次）
     let mut per_floor: BTreeMap<i32, SolveInput> = BTreeMap::new();
     for (f, spec) in &input.floors {
@@ -354,6 +360,19 @@ pub fn solve_global_capped_with(
             // C6h：全局节点上限（arena 内存+运行时双守卫；确定性触发）
             node_cap_hit = true;
             break;
+        }
+        // C4-b′ 资源预留 landmark：资源下界不足的必死态在**进层搜索之前**剪掉
+        // （expansions 不计 —— 判据 `solve_global_t资源预留landmark_红耗尽必死态被剪_红绿对照`
+        //  要求红耗尽态 expansions==0）。三色任一不足即剪；护栏见 `landmark_dead`。
+        if let Some(lm) = &landmark {
+            let st_ref = &nodes[id as usize].st;
+            if input.floors.contains_key(&50)
+                && (landmark_dead(lm, 50, st_ref, 0)
+                    || landmark_dead(lm, 50, st_ref, 1)
+                    || landmark_dead(lm, 50, st_ref, 2))
+            {
+                continue;
+            }
         }
         expansions += 1;
         let st = nodes[id as usize].st.clone();
@@ -589,6 +608,232 @@ fn push_state(
 /// **仅楼梯**——见函数内 ±1 剔除注）；图外层=`u32::MAX` 最后弹出（仍会被探索=
 /// 完备性不依赖启发式）。解环：51-54 环经 f1（f54 ty7→1）由 f24 链反向注入。
 /// 确定性：BTreeMap 迭代+pred 排序+BFS 队列序全固定。
+// ============ C4-b′ 资源预留 landmark（用户/lead 2026-11-15 裁定：正中根因①） ============
+// 诊断：搜索把红钥匙提前花在中途红门上 ⇒ 到 f16+ 手里无红；而 f20 上行唯一前置=1 红
+// （探针 `probe_c4_f17_f20_up`：0keys/9Y/9B 均 up=0、9R up=75）⇒ 任何「到达 f20 前
+// 红耗光」的状态必死。本 landmark 对每色 c 求**资源下界**：
+//   needed(c) = 从 st.floor 到目标层（50=Ending 规则）沿途**最少要开 c 色门数**
+//   avail(c)  = 手里 c 色钥匙 + **零门可达层**里还没捡的 c 色钥匙实体
+//   avail(c) < needed(c) ⇒ 必死 ⇒ 在进层搜索**之前**剪掉（expansions 不加）。
+// 音性：层图边只用 ty7/8 梯 +（背包有 21/22 时）符 ±1；**当前层用入场格精确门数**、
+// 其它层用全图 min（乐观 ⇒ 下界 ⇒ 不会误剪）。两道护栏：①目标层不可达（图缺
+// Script 边）⇒ 不剪 ②零门可达层里有 `ExitKind::Script` 出口 ⇒ 不剪（脚本可能绕过）。
+// 只用网格 + 门/怪清单，**不重算战斗** ⇒ 方案 B 合规。
+
+const LOCK_INF: u32 = u32::MAX;
+
+/// 单层静态通行格 `(walkable || stair_like) && !blocked` 与门色（-1=无门，0黄1蓝2红）。
+fn lock_grids(level: &LevelSpec, floor: i32) -> (Vec<bool>, Vec<i8>) {
+    let n = (level.cols * level.rows) as usize;
+    let mut open: Vec<bool> = level.terrain.iter().copied().collect();
+    let mut stair = vec![false; n];
+    let mut blocked = vec![false; n];
+    let mut door = vec![-1i8; n];
+    for e in &level.entities {
+        let i = e.y as usize * level.cols as usize + e.x as usize;
+        if i >= n {
+            continue;
+        }
+        if entity_category_with_floor(e.ty, floor) != 1 {
+            continue;
+        }
+        match e.ty {
+            1 | 2 | 3 => door[i] = if e.ty == 1 { 0 } else if e.ty == 2 { 1 } else { 2 },
+            6 | 7 | 8 => stair[i] = true,
+            9 | 10 | 11 | 12 | 32 => blocked[i] = true,
+            _ => {}
+        }
+    }
+    for i in 0..n {
+        open[i] = (open[i] || stair[i]) && !blocked[i];
+    }
+    (open, door)
+}
+
+/// 0-1 BFS：从 (sx,sy) 出发，代价 = 该色门数；不可达 = `LOCK_INF`。
+fn lock_bfs(
+    open: &[bool],
+    door: &[i8],
+    cols: usize,
+    rows: usize,
+    sx: usize,
+    sy: usize,
+    color: i8,
+) -> Vec<u32> {
+    let mut dist = vec![LOCK_INF; cols * rows];
+    if sx >= cols || sy >= rows {
+        return dist;
+    }
+    let start = sy * cols + sx;
+    if !open[start] {
+        return dist;
+    }
+    let mut dq = VecDeque::new();
+    dist[start] = 0;
+    dq.push_back(start);
+    while let Some(i) = dq.pop_front() {
+        let d = dist[i];
+        let (x, y) = (i % cols, i / cols);
+        for (dx, dy) in [(0i32, -1i32), (0, 1), (-1, 0), (1, 0)] {
+            let (nx, ny) = (x as i32 + dx, y as i32 + dy);
+            if nx < 0 || ny < 0 || nx as usize >= cols || ny as usize >= rows {
+                continue;
+            }
+            let j = ny as usize * cols + nx as usize;
+            if !open[j] {
+                continue;
+            }
+            let w = if door[j] == color { 1u32 } else { 0 };
+            if d + w < dist[j] {
+                dist[j] = d + w;
+                if w == 0 {
+                    dq.push_front(j);
+                } else {
+                    dq.push_back(j);
+                }
+            }
+        }
+    }
+    dist
+}
+
+/// 静态门锁下界表（每次 solve 构造一次）。
+struct LandmarkLocks {
+    /// lock[floor][目标层][tile] = [黄,红,蓝] 该格到该出口梯的最少门数
+    /// （序与 `lock_grids` 的 `ty1=>0黄 / ty2=>1红 / ty3=>2蓝` 一致）
+    table: BTreeMap<i32, BTreeMap<i32, Vec<[u8; 3]>>>,
+    /// 每 (floor,目标层) 的全图最小值（非当前层的乐观下界）
+    minima: BTreeMap<(i32, i32), [u8; 3]>,
+    /// 层图边 from → [(to, 出口 x, 出口 y)]
+    edges: BTreeMap<i32, Vec<(i32, i32, i32)>>,
+    /// 各层列宽（定位 st.pos 在 lock 表里的下标）
+    cols: BTreeMap<i32, usize>,
+    /// 含 `ExitKind::Script` 出口的层（脚本可能绕过资源 ⇒ 保守不剪）
+    script_floors: BTreeSet<i32>,
+}
+
+fn build_landmark(floors: &BTreeMap<i32, LevelSpec>) -> LandmarkLocks {
+    let mut lk = LandmarkLocks {
+        table: BTreeMap::new(),
+        minima: BTreeMap::new(),
+        edges: BTreeMap::new(),
+        cols: BTreeMap::new(),
+        script_floors: BTreeSet::new(),
+    };
+    for (&f, level) in floors {
+        let cols = level.cols as usize;
+        let rows = level.rows as usize;
+        lk.cols.insert(f, cols);
+        for x in &level.exits {
+            if x.kind == ExitKind::Script {
+                lk.script_floors.insert(f);
+            }
+        }
+        let (open, door) = lock_grids(level, f);
+        for e in &level.entities {
+            if e.ty != 7 && e.ty != 8 {
+                continue;
+            }
+            let t = e.param & 0xff;
+            if !floors.contains_key(&t) {
+                continue;
+            }
+            lk.edges.entry(f).or_default().push((t, e.x, e.y));
+            let mut per_tile = vec![[u8::MAX; 3]; cols * rows];
+            let mut mins = [u8::MAX; 3];
+            for c in 0..3 {
+                let d = lock_bfs(&open, &door, cols, rows, e.x as usize, e.y as usize, c as i8);
+                for i in 0..cols * rows {
+                    let v = if d[i] == LOCK_INF { u8::MAX } else { d[i] as u8 };
+                    per_tile[i][c] = v;
+                    if v < mins[c] {
+                        mins[c] = v;
+                    }
+                }
+            }
+            lk.table.entry(f).or_default().insert(t, per_tile);
+            lk.minima.insert((f, t), mins);
+        }
+    }
+    lk
+}
+
+/// 0-1 BFS 层图：`st.floor → 各层` 的最少开门数（该色）。
+/// 当前层用入场格**精确**门数（下界仍成立且够紧）；其它层用全图 min（乐观 ⇒ 低估 ⇒ 不会误剪）。
+fn floor_dist_map(lk: &LandmarkLocks, st: &GSt, color: usize) -> BTreeMap<i32, u32> {
+    let mut dist: BTreeMap<i32, u32> = BTreeMap::new();
+    let mut dq = VecDeque::new();
+    dist.insert(st.floor, 0);
+    dq.push_back(st.floor);
+    while let Some(f) = dq.pop_front() {
+        let d = dist[&f];
+        for (t, _ex, _ey) in lk.edges.get(&f).into_iter().flatten() {
+            let w: u32 = if f == st.floor {
+                match lk.table.get(&f).and_then(|m| m.get(t)) {
+                    Some(tab) => {
+                        let cols = lk.cols.get(&f).copied().unwrap_or(0);
+                        let idx = st.pos.1 as usize * cols + st.pos.0 as usize;
+                        let v = tab.get(idx).map(|a| a[color]).unwrap_or(u8::MAX);
+                        if v == u8::MAX { LOCK_INF } else { v as u32 }
+                    }
+                    None => lk.minima.get(&(f, *t)).map(|m| m[color] as u32).unwrap_or(0),
+                }
+            } else {
+                lk.minima.get(&(f, *t)).map(|m| m[color] as u32).unwrap_or(0)
+            };
+            if w == LOCK_INF { continue; }
+            let nd = d + w;
+            if nd < dist.get(t).copied().unwrap_or(LOCK_INF) {
+                dist.insert(*t, nd);
+                if w == 0 { dq.push_front(*t); } else { dq.push_back(*t); }
+            }
+        }
+    }
+    dist
+}
+
+/// C4-b′ 判定：该色资源下界不足 ⇒ 该态必死（保守：仅在下界确凿时返回 true）。
+fn landmark_dead(lk: &LandmarkLocks, goal: i32, st: &GSt, color: usize) -> bool {
+    let dist = floor_dist_map(lk, st, color);
+    let needed = dist.get(&goal).copied().unwrap_or(LOCK_INF);
+    if needed == LOCK_INF || needed == 0 {
+        return false; // 目标不可达（图缺 Script 边）或无需开门 ⇒ 不剪（护栏①）
+    }
+    let zero: Vec<i32> = dist.iter().filter(|(_, &d)| d == 0).map(|(&f, _)| f).collect();
+    for &f in &zero {
+        if lk.script_floors.contains(&f) {
+            return false; // 护栏②：脚本可能绕过资源 ⇒ 保守不剪
+        }
+    }
+    let key_ty = [26, 27, 28][color];
+    // 门映射（combat.rs:166-168 / scene.rs:3397-3399）：ty1黄→26、ty2红→27、ty3蓝→28
+    // ⇒ color 序 0=黄 1=红 2=蓝（`lock_grids` 的 `1=>0,2=>1,3=>2` 同序）
+    let held = [st.player.yellow, st.player.red, st.player.blue][color] as u32;
+    // 只计「真拿得到」的钥匙：钥匙格必须能在本层以 0 代价走到某个出口（`lock==0`；
+    // 图无向 ⇒ 等价于从入场格 0 代价走到钥匙格）。封口袋里的钥匙一律不计——
+    // 实测 f14 的 ty27@(10,1) 连 9+9+9 全钥匙都拿不到
+    // （probe_c4_f14_red_key_reachability），计进来会让 avail 虚高 ⇒ 该剪的死态剪不掉
+    // （C4-b′ 首版真数据 0 剪的根因）。
+    let mut avail = held;
+    for &f in &zero {
+        let Some(v) = st.ents.get(&f) else { continue };
+        let Some(ft) = lk.table.get(&f) else { continue };
+        let Some(&cols) = lk.cols.get(&f) else { continue };
+        for r in v.iter().filter(|r| r.ty == key_ty) {
+            let tile = r.y as usize * cols + r.x as usize;
+            // 只排除「被墙封死」的钥匙（lock = u8::MAX = LOCK_INF 的表内表示）。
+            // 门后的钥匙照计——过门是「先花后用」的同一笔开销（判据 ③ 依赖这一点）。
+            if ft
+                .values()
+                .any(|by_tile| by_tile.get(tile).is_some_and(|c| c[color] != u8::MAX))
+            {
+                avail += 1;
+            }
+        }
+    }
+    avail < needed
+}
+
 fn floor_chain_dist(floors: &BTreeMap<i32, LevelSpec>) -> BTreeMap<i32, u32> {
     let mut radj: BTreeMap<i32, Vec<i32>> = BTreeMap::new();
     for (f, spec) in floors {

@@ -13,7 +13,8 @@
 //! `resolve_bump`/`predict_engagement` 按 `idx=(t-41)` 稠密下标（battle.rs:105/130）。
 use game_data::defs::EnemyDef;
 use game_core::combat::{scale_enemy_stats, CombatTables, PlayerCombat};
-use game_solver::solve_global::{solve_global, to_solver_state, GlobalInput};
+use game_solver::solve_global::{solve_global, solve_global_with, to_solver_state, GlobalInput};
+use game_solver::solve_local::ClosurePolicy;
 use game_solver::state::{CanonicalBag, DiscreteGold, DiscreteHp, ScriptFlags, SolverState};
 use game_solver::solve_local::{
     load_floor, solve_layer, EntRec, EntSpec, ExitKind, ExitSpec, LevelSpec, PlayerSpec,
@@ -1164,4 +1165,114 @@ fn solve_global_t根在出口仍扩展() {
         "根在出口 (1,11) 应记录后仍扩展出更多目标：goals={}",
         goals.len()
     );
+}
+
+/// C4-b′ 资源预留 landmark 夹具：floor1 = 「上行梯被红门锁死」的走廊层。
+/// 3×3：可走 = 整行 y=0、整行 y=2、中格 (1,1)；(0,1)/(2,1) 是墙 ⇒ (1,1) 是
+/// 入场 (1,2) → 上行梯 (1,0) 的**唯一通路**（红门 ty3 即割）。
+/// `with_key` = 是否在 y=2 行放一把红钥匙 ty27（「还有得捡」对照用）。
+fn red_lock_floor(with_key: bool) -> LevelSpec {
+    let mut terrain = vec![false; 3 * 3];
+    for x in 0..3 {
+        terrain[0 * 3 + x] = true; // y=0 行（上行梯所在）
+        terrain[2 * 3 + x] = true; // y=2 行（入场所在）
+    }
+    terrain[1 * 3 + 1] = true; // 中格 (1,1)
+    let mut entities = vec![
+        // ty2 = **红门**（combat.rs door_code 26黄/27红/28蓝 ↔ scene.rs:3397-3399 1黄/2红/_蓝）
+        EntSpec { ty: 2, x: 1, y: 1, param: 0 },
+        EntSpec { ty: 7, x: 1, y: 0, param: 50 }, // 上行梯 → floor50
+    ];
+    if with_key {
+        entities.push(EntSpec { ty: 27, x: 0, y: 2, param: 0 });
+    }
+    LevelSpec {
+        cols: 3,
+        rows: 3,
+        terrain,
+        start: (1, 2),
+        entities,
+        exits: vec![ExitSpec {
+            x: 1,
+            y: 0,
+            kind: ExitKind::Stair,
+            index: 1,
+        }],
+        player: player(),
+        enemies: enemies(),
+        enemy_base: enemies(),
+        flags: 0,
+    }
+}
+
+/// C4-b′ 资源预留 landmark 判据（建议2 资源下界形态；用户/lead 2026-11-15 裁定）：
+/// 通往 floor50 必须过红门 ⇒ **任何「红已耗尽且可及范围内无红可捡」的态必死**，
+/// 应在进层搜索**之前**被剪（expansions==0），而不是烧掉一次层搜索。
+/// 红绿证据 = ①剪 ②手里有红不剪 ③层内还有 ty27 可捡（avail≥1）不剪。
+#[test]
+fn solve_global_t资源预留landmark_红耗尽必死态被剪_红绿对照() {
+    // ① 红=0 + 全世无 ty27 ⇒ 可及范围内 red_avail=0 < red_needed=1 ⇒ 剪
+    let mut floors: BTreeMap<i32, LevelSpec> = BTreeMap::new();
+    floors.insert(1, red_lock_floor(false));
+    floors.insert(50, floor50_nodoor());
+    let r = game_solver::solve_global::solve_global_capped(
+        &GlobalInput {
+            floors,
+            start_floor: 1,
+            start_pos: (1, 2),
+            start_player: player(),
+            start_flags: 0,
+            bound: 10_000,
+        },
+        100_000,
+    );
+    assert!(r.goals.is_empty(), "红耗尽不应有解：{r:?}");
+    assert_eq!(
+        r.expansions, 0,
+        "红耗尽必死态必须在层搜索前被剪（expansions=0）：{r:?}"
+    );
+
+    // ② 手里红=1 ⇒ avail≥needed ⇒ 不剪 ⇒ 开门上行 → floor50 → Ending
+    let mut floors2: BTreeMap<i32, LevelSpec> = BTreeMap::new();
+    floors2.insert(1, red_lock_floor(false));
+    floors2.insert(50, floor50_nodoor());
+    let mut p2 = player();
+    p2.red = 1;
+    let r2 = game_solver::solve_global::solve_global_capped(
+        &GlobalInput {
+            floors: floors2,
+            start_floor: 1,
+            start_pos: (1, 2),
+            start_player: p2,
+            start_flags: 0,
+            bound: 10_000,
+        },
+        100_000,
+    );
+    assert!(
+        !r2.goals.is_empty(),
+        "手里有红不应被剪、应能通关：{r2:?}"
+    );
+    assert!(r2.expansions > 0, "② 必须真的扩展过：{r2:?}");
+
+    // ③ 红=0 但层内 ty27 还没捡 ⇒ red_avail≥1 ⇒ 不剪 ⇒ 拾红开门通关
+    let mut floors3: BTreeMap<i32, LevelSpec> = BTreeMap::new();
+    floors3.insert(1, red_lock_floor(true));
+    floors3.insert(50, floor50_nodoor());
+    let r3 = game_solver::solve_global::solve_global_capped(
+        &GlobalInput {
+            floors: floors3,
+            start_floor: 1,
+            start_pos: (1, 2),
+            start_player: player(),
+            start_flags: 0,
+            bound: 10_000,
+        },
+        100_000,
+    );
+    assert!(
+        !r3.goals.is_empty(),
+        "层内还有红可捡 ⇒ 不得剪（avail 下界要数可及 ty27）：{r3:?}"
+    );
+    assert!(r3.expansions > 0, "③ 必须真的扩展过：{r3:?}");
 }
