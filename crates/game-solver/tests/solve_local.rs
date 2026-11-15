@@ -8,7 +8,8 @@ use game_data::defs::EnemyDef;
 use game_core::combat::{scale_enemy_stats, CombatTables, PlayerCombat};
 use game_core::scene_test_support::scene;
 use game_solver::solve_local::{
-    probe_bump, probe_gate, solve_local, EntSpec, ExitKind, ExitSpec, LevelSpec, PlayerSpec,
+    probe_bump, probe_gate, solve_local, solve_layer_with, ClosurePolicy, EntSpec, ExitKind,
+    ExitSpec, LevelSpec, PlayerSpec,
     SolveInput,
 };
 use std::path::PathBuf;
@@ -845,4 +846,79 @@ fn p2s1_t8_solve_local_暗墙与胜利夹具() {
             "type{ty} 无出口不可达（胜利非换层终止边判别）：{r2:?}"
         );
     }
+}
+
+// ---------------- 批4 C4-a 贪心零决策闭包（survey §4-1，判据钉） ----------------
+
+/// C4-a 夹具：4×2 全可走——start(0,1)、出口 Stair(3,1)；
+/// ty41 零伤怪 @(1,0)（**旁路**：主路 y=1 不经它）、ty36 终极武器 @(2,0)（**旁路**）。
+/// def18 ≥ ty41 atk18 ⇒ `predict_engagement` loss=0（fixture_split 同源数值）。
+fn fixture_closure() -> SolveInput {
+    let (base, scaled) = enemy_tables();
+    let level = LevelSpec {
+        cols: 4,
+        rows: 2,
+        terrain: vec![true; 8],
+        start: (0, 1),
+        entities: vec![
+            EntSpec { ty: 41, x: 1, y: 0, param: 0 },
+            EntSpec { ty: 36, x: 2, y: 0, param: 0 },
+            EntSpec { ty: 7, x: 3, y: 1, param: 2 },
+        ],
+        exits: vec![ExitSpec { x: 3, y: 1, kind: ExitKind::Stair, index: 1 }],
+        player: PlayerSpec::from_combat(player(300, 10, 18)),
+        enemies: scaled,
+        enemy_base: base,
+        flags: 0,
+    };
+    SolveInput { floor: 1, difficulty: 0, level: Some(level) }
+}
+
+/// 【C4-a 判据钉①】闭包谓词按查询参数化：Q1 全收零伤怪 ⇒ 所有解含 bump；
+/// **Q2 旁路零伤怪绝不自动收 ⇒ 必须存在 0 杀解**（任务书点名的钉）。
+#[test]
+fn c4a_闭包参数化_Q2旁路零伤怪不被自动收() {
+    let input = fixture_closure();
+    let p = || PlayerSpec::from_combat(player(300, 10, 18));
+
+    let (ok1, g1) = solve_layer_with(&input, (0, 1), None, p(), 0, ClosurePolicy::q1());
+    assert!(ok1, "Q1 应可达：{g1:?}");
+    assert!(!g1.is_empty());
+    assert!(
+        g1.iter().all(|g| g.kills >= 1 && g.route.iter().any(|w| w.starts_with("bump "))),
+        "Q1 零伤怪全收 ⇒ 每条解都含 bump：{:?}",
+        g1.iter().map(|g| (&g.kills, &g.route)).collect::<Vec<_>>()
+    );
+
+    let (ok2, g2) = solve_layer_with(&input, (0, 1), None, p(), 0, ClosurePolicy::q2());
+    assert!(ok2, "Q2 应可达：{g2:?}");
+    assert!(
+        g2.iter().any(|g| g.kills == 0),
+        "Q2 旁路零伤怪绝不自动收 ⇒ 必须有 0 杀解：{:?}",
+        g2.iter().map(|g| (&g.kills, &g.route)).collect::<Vec<_>>()
+    );
+}
+
+/// 【C4-a 判据钉②】Q3 排除被禁道具（Q3_EQUIP_SET=36,40）：闭包不收 36；
+/// Q1 无禁令 ⇒ 收。
+#[test]
+fn c4a_闭包参数化_Q3排除被禁道具() {
+    let input = fixture_closure();
+    let p = || PlayerSpec::from_combat(player(300, 10, 18));
+
+    // ty36 金箍棒=Equip tier5 bonus220 ⇒ 落格即穿（atkrise 10→230，不入 item_types）
+    let (_ok1, g1) = solve_layer_with(&input, (0, 1), None, p(), 0, ClosurePolicy::q1());
+    assert!(
+        g1.iter().any(|g| g.post.atk == 230),
+        "Q1 无禁令 ⇒ 收 36（Equip 即穿 ⇒ atk 10→230）：{:?}",
+        g1.iter().map(|g| (g.post.atk, &g.route)).collect::<Vec<_>>()
+    );
+
+    let (ok3, g3) = solve_layer_with(&input, (0, 1), None, p(), 0, ClosurePolicy::q3());
+    assert!(ok3, "Q3 应可达（36 旁路不挡主路）：{g3:?}");
+    assert!(
+        g3.iter().all(|g| g.post.atk == 10 && !g.post.item_types.contains(&36)),
+        "Q3 被禁道具不得拿（atk 恒 10、包内无 36）：{:?}",
+        g3.iter().map(|g| (g.post.atk, &g.post.item_types)).collect::<Vec<_>>()
+    );
 }

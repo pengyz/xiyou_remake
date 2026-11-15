@@ -35,7 +35,7 @@ use game_core::subsystem::battle::{
 use game_core::subsystem::script_host::entity_category_with_floor;
 use game_data::defs::EnemyDef;
 use std::cell::RefCell;
-use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 
 /// 方向序=上、下、左、右（与 `tools/route_gen.py:29` `KEY` 表同序，提案 §3.3）。
 const DIRS: [(i32, i32); 4] = [(0, -1), (0, 1), (-1, 0), (1, 0)];
@@ -353,6 +353,20 @@ pub fn solve_layer(
     player: PlayerSpec,
     flags: u128,
 ) -> (bool, Vec<LayerGoal>) {
+    solve_layer_with(input, entry, ents, player, flags, ClosurePolicy::OFF)
+}
+
+/// 批4 C4-a：带贪心零决策闭包谓词的层求解（`solve_layer`=谓词 `OFF` 的转发，
+/// 批0-3 回归判据「逐层拼接==全局解」在 OFF 下逐字节不变）。
+/// 缓存键含 `policy`——同层不同谓词是不同纯函数，不许串味。
+pub fn solve_layer_with(
+    input: &SolveInput,
+    entry: (i32, i32),
+    ents: Option<&[EntRec]>,
+    player: PlayerSpec,
+    flags: u128,
+    policy: ClosurePolicy,
+) -> (bool, Vec<LayerGoal>) {
     LAYER_TRUNC.with(|f| f.set(None));
     let Some(level) = input.level.as_ref() else {
         return (false, Vec::new());
@@ -370,6 +384,7 @@ pub fn solve_layer(
         flags,
         root_ents.clone(),
         level_digest(input),
+        policy,
     );
     if let Some((hit_ok, hit_goals, hit_trunc)) =
         LAYER_MEMO.with(|m| m.borrow().get(&memo_key).cloned())
@@ -379,6 +394,7 @@ pub fn solve_layer(
     }
     let mut search = Search::from_entry(input, level, entry);
     search.cloud = true; // 批3 C3b：层间路径开筋斗云候选（批2 solve_local/run 关）
+    search.policy = policy; // 批4 C4-a：闭包谓词注入
     let (reachable, goals) = search.run_root(entry, root_ents, player, flags);
     // C5d′：层出口同态归并——同 (kind, cross_edge, post 全态) 组内 (kills,steps)
     // 支配剪枝（组内 hp 在键里=相等）。全局 push_state 对同 K₀ 子态做同样弱支配
@@ -422,7 +438,7 @@ thread_local! {
     /// 加速、不改输出与遍历序（确定性不受影响）。
     static LAYER_MEMO: RefCell<
         HashMap<
-            (i32, (i32, i32), PlayerSpec, u128, Vec<EntRec>, u64),
+            (i32, (i32, i32), PlayerSpec, u128, Vec<EntRec>, u64, ClosurePolicy),
             (bool, Vec<LayerGoal>, Option<(i32, usize)>),
         >,
     > = RefCell::new(HashMap::new());
@@ -938,6 +954,73 @@ fn consume_item(p: &mut PlayerSpec, item: u8) {
 
 
 
+/// 批4 C4-a：贪心零决策闭包的**杀怪档**（survey §4-1 三查询谓词参数化）。
+/// 零伤怪（`predict_engagement` 损失=0）杀之不掉血，但**加 kills** ⇒ 三查询语义不同：
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+pub enum KillMode {
+    /// 绝不自动杀（Q2 最少杀怪：旁路零伤怪收了=白加 kills，任务书点名禁）
+    Never,
+    /// 全收：可达域内所有零伤怪（Q1 血量最大 / Q3 不拿终极装备——两者都不以杀怪为代价）
+    All,
+    /// 只收「挡路必杀」的（Q2 的放行档：该怪是通往被门禁目标的必经通路）
+    Blocking,
+}
+
+/// 批4 C4-a：贪心零决策闭包谓词（survey §4-1；magic-tower-AI `eatItem` 改造版）。
+/// 闭包只决定「哪些转移是**确定性的**」——拾取/伤害仍由 `pickup_step`/`bump_outcome`
+/// 真引擎判定（方案 B：❌不自算战斗、❌不第二套模型）。
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+pub struct ClosurePolicy {
+    /// 自动拾取可达道具（Q1/Q2/Q3 皆 true；false=闭包关闭拾取臂）
+    pub pickup: bool,
+    /// 零伤怪档（见 [`KillMode`]）
+    pub kill_zero: KillMode,
+    /// 永不自动拾取的道具类型（Q3=`Q3_EQUIP_SET` 36,40；禁令同时把该格判 `Blocked`——
+    /// 引擎「踩格即拾」⇒ 不拿就不能踩，否则 Q3 可靠路过偷拿终极装备）
+    pub ban: &'static [i32],
+}
+
+impl ClosurePolicy {
+    /// 关（批0-3 既有测试与回归判据的默认面：零行为变化）
+    pub const OFF: Self = Self {
+        pickup: false,
+        kill_zero: KillMode::Never,
+        ban: &[],
+    };
+    /// Q1 剩余血量最大：零伤怪与道具全收（免费的都要）
+    pub fn q1() -> Self {
+        Self {
+            pickup: true,
+            kill_zero: KillMode::All,
+            ban: &[],
+        }
+    }
+    /// Q2 最少杀怪：道具照收，**零伤怪只收挡路必杀的**（旁路绝不自动收）
+    pub fn q2() -> Self {
+        Self {
+            pickup: true,
+            kill_zero: KillMode::Blocking,
+            ban: &[],
+        }
+    }
+    /// Q3 不拿终极装备能否通关：同 Q1，但排除被禁道具
+    pub fn q3() -> Self {
+        Self {
+            pickup: true,
+            kill_zero: KillMode::All,
+            ban: crate::state::Q3_EQUIP_SET,
+        }
+    }
+}
+
+/// 批4 C4-a：闭包候选（`closure_step` 取最小键者）。
+enum ClosureCand {
+    /// 可达域内的拾取格
+    Pick((i32, i32)),
+    /// 邻接可达域的零伤怪（格, 槽, ty）
+    Kill((i32, i32), usize, i32),
+}
+
 struct Search<'a> {
     input: &'a SolveInput,
     level: &'a LevelSpec,
@@ -949,6 +1032,8 @@ struct Search<'a> {
     /// 批2 `solve_local`/`run()` 保持 false——批2 裁定「UseItem 裁出⇒无筋斗云
     /// 换层边」零回归。
     cloud: bool,
+    /// 批4 C4-a：贪心零决策闭包谓词（默认 `OFF`=批0-3 零行为变化）
+    policy: ClosurePolicy,
 }
 
 impl<'a> Search<'a> {
@@ -974,6 +1059,7 @@ impl<'a> Search<'a> {
                 .find(|e| e.ty == 8)
                 .map(|e| (e.x, e.y)),
             cloud: false,
+            policy: ClosurePolicy::OFF,
         }
     }
 
@@ -987,6 +1073,7 @@ impl<'a> Search<'a> {
         let mut monster: Option<(usize, i32)> = None;
         let mut door: Option<(usize, i32)> = None;
         let mut pickup = false;
+        let mut pickup_ty: Option<i32> = None;
         let mut blocked = false;
         let mut stair_like = false;
         for (slot, e) in st.ents.iter().enumerate() {
@@ -1019,7 +1106,12 @@ impl<'a> Search<'a> {
                     _ => {}
                 },
                 // 2|4 道物（C6 拾取转移：harness try_step 落格触发 pickup_item_type）
-                2 | 4 => pickup = true,
+                2 | 4 => {
+                    pickup = true;
+                    if pickup_ty.is_none() {
+                        pickup_ty = Some(e.ty);
+                    }
+                }
                 // 32 联动门（type72/84/87）：interact 面恒阻挡（a.java:5527 /
                 // scene.rs:3664 `32 => allowed = false`）。floor1 上 type72 无层覆写
                 // （sprite_defs floor_category_override 仅 floor50→cat8，
@@ -1043,14 +1135,293 @@ impl<'a> Search<'a> {
         // 怪/拾取并存（批2 夹具无）：战斗优先——打赢后落格才拾取（引擎 interact→apply 时序）
         match (monster, pickup) {
             (Some((slot, ty)), _) => Cell::Monster(slot, ty),
-            (None, true) => Cell::Pickup,
+            (None, true) => {
+                // 批4 C4-a Q3：被禁道具**踩格即拾**（scene.rs pickup_item_type 落格触发）
+                // ⇒ 不拿就不能踩 ⇒ 分类为 Blocked（`ClosurePolicy::OFF` 时 ban 空 ⇒ 恒 Pickup，
+                // 批0-3 零行为变化）。
+                if self.policy.ban.contains(&pickup_ty.unwrap_or(i32::MIN)) {
+                    Cell::Blocked
+                } else {
+                    Cell::Pickup
+                }
+            }
             (None, false) => Cell::Move,
+        }
+    }
+
+    /// 批4 C4-a 闭包用连通性：门/墙恒挡（**开门与杀怪都是决策**），怪格按 `open`
+    /// 槽集放行；出口格照常可走——本函数问的是「杀哪些怪才通」，故不设出口边界。
+    fn reach(&self, st: &St, start: (i32, i32), open: &BTreeSet<usize>) -> BTreeSet<(i32, i32)> {
+        let mut seen: BTreeSet<(i32, i32)> = BTreeSet::new();
+        seen.insert(start);
+        let mut q: VecDeque<(i32, i32)> = VecDeque::new();
+        q.push_back(start);
+        while let Some(p) = q.pop_front() {
+            for &(dx, dy) in &DIRS {
+                let n = (p.0 + dx, p.1 + dy);
+                if n.0 < 0 || n.1 < 0 || n.0 >= self.level.cols || n.1 >= self.level.rows {
+                    continue;
+                }
+                if seen.contains(&n) {
+                    continue;
+                }
+                let ok = match self.classify(st, n.0, n.1) {
+                    Cell::Move | Cell::Pickup => true,
+                    Cell::Monster(slot, _) => open.contains(&slot),
+                    _ => false,
+                };
+                if ok {
+                    seen.insert(n);
+                    q.push_back(n);
+                }
+            }
+        }
+        seen
+    }
+
+    /// 批4 C4-a Q2「挡路必杀」判定：只收**既充分又必要**的零伤怪——
+    /// 充分=只开它就够走到某个被门禁目标；必要=关着它（其余全开）就走不到。
+    /// 旁路怪两条都不满足 ⇒ 绝不自动收（C4-a 判据钉①）。
+    /// 快路径：无被门禁目标（出口/门/道具在无杀可达域内）⇒ 直接空集，0 次 BFS。
+    fn blocking_kill_slots(
+        &self,
+        st: &St,
+        dist: &BTreeMap<(i32, i32), i32>,
+        cands: &[((i32, i32, i32, i32), ClosureCand)],
+    ) -> BTreeSet<usize> {
+        // 目标=出口格 ∪ 门格 ∪ 允许拾取的道具格（被禁道具不是目标）
+        let mut targets: BTreeSet<(i32, i32)> = self.level.exits.iter().map(|e| (e.x, e.y)).collect();
+        for e in &st.ents {
+            let t = (e.x, e.y);
+            match entity_category_with_floor(e.ty, self.input.floor) {
+                1 if matches!(e.ty, 1 | 2 | 3) => {
+                    targets.insert(t);
+                }
+                2 | 4 if !self.policy.ban.contains(&e.ty) => {
+                    targets.insert(t);
+                }
+                _ => {}
+            }
+        }
+        // 被门禁=不在无杀可达域 R0 且无邻格在 R0（出口/门/道具格本身不入 R0）
+        let gated: Vec<(i32, i32)> = targets
+            .into_iter()
+            .filter(|&t| {
+                !dist.contains_key(&t)
+                    && !DIRS
+                        .iter()
+                        .any(|&(dx, dy)| dist.contains_key(&(t.0 + dx, t.1 + dy)))
+            })
+            .collect();
+        if gated.is_empty() {
+            return BTreeSet::new();
+        }
+        // 全怪开仍走不到 ⇒ 瓶颈是门/墙不是怪 ⇒ 谁都不挡路
+        let all: BTreeSet<usize> = (0..st.ents.len()).collect();
+        let r_all = self.reach(st, st.pos, &all);
+        if !gated.iter().any(|&t| r_all.contains(&t)) {
+            return BTreeSet::new();
+        }
+        let mut keep = BTreeSet::new();
+        for (_, c) in cands {
+            let slot = match c {
+                ClosureCand::Kill(_, s, _) => *s,
+                _ => continue,
+            };
+            let mut only = BTreeSet::new();
+            only.insert(slot);
+            let r_only = self.reach(st, st.pos, &only);
+            if !gated.iter().any(|&t| r_only.contains(&t)) {
+                continue; // 不充分（只开它不够）
+            }
+            let mut minus = BTreeSet::new();
+            for s in 0..st.ents.len() {
+                if s != slot {
+                    minus.insert(s);
+                }
+            }
+            let r_minus = self.reach(st, st.pos, &minus);
+            if gated.iter().any(|&t| r_minus.contains(&t)) {
+                continue; // 不必要（别的怪也能通）
+            }
+            keep.insert(slot);
+        }
+        keep
+    }
+
+    /// 批4 C4-a 贪心零决策闭包（survey §4-1；magic-tower-AI `eatItem` 改造版）。
+    ///
+    /// 把「可达即捡的道具 / 零伤可秒的怪」确定性收到不动点，使其**不构成搜索分支**
+    /// （闭包步=唯一后继 ⇒ 分支数不增；收完返回 `None` ⇒ 回到原四臂）。
+    /// 谓词按查询参数化（[`ClosurePolicy`]）：Q1 全收 / Q2 只收挡路必杀 / Q3 排除被禁道具。
+    ///
+    /// 合规（方案 B）：闭包只决定「哪些转移是**确定性的**」——拾取走 `pickup_step`、
+    /// 伤害走 `bump_outcome`（=`resolve_bump`+`predict_engagement`），❌不自算战斗。
+    fn closure_step(&self, st: &St) -> Option<(Act, St, GateArrive)> {
+        let pol = self.policy;
+        if !pol.pickup && pol.kill_zero == KillMode::Never {
+            return None;
+        }
+        // ① 可达域 R（BFS 父链）：只经 Move|Pickup（门/怪/墙停）；
+        //    出口格设边界不走上去——踩出口=决策，不是闭包。
+        let mut dist: BTreeMap<(i32, i32), i32> = BTreeMap::new();
+        let mut from: BTreeMap<(i32, i32), (i32, i32)> = BTreeMap::new();
+        let mut pickups: Vec<(i32, i32)> = Vec::new();
+        let mut q: VecDeque<(i32, i32)> = VecDeque::new();
+        dist.insert(st.pos, 0);
+        q.push_back(st.pos);
+        while let Some(p) = q.pop_front() {
+            let d = dist[&p];
+            for &(dx, dy) in &DIRS {
+                let n = (p.0 + dx, p.1 + dy);
+                if n.0 < 0 || n.1 < 0 || n.0 >= self.level.cols || n.1 >= self.level.rows {
+                    continue;
+                }
+                if dist.contains_key(&n) || self.level.exits.iter().any(|e| (e.x, e.y) == n) {
+                    continue;
+                }
+                match self.classify(st, n.0, n.1) {
+                    Cell::Move => {}
+                    Cell::Pickup => pickups.push(n),
+                    _ => continue,
+                }
+                dist.insert(n, d + 1);
+                from.insert(n, p);
+                q.push_back(n);
+            }
+        }
+        // ② 候选：键=(距离, y, x, kind)——确定性取最小（禁 HashMap 序）
+        let mut best: Option<((i32, i32, i32, i32), ClosureCand)> = None;
+        let mut put = |k: (i32, i32, i32, i32),
+                       c: ClosureCand,
+                       b: &mut Option<((i32, i32, i32, i32), ClosureCand)>| {
+            if b.as_ref().map_or(true, |(bk, _)| k < *bk) {
+                *b = Some((k, c));
+            }
+        };
+        if pol.pickup {
+            for &c in &pickups {
+                put((dist[&c], c.1, c.0, 0), ClosureCand::Pick(c), &mut best);
+            }
+        }
+        if pol.kill_zero != KillMode::Never {
+            let pc = st.player.to_combat();
+            let mut cands: Vec<((i32, i32, i32, i32), ClosureCand)> = Vec::new();
+            for (slot, e) in st.ents.iter().enumerate() {
+                if entity_category_with_floor(e.ty, self.input.floor) != 8 {
+                    continue;
+                }
+                let m = (e.x, e.y);
+                let mut bd = i32::MAX;
+                for &(dx, dy) in &DIRS {
+                    if let Some(&d) = dist.get(&(m.0 + dx, m.1 + dy)) {
+                        bd = bd.min(d + 1);
+                    }
+                }
+                if bd == i32::MAX {
+                    continue; // 与 R 不邻接（杀不到）
+                }
+                if bump_outcome(self.level, &pc, e.ty, slot) != Some(0) {
+                    continue; // 有伤怪=搜索分支，闭包不碰（且 Q1 也不该白挨打）
+                }
+                cands.push(((bd, m.1, m.0, 1), ClosureCand::Kill(m, slot, e.ty)));
+            }
+            if pol.kill_zero == KillMode::Blocking {
+                let keep = self.blocking_kill_slots(st, &dist, &cands);
+                for (k, c) in cands {
+                    let slot = match &c {
+                        ClosureCand::Kill(_, s, _) => *s,
+                        _ => continue,
+                    };
+                    if keep.contains(&slot) {
+                        put(k, c, &mut best);
+                    }
+                }
+            } else {
+                for (k, c) in cands {
+                    put(k, c, &mut best);
+                }
+            }
+        }
+        // ③ 走一步（或已在邻格 ⇒ 直接 bump/pickup）
+        let (_, cand) = best?;
+        let first_step = |t: (i32, i32)| -> Option<(i32, i32)> {
+            let mut cur = t;
+            loop {
+                match from.get(&cur) {
+                    Some(&p) if p == st.pos => return Some(cur),
+                    Some(&p) => cur = p,
+                    None => return None,
+                }
+            }
+        };
+        match cand {
+            ClosureCand::Pick(t) => {
+                let s = first_step(t)?;
+                if s == t {
+                    let mut ns = self.pickup_step(st, s.0, s.1)?;
+                    let g = self.gate_arrive(&mut ns, s.0, s.1);
+                    return Some((Act::Move(s.0, s.1), ns, g));
+                }
+                let mut ns = st.clone();
+                ns.pos = s;
+                ns.steps += 1;
+                let g = self.gate_arrive(&mut ns, s.0, s.1);
+                Some((Act::Move(s.0, s.1), ns, g))
+            }
+            ClosureCand::Kill(m, slot, ety) => {
+                // 邻格=dist 中距 m 最小者
+                let mut adj: Option<(i32, i32)> = None;
+                let mut ad = i32::MAX;
+                for &(dx, dy) in &DIRS {
+                    let n = (m.0 + dx, m.1 + dy);
+                    if let Some(&d) = dist.get(&n) {
+                        if d < ad {
+                            ad = d;
+                            adj = Some(n);
+                        }
+                    }
+                }
+                let adj = adj?;
+                if adj != st.pos {
+                    let s = first_step(adj)?;
+                    let mut ns = st.clone();
+                    ns.pos = s;
+                    ns.steps += 1;
+                    let g = self.gate_arrive(&mut ns, s.0, s.1);
+                    return Some((Act::Move(s.0, s.1), ns, g));
+                }
+                let pc = st.player.to_combat();
+                let loss = bump_outcome(self.level, &pc, ety, slot)?;
+                if loss != 0 {
+                    return None; // 非零伤：不是闭包步（防御；候选侧已滤）
+                }
+                let mut ns = st.clone();
+                ns.player.hp -= loss;
+                ns.kills += 1;
+                ns.ents.remove(slot);
+                ns.pos = m;
+                ns.steps += 1;
+                let gate = if self.input.floor == 50 && ety == 72 {
+                    GateArrive::Ending
+                } else {
+                    GateArrive::Pass
+                };
+                Some((Act::Bump(ety, m.0, m.1), ns, gate))
+            }
         }
     }
 
     /// 后继生成（solver 自算=搜索编排白名单；转移本体全为 §1.3 直调）。
     /// 第三元=到达格 StepGate 结果（C5；仅 Move/Door 到达面——踩格触发）。
     fn expand(&self, st: &St, out: &mut Vec<(Act, St, GateArrive)>) {
+        // 批4 C4-a：闭包步是**唯一**后继（确定性 ⇒ 不增分支）；收完 None ⇒ 原四臂。
+        // 闭包步走普通 Node（parent/act 入链）⇒ `route_of` 天然含闭包移动、
+        // dedup/Pareto 照常、幂等（已收则 `closure_step` 返回 None）。
+        if let Some(s) = self.closure_step(st) {
+            out.push(s);
+            return;
+        }
         for &(dx, dy) in &DIRS {
             let (tx, ty) = (st.pos.0 + dx, st.pos.1 + dy);
             if tx < 0 || ty < 0 || tx >= self.level.cols || ty >= self.level.rows {
