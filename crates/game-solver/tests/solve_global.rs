@@ -1276,3 +1276,43 @@ fn solve_global_t资源预留landmark_红耗尽必死态被剪_红绿对照() {
     );
     assert!(r3.expansions > 0, "③ 必须真的扩展过：{r3:?}");
 }
+
+/// 批4 A4（plan §4 批4 判据）：`query --all` 必须产出 `q1/q2/q3` 三键
+/// （= python assert `{'q1','q2','q3'} <= set(d)` 的 Rust 等价），每键带
+/// `metric`/`value`/`confidence`，控制台行格式与计划预期一致：
+/// `Q1 max_hp=<N>(<置信级>)` / `Q2 min_kills=<M>(<置信级>)` / `Q3 reachable=<true|false>`。
+#[test]
+fn query_all三查询键齐_与plan批4判据一致() {
+    let opts = game_solver::query::QueryOpts {
+        bound: 2_000,
+        node_cap: 5_000,
+        ultimate: vec![36, 40],
+    };
+    let gi = real_global_input(opts.bound);
+    let res = game_solver::query::run_all(&gi, &opts);
+    let doc = game_solver::query::to_doc(&res);
+    for k in ["q1", "q2", "q3"] {
+        assert!(
+            res.contains_key(k),
+            "缺 {k} 键：keys={:?}",
+            res.keys().collect::<Vec<_>>()
+        );
+        assert!(doc.contains(&format!("\"{k}\":")), "落盘 JSON 缺 {k}：{doc}");
+    }
+    assert_eq!(res["q1"].metric, "max_hp");
+    assert_eq!(res["q2"].metric, "min_kills");
+    assert_eq!(res["q3"].metric, "reachable");
+    for r in res.values() {
+        assert!(
+            matches!(r.confidence.as_str(), "optimal" | "bounded-best" | "feasible"),
+            "置信级越界：{}",
+            r.confidence
+        );
+    }
+    let l1 = res["q1"].console_line();
+    let l2 = res["q2"].console_line();
+    let l3 = res["q3"].console_line();
+    assert!(l1.starts_with("Q1 max_hp=") && l1.contains('('), "Q1 行：{l1}");
+    assert!(l2.starts_with("Q2 min_kills=") && l2.contains('('), "Q2 行：{l2}");
+    assert!(l3.starts_with("Q3 reachable="), "Q3 行：{l3}");
+}

@@ -28,7 +28,7 @@ fn mk_player() -> PlayerCombat {
 }
 
 /// C5：真数据全局求解（层间图 1..=54，入场=(1,11) 来自 handoff load_floor(32,352)；I/O 全在本 bin）。
-fn solve_global_real(bound: u64) -> game_solver::solve_global::GlobalResult {
+fn solve_global_input(bound: u64) -> game_solver::solve_global::GlobalInput {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(2)
@@ -89,14 +89,19 @@ fn solve_global_real(bound: u64) -> game_solver::solve_global::GlobalResult {
             }
         }
     }
-    solve_global(&game_solver::solve_global::GlobalInput {
+    game_solver::solve_global::GlobalInput {
         floors,
         start_floor: 51,
         start_pos: (1, 11),
         start_player: PlayerSpec::from_combat(mk_player()),
         start_flags: 0,
         bound,
-    })
+    }
+}
+
+/// 批4：三查询与 `solve-global` 共用同一份真数据输入（只构造一次 `GlobalInput`）。
+fn solve_global_real(bound: u64) -> game_solver::solve_global::GlobalResult {
+    solve_global(&solve_global_input(bound))
 }
 
 fn main() {
@@ -126,7 +131,57 @@ fn main() {
             }
             return;
         }
-        if args.first().map(|s| s.as_str()) == Some("solve-local") {
+    if args.first().map(|s| s.as_str()) == Some("query") {
+        // 批4 A4（plan §4 批4 判据命令）：`query --all [--out PATH]` 三查询。
+        // 预期控制台：Q1 max_hp=<N>(<置信级>) / Q2 min_kills=<M>(<置信级>) / Q3 reachable=<true|false>
+        let all = args.iter().any(|a| a == "--all");
+        let picked: Vec<u8> = [1u8, 2, 3]
+            .iter()
+            .copied()
+            .filter(|q| args.iter().any(|a| a == &format!("q{q}")))
+            .collect();
+        let which: Vec<u8> = if all || picked.is_empty() { vec![1, 2, 3] } else { picked };
+        let num = |flag: &str, dflt: u64| -> u64 {
+            args.iter()
+                .position(|a| a == flag)
+                .and_then(|i| args.get(i + 1))
+                .map(|v| {
+                    v.parse::<f64>()
+                        .map(|f| f as u64)
+                        .unwrap_or_else(|_| panic!("{flag} 需数值（可 1e6）: {v}"))
+                })
+                .unwrap_or(dflt)
+        };
+        let mut opts = game_solver::query::QueryOpts::default();
+        let (d_bound, d_cap) = (opts.bound, opts.node_cap);
+        opts.bound = num("--bound", d_bound);
+        opts.node_cap = num("--node-cap", d_cap);
+        if let Some(i) = args.iter().position(|a| a == "--ultimate") {
+            let v = args.get(i + 1).unwrap_or_else(|| panic!("--ultimate 需整数列表"));
+            opts.ultimate = v
+                .split(',')
+                .map(|s| s.trim().parse::<i32>().unwrap_or_else(|_| panic!("--ultimate 整数列表: {v}")))
+                .collect();
+        }
+        let input = solve_global_input(opts.bound);
+        let mut results = std::collections::BTreeMap::new();
+        for q in which {
+            let r = game_solver::query::run_query(&input, q, &opts);
+            println!("{}", r.console_line());
+            results.insert(r.key.to_string(), r);
+        }
+        if let Some(path) = args
+            .iter()
+            .position(|a| a == "--out")
+            .and_then(|i| args.get(i + 1))
+            .cloned()
+        {
+            let doc = game_solver::query::to_doc(&results);
+            std::fs::write(&path, &doc).unwrap_or_else(|e| panic!("写 {path}: {e}"));
+        }
+        return;
+    }
+    if args.first().map(|s| s.as_str()) == Some("solve-local") {
         // 批2 C1：单层求解子命令（逻辑在 lib::solve_local，壳只在此处解析参数+打印）。
         // C6：floor1 接真数据（I/O 归此 bin=A9 豁免面）；其余层保持占位（T1 恒绿面）。
         let floor = args
@@ -146,7 +201,7 @@ fn main() {
         return;
     }
     if args.first().map(|s| s.as_str()) != Some("ingest") || args.get(1).map(|s| s.as_str()) != Some("--summary") {
-        eprintln!("用法：solver ingest --summary | solver solve-local --floor <N> | solver solve-global [--bound N] [--out PATH]");
+        eprintln!("用法：solver ingest --summary | solver solve-local --floor <N> | solver solve-global [--bound N] [--out PATH] | solver query --all [--bound N] [--node-cap N] [--ultimate 36,40] [--out PATH]");
         std::process::exit(2);
     }
     let root = repo();
