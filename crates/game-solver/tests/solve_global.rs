@@ -1101,6 +1101,52 @@ fn solve_global_t节点上限触发_诚实降级() {
     assert!(!r2.node_cap_hit, "大 cap 不应触界：{r2:?}");
 }
 
+/// Y3 补钉（批4 C4-e）：有解 + 触节点上限 ⇒ 必须 bounded-best，不得冒充 optimal。
+/// 变异靶：去掉 solve_global.rs 置信判定里的 `|| node_cap_hit` 支路 ⇒ 本测试必须真红。
+///
+/// 夹具思路：f50 既出 Ending（撞72）又出回51 的梯 ⇒ 同一次 pop 既记解又 push 新态，
+/// 节点数在**记到解之后**才涨到 cap ⇒ 下一 pop 触界时 goals 已非空。
+#[test]
+fn solve_global_t有解且触节点上限_置信降级bounded_best() {
+    // f50 加一条回 51 的梯：(5,7)=ty8 param=51 + Stair 出口
+    let mut f50 = floor50();
+    f50.entities.insert(
+        0,
+        EntSpec { ty: 7, x: 5, y: 7, param: 51 },  // 上行梯 ty7：went_down=false ⇒ landing 找目标层 ty8
+    );
+    f50.exits.push(ExitSpec { x: 5, y: 7, kind: ExitKind::Stair, index: 2 });
+    let mut floors = BTreeMap::new();
+    floors.insert(51, floor51());
+    floors.insert(50, f50);
+    let gi = GlobalInput {
+        floors,
+        start_floor: 51,
+        start_pos: (0, 1),
+        start_player: player(),
+        start_flags: 0,
+        bound: 10_000, // 不打界：只允许 node_cap 触界
+    };
+    // 节点序列：根(0,1) → f50(6,7) → f51(梯落点)，cap=3 在第三次 pop 头触界
+    let r = game_solver::solve_global::solve_global_capped(&gi, 3);
+    assert!(r.node_cap_hit, "cap=3 应触界：{r:?}");
+    assert!(!r.goals.is_empty(), "触界前必须已记到 Ending 解：{r:?}");
+    assert!(r.truncated_layers.is_empty(), "小玩具层不应截断：{r:?}");
+    assert_eq!(
+        r.confidence, "bounded-best",
+        "有解+触界必须 bounded-best（变异去 node_cap_hit 支路则此处变 optimal）：{r:?}"
+    );
+    assert!(
+        r.to_json().contains("\"confidence\":\"bounded-best\""),
+        "{}",
+        r.to_json()
+    );
+    // 对照：不触界时不得误报
+    let r2 = game_solver::solve_global::solve_global_capped(&gi, 1_000_000);
+    assert!(!r2.node_cap_hit, "大 cap 不应触界：{r2:?}");
+    assert!(!r2.goals.is_empty(), "对照同样应有解：{r2:?}");
+    assert_eq!(r2.confidence, "optimal", "不触界+有解+不截断 ⇒ optimal：{r2:?}");
+}
+
 #[test]
 fn solve_global_t根在出口仍扩展() {
     let input = real_global_input(1_000);
