@@ -1366,7 +1366,10 @@ impl<'a> Search<'a> {
     /// 批3 C3b：筋斗云换层候选（四段链 a.java:5738-5753 tutorialSeen→f_bool_13
     /// →键49/55（a.java:5295-5306）→findFloorGateEntity（a.java:7115-7133 首个
     /// `param>>9==0` 的 type7/8）→changeFloor(..., strict=true)（a.java:7135-7178））。
-    /// tutorialSeen≡背包含15（唯一写点 pickup case15 a.java:7539）；f_bool_13=
+    /// tutorialSeen≡背包含15（**背包权威源**）；写点实测 3 处 a.java:7539 pickup
+    /// case15 置 true / a.java:9299 读档先置 false / a.java:9306 读档按
+    /// itemStackTypes==15 回推 true——【2026-11-15 更正·实测】原「唯一写点」句
+    /// 证伪（deobf reference/src/deobf/a.java grep tutorialSeen 三命中）；f_bool_13=
     /// 与锚点四邻**非同格**（a.java:5767-5806，站梯格上=false）。**区间门不在层内**
     /// ——min/maxFloorReached 是全局史，由 solve_global 落闸。
     fn cloud_goals(&self, st: &St) -> Vec<(i32, bool)> {
