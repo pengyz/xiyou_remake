@@ -14,7 +14,8 @@
 //! 同输入同解由批2 同款双跑测试钉死（C4）。
 
 use crate::solve_local::{
-    solve_layer, sprite_full, take_layer_trunc, EntRec, LevelSpec, PlayerSpec, SolveInput,
+    solve_layer_with, sprite_full, take_layer_trunc, ClosurePolicy, EntRec, LevelSpec,
+    PlayerSpec, SolveInput,
 };
 use crate::state::{CanonicalBag, DiscreteGold, DiscreteHp, ScriptFlags, SolverState};
 use game_core::subsystem::script_host::entity_category_with_floor;
@@ -247,6 +248,13 @@ pub fn solve_global(input: &GlobalInput) -> GlobalResult {
     solve_global_capped(input, node_cap_env())
 }
 
+/// 批4 C4-a：带闭包谓词的全局求解（三查询用 `ClosurePolicy::q1/q2/q3`）。
+/// `solve_global` / `solve_global_capped` = 本函数 + `ClosurePolicy::OFF`
+/// ⇒ 批0-3 零行为变化（判据「逐层拼接==全局解」天然不破）。
+pub fn solve_global_with(input: &GlobalInput, node_cap: u64, policy: ClosurePolicy) -> GlobalResult {
+    solve_global_capped_with(input, node_cap, policy)
+}
+
 /// C6h：全局节点上限 env（SOLVER_NODE_LIMIT，默认 **100_000**）——lead 裁定 A 同族
 /// （R1 有界可配）：bound1e6 双跑曾 OOM 双杀（exit137，12-15min、31GB 机），节点
 /// 上限让判据③ 命令可完成且确定性可复跑。默认值实测标定：gauge 50_000→2m26s
@@ -260,7 +268,17 @@ fn node_cap_env() -> u64 {
 }
 
 /// C6h：显式节点上限求解（触界 ⇒ node_cap_hit=true、confidence 降级）。
+/// 批4 C4-a：= [`solve_global_capped_with`] + `ClosurePolicy::OFF`（批0-3 零行为变化）。
 pub fn solve_global_capped(input: &GlobalInput, node_cap: u64) -> GlobalResult {
+    solve_global_capped_with(input, node_cap, ClosurePolicy::OFF)
+}
+
+/// 批4 C4-a：闭包谓词版主体（`policy` 透传给每层 `solve_layer_with`）。
+pub fn solve_global_capped_with(
+    input: &GlobalInput,
+    node_cap: u64,
+    policy: ClosurePolicy,
+) -> GlobalResult {
     // 每层 SolveInput 预构造（difficulty=0=BR-4；LevelSpec 每层只 clone 一次）
     let mut per_floor: BTreeMap<i32, SolveInput> = BTreeMap::new();
     for (f, spec) in &input.floors {
@@ -341,12 +359,13 @@ pub fn solve_global_capped(input: &GlobalInput, node_cap: u64) -> GlobalResult {
         let st = nodes[id as usize].st.clone();
         let level = sinput.level.as_ref().expect("per_floor 已填 Some");
         let ents_here = st.ents.get(&st.floor).cloned();
-        let (reachable, layer_goals) = solve_layer(
+        let (reachable, layer_goals) = solve_layer_with(
             sinput,
             st.pos,
             ents_here.as_deref(),
             st.player.clone(),
             st.flags,
+            policy,
         );
         if let Some(t) = take_layer_trunc() {
             if !truncated_layers.contains(&t) {
