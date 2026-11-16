@@ -949,7 +949,7 @@ enum Cell {
     Door(usize, i32), // 槽位, type_id
     /// 拾取实体（C6：cat 2|4 道物，`apply_step_cell_effects` `scene.rs:4093-4096`
     /// 拾取+移除同拍——expand 内 harness `try_step` 落格触发，读回 player keys/实体移除）
-    Pickup, // cat 2|4 道物（拾取面=该格全部存活 cat2|4，expand 内 harness �调）
+    Pickup, // cat 2|4 道物（拾取面=该格全部存活 cat2|4，expand 内 harness 直调）
     /// 商人（批5 H4：cat16，`render_category` `77|78=>16`，a.java:6268-6298）。
     /// expand 出**两臂**：买（开价门过 ∧ 买得起 ∧ 效果可实施 ⇒ 扣金施效 + 实体移除
     /// `markEntityRemoved`）/ 走（地形可走 ⇒ 原 Move 臂）——保守取超集，买不过也能过
