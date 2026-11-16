@@ -69,7 +69,7 @@
         assert!(slots(&sc, 3, ROW).is_empty(), "relocateSlotsAtRouteEnd 自起点格摘除");
         assert_eq!(slots(&sc, 5, ROW), vec![eu], "relocateSlotsAtRouteEnd 追加到当前格");
         assert_eq!(sc.entity_at_cell(5, ROW, 72), e, "findBlockingEntity 可在新格命中（DES 依赖）");
-        // 行尾 → dp4（script 收尾门）
+        // 行尾后下一拍 → dp4（入口门收尾，Java 2401；行尾检查本身零字段写）
         sc.execute_script_instruction();
         assert_eq!(sc.dialog.dialog_phase, 4);
     }

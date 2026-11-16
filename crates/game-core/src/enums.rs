@@ -17,7 +17,7 @@ pub enum DialogPhase {
     EntityRoute,
     /// 3：行走执行（消费 walkPathBuffer）
     Walk,
-    /// 4：等待相机到位（cameraAtTarget → 回地图；行尾收尾门亦落此相位）
+    /// 4：等待相机到位（cameraAtTarget → 回地图；行尾后的**下一拍入口门**亦落此相位）
     AwaitCamera,
     /// 5：LAY 过场（换层清屏）
     LayCutscene,

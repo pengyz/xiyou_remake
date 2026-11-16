@@ -20,11 +20,13 @@
 //! inventory_entry_count——两侧机制本不同构（(a) 写 GameScene、(b) 写 ScriptState/host），
 //! 且非计划要求的可观测状态。
 //!
-//! # 槽67 数据偏差（DC-5 不可达，commit2 同款披露）
-//! `DialogData::from_fixtures`（scene.rs:253 `.trim()`）吃掉末行尾空格 ⇒ (a) 槽67
-//! `TAK_264_268` 无分隔符 panic；(b) `table()` split 不 trim ⇒ 可运行。槽67 经
-//! `tryRunScene case67` 门控恒 false 不可达（docs/spec/dead-code-rulings.md DC-5 ☠️）
-//! ⇒ 对拍行走 `0..SLOT67` 排除 + 数据守卫断言钉死偏差存在。
+//! # 槽67 数据偏差（**2026-11-16 已闭合**，DC-5 不可达结论不变）
+//! 旧态：`DialogData::from_fixtures`（scene.rs 的 `.trim()`）吃掉末行尾空格 ⇒ (a) 槽67
+//! `TAK_264_268` 无分隔符 panic；(b) `table()` split 不 trim ⇒ 可运行——两侧口径不一致。
+//! 现态：`fixture_script_line` 只剥提取器追加的 `U+001E`、保留行尾空格 ⇒ (a)(b) 同口径，
+//! 槽67 解析为 `TAK{264,268,cursor:12}` 不再 panic（Java 字面量 a.java:1192 即带尾空格）。
+//! 对拍行走仍 `0..SLOT67`：槽67 经 `tryRunScene case67` 门控恒 false 不可达
+//! （docs/spec/dead-code-rulings.md DC-5 ☠️）；守卫改为断言**两侧口径一致**。
 //!
 //! # BHost 镜像表（(b) 宿主各 hook 对齐 (a) op_* 生产语义的依据）
 //! - `give_gold(v)` ← `combat::gain_gold`（combat.rs:191，= op_gin kind1 同源）
@@ -683,17 +685,21 @@ mod tests {
         assert_eq!(samples.iter().filter(|(c, _)| *c == B).count(), 4, "B 类 4 变体");
     }
 
-    /// 槽67 数据守卫：偏差存在且已知（from_fixtures trim 尾空格，DC-5 不可达）。
+    /// 槽67 数据守卫：**(a)(b) 口径已于 2026-11-16 对齐**（`fixture_script_line` 只剥
+    /// `U+001E`、保留行尾空格），DC-5 不可达结论不变。
     #[test]
-    fn script_abs_槽67数据守卫_dc5不可达() {
+    fn script_abs_槽67数据对齐_dc5不可达() {
         let table = dialogue_table();
         assert_eq!(table.scripts.len(), SLOTS, "fixture 68 槽");
         // (b) 侧 split 口径：尾空格保留
+        assert_eq!(table.scripts[SLOT67], "TAK_264_268 ", "(b) 语料带 Java 尾空格");
+        // (a) 侧 from_fixtures 口径：现在与 (b) 逐字符一致（不再 trim）
         assert_eq!(
-            table.scripts[SLOT67], "TAK_264_268 ",
-            "槽67 (b) 语料带尾空格；(a) from_fixtures trim ⇒ 无空格 panic（DC-5 不可达）"
+            game_core::scene::fixture_script_line("TAK_264_268 \u{1e}"),
+            "TAK_264_268 ",
+            "(a) 侧必须与 (b) 同口径（剥离 0x1E、保留尾空格）"
         );
-        // 夹具原文同样带尾空格 ⇒ 分歧源 = trim，非夹具本身
+        // 夹具原文同样带尾空格 ⇒ Java 数据本身带尾空格（a.java:1192）
         assert!(
             include_str!("../../game-core/tests/fixtures/level_scripts.txt")
                 .ends_with("TAK_264_268 "),

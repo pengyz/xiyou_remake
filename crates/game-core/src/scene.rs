@@ -249,11 +249,28 @@ pub fn unescape_text_fixture(line: &str) -> String {
     out
 }
 
+/// 夹具脚本行 → Java 口径行：只剥提取器添加的 U+001E 记录分隔符，**保留行尾空格**。
+///
+/// 【2026-11-16 · 0x1E 剥离】提取器在每行行尾追加 `" \x1e"`，Java 原始行不含该字符：
+/// 末命令消耗后 `scriptCursor == 行字符数`（含行尾空格，不含 \x1e）。保留它会让
+/// 生产口径的 cursor 终值比 Java 大 1，直接落进存档 `script_cursor` 字段——属保真偏差，
+/// 不是节拍问题（收尾拍点由入口门决定；javap 尾检查两分支均 return，
+/// 见 docs/superpowers/proposals/2026-11-16-script-command-pipeline-proposal.md §0′.4′）。
+///
+/// 同时**不再 trim**：旧实现 `l.trim()` 会吃掉末槽 `TAK_264_268 ` 的行尾空格，而 TAK 的
+/// page_end 用 `' '` 作终止符（`parse_script_int(..., ' ')` 无空格即 panic）。
+///
+/// 顺序约束：本剥离必须晚于「删 script.rs 尾部收尾门」，否则剥掉 0x1E 会让旧尾门在
+/// 生产口径（`cursor == len`）下被激活。
+pub fn fixture_script_line(line: &str) -> String {
+    line.strip_suffix('\u{1e}').unwrap_or(line).to_string()
+}
+
 impl DialogData {
     fn from_fixtures() -> Self {
         let scripts = include_str!("../tests/fixtures/level_scripts.txt")
             .lines()
-            .map(|l| l.trim().to_string())
+            .map(fixture_script_line)
             .collect();
         let texts = include_str!("../tests/fixtures/dialogue_texts.txt")
             .lines()
@@ -692,7 +709,7 @@ pub static TRANSFER_EDGES: &[(GameMode, Option<GameMode>)] = &[
     // 双跳原样）；巡查表漏登此边 ⇒ census assert panic 误报"原版崩溃等价终止"
     // （用户实机 BUG-017，2026-10-17 P0-1 同类第三缺口）。
     (GameMode::Map, Some(GameMode::EnemyInfo)),
-    // 30-31：对话收尾（行尾门→相位 4 非模式转移；相机收敛→Map）
+    // 30-31：对话收尾（下一拍入口门→相位 4 非模式转移；相机收敛→Map）
     (GameMode::Dialog, Some(GameMode::Map)),
     // 30c：Dialog→Ending——END 脚本指令（a.java:8510-8514 gameMode=20）。
     (GameMode::Dialog, Some(GameMode::Ending)),

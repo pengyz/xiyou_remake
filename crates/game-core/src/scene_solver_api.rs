@@ -474,49 +474,57 @@ mod tests {
         }
     }
 
-    /// 槽67 专测（DC-5 不可达）：`from_fixtures` trim 吃掉无 `\x1e` 末行的
-    /// 行尾空格 ⇒ `TAK_264_268` 第二参分隔符缺失 ⇒ `parse_script_int`
-    /// expect panic。生产不可达（dead-code-rulings.md:170-200 终裁
-    /// `loadLevelScript(67)` 门控恒 false），此处断言**门面 vs 底层同因同崩**
-    /// （panic-parity）：消息逐字相等 + 均为分隔符缺失。
+    /// 槽67 专测（DC-5 不可达）：**2026-11-16 改判——原「panic-parity」作废**。
+    ///
+    /// 原断言把 `from_fixtures` 的 `.trim()` 当成规格：尾空格被吃掉 ⇒ 行长 11 ⇒
+    /// `parse_script_int(line, 8, ' ')` 无分隔符 ⇒ panic。但 Java 字面量本身就是
+    /// `"TAK_264_268 "`（12 字符、**带行尾空格**，a.java:1192；
+    /// docs/spec/evidence-boss.md:576 与 docs/spec/dead-code-rulings.md:177 逐字记录），
+    /// 所以「panic」是移植偏差，不是与 Java 的 parity。
+    /// 0x1E 剥离同时取消 `.trim()` 后（scene.rs `fixture_script_line`），槽 67 正常解析，
+    /// 只剩 DC-5 不可达（`loadLevelScript(67)` 门控恒 false，死码裁定不变）。
+    /// 本测保留原用途：门面 vs 底层**同因同态**（panic-parity → parse-parity）。
     #[test]
-    fn slot67_dc5_unreachable_parse_panic_parity() {
+    fn slot67_dc5_parse_parity() {
         let scripts = new_scene().dialog.dialog_data.scripts;
         assert_eq!(scripts.len(), SLOTS, "fixture 应为 68 槽");
         assert_eq!(
-            scripts[SLOT67], "TAK_264_268",
-            "from_fixtures trim 产物（原始末行为 TAK_264_268␠，a.java:1192 带尾空格）"
+            scripts[SLOT67], "TAK_264_268 ",
+            "Java 字面量带行尾空格（a.java:1192；evidence-boss.md:576）"
         );
-        let via_facade = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let _ = super::parse_op(&scripts[SLOT67], 0);
-        }));
-        let via_direct = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let _ = GameScene::parse_op(&scripts[SLOT67], 0);
-        }));
-        let mf = panic_msg(via_facade);
-        let md = panic_msg(via_direct);
-        assert!(!mf.is_empty(), "门面侧应在缺分隔符处 panic");
-        assert_eq!(mf, md, "槽67：门面 vs 底层 panic 消息不等（非同因）");
-        assert!(mf.contains("脚本整数分隔符缺失"), "实际 panic: {mf}");
+        let via_facade = super::parse_op(&scripts[SLOT67], 0);
+        let via_direct = GameScene::parse_op(&scripts[SLOT67], 0);
+        // 门面 vs 底层同因同态：同变体、同页区间、同游标（ScriptOp 无 Debug/PartialEq，
+        // 逐字段展开比对）。
+        for (who, op) in [("门面", via_facade), ("底层", via_direct)] {
+            match op {
+                Some(ScriptOp::Tak { start, end, cursor }) => {
+                    assert_eq!((start, end, cursor), (264, 268, 12), "{who}：TAK 解析字段");
+                }
+                _ => panic!("{who}：槽67 应解析为 Tak 变体"),
+            }
+        }
     }
 
-    /// 槽67 专测（DC-5 不可达）：行驱动双跑 panic-parity（fn#3 面）。
+    /// 槽67 专测（DC-5 不可达）：行驱动双跑 state-parity（原 panic-parity 已改判，
+    /// 见 `slot67_dc5_parse_parity` 的更正注）。
     #[test]
-    fn slot67_dc5_unreachable_execute_panic_parity() {
+    fn slot67_dc5_execute_parity() {
         let mut via_facade = new_scene();
         let mut via_direct = new_scene();
-        let r_f = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            drive_facade(&mut via_facade, SLOT67);
-        }));
-        let r_d = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            drive_direct(&mut via_direct, SLOT67);
-        }));
-        let mf = panic_msg(r_f);
-        let md = panic_msg(r_d);
-        assert!(!mf.is_empty(), "门面侧应在缺分隔符处 panic");
-        assert_eq!(mf, md, "槽67：门面 vs 底层 panic 消息不等（非同因）");
-        assert!(mf.contains("脚本整数分隔符缺失"), "实际 panic: {mf}");
+        drive_facade(&mut via_facade, SLOT67);
+        drive_direct(&mut via_direct, SLOT67);
+        assert_eq!(
+            dump(&via_facade),
+            dump(&via_direct),
+            "槽67：门面 vs 底层行驱动终态逐字段不等"
+        );
+        assert_eq!(
+            via_facade.script_cursor, 12,
+            "TAK 消费后 cursor == 行长 12（含尾空格；Java 同值）"
+        );
     }
+
 
     /// 冒烟：守卫前置①——多字节 UTF-8 行 + 非字符边界游标 ⇒ parse_op 切片
     /// panic（scene_script.rs:17 起始门只拦字节越界，拦不住 char boundary）。

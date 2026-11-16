@@ -130,7 +130,9 @@ fn find_path_respects_terrain() {
 /// [证据链] oracle trace：playerCell(1,11)、SEE_3_10_166_166_1、walkStepCount(walkStepCount)=3、
 /// pathArrowsVisible(walk_request_flag)=true（findPath 成功写点）。本测试用 Rust 重实现验证
 /// Java 侧行为，并**更正 BUG-006 台账的根因**：原登记"寻路失败"——实为寻路成功
-/// （3 步路径存在），冻结来自行尾收尾门（a.java:8568）覆写 dialogPhase 6→4、
+/// （3 步路径存在），冻结来自**下一拍入口门**（a.java:2401，`cursor+3 > len`）覆写
+/// dialogPhase 6→4（【2026-11-16 更正】原写「行尾收尾门」是反编译投影误读，javap 证明
+/// 行尾检查两分支均 return、零字段写）、
 /// 使已武装的行走永远不被执行。
 #[test]
 fn path_not_found_without_entity_slots_floor51() {
