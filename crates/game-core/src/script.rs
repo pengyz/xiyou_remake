@@ -272,7 +272,7 @@ impl<'d> ScriptEngine<'d> {
         let script_cursor0 = self.state.script_cursor;
         let has_opcode = script_cursor0 + 3 <= line.len();
         if !has_opcode {
-            // 行尾收尾门（a.java:8574-8580）：序章 cursor=43 冻结 phase=4 实证
+            // 入口门（javap 偏移 22 的 `cursor+3 > len` ⇒ 2401 门体）：序章 cursor=43 冻结 phase=4 实证
             self.state.dialog_phase = DialogPhase::AwaitCamera;
             if self.state.current_script_index != 32 {
                 let cur = self.state.current_script_index;
@@ -508,15 +508,16 @@ impl<'d> ScriptEngine<'d> {
             self.state.script_cursor = var2p4;
         }
 
-        // 尾部收尾门（a.java:8574-8580）：行被消费完 ⇒ phase=4 + 旗标 + 相机
-        if self.state.script_cursor >= line.len() {
-            self.state.dialog_phase = DialogPhase::AwaitCamera;
-            if self.state.current_script_index != 32 {
-                let cur = self.state.current_script_index;
-                self.state.script_line_flags[cur] = true;
-            }
-            host.snap_camera_to_player();
-        }
+        // 【2026-11-16 删门·字节码裁定】此处原有「尾部收尾门」，已删除。
+        // javap executeScriptInstruction（偏移 0–2431，analysis/rename-pipeline/renamed/a.class）：
+        //   2397: if_icmpge 2431   /  2400: return  /  2431: return
+        //   ⇒ 行尾检查的两条分支都是直接返回、零字段写；
+        //   2401 的 `dialogPhase=4 + flags[idx] + lockCameraOn(0)` 只由偏移 22 的
+        //   `cursor+3 > len` 到达，即**下一拍入口门**（本函数开头 :273-283）。
+        // 旧注释锚 a.java:8574-8580 是反编译投影误读：那条「收尾写」属入口门，不属同一拍。
+        // 保留本门会让「末命令即行尾」的行（如槽 6 `TAK_53_58 `）在解析同拍被收尾，
+        // 整页对白直接跳过（TDD: tail_check_is_noop_tak_at_line_end）。
+        // 裁定全文见 docs/superpowers/proposals/2026-11-16-script-command-pipeline-proposal.md §0′.4′。
     }
 
 }

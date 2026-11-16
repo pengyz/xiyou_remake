@@ -180,10 +180,22 @@ fn see_bug006_replay_cursor_advances_walk_not_armed() {
     eng.step(&mut host); // SEE_3_10_166_166_1
     assert_eq!(eng.state.script_cursor, 43, "trace t1202");
     assert!(!eng.state.script_walk_armed);
-    // SEE 置 phase=6，随后行尾收尾门（a.java:8568）覆写为 4——BUG-006 冻结态实证
-    assert_eq!(eng.state.dialog_phase, DialogPhase::AwaitCamera);
+    // 【2026-11-16 更正】原断言「行尾收尾门覆写 6→4」作废：javap 证明尾检查零字段写
+    // （2397 if_icmpge 2431 / 2400 return / 2431 return），收尾写属下一拍入口门。
+    // 故 SEE 同拍保持 6（TypewriterCamera），下一拍入口门才落 4——BUG-006 冻结态不变，
+    // 只是拍点晚一拍。
+    assert_eq!(eng.state.dialog_phase, DialogPhase::TypewriterCamera,
+        "SEE 同拍置 6，尾检查不改写（javap 2400/2431）");
+    assert!(!eng.state.script_line_flags[PROLOGUE], "同拍不置行旗标");
     assert_eq!(eng.state.dialog_page, 166);
     assert_eq!(host.find_path_calls, vec![(1, 11, 3, 10)]);
+    // 下一拍：cursor+3 > len ⇒ 入口门收尾（Java 2401）
+    eng.state.dialog_phase = DialogPhase::ScriptStep;
+    let snaps = host.camera_snaps;
+    eng.step(&mut host);
+    assert_eq!(eng.state.dialog_phase, DialogPhase::AwaitCamera, "入口门落 4");
+    assert!(eng.state.script_line_flags[PROLOGUE], "入口门置行旗标");
+    assert_eq!(host.camera_snaps, snaps + 1, "入口门回相机");
 }
 
 #[test]
@@ -198,7 +210,12 @@ fn see_path_found_arms_walk() {
     assert_eq!(eng.state.script_cursor, 43);
     assert!(eng.state.walk_request_flag);
     assert_eq!(eng.state.walk_phase, WalkPhase::Idle);
-    assert_eq!(eng.state.dialog_phase, DialogPhase::AwaitCamera, "SEE 置 6 后行尾收尾门覆写为 4");
+    // 【2026-11-16 更正】原「行尾收尾门覆写为 4」作废（javap 2400/2431 零字段写）：
+    // SEE 同拍保持 6，下一拍入口门才写 4。
+    assert_eq!(eng.state.dialog_phase, DialogPhase::TypewriterCamera, "SEE 同拍保持 6");
+    eng.state.dialog_phase = DialogPhase::ScriptStep;
+    eng.step(&mut host);
+    assert_eq!(eng.state.dialog_phase, DialogPhase::AwaitCamera, "下一拍入口门落 4");
 }
 
 #[test]
@@ -270,7 +287,7 @@ fn gin_tail_recurses_into_next_instruction() {
     let t = table();
     let mut host = StubHost::default();
     let mut eng = ScriptEngine::new(&t, 0);
-    // GIN 置于行中（行尾会触发 a.java:8568 收尾门 phase=4——Java 同款语义）
+    // GIN 置于行中（行尾收尾由**下一拍入口门**完成：cursor+3>len ⇒ phase=4，Java 2401）
     eng.set_script_line_for_test("GIN_1_1000 TAK_8_9 X ");
     eng.step(&mut host);
     assert_eq!(host.gold_calls, vec![1000]);
@@ -315,7 +332,7 @@ fn mov_player_path_gates_walk_phase() {
 
 #[test]
 fn cursor_stops_at_line_end_bug006_frozen() {
-    // 行尾门 a.java:8234（cursor+3 <= len）：cursor=43 冻结态步进 no-op（BUG-006）
+    // 入口门 a.java:8234（cursor+3 > len 才写，故此处 cursor=43 时不进入）：冻结态步进 no-op（BUG-006）
     let t = table();
     let mut host = StubHost::default();
     let mut eng = ScriptEngine::new(&t, PROLOGUE);
@@ -384,4 +401,53 @@ fn prologue_timeline_replays_trace() {
     // SEE_3_10_166_166_1 执行后打开第 166 页（BUG-006 冻结点文本"好了"）
     assert!(eng.state.overlay_text.as_deref().unwrap().contains("好了"),
         "SEE 打开的页 166 = 冻结点文本");
+}
+
+// ===== 2026-11-16 TDD · 尾检查裁定（javap 偏移 0–2431） =====
+// 裁定原文见 docs/superpowers/proposals/2026-11-16-script-command-pipeline-proposal.md §0′.4′：
+//   2397: if_icmpge 2431 / 2400: return / 2431: return —— 尾检查两条分支都是 return、零字段写；
+//   2401（phase=4 + flags + lockCameraOn）只由偏移 22 的 `cursor+3 > len` 到达，即「下一拍入口门」。
+// 因此引擎在同一拍不得写任何收尾状态；收尾写必须归属下一次调用。
+
+#[test]
+fn tail_check_is_noop_tak_at_line_end() {
+    // 槽 6 = "TAK_53_58 "（末命令即行尾，cursor 消费后 == len）
+    let t = table();
+    let idx = t.scripts.iter().position(|s| s.starts_with("TAK_53_58")).unwrap();
+    let mut host = StubHost::default();
+    let mut eng = ScriptEngine::new(&t, idx);
+    eng.step(&mut host);
+    assert_eq!(eng.state.script_cursor, t.scripts[idx].len(), "TAK 消费后游标到行尾");
+    assert_eq!(eng.state.dialog_page, 53, "TAK 页区间已解析");
+    assert_eq!(eng.state.dialog_phase, DialogPhase::Typewriter,
+        "同一拍不得被尾检查改写成 AwaitCamera（否则整页对白立即收尾）");
+    assert!(!eng.state.script_line_flags[idx], "同一拍不得置行旗标");
+    // open_dialog_page 内部会 snap 一次（lockCameraOn 头部），此处不算收尾相机
+    assert_eq!(host.camera_snaps, 1, "只有 open_dialog_page 的相机，不含收尾快照");
+}
+
+#[test]
+fn tail_check_writes_at_next_tick_entry_gate() {
+    let t = table();
+    let idx = t.scripts.iter().position(|s| s.starts_with("TAK_53_58")).unwrap();
+    let mut host = StubHost::default();
+    let mut eng = ScriptEngine::new(&t, idx);
+    eng.step(&mut host); // TAK 消费完，phase=Typewriter、cursor=len
+    // 玩家翻页榨干 53..58 六页 → phase 回 ScriptStep（open_dialog_page 的 else 分支）
+    for _ in 0..8 {
+        if eng.state.dialog_phase == DialogPhase::ScriptStep {
+            break;
+        }
+        eng.advance_dialog_page(&mut host);
+    }
+    assert_eq!(eng.state.dialog_phase, DialogPhase::ScriptStep, "页区间耗尽 ⇒ phase 0");
+    let snaps_before = host.camera_snaps;
+    eng.step(&mut host); // 下一拍：cursor+3 > len ⇒ 入口门
+    assert_eq!(eng.state.dialog_phase, DialogPhase::AwaitCamera, "入口门写收尾相位");
+    assert!(eng.state.script_line_flags[idx], "入口门置行旗标");
+    assert_eq!(host.camera_snaps, snaps_before + 1, "入口门回相机");
+    // 再进一拍：cursor 不变，仍是入口门（幂等）
+    eng.state.dialog_phase = DialogPhase::ScriptStep;
+    eng.step(&mut host);
+    assert_eq!(eng.state.dialog_phase, DialogPhase::AwaitCamera);
 }
