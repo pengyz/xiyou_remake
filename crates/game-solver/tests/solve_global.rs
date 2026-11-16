@@ -1289,7 +1289,7 @@ fn query_all三查询键齐_与plan批4判据一致() {
         ultimate: vec![36, 40],
     };
     let gi = real_global_input(opts.bound);
-    let res = game_solver::query::run_all(&gi, &opts);
+    let res = game_solver::query::run_all(&gi, &opts, &[]);
     let doc = game_solver::query::to_doc(&res);
     for k in ["q1", "q2", "q3"] {
         assert!(
@@ -1315,4 +1315,108 @@ fn query_all三查询键齐_与plan批4判据一致() {
     assert!(l1.starts_with("Q1 max_hp=") && l1.contains('('), "Q1 行：{l1}");
     assert!(l2.starts_with("Q2 min_kills=") && l2.contains('('), "Q2 行：{l2}");
     assert!(l3.starts_with("Q3 reachable="), "Q3 行：{l3}");
+}
+
+/// 批5 H4：读真 `shop_goods.json`（需 items.json id 清单喂 AddStack/PickupItem 外键校验）。
+fn load_shop_goods() -> Vec<game_data::defs::ShopGoodDef> {
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(2)
+        .unwrap()
+        .to_path_buf();
+    let items = game_data::defs::parse_items(
+        &std::fs::read_to_string(root.join("data/tables/items.json")).unwrap(),
+    )
+    .expect("parse items.json");
+    let ids: Vec<i32> = items.iter().map(|i| i.id).collect();
+    game_data::defs::parse_shop_goods(
+        &std::fs::read_to_string(root.join("data/tables/shop_goods.json")).unwrap(),
+        &ids,
+    )
+    .expect("parse shop_goods.json")
+}
+
+/// 批5 H4 商店边判据（lead 2026-11-16 放行）：**花金买红钥匙必须成为转移的一条边**。
+/// 夹具 = 改自 `red_lock_floor`（红门 ty2 挡上行梯，唯一通路），加一家商店；
+/// 商品表读真 `data/tables/shop_goods.json`（同时钉住真映射：idx=6 必须是 id10 ¤800 红+1）。
+/// 红绿对照：①金 800 买得起 ⇒ 通关 ②金 799 买不起 ⇒ 无解 ③免费 GiveGold(idx15) 凑钱 ⇒ 通关
+fn shop_world(free: bool) -> BTreeMap<i32, LevelSpec> {
+    let mut terrain = vec![false; 3 * 3];
+    for x in 0..3 {
+        terrain[0 * 3 + x] = true; // y=0 行（上行梯所在）
+        terrain[2 * 3 + x] = true; // y=2 行（入场所在）
+    }
+    terrain[1 * 3 + 1] = true; // 中格 (1,1)
+    let mut entities = vec![
+        EntSpec { ty: 2, x: 1, y: 1, param: 0 }, // 红门（唯一通路）
+        EntSpec { ty: 7, x: 1, y: 0, param: 50 }, // 上行梯 → floor50
+        // ty78 商店（applyMerchantOffer: type==77 ? src0 : src1 ⇒ 78=src1 付费表行）
+        // 开价门 (param>>>8)&2 != 0 ⇒ flags=3；idx=6 ⇒ id10 ¤800 红+1（真表实测 param=774 同款）
+        EntSpec { ty: 78, x: 2, y: 2, param: (3 << 8) | 6 },
+    ];
+    if free {
+        // 免费行（src0）：idx=15 ⇒ GiveGold 1000（flags=2 过开价门，真表 f37/f52 同款）
+        entities.push(EntSpec { ty: 77, x: 0, y: 2, param: (2 << 8) | 15 });
+    }
+    let floor1 = LevelSpec {
+        cols: 3,
+        rows: 3,
+        terrain,
+        start: (1, 2),
+        entities,
+        exits: vec![ExitSpec { x: 1, y: 0, kind: ExitKind::Stair, index: 1 }],
+        player: player(),
+        enemies: enemies(),
+        enemy_base: enemies(),
+        flags: 0,
+    };
+    let mut floors: BTreeMap<i32, LevelSpec> = BTreeMap::new();
+    floors.insert(1, floor1);
+    floors.insert(50, floor50_nodoor());
+    floors
+}
+
+fn shop_run(free: bool, gold: i32) -> game_solver::solve_global::GlobalResult {
+    let goods = load_shop_goods();
+    let mut p = player();
+    p.gold = gold;
+    solve_global_with(
+        &GlobalInput {
+            floors: shop_world(free),
+            start_floor: 1,
+            start_pos: (1, 2),
+            start_player: p,
+            start_flags: 0,
+            bound: 10_000,
+        },
+        100_000,
+        ClosurePolicy::OFF,
+        &goods,
+    )
+}
+
+#[test]
+fn solve_global_t商店买红钥匙_花金得红过红门_红绿对照() {
+    // 钉真数据映射：idx=6 / src=1 ⇒ id10 ¤800 ⇒ AddKeys{red:1}
+    let goods = load_shop_goods();
+    let paid = goods.iter().find(|g| g.idx == 6 && g.src == 1).expect("真表须有 idx6 付费行");
+    assert_eq!(paid.price, 800, "id10 开价 800");
+    assert!(
+        matches!(paid.effect, game_data::defs::ShopEffect::AddKeys { red: 1, .. }),
+        "id10 效果 = 红钥匙 +1：{:?}",
+        paid.effect
+    );
+
+    // ① 金 800 ⇒ 买得起红 ⇒ 过红门上行 → floor50 通关
+    let r1 = shop_run(false, 800);
+    assert!(!r1.goals.is_empty(), "金 800 应能买红通关：{r1:?}");
+    assert!(r1.expansions > 0, "① 必须真的扩展过：{r1:?}");
+
+    // ② 金 799 ⇒ 买不起红 ⇒ 无解（夹具里红门是唯一通路、世界无 ty27）
+    let r2 = shop_run(false, 799);
+    assert!(r2.goals.is_empty(), "金 799 买不起红应无解：{r2:?}");
+
+    // ③ 免费 GiveGold(idx15) 1000 ⇒ 凑钱后买红通关（金边也能串起来）
+    let r3 = shop_run(true, 0);
+    assert!(!r3.goals.is_empty(), "免费凑钱后应能买红通关：{r3:?}");
 }

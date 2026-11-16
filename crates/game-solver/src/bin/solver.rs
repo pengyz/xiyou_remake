@@ -28,7 +28,12 @@ fn mk_player() -> PlayerCombat {
 }
 
 /// C5：真数据全局求解（层间图 1..=54，入场=(1,11) 来自 handoff load_floor(32,352)；I/O 全在本 bin）。
-fn solve_global_input(bound: u64) -> game_solver::solve_global::GlobalInput {
+fn solve_global_input(
+    bound: u64,
+) -> (
+    game_solver::solve_global::GlobalInput,
+    Vec<game_data::defs::ShopGoodDef>,
+) {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(2)
@@ -89,19 +94,23 @@ fn solve_global_input(bound: u64) -> game_solver::solve_global::GlobalInput {
             }
         }
     }
-    game_solver::solve_global::GlobalInput {
+    let gi = game_solver::solve_global::GlobalInput {
         floors,
         start_floor: 51,
         start_pos: (1, 11),
         start_player: PlayerSpec::from_combat(mk_player()),
         start_flags: 0,
         bound,
-    }
+    };
+    // 批5 H4：商品表随输入一起交出（`shop_goods.json` 已在 ingest 解析，17 行）。
+    // 只有 `query` 路径用它；`solve-global` 忽略（旧入口恒 `&[]` ⇒ 批0-3 零变化）。
+    (gi, si.shops)
 }
 
 /// 批4：三查询与 `solve-global` 共用同一份真数据输入（只构造一次 `GlobalInput`）。
 fn solve_global_real(bound: u64) -> game_solver::solve_global::GlobalResult {
-    solve_global(&solve_global_input(bound))
+    let (gi, _shops) = solve_global_input(bound);
+    solve_global(&gi)
 }
 
 fn main() {
@@ -163,10 +172,10 @@ fn main() {
                 .map(|s| s.trim().parse::<i32>().unwrap_or_else(|_| panic!("--ultimate 整数列表: {v}")))
                 .collect();
         }
-        let input = solve_global_input(opts.bound);
+        let (input, shops) = solve_global_input(opts.bound);
         let mut results = std::collections::BTreeMap::new();
         for q in which {
-            let r = game_solver::query::run_query(&input, q, &opts);
+            let r = game_solver::query::run_query(&input, q, &opts, &shops);
             println!("{}", r.console_line());
             results.insert(r.key.to_string(), r);
         }

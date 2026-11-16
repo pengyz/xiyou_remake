@@ -33,7 +33,7 @@ use game_core::subsystem::battle::{
     EnemyTypeId,
 };
 use game_core::subsystem::script_host::entity_category_with_floor;
-use game_data::defs::EnemyDef;
+use game_data::defs::{EnemyDef, ShopEffect, ShopGoodDef};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 
@@ -353,7 +353,7 @@ pub fn solve_layer(
     player: PlayerSpec,
     flags: u128,
 ) -> (bool, Vec<LayerGoal>) {
-    solve_layer_with(input, entry, ents, player, flags, ClosurePolicy::OFF)
+    solve_layer_with(input, entry, ents, player, flags, ClosurePolicy::OFF, &[])
 }
 
 /// 批4 C4-a：带贪心零决策闭包谓词的层求解（`solve_layer`=谓词 `OFF` 的转发，
@@ -366,6 +366,7 @@ pub fn solve_layer_with(
     player: PlayerSpec,
     flags: u128,
     policy: ClosurePolicy,
+    shops: &[ShopGoodDef],
 ) -> (bool, Vec<LayerGoal>) {
     LAYER_TRUNC.with(|f| f.set(None));
     let Some(level) = input.level.as_ref() else {
@@ -395,6 +396,7 @@ pub fn solve_layer_with(
     let mut search = Search::from_entry(input, level, entry);
     search.cloud = true; // 批3 C3b：层间路径开筋斗云候选（批2 solve_local/run 关）
     search.policy = policy; // 批4 C4-a：闭包谓词注入
+    search.shops = shops; // 批5 H4：商品表注入（`&[]` ⇒ 批0-3 零行为变化）
     let (reachable, goals) = search.run_root(entry, root_ents, player, flags);
     // C5d′：层出口同态归并——同 (kind, cross_edge, post 全态) 组内 (kills,steps)
     // 支配剪枝（组内 hp 在键里=相等）。全局 push_state 对同 K₀ 子态做同样弱支配
@@ -903,6 +905,42 @@ struct Node {
 }
 
 /// 格分类（§1.3 Move 判定=类目+type 分类+地形终审）。
+/// 批5 H4：购买效果落地。**只做资源四类**（`AddKeys`/`GiveGold`/`AddHp`/`SwapYellowKey`）。
+///
+/// ⚠️ `AddStack`/`StatPct`/`PickupItem` **不出臂 = 模型内无此效果边，非世界无此效果**
+/// （原版 a.java:7379-7384 有真实现；这是求解器建模缺口，不是考证结论——H4 的教训就是
+/// 缺边被读成「无解」）。若三查询卡在这些效果上，按报审列的出臂优先级补。
+/// 返回 `false` = 效果无法实施（如 `SwapYellowKey` 黄不足）⇒ 不出买臂。
+fn apply_shop_effect(effect: &ShopEffect, p: &mut PlayerSpec) -> bool {
+    match effect {
+        ShopEffect::AddKeys { blue, yellow, red } => {
+            p.blue += blue;
+            p.yellow += yellow;
+            p.red += red;
+            true
+        }
+        ShopEffect::GiveGold { amount } => {
+            p.gold += amount;
+            true
+        }
+        ShopEffect::AddHp { amount } => {
+            p.hp += amount;
+            true
+        }
+        ShopEffect::SwapYellowKey { gold } => {
+            if p.yellow < 1 {
+                return false;
+            }
+            p.yellow -= 1;
+            p.gold += gold;
+            true
+        }
+        ShopEffect::AddStack { .. }
+        | ShopEffect::StatPct { .. }
+        | ShopEffect::PickupItem { .. } => false, // 见上：不出臂=模型内无此效果边
+    }
+}
+
 enum Cell {
     Blocked,
     Move,
@@ -911,7 +949,12 @@ enum Cell {
     Door(usize, i32), // 槽位, type_id
     /// 拾取实体（C6：cat 2|4 道物，`apply_step_cell_effects` `scene.rs:4093-4096`
     /// 拾取+移除同拍——expand 内 harness `try_step` 落格触发，读回 player keys/实体移除）
-    Pickup, // cat 2|4 道物（拾取面=该格全部存活 cat2|4，expand 内 harness 直调）
+    Pickup, // cat 2|4 道物（拾取面=该格全部存活 cat2|4，expand 内 harness �调）
+    /// 商人（批5 H4：cat16，`render_category` `77|78=>16`，a.java:6268-6298）。
+    /// expand 出**两臂**：买（开价门过 ∧ 买得起 ∧ 效果可实施 ⇒ 扣金施效 + 实体移除
+    /// `markEntityRemoved`）/ 走（地形可走 ⇒ 原 Move 臂）——保守取超集，买不过也能过
+    /// ⇒ 永不误剪（批0-3 里 shop 走臂=原行为，零回归）。
+    Shop(usize, i32), // 槽位, type_id(77|78)
 }
 
 /// 到达格的 StepGate 结果（§1.3 StepGate=踩场景门 `from_walk=true`；bump 面
@@ -1034,6 +1077,9 @@ struct Search<'a> {
     cloud: bool,
     /// 批4 C4-a：贪心零决策闭包谓词（默认 `OFF`=批0-3 零行为变化）
     policy: ClosurePolicy,
+    /// 批5 H4：可用商品表（`shop_goods.json` 解析结果）。旧入口恒 `&[]`
+    /// ⇒ 批0-3 零行为变化；只有 `query` 路径传真表（lead 2026-11-16 认可的线程方案）。
+    shops: &'a [ShopGoodDef],
 }
 
 impl<'a> Search<'a> {
@@ -1060,6 +1106,7 @@ impl<'a> Search<'a> {
                 .map(|e| (e.x, e.y)),
             cloud: false,
             policy: ClosurePolicy::OFF,
+            shops: &[],
         }
     }
 
@@ -1069,11 +1116,28 @@ impl<'a> Search<'a> {
 
     /// 格分类（`scene.rs interact_with_cell` 的类目臂归约，提案 §6-7 单源：
     /// `entity_category_with_floor` 层覆写表；地形终审=楼梯豁免 `stair_count>0`）。
+    /// 批5 H4：开价门 + 商品定位（`applyMerchantOffer` 语义）。
+    /// `src = type==77 ? 0 : 1`（a.java:7320）、`idx = param & 0xff`、
+    /// **开价门 `(param>>>8) & 2 != 0`**（a.java:7326 / case16 分派 a.java:5495）；
+    /// 表内无对应行 ⇒ 无货 ⇒ 不出买臂（`var7<=0 → false` 同款，a.java:7333）。
+    /// 注：`shops` 为 `&[]`（批0-3/旧入口）⇒ 恒 `None` ⇒ 只剩走臂 ⇒ 零行为变化。
+    fn shop_offer(&self, st: &St, ty: i32, slot: usize) -> Option<(i32, ShopEffect)> {
+        let p = st.ents[slot].param;
+        if (p >> 8) & 2 == 0 {
+            return None; // 未开价（`var7` 位2）——引擎不弹购买面
+        }
+        let src = if ty == 77 { 0 } else { 1 };
+        let idx = p & 0xff;
+        let g = self.shops.iter().find(|g| g.src == src && g.idx == idx)?;
+        Some((g.price, g.effect.clone()))
+    }
+
     fn classify(&self, st: &St, x: i32, y: i32) -> Cell {
         let mut monster: Option<(usize, i32)> = None;
         let mut door: Option<(usize, i32)> = None;
         let mut pickup = false;
         let mut pickup_ty: Option<i32> = None;
+        let mut shop: Option<(usize, i32)> = None;
         let mut blocked = false;
         let mut stair_like = false;
         for (slot, e) in st.ents.iter().enumerate() {
@@ -1118,6 +1182,12 @@ impl<'a> Search<'a> {
                 // evidence a.java:6292 render_category=32、a.java:9681 default_category=32）
                 // ⇒ 撞前不可达。0/16 装饰：可走
                 32 => blocked = true,
+                // 批5 H4：商人（cat16）——`77|78=>16`；与门同为「交互才产生转移」的格
+                16 => {
+                    if shop.is_none() {
+                        shop = Some((slot, e.ty));
+                    }
+                }
                 _ => {}
             }
         }
@@ -1131,6 +1201,9 @@ impl<'a> Search<'a> {
         // 门在可走地形上才产生开门转移（真层门格地形均可走；非可走地形=不入格不耗钥的保守近似）
         if let Some((slot, ty)) = door {
             return Cell::Door(slot, ty);
+        }
+        if let Some((slot, ty)) = shop {
+            return Cell::Shop(slot, ty);
         }
         // 怪/拾取并存（批2 夹具无）：战斗优先——打赢后落格才拾取（引擎 interact→apply 时序）
         match (monster, pickup) {
@@ -1166,7 +1239,7 @@ impl<'a> Search<'a> {
                     continue;
                 }
                 let ok = match self.classify(st, n.0, n.1) {
-                    Cell::Move | Cell::Pickup => true,
+                    Cell::Move | Cell::Pickup | Cell::Shop(..) => true,
                     Cell::Monster(slot, _) => open.contains(&slot),
                     _ => false,
                 };
@@ -1281,7 +1354,7 @@ impl<'a> Search<'a> {
                     continue;
                 }
                 match self.classify(st, n.0, n.1) {
-                    Cell::Move => {}
+                    Cell::Move | Cell::Shop(..) => {}
                     Cell::Pickup => pickups.push(n),
                     _ => continue,
                 }
@@ -1437,6 +1510,30 @@ impl<'a> Search<'a> {
                     ns.steps += 1;
                     let g = self.gate_arrive(&mut ns, tx, ty);
                     out.push((Act::Move(tx, ty), ns, g));
+                }
+                // 批5 H4：商人两臂——① 走（=原 Move 行为，买不过也能过 ⇒ 永不误剪，
+                // 批0-3 零回归）② 买（花金得效 + 实体移除 `markEntityRemoved` 同款）
+                Cell::Shop(slot, ety) => {
+                    if self.walkable(tx, ty) {
+                        let mut ns = st.clone();
+                        ns.pos = (tx, ty);
+                        ns.steps += 1;
+                        let g = self.gate_arrive(&mut ns, tx, ty);
+                        out.push((Act::Move(tx, ty), ns, g));
+                    }
+                    if let Some((price, effect)) = self.shop_offer(st, ety, slot) {
+                        if st.player.gold >= price {
+                            let mut ns = st.clone();
+                            ns.player.gold -= price;
+                            if apply_shop_effect(&effect, &mut ns.player) {
+                                ns.ents.remove(slot);
+                                ns.pos = (tx, ty);
+                                ns.steps += 1;
+                                let g = self.gate_arrive(&mut ns, tx, ty);
+                                out.push((Act::Move(tx, ty), ns, g));
+                            }
+                        }
+                    }
                 }
                 Cell::Monster(slot, ety) => {
                     let player = st.player.to_combat();

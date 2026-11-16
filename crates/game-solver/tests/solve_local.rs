@@ -881,7 +881,7 @@ fn c4a_闭包参数化_Q2旁路零伤怪不被自动收() {
     let input = fixture_closure();
     let p = || PlayerSpec::from_combat(player(300, 10, 18));
 
-    let (ok1, g1) = solve_layer_with(&input, (0, 1), None, p(), 0, ClosurePolicy::q1());
+    let (ok1, g1) = solve_layer_with(&input, (0, 1), None, p(), 0, ClosurePolicy::q1(), &[]);
     assert!(ok1, "Q1 应可达：{g1:?}");
     assert!(!g1.is_empty());
     assert!(
@@ -890,7 +890,7 @@ fn c4a_闭包参数化_Q2旁路零伤怪不被自动收() {
         g1.iter().map(|g| (&g.kills, &g.route)).collect::<Vec<_>>()
     );
 
-    let (ok2, g2) = solve_layer_with(&input, (0, 1), None, p(), 0, ClosurePolicy::q2());
+    let (ok2, g2) = solve_layer_with(&input, (0, 1), None, p(), 0, ClosurePolicy::q2(), &[]);
     assert!(ok2, "Q2 应可达：{g2:?}");
     assert!(
         g2.iter().any(|g| g.kills == 0),
@@ -907,14 +907,14 @@ fn c4a_闭包参数化_Q3排除被禁道具() {
     let p = || PlayerSpec::from_combat(player(300, 10, 18));
 
     // ty36 金箍棒=Equip tier5 bonus220 ⇒ 落格即穿（atkrise 10→230，不入 item_types）
-    let (_ok1, g1) = solve_layer_with(&input, (0, 1), None, p(), 0, ClosurePolicy::q1());
+    let (_ok1, g1) = solve_layer_with(&input, (0, 1), None, p(), 0, ClosurePolicy::q1(), &[]);
     assert!(
         g1.iter().any(|g| g.post.atk == 230),
         "Q1 无禁令 ⇒ 收 36（Equip 即穿 ⇒ atk 10→230）：{:?}",
         g1.iter().map(|g| (g.post.atk, &g.route)).collect::<Vec<_>>()
     );
 
-    let (ok3, g3) = solve_layer_with(&input, (0, 1), None, p(), 0, ClosurePolicy::q3());
+    let (ok3, g3) = solve_layer_with(&input, (0, 1), None, p(), 0, ClosurePolicy::q3(), &[]);
     assert!(ok3, "Q3 应可达（36 旁路不挡主路）：{g3:?}");
     assert!(
         g3.iter().all(|g| g.post.atk == 10 && !g.post.item_types.contains(&36)),

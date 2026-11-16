@@ -19,6 +19,7 @@ use crate::solve_local::{
 };
 use crate::state::{CanonicalBag, DiscreteGold, DiscreteHp, ScriptFlags, SolverState};
 use game_core::subsystem::script_host::entity_category_with_floor;
+use game_data::defs::{ShopEffect, ShopGoodDef};
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, BTreeMap, BTreeSet, VecDeque};
 
@@ -251,8 +252,13 @@ pub fn solve_global(input: &GlobalInput) -> GlobalResult {
 /// 批4 C4-a：带闭包谓词的全局求解（三查询用 `ClosurePolicy::q1/q2/q3`）。
 /// `solve_global` / `solve_global_capped` = 本函数 + `ClosurePolicy::OFF`
 /// ⇒ 批0-3 零行为变化（判据「逐层拼接==全局解」天然不破）。
-pub fn solve_global_with(input: &GlobalInput, node_cap: u64, policy: ClosurePolicy) -> GlobalResult {
-    solve_global_capped_with(input, node_cap, policy)
+pub fn solve_global_with(
+    input: &GlobalInput,
+    node_cap: u64,
+    policy: ClosurePolicy,
+    shops: &[ShopGoodDef],
+) -> GlobalResult {
+    solve_global_capped_with(input, node_cap, policy, shops)
 }
 
 /// C6h：全局节点上限 env（SOLVER_NODE_LIMIT，默认 **100_000**）——lead 裁定 A 同族
@@ -270,7 +276,7 @@ pub fn node_cap_env() -> u64 {
 /// C6h：显式节点上限求解（触界 ⇒ node_cap_hit=true、confidence 降级）。
 /// 批4 C4-a：= [`solve_global_capped_with`] + `ClosurePolicy::OFF`（批0-3 零行为变化）。
 pub fn solve_global_capped(input: &GlobalInput, node_cap: u64) -> GlobalResult {
-    solve_global_capped_with(input, node_cap, ClosurePolicy::OFF)
+    solve_global_capped_with(input, node_cap, ClosurePolicy::OFF, &[])
 }
 
 /// 批4 C4-a：闭包谓词版主体（`policy` 透传给每层 `solve_layer_with`）。
@@ -278,6 +284,7 @@ pub fn solve_global_capped_with(
     input: &GlobalInput,
     node_cap: u64,
     policy: ClosurePolicy,
+    shops: &[ShopGoodDef],
 ) -> GlobalResult {
     // C4-b′ 资源预留 landmark 静态表（每次 solve 构造一次；层图极小）
     let landmark = if input.floors.contains_key(&50) {
@@ -367,9 +374,9 @@ pub fn solve_global_capped_with(
         if let Some(lm) = &landmark {
             let st_ref = &nodes[id as usize].st;
             if input.floors.contains_key(&50)
-                && (landmark_dead(lm, 50, st_ref, 0)
-                    || landmark_dead(lm, 50, st_ref, 1)
-                    || landmark_dead(lm, 50, st_ref, 2))
+                && (landmark_dead(lm, 50, st_ref, 0, shops)
+                    || landmark_dead(lm, 50, st_ref, 1, shops)
+                    || landmark_dead(lm, 50, st_ref, 2, shops))
             {
                 continue;
             }
@@ -385,6 +392,7 @@ pub fn solve_global_capped_with(
             st.player.clone(),
             st.flags,
             policy,
+            shops,
         );
         if let Some(t) = take_layer_trunc() {
             if !truncated_layers.contains(&t) {
@@ -793,7 +801,13 @@ fn floor_dist_map(lk: &LandmarkLocks, st: &GSt, color: usize) -> BTreeMap<i32, u
 }
 
 /// C4-b′ 判定：该色资源下界不足 ⇒ 该态必死（保守：仅在下界确凿时返回 true）。
-fn landmark_dead(lk: &LandmarkLocks, goal: i32, st: &GSt, color: usize) -> bool {
+fn landmark_dead(
+    lk: &LandmarkLocks,
+    goal: i32,
+    st: &GSt,
+    color: usize,
+    shops: &[ShopGoodDef],
+) -> bool {
     let dist = floor_dist_map(lk, st, color);
     let needed = dist.get(&goal).copied().unwrap_or(LOCK_INF);
     if needed == LOCK_INF || needed == 0 {
@@ -819,6 +833,37 @@ fn landmark_dead(lk: &LandmarkLocks, goal: i32, st: &GSt, color: usize) -> bool 
         let Some(v) = st.ents.get(&f) else { continue };
         let Some(ft) = lk.table.get(&f) else { continue };
         let Some(&cols) = lk.cols.get(&f) else { continue };
+        // 批5 H4 商店货源：zero_set 内「未被墙封死」且**给该色钥匙**的商店也计入。
+        // 不看当前 gold——gold 只增不减，现在买不起以后买得起 ⇒ 计入才是下界安全的
+        // （漏计会把「能买红」的态误判成死态 ⇒ 过剪）。`shops=&[]`（批0-3）⇒ 恒不计。
+        for e in v.iter().filter(|e| e.ty == 77 || e.ty == 78) {
+            let p = e.param;
+            if (p >> 8) & 2 == 0 {
+                continue; // 未开价（位2）——引擎不弹购买面
+            }
+            let src = if e.ty == 77 { 0 } else { 1 };
+            let Some(g) = shops.iter().find(|g| g.src == src && g.idx == (p & 0xff)) else {
+                continue; // 表内无货 ⇒ 无此效果边
+            };
+            let gives = match &g.effect {
+                ShopEffect::AddKeys { blue, yellow, red } => {
+                    let n = match color {
+                        0 => *yellow,
+                        1 => *red,
+                        _ => *blue,
+                    };
+                    n > 0
+                }
+                _ => false,
+            };
+            if !gives {
+                continue;
+            }
+            let tile = e.y as usize * cols + e.x as usize;
+            if ft.values().any(|by_tile| by_tile.get(tile).is_some_and(|c| c[color] != u8::MAX)) {
+                avail += 1;
+            }
+        }
         for r in v.iter().filter(|r| r.ty == key_ty) {
             let tile = r.y as usize * cols + r.x as usize;
             // 只排除「被墙封死」的钥匙（lock = u8::MAX = LOCK_INF 的表内表示）。

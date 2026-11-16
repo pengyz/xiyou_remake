@@ -15,6 +15,7 @@
 //! （A9 闸 `gates/cli.py` grep lib）。落盘/读 assets 全在 `bin/solver.rs`。
 //! JSON 手拼（与 `GlobalResult::to_json` 同风格，不引 serde）。
 
+use game_data::defs::ShopGoodDef;
 use std::collections::BTreeMap;
 
 use crate::solve_global::{node_cap_env, solve_global_with, GlobalInput, GlobalResult};
@@ -95,7 +96,12 @@ impl QueryResult {
 }
 
 /// 跑一条查询。`q` = `1`/`2`/`3`。
-pub fn run_query(input: &GlobalInput, q: u8, opts: &QueryOpts) -> QueryResult {
+pub fn run_query(
+    input: &GlobalInput,
+    q: u8,
+    opts: &QueryOpts,
+    shops: &[ShopGoodDef],
+) -> QueryResult {
     // Q3 的禁令集可能来自 CLI 现 parse 的 Vec ⇒ `Box::leak` 换 `'static`
     //（`ClosurePolicy.ban` 是 `&'static [i32]`，memo 键要求 Copy；进程级一次性，
     //  lib 无 fs/net/process/time，A9 纯度闸不受影响）。
@@ -116,7 +122,7 @@ pub fn run_query(input: &GlobalInput, q: u8, opts: &QueryOpts) -> QueryResult {
     };
     let mut input = input.clone();
     input.bound = opts.bound;
-    let result = solve_global_with(&input, opts.node_cap, policy);
+    let result = solve_global_with(&input, opts.node_cap, policy, shops);
     let confidence = result.confidence.to_string();
     let (key, metric, value) = match q {
         1 => (
@@ -136,10 +142,14 @@ pub fn run_query(input: &GlobalInput, q: u8, opts: &QueryOpts) -> QueryResult {
 
 /// `query --all`：三查询一轮，返回 `{q1,q2,q3}`（plan §4 批4 的 python assert
 /// `{'q1','q2','q3'} <= set(d)` 就打在这张表上）。
-pub fn run_all(input: &GlobalInput, opts: &QueryOpts) -> BTreeMap<String, QueryResult> {
+pub fn run_all(
+    input: &GlobalInput,
+    opts: &QueryOpts,
+    shops: &[ShopGoodDef],
+) -> BTreeMap<String, QueryResult> {
     let mut m = BTreeMap::new();
     for q in [1u8, 2, 3] {
-        let r = run_query(input, q, opts);
+        let r = run_query(input, q, opts, shops);
         m.insert(r.key.to_string(), r);
     }
     m
