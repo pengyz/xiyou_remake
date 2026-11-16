@@ -369,6 +369,7 @@ pub fn solve_layer_with(
     shops: &[ShopGoodDef],
 ) -> (bool, Vec<LayerGoal>) {
     LAYER_TRUNC.with(|f| f.set(None));
+    GOLD_PEAK.with(|c| c.set(0));
     let Some(level) = input.level.as_ref() else {
         return (false, Vec::new());
     };
@@ -387,10 +388,11 @@ pub fn solve_layer_with(
         level_digest(input),
         policy,
     );
-    if let Some((hit_ok, hit_goals, hit_trunc)) =
+    if let Some((hit_ok, hit_goals, hit_trunc, hit_peak)) =
         LAYER_MEMO.with(|m| m.borrow().get(&memo_key).cloned())
     {
         LAYER_TRUNC.with(|f| f.set(hit_trunc)); // memo 命中回放截断标记（可观测性不变）
+        GOLD_PEAK.with(|c| c.set(hit_peak)); // 批6：金币峰值同样按缓存回放
         return (hit_ok, hit_goals);
     }
     let mut search = Search::from_entry(input, level, entry);
@@ -425,7 +427,12 @@ pub fn solve_layer_with(
     LAYER_MEMO.with(|m| {
         m.borrow_mut().insert(
             memo_key,
-            (reachable, mapped.clone(), LAYER_TRUNC.with(|f| f.get())),
+            (
+                reachable,
+                mapped.clone(),
+                LAYER_TRUNC.with(|f| f.get()),
+                GOLD_PEAK.with(|c| c.get()),
+            ),
         );
     });
     (reachable, mapped)
@@ -441,13 +448,18 @@ thread_local! {
     static LAYER_MEMO: RefCell<
         HashMap<
             (i32, (i32, i32), PlayerSpec, u128, Vec<EntRec>, u64, ClosurePolicy),
-            (bool, Vec<LayerGoal>, Option<(i32, usize)>),
+            (bool, Vec<LayerGoal>, Option<(i32, usize)>, i32),
         >,
     > = RefCell::new(HashMap::new());
     /// R1 层界截断标记（lead 裁定 A 2026-11-13 条件1「截断可观测」）：
     /// `Some((floor, nodes))`=该层在 nodes 达上限时截断。solve_layer 入口清零、
     /// run_root 触界置位、memo 命中按缓存值回放 ⇒ 全局层每调一次都可观测。
     static LAYER_TRUNC: std::cell::Cell<Option<(i32, usize)>> = std::cell::Cell::new(None);
+    /// 批6 C6c：本层搜索**生成态金币峰值**（诊断量，不参与搜索决策、不进键/支配）。
+    /// `solve_layer` 入口清零、`expand` 汇聚每个生成态、memo 命中按缓存回放 ⇒
+    /// 全局层每调一次可观测，`solve_global` 取跨层最大值写入 `GlobalResult.gold_peak`。
+    /// 用途：回答「击杀金币补边后金币是否仍是瓶颈」（批5 §4.5 的 210 峰值口径重测）。
+    static GOLD_PEAK: std::cell::Cell<i32> = std::cell::Cell::new(0);
 }
 
 /// R1 层节点上限（计划 §5 R1「离散桶+canonical+**有界可配**+不承诺全局最优」；
@@ -467,6 +479,11 @@ fn layer_node_limit() -> usize {
 /// 取走并清零层截断标记（solve_global 消费；见 LAYER_TRUNC doc）。
 pub(crate) fn take_layer_trunc() -> Option<(i32, usize)> {
     LAYER_TRUNC.with(|f| f.get())
+}
+
+/// 批6 C6c：本层搜索金币峰值（`solve_global` 聚合消费；见 GOLD_PEAK doc）。
+pub(crate) fn take_gold_peak() -> i32 {
+    GOLD_PEAK.with(|c| c.get())
 }
 
 /// C5d″：层规格内容摘要（FNV-1a，`LAYER_MEMO` 键分量）。覆盖 `SolveInput` 全
@@ -911,6 +928,36 @@ struct Node {
 /// （原版 a.java:7379-7384 有真实现；这是求解器建模缺口，不是考证结论——H4 的教训就是
 /// 缺边被读成「无解」）。若三查询卡在这些效果上，按报审列的出臂优先级补。
 /// 返回 `false` = 效果无法实施（如 `SwapYellowKey` 黄不足）⇒ 不出买臂。
+/// 批6 C6a：**击杀给金**（引擎单源 `crates/game-core/src/scene.rs:2301-2309`
+/// `kill_adjacent_at`）：
+///
+/// ```ignore
+/// let gold = if self.player.find_item(25) >= 0 {
+///     self.enemy_base[(t - 41) as usize].gold << 1
+/// } else {
+///     self.enemy_base[(t - 41) as usize].gold
+/// };
+/// self.player.gold += gold;
+/// ```
+///
+/// - 表源同源：`enemy_base[i]` 的 `id == 41 + i`（`CombatTables::to_records`
+///   `combat.rs:24-35`）⇒ `idx = t - 41` 与引擎逐字一致（非另立映射）；
+/// - item25 双倍判定走 `PlayerCombat::find_item`（`combat.rs:67-74`，`to_combat()`
+///   出来的就是引擎同一实现）⇒ 判定面零自写；
+/// - 表缺行/零赏金 ⇒ 0（引擎侧同一行只会给出 0，等价）。
+fn kill_bounty(level: &LevelSpec, player: &PlayerCombat, ety: i32) -> i32 {
+    let base = level
+        .enemy_base
+        .get((ety - 41) as usize)
+        .map(|e| e.gold)
+        .unwrap_or(0);
+    if player.find_item(25) >= 0 {
+        base << 1
+    } else {
+        base
+    }
+}
+
 fn apply_shop_effect(effect: &ShopEffect, p: &mut PlayerSpec) -> bool {
     match effect {
         ShopEffect::AddKeys { blue, yellow, red } => {
@@ -1472,6 +1519,8 @@ impl<'a> Search<'a> {
                 let mut ns = st.clone();
                 ns.player.hp -= loss;
                 ns.kills += 1;
+                // 批6 C6a：击杀给金（引擎 scene.rs:2301-2309 同源；含 item25 双倍）
+                ns.player.gold += kill_bounty(self.level, &pc, ety);
                 ns.ents.remove(slot);
                 ns.pos = m;
                 ns.steps += 1;
@@ -1487,7 +1536,24 @@ impl<'a> Search<'a> {
 
     /// 后继生成（solver 自算=搜索编排白名单；转移本体全为 §1.3 直调）。
     /// 第三元=到达格 StepGate 结果（C5；仅 Move/Door 到达面——踩格触发）。
+    /// 批6 C6c：金币峰值采样包装（`expand_inner` 前加一层——不改任何臂的生成逻辑，
+    /// 只把「入口态 + 全部生成态」的 `player.gold` 汇入 `GOLD_PEAK`）。
     fn expand(&self, st: &St, out: &mut Vec<(Act, St, GateArrive)>) {
+        self.expand_inner(st, out);
+        let mut m = st.player.gold;
+        for (_, ns, _) in out.iter() {
+            if ns.player.gold > m {
+                m = ns.player.gold;
+            }
+        }
+        GOLD_PEAK.with(|c| {
+            if m > c.get() {
+                c.set(m);
+            }
+        });
+    }
+
+    fn expand_inner(&self, st: &St, out: &mut Vec<(Act, St, GateArrive)>) {
         // 批4 C4-a：闭包步是**唯一**后继（确定性 ⇒ 不增分支）；收完 None ⇒ 原四臂。
         // 闭包步走普通 Node（parent/act 入链）⇒ `route_of` 天然含闭包移动、
         // dedup/Pareto 照常、幂等（已收则 `closure_step` 返回 None）。
@@ -1542,6 +1608,9 @@ impl<'a> Search<'a> {
                         let mut ns = st.clone();
                         ns.player.hp -= loss;
                         ns.kills += 1;
+                        // 批6 C6a：击杀给金（引擎 scene.rs:2301-2309 同源；
+                        // item25 双倍经 to_combat 的 find_item 判定）
+                        ns.player.gold += kill_bounty(self.level, &player, ety);
                         ns.ents.remove(slot);
                         ns.pos = (tx, ty);
                         ns.steps += 1;

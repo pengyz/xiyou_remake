@@ -82,6 +82,10 @@ pub struct GlobalResult {
     pub node_cap: u64,
     /// C6h：nodes.len() 达上限提前终止（可观测；confidence 已降级）。
     pub node_cap_hit: bool,
+    /// 批6 C6c：本次求解**生成态金币峰值**（跨层取最大；含入场金）。
+    /// 诊断量（不参与搜索决策/去重键/支配），用途=回答「击杀金币补边后金币
+    /// 是否仍是瓶颈」——批5 §4.5 的 `gold_before` 峰值口径重测面。
+    pub gold_peak: i32,
 }
 
 /// 全局态（层间耦合量，计划 §3.3 字段口径；`floor/pos/player/flags/kills/steps`
@@ -351,6 +355,8 @@ pub fn solve_global_capped_with(
     let mut hit_bound = false;
     let mut node_cap_hit = false;
     let mut truncated_layers: Vec<(i32, usize)> = Vec::new();
+    // 批6 C6c：金币峰值（含入场金；逐层取 `take_gold_peak()` 的跨层最大）
+    let mut gold_peak: i32 = input.start_player.gold;
     while let Some((Reverse(_), _, Reverse(id))) = queue.pop() {
         if pruned[id as usize] {
             continue;
@@ -399,6 +405,8 @@ pub fn solve_global_capped_with(
                 truncated_layers.push(t);
             }
         }
+        // 批6 C6c：本层搜索的生成态金币峰值（诊断量；memo 命中按缓存回放）
+        gold_peak = gold_peak.max(crate::solve_local::take_gold_peak());
         if !reachable {
             continue;
         }
@@ -508,6 +516,7 @@ pub fn solve_global_capped_with(
         truncated_layers,
         node_cap,
         node_cap_hit,
+        gold_peak,
     }
 }
 
@@ -948,12 +957,13 @@ impl GlobalResult {
             .map(|(f, n)| format!("[{f},{n}]"))
             .collect();
         format!(
-            "{{\"confidence\":\"{}\",\"bound\":{},\"expansions\":{},\"node_cap\":{},\"node_cap_hit\":{},\"goals\":[{}],\"truncated_layers\":[{}]}}",
+            "{{\"confidence\":\"{}\",\"bound\":{},\"expansions\":{},\"node_cap\":{},\"node_cap_hit\":{},\"gold_peak\":{},\"goals\":[{}],\"truncated_layers\":[{}]}}",
             self.confidence,
             self.bound,
             self.expansions,
             self.node_cap,
             self.node_cap_hit,
+            self.gold_peak,
             goals.join(","),
             trunc.join(",")
         )
