@@ -1365,7 +1365,7 @@ impl<'a> Search<'a> {
         }
         // ② 候选：键=(距离, y, x, kind)——确定性取最小（禁 HashMap 序）
         let mut best: Option<((i32, i32, i32, i32), ClosureCand)> = None;
-        let mut put = |k: (i32, i32, i32, i32),
+        let put = |k: (i32, i32, i32, i32),
                        c: ClosureCand,
                        b: &mut Option<((i32, i32, i32, i32), ClosureCand)>| {
             if b.as_ref().map_or(true, |(bk, _)| k < *bk) {
