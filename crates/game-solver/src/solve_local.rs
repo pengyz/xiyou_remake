@@ -370,6 +370,7 @@ pub fn solve_layer_with(
 ) -> (bool, Vec<LayerGoal>) {
     LAYER_TRUNC.with(|f| f.set(None));
     GOLD_PEAK.with(|c| c.set(0));
+    SHOP_BUYS.with(|c| c.set((0, 0)));
     let Some(level) = input.level.as_ref() else {
         return (false, Vec::new());
     };
@@ -388,11 +389,12 @@ pub fn solve_layer_with(
         level_digest(input),
         policy,
     );
-    if let Some((hit_ok, hit_goals, hit_trunc, hit_peak)) =
+    if let Some((hit_ok, hit_goals, hit_trunc, hit_peak, hit_buys)) =
         LAYER_MEMO.with(|m| m.borrow().get(&memo_key).cloned())
     {
         LAYER_TRUNC.with(|f| f.set(hit_trunc)); // memo 命中回放截断标记（可观测性不变）
         GOLD_PEAK.with(|c| c.set(hit_peak)); // 批6：金币峰值同样按缓存回放
+        SHOP_BUYS.with(|c| c.set(hit_buys)); // 批6：买臂计数同样按缓存回放
         return (hit_ok, hit_goals);
     }
     let mut search = Search::from_entry(input, level, entry);
@@ -432,6 +434,7 @@ pub fn solve_layer_with(
                 mapped.clone(),
                 LAYER_TRUNC.with(|f| f.get()),
                 GOLD_PEAK.with(|c| c.get()),
+                SHOP_BUYS.with(|c| c.get()),
             ),
         );
     });
@@ -448,7 +451,7 @@ thread_local! {
     static LAYER_MEMO: RefCell<
         HashMap<
             (i32, (i32, i32), PlayerSpec, u128, Vec<EntRec>, u64, ClosurePolicy),
-            (bool, Vec<LayerGoal>, Option<(i32, usize)>, i32),
+            (bool, Vec<LayerGoal>, Option<(i32, usize)>, i32, (u64, u64)),
         >,
     > = RefCell::new(HashMap::new());
     /// R1 层界截断标记（lead 裁定 A 2026-11-13 条件1「截断可观测」）：
@@ -460,6 +463,11 @@ thread_local! {
     /// 全局层每调一次可观测，`solve_global` 取跨层最大值写入 `GlobalResult.gold_peak`。
     /// 用途：回答「击杀金币补边后金币是否仍是瓶颈」（批5 §4.5 的 210 峰值口径重测）。
     static GOLD_PEAK: std::cell::Cell<i32> = std::cell::Cell::new(0);
+    /// 批6 C6c：本层搜索的商店买臂计数 `(买臂总数, 其中授出红钥匙的买臂数)`。
+    /// 诊断量（批5 复核用临时打点测过 5716 次买臂 / f12 红 0 次，本指标把它固化成
+    /// 可复跑证据）。`solve_layer` 入口清零、memo 命中按缓存回放、`solve_global`
+    /// 跨层累加写 `GlobalResult.shop_buys / red_buys`。
+    static SHOP_BUYS: std::cell::Cell<(u64, u64)> = std::cell::Cell::new((0, 0));
 }
 
 /// R1 层节点上限（计划 §5 R1「离散桶+canonical+**有界可配**+不承诺全局最优」；
@@ -484,6 +492,11 @@ pub(crate) fn take_layer_trunc() -> Option<(i32, usize)> {
 /// 批6 C6c：本层搜索金币峰值（`solve_global` 聚合消费；见 GOLD_PEAK doc）。
 pub(crate) fn take_gold_peak() -> i32 {
     GOLD_PEAK.with(|c| c.get())
+}
+
+/// 批6 C6c：本层买臂计数 `(总数, 授红数)`（`solve_global` 聚合消费；见 SHOP_BUYS）。
+pub(crate) fn take_shop_buys() -> (u64, u64) {
+    SHOP_BUYS.with(|c| c.get())
 }
 
 /// C5d″：层规格内容摘要（FNV-1a，`LAYER_MEMO` 键分量）。覆盖 `SolveInput` 全
@@ -1592,6 +1605,15 @@ impl<'a> Search<'a> {
                             let mut ns = st.clone();
                             ns.player.gold -= price;
                             if apply_shop_effect(&effect, &mut ns.player) {
+                                // 批6 C6c：买臂统计（授红=AddKeys.red>0）
+                                let red = match effect {
+                                    ShopEffect::AddKeys { red, .. } => red > 0,
+                                    _ => false,
+                                };
+                                SHOP_BUYS.with(|c| {
+                                    let (n, r) = c.get();
+                                    c.set((n + 1, r + if red { 1 } else { 0 }));
+                                });
                                 ns.ents.remove(slot);
                                 ns.pos = (tx, ty);
                                 ns.steps += 1;

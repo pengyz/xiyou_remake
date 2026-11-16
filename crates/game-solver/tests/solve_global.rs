@@ -1456,7 +1456,7 @@ fn enemies_real_bounty() -> Vec<EnemyDef> {
 /// 批6 C6a/C6b 夹具：8×3 走廊（仅 y=1 可走 ⇒ 怪/商店都是必经格）：
 /// (0,1) 入场 → 怪槽（`monsters`: (type,x)）→ 商店槽 x=4..=6（`with_shops` 时）
 /// → (7,1) 上行梯 ty7 param=50 → floor50 终局。
-fn gold_world(monsters: &[(i32, i32)], with_shops: bool) -> BTreeMap<i32, LevelSpec> {
+fn gold_world(monsters: &[(i32, i32)], shop_idx: Option<u8>) -> BTreeMap<i32, LevelSpec> {
     const W: i32 = 8;
     let mut terrain = vec![false; (W * 3) as usize];
     for x in 0..W {
@@ -1466,15 +1466,15 @@ fn gold_world(monsters: &[(i32, i32)], with_shops: bool) -> BTreeMap<i32, LevelS
         .iter()
         .map(|&(ty, x)| EntSpec { ty, x, y: 1, param: 0 })
         .collect();
-    if with_shops {
+    if let Some(idx) = shop_idx {
         // ty78 ⇒ `src=1`（付费表，`shop_offer` `ty==77 ? 0 : 1`）；开价门
-        // `(param>>8)&2` ⇒ flags=3；idx=4 ⇒ 真表 id8 ¤50 黄+5
+        // `(param>>8)&2` ⇒ flags=3；idx=4 ⇒ 真表 id8 ¤50 黄+5；idx=6 ⇒ id10 ¤800 红+1
         for x in 4..=6 {
             entities.push(EntSpec {
                 ty: 78,
                 x,
                 y: 1,
-                param: (3 << 8) | 4,
+                param: (3 << 8) | idx as i32,
             });
         }
     }
@@ -1509,11 +1509,13 @@ fn gold_world(monsters: &[(i32, i32)], with_shops: bool) -> BTreeMap<i32, LevelS
 
 fn gold_run(
     monsters: &[(i32, i32)],
-    with_shops: bool,
+    shop_idx: Option<u8>,
     with_item25: bool,
+    start_gold: i32,
 ) -> game_solver::solve_global::GlobalResult {
     let goods = load_shop_goods();
     let mut p = player();
+    p.gold = start_gold;
     if with_item25 {
         // 引擎 `find_item(25)` 的模型等价源：bag 槽 0 = 25（`combat.rs:67-74`）
         p.item_types = vec![25];
@@ -1522,7 +1524,7 @@ fn gold_run(
     }
     solve_global_with(
         &GlobalInput {
-            floors: gold_world(monsters, with_shops),
+            floors: gold_world(monsters, shop_idx),
             start_floor: 1,
             start_pos: (0, 1),
             start_player: p,
@@ -1571,7 +1573,7 @@ fn solve_global_t击杀给金_普通与item25双倍_余额精确断言() {
     assert!(g47 > 0, "id47 赏金须非零：{g47}");
 
     // ① 无 item25：杀 ty47 ⇒ gold += g47（不是 0）
-    let r1 = gold_run(&[(47, 1)], false, false);
+    let r1 = gold_run(&[(47, 1)], None, false, 0);
     assert!(!r1.goals.is_empty(), "① 应通关：{r1:?}");
     for g in &r1.goals {
         assert_eq!(
@@ -1583,9 +1585,11 @@ fn solve_global_t击杀给金_普通与item25双倍_余额精确断言() {
         r1.gold_peak, g47,
         "① 搜索期金币峰值 = 赏金（无商店 ⇒ 无减金，峰值=终点）"
     );
+    assert_eq!(r1.shop_buys, 0, "① 无商店 ⇒ 买臂 0");
+    assert_eq!(r1.red_buys, 0, "① 无商店 ⇒ 授红 0");
 
     // ② 持 item25：`find_item(25)>=0` ⇒ `enemy_base.gold << 1`
-    let r2 = gold_run(&[(47, 1)], false, true);
+    let r2 = gold_run(&[(47, 1)], None, true, 0);
     assert!(!r2.goals.is_empty(), "② 应通关：{r2:?}");
     for g in &r2.goals {
         assert_eq!(
@@ -1627,10 +1631,12 @@ fn solve_global_t连续买两次_余额与买不起分支_逐值断言() {
     let total3 = total2 + bounty(58);
 
     // ① 两杀：金只够买两次
-    let r2 = gold_run(&[(47, 1), (52, 2)], true, false);
+    let r2 = gold_run(&[(47, 1), (52, 2)], Some(4), false, 0);
     assert!(!r2.goals.is_empty(), "① 应通关：{r2:?}");
     assert!(r2.expansions > 0, "① 必须真的扩展过：{r2:?}");
     assert_eq!(r2.gold_peak, total2, "① 峰值 = 两杀金（买前）");
+    assert!(r2.shop_buys > 0, "① 买臂确有触发：{}", r2.shop_buys);
+    assert_eq!(r2.red_buys, 0, "① 黄钥匙商品不授红");
     let got2: std::collections::BTreeSet<i32> = r2.goals.iter().map(|g| g.post.gold).collect();
     assert_eq!(
         got2,
@@ -1650,7 +1656,7 @@ fn solve_global_t连续买两次_余额与买不起分支_逐值断言() {
     );
 
     // ② 三杀：金够买三次（正向对照：余额确实由击杀金驱动）
-    let r3 = gold_run(&[(47, 1), (52, 2), (58, 3)], true, false);
+    let r3 = gold_run(&[(47, 1), (52, 2), (58, 3)], Some(4), false, 0);
     assert!(!r3.goals.is_empty(), "② 应通关：{r3:?}");
     assert_eq!(r3.gold_peak, total3, "② 峰值 = 三杀金（买前）");
     let got3: std::collections::BTreeSet<i32> = r3.goals.iter().map(|g| g.post.gold).collect();
@@ -1668,4 +1674,32 @@ fn solve_global_t连续买两次_余额与买不起分支_逐值断言() {
         !got3.contains(&(total3 - 4 * price)),
         "② 第 4 买越界（7<50）不得出现"
     );
+}
+
+/// 批6 C6c 诊断**正控**：红钥匙买臂（真表 id10 = src1/idx6/¤800/AddKeys red+1，
+/// = f12 商人那条边）。入场金 800、无怪 ⇒ 买红后 金 0 / 红 1；
+/// `red_buys>=1` 证明该计数不是恒 0 的死指标（批5 实测 f12 红 0 次即本指标 ≤0 侧）。
+#[test]
+fn solve_global_t红钥匙买臂计数_正控() {
+    let goods = load_shop_goods();
+    let paid = goods
+        .iter()
+        .find(|g| g.src == 1 && g.idx == 6)
+        .expect("真表须有 src1/idx6 付费行");
+    assert_eq!(paid.price, 800, "id10 开价 800（shop_goods.json）");
+    let r = gold_run(&[], Some(6), false, paid.price);
+    assert!(!r.goals.is_empty(), "金 800 应能买红通关：{r:?}");
+    let pairs: Vec<(i32, i32)> = r.goals.iter().map(|g| (g.post.red, g.post.gold)).collect();
+    // 夹具允许绕/踩商店格 ⇒ 两臂都该在 goals 里：买红（金 0/红 1）与走臂（金 800/红 0）
+    assert!(
+        pairs.contains(&(1, 0)),
+        "应有买红态（红 1 / 金 0）：{pairs:?}"
+    );
+    assert!(
+        pairs.contains(&(0, 800)),
+        "应有不买态（红 0 / 金 800）：{pairs:?}"
+    );
+    assert!(r.shop_buys >= 1, "买臂总数 >=1：{}", r.shop_buys);
+    assert!(r.red_buys >= 1, "授红买臂 >=1：{}", r.red_buys);
+    assert_eq!(r.gold_peak, 800, "峰值 = 入场金 800（买后归零）");
 }

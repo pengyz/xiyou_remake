@@ -82,6 +82,15 @@ pub struct GlobalResult {
     pub node_cap: u64,
     /// C6h：nodes.len() 达上限提前终止（可观测；confidence 已降级）。
     pub node_cap_hit: bool,
+    /// 批6 C6c：本次求解买臂总数（跨层累加；含所有可实施商品效果）。
+    pub shop_buys: u64,
+    /// 批6 C6c：其中**授出红钥匙**的买臂数（`AddKeys.red>0`）——回答「红钥匙是否
+    /// 在模型内被买到」（批5 复核临时打点实测 0 次，本字段把它固化成可复跑证据）。
+    pub red_buys: u64,
+    /// 批6 C6c：逐层金币峰值 `(floor, max gold)`（层号升序；仅出现过的层）。
+    /// 用途：回答「红钥匙距离」——f12 商人 ¤800 那条边在模型内差多少金
+    /// （= `800 - peak[f12]`，`red_buys=0` 时是不可购买的直接证据）。
+    pub gold_peak_by_floor: Vec<(i32, i32)>,
     /// 批6 C6c：本次求解**生成态金币峰值**（跨层取最大；含入场金）。
     /// 诊断量（不参与搜索决策/去重键/支配），用途=回答「击杀金币补边后金币
     /// 是否仍是瓶颈」——批5 §4.5 的 `gold_before` 峰值口径重测面。
@@ -357,6 +366,12 @@ pub fn solve_global_capped_with(
     let mut truncated_layers: Vec<(i32, usize)> = Vec::new();
     // 批6 C6c：金币峰值（含入场金；逐层取 `take_gold_peak()` 的跨层最大）
     let mut gold_peak: i32 = input.start_player.gold;
+    // 批6 C6c：逐层金币峰值（层号 → max gold）
+    let mut gold_peak_floor: BTreeMap<i32, i32> = BTreeMap::new();
+    gold_peak_floor.insert(input.start_floor, input.start_player.gold);
+    // 批6 C6c：买臂计数（跨层累加；见 solve_local::SHOP_BUYS）
+    let mut shop_buys: u64 = 0;
+    let mut red_buys: u64 = 0;
     while let Some((Reverse(_), _, Reverse(id))) = queue.pop() {
         if pruned[id as usize] {
             continue;
@@ -406,7 +421,15 @@ pub fn solve_global_capped_with(
             }
         }
         // 批6 C6c：本层搜索的生成态金币峰值（诊断量；memo 命中按缓存回放）
-        gold_peak = gold_peak.max(crate::solve_local::take_gold_peak());
+        let lp = crate::solve_local::take_gold_peak();
+        gold_peak = gold_peak.max(lp);
+        let e = gold_peak_floor.entry(st.floor).or_insert(lp);
+        if lp > *e {
+            *e = lp;
+        }
+        let (nb, rb) = crate::solve_local::take_shop_buys();
+        shop_buys += nb;
+        red_buys += rb;
         if !reachable {
             continue;
         }
@@ -517,6 +540,9 @@ pub fn solve_global_capped_with(
         node_cap,
         node_cap_hit,
         gold_peak,
+        gold_peak_by_floor: gold_peak_floor.into_iter().collect(),
+        shop_buys,
+        red_buys,
     }
 }
 
@@ -956,14 +982,22 @@ impl GlobalResult {
             .iter()
             .map(|(f, n)| format!("[{f},{n}]"))
             .collect();
+        let peaks: Vec<String> = self
+            .gold_peak_by_floor
+            .iter()
+            .map(|(f, n)| format!("[{f},{n}]"))
+            .collect();
         format!(
-            "{{\"confidence\":\"{}\",\"bound\":{},\"expansions\":{},\"node_cap\":{},\"node_cap_hit\":{},\"gold_peak\":{},\"goals\":[{}],\"truncated_layers\":[{}]}}",
+            "{{\"confidence\":\"{}\",\"bound\":{},\"expansions\":{},\"node_cap\":{},\"node_cap_hit\":{},\"gold_peak\":{},\"shop_buys\":{},\"red_buys\":{},\"gold_peak_by_floor\":[{}],\"goals\":[{}],\"truncated_layers\":[{}]}}",
             self.confidence,
             self.bound,
             self.expansions,
             self.node_cap,
             self.node_cap_hit,
             self.gold_peak,
+            self.shop_buys,
+            self.red_buys,
+            peaks.join(","),
             goals.join(","),
             trunc.join(",")
         )
