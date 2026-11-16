@@ -342,8 +342,8 @@ FF（fast-forward）= **不推进任何 tick、把该槽求值到"槽结束"**�
 | `25` | `CES_…`（单条） | **可同步求值**，但 tick 计数不等 | `script_step_delay` 唯一读者 `scene_dialog.rs:114-118`，纯节奏 |
 | `13`、`18`、`38` | CES 族 | 同 `25` | 同上 |
 | `6`、`14`…（23 个仅 TAK 槽） | `TAK_x_y` | **必须 tick** | 相位 1 停表等按键；且这是 PE-01 的原始靶子（v1 说"整页被跳过"，实际生产口径不触发，见 §B.2′） |
-| `39`、`58`、`59`、`60`（空槽） | 内容 = 单字节 `\x1e` | **A 档但非 no-op**：入口门仍写 `flags[idx]=true`（`idx≠32`）+ `phase=4` + `lock_camera_on(0)` | `a.java:8603-8610`；`.trim()` 不吃 `0x1E`（`scene.rs:253-256`）⇒ 行长 1 ⇒ `0+3 > 1` 入口门命中 |
-| `67` | `TAK_264_268 `（12 字节，文件末尾无 `0x1E`、无换行） | ☠️ **DC-5 不可达**；且在 (a) 口径下**先 panic**：`.trim()` 吃掉尾空格 ⇒ 行长 11 ⇒ `parse_script_int(line, 8, ' ')` 无分隔符 ⇒ `expect("脚本整数的分隔符缺失")`（`crates/game-core/src/script.rs:262`） | `crates/game-solver/src/script_abs.rs:686-700` 既有测试注释已写明同一事实 |
+| `39`、`58`、`59`、`60`（空槽） | 内容 = 单字节 `\x1e` | **A 档但非 no-op**：入口门仍写 `flags[idx]=true`（`idx≠32`）+ `phase=4` + `lock_camera_on(0)` | `a.java:8603-8610`；`0x1E` 剥离后行长 0（剥离前 1）⇒ `0+3 > len` 入口门命中（两种口径同结论） |
+| `67` | `TAK_264_268 `（12 字节，文件末尾无 `0x1E`、无换行） | ☠️ **DC-5 不可达**。~~且在 (a) 口径下先 panic：`.trim()` 吃掉尾空格 ⇒ 行长 11 ⇒ `parse_script_int(line, 8, ' ')` 无分隔符 ⇒ expect panic~~ **【2026-11-16 已修·作废】**：`.trim()` 属移植偏差（Java 字面量带尾空格，a.java:1192 / evidence-boss.md:576）；`fixture_script_line` 剥 `0x1E` 且不再 trim ⇒ 槽 67 正常解析（页 264..268、cursor=12），**只有 DC-5 不可达结论不变** | `docs/spec/evidence-boss.md:576`；`crates/game-core/tests/script_fixture_lines.rs` |
 
 #### §A.3′.4 对 §D 的硬约束（FF 落地时必须满足）
 
@@ -438,6 +438,8 @@ FF（fast-forward）= **不推进任何 tick、把该槽求值到"槽结束"**�
 - 锚 `a.java:8574-8580` → **伪锚**：该区间落在 `MVS` 体（`8525-8598`）内，与收尾门无关；真锚 `8600-8602`（尾检查）与 `8603-8610`（入口门）。
 
 **与复核报告的唯一分歧（结论相同，措辞与机制需更严）**：红队「任何槽的末命令都不会让 cursor 到达 len」严格说不成立——夹具第 68 条（槽 67 `TAK_264_268`）在**原始字节**里是 `TAK_264_268 `（12 字节，`54 41 4b 5f 32 36 34 5f 32 36 38 20`，文件末尾既无 `0x1E` 也无换行），TAK 消费后 `cursor = 12 = len`。但生产口径下该行先被 `.trim()` 削成 11 字节，随即 `parse_script_int(line, 8, ' ')` 找不到分隔符而 panic（`crates/game-core/src/script.rs:262` 的 `expect`；`crates/game-solver/src/script_abs.rs:686-700` 的既有测试注释已记同一事实），**尾门依然不可达**。红队的复现脚本用 `lines[:-1]` 排除最后一行，属复现口径缺陷；P1 结论不受影响。
+
+> 【2026-11-16 落地更正】上段「`.trim()` 削成 11 字节 ⇒ panic」已随 0x1E 剥离一并修复（commit 见 git log：`fixture_script_line` 只剥 `U+001E`、保留行尾空格）。槽 67 现在按 Java 口径解析为 `TAK{start:264,end:268,cursor:12}`，不再 panic；DC-5 不可达的裁定与 P1 结论均不变。原 `slot67_dc5_unreachable_*_panic_parity` 两个测试已改判为 `slot67_dc5_parse_parity` / `slot67_dc5_execute_parity`（state-parity），更正注写在测试原位。
 
 #### §B.2′.1b 追加证据（同日）：语料口径确有缺陷 —— **但「Java 同一拍写收尾」的归因已被 §0′.4′ 字节码裁定推翻**
 

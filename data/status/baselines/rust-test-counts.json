@@ -54,14 +54,15 @@
     "process_exit(test)": 4,
     "render_category_table_driven(test)": 4,
     "render_golden(test)": 16,
-    "script_golden(test)": 14,
+    "script_fixture_lines(test)": 3,
+    "script_golden(test)": 16,
     "script_walk_taps(test)": 2,
     "sheet_index_table_driven(test)": 6,
     "shop_goods_defs(test)": 6,
     "size_dispatch_table_driven(test)": 5,
     "slot_equip_scene(test)": 2,
-    "solve_global(test)": 17,
-    "solve_local(test)": 11,
+    "solve_global(test)": 24,
+    "solve_local(test)": 13,
     "solver(bin)": 0,
     "storage_contract(test)": 7,
     "storage_wiring(test)": 4,
@@ -76,5 +77,5 @@
     "walk_route(test)": 12,
     "xiyou(bin)": 42
   },
-  "total": 1075
+  "total": 1089
 }

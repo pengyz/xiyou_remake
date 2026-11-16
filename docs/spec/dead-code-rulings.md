@@ -204,6 +204,8 @@ python3 tools/dead_code_ruling.py | sed -n '/^## DC-4/,/^## 守卫/p'
   [1, 12, 37, 57, 61, 62, 63]（∌67，executeScriptInstruction@421 解析臂）
 - ⇒ loadLevelScript(67) 无可达调用点 ⇒ script67 永不装入 ⇒ TAK_264_268 死。
 
+> 【2026-11-16 备注·裁定不变】本判据不依赖移植侧的 `.trim()` 行为。当日修正了求解器/引擎口径偏差（`from_fixtures` 曾 trim 掉 Java 字面量的行尾空格，致槽 67 解析 panic）：现在按 Java 口径正常解析为页 264..268（`fixture_script_line`，见 `docs/superpowers/proposals/2026-11-16-script-command-pipeline-proposal.md` §B.2）。**☠️ 不可达结论不受影响**（P1-P3 与 difficultyIndex 引理独立）。
+
 ### 史：初版缺口清单（task-7 当日上午所记，已被上列引理/证明闭合，留档不删）
 
 **工具结论**（初版）：`python3 tools/dead_code_ruling.py` 引擎实测 **两条证明链各差 1 处模型闭合点**：
