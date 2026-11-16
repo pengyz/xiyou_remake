@@ -5,6 +5,41 @@
 > 纪律依据：`AGENTS.md`（证据分级 A/B/C、禁止调阈值/放宽断言、跨层三问、产出归宿是仓库）。
 > 行号说明：本文全部行号均为 2026-11-16 在本仓库**现场实测**（`sed`/`grep`/`javap` 直读），非转抄；引用前请现场复核——本仓有两次行号漂移前科（`gates/cli.py` 的 `gate_state_machine_anchors` 即为防此设）。
 
+> **【2026-11-16 第二轮 · 红队复核更正】** 本文件经 `docs/findings/reviews/2026-11-16-script-pipeline-review.md`（红队裁决：**有前提可推｜Confidence 76｜绿 2 / 黄 8 / 红 2**）复核，**地基重做**（不是润色）：
+> §A 分类表按「世界态写面」重建（§A.1′，取代 §A.1）、免 tick 判据与槽清单重算（§A.3′，取代 §A.3）、以及三处硬伤的原地更正（PE-01 定级 / PE-06 方向 / S5 数量，见 §B.2′ 与 §S5′）。
+> 纪律：原文一律保留并就地标注（AGENTS §3.6）；作废段落带「〔v1 · 作废〕」标记，作废的单句带行内 `【复核更正】`。
+> **冲突时以 §0′ / §A.1′ / §A.3′ / §B.2′ / §S5′ 为准。**
+
+## §0′ 结论（TL;DR v2 · 2026-11-16 第二轮）
+
+### §0′.1 仍然站得住（结论不变，可直接进入实施）
+
+| # | 结论 | 状态 | 本轮复核锚点 |
+|---|---|---|---|
+| a | 命令对象已是干净数据：`ScriptOp` 23 变体纯数据、`parse_op` 无副作用；缺的是**执行端装配** | ✅ 不变 | `crates/game-core/src/script_ops.rs:5-53`、`:401` |
+| b | **执行器必须统一为一份**，方向只能是「engine 向 Java 对齐」 | ✅ 不变 | §C；两实现逐字段写面对照见 §A.1′ |
+| c | **`WorldHost`/`PresentationHost` 五 trait 拆分** + 执行器不耦合 `GameScene` 的搬迁方向 | ✅ 不变 | §C.2 / §C.3 |
+| d | **S4a（engine 单侧 9 项，PE-01/02/03/04/05/08/09/10/13）** 先做，其中「虚构/错接」五类经逐条复核仍成立：`exit_application` 虚构（PE-02）、`m_119` 装成 `reload_floor_entities`（PE-03）、`ROS_4` 缺 `(byte)`（PE-04）、`CES` 静态类目表（PE-05）、`dialog_target` 错写 `camera_anchor`（PE-08/09） | ✅ 不变（全 A 级） | `a.java:8516-8520`、`:8362`、`:8385`、`:8414-8428`、`:8290-8292` |
+| e | **不做 `Outcome{state_delta}` 值化**，改用「同一段 delta 代码 + 参数化状态宿」 | ✅ 不变 | §C.1 |
+| f | S5 之后**生产行为零变化** | ⚠️ 有条件成立 | 条件 = 语料行保留行尾 `" \x1e"`（§A.3′ 第 5 条）；且 PE-06 方向必须按 §B.2′ 更正，否则会删掉 engine 唯一正确的那条写 |
+
+### §0′.2 被推翻（作废，逐条给替代）
+
+| # | 原主张（v1） | 为什么错 | 替代 |
+|---|---|---|---|
+| 1 | §A.1 分类表（判据 = 「有无相位跃迁」） | 判据错。无相位跃迁 ≠ 无世界态写。被误判为纯 P 的至少 9 类：`TAK`/`SEE`/`CES`/`DES`/`ADD`/`SWD`/`ROS_*`/`GIN`/`RES`；48 个「P 槽」里 **43 个**含这些指令（复核 F6，本轮独立复算一致） | **§A.1′**（判据换成「执行后世界态是否变化」，23 行字段级） |
+| 2 | §A.3「48/68 槽免 tick」 | 真·零写面槽只有 **5** 个（37、39、58、59、60）；可**同步求值**（不等按键/时钟/相位收敛）的只有 **11** 个 | **§A.3′**（三档：A 5 / B1 2 / B2 4 / C 57） |
+| 3 | PE-01 = **P0**，「命中每一槽」「整页对话被跳过」 | 尾门触发条件是 `cursor >= len`；生产口径每行以 `" \x1e"` 结尾（11 字节）⇒ 末命令消费后 `cursor == len-1`，**永不触发**。只有剥离 `0x1E`（求解器 10 字节表）才激活 | **P1（口径依赖的潜伏项）**，机制见 §B.2′；`a.java:8574-8580` 为**伪锚**（该区间是 `MVS` 体），真锚 `a.java:8600-8602`（尾检查 = 纯 `return`）+ `:8603-8610`（入口门）。**追加（§B.2′.1b）：真正缺陷是 `from_fixtures` 少剥 `0x1E`——Java 字面量行尾只有空格（`a.java:1124`），故 Java 与求解器口径下尾门每行都触发；"永不触发"只是 Rust 生产夹具的现况** |
+| 4 | PE-06「**GameScene 对**」 | 写反。`inventory_entry_count` 全仓只在 engine（`crates/game-core/src/script.rs:77` 字段 / `:126` 默认 / `:459` RES 写 0）；`GameScene` **无此字段**，反而多写 `journal.clear()`（`crates/game-core/src/script_ops.rs:114`）。Java `a.java:8489` 就是 `inventoryEntryCount = 0` ⇒ **engine 对** | §B.2′（PE-06 方向更正；`journal.clear()` 降为待裁多写） |
+| 5 | §E S5「**9 处**调用点」（表格相加 28；红队复核为 22） | 三个数都不对。A 级实测：**31 个调用表达式** + 2 个定义 + 1 个函数指针引用 | **§S5′**（逐文件口径表） |
+
+### §0′.3 实现前置条件（做 fast-forward **之前**必须先满足）
+
+1. **分类表按写面定稿**（§A.1′）。FF 的正确性完全建立在「哪些指令必须**执行**、哪些可以跳过」上；用 v1 表做 FF 等于批量生成状态增量丢失（复核 F6 的实质）。注意：**「免 tick」≠「免执行」**——11 个可同步求值的槽里只有 5 个能整槽跳过，其余 6 个必须照常 apply delta（§A.3′）。
+2. **语料口径单一且显式**：`0x1E` 保留与否必须成为 table 构造参数（§B.4、§D.4 第 2 条）。否则尾门在 (a) 口径死、在 (b) 口径活（每槽触发），2×2 矩阵只是把同一盲点复制四份。
+3. **观察面必须含 `dialog_phase` + `ticks` + `path_arrows_visible`**（§D.3 :496）；否则 PE-01 一类「只差相位/拍数」的缺陷继续隐身。
+4. **FF 出口必须交付入口门写入**：`phase=4` + `script_line_flags[idx]=true`（`idx != 32`），并承认**阻塞相位槽的旗标写入被推迟**到该相位收敛之后（Java 只在入口门写，`a.java:8603-8610`）——在槽内提前写会与生产时序不一致（终值相同）。
+
 ---
 
 ## §0 结论（TL;DR）
@@ -12,11 +47,11 @@
 1. **命令对象已存在且足够干净**：`ScriptOp` 的 23 个变体（`crates/game-core/src/script_ops.rs:5-53`）是纯数据，解析函数 `parse_op`（`crates/game-core/src/script_ops.rs:401`）无副作用。缺的不是"命令模式"，而是**执行端的装配**。
 2. **执行端已有 4 个 trait 雏形，但只覆盖了半个执行面**：`HostCtx`（`crates/game-core/src/script.rs:135-152`，8 方法，其中 6 个是表现类）+ `EntityService`（`crates/game-core/src/subsystem/entity_service.rs:25`，9 方法）+ `DialogSubsystem`（`crates/game-core/src/subsystem/dialog.rs:40`，3 方法）+ `ItemService`（`crates/game-core/src/subsystem/item_service.rs:15`，3 方法）。**缺口清单见 §C.2**（约 14 个写点无 trait 覆盖，正是 `op_*` 里直写 `self.*` 的部分）。
 3. **两个执行器语义不等价，已确证 13 处不一致（PE-01…PE-13，§B.2）**，其中 4 处是 `ScriptEngine` 侧**虚构或错接**（尾部门、END 的 `exit_application`、LAY 把 `m_119`(存档) 接到 `reload_floor_entities`、ROS_4 缺 `(byte)` 截断）。**迁移方向只能是"engine 向 Java 对齐"，不能是"求解器向 engine 对齐"。**
-4. **最严重的一条（PE-01，P0）**：`ScriptEngine` 在 `crates/game-core/src/script.rs:511-519` 有尾部收尾门，会在**同一拍**把 `phase` 改写成 `AwaitCamera`；Java（`javap` 偏移 2386/2401）与 `GameScene`（`crates/game-core/src/scene_script.rs:14-36`）都只在**入口门**（`cursor+3 > len`）触发收尾。后果：任何"末命令带相位"的行（语料里几乎全部，因为行尾有尾空格 ⇒ 末命令消费后 `cursor == len`）在 engine 下会**丢掉末命令的相位副作用**——例如槽 6 `TAK_53_58` 的对话页整页跳过、槽 0 结尾 `GUT_1` 的换层相位被 `AwaitCamera` 覆盖。
+4. **最严重的一条（PE-01，P0）**：`ScriptEngine` 在 `crates/game-core/src/script.rs:511-519` 有尾部收尾门，会在**同一拍**把 `phase` 改写成 `AwaitCamera`；Java（`javap` 偏移 2386/2401）与 `GameScene`（`crates/game-core/src/scene_script.rs:14-36`）都只在**入口门**（`cursor+3 > len`）触发收尾。后果：任何"末命令带相位"的行（语料里几乎全部，因为行尾有尾空格 ⇒ 末命令消费后 `cursor == len`）在 engine 下会**丢掉末命令的相位副作用**——例如槽 6 `TAK_53_58` 的对话页整页跳过、槽 0 结尾 `GUT_1` 的换层相位被 `AwaitCamera` 覆盖。 【复核更正 · 见 §B.2′】定级 **P0 → P1（口径依赖的潜伏项）**：尾门条件 `cursor >= len` 在生产口径（行尾 `" \x1e"`，11 字节）**永不触发**，故「命中每一槽」「整页对话被跳过」不成立；`a.java:8574-8580` 是伪锚（实为 `MVS` 体），真锚 `a.java:8600-8602` + `:8603-8610`。
 5. **现状 A/B 对拍看不出一条 PE**：`crates/game-solver/src/script_abs.rs` 的 `Obs`（`:73`）不含 `dialog_phase`、不含 tick 计数；且 (a)/(b) 两侧竟用了**两份不同的语料字符串**（(a) 经 `DialogData::from_fixtures`（`crates/game-core/src/scene.rs:253-256`）即 `.lines().trim()`，保留行尾 `0x1E` 记录分隔符；(b) 经 `dialogue_table()`（`crates/game-solver/src/script_abs.rs:158-166`）即 `split("\u{1e}\n")`，不含 `0x1E`）。行尾差 1 字节 ⇒ 两侧的"行已消费完"由**不同的门**检测（(a) 入口门、(b) 尾部门），末态恰好同值 ⇒ 对拍全绿。**这是本提案发现的方法论缺陷，不是实现缺陷。**
 6. **状态增量必须"一份实现"，不能"两份实现 + 测试对齐"**：不做值类型 `Outcome{state_delta, …}`（理由 §C.1），而做**同一段 delta 代码 + 参数化状态宿**（`trait ScriptWorld`）。求解器侧由此获得"同一语义、不同宿主"的第二个实现，而不是"抄一份"。
 7. **求解器真正的性能收益点在"脚本门判定不再构建 `GameScene`"**（§D.3），前提是先把 `try_run_scene`（`crates/game-core/src/scene.rs:927`）的**谓词内副作用**拆掉——它在过门时会写 `script_line_flags[19]`（`:935`）、`flags[32]`（`:949`）、不过门时写 `flags[18]`（`:995`）。带副作用的"谓词"无法做成纯函数出口。
-8. **语料可分两类**：68 槽中 **48 槽**不含 `MOV`/`LAY`/`END`/`GUT`，其世界状态增量可在**不驱动任何 tick** 的情况下算到底；**20 槽**含等待/换层/终止/递归，必须驱动（§A.3）。这是"哪些槽能免 `GameScene`"的静态判据。
+8. **语料可分两类**：68 槽中 **48 槽**不含 `MOV`/`LAY`/`END`/`GUT`，其世界状态增量可在**不驱动任何 tick** 的情况下算到底；**20 槽**含等待/换层/终止/递归，必须驱动（§A.3）。这是"哪些槽能免 `GameScene`"的静态判据。 【复核更正 · 见 §A.3′】判据与数字均作废：不含 `MOV/LAY/END/GUT` 只排除"阻塞"，不排除"世界态写"。真·零写面 **5** 槽、零 tick 可求值 **11** 槽、必须 tick **57** 槽。
 9. **本方案可以让生产行为零变化**（S1–S5 全部改 engine 侧），但**唯有一批必须显式承认改变生产行为**：`ADD` 的 `initCellGrid`/floor_assets 守卫、`END` 的 `dispatchModeEntry case 20` 可观测面——这两处 GameScene 与 Java 的等价性本文只做到 **B 级**（§B.5、§E 的 S4b）。
 10. **`game-rules` crate 拆分**：本改造**只解除必要条件之一**（`script` 子树对 `scene` 的硬依赖），**不构成充分条件**（还需把 `Entity`/`ItemDef`/`FloorAssets` 等数据模型与 `ScriptCtx` 的读槽类型一起迁出，见 §E.9）。
 
@@ -61,7 +96,7 @@
 | 事实 | 证据 |
 |---|---|
 | 脚本门入口 | `crates/game-solver/src/solve_local.rs:2012` `fn gate_arrive(&self, st:&mut St, tx:i32, ty:i32) -> GateArrive` |
-| 惰性建场景 | 同文件 `sc_opt.get_or_insert_with(|| build_scene(self.input, st, (tx,ty)))`（注释「memo 全命中时零 build」） |
+| 惰性建场景 | 同文件 `sc_opt.get_or_insert_with(\|\| build_scene(self.input, st, (tx,ty)))`（注释「memo 全命中时零 build」） |
 | memo 键 | `(self.input.floor, param, st.player.clone(), st.flags, st.ents.clone())` |
 | 驱动 | `crates/game-solver/src/solve_local.rs:2360` `fn tickdrive(sc: &mut GameScene) -> Drive`，`Drive`（`:2354`）= `Pending(i32)` / `Completed` / `Stalled`；每拍 `sc.key_value = 1; sc.tick(ft, &wt)` |
 | 完成判据 | `GameMode::Map` 且 `landed = (player_px>>5, player_py>>5) == sc.dialog.dialog_target`；`!(script_walk_armed && !landed) ⇒ Completed` |
@@ -107,7 +142,53 @@
 - **可达** 以 `docs/spec/dead-code-rulings.md` 为准；`☠️` 标 DC 编号。
 - 证据列 = `a.java` 行号（`reference/src/deobf/a.java`，反混淆投影）+ **至少一个使用它的脚本槽** + javap 字节码偏移（当需要裁决控制流时）。
 
-### §A.1 分类总表（23 变体）
+### §0′.4 与复核报告的分歧（一处：结论方向相同，机制与修法相反）
+
+复核报告（`docs/findings/reviews/2026-11-16-script-pipeline-review.md`）判定 PE-01 为 P1，理由是「每行以 `" \x1e"` 结尾 ⇒ 末命令游标恒为 `len-1` ⇒ 尾门永不触发」。**结论（P1）我同意，机制与修法我不同意**，两处实证如下（A 级）：
+
+1. **夹具最后一槽会触发**：槽 67 原文是 `TAK_264_268 `（12 字节，`54 41 4b 5f 32 36 34 5f 32 36 38 20`，文件末尾无 `0x1E`、无换行），TAK 消费后 `cursor = 12 = len`。它虽然 DC-5 不可达（且 `.trim()` 后 `parse_script_int` 先 panic），但"任何槽都不会到达 `len`"这句是错的；复核的复现脚本用了 `lines[:-1]`，把最后一行排除在外。
+2. **更重要：`" \x1e"` 是 Rust 夹具的形态，不是 Java 的形态**。`a.java:1124` 的 `levelScriptLines` 是常量字面量，**行尾只有一个空格**（实测首行 164 字节，末 8 字节 `"0 GUT_1 "`），Java 也从不 `trim()`。由于 `scriptCursor = lastDelimPos + 1` 会吃掉那个空格 ⇒ **Java 与求解器口径下，尾门在每一行的末命令后都触发**。⇒ "永不触发"只是 `DialogData::from_fixtures` 保留 `0x1E` 造成的**本仓特有的现况**，由此推出的"尾门是多余物"结论是**反的**：真正该修的是语料口径，删尾门会连 Java 唯一正确的收尾门一起删掉（见 §B.2′.1b）。
+
+> **【2026-11-16 复核更正 · 行锚卫生】** `crates/game-core/src/script_ops.rs` 各 `op_*` 的 `///` 注释所引 `a.java` 行号**系统性陈旧且偏移不固定**（A 级，逐条实测）：`op_tak` 注 `8257-8263` 而真锚 `8273-8279`（-16）、`op_des_all` 注 `8311-8320` 而真锚 `8329-8333`（-18）、`op_ros_move` 注 `8361-8366` 而真锚 `8373-8376`（-12）、`op_lay`/`op_mov`/`op_see`/`op_res`/`op_add` 均 -6、`op_gut` -8、`op_ces`/`op_glv` -9。`reference/seed/a.java` 与 `analysis/decomp/a.java` 是 8457 行旧投影（变量名仍为 `string`，CES 在 `:6300`），对不上任何一组 ⇒ 注释锚是**陈年投影锚，不可作证据**。本表一律用现场复核值；引用代码注释前须复核。
+
+### §A.1′ 分类总表 v2：按「世界态写面」重建（2026-11-16 第二轮，取代 §A.1）
+
+**判据（唯一）**：执行这条指令后，**世界态**——`hp`/`atk`/`def`/`gold`/三色钥匙/`item_stack_size`/`inventory_entry_count`/装备/道具/实体表（`type`/`px`/`py`/`removed`/`visible`/`state`/`anim_row`）/格栅/旗标 `script_line_flags`/楼层（`current_floor`/`pending_floor`/`transitioning`/`min_floor`/`max_floor`/`floor_assets`）/**相位模式** `dialog_phase`（含它驱动的相位收敛）/`game_mode`/当前脚本槽与游标——**是否发生任何变化**。有 = **W**；无 = **P**；两者兼有 = **W+P**。
+**相位模式为何算世界态**：`dialog_phase != 0` 时执行器**不再被调用**（`crates/game-core/src/scene_dialog.rs:113-118` 只有 `0 =>` 支调执行器），也就是说它改变了"下一步会不会执行脚本指令"这一可观测事实；把它当"表现"正是 v1 表最大的错。
+**不计入写面**：`script_cursor`（执行器游标，23 变体共有，单列于本表末）与只在本方法内写后即读的死字段。
+
+| # | 指令（变体） | 世界态写入（逐字段 · Rust 锚 / `a.java`） | 类别 | 表现副作用 | 是否等待输入/时钟/相位收敛 | 可达性（语料 / DC） | 分级 |
+|---|---|---|---|---|---|---|---|
+| 1 | `Tak{start,end}` | `dialog_page=start`（`crates/game-core/src/script_ops.rs:61`；engine `tak_page_start` `crates/game-core/src/script.rs:288`；`a.java:8274`）、`dialog_page_end=end`（`script_ops.rs:62`／`script.rs:290`；`:8276`）、**`dialog_phase=1`**（`script_ops.rs:63`／`script.rs:292`；`:8278`）、`dialog_speaker=speakers[start]` | **W+P** | `open_dialog_page(start)`（`script_ops.rs:64`／`script.rs:294`；`:8279`）、打字机与翻页状态机 | **是**（相位 1 停表等按键，`scene_dialog.rs:120-168`） | ✅ 81 条 / 52 槽 | A |
+| 2 | `Lay{floor}` | `pending_floor=floor`（`script_ops.rs:70`／`script.rs:367`；`:8363`）、`transitioning=true`（`:71`／`:368`；`:8365`）、**`dialog_phase=5`**（`:73`／`:370`；`:8367`） | **W+P** | `overlay_text=None`（`:72`／`:369`；`:8366`）、遮幅/换层演出 | **是**（相位 5 等 `transitioning && !wipe_closing`，`scene_dialog.rs:256-264`） | ✅ 1（槽 0 `LAY_2`） | A |
+| 3 | `Gin{kind,value}` | `kind=0` ⇒ `pickup_item_type(v)`（`script_ops.rs:80`；`:8436`）写 `item_stack_size`/`inventory_entry_count`/装备激活；`kind=1` ⇒ `gold_amount += v`（`script_ops.rs:83`；`:8439`） | **W** | 金币 popup `popups.spawn(4,…)`（`script_ops.rs:84-92`；`a.java:7527-7532`） | 否（**同拍尾递归**下一条：`script_ops.rs:588`／`script.rs:422`；`:8443`） | ✅ 4（槽 26–29） | A |
+| 4 | `Res{}` | `difficulty_index==0` 门内 **12 字段**：`yellow_keys=0`、`red_keys=0`、`blue_keys=0`（`script_ops.rs:103-105`；`:8480`）、`item_stack_size=0`（`:106`；`:8481`）、`gold_amount=4`（`:107`；`:8482`）、`alchemy_upgrade_count=0`（`:108`；`:8483`）、`min_floor=1`（`:109`；`:8484`）、`max_floor=3`（`:110`；`:8485`）、`player_atk=10`（`:111`；`:8486`）、`player_def=10`（`:112`；`:8487`）、`player_hp=400`（`:113`；`:8488`）、**`inventory_entry_count=0`**（仅 engine `script.rs:459`；`:8489`） | **W** | 无 | 否 | ✅ 1（槽 0 `RES_0`） | A |
+| 5 | `Add{floor,ty,cx,cy}` | `entities` 新增 `spawn(ty,cx<<5,cy<<5,0)`（`script_ops.rs:127-136`／`script.rs:423-441`；`:8465`）、楼层存档 `m_119`（`:8461`、`:8466`）、楼层装载 `m_122`（`:8462`、`:8469`）、**`initCellGrid()`（`a.java:8468`；两实现均缺 ⇒ PE-07/R-1）** | **W** | 无（跨层，不可见） | 否 | ✅ 1（槽 7 `ADD_2_72_11_10`） | A（Java 体）／**B**（`initCellGrid` 的写面是否与 `m_122(cur)` 重叠，须 R-1 trace） |
+| 6 | `See{tx,ty,page,page_end,flag}` | **`dialog_target=(tx,ty)`**（`script_ops.rs:150`；`:8494`+`:8496`；engine 错写 `camera_anchor_x/y` ⇒ PE-08）、`dialog_page=page`（`:151`）、`dialog_page_end`（`:152`）、`flag==1 ∧ find_path` ⇒ **`path_arrows_visible=true`**（`:155`；`:8508`）+ `walk_phase=0`（`:156`；`:8509`）、**`dialog_phase=6`**（`:158`；`:8513`） | **W+P** | `open_dialog_page`（`:153`；`:8504`）、`ease_cam_x/y`+`ease_target_x/y`（`:159-162`；`:8514`）、打字机 | **是**（相位 6：`camera_at_target()` 才推进打字机 `scene_dialog.rs:123`，且等按键） | ✅ 30（`flag=1` 7 条；14 槽） | A |
+| 7 | `Gut{target}` | `script_line_flags[cur]=true`（`crates/game-core/src/subsystem/script_host.rs:74-80`；`:8318`）、`load_level_script(target)` ⇒ `current_script_index=target`、`script_cursor=0`、`dialog_phase=0`、`script_walk_armed=false`、换行 `script_line`（`script_ops.rs:169`；`:8319`） | **W** | 换场景 + `lock_camera_on(0)` | 否（跨槽：下一拍从新槽继续） | ✅ 7（0→1、16→37、23→12、56→57、57→61、61→62、62→63） | A |
+| 8 | `Mov{…}`（三参/五参） | **玩家臂**：`dialog_target=(x,y)`（`script_ops.rs:177`；`:8290`+`:8292`）、`script_walk_armed=true`（`:200`；`:8311`）、**`dialog_phase=3`**（`:201`；`:8312`）、`walk_phase=0`（`:202`；`:8313`）；**实体臂**：`route_entity`（`:181`；`:8295`）、`route_phase=0`（`:184`；`:8297`）、`anim_row=1` 仅 `type==72`（`:186`；`:8299-8300`）、`route_start=(px>>5,py>>5)`（`:189`；`:8303-8304`）、**`dialog_phase=2`**（`:194`；`:8306`） | **W+P** | `lock_camera_on(0)`（`:203`；`:8314`）、实体路线动画 | **是**（实体臂相位 2 路线收敛 `scene_dialog.rs:169`；玩家臂相位 3 逐格行走 `:170-249`） | ✅ 47（3 参 11 / 5 参 36；16 槽） | A |
+| 9 | `DesAll{want}` | 负参逆序扫全表 `type == abs(want) ∧ !removed` ⇒ `entity_removed=true`（`script_ops.rs:208-214`；`:8329-8333`） | **W** | `build_minimap()`（`:211`，派生） | 否 | ✅ 5（全在槽 63：`DES_-66_0`/`-56`/`-49`/`-47`/`-69`） | A |
+| 10 | `DesAt{ty,cx,cy}` | `find_blocking_entity(cx,cy,ty)>=0` ⇒ 该实体 `entity_removed=true`（`script_ops.rs:217-222`；`:8339-8341`） | **W** | `build_minimap()`（`:220`） | 否 | ✅ 35（DES 共 40，负参 5） | A |
+| 11 | `Swd{}` | 全表 `type==81 ∧ !removed` ⇒ `visible=true`（`script_ops.rs:229`；`:8351`）、`type=4`（`:230`；`:8352`）、`dispatch_sprite_size(4,i)`（`:232`；`:8353`）、`state=2`（`:233`；`:8354`）、`anim_row=8`（`:234`；`:8355`） | **W** | 精灵换图 | 否 | ✅ 3（槽 3/9/11） | A |
+| 12 | `Ces{ty,cx,cy}` | `entities` 新增 `spawn(ty,cx<<5,cy<<5,0)`（`script_ops.rs:244-253`；`:8401`）、`remove_des(idx)`（`:254`；`:8402`）、**`script_step_delay` = cat(ty,floor) ∈ {5,8,0}**（`script_host.rs:81-88`；`:8414-8428`）、`camera_target_x/y`（`:258-259`；`:8408-8409`） | **W** | 相机回中 + ease 目标 | **否**（同拍继续；但 `script_step_delay>0` 使**下一条**延后 5/8 拍 ⇒ **tick 计数不等**，`scene_dialog.rs:114-118`） | ✅ 48 | A |
+| 13 | `Glv{}` | **无**（`script_ops.rs:264`；`:8473-8475`；仅推进 `script_cursor`） | **P** | 无 | 否 | ✅ 1（槽 37 `GLV_1`） | A |
+| 14 | `End{}` | **`game_mode=20`**（`script_ops.rs:270`；`:8518`）+ `dispatch_mode_entry()`（`:8519`）；engine 另有 `host.exit_application()`（`script.rs:496`）⇒ **PE-02 虚构** | **W** | 结局图 + `dialog_char=1` + `layout_wrapped_text_limited(overlay,209,…)`（`script_ops.rs:271-275`；`a.java:3039-3080`） | **终止**（不可解除；`crates/game-core/src/scene.rs:2975` 的 `game_mode == Dialog` 不再成立） | ✅ 1（槽 65） | A |
+| 15 | `Sms{}` | **无**（`script_ops.rs:279`；`:8521-8523`） | **P** | 无 | 否 | ✅ 1（槽 66） | A |
+| 16 | `RosMove{px,py}`（ROS_1） | `player_pixel_x=px<<5`、`player_pixel_y=py<<5`（`script_ops.rs:283-284`；`:8373`+`:8375`） | **W** | `lock_camera_on(0)`（`:285`；`:8376`） | 否 | ✅ 1（槽 0 `ROS_1_4_7`） | A |
+| 17 | `RosEquip{tier}`（ROS_2） | `try_equip(tier,true)` ⇒ `equipped_weapon`/`equipped_armor`/`equip_types[12]`/`equip_bonuses[12]`（`script_ops.rs:290`；`:8379`） | **W** | 装备弹窗面（`m_082` 钩子） | 否 | ✅ 2（槽 0 `ROS_2_0`/`ROS_2_6`） | A |
+| 18 | `RosHp{v}`（ROS_3） | `player_hp=v`（`script_ops.rs:295`；`:8382`） | **W** | 无 | 否 | ⚠️ 语料 **0 命中**（ROS 子码集 = {1,2,4,5,6}） | A |
+| 19 | `RosFace{v}`（ROS_4） | **`facing=(v as i8) as i32`**（`script_ops.rs:300`；`:8385` 的 `(byte)` 截断；engine `script.rs:390` 缺截断 ⇒ PE-04） | **W** | 无 | 否 | ✅ 23（取值 {0,1,2,3}） | A |
+| 20 | `RosAtk{v}`（ROS_5） | `player_atk=v`（`script_ops.rs:305`；`:8388`） | **W** | 无 | 否 | ✅ 2（槽 53/55 `ROS_5_510`） | A |
+| 21 | `RosDef{v}`（ROS_6） | `player_def=v`（`script_ops.rs:310`；`:8391`） | **W** | 无 | 否 | ✅ 2（槽 53/55 `ROS_6_510`） | A |
+| 22 | `RosNoop{}`（其余子码） | **无**（`a.java:8381` 无 default 体；`script_ops.rs:542`） | **P** | 无 | 否（不取参不推进 ⇒ **下一拍重解析同一 token**） | ⚠️ 0 命中；必须保留解析（否则合法行落 `None` ⇒ 停摆语义错） | A |
+| 23 | `Mvs{}` | `f_short_arr_04` 重建 + 型 82 配对 + `removeGroupAtCellType`/`m_107` 双向搬运（`script_ops.rs:316-395`；`:8525-8598`） | **W** | 无 | 否 | ☠️ **DC-2**（68 槽 0 命中） | **B**（体未逐字段复核，仅按 DC 判定；不进 headless 语义义务） |
+
+**W 类合并清单（本表结论）**：`Tak`／`Lay`／`Gin`／`Res`／`Add`／`See`／`Gut`／`Mov`／`DesAll`／`DesAt`／`Swd`／`Ces`／`End`／`RosMove`／`RosEquip`／`RosHp`／`RosFace`／`RosAtk`／`RosDef`／`Mvs` = **20 个变体**。
+**纯 P 类**：`Glv`／`Sms`／`RosNoop` = **3 个变体**（v1 表把 16 个变体误记为 P）。
+**W+P 双面**：`Tak`／`Lay`／`See`／`Mov` = 4 个（相位/页面 + 世界态）。
+**唯一真正"零写面"的可达指令是 `Glv`、`Sms`**；语料里只有槽 37（`GLV_1`）与 4 个空槽落在这一档（§A.3′）。
+
+### §A.1 分类总表（23 变体）〔v1 · 判据已作废 · 仅作对照留档〕
 
 | # | 指令（变体） | 状态增量（世界态） | 表现副作用 | 可达 | 证据 |
 |---|---|---|---|---|---|
@@ -119,7 +200,7 @@
 | 6 | `See{tx,ty,page,page_end,flag}` | `dialog_target=(tx,ty)`（**跨拍存活**）；`flag==1 ∧ findPath 成功` ⇒ `pathArrowsVisible=true`、`walkPhase=0`（**无 break，落穿到 case 0**）；`dialogPageStart/End` 为**死字段** | 开页 `page`、`dialog_phase=6`、相机 ease 到 `(tx,ty)` | ✅ 30 条（`flag=1` 7 条：槽 40/41/42/46/47/48/50） | `a.java:8493-8515`；槽 40 `SEE_3_10_166_166_1`；字段存活：`a.java:4066` 重锚、`:2894-2895` 箭头绘制 |
 | 7 | `Gut{target}` | `script_line_flags[current_script_index]=true`（**写旧索引**）→ 整机重载到目标层脚本入口：`current_script_index=target`、`script_cursor=0`、`dialog_phase=0`、`script_walk_armed=false`、相机锁 0 | 换场景 + 相机 | ✅ 7 条（0→1 … 62→63） | `a.java:8316-8319`；`crates/game-core/src/scene_persist.rs:501-521` |
 | 8 | `Mov{cursor}`（3 参 MOV_x_y / 5 参 MOV_t_x_y_v1_v2） | `dialog_target=(x,y)`；**三参** findPath 成功 ⇒ `script_walk_armed=true`、`dialog_phase=3`、`walkPhase=0`（玩家位移在后续 tick 产生）；**实体臂** ⇒ `route_entity`/`routePhase=0`/`route_start`/（`type==72` ⇒ `anim_row=1`），findPath 返回值不判 | 相机锁玩家（三参）/ 实体路线动画（实体臂） | ✅ 47 条 | `a.java:8280-8315`；槽 0 `MOV_0_5_11`、槽 7 `MOV_72_3_2_8_4` |
-| 9 | `DesAll{want}` | 逆序扫全表 `!removed ∧ type==|want|` ⇒ `removed=true`（负参形态，**不取格坐标**） | 无（最小地图重建属派生） | ✅ 40 条之一部分（负参 5 条全在槽 63） | `a.java:8320-8333` |
+| 9 | `DesAll{want}` | 逆序扫全表 `!removed ∧ type==\|want\|` ⇒ `removed=true`（负参形态，**不取格坐标**） | 无（最小地图重建属派生） | ✅ 40 条之一部分（负参 5 条全在槽 63） | `a.java:8320-8333` |
 | 10 | `DesAt{ty,cx,cy}` | `findBlockingEntity(cx,cy,ty) >= 0` ⇒ 该实体 `removed=true` | 无 | ✅ 40 条（主体） | `a.java:8334-8344`；槽 0 `DES_70_5_8` |
 | 11 | `Swd{}` | 全表 `type==81` ⇒ `visible=true`、`type=4`、`state=2`、`anim_row=8`、重派 sprite size | 精灵换图 | ✅ 3 条（槽 3/9/11） | `a.java:8345-8359` |
 | 12 | `Ces{ty,cx,cy}` | `spawn_entity(ty,cx<<5,cy<<5,0)` + `markEntityDesRemoved(idx)`；`script_delay = category(type)` | 相机居中 + ease 目标 = 新实体像素 | ✅ 48 条 | `a.java:8395-8428`；槽 0 `CES_84_6_11` |
@@ -184,7 +265,66 @@ default:
 | DC-5 | 槽 67 / `tryRunScene(67)` ☠️ | 语料 68 槽中**只有 0..=66 参与可达性论证**；槽 67 仅作数据守卫（`crates/game-solver/src/script_abs.rs:688`） |
 | DC-1/3/4 | 箭头/联网/火花 | 与脚本管线无交集，本方案不涉及 |
 
-### §A.3 派生结论：W/P 两类（供 §D 用的静态判据）
+### §A.3′ 免 tick 判据与槽清单重算（2026-11-16 第二轮，取代 §A.3）
+
+#### §A.3′.1 精确判据（三条同时成立才算 FF-safe）
+
+FF（fast-forward）= **不推进任何 tick、把该槽求值到"槽结束"**。它成立需要三件事，缺一不可：
+
+1. **槽内每条指令都"即时到达终态"**：执行那一次调用结束后，该指令的全部世界态写已经落定，不需要后续 tick 再推进（排除写入相位 1/2/3/5/6 的 `TAK`/`SEE`/`MOV`/`LAY`，以及跨槽转移的 `GUT`）。
+2. **每条 W 类指令的 delta 都能在当前世界态上直接 apply**：写面不依赖"tick 过程中的位置/路径演化"（这是 `MOV` 被排除的第二个理由：它的 `find_path` 结果依赖实体当前位置与路径缓存，而位置只在相位 3 的逐格行走里变）。
+3. **槽尾终止态可静态算出**：入口门的 `phase=4` + `script_line_flags[idx]=true`（`idx != 32`）与 `lock_camera_on(0)`；三者都不需要相机逐帧收敛来产生**世界态**变化（相位 4 的 `camera_at_target()` 门只决定"何时回 Map"，不写世界态，`crates/game-core/src/scene_dialog.rs:251-255`）。
+
+⇒ **「免 tick」≠「全 P 类」≠「可跳过执行」。** P 类是"连 delta 都不用算"的**更强**条件；§A.1′ 已证明真 P 槽只有 5 个。因此 FF-safe 清单必须分档：能**跳过执行**的只有 A 档；B 档能"零 tick 求值"但**必须照常 apply delta**。v1 §A.3 把两者混为一谈，是复核 F5/F6 的同一个错误的两个面。
+
+#### §A.3′.2 68 槽归类（A 级，逐槽解析 296 条指令实测）
+
+| 档 | 判据 | 槽数 | 槽号 |
+|---|---|---|---|
+| **A · 全 P（可整槽跳过执行）** | 槽内无任何 W 类指令（`GLV`/`SMS`/`RosNoop` 或空槽） | **5** | `37`、`39`、`58`、`59`、`60` |
+| **B1 · 即时 W、零 delay** | 有世界态写但无相位、无 `script_step_delay` | **2** | `9`、`11` |
+| **B2 · 即时 W、带 `script_step_delay`** | 同 B1，但 `CES` 置 `script_step_delay ∈ {5,8}` ⇒ 世界态等价、**tick 计数不等** | **4** | `13`、`18`、`25`、`38` |
+| **C · 阻塞（必须驱动 tick）** | 含 `TAK`/`SEE`/`MOV`/`LAY`/`END`/`GUT` 任一 | **57** | 其余（含 v1 那 20 个 W 槽：`0,1,2,3,4,5,7,8,10,12,16,19,23,30,31,56,57,61,62,65`，它们只是 C 的子集） |
+| 合计 | | **68** | |
+
+**FF-safe 槽清单（= A ∪ B1 ∪ B2，11 槽）**：
+
+```
+9, 11, 13, 18, 25, 37, 38, 39, 58, 59, 60
+```
+
+**C 档（57 槽）的阻塞成因分解**（可叠加，故合计 > 57）：
+
+| 阻塞原因 | 槽数 | 说明 / 槽号 |
+|---|---|---|
+| 仅 `TAK`（等按键） | **23** | `6,14,15,17,20,21,22,24,26,27,28,29,32,33,34,35,36,51,55,63,64,66,67` —— 只需按键，不需位移/换层；FF 若接"输入脚本"可进一步收窄，但本轮不承诺 |
+| 含 `SEE`（相位 6 + 相机收敛 + 按键） | **14** | `40,41,42,43,44,45,46,47,48,49,50,52,53,54` |
+| 含 `MOV`（相位 2 路线 / 相位 3 行走） | **16** | `0,1,2,3,4,5,7,8,10,12,19,30,31,56,57,61` |
+| 含 `LAY`（相位 5） | **1** | `0` |
+| 含 `END`（`game_mode=20`，终止） | **1** | `65` |
+| 含 `GUT`（跨槽换行） | **7** | `0,16,23,56,57,61,62` |
+| **阻塞且同时含即时 W 写**（混合槽，绝不可整槽 FF） | **32** | 这些槽若按 v1 表的"非 MOV/LAY/END/GUT ⇒ 可 FF"处理，会同时丢 delta 又跳过相位 |
+
+#### §A.3′.3 红队点名槽的逐个复核
+
+| 槽 | 内容 | 本轮结论 | 依据 |
+|---|---|---|---|
+| **42** | `TAK_171_171 SEE_7_10_172_172_0 SEE_7_10_173_173_1` | **必须 tick**（红队判定正确） | 两个 `TAK` 各把 `dialog_phase=1`（等按键翻页），两个 `SEE` 写 `dialog_target`/`path_arrows_visible`/`phase=6` 并要求相机收敛后才推进打字机（`scene_dialog.rs:123`）；`path_arrows_visible` 是跨拍世界态（`crates/game-core/src/scene.rs:494` 写、`:1708-1744` 消费） |
+| `9`、`11` | `SWD `（单条） | **免 tick 成立**（但必须执行 SWD 的 5 个字段写） | `op_swd` 无相位写、无 delay；唯一"真 W 且 FF 安全"的证据点 |
+| `25` | `CES_…`（单条） | **可同步求值**，但 tick 计数不等 | `script_step_delay` 唯一读者 `scene_dialog.rs:114-118`，纯节奏 |
+| `13`、`18`、`38` | CES 族 | 同 `25` | 同上 |
+| `6`、`14`…（23 个仅 TAK 槽） | `TAK_x_y` | **必须 tick** | 相位 1 停表等按键；且这是 PE-01 的原始靶子（v1 说"整页被跳过"，实际生产口径不触发，见 §B.2′） |
+| `39`、`58`、`59`、`60`（空槽） | 内容 = 单字节 `\x1e` | **A 档但非 no-op**：入口门仍写 `flags[idx]=true`（`idx≠32`）+ `phase=4` + `lock_camera_on(0)` | `a.java:8603-8610`；`.trim()` 不吃 `0x1E`（`scene.rs:253-256`）⇒ 行长 1 ⇒ `0+3 > 1` 入口门命中 |
+| `67` | `TAK_264_268 `（12 字节，文件末尾无 `0x1E`、无换行） | ☠️ **DC-5 不可达**；且在 (a) 口径下**先 panic**：`.trim()` 吃掉尾空格 ⇒ 行长 11 ⇒ `parse_script_int(line, 8, ' ')` 无分隔符 ⇒ `expect("脚本整数的分隔符缺失")`（`crates/game-core/src/script.rs:262`） | `crates/game-solver/src/script_abs.rs:686-700` 既有测试注释已写明同一事实 |
+
+#### §A.3′.4 对 §D 的硬约束（FF 落地时必须满足）
+
+1. **A 档只省"执行"，不省"收尾"**：FF 仍须写 `phase=4` + `flags[idx]=true`（`idx≠32`）。
+2. **B 档必须执行 delta**：`9`/`11`/`13`/`18`/`25`/`38` 的 `spawn`/`remove`/`SWD` 五字段写不能因"免 tick"而跳过——这正是 v1 表会把 FF 变成 bug 生成器的地方（F6）。
+3. **B2 档若观察面含 ticks，必须记"名义拍数"**：`script_step_delay` 5/8 拍不改变世界态，但改变 tick 计数；`Obs` 一旦纳入 `ticks`（§D.3），B2 档要么逐帧、要么把 delay 计入名义拍数，否则 T-parity-2 必红。
+4. **旗标写入时点**：Java 只在入口门写 `flags[idx]=true`（`a.java:8603-8610`），所以阻塞相位槽（1/2/3/5/6）的旗标写入被**推迟到该相位收敛之后**。FF 若在槽内一并写，终值相同但时序不同——拿 `flags` 做门判定的求解器会提前看到"该槽已完成"。
+
+### §A.3 派生结论：W/P 两类（供 §D 用的静态判据）〔v1 · 判据已作废，见 §A.3′〕
 
 由 §A.2.2 直接把 23 变体切成两类：
 
@@ -200,6 +340,8 @@ default:
 
 ⇒ **48/68 槽是"纯 P 类"**，其世界态增量可以完全在纯函数里算到底（不需要 `GameScene`、不需要 tick）。**20 槽**必须走驱动路径。这条比例是 §D 全部性能主张的唯一依据（且它是**上限**：`Mov` 的 `findPath` 失败时不必 tick，运行时还会更优）。
 
+> 【2026-11-16 复核更正 · 见 §A.3′】**上面两段整段作废。** ① 判据错：`P` 档的定义是"无写面"，而 v1 把"无相位跃迁"当成了"无写面"⇒ 43 个槽被判错；② 数字错：真·零写面槽 **5** 个（`37,39,58,59,60`），可零 tick 求值的 **11** 个（`9,11,13,18,25,37,38,39,58,59,60`），其余 **57** 槽必须驱动 tick；③ "纯 P 类"与"可 fast-forward"**不是同一集合**，混用会同时丢状态增量（F6）与跳过阻塞相位（F5）。§D 的性能主张据此改写为"11/68 槽可零 tick 求值"，且**其中 6 槽仍必须执行 delta**。
+
 ---
 
 ## §B 执行器统一
@@ -214,12 +356,12 @@ default:
 
 | 编号 | 位置（engine 面） | 分歧 | 谁对 | 严重度 |
 |---|---|---|---|---|
-| **PE-01** | `crates/game-core/src/script.rs:511-519` | **尾部收尾门**：`if script_cursor >= line.len() { phase=AwaitCamera; flags[idx]=true; snap_camera }`，在**同一拍**执行完末命令后立刻写 | **GameScene（`crates/game-core/src/scene_script.rs:14-36`，仅入口门）+ Java** 对。javap：入口 `22: if_icmpgt 2401`（`cursor+3 > len` ⇒ 2401）；`2401-2430` = `dialogPhase=4` / `if idx!=32 {flags=true}` / `lockCameraOn(0)`；尾部汇聚点 `2386: getfield scriptCursor … 2397: if_icmpge 2431` ⇒ `if (cursor < len) return;` 否则**直接 `2431: return`（no-op）** | **P0** |
+| **PE-01** | `crates/game-core/src/script.rs:511-519` | **尾部收尾门**：`if script_cursor >= line.len() { phase=AwaitCamera; flags[idx]=true; snap_camera }`，在**同一拍**执行完末命令后立刻写 | **GameScene（`crates/game-core/src/scene_script.rs:14-36`，仅入口门）+ Java** 对。javap：入口 `22: if_icmpgt 2401`（`cursor+3 > len` ⇒ 2401）；`2401-2430` = `dialogPhase=4` / `if idx!=32 {flags=true}` / `lockCameraOn(0)`；尾部汇聚点 `2386: getfield scriptCursor … 2397: if_icmpge 2431` ⇒ `if (cursor < len) return;` 否则**直接 `2431: return`（no-op）** | **~~P0~~ → P1**（【复核更正】见 §B.2′） |
 | **PE-02** | `crates/game-core/src/script.rs:493-497` | `END` 调 `host.exit_application()`；`GameScene`（`crates/game-core/src/script_ops.rs:269-276`）调 `set_dialog_char(1)` + `layout_wrapped_text_limited(overlay_text,209,(line_h<<1)+12,1)` | **双方各有一半错**：Java `8516-8520` = `gameMode=20; dispatchModeEntry(); cursor`，**无 exit 调用**（`exit_application` 是 engine 虚构）；case 20（`a.java:3039-3080`）确实做结局图 + `layoutWrappedText(dialogueTexts[260],209,(text_line_height<<1)+12,typewriterPos)` ⇒ GameScene 的 layout 面是对的 | **P0** |
 | **PE-03** | `crates/game-core/src/script.rs:365-371` | `LAY` 把 `m_119(currentFloor)`（**存档**）实现成 `host.reload_floor_entities(current_floor)`（**装载**）；且写 `layer_byte`/`flag_bool_16` | **GameScene 对**（`crates/game-core/src/script_ops.rs:68-74`：`save_floor_state()` + `set_pending_floor` + `set_transitioning(true)`）。`m_119` = `saveFloorState`（`a.java:9379`，写 `f_byte_arr2_05[floor]=blob`），`m_122` = `loadFloorEntities`（`a.java:9455`） | **P0** |
 | **PE-04** | `crates/game-core/src/script.rs:390` | `ROS_4` 直接 `facing_direction = v`，**无 `(byte)` 截断**；GameScene `set_facing((v as i8) as i32)`（`crates/game-core/src/script_ops.rs:300`） | **GameScene 对**（`a.java:8375` `facingDirection=(byte)parse(' ')`）。当前不可观测（语料 `ROS_4` ∈ {0,1,2,3}） | P2（潜伏） |
 | **PE-05** | `crates/game-core/src/script.rs:407-410` | `CES` 的 `script_delay` 取 `type_categories[t]` → `Category::from_raw(..).scene_delay()`（**静态夹具表**）；GameScene 取 `entity_category_with_floor(ty,floor)`（`crates/game-core/src/subsystem/script_host.rs:96`） | **GameScene 对**：Java 的 `renderCategoryByType` 是**可变世界态**，`m_122` 内按层改写（`a.java:9679` `[72]=32`、`:9681` `=8`）⇒ 必须走"含层覆写的类目表"，Rust 对应 `crates/game-core/src/resource_cfg.rs:319` `floor_category` | P1 |
-| **PE-06** | `crates/game-core/src/script.rs:459` | `RES` 末项写 `inventory_entry_count=0`；GameScene 末项写 `persist.journal.clear()`（`crates/game-core/src/script_ops.rs:114`） | **GameScene 对**（`a.java:8490` 写 `inventoryEntryCount=0`；`journal` 是 Rust 侧存档日志，Java 无对应重置 ⇒ GameScene 多写一条，属**待裁**，见 §B.5 R-2） | P1 |
+| **PE-06** | `crates/game-core/src/script.rs:459` | `RES` 末项写 `inventory_entry_count=0`；GameScene 末项写 `persist.journal.clear()`（`crates/game-core/src/script_ops.rs:114`） | ~~**GameScene 对**~~ **engine 对**（【复核更正】见 §B.2′）（Java **`a.java:8489`** 写 `inventoryEntryCount=0`；`GameScene` 无此字段 ⇒ engine 是唯一正确的一条；`journal` 是 Rust 侧存档日志，Java 无对应重置 ⇒ `journal.clear()` 属**多写待裁**，见 §B.5 R-2） | P1 |
 | **PE-07** | `crates/game-core/src/script.rs:423-441` | `ADD` 四次 `reload_floor_entities`，**无 `save_floor_state`、无 `initCellGrid`**；GameScene 两次 `save_floor_state()` + 受 `floor_assets[..].is_some()` 守卫的 reload，**亦无 `initCellGrid`**（`crates/game-core/src/script_ops.rs:120-143`） | **两者都与 Java 有差**（`a.java:8444-8471`：`m_119(cur)`→`m_122(floor)`→spawn→`m_119(floor)`→`initCellGrid()`→`m_122(cur)`）。⇒ **归入 §B.5 R-1（需 trace 裁定）** | P1 |
 | **PE-08** | `crates/game-core/src/script.rs:462-492` | `SEE` 写 `camera_anchor_x/y` + `host.set_camera_anchor_target(a,b)`（**格坐标**）+ `walk_request_flag=true`；GameScene 写 `dialog_target` + `set_ease_cam_x/y`（居中偏移）+ `set_ease_target_x/y(tx<<5,ty<<5)`（**像素**）（`crates/game-core/src/script_ops.rs:149-166`） | **GameScene 对**（`a.java:8668-8673` `easeCameraToTarget(cx,cy)` 内部 `<<5`；`a.java:4066` 用 `dialogMoveX/Y` 重锚）。engine 的 `walk_request_flag` 与 GameScene 的 `path_arrows_visible` **不是同一字段**（后者见 §A.2.1 的调用图） | P1 |
 | **PE-09** | `crates/game-core/src/script.rs:295-336` | `MOV` 写 `camera_anchor_x/y`（应为 `dialog_target`）；实体臂只对 `type==ROUTE` 调 `set_entity_route_flag`，**无 `route_phase`/`route_start`**；GameScene 写 `dialog_target` + 实体臂 `set_route_entity`/`set_route_phase(0)`/`route_start`（`crates/game-core/src/script_ops.rs:175-207`） | **GameScene 对**（`a.java:8290-8305` 写 `f_int_129/130`=`entityPixel>>5` 与 `routePhase=0`） | P1 |
@@ -228,13 +370,99 @@ default:
 | **PE-12** | `crates/game-core/src/script.rs:503-510` | `MVS` 只 `host.mvs_exchange()`；`GameScene` 内联整段（`crates/game-core/src/script_ops.rs:316-395`） | **不可判**（DC-2 死码，68 条零命中）。保真面要求：**两者都不得删**，且 headless 侧按 `Class::C` 处理 | P3 |
 | **PE-13** | `crates/game-core/src/script.rs:249-260`（`step`）vs `crates/game-core/src/scene_dialog.rs:112-118` | 引擎把"`phase==ScriptStep` 才 execute"藏在 `step()` 里；生产把"相位分派"放在 `tick_dialog`（含 `script_delay` 递减）。**`script_delay` 的递减时机**：engine 在 `step()` 内 `scene_delay>0 ⇒ 递减`；生产在 `tick_dialog` 的 `0 =>` 支（`crates/game-core/src/scene_dialog.rs:113-118`）。**两者等价**（同一相位同一判据），但**engine 的 `step()` 无相机步进**（生产先 `step_camera_toward_target()`，`crates/game-core/src/scene_dialog.rs:111`）⇒ 若用 engine 顶替生产，**相机步进必须留在 tick 侧** | 生产侧结构对 | P1（迁移约束，不是 bug） |
 
+### §B.2′ 复核更正（2026-11-16 第二轮）：PE-01 定级、PE-06 方向、S5 数量
+
+#### §B.2′.1 PE-01：P0 → **P1（口径依赖的潜伏项）**
+
+**结论**：`crates/game-core/src/script.rs:511-519` 的尾部门确实是 Java 没有的"多写"（A 级），但它在本仓**唯一生产口径下不可达** ⇒ 定级 P1，不是 P0。
+
+**Java 控制流（A 级：`reference/src/deobf/a.java` 直读 + javap 偏移）**：
+
+```
+8270:  if (var2 + 3 <= var1.length()) {                          ← 入口门
+           … dispatch 链（TAK 8273 … MVS 8597）…
+8598:  }
+8600:  if (this.scriptCursor < this.dialogScriptLine.length()) {
+8601:     return;                                                ← 尾检查
+8602:  }
+8603:  } else {                                                   ← 与 8270 配对
+8604:     this.dialogPhase = 4;
+8605:     if (this.currentScriptIndex != 32) { this.scriptLineFlags[cur] = true; }
+8609:     this.lockCameraOn(0);
+8610:  }
+```
+
+⇒ **尾检查不满足时方法直接结束、无任何字段写 = no-op**；`phase=4` / 旗标 / `lockCameraOn(0)` **只在入口门**（`cursor + 3 > len`）执行。javap：入口门体 `2401-2430`；尾部汇聚点 `2386: getfield scriptCursor … 2397: if_icmpge 2431` ⇒ 否则 **`2431: return`**。
+
+**触发矩阵（本项目实测）**：
+
+| 口径 | 槽 6 `TAK_53_58` 行长 | 末命令后 `cursor` | `cursor >= len` | 尾门 |
+|---|---|---|---|---|
+| **(a) 生产** `DialogData::from_fixtures`（`.lines().trim()`，`crates/game-core/src/scene.rs:253-256`） | **11**（保留 `" \x1e"`） | 10 | 假（`10 >= 11`） | **不触发** |
+| **(b) 求解器** `dialogue_table()`（`split("\u{1e}\n")` + `trim_end_matches`，`crates/game-solver/src/script_abs.rs:158-166`） | **10**（无 `0x1E`） | 10 | 真 | **每槽末命令必触发** |
+
+因此：**生产口径死、求解器口径活**。(b) 侧 `side_b::drive`（`crates/game-solver/src/script_abs.rs:480-524`，`:503` 直接调 `eng.execute_script_instruction`）**当前每一槽的末命令都在触发这个尾门**，只因 `Obs`（`:73-83`）不含 `dialog_phase` 才完全不可观测——与 §B.4 的诊断一致，但严重度归因必须从"命中每一槽的生产 bug"改成"**口径依赖 + 观察面缺失**"。
+
+**为什么 P1 仍必须修**：① 它是 Java 里不存在的写面（AGENTS §1 保真红线）；② 一旦某条路径给 engine 喂无分隔符的行（新建 table、去掉 `0x1E`、S5 换 table 源），它立刻把 `TAK`/`SEE`/`MOV`/`LAY` 的相位改写成 `AwaitCamera`——就是 v1 描述的那个 bug；③ 它让 (a)/(b) 两侧对"谁写收尾"永远不同源（§B.4）。
+
+**v1 的两处具体错误（保留对照）**：
+- 「末命令消费后 `script_cursor == line.len()` **恒成立**」→ 实际恒为 `line.len() - 1`（行尾是 `" \x1e"` 两字节）。
+- 锚 `a.java:8574-8580` → **伪锚**：该区间落在 `MVS` 体（`8525-8598`）内，与收尾门无关；真锚 `8600-8602`（尾检查）与 `8603-8610`（入口门）。
+
+**与复核报告的唯一分歧（结论相同，措辞与机制需更严）**：红队「任何槽的末命令都不会让 cursor 到达 len」严格说不成立——夹具第 68 条（槽 67 `TAK_264_268`）在**原始字节**里是 `TAK_264_268 `（12 字节，`54 41 4b 5f 32 36 34 5f 32 36 38 20`，文件末尾既无 `0x1E` 也无换行），TAK 消费后 `cursor = 12 = len`。但生产口径下该行先被 `.trim()` 削成 11 字节，随即 `parse_script_int(line, 8, ' ')` 找不到分隔符而 panic（`crates/game-core/src/script.rs:262` 的 `expect`；`crates/game-solver/src/script_abs.rs:686-700` 的既有测试注释已记同一事实），**尾门依然不可达**。红队的复现脚本用 `lines[:-1]` 排除最后一行，属复现口径缺陷；P1 结论不受影响。
+
+#### §B.2′.1b 追加证据（同日，比 §B.2′.1 更硬的口径证据）：真正错的是**语料口径**，不是尾门
+
+A 级新证据（直读 `reference/src/deobf/a.java`）：
+
+1. **`a.java:1124` 起的 `levelScriptLines = new String[]{ … }` 是常量数组字面量，行尾是一个空格、没有 `0x1E`**。例：第一条 = `"CES_84_6_11 … RES_0 GUT_1 "`（实测 **164** 字节，末 8 字节是 `"0 GUT_1 "`）。
+2. **Java 全文件不对脚本行做任何修剪**：`grep -n "trim()" reference/src/deobf/a.java` **零命中**；`loadLevelScript` 直接 `this.dialogScriptLine = this.levelScriptLines[this.currentScriptIndex]`（`a.java:8051`）。
+3. **游标推进吃掉了行尾空格**：`parseScriptInt` 写 `lastDelimPos`（`a.java:8613-8619`），各 op 用 `scriptCursor = lastDelimPos + 1`（如 `a.java:8277`）⇒ **末命令消费后 `cursor == line.length()`** ⇒ **Java 的尾门在每一行的末命令后都成立**。
+
+实测佐证：序章行 `TAK_255_259 TAK_165_165 SEE_3_10_166_166_1 ` 行长 **43**，末命令 `SEE` 消费后 `cursor = 43 = len` ⇒ 同一拍触发尾门。
+
+⇒ 把 §B.2′.1 的「生产口径死」精确化为「**Rust 生产夹具口径死**」，三种口径必须分清：
+
+| 口径 | 行尾形态 | 行长（序章行） | 末命令后 `cursor` | 尾门 |
+|---|---|---|---|---|
+| **Java 原文**（`a.java:1124` 字面量） | `"… "`（空格，无 `0x1E`） | 43 | 43 = len | **触发**（每行末命令） |
+| **Rust 求解器 / 金测试**（`crates/game-solver/src/script_abs.rs:158-166`、`crates/game-core/tests/script_golden.rs:15-19`：`split("\u{1e}\n")` + `trim_end_matches('\u{1e}')`） | `"… "` | 43 | 43 = len | **触发** |
+| **Rust 生产**（`DialogData::from_fixtures`，`crates/game-core/src/scene.rs:253-256`：`.lines().map(\|l\| l.trim())`） | `"… \x1e"` | **44** | 43 = len−1 | **不触发** |
+
+原因：Rust 的 `str::trim()` 只认 **Unicode 空白**，`U+001E` 不是空白 ⇒ 漏在行尾的是 `0x1E` 而不是空格，末命令吃掉空格后仍差 1 字节。
+
+**因此缺陷定位改判**：不是"engine 比 Java 多了一个尾门"（v1），也不是"这尾门永不触发、无所谓"（复核）。**真正的缺陷是 `from_fixtures` 少剥 `0x1E`**，把 Java 每行末命令都会做的一次收尾写关掉了。后果（逐行末命令）：
+
+- Java：同一拍写 `phase=4` + `flags[idx]=true`（`idx≠32`）+ `lockCameraOn(0)`，`cursor == len`。
+- Rust 生产：该拍不写；**下一拍**入口门（`cursor+3 > len` 仍成立）补写同样三样 ⇒ **终值相同、时点晚 1 tick、`cursor` 恒少 1**。
+- 这正是"相位/拍数不进 `Obs` 就看不见"的那类差异（§D.3），也是 T-parity-2 的非空理由。
+
+**仓库内活体证据**：`docs/spec/p3-script-interpreter.md` §3.1 记的**序章冻结态**（`cursor=43`、`phase=4`、"`SEE` 已置 6 被覆写"）就是这条门——语料槽 40 = `TAK_255_259 TAK_165_165 SEE_3_10_166_166_1 `（Java 行长 43）。Java 下它靠**尾门同一拍**把 6 覆写成 4；Rust 生产口径行长 44，靠**下一拍入口门**覆写。⇒ 该冻结态在两侧"终值相同、拍点不同"。
+
+**定级与修法（据此改判，与 v1 相反）**：维持 **P1**（不改变对话可见语义，只错 1 拍 + 1 个游标值），但修法不是"把 engine 尾门删掉/对齐 GameScene"——那会把 Java 唯一正确的收尾门也删掉。正确修法是：
+1. `DialogData::from_fixtures` 的口径改成与 Java/求解器一致（`split('\u{1e}')` 后剥掉 `0x1E`），使尾门在两侧同拍触发；
+2. `GameScene` **缺**尾门的问题由 S5（换 engine）自然消灭，不再单独补；
+
+#### §B.2′.2 PE-06：方向写反（**engine 对**）
+
+- Java：`a.java:8478 if (this.difficultyIndex == 0) {` … **`a.java:8489 var16.inventoryEntryCount = 0;`**（v1 引的 `:8490` 其实是 `}`）。
+- 全仓 `inventory_entry_count` 只存在 engine：`crates/game-core/src/script.rs:77`（字段）、`:126`（默认 0）、`:459`（`RES` 写 0）。
+- `GameScene::op_res`（`crates/game-core/src/script_ops.rs:101-116`）**无此字段**，末行是 `self.persist.journal.clear()`（`:114`）。
+
+⇒ **engine 对**。v1 判"GameScene 对"若按 S4b 落地（把 engine 改向 GameScene 对齐），会**删掉唯一正确的那条写**，并把 `journal.clear()`（Java 无对应）固化成"正确行为"。
+**正确处置**：S4b 反向改——把 `inventory_entry_count = 0` 补进 `GameScene::op_res`；`journal.clear()` 单列为待裁多写（§B.5 R-2：须存档往返 trace 裁定，Stage A 不擅自删，按 AGENTS §6 记 `docs/bug-ledger.md`）。
+
+#### §B.2′.3 S5 调用点数量：9 / 28 / 22 三个数都不对
+
+见 §S5′（A 级实测 **31 个调用表达式** + 2 个定义 + 1 个函数指针引用）。
+
 ### §B.3 必须先修哪一处
 
 **顺序不可换：PE-01 → PE-02 → PE-03 →（PE-05/PE-08/PE-09）→（PE-07/PE-11 需 trace 裁定）。**
 
 理由（按伤害面排序）：
 
-1. **PE-01 命中每一槽**。语料行**以尾空格结尾**（`a.java` 的 `dialogScriptLine` 亦然）⇒ 末命令消费后 `script_cursor == line.len()` **恒成立**，所以 engine 的尾部门对**每一条脚本的最后一个命令**都触发。最直观的反例：
+1. **PE-01 命中每一槽**。语料行**以尾空格结尾**（`a.java` 的 `dialogScriptLine` 亦然）⇒ 末命令消费后 `script_cursor == line.len()` **恒成立**，所以 engine 的尾部门对**每一条脚本的最后一个命令**都触发。 【复核更正 · 见 §B.2′.1】**本条的前提与后果都改**：① 实际恒为 `line.len() - 1`（行尾是 `" \x1e"` 两字节）⇒ 生产口径不触发，只有求解器 (b) 的 10 字节表才每槽触发；② 定级 P0 → **P1**；③ 下列三条"反例"在**生产口径**下不成立（它们只在 (b) 口径成立，且因 `Obs` 无 `phase` 而不可观测）。原反例保留如下，供口径对照：
    - 槽 6 `TAK_53_58`：engine 消费 TAK（`phase=1`）后立刻尾门把 `phase` 改写成 `AwaitCamera`（`crates/game-core/src/script.rs:513`）⇒ `crates/game-core/src/scene_dialog.rs:119` 的 `1|6` 支永不进入 ⇒ **整页对话被跳过、不等按键**。
    - 槽 0 结尾 `GUT_1`：`GUT` 的 `load_level_script` 把 `phase` 重置为 `0`，尾门随即改写成 `AwaitCamera` ⇒ 新脚本不启动。
    - 槽 65 `TAK_127_128 END_0`：`END` 之后尾门额外写 `flags[65]=true` + 动相机；Java 此处是 no-op ⇒ **多出一次旗标写**（`script_line_flags` 被 `try_run_scene` 的多条谓词读取，`crates/game-core/src/scene.rs:927-1031`）。
@@ -479,7 +707,7 @@ pub struct GateOutcome {
 
 **不进最小状态集**（有 A 级"死字段"证据）：`dialogPageStart`、`seeModeFlag`（§A.2.1 第 4 条）；`typewriter_pos`/`overlay_*`/相机三元组（纯表现，`Noop`）。
 
-**收益的诚实表述**：`run_gate_script` 只对 §A.3 的 **48/68 槽**成立（`ticks_needed == false`）；其余 20 槽返回 `None`/`ticks_needed=true`，回退 `build_scene`+`tickdrive`。**不做"零 tick 全覆盖"的承诺**——那需要先证明"所有相位最终收敛且不改 flags"，本文没有该证明（见 §F-3）。
+**收益的诚实表述**：`run_gate_script` 只对 §A.3 的 **48/68 槽**成立（`ticks_needed == false`）；其余 20 槽返回 `None`/`ticks_needed=true`，回退 `build_scene`+`tickdrive`。 【复核更正 · 见 §A.3′】比例改为 **11/68**（`9,11,13,18,25,37,38,39,58,59,60`），其余 **57** 槽回退。并且 `ticks_needed == false` **不等于可以跳过执行**：11 槽中 6 槽（`9,11,13,18,25,38`）有真实世界态写，必须照常 apply delta（只有 A 档 `37,39,58,59,60` 能整槽跳过）。**不做"零 tick 全覆盖"的承诺**——那需要先证明"所有相位最终收敛且不改 flags"，本文没有该证明（见 §F-3）。
 
 ### §D.4 与 `script_abs.rs` A/B 对拍的关系：扩成 2×2
 
@@ -575,21 +803,32 @@ pub struct GateOutcome {
 | 范围 | `crates/game-core/src/scene_dialog.rs:117` 改调 `eng.execute_script_instruction(&mut scene_host)`；删 `crates/game-core/src/scene_script.rs:14-36`（保留 `parse_script_int` 与 `advance_script_walk`）；`op_*` 23 个函数体搬进 `impl ScriptWorld + EntityService + … for GameScene`（与 S3 的转发体合并）；`crates/game-core/src/script_ops.rs:553-589` 的 `execute_op` 变成 engine 的薄封装或删除 |
 | 文件 | `scene_script.rs`（-30 行）、`script_ops.rs`（-590 行，函数体搬走）、`scene_dialog.rs`（改 1 行）、`scene.rs`（删 `mod` 声明与 `impl ScriptOp` 位置调整）、`scene_solver_api.rs:59`/`:97`（门面改转发 engine） |
 | 改动量 | **最大一片**：~650 行移动 |
-| 风险 | **高**：`execute_script_instruction` 有 **9 处调用点**（见下表），任何一处漏改都会双执行器并存 |
+| 风险 | **高**：`execute_script_instruction` 有 **~~9~~ 31 处调用表达式**（【复核更正】见 §S5′；v1 的 9、表格相加 28、复核的 22 都不可复现），任何一处漏改都会双执行器并存。真实语义面只有 3 类：生产入口 1、`op_*` 递归 2、engine 自身 3 |
 | 门禁 | `check` + `trace`（**L2b 逐 tick**）+ 74 金样 + `cargo test -p game-core -p game-solver` |
 | 回滚 | 需 `git revert` 整片（不建议拆） |
-| 生产行为 | **零变化**（前提：S4a 已让 engine 逐 tick 等价，T-parity-1 全绿） |
+| 生产行为 | **零变化**（前提：S4a 已让 engine 逐 tick 等价，T-parity-1 全绿） 【复核更正 · 见 §S5′】**「零变化」不成立，有 RES 反例**：生产当前走 `GameScene`，其 `op_res`（`crates/game-core/src/script_ops.rs:101-116`）**不写** `inventory_entry_count`；engine 的 `RES` 写（`crates/game-core/src/script.rs:459`）= Java `a.java:8489`。⇒ S5 切 engine 后，槽 0 的 `RES_0` 会**新增一条世界态写**（`inventory_entry_count: 0 → 0` 之外的情形会真的变值，例如从存档读回非零的 run）。**前提修正**：S5 的零变化以「PE-06 已在 `GameScene` 侧对齐（补写 `inventory_entry_count=0`）」+「语料行保留 `0x1E`（尾门不触发）」两条同时成立为条件；否则 S5 是"**有意的行为修正**"，必须单列并跑 `trace` + 存档往返差分 |
 
-迁移调用点清单（A 级：`grep -c` 实测）：
+#### §S5′ 调用点清单（2026-11-16 第二轮重算，「A 级：现场 `grep -rn`」）
 
-| 调用点 | 处数 | 改法 |
-|---|---|---|
-| `crates/game-core/src/scene_dialog.rs:117` | 1 | 生产唯一入口 ⇒ 改调 engine |
-| `crates/game-core/src/scene_solver_api.rs:59`（门面）+ `:97`（`fn` 签名锁）+ `:544`（测试直调） | 3 | 门面改转发 engine；**签名锁必须改形**（`let _: fn(&mut GameScene)` 不再成立 ⇒ 改成对新入口的锁，否则锁的是死码） |
-| `crates/game-core/src/scene_tests/slot_equip_scene_tests.rs` | 15 | 统一走门面（已是门面调用 ⇒ 只改门面即可） |
-| `crates/game-core/src/scene_tests/entity_route_tests.rs` | 5 | 同上 |
-| `crates/game-solver/src/script_abs.rs`（`side_a::drive`） | 2 | S7 会重写 |
-| `crates/game-core/src/scene_script.rs`（内部自调，`:35`/`:45`） | 2 | 随删除消失 |
+复现命令：
+
+```bash
+grep -rn "execute_script_instruction" crates/game-core/src crates/game-solver/src --include=*.rs
+```
+
+⇒ **31 个调用表达式** + 2 个函数定义 + 1 个函数指针引用（另有 5 处注释行）。逐面：
+
+| 语义面 | 处数 | 位置 | 改法 |
+|---|---|---|---|
+| 生产唯一入口 | **1** | `crates/game-core/src/scene_dialog.rs:117` | 改调 engine（S5 唯一的功能改动） |
+| `GameScene` 执行器内部尾递归 | **2** | `crates/game-core/src/script_ops.rs:197`（`MOV` 未命中）、`:588`（`GIN`） | 随 `scene_script.rs` 删除而消失 |
+| `ScriptEngine` 内部 | **3** | `crates/game-core/src/script.rs:254`（`step`）、`:323`（`MOV` 未命中）、`:422`（`GIN`） | 保留（engine 自身的忠实递归，`a.java:8308`/`:8443`） |
+| 求解器驱动 | **2** | `crates/game-solver/src/script_abs.rs:198`（`side_a`）、`:503`（`side_b`） | S7 重写 |
+| 测试门面 | **4** | `crates/game-core/src/scene_solver_api.rs:60`、`:149`、`:166`、`:544` | 门面改转发 engine；**`:97` 的签名锁必须改形**（`let _: fn(&mut GameScene)` 在删除执行器后锁的是死码） |
+| 单元测试直调 | **19** | `crates/game-core/src/scene_tests/slot_equip_scene_tests.rs`（15）+ `crates/game-core/src/scene_tests/entity_route_tests.rs:10`/`:73`/`:255`/`:267`（4） | 已是门面调用 ⇒ 只改门面 |
+| **合计调用表达式** | **31** | | |
+
+> 【2026-11-16 复核更正】v1 的「9 处」漏掉 19 处单元测试直调与 3 处 engine 内部递归/`step`；v1 表格相加为 28（`15+5+3+2+2+1`），其中 `entity_route_tests` 实为 4 处代码（+1 处注释）、`scene_solver_api` 实为 4 处代码（另 1 处函数指针、1 处定义、2 处注释）；复核报告的「22 处」用上述命令不可复现。**结论**：迁移风险不在"31 处都要改"，而在 3 个语义面（生产入口 / `op_*` 递归 / engine 自身）——其余 23 处是测试与门面。
 
 ### S6 求解器纯函数出口（§D.2/§D.3）
 
@@ -634,7 +873,7 @@ pub struct GateOutcome {
 
 1. **求解器搜索覆盖**：`decide_gate` 纯函数化只让"单个门的语义"可信，不改变"搜到/搜不到"。`tickdrive` 的既有近似（脚本行走期间不触发中途 type83 门，`crates/game-solver/src/solve_local.rs:2360`）**本方案不修**，它不是管线问题。
 2. **支配健全性 F2**：`GATE_MEMO` 键 `(floor,param,player,flags,ents)` **不含 `pending_floor`/`dialog_target`/`path_arrows_visible`**。本方案不改键 ⇒ 若某脚本的后续行为依赖这些字段，memo 仍可能命中错误记忆。**这是独立缺陷，须单独立项**（本方案只把它标出来）。
-3. **相位收敛性未证**：`§D.3` 的"48/68 槽可免 tick"是**静态可达性判据**，不是"相位一定收敛"的证明。若某个 P 类行进入 `phase=3`（例如行内 `MOV` 的 `findPath` 成功），静态判据会把它划到 W 类——判据在 `MOV` 上是**运行时**的（看 `find_path` 结果），本文没有对"所有参数组合"的穷举。
+3. **相位收敛性未证**：`§D.3` 的"48/68 槽可免 tick"（【复核更正】应为 **11/68**，且分 A/B 两档，见 §A.3′）是**静态可达性判据**，不是"相位一定收敛"的证明。若某个 P 类行进入 `phase=3`（例如行内 `MOV` 的 `findPath` 成功），静态判据会把它划到 W 类——判据在 `MOV` 上是**运行时**的（看 `find_path` 结果），本文没有对"所有参数组合"的穷举。
 4. **时序保真的裁判**：本方案统一的是**语义**，时序的裁判仍然是 L2b trace。`run_gate_script` 跳过相位会改变 tick 序列 ⇒ **它只能用于求解器的状态判定，永远不能当"时序等价"的证据**。
 5. **跨层实体快照**：`probe_cross_floor_snapshot` 未移植（`crates/game-core/src/scene.rs` 的 case 7/32 显式挡路），本方案不补 ⇒ 门 7/32 仍不可判定。
 6. **表现保真**：相机 ease 的 `(vw-32>>1)-px` 居中偏移、打字机 `layout_wrapped_text` 的 129 列回绕，本方案只保证"这些调用被正确分类为表现"，不保证**逐像素**一致（那是 `visual` 门禁的活）。
@@ -675,6 +914,8 @@ pub struct GateOutcome {
 1. **PE-01 的 javap 判读**：`2386-2400` 是否真的只是 `if (cursor < len) return;` 而非"else 块入口"？若我读错，则 engine 的尾部门可能反而是对的、GameScene 缺一手。**建议复核**：`javap -p -c` 重导出，逐偏移核对 `2397: if_icmpge 2431` 的跳转目标是方法尾（`2431: return`）而不是某个分支体；再用"槽 6 一行脚本"的 `a.java` 单步（若可用）确认 `TAK` 后 `dialogPhase` 未被改写。
 2. **"生产行为零变化"主张**：S4a 全部改 engine ⇒ 生产（GameScene）不变。但 S4b 若判 `ADD` 缺 `initCellGrid`（R-1），则生产行为**会变**。本文对 R-1 只有 B 级证据 ⇒ 若复核发现 `initCellGrid` 与 `m_122(currentFloor)` 写面完全重叠，则 R-1 可降为"零变化"；反之必须在 S4b 显式标注"改变生产行为"。
 3. **"48/68 槽可免 tick"**：本文的 P/W 划分只依据 §A.2.2（相位阻塞语义），**未证明**"P 类行执行过程中不会进入 `phase=2/3`"。`MOV` 已按"运行时判 `find_path`"处理，但 `CES`（`script_delay` 会写、`phase` 不写）与 `GIN`（尾递归）是否可能间接触发相位？**建议复核**：对 48 个 P 类槽逐行走一遍 `parse_op` 序列，断言"无 `Mov`/`Lay`/`End`/`Gut` 且无尾递归以外的相位写"。
+
+> 【2026-11-16 复核更正 · 见 §A.1′/§A.3′】**这条自我怀疑是对的，而且比作者设想的更严重。** ① 已逐槽走完 296 条指令：`CES` 与 `GIN` 都不写相位（`a.java:8395-8429`/`:8430-8443`），真正的漏洞不是"P 类行会不会进相位 3"，而是**"无相位跃迁"本身不能推出"无世界态写"**——`TAK`/`SEE`/`CES`/`DES`/`ADD`/`SWD`/`ROS_*`/`GIN`/`RES`/`GUT`/`LAY` 都在无相位跃迁的情况下改世界态；② 因此 P 类实际只有 **3 个变体**（`Glv`/`Sms`/`RosNoop`）、真·零写面槽 **5** 个，而不是 48 个；③ 第 1 条（PE-01 的 javap 判读）已被复核确认：`2397: if_icmpge 2431` 的落点就是方法尾 no-op，但**该门在 11 字节行口径下永不触发** ⇒ P1 而非 P0（§B.2′）。
 
 ---
 

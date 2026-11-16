@@ -60,6 +60,12 @@
 序章冻结态（cursor=43、phase=4、SEE 已置 6 被覆写）即由此门产生——BUG-006 的
 phase 4 与教学页 166（"好了，现在请试着按方向键移动"）均已入 L2 断言。
 
+> 【2026-11-16 复核更正（脚本管线第二轮，见 `docs/superpowers/proposals/2026-11-16-script-command-pipeline-proposal.md` §B.2′）】本节三条主张需收紧，历史表述保留：
+> 1. **"方法尾部恒执行"措辞不准**。`a.java:8600-8602` 是 `if (scriptCursor < dialogScriptLine.length()) return;`——**不满足时方法直接结束、零字段写 = no-op**；`phase=4` + `scriptLineFlags[idx]=true`（`idx≠32`）+ `m_104(0)` 只出现在 **`a.java:8270` 入口门的 else 支（`:8603-8610`）**。原文所引 `a.java:8555-8567` 是**陈旧锚**（该区间落在 `MVS` 体 `8525-8598` 内），真锚为 `:8600-8602` + `:8603-8610`。
+> 2. **触发面① 依赖口径**。Java 的 `levelScriptLines` 是常量字面量、**行尾只有一个空格、无 `0x1E`**（`a.java:1124` 起；首行实测 164 字节），而 `scriptCursor = lastDelimPos + 1`（`a.java:8613-8619` 的 `parseScriptInt` 写 `lastDelimPos`）会吃掉行尾空格 ⇒ 末命令后 `cursor == len` ⇒ **面① 在 Java 下每一行都成立**。Rust 生产口径 `DialogData::from_fixtures`（`crates/game-core/src/scene.rs:253-256`）用 `.lines().map(|l| l.trim())`，**`str::trim()` 不吃 `U+001E`** ⇒ 行长比 Java 多 1 ⇒ `cursor == len-1` ⇒ **面① 在生产夹具下不触发**；面②（入口 `cursor+3 > len`）不受影响。求解器/金测试（`crates/game-solver/src/script_abs.rs:158-166`、`crates/game-core/tests/script_golden.rs:15-19`）剥掉 `0x1E`，与 Java 同长 ⇒ 面① 成立。
+> 3. **序章冻结态归因二选一**（终值相同、拍点不同）：Java 行长 43（`TAK_255_259 TAK_165_165 SEE_3_10_166_166_1 `）⇒ 尾门**同一拍**把 `phase=6` 覆写为 4；Rust 生产行长 44（多 `0x1E`）⇒ 由**下一拍入口门**覆写。故该断言在两侧"终值等价、tick 不等"，需要 T-parity-2（逐 tick `phase`/`ticks` 全等）才能锁住。
+> 4. **定级**：本节原主张（配合提案 PE-01）**P0 → P1（口径依赖的潜伏项）**；不得据此断言"整页对话被跳过"。修法是让 `from_fixtures` 的语料口径对齐 Java（剥 `0x1E`），**不是删除该门**——删门会连 Java 唯一正确的收尾写一起删掉。
+
 ## 4. L2 对拍设计（TDD 核心）
 
 **向量来源分层**（防循环论证）：
@@ -93,6 +99,7 @@ phase 4 与教学页 166（"好了，现在请试着按方向键移动"）均已
 - R2(high) MOV 玩家分支缺 walk-arm 三写点 → 补齐 + 测试断言
 - R3(high) CES 延迟查类目表而非裸 type → spec 与实现更正 + 类目表夹具（a.java:6208-6256）
 - R4(high) 行尾门非 no-op（phase=4+旗标+相机）→ 新增 §3.1 + 双触发面实现 + BUG-006 冻结态断言
+  - 【2026-11-16 复核更正】"非 no-op"**只在门被满足时成立**：门自身是 `if (cursor < len) return;`（`a.java:8600-8602`），不满足即纯 `return`。且本仓生产口径（`crates/game-core/src/scene.rs:253-256` 的行尾保留 `0x1E`）使触发面①失效 ⇒ 该门在生产下退化为 no-op，Java 下每行末命令触发（Java 字面量行尾无 `0x1E`，`a.java:1124`）。详见 §3.1 的 2026-11-16 更正注与提案 §B.2′。
 - R5(high) char_pos 按 UTF-8 字节 → chars().count()（UTF-16 单位）
 - R6/R7(medium) RES 补 f_int_89=0；LAY 补 f_bool_16
 - R8(medium) HostCtx 文档与签名一致化 + entity_type 方法
