@@ -1420,3 +1420,252 @@ fn solve_global_t商店买红钥匙_花金得红过红门_红绿对照() {
     let r3 = shop_run(true, 0);
     assert!(!r3.goals.is_empty(), "免费凑钱后应能买红通关：{r3:?}");
 }
+
+// ---------------------------------------------------------------- 批6 C6a/C6b 击杀金币 + 金币判据
+
+/// 批6 C6a：读真 `enemies.json`（赏金唯一 A 级源；15 行※ 实测 35 行、合计 4839）。
+/// ※ 35 行 = id41..=75（`enemyBaseGold[]` 逐值迁，`data/tables/enemies.json`）。
+fn load_enemies() -> Vec<EnemyDef> {
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(2)
+        .unwrap()
+        .to_path_buf();
+    let (rows, mult) = game_data::defs::parse_enemies(
+        &std::fs::read_to_string(root.join("data/tables/enemies.json")).unwrap(),
+    )
+    .expect("parse enemies.json");
+    assert!(!mult.is_empty(), "difficulty_multipliers 非空");
+    rows
+}
+
+/// 玩具敌表（hp10/atk1/def0 —— 撞面无伤同 `enemies()`）但**赏金取真表**：
+/// C6a 的唯一被测边=金币，战斗三值保持玩具域（赏金不参与战斗，见
+/// `predict_engagement` 只读 hp/atk/def/trait_flags）。
+fn enemies_real_bounty() -> Vec<EnemyDef> {
+    let real = load_enemies();
+    let mut v = enemies();
+    for r in v.iter_mut() {
+        if let Some(b) = real.iter().find(|x| x.id == r.id) {
+            r.gold = b.gold;
+        }
+    }
+    v
+}
+
+/// 批6 C6a/C6b 夹具：8×3 走廊（仅 y=1 可走 ⇒ 怪/商店都是必经格）：
+/// (0,1) 入场 → 怪槽（`monsters`: (type,x)）→ 商店槽 x=4..=6（`with_shops` 时）
+/// → (7,1) 上行梯 ty7 param=50 → floor50 终局。
+fn gold_world(monsters: &[(i32, i32)], with_shops: bool) -> BTreeMap<i32, LevelSpec> {
+    const W: i32 = 8;
+    let mut terrain = vec![false; (W * 3) as usize];
+    for x in 0..W {
+        terrain[(W + x) as usize] = true; // y=1
+    }
+    let mut entities: Vec<EntSpec> = monsters
+        .iter()
+        .map(|&(ty, x)| EntSpec { ty, x, y: 1, param: 0 })
+        .collect();
+    if with_shops {
+        // ty78 ⇒ `src=1`（付费表，`shop_offer` `ty==77 ? 0 : 1`）；开价门
+        // `(param>>8)&2` ⇒ flags=3；idx=4 ⇒ 真表 id8 ¤50 黄+5
+        for x in 4..=6 {
+            entities.push(EntSpec {
+                ty: 78,
+                x,
+                y: 1,
+                param: (3 << 8) | 4,
+            });
+        }
+    }
+    entities.push(EntSpec {
+        ty: 7,
+        x: 7,
+        y: 1,
+        param: 50,
+    });
+    let floor1 = LevelSpec {
+        cols: W,
+        rows: 3,
+        terrain,
+        start: (0, 1),
+        entities,
+        exits: vec![ExitSpec {
+            x: 7,
+            y: 1,
+            kind: ExitKind::Stair,
+            index: 1,
+        }],
+        player: player(),
+        enemies: enemies_real_bounty(),
+        enemy_base: enemies_real_bounty(),
+        flags: 0,
+    };
+    let mut floors: BTreeMap<i32, LevelSpec> = BTreeMap::new();
+    floors.insert(1, floor1);
+    floors.insert(50, floor50_nodoor());
+    floors
+}
+
+fn gold_run(
+    monsters: &[(i32, i32)],
+    with_shops: bool,
+    with_item25: bool,
+) -> game_solver::solve_global::GlobalResult {
+    let goods = load_shop_goods();
+    let mut p = player();
+    if with_item25 {
+        // 引擎 `find_item(25)` 的模型等价源：bag 槽 0 = 25（`combat.rs:67-74`）
+        p.item_types = vec![25];
+        p.item_uses = vec![1];
+        p.item_stack_size = 1;
+    }
+    solve_global_with(
+        &GlobalInput {
+            floors: gold_world(monsters, with_shops),
+            start_floor: 1,
+            start_pos: (0, 1),
+            start_player: p,
+            start_flags: 0,
+            bound: 10_000,
+        },
+        100_000,
+        ClosurePolicy::OFF,
+        &goods,
+    )
+}
+
+/// 连续可买链（余额序列）：`total, total-price, ... >=0`；`< price` 即停 ⇒
+/// **买不起分支 = 链尾不再延伸**（引擎 `spend_gold` `gold >= amount` 门）。
+fn buy_chain(mut gold: i32, price: i32) -> std::collections::BTreeSet<i32> {
+    let mut s = std::collections::BTreeSet::new();
+    loop {
+        s.insert(gold);
+        if gold < price {
+            break;
+        }
+        gold -= price;
+    }
+    s
+}
+
+/// 批6 C6a 判据：**击杀给金**（引擎 `crates/game-core/src/scene.rs:2301-2309`）。
+/// 一正一负对照：① 无 item25 ⇒ 余额 = 赏金  ② 持 item25 ⇒ 余额 = 赏金<<1。
+#[test]
+fn solve_global_t击杀给金_普通与item25双倍_余额精确断言() {
+    let real = load_enemies();
+    let bounty = |t: i32| {
+        real.iter()
+            .find(|e| e.id == t)
+            .unwrap_or_else(|| panic!("enemies.json 缺 id{t}"))
+            .gold
+    };
+    // 表级钉：35 行、合计 4839（`data/tables/enemies.json`，a.java: enemyBaseGold[]）
+    assert_eq!(real.len(), 35, "赏金表 35 行");
+    assert_eq!(
+        real.iter().map(|e| e.gold).sum::<i32>(),
+        4839,
+        "赏金表合计 4839"
+    );
+    let g47 = bounty(47);
+    assert!(g47 > 0, "id47 赏金须非零：{g47}");
+
+    // ① 无 item25：杀 ty47 ⇒ gold += g47（不是 0）
+    let r1 = gold_run(&[(47, 1)], false, false);
+    assert!(!r1.goals.is_empty(), "① 应通关：{r1:?}");
+    for g in &r1.goals {
+        assert_eq!(
+            g.post.gold, g47,
+            "① 普通击杀余额须精确 = 赏金 {g47}（引擎 scene.rs:2305-2309 非双倍臂）"
+        );
+    }
+    assert_eq!(
+        r1.gold_peak, g47,
+        "① 搜索期金币峰值 = 赏金（无商店 ⇒ 无减金，峰值=终点）"
+    );
+
+    // ② 持 item25：`find_item(25)>=0` ⇒ `enemy_base.gold << 1`
+    let r2 = gold_run(&[(47, 1)], false, true);
+    assert!(!r2.goals.is_empty(), "② 应通关：{r2:?}");
+    for g in &r2.goals {
+        assert_eq!(
+            g.post.gold,
+            g47 << 1,
+            "② item25 双倍余额须精确 = 赏金<<1（引擎 scene.rs:2303-2305 双倍臂）"
+        );
+    }
+    assert_eq!(
+        r2.gold_peak,
+        g47 << 1,
+        "② item25 搜索期金币峰值 = 赏金<<1（单倍化则本断言红）"
+    );
+}
+
+/// 批6 C6b 判据：**金币余额钉死扣金**（批5 M1 缺口：删 `gold -= price` 变异仍全绿）。
+/// 夹具金 100% 来自击杀（入场 gold=0），商店 = 真表 id8 ¤50：
+/// ① 两杀（100+22=122）⇒ 可连买 2 次（122→72→22），**第 3 臂不可用**（22<50）
+/// ② 三杀（+35=157）⇒ 可连买 3 次（157→107→57→7），第 4 臂不可用（7<50）
+/// 两世界余额集合逐值断言 ⇒ 扣金/门/余额三处任一被破坏即红。
+#[test]
+fn solve_global_t连续买两次_余额与买不起分支_逐值断言() {
+    let goods = load_shop_goods();
+    let paid = goods
+        .iter()
+        .find(|g| g.src == 1 && g.idx == 4)
+        .expect("真表须有 src1/idx4 付费行");
+    assert_eq!(paid.price, 50, "id8 开价 50（shop_goods.json）");
+    assert!(
+        matches!(paid.effect, game_data::defs::ShopEffect::AddKeys { yellow: 5, .. }),
+        "id8 效果 = 黄钥匙 +5：{:?}",
+        paid.effect
+    );
+    let price = paid.price;
+
+    let real = load_enemies();
+    let bounty = |t: i32| real.iter().find(|e| e.id == t).unwrap().gold;
+    let total2 = bounty(47) + bounty(52);
+    let total3 = total2 + bounty(58);
+
+    // ① 两杀：金只够买两次
+    let r2 = gold_run(&[(47, 1), (52, 2)], true, false);
+    assert!(!r2.goals.is_empty(), "① 应通关：{r2:?}");
+    assert!(r2.expansions > 0, "① 必须真的扩展过：{r2:?}");
+    assert_eq!(r2.gold_peak, total2, "① 峰值 = 两杀金（买前）");
+    let got2: std::collections::BTreeSet<i32> = r2.goals.iter().map(|g| g.post.gold).collect();
+    assert_eq!(
+        got2,
+        buy_chain(total2, price),
+        "① 余额集合须 == 连买链 {{122,72,22}}（入场金 0 ⇒ 全部来自击杀）"
+    );
+    let floor2 = *got2.iter().next().expect("非空");
+    assert_eq!(
+        floor2,
+        total2 - 2 * price,
+        "① 最小余额 = 两杀金 − 2×价（连买两次）"
+    );
+    assert!(floor2 < price, "① 买后余额不足第 3 买：{floor2} < {price}");
+    assert!(
+        !got2.contains(&(total2 - 3 * price)),
+        "① 买不起时不得产生第 3 次购买态（引擎 spend_gold 门）"
+    );
+
+    // ② 三杀：金够买三次（正向对照：余额确实由击杀金驱动）
+    let r3 = gold_run(&[(47, 1), (52, 2), (58, 3)], true, false);
+    assert!(!r3.goals.is_empty(), "② 应通关：{r3:?}");
+    assert_eq!(r3.gold_peak, total3, "② 峰值 = 三杀金（买前）");
+    let got3: std::collections::BTreeSet<i32> = r3.goals.iter().map(|g| g.post.gold).collect();
+    assert_eq!(
+        got3,
+        buy_chain(total3, price),
+        "② 余额集合须 == 连买链 {{157,107,57,7}}"
+    );
+    assert_eq!(
+        *got3.iter().next().expect("非空"),
+        total3 - 3 * price,
+        "② 最小余额 = 三杀金 − 3×价（连买三次）"
+    );
+    assert!(
+        !got3.contains(&(total3 - 4 * price)),
+        "② 第 4 买越界（7<50）不得出现"
+    );
+}
