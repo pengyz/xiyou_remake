@@ -974,16 +974,8 @@ struct Node {
 ///   出来的就是引擎同一实现）⇒ 判定面零自写；
 /// - 表缺行/零赏金 ⇒ 0（引擎侧同一行只会给出 0，等价）。
 fn kill_bounty(level: &LevelSpec, player: &PlayerCombat, ety: i32) -> i32 {
-    let base = level
-        .enemy_base
-        .get((ety - 41) as usize)
-        .map(|e| e.gold)
-        .unwrap_or(0);
-    if player.find_item(25) >= 0 {
-        base << 1
-    } else {
-        base
-    }
+    // C6d：唯一源在 game-core（引擎 `kill_adjacent_at` 同调此函数），求解器不再自写。
+    game_core::combat::kill_reward(&level.enemy_base, ety, player)
 }
 
 fn apply_shop_effect(effect: &ShopEffect, p: &mut PlayerSpec) -> bool {
@@ -1548,7 +1540,8 @@ impl<'a> Search<'a> {
                 ns.player.hp -= loss;
                 ns.kills += 1;
                 // 批6 C6a：击杀给金（引擎 scene.rs:2301-2309 同源；含 item25 双倍）
-                ns.player.gold += kill_bounty(self.level, &pc, ety);
+                let reward = kill_bounty(self.level, &pc, ety);
+                game_core::combat::gain_gold_to(&mut ns.player.gold, reward);
                 ns.ents.remove(slot);
                 ns.pos = m;
                 ns.steps += 1;
@@ -1647,7 +1640,8 @@ impl<'a> Search<'a> {
                         ns.kills += 1;
                         // 批6 C6a：击杀给金（引擎 scene.rs:2301-2309 同源；
                         // item25 双倍经 to_combat 的 find_item 判定）
-                        ns.player.gold += kill_bounty(self.level, &player, ety);
+                        let reward = kill_bounty(self.level, &player, ety);
+                        game_core::combat::gain_gold_to(&mut ns.player.gold, reward);
                         ns.ents.remove(slot);
                         ns.pos = (tx, ty);
                         ns.steps += 1;

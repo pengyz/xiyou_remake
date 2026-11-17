@@ -186,13 +186,105 @@ pub fn consume_key_for_door(player: &mut PlayerCombat, door: u8) -> (bool, i32) 
     }
 }
 
-/// gainGold 忠实移植（a.java:7503-7503）：gold += n；n>0 时 popup kind4。
-/// 返回 popup 值（n>0 时 Some(n)）。
-pub fn gain_gold(player: &mut PlayerCombat, amount: i32) -> Option<i32> {
-    player.gold += amount;
+/// gainGold 的**唯一实现**：gold += n；n>0 时返回 popup 值。
+/// 拆出 `&mut i32` 形是为了让求解器（只有 `PlayerSpec.gold` 字段，没有 `PlayerCombat`）
+/// 也能走同一段代码，而不是各自 `gold += n` 另立一份。
+pub fn gain_gold_to(gold: &mut i32, amount: i32) -> Option<i32> {
+    *gold += amount;
     if amount > 0 {
         Some(amount)
     } else {
         None
+    }
+}
+
+/// gainGold 忠实移植（a.java:7503-7503）：gold += n；n>0 时 popup kind4。
+/// 返回 popup 值（n>0 时 Some(n)）。
+pub fn gain_gold(player: &mut PlayerCombat, amount: i32) -> Option<i32> {
+    gain_gold_to(&mut player.gold, amount)
+}
+
+/// 击杀赏金的**单一源**（C6d）：引擎 `GameScene::kill_adjacent_at` 与求解器同调。
+///
+/// `gold = enemy_base[ety - 41].gold`；持 item25（幸运币）时双倍。
+/// 证据：原内联处 `crates/game-core/src/scene.rs:2301-2309`；索引约定由
+/// `CombatTables::to_records` 保证（`enemy_base[i].id == 41 + i`，combat.rs:24-35）。
+/// 表缺行/越界 ⇒ 0（引擎面该分支受 `t < 67 && category == 8` 守护，越界不可达）。
+///
+/// 为什么必须在这里而不是求解器里：求解器此前自写 `kill_bounty`，与引擎内联公式
+/// 各存一份 ⇒ 任何一侧改动（新增饰品倍率、赏金曲线调整）都会静默分叉，而这类分叉
+/// 不会让任何测试失败，只会让「界内无解」多一个无法归因的理由。
+pub fn kill_reward(enemy_base: &[EnemyDef], ety: i32, player: &PlayerCombat) -> i32 {
+    let base = enemy_base
+        .get((ety - 41) as usize)
+        .map(|e| e.gold)
+        .unwrap_or(0);
+    if player.find_item(25) >= 0 {
+        base << 1
+    } else {
+        base
+    }
+}
+
+#[cfg(test)]
+mod kill_reward_tests {
+    use super::*;
+
+    fn player(items: &[u8]) -> PlayerCombat {
+        PlayerCombat {
+            hp: 100,
+            atk: 10,
+            def: 5,
+            yellow_keys: 0,
+            blue_keys: 0,
+            red_keys: 0,
+            gold: 0,
+            item_types: items.to_vec(),
+            item_uses: vec![0; items.len()],
+            item_stack_size: items.len() as i32,
+        }
+    }
+
+    fn base() -> Vec<EnemyDef> {
+        vec![
+            EnemyDef { id: 41, hp: 10, atk: 1, def: 0, gold: 7, trait_flags: 0 },
+            EnemyDef { id: 42, hp: 20, atk: 2, def: 0, gold: 13, trait_flags: 0 },
+        ]
+    }
+
+    /// C6d 判据 1：赏金按 `id = 41 + i` 取行（不是按数组下标猜）。
+    #[test]
+    fn c6d_kill_reward_reads_by_id_offset() {
+        let b = base();
+        assert_eq!(kill_reward(&b, 41, &player(&[])), 7);
+        assert_eq!(kill_reward(&b, 42, &player(&[])), 13);
+    }
+
+    /// C6d 判据 2：持 item25（幸运币）双倍——变异点，删掉 `<< 1` 立刻红。
+    #[test]
+    fn c6d_kill_reward_doubles_with_item25() {
+        let b = base();
+        assert_eq!(kill_reward(&b, 42, &player(&[25])), 26);
+        assert_eq!(kill_reward(&b, 42, &player(&[25, 13])), 26);
+        assert_eq!(kill_reward(&b, 42, &player(&[13])), 13);
+    }
+
+    /// C6d 判据 3：越界/缺行 ⇒ 0（不 panic、不虚构赏金）。
+    #[test]
+    fn c6d_kill_reward_out_of_range_is_zero() {
+        let b = base();
+        assert_eq!(kill_reward(&b, 99, &player(&[25])), 0);
+        assert_eq!(kill_reward(&[], 41, &player(&[25])), 0);
+    }
+
+    /// C6d 判据 4：落账唯一实现——正增量返 popup 值，零/负增量不返但仍落账。
+    #[test]
+    fn c6d_gain_gold_to_is_single_impl() {
+        let mut g = 5;
+        assert_eq!(gain_gold_to(&mut g, 7), Some(7));
+        assert_eq!(g, 12);
+        assert_eq!(gain_gold_to(&mut g, 0), None);
+        assert_eq!(gain_gold_to(&mut g, -3), None);
+        assert_eq!(g, 9);
     }
 }

@@ -2310,13 +2310,9 @@ impl GameScene {
                 && self.entities.items[e].state != 1
             {
                 entity::remove(&mut self.entities, e);
-                let gold = if self.player.find_item(25) >= 0 {
-                    self.enemy_base[(t - 41) as usize].gold << 1
-                } else {
-                    self.enemy_base[(t - 41) as usize].gold
-                };
-                self.player.gold += gold;
-                if gold > 0 {
+                // C6d：赏金公式与落账都走 combat 的单一源（求解器同调）
+                let gold = crate::combat::kill_reward(&self.enemy_base, t, &self.player);
+                if let Some(gold) = crate::combat::gain_gold_to(&mut self.player.gold, gold) {
                     self.popups.spawn(
                         4,
                         gold,
