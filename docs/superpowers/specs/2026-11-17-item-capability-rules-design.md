@@ -1,267 +1,165 @@
-# 道具能力以规则层为真值的设计（S0：封闭原语集 + 可序列化缝）
+# 道具能力规则层设计（spec，v2 —— 对抗复核后重写）
 
-- 日期：2026-11-17
-- 状态：设计待审（brainstorming 架构级路径；批准后进入 writing-plans）
-- 相关：`docs/findings/2026-11-17-solver-map-vs-mechanism.md`（机制/判据/题面三层）、
-  `docs/superpowers/proposals/2026-11-17-solver-correctness-remediation.md`（5 红修复方案）
-- 用户裁定（本会话）：① "新道具不应该导致求解器修改，规则要从规则层库直接取"；
-  ② 方案档位选 **C**（先封闭原语集 A，但类型做成可序列化，留开放 DSL 的缝）；
-  ③ 快照**必须能 dump**；④ 不认识的道具/原语**必须明确报错**，不许跳过。
+- 状态：**v2 可进实施计划**（v1 于 2026-11-17 13f1d7c 落盘，经对抗复核定级「不可实施 as written」，本节 §0 逐条更正）
+- 目标：求解器判断任何道具效果时，**只看规则层给出的能力快照**，不自己写一份；新增道具不改求解器
+- 边界：只覆盖「背包道具的主动能力」；战斗/拾取/装备的账各自有主人（§7）
 
-## 1 问题
+---
 
-求解器目前把道具语义**手抄**在自己身上，且抄得不全：
+## §0 更正记录（2026-11-17，A 级行锚实测）
 
-| 现状 | 证据 |
-|---|---|
-| 求解器完全没建模破障（17 金勺子 / 18 玄明石） | `grep -rn "RemoveAdjacent\|RemoveAllType" crates/game-solver/` 零命中 |
-| 求解器把墙（ty11）当永久阻挡 | `crates/game-solver/src/solve_local.rs` 通行判定无破障分支 |
-| 求解器硬编码道具 ID | 17/18/20/21/22/25 均以字面量出现 |
-| 同一"某格能否进入"有两套口径 | `crates/game-solver/src/doors.rs:115` 只豁免 goal/entry；`crates/game-solver/src/solve_local.rs:1262` 豁免 `stair_like`(6\|7\|8) |
-| 规则层的机制特例被埋在实现里 | `crates/game-core/src/item_effect.rs:116-118`：`if self.persist.floor == 40 { "本层不能直接瞬移" }` |
+v1 的四处核心事实与仓库现状相反，以下每条给出**原主张 → 更正后事实 → 证据**。历史主张保留于此表，不删除。
 
-后果不是"少算一点"，而是**结论方向错**：把可破的墙判成永久阻挡，会把可绕的门判成必经，
-再把这类错结论喂给 ROI 决策。
+| # | v1 原主张 | 更正后事实 | 证据 |
+|---|---|---|---|
+| C1 | `ITEM_EFFECTS` 含 25/29/30/31/32，可投影出 `Passive{LuckyCoinGoldDouble}` 与 `Stat` 类 | 表里**只有 11 行**：13/14/16/17/18/85/19/86/20/21/22。**没有 25、29-32**；反过来 v1 漏了 13/14/16/85/86 | `crates/game-core/src/item_effect.rs:33-45` |
+| C2 | 参数可从 `data/tables/items.json` 的 `effect` 字段取 | 参数本来就在代码里：`ItemAction` 载荷（`RemoveAdjacent{target,msg}` / `Heal{mul,div}` 等）；items.json 是**下游副本**（`tools/item-defs/gen_items.py:57-80` 生成）；且 `crates/game-solver/src/ingest.rs:3-5` 已立红线「items.json 22-25 的 effect 禁作求解器效果源（BUG-053）」 | `item_effect.rs:9-30`、`ingest.rs:3-5` |
+| C3 | 使用次数只在中文 desc 文本里，需给 items.json 加 `charges` 字段 | 次数在规则层：`ITEM_USES` 按 `id-13` 索引（85→20、86→21），**-1 = 无限**：13/14/15/16/23/24/25 无限、20 为 3、其余 1；消费判定 `(uses as i8) > 0`。给 items.json 加字段不是「只动哈希」——`ITEM_ROW_KEYS` 7 项白名单 + `Reject::UnknownField` ⇒ **加载期拒载** | `crates/game-core/src/effect_registry.rs:201-207`、`crates/game-core/src/scene.rs:2392`、`crates/game-data/src/defs.rs:568-580` |
+| C4 | 求解器只有「待补的硬编码若干处」，注入 item 9999 可覆盖全部 | 求解器实际硬编码：`QOL_ITEMS=[15,21,23]`、筋斗云 `contains(&15)`、符 `[(21,1,false),(22,-1,true)]` ⇒ **注入一个假道具完全覆盖不到这些分支**；v1 还主动放弃了强门禁 | `crates/game-solver/src/state.rs:40`、`solve_local.rs:1945`、`solve_local.rs:1997` |
+| C5 | S0-3 预期「必经门 33→32」 | 32 来自**另一份未入库提案**的 `cell_gate`（ty6 喷泉格当通道），与破墙能力无关；今日实测仍是 **33（29 黄 + 4 红）** | `docs/superpowers/proposals/2026-11-17-solver-correctness-remediation.md:235`、`./target/release/solver doors` 实测 |
+| C6 | 同色必要「180→176 是将来会变」 | **176 = 172 黄 + 4 红，今天就是这个值**；「180」是文档把 summary 总数 176 当黄门数的笔误 | `docs/findings/2026-11-17-mandatory-doors.md:27` |
+| C7 | 破障能力对当前结论有实质影响 | 可得性实测：**17 = 世界 0 处且商店无**（不可获得）；18 = 世界 0 处、仅 f47 商店 ¤4000；20 = 0 处；21 = 仅 f45 (2,10) 1 枚；22 = 0 处；25 = 0 处。⇒ 破障能力在当前数据上几乎不改结论，价值是**未来可扩展性 + 死局可解释性** | `tools/type_census.py`、`data/tables/shop_goods.json` 第 17 行 |
+| C8 | `HpUp` 是「当前 HP × floor_tier」 | 是**固定增量 × floor_tier**：31 = 50×tier、32 = 200×tier；另有归零地板规则（`hp <= -d` ⇒ `hp = 1` 且 `d = 0`，不发浮层）。更正的重点不是「按当前 HP」，而是**不能写成 `Const(50)`**——f45 时必须是 250 | `crates/game-core/src/effect_registry.rs:259-281`、`:9-10` |
 
-## 2 目标与非目标
+**由此确立的纪律**：语义面**只允许**读 `ItemAction` 载荷 + `ITEM_USES`；禁止读 `items.json` 的 `effect`/`desc`（BUG-053 红线）；禁止为了「结构好看」给数据表加字段——加载器会拒载。
 
-**目标**
-1. 道具语义只有一份真值：game-core 的执行面；求解器**只**通过导出的快照消费语义。
-2. 新增**道具实例**（用已有原语）时，求解器零改动，且有一条用例能证明这一点。
-3. 出现未知道具/未知原语时，求解器**拒绝出结论**（`model_broken`），不沉默跳过。
-4. 快照可 dump 成 JSON 并作为基线被门禁比对，任何语义漂移都可见。
+---
 
-**非目标（本次不做，见 §10）**
-- 装备（33-40、79-80）的 tier/bonus 属性建模；
-- 开放规则 DSL / 效果程序解释器（B 档，只留缝）；
-- 道具使用的**价值/ROI** 评估（属于求解器判据，不属于规则层）；
-- 随机地图生成器本体。
+## §1 范围（重定）
 
-## 3 契约分层
+**在范围内**：8 类主动能力，全部来自 11 行 `ITEM_EFFECTS`：
+
+| id | 名 | `ItemAction` | 能力语义 |
+|---|---|---|---|
+| 16 | 芭蕉扇 | `RemoveAdjacent{target:10}` | 移除相邻三昧真火 |
+| 17 | 金勺子 | `RemoveAdjacent{target:11}` | 移除相邻墙（**需面对墙**） |
+| 18 | 玄明石 | `RemoveAllType{target:11}` | 移除**全层**墙 |
+| 85 | 黄金钥匙 | `RemoveAllType{target:1}` | 移除**全层黄门**——**不是破墙**，v1 归类错误 |
+| 19 | 千年月桂露 | `Heal{mul:74,div:10}` | `(atk+def)*74/10` 加血 |
+| 86 | 日月无极钹 | `KillAdjacent4` | 杀四邻 |
+| 20 | 相形变位 | `MirrorTeleport` | 移至 `(w-1-x, h-1-y)`；**f40 硬禁**；落点先 `interact_with_cell` |
+| 21/22 | 上行/下行符 | `ChangeFloorUp/Down` | `change_floor(f±1)`，起跳不耗步 |
+| 13/14 | 火眼金睛/生死簿 | `OpenPanel` | 纯 UI，**不投影能力**（记 `NoCapability`） |
+
+**明确不在范围内**（各有主人，v1 错误地把它们塞进本 spec）：
+- **25 幸运币**：被动在战斗结算里（`combat::kill_reward` 的 `find_item(25)` 双倍），C6d 已单源化；不属「主动能力」，不进快照。
+- **29-32 丹**：走 `PICKUP_ARM_TABLE` 的 `StatUp`/`HpUp`（拾取即生效、不进背包能力面）。
+- **26-28 钥匙 / 33-40、79-80 装备**：各有独立账（钥匙计数、`Equip` 的 tier+bonus），不进快照。
+
+---
+
+## §2 四层单向依赖（不变，但来源改正）
 
 ```
-执行面（唯一真值）         crates/game-core/src/item_effect.rs
-  ITEM_EFFECTS + ItemAction + activate_item()
-        │  推导：ItemAction → Capability（穷尽 match，编译期强制）
-        ▼
-语义面（唯一导出）         crates/game-core/src/rules/caps.rs
-  Capability / CapDef / CapException / CapsSnapshot / cap_snapshot()
-        │  dump / 比对
-        ▼
-账单面（基线）             data/status/baselines/caps_snapshot.json
-        │  消费
-        ▼
-消费面（求解器）           crates/game-solver/  —— 只吃 &CapsSnapshot
+执行面  crates/game-core/src/item_effect.rs
+        ItemAction 载荷 + ITEM_EFFECTS 表（唯一真值）
+   │  穷尽 match（新增 ItemAction 变体 ⇒ 编译失败）
+   ▼
+语义面  crates/game-core/src/rules/caps.rs（新增）
+        Capability / CapDef / CapException / CapsSnapshot / cap_snapshot()
+   │  dump（可序列化）
+   ▼
+账单面  data/status/baselines/caps_snapshot.json（门禁 13→14 项：漂移即 FAIL）
+   │  只读参数注入
+   ▼
+消费面  crates/game-solver（只收 &CapsSnapshot，不读任何全局单例、不读 items.json）
 ```
 
-铁律：
-1. 执行面是唯一真值；语义面**不得**手写第二份语义声明。
-2. 语义面只能由执行面推导；新增 `ItemAction` 变体必须迫使归类（编译期）。
-3. dump 是**账单**不是真值：变更必须单独 commit 并写明意图（同 ratchet 规矩）。
+**为什么必须单向**：求解器读 items.json 就等于让「数据表」当第二真值——这正是批5 漏击杀金币、批6 重写赏金公式的同一类错误（两份实现靠人同步）。
 
-## 4 数据类型
+---
+
+## §3 语义面：能力枚举
 
 ```rust
-#[non_exhaustive]
 pub enum Capability {
-    Obstacle { scope: ObstacleScope, target: i32 },   // 17 Adjacent / 18 WholeFloor，target=11(墙)
-    Relocate { mode: RelocateMode },                  // 20 Mirror / 21 FloorUp / 22 FloorDown
-    Gain { resource: Resource, amount: Amount },      // 金/血/钥匙/道具
-    Stat { kind: StatKind, amount: Amount },          // 29/30 攻防永久提升
-    Passive { kind: PassiveKind },                    // 25 LuckyCoinGoldDouble
+    /// 移除障碍：scope 决定范围，target 是被移除的实体型
+    Obstacle { scope: OblivionScope, target: i32 },
+    /// 位移：镜像瞬移 / 上行 / 下行
+    Relocate(RelocateKind),
+    /// 直接杀四邻
+    KillAdjacent,
+    /// 加血（公式参数来自 ItemAction::Heal）
+    Heal { mul: i32, div: i32 },
+    /// 纯 UI，不进预算
+    NoCapability,
 }
-
-pub enum ObstacleScope { Adjacent, WholeFloor }
-pub enum RelocateMode { Mirror, FloorUp, FloorDown }
-pub enum Resource { Gold, Hp, Key(KeyColor), Item(i32) }
-pub enum KeyColor { Yellow, Red, Blue }
-pub enum StatKind { Atk, Def, MaxHp }
-pub enum PassiveKind { LuckyCoinGoldDouble }
-
-/// 数值形态：法则层必须能表达"随属性缩放"，不能只装常数。
-pub enum Amount {
-    Const(i32),
-    StatScaled { from: (StatKind, StatKind), num: i32, den: i32 }, // 19: (atk+def)*74/10
-}
+pub enum OblivionScope { Adjacent, WholeFloor }
+pub enum RelocateKind { Mirror, FloorUp, FloorDown }
 
 pub struct CapDef {
     pub item: i32,
-    pub caps: Vec<Capability>,
-    pub charges: u32,               // 使用次数（数据表结构化字段，见 §5.2）
-    pub target_required: bool,      // 例：17 必须相邻有墙
-    pub exceptions: Vec<CapException>,
-    pub evidence: String,           // A 级出处（文件:行 或 复核报告）
+    pub capability: Capability,
+    /// 次数：-1 = 无限（与 ITEM_USES 同语义，禁止用 u32）
+    pub uses: i32,
+    /// 前置/例外（f40 禁用镜像），从 item_effect.rs 的硬编码搬来
+    pub exception: Option<CapException>,
 }
+pub struct CapException { pub floor_forbidden: Option<i32> }
 
-pub struct CapException { pub cap: Capability, pub floor: Option<i32>, pub reason: String }
-
-pub struct CapsSnapshot { pub schema_version: u32, pub items: Vec<CapDef> }
-
-/// 预算键：Capability 的「不带参分类」，用于 BTreeMap 计数（带参形式不能当键）。
-pub enum CapKind {
-    ObstacleAdjacent, ObstacleWholeFloor,
-    MirrorTeleport, FloorUp, FloorDown,
-    GainGold, GainHp, GainKey, GainItem,
-    StatAtk, StatDef, StatMaxHp,
-    PassiveLuckyCoin,
-}
+/// 预算键：同 (kind, target) 同桶——18 拆墙与 85 开门**不同桶**（v1 把 target 丢了）
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone)]
+pub enum CapKey { Obstacle { scope: OblivionScope, target: i32 }, Relocate(RelocateKind), KillAdjacent, Heal }
 ```
 
-序列化：`serde` 派生，字段名稳定；`schema_version` 变更即破坏性变更，旧 dump 必须重生成。
+**次数语义**（v1 用 `charges: u32` 是错的）：`ITEM_USES` 直接给 `i32`，`-1` 表示无限；投影时**原样搬运**，禁止「无标注按 1」——那会把 7 件无限道具降为一次性（行为级错数据）。
 
-范围：快照覆盖**使用类道具 + 被动**；装备属性不进来（它们来自 `items.json` 的 tier/bonus 字段，
-没有对应的 `ItemAction`，混入会破坏"执行面推导"这条铁律）。
+**编译期穷尽**：`fn capability_of(a: &ItemAction) -> Capability` 用穷尽 `match`；新增 `ItemAction` 变体即编译失败。
 
-## 5 派生与护栏
+---
 
-### 5.1 派生：两路输入
+## §4 快照与数值
 
-| 输入 | 来源 | 提供 |
+```rust
+pub struct CapsSnapshot { pub rows: Vec<CapDef>, pub schema: u32 }
+pub struct Amount { pub kind: AmountKind, pub value: i32 }
+pub enum AmountKind { Const, TierScaled }   // 19 是 StatScaled（(atk+def)*mul/div），见下
+```
+
+- 19 加血量是**状态相关**（依赖 atk+def）⇒ 快照里只存 `{mul:74,div:10}`，不存算好的数。
+- 31/32 若将来纳入（目前不在范围），必须 `TierScaled`：50/200 × `floor_tier`，禁 `Const`。
+- `floor_tier`（`effect_registry.rs:157-166`）：`((f-1)/10).max(0)`、`f>50 ⇒ 0`、再 `+1`。
+
+---
+
+## §5 四条护栏
+
+1. **编译期穷尽**：`capability_of` 对 `ItemAction` 穷尽匹配。
+2. **运行期显式失败**：快照里出现求解器不认识的 `Capability`（例如未来新增变体而求解器未升级）⇒ 打 `model_broken`、退出码 2、**不输出任何结论数值**（不许降级成「忽略该能力」继续算）。
+3. **账单漂移即红**：`caps_snapshot.json` 与 `cap_snapshot()` 重跑结果不一致 ⇒ 门禁 FAIL（13→14 项）。
+4. **注入式证明（改法）**：v1 的「注入 item 9999」覆盖不到真实硬编码。改为**行为级注入**：在测试里构造一份含 `Relocate(FloorUp)` 的假快照，喂给求解器的「符换层」路径，要求它**从快照生成跨层边**、而不是走 `[(21,1,false),(22,-1,true)]` 字面量；删掉该字面量后测试仍绿、恢复字面量后测试红。
+
+---
+
+## §6 消费面改造（真正的工作量）
+
+| 位置 | 现状 | 改为 |
 |---|---|---|
-| 执行面 | `ITEM_EFFECTS` + `ItemAction` | 动作**种类** |
-| 数据表 | `data/tables/items.json`（effect params、新增 charges） | 动作**参数**、**次数** |
+| `crates/game-solver/src/state.rs:40` | `QOL_ITEMS=[15,21,23]` | 从快照派生「可移动能力道具」集合，或明确保留为题面常量并注出处（二者择一，不得混） |
+| `solve_local.rs:1945` | 筋斗云 `item_types.contains(&15)` | 15 的行动语义来自 `ITEM_EFFECTS` 之外的专用路径（`cloud_goals`），保持现状但**登记为已知特例** |
+| `solve_local.rs:1997` | `[(21,1,false),(22,-1,true)]` | 遍历快照里 `Relocate{FloorUp|FloorDown}` 的条目生成跨层边 |
 
-`capability_of(action: ItemAction) -> Capability` 使用**穷尽 match**：新增动作变体 ⇒ 编译失败 ⇒ 强制归类。
+**能力边签名必须带状态**：`edges_from_caps(snap, level, pos)` 不够——能否破格取决于剩余次数与背包，签名须为 `edges_from_caps(snap, level, pos, &CanonicalBag)`；全局账本已有 `solve_global.rs:128 GKey.bag`，**不要**再造 `BTreeMap<CapKind,u32>` 并行结构（会丢 -1 无限语义）。
 
-### 5.2 数据表改动：`charges` 结构化
+---
 
-现状：使用次数只存在于 `desc` 中文文本（`\\c00ff00[使用次数：3次]`）。解析文案取次数不可接受。
+## §7 切片（S0-0..S0-5，预期数字按实测重写）
 
-改动：`data/tables/items.json` 的每行新增 `"charges": <u32>`，取值证据=desc 原文逐条对照
-（20→3；17/18/21/22→1；无"使用次数"标注的道具→1）。缺字段即视为 `MissingCharges` 报错（§6）。
+| 片 | 改什么 | 判据 | 预期 |
+|---|---|---|---|
+| S0-0 | `rules/caps.rs` 纯投影（11 行表）+ 单测 | 每条 id 的 `Capability` 与 `ItemAction` 一致；13/14 = NoCapability | 零行为，金样 74 不变 |
+| S0-1 | `solver caps --out` + 基线 JSON + 门禁 13→14 | 漂移即红；变异：改一条 uses 必须红 | 快照行数 = 11 |
+| S0-2 | 求解器删 `[(21,1,false),(22,-1,true)]` 等硬编码，改吃快照 | 行为级注入证明（§5.4） | 三查询逐值不变 |
+| S0-3 | 可达性预算化（`(位置, 已花预算)` 搜索） | 前提不成立时报错，不回落 | **必经门仍 33**（32 属另一提案的 ty6 口径，不在本片） |
+| S0-4 | 能力边进分层图（含 18/85/16/86/20/21/22） | 同一能力在不同层数量不同 | 当前数据仅 21 有 1 枚，18 需 f47 购买 |
+| S0-5 | doors/keyflow 预算化，输出 `necessary @ budget` | 报告必须打印所用预算 | 176（172 黄 + 4 红）为今日基线 |
 
-### 5.3 四条护栏
+**不做**：给 `items.json` 加 `charges`/`category` 字段（加载器拒载）；把 25/29-32 塞进能力快照；用本 spec 解释「界内无解」（那是搜索覆盖问题）。
 
-1. **编译期**：见 5.1。
-2. **运行期**：求解器遇到数据中的道具，`snapshot.def(item) == None` 且它既非装备也不在
-   `NO_EFFECT_ITEMS`（显式白名单，位于 `rules/caps.rs`，每项带理由）⇒ `model_broken`，带 item id 与首次出现层号。
-3. **账单基线**：`data/status/baselines/caps_snapshot.json`；门禁比对当前 dump 与基线，
-   不一致即 FAIL。
-4. **注入式证明**（关键）：求解器**不读全局单例**，而是接收 `&CapsSnapshot` 参数。用例
-   `新增道具_用已有原语_求解器零改动`：构造只含 `item 9999 → Obstacle{Adjacent, target:11}, charges:2`
-   的假快照，断言求解器将其当作"破墙预算 2"使用。该用例不触碰求解器源码即可通过 ⇒ 证明
-   求解器只认原语、不认 ID。
+---
 
-## 6 失败语义
+## §8 未验证项（进实施前必须测）
 
-```rust
-pub enum ModelDefect {
-    UnknownItem { item: i32, floor: i32 },
-    UnclassifiedAction { action: &'static str },
-    MissingCharges { item: i32 },
-    ContradictoryDecl { item: i32, reason: String },
-}
-// 输出：status = "model_broken", reasons: Vec<ModelDefect>
-```
-
-范围界定（重要）：**装备（33-40、79-80）与纯描述道具不算 `UnknownItem`**——它们没有 `ItemAction`，
-按 §2 非目标处理。判定方式：`items.json` 中该行的 `category`（或等价字段）为装备即豁免；豁免逻辑也放在
-`rules/caps.rs`，不散落在求解器里。
-
-规则：
-- CLI 退出码 **2**（区别于 0 成功、1 参数错误）；
-- `model_broken` 时**不输出**任何结论数值（`max_hp`/`min_kills`/`necessary`/`reachable` 均不出现，
-  只保留 `status` 与 `reasons`）；
-- `query --all` 在**开搜之前**做全量预检（所有层的所有道具），避免"算了四分钟才报错"；
-- `solve-local` / `doors` / `keys` 同规矩。
-
-## 7 求解器消费
-
-```rust
-Budget::from_inventory(inv: &Inventory, snap: &CapsSnapshot) -> BTreeMap<CapKind, u32>;
-edges_from_caps(snap: &CapsSnapshot, level: &LevelSpec, pos: (i32,i32)) -> Vec<MoveEdge>;
-```
-
-- 预算维度由快照推导，不写死 `mirror/floor_up/floor_down` 字段；
-- 能力边全部由快照生成，删除 17/18/20/21/22 的硬编码分支；
-- 求解器源码中不得出现道具 ID 字面量（grep 粗筛 + §5.3 注入式证明；不做成强门禁以免误伤测试）。
-
-## 8 迁移切片
-
-每片单独 commit；S0-0..S0-2 要求 74 金样 sha 全同。
-
-### S0-0 语义面投影（零行为）
-- 文件：`crates/game-core/src/rules/mod.rs`、`rules/caps.rs`；`combat.rs`/`enums.rs` 不动。
-- 判据：`caps_every_action_classified`（穷尽性由编译保证，用例断言表覆盖 20/21/22/17/18/25/19/29-32）、
-  `caps_snapshot_has_no_duplicate_item`。
-- 预期：dump 包含 10 个道具定义（17/18/19/20/21/22/25/29/30/31/32）。
-- 风险：低；回滚＝删文件。
-
-### S0-1 账单与护栏
-- 文件：`data/tables/items.json`（+charges）、`crates/game-solver/src/bin/solver.rs`（`caps --out`）、
-  `data/status/baselines/caps_snapshot.json`、`gates/`（新增 `caps-snapshot` 检查项）。
-- 判据：`caps_snapshot_matches_baseline`、`caps_unknown_item_reports_model_broken`、
-  `caps_missing_charges_reports_model_broken`。
-- 预期：gates 由 13 项变 14 项，全 PASS；74 金样 sha 全同。
-- 风险：中（数据表加字段会触及表哈希门禁，须同步更新该哈希基线并写意图）。
-
-### S0-2 求解器改吃快照
-- 文件：`crates/game-solver/src/{solve_local.rs,solve_global.rs,keyflow.rs,doors.rs,bin/solver.rs}`。
-- 判据：`新增道具_用已有原语_求解器零改动`、`s0b2_破障边与旧硬编码等价`（17/18 场景对照）、
-  `s0b2_上行符边存在`（f45 (2,10)）。
-- 预期（确定性判据，二选一，不许模糊）：
-  a. 若三查询与当前逐值相同 ⇒ 记录"零漂移"，并将 f45 上行符边标为"已建模但未影响该查询面"；
-  b. 若不同 ⇒ 必须逐项列出差异字段（goal 数、hp、金峰、买红次数…）并在文档中给出机制解释；
-  **禁止**以"看起来合理"为由接受变化。
-- 风险：高；回滚＝单笔 revert。
-
-### S0-3 预算化可达性
-- 文件：`crates/game-solver/src/reach.rs`（新）、`doors.rs`。
-- 判据：`单格破墙预算1可通`、`两格破墙预算1不可通`、`钥匙计数`、`楼梯终审豁免地形`（23 层上行梯
-  坐落在不可走地形上，这条豁免承重）。
-- 预期：doors 必经门由 33 → **32**（budget=B0：不可破障、楼梯为终点）。
-
-### S0-4 分层图与能力边
-- 文件：`reach.rs`、`crates/game-core/src/item_effect.rs`（f40 硬编码挪出）、`rules/caps.rs`（CapException）。
-- 判据：`相形变位_可落在门后并触发交互`、`f40_无镜像边`（data 驱动的例外）、
-  `上行符_f45到f46`、`下行符_无来源仍建模`。
-- 预期：f40 特例成为 `CapException{cap: Relocate(Mirror), floor: 40}`；`item_effect.rs` 读它。
-
-### S0-5 判据口径与撤回
-- 文件：`doors.rs`、`keyflow.rs`、相关 findings 文档。
-- 判据：`necessary @ budget` 输出含预算说明；翻转阈值表存在。
-- 预期：撤回清单 8 条落文档（必经 33→**32**；同色必要 180→**176**（172 黄/4 红）；红钥 6→**5+1 条件可得**；
-  撤「界内无解」；撤「瓶颈=f12 差 33 金」；撤 Q3 结论；f29 破墙仍不通；红钥供给串行余额更新）。
-- 风险：中；口径类改动必须成对改文档。
-
-## 9 验证与门禁
-
-- 每片 TDD 先红；
-- S0-0..S0-2：74 金样 sha 全同（零行为漂移证据）；
-- 变异自证 3 条：删 `capability_of` 一条臂 ⇒ 编译失败（即证明）；删运行期护栏 ⇒ 护栏用例红；
-  删基线比对 ⇒ 门禁红；
-- `python3 gates/cli.py check` 全程 PASS，S0-1 后为 14 项；
-- ratchet 随之更新并在 commit 说明基线影响的理由。
-
-## 10 明确不做
-
-| 项 | 理由 |
-|---|---|
-| 装备属性建模 | 无对应 `ItemAction`，来源是 `items.json` 字段，属另一条契约 |
-| 效果程序 IR / 开放 DSL | B 档；本设计的 `Capability` 是可序列化枚举，升级时外部接口不变 |
-| 道具 ROI 估值 | 判据层职责，规则层只提供"能做什么、花多少" |
-| 随机地图生成器 | 依赖本契约的 dump，后续单独设计 |
-
-## 11 假设与待证
-
-1. **假设**：所有现役道具效果都能落入五类原语。若 S0-0 出现装不下的 `ItemAction`，则需新增原语
-   （属"新机制"，需走 §5.3 的归类流程，并记入下一批）。
-2. **假设**：`charges` 与 `desc` 文本一致。S0-1 逐条对照建表，若发现文本与实际消耗不符，
-   以**执行面实际消耗次数**为准并登记 findings。
-3. **待证**：`RemoveAllType{11}` 是否只作用于当前层（desc 说"当前层所有的墙"，须用 game-core
-   实现位置复核并记证据）。
-
-## 12 附录：现状证据（A 级）
-
-- `crates/game-core/src/item_effect.rs`：`ITEM_EFFECTS` 含 `(20, &[ItemAction::MirrorTeleport])`、
-  `(21, &[ItemAction::ChangeFloorUp])`、`(22, &[ItemAction::ChangeFloorDown])`（:42-44）；
-  `activate_item` 注释「新增道具不改此主体——ITEM_EFFECTS 加行即可」。
-- 同文件 `:115-118` 镜像瞬移落点 `(wide-1-x, high-1-y)` 且 **floor==40 拒绝**；
-  `:140-148` 上行符 `change_floor(floor+1)`、下行符 `change_floor(floor-1)`。
-- `data/tables/items.json`：17 `RemoveAdjacent{target:11}`（"你必须面对一堵墙使用"）；
-  18 `RemoveAllType{target:11}`（"震开当前层所有的墙"）；20 次数 3；21/22 次数 1；25 `Passive`。
-- 数据可得性（54 层普查）：20 **0 处**、21 仅 f45 (2,10)、22 **0 处**。
-- `crates/game-solver/src/solve_local.rs:1262`：`if !(self.walkable(x,y) || stair_like) { return Cell::Blocked }`；
-  `crates/game-solver/src/doors.rs:115` 只豁免 goal/entry ⇒ 双口径。
-- `crates/game-core/src/scene.rs:3674-3676`：楼梯实体豁免地形终审（23 层的上行梯坐落在不可走地形上，
-  该豁免承重）。
+1. f23 上行梯所在地形的可走值（影响「楼梯豁免」是否被过度使用）。
+2. f47 的 ▯4000 玄明石在全局搜索中是否经济可达——若不可达，18 的破墙能力在整局里永远是死边。
+3. 若将来给 29-32 加 `ItemAction`，对 74 金样的影响（当前它们在 pickup 面，不动则零影响）。
