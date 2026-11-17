@@ -5,6 +5,7 @@
 //! 文件 I/O 只在 `src/bin/solver.rs` 与测试侧。
 //!
 //! 批0=输入构造 `ingest`（maplv/sprite/fixture 脚本/三表 → `SolverInput`）+ census 快照。
+pub mod doors;
 pub mod ingest;
 pub mod query;
 pub mod script_abs;

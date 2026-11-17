@@ -190,6 +190,89 @@ fn main() {
         }
         return;
     }
+    if args.first().map(|s| s.as_str()) == Some("doors") {
+        // 必经门清单：把 C4-a「充分+必要」判据推广到门（逻辑在 lib::doors）。
+        // 口径：单独封住这扇门 ⇒ 出口不可达 = 必经；封住同色全部门 ⇒ 不可达 = 该色钥匙至少一把必须。
+        let (input, _shops) = solve_global_input(1);
+        let mut all: Vec<(i32, Vec<game_solver::doors::DoorFact>, bool)> = Vec::new();
+        for (f, lv) in &input.floors {
+            let (facts, unreachable) = game_solver::doors::analyze_floor(lv);
+            all.push((*f, facts, unreachable));
+        }
+        let mut json = String::from("{\"floors\":[");
+        let mut first_floor = true;
+        let (mut n_doors, mut n_nec, mut n_color, mut n_unreach) = (0usize, 0usize, 0usize, 0usize);
+        for (f, facts, unreachable) in &all {
+            n_doors += facts.len();
+            let nec: Vec<String> = facts
+                .iter()
+                .filter(|d| d.necessary)
+                .map(|d| format!("{}({},{})", game_solver::doors::color_name(d.ty), d.x, d.y))
+                .collect();
+            let colors: Vec<&str> = {
+                let mut cs: Vec<&str> = Vec::new();
+                for d in facts.iter().filter(|d| d.color_needed) {
+                    let n = game_solver::doors::color_name(d.ty);
+                    if !cs.contains(&n) {
+                        cs.push(n);
+                    }
+                }
+                cs
+            };
+            n_nec += facts.iter().filter(|d| d.necessary).count();
+            n_color += facts.iter().filter(|d| d.color_needed).count();
+            if *unreachable {
+                n_unreach += 1;
+            }
+            if !facts.is_empty() {
+                println!(
+                    "f{} 门{} 必经[{}] 同色必要[{}]{}",
+                    f,
+                    facts.len(),
+                    if nec.is_empty() { "—".to_string() } else { nec.join(" ") },
+                    if colors.is_empty() { "—".to_string() } else { colors.join("") },
+                    if *unreachable { "  ⚠基线不可达" } else { "" }
+                );
+            }
+            if !first_floor {
+                json.push(',');
+            }
+            first_floor = false;
+            json.push_str(&format!("{{\"floor\":{},\"baseline_unreachable\":{},\"doors\":[", f, unreachable));
+            for (i, d) in facts.iter().enumerate() {
+                if i > 0 {
+                    json.push(',');
+                }
+                json.push_str(&format!(
+                    "{{\"ty\":{},\"color\":\"{}\",\"x\":{},\"y\":{},\"necessary\":{},\"color_needed\":{}}}",
+                    d.ty,
+                    game_solver::doors::color_name(d.ty),
+                    d.x,
+                    d.y,
+                    d.necessary,
+                    d.color_needed
+                ));
+            }
+            json.push_str("]}");
+        }
+        println!(
+            "== 合计 == 门 {} 扇 / 必经 {} / 同色必要 {} / 基线不可达层 {}",
+            n_doors, n_nec, n_color, n_unreach
+        );
+        json.push_str(&format!(
+            "],\"summary\":{{\"doors\":{},\"necessary\":{},\"color_needed\":{},\"baseline_unreachable_floors\":{}}}}}",
+            n_doors, n_nec, n_color, n_unreach
+        ));
+        if let Some(path) = args
+            .iter()
+            .position(|a| a == "--out")
+            .and_then(|i| args.get(i + 1))
+            .cloned()
+        {
+            std::fs::write(&path, &json).unwrap_or_else(|e| panic!("写 {path}: {e}"));
+        }
+        return;
+    }
     if args.first().map(|s| s.as_str()) == Some("solve-local") {
         // 批2 C1：单层求解子命令（逻辑在 lib::solve_local，壳只在此处解析参数+打印）。
         // C6：floor1 接真数据（I/O 归此 bin=A9 豁免面）；其余层保持占位（T1 恒绿面）。
@@ -210,7 +293,7 @@ fn main() {
         return;
     }
     if args.first().map(|s| s.as_str()) != Some("ingest") || args.get(1).map(|s| s.as_str()) != Some("--summary") {
-        eprintln!("用法：solver ingest --summary | solver solve-local --floor <N> | solver solve-global [--bound N] [--out PATH] | solver query --all [--bound N] [--node-cap N] [--ultimate 36,40] [--out PATH]");
+        eprintln!("用法：solver ingest --summary | solver solve-local --floor <N> | solver solve-global [--bound N] [--out PATH] | solver query --all [--bound N] [--node-cap N] [--ultimate 36,40] [--out PATH] | solver doors [--out PATH]");
         std::process::exit(2);
     }
     let root = repo();

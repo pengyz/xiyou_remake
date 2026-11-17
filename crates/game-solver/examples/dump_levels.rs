@@ -108,6 +108,28 @@ fn main() {
                 println!("floor={} PICKUP ty={} pos=({},{})", f, e.ty, e.x, e.y);
             }
         }
+        if f == 16 {
+            for e in lv.entities.iter().filter(|e| matches!(e.ty, 9..=12)) {
+                println!("floor=16 WALL-ish ty={} pos=({},{}) param={}", e.ty, e.x, e.y, e.param);
+            }
+            for e in lv.entities.iter().filter(|e| matches!(e.ty, 7 | 8)) {
+                for (dx, dy) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
+                    let (nx, ny) = (e.x + dx, e.y + dy);
+                    if nx < 0 || ny < 0 || nx >= lv.cols || ny >= lv.rows { continue; }
+                    let w = lv.terrain[(ny * lv.cols + nx) as usize];
+                    println!("floor=16 NBR exit=({},{}) nbr=({},{}) walkable={}", e.x, e.y, nx, ny, w);
+                }
+            }
+        }
+        {
+            let (sx, sy) = lv.start;
+            let w = lv.terrain[(sy * lv.cols + sx) as usize];
+            println!("floor={} START pos=({},{}) terrain_walkable={}", f, sx, sy, w);
+        }
+        for e in lv.entities.iter().filter(|e| matches!(e.ty, 7 | 8)) {
+            let w = lv.terrain[(e.y * lv.cols + e.x) as usize];
+            println!("floor={} EXIT ty={} pos=({},{}) terrain_walkable={}", f, e.ty, e.x, e.y, w);
+        }
         for e in lv.entities.iter().filter(|e| (1..=3).contains(&e.ty)) {
             let color = match e.ty { 1 => "黄", 2 => "红", 3 => "蓝", _ => "?" };
             println!("floor={} DOOR {} ty={} pos=({},{}) param={}", f, color, e.ty, e.x, e.y, e.param);
