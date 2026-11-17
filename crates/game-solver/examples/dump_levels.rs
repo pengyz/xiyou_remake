@@ -108,6 +108,10 @@ fn main() {
                 println!("floor={} PICKUP ty={} pos=({},{})", f, e.ty, e.x, e.y);
             }
         }
+        for e in lv.entities.iter().filter(|e| (1..=3).contains(&e.ty)) {
+            let color = match e.ty { 1 => "黄", 2 => "红", 3 => "蓝", _ => "?" };
+            println!("floor={} DOOR {} ty={} pos=({},{}) param={}", f, color, e.ty, e.x, e.y, e.param);
+        }
         let mut n = 0;
         let mut g = 0;
         let mut ids: Vec<i32> = vec![];
