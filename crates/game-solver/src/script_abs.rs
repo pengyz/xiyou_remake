@@ -76,7 +76,7 @@ pub struct Obs {
     pub cursor: usize,
     pub index: usize,
     pub flags: Vec<bool>,
-    /// 脚本延迟槽（S3·②：生产 script_delay ⇄ 引擎 slots.script_delay）
+    /// 脚本延迟槽（S3·②：生产 script_delay ⇄ 引擎 slots.slots.script_delay）
     pub delay: i32,
     pub stats: [i32; 8],
     pub facing: i32,
@@ -193,24 +193,24 @@ pub mod side_a {
     /// 驱动单槽到停摆（协议与 commit2 drive_facade 同构）：门步/收尾步不改 (index,cursor)
     /// ⇒ 停止；GIN 尾递归、MOV miss 尾递归在 execute 内自行完成。
     pub fn drive(sc: &mut GameScene, idx: usize) -> Obs {
-        sc.script_line = sc.dialog.dialog_data.scripts[idx].clone();
-        sc.script_cursor = 0;
-        sc.current_script_index = idx;
+        sc.slots.script_line = sc.dialog.dialog_data.scripts[idx].clone();
+        sc.slots.script_cursor = 0;
+        sc.slots.current_script_index = idx;
         let mut steps = 0usize;
         loop {
-            let before = (sc.current_script_index, sc.script_cursor);
+            let before = (sc.slots.current_script_index, sc.slots.script_cursor);
             solver_api::execute_script_instruction(sc);
-            if (sc.current_script_index, sc.script_cursor) == before {
+            if (sc.slots.current_script_index, sc.slots.script_cursor) == before {
                 break;
             }
             steps += 1;
             assert!(steps < 100_000, "(a) 槽{idx} 疑似死循环（GUT 环未在语料预检内）");
         }
         Obs {
-            cursor: sc.script_cursor,
-            index: sc.current_script_index,
-            flags: sc.script_line_flags.clone(),
-            delay: sc.script_delay,
+            cursor: sc.slots.script_cursor,
+            index: sc.slots.current_script_index,
+            flags: sc.slots.script_line_flags.clone(),
+            delay: sc.slots.script_delay,
             stats: [
                 sc.player.hp,
                 sc.player.atk,

@@ -5,7 +5,7 @@
         let wt = sc.width_table.clone();
         for fc in 0..limit {
             sc.tick(fc, &wt);
-            if !sc.script_walk_armed && sc.walk_phase == 0 {
+            if !sc.slots.script_walk_armed && sc.walk_phase == 0 {
                 return;
             }
         }
@@ -62,7 +62,7 @@
         for fc in 0..400 {
             sc.tick(fc, &wt);
             frames.push(sc.path_arrow_cells());
-            if !sc.script_walk_armed && sc.walk_phase == 0 && !sc.route.is_open() {
+            if !sc.slots.script_walk_armed && sc.walk_phase == 0 && !sc.route.is_open() {
                 break;
             }
         }
@@ -489,7 +489,7 @@
             assert_eq!((sc.view.player_px, sc.view.player_py), (5 << 5, ROW << 5), "{label}：像素位置未动");
             assert_eq!(sc.game_mode, GameMode::Map, "{label}：寻路收尾回 Map");
             assert!(!sc.route.is_open(), "{label}：路段已收");
-            assert!(!sc.script_walk_armed && !sc.walkto_draining, "{label}：无寻路武装 / 排空残留");
+            assert!(!sc.slots.script_walk_armed && !sc.walkto_draining, "{label}：无寻路武装 / 排空残留");
             assert_ne!(sc.walk_phase, 5, "{label}：未开战");
         }
     }
@@ -519,7 +519,7 @@
         // dp3 消费机的经典入口状态（op_mov 同款：路径缓冲 + 武装 + Dialog dp3 wp0），不开路段
         sc.walk_path_buffer = vec![2];
         sc.walk_step_count = 1;
-        sc.script_walk_armed = true;
+        sc.slots.script_walk_armed = true;
         sc.dialog.dialog_phase = 3;
         sc.walk_phase = 0;
         sc.game_mode = GameMode::Dialog;
@@ -623,7 +623,7 @@
             sc.tick(fc, &wt);
         }
         assert_eq!(sc.game_mode, GameMode::Alchemy, "前置：进炉页");
-        assert!(!sc.script_walk_armed, "炉页中无寻路武装残留");
+        assert!(!sc.slots.script_walk_armed, "炉页中无寻路武装残留");
         assert!(!sc.route.is_open(), "路段已收");
         sc.press_key(-7);
         sc.tick(10, &wt);
@@ -838,7 +838,7 @@
             fc += 1;
         }
         assert_eq!(sc.game_mode, GameMode::Map, "收尾回 Map");
-        assert!(!sc.route.is_open() && !sc.script_walk_armed, "路段已收、无武装残留");
+        assert!(!sc.route.is_open() && !sc.slots.script_walk_armed, "路段已收、无武装残留");
         // 栈顶两笔：Move(邻格→敌格)（胜利 restep）在 Combat 之上——撤销先退回邻格，再复活怪物，人怪不重叠（复核 T4-R1）
         struct Rec(Vec<String>);
         impl crate::undo_journal::UndoTarget for Rec {
@@ -1293,7 +1293,7 @@
         let _ = sc.tap_cell(6, ROW - 1);
         settle(&mut sc, 0, 160);
         assert_eq!(sc.game_mode, GameMode::Alchemy, "炉页打开");
-        assert!(!sc.script_walk_armed && !sc.route.is_open(), "无寻路残留");
+        assert!(!sc.slots.script_walk_armed && !sc.route.is_open(), "无寻路残留");
     }
 
     /// 到不了的地面：停在最近可达格，目标格闪红。
@@ -1347,7 +1347,7 @@
         assert_eq!(sc.tap_cell(7, ROW), TapResult::Rejected, "战斗中闪红");
         assert_eq!(sc.walk_phase, 5, "战斗状态不变");
         sc.walk_phase = 0;
-        sc.script_walk_armed = true; // Map 语境脚本行走的步间
+        sc.slots.script_walk_armed = true; // Map 语境脚本行走的步间
         assert_eq!(sc.tap_cell(7, ROW), TapResult::Rejected, "脚本行走中不得插入点地路线");
         assert!(!sc.route.is_open());
     }
@@ -1385,7 +1385,7 @@
         settle(&mut sc, fc, 200);
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (9, ROW), "key={close_key}：关框后续走到终点");
         assert_eq!(sc.game_mode, GameMode::Map);
-        assert!(!sc.route.is_open() && !sc.script_walk_armed && !sc.walkto_draining, "无寻路残留");
+        assert!(!sc.route.is_open() && !sc.slots.script_walk_armed && !sc.walkto_draining, "无寻路残留");
         assert_eq!(sc.tap.tap_target, None, "收尾后目标标记清除");
         assert_eq!(undo_seq(&mut sc), vec![format!("tile{:?}", (2, ROW))], "撤销栈 = 整段位移一笔（撤回起点）");
     }
@@ -1422,7 +1422,7 @@
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (6, ROW), "{label}：撞进去了");
         assert!(!sc.route.is_open() && !sc.route.is_suspended(), "{label}：撞进去那一步步末收段");
         assert_eq!(sc.tap.tap_target, None, "{label}：收尾后目标标记清除");
-        assert!(!sc.script_walk_armed, "{label}：无脚本行走武装（下次方向键不走 advanceScriptWalk 臂）");
+        assert!(!sc.slots.script_walk_armed, "{label}：无脚本行走武装（下次方向键不走 advanceScriptWalk 臂）");
         assert_eq!(arrow_state(&sc), arrow_state(&keys), "{label}：撞进去后箭头 = 方向键参照");
         // 再按一下方向键（右，沿箭头）：与方向键参照同一结果
         for k in [&mut keys, &mut sc] {
@@ -1552,7 +1552,7 @@
         assert!(!door_intact(&sc, 8), "门已开");
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (8, ROW), "走进门格");
         assert_eq!(sc.game_mode, GameMode::Map);
-        assert!(!sc.route.is_open() && !sc.script_walk_armed && !sc.walkto_draining, "无寻路残留");
+        assert!(!sc.route.is_open() && !sc.slots.script_walk_armed && !sc.walkto_draining, "无寻路残留");
         assert_eq!(sc.tap.tap_target, None, "收尾后目标标记清除");
     }
 
@@ -2022,9 +2022,9 @@
         sc.walk_phase = 5;
         assert_eq!(sc.swipe_step(2), TapResult::Rejected, "战斗中");
         sc.walk_phase = 0;
-        sc.script_walk_armed = true;
+        sc.slots.script_walk_armed = true;
         assert_eq!(sc.swipe_step(2), TapResult::Rejected, "Map 语境脚本行走");
-        sc.script_walk_armed = false;
+        sc.slots.script_walk_armed = false;
         assert!(sc.tap.tap_reject.is_none(), "滑动无目标格、不闪红");
         sc.dialog.overlay_active = true;
         assert_eq!(sc.swipe_step(2), TapResult::Ignored, "浮层开着");

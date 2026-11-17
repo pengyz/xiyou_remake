@@ -430,7 +430,7 @@ fn vp_gesture_swipe_and_observe_drag() {
     for _ in 0..10 {
         drive(&mut rt, &src, &[]);
     }
-    assert!(!rt.scene.as_ref().unwrap().script_walk_armed, "前置：武装已清");
+    assert!(!rt.scene.as_ref().unwrap().slots.script_walk_armed, "前置：武装已清");
 
     let _x0 = rt.scene.as_ref().unwrap().player_cell_x;
     // 选一个可走方向（独立探测：tap_grid 找玩家四邻中 Floor 且安全、BFS 可达的一格——不动玩家）

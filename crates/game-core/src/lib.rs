@@ -23,6 +23,7 @@ pub mod save;
 pub mod scene;
 pub mod title;
 pub mod script;
+pub mod script_exec; // 【2026-11-17 S3·④】脚本执行流程单一来源
 pub mod controls;
 pub mod tap_walk;
 

@@ -6,8 +6,8 @@
     #[test]
     fn walkto_interrupt_drains_to_map_without_script_tail() {
         let mut sc = scene((1, ROW), &[]);
-        let cur = sc.current_script_index;
-        sc.script_line_flags[cur] = false;
+        let cur = sc.slots.current_script_index;
+        sc.slots.script_line_flags[cur] = false;
         sc.walk_to(5, ROW);
         let wt = sc.width_table.clone();
         sc.tick(0, &wt); // dp3 弹第一步、起步
@@ -26,8 +26,8 @@
             !trail.iter().any(|&(m, dp)| m == GameMode::Dialog && dp == 0),
             "不得落入脚本机 dp0：{trail:?}"
         );
-        assert!(!sc.script_line_flags[cur], "当前脚本完成旗标不得被写");
-        assert!(!sc.script_walk_armed, "脚本行走武装已解除");
+        assert!(!sc.slots.script_line_flags[cur], "当前脚本完成旗标不得被写");
+        assert!(!sc.slots.script_walk_armed, "脚本行走武装已解除");
         assert_eq!((sc.player_cell_x, sc.player_cell_y), (2, ROW), "走完打断时的那一步后停下");
     }
 
@@ -40,7 +40,7 @@
         sc.press_key(-1); // 打断（未出拍）
         sc.load_level_script(0); // 剧情接管
         sc.find_path(1, ROW, 3, ROW); // 剧情 MOV 驱动的脚本行走
-        sc.script_walk_armed = true;
+        sc.slots.script_walk_armed = true;
         sc.dialog.dialog_phase = 3;
         let wt = sc.width_table.clone();
         for fc in 0..12 {

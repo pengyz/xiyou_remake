@@ -111,7 +111,7 @@ impl GameScene {
         self.step_camera_toward_target();
         match self.dialog.dialog_phase {
             0 => {
-                if self.script_delay > 0 {
+                if self.slots.script_delay > 0 {
                     self.dec_script_delay();
                 } else {
                     self.execute_script_instruction();

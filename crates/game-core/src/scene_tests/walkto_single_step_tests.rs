@@ -12,7 +12,7 @@
             fc += 1;
         }
         assert_eq!((sc.game_mode, sc.player_cell_x), (GameMode::Map, 2), "单步寻路到达");
-        let armed_after_walkto = sc.script_walk_armed;
+        let armed_after_walkto = sc.slots.script_walk_armed;
         sc.press_key(-4); // 手动向右一步
         sc.tick(fc, &wt);
         fc += 1;

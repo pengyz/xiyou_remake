@@ -275,7 +275,7 @@ pub fn apply_setup(sc: &mut GameScene, s: SceneSetup) {
     if let Some(v) = s.player_red_keys { sc.player.red_keys = v; }
     if let Some(v) = s.player_yellow_keys { sc.player.yellow_keys = v; }
     if let Some(v) = s.route_entity { sc.route_entity = v; }
-    if let Some(v) = s.script_cursor { sc.script_cursor = v; }
-    if let Some(v) = s.script_line { sc.script_line = v; }
+    if let Some(v) = s.script_cursor { sc.slots.script_cursor = v; }
+    if let Some(v) = s.script_line { sc.slots.script_line = v; }
     if let Some(v) = s.walk_phase { sc.walk_phase = v; }
 }

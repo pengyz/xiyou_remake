@@ -1312,7 +1312,7 @@
         entity::spawn(&mut sc.entities, &mut sc.grid, 12, 3 << 5, 3 << 5, 0, &sc.width_table, None);
         assert!(sc.try_run_scene(32, false), "有型12 ⇒ 过");
         assert!(!sc.try_run_scene(32, true), "from_walk ⇒ 挡（!script_cursor0）");
-        sc.script_line_flags[7] = true;
+        sc.slots.script_line_flags[7] = true;
         assert!(!sc.try_run_scene(32, false), "flags[7] ⇒ 挡");
     }
 
@@ -1323,7 +1323,7 @@
         apply_setup(&mut sc, SceneSetup { persist_floor: Some(23), ..Default::default() });
         assert!(!sc.try_run_scene(7, false), "非 from_walk ⇒ 挡");
         assert!(sc.try_run_scene(7, true), "from_walk ∧ 无型12 ⇒ 过");
-        assert!(sc.script_line_flags[32], "过门置 flags[32]");
+        assert!(sc.slots.script_line_flags[32], "过门置 flags[32]");
     }
 
     /// changeFloor 四提示浮层（a.java:7135/7142/7153/7156）：strict 下/上界 + 负层/超 55。
@@ -1358,13 +1358,13 @@
     fn script_gin_gives_gold_and_recurses() {
         let mut sc = scene_with(&synthetic_sptarm());
         let g0 = sc.player.gold;
-        sc.script_line = "GIN_1_1000 ".to_string();
-        sc.script_cursor = 0;
+        sc.slots.script_line = "GIN_1_1000 ".to_string();
+        sc.slots.script_cursor = 0;
         sc.execute_script_instruction();
         assert_eq!(sc.player.gold, g0 + 1000, "gainGold(1000)");
         // 尾递归自证：GIN 后递归执行到行尾收尾分支（dialogPhase=4 + 置 flag）
         assert_eq!(sc.dialog.dialog_phase, 4, "尾递归走到行尾收尾（a.java:8435-8436）");
-        assert!(sc.script_line_flags[sc.current_script_index]);
+        assert!(sc.slots.script_line_flags[sc.slots.current_script_index]);
     }
 
     /// RES_x（a.java:8470-8490）：easy（difficulty==0）重置 run 统计；非 easy 空转。
@@ -1373,8 +1373,8 @@
         let mut sc = scene_with(&synthetic_sptarm());
         apply_setup(&mut sc, SceneSetup { menu_difficulty_index: Some(0), player_hp: Some(999), player_gold: Some(777), player_yellow_keys: Some(5), player_atk: Some(50), persist_min_floor: Some(9), persist_max_floor: Some(40), ..Default::default() });
         sc.persist.journal.push((3, 1));
-        sc.script_line = "RES_0 ".to_string();
-        sc.script_cursor = 0;
+        sc.slots.script_line = "RES_0 ".to_string();
+        sc.slots.script_cursor = 0;
         sc.execute_script_instruction();
         assert_eq!((sc.player.hp, sc.player.atk, sc.player.def), (400, 10, 10));
         assert_eq!(sc.player.gold, 4);
@@ -1395,8 +1395,8 @@
         let mut sc = scene_with(&synthetic_sptarm());
         let f = sc.persist.floor;
         let n0 = sc.entities.count;
-        sc.script_line = format!("ADD_{}_72_11_10 ", f);
-        sc.script_cursor = 0;
+        sc.slots.script_line = format!("ADD_{}_72_11_10 ", f);
+        sc.slots.script_cursor = 0;
         sc.execute_script_instruction();
         assert_eq!(sc.entities.count, n0 + 1);
         assert_eq!(sc.entities.items[n0].type_, 72);
@@ -1423,7 +1423,7 @@
     fn save_blob_layout_matches_java_and_roundtrips() {
         let mut sc = scene_with(&synthetic_sptarm()); // floor1 (3,10)
         apply_setup(&mut sc, SceneSetup { player_hp: Some(777), player_atk: Some(41), player_def: Some(42), player_yellow_keys: Some(3), player_blue_keys: Some(2), player_red_keys: Some(1), player_gold: Some(1234), alchemy_upgrade_count: Some(5), persist_journal: Some(vec![(0, 3), (1, 7)]), ..Default::default() });
-        sc.script_line_flags[0] = true;
+        sc.slots.script_line_flags[0] = true;
         let blob = sc.serialize_slot_blob();
         assert_eq!(&blob[7..11], &[0, 3, 0, 10], "writeShort(playerCellX/Y)");
         assert_eq!(&blob[11..15], &777i32.to_be_bytes(), "hp 紧随两 short");
@@ -1444,7 +1444,7 @@
         assert_eq!((sc2.player.hp, sc2.player.atk, sc2.player.def), (777, 41, 42));
         assert_eq!((sc2.player.gold, sc2.alchemy_upgrade_count), (1234, 5));
         assert_eq!(sc2.persist.journal, vec![(0, 3), (1, 7)]);
-        assert!(sc2.script_line_flags[0]);
+        assert!(sc2.slots.script_line_flags[0]);
     }
 
     /// MOT_IF 6 槽表（loadSlotTable 读序 a.java:8974-8988）：`(槽, 武器, 甲)`。
@@ -1591,8 +1591,8 @@
         sc.entities.items[e82a].visible = false;
         sc.entities.items[e82b].visible = false;
 
-        sc.script_line = "MVS ".to_string();
-        sc.script_cursor = 0;
+        sc.slots.script_line = "MVS ".to_string();
+        sc.slots.script_cursor = 0;
         sc.execute_script_instruction();
 
         assert!(sc.entities.items[e82a].removed && sc.entities.items[e82b].removed, "消耗：两 82 点位摘槽");
@@ -1606,7 +1606,7 @@
             (5 << 5, 5 << 5),
             "互传：落到对端格（82B 格）"
         );
-        assert_eq!(sc.script_cursor, 4, "无参 op 游标=标签后 1 位（a.java:8591）");
+        assert_eq!(sc.slots.script_cursor, 4, "无参 op 游标=标签后 1 位（a.java:8591）");
     }
 
     /// MVS 配对负例（a.java:8532-8542）：`param&255` 不同键 ⇒ 半对（buf 只存
@@ -1625,8 +1625,8 @@
         sc.entities.items[e82b].visible = false;
         let count_before = sc.entities.count;
 
-        sc.script_line = "MVS ".to_string();
-        sc.script_cursor = 0;
+        sc.slots.script_line = "MVS ".to_string();
+        sc.slots.script_cursor = 0;
         sc.execute_script_instruction();
 
         assert!(!sc.entities.items[e82a].removed && !sc.entities.items[e82b].removed, "错配 ⇒ 82 不消耗");
@@ -1652,8 +1652,8 @@
         sc.entities.items[e82a].visible = false;
         sc.entities.items[e82b].visible = false;
 
-        sc.script_line = "MVS ".to_string();
-        sc.script_cursor = 0;
+        sc.slots.script_line = "MVS ".to_string();
+        sc.slots.script_cursor = 0;
         sc.execute_script_instruction();
 
         // 原始 4 只全部摘除（41/42 旧格全同型删除 quirk 一并带走过路副本）
@@ -1688,11 +1688,11 @@
         apply_setup(&mut sc, SceneSetup { script_line: Some("XYZ ".to_string()), script_cursor: Some(0), dialog_dialog_phase: Some(3), ..Default::default() });
 
         sc.execute_script_instruction();
-        assert_eq!(sc.script_cursor, 0, "未知 op 不推游标（原地 return）");
+        assert_eq!(sc.slots.script_cursor, 0, "未知 op 不推游标（原地 return）");
         assert_eq!(sc.dialog.dialog_phase, 3, "未知 op 不改 dialogPhase");
 
         sc.execute_script_instruction(); // 下一拍重解析同一 token
-        assert_eq!(sc.script_cursor, 0, "下一拍原地重解析（停摆持续）");
+        assert_eq!(sc.slots.script_cursor, 0, "下一拍原地重解析（停摆持续）");
         assert_eq!(sc.dialog.dialog_phase, 3, "停摆期间 dialogPhase 不变");
     }
 
@@ -1819,8 +1819,8 @@
             sc.entities.items[e].visible = false;
         }
 
-        sc.script_line = "MVS ".to_string();
-        sc.script_cursor = 0;
+        sc.slots.script_line = "MVS ".to_string();
+        sc.slots.script_cursor = 0;
         sc.execute_script_instruction();
 
         // 四点位全消耗、两原地怪物摘除
@@ -1854,13 +1854,13 @@
         sc.entities.items[e82b].visible = false;
         let count_before = sc.entities.count;
 
-        sc.script_line = "MVS ".to_string();
-        sc.script_cursor = 0;
+        sc.slots.script_line = "MVS ".to_string();
+        sc.slots.script_cursor = 0;
         sc.execute_script_instruction();
 
         assert!(!sc.entities.items[e82a].removed && !sc.entities.items[e82b].removed, "无怪 ⇒ 82 不消耗");
         assert_eq!(sc.entities.count, count_before, "无怪 ⇒ 无 spawn");
-        assert_eq!(sc.script_cursor, 4, "无参 op 游标照常 = 标签后 1 位（a.java:8591）");
+        assert_eq!(sc.slots.script_cursor, 4, "无参 op 游标照常 = 标签后 1 位（a.java:8591）");
     }
 
     /// carry_monsters_to 旧格同型一并消失 + stale 尾复活（a.java:8872-8878 + 6434-6449 +
@@ -1882,8 +1882,8 @@
         sc.entities.items[e82a].visible = false;
         sc.entities.items[e82b].visible = false;
 
-        sc.script_line = "MVS ".to_string();
-        sc.script_cursor = 0;
+        sc.slots.script_line = "MVS ".to_string();
+        sc.slots.script_cursor = 0;
         sc.execute_script_instruction();
 
         for e in [e82a, e82b, m1, m2] {
@@ -1914,8 +1914,8 @@
         sc.entities.items[e82].visible = false;
         let count_before = sc.entities.count;
 
-        sc.script_line = "MVS ".to_string();
-        sc.script_cursor = 0;
+        sc.slots.script_line = "MVS ".to_string();
+        sc.slots.script_cursor = 0;
         sc.execute_script_instruction();
 
         // 全表无变化：不消耗、无 spawn、字段不动
@@ -1926,11 +1926,11 @@
         assert!(!sc.entities.items[e82].visible, "hidden 状态不被改写");
         assert_eq!(sc.entities.items[e82].state, 0);
         // 游标照常推进（空转 ≠ 停摆；停摆语义属未知 op，见 unknown_op 测试）
-        assert_eq!(sc.script_cursor, 4, "无参 op 游标 = 标签后 1 位（a.java:8591）");
+        assert_eq!(sc.slots.script_cursor, 4, "无参 op 游标 = 标签后 1 位（a.java:8591）");
 
         // 幂等：游标拨回重解析同一 token，MVS 臂本身仍空转
         // （注意不拨游标的第二次调用会走行尾收尾 a.java:8597-8604，非重解析）
-        sc.script_cursor = 0;
+        sc.slots.script_cursor = 0;
         sc.execute_script_instruction();
         assert_eq!(sc.entities.count, count_before);
         assert!(!sc.entities.items[e82].removed);

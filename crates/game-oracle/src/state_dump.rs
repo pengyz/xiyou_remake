@@ -129,11 +129,11 @@ pub fn dump_scene(sc: &GameScene) -> Vec<String> {
     push(e_int("redKeyCount", sc.player.red_keys));
     push(e_int("tileBob", sc.render.tile_bob));
     push(e_int("openAnimTick", sc.render.open_anim_tick));
-    push(e_int("currentScriptIndex", sc.current_script_index as i32));
+    push(e_int("currentScriptIndex", sc.slots.current_script_index as i32));
     push(e_int("dialogPage", sc.dialog.dialog_page));
     push(e_byte("dialogPhase", sc.dialog.dialog_phase as i8));
     push(e_int("walkStepCount", sc.walk_step_count));
-    push(e_bool("scriptWalkArmed", sc.script_walk_armed));
+    push(e_bool("scriptWalkArmed", sc.slots.script_walk_armed));
     push(e_bool("battleActiveFlag", sc.battle_active));
 
     // 【E3 金样扩面·2026-11-02 lead 裁准】paint 副作用 4 字段入 dump 面（V0）：
@@ -181,7 +181,7 @@ pub fn dump_scene(sc: &GameScene) -> Vec<String> {
     push(e_int("itemStackSize", sc.player.item_stack_size)); // FLD201
     push(e_byte("itemUseTargetType", sc.menu.overlay_kind_item as i8)); // FLD058（Rust 真身=overlay_kind_item，scene.rs:4330 注记）
     push(e_bool("tutorialSeen", sc.menu.tutorial_seen)); // FLD215
-    push(e_bool_arr("scriptLineFlags", &sc.script_line_flags)); // FLD240
+    push(e_bool_arr("scriptLineFlags", &sc.slots.script_line_flags)); // FLD240
     push(e_quoted("overlayText", sc.dialog.overlay_text.as_deref())); // FLD062（quote() 逐字对齐 TraceSink.java:44+；null≠""）
 
     out

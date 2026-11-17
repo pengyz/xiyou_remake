@@ -5,8 +5,8 @@
     fn exec(sc: &mut GameScene, line: &str) {
         sc.game_mode = GameMode::Dialog;
         sc.dialog.dialog_phase = 0;
-        sc.script_line = line.to_string();
-        sc.script_cursor = 0;
+        sc.slots.script_line = line.to_string();
+        sc.slots.script_cursor = 0;
         sc.execute_script_instruction();
     }
 
@@ -33,7 +33,7 @@
         assert_eq!(sc.entities.items[eu].anim_row, 1, "型72 置动画行 1（a.java:8293-8294）");
         assert_eq!(sc.walk_path_buffer, vec![2, 2]);
         assert_eq!(sc.walk_step_count, 2);
-        assert_eq!(sc.script_cursor, "MOV_72_3_3_5_3 ".len(), "游标越过空格分隔符");
+        assert_eq!(sc.slots.script_cursor, "MOV_72_3_3_5_3 ".len(), "游标越过空格分隔符");
 
         // (routePhase, f_byte_19, px, routeProgress, cameraTargetX, frame, 余步) 逐拍
         let expect = [
@@ -141,7 +141,7 @@
         assert!(sc.predict_hp_loss(t as i32, false) < 0);
         sc.facing = 0;
         exec(&mut sc, "MOV_43_3_3_7_3 \u{1e}");
-        sc.script_walk_armed = true;
+        sc.slots.script_walk_armed = true;
         for _ in 0..5 {
             sc.tick_entity_route();
         }
@@ -152,7 +152,7 @@
             sc.tick_entity_route();
         }
         assert_eq!(sc.entities.items[eu].px, 5 << 5, "实体走进玩家格");
-        assert!(!sc.script_walk_armed);
+        assert!(!sc.slots.script_walk_armed);
         assert_eq!((sc.game_mode, sc.walk_phase, sc.facing), (GameMode::Map, 1, 2));
         assert_eq!(sc.dialog.dialog_phase, 2, "dialogPhase 不变（路径挂起）");
         assert_eq!((sc.route_phase, sc.walk_step_count), (1, 1), "同拍递归已弹第 3 步");
@@ -188,7 +188,7 @@
         assert_eq!(sc.route_entity, -1);
         assert_eq!(sc.facing, 2, "ROS_4_2 同拍已执行");
         assert_eq!(sc.dialog.dialog_phase, 0);
-        assert_eq!(sc.script_cursor, "MOV_72_3_3_5_3 ROS_4_2 ".len());
+        assert_eq!(sc.slots.script_cursor, "MOV_72_3_3_5_3 ROS_4_2 ".len());
     }
 
     /// 首参 ≤0 走三参玩家分支（a.java:8277/8288 `var55 > 0`）——负值不按五参解析。
@@ -198,7 +198,7 @@
         exec(&mut sc, "MOV_-1_5_3 \u{1e}");
         assert_eq!(sc.dialog.dialog_target, (5, ROW));
         assert_eq!(sc.dialog.dialog_phase, 3);
-        assert!(sc.script_walk_armed);
+        assert!(sc.slots.script_walk_armed);
         assert_eq!(sc.walk_path_buffer, vec![2, 2]);
     }
     /// 2.3（refactor-behavior-matrix §2）：**MOV-miss 尾递归**（a.java:8301-8302）——
@@ -212,12 +212,12 @@
         exec(&mut sc, line);
         assert_eq!(sc.dialog.dialog_page, 5, "尾递归同拍执行 TAK（page=5）");
         assert_eq!(sc.dialog.dialog_page_end, 6);
-        assert_eq!(sc.script_cursor, line.len(), "游标越过 MOV段与 TAK 段（TAK 尾 +1 落行末）");
+        assert_eq!(sc.slots.script_cursor, line.len(), "游标越过 MOV段与 TAK 段（TAK 尾 +1 落行末）");
         // 命中对照：不递归——游标只到 TAK 前、相位=2（实体路线）
         let mut sc2 = scene((5, ROW), &[(43, 1, 1)]);
         exec(&mut sc2, line);
         assert_eq!(sc2.dialog.dialog_phase, 2, "命中 ⇒ 实体路线相位（不递归）");
-        assert_eq!(sc2.script_cursor, "MOV_43_1_1_2_2 ".len(), "游标停在 TAK 前");
+        assert_eq!(sc2.slots.script_cursor, "MOV_43_1_1_2_2 ".len(), "游标停在 TAK 前");
         assert_eq!(sc2.dialog.dialog_page, 0, "TAK 未执行");
     }
 
@@ -247,7 +247,7 @@
         for &(op, line) in cases {
             let mut sc = mk_scene((5, ROW), &[]);
             exec(&mut sc, line);
-            let prod = sc.script_cursor;
+            let prod = sc.slots.script_cursor;
             let mut eng = ScriptEngine::new(&table, 0);
             eng.set_script_line_for_test(line);
             eng.state.slots.script_cursor = 0;
@@ -259,7 +259,7 @@
         for line in ["ZZZ_0 ", "QQ "] {
             let mut sc = mk_scene((5, ROW), &[]);
             exec(&mut sc, line);
-            assert_eq!(sc.script_cursor, 0, "生产面未知 op 停摆（{line:?}）");
+            assert_eq!(sc.slots.script_cursor, 0, "生产面未知 op 停摆（{line:?}）");
             let mut eng = ScriptEngine::new(&table, 0);
             eng.set_script_line_for_test(line);
             eng.state.slots.script_cursor = 0;

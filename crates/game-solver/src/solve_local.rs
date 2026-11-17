@@ -2158,8 +2158,8 @@ impl<'a> Search<'a> {
         // CES/DES 增删——比原 sprite 位图循环更全）。
         ns.ents = readback_ents(&sc);
         // flags 读回（§1.3 Obs.flags 同源；apply 内 case0 等置位面）
-        for i in 0..sc.script_line_flags.len().min(128) {
-            if sc.script_line_flags[i] {
+        for i in 0..sc.slots.script_line_flags.len().min(128) {
+            if sc.slots.script_line_flags[i] {
                 ns.flags |= 1u128 << i;
             } else {
                 ns.flags &= !(1u128 << i);
@@ -2335,7 +2335,7 @@ fn build_scene(input: &SolveInput, st: &St, at: (i32, i32)) -> GameScene {
         }
     }
     // flags 位图灌入（script_line_flags pub，SceneSetup 无该字段；68 槽 ≤ u128）。
-    for (i, f) in sc.script_line_flags.iter_mut().enumerate() {
+    for (i, f) in sc.slots.script_line_flags.iter_mut().enumerate() {
         *f = i < 128 && ((st.flags >> i) & 1) == 1;
     }
     sc
@@ -2373,7 +2373,7 @@ fn tickdrive(sc: &mut GameScene) -> Drive {
             // stall>500 兜底仍在（永动防护），walk 不落=Stalled=保守 ⊥。
             let landed = (sc.view.player_px >> 5, sc.view.player_py >> 5)
                 == sc.dialog.dialog_target;
-            if !(sc.script_walk_armed && !landed) {
+            if !(sc.slots.script_walk_armed && !landed) {
                 return Drive::Completed; // 行尾收尾 transition_to(Map)：演出完成、玩家留格（C5a 续走）
             }
         }
@@ -2383,7 +2383,7 @@ fn tickdrive(sc: &mut GameScene) -> Drive {
         let sig = format!(
             "{}/{}/{}/{}/{}",
             sc.dialog.dialog_phase,
-            sc.script_walk_armed,
+            sc.slots.script_walk_armed,
             sc.walk_phase,
             sc.view.player_px,
             sc.view.player_py
@@ -2414,8 +2414,8 @@ fn readback_script(st: &mut St, sc: &GameScene) {
     st.player.item_types = p.item_types.clone();
     st.player.item_uses = p.item_uses.clone();
     st.player.item_stack_size = p.item_stack_size;
-    for i in 0..sc.script_line_flags.len().min(128) {
-        if sc.script_line_flags[i] {
+    for i in 0..sc.slots.script_line_flags.len().min(128) {
+        if sc.slots.script_line_flags[i] {
             st.flags |= 1u128 << i;
         } else {
             st.flags &= !(1u128 << i);

@@ -29,8 +29,8 @@ fn event_line(rt: &Runtime) -> String {
         "f{} {:?} s{}@{} pg{} ph{} pl({},{})+({},{}) e84{:?}",
         sc.persist.floor,
         sc.game_mode,
-        sc.current_script_index,
-        sc.script_cursor,
+        sc.slots.current_script_index,
+        sc.slots.script_cursor,
         sc.dialog.dialog_page,
         sc.dialog.dialog_phase,
         sc.view.player_px >> 5,
@@ -106,7 +106,7 @@ fn run_script19(scene_layout: Layout, tap_while_walking: bool) -> Vec<String> {
     let mut seq: Vec<String> = Vec::new();
     for k in 0..4000 {
         let sc = rt.scene.as_ref().unwrap();
-        if sc.script_line_flags[19] && sc.game_mode == GameMode::Map {
+        if sc.slots.script_line_flags[19] && sc.game_mode == GameMode::Map {
             break; // script19 收尾回 Map
         }
         let keys = if holding {

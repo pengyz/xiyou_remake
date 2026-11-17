@@ -140,16 +140,16 @@ mod tests {
 
     /// (a) 侧驱动：单槽起手，循环到游标停摆（末次调用触发行尾收尾）。
     fn drive_facade(sc: &mut GameScene, idx: usize) {
-        sc.script_line = sc.dialog.dialog_data.scripts[idx].clone();
-        sc.script_cursor = 0;
-        sc.current_script_index = idx;
+        sc.slots.script_line = sc.dialog.dialog_data.scripts[idx].clone();
+        sc.slots.script_cursor = 0;
+        sc.slots.current_script_index = idx;
         let mut steps = 0usize;
         loop {
-            let c0 = sc.script_cursor;
+            let c0 = sc.slots.script_cursor;
             super::execute_script_instruction(sc);
             steps += 1;
             assert!(steps < 100_000, "槽{idx} 门面驱动未收敛");
-            if sc.script_cursor == c0 {
+            if sc.slots.script_cursor == c0 {
                 break;
             }
         }
@@ -157,16 +157,16 @@ mod tests {
 
     /// 底层直调驱动（同款循环，scene 树内 pub(super) 面）。
     fn drive_direct(sc: &mut GameScene, idx: usize) {
-        sc.script_line = sc.dialog.dialog_data.scripts[idx].clone();
-        sc.script_cursor = 0;
-        sc.current_script_index = idx;
+        sc.slots.script_line = sc.dialog.dialog_data.scripts[idx].clone();
+        sc.slots.script_cursor = 0;
+        sc.slots.current_script_index = idx;
         let mut steps = 0usize;
         loop {
-            let c0 = sc.script_cursor;
+            let c0 = sc.slots.script_cursor;
             sc.execute_script_instruction();
             steps += 1;
             assert!(steps < 100_000, "槽{idx} 底层驱动未收敛");
-            if sc.script_cursor == c0 {
+            if sc.slots.script_cursor == c0 {
                 break;
             }
         }
@@ -310,12 +310,12 @@ mod tests {
         ));
         v.push(format!(
             "script=({}, {:?}, {:?}, {}, {}, {})",
-            sc.script_line,
-            sc.script_cursor,
-            sc.script_line_flags,
-            sc.script_delay,
-            sc.current_script_index,
-            sc.script_walk_armed
+            sc.slots.script_line,
+            sc.slots.script_cursor,
+            sc.slots.script_line_flags,
+            sc.slots.script_delay,
+            sc.slots.current_script_index,
+            sc.slots.script_walk_armed
         ));
         // —— dialog 域（TAK/SEE/open_dialog_page 写面）——
         v.push(format!(
@@ -453,9 +453,9 @@ mod tests {
                 let mut sc_f = new_scene();
                 let mut sc_d = new_scene();
                 for sc in [&mut sc_f, &mut sc_d] {
-                    sc.script_line = line.clone();
-                    sc.script_cursor = cur;
-                    sc.current_script_index = idx;
+                    sc.slots.script_line = line.clone();
+                    sc.slots.script_cursor = cur;
+                    sc.slots.current_script_index = idx;
                 }
                 super::execute_op(&mut sc_f, op_f);
                 sc_d.execute_op(op_d);
@@ -520,7 +520,7 @@ mod tests {
             "槽67：门面 vs 底层行驱动终态逐字段不等"
         );
         assert_eq!(
-            via_facade.script_cursor, 12,
+            via_facade.slots.script_cursor, 12,
             "TAK 消费后 cursor == 行长 12（含尾空格；Java 同值）"
         );
     }
@@ -546,12 +546,12 @@ mod tests {
     #[test]
     fn smoke_execute_short_line_finishes() {
         let mut sc = new_scene();
-        sc.script_line = "AB".to_string();
-        sc.script_cursor = 0;
-        sc.current_script_index = 0;
+        sc.slots.script_line = "AB".to_string();
+        sc.slots.script_cursor = 0;
+        sc.slots.current_script_index = 0;
         super::execute_script_instruction(&mut sc);
         assert_eq!(sc.dialog.dialog_phase, 4, "行尾收尾 phase=4");
-        assert!(sc.script_line_flags[0], "收尾置 flags[idx]");
+        assert!(sc.slots.script_line_flags[0], "收尾置 flags[idx]");
     }
 
     /// 冒烟：fixture 语料 parse→execute→回读（提案 §4 Commit2）。
@@ -562,8 +562,8 @@ mod tests {
         let mut sc = new_scene();
         drive_facade(&mut sc, 0);
         assert_eq!(sc.dialog.dialog_phase, 4, "链尾收尾 phase=4");
-        assert!(sc.script_line_flags[0], "槽0 GUT 置旗标");
-        assert_eq!(sc.current_script_index, 1, "GUT_1 跳槽1");
+        assert!(sc.slots.script_line_flags[0], "槽0 GUT 置旗标");
+        assert_eq!(sc.slots.current_script_index, 1, "GUT_1 跳槽1");
         assert_eq!(sc.player.gold, 4, "RES_0 easy 重置 gold=4");
         assert_eq!(sc.player.hp, 400, "RES_0 easy 重置 hp=400");
         assert_eq!(sc.player.atk, 10, "RES_0 easy 重置 atk=10");

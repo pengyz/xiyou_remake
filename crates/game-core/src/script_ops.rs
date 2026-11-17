@@ -556,6 +556,16 @@ impl GameScene {
             let mut ctx = self.script_ctx();
             crate::subsystem::script_host::apply_script_domain(&mut ctx, op)
         };
+        self.dispatch_op(op);
+        if matches!(step, crate::subsystem::script_host::ScriptStep::Recurse) {
+            self.execute_script_instruction(); // GIN 同拍尾递归（a.java:8435-8436）
+        }
+    }
+
+    /// 世界动作分派（不含脚本域写、不含入口门）。
+    /// 【2026-11-17 S3·④】从 `execute_op` 拆出：执行流程已上收 `script_exec::run_instruction`，
+    /// 生产端由此只保留「一条命令对真场景做了什么」。
+    pub(super) fn dispatch_op(&mut self, op: ScriptOp) {
         match op {
             ScriptOp::Tak { start, end, .. } => self.op_tak(start, end),
             ScriptOp::Lay { floor, .. } => self.op_lay(floor),
@@ -582,9 +592,6 @@ impl GameScene {
             ScriptOp::RosDef { v, .. } => self.op_ros_def(v),
             ScriptOp::RosNoop { .. } => {}
             ScriptOp::Mvs { .. } => self.op_mvs(),
-        }
-        if matches!(step, crate::subsystem::script_host::ScriptStep::Recurse) {
-            self.execute_script_instruction(); // GIN 同拍尾递归（a.java:8435-8436）
         }
     }
 

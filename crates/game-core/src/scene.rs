@@ -425,18 +425,10 @@ pub struct GameScene {
     pub ending_scroll: i32,
     pub ending_anim: i32,
     pub ending_done: bool,
-    /// dialogScriptLine：当前脚本行
-    pub script_line: String,
-    /// scriptCursor
-    pub script_cursor: usize,
-    /// scriptStepDelay：phase0 步进延迟
-    pub script_delay: i32,
-    /// scriptLineFlags（68 位）
-    pub script_line_flags: Vec<bool>,
-    /// currentScriptIndex
-    pub current_script_index: usize,
-    /// scriptWalkArmed（脚本行走武装；phase 3 门控）
-    pub script_walk_armed: bool,
+    /// 脚本域状态（dialogScriptLine / scriptCursor / scriptStepDelay / scriptLineFlags /
+    /// currentScriptIndex / scriptWalkArmed）——【2026-11-17 S3·④】六槽并入 `ScriptSlots`，
+    /// 与求解器 headless 执行器**同一份类型**：脚本域状态不再是两个世界各自的私有字段。
+    pub slots: crate::subsystem::script_host::ScriptSlots,
     /// 【task-15 V2 dialog-VM】对话/浮层域切片（22 字段→DialogState）。
     pub dialog: scene_dialog::DialogState,
     /// 【task-15 V2 menu/UI】菜单/UI 域切片（42 字段→MenuState）。
@@ -500,7 +492,7 @@ pub struct GameScene {
 /// 【终章·entity/移动域直写接口】（lead 2026-11-03 选项 1）——跨文件写点收敛。
 impl GameScene {
     // ── 【终章簇4·尾巴直写接口】
-    pub(super) fn dec_script_delay(&mut self) { self.script_delay -= 1; }
+    pub(super) fn dec_script_delay(&mut self) { self.slots.script_delay -= 1; }
     pub(super) fn add_step_progress(&mut self, d: i32) { self.step_progress += d; }
     // ── 【终章簇4·尾巴直写接口】（key/transitioning/tap 尾——scene.rs=唯一直写面）──
     pub(super) fn inc_player_frame(&mut self) { self.player_frame += 1; }
@@ -513,8 +505,8 @@ impl GameScene {
     pub(super) fn set_route_phase(&mut self, v: i32) { self.route_phase = v; }
     // ── 【终章簇2·script 域直写接口】（scene.rs=唯一直写面）──
     // 【批6 死码删】set_script_delay 已删（批5 CES 写面收拢后零引用）。
-    pub(super) fn set_script_walk_armed(&mut self, v: bool) { self.script_walk_armed = v; }
-    pub(super) fn set_script_cursor(&mut self, v: usize) { self.script_cursor = v; }
+    pub(super) fn set_script_walk_armed(&mut self, v: bool) { self.slots.script_walk_armed = v; }
+    pub(super) fn set_script_cursor(&mut self, v: usize) { self.slots.script_cursor = v; }
     // ── 【终章·entity/移动域直写接口】跨文件写点收敛（禁 self.facing=/walk_phase= 等
     // 直写——lead 2026-11-03 裁定选项 1：域访问全走接口）。setter=写侧接口；
     // 语义操作可后叠（本批 1:1 机械收口保行为零差）。
@@ -623,9 +615,9 @@ pub fn load_floor_from_save(
     // 【2026-11-03 更正】"每层变长"表述证伪：levelScriptLines=**全局 68 行表**
     // （a.java:1124）非逐层；本式 len()≡68（与 scene_persist.rs:233 硬编码 68 同义）。
     // 分配形=新布尔[levelScriptLines.length]（a.java:2038-2039 锚保真）。
-    scene.script_line_flags = vec![false; scene.dialog.dialog_data.scripts.len()];
+    scene.slots.script_line_flags = vec![false; scene.dialog.dialog_data.scripts.len()];
     let line_count = scene.dialog.dialog_data.scripts.len().min(save.script_flags.len());
-    scene.script_line_flags[..line_count].copy_from_slice(&save.script_flags[..line_count]);
+    scene.slots.script_line_flags[..line_count].copy_from_slice(&save.script_flags[..line_count]);
     // step 10 = loadFloorData（应用本层触发缓存）+ buildMinimap（a.java:3515-3517）
     scene.load_floor_data(maplv, px, py, records, scene.persist.floor)?;
     scene.build_minimap();
@@ -945,17 +937,17 @@ impl GameScene {
         if idx >= self.dialog.dialog_data.scripts.len() as i32 {
             return false;
         }
-        let mut gate = !self.script_line_flags[idx as usize];
+        let mut gate = !self.slots.script_line_flags[idx as usize];
         match idx {
             0 => {
                 if gate {
-                    self.script_line_flags[19] = true;
+                    self.slots.script_line_flags[19] = true;
                 }
             }
-            1 => gate &= self.script_line_flags[0] && !from_walk,
-            2 => gate &= self.script_line_flags[1] && !from_walk,
+            1 => gate &= self.slots.script_line_flags[0] && !from_walk,
+            2 => gate &= self.slots.script_line_flags[1] && !from_walk,
             3 => gate &= from_walk,
-            4 => gate &= self.script_line_flags[3] && from_walk,
+            4 => gate &= self.slots.script_line_flags[3] && from_walk,
             // 7/32 需 probeCrossFloorSnapshot(23,12) 跨层快照探针（f_byte_arr2_05 层序列化语义）——
             // 未移植，显式挡路（覆盖窗不可达）。
             // tryRunScene case 7（a.java:8123-8127）：gate = from_walk ∧ 跨层无存活
@@ -963,7 +955,7 @@ impl GameScene {
             7 => {
                 gate &= from_walk && !self.probe_cross_floor_snapshot(23, 12);
                 if gate {
-                    self.script_line_flags[32] = true;
+                    self.slots.script_line_flags[32] = true;
                 }
             }
             // tryRunScene 到达臂（a.java:8128-8146）：case 8/9/11/12/19/30/41-45/
@@ -978,7 +970,7 @@ impl GameScene {
             // tryRunScene 探针臂（a.java:8193-8201）：case 32 独占——
             // flags[7] 已跑 ⇒ 挡；否则 gate &= !from_walk ∧ floor23 有存活型12
             32 => {
-                if self.script_line_flags[7] {
+                if self.slots.script_line_flags[7] {
                     gate = false;
                 } else {
                     gate &= !from_walk && self.probe_cross_floor_snapshot(23, 12);
@@ -1009,7 +1001,7 @@ impl GameScene {
                         || self.entity_at_cell(6, 4, 1) >= 0)
                 {
                     gate = false;
-                    self.script_line_flags[18] = true;
+                    self.slots.script_line_flags[18] = true;
                 }
             }
             24 => {
@@ -1020,7 +1012,7 @@ impl GameScene {
             }
             25 => {
                 gate &= from_walk
-                    && self.script_line_flags[13]
+                    && self.slots.script_line_flags[13]
                     && self.entity_at_cell(2, 2, 60) < 0
                     && self.entity_at_cell(10, 2, 60) < 0;
             }
@@ -1029,13 +1021,13 @@ impl GameScene {
                     gate = false;
                 }
             }
-            27 => gate &= from_walk && self.script_line_flags[0],
+            27 => gate &= from_walk && self.slots.script_line_flags[0],
             31 => {
                 gate &= from_walk && self.player.find_item(16) >= 0;
             }
-            33 => gate &= self.script_line_flags[7],
+            33 => gate &= self.slots.script_line_flags[7],
             34 => {
-                gate &= from_walk && !self.script_line_flags[10];
+                gate &= from_walk && !self.slots.script_line_flags[10];
                 if gate {
                     let loss = self.predict_hp_loss(69, true);
                     gate &= loss < 0 || loss >= self.player.hp;
@@ -1043,8 +1035,8 @@ impl GameScene {
             }
             // 5/6/10/13/14/17/20/21/22/23/28/29/35/36/37/38/39/40/51/54/57-65：
             // 直通（无门控，a.java:8098-8108 簇 default: break）
-            46 => gate &= from_walk && !self.script_line_flags[47],
-            47 => gate &= from_walk && !self.script_line_flags[46],
+            46 => gate &= from_walk && !self.slots.script_line_flags[47],
+            47 => gate &= from_walk && !self.slots.script_line_flags[46],
             66 => gate = false,
             67 => gate &= self.menu.difficulty_index > 0,
             _ => {}
@@ -1221,7 +1213,7 @@ impl GameScene {
         }
         self.walk_step_count = steps.len() as i32;
         self.walk_path_buffer = steps;
-        self.script_walk_armed = true;
+        self.slots.script_walk_armed = true;
         self.dialog.set_dialog_phase(3);
         self.walk_phase = 0;
         // dp3 消费机器在 Dialog 语境（op_mov 同款——脚本行走=mode 11 语境）
@@ -1277,7 +1269,7 @@ impl GameScene {
             return TapResult::Queued;
         }
         match self.walk_phase {
-            0 if !self.script_walk_armed => {}
+            0 if !self.slots.script_walk_armed => {}
             2 => return TapResult::Ignored, // 观察模式：点按无效（拖动平移由壳接，计划 3）
             _ => {
                 // 手动行走 / 战斗 / Map 语境的脚本行走（wp0 ∧ 武装，field_tap_allowed 同口径拒绝）：闪红、状态不变
@@ -1456,7 +1448,7 @@ impl GameScene {
             return TapResult::Queued;
         }
         match self.walk_phase {
-            0 if !self.script_walk_armed => {}
+            0 if !self.slots.script_walk_armed => {}
             2 => return TapResult::Ignored,
             _ => return TapResult::Rejected,
         }
@@ -1629,7 +1621,7 @@ impl GameScene {
             return false;
         }
         match self.game_mode {
-            GameMode::Map => !self.script_walk_armed,
+            GameMode::Map => !self.slots.script_walk_armed,
             GameMode::Dialog => self.dialog.dialog_phase == 3 && self.walkto_owns_dp3(),
             _ => false,
         }
@@ -1697,7 +1689,7 @@ impl GameScene {
         self.route_arrived();
         self.restore_walkto_arrows();
         self.walkto_draining = false;
-        self.script_walk_armed = false;
+        self.slots.script_walk_armed = false;
         self.game_mode = GameMode::Map;
         // 【STAGE-B-008】下一拍开头执行点地后续（撞击 / 排队）
         self.tap.tap_followup_ready = true;
@@ -2139,7 +2131,7 @@ impl GameScene {
                                 &mut self.grid,
                             );
                         } else {
-                            self.script_walk_armed = false;
+                            self.slots.script_walk_armed = false;
                             self.transition_to(GameMode::Map);
                             self.walk_phase = 1;
                             self.facing = self.route_dir;
@@ -3728,15 +3720,7 @@ impl GameScene {
         /// 【P2 批5】脚本域 ctx（6 写槽+floor 值拷贝——disjoint field borrows）。
         /// 【2026-11-17 S3·②】player/entities 读槽已删（resolver 只用 floor）。
         fn script_ctx(&mut self) -> crate::subsystem::script_host::ScriptCtx<'_> {
-            crate::subsystem::script_host::ScriptCtx {
-                current_script_index: &mut self.current_script_index,
-                script_cursor: &mut self.script_cursor,
-                script_delay: &mut self.script_delay,
-                script_line: &mut self.script_line,
-                script_line_flags: &mut self.script_line_flags,
-                script_walk_armed: &mut self.script_walk_armed,
-                floor: self.persist.floor,
-            }
+            self.slots.ctx(self.persist.floor)
         }
 
         /// tickBattle（a.java:10023-10149）：4 拍一击 → 胜利 → 死亡动画 6 拍 →
@@ -3821,8 +3805,8 @@ impl GameScene {
                                         }
                                         match t {
                                             73 => {
-                                                self.script_line_flags
-                                                    [self.current_script_index] = true;
+                                                self.slots.script_line_flags
+                                                    [self.slots.current_script_index] = true;
                                                 self.load_level_script(22);
                                                 if self.persist.floor == 40 {
                                                     self.spawn_boss_event(6);
@@ -4173,7 +4157,7 @@ impl GameScene {
                     self.handle_field_input();
                 }
             }
-        } else if self.script_walk_armed {
+        } else if self.slots.script_walk_armed {
             // 分支 2（a.java:5742-5746）：脚本行走武装 → advanceScriptWalk
             //（sort_i 踩伤 → 短路行走置 wp=0）
             if !step_triggered {

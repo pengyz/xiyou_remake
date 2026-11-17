@@ -864,7 +864,7 @@ fn fx_boss74a_kill_hooks_frames_match() {
     assert_eq!(checked, records.len(), "T1-600 全帧必须比对");
     assert_eq!(sc.persist.floor, 20);
     assert_eq!(sc.player.gold, 244, "预置 100 + enemyBaseGold[33]=144");
-    assert!(sc.script_line_flags[21], "script21 遗言已跑完（收尾置位 a.java:8600）");
+    assert!(sc.slots.script_line_flags[21], "script21 遗言已跑完（收尾置位 a.java:8600）");
     // flags=6 预置即 scriptLineFlags[6]=true（登场戏门关，script6 全程未跑——断言
     // 该旗标恒真无意义，登场戏缺席由帧链与 script21 独占 currentScriptIndex 佐证）。
     // 12 件掉落（型:格）：29×3、26×3、30×3、32×3（a.java:2092-2141）
@@ -1018,7 +1018,7 @@ fn fx_boss68a_kill_spawn_frames_match() {
         assert_eq!(!present, picked, "红钥匙 @({cx},{cy}) picked={picked}");
     }
     assert!(
-        sc.script_line_flags.iter().all(|&f| !f),
+        sc.slots.script_line_flags.iter().all(|&f| !f),
         "case68 双 switch default：无脚本钩子（对照 74 的 loadLevelScript(21)）"
     );
 }
@@ -1193,8 +1193,8 @@ fn bug012_replay(
                 "T{:04} mode={:?} script={} cursor={} dphase={} wp={} wsc={} pcell=({},{}) ent={} tr={} wipe={} wc={}",
                 t,
                 sc.game_mode,
-                sc.current_script_index,
-                sc.script_cursor,
+                sc.slots.current_script_index,
+                sc.slots.script_cursor,
                 sc.dialog.dialog_phase,
                 sc.walk_phase,
                 sc.walk_step_count,
@@ -1680,10 +1680,10 @@ fn fx_chang_e_floor1_taps_frames_match() {
     assert_eq!(checked, records.len(), "T1-2400 全帧必须比对");
     eprintln!(
         "FX-CHANGE-END floor={} mode={:?} script={} cursor={} cell=({},{}) flags19={} e84={:?}",
-        sc.persist.floor, sc.game_mode, sc.current_script_index, sc.script_cursor, sc.player_cell_x, sc.player_cell_y,
-        sc.script_line_flags[19], chang_e_cells(&sc)
+        sc.persist.floor, sc.game_mode, sc.slots.current_script_index, sc.slots.script_cursor, sc.player_cell_x, sc.player_cell_y,
+        sc.slots.script_line_flags[19], chang_e_cells(&sc)
     );
-    assert!(sc.script_line_flags[19], "script19 跑完置位");
+    assert!(sc.slots.script_line_flags[19], "script19 跑完置位");
     // Java 末态（T2400 帧逐帧一致）：嫦娥 (10,1) 被 DES 后玩家脚本走上 (11,1) 楼梯 → mode 11 续跑
     // MOV_0_1_11 于 2 层 → 2 层天牢嫦娥 = floor2 恢复钩子刷的 84@(11,4)（evidence-boss §4.1）
     assert_eq!(sc.persist.floor, 2, "script19 尾 MOV_0_11_1 走上楼梯 → 2 层");

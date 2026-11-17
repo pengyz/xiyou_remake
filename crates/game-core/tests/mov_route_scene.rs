@@ -392,9 +392,9 @@ fn preset_floor2_mov_frames_match() {
     let (mut wall_opened_at, mut relocated_18_at, mut des_hit_at) = (None, None, None);
     let mut flags_loaded = false;
     let sc = run_scene(&FLOOR2, |tick, sc| {
-        flags_loaded |= sc.script_line_flags[0];
+        flags_loaded |= sc.slots.script_line_flags[0];
         if sc.game_mode == GameMode::Dialog && sc.dialog.dialog_phase == 2 {
-            dp2_ticks[sc.current_script_index.min(2)] += 1;
+            dp2_ticks[sc.slots.current_script_index.min(2)] += 1;
             let e = sc.route_entity;
             if e >= 0 && sc.entities.items[e as usize].type_ == 72 {
                 if sc.route_dir == 3 {
@@ -423,7 +423,7 @@ fn preset_floor2_mov_frames_match() {
     assert_eq!(des_hit_at, Some(862), "DES_72_1_10 命中拍（依赖第二次 relocateSlotsAtRouteEnd）");
     assert_eq!(sc.game_mode, GameMode::Map);
     assert_eq!(sc.route_entity, -1, "route_entity 收尾 = -1");
-    assert!(sc.script_line_flags[1] && sc.script_line_flags[2], "script1/2 行尾旗标");
+    assert!(sc.slots.script_line_flags[1] && sc.slots.script_line_flags[2], "script1/2 行尾旗标");
 }
 
 /// floor40：T1-1000 全帧一致 + script12 伏击 13 场途中战斗（12 小怪 + 型73 boss）。
@@ -448,7 +448,7 @@ fn preset_floor40_mov_frames_match() {
         } else {
             prev_phase = 0;
         }
-        if boss_hook_at.is_none() && sc.current_script_index == 22 {
+        if boss_hook_at.is_none() && sc.slots.current_script_index == 22 {
             boss_hook_at = Some(tick);
         }
     });
@@ -458,7 +458,7 @@ fn preset_floor40_mov_frames_match() {
     assert_eq!(boss_hook_at, Some(911), "型73 击杀钩子 loadLevelScript(22)（a.java:10071-10073）");
     assert_eq!(sc.game_mode, GameMode::Map);
     assert_eq!((sc.player_cell_x, sc.player_cell_y), (6, 6), "mode3 tickBattle(true) 收尾 restep 北移");
-    assert!(sc.script_line_flags[12], "script12 旗标（case73 钩子置当前脚本）");
+    assert!(sc.slots.script_line_flags[12], "script12 旗标（case73 钩子置当前脚本）");
 }
 
 /// 【FX-ITEM-25A · 二波扩展候选销账】幸运币（25）金钱翻倍被动：floor1 栈[25](uses=-1) 东行撞 41 群

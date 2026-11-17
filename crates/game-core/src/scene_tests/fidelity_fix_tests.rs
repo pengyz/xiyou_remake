@@ -37,7 +37,7 @@
         for (flag26, respawn) in [(false, true), (true, false)] {
             let mut sc = scene((3, 3), &[]);
             assert_eq!(sc.persist.floor, 2);
-            sc.script_line_flags[26] = flag26;
+            sc.slots.script_line_flags[26] = flag26;
             sc.persist.saved_floor_states[2] = Some(vec![0, 0]); // 恢复分支（0 实体）
             sc.load_floor_data(&maplv(), 3 << 5, 3 << 5, &[], sc.persist.floor).unwrap();
             assert_eq!(sc.entity_at_cell(11, 4, 84) >= 0, respawn, "flags[26]={flag26}");
@@ -162,10 +162,10 @@
         // 非"每层变长"（表述证伪更正）；68 槽形下 ≥68 的 skip 字节不在场（旧 128 缓冲的
         // [100] 反向断言=错位钉）。skip 链=save.script_flags[100] 真值仅存 save 侧
         // （a.java:9291-9297 不读入——锚行更正）。
-        assert_eq!(sc.script_line_flags.len(), 68, "a.java:2038-2039 new boolean[levelScriptLines.length]");
-        assert!(sc.script_line_flags[0] && sc.script_line_flags[67]);
+        assert_eq!(sc.slots.script_line_flags.len(), 68, "a.java:2038-2039 new boolean[levelScriptLines.length]");
+        assert!(sc.slots.script_line_flags[0] && sc.slots.script_line_flags[67]);
         assert!(save.script_flags[100], "skip 字节仅存 save 侧（a.java:9291-9297 不读入）");
-        assert_eq!(sc.script_line_flags.iter().filter(|f| **f).count(), 2);
+        assert_eq!(sc.slots.script_line_flags.iter().filter(|f| **f).count(), 2);
     }
 
     /// 【P1-a1 黄五连③】道具栈 byte[32] 边界（Java byte[32] 对齐面）：可达上限

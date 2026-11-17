@@ -72,7 +72,7 @@ impl GameScene {
             match *action {
                 RestoreAction::SpawnIfAbsent { flag, find, spawn } => {
                     // flags[26] 双重角色：守卫=旗标关 + 目标格无活同型（a.java:9650-9652）
-                    if self.script_line_flags[flag] {
+                    if self.slots.script_line_flags[flag] {
                         continue;
                     }
                     if entity::cell_entity(grid, entities, find.0, find.1, find.2) >= 0 {

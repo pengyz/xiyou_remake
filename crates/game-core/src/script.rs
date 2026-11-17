@@ -284,37 +284,21 @@ impl<'d> ScriptEngine<'d> {
         &mut self,
         host: &mut (impl HostCtx + EntityService + DialogSubsystem + ItemService),
     ) {
-        let line = self.line();
-        let script_cursor0 = self.state.slots.script_cursor;
-        if script_cursor0 + 3 > line.len() {
-            // 入口门（javap 偏移 22 的 `cursor+3 > len` ⇒ 2401 门体）：序章 cursor=43 冻结 phase=4 实证
-            self.state.dialog_phase = DialogPhase::AwaitCamera;
-            if self.state.slots.current_script_index != 32 {
-                let cur = self.state.slots.current_script_index;
-                self.state.slots.script_line_flags[cur] = true;
-            }
-            host.snap_camera_to_player();
-            return;
-        }
-        // 纯解析（与生产同一函数）；未知 op ⇒ 静默停摆（a.java:8594-8595 原地 return，
-        // 无臂写 scriptCursor ⇒ 下一拍重解析同一 token）
-        let Some(op) = crate::scene::GameScene::parse_op(&line, script_cursor0) else {
-            return;
-        };
-        self.exec_op(host, op);
+        // 【2026-11-17 S3·④】入口门/解析/脚本域写/尾递归已上收
+        // `script_exec::run_instruction`——生产端与本端共用同一份流程，本端只提供钩子。
+        let mut runner = EngineRunner { eng: self, host };
+        crate::script_exec::run_instruction(&mut runner);
     }
 
     /// op 分派（旧内联体逐 op 归位）：游标统一按解析层算好的值写（含 SWD/MVS 的
     /// `orig+4` 口径），其余为宿主副作用。逐 op 对齐生产 `GameScene::execute_op`。
-    fn exec_op(
+    fn dispatch_op(
         &mut self,
         host: &mut (impl HostCtx + EntityService + DialogSubsystem + ItemService),
         op: ScriptOp,
     ) {
-        // 脚本域写（游标/GUT 旗标/CES delay/GIN 尾递归信号）走共享入口，
-        // 与生产执行器同一份实现（S3·②）；Recurse ⇒ 同拍重入下一条。
-        let floor = self.state.current_floor;
-        let step = self.state.slots.apply(op, floor);
+        // 脚本域写已由 `script_exec::run_instruction` 统一调 `slots.apply`（S3·②/④）；
+        // 本函数只做「这一条命令对 headless 世界意味着什么」。
         match op {
             ScriptOp::Tak { start, end, .. } => {
                 self.state.tak_page_start = start;
@@ -464,11 +448,6 @@ impl<'d> ScriptEngine<'d> {
             ScriptOp::Mvs { .. } => host.mvs_exchange(),
         }
 
-        if matches!(step, crate::subsystem::script_host::ScriptStep::Recurse) {
-            // GIN 同拍尾递归（a.java:8435-8436）：回入口跑下一条，与生产同口径
-            self.execute_script_instruction(host);
-        }
-
         // 【2026-11-16 删门·字节码裁定】行尾检查不是收尾门：javap
         // executeScriptInstruction（偏移 0–2431，analysis/rename-pipeline/renamed/a.class）
         //   2397 if_icmpge 2431 / 2400 return / 2431 return —— 两分支均直接返回、零字段写；
@@ -477,6 +456,37 @@ impl<'d> ScriptEngine<'d> {
         // 裁定全文见 docs/superpowers/proposals/2026-11-16-script-command-pipeline-proposal.md §0′.4′。
     }
 
+}
+
+/// 【2026-11-17 S3·④】headless 执行端：本端钩子 = `ScriptEngine` 的状态 + 宿主副作用。
+/// 与生产端（`impl ScriptRunner for GameScene`）共用 `script_exec::run_instruction` 的流程。
+struct EngineRunner<'a, 'd, H> {
+    eng: &'a mut ScriptEngine<'d>,
+    host: &'a mut H,
+}
+
+impl<'a, 'd, H: HostCtx + EntityService + DialogSubsystem + ItemService>
+    crate::script_exec::ScriptRunner for EngineRunner<'a, 'd, H>
+{
+    fn slots(&mut self) -> &mut crate::subsystem::script_host::ScriptSlots {
+        &mut self.eng.state.slots
+    }
+    fn floor(&self) -> i32 {
+        self.eng.state.current_floor
+    }
+    fn current_line(&self) -> String {
+        self.eng.line()
+    }
+    fn on_line_end(&mut self, cur: usize) {
+        self.eng.state.dialog_phase = DialogPhase::AwaitCamera;
+        if cur != 32 {
+            self.eng.state.slots.script_line_flags[cur] = true;
+        }
+        self.host.snap_camera_to_player();
+    }
+    fn exec_op(&mut self, op: crate::subsystem::script_host::ScriptOp) {
+        self.eng.dispatch_op(self.host, op);
+    }
 }
 
 /// 无操作宿主（new() 初始化路径用——load_level_script 会调 snap_camera）。

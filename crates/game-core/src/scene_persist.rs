@@ -226,12 +226,11 @@ impl GameScene {
             ending_scroll: 0,
             ending_anim: 0,
             ending_done: false,
-            script_line: String::new(),
-            script_cursor: 0,
-            script_delay: 0,
-            script_line_flags: vec![false; 68], // levelScriptLines 全局 68 行表（a.java:1124）——硬编码 68=正确实现留痕（2026-11-03 复核实证）
-            current_script_index: 0,
-            script_walk_armed: false,
+            slots: crate::subsystem::script_host::ScriptSlots {
+                // levelScriptLines 全局 68 行表（a.java:1124）——硬编码 68=正确实现留痕（2026-11-03 复核实证）
+                script_line_flags: vec![false; 68],
+                ..Default::default()
+            },
             alchemy_price: 0,
             alchemy_gain_hp: 0,
             alchemy_gain_atk: 0,
@@ -514,8 +513,8 @@ impl GameScene {
         self.dialog.set_dialog_page(0);
         self.lock_camera_on(0); // ease 相机初始化到玩家
         self.dialog.set_dialog_phase(0);
-        self.current_script_index = idx as usize;
-        self.script_line = self.dialog.dialog_data.scripts[idx as usize].clone();
+        self.slots.current_script_index = idx as usize;
+        self.slots.script_line = self.dialog.dialog_data.scripts[idx as usize].clone();
         self.dialog.set_overlay_text(None);
         self.set_script_cursor(0);
         // scriptLineFlags[idx] 在行尾收尾（AwaitCamera）或 GUT/DES 时置位——
@@ -555,7 +554,7 @@ impl GameScene {
                 .map(|&(k, i)| (k as u8, i as u8))
                 .collect(),
             script_flags: (0..128)
-                .map(|k| self.script_line_flags.get(k).copied().unwrap_or(false))
+                .map(|k| self.slots.script_line_flags.get(k).copied().unwrap_or(false))
                 .collect(),
             item_stack_size: self.player.item_stack_size as u8,
             item_stack_types: (0..self.player.item_stack_size as usize)
