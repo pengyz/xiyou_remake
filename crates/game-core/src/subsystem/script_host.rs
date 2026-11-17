@@ -212,17 +212,46 @@ mod tests {
     }
 
     /// 【P2 批5 红测试】盲区登记：script 域清单+plan:69 点名项已域登记或显式 pending（批3 红1 教训横切）。
-    /// 【P2 批10 F】HostCtx 终值=8 对账断言（P2 十批拆小收官口径——批1/3/6 摘 2+2+2+批7/8/9 零再收窄）。
+    /// 【P2 批10 F / 2026-11-17 S3·③ 改判】宿主面拆分终值对账：
+    /// 原「HostCtx 8 方法」拆成 世界面 3 + 表现面 6（其中 1 条从表现面迁回世界面）。
     #[test]
     fn p2b10_host_ctx_final_8_methods() {
         let src = include_str!("../script.rs");
-        let body = src.split("pub trait HostCtx").nth(1).unwrap().split("}").next().unwrap();
-        let want = ["find_path", "snap_camera_to_player", "locate_speaker_entity", "ces_camera",
-            "set_camera_anchor_target", "exit_application", "mvs_exchange", "snap_camera_after_ros1"];
-        for n in want {
-            assert!(body.contains(&format!("fn {n}(")), "HostCtx 终值 8 名失联：{n}");
+        let world = src.split("pub trait WorldHost").nth(1).unwrap().split("\n}").next().unwrap();
+        let pres = src.split("pub trait PresentationHost").nth(1).unwrap().split("\n}").next().unwrap();
+        let w_want = ["find_path", "mvs_exchange", "mark_entity_des_removed"];
+        for n in w_want {
+            assert!(world.contains(&format!("fn {n}(")), "WorldHost 失联：{n}");
         }
-        assert_eq!(want.len(), 8);
+        let p_want = ["snap_camera_to_player", "locate_speaker_entity", "ces_camera",
+            "set_camera_anchor_target", "exit_application", "snap_camera_after_ros1"];
+        for n in p_want {
+            assert!(pres.contains(&format!("fn {n}(")), "PresentationHost 失联：{n}");
+        }
+        assert_eq!(w_want.len() + p_want.len(), 9, "3+6=9：原 8 方法 + CES 状态面归来 1");
+        // HostCtx 自身不再承载方法（纯组合别名）
+        let alias = src.split("pub trait HostCtx").nth(1).unwrap().split("\n}").next().unwrap();
+        assert!(!alias.contains("fn "), "HostCtx 应为纯组合别名，不得自带方法");
+    }
+
+    /// 【2026-11-17 S3·③ 红测试】表现面必须「可零实现」：全部方法带默认体。
+    /// 判据：PresentationHost 块内每个 `fn` 签名行以 `{` 结尾（无默认体只能写 `;`）。
+    /// 反例即事故形态：状态藏进表现面 ⇒ headless 跳过 UI 就跳过状态。
+    #[test]
+    fn s3b3_presentation_host_all_methods_have_defaults() {
+        let src = include_str!("../script.rs");
+        let pres = src.split("pub trait PresentationHost").nth(1).unwrap().split("\n}").next().unwrap();
+        let mut n = 0;
+        for line in pres.lines() {
+            let t = line.trim();
+            if !t.starts_with("fn ") && !t.contains(" fn ") {
+                continue;
+            }
+            n += 1;
+            // 无默认体的 trait 方法以 `;` 收尾；有默认体的以 `{` 或 `{}` 收尾
+            assert!(!t.ends_with(';'), "表现面方法缺默认体（headless 无法零实现）：{t}");
+        }
+        assert_eq!(n, 6, "表现面应有 6 个方法且全部带默认体，实测 {n}");
     }
 
     /// 【P2 批10 E】盲区完备核（plan:69-71 点名 14 token 逐项登记核——statediff 命名契约层口径）：

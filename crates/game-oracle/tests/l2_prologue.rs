@@ -7,7 +7,7 @@
 //! 因此断言的是**过渡序列**（cursor 12→24→43 与文本序列）而非逐 tick 值——
 //! 该序列与 Java trace 的过渡序列逐项一致（tick 584/782/902 实测）。
 
-use game_core::script::{DialogueTable, HostCtx, ScriptEngine};
+use game_core::script::{DialogueTable, PresentationHost, ScriptEngine, WorldHost};
 use game_core::subsystem::entity_service::EntityService;
 use game_core::subsystem::dialog::{DialogCtx, DialogStep, DialogSubsystem};
 use game_core::subsystem::item_service::ItemService;
@@ -39,16 +39,13 @@ fn table() -> DialogueTable {
 
 #[derive(Default)]
 struct ReplayHost;
-impl HostCtx for ReplayHost {
+impl WorldHost for ReplayHost {
     fn find_path(&mut self, _: i32, _: i32, _: i32, _: i32) -> bool { false }
-    fn snap_camera_to_player(&mut self) {}
-    fn locate_speaker_entity(&mut self, _: i32) -> i32 { -1 }
-    fn ces_camera(&mut self, _: i32) {}
-    fn set_camera_anchor_target(&mut self, _: i32, _: i32) {}
-    fn exit_application(&mut self) {}
     fn mvs_exchange(&mut self) {}
-    fn snap_camera_after_ros1(&mut self, _px: i32, _py: i32) {}
+    fn mark_entity_des_removed(&mut self, _idx: i32) {}
 }
+/// 表现面全默认（回放宿主不建相机）。
+impl PresentationHost for ReplayHost {}
 impl ItemService for ReplayHost {
     fn pickup(&mut self, _: &mut game_core::effect_registry::ItemCtx, _: i32) -> game_core::effect_registry::ItemOutcome {
         game_core::effect_registry::ItemOutcome::NoOp

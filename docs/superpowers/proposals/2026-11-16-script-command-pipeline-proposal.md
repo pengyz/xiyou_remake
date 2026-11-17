@@ -953,6 +953,57 @@ grep -rn "execute_script_instruction" crates/game-core/src crates/game-solver/sr
 
 ---
 
+## §S3 执行器统一实况（落地记录）
+
+### S3·① 解析面单一来源（commit ced8a91）
+
+`ScriptEngine` 的 ~280 行内联解析（15 个 `table_count` 分支）删除，改调 `GameScene::parse_op`
+（`script_ops.rs:401`，`pub(super)`→`pub(crate)`）。两套解析器是本仓反复出 bug 之源：
+槽 67 尾空格、SWD/MVS 游标差一格、尾门误读——都是"同一份语言被解析两遍"的产物。
+
+### S3·② 脚本域写面单一来源（commit 87e4bf8）
+
+新增 `ScriptSlots`（六槽载体）+ `ScriptSlots::apply` + 唯一实现 `apply_script_domain`。
+`ScriptCtx` 删 `player`/`entities` 读槽——resolver 全仓唯一消费点是 CES 类目表，
+而 `entity_category_with_floor(t, floor)` 只吃 `t` 与 `floor`；这两个槽一直是死重，
+却正是"第二执行器必须虚构一个玩家和实体表"的诱因。
+
+**顺带发现的无判据分叉**：引擎 CES delay 查静态 `data.type_categories[ty]`，
+生产查 floor 覆写优先的 `entity_category_with_floor`；68 槽语料上两者取值恰好一致
+（无槽命中楼层覆写），所以对拍从来测不到。处理：引擎改用生产口径 + 对拍观测域新增
+`delay` + `s3b2_ces_delay_uses_floor_category` 钉规则。
+
+### S3·③ 宿主面拆分（本批）
+
+`HostCtx`（8 方法）拆成两面：
+
+| 面 | 方法 | 语义 |
+|---|---|---|
+| `WorldHost`（状态） | `find_path`、`mvs_exchange`、`mark_entity_des_removed` | 求解必须逐位复现；headless 唯一依赖面 |
+| `PresentationHost`（表现） | `snap_camera_to_player`、`locate_speaker_entity`、`ces_camera`、`set_camera_anchor_target`、`exit_application`、`snap_camera_after_ros1` | 六个方法**全部带默认空实现** ⇒ headless 宿主零代码 |
+
+`HostCtx` 降级为纯组合别名（`WorldHost + PresentationHost` + blanket impl），
+既有调用点签名不变。两条新判据：
+- `s3b3_presentation_host_all_methods_have_defaults` —— 表现面方法不得出现无默认体签名（无默认体 = headless 必须实现它 = 有人把状态藏进了表现面）；
+- `p2b10_host_ctx_final_8_methods` 改判 —— 3+6=9（原 8 方法 + CES 状态面归来 1）。
+
+**本批抓到的真实事故形态**：求解器的 `BHost` 一直把 CES 的状态面
+（`markEntityDesRemoved`，生产 `op_ces` 在 `script_ops.rs:254` 做）**塞在 `ces_camera` 里**。
+也就是说："跳过 UI"这条路径一直在偷偷执行状态写，而它藏在一个名叫 `*_camera` 的方法里。
+拆分后它回到 `WorldHost::mark_entity_des_removed`，引擎 CES 臂显式按「spawn → mark des → 相机」三步调用，
+求解器表现面变成字面上的 `impl PresentationHost for BHost {}`。
+
+### 仍未做（S3·④ 及以后）
+
+生产 `GameScene` **尚未实现**任何宿主 trait（`impl HostCtx for GameScene` 全仓不存在），
+即生产仍走 `scene_script.rs` 自建路径、引擎只服务求解器/测试。要真正合并成一套，
+需把 `script_ops.rs` 里 `op_*` 的 20 余个体（相机四写、spawn+des、ROS 系）搬进
+`SceneHost` 适配器的 trait 方法，再让 `scene_script.rs` 驱动 `ScriptEngine`。
+那一步会**改变生产执行路径**，必须单独成批：先加「引擎 + SceneHost vs 生产路径」的
+68 槽状态对拍（新腿 side_c），对拍绿了才允许切换。
+
+---
+
 ## 附：本文所用一次性复核命令（可复现）
 
 ```bash

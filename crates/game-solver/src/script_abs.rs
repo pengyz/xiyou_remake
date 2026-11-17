@@ -235,7 +235,7 @@ pub mod side_b {
     use game_core::combat::PlayerCombat;
     use game_core::effect_registry::{builtin_effect, EffectParams, ItemCtx, ItemOutcome};
     use game_core::entity::{self, CellGrid, EntityTable};
-    use game_core::script::{DialogueTable, HostCtx, ScriptEngine};
+    use game_core::script::{DialogueTable, PresentationHost, ScriptEngine, WorldHost};
     use game_core::subsystem::dialog::{DialogCtx, DialogStep, DialogSubsystem};
     use game_core::subsystem::entity_service::EntityService;
     use game_core::subsystem::item_service::{ItemResolver, ItemService};
@@ -346,26 +346,26 @@ pub mod side_b {
         }
     }
 
-    impl HostCtx for BHost {
+    impl WorldHost for BHost {
         /// 结果只进不比对域（armed/walk/phase）——恒 false 不影响对拍判据。
         fn find_path(&mut self, _fx: i32, _fy: i32, _tx: i32, _ty: i32) -> bool {
             false
         }
-        fn snap_camera_to_player(&mut self) {}
-        fn locate_speaker_entity(&mut self, _speaker: i32) -> i32 {
-            -1
-        }
-        /// 关键区分钩子：op_ces = spawn + markEntityDesRemoved（script_ops.rs:254），
-        /// op_add = spawn only（无本调用）⇒ 承载 remove_des 以区分 CES/ADD 两臂。
-        fn ces_camera(&mut self, idx: i32) {
-            entity::remove_des(&mut self.entities, idx as usize);
-        }
-        fn set_camera_anchor_target(&mut self, _x: i32, _y: i32) {}
-        fn exit_application(&mut self) {}
         /// 语料零 MVS（实测 296 指令无 MVS）——与 script_golden StubHost 同为边界桩。
         fn mvs_exchange(&mut self) {}
-        fn snap_camera_after_ros1(&mut self, _px: i32, _py: i32) {}
+        /// CES 的状态面：生产 op_ces = spawn + markEntityDesRemoved（script_ops.rs:254），
+        /// op_add = spawn only（无本调用）⇒ 本方法承载 remove_des 以区分 CES/ADD 两臂。
+        ///
+        /// 【2026-11-17 S3·③】此前它挂在 `ces_camera`（表现面）——表现面藏状态会让
+        /// 「跳过 UI」顺手跳过状态，本批已搬回世界面。
+        fn mark_entity_des_removed(&mut self, idx: i32) {
+            entity::remove_des(&mut self.entities, idx as usize);
+        }
     }
+
+    /// 表现面：**零代码**（全默认空实现）。求解不需要相机/锚点/退出。
+    /// 若将来发现某状态必须写在这里，那是分类错，应搬去 WorldHost。
+    impl PresentationHost for BHost {}
 
     impl ItemService for BHost {
         /// 统计面直通 resolver（= op_gin kind0 的 `pickup_item_type` 同一 resolver，

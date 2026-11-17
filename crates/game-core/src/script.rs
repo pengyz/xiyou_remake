@@ -125,27 +125,48 @@ impl Default for ScriptState {
     }
 }
 
-/// 实体/相机/系统副作用边界（P3.2 由实体模块提供真实实现；测试用确定性桩）。
-/// 批1：实体面 9 方法已迁 crate::subsystem::entity_service::EntityService（拆小首件），余 12 暂留。
-/// 批3：对话面 2 方法已迁 crate::subsystem::dialog::DialogSubsystem（Host 边界），余 10 暂留。
-pub trait HostCtx {
+/// 世界面 host（**状态**）：求解必须逐位复现；headless 快进的唯一依赖面。
+///
+/// 纪律：任何改变「比对域状态」的调用只能出现在本面；表现面不许藏状态。
+/// 实体/道具/对话三个服务 trait（`EntityService`/`ItemService`/`DialogSubsystem`）
+/// 同属世界面，拆分见各自的 trait 定义。
+pub trait WorldHost {
     fn find_path(&mut self, from_x: i32, from_y: i32, to_x: i32, to_y: i32) -> bool;
-    // 【批6 摘 2】give_gold/pickup_item 已逐字迁 crate::subsystem::item_service::ItemService（HostCtx 余 8）。
-    /// lockCameraOn 相机部分（无条件）：相机锚 = 玩家像素位。
-    fn snap_camera_to_player(&mut self);
-    /// lockCameraOn 说话人实体定位 → dialogAnchorEntity。
-    fn locate_speaker_entity(&mut self, speaker: i32) -> i32;
-    /// CES 尾部：相机 = 玩家屏幕位；若实体存在则 target = 实体像素位。
-    fn ces_camera(&mut self, entity_idx: i32);
-    /// easeCameraToTarget：SEE 的相机目标设置。
-    fn set_camera_anchor_target(&mut self, x: i32, y: i32);
-    /// CMidlet.dispatchModeEntry：退出应用。
-    fn exit_application(&mut self);
-    /// MVS（P3.2：deobf a.java:8513-8581；数据域 68 条脚本零使用）。
+    /// MVS（deobf a.java:8513-8581；数据域 68 条脚本零使用）。
     fn mvs_exchange(&mut self);
-    /// ROS_1 后 lockCameraOn(0)：相机锚 = 新玩家像素位。
-    fn snap_camera_after_ros1(&mut self, px: i32, py: i32);
+    /// CES 的状态面：Java markEntityDesRemoved（a.java:8394；生产 `op_ces` 同序：
+    /// spawn 之后立即标记移除，`script_ops.rs:254`）。
+    ///
+    /// 【2026-11-17 S3·③】此前求解器把这一步塞进 `ces_camera`（表现面）里——
+    /// 「跳过 UI 就跳过状态」的最典型事故形态；本批把状态搬回世界面，
+    /// 表现面只剩相机。
+    fn mark_entity_des_removed(&mut self, idx: i32);
 }
+
+/// 表现面 host（**表现**）：六个方法全部带默认空实现 ⇒ headless 宿主零代码。
+///
+/// 许可的副作用：相机位置/缓动目标/锚点/退出请求；**禁止**写比对域状态。
+/// 判据：把本 trait 全部方法换成空实现，对拍（script_abs 的 68 槽零差异）必须不变。
+pub trait PresentationHost {
+    /// lockCameraOn 相机部分（无条件）：相机锚 = 玩家像素位。
+    fn snap_camera_to_player(&mut self) {}
+    /// lockCameraOn 说话人实体定位 → dialogAnchorEntity。
+    fn locate_speaker_entity(&mut self, _speaker: i32) -> i32 {
+        -1
+    }
+    /// CES 尾部：相机 = 玩家屏幕位；若实体存在则 target = 实体像素位（**仅相机**）。
+    fn ces_camera(&mut self, _entity_idx: i32) {}
+    /// easeCameraToTarget：SEE 的相机目标设置。
+    fn set_camera_anchor_target(&mut self, _x: i32, _y: i32) {}
+    /// CMidlet.dispatchModeEntry：退出应用。
+    fn exit_application(&mut self) {}
+    /// ROS_1 后 lockCameraOn(0)：相机锚 = 新玩家像素位。
+    fn snap_camera_after_ros1(&mut self, _px: i32, _py: i32) {}
+}
+
+/// 兼容别名：既需要世界面又需要表现面的宿主按本名书写（生产/测试桩常见）。
+pub trait HostCtx: WorldHost + PresentationHost {}
+impl<T: WorldHost + PresentationHost + ?Sized> HostCtx for T {}
 
 pub struct ScriptEngine<'d> {
     data: &'d DialogueTable,
@@ -365,6 +386,9 @@ impl<'d> ScriptEngine<'d> {
             ScriptOp::RosNoop { .. } => {}
             ScriptOp::Ces { ty, cx, cy, .. } => {
                 let idx = host.spawn_entity(ty, cx << 5, cy << 5);
+                // 状态面（生产 op_ces 同序）：spawn 后立即 markEntityDesRemoved
+                host.mark_entity_des_removed(idx);
+                // 表现面：相机缓动（headless 空实现）
                 host.ces_camera(idx);
                 // scene_delay 写已由 slots.apply 收拢，口径 `entity_category_with_floor`
                 // （floor 覆写优先，回落 render_category）——与生产执行器同源。
@@ -457,16 +481,13 @@ impl<'d> ScriptEngine<'d> {
 
 /// 无操作宿主（new() 初始化路径用——load_level_script 会调 snap_camera）。
 pub struct NoopHost;
-impl HostCtx for NoopHost {
+impl WorldHost for NoopHost {
     fn find_path(&mut self, _: i32, _: i32, _: i32, _: i32) -> bool { false }
-    fn snap_camera_to_player(&mut self) {}
-    fn locate_speaker_entity(&mut self, _: i32) -> i32 { -1 }
-    fn ces_camera(&mut self, _: i32) {}
-    fn set_camera_anchor_target(&mut self, _: i32, _: i32) {}
-    fn exit_application(&mut self) {}
     fn mvs_exchange(&mut self) {}
-    fn snap_camera_after_ros1(&mut self, _: i32, _: i32) {}
+    fn mark_entity_des_removed(&mut self, _: i32) {}
 }
+/// 表现面全部走默认空实现（headless 答案是「什么都不写」）。
+impl PresentationHost for NoopHost {}
 impl DialogSubsystem for NoopHost {
     fn tick(&mut self, _: &mut DialogCtx) -> DialogStep { DialogStep::Wait }
     fn set_typewriter(&mut self, _: &str, _: i32, _: i32) {}

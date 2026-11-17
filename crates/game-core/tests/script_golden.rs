@@ -6,7 +6,7 @@
 
 use game_core::enums::GameMode;
 use game_core::enums::{DialogPhase, WalkPhase};
-use game_core::script::{DialogueTable, HostCtx, ScriptEngine};
+use game_core::script::{DialogueTable, PresentationHost, ScriptEngine, WorldHost};
 use game_core::subsystem::entity_service::EntityService;
 use game_core::subsystem::dialog::{DialogCtx, DialogStep, DialogSubsystem};
 use game_core::subsystem::item_service::ItemService;
@@ -49,26 +49,25 @@ struct StubHost {
     reloaded_floors: Vec<i32>,
 }
 
-impl HostCtx for StubHost {
+impl WorldHost for StubHost {
     fn find_path(&mut self, fx: i32, fy: i32, tx: i32, ty: i32) -> bool {
         self.find_path_calls.push((fx, fy, tx, ty));
         self.path_result
     }
-    fn snap_camera_to_player(&mut self) {
-        self.camera_snaps += 1;
-    }
-    fn locate_speaker_entity(&mut self, _speaker: i32) -> i32 {
-        -1
-    }
-    fn ces_camera(&mut self, _idx: i32) {}
-    fn set_camera_anchor_target(&mut self, _x: i32, _y: i32) {}
-    fn exit_application(&mut self) {
-        self.exit_called = true;
-    }
     fn mvs_exchange(&mut self) {
         panic!("MVS 在 P3.1 边界外（数据域零使用）");
     }
-    fn snap_camera_after_ros1(&mut self, _px: i32, _py: i32) {}
+    /// 桩不建实体表 ⇒ CES 状态面无对象可标；生产侧见 GameScene::op_ces。
+    fn mark_entity_des_removed(&mut self, _idx: i32) {}
+}
+
+impl PresentationHost for StubHost {
+    fn snap_camera_to_player(&mut self) {
+        self.camera_snaps += 1;
+    }
+    fn exit_application(&mut self) {
+        self.exit_called = true;
+    }
 }
 impl ItemService for StubHost {
     fn pickup(&mut self, _: &mut game_core::effect_registry::ItemCtx, _: i32) -> game_core::effect_registry::ItemOutcome {
