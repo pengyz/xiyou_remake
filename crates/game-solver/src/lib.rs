@@ -7,6 +7,7 @@
 //! 批0=输入构造 `ingest`（maplv/sprite/fixture 脚本/三表 → `SolverInput`）+ census 快照。
 pub mod doors;
 pub mod ingest;
+pub mod keyflow;
 pub mod query;
 pub mod script_abs;
 pub mod solve_global;

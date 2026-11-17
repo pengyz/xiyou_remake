@@ -273,6 +273,40 @@ fn main() {
         }
         return;
     }
+    if args.first().map(|s| s.as_str()) == Some("keys") {
+        // 逐层累计供需对账：必经门需求 vs 地面拾取供给（逻辑在 lib::keyflow）。
+        let (input, _shops) = solve_global_input(1);
+        let modes = [(game_solver::keyflow::DemandMode::Necessary, "必经"), (game_solver::keyflow::DemandMode::AllDoors, "全门")];
+        for (mode, name) in modes {
+            let r = game_solver::keyflow::analyze(&input.floors, mode);
+            println!(
+                "== 模式={} == 累计需求 黄{} 红{} 蓝{} / 拾取供给 黄{} 红{} 蓝{}",
+                name,
+                r.total_demand[0], r.total_demand[1], r.total_demand[2],
+                r.total_pickup[0], r.total_pickup[1], r.total_pickup[2]
+            );
+            for color in 0..3 {
+                match r.first_break[color] {
+                    Some(f) => println!("   {} 首次断供：f{}", game_solver::keyflow::COLORS[color], f),
+                    None => println!("   {} 全程不断供", game_solver::keyflow::COLORS[color]),
+                }
+            }
+            for row in &r.rows {
+                if row.demand == [0, 0, 0] && !row.broke.iter().any(|b| *b) {
+                    continue;
+                }
+                println!(
+                    "   f{:>2} 需求 {}/{}/{} 拾取 {}/{}/{} 余额 {}/{}/{}{}",
+                    row.floor,
+                    row.demand[0], row.demand[1], row.demand[2],
+                    row.pickup[0], row.pickup[1], row.pickup[2],
+                    row.balance[0], row.balance[1], row.balance[2],
+                    if row.broke.iter().any(|b| *b) { "  ⚠断供" } else { "" }
+                );
+            }
+        }
+        return;
+    }
     if args.first().map(|s| s.as_str()) == Some("solve-local") {
         // 批2 C1：单层求解子命令（逻辑在 lib::solve_local，壳只在此处解析参数+打印）。
         // C6：floor1 接真数据（I/O 归此 bin=A9 豁免面）；其余层保持占位（T1 恒绿面）。
@@ -293,7 +327,7 @@ fn main() {
         return;
     }
     if args.first().map(|s| s.as_str()) != Some("ingest") || args.get(1).map(|s| s.as_str()) != Some("--summary") {
-        eprintln!("用法：solver ingest --summary | solver solve-local --floor <N> | solver solve-global [--bound N] [--out PATH] | solver query --all [--bound N] [--node-cap N] [--ultimate 36,40] [--out PATH] | solver doors [--out PATH]");
+        eprintln!("用法：solver ingest --summary | solver solve-local --floor <N> | solver solve-global [--bound N] [--out PATH] | solver query --all [--bound N] [--node-cap N] [--ultimate 36,40] [--out PATH] | solver doors [--out PATH] | solver keys");
         std::process::exit(2);
     }
     let root = repo();
