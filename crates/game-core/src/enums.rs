@@ -175,6 +175,14 @@ pub mod entity_kind {
     pub const SEAL_CONVERTED: i32 = 4;
     /// MVS 配对交换型
     pub const MVS_PAIR: i32 = 82;
+    /// 黄/红/蓝门（钥匙消耗型；`scene.rs` 门臂 + `data/tables/items.json` 26-28 钥匙对应）
+    pub const DOOR_YELLOW: i32 = 1;
+    pub const DOOR_RED: i32 = 2;
+    pub const DOOR_BLUE: i32 = 3;
+    /// 黄/红/蓝钥匙拾取物（类型码 = 道具 id；`items.json` 26-28）
+    pub const KEY_YELLOW: i32 = 26;
+    pub const KEY_RED: i32 = 27;
+    pub const KEY_BLUE: i32 = 28;
 }
 
 /// 游戏模式（Java `gameMode`，FLD010；state-machine-survey §1.1 全表）。

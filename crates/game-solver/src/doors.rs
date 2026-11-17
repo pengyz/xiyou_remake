@@ -12,7 +12,12 @@
 //! 它回答「拓扑上是否必经」，不是「钥匙够不够」。「够不够」由钥匙来源清单另核。
 
 use crate::solve_local::LevelSpec;
+use game_core::enums::entity_kind::{DOOR_BLUE, DOOR_RED, DOOR_YELLOW, STAIR_DOWN, STAIR_UP};
 use std::collections::{BTreeSet, VecDeque};
+
+fn is_door(ty: i32) -> bool {
+    matches!(ty, DOOR_YELLOW | DOOR_RED | DOOR_BLUE)
+}
 
 /// 门的一行事实。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -31,11 +36,22 @@ pub struct DoorFact {
 
 pub fn color_name(ty: i32) -> &'static str {
     match ty {
-        1 => "黄",
-        2 => "红",
-        3 => "蓝",
+        DOOR_YELLOW => "黄",
+        DOOR_RED => "红",
+        DOOR_BLUE => "蓝",
         _ => "?",
     }
+}
+
+/// 本层为何给不出（或能给出）门的判定——**不允许静默回落**。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FloorStatus {
+    /// 有出发出口，判定有效
+    Ok,
+    /// 本层没有任何「出发型出口」（例如换层靠脚本）：不是门的问题，不给结论
+    NoExit,
+    /// 出口存在，但全部门开着也走不到（真正的封死）
+    BaselineUnreachable,
 }
 
 fn in_bounds(level: &LevelSpec, x: i32, y: i32) -> bool {
@@ -47,17 +63,19 @@ fn terrain_ok(level: &LevelSpec, x: i32, y: i32) -> bool {
 }
 
 /// 到场格与出发格集合：`STAIR_DOWN`=入场，`STAIR_UP`=目标；缺则回落 `level.start` / `exits`。
-pub fn entry_and_goals(level: &LevelSpec) -> ((i32, i32), Vec<(i32, i32)>) {
+/// 到场格与出发格集合。返回 `None` = **本层没有可识别的出发出口**（换层靠脚本等），
+/// 调用方必须如实上报，不许拿 `level.start` 顶替后当成「走不到」。
+pub fn entry_and_goals(level: &LevelSpec) -> Option<((i32, i32), Vec<(i32, i32)>)> {
     let entry = level
         .entities
         .iter()
-        .find(|e| e.ty == 8)
+        .find(|e| e.ty == STAIR_DOWN)
         .map(|e| (e.x, e.y))
         .unwrap_or(level.start);
     let mut goals: Vec<(i32, i32)> = level
         .entities
         .iter()
-        .filter(|e| e.ty == 7)
+        .filter(|e| e.ty == STAIR_UP)
         .map(|e| (e.x, e.y))
         .filter(|p| *p != entry)
         .collect();
@@ -69,7 +87,10 @@ pub fn entry_and_goals(level: &LevelSpec) -> ((i32, i32), Vec<(i32, i32)>) {
             .filter(|p| *p != entry)
             .collect();
     }
-    (entry, goals)
+    if goals.is_empty() {
+        return None;
+    }
+    Some((entry, goals))
 }
 
 /// `entry` 能否走到任一 `goals`；`blocked` 是**被封住的门**的实体下标集合。
@@ -84,7 +105,7 @@ fn can_reach(level: &LevelSpec, entry: (i32, i32), goals: &[(i32, i32)], blocked
         .entities
         .iter()
         .enumerate()
-        .filter(|(_, e)| (1..=3).contains(&e.ty))
+        .filter(|(_, e)| is_door(e.ty))
         .map(|(slot, e)| (e.x, e.y, slot))
         .collect();
     let is_blocked = |x: i32, y: i32| {
@@ -113,18 +134,17 @@ fn can_reach(level: &LevelSpec, entry: (i32, i32), goals: &[(i32, i32)], blocked
 
 /// 逐门判定「必经 / 同色必要」。基线（门全开）都到不了出发梯 ⇒ 置 `baseline_unreachable`，
 /// 此时不虚构必经门（该层缺的不是钥匙，是别的东西——如破墙道具或脚本换层）。
-pub fn analyze_floor(level: &LevelSpec) -> (Vec<DoorFact>, bool) {
+pub fn analyze_floor(level: &LevelSpec) -> (Vec<DoorFact>, FloorStatus) {
     let doors: Vec<(usize, i32, i32, i32)> = level
         .entities
         .iter()
         .enumerate()
-        .filter(|(_, e)| (1..=3).contains(&e.ty))
+        .filter(|(_, e)| is_door(e.ty))
         .map(|(slot, e)| (slot, e.ty, e.x, e.y))
         .collect();
     if doors.is_empty() {
-        return (Vec::new(), false);
+        return (Vec::new(), FloorStatus::Ok);
     }
-    let (entry, goals) = entry_and_goals(level);
     let mk = |(slot, ty, x, y): (usize, i32, i32, i32), nec: bool, cn: bool| DoorFact {
         slot,
         ty,
@@ -133,8 +153,17 @@ pub fn analyze_floor(level: &LevelSpec) -> (Vec<DoorFact>, bool) {
         necessary: nec,
         color_needed: cn,
     };
+    let Some((entry, goals)) = entry_and_goals(level) else {
+        return (
+            doors.iter().map(|d| mk(*d, false, false)).collect(),
+            FloorStatus::NoExit,
+        );
+    };
     if !can_reach(level, entry, &goals, &BTreeSet::new()) {
-        return (doors.iter().map(|d| mk(*d, false, false)).collect(), true);
+        return (
+            doors.iter().map(|d| mk(*d, false, false)).collect(),
+            FloorStatus::BaselineUnreachable,
+        );
     }
     // 同色必要：一次封一整色
     let mut colors_needed: BTreeSet<i32> = BTreeSet::new();
@@ -153,7 +182,7 @@ pub fn analyze_floor(level: &LevelSpec) -> (Vec<DoorFact>, bool) {
             mk(d, nec, colors_needed.contains(&d.1))
         })
         .collect();
-    (out, false)
+    (out, FloorStatus::Ok)
 }
 
 #[cfg(test)]
@@ -206,8 +235,8 @@ mod tests {
     fn doors_single_corridor_door_is_necessary() {
         let mut lv = level(3, 1, vec![true, true, true], (0, 0));
         lv.entities.push(door(1, 1, 0));
-        let (facts, unreachable) = analyze_floor(&lv);
-        assert!(!unreachable);
+        let (facts, status) = analyze_floor(&lv);
+        assert_eq!(status, FloorStatus::Ok);
         assert_eq!(facts.len(), 1);
         assert!(facts[0].necessary, "走廊里唯一的门必开");
         assert!(facts[0].color_needed);
@@ -218,7 +247,8 @@ mod tests {
     fn doors_bypassable_door_is_not_necessary() {
         let mut lv = level(2, 2, vec![true, true, true, true], (0, 0));
         lv.entities.push(door(2, 0, 1));
-        let (facts, _) = analyze_floor(&lv);
+        let (facts, status) = analyze_floor(&lv);
+        assert_eq!(status, FloorStatus::Ok);
         assert_eq!(facts.len(), 1);
         assert!(!facts[0].necessary, "有旁路 ⇒ 不必经");
         assert!(!facts[0].color_needed, "旁路存在 ⇒ 该色钥匙非必须");
@@ -229,9 +259,21 @@ mod tests {
     fn doors_unreachable_baseline_is_flagged() {
         let mut lv = level(3, 1, vec![true, false, true], (0, 0));
         lv.entities.push(door(1, 1, 0));
-        let (facts, unreachable) = analyze_floor(&lv);
-        assert!(unreachable, "地形封死出发梯必须显式标记，不静默给空表");
+        let (facts, status) = analyze_floor(&lv);
+        assert_eq!(status, FloorStatus::BaselineUnreachable, "地形封死出发梯必须显式标记");
         assert!(facts.iter().all(|f| !f.necessary));
+    }
+
+    /// 无出发型出口的层（换层靠脚本）必须报 NoExit，**不许**回落成「走不到」。
+    #[test]
+    fn doors_floor_without_departure_exit_reports_no_exit() {
+        let mut lv = level(3, 1, vec![true, true, true], (0, 0));
+        lv.entities.push(door(1, 1, 0));
+        lv.entities.push(EntSpec { ty: STAIR_DOWN, x: 0, y: 0, param: 0 });
+        lv.exits = vec![ExitSpec { x: 0, y: 0, kind: ExitKind::Stair, index: 1 }];
+        let (facts, status) = analyze_floor(&lv);
+        assert_eq!(status, FloorStatus::NoExit, "只有到场梯没有出发梯 ⇒ NoExit");
+        assert!(facts.iter().all(|f| !f.necessary), "不给结论，不虚构必经门");
     }
 
     /// 入场用 STAIR_DOWN(8)、目标用 STAIR_UP(7)，不理会写死的 start。
@@ -241,10 +283,10 @@ mod tests {
         // 门在 (2,0) 位于「到场梯 → 出发梯」必经段上。
         let mut lv = level(4, 1, vec![false, true, true, true], (0, 0));
         lv.entities.push(door(3, 2, 0));
-        lv.entities.push(EntSpec { ty: 8, x: 3, y: 0, param: 0 });
-        lv.entities.push(EntSpec { ty: 7, x: 1, y: 0, param: 0 });
-        let (facts, unreachable) = analyze_floor(&lv);
-        assert!(!unreachable, "到场梯 (3,0) 应能走到出发梯 (1,0)");
+        lv.entities.push(EntSpec { ty: STAIR_DOWN, x: 3, y: 0, param: 0 });
+        lv.entities.push(EntSpec { ty: STAIR_UP, x: 1, y: 0, param: 0 });
+        let (facts, status) = analyze_floor(&lv);
+        assert_eq!(status, FloorStatus::Ok, "到场梯 (3,0) 应能走到出发梯 (1,0)");
         assert_eq!(facts.len(), 1);
         assert!(facts[0].necessary, "门卡在到场梯与出发梯之间 ⇒ 必经");
     }

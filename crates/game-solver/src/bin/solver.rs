@@ -28,6 +28,33 @@ fn mk_player() -> PlayerCombat {
 }
 
 /// C5：真数据全局求解（层间图 1..=54，入场=(1,11) 来自 handoff load_floor(32,352)；I/O 全在本 bin）。
+/// 全局入口（当前题面：51 层 (1,11)，来自 `state.rs s0()` / `handoff.rs:154 load_floor(32,352)`）。
+/// **这是当前地图的常量，不是机制**——随机地图入口不同，必须由 `--entry/--start-floor`
+/// 或上游配置覆盖；逐层门分析一律用该层自己的到场梯（`doors::entry_and_goals`）。
+const GLOBAL_ENTRY: (i32, i32) = (1, 11);
+const GLOBAL_START_FLOOR: i32 = 51;
+
+/// `--entry X,Y`（缺省=当前题面入口）。
+fn parse_entry(args: &[String]) -> (i32, i32) {
+    let Some(i) = args.iter().position(|a| a == "--entry") else {
+        return GLOBAL_ENTRY;
+    };
+    let v = args.get(i + 1).unwrap_or_else(|| panic!("--entry 需 X,Y"));
+    let mut it = v.split(',');
+    let x = it.next().and_then(|t| t.trim().parse().ok()).unwrap_or_else(|| panic!("--entry X,Y: {v}"));
+    let y = it.next().and_then(|t| t.trim().parse().ok()).unwrap_or_else(|| panic!("--entry X,Y: {v}"));
+    (x, y)
+}
+
+/// `--start-floor N`（缺省=当前题面起点层）。
+fn parse_start_floor(args: &[String]) -> i32 {
+    args.iter()
+        .position(|a| a == "--start-floor")
+        .and_then(|i| args.get(i + 1))
+        .map(|v| v.parse().unwrap_or_else(|_| panic!("--start-floor 需整数: {v}")))
+        .unwrap_or(GLOBAL_START_FLOOR)
+}
+
 fn solve_global_input(
     bound: u64,
 ) -> (
@@ -83,7 +110,7 @@ fn solve_global_input(
         if let Ok(inp) = load_floor(
             &si,
             f,
-            (1, 11),
+            GLOBAL_ENTRY,
             PlayerSpec::from_combat(mk_player()),
             scaled.clone(),
             base.clone(),
@@ -96,8 +123,8 @@ fn solve_global_input(
     }
     let gi = game_solver::solve_global::GlobalInput {
         floors,
-        start_floor: 51,
-        start_pos: (1, 11),
+        start_floor: GLOBAL_START_FLOOR,
+        start_pos: GLOBAL_ENTRY,
         start_player: PlayerSpec::from_combat(mk_player()),
         start_flags: 0,
         bound,
@@ -193,16 +220,18 @@ fn main() {
     if args.first().map(|s| s.as_str()) == Some("doors") {
         // 必经门清单：把 C4-a「充分+必要」判据推广到门（逻辑在 lib::doors）。
         // 口径：单独封住这扇门 ⇒ 出口不可达 = 必经；封住同色全部门 ⇒ 不可达 = 该色钥匙至少一把必须。
-        let (input, _shops) = solve_global_input(1);
-        let mut all: Vec<(i32, Vec<game_solver::doors::DoorFact>, bool)> = Vec::new();
+        let (mut input, _shops) = solve_global_input(1);
+        input.start_pos = parse_entry(&args);
+        input.start_floor = parse_start_floor(&args);
+        let mut all: Vec<(i32, Vec<game_solver::doors::DoorFact>, game_solver::doors::FloorStatus)> = Vec::new();
         for (f, lv) in &input.floors {
-            let (facts, unreachable) = game_solver::doors::analyze_floor(lv);
-            all.push((*f, facts, unreachable));
+            let (facts, status) = game_solver::doors::analyze_floor(lv);
+            all.push((*f, facts, status));
         }
         let mut json = String::from("{\"floors\":[");
         let mut first_floor = true;
         let (mut n_doors, mut n_nec, mut n_color, mut n_unreach) = (0usize, 0usize, 0usize, 0usize);
-        for (f, facts, unreachable) in &all {
+        for (f, facts, status) in &all {
             n_doors += facts.len();
             let nec: Vec<String> = facts
                 .iter()
@@ -221,7 +250,7 @@ fn main() {
             };
             n_nec += facts.iter().filter(|d| d.necessary).count();
             n_color += facts.iter().filter(|d| d.color_needed).count();
-            if *unreachable {
+            if *status != game_solver::doors::FloorStatus::Ok {
                 n_unreach += 1;
             }
             if !facts.is_empty() {
@@ -231,14 +260,23 @@ fn main() {
                     facts.len(),
                     if nec.is_empty() { "—".to_string() } else { nec.join(" ") },
                     if colors.is_empty() { "—".to_string() } else { colors.join("") },
-                    if *unreachable { "  ⚠基线不可达" } else { "" }
+                    match status {
+                        game_solver::doors::FloorStatus::Ok => "",
+                        game_solver::doors::FloorStatus::NoExit => "  ⚠无出发型出口（换层靠脚本，未建模）",
+                        game_solver::doors::FloorStatus::BaselineUnreachable => "  ⚠门全开也走不到（非钥匙问题）",
+                    }
                 );
             }
             if !first_floor {
                 json.push(',');
             }
             first_floor = false;
-            json.push_str(&format!("{{\"floor\":{},\"baseline_unreachable\":{},\"doors\":[", f, unreachable));
+            let status_tag = match status {
+                game_solver::doors::FloorStatus::Ok => "ok",
+                game_solver::doors::FloorStatus::NoExit => "no_exit",
+                game_solver::doors::FloorStatus::BaselineUnreachable => "baseline_unreachable",
+            };
+            json.push_str(&format!("{{\"floor\":{},\"status\":\"{}\",\"doors\":[", f, status_tag));
             for (i, d) in facts.iter().enumerate() {
                 if i > 0 {
                     json.push(',');
@@ -256,11 +294,11 @@ fn main() {
             json.push_str("]}");
         }
         println!(
-            "== 合计 == 门 {} 扇 / 必经 {} / 同色必要 {} / 基线不可达层 {}",
+            "== 合计 == 门 {} 扇 / 必经 {} / 同色必要 {} / 判定无效层 {}",
             n_doors, n_nec, n_color, n_unreach
         );
         json.push_str(&format!(
-            "],\"summary\":{{\"doors\":{},\"necessary\":{},\"color_needed\":{},\"baseline_unreachable_floors\":{}}}}}",
+            "],\"summary\":{{\"doors\":{},\"necessary\":{},\"color_needed\":{},\"no_verdict_floors\":{}}}}}",
             n_doors, n_nec, n_color, n_unreach
         ));
         if let Some(path) = args
@@ -290,6 +328,12 @@ fn main() {
                     Some(f) => println!("   {} 首次断供：f{}", game_solver::keyflow::COLORS[color], f),
                     None => println!("   {} 全程不断供", game_solver::keyflow::COLORS[color]),
                 }
+            }
+            if !r.no_exit_floors.is_empty() {
+                println!(
+                    "   ⚠无出发型出口的层（换层靠脚本，未计入门需求）：{:?}",
+                    r.no_exit_floors
+                );
             }
             for row in &r.rows {
                 if row.demand == [0, 0, 0] && !row.broke.iter().any(|b| *b) {

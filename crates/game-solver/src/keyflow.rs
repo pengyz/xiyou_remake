@@ -25,11 +25,13 @@ pub enum DemandMode {
 /// 颜色下标：0=黄 1=红 2=蓝。
 pub const COLORS: [&str; 3] = ["黄", "红", "蓝"];
 
+/// 门/钥匙类型码 → 颜色下标。类型码本身是**机制常量**，单一来源在 `game_core::enums`。
 pub fn color_index(ty: i32) -> Option<usize> {
+    use game_core::enums::entity_kind::*;
     match ty {
-        26 | 1 => Some(0),
-        27 | 2 => Some(1),
-        28 | 3 => Some(2),
+        DOOR_YELLOW | KEY_YELLOW => Some(0),
+        DOOR_RED | KEY_RED => Some(1),
+        DOOR_BLUE | KEY_BLUE => Some(2),
         _ => None,
     }
 }
@@ -55,6 +57,8 @@ pub struct FlowReport {
     /// 每色累计需求/累计供给（全程合计）
     pub total_demand: [i32; 3],
     pub total_pickup: [i32; 3],
+    /// 无法给出门判定的层（无出发型出口，换层靠脚本）——结论必须显式带上
+    pub no_exit_floors: Vec<i32>,
 }
 
 /// 逐层结算（升序）。
@@ -64,8 +68,12 @@ pub fn analyze(floors: &BTreeMap<i32, LevelSpec>, mode: DemandMode) -> FlowRepor
     let mut first_break: [Option<i32>; 3] = [None, None, None];
     let mut total_demand = [0i32; 3];
     let mut total_pickup = [0i32; 3];
+    let mut no_exit_floors: Vec<i32> = Vec::new();
     for (f, lv) in floors {
-        let (facts, _unreachable) = doors::analyze_floor(lv);
+        let (facts, status) = doors::analyze_floor(lv);
+        if status != doors::FloorStatus::Ok {
+            no_exit_floors.push(*f);
+        }
         let mut demand = [0i32; 3];
         for d in &facts {
             let open = match mode {
@@ -80,9 +88,14 @@ pub fn analyze(floors: &BTreeMap<i32, LevelSpec>, mode: DemandMode) -> FlowRepor
         }
         let mut pickup = [0i32; 3];
         for e in &lv.entities {
-            if let Some(i) = color_index(e.ty) {
-                // 26/27/28 是钥匙拾取；1/2/3 是门（已在上面的 demand 里处理）
-                if matches!(e.ty, 26 | 27 | 28) {
+            // 只算钥匙拾取物；门本身在 demand 里处理
+            if matches!(
+                e.ty,
+                game_core::enums::entity_kind::KEY_YELLOW
+                    | game_core::enums::entity_kind::KEY_RED
+                    | game_core::enums::entity_kind::KEY_BLUE
+            ) {
+                if let Some(i) = color_index(e.ty) {
                     pickup[i] += 1;
                 }
             }
@@ -116,6 +129,7 @@ pub fn analyze(floors: &BTreeMap<i32, LevelSpec>, mode: DemandMode) -> FlowRepor
         first_break,
         total_demand,
         total_pickup,
+        no_exit_floors,
     }
 }
 
