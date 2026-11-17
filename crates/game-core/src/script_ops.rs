@@ -398,7 +398,7 @@ impl GameScene {
     /// MOV var55>0 续取 3 参（五参）/ DES 负参分支 / ROS 子码条件取参 /
     /// GUT 无游标（load 重置）。每变体自带**推进后游标**（各 op 的 +1 口径
     /// 逐 op 锚注释）；16 标签外 ⇒ None（R-TODO-1b 停摆）。
-    pub(super) fn parse_op(line: &str, script_cursor0: usize) -> Option<ScriptOp> {
+    pub(crate) fn parse_op(line: &str, script_cursor0: usize) -> Option<ScriptOp> {
         let op = &line[script_cursor0..script_cursor0 + 3];
         // 与旧臂同口径：substring 后 script_cursor0 无条件 +3（a.java:8244-8239）——
         // 首参基址 = script_cursor0+1；SWD/MVS 游标 = script_cursor0+1
