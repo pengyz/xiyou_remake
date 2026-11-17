@@ -116,7 +116,7 @@ fn tak_opens_page255_cursor0_to_12() {
     let mut eng = ScriptEngine::new(&t, PROLOGUE);
     eng.step(&mut host);
 
-    assert_eq!(eng.state.script_cursor, 12, "trace t578");
+    assert_eq!(eng.state.slots.script_cursor, 12, "trace t578");
     assert_eq!(eng.state.dialog_phase, DialogPhase::Typewriter);
     assert_eq!(eng.state.dialog_page, 255);
     assert_eq!(eng.state.tak_page_start, 255);
@@ -149,7 +149,7 @@ fn tak_page_advance_and_exhaust_resumes_script() {
     eng.advance_dialog_page(&mut host); // 260 > 259 → 榨干
     assert_eq!(eng.state.dialog_phase, DialogPhase::ScriptStep);
     eng.step(&mut host); // 恢复执行：TAK_165_165
-    assert_eq!(eng.state.script_cursor, 24, "trace t1002");
+    assert_eq!(eng.state.slots.script_cursor, 24, "trace t1002");
     assert_eq!(eng.state.dialog_page, 165);
     assert_eq!(eng.state.dialog_phase, DialogPhase::Typewriter);
 }
@@ -178,15 +178,15 @@ fn see_bug006_replay_cursor_advances_walk_not_armed() {
     eng.step(&mut host); // TAK_255_259 → 12（trace t584）
     drive_to_see(&mut eng, &mut host);
     eng.step(&mut host); // SEE_3_10_166_166_1
-    assert_eq!(eng.state.script_cursor, 43, "trace t1202");
-    assert!(!eng.state.script_walk_armed);
+    assert_eq!(eng.state.slots.script_cursor, 43, "trace t1202");
+    assert!(!eng.state.slots.script_walk_armed);
     // 【2026-11-16 更正】原断言「行尾收尾门覆写 6→4」作废：javap 证明尾检查零字段写
     // （2397 if_icmpge 2431 / 2400 return / 2431 return），收尾写属下一拍入口门。
     // 故 SEE 同拍保持 6（TypewriterCamera），下一拍入口门才落 4——BUG-006 冻结态不变，
     // 只是拍点晚一拍。
     assert_eq!(eng.state.dialog_phase, DialogPhase::TypewriterCamera,
         "SEE 同拍置 6，尾检查不改写（javap 2400/2431）");
-    assert!(!eng.state.script_line_flags[PROLOGUE], "同拍不置行旗标");
+    assert!(!eng.state.slots.script_line_flags[PROLOGUE], "同拍不置行旗标");
     assert_eq!(eng.state.dialog_page, 166);
     assert_eq!(host.find_path_calls, vec![(1, 11, 3, 10)]);
     // 下一拍：cursor+3 > len ⇒ 入口门收尾（Java 2401）
@@ -194,7 +194,7 @@ fn see_bug006_replay_cursor_advances_walk_not_armed() {
     let snaps = host.camera_snaps;
     eng.step(&mut host);
     assert_eq!(eng.state.dialog_phase, DialogPhase::AwaitCamera, "入口门落 4");
-    assert!(eng.state.script_line_flags[PROLOGUE], "入口门置行旗标");
+    assert!(eng.state.slots.script_line_flags[PROLOGUE], "入口门置行旗标");
     assert_eq!(host.camera_snaps, snaps + 1, "入口门回相机");
 }
 
@@ -207,7 +207,7 @@ fn see_path_found_arms_walk() {
     let mut eng = ScriptEngine::new(&t, PROLOGUE);
     drive_to_see(&mut eng, &mut host);
     eng.step(&mut host);
-    assert_eq!(eng.state.script_cursor, 43);
+    assert_eq!(eng.state.slots.script_cursor, 43);
     assert!(eng.state.walk_request_flag);
     assert_eq!(eng.state.walk_phase, WalkPhase::Idle);
     // 【2026-11-16 更正】原「行尾收尾门覆写为 4」作废（javap 2400/2431 零字段写）：
@@ -228,11 +228,11 @@ fn gut_flags_and_jumps() {
     let mut eng = ScriptEngine::new(&t, gut_entry);
     // 直接把 cursor 推到 GUT_37 的位置
     let pos = t.scripts[gut_entry].find("GUT_37").unwrap();
-    eng.state.script_cursor = pos;
+    eng.state.slots.script_cursor = pos;
     eng.step(&mut host);
-    assert!(eng.state.script_line_flags[gut_entry]);
-    assert_eq!(eng.state.current_script_index, 37);
-    assert_eq!(eng.state.script_cursor, 0);
+    assert!(eng.state.slots.script_line_flags[gut_entry]);
+    assert_eq!(eng.state.slots.current_script_index, 37);
+    assert_eq!(eng.state.slots.script_cursor, 0);
     assert_eq!(eng.state.game_mode, GameMode::Dialog);
     assert_eq!(eng.state.dialog_phase, DialogPhase::ScriptStep);
     assert_eq!(eng.state.overlay_text, None);
@@ -253,7 +253,7 @@ fn res_resets_stats_when_difficulty_zero() {
     eng.state.yellow_keys = 9;
     // 推进 cursor 到 RES_0
     let pos = t.scripts[entry0].find("RES_0").unwrap();
-    eng.state.script_cursor = pos;
+    eng.state.slots.script_cursor = pos;
     eng.step(&mut host);
     assert_eq!(eng.state.player_hp, 400);
     assert_eq!(eng.state.player_atk, 10);
@@ -275,10 +275,10 @@ fn ros_sets_player_fields() {
     eng.set_script_line_for_test("ROS_3_77 ROS_4_2 ");
     eng.step(&mut host);
     assert_eq!(eng.state.player_hp, 77);
-    assert_eq!(eng.state.script_cursor, 9);
+    assert_eq!(eng.state.slots.script_cursor, 9);
     eng.step(&mut host);
     assert_eq!(eng.state.facing_direction, 2);
-    assert_eq!(eng.state.script_cursor, 17);
+    assert_eq!(eng.state.slots.script_cursor, 17);
 }
 
 #[test]
@@ -294,7 +294,7 @@ fn gin_tail_recurses_into_next_instruction() {
     // 尾递归：TAK 同步执行完毕
     assert_eq!(eng.state.dialog_phase, DialogPhase::Typewriter);
     assert_eq!(eng.state.dialog_page, 8);
-    assert_eq!(eng.state.script_cursor, 19);
+    assert_eq!(eng.state.slots.script_cursor, 19);
 }
 
 #[test]
@@ -319,7 +319,7 @@ fn mov_player_path_gates_walk_phase() {
     eng.set_script_line_for_test("MOV_0_5_11 GLV_0 ");
     eng.step(&mut host);
     assert_eq!(eng.state.dialog_phase, DialogPhase::Walk);
-    assert!(eng.state.script_walk_armed, "a.java:8282 三写点（复核 R2）");
+    assert!(eng.state.slots.script_walk_armed, "a.java:8282 三写点（复核 R2）");
     assert_eq!(eng.state.walk_phase, WalkPhase::Idle);
     assert!(host.camera_snaps > 0);
     assert_eq!(host.find_path_calls, vec![(1, 11, 5, 11)]); // playerCell(1,11)（gameplay-floor1 实测起点）
@@ -336,9 +336,9 @@ fn cursor_stops_at_line_end_bug006_frozen() {
     let t = table();
     let mut host = StubHost::default();
     let mut eng = ScriptEngine::new(&t, PROLOGUE);
-    eng.state.script_cursor = 43;
+    eng.state.slots.script_cursor = 43;
     eng.step(&mut host);
-    assert_eq!(eng.state.script_cursor, 43);
+    assert_eq!(eng.state.slots.script_cursor, 43);
 }
 
 #[test]
@@ -379,7 +379,7 @@ fn prologue_timeline_replays_trace() {
     let mut texts = vec![];
 
     eng.step(&mut host); // t578
-    timeline.push(eng.state.script_cursor);
+    timeline.push(eng.state.slots.script_cursor);
     texts.push(eng.state.overlay_text.clone().unwrap());
     for _ in 0..4 {
         // 玩家 -5 推进页 256..259
@@ -388,11 +388,11 @@ fn prologue_timeline_replays_trace() {
     }
     eng.advance_dialog_page(&mut host); // 榨干 → phase 0
     eng.step(&mut host); // t1002: TAK_165_165
-    timeline.push(eng.state.script_cursor);
+    timeline.push(eng.state.slots.script_cursor);
     texts.push(eng.state.overlay_text.clone().unwrap());
     eng.advance_dialog_page(&mut host); // 166 > 165 → 榨干
     eng.step(&mut host); // t1202: SEE（path=false）
-    timeline.push(eng.state.script_cursor);
+    timeline.push(eng.state.slots.script_cursor);
 
     assert_eq!(timeline, vec![12, 24, 43], "trace 过渡序列（采样格式下过渡 tick 为 584/782/902）");
     assert_eq!(texts.len(), 6, "对白文本序列：255..259 五句 + TAK_165_165 一句");
@@ -417,11 +417,11 @@ fn tail_check_is_noop_tak_at_line_end() {
     let mut host = StubHost::default();
     let mut eng = ScriptEngine::new(&t, idx);
     eng.step(&mut host);
-    assert_eq!(eng.state.script_cursor, t.scripts[idx].len(), "TAK 消费后游标到行尾");
+    assert_eq!(eng.state.slots.script_cursor, t.scripts[idx].len(), "TAK 消费后游标到行尾");
     assert_eq!(eng.state.dialog_page, 53, "TAK 页区间已解析");
     assert_eq!(eng.state.dialog_phase, DialogPhase::Typewriter,
         "同一拍不得被尾检查改写成 AwaitCamera（否则整页对白立即收尾）");
-    assert!(!eng.state.script_line_flags[idx], "同一拍不得置行旗标");
+    assert!(!eng.state.slots.script_line_flags[idx], "同一拍不得置行旗标");
     // open_dialog_page 内部会 snap 一次（lockCameraOn 头部），此处不算收尾相机
     assert_eq!(host.camera_snaps, 1, "只有 open_dialog_page 的相机，不含收尾快照");
 }
@@ -444,7 +444,7 @@ fn tail_check_writes_at_next_tick_entry_gate() {
     let snaps_before = host.camera_snaps;
     eng.step(&mut host); // 下一拍：cursor+3 > len ⇒ 入口门
     assert_eq!(eng.state.dialog_phase, DialogPhase::AwaitCamera, "入口门写收尾相位");
-    assert!(eng.state.script_line_flags[idx], "入口门置行旗标");
+    assert!(eng.state.slots.script_line_flags[idx], "入口门置行旗标");
     assert_eq!(host.camera_snaps, snaps_before + 1, "入口门回相机");
     // 再进一拍：cursor 不变，仍是入口门（幂等）
     eng.state.dialog_phase = DialogPhase::ScriptStep;

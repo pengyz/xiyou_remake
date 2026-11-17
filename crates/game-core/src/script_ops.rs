@@ -552,10 +552,10 @@ impl GameScene {
     /// GUT 的游标随后被 loadLevelScript 重置为 0（a.java:8308-8311 原样）。
     pub(super) fn execute_op(&mut self, op: ScriptOp) {
         // 【P2 批5】脚本域写面收拢 ScriptResolver（cursor/Gut 旗标/Ces delay/Gin 尾递归信号）
+        // 【2026-11-17 S3·②】改走共享唯一入口 `apply_script_domain`——与第二执行器同一份实现。
         let step = {
             let mut ctx = self.script_ctx();
-            let mut r = crate::subsystem::script_host::ScriptResolver;
-            r.execute_op(&mut ctx, op)
+            crate::subsystem::script_host::apply_script_domain(&mut ctx, op)
         };
         match op {
             ScriptOp::Tak { start, end, .. } => self.op_tak(start, end),

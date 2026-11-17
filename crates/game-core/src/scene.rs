@@ -3725,7 +3725,8 @@ impl GameScene {
             }
         }
 
-        /// 【P2 批5】脚本域 ctx（6 写槽+player/entities 读+floor 值拷贝——disjoint field borrows）。
+        /// 【P2 批5】脚本域 ctx（6 写槽+floor 值拷贝——disjoint field borrows）。
+        /// 【2026-11-17 S3·②】player/entities 读槽已删（resolver 只用 floor）。
         fn script_ctx(&mut self) -> crate::subsystem::script_host::ScriptCtx<'_> {
             crate::subsystem::script_host::ScriptCtx {
                 current_script_index: &mut self.current_script_index,
@@ -3734,8 +3735,6 @@ impl GameScene {
                 script_line: &mut self.script_line,
                 script_line_flags: &mut self.script_line_flags,
                 script_walk_armed: &mut self.script_walk_armed,
-                player: &self.player,
-                entities: &self.entities,
                 floor: self.persist.floor,
             }
         }

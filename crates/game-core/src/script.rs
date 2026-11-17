@@ -30,9 +30,10 @@ use crate::enums::GameMode;
 use crate::enums::WalkPhase;
 
 pub struct ScriptState {
-    pub current_script_index: usize,
-    pub script_cursor: usize,
-    pub script_line_flags: Vec<bool>,
+    /// 脚本域六槽（S3·② 单源载体：写规则 = subsystem::script_host::apply_script_domain）
+    /// 引擎侧字段映射：scene_delay ⇄ script_delay；script_line 不用（行文本来自
+    /// `script_line_override` 或 data.scripts[idx]）。
+    pub slots: crate::subsystem::script_host::ScriptSlots,
     pub dialog_phase: DialogPhase,
     pub dialog_page: i32,
     pub dialog_char_pos: i32,
@@ -43,13 +44,11 @@ pub struct ScriptState {
     pub tak_page_end: i32,
     pub camera_anchor_x: i32,
     pub camera_anchor_y: i32,
-    pub scene_delay: i32,
     pub game_mode: GameMode,
     /// 转移计数（件 A' 收口观测，harness 面）
     pub transition_count: u32,
     /// 转移日志（件 A' 收口观测，harness 面）
     pub last_transition: Option<(GameMode, GameMode)>,
-    pub script_walk_armed: bool,
     pub walk_request_flag: bool,
     pub walk_phase: WalkPhase,
     pub layer_byte: i32,
@@ -83,9 +82,7 @@ pub struct ScriptState {
 impl Default for ScriptState {
     fn default() -> Self {
         Self {
-            current_script_index: 0,
-            script_cursor: 0,
-            script_line_flags: Vec::new(),
+            slots: Default::default(),
             dialog_phase: DialogPhase::ScriptStep,
             dialog_page: 0,
             dialog_char_pos: 0,
@@ -96,11 +93,9 @@ impl Default for ScriptState {
             tak_page_end: 0,
             camera_anchor_x: 0,
             camera_anchor_y: 0,
-            scene_delay: 0,
             game_mode: GameMode::Boot,
             transition_count: 0,
             last_transition: None,
-            script_walk_armed: false,
             walk_request_flag: false,
             walk_phase: WalkPhase::Idle,
             layer_byte: 0,
@@ -162,7 +157,7 @@ pub struct ScriptEngine<'d> {
 impl<'d> ScriptEngine<'d> {
     pub fn new(data: &'d DialogueTable, script_index: usize) -> Self {
         let mut state = ScriptState::default();
-        state.script_line_flags = vec![false; data.scripts.len()];
+        state.slots.script_line_flags = vec![false; data.scripts.len()];
         let mut eng = Self { data, state, script_line_override: None };
         eng.load_level_script(&mut NoopHost, script_index);
         eng
@@ -185,21 +180,21 @@ impl<'d> ScriptEngine<'d> {
     fn line(&self) -> String {
         match &self.script_line_override {
             Some(s) => s.clone(),
-            None => self.data.scripts[self.state.current_script_index].clone(),
+            None => self.data.scripts[self.state.slots.current_script_index].clone(),
         }
     }
 
     /// GUT_ 目标装载 = Java loadLevelScript（a.java:8020-8029）。
     /// 批1 界收窄：snap_camera（HostCtx）+reload_floor_entities（EntityService）双面。
     pub fn load_level_script(&mut self, host: &mut (impl HostCtx + EntityService), idx: usize) {
-        self.state.script_walk_armed = false;
+        self.state.slots.script_walk_armed = false;
         self.state_transition(GameMode::Dialog);
-        self.state.current_script_index = idx;
+        self.state.slots.current_script_index = idx;
         self.state.dialog_page = 0;
         host.snap_camera_to_player(); // lockCameraOn(0)
         self.state.dialog_phase = DialogPhase::ScriptStep;
         self.state.overlay_text = None;
-        self.state.script_cursor = 0;
+        self.state.slots.script_cursor = 0;
         // Java case 31 特例（地图/实体重排，a.java:8028-8028）：
         // 层重排属实体域，P3.1 以层重载 hook 表达可见副作用的最小保真。
         if idx == 31 {
@@ -249,8 +244,8 @@ impl<'d> ScriptEngine<'d> {
     /// 批1 界收窄：透传 execute_script_instruction（EntityService 面）。
     pub fn step(&mut self, host: &mut (impl HostCtx + EntityService + DialogSubsystem + ItemService)) {
         if self.state.dialog_phase == DialogPhase::ScriptStep {
-            if self.state.scene_delay > 0 {
-                self.state.scene_delay -= 1;
+            if self.state.slots.script_delay > 0 {
+                self.state.slots.script_delay -= 1;
             } else {
                 self.execute_script_instruction(host);
             }
@@ -269,13 +264,13 @@ impl<'d> ScriptEngine<'d> {
         host: &mut (impl HostCtx + EntityService + DialogSubsystem + ItemService),
     ) {
         let line = self.line();
-        let script_cursor0 = self.state.script_cursor;
+        let script_cursor0 = self.state.slots.script_cursor;
         if script_cursor0 + 3 > line.len() {
             // 入口门（javap 偏移 22 的 `cursor+3 > len` ⇒ 2401 门体）：序章 cursor=43 冻结 phase=4 实证
             self.state.dialog_phase = DialogPhase::AwaitCamera;
-            if self.state.current_script_index != 32 {
-                let cur = self.state.current_script_index;
-                self.state.script_line_flags[cur] = true;
+            if self.state.slots.current_script_index != 32 {
+                let cur = self.state.slots.current_script_index;
+                self.state.slots.script_line_flags[cur] = true;
             }
             host.snap_camera_to_player();
             return;
@@ -295,7 +290,10 @@ impl<'d> ScriptEngine<'d> {
         host: &mut (impl HostCtx + EntityService + DialogSubsystem + ItemService),
         op: ScriptOp,
     ) {
-        self.state.script_cursor = op.cursor();
+        // 脚本域写（游标/GUT 旗标/CES delay/GIN 尾递归信号）走共享入口，
+        // 与生产执行器同一份实现（S3·②）；Recurse ⇒ 同拍重入下一条。
+        let floor = self.state.current_floor;
+        let step = self.state.slots.apply(op, floor);
         match op {
             ScriptOp::Tak { start, end, .. } => {
                 self.state.tak_page_start = start;
@@ -328,15 +326,14 @@ impl<'d> ScriptEngine<'d> {
                     dst.1,
                 ) {
                     // a.java:8288-8284：三写点缺一不可（复核 R2）
-                    self.state.script_walk_armed = true;
+                    self.state.slots.script_walk_armed = true;
                     self.state.dialog_phase = DialogPhase::Walk;
                     self.state.walk_phase = crate::enums::WalkPhase::Idle;
                     host.snap_camera_to_player(); // lockCameraOn(0)
                 }
             }
             ScriptOp::Gut { target, .. } => {
-                let cur = self.state.current_script_index;
-                self.state.script_line_flags[cur] = true;
+                // 旗标写已由 slots.apply 收拢（Res 批5 规则）
                 self.load_level_script(host, target as usize);
             }
             ScriptOp::DesAll { want, .. } => host.remove_all_of_type(want),
@@ -369,12 +366,11 @@ impl<'d> ScriptEngine<'d> {
             ScriptOp::Ces { ty, cx, cy, .. } => {
                 let idx = host.spawn_entity(ty, cx << 5, cy << 5);
                 host.ces_camera(idx);
-                // scene_delay：switch(renderCategoryByType[type]) 类目表（a.java:8390；
-                // 类目表初始化 a.java:6227-6269——复核 R3 纠正：查类目非裸 type）
-                self.state.scene_delay = crate::enums::Category::from_raw(
-                    self.data.type_categories[ty as usize],
-                )
-                .scene_delay();
+                // scene_delay 写已由 slots.apply 收拢，口径 `entity_category_with_floor`
+                // （floor 覆写优先，回落 render_category）——与生产执行器同源。
+                // 旧实现查静态 `data.type_categories[ty]`：不读 floor，语义面比生产窄；
+                // 68 槽对拍显示两者在现语料上取值一致（无槽命中楼层覆写），
+                // 故该分叉此前无判据覆盖（S3·② 由 delay 域对拍补上）。
             }
             ScriptOp::Gin { kind, value, .. } => {
                 match kind {
@@ -382,7 +378,7 @@ impl<'d> ScriptEngine<'d> {
                     1 => host.give_gold(value),
                     _ => {}
                 }
-                self.execute_script_instruction(host); // 唯一显式尾递归（a.java:8420）
+                // 尾递归不在此手写：由 slots.apply 返回的 Recurse 统一判定（函数尾）
             }
             ScriptOp::Add { floor, ty, cx, cy, .. } => {
                 if self.state.current_floor != floor {
@@ -442,6 +438,11 @@ impl<'d> ScriptEngine<'d> {
             }
             ScriptOp::Sms { .. } => {}
             ScriptOp::Mvs { .. } => host.mvs_exchange(),
+        }
+
+        if matches!(step, crate::subsystem::script_host::ScriptStep::Recurse) {
+            // GIN 同拍尾递归（a.java:8435-8436）：回入口跑下一条，与生产同口径
+            self.execute_script_instruction(host);
         }
 
         // 【2026-11-16 删门·字节码裁定】行尾检查不是收尾门：javap

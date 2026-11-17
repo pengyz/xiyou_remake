@@ -250,10 +250,10 @@
             let prod = sc.script_cursor;
             let mut eng = ScriptEngine::new(&table, 0);
             eng.set_script_line_for_test(line);
-            eng.state.script_cursor = 0;
+            eng.state.slots.script_cursor = 0;
             let mut host = NoopHost;
             eng.execute_script_instruction(&mut host);
-            assert_eq!(eng.state.script_cursor, prod, "op {op} 两面游标推进一致（line={line:?}）");
+            assert_eq!(eng.state.slots.script_cursor, prod, "op {op} 两面游标推进一致（line={line:?}）");
         }
         // 未知 op 两面同停摆（R-TODO-1b）
         for line in ["ZZZ_0 ", "QQ "] {
@@ -262,10 +262,10 @@
             assert_eq!(sc.script_cursor, 0, "生产面未知 op 停摆（{line:?}）");
             let mut eng = ScriptEngine::new(&table, 0);
             eng.set_script_line_for_test(line);
-            eng.state.script_cursor = 0;
+            eng.state.slots.script_cursor = 0;
             let mut host = NoopHost;
             eng.execute_script_instruction(&mut host);
-            assert_eq!(eng.state.script_cursor, 0, "harness 面未知 op 停摆（{line:?}）");
+            assert_eq!(eng.state.slots.script_cursor, 0, "harness 面未知 op 停摆（{line:?}）");
         }
     }
 

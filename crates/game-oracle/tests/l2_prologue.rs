@@ -112,8 +112,8 @@ fn l2_prologue_cursor_and_text_transitions_match_java() {
         }
         eng.step(&mut host);
 
-        if eng.state.script_cursor != last_cursor {
-            last_cursor = eng.state.script_cursor;
+        if eng.state.slots.script_cursor != last_cursor {
+            last_cursor = eng.state.slots.script_cursor;
             got_cursor_transitions.push(last_cursor);
         }
         if let Some(ov) = &eng.state.overlay_text {

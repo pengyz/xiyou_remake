@@ -24,13 +24,15 @@
 //! scriptLineFlags/currentScriptIndex/scriptWalkArmed=FLD 覆盖非盲区。plan:69 点名项无 script 域项
 //! （dialog/persist 域已登记=p2b5 跨域断言；menu4 批6/tap1 批7 已销账——pending 全清）。
 
-use crate::combat::PlayerCombat;
-use crate::entity::EntityTable;
 
 /// ScriptOp 前置引用（script_ops.rs pub enum——批1 可见性 1 词提升面）。
 pub use crate::scene::ScriptOp;
 
-/// 脚本域状态切片（ScriptCtx——写面 6 槽=field-ownership script 域+读 player/entities/floor 值拷贝）。
+/// 脚本域状态切片（ScriptCtx——写面 6 槽 + floor 值拷贝）。
+///
+/// 【2026-11-17 S3·②】原 `player`/`entities` 读槽已删：resolver 全仓唯一消费点是
+/// CES 类目查表，而 `entity_category_with_floor(t, floor)` 只吃 `t` 与 `floor`
+/// ——两个读槽是历史遗留的死重（保留会让第二执行器为了构造 ctx 而虚构一份玩家/实体）。
 pub struct ScriptCtx<'a> {
     pub current_script_index: &'a mut usize,
     pub script_cursor: &'a mut usize,
@@ -38,10 +40,50 @@ pub struct ScriptCtx<'a> {
     pub script_line: &'a mut String,
     pub script_line_flags: &'a mut Vec<bool>,
     pub script_walk_armed: &'a mut bool,
-    pub player: &'a PlayerCombat,
-    pub entities: &'a EntityTable,
     /// persist.floor 值拷贝（entity_category 的层覆写查表用——读槽不计写集）。
     pub floor: i32,
+}
+
+/// 脚本域状态的规范载体（S3·②）：六个脚本写槽。
+///
+/// 生产侧 `GameScene` 暂时仍按散字段存放（4900 行场外引用面，行锚迁移单独成批），
+/// 但两执行器的**写规则**已收拢到 [`apply_script_domain`]；引擎侧直接持有本结构，
+/// 不再自写游标/旗标/delay/尾递归。
+#[derive(Default)]
+pub struct ScriptSlots {
+    pub current_script_index: usize,
+    pub script_cursor: usize,
+    pub script_delay: i32,
+    pub script_line: String,
+    pub script_line_flags: Vec<bool>,
+    pub script_walk_armed: bool,
+}
+
+impl ScriptSlots {
+    /// 投影出执行面 ctx（floor：CES 类目查表的值拷贝）。
+    pub fn ctx(&mut self, floor: i32) -> ScriptCtx<'_> {
+        ScriptCtx {
+            current_script_index: &mut self.current_script_index,
+            script_cursor: &mut self.script_cursor,
+            script_delay: &mut self.script_delay,
+            script_line: &mut self.script_line,
+            script_line_flags: &mut self.script_line_flags,
+            script_walk_armed: &mut self.script_walk_armed,
+            floor,
+        }
+    }
+
+    /// 单一写入口（游标/GUT 旗标/CES delay/GIN 尾递归信号）。
+    /// `ScriptStep::Recurse` ⇒ 调用方同拍重入下一条。
+    pub fn apply(&mut self, op: ScriptOp, floor: i32) -> ScriptStep {
+        let mut ctx = self.ctx(floor);
+        apply_script_domain(&mut ctx, op)
+    }
+}
+
+/// 脚本域写规则的唯一实现（两执行器共用；禁第二份）。
+pub fn apply_script_domain(ctx: &mut ScriptCtx, op: ScriptOp) -> ScriptStep {
+    ScriptHost::execute_op(&mut ScriptResolver, ctx, op)
 }
 
 /// spec §3.1：脚本 op 执行面。
@@ -116,69 +158,56 @@ pub const PLAN_NAMED_PENDING: &[&str] = &[];
 mod tests {
     use super::*;
 
-    fn fixtures() -> (PlayerCombat, EntityTable) {
-        let p = PlayerCombat {
-            hp: 100, atk: 10, def: 5,
-            yellow_keys: 0, blue_keys: 0, red_keys: 0, gold: 0,
-            item_types: Vec::new(), item_uses: Vec::new(), item_stack_size: 0,
-        };
-        (p, EntityTable::new(0))
-    }
-
-    fn run(player: &PlayerCombat, entities: &EntityTable, flags: &mut Vec<bool>, cidx: &mut usize,
-           cur: &mut usize, delay: &mut i32, line: &mut String, armed: &mut bool,
-           op: ScriptOp) -> ScriptStep {
-        let mut ctx = ScriptCtx {
-            current_script_index: cidx,
-            script_cursor: cur,
-            script_delay: delay,
-            script_line: line,
-            script_line_flags: flags,
-            script_walk_armed: armed,
-            player,
-            entities,
-            floor: 1,
-        };
-        ScriptResolver.execute_op(&mut ctx, op)
+    fn slots(flags_len: usize) -> ScriptSlots {
+        ScriptSlots { script_line_flags: vec![false; flags_len], ..Default::default() }
     }
 
     /// 【P2 批5 红测试】脚本域写面收拢钉：Gut 旗标/Ces delay/普适 cursor 写。
+    /// 【2026-11-17 S3·②】改为经共享载体 `ScriptSlots::apply`（两执行器同一入口）。
     #[test]
     fn p2b5_execute_op_script_writes() {
-        let (p, e) = fixtures();
-        let (mut cidx, mut cur, mut delay) = (0usize, 0usize, 0i32);
-        let (mut line, mut armed) = (String::new(), false);
-        let mut flags = vec![false; 4];
-        let s = run(&p, &e, &mut flags, &mut cidx, &mut cur, &mut delay, &mut line, &mut armed,
-                    ScriptOp::Gut { target: 22, cursor: 17 });
-        assert_eq!(s, ScriptStep::Advance, "Gut 步进");
-        assert!(flags[0], "Gut 旗标写入 ctx.script_line_flags[cur]");
-        assert_eq!(cur, 17, "普适 cursor 写=op.cursor()");
-        run(&p, &e, &mut flags, &mut cidx, &mut cur, &mut delay, &mut line, &mut armed,
-            ScriptOp::Ces { ty: 1, cx: 0, cy: 0, cursor: 3 });
-        assert_eq!(delay, 5, "Ces cat1 delay=5");
-        run(&p, &e, &mut flags, &mut cidx, &mut cur, &mut delay, &mut line, &mut armed,
-            ScriptOp::Ces { ty: 85, cx: 0, cy: 0, cursor: 3 });
-        assert_eq!(delay, 8, "Ces cat2(delay=8) ty=85");
-        run(&p, &e, &mut flags, &mut cidx, &mut cur, &mut delay, &mut line, &mut armed,
-            ScriptOp::Ces { ty: 72, cx: 0, cy: 0, cursor: 3 });
-        assert_eq!(delay, 0, "Ces cat32 delay=0 ty=72");
+        let mut s = slots(4);
+        assert_eq!(
+            s.apply(ScriptOp::Gut { target: 22, cursor: 17 }, 1),
+            ScriptStep::Advance, "Gut 步进");
+        assert!(s.script_line_flags[0], "Gut 旗标写入 script_line_flags[cur]");
+        assert_eq!(s.script_cursor, 17, "普适 cursor 写=op.cursor()");
+        s.apply(ScriptOp::Ces { ty: 1, cx: 0, cy: 0, cursor: 3 }, 1);
+        assert_eq!(s.script_delay, 5, "Ces cat1 delay=5");
+        s.apply(ScriptOp::Ces { ty: 85, cx: 0, cy: 0, cursor: 3 }, 1);
+        assert_eq!(s.script_delay, 8, "Ces cat2(delay=8) ty=85");
+        s.apply(ScriptOp::Ces { ty: 72, cx: 0, cy: 0, cursor: 3 }, 1);
+        assert_eq!(s.script_delay, 0, "Ces cat32 delay=0 ty=72");
+    }
+
+    /// 【2026-11-17 S3·② 红测试】CES delay 必须由 `entity_category_with_floor(ty, floor)`
+    /// 决定——钉住「不许回到静态 type_categories 表」：同一 ty 在不同 floor 上，
+    /// 只要覆写表给出不同类目，delay 就必须跟着变。
+    #[test]
+    fn s3b2_ces_delay_uses_floor_category() {
+        use crate::subsystem::script_host::entity_category_with_floor;
+        let delay_of = |cat: u8| match cat { 1 | 8 | 16 => 5, 2 | 4 => 8, _ => 0 };
+        // 覆盖若干 (ty, floor) 组合：断言 apply 的结果等于「按 floor 解析类目再映射」
+        for ty in [1i32, 16, 21, 55, 72, 85, 100] {
+            for floor in [1i32, 3, 7, 15, 26, 41, 55] {
+                let mut s = slots(4);
+                s.apply(ScriptOp::Ces { ty, cx: 0, cy: 0, cursor: 3 }, floor);
+                let want = delay_of(entity_category_with_floor(ty, floor));
+                assert_eq!(s.script_delay, want,
+                    "CES ty={ty} floor={floor}：delay 必须跟随 floor 覆写类目");
+            }
+        }
     }
 
     /// 【P2 批5 红测试】GIN 尾递归信号化（a.java:8435-8436 同拍下一条）。
     #[test]
     fn p2b5_gin_recurse_signal() {
-        let (p, e) = fixtures();
-        let (mut cidx, mut cur, mut delay) = (0usize, 0usize, 0i32);
-        let (mut line, mut armed) = (String::new(), false);
-        let mut flags = vec![false; 4];
+        let mut s = slots(4);
         assert_eq!(
-            run(&p, &e, &mut flags, &mut cidx, &mut cur, &mut delay, &mut line, &mut armed,
-                ScriptOp::Gin { kind: 1, value: 5, cursor: 0 }),
+            s.apply(ScriptOp::Gin { kind: 1, value: 5, cursor: 0 }, 1),
             ScriptStep::Recurse, "Gin=同拍尾递归信号");
         assert_eq!(
-            run(&p, &e, &mut flags, &mut cidx, &mut cur, &mut delay, &mut line, &mut armed,
-                ScriptOp::RosNoop { cursor: 0 }),
+            s.apply(ScriptOp::RosNoop { cursor: 0 }, 1),
             ScriptStep::Advance, "RosNoop=普通步进");
     }
 

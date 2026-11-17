@@ -76,6 +76,8 @@ pub struct Obs {
     pub cursor: usize,
     pub index: usize,
     pub flags: Vec<bool>,
+    /// 脚本延迟槽（S3·②：生产 script_delay ⇄ 引擎 slots.script_delay）
+    pub delay: i32,
     pub stats: [i32; 8],
     pub facing: i32,
     pub px: i32,
@@ -208,6 +210,7 @@ pub mod side_a {
             cursor: sc.script_cursor,
             index: sc.current_script_index,
             flags: sc.script_line_flags.clone(),
+            delay: sc.script_delay,
             stats: [
                 sc.player.hp,
                 sc.player.atk,
@@ -499,7 +502,7 @@ pub mod side_b {
         eng.state.current_floor = init.floor;
         let mut steps = 0usize;
         loop {
-            let before = (eng.state.current_script_index, eng.state.script_cursor);
+            let before = (eng.state.slots.current_script_index, eng.state.slots.script_cursor);
             let pre_e = eng_stats(&eng);
             let pre_h = host.stats();
             eng.execute_script_instruction(&mut host);
@@ -518,16 +521,17 @@ pub mod side_b {
                     eng_set_stat(&mut eng, i, post_h[i]);
                 }
             }
-            if (eng.state.current_script_index, eng.state.script_cursor) == before {
+            if (eng.state.slots.current_script_index, eng.state.slots.script_cursor) == before {
                 break;
             }
             steps += 1;
             assert!(steps < 100_000, "(b) 槽{idx} 疑似死循环（GUT 环未在语料预检内）");
         }
         Obs {
-            cursor: eng.state.script_cursor,
-            index: eng.state.current_script_index,
-            flags: eng.state.script_line_flags.clone(),
+            cursor: eng.state.slots.script_cursor,
+            index: eng.state.slots.current_script_index,
+            flags: eng.state.slots.script_line_flags.clone(),
+            delay: eng.state.slots.script_delay,
             stats: host.stats(),
             facing: eng.state.facing_direction,
             px: eng.state.player_pixel_x,
