@@ -825,19 +825,34 @@ fn key_of(st: &St) -> Key {
     }
 }
 
-/// 支配判定（§4.1：hp₁≥hp₂ ∧ kills₁≤kills₂ ∧ steps₁≤steps₂ 且至少一严格 ⇒ 丢 s₂）。
+/// 支配判定（§4.1：hp₁≥hp₂ ∧ kills₁≤kills₂ ∧ steps₁≤steps₂ ∧ gold₁≥gold₂
+/// 且至少一严格 ⇒ 丢 s₂）。
 /// 弱支配（含相等）：同 K₀ 下 e 各指标不劣于 ns 即丢 ns（等价态=丢）。
 /// 与 solve_global::push_state 的 weakly_ge 同口径（C3b bounce 环修）。
+///
+/// 【2026-11-17 F2 修】gold 进支配维度。此前只比 hp/kills/steps：同 K₀（同格、
+/// 同实体、同旗标、同钥匙、同背包、同攻防）下「钱多但血少」的态会被「钱少血多」的态
+/// 判为受支配而丢弃 —— 而金只能花不会招灾（唯一用途是商店购买），金多在任何续局里
+/// 都不劣。8xx 金的红钥匙正是靠金才够得着，丢富态等于把可行解剪成不可行解，
+/// 且不产生任何报错（只会表现为「界内无解」）。单调性依据：金只在购买时减少，
+/// 不参与战斗结算、不改变任何格子的可通行性。
 fn weakly_ge(a: &St, b: &St) -> bool {
-    a.player.hp >= b.player.hp && a.kills <= b.kills && a.steps <= b.steps
+    a.player.hp >= b.player.hp
+        && a.kills <= b.kills
+        && a.steps <= b.steps
+        && a.player.gold >= b.player.gold
 }
 
 fn dominates(a: &St, b: &St) -> bool {
     let ge_hp = a.player.hp >= b.player.hp;
     let le_kills = a.kills <= b.kills;
     let le_steps = a.steps <= b.steps;
-    let strict = a.player.hp > b.player.hp || a.kills < b.kills || a.steps < b.steps;
-    ge_hp && le_kills && le_steps && strict
+    let ge_gold = a.player.gold >= b.player.gold;
+    let strict = a.player.hp > b.player.hp
+        || a.kills < b.kills
+        || a.steps < b.steps
+        || a.player.gold > b.player.gold;
+    ge_hp && le_kills && le_steps && ge_gold && strict
 }
 
 /// 动作（路线重建用）。`Move(x,y)`=**到达格**（C6a：门格节点的 `st.pos` 被
@@ -2590,5 +2605,69 @@ mod solve_global_c1 {
         assert_eq!(g2.post.ents, predead, "终态列表=初始列表（无复活）");
         assert_eq!(g2.route, vec!["1,1", "2,1", "3,1"], "无怪 ⇒ 直穿");
         assert_eq!(g2.steps, 2, "两步走穿走廊");
+    }
+}
+
+#[cfg(test)]
+mod dominance_tests {
+    use super::*;
+
+    fn st(hp: i32, kills: i32, steps: i32, gold: i32) -> St {
+        St {
+            pos: (1, 1),
+            player: PlayerSpec {
+                hp,
+                atk: 10,
+                def: 10,
+                yellow: 0,
+                blue: 0,
+                red: 0,
+                gold,
+                item_types: Vec::new(),
+                item_uses: Vec::new(),
+                item_stack_size: 0,
+            },
+            ents: Vec::new(),
+            flags: 0,
+            kills,
+            steps,
+        }
+    }
+
+    /// F2 红测试：同键下「钱多血少」不得被「钱少血多」判受支配。
+    /// 反例即事故形态：把 800 金红钥匙唯一够得着的富态剪掉 ⇒ 误报「界内无解」。
+    #[test]
+    fn f2_rich_but_weaker_state_is_not_dominated() {
+        let rich = st(100, 0, 0, 900);
+        let poor = st(200, 0, 0, 10);
+        assert!(!weakly_ge(&poor, &rich), "血多但穷的态不得吞掉血少但富的态");
+        assert!(!dominates(&poor, &rich), "strict 支配同样不得跨金判定");
+    }
+
+    /// 金多且其余不劣 ⇒ 真支配（收紧方向，防「加了金维度就永远不支配」的偷懒修法）。
+    #[test]
+    fn f2_more_gold_with_no_worse_metrics_dominates() {
+        let a = st(200, 1, 5, 900);
+        let b = st(100, 2, 9, 10);
+        assert!(weakly_ge(&a, &b));
+        assert!(dominates(&a, &b));
+    }
+
+    /// 仅金币严格更优也应构成支配。
+    #[test]
+    fn f2_gold_only_strictness_counts() {
+        let a = st(100, 0, 0, 500);
+        let b = st(100, 0, 0, 499);
+        assert!(dominates(&a, &b), "其余全等、金更多即严格更优");
+        assert!(!dominates(&b, &a), "反向不成立");
+    }
+
+    /// 全等 ⇒ 弱支配成立（等价态可丢，保确定性）、strict 支配不成立。
+    #[test]
+    fn f2_equal_states_weakly_dominated_only() {
+        let a = st(100, 0, 0, 50);
+        let b = st(100, 0, 0, 50);
+        assert!(weakly_ge(&a, &b));
+        assert!(!dominates(&a, &b));
     }
 }
