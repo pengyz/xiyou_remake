@@ -3,4 +3,5 @@
 //! 规矩（见 `docs/findings/2026-11-17-solver-map-vs-mechanism.md`）：机制常量与判定逻辑住在这里
 //! （game-core）；图/题面差异走输入；求解器只允许消费，不得另写一份。
 
+pub mod boss;
 pub mod gate;

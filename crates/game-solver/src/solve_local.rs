@@ -779,6 +779,40 @@ fn readback_ents(sc: &GameScene) -> Vec<EntRec> {
         .collect()
 }
 
+/// 击杀掉落：与引擎**同表**（`game_core::rules::boss`），只**生成实体**。
+///
+/// 语义依据（A 级）：
+/// - `a.java:8912-8921`：`spawnBossEvent(idx)` = 逐 4 元组 `spawnEntity(...)` +
+///   `markEntityDesRemoved(...)` —— 落的是**实体**（DES 态），不是直接进背包或钥匙计数；
+/// - 拾取在引擎里是「踩上去才 pickup」（`applyStepCellEffects` cat2/cat4 →
+///   `pickupItemType` + `markEntityRemoved`，a.java:5719-5722）⇒ 本函数**不发钥匙、
+///   不写 `player` 背包**；这些掉落在后续 `Cell::Pickup` 转移里由引擎拾取臂入账；
+/// - 组号同样只来自 game-core：`event_of`（击杀拍掉落臂）+ `post_victory_event_of`
+///   （69@35 的 post-anim 收尾臂，a.java:10144-10149）。本文件**不复制任何表值**，
+///   满足「求解器与引擎同表」的硬约束。
+///
+/// 序：调用方先 `ents.remove(slot)`（boss 出表）再追加掉落实体——与引擎读回序一致：
+/// `entity::spawn` 恒取 `table.count` 追加（`crates/game-core/src/entity.rs:330`），
+/// 故引擎里掉落槽号必然大于 boss 槽；boss 到胜利动画 `battle_anim_tick==0` 才
+/// `entity::remove`（`scene.rs:3709-3711`），活体读回按槽序跳过 removed ⇒ 两个
+/// 掉落实体的相对序与「先 69 击杀拍组4、后收尾组7」的 append 序一致。
+fn apply_kill_drops(ns: &mut St, ety: i32, floor: i32) {
+    let events = [
+        game_core::rules::boss::event_of(ety, floor),
+        game_core::rules::boss::post_victory_event_of(ety, floor),
+    ];
+    for ev in events.into_iter().flatten() {
+        for s in game_core::rules::boss::event_spawns(ev) {
+            ns.ents.push(EntRec {
+                ty: s.ty,
+                x: s.x,
+                y: s.y,
+                param: s.extra,
+            });
+        }
+    }
+}
+
 // ---------------------------------------------------------------- 搜索态
 
 /// 搜索态（提案 §1 状态 s 的批2 切面：hp/kills 为支配维度，不进去重键）。
@@ -1543,6 +1577,8 @@ impl<'a> Search<'a> {
                 let reward = kill_bounty(self.level, &pc, ety);
                 game_core::combat::gain_gold_to(&mut ns.player.gold, reward);
                 ns.ents.remove(slot);
+                // 掉落（同表 game-core；只生成实体，见 apply_kill_drops）
+                apply_kill_drops(&mut ns, ety, self.input.floor);
                 ns.pos = m;
                 ns.steps += 1;
                 let gate = if self.input.floor == 50 && ety == 72 {
@@ -1643,6 +1679,8 @@ impl<'a> Search<'a> {
                         let reward = kill_bounty(self.level, &player, ety);
                         game_core::combat::gain_gold_to(&mut ns.player.gold, reward);
                         ns.ents.remove(slot);
+                        // 掉落（同表 game-core；只生成实体，见 apply_kill_drops）
+                        apply_kill_drops(&mut ns, ety, self.input.floor);
                         ns.pos = (tx, ty);
                         ns.steps += 1;
                         // 批3 C2 终局边：floor50 击败型72 → Ending（钩子

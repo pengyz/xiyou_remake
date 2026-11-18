@@ -8,9 +8,8 @@ use game_data::defs::EnemyDef;
 use game_core::combat::{scale_enemy_stats, CombatTables, PlayerCombat};
 use game_core::scene_test_support::scene;
 use game_solver::solve_local::{
-    probe_bump, probe_gate, solve_local, solve_layer_with, ClosurePolicy, EntSpec, ExitKind,
-    ExitSpec, LevelSpec, PlayerSpec,
-    SolveInput,
+    probe_bump, probe_gate, solve_layer, solve_local, solve_layer_with, ClosurePolicy, EntRec,
+    EntSpec, ExitKind, ExitSpec, LevelSpec, PlayerSpec, SolveInput,
 };
 use std::path::PathBuf;
 
@@ -109,6 +108,11 @@ fn player(hp: i32, atk: i32, def: i32) -> PlayerCombat {
 /// T2 手工 3×3 夹具：单走廊（中行 y=1 可走，余墙）——入口 (0,1)、type41 强怪挡路 (1,1)、
 /// Exit#1 type7 楼梯 (2,1)。怪是唯一通路 ⇒ 杀不过即封死。
 fn fixture_3x3(p: PlayerCombat) -> SolveInput {
+    fixture_3x3_ty(41, p)
+}
+
+/// 同走廊、可换挡路怪类型（批 boss 掉落判据用：ty67 ⇒ 金勺子；ty41 ⇒ 无掉落）。
+fn fixture_3x3_ty(monster_ty: i32, p: PlayerCombat) -> SolveInput {
     let (base, scaled) = enemy_tables();
     let level = LevelSpec {
         cols: 3,
@@ -118,7 +122,7 @@ fn fixture_3x3(p: PlayerCombat) -> SolveInput {
         start: (0, 1),
         entities: vec![
             EntSpec {
-                ty: 41,
+                ty: monster_ty,
                 x: 1,
                 y: 1,
                 param: 0,
@@ -920,5 +924,66 @@ fn c4a_闭包参数化_Q3排除被禁道具() {
         g3.iter().all(|g| g.post.atk == 10 && !g.post.item_types.contains(&36)),
         "Q3 被禁道具不得拿（atk 恒 10、包内无 36）：{:?}",
         g3.iter().map(|g| (g.post.atk, &g.post.item_types)).collect::<Vec<_>>()
+    );
+}
+
+/// P2 判据：击杀 boss ty67 ⇒ 按 game-core 单一来源 `rules::boss`（event 3）生成
+/// `17@(6,4)`（金勺子）**实体**；引擎同表 `a.java:2043`（组3）、`a.java:8912-8921`。
+///
+/// 同时断言**没有凭空发（钥匙/背包）**：引擎里掉落是 cat2 实体，拾取=「踩上去才
+/// pickup」（`a.java:5719-5722`）⇒ 求解器只许 `push EntRec`。本夹具里 (6,4) 不在
+/// 可走走廊（3×3 越界）⇒ 终态必然一颗钥匙/一件道具都没多。
+#[test]
+fn boss_kill_spawns_drop_entity_from_core_rules_only() {
+    let input = fixture_3x3_ty(67, player(5000, 500, 500));
+    let p = PlayerSpec::from_combat(player(5000, 500, 500));
+    let (ok, goals) = solve_layer(&input, (0, 1), None, p, 0);
+    assert!(ok, "67 零损可杀 ⇒ 走廊可达：{goals:?}");
+    let g = goals
+        .iter()
+        .find(|g| g.route.iter().any(|t| t.starts_with("bump 67@")))
+        .expect("路线应含击杀 67");
+    assert!(
+        g.post_ents
+            .contains(&EntRec { ty: 17, x: 6, y: 4, param: 0 }),
+        "击杀 67 后应掉落金勺子 17@(6,4)（rules::boss event3）：{:?}",
+        g.post_ents
+    );
+    assert_eq!(
+        (g.post.yellow, g.post.blue, g.post.red),
+        (0, 0, 0),
+        "掉落不得凭空发钥匙（踩格才 pickup）：{:?}",
+        g.post
+    );
+    assert!(
+        g.post.item_types.is_empty() && g.post.item_stack_size == 0,
+        "掉落不得凭空进背包：{:?}",
+        g.post
+    );
+}
+
+/// 守卫：非 boss 怪（ty41）不得触发任何掉落组（`event_of`/`post_victory_event_of`
+/// 双 None）——防「凡是 cat8 就发一桌」的过触发。
+#[test]
+fn non_boss_kill_spawns_no_drops() {
+    let input = fixture_3x3_ty(41, player(5000, 500, 500));
+    let p = PlayerSpec::from_combat(player(5000, 500, 500));
+    let (ok, goals) = solve_layer(&input, (0, 1), None, p, 0);
+    assert!(ok, "41 零损可杀 ⇒ 走廊可达：{goals:?}");
+    let g = goals
+        .iter()
+        .find(|g| g.route.iter().any(|t| t.starts_with("bump 41@")))
+        .expect("路线应含击杀 41");
+    // 初始活体只剩出口梯 7@(2,1)（boss 自身已出表）——多一条都算过触发。
+    assert_eq!(
+        g.post_ents,
+        vec![EntRec {
+            ty: 7,
+            x: 2,
+            y: 1,
+            param: 2
+        }],
+        "41 不是 bossTypeOrder 成员 ⇒ 无掉落：{:?}",
+        g.post_ents
     );
 }

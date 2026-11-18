@@ -151,30 +151,9 @@ impl SceneImages {
 /// 玩家帧表 playerAnimTables[0]（a.java:477：{0,1,0,2}）。
 const PLAYER_FRAME_TABLE: [i32; 4] = [0, 1, 0, 2];
 
-/// bossTypeOrder（a.java:2198）：boss 型 → bossEventSpawns 事件序（击杀钩子）。
-const BOSS_TYPE_ORDER: [i32; 6] = [75, 74, 68, 67, 69, 71];
-/// bossEventSpawns（a.java:2041-2104）：每事件 = [型, 格x, 格y, param]×N。
-const BOSS_EVENT_SPAWNS: [&[i32]; 8] = [
-    &[
-        29, 1, 3, 0, 29, 2, 3, 0, 29, 3, 3, 0, 26, 1, 4, 0, 26, 2, 4, 0, 26, 3, 4, 0, 30, 9, 3,
-        0, 30, 10, 3, 0, 30, 11, 3, 0, 32, 9, 4, 0, 32, 10, 4, 0, 32, 11, 4, 0,
-    ],
-    &[
-        29, 4, 4, 0, 29, 4, 5, 0, 29, 5, 4, 0, 26, 7, 4, 0, 26, 8, 4, 0, 26, 8, 5, 0, 30, 4, 7,
-        0, 30, 4, 8, 0, 30, 5, 8, 0, 32, 8, 8, 0, 32, 7, 8, 0, 32, 8, 7, 0,
-    ],
-    &[27, 6, 5, 0, 27, 5, 6, 0, 27, 7, 6, 0, 27, 6, 7, 0],
-    &[17, 6, 4, 0],
-    &[16, 5, 5, 0],
-    &[24, 6, 2, 0, 32, 5, 1, 0, 32, 6, 1, 0, 32, 7, 1, 0, 27, 6, 6, 0],
-    &[
-        32, 2, 3, 0, 32, 3, 3, 0, 32, 4, 3, 0, 26, 8, 3, 0, 26, 9, 3, 0, 26, 10, 3, 0, 29, 3, 5,
-        0, 29, 4, 5, 0, 29, 5, 5, 0, 30, 7, 5, 0, 30, 8, 5, 0, 30, 9, 5, 0,
-    ],
-    &[
-        32, 4, 4, 0, 32, 5, 4, 0, 32, 6, 4, 0,
-    ],
-];
+// boss 击杀掉落表/触发索引只在 `crate::rules::boss` 存一份（引擎与求解器共用，
+// 证据 `a.java:2041-2197` / `:2198` / `:8912-8921` / `:10059-10093`）；本处不再内联
+// `BOSS_EVENT_SPAWNS` / `BOSS_TYPE_ORDER` 副本。
 /// 战斗星光帧号表（Java sparkFrames，a.java:766-773：8 拍循环，0 = 不画）。
 const SPARK_FRAME: [i32; 8] = [1, 2, 0, 3, 4, 1, 2, 0];
 /// 星光四联组 (sx,sy,w,h)×4（Java sparkQuads，a.java:748-764）。
@@ -2258,18 +2237,21 @@ impl GameScene {
         hit
     }
 
-    /// spawnBossEvent（a.java:8903-8912）：按 bossEventSpawns[idx] 逐项
+    /// spawnBossEvent（a.java:8912-8921）：按 `rules::boss::event_spawns(idx)` 逐条
     /// spawnEntity（cell<<5 网格吸附在 entity::spawn 内）+ markEntityDesRemoved
     /// （DES 态 solid=2，登场动画帧 8）。
+    ///
+    /// 表数据只在 `crate::rules::boss`（引擎与求解器单一来源）；越界事件给空表
+    /// （Java 会 AIOOBE，但调用方只在 `event_of` 返回值内调用）。
     fn spawn_boss_event(&mut self, idx: usize) {
-        for ent in BOSS_EVENT_SPAWNS[idx].chunks_exact(4) {
+        for ent in crate::rules::boss::event_spawns(idx) {
             let e = entity::spawn(
                 &mut self.entities,
                 &mut self.grid,
-                ent[0],
-                ent[1] << 5,
-                ent[2] << 5,
-                ent[3] as i16,
+                ent.ty,
+                ent.x << 5,
+                ent.y << 5,
+                ent.extra as i16,
                 &self.width_table,
                 None,
             );
@@ -3689,19 +3671,20 @@ impl GameScene {
                                     // 型74 → 脚本 21；型75 → 脚本 20（重入场景）
                                     let mut rerun = false;
                                     if self.persist.floor <= 50 {
+                                        // 掉落臂（a.java:10059-10070）：组号/73@40 特例只在
+                                        // `rules::boss::event_of`（引擎与求解器单一来源）——
+                                        // 73@40→组6 也由它返回，故下面 switch 不再重复 spawn。
                                         if let Some(bi) =
-                                            BOSS_TYPE_ORDER.iter().rposition(|&b| b == t)
+                                            crate::rules::boss::event_of(t, self.persist.floor)
                                         {
                                             self.spawn_boss_event(bi);
                                         }
+                                        // 剧本臂（a.java:10070-10090）：与掉落臂独立、可叠加。
                                         match t {
                                             73 => {
                                                 self.slots.script_line_flags
                                                     [self.slots.current_script_index] = true;
                                                 self.load_level_script(22);
-                                                if self.persist.floor == 40 {
-                                                    self.spawn_boss_event(6);
-                                                }
                                             }
                                             74 => self.load_level_script(21),
                                             75 => {
@@ -3770,8 +3753,12 @@ impl GameScene {
                             }
                         }
                         69 => {
-                            if self.persist.floor == 35 {
-                                self.spawn_boss_event(7);
+                            // post-anim 掉落组（a.java:10144-10149）：69@35 → 组7（长寿丹×3）；
+                            // 判定住 rules::boss，引擎不再自持「7」这个字面量。
+                            if let Some(ev) =
+                                crate::rules::boss::post_victory_event_of(69, self.persist.floor)
+                            {
+                                self.spawn_boss_event(ev);
                                 self.load_level_script(36);
                             }
                         }
