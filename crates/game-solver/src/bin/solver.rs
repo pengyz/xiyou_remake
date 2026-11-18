@@ -225,7 +225,15 @@ fn main() {
         input.start_floor = parse_start_floor(&args);
         let mut all: Vec<(i32, Vec<game_solver::doors::DoorFact>, game_solver::doors::FloorStatus)> = Vec::new();
         for (f, lv) in &input.floors {
-            let (facts, status) = game_solver::doors::analyze_floor(lv);
+            let scripts = game_solver::dynreach::fixture_scripts();
+            let (facts, status) = game_solver::doors::analyze_floor_with(lv, &scripts);
+            for (dx, dy, slot, reach) in game_solver::doors::dynamic_probe(lv, &scripts) {
+                println!(
+                    "   f{} 动态探针 脚本门@({dx},{dy}) 槽{slot} ⇒ {}",
+                    f,
+                    if reach { "可达（靠运行期召唤）" } else { "仍不可达" }
+                );
+            }
             all.push((*f, facts, status));
         }
         let mut json = String::from("{\"floors\":[");
@@ -265,7 +273,7 @@ fn main() {
                         game_solver::doors::FloorStatus::NoExit => "  ⚠无出发型出口（换层靠脚本，未建模）",
                         game_solver::doors::FloorStatus::BaselineUnreachable => "  ⚠门全开也走不到（非钥匙问题）",
                         game_solver::doors::FloorStatus::DynamicGate => {
-                            "  ⚠脚本门在不可走格：可达性依赖运行期召唤（静态判定仅近似）"
+                            "  ⚠脚本门在不可走格：已按动态模型判定（见逐格探针）"
                         }
                     }
                 );
@@ -320,7 +328,7 @@ fn main() {
         let (input, _shops) = solve_global_input(1);
         let modes = [(game_solver::keyflow::DemandMode::Necessary, "必经"), (game_solver::keyflow::DemandMode::AllDoors, "全门")];
         for (mode, name) in modes {
-            let r = game_solver::keyflow::analyze(&input.floors, mode);
+            let r = game_solver::keyflow::analyze_with(&input.floors, mode, &game_solver::dynreach::fixture_scripts());
             println!(
                 "== 模式={} == 累计需求 黄{} 红{} 蓝{} / 拾取供给 黄{} 红{} 蓝{}",
                 name,

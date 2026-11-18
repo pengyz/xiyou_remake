@@ -56,8 +56,10 @@ pub enum FloorStatus {
     BaselineUnreachable,
     /// 本层存在**摆在不可走格上的脚本门**（ty83）：它的可达性依赖运行期召唤物
     /// （典型：门的脚本自己在该格召出 ty6 火，火触发交互层的「楼梯/喷泉豁免地形」⇒ 格子才可进，
-    ///  见 `crates/game-core/src/scene.rs` `interact_with_cell` 与 a.java:5470）。静态实体集判定
-    /// 在这种层上不可靠，必须显式标记而不是给出 Ok。
+    ///  见 `crates/game-core/src/scene.rs` `interact_with_cell` 与 a.java:5470）。
+    ///
+    /// 喂了脚本召唤表时，判定走 [`crate::dynreach`] 的动态搜索，结论可用但仍打此标记
+    /// （调用方据此知道该层结论来自「乐观上界」而非纯地形）；未喂表时等于静态近似，必须当成近似读。
     DynamicGate,
 }
 
@@ -111,54 +113,42 @@ pub fn entry_and_goals(level: &LevelSpec) -> Option<((i32, i32), Vec<(i32, i32)>
 }
 
 /// `entry` 能否走到任一 `goals`；`blocked` 是**被封住的门**的实体下标集合。
-fn can_reach(level: &LevelSpec, entry: (i32, i32), goals: &[(i32, i32)], blocked: &BTreeSet<usize>) -> bool {
-    if goals.is_empty() {
-        return false;
-    }
-    let goal_set: BTreeSet<(i32, i32)> = goals.iter().copied().collect();
-    let goal_set = &goal_set;
-    // 门格 → 该格上的门槽位（一格叠多扇时任一被封即封）
-    let door_at: Vec<(i32, i32, usize)> = level
+/// 本层「脚本门摆在静态不可走格」的格子，以及它们**在动态模型下**能否被走到。
+///
+/// 这是给报告用的实证面：静态模型对这些格子只能标「不可靠」，动态模型能给出 yes/no。
+/// 返回 `(x, y, 脚本槽, 动态可达)`。
+pub fn dynamic_probe(
+    level: &LevelSpec,
+    scripts: &crate::dynreach::ScriptSpawns,
+) -> Vec<(i32, i32, i32, bool)> {
+    let Some((entry, _goals)) = entry_and_goals(level) else {
+        return Vec::new();
+    };
+    let empty = BTreeSet::new();
+    level
         .entities
         .iter()
-        .enumerate()
-        .filter(|(_, e)| is_door(e.ty))
-        .map(|(slot, e)| (e.x, e.y, slot))
-        .collect();
-    let is_blocked = |x: i32, y: i32| {
-        door_at.iter().any(|(dx, dy, slot)| *dx == x && *dy == y && blocked.contains(slot))
-    };
-    // 地形终审带豁免（`crates/game-core/src/scene.rs` `interact_with_cell`；a.java:5470）：
-    // 格内若有 ty6（三昧真火）/ty7（上行梯）/ty8（下行梯），`stair_count>0` ⇒ **跳过地形判定**。
-    // 这就是 `solve_local.rs` 里 `stair_like(6|7|8)` 的同一条规则，这里必须同源，否则两边结论对不上。
-    let passable = |x: i32, y: i32| {
-        terrain_ok(level, x, y)
-            || stair_like_at(level, x, y)
-            || goal_set.contains(&(x, y))
-            || (x, y) == entry
-    };
-    let mut seen: BTreeSet<(i32, i32)> = BTreeSet::new();
-    let mut q: VecDeque<(i32, i32)> = VecDeque::new();
-    seen.insert(entry);
-    q.push_back(entry);
-    while let Some((x, y)) = q.pop_front() {
-        if goal_set.contains(&(x, y)) {
-            return true;
-        }
-        for (dx, dy) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
-            let n = (x + dx, y + dy);
-            if !seen.contains(&n) && passable(n.0, n.1) && !is_blocked(n.0, n.1) {
-                seen.insert(n);
-                q.push_back(n);
-            }
-        }
-    }
-    false
+        .filter(|e| e.ty == SCRIPT_GATE && !terrain_ok(level, e.x, e.y) && !stair_like_at(level, e.x, e.y))
+        .map(|e| {
+            let reach = crate::dynreach::can_reach(level, entry, &[(e.x, e.y)], &empty, scripts);
+            (e.x, e.y, e.param, reach)
+        })
+        .collect()
 }
 
 /// 逐门判定「必经 / 同色必要」。基线（门全开）都到不了出发梯 ⇒ 置 `baseline_unreachable`，
 /// 此时不虚构必经门（该层缺的不是钥匙，是别的东西——如破墙道具或脚本换层）。
 pub fn analyze_floor(level: &LevelSpec) -> (Vec<DoorFact>, FloorStatus) {
+    analyze_floor_with(level, &crate::dynreach::ScriptSpawns::default())
+}
+
+/// 与 [`analyze_floor`] 相同，但把脚本召唤表喂进来：
+/// 格子上「脚本门召出 ty6 火 ⇒ 地形豁免 ⇒ 该格才可进」这类自使能链只有动态模型算得出
+/// （见 [`crate::dynreach`] 的模块文档与 `docs/findings/2026-11-18-f41-gate-reachability.md`）。
+pub fn analyze_floor_with(
+    level: &LevelSpec,
+    scripts: &crate::dynreach::ScriptSpawns,
+) -> (Vec<DoorFact>, FloorStatus) {
     let doors: Vec<(usize, i32, i32, i32)> = level
         .entities
         .iter()
@@ -196,7 +186,7 @@ pub fn analyze_floor(level: &LevelSpec) -> (Vec<DoorFact>, FloorStatus) {
             FloorStatus::NoExit,
         );
     };
-    if !can_reach(level, entry, &goals, &BTreeSet::new()) {
+    if !crate::dynreach::can_reach(level, entry, &goals, &BTreeSet::new(), scripts) {
         return (
             doors.iter().map(|d| mk(*d, false, false)).collect(),
             FloorStatus::BaselineUnreachable,
@@ -206,7 +196,7 @@ pub fn analyze_floor(level: &LevelSpec) -> (Vec<DoorFact>, FloorStatus) {
     let mut colors_needed: BTreeSet<i32> = BTreeSet::new();
     for ty in doors.iter().map(|d| d.1).collect::<BTreeSet<_>>() {
         let set: BTreeSet<usize> = doors.iter().filter(|d| d.1 == ty).map(|d| d.0).collect();
-        if !can_reach(level, entry, &goals, &set) {
+        if !crate::dynreach::can_reach(level, entry, &goals, &set, scripts) {
             colors_needed.insert(ty);
         }
     }
@@ -215,7 +205,7 @@ pub fn analyze_floor(level: &LevelSpec) -> (Vec<DoorFact>, FloorStatus) {
         .map(|d| {
             let mut set = BTreeSet::new();
             set.insert(d.0);
-            let nec = !can_reach(level, entry, &goals, &set);
+            let nec = !crate::dynreach::can_reach(level, entry, &goals, &set, scripts);
             mk(d, nec, colors_needed.contains(&d.1))
         })
         .collect();

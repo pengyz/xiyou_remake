@@ -64,8 +64,17 @@ pub struct FlowReport {
     pub dynamic_floors: Vec<i32>,
 }
 
-/// 逐层结算（升序）。
+/// 逐层结算（升序）。静态口径（不喂脚本召唤表）——等价于 `analyze_with(.., &ScriptSpawns::default())`。
 pub fn analyze(floors: &BTreeMap<i32, LevelSpec>, mode: DemandMode) -> FlowReport {
+    analyze_with(floors, mode, &crate::dynreach::ScriptSpawns::default())
+}
+
+/// 逐层结算（升序），门判定走动态模型（脚本门召出 ty6 火使墙格可进这类自使能链）。
+pub fn analyze_with(
+    floors: &BTreeMap<i32, LevelSpec>,
+    mode: DemandMode,
+    scripts: &crate::dynreach::ScriptSpawns,
+) -> FlowReport {
     let mut rows = Vec::new();
     let mut balance = [0i32; 3];
     let mut first_break: [Option<i32>; 3] = [None, None, None];
@@ -74,7 +83,7 @@ pub fn analyze(floors: &BTreeMap<i32, LevelSpec>, mode: DemandMode) -> FlowRepor
     let mut no_exit_floors: Vec<i32> = Vec::new();
     let mut dynamic_floors: Vec<i32> = Vec::new();
     for (f, lv) in floors {
-        let (facts, status) = doors::analyze_floor(lv);
+        let (facts, status) = doors::analyze_floor_with(lv, scripts);
         match status {
             doors::FloorStatus::Ok => {}
             doors::FloorStatus::DynamicGate => dynamic_floors.push(*f),
