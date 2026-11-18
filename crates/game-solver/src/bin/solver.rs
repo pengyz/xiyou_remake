@@ -264,6 +264,9 @@ fn main() {
                         game_solver::doors::FloorStatus::Ok => "",
                         game_solver::doors::FloorStatus::NoExit => "  ⚠无出发型出口（换层靠脚本，未建模）",
                         game_solver::doors::FloorStatus::BaselineUnreachable => "  ⚠门全开也走不到（非钥匙问题）",
+                        game_solver::doors::FloorStatus::DynamicGate => {
+                            "  ⚠脚本门在不可走格：可达性依赖运行期召唤（静态判定仅近似）"
+                        }
                     }
                 );
             }
@@ -275,6 +278,7 @@ fn main() {
                 game_solver::doors::FloorStatus::Ok => "ok",
                 game_solver::doors::FloorStatus::NoExit => "no_exit",
                 game_solver::doors::FloorStatus::BaselineUnreachable => "baseline_unreachable",
+                game_solver::doors::FloorStatus::DynamicGate => "dynamic_gate",
             };
             json.push_str(&format!("{{\"floor\":{},\"status\":\"{}\",\"doors\":[", f, status_tag));
             for (i, d) in facts.iter().enumerate() {
@@ -333,6 +337,12 @@ fn main() {
                 println!(
                     "   ⚠无出发型出口的层（换层靠脚本，未计入门需求）：{:?}",
                     r.no_exit_floors
+                );
+            }
+            if !r.dynamic_floors.is_empty() {
+                println!(
+                    "   ⚠门判定依赖运行期召唤物的层（脚本门摆在不可走格，靠召唤 ty6 火触发地形豁免）：{:?}",
+                    r.dynamic_floors
                 );
             }
             for row in &r.rows {

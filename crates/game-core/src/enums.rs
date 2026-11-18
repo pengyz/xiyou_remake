@@ -170,6 +170,12 @@ pub mod entity_kind {
     pub const ROUTE: i32 = 72;
     /// 菩提老祖（序章 NPC；lockCameraOn 说话人特例 0/87 免查实体）
     pub const NPC_BODHI: i32 = 87;
+    /// 脚本触发门（踩/撞触发 `try_run_scene(param)` + `load_level_script(param)`）
+    /// 证据：`scene.rs` try_run_scene 的 `case 83`（a.java:5463 `case 83: tryRunScene(param,false)`）。
+    pub const SCRIPT_GATE: i32 = 83;
+    /// 三昧真火（`interact_with_cell` 的 `case 6`：`var7++` ⇒ **不阻挡且豁免地形终审**；
+    /// a.java:5410）。与 ty10（火墙，阻挡）不是一类。
+    pub const FIRE_TRAP: i32 = 6;
     /// SWD 改写源/目标（封印门 → 可通行物件）
     pub const SEAL_GATE: i32 = 81;
     pub const SEAL_CONVERTED: i32 = 4;

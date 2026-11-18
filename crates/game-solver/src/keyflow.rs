@@ -59,6 +59,9 @@ pub struct FlowReport {
     pub total_pickup: [i32; 3],
     /// 无法给出门判定的层（无出发型出口，换层靠脚本）——结论必须显式带上
     pub no_exit_floors: Vec<i32>,
+    /// 门判定依赖运行期召唤物的层（ty83 摆在不可走格上，靠脚本召唤 ty6 火触发地形豁免）。
+    /// 这些层的门照常计数，但**必经判定只是静态近似**，结论里必须点名。
+    pub dynamic_floors: Vec<i32>,
 }
 
 /// 逐层结算（升序）。
@@ -69,10 +72,13 @@ pub fn analyze(floors: &BTreeMap<i32, LevelSpec>, mode: DemandMode) -> FlowRepor
     let mut total_demand = [0i32; 3];
     let mut total_pickup = [0i32; 3];
     let mut no_exit_floors: Vec<i32> = Vec::new();
+    let mut dynamic_floors: Vec<i32> = Vec::new();
     for (f, lv) in floors {
         let (facts, status) = doors::analyze_floor(lv);
-        if status != doors::FloorStatus::Ok {
-            no_exit_floors.push(*f);
+        match status {
+            doors::FloorStatus::Ok => {}
+            doors::FloorStatus::DynamicGate => dynamic_floors.push(*f),
+            _ => no_exit_floors.push(*f),
         }
         let mut demand = [0i32; 3];
         for d in &facts {
@@ -130,6 +136,7 @@ pub fn analyze(floors: &BTreeMap<i32, LevelSpec>, mode: DemandMode) -> FlowRepor
         total_demand,
         total_pickup,
         no_exit_floors,
+        dynamic_floors,
     }
 }
 

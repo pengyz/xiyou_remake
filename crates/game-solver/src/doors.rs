@@ -12,7 +12,9 @@
 //! 它回答「拓扑上是否必经」，不是「钥匙够不够」。「够不够」由钥匙来源清单另核。
 
 use crate::solve_local::LevelSpec;
-use game_core::enums::entity_kind::{DOOR_BLUE, DOOR_RED, DOOR_YELLOW, STAIR_DOWN, STAIR_UP};
+use game_core::enums::entity_kind::{
+    DOOR_BLUE, DOOR_RED, DOOR_YELLOW, FIRE_TRAP, SCRIPT_GATE, STAIR_DOWN, STAIR_UP,
+};
 use std::collections::{BTreeSet, VecDeque};
 
 fn is_door(ty: i32) -> bool {
@@ -52,6 +54,11 @@ pub enum FloorStatus {
     NoExit,
     /// 出口存在，但全部门开着也走不到（真正的封死）
     BaselineUnreachable,
+    /// 本层存在**摆在不可走格上的脚本门**（ty83）：它的可达性依赖运行期召唤物
+    /// （典型：门的脚本自己在该格召出 ty6 火，火触发交互层的「楼梯/喷泉豁免地形」⇒ 格子才可进，
+    ///  见 `crates/game-core/src/scene.rs` `interact_with_cell` 与 a.java:5470）。静态实体集判定
+    /// 在这种层上不可靠，必须显式标记而不是给出 Ok。
+    DynamicGate,
 }
 
 fn in_bounds(level: &LevelSpec, x: i32, y: i32) -> bool {
@@ -60,6 +67,16 @@ fn in_bounds(level: &LevelSpec, x: i32, y: i32) -> bool {
 
 fn terrain_ok(level: &LevelSpec, x: i32, y: i32) -> bool {
     in_bounds(level, x, y) && level.terrain[(y * level.cols + x) as usize]
+}
+
+/// 格内是否有「楼梯/喷泉」类实体（ty6 三昧真火 / ty7 上行梯 / ty8 下行梯）。
+/// 有 ⇒ 引擎的地形终审被豁免（`crates/game-core/src/scene.rs` `interact_with_cell`；a.java:5470
+/// 的 `var7 > 0` 分支，var7 只在 `case 6/7/8` 自增）。与 `solve_local` 的 `stair_like` 同一条规则。
+fn stair_like_at(level: &LevelSpec, x: i32, y: i32) -> bool {
+    level
+        .entities
+        .iter()
+        .any(|e| (FIRE_TRAP..=STAIR_DOWN).contains(&e.ty) && e.x == x && e.y == y)
 }
 
 /// 到场格与出发格集合：`STAIR_DOWN`=入场，`STAIR_UP`=目标；缺则回落 `level.start` / `exits`。
@@ -111,8 +128,15 @@ fn can_reach(level: &LevelSpec, entry: (i32, i32), goals: &[(i32, i32)], blocked
     let is_blocked = |x: i32, y: i32| {
         door_at.iter().any(|(dx, dy, slot)| *dx == x && *dy == y && blocked.contains(slot))
     };
-    // 楼梯格豁免地形（`solve_local.rs:1183`：地形终审 = 楼梯豁免 `stair_count>0`）。
-    let passable = |x: i32, y: i32| terrain_ok(level, x, y) || goal_set.contains(&(x, y)) || (x, y) == entry;
+    // 地形终审带豁免（`crates/game-core/src/scene.rs` `interact_with_cell`；a.java:5470）：
+    // 格内若有 ty6（三昧真火）/ty7（上行梯）/ty8（下行梯），`stair_count>0` ⇒ **跳过地形判定**。
+    // 这就是 `solve_local.rs` 里 `stair_like(6|7|8)` 的同一条规则，这里必须同源，否则两边结论对不上。
+    let passable = |x: i32, y: i32| {
+        terrain_ok(level, x, y)
+            || stair_like_at(level, x, y)
+            || goal_set.contains(&(x, y))
+            || (x, y) == entry
+    };
     let mut seen: BTreeSet<(i32, i32)> = BTreeSet::new();
     let mut q: VecDeque<(i32, i32)> = VecDeque::new();
     seen.insert(entry);
@@ -142,8 +166,21 @@ pub fn analyze_floor(level: &LevelSpec) -> (Vec<DoorFact>, FloorStatus) {
         .filter(|(_, e)| is_door(e.ty))
         .map(|(slot, e)| (slot, e.ty, e.x, e.y))
         .collect();
+    // 静态实体集里就有「脚本门摆在不可走格」⇒ 可达性依赖运行期召唤物（自使能链），不给 Ok。
+    // 这一判必须先算：本层可能一扇「门」都没有，但照样存在这种不可靠的静态前提。
+    let dynamic = level
+        .entities
+        .iter()
+        .any(|e| e.ty == SCRIPT_GATE && !terrain_ok(level, e.x, e.y) && !stair_like_at(level, e.x, e.y));
+    let ok_status = || {
+        if dynamic {
+            FloorStatus::DynamicGate
+        } else {
+            FloorStatus::Ok
+        }
+    };
     if doors.is_empty() {
-        return (Vec::new(), FloorStatus::Ok);
+        return (Vec::new(), ok_status());
     }
     let mk = |(slot, ty, x, y): (usize, i32, i32, i32), nec: bool, cn: bool| DoorFact {
         slot,
@@ -182,7 +219,7 @@ pub fn analyze_floor(level: &LevelSpec) -> (Vec<DoorFact>, FloorStatus) {
             mk(d, nec, colors_needed.contains(&d.1))
         })
         .collect();
-    (out, FloorStatus::Ok)
+    (out, ok_status())
 }
 
 #[cfg(test)]
@@ -289,5 +326,22 @@ mod tests {
         assert_eq!(status, FloorStatus::Ok, "到场梯 (3,0) 应能走到出发梯 (1,0)");
         assert_eq!(facts.len(), 1);
         assert!(facts[0].necessary, "门卡在到场梯与出发梯之间 ⇒ 必经");
+    }
+
+    /// 脚本门（ty83）摆在不可走格 ⇒ 静态实体集判定不可靠，必须显式标 DynamicGate，
+    /// 不许给 Ok（f41 (10,2) 的真实形态：门 13 的脚本召出 ty6 火，火触发地形豁免后格子才可进）。
+    #[test]
+    fn doors_gate_on_wall_cell_is_dynamic() {
+        let mut lv = level(5, 1, vec![true, true, false, true, true], (0, 0)); // (2,0) 是墙
+        lv.entities.push(EntSpec { ty: STAIR_DOWN, x: 0, y: 0, param: 0 });
+        lv.entities.push(EntSpec { ty: STAIR_UP, x: 4, y: 0, param: 0 });
+        lv.entities.push(EntSpec { ty: SCRIPT_GATE, x: 2, y: 0, param: 13 });
+        let (_, status) = analyze_floor(&lv);
+        assert_eq!(status, FloorStatus::DynamicGate, "门在墙格 ⇒ 静态判定不可靠");
+
+        // 同格若有 ty6 火（运行期召唤的形态），豁免成立 ⇒ 静态可达，不再标 dynamic。
+        lv.entities.push(EntSpec { ty: FIRE_TRAP, x: 2, y: 0, param: 0 });
+        let (_, status2) = analyze_floor(&lv);
+        assert_eq!(status2, FloorStatus::Ok, "格内有 ty6 ⇒ 地形终审被豁免 ⇒ 静态可达");
     }
 }
