@@ -4629,6 +4629,12 @@ mod gold_popup_tests;
 #[path = "scene_tests/shop_purchase_tests.rs"]
 mod shop_purchase_tests;
 
+/// 【2026-11-18】f41 同格双门链回归（门 13 → 清两处 ty60 火 → 门 25 → 拾下行符 22）：
+/// 同格双门此前零覆盖，且极易被误读成「两门竞争、谁先命中」——实际是 flags 串起来的链式设计。
+#[cfg(test)]
+#[path = "scene_tests/f41_gate_chain_tests.rs"]
+mod f41_gate_chain_tests;
+
 /// BUG-017 回归（2026-10-17 用户实机："物品栏使用火眼金睛 → 游戏已终止"）：
 /// 道具面板确认型 13 = Java 双跳 mode10→3→5（a.java:3939-3945 + 7786-7788）。
 /// 曾因 TRANSFER_EDGES 缺 Map→EnemyInfo 边触发 census assert panic——
