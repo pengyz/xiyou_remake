@@ -197,7 +197,17 @@ pub struct SolveResult {
     pub max_hp: Option<i32>,
     /// ② min_kills：**量化域=Exit#1**（提案 §1.4 ② / §8 勘误注 9）
     pub min_kills: Option<i32>,
-    /// 三态置信（计划 :448 A1）：UseItem 裁出 ⇒ 批2 恒 `bounded-best`（BR-7）
+    /// **本次搜索是否撞层界被截断**（P3 收口1 / 复核 R2 黄）。
+    ///
+    /// 与 [`ExitSolve::truncated`] **同源**：都读同一个 `take_layer_trunc()`，
+    /// 语义也同一件事（`run_root` 撞 `layer_node_limit()` ⇒ `true`）。
+    /// 旧实现缺这一位 ⇒ `SOLVER_LAYER_LIMIT=10` 与 `200_000` 的输出逐字段相同，
+    /// 调用方无法区分「完整解」与「截断解」（复核 A 级实测）。
+    /// **截断⇒`max_hp`/`route` 只作参考，不可当完整解消费**（与 `ExitSolve.ok` 同契约）。
+    pub truncated: bool,
+    /// 三态置信（计划 :448 A1）：UseItem 裁出 ⇒ 批2 恒 `bounded-best`（BR-7）；
+    /// **撞层界 ⇒ `capped-search`**（P3 收口1：截断不许冒充 `bounded-best`，
+    /// 用词与 `solve_global::RunStatus::Capped` 一致）
     pub confidence: &'static str,
     /// Q1（max_hp）路线：T6 JSON 单 `route` 字段取自本字段（提案 §1.4 ① / §3.1 T6 形状）
     pub route: Vec<String>,
@@ -210,8 +220,11 @@ pub struct SolveResult {
 }
 
 impl SolveResult {
-    /// JSON 序列化（手写，字段序固定；lib 无 serde 依赖）。
-    /// 字段序：floor, difficulty, s0, reachable, max_hp, min_kills, confidence, route。
+    /// JSON 序列化（手写，字段序固定；本结构保持零 serde 依赖）。
+    /// 字段序：floor, difficulty, s0, reachable, max_hp, min_kills, **truncated**,
+    /// confidence, route。`truncated` 插在 `confidence` 之前（P3 收口1）——
+    /// `route` 必须仍是**末字段**（tests/solve_local.rs T1 形状判据）。
+    /// 置信词表随截断扩一档：`capped-search`（见字段注）。
     pub fn to_json(&self) -> String {
         let (hp, atk, def, y, b, r, g) = self.s0;
         let s0 = format!(
@@ -224,13 +237,14 @@ impl SolveResult {
             .collect::<Vec<_>>()
             .join(",");
         format!(
-            "{{\"floor\":{},\"difficulty\":{},\"s0\":{},\"reachable\":{},\"max_hp\":{},\"min_kills\":{},\"confidence\":\"{}\",\"route\":[{}]}}",
+            "{{\"floor\":{},\"difficulty\":{},\"s0\":{},\"reachable\":{},\"max_hp\":{},\"min_kills\":{},\"truncated\":{},\"confidence\":\"{}\",\"route\":[{}]}}",
             self.floor,
             self.difficulty,
             s0,
             self.reachable,
             opt(self.max_hp),
             opt(self.min_kills),
+            self.truncated,
             esc(self.confidence),
             route
         )
@@ -265,14 +279,22 @@ pub fn solve_local(input: &SolveInput) -> SolveResult {
             reachable: false,
             max_hp: None,
             min_kills: None,
+            // 占位（无 level）=根本没搜 ⇒ 不存在「被截断的搜索」，不是恒 false 的伪装。
+            truncated: false,
             confidence: "feasible",
             route: Vec::new(),
             route_min_kills: Vec::new(),
             keys_used: (0, 0, 0),
         };
     };
+    // P3 收口1：入口清截断标记（与 `solve_layer_with` 同式）——否则本次会读到
+    // 同一线程上一次（被截断的）搜索残留的 `LAYER_TRUNC`，把「上次截断」错记成
+    // 「本次截断」（方向 A 要求 truncated 只描述本次搜索）。
+    LAYER_TRUNC.with(|f| f.set(None));
     let search = Search::new(input, level);
     let (reachable, goals) = search.run();
+    // 与 `ExitSolve.truncated` 同源：同一个 `take_layer_trunc()`（只读不清）。
+    let truncated = take_layer_trunc().is_some();
     let hp_goal = pick::<HpLoss, _>(&goals);
     let kill_goal = pick::<Kills, _>(&goals);
     SolveResult {
@@ -290,8 +312,10 @@ pub fn solve_local(input: &SolveInput) -> SolveResult {
         reachable,
         max_hp: hp_goal.map(|g| g.hp),
         min_kills: kill_goal.map(|g| g.kills),
-        // BR-7/§64：批2 单层版策略空间受限但空间内最优 ⇒ 一律 bounded-best，不冒充 optimal
-        confidence: "bounded-best",
+        truncated,
+        // BR-7/§64：批2 单层版策略空间受限但空间内最优 ⇒ bounded-best，不冒充 optimal。
+        // P3 收口1：本次撞层界 ⇒ 连「空间内最优」都不成立（搜索没走完）⇒ capped-search。
+        confidence: if truncated { "capped-search" } else { "bounded-best" },
         route: hp_goal.map(|g| g.route.clone()).unwrap_or_default(),
         route_min_kills: kill_goal.map(|g| g.route.clone()).unwrap_or_default(),
         keys_used: hp_goal
@@ -456,6 +480,83 @@ pub fn solve_local_exit(
     let (reachable, goals) = solve_layer(input, entry, ents_in, player_in.clone(), flags_in);
     let truncated = take_layer_trunc().is_some();
     let best = pick::<HpLoss, _>(&goals);
+    materialize_exit(input, reachable, best, player_in, flags_in, ents_in, truncated)
+}
+
+/// 【P4】[`solve_local_exit`] 的**定向变体**：优先取「出层边指向 `toward` 层」的解。
+///
+/// # 为什么需要（实证，不是猜）
+///
+/// [`solve_local_exit`] 的目标挑选是 [`HpLoss`]（出层血最大 → 步数少 → 路线字典序），
+/// **不带方向语义**。塔里带下行梯的层（f52 `StairDown@(1,11)→f51`）上，若「往下走」
+/// 恰好挤到更多血（血瓶/商店换血），规范挑选就会选**下行**梯 —— P4 首跑实测
+/// f51→f52→f51，`blocked/cycle`，`floors=2`。要线性推进，必须能把「P0 层图给的下一层」
+/// 作为优先目标层传进来。
+///
+/// # 语义（零变化面）
+///
+/// 搜索空间/剪枝/`ok`/`truncated`/`LAYER_MEMO` 键全部沿用 [`solve_local_exit`]；
+/// 本函数只在**已收集目标集**上改挑选：命中「边指向 `toward`」的子集 ⇒ 仍按 [`HpLoss`]
+/// 在该子集取最优；否则回落规范挑选。第二个返回值 `hit` **显式**告诉调用方
+/// 「优先目标是否被满足」——消费方必须看它：`hit=false` 时的解是**回落解**（可能往回走），
+/// 把它当「前进」消费就是造假（witness 侧按 blocked 如实上报）。
+pub fn solve_local_exit_toward(
+    input: &SolveInput,
+    entry: (i32, i32),
+    player_in: &PlayerSpec,
+    flags_in: u128,
+    ents_in: Option<&[EntRec]>,
+    toward: Option<i32>,
+) -> (ExitSolve, bool) {
+    let (reachable, goals) = solve_layer(input, entry, ents_in, player_in.clone(), flags_in);
+    let truncated = take_layer_trunc().is_some();
+    let prefer: Vec<&LayerGoal> = match (toward, input.level.as_ref()) {
+        (Some(t), Some(lv)) => goals
+            .iter()
+            .filter(|g| goal_edge(lv, g).map(|(to, _)| to) == Some(t))
+            .collect(),
+        _ => Vec::new(),
+    };
+    let hit = !prefer.is_empty();
+    let best = if hit {
+        best_goal(prefer.into_iter())
+    } else {
+        pick::<HpLoss, _>(&goals)
+    };
+    (materialize_exit(input, reachable, best, player_in, flags_in, ents_in, truncated), hit)
+}
+
+/// 目标的换层边 `(target, went_down)`：`Stair` 取出口梯实体 `param&0xff`（同
+/// [`crate::solve_global::stair_target`] 口径），`Script`/`Cloud`/`UseItem` 取
+/// `cross_edge`，`Ending` 非换层 ⇒ `None`。
+pub fn goal_edge(level: &LevelSpec, g: &LayerGoal) -> Option<(i32, bool)> {
+    match g.kind {
+        ExitKind::Stair => crate::solve_global::stair_target(level, g.post_pos),
+        ExitKind::Ending => None,
+        _ => g.cross_edge,
+    }
+}
+
+/// 在**已筛子集**上按 [`HpLoss`] 取最优（与 `pick` 同一比较器，不写第二份 tie-break）。
+fn best_goal<'g>(goals: impl Iterator<Item = &'g LayerGoal>) -> Option<&'g LayerGoal> {
+    goals.fold(None, |best: Option<&'g LayerGoal>, g| match best {
+        None => Some(g),
+        Some(b) if HpLoss::better(g, b) => Some(g),
+        some => some,
+    })
+}
+
+/// 层目标 → [`ExitSolve`] 的物化（[`solve_local_exit`] 与 [`solve_local_exit_toward`]
+/// 共用同一份 `ok/truncated` 契约与回显逻辑，禁止第二份）。
+fn materialize_exit(
+    input: &SolveInput,
+    reachable: bool,
+    best: Option<&LayerGoal>,
+    player_in: &PlayerSpec,
+    flags_in: u128,
+    ents_in: Option<&[EntRec]>,
+    truncated: bool,
+) -> ExitSolve {
     match best {
         // `Some(g) if reachable`：有目标且搜索确认可达才回填目标态。
         // 截断 ⇒ 结果不可信 ⇒ ok=false，但 out_* 仍回填「部分搜索里最优的一条」作参考
@@ -484,6 +585,40 @@ pub fn solve_local_exit(
     }
 }
 
+/// 商品表在 `LAYER_MEMO` 键里的规范行：`(id, src, idx, price, 效果编码)`。
+///
+/// **为什么是摊平元组而不是 hash 摘要**（P3 收口2）：摘要要接受碰撞概率，而这里是
+/// 缓存键——碰撞=静默串味（复核 R3 抓到的正是这一类 bug）。元组同时参与 `Hash` 与
+/// `Eq`，哈希撞了也被 `Eq` 兜住 ⇒ 精确。为什么不用 `ShopGoodDef` 本体：它没有
+/// `Hash`/`Eq`（`game-data` 不为求解器缓存改 derive），摊平后就是纯整数，零耦合。
+///
+/// 效果编码 `(tag, a, b, c)` 逐臂定长（`ShopEffect` 七臂，见 `game-data/src/defs.rs`）：
+/// 1=GiveGold(amount) 2=AddStack(item) 3=StatPct(atk,def) 4=AddKeys(blue,yellow,red)
+/// 5=SwapYellowKey(gold) 6=AddHp(amount) 7=PickupItem(item)；未用槽补 0。
+pub(crate) type ShopKeyRow = (i32, i32, i32, i32, (u8, i32, i32, i32));
+
+/// `shops` → [`ShopKeyRow`] 序列（顺序敏感：搜索按 `find` 首配取行，顺序是输入的一部分）。
+///
+/// **不进编码的字段**：`ShopGoodDef.fail_hint`（只用于失败提示文案，不参与任何
+/// 走位/买臂/资源判定 —— `shop_offer` 只读 `src`/`idx`/`price`/`effect`）。
+pub(crate) fn shops_key(shops: &[ShopGoodDef]) -> Vec<ShopKeyRow> {
+    shops
+        .iter()
+        .map(|g| {
+            let eff = match &g.effect {
+                ShopEffect::GiveGold { amount } => (1u8, *amount, 0, 0),
+                ShopEffect::AddStack { item } => (2, *item, 0, 0),
+                ShopEffect::StatPct { atk_pct, def_pct } => (3, *atk_pct, *def_pct, 0),
+                ShopEffect::AddKeys { blue, yellow, red } => (4, *blue, *yellow, *red),
+                ShopEffect::SwapYellowKey { gold } => (5, *gold, 0, 0),
+                ShopEffect::AddHp { amount } => (6, *amount, 0, 0),
+                ShopEffect::PickupItem { item } => (7, *item, 0, 0),
+            };
+            (g.id, g.src, g.idx, g.price, eff)
+        })
+        .collect()
+}
+
 /// 批4 C4-a：带贪心零决策闭包谓词的层求解（`solve_layer`=谓词 `OFF` 的转发，
 /// 批0-3 回归判据「逐层拼接==全局解」在 OFF 下逐字节不变）。
 /// 缓存键含 `policy`——同层不同谓词是不同纯函数，不许串味。
@@ -508,8 +643,24 @@ pub fn solve_layer_with(
     };
     // C5d″：层结果缓存 lookup——全局队列里同 K₀ 不同 kills/steps 的变体会以完全
     // 相同输入反复 pop 同一层（f52 实测同输入 8 连 pop、单层状态 80 万）。
-    // 键含 `node_limit`（2026-11-18 P3 复核红2 附带）：缺它则「同线程先小界后大界」
-    // 会命中旧 memo、回放旧的截断结果 ⇒ `truncated` 语义不可信。也保证键=全部输入。
+    //
+    // **键实际包含什么（2026-11-18 P3 收口2 逐项核对，别再写「键=全部输入」这种不查就写的话）**：
+    //   1. `input.floor`            —— 层的编号（判定面 `entity_category_with_floor` 用它）
+    //   2. `entry`                  —— 入场格（层间边=上一层出场梯落点）
+    //   3. `player.clone()`         —— 入场玩家全态（hp/atk/def/三色钥/金/背包）
+    //   4. `flags`                  —— 入场 `script_line_flags`
+    //   5. `root_ents.clone()`      —— 入场活体实体表（`ents` 为 None 时已展开成 `sprite_full`）
+    //   6. `level_digest(input)`    —— 层规格内容摘要（difficulty+terrain/start/entities/
+    //                                 exits/player/enemies/enemy_base/flags；见 `level_digest`）
+    //   7. `policy`                 —— 闭包谓词（同层不同谓词=不同纯函数）
+    //   8. `node_limit`             —— `layer_node_limit()`（**环境派生输入**：撞界与否是
+    //                                 结果的组成部分，缺它则「先小界后大界」回放截断结果）
+    //   9. `shops_key(shops)`       —— **商品表内容**的规范编码（P3 收口2 补；缺它则空表
+    //                                 会回放带买臂的解，复核 R3 A 级探针实证）
+    // 于是「键≡`solve_layer_with` 的全部实参（`input` 经 `level_digest` 压成内容摘要）」
+    // 成立——**这是本次核对后才敢写的等式**，不是自称。
+    // 唯一没进键的输入字段：`ShopGoodDef.fail_hint`（只喂 `show_overlay_message` 文案，
+    // 不参与任何走位/买臂判定 ⇒ 对搜索纯函数无影响，剥离安全）。
     let node_limit = layer_node_limit();
     let memo_key = (
         input.floor,
@@ -520,6 +671,7 @@ pub fn solve_layer_with(
         level_digest(input),
         policy,
         node_limit,
+        shops_key(shops),
     );
     if let Some((hit_ok, hit_goals, hit_trunc, hit_peak, hit_buys)) =
         LAYER_MEMO.with(|m| m.borrow().get(&memo_key).cloned())
@@ -556,7 +708,7 @@ pub fn solve_layer_with(
             cross_edge: g.cross_edge,
         })
         .collect();
-    // C5d″：纯函数结果入缓存（键=全部输入；gate memo 只提速不改输出）；
+    // C5d″：纯函数结果入缓存（键清单见 lookup 处九项；gate memo 只提速不改输出）；
     // 截断标记随结果入缓存（同输入⇒同截断⇒确定性）
     LAYER_MEMO.with(|m| {
         m.borrow_mut().insert(
@@ -580,10 +732,22 @@ thread_local! {
     /// 键含 `level_digest`（FNV-1a 层规格内容摘要）防「同 floor 不同夹具」串味
     /// （玩具测试同 floor 多套 LevelSpec）；键含 `node_limit`（层界也是输入之一——
     /// 否则同线程先小界后大界会回放旧的截断结果，见 `solve_layer_with` 调用点注）；
+    /// 键含 `shops_key`（商品表内容——否则空表回放真表买臂解，P3 复核 R3）；
+    /// 完整 9 项清单见 `solve_layer_with` 的 lookup 注（那里是唯一真相源）。
     /// thread_local=多线程测试隔离；缓存纯加速、不改输出与遍历序（确定性不受影响）。
     static LAYER_MEMO: RefCell<
         HashMap<
-            (i32, (i32, i32), PlayerSpec, u128, Vec<EntRec>, u64, ClosurePolicy, usize),
+            (
+                i32,
+                (i32, i32),
+                PlayerSpec,
+                u128,
+                Vec<EntRec>,
+                u64,
+                ClosurePolicy,
+                usize,
+                Vec<ShopKeyRow>,
+            ),
             (bool, Vec<LayerGoal>, Option<(i32, usize)>, i32, (u64, u64)),
         >,
     > = RefCell::new(HashMap::new());

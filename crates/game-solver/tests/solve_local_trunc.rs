@@ -5,14 +5,23 @@
 //! `SOLVER_LAYER_LIMIT=10` 会污染并行跑的 f1 满界测试（`!truncated` 断言随机红）。
 //! 独立二进制=独立进程 ⇒ 环境变量不外泄；本文件内两个测试再用互斥锁串行。
 //!
-//! 判据两条：
+//! 判据（P3 红2 两条 + P3 收口两条）：
 //! 1. `exit_solve_truncation_forces_ok_false`：真数据 f1 + `SOLVER_LAYER_LIMIT=10`
 //!    ⇒ `truncated=true` 且 `ok=false`（红2-A 契约：截断⇒不可信⇒ok=false）；
 //! 2. `layer_memo_key_includes_node_limit`：**同线程**先 `limit=10`（截断）再默认界
-//!    ⇒ 第二次必须 `truncated=false && ok=true`（旧键缺 node_limit 时会回放截断结果）。
+//!    ⇒ 第二次必须 `truncated=false && ok=true`（旧键缺 node_limit 时会回放截断结果）；
+//! 3. `legacy_solve_local_reports_truncation`（复核 R2 黄收口）：**旧入口**
+//!    `solve_local()` 也必须有截断信号——`SolveResult.truncated`，且截断时
+//!    `confidence` 降级为 `capped-search`（旧行为=恒 `bounded-best`，截断被伪装成完整解）；
+//! 4. `layer_memo_key_includes_shops`（复核 R3 黄收口）：`LAYER_MEMO` 键必须含**商品表内容**
+//!    ——同线程先真表（有买臂）后空表，解集必须不同（旧键缺 shops ⇒ 空表回放带买臂的解）。
 use game_core::combat::{scale_enemy_stats, CombatTables, PlayerCombat};
 use game_data::defs::EnemyDef;
-use game_solver::solve_local::{solve_local_exit, PlayerSpec, SolveInput};
+use game_data::defs::{ShopEffect, ShopGoodDef};
+use game_solver::solve_local::{
+    solve_layer_with, solve_local, solve_local_exit, ClosurePolicy, EntSpec, ExitKind, ExitSpec,
+    LayerGoal, LevelSpec, PlayerSpec, SolveInput,
+};
 use std::path::PathBuf;
 
 /// 进程内串行锁：两个测试都要改进程全局 env，必须互斥（Cargo 默认并行跑本文件内测试）。
@@ -197,4 +206,192 @@ fn layer_memo_key_includes_node_limit() {
     assert!(second.ok, "满界解可信 ⇒ ok=true：{second:?}");
     assert_eq!(second.out_hp, 202, "满界出层最大血：{second:?}");
     assert_eq!(second.exit, Some((11, 1)), "出层落点：{second:?}");
+}
+
+// ================================================================ P3 收口（复核 R2/R3 黄）
+
+/// 收口1 判据（复核 R2 黄）：旧入口 `solve_local()` 必须自带截断信号。
+///
+/// 旧行为（复核者实测 `SOLVER_LAYER_LIMIT=10/200/1e6` 三种输出逐字段相同）：
+/// 截断解与完整解在 `SolveResult` 上不可区分 ⇒ 「截断被当完整解」的洞只在
+/// `ExitSolve` 层被堵。新契约（方向 A）：`truncated` 与 `ExitSolve.truncated`
+/// 同源（同一个 `take_layer_trunc()`），且 `confidence` 在截断时降级为
+/// `capped-search`（`solve_global::RunStatus::Capped` 同词）。
+///
+/// 变异自证：把 `solve_local` 里的 `truncated` 写死 `false`（或删掉入口清
+/// `LAYER_TRUNC` 那一行、让它读到上一条测试残留的截断标记）⇒ 本测试红。
+#[test]
+fn legacy_solve_local_reports_truncation() {
+    let _guard = env_lock();
+    let input = fixture_floor1();
+
+    // (a) 满界：不截断 ⇒ truncated=false 且置信仍是 bounded-best
+    let full = solve_local(&input);
+    let jfull = full.to_json();
+    println!("[收口1 full] {jfull}");
+    assert!(full.reachable, "f1 满界有解：{jfull}");
+    assert!(!full.truncated, "满界（默认 200_000 节点）不应截断：{jfull}");
+    assert!(jfull.contains("\"truncated\":false"), "JSON 必须带 truncated=false：{jfull}");
+    assert_eq!(full.confidence, "bounded-best", "满界单层置信：{jfull}");
+
+    // (b) 小界：必截断 ⇒ truncated=true 且置信降级
+    let small = {
+        let _env = LayerLimitEnv::set(10);
+        solve_local(&input)
+    };
+    let jsmall = small.to_json();
+    println!("[收口1 limit=10] {jsmall}");
+    assert!(
+        small.truncated,
+        "limit=10 必撞层界 ⇒ truncated=true（旧入口必须能报截断）：{jsmall}"
+    );
+    assert!(
+        jsmall.contains("\"truncated\":true"),
+        "JSON 必须带 truncated=true：{jsmall}"
+    );
+    assert_eq!(
+        small.confidence, "capped-search",
+        "截断 ⇒ 置信降级 capped-search（不许冒充 bounded-best）：{jsmall}"
+    );
+    // route 仍是 JSON 末字段（T1 形状判据不许被本次字段新增破坏）
+    let ri = jsmall.find("\"route\":[").expect("缺 route");
+    assert!(jsmall[ri..].ends_with('}'), "route 必须仍是末字段：{jsmall}");
+}
+
+/// 收口2 夹具：8×3 单走廊（仅 y=1 可走）+ 三格 ty78 商人 + 上行梯 ty7(x=7,param=50)。
+/// 与 `tests/solve_global.rs::gold_world` 同款（复核 R3 探针同夹具）。
+fn shop_world() -> SolveInput {
+    const W: i32 = 8;
+    let mut terrain = vec![false; (W * 3) as usize];
+    for x in 0..W {
+        terrain[(W + x) as usize] = true; // y=1
+    }
+    let mut entities: Vec<EntSpec> = Vec::new();
+    for x in 4..=6 {
+        // ty78 ⇒ src=1；开价门 (param>>8)&2 ⇒ 3；idx=4 ⇒ 真表「¤50 黄+5」那一行
+        entities.push(EntSpec { ty: 78, x, y: 1, param: (3 << 8) | 4 });
+    }
+    entities.push(EntSpec { ty: 7, x: 7, y: 1, param: 50 });
+    SolveInput {
+        floor: 1,
+        difficulty: 0,
+        level: Some(LevelSpec {
+            cols: W,
+            rows: 3,
+            terrain,
+            start: (0, 1),
+            entities,
+            exits: vec![ExitSpec { x: 7, y: 1, kind: ExitKind::Stair, index: 1 }],
+            player: PlayerSpec {
+                hp: 300,
+                atk: 10,
+                def: 10,
+                yellow: 0,
+                blue: 0,
+                red: 0,
+                gold: 100,
+                item_types: Vec::new(),
+                item_uses: Vec::new(),
+                item_stack_size: 0,
+            },
+            enemies: Vec::new(),
+            enemy_base: Vec::new(),
+            flags: 0,
+        }),
+    }
+}
+
+/// 真表那一行（`data/tables/shop_goods.json` id8 语义：¤50 黄+5），手工构造以免本
+/// 测试二进制再拖 JSON 解析；内容必须与 memokey 的语义字段同面。
+fn one_good() -> Vec<ShopGoodDef> {
+    vec![ShopGoodDef {
+        id: 1,
+        src: 1,
+        idx: 4,
+        price: 50,
+        effect: ShopEffect::AddKeys { blue: 0, yellow: 5, red: 0 },
+        fail_hint: String::new(),
+    }]
+}
+
+/// 解集指纹（跨两次调用可比；`LayerGoal` 无 PartialEq）。
+fn goals_sig(goals: &[LayerGoal]) -> Vec<(i32, i32, i32, (i32, i32, i32), String, Vec<String>, i32, i32, i32)> {
+    goals
+        .iter()
+        .map(|g| {
+            (
+                g.hp,
+                g.kills,
+                g.steps,
+                g.keys,
+                format!("{:?}", g.kind),
+                g.route.clone(),
+                g.post.gold,
+                g.post.yellow,
+                g.post.hp,
+            )
+        })
+        .collect()
+}
+
+/// 收口2 判据（复核 R3 黄）：`LAYER_MEMO` 键必须含**商品表内容**。
+///
+/// 复核 A 级探针（旧键缺 shops）：同线程先真表后空表，空表仍回放带买臂的解
+/// （`identical_goals=true`，hp=300 / gold=50 / yellow=5 / steps=7）。
+///
+/// 变异自证：把 `shops`（商品表规范编码）从 memo 键里拿掉 ⇒ 第二次命中第一次的
+/// 缓存、解集逐字段相同 ⇒ `assert_ne!` 红。
+#[test]
+fn layer_memo_key_includes_shops() {
+    let _guard = env_lock();
+    let input = shop_world();
+    let level = input.level.clone().expect("夹具已装载");
+    let entry = level.start;
+    let player = level.player.clone();
+
+    // 第一次：真商品表（买得起 ⇒ 解集里应有「已买」终态）
+    let (ok1, g1) = solve_layer_with(
+        &input,
+        entry,
+        None,
+        player.clone(),
+        0,
+        ClosurePolicy::OFF,
+        &one_good(),
+    );
+    assert!(ok1, "真表：走廊必达上行梯");
+    let sig1 = goals_sig(&g1);
+    println!("[收口2 real] {} goals", sig1.len());
+    for s in &sig1 {
+        println!("  {s:?}");
+    }
+    assert!(
+        g1.iter().any(|g| g.post.yellow == 5 && g.post.gold == 50),
+        "真表必须给出买臂终态（黄+5 / 金 100-50）：{sig1:?}"
+    );
+
+    // 第二次：同一层/同一入场态，仅商品表为空 ⇒ 必须冷算（空表买不到东西）
+    let (ok2, g2) = solve_layer_with(
+        &input,
+        entry,
+        None,
+        player.clone(),
+        0,
+        ClosurePolicy::OFF,
+        &[],
+    );
+    assert!(ok2, "空表：走廊仍必达上行梯");
+    let sig2 = goals_sig(&g2);
+    println!("[收口2 empty] {} goals", sig2.len());
+    for s in &sig2 {
+        println!("  {s:?}");
+    }
+    assert_ne!(
+        sig1, sig2,
+        "空商品表必须与真表给出不同解集（旧键缺 shops ⇒ 回放真表解）：\nreal={sig1:?}\nempty={sig2:?}"
+    );
+    assert!(
+        !g2.iter().any(|g| g.post.yellow != 0 || g.post.gold != 100),
+        "空表不许出现任何购买痕迹（黄钥=0 / 金=100）：{sig2:?}"
+    );
 }

@@ -3758,12 +3758,21 @@ impl GameScene {
                             // `post_victory_event_of` 返回 7 ⇒ 组7；而「哪只怪在哪个臂上做
                             // post-anim」仍散在 `switch(型)` 的各臂里。**事实更正
                             // （2026-11-18 P3 复核 F10-c）**：不全是「同构各带自己的脚本号」——
-                            //   · `69`：本臂，`load_level_script(36)` 无楼层条件；
+                            //   · `69`：本臂；`load_level_script(36)` **不是**无楼层条件——
+                            //     它与组7 掉落在同一个 `if let Some(ev) =
+                            //     post_victory_event_of(69, floor)` 里（本臂 :3782-3785 的 if-let），
+                            //     而 `rules::boss::post_victory_event_of`（`rules/boss.rs:155-161`）
+                            //     仅 `floor == 35` 返 `Some(7)` ⇒ 脚本 36 被 `Option` 隐式钉在
+                            //     `floor == 35`（`post_victory_event_of(69,36) == None`：
+                            //     单测 `rules/boss.rs:230-235`）。
+                            //     【2026-11-18 P3 复核 R5 更正】本条原文写「无楼层条件」，
+                            //     与同段末尾「69@35 → 组7」自相矛盾；按代码事实改如上。
                             //   · `70 | 71`：**共用一个臂**，共用 `load_level_script(35)`，
                             //     且仅 `floor == 49` 时加载（不是两个臂两个脚本号）；
                             //   · `72`：仅 `floor == 50` 时 `load_level_script(65)`；
                             //   · `73` / `74` / `75`：**不在本 switch**，在更早的「击杀钩子」
-                            //     switch 里（本文件 `3650+`，a.java:10070-10090）：73 ⇒ 置
+                            //     switch 里（本文件 `3673`（`floor <= 50` 门）/
+                            //     `3684-3697`（各臂），a.java:10070-10090）：73 ⇒ 置
                             //     `script_line_flags[cur]=true` + 脚本 22；74 ⇒ 21；75 ⇒
                             //     `try_run_scene(20, true)` 后再 20；且仅 `floor <= 50`。
                             // 数据化需要一张「型 → (post-anim 组, 是否 post-anim 臂,
