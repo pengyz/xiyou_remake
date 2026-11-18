@@ -51,6 +51,23 @@
 //!
 //! 无 `HashMap` 遍历、无时钟、无随机：同输入 ⇒ JSON 逐字节相同（`LAYER_MEMO` 是
 //! thread_local 纯加速，缓存里连截断标记一起存/回放，不改变输出）。
+//!
+//! # schema 版本（v1 → v2，2026-11-19 / 复核 F7）
+//!
+//! **v1 的缺口**：`WitnessFloor` 只有 `ok/truncated` 两个成败位，`ExitSolve::pure_pickup`
+//! （P5 闭式解采用标记）在 `record_floor` 里被**丢弃** ⇒ `solver run` 的 JSON 下游
+//! 无法区分「闭式命中」与「通用搜索」。f54（闭式，`+2400`）与 f1（通用搜索）在 v1
+//! JSON 里长得一样，P5 回放与外部审计只能靠猜。
+//!
+//! **v2 新增（只追加，既有字段序与语义一律不动）**：
+//!
+//! | 字段 | 类型 | 语义 |
+//! |---|---|---|
+//! | `pure_pickup` | `bool` | 本层出层解是否来自闭式（`ExitSolve::pure_pickup` 原值，不重算） |
+//! | `pure_pickup_reason` | `string \| null` | 命中=`"adopted"`；回退=具名拒绝原因（`reason/ty`，如 `monster_ents/41`）；`null`=本层没问过闭式 |
+//!
+//! 判据：`witness_floor_records_pure_pickup_flag`（真数据 f54/f1）+
+//! `witness_json_has_no_unknown_schema_drift`（标签与字段序）。
 
 use crate::solve_global::{landing, stair_target};
 use crate::solve_local::{
@@ -60,7 +77,11 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// witness JSON 的 schema 标签（消费者按它判版本；字段语义变更必须换标签）。
-pub const WITNESS_SCHEMA: &str = "xiyou/witness/v1";
+///
+/// v1 → v2（2026-11-19，复核 F7）：`WitnessFloor` 追加 `pure_pickup` /
+/// `pure_pickup_reason` 两字段（闭式解可观测面）。既有字段与顺序零改动，
+/// 但「新增字段」就是契约变更 ⇒ 必须换标签（禁静默改契约）。
+pub const WITNESS_SCHEMA: &str = "xiyou/witness/v2";
 
 /// 一次见证的层数上限（防无限推进；塔序真实长度 ~54 ⇒ 64 足够且仍是硬护栏）。
 pub const DEFAULT_MAX_FLOORS: usize = 64;
@@ -180,6 +201,12 @@ pub struct WitnessFloor {
     pub ents_out: Vec<WEnt>,
     pub ok: bool,
     pub truncated: bool,
+    /// 【v2】本层出层解是否来自 P5 纯拾取闭式（`ExitSolve::pure_pickup` 原值）。
+    /// `true` ⇒ `out_hp` 是「入场 hp + Σ 认证单调拾取增量」的闭式上界且路线已引擎回放。
+    pub pure_pickup: bool,
+    /// 【v2】闭式命中/回退的具名标签（`PurePickupStat::reason_label`）：
+    /// 命中=`"adopted"`；回退=拒绝原因（带触发实体型）；`null`=本层没问过闭式。
+    pub pure_pickup_reason: Option<String>,
 }
 
 /// 终局块。`ending_done` **只有**真的推进到 `Ending` 才为 true。
@@ -356,6 +383,9 @@ fn record_floor(
         ents_out: wents(&got.out_ents),
         ok: got.ok,
         truncated: got.truncated,
+        // F7：`ExitSolve` 携带的闭式判定**原样**落盘，不再丢弃（v1 就是丢在这里）。
+        pure_pickup: got.pure_pickup,
+        pure_pickup_reason: got.pure_pickup_reason.clone(),
     });
 }
 

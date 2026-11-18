@@ -16,7 +16,7 @@
 //! | G2a | **入场格**的步臂只允许「门已开的场景门」 | 引擎进图链在出生格也跑 `apply_step_cell_effects`（`game-core/src/scene.rs:3878-3887`）⇒ 入场格的陷阱/宝箱在真实玩家进层时就触发。`ty83` 且 `probe_gate=true`（门已开 ⇒ 脚本不跑）才可证中性 |
 //! | G2 | 危险步臂格不可达（入场格除外） | `STEP_ARM_HAZARD_TYPES`（`solve_local.rs:1321`，单一真相源，不复制数值）；「可达」= 几何 BFS（hazard 格本身按可走算，否则判定空转） |
 //! | G3 | 全部拾取物经认证纯加血、每格仅 1 枚、**不在入场格** | `certified_pure_hp_gain(ty,floor)=Some(d>0)`（`crates/game-core/src/effect_registry.rs:391`，运行时探针背书）；`cat∈{2,4}`（`entity_category_with_floor`） |
-//! | G4 | 至少一个 `ExitKind::Stair` 出口在纯图内可达 | 纯图 = `classify` 判 `Move`/`Pickup` ∧ 非 hazard 格 ∧ **入场格不可作中间点** |
+//! | G4 | 至少一个 `ExitKind::Stair` 出口**能从纯图上走上去** | 纯图 = `classify` 判 `Move`/`Pickup` ∧ 非 hazard 格 ∧ **入场格不可作中间点**（`step_ok` 的 `cell != entry`）。**结构性排除**：只能从入场格走上去的出口（f54 的 `(7,10)`）**永远不进候选集**——这不是「未证明」，是本模块明确不覆盖的边（F1 口径更正） |
 //! | G5 | 入场 `hp > 0` | 0/占位 hp 不是真实入场态 |
 //! | G6 | `policy == ClosurePolicy::OFF` | 闭包谓词（Q1/Q2/Q3）改变搜索语义，闭式解不建模 |
 //!
@@ -136,6 +136,24 @@ impl PurePickupStat {
     };
 }
 
+impl PurePickupStat {
+    /// 本层闭式判定的**可消费标签**：`None` = 本层没问过闭式（`attempted=false`）；
+    /// `Some("adopted")` = 闭式命中；其余 = fail-closed 具名拒绝原因。
+    ///
+    /// 触发实体型非 0 时拼成 `reason/ty`（形如 `monster_ents/41`）——只报 `reason`
+    /// 会让「41 型怪」与「77 型怪」在 JSON 里撞成同一字符串，下游无法定位。
+    pub fn reason_label(&self) -> Option<String> {
+        if !self.attempted {
+            return None;
+        }
+        if self.reason_ty == 0 {
+            Some(self.reason.to_string())
+        } else {
+            Some(format!("{}/{}", self.reason, self.reason_ty))
+        }
+    }
+}
+
 thread_local! {
     /// 本线程最近一次层尝试的统计（thread_local = 多线程测试隔离；纯诊断面，
     /// 不进任何搜索键、不改输出）。memo 命中时由 `solve_layer_with` 回放同一份值。
@@ -178,6 +196,14 @@ impl Grid {
     }
 
     /// 路线可进格：纯格 ∧ 非 hazard ∧ **不是入场格**（入场只作起点，禁再进入）。
+    ///
+    /// 【F1 口径更正（2026-11-19 复核黄 F1）】`cell != entry` 这一项是**结构性排除**，
+    /// 不是「未证明」：它让「只能从入场格走上去」的出口格**永远进不了闭式的候选集**。
+    /// f54 的 `(7,10)` 出口就是这样——它唯一的邻格是入场格 `(7,9)` ⇒ 闭式**只覆盖**
+    /// `(7,1)`，`(7,10)` 那条边的出层最优值**本模块不声称、也不计算**（旧通用搜索能给出
+    /// `2227/26/(7,10)`，那是搜索的答案，不是闭式的）。
+    /// 为什么不做「允许穿回入场格」：入场格的步臂只有「门已开的场景门」被 G2a 证过中性，
+    /// 重入等于把未建模的踩格臂放回路线里 ⇒ 宁可让目标集合小、也不能让上界假。
     fn step_ok(&self, cell: (i32, i32), entry: (i32, i32)) -> bool {
         cell != entry && self.pure(cell.0, cell.1) && !self.hazard.contains_key(&cell)
     }

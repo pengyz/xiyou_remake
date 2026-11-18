@@ -506,3 +506,55 @@ fn pure_pickup_chain_breaks_the_f54_wall() {
     assert!(!w.floors[3].truncated, "f54 必须不再撞界");
     assert_eq!(w.floors[3].exit, Some([7, 1]));
 }
+
+// ---------------------------------------------------------------------------
+// 判据 A1（F7 修复）：`witness` 的 floor JSON 必须能区分「闭式命中」与「通用搜索」。
+//
+// 红（修前实测）：`WitnessFloor` 根本没有 `pure_pickup` 字段 ⇒ 编译期 E0609；
+// 即便只看 `ExitSolve`，下游也只能从 `pure_pickup_stat()` 的**线程局部**猜，而
+// `solver run` 消费的是 JSON ⇒ 不可区分（复核 F7 报告原文）。
+// ---------------------------------------------------------------------------
+#[test]
+fn witness_floor_records_pure_pickup_flag() {
+    let si = load_si();
+    let levels = levels_map(&si);
+
+    // ① f54 段：闭式命中 ⇒ flag=true、reason 是命中标签。
+    let w = run_witness(
+        &levels,
+        GLOBAL_START_FLOOR,
+        GLOBAL_ENTRY,
+        PlayerSpec::from_combat(mk_player()),
+        0,
+        &WitnessCfg { max_floors: 4 },
+    );
+    assert_eq!(w.floors.len(), 4, "f51..f54 四层都要在链上");
+    let f54 = w.floors.iter().find(|f| f.floor == 54).expect("f54 在链上");
+    println!(
+        "[A1] f54 pure_pickup={} reason={:?}",
+        f54.pure_pickup, f54.pure_pickup_reason
+    );
+    assert!(f54.pure_pickup, "f54 出层解来自闭式 ⇒ 标记必须为 true（F7 核心）");
+    assert_eq!(f54.pure_pickup_reason.as_deref(), Some("adopted"));
+
+    // ② 同一条链上的 f51：通用搜索 ⇒ flag=false + 具名拒绝原因（带触发实体型）。
+    //    为什么不用 f1：入口 (1,11) 下 f1 的闭式判定发生在 G2a（入场格 ty83 场景门），
+    //    闸门执行序 G2a 在 G1 之前 ⇒ 理由是 `step_arm_hazard_on_entry/83`。f51 才是
+    //    干净落在 G1 的样本（`monster_ents/41`），且它与 f54 出自**同一次**链跑。
+    let f51 = w.floors.iter().find(|f| f.floor == 51).expect("f51 在链上");
+    println!(
+        "[A1] f51 pure_pickup={} reason={:?}",
+        f51.pure_pickup, f51.pure_pickup_reason
+    );
+    assert!(!f51.pure_pickup, "f51 ⇒ 闭式不得命中");
+    // 实测（隔离进程 `examples/probe_f3` 与链上**两条路径同值**）：
+    // f51/f52/f53 的拒绝原因都是 `step_arm_hazard_reachable/83`——三层都有**可达的
+    // ty83 场景门**，而闸门执行序是 G2a→G2→G1 ⇒ 只要 G2 先响，G1 的 `monster_ents`
+    // 就轮不到。任务书预期的 `monster_ents/41` 在本代码上不成立（见本片报告的
+    // 「具名理由与预期不符」一条）：这是**既有行为**，本片不改闸门语义。
+    assert_eq!(
+        f51.pure_pickup_reason.as_deref(),
+        Some("step_arm_hazard_reachable/83"),
+        "回退必须带具名原因+触发实体型，禁静默"
+    );
+}

@@ -180,6 +180,7 @@ fn fake_exit_ok(player: &PlayerSpec) -> game_solver::solve_local::ExitSolve {
         cross_edge: None,
         truncated: false,
         pure_pickup: false,
+        pure_pickup_reason: None,
     }
 }
 
@@ -197,6 +198,7 @@ fn fake_ending(player: &PlayerSpec) -> game_solver::solve_local::ExitSolve {
         cross_edge: None,
         truncated: false,
         pure_pickup: false,
+        pure_pickup_reason: None,
     }
 }
 
@@ -321,6 +323,7 @@ fn witness_refuses_to_fake_success() {
                     cross_edge: None,
                     truncated: false,
                     pure_pickup: false,
+                    pure_pickup_reason: None,
                 },
                 false,
             )
@@ -464,12 +467,13 @@ fn witness_json_schema_stable() {
         &[
             "floor", "entry", "exit", "kind", "route", "in_hp", "out_hp", "in_player",
             "out_player", "in_flags", "out_flags", "ents_in", "ents_out", "ok", "truncated",
+            "pure_pickup", "pure_pickup_reason",
         ],
     );
 
     // 3) 值层面：schema 标签、状态词表、层不变式。
     let v: serde_json::Value = serde_json::from_str(&json).unwrap();
-    assert_eq!(v["meta"]["schema"], "xiyou/witness/v1");
+    assert_eq!(v["meta"]["schema"], "xiyou/witness/v2");
     assert!(
         ["witness", "blocked", "capped", "model_broken"].contains(&v["status"].as_str().unwrap()),
         "status 词表：{}",
@@ -513,4 +517,60 @@ fn witness_up_line_comes_from_floor_graph() {
     assert_eq!(WitnessStatus::Witness.as_str(), "witness");
     assert_eq!(WitnessStatus::Capped.as_str(), "capped");
     assert_eq!(WitnessStatus::ModelBroken.as_str(), "model_broken");
+}
+
+// ---------------------------------------------------------------- 9. schema 无漂移（F7 修复的契约面）
+
+/// 判据 A2（F7）：`meta.schema` 升 v2，且新字段**只在末尾追加**（既有字段序不动）。
+///
+/// 红（修前实测）：`WITNESS_SCHEMA` 仍是 `xiyou/witness/v1`，且 floor 对象里没有
+/// `pure_pickup`/`pure_pickup_reason` 两个键 ⇒ 本判据两条断言都红。
+#[test]
+fn witness_json_has_no_unknown_schema_drift() {
+    let levels = real_levels(&[1, 2, 3]);
+    let cfg = WitnessCfg { max_floors: 2 };
+    let w = run_witness(&levels, 1, (6, 11), PlayerSpec::from_combat(s0()), 0, &cfg);
+    let json = w.to_json();
+    let v: serde_json::Value = serde_json::from_str(&json).expect("JSON 可解析");
+
+    // ① 契约变更必须换版本标签（新增字段属契约变更，见 witness.rs 模块文档 v1→v2）。
+    assert_eq!(v["meta"]["schema"], "xiyou/witness/v2", "schema 必须升到 v2");
+
+    // ② 声明序：新字段必须追加在 `truncated` 之后（不重排既有字段）。
+    let mut last = 0usize;
+    for f in [
+        "floor", "entry", "exit", "kind", "route", "in_hp", "out_hp", "in_player", "out_player",
+        "in_flags", "out_flags", "ents_in", "ents_out", "ok", "truncated", "pure_pickup",
+        "pure_pickup_reason",
+    ] {
+        let pat = format!("\"{f}\":");
+        let pos = json.find(&pat).unwrap_or_else(|| panic!("缺字段 {f}"));
+        assert!(pos >= last, "字段 {f} 的声明序被打乱（pos {pos} < 上一字段 {last}）");
+        last = pos;
+    }
+
+    // ③ 每个成功层都必须带这两个键，且类型固定（bool / string|null）。
+    //    入口 (6,11) 下 f1 的拒绝理由是 G2a（入场格 ty83 场景门），**不是** G1——
+    //    闸门执行序 G2a 先于 G1，理由面按实现序给出（这正是「具名理由」的价值：
+    //    换一个入口就能看出卡在不同闸门）。这里只钉「非命中 + 带实体型」两个不变量，
+    //    具体闸门由 tests/pure_pickup.rs 的 A1 判据按 (1,11) 入口钉。
+    let arr = v["floors"].as_array().expect("floors 是数组");
+    assert!(!arr.is_empty(), "f1 应能出一层");
+    for f in arr {
+        assert_eq!(
+            f["pure_pickup"].as_bool(),
+            Some(false),
+            "f1 有怪/入场步臂 ⇒ 闭式不得命中（实测 {f}"
+        );
+        let r = f["pure_pickup_reason"]
+            .as_str()
+            .unwrap_or_else(|| panic!("回退层必须带具名 reason，实测 {}", f["pure_pickup_reason"]));
+        assert_ne!(r, "adopted", "flag=false 与 reason=adopted 自相矛盾");
+        assert!(r.contains('/'), "回退原因必须带触发实体型（reason/ty），实测 {r}");
+        println!("[A2] f{} reason={r}", f["floor"]);
+    }
+
+    // ④ round-trip 仍恒等（新字段参与 serde，不靠 `skip_serializing_if` 藏）。
+    let back: Witness = serde_json::from_str(&json).expect("反序列化");
+    assert_eq!(back, w, "serde round-trip 必须恒等");
 }

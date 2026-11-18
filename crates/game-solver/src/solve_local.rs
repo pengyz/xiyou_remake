@@ -433,6 +433,13 @@ pub struct ExitSolve {
     /// `false` ⇒ 通用搜索（闭式未采用或未尝试；**原因必在**
     /// [`crate::pure_pickup::pure_pickup_stat`]`.reason` 里，禁静默）。
     pub pure_pickup: bool,
+    /// 【P5·F7 修复】闭式判定的**可消费标签**（`PurePickupStat::reason_label`）：
+    /// `None` = 本层没问过闭式（早退/memo 之外未到闭式分支）；
+    /// `Some("adopted")` = 命中；其余 = fail-closed 具名拒绝原因（`reason/ty`，如
+    /// `monster_ents/41`、`step_arm_hazard_reachable/83`）。
+    /// 为什么要它：`solver run` 消费的是 JSON，而 `pure_pickup` 布尔位只够判
+    /// 「是不是闭式」，判不了「为什么不是」——复核 F7 的另一半。
+    pub pure_pickup_reason: Option<String>,
 }
 
 impl ExitSolve {
@@ -455,6 +462,7 @@ impl ExitSolve {
             cross_edge: None,
             truncated,
             pure_pickup: false,
+            pure_pickup_reason: None,
         }
     }
 }
@@ -564,6 +572,10 @@ fn materialize_exit(
     ents_in: Option<&[EntRec]>,
     truncated: bool,
 ) -> ExitSolve {
+    // 闭式判定统计只在本线程最近一次 `solve_layer_with` 里有效（thread_local，层内
+    // 单写）——memo 命中时它由 `pure_pickup_stat_set(hit_pure)` 回放 ⇒ 同一份可观测面。
+    let closed = crate::pure_pickup::pure_pickup_stat();
+    let (closed_flag, closed_reason) = (closed.adopted, closed.reason_label());
     match best {
         // `Some(g) if reachable`：有目标且搜索确认可达才回填目标态。
         // 截断 ⇒ 结果不可信 ⇒ ok=false，但 out_* 仍回填「部分搜索里最优的一条」作参考
@@ -580,7 +592,8 @@ fn materialize_exit(
             cross_edge: g.cross_edge,
             truncated,
             // 闭式解采用标记直取统计（`solve_layer_with` 在 memo 命中/闭式命中时都写）
-            pure_pickup: crate::pure_pickup::pure_pickup_stat().adopted,
+            pure_pickup: closed_flag,
+            pure_pickup_reason: closed_reason,
         },
         _ => {
             // 无目标（或目标未确认可达）：回显「入场态」——注入则原样，未注入则本层
@@ -589,7 +602,11 @@ fn materialize_exit(
                 Some(v) => v.to_vec(),
                 None => input.level.as_ref().map(sprite_full).unwrap_or_default(),
             };
-            ExitSolve::failed(player_in, flags_in, echo, truncated)
+            let mut r = ExitSolve::failed(player_in, flags_in, echo, truncated);
+            // 无解也保留闭式判定标签（「闭式拒了、通用搜索也没解出」是两种不同的坏）
+            r.pure_pickup = closed_flag;
+            r.pure_pickup_reason = closed_reason;
+            r
         }
     }
 }
