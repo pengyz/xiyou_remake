@@ -7,8 +7,10 @@
 //! - **Q3 不拿终极装备能否通关** = 禁令集（缺省 `Q3_EQUIP_SET`，可被 `--ultimate`
 //!   覆盖）下 `reachable = !goals.is_empty()`
 //!
-//! 三者都是**有界求解**，置信级由 `GlobalResult::confidence` 给出
-//! （`optimal | bounded-best | feasible`）；plan §4 批4 要求 findings 结论
+//! 三者都是**有界求解**：先说 `GlobalResult::status`
+//! （`witness|exhausted|capped|model_broken`），再看 `coverage` 是否完整；
+//! `confidence` 只是它的派生展示值（P1 起不再有 `feasible` 这种含混词）。
+//! （`optimal | bounded-best | exhausted-no-solution | capped-search`）；plan §4 批4 要求 findings 结论
 //! 先标「待批5 oracle 回放确认」。
 //!
 //! 纯度：本文件属 `lib`，**禁 `std::fs`/`std::net`/`std::process`/`std::time`**
@@ -46,8 +48,8 @@ impl Default for QueryOpts {
 /// 判据值（三查询各自形状不同，故枚举而非裸数字）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum QueryValue {
-    /// `max_hp` / `min_kills`：有界内最优值；`0` + `confidence=feasible`
-    /// 表示 `goals` 空（无解）——判读时必须连 confidence 一起看。
+    /// `max_hp` / `min_kills`：有界内最优值；`0` + `status=capped` 表示搜索被截断、
+    /// **不知道**有没有解；`0` + `status=exhausted` 才是「模型内真无解」。
     Best(u64),
     /// `reachable`：`!goals.is_empty()`
     Reachable(bool),

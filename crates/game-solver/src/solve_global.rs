@@ -64,6 +64,84 @@ pub struct GlobalGoal {
 }
 
 /// 全局求解结果。
+/// 结论语义（P1）：**先报「有没有解」，再报「探索是否完整」**，两者不许混成一个词。
+///
+/// 旧口径 `goals.is_empty() ⇒ "feasible"` 是假的：空目标既可能是「真没解」（搜索穷尽），
+/// 也可能是「搜索被截断」（撞 node_cap / 层界 / bound）。docs/findings 里
+/// 2026-11-17 首轮复核 F3 红就是这条。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RunStatus {
+    /// 找到通关目标。
+    Witness,
+    /// 从起点可达的状态空间被**穷尽**，没有通关目标 ⇒ 真无解（在模型内）。
+    Exhausted,
+    /// 搜索被截断（撞 node_cap / 层界 / bound）且无目标 ⇒ **不知道**有没有解。
+    Capped,
+    /// 模型缺边（该层有通道没建模）⇒ 结论不可用，必须先补模型。
+    ModelBroken,
+}
+
+impl RunStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            RunStatus::Witness => "witness",
+            RunStatus::Exhausted => "exhausted",
+            RunStatus::Capped => "capped",
+            RunStatus::ModelBroken => "model_broken",
+        }
+    }
+}
+
+/// 探索覆盖度：回答「这个结论是在多大的搜索面上得出的」。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Coverage {
+    /// 展开过的层数（去重）。
+    pub floors_expanded: usize,
+    /// 被层界截断的层（非空 ⇒ 覆盖不完整）。
+    pub truncated: Vec<i32>,
+    /// 全局节点上限是否触界。
+    pub node_cap_hit: bool,
+    /// 全局 bound 是否触界。
+    pub bound_hit: bool,
+}
+
+impl Coverage {
+    /// 搜索面是否完整（没截断、没触界）。
+    pub fn complete(&self) -> bool {
+        self.truncated.is_empty() && !self.node_cap_hit && !self.bound_hit
+    }
+}
+
+/// 阻断诊断：无解时必须说清「卡在哪一层、缺什么」，不许只说「无解」。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Blocked {
+    pub floor: i32,
+    /// 阻断类别：`truncated`（该层搜索被截断）/ `no_exit`（无出层通道）/ `model_missing`（缺边）
+    pub reason: &'static str,
+    pub detail: String,
+}
+
+/// 分类：结论语义的唯一实现（纯函数，便于直接判据）。
+pub fn classify(
+    has_goal: bool,
+    truncated: &[i32],
+    node_cap_hit: bool,
+    bound_hit: bool,
+    model_missing: bool,
+) -> RunStatus {
+    if model_missing {
+        return RunStatus::ModelBroken;
+    }
+    if has_goal {
+        return RunStatus::Witness;
+    }
+    if truncated.is_empty() && !node_cap_hit && !bound_hit {
+        RunStatus::Exhausted
+    } else {
+        RunStatus::Capped
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GlobalResult {
     /// 通关目标（非支配；空=无解）
@@ -71,6 +149,13 @@ pub struct GlobalResult {
     /// 三态置信（裁定⑤）：队列耗尽且有目标=`optimal`、打界有目标=`bounded-best`、
     /// 无目标=`feasible`（与批2 `solve_local` 占位/不可达口径同源，solve_local.rs:246）
     pub confidence: &'static str,
+    /// P1 结论语义（`witness|exhausted|capped|model_broken`）——**唯一可信来源**，
+    /// `confidence` 只是它的派生展示值。
+    pub status: &'static str,
+    /// P1 覆盖度。
+    pub coverage: Coverage,
+    /// P1 阻断诊断（无解/不完整时非空）。
+    pub blocked: Vec<Blocked>,
     /// 扩展界（回显）
     pub bound: u64,
     /// 实际扩展（出队处理）节点数
@@ -523,17 +608,51 @@ pub fn solve_global_capped_with(
         }
     }
 
-    let confidence = if goals.is_empty() {
-        "feasible"
-    } else if hit_bound || node_cap_hit || !truncated_layers.is_empty() {
-        // R1 层界（裁定 A）：任一层被截断/节点上限触界/打界 ⇒ 探索不完整 ⇒ 不冒充 optimal
-        "bounded-best"
-    } else {
-        "optimal"
+    // P1：先判「有没有解」，再判「探索完整不完整」。旧口径 `goals.is_empty()=>"feasible"`
+    // 会把「截断」误报成「可行/无解」，已按首轮复核 F3 红整改。
+    let truncated_floors: Vec<i32> = truncated_layers.iter().map(|(f, _)| *f).collect();
+    let coverage = Coverage {
+        floors_expanded: floor_dist.len(),
+        truncated: truncated_floors.clone(),
+        node_cap_hit,
+        bound_hit: hit_bound,
     };
+    let model_missing = false; // 由调用方在缺边时置位（当前无自动检测通道）
+    let status = classify(
+        !goals.is_empty(),
+        &truncated_floors,
+        node_cap_hit,
+        hit_bound,
+        model_missing,
+    );
+    let confidence = match status {
+        RunStatus::Witness if coverage.complete() => "optimal",
+        RunStatus::Witness => "bounded-best",
+        RunStatus::Exhausted => "exhausted-no-solution",
+        RunStatus::Capped => "capped-search",
+        RunStatus::ModelBroken => "model-broken",
+    };
+    let mut blocked: Vec<Blocked> = truncated_floors
+        .iter()
+        .map(|f| Blocked {
+            floor: *f,
+            reason: "truncated",
+            detail: "该层搜索撞层界，出层状态不完整".to_string(),
+        })
+        .collect();
+    if goals.is_empty() && status == RunStatus::Capped && blocked.is_empty() {
+        blocked.push(Blocked {
+            floor: input.start_floor,
+            reason: "truncated",
+            detail: if node_cap_hit { "全局节点上限触界".into() } else { "全局 bound 触界".into() },
+        });
+    }
     GlobalResult {
         goals,
         confidence,
+        status: status.as_str(),
+        coverage,
+        blocked,
         bound: input.bound,
         expansions,
         truncated_layers,
@@ -987,9 +1106,31 @@ impl GlobalResult {
             .iter()
             .map(|(f, n)| format!("[{f},{n}]"))
             .collect();
+        let cov_trunc: Vec<String> = self
+            .coverage
+            .truncated
+            .iter()
+            .map(|f| f.to_string())
+            .collect();
+        let blocked_json: Vec<String> = self
+            .blocked
+            .iter()
+            .map(|b| {
+                format!(
+                    "{{\"floor\":{},\"reason\":\"{}\",\"detail\":\"{}\"}}",
+                    b.floor, b.reason, b.detail
+                )
+            })
+            .collect();
         format!(
-            "{{\"confidence\":\"{}\",\"bound\":{},\"expansions\":{},\"node_cap\":{},\"node_cap_hit\":{},\"gold_peak\":{},\"shop_buys\":{},\"red_buys\":{},\"gold_peak_by_floor\":[{}],\"goals\":[{}],\"truncated_layers\":[{}]}}",
+            "{{\"confidence\":\"{}\",\"status\":\"{}\",\"coverage\":{{\"floors_expanded\":{},\"truncated\":[{}],\"node_cap_hit\":{},\"bound_hit\":{}}},\"blocked\":[{}],\"bound\":{},\"expansions\":{},\"node_cap\":{},\"node_cap_hit\":{},\"gold_peak\":{},\"shop_buys\":{},\"red_buys\":{},\"gold_peak_by_floor\":[{}],\"goals\":[{}],\"truncated_layers\":[{}]}}",
             self.confidence,
+            self.status,
+            self.coverage.floors_expanded,
+            cov_trunc.join(","),
+            self.coverage.node_cap_hit,
+            self.coverage.bound_hit,
+            blocked_json.join(","),
             self.bound,
             self.expansions,
             self.node_cap,
@@ -1001,5 +1142,56 @@ impl GlobalResult {
             goals.join(","),
             trunc.join(",")
         )
+    }
+}
+
+#[cfg(test)]
+mod p1_status_tests {
+    use super::*;
+
+    /// 空目标 + 全部截断 ⇒ 只能是 capped，**绝不许**说 feasible/无解。
+    #[test]
+    fn p1_empty_goals_with_truncation_is_capped_not_feasible() {
+        let s = classify(false, &[6, 7], true, false, false);
+        assert_eq!(s, RunStatus::Capped);
+        assert_eq!(s.as_str(), "capped");
+    }
+
+    /// 空目标 + 穷尽（无截断、无触界）⇒ 真无解。
+    #[test]
+    fn p1_empty_goals_exhausted_is_exhausted() {
+        assert_eq!(classify(false, &[], false, false, false), RunStatus::Exhausted);
+    }
+
+    /// 有目标但截断 ⇒ witness（但覆盖不完整，confidence 不得是 optimal）。
+    #[test]
+    fn p1_goal_with_truncation_is_witness_but_incomplete() {
+        let s = classify(true, &[6], false, false, false);
+        assert_eq!(s, RunStatus::Witness);
+        let cov = Coverage {
+            floors_expanded: 3,
+            truncated: vec![6],
+            node_cap_hit: false,
+            bound_hit: false,
+        };
+        assert!(!cov.complete());
+    }
+
+    /// 模型缺边优先于一切：有目标也不算数。
+    #[test]
+    fn p1_model_missing_overrides_witness() {
+        assert_eq!(classify(true, &[], false, false, true), RunStatus::ModelBroken);
+    }
+
+    /// 覆盖完整 + 有目标 ⇒ complete()。
+    #[test]
+    fn p1_complete_coverage() {
+        let cov = Coverage {
+            floors_expanded: 5,
+            truncated: vec![],
+            node_cap_hit: false,
+            bound_hit: false,
+        };
+        assert!(cov.complete());
     }
 }

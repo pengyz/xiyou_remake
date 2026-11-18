@@ -234,7 +234,10 @@ fn solve_global_toy反例_无钥直入floor50无解() {
         bound: 10_000,
     });
     assert!(r.goals.is_empty(), "无钥不应有通关目标：{r:?}");
-    assert_eq!(r.confidence, "feasible", "无解=feasible（裁定⑤）：{r:?}");
+    // 【2026-11-18 P1 更正】旧口径把「空目标」一律记作 feasible，与「有无解」
+    // 混为一谈。现按 status 区分：本例无截断、无触界 ⇒ 模型内真无解 = exhausted。
+    assert_eq!(r.status, "exhausted", "穷尽无解=exhausted：{r:?}");
+    assert_eq!(r.confidence, "exhausted-no-solution");
 }
 
 /// gate 夹具（批2 T9 同构，step_off 走位锚梯改 param=50→floor50）：
@@ -523,7 +526,8 @@ fn solve_global_toy筋斗云边_区间门外拒绝() {
         r.goals.is_empty(),
         "首访 [51,51] 拒 target50 ⇒ 云边全局落闸：{r:?}"
     );
-    assert_eq!(r.confidence, "feasible", "无目标置信：{r:?}");
+    // 【2026-11-18 P1 更正】同上：空目标 → exhausted（非截断场景）。
+    assert_eq!(r.status, "exhausted", "无目标且穷尽：{r:?}");
 
     // 层内腿照发（证明拒绝发生在全局区间门，不是层内没生成边）
     let s1 = SolveInput { floor: 51, difficulty: 0, level: Some(floor51_cloudonly()) };
@@ -737,11 +741,14 @@ fn solve_global_t真数据端到端_确定性双跑() {
         [
             "\"confidence\":\"optimal\"",
             "\"confidence\":\"bounded-best\"",
-            "\"confidence\":\"feasible\""
+            "\"status\":\"witness\"",
+            "\"status\":\"exhausted\"",
+            "\"status\":\"capped\"",
+            "\"status\":\"model_broken\""
         ]
         .iter()
         .any(|c| j1.contains(c)),
-        "置信三态：{j1:.200}"
+        "结论语义（status 四态之一）：{j1:.200}"
     );
 }
 
@@ -1093,9 +1100,11 @@ fn solve_global_t节点上限触发_诚实降级() {
     let gi = GlobalInput { floors, start_floor: 51, start_pos: (0, 1), start_player: player(), start_flags: 0, bound: 10_000 };
     let r = game_solver::solve_global::solve_global_capped(&gi, 2);
     assert!(r.node_cap_hit, "cap=2 应触界：{r:?}");
-    // 无解+触界 → feasible（无解词表优先；触界降级 optimal 的路径=同
+    // 【2026-11-18 P1 更正】无解+触界 → capped（不知道有没有解），不再是 feasible。
+    // 原注释：无解+触界 → feasible（无解词表优先；触界降级 optimal 的路径=同
     // `hit_bound||node_cap_hit||truncated` 判据，有解时才可能 optimal→bounded-best）
-    assert_eq!(r.confidence, "feasible", "触界不得冒充 optimal：{r:?}");
+    assert_eq!(r.status, "capped", "触界不得冒充 optimal：{r:?}");
+    assert_eq!(r.confidence, "capped-search");
     assert!(r.to_json().contains("\"node_cap_hit\":true"), "{}", r.to_json());
     // 未触界对照：大 cap 不得误报
     let r2 = game_solver::solve_global::solve_global_capped(&gi, 1_000_000);
@@ -1304,7 +1313,10 @@ fn query_all三查询键齐_与plan批4判据一致() {
     assert_eq!(res["q3"].metric, "reachable");
     for r in res.values() {
         assert!(
-            matches!(r.confidence.as_str(), "optimal" | "bounded-best" | "feasible"),
+            matches!(
+                r.result.status,
+                "witness" | "exhausted" | "capped" | "model_broken"
+            ),
             "置信级越界：{}",
             r.confidence
         );
