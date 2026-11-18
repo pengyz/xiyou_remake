@@ -1,11 +1,46 @@
-//! 【P5 本片】纯拾取层闭式解（fail-closed）——`out_hp = entry_hp + Σ delta`，路线经真引擎回放。
+//! 【P5→P6】**单调拾取层**闭式解（fail-closed）——`out_hp = entry_hp + Σ hp_delta`，
+//! 路线经真引擎回放，且**每一轴**（hp/atk/def/三钥/背包）逐字段与「全捡」期望相等。
 //!
 //! **为什么单独成模块而不是塞进 `solve_local`**：这是**第二个**独立的层入口规则
 //! （第一个是 D 面子集支配 `plan_pill`，同一文件里已住着）；它自带闸门表、路线构造
-//! 与回放三件事，且**只对满足「纯拾取」定义的层生效**——与通用搜索空间正交。
-//! 命名跟随 `docs/findings/2026-11-19-pill-subset-dominance.md` 的术语
-//! 「纯加血拾取（certified pure hp gain）」，比 `closed_form` 更窄：本模块**只认**
-//! `certified_pure_hp_gain == Some(delta)` 的层，不是任何层的闭式化。
+//! 与回放三件事，且**只对满足「单调拾取」定义的层生效**——与通用搜索空间正交。
+//!
+//! > 【2026-11-19 P6 口径变更（本片）】本模块的语义**不再是「纯加血」**。
+//! > P5 只认 `certified_pure_hp_gain == Some(delta)`（hp-only，其余字段零变化）；
+//! > P6 起改认 `certified_monotone_pickup == Some(PickupGain)`（**单调**：hp/atk/def/
+//! > 三钥/背包项全部不下降，且其余字段零变化）。旧的窄证书仍在 `game-core` 里保留
+//! > （`certified_pure_hp_gain` 语义未改），只是本模块不再用它做闸门。
+//! > 带来的后果（**实测，不是推断**）：
+//! > - f54 的 18 枚拾取物**全是 HpUp**（`31×8 + 32×10 = 2400`，见 `w20.json` 的
+//! >   `ents_in`）⇒ P5 的窄证书已覆盖它，P5/P6 在 f54 上**逐字段相同**（回归实测）。
+//! >   P6 唯一给 f54 加的东西是「atk/def/三钥/背包也有期望值与断言」，不是新命中。
+//! > - 证书面虽然从 hp-only 扩到五轴，但 **f1..f54 里没有新的层因此获得闭式资格**
+//! >   （扫描见 `docs/findings/2026-11-19-pure-pickup-closed-form.md` §7.1：只有 f54 命中；
+//!   其余层被 G1 的 `cat8` 怪或 G2/G2a 的 `ty83` 场景门挡住，与拾取物是哪种类型无关）。
+//!
+//! ## 定理（本模块的全部正确性都挂在它上面，代码注释与判据一一对应）
+//!
+//! 若某层满足
+//! 1. **G1** 无怪、**G2** 无危险步臂可达、**G2a** 入场格安全（三闸，定义见下表），且
+//! 2. **G3′** 每个可达拾取物的效果经**真引擎采样**认证为**单调**：
+//!    hp/atk/def/三钥/背包项**全部不下降**，且除这些字段外**其余字段零变化**
+//!    （没有「捡了会变差」的副作用：gold/tutorial_seen/装备槽都不许动），
+//! 则「把可达拾取物全捡一遍再出层」是 **HP 最优**，闭式 `out_hp = in_hp + Σ hp_delta`。
+//!
+//! 证明（为什么「全捡」支配「少捡」，且与顺序无关）：
+//! - G3′ 的采样结果对**同一层**是**常量向量** Δ（`certified_monotone_pickup(ty,floor)`
+//!   只依赖 ty 与 floor；`HpUp/StatUp` 的 `floor_tier` 在层内恒定）⇒ 捡第 i 枚的效果
+//!   与「何时捡、之前捡了什么」无关（背包追加除外，见下）；
+//! - 各轴 Δ ≥ 0 且互不抵触（每一轴都是独立计数器相加，没有「上限」或「互相抵消」）⇒
+//!   任意子集的合计 = 子集内 Δ 逐项相加 ⇒ **全集 ≥ 任意子集**（逐轴）；
+//! - 背包纯追加（只往空格写 `(ty,uses)`、旧槽逐字节不变）⇒ 多捡一件不会让已有的变差；
+//! - hp 是其中一轴 ⇒ `hp(全捡) = in_hp + Σ hp_delta` 是层内 HP 上界；G4 给出一条
+//!   「能走上去」的出口 ⇒ 该上界**可达**；
+//! - 步数不影响 hp（G1 无战斗、G2 无踩格扣血）⇒ 多绕路不损失 hp，只影响 tie-break。
+//!
+//! **这条定理不覆盖什么**（宁可说清也不许含糊）：只要层内有怪（G1 破），
+//! 「全捡」就可能必须杀怪 ⇒ 扣血 ⇒ 少于全捡的路线反而更优（f3 就是这种层，
+//! 见 `docs/findings/2026-11-19-pure-pickup-closed-form.md` §9.2）。
 //!
 //! ## 判定「纯拾取子层」（闸门，任一不成立 ⇒ `None` ⇒ 调用方走通用搜索）
 //!
@@ -15,7 +50,7 @@
 //! | G1 | 层内无怪物 | `entity_category_with_floor(ty,floor)==8`（与求解器 `monster_ents` 同源）。**不**用任务书的 `41..=76` 区间：那一段混着 6 种踩格副作用臂，会把陷阱层永远以 `monster_ents` 提前失败、盖掉 G2 的具名理由（见 §G1 注释） |
 //! | G2a | **入场格**的步臂只允许「门已开的场景门」 | 引擎进图链在出生格也跑 `apply_step_cell_effects`（`game-core/src/scene.rs:3878-3887`）⇒ 入场格的陷阱/宝箱在真实玩家进层时就触发。`ty83` 且 `probe_gate=true`（门已开 ⇒ 脚本不跑）才可证中性 |
 //! | G2 | 危险步臂格不可达（入场格除外） | `STEP_ARM_HAZARD_TYPES`（`solve_local.rs:1321`，单一真相源，不复制数值）；「可达」= 几何 BFS（hazard 格本身按可走算，否则判定空转） |
-//! | G3 | 全部拾取物经认证纯加血、每格仅 1 枚、**不在入场格** | `certified_pure_hp_gain(ty,floor)=Some(d>0)`（`crates/game-core/src/effect_registry.rs:391`，运行时探针背书）；`cat∈{2,4}`（`entity_category_with_floor`） |
+//! | G3′ | 全部拾取物经认证**单调**、每格仅 1 枚、**不在入场格**、背包放得下 | `certified_monotone_pickup(ty,floor)=Some(PickupGain)`（`crates/game-core/src/effect_registry.rs`，运行时探针背书：六轴 ≥0 + 背包纯追加 + 其余零变化）；`cat∈{2,4}`；`bag_no_room` 见实现 |
 //! | G4 | 至少一个 `ExitKind::Stair` 出口**能从纯图上走上去** | 纯图 = `classify` 判 `Move`/`Pickup` ∧ 非 hazard 格 ∧ **入场格不可作中间点**（`step_ok` 的 `cell != entry`）。**结构性排除**：只能从入场格走上去的出口（f54 的 `(7,10)`）**永远不进候选集**——这不是「未证明」，是本模块明确不覆盖的边（F1 口径更正） |
 //! | G5 | 入场 `hp > 0` | 0/占位 hp 不是真实入场态 |
 //! | G6 | `policy == ClosurePolicy::OFF` | 闭包谓词（Q1/Q2/Q3）改变搜索语义，闭式解不建模 |
@@ -23,19 +58,24 @@
 //! 编号沿用实现注释，**不是执行序**：短路的闸先跑（G0→G6→G5→G2a→G2→G1→G3→G4），
 //! 这样「层里有怪」与「陷阱在可达格」不会被彼此的早退遮蔽（理由面是本片唯一可观测通道）。
 //!
-//! ## 为什么 `out_hp = entry_hp + Σ delta` 是**上界且可达**
+//! ## 为什么 `out_hp = entry_hp + Σ hp_delta` 是**上界且可达**
 //!
-//! 上界：G1 无怪 ⇒ 无战斗扣血；G2 无可踩危险臂 ⇒ 无陷阱/宝箱/脚本副作用；G3 全部拾取
-//! 只加血；G5 入场 hp 真实 ⇒ 层内 hp 只能「+Σ已捡」，故 `≤ entry_hp + Σ`。
-//! 可达：G4 + 纯图连通 ⇒ 存在一条把 18 枚全捡完再去出口的走法（拾取不挡路——拾取格
+//! 上界：G1 无怪 ⇒ 无战斗扣血；G2 无可踩危险臂 ⇒ 无陷阱/宝箱/脚本副作用；G3′ 全部拾取
+//! 各轴非降（hp 只是其中一轴）；G5 入场 hp 真实 ⇒ 层内 hp 只能「+Σ已捡」，故
+//! `≤ entry_hp + Σ hp_delta`。
+//! 可达：G4 + 纯图连通 ⇒ 存在一条把可达拾取物全捡完再去出口的走法（拾取不挡路——拾取格
 //! 与普通格同价 +1 步），步数只是 tie-break（`HpLoss`：hp 大 → steps 小 → route 字典序）。
+//! **非 hp 轴的可达性不由闭式「推断」，而由回放逐字段背书**：`expected_after_all` 算出
+//! 「全捡」的 atk/def/三钥/背包期望，回放后逐轴比对（不符 ⇒ `replay_stat_mismatch` /
+//! `replay_key_mismatch` / `replay_bag_mismatch` 具名回退）。
 //!
 //! ## 路线必须真走通（本片的硬要求，不是可选项）
 //!
 //! 闭式只给血量上界；`route` 必须是**引擎里真能跑完、并真拿到那个血量**的路径。
 //! 做法：纯图上反复 BFS「最近未拾取物优先」→ 走完再 BFS 到出口；然后**逐步喂
 //! `Search::pickup_step`**（`solve_local.rs:2916`，真 `try_step` + 拍推进 + 读回）回放，
-//! 断言每步成功、终态 `hp == 期望`、`pos == 出口`、**其余字段零副作用**、拾取物全消失。
+//! 断言每步成功、终态 `hp == 期望`、`pos == 出口`、**每一轴 == 全捡期望**（atk/def/三钥/
+//! 背包；gold 必须零变化）、拾取物全消失。
 //! 任一项不符 ⇒ `None`（stat 记具名 `reason`）⇒ 回退通用搜索。**禁静默**。
 //!
 //! 「最近优先」贪心不保证成功（某颗药可能被先捡的物品隔断——本层不会，但别的层可能），
@@ -45,7 +85,7 @@ use crate::solve_local::{
     probe_gate, pure_cell_kinds, replay_pickup_route, sprite_full, ClosurePolicy, EntRec, ExitKind,
     LayerGoal, PlayerSpec, SolveInput, STEP_ARM_HAZARD_TYPES,
 };
-use game_core::effect_registry::certified_pure_hp_gain;
+use game_core::effect_registry::{certified_monotone_pickup, PickupGain};
 use game_core::subsystem::script_host::entity_category_with_floor;
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -115,6 +155,14 @@ pub struct PurePickupStat {
     pub hp_replayed: i32,
     /// 采用时的出口格
     pub exit: Option<(i32, i32)>,
+    /// Σ atk 增量（「全捡」期望；P6 单调层才有非零值）
+    pub sum_atk: i32,
+    /// Σ def 增量
+    pub sum_def: i32,
+    /// Σ (黄,蓝,红) 钥匙增量
+    pub sum_keys: (i32, i32, i32),
+    /// Σ 背包纯追加件数
+    pub sum_bag: usize,
 }
 
 impl PurePickupStat {
@@ -133,6 +181,10 @@ impl PurePickupStat {
         hp_expected: 0,
         hp_replayed: 0,
         exit: None,
+        sum_atk: 0,
+        sum_def: 0,
+        sum_keys: (0, 0, 0),
+        sum_bag: 0,
     };
 }
 
@@ -177,8 +229,8 @@ struct Grid {
     kind: Vec<CellKind>,
     /// 危险步臂格 → 该格上的 hazard 实体型（0 表示无）
     hazard: BTreeMap<(i32, i32), i32>,
-    /// 认证纯加血拾取格 → `(delta, ty)`
-    pickup: BTreeMap<(i32, i32), (i32, i32)>,
+    /// 认证**单调**拾取格 → `(增益向量, ty)`（P6 起语义从「纯加血」扩到「单调」）
+    pickup: BTreeMap<(i32, i32), (PickupGain, i32)>,
 }
 
 impl Grid {
@@ -370,6 +422,9 @@ fn trim_slots(v: &[u8]) -> Vec<u8> {
 /// `replay_hp_mismatch` 覆盖掉 —— 而前者是**预期内**的、后者是**假设被打破**。理由面是
 /// 本片唯一的可观测通道，不许被无害失败淹没。
 const REASON_RANK_REPLAY: u8 = 3;
+/// 背包放不下（入参 `item_types` 没有空槽）——比 `no_stair_exit_reachable` 值钱：
+/// 它说明「这层本来能走闭式，只是入参的背包容量信息不可用」，是数据面缺口不是几何缺口。
+const REASON_RANK_BAG: u8 = 2;
 const REASON_RANK_PICKUP_UNREACHABLE: u8 = 2;
 const REASON_RANK_NO_STAIR_EXIT: u8 = 1;
 const REASON_RANK_DEFAULT: u8 = 0;
@@ -444,6 +499,44 @@ pub fn replay_route_in_engine(
 /// 返回 `Some(goals)` ⇒ 每条可出层 `Stair` 出口一条 `LayerGoal`（hp = 闭式上界，
 /// route 已**逐步引擎回放验证**过）；返回 `None` ⇒ fail-closed，调用方走通用搜索，
 /// 且 `pure_pickup_stat()` 里有具名原因。
+/// 「把 `seq` 里的拾取物全捡一遍」的**期望终态**（逐轴，不是只有 hp）。
+///
+/// 计算依据就是定理本身：每枚拾取的增益是常量向量 Δ（`PickupGain`），各轴 ≥0
+/// ⇒ 逐轴相加；背包是**纯追加** ⇒ 按 `seq` 顺序落到 `[n, n+k)` 槽位。
+/// `None` = 预期放不进背包（容量信息不足/越界）⇒ 调用方 fail-closed。
+fn expected_after_all(
+    player_in: &PlayerSpec,
+    grid: &Grid,
+    seq: &[(i32, i32)],
+    hp_expected: i32,
+) -> Option<PlayerSpec> {
+    let mut p = player_in.clone();
+    p.hp = hp_expected;
+    let mut types = player_in.item_types.clone();
+    let mut uses = player_in.item_uses.clone();
+    let mut n = player_in.item_stack_size.max(0) as usize;
+    for cell in seq {
+        let (g, _ty) = grid.pickup.get(cell)?;
+        p.atk = p.atk.checked_add(g.atk)?;
+        p.def = p.def.checked_add(g.def)?;
+        p.yellow = p.yellow.checked_add(g.yellow)?;
+        p.blue = p.blue.checked_add(g.blue)?;
+        p.red = p.red.checked_add(g.red)?;
+        for &(t, u) in &g.bag {
+            if n >= types.len() || n >= 32 {
+                return None;
+            }
+            types[n] = t;
+            uses[n] = u;
+            n += 1;
+        }
+    }
+    p.item_types = types;
+    p.item_uses = uses;
+    p.item_stack_size = n as i32;
+    Some(p)
+}
+
 pub(crate) fn try_closed_form(
     input: &SolveInput,
     entry: (i32, i32),
@@ -557,26 +650,46 @@ pub(crate) fn try_closed_form(
             return give_up(&mut st, "pickup_cell_not_pure", tys[0]);
         }
         let ty = tys[0];
-        let Some(delta) = certified_pure_hp_gain(ty, input.floor) else {
+        // G3′（P6）：证书从「纯加血」放宽到「单调」——真引擎采样出**六轴增量 +
+        // 背包纯追加**，任一轴下降或有额外副作用（gold/tutorial/装备/背包乱动）
+        // 都返回 None ⇒ fail-closed。禁按 ty 号硬编码：值全部来自 `certified_monotone_pickup`。
+        let Some(gain) = certified_monotone_pickup(ty, input.floor) else {
             return give_up(&mut st, "pickup_not_certified", ty);
         };
-        if delta <= 0 {
+        if !gain.is_gain() {
             return give_up(&mut st, "pickup_not_certified", ty);
         }
-        grid.pickup.insert(cell, (delta, ty));
+        grid.pickup.insert(cell, (gain, ty));
     }
     if grid.pickup.is_empty() {
         // 无拾取物 ⇒ hp 恒定，闭式退化成「走到出口」：交给通用搜索（不扩大行为面）
         return give_up(&mut st, "no_certified_pickup", 0);
     }
-    let sum_delta: i32 = grid.pickup.values().map(|&(d, _)| d).sum();
+    // 「全捡」的期望增益向量（Σ 各轴；背包件数只数个数，内容按 `seq` 顺序在下面拼）。
+    // 顺序无关：每枚拾取的效果是**常量向量**且各轴 ≥0 ⇒ 逐轴相加与捡取次序无关。
+    let mut total = PickupGain::default();
+    for (g, _) in grid.pickup.values() {
+        total.add_assign(g);
+    }
+    let sum_delta = total.hp;
     // 溢出 ⇒ 不是「无解」而是「这个层不该走闭式」，必须走具名 give_up（`?` 会让 stat 停在
     // 上一次的 `attempted` 快照上 ⇒ 静默，违反本片「禁静默」）。
     let Some(hp_expected) = player_in.hp.checked_add(sum_delta) else {
         return give_up(&mut st, "hp_overflow", 0);
     };
+    // 背包容量：引擎的 `StackEffect` 追加守卫是 `n < item_types.len()`（BUG-050 静默吞面）
+    // ⇒ 入参没有空槽时「捡起来」会静默失败。此时不能声称 hp 上界可达 ⇒ fail-closed。
+    let bag_need = total.bag.len();
+    let n0 = player_in.item_stack_size.max(0) as usize;
+    if bag_need > 0 && (n0 + bag_need > 32 || n0 + bag_need > player_in.item_types.len()) {
+        return give_up(&mut st, "bag_no_room", 0);
+    }
     st.pickups = grid.pickup.len();
     st.sum_delta = sum_delta;
+    st.sum_atk = total.atk;
+    st.sum_def = total.def;
+    st.sum_keys = (total.yellow, total.blue, total.red);
+    st.sum_bag = bag_need;
     st.hp_expected = hp_expected;
 
     // ---- G4 出口：只认 `Stair`（`goal_edge` 可由出口梯实体取参；Script/Cloud/UseItem
@@ -646,18 +759,33 @@ pub(crate) fn try_closed_form(
                 st.hp_replayed = out.player.hp;
                 continue;
             }
-            // 零副作用：除 hp 外逐字段不变（拾取只加血 ⇒ 任何别的变化都是我们没建模的臂）
-            if out.player.atk != player_in.atk
-                || out.player.def != player_in.def
-                || out.player.yellow != player_in.yellow
-                || out.player.blue != player_in.blue
-                || out.player.red != player_in.red
-                || out.player.gold != player_in.gold
-                || trim_slots(&out.player.item_types) != trim_slots(&player_in.item_types)
-                || trim_slots(&out.player.item_uses) != trim_slots(&player_in.item_uses)
-                || out.player.item_stack_size != player_in.item_stack_size
+            // 逐轴校验「引擎真走出来的终态 == 全捡期望」——这是 P6 的核心断言：
+            // 不再是「除 hp 外零变化」，而是「每一轴都等于 Σ」，任何一轴漂了就 fail-closed。
+            // 拆成具名理由是为了可观测（只说 side_effect 会让 stat/atk/背包混成一个串）。
+            let Some(want) = expected_after_all(player_in, &grid, &seq, hp_expected) else {
+                note_reason(&mut last, "bag_no_room", 0, REASON_RANK_BAG);
+                continue;
+            };
+            if out.player.atk != want.atk || out.player.def != want.def {
+                note_reason(&mut last, "replay_stat_mismatch", 0, REASON_RANK_REPLAY);
+                continue;
+            }
+            if (out.player.yellow, out.player.blue, out.player.red)
+                != (want.yellow, want.blue, want.red)
             {
+                note_reason(&mut last, "replay_key_mismatch", 0, REASON_RANK_REPLAY);
+                continue;
+            }
+            // gold 不在证书覆盖的轴里（证书要求 gold 零变化）⇒ 它一動就是没建模的臂。
+            if out.player.gold != player_in.gold {
                 note_reason(&mut last, "replay_side_effect", 0, REASON_RANK_REPLAY);
+                continue;
+            }
+            if trim_slots(&out.player.item_types) != trim_slots(&want.item_types)
+                || trim_slots(&out.player.item_uses) != trim_slots(&want.item_uses)
+                || out.player.item_stack_size != want.item_stack_size
+            {
+                note_reason(&mut last, "replay_bag_mismatch", 0, REASON_RANK_REPLAY);
                 continue;
             }
             if out.flags != flags_in {

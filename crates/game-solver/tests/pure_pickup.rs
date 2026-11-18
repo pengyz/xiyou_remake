@@ -12,6 +12,11 @@
 //! | 6 | `pure_pickup_does_not_change_exact_results_on_non_pure_floors` | f1/f52/f53 黑盒差分：结果逐字段等于**改动前**（`cabb1b3`）实测值 |
 //! | 7 | `pure_pickup_chain_breaks_the_f54_wall` | 端到端：f51→f54 见证链不再撞界，f54 出层 hp=3227 |
 //!
+//! 【P6 追加】判据 8–14（单调拾取层）：8 `monotone_floor_collects_keys_and_stats`、
+//! 9 `non_monotone_pickup_still_fails_closed`、10 `monotone_floor_collects_bag_item`、
+//! 11 `pure_pickup_flag_reflects_monotone_hit`、12 `f3_is_excluded_by_g1_g2`、
+//! 13 `monotone_floor_f3_hits_closed_form`（ignored=证伪记录）、14 witness 标志复用。
+//!
 //! 前 5 条 + 第 6 条都直接断言「闭式是否被采用」（`Exitsolve::pure_pickup` 与
 //! `pure_pickup_stat()`），**没有任何一条**靠放宽阈值或改默认层界来变绿。
 
@@ -198,8 +203,11 @@ fn synth(poison: Poison) -> SolveInput {
         // 陷阱放在**入场格**：引擎进图链（`scene.rs:3878-3887` dispatchModeEntry case 3）
         // 在出生格也跑 `apply_step_cell_effects` ⇒ 真实玩家一进层就踩雷 ⇒ 闭式不得成立。
         Poison::HazardOnEntry => ents.push(EntSpec { ty: 61, x: SYNTH_ENTRY.0, y: SYNTH_ENTRY.1, param: 0 }),
-        // 26 型=钥匙拾取（cat 2 拾取、`pickup_kind_for_type`≠HpUp）⇒ 认证必 None。
-        Poison::Uncertified => ents[0] = EntSpec { ty: 26, x: 1, y: 1, param: 0 },
+        // 【P6 改载荷】原用 26 型（黄钥匙）：P6 前它是「非纯加血」⇒ 认证 None；P6 起
+        // 钥匙是**单调增益**（`certified_monotone_pickup` 采样出 `yellow:+1`）⇒ 会采用。
+        // 「非单调」得换成真有字段**下降**的道具：13 型（Stack，探针背包已有 13 且
+        // `ITEM_USES[0] = -1` ⇒ 捡起来 uses 2→1 下降）。断言本身一条未改。
+        Poison::Uncertified => ents[0] = EntSpec { ty: 13, x: 1, y: 1, param: 0 },
     }
     SolveInput {
         floor: 54,
@@ -389,10 +397,10 @@ fn pure_pickup_fails_closed_when_pickup_not_certified() {
         "uncertified poison: reason={} reason_ty={} pure_pickup={}",
         st.reason, st.reason_ty, ex.pure_pickup
     );
-    assert!(!ex.pure_pickup, "非纯加血拾取物 ⇒ 必须回退通用搜索");
+    assert!(!ex.pure_pickup, "会让字段下降的拾取物 ⇒ 必须回退通用搜索");
     assert!(!st.adopted);
     assert_eq!(st.reason, "pickup_not_certified");
-    assert_eq!(st.reason_ty, 26);
+    assert_eq!(st.reason_ty, 13);
     // 闸门必须发生在「算上界」之前：不许出现「采用了但坏血」的中间态。
     assert_eq!(st.hp_expected, 0, "未采用时不许留下上界残值");
     assert_eq!(st.hp_replayed, 0);
@@ -557,4 +565,226 @@ fn witness_floor_records_pure_pickup_flag() {
         Some("step_arm_hazard_reachable/83"),
         "回退必须带具名原因+触发实体型，禁静默"
     );
+}
+
+// ---------------------------------------------------------------------------
+// 【P6】单调拾取层（B 片）：判据 8–14
+//
+// 定理（`src/pure_pickup.rs` 模块文档同步）：
+//   G1 无怪 ∧ G2 无危险步臂可达 ∧ G2a 入场格安全 ∧
+//   G3′ 每个可达拾取物的效果经**真引擎采样**认证为**单调**
+//   （hp/atk/def/三钥/背包项 全部不下降，且其余字段零变化）
+//   ⇒「把可达拾取物全捡一遍再出层」是 HP 最优，闭式 `out_hp = in_hp + Σ hp_delta`。
+// ---------------------------------------------------------------------------
+
+/// f3 的**真实入场 hp**（来源：`solver run --max-floors 20` 链上 f3 的 `in_hp`，
+/// 由 f54 闭式 × 通用搜索的路径逐层推出 = 3227；不是本片发明的常量）。
+const IN_HP_F3: i32 = 3227;
+/// f3 的真实入场格（`landing(f3, 3, went_down=false)`，A 级：`examples/probe_f3` 实测）。
+const F3_ENTRY: (i32, i32) = (2, 11);
+
+/// 合成层（5×3，y=1 走廊，入口 (0,1)，出口 (4,1)）= `synth` 的同构推广：
+/// 只换拾取物清单与入场玩家，别的（地形/层号/敌表/出口）逐字相同。
+fn synth_with(ents: Vec<EntSpec>, player: PlayerSpec) -> SolveInput {
+    let si = load_si();
+    let f54 = floor_input(&si, 54);
+    let lv = f54.level.as_ref().expect("f54 必须有层");
+    let (cols, rows) = (5i32, 3i32);
+    let mut terrain = vec![false; (cols * rows) as usize];
+    for x in 0..cols {
+        terrain[(1 * cols + x) as usize] = true;
+    }
+    let mut all = ents;
+    all.push(EntSpec { ty: 7, x: 4, y: 1, param: 1 });
+    SolveInput {
+        floor: 54,
+        difficulty: f54.difficulty,
+        level: Some(LevelSpec {
+            cols,
+            rows,
+            terrain,
+            start: SYNTH_ENTRY,
+            entities: all,
+            exits: vec![ExitSpec { x: 4, y: 1, kind: ExitKind::Stair, index: 1 }],
+            player: player.clone(),
+            enemies: lv.enemies.clone(),
+            enemy_base: lv.enemy_base.clone(),
+            flags: 0,
+        }),
+    }
+}
+
+fn run_on(inp: &SolveInput, ps: &PlayerSpec) -> (ExitSolve, PurePickupStat) {
+    let (ex, _hit) = solve_local_exit_toward(inp, SYNTH_ENTRY, ps, 0, None, None);
+    (ex, pure_pickup_stat())
+}
+
+// ---------------------------------------------------------------------------
+// 判据 8（B）：单调层（钥匙 + 攻 + 血）走闭式，且逐字段等于「全捡」期望
+// ---------------------------------------------------------------------------
+#[test]
+fn monotone_floor_collects_keys_and_stats() {
+    let ps = s0_spec(SYNTH_PLAYER_HP);
+    // 26=黄钥匙+1、29=攻+1（f54 ⇒ tier1）、32=血+200（f54 ⇒ tier1）
+    let inp = synth_with(
+        vec![
+            EntSpec { ty: 26, x: 1, y: 1, param: 0 },
+            EntSpec { ty: 29, x: 2, y: 1, param: 0 },
+            EntSpec { ty: 32, x: 3, y: 1, param: 1 },
+        ],
+        ps.clone(),
+    );
+    let (ex, st) = run_on(&inp, &ps);
+    println!(
+        "[B2] ok={} trunc={} out_hp={} atk={} def={} y/b/r={}/{}/{} pure={} reason={} sum_atk={} sum_keys={:?}",
+        ex.ok, ex.truncated, ex.out_hp, ex.out_player.atk, ex.out_player.def,
+        ex.out_player.yellow, ex.out_player.blue, ex.out_player.red,
+        ex.pure_pickup, st.reason, st.sum_atk, st.sum_keys
+    );
+    assert!(ex.ok && !ex.truncated, "三枚单调拾取 + 可达出口 ⇒ 必须出解");
+    // 全捡期望：血 +200、攻 +1、黄钥 +1，其余不动。
+    assert_eq!(ex.out_hp, SYNTH_PLAYER_HP + 200, "hp 必须等于 in_hp+Σhp_delta");
+    assert_eq!(ex.out_player.atk, 11, "29 型必须真加攻");
+    assert_eq!(ex.out_player.def, 10, "def 不得被动过");
+    assert_eq!(
+        (ex.out_player.yellow, ex.out_player.blue, ex.out_player.red),
+        (1, 0, 0),
+        "三钥必须逐值等于全捡期望（只有 26 型产黄钥）"
+    );
+    assert!(ex.pure_pickup, "单调层必须走闭式（B 核心）");
+    assert_eq!(st.reason, "adopted");
+    assert_eq!((st.sum_atk, st.sum_def, st.sum_keys), (1, 0, (1, 0, 0)));
+    assert_eq!(st.sum_delta, 200, "sum_delta 仍是 hp 增量之和");
+}
+
+// ---------------------------------------------------------------------------
+// 判据 9（B）：非单调拾取物 ⇒ fail-closed（含同层正对照）
+// ---------------------------------------------------------------------------
+#[test]
+fn non_monotone_pickup_still_fails_closed() {
+    let ps = s0_spec(SYNTH_PLAYER_HP);
+    // 13 型 = Stack，探针背包里**已有** 13（uses=2），而 ITEM_USES[0]=-1
+    // ⇒ 真引擎把这枚捡起来会让 uses 2→1（**下降**）⇒ 不是单调增益 ⇒ 必须拒。
+    let inp = synth_with(vec![EntSpec { ty: 13, x: 1, y: 1, param: 0 }], ps.clone());
+    let (ex, st) = run_on(&inp, &ps);
+    println!(
+        "[B9] 13 型 ok={} pure={} reason={} ty={} out_hp={}",
+        ex.ok, ex.pure_pickup, st.reason, st.reason_ty, ex.out_hp
+    );
+    assert!(!ex.pure_pickup, "会让字段下降的拾取物 ⇒ 闭式必须 fail-closed");
+    assert_eq!(st.reason, "pickup_not_certified", "拒绝理由必须具名");
+    assert_eq!(st.reason_ty, 13, "理由必须指出是哪一型");
+
+    // 正对照：同一个合成层，只把 13 换成 26（黄钥，单调）⇒ 必须采用。
+    let inp2 = synth_with(vec![EntSpec { ty: 26, x: 1, y: 1, param: 0 }], ps.clone());
+    let (ex2, st2) = run_on(&inp2, &ps);
+    println!("[B9] 对照 26 型 pure={} reason={} yellow={}", ex2.pure_pickup, st2.reason, ex2.out_player.yellow);
+    assert!(ex2.pure_pickup && st2.reason == "adopted", "同层换成单调拾取物必须采用（排除「整层不可用」）");
+    assert_eq!(ex2.out_player.yellow, 1);
+}
+
+// ---------------------------------------------------------------------------
+// 判据 10（B）：背包项纯追加（32 槽真实玩家），且回放逐字段相等
+// ---------------------------------------------------------------------------
+#[test]
+fn monotone_floor_collects_bag_item() {
+    // 背包探针：19 型 = Stack（`ITEM_USES[19-13] = 1` ⇒ 捡起来 uses +1），空背包 ⇒ 纯追加。
+    let mut ps = s0_spec(SYNTH_PLAYER_HP);
+    ps.item_types = vec![0u8; 32];
+    ps.item_uses = vec![0u8; 32];
+    ps.item_stack_size = 0;
+    let inp = synth_with(vec![EntSpec { ty: 19, x: 1, y: 1, param: 0 }], ps.clone());
+    let (ex, st) = run_on(&inp, &ps);
+    println!(
+        "[B10] ok={} pure={} reason={} stack={} t0={} u0={} sum_bag={}",
+        ex.ok, ex.pure_pickup, st.reason,
+        ex.out_player.item_stack_size, ex.out_player.item_types[0],
+        ex.out_player.item_uses[0], st.sum_bag
+    );
+    assert!(ex.pure_pickup && st.reason == "adopted", "空背包 + Stack 拾取 ⇒ 纯追加 ⇒ 必须采用");
+    assert_eq!(ex.out_player.item_stack_size, 1, "栈位必须 +1");
+    assert_eq!(ex.out_player.item_types[0], 19, "新槽必须是 19 型");
+    assert_eq!(ex.out_player.item_uses[0], 1, "uses 必须等于 ITEM_USES[6]=1（采样值，非硬编码）");
+    assert_eq!(st.sum_bag, 1);
+}
+
+// ---------------------------------------------------------------------------
+// 判据 11（B）：witness 的 pure_pickup 标志反映「单调闭式命中」
+// ---------------------------------------------------------------------------
+#[test]
+fn pure_pickup_flag_reflects_monotone_hit() {
+    let ps = s0_spec(SYNTH_PLAYER_HP);
+    let inp = synth_with(
+        vec![
+            EntSpec { ty: 26, x: 1, y: 1, param: 0 },
+            EntSpec { ty: 32, x: 2, y: 1, param: 1 },
+        ],
+        ps.clone(),
+    );
+    let mut levels = BTreeMap::new();
+    levels.insert(54i32, inp);
+    let cfg = WitnessCfg { max_floors: 1 };
+    let w = run_witness(&levels, 54, SYNTH_ENTRY, ps, 0, &cfg);
+    let f = &w.floors[0];
+    println!(
+        "[B11] floors={} floor={} out_hp={} pure={} reason={:?}",
+        w.floors.len(), f.floor, f.out_hp, f.pure_pickup, f.pure_pickup_reason
+    );
+    assert!(f.pure_pickup, "单调层命中闭式 ⇒ witness 标志必须为 true");
+    assert_eq!(f.pure_pickup_reason.as_deref(), Some("adopted"));
+    assert_eq!(f.out_hp, SYNTH_PLAYER_HP + 200);
+    assert_eq!(f.out_player.yellow, 1);
+}
+
+// ---------------------------------------------------------------------------
+// 判据 12（B）：f3 的真实处境——被 G1/G2/G2a 结构性排除（不是「单调层」）
+// ---------------------------------------------------------------------------
+#[test]
+fn f3_is_excluded_by_g1_g2() {
+    let si = load_si();
+    let inp = floor_input(&si, 3);
+    let ps = s0_spec(IN_HP_F3);
+    let (ex, _hit) = solve_local_exit_toward(&inp, F3_ENTRY, &ps, 0, None, None);
+    let st = pure_pickup_stat();
+    println!(
+        "[B12] f3 ok={} trunc={} out_hp={} pure={} reason={} ty={} entry_hazards={}",
+        ex.ok, ex.truncated, ex.out_hp, ex.pure_pickup, st.reason, st.reason_ty, st.entry_hazards
+    );
+    assert!(!ex.pure_pickup, "f3 含 7 个 cat8 怪 + 可达/入场 ty83 ⇒ 闭式必须 fail-closed");
+    assert!(
+        matches!(
+            st.reason,
+            "monster_ents" | "step_arm_hazard_reachable" | "step_arm_hazard_on_entry"
+        ),
+        "拒绝理由必须是闸门具名原因，实测={}",
+        st.reason
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 判据 13（B）：任务书要求的 f3 闭式断言——**前提为假**，保留为 ignored 记录
+// ---------------------------------------------------------------------------
+/// 为什么 `#[ignore]`：任务书假设 f3 是「纯加血层」，实测不成立——
+/// ① G1：f3 有 **7 个 cat8 怪**（ty45@(1,3)、ty45@(10,8)、ty44@(1,7)、ty43@(10,2)、
+///    ty43@(3,5)、ty41@(7,5)、ty42@(8,10)，`render_category(41..45)=8` 且无 per-floor
+///    override）；② G2：ty83 场景门 @(5,11) 在纯图内可达；③ G2a：入场格 (2,11) 本身
+///    就是 ty83。三者任一都足以让闭式回退，与「单调拾取」无关。
+/// 更要紧的是：f3 想拿满 18 枚拾取物就**必须杀那 7 个怪**（拾取物分布在被怪封住的
+/// 区域），而 f3 入场 atk=10/def=10 对 ty41（hp35/atk18/def1）的战斗损失
+/// `predict_battle_hp_loss` = ceil(35/9)=4 击 ⇒ (18-10)*3 = **24 hp > 0**
+/// ⇒ `4027` 不可能是 HP 最优。本片把它留成 ignored 的**证伪记录**，
+/// 而不是删掉或改成能过的断言（AGENTS.md §3.6 证伪更正文化）。
+#[test]
+#[ignore = "前提为假：f3 有 7 个 cat8 怪 + 可达/入场 ty83，且全捡必杀怪掉血 ⇒ 4027 非 HP 最优"]
+fn monotone_floor_f3_hits_closed_form() {
+    let si = load_si();
+    let inp = floor_input(&si, 3);
+    let ps = s0_spec(IN_HP_F3);
+    let (ex, _hit) = solve_local_exit_toward(&inp, F3_ENTRY, &ps, 0, None, None);
+    println!(
+        "[B13] f3 ok={} trunc={} out_hp={} pure={} reason={}",
+        ex.ok, ex.truncated, ex.out_hp, ex.pure_pickup, pure_pickup_stat().reason
+    );
+    assert!(ex.ok && !ex.truncated, "任务书要求 f3 出解且不撞界");
+    assert_eq!(ex.out_hp, IN_HP_F3 + 800, "任务书要求 f3 = 3227+800 = 4027");
 }

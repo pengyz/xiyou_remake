@@ -1,8 +1,14 @@
 # 纯拾取层的闭式解（fail-closed）—— 判定闸门、真引擎回放、f54 破界实测
 
 日期：2026-11-19 　分支：`modern`（基线 `cabb1b3`）　范围：新增 `crates/game-solver/src/pure_pickup.rs`、
-`crates/game-solver/src/solve_local.rs`（层入口接入 + 只读桥）、`crates/game-solver/tests/pure_pickup.rs`；
-`game-core` **零改动**。
+`crates/game-solver/src/solve_local.rs`（层入口接入 + 只读桥）、`crates/game-solver/tests/pure_pickup.rs`。
+
+> 【2026-11-19 P6 更新（提交 `64ae5f1` 之后）】范围扩到 **`crates/game-core/src/effect_registry.rs`**
+> ——新增**只读采样探针** `certified_monotone_pickup`（与 `certified_pure_hp_gain` 并列，
+> **不改后者语义、不改任何 game-core 行为**）。闭式的语义从「纯加血层」推广为「**单调拾取层**」，
+> 判据从 7 条增到 15 条（+7 条 P6 判据、+1 条 `#[ignore]` 的证伪记录），witness 契约升到
+> `xiyou/witness/v2`。**结论先说**：语义推广成立，但**在现有 55 层数据上不产生任何新的闭式命中**
+> （f54 的 18 枚全是 HpUp，P5 已覆盖；其余层被 G1/G2/G2a 挡住）——详见 §0.7、§7.3、§9.2。
 
 ## 0. 结论摘要
 
@@ -18,6 +24,13 @@
 5. 判据 1–7 全绿；变异自证 A/B 各红一次且**失败面互不相同**（§6）——A 证明「漏算一颗药」会被回放
    抓住并 fail-closed，B 证明「假 route + 跳过回放」能骗过层目标与整条 `solver run`、但**骗不过判据 2**。
 6. 引擎一行未改；`SOLVER_LAYER_LIMIT` 语义、默认层界、`ok` 契约、74 金样 sha 全不变（§8）。
+7. **P6：单调拾取推广**（§2 的定理版、§7.3/§7.4 的实测）。G3 → G3′：拾取物的效果不再要求「只加血」，
+   改为经**真引擎采样**认证「六轴（hp/atk/def/黄/蓝/红）全部不下降 + 背包纯追加 + gold/装备/教学位零变化」；
+   闭式同时记录 atk/def/三钥/背包的期望值，回放**逐字段**断言（新增 `replay_stat_mismatch`/
+   `replay_key_mismatch`/`replay_bag_mismatch`/`bag_no_room`）。
+   **f54 在 P5/P6 下逐字段相同**（它本来就是全 HpUp：`31×8 + 32×10 = 2400`）；
+   f51..f54 四层与父提交 `0a244ff` 的 15 个共字段**逐字段一致**，schema 标签 v1→v2（§7.4）。
+   **f3 的「4027 闭式命中」被实测证伪**（§9.2）——f3 不是纯拾取层，任务书该条前提不成立。
 
 ## 1. 闸门表（谁在守什么）
 
@@ -32,7 +45,7 @@
 | G2a | **入场格**步臂只允许「门已开的场景门」 | `step_arm_hazard_on_entry` | 合成层：61 放入场格 ⇒ 回退（判据 4 补） |
 | G2 | 危险步臂格（除入场格）不可几何可达 | `step_arm_hazard_reachable` | 合成层：61 在走廊 ⇒ 回退；**f52 实测 `reason_ty=83`** |
 | G1 | 无怪物（`cat8`） | `monster_ents` | 合成层：41 ⇒ 回退；**f1 实测 41、f53 实测 51** |
-| G3 | 拾取物：每格 1 枚、不在入场格、格纯、`certified_pure_hp_gain=Some(d>0)` | `pickup_cell_shared` / `pickup_on_entry_cell` / `pickup_cell_not_pure` / `pickup_not_certified` | 合成层：26（钥匙）⇒ `pickup_not_certified` |
+| G3′ | 拾取物：每格 1 枚、不在入场格、格纯、`certified_monotone_pickup=Some(g)` 且 `g.is_gain()`（六轴 ≥0、背包纯追加、至少一轴严格增、gold/装备/教学位零变化，**全部来自真引擎采样**）；另需背包有余位 | `pickup_cell_shared` / `pickup_on_entry_cell` / `pickup_cell_not_pure` / `pickup_not_certified` / `bag_no_room` | 合成层：**13**（已持有且 uses 会 2→1 **下降**）⇒ `pickup_not_certified`；旧版用 26 是 P5 口径，26 在 P6 已是合法单调增益 |
 | G4 | 至少一条 `Stair` 出口**能从纯图上走上去** | `no_stair_exit_reachable` | f54 的 (7,10) 出口唯一邻格是入场格 ⇒ **结构性排除**（不是「未证明」，见 §9.1） |
 
 **G2a 是本片新发现的真风险（A 级）**：`crates/game-core/src/scene.rs:3878-3887`（`apply_entry_step_effects`
@@ -54,8 +67,14 @@
 
 ## 2. 闭式与路线构造
 
+- **定理（P6 口径）**：若某层满足 G1/G2/G2a 且**每个可达拾取物的效果向量 Δ 六轴全部 ≥0、
+  背包只做纯追加、gold/装备/教学位零变化**（G3′，全部由真引擎采样认证），则该层「把可达拾取物
+  全捡一遍再出层」是 **HP 最优**：每枚增益非负且互不抵触（Δ 是常量向量、与顺序无关），
+  子集效果 = 逐项相加 ⇒ 全捡支配任何少捡 ⇒ `out_hp = in_hp + Σ hp_delta` 是上界且可达，
+  可达性由引擎回放背书。**定理不覆盖什么**：层内有怪就可能**必须杀怪扣血**（f3 就是，§9.2）、
+  层内有陷阱/宝箱/门就可能踩格扣血——那些层根本进不了 G1/G2。
 - **上界**：G1 无怪 ⇒ 无战斗扣血；G2 无可踩危险臂 ⇒ 无陷阱/宝箱/组门/场景门副作用；
-  G3 全部拾取只加血；G5 入场 hp 真实 ⇒ 层内 `hp ≤ entry_hp + Σdelta`。
+  G3′ 全部拾取六轴非负；G5 入场 hp 真实 ⇒ 层内 `hp ≤ entry_hp + Σ hp_delta`。
 - **可达（全捡最优）**：G4 + 纯图连通 ⇒ 存在把每枚药都捡完再去出口的走法。拾取**不挡路**
   （拾取格在拾取前后都是 `Cell::Pickup`/`Cell::Move`，都放行、都 `+1` 步，见上一片 §1.2），
   步数只是 tie-break（`HpLoss`：hp 大 → steps 小 → route 字典序）。
@@ -96,8 +115,12 @@
 - **理由优先级（由变异 A 逼出来的）**：`REASON_RANK_*`（`pure_pickup.rs:346`）+ `note_reason`（`:352`）。
   第一版「记最后一条理由」，f54 的 `(7,10)` 出口（纯图不可达 ⇒ `no_stair_exit_reachable`，**预期内的
   无害失败**）把真正有价值的 `replay_pickup_left`（**假设被打破**）覆盖了。现在 rank
-  `replay_*=3 > pickup_unreachable=2 > no_stair_exit_reachable=1 > route_construct_failed=0`，
+  `replay_*=3 > pickup_unreachable=2 = bag_no_room=2 > no_stair_exit_reachable=1 > route_construct_failed=0`，
   同级保留先出现的。
+- **P6 新增可观测面**：`PurePickupStat.sum_atk/sum_def/sum_keys/sum_bag`（结构体末四项，`CLEARED` 同步置 0）；
+  `ExitSolve` 除 `pure_pickup: bool` 外再补 `pure_pickup_reason: Option<String>`（`solve_local.rs`，取
+  `PurePickupStat::reason_label()`：未尝试 ⇒ `None`，有 `reason_ty` ⇒ `"理由/类型"`），witness 的 floor
+  记录把它落成 `pure_pickup` / `pure_pickup_reason`（契约 `xiyou/witness/v2`）。
 
 ## 5. 判据（行锚 + 谁在守谁）
 
@@ -115,6 +138,23 @@
 
 `route_fnv`（`:405`）= FNV-1a over 每个 token + `|`：把整条 route 的**内容**压成可断言的 u64，
 比只断长度强（顺序/坐标变动都会变）。
+
+**P6 新增判据**（同在 `crates/game-solver/tests/pure_pickup.rs`；合计 13 passed + 1 ignored）：
+
+| # | 测试 | 守什么 |
+|---|---|---|
+| 8 | `monotone_floor_collects_keys_and_stats` | 合成层（黄钥 26 + 威力丹 29 + 回春 32）⇒ `out_hp=300`、atk=11、def=10、yellow=1、`sum_atk==1`、`sum_keys==(1,0,0)`；**证「单调」不只是加血** |
+| 9 | `non_monotone_pickup_still_fails_closed` | 合成层放 **13**（探针已持有、uses 会 2→1 下降）⇒ `pickup_not_certified/13`；同层换 26 ⇒ 采用（正对照）。旧版用 26 是 P5 口径，26 在 P6 已是合法单调增益 |
+| 10 | `monotone_floor_collects_bag_item` | 32 槽玩家 + 19 ⇒ `stack=1/types[0]=19/uses[0]=1/sum_bag=1`；证背包纯追加被建模 |
+| 11 | `pure_pickup_flag_reflects_monotone_hit` | witness 单层 ⇒ `floors[0].pure_pickup==true` + `reason=="adopted"` |
+| 12 | `f3_is_excluded_by_g1_g2` | f3 真数据 ⇒ `!pure_pickup` 且 reason ∈ {`monster_ents`,`step_arm_hazard_reachable`,`step_arm_hazard_on_entry`} |
+| 13 | `monotone_floor_f3_hits_closed_form`（`#[ignore]`） | **任务书要求的那条**：`ok && !truncated && out_hp==4027`。实测真红（§9.2），保留为证伪记录 |
+| A1 | `witness_floor_records_pure_pickup_flag` | f54 层 `pure_pickup==true`；f1 层 `false && reason 非空` |
+| A2 | `witness_json_has_no_unknown_schema_drift` | `meta.schema=="xiyou/witness/v2"` + 字段声明序 + 类型 |
+
+core 侧新增 `#[cfg(test)] mod monotone_probe_tests`（2 条）：`certified_monotone_pickup_reports_each_axis`
+（32⇒hp200、29⇒atk1、26⇒yellow1、19⇒bag[(19,1)]、20⇒bag[(20,3)]、13/15/41⇒None；**证增益与 uses 全部来自采样**）、
+`pickup_gain_add_assign_sums_axes`。
 
 ## 6. 变异自证（各红一次，失败面互不相同）
 
@@ -169,7 +209,46 @@ test pure_pickup_chain_breaks_the_f54_wall ... ok               ← 整条 solve
 f54 之后换轮回到 f1（hp 保持 3227、waypoint 6/10），f1/f2 由**通用搜索**走通（**不是**闭式：
 hp 与入场同值；f1 的闸门理由实测 `monster_ents/41`）。
 ⇒ **f54 不再是墙；新的撞界点是 f3**（f3 在 200k 内 `truncated=true`，`out_hp=3827 只作参考`）。
-f3 是否也是纯拾取层、能否同样闭式化：**未查**（见 §9）。
+
+> 【2026-11-19 P6 更正】本节原写「f1 的闸门理由实测 `monster_ents/41`」——**在链上入场格 `(6,11)`
+> 下实测是 `step_arm_hazard_on_entry/83`**（`ty83` 门在入场格，闸门执行序 G2a 先响，G1 轮不到）。
+> 拒绝理由**依入场格而变**：把 entry 换成该层 `start` 时 f53 从 `step_arm_hazard_reachable/83` 变成
+> `monster_ents/51`、f54 从命中变成 `pickup_unreachable/0`。引用理由时必须同时写出入场格。
+
+### 7.3 全层扫描：P6 有没有带来新的闭式命中（答案：没有）
+
+临时探针 `crates/game-solver/examples/scan_floors.rs`（未入库，验收前删除）：loader 与判据同源，
+入场格用 `landing()`（逐字复刻 `examples/profile_floor.rs:352` 的 `landing_replica`；复算 f51..f54 落点
+`(1,11)/(2,11)/(6,10)/(7,9)` 与链上一致 ⇒ 复刻可信），`SOLVER_LAYER_LIMIT=1` 让通用搜索 1 节点秒退
+（闭式在构造 `Search` 之前尝试），逐层跑 `solve_local_exit_toward(inp, entry, hp=1000, flags=0, None, None)`：
+
+| 层 | 结果 |
+|---|---|
+| f1..f50 | **全部回退**，无一层满足 G1/G2/G2a |
+| f51/f52/f53 | `step_arm_hazard_reachable/83`（与链上一致） |
+| f54 | **HIT**：`out_hp=3400`、`exit=(7,1)`、`picks=18`、`sum_hp=2400`、`sum_atk/def=0`、`keys=(0,0,0)`、`bag=0` |
+
+结论：**P6 的语义推广在现有 55 层数据上没有产生任何新的闭式命中**。f54 的 18 枚拾取物**全是 HpUp**
+（`ents_in` 里只有 `ty32×10` 与 `ty31×8`，`+200×10 + 50×8 = 2400`），P5 的窄证书已完整覆盖它；
+其余层与「拾取物是哪种类型」无关，是被「无怪 / 无危险步臂」这两道闸挡住的。
+P6 真正多出来的是**断言面**：f54 的 atk/def/三钥/背包现在也有期望值并被逐字段比对。
+
+### 7.4 P6 回归对照（与父提交 `0a244ff` 逐字段）
+
+`/tmp/w20_base.json` = 父提交产物、`/tmp/w20_b.json` = P6 之后，同一命令
+`./target/release/solver run --max-floors 20 --out …`：
+
+| | 父 `0a244ff` | P6 |
+|---|---|---|
+| `status` / `floors` / `total_steps` | `capped` / 6 / 275 | **完全相同** |
+| `blocked` | floor 3 / `truncated` / `layer_ok=false` | **完全相同** |
+| 6 层 × 15 个共字段（floor,entry,exit,kind,route,in_hp,out_hp,in_player,out_player,in_flags,out_flags,ents_in,ents_out,ok,truncated） | — | **逐字段相同**（脚本投影比对） |
+| `meta.schema` | `xiyou/witness/v1` | `xiyou/witness/v2` |
+| 新增键 | — | `floors[*].pure_pickup` / `floors[*].pure_pickup_reason` |
+
+逐层（P6）：f51 300→247 `[2,2]` 68 步 `step_arm_hazard_reachable/83`；f52 247→427 `[11,11]` 101 步 同；
+f53 427→827 `[6,1]` 24 步 同；**f54 827→3227 `[7,1]` 62 步 `pure=true adopted`**；
+f1 3227→3227 `[11,1]` 5 步 `step_arm_hazard_on_entry/83`；f2 3227→3227 `[1,11]` 9 步 `step_arm_hazard_reachable/83`。
 
 ## 8. 失败/回退路径清单（什么情况回退、有无静默风险）
 
@@ -182,11 +261,13 @@ f3 是否也是纯拾取层、能否同样闭式化：**未查**（见 §9）。
 | 危险步臂格可达 | `:489` | `step_arm_hazard_reachable` + `reason_ty` | 无 |
 | 层内有怪 | `:503` | `monster_ents` + `reason_ty` | 无 |
 | 拾取物不纯/同格多枚/在入场格/格不纯 | `:514` | 四种具名 | 无 |
+| **P6** 拾取效果非单调（任一轴下降 / 背包非纯追加 / gold·装备·教学位变化 / 零增益） | G3′ 段 | `pickup_not_certified` + `reason_ty` | 无 |
+| **P6** 背包放不下全部可达拾取（`n0+need > 32` 或超过 `item_types` 长度） | G3′ 段 | `bag_no_room`（rank 2） | 无 |
 | 层内无认证药 | `:544` | `no_certified_pickup` | 无 |
 | 无 Stair 出口可达 | `:556` | `no_stair_exit_reachable` | 无 |
 | `hp+Σ` 溢出（i32） | `:551` | `hp_overflow` | 无（**不能**用 `?` 早退：会让 stat 停在上一次快照 ⇒ 静默） |
 | 路线构造失败（4 种顺序全败） | `:573`（`last` 汇总）/`:689`（`give_up`） | `route_construct_failed`/`pickup_unreachable` | 无 |
-| 回放任一项不符 | `:606-692` | 8 种 `replay_*` | 无 |
+| 回放任一项不符 | `:606-692` | **P6 起 11 种** `replay_*`：`replay_stat_mismatch`（atk/def）/`replay_key_mismatch`（三钥）/`replay_bag_mismatch`（背包）/`replay_side_effect`（gold）/其余 7 种沿用 | 无 |
 | **已知缺口**：`solve_local()`（旧公开入口）返回的 `SolveResult` 没有 `pure_pickup` 字段 | — | 见 `pure_pickup_stat()`（同线程可读） | **有**：只看 `SolveResult` 的消费方必须额外读 stat 才知道是否闭式 |
 
 所有回退都**不修改**任何共享状态（`LAYER_TRUNC`/`GOLD_PEAK`/`SHOP_BUYS`/`PillDomStat` 在闭式路径里
@@ -206,7 +287,28 @@ f3 是否也是纯拾取层、能否同样闭式化：**未查**（见 §9）。
      塞回路线、把上界变成猜想。**目标集合收缩是刻意的取舍**（宁小勿假）。
    - 若要覆盖它，正确做法是给「重入入场格」补一条独立的步臂中性证明（G2a 的推广），
      而不是把 `cell != entry` 删掉。本片**不做**这件事。
-2. **f3 为什么撞界、是否也是纯拾取层：未查**（本片只做到「撞界点从 f54 后移到 f3」）。
+2. **【2026-11-19 P6 已查清 → 任务书前提被证伪】f3 不是纯拾取层，闭式命中 `out_hp=4027` 不可能成立。**
+   实测（A 级，两条独立路径：链上 `solver run` 与隔离进程 `examples/probe_f3`）：
+   - f3 = 13×13、`entry=(2,11)`、`start=(1,11)`、35 实体，其中 **`cat8` 怪 7 个**：
+     `ty45@(1,3)`、`ty45@(10,8)`、`ty44@(1,7)`、`ty43@(10,2)`、`ty43@(3,5)`、`ty41@(7,5)`、`ty42@(8,10)`
+     ⇒ **G1 结构性失败**；
+   - 另有入场格 `ty83@(2,11)`（param=0，门**未开** ⇒ G2a 失败）与可达的 `ty83@(5,11)`（param=27）
+     ⇒ **G2 也失败**。闸门执行序 G2a→G2→G1 下实测 `reason=step_arm_hazard_reachable`（`ty=83`）、
+     `entry_hazards=1`；
+   - 即使假装这三道闸不存在，**HP 上界也不可能是 4027**：f3 有 800 hp 的拾取物，但全捡必然要战斗，
+     `ty41`（hp35/atk18/def1）对 `atk10/def10` 的 `predict_battle_hp_loss` = `ceil(35/9)=4` 击 ⇒
+     `(18-10)*3 = 24 hp > 0`（还有 6 个更强的怪，`ty43` atk38 对 def10 一击就 28）。
+     「每枚增益非负」这条定理前提在 f3 上**不成立**：层内存在必然的非拾取代价。
+   - 实测数字：链上 `solver run` 到 f3 是 `truncated` 且 `out_hp=3827 只作参考`（通用搜索的截断值，
+     **不是最优、也不可消费**）；隔离探针用 `entry=(2,11)`、不带 toward 跑
+     `solve_local_exit_toward` 得 `ok=false truncated=true out_hp=3753 exit=(11,11) route_len=34`。
+     两个数不同源于入场/优先目标不同，**都不是 4027**。
+   - 因此判据 13（`monotone_floor_f3_hits_closed_form`）标 `#[ignore]` 并保留原断言，跑
+     `cargo test -- --ignored` 会**真红**（`[B13] f3 ok=false trunc=true out_hp=3753 pure=false
+     reason=step_arm_hazard_reachable` → `任务书要求 f3 出解且不撞界`）。绿色替代是判据 12
+     `f3_is_excluded_by_g1_g2`（断言被 G1/G2 结构性排除，而不是「慢」）。
+   - 下一个真撞界点仍是 f3，但**原因不是血量算不出来，而是它需要建模战斗**（P6 的定理明确把
+     「层内有怪」排除在外）。
 3. **引擎进图链的出生格步臂**：A 级读到 `scene.rs:3878-3887` 的注释与 `apply_entry_step_effects` 实现，
    但**求解器的 `build_scene` 不走这条链**——这是既有求解器的建模选择，本片没改，也没为它补证据。
    G2a 是**绕开**这个建模差异（不放行未证中性的入场臂），不是修好它。
@@ -220,7 +322,9 @@ f3 是否也是纯拾取层、能否同样闭式化：**未查**（见 §9）。
 ## 10. 复现
 
 ```bash
-cargo test -p game-solver --release --test pure_pickup            # 7 条判据
+cargo test -p game-solver --release --test pure_pickup            # 13 条判据（+1 ignored 证伪记录）
+cargo test -p game-solver --release --test pure_pickup -- --ignored monotone_floor_f3_hits_closed_form   # 看 f3 真红
+cargo test -p game-core --release --lib monotone_probe            # 探针 2 条
 cargo test -p game-solver -p game-core                            # 全量（debug）
 python3 gates/cli.py check                                        # 总闸 PASS=13
 cargo run --release -p game-solver --example profile_floor -- 54 200000

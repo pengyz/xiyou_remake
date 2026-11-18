@@ -469,6 +469,194 @@ pub fn certified_pure_hp_gain(ty: i32, floor: i32) -> Option<i32> {
     Some(expect)
 }
 
+/// 【P6】单个拾取物在**某一层**被引擎采样证实的增益向量。
+///
+/// 语义（与 [`certified_monotone_pickup`] 配套）：
+/// - `hp/atk/def/yellow/blue/red` = **六轴增量**，全部 ≥0（单调）；
+/// - `bag` = 背包**纯追加**出来的槽位 `(type_id, uses)`，按追加顺序；
+/// - 「除这些字段外零变化」由证书函数保证（gold / tutorial_seen / 装备槽）。
+///
+/// 为什么是「向量」而不是「标量」：闭式解要拿它做**逐字段**的期望终态
+/// （`out_hp` 只是其中一轴）。只记 hp 会让 atk/def/钥/背包的漂移无断言可抓。
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct PickupGain {
+    pub hp: i32,
+    pub atk: i32,
+    pub def: i32,
+    pub yellow: i32,
+    pub blue: i32,
+    pub red: i32,
+    pub bag: Vec<(u8, u8)>,
+}
+
+impl PickupGain {
+    /// 至少一轴严格增（全零 = 「捡了等于没捡」，不算增益，调用方应 fail-closed）。
+    pub fn is_gain(&self) -> bool {
+        self.hp != 0
+            || self.atk != 0
+            || self.def != 0
+            || self.yellow != 0
+            || self.blue != 0
+            || self.red != 0
+            || !self.bag.is_empty()
+    }
+
+    /// 逐轴相加（背包按顺序拼接）。闭式解用它把「全捡」的期望终态累出来。
+    pub fn add_assign(&mut self, o: &PickupGain) {
+        self.hp += o.hp;
+        self.atk += o.atk;
+        self.def += o.def;
+        self.yellow += o.yellow;
+        self.blue += o.blue;
+        self.red += o.red;
+        self.bag.extend(o.bag.iter().copied());
+    }
+}
+
+/// 【P6·拾取子集支配的**单调**证书源】`ty` 在 `floor` 层捡起来是否**只增不减**。
+///
+/// 与 [`certified_pure_hp_gain`] 的分工（**两条证书并存，语义不许混**）：
+/// - `certified_pure_hp_gain`：只认 hp-only（`HpUp` ∧ 其余零变化）——P5 的窄口；
+/// - 本函数：认「hp/atk/def/三钥/背包 任一或多轴**非降**，其余字段零变化」——P6 的宽口。
+///
+/// 定理（本函数是它的**采样侧**前提，搜索侧见 `game-solver/src/pure_pickup.rs`）：
+/// 若层内每个可达拾取物的效果都是常量向量 Δᵢ 且各轴 ≥0、背包纯追加，
+/// 则把全部可达拾取物捡一遍后 `hp = in_hp + Σ Δᵢ.hp` 是上界且由引擎回放可达。
+///
+/// **值必须来自采样，不许按 ty 号硬编码**：因此真跑一次 `ItemResolver::pickup`
+/// （与引擎同一分发面，`item_service.rs:25-52`），用非默认探针玩家逐字段比对。
+///
+/// 探针夹具与 `certified_pure_hp_gain` 的差异（**唯一但关键**）：本函数背包给
+/// **满 32 槽**，而后者只给 3 槽。原因：`StackEffect` 的追加守卫是
+/// `n < p.item_types.len()`（a.java:7727-7740 / BUG-050 静默吞面）——
+/// 3 槽探针在 `n=3` 时追加**静默失败**，会让每枚栈增道具都被误判「零变化」（假阴性）。
+/// 槽 0 故意放 **13 型**（`ITEM_USES[0] = -1`）：这样「被认证的道具已在背包里」
+/// 的合并路径（a.java:7734-7736）会被采到，而它正是唯一的**下降**形态
+/// （uses 2→1）——它是本函数对「非单调」的**正向探针**，不是遗漏。
+pub fn certified_monotone_pickup(ty: i32, floor: i32) -> Option<PickupGain> {
+    // ① 非拾取臂（怪/门/地形/未注册）没有「捡起来」这回事。
+    if pickup_kind_for_type(ty) == "NoOp" {
+        return None;
+    }
+    // ② 探针玩家（见 doc：背包满 32 槽，槽 0 = 13 型 uses 2）。
+    let mut types = vec![0u8; 32];
+    types[0] = 13;
+    let mut uses = vec![0u8; 32];
+    uses[0] = 2;
+    let mut player = PlayerCombat {
+        hp: 100,
+        atk: 11,
+        def: 12,
+        yellow_keys: 3,
+        blue_keys: 4,
+        red_keys: 5,
+        gold: 7,
+        item_types: types,
+        item_uses: uses,
+        item_stack_size: 1,
+    };
+    // tutorial_seen 初值取 **false**（与 `certified_pure_hp_gain` 相反）：那边取
+    // true 是为了抓「写 true」，但 15 型（TutorialSeenStack）写的正是 true ⇒
+    // true→true 不可见。取 false 才能把「这枚会打开教学标记」这一副作用抓出来。
+    let mut tutorial_seen = false;
+    let mut equipped_weapon = 33;
+    let mut equipped_armor = 40;
+    let old_n = player.item_stack_size as usize;
+    let before_types = player.item_types.clone();
+    let before_uses = player.item_uses.clone();
+    let before = (
+        player.hp,
+        player.atk,
+        player.def,
+        player.yellow_keys,
+        player.blue_keys,
+        player.red_keys,
+        player.gold,
+    );
+    let outcome = {
+        use crate::subsystem::item_service::{ItemResolver, ItemService};
+        let mut ctx = ItemCtx {
+            player: &mut player,
+            floor,
+            tutorial_seen: &mut tutorial_seen,
+            equipped_weapon: &mut equipped_weapon,
+            equipped_armor: &mut equipped_armor,
+            equip_types: [33, 34, 35, 79, 36, 37, 38, 39, 80, 40, 0, 0],
+            equip_bonuses: [0; 12],
+        };
+        ItemResolver.pickup(&mut ctx, ty)
+    };
+    // ③ 必须是「真被消耗」（NotConsumed/NoOp 说明这枚在引擎里什么都没发生）。
+    if !matches!(outcome, ItemOutcome::Consumed { .. }) {
+        return None;
+    }
+    // ④ 六轴必须非降（任一轴下降 ⇒ 不是单调增益 ⇒ fail-closed）。
+    let d_hp = player.hp - before.0;
+    let d_atk = player.atk - before.1;
+    let d_def = player.def - before.2;
+    let d_y = player.yellow_keys - before.3;
+    let d_b = player.blue_keys - before.4;
+    let d_r = player.red_keys - before.5;
+    if d_hp < 0 || d_atk < 0 || d_def < 0 || d_y < 0 || d_b < 0 || d_r < 0 {
+        return None;
+    }
+    // ⑤ 证书外部字段必须零变化（gold 是**真·副作用**；tutorial_seen/装备槽
+    //    虽不直接改 hp，但它们是本层搜索没有建模的状态 ⇒ 一律拒绝）。
+    if player.gold != before.6
+        || tutorial_seen != false
+        || equipped_weapon != 33
+        || equipped_armor != 40
+    {
+        return None;
+    }
+    // ⑥ 背包：只允许「纯追加一槽」或「合并进已存在的槽」，别的一律拒。
+    let new_n = player.item_stack_size as usize;
+    let mut bag = Vec::new();
+    if new_n == old_n {
+        // 合并路径：已存在的槽可以变，但不许下降，且旧槽不许丢。
+        for i in 0..old_n {
+            if player.item_types[i] != before_types[i] {
+                return None;
+            }
+            if player.item_uses[i] < before_uses[i] {
+                return None; // 正是 13 型（ITEM_USES=-1）踩的这条
+            }
+        }
+    } else if new_n == old_n + 1 && new_n <= before_types.len() {
+        // 追加路径：旧槽逐字节不变、新槽 = (ty, uses)、其后全 0。
+        for i in 0..old_n {
+            if player.item_types[i] != before_types[i] || player.item_uses[i] != before_uses[i] {
+                return None;
+            }
+        }
+        if player.item_types[old_n] != ty as u8 {
+            return None;
+        }
+        for i in (old_n + 1)..before_types.len() {
+            if player.item_types[i] != 0 || player.item_uses[i] != 0 {
+                return None;
+            }
+        }
+        bag.push((player.item_types[old_n], player.item_uses[old_n]));
+    } else {
+        return None; // 增了不止一槽 / 槽位被缩 / 越界
+    }
+    let gain = PickupGain {
+        hp: d_hp,
+        atk: d_atk,
+        def: d_def,
+        yellow: d_y,
+        blue: d_b,
+        red: d_r,
+        bag,
+    };
+    // ⑦ 至少一轴严格增（全零 ⇒ 引擎里这枚什么都没给 ⇒ 不值得为它绕路）。
+    if !gain.is_gain() {
+        return None;
+    }
+    Some(gain)
+}
+
 /// 【P1-3 红·先行】pickup_params_for 23 臂对照（match→表行参数逐行——
 /// a.java:7537-7648 引锚纪律随断言）。
 #[cfg(test)]
@@ -920,5 +1108,61 @@ mod pill_cert_tests {
                 assert_eq!(c.player.hp, gain, "floor={floor} ty={ty} 引擎 hp 增量≠证书");
             }
         }
+    }
+}
+
+/// 【P6·B 片】`certified_monotone_pickup` 的探针判据。
+///
+/// 守的是「单调」这条证书的**来源**：值必须来自真引擎采样（`ItemResolver::pickup`），
+/// 不能按 ty 号硬编码；且「下降/额外副作用」必须被拒（fail-closed）。
+#[cfg(test)]
+mod monotone_probe_tests {
+    use super::*;
+
+    #[test]
+    fn certified_monotone_pickup_reports_each_axis() {
+        // 血：32 型 = HpUp{200}，f54 ⇒ tier=1 ⇒ +200。
+        let g = certified_monotone_pickup(32, 54).expect("32 型必须被认证为单调");
+        println!("[P6/core] ty32 -> {g:?}");
+        assert_eq!((g.hp, g.atk, g.def), (200, 0, 0));
+        assert_eq!((g.yellow, g.blue, g.red), (0, 0, 0));
+        assert!(g.bag.is_empty(), "HpUp 不碰背包");
+
+        // 攻：29 型 = StatUp{atk:1}，f54 ⇒ tier=1 ⇒ +1。
+        let g = certified_monotone_pickup(29, 54).expect("29 型必须被认证为单调");
+        println!("[P6/core] ty29 -> {g:?}");
+        assert_eq!((g.hp, g.atk, g.def), (0, 1, 0));
+
+        // 钥：26 型 = Key{yellow}。
+        let g = certified_monotone_pickup(26, 54).expect("26 型必须被认证为单调");
+        println!("[P6/core] ty26 -> {g:?}");
+        assert_eq!((g.yellow, g.blue, g.red), (1, 0, 0));
+
+        // 背包：19 型 = Stack，`ITEM_USES[19-13=6] = 1`，空槽追加 ⇒ bag=[(19,1)]。
+        let g = certified_monotone_pickup(19, 54).expect("19 型必须被认证为单调");
+        println!("[P6/core] ty19 -> {g:?}");
+        assert_eq!(g.bag, vec![(19u8, 1u8)], "背包项必须记为 (type, uses)");
+        // 20 型 = Stack，`ITEM_USES[7] = 3`：证 uses 值来自采样、不是常量。
+        let g = certified_monotone_pickup(20, 54).expect("20 型必须被认证为单调");
+        println!("[P6/core] ty20 -> {g:?}");
+        assert_eq!(g.bag, vec![(20u8, 3u8)], "uses 必须来自 ITEM_USES 采样");
+
+        // 负例①：13 型让探针背包已有槽的 uses 2→1（下降）⇒ 必须拒。
+        assert_eq!(certified_monotone_pickup(13, 54), None, "字段下降必须拒");
+        // 负例②：15 型写 tutorial_seen（非 hp/atk/def/钥/背包）⇒ 必须拒。
+        assert_eq!(certified_monotone_pickup(15, 54), None, "额外副作用必须拒");
+        // 负例③：41 型（怪）不是拾取臂 ⇒ 必须拒。
+        assert_eq!(certified_monotone_pickup(41, 54), None, "非拾取臂必须拒");
+    }
+
+    #[test]
+    fn pickup_gain_add_assign_sums_axes() {
+        let mut a = certified_monotone_pickup(32, 54).unwrap();
+        let b = certified_monotone_pickup(26, 54).unwrap();
+        a.add_assign(&b);
+        println!("[P6/core] 32+26 -> {a:?}");
+        assert_eq!((a.hp, a.yellow), (200, 1));
+        assert!(a.is_gain());
+        assert!(!PickupGain::default().is_gain(), "全零不是增益");
     }
 }
