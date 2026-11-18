@@ -427,6 +427,12 @@ pub struct ExitSolve {
     /// `false` ⇒ 空间内穷尽：`ok=false` 即真无解，`ok=true` 即空间内最优（可当契约）。
     /// 依据 `LAYER_TRUNC`（`solve_layer_with` 与 `solve_global` 观测同一标记）。
     pub truncated: bool,
+    /// 【P5 纯拾取闭式】本条结果是否来自 `pure_pickup.rs` 的**层闭式解**：
+    /// `true` ⇒ `out_hp` 是 `entry_hp + Σ认证纯加血` 的闭式上界，且 `route` 已**逐步
+    /// 引擎回放验证**（每步 `pickup_step` 成功 + 终态血量/位置/零副作用逐项相符）。
+    /// `false` ⇒ 通用搜索（闭式未采用或未尝试；**原因必在**
+    /// [`crate::pure_pickup::pure_pickup_stat`]`.reason` 里，禁静默）。
+    pub pure_pickup: bool,
 }
 
 impl ExitSolve {
@@ -448,6 +454,7 @@ impl ExitSolve {
             kind: None,
             cross_edge: None,
             truncated,
+            pure_pickup: false,
         }
     }
 }
@@ -572,6 +579,8 @@ fn materialize_exit(
             kind: Some(g.kind),
             cross_edge: g.cross_edge,
             truncated,
+            // 闭式解采用标记直取统计（`solve_layer_with` 在 memo 命中/闭式命中时都写）
+            pure_pickup: crate::pure_pickup::pure_pickup_stat().adopted,
         },
         _ => {
             // 无目标（或目标未确认可达）：回显「入场态」——注入则原样，未注入则本层
@@ -676,7 +685,7 @@ pub fn solve_layer_with(
         node_limit,
         shops_key(shops),
     );
-    if let Some((hit_ok, hit_goals, hit_trunc, hit_peak, hit_buys, hit_pill)) =
+    if let Some((hit_ok, hit_goals, hit_trunc, hit_peak, hit_buys, hit_pill, hit_pure)) =
         LAYER_MEMO.with(|m| m.borrow().get(&memo_key).cloned())
     {
         LAYER_TRUNC.with(|f| f.set(hit_trunc)); // memo 命中回放截断标记（可观测性不变）
@@ -685,7 +694,41 @@ pub fn solve_layer_with(
         // 【D 面】子集支配统计同样按缓存回放——**禁静默**：memo 命中时也必须能
         // 看到 enabled/reason/cmp（否则「规则没生效」在热路径上不可见）。
         pill_dom_stat_set(hit_pill);
+        // 【P5】闭式解统计同样按缓存回放——memo 命中时「本层是否闭式命中」也必须可见。
+        crate::pure_pickup::pure_pickup_stat_set(hit_pure);
         return (hit_ok, hit_goals);
+    }
+    // ---------------------------------------------------------------------
+    // 【P5 本片】纯拾取层闭式解：memo 之后、`Search` 构造之前先试。
+    // 命中 ⇒ `out_hp = entry_hp + Σ认证纯加血`（全捡最优：无怪/无危险步臂/拾取不挡路，
+    // 步数只是 tie-break），路线已逐步引擎回放验证 ⇒ 直接短路返回，绕开 20 万节点层界。
+    // 未命中 ⇒ fail-closed 落到下面的通用搜索，**原因写进 `pure_pickup_stat()`**
+    // （`reason`/`reason_ty`），禁静默。
+    // ---------------------------------------------------------------------
+    if let Some(mut goals) =
+        crate::pure_pickup::try_closed_form(input, entry, &root_ents, &player, flags, policy)
+    {
+        // 出口序确定化（每出口一条 `LayerGoal`，`post_pos` 互异 ⇒ 无需 merge）：
+        // 不许依赖 Vec 生成序（BFS/策略序是内部细节，出口序必须由内容定）。
+        goals.sort_by(|a, b| (a.kind, a.post_pos).cmp(&(b.kind, b.post_pos)));
+        LAYER_TRUNC.with(|f| f.set(None)); // 闭式=精确完整解，从未截断
+        GOLD_PEAK.with(|c| c.set(player.gold)); // 纯层金币恒定（无买臂、无金币拾取）
+        SHOP_BUYS.with(|c| c.set((0, 0)));
+        LAYER_MEMO.with(|m| {
+            m.borrow_mut().insert(
+                memo_key,
+                (
+                    true,
+                    goals.clone(),
+                    None,
+                    player.gold,
+                    (0, 0),
+                    pill_dom_stat(),
+                    crate::pure_pickup::pure_pickup_stat(),
+                ),
+            );
+        });
+        return (true, goals);
     }
     let mut search = Search::from_entry(input, level, entry);
     search.cloud = true; // 批3 C3b：层间路径开筋斗云候选（批2 solve_local/run 关）
@@ -727,6 +770,8 @@ pub fn solve_layer_with(
                 SHOP_BUYS.with(|c| c.get()),
                 // 【D 面】统计（诊断面；不是搜索输入，进缓存只为 memo 命中可观测）
                 pill_dom_stat(),
+                // 【P5】闭式解统计（同上：诊断面，进缓存只为 memo 命中可观测）
+                crate::pure_pickup::pure_pickup_stat(),
             ),
         );
     });
@@ -756,7 +801,15 @@ thread_local! {
                 usize,
                 Vec<ShopKeyRow>,
             ),
-            (bool, Vec<LayerGoal>, Option<(i32, usize)>, i32, (u64, u64), PillDomStat),
+            (
+                bool,
+                Vec<LayerGoal>,
+                Option<(i32, usize)>,
+                i32,
+                (u64, u64),
+                PillDomStat,
+                crate::pure_pickup::PurePickupStat,
+            ),
         >,
     > = RefCell::new(HashMap::new());
     /// R1 层界截断标记（lead 裁定 A 2026-11-13 条件1「截断可观测」）：
@@ -1318,7 +1371,7 @@ where
 /// 踩格副作用臂实体型（`scene.rs apply_step_cell_effects`）：5 宝箱 / 60-62 陷阱 /
 /// 76 组门 / 83 关卡脚本。这些臂能改实体表（60 火焰上爬、76 清组格）、能按 hp 算
 /// 伤害、能跑任意脚本 ⇒ 一律 fail-closed（G4）。
-const STEP_ARM_HAZARD_TYPES: [i32; 6] = [5, 60, 61, 62, 76, 83];
+pub(crate) const STEP_ARM_HAZARD_TYPES: [i32; 6] = [5, 60, 61, 62, 76, 83];
 
 /// 子集支配比较预算（每层）。超出即停止咨询：只损失剪枝机会、不损健全性；
 /// 计数与遍历序确定 ⇒ 结果仍确定（同输入同输出）。
@@ -2983,6 +3036,86 @@ impl<'a> Search<'a> {
         // 共存时 apply 在本 harness 内已触发门、驱动不完整=批3 面，本批不建模。
         Some(ns)
     }
+}
+
+/// 【P5 纯拾取闭式】格分类**三态批投影**：`classify` 的单源复用
+/// （禁第二份分类表——上一片 `plan_pill` 的 G4 就是靠复用 `classify` 才没漂移）。
+///
+/// 返回 `(cols, rows, kinds)`，`kinds[y*cols+x]`：`Move`⇒`Free`、`Pickup`⇒`Pickup`、
+/// 其余（门/商店/怪/阻挡）⇒`Other`。分类用**入场实体表**（`root_ents`）——
+/// 纯层内实体只减不增（无怪无脚本），故入场分类在整条路线上恒定。
+pub(crate) fn pure_cell_kinds(
+    input: &SolveInput,
+    ents: &[EntRec],
+) -> Option<(i32, i32, Vec<crate::pure_pickup::CellKind>)> {
+    use crate::pure_pickup::CellKind;
+    let level = input.level.as_ref()?;
+    let s = Search::from_entry(input, level, level.start);
+    let st = St {
+        pos: level.start,
+        player: level.player.clone(),
+        ents: ents.to_vec(),
+        flags: level.flags,
+        kills: 0,
+        steps: 0,
+    };
+    let mut out = Vec::with_capacity((level.cols * level.rows) as usize);
+    for y in 0..level.rows {
+        for x in 0..level.cols {
+            out.push(match s.classify(&st, x, y) {
+                Cell::Move => CellKind::Free,
+                Cell::Pickup => CellKind::Pickup,
+                _ => CellKind::Other,
+            });
+        }
+    }
+    Some((level.cols, level.rows, out))
+}
+
+/// 【P5 纯拾取闭式】回放产物（全部来自引擎读回，无推演）。
+pub(crate) struct PickupReplayOut {
+    pub player: PlayerSpec,
+    pub flags: u128,
+    pub pos: (i32, i32),
+    pub ents: Vec<EntRec>,
+    pub steps: i32,
+}
+
+/// 【P5 纯拾取闭式】逐步回放一条纯拾取路线——每步都走 [`Search::pickup_step`]
+/// （真 `try_step` + 拍推进 + 读回三源），**任一步被拒/未落格 ⇒ `None`**
+/// （fail-closed：不产假转移，也不把「模型里能走」当「引擎里能走」）。
+/// `cells[0]` 必须是 `entry`（路线首 token=入场格约定，与 `route_of` 同口径）。
+pub(crate) fn replay_pickup_route(
+    input: &SolveInput,
+    entry: (i32, i32),
+    ents: &[EntRec],
+    player: &PlayerSpec,
+    flags: u128,
+    cells: &[(i32, i32)],
+) -> Option<PickupReplayOut> {
+    let level = input.level.as_ref()?;
+    if cells.first().copied() != Some(entry) {
+        return None;
+    }
+    let search = Search::from_entry(input, level, entry);
+    let mut st = St {
+        pos: entry,
+        player: player.clone(),
+        ents: ents.to_vec(),
+        flags,
+        kills: 0,
+        steps: 0,
+    };
+    for &(tx, ty) in &cells[1..] {
+        st = search.pickup_step(&st, tx, ty)?;
+    }
+    Some(PickupReplayOut {
+        player: st.player,
+        flags: st.flags,
+        pos: st.pos,
+        ents: st.ents,
+        steps: st.steps,
+    })
 }
 
 /// T7（提案 §3.1 T7 / 计划 :319「find_path found 与 solver BFS found 一致」）：

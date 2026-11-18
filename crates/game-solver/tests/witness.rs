@@ -179,6 +179,7 @@ fn fake_exit_ok(player: &PlayerSpec) -> game_solver::solve_local::ExitSolve {
         kind: Some(ExitKind::Stair),
         cross_edge: None,
         truncated: false,
+        pure_pickup: false,
     }
 }
 
@@ -195,6 +196,7 @@ fn fake_ending(player: &PlayerSpec) -> game_solver::solve_local::ExitSolve {
         kind: Some(ExitKind::Ending),
         cross_edge: None,
         truncated: false,
+        pure_pickup: false,
     }
 }
 
@@ -318,6 +320,7 @@ fn witness_refuses_to_fake_success() {
                     kind: None,
                     cross_edge: None,
                     truncated: false,
+                    pure_pickup: false,
                 },
                 false,
             )

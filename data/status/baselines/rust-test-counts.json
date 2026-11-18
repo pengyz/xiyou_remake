@@ -26,12 +26,12 @@
     "fixture_frames(test)": 45,
     "flow(test)": 4,
     "game_android(lib)": 8,
-    "game_core(lib)": 409,
+    "game_core(lib)": 412,
     "game_data(lib)": 35,
     "game_oracle(lib)": 5,
     "game_platform(lib)": 6,
     "game_shell_common(lib)": 45,
-    "game_solver(lib)": 38,
+    "game_solver(lib)": 46,
     "gameplay_floor1(test)": 5,
     "golden(test)": 9,
     "hd_visual(test)": 6,
@@ -52,6 +52,7 @@
     "probe_floor2(test)": 1,
     "process_control_contract(test)": 5,
     "process_exit(test)": 4,
+    "pure_pickup(test)": 7,
     "render_category_table_driven(test)": 4,
     "render_golden(test)": 16,
     "script_fixture_lines(test)": 3,
@@ -62,7 +63,7 @@
     "size_dispatch_table_driven(test)": 5,
     "slot_equip_scene(test)": 2,
     "solve_global(test)": 24,
-    "solve_local(test)": 24,
+    "solve_local(test)": 25,
     "solve_local_trunc(test)": 4,
     "solver(bin)": 0,
     "storage_contract(test)": 7,
@@ -79,5 +80,5 @@
     "witness(test)": 8,
     "xiyou(bin)": 42
   },
-  "total": 1164
+  "total": 1183
 }

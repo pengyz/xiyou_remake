@@ -10,6 +10,7 @@ pub mod dynreach;
 pub mod floorgraph;
 pub mod ingest;
 pub mod keyflow;
+pub mod pure_pickup;
 pub mod query;
 pub mod script_abs;
 pub mod solve_global;
