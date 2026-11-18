@@ -15,7 +15,7 @@ use crate::solve_local::LevelSpec;
 use game_core::enums::entity_kind::{
     DOOR_BLUE, DOOR_RED, DOOR_YELLOW, FIRE_TRAP, SCRIPT_GATE, STAIR_DOWN, STAIR_UP,
 };
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::BTreeSet;
 
 fn is_door(ty: i32) -> bool {
     matches!(ty, DOOR_YELLOW | DOOR_RED | DOOR_BLUE)

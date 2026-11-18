@@ -24,6 +24,7 @@ pub mod scene;
 pub mod title;
 pub mod script;
 pub mod script_exec; // 【2026-11-17 S3·④】脚本执行流程单一来源
+pub mod rules; // 【2026-11-18】规则层：引擎与求解器共用的纯判定（门控条件等）
 pub mod controls;
 pub mod tap_walk;
 

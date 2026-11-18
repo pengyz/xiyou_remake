@@ -27,6 +27,10 @@
 use crate::solve_local::LevelSpec;
 use crate::solve_local::EntSpec;
 use game_core::enums::entity_kind::{FIRE_TRAP, SCRIPT_GATE, STAIR_DOWN};
+use game_core::rules::gate;
+
+/// 夹具脚本槽数（`crates/game-core/tests/fixtures/level_scripts.txt` 68 槽）。
+const FIXTURE_SCRIPT_SLOTS: i32 = 68;
 
 /// 一条脚本召唤：`CES_<ty>_<x>_<y>`。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,6 +68,14 @@ impl ScriptSpawns {
             by_slot.push(spawns);
         }
         Self { by_slot }
+    }
+
+    /// 槽位数（供门控判定做越界检查，与引擎 `scripts.len()` 同源）。
+    pub fn len(&self) -> i32 {
+        self.by_slot.len() as i32
+    }
+    pub fn is_empty(&self) -> bool {
+        self.by_slot.is_empty()
     }
 
     pub fn of(&self, slot: i32) -> &[Spawn] {
@@ -144,39 +156,125 @@ pub fn can_reach(
         gate_list.iter().position(|(_, gx, gy, _)| *gx == x && *gy == y)
     };
 
-    let mut seen: BTreeSet<(i32, i32, u64)> = BTreeSet::new();
-    let mut q: VecDeque<(i32, i32, u64)> = VecDeque::new();
-    seen.insert((entry.0, entry.1, 0));
-    q.push_back((entry.0, entry.1, 0));
-    while let Some((x, y, fired)) = q.pop_front() {
+    // 状态 = (x, y, fired, flags)：fired 决定「哪些门的召唤物已落地」（影响通行），
+    // flags 是 script_line_flags 的模型（决定「这扇门还开不开」以及门与门的先后）。
+    let mut seen: BTreeSet<(i32, i32, u64, u64)> = BTreeSet::new();
+    let mut q: VecDeque<(i32, i32, u64, u64)> = VecDeque::new();
+    seen.insert((entry.0, entry.1, 0, 0));
+    q.push_back((entry.0, entry.1, 0, 0));
+    while let Some((x, y, fired, flags)) = q.pop_front() {
         if goal_set.contains(&(x, y)) {
             return true;
         }
-        // 1) 走到相邻格（到达即可能触发该格上的门）
+        // 1) 走到相邻格（到达即可能触发该格上的门，from_walk = true）
         for (dx, dy) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
             let (nx, ny) = (x + dx, y + dy);
             if !passable(nx, ny, fired) {
                 continue;
             }
             let mut nf = fired;
+            let mut nflags = flags;
             if let Some(gi) = gate_at(nx, ny) {
-                nf |= 1u64 << gi;
+                let (flag_after, ran) = try_fire(level, scripts, gate_list[gi].3, flags, true);
+                if ran {
+                    nf |= 1u64 << gi;
+                    nflags = flag_after;
+                }
             }
-            if seen.insert((nx, ny, nf)) {
-                q.push_back((nx, ny, nf));
+            if seen.insert((nx, ny, nf, nflags)) {
+                q.push_back((nx, ny, nf, nflags));
             }
         }
-        // 2) 站定撞邻格的门（from_walk=false，人不动）
+        // 2) 站定撞邻格的门（from_walk = false，人不动）
         for (dx, dy) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
             if let Some(gi) = gate_at(x + dx, y + dy) {
-                let nf = fired | (1u64 << gi);
-                if seen.insert((x, y, nf)) {
-                    q.push_back((x, y, nf));
+                let (nflags2, ran) = try_fire(level, scripts, gate_list[gi].3, flags, false);
+                if ran {
+                    let nf = fired | (1u64 << gi);
+                    if seen.insert((x, y, nf, nflags2)) {
+                        q.push_back((x, y, nf, nflags2));
+                    }
                 }
             }
         }
     }
     false
+}
+
+/// 模型侧的 `GateView`：喂给 `game_core::rules::gate::evaluate` 的引擎同源判定。
+///
+/// 乐观处（都在返回值里由 `Relaxations` 记账）：怪物假定可清除、道具前置假定已满足、
+/// 跨层快照假定为空、HP 假定存活、难度假定为 0（默认档）。
+struct ModelGate<'a> {
+    level: &'a LevelSpec,
+    flags: u64,
+}
+
+impl gate::GateView for ModelGate<'_> {
+    fn script_count(&self) -> i32 {
+        FIXTURE_SCRIPT_SLOTS
+    }
+    fn flag(&self, idx: i32) -> bool {
+        idx >= 0 && idx < 64 && self.flags & (1u64 << idx) != 0
+    }
+    fn set_flag(&mut self, idx: i32) {
+        if idx >= 0 && idx < 64 {
+            self.flags |= 1u64 << idx;
+        }
+    }
+    fn entity_at(&self, x: i32, y: i32, type_id: i32) -> i32 {
+        // 怪物（41..=76）按「可清除」处理；其余是静态道具/结构，按层数据查。
+        if (41..=76).contains(&type_id) {
+            return -1;
+        }
+        self.level
+            .entities
+            .iter()
+            .position(|e| e.x == x && e.y == y && e.ty == type_id)
+            .map(|i| i as i32)
+            .unwrap_or(-1)
+    }
+    fn alive_type_on_floor(&self, type_id: i32) -> bool {
+        if (41..=76).contains(&type_id) {
+            return false; // 假定可清除
+        }
+        self.level.entities.iter().any(|e| e.ty == type_id)
+    }
+    fn difficulty_index(&self) -> i32 {
+        0
+    }
+    fn player_hp(&self) -> i32 {
+        1
+    }
+    fn has_item(&self, _item: i32) -> bool {
+        true // 乐观：道具前置当作已满足（由调用方记账）
+    }
+    fn cross_floor_snapshot(&mut self, _floor: i32, _type_id: i32) -> bool {
+        false
+    }
+    fn predict_hp_loss_vs(&self, _ety: i32, _no_counter: bool) -> i32 {
+        0
+    }
+}
+
+/// 尝试触发一扇门：返回 (触发后的 flags, 是否真的触发)。
+fn try_fire(
+    level: &LevelSpec,
+    _scripts: &ScriptSpawns,
+    param: i32,
+    flags: u64,
+    from_walk: bool,
+) -> (u64, bool) {
+    let mut m = ModelGate { level, flags };
+    let verdict = gate::evaluate(param, &mut m, from_walk);
+    let mut after = m.flags;
+    if verdict.run {
+        // 脚本跑完 ⇒ 该槽的 flags 置位（引擎：scene_script.rs 的 script_line_flags[cur] = true）
+        if param >= 0 && param < 64 {
+            after |= 1u64 << param;
+        }
+    }
+    (after, verdict.run)
 }
 
 /// 门数超位图上限时的保守路径：假设本层所有脚本门都已触发。
@@ -359,5 +457,66 @@ mod tests {
         assert_eq!(s.of(0), &[Spawn { ty: 6, x: 10, y: 2 }, Spawn { ty: 60, x: 10, y: 2 }]);
         assert!(s.of(1).is_empty());
         assert!(s.of(99).is_empty());
+    }
+
+    // --- 门控条件接入（2026-11-18，用户 m03092「把门控条件也进模型」） ---------
+    // 直接测模型侧的 try_fire：它把 (层, 槽, flags, 触发方式) 喂给
+    // `game_core::rules::gate::evaluate`——与引擎同一段判定逻辑。
+
+    fn one_row(terrain: Vec<bool>, ents: Vec<EntSpec>) -> LevelSpec {
+        let mut lv = level(terrain.len() as i32, 1, terrain, (0, 0));
+        lv.entities = ents;
+        lv
+    }
+
+    /// 门 27 要求 `from_walk` **且** `flags[0]` 已置位（a.java 到达臂 + 前置脚本）。
+    #[test]
+    fn dyn_gate_27_needs_flag0_and_from_walk() {
+        let lv = one_row(vec![true, true, false], vec![ent(SCRIPT_GATE, 2, 0, 27)]);
+        let sc = ScriptSpawns::from_lines(vec!["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
+        // 没跑过 0 号脚本 ⇒ 即便能走上去也不开
+        assert_eq!(try_fire(&lv, &sc, 27, 0, true).1, false, "缺 flags[0] 不该开门");
+        // flags[0] 已置位，但撞格（from_walk=false）⇒ 仍不开
+        assert_eq!(try_fire(&lv, &sc, 27, 1 << 0, false).1, false, "撞格不该触发到达臂");
+        // 两个条件都满足 ⇒ 开
+        assert_eq!(try_fire(&lv, &sc, 27, 1 << 0, true).1, true);
+    }
+
+    /// 门 25 = `from_walk ∧ flags[13] ∧ 两处 ty60 都不在`；怪物在模型里假定可清除。
+    #[test]
+    fn dyn_gate_25_needs_flag13() {
+        let lv = one_row(vec![true, true, true], vec![ent(SCRIPT_GATE, 1, 0, 25)]);
+        let sc = ScriptSpawns::from_lines(std::iter::empty::<&str>());
+        assert!(!try_fire(&lv, &sc, 25, 0, true).1, "13 没跑过时 25 不该开");
+        assert!(try_fire(&lv, &sc, 25, 1 << 13, true).1, "13 跑过且两处火已清 ⇒ 开");
+        assert!(!try_fire(&lv, &sc, 25, 1 << 13, false).1, "撞格不开");
+    }
+
+    /// 66 号门恒不开（a.java `case 66: gate = false`）。
+    #[test]
+    fn dyn_gate_66_never_opens() {
+        assert!(game_core::rules::gate::is_never_runnable(66));
+        let lv = one_row(vec![true], vec![ent(SCRIPT_GATE, 0, 0, 66)]);
+        let sc = ScriptSpawns::from_lines(std::iter::empty::<&str>());
+        assert!(!try_fire(&lv, &sc, 66, u64::MAX, true).1);
+        assert!(!try_fire(&lv, &sc, 66, u64::MAX, false).1);
+    }
+
+    /// 16 只在难度 0 发生；67 只在难度 > 0 发生（模型固定按难度 0 ⇒ 16 开、67 不开）。
+    #[test]
+    fn dyn_gate_16_and_67_follow_difficulty_0() {
+        let lv = one_row(vec![true], vec![ent(SCRIPT_GATE, 0, 0, 16), ent(SCRIPT_GATE, 0, 0, 67)]);
+        let sc = ScriptSpawns::from_lines(std::iter::empty::<&str>());
+        assert!(try_fire(&lv, &sc, 16, 0, true).1, "难度 0 ⇒ 16 可开");
+        assert!(!try_fire(&lv, &sc, 67, 0, true).1, "难度 0 ⇒ 67 不开");
+    }
+
+    /// 33 号门要求 `flags[7]`（7 号是跨层探针门，模型按「未跑过」处理）⇒ 恒不开。
+    #[test]
+    fn dyn_gate_33_needs_flag7() {
+        let lv = one_row(vec![true], vec![ent(SCRIPT_GATE, 0, 0, 33)]);
+        let sc = ScriptSpawns::from_lines(std::iter::empty::<&str>());
+        assert!(!try_fire(&lv, &sc, 33, 0, true).1);
+        assert!(try_fire(&lv, &sc, 33, 1 << 7, true).1);
     }
 }

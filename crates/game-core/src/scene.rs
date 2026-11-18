@@ -934,114 +934,9 @@ impl GameScene {
     /// tryRunScene（a.java:8065-8139）：脚本行门控（scriptLineFlags + 场景参数
     /// script_cursor0=fromWalk）。case 40 落 5..40 直通组（table_count 原样 = !flags[40]）。
     pub fn try_run_scene(&mut self, idx: i32, from_walk: bool) -> bool {
-        if idx >= self.dialog.dialog_data.scripts.len() as i32 {
-            return false;
-        }
-        let mut gate = !self.slots.script_line_flags[idx as usize];
-        match idx {
-            0 => {
-                if gate {
-                    self.slots.script_line_flags[19] = true;
-                }
-            }
-            1 => gate &= self.slots.script_line_flags[0] && !from_walk,
-            2 => gate &= self.slots.script_line_flags[1] && !from_walk,
-            3 => gate &= from_walk,
-            4 => gate &= self.slots.script_line_flags[3] && from_walk,
-            // 7/32 需 probeCrossFloorSnapshot(23,12) 跨层快照探针（f_byte_arr2_05 层序列化语义）——
-            // 未移植，显式挡路（覆盖窗不可达）。
-            // tryRunScene case 7（a.java:8123-8127）：gate = from_walk ∧ 跨层无存活
-            // 型12（floor23）；过门即置 flags[32]（32 号脚本视为已跑）
-            7 => {
-                gate &= from_walk && !self.probe_cross_floor_snapshot(23, 12);
-                if gate {
-                    self.slots.script_line_flags[32] = true;
-                }
-            }
-            // tryRunScene 到达臂（a.java:8128-8146）：case 8/9/11/12/19/30/41-45/
-            // 48-50/52/53/55/56 同体 `table_count &= script_cursor0`——**from_walk=true（到达）才过**。
-            // 【2026-10-16 更正】此前误并入 case 32 探针臂（"共臂"注释错），导致
-            // bump 即触发 script12，早于 Java 真身 7 拍（mov_route floor40 T281 实证）。
-            // cover"进 (6,7) 型83(param12) 到达触发"= applyStepCellEffects 路径。
-            8 | 9 | 11 | 12 | 19 | 30 | 41 | 42 | 43 | 44 | 45 | 48 | 49 | 50 | 52
-            | 53 | 55 | 56 => {
-                gate &= from_walk;
-            }
-            // tryRunScene 探针臂（a.java:8193-8201）：case 32 独占——
-            // flags[7] 已跑 ⇒ 挡；否则 gate &= !from_walk ∧ floor23 有存活型12
-            32 => {
-                if self.slots.script_line_flags[7] {
-                    gate = false;
-                } else {
-                    gate &= !from_walk && self.probe_cross_floor_snapshot(23, 12);
-                }
-            }
-            // 15（a.java:8119-8126）：当前层有活型5（门卫/宝箱守卫）→ false；
-            // 否则 &= from_walk（bump 不触发、到达才触发——floor49 伏击门）。
-            15 => {
-                if self.m_102_current_floor(5) {
-                    gate = false;
-                } else {
-                    gate &= from_walk;
-                }
-            }
-            16 => gate &= self.menu.difficulty_index == 0,
-            // 18（a.java:8127-8144）：from_walk 且八 Cell 扫描任一命中 → false
-            // + flags[18] 置位（六格缺型1 或两格有型1）。
-            18 => {
-                gate &= from_walk;
-                if gate
-                    && (self.entity_at_cell(2, 2, 1) < 0
-                        || self.entity_at_cell(2, 4, 1) < 0
-                        || self.entity_at_cell(2, 6, 1) < 0
-                        || self.entity_at_cell(6, 2, 1) < 0
-                        || self.entity_at_cell(4, 6, 1) < 0
-                        || self.entity_at_cell(6, 6, 1) < 0
-                        || self.entity_at_cell(4, 2, 1) >= 0
-                        || self.entity_at_cell(6, 4, 1) >= 0)
-                {
-                    gate = false;
-                    self.slots.script_line_flags[18] = true;
-                }
-            }
-            24 => {
-                gate &= !from_walk;
-                if gate {
-                    gate = self.player.hp > 0;
-                }
-            }
-            25 => {
-                gate &= from_walk
-                    && self.slots.script_line_flags[13]
-                    && self.entity_at_cell(2, 2, 60) < 0
-                    && self.entity_at_cell(10, 2, 60) < 0;
-            }
-            26 => {
-                if self.entity_at_cell(11, 4, 84) < 0 {
-                    gate = false;
-                }
-            }
-            27 => gate &= from_walk && self.slots.script_line_flags[0],
-            31 => {
-                gate &= from_walk && self.player.find_item(16) >= 0;
-            }
-            33 => gate &= self.slots.script_line_flags[7],
-            34 => {
-                gate &= from_walk && !self.slots.script_line_flags[10];
-                if gate {
-                    let loss = self.predict_hp_loss(69, true);
-                    gate &= loss < 0 || loss >= self.player.hp;
-                }
-            }
-            // 5/6/10/13/14/17/20/21/22/23/28/29/35/36/37/38/39/40/51/54/57-65：
-            // 直通（无门控，a.java:8098-8108 簇 default: break）
-            46 => gate &= from_walk && !self.slots.script_line_flags[47],
-            47 => gate &= from_walk && !self.slots.script_line_flags[46],
-            66 => gate = false,
-            67 => gate &= self.menu.difficulty_index > 0,
-            _ => {}
-        }
-        gate
+        // 【2026-11-18】门控条件已抽到 `crate::rules::gate::evaluate`（单一实现）：
+        // 求解器的动态可达分析吃同一段判定，不再另抄一份；本函数只剩「把判定结果落地」。
+        crate::rules::gate::evaluate(idx, self, from_walk).run
     }
 
     /// probeCrossFloorSnapshot(currentFloor, type) 的同层路径（a.java:8637-8657 无换层分支）：
@@ -4909,3 +4804,45 @@ mod touch_tap_guard_tests;
 #[cfg(test)]
 #[path = "scene_tests/blank_tap_tests.rs"]
 mod blank_tap_tests;
+
+
+// ---------------------------------------------------------------------------
+// 【2026-11-18】门控条件单一实现的引擎侧视图（`crate::rules::gate::GateView`）。
+// 这里只做「怎么读 GameScene」，不写规则——规则在 rules::gate::evaluate。
+// ---------------------------------------------------------------------------
+impl crate::rules::gate::GateView for GameScene {
+    fn script_count(&self) -> i32 {
+        self.dialog.dialog_data.scripts.len() as i32
+    }
+    fn flag(&self, idx: i32) -> bool {
+        idx >= 0
+            && (idx as usize) < self.slots.script_line_flags.len()
+            && self.slots.script_line_flags[idx as usize]
+    }
+    fn set_flag(&mut self, idx: i32) {
+        if idx >= 0 && (idx as usize) < self.slots.script_line_flags.len() {
+            self.slots.script_line_flags[idx as usize] = true;
+        }
+    }
+    fn entity_at(&self, x: i32, y: i32, type_id: i32) -> i32 {
+        self.entity_at_cell(x, y, type_id)
+    }
+    fn alive_type_on_floor(&self, type_id: i32) -> bool {
+        self.m_102_current_floor(type_id)
+    }
+    fn difficulty_index(&self) -> i32 {
+        self.menu.difficulty_index
+    }
+    fn player_hp(&self) -> i32 {
+        self.player.hp
+    }
+    fn has_item(&self, item: i32) -> bool {
+        item >= 0 && self.player.find_item(item as u8) >= 0
+    }
+    fn cross_floor_snapshot(&mut self, floor: i32, type_id: i32) -> bool {
+        self.probe_cross_floor_snapshot(floor, type_id)
+    }
+    fn predict_hp_loss_vs(&self, ety: i32, no_counter: bool) -> i32 {
+        self.predict_hp_loss(ety, no_counter)
+    }
+}

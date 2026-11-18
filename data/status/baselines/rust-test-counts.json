@@ -26,12 +26,12 @@
     "fixture_frames(test)": 45,
     "flow(test)": 4,
     "game_android(lib)": 8,
-    "game_core(lib)": 400,
+    "game_core(lib)": 401,
     "game_data(lib)": 35,
     "game_oracle(lib)": 5,
     "game_platform(lib)": 6,
     "game_shell_common(lib)": 45,
-    "game_solver(lib)": 19,
+    "game_solver(lib)": 30,
     "gameplay_floor1(test)": 5,
     "golden(test)": 9,
     "hd_visual(test)": 6,
@@ -77,5 +77,5 @@
     "walk_route(test)": 12,
     "xiyou(bin)": 42
   },
-  "total": 1113
+  "total": 1125
 }
