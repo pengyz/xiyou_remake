@@ -634,6 +634,9 @@ pub fn solve_layer_with(
     LAYER_TRUNC.with(|f| f.set(None));
     GOLD_PEAK.with(|c| c.set(0));
     SHOP_BUYS.with(|c| c.set((0, 0)));
+    // 【D 面】统计入口清零（未跑到 run_root 的早退路径也保持「本层已测」语义：
+    // `reason="not_run"` 可见，不是静默空白）。
+    pill_dom_stat_set(PillDomStat::CLEARED);
     let Some(level) = input.level.as_ref() else {
         return (false, Vec::new());
     };
@@ -673,12 +676,15 @@ pub fn solve_layer_with(
         node_limit,
         shops_key(shops),
     );
-    if let Some((hit_ok, hit_goals, hit_trunc, hit_peak, hit_buys)) =
+    if let Some((hit_ok, hit_goals, hit_trunc, hit_peak, hit_buys, hit_pill)) =
         LAYER_MEMO.with(|m| m.borrow().get(&memo_key).cloned())
     {
         LAYER_TRUNC.with(|f| f.set(hit_trunc)); // memo 命中回放截断标记（可观测性不变）
         GOLD_PEAK.with(|c| c.set(hit_peak)); // 批6：金币峰值同样按缓存回放
         SHOP_BUYS.with(|c| c.set(hit_buys)); // 批6：买臂计数同样按缓存回放
+        // 【D 面】子集支配统计同样按缓存回放——**禁静默**：memo 命中时也必须能
+        // 看到 enabled/reason/cmp（否则「规则没生效」在热路径上不可见）。
+        pill_dom_stat_set(hit_pill);
         return (hit_ok, hit_goals);
     }
     let mut search = Search::from_entry(input, level, entry);
@@ -719,6 +725,8 @@ pub fn solve_layer_with(
                 LAYER_TRUNC.with(|f| f.get()),
                 GOLD_PEAK.with(|c| c.get()),
                 SHOP_BUYS.with(|c| c.get()),
+                // 【D 面】统计（诊断面；不是搜索输入，进缓存只为 memo 命中可观测）
+                pill_dom_stat(),
             ),
         );
     });
@@ -748,7 +756,7 @@ thread_local! {
                 usize,
                 Vec<ShopKeyRow>,
             ),
-            (bool, Vec<LayerGoal>, Option<(i32, usize)>, i32, (u64, u64)),
+            (bool, Vec<LayerGoal>, Option<(i32, usize)>, i32, (u64, u64), PillDomStat),
         >,
     > = RefCell::new(HashMap::new());
     /// R1 层界截断标记（lead 裁定 A 2026-11-13 条件1「截断可观测」）：
@@ -1130,7 +1138,11 @@ struct St {
 
 /// 去重键 K₀（提案 §4.1：pos, ents_digest, flags, keys, bag, atk, def；
 /// hp/kills/steps/gold **不进键**）。
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+///
+/// `Hash` 只服务于 D 面子集支配的「药维桶」（`HashMap<PillKey>`，桶内才是
+/// 线性支配扫描；桶本身按内容全等，绝不按哈希相等）——既有走位/去重逻辑仍用
+/// 派生 `Ord` 的 `BTreeMap`，键语义零变化。
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct Key {
     pos: (i32, i32),
     ents: Vec<EntRec>,
@@ -1141,10 +1153,12 @@ struct Key {
     def: i32,
 }
 
-fn key_of(st: &St) -> Key {
+/// 键 = `st` 的全套精确维度 + **指定 ents**（D 面把药维实体剥掉再算键：
+/// `key_of` 是 `ents = st.ents` 的特例，既有语义逐字不变）。
+fn key_of_ents(st: &St, ents: Vec<EntRec>) -> Key {
     Key {
         pos: st.pos,
-        ents: st.ents.clone(),
+        ents,
         flags: st.flags,
         keys: (st.player.yellow, st.player.blue, st.player.red),
         bag: (
@@ -1155,6 +1169,10 @@ fn key_of(st: &St) -> Key {
         atk: st.player.atk,
         def: st.player.def,
     }
+}
+
+fn key_of(st: &St) -> Key {
+    key_of_ents(st, st.ents.clone())
 }
 
 /// 支配判定（§4.1：hp₁≥hp₂ ∧ kills₁≤kills₂ ∧ steps₁≤steps₂ ∧ gold₁≥gold₂
@@ -1185,6 +1203,184 @@ fn dominates(a: &St, b: &St) -> bool {
         || a.steps < b.steps
         || a.player.gold > b.player.gold;
     ge_hp && le_kills && le_steps && ge_gold && strict
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// 【D 面】纯加血拾取的**子集支配**（证据与证明：docs/findings/2026-11-19-
+// pill-subset-dominance.md）
+//
+// 问题：f54 的 `ents` 维度唯一差异是「捡了哪几颗药」（ty31 +50 / ty32 +200），
+// 而 `Key` 要求 ents **精确相等** ⇒ 同一格上按「已捡药集合」分叉出成千上万个
+// 互不比较的键（200k 档 unique_keys=195174，队列去重命中率 0%）。
+//
+// 本节的规则把键**放宽到「非药实体 + 剩余药集合」**，只在一条可证明的性质上
+// 放宽：`s1` 比 `s2` 血多、且 `s1` 还没捡的药是 `s2` 还没捡的药的**超集**
+// （⇒ `s1` 已捡的 ⊆ `s2` 已捡的 ⇒ `s2` 沿途还会去捡 `s1` 已经吃掉的东西时，
+// 模拟链就断——所以反方向一律不许剪，见 `pill_dominates` 注）。
+//
+// 健全性依赖的闸门（任一不满足 ⇒ `PillDom::Off(reason)` 退回既有精确键搜索，
+// **不静默**：`pill_dom_stat()` 暴露 enabled/reason）：
+//   G1 药型经 `certified_pure_hp_gain` 背书（本层增益固定>0、除 hp 外零副作用）；
+//   G2 药型不在 `policy.ban`（ban ⇒ 该格 `Blocked`，s1 进不去而 s2 能 Move）；
+//   G3 药实体**独格**（同格无其它实体；否则 `classify` 可能改判门/梯/怪/阻挡，
+//      或拾取臂连带触发 cat1 臂）；
+//   G4 层内无「踩格副作用臂」实体（5/60/61/62/76/83）落在**可达格**上——这些臂
+//      会改实体表/跑关卡脚本，无法静态证明两状态触发结果只差一个单调项；
+//   G5 掉落不会生成上述危险型、也不会落在药格上（掉落位置固定，见 boss 表）。
+// 另有**比较预算**（`PILL_CMP_BUDGET`）：超出即停止咨询（只损失剪枝，不损健全性）。
+
+/// 药型 → 本层固定增益（`certified_pure_hp_gain` 的产物；>0）。
+type PillGains = BTreeMap<i32, i32>;
+
+/// 本层「纯加血拾取」的支配计划：开（带身份表）/ 关（带可观测原因）。
+enum PillDom {
+    On(PillOrd),
+    /// fail-closed：`(原因, 触发类型)`——`reason_ty=0` 表示与具体类型无关。
+    Off(&'static str, i32),
+}
+
+/// 药维实体身份表：`EntRec`（`(ty,x,y,param)` 全等）→ 位号。
+///
+/// **静态**成立的前提是 G3（独格）+ G4（无实体表变更臂）+ G5（掉落不落药格）：
+/// 实体不移动、只减不增 ⇒ 药格永远只有那颗药 ⇒ 「这一位还在不在」就等价于
+/// 「这颗药还没被捡」。位宽 32（>32 颗即 fail-closed，不上位图以外的花活）。
+struct PillOrd {
+    bits: BTreeMap<EntRec, u32>,
+    gains: PillGains,
+}
+
+impl PillOrd {
+    /// 把实体表拆成（非药实体, 剩余药位图）——非药部分进桶键、位图进支配判定。
+    fn split(&self, ents: &[EntRec]) -> (Vec<EntRec>, u32) {
+        let mut rest = Vec::with_capacity(ents.len());
+        let mut bits = 0u32;
+        for e in ents {
+            match self.bits.get(e) {
+                Some(b) => bits |= 1 << *b,
+                None => rest.push(e.clone()),
+            }
+        }
+        (rest, bits)
+    }
+}
+
+/// 子集支配判定：`a` 不劣于 `b`（`b` 可剪）。
+///
+/// 调用前提=两者**同桶**（`Key` 去掉药维后全等 ⇒ pos/flags/非药实体/三钥/
+/// 背包/atk/def 全等）。四条不等式与 `weakly_ge` 同口径：
+/// - `hp(a) ≥ hp(b)`：血是终局目标，且血多⇒拒战面更宽（`battle.rs:121-123`
+///   `Refused ⟺ loss ≥ hp`；`predict_engagement` 不用 hp ⇒ 同一动作 loss 相同）；
+/// - `kills(a) ≤ kills(b)` / `steps(a) ≤ steps(b)`：与 `weakly_ge` 同（`steps` 参与
+///   `Cost::HpLoss` 的 tie-break ⇒ 少步确实更优，不能省这条）；
+/// - `gold(a) ≥ gold(b)`：与 `weakly_ge` 同（F2 修）。
+///
+/// 第五条是本规则的全部新意：`rem(a) ⊇ rem(b)`（bitset：`b & !a == 0`）。
+/// **方向不能反**：`rem(a) ⊇ rem(b)` 等价于「a 已捡的 ⊆ b 已捡的」——只有这个
+/// 方向，b 的任意后续路线在 a 都能照走（沿途每颗药两边同时可捡、净收益相同）。
+/// 反方向（a 剩得少但血多）**不成立**：b 还能捡 a 已经吃掉的药，a 不能。
+fn pill_dominates(a: &St, a_rem: u32, b: &St, b_rem: u32) -> bool {
+    a.player.hp >= b.player.hp
+        && a.kills <= b.kills
+        && a.steps <= b.steps
+        && a.player.gold >= b.player.gold
+        && (b_rem & !a_rem) == 0
+}
+
+/// 药维桶扫描：本规则的**全部剪枝决策**都在这里（纯函数，便于单测钉方向）。
+///
+/// `cands` 产出 `(节点 id, 旧态, 旧态剩余药位图)`；`budget` 是比较预算余量
+/// （每比较一对扣 1，扣到 0 即停——只损失剪枝、不损健全性）。
+/// 返回 `(新态是否被支配, 可剪的旧态 id 列表)`。
+fn pill_scan<'a, I>(cands: I, ns: &St, ns_rem: u32, budget: &mut u64) -> (bool, Vec<u32>)
+where
+    I: IntoIterator<Item = (u32, &'a St, u32)>,
+{
+    let mut dominated = false;
+    let mut kill: Vec<u32> = Vec::new();
+    for (eid, e, e_rem) in cands {
+        if *budget == 0 {
+            break;
+        }
+        *budget -= 1;
+        // 方向不可反：旧态血不少且剩余药是超集 ⇒ 新态可剪
+        if pill_dominates(e, e_rem, ns, ns_rem) {
+            dominated = true;
+            break;
+        }
+        // 新态血不少且剩余药是超集 ⇒ 旧态可剪
+        if pill_dominates(ns, ns_rem, e, e_rem) {
+            kill.push(eid);
+        }
+    }
+    (dominated, kill)
+}
+
+/// 踩格副作用臂实体型（`scene.rs apply_step_cell_effects`）：5 宝箱 / 60-62 陷阱 /
+/// 76 组门 / 83 关卡脚本。这些臂能改实体表（60 火焰上爬、76 清组格）、能按 hp 算
+/// 伤害、能跑任意脚本 ⇒ 一律 fail-closed（G4）。
+const STEP_ARM_HAZARD_TYPES: [i32; 6] = [5, 60, 61, 62, 76, 83];
+
+/// 子集支配比较预算（每层）。超出即停止咨询：只损失剪枝机会、不损健全性；
+/// 计数与遍历序确定 ⇒ 结果仍确定（同输入同输出）。
+const PILL_CMP_BUDGET: u64 = 4_000_000;
+
+/// 本层子集支配的可观测统计（`pill_dom_stat()`）。**禁静默**：规则没启用时
+/// `enabled=false` + `reason`/`reason_ty` 说明卡在哪条闸门。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PillDomStat {
+    /// 本层是否启用（`false` ⇒ 退回既有精确键搜索，行为与原版逐字节相同）
+    pub enabled: bool,
+    /// 被背书的药型数（0 = 本层没有纯加血拾取）
+    pub pill_types: usize,
+    /// 本层药实体数（进位图的颗数）
+    pub pills: usize,
+    /// `enabled=false` 的原因；启用时为 `"on"`；未跑过层=`"not_run"`
+    pub reason: &'static str,
+    /// 触发 fail-closed 的实体/药型；0 = 与具体类型无关
+    pub reason_ty: i32,
+    /// 进桶的态数（预算耗尽后不再入桶）
+    pub states: u64,
+    /// 实际比较次数（同桶内 (新态, 旧态) 对）
+    pub cmp: u64,
+    /// 因本规则被剪的新态数
+    pub pruned_new: u64,
+    /// 因本规则被剪的旧桶态数
+    pub killed_old: u64,
+    /// 比较预算是否耗尽（耗尽后本层不再咨询本规则）
+    pub budget_exhausted: bool,
+}
+
+impl PillDomStat {
+    const CLEARED: PillDomStat = PillDomStat {
+        enabled: false,
+        pill_types: 0,
+        pills: 0,
+        reason: "not_run",
+        reason_ty: 0,
+        states: 0,
+        cmp: 0,
+        pruned_new: 0,
+        killed_old: 0,
+        budget_exhausted: false,
+    };
+}
+
+thread_local! {
+    /// 本层子集支配统计（thread_local=多线程测试隔离；`solve_layer_with` 入口清零、
+    /// memo 命中按缓存回放、`run_root` 末尾写回）。
+    static PILL_DOM: std::cell::Cell<PillDomStat> = std::cell::Cell::new(PillDomStat::CLEARED);
+}
+
+/// 最近一次层求解的子集支配统计（诊断面；不参与搜索决策）。
+///
+/// 用途：让「规则没生效」**可见**——`enabled=false` 时 `reason`/`reason_ty` 指出
+/// 卡在哪条闸门（例如 `hp_gain_not_certified` / `step_arm_hazard_reachable`）。
+pub fn pill_dom_stat() -> PillDomStat {
+    PILL_DOM.with(|c| c.get())
+}
+
+fn pill_dom_stat_set(s: PillDomStat) {
+    PILL_DOM.with(|c| c.set(s));
 }
 
 /// 动作（路线重建用）。`Move(x,y)`=**到达格**（C6a：门格节点的 `st.pos` 被
@@ -2084,6 +2280,117 @@ impl<'a> Search<'a> {
         }
     }
 
+    /// 【D 面】构造本层子集支配计划（闸门 G0-G5，任一不满足 ⇒ `Off(reason, ty)`）。
+    ///
+    /// `cert` 是**注入点**：生产路径传 `game_core::effect_registry::
+    /// certified_pure_hp_gain`（真跑一次拾取臂的证书），测试可注入「伪造随 tier 变
+    /// 的增益」把 fail-closed 钉在闸门上。
+    fn plan_pill(&self, root: &St, cert: &dyn Fn(i32, i32) -> Option<i32>) -> PillDom {
+        let floor = self.input.floor;
+        // 层静态实体表（`EntSpec` → `EntRec`，与 `sprite_full` 同口径）
+        let static_ents: Vec<EntRec> = self
+            .level
+            .entities
+            .iter()
+            .map(|e| EntRec {
+                ty: e.ty,
+                x: e.x,
+                y: e.y,
+                param: e.param,
+            })
+            .collect();
+        // 药型候选：入场活体 ∪ 层静态实体里「拾取类目(cat 2|4) 且 pickup 面 kind=HpUp」。
+        // 非 HpUp 的其它拾取物（栈增/钥匙/属性/装备）**不进药维**：它们照旧按精确
+        // 实体比较（保守但零风险——规则只在可证的那一类上放宽）。
+        let mut gains: PillGains = BTreeMap::new();
+        for e in root.ents.iter().chain(static_ents.iter()) {
+            let cat = entity_category_with_floor(e.ty, floor);
+            if cat != 2 && cat != 4 {
+                continue;
+            }
+            if game_core::effect_registry::pickup_kind_for_type(e.ty) != "HpUp" {
+                continue;
+            }
+            if gains.contains_key(&e.ty) {
+                continue;
+            }
+            // G1：证书——本层增益固定 >0 且除 hp 外零副作用
+            match cert(e.ty, floor) {
+                Some(g) if g > 0 => {
+                    gains.insert(e.ty, g);
+                }
+                _ => return PillDom::Off("hp_gain_not_certified", e.ty),
+            }
+        }
+        if gains.is_empty() {
+            // G0：本层没有纯加血拾取 ⇒ 没得可剪（不是失败，但也不启用）
+            return PillDom::Off("no_certified_pill", 0);
+        }
+        // G2：`ban` 里的拾取型会被判 Blocked ⇒ s1 进不去而 s2（药已不在）能 Move
+        for ty in gains.keys() {
+            if self.policy.ban.contains(ty) {
+                return PillDom::Off("pill_banned_by_policy", *ty);
+            }
+        }
+        // G4：踩格副作用臂型必须落在**不可达格**（`classify=Blocked`）
+        for e in static_ents.iter().chain(root.ents.iter()) {
+            if !STEP_ARM_HAZARD_TYPES.contains(&e.ty) {
+                continue;
+            }
+            if !matches!(self.classify(root, e.x, e.y), Cell::Blocked) {
+                return PillDom::Off("step_arm_hazard_reachable", e.ty);
+            }
+        }
+        // G5：掉落不得生成危险型，也不得生成药型（同型同格会造出「同 (ty,x,y,
+        // param) 的第二颗药」——位图表达不了重数，静态身份即失效）
+        for e in static_ents.iter() {
+            if entity_category_with_floor(e.ty, floor) != 8 {
+                continue;
+            }
+            let events = [
+                game_core::rules::boss::event_of(e.ty, floor),
+                game_core::rules::boss::post_victory_event_of(e.ty, floor),
+            ];
+            for ev in events.into_iter().flatten() {
+                for sp in game_core::rules::boss::event_spawns(ev) {
+                    if STEP_ARM_HAZARD_TYPES.contains(&sp.ty) || gains.contains_key(&sp.ty) {
+                        return PillDom::Off("drop_breaks_pill_identity", sp.ty);
+                    }
+                }
+            }
+        }
+        // G3：药实体**独格**（层静态 ∪ 入场活体里同格只有它自己）+ 位宽
+        let pill_ents: Vec<EntRec> = root
+            .ents
+            .iter()
+            .filter(|e| gains.contains_key(&e.ty))
+            .cloned()
+            .collect();
+        if pill_ents.len() > 32 {
+            return PillDom::Off("too_many_pills", pill_ents.len() as i32);
+        }
+        // 并集按 `EntRec` 去重（同一颗药在「层静态表」与「入场活体」里各出现一次，
+        // 那不是共享格；只有**不同**实体占同格才算）。
+        let mut union: Vec<EntRec> = root.ents.clone();
+        for e in static_ents.iter() {
+            if !union.contains(e) {
+                union.push(e.clone());
+            }
+        }
+        for p in &pill_ents {
+            let n = union.iter().filter(|e| e.x == p.x && e.y == p.y).count();
+            if n != 1 {
+                return PillDom::Off("pill_cell_shared", p.ty);
+            }
+        }
+        // 身份表（位号=入场实体序；确定性，与哈希/遍历序无关）
+        let mut bits = BTreeMap::new();
+        for (i, p) in pill_ents.iter().enumerate() {
+            bits.insert(p.clone(), i as u32);
+        }
+        PillDom::On(PillOrd { bits, gains })
+    }
+
     /// 搜索主循环：BFS（FIFO）+ K₀ 去重 + Pareto 支配剪枝。
     /// 返回（任一出口可达, 全部非支配终态候选——双查询取解共用，§1.4）。
     fn run(&self) -> (bool, Vec<Goal>) {
@@ -2096,12 +2403,8 @@ impl<'a> Search<'a> {
         )
     }
 
-    /// 批3 C1：任意入场格 + 初始存活位图起搜（层间边传播：入场格=上一层出场梯的
-    /// 落点、活体列表=上一层终态——批2 `run` 的 `start`/sprite 全活特例化）。
-    /// 批3 C2：玩家/flags 也由调用方注入（层间携带上一层 post；批2 的
-    /// `level.player`/`level.flags` 特例化为 `run` 的两参转发）。
-    /// `node_limit`：层节点上限由调用方**读一次**传入（原读 `layer_node_limit()`）——
-    /// 与 `LAYER_MEMO` 键同源，杜绝「键说 10、界限用 200000」的竞态。
+    /// `run_root` 的生产转发：证书=game-core 的 `certified_pure_hp_gain`
+    /// （无第二真值源；求解器侧不复制任何 31/32 的数值）。
     fn run_root(
         &self,
         entry: (i32, i32),
@@ -2109,6 +2412,32 @@ impl<'a> Search<'a> {
         player: PlayerSpec,
         flags: u128,
         node_limit: usize,
+    ) -> (bool, Vec<Goal>) {
+        self.run_root_with(
+            entry,
+            root_ents,
+            player,
+            flags,
+            node_limit,
+            &|ty, floor| game_core::effect_registry::certified_pure_hp_gain(ty, floor),
+        )
+    }
+
+    /// 批3 C1：任意入场格 + 初始存活位图起搜（层间边传播：入场格=上一层出场梯的
+    /// 落点、活体列表=上一层终态——批2 `run` 的 `start`/sprite 全活特例化）。
+    /// 批3 C2：玩家/flags 也由调用方注入（层间携带上一层 post；批2 的
+    /// `level.player`/`level.flags` 特例化为 `run` 的两参转发）。
+    /// `node_limit`：层节点上限由调用方**读一次**传入（原读 `layer_node_limit()`）——
+    /// 与 `LAYER_MEMO` 键同源，杜绝「键说 10、界限用 200000」的竞态。
+    /// `cert`：D 面药型证书（生产=game-core，测试=可注入伪造件）。
+    fn run_root_with(
+        &self,
+        entry: (i32, i32),
+        root_ents: Vec<EntRec>,
+        player: PlayerSpec,
+        flags: u128,
+        node_limit: usize,
+        cert: &dyn Fn(i32, i32) -> Option<i32>,
     ) -> (bool, Vec<Goal>) {
         let root = St {
             pos: entry,
@@ -2131,6 +2460,41 @@ impl<'a> Search<'a> {
         queue.push_back(0);
         let mut by_key: BTreeMap<Key, Vec<u32>> = BTreeMap::new();
         by_key.entry(key_of(&nodes[0].st)).or_default().push(0);
+        // 【D 面】纯加血拾取的子集支配：计划（闸门 G0-G5）+ 药维桶 + 统计。
+        // 计划 `Off` ⇒ 全段逻辑不执行（零行为差异，纯 fail-closed）。
+        let plan = self.plan_pill(&nodes[0].st, cert);
+        let mut pstat = PillDomStat {
+            enabled: matches!(plan, PillDom::On(_)),
+            pill_types: match &plan {
+                PillDom::On(o) => o.gains.len(),
+                PillDom::Off(_, _) => 0,
+            },
+            pills: match &plan {
+                PillDom::On(o) => o.bits.len(),
+                PillDom::Off(_, _) => 0,
+            },
+            reason: match &plan {
+                PillDom::On(_) => "on",
+                PillDom::Off(r, _) => r,
+            },
+            reason_ty: match &plan {
+                PillDom::On(_) => 0,
+                PillDom::Off(_, t) => *t,
+            },
+            states: 0,
+            cmp: 0,
+            pruned_new: 0,
+            killed_old: 0,
+            budget_exhausted: false,
+        };
+        // 药维桶：键=剥掉药实体的 `Key`，值=(节点 id, 剩余药位图)。
+        let mut by_pill: HashMap<Key, Vec<(u32, u32)>> = HashMap::new();
+        if let PillDom::On(ord) = &plan {
+            let (rest, rem) = ord.split(&nodes[0].st.ents);
+            let pk = key_of_ents(&nodes[0].st, rest);
+            by_pill.entry(pk).or_default().push((0, rem));
+            pstat.states = 1;
+        }
         let mut goals: Vec<Goal> = Vec::new();
         // 批3 C3b：根态云候选（真数据重入场携15 的回程通道；玩具根态通常不邻锚）
         self.record_cloud(&mut goals, &nodes, 0);
@@ -2292,12 +2656,51 @@ impl<'a> Search<'a> {
                         kill.push(eid);
                     }
                 }
-                if dominated {
-                    continue;
+                if !dominated {
+                    list.retain(|x| !kill.contains(x));
+                    for &eid in &kill {
+                        pruned[eid as usize] = true;
+                    }
                 }
-                list.retain(|x| !kill.contains(x));
-                for &eid in &kill {
-                    pruned[eid as usize] = true;
+                // 【D 面】子集支配（只在精确键块**之后**：精确键更细，先让它处理
+                // 同药集的分叉；这里处理「同一格、药集不同」的那些态）。
+                // 健全性前提=同桶 ⇒ pos/非药实体/flags/三钥/背包/atk/def 全等。
+                let mut ns_rem = 0u32;
+                let mut pk: Option<Key> = None;
+                let mut d_dominated = false;
+                if let PillDom::On(ord) = &plan {
+                    if !dominated && !pstat.budget_exhausted {
+                        let (rest, rem) = ord.split(&ns.ents);
+                        ns_rem = rem;
+                        let key = key_of_ents(&ns, rest);
+                        let bucket = by_pill.entry(key.clone()).or_default();
+                        let mut budget = PILL_CMP_BUDGET.saturating_sub(pstat.cmp);
+                        let chosen: Vec<(u32, &St, u32)> = bucket
+                            .iter()
+                            .filter(|&&(eid, _)| !pruned[eid as usize])
+                            .map(|&(eid, e_rem)| (eid, &nodes[eid as usize].st, e_rem))
+                            .collect();
+                        let (dom, dkill) = pill_scan(chosen, &ns, ns_rem, &mut budget);
+                        d_dominated = dom;
+                        pstat.cmp = PILL_CMP_BUDGET.saturating_sub(budget);
+                        if budget == 0 {
+                            pstat.budget_exhausted = true;
+                        }
+                        if !dkill.is_empty() {
+                            bucket.retain(|(eid, _)| !dkill.contains(eid));
+                            for &eid in &dkill {
+                                pruned[eid as usize] = true;
+                                pstat.killed_old += 1;
+                            }
+                        }
+                        pk = Some(key);
+                    }
+                }
+                if d_dominated {
+                    pstat.pruned_new += 1;
+                }
+                if dominated || d_dominated {
+                    continue;
                 }
                 let new_id = nodes.len() as u32;
                 nodes.push(Node {
@@ -2308,6 +2711,12 @@ impl<'a> Search<'a> {
                 pruned.push(false);
                 list.push(new_id);
                 queue.push_back(new_id);
+                // 【D 面】入队态进药维桶（其后才能杀掉更差的旧态）；
+                // 预算耗尽后不再入桶（省内存/耗时，只损失剪枝）。
+                if let (Some(pk), false) = (pk, pstat.budget_exhausted) {
+                    by_pill.entry(pk).or_default().push((new_id, ns_rem));
+                    pstat.states += 1;
+                }
                 // 批3 C3b：过支配实际入队才记云候选（被支配/重复态不记——
                 // 同 K₀ 优态已记过其云边）
                 self.record_cloud(&mut goals, &nodes, new_id);
@@ -2318,6 +2727,9 @@ impl<'a> Search<'a> {
 
         // C3：reachable = 任一出口可达；取解（max_hp/min_kills）由 Cost 泛型在
         // goals 上分叉（§1.4 双查询独立出解）。
+        // 【D 面】统计写回（`pill_dom_stat()` 可观测：没启用时 reason/reason_ty
+        // 指出卡在哪条闸门——禁静默）。
+        pill_dom_stat_set(pstat);
         let reachable = !goals.is_empty();
         (reachable, goals)
     }
@@ -3056,5 +3468,313 @@ mod dominance_tests {
         let b = st(100, 0, 0, 50);
         assert!(weakly_ge(&a, &b));
         assert!(!dominates(&a, &b));
+    }
+}
+// ---------------------------------------------------------------- D 面（子集支配）单测
+/// 【D 面】纯加血拾取子集支配的判据测试（`pill_scan` 是**全部剪枝决策**所在，
+/// 因此方向性判据直接打它；`plan_pill` 的闸门用注入证书打）。
+///
+/// 术语：`rem` = 剩余药位图（bit i = 第 i 颗入场药还没被捡）。支配要求
+/// `rem(a) ⊇ rem(b)`（a 捡得更少），**反方向不成立**。
+#[cfg(test)]
+mod pill_subset_dominance_tests {
+    use super::*;
+
+    fn pill(ty: i32, x: i32, y: i32) -> EntRec {
+        EntRec { ty, x, y, param: 0 }
+    }
+
+    fn pst(hp: i32, steps: i32, ents: Vec<EntRec>) -> St {
+        St {
+            pos: (3, 1),
+            player: PlayerSpec {
+                hp,
+                atk: 10,
+                def: 10,
+                yellow: 0,
+                blue: 0,
+                red: 0,
+                gold: 0,
+                item_types: Vec::new(),
+                item_uses: Vec::new(),
+                item_stack_size: 0,
+            },
+            ents,
+            flags: 0,
+            kills: 0,
+            steps,
+        }
+    }
+
+    /// 判据 1：血更多且剩余药是超集 ⇒ 旧态支配新态（新态被剪）。
+    ///
+    /// 这条态对在引擎里**不可达**（无其它 hp 源时 hp 由已捡药唯一决定，见
+    /// `pill_dominance_is_vacuous_without_independent_hp_source`），但它是本规则
+    /// 的**语义定义**：方向钉死在 `pill_scan` 里，任何「剩药多就留」的粗暴改法都会
+    /// 在这里翻车（判据 2）。
+    #[test]
+    fn pill_subset_dominance_prunes_dominated_state() {
+        let a = pst(200, 0, vec![]);
+        let b = pst(150, 0, vec![]);
+        let mut budget = 8u64;
+        // 旧态 a：hp 200、两颗药都还在（rem={A,B}）；新态 b：hp 150、只剩 A。
+        let (dominated, kill) = pill_scan([(0u32, &a, 0b11u32)], &b, 0b01u32, &mut budget);
+        assert!(dominated, "hp 更多且剩余药是超集 ⇒ 新态必须被剪");
+        assert!(kill.is_empty(), "新态被剪时不该同时杀旧态");
+        assert_eq!(budget, 7, "预算按实际比较对数扣减（可观测）");
+    }
+
+    /// 判据 2（反方向）：hp 更低但剩余药更多 ⇒ **不许**剪；hp 更高但剩余药更少 ⇒
+    /// 同样**不许**剪。两个方向都钉住，规则才算「子集 + 血」双条件。
+    ///
+    /// 反例形态：把「还能回去捡药」的态剪掉 ⇒ 误丢最优 hp。
+    #[test]
+    fn pill_subset_dominance_keeps_better_hp() {
+        // 对 1：血少但药多（(150,{A,B})） vs 血多但药少（(200,{A})）
+        let more_pills = pst(150, 0, vec![]);
+        let more_hp = pst(200, 0, vec![]);
+        let mut budget = 8u64;
+        // 旧=血多药少 先到，新=血少药多：hp 更低 ⇒ 不许剪新态
+        let (dominated, kill) = pill_scan([(0u32, &more_hp, 0b01u32)], &more_pills, 0b11u32, &mut budget);
+        assert!(!dominated, "hp 更低不得吞掉「还剩更多药」的态");
+        assert!(kill.is_empty(), "旧态剩药更多 ⇒ 也不该被新态杀掉");
+
+        // 旧=血少药多 先到，新=血多药少：旧态药更多 ⇒ 不许杀旧态
+        let mut budget = 8u64;
+        let (dominated, kill) = pill_scan([(0u32, &more_pills, 0b11u32)], &more_hp, 0b01u32, &mut budget);
+        assert!(!dominated, "新态药更少 ⇒ 不能被旧态支配？反了：旧态 hp 低 ⇒ 不支配");
+        assert!(kill.is_empty(), "旧态药更多 ⇒ 新态不得杀它");
+
+        // 对照腿：血多且药多（(200,{A,B})）遇血少药少（(150,{A})）⇒ 后者被剪
+        // （证明剪枝腿不是只读，只是**另两个方向**不成立）。
+        let best = pst(200, 0, vec![]);
+        let worst = pst(150, 0, vec![]);
+        let mut budget = 8u64;
+        let (dominated, kill) = pill_scan([(0u32, &best, 0b11u32)], &worst, 0b01u32, &mut budget);
+        assert!(dominated, "血多且药多 ⇒ 新态（血少药少）被剪");
+        assert!(kill.is_empty());
+        let mut budget = 8u64;
+        let (dominated, kill) = pill_scan([(0u32, &worst, 0b01u32)], &best, 0b11u32, &mut budget);
+        assert!(!dominated);
+        assert_eq!(kill, vec![0u32], "反过来：旧态（血少药少）可剪");
+    }
+
+    /// 判据 2 的第二形态：hp 相等、但剩余药不可比（各少一颗）⇒ 互不支配。
+    #[test]
+    fn pill_subset_dominance_needs_subset_not_just_count() {
+        let a = pst(200, 0, vec![]);
+        let b = pst(200, 0, vec![]);
+        let mut budget = 8u64;
+        let (dominated, kill) = pill_scan([(0u32, &a, 0b01u32)], &b, 0b10u32, &mut budget);
+        assert!(!dominated, "rem 不可比 ⇒ 不支配");
+        assert!(kill.is_empty());
+    }
+
+    /// 判据 2 的第三形态：steps 更差也不得被「血多药多」吞掉（`steps` 参与
+    /// `Cost::HpLoss` 的 tie-break，见 `weakly_ge` 注释）。
+    #[test]
+    fn pill_subset_dominance_respects_step_budget() {
+        let a = pst(200, 0, vec![]); // 旧态：步数 0
+        let mut b = pst(150, 9, vec![]); // 新态：血少步多
+        b.steps = 9;
+        let mut budget = 8u64;
+        let (dominated, _) = pill_scan([(0u32, &a, 0b11u32)], &b, 0b01u32, &mut budget);
+        assert!(dominated, "旧态四项全不劣（血多/步少/药多）⇒ 新态被剪");
+    }
+
+    // ---- 闸门（fail-closed）----
+    //
+    // 夹具：13×3 走廊 y=1 行全可走（x=0..12），start=(0,1)，药挂在 (1,1)/(2,1)，
+    // 出口梯 ty7 在 (12,1)。`floor=54` ⇒ `floor_tier=1` ⇒ ty31 +50 / ty32 +200。
+    fn pill_input(pills: &[(i32, i32, i32)], hazards: &[(i32, i32)]) -> SolveInput {
+        let cols = 13;
+        let rows = 3;
+        let mut terrain = vec![false; (cols * rows) as usize];
+        for x in 0..cols {
+            terrain[(1 * cols + x) as usize] = true;
+        }
+        let mut entities: Vec<EntSpec> = pills
+            .iter()
+            .map(|&(ty, x, y)| EntSpec { ty, x, y, param: 0 })
+            .collect();
+        for &(ty, x) in hazards {
+            entities.push(EntSpec { ty, x, y: 1, param: 0 });
+        }
+        entities.push(EntSpec {
+            ty: 7,
+            x: cols - 1,
+            y: 1,
+            param: 2,
+        });
+        let level = LevelSpec {
+            cols,
+            rows,
+            terrain,
+            start: (0, 1),
+            entities,
+            exits: vec![ExitSpec {
+                x: cols - 1,
+                y: 1,
+                kind: ExitKind::Stair,
+                index: 1,
+            }],
+            player: PlayerSpec {
+                hp: 300,
+                atk: 10,
+                def: 10,
+                yellow: 0,
+                blue: 0,
+                red: 0,
+                gold: 0,
+                item_types: Vec::new(),
+                item_uses: Vec::new(),
+                item_stack_size: 0,
+            },
+            enemies: Vec::new(),
+            enemy_base: Vec::new(),
+            flags: 0,
+        };
+        SolveInput {
+            floor: 54,
+            difficulty: 0,
+            level: Some(level),
+        }
+    }
+
+    fn real_cert() -> impl Fn(i32, i32) -> Option<i32> {
+        |ty, floor| game_core::effect_registry::certified_pure_hp_gain(ty, floor)
+    }
+
+    /// 判据 3：拿不到「本层固定增益」背书 ⇒ 整层退回通用搜索（`Off`），
+    /// 且原因带触发类型（禁静默）。
+    #[test]
+    fn pill_plan_fails_closed_when_gain_not_certified() {
+        let input = pill_input(&[(31, 1, 1)], &[]);
+        let level = input.level.as_ref().expect("level");
+        let search = Search::from_entry(&input, level, (0, 1));
+        let root = St {
+            pos: (0, 1),
+            player: level.player.clone(),
+            ents: sprite_full(level),
+            flags: 0,
+            kills: 0,
+            steps: 0,
+        };
+        // 伪造「增益不固定」：证书对该型给不出常量 ⇒ 必须 fail-closed。
+        let fake = |_ty: i32, _floor: i32| -> Option<i32> { None };
+        match search.plan_pill(&root, &fake) {
+            PillDom::Off(reason, ty) => {
+                assert_eq!(reason, "hp_gain_not_certified", "原因须点名证书闸门");
+                assert_eq!(ty, 31, "须带触发类型（可观测）");
+            }
+            PillDom::On(_) => panic!("证书给不出常量时不得启用"),
+        }
+        // 对照腿：真证书 ⇒ 启用（证明上面红的是证书闸门，不是别的闸门先挡）。
+        match search.plan_pill(&root, &real_cert()) {
+            PillDom::On(ord) => {
+                assert_eq!(ord.gains.get(&31).copied(), Some(50), "f54 tier=1 ⇒ +50");
+            }
+            PillDom::Off(r, t) => panic!("真证书应启用，实际 Off({r},{t})"),
+        }
+    }
+
+    /// 判据 3 的第二种 fail-closed：可踩的「踩格副作用臂」实体在可达格上 ⇒ 不启用
+    /// （`pickup` 臂与 `Move` 臂的副作用集不同，模拟链不成立）。
+    #[test]
+    fn pill_plan_fails_closed_when_step_arm_hazard_reachable() {
+        let input = pill_input(&[(31, 1, 1)], &[(61, 5)]);
+        let level = input.level.as_ref().expect("level");
+        let search = Search::from_entry(&input, level, (0, 1));
+        let root = St {
+            pos: (0, 1),
+            player: level.player.clone(),
+            ents: sprite_full(level),
+            flags: 0,
+            kills: 0,
+            steps: 0,
+        };
+        match search.plan_pill(&root, &real_cert()) {
+            PillDom::Off(reason, ty) => {
+                assert_eq!(reason, "step_arm_hazard_reachable");
+                assert_eq!(ty, 61);
+            }
+            PillDom::On(_) => panic!("有可达陷阱时不得启用（拾取臂与 Move 臂副作用不同）"),
+        }
+    }
+
+    /// 【定理·代码化】无「独立 hp 源」（无陷阱/宝箱/组门/脚本/商店）时，
+    /// hp 由**已捡药集合**唯一决定 ⇒ 本规则**恒剪 0 条**（f54 正是这种层）。
+    ///
+    /// 证明：hp = hp₀ + Σ_{已捡} gain，gain>0 ⇒ `rem(a) ⊇ rem(b)` ∧
+    /// `hp(a) ≥ hp(b)` ⇒ 已捡 a ⊆ 已捡 b 且 Σ_a ≥ Σ_b ⇒ Σ_a = Σ_b ⇒ 已捡相等
+    /// ⇒ `ents` 相等 ⇒ 已被**精确键**块（在 D 块之前）处理。
+    #[test]
+    fn pill_dominance_is_vacuous_without_independent_hp_source() {
+        let input = pill_input(&[(31, 1, 1), (32, 2, 1)], &[]);
+        let level = input.level.as_ref().expect("level");
+        let search = Search::from_entry(&input, level, (0, 1));
+        let (_, _goals) = search.run_root_with(
+            (0, 1),
+            sprite_full(level),
+            level.player.clone(),
+            0,
+            10_000,
+            &real_cert(),
+        );
+        let st = pill_dom_stat();
+        assert!(st.enabled, "纯加血拾取层应启用：{st:?}");
+        assert_eq!(st.pill_types, 2, "ty31/ty32 两颗型：{st:?}");
+        assert!(st.cmp > 0, "规则必须真的比过候选（否则等于没接线）：{st:?}");
+        assert_eq!(st.pruned_new, 0, "无独立 hp 源 ⇒ 恒剪 0（定理）：{st:?}");
+        assert_eq!(st.killed_old, 0, "同上：{st:?}");
+    }
+
+    /// 判据 4（层内黑盒差分）：同一层、同一入场态，**启用** vs **关闭**本规则，
+    /// 搜索输出必须逐字段相同。
+    ///
+    /// 「关闭」= 注入一条恒 `None` 证书 ⇒ `plan_pill` 返回 `Off` ⇒ 该层走的正是
+    /// 本规则引入前的代码路径（旧行为）。因此这是一次真正的旧/新差分。
+    #[test]
+    fn pill_dominance_off_matches_off_path_field_by_field() {
+        let input = pill_input(&[(31, 1, 1), (32, 2, 1), (31, 4, 1)], &[]);
+        let level = input.level.as_ref().expect("level");
+        let search = Search::from_entry(&input, level, (0, 1));
+        let ents = sprite_full(level);
+        let (on_reach, on_goals) = search.run_root_with(
+            (0, 1),
+            ents.clone(),
+            level.player.clone(),
+            0,
+            10_000,
+            &real_cert(),
+        );
+        let on_stat = pill_dom_stat();
+        let (off_reach, off_goals) = search.run_root_with(
+            (0, 1),
+            ents,
+            level.player.clone(),
+            0,
+            10_000,
+            &|_t: i32, _f: i32| None,
+        );
+        let off_stat = pill_dom_stat();
+        assert!(on_stat.enabled, "On 腿必须启用：{on_stat:?}");
+        assert!(!off_stat.enabled, "Off 腿必须关闭（对照）：{off_stat:?}");
+        assert_eq!(on_reach, off_reach, "reachable 必须相同");
+        assert_eq!(on_goals.len(), off_goals.len(), "候选数必须相同");
+        for (a, b) in on_goals.iter().zip(off_goals.iter()) {
+            assert_eq!(a.hp, b.hp, "hp");
+            assert_eq!(a.kills, b.kills, "kills");
+            assert_eq!(a.steps, b.steps, "steps");
+            assert_eq!(a.keys, b.keys, "keys");
+            assert_eq!(a.kind, b.kind, "kind");
+            assert_eq!(a.route, b.route, "route");
+            assert_eq!(a.cross_edge, b.cross_edge, "cross_edge");
+            assert_eq!(a.post.pos, b.post.pos, "post.pos");
+            assert_eq!(a.post.ents, b.post.ents, "post.ents");
+        }
+        // On 腿的 hp 必须等于闭式最优（三颗药全捡：50+200+50）
+        let best = on_goals.iter().map(|g| g.hp).max().expect("有解");
+        assert_eq!(best, 300 + 50 + 200 + 50, "闭式最优：入场 300 + 全部药 300");
     }
 }

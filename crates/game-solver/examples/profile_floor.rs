@@ -238,6 +238,24 @@ fn main() {
                 "note: 截断 ⇒ `materialize_exit` 契约要求 ok=false（截断结果不可信），\
                  即便搜索里已记录到可走通的出口目标也只回填参考值。"
             );
+            // 【D 面】子集支配（纯加血拾取）的可观测统计：`enabled=false` 时
+            // `reason/reason_ty` 指出卡在哪条闸门（禁静默）。
+            {
+                let st = game_solver::solve_local::pill_dom_stat();
+                println!(
+                    "pill_dom: enabled={} reason={} reason_ty={} pill_types={} pills={} states={} cmp={} pruned_new={} killed_old={} budget_exhausted={}",
+                    st.enabled,
+                    st.reason,
+                    st.reason_ty,
+                    st.pill_types,
+                    st.pills,
+                    st.states,
+                    st.cmp,
+                    st.pruned_new,
+                    st.killed_old,
+                    st.budget_exhausted
+                );
+            }
 
             // ---------- ②b 目标集过滤的代价：toward=None / 上行 / 下行 各挑一条 ----------
             // `solve_local_exit_toward` 只在**搜索结束后**按 `goal_edge(...).to` 过滤 goal，

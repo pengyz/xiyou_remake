@@ -368,6 +368,107 @@ pub fn builtin_effect(kind: &str) -> &'static dyn ItemEffect {
     }
 }
 
+/// 【D 面·拾取子集支配的证书源】`ty` 在 `floor` 层是否**只**加固定量血。
+///
+/// 为什么需要本函数：`game-solver` 的「纯加血拾取子集支配」（见
+/// `docs/findings/2026-11-19-pill-subset-dominance.md` §2-§3）只有在拾取效果是
+/// **「本层增量固定 + 除 hp 外零副作用」**时才健全。这条性质**不能靠读表推断**：
+///
+/// - 31/32 的增益是 `delta × floor_tier(floor)`（`HpUpEffect::apply` 逐字，
+///   a.java:7581-7587）⇒ **不是常量** +50/+200；
+/// - `floor_tier` 只取决于 `floor`（:157-166）⇒ 单层搜索内 tier 恒定 ⇒ 层内
+///   每颗药增益确实固定（f54：`floor>50 ⇒ tier=1` ⇒ +50/+200，与 18 颗药
+///   Σ=+2400 的实测一致）。**这条「层内固定」正是规则可用的形式**；
+/// - 「无其它副作用」更不在表上：7 个 kind 里有 6 个会写 player/装备/背包。
+///
+/// 因此本函数**真跑一次拾取臂**（`ItemResolver::pickup`——与引擎同一分发面），
+/// 用「非默认」探针玩家逐字段比对 `ItemCtx` 可达的全部副作用面，并要求
+/// 「除 hp 外零变化 ∧ hp 增量 == `delta×tier` ∧ 浮层量同值」。
+///
+/// 返回：`Some(gain)` = 本层拾取 `ty` 恰好 `hp += gain`（gain>0）且其它字段全不动；
+/// `None` = 不满足（非 HpUp / delta≤0 / 有额外副作用 / 与 `delta×tier` 不符）。
+/// 调用方（求解器）把 `None` 当 fail-closed 信号：不启用子集支配，退回精确键搜索。
+pub fn certified_pure_hp_gain(ty: i32, floor: i32) -> Option<i32> {
+    // ① 只认 pickup 面的 HpUp（use 面同 id 的 Heal 不在此列——两面并存，勿混）
+    if pickup_kind_for_type(ty) != "HpUp" {
+        return None;
+    }
+    let EffectParams::HpUp { delta } = pickup_params_for(ty) else {
+        return None;
+    };
+    let expect = delta * floor_tier(floor);
+    if expect <= 0 {
+        return None;
+    }
+    // ② 探针玩家：故意取「非默认/非零」值（三色钥/金/背包/栈位/装备全偏离 0），
+    //    任何越权字段写入都会被下面的逐字段比对抓到（默认全 0 会漏「写 0」）。
+    let mut player = PlayerCombat {
+        hp: 100,
+        atk: 11,
+        def: 12,
+        yellow_keys: 3,
+        blue_keys: 4,
+        red_keys: 5,
+        gold: 7,
+        item_types: vec![13, 19, 15],
+        item_uses: vec![2, 3, 4],
+        item_stack_size: 3,
+    };
+    let mut tutorial_seen = true;
+    let mut equipped_weapon = 33;
+    let mut equipped_armor = 40;
+    let before = (
+        player.atk,
+        player.def,
+        player.yellow_keys,
+        player.blue_keys,
+        player.red_keys,
+        player.gold,
+        player.item_types.clone(),
+        player.item_uses.clone(),
+        player.item_stack_size,
+    );
+    let outcome = {
+        // 分发链唯一（item_service.rs:25-52）：Registry::lookup → ItemEffect，禁第二分发链
+        use crate::subsystem::item_service::{ItemResolver, ItemService};
+        let mut ctx = ItemCtx {
+            player: &mut player,
+            floor,
+            tutorial_seen: &mut tutorial_seen,
+            equipped_weapon: &mut equipped_weapon,
+            equipped_armor: &mut equipped_armor,
+            equip_types: [33, 34, 35, 79, 36, 37, 38, 39, 80, 40, 0, 0],
+            equip_bonuses: [0; 12],
+        };
+        ItemResolver.pickup(&mut ctx, ty)
+    };
+    let after = (
+        player.atk,
+        player.def,
+        player.yellow_keys,
+        player.blue_keys,
+        player.red_keys,
+        player.gold,
+        player.item_types.clone(),
+        player.item_uses.clone(),
+        player.item_stack_size,
+    );
+    // ③ 除 hp 外必须逐字段不动（含 tutorial_seen / 装备槽——后者按值复制进 ctx，
+    //    但「写回」路径若被将来改成引用也会在这里被拦下）
+    if before != after || tutorial_seen != true || equipped_weapon != 33 || equipped_armor != 40 {
+        return None;
+    }
+    // ④ 必须恰好 Consumed 且浮层量=期望增量（浮层量与 hp 增量同源，读两个面）
+    match outcome {
+        ItemOutcome::Consumed { hp_popup: Some(d), .. } if d == expect => {}
+        _ => return None,
+    }
+    if player.hp != 100 + expect {
+        return None;
+    }
+    Some(expect)
+}
+
 /// 【P1-3 红·先行】pickup_params_for 23 臂对照（match→表行参数逐行——
 /// a.java:7537-7648 引锚纪律随断言）。
 #[cfg(test)]
@@ -744,5 +845,80 @@ mod p1a2_tests {
         let mut c = ctx(&mut p, &mut ts, &mut ew, &mut ea);
         let out = builtin_effect("NoSuchKind").apply(&mut c, &EffectParams::HpUp { delta: 50 });
         assert_eq!(out, ItemOutcome::NoOp, "registry miss=NoOp 不消耗（a.java:7630-7631）");
+    }
+}
+
+/// 【D 面】纯加血拾取证书（`certified_pure_hp_gain`）判据。
+///
+/// 这几条同时钉住两件容易搞错的事：
+/// 1. **增益随层变**（31/32 是 `delta × floor_tier(floor)`，不是常量 +50/+200）；
+/// 2. 非 HpUp 型（含与其 id 相近的 Stack/Key/StatUp/Equip）一律不背书。
+#[cfg(test)]
+mod pill_cert_tests {
+    use super::*;
+
+    /// 判据 1（本片 A 级事实的代码孪生）：31/32 在 f54（floor>50 ⇒ tier=1）与
+    /// floor1（tier=1）都是 +50/+200；floor11（tier=2）翻倍。
+    #[test]
+    fn hp_gain_scales_with_floor_tier() {
+        assert_eq!(certified_pure_hp_gain(31, 54), Some(50));
+        assert_eq!(certified_pure_hp_gain(32, 54), Some(200));
+        assert_eq!(certified_pure_hp_gain(31, 1), Some(50));
+        assert_eq!(certified_pure_hp_gain(32, 1), Some(200));
+        // tier=2（11..20）⇒ 增益翻倍：**「固定增益」只在同层内成立**，规则外形
+        // 必须按层归一（或直接判同层），不能把它当全局常量
+        assert_eq!(certified_pure_hp_gain(31, 11), Some(100));
+        assert_eq!(certified_pure_hp_gain(32, 11), Some(400));
+        // tier=5（41..50）
+        assert_eq!(certified_pure_hp_gain(31, 41), Some(250));
+        assert_eq!(certified_pure_hp_gain(32, 41), Some(1000));
+    }
+
+    /// 判据 2：非 HpUp 型一律不背书（回归：31/32 是 pickup 面 HpUp，19 是
+    /// use 面 Heal——两面并存，不能混）。
+    #[test]
+    fn non_hpup_types_are_not_certified() {
+        for ty in [13, 15, 19, 26, 27, 28, 29, 30, 33, 35, 37, 40, 79, 80, 41, 0, 99] {
+            assert_eq!(certified_pure_hp_gain(ty, 54), None, "ty={ty} 不得被背书");
+        }
+    }
+
+    /// 判据 3：证书与引擎同源——直接对 HpUpEffect 的真值做交叉（tier 归一后
+    /// hp 增量与证书返回值必须一致），防「证书自己算一套」。
+    #[test]
+    fn certificate_matches_engine_hp_delta() {
+        for floor in [1, 10, 11, 25, 41, 50, 51, 54] {
+            let tier = floor_tier(floor);
+            for (ty, delta) in [(31, 50), (32, 200)] {
+                let gain = certified_pure_hp_gain(ty, floor).unwrap();
+                assert_eq!(gain, delta * tier, "floor={floor} ty={ty} 证书必须等于引擎增益");
+                // 引擎侧直算：apply_hp_delta 对正 delta 即 hp += delta×tier
+                let mut p = PlayerCombat {
+                    hp: 0,
+                    atk: 0,
+                    def: 0,
+                    yellow_keys: 0,
+                    blue_keys: 0,
+                    red_keys: 0,
+                    gold: 0,
+                    item_types: Vec::new(),
+                    item_uses: Vec::new(),
+                    item_stack_size: 0,
+                };
+                let mut ts = false;
+                let (mut ew, mut ea) = (0, 0);
+                let mut c = ItemCtx {
+                    player: &mut p,
+                    floor,
+                    tutorial_seen: &mut ts,
+                    equipped_weapon: &mut ew,
+                    equipped_armor: &mut ea,
+                    equip_types: [0; 12],
+                    equip_bonuses: [0; 12],
+                };
+                HpUpEffect.apply(&mut c, &EffectParams::HpUp { delta });
+                assert_eq!(c.player.hp, gain, "floor={floor} ty={ty} 引擎 hp 增量≠证书");
+            }
+        }
     }
 }

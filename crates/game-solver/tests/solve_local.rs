@@ -1404,3 +1404,79 @@ fn exit_solve_entities_none_is_sprite_some_empty_is_cleared() {
         cleared.out_ents
     );
 }
+
+// ================= D 面：纯加血拾取子集支配（2026-11-19） =================
+
+/// 【D 面判据 4 · 真实层黑盒差分】f1（真 `ingest` 数据，走 `fixture_floor1`）在
+/// **启用**子集支配后的出层结果，必须与既有 `solve_local` 的最大血/路由逐字段相同。
+///
+/// 这是「新规则不得改变既有解」的闸：`solve_local` 的 `max_hp`/`route` 是本规则引入
+/// **之前**就成立的参照物（另有 `exit_solve_maximizes_hp_on_real_data` 同口径）。
+/// 同时钉住**可观测性**：`pill_dom_stat()` 必须被填（要么 `enabled=true` 且真的比过
+/// 候选，要么 `enabled=false` + 具名 `reason`），禁止静默不跑。
+#[test]
+fn pill_subset_dominance_does_not_change_exact_results() {
+    let input = fixture_floor1();
+    let level = input.level.clone().expect("floor1 已装载");
+    let entry = level.start;
+    let old = solve_local(&input);
+    let old_max_hp = old.max_hp.expect("floor1 max_hp");
+
+    let got = solve_local_exit(&input, entry, &level.player, level.flags, None);
+    let st = game_solver::solve_local::pill_dom_stat();
+    println!(
+        "[D-4] f1 out_hp={} old_max_hp={} exit={:?} kind={:?} route_len={} truncated={} \
+         stat=enabled:{} reason:{} reason_ty:{} types:{} pills:{} cmp:{} pruned_new:{} killed_old:{}",
+        got.out_hp,
+        old_max_hp,
+        got.exit,
+        got.kind,
+        got.route.len(),
+        got.truncated,
+        st.enabled,
+        st.reason,
+        st.reason_ty,
+        st.pill_types,
+        st.pills,
+        st.cmp,
+        st.pruned_new,
+        st.killed_old,
+    );
+
+    assert_eq!(
+        Some(got.out_hp),
+        old.max_hp,
+        "出层最大血不得被新规则改变"
+    );
+    assert_eq!(got.route, old.route, "选解一致 ⇒ 路由也一致");
+    assert!(!got.truncated, "f1 不该撞层界：{got:?}");
+
+    // 可观测性（fail-closed 不许静默）：要么启用且比过候选，要么未启用且有具名原因。
+    assert!(
+        st.reason != "not_run",
+        "stat 必须被填（memo 命中也要回放）：{st:?}"
+    );
+    if st.enabled {
+        assert!(
+            st.pill_types > 0 && st.pills > 0,
+            "启用但没识别到药 ⇒ 闸门逻辑坏了：{st:?}"
+        );
+        assert!(st.cmp > 0, "启用后必须真的比过候选：{st:?}");
+    } else {
+        assert!(
+            !st.reason.is_empty() && st.reason != "not_run",
+            "未启用必须给出具名原因（禁静默）：{st:?}"
+        );
+    }
+
+    // 再跑一次：`LAYER_MEMO` 命中时会**回放** stat（不只回放截断/峰值）——
+    // 否则「第二跑捷径」会把可用性信息吞掉。
+    let again = solve_local_exit(&input, entry, &level.player, level.flags, None);
+    let st2 = game_solver::solve_local::pill_dom_stat();
+    assert_eq!(again.route, got.route, "第二跑（memo 命中）解必须一致");
+    assert_eq!(
+        (st2.enabled, st2.reason, st2.reason_ty, st2.pill_types, st2.cmp),
+        (st.enabled, st.reason, st.reason_ty, st.pill_types, st.cmp),
+        "memo 命中必须回放同一份 stat（禁静默）"
+    );
+}
