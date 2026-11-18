@@ -72,6 +72,9 @@ fn cell_ty(sc: &GameScene, x: i32, y: i32, ty: i32) -> i32 {
     sc.entity_at_cell(x, y, ty)
 }
 
+/// ⚠ 前提警示：本测试把玩家**直接放到 (10,2)**（`stand` 只跑踩格副作用，不校验可走性）。
+/// 而 f41 的 (10,2) 地形不可走（见 `f41_gate_cell_not_walkable_open_question`）⇒
+/// 本测试钉的是**门控逻辑**，不是「玩家实际能走到那里」。可达性缺口单列测试，不得当作已通。
 #[test]
 fn f41_gate13_then_clear_two_fires_then_gate25_drops_down_arrow() {
     let (mut sc, width_table) = load_f41();
@@ -141,4 +144,18 @@ fn f41_gate25_stays_closed_while_fires_remain() {
         "两处火都在 ⇒ 门 25 的 entity_at_cell 条件不满足，不得开启"
     );
     assert!(cell_ty(&sc, 6, 6, 22) < 0, "门 25 未开 ⇒ 不生成下行符");
+}
+
+/// 【未决缺口】f41 (10,2) 是两扇场景门的所在格，但地形不可走（cell_type 51）；
+/// 而门 25 的门控要求 `from_walk`（必须走进该格）⇒ 「玩家能否真的站到 (10,2)」
+/// 是这条链成立的前提，当前**未证实**。本测试把这个矛盾显式钉在这里，
+/// 防止上面的链式测试被读成「f41 下行符已确认可得」。
+#[test]
+fn f41_gate_cell_not_walkable_open_question() {
+    let (sc, _wt) = load_f41();
+    assert!(!sc.walkable_at(10, 2), "f41 (10,2) 地形不可走（cell_type 51）——链式测试的站位是非法的");
+    assert!(sc.walkable_at(2, 2), "f41 (2,2) 地形可走（火陷阱所在格）");
+    // 火的上爬前提：上格必须可走且无槽。两处火的上格都是墙 ⇒ fire_trap_climb_up 不会发生。
+    assert!(!sc.walkable_at(2, 1), "(2,2) 火的上格 (2,1) 不可走 ⇒ 火爬不走");
+    assert!(!sc.walkable_at(10, 1), "(10,2) 火的上格 (10,1) 不可走 ⇒ 火爬不走");
 }
