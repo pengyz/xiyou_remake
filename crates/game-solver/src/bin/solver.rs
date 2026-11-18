@@ -443,6 +443,72 @@ fn main() {
         }
         return;
     }
+    if args.first().map(|s| s.as_str()) == Some("run") {
+        // P4：witness builder —— 从起点按塔序逐层 `solve_local_exit` 推进，产出可回放见证。
+        // lib 侧纯函数（crates/game-solver/src/witness.rs），I/O 只在此处（A9 豁免面）。
+        // 诚实口径：任一层 ok=false ⇒ status=blocked（截断则 capped），floors 只留成功前缀，
+        // final.ending_done=false —— 绝不把半成品包装成通关（witness.rs 模块 doc 硬约束）。
+        let out = args
+            .iter()
+            .position(|a| a == "--out")
+            .and_then(|i| args.get(i + 1))
+            .cloned();
+        let max_floors = args
+            .iter()
+            .position(|a| a == "--max-floors")
+            .and_then(|i| args.get(i + 1))
+            .map(|v| v.parse::<usize>().unwrap_or_else(|_| panic!("--max-floors 需正整数: {v}")))
+            .unwrap_or(game_solver::witness::DEFAULT_MAX_FLOORS);
+        let (gi, _shops) = solve_global_input(1);
+        let levels: std::collections::BTreeMap<i32, SolveInput> = gi
+            .floors
+            .into_iter()
+            .map(|(f, lv)| {
+                (
+                    f,
+                    SolveInput { floor: f, difficulty: 0, level: Some(lv) },
+                )
+            })
+            .collect();
+        let cfg = game_solver::witness::WitnessCfg { max_floors };
+        let w = game_solver::witness::run_witness(
+            &levels,
+            GLOBAL_START_FLOOR,
+            GLOBAL_ENTRY,
+            PlayerSpec::from_combat(mk_player()),
+            0,
+            &cfg,
+        );
+        // 人读摘要走 stderr（stdout 留给 JSON：不加 --out 时可直接管道消费）。
+        match &w.blocked {
+            Some(b) => eprintln!(
+                "status={} floors={} total_steps={} blocked=floor {} reason={} layer_ok={:?} layer_truncated={:?}",
+                w.status,
+                w.floors.len(),
+                w.total_steps,
+                b.floor,
+                b.reason,
+                b.layer_ok,
+                b.layer_truncated
+            ),
+            None => eprintln!(
+                "status={} floors={} total_steps={} ending_done={}",
+                w.status,
+                w.floors.len(),
+                w.total_steps,
+                w.final_state.ending_done
+            ),
+        }
+        match out {
+            Some(path) => {
+                std::fs::write(&path, w.to_json_pretty())
+                    .unwrap_or_else(|e| panic!("写 {path}: {e}"));
+                println!("已写 {path}");
+            }
+            None => println!("{}", w.to_json()),
+        }
+        return;
+    }
     if args.first().map(|s| s.as_str()) == Some("solve-local") {
         // 批2 C1：单层求解子命令（逻辑在 lib::solve_local，壳只在此处解析参数+打印）。
         // C6：floor1 接真数据（I/O 归此 bin=A9 豁免面）；其余层保持占位（T1 恒绿面）。
@@ -463,7 +529,7 @@ fn main() {
         return;
     }
     if args.first().map(|s| s.as_str()) != Some("ingest") || args.get(1).map(|s| s.as_str()) != Some("--summary") {
-        eprintln!("用法：solver ingest --summary | solver solve-local --floor <N> | solver solve-global [--bound N] [--out PATH] | solver query --all [--bound N] [--node-cap N] [--ultimate 36,40] [--out PATH] | solver doors [--out PATH] | solver keys");
+        eprintln!("用法：solver ingest --summary | solver solve-local --floor <N> | solver solve-global [--bound N] [--out PATH] | solver query --all [--bound N] [--node-cap N] [--ultimate 36,40] [--out PATH] | solver doors [--out PATH] | solver keys | solver run [--out PATH] [--max-floors N]");
         std::process::exit(2);
     }
     let root = repo();

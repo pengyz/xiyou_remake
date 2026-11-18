@@ -63,7 +63,7 @@
     "slot_equip_scene(test)": 2,
     "solve_global(test)": 24,
     "solve_local(test)": 24,
-    "solve_local_trunc(test)": 2,
+    "solve_local_trunc(test)": 4,
     "solver(bin)": 0,
     "storage_contract(test)": 7,
     "storage_wiring(test)": 4,
@@ -76,7 +76,8 @@
     "walk_camera_golden(test)": 4,
     "walk_replay_floor1(test)": 2,
     "walk_route(test)": 12,
+    "witness(test)": 8,
     "xiyou(bin)": 42
   },
-  "total": 1154
+  "total": 1164
 }

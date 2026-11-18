@@ -15,3 +15,4 @@ pub mod script_abs;
 pub mod solve_global;
 pub mod solve_local;
 pub mod state;
+pub mod witness;

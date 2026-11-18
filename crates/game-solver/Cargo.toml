@@ -5,6 +5,8 @@ edition = "2021"
 
 # 【求解器批0】确定性求解器（P3 编辑器前置基建）——纯度边界见 src/lib.rs。
 [dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 game-data = { path = "../game-data" }
 game-core = { path = "../game-core" }
 

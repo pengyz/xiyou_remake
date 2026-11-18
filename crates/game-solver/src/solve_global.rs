@@ -286,7 +286,7 @@ struct GNode {
 ///   下行落层找上梯、上行找下梯，`find_floor_gate :435`）→ 落点=首个可行走邻格
 ///   （上/下/左/右，四邻皆不可行留梯格自身）；
 /// - 目标层无梯 ⇒ `None`=丢边（引擎=留旧坐标异常态，报审注明）。
-fn landing(level: &LevelSpec, target: i32, went_down: bool) -> Option<(i32, i32)> {
+pub(crate) fn landing(level: &LevelSpec, target: i32, went_down: bool) -> Option<(i32, i32)> {
     if target == 0 {
         return Some((1, 2));
     }
@@ -322,7 +322,7 @@ fn landing(level: &LevelSpec, target: i32, went_down: bool) -> Option<(i32, i32)
 
 /// 从入口格看，出口梯的目标层（`load_floor` 语义：type7|8 ⇒ `ExitSpec{Stair}`，
 /// 实体带 `param`；`param&0xff`=目标层号，a.java:5638-5664）。
-fn stair_target(level: &LevelSpec, exit: (i32, i32)) -> Option<(i32, bool)> {
+pub(crate) fn stair_target(level: &LevelSpec, exit: (i32, i32)) -> Option<(i32, bool)> {
     let e = level
         .entities
         .iter()
