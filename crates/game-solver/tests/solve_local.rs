@@ -8,8 +8,8 @@ use game_data::defs::EnemyDef;
 use game_core::combat::{scale_enemy_stats, CombatTables, PlayerCombat};
 use game_core::scene_test_support::scene;
 use game_solver::solve_local::{
-    probe_bump, probe_gate, solve_layer, solve_local, solve_layer_with, ClosurePolicy, EntRec,
-    EntSpec, ExitKind, ExitSpec, LevelSpec, PlayerSpec, SolveInput,
+    probe_bump, probe_gate, solve_layer, solve_local, solve_layer_with,
+    ClosurePolicy, EntRec, EntSpec, ExitKind, ExitSpec, LevelSpec, PlayerSpec, SolveInput,
 };
 use std::path::PathBuf;
 
@@ -943,10 +943,15 @@ fn boss_kill_spawns_drop_entity_from_core_rules_only() {
         .iter()
         .find(|g| g.route.iter().any(|t| t.starts_with("bump 67@")))
         .expect("路线应含击杀 67");
-    assert!(
-        g.post_ents
-            .contains(&EntRec { ty: 17, x: 6, y: 4, param: 0 }),
-        "击杀 67 后应掉落金勺子 17@(6,4)（rules::boss event3）：{:?}",
+    // 【Y2 整改】原先 `contains(...)` 是弱断言——复核变异 M5 把 `event_of` 改成
+    // 「凡是 cat8 就返回 Some(0..7) 全发」时本测仍绿（`contains` 只认一条）。
+    // 改精确集合相等：条数 + 每条 (ty,x,y,param) 逐条对上，顺序无关（出表顺序是实现
+    // 细节，不是判据面）。event3 全表就 1 条 `{17,6,4,0}`（`rules/boss.rs`「[3] a.java:2143」）
+    // ⇒ 期望集 = 存活出口梯 7@(2,1) + 掉落 17@(6,4)，多一条即过触发。
+    assert_eq!(
+        sorted_ents(&g.post_ents),
+        vec![(7, 2, 1, 2), (17, 6, 4, 0)],
+        "击杀 67 后活体精确集合=出口梯 7@(2,1)+金勺子 17@(6,4)（rules::boss event3）：{:?}",
         g.post_ents
     );
     assert_eq!(
@@ -987,3 +992,132 @@ fn non_boss_kill_spawns_no_drops() {
         g.post_ents
     );
 }
+
+// ================= P2 复核黄项补判据（Y1 / Y2 / Y3）=================
+
+/// 实体列表按 `(ty,x,y,param)` 归一——**精确集合相等**的比较面（条数 + 逐条四元组）。
+///
+/// 为什么排序：`post_ents` 的出表顺序是「初始 sprite 序 − 击杀移除 + 掉落追加」的
+/// 实现细节（`apply_kill_drops` 逐条 push），不是语义契约；判据只该钉住「现场有谁、
+/// 各有几枚」。用 `contains` 一条一条钉则会放过「一桌全发」（P2 复核 M5 变异实证）。
+fn sorted_ents(v: &[EntRec]) -> Vec<(i32, i32, i32, i32)> {
+    let mut t: Vec<(i32, i32, i32, i32)> = v.iter().map(|e| (e.ty, e.x, e.y, e.param)).collect();
+    t.sort_unstable();
+    t
+}
+
+fn ent(ty: i32, x: i32, y: i32, param: i32) -> EntRec {
+    EntRec { ty, x, y, param }
+}
+
+/// 【Y1 判据钉】**闭包击杀臂**也必须走 `apply_kill_drops`。
+///
+/// P2 复核变异实证的缺口：删掉 `solve_local.rs` `closure_step` 的
+/// `ClosureCand::Kill` 分支里那句 `apply_kill_drops(...)`（原 :1579-1581），
+/// `cargo test -p game-solver --test solve_local` 仍 15 条全绿 ⇒ 该臂零判据。
+///
+/// 为什么这条测试**只**能由闭包臂满足：`expand_inner` 开头
+/// `if let Some(s) = self.closure_step(st) { out.push(s); return; }`——闭包命中即
+/// **跳过四臂**。本夹具里 67 零伤（def500 ≥ atk180 ⇒ loss=0）且与入口邻接
+/// ⇒ 只要 67 还活着、还邻接可达域，闭包就命中，Monkey 臂在本策略下**永远走不到**
+/// （能绕开闭包的入场态需要「67 活着但不在闭包候选里」，而零伤怪恒在候选）。
+/// 所以：删闭包臂的掉落 ⇒ 本夹具一颗掉落都不产生 ⇒ 本测试红。
+#[test]
+fn closure_kill_arm_spawns_drop_entity() {
+    let input = fixture_3x3_ty(67, player(5000, 500, 500));
+    let p = PlayerSpec::from_combat(player(5000, 500, 500));
+    // Q1 = pickup + 零伤怪全收（`ClosurePolicy::q1`）⇒ 闭包臂开启。
+    let (ok, goals) = solve_layer_with(&input, (0, 1), None, p, 0, ClosurePolicy::q1(), &[]);
+    assert!(ok, "q1 下 67 零伤可杀 ⇒ 应可达：{goals:?}");
+    let g = goals
+        .iter()
+        .find(|g| g.route.iter().any(|t| t.starts_with("bump 67@")))
+        .expect("路线应含击杀 67（闭包臂）");
+    assert_eq!(g.hp, 5000, "零伤闭包击杀不掉血（def500 ≥ atk180）：{:?}", g.hp);
+    assert_eq!(
+        sorted_ents(&g.post_ents),
+        vec![(7, 2, 1, 2), (17, 6, 4, 0)],
+        "闭包臂击杀同样必须按 game-core 单一来源生成掉落 17@(6,4)：{:?}",
+        g.post_ents
+    );
+    // 与 Monkey 臂同一条「不凭空入账」铁律：掉落只是实体。
+    assert!(
+        g.post.item_types.is_empty() || g.post.item_stack_size == 0,
+        "闭包臂不得凭空入账：{:?}",
+        g.post
+    );
+}
+
+/// Y3 夹具：9×5 单走廊（y=4 全可走，余墙），入口 (0,4)、67 挡路 (3,4)、出口梯 7@(8,4)。
+/// 关键：67 的掉落 `17@(6,4)`（`rules/boss.rs` event3）**正好落在走廊上**且在主路
+/// (3,4)→(8,4) 的必经段 ⇒ 「击杀 → 掉落成实体 → 踩上去 → 进背包」四拍可在一次
+/// 层求解内全走完（3×3 夹具做不到：(6,4) 在层外）。
+fn fixture_drop_corridor() -> SolveInput {
+    let (base, scaled) = enemy_tables();
+    let mut terrain = vec![false; 9 * 5];
+    for x in 0..9 {
+        terrain[4 * 9 + x] = true;
+    }
+    let level = LevelSpec {
+        cols: 9,
+        rows: 5,
+        terrain,
+        start: (0, 4),
+        entities: vec![
+            EntSpec { ty: 67, x: 3, y: 4, param: 0 },
+            EntSpec { ty: 7, x: 8, y: 4, param: 2 },
+        ],
+        exits: vec![ExitSpec { x: 8, y: 4, kind: ExitKind::Stair, index: 1 }],
+        player: PlayerSpec::from_combat(player(5000, 500, 500)),
+        enemies: scaled,
+        enemy_base: base,
+        flags: 0,
+    };
+    SolveInput { floor: 1, difficulty: 0, level: Some(level) }
+}
+
+/// 【Y3 判据钉】掉落 → 拾取 → **真的入账**的端到端判据（此前只证明 push 进了 `ents`）。
+///
+/// 语义两面都要钉：
+/// 1. 掉落**不凭空入账**（P2 铁律）——击杀当拍只多一个实体；
+/// 2. 踩上那一格之后，`item_types/item_uses/item_stack_size` 必须由**引擎拾取臂**
+///    （`pickup_step` → `try_step`+`apply_step_cell_effects`）读回真值：P2 之前这条
+///    完全空白，`apply_kill_drops` 就算把「入账」也顺手做了也没人拦。
+///
+/// 金勺子 17 的拾取类别=Stack（`effect_registry::PICKUP_ARM_TABLE` 第 17 行
+/// `(17,"Stack",..)` ⇒ `ITEM_USES[17-13=4]=1`）⇒ 背包首槽 = 17、次数 1、栈深 1。
+#[test]
+fn drop_entity_pickup_credits_inventory() {
+    let input = fixture_drop_corridor();
+    let p = PlayerSpec::from_combat(player(5000, 500, 500));
+    let (ok, goals) = solve_layer(&input, (0, 4), None, p, 0);
+    assert!(ok, "67 零伤可杀、走廊直通出口 ⇒ 应可达：{goals:?}");
+    let g = goals
+        .iter()
+        .find(|g| g.route.iter().any(|t| t.starts_with("bump 67@")))
+        .expect("路线应含击杀 67");
+    assert!(
+        g.route.iter().any(|t| t == "6,4"),
+        "走廊必经段应踩过掉落格 (6,4)：{:?}",
+        g.route
+    );
+    // ① 入账：引擎拾取臂把 17 写进背包首槽（不是求解器自算）。
+    assert_eq!(
+        g.post.item_types.first().copied(),
+        Some(17),
+        "踩过 (6,4) ⇒ 金勺子 17 进背包首槽：{:?}",
+        g.post
+    );
+    assert_eq!(g.post.item_uses.first().copied(), Some(1), "次数=1（ITEM_USES[4]）：{:?}", g.post);
+    assert_eq!(g.post.item_stack_size, 1, "栈深=1：{:?}", g.post);
+    // ② 拾取后实体离场（引擎 `entity::remove` 同拍）⇒ 现场只剩出口梯。
+    assert_eq!(
+        sorted_ents(&g.post_ents),
+        vec![(7, 8, 4, 2)],
+        "拾取后掉落实体必须离场，现场只剩出口梯：{:?}",
+        g.post_ents
+    );
+    assert_ne!(g.post_ents, vec![ent(17, 6, 4, 0)], "掉落体不得残留");
+}
+
+// ================= P3 单层「入场 → 出层」接口判据 =================
