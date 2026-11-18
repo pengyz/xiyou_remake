@@ -217,6 +217,80 @@ fn main() {
         }
         return;
     }
+    if args.first().map(|s| s.as_str()) == Some("floors") {
+        // 层间转移图（P0）：楼梯 / 脚本 LAY / 道具三类通道，回答「主线怎么走、卡在哪」。
+        let (input, _shops) = solve_global_input(1);
+        let g = game_solver::floorgraph::graph(&input.floors);
+        let reach = game_solver::floorgraph::reachable_by_stairs(&input.floors, input.start_floor);
+        let mut n = 0usize;
+        for (f, edges) in &g {
+            let main: Vec<String> = edges
+                .iter()
+                .filter(|e| e.kind != game_solver::floorgraph::EdgeKind::ItemUp
+                    && e.kind != game_solver::floorgraph::EdgeKind::ItemDown)
+                .map(|e| format!("{:?}@({},{})→f{}", e.kind, e.cell.0, e.cell.1, e.to))
+                .collect();
+            n += main.len();
+            if !main.is_empty() {
+                println!("f{f} 边 {}: {}", main.len(), main.join("  "));
+            }
+        }
+        let reach_list: Vec<String> = reach.iter().map(|f| f.to_string()).collect();
+        println!("== 楼梯/脚本口径：{} 条边 / 从 f{} 可达 {} 层 ==", n, input.start_floor, reach.len());
+        println!("可达层: {}", reach_list.join(","));
+        let missing: Vec<String> = (0..=54).filter(|f| !reach.contains(f)).map(|f| f.to_string()).collect();
+        println!("不可达层（仅楼梯/脚本）: {}", missing.join(","));
+        // 门（ty83）的槽号：回答「这层的门触发哪个脚本、脚本里有没有换层」。
+        for (f, lv) in &input.floors {
+            let gates: Vec<String> = lv
+                .entities
+                .iter()
+                .filter(|e| e.ty == 83)
+                .map(|e| format!("({},{})slot={}", e.x, e.y, e.param))
+                .collect();
+            if !gates.is_empty() {
+                println!("f{f} 门 {}: {}", gates.len(), gates.join("  "));
+            }
+        }
+        // 落盘：data/tables/floor_transitions.json（机器可读，供 witness builder 与文档引用）。
+        if let Some(pos) = args.iter().position(|a| a == "--out") {
+            if let Some(path) = args.get(pos + 1) {
+                let mut js = String::from("{\n  \"start_floor\": ");
+                js.push_str(&input.start_floor.to_string());
+                js.push_str(",\n  \"floors\": [");
+                let mut first_floor = true;
+                for (f, lv) in &input.floors {
+                    if !first_floor {
+                        js.push(',');
+                    }
+                    first_floor = false;
+                    js.push_str(&format!("\n    {{\"floor\": {},\"edges\": [", f));
+                    let edges = g.get(f).cloned().unwrap_or_default();
+                    let mut first_edge = true;
+                    for e in &edges {
+                        if !first_edge {
+                            js.push(',');
+                        }
+                        first_edge = false;
+                        js.push_str(&format!(
+                            "{{\"kind\":\"{:?}\",\"cell\":[{},{}],\"to\":{},\"detail\":\"{}\"}}",
+                            e.kind, e.cell.0, e.cell.1, e.to, e.detail
+                        ));
+                    }
+                    let gates: Vec<String> = lv
+                        .entities
+                        .iter()
+                        .filter(|e| e.ty == 83)
+                        .map(|e| format!("{{\"cell\":[{},{}],\"slot\":{}}}", e.x, e.y, e.param))
+                        .collect();
+                    js.push_str(&format!("],\"gates\":[{}]}}", gates.join(",")));
+                }
+                js.push_str("\n  ]\n}\n");
+                std::fs::write(path, js).expect("写 floor_transitions.json");
+                println!("已写 {path}");
+            }
+        }
+    }
     if args.first().map(|s| s.as_str()) == Some("doors") {
         // 必经门清单：把 C4-a「充分+必要」判据推广到门（逻辑在 lib::doors）。
         // 口径：单独封住这扇门 ⇒ 出口不可达 = 必经；封住同色全部门 ⇒ 不可达 = 该色钥匙至少一把必须。
