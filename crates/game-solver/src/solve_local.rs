@@ -273,8 +273,8 @@ pub fn solve_local(input: &SolveInput) -> SolveResult {
     };
     let search = Search::new(input, level);
     let (reachable, goals) = search.run();
-    let hp_goal = pick::<HpLoss>(&goals);
-    let kill_goal = pick::<Kills>(&goals);
+    let hp_goal = pick::<HpLoss, _>(&goals);
+    let kill_goal = pick::<Kills, _>(&goals);
     SolveResult {
         floor: input.floor,
         difficulty: input.difficulty,
@@ -354,6 +354,112 @@ pub fn solve_layer(
     flags: u128,
 ) -> (bool, Vec<LayerGoal>) {
     solve_layer_with(input, entry, ents, player, flags, ClosurePolicy::OFF, &[])
+}
+
+/// 【P3】单层「入场 → 出层」可续跑求解结果。
+///
+/// 与 [`solve_local`] 的分工：那个回答「本层能不能到出口」（`reachable`/`max_hp`），
+/// 本结构回答「**带着什么状态出层**」——`out_player`/`out_flags`/`out_ents` 就是下一层
+/// [`solve_layer`] 的三个注入参数，`route` 与 `SolveResult.route` 同一套 route_gen token，
+/// 可直接回放。全局求解原先只能拿「残缺层状态」接力（`coverage.truncated` 的 5 层），
+/// 根因是层解不导出出层态；本结构补齐这一环。
+///
+/// 语义铁律：出层状态**只来自引擎读回**（`pickup_step`/`gate_arrive` 内的
+/// `readback_script`），本层不做任何「结算」推演；掉落只生成实体、**不凭空入账**
+/// （同 P2 判据 `boss_kill_spawns_drop_entity_from_core_rules_only`）——
+/// `out_player.item_types` 里有东西 ⇔ 路上真的踩过那一格。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExitSolve {
+    /// 是否求出「能出层」的解（`level=None` / 被怪封死 / 本层无出口 ⇒ false）
+    pub ok: bool,
+    /// 出层落点（楼梯/门/脚本出口的格子）
+    pub exit: Option<(i32, i32)>,
+    /// 出层后的玩家状态（hp/atk/def/三色钥/金币/背包）
+    pub out_player: PlayerSpec,
+    /// 出层后的脚本域状态（`script_line_flags` 位图）
+    pub out_flags: u128,
+    /// 出层后仍在场的实体（`EntRec` 列表，按引擎口径 `readback_ents`）
+    pub out_ents: Vec<EntRec>,
+    /// 路线（与既有 `SolveResult.route` 同格式，便于回放）
+    pub route: Vec<String>,
+    /// 出层时剩余血量（= 目标函数；`ok=false` 时回显入场 hp）
+    pub out_hp: i32,
+    /// 【附加】出层类别（`LayerGoal.kind` 直传：Stair/Script/Cloud/UseItem/Ending）。
+    /// 任务书的 7 字段不够消费方判「这条边通到哪」——与 `solve_global` 同口径补回。
+    pub kind: Option<ExitKind>,
+    /// 【附加】换层边两元组 `(target, went_down)`（Script/Cloud/UseItem 臂非 None；
+    /// Stair 由出口梯实体 `param` 取参，与 `solve_global::stair_target` 同口径）
+    pub cross_edge: Option<(i32, bool)>,
+    /// 【附加】`ok=false` 的成因分流：`true`=本层搜索撞层界（`layer_node_limit()`）
+    /// 被截断，出层状态**不完整、不可当作「无解」**；`false`=空间内穷尽。
+    /// 依据 `LAYER_TRUNC`（`solve_layer_with` 与 `solve_global` 观测同一标记）。
+    pub truncated: bool,
+}
+
+impl ExitSolve {
+    /// 未出层时的回显形态：入场状态原样返回（四态一致 ⇒ 调用方只看 `ok` 一个开关）。
+    fn failed(player_in: &PlayerSpec, flags_in: u128, ents_in: &[EntRec], truncated: bool) -> Self {
+        ExitSolve {
+            ok: false,
+            exit: None,
+            out_player: player_in.clone(),
+            out_flags: flags_in,
+            out_ents: ents_in.to_vec(),
+            route: Vec::new(),
+            out_hp: player_in.hp,
+            kind: None,
+            cross_edge: None,
+            truncated,
+        }
+    }
+}
+
+/// 【P3】单层「可续跑」求解：给定入场状态，求一条**能出层**的路线，并导出出层状态。
+///
+/// 首参是 [`SolveInput`] 而非 `&LevelSpec`（任务书原型的 `level: &LevelSpec` 无法提供
+/// 楼层号）：`entity_category_with_floor`、`apply_kill_drops`、floor50 `Ending` 判定
+/// 全部以 `input.floor` 为轴，而 `LevelSpec` 不含楼层号。`SolveInput` = 层规格 + 楼层 +
+/// 难度标签，正是既有层门面 [`solve_layer`] 的首参——本函数是它的**同形投影**，
+/// 不新增第二套入口约定。
+///
+/// - `entry`：入场格；`player_in`/`flags_in`/`ents_in`：入场三态注入（层间携带上一层 `ExitSolve`）；
+/// - `ents_in` 空 ⇒ 用 `level` 自带实体（`sprite_full`，新层首入语义）。
+///   **已知边界**：空切片无法表达「层内实体全清」——那种场景直接调
+///   [`solve_layer`] 传 `Some(&[])`（本函数按任务书口径把空并入 sprite）；
+/// - 目标 = **出层血量最大**（tie-break：步数少 → 路线字典序），复用既有 [`HpLoss`]
+///   代价序；选解发生在**已收集的目标集**上，不改搜索空间 ⇒ 不引入新的状态爆炸面
+///   （搜索仍受 `weakly_ge`/`dominates` 剪枝 + `layer_node_limit()` 层界管辖）；
+/// - 注入路径：`solve_layer`（已支持四注入）→ `search.run_root(entry, ents, player, flags)`；
+///   出层读回复用 `pickup_step`/`gate_arrive` 内的 `readback_script`/`readback_ents`。
+pub fn solve_local_exit(
+    input: &SolveInput,
+    entry: (i32, i32),
+    player_in: &PlayerSpec,
+    flags_in: u128,
+    ents_in: &[EntRec],
+) -> ExitSolve {
+    let ents = if ents_in.is_empty() {
+        None
+    } else {
+        Some(ents_in)
+    };
+    let (reachable, goals) = solve_layer(input, entry, ents, player_in.clone(), flags_in);
+    let truncated = take_layer_trunc().is_some();
+    match pick::<HpLoss, _>(&goals) {
+        Some(g) if reachable => ExitSolve {
+            ok: true,
+            exit: Some(g.post_pos),
+            out_player: g.post.clone(),
+            out_flags: g.post_flags,
+            out_ents: g.post_ents.clone(),
+            route: g.route.clone(),
+            out_hp: g.hp,
+            kind: Some(g.kind),
+            cross_edge: g.cross_edge,
+            truncated,
+        },
+        _ => ExitSolve::failed(player_in, flags_in, ents_in, truncated),
+    }
 }
 
 /// 批4 C4-a：带贪心零决策闭包谓词的层求解（`solve_layer`=谓词 `OFF` 的转发，
@@ -919,13 +1025,64 @@ struct Goal {
     cross_edge: Option<(i32, bool)>,
 }
 
+/// 取解比较面：私有 `Goal` 与公开 [`LayerGoal`] 的同构投影。
+///
+/// 为什么要有这一层：`solve_local` 在私有 `Goal` 上取解，而层门面 [`solve_layer`]
+/// 交出去的是投影后的 `LayerGoal`。P3 的 [`solve_local_exit`] 必须与既有查询在
+/// **同一套 tie-break** 上选解（hp 大 → steps 少 → 路线字典序），否则「同层多解取
+/// 血量最大」会随入口路径不同而漂移——漂移即静默改解。一个比较器 + 两个投影，
+/// 禁止第二份 `hp/steps/route` 比较。
+trait GoalFace {
+    fn hp(&self) -> i32;
+    fn kills(&self) -> i32;
+    fn steps(&self) -> i32;
+    fn route(&self) -> &[String];
+    fn kind(&self) -> ExitKind;
+}
+
+impl GoalFace for Goal {
+    fn hp(&self) -> i32 {
+        self.hp
+    }
+    fn kills(&self) -> i32 {
+        self.kills
+    }
+    fn steps(&self) -> i32 {
+        self.steps
+    }
+    fn route(&self) -> &[String] {
+        &self.route
+    }
+    fn kind(&self) -> ExitKind {
+        self.kind
+    }
+}
+
+impl GoalFace for LayerGoal {
+    fn hp(&self) -> i32 {
+        self.hp
+    }
+    fn kills(&self) -> i32 {
+        self.kills
+    }
+    fn steps(&self) -> i32 {
+        self.steps
+    }
+    fn route(&self) -> &[String] {
+        &self.route
+    }
+    fn kind(&self) -> ExitKind {
+        self.kind
+    }
+}
+
 /// 代价泛型（§5 C3「同骨架两代价泛型」+ §1.4 双查询独立出解）。
 /// 支配剪枝与代价无关 ⇒ 搜索骨架只跑一次，代价只在取解时分叉。
 trait Cost {
     /// 量化域（HpLoss：全部出口；Kills：仅 Exit#1 步行楼梯，§1.4 ②）
     fn eligible(kind: ExitKind) -> bool;
     /// 优劣：true = a 优于 b（并列取步数少者、再并列字典序最小路线，§3.3）
-    fn better(a: &Goal, b: &Goal) -> bool;
+    fn better<G: GoalFace>(a: &G, b: &G) -> bool;
 }
 
 /// Q1：max_hp（域=全部合法路，含 Exit#2；§1.4 ①）
@@ -935,13 +1092,13 @@ impl Cost for HpLoss {
     fn eligible(_kind: ExitKind) -> bool {
         true
     }
-    fn better(a: &Goal, b: &Goal) -> bool {
-        if a.hp != b.hp {
-            a.hp > b.hp
-        } else if a.steps != b.steps {
-            a.steps < b.steps
+    fn better<G: GoalFace>(a: &G, b: &G) -> bool {
+        if a.hp() != b.hp() {
+            a.hp() > b.hp()
+        } else if a.steps() != b.steps() {
+            a.steps() < b.steps()
         } else {
-            a.route < b.route
+            a.route() < b.route()
         }
     }
 }
@@ -953,21 +1110,21 @@ impl Cost for Kills {
     fn eligible(kind: ExitKind) -> bool {
         matches!(kind, ExitKind::Stair)
     }
-    fn better(a: &Goal, b: &Goal) -> bool {
-        if a.kills != b.kills {
-            a.kills < b.kills
-        } else if a.steps != b.steps {
-            a.steps < b.steps
+    fn better<G: GoalFace>(a: &G, b: &G) -> bool {
+        if a.kills() != b.kills() {
+            a.kills() < b.kills()
+        } else if a.steps() != b.steps() {
+            a.steps() < b.steps()
         } else {
-            a.route < b.route
+            a.route() < b.route()
         }
     }
 }
 
 /// 取解：域内 argbest（None = 该域无解；`reachable` 仍由「任一出口」决定）。
-fn pick<C: Cost>(goals: &[Goal]) -> Option<&Goal> {
-    let mut best: Option<&Goal> = None;
-    for g in goals.iter().filter(|g| C::eligible(g.kind)) {
+fn pick<C: Cost, G: GoalFace>(goals: &[G]) -> Option<&G> {
+    let mut best: Option<&G> = None;
+    for g in goals.iter().filter(|g| C::eligible(g.kind())) {
         best = match best {
             None => Some(g),
             Some(b) if C::better(g, b) => Some(g),

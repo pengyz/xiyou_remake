@@ -8,7 +8,7 @@ use game_data::defs::EnemyDef;
 use game_core::combat::{scale_enemy_stats, CombatTables, PlayerCombat};
 use game_core::scene_test_support::scene;
 use game_solver::solve_local::{
-    probe_bump, probe_gate, solve_layer, solve_local, solve_layer_with,
+    probe_bump, probe_gate, solve_layer, solve_local, solve_local_exit, solve_layer_with,
     ClosurePolicy, EntRec, EntSpec, ExitKind, ExitSpec, LevelSpec, PlayerSpec, SolveInput,
 };
 use std::path::PathBuf;
@@ -1121,3 +1121,154 @@ fn drop_entity_pickup_credits_inventory() {
 }
 
 // ================= P3 单层「入场 → 出层」接口判据 =================
+
+/// P3 链条第二层夹具：5×3 **单走廊**（只有 y=1 可走，余墙），入口 (0,1)、出口梯 7@(4,1) Exit#1；
+/// 自带 sprite 里另有一头 41@(2,1)——**探针**：若入场实体注入被忽略（改用 sprite），
+/// 求解器必须与它交战（`-24 hp`），`out_hp` 立刻掉 24 暴露。
+/// 走廊形状是必须的：全可走时求解器会绕行 (2,0)，探针就失去判别力（实测 276 而非 252）。
+fn fixture_layer2() -> SolveInput {
+    let (base, scaled) = enemy_tables();
+    let level = LevelSpec {
+        cols: 5,
+        rows: 3,
+        // 行主序：y=0 全墙、y=1 全可走、y=2 全墙
+        terrain: vec![false, false, false, false, false, true, true, true, true, true, false, false, false, false, false],
+        start: (0, 1),
+        entities: vec![
+            EntSpec { ty: 41, x: 2, y: 1, param: 0 },
+            EntSpec { ty: 7, x: 4, y: 1, param: 3 },
+        ],
+        exits: vec![ExitSpec { x: 4, y: 1, kind: ExitKind::Stair, index: 1 }],
+        player: PlayerSpec::from_combat(player(300, 10, 10)),
+        enemies: scaled,
+        enemy_base: base,
+        flags: 0,
+    };
+    SolveInput { floor: 2, difficulty: 0, level: Some(level) }
+}
+
+/// 【P3-① 判据】入场状态必须真的生效：同一层、只改入场 hp，`out_hp` 与 `ok` 都要变。
+///
+/// 变异自证（报告里贴红态）：把 `solve_local_exit` 的 `player_in` 换成
+/// `input.level.player`（忽略注入）⇒ 两次调用都取 level 自带 hp300 ⇒ 本测试红
+/// （低血那次会变成 ok=true / out_hp=276）。
+#[test]
+fn exit_solve_returns_entry_sensitive_result() {
+    let input = fixture_3x3_ty(41, player(300, 10, 10));
+    let hi = PlayerSpec::from_combat(player(300, 10, 10));
+    let lo = PlayerSpec::from_combat(player(10, 10, 10)); // loss24 ≥ hp10 ⇒ Refused
+    let a = solve_local_exit(&input, (0, 1), &hi, 0, &[]);
+    let b = solve_local_exit(&input, (0, 1), &lo, 0, &[]);
+
+    assert!(a.ok, "hp300 能杀 41（loss24）⇒ 出层：{a:?}");
+    assert_eq!(a.out_hp, 276, "出层血=300-24：{a:?}");
+    assert_eq!(a.exit, Some((2, 1)), "出层落点=出口梯格：{a:?}");
+    assert_eq!(a.kind, Some(ExitKind::Stair), "出层类别=Stair：{a:?}");
+    assert_eq!(
+        a.route,
+        vec!["0,1".to_string(), "bump 41@1,1".to_string(), "2,1".to_string()],
+        "路线与既有 solve_local 同格式：{a:?}"
+    );
+
+    assert!(!b.ok, "hp10 < loss24 ⇒ 被封死，不得报出层：{b:?}");
+    assert_eq!(b.out_hp, 10, "未出层 ⇒ 回显入场 hp：{b:?}");
+    assert_eq!(b.exit, None, "未出层 ⇒ exit=None：{b:?}");
+    assert_eq!(b.out_player, lo, "未出层 ⇒ 出层玩家=入场玩家（幂等回显）：{b:?}");
+
+    assert_ne!(a.ok, b.ok, "ok 必须随入场 hp 变化");
+    assert_ne!(a.out_hp, b.out_hp, "out_hp 必须随入场 hp 变化");
+}
+
+/// 【P3-② 判据】确定性：同输入两次调用，route/out_hp/out_player 完全相同。
+///
+/// 为什么开两个线程：`LAYER_MEMO` 是 `thread_local` 缓存，同线程第二次调用是
+/// **缓存回放**（返回同一份 clone）⇒ 那样的「相等」什么都没证明。两线程=两份独立
+/// 冷启 memo，等于跑了两遍搜索。
+#[test]
+fn exit_solve_is_deterministic() {
+    let input = fixture_3x3_ty(41, player(300, 10, 10));
+    let p = PlayerSpec::from_combat(player(300, 10, 10));
+    let run = |input: SolveInput, p: PlayerSpec| {
+        std::thread::spawn(move || solve_local_exit(&input, (0, 1), &p, 0, &[]))
+            .join()
+            .expect("求解线程")
+    };
+    let a = run(input.clone(), p.clone());
+    let b = run(input.clone(), p.clone());
+    assert!(a.ok, "非平凡闸：必须有解（空解双跑恒等不算证据）：{a:?}");
+    assert_eq!(a.route, b.route, "route 双冷启逐 token 相等");
+    assert_eq!(a.out_hp, b.out_hp, "out_hp 双冷启相等");
+    assert_eq!(a.out_player, b.out_player, "out_player 双冷启逐字段相等");
+    assert_eq!(a.out_ents, b.out_ents, "out_ents 双冷启相等");
+    assert_eq!(a, b, "整体逐字段相等（ExitSolve: PartialEq）");
+}
+
+/// 【P3-③ 判据】导出状态**可消费**：第 1 层的 `out_player/out_flags/out_ents`
+/// 直接当第 2 层入场，必须能求出解（不是摆设）。
+///
+/// 反证腿（`naive`）：同一层、同一 `out_player`，但 `ents_in` 传空 ⇒ 用第 2 层自带
+/// sprite（含 41@(2,1)）⇒ 会交战 -24 ⇒ `out_hp` 变 252。两条腿的差证明
+/// 「注入的活体表真的被用上了」，而不是恰好两条都能通。
+#[test]
+fn exit_solve_roundtrip_chains() {
+    let a_in = fixture_3x3_ty(41, player(300, 10, 10));
+    let p = PlayerSpec::from_combat(player(300, 10, 10));
+    let a = solve_local_exit(&a_in, (0, 1), &p, 0, &[]);
+    assert!(a.ok, "第 1 层应出层：{a:?}");
+    assert_eq!(a.out_hp, 276, "第 1 层出层血：{a:?}");
+    assert_eq!(sorted_ents(&a.out_ents), vec![(7, 2, 1, 2)], "第 1 层残留=出口梯：{a:?}");
+
+    let b_in = fixture_layer2();
+    let b = solve_local_exit(&b_in, (0, 1), &a.out_player, a.out_flags, &a.out_ents);
+    assert!(b.ok, "第 2 层应能消费上层导出状态求解：{b:?}");
+    assert_eq!(b.out_hp, a.out_hp, "hp 沿链守恒（注入活体里没有怪 ⇒ 无战斗）");
+    assert_eq!(b.exit, Some((4, 1)), "第 2 层出口：{b:?}");
+    assert_eq!(
+        sorted_ents(&b.out_ents),
+        sorted_ents(&a.out_ents),
+        "第 2 层入场活体=上层 out_ents（不是第 2 层自带 sprite）"
+    );
+
+    // 反证腿：忽略注入实体、改用第 2 层 sprite ⇒ 与 41 交战，hp 少 24。
+    let naive = solve_local_exit(&b_in, (0, 1), &a.out_player, a.out_flags, &[]);
+    assert!(naive.ok, "sprite 腿也应可达：{naive:?}");
+    assert_eq!(
+        naive.out_hp, 252,
+        "若忽略 ents_in（用 sprite 里的 41）⇒ 276-24=252（证明注入腿不是空过）"
+    );
+    assert!(naive.route.iter().any(|t| t.starts_with("bump 41@")), "sprite 腿须含交战：{:?}", naive.route);
+}
+
+/// 【P3-④ 判据】真数据 f1：`ingest` 载入 → 出层解存在、`out_hp>0`，且与既有
+/// `solve_local` 的 `max_hp` 对得上（同一套 `HpLoss` 代价序）。
+#[test]
+fn exit_solve_maximizes_hp_on_real_data() {
+    let input = fixture_floor1();
+    let level = input.level.clone().expect("floor1 已装载");
+    let entry = level.start;
+    let old = solve_local(&input);
+    assert!(old.reachable, "floor1 既有解存在：{old:?}");
+    let old_max_hp = old.max_hp.expect("floor1 max_hp");
+
+    let got = solve_local_exit(&input, entry, &level.player, level.flags, &[]);
+    println!(
+        "[P3-④] f1 entry={entry:?} out_hp={} old_max_hp={} exit={:?} kind={:?} route_len={} out_ents={} truncated={}",
+        got.out_hp,
+        old_max_hp,
+        got.exit,
+        got.kind,
+        got.route.len(),
+        got.out_ents.len(),
+        got.truncated
+    );
+    assert!(got.ok, "f1 必须求得能出层的路线：{got:?}");
+    assert!(got.out_hp > 0, "出层血必须为正：{got:?}");
+    assert_eq!(
+        Some(got.out_hp),
+        old.max_hp,
+        "出层最大血必须等于既有 max_hp（同一 Cost::HpLoss 序）"
+    );
+    assert_eq!(got.route, old.route, "选解一致 ⇒ 路由也一致");
+    assert!(got.exit.is_some(), "出层落点非空：{got:?}");
+    assert!(!got.truncated, "f1 单层搜索不该撞层界（撞了说明口径变了）：{got:?}");
+}
