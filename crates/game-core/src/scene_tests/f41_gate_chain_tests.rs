@@ -9,7 +9,9 @@
 //!   `from_walk && flags[13] && entity_at_cell(2,2,60) < 0 && entity_at_cell(10,2,60) < 0`。
 //! - 脚本 13 = `CES_6_10_2 CES_60_10_2`（在 (10,2) 召出一只 ty60）；脚本 25 = `CES_22_6_6`。
 //!
-//! ⇒ 设计意图是**链式**而非竞争：先跑 13（同时召出第二处火）→ 清掉两处火 → 再踩才开 25。
+//! ⇒ 设计意图是**链式**而非竞争：先跑 13（同时召出第二处火 ty6+ty60）→ 清掉两处火 → 再踩才开 25。
+//! 落点可达性见下 `f41_gate13_fire_makes_cell13_enterable`：13 召出的 ty6 使 (10,2)
+//! 进入「楼梯/喷泉豁免地形」分支（a.java:5470），该格因此可进入——链是自使能的。
 //! 本测试把这条链逐环节钉住，防止「同格双门谁先命中」再次失据（该行为此前零覆盖）。
 
 use super::scene_test_support::{images, numbers};
@@ -150,12 +152,31 @@ fn f41_gate25_stays_closed_while_fires_remain() {
 /// 而门 25 的门控要求 `from_walk`（必须走进该格）⇒ 「玩家能否真的站到 (10,2)」
 /// 是这条链成立的前提，当前**未证实**。本测试把这个矛盾显式钉在这里，
 /// 防止上面的链式测试被读成「f41 下行符已确认可得」。
+/// 【2026-11-18 更正】此前把「(10,2) 地形不可走」当作「门 25 不可达」的证据，是错的。
+///
+/// 引擎的地形终审带豁免（`crates/game-core/src/scene.rs` `interact_with_cell`：
+/// 「cur_y 楼梯/喷泉计数 >0 时豁免地形」，对应 a.java:5470 `if (var6 && var7 <= 0)`），
+/// 而 var7 在 Java 侧只被 `case 6`（三昧真火 ty6）/`case 7`/`case 8`（上下梯）自增
+/// （a.java:5410/5418/5420 → 本仓 `solve_local.rs` 的 `stair_like(6|7|8)`)。
+/// 门 13 的脚本是 `CES_6_10_2 CES_60_10_2`——**它自己会在 (10,2) 召出一团 ty6 火**，
+/// 于是该格从「墙」变成「带火格」，地形豁免生效 ⇒ 玩家能走进去触发门 25。
+/// 这条链是自使能的：13 开门 → 召火 → 火让格子可进 → 进去才开门 25。
 #[test]
-fn f41_gate_cell_not_walkable_open_question() {
-    let (sc, _wt) = load_f41();
-    assert!(!sc.walkable_at(10, 2), "f41 (10,2) 地形不可走（cell_type 51）——链式测试的站位是非法的");
-    assert!(sc.walkable_at(2, 2), "f41 (2,2) 地形可走（火陷阱所在格）");
-    // 火的上爬前提：上格必须可走且无槽。两处火的上格都是墙 ⇒ fire_trap_climb_up 不会发生。
-    assert!(!sc.walkable_at(2, 1), "(2,2) 火的上格 (2,1) 不可走 ⇒ 火爬不走");
-    assert!(!sc.walkable_at(10, 1), "(10,2) 火的上格 (10,1) 不可走 ⇒ 火爬不走");
+fn f41_gate13_fire_makes_cell13_enterable() {
+    let (mut sc, wt) = load_f41();
+    // 初始：地形不可走，且该格只有两扇门（无 ty6 火）⇒ 不豁免。
+    assert!(!sc.walkable_at(10, 2), "f41 (10,2) 地形不可走");
+    assert!(sc.entity_at_cell(10, 2, 6) < 0, "初始 (10,2) 没有 ty6 火");
+
+    // 撞格触发门 13（撞格路径 from_walk=false），脚本在 (10,2) 召出 ty6 + ty60。
+    stand(&mut sc, 9, 2);
+    let _ = sc.try_step(2);
+    run_script_to_end(&mut sc, &wt);
+    assert!(sc.entity_at_cell(10, 2, 6) >= 0, "脚本 13 在 (10,2) 召出 ty6 火");
+    assert!(sc.entity_at_cell(10, 2, 60) >= 0, "脚本 13 在 (10,2) 召出 ty60");
+
+    // 关键：格子仍是地形墙，但 ty6 使它进入地形豁免——这是门 25 可达的前提。
+    assert!(!sc.walkable_at(10, 2), "地形依然不可走（豁免是交互层的，不是地形层的）");
+    let exempt = (6..=8).any(|t| sc.entity_at_cell(10, 2, t) >= 0);
+    assert!(exempt, "(10,2) 有 ty6 ⇒ interact_with_cell 的楼梯/喷泉计数 >0 ⇒ 地形终审被豁免");
 }
