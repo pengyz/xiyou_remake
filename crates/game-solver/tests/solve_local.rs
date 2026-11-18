@@ -1157,8 +1157,8 @@ fn exit_solve_returns_entry_sensitive_result() {
     let input = fixture_3x3_ty(41, player(300, 10, 10));
     let hi = PlayerSpec::from_combat(player(300, 10, 10));
     let lo = PlayerSpec::from_combat(player(10, 10, 10)); // loss24 ≥ hp10 ⇒ Refused
-    let a = solve_local_exit(&input, (0, 1), &hi, 0, &[]);
-    let b = solve_local_exit(&input, (0, 1), &lo, 0, &[]);
+    let a = solve_local_exit(&input, (0, 1), &hi, 0, None);
+    let b = solve_local_exit(&input, (0, 1), &lo, 0, None);
 
     assert!(a.ok, "hp300 能杀 41（loss24）⇒ 出层：{a:?}");
     assert_eq!(a.out_hp, 276, "出层血=300-24：{a:?}");
@@ -1189,7 +1189,7 @@ fn exit_solve_is_deterministic() {
     let input = fixture_3x3_ty(41, player(300, 10, 10));
     let p = PlayerSpec::from_combat(player(300, 10, 10));
     let run = |input: SolveInput, p: PlayerSpec| {
-        std::thread::spawn(move || solve_local_exit(&input, (0, 1), &p, 0, &[]))
+        std::thread::spawn(move || solve_local_exit(&input, (0, 1), &p, 0, None))
             .join()
             .expect("求解线程")
     };
@@ -1213,13 +1213,13 @@ fn exit_solve_is_deterministic() {
 fn exit_solve_roundtrip_chains() {
     let a_in = fixture_3x3_ty(41, player(300, 10, 10));
     let p = PlayerSpec::from_combat(player(300, 10, 10));
-    let a = solve_local_exit(&a_in, (0, 1), &p, 0, &[]);
+    let a = solve_local_exit(&a_in, (0, 1), &p, 0, None);
     assert!(a.ok, "第 1 层应出层：{a:?}");
     assert_eq!(a.out_hp, 276, "第 1 层出层血：{a:?}");
     assert_eq!(sorted_ents(&a.out_ents), vec![(7, 2, 1, 2)], "第 1 层残留=出口梯：{a:?}");
 
     let b_in = fixture_layer2();
-    let b = solve_local_exit(&b_in, (0, 1), &a.out_player, a.out_flags, &a.out_ents);
+    let b = solve_local_exit(&b_in, (0, 1), &a.out_player, a.out_flags, Some(&a.out_ents));
     assert!(b.ok, "第 2 层应能消费上层导出状态求解：{b:?}");
     assert_eq!(b.out_hp, a.out_hp, "hp 沿链守恒（注入活体里没有怪 ⇒ 无战斗）");
     assert_eq!(b.exit, Some((4, 1)), "第 2 层出口：{b:?}");
@@ -1230,7 +1230,7 @@ fn exit_solve_roundtrip_chains() {
     );
 
     // 反证腿：忽略注入实体、改用第 2 层 sprite ⇒ 与 41 交战，hp 少 24。
-    let naive = solve_local_exit(&b_in, (0, 1), &a.out_player, a.out_flags, &[]);
+    let naive = solve_local_exit(&b_in, (0, 1), &a.out_player, a.out_flags, None);
     assert!(naive.ok, "sprite 腿也应可达：{naive:?}");
     assert_eq!(
         naive.out_hp, 252,
@@ -1250,7 +1250,7 @@ fn exit_solve_maximizes_hp_on_real_data() {
     assert!(old.reachable, "floor1 既有解存在：{old:?}");
     let old_max_hp = old.max_hp.expect("floor1 max_hp");
 
-    let got = solve_local_exit(&input, entry, &level.player, level.flags, &[]);
+    let got = solve_local_exit(&input, entry, &level.player, level.flags, None);
     println!(
         "[P3-④] f1 entry={entry:?} out_hp={} old_max_hp={} exit={:?} kind={:?} route_len={} out_ents={} truncated={}",
         got.out_hp,
@@ -1271,4 +1271,136 @@ fn exit_solve_maximizes_hp_on_real_data() {
     assert_eq!(got.route, old.route, "选解一致 ⇒ 路由也一致");
     assert!(got.exit.is_some(), "出层落点非空：{got:?}");
     assert!(!got.truncated, "f1 单层搜索不该撞层界（撞了说明口径变了）：{got:?}");
+}
+
+// ================= P3 复核红1/黄F4/黄F1 判据（2026-11-18） =================
+
+/// 【红1 判据】`flags_in` 注入是出层判定里**唯一**的脚本旗标来源（契约），三腿齐全：
+///
+/// 1. `flags_in=0` ⇒ 门（83/param19，`gate=!flags[19]`）可重入 ⇒ `ok=true`；
+/// 2. `flags_in=1<<19` ⇒ 门被挡，且本夹具无 `ExitSpec` ⇒ `ok=false`、`exit=None`、`route` 空；
+/// 3. 同一 `level` 把 bit19 放在 **`level.flags`**、注入 0 ⇒ 仍 `ok=true`——
+///    证明**只认注入、不认 level 自带 flags**（否则「层内携带上一层终态」的接链契约是假的）。
+///
+/// 变异自证（复核者 M2）：把 `solve_local_exit` 的 `flags_in` 换成 `u128::default()`
+/// ⇒ 腿2 变 `ok=true`（门重入没被挡）⇒ 本测试红在腿2。
+#[test]
+fn exit_solve_honors_injected_flags_only() {
+    let p = PlayerSpec::from_combat(player(300, 10, 10));
+
+    // 腿1：注入 0 ⇒ 门可重入 ⇒ 出层（路线止于 gate 航点，脚本换层边）
+    let a = solve_local_exit(&fixture_gate(19, 0, 0), (6, 10), &p, 0, None);
+    assert!(a.ok, "flags_in=0 ⇒ 门可重入、必须能出层：{a:?}");
+    assert_eq!(
+        a.route,
+        vec!["6,10".to_string(), "6,9".to_string(), "gate 6,9".to_string()],
+        "走门格的路线形态：{a:?}"
+    );
+    assert_eq!(a.kind, Some(ExitKind::Script), "门脚本换层 ⇒ kind=Script：{a:?}");
+    assert_eq!(a.exit, Some((11, 1)), "脚本尾 MOV 走上梯格 ⇒ 出层落点 (11,1)：{a:?}");
+
+    // 腿2：注入 bit19 ⇒ 门不可重入；无 ExitSpec ⇒ 无解
+    let b = solve_local_exit(&fixture_gate(19, 0, 0), (6, 10), &p, 1u128 << 19, None);
+    assert!(!b.ok, "flags_in=bit19 ⇒ 门被挡、且无出口 ⇒ 必须 !ok：{b:?}");
+    assert_eq!(b.exit, None, "未出层 ⇒ exit=None：{b:?}");
+    assert!(b.route.is_empty(), "未出层 ⇒ route 空：{b:?}");
+    assert_eq!(b.out_hp, 300, "未出层 ⇒ 回显入场 hp：{b:?}");
+
+    // 腿3：level.flags 置 bit19、注入 0 ⇒ 与腿1同解（level.flags 不参与）
+    let c = solve_local_exit(&fixture_gate(19, 1u128 << 19, 0), (6, 10), &p, 0, None);
+    assert!(c.ok, "level.flags 不参与判定（契约=只认 flags_in）：{c:?}");
+    assert_eq!(c.route, a.route, "与腿1同路线 ⇒ level.flags 确实被忽略：{c:?}");
+    assert_eq!(c.out_hp, a.out_hp, "同解 ⇒ 同出层血：{c:?}");
+}
+
+/// 【黄F4 判据】目标函数第一关键字是 **hp**，不是步数：同层两条出层路线。
+///
+/// 夹具 5×4：y=1/y=2 两行可走；`41@(1,1)` 只堵上路；出口梯 `7@(4,1)`（Exit#1）。
+/// - 上路：`bump 41` 交战 -24 ⇒ **hp276**、4 步（短）；
+/// - 下路：绕 y=2 行 ⇒ **hp300**、7 个航点（长）。
+///
+/// 必须选 hp300（长但血多）。变异自证（复核者 M4）：把 `HpLoss::better` 改成
+/// steps 优先 ⇒ 选 hp276 的上路 ⇒ 本测试红在 `out_hp`。
+fn fixture_two_routes() -> SolveInput {
+    let (base, scaled) = enemy_tables();
+    let level = LevelSpec {
+        cols: 5,
+        rows: 4,
+        // 行主序：y=0 墙、y=1 全可走、y=2 全可走、y=3 墙
+        terrain: vec![
+            false, false, false, false, false, //
+            true, true, true, true, true, //
+            true, true, true, true, true, //
+            false, false, false, false, false,
+        ],
+        start: (0, 1),
+        entities: vec![
+            EntSpec { ty: 41, x: 1, y: 1, param: 0 },
+            EntSpec { ty: 7, x: 4, y: 1, param: 3 },
+        ],
+        exits: vec![ExitSpec { x: 4, y: 1, kind: ExitKind::Stair, index: 1 }],
+        player: PlayerSpec::from_combat(player(300, 10, 10)),
+        enemies: scaled,
+        enemy_base: base,
+        flags: 0,
+    };
+    SolveInput { floor: 3, difficulty: 0, level: Some(level) }
+}
+
+#[test]
+fn exit_solve_prefers_hp_over_steps() {
+    let input = fixture_two_routes();
+    let p = PlayerSpec::from_combat(player(300, 10, 10));
+    let got = solve_local_exit(&input, (0, 1), &p, 0, None);
+
+    assert!(got.ok, "两条路线都通 ⇒ 必须出层：{got:?}");
+    assert_eq!(
+        got.out_hp, 300,
+        "必须选血多的下路（hp300/7 航点），不得选 hp276/4 步的上路：{got:?}"
+    );
+    assert!(
+        !got.route.iter().any(|t| t.starts_with("bump ")),
+        "选中解不得含交战（上路才 bump 41）：{:?}",
+        got.route
+    );
+    assert!(got.route.len() >= 7, "下路是绕行（航点更多）：{:?}", got.route);
+    assert_eq!(got.exit, Some((4, 1)), "出口梯格：{got:?}");
+}
+
+/// 【黄F1 补口判据】`ents_in` 三态语义（`None`=本层 sprite / `Some(&[])`=层内实体全清）。
+///
+/// 旧签名是 `&[EntRec]`，空切片被并入 sprite ⇒「层内实体全清」无法表达（P3 复核 F1 缺口）。
+/// 现签名 `Option<&[EntRec]>`：`None` 才落 sprite，`Some(v)` 的 v 就是全部活体（可为空）。
+///
+/// 变异自证：把 `Some(v)` 一律当 `None`（即恢复旧「空切片并入 sprite」行为）⇒ 腿2 会与
+/// `41@(2,1)` 交战 ⇒ `out_hp=276`（而非 300）⇒ 本测试红。
+#[test]
+fn exit_solve_entities_none_is_sprite_some_empty_is_cleared() {
+    let b_in = fixture_layer2(); // sprite 自带 41@(2,1) + 出口梯 7@(4,1)
+    let p = PlayerSpec::from_combat(player(300, 10, 10));
+
+    // 腿1：None ⇒ 本层 sprite（含 41）⇒ 必须交战 -24
+    let sprite_leg = solve_local_exit(&b_in, (0, 1), &p, 0, None);
+    assert!(sprite_leg.ok, "sprite 腿应可达：{sprite_leg:?}");
+    assert_eq!(sprite_leg.out_hp, 276, "None ⇒ 用 sprite ⇒ 与 41 交战：{sprite_leg:?}");
+    assert!(
+        sprite_leg.route.iter().any(|t| t.starts_with("bump 41@")),
+        "sprite 腿须含交战：{:?}",
+        sprite_leg.route
+    );
+
+    // 腿2：Some(&[]) ⇒ 层内实体全清 ⇒ 无交战；出口仍由 level.exits 定义 ⇒ 可出层
+    let cleared = solve_local_exit(&b_in, (0, 1), &p, 0, Some(&[]));
+    assert!(cleared.ok, "实体全清不影响出层（出口来自 level.exits）：{cleared:?}");
+    assert_eq!(cleared.out_hp, 300, "无怪 ⇒ 出层血=入场血：{cleared:?}");
+    assert!(
+        !cleared.route.iter().any(|t| t.starts_with("bump ")),
+        "清空后不得再撞 sprite 里的 41：{:?}",
+        cleared.route
+    );
+    assert!(
+        cleared.out_ents.is_empty(),
+        "层内实体全清 ⇒ 出层现场空表（含出口梯实体）：{:?}",
+        cleared.out_ents
+    );
 }

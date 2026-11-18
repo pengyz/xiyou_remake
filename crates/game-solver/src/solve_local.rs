@@ -368,9 +368,15 @@ pub fn solve_layer(
 /// `readback_script`），本层不做任何「结算」推演；掉落只生成实体、**不凭空入账**
 /// （同 P2 判据 `boss_kill_spawns_drop_entity_from_core_rules_only`）——
 /// `out_player.item_types` 里有东西 ⇔ 路上真的踩过那一格。
+///
+/// 【契约】`ok` 与 `truncated` **不正交**（2026-11-18 P3 复核红2 改判）：
+/// `truncated=true ⇒ ok=false`，且此时 `out_*` 只作参考、不是可消费的出层态。
+/// 消费方只判 `ok` 一个开关即可，不必（也不该）另查 `truncated` 才能定成败。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExitSolve {
-    /// 是否求出「能出层」的解（`level=None` / 被怪封死 / 本层无出口 ⇒ false）
+    /// 是否求出**可信**的「能出层」解 = `reached_goal && !truncated`
+    /// （`level=None` / 被怪封死 / 本层无出口 / 搜索撞层界 ⇒ false）。
+    /// 唯一成败开关：不要用「`out_*` 非空」推断 ok，也不要在 `ok=true` 时忽略 `truncated`。
     pub ok: bool,
     /// 出层落点（楼梯/门/脚本出口的格子）
     pub exit: Option<(i32, i32)>,
@@ -382,7 +388,8 @@ pub struct ExitSolve {
     pub out_ents: Vec<EntRec>,
     /// 路线（与既有 `SolveResult.route` 同格式，便于回放）
     pub route: Vec<String>,
-    /// 出层时剩余血量（= 目标函数；`ok=false` 时回显入场 hp）
+    /// 出层时剩余血量（= 目标函数）；`truncated=true` 时只是**部分搜索**的最优参考值，
+    /// 不得当「出层最大血」消费（同 `out_*` 口径）。无任何目标时回显入场 hp。
     pub out_hp: i32,
     /// 【附加】出层类别（`LayerGoal.kind` 直传：Stair/Script/Cloud/UseItem/Ending）。
     /// 任务书的 7 字段不够消费方判「这条边通到哪」——与 `solve_global` 同口径补回。
@@ -390,21 +397,28 @@ pub struct ExitSolve {
     /// 【附加】换层边两元组 `(target, went_down)`（Script/Cloud/UseItem 臂非 None；
     /// Stair 由出口梯实体 `param` 取参，与 `solve_global::stair_target` 同口径）
     pub cross_edge: Option<(i32, bool)>,
-    /// 【附加】`ok=false` 的成因分流：`true`=本层搜索撞层界（`layer_node_limit()`）
-    /// 被截断，出层状态**不完整、不可当作「无解」**；`false`=空间内穷尽。
+    /// 本次搜索是否撞层界（`layer_node_limit()`）：`true` ⇒ **本次结果不可信**
+    /// （`ok` 必为 `false`；`out_player`/`out_flags`/`out_ents`/`route` 仅作参考——
+    /// 是「部分搜索里找到的最优一条」，不能当作「出层最大血」或下一层入场态消费）。
+    /// `false` ⇒ 空间内穷尽：`ok=false` 即真无解，`ok=true` 即空间内最优（可当契约）。
     /// 依据 `LAYER_TRUNC`（`solve_layer_with` 与 `solve_global` 观测同一标记）。
     pub truncated: bool,
 }
 
 impl ExitSolve {
-    /// 未出层时的回显形态：入场状态原样返回（四态一致 ⇒ 调用方只看 `ok` 一个开关）。
-    fn failed(player_in: &PlayerSpec, flags_in: u128, ents_in: &[EntRec], truncated: bool) -> Self {
+    /// 无有效目标时的回显形态：入场状态原样返回（`ok=false` ⇒ 调用方只看 `ok` 一个开关）。
+    fn failed(
+        player_in: &PlayerSpec,
+        flags_in: u128,
+        ents_in: Vec<EntRec>,
+        truncated: bool,
+    ) -> Self {
         ExitSolve {
             ok: false,
             exit: None,
             out_player: player_in.clone(),
             out_flags: flags_in,
-            out_ents: ents_in.to_vec(),
+            out_ents: ents_in,
             route: Vec::new(),
             out_hp: player_in.hp,
             kind: None,
@@ -423,31 +437,31 @@ impl ExitSolve {
 /// 不新增第二套入口约定。
 ///
 /// - `entry`：入场格；`player_in`/`flags_in`/`ents_in`：入场三态注入（层间携带上一层 `ExitSolve`）；
-/// - `ents_in` 空 ⇒ 用 `level` 自带实体（`sprite_full`，新层首入语义）。
-///   **已知边界**：空切片无法表达「层内实体全清」——那种场景直接调
-///   [`solve_layer`] 传 `Some(&[])`（本函数按任务书口径把空并入 sprite）；
+/// - `ents_in = None` ⇒ 用 `level` 自带实体（`sprite_full`，新层首入语义）；
+///   `ents_in = Some(v)` ⇒ **v 就是全部活体**（`Some(&[])` = 层内实体全清——这是 P3 复核
+///   F1 缺口的一行式补口：空切片不再被并入 sprite，语义无歧义）；
 /// - 目标 = **出层血量最大**（tie-break：步数少 → 路线字典序），复用既有 [`HpLoss`]
 ///   代价序；选解发生在**已收集的目标集**上，不改搜索空间 ⇒ 不引入新的状态爆炸面
 ///   （搜索仍受 `weakly_ge`/`dominates` 剪枝 + `layer_node_limit()` 层界管辖）；
 /// - 注入路径：`solve_layer`（已支持四注入）→ `search.run_root(entry, ents, player, flags)`；
 ///   出层读回复用 `pickup_step`/`gate_arrive` 内的 `readback_script`/`readback_ents`。
+/// - 成败：`ok = 有目标 && !truncated`（截断即不可信，见 [`ExitSolve::truncated`]）。
 pub fn solve_local_exit(
     input: &SolveInput,
     entry: (i32, i32),
     player_in: &PlayerSpec,
     flags_in: u128,
-    ents_in: &[EntRec],
+    ents_in: Option<&[EntRec]>,
 ) -> ExitSolve {
-    let ents = if ents_in.is_empty() {
-        None
-    } else {
-        Some(ents_in)
-    };
-    let (reachable, goals) = solve_layer(input, entry, ents, player_in.clone(), flags_in);
+    let (reachable, goals) = solve_layer(input, entry, ents_in, player_in.clone(), flags_in);
     let truncated = take_layer_trunc().is_some();
-    match pick::<HpLoss, _>(&goals) {
+    let best = pick::<HpLoss, _>(&goals);
+    match best {
+        // `Some(g) if reachable`：有目标且搜索确认可达才回填目标态。
+        // 截断 ⇒ 结果不可信 ⇒ ok=false，但 out_* 仍回填「部分搜索里最优的一条」作参考
+        // （红2-A 契约：ok 只保证「可信出层」，不保证「截断时无任何路线」）。
         Some(g) if reachable => ExitSolve {
-            ok: true,
+            ok: !truncated,
             exit: Some(g.post_pos),
             out_player: g.post.clone(),
             out_flags: g.post_flags,
@@ -458,7 +472,15 @@ pub fn solve_local_exit(
             cross_edge: g.cross_edge,
             truncated,
         },
-        _ => ExitSolve::failed(player_in, flags_in, ents_in, truncated),
+        _ => {
+            // 无目标（或目标未确认可达）：回显「入场态」——注入则原样，未注入则本层
+            // sprite（下一层首入态），不是空表。
+            let echo = match ents_in {
+                Some(v) => v.to_vec(),
+                None => input.level.as_ref().map(sprite_full).unwrap_or_default(),
+            };
+            ExitSolve::failed(player_in, flags_in, echo, truncated)
+        }
     }
 }
 
@@ -486,6 +508,9 @@ pub fn solve_layer_with(
     };
     // C5d″：层结果缓存 lookup——全局队列里同 K₀ 不同 kills/steps 的变体会以完全
     // 相同输入反复 pop 同一层（f52 实测同输入 8 连 pop、单层状态 80 万）。
+    // 键含 `node_limit`（2026-11-18 P3 复核红2 附带）：缺它则「同线程先小界后大界」
+    // 会命中旧 memo、回放旧的截断结果 ⇒ `truncated` 语义不可信。也保证键=全部输入。
+    let node_limit = layer_node_limit();
     let memo_key = (
         input.floor,
         entry,
@@ -494,6 +519,7 @@ pub fn solve_layer_with(
         root_ents.clone(),
         level_digest(input),
         policy,
+        node_limit,
     );
     if let Some((hit_ok, hit_goals, hit_trunc, hit_peak, hit_buys)) =
         LAYER_MEMO.with(|m| m.borrow().get(&memo_key).cloned())
@@ -507,7 +533,7 @@ pub fn solve_layer_with(
     search.cloud = true; // 批3 C3b：层间路径开筋斗云候选（批2 solve_local/run 关）
     search.policy = policy; // 批4 C4-a：闭包谓词注入
     search.shops = shops; // 批5 H4：商品表注入（`&[]` ⇒ 批0-3 零行为变化）
-    let (reachable, goals) = search.run_root(entry, root_ents, player, flags);
+    let (reachable, goals) = search.run_root(entry, root_ents, player, flags, node_limit);
     // C5d′：层出口同态归并——同 (kind, cross_edge, post 全态) 组内 (kills,steps)
     // 支配剪枝（组内 hp 在键里=相等）。全局 push_state 对同 K₀ 子态做同样弱支配
     // ⇒ 本归并=同一结果前移，省 route 克隆与逐 goal GSt/GKey 克隆（f52 单层 3.2 万
@@ -552,11 +578,12 @@ thread_local! {
     /// 输出。全局队列中同 K₀ 不同 kills/steps 的状态以相同输入反复 pop 同层
     /// （f52 实测同输入 8 连 pop、单层 80 万状态、单层秒级）——缓存=跳过重复层搜索。
     /// 键含 `level_digest`（FNV-1a 层规格内容摘要）防「同 floor 不同夹具」串味
-    /// （玩具测试同 floor 多套 LevelSpec）；thread_local=多线程测试隔离；缓存纯
-    /// 加速、不改输出与遍历序（确定性不受影响）。
+    /// （玩具测试同 floor 多套 LevelSpec）；键含 `node_limit`（层界也是输入之一——
+    /// 否则同线程先小界后大界会回放旧的截断结果，见 `solve_layer_with` 调用点注）；
+    /// thread_local=多线程测试隔离；缓存纯加速、不改输出与遍历序（确定性不受影响）。
     static LAYER_MEMO: RefCell<
         HashMap<
-            (i32, (i32, i32), PlayerSpec, u128, Vec<EntRec>, u64, ClosurePolicy),
+            (i32, (i32, i32), PlayerSpec, u128, Vec<EntRec>, u64, ClosurePolicy, usize),
             (bool, Vec<LayerGoal>, Option<(i32, usize)>, i32, (u64, u64)),
         >,
     > = RefCell::new(HashMap::new());
@@ -590,7 +617,8 @@ fn layer_node_limit() -> usize {
         .unwrap_or(200_000)
 }
 
-/// 取走并清零层截断标记（solve_global 消费；见 LAYER_TRUNC doc）。
+/// 读层截断标记（`solve_global`/`solve_local_exit` 消费；见 LAYER_TRUNC doc）。
+/// **只读、不清零**：清零由 `solve_layer_with` 入口负责（每次层求解开始重设）。
 pub(crate) fn take_layer_trunc() -> Option<(i32, usize)> {
     LAYER_TRUNC.with(|f| f.get())
 }
@@ -1900,6 +1928,7 @@ impl<'a> Search<'a> {
             sprite_full(self.level),
             self.level.player.clone(),
             self.level.flags,
+            layer_node_limit(),
         )
     }
 
@@ -1907,12 +1936,15 @@ impl<'a> Search<'a> {
     /// 落点、活体列表=上一层终态——批2 `run` 的 `start`/sprite 全活特例化）。
     /// 批3 C2：玩家/flags 也由调用方注入（层间携带上一层 post；批2 的
     /// `level.player`/`level.flags` 特例化为 `run` 的两参转发）。
+    /// `node_limit`：层节点上限由调用方**读一次**传入（原读 `layer_node_limit()`）——
+    /// 与 `LAYER_MEMO` 键同源，杜绝「键说 10、界限用 200000」的竞态。
     fn run_root(
         &self,
         entry: (i32, i32),
         root_ents: Vec<EntRec>,
         player: PlayerSpec,
         flags: u128,
+        node_limit: usize,
     ) -> (bool, Vec<Goal>) {
         let root = St {
             pos: entry,
@@ -1945,7 +1977,7 @@ impl<'a> Search<'a> {
             if pruned[id as usize] {
                 continue;
             }
-            if nodes.len() >= layer_node_limit() {
+            if nodes.len() >= node_limit {
                 // R1 层界（lead 裁定 A）：触界即停，截断标记带 (floor, nodes 实数)
                 LAYER_TRUNC.with(|f| f.set(Some((self.input.floor, nodes.len()))));
                 break;
@@ -2754,6 +2786,7 @@ mod solve_global_c1 {
                 sprite_full(level),
                 level.player.clone(),
                 level.flags,
+                layer_node_limit(),
             );
         assert!(reach, "入场可达出口");
         let g = goals
@@ -2784,6 +2817,7 @@ mod solve_global_c1 {
                 predead.clone(),
                 level.player.clone(),
                 level.flags,
+                layer_node_limit(),
             );
         assert!(reach2, "怪已死 ⇒ 走廊通");
         let g2 = goals2

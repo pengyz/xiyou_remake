@@ -62,7 +62,8 @@
     "size_dispatch_table_driven(test)": 5,
     "slot_equip_scene(test)": 2,
     "solve_global(test)": 24,
-    "solve_local(test)": 21,
+    "solve_local(test)": 24,
+    "solve_local_trunc(test)": 2,
     "solver(bin)": 0,
     "storage_contract(test)": 7,
     "storage_wiring(test)": 4,
@@ -77,5 +78,5 @@
     "walk_route(test)": 12,
     "xiyou(bin)": 42
   },
-  "total": 1149
+  "total": 1154
 }
