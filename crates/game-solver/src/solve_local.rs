@@ -1854,7 +1854,13 @@ impl BestHp {
     /// 劣于最优 Stair 目标。
     ///
     /// 健全性：`kills` 沿路径单调不减 ⇒ 后者保证该枝不可能产出更少击杀的 Stair
-    /// 目标；`bound` 是可采纳上界 ⇒ 不可能产出更高 hp。两条前提任一不成立就不剪。
+    /// 目标；`bound` 在**当前 68 槽语料**下与真最优同解 ⇒ 实测不产出更高 hp。
+    /// 两条前提任一不成立就不剪。
+    ///
+    /// 【2026-11-19 更正（§3.6）】原文写「`bound` 是可采纳上界」——该**一般主张已
+    /// 证伪**（f35 杀 ty69 ⇒ post-anim 组 7 生成 ty32×3 = 2400，杀后按 0 计 ⇒ 低估）。
+    /// 现行口径：语料实测同解 + `hp_bound::plan` 的 `post_kill_hp_spawn` /
+    /// `script_hp_spawn` / `shop_repeatable` 闸门兜住已知通道；不是逐态证明。
     fn prunable(
         &self,
         ord: &crate::hp_bound::HpBoundOrd,

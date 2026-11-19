@@ -31,7 +31,7 @@
     "game_oracle(lib)": 5,
     "game_platform(lib)": 6,
     "game_shell_common(lib)": 45,
-    "game_solver(lib)": 53,
+    "game_solver(lib)": 58,
     "gameplay_floor1(test)": 5,
     "gate_bump(test)": 10,
     "golden(test)": 9,
@@ -82,5 +82,5 @@
     "witness(test)": 9,
     "xiyou(bin)": 42
   },
-  "total": 1214
+  "total": 1219
 }

@@ -521,11 +521,20 @@ fn main() {
                 eprintln!("用法：solver solve-local --floor <N>");
                 std::process::exit(2);
             });
-        if floor == 1 {
-            println!("{}", solve_floor1().to_json());
+        // 【批8b 复核 F8】hp 上界剪枝必须**可见**：`solve-local` 是真数据层
+        // 唯一开剪枝（`solve_local` 置 `hp_prune=true`）的入口，故在 stderr 打
+        // 一行统计（JSON 走 stdout/`--out`，schema 不动——74 金样 sha 与
+        // witness 兼容性依赖 stdout 逐字节）。
+        let r = if floor == 1 {
+            let r = solve_floor1();
+            print_hp_bound_stat(floor);
+            r
         } else {
-            println!("{}", solve_local(&SolveInput::placeholder(floor)).to_json());
-        }
+            let r = solve_local(&SolveInput::placeholder(floor));
+            print_hp_bound_stat(floor);
+            r
+        };
+        println!("{}", r.to_json());
         return;
     }
     if args.first().map(|s| s.as_str()) != Some("ingest") || args.get(1).map(|s| s.as_str()) != Some("--summary") {
@@ -574,6 +583,18 @@ fn nums(text: &str) -> Vec<i32> {
         .filter(|s| !s.is_empty())
         .map(|s| s.parse().expect("fixture 整数"))
         .collect()
+}
+
+/// hp 上界诊断行（stderr；与 `run` 分支 `status=… floors=…` 同风格）。
+/// `enabled=false` 时 `reason` 说明卡在哪条闸门（`disabled_by_caller`/
+/// `no_hp_sources`/`post_kill_hp_spawn`/`script_hp_spawn`/`shop_repeatable`…），
+/// 未跑层=`not_run`——**不静默**。
+fn print_hp_bound_stat(floor: i32) {
+    let s = game_solver::hp_bound::hp_bound_stat();
+    eprintln!(
+        "hp_bound floor={} enabled={} reason={} reason_ty={} pruned_entry={} pruned_pop={} slots={} pickup_types={} root_hp={} root_bound={}",
+        floor, s.enabled, s.reason, s.reason_ty, s.pruned_entry, s.pruned_pop, s.slots, s.pickup_types, s.root_hp, s.root_bound
+    );
 }
 
 /// C6：floor1 端到端（计划 :327 判据命令 `solve-local --floor 1`）。

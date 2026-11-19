@@ -1,4 +1,7 @@
-//! 批8：hp 可采纳上界（branch-and-bound 剪枝）——**宁可不剪，不许剪错**。
+//! 批8：hp 上界剪枝（branch-and-bound）——**宁可不剪，不许剪错**。
+//!
+//! ~~hp 上界可采纳~~（2026-11-19 证伪，见下「可采纳性口径」）：现行主张只到
+//! **当前 68 槽语料实测开/关同解 + 已知反例 f35（低估 2400）已闸门化 Off**。
 //!
 //! # 问题
 //!
@@ -7,7 +10,7 @@
 //! 来自「为捡药去打怪」的分支（每次战斗净损 hp，收益远小于代价）。用
 //! **hp 上界**做 B&B：若某态「再怎么走也不可能超过已知最优 out_hp」，整枝剪掉。
 //!
-//! # 判据（可采纳性 = 上界不得低估）
+//! # 判据（历史名：可采纳性 = 上界不得低估；成效见「可采纳性口径」）
 //!
 //! ```text
 //! bound(st) = st.hp
@@ -49,6 +52,60 @@
 //! flag / 槽内 `DES`·`GUT` 亦置位），因此同一层内每个 param 的门最多触发一次
 //! ⇒ 其 hp 奖励最多拿一次。`flags` 里已置位的槽不再计入。
 //!
+//! # 生成通道：为什么「击杀后才出现的实体」必须整层 Off（2026-11-19 复核 F2）
+//!
+//! 本模块的三张实体表（`pickup_hp`/`drop_hp`/`shop_hp`）**只在层入口从根态
+//! `ents` 播种**（`plan` 步骤 1）；`entity_gain` 只按 `ty`/`param` 查表 ⇒ 任何
+//! 「层入口不在 `ents`、之后才被生成」的实体，生成后查表得 0。
+//!
+//! 活反例（复核 F2，f35，A 级可复现）：击杀 ty69 触发 post-anim 组 7 生成
+//! ty32×3（各 +800，合 2400）。杀前根态有 ty69 ⇒ `drop_hp[69]=2400`（掉落被
+//! 计入），但杀后 `ents=[ty32×3]` 而表里没有 32（f35 根态无 hp 拾取）⇒
+//! `bound = hp`，真实可达 `hp+2400`。实测
+//! `should_prune(ord, best=301, hp=200, ents=[ty32×3], flags=MAX) == true`
+//! 而该态真实可达 2600 ⇒ **低估 2400** ⇒ 剪错。
+//!
+//! 因此：本层只要有「击杀后生成 / 脚本生成」的实体含 hp 增益，就整层 `Off`：
+//! - 击杀掉落（`rules/boss.rs` 的 `event_of` + `post_victory_event_of`，含
+//!   post-anim 收尾组）⇒ `Off("post_kill_hp_spawn", 怪物 ty)`；
+//! - 门槽脚本 `CES_ty_cx_cy` / 同层 `ADD_floor_ty_cx_cy` ⇒
+//!   `Off("script_hp_spawn", 槽号)`。
+//!
+//! **为什么不走「把生成物计入界」**：那需要静态证明生成物集合可完整枚举
+//! （脚本每条 CES/ADD 链、跨层 ADD 回跳、boss 掉落里再掉 boss 的递归、未知 op）
+//! 且生成物类型在表里已播种——`entity_gain` 是「表里有该 ty ⇒ 每颗都算」，
+//! 一旦某个生成物类型没播种，`bound` 就少算。静态证明不了 ⇒ 按纪律只能 Off。
+//! 注意 Off 的判据**不看**「表里是否已有同型」：f10/f20/f40 那种「根态恰好有
+//! ty32」的层同样 Off——放过它们等于用「当前语料不咬」当理由（复核点名禁止）。
+//!
+//! # 可采纳性口径（2026-11-19 降级，AGENTS §3.6 证伪更正）
+//!
+//! ~~hp 上界可采纳（任何可达态都不会被剪错）~~ **已证伪**：f35 反例（低估 2400，
+//! 见上节与判据 `unit_plan_off_for_post_kill_hp_spawn_f35`）。现行主张只到：
+//! 「**当前 68 槽语料实测**启用前后最优解相同（f3 200k 档 on/off 同解），且已知
+//! 反例 f35 已被 `post_kill_hp_spawn` 闸门挡在 `Off`」。这是**回归实测**，不是
+//! 可采纳性证明：其他生成通道（未建模的脚本/跨层路径）仍可能低估。
+//!
+//! # 已知不健全边界（登记，不掩盖）
+//!
+//! 1. **门槽「未执行却已置位」**（`rules/gate.rs` `evaluate` 的 case 0/18/7
+//!    `set_flags.push`）：槽 18/19/32 可在脚本未执行时被置位。**不低估**：
+//!    基谓词恒 `!v.flag(param)` ⇒ 置位后该槽永不再触发，真实玩到也拿不到它的
+//!    奖励 ⇒ 从界里抹掉与真实一致（不是「因为当前无 hp op 才安全」）。当前这
+//!    3 槽无 hp op（槽 18=`DES_1_4_4 CES_20_4_4`、19=`CES_84_7_7…`、
+//!    32=`TAK_79_79`）；将来若加 hp op，本论证仍成立，不需改代码。
+//! 2. **商店可重复购买**（`scene.rs` 购买成功收尾块 `if flags & 4 == 0` 才
+//!    `param ^= 512`/移除；`flags&4`=param bit10 时**什么都不做** ⇒ 可反复买）。
+//!    本模块只建模一次购买（`shop_hp` 每实体一条）。当前表唯一 hp 商品是
+//!    `src=1 idx=12`（`AddHp 2000`），带 repeat 位的两家店是 `idx=5`/`idx=8`
+//!    （黄钥匙/黄钥匙换钱）⇒ 今天不低估。**已加闸门**（不靠语料）：
+//!    `certify_entity` 见 cat16 且 `param & SHOP_REPEAT != 0` 且效果是 `AddHp`
+//!    ⇒ `Off("shop_repeatable", ty)`。
+//! 3. **商店 `PickupItem`**：效果是 `pickup_item_type(item)`（`scene.rs:2585`），
+//!    与拾取臂同源 ⇒ 按 `hp_gain_of_type(item)` 计入（HpUp 精确、其余 0）。
+//!    当前表唯一 `PickupItem` 行是 `src=1 idx=13 → item 18`（`RemoveAllType`，
+//!    非 hp）；若将来改成 hp 型，本条自动计入（不需要再改判据）。
+//!
 //! # 失败即关（Off）
 //!
 //! 任何**不可认证**的 hp 通道 ⇒ 整层 `Off(reason, ty)`，退回原搜索（行为与
@@ -76,6 +133,10 @@ const CORPUS_RAW: &str = include_str!("../../game-core/tests/fixtures/level_scri
 const MAX_SLOT: i32 = 128;
 /// 掉落递归深度上限（boss 掉落里再掉 boss 是病态构造；超限即 Off）。
 const DROP_DEPTH_MAX: u32 = 4;
+/// 商店 `flags & 4`（`scene.rs` `apply_merchant_offer`）= `param` bit10：置位时
+/// 购买成功**不清报价位、不移除实体** ⇒ 可反复购买。`AddHp` 商品因此没有
+/// 有限上界 ⇒ 只要见到「repeat 位 + AddHp」就 `Off`（不靠语料）。
+const SHOP_REPEAT: i32 = 1 << 10;
 
 /// 本层 hp 上界剪枝的可观测统计（`hp_bound_stat()`）。**禁静默**：
 /// 没启用时 `enabled=false` + `reason`/`reason_ty` 说明卡在哪条闸门。
@@ -231,6 +292,16 @@ impl HpBoundOrd {
         b
     }
 
+    /// 计入上界的门槽数（诊断面；`HpBoundStat::slots` 同源）。
+    pub fn slot_count(&self) -> u32 {
+        self.slots.len() as u32
+    }
+
+    /// 计入上界的 hp 型拾取类型数（去重后；`HpBoundStat::pickup_types` 同源）。
+    pub fn pickup_type_count(&self) -> u32 {
+        self.pickup_hp.values().filter(|v| **v > 0).count() as u32
+    }
+
     fn entity_gain(&self, ty: i32, param: i32) -> i32 {
         if let Some(g) = self.shop_hp.get(&(ty, param)) {
             return *g;
@@ -244,6 +315,10 @@ impl HpBoundOrd {
 
 /// 剪枝判据的唯一实现点（`BestHp::prunable` 调它——**严格小于**的唯一来源，
 /// 变异体只能改这一行）。
+///
+/// **不是可采纳性证明**：`bound` 只覆盖「根态已播种的实体通道 + 门槽 + 已
+/// 闸门化的生成通道」。一般主张已证伪（f35 低估 2400），现行口径见模块文档
+/// 「可采纳性口径（2026-11-19 降级）」：仅在 68 槽语料实测同解。
 pub fn should_prune(ord: &HpBoundOrd, best_hp: i32, hp: i32, ents: &[EntRec], flags: u128) -> bool {
     ord.bound(hp, ents, flags) < best_hp as i64
 }
@@ -310,12 +385,53 @@ fn certify_entity(
         }
         16 => {
             if let Some(g) = shop_offer(shops, ty, param) {
-                if let ShopEffect::AddHp { amount } = g.effect {
-                    *out += amount.max(0);
+                if param & SHOP_REPEAT != 0 {
+                    // repeat 位 + hp 效果 ⇒ 可反复买 ⇒ 无有限上界（见模块文档边界 2）。
+                    if matches!(g.effect, ShopEffect::AddHp { .. }) {
+                        return Err(("shop_repeatable", ty));
+                    }
+                }
+                match &g.effect {
+                    ShopEffect::AddHp { amount } => *out += (*amount).max(0),
+                    // `scene.rs` 购买臂：`pickup_item_type(item)`——与拾取臂同源
+                    // ⇒ HpUp 精确计入，其余 kind（Stack/UseArm/NoOp…）恒 0。
+                    ShopEffect::PickupItem { item } => *out += hp_gain_of_type(*item, floor)?,
+                    _ => {}
                 }
             }
         }
         _ => {}
+    }
+    Ok(())
+}
+
+/// 生成物（击杀掉落 / 脚本 CES·ADD）可能带来的 hp 增益。
+///
+/// 与 `certify_entity` 同一套表与认证（不复制数据）；返回 0 表示该生成物
+/// 不产 hp。用于「生成通道」闸门：>0 ⇒ 该层上界无法静态保证。
+fn spawn_gain(
+    ty: i32,
+    param: i32,
+    floor: i32,
+    shops: &[ShopGoodDef],
+) -> Result<i32, (&'static str, i32)> {
+    let mut g = 0i32;
+    certify_entity(ty, param, floor, shops, 0, &mut g)?;
+    Ok(g)
+}
+
+/// 门槽脚本在**本层**生成实体：生成物含 hp 增益 ⇒ 整层 `Off`。
+///
+/// 生成物在脚本执行后才进 `ents`，而 `plan` 的表只在层入口播种 ⇒ 生成后
+/// `entity_gain` 记 0（f35 同族低估）。`slot` = 触发该脚本的槽号（诊断用）。
+fn certify_script_spawn(
+    ty: i32,
+    floor: i32,
+    shops: &[ShopGoodDef],
+    slot: i32,
+) -> Result<(), (&'static str, i32)> {
+    if spawn_gain(ty, 0, floor, shops)? > 0 {
+        return Err(("script_hp_spawn", slot));
     }
     Ok(())
 }
@@ -406,13 +522,13 @@ fn parse_slot(
                 "ADD" => {
                     let a = ints(4).ok_or(("script_bad_args", cur))?;
                     if a[0] == floor {
-                        certify_entity(a[1], 0, floor, shops, 0, &mut t.konst)?;
+                        certify_script_spawn(a[1], floor, shops, cur)?;
                     }
                 }
                 // CES_ty_cx_cy（`script_ops.rs:238`）：本层生成
                 "CES" => {
                     let a = ints(3).ok_or(("script_bad_args", cur))?;
-                    certify_entity(a[0], 0, floor, shops, 0, &mut t.konst)?;
+                    certify_script_spawn(a[0], floor, shops, cur)?;
                 }
                 // GUT_n（`script_ops.rs:166`）：跳转（尾链互斥，不是循环）
                 "GUT" => {
@@ -500,6 +616,23 @@ pub fn plan(
             return HpBoundPlan::Off(r, t);
         }
     }
+    // 1b) 击杀生成通道（复核 F2 / f35）：击杀会把掉落实体 append 进 `ents`，
+    //     而掉落在杀前不在表里 ⇒ 生成后 `entity_gain` 记 0 ⇒ 低估。只要本层
+    //     **活着的**怪里有「击杀后会生成 hp 型实体」的，整层就不剪（Off）。
+    //     数据源=引擎 `rules/boss.rs`（`event_of`/`post_victory_event_of`/
+    //     `event_spawns`），不复制表、不硬编码 ty。
+    for e in ents {
+        if entity_category_with_floor(e.ty, floor) != 8 {
+            continue;
+        }
+        let d = match drop_gain(e.ty, floor, shops, 0) {
+            Ok(d) => d,
+            Err((r, t)) => return HpBoundPlan::Off(r, t),
+        };
+        if d > 0 {
+            return HpBoundPlan::Off("post_kill_hp_spawn", e.ty);
+        }
+    }
     // 2) 门槽面：本层所有 ty83 的 param（根态 ∪ 静态）。
     let mut params: BTreeSet<i32> = BTreeSet::new();
     for e in ents {
@@ -540,8 +673,8 @@ pub fn plan_and_stat(
     let (slots, pickup_types, root_bound) = match &plan {
         HpBoundPlan::Off(_, _) => (0, 0, 0),
         HpBoundPlan::On(o) => (
-            o.slots.len() as u32,
-            o.pickup_hp.values().filter(|v| **v > 0).count() as u32,
+            o.slot_count(),
+            o.pickup_type_count(),
             o.bound(root_hp, ents, flags),
         ),
     };
@@ -713,6 +846,134 @@ mod tests {
             HpBoundPlan::On(o) => {
                 assert_eq!(o.bound(300, &ents, 0), 300 + 50 + 200);
             }
+            other => panic!("应 On：{:?}", other.reason()),
+        }
+    }
+
+    /// 【判据 A1（复核 F2 红→绿）】f35 的活反例：击杀 ty69 触发 post-anim 组 7
+    /// 生成 ty32×3（各 +800）。杀前界把 2400 记在 `drop_hp[69]`，杀后这 3 颗
+    /// 不在根态播种表里 ⇒ `entity_gain(32)=0` ⇒ 旧实现 `bound=200` 而真实可达
+    /// 2600 ⇒ `should_prune(best=301)` 会剪掉真最优的支路。
+    /// 修复：本层含「击杀后生成 hp」通道 ⇒ `plan()` 必须 `Off`（整层不剪）。
+    #[test]
+    fn unit_plan_off_for_post_kill_hp_spawn_f35() {
+        set_enabled(true);
+        let lv = level_with_entities(vec![]);
+        let ents = [EntRec { ty: 69, x: 1, y: 1, param: 0 }];
+        let p = plan(35, 0, &lv, &ents, &[]);
+        set_enabled(false);
+        assert_eq!(
+            p.reason(),
+            ("post_kill_hp_spawn", 69),
+            "f35 杀 69 会生成 hp 型（组 7）⇒ 必须 Off，不许剪"
+        );
+
+        // 反例算术（旧口径）：根态 ty69 ⇒ drop_hp[69]=2400；杀后态没有 ty69、
+        // 也没有 ty32 的播种项 ⇒ bound=200。真实可达 200+2400=2600。
+        let old = HpBoundOrd {
+            pickup_hp: BTreeMap::new(),
+            drop_hp: BTreeMap::from([(69, drop_gain(69, 35, &[], 0).expect("组4+组7"))]),
+            shop_hp: BTreeMap::new(),
+            slots: BTreeMap::new(),
+            difficulty_easy: true,
+        };
+        assert_eq!(old.drop_hp.get(&69).copied(), Some(2400), "组 7 = ty32×3×800");
+        let after = [
+            EntRec { ty: 32, x: 0, y: 0, param: 0 },
+            EntRec { ty: 32, x: 1, y: 0, param: 0 },
+            EntRec { ty: 32, x: 2, y: 0, param: 0 },
+        ];
+        assert_eq!(old.bound(200, &after, u128::MAX), 200, "杀后态：3 颗 hp 药按 0 计");
+        assert!(
+            should_prune(&old, 301, 200, &after, u128::MAX),
+            "旧实现确实会剪掉真实可达 2600 的态（低估 2400）"
+        );
+        // 修复后该层 plan() 是 Off ⇒ `hplan` 不是 On ⇒ 剪点整段不执行。
+        assert!(!p.is_on());
+    }
+
+    /// 【判据 A2 · 严格 fail-closed 口径】即使根态**已有**同型 hp 拾取
+    /// （f10/f20/f40 的情形：根态有 ty32），只要本层有「击杀后生成 hp」的通道
+    /// 就必须 Off。变异体 M2（放宽成「表里已有同型 ⇒ 不 Off」）会让本判据变红。
+    #[test]
+    fn unit_plan_off_for_kill_spawn_even_when_hp_type_registered() {
+        set_enabled(true);
+        let lv = level_with_entities(vec![]);
+        let ents = [
+            EntRec { ty: 75, x: 1, y: 1, param: 0 }, // 组 0：ty32×3 + 钥匙/药
+            EntRec { ty: 32, x: 0, y: 0, param: 0 },  // 根态已有 hp 拾取
+        ];
+        let p = plan(10, 0, &lv, &ents, &[]);
+        set_enabled(false);
+        assert_eq!(p.reason(), ("post_kill_hp_spawn", 75));
+    }
+
+    /// 【判据 A3 · 脚本生成通道】槽 62 = `CES_69_5_5 …`（在**本层**生成 ty69）。
+    /// floor 35 的 ty69 带 post-anim 组 7（ty32×3）⇒ 生成物含 hp ⇒ Off；
+    /// floor 3 的 ty69 只触发组 4（ty16，非 hp）⇒ 不得过度 Off。
+    #[test]
+    fn unit_plan_off_for_script_ces_hp_spawn() {
+        set_enabled(true);
+        let lv = level_with_entities(vec![EntSpec { ty: 83, x: 1, y: 1, param: 62 }]);
+        let p35 = plan(35, 0, &lv, &[], &[]);
+        let p3 = plan(3, 0, &lv, &[], &[]);
+        set_enabled(false);
+        assert_eq!(p35.reason(), ("script_hp_spawn", 62), "CES_69@35 生成物含 hp");
+        assert!(p3.is_on(), "CES_69@3 只生成 ty16（非 hp）⇒ 不该 Off");
+    }
+
+    fn addhp_good(src: i32, idx: i32, amount: i32) -> ShopGoodDef {
+        ShopGoodDef {
+            id: 16,
+            src,
+            idx,
+            price: 1000,
+            effect: ShopEffect::AddHp { amount },
+            fail_hint: "没有足够的金钱".to_string(),
+        }
+    }
+
+    /// 【判据 A4 · 商店可重复购买】`flags&4`（param bit10）时引擎购买成功
+    /// 不清报价位、不移除实体（`scene.rs` 收尾块）⇒ `AddHp` 可反复买 ⇒ 无有限
+    /// 上界。真实表里唯一 hp 商品 = `src=1 idx=12`（+2000）；取 param=(6<<8)|12
+    /// （flags=6 ⇒ repeat 位开）必须 Off。
+    #[test]
+    fn unit_plan_off_for_repeatable_addhp_shop() {
+        set_enabled(true);
+        let lv = level_with_entities(vec![]);
+        let ents = [EntRec { ty: 78, x: 1, y: 1, param: (6 << 8) | 12 }];
+        let shops = [addhp_good(1, 12, 2000)];
+        let p = plan(45, 0, &lv, &ents, &shops);
+        // 同一家店去掉 repeat 位（flags=3，f45 的真实 param）⇒ 一次购买可精确计入。
+        let ents_once = [EntRec { ty: 78, x: 1, y: 1, param: (3 << 8) | 12 }];
+        let p_once = plan(45, 0, &lv, &ents_once, &shops);
+        set_enabled(false);
+        assert_eq!(p.reason(), ("shop_repeatable", 78), "repeat 位 + AddHp ⇒ 无有限上界");
+        match p_once {
+            HpBoundPlan::On(o) => assert_eq!(o.bound(300, &ents_once, 0), 300 + 2000),
+            other => panic!("一次性 AddHp 店应 On：{:?}", other.reason()),
+        }
+    }
+
+    /// 【判据 A5 · 商店 PickupItem 面】`PickupItem{item}` 引擎走
+    /// `pickup_item_type(item)`（与拾取臂同源）⇒ hp 型按认证增量计入，不当作 0。
+    #[test]
+    fn unit_plan_counts_shop_pickup_item_hp() {
+        set_enabled(true);
+        let lv = level_with_entities(vec![]);
+        let ents = [EntRec { ty: 78, x: 1, y: 1, param: (2 << 8) | 20 }];
+        let shops = [ShopGoodDef {
+            id: 18,
+            src: 1,
+            idx: 20,
+            price: 0,
+            effect: ShopEffect::PickupItem { item: 32 },
+            fail_hint: String::new(),
+        }];
+        let p = plan(3, 0, &lv, &ents, &shops);
+        set_enabled(false);
+        match p {
+            HpBoundPlan::On(o) => assert_eq!(o.bound(300, &ents, 0), 300 + 200),
             other => panic!("应 On：{:?}", other.reason()),
         }
     }
