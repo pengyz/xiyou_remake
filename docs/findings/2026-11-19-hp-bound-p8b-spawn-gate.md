@@ -192,6 +192,12 @@ layer_ok=Some(false) layer_truncated=Some(true)`。`--max-floors 1..4` 即 f51..
   用例数回退**。基线更新原因即本批新增判据；影响面仅基线文件本身。
 - `cargo test -p game-solver` 全绿（lib 58、`hp_bound` 3、其余既有档）。
 
+> 【2026-11-20 自我更正（本条更正本身已被证伪，全过程保留）】本条曾按复核 F10 改成
+> 「`SKIP=0` 写错，实际 `SKIP=1`」，**这个更正是错的**：复核引的是 `gates/cli.py status`
+> （14 门，含 reference-regression / diff-trace / visual-diff ⇒ `SKIP=1`），而上面那句写的是
+> `gates/cli.py check`（13 门，不含这三门）⇒ 实测就是 `PASS=13 FAIL=0 SKIP=0`，原句正确；
+> commit `ad5fece` 正文同口径，也无误。教训：门禁数字必须绑定命令名。
+
 ---
 
 ## 10. 还剩哪些已知不健全边界（诚实清单）

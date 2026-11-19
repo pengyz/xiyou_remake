@@ -12,6 +12,29 @@
 * f51..f54 四条 floor 记录与改动前 `/tmp/before.json` **逐字节相同**（本片不触碰通用搜索）。
 * 覆盖面（上界口径，见 §6）：54 层里 **8 层**被精确解接管。
 
+> 【2026-11-20 更正】本节三条主张被独立复核推翻，逐条更正（原主张保留在上方，不改写历史）：
+>
+> 1. **「精确最优 / 106 步 / 18 件全捡」不成立。** 复核 F4（`docs/findings/reviews/2026-11-19-exact-pickup-review.md`）
+>    实测：删掉 `exact_pickup.rs` 的反向 dead 段后，同一层得 `hp=4027 steps=88 picks=14 doors=5 kills=7
+>    states=4,741,000`，回放同样逐字段通过。根因是反向支配对 **steps 不健全**（见 §4 更正）：BFS 是 FIFO
+>    单位步 ⇒ 子集态必然 steps ≤ 超集态，反向剪枝把「同 hp、更少步」的最优解杀了。
+>    事实口径改为：**hp 最优 4027；步数 88 / 拾取 14 亦可达 4027**。判据 `exact_dp_f3_reaches_4027`
+>    现断言 `(steps, picks) == (88, 14)`，另加 `steps <= 106 && picks <= 18` 的上界护栏；新增判据 1b
+>    （`exact_dp_same_hp_fewer_steps_survives`）用最小夹具钉住「同 hp 更少步不被剪」。
+> 2. **「链路推进到 floors=8」是同一条 bug 的下游产物。** 88 步路线只捡 14 件 ⇒ `out_player` 比 106 步
+>    路线少 3 把黄钥匙与 1 点 def（`def 731→730`、`yellow 3→0`）⇒ f4 无黄钥匙、目标集里没有指向 f5 的解。
+>    当前实测：`solver run` = `status=blocked floors=7 total_steps=363 blocked=floor 4 reason=no_exit_toward`。
+>    即**旧链路 f4 的可解性依赖了非最优的 18 件路线**；逐层 `(hp, steps)` 目标与跨层钥匙需求冲突，本片未修（遗留项）。
+> 3. **「8/54 覆盖面」的口径与真实性都要收窄**（见 §6 更正）：5 层是 `picks=0` 的平凡层；真实链路只采用过 3 层
+>    （f2/f3/f4），而 f2 的采用本身是**空商品表口径的产物**（见下一条）。
+>
+> 另两处未披露事实一并补上：`bin/solver.rs` 曾把真实 17 行商品表丢弃（`let (gi, _shops) = …`）⇒ witness 链一直
+> 以空表求解，「打穿 f3」只在空表口径成立（已修，见 §8）；`gates/cli.py status` 实际是 **SKIP=1**
+> （visual-diff）——**但这条本身是复核 F10 把两个命令混了**：`gates/cli.py check` 是 13 门
+> （不含 reference-regression / diff-trace / visual-diff）⇒ 实测 `PASS=13 FAIL=0 SKIP=0`；
+> `gates/cli.py status` 是 14 门（多这三门）⇒ 才有 `SKIP=1`。`ad5fece` 正文写的是 **check** 口径，
+> 数字正确，不是错误记录（一次「更正」的更正，留在这里防再犯）。
+
 ## 2. 为什么这是「精确」而不是「搜索」
 
 闭式解的定理是：层内 hp 只可能被「拾取物的加血」改变（外加金币/钥匙/atk/def 的单调收益），
@@ -39,6 +62,11 @@ P9 把「已捡集合」升成状态维：在 `(cell, 已捡位图, 已开门位
 A5 的 20 是**性能护栏**（状态数 `2^k × 格子数`），不是正确性假设：`k` 再大结论仍成立，只是算不动。
 f3 是 18 件 ⇒ `2^18 × 46` 量级，实测 130835 个存活状态（支配剪枝后），8.4s。
 
+> 【2026-11-20 更正】130,835 是**反向剪枝还在**时的数字，而那条剪枝不健全（§4 更正）。改成只留正向剪枝后，
+> f3 实测 **4,741,000** 个存活状态、release 3.1 s / RSS ≈ 570 MB（debug 档算不动，只能 release 跑），
+> 故 `MAX_STATES` 2M → 6M。`MAX_PICKUPS=20` 仍是性能护栏（不是正确性假设），但「20 件算得动」这句
+> 只在正向剪枝 + 6M 预算下成立。
+
 `MAX_PICKUPS`/`MAX_DOORS`/`MAX_KILLS` 同时是**状态键位宽的碰撞安全边界**（`u128`：
 `pos(16)|pm(24)|dm(16)|km(16)`），不是「够用就行」的经验值——超限直接 `too_many_dims`。
 
@@ -52,6 +80,22 @@ f3 是 18 件 ⇒ `2^18 × 46` 量级，实测 130835 个存活状态（支配�
 4. 照抄 `pm₁` 的后续路线，`pm₂` 只会多捡、不会少捡。
 
 故 `pm₂` 的任何延伸都不是最优 ⇒ 可安全丢弃。实现是 `front[(pos,dm,km)]` 上做子集检查。
+
+> 【2026-11-20 更正】上面第 1–4 条只证明了 **hp 轴**不劣，**没有**证明 `(hp, steps)` 字典序不劣——
+> 「任何延伸都不是最优」这句话是错的。反例（判据 1b 的最小夹具）：7×5 全通层，`ty32`(+200hp) 在
+> 6 步直路上、`ty29`(仅 +1atk) 在 10 步绕路上；旧实现输出 `10 步 / 2 件`，正确答案是 `6 步 / 1 件`。
+> 机制：`pm₁ ⊇ pm₂` 只保证「同一条后续路线上 hp ≥」，而**步数**是第二目标；反向 dead 段把
+> 「同 hp、更少步」的子集态整棵子树砍掉了（FIFO 保证子集态先到、步数 ≤ 超集态）。
+>
+> 正确的支配谓词必须把 steps 纳入：`pm₁ ⊇ pm₂ ∧ steps₁ ≤ steps₂`。在 FIFO 的 BFS 里超集态必然
+> `steps ≥` 子集态 ⇒ **反向剪枝恒空**。故实现改为**只保留正向剪枝**（先到的超集支配后到的子集，
+> FIFO 同时给出 `steps₁ ≤ steps₂` 与 `hp₁ ≥ hp₂`，两条目标都不劣）。代价：f3 存活状态
+> `130,835 → 4,741,000`，`MAX_STATES` 2M → 6M（release 3.1 s / RSS ≈ 570 MB）。
+>
+> 还记录一次**被实证证伪的中间方案**（避免后人重走）：曾改成「hp 严格更大 ⇒ 可杀」
+> （`n_hp > hp₂ || (hp 相等 ∧ steps ≤)`），f3 得 `98 步 / 16 件`——同样不是最优。反例机制：支配者
+> 站得高 hp，但被支配者剩余路线上还有 hp 拾取物，**两者到出口会打平**，而支配者步数更多。
+> 凡「同出口 hp 打平」的层，这条静默给次优解；判据 1b 与 f3 的 88/14 都能抓它。
 **实证教训**：第一版把方向写反（把超集当被支配），症状是 f3 只出 3227/263 states/门全未开——
 这类「静默变劣」只有 `out_hp` 判据能抓，故判据 1 必须断言**精确数值**而不只是「ok」。
 
@@ -75,6 +119,59 @@ DP 的每一步都通过引擎口径的**同一个函数**推进（`exact_bump`/
 统计口径的三点保留：强属性玩家 ⇒ 真实链路（atk=def=730、有钥匙、有背包）的覆盖率只会更低；
 `flags=0` 会关掉一部分脚本分支；`entry=start` 不等于链路进入点。**这不是「54 层里 8 层可解」的
 最终结论**，而是「这套闸门在当前属性下放行多少层」的可复现切片。
+
+> 【2026-11-20 更正】上面 8/54 与整张直方图是**空商品表**口径的产物，且措辞需要三处收紧
+> （原数字保留在上方，作为历史切片）：
+>
+> 1. **口径必须写明**：玩家 `hp/atk/def = 9999`、`flags = 0`、`entry = 层 start`。这是**属性上界口径**，
+>    不是「真实可玩性」。任何「54 层里 N 层可解」式的转述都属于过度声明。
+> 2. **平凡层必须点名**：旧 8 层里 5 层是 `picks=0 doors=0 kills=0 out_hp=9999 steps=10`
+>    的**空层**（f2/f23/f24/f27/f28——走 10 步到出口，什么也不捡），它们不构成「精确解有用」的证据。
+> 3. **真实链路只有 3 层被实际采用过**（f2/f3/f4），不是 8 层；而且 f2 的采用还是空表口径的产物。
+>
+> 用**真实 17 行商品表**重测（示例已改为 `solve_local_exit_toward_shops(…, &si.shops)`，与生产链同口径）：
+> `adopted = 4/54`，`adopted` 明细只剩 f23 / f24 / f27（三者仍是 `picks=0` 平凡层）与
+> **f36**（`picks=2 doors=0 kills=3 out_hp=10799 steps=15`，唯一非平凡）；直方图
+> `exit_unreachable 9`、`shop_present 8`、`pickup_uncertified 8`、`step_arm_hazard_reachable 6`、
+> `gate_mutates_state 4`、`pickup_adds_bag 4`、`post_kill_hp_spawn 4`、`too_many_dims 3`、
+> `no_stair_exit 2`、`kill_spawns_ents 1`、`retriggerable_gate_slot 1`。
+> 新增的 8 个 `shop_present`（f2/f6/f7/f12/f15/f28/f31/f39）里有 4 个（f2/f6/f12/f28）正是旧口径下
+> 「被精确解接管」的层 ⇒ **旧的 8/54 高估了 4 层**，根因是 `shops` 表被丢弃（见 §8）。
+>
+> 修复后真实链路（atk=def=730、带钥匙/背包/商品表）里**只剩 f3 一层**由精确 DP 接管：
+> f2 现在 `Off(shop_present, ty=78)`（`ty78@(11,7) param=0x201` ⇒ `flags&2 ∧ idx=1` 真能开价），
+> f3 的 `ty77@(11,4) param=0x116`（`flags=1`）按机制放行 ⇒ `adopted`；f4 则因 f3 的新路线缺黄钥匙而不可达。
+
+## 8. 【2026-11-20】复核整改记录（P9.1/P9.2）
+
+独立复核 `docs/findings/reviews/2026-11-19-exact-pickup-review.md` 判红 1 / 黄 4 / 绿 5。四件事的整改：
+
+* **红 F4（支配剪枝对 steps 不健全）**：删掉反向 dead 段，只留正向剪枝（§4 更正）。f3 由
+  `106 步/18 件` 更正为 `88 步/14 件`（hp 4027 不变，回放逐字段通过）；`MAX_STATES` 2M → 6M。
+  新增判据 1b 钉住「同 hp、更少步不被剪」。
+* **黄 F3/F8（witness 链商品表恒空 + 未披露）**：`bin/solver.rs` 不再丢弃 `shops`（原
+  `let (gi, _shops) = solve_global_input(1)`），`witness::run_witness(+_with)`/`solve_local_exit_toward_shops`
+  一路透传真实 17 行表；新增判据 `witness_forwards_real_shop_table_to_layer_solver` 断言层求解器收到的
+  指针就是 `si.shops`。同时把「表非空 ⇒ `shop_present`」换成**机制判据** `shop_can_buy(param)`：
+  `idx>0 ∧ flags&2` 才 `Off`，否则按阻挡格（引擎撞商家格 `allowed=false`，`scene.rs:3543`）。
+  判据 2g（可买 ⇒ `Off(shop_present) ty=77`）/ 2h（`param=0x116` 不可买 ⇒ `adopted`）。
+  **未建模边界（如实披露）**：`flags&2==0 ∧ flags&1!=0` 的告示格，关面板后 `param ^= 256` 且实体被移除
+  ⇒ 事后可通行；DP 没有「告示已读」维，仍按阻挡处理（只会低估可达性，不会高估收益）。
+* **黄 F10（过度声明/未披露）**：见 §1、§4、§6 三处日期更正。**其中「SKIP=0 写错」这一条经实测撤回**：
+  `gates/cli.py check` = `PASS=13 FAIL=0 SKIP=0`（11m23s，13 门，不含 reference/diff-trace/visual），
+  `gates/cli.py status` = 14 门、`SKIP=1`（visual-diff 未就绪）+ `TOLERATED=0`。
+  复核 F10 引的是 `status` 口径，原文写的是 `check`——两个命令，数字都对。
+  教训：**引用门禁数字必须带命令名**，`check` 与 `status` 的门集不同。
+* **附带更正（复核 F5 与本片自查）**：f2 的 `steps 9→10` **不是路线变化**，是**记录口径**差异——
+  Search 系层的 `route[0]` 就是入场格本身（f51..f54/f1 全部如此：`f52 entry=(2,11)`、`route[0]="2,11"`），
+  精确 DP 的 route 不含这个 token。实测 `after.route[1:] == before.route`（逐 token 相同）。
+  复核报告里「f2 路线变了（首 token `1,2`→`1,3`）」其实是同一口径翻转：P9 前 f2 走 Search（10），
+  P9 后走精确 DP（9），修复后又因真实商品表落回 Search（10）。**物理路径三次都没变。**
+  遗留披露：`total_steps` 因此混了两种口径（精确层比 Search 层少 1 个入场 token），跨层求和只能同口径比。
+* **黄 F6（失败判据空洞）**：`MAX_PICKUPS` 原有判据 2f（`too_many_pickups`/`reason_ty=21`）；
+  新增 `exact_dp_state_cap_is_off_not_truncation`（预算压到 1 ⇒ `state_cap`，`reason_ty=1`）与
+  `exact_dp_gate_budget_is_off_not_truncation`（门预算压到 1 ⇒ `gate_budget`，`reason_ty=2`），
+  两者都断言 `Off` 且**不携带半成品统计**；把护栏改成 `Ok(None)`/`break`（静默截断）时两条都变红。
 
 ## 7. 与既有结论的关系（没有回头推翻它们）
 
