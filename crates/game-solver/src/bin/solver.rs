@@ -443,6 +443,61 @@ fn main() {
         }
         return;
     }
+    if args.first().map(|s| s.as_str()) == Some("keydemand") {
+        // 【keydemand】只读分析：每层「入场格 → 任一上行出口」最少需要多少把各色钥匙。
+        // 零接线：本分支只打印/落盘数字，不改 witness / solve_local / exact_pickup 的任何调用点。
+        // 假设 1-5 见 lib::keydemand 模块文档，CLI 先打印再出行。
+        let (input, _shops) = solve_global_input(1);
+        let mut floors: Vec<game_solver::keydemand::FloorDemand> = Vec::new();
+        for (f, lv) in &input.floors {
+            floors.push(game_solver::keydemand::analyze_floor(*f, lv));
+        }
+        println!(
+            "== 假设 == 1) 只算走到任一上行梯（不算支线/宝箱/商店）；2) 条件门 ty83 与封印门 ty81/4 按可通行（gates_ignored）；3) 怪物按可清（monsters_ignored）；4) 火 ty6 按引擎豁免可站（hazards），火墙 ty10 属硬阻挡；5) 硬阻挡 ty9/10/11/12 + 商人 cat16 + 联动门 cat32 按永久不可通行（hard_blocks，需求可能偏高）"
+        );
+        println!("== 口径 == needed=(y,b,r) 黄/蓝/红；! = 命中网格上界 4（真需求可能更大）==");
+        for d in &floors {
+            println!("{}", d.cli_line());
+        }
+        let mut hist: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+        let (mut n_ok, mut n_no_entry, mut n_no_up, mut n_unreach, mut n_grid) = (0, 0, 0, 0, 0);
+        for d in &floors {
+            match d.status {
+                game_solver::keydemand::FloorStatus::Ok => {
+                    n_ok += 1;
+                    let key = match d.needed {
+                        Some([y, b, r]) => format!("({y},{b},{r}){}", if d.grid_bound { "!" } else { "" }),
+                        None => "-".to_string(),
+                    };
+                    *hist.entry(key).or_insert(0) += 1;
+                }
+                game_solver::keydemand::FloorStatus::NoEntry => n_no_entry += 1,
+                game_solver::keydemand::FloorStatus::NoUpExit => n_no_up += 1,
+                game_solver::keydemand::FloorStatus::Unreachable => n_unreach += 1,
+                game_solver::keydemand::FloorStatus::NeedsMoreThanGrid => n_grid += 1,
+                game_solver::keydemand::FloorStatus::TooManyDoors
+                | game_solver::keydemand::FloorStatus::TooManyPickups => {}
+            }
+        }
+        println!(
+            "== 合计 == 层 {} / ok {} / no_entry {} / no_up_exit {} / unreachable {} / needs_more_than_grid {}",
+            floors.len(), n_ok, n_no_entry, n_no_up, n_unreach, n_grid
+        );
+        let dist: Vec<String> = hist.iter().map(|(k, v)| format!("{k}×{v}")).collect();
+        println!("== needed 分布 == {}", dist.join(" "));
+        let json = game_solver::keydemand::to_json(&floors);
+        if let Some(path) = args
+            .iter()
+            .position(|a| a == "--out")
+            .and_then(|i| args.get(i + 1))
+            .cloned()
+        {
+            let text = serde_json::to_string_pretty(&json).expect("keydemand JSON 序列化");
+            std::fs::write(&path, format!("{text}\n")).unwrap_or_else(|e| panic!("写 {path}: {e}"));
+            println!("== 已写 {path} ==");
+        }
+        return;
+    }
     if args.first().map(|s| s.as_str()) == Some("run") {
         // P4：witness builder —— 从起点按塔序逐层 `solve_local_exit` 推进，产出可回放见证。
         // lib 侧纯函数（crates/game-solver/src/witness.rs），I/O 只在此处（A9 豁免面）。

@@ -42,6 +42,7 @@
     "hp_bound(test)": 3,
     "input_mapping(test)": 16,
     "items_defs(test)": 9,
+    "keydemand(test)": 7,
     "l2_prologue(test)": 1,
     "lifecycle(test)": 9,
     "mot_if_truncation(test)": 6,
@@ -83,5 +84,5 @@
     "witness(test)": 9,
     "xiyou(bin)": 42
   },
-  "total": 1237
+  "total": 1244
 }
