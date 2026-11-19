@@ -386,6 +386,27 @@ pub fn solve_layer(
     solve_layer_with(input, entry, ents, player, flags, ClosurePolicy::OFF, &[])
 }
 
+/// 【P9.1 更正（复核 F3/F8）】[`solve_layer`] 的**带商品表**变体。
+///
+/// 旧版 [`solve_layer`] 硬编码 `&[]`（空商品表），witness 链因此永远在「空商品表口径」下
+/// 求层解——f3 那层实际有 17 行货表中的商人格（`ty77 param=0x116`），旧链把它当
+/// 「无商店」，与真链路口径不同。本函数把**真实商品表**（`SolverInput.shops`）一路带进
+/// [`solve_layer_with`]：`hp_bound::plan`、`exact_layer_view`、`Search.shops`、memo 键
+/// 全都按真表判。
+///
+/// 保留 [`solve_layer`] 的空表入口只为老夹具/单测（它们没有商品表）；生产路径
+/// （`solver run` → witness → `solve_local_exit_toward_shops`）**必须**走本函数。
+pub fn solve_layer_shops(
+    input: &SolveInput,
+    entry: (i32, i32),
+    ents: Option<&[EntRec]>,
+    player: PlayerSpec,
+    flags: u128,
+    shops: &[game_data::defs::ShopGoodDef],
+) -> (bool, Vec<LayerGoal>) {
+    solve_layer_with(input, entry, ents, player, flags, ClosurePolicy::OFF, shops)
+}
+
 /// 【P3】单层「入场 → 出层」可续跑求解结果。
 ///
 /// 与 [`solve_local`] 的分工：那个回答「本层能不能到出口」（`reachable`/`max_hp`），
@@ -529,7 +550,27 @@ pub fn solve_local_exit_toward(
     ents_in: Option<&[EntRec]>,
     toward: Option<i32>,
 ) -> (ExitSolve, bool) {
-    let (reachable, goals) = solve_layer(input, entry, ents_in, player_in.clone(), flags_in);
+    solve_local_exit_toward_shops(input, entry, player_in, flags_in, ents_in, toward, &[])
+}
+
+/// 【P9.1 更正（复核 F3/F8）】[`solve_local_exit_toward`] 的**带真实商品表**变体。
+///
+/// 挑选/物化语义与 [`solve_local_exit_toward`] 完全一致，唯一差别是层解走
+/// [`solve_layer_shops`]——这样商店格在 `hp_bound`/精确 DP/`Search` 三处都按真表判，
+/// 而不是一律当「没有商店」。生产链路（witness）必须走本函数；空表入口只留给没有
+/// 商品表的老夹具。
+#[allow(clippy::too_many_arguments)]
+pub fn solve_local_exit_toward_shops(
+    input: &SolveInput,
+    entry: (i32, i32),
+    player_in: &PlayerSpec,
+    flags_in: u128,
+    ents_in: Option<&[EntRec]>,
+    toward: Option<i32>,
+    shops: &[game_data::defs::ShopGoodDef],
+) -> (ExitSolve, bool) {
+    let (reachable, goals) =
+        solve_layer_shops(input, entry, ents_in, player_in.clone(), flags_in, shops);
     let truncated = take_layer_trunc().is_some();
     let prefer: Vec<&LayerGoal> = match (toward, input.level.as_ref()) {
         (Some(t), Some(lv)) => goals
@@ -4039,7 +4080,8 @@ pub struct BumpObs {
 //   **上不了怪格/门格**；精确层要「门开、怪杀、gate 踩」，故回放走与 `expand` 相同的
 //   四条转移臂（Move/Monster/Door/Pickup）。
 
-/// 精确 DP 的格类型（与 `Cell` 一一投影，`Cell::Shop` 在无商品表时=阻挡；见 `exact_layer_view`）。
+/// 精确 DP 的格类型（与 `Cell` 一一投影；`Cell::Shop` 按 `shop_can_buy` 判：可买 ⇒
+/// `Off`，不可买 ⇒ 阻挡；见 `exact_layer_view`）。
 pub const XC_BLOCKED: u8 = 0;
 pub const XC_FREE: u8 = 1;
 pub const XC_PICKUP: u8 = 2;
@@ -4054,6 +4096,33 @@ pub struct ExactCell {
     pub idx: usize,
     pub ty: i32,
     pub param: i32,
+}
+
+/// 商人格是否**真能改变状态**（机制推导，非 ty 白名单）。
+///
+/// A 级证据（单源 `game-core`）：
+/// - `scene.rs::apply_merchant_offer`（:2522-2634）：`flags = (param >> 8) as i8`
+///   （:2532）、`idx = param as i8`（:2533）、`src = ty == 77 ? 0 : 1`（:2530）；
+///   `idx <= 0` ⇒ 无货直接返回（:2538）。
+/// - **`flags & 2` 才是购买面入口**（:2541 买臂门；撞格触发臂也只有
+///   `offer > 0` 才开面板，:3521）。玩家路径上 `apply_merchant_offer(true)` 的
+///   **唯一**入口是报价面反馈 `-6|-5`（:2731），而 `controls.rs`（:265-290）只在
+///   `flags&2` 时渲染 Buy/Accept 按钮，否则只有 Close ⇒ bit1=0 时整条买臂不可达。
+/// - 买成才改状态：扣金（:2549）、施效（GiveGold/AddStack/StatPct/AddKeys/
+///   SwapYellowKey/AddHp/PickupItem）、`param ^= 512`（:2597，`flags&4==0` 时）。
+///   货表缺行也照走收尾块（:2545）⇒ 仍是状态改变，故「有无行」不进判据。
+///
+/// ⇒ 「`idx>0 ∧ flags&2`」是买臂可达的充要条件：有面即可能买成，无面即无入口。
+///
+/// **未建模边界（已披露，不是静默假设）**：`flags&2==0 ∧ flags&1!=0` 的告示格，
+/// 关面板会 `param ^= 256` 且 `flags&4==0` 时移除实体（:2624/:2631）⇒ 该格事后可
+/// 通行；DP 没有「告示已读」维，仍按阻挡处理（只可能**低估**可达性，不会凭空造出
+/// 不可达的高 hp 解）。f3 的 `ty77 param=0x116` 正落此分支：`flags=1` ⇒ 不弹购买面；
+/// 其 hp 结论另有算术上界 4027 独立佐证（见 `docs/findings/2026-11-19-exact-pickup-dp.md`）。
+fn shop_can_buy(param: i32) -> bool {
+    let flags = (param >> 8) as i8;
+    let idx = param as i8;
+    idx > 0 && flags & 2 != 0
 }
 
 /// 层视图：DP 的唯一静态输入（全部由 `classify` 单源产出，不含第二份规则表）。
@@ -4090,13 +4159,14 @@ impl ExactLayerView {
 /// 复用面（逐条指名，禁复制）：
 /// - 通行/门/怪/拾取分类 = `Search::classify`（`Cell` 单源）；
 /// - 拾取增益认证 = `game_core::effect_registry::certified_monotone_pickup`；
-/// - 商店：`shops` 非空 ⇒ 买臂存在（会改 hp/钥/金）⇒ `Off("shop_present")`；
-///   `shops` 空 ⇒ 与 witness 面 `expand` 同义（`Cell::Shop` 无转移臂）=墙。
+/// - 商店：**逐格读 `param` 的机制位**（`shop_can_buy`），不是「表非空就拒」——
+///   `flags&2` 才开价（`scene.rs:2541`）；开价格 ⇒ `Off("shop_present")`，
+///   不开价格 ⇒ 阻挡格（引擎撞格即 `allowed=false`，见 `shop_can_buy` 的边界说明）。
+///   商品表**不是**本函数的判定输入：判定读实体 `param`；表只喂 `hp_bound`/`Search`。
 pub fn exact_layer_view(
     input: &SolveInput,
     entry: (i32, i32),
     ents: &[EntRec],
-    shops: &[ShopGoodDef],
 ) -> Result<ExactLayerView, (&'static str, i32)> {
     use game_core::effect_registry::certified_monotone_pickup;
     let level = input.level.as_ref().ok_or(("no_level", 0))?;
@@ -4162,13 +4232,15 @@ pub fn exact_layer_view(
                     kill_slot.push(slot);
                     ExactCell { kind: XC_MONSTER, idx: kill_ty.len() - 1, ty, param: 0 }
                 }
-                Cell::Shop(_, ty) => {
-                    // 买臂=hp/钥/金源，不可由拾取位图推导 ⇒ 有商品表即失败（fail-closed）。
-                    if !shops.is_empty() {
+                Cell::Shop(slot, ty) => {
+                    // 机制判据：买臂可达（`idx>0 ∧ flags&2`）⇒ 会改 hp/钥/金，位图推不出
+                    // ⇒ fail-closed；不可买 ⇒ 与 `expand` 的「走臂也不成立」同义（引擎撞格
+                    // 即阻挡，`scene.rs:3543 allowed=false`）⇒ 阻挡格（不静默放行）。
+                    let param = st.ents.get(slot).map(|e| e.param).unwrap_or(0);
+                    if shop_can_buy(param) {
                         return Err(("shop_present", ty));
                     }
-                    // 无商品表：与 `expand` 同义（无 Shop 臂），拾取面不可踩 ⇒ 视作阻挡。
-                    ExactCell { kind: XC_BLOCKED, idx: 0, ty, param: ty }
+                    ExactCell { kind: XC_BLOCKED, idx: 0, ty, param }
                 }
             };
             cells.push(c);

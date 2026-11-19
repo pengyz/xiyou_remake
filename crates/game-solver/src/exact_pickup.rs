@@ -41,6 +41,8 @@ use crate::solve_local::{
     XC_GATE, XC_MONSTER, XC_PICKUP,
 };
 use game_core::effect_registry::{certified_monotone_pickup, PickupGain};
+#[cfg(test)]
+use std::cell::Cell;
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 
@@ -49,7 +51,11 @@ use std::collections::{HashMap, VecDeque};
 /// 回退通用搜索（仍然正确，只是不再精确）。FA 层实际最大拾取物数是 f3 的 18。
 pub const MAX_PICKUPS: usize = 20;
 /// 状态数预算。超限 ⇒ `Off(state_cap)`（**不是截断**：截断会给出「非最优但自称精确」的答案）。
-pub const MAX_STATES: usize = 2_000_000;
+///
+/// **P9.1 更正**：删掉不健全的反向支配（见 `Dp::push` 的 P9.1 段）后，f3 层的存活状态
+/// 由 13 万升到 **4,741,000**（复核 M1 实测，release 3.08s）。预算必须覆盖真实规模，
+/// 否则 f3 会退化成 `Off(state_cap)`——那等于用护栏太紧冒充「不可解」。6M 留 ~1.26× 余量。
+pub const MAX_STATES: usize = 6_000_000;
 /// gate 引擎调用预算（每次 `gate_arrive` 都是一次真脚本执行）。
 pub const MAX_GATE_CALLS: usize = 64;
 /// 位图总位宽上限（`pos` 之外；`u64` 打包：pos 16 + pick 20 + door 12 + kill 12 = 60）。
@@ -151,6 +157,45 @@ pub(crate) fn try_exact_dp(
     out
 }
 
+/// 状态数预算的**唯一取用点**（判据 4：护栏必须 fail-closed）。
+///
+/// 生产档 = [`MAX_STATES`]；lib 单测可线程局部覆盖成极小值，用来证明「预算耗尽 ⇒
+/// `state_cap` ⇒ `Off`」而不是静默截断或自称最优。故意不用环境变量：测试不许依赖
+/// 进程级副作用（并发测试会互相污染）。
+#[cfg(test)]
+fn state_budget() -> usize {
+    STATE_BUDGET.with(|b| b.get().unwrap_or(MAX_STATES))
+}
+
+#[cfg(test)]
+thread_local! {
+    static STATE_BUDGET: Cell<Option<usize>> = const { Cell::new(None) };
+}
+
+#[cfg(not(test))]
+fn state_budget() -> usize {
+    MAX_STATES
+}
+
+/// 门采样预算的**唯一取用点**（判据 4：护栏必须 fail-closed）。
+///
+/// 生产档 = [`MAX_GATE_CALLS`]；lib 单测可线程局部覆盖，用来证明「撞预算 ⇒
+/// `gate_budget` ⇒ `Off`」。与 [`state_budget`] 同一理由不用环境变量。
+#[cfg(test)]
+fn gate_budget() -> usize {
+    GATE_BUDGET.with(|b| b.get().unwrap_or(MAX_GATE_CALLS))
+}
+
+#[cfg(test)]
+thread_local! {
+    static GATE_BUDGET: Cell<Option<usize>> = const { Cell::new(None) };
+}
+
+#[cfg(not(test))]
+fn gate_budget() -> usize {
+    MAX_GATE_CALLS
+}
+
 const DIRS: [(i32, i32); 4] = [(0, -1), (0, 1), (-1, 0), (1, 0)];
 
 #[allow(clippy::too_many_arguments)]
@@ -195,7 +240,9 @@ fn run(
     }
 
     // ---- 层视图（格分类/拾取认证/出口表；A5 的拾取计数在视图里）----
-    let mut view = match exact_layer_view(input, entry, root_ents, shops) {
+    // 【P9.2】层视图不再吃商品表：商店格的判定读实体 `param` 的机制位
+    // （`shop_can_buy`），表只喂下面的 `hp_bound::plan` 与 `Dp` 的 `Search` 面。
+    let mut view = match exact_layer_view(input, entry, root_ents) {
         Ok(v) => v,
         Err((r, t)) => return give_up(st, r, t),
     };
@@ -220,7 +267,7 @@ fn run(
         }
         let pos = ((i as i32) % view.cols, (i as i32) / view.cols);
         gate_calls += 1;
-        if gate_calls > MAX_GATE_CALLS {
+        if gate_calls > gate_budget() {
             return give_up(st, "gate_budget", gate_calls as i32);
         }
         match exact_gate_effect(input, entry, root_ents, player_in, flags_in, pos) {
@@ -409,11 +456,15 @@ struct Dp<'a> {
     bump_cache: HashMap<(i32, i32, i32), (i32, i32)>,
     states: Vec<SNode>,
     index: HashMap<u128, u32>,
-    /// `(pos, dm, km)`（**不含 pm**）→ 已入队的 `(pm, state)` 帕累托前沿。
-    /// 见 `push` 的支配引理。
+    /// `(pos, dm, km)`（**不含 pm**）→ 已入队的 `(pm, state)` 列表。
+    /// 只用于正向支配查询（见 `push` 的支配引理 + P9.1 更正：反向剪枝已删除）。
     front: HashMap<u128, Vec<(u32, u32)>>,
-    /// 被后续（超集）状态支配掉的状态：仍留在 `states` 里占位，但不再展开/参评。
+    /// 历史上用于标记「被后续超集按目标序支配」的状态；P9.1 删掉反向剪枝后没有任何
+    /// 代码再把它置 true（挑选侧仍读它，保留字段以免改动面外扩）。
     dead: Vec<bool>,
+    /// 状态数预算（默认 `MAX_STATES`；lib 单测把它调小以证明「预算耗尽 ⇒ `state_cap` ⇒
+    /// `Off`」——预算护栏必须是具名拒绝，不是静默截断）。
+    cap: usize,
 }
 
 impl<'a> Dp<'a> {
@@ -465,7 +516,13 @@ impl<'a> Dp<'a> {
             index: HashMap::new(),
             front: HashMap::new(),
             dead: Vec::new(),
+            cap: state_budget(),
         }
+    }
+
+    /// 预算是否已耗尽（单一判定点，`push` 与单测共用）。
+    fn cap_reached(&self) -> bool {
+        self.states.len() >= self.cap
     }
 
     /// 状态键：`pos(16) | pm(24) | dm(16) | km(16)` = 72 位（`u128`）。
@@ -575,13 +632,30 @@ impl<'a> Dp<'a> {
 
     /// 状态入队 + **超集支配**剪枝。
     ///
-    /// 引理（本模块正确性的第二根柱子）：同一 `(pos, dm, km)` 下，若 `pm₁ ⊇ pm₂`，则
-    /// `pm₂` 被 `pm₁` **严格支配**——两态可走格集合相同（拾取物不挡路、门/怪位图相同）、
-    /// 三钥与 hp/atk/def 逐轴 ≥（G3 单调认证），gold 与 pm 无关，且从 `pm₁` 照抄 `pm₂`
-    /// 的后续路线只会**再多捡**不亏 ⇒ 任何以 `pm₂` 结尾的最优解都被 `pm₁` 的同形解不劣地
+    /// 引理（本模块正确性的第二根柱子）：同一 `(pos, dm, km)` 下，若 `pm₁ ⊇ pm₂` **且**
+    /// `steps₁ ≤ steps₂`，则 `pm₂` 被 `pm₁` 支配——两态可走格集合相同（拾取物不挡路、门/怪
+    /// 位图相同）、三钥与 hp/atk/def 逐轴 ≥（G3 单调认证），且从 `pm₁` 照抄 `pm₂` 的后续
+    /// 路线只会**再多捡**不亏，步数还不更多 ⇒ 任何以 `pm₂` 结尾的解都被 `pm₁` 的同形解不劣地
     /// 覆盖。故 `pm₂` 可以丢弃，且丢弃**不损失精确性**（与 `pure_pickup` 里那条「无独立
     /// hp 源时子集支配恒 0」的负结果是两件事：那里的支配条件被联立成「已捡集合相同」，
     /// 这里是**跨已捡集合**的真支配，且不依赖 hp 上界）。
+    ///
+    /// # P9.1 更正（对抗复核 F4）：才只保留**正向**剪枝，反向 dead 段删除
+    ///
+    /// 旧版还有一条反向剪枝：本态 `pm ⊃ 已有 pm₂` ⇒ 标 `pm₂` 为 dead。它**不健全**：
+    /// 目标是 `(hp 最大, steps 最小)` 的**字典序**，`pm ⊃ pm₂` 只保证「此刻 hp ≥」，
+    /// 不保证「出口 hp 严格更大」，也不保证步数更少。两种坑都实测到了：
+    /// 1. `pm ⊃ pm₂` 但步数更多（FIFO 后入队者步数只多不少）⇒ 杀掉步数更少的解：
+    ///    f3 层由 88 步/14 件退化为 106 步/18 件（复核报告 F4 的实证）。
+    /// 2. 试图用「hp 严格更大才杀」补丁也不行：多出来的 hp 物品可能**正躺在本态后续
+    ///    必经路线上**，两边到出口 hp 打平，而被杀的那个步数更少 ⇒ 实测 f3 得 98 步/16 件，
+    ///    仍不是 88 步/14 件。即「此刻 hp 严格更大」不蕴含「出口 hp 严格更大」。
+    /// 唯一健全的反向谓词是 `steps₁ ≤ steps₂`（见引理）；BFS 是 FIFO，后入队的超集步数只多
+    /// 不少 ⇒ 该条件下反向剪枝恒为空。故反向段整体删除，只保留正向剪枝：超集若**先**入队，
+    /// 其步数必 ≤ 本态（FIFO），支配引理完整成立。
+    ///
+    /// 代价：状态数上升（f3 由剪枝后的 13 万升到 474 万）。这是精确性的必要成本，
+    /// 用 `MAX_STATES` 预算护栏（耗尽 ⇒ `state_cap` ⇒ `Off`，不静默截断）兜住。
     ///
     /// 返回 `Some(idx)` = 真正入队（调用方据此继续 BFS）；`None` = 被支配/已存在 ⇒ 不展开。
     fn push(&mut self, n: SNode) -> Result<Option<u32>, (&'static str, i32)> {
@@ -591,24 +665,17 @@ impl<'a> Dp<'a> {
         }
         let kk = self.pack_no_pm(&n);
         if let Some(front) = self.front.get(&kk) {
-            // 已有 pm₂ ⊇ pm ⇒ 本态被支配（`n.pm & !pm2 == 0` 即 pm ⊆ pm₂）
+            // 已有 pm₂ ⊇ pm ⇒ 本态被支配（`n.pm & !pm2 == 0` 即 pm ⊆ pm₂）。
+            // 正向剪枝的健全性依赖 FIFO：`pm₂` 先入队 ⇒ `steps₂ ≤ n.steps`。
             if front.iter().any(|&(pm2, _)| n.pm & !pm2 == 0) {
                 return Ok(None);
             }
         }
-        if self.states.len() >= MAX_STATES {
+        if self.cap_reached() {
             return Err(("state_cap", self.states.len() as i32));
         }
         let i = self.states.len() as u32;
-        // 反向：本态 pm ⊃ 已有的 pm₂ ⇒ 后者失效（标记 dead，不再展开/参评）
-        let front = self.front.entry(kk).or_default();
-        for &(pm2, j) in front.iter() {
-            if n.pm & !pm2 != 0 {
-                self.dead[j as usize] = true;
-            }
-        }
-        front.retain(|&(pm2, _)| pm2 & !n.pm != 0);
-        front.push((n.pm, i));
+        self.front.entry(kk).or_default().push((n.pm, i));
         self.states.push(n);
         self.dead.push(false);
         self.index.insert(k, i);
@@ -762,15 +829,14 @@ impl<'a> Dp<'a> {
 mod exact_dp_unit_tests {
     use super::*;
 
-    /// 判据（验收 #3）：DP 预测与真引擎回放不一致时**必须 Off**，不许返回结果。
-    ///
-    /// 构造方式：先让 DP 正常解出一层，再**篡改预测的 hp**（模拟「DP 状态推导与引擎
-    /// 语义分歧」），断言 `validate_outcomes` 返回 `replay_mismatch`。这是对**防线本身**
-    /// 的夹具——真实分歧我们复现不出来（derive 与引擎同源），所以直接对校验器下毒。
-    #[test]
-    fn exact_dp_corrupted_prediction_is_off() {
+    /// 5×3 走廊夹具：y=1 全可走；入口 (0,1)，出口 (4,1)；两枚 ty32(+200hp)。
+    /// 两态起步 ⇒ 预算调到 1 时必然在第二次 `push` 处撞护栏（判据 4 的夹具）。
+    fn corridor() -> (
+        crate::solve_local::SolveInput,
+        Vec<EntRec>,
+        crate::solve_local::PlayerSpec,
+    ) {
         use crate::solve_local::{EntSpec, ExitKind, ExitSpec, LevelSpec, PlayerSpec, SolveInput};
-        // 5×3 走廊：y=1 全可走；入口 (0,1)，出口 (4,1)；中间两枚 ty32(+200hp)。
         let level = LevelSpec {
             cols: 5,
             rows: 3,
@@ -808,7 +874,18 @@ mod exact_dp_unit_tests {
             .iter()
             .map(|e| EntRec { ty: e.ty, x: e.x, y: e.y, param: e.param })
             .collect();
-        let player = lv.player.clone();
+        let player: PlayerSpec = lv.player.clone();
+        (input, ents, player)
+    }
+
+    /// 判据（验收 #3）：DP 预测与真引擎回放不一致时**必须 Off**，不许返回结果。
+    ///
+    /// 构造方式：先让 DP 正常解出一层，再**篡改预测的 hp**（模拟「DP 状态推导与引擎
+    /// 语义分歧」），断言 `validate_outcomes` 返回 `replay_mismatch`。这是对**防线本身**
+    /// 的夹具——真实分歧我们复现不出来（derive 与引擎同源），所以直接对校验器下毒。
+    #[test]
+    fn exact_dp_corrupted_prediction_is_off() {
+        let (input, ents, player) = corridor();
         let mut goals = try_exact_dp(&input, (0, 1), &ents, &player, 0, ClosurePolicy::OFF, &[])
             .expect("合成层应被精确解接管");
         assert_eq!(goals.len(), 1);
@@ -822,5 +899,56 @@ mod exact_dp_unit_tests {
             validate_outcomes(&input, (0, 1), &ents, &player, 0, &goals).unwrap_err().0,
             "replay_mismatch"
         );
+    }
+
+    /// 判据 4（护栏 fail-closed）：状态预算耗尽 ⇒ **`Off(state_cap)`**，不是静默截断、
+    /// 也不是拿一个「非最优但自称精确」的解返回。
+    ///
+    /// `MAX_PICKUPS` 那条护栏的对应判据在集成测试里
+    /// （`tests/exact_pickup.rs::exact_dp_off_on_too_many_pickups`，断言
+    /// `reason=="too_many_pickups"`、`reason_ty==21`）；本条补的是状态预算这条——
+    /// 它到 P9.1 为止**没有任何判据**，只在源码里存在（复核 F6 指出「失败判据空洞」）。
+    #[test]
+    fn exact_dp_state_cap_is_off_not_truncation() {
+        let (input, ents, player) = corridor();
+        STATE_BUDGET.with(|b| b.set(Some(1)));
+        let got = try_exact_dp(&input, (0, 1), &ents, &player, 0, ClosurePolicy::OFF, &[]);
+        let st = exact_stat();
+        STATE_BUDGET.with(|b| b.set(None));
+        assert!(got.is_none(), "预算耗尽必须返回 None（Off），实测给出解");
+        assert!(!st.adopted, "预算耗尽不得 adopted");
+        assert_eq!(st.reason, "state_cap", "必须是具名拒绝，实测={:?}", st.reason);
+        assert_eq!(st.reason_ty, 1, "reason_ty 必须带上撞到的预算值");
+        assert_eq!((st.steps, st.picks, st.out_hp), (0, 0, 0), "Off 不得携带半成品统计");
+    }
+
+    /// 判据 4（护栏 fail-closed，第二道）：门采样预算撞界 ⇒ **`Off(gate_budget)`**。
+    ///
+    /// 与 [`Self`] 的 state_cap 判据同源：护栏触发时必须给出**具名理由**并让本层不精确，
+    /// 不许「采一半就按恒等处理」——那会把没验证过的门当安全门，是静默截断的另一种形态。
+    /// 夹具复用 corridor，把两枚 ty32 换成两扇 ty83 `param=0` 场景门（引擎语义：游标无脚本 ⇒ 恒等），
+    /// 预算压到 1 ⇒ 采到第 2 扇时撞界。
+    ///
+    /// 变异自证：把 `if gate_calls > gate_budget() { return give_up(...) }` 的 `return` 改成
+    /// `break`（半途而废但继续跑 DP）⇒ 本条红（理由退化成 `exit_unreachable`/`adopted`）。
+    #[test]
+    fn exact_dp_gate_budget_is_off_not_truncation() {
+        use crate::solve_local::EntSpec;
+        let (mut input, _ents, player) = corridor();
+        input.level.as_mut().unwrap().entities = vec![
+            EntSpec { ty: 83, x: 1, y: 1, param: 0 },
+            EntSpec { ty: 83, x: 2, y: 1, param: 0 },
+        ];
+        let lv = input.level.as_ref().unwrap();
+        let ents: Vec<EntRec> =
+            lv.entities.iter().map(|e| EntRec { ty: e.ty, x: e.x, y: e.y, param: e.param }).collect();
+        GATE_BUDGET.with(|b| b.set(Some(1)));
+        let got = try_exact_dp(&input, (0, 1), &ents, &player, 0, ClosurePolicy::OFF, &[]);
+        let st = exact_stat();
+        GATE_BUDGET.with(|b| b.set(None));
+        assert!(got.is_none(), "撞门预算必须 Off，实测给出解");
+        assert!(!st.adopted, "撞门预算不得 adopted");
+        assert_eq!(st.reason, "gate_budget", "必须具名，实测={:?}", st.reason);
+        assert_eq!(st.reason_ty, 2, "reason_ty = 实际采样次数");
     }
 }

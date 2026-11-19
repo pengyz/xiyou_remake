@@ -71,7 +71,7 @@
 
 use crate::solve_global::{landing, stair_target};
 use crate::solve_local::{
-    solve_local_exit_toward, EntRec, ExitKind, ExitSolve, LevelSpec, PlayerSpec, SolveInput,
+    solve_local_exit_toward_shops, EntRec, ExitKind, ExitSolve, LevelSpec, PlayerSpec, SolveInput,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -291,6 +291,10 @@ impl Default for WitnessCfg {
 ///
 /// 末参 `Option<i32>` = 本步的**优先目标层**（P0 层图的上行主线后继）；
 /// 返回值第二项 = 该优先目标是否被满足（`false` ⇒ 解是回落解，**不得**当前进消费）。
+/// 【P9.1 更正（复核 F3/F8）】末组参数带**真实商品表**（`SolverInput.shops`，17 行）：
+/// 旧签名的生产实现走 `solve_local_exit_toward`，而它内部把商品表硬编码成 `&[]`，
+/// witness 链于是永远在「空商品表口径」下求层解——f3 的 `ty77 param=0x116` 商人格
+/// 在真表口径下才判得出「引擎根本不弹购买面」。商品表必须由调用方一路传下来。
 pub type LayerSolver<'a> = &'a dyn Fn(
     &SolveInput,
     (i32, i32),
@@ -298,6 +302,7 @@ pub type LayerSolver<'a> = &'a dyn Fn(
     u128,
     Option<&[EntRec]>,
     Option<i32>,
+    &[game_data::defs::ShopGoodDef],
 ) -> (ExitSolve, bool);
 
 /// 生产入口：按 P0 层图的**上行主线**逐层推进 [`solve_local_exit_toward`]，产出可回放见证。
@@ -305,6 +310,8 @@ pub type LayerSolver<'a> = &'a dyn Fn(
 /// - `levels`：层号 → 层规格（`solve_global` 的 `per_floor` 同源）；
 /// - `start_floor`/`start_entry`：起手层与入场格（塔序起点= f51 / (1,11)）；
 /// - `player`/`flags`：起手玩家态与脚本旗标（新游戏 = hp300/atk10/def10/三色钥0/金0/空包/flags0）；
+/// - `shops`：**真实商品表**（`SolverInput.shops`）。不许传 `&[]`：空表会让「商店格能不能
+///   买」失真（旧版正是这样把 f3 口径打偏的，见复核 F3/F8）；没有商品表的夹具显式传 `&[]`。
 /// - 实体表按层归属：新层首入传 `None`（见模块 doc「状态接力」）。
 ///
 /// 「上行主线」= 从当前层出发的 `StairUp` 边目标（见 [`up_line_next`]）：
@@ -315,6 +322,7 @@ pub fn run_witness(
     start_entry: (i32, i32),
     player: PlayerSpec,
     flags: u128,
+    shops: &[game_data::defs::ShopGoodDef],
     cfg: &WitnessCfg,
 ) -> Witness {
     run_witness_with(
@@ -323,8 +331,9 @@ pub fn run_witness(
         start_entry,
         player,
         flags,
+        shops,
         cfg,
-        &|i, e, p, f, ents, toward| solve_local_exit_toward(i, e, p, f, ents, toward),
+        &|i, e, p, f, ents, toward, sh| solve_local_exit_toward_shops(i, e, p, f, ents, toward, sh),
     )
 }
 
@@ -397,6 +406,7 @@ pub fn run_witness_with(
     start_entry: (i32, i32),
     player: PlayerSpec,
     flags: u128,
+    shops: &[game_data::defs::ShopGoodDef],
     cfg: &WitnessCfg,
     layer: LayerSolver<'_>,
 ) -> Witness {
@@ -479,7 +489,8 @@ pub fn run_witness_with(
         // P0 ⇒ P3 的接缝：层图说「上一层楼是 f{next_up}」，层求解器就在目标集里挑
         // 「出层边指向 f{next_up}」的那条；`hit=false` 表示它挑不到（回落解可能往回走）。
         let next_up = up_line_next(floor, level, &lays);
-        let (got, hit) = layer(input, entry, &cur_player, cur_flags, ents_here.as_deref(), next_up);
+        let (got, hit) =
+            layer(input, entry, &cur_player, cur_flags, ents_here.as_deref(), next_up, shops);
 
         // ---- 硬约束 A：截断层不可消费（也不许接力）----
         if got.truncated {

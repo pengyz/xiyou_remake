@@ -459,7 +459,9 @@ fn main() {
             .and_then(|i| args.get(i + 1))
             .map(|v| v.parse::<usize>().unwrap_or_else(|_| panic!("--max-floors 需正整数: {v}")))
             .unwrap_or(game_solver::witness::DEFAULT_MAX_FLOORS);
-        let (gi, _shops) = solve_global_input(1);
+        // 【P9.1 更正（复核 F3/F8）】商品表**不许丢**：旧代码在这里写成 `_shops`，
+        // witness 链于是永远在「空商品表口径」下求层解（f3 的 17 行货表根本没进去）。
+        let (gi, shops) = solve_global_input(1);
         let levels: std::collections::BTreeMap<i32, SolveInput> = gi
             .floors
             .into_iter()
@@ -477,6 +479,7 @@ fn main() {
             GLOBAL_ENTRY,
             PlayerSpec::from_combat(mk_player()),
             0,
+            &shops,
             &cfg,
         );
         // 人读摘要走 stderr（stdout 留给 JSON：不加 --out 时可直接管道消费）。

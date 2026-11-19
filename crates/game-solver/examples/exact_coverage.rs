@@ -13,7 +13,7 @@
 use game_core::combat::{scale_enemy_stats, CombatTables, PlayerCombat};
 use game_solver::exact_pickup::{exact_stat, exact_stat_clear};
 use game_solver::ingest::ingest;
-use game_solver::solve_local::{load_floor, solve_local_exit_toward, PlayerSpec};
+use game_solver::solve_local::{load_floor, solve_local_exit_toward_shops, PlayerSpec};
 use std::collections::BTreeMap;
 
 fn nums(t: &str) -> Vec<i32> {
@@ -86,7 +86,9 @@ fn main() {
         };
         let Some(start) = inp.level.as_ref().map(|l| l.start) else { continue };
         let t0 = std::time::Instant::now();
-        let (_ex, _hit) = solve_local_exit_toward(&inp, start, &strong, 0, None, None);
+        // 【P9.2】真实 17 行商品表：与生产链 `bin/solver.rs` 同口径（商店格判定读 param，
+        // 表只喂 hp_bound 与 Search；旧口径传空表会把 f2 的 ty78 可买商店误当墙）。
+        let (_ex, _hit) = solve_local_exit_toward_shops(&inp, start, &strong, 0, None, None, &si.shops);
         let ms = t0.elapsed().as_millis();
         let st = exact_stat();
         *hist.entry(st.reason).or_insert(0) += 1;

@@ -209,6 +209,7 @@ type Solver<'a> = &'a dyn Fn(
     u128,
     Option<&[EntRec]>,
     Option<i32>,
+    &[game_data::defs::ShopGoodDef],
 ) -> (game_solver::solve_local::ExitSolve, bool);
 
 fn two_floor_levels() -> BTreeMap<i32, SolveInput> {
@@ -231,7 +232,7 @@ fn witness_chains_real_floors() {
     // （那就测不到护栏了；model_broken 本身另有判据）。
     let levels = real_levels(&[1, 2, 3]);
     let cfg = WitnessCfg { max_floors: 2 };
-    let w = run_witness(&levels, 1, (6, 11), PlayerSpec::from_combat(s0()), 0, &cfg);
+    let w = run_witness(&levels, 1, (6, 11), PlayerSpec::from_combat(s0()), 0, &[], &cfg);
     println!("[接力] status={} floors={}", w.status, w.floors.len());
 
     assert_eq!(w.floors.len(), 2, "f1→f2 两层都必须解出：{w:?}");
@@ -271,7 +272,7 @@ fn witness_chains_real_floors() {
 #[test]
 fn witness_synthetic_two_floor_tower_reaches_witness() {
     let levels = two_floor_levels();
-    let solver: Solver<'_> = &|input, _entry, p, _flags, _ents, _toward| {
+    let solver: Solver<'_> = &|input, _entry, p, _flags, _ents, _toward, _shops| {
         if input.floor == 1 {
             (fake_exit_ok(p), true)
         } else {
@@ -285,6 +286,7 @@ fn witness_synthetic_two_floor_tower_reaches_witness() {
         (1, 1),
         PlayerSpec::from_combat(s0()),
         0,
+        &[],
         &cfg,
         solver,
     );
@@ -305,7 +307,7 @@ fn witness_synthetic_two_floor_tower_reaches_witness() {
 #[test]
 fn witness_refuses_to_fake_success() {
     let levels = two_floor_levels();
-    let solver: Solver<'_> = &|input, _entry, p, _flags, _ents, _toward| {
+    let solver: Solver<'_> = &|input, _entry, p, _flags, _ents, _toward, _shops| {
         if input.floor == 1 {
             (fake_exit_ok(p), true)
         } else {
@@ -336,6 +338,7 @@ fn witness_refuses_to_fake_success() {
         (1, 1),
         PlayerSpec::from_combat(s0()),
         0,
+        &[],
         &cfg,
         solver,
     );
@@ -356,7 +359,7 @@ fn witness_refuses_to_fake_success() {
 #[test]
 fn witness_truncated_floor_is_not_consumed() {
     let levels = two_floor_levels();
-    let solver: Solver<'_> = &|input, _entry, p, _flags, _ents, _toward| {
+    let solver: Solver<'_> = &|input, _entry, p, _flags, _ents, _toward, _shops| {
         if input.floor == 1 {
             (fake_exit_ok(p), true)
         } else {
@@ -373,6 +376,7 @@ fn witness_truncated_floor_is_not_consumed() {
         (1, 1),
         PlayerSpec::from_combat(s0()),
         0,
+        &[],
         &cfg,
         solver,
     );
@@ -390,7 +394,7 @@ fn witness_truncated_floor_is_not_consumed() {
 #[test]
 fn witness_goal_must_point_forward() {
     let levels = two_floor_levels();
-    let solver: Solver<'_> = &|input, _entry, p, _flags, _ents, _toward| {
+    let solver: Solver<'_> = &|input, _entry, p, _flags, _ents, _toward, _shops| {
         if input.floor == 1 {
             // 解是通往 f3 的（层图里 f1 的上一层是 f2）⇒ hit=false（= picks 的回落解）
             let mut got = fake_exit_ok(p);
@@ -407,6 +411,7 @@ fn witness_goal_must_point_forward() {
         (1, 1),
         PlayerSpec::from_combat(s0()),
         0,
+        &[],
         &cfg,
         solver,
     );
@@ -427,7 +432,7 @@ fn witness_is_deterministic() {
     let run = || {
         let levels = real_levels(&[1]);
         let cfg = WitnessCfg { max_floors: 1 };
-        run_witness(&levels, 1, (6, 11), PlayerSpec::from_combat(s0()), 0, &cfg).to_json()
+        run_witness(&levels, 1, (6, 11), PlayerSpec::from_combat(s0()), 0, &[], &cfg).to_json()
     };
     let h1 = std::thread::spawn(run);
     let h2 = std::thread::spawn(run);
@@ -442,7 +447,7 @@ fn witness_is_deterministic() {
 fn witness_json_schema_stable() {
     let levels = real_levels(&[1, 2, 3]);
     let cfg = WitnessCfg { max_floors: 2 };
-    let w = run_witness(&levels, 1, (6, 11), PlayerSpec::from_combat(s0()), 0, &cfg);
+    let w = run_witness(&levels, 1, (6, 11), PlayerSpec::from_combat(s0()), 0, &[], &cfg);
     let json = w.to_json();
 
     // 1) 结构体 round-trip：字段类型/必需性由 serde 判（删字段/改类型即红）。
@@ -529,7 +534,7 @@ fn witness_up_line_comes_from_floor_graph() {
 fn witness_json_has_no_unknown_schema_drift() {
     let levels = real_levels(&[1, 2, 3]);
     let cfg = WitnessCfg { max_floors: 2 };
-    let w = run_witness(&levels, 1, (6, 11), PlayerSpec::from_combat(s0()), 0, &cfg);
+    let w = run_witness(&levels, 1, (6, 11), PlayerSpec::from_combat(s0()), 0, &[], &cfg);
     let json = w.to_json();
     let v: serde_json::Value = serde_json::from_str(&json).expect("JSON 可解析");
 

@@ -32,10 +32,10 @@ use game_solver::pure_pickup::{
     closed_form_terminal_checks, pure_pickup_stat, replay_route_in_engine, PurePickupStat,
 };
 use game_solver::solve_local::{
-    load_floor, probe_gate, solve_local_exit_toward, EntSpec, ExitKind, ExitSolve, ExitSpec,
-    LevelSpec, PlayerSpec, SolveInput,
+    load_floor, probe_gate, solve_local_exit_toward, solve_local_exit_toward_shops, EntRec, EntSpec,
+    ExitKind, ExitSolve, ExitSpec, LevelSpec, PlayerSpec, SolveInput,
 };
-use game_solver::witness::{run_witness, WitnessCfg};
+use game_solver::witness::{run_witness, run_witness_with, WitnessCfg};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -453,6 +453,7 @@ fn pure_pickup_does_not_change_exact_results_on_non_pure_floors() {
         GLOBAL_ENTRY,
         PlayerSpec::from_combat(mk_player()),
         0,
+        &si.shops,
         &WitnessCfg { max_floors: 3 },
     );
     assert_eq!(w.floors.len(), 3, "f51..f53 必须全在链上");
@@ -505,6 +506,7 @@ fn pure_pickup_chain_breaks_the_f54_wall() {
         GLOBAL_ENTRY,
         PlayerSpec::from_combat(mk_player()),
         0,
+        &si.shops,
         &WitnessCfg { max_floors: 4 },
     );
     let elapsed = t0.elapsed().as_secs_f64();
@@ -542,6 +544,7 @@ fn witness_floor_records_pure_pickup_flag() {
         GLOBAL_ENTRY,
         PlayerSpec::from_combat(mk_player()),
         0,
+        &si.shops,
         &WitnessCfg { max_floors: 4 },
     );
     assert_eq!(w.floors.len(), 4, "f51..f54 四层都要在链上");
@@ -732,7 +735,8 @@ fn pure_pickup_flag_reflects_monotone_hit() {
     let mut levels = BTreeMap::new();
     levels.insert(54i32, inp);
     let cfg = WitnessCfg { max_floors: 1 };
-    let w = run_witness(&levels, 54, SYNTH_ENTRY, ps, 0, &cfg);
+    // 合成层无商人格 ⇒ 空商品表（口径与生产无关，显式传）
+    let w = run_witness(&levels, 54, SYNTH_ENTRY, ps, 0, &[], &cfg);
     let f = &w.floors[0];
     println!(
         "[B11] floors={} floor={} out_hp={} pure={} reason={:?}",
@@ -844,5 +848,54 @@ fn closed_form_terminal_mismatch_call_site_is_wired() {
     assert!(
         after > before,
         "闭式成功路径必须走到 `terminal_mismatch` 调用点（删掉调用点 ⇒ 计数不涨 ⇒ 本判据红）"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 判据 15（复核 F3/F8 修法）：**商品表必须一路传进层解器**，不许在接力里被丢掉
+// ---------------------------------------------------------------------------
+/// 旧 bug 链：`bin/solver.rs:462 let (gi, _shops)` 丢弃 ⇒ `run_witness` ⇒
+/// `solve_local_exit_toward` ⇒ `solve_layer(..., &[])` 恒传空表 ⇒「打穿 f3」只在
+/// 「商品表未建模」口径成立（复核 F3/F8）。
+///
+/// 本判据用**记录式层解器**看接力实际交下来的切片：长度与首地址都必须等于调用方传入的
+/// 真实 17 行表（不是复制、不是空表）。
+///
+/// 变异自证：把 `witness.rs` 的委托闭包改成 `..., _shops) => solve_local_exit_toward_shops(..., &[])`
+/// （旧 bug 同款）⇒ 本判据红。
+#[test]
+fn witness_forwards_real_shop_table_to_layer_solver() {
+    let si = load_si();
+    let levels = levels_map(&si);
+    assert_eq!(si.shops.len(), 17, "真实商品表必须是 17 行");
+    let got: std::cell::RefCell<Vec<(usize, usize)>> = std::cell::RefCell::new(Vec::new());
+    let layer = &|input: &SolveInput,
+                  entry: (i32, i32),
+                  p: &PlayerSpec,
+                  f: u128,
+                  ents: Option<&[EntRec]>,
+                  toward: Option<i32>,
+                  shops: &[game_data::defs::ShopGoodDef]| {
+        got.borrow_mut().push((shops.len(), shops.as_ptr() as usize));
+        solve_local_exit_toward_shops(input, entry, p, f, ents, toward, shops)
+    };
+    let _ = run_witness_with(
+        &levels,
+        GLOBAL_START_FLOOR,
+        GLOBAL_ENTRY,
+        PlayerSpec::from_combat(mk_player()),
+        0,
+        &si.shops,
+        &WitnessCfg { max_floors: 1 },
+        layer,
+    );
+    let got = got.into_inner();
+    println!("[shops-forward] got={got:?} want=({}, {:p})", si.shops.len(), si.shops.as_ptr());
+    assert_eq!(got.len(), 1, "max_floors=1 ⇒ 层解器恰好被调用一次");
+    assert_eq!(got[0].0, si.shops.len(), "层解器收到的商品表长度必须等于真实表");
+    assert_eq!(
+        got[0].1,
+        si.shops.as_ptr() as usize,
+        "层解器必须拿到同一份切片（空表/复制都算丢）"
     );
 }

@@ -143,6 +143,7 @@ fn main() {
         GLOBAL_ENTRY,
         PlayerSpec::from_combat(mk_player()),
         0,
+        &si.shops,
         &WitnessCfg { max_floors: span },
     );
     println!("-- prefix chain f{GLOBAL_START_FLOOR}..f{} (limit={limit}) --", floor - 1);
@@ -291,6 +292,7 @@ fn main() {
         GLOBAL_ENTRY,
         PlayerSpec::from_combat(mk_player()),
         0,
+        &si.shops,
         &WitnessCfg { max_floors: span as usize + 1 },
     );
     println!("-- witness chain f{GLOBAL_START_FLOOR}..f{floor} (=`solver run` 入口) --");
