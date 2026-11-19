@@ -531,7 +531,11 @@ fn main() {
             r
         } else {
             let r = solve_local(&SolveInput::placeholder(floor));
-            print_hp_bound_stat(floor);
+            // 【批8c 复核 F8-b】占位输入（`SolveInput::placeholder`，层数据未接）
+            // 根本不建 hp 上界计划 ⇒ 该行在 floor≥2 永远 `not_run/0`，当诊断看会
+            // 误导。行尾注明占位，保留「不静默」的既有形状（f51..f54 走 `run`
+            // 分支，不经过本行，stdout 逐字节不变）。
+            print_hp_bound_stat_note(floor, Some("placeholder:层路径未启用"));
             r
         };
         println!("{}", r.to_json());
@@ -590,11 +594,22 @@ fn nums(text: &str) -> Vec<i32> {
 /// `no_hp_sources`/`post_kill_hp_spawn`/`script_hp_spawn`/`shop_repeatable`…），
 /// 未跑层=`not_run`——**不静默**。
 fn print_hp_bound_stat(floor: i32) {
+    print_hp_bound_stat_note(floor, None);
+}
+
+/// 同上，`note` 非空时在行尾加注（用于「这一行没有实义」的占位面）。
+fn print_hp_bound_stat_note(floor: i32, note: Option<&str>) {
     let s = game_solver::hp_bound::hp_bound_stat();
-    eprintln!(
-        "hp_bound floor={} enabled={} reason={} reason_ty={} pruned_entry={} pruned_pop={} slots={} pickup_types={} root_hp={} root_bound={}",
-        floor, s.enabled, s.reason, s.reason_ty, s.pruned_entry, s.pruned_pop, s.slots, s.pickup_types, s.root_hp, s.root_bound
-    );
+    match note {
+        Some(n) => eprintln!(
+            "hp_bound floor={} enabled={} reason={} reason_ty={} pruned_entry={} pruned_pop={} slots={} pickup_types={} root_hp={} root_bound={} ({})",
+            floor, s.enabled, s.reason, s.reason_ty, s.pruned_entry, s.pruned_pop, s.slots, s.pickup_types, s.root_hp, s.root_bound, n
+        ),
+        None => eprintln!(
+            "hp_bound floor={} enabled={} reason={} reason_ty={} pruned_entry={} pruned_pop={} slots={} pickup_types={} root_hp={} root_bound={}",
+            floor, s.enabled, s.reason, s.reason_ty, s.pruned_entry, s.pruned_pop, s.slots, s.pickup_types, s.root_hp, s.root_bound
+        ),
+    }
 }
 
 /// C6：floor1 端到端（计划 :327 判据命令 `solve-local --floor 1`）。

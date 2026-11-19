@@ -48,9 +48,20 @@
 //! # 槽位一次性（为什么每个槽只计一次）
 //!
 //! `gate::evaluate`（`rules/gate.rs:68`）的**基谓词恒为** `!v.flag(param)`，
-//! 任何门触发后其 flag 置位（脚本行尾 `on_line_end` 置 flag / `GUT` 置当前槽
-//! flag / 槽内 `DES`·`GUT` 亦置位），因此同一层内每个 param 的门最多触发一次
-//! ⇒ 其 hp 奖励最多拿一次。`flags` 里已置位的槽不再计入。
+//! 原论证：门触发后其 flag 由脚本行尾 `on_line_end` 置位（`GUT` 置当前槽、
+//! 槽内 `DES` 也置位）⇒ 同一层内每个 param 的门最多触发一次 ⇒ hp 奖励最多
+//! 拿一次；`flags` 里已置位的槽不再计入。
+//!
+//! > 【2026-11-19 批8c 更正（复核 F1）】上面「任何门触发后其 flag 置位」**不成立**：
+//! > `on_line_end` 对槽 32 刻意跳过置位（机制在 `rules/gate.rs::
+//! > LINE_END_SKIPPED_SLOTS` / 纯函数 `gate_slot_is_one_shot`），而 `evaluate`
+//! > 的 case 32 基谓词只看 `flag(32)`、自己只写 `flag(7)` ⇒ param=32 的门只要
+//! > 不满足 `flag(7)` 且跨层快照为真，就能**反复撞开、槽 32 反复执行**。
+//! > 因此本节的「每槽最多一次」只对**一次性槽**成立；`plan()` 现在先用
+//! > `gate::gate_slot_is_one_shot(p)` 分流，非一次性槽一律
+//! > `Off("retriggerable_gate_slot", p)`（判据来自机制表，不是「32 字面量」）。
+//! > 今日语料槽 32=`TAK_79_79`（无 hp 写）⇒ 界数值不变（f29 的 `plan` 由 `On`
+//! > 变 `Off`，见边界 1）；语料一旦给它加 hp op，闸门保证整层退回原搜索而不是低估。
 //!
 //! # 生成通道：为什么「击杀后才出现的实体」必须整层 Off（2026-11-19 复核 F2）
 //!
@@ -93,7 +104,22 @@
 //!    基谓词恒 `!v.flag(param)` ⇒ 置位后该槽永不再触发，真实玩到也拿不到它的
 //!    奖励 ⇒ 从界里抹掉与真实一致（不是「因为当前无 hp op 才安全」）。当前这
 //!    3 槽无 hp op（槽 18=`DES_1_4_4 CES_20_4_4`、19=`CES_84_7_7…`、
-//!    32=`TAK_79_79`）；将来若加 hp op，本论证仍成立，不需改代码。
+//!    32=`TAK_79_79`）。
+//!    ~~将来若加 hp op，本论证仍成立，不需改代码。~~
+//!    > 【2026-11-19 批8c 更正（复核 F1）】**该句对槽 32 是假承诺**：`on_line_end`
+//!    > 对 32 刻意不置位（机制表 `rules/gate.rs::LINE_END_SKIPPED_SLOTS`），而
+//!    > `evaluate` case 32 的基谓词只看 `flag(32)` ⇒ 只要 `flag(7)==0` 且跨层快照
+//!    > 为真，这扇门可被**反复撞开**（`gate.rs` 的 case 32 只读 `flag(7)`，不写
+//!    > `flag(32)`）。界只计一次 ⇒ 若该槽含 hp 写就是**无有限上界**的低估。
+//!    > 18/19 的一次性论证仍成立（两者跑完即置位）。**修法是必须加闸门**：
+//!    > `plan()` 对 `!gate::gate_slot_is_one_shot(p)` 的槽一律
+//!    > `Off("retriggerable_gate_slot", p)`——判据来自机制表/纯函数，不是散落的
+//!    > 「32 特例」；引擎两份 `on_line_end` 与求解器共用同一函数。
+//!    > 修后语料实测（`examples/hp_bound_sweep`）：**只有 f29 有 param=32 门**，
+//!    > `plan` 由 `On` 变 `Off`；槽 32=`TAK_79_79` 无 hp 写 ⇒ 界数值与剪枝决策
+//!    > 不变（`f51..f54` 的 `run` 输出与 HEAD 逐字节相同为证）。这是「机制导致
+//!    > 的必然 Off」，不是语料判据——换一份把 hp op 写进槽 32 的语料，闸门照样
+//!    > 生效（判据 A6）。
 //! 2. **商店可重复购买**（`scene.rs` 购买成功收尾块 `if flags & 4 == 0` 才
 //!    `param ^= 512`/移除；`flags&4`=param bit10 时**什么都不做** ⇒ 可反复买）。
 //!    本模块只建模一次购买（`shop_hp` 每实体一条）。当前表唯一 hp 商品是
@@ -105,6 +131,15 @@
 //!    与拾取臂同源 ⇒ 按 `hp_gain_of_type(item)` 计入（HpUp 精确、其余 0）。
 //!    当前表唯一 `PickupItem` 行是 `src=1 idx=13 → item 18`（`RemoveAllType`，
 //!    非 hp）；若将来改成 hp 型，本条自动计入（不需要再改判据）。
+//! 4. **kill-hook 直载脚本（不经 ty83）**：击杀死门 `73/74/75` 在
+//!    `scene.rs:3685-3695` **直接** `load_level_script(22/21/20)`（73 还先把
+//!    当前槽 flag 置位），不走门 `ty83`。`plan()` 步骤 2 只按 `ty83` 的
+//!    `param` 收集门槽 ⇒ 这三条脚本的 hp 写落在视野外，**未覆盖**。
+//!    今日语料槽 20/21/22 = `TAK_40_40`/`TAK_59_59`/`TAK_75_75`（无 hp 写）
+//!    ⇒ 今天不低估；若将来这些槽含 `GIN`/`RES`/`ROS_3`/`CES`/同层 `ADD` 等
+//!    hp 通道，本模块会**漏计**。修法（下一批）：把「本层可击杀 boss 类型 →
+//!    击杀钩子槽号」映射（`rules/boss.rs` 的 `event_of` 与 `scene.rs` 的
+//!    73/74/75 分支）纳入静态扫描，与 `post_kill_hp_spawn` 同口径 Off。
 //!
 //! # 失败即关（Off）
 //!
@@ -119,6 +154,7 @@ use std::sync::OnceLock;
 
 use game_core::effect_registry::{certified_pure_hp_gain, pickup_kind_for_type};
 use game_core::rules::boss::{event_of, event_spawns, post_victory_event_of};
+use game_core::rules::gate;
 use game_core::subsystem::script_host::entity_category_with_floor;
 use game_data::defs::{ShopEffect, ShopGoodDef};
 
@@ -334,6 +370,143 @@ fn corpus() -> &'static [&'static str] {
     })
 }
 
+// 测试专用语料覆盖（线程隔离：libtest 每个用例一个线程；`Drop` 清空）。
+//
+// 存在的唯一理由：把「语料演化」的反例做成**可执行判据**（复核 F1 的槽 32
+// 反例 = 改语料槽 32 为 hp 授予 + 放一扇 param=32 的门）。生产路径永远读
+// `include_str!` 的真夹具，`None` 时不产生任何分支。
+#[cfg(test)]
+thread_local! {
+    static CORPUS_OVERRIDE: std::cell::RefCell<Option<Vec<String>>> =
+        std::cell::RefCell::new(None);
+}
+
+#[cfg(test)]
+fn set_corpus_override(lines: Option<Vec<String>>) {
+    CORPUS_OVERRIDE.with(|c| *c.borrow_mut() = lines);
+}
+
+/// 解析一个门槽（含 `GUT` 尾链，`GUT` 之外的行尾不继续）。
+///
+/// `LAY`=本层终止（`script_ops.rs` `op_lay` 置 pending_floor ⇒ 求解器在本层
+/// 得到 Terminal 边）：此后脚本在**别层**继续，不影响本层 out_hp ⇒ 停止累计
+/// （不是低估：本层已经结束）。
+fn parse_slot(
+    idx: i32,
+    floor: i32,
+    shops: &[ShopGoodDef],
+) -> Result<SlotTerm, (&'static str, i32)> {
+    #[cfg(test)]
+    {
+        if let Some(lines) = CORPUS_OVERRIDE.with(|c| c.borrow().clone()) {
+            let refs: Vec<&str> = lines.iter().map(|s| s.as_str()).collect();
+            return parse_slot_in(idx, floor, shops, &refs);
+        }
+    }
+    parse_slot_in(idx, floor, shops, corpus())
+}
+
+fn parse_slot_in(
+    idx: i32,
+    floor: i32,
+    shops: &[ShopGoodDef],
+    lines: &[&str],
+) -> Result<SlotTerm, (&'static str, i32)> {
+    let mut t = SlotTerm::default();
+    let mut cur = idx;
+    let mut seen: BTreeSet<i32> = BTreeSet::new();
+    loop {
+        if cur < 0 || cur as usize >= lines.len() {
+            return Err(("script_slot_out_of_range", cur));
+        }
+        if !seen.insert(cur) {
+            return Err(("script_cycle", cur));
+        }
+        let line = lines[cur as usize];
+        let mut jump: Option<i32> = None;
+        let mut ended = false;
+        for tok in line.split_whitespace() {
+            let mut it = tok.split('_');
+            let op = it.next().unwrap_or("");
+            let rest: Vec<&str> = it.collect();
+            let ints = |n: usize| -> Option<Vec<i32>> {
+                if rest.len() != n {
+                    return None;
+                }
+                rest.iter().map(|s| s.parse::<i32>().ok()).collect()
+            };
+            match op {
+                // GIN_kind_value（`script_ops.rs:77`）：kind0 = 真拾取（hp 型会加血）
+                "GIN" => {
+                    let a = ints(2).ok_or(("script_bad_args", cur))?;
+                    if a[0] == 0 {
+                        match hp_gain_of_type(a[1], floor) {
+                            Ok(g) => t.konst += g,
+                            Err((r, ty)) => return Err((r, ty)),
+                        }
+                    }
+                }
+                // ROS_sub_arg（`script_ops.rs:281-313`）：只 sub==3 写 hp
+                "ROS" => {
+                    if rest.is_empty() {
+                        return Err(("script_bad_args", cur));
+                    }
+                    let sub = rest[0].parse::<i32>().map_err(|_| ("script_bad_args", cur))?;
+                    if sub == 3 {
+                        let a = ints(2).ok_or(("script_bad_args", cur))?;
+                        t.abs_write = t.abs_write.max(a[1]);
+                    } else if sub == 1 {
+                        if ints(3).is_none() {
+                            return Err(("script_bad_args", cur));
+                        }
+                    } else if (2..=6).contains(&sub) && ints(2).is_none() {
+                        return Err(("script_bad_args", cur));
+                    }
+                }
+                // RES_x（`script_ops.rs:100`）：仅 easy 把 hp 置 400
+                "RES" => {
+                    t.res_write = t.res_write.max(400);
+                }
+                // ADD_floor_ty_cx_cy（`script_ops.rs:119`）：他层生成不影响本层 out_hp
+                "ADD" => {
+                    let a = ints(4).ok_or(("script_bad_args", cur))?;
+                    if a[0] == floor {
+                        certify_script_spawn(a[1], floor, shops, cur)?;
+                    }
+                }
+                // CES_ty_cx_cy（`script_ops.rs:238`）：本层生成
+                "CES" => {
+                    let a = ints(3).ok_or(("script_bad_args", cur))?;
+                    certify_script_spawn(a[0], floor, shops, cur)?;
+                }
+                // GUT_n（`script_ops.rs:166`）：跳转（尾链互斥，不是循环）
+                "GUT" => {
+                    let a = ints(1).ok_or(("script_bad_args", cur))?;
+                    jump = Some(a[0]);
+                }
+                // LAY_n：本层终止
+                "LAY" => {
+                    ended = true;
+                    break;
+                }
+                // 无 hp 面：对话/演示/音乐/显隐/走位/移除/装备/结束
+                "TAK" | "SEE" | "SMS" | "GLV" | "MVS" | "SWD" | "MOV" | "DES" | "END" => {}
+                // 未知 op：解析器 `_ => return None`（`script_ops.rs:546`）⇒ 语义未定义
+                _ => return Err(("script_op_unknown", cur)),
+            }
+        }
+        if ended {
+            break;
+        }
+        match jump {
+            Some(n) => cur = n,
+            None => break,
+        }
+    }
+    Ok(t)
+}
+
+
 /// 商店报价：与 `Search::shop_offer`（`solve_local.rs:1850`）同判据——
 /// `(param>>8)&2 != 0` 才开价；`src = ty==77?0:1`；`idx = param&0xff`。
 fn shop_offer<'a>(shops: &'a [ShopGoodDef], ty: i32, param: i32) -> Option<&'a ShopGoodDef> {
@@ -453,110 +626,6 @@ fn drop_gain(ty: i32, floor: i32, shops: &[ShopGoodDef], depth: u32) -> Result<i
     Ok(out)
 }
 
-/// 解析一个门槽（含 `GUT` 尾链，`GUT` 之外的行尾不继续）。
-///
-/// `LAY`=本层终止（`script_ops.rs` `op_lay` 置 pending_floor ⇒ 求解器在本层
-/// 得到 Terminal 边）：此后脚本在**别层**继续，不影响本层 out_hp ⇒ 停止累计
-/// （不是低估：本层已经结束）。
-fn parse_slot(
-    idx: i32,
-    floor: i32,
-    shops: &[ShopGoodDef],
-) -> Result<SlotTerm, (&'static str, i32)> {
-    let mut t = SlotTerm::default();
-    let mut cur = idx;
-    let mut seen: BTreeSet<i32> = BTreeSet::new();
-    loop {
-        if cur < 0 || cur as usize >= corpus().len() {
-            return Err(("script_slot_out_of_range", cur));
-        }
-        if !seen.insert(cur) {
-            return Err(("script_cycle", cur));
-        }
-        let line = corpus()[cur as usize];
-        let mut jump: Option<i32> = None;
-        let mut ended = false;
-        for tok in line.split_whitespace() {
-            let mut it = tok.split('_');
-            let op = it.next().unwrap_or("");
-            let rest: Vec<&str> = it.collect();
-            let ints = |n: usize| -> Option<Vec<i32>> {
-                if rest.len() != n {
-                    return None;
-                }
-                rest.iter().map(|s| s.parse::<i32>().ok()).collect()
-            };
-            match op {
-                // GIN_kind_value（`script_ops.rs:77`）：kind0 = 真拾取（hp 型会加血）
-                "GIN" => {
-                    let a = ints(2).ok_or(("script_bad_args", cur))?;
-                    if a[0] == 0 {
-                        match hp_gain_of_type(a[1], floor) {
-                            Ok(g) => t.konst += g,
-                            Err((r, ty)) => return Err((r, ty)),
-                        }
-                    }
-                }
-                // ROS_sub_arg（`script_ops.rs:281-313`）：只 sub==3 写 hp
-                "ROS" => {
-                    if rest.is_empty() {
-                        return Err(("script_bad_args", cur));
-                    }
-                    let sub = rest[0].parse::<i32>().map_err(|_| ("script_bad_args", cur))?;
-                    if sub == 3 {
-                        let a = ints(2).ok_or(("script_bad_args", cur))?;
-                        t.abs_write = t.abs_write.max(a[1]);
-                    } else if sub == 1 {
-                        if ints(3).is_none() {
-                            return Err(("script_bad_args", cur));
-                        }
-                    } else if (2..=6).contains(&sub) && ints(2).is_none() {
-                        return Err(("script_bad_args", cur));
-                    }
-                }
-                // RES_x（`script_ops.rs:100`）：仅 easy 把 hp 置 400
-                "RES" => {
-                    t.res_write = t.res_write.max(400);
-                }
-                // ADD_floor_ty_cx_cy（`script_ops.rs:119`）：他层生成不影响本层 out_hp
-                "ADD" => {
-                    let a = ints(4).ok_or(("script_bad_args", cur))?;
-                    if a[0] == floor {
-                        certify_script_spawn(a[1], floor, shops, cur)?;
-                    }
-                }
-                // CES_ty_cx_cy（`script_ops.rs:238`）：本层生成
-                "CES" => {
-                    let a = ints(3).ok_or(("script_bad_args", cur))?;
-                    certify_script_spawn(a[0], floor, shops, cur)?;
-                }
-                // GUT_n（`script_ops.rs:166`）：跳转（尾链互斥，不是循环）
-                "GUT" => {
-                    let a = ints(1).ok_or(("script_bad_args", cur))?;
-                    jump = Some(a[0]);
-                }
-                // LAY_n：本层终止
-                "LAY" => {
-                    ended = true;
-                    break;
-                }
-                // 无 hp 面：对话/演示/音乐/显隐/走位/移除/装备/结束
-                "TAK" | "SEE" | "SMS" | "GLV" | "MVS" | "SWD" | "MOV" | "DES" | "END" => {}
-                // 未知 op：解析器 `_ => return None`（`script_ops.rs:546`）⇒ 语义未定义
-                _ => return Err(("script_op_unknown", cur)),
-            }
-        }
-        if ended {
-            break;
-        }
-        match jump {
-            Some(n) => cur = n,
-            None => break,
-        }
-    }
-    Ok(t)
-}
-
 /// 建本层上界计划。`ents` = 本层**剩余实体表**（根态），`shops` = 商品表。
 pub fn plan(
     floor: i32,
@@ -648,6 +717,14 @@ pub fn plan(
     for p in params {
         if p < 0 || p >= MAX_SLOT {
             return HpBoundPlan::Off("slot_out_of_range", p);
+        }
+        // 2b) 「槽位一次性」前提必须来自机制：`gate_slot_is_one_shot(p)` 问的是
+        //     引擎行尾 `on_line_end` 会不会置 `script_line_flags[p]`。不置位的槽
+        //     （现为 32：`rules/gate.rs` `LINE_END_SKIPPED_SLOTS`）其基谓词
+        //     `!flag(p)` 永不变假 ⇒ 同一扇门可被反复触发。界只计一次 ⇒ 无界低估
+        //     ⇒ 整层 Off（不靠「今日语料该槽无 hp 写」）。
+        if !gate::gate_slot_is_one_shot(p) {
+            return HpBoundPlan::Off("retriggerable_gate_slot", p);
         }
         let t = match parse_slot(p, floor, shops) {
             Ok(t) => t,
@@ -975,6 +1052,162 @@ mod tests {
         match p {
             HpBoundPlan::On(o) => assert_eq!(o.bound(300, &ents, 0), 300 + 200),
             other => panic!("应 On：{:?}", other.reason()),
+        }
+    }
+
+    /// 【判据 B1 · 4027 是算术上界】f3 的 4027 只能被读成
+    /// 「入场 3227 + ty31×4（各 50）+ ty32×3（各 200）」的算术和，**不是可达性主张**
+    /// （1M 节点档实测 3877 仍 truncated）。钉住这个数是为了防止把
+    /// 「上界」误读成「可命中」——见 `docs/findings/2026-11-19-pure-pickup-closed-form.md`
+    /// 的 2026-11-19 批 8c 更正。
+    #[test]
+    fn unit_bound_f3_arithmetic_4027() {
+        let mut o = ord_hp();
+        o.pickup_hp = BTreeMap::from([(31, 50), (32, 200)]);
+        o.slots.clear();
+        let mut ents: Vec<EntRec> = Vec::new();
+        for _ in 0..4 {
+            ents.push(EntRec { ty: 31, x: 0, y: 0, param: 0 });
+        }
+        for _ in 0..3 {
+            ents.push(EntRec { ty: 32, x: 0, y: 0, param: 0 });
+        }
+        assert_eq!(o.bound(3227, &ents, 0), 4027);
+    }
+
+    /// 测试语料覆盖守卫（线程局部；`Drop` 清空——panic 展开也会清）。
+    struct CorpusOverride;
+
+    impl CorpusOverride {
+        /// 把语料槽 `idx` 替换为 `line`（生产路径永不走这条）。
+        fn slot(idx: usize, line: &str) -> Self {
+            let mut v: Vec<String> = corpus().iter().map(|s| s.to_string()).collect();
+            v[idx] = line.to_string();
+            set_corpus_override(Some(v));
+            CorpusOverride
+        }
+    }
+
+    impl Drop for CorpusOverride {
+        fn drop(&mut self) {
+            set_corpus_override(None);
+        }
+    }
+
+    /// 【判据 A6（复核 F1 槽 32 红→绿）】`on_line_end` 对 32 不置位
+    /// （`scene_script.rs` / `rules::gate::LINE_END_SKIPPED_SLOTS`），而
+    /// `evaluate` 的基谓词只看 `flag(32)` ⇒ 这扇门可被撞门**反复触发**。
+    ///
+    /// 反例构造 = 语料槽 32 改成 `GIN_0_32`（hp 授予）+ 层内一扇 `param=32` 的门：
+    /// 修前 plan=On，界只计一次 ⇒ 撞 1 次 `bound(500)=700`、撞到 hp=900 时
+    /// `bound=1100 < best=1500` 仍剪，而真实可继续撞 ⇒ **无界低估**。
+    /// 修后：`Off("retriggerable_gate_slot", 32)`。
+    #[test]
+    fn unit_plan_off_for_retriggerable_gate_slot_32() {
+        use game_core::rules::gate::gate_slot_is_one_shot;
+        assert!(!gate_slot_is_one_shot(32), "机制：槽 32 行尾不置位 ⇒ 非一次性");
+        assert!(gate_slot_is_one_shot(31), "普通槽跑完即置位 ⇒ 一次性");
+
+        let one = hp_gain_of_type(32, 1).expect("ty32@1 已认证");
+        assert_eq!(one, 200, "f1 档 ty32 = +200（复核 F1 的算术）");
+        // 修前口径算术（与复核可复现输出同一组数）：
+        let old = HpBoundOrd {
+            pickup_hp: BTreeMap::new(),
+            drop_hp: BTreeMap::new(),
+            shop_hp: BTreeMap::new(),
+            slots: BTreeMap::from([(
+                32,
+                SlotTerm {
+                    konst: one,
+                    ..SlotTerm::default()
+                },
+            )]),
+            difficulty_easy: false,
+        };
+        assert_eq!(old.bound(300, &[], 0), 500, "修前：300 + 一次性 200");
+        assert_eq!(old.bound(900, &[], 0), 1100, "撞到 hp=900，界仍只 +200");
+        assert!(
+            should_prune(&old, 1500, 900, &[], 0),
+            "修前会把真实可继续撞到 1500+ 的态剪掉（无界低估）"
+        );
+
+        set_enabled(true);
+        let _g = CorpusOverride::slot(32, "GIN_0_32");
+        let lv = level_with_entities(vec![EntSpec {
+            ty: 83,
+            x: 1,
+            y: 1,
+            param: 32,
+        }]);
+        let p = plan(1, 0, &lv, &[], &[]);
+        set_enabled(false);
+        assert_eq!(
+            p.reason(),
+            ("retriggerable_gate_slot", 32),
+            "非一次性门槽 ⇒ 整层 Off（不靠语料有无 hp 写）"
+        );
+    }
+
+    /// 【判据 A7（复核 F3）】父版 `parse_slot` 把 `CES`/`ADD` 生成物的 hp 直接加进
+    /// 槽项 `konst`。而 `bound` 只在 `flags[slot]==0` 时计 `konst`：门一触发
+    /// `on_line_end` 置位 ⇒ `konst` 消失、生成物又不在实体表（表只从根态播种）⇒
+    /// 界从 500 **塌回 300**，剪掉真实可达 500 的态。
+    ///
+    /// A3 只断言 `Off`，挡不住「把闸门换成『计入生成物』」的静默退化；本判据把
+    /// 塌陷算术钉进测试：父版等价构造的 `bound(300,[],0)==500`、触发后==300，
+    /// 而 HEAD 必须 `Off`（若将来改 On，则 `bound` 不得 < 500）。
+    #[test]
+    fn unit_script_spawn_old_collapse_arithmetic() {
+        // 父版等价构造取自真认证代码：`CES_32_1_1` 在 f1 的生成物 hp = 200。
+        let spawn_hp = spawn_gain(32, 0, 1, &[]).expect("ty32@1 已认证");
+        assert_eq!(spawn_hp, 200);
+        let old = HpBoundOrd {
+            pickup_hp: BTreeMap::new(),
+            drop_hp: BTreeMap::new(),
+            shop_hp: BTreeMap::new(),
+            slots: BTreeMap::from([(
+                62,
+                SlotTerm {
+                    konst: spawn_hp,
+                    ..SlotTerm::default()
+                },
+            )]),
+            difficulty_easy: false,
+        };
+        assert_eq!(old.bound(300, &[], 0), 500, "未触发：300 + 槽项 200");
+        let after = [EntRec {
+            ty: 32,
+            x: 0,
+            y: 0,
+            param: 0,
+        }];
+        assert_eq!(
+            old.bound(300, &after, 1u128 << 62),
+            300,
+            "父版塌陷：konst 因置位消失、生成物按 0 计"
+        );
+        assert!(
+            should_prune(&old, 301, 300, &after, 1u128 << 62),
+            "父版确实剪掉真实可达 500 的态"
+        );
+
+        // HEAD：同一构造必须被闸门挡住（靠机制，不靠今日语料）。
+        set_enabled(true);
+        let _g = CorpusOverride::slot(62, "CES_32_1_1");
+        let lv = level_with_entities(vec![EntSpec {
+            ty: 83,
+            x: 1,
+            y: 1,
+            param: 62,
+        }]);
+        let p = plan(1, 0, &lv, &[], &[]);
+        set_enabled(false);
+        assert_eq!(p.reason(), ("script_hp_spawn", 62));
+        if let HpBoundPlan::On(o) = &p {
+            assert!(
+                o.bound(300, &after, 1u128 << 62) >= 500,
+                "即便将来改回 On，触发后也不得塌回 300"
+            );
         }
     }
 }
