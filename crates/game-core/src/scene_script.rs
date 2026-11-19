@@ -54,9 +54,13 @@ impl crate::script_exec::ScriptRunner for GameScene {
     }
     /// 入口门命中：phase=4（等相机）+ 置当前行 flag（32 除外）+ 相机回玩家。
     /// Java 侧同一份写发生在 2401 门体，只由偏移 22 的 `cursor+3 > len` 到达。
+    ///
+    /// 「哪些槽不置位」的判据在 [`crate::rules::gate::gate_slot_is_one_shot`]
+    /// （表 `LINE_END_SKIPPED_SLOTS`）——引擎与求解器 `hp_bound` 的
+    /// `retriggerable_gate_slot` 闸门共用，禁止在此重新写死 `!= 32`。
     fn on_line_end(&mut self, cur: usize) {
         self.dialog.set_dialog_phase(4);
-        if cur != 32 {
+        if crate::rules::gate::gate_slot_is_one_shot(cur as i32) {
             self.slots.script_line_flags[cur] = true;
         }
         self.lock_camera_on(0);

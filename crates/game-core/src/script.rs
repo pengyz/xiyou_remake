@@ -479,7 +479,7 @@ impl<'a, 'd, H: HostCtx + EntityService + DialogSubsystem + ItemService>
     }
     fn on_line_end(&mut self, cur: usize) {
         self.eng.state.dialog_phase = DialogPhase::AwaitCamera;
-        if cur != 32 {
+        if crate::rules::gate::gate_slot_is_one_shot(cur as i32) {
             self.eng.state.slots.script_line_flags[cur] = true;
         }
         self.host.snap_camera_to_player();

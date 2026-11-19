@@ -93,7 +93,9 @@ pub fn evaluate<V: GateView + ?Sized>(param: i32, v: &mut V, from_walk: bool) ->
         | 56 => {
             gate &= from_walk;
         }
-        // 探针臂（a.java:8193-8201）：flags[7] 已跑 ⇒ 挡；否则 !from_walk ∧ 跨层有存活型12
+        // 探针臂（a.java:8193-8201）：flags[7] 已跑 ⇒ 挡；否则 !from_walk ∧ 跨层有存活型12。
+        // **槽 32 自身的 flag 永不置位**（见 `LINE_END_SKIPPED_SLOTS`）⇒ 只要
+        // flag(7)==0 且跨层快照为真，这扇门可被反复触发（求解器据此整层 Off）。
         32 => {
             if v.flag(7) {
                 gate = false;
@@ -172,4 +174,26 @@ pub fn evaluate<V: GateView + ?Sized>(param: i32, v: &mut V, from_walk: bool) ->
 /// 判定该门是否**结构上永不触发**（用于报告「这门是死门」）。不需要状态。
 pub fn is_never_runnable(param: i32) -> bool {
     param == 66
+}
+
+/// 行尾收尾**不置位**的脚本槽——「一次性」判定的机制唯一来源。
+///
+/// 两份 `on_line_end`（`scene_script.rs` 的 `GameScene` 与 `script.rs` 的
+/// `EngineRunner`）对这里列出的槽跳过 `script_line_flags[cur] = true`（槽 32 是
+/// 与 Java 一致的刻意特例）。`evaluate` 的基谓词恒 `!v.flag(param)` ⇒ 其它门跑完
+/// 即关闭，而这里的槽的 flag **不会因自己而置位** ⇒ 同一扇门可被反复触发。
+///
+/// 【2026-11-19 批8c】此前该特例只以 `if cur != 32` 的字面量散落在两处引擎代码里，
+/// 求解器 `hp_bound::plan()` 的「槽位一次性」论证直接引用「任何门触发后其 flag
+/// 置位」——对槽 32 不成立（复核 F1：可重复触发的门槽 + hp 授予 ⇒ 界只计一次 ⇒
+/// 无界低估）。现在表只此一份：引擎侧走 [`gate_slot_is_one_shot`]，求解器闸门
+/// `retriggerable_gate_slot` 走同一函数。
+pub const LINE_END_SKIPPED_SLOTS: &[i32] = &[32];
+
+/// 该槽跑完一次后是否必然置位（⇒ 同层内最多触发一次）。
+///
+/// 机制来源 = 两份 `on_line_end` 是否写 `script_line_flags[cur]`。新增「行尾不置位」
+/// 槽只改 [`LINE_END_SKIPPED_SLOTS`]，引擎与求解器同步生效。
+pub fn gate_slot_is_one_shot(cur: i32) -> bool {
+    !LINE_END_SKIPPED_SLOTS.contains(&cur)
 }
