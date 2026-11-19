@@ -15,7 +15,13 @@
 //! 【P6 追加】判据 8–14（单调拾取层）：8 `monotone_floor_collects_keys_and_stats`、
 //! 9 `non_monotone_pickup_still_fails_closed`、10 `monotone_floor_collects_bag_item`、
 //! 11 `pure_pickup_flag_reflects_monotone_hit`、12 `f3_is_excluded_by_g1_g2`、
-//! 13 `monotone_floor_f3_hits_closed_form`（ignored=证伪记录）、14 witness 标志复用。
+//! 13 `f3_is_not_closed_form_g2_first`（会跑的反向判据：G2a 通过、第一道响的闸是 G2）、
+//! 14 witness 标志复用。
+//!
+//! 【2026-11-19 P7】判据 13 原来是一条 `#[ignore]` 的「任务书要求式」断言
+//! （`f3 out_hp == 4027 && !truncated`）。它把一条**永不运行**的证伪记录算进了
+//! test-ratchet 基线，且前提本身是假的。现已移出测试文件（历史记录见
+//! `docs/findings/2026-11-19-f3-gate27-walk-only.md`），替换为会跑的反向判据。
 //!
 //! 前 5 条 + 第 6 条都直接断言「闭式是否被采用」（`Exitsolve::pure_pickup` 与
 //! `pure_pickup_stat()`），**没有任何一条**靠放宽阈值或改默认层界来变绿。
@@ -24,7 +30,7 @@ use game_core::combat::{scale_enemy_stats, CombatTables, PlayerCombat};
 use game_solver::ingest::{ingest, SolverInput};
 use game_solver::pure_pickup::{pure_pickup_stat, replay_route_in_engine, PurePickupStat};
 use game_solver::solve_local::{
-    load_floor, solve_local_exit_toward, EntSpec, ExitKind, ExitSolve, ExitSpec,
+    load_floor, probe_gate, solve_local_exit_toward, EntSpec, ExitKind, ExitSolve, ExitSpec,
     LevelSpec, PlayerSpec, SolveInput,
 };
 use game_solver::witness::{run_witness, WitnessCfg};
@@ -762,29 +768,49 @@ fn f3_is_excluded_by_g1_g2() {
 }
 
 // ---------------------------------------------------------------------------
-// 判据 13（B）：任务书要求的 f3 闭式断言——**前提为假**，保留为 ignored 记录
+// 判据 13（B）：f3 **不是**闭式层，且第一道响的闸是 **G2**（不是 G1，也不是 G2a）
 // ---------------------------------------------------------------------------
-/// 为什么 `#[ignore]`：任务书假设 f3 是「纯加血层」，实测不成立——
-/// ① G1：f3 有 **7 个 cat8 怪**（ty45@(1,3)、ty45@(10,8)、ty44@(1,7)、ty43@(10,2)、
-///    ty43@(3,5)、ty41@(7,5)、ty42@(8,10)，`render_category(41..45)=8` 且无 per-floor
-///    override）；② G2：ty83 场景门 @(5,11) 在纯图内可达；③ G2a：入场格 (2,11) 本身
-///    就是 ty83。三者任一都足以让闭式回退，与「单调拾取」无关。
-/// 更要紧的是：f3 想拿满 18 枚拾取物就**必须杀那 7 个怪**（拾取物分布在被怪封住的
-/// 区域），而 f3 入场 atk=10/def=10 对 ty41（hp35/atk18/def1）的战斗损失
-/// `predict_battle_hp_loss` = ceil(35/9)=4 击 ⇒ (18-10)*3 = **24 hp > 0**
-/// ⇒ `4027` 不可能是 HP 最优。本片把它留成 ignored 的**证伪记录**，
-/// 而不是删掉或改成能过的断言（AGENTS.md §3.6 证伪更正文化）。
+/// 这条是 P6 复核「黄 F8」的修复：原来这里是一条 `#[ignore]` 的
+/// `monotone_floor_f3_hits_closed_form`（断言 `f3 out_hp == 4027 && !truncated`）。
+/// 它有两个毛病：①**永不运行**却被 test-ratchet 计进基线（占名额、制造虚假覆盖）；
+/// ②它的前提是假的（f3 有 7 个 cat8 怪 + 可达 ty83 + 入场格 ty83）。
+///
+/// 历史记录已移入 `docs/findings/2026-11-19-f3-gate27-walk-only.md`（AGENTS.md §3.6
+/// 证伪更正文化：不删历史主张，只是不再让它冒充一条测试）。
+///
+/// 替换后的判据断言三件**实测事实**（A 级：本仓引擎 + 真实夹具）：
+/// 1. **G2a 通过**：入场格 `(2,11)` 上的 `ty83 param=0` 是「门已开」的场景门
+///    ⇒ `probe_gate(input, 0) == true` ⇒ 它**不是**第一道闸；
+/// 2. **第一道响的闸是 G2**：`reason == "step_arm_hazard_reachable"`、`reason_ty == 83`
+///    （`(5,11)` 的 `ty83 param=27` 在纯图内几何可达）；
+/// 3. 结论：`pure_pickup == false`（闭式必须 fail-closed）。
+///
+/// 不在这里断言 `truncated`：那是**层界**的现况（200k 节点），会随剪枝演化，
+/// 不是闸门语义的一部分；把它写进判据等于给搜索规模上锁。
 #[test]
-#[ignore = "前提为假：f3 有 7 个 cat8 怪 + 可达/入场 ty83，且全捡必杀怪掉血 ⇒ 4027 非 HP 最优"]
-fn monotone_floor_f3_hits_closed_form() {
+fn f3_is_not_closed_form_g2_first() {
     let si = load_si();
     let inp = floor_input(&si, 3);
     let ps = s0_spec(IN_HP_F3);
-    let (ex, _hit) = solve_local_exit_toward(&inp, F3_ENTRY, &ps, 0, None, None);
-    println!(
-        "[B13] f3 ok={} trunc={} out_hp={} pure={} reason={}",
-        ex.ok, ex.truncated, ex.out_hp, ex.pure_pickup, pure_pickup_stat().reason
+    // ① G2a 通过：入场格的 ty83 是「已开门」场景门（`evaluate(param=0)` 恒过且置 flags[19]）
+    assert!(
+        probe_gate(&inp, 0),
+        "G2a 必须通过：f3 入场格 (2,11) 的 ty83 param=0 probe_gate=true（P6 复核更正项）"
     );
-    assert!(ex.ok && !ex.truncated, "任务书要求 f3 出解且不撞界");
-    assert_eq!(ex.out_hp, IN_HP_F3 + 800, "任务书要求 f3 = 3227+800 = 4027");
+    let (ex, _hit) = solve_local_exit_toward(&inp, F3_ENTRY, &ps, 0, None, None);
+    let st = pure_pickup_stat();
+    println!(
+        "[B13] f3 ok={} trunc={} out_hp={} pure={} reason={} ty={} entry_hazards={}",
+        ex.ok, ex.truncated, ex.out_hp, ex.pure_pickup, st.reason, st.reason_ty, st.entry_hazards
+    );
+    // ② 第一道响的闸是 G2（可达步臂 hazard），不是 G1（怪）
+    assert_eq!(
+        st.reason, "step_arm_hazard_reachable",
+        "f3 的第一道闸是 G2（可达 ty83），不是 G1；实测 reason={} ty={}",
+        st.reason, st.reason_ty
+    );
+    assert_eq!(st.reason_ty, 83, "G2 命中的步臂型必须是 ty83（(5,11) 的 param=27 场景门）");
+    assert_eq!(st.entry_hazards, 1, "入场格 hazard 恰好 1 条（(2,11) 的 ty83 param=0）");
+    // ③ 结论：不是闭式层
+    assert!(!ex.pure_pickup, "f3 有可达步臂 hazard ⇒ 闭式必须 fail-closed");
 }

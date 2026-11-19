@@ -415,6 +415,39 @@ fn trim_slots(v: &[u8]) -> Vec<u8> {
     v[..n].to_vec()
 }
 
+/// 终态逐轴守卫：回放终态 vs「全捡期望」的**逐轴**比对（P7 从 `try_closed_form` 内联块抽出）。
+///
+/// 为什么抽成一个函数（P7 复核「黄 F5」的修复）：三条比较（atk/def、三钥、背包）原来
+/// inline 在 `try_closed_form` 里，**整套测试对它们零覆盖**——复核变异实证：把任一条
+/// 改成恒假，13 条测试仍全绿。抽出来后有 3 条判据（`p7_guard_tests`）逐条盯住，
+/// 每条都能被「删掉对应臂」的变异打红。
+///
+/// **行为逐字不变**：顺序（atk/def → 三钥 → gold 副作用 → 背包）与理由秩/具名理由
+/// 与抽出前完全相同；`try_closed_form` 侧只是把 `continue` 收敛成一次 `note_reason`。
+fn terminal_mismatch(
+    out: &PlayerSpec,
+    want: &PlayerSpec,
+    gold_in: i32,
+) -> Option<(&'static str, u8)> {
+    if out.atk != want.atk || out.def != want.def {
+        return Some(("replay_stat_mismatch", REASON_RANK_REPLAY));
+    }
+    if (out.yellow, out.blue, out.red) != (want.yellow, want.blue, want.red) {
+        return Some(("replay_key_mismatch", REASON_RANK_REPLAY));
+    }
+    // gold 不在证书覆盖的轴里（证书要求 gold 零变化）⇒ 它一動就是没建模的臂。
+    if out.gold != gold_in {
+        return Some(("replay_side_effect", REASON_RANK_REPLAY));
+    }
+    if trim_slots(&out.item_types) != trim_slots(&want.item_types)
+        || trim_slots(&out.item_uses) != trim_slots(&want.item_uses)
+        || out.item_stack_size != want.item_stack_size
+    {
+        return Some(("replay_bag_mismatch", REASON_RANK_REPLAY));
+    }
+    None
+}
+
 /// 拒绝理由的**优先级**：越靠前越"值钱"。
 ///
 /// 动机（实测，变异自证 A）：f54 有两条 Stair 出口，(7,10) 那条在纯图上不可达（唯一邻格就是
@@ -766,26 +799,8 @@ pub(crate) fn try_closed_form(
                 note_reason(&mut last, "bag_no_room", 0, REASON_RANK_BAG);
                 continue;
             };
-            if out.player.atk != want.atk || out.player.def != want.def {
-                note_reason(&mut last, "replay_stat_mismatch", 0, REASON_RANK_REPLAY);
-                continue;
-            }
-            if (out.player.yellow, out.player.blue, out.player.red)
-                != (want.yellow, want.blue, want.red)
-            {
-                note_reason(&mut last, "replay_key_mismatch", 0, REASON_RANK_REPLAY);
-                continue;
-            }
-            // gold 不在证书覆盖的轴里（证书要求 gold 零变化）⇒ 它一動就是没建模的臂。
-            if out.player.gold != player_in.gold {
-                note_reason(&mut last, "replay_side_effect", 0, REASON_RANK_REPLAY);
-                continue;
-            }
-            if trim_slots(&out.player.item_types) != trim_slots(&want.item_types)
-                || trim_slots(&out.player.item_uses) != trim_slots(&want.item_uses)
-                || out.player.item_stack_size != want.item_stack_size
-            {
-                note_reason(&mut last, "replay_bag_mismatch", 0, REASON_RANK_REPLAY);
+            if let Some((reason, rank)) = terminal_mismatch(&out.player, &want, player_in.gold) {
+                note_reason(&mut last, reason, 0, rank);
                 continue;
             }
             if out.flags != flags_in {
@@ -847,4 +862,120 @@ pub(crate) fn try_closed_form(
         return give_up(&mut st, last.0, last.1);
     }
     Some(goals)
+}
+
+#[cfg(test)]
+mod p7_guard_tests {
+    //! P7 复核「黄 F5」：三条终态守卫的**载荷性**判据。
+    //!
+    //! 为什么是单元级：这三条守卫是**防御性**的——真数据上「引擎回放终态」与
+    //! 「`certified_monotone_pickup` 采出的 Σ 期望」由同一张道具表算出，恒等；
+    //! 它们防的是「证书只在**一个探针玩家**上采样，于是某些层的某种玩家状态下
+    //! 增量会漂」这类未来回归。造不出端到端漂移不等于守卫可以没有：只要有人把
+    //! 比较删掉，将来真的漂了就会静默采用错误上界（P6 的核心承诺）。
+    //! 因此判据盯的是**函数级决策**，不是「再造一个假夹具」（那才是自证）。
+    use super::*;
+
+    fn spec(
+        atk: i32,
+        def: i32,
+        keys: (i32, i32, i32),
+        gold: i32,
+        bag: &[(u8, u8)],
+    ) -> PlayerSpec {
+        let n = bag.len();
+        let mut types = vec![0u8; n.max(1)];
+        let mut uses = vec![0u8; n.max(1)];
+        for (i, &(t, u)) in bag.iter().enumerate() {
+            types[i] = t;
+            uses[i] = u;
+        }
+        PlayerSpec {
+            hp: 100,
+            atk,
+            def,
+            yellow: keys.0,
+            blue: keys.1,
+            red: keys.2,
+            gold,
+            item_types: types,
+            item_uses: uses,
+            item_stack_size: n as i32,
+        }
+    }
+
+    /// 变异即「删掉 atk/def 臂」：期望 atk 与回放 atk 不一致 ⇒ 必须报 stat 不符。
+    #[test]
+    fn replay_atk_def_guard_is_load_bearing() {
+        let out = spec(12, 11, (0, 0, 0), 0, &[]);
+        let want = spec(11, 11, (0, 0, 0), 0, &[]);
+        assert_eq!(
+            terminal_mismatch(&out, &want, 0),
+            Some(("replay_stat_mismatch", REASON_RANK_REPLAY)),
+            "回放 atk=12 ≠ 期望 atk=11 必须 fail-closed"
+        );
+        // def 轴单独也能响（不是只看 atk）
+        let out = spec(11, 12, (0, 0, 0), 0, &[]);
+        assert_eq!(
+            terminal_mismatch(&out, &want, 0),
+            Some(("replay_stat_mismatch", REASON_RANK_REPLAY)),
+            "回放 def=12 ≠ 期望 def=11 必须 fail-closed"
+        );
+        // 反证：一致时不许误报
+        assert_eq!(terminal_mismatch(&want, &want, 0), None, "逐轴一致必须放行");
+    }
+
+    /// 变异即「删掉三钥臂」：少拿一枚钥匙 ⇒ key 不符。
+    #[test]
+    fn replay_keys_guard_is_load_bearing() {
+        let out = spec(10, 10, (2, 0, 0), 0, &[]);
+        let want = spec(10, 10, (3, 0, 0), 0, &[]);
+        assert_eq!(
+            terminal_mismatch(&out, &want, 0),
+            Some(("replay_key_mismatch", REASON_RANK_REPLAY)),
+            "少一枚黄钥（2≠3）必须 fail-closed"
+        );
+        // 三轴各自单独都能响：蓝
+        let out = spec(10, 10, (3, 0, 0), 0, &[]);
+        let want = spec(10, 10, (3, 1, 0), 0, &[]);
+        assert_eq!(
+            terminal_mismatch(&out, &want, 0),
+            Some(("replay_key_mismatch", REASON_RANK_REPLAY)),
+            "蓝色钥匙单独漂移也必须 fail-closed"
+        );
+        // 红
+        let out = spec(10, 10, (3, 1, 0), 0, &[]);
+        let want = spec(10, 10, (3, 1, 2), 0, &[]);
+        assert_eq!(
+            terminal_mismatch(&out, &want, 0),
+            Some(("replay_key_mismatch", REASON_RANK_REPLAY)),
+            "红色钥匙单独漂移也必须 fail-closed"
+        );
+    }
+
+    /// 变异即「删掉背包臂」：件数/内容不符 ⇒ bag 不符。
+    #[test]
+    fn replay_bag_guard_is_load_bearing() {
+        let out = spec(10, 10, (0, 0, 0), 0, &[(13, 255)]);
+        let want = spec(10, 10, (0, 0, 0), 0, &[(13, 255), (21, 3)]);
+        assert_eq!(
+            terminal_mismatch(&out, &want, 0),
+            Some(("replay_bag_mismatch", REASON_RANK_REPLAY)),
+            "少一件背包道具（1≠2 件）必须 fail-closed"
+        );
+        // 件数相同、内容不同（槽位类型漂移）
+        let out = spec(10, 10, (0, 0, 0), 0, &[(13, 255), (22, 3)]);
+        let want = spec(10, 10, (0, 0, 0), 0, &[(13, 255), (21, 3)]);
+        assert_eq!(
+            terminal_mismatch(&out, &want, 0),
+            Some(("replay_bag_mismatch", REASON_RANK_REPLAY)),
+            "件数相同但槽 1 类型不同也必须 fail-closed"
+        );
+        // 尾部空槽是规范形差异（`[]` vs `[0;32]`）⇒ 必须放行，不是放宽（非零槽仍逐槽比）
+        let out = spec(10, 10, (0, 0, 0), 0, &[]);
+        let mut want = spec(10, 10, (0, 0, 0), 0, &[]);
+        want.item_types = vec![0u8; 32];
+        want.item_uses = vec![0u8; 32];
+        assert_eq!(terminal_mismatch(&out, &want, 0), None, "尾部 0 槽必须等价");
+    }
 }
