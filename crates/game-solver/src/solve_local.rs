@@ -674,6 +674,8 @@ pub fn solve_layer_with(
     pill_dom_stat_set(PillDomStat::CLEARED);
     // 【批8】hp 上界统计同式清零（早退路径也保持「本层已测」语义）。
     crate::hp_bound::hp_bound_stat_clear();
+    // 【P9】精确 DP 统计入口清零（同体例：早退路径也「本层已测」，reason=not_run）。
+    crate::exact_pickup::exact_stat_clear();
     let Some(level) = input.level.as_ref() else {
         return (false, Vec::new());
     };
@@ -713,8 +715,16 @@ pub fn solve_layer_with(
         node_limit,
         shops_key(shops),
     );
-    if let Some((hit_ok, hit_goals, hit_trunc, hit_peak, hit_buys, hit_pill, hit_pure)) =
-        LAYER_MEMO.with(|m| m.borrow().get(&memo_key).cloned())
+    if let Some((
+        hit_ok,
+        hit_goals,
+        hit_trunc,
+        hit_peak,
+        hit_buys,
+        hit_pill,
+        hit_pure,
+        hit_exact,
+    )) = LAYER_MEMO.with(|m| m.borrow().get(&memo_key).cloned())
     {
         LAYER_TRUNC.with(|f| f.set(hit_trunc)); // memo 命中回放截断标记（可观测性不变）
         GOLD_PEAK.with(|c| c.set(hit_peak)); // 批6：金币峰值同样按缓存回放
@@ -724,6 +734,8 @@ pub fn solve_layer_with(
         pill_dom_stat_set(hit_pill);
         // 【P5】闭式解统计同样按缓存回放——memo 命中时「本层是否闭式命中」也必须可见。
         crate::pure_pickup::pure_pickup_stat_set(hit_pure);
+        // 【P9】精确 DP 统计同式回放（memo 命中 ⇒ 本层「是否精确命中」必须仍可见）。
+        crate::exact_pickup::exact_stat_set(hit_exact);
         // 【批8】memo 命中=本层没重跑 ⇒ 显式标注，不把上一层的统计冒充本层。
         crate::hp_bound::stat_mark_memo_hit();
         return (hit_ok, hit_goals);
@@ -755,6 +767,40 @@ pub fn solve_layer_with(
                     (0, 0),
                     pill_dom_stat(),
                     crate::pure_pickup::pure_pickup_stat(),
+                    crate::exact_pickup::exact_stat(),
+                ),
+            );
+        });
+        return (true, goals);
+    }
+    // ---------------------------------------------------------------------
+    // 【P9 本片】精确拾取 DP：闭式解之后、通用 `Search` 之前再试一档。
+    // 定理与闸门见 `crate::exact_pickup` 模块头。适用面比闭式解宽一档
+    // （允许零伤 cat8 怪、允许门钥消耗、允许恒等场景门），代价是状态数 2^拾取物。
+    // 命中 ⇒ 层内 hp **精确最优**（不是上界、不是近似），路线已逐步引擎回放核对；
+    // 未命中 ⇒ fail-closed 落通用搜索，理由写进 `exact_pickup_stat()`（禁静默）。
+    // ---------------------------------------------------------------------
+    if let Some(mut goals) = crate::exact_pickup::try_exact_dp(
+        input, entry, &root_ents, &player, flags, policy, shops,
+    ) {
+        goals.sort_by(|a, b| (a.kind, a.post_pos).cmp(&(b.kind, b.post_pos)));
+        LAYER_TRUNC.with(|f| f.set(None)); // 精确=完整解，从未截断
+        // 金币峰值：怪有赏金 ⇒ 层内峰值可能高于入场金（取各出口终态最大者）。
+        let peak = goals.iter().map(|g| g.post.gold).max().unwrap_or(player.gold);
+        GOLD_PEAK.with(|c| c.set(peak));
+        SHOP_BUYS.with(|c| c.set((0, 0)));
+        LAYER_MEMO.with(|m| {
+            m.borrow_mut().insert(
+                memo_key,
+                (
+                    true,
+                    goals.clone(),
+                    None,
+                    peak,
+                    (0, 0),
+                    pill_dom_stat(),
+                    crate::pure_pickup::pure_pickup_stat(),
+                    crate::exact_pickup::exact_stat(),
                 ),
             );
         });
@@ -807,6 +853,8 @@ pub fn solve_layer_with(
                 pill_dom_stat(),
                 // 【P5】闭式解统计（同上：诊断面，进缓存只为 memo 命中可观测）
                 crate::pure_pickup::pure_pickup_stat(),
+                // 【P9】精确 DP 统计（同上）
+                crate::exact_pickup::exact_stat(),
             ),
         );
     });
@@ -844,6 +892,7 @@ thread_local! {
                 (u64, u64),
                 PillDomStat,
                 crate::pure_pickup::PurePickupStat,
+                crate::exact_pickup::ExactStat,
             ),
         >,
     > = RefCell::new(HashMap::new());
@@ -3975,6 +4024,352 @@ pub struct BumpObs {
     pub hp: i32,
     pub flags: u128,
     pub ents: Vec<EntRec>,
+}
+
+// ================================================================ 【P9】精确拾取 DP：引擎面
+//
+// 分工（P9，2026-11-19）：
+// - **本段只提供引擎真值**：格分类、撞怪（掉血/赏金/掉落）、开门钥消耗、StepGate 踩格效果、
+//   以及「一条含怪/门/gate 的路线」的逐步回放。DP 在 `exact_pickup.rs`；
+//   这里**不复制任何判定表**——分类直调 `Search::classify`，战斗直调
+//   `bump_outcome`（内部再直调 `BattleResolver`+`predict_engagement`），门直调
+//   `consume_key_for_door`，gate 直调 `gate_arrive`（内部 `try_run_scene`+
+//   `load_level_script`+`tickdrive`+读回）。
+// - 为什么不能复用 `replay_pickup_route`：那条只走 `pickup_step`（`try_step` 落格），
+//   **上不了怪格/门格**；精确层要「门开、怪杀、gate 踩」，故回放走与 `expand` 相同的
+//   四条转移臂（Move/Monster/Door/Pickup）。
+
+/// 精确 DP 的格类型（与 `Cell` 一一投影，`Cell::Shop` 在无商品表时=阻挡；见 `exact_layer_view`）。
+pub const XC_BLOCKED: u8 = 0;
+pub const XC_FREE: u8 = 1;
+pub const XC_PICKUP: u8 = 2;
+pub const XC_DOOR: u8 = 3;
+pub const XC_MONSTER: u8 = 4;
+pub const XC_GATE: u8 = 5;
+
+/// 单格投影：`idx` = 对应维数组下标（拾取位/门位/杀位/gate 位），其余维为 0。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ExactCell {
+    pub kind: u8,
+    pub idx: usize,
+    pub ty: i32,
+    pub param: i32,
+}
+
+/// 层视图：DP 的唯一静态输入（全部由 `classify` 单源产出，不含第二份规则表）。
+#[derive(Debug, Clone)]
+pub struct ExactLayerView {
+    pub cols: i32,
+    pub rows: i32,
+    pub cells: Vec<ExactCell>,
+    /// 只认 `Stair` 出口（`pure_pickup` G4 同口径：其它换层边不建模），且排除入场格。
+    pub exits: Vec<((i32, i32), ExitKind)>,
+    /// 维数组（位序=行主序扫描序，确定性）。
+    pub pick_ty: Vec<i32>,
+    pub door_ty: Vec<i32>,
+    pub kill_ty: Vec<i32>,
+    pub gate_param: Vec<i32>,
+    /// 位 → 入场实体表下标（`root_ents` 槽位；用于「终态实体表」的精确推导）。
+    pub pick_slot: Vec<usize>,
+    pub door_slot: Vec<usize>,
+    pub kill_slot: Vec<usize>,
+}
+
+impl ExactLayerView {
+    pub fn cell(&self, p: (i32, i32)) -> Option<ExactCell> {
+        if p.0 < 0 || p.1 < 0 || p.0 >= self.cols || p.1 >= self.rows {
+            return None;
+        }
+        self.cells.get((p.1 * self.cols + p.0) as usize).copied()
+    }
+}
+
+/// 构建层视图。**fail-closed**：任何「模型表达不了」的格都返回具名理由，
+/// 调用方据此 `Off(reason)`——绝不静默跳过。
+///
+/// 复用面（逐条指名，禁复制）：
+/// - 通行/门/怪/拾取分类 = `Search::classify`（`Cell` 单源）；
+/// - 拾取增益认证 = `game_core::effect_registry::certified_monotone_pickup`；
+/// - 商店：`shops` 非空 ⇒ 买臂存在（会改 hp/钥/金）⇒ `Off("shop_present")`；
+///   `shops` 空 ⇒ 与 witness 面 `expand` 同义（`Cell::Shop` 无转移臂）=墙。
+pub fn exact_layer_view(
+    input: &SolveInput,
+    entry: (i32, i32),
+    ents: &[EntRec],
+    shops: &[ShopGoodDef],
+) -> Result<ExactLayerView, (&'static str, i32)> {
+    use game_core::effect_registry::certified_monotone_pickup;
+    let level = input.level.as_ref().ok_or(("no_level", 0))?;
+    let s = Search::from_entry(input, level, entry);
+    let st = St {
+        pos: entry,
+        player: level.player.clone(),
+        ents: ents.to_vec(),
+        flags: level.flags,
+        kills: 0,
+        steps: 0,
+    };
+    let mut cells = Vec::with_capacity((level.cols * level.rows) as usize);
+    let (mut pick_ty, mut door_ty, mut kill_ty, mut gate_param) =
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    let (mut pick_slot, mut door_slot, mut kill_slot) = (Vec::new(), Vec::new(), Vec::new());
+    for y in 0..level.rows {
+        for x in 0..level.cols {
+            let c = match s.classify(&st, x, y) {
+                Cell::Blocked => ExactCell { kind: XC_BLOCKED, idx: 0, ty: 0, param: 0 },
+                Cell::Move => match ents.iter().find(|e| e.ty == 83 && e.x == x && e.y == y) {
+                    Some(g) => {
+                        gate_param.push(g.param);
+                        ExactCell {
+                            kind: XC_GATE,
+                            idx: gate_param.len() - 1,
+                            ty: 83,
+                            param: g.param,
+                        }
+                    }
+                    None => ExactCell { kind: XC_FREE, idx: 0, ty: 0, param: 0 },
+                },
+                Cell::Pickup => {
+                    let found = ents.iter().enumerate().find(|(_, e)| {
+                        (e.x, e.y) == (x, y)
+                            && matches!(entity_category_with_floor(e.ty, input.floor), 2 | 4)
+                    });
+                    let Some((slot, e)) = found else {
+                        return Err(("pickup_slot_unknown", 0));
+                    };
+                    let ty = e.ty;
+                    let Some(gain) = certified_monotone_pickup(ty, input.floor) else {
+                        return Err(("pickup_uncertified", ty));
+                    };
+                    if !gain.is_gain() {
+                        return Err(("pickup_not_gain", ty));
+                    }
+                    // 背包拾取会让「背包维」不可由 mask 推导（容量/叠放依赖引擎）⇒ 不建模。
+                    if !gain.bag.is_empty() {
+                        return Err(("pickup_adds_bag", ty));
+                    }
+                    pick_ty.push(ty);
+                    pick_slot.push(slot);
+                    ExactCell { kind: XC_PICKUP, idx: pick_ty.len() - 1, ty, param: 0 }
+                }
+                Cell::Door(slot, ty) => {
+                    door_ty.push(ty);
+                    door_slot.push(slot);
+                    ExactCell { kind: XC_DOOR, idx: door_ty.len() - 1, ty, param: 0 }
+                }
+                Cell::Monster(slot, ty) => {
+                    kill_ty.push(ty);
+                    kill_slot.push(slot);
+                    ExactCell { kind: XC_MONSTER, idx: kill_ty.len() - 1, ty, param: 0 }
+                }
+                Cell::Shop(_, ty) => {
+                    // 买臂=hp/钥/金源，不可由拾取位图推导 ⇒ 有商品表即失败（fail-closed）。
+                    if !shops.is_empty() {
+                        return Err(("shop_present", ty));
+                    }
+                    // 无商品表：与 `expand` 同义（无 Shop 臂），拾取面不可踩 ⇒ 视作阻挡。
+                    ExactCell { kind: XC_BLOCKED, idx: 0, ty, param: ty }
+                }
+            };
+            cells.push(c);
+        }
+    }
+    let mut exits: Vec<((i32, i32), ExitKind)> = level
+        .exits
+        .iter()
+        .filter(|e| e.kind == ExitKind::Stair && (e.x, e.y) != entry)
+        .map(|e| ((e.x, e.y), e.kind))
+        .collect();
+    exits.sort_by_key(|(p, _)| *p);
+    exits.dedup();
+    if exits.is_empty() {
+        return Err(("no_stair_exit", 0));
+    }
+    Ok(ExactLayerView {
+        cols: level.cols,
+        rows: level.rows,
+        cells,
+        exits,
+        pick_ty,
+        door_ty,
+        kill_ty,
+        gate_param,
+        pick_slot,
+        door_slot,
+        kill_slot,
+    })
+}
+
+/// 撞怪真值（bump 面）：掉血 + 赏金 + 击杀后实体表（boss 出表 + 掉落实体 append）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExactBump {
+    pub loss: i32,
+    pub gold: i32,
+    pub ents: Vec<EntRec>,
+}
+
+/// 直调 `bump_outcome`（`BattleResolver::resolve_bump` + `predict_engagement(no_counter=true)`）
+/// 与 `kill_bounty`/`apply_kill_drops`（与 `expand` 的怪臂**同一份**实现）。
+pub fn exact_bump(
+    input: &SolveInput,
+    player: &PlayerSpec,
+    ents: &[EntRec],
+    ty: i32,
+    slot: usize,
+) -> Option<ExactBump> {
+    let level = input.level.as_ref()?;
+    if slot >= ents.len() {
+        return None;
+    }
+    let pc = player.to_combat();
+    let loss = bump_outcome(level, &pc, ty, slot)?;
+    let gold = kill_bounty(level, &pc, ty);
+    let mut st = St {
+        pos: (0, 0),
+        player: player.clone(),
+        ents: ents.to_vec(),
+        flags: 0,
+        kills: 0,
+        steps: 0,
+    };
+    st.ents.remove(slot);
+    apply_kill_drops(&mut st, ty, input.floor);
+    Some(ExactBump { loss, gold, ents: st.ents })
+}
+
+/// 踩上 StepGate 的真值：直调 `gate_arrive`（内部判门→脚本→有拍驱动→四源读回）。
+/// 返回 `Some(读回后 player/flags/ents)` 仅当结局= `Pass`（可续走）；
+/// `Terminal`/`Dropped`/`Ending` ⇒ `None`（精确层不建模换层/停摆门）。
+pub fn exact_gate_effect(
+    input: &SolveInput,
+    entry: (i32, i32),
+    ents: &[EntRec],
+    player: &PlayerSpec,
+    flags: u128,
+    at: (i32, i32),
+) -> Option<(PlayerSpec, u128, Vec<EntRec>)> {
+    let level = input.level.as_ref()?;
+    let s = Search::from_entry(input, level, entry);
+    let mut st = St {
+        pos: at,
+        player: player.clone(),
+        ents: ents.to_vec(),
+        flags,
+        kills: 0,
+        steps: 0,
+    };
+    match s.gate_arrive(&mut st, at.0, at.1) {
+        GateArrive::Pass => Some((st.player, st.flags, st.ents)),
+        _ => None,
+    }
+}
+
+/// 开门真值：直调 `consume_key_for_door`（门码映射同 `expand`/`scene.rs`：1黄/2红/_蓝）。
+pub fn exact_open_door(player: &PlayerSpec, dty: i32) -> Option<PlayerSpec> {
+    let door = match dty {
+        1 => game_core::combat::door_code::YELLOW,
+        2 => game_core::combat::door_code::RED,
+        _ => game_core::combat::door_code::BLUE,
+    };
+    let mut pc = player.to_combat();
+    let (consumed, _) = game_core::combat::consume_key_for_door(&mut pc, door);
+    if !consumed {
+        return None;
+    }
+    Some(PlayerSpec::from_combat(pc))
+}
+
+/// 回放产物（全部来自引擎读回）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExactReplay {
+    pub player: PlayerSpec,
+    pub flags: u128,
+    pub ents: Vec<EntRec>,
+    pub pos: (i32, i32),
+    pub steps: i32,
+    pub kills: i32,
+}
+
+fn parse_xy(s: &str) -> Option<(i32, i32)> {
+    let (a, b) = s.split_once(',')?;
+    Some((a.trim().parse().ok()?, b.trim().parse().ok()?))
+}
+
+/// 逐步回放一条 exact 路线（唯一防线）：token 口径同 [`route_of`]——
+/// `"x,y"`=走/拾取/踩 gate、`"door x,y"`=开门、`"bump ty@x,y"`=撞怪。
+/// 每步都走与 `expand` **同一条**转移实现（`pickup_step` / `gate_arrive` /
+/// `consume_key_for_door` / `bump_outcome`+`apply_kill_drops`）；任一步不成立 ⇒ `None`。
+pub fn exact_replay_route(
+    input: &SolveInput,
+    entry: (i32, i32),
+    ents: &[EntRec],
+    player: &PlayerSpec,
+    flags: u128,
+    route: &[String],
+) -> Option<ExactReplay> {
+    let level = input.level.as_ref()?;
+    let s = Search::from_entry(input, level, entry);
+    let mut st = St {
+        pos: entry,
+        player: player.clone(),
+        ents: ents.to_vec(),
+        flags,
+        kills: 0,
+        steps: 0,
+    };
+    for tok in route {
+        if let Some(rest) = tok.strip_prefix("bump ") {
+            let (ty_s, xy) = rest.split_once('@')?;
+            let ty: i32 = ty_s.trim().parse().ok()?;
+            let (x, y) = parse_xy(xy)?;
+            let slot = st.ents.iter().position(|e| {
+                e.x == x && e.y == y && e.ty == ty && entity_category_with_floor(e.ty, input.floor) == 8
+            })?;
+            let b = exact_bump(input, &st.player, &st.ents, ty, slot)?;
+            st.player.hp -= b.loss;
+            st.player.gold += b.gold;
+            st.ents = b.ents;
+            st.kills += 1;
+            // 撞怪也消耗一步（与 `Search::expand` 的 Monster 臂同口径）。
+            st.steps += 1;
+        } else if let Some(rest) = tok.strip_prefix("door ") {
+            let (x, y) = parse_xy(rest)?;
+            let slot = st.ents.iter().position(|e| {
+                e.x == x && e.y == y && entity_category_with_floor(e.ty, input.floor) == 1
+            })?;
+            let dty = st.ents[slot].ty;
+            st.player = exact_open_door(&st.player, dty)?;
+            st.ents.remove(slot);
+            st.pos = (x, y);
+            st.steps += 1;
+            match s.gate_arrive(&mut st, x, y) {
+                GateArrive::Pass => {}
+                _ => return None,
+            }
+        } else {
+            let (x, y) = parse_xy(tok)?;
+            let dx = (x - st.pos.0).abs();
+            let dy = (y - st.pos.1).abs();
+            if dx + dy != 1 {
+                return None; // 非邻接（防御：DP 只发邻接转移）
+            }
+            match s.classify(&st, x, y) {
+                Cell::Pickup => {
+                    st = s.pickup_step(&st, x, y)?;
+                }
+                Cell::Move => {
+                    st.pos = (x, y);
+                    st.steps += 1;
+                    match s.gate_arrive(&mut st, x, y) {
+                        GateArrive::Pass => {}
+                        _ => return None,
+                    }
+                }
+                _ => return None, // 门/怪/阻挡必须用专属 token
+            }
+        }
+    }
+    Some(ExactReplay { player: st.player, flags: st.flags, ents: st.ents, pos: st.pos, steps: st.steps, kills: st.kills })
 }
 
 // ---------------------------------------------------------------- 批3 C1

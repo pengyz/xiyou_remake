@@ -236,7 +236,7 @@ pub fn pure_pickup_stat_set(s: PurePickupStat) {
 }
 
 /// 纯图（格分类 + hazard 标记 + 拾取格 delta）——闭式解的全部几何依据。
-struct Grid {
+pub(crate) struct Grid {
     cols: i32,
     rows: i32,
     kind: Vec<CellKind>,
@@ -420,7 +420,7 @@ impl Grid {
 /// 而入参可能用 `[]` 表空。比较前统一把尾部 0 槽裁掉——**这不是放宽断言**：非零槽（真持有
 /// 道具）仍逐槽比对，只要拾取往背包里塞了任何东西就必然不等。证据见
 /// `docs/findings/2026-11-19-pure-pickup-closed-form.md` §「侧效应比较的规范形」。
-fn trim_slots(v: &[u8]) -> Vec<u8> {
+pub(crate) fn trim_slots(v: &[u8]) -> Vec<u8> {
     let mut n = v.len();
     while n > 0 && v[n - 1] == 0 {
         n -= 1;
@@ -583,6 +583,78 @@ fn expected_after_all(
     Some(p)
 }
 
+/// 【P9】危险步臂闸门：`G2′`（入场格步臂只允许「已开的场景门」）+ `G2`（hazard 格几何可达）。
+///
+/// **单一真相源**：`try_closed_form` 与 `crate::exact_pickup` 都调本函数——P9 从
+/// 闭式解里原样抽出，不新增第二套规则（数值表仍是 `STEP_ARM_HAZARD_TYPES`）。
+/// 返回 `(grid, entry_hazards)`；`Err(reason, ty)` 的 reason 字面与闭式解历史一致
+/// （`step_arm_hazard_on_entry` / `step_arm_hazard_reachable`）。
+pub(crate) fn hazard_gate(
+    input: &SolveInput,
+    entry: (i32, i32),
+    root_ents: &[EntRec],
+    // `modeled` = 「本消费者**自己建模**了它的步臂语义」的类型，不参与 G2 可达性判定。
+    // 闭式解传 `&[]`（它不建模任何步臂）；精确 DP 传 `&[83]`（场景门由 DP 显式建模，
+    // 并逐扇真引擎验证恒等 —— 见 `crate::exact_pickup`）。G2′（入场格）**不受影响**。
+    modeled: &[i32],
+) -> Result<(Grid, usize), ((&'static str, i32), usize)> {
+    // 错误臂也回带 `entry_arms` 条数：统计面（`PurePickupStat.entry_hazards`）必须
+    // 在**被拒**时也可观测（P9 回归：早期版本在被拒路径丢了计数，判据 13 变红）。
+    let arms_at_entry = root_ents
+        .iter()
+        .filter(|e| STEP_ARM_HAZARD_TYPES.contains(&e.ty) && (e.x, e.y) == entry)
+        .count();
+    let Some((cols, rows, kinds)) = pure_cell_kinds(input, root_ents) else {
+        return Err((("no_level", 0), arms_at_entry));
+    };
+    let mut grid = Grid {
+        cols,
+        rows,
+        kind: kinds,
+        hazard: BTreeMap::new(),
+        pickup: BTreeMap::new(),
+    };
+    // hazard 格登记（步臂实体型；类型表复用 `solve_local` 常量，不复制数值）
+    let mut entry_arms: Vec<(i32, i32)> = Vec::new();
+    for e in root_ents {
+        if STEP_ARM_HAZARD_TYPES.contains(&e.ty) {
+            grid.hazard.insert((e.x, e.y), e.ty);
+            if (e.x, e.y) == entry {
+                entry_arms.push((e.ty, e.param));
+            }
+        }
+    }
+
+    // ---- G2' 入场格的步臂：**只允许「门已开的场景门」**，别的一律失败 ----
+    // 为什么这道闸不能省（A 级，`crates/game-core/src/scene.rs:3878-3887`）：
+    // 引擎的进图链（`dispatchModeEntry` case 3）在**出生格**上也调 `apply_step_cell_effects`
+    // ⇒ 入场格的陷阱/宝箱/组门**在真实玩家进入该层时就会触发**。求解器的 `build_scene`
+    // 不走这条链（本片不改引擎语义），所以闭式解的 `entry_hp + Σ` 只有在入场格步臂
+    // **可证 hp/实体中性**时才成立：`ty83` 且 `probe_gate=true`（门已开 ⇒ `gate_arrive`
+    // 直接 Pass，脚本根本不跑，`effect_registry` 侧已由上一片证过脚本 64 不动 hp）。
+    // 其余（`5/60/61/62/76`，或关着的门）⇒ 回退通用搜索。
+    for &(ty, param) in &entry_arms {
+        if ty != 83 || !probe_gate(input, param) {
+            return Err((("step_arm_hazard_on_entry", ty), arms_at_entry));
+        }
+    }
+
+    // ---- G2 危险步臂格不可达（入场格例外：起点不是「到达」，且路线禁再进入） ----
+    // 判据看「几何可达」而非 `classify` 的 `pure`：`ty60/61/62` 在本作数据里 category=8
+    // （会被 classify 归成 Monster⇒非纯），但它们的真实语义是**踩格即扣血的陷阱**；
+    // 引擎的踩格副作用臂按 **实体类型** 触发，与分类无关 ⇒ 可达即失败，宁严不宽。
+    let geo = grid.geo_reach(entry);
+    for (&cell, &ty) in &grid.hazard {
+        if cell == entry || modeled.contains(&ty) {
+            continue;
+        }
+        if geo.contains(&cell) {
+            return Err((("step_arm_hazard_reachable", ty), arms_at_entry));
+        }
+    }
+    Ok((grid, entry_arms.len()))
+}
+
 pub(crate) fn try_closed_form(
     input: &SolveInput,
     entry: (i32, i32),
@@ -613,57 +685,15 @@ pub(crate) fn try_closed_form(
         return give_up(&mut st, "entry_hp_not_real", player_in.hp);
     }
 
-    // ---- 格分类（复用 `classify`：禁止第二份分类表） ----
-    let Some((cols, rows, kinds)) = pure_cell_kinds(input, root_ents) else {
-        return give_up(&mut st, "no_level", 0);
+    // ---- 格分类 + G2′/G2 危险步臂闸门（**与精确 DP 共用** `hazard_gate`） ----
+    let (mut grid, entry_hazards) = match hazard_gate(input, entry, root_ents, &[]) {
+        Ok(v) => v,
+        Err(((reason, ty), arms)) => {
+            st.entry_hazards = arms;
+            return give_up(&mut st, reason, ty);
+        }
     };
-
-    let mut grid = Grid {
-        cols,
-        rows,
-        kind: kinds,
-        hazard: BTreeMap::new(),
-        pickup: BTreeMap::new(),
-    };
-    // hazard 格登记（步臂实体型；类型表复用 `solve_local` 常量，不复制数值）
-    let mut entry_arms: Vec<(i32, i32)> = Vec::new();
-    for e in root_ents {
-        if STEP_ARM_HAZARD_TYPES.contains(&e.ty) {
-            grid.hazard.insert((e.x, e.y), e.ty);
-            if (e.x, e.y) == entry {
-                entry_arms.push((e.ty, e.param));
-            }
-        }
-    }
-    st.entry_hazards = entry_arms.len();
-
-    // ---- G2' 入场格的步臂：**只允许「门已开的场景门」**，别的一律失败 ----
-    // 为什么这道闸不能省（A 级，`crates/game-core/src/scene.rs:3878-3887`）：
-    // 引擎的进图链（`dispatchModeEntry` case 3）在**出生格**上也调 `apply_step_cell_effects`
-    // ⇒ 入场格的陷阱/宝箱/组门**在真实玩家进入该层时就会触发**。求解器的 `build_scene`
-    // 不走这条链（本片不改引擎语义），所以闭式解的 `entry_hp + Σ` 只有在入场格步臂
-    // **可证 hp/实体中性**时才成立：`ty83` 且 `probe_gate=true`（门已开 ⇒ `gate_arrive`
-    // 直接 Pass，脚本根本不跑，`effect_registry` 侧已由上一片证过脚本 64 不动 hp）。
-    // 其余（`5/60/61/62/76`，或关着的门）⇒ 回退通用搜索。
-    for &(ty, param) in &entry_arms {
-        if ty != 83 || !probe_gate(input, param) {
-            return give_up(&mut st, "step_arm_hazard_on_entry", ty);
-        }
-    }
-
-    // ---- G2 危险步臂格不可达（入场格例外：起点不是「到达」，且路线禁再进入） ----
-    // 判据看「几何可达」而非 `classify` 的 `pure`：`ty60/61/62` 在本作数据里 category=8
-    // （会被 classify 归成 Monster⇒非纯），但它们的真实语义是**踩格即扣血的陷阱**；
-    // 引擎的踩格副作用臂按 **实体类型** 触发，与分类无关 ⇒ 可达即失败，宁严不宽。
-    let geo = grid.geo_reach(entry);
-    for (&cell, &ty) in &grid.hazard {
-        if cell == entry {
-            continue;
-        }
-        if geo.contains(&cell) {
-            return give_up(&mut st, "step_arm_hazard_reachable", ty);
-        }
-    }
+    st.entry_hazards = entry_hazards;
 
     // ---- G1 层内无怪物：`cat8`（=求解器 `monster_ents` 的口径） ----
     // 任务书写「无 41..=76 型实体」，但那一段里混着 6 种**踩格副作用臂**（`5/60/61/62/76/83`，
