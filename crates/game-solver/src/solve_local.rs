@@ -294,7 +294,10 @@ pub fn solve_local(input: &SolveInput) -> SolveResult {
     // 【P7 撞门】计数同式清零（与 `solve_layer_with` 一致）：`solve_local` 直连
     // `Search::run`，不经层缓存 ⇒ 计数必须只反映**本次**搜索。
     GATE_BUMP_STAT.with(|c| c.set(GateBumpStat::CLEARED));
-    let search = Search::new(input, level);
+    let mut search = Search::new(input, level);
+    // 【批8】hp 上界剪枝：批2 同时要「最优 hp」与「最少击杀」两个查询 ⇒ 打开双目标保护。
+    search.hp_prune = true;
+    search.kill_objective = true;
     let (reachable, goals) = search.run();
     // 与 `ExitSolve.truncated` 同源：同一个 `take_layer_trunc()`（只读不清）。
     let truncated = take_layer_trunc().is_some();
@@ -669,6 +672,8 @@ pub fn solve_layer_with(
     // 【D 面】统计入口清零（未跑到 run_root 的早退路径也保持「本层已测」语义：
     // `reason="not_run"` 可见，不是静默空白）。
     pill_dom_stat_set(PillDomStat::CLEARED);
+    // 【批8】hp 上界统计同式清零（早退路径也保持「本层已测」语义）。
+    crate::hp_bound::hp_bound_stat_clear();
     let Some(level) = input.level.as_ref() else {
         return (false, Vec::new());
     };
@@ -719,6 +724,8 @@ pub fn solve_layer_with(
         pill_dom_stat_set(hit_pill);
         // 【P5】闭式解统计同样按缓存回放——memo 命中时「本层是否闭式命中」也必须可见。
         crate::pure_pickup::pure_pickup_stat_set(hit_pure);
+        // 【批8】memo 命中=本层没重跑 ⇒ 显式标注，不把上一层的统计冒充本层。
+        crate::hp_bound::stat_mark_memo_hit();
         return (hit_ok, hit_goals);
     }
     // ---------------------------------------------------------------------
@@ -757,6 +764,11 @@ pub fn solve_layer_with(
     search.cloud = true; // 批3 C3b：层间路径开筋斗云候选（批2 solve_local/run 关）
     search.policy = policy; // 批4 C4-a：闭包谓词注入
     search.shops = shops; // 批5 H4：商品表注入（`&[]` ⇒ 批0-3 零行为变化）
+    // 【批8】层路径**不启用** hp 剪枝：`solve_layer_with` 的消费者是 witness 的
+    // 「朝目标层的出口」查询（`up_line_next`），目标不是「全层 hp 最大」——按全层
+    // best_hp 剪枝会把「hp 较低但通向目标出口」的路径剪掉（实测 2026-11-19：
+    // 一度启用后 `solver run` 由 floors=6 退化为 f52 `no_exit_toward`）。
+    // 同层若要让剪枝生效，须把 best 限定到该查询的目标出口集合（未做，不猜）。
     let (reachable, goals) = search.run_root(entry, root_ents, player, flags, node_limit);
     // C5d′：层出口同态归并——同 (kind, cross_edge, post 全态) 组内 (kills,steps)
     // 支配剪枝（组内 hp 在键里=相等）。全局 push_state 对同 K₀ 子态做同样弱支配
@@ -1806,6 +1818,60 @@ struct Search<'a> {
     /// 批5 H4：可用商品表（`shop_goods.json` 解析结果）。旧入口恒 `&[]`
     /// ⇒ 批0-3 零行为变化；只有 `query` 路径传真表（lead 2026-11-16 认可的线程方案）。
     shops: &'a [ShopGoodDef],
+    /// 【批8】hp 可采纳上界剪枝开关。`false`（默认）⇒ 全段不执行 ⇒ 零行为差异；
+    /// 两个**求解入口**（`solve_local`、`solve_layer_with`）各自显式置 true。
+    hp_prune: bool,
+    /// 【批8】本次求解是否仍要「最优 kills」：`solve_local` 是（双查询各自出解），
+    /// 层出口不是（只有 hp 目标）。为 true 时剪枝额外要求 kills 已劣于最优 Stair 目标。
+    kill_objective: bool,
+}
+
+/// 【批8】hp 上界剪枝的「已知最优」跟踪（只由真实 Goal 更新）。
+///
+/// `hp` 只增不减（取 max）；`kills_stair` 取所有已记录 Stair 目标的 kills 最小值
+/// （`i32::MAX`=尚无 Stair 目标）。两者都由**已记录的真实 Goal** 更新，
+/// 不存在「假想最优」。
+#[derive(Debug, Clone, Copy)]
+struct BestHp {
+    /// 已见最优 out_hp；`None` = 尚无任何终态 ⇒ 一律不剪。
+    hp: Option<i32>,
+    /// 已见最优 Stair 目标的 kills；`i32::MAX` = 尚无 Stair 目标。
+    kills_stair: i32,
+}
+
+impl BestHp {
+    fn note(&mut self, g: &Goal) {
+        if g.kind == ExitKind::Stair {
+            self.kills_stair = self.kills_stair.min(g.kills);
+        }
+        self.hp = Some(match self.hp {
+            Some(h) => h.max(g.hp),
+            None => g.hp,
+        });
+    }
+
+    /// 剪枝判据。`bound < best_hp`（**严格**）且（`kills_needed` 时）`kills` 已严格
+    /// 劣于最优 Stair 目标。
+    ///
+    /// 健全性：`kills` 沿路径单调不减 ⇒ 后者保证该枝不可能产出更少击杀的 Stair
+    /// 目标；`bound` 是可采纳上界 ⇒ 不可能产出更高 hp。两条前提任一不成立就不剪。
+    fn prunable(
+        &self,
+        ord: &crate::hp_bound::HpBoundOrd,
+        hp: i32,
+        ents: &[EntRec],
+        flags: u128,
+        kills: i32,
+        kills_needed: bool,
+    ) -> bool {
+        let Some(bh) = self.hp else {
+            return false;
+        };
+        if kills_needed && !(self.kills_stair != i32::MAX && kills > self.kills_stair) {
+            return false;
+        }
+        crate::hp_bound::should_prune(ord, bh, hp, ents, flags)
+    }
 }
 
 impl<'a> Search<'a> {
@@ -1833,6 +1899,8 @@ impl<'a> Search<'a> {
             cloud: false,
             policy: ClosurePolicy::OFF,
             shops: &[],
+            hp_prune: false,
+            kill_objective: false,
         }
     }
 
@@ -2589,6 +2657,26 @@ impl<'a> Search<'a> {
             pstat.states = 1;
         }
         let mut goals: Vec<Goal> = Vec::new();
+        // 【批8】hp 可采纳上界（fail-closed）：计划 `Off` ⇒ 以下逻辑全不执行。
+        // 根态上界同期写回 `hp_bound_stat()`（诊断：root_bound 与真实 opt 的差）。
+        let hplan = if self.hp_prune {
+            crate::hp_bound::plan_and_stat(
+                self.input.floor,
+                self.input.difficulty,
+                self.level,
+                nodes[0].st.player.hp,
+                &nodes[0].st.ents,
+                nodes[0].st.flags,
+                self.shops,
+            )
+        } else {
+            crate::hp_bound::HpBoundPlan::Off("prune_not_enabled", 0)
+        };
+        let mut best = BestHp {
+            hp: None,
+            kills_stair: i32::MAX,
+        };
+        let (mut hpop, mut hentry): (u64, u64) = (0, 0);
         // 批3 C3b：根态云候选（真数据重入场携15 的回程通道；玩具根态通常不邻锚）
         self.record_cloud(&mut goals, &nodes, 0);
         // 批3 F3：根态 UseItem 符候选（真数据 S0 无符；测试/特殊起始携符时生效）
@@ -2621,11 +2709,33 @@ impl<'a> Search<'a> {
                     post: st.clone(),
                     cross_edge: None,
                 });
+                // 【批8】出口候选参与 best 跟踪（只影响剪枝强度，不改变候选集）。
+                if let Some(g) = goals.last() {
+                    best.note(g);
+                }
                 if id != 0 {
                     // 批3 C6g：根态恰在出口（step_off 四邻皆墙留梯格等）记录后仍须
                     // 扩展——否则层搜索饿死（f10 entry(1,11) 实测 goals=1）；
                     // 中途到达出口维持批2 语义=记目标不扩展。
                     continue;
+                }
+            }
+            // 【批8】pop 侧剪枝：已入队的态可能被**后来**的更优解超过（顺序无关的
+            // 安全性要求此处再查一次）。放在出口记 goal 之后 ⇒ 出口本身永不被剪。
+            if id != 0 {
+                if let crate::hp_bound::HpBoundPlan::On(ord) = &hplan {
+                    if best.prunable(
+                        ord,
+                        st.player.hp,
+                        &st.ents,
+                        st.flags,
+                        st.kills,
+                        self.kill_objective,
+                    ) {
+                        pruned[id as usize] = true;
+                        hpop += 1;
+                        continue;
+                    }
                 }
             }
             let mut succ = Vec::new();
@@ -2666,6 +2776,9 @@ impl<'a> Search<'a> {
                             post: n.st.clone(),
                             cross_edge: Some((pending, went_down)),
                         });
+                        if let Some(g) = goals.last() {
+                            best.note(g);
+                        }
                         continue;
                     }
                     GateArrive::Ending => {
@@ -2689,6 +2802,9 @@ impl<'a> Search<'a> {
                             post: n.st.clone(),
                             cross_edge: None,
                         });
+                        if let Some(g) = goals.last() {
+                            best.note(g);
+                        }
                         continue;
                     }
                     GateArrive::Pass => {}
@@ -2724,10 +2840,28 @@ impl<'a> Search<'a> {
                         post: n.st.clone(),
                         cross_edge: None,
                     });
+                    if let Some(g) = goals.last() {
+                        best.note(g);
+                    }
                     // C3b/F3 候选口径与批2 入队态一致（出口态此前入队=有记录点）
                     self.record_cloud(&mut goals, &nodes, new_id);
                     self.record_useitem(&mut goals, &nodes, new_id);
                     continue;
+                }
+                // 【批8】入队侧剪枝：`bound < best_hp`（严格）才剪；目标 hp 相等的态
+                // 必须留着（HpLoss 的 steps/route tie-break 依赖它们）。
+                if let crate::hp_bound::HpBoundPlan::On(ord) = &hplan {
+                    if best.prunable(
+                        ord,
+                        ns.player.hp,
+                        &ns.ents,
+                        ns.flags,
+                        ns.kills,
+                        self.kill_objective,
+                    ) {
+                        hentry += 1;
+                        continue;
+                    }
                 }
                 let k = key_of(&ns);
                 let list = by_key.entry(k).or_default();
@@ -2823,6 +2957,10 @@ impl<'a> Search<'a> {
         // 【D 面】统计写回（`pill_dom_stat()` 可观测：没启用时 reason/reason_ty
         // 指出卡在哪条闸门——禁静默）。
         pill_dom_stat_set(pstat);
+        // 【批8】剪枝计数写回（禁静默：pruned_entry/pruned_pop 可观测）。
+        if self.hp_prune {
+            crate::hp_bound::stat_add_commit(hpop, hentry);
+        }
         let reachable = !goals.is_empty();
         (reachable, goals)
     }

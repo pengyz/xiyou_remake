@@ -8,6 +8,7 @@
 pub mod doors;
 pub mod dynreach;
 pub mod floorgraph;
+pub mod hp_bound;
 pub mod ingest;
 pub mod keyflow;
 pub mod pure_pickup;

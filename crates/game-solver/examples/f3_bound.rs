@@ -141,6 +141,64 @@ fn main() {
         F3_ENTRY, player.hp, player.atk, player.def, player.gold, F3_FLAGS, toward
     );
 
+    if std::env::var("F3_FIGHT").is_ok() {
+        // A 级证据：本层每个可见敌人的「撞一次」预测损血（真调引擎 predict_engagement，
+        // 与搜索 bump 臂同一函数、同 no_counter=true）。
+        for e in &level.entities {
+            if game_core::subsystem::script_host::entity_category_with_floor(e.ty, 3) == 8 {
+                let loss = game_core::subsystem::battle::predict_engagement(
+                    &player.to_combat(),
+                    &level.enemies,
+                    &level.enemy_base,
+                    e.ty,
+                    true,
+                );
+                println!("fight ty={} at ({},{}) predict_loss={}", e.ty, e.x, e.y, loss);
+            }
+        }
+    }
+
+    if std::env::var("F3_LOCAL").is_ok() {
+        // 【批8】层路径（`solve_layer`/`exit_toward`）的消费者是「朝目标出口」查询，
+        // hp-max 剪枝在那里不成立（实测会把通向目标出口的路径剪掉，见 solve_layer_with
+        // 注释）⇒ 剪枝只在 `solve_local`（全层 hp-max + 最少击杀）启用。此处用
+        // **同一 f3 态**（level.start 置为 F3_ENTRY）走 solve_local 路径取证。
+        let mut lv = level.clone();
+        lv.start = F3_ENTRY;
+        let inp2 = game_solver::solve_local::SolveInput {
+            floor: 3,
+            difficulty: 0,
+            level: Some(lv),
+        };
+        std::env::set_var("SOLVER_LAYER_LIMIT", "200000");
+        let t = Instant::now();
+        let ex = game_solver::solve_local::solve_local(&inp2);
+        let hb = game_solver::hp_bound::hp_bound_stat();
+        println!(
+            "== f3 solve_local: reachable={} truncated={} max_hp={:?} min_kills={:?} confidence={} route_len={} elapsed={:.2}s",
+            ex.reachable,
+            ex.truncated,
+            ex.max_hp,
+            ex.min_kills,
+            ex.confidence,
+            ex.route.len(),
+            t.elapsed().as_secs_f64()
+        );
+        println!(
+            "  hp_bound enabled={} reason={} ty={} slots={} pickup_types={} root_hp={} \
+             root_bound={} pruned_entry={} pruned_pop={}",
+            hb.enabled,
+            hb.reason,
+            hb.reason_ty,
+            hb.slots,
+            hb.pickup_types,
+            hb.root_hp,
+            hb.root_bound,
+            hb.pruned_entry,
+            hb.pruned_pop,
+        );
+    }
+
     for limit in limits {
         std::env::set_var("SOLVER_LAYER_LIMIT", limit.to_string());
         let t = Instant::now();
@@ -157,6 +215,28 @@ fn main() {
             ex.exit,
             ex.kind,
             hit,
+        );
+        if std::env::var("F3_PILL").is_ok() {
+            let pd = game_solver::solve_local::pill_dom_stat();
+            println!(
+                "  pill enabled={} reason={} ty={} pills={} states={} cmp={} pruned_new={} killed_old={} budget_exhausted={}",
+                pd.enabled, pd.reason, pd.reason_ty, pd.pills, pd.states, pd.cmp, pd.pruned_new, pd.killed_old, pd.budget_exhausted
+            );
+        }
+        // 【批8】hp 可采纳上界剪枝的可观测面（OP 判据 1 的 stat 要求）。
+        let hb = game_solver::hp_bound::hp_bound_stat();
+        println!(
+            "  hp_bound enabled={} reason={} ty={} slots={} pickup_types={} root_hp={} \
+             root_bound={} pruned_entry={} pruned_pop={}",
+            hb.enabled,
+            hb.reason,
+            hb.reason_ty,
+            hb.slots,
+            hb.pickup_types,
+            hb.root_hp,
+            hb.root_bound,
+            hb.pruned_entry,
+            hb.pruned_pop,
         );
     }
 }
