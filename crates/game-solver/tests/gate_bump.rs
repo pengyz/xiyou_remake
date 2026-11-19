@@ -13,8 +13,9 @@
 use game_core::combat::{scale_enemy_stats, CombatTables, PlayerCombat};
 use game_solver::ingest::{ingest, SolverInput};
 use game_solver::solve_local::{
-    gate_bump_stats, load_floor, probe_gate, probe_gate_bump, solve_local, EntSpec, ExitKind,
-    ExitSpec, LevelSpec, PlayerSpec, SolveInput,
+    bump_memo_clear, bump_memo_len, gate_bump_stat, gate_bump_stats, load_floor, probe_cell_class,
+    probe_gate, probe_gate_bump, probe_gate_verdict, solve_local, EntSpec, ExitKind, ExitSpec,
+    LevelSpec, PlayerSpec, SolveInput,
 };
 use std::path::PathBuf;
 
@@ -260,4 +261,179 @@ fn gate_bump_fires_on_real_floor35() {
     let obs = probe_gate_bump(&f35, entry, &ps, 0, None, (g.x, g.y)).unwrap();
     assert_eq!(obs.pos, entry, "撞门不移动玩家");
     assert_eq!(obs.hp, 300, "槽 24 = TAK_40_40 纯演出，不掉血（实得 {}）", obs.hp);
+}
+
+// ---------------------------------------------------------------- P7 复核 A 片判据
+
+/// 判据 6（A2/F1）：三处「静默丢弃」必须**可观测**。
+///
+/// P7 复核黄 F1：`gate_bump` 对 `Pending`/`Stalled`/`pos 变化`/`判门未开` 四处
+/// 直接 `continue`/`return None`，全仓无计数 ⇒ 「断言 pos 未变」实为**守卫跳过**，
+/// 既不可测也不可观测。
+///
+/// 本判据钉死：① 统计面能看见候选数与真命中；② 今天的真层脚本**确实没有**走位
+/// （`rejected_pos_moved=0`——如果将来某层 bump-only 脚本含 `MOV_0_*` 传送，这条会红，
+/// 逼我们回来重新裁定「撞门不动」这个前提）。
+#[test]
+fn bump_stat_counts_every_rejection() {
+    let input = synth(Some(2), Some((1, 8)), 0b10);
+    let r = solve_local(&input);
+    assert!(r.reachable, "同层照常可解：{r:?}");
+
+    let st = gate_bump_stat();
+    assert!(st.candidates >= 1, "撞门候选必须可观测（实得 {st:?}）");
+    assert!(st.script_hits >= 1, "真跑引擎命中必须可观测（实得 {st:?}）");
+    assert_eq!(st.rejected_pos_moved, 0, "槽 2 脚本不得移动玩家，实得 {st:?}");
+    assert_eq!(st.rejected_stalled, 0, "槽 2 不得停摆，实得 {st:?}");
+    assert_eq!(st.rejected_pending, 0, "槽 2 不换层，实得 {st:?}");
+    assert_eq!(st.rejected_not_fired, 0, "预筛说能开 ⇒ 引擎也必须开，实得 {st:?}");
+    // 旧二元投影必须与新统计同源（禁两套真相）
+    assert_eq!(gate_bump_stats(), (st.candidates, st.script_hits));
+
+    // 真层 f35（唯一 bump-only 层）同样不得出现「脚本移动玩家」
+    let si = load_si();
+    let f35 = floor_input(&si, 35);
+    let lv = f35.level.as_ref().expect("f35 层");
+    let g = lv.entities.iter().find(|e| e.ty == 83 && e.param == 24).expect("f35 p24");
+    let ps = PlayerSpec::from_combat(mk_player());
+    let _ = probe_gate_bump(&f35, (g.x + 1, g.y), &ps, 0, None, (g.x, g.y));
+    assert_eq!(
+        gate_bump_stat().rejected_pos_moved,
+        0,
+        "f35 槽 24 = `TAK_101_105` 纯演出，撞完不得移动玩家"
+    );
+}
+
+/// 判据 7（A3/F3）：「走能开 ⇒ 走臂支配」这条预筛不变量的**反例**与**定义域**。
+///
+/// P7 复核黄 F3：不变量在**非可走格**上为假 —— f41 `p13@(10,2)`、f48 `p38@(4,1)`
+/// 都是 `bump=1 ∧ walk=1`（直通臂，gate.rs:159）且格 `Blocked`：
+/// 预筛按「walk 能开」排除撞门臂，而走臂根本进不去 ⇒ **两臂都没有**。
+///
+/// 今天零进度损失（两条脚本都是 `CES_` 陷阱：13=`CES_6_10_2 CES_60_10_2`、
+/// 38=`CES_6_4_1 CES_61_4_1`，只在原地生成怪/火，且门格本身不可达），
+/// 但「不变量」因此**只在可走格上成立**。本判据把反例钉成事实，防止后人把
+/// 不变量当成全域真命题去推更宽的剪枝。
+#[test]
+fn both_arm_gate_on_nonwalkable_cell_is_outside_the_dominance_invariant() {
+    let si = load_si();
+    let ps = PlayerSpec::from_combat(mk_player());
+    for (floor, param, cell) in [(41i32, 13i32, (10i32, 2i32)), (48, 38, (4, 1))] {
+        let inp = floor_input(&si, floor);
+        let lv = inp.level.as_ref().expect("层");
+        assert!(
+            lv.entities.iter().any(|e| e.ty == 83 && (e.x, e.y) == cell && e.param == param),
+            "f{floor} 必须在 {cell:?} 有 ty83 param={param}"
+        );
+        // ① 两臂都真（直通臂 ⇒ 撞面/走面同真）
+        assert!(
+            probe_gate_verdict(&inp, &ps, 0, None, param, false),
+            "f{floor} p{param} 撞面必须能开（直通臂）"
+        );
+        assert!(
+            probe_gate_verdict(&inp, &ps, 0, None, param, true),
+            "f{floor} p{param} 走面必须能开（直通臂）"
+        );
+        // ② 门格不可走
+        assert_eq!(
+            probe_cell_class(&inp, None, cell),
+            "blocked",
+            "f{floor} 的 p{param} 门格必须 Blocked（ty83 = cat1 阻挡）"
+        );
+        // ③ 现状（特性判据）：预筛排掉撞门臂，走臂也进不去 ⇒ 撞门探针 None。
+        //    这是 uninterrupted 的「两臂都没有」——不变量定义域之外，不是待修 bug。
+        assert!(
+            probe_gate_bump(&inp, (cell.0 + 1, cell.1), &ps, 0, None, cell).is_none(),
+            "f{floor} p{param} 被预筛排除（walk=1），当前不生成撞门臂"
+        );
+    }
+    // ④ 反例的「无进度损失」证据：两条脚本只有原地生成类 op（`CES_`），无 hp/钥匙/
+    //    层间效果 ⇒ 少这两臂不改变可达集。（逐字取自 level_scripts.txt 槽 13/38。）
+    let scripts = include_str!("../../game-core/tests/fixtures/level_scripts.txt");
+    let line = |i: usize| scripts.lines().nth(i).unwrap_or("").trim_end_matches('\x1e').trim();
+    assert_eq!(line(13), "CES_6_10_2 CES_60_10_2", "槽 13 必须仍是纯 CES 陷阱");
+    assert_eq!(line(38), "CES_6_4_1 CES_61_4_1", "槽 38 必须仍是纯 CES 陷阱");
+}
+
+/// 判据 8（A4/F4）：`BUMP_MEMO` 键必须含 `pos`（与门格），且每层开搜前清空。
+///
+/// P7 复核黄 F4：原键 `(floor,param,player,flags,ents)` 不含 `pos`；脚本坐标全绝对
+/// ⇒ 今日不可观测，但这是「键不完备」的潜伏（P3 同类）。判据用**条目数**取证：
+/// 同一 `(floor,param,player,flags,ents)` 从两个不同相邻格撞同一扇门，
+/// 修好前只留 1 条（第二次错误复用），修好后 2 条。
+#[test]
+fn bump_memo_key_includes_pos_and_is_cleared_per_layer() {
+    let si = load_si();
+    let f35 = floor_input(&si, 35);
+    let lv = f35.level.as_ref().expect("f35 层");
+    let g = lv.entities.iter().find(|e| e.ty == 83 && e.param == 24).expect("f35 p24");
+    let ps = PlayerSpec::from_combat(mk_player());
+    bump_memo_clear();
+    let a = (g.x + 1, g.y);
+    let b = (g.x - 1, g.y);
+    assert!(probe_gate_bump(&f35, a, &ps, 0, None, (g.x, g.y)).is_some(), "从 {a:?} 撞得动");
+    assert!(probe_gate_bump(&f35, b, &ps, 0, None, (g.x, g.y)).is_some(), "从 {b:?} 撞得动");
+    assert_eq!(
+        bump_memo_len(),
+        2,
+        "不同入口 pos 必须各占一条 memo（键缺 pos ⇒ 错误复用，条数掉到 1）"
+    );
+
+    // 清理策略：每次 `run_root_with`（=每层搜索）入口清空 ⇒ 层间不串味、内存有界。
+    // 先用手工撞门把 memo 弄脏，再跑一层**无门**搜索：入口清空 ⇒ 结束时 0 条。
+    bump_memo_clear();
+    assert!(probe_gate_bump(&f35, a, &ps, 0, None, (g.x, g.y)).is_some());
+    assert_eq!(bump_memo_len(), 1, "脏场：1 条");
+    let clean = synth(None, None, 0);
+    let r = solve_local(&clean);
+    assert!(r.reachable, "无门层照常可解：{r:?}");
+    assert_eq!(bump_memo_len(), 0, "每层开搜前必须清空 BUMP_MEMO（否则跨层无限增长）");
+}
+
+/// 判据 9（A5 / 复核 M6）：`StGate::cross_floor_snapshot` **恒 false** 是撞门臂的
+/// 健全性契约。变异成 `true` 会让槽 32（`flag(7)=0 ⇒ gate &= !from_walk &&
+/// cross_floor_snapshot(23,12)`）凭空变成 bump-only，撞门臂随即伪造后继。
+#[test]
+fn stgate_cross_floor_snapshot_is_false_by_contract() {
+    let input = synth(Some(32), None, 0);
+    let ps = input.level.as_ref().expect("层").player.clone();
+    assert!(
+        !probe_gate_verdict(&input, &ps, 0, None, 32, false),
+        "槽 32 撞面必须 false（夹具无跨层快照 ⇒ cross_floor_snapshot=false）"
+    );
+    assert!(
+        !probe_gate_verdict(&input, &ps, 0, None, 32, true),
+        "槽 32 走面必须 false（`!from_walk` 不满足）"
+    );
+    assert!(
+        probe_gate_bump(&input, (0, 1), &ps, 0, None, (1, 1)).is_none(),
+        "槽 32 不得生成撞门后继（M6 变异：快照→true 会让它变成 bump-only）"
+    );
+}
+
+/// 判据 10（A5 / 复核 M7）：`StGate::predict_hp_loss_vs` **恒 0**。槽 34 的
+/// `gate &= loss < 0 || loss >= player_hp()` 在 `hp=1` 时只有 `loss>=1` 才开；
+/// `loss=0` ⇒ 走面 false。变异成 `1` ⇒ 走面翻 true（本判据打红）。
+/// 对照腿 `hp=0` 证明判据不是恒假。
+#[test]
+fn stgate_predict_hp_loss_is_zero_by_contract() {
+    let mut input = synth(Some(34), None, 0);
+    let ps1 = {
+        let lv = input.level.as_mut().expect("层");
+        lv.player.hp = 1;
+        lv.player.clone()
+    };
+    assert!(
+        !probe_gate_verdict(&input, &ps1, 0, None, 34, true),
+        "hp=1 且 StGate.loss=0 ⇒ `0>=1` 不成立 ⇒ 槽 34 走面必须 false"
+    );
+    let ps0 = {
+        let lv = input.level.as_mut().expect("层");
+        lv.player.hp = 0;
+        lv.player.clone()
+    };
+    assert!(
+        probe_gate_verdict(&input, &ps0, 0, None, 34, true),
+        "对照腿：hp=0 ⇒ `0>=0` 成立 ⇒ 走面 true（判据非恒假）"
+    );
 }

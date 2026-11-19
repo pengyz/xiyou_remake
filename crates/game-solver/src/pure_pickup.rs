@@ -210,6 +210,19 @@ thread_local! {
     /// 本线程最近一次层尝试的统计（thread_local = 多线程测试隔离；纯诊断面，
     /// 不进任何搜索键、不改输出）。memo 命中时由 `solve_layer_with` 回放同一份值。
     static STAT: Cell<PurePickupStat> = const { Cell::new(PurePickupStat::CLEARED) };
+
+    /// 【接线覆盖】`terminal_mismatch` 调用点的**执行次数**（P7 复核 M5）。
+    ///
+    /// 复核者删掉调用点后全仓仍绿 ⇒ 三源终态核对只有函数级单测、接线无覆盖。
+    /// 计数器让「接线是否真的被执行」变成可观测事实（判据
+    /// `closed_form_terminal_mismatch_call_site_is_wired` 断言它在成功路径上 > 0）。
+    /// 只递增、不进任何键、不改输出。
+    static TERMINAL_CHECKS: Cell<u64> = const { Cell::new(0) };
+}
+
+/// 【接线覆盖】`terminal_mismatch` 调用点累计执行次数（见 `TERMINAL_CHECKS`）。
+pub fn closed_form_terminal_checks() -> u64 {
+    TERMINAL_CHECKS.with(|c| c.get())
 }
 
 /// 读最近一次统计（未跑过层 ⇒ [`PurePickupStat::CLEARED`]）。
@@ -799,6 +812,7 @@ pub(crate) fn try_closed_form(
                 note_reason(&mut last, "bag_no_room", 0, REASON_RANK_BAG);
                 continue;
             };
+            TERMINAL_CHECKS.with(|c| c.set(c.get() + 1));
             if let Some((reason, rank)) = terminal_mismatch(&out.player, &want, player_in.gold) {
                 note_reason(&mut last, reason, 0, rank);
                 continue;

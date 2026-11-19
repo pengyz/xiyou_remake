@@ -28,7 +28,9 @@
 
 use game_core::combat::{scale_enemy_stats, CombatTables, PlayerCombat};
 use game_solver::ingest::{ingest, SolverInput};
-use game_solver::pure_pickup::{pure_pickup_stat, replay_route_in_engine, PurePickupStat};
+use game_solver::pure_pickup::{
+    closed_form_terminal_checks, pure_pickup_stat, replay_route_in_engine, PurePickupStat,
+};
 use game_solver::solve_local::{
     load_floor, probe_gate, solve_local_exit_toward, EntSpec, ExitKind, ExitSolve, ExitSpec,
     LevelSpec, PlayerSpec, SolveInput,
@@ -813,4 +815,34 @@ fn f3_is_not_closed_form_g2_first() {
     assert_eq!(st.entry_hazards, 1, "入场格 hazard 恰好 1 条（(2,11) 的 ty83 param=0）");
     // ③ 结论：不是闭式层
     assert!(!ex.pure_pickup, "f3 有可达步臂 hazard ⇒ 闭式必须 fail-closed");
+}
+
+// ---------------------------------------------------------------------------
+// 判据 15（A5 / P7 复核 M5）：`terminal_mismatch` 的**调用点**必须真被执行
+//
+// 复核者把 `try_closed_form` 里 `if let Some(..) = terminal_mismatch(..)` 整条
+// 调用点删掉，**全仓测试仍全绿** ⇒ 闭式的「终态三源核对」只有函数级单测、
+// 接线零覆盖。本判据用计数器钉死接线：闭式成功路径必须走到该调用点，
+// 删调用点 ⇒ 计数不涨 ⇒ 红。
+// ---------------------------------------------------------------------------
+#[test]
+fn closed_form_terminal_mismatch_call_site_is_wired() {
+    let ps = s0_spec(SYNTH_PLAYER_HP);
+    // 26=黄钥+1、32=血+200（f54 tier1）——单调 ⇒ 闭式必须走到回放终态核对
+    let inp = synth_with(
+        vec![
+            EntSpec { ty: 26, x: 1, y: 1, param: 0 },
+            EntSpec { ty: 32, x: 2, y: 1, param: 1 },
+        ],
+        ps.clone(),
+    );
+    let before = closed_form_terminal_checks();
+    let (ex, st) = run_on(&inp, &ps);
+    let after = closed_form_terminal_checks();
+    println!("[A5/M5] pure={} reason={} terminal_checks {before} -> {after}", ex.pure_pickup, st.reason);
+    assert!(ex.pure_pickup && st.reason == "adopted", "正例必须走闭式：{st:?}");
+    assert!(
+        after > before,
+        "闭式成功路径必须走到 `terminal_mismatch` 调用点（删掉调用点 ⇒ 计数不涨 ⇒ 本判据红）"
+    );
 }

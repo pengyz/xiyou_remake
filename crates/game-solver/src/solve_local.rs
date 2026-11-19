@@ -293,7 +293,7 @@ pub fn solve_local(input: &SolveInput) -> SolveResult {
     LAYER_TRUNC.with(|f| f.set(None));
     // 【P7 撞门】计数同式清零（与 `solve_layer_with` 一致）：`solve_local` 直连
     // `Search::run`，不经层缓存 ⇒ 计数必须只反映**本次**搜索。
-    GATE_BUMPS.with(|c| c.set((0, 0)));
+    GATE_BUMP_STAT.with(|c| c.set(GateBumpStat::CLEARED));
     let search = Search::new(input, level);
     let (reachable, goals) = search.run();
     // 与 `ExitSolve.truncated` 同源：同一个 `take_layer_trunc()`（只读不清）。
@@ -665,7 +665,7 @@ pub fn solve_layer_with(
     SHOP_BUYS.with(|c| c.set((0, 0)));
     // 【P7 撞门】同法清零（层缓存命中时不重放该计数——只作「本层撞门臂确实跑过」的信号，
     // 不参与任何判定，故不写进 `LAYER_MEMO` 值与键）。
-    GATE_BUMPS.with(|c| c.set((0, 0)));
+    GATE_BUMP_STAT.with(|c| c.set(GateBumpStat::CLEARED));
     // 【D 面】统计入口清零（未跑到 run_root 的早退路径也保持「本层已测」语义：
     // `reason="not_run"` 可见，不是静默空白）。
     pill_dom_stat_set(PillDomStat::CLEARED);
@@ -2527,6 +2527,11 @@ impl<'a> Search<'a> {
         node_limit: usize,
         cert: &dyn Fn(i32, i32) -> Option<i32>,
     ) -> (bool, Vec<Goal>) {
+        // 【P7 撞门/A4】层界入口清 memo：两张门缓存都是**纯加速**（键完备 ⇒ 值确定），
+        // 跨层清空只会丢复用、不会改变任何可达集；好处是内存有界、层间不串味
+        // （旧实现全仓无 clear，长链会一直涨）。
+        GATE_MEMO.with(|m| m.borrow_mut().clear());
+        BUMP_MEMO.with(|m| m.borrow_mut().clear());
         let root = St {
             pos: entry,
             player,
@@ -2997,11 +3002,27 @@ impl<'a> Search<'a> {
 
     /// 【P7 撞门】门候选：目标格上 `ty83` 且「**撞能触发 ∧ 走上去不触发**」的槽。
     ///
-    /// 只挑这一类是**语义**决定，不是剪枝（见 [`Self::gate_bump`] 头注）：
-    /// - 走能触发的门：走上目标格本身就跑同一个脚本并停在原地（`interact_with_cell`
-    ///   命中即 `allowed=false`，scene.rs:3379-3393）⇒ 撞门后继被走步臂支配；
-    /// - 撞才能触发的门（gate.rs 的 `!from_walk` 专用臂：`1`/`2`/`24`/`32`）走上去
-    ///   什么都不发生 ⇒ 只有 bump 面能跑脚本，这才是真能力缺口。
+    /// 只挑这一类是**语义**决定，不是剪枝（见 [`Self::gate_bump`] 头注）。
+    ///
+    /// **不变量（精确版，含定义域）**：*在**可走格**上*，`walk 能开 ⇒ 撞门臂被走臂支配*。
+    /// 依据：走上目标格本身就跑同一个脚本并停在原地（`interact_with_cell` 命中即
+    /// `allowed=false`，scene.rs:3379-3393）。
+    ///
+    /// **定义域之外（P7 复核黄 F3 反例，勿当成全域真命题）**：门格**不可走**时，
+    /// 走臂根本产生不了后继（`classify` ⇒ `Cell::Blocked`），于是
+    /// `bump=1 ∧ walk=1` 的「两条臂都行」门会被本函数按 `walk` 排除 ⇒ **两臂都没有**。
+    /// 现网两例：f41 `param=13 @(10,2)`、f48 `param=38 @(4,1)`（都是 `gate.rs` 直通臂，
+    /// 格被 ty83 自身阻挡）。今日**零进度损失**——两条脚本都是 `CES_` 陷阱
+    /// （槽 13=`CES_6_10_2 CES_60_10_2`、槽 38=`CES_6_4_1 CES_61_4_1`：只在原地生成
+    /// 怪/火，无 hp/钥匙/层间效果），且门格不可达，少这两臂不改变可达集。
+    /// 判据：`tests/gate_bump.rs::both_arm_gate_on_nonwalkable_cell_is_outside_the_dominance_invariant`。
+    /// **若将来补臂**，正确改法是 `if !walk || !self.walkable(tx, ty)`——但那会改
+    /// f41/f48 的状态空间，属行为变更，不在本片（A 片零可观测差异）范围内。
+    ///
+    /// 另一类：撞才能触发的门（`gate.rs` 的 `!from_walk` 专用臂：`1`/`2`/`24`/`32`）
+    /// 走上去什么都不发生 ⇒ 只有 bump 面能跑脚本。全游戏 52 扇门里这一类**只有
+    /// f35 `param=24` 三格**，且从 (1,11) 23 步可直接出层 ⇒ 本臂当前是**动作覆盖**、
+    /// 零进度收益（见 `docs/findings/2026-11-19-f3-gate27-walk-only.md` §7 审计表）。
     ///
     /// 判定用轻量 [`StGate`]（不 `build_scene`）；最终是否真触发仍由引擎
     /// `try_run_scene(param,false)` 决定（本函数只预筛，判错只会少一个动作）。
@@ -3057,31 +3078,31 @@ impl<'a> Search<'a> {
             return None;
         }
         for param in params {
-            GATE_BUMPS.with(|c| {
-                let (n, h) = c.get();
-                c.set((n + 1, h));
-            });
-            let key = (
-                self.input.floor,
+            GateBumpStat::bump(|s| s.candidates += 1);
+            let key = BumpKey {
+                floor: self.input.floor,
                 param,
-                st.player.clone(),
-                st.flags,
-                st.ents.clone(),
-            );
+                pos: st.pos,
+                gate: (tx, ty),
+                player: st.player.clone(),
+                flags: st.flags,
+                ents: st.ents.clone(),
+            };
             if let Some((p, f, ents)) = BUMP_MEMO.with(|m| m.borrow().get(&key).cloned()) {
                 let mut ns = st.clone();
                 ns.player = p;
                 ns.flags = f;
                 ns.ents = ents;
-                GATE_BUMPS.with(|c| {
-                    let (n, h) = c.get();
-                    c.set((n, h + 1));
+                GateBumpStat::bump(|s| {
+                    s.script_hits += 1;
+                    s.memo_hits += 1;
                 });
                 return Some(ns);
             }
             let mut sc = build_scene(self.input, st, st.pos);
             // 引擎判门（bump 面）：未开/不满足 ⇒ 撞这一下什么都不发生（⊥，不是走格）
             if !sc.try_run_scene(param, false) {
+                GateBumpStat::bump(|s| s.rejected_not_fired += 1);
                 continue;
             }
             sc.load_level_script(param);
@@ -3090,19 +3111,26 @@ impl<'a> Search<'a> {
                     let mut ns = st.clone();
                     readback_script(&mut ns, &sc);
                     if ns.pos != st.pos {
-                        continue; // 脚本内含玩家走位 ⇒ 不建模（撞门不动的前提破了）
+                        // 脚本内含玩家走位 ⇒ 不建模（撞门不动的前提破了）。**不静默**：
+                        // 记 `rejected_pos_moved`（判据断言真层恒 0；见 GateBumpStat 注释）。
+                        GateBumpStat::bump(|s| s.rejected_pos_moved += 1);
+                        continue;
                     }
                     BUMP_MEMO.with(|m| {
                         m.borrow_mut()
                             .insert(key, (ns.player.clone(), ns.flags, ns.ents.clone()));
                     });
-                    GATE_BUMPS.with(|c| {
-                        let (n, h) = c.get();
-                        c.set((n, h + 1));
-                    });
+                    GateBumpStat::bump(|s| s.script_hits += 1);
                     return Some(ns);
                 }
-                Drive::Pending(_) | Drive::Stalled => return None,
+                Drive::Pending(_) => {
+                    GateBumpStat::bump(|s| s.rejected_pending += 1);
+                    return None;
+                }
+                Drive::Stalled => {
+                    GateBumpStat::bump(|s| s.rejected_stalled += 1);
+                    return None;
+                }
             }
         }
         None
@@ -3555,25 +3583,99 @@ pub fn probe_gate(input: &SolveInput, param: i32) -> bool {
     sc.try_run_scene(param, true)
 }
 
+/// 【P7 撞门】`BUMP_MEMO` 键（P7 复核黄 F4 补全）。
+///
+/// 原键 `(floor, param, player, flags, ents)` **缺 `pos` 与门格**：脚本坐标虽然
+/// 全绝对（今日不可观测），但「撞门结局」在语义上依赖玩家站哪、撞哪一扇门
+/// ⇒ 键不完备就是潜伏的错复用（P3 同类）。这里显式补齐两维，并用具名字段
+/// 防止再加维度时位置搞错。
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct BumpKey {
+    floor: i32,
+    param: i32,
+    /// 撞门者所在格（bump 面不移动 ⇒ 出参与入参同格）
+    pos: (i32, i32),
+    /// 被撞的门格（同层同 param 的两扇门是两条结局）
+    gate: (i32, i32),
+    player: PlayerSpec,
+    flags: u128,
+    ents: Vec<EntRec>,
+}
+
 thread_local! {
     /// 【P7 撞门】bump 结局 memo，与 [`GATE_MEMO`] 同法但**键含 from_walk 语义分隔**
     /// （独立表 ⇒ 不与走上门的结局混淆）。值 `(player, flags, ents)`——撞门**不移动**
     /// （bump 面 `allowed=false`），故 pos 不入值，恒等入场格。
-    static BUMP_MEMO: RefCell<
-        HashMap<
-            (i32, i32, PlayerSpec, u128, Vec<EntRec>),
-            (PlayerSpec, u128, Vec<EntRec>),
-        >,
-    > = RefCell::new(HashMap::new());
+    ///
+    /// **清理策略**：每层搜索入口（[`Search::run_root_with`]）清空 ⇒ 层间不串味、
+    /// 内存有界（≤ 本层被撞过的键数），且不影响层内复用（同一层内键集合有限）。
+    static BUMP_MEMO: RefCell<HashMap<BumpKey, (PlayerSpec, u128, Vec<EntRec>)>> =
+        RefCell::new(HashMap::new());
 
-    /// 【P7 撞门】臂统计 `(生成的撞门后继数, 其中真跑脚本命中数)`——与 `SHOP_BUYS`
-    /// 同法，供集成测试观测「臂确实进了搜索」而无需暴露私有搜索态。
-    static GATE_BUMPS: std::cell::Cell<(u64, u64)> = const { std::cell::Cell::new((0, 0)) };
+    /// 【P7 撞门】臂统计（与 `SHOP_BUYS`/`PillDom::Off` 同法：**禁静默丢弃**）。
+    ///
+    /// P7 复核黄 F1：原实现把「判门未开 / 脚本换层 / 停摆 / 脚本移动玩家」四类
+    /// 结局直接 `continue`/`return None`，全仓无计数 ⇒ 既不可测也不可观测。
+    /// 这里给每类一个具名计数器（`rejected_*`），`candidates`/`script_hits` 保留
+    /// 原二元口径（`gate_bump_stats()` 是它的投影，禁两套真相）。
+    static GATE_BUMP_STAT: std::cell::Cell<GateBumpStat> =
+        const { std::cell::Cell::new(GateBumpStat::CLEARED) };
 }
 
-/// 【P7 撞门】臂统计（见 `GATE_BUMPS`）：`(候选生成数, 脚本真命中数)`。
+/// 【P7 撞门】逐类计数（见 `GATE_BUMP_STAT`）。
+///
+/// - `candidates`：预筛（[`Search::bump_only_gate_params`]）认定的撞门候选数；
+/// - `script_hits`：真跑引擎并产后继的数（含 memo 命中）；
+/// - `memo_hits`：其中走 `BUMP_MEMO` 复用的；
+/// - `rejected_not_fired`：`try_run_scene(param,false)==false`（StGate 预筛过判）；
+/// - `rejected_pending`：脚本换层（`Lay`）⇒ 撞门面不建模（层间通道只由走步臂产）；
+/// - `rejected_stalled`：`tickdrive` 停摆；
+/// - `rejected_pos_moved`：脚本内玩家走位（撞门不动的前提破了）。
+///
+/// **裁定（P7 复核 A2 二选一）**：`pos` 变化**降级为具名计数**而非硬断言。
+/// 理由：撞门面是「不移动」的**语义前提**，不是数据结构不变量——同一扇 bump-only
+/// 门若脚本里含 `MOV_0_*` 传送，那是数据面合法但本模型不覆盖的转移；硬断言会在
+/// 生产路径上 panic，而具名计数 + 判据（`bump_stat_counts_every_rejection` 断言
+/// 今天的真层恒 0）既保留可观测，又不把模型边界变成崩溃点。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct GateBumpStat {
+    pub candidates: u64,
+    pub script_hits: u64,
+    pub memo_hits: u64,
+    pub rejected_not_fired: u64,
+    pub rejected_pending: u64,
+    pub rejected_stalled: u64,
+    pub rejected_pos_moved: u64,
+}
+
+impl GateBumpStat {
+    pub const CLEARED: Self = Self {
+        candidates: 0,
+        script_hits: 0,
+        memo_hits: 0,
+        rejected_not_fired: 0,
+        rejected_pending: 0,
+        rejected_stalled: 0,
+        rejected_pos_moved: 0,
+    };
+    fn bump<F: FnOnce(&mut Self)>(f: F) {
+        GATE_BUMP_STAT.with(|c| {
+            let mut s = c.get();
+            f(&mut s);
+            c.set(s);
+        });
+    }
+}
+
+/// 【P7 撞门】逐类计数快照（判据与证据工具的观测面）。
+pub fn gate_bump_stat() -> GateBumpStat {
+    GATE_BUMP_STAT.with(|c| c.get())
+}
+
+/// 【P7 撞门】旧二元投影 `(候选生成数, 脚本真命中数)`——与 [`gate_bump_stat`] 同源。
 pub fn gate_bump_stats() -> (u64, u64) {
-    GATE_BUMPS.with(|c| c.get())
+    let s = gate_bump_stat();
+    (s.candidates, s.script_hits)
 }
 
 /// 【P7 撞门】轻量 `GateView`：判「这扇门只有撞才触发吗」。
@@ -3633,6 +3735,63 @@ impl game_core::rules::gate::GateView for StGate<'_> {
     fn predict_hp_loss_vs(&self, _ety: i32, _no_counter: bool) -> i32 {
         0
     }
+}
+
+/// 【P7 撞门】单参数判门探针：**与搜索同一个 [`StGate`]**（禁第二份 GateView 实现）。
+///
+/// `from_walk=false` = 撞门面（`try_run_scene(param,false)` 的判门口径）、
+/// `true` = 踩格面。只判不放（不 load/tick）。
+pub fn probe_gate_verdict(
+    input: &SolveInput,
+    player: &PlayerSpec,
+    flags: u128,
+    ents: Option<&[EntRec]>,
+    param: i32,
+    from_walk: bool,
+) -> bool {
+    let level = input.level.as_ref().expect("probe_gate_verdict 需要夹具");
+    let ents: Vec<EntRec> = ents.map(|v| v.to_vec()).unwrap_or_else(|| sprite_full(level));
+    let mut v = StGate {
+        ents: &ents,
+        difficulty: input.difficulty,
+        hp: player.hp,
+        items: &player.item_types,
+        flags,
+    };
+    game_core::rules::gate::evaluate(param, &mut v, from_walk).run
+}
+
+/// 格分类探针（集成测试/证据工具面）：返回 `"blocked"`/`"move"`/`"door"`/
+/// `"monster"`/`"pickup"`/`"shop"`——与 `Search::classify` **同一实现**（不是副本）。
+pub fn probe_cell_class(input: &SolveInput, ents: Option<&[EntRec]>, at: (i32, i32)) -> &'static str {
+    let level = input.level.as_ref().expect("probe_cell_class 需要夹具");
+    let st = St {
+        pos: level.start,
+        player: level.player.clone(),
+        ents: ents.map(|v| v.to_vec()).unwrap_or_else(|| sprite_full(level)),
+        flags: level.flags,
+        kills: 0,
+        steps: 0,
+    };
+    let se = Search::new(input, level);
+    match se.classify(&st, at.0, at.1) {
+        Cell::Blocked => "blocked",
+        Cell::Move => "move",
+        Cell::Door(..) => "door",
+        Cell::Monster(..) => "monster",
+        Cell::Pickup => "pickup",
+        Cell::Shop(..) => "shop",
+    }
+}
+
+/// 【P7 撞门/A4】`BUMP_MEMO` 当前条目数（判据用：证明键含 `pos`、层界清空生效）。
+pub fn bump_memo_len() -> usize {
+    BUMP_MEMO.with(|m| m.borrow().len())
+}
+
+/// 【P7 撞门/A4】手工清空 `BUMP_MEMO`（判据前置；生产路径由层界入口自动清）。
+pub fn bump_memo_clear() {
+    BUMP_MEMO.with(|m| m.borrow_mut().clear());
 }
 
 /// 【P7 撞门】撞门探针（集成测试面）：在给定入场态上对邻格 `(tx,ty)` 走一次撞门，
