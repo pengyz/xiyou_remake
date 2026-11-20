@@ -480,7 +480,7 @@ fn main() {
             }
         }
         println!(
-            "== 合计 == 层 {} / ok {} / no_entry {} / no_up_exit {} / unreachable {} / needs_more_than_grid {}",
+            "== 合计 == 层 {} / ok {} / no_entry {} / no_up_exit {} / blocked_by_assumption {} / needs_more_than_grid {}",
             floors.len(), n_ok, n_no_entry, n_no_up, n_unreach, n_grid
         );
         let dist: Vec<String> = hist.iter().map(|(k, v)| format!("{k}×{v}")).collect();

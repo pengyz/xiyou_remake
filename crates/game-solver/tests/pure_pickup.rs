@@ -424,9 +424,15 @@ fn pure_pickup_fails_closed_when_pickup_not_certified() {
 /// `examples/dump_chain.rs`（同一 `run_witness(51, max_floors=3)`），输出见
 /// `docs/findings/2026-11-19-pure-pickup-closed-form.md` §「差分」。
 /// 三层都**不是**纯拾取层（f52/f53 有怪、f1 有怪）⇒ 闭式 fail-closed ⇒ 结果必须一字不差。
+/// 【2026-11-20 更正（P10 出层分层软契约）】f52 行不再是旧值：
+/// cmp_exit 在 hp 大者优先之后新增 **gold 多者优先**（软约束层 2，位于 steps 之前——
+/// 修订裁定：不做加权和、不把 gold 折算进 hp，但同 hp 下攒钱优先于省步）。
+/// f52 同 hp=427 下存在金更多的 124 步路线 ⇒ 从旧 102 步路线切换（血/出口不变）。
+/// f51/f53 无同 hp 金差异 ⇒ 仍与旧值一字不差。变更意图见
+/// docs/findings/2026-11-20-layer-objective.md。
 const OLD_CHAIN: [(i32, bool, bool, i32, i32, Option<[i32; 2]>, usize, u64); 3] = [
     (51, true, false, 300, 247, Some([2, 2]), 69, 0x8e93_f289_6fa6_4309),
-    (52, true, false, 247, 427, Some([11, 11]), 102, 0x59a3_c230_a9dc_d5c6),
+    (52, true, false, 247, 427, Some([11, 11]), 124, 0xdd98_dd23_6c41_7cfb),
     (53, true, false, 427, 827, Some([6, 1]), 25, 0xfacb_03ba_5dae_df4e),
 ];
 

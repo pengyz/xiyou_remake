@@ -81,7 +81,10 @@ use std::collections::{BTreeMap, BTreeSet};
 /// v1 → v2（2026-11-19，复核 F7）：`WitnessFloor` 追加 `pure_pickup` /
 /// `pure_pickup_reason` 两字段（闭式解可观测面）。既有字段与顺序零改动，
 /// 但「新增字段」就是契约变更 ⇒ 必须换标签（禁静默改契约）。
-pub const WITNESS_SCHEMA: &str = "xiyou/witness/v2";
+///
+/// v2 → v3（2026-11-20，P10）：`WitnessFloor` 追加 `demand` / `demand_undefined` /
+/// `keys_out` / `key_shortfall` 四个**诊断**字段（钥匙需求观测面；不参与比较）。
+pub const WITNESS_SCHEMA: &str = "xiyou/witness/v3";
 
 /// 一次见证的层数上限（防无限推进；塔序真实长度 ~54 ⇒ 64 足够且仍是硬护栏）。
 pub const DEFAULT_MAX_FLOORS: usize = 64;
@@ -207,6 +210,24 @@ pub struct WitnessFloor {
     /// 【v2】闭式命中/回退的具名标签（`PurePickupStat::reason_label`）：
     /// 命中=`"adopted"`；回退=拒绝原因（带触发实体型）；`null`=本层没问过闭式。
     pub pure_pickup_reason: Option<String>,
+    /// 【v3 诊断】本层的后继钥匙需求 `objective::next_demand`（(y,b,r) 逐色最大）。
+    /// **纯诊断字段**：绝不参与出层比较/可行性（objective.rs 模块 doc 契约——钥匙是
+    /// 跨层动态资源，单层硬约束会制造假不可行）。
+    pub demand: [u8; 3],
+    /// 【v3 诊断】需求未定义原因（后继缺规格/后继 keydemand 非 Ok）；`null`=Known。
+    pub demand_undefined: Option<String>,
+    /// 【v3 诊断】本层出层时携带钥匙 (y,b,r)（`out_player` 的钥匙字段）。
+    pub keys_out: [u8; 3],
+    /// 【v3 诊断】`keys_out` 逐色小于 `demand` 的缺口。**不阻断、不改 ok**——
+    /// 只如实落账供审计与下一片「链路层回拾/补钥」使用。
+    pub key_shortfall: Option<KeyShortfall>,
+}
+
+/// 【v3 诊断】钥匙缺口（逐色）：`need` 来自 `demand`，`have` 来自 `keys_out`。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KeyShortfall {
+    pub need: [u8; 3],
+    pub have: [u8; 3],
 }
 
 /// 终局块。`ending_done` **只有**真的推进到 `Ending` 才为 true。
@@ -372,10 +393,26 @@ fn record_floor(
     cur_player: &PlayerSpec,
     cur_flags: u128,
     ents_here: Option<&[EntRec]>,
+    demand: &crate::objective::Demand,
 ) {
     // ok=true ⇒ kind 必为 Some（`materialize_exit` 契约：只有 Some(g) 才回填目标态）
     let kind = got.kind.expect("ok=true ⇒ kind 必为 Some（solve_local_exit 契约）");
     w.total_steps += got.route.len() as i32;
+    // 【v3 诊断】出层钥匙（PlayerSpec 钥匙字段；负值防御性钳 0）。
+    let clamp = |v: i32| v.clamp(0, u8::MAX as i32) as u8;
+    let keys_out = [clamp(got.out_player.yellow), clamp(got.out_player.blue), clamp(got.out_player.red)];
+    // 【v3 诊断】缺口 = 逐色 have < need。**只落账，不阻断、不改 ok**（P10 用户裁定：
+    // 钥匙可跨层回拾/商店补，单层缺口不是可行性结论）。
+    let key_shortfall = match demand.state {
+        crate::objective::DemandState::Known => {
+            if keys_out.iter().zip(demand.keys.iter()).any(|(h, n)| h < n) {
+                Some(KeyShortfall { need: demand.keys, have: keys_out })
+            } else {
+                None
+            }
+        }
+        crate::objective::DemandState::Undefined(_) => None,
+    };
     w.floors.push(WitnessFloor {
         floor,
         entry: [entry.0, entry.1],
@@ -395,6 +432,13 @@ fn record_floor(
         // F7：`ExitSolve` 携带的闭式判定**原样**落盘，不再丢弃（v1 就是丢在这里）。
         pure_pickup: got.pure_pickup,
         pure_pickup_reason: got.pure_pickup_reason.clone(),
+        demand: demand.keys,
+        demand_undefined: match &demand.state {
+            crate::objective::DemandState::Known => None,
+            crate::objective::DemandState::Undefined(r) => Some(r.clone()),
+        },
+        keys_out,
+        key_shortfall,
     });
 }
 
@@ -527,10 +571,13 @@ pub fn run_witness_with(
         // ok=true ⇒ kind 必为 Some（`materialize_exit` 契约：只有 Some(g) 才回填目标态）
         let kind = got.kind.expect("ok=true ⇒ kind 必为 Some");
 
+        // 【v3 诊断】本层后继钥匙需求（一步前瞻；纯诊断面，绝不参与比较/可行性）。
+        let demand = crate::objective::next_demand(levels, floor);
+
         // 终局：`Ending` 层=通关。终局层本身也是「解出来的成功层」，**照样落账**
         // （它的 kind=Ending、exit 可能为 null；`floors` 因此是完整的逐层路线）。
         if kind == ExitKind::Ending {
-            record_floor(&mut w, floor, entry, &got, &cur_player, cur_flags, ents_here.as_deref());
+            record_floor(&mut w, floor, entry, &got, &cur_player, cur_flags, ents_here.as_deref(), &demand);
             w.status = WitnessStatus::Witness.as_str().to_string();
             w.final_state = WitnessFinal { ending_done: true, floor };
             break;
@@ -627,7 +674,7 @@ pub fn run_witness_with(
             break;
         }
         // ---- 成功层：出层边已核验通往 f{expected} 才落账（floors=成功前缀）----
-        record_floor(&mut w, floor, entry, &got, &cur_player, cur_flags, ents_here.as_deref());
+        record_floor(&mut w, floor, entry, &got, &cur_player, cur_flags, ents_here.as_deref(), &demand);
 
         // 接力：本层终态入位图（按层归属），玩家/旗标带入下一层。
         ents_by_floor.insert(floor, got.out_ents.clone());

@@ -478,7 +478,8 @@ fn witness_json_schema_stable() {
 
     // 3) 值层面：schema 标签、状态词表、层不变式。
     let v: serde_json::Value = serde_json::from_str(&json).unwrap();
-    assert_eq!(v["meta"]["schema"], "xiyou/witness/v2");
+    // 【2026-11-20 更正（P10）】witness v3：WitnessFloor 追加 demand/keys_out/demand_undefined/key_shortfall 诊断字段。
+    assert_eq!(v["meta"]["schema"], "xiyou/witness/v3");
     assert!(
         ["witness", "blocked", "capped", "model_broken"].contains(&v["status"].as_str().unwrap()),
         "status 词表：{}",
@@ -539,7 +540,8 @@ fn witness_json_has_no_unknown_schema_drift() {
     let v: serde_json::Value = serde_json::from_str(&json).expect("JSON 可解析");
 
     // ① 契约变更必须换版本标签（新增字段属契约变更，见 witness.rs 模块文档 v1→v2）。
-    assert_eq!(v["meta"]["schema"], "xiyou/witness/v2", "schema 必须升到 v2");
+    // 【2026-11-20 更正（P10）】schema 必须升到 v3（witness v2→v3：追加 demand/keys_out 等诊断字段）。
+    assert_eq!(v["meta"]["schema"], "xiyou/witness/v3", "schema 必须升到 v3");
 
     // ② 声明序：新字段必须追加在 `truncated` 之后（不重排既有字段）。
     let mut last = 0usize;

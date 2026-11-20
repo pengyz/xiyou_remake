@@ -521,7 +521,9 @@ pub fn solve_local_exit(
 ) -> ExitSolve {
     let (reachable, goals) = solve_layer(input, entry, ents_in, player_in.clone(), flags_in);
     let truncated = take_layer_trunc().is_some();
-    let best = pick::<HpLoss, _>(&goals);
+    // 【P10】出层择优走分层软契约（objective::cmp_exit：hp 大 → gold 多 → steps 少），
+    // 不再是旧 HpLoss（hp→steps）——gold 软层加入；demand 绝不参与（objective.rs doc）。
+    let best = pick_exit(&goals);
     materialize_exit(input, reachable, best, player_in, flags_in, ents_in, truncated)
 }
 
@@ -580,10 +582,11 @@ pub fn solve_local_exit_toward_shops(
         _ => Vec::new(),
     };
     let hit = !prefer.is_empty();
+    // 【P10】定向子集上的择优同样走分层软契约（同一份比较器，不写第二份）。
     let best = if hit {
         best_goal(prefer.into_iter())
     } else {
-        pick::<HpLoss, _>(&goals)
+        pick_exit(&goals)
     };
     (materialize_exit(input, reachable, best, player_in, flags_in, ents_in, truncated), hit)
 }
@@ -599,13 +602,42 @@ pub fn goal_edge(level: &LevelSpec, g: &LayerGoal) -> Option<(i32, bool)> {
     }
 }
 
-/// 在**已筛子集**上按 [`HpLoss`] 取最优（与 `pick` 同一比较器，不写第二份 tie-break）。
+/// 【P10】在**已筛子集**上按分层软契约取最优（与 [`pick_exit`] 同一比较器，
+/// 不写第二份 tie-break；demand 绝不参与——objective.rs 模块 doc 契约）。
 fn best_goal<'g>(goals: impl Iterator<Item = &'g LayerGoal>) -> Option<&'g LayerGoal> {
     goals.fold(None, |best: Option<&'g LayerGoal>, g| match best {
         None => Some(g),
-        Some(b) if HpLoss::better(g, b) => Some(g),
+        Some(b) if better_exit(g, b) => Some(g),
         some => some,
     })
+}
+
+/// 【P10】目标集上的出层择优：[`crate::objective::cmp_exit`] 分层软序
+/// （hp 大 → gold 多 → steps 少），Equal 时路线字典序做**决定性** tie-break
+/// （契约外，保证同输入同输出；demand 字段不参与比较）。
+fn better_exit(a: &LayerGoal, b: &LayerGoal) -> bool {
+    match crate::objective::cmp_exit(
+        &crate::objective::score_of_goal(a),
+        &crate::objective::score_of_goal(b),
+    ) {
+        std::cmp::Ordering::Less => true,
+        std::cmp::Ordering::Greater => false,
+        std::cmp::Ordering::Equal => a.route < b.route,
+    }
+}
+
+/// [`better_exit`] 的 argbest 面（替代旧 `pick::<HpLoss,_>` 在出层口的用途；
+/// 旧比较器仍归 [`solve_local`]（Q1 遗留面）专用）。
+fn pick_exit(goals: &[LayerGoal]) -> Option<&LayerGoal> {
+    let mut best: Option<&LayerGoal> = None;
+    for g in goals {
+        best = Some(match best {
+            None => g,
+            Some(b) if better_exit(g, b) => g,
+            Some(b) => b,
+        });
+    }
+    best
 }
 
 /// 层目标 → [`ExitSolve`] 的物化（[`solve_local_exit`] 与 [`solve_local_exit_toward`]
@@ -4948,5 +4980,76 @@ mod pill_subset_dominance_tests {
         // On 腿的 hp 必须等于闭式最优（三颗药全捡：50+200+50）
         let best = on_goals.iter().map(|g| g.hp).max().expect("有解");
         assert_eq!(best, 300 + 50 + 200 + 50, "闭式最优：入场 300 + 全部药 300");
+    }
+}
+
+// ================================================================== 【P10】出层分层软契约单测
+#[cfg(test)]
+mod p10_objective_pick {
+    use super::*;
+    use crate::objective::{cmp_exit, score_of_goal};
+    use std::cmp::Ordering;
+
+    /// LayerGoal 构造助手（只剩比较面相关字段有实义）。
+    fn goal(hp: i32, gold: i32, steps: i32, route: &[&str]) -> LayerGoal {
+        LayerGoal {
+            hp,
+            kills: 0,
+            steps,
+            keys: (0, 0, 0),
+            kind: ExitKind::Stair,
+            route: route.iter().map(|s| s.to_string()).collect(),
+            post: PlayerSpec {
+                hp,
+                atk: 0,
+                def: 0,
+                yellow: 0,
+                blue: 0,
+                red: 0,
+                gold,
+                item_types: Vec::new(),
+                item_uses: Vec::new(),
+                item_stack_size: 0,
+            },
+            post_pos: (0, 0),
+            post_ents: Vec::new(),
+            post_flags: 0,
+            cross_edge: None,
+        }
+    }
+
+    /// 同 hp ⇒ gold 多者赢（gold 软约束层 2；变异 M2「gold 提到 hp 前」会在此红）。
+    #[test]
+    fn p10_same_hp_prefers_more_gold() {
+        let a = goal(4027, 500, 90, &["0,0"]);
+        let b = goal(4027, 100, 88, &["0,0"]);
+        assert_eq!(cmp_exit(&score_of_goal(&a), &score_of_goal(&b)), Ordering::Less);
+        assert!(better_exit(&a, &b), "pick_exit/better_exit 必须选金多的");
+    }
+
+    /// 血大者永远赢（gold 不许翻盘；hp 软约束层 1）。
+    #[test]
+    fn p10_hp_beats_gold() {
+        let a = goal(4100, 0, 90, &["0,0"]);
+        let b = goal(4000, 9999, 88, &["0,0"]);
+        assert!(better_exit(&a, &b), "血优先于任何 gold 优势");
+        assert!(!better_exit(&b, &a));
+    }
+
+    /// 同 hp 同 gold 同 steps ⇒ 路线字典序（决定性 tie-break，契约外不改序）。
+    #[test]
+    fn p10_equal_uses_route_lex() {
+        let a = goal(4027, 500, 88, &["0,0"]);
+        let b = goal(4027, 500, 88, &["1,0"]);
+        assert!(better_exit(&a, &b));
+        assert!(!better_exit(&b, &a));
+    }
+
+    /// pick_exit argbest 面：多目标里取比较序最优者。
+    #[test]
+    fn p10_pick_exit_argbest() {
+        let goals = vec![goal(4027, 100, 88, &["0,0"]), goal(4027, 500, 90, &["1,0"]), goal(4000, 9999, 10, &["2,0"])];
+        let best = pick_exit(&goals).expect("非空目标集必有最优");
+        assert_eq!(best.post.gold, 500, "同 hp 里金多者胜（hp=4000 的金主不许翻盘）");
     }
 }

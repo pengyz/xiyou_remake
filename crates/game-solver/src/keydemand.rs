@@ -107,7 +107,12 @@ impl FloorStatus {
             FloorStatus::NoEntry => "no_entry",
             FloorStatus::NoUpExit => "no_up_exit",
             FloorStatus::TooManyDoors => "too_many_doors",
-            FloorStatus::Unreachable => "unreachable",
+            // 【2026-11-20 更正（P10/f29 取证）】旧值 "unreachable" 是「硬阻挡按永久」
+            // 假设（假设 5）的最坏产物：f29 双硬阻挡断掉唯一环线、双放后 needed=(0,0,0)
+            // ——「不可达」并不是事实，而是**假设的产物**（结构性与 no_entry/no_up_exit
+            // 同类：数字未定义）。具名 `blocked_by_assumption`；旧值只作历史别名
+            // （docs/findings/2026-11-20-f29-reachability.md）。
+            FloorStatus::Unreachable => "blocked_by_assumption",
             FloorStatus::NeedsMoreThanGrid => "needs_more_than_grid",
             FloorStatus::TooManyPickups => "too_many_pickups",
         }

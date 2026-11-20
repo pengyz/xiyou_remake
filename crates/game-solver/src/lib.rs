@@ -13,6 +13,7 @@ pub mod hp_bound;
 pub mod ingest;
 pub mod keydemand;
 pub mod keyflow;
+pub mod objective;
 pub mod pure_pickup;
 pub mod query;
 pub mod script_abs;
