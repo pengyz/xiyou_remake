@@ -43,6 +43,7 @@
 3. **cut_ge_keydemand**：49 个可比层（keydemand ok 层）逐层核对
    `cut_doors(d1,d2,d3) ≥ (min_needed_y,b,r)`，PASS（违例=无）；
    交叉点 f4 需黄1（cut d1:7 ✓）、f46 需黄1+蓝2（cut d1:8 d3:2 ✓）。
+   > 【2026-11-20 更正】上行为笔误：keydemand 实测 f4 needed=(y=2,b=0,r=0)、f46 needed=(y=3,b=0,r=0)（cargo run -p game-solver -- keydemand 复核；复核报告 2026-11-20-block-interfaces-review.md 黄1）。PASS 判定不受影响（cut d1:7≥2、d1:8≥3 仍成立），正确交叉点为：f4 需黄2（cut d1:7 ✓）、f46 需黄3（cut d1:8 ✓）。
 4. **54 层全跑完**：f0 = 隐藏/调试层（solver 不建图，floors 1..=54；含 StairUp(1,1)→f1，
    不入 floorgraph 105 条对账）；f44 有上下行楼梯但 b1 孤立 5 格小袋（无出口）；
    f49 无上行楼梯（顶=击杀触发/脚本）；f50 终局单块 9 格，无入口无上行
