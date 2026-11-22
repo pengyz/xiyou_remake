@@ -6,3 +6,4 @@
 pub mod boss;
 pub mod gate;
 pub mod sensitivity;
+pub mod shop;

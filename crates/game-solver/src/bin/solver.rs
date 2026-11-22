@@ -231,6 +231,44 @@ fn main() {
                 println!("    gates: {}", e.gates.join("; "));
             }
         }
+        // S3-C：--lb-out 落盘 LB 下界表（敏感表 @ 段起点属性 + 块级 LB 汇总）。
+        if let Some(lb_path) = args
+            .iter()
+            .position(|a| a == "--lb-out")
+            .and_then(|i| args.get(i + 1))
+            .cloned()
+        {
+            let table = game_core::rules::sensitivity::sensitivity_table(&scaled, 10, 10, false, false);
+            let mut js = String::from(
+                "{\n  \"口径\": \"LB 下界表：game-core sensitivity_table（armor_gate=true，difficulty×1），属性取第 1 段起点 atk=10 def=10 held=空；counter_loss=-1=打不动（LB 计 0）；reward=combat::kill_reward 精确值\",\n",
+            );
+            js.push_str("  \"start_stats\": { \"atk\": 10, \"def\": 10, \"hp\": 300, \"held\": [] },\n");
+            js.push_str("  \"enemies\": [");
+            for (i, r) in table.iter().enumerate() {
+                if i > 0 { js.push(','); }
+                js.push_str(&format!(
+                    "\n    {{\"ety\": {}, \"can_kill\": {}, \"counter_loss\": {}, \"one_hit_atk\": {}, \"zero_loss_def\": {}}}",
+                    r.ety, r.can_kill, r.counter_loss, r.one_hit_atk, r.zero_loss_def
+                ));
+            }
+            js.push_str("\n  ],\n  \"blocks\": [");
+            let mut first_blk = true;
+            for (ni, mons) in graph.monsters_of.iter().enumerate() {
+                if mons.is_empty() { continue; }
+                let (loss, reward) = game_solver::outer::block_combat_cost(&scaled, mons, 10, 10, 0, 0);
+                let f = graph.floor_of[ni];
+                let bid = &doc.floors[&f].blocks[graph.block_of[ni]].id;
+                if !first_blk { js.push(','); }
+                first_blk = false;
+                js.push_str(&format!(
+                    "\n    {{\"floor\": {}, \"block\": \"{}\", \"monsters\": [{}], \"lb_loss\": {}, \"lb_reward\": {}}}",
+                    f, bid, mons.iter().map(|m| m.to_string()).collect::<Vec<_>>().join(","), loss, reward
+                ));
+            }
+            js.push_str("\n  ]\n}\n");
+            std::fs::write(&lb_path, &js).unwrap_or_else(|e| panic!("写 {lb_path}: {e}"));
+            println!("LB 表已落盘 {lb_path}");
+        }
         // 落盘
         let out = args
             .iter()

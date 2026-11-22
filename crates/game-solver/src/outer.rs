@@ -662,7 +662,7 @@ fn bit_get(bits: &[u8], idx: usize) -> bool {
 /// 涨攻后再来是合法路线，计 0 才保下界不破——语义边界另记 findings）；
 /// 表缺行（怪不在缩放表）同样按 0。reward 为引擎精确击杀赏金之和（kill_reward，
 /// 非下界——它是状态转移的精确结算，只对可杀怪计）。
-fn block_combat_cost(
+pub fn block_combat_cost(
     scaled_enemies: &[game_data::defs::EnemyDef],
     monsters: &[i32],
     atk: i32,
@@ -901,9 +901,10 @@ pub fn outer_search(
                 let pct = parse_pct(params);
                 let mut ns = state.clone();
                 ns.buys += 1;
-                // 整数复利逐次模拟（提案 §3.5）；饱和防溢出（免费无限买 ⇒ 搜索靠帽停）。
-                ns.atk = state.atk.saturating_add(state.atk.saturating_mul(pct.0) / 100);
-                ns.def = state.def.saturating_add(state.def.saturating_mul(pct.1) / 100);
+                // 整数复利逐次模拟（提案 §3.5）；公式 game-core 单源
+                // （rules::shop::stat_pct_compound_step，S3-C 上提，solver 零重算）。
+                ns.atk = game_core::rules::shop::stat_pct_compound_step(state.atk, pct.0);
+                ns.def = game_core::rules::shop::stat_pct_compound_step(state.def, pct.1);
                 heap.push(HeapItem { steps: steps + 1 + price as u64 / 1000_000, seq, state: ns, path: path.clone(), gates: gates.clone() });
                 seq += 1;
             }
