@@ -553,6 +553,9 @@ pub struct FrontierEntry {
     pub steps: u64,
     /// 到锚时敏感表判定是否可杀（false = 到了但杀不动——诊断面）。
     pub killable: bool,
+    /// F2 复核修正：killable 但撞面总损血 ≥ 当前 hp ⇒ 必死（fatal 诊断列）。
+    /// killable && !fatal 才是「活着杀完」。
+    pub fatal: bool,
     pub state: OuterState,
     /// 块路径 `f{floor}:{block_id}`（含锚）。
     pub path: Vec<String>,
@@ -660,7 +663,7 @@ pub fn outer_search(
         }
         // 支配剪枝：同节点、同 picked、同 buys 档，其余全维不劣且步数不增 ⇒ 剪。
         // （不同 picked/held 的状态各自保留——支配对未拾取未来不完整。）
-        if dominated_seen(&mut seen, &state, steps) {
+        if dominated_seen(&mut seen, &state) {
             continue;
         }
         // 进块拾取（未拾取过才结算；块可重入）
@@ -699,8 +702,8 @@ pub fn outer_search(
         }
         // 锚判定（先判后展——锚块也可穿越）
         if state.node == anchor {
-            match anchor_killable(scaled_enemies, run.anchor_boss_ty, state.atk, state.def, state.held) {
-                Ok(k) => res.frontier.push(FrontierEntry { steps, killable: k, state: state.clone(), path: path.clone(), gates: gates.clone() }),
+            match anchor_killable(scaled_enemies, run.anchor_boss_ty, state.atk, state.def, state.hp, state.held) {
+                Ok((k, fatal)) => res.frontier.push(FrontierEntry { steps, killable: k, fatal, state: state.clone(), path: path.clone(), gates: gates.clone() }),
                 Err(OuterError::NeedsSensitivity(ty)) => {
                     if !res.needs_sensitivity.contains(&ty) {
                         res.needs_sensitivity.push(ty);
@@ -777,10 +780,12 @@ pub fn outer_search(
 /// 同节点支配判定与登记：picked 完全相同、buys 相同档位时，若档案中已有
 /// 步数更少且数值全维不劣的条目则剪掉；否则登记。（held 超集维度保守地
 /// 不比——见模块 doc 已知边界。）
+/// 前置判据（复核 F6）：支配剪枝不含步数维，健全性依赖「所有转移成本 ≥1，
+/// 堆按 steps 弹出 ⇒ 归档条目 steps 必 ≤ 当前」。加 0 成本边前必须先改这里。
+/// （审计断言：编译期由 OM2 变异守护购买成本；邻块/换层 +1 为字面量。）
 fn dominated_seen(
     seen: &mut HashMap<usize, Vec<(Vec<u8>, u32, i32, i32, i32, i32, i32, i32, i32, i32, u128)>>,
     state: &OuterState,
-    steps: u64,
 ) -> bool {
     let entry = (
         state.picked.clone(),
@@ -826,13 +831,19 @@ fn parse_pct(params: &str) -> (i32, i32) {
 
 /// 锚可杀性：敏感表单一真相源判定（零复制）。
 /// 持 23/24 由 held 位图读出（23=太公杖位、24=捆仙绳位——combat trait 语义）。
+/// 锚可杀判定（敏感表单一真相源，零新公式）：
+/// - `killable`：能杀死（`can_kill`：eff > edef）；
+/// - `fatal`：能杀死但撞面总损血 `counter_loss ≥ 当前 hp` ⇒ 必死。
+///   复核 F2：只判 can_kill 会把「打 100 回合被反击 5247>hp5200」误判可杀
+///   （真数据 8/53 条致死）。killable && !fatal 才是存活击杀。
 pub fn anchor_killable(
     scaled_enemies: &[game_data::defs::EnemyDef],
     boss_ty: i32,
     atk: i32,
     def: i32,
+    hp: i32,
     held: u128,
-) -> Result<bool, OuterError> {
+) -> Result<(bool, bool), OuterError> {
     if !scaled_enemies.iter().any(|e| e.id == boss_ty) {
         return Err(OuterError::NeedsSensitivity(boss_ty));
     }
@@ -842,8 +853,12 @@ pub fn anchor_killable(
     Ok(table
         .iter()
         .find(|r| r.ety == boss_ty)
-        .map(|r| r.can_kill)
-        .unwrap_or(false))
+        .map(|r| {
+            let killable = r.can_kill && r.counter_loss >= 0;
+            let fatal = killable && r.counter_loss >= hp;
+            (killable, fatal)
+        })
+        .unwrap_or((false, false)))
 }
 
 /// Pareto 前沿：steps 少 / atk def hp gold 高 / keys 多者保留（held 不进支配比较，
@@ -984,6 +999,24 @@ mod tests {
     ] }
   ]
 }"#.to_string()
+    }
+
+    /// 判据（复核 F2 红项）：killable 必须含损血约束——counter_loss < hp 才算
+    /// 存活击杀，否则 fatal=true（诊断列）。变异判据：删 counter_loss 约束 ⇒ 此
+    /// 测试的 fatal 断言红（atk16/def12/hp5200 对 boss75 损血 5247 必死）。
+    #[test]
+    fn anchor_killable_requires_survivable_counter_loss() {
+        let en = enemies();
+        // 旗舰误判样本（复核实锤）：atk16/def12/hp5200 ⇒ can_kill 但损血 (65-12)*99=5247 ≥ hp
+        let (k, f) = anchor_killable(&en, 75, 16, 12, 5200, 0).unwrap();
+        assert!(k, "atk16>def15 能杀死");
+        assert!(f, "损血 5247 ≥ hp5200 ⇒ fatal（复核 F2 的 8 条致死路径之一）");
+        // def30 ⇒ 损血 (65-30)*99=3465 < 5200 ⇒ 存活击杀
+        let (k2, f2) = anchor_killable(&en, 75, 16, 30, 5200, 0).unwrap();
+        assert!(k2 && !f2, "def30 损血 3465<5200 应存活");
+        // 打不动：atk10 ≤ def15 ⇒ 不 killable 不 fatal
+        let (k3, f3) = anchor_killable(&en, 75, 10, 12, 5200, 0).unwrap();
+        assert!(!k3 && !f3);
     }
 
     /// 判据（加载契约）：schema 不符 ⇒ 具名 SchemaMismatch，禁回落。

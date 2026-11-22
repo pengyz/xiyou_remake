@@ -203,9 +203,9 @@ fn main() {
         }
         for (i, e) in res.frontier.iter().enumerate() {
             println!(
-                "  前沿[{}] steps={} atk={} def={} hp={} gold={} y/r/b={}/{}/{} killable={} path={}",
+                "  前沿[{}] steps={} atk={} def={} hp={} gold={} y/r/b={}/{}/{} killable={} fatal={} path={}",
                 i, e.steps, e.state.atk, e.state.def, e.state.hp, e.state.gold,
-                e.state.yellow, e.state.red, e.state.blue, e.killable,
+                e.state.yellow, e.state.red, e.state.blue, e.killable, e.fatal,
                 e.path.join(" → ")
             );
             if !e.gates.is_empty() {
@@ -234,9 +234,9 @@ fn main() {
                 js.push(',');
             }
             js.push_str(&format!(
-                "\n    {{\"steps\": {}, \"killable\": {}, \"atk\": {}, \"def\": {}, \"hp\": {}, \"gold\": {}, \
+                "\n    {{\"steps\": {}, \"killable\": {}, \"fatal\": {}, \"atk\": {}, \"def\": {}, \"hp\": {}, \"gold\": {}, \
                  \"yellow\": {}, \"red\": {}, \"blue\": {}, \"path\": [{}], \"gates\": [{}]}}",
-                e.steps, e.killable, e.state.atk, e.state.def, e.state.hp, e.state.gold,
+                e.steps, e.killable, e.fatal, e.state.atk, e.state.def, e.state.hp, e.state.gold,
                 e.state.yellow, e.state.red, e.state.blue,
                 e.path.iter().map(|p| format!("\"{p}\"")).collect::<Vec<_>>().join(","),
                 e.gates.iter().map(|g| format!("\"{g}\"")).collect::<Vec<_>>().join(","),
