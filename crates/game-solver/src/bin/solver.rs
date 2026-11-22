@@ -153,13 +153,32 @@ fn main() {
             .unwrap_or_else(|| "docs/findings/block-interfaces.json".to_string());
         let raw = std::fs::read_to_string(&doc_path)
             .unwrap_or_else(|e| panic!("读 {doc_path}: {e}（块表是输入数据，缺文件=具名失败，禁回落）"));
-        let doc = game_solver::outer::load_block_interfaces(&raw)
+        let mut doc = game_solver::outer::load_block_interfaces(&raw)
             .unwrap_or_else(|e| panic!("{e}"));
         let plans = game_solver::outer::plan_segments(&doc);
-        let run = match plans.iter().find(|(_, p)| matches!(p, game_solver::outer::SegmentPlan::Run(_))) {
+        let mut run = match plans.iter().find(|(_, p)| matches!(p, game_solver::outer::SegmentPlan::Run(_))) {
             Some((name, game_solver::outer::SegmentPlan::Run(r))) => (name.clone(), r.clone()),
             _ => panic!("无任何可执行段（计划具名 Off 全落空）"),
         };
+        // S3-B：--combat-cost 开启战斗成本 LB（默认关 = S2 逐字节行为）。
+        // 怪物来源：LevelSpec 实体格（ty 41..=75）按 cells 映射注入块表 monsters
+        // （公式全部 game-core 导出：sensitivity_table + kill_reward，solver 零重算）。
+        if args.iter().any(|a| a == "--combat-cost") {
+            run.1.combat_cost = true;
+            let (input, _) = solve_global_input(1);
+            for (floor, lv) in input.floors.iter() {
+                let Some(fd) = doc.floors.get_mut(floor) else { continue };
+                for e in &lv.entities {
+                    if (41..=75).contains(&e.ty) {
+                        if let Some(b) = fd.blocks.iter_mut().find(|b| b.cells.contains(&(e.x, e.y))) {
+                            if !b.monsters.contains(&e.ty) {
+                                b.monsters.push(e.ty);
+                            }
+                        }
+                    }
+                }
+            }
+        }
         // 缩放敌表（difficulty=0 ⇒ ×1，与 solve_global 同口径）
         let nums = |t: &str| -> Vec<i32> {
             t.lines().map(|l| l.trim()).filter(|s| !s.is_empty())

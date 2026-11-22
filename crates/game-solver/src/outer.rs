@@ -78,6 +78,8 @@ pub struct ExitDoc {
 pub struct BlockDoc {
     pub id: String,
     pub cells: Vec<(i32, i32)>,
+    /// S3 B 片：块内怪 ty 表（v2 可选字段；CLI 真数据由实体格映射注入）。
+    pub monsters: Vec<i32>,
     pub cut_doors: Vec<CutDoorDoc>,
     pub exports: Vec<ExportDoc>,
     pub exits: Vec<ExitDoc>,
@@ -237,7 +239,17 @@ pub fn load_block_interfaces(raw: &str) -> Result<BlockInterfaces, OuterError> {
                     to: xv.get("to").and_then(|v| v.as_int()).map(|v| v as i32),
                 });
             }
-            blocks.push(BlockDoc { id, cells, cut_doors, exports, exits });
+            let monsters = bv
+                .get("monsters")
+                .and_then(|v| v.as_arr())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|x| x.as_int())
+                        .map(|x| x as i32)
+                        .collect()
+                })
+                .unwrap_or_default();
+            blocks.push(BlockDoc { id, cells, cut_doors, exports, exits, monsters });
         }
         floors.insert(floor, FloorDoc { floor, blocks, entry });
     }
@@ -257,6 +269,8 @@ pub struct RunSpec {
     pub anchor_boss_ty: i32,
     /// S3 A 片断链注入开关：屏蔽这些（层, 格）出口边（模拟「f4 出口链断开」）。
     pub masked_exits: Vec<(i32, (i32, i32))>,
+    /// S3 B 片：战斗成本入边权（默认关——关时与 S2 输出逐字节一致）。
+    pub combat_cost: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -286,7 +300,7 @@ pub fn plan_segments(doc: &BlockInterfaces) -> Vec<(String, SegmentPlan)> {
                 start: (51, (1, 11)),
                 anchor_floor: 10,
                 anchor_boss_ty: 75,
-                masked_exits: Vec::new(),
+                masked_exits: Vec::new(), combat_cost: false,
             })
         },
     ));
@@ -355,6 +369,8 @@ pub struct OuterGraph<'a> {
     pub floor_of: Vec<i32>,
     pub block_of: Vec<usize>,
     pub edges: Vec<Vec<EdgeDemand>>,
+    /// S3 B 片：每节点的怪 ty 表（块表 monsters 字段投影）。
+    pub monsters_of: Vec<Vec<i32>>,
     /// 楼梯/脚本换层边：from node → to node。
     pub trans: Vec<Vec<(usize, String)>>,
     pub skipped_trans: Vec<String>,
@@ -386,6 +402,9 @@ impl<'a> OuterGraph<'a> {
             }
         }
         let n = floor_of.len();
+        let monsters_of: Vec<Vec<i32>> = (0..n)
+            .map(|ni| doc.floors[&floor_of[ni]].blocks[block_of[ni]].monsters.clone())
+            .collect();
         let mut edges: Vec<Vec<EdgeDemand>> = vec![Vec::new(); n];
         let mut trans: Vec<Vec<(usize, String)>> = vec![Vec::new(); n];
         let mut skipped_trans = Vec::new();
@@ -511,7 +530,7 @@ impl<'a> OuterGraph<'a> {
                 }
             }
         }
-        OuterGraph { doc, floors: floors.to_vec(), node, floor_of, block_of, edges, trans, skipped_trans, masked_exits: masked_report }
+        OuterGraph { doc, floors: floors.to_vec(), node, floor_of, block_of, monsters_of, edges, trans, skipped_trans, masked_exits: masked_report }
     }
 
     pub fn start_node(&self, floor: i32, cell: (i32, i32)) -> Result<usize, OuterError> {
@@ -629,7 +648,64 @@ fn bit_get(bits: &[u8], idx: usize) -> bool {
     bits[idx / 8] & (1 << (idx % 8)) != 0
 }
 
+/// S3 B 片：进入未拾取含怪块的战斗成本/收益（敏感表单一真相源，零复制）。
+/// LB 口径（可采纳性）：
+/// - 块内**可杀**怪的 counter_loss（引擎精确撞面损血，sensitivity→combat 单源）
+///   取**最大者**入边权——首清全块怪的真实总损血 ≥ max ⇒ 低估、保守、可采纳；
+/// - 打不动的怪（can_kill=false）不计：入边权不含它（边界：打不动怪不挡路，
+///   其讨伐成本是段内锚判据的 fatal 面，不进转移代价）；
+/// - 击杀收益 = Σ kill_reward（combat.rs 单一源，持 25 金 ×2 由其内部处理）。
+/// combat_cost=false 时 loss 恒 0 ⇒ 边权退化回纯步数（S2 输出逐字节一致）。
+///
+/// LB 口径（可采纳性）：入边权取块内**当前可杀**怪的 max(counter_loss)——
+/// 这是「逐怪损血之和」的下界 ⇒ 保守可采纳；打不动的怪按 0 计（此刻不可行≠永远不可行，
+/// 涨攻后再来是合法路线，计 0 才保下界不破——语义边界另记 findings）；
+/// 表缺行（怪不在缩放表）同样按 0。reward 为引擎精确击杀赏金之和（kill_reward，
+/// 非下界——它是状态转移的精确结算，只对可杀怪计）。
+fn block_combat_cost(
+    scaled_enemies: &[game_data::defs::EnemyDef],
+    monsters: &[i32],
+    atk: i32,
+    def: i32,
+    held: u128,
+    gold: i32,
+) -> (i32, i32) {
+    if monsters.is_empty() {
+        return (0, 0);
+    }
+    let hold23 = held & (1u128 << 23) != 0;
+    let hold24 = held & (1u128 << 24) != 0;
+    let table = sensitivity_table(scaled_enemies, atk, def, hold23, hold24);
+    let player = game_core::combat::PlayerCombat {
+        hp: 0,
+        atk,
+        def,
+        yellow_keys: 0,
+        blue_keys: 0,
+        red_keys: 0,
+        gold,
+        item_types: if held & (1u128 << 25) != 0 { vec![25] } else { vec![] },
+        item_uses: if held & (1u128 << 25) != 0 { vec![0] } else { vec![] },
+        item_stack_size: if held & (1u128 << 25) != 0 { 1 } else { 0 },
+    };
+    let mut loss = 0i32;
+    let mut reward = 0i32;
+    for &ety in monsters {
+        let Some(row) = table.iter().find(|r| r.ety == ety) else { continue };
+        if row.can_kill && row.counter_loss > 0 {
+            loss = loss.max(row.counter_loss);
+            reward += game_core::combat::kill_reward(scaled_enemies, ety, &player);
+        }
+    }
+    (loss, reward)
+}
+
 /// 外层 Dijkstra（步数=行动数）。拾取进块自动结算；磨属性=显式 1 步行动。
+/// S3 B 片：run.combat_cost=true 时，进入未拾取含怪块的边权 = 1 步 + LB 损血，
+/// 子状态结算 hp -= loss、gold += reward（经济链入边，无任何收割特判）。
+/// hp 坐标是「累计 LB 代价」：可为负（负 = 该路线的 LB 损血已超当前血量预算），
+/// 只用于前沿排序与诊断，**禁作硬可行性剪枝**——那会破坏可采纳性
+/// （真实路线可在涨攻后以更低损血清块；按此刻 stats 收的 LB 只是排序下界）。
 pub fn outer_search(
     graph: &OuterGraph,
     run: &RunSpec,
@@ -696,7 +772,7 @@ pub fn outer_search(
         // 进块拾取（未拾取过才结算；块可重入）
         let mut state = state;
         let mut path = path;
-        let mut gates = gates;
+        let gates = gates;
         if !bit_get(&state.picked, state.node) {
             bit_set(&mut state.picked, state.node);
             let f = graph.floor_of[state.node];
@@ -753,6 +829,20 @@ pub fn outer_search(
             ns.yellow -= e.yellow;
             ns.red -= e.red;
             ns.blue -= e.blue;
+            let mut cost = 1u64;
+            if run.combat_cost && !bit_get(&state.picked, e.to) {
+                let (loss, reward) = block_combat_cost(
+                    scaled_enemies,
+                    &graph.monsters_of[e.to],
+                    ns.atk,
+                    ns.def,
+                    ns.held,
+                    ns.gold,
+                );
+                ns.hp -= loss;
+                ns.gold += reward;
+                cost += loss as u64;
+            }
             let mut ng = gates.clone();
             if e.optimistic_gates > 0 {
                 ng.push(format!(
@@ -764,19 +854,33 @@ pub fn outer_search(
                     graph.doc.floors[&graph.floor_of[e.to]].blocks[graph.block_of[e.to]].id
                 ));
             }
-            heap.push(HeapItem { steps: steps + 1, seq: seq, state: ns, path: path.clone(), gates: ng });
+            heap.push(HeapItem { steps: steps + cost, seq: seq, state: ns, path: path.clone(), gates: ng });
             seq += 1;
         }
         // 换层（S3 A 片：允许回头边——回拾候选边按「目标层序早于当前层」计数）
         for &(to, ref kind) in &graph.trans[state.node] {
             let mut ns = state.clone();
             ns.node = to;
+            let mut cost = 1u64;
+            if run.combat_cost && !bit_get(&state.picked, to) {
+                let (loss, reward) = block_combat_cost(
+                    scaled_enemies,
+                    &graph.monsters_of[to],
+                    ns.atk,
+                    ns.def,
+                    ns.held,
+                    ns.gold,
+                );
+                ns.hp -= loss;
+                ns.gold += reward;
+                cost += loss as u64;
+            }
             let from_floor = graph.floor_of[state.node];
             let to_floor = graph.floor_of[to];
             if floor_pos.get(&to_floor).copied().unwrap_or(usize::MAX) < floor_pos.get(&from_floor).copied().unwrap_or(usize::MAX) {
                 res.reentry_edges += 1;
             }
-            heap.push(HeapItem { steps: steps + 1, seq, state: ns, path: path.clone(), gates: gates.clone() });
+            heap.push(HeapItem { steps: steps + cost, seq, state: ns, path: path.clone(), gates: gates.clone() });
             seq += 1;
             let _ = kind;
         }
@@ -1070,7 +1174,7 @@ mod tests {
         let g = OuterGraph::build(&doc, &floors, &[]);
         let start = g.start_node(51, (1, 11)).unwrap();
         let enemies = enemies();
-        let run = RunSpec { floors: floors.clone(), start: (51, (1, 11)), anchor_floor: 10, anchor_boss_ty: 75, masked_exits: Vec::new() };
+        let run = RunSpec { floors: floors.clone(), start: (51, (1, 11)), anchor_floor: 10, anchor_boss_ty: 75, masked_exits: Vec::new(), combat_cost: false };
         let res = outer_search(&g, &run, &enemies, SearchBudget { max_pops: 5000 });
         assert!(!res.truncated);
         assert!(!res.frontier.is_empty(), "锚应可达（拾 1 黄开门 + 敏感表判 75 可杀）");
@@ -1093,7 +1197,7 @@ mod tests {
         let doc = load_block_interfaces(&mini_doc()).unwrap();
         let floors = vec![51, 10];
         let g = OuterGraph::build(&doc, &floors, &[]);
-        let run = RunSpec { floors, start: (51, (1, 11)), anchor_floor: 10, anchor_boss_ty: 75, masked_exits: Vec::new() };
+        let run = RunSpec { floors, start: (51, (1, 11)), anchor_floor: 10, anchor_boss_ty: 75, masked_exits: Vec::new(), combat_cost: false };
         // 敌表只给 41（75 缺席）——能力缺口必须具名，不许回落成「不可杀」。
         let res = outer_search(&g, &run, &[enemy(41, 35, 18, 1, game_core::combat::trait_flags_for(41))], SearchBudget { max_pops: 5000 });
         assert_eq!(res.needs_sensitivity, vec![75]);
@@ -1115,7 +1219,7 @@ mod tests {
         let f10 = doc.floors.get(&51).unwrap();
         let floors = vec![51, 10];
         let g = OuterGraph::build(&doc, &floors, &[]);
-        let run = RunSpec { floors, start: (51, (1, 11)), anchor_floor: 10, anchor_boss_ty: 75, masked_exits: Vec::new() };
+        let run = RunSpec { floors, start: (51, (1, 11)), anchor_floor: 10, anchor_boss_ty: 75, masked_exits: Vec::new(), combat_cost: false };
         let res = outer_search(&g, &run, &enemies(), SearchBudget { max_pops: 3000 });
         assert!(!res.truncated, "搜索应自行停（复利饱和 ⇒ 状态空间封顶）");
         assert!(res.pops < 3000);
@@ -1176,7 +1280,7 @@ mod tests {
             start: (51, (1, 11)),
             anchor_floor: 12,
             anchor_boss_ty: 75,
-            masked_exits: Vec::new(),
+            masked_exits: Vec::new(), combat_cost: false,
         }
     }
 
@@ -1225,12 +1329,6 @@ mod tests {
             "跨层拾取的黄钥应被 f10 的门消耗"
         );
         // 回拾 surplus：a0→a1(+1)→a0(+1)→b0(+1)→b1(+1)→c0(+1) = 5 步、yellow==1。
-        for ni in 0..g.floor_of.len() {
-            eprintln!("DBG node f{}:{} edges={:?} trans={:?}",
-                g.floor_of[ni], g.doc.floors[&g.floor_of[ni]].blocks[g.block_of[ni]].id,
-                g.edges[ni].iter().map(|e| (g.floor_of[e.to], g.doc.floors[&g.floor_of[e.to]].blocks[g.block_of[e.to]].id.clone(), e.yellow)).collect::<Vec<_>>(),
-                g.trans[ni].iter().map(|t| (g.floor_of[t.0], g.doc.floors[&g.floor_of[t.0]].blocks[g.block_of[t.0]].id.clone())).collect::<Vec<_>>());
-        }
         assert!(
             res.frontier.iter().any(|e| e.steps == 5 && e.state.yellow == 1),
             "回早前层补拾的 surplus 键必须可跨层携带且步数精确定价（5 步）"
@@ -1268,6 +1366,115 @@ mod tests {
         assert!(
             g1.floor_of.len() < g.floor_of.len(),
             "段内图应是全块图的子集"
+        );
+    }
+
+
+    // ---------- S3 B 片：战斗成本 LB 入边权 ----------
+
+    /// s3_chain_doc 的 b0 挂怪（monsters 注入，v2 loader 可选字段）。
+    fn s3_combat_doc(monsters: &str) -> String {
+        s3_chain_doc().replace(
+            "{ \"id\": \"b0\", \"cells\": [[2,10],[2,9],[3,9]],",
+            &format!("{{ \"id\": \"b0\", \"cells\": [[2,10],[2,9],[3,9]],\n        \"monsters\": {monsters},"),
+        )
+    }
+
+    /// 判据（combat off 默认字节面）：不带 --combat-cost 时打怪不进搜索——
+    /// hp 恒 300、gold 恒 0、步数不受怪影响（S2 输出逐字节不变的前提）。
+    #[test]
+    fn s3_combat_cost_default_off_unchanged() {
+        let doc = load_block_interfaces(&s3_combat_doc("[41]")).unwrap();
+        let floors = vec![51, 10, 12];
+        let mut run = s3_run(floors.clone());
+        run.combat_cost = false;
+        let g = OuterGraph::build(&doc, &floors, &run.masked_exits);
+        let mut en = enemies();
+        en[0].gold = 12;
+        let res = outer_search(&g, &run, &en, SearchBudget { max_pops: 20_000 });
+        assert!(!res.frontier.is_empty());
+        assert_eq!(res.frontier.iter().map(|e| e.steps).min().unwrap(), 3);
+        assert!(res.frontier.iter().all(|e| e.state.hp == 300), "combat off ⇒ 不扣血");
+        assert!(res.frontier.iter().all(|e| e.state.gold == 0), "combat off ⇒ 不发金");
+    }
+
+    /// 判据（B 片核心）：combat_cost 开启后，进入未拾取含怪块的边权 =
+    /// 1 步 + 该块怪 counter_loss 下界（敏感表，game-core 单一真相源），
+    /// 且收益边 gold += kill_reward（combat.rs 单一源）。期望值在测试内
+    /// 用同一公开 API 计算（solver 零重算的对照面）。
+    #[test]
+    fn s3_combat_cost_lb_into_edge_weight() {
+        let doc = load_block_interfaces(&s3_combat_doc("[41]")).unwrap();
+        let floors = vec![51, 10, 12];
+        let mut run = s3_run(floors.clone());
+        run.combat_cost = true;
+        let g = OuterGraph::build(&doc, &floors, &run.masked_exits);
+        let mut en = enemies();
+        en[0].gold = 12;
+        // 期望 LB/收益：与实现同一公开 API 计算（不是手算常量）。
+        let table = game_core::rules::sensitivity::sensitivity_table(&en, 10, 10, false, false);
+        let row41 = table.iter().find(|r| r.ety == 41).unwrap();
+        assert!(row41.can_kill && row41.counter_loss > 0, "夹具应保证 41 可杀且损血>0");
+        let player = game_core::combat::PlayerCombat {
+            hp: 300, atk: 10, def: 10, yellow_keys: 0, blue_keys: 0, red_keys: 0, gold: 0,
+            item_types: vec![], item_uses: vec![], item_stack_size: 0,
+        };
+        let expect_gold = game_core::combat::kill_reward(&en, 41, &player);
+        let res = outer_search(&g, &run, &en, SearchBudget { max_pops: 20_000 });
+        assert!(!res.frontier.is_empty());
+        let min_steps = res.frontier.iter().map(|e| e.steps).min().unwrap();
+        assert_eq!(min_steps, 3 + row41.counter_loss as u64, "边权=1步+counter_loss LB");
+        let best = res.frontier.iter().find(|e| e.steps == min_steps).unwrap();
+        assert_eq!(best.state.hp, 300 - row41.counter_loss, "HP 扣 LB 损血");
+        assert_eq!(best.state.gold, expect_gold, "击杀收益=kill_reward（经济链单一源）");
+        assert!(expect_gold > 0, "夹具应保证 41 有赏金（收益边可观测）");
+    }
+
+    /// 判据（保守可采纳 LB）：块内多怪取 counter_loss 最大者（低估总和）；
+    /// 打不动的怪不计损血（语义边界记入模块 doc——LB 只含必杀块）。
+    /// 期望仍用公开 API 对照。
+    #[test]
+    fn s3_combat_cost_worst_counter_loss_of_block() {
+        use game_core::combat::trait_flags_for;
+        let doc = load_block_interfaces(&s3_combat_doc("[41, 42]")).unwrap();
+        let floors = vec![51, 10, 12];
+        let mut run = s3_run(floors.clone());
+        run.combat_cost = true;
+        let g = OuterGraph::build(&doc, &floors, &run.masked_exits);
+        let en = vec![
+            enemy(41, 35, 18, 1, trait_flags_for(41)),
+            enemy(42, 50, 30, 2, trait_flags_for(42)),
+            enemy(75, 100, 65, 15, trait_flags_for(75)),
+        ];
+        let table = game_core::rules::sensitivity::sensitivity_table(&en, 10, 10, false, false);
+        let c41 = table.iter().find(|r| r.ety == 41).unwrap().counter_loss;
+        let c42 = table.iter().find(|r| r.ety == 42).unwrap().counter_loss;
+        assert!(c41 > 0 && c42 > c41, "夹具应使 42 的损血更重: c41={c41} c42={c42}");
+        let res = outer_search(&g, &run, &en, SearchBudget { max_pops: 20_000 });
+        let min_steps = res.frontier.iter().map(|e| e.steps).min().unwrap();
+        assert_eq!(min_steps, 3 + c42 as u64, "LB=块内最坏 counter_loss（保守可采纳）");
+        assert_eq!(res.frontier.iter().find(|e| e.steps == min_steps).unwrap().state.hp, 300 - c42);
+    }
+
+    /// LB 保守性：打不动的怪按 0 计（此刻不可行≠永远不可行，涨攻后再来合法）⇒
+    /// 该块入边权退化为 1 步、hp 不减。
+    #[test]
+    fn s3_combat_cost_unkillable_counts_zero_lb() {
+        let doc = load_block_interfaces(&s3_combat_doc("[75]")).unwrap();
+        let floors = vec![51, 10, 12];
+        let mut run = s3_run(floors.clone());
+        run.combat_cost = true;
+        let g = OuterGraph::build(&doc, &floors, &run.masked_exits);
+        // 75 带赏金 99 但打不动 ⇒ 收益也不得计入（可杀才结算）。
+        // kill_reward 按 enemy_base[id-41] 位序索引 ⇒ 表须 41..=75 全量占位。
+        let mut en: Vec<_> = (41..75).map(|i| enemy(i, 10, 1, 0, 0)).collect();
+        en[0] = enemy(41, 35, 18, 1, 0);
+        en.push(game_data::defs::EnemyDef { id: 75, hp: 100, atk: 65, def: 15, gold: 99, trait_flags: 0 });
+        let res = outer_search(&g, &run, &en, SearchBudget { max_pops: 20_000 });
+        assert!(!res.truncated && res.pops >= 5, "搜索必须自行收敛且确实展开过（pops={}）", res.pops);
+        assert!(
+            res.frontier.iter().any(|e| e.steps == 3 && e.state.hp == 300 && e.state.gold == 0),
+            "打不动 75 的块必须按 LB=0 通过且不计收益（steps=3 hp=300 gold=0）"
         );
     }
 
