@@ -341,9 +341,21 @@ pub fn anchor_block(doc: &BlockInterfaces, floor: i32, boss_ty: i32) -> Result<u
         .floors
         .get(&floor)
         .ok_or_else(|| OuterError::MissingField(format!("floors[{floor}] 不在块表")))?;
-    fd.blocks
+    if let Some(b) = fd
+        .blocks
         .iter()
         .position(|b| b.exits.iter().any(|e| e.kind == "boss_kill" && e.ty == Some(boss_ty)))
+    {
+        return Ok(b);
+    }
+    // S4 全题锚回落（仅当本层没有任何 boss_kill 出口才走）：块表 v1 对终局层
+    // （f50）不记 boss_kill 出口——终局边是引擎语义（`solve_local.rs` floor50
+    // 击败型72→Ending），怪物格由 `--combat-cost` 注入 monsters。此处取
+    // 「monsters 含锚怪的块」（注入缺席=combat-off ⇒ 仍具名 NoAnchorBlock，
+    // 与旧口径逐字节一致：seg1 f10 恒走 boss_kill 臂，不受影响）。
+    fd.blocks
+        .iter()
+        .position(|b| b.monsters.contains(&boss_ty))
         .ok_or(OuterError::NoAnchorBlock(boss_ty))
 }
 
@@ -477,7 +489,17 @@ impl<'a> OuterGraph<'a> {
                 // 2) 含反向梯的块（孤梯格如 f52→f53 落 (11,11)，反向 ty8(6,11)∈f53b1）
                 // 3) 全部**邻接到场格**的块（块间通道格如 f3 script→f2 (2,11)）
                 // 4) 具名 skip
-                let (cx, cy) = ex.cell;
+                let (cx, cy) = if to_floor == 50 {
+                    // S4 全题口径：终局层 f50 无下行梯（引擎 f50 门表只有 slot16
+                    // script_gate），落点由引擎常量给出——`solve_global::landing`
+                    // 单一真相源：`target==50 ⇒ (6,7)`。块表 v1 的 ex.cell 到场
+                    // 代理只对「有反向梯/邻接块」的常规层成立；f50b0 cells 含
+                    // (6,7)（(5..7,5..7) 方块），此特判让 f24→f50 主线不再具名
+                    // skip。非 50 层不受影响（seg1 逐字节回归不受扰）。
+                    (6, 7)
+                } else {
+                    ex.cell
+                };
                 let near = |b2: &BlockDoc| -> bool {
                     b2.cells
                         .iter()
@@ -700,6 +722,236 @@ pub fn block_combat_cost(
     (loss, reward)
 }
 
+// ---------- S4-A：转移单一真相源 + 路径回放（外层→内层路径实化） ----------
+
+/// 外层起点态（新游戏口径：hp300/atk10/def10/三色钥0/金0/空包/零购买）。
+/// `outer_search` 与 [`replay_outer_path`] 共用（禁第二份起点字面量）。
+pub fn outer_start_state(graph: &OuterGraph, run: &RunSpec) -> Result<OuterState, OuterError> {
+    let node = graph.start_node(run.start.0, run.start.1)?;
+    let n = graph.floor_of.len();
+    Ok(OuterState {
+        node,
+        yellow: 0,
+        red: 0,
+        blue: 0,
+        hp: 300,
+        gold: 0,
+        atk: 10,
+        def: 10,
+        held: 0,
+        picked: vec![0u8; (n + 7) / 8],
+        buys: 0,
+    })
+}
+
+/// 单一真相源：结算「当前块 → 相邻/换层目标块」的一条转移（钥匙门检查 + 战斗 LB
+/// 入边权），返回 `(到达态[未做进块拾取], 边权步数, 乐观门数)`。
+/// `outer_search` 与 [`replay_outer_path`] 共用本函数（禁第二份转移语义）。
+/// 钥匙不足 ⇒ `None`（搜索侧=跳过该臂；回放侧=具名 [`PathReplayError::KeyGateShortfall`]）。
+fn apply_outer_edge(
+    graph: &OuterGraph,
+    run: &RunSpec,
+    scaled_enemies: &[game_data::defs::EnemyDef],
+    state: &OuterState,
+    to: usize,
+) -> Option<(OuterState, u64, u32)> {
+    // 层内切块边带钥匙需求；换层边（trans）无需求。两表都不含 ⇒ 无此边。
+    let demand = graph.edges[state.node].iter().find(|e| e.to == to);
+    let is_trans = demand.is_none() && graph.trans[state.node].iter().any(|&(t, _)| t == to);
+    let (y, r, b, gates) = match demand {
+        Some(e) => (e.yellow, e.red, e.blue, e.optimistic_gates),
+        None if is_trans => (0, 0, 0, 0),
+        None => return None,
+    };
+    if state.yellow < y || state.red < r || state.blue < b {
+        return None;
+    }
+    let mut ns = state.clone();
+    ns.node = to;
+    ns.yellow -= y;
+    ns.red -= r;
+    ns.blue -= b;
+    let mut cost = 1u64;
+    if run.combat_cost && !bit_get(&state.picked, to) {
+        let (loss, reward) = block_combat_cost(
+            scaled_enemies,
+            &graph.monsters_of[to],
+            ns.atk,
+            ns.def,
+            ns.held,
+            ns.gold,
+        );
+        ns.hp -= loss;
+        ns.gold += reward;
+        cost += loss as u64;
+    }
+    Some((ns, cost, gates))
+}
+
+/// 单一真相源：进块拾取结算（未拾取过的块，`class=const` 导出按
+/// `certified_monotone_pickup` 入账）。返回未应用的导出数（搜索侧汇入
+/// `res.unapplied_exports`；回放侧恒 0 ⇒ 不为 0 时回放照样成功但调用方可见）。
+fn settle_entry_pickup(graph: &OuterGraph, state: &mut OuterState) -> u64 {
+    if bit_get(&state.picked, state.node) {
+        return 0;
+    }
+    bit_set(&mut state.picked, state.node);
+    let f = graph.floor_of[state.node];
+    let bd = &graph.doc.floors[&f].blocks[graph.block_of[state.node]];
+    let mut unapplied = 0u64;
+    for ex in &bd.exports {
+        if ex.class != "const" {
+            continue;
+        }
+        match certified_monotone_pickup(ex.ty, f) {
+            Some(g) => {
+                state.hp += g.hp;
+                state.atk += g.atk;
+                state.def += g.def;
+                state.yellow += g.yellow;
+                state.blue += g.blue;
+                state.red += g.red;
+                state.gold += 0;
+                for &(ty, cnt) in &g.bag {
+                    for _ in 0..cnt {
+                        if (ty as u32) < 128 {
+                            state.held |= 1u128 << ty;
+                        }
+                    }
+                }
+            }
+            None => unapplied += 1,
+        }
+    }
+    unapplied
+}
+
+fn block_id_of(graph: &OuterGraph, node: usize) -> String {
+    let f = graph.floor_of[node];
+    graph.doc.floors[&f].blocks[graph.block_of[node]].id.clone()
+}
+
+/// 路径回放产物：按外层路径逐块的入口快照。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PathSnapshot {
+    pub node: usize,
+    pub floor: i32,
+    pub block: String,
+    /// 到达态（边结算后、进块拾取前）——内层「本层入场预算」的对照面。
+    pub state_pre: OuterState,
+    /// 进块拾取结算后的状态（= `outer_search` 同节点弹出时的状态口径）。
+    pub state: OuterState,
+    /// 累计步数（边权口径，与 `FrontierEntry.steps` 同源）。
+    pub steps: u64,
+}
+
+/// 路径回放的具名失败（禁回落、禁静默）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PathReplayError {
+    BadPathToken(String),
+    UnknownBlock { token: String },
+    StartMismatch { path_head: String, run_start: String },
+    NotAdjacent { from: String, to: String },
+    KeyGateShortfall { from: String, to: String, need: [i32; 3], have: [i32; 3] },
+}
+
+/// S4-A：把外层前沿路径逐块回放成入口快照（外层→内层路径实化的第一半）。
+///
+/// 转移语义**单一真相源**：边查找/钥匙门/战斗 LB 全部走
+/// [`apply_outer_edge`]/[`settle_entry_pickup`]（与 `outer_search` 同一份实现）。
+/// **已知边界（诚实声明）**：磨属性购买（StatPct/AddKeys/SwapYellowKey）是独立的
+/// 1 步行动，不随 `path` 重放——快照里的 atk/def/gold/keys 因此是「无购买口径」；
+/// 与内层真值对照时购买口径的分歧走 `budget_drift` 具名（见 outer_witness）。
+pub fn replay_outer_path(
+    graph: &OuterGraph,
+    run: &RunSpec,
+    scaled_enemies: &[game_data::defs::EnemyDef],
+    path: &[String],
+) -> Result<Vec<PathSnapshot>, PathReplayError> {
+    if path.is_empty() {
+        return Err(PathReplayError::BadPathToken("empty path".into()));
+    }
+    let parse_tok = |tok: &str| -> Result<(usize, String), PathReplayError> {
+        let (fs, bid) =
+            tok.split_once(':').ok_or_else(|| PathReplayError::BadPathToken(tok.to_string()))?;
+        let f: i32 = fs
+            .strip_prefix('f')
+            .ok_or_else(|| PathReplayError::BadPathToken(tok.to_string()))?
+            .parse()
+            .map_err(|_| PathReplayError::BadPathToken(tok.to_string()))?;
+        let fd = graph
+            .doc
+            .floors
+            .get(&f)
+            .ok_or_else(|| PathReplayError::UnknownBlock { token: tok.to_string() })?;
+        let bi = fd
+            .blocks
+            .iter()
+            .position(|b| b.id == *bid)
+            .ok_or_else(|| PathReplayError::UnknownBlock { token: tok.to_string() })?;
+        Ok((graph.node[&(f, bi)], tok.to_string()))
+    };
+    let mut nodes: Vec<(usize, String)> = Vec::with_capacity(path.len());
+    for tok in path {
+        nodes.push(parse_tok(tok)?);
+    }
+    let start = outer_start_state(graph, run)
+        .map_err(|e| PathReplayError::StartMismatch {
+            path_head: nodes[0].1.clone(),
+            run_start: e.to_string(),
+        })?;
+    if nodes[0].0 != start.node {
+        return Err(PathReplayError::StartMismatch {
+            path_head: nodes[0].1.clone(),
+            run_start: format!("f{}:{}", run.start.0, run.start.1 .1),
+        });
+    }
+    let mut state = start;
+    let mut steps: u64 = 0;
+    let mut out: Vec<PathSnapshot> = Vec::with_capacity(nodes.len());
+    for (i, &(ni, ref tok)) in nodes.iter().enumerate() {
+        if i > 0 {
+            let prev_tok = nodes[i - 1].1.clone();
+            match apply_outer_edge(graph, run, scaled_enemies, &state, ni) {
+                Some((ns, cost, _)) => {
+                    steps += cost;
+                    state = ns;
+                }
+                None => {
+                    // 区分「无此边」与「边在但钥匙不足」——两者都要具名。
+                    let connected = graph.edges[state.node].iter().any(|e| e.to == ni)
+                        || graph.trans[state.node].iter().any(|&(t, _)| t == ni);
+                    if connected {
+                        let e = graph.edges[state.node].iter().find(|e| e.to == ni);
+                        let need = match e {
+                            Some(e) => [e.yellow, e.red, e.blue],
+                            None => [0, 0, 0],
+                        };
+                        return Err(PathReplayError::KeyGateShortfall {
+                            from: prev_tok,
+                            to: tok.clone(),
+                            need,
+                            have: [state.yellow, state.red, state.blue],
+                        });
+                    }
+                    return Err(PathReplayError::NotAdjacent { from: prev_tok, to: tok.clone() });
+                }
+            }
+        }
+        let state_pre = state.clone();
+        settle_entry_pickup(graph, &mut state);
+        out.push(PathSnapshot {
+            node: ni,
+            floor: graph.floor_of[ni],
+            block: block_id_of(graph, ni),
+            state_pre,
+            state: state.clone(),
+            steps,
+        });
+    }
+    Ok(out)
+}
+
 /// 外层 Dijkstra（步数=行动数）。拾取进块自动结算；磨属性=显式 1 步行动。
 /// S3 B 片：run.combat_cost=true 时，进入未拾取含怪块的边权 = 1 步 + LB 损血，
 /// 子状态结算 hp -= loss、gold += reward（经济链入边，无任何收割特判）。
@@ -720,13 +972,6 @@ pub fn outer_search(
     // S3 A 片：floors 序位置表（回拾判定 = 目标层序早于当前层）。
     let floor_pos: HashMap<i32, usize> =
         graph.floors.iter().enumerate().map(|(i, &f)| (f, i)).collect();
-    let start_node = match graph.start_node(run.start.0, run.start.1) {
-        Ok(n) => n,
-        Err(e) => {
-            res.skipped_trans.push(format!("起段失败: {e}"));
-            return res;
-        }
-    };
     let anchor = match anchor_block(graph.doc, run.anchor_floor, run.anchor_boss_ty) {
         Ok(b) => graph.node[&(run.anchor_floor, b)],
         Err(e) => {
@@ -734,19 +979,12 @@ pub fn outer_search(
             return res;
         }
     };
-    let n = graph.floor_of.len();
-    let start_state = OuterState {
-        node: start_node,
-        yellow: 0,
-        red: 0,
-        blue: 0,
-        hp: 300,
-        gold: 0,
-        atk: 10,
-        def: 10,
-        held: 0,
-        picked: vec![0u8; (n + 7) / 8],
-        buys: 0,
+    let start_state = match outer_start_state(graph, run) {
+        Ok(s) => s,
+        Err(e) => {
+            res.skipped_trans.push(format!("起段失败: {e}"));
+            return res;
+        }
     };
     let mut heap = BinaryHeap::new();
     heap.push(HeapItem { steps: 0, seq: 0, state: start_state.clone(), path: Vec::new(), gates: Vec::new() });
@@ -774,34 +1012,9 @@ pub fn outer_search(
         let mut path = path;
         let gates = gates;
         if !bit_get(&state.picked, state.node) {
-            bit_set(&mut state.picked, state.node);
+            res.unapplied_exports += settle_entry_pickup(graph, &mut state);
             let f = graph.floor_of[state.node];
-            let bd = &graph.doc.floors[&f].blocks[graph.block_of[state.node]];
-            for ex in &bd.exports {
-                if ex.class != "const" {
-                    continue;
-                }
-                match certified_monotone_pickup(ex.ty, f) {
-                    Some(g) => {
-                        state.hp += g.hp;
-                        state.atk += g.atk;
-                        state.def += g.def;
-                        state.yellow += g.yellow;
-                        state.blue += g.blue;
-                        state.red += g.red;
-                        state.gold += 0;
-                        for &(ty, cnt) in &g.bag {
-                            for _ in 0..cnt {
-                                if (ty as u32) < 128 {
-                                    state.held |= 1u128 << ty;
-                                }
-                            }
-                        }
-                    }
-                    None => res.unapplied_exports += 1,
-                }
-            }
-            path.push(format!("f{f}:{}", bd.id));
+            path.push(format!("f{f}:{}", block_id_of(graph, state.node)));
         }
         // 锚判定（先判后展——锚块也可穿越）
         if state.node == anchor {
@@ -819,35 +1032,17 @@ pub fn outer_search(
             continue;
         }
         best.insert(state.clone(), steps);
-        // 邻块移动
+        // 邻块移动（转移语义单一真相源：apply_outer_edge）
         for e in &graph.edges[state.node] {
-            if state.yellow < e.yellow || state.red < e.red || state.blue < e.blue {
+            let Some((ns, cost, og)) = apply_outer_edge(graph, run, scaled_enemies, &state, e.to)
+            else {
                 continue;
-            }
-            let mut ns = state.clone();
-            ns.node = e.to;
-            ns.yellow -= e.yellow;
-            ns.red -= e.red;
-            ns.blue -= e.blue;
-            let mut cost = 1u64;
-            if run.combat_cost && !bit_get(&state.picked, e.to) {
-                let (loss, reward) = block_combat_cost(
-                    scaled_enemies,
-                    &graph.monsters_of[e.to],
-                    ns.atk,
-                    ns.def,
-                    ns.held,
-                    ns.gold,
-                );
-                ns.hp -= loss;
-                ns.gold += reward;
-                cost += loss as u64;
-            }
+            };
             let mut ng = gates.clone();
-            if e.optimistic_gates > 0 {
+            if og > 0 {
                 ng.push(format!(
                     "optimistic_gate×{} f{}:{}→f{}:{}",
-                    e.optimistic_gates,
+                    og,
                     graph.floor_of[state.node],
                     graph.doc.floors[&graph.floor_of[state.node]].blocks[graph.block_of[state.node]].id,
                     graph.floor_of[e.to],
@@ -859,22 +1054,10 @@ pub fn outer_search(
         }
         // 换层（S3 A 片：允许回头边——回拾候选边按「目标层序早于当前层」计数）
         for &(to, ref kind) in &graph.trans[state.node] {
-            let mut ns = state.clone();
-            ns.node = to;
-            let mut cost = 1u64;
-            if run.combat_cost && !bit_get(&state.picked, to) {
-                let (loss, reward) = block_combat_cost(
-                    scaled_enemies,
-                    &graph.monsters_of[to],
-                    ns.atk,
-                    ns.def,
-                    ns.held,
-                    ns.gold,
-                );
-                ns.hp -= loss;
-                ns.gold += reward;
-                cost += loss as u64;
-            }
+            let Some((ns, cost, _)) = apply_outer_edge(graph, run, scaled_enemies, &state, to)
+            else {
+                continue;
+            };
             let from_floor = graph.floor_of[state.node];
             let to_floor = graph.floor_of[to];
             if floor_pos.get(&to_floor).copied().unwrap_or(usize::MAX) < floor_pos.get(&from_floor).copied().unwrap_or(usize::MAX) {

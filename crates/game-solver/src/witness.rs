@@ -157,13 +157,13 @@ pub struct WEnt {
     pub param: i32,
 }
 
-fn wents(v: &[EntRec]) -> Vec<WEnt> {
+pub(crate) fn wents(v: &[EntRec]) -> Vec<WEnt> {
     v.iter()
         .map(|e| WEnt { ty: e.ty, x: e.x, y: e.y, param: e.param })
         .collect()
 }
 
-fn kind_str(k: ExitKind) -> &'static str {
+pub(crate) fn kind_str(k: ExitKind) -> &'static str {
     match k {
         ExitKind::Stair => "Stair",
         ExitKind::Script => "Script",
@@ -375,7 +375,7 @@ pub fn up_line_next(floor: i32, level: &LevelSpec, lays: &BTreeMap<i32, i32>) ->
 }
 
 /// 一次出层解对应的换层边（`Stair` 取出口梯 `param&0xff`，其余取 `cross_edge`）。
-fn exit_edge(level: &LevelSpec, got: &ExitSolve) -> Option<(i32, bool)> {
+pub(crate) fn exit_edge(level: &LevelSpec, got: &ExitSolve) -> Option<(i32, bool)> {
     match (got.kind, got.exit) {
         (Some(ExitKind::Stair), Some(cell)) => stair_target(level, cell),
         (Some(ExitKind::Ending), _) | (None, _) => None,
@@ -385,7 +385,7 @@ fn exit_edge(level: &LevelSpec, got: &ExitSolve) -> Option<(i32, bool)> {
 
 /// 把一层成功解记进 `floors`（**唯一**落账入口：`Ending` 层也要落账——
 /// 终局层同样是「解出来的成功层」，只是它没有下一层）。
-fn record_floor(
+pub(crate) fn record_floor(
     w: &mut Witness,
     floor: i32,
     entry: (i32, i32),

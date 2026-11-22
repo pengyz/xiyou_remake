@@ -55,6 +55,161 @@ fn parse_start_floor(args: &[String]) -> i32 {
         .unwrap_or(GLOBAL_START_FLOOR)
 }
 
+/// S3-B/S4 共用：缩放敌表（difficulty=0 ⇒ ×1，与 solve_global 同口径）。
+/// 单一真相源（bin 内只此一份；`outer` 与 `run --outer` 两分支共用）。
+fn load_scaled_enemies() -> Vec<game_data::defs::EnemyDef> {
+    let nums = |t: &str| -> Vec<i32> {
+        t.lines().map(|l| l.trim()).filter(|s| !s.is_empty())
+            .map(|s| s.parse().expect("fixture 整数")).collect()
+    };
+    let tables = CombatTables {
+        enemy_base_hp: nums(include_str!("../../../game-core/tests/fixtures/enemybasehp.txt")),
+        enemy_base_atk: nums(include_str!("../../../game-core/tests/fixtures/enemybaseatk.txt")),
+        enemy_base_def: nums(include_str!("../../../game-core/tests/fixtures/enemybasedef.txt")),
+        difficulty_multipliers: nums(include_str!(
+            "../../../game-core/tests/fixtures/difficulty_multipliers.txt"
+        )),
+    };
+    let gold = nums(include_str!("../../../game-core/tests/fixtures/enemybasegold.txt"));
+    scale_enemy_stats(&tables.to_records(&gold), 1)
+}
+
+/// S3-B/S4 共用：把 LevelSpec 实体格（ty 41..=75）按 cells 映射注入块表 monsters。
+/// 怪物来源单一真相源（公式全在 game-core，bin 只搬格子）。
+fn inject_block_monsters(
+    doc: &mut game_solver::outer::BlockInterfaces,
+    floors: &std::collections::BTreeMap<i32, game_solver::solve_local::LevelSpec>,
+) {
+    for (floor, lv) in floors.iter() {
+        let Some(fd) = doc.floors.get_mut(floor) else { continue };
+        for e in &lv.entities {
+            if (41..=75).contains(&e.ty) {
+                if let Some(b) = fd.blocks.iter_mut().find(|b| b.cells.contains(&(e.x, e.y))) {
+                    if !b.monsters.contains(&e.ty) {
+                        b.monsters.push(e.ty);
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// S4-A：`run --outer` —— 外层全题块图搜索 → top-K 候选实化 → 全程 witness 草案。
+/// 口径声明：`--combat-cost on` 是 S4 验收口径（LB 入边权=下界，分歧逐字段具名落
+/// `budget_drifts`）；无该旗时 combat_cost=false（仅诊断，不作为验收数字）。
+fn run_outer_cli(args: &[String]) {
+    let out = args
+        .iter()
+        .position(|a| a == "--out")
+        .and_then(|i| args.get(i + 1))
+        .cloned();
+    let doc_path = args
+        .iter()
+        .position(|a| a == "--doc")
+        .and_then(|i| args.get(i + 1))
+        .map(String::clone)
+        .unwrap_or_else(|| "docs/findings/block-interfaces.json".to_string());
+    let raw = std::fs::read_to_string(&doc_path)
+        .unwrap_or_else(|e| panic!("读 {doc_path}: {e}（块表是输入数据，缺文件=具名失败，禁回落）"));
+    let mut doc = game_solver::outer::load_block_interfaces(&raw).unwrap_or_else(|e| panic!("{e}"));
+    // S4 主问题空间 = 全部可达层（用户裁定：最优是全局，不逐层之和）。
+    let mut floors: Vec<i32> = vec![51, 52, 53, 54];
+    floors.extend(1..=50);
+    let mut run = game_solver::outer::RunSpec {
+        floors,
+        start: (51, GLOBAL_ENTRY),
+        anchor_floor: 50,
+        anchor_boss_ty: 72, // floor50 击败型72 → Ending（solve_local.rs 终局边语义）
+        masked_exits: Vec::new(),
+        combat_cost: false,
+    };
+    let (gi, shops) = solve_global_input(1);
+    let levels: std::collections::BTreeMap<i32, SolveInput> = gi
+        .floors
+        .iter()
+        .map(|(f, lv)| (*f, SolveInput { floor: *f, difficulty: 0, level: Some(lv.clone()) }))
+        .collect();
+    if args.iter().any(|a| a == "--combat-cost") {
+        run.combat_cost = true;
+        inject_block_monsters(&mut doc, &gi.floors);
+    }
+    let scaled = load_scaled_enemies();
+    let graph = game_solver::outer::OuterGraph::build(&doc, &run.floors, &run.masked_exits);
+    let res = game_solver::outer::outer_search(
+        &graph,
+        &run,
+        &scaled,
+        game_solver::outer::SearchBudget {
+            max_pops: args
+                .iter()
+                .position(|a| a == "--max-pops")
+                .and_then(|i| args.get(i + 1))
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(5_000_000),
+        },
+    );
+    let cfg = game_solver::outer_witness::OuterWitnessCfg {
+        candidates: args
+            .iter()
+            .position(|a| a == "--outer-candidates")
+            .and_then(|i| args.get(i + 1))
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(5),
+        max_floors: args
+            .iter()
+            .position(|a| a == "--max-floors")
+            .and_then(|i| args.get(i + 1))
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(1024),
+    };
+    let ow = game_solver::outer_witness::run_outer_witness(
+        &graph,
+        &run,
+        &scaled,
+        &levels,
+        PlayerSpec::from_combat(mk_player()),
+        0,
+        &shops,
+        &res,
+        &cfg,
+    );
+    eprintln!(
+        "outer: pops={} truncated={} frontier={} killable={} status={} floors={} attempts={} drifts={} total_steps={} ending_done={}",
+        res.pops,
+        res.truncated,
+        res.frontier.len(),
+        res.frontier.iter().filter(|e| e.killable && !e.fatal).count(),
+        ow.status,
+        ow.floors.len(),
+        ow.attempts.len(),
+        ow.budget_drifts.len(),
+        ow.total_steps,
+        ow.final_state.ending_done
+    );
+    for s in &res.skipped_trans {
+        eprintln!("  [skip] {s}");
+    }
+    if let Some(b) = &ow.blocked {
+        eprintln!("blocked=floor {} reason={} detail={}", b.floor, b.reason, b.detail);
+    }
+    for d in ow.budget_drifts.iter().take(20) {
+        eprintln!(
+            "drift[cand{} visit{} f{} {}] outer={} inner={}",
+            d.candidate, d.visit, d.floor, d.field, d.outer, d.inner
+        );
+    }
+    if ow.budget_drifts.len() > 20 {
+        eprintln!("drifts 共 {} 条（只回显前 20，JSON 全量落盘）", ow.budget_drifts.len());
+    }
+    match out {
+        Some(path) => {
+            std::fs::write(&path, ow.to_json_pretty()).unwrap_or_else(|e| panic!("写 {path}: {e}"));
+            println!("已写 {path}");
+        }
+        None => println!("{}", ow.to_json()),
+    }
+}
+
 fn solve_global_input(
     bound: u64,
 ) -> (
@@ -160,40 +315,15 @@ fn main() {
             Some((name, game_solver::outer::SegmentPlan::Run(r))) => (name.clone(), r.clone()),
             _ => panic!("无任何可执行段（计划具名 Off 全落空）"),
         };
-        // S3-B：--combat-cost 开启战斗成本 LB（默认关 = S2 逐字节行为）。
-        // 怪物来源：LevelSpec 实体格（ty 41..=75）按 cells 映射注入块表 monsters
-        // （公式全部 game-core 导出：sensitivity_table + kill_reward，solver 零重算）。
         if args.iter().any(|a| a == "--combat-cost") {
             run.1.combat_cost = true;
+            // 怪物来源：LevelSpec 实体格（ty 41..=75）按 cells 映射注入块表 monsters
+            // （公式全部 game-core 导出：sensitivity_table + kill_reward，solver 零重算）。
             let (input, _) = solve_global_input(1);
-            for (floor, lv) in input.floors.iter() {
-                let Some(fd) = doc.floors.get_mut(floor) else { continue };
-                for e in &lv.entities {
-                    if (41..=75).contains(&e.ty) {
-                        if let Some(b) = fd.blocks.iter_mut().find(|b| b.cells.contains(&(e.x, e.y))) {
-                            if !b.monsters.contains(&e.ty) {
-                                b.monsters.push(e.ty);
-                            }
-                        }
-                    }
-                }
-            }
+            inject_block_monsters(&mut doc, &input.floors);
         }
         // 缩放敌表（difficulty=0 ⇒ ×1，与 solve_global 同口径）
-        let nums = |t: &str| -> Vec<i32> {
-            t.lines().map(|l| l.trim()).filter(|s| !s.is_empty())
-                .map(|s| s.parse().expect("fixture 整数")).collect()
-        };
-        let tables = CombatTables {
-            enemy_base_hp: nums(include_str!("../../../game-core/tests/fixtures/enemybasehp.txt")),
-            enemy_base_atk: nums(include_str!("../../../game-core/tests/fixtures/enemybaseatk.txt")),
-            enemy_base_def: nums(include_str!("../../../game-core/tests/fixtures/enemybasedef.txt")),
-            difficulty_multipliers: nums(include_str!(
-                "../../../game-core/tests/fixtures/difficulty_multipliers.txt"
-            )),
-        };
-        let gold = nums(include_str!("../../../game-core/tests/fixtures/enemybasegold.txt"));
-        let scaled = scale_enemy_stats(&tables.to_records(&gold), 1);
+        let scaled = load_scaled_enemies();
         let graph = game_solver::outer::OuterGraph::build(&doc, &run.1.floors, &run.1.masked_exits);
         let res = game_solver::outer::outer_search(
             &graph,
@@ -707,6 +837,11 @@ fn main() {
         return;
     }
     if args.first().map(|s| s.as_str()) == Some("run") {
+        // 【S4-A】`run --outer`：外层全题块图 → 内层逐层实化 → 全程 witness 草案。
+        if args.iter().any(|a| a == "--outer") {
+            run_outer_cli(&args);
+            return;
+        }
         // P4：witness builder —— 从起点按塔序逐层 `solve_local_exit` 推进，产出可回放见证。
         // lib 侧纯函数（crates/game-solver/src/witness.rs），I/O 只在此处（A9 豁免面）。
         // 诚实口径：任一层 ok=false ⇒ status=blocked（截断则 capped），floors 只留成功前缀，

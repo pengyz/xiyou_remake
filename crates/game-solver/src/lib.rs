@@ -15,6 +15,7 @@ pub mod keydemand;
 pub mod keyflow;
 pub mod objective;
 pub mod outer;
+pub mod outer_witness;
 pub mod pure_pickup;
 pub mod query;
 pub mod script_abs;
