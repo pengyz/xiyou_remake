@@ -423,3 +423,87 @@ fn s4a_all_candidates_fail_is_named_blocked() {
     assert_eq!(b.reason, "no_exit");
     assert_eq!(ow.attempts.len(), 1);
 }
+
+// ---------------------------------------------------------------- S4-B：全程真引擎回放
+
+/// 引擎一致层：从 entry 沿 y=1 走到 (7,1)（逐步邻接 token），不改玩家/旗标/实体。
+/// 该路线可在 corridor 夹具上被 `replay_route_expect` 逐 token 真回放。
+fn real_walk_layer() -> impl Fn(
+    &SolveInput,
+    (i32, i32),
+    &PlayerSpec,
+    u128,
+    Option<&[game_solver::solve_local::EntRec]>,
+    Option<i32>,
+    &[game_data::defs::ShopGoodDef],
+) -> (game_solver::solve_local::ExitSolve, bool) {
+    move |input, entry, p, fl, ents, toward, _shops| {
+        // 出层实体表必须**真实**：首入 ents=None ⇒ 求解侧会展开 sprite_full，
+        // 终态=全表原样（corridor 楼梯不被移除）。伪造空表会让回放终态不等。
+        let ents_vec: Vec<game_solver::solve_local::EntRec> = match ents {
+            Some(e) => e.to_vec(),
+            None => game_solver::solve_local::sprite_full(input.level.as_ref().expect("夹具必有 level")),
+        };
+        let mut route: Vec<String> = Vec::new();
+        let mut x = entry.0;
+        while x != 7 {
+            x += if x < 7 { 1 } else { -1 };
+            route.push(format!("{x},{}", entry.1));
+        }
+        let got = game_solver::solve_local::ExitSolve {
+            ok: true,
+            exit: Some((7, 1)),
+            out_player: p.clone(),
+            out_flags: fl,
+            out_ents: ents_vec,
+            route,
+            out_hp: p.hp,
+            kind: if toward.is_some() { Some(ExitKind::Stair) } else { Some(ExitKind::Ending) },
+            cross_edge: None,
+            truncated: false,
+            pure_pickup: false,
+            pure_pickup_reason: None,
+        };
+        (got, true)
+    }
+}
+
+/// 【S4-B 判据 1】witness 前缀全程真引擎逐层逐 token 回放绿。
+#[test]
+fn s4b_replay_end_to_end() {
+    let (g, run, levels) = two_floor_setup();
+    let search = fake_frontier(&["f51:a0", "f52:b0"], 7, 300);
+    let layer = real_walk_layer();
+    let ow = game_solver::outer_witness::run_outer_witness_with(
+        &g, &run, &[], &levels, PlayerSpec::from_combat(s0()), 0, &[],
+        &search, &OuterWitnessCfg { candidates: 1, max_floors: 8 }, &layer,
+    );
+    assert_eq!(ow.status, "witness", "回放测试的前置：注入层产出完整 witness");
+    assert_eq!(ow.floors.len(), 2);
+    let res = game_solver::outer_witness::replay_outer_witness(&levels, (1, 1), &ow.floors);
+    assert!(res.is_ok(), "全程回放必须绿：{res:?}");
+}
+
+/// 【S4-B 判据 2】人为破坏 route 一格 ⇒ 回放红且帧号定位（visit/floor/token_index）。
+#[test]
+fn s4b_replay_failure_localizes() {
+    let (g, run, levels) = two_floor_setup();
+    let search = fake_frontier(&["f51:a0", "f52:b0"], 7, 300);
+    let layer = real_walk_layer();
+    let mut ow = game_solver::outer_witness::run_outer_witness_with(
+        &g, &run, &[], &levels, PlayerSpec::from_combat(s0()), 0, &[],
+        &search, &OuterWitnessCfg { candidates: 1, max_floors: 8 }, &layer,
+    );
+    assert_eq!(ow.status, "witness");
+    // 破坏第一层 route[2]（中间格）：改成不可达坐标 (0,0)（非邻接 + 无该格）。
+    // 选非首 token：证明 token_index 真·逐帧定位，不是恒 0 的假定位。
+    assert!(ow.floors[0].route.len() > 2);
+    ow.floors[0].route[2] = "0,0".to_string();
+    let err = game_solver::outer_witness::replay_outer_witness(&levels, (1, 1), &ow.floors)
+        .expect_err("被破坏的路线必须回放红");
+    assert_eq!(err.stage, "route");
+    assert_eq!(err.visit, 0);
+    assert_eq!(err.floor, 51);
+    assert_eq!(err.token_index, 2, "帧号必须定位到被破坏的那一格");
+    assert_eq!(err.token, "0,0");
+}

@@ -546,3 +546,167 @@ impl OuterWitness {
         serde_json::to_string_pretty(self).expect("OuterWitness 序列化")
     }
 }
+
+// ---------------------------------------------------------------- S4-B：全程真引擎回放
+
+/// 跨层回放的具名失败（帧定位 = (visit, floor, token_index)）。
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ReplayFailure {
+    pub visit: usize,
+    pub floor: i32,
+    pub token_index: usize,
+    pub token: String,
+    pub stage: String,
+    pub reason: String,
+}
+
+fn kind_of(s: &str) -> Option<ExitKind> {
+    match s {
+        "Stair" => Some(ExitKind::Stair),
+        "Script" => Some(ExitKind::Script),
+        "Ending" => Some(ExitKind::Ending),
+        "Cloud" => Some(ExitKind::Cloud),
+        "UseItem" => Some(ExitKind::UseItem),
+        _ => None,
+    }
+}
+
+/// 从 route 尾 token 推终态 pos（`x,y`/`bump ty@x,y`/`gate x,y` 的坐标语义都
+/// 是「走完这一步之后的 pos」；`gatebump` 不移位 ⇒ 找最后一个非 gatebump token）。
+fn route_end_pos(route: &[String]) -> Option<(i32, i32)> {
+    for tok in route.iter().rev() {
+        if let Some(rest) = tok.strip_prefix("bump ") {
+            let (_, xy) = rest.split_once('@')?;
+            return crate::solve_local::parse_xy_pub(xy);
+        }
+        if tok.starts_with("gatebump ") || tok == "gate" {
+            continue;
+        }
+        if let Some(rest) = tok.strip_prefix("gate ") {
+            return crate::solve_local::parse_xy_pub(rest);
+        }
+        if let Some(rest) = tok.strip_prefix("door ") {
+            return crate::solve_local::parse_xy_pub(rest);
+        }
+        return crate::solve_local::parse_xy_pub(tok);
+    }
+    None
+}
+
+/// 【S4-B】把一段 witness 前缀在真引擎上逐层逐 token 回放（自证禁令的对面：
+/// 每步走 `solve_local` 与 expand 同一条转移实现）。
+///
+/// - 入场实体：`ents_in = Some` ⇒ 原样（WEnt→EntRec）；`None` ⇒ 该层 `sprite_full`
+///   全表（与求解侧展开同口径）；复访层用的是求解时记下的 `ents_out`（经 `ents_in`
+///   回传——record_floor 复访时把上次 `ents_out` 写进新访问的 `ents_in`）。
+/// - 换层 entry 复核：上一层 `kind=Stair` ⇒ 用 `witness::exit_edge`（stair_target
+///   单一真相源）重推 `(target, went_down)` 并断言 `landing == 本层 entry`；
+///   `Script/Cloud/UseItem` 的 `cross_edge` 不在 witness JSON 里（v3 schema 无此
+///   字段）⇒ **如实跳过** entry 重推（记为已知缺口，findings 列明），路线本身
+///   照常回放。
+/// - 出层态全等断言：`out_player/out_flags/out_ents/pos` 逐字段 == 引擎回放终态。
+pub fn replay_outer_witness(
+    levels: &BTreeMap<i32, SolveInput>,
+    start_entry: (i32, i32),
+    floors: &[crate::witness::WitnessFloor],
+) -> Result<(), ReplayFailure> {
+    let mk = |visit: usize, f: &crate::witness::WitnessFloor, stage: &str, reason: String, e: Option<&crate::solve_local::RouteReplayError>| ReplayFailure {
+        visit,
+        floor: f.floor,
+        token_index: e.map_or(0, |x| x.token_index),
+        token: e.map(|x| x.token.clone()).unwrap_or_default(),
+        stage: stage.to_string(),
+        reason: e.map(|x| x.reason.clone()).unwrap_or(reason),
+    };
+    for (i, f) in floors.iter().enumerate() {
+        let Some(input) = levels.get(&f.floor) else {
+            return Err(mk(i, f, "model_missing", format!("层 {} 无规格", f.floor), None));
+        };
+        let Some(level) = input.level.as_ref() else {
+            return Err(mk(i, f, "level_missing", format!("层 {} level=None", f.floor), None));
+        };
+        // 入场格：首访问=run 起点；否则=上一访问换层 landing 复核结果。
+        let entry = if i == 0 {
+            start_entry
+        } else {
+            let prev = &floors[i - 1];
+            let Some(pinput) = levels.get(&prev.floor) else {
+                return Err(mk(i, f, "model_missing", format!("层 {} 无规格", prev.floor), None));
+            };
+            let Some(plevel) = pinput.level.as_ref() else {
+                return Err(mk(i, f, "level_missing", format!("层 {} level=None", prev.floor), None));
+            };
+            let Some(pk) = kind_of(&prev.kind) else {
+                return Err(mk(i, f, "kind_unknown", format!("未知 kind {}", prev.kind), None));
+            };
+            // Fabricate minimal ExitSolve 让 witness::exit_edge 单一真相源重推换层边。
+            let fake = crate::solve_local::ExitSolve {
+                ok: true,
+                exit: prev.exit.map(|e| (e[0], e[1])),
+                out_player: crate::solve_local::PlayerSpec {
+                    hp: 0, atk: 0, def: 0, yellow: 0, blue: 0, red: 0, gold: 0,
+                    item_types: Vec::new(), item_uses: Vec::new(), item_stack_size: 0,
+                },
+                out_flags: 0,
+                out_ents: Vec::new(),
+                route: Vec::new(),
+                out_hp: 0,
+                kind: Some(pk),
+                cross_edge: None,
+                truncated: false,
+                pure_pickup: false,
+                pure_pickup_reason: None,
+            };
+            if let Some((target, went_down)) = crate::witness::exit_edge(plevel, &fake) {
+                let land = crate::solve_global::landing(plevel, target, went_down);
+                if land != Some((f.entry[0], f.entry[1])) {
+                    return Err(mk(
+                        i,
+                        f,
+                        "entry_mismatch",
+                        format!(
+                            "换层落点不符：landing(target={target}, went_down={went_down})={land:?} != 记录 entry {:?}",
+                            f.entry,
+                            target = target,
+                            went_down = went_down,
+                            land = land
+                        ),
+                        None,
+                    ));
+                }
+            }
+            // Stair 以外的 kind：cross_edge 未序列化 ⇒ 跳过 entry 重推（已知缺口）。
+            (f.entry[0], f.entry[1])
+        };
+        // 入场实体表：Some=原样；None=sprite_full（求解侧同口径）。
+        let ents: Vec<EntRec> = match &f.ents_in {
+            Some(ws) => ws.iter().map(|w| EntRec { ty: w.ty, x: w.x, y: w.y, param: w.param }).collect(),
+            None => crate::solve_local::sprite_full(level),
+        };
+        // 出层 pos：exit 优先，缺（Ending）则取 route 尾 token 坐标。
+        let end_pos: Option<(i32, i32)> = f.exit.map(|e| (e[0], e[1])).or_else(|| route_end_pos(&f.route));
+        let Some(end_pos) = end_pos else {
+            return Err(mk(i, f, "pos_unknown", "exit=None 且 route 尾无坐标 token".to_string(), None));
+        };
+        let w2p = |w: &crate::witness::WPlayer| crate::solve_local::PlayerSpec {
+            hp: w.hp, atk: w.atk, def: w.def, yellow: w.yellow, blue: w.blue, red: w.red, gold: w.gold,
+            item_types: w.item_types.clone(), item_uses: w.item_uses.clone(), item_stack_size: w.item_stack_size,
+        };
+        let h2f = |s: &str| -> Result<u128, ReplayFailure> {
+            u128::from_str_radix(s.trim_start_matches("0x"), 16).map_err(|e| ReplayFailure {
+                visit: i, floor: f.floor, token_index: 0, token: String::new(),
+                stage: "flags_hex".to_string(), reason: format!("flags 非法 hex {s:?}: {e}"),
+            })
+        };
+        let in_flags = match h2f(&f.in_flags) { Ok(v) => v, Err(e) => return Err(e) };
+        let out_flags = match h2f(&f.out_flags) { Ok(v) => v, Err(e) => return Err(e) };
+        let out_ents: Vec<EntRec> = f.ents_out.iter().map(|w| EntRec { ty: w.ty, x: w.x, y: w.y, param: w.param }).collect();
+        let got = crate::solve_local::replay_route_expect(
+            input, entry, &ents, &w2p(&f.in_player), in_flags, &f.route, &w2p(&f.out_player), out_flags, &out_ents, end_pos,
+        );
+        if let Err(e) = got {
+            return Err(mk(i, f, "route", String::new(), Some(&e)));
+        }
+    }
+    Ok(())
+}

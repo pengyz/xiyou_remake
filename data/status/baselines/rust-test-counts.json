@@ -27,12 +27,12 @@
     "fixture_frames(test)": 45,
     "flow(test)": 4,
     "game_android(lib)": 8,
-    "game_core(lib)": 414,
+    "game_core(lib)": 423,
     "game_data(lib)": 35,
     "game_oracle(lib)": 5,
     "game_platform(lib)": 6,
     "game_shell_common(lib)": 45,
-    "game_solver(lib)": 68,
+    "game_solver(lib)": 87,
     "gameplay_floor1(test)": 5,
     "gate_bump(test)": 10,
     "golden(test)": 9,
@@ -50,6 +50,7 @@
     "native_parse(test)": 39,
     "objective(test)": 11,
     "one_fact_one_host(test)": 6,
+    "outer_witness(test)": 6,
     "p15_zero_code_drill(test)": 3,
     "png_golden(test)": 1,
     "portrait(test)": 21,
@@ -85,5 +86,5 @@
     "witness(test)": 9,
     "xiyou(bin)": 42
   },
-  "total": 1259
+  "total": 1293
 }

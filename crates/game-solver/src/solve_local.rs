@@ -4476,6 +4476,269 @@ pub fn exact_replay_route(
     Some(ExactReplay { player: st.player, flags: st.flags, ents: st.ents, pos: st.pos, steps: st.steps, kills: st.kills })
 }
 
+/// 【S4-B】公开给 `outer_witness` 的坐标解析（与私有 [`parse_xy`] 同实现单源）。
+pub fn parse_xy_pub(s: &str) -> Option<(i32, i32)> {
+    parse_xy(s)
+}
+
+/// 【S4-B】全词表路线回放的具名失败（禁 `Option` 无诊断）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RouteReplayError {
+    /// 0 起的 token 下标（回放定位 = 帧号）。
+    pub token_index: usize,
+    pub token: String,
+    pub reason: String,
+}
+
+impl std::fmt::Display for RouteReplayError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "token[{}] {:?}: {}", self.token_index, self.token, self.reason)
+    }
+}
+
+/// 【S4-B】逐步回放一条 witness 路线（全 5 种 token：`x,y` / `door x,y` /
+/// `bump ty@x,y` / `gatebump x,y` / `gate x,y`）。
+///
+/// 与 [`exact_replay_route`] 的差异：
+/// - 商人格 `x,y` 在 `expand` 里有**两臂**（买/走，同 token）——回放分支回溯
+///   ≤2 叉；给 [`replay_route_expect`] 时以「终态 == witness 记录的 out_*」定臂，
+///   不给期望时多叉存活 ⇒ 具名 `ambiguous`（不猜）。
+/// - `gatebump x,y` 走 `Search::gate_bump`（撞脚本门不移位不计步）。
+/// - `gate x,y` 是 Script 终止边的**注记** token（坐标=读回后 pos），回放=无操作。
+///
+/// 每步都走与 `expand` 同一条转移实现（`pickup_step` / `gate_arrive` /
+/// `gate_bump` / `consume_key_for_door` / `bump_outcome`+`apply_kill_drops` /
+/// `shop_offer`+`apply_shop_effect`）；任一步不成立 ⇒ 具名 `Err`。
+pub fn replay_route(
+    input: &SolveInput,
+    entry: (i32, i32),
+    ents: &[EntRec],
+    player: &PlayerSpec,
+    flags: u128,
+    route: &[String],
+) -> Result<ExactReplay, RouteReplayError> {
+    replay_route_inner(input, entry, ents, player, flags, route, None)
+}
+
+/// 同 [`replay_route`]，但以 witness 记录的出层态定商店买/走臂：
+/// 存活分支里**恰有一个**与 `(out_player, out_flags, out_ents, out_pos)` 全等
+/// ⇒ 返回它；零个 ⇒ 具名 `no_match`；记录不唯一（witness 侧契约违例）⇒
+/// 具名 `expect_ambiguous`。
+pub fn replay_route_expect(
+    input: &SolveInput,
+    entry: (i32, i32),
+    ents: &[EntRec],
+    player: &PlayerSpec,
+    flags: u128,
+    route: &[String],
+    out_player: &PlayerSpec,
+    out_flags: u128,
+    out_ents: &[EntRec],
+    out_pos: (i32, i32),
+) -> Result<ExactReplay, RouteReplayError> {
+    replay_route_inner(
+        input,
+        entry,
+        ents,
+        player,
+        flags,
+        route,
+        Some((out_player, out_flags, out_ents, out_pos)),
+    )
+}
+
+#[allow(clippy::too_many_lines)]
+fn replay_route_inner(
+    input: &SolveInput,
+    entry: (i32, i32),
+    ents: &[EntRec],
+    player: &PlayerSpec,
+    flags: u128,
+    route: &[String],
+    expect: Option<(&PlayerSpec, u128, &[EntRec], (i32, i32))>,
+) -> Result<ExactReplay, RouteReplayError> {
+    let level = input.level.as_ref().ok_or_else(|| RouteReplayError {
+        token_index: 0,
+        token: String::new(),
+        reason: "level=None（模型缺口）".to_string(),
+    })?;
+    let s = Search::from_entry(input, level, entry);
+    let start = St { pos: entry, player: player.clone(), ents: ents.to_vec(), flags, kills: 0, steps: 0 };
+    // DFS：栈帧 = (状态, token 下标)。**分支死亡只弃本支**（商店双臂的存在使
+    // 「错臂后续 token 必然失败」成为常态）——记录最深失败做具名诊断；栈空才报错。
+    let mut stack: Vec<(St, usize)> = vec![(start, 0)];
+    let mut survivors: Vec<St> = Vec::new();
+    let mut last_err: Option<RouteReplayError> = None;
+    while let Some((st, idx)) = stack.pop() {
+        let mut cur = st;
+        let mut i = idx;
+        let mut dead: Option<RouteReplayError> = None;
+        while i < route.len() {
+            let tok = &route[i];
+            let fail = |reason: &str| RouteReplayError {
+                token_index: i,
+                token: tok.clone(),
+                reason: reason.to_string(),
+            };
+            let mut branched: Option<Vec<(St, usize)>> = None;
+            if let Some(rest) = tok.strip_prefix("bump ") {
+                let Some((ty_s, xy)) = rest.split_once('@') else { dead = Some(fail("bump token 缺 @")); break; };
+                let Ok(ty) = ty_s.trim().parse::<i32>() else { dead = Some(fail("bump ty 非整数")); break; };
+                let Some((x, y)) = parse_xy(xy) else { dead = Some(fail("bump 坐标非法")); break; };
+                let Some(slot) = cur.ents.iter().position(|e| {
+                    e.x == x && e.y == y && e.ty == ty && entity_category_with_floor(e.ty, input.floor) == 8
+                }) else { dead = Some(fail("撞怪格无该怪实体")); break; };
+                let Some(b) = exact_bump(input, &cur.player, &cur.ents, ty, slot) else {
+                    dead = Some(fail("撞怪不可实施（打不动/规则拒绝）"));
+                    break;
+                };
+                cur.player.hp -= b.loss;
+                cur.player.gold += b.gold;
+                cur.ents = b.ents;
+                cur.kills += 1;
+                cur.steps += 1;
+                i += 1;
+            } else if let Some(rest) = tok.strip_prefix("door ") {
+                let Some((x, y)) = parse_xy(rest) else { dead = Some(fail("door 坐标非法")); break; };
+                let Some(slot) = cur.ents.iter().position(|e| {
+                    e.x == x && e.y == y && entity_category_with_floor(e.ty, input.floor) == 1
+                }) else { dead = Some(fail("开门格无门实体")); break; };
+                let dty = cur.ents[slot].ty;
+                let Some(np) = exact_open_door(&cur.player, dty) else { dead = Some(fail("无钥匙开门")); break; };
+                cur.player = np;
+                cur.ents.remove(slot);
+                cur.pos = (x, y);
+                cur.steps += 1;
+                if !matches!(s.gate_arrive(&mut cur, x, y), GateArrive::Pass) {
+                    dead = Some(fail("开门后 gate_arrive 非 Pass"));
+                    break;
+                }
+                i += 1;
+            } else if let Some(rest) = tok.strip_prefix("gatebump ") {
+                let Some((x, y)) = parse_xy(rest) else { dead = Some(fail("gatebump 坐标非法")); break; };
+                let Some(ns) = s.gate_bump(&cur, x, y) else {
+                    dead = Some(fail("撞脚本门不成立（脚本拒/挂起/无参数）"));
+                    break;
+                };
+                cur = ns; // 不移位、不计步（gate_bump 语义）
+                i += 1;
+            } else if tok.strip_prefix("gate ").is_some() {
+                // Script 终止边注记（坐标=读回后 pos）——回放=无操作。
+                i += 1;
+            } else {
+                let Some((x, y)) = parse_xy(tok) else { dead = Some(fail("坐标 token 非法")); break; };
+                if (x - cur.pos.0).abs() + (y - cur.pos.1).abs() != 1 {
+                    dead = Some(fail("非邻接位移"));
+                    break;
+                }
+                match s.classify(&cur, x, y) {
+                    Cell::Pickup => {
+                        let Some(ns) = s.pickup_step(&cur, x, y) else { dead = Some(fail("拾取不可实施")); break; };
+                        cur = ns;
+                        i += 1;
+                    }
+                    Cell::Move => {
+                        cur.pos = (x, y);
+                        cur.steps += 1;
+                        if !matches!(s.gate_arrive(&mut cur, x, y), GateArrive::Pass) {
+                            dead = Some(fail("走格 gate_arrive 非 Pass"));
+                            break;
+                        }
+                        i += 1;
+                    }
+                    Cell::Shop(slot, ety) => {
+                        // 两臂分支（买/走，同 token）——压栈回溯。
+                        let mut arms: Vec<(St, usize)> = Vec::new();
+                        // 臂1（走）：地形可走 ⇒ 原 Move 臂。
+                        if s.walkable(x, y) {
+                            let mut ns = cur.clone();
+                            ns.pos = (x, y);
+                            ns.steps += 1;
+                            if matches!(s.gate_arrive(&mut ns, x, y), GateArrive::Pass) {
+                                arms.push((ns, i + 1));
+                            }
+                        }
+                        // 臂2（买）：开价门过 ∧ 买得起 ∧ 效果可实施。
+                        if let Some((price, effect)) = s.shop_offer(&cur, ety, slot) {
+                            if cur.player.gold >= price {
+                                let mut ns = cur.clone();
+                                ns.player.gold -= price;
+                                if apply_shop_effect(&effect, &mut ns.player) {
+                                    ns.ents.remove(slot);
+                                    ns.pos = (x, y);
+                                    ns.steps += 1;
+                                    if matches!(s.gate_arrive(&mut ns, x, y), GateArrive::Pass) {
+                                        arms.push((ns, i + 1));
+                                    }
+                                }
+                            }
+                        }
+                        if arms.is_empty() {
+                            dead = Some(fail("商店双臂皆不成立（不可走不可买）"));
+                            break;
+                        }
+                        branched = Some(arms);
+                    }
+                    _ => {
+                        dead = Some(fail("该格需专属 token（门/怪/阻挡）"));
+                        break;
+                    }
+                }
+            }
+            if let Some(arms) = branched {
+                for a in arms {
+                    stack.push(a);
+                }
+                dead = None;
+                break; // 本帧让位给分支
+            }
+        }
+        if let Some(e) = dead {
+            // 只留最深失败（token_index 最大）——回放定位用帧号。
+            let deeper = last_err.as_ref().map_or(true, |prev| e.token_index >= prev.token_index);
+            if deeper {
+                last_err = Some(e);
+            }
+            continue;
+        }
+        if i >= route.len() {
+            survivors.push(cur);
+        }
+    }
+    let (matched, rejected): (Vec<St>, Vec<St>) = match expect {
+        None => (survivors, Vec::new()),
+        Some((ep, ef, ee, epos)) => {
+            let mut m = Vec::new();
+            let mut rj = Vec::new();
+            for st in survivors {
+                let ok = st.pos == epos
+                    && st.player == *ep
+                    && st.flags == ef
+                    && st.ents.len() == ee.len()
+                    && st.ents.iter().zip(ee.iter()).all(|(a, b)| a == b);
+                if ok { m.push(st); } else { rj.push(st); }
+            }
+            (m, rj)
+        }
+    };
+    if matched.len() == 1 {
+        let st = &matched[0];
+        return Ok(ExactReplay { player: st.player.clone(), flags: st.flags, ents: st.ents.clone(), pos: st.pos, steps: st.steps, kills: st.kills });
+    }
+    let reason = if matched.is_empty() {
+        if expect.is_some() { "no_match（无分支与 witness 出层态全等）" } else { "dead_end（路线不可实施）" }
+    } else if expect.is_some() {
+        "expect_ambiguous（witness 记录不唯一，回放契约违例）"
+    } else {
+        "ambiguous（商店双臂同 token 且无期望态，不猜）"
+    };
+    Err(last_err.unwrap_or(RouteReplayError {
+        token_index: route.len().saturating_sub(1),
+        token: route.last().cloned().unwrap_or_default(),
+        reason: reason.to_string(),
+    }))
+}
+
 // ---------------------------------------------------------------- 批3 C1
 
 /// 批3 C1 单元测试（`run_from`/终态 `St` 是私有面，集成测试（tests/）只够得着 pub API；
