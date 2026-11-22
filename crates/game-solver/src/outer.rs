@@ -1692,5 +1692,12 @@ mod tests {
         assert!(addkeys.contains(&(7, 50, "{\"blue\": 0, \"yellow\": 5, \"red\": 0}".to_string())), "f7b4");
         assert!(addkeys.contains(&(12, 800, "{\"blue\": 0, \"yellow\": 0, \"red\": 1}".to_string())), "f12b0");
         assert!(swap.contains(&(28, "{\"gold\": 100}".to_string())), "f28b0=(1,8) 黄-1→¤+100");
+        // 定向复核（2026-11-23）：补齐其余 5 锚断言（原只断 4/9）。
+        assert!(addkeys.contains(&(12, 1000, "{\"blue\": 0, \"yellow\": 1, \"red\": 0}".to_string())), "f12b6");
+        assert!(addkeys.contains(&(15, 200, "{\"blue\": 1, \"yellow\": 0, \"red\": 0}".to_string())), "f15b7");
+        assert!(addkeys.contains(&(31, 1000, "{\"blue\": 1, \"yellow\": 1, \"red\": 0}".to_string())), "f31b2");
+        assert!(addkeys.contains(&(38, 200, "{\"blue\": 0, \"yellow\": 3, \"red\": 0}".to_string())), "f38b3");
+        assert!(addkeys.contains(&(39, 2000, "{\"blue\": 3, \"yellow\": 0, \"red\": 0}".to_string())), "f39b3");
+        assert_eq!(addkeys.len(), 8, "带价 AddKeys 锚总数");
     }
 }
