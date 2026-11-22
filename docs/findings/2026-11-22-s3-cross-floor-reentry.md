@@ -26,6 +26,10 @@
 | M-A2 换层清钥匙 | s3_keys_carry_across_floors |
 | M-A3 mask 短路（false&&） | s3_reentry_when_chain_breaks（frontier 空断言） |
 
+**【2026-11-23 更正】** 复核发现本片 findings 的「防硬编码」判据强度需如实标注：
+`s3_no_hardcoded_harvest` 只 grep 3 个子串（reentrygain/harvest_/reentrybonus），
+换名硬编码可绕过——该判据是**防回归哨兵，非完备证明**（复核 F6，按指令降级为黄）。
+
 ## B 片：战斗成本 LB 入边权（用户裁定 3/4 落地）
 
 - 入边权 = 1 步 + **max(counter_loss)**（块内**当前可杀**怪；`game_core::rules::sensitivity`
@@ -57,10 +61,48 @@
 | 前沿 | 1,095 | 1,272 |
 | killable | 53 | 262 |
 | 前沿 top1 steps | 52 | 7,373（含 LB 损血） |
-| 最短可杀 steps | 64 | 9,178 |
+| 最短可杀 steps | 64 | 9,178（LB 代价坐标，非真损血可行性验证——复核 F2） |
 | top1 hp | 4,300 | −2,028（LB 超预算诊断位） |
 
 排序**显著**改变（判据：LB 边权变异 ⇒ 前沿排序变化，M-B1 红）。
+
+### 【2026-11-23 S4 修单】带价钥匙商店购买边 + SwapYellowKey（复核 F4 红）
+
+复核证伪了本文件旧边界 3（见下）——第 1 段**确有**带价钥匙商店，外层现已建显式购买行动：
+
+- **AddKeys 购买边**（真锚 f6b1 蓝¤50 / f7b4 黄×5¤50 / f12b0 红¤800 / f12b6 黄¤1000 /
+  f15b7 蓝¤200 / f31b2 蓝+黄¤1000 / f38b3 黄×3¤200 / f39b3 蓝×3¤2000）：
+  gold≥price ⇒ 扣价、入键、计 1 步；金不足无此臂（判据
+  `s4_addkeys_purchase_opens_gate` / `s4_purchase_respects_gold_price`）。
+- **SwapYellowKey**（唯一真锚 f28b0=(1,8)，语义经 game-data shop_goods_defs.rs 钉死）：
+  **黄-1 → ¤+100**——是「卖」不是「买」（键→金的流动性逆向边，非钥匙来源；
+  钥匙来源=拾取+AddKeys 购买）。判据 `s4_swap_yellow_key_sell_action`。
+- 变异对照（全先红后还原）：
+
+| 变异 | 红的判据 |
+|---|---|
+| M-F4a 删 AddKeys 分支 | s4_addkeys_purchase_opens_gate |
+| M-F4b 删 SwapYellowKey 分支 | s4_swap_yellow_key_sell_action |
+| M-F4c 删 gold≥price 门 | s4_purchase_respects_gold_price |
+
+- 投影守卫判据 `s4_real_doc_priced_key_shop_anchors`（初始即绿，非 TDD 红）
+  把真实锚清单钉进测试面，旧「无锚点」断言永久封死。
+- 真数据 combat-on 数字随购买边更新（--max-pops 5,000,000，release 8m13s）：
+
+| 指标 | S3-B（无购买边） | S4（购买边落地） |
+|---|---|---|
+| pops | 1,623,198 | 4,553,792 |
+| 前沿 | 1,272 | 3,630 |
+| killable | 262 | 985 |
+| top1 steps / hp / gold | 7,373 / −2,028 / 0 | 7,073 / −1,792 / 63 |
+
+  top1 gold=63>0 证明商店臂在真数据上实际开火（经济链活了）；步数/hp 均改善。
+  注：killable 985 条全部 fatal——combat-on 的 hp 坐标是累计 LB 代价（可为负），
+  `fatal = counter_loss ≥ hp` 在负 hp 诊断位上恒真；存活可行性须由内层
+  solve_local 按 S4 验收口径（见下）判定，外层数字是搜索面/排序诊断量。
+
+**【S4 验收口径（写死）】此后凡引用外层前沿/killable 数字做验收（含 S4 及以后），
+必须在 `--combat-cost on` 口径下进行；off 口径只用于 S2 回归对照（逐字节不变）。**
 
 ## C 片：三项遗留验收（提案 §5.7）
 

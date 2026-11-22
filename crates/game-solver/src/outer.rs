@@ -892,21 +892,51 @@ pub fn outer_search(
                 continue;
             }
             for &(price, ref key, ref params) in &ex.goods {
-                if key != "StatPct" {
-                    continue;
-                }
                 if state.buys >= MAX_BUYS {
                     continue;
                 }
-                let pct = parse_pct(params);
-                let mut ns = state.clone();
-                ns.buys += 1;
-                // 整数复利逐次模拟（提案 §3.5）；公式 game-core 单源
-                // （rules::shop::stat_pct_compound_step，S3-C 上提，solver 零重算）。
-                ns.atk = game_core::rules::shop::stat_pct_compound_step(state.atk, pct.0);
-                ns.def = game_core::rules::shop::stat_pct_compound_step(state.def, pct.1);
-                heap.push(HeapItem { steps: steps + 1 + price as u64 / 1000_000, seq, state: ns, path: path.clone(), gates: gates.clone() });
-                seq += 1;
+                if key == "StatPct" {
+                    let pct = parse_pct(params);
+                    let mut ns = state.clone();
+                    ns.buys += 1;
+                    // 整数复利逐次模拟（提案 §3.5）；公式 game-core 单源
+                    // （rules::shop::stat_pct_compound_step，S3-C 上提，solver 零重算）。
+                    ns.atk = game_core::rules::shop::stat_pct_compound_step(state.atk, pct.0);
+                    ns.def = game_core::rules::shop::stat_pct_compound_step(state.def, pct.1);
+                    heap.push(HeapItem { steps: steps + 1 + price as u64 / 1000_000, seq, state: ns, path: path.clone(), gates: gates.clone() });
+                    seq += 1;
+                } else if key == "AddKeys" {
+                    // 复核 F4（S4 修单）：带价钥匙购买边（真锚 f6b1 蓝¤50 /
+                    // f7b4 黄×5¤50 / f12b0 红¤800 等）。gold≥price 才可买：
+                    // 扣价、入键、计 1 步；金不足则无此臂（不出买臂=门关着）。
+                    let (bl, yl, rd) = parse_keys_params(params);
+                    if state.gold < price || (bl == 0 && yl == 0 && rd == 0) {
+                        continue;
+                    }
+                    let mut ns = state.clone();
+                    ns.gold -= price;
+                    ns.blue += bl;
+                    ns.yellow += yl;
+                    ns.red += rd;
+                    ns.buys += 1;
+                    heap.push(HeapItem { steps: steps + 1, seq, state: ns, path: path.clone(), gates: gates.clone() });
+                    seq += 1;
+                } else if key == "SwapYellowKey" {
+                    // 复核 F4（S4 修单）：SwapYellowKey 真实锚 f28b0=(1,8)，
+                    // 语义经 game-data shop_goods_defs.rs 钉死为「卖」：
+                    // 黄-1 → ¤+gold（黄不足 ⇒ 无此臂）。键→金是经济链的
+                    // 逆向边（钥匙流动性），不是钥匙来源。
+                    let g = parse_swap_gold(params);
+                    if state.yellow < 1 || g <= 0 {
+                        continue;
+                    }
+                    let mut ns = state.clone();
+                    ns.yellow -= 1;
+                    ns.gold += g;
+                    ns.buys += 1;
+                    heap.push(HeapItem { steps: steps + 1, seq, state: ns, path: path.clone(), gates: gates.clone() });
+                    seq += 1;
+                }
             }
         }
     }
@@ -963,6 +993,26 @@ fn parse_pct(params: &str) -> (i32, i32) {
             v.get("def_pct").and_then(|x| x.as_int()).unwrap_or(0) as i32,
         ),
         Err(_) => (0, 0),
+    }
+}
+
+/// 解析 AddKeys params JSON 里的 blue/yellow/red（缺省 0）。
+fn parse_keys_params(params: &str) -> (i32, i32, i32) {
+    match game_data::asset_pipeline::parse_json(params) {
+        Ok(v) => (
+            v.get("blue").and_then(|x| x.as_int()).unwrap_or(0) as i32,
+            v.get("yellow").and_then(|x| x.as_int()).unwrap_or(0) as i32,
+            v.get("red").and_then(|x| x.as_int()).unwrap_or(0) as i32,
+        ),
+        Err(_) => (0, 0, 0),
+    }
+}
+
+/// 解析 SwapYellowKey params JSON 里的 gold（卖价，缺省 0）。
+fn parse_swap_gold(params: &str) -> i32 {
+    match game_data::asset_pipeline::parse_json(params) {
+        Ok(v) => v.get("gold").and_then(|x| x.as_int()).unwrap_or(0) as i32,
+        Err(_) => 0,
     }
 }
 
@@ -1510,5 +1560,137 @@ mod tests {
         assert_eq!(p.ty10_cells, vec![(6, 4), (6, 5), (6, 6)]);
         assert!(p.stairs_reachable);
         assert!(!p.cudgel_reachable_without_fire, "火环隔断金箍棒格 ⇒ 主径无矛盾");
+    }
+
+    // ---------- S4 修单（复核 F4 红）：带价钥匙商店购买边 + SwapYellowKey 行动 ----------
+
+    /// s3_chain_doc 复用夹具 + b0 挂怪（gold 源）+ b0 挂商店（goods 参数）+ b1 门换色。
+    fn s4_shop_doc(goods_json: &str, extra_export: &str, door_kind: &str) -> String {
+        let shop = format!("{{ \"ty\": 78, \"cell\": [3,9], \"class\": \"timepoint\", \"param\": 90, \"goods\": {goods_json} }}");
+        let exports = if extra_export.is_empty() {
+            format!("[ {shop} ]")
+        } else {
+            format!("[ {extra_export}, {shop} ]")
+        };
+        s3_combat_doc("[41]")
+            // b0：exports 挂商店（+可选附加导出）。b0 的 exports 行唯一（c0 在 f12）。
+            .replace(
+                "\"cut_doors\": [],\n        \"exports\": [],\n        \"exits\": [ { \"kind\": \"stair\", \"ty\": 8, \"cell\": [2,10]",
+                &format!("\"cut_doors\": [],\n        \"exports\": {exports},\n        \"exits\": [ {{ \"kind\": \"stair\", \"ty\": 8, \"cell\": [2,10]"),
+            )
+            // b1：门换色（唯一锚 [4,9]）。
+            .replace(
+                "\"cut_doors\": [ { \"cell\": [4,9], \"kind\": \"door1\" } ]",
+                &format!("\"cut_doors\": [ {{ \"cell\": [4,9], \"kind\": \"{door_kind}\" }} ]"),
+            )
+    }
+
+    /// 判据（F4-1 带价 AddKeys 购买行动）：b0 杀怪得金 → 商店 ¤50 买蓝钥×1 →
+    /// b1 蓝(door3)门通过 → 锚可达；购买扣金入键、计 1 步（与 StatPct 磨属性
+    /// 行动并列，真实锚 f6b1/f7b4/f12b0 同型）。
+    /// 变异 M-F4a（删 AddKeys 分支）⇒ 本判据红（door3 无法通过，frontier 空）。
+    #[test]
+    fn s4_addkeys_purchase_opens_gate() {
+        let doc = load_block_interfaces(&s4_shop_doc(
+            "[[50, \"AddKeys\", \"{\\\"blue\\\": 1, \\\"yellow\\\": 0, \\\"red\\\": 0}\"]]",
+            "",
+            "door3",
+        ))
+        .unwrap();
+        let floors = vec![51, 10, 12];
+        let mut run = s3_run(floors.clone());
+        run.combat_cost = true; // 金源：b0 怪 41 赏金（combat on 才发金）
+        let g = OuterGraph::build(&doc, &floors, &run.masked_exits);
+        let mut en = enemies();
+        en[0].gold = 50; // 杀 41 恰得 50 金，够买一次
+        let res = outer_search(&g, &run, &en, SearchBudget { max_pops: 50_000 });
+        assert!(!res.frontier.is_empty(), "买蓝钥后 door3 必须可过（无购买边 ⇒ 红）");
+        // 路径：a0拾黄(0)→b0杀怪(1+c41)→买蓝(+1)→b1过door3(+1)→c0(+1)；
+        // 金被价格扣净、蓝被门扣净——经济链全链路可观测。期望步数用公开
+        // API 对照（combat on ⇒ 步数含 LB 损血，B 片口径）。
+        let table = game_core::rules::sensitivity::sensitivity_table(&en, 10, 10, false, false);
+        let c41 = table.iter().find(|r| r.ety == 41).unwrap().counter_loss as u64;
+        let expect = 4 + c41;
+        assert!(
+            res.frontier.iter().any(|e| e.steps == expect && e.state.gold == 0 && e.state.blue == 0),
+            "缺 {expect}步/金扣净/蓝扣净 的路径：{:#?}",
+            res.frontier.iter().map(|e| (e.steps, e.state.gold, e.state.blue)).collect::<Vec<_>>()
+        );
+        assert!(res.frontier.iter().all(|e| e.steps >= expect), "买钥匙必须付 1 步");
+    }
+
+    /// 判据（F4 金门）：金不足（¤49 < ¤50）⇒ 无购买臂，door3 关着，
+    /// 锚不可达。变异 M-F4c（删 gold≥price 门）⇒ 本判据红（frontier 非空）。
+    #[test]
+    fn s4_purchase_respects_gold_price() {
+        let doc = load_block_interfaces(&s4_shop_doc(
+            "[[50, \"AddKeys\", \"{\\\"blue\\\": 1, \\\"yellow\\\": 0, \\\"red\\\": 0}\"]]",
+            "",
+            "door3",
+        ))
+        .unwrap();
+        let floors = vec![51, 10, 12];
+        let mut run = s3_run(floors.clone());
+        run.combat_cost = true;
+        let g = OuterGraph::build(&doc, &floors, &run.masked_exits);
+        let mut en = enemies();
+        en[0].gold = 49; // 差 1 金，买不起
+        let res = outer_search(&g, &run, &en, SearchBudget { max_pops: 50_000 });
+        assert!(res.frontier.is_empty(), "金不足必须无购买臂（不出买臂）");
+    }
+
+    /// 判据（F4-2 SwapYellowKey 真实锚 f28b0=(1,8)：黄-1→¤+100，game-data
+    /// shop_goods_defs.rs 钉死语义——是「卖」不是「买」）：黄钥可换金。
+    /// 变异 M-F4b（删 SwapYellowKey 分支）⇒ 本判据红（gold==100 条目消失）。
+    #[test]
+    fn s4_swap_yellow_key_sell_action() {
+        let doc = load_block_interfaces(&s4_shop_doc(
+            "[[0, \"SwapYellowKey\", \"{\\\"gold\\\": 100}\"]]",
+            "{ \"ty\": 26, \"cell\": [2,9], \"class\": \"const\", \"detail\": \"黄钥匙b0\" }",
+            "door1",
+        ))
+        .unwrap();
+        let floors = vec![51, 10, 12];
+        let run = s3_run(floors.clone());
+        let g = OuterGraph::build(&doc, &floors, &run.masked_exits);
+        let res = outer_search(&g, &run, &enemies(), SearchBudget { max_pops: 50_000 });
+        assert!(!res.frontier.is_empty());
+        // 路径（combat off ⇒ 纯步数）：a0(+1黄)→b0(+1黄=2)→卖1黄(g=100,黄=1)
+        // →b1过door1(黄=0)→c0 = 4 步。
+        assert!(
+            res.frontier.iter().any(|e| e.steps == 4 && e.state.gold == 100 && e.state.yellow == 0),
+            "SwapYellowKey 卖臂必须可观测（金=100）：{:#?}",
+            res.frontier.iter().map(|e| (e.steps, e.state.gold, e.state.yellow)).collect::<Vec<_>>()
+        );
+    }
+
+    /// 判据（F4-3 真实锚投影守卫）：块表第 1 段确有带价 AddKeys 商店
+    /// （f6b1 蓝¤50 / f7b4 黄×5¤50 / f12b0 红¤800）与 SwapYellowKey 锚
+    /// （f28b0=(1,8) 黄-1→¤+100）——findings 边界 3 的旧断言「无锚点」被此判据
+    /// 永久封死（该判据是投影守卫，初始即绿，非 TDD 红）。
+    #[test]
+    fn s4_real_doc_priced_key_shop_anchors() {
+        let raw = include_str!("../../../docs/findings/block-interfaces.json");
+        let doc = load_block_interfaces(raw).unwrap();
+        let mut addkeys = Vec::new();
+        let mut swap = Vec::new();
+        for (&fl, fd) in &doc.floors {
+            for b in &fd.blocks {
+                for ex in &b.exports {
+                    for &(price, ref key, ref params) in &ex.goods {
+                        if key == "AddKeys" && price > 0 {
+                            addkeys.push((fl, price, params.clone()));
+                        }
+                        if key == "SwapYellowKey" {
+                            swap.push((fl, params.clone()));
+                        }
+                    }
+                }
+            }
+        }
+        assert!(addkeys.contains(&(6, 50, "{\"blue\": 1, \"yellow\": 0, \"red\": 0}".to_string())), "f6b1");
+        assert!(addkeys.contains(&(7, 50, "{\"blue\": 0, \"yellow\": 5, \"red\": 0}".to_string())), "f7b4");
+        assert!(addkeys.contains(&(12, 800, "{\"blue\": 0, \"yellow\": 0, \"red\": 1}".to_string())), "f12b0");
+        assert!(swap.contains(&(28, "{\"gold\": 100}".to_string())), "f28b0=(1,8) 黄-1→¤+100");
     }
 }
