@@ -255,6 +255,8 @@ pub struct RunSpec {
     pub anchor_floor: i32,
     /// 锚 boss 的怪 ty（敏感表判据）。
     pub anchor_boss_ty: i32,
+    /// S3 A 片断链注入开关：屏蔽这些（层, 格）出口边（模拟「f4 出口链断开」）。
+    pub masked_exits: Vec<(i32, (i32, i32))>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -284,6 +286,7 @@ pub fn plan_segments(doc: &BlockInterfaces) -> Vec<(String, SegmentPlan)> {
                 start: (51, (1, 11)),
                 anchor_floor: 10,
                 anchor_boss_ty: 75,
+                masked_exits: Vec::new(),
             })
         },
     ));
@@ -355,10 +358,21 @@ pub struct OuterGraph<'a> {
     /// 楼梯/脚本换层边：from node → to node。
     pub trans: Vec<Vec<(usize, String)>>,
     pub skipped_trans: Vec<String>,
+    /// S3 A 片：被屏蔽的出口边（具名回显，禁静默）。
+    pub masked_exits: Vec<String>,
 }
 
 impl<'a> OuterGraph<'a> {
-    pub fn build(doc: &'a BlockInterfaces, floors: &[i32]) -> OuterGraph<'a> {
+    /// S3 A 片：问题空间 = 全部可达层（块表全量建图）。
+    pub fn build_all(doc: &'a BlockInterfaces) -> OuterGraph<'a> {
+        let floors: Vec<i32> = doc.floors.keys().copied().collect();
+        Self::build(doc, &floors, &[])
+    }
+
+    /// `masked`：屏蔽这些（层, 格）出口边（断链注入开关）。
+    pub fn build(doc: &'a BlockInterfaces, floors: &[i32], masked: &[(i32, (i32, i32))]) -> OuterGraph<'a> {
+        let masked: HashSet<(i32, (i32, i32))> = masked.iter().copied().collect();
+        let mut masked_report = Vec::new();
         let mut node = HashMap::new();
         let mut floor_of = Vec::new();
         let mut block_of = Vec::new();
@@ -433,6 +447,11 @@ impl<'a> OuterGraph<'a> {
                 if !floors.contains(&to_floor) {
                     continue;
                 }
+                // S3 A 片断链注入：屏蔽指定（层, 格）出口边（具名回显，禁静默）。
+                if masked.contains(&(f, ex.cell)) {
+                    masked_report.push(format!("f{}:({},{})", f, ex.cell.0, ex.cell.1));
+                    continue;
+                }
                 let to_fd = &doc.floors[&to_floor];
                 // v1 乐观口径，优先级链（逐级回落、全走乐观）：
                 // 1) 含到场格的块（如 f54→f1 落 (7,1)∈f1b0）
@@ -492,7 +511,7 @@ impl<'a> OuterGraph<'a> {
                 }
             }
         }
-        OuterGraph { doc, floors: floors.to_vec(), node, floor_of, block_of, edges, trans, skipped_trans }
+        OuterGraph { doc, floors: floors.to_vec(), node, floor_of, block_of, edges, trans, skipped_trans, masked_exits: masked_report }
     }
 
     pub fn start_node(&self, floor: i32, cell: (i32, i32)) -> Result<usize, OuterError> {
@@ -572,6 +591,10 @@ pub struct OuterResult {
     pub unapplied_exports: u64,
     pub needs_sensitivity: Vec<i32>,
     pub skipped_trans: Vec<String>,
+    /// S3 A 片：跨层回拾候选边计数（trans 展开目标层在 floors 序早于当前层）。
+    pub reentry_edges: u64,
+    /// S3 A 片：被注入屏蔽的出口边（具名回显，禁静默）。
+    pub masked_exits: Vec<String>,
 }
 
 struct HeapItem {
@@ -615,8 +638,12 @@ pub fn outer_search(
 ) -> OuterResult {
     let mut res = OuterResult {
         skipped_trans: graph.skipped_trans.clone(),
+        masked_exits: graph.masked_exits.clone(),
         ..Default::default()
     };
+    // S3 A 片：floors 序位置表（回拾判定 = 目标层序早于当前层）。
+    let floor_pos: HashMap<i32, usize> =
+        graph.floors.iter().enumerate().map(|(i, &f)| (f, i)).collect();
     let start_node = match graph.start_node(run.start.0, run.start.1) {
         Ok(n) => n,
         Err(e) => {
@@ -740,10 +767,15 @@ pub fn outer_search(
             heap.push(HeapItem { steps: steps + 1, seq: seq, state: ns, path: path.clone(), gates: ng });
             seq += 1;
         }
-        // 换层
+        // 换层（S3 A 片：允许回头边——回拾候选边按「目标层序早于当前层」计数）
         for &(to, ref kind) in &graph.trans[state.node] {
             let mut ns = state.clone();
             ns.node = to;
+            let from_floor = graph.floor_of[state.node];
+            let to_floor = graph.floor_of[to];
+            if floor_pos.get(&to_floor).copied().unwrap_or(usize::MAX) < floor_pos.get(&from_floor).copied().unwrap_or(usize::MAX) {
+                res.reentry_edges += 1;
+            }
             heap.push(HeapItem { steps: steps + 1, seq, state: ns, path: path.clone(), gates: gates.clone() });
             seq += 1;
             let _ = kind;
@@ -1035,10 +1067,10 @@ mod tests {
     fn door1_requires_yellow_key_and_pickup_gates_it() {
         let doc = load_block_interfaces(&mini_doc()).unwrap();
         let floors = vec![51, 10];
-        let g = OuterGraph::build(&doc, &floors);
+        let g = OuterGraph::build(&doc, &floors, &[]);
         let start = g.start_node(51, (1, 11)).unwrap();
         let enemies = enemies();
-        let run = RunSpec { floors: floors.clone(), start: (51, (1, 11)), anchor_floor: 10, anchor_boss_ty: 75 };
+        let run = RunSpec { floors: floors.clone(), start: (51, (1, 11)), anchor_floor: 10, anchor_boss_ty: 75, masked_exits: Vec::new() };
         let res = outer_search(&g, &run, &enemies, SearchBudget { max_pops: 5000 });
         assert!(!res.truncated);
         assert!(!res.frontier.is_empty(), "锚应可达（拾 1 黄开门 + 敏感表判 75 可杀）");
@@ -1060,8 +1092,8 @@ mod tests {
     fn missing_boss_reports_needs_sensitivity() {
         let doc = load_block_interfaces(&mini_doc()).unwrap();
         let floors = vec![51, 10];
-        let g = OuterGraph::build(&doc, &floors);
-        let run = RunSpec { floors, start: (51, (1, 11)), anchor_floor: 10, anchor_boss_ty: 75 };
+        let g = OuterGraph::build(&doc, &floors, &[]);
+        let run = RunSpec { floors, start: (51, (1, 11)), anchor_floor: 10, anchor_boss_ty: 75, masked_exits: Vec::new() };
         // 敌表只给 41（75 缺席）——能力缺口必须具名，不许回落成「不可杀」。
         let res = outer_search(&g, &run, &[enemy(41, 35, 18, 1, game_core::combat::trait_flags_for(41))], SearchBudget { max_pops: 5000 });
         assert_eq!(res.needs_sensitivity, vec![75]);
@@ -1082,8 +1114,8 @@ mod tests {
         let doc = load_block_interfaces(&doc_raw).unwrap();
         let f10 = doc.floors.get(&51).unwrap();
         let floors = vec![51, 10];
-        let g = OuterGraph::build(&doc, &floors);
-        let run = RunSpec { floors, start: (51, (1, 11)), anchor_floor: 10, anchor_boss_ty: 75 };
+        let g = OuterGraph::build(&doc, &floors, &[]);
+        let run = RunSpec { floors, start: (51, (1, 11)), anchor_floor: 10, anchor_boss_ty: 75, masked_exits: Vec::new() };
         let res = outer_search(&g, &run, &enemies(), SearchBudget { max_pops: 3000 });
         assert!(!res.truncated, "搜索应自行停（复利饱和 ⇒ 状态空间封顶）");
         assert!(res.pops < 3000);
@@ -1094,6 +1126,149 @@ mod tests {
         // 基础路 a0→a1→a0→b0→b1 = 4 步 + 2 买步 ⇒ 最短可杀 ≥ 6。
         let min_killable = res.frontier.iter().filter(|e| e.killable).map(|e| e.steps).min().unwrap();
         assert!(min_killable >= 6, "购买必须计 1 步（H6）：min_killable={min_killable}");
+    }
+
+    // ---------- S3 A 片：跨层回拾（问题空间 = 全部可达块图） ----------
+
+    /// 三层夹具：f51 →(stair)→ f10 →(stair)→ f12。a0 拾黄钥；a1 是 f51 门后块
+    /// （补拾 surplus 黄钥）；b1 门1 后是 f10 的过路块；c0（f12）是锚 boss75。
+    /// f10 有反向梯（回 f51）与前向梯（去 f12）——mask 前向即「f4 出口链断开」。
+    fn s3_chain_doc() -> String {
+        r#"{
+  "schema": "xiyou/block-interfaces/v2",
+  "floors": [
+    { "floor": 51, "entry": [1,11], "blocks": [
+      { "id": "a0", "cells": [[1,11],[1,10],[2,10]],
+        "cut_doors": [],
+        "exports": [ { "ty": 26, "cell": [1,10], "class": "const", "detail": "黄钥匙" } ],
+        "exits": [ { "kind": "stair", "ty": 7, "cell": [2,10], "to": 10, "same_floor": false } ] },
+      { "id": "a1", "cells": [[4,10],[5,10],[6,10]],
+        "cut_doors": [ { "cell": [3,10], "kind": "door1" } ],
+        "exports": [ { "ty": 26, "cell": [4,10], "class": "const", "detail": "黄钥匙2" },
+                     { "ty": 26, "cell": [5,10], "class": "const", "detail": "黄钥匙3" },
+                     { "ty": 26, "cell": [6,10], "class": "const", "detail": "黄钥匙4" } ],
+        "exits": [] }
+    ] },
+    { "floor": 10, "entry": [2,10], "blocks": [
+      { "id": "b0", "cells": [[2,10],[2,9],[3,9]],
+        "cut_doors": [],
+        "exports": [],
+        "exits": [ { "kind": "stair", "ty": 8, "cell": [2,10], "to": 51, "same_floor": false } ] },
+      { "id": "b1", "cells": [[5,9],[6,9]],
+        "cut_doors": [ { "cell": [4,9], "kind": "door1" } ],
+        "exports": [],
+        "exits": [ { "kind": "stair", "ty": 7, "cell": [6,9], "to": 12, "same_floor": false } ] }
+    ] },
+    { "floor": 12, "entry": [1,9], "blocks": [
+      { "id": "c0", "cells": [[1,9]],
+        "cut_doors": [],
+        "exports": [],
+        "exits": [ { "kind": "stair", "ty": 8, "cell": [1,9], "to": 10, "same_floor": false },
+                   { "kind": "boss_kill", "ty": 75, "cell": [1,9], "events": [], "post_victory": false, "drops": {} } ] }
+    ] }
+  ]
+}"#.to_string()
+    }
+
+    fn s3_run(floors: Vec<i32>) -> RunSpec {
+        RunSpec {
+            floors,
+            start: (51, (1, 11)),
+            anchor_floor: 12,
+            anchor_boss_ty: 75,
+            masked_exits: Vec::new(),
+        }
+    }
+
+    /// S3 核心验收：出口链断开（mask f10 前向梯）后，外层不报错不终止——
+    /// 搜索继续推进，前沿/堆出现回早前层块（f51）的候选边（reentry_edges>0），
+    /// 且注入的断链被具名回显（禁静默）。
+    #[test]
+    fn s3_reentry_when_chain_breaks() {
+        let doc = load_block_interfaces(&s3_chain_doc()).unwrap();
+        let floors = vec![51, 10, 12];
+        let mut run = s3_run(floors.clone());
+        run.anchor_floor = 12;
+        run.masked_exits = vec![(10, (6, 9))];
+        let g = OuterGraph::build(&doc, &floors, &run.masked_exits);
+        let res = outer_search(&g, &run, &enemies(), SearchBudget { max_pops: 20_000 });
+        assert!(!res.truncated, "断链后搜索必须自行收敛，不许截断/报错");
+        assert!(res.frontier.is_empty(), "锚在 f12，前向梯已断 ⇒ 不可达");
+        assert!(res.reentry_edges >= 1, "必须出现回早前层块的候选边：reentry_edges={}", res.reentry_edges);
+        assert!(res.pops > 5, "断链后搜索必须继续推进：pops={}", res.pops);
+        assert_eq!(res.masked_exits, vec!["f10:(6,9)".to_string()], "注入断链必须具名回显");
+        // 对照：不 mask 时锚可达（f12 c0），证明断链是 mask 注入的效应。
+        let run2 = { let mut r = s3_run(floors.clone()); r.anchor_floor = 12; r };
+        let g2 = OuterGraph::build(&doc, &floors, &run2.masked_exits);
+        let res2 = outer_search(&g2, &run2, &enemies(), SearchBudget { max_pops: 20_000 });
+        assert!(!res2.frontier.is_empty(), "不 mask 时锚应可达");
+        assert!(res2.frontier.iter().any(|e| e.path.iter().any(|p| p.contains("c0"))));
+    }
+
+    /// S3 资源多层状态：f51 拾的黄钥在 f10 的 door1 扣减生效（跨层携带）；
+    /// 回拾 surplus（f51 门后 a1 的第二枚）跨层带入 f10 且回拾路径定价精确
+    /// （零奖励零惩罚：a0→a1→a0→b0→b1→c0 = 5 步、yellow==1）。
+    #[test]
+    fn s3_keys_carry_across_floors() {
+        let doc = load_block_interfaces(&s3_chain_doc()).unwrap();
+        let floors = vec![51, 10, 12];
+        let run = s3_run(floors.clone());
+        let g = OuterGraph::build(&doc, &floors, &run.masked_exits);
+        let res = outer_search(&g, &run, &enemies(), SearchBudget { max_pops: 20_000 });
+        assert!(!res.truncated);
+        assert!(!res.frontier.is_empty());
+        // 最短：a0(拾黄) → b0 → b1(door1 扣跨层黄钥) → c0 = 3 步，黄钥剩 0。
+        let min_steps = res.frontier.iter().map(|e| e.steps).min().unwrap();
+        assert_eq!(min_steps, 3, "最短路径应为 3 步（跨层钥匙直接开门）");
+        assert!(
+            res.frontier.iter().any(|e| e.steps == 3 && e.state.yellow == 0),
+            "跨层拾取的黄钥应被 f10 的门消耗"
+        );
+        // 回拾 surplus：a0→a1(+1)→a0(+1)→b0(+1)→b1(+1)→c0(+1) = 5 步、yellow==1。
+        for ni in 0..g.floor_of.len() {
+            eprintln!("DBG node f{}:{} edges={:?} trans={:?}",
+                g.floor_of[ni], g.doc.floors[&g.floor_of[ni]].blocks[g.block_of[ni]].id,
+                g.edges[ni].iter().map(|e| (g.floor_of[e.to], g.doc.floors[&g.floor_of[e.to]].blocks[g.block_of[e.to]].id.clone(), e.yellow)).collect::<Vec<_>>(),
+                g.trans[ni].iter().map(|t| (g.floor_of[t.0], g.doc.floors[&g.floor_of[t.0]].blocks[g.block_of[t.0]].id.clone())).collect::<Vec<_>>());
+        }
+        assert!(
+            res.frontier.iter().any(|e| e.steps == 5 && e.state.yellow == 1),
+            "回早前层补拾的 surplus 键必须可跨层携带且步数精确定价（5 步）"
+        );
+        assert!(
+            res.frontier.iter().all(|e| e.steps >= 3),
+            "回拾不得有隐藏奖励/捷径：最短仍为 3 步"
+        );
+    }
+
+    /// S3 防硬编码收割：outer.rs 源面不得出现回拾特判分支（收割/奖励字面量）；
+    /// 回拾收益只能从经济链边权涌现（B 片），A 片只放行回头边。
+    #[test]
+    fn s3_no_hardcoded_harvest() {
+        let src = include_str!("outer.rs");
+        for (a, b) in [("reentry", "gain"), ("harvest", "_"), ("reentry", "bonus")] {
+            let bad = format!("{a}{b}");
+            assert!(!src.contains(&bad), "禁止回拾硬编码分支: {bad}");
+        }
+    }
+
+    /// S3 问题空间：build_all 覆盖块表全部层与块（55 层 / 383 块 / 换层边 ≥105）。
+    #[test]
+    fn s3_build_all_covers_full_block_graph() {
+        let raw = include_str!("../../../docs/findings/block-interfaces.json");
+        let doc = load_block_interfaces(raw).unwrap();
+        assert_eq!(doc.floors.len(), 55);
+        let g = OuterGraph::build_all(&doc);
+        assert_eq!(g.floor_of.len(), 383, "全块图节点数");
+        assert_eq!(g.floors.len(), 55);
+        let trans: usize = g.trans.iter().map(|t| t.len()).sum();
+        assert!(trans >= 105, "真数据楼梯换层边至少 105 条：trans={trans}");
+        // 段内 build 的节点数 = 该段层数的块数（S2 回归口径不变）。
+        let g1 = OuterGraph::build(&doc, &[51, 52, 53, 54, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], &[]);
+        assert!(
+            g1.floor_of.len() < g.floor_of.len(),
+            "段内图应是全块图的子集"
+        );
     }
 
     /// 判据（段计划）：第 1 段 Run，后续段具名 Off（禁静默）。

@@ -175,7 +175,7 @@ fn main() {
         };
         let gold = nums(include_str!("../../../game-core/tests/fixtures/enemybasegold.txt"));
         let scaled = scale_enemy_stats(&tables.to_records(&gold), 1);
-        let graph = game_solver::outer::OuterGraph::build(&doc, &run.1.floors);
+        let graph = game_solver::outer::OuterGraph::build(&doc, &run.1.floors, &run.1.masked_exits);
         let res = game_solver::outer::outer_search(
             &graph,
             &run.1,
