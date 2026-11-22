@@ -142,6 +142,157 @@ fn solve_global_real(bound: u64) -> game_solver::solve_global::GlobalResult {
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(|s| s.as_str()) == Some("outer") {
+        // S2 外层骨架最小闭环：第 1 段（f51→f54→f1..f10，锚=boss75@f10）
+        // 产出段内块路径 + Pareto 前沿；`--out PATH` 落盘 JSON。
+        let doc_path = args
+            .iter()
+            .position(|a| a == "--doc")
+            .and_then(|i| args.get(i + 1))
+            .map(String::clone)
+            .unwrap_or_else(|| "docs/findings/block-interfaces.json".to_string());
+        let raw = std::fs::read_to_string(&doc_path)
+            .unwrap_or_else(|e| panic!("读 {doc_path}: {e}（块表是输入数据，缺文件=具名失败，禁回落）"));
+        let doc = game_solver::outer::load_block_interfaces(&raw)
+            .unwrap_or_else(|e| panic!("{e}"));
+        let plans = game_solver::outer::plan_segments(&doc);
+        let run = match plans.iter().find(|(_, p)| matches!(p, game_solver::outer::SegmentPlan::Run(_))) {
+            Some((name, game_solver::outer::SegmentPlan::Run(r))) => (name.clone(), r.clone()),
+            _ => panic!("无任何可执行段（计划具名 Off 全落空）"),
+        };
+        // 缩放敌表（difficulty=0 ⇒ ×1，与 solve_global 同口径）
+        let nums = |t: &str| -> Vec<i32> {
+            t.lines().map(|l| l.trim()).filter(|s| !s.is_empty())
+                .map(|s| s.parse().expect("fixture 整数")).collect()
+        };
+        let tables = CombatTables {
+            enemy_base_hp: nums(include_str!("../../../game-core/tests/fixtures/enemybasehp.txt")),
+            enemy_base_atk: nums(include_str!("../../../game-core/tests/fixtures/enemybaseatk.txt")),
+            enemy_base_def: nums(include_str!("../../../game-core/tests/fixtures/enemybasedef.txt")),
+            difficulty_multipliers: nums(include_str!(
+                "../../../game-core/tests/fixtures/difficulty_multipliers.txt"
+            )),
+        };
+        let gold = nums(include_str!("../../../game-core/tests/fixtures/enemybasegold.txt"));
+        let scaled = scale_enemy_stats(&tables.to_records(&gold), 1);
+        let graph = game_solver::outer::OuterGraph::build(&doc, &run.1.floors);
+        let res = game_solver::outer::outer_search(
+            &graph,
+            &run.1,
+            &scaled,
+            game_solver::outer::SearchBudget {
+                max_pops: args.iter().position(|a| a == "--max-pops")
+                    .and_then(|i| args.get(i + 1))
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(200_000),
+            },
+        );
+        // 摘要（stdout）
+        println!("== outer 第1段 {} ==", run.0);
+        println!(
+            "pops={} truncated={} 前沿={} 条 unapplied_exports={} needs_sensitivity={:?} skipped_trans={}",
+            res.pops,
+            res.truncated,
+            res.frontier.len(),
+            res.unapplied_exports,
+            res.needs_sensitivity,
+            res.skipped_trans.len()
+        );
+        for s in &res.skipped_trans {
+            println!("  [skip] {s}");
+        }
+        for (i, e) in res.frontier.iter().enumerate() {
+            println!(
+                "  前沿[{}] steps={} atk={} def={} hp={} gold={} y/r/b={}/{}/{} killable={} path={}",
+                i, e.steps, e.state.atk, e.state.def, e.state.hp, e.state.gold,
+                e.state.yellow, e.state.red, e.state.blue, e.killable,
+                e.path.join(" → ")
+            );
+            if !e.gates.is_empty() {
+                println!("    gates: {}", e.gates.join("; "));
+            }
+        }
+        // 落盘
+        let out = args
+            .iter()
+            .position(|a| a == "--out")
+            .and_then(|i| args.get(i + 1))
+            .cloned();
+        let mut js = String::from("{\n  \"segment\": \"seg1_f51-f54_f1-f10\",\n  \"pops\": ");
+        js.push_str(&res.pops.to_string());
+        js.push_str(",\n  \"truncated\": ");
+        js.push_str(if res.truncated { "true" } else { "false" });
+        js.push_str(",\n  \"unapplied_exports\": ");
+        js.push_str(&res.unapplied_exports.to_string());
+        js.push_str(",\n  \"needs_sensitivity\": [");
+        js.push_str(&res.needs_sensitivity.iter().map(|t| t.to_string()).collect::<Vec<_>>().join(","));
+        js.push_str("],\n  \"skipped_trans\": [");
+        js.push_str(&res.skipped_trans.iter().map(|s| format!("\"{s}\"")).collect::<Vec<_>>().join(","));
+        js.push_str("],\n  \"frontier\": [");
+        for (i, e) in res.frontier.iter().enumerate() {
+            if i > 0 {
+                js.push(',');
+            }
+            js.push_str(&format!(
+                "\n    {{\"steps\": {}, \"killable\": {}, \"atk\": {}, \"def\": {}, \"hp\": {}, \"gold\": {}, \
+                 \"yellow\": {}, \"red\": {}, \"blue\": {}, \"path\": [{}], \"gates\": [{}]}}",
+                e.steps, e.killable, e.state.atk, e.state.def, e.state.hp, e.state.gold,
+                e.state.yellow, e.state.red, e.state.blue,
+                e.path.iter().map(|p| format!("\"{p}\"")).collect::<Vec<_>>().join(","),
+                e.gates.iter().map(|g| format!("\"{g}\"")).collect::<Vec<_>>().join(","),
+            ));
+        }
+        js.push_str("\n  ]\n}\n");
+        match out {
+            Some(path) => std::fs::write(&path, &js).unwrap_or_else(|e| panic!("写 {path}: {e}")),
+            None => print!("{js}"),
+        }
+        return;
+    }
+    if args.first().map(|s| s.as_str()) == Some("probe-f13") {
+        // S2 矛盾探测器（引擎实测）：f13 火环是否挡楼梯主径。
+        let (input, _shops) = solve_global_input(1);
+        let lv = input
+            .floors
+            .get(&13)
+            .unwrap_or_else(|| panic!("f13 不在层表（真数据加载失败，禁回落）"));
+        let ents: Vec<(i32, i32, i32)> =
+            lv.entities.iter().map(|e| (e.ty, e.x, e.y)).collect();
+        let stairs: Vec<(i32, i32)> = lv
+            .entities
+            .iter()
+            .filter(|e| e.ty == 7 || e.ty == 8)
+            .map(|e| (e.x, e.y))
+            .collect();
+        let p = game_solver::outer::probe_fire_ring(lv.cols, lv.rows, &lv.terrain, &ents, (1, 11), &stairs, (6, 3))
+            .unwrap_or_else(|e| panic!("f13 probe 前提不成立: {e}"));
+        println!("== probe-f13（引擎实测，坐标=当前题面常量）==");
+        println!("ty10 火环 {} 处: {:?}", p.ty10_cells.len(), p.ty10_cells);
+        println!("楼梯 {:?} 可达（火环=墙口径）: {}", p.stairs, p.stairs_reachable);
+        println!("金箍棒格 (6,3) 不经火环可达: {}", p.cudgel_reachable_without_fire);
+        let verdict = if p.stairs_reachable && !p.cudgel_reachable_without_fire {
+            "无矛盾：火环只隔离 (6,3) 金箍棒，不挡楼梯主径"
+        } else if p.stairs_reachable {
+            "火环不挡主径但 (6,3) 可绕过（与 S1 块图不一致，待核）"
+        } else {
+            "矛盾成立：火环挡住楼梯主径（需改题面理解）"
+        };
+        println!("结论: {verdict}");
+        let out = args
+            .iter()
+            .position(|a| a == "--out")
+            .and_then(|i| args.get(i + 1))
+            .cloned();
+        let js = format!(
+            "{{\n  \"ty10_cells\": {:?},\n  \"stairs\": {:?},\n  \"stairs_reachable\": {},\n  \"cudgel_reachable_without_fire\": {},\n  \"verdict\": \"{verdict}\"\n}}\n",
+            p.ty10_cells, p.stairs, p.stairs_reachable, p.cudgel_reachable_without_fire
+        );
+        match out {
+            Some(path) => std::fs::write(&path, &js).unwrap_or_else(|e| panic!("写 {path}: {e}")),
+            None => {}
+        }
+        return;
+    }
     if args.first().map(|s| s.as_str()) == Some("solve-global") {
             // C5（计划 §4 批3 判据③）：--bound 层间节点扩展数上限（支持 1e6 科学计数）、--out 落盘（缺省 stdout）。
             let bound = args
