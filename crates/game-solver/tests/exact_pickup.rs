@@ -103,6 +103,12 @@ fn s0_spec(hp: i32) -> PlayerSpec {
 }
 
 /// f3 的**链路入场态**（A 级：`examples/f3_bound.rs::f3_chain_player` 同值）。
+///
+/// 【2026-11-23 更正】`gold` 由 225 改为 1231：225 是 P9 时期外层链的旧值，
+/// 现行真链 `docs/findings/outer-chain-real.json` 的 `prefix_floors` 里 f3 的
+/// `in_player.gold == 1231`（f51 0 → f52 1021 → f53 1227 → f1 1231 → f3 1231）。
+/// 金币不进 DP 的任何轴（`PickupGain` 无 gold 轴、`cmp_exit` 的 gold 只在跨出口
+/// 择优时用），所以本次更正只影响出层金断言，不改 hp/keys/steps 的既有期望。
 fn f3_chain_player() -> PlayerSpec {
     let mut item_types = vec![0u8; 32];
     let mut item_uses = vec![0u8; 32];
@@ -115,7 +121,7 @@ fn f3_chain_player() -> PlayerSpec {
         yellow: 0,
         blue: 0,
         red: 0,
-        gold: 225,
+        gold: 1231,
         item_types,
         item_uses,
         item_stack_size: 1,
@@ -615,15 +621,13 @@ fn s6a_exact_dp_key_floor_f3() {
         "出层必须至少带 2 把黄钥（f4 入场需求），实测 {}",
         ex.out_player.yellow
     );
-    // 【实测更正 2026-11-23】方案预测 `gold ≥ 1256` **不成立**：1256 是 s5 外层链 seg1
-    // （11 层）的末态金币（`docs/findings/2026-11-23-s5-convergence.md:57`），不是 f3
-    // 单层出层金。本 fixture 入场金 = 225（`f3_chain_player`），f3 的 7 只零伤怪赏金
-    // 合计 25，真引擎回放（`adopted` ⇒ `validate_outcomes` 逐字段核对）出层金 = 250；
-    // `key_floor=None` 实测同为 250 ⇒ floor 不改 gold。这里钉**实测值**而不是把预测值
-    // 改小迁就：gold 一旦变化本条就红。
+    // 【2026-11-23 更正】方案预测 `gold ≥ 1256` 是对的，此前实测 250 是因为本 fixture
+    // 的入场金还停在 P9 旧值 225（现改为真链的 1231，见 `f3_chain_player` 文档）。
+    // 真链 f3：`in_player.gold == 1231`（outer-chain-real.json 的 prefix_floors），
+    // 7 只零伤怪赏金合计 +25 ⇒ 出层 1256。`key_floor=None` 实测同值 ⇒ floor 不改 gold。
     assert_eq!(
-        ex.out_player.gold, 250,
-        "f3 单层出层金 = 入场 225 + 7 杀赏金 25；方案预测的 1256 是 11 层链末态金"
+        ex.out_player.gold, 1256,
+        "f3 出层金 = 真链入场 1231 + 7 杀赏金 25"
     );
     assert!(
         (81..=88).contains(&st.steps),
