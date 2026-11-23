@@ -23,7 +23,8 @@ use game_core::combat::{scale_enemy_stats, CombatTables};
 use game_solver::exact_pickup::exact_stat;
 use game_solver::ingest::{ingest, SolverInput};
 use game_solver::solve_local::{
-    load_floor, solve_local_exit_toward, solve_local_exit_toward_shops, EntSpec,
+    load_floor, solve_local_exit_toward, solve_local_exit_toward_shops,
+    solve_local_exit_toward_shops_floor, EntSpec,
     ExitKind, ExitSpec, LevelSpec, PlayerSpec, SolveInput,
 };
 use std::path::PathBuf;
@@ -561,5 +562,152 @@ fn exact_dp_adopts_simple_layer() {
     assert!(st.adopted, "两件拾取的层必须被精确解接管");
     assert_eq!(ex.out_hp, 500, "100 + 2×200");
     assert_eq!(st.picks, 2);
+}
+
+
+// ---------------------------------------------------------------------------
+// 【S6a】key_floor 落到**精确 DP 的终态比较器**（方案 §2.3 / §5 S6a 首判据）。
+//
+// f3 第 2 次访问的真实链路态：`toward=f4`（上梯 (11,11)）、下一层需求 (2,0,0)。
+// 旧版每出口只留「hp 最大、同 hp 步数最小」一个终态 ⇒ 出层 `keys=[0,1,0]`
+// （8 把黄钥只捡 5 把、全花在 5 扇门上），链路上看就是「缺 2 把黄钥」。
+// 终态比较器加入 key_floor 维（hp → 满足 floor → steps）后必须选一个**hp 不变、
+// 多带 2 把黄钥**的终态；若把 floor 维删掉，本条必须红（M1）。
+// ---------------------------------------------------------------------------
+#[test]
+fn s6a_exact_dp_key_floor_f3() {
+    let si = load_si();
+    let inp = floor_input(&si, 3);
+    let ps = f3_chain_player();
+    let (ex, hit) = solve_local_exit_toward_shops_floor(
+        &inp,
+        F3_ENTRY,
+        &ps,
+        F3_FLAGS,
+        None,
+        Some(4),
+        &si.shops,
+        Some([2, 0, 0]),
+    );
+    let st = exact_stat();
+    println!(
+        "[S6a] f3 floor=Some([2,0,0]) hit={} ok={} trunc={} hp={} gold={} keys=({},{},{}) steps={} exit={:?} exact={} reason={:?} states={} stat={:?}",
+        hit,
+        ex.ok,
+        ex.truncated,
+        ex.out_hp,
+        ex.out_player.gold,
+        ex.out_player.yellow,
+        ex.out_player.blue,
+        ex.out_player.red,
+        st.steps,
+        ex.exit,
+        st.adopted,
+        st.reason,
+        st.states,
+        st
+    );
+    assert!(ex.ok && !ex.truncated, "ok && !truncated：ok={} trunc={}", ex.ok, ex.truncated);
+    assert!(st.adopted, "f3 必须仍由精确 DP 接管，reason={:?}", st.reason);
+    assert_eq!(ex.out_hp, F3_MAX_HP, "key_floor 不许牺牲 hp：必须仍是 4027");
+    assert!(
+        ex.out_player.yellow >= 2,
+        "出层必须至少带 2 把黄钥（f4 入场需求），实测 {}",
+        ex.out_player.yellow
+    );
+    // 【实测更正 2026-11-23】方案预测 `gold ≥ 1256` **不成立**：1256 是 s5 外层链 seg1
+    // （11 层）的末态金币（`docs/findings/2026-11-23-s5-convergence.md:57`），不是 f3
+    // 单层出层金。本 fixture 入场金 = 225（`f3_chain_player`），f3 的 7 只零伤怪赏金
+    // 合计 25，真引擎回放（`adopted` ⇒ `validate_outcomes` 逐字段核对）出层金 = 250；
+    // `key_floor=None` 实测同为 250 ⇒ floor 不改 gold。这里钉**实测值**而不是把预测值
+    // 改小迁就：gold 一旦变化本条就红。
+    assert_eq!(
+        ex.out_player.gold, 250,
+        "f3 单层出层金 = 入场 225 + 7 杀赏金 25；方案预测的 1256 是 11 层链末态金"
+    );
+    assert!(
+        (81..=88).contains(&st.steps),
+        "key_floor 只许吃 steps 维，且上界 88（旧 81 + ≤7）：实测 {}",
+        st.steps
+    );
+    assert!(
+        st.states < 6_000_000,
+        "不许撞 state_cap（预算 6_000_000），实测 states={}",
+        st.states
+    );
+    assert!(hit, "toward=4 必须命中 f3 的上行出口");
+    assert_eq!(ex.exit, Some((11, 11)), "f3→f4 的出口是上梯 (11,11)");
+    assert_eq!(ex.route.len() as i32, st.steps, "route.len() 与 DP 步数同口径");
+}
+
+// ---------------------------------------------------------------------------
+// 【S6a】memo 键必须含 `key_floor`（方案 R2 / §5 `s6a_layer_memo_distinguishes_key_floor`）。
+//
+// 同一输入先以 floor=None 求一次（6 步、不捡绕路黄钥），再以 floor=Some([1,0,0])
+// 求一次：后者必须**重算**并带回 1 把黄钥。若 memo 键漏掉 key_floor，第二次会
+// 命中第一次的缓存（`hp_bound_stat().reason == "memo_hit"`、keys 不变）⇒ 红。
+// ---------------------------------------------------------------------------
+#[test]
+fn s6a_layer_memo_distinguishes_key_floor() {
+    use game_solver::solve_local::{solve_layer_with_floor, ClosurePolicy};
+    let si = load_si();
+    let mut ps = s0_spec(500);
+    ps.atk = 900;
+    let inp = synth_rect(
+        &si,
+        7,
+        5,
+        (6, 1),
+        vec![
+            // 直路上：+200 hp
+            EntSpec { ty: 32, x: 3, y: 1, param: 0 },
+            // 绕路（3,3）：1 把黄钥，对 hp 零贡献 ⇒ 旧终态比较器不会捡
+            EntSpec { ty: 26, x: 3, y: 3, param: 0 },
+            // 零损血 cat8：挡住 pure_pickup 闭式，逼出精确 DP
+            EntSpec { ty: 41, x: 0, y: 4, param: 0 },
+        ],
+        ps.clone(),
+    );
+    let (ok0, g0) = solve_layer_with_floor(
+        &inp, SYNTH_ENTRY, None, ps.clone(), 0, ClosurePolicy::OFF, None, &[], None,
+    );
+    assert!(ok0 && !g0.is_empty(), "floor=None 必须有解");
+    let st0 = exact_stat();
+    assert!(st0.adopted, "夹具必须由精确 DP 接管，reason={:?}", st0.reason);
+    let keys0 = g0.iter().map(|g| g.keys).max().expect("非空");
+    let (ok1, g1) = solve_layer_with_floor(
+        &inp,
+        SYNTH_ENTRY,
+        None,
+        ps.clone(),
+        0,
+        ClosurePolicy::OFF,
+        None,
+        &[],
+        Some([1, 0, 0]),
+    );
+    assert!(ok1 && !g1.is_empty(), "floor=Some([1,0,0]) 必须有解");
+    let st1 = exact_stat();
+    let keys1 = g1.iter().map(|g| g.keys).max().expect("非空");
+    println!(
+        "[S6a-memo] keys0={:?} steps0={} keys1={:?} steps1={} hp_bound_reason={:?} stat={:?}",
+        keys0,
+        st0.steps,
+        keys1,
+        st1.steps,
+        game_solver::hp_bound::hp_bound_stat().reason,
+        st1
+    );
+    assert_ne!(
+        game_solver::hp_bound::hp_bound_stat().reason, "memo_hit",
+        "第二次必须重算（memo 键含 key_floor），不许回放无 floor 的旧解"
+    );
+    assert!(st1.adopted, "第二次同样由精确 DP 接管，reason={:?}", st1.reason);
+    assert_eq!(keys0.0, 0, "floor=None：绕路黄钥对 (hp,steps) 零贡献 ⇒ 不捡");
+    assert!(
+        keys1.0 >= 1,
+        "floor=Some([1,0,0])：必须带回 ≥1 把黄钥（多花步数换钥），实测 {:?}",
+        keys1
+    );
 }
 

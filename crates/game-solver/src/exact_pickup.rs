@@ -151,8 +151,23 @@ pub(crate) fn try_exact_dp(
     policy: ClosurePolicy,
     shops: &[game_data::defs::ShopGoodDef],
 ) -> Option<Vec<LayerGoal>> {
+    try_exact_dp_floor(input, entry, root_ents, player_in, flags_in, policy, shops, None)
+}
+
+/// 带钥匙下限的精确 DP（S6a）：`key_floor` 只影响**终态挑选**，不参与状态支配。
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn try_exact_dp_floor(
+    input: &SolveInput,
+    entry: (i32, i32),
+    root_ents: &[EntRec],
+    player_in: &PlayerSpec,
+    flags_in: u128,
+    policy: ClosurePolicy,
+    shops: &[game_data::defs::ShopGoodDef],
+    key_floor: Option<[i32; 3]>,
+) -> Option<Vec<LayerGoal>> {
     let mut st = ExactStat { attempted: true, ..ExactStat::CLEARED };
-    let out = run(input, entry, root_ents, player_in, flags_in, policy, shops, &mut st);
+    let out = run(input, entry, root_ents, player_in, flags_in, policy, shops, key_floor, &mut st);
     exact_stat_set(st);
     out
 }
@@ -207,6 +222,7 @@ fn run(
     flags_in: u128,
     policy: ClosurePolicy,
     shops: &[game_data::defs::ShopGoodDef],
+    key_floor: Option<[i32; 3]>,
     st: &mut ExactStat,
 ) -> Option<Vec<LayerGoal>> {
     // ---- G6' 策略：Q1/Q2 的「零伤怪自动收」语义与「精确最优」不同口径 ⇒ 只接默认面 ----
@@ -286,7 +302,16 @@ fn run(
         return give_up(st, r, t);
     }
 
-    // ---- 逐出口取最优（hp 最大；同 hp 取 steps 最小；再同取状态序最小 ⇒ 确定性）----
+    // ---- 逐出口取最优：hp 最大 → 满足 key_floor 优先 → steps 最小 → 状态序最小 ----
+    //
+    // 【S6a】`key_floor` 只做**终态二值优先级**，不参与状态支配（不影响 `states` 规模）：
+    // 同 hp 的终态里先挑「出层至少带这些钥匙」的，仍同才比步数。`key_floor = None` 时
+    // `(nm, bm)` 恒为 `(true, true)` ⇒ 与旧判据（hp 大、同 hp 步数小）逐字节同序。
+    //
+    // 终态钥匙直接取现成 `keys_at`（入场钥匙 + 本态拾取钥匙和 − 已开门消耗），
+    // 与 `LayerGoal.keys` / 真引擎回放的出层玩家态同一口子，不另写一套算术。
+    // DP 不建模 gold（赏金只在 `player_at` 里回填），故序里没有 gold 维——
+    // 这里不调 `objective::cmp_exit_floor`（它含 gold），只共用 floor 判定。
     let mut goals: Vec<LayerGoal> = Vec::new();
     // 与 `goals` 一一对应的终态位图 `(pick, door, kill)`——统计口径取自它。
     let mut masks: Vec<(u32, u32, u32)> = Vec::new();
@@ -299,9 +324,24 @@ fn run(
             let better = match best {
                 None => true,
                 Some(b) => {
-                    let (hb, sb) = (dp.hp_at(dp.states[b as usize].pm), dp.states[b as usize].steps);
+                    let bs = dp.states[b as usize];
+                    let (hb, sb) = (dp.hp_at(bs.pm), bs.steps);
                     let hn = dp.hp_at(n.pm);
-                    hn > hb || (hn == hb && n.steps < sb)
+                    let (nm, bm) = match key_floor {
+                        None => (true, true),
+                        Some(f) => {
+                            let kb = dp.keys_at(bs.pm, bs.dm);
+                            let kn = dp.keys_at(n.pm, n.dm);
+                            (
+                                crate::objective::meets_key_floor([kn.0, kn.1, kn.2], f),
+                                crate::objective::meets_key_floor([kb.0, kb.1, kb.2], f),
+                            )
+                        }
+                    };
+                    hn.cmp(&hb)
+                        .then(nm.cmp(&bm))
+                        .then(sb.cmp(&n.steps))
+                        == std::cmp::Ordering::Greater
                 }
             };
             if better {

@@ -69,6 +69,31 @@ pub fn cmp_exit(a: &ExitScore, b: &ExitScore) -> Ordering {
         .then(a.steps.cmp(&b.steps))
 }
 
+/// `key_floor` 满足判定（逐色 `≥`）。
+///
+/// 「出层时至少带这些钥匙」的**唯一**语义实现：精确 DP 的终态比较与 Search 路径的
+/// 目标挑选共用它，避免两套算术漂移（S6a）。
+pub fn meets_key_floor(keys: [i32; 3], floor: [i32; 3]) -> bool {
+    keys[0] >= floor[0] && keys[1] >= floor[1] && keys[2] >= floor[2]
+}
+
+/// 带 `key_floor` 的出层比较（S6a）：`hp → gold → 满足 key_floor → steps`。
+///
+/// `key_floor = None` ⇒ 直接委托 [`cmp_exit`]，**逐字节等价**（不重排、不加分支）。
+/// `Some` ⇒ floor 只作为一个**二值**优先级插在 gold 之后：
+/// - 血少或金少的解**永远**不能靠多带钥匙翻盘（既有两条钉死断言不变）；
+/// - 同 hp 同 gold 时才看是否满足 floor，仍未分胜负才比 steps。
+pub fn cmp_exit_floor(a: &ExitScore, b: &ExitScore, key_floor: Option<[i32; 3]>) -> Ordering {
+    let Some(floor) = key_floor else {
+        return cmp_exit(a, b);
+    };
+    let keys = |s: &ExitScore| [s.keys[0] as i32, s.keys[1] as i32, s.keys[2] as i32];
+    b.hp.cmp(&a.hp)
+        .then(b.gold.cmp(&a.gold))
+        .then(meets_key_floor(keys(b), floor).cmp(&meets_key_floor(keys(a), floor)))
+        .then(a.steps.cmp(&b.steps))
+}
+
 /// 层目标 → 观测投影。gold 取出层玩家态；keys 取目标集记录的出层钥匙。
 pub fn score_of_goal(g: &LayerGoal) -> ExitScore {
     let clamp = |v: i32| v.clamp(0, u8::MAX as i32) as u8;

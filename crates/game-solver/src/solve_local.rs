@@ -409,7 +409,25 @@ pub fn solve_layer_shops(
     flags: u128,
     shops: &[game_data::defs::ShopGoodDef],
 ) -> (bool, Vec<LayerGoal>) {
-    solve_layer_with(input, entry, ents, player, flags, ClosurePolicy::OFF, None, shops)
+    solve_layer_shops_floor(input, entry, ents, player, flags, shops, None)
+}
+
+/// 【S6a】[`solve_layer_shops`] 的**带钥匙下限**变体。
+///
+/// `key_floor = Some([y,b,r])` ⇒ 「出层时至少带这些钥匙」：它落到精确 DP 的**终态挑选**
+/// （同 hp 里优先满足下限的终态）与通用 Search 的目标择优（`cmp_exit_floor`），
+/// 并进入 `LAYER_MEMO` 键——不同 floor 的解不得互相回放。
+/// `None` ⇒ 与 [`solve_layer_shops`] 逐字节同路径（既有调用点零改动）。
+pub fn solve_layer_shops_floor(
+    input: &SolveInput,
+    entry: (i32, i32),
+    ents: Option<&[EntRec]>,
+    player: PlayerSpec,
+    flags: u128,
+    shops: &[game_data::defs::ShopGoodDef],
+    key_floor: Option<[i32; 3]>,
+) -> (bool, Vec<LayerGoal>) {
+    solve_layer_with_floor(input, entry, ents, player, flags, ClosurePolicy::OFF, None, shops, key_floor)
 }
 
 /// S5 段分治：**锚击杀**层解——`boss_ty` 的撞杀（`bump` 杀）即记
@@ -591,8 +609,29 @@ pub fn solve_local_exit_toward_shops(
     toward: Option<i32>,
     shops: &[game_data::defs::ShopGoodDef],
 ) -> (ExitSolve, bool) {
+    solve_local_exit_toward_shops_floor(
+        input, entry, player_in, flags_in, ents_in, toward, shops, None,
+    )
+}
+
+/// 【S6a】[`solve_local_exit_toward_shops`] 的**带钥匙下限**变体。
+///
+/// `key_floor = Some([y,b,r])` ⇒ 层解按「出层至少带这些钥匙」求，择优走
+/// [`crate::objective::cmp_exit_floor`]（hp → gold → 满足 floor → steps）；
+/// `None` ⇒ 与既有函数逐字节同路径（[`solve_local_exit_toward_shops`] 直接委托本函数）。
+#[allow(clippy::too_many_arguments)]
+pub fn solve_local_exit_toward_shops_floor(
+    input: &SolveInput,
+    entry: (i32, i32),
+    player_in: &PlayerSpec,
+    flags_in: u128,
+    ents_in: Option<&[EntRec]>,
+    toward: Option<i32>,
+    shops: &[game_data::defs::ShopGoodDef],
+    key_floor: Option<[i32; 3]>,
+) -> (ExitSolve, bool) {
     let (reachable, goals) =
-        solve_layer_shops(input, entry, ents_in, player_in.clone(), flags_in, shops);
+        solve_layer_shops_floor(input, entry, ents_in, player_in.clone(), flags_in, shops, key_floor);
     let truncated = take_layer_trunc().is_some();
     let prefer: Vec<&LayerGoal> = match (toward, input.level.as_ref()) {
         (Some(t), Some(lv)) => goals
@@ -604,9 +643,9 @@ pub fn solve_local_exit_toward_shops(
     let hit = !prefer.is_empty();
     // 【P10】定向子集上的择优同样走分层软契约（同一份比较器，不写第二份）。
     let best = if hit {
-        best_goal(prefer.into_iter())
+        best_goal_floor(prefer.into_iter(), key_floor)
     } else {
-        pick_exit(&goals)
+        pick_exit_floor(&goals, key_floor)
     };
     (materialize_exit(input, reachable, best, player_in, flags_in, ents_in, truncated), hit)
 }
@@ -651,9 +690,17 @@ pub fn goal_edge(level: &LevelSpec, g: &LayerGoal) -> Option<(i32, bool)> {
 /// 【P10】在**已筛子集**上按分层软契约取最优（与 [`pick_exit`] 同一比较器，
 /// 不写第二份 tie-break；demand 绝不参与——objective.rs 模块 doc 契约）。
 fn best_goal<'g>(goals: impl Iterator<Item = &'g LayerGoal>) -> Option<&'g LayerGoal> {
+    best_goal_floor(goals, None)
+}
+
+/// 【S6a】[`best_goal`] 的 floor 面：`key_floor = None` ⇒ 与 [`best_goal`] 同路径。
+fn best_goal_floor<'g>(
+    goals: impl Iterator<Item = &'g LayerGoal>,
+    key_floor: Option<[i32; 3]>,
+) -> Option<&'g LayerGoal> {
     goals.fold(None, |best: Option<&'g LayerGoal>, g| match best {
         None => Some(g),
-        Some(b) if better_exit(g, b) => Some(g),
+        Some(b) if better_exit_floor(g, b, key_floor) => Some(g),
         some => some,
     })
 }
@@ -662,9 +709,17 @@ fn best_goal<'g>(goals: impl Iterator<Item = &'g LayerGoal>) -> Option<&'g Layer
 /// （hp 大 → gold 多 → steps 少），Equal 时路线字典序做**决定性** tie-break
 /// （契约外，保证同输入同输出；demand 字段不参与比较）。
 fn better_exit(a: &LayerGoal, b: &LayerGoal) -> bool {
-    match crate::objective::cmp_exit(
+    better_exit_floor(a, b, None)
+}
+
+/// 【S6a】[`better_exit`] 的 floor 面：
+/// - `None` ⇒ 委托 [`crate::objective::cmp_exit`]（既有序，逐字节相同）；
+/// - `Some` ⇒ [`crate::objective::cmp_exit_floor`]（hp → gold → 满足 floor → steps）。
+fn better_exit_floor(a: &LayerGoal, b: &LayerGoal, key_floor: Option<[i32; 3]>) -> bool {
+    match crate::objective::cmp_exit_floor(
         &crate::objective::score_of_goal(a),
         &crate::objective::score_of_goal(b),
+        key_floor,
     ) {
         std::cmp::Ordering::Less => true,
         std::cmp::Ordering::Greater => false,
@@ -675,11 +730,16 @@ fn better_exit(a: &LayerGoal, b: &LayerGoal) -> bool {
 /// [`better_exit`] 的 argbest 面（替代旧 `pick::<HpLoss,_>` 在出层口的用途；
 /// 旧比较器仍归 [`solve_local`]（Q1 遗留面）专用）。
 fn pick_exit(goals: &[LayerGoal]) -> Option<&LayerGoal> {
+    pick_exit_floor(goals, None)
+}
+
+/// 【S6a】[`pick_exit`] 的 floor 面。
+fn pick_exit_floor(goals: &[LayerGoal], key_floor: Option<[i32; 3]>) -> Option<&LayerGoal> {
     let mut best: Option<&LayerGoal> = None;
     for g in goals {
         best = Some(match best {
             None => g,
-            Some(b) if better_exit(g, b) => g,
+            Some(b) if better_exit_floor(g, b, key_floor) => g,
             Some(b) => b,
         });
     }
@@ -783,6 +843,26 @@ pub fn solve_layer_with(
     boss_target: Option<i32>,
     shops: &[ShopGoodDef],
 ) -> (bool, Vec<LayerGoal>) {
+    solve_layer_with_floor(input, entry, ents, player, flags, policy, boss_target, shops, None)
+}
+
+/// 【S6a】[`solve_layer_with`] 的**带钥匙下限**变体（唯一实现体）。
+///
+/// `key_floor` 是层解的输入之一，因此**必须进 `LAYER_MEMO` 键**（缺它 ⇒ 无 floor 的旧解
+/// 被回放，floor 等于没生效）；同时一路带到精确 DP（终态挑选）与 Search 目标择优。
+/// `None` ⇒ 与 [`solve_layer_with`] 逐字节同路径。
+#[allow(clippy::too_many_arguments)]
+pub fn solve_layer_with_floor(
+    input: &SolveInput,
+    entry: (i32, i32),
+    ents: Option<&[EntRec]>,
+    player: PlayerSpec,
+    flags: u128,
+    policy: ClosurePolicy,
+    boss_target: Option<i32>,
+    shops: &[ShopGoodDef],
+    key_floor: Option<[i32; 3]>,
+) -> (bool, Vec<LayerGoal>) {
     LAYER_TRUNC.with(|f| f.set(None));
     GOLD_PEAK.with(|c| c.set(0));
     SHOP_BUYS.with(|c| c.set((0, 0)));
@@ -819,6 +899,8 @@ pub fn solve_layer_with(
     //                                 结果的组成部分，缺它则「先小界后大界」回放截断结果）
     //   9. `shops_key(shops)`       —— **商品表内容**的规范编码（P3 收口2 补；缺它则空表
     //                                 会回放带买臂的解，复核 R3 A 级探针实证）
+    //  10. `key_floor`             —— **出层钥匙下限**（S6a 补；缺它则无 floor 的旧解被
+    //                                 回放，「出层至少带这些钥匙」等于没生效）
     // 于是「键≡`solve_layer_with` 的全部实参（`input` 经 `level_digest` 压成内容摘要）」
     // 成立——**这是本次核对后才敢写的等式**，不是自称。
     // 唯一没进键的输入字段：`ShopGoodDef.fail_hint`（只喂 `show_overlay_message` 文案，
@@ -836,6 +918,8 @@ pub fn solve_layer_with(
         boss_target,
         node_limit,
         shops_key(shops),
+        // S6a：key_floor 改变层解 ⇒ 进键（否则不同 floor 互相回放）
+        key_floor,
     );
     if let Some((
         hit_ok,
@@ -908,8 +992,8 @@ pub fn solve_layer_with(
     // 未命中 ⇒ fail-closed 落通用搜索，理由写进 `exact_pickup_stat()`（禁静默）。
     // ---------------------------------------------------------------------
     let exact_attempt = if boss_target.is_none() {
-        Some(crate::exact_pickup::try_exact_dp(
-            input, entry, &root_ents, &player, flags, policy, shops,
+        Some(crate::exact_pickup::try_exact_dp_floor(
+            input, entry, &root_ents, &player, flags, policy, shops, key_floor,
         ))
     } else {
         None
@@ -1002,7 +1086,8 @@ thread_local! {
     /// （玩具测试同 floor 多套 LevelSpec）；键含 `node_limit`（层界也是输入之一——
     /// 否则同线程先小界后大界会回放旧的截断结果，见 `solve_layer_with` 调用点注）；
     /// 键含 `shops_key`（商品表内容——否则空表回放真表买臂解，P3 复核 R3）；
-    /// 完整 9 项清单见 `solve_layer_with` 的 lookup 注（那里是唯一真相源）。
+    /// 键含 `key_floor`（S6a——否则无 floor 旧解回放，下限等于没生效）。
+    /// 完整 10 项清单见 `solve_layer_with` 的 lookup 注（那里是唯一真相源）。
     /// thread_local=多线程测试隔离；缓存纯加速、不改输出与遍历序（确定性不受影响）。
     static LAYER_MEMO: RefCell<
         HashMap<
@@ -1018,6 +1103,8 @@ thread_local! {
                 Option<i32>,
                 usize,
                 Vec<ShopKeyRow>,
+                // S6a：出层钥匙下限进键
+                Option<[i32; 3]>,
             ),
             (
                 bool,

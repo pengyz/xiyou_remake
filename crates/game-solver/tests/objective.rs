@@ -18,7 +18,7 @@
 
 use game_core::combat::{scale_enemy_stats, CombatTables, PlayerCombat};
 use game_data::defs::EnemyDef;
-use game_solver::objective::{cmp_exit, next_demand, ExitScore};
+use game_solver::objective::{cmp_exit, cmp_exit_floor, next_demand, ExitScore};
 use game_solver::solve_local::{EntSpec, LevelSpec, PlayerSpec, SolveInput};
 use game_solver::witness::{run_witness, WitnessCfg};
 use std::cmp::Ordering;
@@ -460,4 +460,74 @@ fn real_level_spec(f: i32) -> LevelSpec {
     )
     .expect("真数据层装载");
     inp.level.expect("真数据层必有 LevelSpec")
+}
+
+// ===========================================================================
+// 【S6a】`key_floor` 比较器（方案 §2.3 / §5）：`None` 全等 `cmp_exit`；`Some` 只做
+// 二值优先级，hp/gold 差异永远压过「多带钥匙」。
+// ===========================================================================
+
+/// 判据 `s6a_cmp_none_equals_cmp_exit`（方案 M5 的靶子）：
+/// `cmp_exit_floor(.., None)` 必须在整张网格上与 `cmp_exit` **逐组全等**。
+#[test]
+fn s6a_cmp_floor_none_equals_cmp_exit() {
+    let mut grid = Vec::new();
+    for hp in [4000, 4027] {
+        for gold in [0, 100, 500] {
+            for steps in [80, 81, 88] {
+                for k in 0..8u8 {
+                    // 每色只取 0 / 2（方案 §5 的采样域）
+                    let keys = [(k & 1) * 2, ((k >> 1) & 1) * 2, ((k >> 2) & 1) * 2];
+                    grid.push(score(hp, gold, keys, steps));
+                }
+            }
+        }
+    }
+    assert_eq!(grid.len(), 2 * 3 * 3 * 8, "网格点数");
+    let mut checked = 0usize;
+    for (i, a) in grid.iter().enumerate() {
+        for b in grid.iter().skip(i + 1) {
+            assert_eq!(
+                cmp_exit_floor(a, b, None),
+                cmp_exit(a, b),
+                "None 分支必须与 cmp_exit 全等：a={a:?} b={b:?}"
+            );
+            assert_eq!(
+                cmp_exit_floor(b, a, None),
+                cmp_exit(b, a),
+                "None 分支必须与 cmp_exit 全等（反向）：a={a:?} b={b:?}"
+            );
+            checked += 1;
+        }
+    }
+    assert!(checked >= 200, "至少 200 组采样，实测 {checked}");
+}
+
+/// floor 的**唯一位次**：hp → gold → 满足 floor → steps。
+/// 变异（把 floor 提到 hp/gold 之前）⇒ 前两条断言红（方案 M2 / R4）。
+#[test]
+fn s6a_keys_never_outrank_hp_or_gold_with_floor() {
+    let floor = Some([2, 0, 0]);
+    // 1) 血多钥少 vs 血少钥多 ⇒ 血多者胜（floor 不许换血）
+    let a = score(4100, 0, [0, 0, 0], 90);
+    let b = score(4000, 0, [2, 0, 0], 88);
+    assert_eq!(cmp_exit_floor(&a, &b, floor), Ordering::Less, "hp 永远优先于 key_floor");
+    assert_eq!(cmp_exit_floor(&b, &a, floor), Ordering::Greater);
+    // 2) 同血金多钥少 vs 金少钥多 ⇒ 金多者胜（floor 不许换金）
+    let e = score(4027, 500, [0, 0, 0], 88);
+    let f = score(4027, 100, [2, 0, 0], 88);
+    assert_eq!(cmp_exit_floor(&e, &f, floor), Ordering::Less, "gold 优先于 key_floor");
+    assert_eq!(cmp_exit_floor(&f, &e, floor), Ordering::Greater);
+    // 3) 同 hp 同 gold ⇒ 满足 floor 者胜（floor 唯一生效的位次）
+    let g = score(4027, 500, [0, 0, 0], 80);
+    let h = score(4027, 500, [2, 0, 0], 90);
+    assert_eq!(cmp_exit_floor(&h, &g, floor), Ordering::Less, "同 hp 同 gold ⇒ 带够钥匙者胜");
+    assert_eq!(cmp_exit_floor(&g, &h, floor), Ordering::Greater);
+    // 4) 同 hp 同 gold 都不满足 floor ⇒ 退化到 steps（floor 判断相同不颠倒序）
+    let j = score(4027, 500, [1, 0, 0], 81);
+    let k = score(4027, 500, [0, 0, 0], 88);
+    assert_eq!(cmp_exit_floor(&j, &k, floor), Ordering::Less, "都未达 floor ⇒ 仍按 steps");
+    // 5) 全部同 ⇒ steps 少者胜
+    let i = score(4027, 500, [2, 0, 0], 81);
+    assert_eq!(cmp_exit_floor(&i, &h, floor), Ordering::Less, "同 floor 结论 ⇒ steps 少者胜");
 }
