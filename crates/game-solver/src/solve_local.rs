@@ -4613,6 +4613,18 @@ impl std::fmt::Display for RouteReplayError {
 /// 每步都走与 `expand` 同一条转移实现（`pickup_step` / `gate_arrive` /
 /// `gate_bump` / `consume_key_for_door` / `bump_outcome`+`apply_kill_drops` /
 /// `shop_offer`+`apply_shop_effect`）；任一步不成立 ⇒ 具名 `Err`。
+/// `Terminal` 是否出现在该层 route 的**末位**：其后只允许 `gate x,y` 注记 token。
+///
+/// 生产侧契约（Search 门臂）：命中 `GateArrive::Terminal` 后只记节点 + 追加
+/// `gate x,y` 注记，**不再入队**（`solve_local.rs:2944-2983`）⇒ Terminal 是出层动作，
+/// 其后不可能再有走格/撞怪 token。回放侧此前无条件接受 Terminal，mid-route 的
+/// Terminal 会静默续走（S5 复核 F2 ①）。
+fn terminal_at_route_end(route: &[String], i: usize) -> bool {
+    route
+        .get(i + 1..)
+        .map_or(true, |rest| rest.iter().all(|t| t.starts_with("gate ")))
+}
+
 pub fn replay_route(
     input: &SolveInput,
     entry: (i32, i32),
@@ -4688,6 +4700,15 @@ fn replay_route_inner(
                 token: tok.clone(),
                 reason: reason.to_string(),
             };
+            // Terminal 只在 route 末位合法：其后只允许 gate 注记（见 `terminal_at_route_end`）。
+            let gate_ok = |g: GateArrive| match g {
+                GateArrive::Pass => None,
+                GateArrive::Terminal { .. } if terminal_at_route_end(route, i) => None,
+                GateArrive::Terminal { .. } => {
+                    Some("Terminal 只允许出现在该层 route 末位（其后仅 gate 注记）")
+                }
+                _ => Some("gate_arrive 非 Pass/Terminal"),
+            };
             let mut branched: Option<Vec<(St, usize)>> = None;
             if let Some(rest) = tok.strip_prefix("bump ") {
                 let Some((ty_s, xy)) = rest.split_once('@') else { dead = Some(fail("bump token 缺 @")); break; };
@@ -4724,8 +4745,8 @@ fn replay_route_inner(
                 // 【S5 缺口6】Script 换层门（floor1 6,9=门+83）经 gate_arrive 返回
                 // Terminal{..}——与 solver 出层边同语义（route 末尾跟 "gate x,y"
                 // 注记 token），不是失败；只有 Dropped（Stalled）算死。
-                if !matches!(s.gate_arrive(&mut cur, x, y), g if matches!(g, GateArrive::Pass | GateArrive::Terminal{..})) {
-                    dead = Some(fail("开门后 gate_arrive 非 Pass/Terminal"));
+                if let Some(msg) = gate_ok(s.gate_arrive(&mut cur, x, y)) {
+                    dead = Some(fail(msg));
                     break;
                 }
                 i += 1;
@@ -4743,11 +4764,16 @@ fn replay_route_inner(
             } else {
                 let Some((x, y)) = parse_xy(tok) else { dead = Some(fail("坐标 token 非法")); break; };
                 if (x, y) == cur.pos {
-                    // 前导入场格 token（route_gen 约定：首 token=入场格）——原位无操作。
-                    // 【S5 遗留黄2 前置修复】此前零位移被判「非邻接位移」，真求解
-                    // route（含入场格首 token）回放必红；先容忍该注记 token。
-                    i += 1;
-                    continue;
+                    // 零位移**只允许 route 首位**：`route_gen` 约定首 token=入场格
+                    // （`pos=entry`），属原位注记、无操作。mid-route 再出现同位置不是
+                    // 注记而是状态漂移（会掩盖「上一步没落地」），必须 dead——旧实现对
+                    // 任意重复位置静默 `i+=1`（S5 复核 F2 ②）。
+                    if i == 0 {
+                        i += 1;
+                        continue;
+                    }
+                    dead = Some(fail("零位移只允许 route 首位（入场格 token）；mid-route 同位置无效"));
+                    break;
                 }
                 if (x - cur.pos.0).abs() + (y - cur.pos.1).abs() != 1 {
                     dead = Some(fail("非邻接位移"));
@@ -4762,8 +4788,8 @@ fn replay_route_inner(
                     Cell::Move => {
                         cur.pos = (x, y);
                         cur.steps += 1;
-                        if !matches!(s.gate_arrive(&mut cur, x, y), g if matches!(g, GateArrive::Pass | GateArrive::Terminal{..})) {
-                            dead = Some(fail("走格 gate_arrive 非 Pass/Terminal"));
+                        if let Some(msg) = gate_ok(s.gate_arrive(&mut cur, x, y)) {
+                            dead = Some(fail(msg));
                             break;
                         }
                         i += 1;
@@ -4771,13 +4797,18 @@ fn replay_route_inner(
                     Cell::Shop(slot, ety) => {
                         // 两臂分支（买/走，同 token）——压栈回溯。
                         let mut arms: Vec<(St, usize)> = Vec::new();
+                        // mid-route Terminal：两臂都不许进栈，最终报具名原因（不许被
+                        // 「商店双臂皆不成立」掩盖）。
+                        let mut mid_terminal = false;
                         // 臂1（走）：地形可走 ⇒ 原 Move 臂。
                         if s.walkable(x, y) {
                             let mut ns = cur.clone();
                             ns.pos = (x, y);
                             ns.steps += 1;
-                            if matches!(s.gate_arrive(&mut ns, x, y), g if matches!(g, GateArrive::Pass | GateArrive::Terminal{..})) {
-                                arms.push((ns, i + 1));
+                            match gate_ok(s.gate_arrive(&mut ns, x, y)) {
+                                None => arms.push((ns, i + 1)),
+                                Some(msg) if msg.starts_with("Terminal") => mid_terminal = true,
+                                Some(_) => {}
                             }
                         }
                         // 臂2（买）：开价门过 ∧ 买得起 ∧ 效果可实施。
@@ -4789,14 +4820,20 @@ fn replay_route_inner(
                                     ns.ents.remove(slot);
                                     ns.pos = (x, y);
                                     ns.steps += 1;
-                                    if matches!(s.gate_arrive(&mut ns, x, y), g if matches!(g, GateArrive::Pass | GateArrive::Terminal{..})) {
-                                        arms.push((ns, i + 1));
+                                    match gate_ok(s.gate_arrive(&mut ns, x, y)) {
+                                        None => arms.push((ns, i + 1)),
+                                        Some(msg) if msg.starts_with("Terminal") => mid_terminal = true,
+                                        Some(_) => {}
                                     }
                                 }
                             }
                         }
                         if arms.is_empty() {
-                            dead = Some(fail("商店双臂皆不成立（不可走不可买）"));
+                            dead = Some(if mid_terminal {
+                                fail("Terminal 只允许出现在该层 route 末位（其后仅 gate 注记）")
+                            } else {
+                                fail("商店双臂皆不成立（不可走不可买）")
+                            });
                             break;
                         }
                         branched = Some(arms);

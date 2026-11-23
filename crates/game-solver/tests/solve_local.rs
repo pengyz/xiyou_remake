@@ -1500,3 +1500,52 @@ fn s5_bump_kill_moves_player_replay() {
     assert_eq!(res.unwrap().pos, (2, 1));
 }
 
+/// S5 复核 F2 ①：`Terminal` 只在该层 route 的**末位**才被接受（其后只允许
+/// `gate x,y` 注记 token）；mid-route 出现 Terminal 必须报 dead，不许静默续走。
+#[test]
+fn s5_replay_terminal_only_at_route_end() {
+    let input = fixture_gate(19, 0, 0);
+    let level = input.level.clone().unwrap();
+    let full = game_solver::solve_local::sprite_full(&level);
+    // 正例（末位）：门格 token 后只跟 gate 注记 ⇒ 必须仍是正常出层（放行侧判据）。
+    let ok_route: Vec<String> = ["6,10", "6,9", "gate 6,9"].iter().map(|s| s.to_string()).collect();
+    let ok = game_solver::solve_local::replay_route(
+        &input, level.start, &full, &level.player, 0, &ok_route,
+    );
+    assert!(ok.is_ok(), "门在末位（其后仅 gate 注记）必须正常出层：{ok:?}");
+    // 反例（mid-route）：Terminal 之后还有走格 token ⇒ 必须 dead。
+    let mid_route: Vec<String> = ["6,10", "6,9", "5,9"].iter().map(|s| s.to_string()).collect();
+    let mid = game_solver::solve_local::replay_route(
+        &input, level.start, &full, &level.player, 0, &mid_route,
+    );
+    let e = mid.expect_err("mid-route Terminal 必须报 dead（不许静默续走）");
+    assert_eq!(e.token_index, 1, "失败必须定位到 Terminal token：{e:?}");
+    assert!(e.reason.contains("末位"), "reason 必须点名「末位」：{e:?}");
+}
+
+/// S5 复核 F2 ②：零位移容忍只允许 route **首位**（入场格 token）。
+/// mid-route 重复位置必须 dead（旧实现对任意重复位置静默 `i+=1`）。
+#[test]
+fn s5_replay_zero_displacement_only_first_token() {
+    let input = fixture_gate(19, 0, 0);
+    let level = input.level.clone().unwrap();
+    let full = game_solver::solve_local::sprite_full(&level);
+    // 首位零位移=入场格注记 ⇒ 允许，后续门正常出层。
+    let ok_route: Vec<String> = ["6,10", "6,9", "gate 6,9"].iter().map(|s| s.to_string()).collect();
+    assert!(
+        game_solver::solve_local::replay_route(
+            &input, level.start, &full, &level.player, 0, &ok_route
+        )
+        .is_ok(),
+        "首位零位移（入场格 token）必须容忍"
+    );
+    // mid-route 再出现同位置 ⇒ 必须 dead。
+    let mid_route: Vec<String> =
+        ["6,10", "6,10", "6,9"].iter().map(|s| s.to_string()).collect();
+    let mid = game_solver::solve_local::replay_route(
+        &input, level.start, &full, &level.player, 0, &mid_route,
+    );
+    let e = mid.expect_err("mid-route 零位移必须 dead（只允许首位入场格 token）");
+    assert_eq!(e.token_index, 1, "失败必须定位到重复位置 token：{e:?}");
+    assert!(e.reason.contains("首位"), "reason 必须点名「首位」：{e:?}");
+}

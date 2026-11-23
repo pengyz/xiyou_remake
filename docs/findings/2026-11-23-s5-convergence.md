@@ -64,7 +64,7 @@ seg1（f51..f54,f1..f10）在加 steps 维前后 pop 数、前沿逐字节一致
 | # | 缺口 | 根因 | 处置 | 判据 |
 |---|---|---|---|---|
 | 5 | **撞杀移位语义分裂**：`Search::expand` Monster 臂撞杀后移入被杀格（1 步），而 `replay_route_inner`/`exact_replay_route`/exact DP 三处都不移位 ⇒ 真 witness route 回放必红（run6 f51 tok16 实锤） | DP 注释「不移动」与 expand 相反 | 全对齐 expand：两处回放加 `pos=(x,y)`、DP XC_MONSTER 臂 `nn.pos=np`；金样有意变更 `exact_dp_f3_reaches_4027` (88,14)→**(81,14)**（撞 7 只每撞省 1 步折返）。**A 级依据**：引擎 `scene.rs:3715` 胜利后仅当 `!battle_rerun_scene` 才 `try_step(facing)` 自动补步（`scene.rs:3003` 相位 5 派发 `tick_battle(true)`）——88→81 是**纠错不是放宽**；ty75 的 `battle_rerun_scene=true` 例外待 S5 复核 F1 子项修复后补记（求解器修正前本条「撞杀=移动」只对非 ty75 成立）。判据 `s5_bump_kill_moves_player_replay`（变异=删移位⇒「非邻接位移」红） |
-| 6 | replay entry 重推 landing 传出发层（driver 缺口3 的回放侧漏网）+ Script 换层门（f1 6,9=门+83）在回放侧被判死 | 同缺口3；`gate_arrive` 返回 `Terminal{..}` 是正常出层语义 | replay landing 改目标层；回放 gate 容忍集 Pass|Terminal（Dropped 仍死） | run8 真数据红（visit4 f1 tok4）→ 修复后 run9 推进到 visit10 |
+| 6 | replay entry 重推 landing 传出发层（driver 缺口3 的回放侧漏网）+ Script 换层门（f1 6,9=门+83）在回放侧被判死 | 同缺口3；`gate_arrive` 返回 `Terminal{..}` 是正常出层语义 | replay landing 改目标层；回放 gate 容忍集 Pass|Terminal（Dropped 仍死）。**复核 F2 追加约束**：Terminal 只允许出现在该层 route 的末位（其后仅 `gate x,y` 注记），mid-route 必须报 dead；零位移容忍只允许 route 首位（入场格 token） | run8 真数据红（visit4 f1 tok4）→ 修复后 run9 推进到 visit10；判据 `s5_replay_terminal_only_at_route_end`、`s5_replay_zero_displacement_only_first_token` |
 
 **run9（终态）**：前缀回放推进到 **visit10 floor3 token_index80 token="11,11" reason=no_match（无分支与 witness 出层态全等）**——前 10 访全绿，f3 尾段仍有搜索/回放态分歧，未走通全程。
 该定位现由 `ChainReport.prefix_replay` 结构化落盘（§6），不再只存在于 stdout。
@@ -112,10 +112,15 @@ seg1（f51..f54,f1..f10）在加 steps 维前后 pop 数、前沿逐字节一致
    以具名 `status=skipped_no_handoff` + `witness=null` + `note`「未跑搜索」上报；
    seg 级计数改名 `frontier_alive`（存活 frontier 数），`blocked.detail` 里改用「可杀候选」措辞——
    两者不再是同一个 `killable` 词。旧 run1 的 `4 段全 blocked no_killable_candidate` 属修复前口径。
-2. **f1 (6,9) 搜索/回放语义不一致待裁决**：`solve_local.rs` 门臂（expand `Cell::Door` 臂）
-   容忍 `gate_arrive` 非 Pass（`out.push((Act::Door, ns, g))`，非 Pass 由 goal/edge 层消化），
-   回放侧原断言必须 Pass。这不是「回放太严」或「搜索太松」任何一边能单独断定的——
-   本任务回放侧已放宽到 Pass|Terminal 使前缀回放可推进，**裁决权留待复核**。
+2. **Terminal 回放口径（复核 F2 已钉住）**：`gate_arrive` 返回 `Terminal{pending,..}`
+   =「门命中且 pending_floor≠0」= 正常出层（`solve_local.rs:1884-1905` 枚举、
+   `:3284 gate_arrive`），不是失配，因此回放接受 Pass|Terminal 本身成立。但旧版**无条件**
+   接受，而「Terminal 只在被踩格 route 末位出现」只由生产者保证（搜索侧记节点不入队，
+   `:2944-2983`）⇒ mid-route 的 Terminal 会静默续走。**已修**：回放侧 `terminal_at_route_end`
+   要求其后 token 只允许 `gate x,y` 注记，否则报 dead；同时 `:4745-4750` 的零位移容忍
+   从「任意同位置 token」收紧为「只允许 route 首位（入场格 token）」，mid-route 同位置报 dead。
+   判据 `s5_replay_terminal_only_at_route_end` / `s5_replay_zero_displacement_only_first_token`；
+   变异（恢复无条件 Terminal、或把末位判定改成恒真、或零位移改成恒真）分别红，已复原。
 3. **seg1 卡 f4 的根因 = outer/inner pickup divergence**（§2.4），与 P12
    「f3 88 步捡 14 件、f4 缺 2 黄钥」同一根因。
 
