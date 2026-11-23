@@ -281,7 +281,7 @@ fn run(
     }
 
     // ---- DP ----
-    let mut dp = Dp::new(input, view, entry, player_in, root_ents);
+    let mut dp = Dp::new(input, view, entry, player_in, root_ents, flags_in);
     if let Err((r, t)) = dp.search() {
         return give_up(st, r, t);
     }
@@ -452,6 +452,9 @@ struct Dp<'a> {
     door_color: Vec<usize>,
     /// 杀位 → 赏金。
     bounty: Vec<i32>,
+    /// 入场 flags（常量；ty75 撞杀是否 restep 读 flag20，见
+    /// [`crate::solve_local::ty75_no_restep`]）。
+    flags0: u128,
     /// (ty, atk, def) → (损血, 实体表净变化)。损血必须为 0、净变化必须为 0（A1/A4）。
     bump_cache: HashMap<(i32, i32, i32), (i32, i32)>,
     states: Vec<SNode>,
@@ -474,6 +477,7 @@ impl<'a> Dp<'a> {
         entry: (i32, i32),
         player0: &PlayerSpec,
         root_ents: &[EntRec],
+        flags0: u128,
     ) -> Self {
         let gains: Vec<PickupGain> = view
             .pick_ty
@@ -507,6 +511,7 @@ impl<'a> Dp<'a> {
             entry,
             player0: player0.clone(),
             root_ents: root_ents.to_vec(),
+            flags0,
             gains,
             key_sums,
             door_color,
@@ -768,9 +773,13 @@ impl<'a> Dp<'a> {
                             // `ns.pos=(tx,ty)` 同口径——bump() 只改杀位，pos 修正在此）。
                             // 【2026-11-23 更正】旧版注释「不移动」与 expand/引擎回放
                             // 口径相反，DP 路线与 witness 回放互斥（S5 真数据实锤）。
+                            // 【S5 复核 F1 子项】ty75@floor<=50 引擎不 restep ⇒ 不移位、不计步。
                             nn = self.bump(&n, c.ty, bit, self.view.kill_slot[c.idx])?;
-                            nn.pos = np;
-                            nn.steps = n.steps + 1;
+                            if !crate::solve_local::ty75_no_restep(self.input.floor, c.ty, self.flags0)
+                            {
+                                nn.pos = np;
+                                nn.steps = n.steps + 1;
+                            }
                             nn.prev = i;
                             nn.act = (d as u8) | 4;
                         }

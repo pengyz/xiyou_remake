@@ -1549,3 +1549,66 @@ fn s5_replay_zero_displacement_only_first_token() {
     assert_eq!(e.token_index, 1, "失败必须定位到重复位置 token：{e:?}");
     assert!(e.reason.contains("首位"), "reason 必须点名「首位」：{e:?}");
 }
+
+/// 同 `fixture_3x3_ty`，只换楼层（ty75 的 restep 分叉读 `persist.floor <= 50`）。
+fn fixture_3x3_ty_floor(monster_ty: i32, floor: i32, p: PlayerCombat) -> SolveInput {
+    let mut input = fixture_3x3_ty(monster_ty, p);
+    input.floor = floor;
+    input
+}
+
+/// S5 复核 F1 子项：ty75 撞杀后引擎 `battle_rerun_scene=true` ⇒ **不 restep、玩家不移位**
+/// （`scene.rs:3690-3715`：ty75 走 `try_run_scene(20,true)`；restep 仅当
+/// `!battle_rerun_scene`）。求解侧 Monster 臂此前无条件 `ns.pos=(tx,ty)`。
+#[test]
+fn s5_ty75_kill_no_restep_on_floor_le50() {
+    let input = fixture_3x3_ty_floor(75, 10, player(9999, 500, 500));
+    let r = solve_local(&input);
+    assert!(r.reachable, "ty75 可杀 ⇒ 走廊必须有解：{r:?}");
+    let bi = r
+        .route
+        .iter()
+        .position(|t| t.starts_with("bump 75@"))
+        .expect("route 必须含 bump75");
+    // 不移位 ⇒ 撞杀后必须从**原位**再走进已空的怪格（token "1,1"），不能直达出口。
+    assert_eq!(
+        r.route.get(bi + 1).map(|s| s.as_str()),
+        Some("1,1"),
+        "ty75 撞杀不移位 ⇒ 下一步必须走进怪格：{:?}",
+        r.route
+    );
+    let level = input.level.clone().unwrap();
+    let full = game_solver::solve_local::sprite_full(&level);
+    let res = game_solver::solve_local::replay_route(
+        &input, level.start, &full, &level.player, 0, &r.route,
+    );
+    assert!(res.is_ok(), "回放必须与搜索同口径（不移位）：{res:?}");
+    assert_eq!(res.unwrap().pos, (2, 1));
+}
+
+/// 对照（分叉钉死）：f53>50 时引擎不走 ty75 特例（kill hook 仅 floor<=50）
+/// ⇒ 正常 restep、玩家移入被杀格；求解侧不许把 >50 的层也改成不移位。
+#[test]
+fn s5_ty75_kill_resteps_on_floor_gt50() {
+    let input = fixture_3x3_ty_floor(75, 53, player(9999, 500, 500));
+    let r = solve_local(&input);
+    assert!(r.reachable, "f53 ty75 走廊必须有解：{r:?}");
+    let bi = r
+        .route
+        .iter()
+        .position(|t| t.starts_with("bump 75@"))
+        .expect("route 必须含 bump75");
+    assert_eq!(
+        r.route.get(bi + 1).map(|s| s.as_str()),
+        Some("2,1"),
+        "f53>50 正常 restep ⇒ 撞杀后已移至怪格、下一步直达出口：{:?}",
+        r.route
+    );
+    let level = input.level.clone().unwrap();
+    let full = game_solver::solve_local::sprite_full(&level);
+    let res = game_solver::solve_local::replay_route(
+        &input, level.start, &full, &level.player, 0, &r.route,
+    );
+    assert!(res.is_ok(), "f53 回放必须同口径（restep）：{res:?}");
+}
+

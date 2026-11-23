@@ -49,6 +49,7 @@ seg1（f51..f54,f1..f10）在加 steps 维前后 pop 数、前沿逐字节一致
 |---|---|
 | run1 | 4 段全 blocked no_killable_candidate；seg1 pops=4,553,792 frontier=3630 |
 | run5 | seg1 走通 11 层（f51..f54 + f1..f3 含 f1↔f2↔f3 回拾链），blocked 于 **f4 no_exit_toward（无指向 f5 的出层解）**；seg2/3/4 报 `skipped_no_handoff`（复核黄3 修正后口径；旧版报 no_killable_candidate 是未跑搜索却给地图结论） |
+| run10（四项修复后重跑，2026-11-23） | 与 run5 同形：seg1 blocked@f4、floors_solved=11、pops=4,553,792；seg2/3/4 `skipped_no_handoff`（witness=null、note「未跑搜索」）；`prefix_floors` 11 层、`prefix_steps`=401；`prefix_replay.status=fail` visit=10 floor=3 token_index=80 token="11,11" stage=route reason=no_match；全链 `replay=null`。产物 `docs/findings/outer-chain-real.json` 已按新结构重写 |
 
 - 段基准 pops（机制 1 前后不变）：seg1=4,553,792 / seg2=14,177 / seg3=314,229 / seg4=105,254，
   total=4,987,452，全程 ~8.5min release。**四段 pops 总量远低于预算——外层不再是大档瓶颈**（已证实）。
@@ -63,12 +64,52 @@ seg1（f51..f54,f1..f10）在加 steps 维前后 pop 数、前沿逐字节一致
 
 | # | 缺口 | 根因 | 处置 | 判据 |
 |---|---|---|---|---|
-| 5 | **撞杀移位语义分裂**：`Search::expand` Monster 臂撞杀后移入被杀格（1 步），而 `replay_route_inner`/`exact_replay_route`/exact DP 三处都不移位 ⇒ 真 witness route 回放必红（run6 f51 tok16 实锤） | DP 注释「不移动」与 expand 相反 | 全对齐 expand：两处回放加 `pos=(x,y)`、DP XC_MONSTER 臂 `nn.pos=np`；金样有意变更 `exact_dp_f3_reaches_4027` (88,14)→**(81,14)**（撞 7 只每撞省 1 步折返）。**A 级依据**：引擎 `scene.rs:3715` 胜利后仅当 `!battle_rerun_scene` 才 `try_step(facing)` 自动补步（`scene.rs:3003` 相位 5 派发 `tick_battle(true)`）——88→81 是**纠错不是放宽**；ty75 的 `battle_rerun_scene=true` 例外待 S5 复核 F1 子项修复后补记（求解器修正前本条「撞杀=移动」只对非 ty75 成立）。判据 `s5_bump_kill_moves_player_replay`（变异=删移位⇒「非邻接位移」红） |
+| 5 | **撞杀移位语义分裂**：`Search::expand` Monster 臂撞杀后移入被杀格（1 步），而 `replay_route_inner`/`exact_replay_route`/exact DP 三处都不移位 ⇒ 真 witness route 回放必红（run6 f51 tok16 实锤） | DP 注释「不移动」与 expand 相反 | 全对齐 expand（ty75@floor≤50 例外见 §2.2c）：两处回放加 `pos=(x,y)`、DP XC_MONSTER 臂 `nn.pos=np`；金样有意变更 `exact_dp_f3_reaches_4027` (88,14)→**(81,14)**（撞 7 只每撞省 1 步折返）。**A 级依据**：引擎 `scene.rs:3715` 胜利后仅当 `!battle_rerun_scene` 才 `try_step(facing)` 自动补步（`scene.rs:3003` 相位 5 派发 `tick_battle(true)`）——88→81 是**纠错不是放宽**；ty75 的 `battle_rerun_scene=true` 例外见 §2.2c（本条「撞杀=移动」只对非 ty75 成立）。判据 `s5_bump_kill_moves_player_replay`（变异=删移位⇒「非邻接位移」红） |
 | 6 | replay entry 重推 landing 传出发层（driver 缺口3 的回放侧漏网）+ Script 换层门（f1 6,9=门+83）在回放侧被判死 | 同缺口3；`gate_arrive` 返回 `Terminal{..}` 是正常出层语义 | replay landing 改目标层；回放 gate 容忍集 Pass|Terminal（Dropped 仍死）。**复核 F2 追加约束**：Terminal 只允许出现在该层 route 的末位（其后仅 `gate x,y` 注记），mid-route 必须报 dead；零位移容忍只允许 route 首位（入场格 token） | run8 真数据红（visit4 f1 tok4）→ 修复后 run9 推进到 visit10；判据 `s5_replay_terminal_only_at_route_end`、`s5_replay_zero_displacement_only_first_token` |
 
 **run9（终态）**：前缀回放推进到 **visit10 floor3 token_index80 token="11,11" reason=no_match（无分支与 witness 出层态全等）**——前 10 访全绿，f3 尾段仍有搜索/回放态分歧，未走通全程。
 该定位现由 `ChainReport.prefix_replay` 结构化落盘（§6），不再只存在于 stdout。
 
+
+### 2.2c ty75 例外：撞杀后**不** restep（复核 F1 子项）
+
+上条「撞杀=移动 1 步」的引擎依据是 `scene.rs:3715` 的胜利补步，但它有闸门
+`if !self.battle_rerun_scene && allow_restep`。**ty75 会把它关掉**：
+
+- 击杀钩子整体作用域 `persist.floor <= 50`（`scene.rs:3668-3699`）；
+- ty75 分支 `if self.try_run_scene(20,true) { self.load_level_script(20); rerun=true; }`
+  ⇒ `self.battle_rerun_scene = rerun` 为真 ⇒ `scene.rs:3715` 不 `try_step(facing)`
+  ⇒ 玩家**留在原格**（不进入被杀格、不计那一步位移）；
+- 门 20 的判定 = `!script_line_flags[20]`（`rules/gate.rs`：`gate = !v.flag(param)`，
+  param=20 走 `_ => {}` 直通分支），flag 由脚本行执行完置位（`scene_script.rs:64`）。
+
+求解侧此前三处（`Search::expand` Monster 臂、`replay_route_inner` 撞杀臂、
+exact DP `XC_MONSTER` 臂）都无条件 `pos=(x,y); steps+=1`，与引擎在 ty75 上相反。
+**修正**：三处统一读 `ty75_no_restep(floor, ety, flags)` = `floor<=50 ∧ ety==75 ∧ flag20 未置`；
+命中 ⇒ 不移位、不计步（`solve_local.rs` 免费函数，`exact_pickup.rs` 的 `Dp` 新增常量 `flags0`）。
+
+**判据与变异**（均在 `tests/solve_local.rs`）：
+- `s5_ty75_kill_no_restep_on_floor_le50`：f10（≤50）ty75 走廊，撞杀后下一步必须是走进
+  已空怪格的 token `"1,1"`（旧码路线 `["0,1","bump 75@1,1","2,1"]` ⇒ 红），且回放同口径、终态 `(2,1)`；
+- `s5_ty75_kill_resteps_on_floor_gt50`：f53（>50，钩子不生效）仍须正常 restep（下一步 `"2,1"`），
+  防止修正越界成「所有层都不移位」；
+- 变异：搜索臂改回无条件移位 ⇒ 前件判据红（路线断言）；回放臂改回无条件移位 ⇒ 前件判据红
+  （回放报 `零位移只允许 route 首位`/态不等）。
+
+**参考值影响（如实）**：
+- 金样 `exact_dp_f3_reaches_4027` 的最优元组仍是 `(81,14)`（修正后该判据实测绿）；据此
+  该层被杀的 7 只 cat8 中不含 ty75（若含，每只 ty75 会少 1 步，81 不再成立）。
+  即本修正**没有**要求为金样改数值。
+- 真数据链：ty75 在 f10 与 f53。f53>50 ⇒ 引擎钩子不生效 ⇒ 不变；f10 是 seg1 锚层，但当前
+  seg1 在 f4 就断链（§2.4 outer/inner 拾取分歧，S6 面，未修）⇒ 真链尚未解到 f10。
+  **重跑实测（run10，§2.3）**：h1 统计 hp=4027 / gold=1256 / steps=401 / 回拾=4 / 购买臂=0
+  与 run5 **逐项相同**——因为 f10 未被解到、f53 不触发例外，本修正对当前真数据链的落盘
+  数字没有变化（不是「调阈值凑结果」，是修正的触发条件在当前链上未到达）。
+  等 S6 修复使 f10 真正被解时，锚层后的玩家位置/步数会按新语义变化——届时以实跑为准，
+  此处不预设数值。
+
+**边界（未建模，不声称已覆盖）**：kill 钩子无读回面，脚本 20 执行完置 `flag20` 的异步效果
+不进入求解侧 flags；同层若出现第二只 ty75，本模型仍按「未置位 ⇒ 不移位」处理。
 
 ### 2.4 当前头号缺口（**已证实**，按任务纪律具名不抬 cap）
 
@@ -147,3 +188,5 @@ seg1（f51..f54,f1..f10）在加 steps 维前后 pop 数、前沿逐字节一致
 
 结论：机制 1 无性能收益但有正确性收益（同态异代价不再误剪）；性能瓶颈已转移到
 内层/外层拾取分歧与锚不可达（S4 黄3 的真实形态）。
+四项复核修复后的重跑（run10，2026-11-23，release 7m48s）seg1 仍为 4,553,792 pops
+（与 run5 同值）；seg2..4 因断链已不跑搜索（pops=0），不再列入本表比较。

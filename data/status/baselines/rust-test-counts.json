@@ -32,7 +32,7 @@
     "game_oracle(lib)": 5,
     "game_platform(lib)": 6,
     "game_shell_common(lib)": 45,
-    "game_solver(lib)": 87,
+    "game_solver(lib)": 89,
     "gameplay_floor1(test)": 5,
     "gate_bump(test)": 10,
     "golden(test)": 9,
@@ -50,7 +50,7 @@
     "native_parse(test)": 39,
     "objective(test)": 11,
     "one_fact_one_host(test)": 6,
-    "outer_witness(test)": 6,
+    "outer_witness(test)": 15,
     "p15_zero_code_drill(test)": 3,
     "png_golden(test)": 1,
     "portrait(test)": 21,
@@ -69,8 +69,8 @@
     "size_dispatch_table_driven(test)": 5,
     "slot_equip_scene(test)": 2,
     "solve_global(test)": 24,
-    "solve_local(test)": 25,
-    "solve_local_trunc(test)": 4,
+    "solve_local(test)": 30,
+    "solve_local_trunc(test)": 5,
     "solver(bin)": 0,
     "storage_contract(test)": 7,
     "storage_wiring(test)": 4,
@@ -86,5 +86,5 @@
     "witness(test)": 9,
     "xiyou(bin)": 42
   },
-  "total": 1293
+  "total": 1310
 }

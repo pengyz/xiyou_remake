@@ -2579,8 +2579,12 @@ impl<'a> Search<'a> {
                         ns.ents.remove(slot);
                         // 掉落（同表 game-core；只生成实体，见 apply_kill_drops）
                         apply_kill_drops(&mut ns, ety, self.input.floor);
-                        ns.pos = (tx, ty);
-                        ns.steps += 1;
+                        // 引擎真值分叉（S5 复核 F1 子项）：ty75 在 floor<=50 撞杀会
+                        // `battle_rerun_scene=true` ⇒ 不 restep ⇒ 玩家不移位、不计步。
+                        if !ty75_no_restep(self.input.floor, ety, ns.flags) {
+                            ns.pos = (tx, ty);
+                            ns.steps += 1;
+                        }
                         // 批3 C2 终局边：floor50 击败型72 → Ending（钩子
                         // scene.rs:3891-3894 → load_level_script(65) → END_0；
                         // floor50 cat8 覆写=sprite_defs floor50→cat8 ⇒ 可 bump，
@@ -4619,6 +4623,20 @@ impl std::fmt::Display for RouteReplayError {
 /// `gate x,y` 注记，**不再入队**（`solve_local.rs:2944-2983`）⇒ Terminal 是出层动作，
 /// 其后不可能再有走格/撞怪 token。回放侧此前无条件接受 Terminal，mid-route 的
 /// Terminal 会静默续走（S5 复核 F2 ①）。
+/// ty75 撞杀后引擎**不 restep**（玩家留在原格）：`persist.floor <= 50` 的击杀钩子里
+/// ty75 走 `try_run_scene(20,true)`（门 20 未被 `script_line_flags[20]` 关闭时成功）
+/// ⇒ `battle_rerun_scene=true` ⇒ `scene.rs:3715` 的胜利补步不执行。
+///
+/// 与引擎同源：`scene.rs:3668-3699`（钩子作用域 floor<=50）+ `rules/gate.rs` 的
+/// `gate = !flag(param)`（param=20）+ `scene.rs:3715`（`!battle_rerun_scene` 才 restep）。
+/// 求解侧 flags 位图与引擎 `script_line_flags` 同索引（`StGate::flag`）。
+///
+/// 边界：只读 kill 时刻的 flag20；脚本 20 完成后置 flag20 的异步效果未在求解侧
+/// readback（kill 钩子无读回面），同层第二只 ty75 会仍按「未置位」处理。
+pub(crate) fn ty75_no_restep(floor: i32, ety: i32, flags: u128) -> bool {
+    floor <= 50 && ety == 75 && (flags >> 20) & 1 == 0
+}
+
 fn terminal_at_route_end(route: &[String], i: usize) -> bool {
     route
         .get(i + 1..)
@@ -4725,11 +4743,13 @@ fn replay_route_inner(
                 cur.player.gold += b.gold;
                 cur.ents = b.ents;
                 cur.kills += 1;
-                cur.steps += 1;
-                // 撞杀后玩家**移入被杀格**（与 Search::expand Monster 臂 `ns.pos=(tx,ty)`
-                // 同口径；漏移位会让后续 walk token 报「非邻接位移」——S5 真数据 f51
-                // 回放实锤）。
-                cur.pos = (x, y);
+                // 撞杀后玩家**移入被杀格**（与 Search::expand Monster 臂同口径；漏移位
+                // 会让后续 walk token 报「非邻接位移」——S5 真数据 f51 回放实锤）。
+                // 例外（S5 复核 F1 子项）：ty75@floor<=50 引擎不 restep ⇒ 不移位、不计步。
+                if !ty75_no_restep(input.floor, ty, cur.flags) {
+                    cur.pos = (x, y);
+                    cur.steps += 1;
+                }
                 i += 1;
             } else if let Some(rest) = tok.strip_prefix("door ") {
                 let Some((x, y)) = parse_xy(rest) else { dead = Some(fail("door 坐标非法")); break; };
