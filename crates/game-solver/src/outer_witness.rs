@@ -35,7 +35,9 @@
 
 use crate::outer::{OuterGraph, OuterResult, PathSnapshot, PathReplayError, RunSpec};
 use crate::objective::next_demand;
-use crate::solve_local::{solve_local_exit_toward_shops, ExitKind, PlayerSpec, SolveInput};
+use crate::solve_local::{
+    solve_local_exit_toward_shops, solve_local_exit_toward_shops_floor, ExitKind, PlayerSpec, SolveInput,
+};
 use crate::witness::{
     exit_edge, kind_str, record_floor, WitnessBlocked, WitnessFinal, WitnessFloor,
 };
@@ -151,11 +153,16 @@ pub struct OuterWitness {
 }
 
 /// 注入式层求解器（与 [`crate::witness::LayerSolver`] 同签名，测试注入用）。
-pub type OuterLayerSolver<'a> =
-    &'a dyn Fn(&SolveInput, (i32, i32), &PlayerSpec, u128, Option<&[EntRec]>, Option<i32>, &[ShopGoodDef]) -> (
-        crate::solve_local::ExitSolve,
-        bool,
-    );
+pub type OuterLayerSolver<'a> = &'a dyn Fn(
+    &SolveInput,
+    (i32, i32),
+    &PlayerSpec,
+    u128,
+    Option<&[EntRec]>,
+    Option<i32>,
+    &[ShopGoodDef],
+    Option<[i32; 3]>,
+) -> (crate::solve_local::ExitSolve, bool);
 use crate::solve_local::EntRec;
 
 /// 驱动器配置。
@@ -196,8 +203,8 @@ pub fn run_outer_witness(
 ) -> OuterWitness {
     run_outer_witness_with(
         graph, run, scaled_enemies, levels, player, flags, shops, search, cfg,
-        &|input, entry, p, fl, ents, toward, sh| {
-            solve_local_exit_toward_shops(input, entry, p, fl, ents, toward, sh)
+        &|input, entry, p, fl, ents, toward, sh, kf| {
+            solve_local_exit_toward_shops_floor(input, entry, p, fl, ents, toward, sh, kf)
         },
     )
 }
@@ -383,6 +390,9 @@ pub fn run_outer_witness_with(
 
             let ents_here = ents_by_floor.get(&task.floor).map(|v| v.clone());
             let demand = next_demand(levels, task.floor);
+            // 【S6b】key_floor 唯一口径（`objective::key_floor_for_up_edge`）：只在上行边
+            // 给需求，回拾（下行）为 None——禁止在此内联第二份规则。
+            let key_floor = crate::objective::key_floor_for_up_edge(levels, task.floor, task.toward);
             let (got, hit) = layer(
                 input,
                 entry,
@@ -391,6 +401,7 @@ pub fn run_outer_witness_with(
                 ents_here.as_deref(),
                 task.toward,
                 shops,
+                key_floor,
             );
             // —— 硬约束（逐条对齐 run_witness_with）——
             if got.truncated {
@@ -429,7 +440,7 @@ pub fn run_outer_witness_with(
                     ));
                     break;
                 }
-                record_floor(&mut w, task.floor, entry, &got, &cur_player, cur_flags, ents_here.as_deref(), &demand, None);
+                record_floor(&mut w, task.floor, entry, &got, &cur_player, cur_flags, ents_here.as_deref(), &demand, key_floor);
                 ents_by_floor.insert(task.floor, got.out_ents.clone());
                 cur_player = got.out_player.clone();
                 // BossKill≠通关：ending_done 只在真 Ending 时为真（不许冒充通关）。
@@ -472,7 +483,7 @@ pub fn run_outer_witness_with(
                 fail_reason = Some(format!("出层边指 f{}，外层块序要求 f{}", target, toward));
                 break;
             }
-            record_floor(&mut w, task.floor, entry, &got, &cur_player, cur_flags, ents_here.as_deref(), &demand, None);
+            record_floor(&mut w, task.floor, entry, &got, &cur_player, cur_flags, ents_here.as_deref(), &demand, key_floor);
             ents_by_floor.insert(task.floor, got.out_ents.clone());
             cur_player = got.out_player.clone();
             cur_flags = got.out_flags;

@@ -153,8 +153,9 @@ fn ok_layer() -> impl Fn(
     Option<&[game_solver::solve_local::EntRec]>,
     Option<i32>,
     &[game_data::defs::ShopGoodDef],
+    Option<[i32; 3]>,
 ) -> (game_solver::solve_local::ExitSolve, bool) {
-    |input, _entry, p, _fl, _ents, toward, _shops| {
+    |input, _entry, p, _fl, _ents, toward, _shops, _kf| {
         let _ = input;
         match toward {
             Some(_) => (fake_exit_ok(p), true),
@@ -294,7 +295,8 @@ fn s4a_budget_divergence_named() {
                       fl: u128,
                       ents: Option<&[game_solver::solve_local::EntRec]>,
                       toward: Option<i32>,
-                      shops: &[game_data::defs::ShopGoodDef]| okl(input, entry, p, fl, ents, toward, shops);
+                      shops: &[game_data::defs::ShopGoodDef],
+                      _kf: Option<[i32; 3]>| okl(input, entry, p, fl, ents, toward, shops, _kf);
     let ow = game_solver::outer_witness::run_outer_witness_with(
         &g,
         &run,
@@ -361,7 +363,8 @@ fn s4a_no_silent_override() {
                       _fl: u128,
                       _ents: Option<&[game_solver::solve_local::EntRec]>,
                       toward: Option<i32>,
-                      _shops: &[game_data::defs::ShopGoodDef]| {
+                      _shops: &[game_data::defs::ShopGoodDef],
+                      _kf: Option<[i32; 3]>| {
         let c = calls.get();
         calls.set(c + 1);
         if c == 0 {
@@ -405,7 +408,8 @@ fn s4a_all_candidates_fail_is_named_blocked() {
                  _fl: u128,
                  _ents: Option<&[game_solver::solve_local::EntRec]>,
                  _toward: Option<i32>,
-                 _shops: &[game_data::defs::ShopGoodDef]| (fake_fail(p), false);
+                 _shops: &[game_data::defs::ShopGoodDef],
+        _kf: Option<[i32; 3]>| (fake_fail(p), false);
     let ow = game_solver::outer_witness::run_outer_witness_with(
         &g,
         &run,
@@ -439,8 +443,9 @@ fn real_walk_layer() -> impl Fn(
     Option<&[game_solver::solve_local::EntRec]>,
     Option<i32>,
     &[game_data::defs::ShopGoodDef],
+    Option<[i32; 3]>,
 ) -> (game_solver::solve_local::ExitSolve, bool) {
-    move |input, entry, p, fl, ents, toward, _shops| {
+    move |input, entry, p, fl, ents, toward, _shops, _kf| {
         // 出层实体表必须**真实**：首入 ents=None ⇒ 求解侧会展开 sprite_full，
         // 终态=全表原样（corridor 楼梯不被移除）。伪造空表会让回放终态不等。
         let ents_vec: Vec<game_solver::solve_local::EntRec> = match ents {
@@ -554,8 +559,9 @@ fn walk_mut_layer() -> impl Fn(
     Option<&[game_solver::solve_local::EntRec]>,
     Option<i32>,
     &[game_data::defs::ShopGoodDef],
+    Option<[i32; 3]>,
 ) -> (game_solver::solve_local::ExitSolve, bool) {
-    move |input, entry, p, fl, ents, toward, _shops| {
+    move |input, entry, p, fl, ents, toward, _shops, _kf| {
         let mut ents_vec: Vec<game_solver::solve_local::EntRec> = match ents {
             Some(e) => e.to_vec(),
             None => game_solver::solve_local::sprite_full(input.level.as_ref().expect("夹具必有 level")),
@@ -697,7 +703,8 @@ fn s5_chain_blocked_named_and_prefix_only() {
     let seg2_calls_c = seg2_calls.clone();
     let layer_fail_boss = move |input: &SolveInput, entry: (i32, i32), p: &PlayerSpec, fl: u128,
                                 ents: Option<&[game_solver::solve_local::EntRec]>, toward: Option<i32>,
-                                _shops: &[game_data::defs::ShopGoodDef]|
+                                _shops: &[game_data::defs::ShopGoodDef],
+        kf: Option<[i32; 3]>|
         -> (game_solver::solve_local::ExitSolve, bool) {
         if input.floor == 51 {
             return (fake_fail(p), false); // seg1 首层失败 ⇒ 段 blocked
@@ -706,7 +713,7 @@ fn s5_chain_blocked_named_and_prefix_only() {
             seg2_calls_c.set(seg2_calls_c.get() + 1);
         }
         let base = walk_mut_layer();
-        base(input, entry, p, fl, ents, toward, &[])
+        base(input, entry, p, fl, ents, toward, &[], kf)
     };
     let rep = run_chain_with(doc, &levels, &chain_enemies(), &[], &PlayerSpec::from_combat(s0()), 0, &segs, &cfg, &layer_fail_boss);
     assert_eq!(rep.status, "blocked");
@@ -743,7 +750,8 @@ fn s5_boss_mode_off_requires_ending() {
     // 注入层末任务回 BossKill（假 boss 臂）——默认模式必须拒收。
     let boss_layer = |input: &SolveInput, entry: (i32, i32), p: &PlayerSpec, fl: u128,
                       ents: Option<&[game_solver::solve_local::EntRec]>, toward: Option<i32>,
-                      _shops: &[game_data::defs::ShopGoodDef]|
+                      _shops: &[game_data::defs::ShopGoodDef],
+        kf: Option<[i32; 3]>|
         -> (game_solver::solve_local::ExitSolve, bool) {
         if toward.is_none() {
             let mut e = fake_ending(p);
@@ -772,7 +780,8 @@ fn s5_boss_mode_on_bosskill_accepted() {
     let search = fake_frontier(&["f51:a0", "f52:b0"], 7, 300);
     let boss_layer = |input: &SolveInput, entry: (i32, i32), p: &PlayerSpec, fl: u128,
                       ents: Option<&[game_solver::solve_local::EntRec]>, toward: Option<i32>,
-                      _shops: &[game_data::defs::ShopGoodDef]|
+                      _shops: &[game_data::defs::ShopGoodDef],
+        kf: Option<[i32; 3]>|
         -> (game_solver::solve_local::ExitSolve, bool) {
         if toward.is_none() {
             let mut e = fake_ending(p);
@@ -902,13 +911,14 @@ fn layer_fail_at_anchor() -> impl Fn(
     Option<&[game_solver::solve_local::EntRec]>,
     Option<i32>,
     &[game_data::defs::ShopGoodDef],
+    Option<[i32; 3]>,
 ) -> (game_solver::solve_local::ExitSolve, bool) {
     let base = walk_mut_layer();
-    move |input, entry, p, fl, ents, toward, shops| {
+    move |input, entry, p, fl, ents, toward, shops, kf| {
         if input.floor == 52 {
             return (fake_fail(p), false); // 锚层失败 ⇒ 段 blocked、链断
         }
-        base(input, entry, p, fl, ents, toward, shops)
+        base(input, entry, p, fl, ents, toward, shops, kf)
     }
 }
 
@@ -976,9 +986,10 @@ fn s5_chain_prefix_replay_failure_named_in_json() {
     // f51 层解「成功」但 route 被篡改为不可达 token ⇒ witness 层落盘，回放必红。
     let layer = move |input: &SolveInput, entry: (i32, i32), p: &PlayerSpec, fl: u128,
                       ents: Option<&[game_solver::solve_local::EntRec]>, toward: Option<i32>,
-                      shops: &[game_data::defs::ShopGoodDef]|
+                      shops: &[game_data::defs::ShopGoodDef],
+        kf: Option<[i32; 3]>|
         -> (game_solver::solve_local::ExitSolve, bool) {
-        let (mut got, ok) = base(input, entry, p, fl, ents, toward, shops);
+        let (mut got, ok) = base(input, entry, p, fl, ents, toward, shops, kf);
         if input.floor == 51 && ok {
             got.route = vec!["9,9".to_string()]; // 非邻接位移（x 从 1 直接跳 9）
         }

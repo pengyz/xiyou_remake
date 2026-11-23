@@ -250,14 +250,22 @@ fn handoff_matches(prev: &WitnessFloor, next: &WitnessFloor) -> bool {
 /// （`solve_local_boss_toward_shops`，要求 BossKill|f50 Ending，不回退普通出层解）。
 pub fn default_layer_solver<'a>(
     segs: &'a [ChainSegSpec],
-) -> impl Fn(&SolveInput, (i32, i32), &PlayerSpec, u128, Option<&[EntRec]>, Option<i32>, &[ShopGoodDef]) -> (
-    crate::solve_local::ExitSolve,
-    bool,
-) + 'a {
-    move |input, entry, player, flags, ents, toward, shops| {
+) -> impl Fn(
+    &SolveInput,
+    (i32, i32),
+    &PlayerSpec,
+    u128,
+    Option<&[EntRec]>,
+    Option<i32>,
+    &[ShopGoodDef],
+    Option<[i32; 3]>,
+) -> (crate::solve_local::ExitSolve, bool)
+       + 'a {
+    move |input, entry, player, flags, ents, toward, shops, key_floor| {
         match toward {
-            Some(f) => crate::solve_local::solve_local_exit_toward_shops(
-                input, entry, player, flags, ents, Some(f), shops,
+            // 【S6b】普通出层任务：floor 交层解器消费（软目标，缺口只诊断）。
+            Some(f) => crate::solve_local::solve_local_exit_toward_shops_floor(
+                input, entry, player, flags, ents, Some(f), shops, key_floor,
             ),
             None => {
                 let seg = segs
@@ -266,8 +274,10 @@ pub fn default_layer_solver<'a>(
                     .unwrap_or_else(|| {
                         panic!("floor {} 不在任何段层集（链层集 partition 被破坏）", input.floor)
                     });
-                crate::solve_local::solve_local_boss_toward_shops(
-                    input, entry, player, flags, ents, seg.anchor_boss_ty, shops,
+                // 段末锚：boss 面**不消费** floor，但必须收到它才能如实打
+                // `key_floor_not_consulted=Some("boss")`（静默无视是被禁止的形态）。
+                crate::solve_local::solve_local_boss_toward_shops_floor(
+                    input, entry, player, flags, ents, seg.anchor_boss_ty, shops, key_floor,
                 )
             }
         }

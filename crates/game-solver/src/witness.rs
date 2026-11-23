@@ -71,7 +71,8 @@
 
 use crate::solve_global::{landing, stair_target};
 use crate::solve_local::{
-    solve_local_exit_toward_shops, EntRec, ExitKind, ExitSolve, LevelSpec, PlayerSpec, SolveInput,
+    solve_local_exit_toward_shops, solve_local_exit_toward_shops_floor, EntRec, ExitKind, ExitSolve,
+    LevelSpec, PlayerSpec, SolveInput,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -338,6 +339,7 @@ pub type LayerSolver<'a> = &'a dyn Fn(
     Option<&[EntRec]>,
     Option<i32>,
     &[game_data::defs::ShopGoodDef],
+    Option<[i32; 3]>,
 ) -> (ExitSolve, bool);
 
 /// 生产入口：按 P0 层图的**上行主线**逐层推进 [`solve_local_exit_toward`]，产出可回放见证。
@@ -368,7 +370,9 @@ pub fn run_witness(
         flags,
         shops,
         cfg,
-        &|i, e, p, f, ents, toward, sh| solve_local_exit_toward_shops(i, e, p, f, ents, toward, sh),
+        &|i, e, p, f, ents, toward, sh, kf| {
+            solve_local_exit_toward_shops_floor(i, e, p, f, ents, toward, sh, kf)
+        },
     )
 }
 
@@ -550,8 +554,10 @@ pub fn run_witness_with(
         // P0 ⇒ P3 的接缝：层图说「上一层楼是 f{next_up}」，层求解器就在目标集里挑
         // 「出层边指向 f{next_up}」的那条；`hit=false` 表示它挑不到（回落解可能往回走）。
         let next_up = up_line_next(floor, level, &lays);
+        // 【S6b】key_floor 唯一口径：上行边 ⇒ 后继层的出层钥匙需求；回拾/无上行 ⇒ None。
+        let key_floor = crate::objective::key_floor_for_up_edge(levels, floor, next_up);
         let (got, hit) =
-            layer(input, entry, &cur_player, cur_flags, ents_here.as_deref(), next_up, shops);
+            layer(input, entry, &cur_player, cur_flags, ents_here.as_deref(), next_up, shops, key_floor);
 
         // ---- 硬约束 A：截断层不可消费（也不许接力）----
         if got.truncated {
@@ -594,7 +600,7 @@ pub fn run_witness_with(
         // 终局：`Ending` 层=通关。终局层本身也是「解出来的成功层」，**照样落账**
         // （它的 kind=Ending、exit 可能为 null；`floors` 因此是完整的逐层路线）。
         if kind == ExitKind::Ending {
-            record_floor(&mut w, floor, entry, &got, &cur_player, cur_flags, ents_here.as_deref(), &demand, None);
+            record_floor(&mut w, floor, entry, &got, &cur_player, cur_flags, ents_here.as_deref(), &demand, key_floor);
             w.status = WitnessStatus::Witness.as_str().to_string();
             w.final_state = WitnessFinal { ending_done: true, floor };
             break;
@@ -691,7 +697,7 @@ pub fn run_witness_with(
             break;
         }
         // ---- 成功层：出层边已核验通往 f{expected} 才落账（floors=成功前缀）----
-        record_floor(&mut w, floor, entry, &got, &cur_player, cur_flags, ents_here.as_deref(), &demand, None);
+        record_floor(&mut w, floor, entry, &got, &cur_player, cur_flags, ents_here.as_deref(), &demand, key_floor);
 
         // 接力：本层终态入位图（按层归属），玩家/旗标带入下一层。
         ents_by_floor.insert(floor, got.out_ents.clone());

@@ -151,3 +151,31 @@ pub fn next_demand(levels: &BTreeMap<i32, SolveInput>, floor: i32) -> Demand {
     }
     Demand { keys: need, state: DemandState::Known }
 }
+
+/// 上行边的 **key_floor**（进层解的目标钥匙下限）：`toward` 必须是本层的上行后继
+/// （`toward == floor + 1`），且该后继 `next_demand` 已知且非全零。
+///
+/// 为什么只有上行：钥匙是**跨层动态资源**（用户裁定 m04638），单层硬门槛会制造假
+/// 不可行；回拾（下行）时目标层不需要「带着钥匙出上一层」——把需求强加给回拾会把
+/// 可解的回拾路线判成不可行。为什么「全零 ⇒ None」：没有需求就不要制造需求，
+/// `Some([0,0,0])` 会让下游把所有零需求层都当成「有 floor 要满足」。
+///
+/// 这是**唯一**口径：`witness` / `outer_witness` / `outer_chain` 都调本函数，
+/// 不许各自内联一份（同一语义两处实现是本仓反复出 bug 之源）。
+pub fn key_floor_for_up_edge(
+    levels: &BTreeMap<i32, SolveInput>,
+    floor: i32,
+    toward: Option<i32>,
+) -> Option<[i32; 3]> {
+    if toward != Some(floor + 1) {
+        return None;
+    }
+    match next_demand(levels, floor) {
+        Demand { keys, state: DemandState::Known } if keys.iter().any(|&k| k > 0) => {
+            Some([keys[0] as i32, keys[1] as i32, keys[2] as i32])
+        }
+        // 无需求 / 需求未定义：都不给 floor。未定义原因由调用方以 `demand_undefined`
+        // 具名落盘（禁静默当 0，也禁凭空造需求）。
+        _ => None,
+    }
+}

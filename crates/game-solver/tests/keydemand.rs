@@ -291,3 +291,49 @@ fn keydemand_assumption_counters_are_visible() {
     assert_eq!(d.monsters_ignored, 1, "类型 41 在默认表里是 cat8 怪");
     assert_eq!(d.hazards, 1);
 }
+
+// ---------------------------------------------------------------- S6b：key_floor 口径（单源）
+
+/// 【S6b 判据 1】`key_floor_for_up_edge` 是 key_floor 的**唯一口径**：
+/// 只在上行边（`toward == floor+1`）给需求；回拾/无需求/未定义一律 None。
+///
+/// 真数据：f3→f4 的入场最低钥匙需求是 (2,0,0)（`keydemand_f4_requires_two_yellow` 已钉），
+/// 而 f4→f3 是下行 ⇒ 必须 None —— 这正是用户裁定 m04638（钥匙是跨层动态资源、
+/// 单层硬门槛会造成假不可行）的代码化。
+#[test]
+fn s6b_key_floor_only_on_up_edges() {
+    use game_solver::objective::key_floor_for_up_edge;
+    use game_solver::solve_local::SolveInput;
+
+    let mk = |f: i32| SolveInput {
+        floor: f,
+        difficulty: 0,
+        level: Some(real_level(f)),
+    };
+    let mut levels = std::collections::BTreeMap::new();
+    for f in [3, 4] {
+        levels.insert(f, mk(f));
+    }
+
+    // 上行 f3→f4：f3 的出层需求 = f4 的入场最低钥匙需求 = (2,0,0)。
+    assert_eq!(
+        key_floor_for_up_edge(&levels, 3, Some(4)),
+        Some([2, 0, 0]),
+        "上行边必须给出目标层需求（f4 入场 2 黄）"
+    );
+    // 下行回拾 f4→f3：不许强加需求。
+    assert_eq!(
+        key_floor_for_up_edge(&levels, 4, Some(3)),
+        None,
+        "回拾（下行）不许强加 key_floor —— m04638：钥匙跨层动态，单层硬门槛造不出假不可行"
+    );
+    // 同层/无边界：不传。
+    assert_eq!(key_floor_for_up_edge(&levels, 3, Some(3)), None);
+    assert_eq!(key_floor_for_up_edge(&levels, 3, None), None);
+    // 需求未定义（该层不在 levels 里）⇒ None，且原因由调用方 demand_undefined 具名落盘。
+    assert_eq!(
+        key_floor_for_up_edge(&levels, 77, Some(78)),
+        None,
+        "未定义需求不许当 0 传下去"
+    );
+}

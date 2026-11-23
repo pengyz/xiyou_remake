@@ -212,6 +212,7 @@ type Solver<'a> = &'a dyn Fn(
     Option<&[EntRec]>,
     Option<i32>,
     &[game_data::defs::ShopGoodDef],
+    Option<[i32; 3]>,
 ) -> (game_solver::solve_local::ExitSolve, bool);
 
 fn two_floor_levels() -> BTreeMap<i32, SolveInput> {
@@ -274,7 +275,7 @@ fn witness_chains_real_floors() {
 #[test]
 fn witness_synthetic_two_floor_tower_reaches_witness() {
     let levels = two_floor_levels();
-    let solver: Solver<'_> = &|input, _entry, p, _flags, _ents, _toward, _shops| {
+    let solver: Solver<'_> = &|input, _entry, p, _flags, _ents, _toward, _shops, _kf| {
         if input.floor == 1 {
             (fake_exit_ok(p), true)
         } else {
@@ -309,7 +310,7 @@ fn witness_synthetic_two_floor_tower_reaches_witness() {
 #[test]
 fn witness_refuses_to_fake_success() {
     let levels = two_floor_levels();
-    let solver: Solver<'_> = &|input, _entry, p, _flags, _ents, _toward, _shops| {
+    let solver: Solver<'_> = &|input, _entry, p, _flags, _ents, _toward, _shops, _kf| {
         if input.floor == 1 {
             (fake_exit_ok(p), true)
         } else {
@@ -362,7 +363,7 @@ fn witness_refuses_to_fake_success() {
 #[test]
 fn witness_truncated_floor_is_not_consumed() {
     let levels = two_floor_levels();
-    let solver: Solver<'_> = &|input, _entry, p, _flags, _ents, _toward, _shops| {
+    let solver: Solver<'_> = &|input, _entry, p, _flags, _ents, _toward, _shops, _kf| {
         if input.floor == 1 {
             (fake_exit_ok(p), true)
         } else {
@@ -397,7 +398,7 @@ fn witness_truncated_floor_is_not_consumed() {
 #[test]
 fn witness_goal_must_point_forward() {
     let levels = two_floor_levels();
-    let solver: Solver<'_> = &|input, _entry, p, _flags, _ents, _toward, _shops| {
+    let solver: Solver<'_> = &|input, _entry, p, _flags, _ents, _toward, _shops, _kf| {
         if input.floor == 1 {
             // 解是通往 f3 的（层图里 f1 的上一层是 f2）⇒ hit=false（= picks 的回落解）
             let mut got = fake_exit_ok(p);

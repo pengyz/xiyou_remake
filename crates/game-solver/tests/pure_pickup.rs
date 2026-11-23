@@ -32,7 +32,8 @@ use game_solver::pure_pickup::{
     closed_form_terminal_checks, pure_pickup_stat, replay_route_in_engine, PurePickupStat,
 };
 use game_solver::solve_local::{
-    load_floor, probe_gate, solve_local_exit_toward, solve_local_exit_toward_shops, EntRec, EntSpec,
+    load_floor, probe_gate, solve_local_exit_toward, solve_local_exit_toward_shops,
+    solve_local_exit_toward_shops_floor, EntRec, EntSpec,
     ExitKind, ExitSolve, ExitSpec, LevelSpec, PlayerSpec, SolveInput,
 };
 use game_solver::witness::{run_witness, run_witness_with, WitnessCfg};
@@ -881,9 +882,10 @@ fn witness_forwards_real_shop_table_to_layer_solver() {
                   f: u128,
                   ents: Option<&[EntRec]>,
                   toward: Option<i32>,
-                  shops: &[game_data::defs::ShopGoodDef]| {
+                  shops: &[game_data::defs::ShopGoodDef],
+                  kf: Option<[i32; 3]>| {
         got.borrow_mut().push((shops.len(), shops.as_ptr() as usize));
-        solve_local_exit_toward_shops(input, entry, p, f, ents, toward, shops)
+        solve_local_exit_toward_shops_floor(input, entry, p, f, ents, toward, shops, kf)
     };
     let _ = run_witness_with(
         &levels,
