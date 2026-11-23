@@ -181,6 +181,7 @@ fn fake_exit_ok(player: &PlayerSpec) -> game_solver::solve_local::ExitSolve {
         truncated: false,
         pure_pickup: false,
         pure_pickup_reason: None,
+        key_floor_not_consulted: None,
     }
 }
 
@@ -199,6 +200,7 @@ fn fake_ending(player: &PlayerSpec) -> game_solver::solve_local::ExitSolve {
         truncated: false,
         pure_pickup: false,
         pure_pickup_reason: None,
+        key_floor_not_consulted: None,
     }
 }
 
@@ -326,6 +328,7 @@ fn witness_refuses_to_fake_success() {
                     truncated: false,
                     pure_pickup: false,
                     pure_pickup_reason: None,
+                    key_floor_not_consulted: None,
                 },
                 false,
             )

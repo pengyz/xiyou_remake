@@ -505,6 +505,16 @@ pub struct ExitSolve {
     /// 为什么要它：`solver run` 消费的是 JSON，而 `pure_pickup` 布尔位只够判
     /// 「是不是闭式」，判不了「为什么不是」——复核 F7 的另一半。
     pub pure_pickup_reason: Option<String>,
+    /// 【S6a 复核 F6】本结果走的路径**没有消费** `key_floor` 时的具名标记：
+    /// - `Some("pure_pickup")` = 出层解来自纯拾取闭式（闭式直接返回 goals，不读 floor）；
+    /// - `Some("boss")` = 出层解来自锚击杀面（boss API 的层解/择优都不读 floor）；
+    /// - `None` = 该路径消费了 floor（精确 DP / Search 目标择优），或调用方没给 floor。
+    ///
+    /// 等价于统计面里的 `key_floor_not_consulted_by_path:<值>`，但它跟着**出层结果**走，
+    /// 不走 thread_local 快照，消费方不需要自己拼。存在的目的只是「不消费」这件事可观测：
+    /// 本片**不接线**（boss/闭式仍不读 floor）；S6b 接线后由外层 `key_shortfall` 兜底
+    /// （缺口只作诊断，用户裁定 m04638）。
+    pub key_floor_not_consulted: Option<&'static str>,
 }
 
 impl ExitSolve {
@@ -528,6 +538,7 @@ impl ExitSolve {
             truncated,
             pure_pickup: false,
             pure_pickup_reason: None,
+            key_floor_not_consulted: None,
         }
     }
 }
@@ -647,7 +658,15 @@ pub fn solve_local_exit_toward_shops_floor(
     } else {
         pick_exit_floor(&goals, key_floor)
     };
-    (materialize_exit(input, reachable, best, player_in, flags_in, ents_in, truncated), hit)
+    let mut ex =
+        materialize_exit(input, reachable, best, player_in, flags_in, ents_in, truncated);
+    // 【S6a 复核 F6】闭式解**不读** floor（`solve_layer_with` 的纯拾取分支在 floor 之前
+    // 就返回）⇒ 调用方给了 floor 时把「没消费」显式标在结果上。这里只做标记，不改结果：
+    // 闭式 goals 的钥匙各轴相同，floor 在 goal 择优面上也翻不了盘。
+    if key_floor.is_some() && ex.pure_pickup {
+        ex.key_floor_not_consulted = Some("pure_pickup");
+    }
+    (ex, hit)
 }
 
 /// S5 段分治：**锚击杀**面（outer_chain 段末任务消费）。
@@ -666,6 +685,31 @@ pub fn solve_local_boss_toward_shops(
     boss_ty: i32,
     shops: &[game_data::defs::ShopGoodDef],
 ) -> (ExitSolve, bool) {
+    solve_local_boss_toward_shops_floor(
+        input, entry, player_in, flags_in, ents_in, boss_ty, shops, None,
+    )
+}
+
+/// 【S6a 复核 F6】[`solve_local_boss_toward_shops`] 的**显式 floor 标记**变体。
+///
+/// **本片不接线**：`key_floor` 不参与锚击杀面的层解（`solve_layer_boss_shops` 仍走无
+/// floor 的 [`solve_layer_with`]），也不参与目标择优（仍是 [`best_goal`]）——所以出层
+/// 结果必须显式带 [`ExitSolve::key_floor_not_consulted`]`= Some("boss")`，让「这条路径
+/// 没看 floor」在消费侧可观测，而不是静默无视。S6b 接线后由外层 `key_shortfall` 兜底
+/// （缺口只作诊断，不阻断段末目标）。
+///
+/// `key_floor = None` ⇒ 与 [`solve_local_boss_toward_shops`] 逐字节同路径。
+#[allow(clippy::too_many_arguments)]
+pub fn solve_local_boss_toward_shops_floor(
+    input: &SolveInput,
+    entry: (i32, i32),
+    player_in: &PlayerSpec,
+    flags_in: u128,
+    ents_in: Option<&[EntRec]>,
+    boss_ty: i32,
+    shops: &[game_data::defs::ShopGoodDef],
+    key_floor: Option<[i32; 3]>,
+) -> (ExitSolve, bool) {
     let (reachable, goals) =
         solve_layer_boss_shops(input, entry, ents_in, player_in.clone(), flags_in, shops, boss_ty);
     let truncated = take_layer_trunc().is_some();
@@ -673,7 +717,12 @@ pub fn solve_local_boss_toward_shops(
         goals.iter().filter(|g| g.kind == ExitKind::BossKill).collect();
     let hit = !prefer.is_empty();
     let best = if hit { best_goal(prefer.into_iter()) } else { None };
-    (materialize_exit(input, reachable, best, player_in, flags_in, ents_in, truncated), hit)
+    let mut ex =
+        materialize_exit(input, reachable, best, player_in, flags_in, ents_in, truncated);
+    if key_floor.is_some() {
+        ex.key_floor_not_consulted = Some("boss");
+    }
+    (ex, hit)
 }
 
 /// 目标的换层边 `(target, went_down)`：`Stair` 取出口梯实体 `param&0xff`（同
@@ -779,6 +828,7 @@ fn materialize_exit(
             // 闭式解采用标记直取统计（`solve_layer_with` 在 memo 命中/闭式命中时都写）
             pure_pickup: closed_flag,
             pure_pickup_reason: closed_reason,
+            key_floor_not_consulted: None,
         },
         _ => {
             // 无目标（或目标未确认可达）：回显「入场态」——注入则原样，未注入则本层

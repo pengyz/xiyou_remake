@@ -717,6 +717,7 @@ pub fn replay_outer_witness(
                 truncated: false,
                 pure_pickup: false,
                 pure_pickup_reason: None,
+                key_floor_not_consulted: None,
             };
             if let Some((target, went_down)) = crate::witness::exit_edge(plevel, &fake) {
                 // landing 查的是**目标层**的落点梯（与 driver 缺口3 同口径；

@@ -89,6 +89,14 @@ pub struct ExactStat {
     /// 真引擎回放的步数（应与 `steps` 相等；不等即 mismatch）。
     pub replay_steps: i32,
     pub route_len: usize,
+    /// 【S6a 复核 F3】`key_floor` 的**层内可达性诊断**（不改 `ok`/`adopted` 语义）：
+    /// - `None` = 没给 floor，或层内上界（入场钥匙 + 全层拾取钥匙，忽略开门消耗）已够；
+    /// - `Some("key_floor_unreachable_in_layer")` = 上界都 < floor ⇒ 本层**不可能**满足。
+    ///
+    /// 为什么不直接改 `ok`：用户裁定 m04638——单层 floor 只是软目标，缺口只作诊断，
+    /// S6b 接线后由外层 `key_shortfall`（非阻断）兜底。本字段只把「够不到」与
+    /// 「路线没走到」分开，不引入第二套成败语义。
+    pub key_floor_reason: Option<&'static str>,
 }
 
 impl ExactStat {
@@ -105,6 +113,7 @@ impl ExactStat {
         states: 0,
         replay_steps: 0,
         route_len: 0,
+        key_floor_reason: None,
     };
 
     pub fn reason_label(&self) -> Option<String> {
@@ -298,6 +307,21 @@ fn run(
 
     // ---- DP ----
     let mut dp = Dp::new(input, view, entry, player_in, root_ents, flags_in);
+    // ---- 【S6a 复核 F3】floor 的层内可达性诊断（独立于终态挑选，不碰 ok/adopted）----
+    // 上界 = 入场三钥 + **全层**拾取钥增益（`key_sums` 已在 `Dp::new` 按 2^n 建好）。
+    // 开门只会减钥、不会加钥 ⇒ 上界不够即层内不可能；够也不保证某条路线真走到
+    // （那是终态挑选的事，`key_floor_reason` 不对它下结论）。
+    if let Some(f) = key_floor {
+        let s = dp.key_sums[dp.key_sums.len() - 1];
+        let upper = [
+            player_in.yellow + s[0],
+            player_in.blue + s[1],
+            player_in.red + s[2],
+        ];
+        if (0..3).any(|i| upper[i] < f[i]) {
+            st.key_floor_reason = Some("key_floor_unreachable_in_layer");
+        }
+    }
     if let Err((r, t)) = dp.search() {
         return give_up(st, r, t);
     }
