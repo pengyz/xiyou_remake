@@ -61,6 +61,11 @@ fn load_solver_input() -> SolverInput {
 const GLOBAL_ENTRY: (i32, i32) = (1, 11);
 
 /// f3 链态（f2 出层态，逐字段来自 `solver run` 的 JSON）。
+///
+/// 【2026-11-23 更正】`gold` 由 225 改为 1231：225 是 P9 时期外层链的旧值，现行真链
+/// `docs/findings/outer-chain-real.json` 的 `prefix_floors` 里 f3 的 `in_player.gold
+/// == 1231`（f51 0 → f52 1021 → f53 1227 → f1 1231 → f3 1231）。与
+/// `tests/exact_pickup.rs::f3_chain_player` 同值（探针与判据不许各说一套）。
 fn f3_chain_player() -> PlayerSpec {
     let mut item_types = vec![0u8; 32];
     let mut item_uses = vec![0u8; 32];
@@ -73,7 +78,7 @@ fn f3_chain_player() -> PlayerSpec {
         yellow: 0,
         blue: 0,
         red: 0,
-        gold: 225,
+        gold: 1231,
         item_types,
         item_uses,
         item_stack_size: 1,
