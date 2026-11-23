@@ -23,9 +23,9 @@ use game_core::combat::{scale_enemy_stats, CombatTables};
 use game_solver::exact_pickup::exact_stat;
 use game_solver::ingest::{ingest, SolverInput};
 use game_solver::solve_local::{
-    load_floor, solve_local_exit_toward, solve_local_exit_toward_shops,
-    solve_local_exit_toward_shops_floor, EntSpec,
-    ExitKind, ExitSpec, LevelSpec, PlayerSpec, SolveInput,
+    load_floor, solve_local_boss_toward_shops, solve_local_boss_toward_shops_floor,
+    solve_local_exit_toward, solve_local_exit_toward_shops, solve_local_exit_toward_shops_floor,
+    EntSpec, ExitKind, ExitSpec, LevelSpec, PlayerSpec, SolveInput,
 };
 use std::path::PathBuf;
 
@@ -250,6 +250,70 @@ fn synth_rect(
             start: SYNTH_ENTRY,
             entities: all,
             exits: vec![ExitSpec { x: exit.0, y: exit.1, kind: ExitKind::Stair, index: 1 }],
+            player: player.clone(),
+            enemies: lv.enemies.clone(),
+            enemy_base: lv.enemy_base.clone(),
+            flags: 0,
+        }),
+    }
+}
+
+/// 字符地图 → 地形位图：`.`/`S`/`E` 可走，`#` 墙。返回 `(cols, rows, terrain)`。
+///
+/// 只给「有墙/口袋」的夹具用——全通夹具仍走 [`synth_rect`]，不复制第二套网格。
+fn parse_map(rows: &[&str]) -> (i32, i32, Vec<bool>) {
+    let rows_n = rows.len() as i32;
+    let cols = rows[0].len() as i32;
+    let mut walk = Vec::with_capacity((cols * rows_n) as usize);
+    for r in rows {
+        assert_eq!(r.len() as i32, cols, "地图每行必须等宽: {r:?}");
+        for ch in r.chars() {
+            walk.push(ch != '#');
+        }
+    }
+    (cols, rows_n, walk)
+}
+
+/// 7×5（或任意 [`parse_map`] 网格）自定义地形夹具：入口/出口显式给出，出口自动追加
+/// `ty7` 上梯实体。与 [`synth_rect`] 的差别只有地形——其余装载口径逐字段相同。
+fn synth_grid(
+    si: &SolverInput,
+    cols: i32,
+    rows: i32,
+    walk: Vec<bool>,
+    start: (i32, i32),
+    exit: (i32, i32),
+    ents: Vec<EntSpec>,
+    player: PlayerSpec,
+) -> SolveInput {
+    let f54 = floor_input(si, 54);
+    let lv = f54.level.as_ref().expect("f54 必须有层");
+    assert!(
+        walk.len() == (cols * rows) as usize,
+        "地形位图长度必须 == cols*rows"
+    );
+    let mut all = ents;
+    all.push(EntSpec {
+        ty: 7,
+        x: exit.0,
+        y: exit.1,
+        param: 1,
+    });
+    SolveInput {
+        floor: 54,
+        difficulty: f54.difficulty,
+        level: Some(LevelSpec {
+            cols,
+            rows,
+            terrain: walk,
+            start,
+            entities: all,
+            exits: vec![ExitSpec {
+                x: exit.0,
+                y: exit.1,
+                kind: ExitKind::Stair,
+                index: 1,
+            }],
             player: player.clone(),
             enemies: lv.enemies.clone(),
             enemy_base: lv.enemy_base.clone(),
@@ -572,6 +636,181 @@ fn exact_dp_adopts_simple_layer() {
 
 
 // ---------------------------------------------------------------------------
+// 【S6a 复核 F1】DP 终态序必须是 **hp → 满足 key_floor → steps**：
+// `key_floor` 是软目标，**不许翻盘 hp**。
+//
+// 为什么现有 f3 判据拦不住：f3 里「满足 floor 的终态」恰好也是 hp 最高的终态，
+// 把比较器改成 floor → hp → steps 也全绿（复核 F1 实测 13/13）——夹具没有权衡。
+//
+// 本夹具让两个终态**真互斥**（地图：`.`可走、`#`墙、`S`=入场 (0,1)）：
+// ```text
+// y=0  # # # # # # #
+// y=1  S . K . D P #   K=ty26 黄钥 / D=ty1 黄门 / P=ty32 +200hp 口袋
+// y=2  . # # # # # #
+// y=3  . . . . . . E   E=(6,3) 上梯
+// y=4  # # # # # # .   (6,4) 零损血 cat8：挡闭式解，不在任何可行路线上
+// ```
+// P 在 (5,1)：四邻只有 D 一扇黄门（上/下/右全是墙）⇒ 捡 P 必须开门。
+// 全层只有 1 把黄钥 ⇒ 两个终态互斥：
+//   · A：捡 K、**不开门** ⇒ hp=500、黄钥 1 把（满足 floor=[1,0,0]）；
+//   · B：捡 K、开门（花掉黄钥）、捡 P ⇒ hp=700、黄钥 0 把（不满足 floor）。
+// 目标序 `(hp, 满足 floor, steps)` ⇒ 必须选 **B**；把终态序改成 floor → hp → steps
+// （复核 F1 的变异）则 A 翻盘 ⇒ 本条必须红。
+// ---------------------------------------------------------------------------
+#[test]
+fn s6a_exact_dp_hp_beats_key_floor() {
+    let si = load_si();
+    let (cols, rows, walk) = parse_map(&[
+        "#######", //
+        "S.K.DP#", //
+        ".######", //
+        "......E", //
+        "######.", //
+    ]);
+    let mut ps = s0_spec(500);
+    ps.atk = 900;
+    let inp = synth_grid(
+        &si,
+        cols,
+        rows,
+        walk,
+        SYNTH_ENTRY,
+        (6, 3),
+        vec![
+            EntSpec {
+                ty: 26,
+                x: 2,
+                y: 1,
+                param: 0,
+            }, // K：全层唯一的黄钥
+            EntSpec {
+                ty: 1,
+                x: 4,
+                y: 1,
+                param: 0,
+            }, // D：黄门（口袋唯一入口）
+            EntSpec {
+                ty: 32,
+                x: 5,
+                y: 1,
+                param: 0,
+            }, // P：+200 hp，门后口袋
+            EntSpec {
+                ty: 41,
+                x: 6,
+                y: 4,
+                param: 0,
+            }, // 零损血 cat8：挡闭式，路线用不到
+        ],
+        ps.clone(),
+    );
+
+    // toward=None（不限定出口）：本层只有一个上梯，避免方向面混进来。
+    let (ex, _hit) = solve_local_exit_toward_shops_floor(
+        &inp,
+        SYNTH_ENTRY,
+        &ps,
+        0,
+        None,
+        None,
+        &[],
+        Some([1, 0, 0]),
+    );
+    let st = exact_stat();
+    println!(
+        "[S6a-F1] ok={} hp={} keys=({},{},{}) steps={} doors={} picks={} stat={:?}",
+        ex.ok,
+        ex.out_hp,
+        ex.out_player.yellow,
+        ex.out_player.blue,
+        ex.out_player.red,
+        st.steps,
+        st.doors,
+        st.picks,
+        st
+    );
+    assert!(
+        st.adopted,
+        "合成夹具必须真正落到精确 DP，reason={:?}",
+        st.reason
+    );
+    assert!(
+        ex.ok && !ex.truncated,
+        "ok && !truncated：ok={} trunc={}",
+        ex.ok,
+        ex.truncated
+    );
+    // 核心判据：hp 优先。B 态 700 > A 态 500；把 floor 提到 hp 前面就会选 A。
+    assert_eq!(
+        ex.out_hp, 700,
+        "hp 优先：必须选开门捡 +200hp 的 B 态（500+200）"
+    );
+    assert!(
+        ex.out_player.yellow < 1,
+        "B 态把唯一黄钥花在开门上 ⇒ 出层 0 把 < floor 的 1 把；实测 {}",
+        ex.out_player.yellow
+    );
+    assert_eq!(st.doors, 1, "B 态只开 1 扇黄门");
+    // picks 数的是终态拾取位图（黄钥 + hp 两件都捡过；黄钥随后花在门上，但位仍置位）。
+    assert_eq!(st.picks, 2, "B 态捡过 K 与 P 两件拾取物");
+
+    // 夹具自证（防「A 根本不可达」的假判据）：把门后口袋里的 P 拿掉再解一次。
+    // 地形/入口/出口/黄钥/黄门逐字段不变，A 路线**不经过 P**（P 在死胡同口袋里），
+    // 所以 A 在第二夹具里必须被选为最佳：hp=500、黄钥 1、0 扇门。
+    let walk_a = parse_map(&[
+        "#######", //
+        "S.K.DP#", //
+        ".######", //
+        "......E", //
+        "######.", //
+    ])
+    .2;
+    let inp_a = synth_grid(
+        &si,
+        cols,
+        rows,
+        walk_a,
+        SYNTH_ENTRY,
+        (6, 3),
+        vec![
+            EntSpec {
+                ty: 26,
+                x: 2,
+                y: 1,
+                param: 0,
+            },
+            EntSpec {
+                ty: 1,
+                x: 4,
+                y: 1,
+                param: 0,
+            },
+            EntSpec {
+                ty: 41,
+                x: 6,
+                y: 4,
+                param: 0,
+            },
+        ],
+        ps.clone(),
+    );
+    let (ex_a, _) = solve_local_exit_toward_shops_floor(
+        &inp_a,
+        SYNTH_ENTRY,
+        &ps,
+        0,
+        None,
+        None,
+        &[],
+        Some([1, 0, 0]),
+    );
+    assert!(exact_stat().adopted, "A 夹具同样必须落到精确 DP");
+    assert_eq!(ex_a.out_hp, 500, "A 终态 hp = 入场 500（不开门、不捡 P）");
+    assert_eq!(ex_a.out_player.yellow, 1, "A 终态带 1 把黄钥（满足 floor）");
+    assert_eq!(exact_stat().doors, 0, "A 终态不开门");
+}
+
+// ---------------------------------------------------------------------------
 // 【S6a】key_floor 落到**精确 DP 的终态比较器**（方案 §2.3 / §5 S6a 首判据）。
 //
 // f3 第 2 次访问的真实链路态：`toward=f4`（上梯 (11,11)）、下一层需求 (2,0,0)。
@@ -613,8 +852,17 @@ fn s6a_exact_dp_key_floor_f3() {
         st.states,
         st
     );
-    assert!(ex.ok && !ex.truncated, "ok && !truncated：ok={} trunc={}", ex.ok, ex.truncated);
-    assert!(st.adopted, "f3 必须仍由精确 DP 接管，reason={:?}", st.reason);
+    assert!(
+        ex.ok && !ex.truncated,
+        "ok && !truncated：ok={} trunc={}",
+        ex.ok,
+        ex.truncated
+    );
+    assert!(
+        st.adopted,
+        "f3 必须仍由精确 DP 接管，reason={:?}",
+        st.reason
+    );
     assert_eq!(ex.out_hp, F3_MAX_HP, "key_floor 不许牺牲 hp：必须仍是 4027");
     assert!(
         ex.out_player.yellow >= 2,
@@ -629,19 +877,221 @@ fn s6a_exact_dp_key_floor_f3() {
         ex.out_player.gold, 1256,
         "f3 出层金 = 真链入场 1231 + 7 杀赏金 25"
     );
-    assert!(
-        (81..=88).contains(&st.steps),
-        "key_floor 只许吃 steps 维，且上界 88（旧 81 + ≤7）：实测 {}",
-        st.steps
+    // 【S6a 复核 F8】步数必须**精确**：floor=None 是 81 步/14 件，floor=Some([2,0,0])
+    // 要多捡 2 件（16 件）⇒ 83 步。窗口断言（旧 81..=88）在「反转 steps tie-break」
+    // 变异下仍落窗内（实测 85 步），抓不住回归 —— 复核 F8 实证。
+    assert_eq!(
+        st.steps, 83,
+        "key_floor 只许精确 +2 步（81 = 无 floor 的最短；83 = 多捡 2 件的代价）"
     );
-    assert!(
-        st.states < 6_000_000,
-        "不许撞 state_cap（预算 6_000_000），实测 states={}",
-        st.states
+    assert_eq!(
+        st.picks, 16,
+        "floor=Some([2,0,0]) 必须比无 floor 多捡 2 件（14 → 16）"
+    );
+    assert_eq!(
+        st.kills, 7,
+        "floor 不改击杀面（7 只零伤 cat8 全在同一路线上）"
+    );
+    // states 是 DP 状态图规模（只由层决定、与 floor 无关），确定性可精确断言；
+    // 复核 F8 要求把 `< 6_000_000` 这种「预算护栏断言」换成真值。
+    assert_eq!(
+        st.states, 4_739_833,
+        "f3 的精确 DP 状态数（P9.1 记录值；若搜索逻辑变化必须显式改这里）",
     );
     assert!(hit, "toward=4 必须命中 f3 的上行出口");
     assert_eq!(ex.exit, Some((11, 11)), "f3→f4 的出口是上梯 (11,11)");
-    assert_eq!(ex.route.len() as i32, st.steps, "route.len() 与 DP 步数同口径");
+    assert_eq!(
+        ex.route.len() as i32,
+        st.steps,
+        "route.len() 与 DP 步数同口径"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 【S6a 复核 F3】层内不可能满足 `key_floor` 必须**具名**诊断，且不得改 `ok` 语义。
+//
+// 复核实测：f3 + `Some([9,0,0])` 得 `ok=true / yellow=0 / adopted`，而全仓没有任何
+// `key_floor_unreachable_in_layer` 字样 —— 「floor 够不到」与「路线没走到」在统计面
+// 不可区分。用户裁定 m04638：单层只做软目标，缺口只作诊断 ⇒ **`ok` 必须仍是 true**。
+//
+// 判据：f3 入场 0 把黄钥、全层 8 把黄钥拾取物（开门只会更少）⇒ 上界 8 < 9 ⇒
+// `key_floor_reason == Some("key_floor_unreachable_in_layer")`；同一夹具的
+// `Some([2,0,0])` 上界 8 ≥ 2 ⇒ 必须是 `None`（不误报）。
+// ---------------------------------------------------------------------------
+#[test]
+fn s6a_key_floor_unreachable_in_layer_is_named() {
+    let si = load_si();
+    let inp = floor_input(&si, 3);
+    let ps = f3_chain_player();
+    let (ex, _hit) = solve_local_exit_toward_shops_floor(
+        &inp,
+        F3_ENTRY,
+        &ps,
+        F3_FLAGS,
+        None,
+        Some(4),
+        &si.shops,
+        Some([9, 0, 0]),
+    );
+    let st = exact_stat();
+    println!(
+        "[S6a-F3] ok={} trunc={} hp={} yellow={} steps={} key_floor_reason={:?} stat={:?}",
+        ex.ok, ex.truncated, ex.out_hp, ex.out_player.yellow, st.steps, st.key_floor_reason, st
+    );
+    assert!(
+        st.adopted,
+        "f3 必须仍由精确 DP 接管，reason={:?}",
+        st.reason
+    );
+    assert!(
+        ex.ok && !ex.truncated,
+        "单层 floor 只是软目标（用户裁定 m04638）：缺口不许把出层判死；ok={} trunc={}",
+        ex.ok,
+        ex.truncated
+    );
+    assert_eq!(
+        st.key_floor_reason,
+        Some("key_floor_unreachable_in_layer"),
+        "层内上界（入场钥匙 + 全层拾取钥）< floor ⇒ 必须具名，不许静默"
+    );
+    assert!(
+        ex.out_player.yellow < 9,
+        "实测出层黄钥必须仍不足 9（软目标不硬凑）"
+    );
+
+    // 不误报：同一层的可达 floor（上界 8 ≥ 2）必须是 None。
+    let (ex2, _) = solve_local_exit_toward_shops_floor(
+        &inp,
+        F3_ENTRY,
+        &ps,
+        F3_FLAGS,
+        None,
+        Some(4),
+        &si.shops,
+        Some([2, 0, 0]),
+    );
+    assert!(ex2.ok, "可达 floor 必须照常出层");
+    assert_eq!(
+        exact_stat().key_floor_reason,
+        None,
+        "可达 floor 不许被误判成 unreachable_in_layer"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 【S6a 复核 F6】两条**不消费** `key_floor` 的路径必须把它显式标在出层结果上。
+//
+// 复核实测：boss API（`solve_local_boss_toward_shops`）没有 floor 形参；纯拾取闭式在
+// `solve_layer_with_floor` 里**先于** floor 返回 goals。两条路径都不读 floor，但出层
+// 结果上没有任何痕迹 ⇒ 消费侧会把「没看 floor」误当「已满足 floor」。
+// 本片只要求**显式化**（不接线）：`ExitSolve::key_floor_not_consulted` 标
+// `"pure_pickup"` / `"boss"`；S6b 接线后由外层 `key_shortfall` 兜底。
+// ---------------------------------------------------------------------------
+#[test]
+fn s6a_key_floor_not_consulted_by_path_is_marked() {
+    let si = load_si();
+    let mut ps = s0_spec(500);
+    ps.atk = 900;
+
+    // (1) 纯拾取闭式：7×5 全通、无怪/无门/无步臂 ⇒ 闭式接管（无 floor 维度可言）。
+    let inp_pure = synth_rect(
+        &si,
+        7,
+        5,
+        (6, 1),
+        vec![EntSpec {
+            ty: 32,
+            x: 3,
+            y: 1,
+            param: 0,
+        }],
+        ps.clone(),
+    );
+    let (ex_pure, _) = solve_local_exit_toward_shops_floor(
+        &inp_pure,
+        SYNTH_ENTRY,
+        &ps,
+        0,
+        None,
+        None,
+        &[],
+        Some([1, 0, 0]),
+    );
+    println!(
+        "[S6a-F6] pure ok={} hp={} pure={} reason={:?} marker={:?}",
+        ex_pure.ok,
+        ex_pure.out_hp,
+        ex_pure.pure_pickup,
+        ex_pure.pure_pickup_reason,
+        ex_pure.key_floor_not_consulted
+    );
+    assert!(
+        ex_pure.pure_pickup,
+        "夹具必须由纯拾取闭式接管，reason={:?}",
+        ex_pure.pure_pickup_reason
+    );
+    assert!(ex_pure.ok, "闭式出层必须 ok");
+    assert_eq!(ex_pure.out_hp, 700, "闭式上界 500 + 200");
+    assert_eq!(
+        ex_pure.key_floor_not_consulted,
+        Some("pure_pickup"),
+        "闭式不读 floor ⇒ 给了 floor 时必须显式标记"
+    );
+    // 没给 floor ⇒ 不存在「没消费」可言，标记必须是 None。
+    let (ex_pure_none, _) =
+        solve_local_exit_toward_shops_floor(&inp_pure, SYNTH_ENTRY, &ps, 0, None, None, &[], None);
+    assert_eq!(
+        ex_pure_none.key_floor_not_consulted, None,
+        "floor=None 不许凭空打标记"
+    );
+
+    // (2) boss 锚击杀面：ty75 在 f54（>50，可正常 restep），atk900 零损血可杀。
+    let inp_boss = synth_rect(
+        &si,
+        7,
+        5,
+        (6, 1),
+        vec![EntSpec {
+            ty: 75,
+            x: 3,
+            y: 1,
+            param: 0,
+        }],
+        ps.clone(),
+    );
+    let (ex_boss, hit) = solve_local_boss_toward_shops_floor(
+        &inp_boss,
+        SYNTH_ENTRY,
+        &ps,
+        0,
+        None,
+        75,
+        &[],
+        Some([1, 0, 0]),
+    );
+    println!(
+        "[S6a-F6] boss hit={} ok={} marker={:?}",
+        hit, ex_boss.ok, ex_boss.key_floor_not_consulted
+    );
+    assert!(
+        hit && ex_boss.ok,
+        "boss 锚击杀必须命中且 ok：hit={} ok={}",
+        hit,
+        ex_boss.ok
+    );
+    assert_eq!(
+        ex_boss.key_floor_not_consulted,
+        Some("boss"),
+        "boss API 不读 floor ⇒ 给了 floor 时必须显式标记"
+    );
+    // 旧入口（没有 floor 形参）不得凭空打标记。
+    let (ex_boss_none, hit_none) =
+        solve_local_boss_toward_shops(&inp_boss, SYNTH_ENTRY, &ps, 0, None, 75, &[]);
+    assert!(hit_none && ex_boss_none.ok, "旧 boss 入口行为不变");
+    assert_eq!(
+        ex_boss_none.key_floor_not_consulted, None,
+        "floor=None 不许凭空打标记"
+    );
 }
 
 // ---------------------------------------------------------------------------
