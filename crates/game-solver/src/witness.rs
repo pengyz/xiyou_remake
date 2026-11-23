@@ -84,7 +84,13 @@ use std::collections::{BTreeMap, BTreeSet};
 ///
 /// v2 → v3（2026-11-20，P10）：`WitnessFloor` 追加 `demand` / `demand_undefined` /
 /// `keys_out` / `key_shortfall` 四个**诊断**字段（钥匙需求观测面；不参与比较）。
-pub const WITNESS_SCHEMA: &str = "xiyou/witness/v3";
+///
+/// v3 → v4（2026-11-23，S6a 复核 F6）：`WitnessFloor` 追加 `key_floor` /
+/// `key_floor_not_consulted` 两字段。为什么要落盘：`ExitSolve::key_floor_not_consulted`
+/// 原先只在内存里，`record_floor` 把它**丢了**，JSON 消费方看不出「这条出层解没看 floor」；
+/// 而 `Option` 的 `None` 同时代表「消费了」与「没给 floor」两件事 ⇒ 必须再落一个
+/// `key_floor`（本层**请求**的目标，`null`=没请求）才能区分。S6b 的接线判据依赖这一区分。
+pub const WITNESS_SCHEMA: &str = "xiyou/witness/v4";
 
 /// 一次见证的层数上限（防无限推进；塔序真实长度 ~54 ⇒ 64 足够且仍是硬护栏）。
 pub const DEFAULT_MAX_FLOORS: usize = 64;
@@ -222,6 +228,13 @@ pub struct WitnessFloor {
     /// 【v3 诊断】`keys_out` 逐色小于 `demand` 的缺口。**不阻断、不改 ok**——
     /// 只如实落账供审计与下一片「链路层回拾/补钥」使用。
     pub key_shortfall: Option<KeyShortfall>,
+    /// 【v4 诊断】本层**请求**的钥匙目标 `(y,b,r)`；`null` = 调用方没请求（下行回拾/无 floor 面）。
+    /// 与 `key_floor_not_consulted` 合起来才无歧义：请求了且 `not_consulted=null` ⇒ 真消费了。
+    pub key_floor: Option<[i32; 3]>,
+    /// 【v4 诊断】请求了 floor 但该出层路径**不读**它时的具名标记
+    /// （`"pure_pickup"` 闭式 / `"boss"` 锚击杀面）；`null` = 消费了，或根本没请求。
+    /// **不是**「floor 已满足」的证据——S6b 接线后由 `key_shortfall` 兜底（缺口只作诊断）。
+    pub key_floor_not_consulted: Option<String>,
 }
 
 /// 【v3 诊断】钥匙缺口（逐色）：`need` 来自 `demand`，`have` 来自 `keys_out`。
@@ -395,6 +408,7 @@ pub(crate) fn record_floor(
     cur_flags: u128,
     ents_here: Option<&[EntRec]>,
     demand: &crate::objective::Demand,
+    key_floor: Option<[i32; 3]>,
 ) {
     // ok=true ⇒ kind 必为 Some（`materialize_exit` 契约：只有 Some(g) 才回填目标态）
     let kind = got.kind.expect("ok=true ⇒ kind 必为 Some（solve_local_exit 契约）");
@@ -440,6 +454,8 @@ pub(crate) fn record_floor(
         },
         keys_out,
         key_shortfall,
+        key_floor,
+        key_floor_not_consulted: got.key_floor_not_consulted.map(str::to_string),
     });
 }
 
@@ -578,7 +594,7 @@ pub fn run_witness_with(
         // 终局：`Ending` 层=通关。终局层本身也是「解出来的成功层」，**照样落账**
         // （它的 kind=Ending、exit 可能为 null；`floors` 因此是完整的逐层路线）。
         if kind == ExitKind::Ending {
-            record_floor(&mut w, floor, entry, &got, &cur_player, cur_flags, ents_here.as_deref(), &demand);
+            record_floor(&mut w, floor, entry, &got, &cur_player, cur_flags, ents_here.as_deref(), &demand, None);
             w.status = WitnessStatus::Witness.as_str().to_string();
             w.final_state = WitnessFinal { ending_done: true, floor };
             break;
@@ -675,7 +691,7 @@ pub fn run_witness_with(
             break;
         }
         // ---- 成功层：出层边已核验通往 f{expected} 才落账（floors=成功前缀）----
-        record_floor(&mut w, floor, entry, &got, &cur_player, cur_flags, ents_here.as_deref(), &demand);
+        record_floor(&mut w, floor, entry, &got, &cur_player, cur_flags, ents_here.as_deref(), &demand, None);
 
         // 接力：本层终态入位图（按层归属），玩家/旗标带入下一层。
         ents_by_floor.insert(floor, got.out_ents.clone());

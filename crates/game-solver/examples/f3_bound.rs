@@ -1,10 +1,14 @@
 //! f3 单层三档探针（证据工具，**不参与门禁**）。
 //!
 //! 复刻 `solver run`（默认 200k）到达 f3 时的**真实链态**——不是冷启 S0：
-//! 链 51→52→53→54→1→2 的出层态 = `hp=3227, atk=def=730, gold=225,
+//! 链 51→52→53→54→1→2 的出层态 = `hp=3227, atk=def=730, gold=1231,
 //! flags=0xe337be0000000000, bag=[(13,uses=255)], entry=(2,11)`。
-//! 依据：`solver run --out` 的 floor 2 条目（`in_player`/`out_flags`），
-//! 见 docs/findings/2026-11-19-f3-gate27-walk-only.md §3。
+//! 依据：`docs/findings/outer-chain-real.json` 的 `prefix_floors`（f1/f2/f3 的
+//! `in_player.gold` 全为 1231）+ `solver run --out` 的 floor 2 条目（`in_player`/`out_flags`）。
+//!
+//! 【2026-11-23 更正（S6a 复核 F9）】本行原写 `gold=225`，是 P9 时期外层链的旧值；
+//! 现行真链是 1231（同一份值同时被 `tests/exact_pickup.rs` 的 f3 判据使用）。
+//! 旧依据 `docs/findings/2026-11-19-f3-gate27-walk-only.md` §3 只覆盖 gate27 观察，不含金币。
 //!
 //! 用法：
 //! ```text

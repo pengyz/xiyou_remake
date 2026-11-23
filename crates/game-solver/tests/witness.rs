@@ -475,14 +475,17 @@ fn witness_json_schema_stable() {
         &[
             "floor", "entry", "exit", "kind", "route", "in_hp", "out_hp", "in_player",
             "out_player", "in_flags", "out_flags", "ents_in", "ents_out", "ok", "truncated",
-            "pure_pickup", "pure_pickup_reason",
+            "pure_pickup", "pure_pickup_reason", "demand", "demand_undefined", "keys_out",
+            "key_shortfall", "key_floor", "key_floor_not_consulted",
         ],
     );
 
     // 3) 值层面：schema 标签、状态词表、层不变式。
     let v: serde_json::Value = serde_json::from_str(&json).unwrap();
     // 【2026-11-20 更正（P10）】witness v3：WitnessFloor 追加 demand/keys_out/demand_undefined/key_shortfall 诊断字段。
-    assert_eq!(v["meta"]["schema"], "xiyou/witness/v3");
+    // 【2026-11-23 更正（S6a 复核 F6）】witness v4：再追加 key_floor / key_floor_not_consulted
+    // ——后者原先进 `ExitSolve` 却在 `record_floor` 被丢弃，JSON 消费方看不到「没看 floor」。
+    assert_eq!(v["meta"]["schema"], "xiyou/witness/v4");
     assert!(
         ["witness", "blocked", "capped", "model_broken"].contains(&v["status"].as_str().unwrap()),
         "status 词表：{}",
@@ -544,14 +547,16 @@ fn witness_json_has_no_unknown_schema_drift() {
 
     // ① 契约变更必须换版本标签（新增字段属契约变更，见 witness.rs 模块文档 v1→v2）。
     // 【2026-11-20 更正（P10）】schema 必须升到 v3（witness v2→v3：追加 demand/keys_out 等诊断字段）。
-    assert_eq!(v["meta"]["schema"], "xiyou/witness/v3", "schema 必须升到 v3");
+    // 【2026-11-23 更正（S6a 复核 F6）】再升 v4（追加 key_floor / key_floor_not_consulted）。
+    assert_eq!(v["meta"]["schema"], "xiyou/witness/v4", "schema 必须升到 v4");
 
     // ② 声明序：新字段必须追加在 `truncated` 之后（不重排既有字段）。
     let mut last = 0usize;
     for f in [
         "floor", "entry", "exit", "kind", "route", "in_hp", "out_hp", "in_player", "out_player",
         "in_flags", "out_flags", "ents_in", "ents_out", "ok", "truncated", "pure_pickup",
-        "pure_pickup_reason",
+        "pure_pickup_reason", "demand", "demand_undefined", "keys_out", "key_shortfall",
+        "key_floor", "key_floor_not_consulted",
     ] {
         let pat = format!("\"{f}\":");
         let pos = json.find(&pat).unwrap_or_else(|| panic!("缺字段 {f}"));

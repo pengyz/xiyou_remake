@@ -429,7 +429,7 @@ pub fn run_outer_witness_with(
                     ));
                     break;
                 }
-                record_floor(&mut w, task.floor, entry, &got, &cur_player, cur_flags, ents_here.as_deref(), &demand);
+                record_floor(&mut w, task.floor, entry, &got, &cur_player, cur_flags, ents_here.as_deref(), &demand, None);
                 ents_by_floor.insert(task.floor, got.out_ents.clone());
                 cur_player = got.out_player.clone();
                 // BossKill≠通关：ending_done 只在真 Ending 时为真（不许冒充通关）。
@@ -472,7 +472,7 @@ pub fn run_outer_witness_with(
                 fail_reason = Some(format!("出层边指 f{}，外层块序要求 f{}", target, toward));
                 break;
             }
-            record_floor(&mut w, task.floor, entry, &got, &cur_player, cur_flags, ents_here.as_deref(), &demand);
+            record_floor(&mut w, task.floor, entry, &got, &cur_player, cur_flags, ents_here.as_deref(), &demand, None);
             ents_by_floor.insert(task.floor, got.out_ents.clone());
             cur_player = got.out_player.clone();
             cur_flags = got.out_flags;

@@ -342,7 +342,11 @@ fn exact_dp_same_hp_fewer_steps_survives() {
     let si = load_si();
     // 带一只**零损血** cat8（角落、不在最优路线上）：否则这是纯拾取层，闭式会先接管。
     let mut ps = s0_spec(500);
-    ps.atk = 900;
+    // 【2026-11-23 复核 F1】atk 由 900 改为 730：730 是真链 f3 的入场 atk
+    // （`prefix_floors[6].in_player.atk == 730`，S5 复核 R4 亦记「真链最大 atk 731」）。
+    // 900 虽能让夹具成立，但那是合成属性——判据必须跑在真实可达的属性上，
+    // 否则「这条夹具证明了什么」会被误读成「真实局面可解」。改 730 后逐字段不变。
+    ps.atk = 730;
     let inp = synth_rect(
         &si,
         7,
@@ -434,7 +438,11 @@ fn exact_dp_f3_reaches_4027() {
 fn exact_dp_off_on_buyable_shop() {
     let si = load_si();
     let mut ps = s0_spec(500);
-    ps.atk = 900;
+    // 【2026-11-23 复核 F1】atk 由 900 改为 730：730 是真链 f3 的入场 atk
+    // （`prefix_floors[6].in_player.atk == 730`，S5 复核 R4 亦记「真链最大 atk 731」）。
+    // 900 虽能让夹具成立，但那是合成属性——判据必须跑在真实可达的属性上，
+    // 否则「这条夹具证明了什么」会被误读成「真实局面可解」。改 730 后逐字段不变。
+    ps.atk = 730;
     let inp = synth_rect(
         &si,
         7,
@@ -469,7 +477,11 @@ fn exact_dp_off_on_buyable_shop() {
 fn exact_dp_adopts_layer_with_unbuyable_shop() {
     let si = load_si();
     let mut ps = s0_spec(500);
-    ps.atk = 900;
+    // 【2026-11-23 复核 F1】atk 由 900 改为 730：730 是真链 f3 的入场 atk
+    // （`prefix_floors[6].in_player.atk == 730`，S5 复核 R4 亦记「真链最大 atk 731」）。
+    // 900 虽能让夹具成立，但那是合成属性——判据必须跑在真实可达的属性上，
+    // 否则「这条夹具证明了什么」会被误读成「真实局面可解」。改 730 后逐字段不变。
+    ps.atk = 730;
     let inp = synth_rect(
         &si,
         7,
@@ -575,7 +587,11 @@ fn exact_dp_off_on_script_hp_spawn() {
 fn exact_dp_off_on_post_kill_spawn() {
     let si = load_si();
     let mut ps = s0_spec(500);
-    ps.atk = 900;
+    // 【2026-11-23 复核 F1】atk 由 900 改为 730：730 是真链 f3 的入场 atk
+    // （`prefix_floors[6].in_player.atk == 730`，S5 复核 R4 亦记「真链最大 atk 731」）。
+    // 900 虽能让夹具成立，但那是合成属性——判据必须跑在真实可达的属性上，
+    // 否则「这条夹具证明了什么」会被误读成「真实局面可解」。改 730 后逐字段不变。
+    ps.atk = 730;
     let inp = synth_floor(&si, 35, 5, vec![EntSpec { ty: 69, x: 2, y: 1, param: 0 }], ps.clone());
     let _ex = run_on(&inp, &ps);
     let st = exact_stat();
@@ -668,7 +684,11 @@ fn s6a_exact_dp_hp_beats_key_floor() {
         "######.", //
     ]);
     let mut ps = s0_spec(500);
-    ps.atk = 900;
+    // 【2026-11-23 复核 F1】atk 由 900 改为 730：730 是真链 f3 的入场 atk
+    // （`prefix_floors[6].in_player.atk == 730`，S5 复核 R4 亦记「真链最大 atk 731」）。
+    // 900 虽能让夹具成立，但那是合成属性——判据必须跑在真实可达的属性上，
+    // 否则「这条夹具证明了什么」会被误读成「真实局面可解」。改 730 后逐字段不变。
+    ps.atk = 730;
     let inp = synth_grid(
         &si,
         cols,
@@ -884,19 +904,50 @@ fn s6a_exact_dp_key_floor_f3() {
         st.steps, 83,
         "key_floor 只许精确 +2 步（81 = 无 floor 的最短；83 = 多捡 2 件的代价）"
     );
-    assert_eq!(
-        st.picks, 16,
-        "floor=Some([2,0,0]) 必须比无 floor 多捡 2 件（14 → 16）"
+    // 【2026-11-23 复核 F8】`picks` 是**枚举顺序指纹**（改 DIRS 旋转就漂到 15，
+    // 语义不变）⇒ 只钉下限：「够 floor 所需的件数」。真值 16，无 floor 时 14。
+    assert!(
+        st.picks >= 15,
+        "floor=Some([2,0,0]) 至少要捡够钥匙（实测 16，无 floor 时 14）；实测 {}",
+        st.picks
     );
     assert_eq!(
         st.kills, 7,
         "floor 不改击杀面（7 只零伤 cat8 全在同一路线上）"
     );
-    // states 是 DP 状态图规模（只由层决定、与 floor 无关），确定性可精确断言；
-    // 复核 F8 要求把 `< 6_000_000` 这种「预算护栏断言」换成真值。
+    // states 是 DP 状态图规模（只由层决定、**与 floor 无关**）。
+    // 【2026-11-23 复核 F8】精确值 4_739_833 也是「枚举顺序指纹」（DIRS 旋转后变
+    // 3_556_732，语义不变）⇒ 改成区间护栏 + 一条真不变量（见下方 floor=None 复跑）。
+    assert!(
+        (3_500_000..=5_200_000).contains(&st.states),
+        "f3 精确 DP 状态数应在护栏区间内（真值 4_739_833）；实测 {}",
+        st.states
+    );
+    // 【2026-11-23 复核 F8】不变量：`key_floor` 只影响终态**挑选**，不进状态支配
+    // ⇒ 同一层的 DP 状态图规模必须与 floor 无关。这条比精确值有牙且不脆：
+    // 谁把 floor 塞进状态维（正确性不需要，代价是状态爆炸），这里立刻红。
+    let (ex_none, _) = solve_local_exit_toward_shops_floor(
+        &inp,
+        F3_ENTRY,
+        &ps,
+        F3_FLAGS,
+        None,
+        Some(4),
+        &si.shops,
+        None,
+    );
+    let st_none = exact_stat();
     assert_eq!(
-        st.states, 4_739_833,
-        "f3 的精确 DP 状态数（P9.1 记录值；若搜索逻辑变化必须显式改这里）",
+        st_none.states, st.states,
+        "floor 不许进状态支配：Some 与 None 的 DP 状态数必须相同（Some={}, None={}）",
+        st.states, st_none.states
+    );
+    assert_eq!(ex_none.out_hp, ex.out_hp, "floor 不许牺牲 hp（Some/None 同值）");
+    assert!(
+        ex_none.out_player.yellow < ex.out_player.yellow,
+        "无 floor 时不会主动多带钥匙（None={} 应少于 Some={}）",
+        ex_none.out_player.yellow,
+        ex.out_player.yellow
     );
     assert!(hit, "toward=4 必须命中 f3 的上行出口");
     assert_eq!(ex.exit, Some((11, 11)), "f3→f4 的出口是上梯 (11,11)");
@@ -976,6 +1027,45 @@ fn s6a_key_floor_unreachable_in_layer_is_named() {
         None,
         "可达 floor 不许被误判成 unreachable_in_layer"
     );
+
+    // 【2026-11-23 复核 F3】边界：上界**恰等于** floor 时必须 None（钉住 `<` 而非 `<=`）。
+    // f3 的黄钥上界 = 入场 0 + 全层拾取 8 = 8 ⇒ floor=[8,0,0] 恰好够，不许报不可达。
+    let (_ex3, _) = solve_local_exit_toward_shops_floor(
+        &inp,
+        F3_ENTRY,
+        &ps,
+        F3_FLAGS,
+        None,
+        Some(4),
+        &si.shops,
+        Some([8, 0, 0]),
+    );
+    assert_eq!(
+        exact_stat().key_floor_reason,
+        None,
+        "上界==floor（8==8）不许报不可达：上界是「可能够」，不是「必然不够」"
+    );
+
+    // 【2026-11-23 复核 F3】入场钥匙必须算进上界：入场 +1 黄、全层 +8 ⇒ 上界 9，
+    // 故 floor=[9,0,0] 不可能判不可达。谁把 `player_in` 项从公式里删掉就会红。
+    let mut ps_y1 = f3_chain_player();
+    ps_y1.yellow = 1;
+    let (ex4, _) = solve_local_exit_toward_shops_floor(
+        &inp,
+        F3_ENTRY,
+        &ps_y1,
+        F3_FLAGS,
+        None,
+        Some(4),
+        &si.shops,
+        Some([9, 0, 0]),
+    );
+    assert!(ex4.ok, "入场带 1 把黄钥时 f3 仍须正常出层");
+    assert_eq!(
+        exact_stat().key_floor_reason,
+        None,
+        "上界必须含入场钥匙（1+8=9 ≥ 9）⇒ 不许报不可达"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -991,7 +1081,11 @@ fn s6a_key_floor_unreachable_in_layer_is_named() {
 fn s6a_key_floor_not_consulted_by_path_is_marked() {
     let si = load_si();
     let mut ps = s0_spec(500);
-    ps.atk = 900;
+    // 【2026-11-23 复核 F1】atk 由 900 改为 730：730 是真链 f3 的入场 atk
+    // （`prefix_floors[6].in_player.atk == 730`，S5 复核 R4 亦记「真链最大 atk 731」）。
+    // 900 虽能让夹具成立，但那是合成属性——判据必须跑在真实可达的属性上，
+    // 否则「这条夹具证明了什么」会被误读成「真实局面可解」。改 730 后逐字段不变。
+    ps.atk = 730;
 
     // (1) 纯拾取闭式：7×5 全通、无怪/无门/无步臂 ⇒ 闭式接管（无 floor 维度可言）。
     let inp_pure = synth_rect(
@@ -1045,7 +1139,8 @@ fn s6a_key_floor_not_consulted_by_path_is_marked() {
         "floor=None 不许凭空打标记"
     );
 
-    // (2) boss 锚击杀面：ty75 在 f54（>50，可正常 restep），atk900 零损血可杀。
+    // (2) boss 锚击杀面：ty75 在 f54（>50，可正常 restep），atk=730 已零损血可杀
+    // （【2026-11-23 复核 F1】原注释写 atk900，与该夹具现用的真链 730 不符，已更正）。
     let inp_boss = synth_rect(
         &si,
         7,
@@ -1092,6 +1187,25 @@ fn s6a_key_floor_not_consulted_by_path_is_marked() {
         ex_boss_none.key_floor_not_consulted, None,
         "floor=None 不许凭空打标记"
     );
+
+    // 【2026-11-23 复核 F6】旧入口必须与新入口 `floor=None` **全字段相等**——
+    // 复核原话：shipped 测试只查 hit/ok/marker，没做全字段相等，`<` 类的隐蔽漂移
+    // （路线/hp/实体表任何一位）就抓不住。`ExitSolve` 是 `PartialEq`，直接比结构。
+    let (ex_new_none, hit_new_none) = solve_local_boss_toward_shops_floor(
+        &inp_boss,
+        SYNTH_ENTRY,
+        &ps,
+        0,
+        None,
+        75,
+        &[],
+        None,
+    );
+    assert_eq!(hit_none, hit_new_none, "旧入口与新入口(None) 的 hit 必须相同");
+    assert_eq!(
+        ex_boss_none, ex_new_none,
+        "旧 boss 入口与新入口 floor=None 必须逐字段相等（含 route/out_*/cross_edge）"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1106,7 +1220,11 @@ fn s6a_layer_memo_distinguishes_key_floor() {
     use game_solver::solve_local::{solve_layer_with_floor, ClosurePolicy};
     let si = load_si();
     let mut ps = s0_spec(500);
-    ps.atk = 900;
+    // 【2026-11-23 复核 F1】atk 由 900 改为 730：730 是真链 f3 的入场 atk
+    // （`prefix_floors[6].in_player.atk == 730`，S5 复核 R4 亦记「真链最大 atk 731」）。
+    // 900 虽能让夹具成立，但那是合成属性——判据必须跑在真实可达的属性上，
+    // 否则「这条夹具证明了什么」会被误读成「真实局面可解」。改 730 后逐字段不变。
+    ps.atk = 730;
     let inp = synth_rect(
         &si,
         7,
