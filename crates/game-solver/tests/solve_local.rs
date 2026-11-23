@@ -885,7 +885,7 @@ fn c4a_闭包参数化_Q2旁路零伤怪不被自动收() {
     let input = fixture_closure();
     let p = || PlayerSpec::from_combat(player(300, 10, 18));
 
-    let (ok1, g1) = solve_layer_with(&input, (0, 1), None, p(), 0, ClosurePolicy::q1(), &[]);
+    let (ok1, g1) = solve_layer_with(&input, (0, 1), None, p(), 0, ClosurePolicy::q1(), None, &[]);
     assert!(ok1, "Q1 应可达：{g1:?}");
     assert!(!g1.is_empty());
     assert!(
@@ -894,7 +894,7 @@ fn c4a_闭包参数化_Q2旁路零伤怪不被自动收() {
         g1.iter().map(|g| (&g.kills, &g.route)).collect::<Vec<_>>()
     );
 
-    let (ok2, g2) = solve_layer_with(&input, (0, 1), None, p(), 0, ClosurePolicy::q2(), &[]);
+    let (ok2, g2) = solve_layer_with(&input, (0, 1), None, p(), 0, ClosurePolicy::q2(), None, &[]);
     assert!(ok2, "Q2 应可达：{g2:?}");
     assert!(
         g2.iter().any(|g| g.kills == 0),
@@ -911,14 +911,14 @@ fn c4a_闭包参数化_Q3排除被禁道具() {
     let p = || PlayerSpec::from_combat(player(300, 10, 18));
 
     // ty36 金箍棒=Equip tier5 bonus220 ⇒ 落格即穿（atkrise 10→230，不入 item_types）
-    let (_ok1, g1) = solve_layer_with(&input, (0, 1), None, p(), 0, ClosurePolicy::q1(), &[]);
+    let (_ok1, g1) = solve_layer_with(&input, (0, 1), None, p(), 0, ClosurePolicy::q1(), None, &[]);
     assert!(
         g1.iter().any(|g| g.post.atk == 230),
         "Q1 无禁令 ⇒ 收 36（Equip 即穿 ⇒ atk 10→230）：{:?}",
         g1.iter().map(|g| (g.post.atk, &g.route)).collect::<Vec<_>>()
     );
 
-    let (ok3, g3) = solve_layer_with(&input, (0, 1), None, p(), 0, ClosurePolicy::q3(), &[]);
+    let (ok3, g3) = solve_layer_with(&input, (0, 1), None, p(), 0, ClosurePolicy::q3(), None, &[]);
     assert!(ok3, "Q3 应可达（36 旁路不挡主路）：{g3:?}");
     assert!(
         g3.iter().all(|g| g.post.atk == 10 && !g.post.item_types.contains(&36)),
@@ -1027,7 +1027,7 @@ fn closure_kill_arm_spawns_drop_entity() {
     let input = fixture_3x3_ty(67, player(5000, 500, 500));
     let p = PlayerSpec::from_combat(player(5000, 500, 500));
     // Q1 = pickup + 零伤怪全收（`ClosurePolicy::q1`）⇒ 闭包臂开启。
-    let (ok, goals) = solve_layer_with(&input, (0, 1), None, p, 0, ClosurePolicy::q1(), &[]);
+    let (ok, goals) = solve_layer_with(&input, (0, 1), None, p, 0, ClosurePolicy::q1(), None, &[]);
     assert!(ok, "q1 下 67 零伤可杀 ⇒ 应可达：{goals:?}");
     let g = goals
         .iter()
@@ -1480,3 +1480,23 @@ fn pill_subset_dominance_does_not_change_exact_results() {
         "memo 命中必须回放同一份 stat（禁静默）"
     );
 }
+
+/// S5 判据：撞杀后玩家**移入被杀格**（与 Search::expand Monster 臂 `ns.pos=(tx,ty)`
+/// 同口径）——回放侧漏移位会让 bump 后续 walk token 报「非邻接位移」。
+#[test]
+fn s5_bump_kill_moves_player_replay() {
+    let input = fixture_3x3(player(300, 10, 10));
+    let r = solve_local(&input);
+    assert!(r.reachable);
+    let level = input.level.clone().unwrap();
+    let full = game_solver::solve_local::sprite_full(&level);
+    // 判据核心：bump 后续 walk token 必须能走（撞杀移入被杀格）——无期望版回放，
+    // 旧实现（bump 不移位）在 token2 报「非邻接位移」。
+    let res = game_solver::solve_local::replay_route(
+        &input, level.start, &full, &level.player, 0, &r.route,
+    );
+    assert!(res.is_ok(), "bump 后续 walk 必须可回放（撞杀移入被杀格）：{res:?}");
+    // 位置断言：终态必须落在出口梯 (2,1)——不移位则停在 (0,1)/(1,1)。
+    assert_eq!(res.unwrap().pos, (2, 1));
+}
+

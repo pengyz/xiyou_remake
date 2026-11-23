@@ -122,6 +122,11 @@ pub enum ExitKind {
     /// 21→idx8、22→idx9）⇒ 成功使用即消耗、post 扣一枚。`Kills::eligible` 只认
     /// Stair ⇒ 不入 min_kills 量化域（裁定 Exit#1）；起跳不耗步。
     UseItem,
+    /// S5 段分治锚击杀边（outer_chain 段末任务）：`bump` 撞杀锚 boss 即达段末
+    /// 目标，非换层、非通关。仅 `boss_target` 注入链路
+    /// （`solve_layer_boss_shops`/`solve_local_boss_toward_shops`）产出；
+    /// 默认链路不产此目标 ⇒ 既有出层集零变化。不入任何 solve_global 量化域。
+    BossKill,
 }
 
 /// 出口定义。
@@ -383,7 +388,7 @@ pub fn solve_layer(
     player: PlayerSpec,
     flags: u128,
 ) -> (bool, Vec<LayerGoal>) {
-    solve_layer_with(input, entry, ents, player, flags, ClosurePolicy::OFF, &[])
+    solve_layer_with(input, entry, ents, player, flags, ClosurePolicy::OFF, None, &[])
 }
 
 /// 【P9.1 更正（复核 F3/F8）】[`solve_layer`] 的**带商品表**变体。
@@ -404,7 +409,22 @@ pub fn solve_layer_shops(
     flags: u128,
     shops: &[game_data::defs::ShopGoodDef],
 ) -> (bool, Vec<LayerGoal>) {
-    solve_layer_with(input, entry, ents, player, flags, ClosurePolicy::OFF, shops)
+    solve_layer_with(input, entry, ents, player, flags, ClosurePolicy::OFF, None, shops)
+}
+
+/// S5 段分治：**锚击杀**层解——`boss_ty` 的撞杀（`bump` 杀）即记
+/// `ExitKind::BossKill` 候选。与 [`solve_layer_shops`] 同一搜索内核，仅多注入
+/// `boss_target`；默认链路（`boss_target=None`）不产 BossKill 目标 ⇒ 零变化。
+pub fn solve_layer_boss_shops(
+    input: &SolveInput,
+    entry: (i32, i32),
+    ents: Option<&[EntRec]>,
+    player: PlayerSpec,
+    flags: u128,
+    shops: &[game_data::defs::ShopGoodDef],
+    boss_ty: i32,
+) -> (bool, Vec<LayerGoal>) {
+    solve_layer_with(input, entry, ents, player, flags, ClosurePolicy::OFF, Some(boss_ty), shops)
 }
 
 /// 【P3】单层「入场 → 出层」可续跑求解结果。
@@ -591,6 +611,32 @@ pub fn solve_local_exit_toward_shops(
     (materialize_exit(input, reachable, best, player_in, flags_in, ents_in, truncated), hit)
 }
 
+/// S5 段分治：**锚击杀**面（outer_chain 段末任务消费）。
+///
+/// 语义与 [`solve_local_exit_toward_shops`] 同构，唯一差别是目标集 =
+/// `ExitKind::BossKill` 候选（`bump` 撞杀 `boss_ty` 即达段末目标；非换层非通关）。
+/// 无 BossKill 候选 ⇒ `hit=false` 且 `ExitSolve.ok=false`（不回退到普通出层解——
+/// 段末任务的成功判据**只有**杀锚，走到出口不算）。
+#[allow(clippy::too_many_arguments)]
+pub fn solve_local_boss_toward_shops(
+    input: &SolveInput,
+    entry: (i32, i32),
+    player_in: &PlayerSpec,
+    flags_in: u128,
+    ents_in: Option<&[EntRec]>,
+    boss_ty: i32,
+    shops: &[game_data::defs::ShopGoodDef],
+) -> (ExitSolve, bool) {
+    let (reachable, goals) =
+        solve_layer_boss_shops(input, entry, ents_in, player_in.clone(), flags_in, shops, boss_ty);
+    let truncated = take_layer_trunc().is_some();
+    let prefer: Vec<&LayerGoal> =
+        goals.iter().filter(|g| g.kind == ExitKind::BossKill).collect();
+    let hit = !prefer.is_empty();
+    let best = if hit { best_goal(prefer.into_iter()) } else { None };
+    (materialize_exit(input, reachable, best, player_in, flags_in, ents_in, truncated), hit)
+}
+
 /// 目标的换层边 `(target, went_down)`：`Stair` 取出口梯实体 `param&0xff`（同
 /// [`crate::solve_global::stair_target`] 口径），`Script`/`Cloud`/`UseItem` 取
 /// `cross_edge`，`Ending` 非换层 ⇒ `None`。
@@ -734,6 +780,7 @@ pub fn solve_layer_with(
     player: PlayerSpec,
     flags: u128,
     policy: ClosurePolicy,
+    boss_target: Option<i32>,
     shops: &[ShopGoodDef],
 ) -> (bool, Vec<LayerGoal>) {
     LAYER_TRUNC.with(|f| f.set(None));
@@ -785,6 +832,8 @@ pub fn solve_layer_with(
         root_ents.clone(),
         level_digest(input),
         policy,
+        // S5：boss_target 改变目标集 ⇒ 必须进键（不同目标不同解，缺它=跨目标串味）
+        boss_target,
         node_limit,
         shops_key(shops),
     );
@@ -819,10 +868,15 @@ pub fn solve_layer_with(
     // 步数只是 tie-break），路线已逐步引擎回放验证 ⇒ 直接短路返回，绕开 20 万节点层界。
     // 未命中 ⇒ fail-closed 落到下面的通用搜索，**原因写进 `pure_pickup_stat()`**
     // （`reason`/`reason_ty`），禁静默。
+    // S5：boss_target 模式跳过两档闭式/DP 短路（它们不产 BossKill 目标，命中会
+    // 丢锚击杀解）——fail-closed 落通用 Search，锚层本就含怪，零性能顾虑。
     // ---------------------------------------------------------------------
-    if let Some(mut goals) =
+    let closed_attempt = if boss_target.is_none() {
         crate::pure_pickup::try_closed_form(input, entry, &root_ents, &player, flags, policy)
-    {
+    } else {
+        None
+    };
+    if let Some(mut goals) = closed_attempt {
         // 出口序确定化（每出口一条 `LayerGoal`，`post_pos` 互异 ⇒ 无需 merge）：
         // 不许依赖 Vec 生成序（BFS/策略序是内部细节，出口序必须由内容定）。
         goals.sort_by(|a, b| (a.kind, a.post_pos).cmp(&(b.kind, b.post_pos)));
@@ -853,9 +907,14 @@ pub fn solve_layer_with(
     // 命中 ⇒ 层内 hp **精确最优**（不是上界、不是近似），路线已逐步引擎回放核对；
     // 未命中 ⇒ fail-closed 落通用搜索，理由写进 `exact_pickup_stat()`（禁静默）。
     // ---------------------------------------------------------------------
-    if let Some(mut goals) = crate::exact_pickup::try_exact_dp(
-        input, entry, &root_ents, &player, flags, policy, shops,
-    ) {
+    let exact_attempt = if boss_target.is_none() {
+        Some(crate::exact_pickup::try_exact_dp(
+            input, entry, &root_ents, &player, flags, policy, shops,
+        ))
+    } else {
+        None
+    };
+    if let Some(Some(mut goals)) = exact_attempt {
         goals.sort_by(|a, b| (a.kind, a.post_pos).cmp(&(b.kind, b.post_pos)));
         LAYER_TRUNC.with(|f| f.set(None)); // 精确=完整解，从未截断
         // 金币峰值：怪有赏金 ⇒ 层内峰值可能高于入场金（取各出口终态最大者）。
@@ -883,6 +942,7 @@ pub fn solve_layer_with(
     search.cloud = true; // 批3 C3b：层间路径开筋斗云候选（批2 solve_local/run 关）
     search.policy = policy; // 批4 C4-a：闭包谓词注入
     search.shops = shops; // 批5 H4：商品表注入（`&[]` ⇒ 批0-3 零行为变化）
+    search.boss_target = boss_target; // S5 段分治：锚击杀目标注入（None=零变化）
     // 【批8】层路径**不启用** hp 剪枝：`solve_layer_with` 的消费者是 witness 的
     // 「朝目标层的出口」查询（`up_line_next`），目标不是「全层 hp 最大」——按全层
     // best_hp 剪枝会把「hp 较低但通向目标出口」的路径剪掉（实测 2026-11-19：
@@ -954,6 +1014,8 @@ thread_local! {
                 Vec<EntRec>,
                 u64,
                 ClosurePolicy,
+                // S5：boss_target 进键（见 solve_layer_with memo_key 注）
+                Option<i32>,
                 usize,
                 Vec<ShopKeyRow>,
             ),
@@ -1835,6 +1897,9 @@ enum GateArrive {
     /// 批3 C2 终局边（通关）：floor50 击败型72 的 bump 后继——游戏到此结束
     /// （Ending 非换层、非 StepGate，由 expand 的怪臂直接产出，不经 gate_arrive）。
     Ending,
+    /// S5 段分治：`boss_target` 命中的 bump 杀后继（同 Ending 口径：记候选不入队、
+    /// 非换层非终局；仅 `solve_layer_boss_shops` 链路触发）。
+    BossKill,
 }
 
 /// 批3 F3：消耗一枚栈物品（`itemUseCounts=1` 语义 a.java:944/7770-7789——
@@ -1946,6 +2011,9 @@ struct Search<'a> {
     /// 【批8】本次求解是否仍要「最优 kills」：`solve_local` 是（双查询各自出解），
     /// 层出口不是（只有 hp 目标）。为 true 时剪枝额外要求 kills 已劣于最优 Stair 目标。
     kill_objective: bool,
+    /// S5 段分治：撞杀目标 boss ty（Some(ty) ⇒ 该 ty 的 bump 杀后记
+    /// `ExitKind::BossKill` 候选不入队；None=默认链路零变化）。
+    boss_target: Option<i32>,
 }
 
 /// 【批8】hp 上界剪枝的「已知最优」跟踪（只由真实 Goal 更新）。
@@ -2029,6 +2097,7 @@ impl<'a> Search<'a> {
             shops: &[],
             hp_prune: false,
             kill_objective: false,
+            boss_target: None,
         }
     }
 
@@ -2520,6 +2589,10 @@ impl<'a> Search<'a> {
                         // 怪格不建模 StepGate（batch2 夹具无共存；报审注明）
                         let gate = if self.input.floor == 50 && ety == 72 {
                             GateArrive::Ending
+                        } else if self.boss_target == Some(ety) {
+                            // S5 段分治：撞杀锚 boss = 段末目标达成（候选侧处理同
+                            // Ending 臂口径；默认链路 boss_target=None 零变化）。
+                            GateArrive::BossKill
                         } else {
                             GateArrive::Pass
                         };
@@ -2926,6 +2999,34 @@ impl<'a> Search<'a> {
                             steps: n.st.steps,
                             keys: (n.st.player.yellow, n.st.player.blue, n.st.player.red),
                             kind: ExitKind::Ending,
+                            route: route_of(&nodes, new_id),
+                            post: n.st.clone(),
+                            cross_edge: None,
+                        });
+                        if let Some(g) = goals.last() {
+                            best.note(g);
+                        }
+                        continue;
+                    }
+                    GateArrive::BossKill => {
+                        // S5 段分治锚击杀候选：记录候选节点但**不入队不扩展**（同
+                        // Ending 臂口径；段末任务已达成，锚后无续跑语义）。route
+                        // 尾=既有 Bump token（`bump ty@x,y`），可被
+                        // replay_route_expect 直接回放。
+                        let new_id = nodes.len() as u32;
+                        nodes.push(Node {
+                            st: ns,
+                            parent: id,
+                            act,
+                        });
+                        pruned.push(false);
+                        let n = &nodes[new_id as usize];
+                        goals.push(Goal {
+                            hp: n.st.player.hp,
+                            kills: n.st.kills,
+                            steps: n.st.steps,
+                            keys: (n.st.player.yellow, n.st.player.blue, n.st.player.red),
+                            kind: ExitKind::BossKill,
                             route: route_of(&nodes, new_id),
                             post: n.st.clone(),
                             cross_edge: None,
@@ -4434,8 +4535,11 @@ pub fn exact_replay_route(
             st.player.gold += b.gold;
             st.ents = b.ents;
             st.kills += 1;
-            // 撞怪也消耗一步（与 `Search::expand` 的 Monster 臂同口径）。
             st.steps += 1;
+            // 撞杀后玩家移入被杀格（与 Search::expand Monster 臂同口径；DP 撞杀
+            // 也移位——见 exact_pickup XC_MONSTER 臂）。不移位会让 bump 后续
+            // walk token 报「非邻接位移」（S5 真数据 f51 回放实锤）。
+            st.pos = (x, y);
         } else if let Some(rest) = tok.strip_prefix("door ") {
             let (x, y) = parse_xy(rest)?;
             let slot = st.ents.iter().position(|e| {
@@ -4517,7 +4621,7 @@ pub fn replay_route(
     flags: u128,
     route: &[String],
 ) -> Result<ExactReplay, RouteReplayError> {
-    replay_route_inner(input, entry, ents, player, flags, route, None)
+    replay_route_inner(input, entry, ents, player, flags, route, &[], None)
 }
 
 /// 同 [`replay_route`]，但以 witness 记录的出层态定商店买/走臂：
@@ -4531,6 +4635,7 @@ pub fn replay_route_expect(
     player: &PlayerSpec,
     flags: u128,
     route: &[String],
+    shops: &[game_data::defs::ShopGoodDef],
     out_player: &PlayerSpec,
     out_flags: u128,
     out_ents: &[EntRec],
@@ -4543,6 +4648,7 @@ pub fn replay_route_expect(
         player,
         flags,
         route,
+        shops,
         Some((out_player, out_flags, out_ents, out_pos)),
     )
 }
@@ -4555,6 +4661,7 @@ fn replay_route_inner(
     player: &PlayerSpec,
     flags: u128,
     route: &[String],
+    shops: &[game_data::defs::ShopGoodDef],
     expect: Option<(&PlayerSpec, u128, &[EntRec], (i32, i32))>,
 ) -> Result<ExactReplay, RouteReplayError> {
     let level = input.level.as_ref().ok_or_else(|| RouteReplayError {
@@ -4562,7 +4669,8 @@ fn replay_route_inner(
         token: String::new(),
         reason: "level=None（模型缺口）".to_string(),
     })?;
-    let s = Search::from_entry(input, level, entry);
+    let mut s = Search::from_entry(input, level, entry);
+    s.shops = shops; // 【S5 遗留黄1 修复】回放侧必须带真商品表，否则买臂永不可达（吞买臂不可观测）
     let start = St { pos: entry, player: player.clone(), ents: ents.to_vec(), flags, kills: 0, steps: 0 };
     // DFS：栈帧 = (状态, token 下标)。**分支死亡只弃本支**（商店双臂的存在使
     // 「错臂后续 token 必然失败」成为常态）——记录最深失败做具名诊断；栈空才报错。
@@ -4597,6 +4705,10 @@ fn replay_route_inner(
                 cur.ents = b.ents;
                 cur.kills += 1;
                 cur.steps += 1;
+                // 撞杀后玩家**移入被杀格**（与 Search::expand Monster 臂 `ns.pos=(tx,ty)`
+                // 同口径；漏移位会让后续 walk token 报「非邻接位移」——S5 真数据 f51
+                // 回放实锤）。
+                cur.pos = (x, y);
                 i += 1;
             } else if let Some(rest) = tok.strip_prefix("door ") {
                 let Some((x, y)) = parse_xy(rest) else { dead = Some(fail("door 坐标非法")); break; };
@@ -4609,8 +4721,11 @@ fn replay_route_inner(
                 cur.ents.remove(slot);
                 cur.pos = (x, y);
                 cur.steps += 1;
-                if !matches!(s.gate_arrive(&mut cur, x, y), GateArrive::Pass) {
-                    dead = Some(fail("开门后 gate_arrive 非 Pass"));
+                // 【S5 缺口6】Script 换层门（floor1 6,9=门+83）经 gate_arrive 返回
+                // Terminal{..}——与 solver 出层边同语义（route 末尾跟 "gate x,y"
+                // 注记 token），不是失败；只有 Dropped（Stalled）算死。
+                if !matches!(s.gate_arrive(&mut cur, x, y), g if matches!(g, GateArrive::Pass | GateArrive::Terminal{..})) {
+                    dead = Some(fail("开门后 gate_arrive 非 Pass/Terminal"));
                     break;
                 }
                 i += 1;
@@ -4627,6 +4742,13 @@ fn replay_route_inner(
                 i += 1;
             } else {
                 let Some((x, y)) = parse_xy(tok) else { dead = Some(fail("坐标 token 非法")); break; };
+                if (x, y) == cur.pos {
+                    // 前导入场格 token（route_gen 约定：首 token=入场格）——原位无操作。
+                    // 【S5 遗留黄2 前置修复】此前零位移被判「非邻接位移」，真求解
+                    // route（含入场格首 token）回放必红；先容忍该注记 token。
+                    i += 1;
+                    continue;
+                }
                 if (x - cur.pos.0).abs() + (y - cur.pos.1).abs() != 1 {
                     dead = Some(fail("非邻接位移"));
                     break;
@@ -4640,8 +4762,8 @@ fn replay_route_inner(
                     Cell::Move => {
                         cur.pos = (x, y);
                         cur.steps += 1;
-                        if !matches!(s.gate_arrive(&mut cur, x, y), GateArrive::Pass) {
-                            dead = Some(fail("走格 gate_arrive 非 Pass"));
+                        if !matches!(s.gate_arrive(&mut cur, x, y), g if matches!(g, GateArrive::Pass | GateArrive::Terminal{..})) {
+                            dead = Some(fail("走格 gate_arrive 非 Pass/Terminal"));
                             break;
                         }
                         i += 1;
@@ -4654,7 +4776,7 @@ fn replay_route_inner(
                             let mut ns = cur.clone();
                             ns.pos = (x, y);
                             ns.steps += 1;
-                            if matches!(s.gate_arrive(&mut ns, x, y), GateArrive::Pass) {
+                            if matches!(s.gate_arrive(&mut ns, x, y), g if matches!(g, GateArrive::Pass | GateArrive::Terminal{..})) {
                                 arms.push((ns, i + 1));
                             }
                         }
@@ -4667,7 +4789,7 @@ fn replay_route_inner(
                                     ns.ents.remove(slot);
                                     ns.pos = (x, y);
                                     ns.steps += 1;
-                                    if matches!(s.gate_arrive(&mut ns, x, y), GateArrive::Pass) {
+                                    if matches!(s.gate_arrive(&mut ns, x, y), g if matches!(g, GateArrive::Pass | GateArrive::Terminal{..})) {
                                         arms.push((ns, i + 1));
                                     }
                                 }
@@ -4705,7 +4827,7 @@ fn replay_route_inner(
             survivors.push(cur);
         }
     }
-    let (matched, rejected): (Vec<St>, Vec<St>) = match expect {
+    let (matched, _rejected): (Vec<St>, Vec<St>) = match expect {
         None => (survivors, Vec::new()),
         Some((ep, ef, ee, epos)) => {
             let mut m = Vec::new();

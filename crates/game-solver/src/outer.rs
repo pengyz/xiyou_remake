@@ -788,6 +788,53 @@ fn apply_outer_edge(
     Some((ns, cost, gates))
 }
 
+/// S5：path 回放多跳——在「已拾取块」子图上找 from→to 的最短节点序列
+/// （不含 from/to；BFS 步数最少）。只允许落在已拾取块（无拾取副作用）。
+fn route_through_picked(
+    graph: &OuterGraph,
+    run: &RunSpec,
+    scaled_enemies: &[game_data::defs::EnemyDef],
+    state: &OuterState,
+    to: usize,
+) -> Option<Vec<usize>> {
+    // DFS + 回溯：边必须「当前状态可付」（apply_outer_edge 成功才算数——
+    // 平行门需求不同，最短不等于可行），中间块必须已拾取（无副作用）。
+    let n = graph.floor_of.len();
+    let mut visited = vec![false; n];
+    visited[state.node] = true;
+    let mut stack: Vec<(usize, Vec<usize>, OuterState)> =
+        vec![(state.node, Vec::new(), state.clone())];
+    while let Some((cur, route, st)) = stack.pop() {
+        let mut outs: Vec<usize> = graph.edges[cur].iter().map(|e| e.to).collect();
+        outs.extend(graph.trans[cur].iter().map(|&(t, _)| t));
+        outs.sort_unstable();
+        outs.dedup();
+        for nxt in outs {
+            if visited[nxt] {
+                continue;
+            }
+            let Some((ns, _cost, _)) =
+                apply_outer_edge(graph, run, scaled_enemies, &st, nxt)
+            else {
+                continue; // 钥匙不足/无此边——此支不通
+            };
+            if nxt == to {
+                let mut r = route;
+                r.push(nxt);
+                return Some(r);
+            }
+            if !bit_get(&ns.picked, nxt) {
+                continue; // 中间块必须已拾取
+            }
+            visited[nxt] = true;
+            let mut r = route.clone();
+            r.push(nxt);
+            stack.push((nxt, r, ns));
+        }
+    }
+    None
+}
+
 /// 单一真相源：进块拾取结算（未拾取过的块，`class=const` 导出按
 /// `certified_monotone_pickup` 入账）。返回未应用的导出数（搜索侧汇入
 /// `res.unapplied_exports`；回放侧恒 0 ⇒ 不为 0 时回放照样成功但调用方可见）。
@@ -912,16 +959,19 @@ pub fn replay_outer_path(
     for (i, &(ni, ref tok)) in nodes.iter().enumerate() {
         if i > 0 {
             let prev_tok = nodes[i - 1].1.clone();
+            // path 只记录「首访块」：相邻 token 之间可能穿过若干**已拾取**块
+            // （reentry 回拾路线）。直达边不通时，沿「已拾取块」子图多跳
+            // （中间块已 settle，无拾取/无战斗 LB，每跳 1 步计入 steps）。
             match apply_outer_edge(graph, run, scaled_enemies, &state, ni) {
                 Some((ns, cost, _)) => {
                     steps += cost;
                     state = ns;
                 }
                 None => {
-                    // 区分「无此边」与「边在但钥匙不足」——两者都要具名。
-                    let connected = graph.edges[state.node].iter().any(|e| e.to == ni)
+                    let direct_connected = graph.edges[state.node].iter().any(|e| e.to == ni)
                         || graph.trans[state.node].iter().any(|&(t, _)| t == ni);
-                    if connected {
+                    if direct_connected {
+                        // 边在但钥匙不足——具名，不冒充 NotAdjacent。
                         let e = graph.edges[state.node].iter().find(|e| e.to == ni);
                         let need = match e {
                             Some(e) => [e.yellow, e.red, e.blue],
@@ -934,7 +984,37 @@ pub fn replay_outer_path(
                             have: [state.yellow, state.red, state.blue],
                         });
                     }
-                    return Err(PathReplayError::NotAdjacent { from: prev_tok, to: tok.clone() });
+                    match route_through_picked(graph, run, scaled_enemies, &state, ni) {
+                        Some(route) => {
+                            for &mid in &route {
+                                let (ns, cost, _) = apply_outer_edge(
+                                    graph, run, scaled_enemies, &state, mid,
+                                )
+                                .ok_or_else(|| PathReplayError::NotAdjacent {
+                                    from: prev_tok.clone(),
+                                    to: tok.clone(),
+                                })?;
+                                steps += cost;
+                                state = ns;
+                                if mid != ni {
+                                    debug_assert!(bit_get(&state.picked, mid));
+                                }
+                            }
+                            // 多跳终点==ni：末跳已在循环内结算。
+                            if state.node != ni {
+                                return Err(PathReplayError::NotAdjacent {
+                                    from: prev_tok,
+                                    to: tok.clone(),
+                                });
+                            }
+                        }
+                        None => {
+                            return Err(PathReplayError::NotAdjacent {
+                                from: prev_tok,
+                                to: tok.clone(),
+                            });
+                        }
+                    }
                 }
             }
         }
@@ -969,6 +1049,31 @@ pub fn outer_search(
         masked_exits: graph.masked_exits.clone(),
         ..Default::default()
     };
+    let start_state = match outer_start_state(graph, run) {
+        Ok(s) => s,
+        Err(e) => {
+            res.skipped_trans.push(format!("起段失败: {e}"));
+            return res;
+        }
+    };
+    outer_search_with_start(graph, run, scaled_enemies, budget, start_state)
+}
+
+/// S5 段分治：**携带入场态**起搜——上段的 out_player（hp/atk/def/金/钥/背包）
+/// 直搬进 OuterState 起搜下段（见 outer_chain::outer_state_from_player）。
+/// 与 [`outer_search`] 同一内核（禁第二份转移语义）；仅起点态不同。
+pub fn outer_search_with_start(
+    graph: &OuterGraph,
+    run: &RunSpec,
+    scaled_enemies: &[game_data::defs::EnemyDef],
+    budget: SearchBudget,
+    start_state: OuterState,
+) -> OuterResult {
+    let mut res = OuterResult {
+        skipped_trans: graph.skipped_trans.clone(),
+        masked_exits: graph.masked_exits.clone(),
+        ..Default::default()
+    };
     // S3 A 片：floors 序位置表（回拾判定 = 目标层序早于当前层）。
     let floor_pos: HashMap<i32, usize> =
         graph.floors.iter().enumerate().map(|(i, &f)| (f, i)).collect();
@@ -976,13 +1081,6 @@ pub fn outer_search(
         Ok(b) => graph.node[&(run.anchor_floor, b)],
         Err(e) => {
             res.skipped_trans.push(format!("锚缺失: {e}"));
-            return res;
-        }
-    };
-    let start_state = match outer_start_state(graph, run) {
-        Ok(s) => s,
-        Err(e) => {
-            res.skipped_trans.push(format!("起段失败: {e}"));
             return res;
         }
     };
@@ -1608,6 +1706,36 @@ mod tests {
             res.frontier.iter().all(|e| e.steps >= 3),
             "回拾不得有隐藏奖励/捷径：最短仍为 3 步"
         );
+    }
+
+    /// S5：外层 path 只记录「首访块」，相邻 token 间可穿过已拾取块（reentry）——
+    /// path 回放必须允许经已拾取中间块多跳，否则跨层回拾候选一概误报 NotAdjacent。
+    /// 判据：path=[a0,b0,a1]（a1 经 a0 回拾到达）回放必须成功。
+    #[test]
+    fn s5_path_replay_routes_through_picked_blocks() {
+        let doc = load_block_interfaces(&s3_chain_doc()).unwrap();
+        let floors = vec![51, 10, 12];
+        let run = s3_run(floors.clone());
+        let g = OuterGraph::build(&doc, &floors, &run.masked_exits);
+        let node = |tok: &str| -> usize {
+            let (fl, bid) = tok.split_once(':').unwrap();
+            let fl: i32 = fl[1..].parse().unwrap();
+            (0..g.floor_of.len())
+                .find(|&n| g.floor_of[n] == fl && g.doc.floors[&fl].blocks[g.block_of[n]].id == bid)
+                .unwrap()
+        };
+        let path: Vec<String> = ["f51:a0", "f10:b0", "f51:a1"]
+            .iter().map(|s| s.to_string()).collect();
+        // 现状红线：直接相邻断言会误报 NotAdjacent（a1 经 a0 回拾到达）。
+        let snaps = replay_outer_path(&g, &run, &enemies(), &path);
+        assert!(snaps.is_ok(), "跨已拾取块的 path 回放必须成功: {:?}", snaps.err());
+        let snaps = snaps.unwrap();
+        assert_eq!(snaps.len(), 3);
+        assert_eq!(snaps.last().unwrap().node, node("f51:a1"));
+        // a0 拾 +1、a0→a1 door1 扣 -1、a1 拾 +3 ⇒ 3。
+        assert_eq!(snaps.last().unwrap().state.yellow, 3, "拾取/门扣必须按路径结算");
+        // 步数含中间多跳：a0→b0（trans 1 步）→a0（trans 1 步）→a1（door 边 1 步）= 3。
+        assert_eq!(snaps.last().unwrap().steps, 3, "中间跳必须计入步数");
     }
 
     /// S3 防硬编码收割：outer.rs 源面不得出现回拾特判分支（收割/奖励字面量）；

@@ -170,6 +170,7 @@ pub(crate) fn kind_str(k: ExitKind) -> &'static str {
         ExitKind::Ending => "Ending",
         ExitKind::Cloud => "Cloud",
         ExitKind::UseItem => "UseItem",
+        ExitKind::BossKill => "BossKill",
     }
 }
 

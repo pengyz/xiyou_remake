@@ -301,7 +301,7 @@ fn s4a_budget_divergence_named() {
         0,
         &[],
         &search,
-        &OuterWitnessCfg { candidates: 1, max_floors: 8 },
+        &OuterWitnessCfg { candidates: 1, max_floors: 8, boss_target: None },
         &layer,
     );
     assert_eq!(ow.status, "witness");
@@ -379,7 +379,7 @@ fn s4a_no_silent_override() {
         0,
         &[],
         &search,
-        &OuterWitnessCfg { candidates: 5, max_floors: 8 },
+        &OuterWitnessCfg { candidates: 5, max_floors: 8, boss_target: None },
         &layer,
     );
     assert_eq!(ow.candidates_considered, 2, "两个候选都被实化计数");
@@ -412,7 +412,7 @@ fn s4a_all_candidates_fail_is_named_blocked() {
         0,
         &[],
         &search,
-        &OuterWitnessCfg { candidates: 3, max_floors: 8 },
+        &OuterWitnessCfg { candidates: 3, max_floors: 8, boss_target: None },
         &layer,
     );
     assert_eq!(ow.status, "blocked");
@@ -476,11 +476,11 @@ fn s4b_replay_end_to_end() {
     let layer = real_walk_layer();
     let ow = game_solver::outer_witness::run_outer_witness_with(
         &g, &run, &[], &levels, PlayerSpec::from_combat(s0()), 0, &[],
-        &search, &OuterWitnessCfg { candidates: 1, max_floors: 8 }, &layer,
+        &search, &OuterWitnessCfg { candidates: 1, max_floors: 8, boss_target: None }, &layer,
     );
     assert_eq!(ow.status, "witness", "回放测试的前置：注入层产出完整 witness");
     assert_eq!(ow.floors.len(), 2);
-    let res = game_solver::outer_witness::replay_outer_witness(&levels, (1, 1), &ow.floors);
+    let res = game_solver::outer_witness::replay_outer_witness(&levels, (1, 1), &[], &ow.floors);
     assert!(res.is_ok(), "全程回放必须绿：{res:?}");
 }
 
@@ -492,18 +492,379 @@ fn s4b_replay_failure_localizes() {
     let layer = real_walk_layer();
     let mut ow = game_solver::outer_witness::run_outer_witness_with(
         &g, &run, &[], &levels, PlayerSpec::from_combat(s0()), 0, &[],
-        &search, &OuterWitnessCfg { candidates: 1, max_floors: 8 }, &layer,
+        &search, &OuterWitnessCfg { candidates: 1, max_floors: 8, boss_target: None }, &layer,
     );
     assert_eq!(ow.status, "witness");
     // 破坏第一层 route[2]（中间格）：改成不可达坐标 (0,0)（非邻接 + 无该格）。
     // 选非首 token：证明 token_index 真·逐帧定位，不是恒 0 的假定位。
     assert!(ow.floors[0].route.len() > 2);
     ow.floors[0].route[2] = "0,0".to_string();
-    let err = game_solver::outer_witness::replay_outer_witness(&levels, (1, 1), &ow.floors)
+    let err = game_solver::outer_witness::replay_outer_witness(&levels, (1, 1), &[], &ow.floors)
         .expect_err("被破坏的路线必须回放红");
     assert_eq!(err.stage, "route");
     assert_eq!(err.visit, 0);
     assert_eq!(err.floor, 51);
     assert_eq!(err.token_index, 2, "帧号必须定位到被破坏的那一格");
     assert_eq!(err.token, "0,0");
+}
+
+// ================================================================ S5 机制2：段链分治
+
+use game_solver::outer_chain::{run_chain_with, ChainCfg, ChainSegSpec};
+
+/// 四层链块表：f51 a0 stair→52 + f52 b0 boss_kill(75) + f53 c0 stair→54 + f54 d0 boss_kill(74)。
+/// 两段（[51,52] 锚 75@52 / [53,54] 锚 74@54）层集 partition 覆盖全楼层。
+fn chain_doc() -> String {
+    r#"{
+  "schema": "xiyou/block-interfaces/v2",
+  "floors": [
+    { "floor": 51, "entry": [1,1], "blocks": [
+      { "id": "a0", "cells": [[1,1],[2,1],[3,1]], "cut_doors": [], "exports": [],
+        "exits": [ { "kind": "stair", "ty": 7, "cell": [3,1], "to": 52, "same_floor": false } ] }
+    ] },
+    { "floor": 52, "entry": [2,1], "blocks": [
+      { "id": "b0", "cells": [[2,1],[3,1]], "cut_doors": [], "exports": [],
+        "exits": [ { "kind": "boss_kill", "ty": 75, "cell": [3,1], "events": [], "post_victory": false, "drops": {} } ] }
+    ] },
+    { "floor": 53, "entry": [1,1], "blocks": [
+      { "id": "c0", "cells": [[1,1],[2,1],[3,1],[4,1]], "cut_doors": [], "exports": [],
+        "exits": [ { "kind": "stair", "ty": 7, "cell": [3,1], "to": 54, "same_floor": false } ] }
+    ] },
+    { "floor": 54, "entry": [2,1], "blocks": [
+      { "id": "d0", "cells": [[2,1],[3,1]], "cut_doors": [], "exports": [],
+        "exits": [ { "kind": "boss_kill", "ty": 74, "cell": [3,1], "events": [], "post_victory": false, "drops": {} } ] }
+    ] }
+  ]
+}"#.to_string()
+}
+
+/// 真回放走层：路线沿途**真拾取** ty26 黄钥匙（出层态 = 引擎可复算的拾取结果，
+/// 回放才可能绿），拾起的实体从 ents 表移除。跨段 carry 由此可观测：f51 途经
+/// (3,1) 拾 1 黄 ⇒ seg1 出场 yellow=1；段2 不重置 ⇒ in_player.yellow==1。
+/// toward=Some ⇒ Stair（真路线可回放）；None（段末 boss 任务）⇒ BossKill。
+fn walk_mut_layer() -> impl Fn(
+    &SolveInput,
+    (i32, i32),
+    &PlayerSpec,
+    u128,
+    Option<&[game_solver::solve_local::EntRec]>,
+    Option<i32>,
+    &[game_data::defs::ShopGoodDef],
+) -> (game_solver::solve_local::ExitSolve, bool) {
+    move |input, entry, p, fl, ents, toward, _shops| {
+        let mut ents_vec: Vec<game_solver::solve_local::EntRec> = match ents {
+            Some(e) => e.to_vec(),
+            None => game_solver::solve_local::sprite_full(input.level.as_ref().expect("夹具必有 level")),
+        };
+        let mut route: Vec<String> = Vec::new();
+        let mut x = entry.0;
+        while x != 7 {
+            x += if x < 7 { 1 } else { -1 };
+            route.push(format!("{x},{}", entry.1));
+        }
+        let mut out = p.clone();
+        // 引擎读回把 item_types 归一为 32 槽定长（[0;32]，拾取写槽）——
+        // 注入层同口径，否则 replay 逐字段全等比 item_types.len() 必红。
+        if out.item_types.len() < 32 {
+            out.item_types.resize(32, 0);
+        }
+        if out.item_uses.len() < 32 {
+            out.item_uses.resize(32, 0);
+        }
+        for tok in &route {
+            let (cx, cy) = tok.split_once(',').expect("token=x,y");
+            let (cx, cy): (i32, i32) = (cx.parse().unwrap(), cy.parse().unwrap());
+            if let Some(pos) = ents_vec.iter().position(|e| e.ty == 26 && e.x == cx && e.y == cy) {
+                out.yellow += 1; // 拾取（引擎同口径：ty26=黄钥匙）
+                ents_vec.remove(pos);
+            }
+        }
+        let got = game_solver::solve_local::ExitSolve {
+            ok: true,
+            exit: Some((7, 1)),
+            out_player: out,
+            out_flags: fl,
+            out_ents: ents_vec,
+            route,
+            out_hp: p.hp,
+            kind: if toward.is_some() { Some(ExitKind::Stair) } else { Some(ExitKind::BossKill) },
+            cross_edge: None,
+            truncated: false,
+            pure_pickup: false,
+            pure_pickup_reason: None,
+        };
+        (got, true)
+    }
+}
+
+fn chain_levels() -> BTreeMap<i32, SolveInput> {
+    let mut levels = BTreeMap::new();
+    levels.insert(51, corridor(51, Some(52), 1));
+    levels.insert(52, corridor(52, None, 51));
+    levels.insert(53, corridor(53, Some(54), 1));
+    levels.insert(54, corridor(54, None, 53));
+    // f51 路线中段放一枚黄钥匙（ty26）：真拾取 ⇒ carry 可观测且回放可复算。
+    levels.get_mut(&51).unwrap().level.as_mut().unwrap().entities.push(EntSpec { ty: 26, x: 3, y: 1, param: 0 });
+    levels
+}
+
+
+/// 缩放敌表夹具：75/74 可杀（atk10 > def5）且损血 0（boss atk5 ≤ def10）⇒ 存活锚点。
+fn chain_enemies() -> Vec<game_data::defs::EnemyDef> {
+    use game_core::combat::trait_flags_for;
+    let mk = |id: i32| game_data::defs::EnemyDef { id, hp: 100, atk: 5, def: 5, gold: 0, trait_flags: trait_flags_for(id) };
+    vec![mk(75), mk(74)]
+}
+
+fn chain_segs() -> Vec<ChainSegSpec> {
+    vec![
+        ChainSegSpec {
+            name: "seg1_f51-f52".into(),
+            floors: vec![51, 52],
+            start: Some((51, (1, 1))),
+            anchor_floor: 52,
+            anchor_boss_ty: 75,
+        },
+        ChainSegSpec {
+            name: "seg2_f53-f54".into(),
+            floors: vec![53, 54],
+            start: None,
+            anchor_floor: 54,
+            anchor_boss_ty: 74,
+        },
+    ]
+}
+
+/// 【S5 判据】两段拼接：段独立收敛 + 接力逐字段一致 + 拼接回放全程绿。
+#[test]
+fn s5_chain_two_segments_concat_replay() {
+    let doc: &'static game_solver::outer::BlockInterfaces =
+        Box::leak(Box::new(load_block_interfaces(&chain_doc()).unwrap()));
+    let levels = chain_levels();
+    let cfg = ChainCfg { max_pops: 200_000, candidates: 5, max_floors: 16 };
+    let layer = walk_mut_layer();
+    let rep = run_chain_with(doc, &levels, &chain_enemies(), &[], &PlayerSpec::from_combat(s0()), 0, &chain_segs(), &cfg, &layer);
+    assert_eq!(rep.schema, "xiyou/outer-chain/v1");
+    assert_eq!(rep.status, "witness", "两段都必须收敛（blocked={:?}）", rep.blocked);
+    assert_eq!(rep.segments.len(), 2);
+    for s in &rep.segments {
+        assert_eq!(s.status, "witness", "段 {} 未收敛", s.name);
+        assert_eq!(s.floors_solved, 2);
+    }
+    assert_eq!(rep.segments[0].handoff_ok, None, "首段无上段可接力");
+    assert_eq!(rep.segments[1].handoff_ok, Some(true), "跨段接力必须逐字段一致");
+    // 层集 partition + 顺序拼接。
+    let fl: Vec<i32> = rep.floors.iter().map(|f| f.floor).collect();
+    assert_eq!(fl, vec![51, 52, 53, 54]);
+    // 入口格：首段显式 start；后续段 = landing（上行落在目标层的下行梯旁 = (4,1)）。
+    let ent: Vec<(i32, i32)> = rep.floors.iter().map(|f| (f.entry[0], f.entry[1])).collect();
+    assert_eq!(ent, vec![(1, 1), (4, 1), (4, 1), (4, 1)], "跨段入口必须由 landing 单源推出");
+    // carry 可观测：f51 真拾 1 黄 ⇒ seg1 出场 yellow=1；段2 入场=段1 出场（真 carry，
+    // 不重置）。段2 无拾取 ⇒ 全程 yellow=1 到末层。
+    assert_eq!(rep.floors[0].out_player.yellow, 1, "f51 真拾 1 黄钥匙");
+    assert_eq!(rep.floors[1].in_player.yellow, 1);
+    assert_eq!(rep.floors[2].in_player.yellow, 1, "段2 入场 = 段1 出场（跨段 carry）");
+    assert_eq!(rep.floors[3].out_player.yellow, 1);
+    assert_eq!(rep.floors[1].out_flags, rep.floors[2].in_flags, "flags 接力一致");
+    // BossKill 段末不冒充通关。
+    assert!(!rep.ending_done);
+    // 拼接回放全程绿（复核黄2 首验语义）。
+    assert_eq!(rep.replay.as_deref(), Some("pass"), "拼接 witness 必须全程回放绿");
+    // total_steps 与 total_pops 汇总。
+    let steps: i32 = rep.segments.iter().map(|s| s.witness.total_steps).sum();
+    assert_eq!(rep.total_steps, steps);
+    let pops: u64 = rep.segments.iter().map(|s| s.pops).sum();
+    assert_eq!(rep.total_pops, pops);
+}
+
+/// 【S5 判据】段 blocked ⇒ 停链、拼已得段、具名断点（不许伪造全程 witness）。
+#[test]
+fn s5_chain_blocked_named_and_prefix_only() {
+    let doc: &'static game_solver::outer::BlockInterfaces =
+        Box::leak(Box::new(load_block_interfaces(&chain_doc()).unwrap()));
+    let levels = chain_levels();
+    let cfg = ChainCfg { max_pops: 200_000, candidates: 5, max_floors: 16 };
+    // seg1 首层恒失败 ⇒ seg1 blocked；**seg2 可收敛** ⇒ 「blocked 后必须断链」
+    // 才可观测（若吞 blocked 继续链，seg2 的 floors 会混进拼接 ⇒ 判据红）。
+    let segs = chain_segs();
+    let layer_fail_boss = move |input: &SolveInput, entry: (i32, i32), p: &PlayerSpec, fl: u128,
+                                ents: Option<&[game_solver::solve_local::EntRec]>, toward: Option<i32>,
+                                _shops: &[game_data::defs::ShopGoodDef]|
+        -> (game_solver::solve_local::ExitSolve, bool) {
+        if input.floor == 51 {
+            return (fake_fail(p), false); // seg1 首层失败 ⇒ 段 blocked
+        }
+        let base = walk_mut_layer();
+        base(input, entry, p, fl, ents, toward, &[])
+    };
+    let rep = run_chain_with(doc, &levels, &chain_enemies(), &[], &PlayerSpec::from_combat(s0()), 0, &segs, &cfg, &layer_fail_boss);
+    assert_eq!(rep.status, "blocked");
+    let b = rep.blocked.as_ref().expect("blocked 必须具名");
+    assert_eq!(b.seg, "seg1_f51-f52");
+    assert!(!b.reason.is_empty());
+    // 只拼已得段前缀（seg1 失败 ⇒ 空前缀；seg2 绝不许混入）。
+    let fl: Vec<i32> = rep.floors.iter().map(|f| f.floor).collect();
+    assert_eq!(fl, Vec::<i32>::new(), "blocked 后只保留已得段（此处分段失败 ⇒ 空）");
+    assert_eq!(rep.segments.len(), 2, "blocked 段仍要有报告（具名）");
+    assert_eq!(rep.segments[0].status, "blocked");
+    assert_eq!(rep.segments[1].status, "witness", "seg2 仍是可收敛段（报告如实，但不得并入拼接）");
+    assert_eq!(rep.segments[0].handoff_ok, None);
+    assert!(!rep.ending_done);
+    // 已得段为空 ⇒ 无拼接无回放（replay=None 如实）。
+    assert_eq!(rep.replay, None);
+}
+
+/// 【S5 回归】boss_target 默认 None：BossKill 末任务 ⇒ final_not_ending（默认链路无 BossKill 混入）。
+#[test]
+fn s5_boss_mode_off_requires_ending() {
+    let (g, run, levels) = two_floor_setup();
+    let search = fake_frontier(&["f51:a0", "f52:b0"], 7, 300);
+    // 注入层末任务回 BossKill（假 boss 臂）——默认模式必须拒收。
+    let boss_layer = |input: &SolveInput, entry: (i32, i32), p: &PlayerSpec, fl: u128,
+                      ents: Option<&[game_solver::solve_local::EntRec]>, toward: Option<i32>,
+                      _shops: &[game_data::defs::ShopGoodDef]|
+        -> (game_solver::solve_local::ExitSolve, bool) {
+        if toward.is_none() {
+            let mut e = fake_ending(p);
+            e.kind = Some(ExitKind::BossKill);
+            return (e, true);
+        }
+        let _ = (input, entry, ents);
+        (fake_exit_ok(p), {
+            let _ = fl;
+            true
+        })
+    };
+    let ow = game_solver::outer_witness::run_outer_witness_with(
+        &g, &run, &[], &levels, PlayerSpec::from_combat(s0()), 0, &[],
+        &search, &OuterWitnessCfg { candidates: 1, max_floors: 8, boss_target: None }, &boss_layer,
+    );
+    assert_eq!(ow.status, "blocked");
+    let b = ow.blocked.expect("必须具名");
+    assert_eq!(b.reason, "final_not_ending");
+}
+
+/// 【S5 判据】boss_target 注入：BossKill 末任务通过，ending_done 如实 false；同夹具真 Ending ⇒ ending_done true。
+#[test]
+fn s5_boss_mode_on_bosskill_accepted() {
+    let (g, run, levels) = two_floor_setup();
+    let search = fake_frontier(&["f51:a0", "f52:b0"], 7, 300);
+    let boss_layer = |input: &SolveInput, entry: (i32, i32), p: &PlayerSpec, fl: u128,
+                      ents: Option<&[game_solver::solve_local::EntRec]>, toward: Option<i32>,
+                      _shops: &[game_data::defs::ShopGoodDef]|
+        -> (game_solver::solve_local::ExitSolve, bool) {
+        if toward.is_none() {
+            let mut e = fake_ending(p);
+            e.kind = Some(ExitKind::BossKill);
+            return (e, true);
+        }
+        let _ = (input, entry, ents, fl);
+        (fake_exit_ok(p), true)
+    };
+    let ow = game_solver::outer_witness::run_outer_witness_with(
+        &g, &run, &[], &levels, PlayerSpec::from_combat(s0()), 0, &[],
+        &search, &OuterWitnessCfg { candidates: 1, max_floors: 8, boss_target: Some(75) }, &boss_layer,
+    );
+    assert_eq!(ow.status, "witness", "BossKill 段末必须收（blocked={:?}）", ow.blocked);
+    assert!(!ow.final_state.ending_done, "BossKill≠通关，ending_done 必须如实 false");
+}
+
+/// 【S5 判据】携带入场态起搜：OuterState 由 PlayerSpec 直搬（held=item_types 位图）。
+#[test]
+fn s5_outer_state_from_player_carries() {
+    let doc: &'static game_solver::outer::BlockInterfaces =
+        Box::leak(Box::new(load_block_interfaces(&mini_doc()).unwrap()));
+    let g = game_solver::outer::OuterGraph::build(doc, &vec![51, 52], &[]);
+    let run = RunSpec {
+        floors: vec![51, 52],
+        start: (51, (1, 1)),
+        anchor_floor: 52,
+        anchor_boss_ty: 75,
+        masked_exits: Vec::new(),
+        combat_cost: true,
+    };
+    let mut p = PlayerSpec::from_combat(s0());
+    p.hp = 214;
+    p.gold = 88;
+    p.item_types = vec![3, 9];
+    let st = game_solver::outer_chain::outer_state_from_player(&g, &run, &p).expect("起点态可构造");
+    assert_eq!(st.hp, 214);
+    assert_eq!(st.gold, 88);
+    assert_eq!(st.atk, 10);
+    assert_eq!(st.def, 10);
+    assert_eq!(st.held, (1u128 << 3) | (1u128 << 9), "held = item_types 位图");
+    assert!(st.picked.iter().all(|&b| b == 0), "新段拾取史归零");
+    assert_eq!(st.buys, 0);
+}
+
+/// S5：LB fatal（乐观门把 hp 压负）不得取消精确层解资格——打不动（killable=false）
+/// 才滤除；fatal 候选必须被尝试，由精确层解裁定存活。
+#[test]
+fn s5_lb_fatal_candidate_still_attempted() {
+    let doc: &'static game_solver::outer::BlockInterfaces =
+        Box::leak(Box::new(load_block_interfaces(&mini_doc()).unwrap()));
+    let graph = game_solver::outer::OuterGraph::build(doc, &[51, 10], &[]);
+    let run = RunSpec {
+        floors: vec![51, 10],
+        start: (51, (1, 11)),
+        anchor_floor: 10,
+        anchor_boss_ty: 75,
+        masked_exits: Vec::new(),
+        combat_cost: true,
+    };
+    let levels: BTreeMap<i32, SolveInput> = BTreeMap::new();
+    let mut search = fake_frontier(&["f51:f51b0", "f10:f10b0"], 7, -4335);
+    // 唯一候选：LB 口径 fatal（hp 下界为负）但可杀。
+    search.frontier[0].fatal = true;
+    let layer = real_walk_layer();
+    let cfg = OuterWitnessCfg { candidates: 3, max_floors: 16, boss_target: Some(75) };
+    let ow = game_solver::outer_witness::run_outer_witness_with(
+        &graph, &run, &chain_enemies(), &levels, PlayerSpec::from_combat(s0()), 0, &[], &search, &cfg, &layer,
+    );
+    assert!(
+        ow.candidates_considered >= 1,
+        "fatal(=LB 口径) 候选必须被尝试，got blocked={:?} attempts={:?}",
+        ow.blocked.as_ref().map(|b| b.reason.clone()),
+        ow.attempts.iter().map(|a| a.outcome.clone()).collect::<Vec<_>>()
+    );
+}
+
+/// S5 缺口3 判据：driver 跨层 landing 必须查**目标层**的梯（与 witness.rs replay
+/// 同一真相源）。出发层只有 ty7、目标层有 ty8 ⇒ 传出发层的旧实现假 landing_missing。
+#[test]
+fn s5_driver_landing_uses_target_floor_stairs() {
+    let doc: &'static game_solver::outer::BlockInterfaces =
+        Box::leak(Box::new(load_block_interfaces(&mini_doc()).unwrap()));
+    let floors = vec![51, 52];
+    let g = game_solver::outer::OuterGraph::build(doc, &floors, &[]);
+    let run = RunSpec {
+        floors: floors.clone(),
+        start: (51, (1, 1)),
+        anchor_floor: 52,
+        anchor_boss_ty: 75,
+        masked_exits: Vec::new(),
+        combat_cost: true,
+    };
+    let mut levels = BTreeMap::new();
+    // 出发层 f51 剥 ty8（上行出发层无 ty8 ⇒ 旧实现（查出发层）必然 landing_missing）；
+    // 目标层 f52 保留 ty8（真数据 f52 有下行梯）。
+    let mut l51 = corridor(51, Some(52), 999);
+    if let Some(lv) = l51.level.as_mut() {
+        lv.entities.retain(|e| e.ty != 8);
+        lv.exits.retain(|e| !(e.x == 5 && e.y == 1));
+    }
+    levels.insert(51, l51);
+    levels.insert(52, corridor(52, None, 51));
+    let search = fake_frontier(&["f51:a0", "f52:b0"], 7, 300);
+    let layer = real_walk_layer();
+    let ow = game_solver::outer_witness::run_outer_witness_with(
+        &g, &run, &chain_enemies(), &levels, PlayerSpec::from_combat(s0()), 0, &[],
+        &search, &OuterWitnessCfg { candidates: 1, max_floors: 8, boss_target: Some(75) }, &layer,
+    );
+    assert_eq!(
+        ow.floors.len(), 2,
+        "两层都必须解出（f51 解出后跨层落 f52 继续），got blocked={:?} attempts={:?}",
+        ow.blocked.as_ref().map(|b| (b.reason.clone(), b.detail.clone())),
+        ow.attempts.iter().map(|a| a.outcome.clone()).collect::<Vec<_>>()
+    );
 }

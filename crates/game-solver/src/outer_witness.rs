@@ -165,11 +165,20 @@ pub struct OuterWitnessCfg {
     pub candidates: usize,
     /// 成功层前缀上限（防失控；与 `witness.rs` 的护栏同语义）。
     pub max_floors: usize,
+    /// S5 段分治：段末任务成功判据。`None`（默认）= 要求 `ExitKind::Ending`
+    /// （全题通关语义，现状）；`Some(ty)` = 要求 `ExitKind::BossKill`（撞杀锚
+    /// boss ty 即达段末——段锚 f10/f20/f35 非通关层，Ending 判据在段式 witness
+    /// 恒假）。注入层闭包据此选 `solve_local_boss_toward_shops`。
+    pub boss_target: Option<i32>,
 }
 
 impl Default for OuterWitnessCfg {
     fn default() -> Self {
-        OuterWitnessCfg { candidates: 5, max_floors: crate::witness::DEFAULT_MAX_FLOORS }
+        OuterWitnessCfg {
+            candidates: 5,
+            max_floors: crate::witness::DEFAULT_MAX_FLOORS,
+            boss_target: None,
+        }
     }
 }
 
@@ -226,13 +235,24 @@ pub fn run_outer_witness_with(
         },
     };
 
-    // 候选序 = frontier 序（外层步数升序），只取 killable && !fatal 的前 K 个。
-    let cands: Vec<&crate::outer::FrontierEntry> = search
+    // 候选序 = frontier 序（外层步数升序）：先取 killable && !fatal，再补
+    // killable && fatal——fatal 是 LB 口径（frontier.hp=Σ块内 max counter_loss 的
+    // 下界，乐观门可把 hp 压负）⇒ LB fatal 不证明真路径必死；精确层解才是真裁判。
+    // 只滤掉 killable=false（打不动锚）。
+    let mut cands: Vec<&crate::outer::FrontierEntry> = search
         .frontier
         .iter()
         .filter(|e| e.killable && !e.fatal)
-        .take(cfg.candidates)
         .collect();
+    if cands.len() < cfg.candidates {
+        for e in search.frontier.iter().filter(|e| e.killable && e.fatal) {
+            if cands.len() >= cfg.candidates {
+                break;
+            }
+            cands.push(e);
+        }
+    }
+    cands.truncate(cfg.candidates);
     if cands.is_empty() {
         // 诚实分型：搜索截断且前沿为空 = **预算内没摸到锚**（不是「到了杀不动」），
         // 两者必须具名区分，不许把预算耗尽冒充无解。
@@ -264,7 +284,7 @@ pub fn run_outer_witness_with(
     }
 
     // 报告面：保留「最深成功前缀」的那次尝试。
-    let mut best: Option<(usize, Vec<WitnessFloor>, i32, WitnessBlocked, bool)> = None;
+    let mut best: Option<(usize, Vec<WitnessFloor>, i32, WitnessBlocked, bool, bool)> = None;
 
     for (ci, cand) in cands.iter().enumerate() {
         ow.candidates_considered += 1;
@@ -309,6 +329,7 @@ pub fn run_outer_witness_with(
         let mut fail_floor: Option<i32> = None;
         let mut fail_reason: Option<String> = None;
         let mut end_ok = false;
+        let mut ending_done = false;
 
         for task in &tasks {
             if w.floors.len() >= cfg.max_floors {
@@ -385,21 +406,37 @@ pub fn run_outer_witness_with(
                 break;
             }
             if task.is_final {
-                // 末任务：不换层，要求 Ending（终局边）。
-                if got.kind != Some(ExitKind::Ending) {
-                    outcome = "final_not_ending".to_string();
+                // 末任务：默认=不换层，要求 Ending（终局边）；段分治
+                // （boss_target 注入）=要求 BossKill（撞杀锚 boss）——f50 锚除外：
+                // floor50 击败型72 直接走引擎终局边（Ending），同为合法段末。
+                let boss_mode = cfg.boss_target.is_some();
+                let ok_final = if boss_mode {
+                    matches!(got.kind, Some(ExitKind::BossKill) | Some(ExitKind::Ending))
+                } else {
+                    got.kind == Some(ExitKind::Ending)
+                };
+                if !ok_final {
+                    outcome = if boss_mode {
+                        "final_not_bosskill".to_string()
+                    } else {
+                        "final_not_ending".to_string()
+                    };
                     fail_floor = Some(task.floor);
                     fail_reason = Some(format!(
-                        "末任务 kind={:?} ≠ Ending",
-                        got.kind.map(kind_str)
+                        "末任务 kind={:?} ≠ 段末判据({})",
+                        got.kind.map(kind_str),
+                        if boss_mode { "BossKill|Ending" } else { "Ending" }
                     ));
                     break;
                 }
                 record_floor(&mut w, task.floor, entry, &got, &cur_player, cur_flags, ents_here.as_deref(), &demand);
                 ents_by_floor.insert(task.floor, got.out_ents.clone());
                 cur_player = got.out_player.clone();
-                w.final_state = WitnessFinal { ending_done: true, floor: task.floor };
+                // BossKill≠通关：ending_done 只在真 Ending 时为真（不许冒充通关）。
+                let is_ending = got.kind == Some(ExitKind::Ending);
+                w.final_state = WitnessFinal { ending_done: is_ending, floor: task.floor };
                 end_ok = true;
+                ending_done = is_ending;
                 outcome = "witness".to_string();
                 break;
             }
@@ -439,7 +476,28 @@ pub fn run_outer_witness_with(
             ents_by_floor.insert(task.floor, got.out_ents.clone());
             cur_player = got.out_player.clone();
             cur_flags = got.out_flags;
-            let Some(landing) = crate::solve_global::landing(tlevel, target, went_down) else {
+            // landing 单一真相源：查**目标层**的梯（witness.rs replay 同款）——
+            // 上行落在目标层的下行梯（ty8）旁；传出发层会在出发层找不到 ty8 ⇒
+            // 假 landing_missing（S5 真数据链跑实锤：f51→f52 卡死于此）。
+            let tin = match levels.get(&target) {
+                Some(i) => i,
+                None => {
+                    outcome = "model_missing".to_string();
+                    fail_floor = Some(target);
+                    fail_reason = Some(format!("f{} 无 LevelSpec", target));
+                    break;
+                }
+            };
+            let tlevel_t = match &tin.level {
+                Some(l) => l,
+                None => {
+                    outcome = "model_missing".to_string();
+                    fail_floor = Some(target);
+                    fail_reason = Some(format!("f{} level=None", target));
+                    break;
+                }
+            };
+            let Some(landing) = crate::solve_global::landing(tlevel_t, target, went_down) else {
                 outcome = "landing_missing".to_string();
                 fail_floor = Some(target);
                 fail_reason = Some(format!("f{} 无落点梯", target));
@@ -488,7 +546,7 @@ pub fn run_outer_witness_with(
                 detail: fail_reason.clone().unwrap_or_default(),
                 layer_ok: None,
                 layer_truncated: None,
-            }), end_ok));
+            }), end_ok, ending_done));
         }
         if end_ok {
             break; // 第一个到终局的候选即采纳（候选序确定性；计数已留档）
@@ -497,11 +555,12 @@ pub fn run_outer_witness_with(
 
     // —— 汇总报告面 ——
     match best {
-        Some((_ci, floors, steps, blocked, end_ok)) => {
+        Some((_ci, floors, steps, blocked, end_ok, ending_ok)) => {
             ow.floors = floors;
             ow.total_steps = steps;
             ow.final_state.floor = ow.floors.last().map_or(run.start.0, |f| f.floor);
-            ow.final_state.ending_done = end_ok;
+            // 段分治：BossKill≠通关；ending_done 只在真 Ending（含 f50 段锚）时为真。
+            ow.final_state.ending_done = end_ok && ending_ok;
             if end_ok {
                 ow.status = "witness".to_string();
             } else if blocked.reason == "truncated" {
@@ -567,6 +626,7 @@ fn kind_of(s: &str) -> Option<ExitKind> {
         "Ending" => Some(ExitKind::Ending),
         "Cloud" => Some(ExitKind::Cloud),
         "UseItem" => Some(ExitKind::UseItem),
+        "BossKill" => Some(ExitKind::BossKill),
         _ => None,
     }
 }
@@ -608,6 +668,7 @@ fn route_end_pos(route: &[String]) -> Option<(i32, i32)> {
 pub fn replay_outer_witness(
     levels: &BTreeMap<i32, SolveInput>,
     start_entry: (i32, i32),
+    shops: &[game_data::defs::ShopGoodDef],
     floors: &[crate::witness::WitnessFloor],
 ) -> Result<(), ReplayFailure> {
     let mk = |visit: usize, f: &crate::witness::WitnessFloor, stage: &str, reason: String, e: Option<&crate::solve_local::RouteReplayError>| ReplayFailure {
@@ -658,7 +719,13 @@ pub fn replay_outer_witness(
                 pure_pickup_reason: None,
             };
             if let Some((target, went_down)) = crate::witness::exit_edge(plevel, &fake) {
-                let land = crate::solve_global::landing(plevel, target, went_down);
+                // landing 查的是**目标层**的落点梯（与 driver 缺口3 同口径；
+                // 旧版传出发层 plevel ⇒ 目标层无相应梯时假 entry_mismatch）。
+                let tlevel = levels
+                    .get(&target)
+                    .and_then(|t| t.level.as_ref())
+                    .unwrap_or(plevel);
+                let land = crate::solve_global::landing(tlevel, target, went_down);
                 if land != Some((f.entry[0], f.entry[1])) {
                     return Err(mk(
                         i,
@@ -702,7 +769,7 @@ pub fn replay_outer_witness(
         let out_flags = match h2f(&f.out_flags) { Ok(v) => v, Err(e) => return Err(e) };
         let out_ents: Vec<EntRec> = f.ents_out.iter().map(|w| EntRec { ty: w.ty, x: w.x, y: w.y, param: w.param }).collect();
         let got = crate::solve_local::replay_route_expect(
-            input, entry, &ents, &w2p(&f.in_player), in_flags, &f.route, &w2p(&f.out_player), out_flags, &out_ents, end_pos,
+            input, entry, &ents, &w2p(&f.in_player), in_flags, &f.route, shops, &w2p(&f.out_player), out_flags, &out_ents, end_pos,
         );
         if let Err(e) = got {
             return Err(mk(i, f, "route", String::new(), Some(&e)));

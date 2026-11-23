@@ -161,6 +161,7 @@ fn run_outer_cli(args: &[String]) {
             .and_then(|i| args.get(i + 1))
             .and_then(|v| v.parse().ok())
             .unwrap_or(1024),
+        boss_target: None, // 全题通关语义（默认）；段分治走 --outer-seg
     };
     let ow = game_solver::outer_witness::run_outer_witness(
         &graph,
@@ -293,6 +294,101 @@ fn solve_global_input(
 fn solve_global_real(bound: u64) -> game_solver::solve_global::GlobalResult {
     let (gi, _shops) = solve_global_input(bound);
     solve_global(&gi)
+}
+
+
+/// S5 机制2：`run --outer-seg [--max-pops N] [--out P]` —— boss 锚段链分治。
+/// 口径：combat_cost=true（同 S4 验收口径）；每段预算 = --max-pops（默认 20M，
+/// 纪律：禁抬 cap 换有解）；blocked 段具名、只拼已得段前缀；链级
+/// `replay_outer_witness` 自证（Some("pass")/失败串）写进 ChainReport。
+fn run_outer_seg_cli(args: &[String]) {
+    let doc_path = args
+        .iter()
+        .position(|a| a == "--doc")
+        .and_then(|i| args.get(i + 1))
+        .map(String::clone)
+        .unwrap_or_else(|| "docs/findings/block-interfaces.json".to_string());
+    let raw = std::fs::read_to_string(&doc_path)
+        .unwrap_or_else(|e| panic!("读 {doc_path}: {e}（块表是输入数据，缺文件=具名失败，禁回落）"));
+    let mut doc = game_solver::outer::load_block_interfaces(&raw).unwrap_or_else(|e| panic!("{e}"));
+    let (gi, shops) = solve_global_input(1);
+    let levels: std::collections::BTreeMap<i32, SolveInput> = gi
+        .floors
+        .iter()
+        .map(|(f, lv)| (*f, SolveInput { floor: *f, difficulty: 0, level: Some(lv.clone()) }))
+        .collect();
+    inject_block_monsters(&mut doc, &gi.floors);
+    let scaled = load_scaled_enemies();
+    let max_pops: u64 = args
+        .iter()
+        .position(|a| a == "--max-pops")
+        .and_then(|i| args.get(i + 1))
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(20_000_000);
+    let cfg = game_solver::outer_chain::ChainCfg {
+        max_pops,
+        candidates: 5,
+        max_floors: 1024,
+    };
+    let segs = game_solver::outer_chain::mainline_segments();
+    let player0 = PlayerSpec::from_combat(mk_player());
+    let t0 = std::time::Instant::now();
+    let rep = game_solver::outer_chain::run_chain(&mut doc, &levels, &scaled, &shops, &player0, 0, &segs, &cfg);
+    println!(
+        "== outer-seg: status={} total_pops={} total_steps={} ending_done={} elapsed={:?} ==",
+        rep.status, rep.total_pops, rep.total_steps, rep.ending_done, t0.elapsed()
+    );
+    for s in &rep.segments {
+        println!(
+            "  seg {} status={} pops={} floors_solved={} handoff={:?} blocked={:?}",
+            s.name, s.status, s.pops, s.floors_solved, s.handoff_ok, s.blocked.as_ref().map(|b| (&b.reason, &b.detail))
+        );
+    }
+    println!("  replay={:?}", rep.replay);
+    // 关键数字：总损血 = 300−末层 hp；购买 = route 里 buy 臂 token 计数（`buy@`）；
+    // 回拾 = 重访层对数（同层二次入场计一次回拾）。
+    let last = rep.floors.last();
+    let buys: usize = rep
+        .floors
+        .iter()
+        .flat_map(|f| f.route.iter())
+        .filter(|t| t.starts_with("buy@") || t.contains("buy"))
+        .count();
+    let mut seen = std::collections::BTreeSet::new();
+    let mut reentry = 0usize;
+    for f in &rep.floors {
+        if !seen.insert(f.floor) {
+            reentry += 1;
+        }
+    }
+    println!(
+        "  final hp={} gold={} yellow={}; 总损血={} 购买臂={} 回拾={}",
+        last.map(|f| f.out_player.hp).unwrap_or(0),
+        last.map(|f| f.out_player.gold).unwrap_or(0),
+        last.map(|f| f.out_player.yellow).unwrap_or(0),
+        300 - last.map(|f| f.out_player.hp).unwrap_or(300),
+        buys,
+        reentry,
+    );
+    // 复核黄2 首验（blocked 前缀版）：链 blocked 时 ChainReport.floors 为空，
+    // 但首个有解段的段内 witness floors 就是**真数据 witness**——对它做端到端回放。
+    if rep.replay.is_none() {
+        if let Some(seg) = rep.segments.iter().find(|s| !s.witness.floors.is_empty()) {
+            let first_entry = segs[0].start.map(|(_, c)| c).unwrap_or((1, 11));
+            match game_solver::outer_witness::replay_outer_witness(&levels, first_entry, &shops, &seg.witness.floors) {
+                Ok(()) => println!("  seg-prefix-replay[{}]: pass（{} 层）", seg.name, seg.witness.floors.len()),
+                Err(e) => println!(
+                    "  seg-prefix-replay[{}]: FAILED visit={} floor={} token_index={} token={:?} stage={} reason={}",
+                    seg.name, e.visit, e.floor, e.token_index, e.token, e.stage, e.reason
+                ),
+            }
+        }
+    }
+    if let Some(path) = args.iter().position(|a| a == "--out").and_then(|i| args.get(i + 1)) {
+        let text = serde_json::to_string_pretty(&rep).expect("ChainReport 序列化");
+        std::fs::write(path, format!("{text}\n")).unwrap_or_else(|e| panic!("写 {path}: {e}"));
+        println!("== 已写 {path} ==");
+    }
 }
 
 fn main() {
@@ -840,6 +936,12 @@ fn main() {
         // 【S4-A】`run --outer`：外层全题块图 → 内层逐层实化 → 全程 witness 草案。
         if args.iter().any(|a| a == "--outer") {
             run_outer_cli(&args);
+            return;
+        }
+        // 【S5 机制2】`run --outer-seg`：boss 锚段链分治 → 四段 witness 拼接 →
+        // 链级回放自证（复核黄2 首验在真数据上执行）。
+        if args.iter().any(|a| a == "--outer-seg") {
+            run_outer_seg_cli(&args);
             return;
         }
         // P4：witness builder —— 从起点按塔序逐层 `solve_local_exit` 推进，产出可回放见证。

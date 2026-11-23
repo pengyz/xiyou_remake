@@ -19,8 +19,9 @@ use game_core::combat::{scale_enemy_stats, CombatTables, PlayerCombat};
 use game_data::defs::EnemyDef;
 use game_data::defs::{ShopEffect, ShopGoodDef};
 use game_solver::solve_local::{
-    solve_layer_with, solve_local, solve_local_exit, ClosurePolicy, EntSpec, ExitKind, ExitSpec,
-    LayerGoal, LevelSpec, PlayerSpec, SolveInput,
+    replay_route_expect, solve_layer_with, solve_local, solve_local_exit,
+    solve_local_exit_toward_shops, ClosurePolicy, EntSpec, ExitKind, ExitSpec, LayerGoal,
+    LevelSpec, PlayerSpec, SolveInput,
 };
 use std::path::PathBuf;
 
@@ -357,6 +358,7 @@ fn layer_memo_key_includes_shops() {
         player.clone(),
         0,
         ClosurePolicy::OFF,
+        None,
         &one_good(),
     );
     assert!(ok1, "真表：走廊必达上行梯");
@@ -378,6 +380,7 @@ fn layer_memo_key_includes_shops() {
         player.clone(),
         0,
         ClosurePolicy::OFF,
+        None,
         &[],
     );
     assert!(ok2, "空表：走廊仍必达上行梯");
@@ -395,3 +398,44 @@ fn layer_memo_key_includes_shops() {
         "空表不许出现任何购买痕迹（黄钥=0 / 金=100）：{sig2:?}"
     );
 }
+
+/// 【S5 遗留黄1】商店双臂回溯回放判据：求解出的「已买」出层态必须能被
+/// `replay_route_expect` 在**双臂 DFS** 下复算（买臂幸存态匹配期望；纯走臂因
+/// gold/yellow 不符被拒）。变异自证：把 replay 的买臂吞掉 ⇒ 只剩走臂幸存态 ⇒
+/// 与「已买」期望全等失败 ⇒ 判据红。
+#[test]
+fn shop_buy_arm_replay_roundtrip() {
+    let _guard = env_lock();
+    let mut input = shop_world();
+    // 楼梯 param 50 ⇒ floor1 的「上天梯」语义（gate_arrive 特判非 Pass，route 回放
+    // 在末 token 全灭）；判据只关心商店双臂，改普通上行梯 param 5。
+    if let Some(lv) = input.level.as_mut() {
+        for e in lv.entities.iter_mut() {
+            if e.ty == 7 {
+                e.param = 5;
+            }
+        }
+    }
+    let level = input.level.clone().expect("夹具已装载");
+    let entry = level.start;
+    let player = level.player.clone();
+    let goods = one_good();
+
+    // 解集枚举：真商品表 ⇒ 解集必须含「已买」终态（yellow=5/gold=50）。
+    let (_ok, goals) = solve_layer_with(&input, entry, None, player.clone(), 0, ClosurePolicy::OFF, None, &goods);
+    let buy_goal = goals
+        .iter()
+        .find(|g| g.post.yellow == 5 && g.post.gold == 50)
+        .expect("真表解集必须含买臂终态（yellow=5/gold=50）");
+
+    // 回放自证：买臂 route 在双臂 DFS 下必须复算出「已买」终态（走臂幸存态
+    // gold/yellow 不符被拒；吞买臂 ⇒ 幸存态全非买 ⇒ no_match ⇒ 红）。
+    // 起始实体表=全场真实 sprite（含被买的商店格）；出层态=买后表。
+    let full_ents = game_solver::solve_local::sprite_full(&level);
+    let r = replay_route_expect(
+        &input, entry, &full_ents, &player, 0, &buy_goal.route, &goods,
+        &buy_goal.post, buy_goal.post_flags, &buy_goal.post_ents, buy_goal.post_pos,
+    );
+    assert!(r.is_ok(), "带买臂 route 必须回放绿（买臂不可吞）：{r:?}");
+}
+

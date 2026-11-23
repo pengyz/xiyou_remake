@@ -764,8 +764,12 @@ impl<'a> Dp<'a> {
                     XC_MONSTER => {
                         let bit = 1u32 << c.idx;
                         if n.km & bit == 0 {
-                            // 撞怪：不移动，只加一步 + 置杀位。
+                            // 撞怪：移入被杀格（与 Search::expand Monster 臂
+                            // `ns.pos=(tx,ty)` 同口径——bump() 只改杀位，pos 修正在此）。
+                            // 【2026-11-23 更正】旧版注释「不移动」与 expand/引擎回放
+                            // 口径相反，DP 路线与 witness 回放互斥（S5 真数据实锤）。
                             nn = self.bump(&n, c.ty, bit, self.view.kill_slot[c.idx])?;
+                            nn.pos = np;
                             nn.steps = n.steps + 1;
                             nn.prev = i;
                             nn.act = (d as u8) | 4;

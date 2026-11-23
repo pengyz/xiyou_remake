@@ -498,6 +498,7 @@ pub fn solve_global_capped_with(
             st.player.clone(),
             st.flags,
             policy,
+            None, // S5：boss_target 仅段分治锚层链路注入；solve_global 默认零变化
             shops,
         );
         if let Some(t) = take_layer_trunc() {
@@ -603,6 +604,12 @@ pub fn solve_global_capped_with(
                         monsters_alive: ma,
                         ents,
                     });
+                }
+                crate::solve_local::ExitKind::BossKill => {
+                    // S5 段分治锚击杀目标：solve_global 默认链路不产此目标
+                    // （boss_target=None）——防御臂：收到即丢边（非换层非通关，
+                    // 全局搜索无段末语义），报审注明。
+                    continue;
                 }
             }
         }
