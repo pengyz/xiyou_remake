@@ -268,7 +268,7 @@ pub fn run_outer_witness_with(
             (
                 "no_killable_candidate",
                 format!(
-                    "frontier_len={} killable=0（外层敏感表判定无活着杀完锚的候选）",
+                    "frontier_len={} 可杀候选=0（外层敏感表判定：无「活着且杀得完锚」的候选）",
                     search.frontier.len()
                 ),
             )

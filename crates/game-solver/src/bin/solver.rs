@@ -340,8 +340,9 @@ fn run_outer_seg_cli(args: &[String]) {
     );
     for s in &rep.segments {
         println!(
-            "  seg {} status={} pops={} floors_solved={} handoff={:?} blocked={:?}",
-            s.name, s.status, s.pops, s.floors_solved, s.handoff_ok, s.blocked.as_ref().map(|b| (&b.reason, &b.detail))
+            "  seg {} status={} pops={} floors_solved={} frontier_alive={} handoff={:?} blocked={:?} note={:?}",
+            s.name, s.status, s.pops, s.floors_solved, s.frontier_alive, s.handoff_ok,
+            s.blocked.as_ref().map(|b| (&b.reason, &b.detail)), s.note
         );
     }
     println!("  replay={:?}", rep.replay);
@@ -373,10 +374,14 @@ fn run_outer_seg_cli(args: &[String]) {
     // 复核黄2 首验（blocked 前缀版）：链 blocked 时 ChainReport.floors 为空，
     // 但首个有解段的段内 witness floors 就是**真数据 witness**——对它做端到端回放。
     if rep.replay.is_none() {
-        if let Some(seg) = rep.segments.iter().find(|s| !s.witness.floors.is_empty()) {
+        if let Some((seg, w)) = rep
+            .segments
+            .iter()
+            .find_map(|s| s.witness.as_ref().filter(|w| !w.floors.is_empty()).map(|w| (s, w)))
+        {
             let first_entry = segs[0].start.map(|(_, c)| c).unwrap_or((1, 11));
-            match game_solver::outer_witness::replay_outer_witness(&levels, first_entry, &shops, &seg.witness.floors) {
-                Ok(()) => println!("  seg-prefix-replay[{}]: pass（{} 层）", seg.name, seg.witness.floors.len()),
+            match game_solver::outer_witness::replay_outer_witness(&levels, first_entry, &shops, &w.floors) {
+                Ok(()) => println!("  seg-prefix-replay[{}]: pass（{} 层）", seg.name, w.floors.len()),
                 Err(e) => println!(
                     "  seg-prefix-replay[{}]: FAILED visit={} floor={} token_index={} token={:?} stage={} reason={}",
                     seg.name, e.visit, e.floor, e.token_index, e.token, e.stage, e.reason

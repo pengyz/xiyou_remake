@@ -671,7 +671,7 @@ fn s5_chain_two_segments_concat_replay() {
     // 拼接回放全程绿（复核黄2 首验语义）。
     assert_eq!(rep.replay.as_deref(), Some("pass"), "拼接 witness 必须全程回放绿");
     // total_steps 与 total_pops 汇总。
-    let steps: i32 = rep.segments.iter().map(|s| s.witness.total_steps).sum();
+    let steps: i32 = rep.segments.iter().map(|s| s.witness.as_ref().unwrap().total_steps).sum();
     assert_eq!(rep.total_steps, steps);
     let pops: u64 = rep.segments.iter().map(|s| s.pops).sum();
     assert_eq!(rep.total_pops, pops);
@@ -687,12 +687,18 @@ fn s5_chain_blocked_named_and_prefix_only() {
     // seg1 首层恒失败 ⇒ seg1 blocked；**seg2 可收敛** ⇒ 「blocked 后必须断链」
     // 才可观测（若吞 blocked 继续链，seg2 的 floors 会混进拼接 ⇒ 判据红）。
     let segs = chain_segs();
+    // seg2 的层被调用次数：断链后**不许再跑搜索** ⇒ 必须 0。
+    let seg2_calls = std::rc::Rc::new(std::cell::Cell::new(0usize));
+    let seg2_calls_c = seg2_calls.clone();
     let layer_fail_boss = move |input: &SolveInput, entry: (i32, i32), p: &PlayerSpec, fl: u128,
                                 ents: Option<&[game_solver::solve_local::EntRec]>, toward: Option<i32>,
                                 _shops: &[game_data::defs::ShopGoodDef]|
         -> (game_solver::solve_local::ExitSolve, bool) {
         if input.floor == 51 {
             return (fake_fail(p), false); // seg1 首层失败 ⇒ 段 blocked
+        }
+        if input.floor == 53 || input.floor == 54 {
+            seg2_calls_c.set(seg2_calls_c.get() + 1);
         }
         let base = walk_mut_layer();
         base(input, entry, p, fl, ents, toward, &[])
@@ -705,9 +711,19 @@ fn s5_chain_blocked_named_and_prefix_only() {
     // 只拼已得段前缀（seg1 失败 ⇒ 空前缀；seg2 绝不许混入）。
     let fl: Vec<i32> = rep.floors.iter().map(|f| f.floor).collect();
     assert_eq!(fl, Vec::<i32>::new(), "blocked 后只保留已得段（此处分段失败 ⇒ 空）");
-    assert_eq!(rep.segments.len(), 2, "blocked 段仍要有报告（具名）");
+    assert_eq!(rep.segments.len(), 2, "断链后每段仍要有具名报告");
     assert_eq!(rep.segments[0].status, "blocked");
-    assert_eq!(rep.segments[1].status, "witness", "seg2 仍是可收敛段（报告如实，但不得并入拼接）");
+    // 复核黄3（F3）：断链后的段必须是具名 `skipped_no_handoff`，不许冒充 blocked/witness。
+    assert_eq!(
+        rep.segments[1].status, "skipped_no_handoff",
+        "首段 blocked ⇒ 次段必须 skipped_no_handoff（segment={:?}）", rep.segments[1]
+    );
+    assert_eq!(seg2_calls.get(), 0, "断链后不许再跑 seg2 的搜索（跑过就不叫 skipped）");
+    assert!(rep.segments[1].witness.is_none(), "未跑搜索的段 witness 必须是 null（零值不许冒充测量）");
+    assert!(
+        rep.segments[1].note.as_deref().unwrap_or("").contains("未跑搜索"),
+        "skipped 段必须写明「未跑搜索」：{:?}", rep.segments[1].note
+    );
     assert_eq!(rep.segments[0].handoff_ok, None);
     assert!(!rep.ending_done);
     // 已得段为空 ⇒ 无拼接无回放（replay=None 如实）。

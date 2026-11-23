@@ -45,7 +45,7 @@ seg1（f51..f54,f1..f10）在加 steps 维前后 pop 数、前沿逐字节一致
 | run | 结果 |
 |---|---|
 | run1 | 4 段全 blocked no_killable_candidate；seg1 pops=4,553,792 frontier=3630 |
-| run5 | seg1 走通 11 层（f51..f54 + f1..f3 含 f1↔f2↔f3 回拾链），blocked 于 **f4 no_exit_toward（无指向 f5 的出层解）**；seg2/3/4 仍 no_killable_candidate |
+| run5 | seg1 走通 11 层（f51..f54 + f1..f3 含 f1↔f2↔f3 回拾链），blocked 于 **f4 no_exit_toward（无指向 f5 的出层解）**；seg2/3/4 报 `skipped_no_handoff`（复核黄3 修正后口径；旧版报 no_killable_candidate 是「未跑搜索却给地图结论」） |
 
 - 段基准 pops（机制 1 前后不变）：seg1=4,553,792 / seg2=14,177 / seg3=314,229 / seg4=105,254，
   total=4,987,452，全程 ~8.5min release。**四段 pops 总量远低于预算——外层不再是大档瓶颈**（已证实）。
@@ -96,8 +96,10 @@ seg1（f51..f54,f1..f10）在加 steps 维前后 pop 数、前沿逐字节一致
 
 1. **seg2..4 的 `no_killable_candidate` 不是地图结论**：`outer_chain.rs` 的 `carried_player`
    只在 `seg_ok && chain_alive` 时更新——seg1 断链后 seg2 拿的是全新开局属性
-   （hp300/atk10/def10），判锚不可杀必然成立。断链段应标 `skipped_no_handoff`，
-   而不是给出貌似合理的失败理由（当前 CLI 报告已如实呈现 blocked，但 reason 语义需在 S6 更正）。
+   （hp300/atk10/def10），判锚不可杀必然成立。**已修（S5 复核 F3）**：断链后后续段不再跑搜索，
+   以具名 `status=skipped_no_handoff` + `witness=null` + `note`「未跑搜索」上报；
+   seg 级计数改名 `frontier_alive`（存活 frontier 数），`blocked.detail` 里改用「可杀候选」措辞——
+   两者不再是同一个 `killable` 词。旧 run1 的 `4 段全 blocked no_killable_candidate` 属修复前口径。
 2. **f1 (6,9) 搜索/回放语义不一致待裁决**：`solve_local.rs` 门臂（expand `Cell::Door` 臂）
    容忍 `gate_arrive` 非 Pass（`out.push((Act::Door, ns, g))`，非 Pass 由 goal/edge 层消化），
    回放侧原断言必须 Pass。这不是「回放太严」或「搜索太松」任何一边能单独断定的——

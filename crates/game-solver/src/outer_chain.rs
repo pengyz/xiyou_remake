@@ -95,18 +95,24 @@ impl Default for ChainCfg {
 #[derive(Debug, serde::Serialize)]
 pub struct SegReport {
     pub name: String,
-    /// 同 `OuterWitness.status` 词表（witness/blocked/capped）。
+    /// `witness`/`blocked`/`capped`（同 `OuterWitness.status`）+ `skipped_no_handoff`
+    /// （上一段断链 ⇒ 本段未跑搜索；此时除 `name/status/note` 外的字段均为占位零值）。
     pub status: String,
     pub pops: u64,
     pub truncated: bool,
     pub frontier_len: usize,
-    pub killable: usize,
+    /// 本段 frontier 中「未判死」的状态数（`!fatal`）。**不是**「能杀完锚的候选数」，
+    /// 后者只在 `blocked.detail` 里以「可杀候选」措辞出现（复核黄3：同词不同义）。
+    pub frontier_alive: usize,
     pub candidates_considered: usize,
     pub floors_solved: usize,
     /// 与上段末层的逐字段接力比对（首段 `null`）。
     pub handoff_ok: Option<bool>,
     pub blocked: Option<crate::witness::WitnessBlocked>,
-    pub witness: OuterWitness,
+    /// `null` = 本段未跑搜索（只有 `skipped_no_handoff` 会这样），不许零值冒充测量。
+    pub witness: Option<OuterWitness>,
+    /// 断链跳段的说明；未跳段为 `null`。
+    pub note: Option<String>,
 }
 
 /// 具名断点（段 blocked 时停链）。
@@ -250,7 +256,30 @@ pub fn run_chain_with(
     let mut carried_flags = flags0;
 
     for (si, seg) in segs.iter().enumerate() {
-        let chain_alive = blocked.is_none(); // 断链后：后续段仍跑（具名报告），但不并入拼接、不接力
+        let chain_alive = blocked.is_none();
+        // 复核黄3（F3）：断链后**不再跑搜索**，后续段以具名 `skipped_no_handoff` 上报。
+        // 旧版继续跑并报 `blocked/no_killable_candidate`，让「上一段没交接」被误读成
+        // 「本段地图无解」，且零值段数字会被当独立结论。
+        if !chain_alive {
+            segments.push(SegReport {
+                name: seg.name.clone(),
+                status: "skipped_no_handoff".to_string(),
+                pops: 0,
+                truncated: false,
+                frontier_len: 0,
+                frontier_alive: 0,
+                candidates_considered: 0,
+                floors_solved: 0,
+                handoff_ok: None,
+                blocked: None,
+                witness: None,
+                note: Some(
+                    "上一段断链（chain_alive=false）⇒ 本段未跑搜索；占位零值不是测量结果，不可作独立结论"
+                        .to_string(),
+                ),
+            });
+            continue;
+        }
         // 入口格：seg1 显式；后续段由上段末层 landing 推（与 replay 同口径）。
         let start_cell: (i32, i32) = if si == 0 {
             seg.start.map(|(_, c)| c).unwrap_or_else(|| panic!("首段必须显式 start"))
@@ -353,18 +382,20 @@ pub fn run_chain_with(
             pops: ow.outer.pops,
             truncated: ow.outer.truncated,
             frontier_len: ow.outer.frontier_len,
-            killable,
+            frontier_alive: killable,
             candidates_considered: ow.candidates_considered,
             floors_solved,
             handoff_ok: handoff,
             blocked: ow.blocked.clone(),
-            witness: ow,
+            witness: Some(ow),
+            note: None,
         };
         if seg_ok && chain_alive {
-            let last = rep.witness.floors.last().unwrap().clone();
+            let w = rep.witness.as_ref().expect("seg_ok ⇒ witness 必在");
+            let last = w.floors.last().expect("seg_ok ⇒ 至少有锚层").clone();
             carried_player = wplayer_to_spec(&last.out_player);
             carried_flags = flags_parse(&last.out_flags);
-            floors.extend(rep.witness.floors.iter().cloned());
+            floors.extend(w.floors.iter().cloned());
         }
         segments.push(rep);
         if !seg_ok && blocked.is_none() {
@@ -402,7 +433,10 @@ pub fn run_chain_with(
     };
     let status = if blocked.is_none() && !segments.is_empty() { "witness" } else { "blocked" };
     let ending_done = blocked.is_none()
-        && segments.last().map_or(false, |s| s.witness.final_state.ending_done);
+        && segments
+            .last()
+            .and_then(|s| s.witness.as_ref())
+            .map_or(false, |w| w.final_state.ending_done);
     ChainReport {
         schema: OUTER_CHAIN_SCHEMA.to_string(),
         status: status.to_string(),
