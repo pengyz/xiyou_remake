@@ -2585,6 +2585,17 @@ impl<'a> Search<'a> {
                             ns.pos = (tx, ty);
                             ns.steps += 1;
                         }
+                        // 【S5 修复复核 R4（黄）】同局第二只 ty75 必须 restep：引擎里
+                        // 首杀走 `try_run_scene(20,true)` → `load_level_script(20)` →
+                        // 脚本 20 行尾 `on_line_end` 置 `script_line_flags[20]`
+                        // （`crates/game-core/src/scene_script.rs:60`），此后门 20 的
+                        // `!flag(20)` 不再成立 ⇒ 钩子不跑 ⇒ `battle_rerun_scene=false`
+                        // ⇒ 正常补步。求解侧没有 kill 钩子的读回面，故在此显式写回
+                        // 该位；不写回会把同层后续 ty75 永久建模成「不移位」（系统性
+                        // 低估玩家位移 ⇒ 路线不可回放）。仅 floor<=50 有该钩子。
+                        if ety == 75 && self.input.floor <= 50 {
+                            ns.flags |= 1u128 << 20;
+                        }
                         // 批3 C2 终局边：floor50 击败型72 → Ending（钩子
                         // scene.rs:3891-3894 → load_level_script(65) → END_0；
                         // floor50 cat8 覆写=sprite_defs floor50→cat8 ⇒ 可 bump，
@@ -4631,8 +4642,15 @@ impl std::fmt::Display for RouteReplayError {
 /// `gate = !flag(param)`（param=20）+ `scene.rs:3715`（`!battle_rerun_scene` 才 restep）。
 /// 求解侧 flags 位图与引擎 `script_line_flags` 同索引（`StGate::flag`）。
 ///
-/// 边界：只读 kill 时刻的 flag20；脚本 20 完成后置 flag20 的异步效果未在求解侧
-/// readback（kill 钩子无读回面），同层第二只 ty75 会仍按「未置位」处理。
+/// ## 边界（2026-11-23 复核 R4 后收紧）
+///
+/// 谓词只看「kill 时刻 flag20 是否已置」。**同局多只 ty75** 的展开由调用点负责
+/// 写回：搜索侧 `Monster` 臂与回放侧 `bump` token 分支在首杀后置 `1<<20`
+/// （镜像引擎 `on_line_end` 置 `script_line_flags[20]`）。
+///
+/// `exact_pickup` 的精确 DP 不在此列：含 ty75 的层在入场即被
+/// `post_kill_hp_spawn` 闸拒（ty75 的 boss 事件组 0 会 spawn ty29/30/32，属 hp 生成），
+/// 实测 `reason="post_kill_hp_spawn"` ⇒ DP 永不含 ty75 状态，无需（也无法）建模该位。
 pub(crate) fn ty75_no_restep(floor: i32, ety: i32, flags: u128) -> bool {
     floor <= 50 && ety == 75 && (flags >> 20) & 1 == 0
 }
@@ -4749,6 +4767,12 @@ fn replay_route_inner(
                 if !ty75_no_restep(input.floor, ty, cur.flags) {
                     cur.pos = (x, y);
                     cur.steps += 1;
+                }
+                // 【S5 修复复核 R4（黄）】首只 ty75 的钩子跑完脚本 20 ⇒ 引擎置
+                // flag20（`scene_script.rs:60`），此后同局 ty75 正常补步。搜索侧
+                // （Monster 臂）同处置位，回放必须一致，否则路线判死。
+                if ty == 75 && input.floor <= 50 {
+                    cur.flags |= 1u128 << 20;
                 }
                 i += 1;
             } else if let Some(rest) = tok.strip_prefix("door ") {

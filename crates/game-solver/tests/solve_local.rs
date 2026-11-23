@@ -1612,3 +1612,74 @@ fn s5_ty75_kill_resteps_on_floor_gt50() {
     assert!(res.is_ok(), "f53 回放必须同口径（restep）：{res:?}");
 }
 
+/// 同层两只 ty75 的 fixture：走廊 y=1 全可走，怪在 x=1 与 x=2，出口 x=4。
+fn fixture_two_ty75_same_floor(p: PlayerCombat) -> SolveInput {
+    let (base, scaled) = enemy_tables();
+    let level = LevelSpec {
+        cols: 5,
+        rows: 3,
+        terrain: vec![
+            false, false, false, false, false, true, true, true, true, true, false, false, false,
+            false, false,
+        ],
+        start: (0, 1),
+        entities: vec![
+            EntSpec { ty: 75, x: 1, y: 1, param: 0 },
+            EntSpec { ty: 75, x: 2, y: 1, param: 0 },
+            EntSpec { ty: 7, x: 4, y: 1, param: 2 },
+        ],
+        exits: vec![ExitSpec { x: 4, y: 1, kind: ExitKind::Stair, index: 1 }],
+        player: PlayerSpec::from_combat(p),
+        enemies: scaled,
+        enemy_base: base,
+        flags: 0,
+    };
+    SolveInput { floor: 10, difficulty: 0, level: Some(level) }
+}
+
+/// 【S5 修复复核 R4（黄）判据】同局**第二只** ty75 必须 restep。
+///
+/// 引擎路径：首只 ty75 撞杀 → `try_run_scene(20,true)` → `load_level_script(20)` →
+/// 脚本 20 行尾 `on_line_end` 置 `script_line_flags[20]`（`scene_script.rs:60`）⇒
+/// 门 20 的 `!flag(20)` 不再成立 ⇒ 第二只 ty75 的钩子不跑 ⇒ `battle_rerun_scene=false`
+/// ⇒ `scene.rs:3715` 正常补步、玩家移入被杀格。
+///
+/// 修复前：谓词只读入场 `flags0`（bit20 从未被写回）⇒ 两只 ty75 都被建模成
+/// 「不移位」⇒ 第二只后还要多走一步进格，路线比引擎多 1 步且与回放不一致。
+#[test]
+fn s5_ty75_second_kill_in_same_layer_resteps() {
+    let input = fixture_two_ty75_same_floor(player(9999, 500, 500));
+    let r = solve_local(&input);
+    assert!(r.reachable, "两只 ty75 都必须可杀：{r:?}");
+    let bumps: Vec<usize> = r
+        .route
+        .iter()
+        .enumerate()
+        .filter(|(_, t)| t.starts_with("bump 75@"))
+        .map(|(i, _)| i)
+        .collect();
+    assert_eq!(bumps.len(), 2, "route 必须两只都撞：{:?}", r.route);
+    // 第一只：不移位 ⇒ 撞杀后紧跟「走进已空的怪格」(1,1)。
+    assert_eq!(
+        r.route.get(bumps[0] + 1).map(|s| s.as_str()),
+        Some("1,1"),
+        "首只 ty75 不 restep ⇒ 下一步必须走进怪格：{:?}",
+        r.route
+    );
+    // 第二只：restep ⇒ 撞杀后已在 (2,1)，下一步直接 (3,1)，**不许**再出现同格走位。
+    assert_eq!(
+        r.route.get(bumps[1] + 1).map(|s| s.as_str()),
+        Some("3,1"),
+        "第二只 ty75 必须 restep（flag20 已由首杀脚本置位）⇒ 撞杀后直达下一格：{:?}",
+        r.route
+    );
+    let level = input.level.clone().unwrap();
+    let full = game_solver::solve_local::sprite_full(&level);
+    let res = game_solver::solve_local::replay_route(
+        &input, level.start, &full, &level.player, 0, &r.route,
+    );
+    assert!(res.is_ok(), "回放必须与搜索同口径（首杀不移、后续补步）：{res:?}");
+    assert_eq!(res.unwrap().pos, (4, 1));
+}
+
+
