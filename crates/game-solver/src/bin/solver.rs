@@ -346,24 +346,33 @@ fn run_outer_seg_cli(args: &[String]) {
         );
     }
     println!("  replay={:?}", rep.replay);
+    // 断链时关键数字必须读**前缀**（与 JSON 同一份数据，禁止 stdout 另算一份）：
+    // `floors` 是全链语义（blocked 时为空），前缀证据在 `prefix_floors`。
+    let stats_floors: &[game_solver::witness::WitnessFloor] = if rep.floors.is_empty() {
+        &rep.prefix_floors
+    } else {
+        &rep.floors
+    };
     // 关键数字：总损血 = 300−末层 hp；购买 = route 里 buy 臂 token 计数（`buy@`）；
     // 回拾 = 重访层对数（同层二次入场计一次回拾）。
-    let last = rep.floors.last();
-    let buys: usize = rep
-        .floors
+    let last = stats_floors.last();
+    let buys: usize = stats_floors
         .iter()
         .flat_map(|f| f.route.iter())
         .filter(|t| t.starts_with("buy@") || t.contains("buy"))
         .count();
     let mut seen = std::collections::BTreeSet::new();
     let mut reentry = 0usize;
-    for f in &rep.floors {
+    for f in stats_floors {
         if !seen.insert(f.floor) {
             reentry += 1;
         }
     }
     println!(
-        "  final hp={} gold={} yellow={}; 总损血={} 购买臂={} 回拾={}",
+        "  stats-scope={} floors={} steps={}; final hp={} gold={} yellow={}; 总损血={} 购买臂={} 回拾={}",
+        if rep.floors.is_empty() { "prefix" } else { "full-chain" },
+        stats_floors.len(),
+        rep.prefix_steps,
         last.map(|f| f.out_player.hp).unwrap_or(0),
         last.map(|f| f.out_player.gold).unwrap_or(0),
         last.map(|f| f.out_player.yellow).unwrap_or(0),
@@ -371,24 +380,18 @@ fn run_outer_seg_cli(args: &[String]) {
         buys,
         reentry,
     );
-    // 复核黄2 首验（blocked 前缀版）：链 blocked 时 ChainReport.floors 为空，
-    // 但首个有解段的段内 witness floors 就是**真数据 witness**——对它做端到端回放。
-    if rep.replay.is_none() {
-        if let Some((seg, w)) = rep
-            .segments
-            .iter()
-            .find_map(|s| s.witness.as_ref().filter(|w| !w.floors.is_empty()).map(|w| (s, w)))
-        {
-            let first_entry = segs[0].start.map(|(_, c)| c).unwrap_or((1, 11));
-            match game_solver::outer_witness::replay_outer_witness(&levels, first_entry, &shops, &w.floors) {
-                Ok(()) => println!("  seg-prefix-replay[{}]: pass（{} 层）", seg.name, w.floors.len()),
-                Err(e) => println!(
-                    "  seg-prefix-replay[{}]: FAILED visit={} floor={} token_index={} token={:?} stage={} reason={}",
-                    seg.name, e.visit, e.floor, e.token_index, e.token, e.stage, e.reason
-                ),
-            }
-        }
-    }
+    // 前缀回放：同一份 `prefix_replay` 原文进 JSON（S5 复核 F4/F7：不许只活在 stdout）。
+    println!(
+        "  prefix-replay: status={} visit={} floor={} token_index={} token={:?} stage={} reason={} layers={}",
+        rep.prefix_replay.status,
+        rep.prefix_replay.visit,
+        rep.prefix_replay.floor,
+        rep.prefix_replay.token_index,
+        rep.prefix_replay.token,
+        rep.prefix_replay.stage,
+        rep.prefix_replay.reason,
+        rep.prefix_replay.layers,
+    );
     if let Some(path) = args.iter().position(|a| a == "--out").and_then(|i| args.get(i + 1)) {
         let text = serde_json::to_string_pretty(&rep).expect("ChainReport 序列化");
         std::fs::write(path, format!("{text}\n")).unwrap_or_else(|e| panic!("写 {path}: {e}"));

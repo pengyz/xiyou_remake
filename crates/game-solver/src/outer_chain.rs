@@ -123,21 +123,60 @@ pub struct BlockedSeg {
     pub detail: String,
 }
 
+/// 断链前缀的回放结果（[`ChainReport::prefix_replay`]）。
+///
+/// 语义：对 [`ChainReport::prefix_floors`]（断链前已解出的层序列）跑一次
+/// [`crate::outer_witness::replay_outer_witness`]。**成功也必须落盘**（`status="pass"`），
+/// 不许让失败定位只活在 stdout（S5 复核 F4/F7：旧版 `replay:null` 把前缀证据丢了）。
+///
+/// `status` 词表：`pass`（前缀全程回放绿）| `fail`（红，六字段定位到 token）|
+/// `not_run`（前缀为空，无层可回放——`reason` 说明原因）。
+#[derive(Debug, serde::Serialize)]
+pub struct PrefixReplay {
+    pub status: String,
+    /// 层访问序号（0 起）：`fail`=失败所在访问；`pass`=末次访问；`not_run`=0。
+    pub visit: usize,
+    /// 该访问的楼层：`fail`=失败层；`pass`=末层；`not_run`=0（无意义）。
+    pub floor: i32,
+    /// 失败 token 下标；`pass`/`not_run`=0。
+    pub token_index: usize,
+    /// 失败 token 原文；`pass`/`not_run` 为空串。
+    pub token: String,
+    /// 失败阶段（`route`/`flags_hex`/`entry_mismatch`/`pos_unknown`/…）；
+    /// `pass`/`not_run` 为空串。
+    pub stage: String,
+    /// 失败原因；`pass` 为空串；`not_run`=未跑原因。
+    pub reason: String,
+    /// 实际回放的层数（`pass`/`fail`=前缀层数；`not_run`=0）。
+    pub layers: usize,
+}
+
 #[derive(Debug, serde::Serialize)]
 pub struct ChainReport {
     pub schema: String,
     /// `witness`（全程拼接成功）| `blocked`（具名断点）。
     pub status: String,
     pub segments: Vec<SegReport>,
-    /// 各段 witness floors 顺序拼接（含 in/out 玩家与 flags 接力证据）。
+    /// **全链**语义：各段 witness floors 顺序拼接（仅 `status="witness"` 时非空）。
+    /// blocked 时为空——已解前缀在 [`Self::prefix_floors`]，两者不许混用。
     pub floors: Vec<WitnessFloor>,
+    /// **全链**步数（仅 `status="witness"` 时非零；断链后段的步数不计入）。
+    /// blocked 时的前缀步数在 [`Self::prefix_steps`]。
     pub total_steps: i32,
     /// 仅全链以真 Ending 收尾时为真（BossKill 段末不冒充通关）。
     pub ending_done: bool,
     pub blocked: Option<BlockedSeg>,
     pub total_pops: u64,
-    /// 拼接 floors 的 [`crate::outer_witness::replay_outer_witness`] 自证：
-    /// `Some("pass")` 或失败描述；`None`=无层可回放。
+    /// 断链前已解出的**前缀**层序列（`status="witness"` 时= `floors`）。
+    /// blocked 时顶层可读，不再只藏在 `segments[0].witness.floors`（S5 复核 F4/F7）。
+    pub prefix_floors: Vec<WitnessFloor>,
+    /// 前缀步数（与 [`Self::prefix_floors`] 同步；`status="witness"` 时= `total_steps`）。
+    pub prefix_steps: i32,
+    /// 前缀回放结果（结构化；见 [`PrefixReplay`]）。
+    pub prefix_replay: PrefixReplay,
+    /// **全链** floors 的 [`crate::outer_witness::replay_outer_witness`] 自证：
+    /// `Some("pass")` 或失败描述；`None`=全链未运行（blocked 或无可回放层）。
+    /// 前缀回放不在此字段，见 [`Self::prefix_replay`]。
     pub replay: Option<String>,
 }
 
@@ -358,7 +397,9 @@ pub fn run_chain_with(
         total_pops += ow.outer.pops;
         let floors_solved = ow.floors.len();
         let seg_ok = ow.status == "witness";
-        if seg_ok {
+        // 全链口径：断链后的段步数不计入 total_steps（与 floors 同条件同步，
+        // 否则 blocked 报告的 total_steps 会混入未拼接段——S5 复核 F4/F7）。
+        if seg_ok && chain_alive {
             total_steps += ow.total_steps;
         }
         // 接力比对：上段末层 out_* vs 本段首层 in_*（逐字段，含 flags hex）。
@@ -416,11 +457,11 @@ pub fn run_chain_with(
         }
     }
 
-    // 拼接回放自证（复核黄2 首验：真 witness 端到端回放）。
+    let first_entry = segs[0].start.map(|(_, c)| c).unwrap_or((1, 11));
+    // 全链回放自证：只在真拼接（witness）时有意义。
     let replay = if floors.is_empty() {
         None
     } else {
-        let first_entry = segs[0].start.map(|(_, c)| c).unwrap_or((1, 11));
         Some(
             match crate::outer_witness::replay_outer_witness(levels, first_entry, shops, &floors) {
                 Ok(()) => "pass".to_string(),
@@ -430,6 +471,59 @@ pub fn run_chain_with(
                 ),
             },
         )
+    };
+    // 断链前缀：真拼接为空时取**首个**已解出层的段（真数据形状：seg1 解出 11 层、
+    // 锚层 f52/f4 断链 ⇒ floors 空但前缀有 11 层）。不允许只把证据留在段内 witness。
+    let (prefix_floors, prefix_steps) = if !floors.is_empty() {
+        (floors.clone(), total_steps)
+    } else if let Some((f, st)) = segments.iter().find_map(|s| {
+        s.witness
+            .as_ref()
+            .filter(|w| !w.floors.is_empty())
+            .map(|w| (w.floors.clone(), w.total_steps))
+    }) {
+        (f, st)
+    } else {
+        (Vec::new(), 0)
+    };
+    // 前缀回放：成功落 `pass`、失败落六字段定位、空前缀落 `not_run`——三种都进 JSON
+    // （S5 复核 F4/F7：旧版只有 stdout 的 seg-prefix-replay 行）。
+    let prefix_replay = if prefix_floors.is_empty() {
+        PrefixReplay {
+            status: "not_run".to_string(),
+            visit: 0,
+            floor: 0,
+            token_index: 0,
+            token: String::new(),
+            stage: String::new(),
+            reason: "前缀为空（断链前没有任何一层解出），无层可回放".to_string(),
+            layers: 0,
+        }
+    } else {
+        let layers = prefix_floors.len();
+        let last_floor = prefix_floors.last().map_or(0, |f| f.floor);
+        match crate::outer_witness::replay_outer_witness(levels, first_entry, shops, &prefix_floors) {
+            Ok(()) => PrefixReplay {
+                status: "pass".to_string(),
+                visit: layers - 1,
+                floor: last_floor,
+                token_index: 0,
+                token: String::new(),
+                stage: String::new(),
+                reason: String::new(),
+                layers,
+            },
+            Err(e) => PrefixReplay {
+                status: "fail".to_string(),
+                visit: e.visit,
+                floor: e.floor,
+                token_index: e.token_index,
+                token: e.token,
+                stage: e.stage,
+                reason: e.reason,
+                layers,
+            },
+        }
     };
     let status = if blocked.is_none() && !segments.is_empty() { "witness" } else { "blocked" };
     let ending_done = blocked.is_none()
@@ -446,6 +540,9 @@ pub fn run_chain_with(
         ending_done,
         blocked,
         total_pops,
+        prefix_floors,
+        prefix_steps,
+        prefix_replay,
         replay,
     }
 }

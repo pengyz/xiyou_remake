@@ -884,3 +884,118 @@ fn s5_driver_landing_uses_target_floor_stairs() {
         ow.attempts.iter().map(|a| a.outcome.clone()).collect::<Vec<_>>()
     );
 }
+
+// ================================================================ S5 复核 F4/F7：证据进 JSON
+
+/// 段内解出 s 层的注入层（fails on f52 anchor）——seg1 解出 f51 后在锚层断链，
+/// 复现真数据形状：`segments[0].witness.floors` 有层、链级 `floors` 为空。
+fn layer_fail_at_anchor() -> impl Fn(
+    &SolveInput,
+    (i32, i32),
+    &PlayerSpec,
+    u128,
+    Option<&[game_solver::solve_local::EntRec]>,
+    Option<i32>,
+    &[game_data::defs::ShopGoodDef],
+) -> (game_solver::solve_local::ExitSolve, bool) {
+    let base = walk_mut_layer();
+    move |input, entry, p, fl, ents, toward, shops| {
+        if input.floor == 52 {
+            return (fake_fail(p), false); // 锚层失败 ⇒ 段 blocked、链断
+        }
+        base(input, entry, p, fl, ents, toward, shops)
+    }
+}
+
+/// 【S5 F4/F7 判据】blocked 链的前缀证据必须**进 JSON 顶层**：
+/// `prefix_floors` / `prefix_steps` 具名承载已解前缀；`floors`/`total_steps` 仍是
+/// **全链**语义（blocked ⇒ 空/0，不许把前缀冒充全链）；`prefix_replay` 是结构化
+/// 对象（不是 `replay:null` 那种证据丢失），成功也必须明确 `status="pass"`。
+///
+/// 修复前红：JSON 无 prefix_floors/prefix_steps/prefix_replay 三键，前缀回放只是
+/// `bin/solver.rs` 的 stdout（复核 F4/F7 实测）。
+#[test]
+fn s5_chain_prefix_evidence_lands_in_json() {
+    let doc: &'static game_solver::outer::BlockInterfaces =
+        Box::leak(Box::new(load_block_interfaces(&chain_doc()).unwrap()));
+    let levels = chain_levels();
+    let cfg = ChainCfg { max_pops: 200_000, candidates: 5, max_floors: 16 };
+    let layer = layer_fail_at_anchor();
+    let rep = run_chain_with(
+        doc, &levels, &chain_enemies(), &[], &PlayerSpec::from_combat(s0()), 0,
+        &chain_segs(), &cfg, &layer,
+    );
+    assert_eq!(rep.status, "blocked", "seg1 锚层失败 ⇒ 链必须 blocked");
+    let v = serde_json::to_value(&rep).expect("ChainReport 必须可序列化");
+
+    // ① 前缀层序列/步数：顶层具名字段，不许只藏在 segments[0].witness.floors。
+    let pf = v
+        .get("prefix_floors")
+        .and_then(|x| x.as_array())
+        .unwrap_or_else(|| panic!("blocked 时顶层必须有 prefix_floors：{v}"));
+    assert_eq!(pf.len(), 1, "seg1 只解出 f51（锚层 f52 失败）：{v}");
+    assert_eq!(pf[0]["floor"], 51);
+    assert_eq!(
+        v.get("prefix_steps").and_then(|x| x.as_i64()),
+        Some(rep.segments[0].witness.as_ref().unwrap().total_steps as i64),
+        "prefix_steps 必须与段内 witness 同步：{v}"
+    );
+    // floors/total_steps 保持「全链」语义：blocked ⇒ 不许把前缀冒充全链。
+    assert_eq!(v["floors"].as_array().map(Vec::len), Some(0), "floors 仍是全链语义：{v}");
+    assert_eq!(v["total_steps"], 0, "total_steps 仍是全链语义：{v}");
+
+    // ② 前缀回放：结构化记录，成功也明确 pass。
+    let r = v
+        .get("prefix_replay")
+        .unwrap_or_else(|| panic!("prefix_replay 必须存在（不许丢成 replay:null）：{v}"));
+    assert_eq!(r["status"], "pass", "前缀 1 层回放必须绿：{r}");
+    for k in ["visit", "floor", "token_index", "token", "stage", "reason"] {
+        assert!(r.get(k).is_some(), "prefix_replay 缺字段 {k}: {r}");
+    }
+    assert_eq!(r["floor"], 51, "pass 时 floor=末次回放层：{r}");
+    assert_eq!(r["visit"], 0, "pass 时 visit=末次访问序号（0 起）：{r}");
+    // 段内 witness 仍保留（证据只提升，不删除）。
+    assert_eq!(rep.segments[0].witness.as_ref().unwrap().floors.len(), 1);
+}
+
+/// 【S5 F4/F7 判据】前缀回放**失败**必须在 JSON 里可定位到 token：
+/// status=fail + visit/floor/token_index/token/stage/reason 六字段。
+/// 修复前红：这些字只在 stdout 出现，JSON 里 no_match/token_index 各 0 次。
+#[test]
+fn s5_chain_prefix_replay_failure_named_in_json() {
+    let doc: &'static game_solver::outer::BlockInterfaces =
+        Box::leak(Box::new(load_block_interfaces(&chain_doc()).unwrap()));
+    let levels = chain_levels();
+    let cfg = ChainCfg { max_pops: 200_000, candidates: 5, max_floors: 16 };
+    let base = layer_fail_at_anchor();
+    // f51 层解「成功」但 route 被篡改为不可达 token ⇒ witness 层落盘，回放必红。
+    let layer = move |input: &SolveInput, entry: (i32, i32), p: &PlayerSpec, fl: u128,
+                      ents: Option<&[game_solver::solve_local::EntRec]>, toward: Option<i32>,
+                      shops: &[game_data::defs::ShopGoodDef]|
+        -> (game_solver::solve_local::ExitSolve, bool) {
+        let (mut got, ok) = base(input, entry, p, fl, ents, toward, shops);
+        if input.floor == 51 && ok {
+            got.route = vec!["9,9".to_string()]; // 非邻接位移（x 从 1 直接跳 9）
+        }
+        (got, ok)
+    };
+    let rep = run_chain_with(
+        doc, &levels, &chain_enemies(), &[], &PlayerSpec::from_combat(s0()), 0,
+        &chain_segs(), &cfg, &layer,
+    );
+    assert_eq!(rep.status, "blocked");
+    let v = serde_json::to_value(&rep).expect("ChainReport 必须可序列化");
+    let r = v
+        .get("prefix_replay")
+        .unwrap_or_else(|| panic!("prefix_replay 必须存在：{v}"));
+    assert_eq!(r["status"], "fail", "前缀回放必须如实红：{r}");
+    assert_eq!(r["visit"], 0, "首个访问：{r}");
+    assert_eq!(r["floor"], 51);
+    assert_eq!(r["token_index"], 0, "失败必须定位到 token 下标：{r}");
+    assert_eq!(r["token"], "9,9");
+    assert_eq!(r["stage"], "route");
+    let reason = r["reason"].as_str().unwrap_or("");
+    assert!(reason.contains("非邻接位移"), "失败原因必须具名：{r}");
+    // 前缀层仍要在顶层可读（失败不影响已解前缀的落盘）。
+    assert_eq!(v["prefix_floors"].as_array().map(Vec::len), Some(1), "{v}");
+}
