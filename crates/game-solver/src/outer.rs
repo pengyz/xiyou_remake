@@ -989,8 +989,8 @@ pub fn outer_search(
     let mut heap = BinaryHeap::new();
     heap.push(HeapItem { steps: 0, seq: 0, state: start_state.clone(), path: Vec::new(), gates: Vec::new() });
     let mut best: HashMap<OuterState, u64> = HashMap::new();
-    // 同节点支配档案：picked 位图 → (buys, 全维数值档案)
-    let mut seen: HashMap<usize, Vec<(Vec<u8>, u32, i32, i32, i32, i32, i32, i32, i32, i32, u128)>> =
+    // 同节点支配档案：picked 位图 → (picked, buys, 全维数值档案, **steps**)。
+    let mut seen: HashMap<usize, Vec<(Vec<u8>, u32, i32, i32, i32, i32, i32, i32, i32, u64, u128)>> =
         HashMap::new();
     let mut seq: u64 = 1;
     loop {
@@ -1004,7 +1004,7 @@ pub fn outer_search(
         }
         // 支配剪枝：同节点、同 picked、同 buys 档，其余全维不劣且步数不增 ⇒ 剪。
         // （不同 picked/held 的状态各自保留——支配对未拾取未来不完整。）
-        if dominated_seen(&mut seen, &state) {
+        if dominated_seen(&mut seen, &state, steps) {
             continue;
         }
         // 进块拾取（未拾取过才结算；块可重入）
@@ -1130,12 +1130,15 @@ pub fn outer_search(
 /// 同节点支配判定与登记：picked 完全相同、buys 相同档位时，若档案中已有
 /// 步数更少且数值全维不劣的条目则剪掉；否则登记。（held 超集维度保守地
 /// 不比——见模块 doc 已知边界。）
-/// 前置判据（复核 F6）：支配剪枝不含步数维，健全性依赖「所有转移成本 ≥1，
-/// 堆按 steps 弹出 ⇒ 归档条目 steps 必 ≤ 当前」。加 0 成本边前必须先改这里。
-/// （审计断言：编译期由 OM2 变异守护购买成本；邻块/换层 +1 为字面量。）
+/// 【S5 机制 1】步数维**显式入键**（旧实现占位 0 恒不比较，健全性只靠
+/// 「堆按 steps 弹出 ⇒ 归档条目 steps 必 ≤ 当前」的隐含不变量；加 0 成本边
+/// 或任何打乱弹序的改造都会静默破坏它）。现 steps 显式比较：归档条目
+/// steps ≤ 当前 steps 才算支配；更便宜的新态照常入档（保守「保留双态」，
+/// 不做删除重推——删除只减剪枝会改既有收敛结果，另记 findings）。
 fn dominated_seen(
-    seen: &mut HashMap<usize, Vec<(Vec<u8>, u32, i32, i32, i32, i32, i32, i32, i32, i32, u128)>>,
+    seen: &mut HashMap<usize, Vec<(Vec<u8>, u32, i32, i32, i32, i32, i32, i32, i32, u64, u128)>>,
     state: &OuterState,
+    steps: u64,
 ) -> bool {
     let entry = (
         state.picked.clone(),
@@ -1147,12 +1150,13 @@ fn dominated_seen(
         state.gold,
         state.atk,
         state.def,
-        0,
+        steps,
         state.held,
     );
     let arc = seen.entry(state.node).or_default();
-    let dominated = arc.iter().any(|(_, b, y, r, bl, hp, g, a, d, _, h)| {
-        *b <= state.buys
+    let dominated = arc.iter().any(|(_, b, y, r, bl, hp, g, a, d, sp, h)| {
+        *sp <= steps
+            && *b <= state.buys
             && *y >= state.yellow
             && *r >= state.red
             && *bl >= state.blue
@@ -1387,6 +1391,39 @@ mod tests {
         // 打不动：atk10 ≤ def15 ⇒ 不 killable 不 fatal
         let (k3, f3) = anchor_killable(&en, 75, 10, 12, 5200, 0).unwrap();
         assert!(!k3 && !f3);
+    }
+
+    /// 判据（S5 机制 1，TDD 先红）：支配归档带**显式步数维**。
+    /// 旧键不含 steps（占位 0 恒不比较，健全性只靠「堆按 steps 弹出」的隐含
+    /// 不变量）。本判据在单元层面构造「归档条目 steps=10、新态 steps=5 同态
+    /// 同维」——旧逻辑会剪掉更便宜的新态（只留一条，bug 暴露），新逻辑必须
+    /// 保留（两态共存）；反向（归档 5 / 新态 10）仍剪。
+    #[test]
+    fn s5_dominance_explicit_steps_keeps_cheaper_state() {
+        let st = OuterState {
+            node: 0, yellow: 1, red: 0, blue: 0, hp: 300, gold: 50, atk: 10, def: 10,
+            held: 0, picked: vec![0b11], buys: 0,
+        };
+        // 归档：同态（同 picked/held/buys）、同维数值——但归档条目 steps=10。
+        type Arc = Vec<(Vec<u8>, u32, i32, i32, i32, i32, i32, i32, i32, u64, u128)>;
+        let arc10: Arc = vec![(
+            st.picked.clone(), st.buys, st.yellow, st.red, st.blue, st.hp, st.gold,
+            st.atk, st.def, 10, st.held,
+        )];
+        let mut seen: HashMap<usize, Arc> = HashMap::new();
+        seen.insert(0, arc10);
+        // 新态 steps=5（比归档便宜）：全维不劣不成立（steps 维更优）⇒ 不得剪。
+        assert!(!dominated_seen(&mut seen, &st, 5), "steps=5 的新态不得被 steps=10 归档剪掉");
+        assert_eq!(seen[&0].len(), 2, "两态共存（steps 维显式入键）");
+        // 反向：归档 steps=5、新态 steps=10 同维 ⇒ 剪（支配成立）。
+        let arc5: Arc = vec![(
+            st.picked.clone(), st.buys, st.yellow, st.red, st.blue, st.hp, st.gold,
+            st.atk, st.def, 5, st.held,
+        )];
+        let mut seen2: HashMap<usize, Arc> = HashMap::new();
+        seen2.insert(0, arc5);
+        assert!(dominated_seen(&mut seen2, &st, 10), "steps=10 的同态劣于 steps=5 归档 ⇒ 剪");
+        assert_eq!(seen2[&0].len(), 1, "被剪态不入档");
     }
 
     /// 判据（加载契约）：schema 不符 ⇒ 具名 SchemaMismatch，禁回落。
